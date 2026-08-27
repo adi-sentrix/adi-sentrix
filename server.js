@@ -45,7 +45,7 @@ const server = http.createServer(async (req, res) => {
      * replica el mismo reparto para que local y producción sirvan la misma ruta por el mismo camino. */
     if (req.url.startsWith("/api/adi-ingesta")) {
       let body = ""; for await (const c of req) body += c;
-      const out = await handleIngesta(JSON.parse(body || "{}"));
+      const out = await handleIngesta(JSON.parse(body || "{}"), process.env);
       res.statusCode = 200;
       res.setHeader("content-type", "application/json; charset=utf-8");
       res.end(JSON.stringify(out));

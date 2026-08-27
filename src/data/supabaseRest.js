@@ -58,7 +58,7 @@ export function crearClienteRest({ url, apikey, transporte = _transportePorDefec
     throw new Error("crearClienteRest: la llave de servicio se salta RLS y no puede usarse acá — es solo para migrar y sembrar");
   }
 
-  async function _pedir(metodo, ruta, { pase, cuerpo, prefer } = {}) {
+  async function _pedir(metodo, ruta, { pase, cuerpo, cuerpoCrudo, prefer, contentType } = {}) {
     if (!pase) return { ok: false, motivo: "sin pase: no se consulta la base sin declarar de qué empresa es" };
     if (esCredencialDeServicio(pase)) {
       return { ok: false, motivo: "el pase no puede ser la llave de servicio" };
@@ -70,6 +70,7 @@ export function crearClienteRest({ url, apikey, transporte = _transportePorDefec
       Accept: "application/json",
     };
     if (cuerpo !== undefined) cabeceras["Content-Type"] = "application/json";
+    if (cuerpoCrudo !== undefined) cabeceras["Content-Type"] = contentType || "application/octet-stream";
     if (prefer) cabeceras.Prefer = prefer;
 
     // Un corte propio: sin esto, una base lenta cuelga el endpoint y el usuario ve la app en blanco sin
@@ -80,7 +81,7 @@ export function crearClienteRest({ url, apikey, transporte = _transportePorDefec
       const r = await transporte(`${base}${ruta}`, {
         method: metodo,
         headers: cabeceras,
-        body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+        body: cuerpoCrudo !== undefined ? cuerpoCrudo : (cuerpo === undefined ? undefined : JSON.stringify(cuerpo)),
         signal: corte.signal,
       });
       const texto = await r.text();
@@ -147,6 +148,23 @@ export function crearClienteRest({ url, apikey, transporte = _transportePorDefec
         pase,
         cuerpo: cambios,
         prefer: devolver ? "return=representation" : "return=minimal",
+      });
+    },
+
+    /* subirObjeto("adi-originales", "demo/abc.xlsx", bytes, { pase }) → guarda el archivo tal como llegó.
+     *
+     * ⚠️ LA RUTA ES EL CONTROL DE ACCESO, NO UNA CONVENCIÓN DE ORDEN. La política del depósito compara la
+     * PRIMERA CARPETA del nombre contra la empresa del pase (`002_storage_originales.sql`), así que una ruta
+     * sin esa forma no es un archivo mal ordenado: es un archivo fuera del alcance de la política. Por eso se
+     * valida la forma acá y se rechaza antes de salir, en vez de dejar que la base decida. */
+    async subirObjeto(bucket, ruta, bytes, { pase, contentType, sobrescribir = false } = {}) {
+      if (!/^[a-z0-9][a-z0-9-]*$/.test(String(bucket))) return { ok: false, motivo: `depósito inválido: ${bucket}` };
+      if (!/^[a-z0-9][a-z0-9_-]{0,31}\/[A-Za-z0-9._-]{1,100}$/.test(String(ruta))) {
+        return { ok: false, motivo: `la ruta tiene que ser {empresa}/{archivo}: ${ruta}` };
+      }
+      if (bytes === undefined || bytes === null) return { ok: false, motivo: "no hay bytes que subir" };
+      return _pedir(sobrescribir ? "PUT" : "POST", `/storage/v1/object/${bucket}/${ruta}`, {
+        pase, cuerpoCrudo: bytes, contentType,
       });
     },
   };

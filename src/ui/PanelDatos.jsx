@@ -18,6 +18,7 @@
  */
 import React, { useState, useRef } from "react";
 import { C } from "./theme.js";
+import { getAccessCode } from "../adi/accessClient.js";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
 const SANS = "'DM Sans', system-ui, sans-serif";
@@ -39,9 +40,13 @@ function aBase64(file) {
   });
 }
 
+/* El código de acceso viaja con cada pedido, igual que en el resto del producto: es de donde el servidor saca
+ * DE QUÉ EMPRESA es esta carga cuando tiene que guardarla. El navegador no elige empresa — lleva su código
+ * firmado y el servidor lee lo que ya verificó. */
 async function pedir(payload) {
   const res = await fetch("/api/adi-ingesta", {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...payload, access: getAccessCode() }),
   });
   return res.json();
 }

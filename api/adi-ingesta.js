@@ -32,7 +32,7 @@ export default async function handler(req, res) {
       for await (const c of req) chunks.push(c);
       body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
     }
-    const out = await handleIngesta(body || {});
+    const out = await handleIngesta(body || {}, process.env);
     res.statusCode = 200;
     res.setHeader("content-type", "application/json; charset=utf-8");
     res.setHeader("cache-control", "no-store, max-age=0");
