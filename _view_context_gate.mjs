@@ -186,7 +186,10 @@ H("[7] INVALIDACIÓN · al cambiar vista, filtro, entidad o tema");
 {
   const a = DERIVADOS["comercial/01/tabla-cartera"];
   const b = DERIVADOS["comercial/01/sostiene-clientes"];
-  const cap = DERIVADOS["capital/01/mapa"];
+  /* ⚠️ ERA "capital/01/mapa", que se fue el 2026-08-27 con la línea que narraba el mapa del capital. Lo que
+     esta línea prueba —que dos componentes distintos nunca comparten key— no depende de CUÁL sea el tercero,
+     así que toma el KPI de capital, que sigue en pantalla y en el manifiesto. */
+  const cap = DERIVADOS["capital/01/kpi-capital"];
   ok(a.key !== b.key && a.key !== cap.key, "dos componentes distintos nunca comparten key");
   const a2 = deriveViewContextOrErrors("comercial/01/tabla-cartera", buildResumenComercial(SCN), { scenario: SCN, requestContext: RC }).vc;
   ok(a2.key === a.key, "repintar el MISMO componente con el MISMO dato no invalida nada");
@@ -219,7 +222,10 @@ H("[8] ÍNDICE tool→componente · se abstiene antes que adivinar");
   ok(componentIdForTool("salesRead", "concentracion") === "comercial/01/pareto-ventas", "salesRead@concentracion → el Pareto de ventas");
   ok(componentIdForTool("diagnose", "carga") === "comercial/02/acciones-vs-meta", "diagnose@carga → acciones contra la meta");
   ok(componentIdForTool("entityProfile") === "ficha/otro/ficha-cliente", "entityProfile → la Ficha (no el contexto ambiente de la vista)");
-  ok(componentIdForTool("inventoryStatus") === "capital/01/veredicto", "inventoryStatus → la cara Capital");
+  /* ⚠️ APUNTABA A "capital/01/veredicto", que se fue el 2026-08-27 con la tarjeta del veredicto del capital.
+     Lo que esta línea prueba es que la tool aterriza EN LA CARA CAPITAL, no en cuál de sus piezas: ahora cae
+     en los focos, que es la pieza viva más cercana a lo que inventoryStatus devuelve. */
+  ok(componentIdForTool("inventoryStatus") === "capital/01/focos", "inventoryStatus → la cara Capital");
   ok(componentIdForTool("queryMetric") === null, "queryMetric SIN args se ABSTIENE: cruza Comercial y Capital, y adivinar abriría la cara equivocada");
   // LA PIEZA QUE LA TOOL DE VERDAD DEMUESTRA (owner 2026-08-09, decisión 6 · hallazgo E). Esto esperaba
   // `capital/01/kpi-capital` porque la card del capital TOTAL declaraba como evidencia un ranking por SKU que

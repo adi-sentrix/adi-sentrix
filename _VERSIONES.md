@@ -12,6 +12,57 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 1.15 — producción · tag `v1.15`
+
+**Capital y Resultado quedan sin conclusiones, y la Ficha cambia de nombre.** Segunda pasada de la misma orden
+del owner —«quitarle conclusiones a Sentrix, ADI lo hará»— ahora sobre las dos caras que faltaban.
+
+**Cara CAPITAL** — fuera tres piezas:
+- **El veredicto**: «Tu capital está donde no se vende, y escasea donde sí», con su soporte y su cierre
+  recomendando qué proteger primero.
+- **La línea «ADI · De tus $135K en inventario: …»**, que narraba en prosa los cuatro tramos que las cards de
+  abajo ya dan en cifra. La misma información dos veces, una contada y otra mostrada.
+- **El recuadro «Lo que este dato no permite afirmar»**. ⚠️ Los límites siguen declarados en `capability.js`,
+  que es de donde ADI los toma: los dice cuando la pregunta los toca, que es cuando sirven. Impresos de entrada
+  eran un descargo legal encima del dato.
+
+Las cuatro cards de capital se quedan: son cifras.
+
+**Cara RESULTADO** — fuera cuatro:
+- **«02 · Por qué pasa»**, la tarjeta que nombraba la línea de gasto más pesada y la declaraba culpable.
+- **«03 · Qué hacer primero»**, con «Revisar la línea logística» y el botón «Probar el ajuste» — la conclusión
+  más fuerte de todas: no describe, aconseja.
+- **«¿Y si…?»**, las dos líneas de supuesto sugerido. **No es criterio nuevo**: el owner ya las había sacado de
+  Comercial y de Capital el 2026-08-09 («no aporta»). Resultado era la última cara que las conservaba; ahora
+  las tres van igual.
+- **El párrafo del pie** que explicaba la cara entera — un manual impreso debajo de una pantalla que se explica
+  sola.
+
+Queda la **cascada** y el **cuadro**, que es lo que se muestra. Y el ajuste sigue siendo posible por dos
+caminos: el % de cada línea punteada se edita en la propia cascada, y la simulación se le pide a ADI.
+
+**La pestaña «Ficha» pasa a llamarse «Perfil Ejecutivo».** Sólo el rótulo de la pestaña: dentro de la cara los
+botones cortos («Abrir Ficha», «Ver Ficha») siguen diciendo Ficha — son 28 textos y alinearlos es una decisión
+aparte, pendiente de que el owner la pida.
+
+**Restos quitados**: los contextos `capital/01/veredicto` y `capital/01/mapa` del manifiesto, y la variable que
+sólo alimentaba la línea narrada.
+
+**Cinco afirmaciones de gate movidas, ninguna borrada**: la que apuntaba al veredicto del capital como destino
+de `inventoryStatus` ahora apunta a los focos (misma cara, pieza viva); la que usaba `capital/01/mapa` para
+probar que dos componentes no comparten key toma el KPI de capital; y la que hacía click en la pestaña «Ficha»
+ahora la busca por su nombre nuevo.
+
+⚠️ **Un desliz que costó una pasada y quedó anotado**: el primer corte buscaba el cierre de cada bloque sólo por
+texto (`</div>`) y encontraba el primer div ANIDADO, cortando media pieza y dejando la cola huérfana. El bundle
+no compiló y seis gates se pusieron rojos de una. El corte ahora exige que el cierre esté **a la misma
+indentación** que la apertura.
+
+Verificado en pantalla las tres caras, con la Mesa abierta y —sembrando un P&L de prueba— también la cara
+Resultado con datos, que en el demo arranca vacía. Gates **181 PASS · 0 FAIL · 0 TOCARON LA RED**.
+
+---
+
 ## 1.14 — producción · tag `v1.14`
 
 **Sentrix deja de sacar conclusiones.** La orden del owner, textual: «no es hacer cosas nuevas, sino quitarle

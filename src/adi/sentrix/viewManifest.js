@@ -494,29 +494,10 @@ export const VIEW_MANIFEST = {
       razon: "el contexto ambiente de la cara no autoriza ninguna cifra: el veredicto es texto y el cruce builder↔ledger no produce un solo par comparable. Además, ninguna cifra de esta cara reconcilia con la venta comercial (universos `inventario` ↔ `venta_comercial`, divergencia declarada en config/contract/figureType.js: miles vs dólares crudos y unidades que difieren entre 4x y 35x por SKU)" },
     _provisional: true,
   },
-  "capital/01/veredicto": {
-    vista: "capital", seccion: "01", tipo: "veredicto", label: "El veredicto del capital",
-    campo: "veredicto", metrica: "capital", eje: "sku", periodo: "foto de inventario a hoy",
-    universo: { kind: "negocio", label: "todo el inventario del período", cierraCon: "skuInventario.stockUSD" },
-    comparacion: "estado", estatusDefault: "indicado", estatusCampo: null, controles: [],
-    evidencia: [{ tool: "inventoryStatus", args: {} }],
-    sinTool: null,
-    concordancia: { estado: "unsupported", campos: ["veredicto"],
-      razon: "el veredicto es TEXTO: localiza dónde está el capital y dónde falta, y no afirma ninguna cifra propia — el cruce builder↔ledger no encuentra un par que comparar. Las cifras que menciona son las de sus KPI, y cada uno declara su propio estado" },
-    _provisional: true,
-  },
-  "capital/01/mapa": {
-    vista: "capital", seccion: "01", tipo: "barra", label: "El mapa del capital por estado",
-    campo: "mapa", universoCampo: "mapa.tramos", metrica: "capital", eje: "sku",
-    periodo: "foto de inventario a hoy",
-    universo: { kind: "estado", label: "los cuatro estados del detector de inventario", cierraCon: "los tramos suman el capital total" },
-    comparacion: "estado", estatusDefault: "indicado", estatusCampo: null, controles: [],
-    evidencia: [{ tool: "inventoryStatus", args: {} }],
-    sinTool: null,
-    concordancia: { estado: "reconciled",
-      razon: "los cuatro tramos del detector y el total que suman concuerdan exacto con `inventoryStatus` en los tres escenarios: las dos puntas corren el MISMO `diagnoseInventario` sobre el MISMO inventario del escenario. El ledger además abre ese capital por bodega y por SKU — otro corte del mismo total, no otro universo. Sigue en pie el límite de la cara: este capital no reconcilia con la venta comercial (figureType.js)" },
-    _provisional: true,
-  },
+  /* ⚠️ ACÁ VIVÍAN "capital/01/veredicto" y "capital/01/mapa". Se fueron el 2026-08-27 con las piezas que
+     describían — el veredicto del capital y la línea "ADI · De tus $X en inventario". El manifiesto declara
+     lo que SE PINTA y se puede señalar; la cobertura es biyectiva a propósito para que una entrada sin pieza
+     no pueda quedarse escondida. mesaCapital.js los sigue calculando: lo que no existe es su tarjeta. */
   "capital/01/kpi-capital": {
     vista: "capital", seccion: "01", tipo: "kpi", label: "Capital en inventario",
     campo: "kpis[key='capital']", metrica: "capital", eje: "sku", periodo: "foto de inventario a hoy",
