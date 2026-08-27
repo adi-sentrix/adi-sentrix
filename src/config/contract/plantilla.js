@@ -66,6 +66,20 @@ export const PARAMETROS = [
     ayuda: "el nombre como quieres verlo en pantalla." },
   { clave: "periodo_actual", etiqueta: "fecha de cierre del período que informas (aaaa-mm-dd)", tipo: "fecha", obligatorio: true, ejemplo: "2026-08-31",
     ayuda: "el último día del mes que estás informando. escríbelo así: 2026-08-31." },
+  /* ── LA MONEDA (owner 2026-08-27) ──────────────────────────────────────────────────────────────────────
+   * Este campo lo prometía el comentario de arriba desde el principio —«la moneda va en la cabecera, una vez,
+   * y ADI rotula con ella»— y nunca se creó: se cayó al sacar los parámetros de política. Sin él, la regla
+   * «si la planilla trae moneda, se usa» era una rama que no podía ejecutarse nunca.
+   *
+   * ⚠️ OPCIONAL, Y AL FINAL. Es la única forma de agregarlo sin invalidar los archivos ya llenados, que es la
+   * regla de congelamiento del owner. Quien lo deja en blanco no pierde nada: la pantalla de carga se lo
+   * pregunta una vez antes de activar. Quien lo declara no vuelve a ver esa pregunta.
+   *
+   * ⚠️ Y SIGUE SIN INFERIRSE. Ni de acá ni de la pantalla sale un valor por defecto: la moneda se DECLARA. Es
+   * la lección de miles-contra-dólares —dos universos que no reconcilian porque nadie dijo en qué unidad
+   * estaba cada uno— y no depende de cuál sea la moneda. */
+  { clave: "moneda", etiqueta: "moneda de los montos (CLP, USD, …)", tipo: "texto", obligatorio: false, ejemplo: "CLP",
+    ayuda: "en qué moneda están las cifras de venta, costo y stock. si lo dejas en blanco, te lo preguntamos al cargar." },
 ];
 
 /* ── LAS DOS HOJAS DE DATOS ───────────────────────────────────────────────────────────────────────────────────

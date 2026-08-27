@@ -203,7 +203,15 @@ console.log("=".repeat(100));
   const politicas = ["dohMax", "rotacionMin", "benchmark", "bestPracticeCarga", "targetCarga", "margenBrechaMaterial"];
   const pedidas = politicas.filter((k) => PARAMETROS.some((p) => p.policyKey === k || p.clave === k));
   ok(pedidas.length === 0, "la plantilla no le pide NINGUNA política al usuario", pedidas.join(", "));
-  ok(PARAMETROS.length === 3, `solo quedan tres campos de empresa: ${PARAMETROS.map((p) => p.etiqueta).join(" · ")}`);
+  /* ⚠️ SE MIDE LA REGLA, NO UN NÚMERO. Esto decía `PARAMETROS.length === 3` y se puso rojo al agregar la moneda
+   * como campo OPCIONAL —que es un cambio que la propia regla de congelamiento permite—. Un conteo fijo no
+   * expresaba lo que el owner pidió («deja solo datos de empresa y período»): lo que no se le puede pedir al
+   * usuario es que declare POLÍTICAS y que llene campos de más para poder cargar. Eso es lo que se exige ahora. */
+  const obligatorios = PARAMETROS.filter((p) => p.obligatorio);
+  ok(obligatorios.length === 3,
+    `solo tres campos son obligatorios: ${obligatorios.map((p) => p.etiqueta).join(" · ")}`);
+  ok(PARAMETROS.filter((p) => !p.obligatorio).every((p) => p.clave === "moneda"),
+    `y lo único opcional es la moneda: ${PARAMETROS.filter((p) => !p.obligatorio).map((p) => p.clave).join(" · ") || "nada"}`);
 
   const conEj = await handleIngesta({ op: "plantilla", conEjemplo: true });
   const r2 = await handleIngesta({ archivo: conEj.archivo, nombre: "sin-politicas.xlsx" });

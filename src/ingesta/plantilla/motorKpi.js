@@ -31,6 +31,7 @@
  * abrirse en `BLOQUEADOS`. Ninguno se rellena con un valor plausible.
  */
 import { PARAMETROS } from "../../config/contract/plantilla.js";
+import { monedaLimpia } from "../../config/moneda.js";
 import { resolverDiasYRotacion, FORMULA_DIAS, FORMULA_ROTACION } from "../../adi/sentrix/diasYRotacion.js";
 import { diagnoseInventarioSku } from "../../adi/diagnosis/economicDiagnosis.js";
 import { METRICS } from "../../config/contract/metricRegistry.js";
@@ -338,6 +339,12 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
   /* ── el perfil del negocio · los parámetros declarados, con su llave de POLICY ─────────────────────────── */
   const perfil = {};
   for (const p of PARAMETROS) if (p.policyKey && typeof parametros[p.clave] === "number") perfil[p.policyKey] = parametros[p.clave];
+
+  /* LA MONEDA (owner 2026-08-27). Es texto, no número, así que no entra por el lazo de arriba — y no se le
+   * pone valor por defecto: si la planilla no la trae, queda ausente y la pantalla de carga la pregunta antes
+   * de activar. Un `"CLP"` puesto acá «mientras tanto» sería exactamente lo que el owner prohibió. */
+  const monedaDeclarada = monedaLimpia(parametros.moneda);
+  if (monedaDeclarada) perfil.moneda = monedaDeclarada;
 
   const dataset = {
     id: parametros.empresa_id || null,
