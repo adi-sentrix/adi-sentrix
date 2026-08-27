@@ -883,6 +883,22 @@ const _HEX_MASK_ANILLO = "radial-gradient(66% 60% at 50% 40%, transparent 0%, tr
  * Medido a 1440: el hueco limpio pasa de 228 a ~446 px, y los hexágonos arrancan recién donde termina la
  * conversación. El centro queda para el halo, que es lo que el diseño quería desde el principio. */
 const _HEX_MASK_ANILLO_PAPEL = "radial-gradient(50% 72% at 50% 40%, transparent 0%, transparent 62%, rgba(0,0,0,0.42) 80%, #000 100%)";
+/* ⚠️ CONVERSANDO EL CENTRO NO SE DIBUJA (owner 2026-08-26: «la conversación debe salir con un halo limpio»,
+   y antes: «los hexágonos iban por el costado así no se interponen»). Las máscaras de arriba son RADIALES:
+   despejan un óvalo, que es lo correcto para la portada, donde el contenido es un bloque corto en el medio.
+   Pero un hilo de chat es una COLUMNA ALTA — baja más que el óvalo y se le sale por abajo, así que el texto
+   terminaba cruzando la retícula. Esta es una banda VERTICAL: limpia el centro de arriba a abajo, entero, y
+   deja los hexágonos solo en los dos márgenes. Corta al 26/74% para que el despejado le gane a la columna de
+   760 px de la conversación; en pantalla angosta —o con la Mesa abierta— no queda ni un hexágono, que es el
+   lado seguro del error: el que lee no tiene que ver nada detrás de lo que lee.
+
+   ⚠️ EN PIXELES, NO EN PORCENTAJE, y esto costó una pasada. Con la banda al 26/74% el texto se salía 10 px por
+   la derecha: la columna del hilo NO está centrada —la barra lateral la corre— así que un despejado simétrico
+   en porcentaje nunca le calza. MEDIDO sobre 1440 px: el texto ocupa de −268 a +356 respecto del centro. Los
+   420 px de acá cubren ese lado largo con 64 px de aire, y como son fijos siguen cubriéndolo si el panel se angosta.
+   El regalo del calc(): si el panel baja de ~1000 px los topes se vuelven negativos, el borde opaco desaparece
+   solo y no queda hexágono ninguno — justo lo que hay que hacer cuando ya no sobra margen donde ponerlos. */
+const _HEX_MASK_CONVERSA = "linear-gradient(to right, #000 0px, #000 calc(50% - 500px), transparent calc(50% - 420px), transparent calc(50% + 420px), #000 calc(50% + 500px), #000 100%)";
 // las celdas que se encienden solas: posiciones y tiempos fijos, nunca al azar — un fondo que parpadea distinto
 // en cada carga se percibe como un defecto de render, no como vida.
 const _HEX_LIT = [
@@ -912,11 +928,14 @@ const _HEX_LIT_PAPEL = [
  * rompía lo único que el diseño estaba resolviendo. Por eso vive fuera del contenedor que scrollea — si
  * viviera adentro, el fondo se iría hacia arriba con los mensajes y el halo dejaría de estar centrado en el
  * panel. Se centra en el PANEL, no en el hilo. */
-function CampoHexagonos() {
-  const _anillo = esPapel() ? _HEX_MASK_ANILLO_PAPEL : _HEX_MASK_ANILLO;
+function CampoHexagonos({ conversando }) {
+  // CONVERSANDO manda otra máscara y NINGÚN halo. El anillo se anula porque la banda vertical ya hace el
+  // trabajo: encimar las dos recortaría también los márgenes y no quedaría un solo hexágono a la vista.
+  const _anillo = conversando ? "none" : (esPapel() ? _HEX_MASK_ANILLO_PAPEL : _HEX_MASK_ANILLO);
+  const _campo  = conversando ? _HEX_MASK_CONVERSA : _HEX_MASK_CAMPO;
   return (
     <div aria-hidden="true" style={{ position:"absolute", inset:0, zIndex:0, pointerEvents:"none", overflow:"hidden",
-      WebkitMaskImage:_HEX_MASK_CAMPO, maskImage:_HEX_MASK_CAMPO }}>
+      WebkitMaskImage:_campo, maskImage:_campo }}>
       <style>{`
         @keyframes adiHeroGiro { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes adiHeroRespira { from { opacity:0.62; transform:scale(1); } to { opacity:1; transform:scale(1.09); } }
@@ -932,10 +951,15 @@ function CampoHexagonos() {
           [style*="adiHeroGiro"], [style*="adiHeroRespira"], [style*="adiHeroPrende"] { animation: none !important; }
         }
       `}</style>
-      {/* EL HALO · dos capas. El núcleo se apoya detrás del hexágono; el respiro amplio sostiene la pantalla
+      {/* EL HALO SOLO EN LA PORTADA · es una mancha de color en el medio de la pantalla, justo donde después
+          cae la conversación. Detrás de un titular suelto sostiene; detrás de párrafos es papel sucio, y eso
+          fue lo que el owner cazó. Al primer mensaje se va — no se atenúa: se va.
+          EL HALO · dos capas. El núcleo se apoya detrás del hexágono; el respiro amplio sostiene la pantalla
           entera. Respira lento (17s de ida y 17s de vuelta): más rápido se lee como una alerta. */}
-      <div style={{ position:"absolute", inset:"-10%", animation:"adiHeroRespira 17s ease-in-out infinite alternate",
-        background:`radial-gradient(26% 24% at 50% 30%, ${C.haloNucleo}, transparent 74%), radial-gradient(58% 54% at 50% 38%, ${C.haloAmplio}, transparent 72%)` }}/>
+      {!conversando && (
+        <div style={{ position:"absolute", inset:"-10%", animation:"adiHeroRespira 17s ease-in-out infinite alternate",
+          background:`radial-gradient(26% 24% at 50% 30%, ${C.haloNucleo}, transparent 74%), radial-gradient(58% 54% at 50% 38%, ${C.haloAmplio}, transparent 72%)` }}/>
+      )}
       <svg style={{ position:"absolute", inset:-60, width:"calc(100% + 120px)", height:"calc(100% + 120px)",
         WebkitMaskImage:_anillo, maskImage:_anillo }}>
         <defs>
@@ -1342,7 +1366,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
     <div style={{ position:"relative", display:"flex", flexDirection:"column", height:"100%", minHeight:0 }}>
       {/* EL CAMPO, DETRÁS DE TODO Y SIEMPRE · hermano del transcript, no hijo: así cubre el panel entero y no
           se va hacia arriba cuando el hilo scrollea. Todo lo que viene abajo lleva zIndex:1 para quedar encima. */}
-      <CampoHexagonos/>
+      <CampoHexagonos conversando={messages.length > 0}/>
       {/* ── TRANSCRIPT ── */}
       <div ref={scrollRef} style={{ position:"relative", zIndex:1, flex:1, overflowY:"auto", minHeight:0 }}>
         {/* SIN MENSAJES la portada manda: se le da más ancho (900) y se le saca el colchón de arriba, que en el
@@ -1350,7 +1374,13 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
         {/* el colchón de la DERECHA deja libre la franja donde flotan las barritas de la barra lateral. Va acá
             adentro y no en el contenedor de arriba a propósito: si se lo pusiera al padre, el campo de hexágonos
             —que es hermano de este scroll— se cortaría antes del borde y volveríamos al defecto que el owner cazó. */}
-        <div style={{ maxWidth:messages.length === 0 ? 900 : 760, margin:"0 auto", padding:messages.length === 0 ? `0 24px 16px ${24 + margenBarra}px` : `32px 24px 24px ${24 + margenBarra}px`, display:"flex", flexDirection:"column", gap:24 }}>
+        {/* ⚠️ SIN CONVERSACIÓN, LA PORTADA SE CENTRA A LO ALTO. Al sacarle el pulso, el hero quedó pegado al
+            techo con el 42% de la pantalla vacío abajo — medido: terminaba a los 518 px de 900. Volvía por la
+            ventana el problema del primer día, la pantalla vacía. `minHeight:100%` + `justifyContent:center`
+            lo apoyan en el medio, que es donde tiene que estar una sola pregunta esperando respuesta.
+            Con mensajes NO se toca: ahí el hilo crece desde arriba, como cualquier conversación. */}
+        <div style={{ maxWidth:messages.length === 0 ? 900 : 760, margin:"0 auto", padding:messages.length === 0 ? `0 24px 16px ${24 + margenBarra}px` : `32px 24px 24px ${24 + margenBarra}px`, display:"flex", flexDirection:"column", gap:24,
+          ...(messages.length === 0 ? { minHeight:"100%", justifyContent:"center" } : null) }}>
           {messages.length === 0 && (
             <HeroInicio scenario={scenario} campo={campoPregunta(true)} onPregunta={(q) => submit(q)} />
           )}

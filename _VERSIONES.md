@@ -12,6 +12,36 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 1.11 — producción · tag `v1.11`
+
+**Lo que se lee, se lee sobre papel limpio.** La 1.10 despejó el centro de la **portada**, pero el campo de
+hexágonos —y su halo— seguían montados **también detrás de la conversación**. El owner lo cazó de una:
+«la conversación debe salir con un halo limpio».
+
+Por qué el arreglo anterior no alcanzaba: las máscaras de la portada son **radiales**, despejan un óvalo. Eso
+sirve para un titular y cuatro botones. Un hilo de chat es una **columna alta** — baja más que el óvalo y se le
+sale por abajo, así que a partir de cierto largo el texto volvía a cruzar la retícula.
+
+- **El halo no va mientras se conversa.** Es una mancha de color en el medio de la pantalla, justo donde caen
+  los párrafos. Detrás de un titular sostiene; detrás de texto es papel sucio. Al primer mensaje se apaga.
+- **Máscara nueva, en banda vertical:** limpia el centro de arriba a abajo y deja hexágonos sólo en los dos
+  márgenes — que era la orden original, «por el costado así no se interponen».
+- **En píxeles, no en porcentaje.** Con la banda al 26/74% el texto se salía 10 px: la columna del hilo no está
+  centrada, la corre la barra lateral, y un despejado simétrico en porcentaje nunca le calza. Medido sobre
+  1440: el texto va de −268 a +356 del centro; la banda despeja ±420.
+- **Con la Mesa abierta no queda ningún hexágono.** El panel baja de 1000 px, los topes del `calc()` se vuelven
+  negativos y el borde se apaga solo. Es el lado correcto del error: si no sobra margen, no se dibuja.
+- **La portada no se movió**: halo encendido, seis hexágonos, máscara radial de siempre.
+
+**De paso, la portada se centró a lo alto.** Al sacarle el pulso quedó pegada al techo con el **42%** de la
+pantalla vacío abajo (terminaba a los 518 px de 900) — volvía por la ventana el problema del primer día. Ahora
+apoya en el medio: 232 px arriba, 237 abajo.
+
+Verificado en pantalla, no leyendo código: halo apagado y **0 hexágonos detrás del texto** con la Mesa abierta
+y cerrada. Gates **181 PASS · 0 FAIL · 0 TOCARON LA RED · 0 CON CREDENCIAL VIVA**.
+
+---
+
 ## 1.10 — producción · tag `v1.10`
 
 **El centro queda para el halo.** Sobre papel los hexágonos se van al costado, que es la regla del anillo de
