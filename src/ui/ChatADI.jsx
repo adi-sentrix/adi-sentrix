@@ -875,12 +875,29 @@ export const HERO_CHIPS = [
  * `aria-hidden` porque no dice nada: quien navega con lector de pantalla no se pierde absolutamente nada. */
 const _HEX_MASK_CAMPO = "radial-gradient(78% 70% at 50% 40%, #000 30%, transparent 86%)";
 const _HEX_MASK_ANILLO = "radial-gradient(66% 60% at 50% 40%, transparent 0%, transparent 24%, rgba(0,0,0,0.5) 46%, #000 68%, transparent 100%)";
+/* ⚠️ SOBRE PAPEL EL ANILLO SE ABRE MUCHO MÁS (owner 2026-08-26: «el halo central quedaría despejado cuando se
+ * iniciara el chat; los hexágonos iban por el costado, así no se interponen»). Es la MISMA regla de siempre,
+ * pero el anillo del tablero no alcanza acá: despejaba hasta ~228 px del centro y la columna de conversación
+ * llega a ~380, así que entre medio la retícula quedaba DEBAJO del texto. Sobre negro daba igual —el trazo es
+ * luz al 3,6% y el ojo no lo registra bajo una palabra—; sobre papel es tinta al 8,5% y sí se lee.
+ * Medido a 1440: el hueco limpio pasa de 228 a ~446 px, y los hexágonos arrancan recién donde termina la
+ * conversación. El centro queda para el halo, que es lo que el diseño quería desde el principio. */
+const _HEX_MASK_ANILLO_PAPEL = "radial-gradient(50% 72% at 50% 40%, transparent 0%, transparent 62%, rgba(0,0,0,0.42) 80%, #000 100%)";
 // las celdas que se encienden solas: posiciones y tiempos fijos, nunca al azar — un fondo que parpadea distinto
 // en cada carga se percibe como un defecto de render, no como vida.
 const _HEX_LIT = [
   { left:"9%",  top:"16%", dur:"11s",  delay:"0s"   }, { left:"78%", top:"23%", dur:"13s", delay:"2.4s" },
   { left:"22%", top:"63%", dur:"9.5s", delay:"4.1s" }, { left:"66%", top:"72%", dur:"12s", delay:"6.3s" },
   { left:"88%", top:"52%", dur:"10s",  delay:"8.2s" }, { left:"4%",  top:"41%", dur:"14s", delay:"5.2s" },
+];
+/* ⚠️ SOBRE PAPEL SE VAN A LOS COSTADOS. Los del tablero no sirven acá: a 1440 los de 22% y 66% caen DENTRO de
+ * la columna de conversación (340–1100 px), o sea justo debajo del texto. En negro no molestaban porque el
+ * encendido es luz muy tenue; en papel es tinta y compite con lo que se está leyendo. Estos seis viven todos
+ * fuera de la columna, repartidos arriba y abajo para que el borde no quede muerto ni acartonado. */
+const _HEX_LIT_PAPEL = [
+  { left:"2%",  top:"18%", dur:"11s",  delay:"0s"   }, { left:"90%", top:"22%", dur:"13s", delay:"2.4s" },
+  { left:"7%",  top:"62%", dur:"9.5s", delay:"4.1s" }, { left:"85%", top:"68%", dur:"12s", delay:"6.3s" },
+  { left:"93%", top:"44%", dur:"10s",  delay:"8.2s" }, { left:"1%",  top:"40%", dur:"14s", delay:"5.2s" },
 ];
 
 /* ⚠️ VA DE BORDE A BORDE DEL PANEL, NO DENTRO DE LA COLUMNA DE TEXTO — y esto no es un detalle de maquetado,
@@ -896,6 +913,7 @@ const _HEX_LIT = [
  * viviera adentro, el fondo se iría hacia arriba con los mensajes y el halo dejaría de estar centrado en el
  * panel. Se centra en el PANEL, no en el hilo. */
 function CampoHexagonos() {
+  const _anillo = esPapel() ? _HEX_MASK_ANILLO_PAPEL : _HEX_MASK_ANILLO;
   return (
     <div aria-hidden="true" style={{ position:"absolute", inset:0, zIndex:0, pointerEvents:"none", overflow:"hidden",
       WebkitMaskImage:_HEX_MASK_CAMPO, maskImage:_HEX_MASK_CAMPO }}>
@@ -919,7 +937,7 @@ function CampoHexagonos() {
       <div style={{ position:"absolute", inset:"-10%", animation:"adiHeroRespira 17s ease-in-out infinite alternate",
         background:`radial-gradient(26% 24% at 50% 30%, ${C.haloNucleo}, transparent 74%), radial-gradient(58% 54% at 50% 38%, ${C.haloAmplio}, transparent 72%)` }}/>
       <svg style={{ position:"absolute", inset:-60, width:"calc(100% + 120px)", height:"calc(100% + 120px)",
-        WebkitMaskImage:_HEX_MASK_ANILLO, maskImage:_HEX_MASK_ANILLO }}>
+        WebkitMaskImage:_anillo, maskImage:_anillo }}>
         <defs>
           <pattern id="adiHexCampo" width="90.07" height="156" patternUnits="userSpaceOnUse">
             <g fill="none" stroke={C.hexTrazo} strokeWidth="1" vectorEffect="non-scaling-stroke">
@@ -933,7 +951,7 @@ function CampoHexagonos() {
         </defs>
         <rect width="100%" height="100%" fill="url(#adiHexCampo)"/>
       </svg>
-      {_HEX_LIT.map((h, i) => (
+      {(esPapel() ? _HEX_LIT_PAPEL : _HEX_LIT).map((h, i) => (
         <svg key={i} viewBox="0 0 90.07 104" width="90" height="104"
           style={{ position:"absolute", left:h.left, top:h.top, opacity:0,
             animation:`${esPapel() ? "adiHeroPrendePapel" : "adiHeroPrende"} ${h.dur} ease-out infinite`, animationDelay:h.delay }}>
