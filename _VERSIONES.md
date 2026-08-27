@@ -12,7 +12,7 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 2.0 — declarada en `dev`, sin desplegar
+## 2.0 — producción · tag `v2.0`
 
 **Los datos del cliente dejan de vivir en la memoria del navegador.** Es el número que estaba reservado para
 esto desde la 1.2: hasta hoy el usuario podía subir su planilla, verla y activarla, pero **si recargaba, se
