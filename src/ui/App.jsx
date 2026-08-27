@@ -262,13 +262,16 @@ export default function App({ animate = true }) {
                 style={{ width:6, flexShrink:0, cursor:"col-resize", background:"transparent", borderLeft:`1px solid ${C.border}`, transition:"background 0.15s" }}
                 onMouseEnter={e=>{ e.currentTarget.style.background = "rgba(47,184,218,0.25)"; }}
                 onMouseLeave={e=>{ e.currentTarget.style.background = "transparent"; }}/>
-              {/* LA COSTURA · el owner eligió la SOMBRA (2026-08-26), de tres opciones. En papel el tablero se
-                  APOYA sobre la hoja y proyecta sombra hacia la izquierda: hay profundidad, no un tajo — se lee
-                  como un instrumento puesto encima, que es exactamente lo que Sentrix es. Sobre negro no habría
-                  nada que proyectar, así que ahí no va (y el filete blanco de siempre sigue haciendo su trabajo,
-                  el que dentro del panel dibuja su propio `borderLeft`). */}
+              {/* LA COSTURA · el owner eligió la SOMBRA (2026-08-26), de tres opciones, y cada superficie la
+                  resuelve a su manera: sobre PAPEL el tablero se apoya en la hoja y proyecta sombra hacia la
+                  izquierda; sobre PIZARRA no hay dónde apoyarse —los dos lados están casi a la misma
+                  profundidad— así que la junta es un PLIEGUE ILUMINADO, un filete celeste con resplandor
+                  corto; y en el TABLERO no hay junta ninguna, porque negro contra negro no había nada que
+                  separar (ahí trabaja el filete blanco que el panel dibuja adentro, con su propio borderLeft).
+                  ⚠️ EL VALOR VIVE EN LA PALETA, no acá: con tres superficies un condicional de dos lados
+                  deja de alcanzar, y esto es una decisión de color, que es lo que la paleta guarda. */}
               <div style={{ width: maxed ? "72%" : panelW, flexShrink:0, minWidth:0, minHeight:0,
-                ...(C.esPapel ? { boxShadow:"-18px 0 40px -12px rgba(15,23,32,0.30), -1px 0 0 rgba(23,24,28,0.10)", position:"relative", zIndex:2 } : null) }}>
+                ...(C.sombraJunta ? { boxShadow:C.sombraJunta, position:"relative", zIndex:2 } : null) }}>
                 <Suspense fallback={<PanelSkeleton/>}>
                   <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={() => setMaxed(m=>!m)} maximized={maxed} onAsk={(q, vc) => { if (askRef.current) askRef.current(q, vc); }}/>
                 </Suspense>

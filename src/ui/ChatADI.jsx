@@ -36,7 +36,7 @@ import { buildNarrateUserMessageC } from "../adi/oracle/narratePromptC.js";
 import { proyectarDatoNegocio } from "../adi/oracle/datoProyectado.js";   // AMPLITUD F1: el dato completo del negocio al segmento fijo de NARRAR
 import { deriveMemoriaLegacy } from "../adi/responseContract.js";   // Contrato v2 · Fase 4: la memoria legacy pasa a ser una VISTA del canónico (conversationScope), no una segunda verdad
 import { estimateCostUSD } from "../adi/llm/modelPricing.js";   // router de modelo (owner 2026-08-02) · costo real por intento, observable por turno
-import { C, T, esPapel } from "./theme.js";
+import { C, T, esPapel, esSuperficieADI } from "./theme.js";
 import { renderMarkdownLite, isTabularText, parseMarkdownTable } from "./markdown.jsx";
 import { TypewriterText } from "./TypewriterText.jsx";
 
@@ -931,7 +931,7 @@ const _HEX_LIT_PAPEL = [
 function CampoHexagonos({ conversando }) {
   // CONVERSANDO manda otra máscara y NINGÚN halo. El anillo se anula porque la banda vertical ya hace el
   // trabajo: encimar las dos recortaría también los márgenes y no quedaría un solo hexágono a la vista.
-  const _anillo = conversando ? "none" : (esPapel() ? _HEX_MASK_ANILLO_PAPEL : _HEX_MASK_ANILLO);
+  const _anillo = conversando ? "none" : (esSuperficieADI() ? _HEX_MASK_ANILLO_PAPEL : _HEX_MASK_ANILLO);
   const _campo  = conversando ? _HEX_MASK_CONVERSA : _HEX_MASK_CAMPO;
   return (
     <div aria-hidden="true" style={{ position:"absolute", inset:0, zIndex:0, pointerEvents:"none", overflow:"hidden",
@@ -1006,10 +1006,10 @@ function CampoHexagonos({ conversando }) {
         </defs>
         <rect width="100%" height="100%" fill="url(#adiHexCampo)"/>
       </svg>
-      {(esPapel() ? _HEX_LIT_PAPEL : _HEX_LIT).map((h, i) => (
+      {(esSuperficieADI() ? _HEX_LIT_PAPEL : _HEX_LIT).map((h, i) => (
         <svg key={i} viewBox="0 0 90.0666 104" width="90" height="104"
           style={{ position:"absolute", left:h.left, top:h.top, opacity:0,
-            animation:`${esPapel() ? "adiHeroPrendePapel" : "adiHeroPrende"} ${h.dur} ease-out infinite`, animationDelay:h.delay }}>
+            animation:`${esSuperficieADI() ? "adiHeroPrendePapel" : "adiHeroPrende"} ${h.dur} ease-out infinite`, animationDelay:h.delay }}>
           <polygon points="45.0333,0 90.0666,26 90.0666,78 45.0333,104 0,78 0,26" fill={C.hexLit}/>
         </svg>
       ))}
@@ -1083,9 +1083,9 @@ function HeroInicio({ scenario, campo, onPregunta }) {
             En el TABLERO no se toca: es lo que hoy corre en producción y el cambio va detrás del interruptor. */}
         <h1 style={{ margin:0, fontSize:34, fontWeight:600, color:C.text, letterSpacing:"-0.021em",
           lineHeight:1.18, textAlign:"center", textWrap:"balance" }}>
-          {esPapel() ? "¿Por dónde empezamos?" : "¿Qué quieres entender de tu negocio?"}
+          {esSuperficieADI() ? "¿Por dónde empezamos?" : "¿Qué quieres entender de tu negocio?"}
         </h1>
-        {!esPapel() && (
+        {!esSuperficieADI() && (
           <p style={{ margin:"10px 0 0", maxWidth:"52ch", fontSize:16.5, fontWeight:500, lineHeight:1.5,
             color:C.textSub, letterSpacing:"-0.006em", textAlign:"center" }}>
             Pregúntame por tus ventas, tus márgenes o tu inventario — te respondo con la cifra y con la cuenta que la respalda.
@@ -1129,7 +1129,7 @@ function HeroInicio({ scenario, campo, onPregunta }) {
             SE APAGA SOLO EN PAPEL, no en el tablero: el tablero es lo que hoy corre en producción y el
             interruptor promete no moverlo. `pulsoInicio.js` NO se borra — sigue siendo la forma correcta de que
             la vista no calcule, y el tablero lo sigue usando. */}
-        {pulso && !esPapel() && (
+        {pulso && !esSuperficieADI() && (
           <div style={{ width:"100%", maxWidth:860, marginTop:34,
             ...(esPapel()
               ? { background:T.bg, borderRadius:13, padding:"16px 18px 15px",
@@ -1444,7 +1444,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                       se conserva TAL CUAL estaba: mismo fondo, mismo borde celeste, misma sombra interior. */}
                   <div data-testid="adi-bubble" style={{
                     flex:1, minWidth:0,
-                    ...(esPapel()
+                    ...(esSuperficieADI()
                       ? { background:"transparent", padding:"2px 0 0", border:"none", borderRadius:0, boxShadow:"none" }
                       : { background:C.card, padding:"16px 20px", borderRadius:10,
                           // el borde con TOQUE (owner 2026-07-10, referencia de la landing): celeste sutil en las

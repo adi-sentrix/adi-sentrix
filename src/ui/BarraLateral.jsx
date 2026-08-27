@@ -53,11 +53,11 @@ function Fila({ activo, titulo, onClick, icono, testid, children }) {
         height:35, padding:"0 12px", borderRadius:10, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
         fontFamily:SANS, fontSize:12.5, fontWeight:600, letterSpacing:"-0.006em",
         border:`1px solid ${activo ? C.celeste : C.borderLight}`,
-        background: C.esPapel ? C.surface : "#0b0b0d",
+        background: C.pastillaBg,
         color: activo ? C.text : C.textSub,
         boxShadow: activo
           ? "0 0 0 1px rgba(47,184,218,0.45), 0 0 20px -2px rgba(47,184,218,0.55), 0 10px 26px -10px rgba(0,0,0,0.95)"
-          : (C.esPapel ? "0 10px 26px -12px rgba(23,24,28,0.28)" : "0 10px 26px -10px rgba(0,0,0,0.95)") }}>
+          : C.pastillaSombra }}>
         {icono}{children}
       </span>
     </button>
