@@ -963,23 +963,54 @@ function CampoHexagonos({ conversando }) {
       <svg style={{ position:"absolute", inset:-60, width:"calc(100% + 120px)", height:"calc(100% + 120px)",
         WebkitMaskImage:_anillo, maskImage:_anillo }}>
         <defs>
-          <pattern id="adiHexCampo" width="90.07" height="156" patternUnits="userSpaceOnUse">
-            <g fill="none" stroke={C.hexTrazo} strokeWidth="1" vectorEffect="non-scaling-stroke">
-              <path d="M0,-52 L45.03,-26 L45.03,26 L0,52 L-45.03,26 L-45.03,-26 Z"/>
-              <path d="M90.07,-52 L135.1,-26 L135.1,26 L90.07,52 L45.04,26 L45.04,-26 Z"/>
-              <path d="M45.03,26 L90.06,52 L90.06,104 L45.03,130 L0,104 L0,52 Z"/>
-              <path d="M0,104 L45.03,130 L45.03,182 L0,208 L-45.03,182 L-45.03,104 Z"/>
-              <path d="M90.07,104 L135.1,130 L135.1,182 L90.07,208 L45.04,182 L45.04,104 Z"/>
+          {/* ⚠️ CADA LÍNEA SE DIBUJA UNA SOLA VEZ, y llegar acá costó una corrección (owner 2026-08-26: «hay
+              unas líneas que no cuadran con el diseño»). La versión anterior dibujaba CINCO HEXÁGONOS CERRADOS.
+              Dos problemas encima del otro:
+
+              1) En una retícula, cada arista la comparten DOS hexágonos vecinos — dibujar hexágonos cerrados
+                 la pinta dos veces. Y tres de esos cinco hexágonos eran, además, la baldosa ya repetida por el
+                 propio `pattern` (traslados exactos de +90,07 y +156). MEDIDO: la misma línea se dibujaba
+                 entre 2 y 6 veces según cuál fuera. Con trazo translúcido eso no es "un poco más marcado":
+                 al 8,5% de tinta, seis pasadas dan 41% — la mitad de la retícula quedaba al doble de oscura
+                 que la otra mitad, sin ninguna razón de diseño. Eso era lo que se veía desalineado.
+              2) La misma arista aparecía escrita con dos números distintos (45,03 y 45,04; 90,06 y 90,07), así
+                 que además de repetirse, se repetía CORRIDA — dos rayas paralelas a una centésima de distancia.
+
+              LA FORMA CORRECTA: un hexágono tiene 6 aristas pero sólo 3 son suyas (las otras 3 se las pone el
+              vecino). Dos polilíneas ABIERTAS —el lado derecho de cada uno de los dos hexágonos de la baldosa—
+              cubren la retícula entera sin pisar nada. VERIFICADO: 0 aristas repetidas y los vértices interiores
+              todos con grado 3, que es como cierra una retícula hexagonal.
+
+              Y LOS NÚMEROS SON EXACTOS, no redondeados a dos decimales: para R=52 el semiancho es R·√3/2 =
+              45,0333 y la baldosa 90,0666. Con 90,07 sobraban 0,0034 por baldosa, que a veinte baldosas ya es
+              una raya visiblemente fuera de sitio.
+
+              ⚠️ SI ALGUIEN VUELVE A CERRAR ESTOS TRAZOS (poner `Z`, o dibujar el hexágono entero), la retícula
+              se oscurece al doble y vuelve el defecto. El grosor está calibrado para UNA pasada. */}
+          <pattern id="adiHexCampo" width="90.0666" height="156" patternUnits="userSpaceOnUse">
+            <g fill="none" stroke={C.hexTrazo} strokeWidth="1" vectorEffect="non-scaling-stroke" strokeLinecap="square">
+              <path d="M0,-52 L45.0333,-26 L45.0333,26 L0,52"/>
+              <path d="M45.0333,26 L90.0666,52 L90.0666,104 L45.0333,130"/>
+              {/* ⚠️ ESTA TERCERA LÍNEA NO ES UNA LÍNEA MÁS: ES LA OTRA MITAD DE LA DE ARRIBA. El trazo vertical
+                  de la fila de abajo cae JUSTO sobre el borde derecho del mosaico (x = 90,0666), así que el
+                  mosaico le corta la mitad que se sale — y esa mitad no la pinta nadie, porque en la baldosa
+                  siguiente ese punto es x=0 y ahí no había nada dibujado. MEDIDO: esa línea pesaba 26 contra
+                  53 de la otra fila. Exactamente la mitad. Es el defecto que se veía: media retícula fina y
+                  media gruesa, y era el mismo dibujo repetido mal, no un problema de color.
+                  Con este tramo en x=0, cada baldosa aporta su mitad y en la junta se arma un trazo entero.
+                  VERIFICADO sobre el dibujo rasterizado: las dos filas pesan 53 y 53 — desnivel 1,00.
+                  ⚠️ NO BORRAR pensando que sobra por estar "fuera" del hexágono. Sin esto vuelve el defecto. */}
+              <path d="M0,52 L0,104"/>
             </g>
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#adiHexCampo)"/>
       </svg>
       {(esPapel() ? _HEX_LIT_PAPEL : _HEX_LIT).map((h, i) => (
-        <svg key={i} viewBox="0 0 90.07 104" width="90" height="104"
+        <svg key={i} viewBox="0 0 90.0666 104" width="90" height="104"
           style={{ position:"absolute", left:h.left, top:h.top, opacity:0,
             animation:`${esPapel() ? "adiHeroPrendePapel" : "adiHeroPrende"} ${h.dur} ease-out infinite`, animationDelay:h.delay }}>
-          <polygon points="45.03,0 90.07,26 90.07,78 45.03,104 0,78 0,26" fill={C.hexLit}/>
+          <polygon points="45.0333,0 90.0666,26 90.0666,78 45.0333,104 0,78 0,26" fill={C.hexLit}/>
         </svg>
       ))}
     </div>

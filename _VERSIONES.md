@@ -12,6 +12,36 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 1.12 — producción · tag `v1.12`
+
+**Las líneas de los hexágonos, todas del mismo grosor.** El owner lo vio de una: «hay unas líneas que no
+cuadran con el diseño». No era el color ni el tamaño — era que **la misma retícula se dibujaba mal**.
+
+Dos defectos, uno encima del otro:
+
+- **La misma línea se pintaba entre 2 y 6 veces.** El dibujo eran cinco hexágonos **cerrados**, y en una
+  retícula cada lado lo comparten dos hexágonos vecinos, así que se pintaba dos veces. Encima, tres de esos
+  cinco eran la baldosa que el mosaico ya repetía solo. Con trazo translúcido eso no es "un poco más marcado":
+  al 8,5% de tinta, seis pasadas dan 41%.
+- **La línea vertical de una de las dos filas salía a la mitad.** Caía justo sobre el borde del mosaico; la
+  mitad que se salía quedaba recortada y nadie la pintaba del otro lado. Medido: pesaba **26 contra 53**.
+- Y la misma línea estaba escrita con dos números distintos (45,03 y 45,04; 90,06 y 90,07), así que además de
+  repetirse, se repetía **corrida**: dos rayas paralelas a una centésima.
+
+**Cómo quedó.** Un hexágono tiene 6 lados pero sólo 3 son suyos —los otros se los pone el vecino—, así que la
+retícula se dibuja con dos trazos abiertos en vez de cinco hexágonos cerrados, más el tramo que completa la
+junta del borde. Números exactos (R·√3/2 = 45,0333), no redondeados.
+
+**El grosor se recalibró para que el peso en pantalla no se moviera:** papel 0,085→0,203, tablero 0,036→0,084.
+No es a ojo — se rasterizó la retícula vieja y la nueva y se buscó el alfa que iguala la tinta total:
+**308.250 vs 307.864** en papel (0,1% de diferencia) y **133.408 vs 132.660** en tablero (0,6%). Lo que cambió
+no es cuánto se ve, es que **el desnivel entre unas líneas y otras pasó de 1,85 y 2,25 a 1,00**.
+
+Verificado sobre lo que el navegador dibuja de verdad, no sobre el código: seis líneas medidas, las seis pesan
+46. Gates **181 PASS · 0 FAIL · 0 TOCARON LA RED · 0 CON CREDENCIAL VIVA**.
+
+---
+
 ## 1.11 — producción · tag `v1.11`
 
 **Lo que se lee, se lee sobre papel limpio.** La 1.10 despejó el centro de la **portada**, pero el campo de

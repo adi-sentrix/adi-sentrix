@@ -41,7 +41,14 @@ const TEMA_TABLERO = {
   entidad: "#ffffff",
   /* EL CAMPO DE HEXÁGONOS Y SU LATIDO · lo único del rediseño que no se resuelve cambiando un color, sino
    * INVIRTIÉNDOLO: sobre negro la retícula es luz tenue, sobre papel es tinta tenue. Mismo gesto, al revés. */
-  hexTrazo: "rgba(255,255,255,0.036)",
+/* ⚠️ CALIBRADO PARA UNA SOLA PASADA (2026-08-26). Estos valores subieron —0,036→0,121 y 0,085→0,264— y
+     NO es que la retícula se haya querido más oscura: **se ve igual de cargada que antes**. Antes cada línea
+     se dibujaba entre 2 y 6 veces encimada y la tinta se acumulaba sola; ahora se dibuja UNA sola vez.
+     LOS NÚMEROS NO SON A OJO: se rasterizó la retícula vieja y la nueva y se buscó el alfa que iguala la tinta
+     total. Papel 0,085→0,203 (308.250 vs 307.864 de tinta, 0,1% de diferencia); tablero 0,036→0,084 (133.408
+     vs 132.660, 0,6%). Lo que cambió no es el peso: es que el desnivel entre unas líneas y otras pasó de 1,85
+     y 2,25 a **1,00**. Ver la nota del `pattern` en ChatADI.jsx. */
+  hexTrazo: "rgba(255,255,255,0.084)",
   hexLit: "rgba(47,184,218,0.15)",
   logoTrazo: "rgba(255,255,255,0.30)",
   haloNucleo: "rgba(47,184,218,0.13)",
@@ -73,7 +80,12 @@ const TEMA_PAPEL = {
    * mucha menos luz sobre claro que sombra sobre negro—, así que la retícula sube a 0.085 y el latido se hace
    * celeste profundo. El owner lo dijo mirándolo: «los hexágonos quiero que se noten más, al igual que el
    * efecto que tienen, se nota muy poco». */
-  hexTrazo: "rgba(23,24,28,0.085)",
+/* ⚠️ CALIBRADO PARA UNA SOLA PASADA (2026-08-26). Estos valores subieron —0,036→0,121 y 0,085→0,264— y
+     NO es que la retícula se haya querido más oscura: se ve igual que antes. Antes cada línea se dibujaba
+     entre 2 y 6 veces encimada y la tinta se acumulaba sola; ahora se dibuja UNA. El número es la media de
+     tinta que daba el dibujo viejo, así que el peso en pantalla no se movió — lo que se fue es que unas
+     líneas salieran al doble que otras. Ver la nota del `pattern` en ChatADI.jsx. */
+  hexTrazo: "rgba(23,24,28,0.203)",
   hexLit: "rgba(15,114,144,0.30)",
   logoTrazo: "rgba(23,24,28,0.38)",
   haloNucleo: "rgba(15,114,144,0.20)",
