@@ -1,0 +1,131 @@
+/* === scripts/sembrar-demo.mjs · EL DEMO ENTRA A LA BASE COMO UNA EMPRESA MÁS (vía 3 · paso 3.f) ========
+ *
+ * POR QUÉ NO SE DEJA EL DEMO COMO RESPALDO ESTÁTICO (decisión del owner, 2026-08-27): un solo camino de
+ * código. Si el negocio de demostración se sirviera desde el registro compilado y los clientes desde la base,
+ * el camino que van a usar los clientes **no se ejercería hasta el primer cliente** — y ahí es tarde para
+ * descubrir que falla. Sembrándolo, cada vez que alguien abre el demo se está probando el camino real.
+ *
+ * ⚠️ NO USA LA LLAVE DE SERVICIO. Siembra con el pase corto del propio demo, como lo haría el producto: el
+ * rol `adi_tenant` tiene permiso de insertar sus propias versiones. La llave que salta el muro no hace falta
+ * ni para esto, y una llave que no se usa no se puede filtrar.
+ *
+ * ES IDEMPOTENTE: si el demo ya tiene una siembra activa con este mismo pack, no hace nada y lo dice.
+ *
+ * CÓMO SE CORRE:
+ *     node scripts/sembrar-demo.mjs
+ * Lee las tres variables del `.env` de la raíz o del entorno. Ninguna se imprime.
+ */
+import { readFileSync } from "node:fs";
+import { crearClienteRest } from "../src/data/supabaseRest.js";
+import { emitirPase } from "../src/data/paseTenant.js";
+import { TENANT_DEMO } from "../src/data/tenants/demo.js";
+import { PLANTILLA_VERSION } from "../src/config/contract/plantilla.js";
+
+try {
+  for (const ln of readFileSync(".env", "utf8").split(/\r?\n/)) {
+    const m = ln.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+  }
+} catch { /* sin .env: se usan las variables del entorno */ }
+
+const { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_JWT_SECRET } = process.env;
+const faltan = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_JWT_SECRET"].filter((k) => !process.env[k]);
+if (faltan.length) {
+  console.log(`\n✗ faltan variables: ${faltan.join(" · ")}\n`);
+  process.exit(2);
+}
+
+const EMPRESA = TENANT_DEMO.id || "demo";
+const MARCA = "siembra-demo";
+
+const db = crearClienteRest({ url: SUPABASE_URL, apikey: SUPABASE_ANON_KEY });
+const p = await emitirPase({ tenantId: EMPRESA, secreto: SUPABASE_JWT_SECRET, ttlSegundos: 600 });
+if (!p.ok) { console.log(`\n✗ no se pudo emitir el pase: ${p.motivo}\n`); process.exit(1); }
+const pase = p.pase;
+
+const pesoKb = Math.round(JSON.stringify(TENANT_DEMO).length / 1024);
+console.log(`\n════ SIEMBRA DEL DEMO · empresa «${EMPRESA}» · ${pesoKb} KB ════\n`);
+
+// ── ¿la empresa existe? ───────────────────────────────────────────────────────────────────────────────
+const emp = await db.seleccionar("tenants", { pase, columnas: "id,nombre" });
+if (!emp.ok) { console.log(`✗ la base no respondió: ${emp.motivo}\n`); process.exit(1); }
+if (!emp.filas.length) {
+  console.log(`✗ la empresa «${EMPRESA}» no existe en la base. En el SQL Editor:`);
+  console.log(`    insert into public.tenants (id, nombre) values ('${EMPRESA}', '${TENANT_DEMO.nombre || "Demo"}');\n`);
+  process.exit(1);
+}
+console.log(`  ✓ la empresa existe: ${emp.filas[0].nombre}`);
+
+// ── ¿ya está sembrada? ────────────────────────────────────────────────────────────────────────────────
+/* ⚠️ SE BUSCA LA SIEMBRA ESTÉ ACTIVA O NO, y esa distinción importa. Si solo se mirara la activa, encontrar el
+ * demo desactivado —porque alguien activó otra versión, o porque la verificación en vivo activó la suya—
+ * llevaría a sembrar OTRA copia idéntica del mismo pack, versión tras versión. El pack ya está guardado: lo
+ * único que falta en ese caso es volver a activarlo. */
+const ya = await db.seleccionar("fact_pack_versions", {
+  pase, columnas: "id,version,activa",
+  filtros: { tenant_id: `eq.${EMPRESA}`, plantilla_version: `eq.${MARCA}` }, orden: "version.desc", limite: 1,
+});
+if (ya.ok && ya.filas.length && ya.filas[0].activa === true) {
+  console.log(`  ✓ ya estaba sembrada y activa (versión ${ya.filas[0].version}): no se toca nada\n`);
+  process.exit(0);
+}
+if (ya.ok && ya.filas.length) {
+  const f = ya.filas[0];
+  console.log(`  · la siembra existe (versión ${f.version}) pero está apagada: se reactiva en vez de duplicarla`);
+  const r = await db.llamarFuncion("adi_activar_version", { p_version_id: f.id }, { pase });
+  if (!r.ok) { console.log(`  ✗ no se pudo reactivar: ${r.motivo} ${r.detalle || ""}\n`); process.exit(1); }
+  console.log(`  ✓ reactivada · ahora es la versión de la que ADI habla\n`);
+  process.exit(0);
+}
+
+// ── sembrar ───────────────────────────────────────────────────────────────────────────────────────────
+const ult = await db.seleccionar("fact_pack_versions", {
+  pase, columnas: "version", filtros: { tenant_id: `eq.${EMPRESA}` }, orden: "version.desc", limite: 1,
+});
+const version = (ult.filas && ult.filas.length ? Number(ult.filas[0].version) : 0) + 1;
+
+/* SIN `upload_id` Y SIN SELLO, y las dos ausencias son honestas: este pack no vino de un archivo que alguien
+ * subió, así que no hay original que guardar ni observaciones de plausibilidad que asumir. Inventarle un
+ * archivo de origen sería escribir en la base una historia que no ocurrió. */
+const alta = await db.insertar("fact_pack_versions", {
+  pase, devolver: true,
+  filas: { tenant_id: EMPRESA, version, pack: TENANT_DEMO, sello: null, plantilla_version: MARCA, activa: false },
+});
+if (!alta.ok || !alta.filas.length) {
+  console.log(`  ✗ no se pudo guardar: ${alta.motivo} ${alta.detalle || ""}\n`);
+  process.exit(1);
+}
+console.log(`  ✓ pack guardado como versión ${version}`);
+
+const act = await db.llamarFuncion("adi_activar_version", { p_version_id: alta.filas[0].id }, { pase });
+if (!act.ok || !act.filas.length) {
+  console.log(`  ✗ guardó pero no se pudo activar: ${act.motivo} ${act.detalle || ""}\n`);
+  process.exit(1);
+}
+console.log(`  ✓ activada · ahora es la versión de la que ADI habla`);
+
+// ── comprobación: lo que quedó guardado es lo que se mandó ─────────────────────────────────────────────
+/* ⚠️ HAY QUE COMPARAR EL CONTENIDO, NO EL TEXTO. `jsonb` **no preserva el orden de las claves**: las reordena
+ * al guardarlas. Comparar con `JSON.stringify` da distinto aunque no falte ni sobre nada — la primera versión
+ * de esta comprobación decía «lo que volvió NO coincide» con el pack perfectamente intacto. El ORDEN de los
+ * arreglos sí se preserva, que es lo que importa acá: los rankings y las series son arreglos.
+ *
+ * Es la misma clase de error que ya había cometido comparando el identificador de empresa contra la regla de
+ * la base: medir la forma en vez de la cosa. */
+const canonico = (x) => {
+  if (Array.isArray(x)) return x.map(canonico);
+  if (x && typeof x === "object") {
+    return Object.keys(x).sort().reduce((o, k) => { o[k] = canonico(x[k]); return o; }, {});
+  }
+  return x;
+};
+
+const leido = await db.llamarFuncion("adi_version_activa", {}, { pase });
+const vuelto = leido.ok && leido.filas.length ? leido.filas[0].pack : null;
+const igual = Boolean(vuelto) && JSON.stringify(canonico(vuelto)) === JSON.stringify(canonico(TENANT_DEMO));
+console.log(igual
+  ? `  ✓ y al leerlo de vuelta el contenido es idéntico: el viaje de ida y vuelta no pierde nada`
+  : `  ✗ lo que volvió NO coincide con lo que se mandó — revisar antes de seguir`);
+
+console.log("");
+process.exit(igual ? 0 : 1);

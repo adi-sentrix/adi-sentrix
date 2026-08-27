@@ -104,5 +104,68 @@ H("[8] una sesión vencida es un no, con su motivo propio");
   ok(r.ok === false && /vencida/.test(String(r.motivo)), `→ ok:false, motivo "${r.motivo}" (distinto de "sin sesión válida")`);
 }
 
+/* ══ VÍA 3 · 3.e (2026-08-27) · EL DATO SALE DE LA BASE, Y LA EMPRESA SIN ARCHIVO SE DECLARA ══════════
+ *
+ * Hasta acá `handleData` servía SIEMPRE el registro compilado. Ahora, con base configurada, sirve el pack
+ * ACTIVO de esa empresa — y si no tiene ninguno, lo dice en vez de mostrarle el ejemplo como si fuera suyo.
+ * Se ejerce con un cliente inyectado: sin red y sin proyecto creado. */
+const ENV_BASE = { ...ENV, SUPABASE_URL: "https://x.supabase.co", SUPABASE_ANON_KEY: "publica", SUPABASE_JWT_SECRET: "firma" };
+const codigoDe = async (t) => (await makeAccessCode("prueba", 72, SECRET, Date.now(), t)).code;
+
+/* Un doble mínimo: `empresa` es lo que devuelve `tenants`; `activa` lo que devuelve `adi_version_activa()`. */
+function baseFalsa({ empresa = [{ id: "demo", nombre: "Desde la base" }], activa = [] } = {}) {
+  return {
+    async seleccionar() { return { ok: true, filas: empresa }; },
+    async llamarFuncion() { return { ok: true, filas: activa }; },
+    async insertar() { return { ok: true, filas: [] }; },
+    async actualizar() { return { ok: true, filas: [] }; },
+    async subirObjeto() { return { ok: true, filas: [] }; },
+  };
+}
+
+H("[6] con base configurada, el dato viene de la base y no del bundle");
+{
+  const PACK = { id: "demo", nombre: "Pack guardado", perfil: {} };
+
+  const r = await handleData({ access: await codigoDe("demo") }, ENV_BASE,
+    { cliente: baseFalsa({ activa: [{ id: "v1", version: 4, pack: PACK, sello: { conAlarmas: true } }] }) });
+  ok(r.ok && r.origen === "guardado", `sirve el pack guardado (origen: ${r.origen})`);
+  ok(r.dataset === PACK, "…y el dataset es el de la base, no el del registro compilado");
+  ok(r.sello && r.sello.conAlarmas === true,
+    "⚠️ el sello de plausibilidad vuelve CON el pack: la observación sobrevive a recargar la página");
+  ok(r.version === 4, `…junto con qué versión es: ${r.version}`);
+
+  H("[7] la empresa existe y todavía no subió nada");
+  const s = await handleData({ access: await codigoDe("demo") }, ENV_BASE, { cliente: baseFalsa({ activa: [] }) });
+  ok(s.ok === true && s.sinDatos === true, "⚠️ NO es un error: es un estado legítimo del negocio (ok:true + sinDatos)");
+  ok(!s.dataset, "⚠️ …y NO viaja ni una fila: nunca el ejemplo disfrazado de dato suyo");
+  ok(s.mensaje === "Todavía no hay datos cargados para esta empresa. Puedes subir una planilla o mirar el demo.",
+    `…con la frase que decidió el owner, textual: «${s.mensaje}»`);
+
+  H("[8] una empresa que la base no conoce");
+  const d = await handleData({ access: await codigoDe("demo") }, ENV_BASE, { cliente: baseFalsa({ empresa: [] }) });
+  ok(d.ok === false && !d.dataset, `se declara y no se sirve nada (motivo: "${d.motivo}")`);
+
+  H("[9] «mirar el demo» · el segundo camino que ofrece ese aviso");
+  const dm = await handleData({ op: "demo", access: await codigoDe("demo") }, ENV_BASE);
+  ok(dm.ok && dm.esDemo === true && dm.origen === "demo-explicito", `sirve el ejemplo, marcado como tal (${dm.origen})`);
+  ok(dm.tenantId === "demo", "…siempre el demo y nada más: no es un selector de empresa");
+  /* ⚠️ el chequeo que cierra la puerta: pedir «demo» desde otra empresa NO devuelve la de esa empresa. */
+  const dmOtro = await handleData({ op: "demo", access: await codigoDe(OTRO) }, ENV_BASE);
+  ok(dmOtro.tenantId === "demo" && dmOtro.dataset && dmOtro.dataset.id === "demo",
+    `⚠️ y pedido desde «${OTRO}» sigue devolviendo el demo, nunca la empresa de la sesión`);
+
+  H("[10] sin base configurada, todo se comporta como antes de la vía 3");
+  const viejo = await handleData({ access: await codigoDe("demo") }, ENV);
+  ok(viejo.ok && viejo.dataset && !viejo.sinDatos, `el registro compilado, como siempre (origen: ${viejo.origen})`);
+  ok(viejo.dataset !== PACK, "…y no el pack de la base: la bandera de verdad separa los dos caminos");
+
+  H("[11] CARNADA · el doble tiene que poder cambiar la respuesta");
+  const c = await handleData({ access: await codigoDe("demo") }, ENV_BASE,
+    { cliente: baseFalsa({ activa: [{ id: "v9", version: 9, pack: { id: "otro" } }] }) });
+  ok(c.version === 9 && c.dataset.id === "otro",
+    "cambiando lo que responde la base cambia lo que sirve `handleData`: lo de arriba mide algo real");
+}
+
 console.log(`\n${FAIL === 0 ? "✅" : "❌"} _tenant_sesion_gate · ${PASS} ok · ${FAIL} fallas`);
 process.exit(FAIL === 0 ? 0 : 1);

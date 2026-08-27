@@ -31,7 +31,12 @@ let _data = TENANT_VACIO;
 const _rebuilds = [];
 
 export const getTenantData = () => _data;
-export const getTenantId = () => (_data && _data.id) || "demo";
+/* ⚠️ `null` CUANDO NO HAY NADA CARGADO, y hasta la vía 3 esto devolvía `"demo"`. Ese default era cómodo
+ * mientras el demo era el único negocio: nombraba lo que efectivamente iba a haber. Con empresas reales pasó a
+ * ser una AFIRMACIÓN FALSA — una sesión de otra empresa que todavía no subió su archivo quedaba etiquetada
+ * como «demo» en el contexto del turno, en la boleta y en cualquier respuesta que se guardara. Un identificador
+ * de empresa equivocado es peor que ninguno: `null` se ve y se puede rechazar; «demo» se cree. */
+export const getTenantId = () => (_data && _data.id) || null;
 
 /** ¿Ya entró un dataset real por la puerta? `false` = todavía estamos en la forma vacía del arranque. */
 export const tenantCargado = () => !esTenantVacio(_data);

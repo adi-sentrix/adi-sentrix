@@ -95,7 +95,13 @@ export default function App({ animate = true }) {
     if (datosListos || !access.checked) return;
     if (access.required && !access.granted) return;   // todavía no hay sesión: no hay a quién pedirle dato
     let alive = true;
-    cargarTenant().then((r) => { if (alive && r && r.ok) setDatosListos(true); }).catch(() => {});
+    cargarTenant().then((r) => {
+      if (!alive || !r) return;
+      if (r.ok) { setDatosListos(true); return; }
+      /* SIN ARCHIVO ACTIVO (owner 2026-08-27): se abre «Tus datos» con el motivo a la vista, en vez de dejar
+       * la app en la forma vacía sin explicación. El texto llega del servidor: acá no se redacta nada. */
+      if (r.sinDatos) { setSinDatos(r.mensaje || null); setDatosAbiertos(true); }
+    }).catch(() => {});
     return () => { alive = false; };
   }, [access.checked, access.required, access.granted, datosListos]);
   /* ── TUS DATOS (v1.4) · el archivo del usuario reemplaza al demo ─────────────────────────────────────────
@@ -106,6 +112,19 @@ export default function App({ animate = true }) {
    * anterior — que es exactamente la clase de mezcla que este producto no puede permitirse. */
   const [datosAbiertos, setDatosAbiertos] = useState(false);
   const [cargaActiva, setCargaActiva]     = useState(null);
+  /* El aviso de «esta empresa todavía no cargó nada». Lo redacta el servidor; acá solo se guarda para
+   * pasárselo a la pantalla, y se limpia en cuanto el usuario activa un archivo. */
+  const [sinDatos, setSinDatos]           = useState(null);
+
+  /* El segundo camino que ofrece ese aviso. Pide el ejemplo al servidor —que responde SOLO con el ejemplo,
+   * nunca con la empresa de otro— y cierra la pantalla para que se pueda mirar. */
+  const verElDemo = React.useCallback(async () => {
+    const r = await cargarTenant({ op: "demo" });
+    if (!r || !r.ok) return;
+    setSinDatos(null);
+    setDatosListos(true);
+    setDatosAbiertos(false);
+  }, []);
   const [datosVersion, setDatosVersion]   = useState(0);
   const demoOriginal = useRef(null);
   const activarDatos = (dataset, sello, quien) => {
@@ -296,8 +315,10 @@ export default function App({ animate = true }) {
       {datosAbiertos && (
         <PanelDatos
           activo={cargaActiva}
+          sinDatos={sinDatos}
           onCerrar={() => setDatosAbiertos(false)}
-          onActivar={activarDatos}
+          onActivar={(...a) => { setSinDatos(null); return activarDatos(...a); }}
+          onVerDemo={sinDatos ? verElDemo : null}
           onVolverAlDemo={volverAlDemo}/>
       )}
 

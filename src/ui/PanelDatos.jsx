@@ -83,8 +83,10 @@ const Boton = ({ children, onClick, primario, disabled, testid }) => (
  *   onActivar(dataset, s) → el usuario confirmó: estos datos pasan a ser los de la sesión (`s` = sello de lectura)
  *   onVolverAlDemo()      → deshacer: volver al negocio de demostración
  *   activo                → { nombre, empresa } del archivo que está activo ahora, o null si corre el demo
+ *   sinDatos              → el aviso del servidor cuando la empresa todavía no tiene ningún archivo activo
+ *   onVerDemo()           → mirar el negocio de demostración (el segundo camino que ofrece ese aviso)
  */
-export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, activo }) {
+export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, onVerDemo, activo, sinDatos }) {
   const [estado, setEstado] = useState("vacio");     // vacio · leyendo · rechazado · listo
   const [r, setR] = useState(null);                  // la respuesta del servidor
   const [error, setError] = useState(null);
@@ -175,7 +177,27 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, activo }) {
             style={{ background: "transparent", border: "none", color: C.textMuted, cursor: "pointer", fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
         </div>
 
+        {/* ── esta empresa todavía no cargó nada ─────────────────────────────────────────────────────
+            Decisión del owner (2026-08-27): cuando no hay archivo activo, se dice qué pasa y se ofrecen los
+            dos caminos — subir o mirar el demo. El texto viene del servidor: acá no se redacta. Va ARRIBA del
+            estado actual porque es la razón por la que esta pantalla se abrió sola. */}
+        {sinDatos && (
+          <div data-testid="datos-sin-datos"
+            style={{ marginTop: 18, padding: "12px 14px", borderRadius: 8, background: C.surfaceAlt,
+              border: `1px solid ${C.borderLight}`, fontFamily: SANS, fontSize: 12.5, color: C.text, lineHeight: 1.55 }}>
+            {sinDatos}
+            {/* El aviso ofrece dos caminos, así que los dos tienen que estar a mano: subir está abajo, y
+                mirar el demo es este. Ofrecerlo en la frase y no darlo sería una promesa sin puerta. */}
+            {onVerDemo && (
+              <div style={{ marginTop: 11 }}>
+                <Boton testid="datos-ver-demo" onClick={onVerDemo}>Mirar el demo</Boton>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── qué está activo ahora ──────────────────────────────────────────────────────────────────── */}
+        {!sinDatos && (
         <div style={{ marginTop: 18, padding: "10px 13px", borderRadius: 8, background: C.surfaceAlt,
           border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div style={{ fontFamily: SANS, fontSize: 12, color: C.textSub, minWidth: 0 }}>
@@ -185,6 +207,7 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, activo }) {
           </div>
           {activo && <Boton onClick={onVolverAlDemo} testid="datos-volver-demo">Volver al demo</Boton>}
         </div>
+        )}
 
         {/* ── paso 1 · el archivo ────────────────────────────────────────────────────────────────────── */}
         {estado !== "listo" && (

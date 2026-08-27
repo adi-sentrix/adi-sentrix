@@ -96,6 +96,13 @@ console.log("\n2 · EL MURO · un pase ajeno no alcanza este dato");
     w.ok ? "LA ESCRIBIÓ — el muro no está haciendo su trabajo" : `rechazada: ${w.motivo}`);
 }
 
+/* ⚠️ QUÉ ESTABA ACTIVO ANTES DE TOCAR NADA. La sección 4 activa una versión de prueba, y activar es
+ * justamente lo que DESACTIVA la anterior: sin esto, correr la verificación deja a la empresa sirviendo un
+ * pack de mentira. Pasó de verdad —el demo quedó respondiendo `{verificacion:true}` y la sección 5 lo cazó—
+ * y es el defecto más feo posible en una herramienta de comprobación: romper aquello que viene a comprobar. */
+const previa = await db.llamarFuncion("adi_version_activa", {}, { pase });
+const activaAntes = previa.ok && previa.filas.length ? previa.filas[0].id : null;
+
 // ── 3 · el camino completo ────────────────────────────────────────────────────────────────────────────
 console.log("\n3 · EL CAMINO COMPLETO · guardar, subir el original, activar");
 let uploadId = null, versionId = null;
@@ -158,6 +165,49 @@ console.log("\n4 · ACTIVAR · una sola versión activa, garantizada por la base
    * así que la versión simplemente no existe para él. */
   const intruso = await db.llamarFuncion("adi_activar_version", { p_version_id: versionId }, { pase: paseAjeno });
   chequeo(!intruso.ok, "⚠️ un pase ajeno NO puede activar esta versión", intruso.ok ? "LA ACTIVÓ" : `rechazado: ${intruso.motivo}`);
+}
+
+// ── DEVOLVER LAS COSAS A SU LUGAR, ANTES DE MEDIR EL PRODUCTO ─────────────────────────────────────────
+console.log("\n4b · RESTAURAR · la verificación no puede dejar rota a la empresa que verifica");
+{
+  if (activaAntes && activaAntes !== versionId) {
+    const r = await db.llamarFuncion("adi_activar_version", { p_version_id: activaAntes }, { pase });
+    chequeo(r.ok, "vuelve a quedar activa la versión que estaba antes de esta prueba",
+      `${r.motivo || ""} ${r.detalle || ""}`.trim());
+  } else if (!activaAntes) {
+    /* No había ninguna activa: dejar activa la de prueba sería inventarle datos a la empresa. Se apaga.
+     * Que no se pueda desactivar sin activar otra es correcto —ese es el trabajo de la función—, así que acá
+     * se hace con un update directo, que el pase sí permite sobre las filas de su propia empresa. */
+    const r = await db.actualizar("fact_pack_versions", {
+      pase, filtros: { id: `eq.${versionId}` }, cambios: { activa: false },
+    });
+    chequeo(r.ok, "no había ninguna activa antes: la de prueba se apaga y la empresa vuelve a «sin datos»", r.motivo);
+  } else {
+    chequeo(true, "no hubo nada que restaurar");
+  }
+}
+
+// ── 5 · la cadena completa del producto ───────────────────────────────────────────────────────────────
+console.log("\n5 · EL PRODUCTO · lo que `handleData` le entrega de verdad al navegador");
+{
+  /* Los candados prueban esto con un doble en memoria. Acá se prueba contra la base real: es la diferencia
+   * entre «el código hace lo que dice» y «el producto sirve el dato guardado». */
+  const { handleData } = await import("../src/data/tenantService.server.js");
+  const ENV = { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_JWT_SECRET };
+
+  const r = await handleData({}, ENV);
+  chequeo(r.ok && r.origen === "guardado",
+    `sirve el pack GUARDADO en la base, no el del bundle (origen: ${r.origen})`, r.motivo);
+  chequeo(Boolean(r.dataset) && Array.isArray(r.dataset.clientesVentas) && r.dataset.clientesVentas.length > 0,
+    `…con dato real adentro: ${r.dataset && r.dataset.clientesVentas ? r.dataset.clientesVentas.length : 0} clientes`);
+
+  /* Y que sea el mismo negocio, no cualquier cosa que haya quedado dando vueltas. */
+  const { TENANT_DEMO } = await import("../src/data/tenants/demo.js");
+  chequeo(r.dataset && r.dataset.id === TENANT_DEMO.id && r.dataset.nombre === TENANT_DEMO.nombre,
+    `…y es el negocio que se sembró: ${r.dataset && r.dataset.nombre}`);
+
+  const demo = await handleData({ op: "demo" }, ENV);
+  chequeo(demo.ok && demo.esDemo === true, "«mirar el demo» responde el ejemplo, marcado como tal");
 }
 
 // ── cierre ────────────────────────────────────────────────────────────────────────────────────────────

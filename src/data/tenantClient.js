@@ -20,16 +20,30 @@ import { getAccessCode } from "../adi/accessClient.js";
 let _ultimo = { ok: false, tenantId: null, origen: null, motivo: "todavía no se pidió" };
 export const estadoDelDato = () => ({ ..._ultimo, cargado: tenantCargado() });
 
-/* cargarTenant({ tenantSolicitado }) → { ok, tenantId?, origen?, nombre?, motivo? }
- * Éxito ⇒ el dataset YA entró por initTenant y todos los rebuilds corrieron. */
-export async function cargarTenant({ tenantSolicitado = null } = {}) {
+/* cargarTenant({ tenantSolicitado, op }) → { ok, tenantId?, origen?, nombre?, motivo? }
+ * Éxito ⇒ el dataset YA entró por initTenant y todos los rebuilds corrieron.
+ *
+ * `op:"demo"` es el segundo camino que ofrece el aviso de empresa sin datos: pedir explícitamente el negocio
+ * de demostración para mirarlo. No es elegir empresa —el servidor solo responde con el ejemplo, nunca con la
+ * de otro— y por eso es la única «op» que el navegador puede pedir. */
+export async function cargarTenant({ tenantSolicitado = null, op = null } = {}) {
   try {
     const res = await fetch("/api/adi-data", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ access: getAccessCode(), tenantSolicitado }),
+      body: JSON.stringify({ access: getAccessCode(), tenantSolicitado, ...(op ? { op } : {}) }),
     });
     const d = await res.json();
+
+    /* ⚠️ «TODAVÍA NO SUBIÓ NADA» NO ES UNA FALLA (owner 2026-08-27). La empresa existe, la sesión es válida y
+     * simplemente no hay archivo activo: la app tiene que abrir «Tus datos» y decirlo, no mostrar un error ni
+     * —peor— el negocio de demostración como si fuera suyo. Viene `ok:false` para que ningún consumidor viejo
+     * intente pintar un tablero sin dato, pero con `sinDatos` para que quien sepa distinguir, distinga. */
+    if (d && d.ok === true && d.sinDatos === true) {
+      _ultimo = { ok: false, tenantId: d.tenantId, origen: "sin-datos", motivo: d.mensaje || null };
+      return { ok: false, sinDatos: true, tenantId: d.tenantId, nombre: d.nombre, mensaje: d.mensaje };
+    }
+
     if (!d || d.ok !== true || !d.dataset) {
       _ultimo = { ok: false, tenantId: null, origen: null, motivo: (d && d.motivo) || "el servidor no entregó dato" };
       return { ok: false, motivo: _ultimo.motivo };

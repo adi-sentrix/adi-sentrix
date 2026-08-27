@@ -20,7 +20,7 @@
  *      cae limpio a `POLICY_CONFIG` y ninguna vara queda inventada. Sin `costModel`, el motor degrada a solo-ventas
  *      —que es exactamente lo honesto cuando todavía no hay empresa.
  *
- * `id: null` es deliberado: `getTenantId()` devuelve "demo" por defecto, y un id nulo acá hace que cualquier
+ * `id: null` es deliberado: desde la vía 3 `getTenantId()` devuelve `null` sin tenant cargado, y un id nulo acá hace que cualquier
  * consumidor que scopee por tenant (criteria, caches) no confunda "todavía no cargó" con "es el demo".
  */
 

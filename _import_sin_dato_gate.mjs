@@ -144,17 +144,23 @@ ok(huerfanos.length === 0,
   `ya no aparecen: ${huerfanos.join(", ")}`);
 
 console.log("\n" + "=".repeat(100));
-console.log("3 · EL AVISO QUE FALTA · el id del tenant responde «demo» aunque no haya tenant cargado");
+console.log("3 · EL AVISO QUE YA NO FALTA · sin tenant cargado, el id NO miente");
 console.log("=".repeat(100));
-/* MEDIDO: con el store vacío, `tenantCargado()` dice false pero `getTenantId()` devuelve "demo" por su fallback.
- * Hoy no rompe nada —criteria y pnl corrigen en el callback— pero es la trampa exacta que hizo mudo a entityGuard:
- * una respuesta PLAUSIBLE en vez de un «todavía no sé». Se deja ANOTADO acá, sin cambiarlo: `tenantStore` es del
- * frente de datos y tocar ese default movería los 51 gates que ya se adaptaron. Cuando entre Supabase real, el
- * fallback debería ser explícito, o `tenantCargado()` obligatorio antes de leer el id. */
+/* ✅ CERRADO EN LA VÍA 3 (2026-08-27, paso 3.g). Este bloque decía lo contrario: dejaba ANOTADO que con el
+ * store vacío `tenantCargado()` decía false y `getTenantId()` igual devolvía "demo" por su fallback — «riesgo
+ * latente, no falla de hoy», porque mientras el demo era el único negocio el default nombraba lo que
+ * efectivamente iba a haber. Con Supabase y empresas reales pasó a ser una afirmación falsa: una sesión de otra
+ * empresa que todavía no subió su archivo quedaba etiquetada como «demo» en el contexto del turno y en la
+ * boleta. Es la trampa exacta que hizo mudo a entityGuard: una respuesta PLAUSIBLE en vez de un «todavía no sé».
+ *
+ * ⚠️ Y ESTE CHEQUEO SE PUSO ROJO SOLO AL ARREGLARLO, que es como tiene que comportarse una nota escrita
+ * honestamente: describía el estado, no lo bendecía. Ahora describe el nuevo. */
 const store = fs.readFileSync(path.join(root, "src", "data", "tenantStore.js"), "utf8");
 ok(/tenantCargado/.test(store), "el store SÍ expone `tenantCargado()` — la pregunta honesta existe");
-ok(/getTenantId[^\n]*\|\|\s*"demo"/.test(store),
-  "…y el id todavía cae a «demo» sin tenant: queda anotado como riesgo latente, no como falla de hoy");
+ok(!/getTenantId[^\n]*\|\|\s*"demo"/.test(store),
+  "…y el id ya NO cae a «demo» cuando no hay nada cargado");
+ok(/getTenantId[^\n]*\|\|\s*null/.test(store),
+  "…devuelve `null`: un identificador equivocado es peor que ninguno — `null` se ve, «demo» se cree");
 
 console.log(`\n── _import_sin_dato_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail === 0 ? 0 : 1);
