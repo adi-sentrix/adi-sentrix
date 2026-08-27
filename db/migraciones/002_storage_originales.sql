@@ -16,6 +16,19 @@ values ('adi-originales', 'adi-originales', false)
 on conflict (id) do nothing;
 
 
+-- ⚠️ UNA POLÍTICA NO DA PERMISO: FILTRA EL QUE YA HAY. Estos tres `grant` faltaban en la primera versión de
+-- este archivo y la verificación en vivo lo encontró — «permission denied for schema storage»— con las
+-- políticas de abajo perfectamente escritas. Es la lección que vale la pena dejar anotada: RLS decide QUÉ
+-- filas ve un rol que YA tiene acceso a la tabla. Sin el `grant`, la política protege una puerta que el rol
+-- no puede ni tocar. Es una cerradura sin llave, y desde el SQL no se ve la diferencia.
+--
+-- No hay `delete`, igual que en todo el resto del esquema: borrar un original vencido es la tarea de
+-- retención, con la llave de servicio.
+grant usage  on schema storage    to adi_tenant;
+grant select on storage.buckets   to adi_tenant;
+grant select, insert on storage.objects to adi_tenant;
+
+
 -- ⚠️ EL BUCKET ES PRIVADO (`public = false`) Y TIENE QUE SEGUIR SIÉNDOLO. Un bucket público sirve
 -- cualquier objeto a cualquiera que adivine la URL, sin pasar por RLS ni por el pase: sería devolver
 -- el archivo de contabilidad de un cliente a quien pruebe identificadores. La política de acá abajo no

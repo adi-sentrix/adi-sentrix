@@ -94,6 +94,16 @@ function revisar(base, storage) {
   anotar("sin-permiso-de-borrado", !grants.some((g) => /\bdelete\b/i.test(g)),
     grants.filter((g) => /\bdelete\b/i.test(g)).join(" · "));
 
+  /* ⚠️ UNA POLÍTICA NO DA PERMISO: FILTRA EL QUE YA HAY. Esta comprobación nació de un defecto real — el
+   * depósito de originales tenía sus dos políticas perfectas y el rol no podía ni tocar el esquema, así que
+   * subir un archivo moría con «permission denied». Desde el SQL las dos cosas se ven igual de bien; la
+   * diferencia solo aparece al ejecutarlo. Por eso ahora se exige que toda tabla con política tenga grant. */
+  for (const t of TABLAS) {
+    if (!politicasDe(base, t).length) continue;
+    anotar(`${t}:con-permiso`, grants.some((g) => new RegExp(`\\bpublic\\.${t}\\b`).test(g)),
+      "tiene política pero ningún grant: el rol no puede ni tocar la tabla");
+  }
+
   // ── el pack sobrevive al archivo que lo produjo ──
   const fpv = bloqueDeTabla(base, "fact_pack_versions") || "";
   anotar("upload-no-arrastra-el-pack", /upload_id[\s\S]{0,120}on delete set null/.test(fpv));
@@ -120,6 +130,13 @@ function revisar(base, storage) {
   anotar("bucket-privado", /insert into storage\.buckets[\s\S]{0,160}false\s*\)/.test(storage));
   anotar("bucket-por-pase", (storage.match(/adi\.tenant_actual\(\)/g) || []).length >= 2);
   anotar("bucket-sin-borrado", !/create policy[\s\S]{0,200}\bfor delete\b/.test(storage));
+
+  /* El mismo defecto que arriba, en el depósito: acá es donde se manifestó primero. */
+  anotar("storage:esquema-alcanzable", /grant\s+usage\s+on schema storage\s+to adi_tenant/i.test(storage),
+    "sin `usage` sobre el esquema, la política del depósito no llega a evaluarse nunca");
+  anotar("storage:objetos-con-permiso", /grant\s+select,\s*insert\s+on storage\.objects\s+to adi_tenant/i.test(storage));
+  anotar("storage:sin-permiso-de-borrado",
+    !(storage.match(/^grant\s+[^;]*;/gmi) || []).some((g) => /\bdelete\b/i.test(g)));
 
   // ── ninguna credencial, en ningún archivo ──
   for (const [nombre, txt] of [["001", base], ["002", storage]]) {
@@ -242,6 +259,11 @@ console.log("=".repeat(100));
       "una credencial pegada en el SQL"],
     ["bucket-privado", STORAGE ? BASE : BASE, STORAGE.replace("'adi-originales', false)", "'adi-originales', true)"),
       "el depósito de originales marcado como público"],
+    /* ⚠️ LA CARNADA DEL DEFECTO REAL: es exactamente el SQL que corrió en la base y falló en vivo. */
+    ["storage:esquema-alcanzable", BASE, STORAGE.replace(/grant\s+usage\s+on schema storage[^;]*;/i, ""),
+      "una política de depósito sin permiso sobre el esquema — el defecto que la verificación en vivo encontró"],
+    ["uploads:con-permiso", BASE.replace(/^grant select, insert, update on public\.uploads.*$/m, ""), STORAGE,
+      "una tabla con política y sin ningún grant: cerradura sin llave"],
   ];
 
   for (const [clave, b, s, queSimula] of carnadas) {
