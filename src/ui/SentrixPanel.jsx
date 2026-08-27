@@ -1475,7 +1475,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
           <div style={{ fontSize:14, color:C.text, fontWeight:500 }}>Tu negocio, en vivo <span style={{ color:C.textMuted, fontWeight:400 }}>· datos organizados por vista — ADI explica cualquier punto que quieras entender</span></div>
           {/* SELECTOR DE CARA (owner 2026-07-15) · segmented discreto: la misma Mesa mirando lo comercial o el capital */}
           <div style={{ display:"flex", alignItems:"center", gap:0, border:`1px solid ${C.border}`, borderRadius:7, overflow:"hidden", flexShrink:0 }}>
-            {[["comercial", "Comercial"], ["capital", "Capital"], ["resultado", "Resultado"], ["ficha", "Ficha"]].map(([k, lbl]) => (
+            {[["comercial", "Comercial"], ["capital", "Capital"], ["resultado", "Resultado"], ["ficha", "Perfil Ejecutivo"]].map(([k, lbl]) => (
               <button key={k} onClick={() => setCara(k)}
                 title={k === "comercial" ? "La cara comercial: ventas, márgenes y contribución" : k === "capital" ? "La cara Capital: tu inventario — qué trabaja, qué se frena, qué reponer" : k === "resultado" ? "La cara Resultado: tu P&L comercial — la cascada hasta el resultado después de gastos" : "La Ficha Ejecutiva de un cliente: perfil, brecha, evolución, composición y posición en la cartera"}
                 style={{ padding:"4px 12px", fontSize:14, fontWeight: cara === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
@@ -2656,61 +2656,21 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
         </button>
       )}
     </div>
-    {/* ── 02 · POR QUÉ · la línea que más pesa en el resultado ── */}
-    <div>
-      <MovHead num="02" title="Por qué pasa" def={"La línea de gasto que más resultado consume, con su valor anual — del propio P&L que declaraste (una sola verdad con la respuesta de ADI). Toca el foco y ADI ordena todas tus líneas por peso."}/>
-      {mr.foco ? (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:8 }}>
-          <button onClick={askPnl ? () => askPnl(mr.foco.ask) : undefined} title={askPnl ? `Pregúntale a ADI: ${mr.foco.ask}` : undefined}
-            style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:2, padding:"9px 12px", borderRadius:10, border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.surface, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: askPnl ? "pointer" : "default", transition:"background 0.15s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = C.surfaceHover; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = C.surface; }}>
-            <span style={{ fontSize:14.5, fontWeight:600, color:C.celeste, fontFamily:MONO, letterSpacing:"0.2px" }}>{mr.foco.usdFmt}</span>
-            <span style={{ fontSize:14, color:C.textSub, lineHeight:1.3 }}>{mr.foco.label} <span style={{ color:C.celeste }}>→</span></span>
-          </button>
-        </div>
-      ) : (
-        <div style={{ fontSize:14, color:C.textSub, lineHeight:1.5 }}>Sin líneas de gasto declaradas todavía.</div>
-      )}
-    </div>
-    {/* ── 03 · QUÉ HACER PRIMERO · probar el ajuste de la línea que más pesa ── */}
-    <div>
-      <MovHead num="03" title="Qué hacer primero" def={"La primera medida sobre el P&L: probar un ajuste de la línea que más pesa — ADI proyecta el efecto directo en el resultado (supuesto, no dato). Si tu % real es otro, actualizarlo conversando deja la cascada honesta."}/>
-      {mr.accion ? (
-        <div style={{ ...CARD_SIDES, borderRadius:12, padding:"13px 15px", background:"rgba(255,255,255,0.025)" }}>
-          <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10, marginBottom:6 }}>
-            <span style={{ fontSize:14, color:C.text, fontWeight:600 }}>{mr.accion.titulo}</span>
-            <span style={{ fontFamily:MONO, fontSize:14, color:C.amber, fontWeight:600, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{mr.accion.usdFmt}</span>
-          </div>
-          <div style={{ fontSize:14, color:C.textSub, lineHeight:1.55, marginBottom:10 }}>{mr.accion.detalle}</div>
-          {askPnl && (
-            <button onClick={() => askPnl(mr.accion.ask)} title={`Pregúntale a ADI: ${mr.accion.ask}`}
-              style={{ padding:"7px 14px", borderRadius:8, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", transition:"background 0.15s" }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.16)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; }}>
-              {mr.accion.askLabel} <span style={{ color:C.celeste }}>→</span>
-            </button>
-          )}
-        </div>
-      ) : (
-        <div style={{ fontSize:14, color:C.textSub, lineHeight:1.5 }}>Sin líneas declaradas no hay ajuste que probar.</div>
-      )}
-    </div>
-    {/* ── ¿Y SI…? · cada línea pregunta su proyección + la meta de venta ── */}
-    {(mr.simulaciones || []).length > 0 && (
-      <div>
-        <MovHead title="¿Y si…?" def={"Supuestos, no datos: cada línea proyecta el ajuste de un gasto declarado sobre tu dato real — el cálculo directo de ese cambio, sin predecir si es viable operarlo así. La última línea invierte la pregunta: cuánta venta necesitas para un resultado objetivo, con tu estructura constante. Toca una línea y ADI corre esa cuenta al lado."}/>
-        <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-          {mr.simulaciones.map((s) => (
-            <AskRow key={s.key} onAsk={askPnl} q={s.ask} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:14, color:C.textSub, lineHeight:1.5, padding:"7px 10px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(255,255,255,0.015)" }}>
-              <span style={{ color:C.celeste, fontFamily:MONO, flexShrink:0, marginTop:1 }}>¿?</span>
-              <span style={{ flex:1 }}>{s.texto}</span>
-              <span style={{ fontFamily:MONO, fontSize:14, color:C.amber, fontWeight:600, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{s.delta}</span>
-            </AskRow>
-          ))}
-        </div>
-      </div>
-    )}
+    {/* ⚠️ ACÁ IBA «02 · POR QUÉ PASA» — la tarjeta que nombraba la línea de gasto que más consume y la
+        declaraba culpable. SE QUITÓ EL 2026-08-27, misma orden que vació de conclusiones a Comercial:
+        «quitarle conclusiones a Sentrix; ADI lo hará — es duplicar cosas».
+        LA CIFRA NO SE PIERDE: la línea y su peso siguen en la cascada de 01 y en el cuadro de abajo, que es
+        donde se MUESTRAN. Cuál pesa más se ve solo; que eso sea la causa, lo dice ADI cuando se lo preguntan. */}
+    {/* ⚠️ ACÁ IBA «03 · QUÉ HACER PRIMERO» — «Revisar la línea logística», su párrafo de recomendación y el
+        botón «Probar el ajuste». Es la conclusión más fuerte de todas: no describe, aconseja. Fuera el
+        2026-08-27 por la misma orden.
+        EL AJUSTE SIGUE SIENDO POSIBLE, y por dos caminos: el % de cada línea punteada se edita en la propia
+        cascada de 01, y la simulación se le pide a ADI conversando. Lo que se fue es que el tablero la
+        recomendara por su cuenta. */}
+    {/* ⚠️ ACÁ IBA «¿Y SI…?» · las dos líneas de supuesto sugerido. Fuera el 2026-08-27 — y no es un criterio
+        nuevo: el owner ya lo había sacado de Comercial y de Capital el 2026-08-09 («no aporta»), porque
+        proyectaba en condicional lo que las cifras ya dicen. Resultado era la última cara que lo conservaba;
+        ahora las tres van igual. Las simulaciones siguen vivas: se piden conversando. */}
     {/* ── CUADRO · RESULTADO POR ENTIDAD + SELECTOR DE EJE (pase 2 · solo ejes con venta desglosada) ── */}
     <div>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:9, flexWrap:"wrap" }}>
@@ -2782,7 +2742,9 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
         </div>
       </div>
     </div>
-    <div style={{ fontSize:14, color:C.textMuted, lineHeight:1.5 }}>La cara Resultado cuenta tu P&L comercial: la cascada del ingreso al resultado (probado hasta la contribución · tus gastos como supuestos declarados, % sobre la venta), qué línea pesa más y qué ajuste probar primero. Todo es pregunta: toca una línea de la cascada o una fila del cuadro y ADI la abre al lado. Los supuestos se editan conversando («cambia una línea a otro %») o directo en la cascada: el % de cada línea punteada se cambia ahí mismo, con «sacar» y «+ agregar línea de gasto» — una sola verdad, sin disparar respuestas de ADI.</div>
+    {/* ⚠️ ACÁ IBA UN PÁRRAFO que explicaba la cara entera al pie. Fuera el 2026-08-27: era un manual impreso
+        debajo de la pantalla que ya se explica sola, y lo que no se explique solo se pregunta. Lo que sí se
+        conserva son los tooltips de cada bloque, que definen SU pieza donde está — no todo, al final. */}
   </>);
 }
 
@@ -3112,8 +3074,9 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
    * Cada pieza deriva de `cap` (la salida viva de buildMesaCapital) y su control activo viaja declarado. */
   const _oC = { scenario, onAsk };
   const _oCdrill = { ..._oC, controles: { drill: drill || "" } };
-  const vCapVeredicto = useViewContext("capital/01/veredicto", cap, _oC);
-  const vCapMapa = useViewContext("capital/01/mapa", cap, _oC);
+  /* ⚠️ ACÁ VIVÍAN los contextos `capital/01/veredicto` y `capital/01/mapa`. Se fueron con sus piezas el
+     2026-08-27: un contexto describe algo que se puede señalar en pantalla, y ya no hay qué señalar. Las
+     cuatro cards tienen contexto PROPIO (ver `_CAP_KPI_COMPONENTES`), así que no perdieron nada. */
   const vCapCortes = useViewContext("capital/01/cortes", cap, { ..._oC, controles: { corte } });
   const vCapReponer = useViewContext("capital/01/reponer", cap, _oC);
   const vCapLiquidar = useViewContext("capital/01/liquidar", cap, _oC);
@@ -3129,7 +3092,7 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
   const ctxKpiCap = Object.fromEntries(_CAP_KPI_COMPONENTES.map(([k], i) => [k, _hooksKpi[i]]));
   // la pregunta de la lectura del mapa sale del propio módulo (la del KPI de capital inmovilizado), nunca de un
   // literal escrito en la vista: el vocabulario de lo que se le manda a ADI es contrato del módulo.
-  const _askMapa = ((cap.kpis || []).find((k) => k.key === _CAP_KPI_COMPONENTES[1][0]) || {}).ask || null;
+  /* `_askMapa` se fue con la línea que narraba el mapa: era la pregunta que ESA línea llevaba al hacerle click. */
   // `capital/01/focos`, `capital/01/simulaciones` y `capital/01/alertas` están declarados en el manifiesto pero HOY
   // NO SE PINTAN en esta cara (el owner los sacó el 2026-08-09 junto con la tira de estados y el "¿Y si…?"). No se
   // les cablea emisor: un contexto de algo que no está en pantalla haría que ADI resolviera "esto" contra una
@@ -3147,32 +3110,21 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
     {/* ── 01 · QUÉ ESTÁ PASANDO · veredicto + KPIs + distribución + el inventario general, cerrado ── */}
     <div>
       <MovHead num="01" title="Qué está pasando" def={`El mapa del capital: cuánto trabaja en rango, cuánto está por cortarse (quiebre próximo), cuánto sobra (sobrestock) y cuánto está inmovilizado — los estados del motor contra tu benchmark (rotación ${POLICY.rotacionMin}x · ${POLICY.dohMax} días de inventario). Los tramos suman exacto tu capital total. Toca un tramo, la leyenda o un KPI y ADI abre esa historia al lado.`}/>
-      {/* EL VEREDICTO · localiza dónde está el capital y dónde falta. NO afirma la venta perdida por quiebre:
-          eso no está medido en este dato. */}
-      {cap.veredicto ? (
-        <div style={{ padding:"13px 16px", borderRadius:12, border:`1px solid ${C.border}`, borderLeftWidth:3,
-          borderLeftColor: cap.veredicto.tipo === "senal" ? C.celeste : C.borderLight,
-          background:"linear-gradient(90deg, rgba(47,184,218,0.06), rgba(47,184,218,0.01) 55%, transparent)", marginBottom:10 }}>
-          <div style={{ fontSize:17, fontWeight:600, color:C.text, lineHeight:1.35, letterSpacing:"-0.1px" }}>{cap.veredicto.titular}</div>
-          <div style={{ fontSize:14, color:C.textSub, lineHeight:1.55, marginTop:6 }}>{cap.veredicto.soporte}</div>
-          {cap.veredicto.cierre ? <div style={{ fontSize:14, color:C.textSub, lineHeight:1.55, marginTop:4 }}>{cap.veredicto.cierre}</div> : null}
-        </div>
-      ) : null}
-      {/* la lectura del mapa pasa a ser preguntable (mismo texto, mismo lugar: gana el click y el título). La
-          PREGUNTA no se escribe acá: es la que el módulo ya emite para ese KPI — una sola verdad, y así el
-          vocabulario del producto lo sigue fijando el módulo, no la vista. */}
-      <div style={{ fontSize:14, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(47,184,218,0.03)", marginBottom:9, ...(vCapMapa.ask && _askMapa ? { cursor:"pointer" } : {}) }}
-        title={vCapMapa.ask && _askMapa ? `Pregúntale a ADI: ${_askMapa}` : undefined}
-        onClick={vCapMapa.ask && _askMapa ? () => vCapMapa.ask(_askMapa) : undefined}>
-        <span style={{ color:C.celeste, fontWeight:600 }}>ADI · </span>{cap.mapa.lectura}
-      </div>
+      {/* ⚠️ ACÁ IBA EL VEREDICTO DEL CAPITAL — «Tu capital está donde no se vende, y escasea donde sí», con su
+          soporte y su cierre recomendando qué proteger primero. Fuera el 2026-08-27, misma orden que vació la
+          «Lectura ejecutiva» de Comercial: Sentrix muestra, ADI concluye.
+          ⚠️ EL MÓDULO LO SIGUE EMITIENDO. `mesaCapital.js` arma titular, soporte y cierre igual que antes, y su
+          gate de datos lo prueba: es de donde ADI lo toma para responder. Lo que se fue es su impresión. */}
+      {/* ⚠️ ACÁ IBA LA LÍNEA «ADI · De tus $X en inventario: …», que narraba en prosa los cuatro tramos que las
+          cards de abajo ya dan en cifra. Fuera el 2026-08-27: era la misma información dos veces, una contada
+          y otra mostrada, y la orden es quedarse con la que se muestra. */}
       {/* LA TIRA DE ESTADOS SE ELIMINÓ (owner 2026-08-09): repetía por tercera vez las cuatro cifras que ya
           dicen la línea de ADI y las cards, y la barra por estado ya vive en cada bodega del bloque 02. */}
       {/* los KPIs de la cara · capital total · detenido · quiebres próximos · rotación media */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))", gap:9, marginTop:9 }}>
         {cap.kpis.map((k) => { const col = semCol[k.estado]; const abierta = drill === k.key;
           const tabla = cap.drill && cap.drill[k.key];
-          const vK = ctxKpiCap[k.key] || vCapVeredicto; return (
+          const vK = ctxKpiCap[k.key]; return (
           // abrir el detalle de una card INFORMA su contexto: la pregunta que el usuario haga después ya llega
           // sabiendo qué card tiene abierta y no el total de la cara (dos universos, dos cifras legítimas).
           <button key={k.key} onClick={tabla ? () => { setDrill(abierta ? null : k.key); if (!abierta && vK && vK.ctx) setUISignal({ viewContext: vK.ctx }); } : undefined}
@@ -3195,7 +3147,7 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
       {/* EL DETALLE DE LA CARD ABIERTA · una tabla por KPI, con el universo que ese KPI cuenta */}
       {drill && cap.drill && cap.drill[drill] ? (
         <CapitalDrill tabla={cap.drill[drill]} ask={(cap.kpis.find((k) => k.key === drill) || {}).ask}
-          onAsk={(ctxKpiCap[drill] && ctxKpiCap[drill].ask) || vCapVeredicto.ask} onCerrar={() => setDrill(null)}/>
+          onAsk={ctxKpiCap[drill] && ctxKpiCap[drill].ask} onCerrar={() => setDrill(null)}/>
       ) : null}
       {/* DÓNDE ESTÁ TU PLATA · el reparto por SKU, en barras. Va en 01 porque el owner lo pidió para que "se
           entienda al entrar" (2026-08-09). No repite las cards: ellas dan los totales por estado, esto da el
@@ -3332,13 +3284,10 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
         ))}
       </div>
     </div>
-    {/* ── LO QUE ESTA CARA NO PUEDE AFIRMAR · declarado, no disimulado ── */}
-    {(cap.limitaciones || []).length > 0 && (
-      <div style={{ fontSize:14, color:C.textMuted, lineHeight:1.55, padding:"9px 12px", border:`1px dashed ${C.border}`, borderRadius:10 }}>
-        <span style={{ ...head, marginRight:6 }}>Lo que este dato no permite afirmar</span>
-        {cap.limitaciones.join(" ")}
-      </div>
-    )}
+    {/* ⚠️ ACÁ IBA «LO QUE ESTE DATO NO PERMITE AFIRMAR» · el recuadro punteado con los límites de la cara.
+        Fuera el 2026-08-27 por orden del owner. ⚠️ NO ES QUE LOS LÍMITES DEJEN DE IMPORTAR: siguen declarados
+        en `capability.js`, que es de donde ADI los toma — y ADI los dice cuando la pregunta los toca, que es
+        cuando sirven. Impresos de entrada eran un descargo legal encima del dato. */}
     {/* "¿Y SI…?" SE ELIMINÓ (owner 2026-08-09: "no aporta") — el mismo criterio con que salió de Comercial:
         proyectaba lo que ya dicen las cards ($33K detenidos, $36K en quiebre) envuelto en un condicional. */}
     {/* (El "Cuadro de capital" ya NO va suelto al final: subió DENTRO de 01, cerrado bajo "Ver inventario

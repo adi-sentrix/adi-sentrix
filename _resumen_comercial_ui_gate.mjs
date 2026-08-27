@@ -882,7 +882,9 @@ H("[8] CERO REGRESIONES · las caras Ficha, Capital y Resultado siguen rindiendo
   ok(container.textContent.includes("Qué hacer primero"), "…con sus tres movimientos");
   fireEvent.click(porTexto(container, "Resultado"));
   ok(/P&L|resultado después de gastos|Resultado/i.test(container.textContent), "la cara RESULTADO rinde");
-  fireEvent.click(porTexto(container, "Ficha"));
+  /* ⚠️ LA PESTAÑA SE LLAMA «Perfil Ejecutivo» DESDE EL 2026-08-27 (owner). El nombre corto «Ficha» sigue vivo
+     dentro de la cara (los botones «Abrir Ficha», «Ver Ficha»): lo que cambió es el rótulo de la pestaña. */
+  fireEvent.click(porTexto(container, "Perfil Ejecutivo"));
   // «Elegí» → «Elige» (registro formal, owner 2026-08-14). Se aceptan las dos: lo que prueba esta línea es que la
   // cara Ficha rinde SU SELECTOR, no cómo se conjuga el imperativo.
   ok(/(?:Elegí|Elige) un cliente/.test(container.textContent), "la cara FICHA rinde con su selector");
