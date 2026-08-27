@@ -17,6 +17,15 @@ async function _hmac(payloadB64u, secret) {
   return _b64u(sig);
 }
 
+// ── LAS PRIMITIVAS, EXPUESTAS · para el pase corto de la base (`data/paseTenant.js`, vía 3 · 2026-08-27)
+// No agregan comportamiento acá: son las MISMAS tres piezas de arriba con nombre público. Se exportan en vez
+// de reescribirlas en el otro módulo porque dos implementaciones de una firma terminan divergiendo, y la que
+// diverge en silencio es la que valida algo que no debería. Este archivo sigue siendo el único que sabe
+// firmar en el repo.
+export const b64urlDeTexto = (s) => _b64u(_te.encode(String(s)));
+export const textoDeB64url = (s) => _b64uToStr(String(s));
+export const firmarHmacB64u = (mensaje, secret) => _hmac(String(mensaje), secret);
+
 // ── LA EMPRESA VIAJA FIRMADA (vía 1 · owner 2026-08-20) ───────────────────────────────────────────────────────
 // El código de acceso ya era el login; ahora es también **de qué empresa es** esa sesión. `t` es OPCIONAL y solo
 // se escribe cuando se pide una empresa distinta del demo: sin `t`, el payload queda BYTE-IDÉNTICO al de siempre
@@ -24,11 +33,14 @@ async function _hmac(payloadB64u, secret) {
 // POR QUÉ ADENTRO DE LA FIRMA y no como parámetro: un `?tenant=` del navegador es una lista de empresas para
 // probar a mano. Acá el navegador puede LEER de qué empresa es su código, pero no puede cambiarlo sin romper el
 // HMAC — y el que sirve el dato (`tenantService.js`) solo mira lo verificado, nunca lo que el cliente afirma.
-const _tenantLimpio = (t) => {
+// Exportada (vía 3 · 2026-08-27): la base declara `tenants.id` con ESTE MISMO alfabeto, y el pase corto valida
+// con esta función. Un solo lugar define qué es un id de empresa válido, en la puerta y en el esquema.
+export function tenantLimpio(t) {
   const s = String(t || "").trim().toLowerCase();
   // el mismo alfabeto que un id de tenant del registro · sin esto, un id raro viajaría firmado y sin sentido
   return /^[a-z0-9][a-z0-9_-]{0,31}$/.test(s) ? s : null;
-};
+}
+const _tenantLimpio = tenantLimpio;
 
 // Emite un código: nombre + horas de vigencia (default 72 = 3 días) [+ empresa] → `ADI-{payload}.{firma}`
 export async function makeAccessCode(name, hours = 72, secret, now = Date.now(), tenant = null) {

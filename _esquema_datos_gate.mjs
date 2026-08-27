@@ -1,0 +1,221 @@
+/* === _esquema_datos_gate.mjs · LO QUE LA BASE DECLARA, LEÍDO Y EXIGIDO (vía 3 · owner 2026-08-27) =======
+ *
+ * QUÉ VIGILA. El esquema de `db/migraciones/` es donde vive el aislamiento entre empresas. Un `create table`
+ * agregado sin RLS, una política que diga `using (true)`, un `grant delete` de más o un `cascade` mal puesto
+ * no rompen ninguna prueba y no se ven en una revisión rápida: simplemente apagan una garantía. Este candado
+ * lee el SQL y exige las cinco propiedades que hacen que el diseño sea el diseño.
+ *
+ * POR QUÉ SE PUEDE PROBAR SIN BASE Y SIN CREDENCIALES: no se conecta a nada. El SQL es un texto declarativo y
+ * lo que hay que garantizar de él se lee del texto. Cuando exista el proyecto, esto sigue valiendo igual.
+ *
+ * ⚠️ TODO CHEQUEO DE ACÁ SE PRUEBA CONTRA UNA COPIA MUTADA DEL SQL REAL (sección 8). Es la lección de la v1.3:
+ * cuatro veces un chequeo mío dio verde estando ciego, y una de ellas hizo que el caso de control ni se
+ * ejecutara. Un candado que no se demuestra capaz de ponerse rojo no está midiendo nada.
+ *
+ * OFFLINE · lee archivos y compara texto · no puede gastar. */
+import { readFileSync } from "node:fs";
+import { tenantLimpio } from "./src/adi/llm/accessToken.js";
+
+let pass = 0, fail = 0;
+const ok = (cond, label, detalle) => {
+  if (cond) { pass++; console.log(`  ✓ ${label}`); }
+  else { fail++; console.log(`  ✗ ${label}`); if (detalle) console.log(`      ${detalle}`); }
+};
+
+const BASE = readFileSync("./db/migraciones/001_esquema_base.sql", "utf8");
+const STORAGE = readFileSync("./db/migraciones/002_storage_originales.sql", "utf8");
+
+/* Las tablas que este frente declara. Escritas acá a mano A PROPÓSITO: si alguien agrega una tabla al SQL y
+ * no la agrega a esta lista, la sección 1 lo caza. Descubrirlas del propio SQL haría que el candado aprobara
+ * automáticamente cualquier tabla nueva, que es justo lo que no queremos. */
+const TABLAS = ["tenants", "memberships", "uploads", "fact_pack_versions"];
+
+/* La única que se acota por `id` en vez de `tenant_id`, porque ELLA es la empresa. La excepción se declara
+ * acá y en un solo lugar; cualquier otra tabla sin `tenant_id` es un defecto. */
+const ACOTADA_POR_ID = new Set(["tenants"]);
+
+// ── lectores de SQL ────────────────────────────────────────────────────────────────────────────────────
+function bloqueDeTabla(sql, nombre) {
+  const i = sql.indexOf(`create table if not exists public.${nombre} (`);
+  if (i < 0) return null;
+  const j = sql.indexOf("\n);", i);
+  return j < 0 ? null : sql.slice(i, j);
+}
+
+function politicasDe(sql, nombre) {
+  const out = [];
+  const re = new RegExp(`create policy\\s+(\\w+)\\s+on\\s+public\\.${nombre}\\b`, "g");
+  let m;
+  while ((m = re.exec(sql))) {
+    const j = sql.indexOf(";", m.index);
+    out.push({ nombre: m[1], cuerpo: sql.slice(m.index, j < 0 ? sql.length : j) });
+  }
+  return out;
+}
+
+/* Devuelve la lista de hallazgos. Es UNA FUNCIÓN PURA sobre el texto para que la sección 8 pueda correrla
+ * contra copias mutadas y comprobar que cada chequeo sabe ponerse rojo. */
+function revisar(base, storage) {
+  const h = [];
+  const anotar = (clave, cond, detalle) => h.push({ clave, ok: Boolean(cond), detalle });
+
+  for (const t of TABLAS) {
+    const bloque = bloqueDeTabla(base, t);
+    anotar(`${t}:existe`, bloque);
+    if (!bloque) continue;
+
+    anotar(`${t}:acotada`,
+      ACOTADA_POR_ID.has(t) ? /^\s*id\s+text\s+primary key/m.test(bloque) : /\btenant_id\b/.test(bloque));
+
+    anotar(`${t}:rls`, new RegExp(`alter table public\\.${t}\\s+enable row level security`).test(base));
+    anotar(`${t}:force`, new RegExp(`alter table public\\.${t}\\s+force\\s+row level security`).test(base));
+
+    const pols = politicasDe(base, t);
+    anotar(`${t}:tiene-politica`, pols.length > 0);
+    for (const p of pols) {
+      anotar(`${t}:politica-por-pase:${p.nombre}`, /adi\.tenant_actual\(\)/.test(p.cuerpo));
+      anotar(`${t}:politica-sin-true:${p.nombre}`, !/\b(using|with check)\s*\(\s*true\s*\)/i.test(p.cuerpo));
+    }
+
+    // idempotencia: cada política se recrea, así que tiene que soltarse antes
+    for (const p of pols) {
+      anotar(`${t}:politica-idempotente:${p.nombre}`,
+        new RegExp(`drop policy if exists\\s+${p.nombre}\\s+on public\\.${t}`).test(base));
+    }
+  }
+
+  // ── la garantía de una sola versión activa ──
+  anotar("una-sola-activa",
+    /create unique index[\s\S]{0,80}on public\.fact_pack_versions\s*\(tenant_id\)\s*where activa/.test(base));
+
+  // ── append-only: ningún permiso de borrado, en ninguna tabla ──
+  const grants = base.match(/^grant\s+[^;]*;/gm) || [];
+  anotar("sin-permiso-de-borrado", !grants.some((g) => /\bdelete\b/i.test(g)),
+    grants.filter((g) => /\bdelete\b/i.test(g)).join(" · "));
+
+  // ── el pack sobrevive al archivo que lo produjo ──
+  const fpv = bloqueDeTabla(base, "fact_pack_versions") || "";
+  anotar("upload-no-arrastra-el-pack", /upload_id[\s\S]{0,120}on delete set null/.test(fpv));
+  anotar("upload-nunca-cascade", !/upload_id[\s\S]{0,120}on delete cascade/.test(fpv));
+
+  // ── compatibilidad hacia adelante: las columnas de persona nacen ahora, y NULAS ──
+  for (const [t, col] of [["memberships", "user_id"], ["uploads", "subido_por"], ["fact_pack_versions", "creado_por"]]) {
+    const b = bloqueDeTabla(base, t) || "";
+    const linea = (b.split("\n").find((l) => new RegExp(`^\\s*${col}\\b`).test(l)) || "");
+    anotar(`persona:${t}.${col}:existe`, Boolean(linea));
+    anotar(`persona:${t}.${col}:nula`, Boolean(linea) && !/not null/i.test(linea), linea.trim());
+  }
+
+  // ── la falla cerrada del claim ──
+  anotar("claim-falla-cerrada", /create or replace function adi\.tenant_actual\(\)[\s\S]*?exception when others then[\s\S]*?return null/.test(base));
+
+  // ── idempotencia de tablas e índices ──
+  const creaTablas = base.match(/^create table\s+(?!if not exists)/gm) || [];
+  anotar("tablas-idempotentes", creaTablas.length === 0);
+  const creaIndices = base.match(/^create (unique )?index\s+(?!if not exists)/gm) || [];
+  anotar("indices-idempotentes", creaIndices.length === 0);
+
+  // ── el depósito de originales ──
+  anotar("bucket-privado", /insert into storage\.buckets[\s\S]{0,160}false\s*\)/.test(storage));
+  anotar("bucket-por-pase", (storage.match(/adi\.tenant_actual\(\)/g) || []).length >= 2);
+  anotar("bucket-sin-borrado", !/create policy[\s\S]{0,200}\bfor delete\b/.test(storage));
+
+  // ── ninguna credencial, en ningún archivo ──
+  for (const [nombre, txt] of [["001", base], ["002", storage]]) {
+    anotar(`sin-credencial:${nombre}:jwt`, !/\beyJ[A-Za-z0-9_-]{10,}/.test(txt));
+    anotar(`sin-credencial:${nombre}:cadena-larga`, !/['"][A-Za-z0-9+/_-]{40,}['"]/.test(txt));
+    anotar(`sin-credencial:${nombre}:conexion`, !/postgres(ql)?:\/\/[^\s]*:[^\s]*@/.test(txt));
+  }
+
+  return h;
+}
+
+const rojos = (hs) => hs.filter((x) => !x.ok).map((x) => x.clave);
+
+console.log("\n" + "=".repeat(100));
+console.log("1 · EL SQL REAL · todo lo que el diseño promete tiene que estar escrito");
+console.log("=".repeat(100));
+{
+  const h = revisar(BASE, STORAGE);
+  const malos = h.filter((x) => !x.ok);
+  for (const x of h.filter((x) => x.ok)) pass++;
+  for (const x of malos) { fail++; console.log(`  ✗ ${x.clave}${x.detalle ? ` — ${x.detalle}` : ""}`); }
+  console.log(`  ✓ ${h.length - malos.length} propiedades del esquema verificadas sobre el SQL real`);
+}
+
+console.log("\n" + "=".repeat(100));
+console.log("2 · EL ALFABETO DEL ID · la base y la puerta tienen que hablar del mismo valor");
+console.log("=".repeat(100));
+{
+  /* La empresa viaja firmada dentro del código de acceso y `tenantLimpio()` decide cuál es válida. Si el
+   * `check` de la tabla admitiera algo distinto, habría ids que la puerta firma y la base rechaza —o peor,
+   * al revés. Se comprueba ejerciendo los dos, no comparando dos textos de regex.
+   *
+   * ⚠️ SON DOS PROPIEDADES DISTINTAS Y HAY QUE MEDIRLAS POR SEPARADO, porque `tenantLimpio()` NORMALIZA antes
+   * de validar (recorta y baja a minúsculas) y el `check` de la base se aplica al valor ya guardado. Comparar
+   * el valor CRUDO contra el `check` compara dos cosas que nunca se encuentran: a la base llega la salida de
+   * la puerta, no su entrada. */
+  const m = BASE.match(/id\s+text primary key check \(id ~ '([^']+)'\)/);
+  ok(Boolean(m), "el SQL declara el alfabeto del id de empresa");
+  if (m) {
+    const enLaBase = new RegExp(m[1]);
+
+    /* 1 · LA QUE IMPORTA: todo lo que la puerta produce, la base lo acepta. Si esto se rompiera, habría
+     * sesiones legítimamente firmadas cuya empresa no se puede ni guardar. */
+    const entradas = ["demo", "empresa2", "mi-empresa_1", "  EMPRESA2  ", "MAYUS", "Con-Mayus_9"];
+    const producidos = entradas.map(tenantLimpio).filter(Boolean);
+    const rechazados = producidos.filter((v) => !enLaBase.test(v));
+    ok(producidos.length === entradas.length && rechazados.length === 0,
+      `los ${producidos.length} ids que la puerta produce entran en la base`,
+      `la base rechaza: ${rechazados.join(" · ")}`);
+
+    /* 2 · Y LA BASE NO ES MÁS LAXA: lo que la puerta jamás produciría, la base tampoco lo admite. Sin esto,
+     * un id escrito a mano en la base podría existir sin que ninguna sesión pueda alcanzarlo nunca. */
+    const imposibles = ["", "MAYUS", "  demo  ", "-empieza-guion", "a".repeat(40), "con espacio", "acentuadó", "punto.medio"];
+    const coladas = imposibles.filter((c) => enLaBase.test(c));
+    ok(coladas.length === 0,
+      `los ${imposibles.length} valores que la puerta nunca produce tampoco entran en la base`,
+      `se colaron: ${coladas.join(" · ")}`);
+  }
+}
+
+console.log("\n" + "=".repeat(100));
+console.log("3 · CARNADA · cada chequeo tiene que poder ponerse rojo");
+console.log("=".repeat(100));
+{
+  /* Se muta una COPIA del SQL real con el defecto exacto que el chequeo dice prevenir, y se exige que
+   * aparezca esa clave entre los rojos. Sin esto, todo lo de arriba podría estar verde y ciego. */
+  const carnadas = [
+    ["uploads:rls", BASE.replace("alter table public.uploads            enable row level security;", ""), STORAGE,
+      "una tabla sin RLS"],
+    ["uploads:politica-sin-true:uploads_del_pase",
+      BASE.replace("using      (tenant_id = adi.tenant_actual())\n  with check (tenant_id = adi.tenant_actual());\n\ncreate policy fact_pack_versions_del_pase",
+        "using      (true)\n  with check (true);\n\ncreate policy fact_pack_versions_del_pase"), STORAGE,
+      "una política que deja pasar todo"],
+    ["una-sola-activa", BASE.replace(/create unique index if not exists fact_pack_una_sola_activa[\s\S]*?;/, ""), STORAGE,
+      "sin el índice que impide dos versiones activas"],
+    ["sin-permiso-de-borrado", BASE + "\ngrant delete on public.fact_pack_versions to adi_tenant;\n", STORAGE,
+      "un permiso de borrado que rompe el append-only"],
+    ["upload-nunca-cascade", BASE.replace("references public.uploads(id) on delete set null", "references public.uploads(id) on delete cascade"), STORAGE,
+      "un cascade que borraría el pack junto con el archivo"],
+    ["persona:memberships.user_id:nula", BASE.replace("  user_id     uuid,", "  user_id     uuid not null,"), STORAGE,
+      "una columna de persona obligatoria hoy, que impediría sembrar sin cuentas"],
+    ["claim-falla-cerrada", BASE.replace(/exception when others then\s*\n\s*return null;/, ""), STORAGE,
+      "el claim sin falla cerrada"],
+    ["sin-credencial:001:jwt", BASE + "\n-- eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9ejemplo\n", STORAGE,
+      "una credencial pegada en el SQL"],
+    ["bucket-privado", STORAGE ? BASE : BASE, STORAGE.replace("'adi-originales', false)", "'adi-originales', true)"),
+      "el depósito de originales marcado como público"],
+  ];
+
+  for (const [clave, b, s, queSimula] of carnadas) {
+    const r = rojos(revisar(b, s));
+    ok(r.includes(clave), `se pone rojo ante ${queSimula}`, `esperaba «${clave}» entre los rojos; hubo: ${r.join(" · ") || "ninguno"}`);
+  }
+
+  /* Y el control que hace que la carnada signifique algo: el SQL real NO tiene ninguno de esos rojos. */
+  ok(rojos(revisar(BASE, STORAGE)).length === 0, "…y el SQL real no dispara ninguno de ellos");
+}
+
+console.log(`\n── _esquema_datos_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
+process.exit(fail === 0 ? 0 : 1);

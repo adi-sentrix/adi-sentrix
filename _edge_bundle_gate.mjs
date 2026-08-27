@@ -105,5 +105,30 @@ console.log("=".repeat(100));
     "y el servidor local sirve la MISMA ruta por el MISMO camino: si divergen, local deja de probar producción");
 }
 
+console.log("\n" + "=".repeat(100));
+console.log("5 · LA VÍA 3 · lo que TODAVÍA no está montado en edge, pero va a estarlo");
+console.log("=".repeat(100));
+{
+  /* ⚠️ ESTA SECCIÓN SE ADELANTA AL DEFECTO A PROPÓSITO. El pack activo lo va a leer `/api/adi-data`, que corre
+   * en edge; el cliente de la base y el emisor del pase van a entrar por ahí en el paso 3.e. Si se esperara a
+   * montarlos para probarlos, el primer aviso de que algo no empaqueta llegaría como un build roto de Vercel
+   * —que es exactamente la historia que este archivo cuenta en su cabecera—. Se empaquetan desde ya.
+   *
+   * Y no es una formalidad: la razón de escribir el cliente a mano en vez de usar el SDK de Supabase es
+   * justamente que el SDK no atraviesa esta prueba sin arrastrar cosas de Node. Acá se comprueba que la
+   * alternativa que elegimos sí la atraviesa. */
+  for (const m of ["./src/data/paseTenant.js", "./src/data/supabaseRest.js"]) {
+    const r = await empaqueta(m);
+    ok(r.ok, `${m.replace("./src/data/", "")} empaqueta para edge`, r.errores.slice(0, 2).join(" | "));
+  }
+
+  /* Y el control que le da sentido: los dos módulos EXISTEN y no están vacíos. Un archivo inexistente haría
+   * que esbuild fallara —lo cual se vería—, pero uno vacío empaquetaría feliz y este chequeo diría que sí. */
+  for (const m of ["./src/data/paseTenant.js", "./src/data/supabaseRest.js"]) {
+    const txt = readFileSync(m, "utf8");
+    ok(/^\s*export /m.test(txt), `${m.replace("./src/data/", "")} exporta algo: lo que se empaquetó no es un archivo vacío`);
+  }
+}
+
 console.log(`\n── _edge_bundle_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail === 0 ? 0 : 1);
