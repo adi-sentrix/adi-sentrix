@@ -221,7 +221,7 @@ H("[8] ÍNDICE tool→componente · se abstiene antes que adivinar");
 {
   ok(componentIdForTool("salesRead", "concentracion") === "comercial/01/pareto-ventas", "salesRead@concentracion → el Pareto de ventas");
   ok(componentIdForTool("diagnose", "carga") === "comercial/02/acciones-vs-meta", "diagnose@carga → acciones contra la meta");
-  ok(componentIdForTool("entityProfile") === "ficha/otro/ficha-cliente", "entityProfile → la Ficha (no el contexto ambiente de la vista)");
+  ok(componentIdForTool("entityProfile") === "ficha/otro/ficha-cliente", "entityProfile → el Perfil Ejecutivo (no el contexto ambiente de la vista)");
   /* ⚠️ APUNTABA A "capital/01/veredicto", que se fue el 2026-08-27 con la tarjeta del veredicto del capital.
      Lo que esta línea prueba es que la tool aterriza EN LA CARA CAPITAL, no en cuál de sus piezas: ahora cae
      en los focos, que es la pieza viva más cercana a lo que inventoryStatus devuelve. */

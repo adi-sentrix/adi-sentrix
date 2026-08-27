@@ -86,7 +86,7 @@ ok(r3 && r3.evidence.entityList && r3.evidence.entityList.entities.length === 4 
 ok(r3 && guardAgainstBoleta(r3.text, r3.evidence.boleta).ok, "guard matriz: cifras == boleta");
 const r4 = go("ventas de Falabella mes a mes");
 const eF = buildEntityEvolutionComparado("Falabella", "venta");
-ok(r4 && /Falabella/.test(r4.text) && r4.text.includes(_mK(eF.serie.reduce((a, b) => a + b, 0))), "una entidad: la serie anclada de la Ficha (total == dato del período)");
+ok(r4 && /Falabella/.test(r4.text) && r4.text.includes(_mK(eF.serie.reduce((a, b) => a + b, 0))), "una entidad: la serie anclada del Perfil Ejecutivo (total == dato del período)");
 const c4 = r4 && CH(r4.evidence);
 ok(c4 && c4.tabla.cols.join("|") === "Este año|Año anterior", "entidad con año anterior declarado → dos columnas");
 

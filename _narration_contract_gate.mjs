@@ -41,7 +41,7 @@ const deepEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 // ── ESCENARIOS REALES (planes que el motor produce de verdad) ───────────────────────────────────────────
 const CASOS = [
   {
-    nombre: "perfil de cliente (4 tools · el caso de la Ficha)",
+    nombre: "perfil de cliente (4 tools · el caso del Perfil Ejecutivo)",
     text: "muéstrame el perfil de Falabella",
     plan: { intent: "answer", mode: "default", scope: { level: "entity", entities: ["Falabella"] }, calls: [
       { tool: "entityProfile", args: { dimension: "cliente", entity: "Falabella" } },

@@ -38,7 +38,7 @@ export const CARAS = [
     necesita: ["capital@sku", "rotacion@sku", "doh@sku"] },
   { cara: "Resultado", que: "el P&L comercial: qué queda después de costos y gastos",
     necesita: ["ventas@cliente", "contribucion@cliente"] },
-  { cara: "Ficha", que: "el perfil completo de una cuenta, un SKU, una marca o una familia",
+  { cara: "Perfil Ejecutivo", que: "el perfil completo de una cuenta, un SKU, una marca o una familia",
     necesita: ["ventas@cliente", "ventas@sku", "ventas@marca", "ventas@familia"] },
 ];
 

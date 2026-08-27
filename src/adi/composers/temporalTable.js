@@ -231,13 +231,13 @@ export function composeSpecTemporal({ metric, dimension = null, entity = null, p
         : `La ${metLbl} de ${entity} en ${p.tipo === "rango" ? _plabel(p) : "el año, mes a mes"}: ${F(`${entity} · ${metLbl} del período`, tot, { mandatory: true })}${varTxt}.`,
       `· Mejor mes: ${meses[iMax]} (${fmt(serie[iMax])})`,
       `· Mes más bajo: ${meses[iMin]} (${fmt(serie[iMin])})`,
-      `La misma curva vive en la Ficha de ${entity} en Sentrix — tabla abajo.`,
+      `La misma curva vive en el Perfil Ejecutivo de ${entity} en Sentrix — tabla abajo.`,
     ].join("\n");
     return {
       opener, suggestions: [`¿Cómo está ${entity}?`], sentrixAction: null,
       evidence: {
         lens: "temporal", followup: false, entidad: entity, dimension: dimension || null,
-        tablaM: { titulo: `${entity} — ${metLbl} ${_plabel(p)}`, cols: [metLbl === "venta" ? "Este año" : metLbl, ...(e.anterior ? ["Año anterior"] : [])], rows, nota: "misma serie de la Ficha en Sentrix · el año cierra exacto con el dato del período" },
+        tablaM: { titulo: `${entity} — ${metLbl} ${_plabel(p)}`, cols: [metLbl === "venta" ? "Este año" : metLbl, ...(e.anterior ? ["Año anterior"] : [])], rows, nota: "misma serie del Perfil Ejecutivo en Sentrix · el año cierra exacto con el dato del período" },
         ...(variacionMensual ? { variacionMensual } : {}),
         ...(variacionAnual ? { variacionAnual } : {}),
         mejorMes, peorMes,

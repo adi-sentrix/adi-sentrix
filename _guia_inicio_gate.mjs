@@ -321,7 +321,7 @@ for (const marca of [GUIA_VISTA, GUIA_NUNCA]) {
 limpiar();
 
 console.log("\n" + "═".repeat(100));
-console.log("8 · EL CAPÍTULO 5 nombra dónde vive la evidencia (la Mesa bajo cada respuesta · la Ficha con el detalle)");
+console.log("8 · EL CAPÍTULO 5 nombra dónde vive la evidencia (la Mesa bajo cada respuesta · el Perfil Ejecutivo con el detalle)");
 console.log("═".repeat(100));
 {
   limpiar();
@@ -330,7 +330,7 @@ console.log("═".repeat(100));
   ok(pasoActual(container) === 5, "capítulo 5 en pantalla");
   const t = container.textContent;
   ok(/Debajo de cada respuesta aparece un botón que abre/.test(t) && t.includes("Sentrix"), "nombra el botón de evidencia bajo cada respuesta");
-  ok(t.includes("Ficha") && /ahí vive el detalle/.test(t), "nombra la Ficha como el lugar del detalle de una entidad");
+  ok(t.includes("Perfil Ejecutivo") && /ahí vive el detalle/.test(t), "nombral Perfil Ejecutivo como el lugar del detalle de una entidad");
   ok(t.includes("Mesa de control"), "nombra la Mesa de control del header");
   // CÓMO SE ABRE SENTRIX · el owner pidió que se dijera, y son las cuatro caras que tiene de verdad
   ok(/Comercial/.test(t) && /Capital/.test(t) && /Resultado/.test(t), "nombra las caras de la Mesa (adónde llega el usuario cuando la abre)");
@@ -343,7 +343,7 @@ console.log("═".repeat(100));
  *   · que el capítulo de LA HISTORIA nombre los tres movimientos EN ORDEN: es el modelo mental del producto
  *     entero (toda respuesta de ADI y toda cara de la Mesa están armadas así), y en desorden no enseña nada;
  *   · que el capítulo de LOS CRUCES no prometa un cruce que no existe (invariante 3 del archivo). Se verifica
- *     contra el producto: el capital ligado vive en la Ficha y los compradores de un SKU inmovilizado en Capital;
+ *     contra el producto: el capital ligado vive en el Perfil Ejecutivo y los compradores de un SKU inmovilizado en Capital;
  *   · que las TRES REGLAS estén las tres, en la redacción que el owner selló (lengua del usuario, no la interna);
  *   · que la guía NO se contradiga con la palabra que se unificó en el resto del producto ("inmovilizado"). */
 console.log("\n" + "═".repeat(100));
@@ -392,14 +392,14 @@ console.log("═".repeat(100));
   const cap = fs.readFileSync(path.join(root, "src/adi/sentrix/mesaCapital.js"), "utf8");
   ok(/_compradoresDe/.test(cap), "…y ese cruce EXISTE en la cara Capital (no es una promesa vacía)");
   ok(/estimaci[óo]n|indicado/i.test(t4), "…y se declara como estimación, que es como el módulo lo sella");
-  // EL CANDADO DEL CRUCE RETIRADO · si el capital ligado no está en la Ficha, la guía no puede prometerlo
+  // EL CANDADO DEL CRUCE RETIRADO · si el capital ligado no está en el Perfil Ejecutivo, la guía no puede prometerlo
   const ficha = fs.readFileSync(path.join(root, "src/ui/SentrixPanel.jsx"), "utf8");
   const hayCapitalLigado = /en productos que le vend[ée]s a/.test(ficha);
   ok(!hayCapitalLigado, "el capital ligado a un cliente sigue retirado del producto (decisión 9 del owner)");
   // NOMBRAR el cruce retirado es correcto —es la regla 3 en pantalla—; PROMETERLO no. La diferencia está en el
-  // modo: prometerlo es mandar al usuario a buscarlo ("abre la Ficha y vas a ver…"). Eso es lo que se prohíbe.
+  // modo: prometerlo es mandar al usuario a buscarlo ("abre el Perfil Ejecutivo y vas a ver…"). Eso es lo que se prohíbe.
   ok(!/Ficha[^.]{0,80}(capital (inmovilizado|parado|ligado)|cu[áa]nto capital)/i.test(t4),
-    "…y la guía NO manda a buscarlo en la Ficha: lo nombra como límite, no como destino");
+    "…y la guía NO manda a buscarlo en el Perfil Ejecutivo: lo nombra como límite, no como destino");
   ok(/no sostiene|se retir/i.test(t4), "…dicho en pantalla, que es la regla 3 funcionando");
 
   // CAPÍTULO 6 · LAS TRES REGLAS · en la redacción sellada por el owner (2026-08-10)

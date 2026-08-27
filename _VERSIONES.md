@@ -12,6 +12,50 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 1.16 — producción · tag `v1.16`
+
+**«Ficha» pasa a «Perfil Ejecutivo» en todo lo que se lee, y Resultado pierde su última frase interpretativa.**
+Las dos cosas las pidió el owner al cerrar la 1.15: la primera para que el nombre nuevo no conviviera con el
+viejo, y la segunda por consistencia — «si estamos quitando esas frases interpretativas de entrada, que sea
+consistente en Capital y Resultado».
+
+**La línea de Resultado.** Fuera «ADI · De $99.9M de ingreso… quedan $18.3M de resultado comercial». Es la
+gemela exacta de la que salió de Capital: cuenta en prosa lo que la cascada de abajo muestra línea por línea.
+La cuenta sigue viva en `mesaResultado.js`; lo que se fue es que el tablero la narrara.
+
+**El renombre: 42 textos en 8 archivos.** Botones («Abrir Perfil Ejecutivo», «Ver Perfil Ejecutivo»), tooltips,
+rótulos, la guía de inicio, el enlace del chat y hasta las instrucciones que viajan al narrador — porque si a
+ADI se le dice «Ficha», ADI va a decir «Ficha».
+
+⚠️ **Y SOLO en lo que se lee.** El reemplazo se hizo dentro de literales de cadena y texto JSX, nunca en
+comentarios ni en código: `MesaFichaCara`, `onFicha`, `fichaIntent` y —sobre todo— las direcciones internas
+(`ficha/otro/vista`, `ficha/otro/ficha-cliente`, que van en minúscula y son llaves del manifiesto) siguen
+intactas. Un reemplazo a lo bruto habría renombrado componentes y roto las direcciones que ADI usa para saber
+qué pieza le estás señalando.
+
+⚠️ **En español el artículo cambia de género**, y eso no lo resuelve un buscar-y-reemplazar: «la Ficha» → «el
+Perfil Ejecutivo», «de la Ficha» → «del Perfil Ejecutivo», «a la Ficha» → «al Perfil Ejecutivo». Las reglas van
+ordenadas de más específica a más general por esa razón.
+
+**Se escaparon tres y se cazaron después**: dos textos que decían «ficha» en minúscula (el enlace del chat y una
+frase del oráculo) y el rótulo de un botón cuyo texto JSX empezaba en la línea anterior, que el barrido no vio.
+El inventario final da **cero** apariciones visibles.
+
+**14 afirmaciones de gate actualizadas en 19 archivos** — ninguna borrada: siguen probando lo mismo (que cada
+fila lleva al detalle de su cuenta, que el narrador nombra el destino, que la guía dice dónde vive el detalle),
+con el nombre que corresponde.
+
+**Comprobado que el nombre largo NO rompe la fila.** Sospecha razonable: «Abrir Perfil Ejecutivo» es 70 px más
+largo que «Abrir Ficha», y a 768 px el bloque de decisiones ya desbordaba. Se midió en vivo cambiando el texto
+del botón en el DOM y volviendo a medir: **849 px con el nombre nuevo y 849 px con el viejo — el renombre suma
+0 px**. Ese scroll horizontal ya existía y es el que el owner aceptó («si la pantalla es más pequeña tendrá
+scroll»). Cero botones desbordados, cero elementos fuera del panel.
+
+Barrido en pantalla de las cuatro caras: **0 apariciones de «Ficha» en texto y en tooltips**.
+Gates **181 PASS · 0 FAIL · 0 TOCARON LA RED · 0 CON CREDENCIAL VIVA**.
+
+---
+
 ## 1.15 — producción · tag `v1.15`
 
 **Capital y Resultado quedan sin conclusiones, y la Ficha cambia de nombre.** Segunda pasada de la misma orden

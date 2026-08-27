@@ -9,7 +9,7 @@
  *   [2] ALCANCE GLOBAL SIN CONTAMINACIÓN: entrar por el deep-link de un cliente y saltar a Comercial da la MISMA
  *       lectura del negocio que entrar sin selección, y la tabla de evidencia arranca sin ninguna fila elegida.
  *   [3] NAVEGACIÓN A LA FICHA: el insight, la primera profundización sugerida, la barra del gráfico y el
- *       "Ver Ficha" de cada fila abren la Ficha Ejecutiva REAL de esa entidad (la cara Ficha, no una vista nueva).
+ *       "Ver Perfil Ejecutivo" de cada fila abren el Perfil Ejecutivo REAL de esa entidad (la cara Perfil Ejecutivo, no una vista nueva).
  *   [4] EXPANSIÓN/CONTRACCIÓN de la cartera completa: la tabla no existe hasta pedirla y se puede volver a cerrar.
  *   [4b] LOS DOS UNIVERSOS, RECONCILIADOS A LA VISTA: la cartera material y el plano de decisión aparecen SIEMPRE
  *       nombrados, con el % dinámico que el plano concentra — nunca dos montos parecidos sueltos.
@@ -102,7 +102,7 @@ function runTurn(plan, scenario = SCENARIO) {
 // entidad en foco: es el camino natural de entrada a esta vista.
 const evTemporal = () => runTurn({ intent: "trend", mode: "default", rationale: "Cómo viene la venta mes a mes este año.",
   scope: { level: "global" }, calls: [{ tool: "trend", args: { metric: "ventas" } }] });
-// PERFIL de un cliente → _profileRequest → la Mesa abre en la cara FICHA con ese cliente ya elegido. Es la
+// PERFIL de un cliente → _profileRequest → la Mesa abre en la cara PERFIL EJECUTIVO con ese cliente ya elegido. Es la
 // "selección previa" que NO puede teñir la cara Comercial.
 const evPerfil = (cliente) => runTurn({ intent: "entityProfile", mode: "default", rationale: `El margen de ${cliente} este período.`,
   scope: { level: "entity", entities: [cliente] }, calls: [{ tool: "entityProfile", args: { dimension: "cliente", entity: cliente } }] });
@@ -376,11 +376,11 @@ H("[1c] QUIÉN SOSTIENE EL NEGOCIO · Clientes / Familias / SKU / Canales");
   ok(T.includes(v0.lectura), "…y su lectura, que localiza dónde se sostiene y dónde se diluye");
   ok(T.includes(v0.notaFuente), "…y la nota de fuente");
   ok(T.includes(v0.reconcilia ? "concilia" : "otro corte"), `…rotulado ${v0.reconcilia ? "CONCILIA" : "OTRO CORTE"}`);
-  // "Ver Ficha" SOLO en el eje CLIENTE: la Ficha Ejecutiva es de cliente y prometerla en otro eje sería mentir
+  // "Ver Perfil Ejecutivo" SOLO en el eje CLIENTE: el Perfil Ejecutivo es de cliente y prometerla en otro eje sería mentir
   const nombres = new Set(R.rows.map((r) => r.name));
-  const fichas = botones(container).filter((b) => (b.title || "").startsWith("Abrir la Ficha de "));
-  ok(fichas.length > 0 && fichas.every((b) => nombres.has((b.title || "").replace("Abrir la Ficha de ", ""))),
-    `los ${fichas.length} accesos a Ficha apuntan a clientes REALES`);
+  const fichas = botones(container).filter((b) => (b.title || "").startsWith("Abrir el Perfil Ejecutivo de "));
+  ok(fichas.length > 0 && fichas.every((b) => nombres.has((b.title || "").replace("Abrir el Perfil Ejecutivo de ", ""))),
+    `los ${fichas.length} accesos al Perfil Ejecutivo apuntan a clientes REALES`);
   // el switch de la cola
   if (v0.colaN > 0) {
     const ver = conTexto(container, `Ver ${v0.label.toLowerCase()} completos (${v0.n})`);
@@ -405,7 +405,7 @@ H("[1c] QUIÉN SOSTIENE EL NEGOCIO · Clientes / Familias / SKU / Canales");
     // tabla — los demás bloques de la vista sí ofrecen Ficha, y con razón: hablan de clientes.
     if (v.key !== "cliente") {
       const tb = tablaDe(container);
-      ok(!!tb && ![...tb.querySelectorAll("button")].some((x) => (x.title || "").startsWith("Abrir la Ficha de ")),
+      ok(!!tb && ![...tb.querySelectorAll("button")].some((x) => (x.title || "").startsWith("Abrir el Perfil Ejecutivo de ")),
         `en ${v.label} la tabla NO promete una Ficha que no existe`);
     }
   }
@@ -535,7 +535,7 @@ H("[1d2] VENDEN MUCHO PERO DEJAN POCO · dentro de quién sostiene, y cerrado po
   }
   ok(pq.filas.every((x) => !x.contexto || T3.includes(x.contexto)), "y el contexto unitario está a la vista");
   const obj = pq.filas[0].nombre;
-  ok(botones(container).some((b) => b.title === `Abrir la Ficha de ${obj}`), `${obj} abre su Ficha desde este bloque`);
+  ok(botones(container).some((b) => b.title === `Abrir el Perfil Ejecutivo de ${obj}`), `${obj} abre su Perfil Ejecutivo desde este bloque`);
   // SOLO EN EL EJE CLIENTE: el análisis se construye cuenta por cuenta; prometerlo en familias sería mentir
   const bFam = botones(container).find((b) => b.hasAttribute("aria-pressed") && /^Familias/.test(b.textContent));
   fireEvent.click(bFam);
@@ -567,12 +567,12 @@ H("[1e] QUÉ HACER PRIMERO · el cruce, con el grupo peligroso adelante");
       "el grupo peligroso se pinta PRIMERO");
     ok(/agranda la brecha en vez de cerrarla/.test(T), "y el aviso del error comercial está a la vista");
   }
-  // cada fila abre la Ficha de esa cuenta
+  // cada fila abre el Perfil Ejecutivo de esa cuenta
   const primera = P.grupos[0].filas[0];
-  const btn = botones(container).find((b) => b.title === `Abrir la Ficha de ${primera.entidad}`);
-  ok(!!btn, `la fila de ${primera.entidad} ofrece su Ficha`);
+  const btn = botones(container).find((b) => b.title === `Abrir el Perfil Ejecutivo de ${primera.entidad}`);
+  ok(!!btn, `la fila de ${primera.entidad} ofrece su Perfil Ejecutivo`);
   fireEvent.click(btn);
-  ok(container.textContent.includes(`Importancia de ${primera.entidad} en tu cartera`), `y abre la Ficha de ${primera.entidad}`);
+  ok(container.textContent.includes(`Importancia de ${primera.entidad} en tu cartera`), `y abre el Perfil Ejecutivo de ${primera.entidad}`);
   cleanup();
 }
 
@@ -587,12 +587,12 @@ H("[2] ALCANCE GLOBAL · una selección previa NO puede teñir la cara Comercial
     "entrada limpia: la cabecera es la del negocio completo");
   cleanup();
 
-  // B · entrada por el deep-link de UN cliente → abre la Ficha de ese cliente → saltar a Comercial
+  // B · entrada por el deep-link de UN cliente → abre el Perfil Ejecutivo de ese cliente → saltar a Comercial
   const cliente = R.primera.entidad;
   const b = abrir(evPerfil(cliente));
-  ok(b.container.textContent.includes(`Importancia de ${cliente} en tu cartera`), `el deep-link abre la Ficha Ejecutiva de ${cliente} (comportamiento previo intacto)`);
+  ok(b.container.textContent.includes(`Importancia de ${cliente} en tu cartera`), `el deep-link abre el Perfil Ejecutivo de ${cliente} (comportamiento previo intacto)`);
   const tabComercial = porTexto(b.container, "Comercial");
-  ok(!!tabComercial, "la cara Comercial es alcanzable desde la Ficha");
+  ok(!!tabComercial, "la cara Comercial es alcanzable desdel Perfil Ejecutivo");
   fireEvent.click(tabComercial);
   const T = b.container.textContent;
   ok(!T.includes(R.veredicto.titular), "por deep-link tampoco aparece el veredicto: se quitó de las dos entradas");
@@ -606,27 +606,27 @@ H("[2] ALCANCE GLOBAL · una selección previa NO puede teñir la cara Comercial
   cleanup();
 }
 
-H("[3] NAVEGACIÓN A LA FICHA · detecta acá, explica allá (la Ficha REAL, no una vista paralela)");
+H("[3] NAVEGACIÓN A LA FICHA · detecta acá, explica allá (el Perfil Ejecutivo REAL, no una vista paralela)");
 {
   // a · desde una fila de decisión (el primer grupo del cruce, que es el que la vista pone adelante)
   {
     const { container } = abrir(evTemporal());
     const objetivo = R.prioridades.grupos[0].filas[0].entidad;
-    const btn = botones(container).find((b) => b.title === `Abrir la Ficha de ${objetivo}` && b.textContent.includes("Abrir Ficha"));
-    ok(!!btn, `la fila de decisión de ${objetivo} trae "Abrir Ficha"`);
+    const btn = botones(container).find((b) => b.title === `Abrir el Perfil Ejecutivo de ${objetivo}` && b.textContent.includes("Abrir Perfil Ejecutivo"));
+    ok(!!btn, `la fila de decisión de ${objetivo} trae "Abrir Perfil Ejecutivo"`);
     fireEvent.click(btn);
     ok(container.textContent.includes(`Importancia de ${objetivo} en tu cartera`),
-      `abre la Ficha Ejecutiva REAL de ${objetivo} (cara Ficha)`);
+      `abre el Perfil Ejecutivo REAL de ${objetivo} (cara Perfil Ejecutivo)`);
     ok(!container.textContent.includes("Quién sostiene el negocio"), "…y deja la cara Comercial (es navegación, no un panel encima)");
     cleanup();
   }
   // b · desde la PRIMERA fila de decisión (que es la primera profundización sugerida, ya sin banda aparte)
   {
     const { container } = abrir(evTemporal());
-    const btn = botones(container).find((b) => b.title === `Abrir la Ficha de ${R.primera.entidad}`);
-    ok(!!btn, `la fila de ${R.primera.entidad} ofrece su Ficha`);
+    const btn = botones(container).find((b) => b.title === `Abrir el Perfil Ejecutivo de ${R.primera.entidad}`);
+    ok(!!btn, `la fila de ${R.primera.entidad} ofrece su Perfil Ejecutivo`);
     fireEvent.click(btn);
-    ok(container.textContent.includes(`Importancia de ${R.primera.entidad} en tu cartera`), `y abre la Ficha de ${R.primera.entidad}`);
+    ok(container.textContent.includes(`Importancia de ${R.primera.entidad} en tu cartera`), `y abre el Perfil Ejecutivo de ${R.primera.entidad}`);
     cleanup();
   }
   // c · desde una barra del gráfico de concentración (solo las entidades reales; los agregados no son una entidad)
@@ -634,34 +634,34 @@ H("[3] NAVEGACIÓN A LA FICHA · detecta acá, explica allá (la Ficha REAL, no 
     const { container } = abrir(evTemporal());
     const real = R.pareto.ventas.barras.find((b) => b.tipo === "entidad");
     const agregada = R.pareto.ventas.barras.find((b) => b.tipo !== "entidad");
-    const bReal = botones(container).find((b) => b.title === `Abrir la Ficha de ${real.nombre}` && b.textContent.includes(real.fmt));
+    const bReal = botones(container).find((b) => b.title === `Abrir el Perfil Ejecutivo de ${real.nombre}` && b.textContent.includes(real.fmt));
     ok(!!bReal, `la barra de ${real.nombre} es clickeable`);
     if (agregada) {
       const bAgr = botones(container).find((b) => b.textContent.includes(agregada.nombre) && b.textContent.includes(agregada.fmt) && b.disabled);
       ok(!!bAgr, `la barra agregada "${agregada.nombre}" NO navega (no es una entidad — el dato no la sostiene)`);
     }
     fireEvent.click(bReal);
-    ok(container.textContent.includes(`Importancia de ${real.nombre} en tu cartera`), `la barra abre la Ficha de ${real.nombre}`);
+    ok(container.textContent.includes(`Importancia de ${real.nombre} en tu cartera`), `la barra abre el Perfil Ejecutivo de ${real.nombre}`);
     cleanup();
   }
-  // d · desde el nombre de una fila de LA CARTERA (bloque 2) · el camino que reemplazó al "Ver Ficha" de la
+  // d · desde el nombre de una fila de LA CARTERA (bloque 2) · el camino que reemplazó al "Ver Perfil Ejecutivo" de la
   //     tabla legacy: el nombre ES el acceso, sin una columna extra que lo repita
   {
     const { container } = abrir(evTemporal());
     const fila = R.cartera.filas[0].nombre;
-    const bFicha = botones(container).find((b) => b.title === `Abrir la Ficha de ${fila}`);
-    ok(!!bFicha, `el nombre de ${fila} en la cartera abre su Ficha`);
+    const bFicha = botones(container).find((b) => b.title === `Abrir el Perfil Ejecutivo de ${fila}`);
+    ok(!!bFicha, `el nombre de ${fila} en la cartera abre su Perfil Ejecutivo`);
     fireEvent.click(bFicha);
-    ok(container.textContent.includes(`Importancia de ${fila} en tu cartera`), `abre la Ficha de ${fila}`);
+    ok(container.textContent.includes(`Importancia de ${fila} en tu cartera`), `abre el Perfil Ejecutivo de ${fila}`);
     cleanup();
   }
-  // e · TODA fila de la cartera navega · antes había dos gestos (seleccionar = comparar, "Ver Ficha" = navegar)
+  // e · TODA fila de la cartera navega · antes había dos gestos (seleccionar = comparar, "Ver Perfil Ejecutivo" = navegar)
   //     y esa ambigüedad se fue con la tabla legacy: acá tocar un cliente hace UNA sola cosa
   {
     const { container } = abrir(evTemporal());
     const conAcceso = R.cartera.filas.slice(0, R.cartera.tope)
-      .filter((f) => botones(container).some((b) => b.title === `Abrir la Ficha de ${f.nombre}`));
-    ok(conAcceso.length === R.cartera.tope, `las ${R.cartera.tope} cuentas visibles abren su Ficha — ${conAcceso.length}`);
+      .filter((f) => botones(container).some((b) => b.title === `Abrir el Perfil Ejecutivo de ${f.nombre}`));
+    ok(conAcceso.length === R.cartera.tope, `las ${R.cartera.tope} cuentas visibles abren su Perfil Ejecutivo — ${conAcceso.length}`);
     ok(!container.textContent.includes("seleccionado"), "y no queda un segundo gesto que compita: seleccionar-para-comparar salió con la tabla legacy");
     cleanup();
   }
@@ -781,7 +781,7 @@ H("[5] LO QUE SALE DE COMERCIAL · tiras legacy · capital · bodegas · evoluci
   fireEvent.click(porTexto(container, "Comercial"));
   // …y lo que salió NO se perdió: el mismo supuesto vive en la cara Capital
   fireEvent.click(porTexto(container, "Capital"));
-  // "detenido" → "inmovilizado" en toda la cara Capital (owner 2026-08-09): la palabra que ya usan la Ficha, el
+  // "detenido" → "inmovilizado" en toda la cara Capital (owner 2026-08-09): la palabra que ya usan el Perfil Ejecutivo, el
   // glosario y los composers de ADI. Lo que NO cambió son las `ask` que se le mandan a ADI — su vocabulario de
   // entrada es contrato suyo, y tocarlo estaba fuera de alcance.
   ok(/capital inmovilizado/i.test(container.textContent), "el supuesto de liberar capital inmovilizado sigue vivo en la cara Capital (se movió, no se borró)");
@@ -793,16 +793,16 @@ H("[5] LO QUE SALE DE COMERCIAL · tiras legacy · capital · bodegas · evoluci
   const T = container.textContent;
   ok(!T.includes("Bodegas"), "las BODEGAS no aparecen en la cara Comercial (son capital, no comercio)");
   ok(!T.includes("Perfil vs promedio") && !T.includes("el eje central es el promedio del eje"),
-    "el bloque inline \"perfil vs promedio\" no está en ninguna forma (vive en la Ficha)");
+    "el bloque inline \"perfil vs promedio\" no está en ninguna forma (vive en el Perfil Ejecutivo)");
   // ⚠️ EL COMPARADO MULTI-ENTIDAD SALIÓ DE COMERCIAL (owner 2026-08-08): vivía dentro de la tabla legacy y se fue
   // con ella. Es la consecuencia que el owner aceptó al eliminar el bloque. El comparado NO se borró del producto:
   // sigue entero en las otras caras, donde el CuadroMando se conserva intacto.
   const fila = R.rows[0].name;
   ok(!filaDe(container, fila), `en Comercial ya no hay filas seleccionables — ${fila} no ofrece checkbox`);
   ok(!T.includes(`Comparado · ${fila}`) && !/\d+ seleccionados?/.test(T), "…ni comparado de una entidad ni contador de selección");
-  // lo que SÍ conserva la cara: cada cliente abre su Ficha desde la cartera
-  ok(botones(container).some((b) => b.title === `Abrir la Ficha de ${fila}`),
-    `${fila} sigue teniendo un camino: su Ficha, desde la cartera`);
+  // lo que SÍ conserva la cara: cada cliente abre su Perfil Ejecutivo desde la cartera
+  ok(botones(container).some((b) => b.title === `Abrir el Perfil Ejecutivo de ${fila}`),
+    `${fila} sigue teniendo un camino: su Perfil Ejecutivo, desde la cartera`);
 
   /* ── LA COLA DE LA CARA · "Cambios detectados" y "¿Y si…?" ELIMINADOS (owner 2026-08-08) ────────────────────
    * Sobrevivían del shell viejo, cuando Comercial era una lista de señales. Con los tres movimientos armados
@@ -824,7 +824,7 @@ H("[5] LO QUE SALE DE COMERCIAL · tiras legacy · capital · bodegas · evoluci
   fireEvent.click(porTexto(container, "Comercial"));
   // LA CARA CIERRA EN LAS DECISIONES · nada cuelga después del bloque 03
   ok(!/O que ADI cuente el caso/i.test(container.textContent),
-    "…y el enlace duplicado a la primera cuenta salió: cada fila ya trae su \"Abrir Ficha\"");
+    "…y el enlace duplicado a la primera cuenta salió: cada fila ya trae su \"Abrir Perfil Ejecutivo\"");
   const iDec = container.textContent.indexOf(R.prioridades.encabezado);
   ok(iDec > 0 && container.textContent.slice(iDec).length < 3000,
     "la cara termina en qué hacer primero: no queda una cola de señales después");
@@ -883,16 +883,16 @@ H("[8] CERO REGRESIONES · las caras Ficha, Capital y Resultado siguen rindiendo
   fireEvent.click(porTexto(container, "Resultado"));
   ok(/P&L|resultado después de gastos|Resultado/i.test(container.textContent), "la cara RESULTADO rinde");
   /* ⚠️ LA PESTAÑA SE LLAMA «Perfil Ejecutivo» DESDE EL 2026-08-27 (owner). El nombre corto «Ficha» sigue vivo
-     dentro de la cara (los botones «Abrir Ficha», «Ver Ficha»): lo que cambió es el rótulo de la pestaña. */
+     dentro de la cara (los botones «Abrir Perfil Ejecutivo», «Ver Perfil Ejecutivo»): lo que cambió es el rótulo de la pestaña. */
   fireEvent.click(porTexto(container, "Perfil Ejecutivo"));
   // «Elegí» → «Elige» (registro formal, owner 2026-08-14). Se aceptan las dos: lo que prueba esta línea es que la
-  // cara Ficha rinde SU SELECTOR, no cómo se conjuga el imperativo.
-  ok(/(?:Elegí|Elige) un cliente/.test(container.textContent), "la cara FICHA rinde con su selector");
+  // cara Perfil Ejecutivo rinde SU SELECTOR, no cómo se conjuga el imperativo.
+  ok(/(?:Elegí|Elige) un cliente/.test(container.textContent), "la cara PERFIL EJECUTIVO rinde con su selector");
   fireEvent.click(conTexto(container, R.primera.entidad));
-  ok(container.textContent.includes(`Importancia de ${R.primera.entidad} en tu cartera`), "…y arma la Ficha Ejecutiva del cliente elegido");
+  ok(container.textContent.includes(`Importancia de ${R.primera.entidad} en tu cartera`), "…y arma el Perfil Ejecutivo del cliente elegido");
   fireEvent.click(porTexto(container, "Comercial"));
   ok(container.textContent.includes(R.kpis[0].valor),
-    "y volver a Comercial devuelve el resumen del negocio, sin arrastrar la entidad de la Ficha");
+    "y volver a Comercial devuelve el resumen del negocio, sin arrastrar la entidad del Perfil Ejecutivo");
   cleanup();
 }
 
@@ -1011,7 +1011,7 @@ H("[10] SÍNTESIS · nada se dice dos veces, y nada queda tapado (owner 2026-08-
 
 /* ── [11b] BORDES NEUTROS, COLOR EN LAS CIFRAS (owner 2026-08-08) ──────────────────────────────────────────────
  * "No quiero exageración de color; los bordes deben ser como los de la tercera foto, eso respeta nuestro diseño."
- * La referencia es "Composición de la compra" de la Ficha: tarjeta de borde neutro y color SOLO donde significa
+ * La referencia es "Composición de la compra" del Perfil Ejecutivo: tarjeta de borde neutro y color SOLO donde significa
  * algo — el margen bajo benchmark, la rotación bajo el piso. Una barra de color POR FILA multiplica el acento por
  * la cantidad de filas: lo que quería ser un semáforo termina siendo ruido, y cuando todo resalta nada resalta. */
 /* ── [11c] LOS ENCABEZADOS, EN CELESTE (owner 2026-08-08) ──────────────────────────────────────────────────────
@@ -1077,8 +1077,8 @@ H("[11] MENOS CELESTE · el acento queda para lo que se toca (owner 2026-08-07)"
   // jsdom serializa el color con espacios (`rgba(47, 184, 218, 0.5)`), así que el patrón los tolera.
   const CELESTE = /rgba\(\s*47,\s*184,\s*218/i;
   /* ⚠️ REGLA ACTUALIZADA (owner 2026-08-08, dicho dos veces: "los bordes deben ser como los de la foto que te
-   * adjunto, es un ejemplo" — la Ficha). El 2026-08-07 la queja fue "menos bordes celestes" y las tarjetas del
-   * Resumen se neutralizaron; ahora el owner señala el panel de la Ficha como EL estándar de la casa, y ese panel
+   * adjunto, es un ejemplo" — el Perfil Ejecutivo). El 2026-08-07 la queja fue "menos bordes celestes" y las tarjetas del
+   * Resumen se neutralizaron; ahora el owner señala el panel del Perfil Ejecutivo como EL estándar de la casa, y ese panel
    * lleva celeste al 25% con un degradado suave. Las dos instrucciones no se contradicen: lo que molestaba era el
    * celeste FUERTE repartido por todos lados. Así que la regla pasa a ser una GRADACIÓN, que es más útil que una
    * prohibición: 0.25 para el marco de un bloque · 0.4 o más SOLO para lo que se toca. */
@@ -1092,7 +1092,7 @@ H("[11] MENOS CELESTE · el acento queda para lo que se toca (owner 2026-08-07)"
   const cardsPanel = [...container.querySelectorAll("div")]
     .filter((d) => (d.getAttribute("style") || "").replace(/ /g, "").includes("border:1pxsolidrgba(255,255,255,0.22)")).length;
   ok(cardsPanel > 0, `los bloques usan el MISMO panel, ahora de marco BLANCO — ${cardsPanel} tarjetas`);
-  // pero el acento SIGUE vivo donde se interactúa: pills activas, accesos a Ficha, botones de ADI
+  // pero el acento SIGUE vivo donde se interactúa: pills activas, accesos al Perfil Ejecutivo, botones de ADI
   const controlesCeleste = botones(container).filter((b) => CELESTE.test(b.getAttribute("style") || "")).length;
   ok(controlesCeleste >= 5, `el celeste sigue marcando lo interactivo — ${controlesCeleste} controles`);
   const textoCeleste = [...container.querySelectorAll("span,div")].filter((d) => CELESTE.test(d.getAttribute("style") || "")).length;
