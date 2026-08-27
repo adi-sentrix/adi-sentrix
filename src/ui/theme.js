@@ -74,10 +74,10 @@ const TEMA_PAPEL = {
    * celeste profundo. El owner lo dijo mirándolo: «los hexágonos quiero que se noten más, al igual que el
    * efecto que tienen, se nota muy poco». */
   hexTrazo: "rgba(23,24,28,0.085)",
-  hexLit: "rgba(15,114,144,0.13)",
+  hexLit: "rgba(15,114,144,0.30)",
   logoTrazo: "rgba(23,24,28,0.38)",
-  haloNucleo: "rgba(15,114,144,0.14)",
-  haloAmplio: "rgba(15,114,144,0.085)",
+  haloNucleo: "rgba(15,114,144,0.20)",
+  haloAmplio: "rgba(15,114,144,0.12)",
   dashInactivo: "rgba(23,24,28,0.32)",
   /* sobre papel el campo se APOYA en vez de hundirse: un filete y una sombra corta y baja, como la tarjeta de
    * la landing. Sin luz interior — sobre blanco no hay nada que iluminar. */

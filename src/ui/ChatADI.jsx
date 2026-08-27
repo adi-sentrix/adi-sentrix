@@ -902,7 +902,14 @@ function CampoHexagonos() {
       <style>{`
         @keyframes adiHeroGiro { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes adiHeroRespira { from { opacity:0.62; transform:scale(1); } to { opacity:1; transform:scale(1.09); } }
+        /* ⚠️ EL LATIDO NO ES EL MISMO EN LOS DOS MUNDOS, y no por gusto (owner 2026-08-26: «el efecto de los
+           hexágonos no lo veo moviéndose, están quietos»). MEDIDO: sobre papel el pico del latido movía el
+           pixel 18 unidades durante menos de un segundo en seis hexágonos dispersos — corría de verdad, pero
+           nadie lo veía. Sobre negro ese mismo salto SÍ se nota, porque el ojo distingue mucho mejor luz sobre
+           oscuro que tinta sobre claro. Así que en papel el pico sube y, sobre todo, SE QUEDA: enciende hasta
+           el 22% del ciclo y baja despacio, en vez de parpadear y apagarse. */
         @keyframes adiHeroPrende { 0%{opacity:0} 9%{opacity:0.6} 55%{opacity:0.12} 100%{opacity:0} }
+        @keyframes adiHeroPrendePapel { 0%{opacity:0} 8%{opacity:1} 22%{opacity:0.9} 62%{opacity:0.35} 100%{opacity:0} }
         @media (prefers-reduced-motion: reduce) {
           [style*="adiHeroGiro"], [style*="adiHeroRespira"], [style*="adiHeroPrende"] { animation: none !important; }
         }
@@ -929,7 +936,7 @@ function CampoHexagonos() {
       {_HEX_LIT.map((h, i) => (
         <svg key={i} viewBox="0 0 90.07 104" width="90" height="104"
           style={{ position:"absolute", left:h.left, top:h.top, opacity:0,
-            animation:`adiHeroPrende ${h.dur} ease-out infinite`, animationDelay:h.delay }}>
+            animation:`${esPapel() ? "adiHeroPrendePapel" : "adiHeroPrende"} ${h.dur} ease-out infinite`, animationDelay:h.delay }}>
           <polygon points="45.03,0 90.07,26 90.07,78 45.03,104 0,78 0,26" fill={C.hexLit}/>
         </svg>
       ))}
@@ -995,14 +1002,22 @@ function HeroInicio({ scenario, campo, onPregunta }) {
       </svg>
 
       <div style={{ position:"relative", zIndex:1, width:"100%", display:"flex", flexDirection:"column", alignItems:"center" }}>
+        {/* ⚠️ EL TITULAR CAMBIA CON LA SUPERFICIE (owner 2026-08-26): «eso es muy robot, debe ser más simple;
+            para un inicio está bien, pero hay que pensar en el día a día — puede ser "por dónde empezamos"».
+            El titular largo servía para EXPLICAR el producto la primera vez; a la décima mañana cansa. Y la
+            bajada se va con él: las cuatro preguntas de abajo SON la respuesta a «por dónde», así que contarlo
+            además es decir dos veces lo mismo. Lo que antes se explicaba, ahora se muestra.
+            En el TABLERO no se toca: es lo que hoy corre en producción y el cambio va detrás del interruptor. */}
         <h1 style={{ margin:0, fontSize:34, fontWeight:600, color:C.text, letterSpacing:"-0.021em",
           lineHeight:1.18, textAlign:"center", textWrap:"balance" }}>
-          ¿Qué quieres entender de tu negocio?
+          {esPapel() ? "¿Por dónde empezamos?" : "¿Qué quieres entender de tu negocio?"}
         </h1>
-        <p style={{ margin:"10px 0 0", maxWidth:"52ch", fontSize:16.5, fontWeight:500, lineHeight:1.5,
-          color:C.textSub, letterSpacing:"-0.006em", textAlign:"center" }}>
-          Pregúntame por tus ventas, tus márgenes o tu inventario — te respondo con la cifra y con la cuenta que la respalda.
-        </p>
+        {!esPapel() && (
+          <p style={{ margin:"10px 0 0", maxWidth:"52ch", fontSize:16.5, fontWeight:500, lineHeight:1.5,
+            color:C.textSub, letterSpacing:"-0.006em", textAlign:"center" }}>
+            Pregúntame por tus ventas, tus márgenes o tu inventario — te respondo con la cifra y con la cuenta que la respalda.
+          </p>
+        )}
 
         {/* el campo que baja y se ancla al primer mensaje · llega por prop, no se declara acá */}
         <div style={{ width:"100%", maxWidth:660, marginTop:26 }}>{campo}</div>
@@ -1034,7 +1049,14 @@ function HeroInicio({ scenario, campo, onPregunta }) {
               y pasa a ser una tarjeta apoyada sobre la hoja, del mismo material que Sentrix.
               Las cifras siguen siendo BOTONES que mandan su pregunta al chat: eso no se toca, es lo que las hace
               puertas de entrada y no datos repetidos. En el tablero, todo queda exactamente como estaba. */}
-        {pulso && (
+        {/* ⚠️ SOBRE PAPEL EL PULSO NO VA (owner 2026-08-26, dos veces: «quita esas cosas, son datos que tiene
+            Sentrix, es repetirlo; dejemos un hero de ADI más limpio» y, al verlo montado, «el cuadro negro
+            dijimos que no iba»). Su argumento es el que manda: repetir en el hero de ADI lo que la Mesa ya
+            muestra es el olor a BI que la estructura por función salió a matar.
+            SE APAGA SOLO EN PAPEL, no en el tablero: el tablero es lo que hoy corre en producción y el
+            interruptor promete no moverlo. `pulsoInicio.js` NO se borra — sigue siendo la forma correcta de que
+            la vista no calcule, y el tablero lo sigue usando. */}
+        {pulso && !esPapel() && (
           <div style={{ width:"100%", maxWidth:860, marginTop:34,
             ...(esPapel()
               ? { background:T.bg, borderRadius:13, padding:"16px 18px 15px",
