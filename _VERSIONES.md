@@ -12,6 +12,56 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.0 — declarada en `dev`, sin desplegar
+
+**Los datos del cliente dejan de vivir en la memoria del navegador.** Es el número que estaba reservado para
+esto desde la 1.2: hasta hoy el usuario podía subir su planilla, verla y activarla, pero **si recargaba, se
+perdía**. Ahora queda guardada, versionada y vuelve sola.
+
+**Qué trae**
+
+- **Cuatro tablas y un depósito privado en Supabase** (`db/migraciones/`). Cuatro garantías viven en la BASE y
+  no en una comprobación del servidor: una sola versión activa por empresa (índice único parcial) · **no existe
+  permiso de borrado en ningún lado**, y esa ausencia es el append-only · borrar el rastro de un archivo no
+  puede llevarse el pack que produjo · sin pase válido la base devuelve **cero filas**, nunca las de otra empresa.
+- **Pase corto firmado con la empresa adentro** (`src/data/paseTenant.js`). La puerta con código HMAC sigue
+  igual; el servidor la verifica y emite un pase de 5 minutos que RLS usa para filtrar. **La llave de servicio
+  no se usa para leer**: con ella el muro sería decorativo. Se firma con las mismas primitivas Web Crypto que ya
+  usaba la puerta, así que no entró ninguna dependencia.
+- **Cliente PostgREST escrito a mano** (`src/data/supabaseRest.js`), sin SDK: el endpoint que lee el pack corre
+  en **edge**, y meter algo de Node en ese camino ya costó tres builds rotos. Reconoce la llave de servicio y se
+  niega a usarla.
+- **La carga guarda** (`persistirCarga.server.js`): archivo con su huella, original al depósito, versión del
+  pack con su sello. **Guardar no es activar** — la versión nace inactiva y adoptarla es del usuario.
+- **Confirmar y adoptar son un solo acto**, dentro de la base (`003_activar_version.sql`): apagar la anterior y
+  encender la nueva o no pasa ninguna. Partido en dos, un fallo dejaba a la empresa sin ninguna versión activa.
+- **La empresa sin archivo se declara** (decisión del owner): «Todavía no hay datos cargados para esta empresa.
+  Puedes subir una planilla o mirar el demo.» Sin dataset — nunca el ejemplo disfrazado de dato suyo.
+- **El demo pasa a ser una empresa más**, sembrado en la base: un solo camino de código.
+- **`getTenantId()` devuelve `null`** sin empresa cargada. El `"demo"` por defecto era una afirmación falsa con
+  clientes reales; un identificador equivocado es peor que ninguno.
+
+**Cómo se probó**
+
+- **185 PASS · 0 FAIL · 0 TOCARON LA RED · 0 CON CREDENCIAL VIVA.** Cinco candados nuevos: `_esquema_datos_gate`
+  (85) · `_pase_tenant_gate` (54) · `_persistir_carga_gate` (72) · `_empresa_sin_datos_gate` (15) ·
+  `_edge_bundle_gate` extendido.
+- **19 de 19 contra la base real** (`node scripts/verificar-supabase.mjs`), incluido lo único que un doble no
+  puede simular: **el muro probado atacándolo** — un pase de otra empresa no lee, no escribe y no activa.
+- **El circuito completo en el navegador**: subir → preview → confirmar → recargar → ADI sigue leyendo desde
+  Supabase. Y la segunda carga probó el relevo: v2 activa, v1 inactiva, siempre una sola.
+
+⚠️ **Lo que encontró el click en vivo y no vio ningún candado.** Con los 184 en verde y el servidor
+respondiendo perfecto, el usuario veía **una pantalla negra**: un `return` temprano que cortaba antes de la
+pantalla, y una bandera que nadie marcaba al confirmar. Ninguna prueba de servidor ve el árbol de React.
+Quedó cubierto por `_empresa_sin_datos_gate`, que monta la pantalla de verdad.
+
+⚠️ **Requiere tres variables en Vercel** —`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_JWT_SECRET`— y las
+tres migraciones aplicadas. **Sin ellas no se rompe nada: la app se comporta exactamente como en la 1.15**, pero
+tampoco guarda. La llave de servicio no va a Vercel: no hace falta.
+
+---
+
 ## 1.15 — producción · tag `v1.15`
 
 **Capital y Resultado quedan sin conclusiones, y la Ficha cambia de nombre.** Segunda pasada de la misma orden
