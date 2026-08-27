@@ -7,6 +7,10 @@
 > **Orden del owner (2026-08-20):** la vía 1 es **bloqueante** para datos reales. La vía 2 se
 > **diseña y se construye**, pero **no se usa con datos reales de clientes** mientras el navegador
 > siga recibiendo datos de todas las empresas.
+>
+> ⚠️ **AL 2026-08-27 HAY UNA TERCERA VÍA, AL FINAL DE ESTE ARCHIVO: PERSISTENCIA.** Las vías 1 y 2
+> están cerradas, y la 2 quedó **distinta a como está descrita acá** (el mapeo libre se descartó).
+> **Si algo de las vías 1 y 2 contradice a la vía 3, manda la vía 3.**
 
 ---
 
@@ -206,3 +210,163 @@ con margen amplio, **por debajo de US$0.50**.
 
 `guardC`, el notario, el contrato conversacional, los vetos, el contrato de cálculo `[[CALCULO]]`.
 La conversación no cambia de forma. Si hay que tocar el muro, la ingesta está mal hecha.
+
+---
+
+# VÍA 3 — Persistencia · el dato del cliente deja de vivir en la memoria del navegador
+
+**Escrito el 2026-08-27, después de que las vías 1 y 2 cerraran.** Lo de arriba se planificó cuando la ingesta
+era un mapeo libre por confirmar; eso se descartó. **Si algo de las vías 1 y 2 contradice a esta, manda esta.**
+
+## 3.0 · Qué cambió desde que se escribió lo de arriba
+
+- **Vía 1: CERRADA.** El navegador ya no recibe el dato de otras empresas; `handleData` lo entrega por fetch.
+- **Vía 2: CERRADA, pero distinta a como está descrita.** No hay mapeo libre: hay una **plantilla oficial
+  congelada** (v1, 4 pestañas) que el usuario llena, y las columnas calculadas RECHAZAN el archivo. El paso 2.3
+  —«el único que gasta»— **ya no existe**: la ingesta es 100% determinística y no llama al modelo. En
+  consecuencia, `upload_mappings` deja de tener sentido como tabla de mapeo.
+- **Lo que sí quedó igual, y es lo que esta vía persiste:** la ingesta produce un `dataset` con **las mismas
+  llaves que un tenant** (hay un gate que lo comprueba), más una preview y un **sello de plausibilidad**.
+- **Producción va en v1.12** y el pack sigue viviendo en la memoria del navegador: si el usuario recarga, se fue.
+
+## 3.1 · La decisión que gobierna esta vía: el pase corto
+
+**Aprobada por el owner el 2026-08-27.** Ni llave de servicio ni Supabase Auth:
+
+1. la puerta actual con código firmado **sigue igual**;
+2. el servidor verifica ese código, como hoy (`verifyAccessCode`);
+3. con eso **emite un pase corto que lleva `tenant_id` adentro**, firmado con el secreto JWT de Supabase;
+4. PostgREST recibe el pase y **las políticas de RLS leen el `tenant_id` del pase**;
+5. **la llave de servicio NO se usa para lecturas normales.** Queda para migrar y sembrar, nada más.
+
+⚠️ **POR QUÉ ESTO Y NO LA LLAVE DE SERVICIO.** Con la llave de servicio, RLS no protege: el servidor puede leer
+todo y el aislamiento vuelve a depender de que el código no tenga un bug — exactamente lo que la vía 1 salió a
+eliminar («`assertTenantContext` depende de que el código no tenga un bug; RLS lo hace estructuralmente
+imposible», §3 del documento del frente). Con el pase, **un error de filtro devuelve cero filas, no las filas de
+otra empresa**. Falla cerrada.
+
+⚠️ **NO HACE FALTA UNA DEPENDENCIA NUEVA.** `src/adi/llm/accessToken.js` ya firma HMAC-SHA256 con **Web Crypto**
+(`crypto.subtle`), que corre en edge y en node por igual. Emitir el pase es la misma primitiva que ya se usa.
+
+**Compatibilidad hacia adelante**, que el owner pidió explícitamente: el pase lleva hoy solo `tenant_id`. Cuando
+existan personas, suma `sub` y las políticas se extienden con un `OR`. **Las tablas no se rehacen**: las
+columnas de persona (`subido_por`, `creado_por`) nacen ahora, nulas.
+
+## 3.2 · El esquema
+
+Cuatro tablas y un bucket. **Medido antes de decidir el tipo**: el fact pack pesa **10 KB** en un archivo chico
+y **98 KB** el del demo. Eso es `jsonb` sin discusión — no hace falta almacenamiento de objetos para el pack.
+El `.xlsx` original sí va a Storage.
+
+```
+tenants          id · slug · nombre · created_at
+memberships      tenant_id · user_id · rol            ← vacía hoy; es el enganche para cuando haya personas
+uploads          id · tenant_id · tipo · nombre_archivo · hash_sha256 · bytes
+                 · storage_path · estado · subido_por(null) · created_at
+fact_pack_versions
+                 id · tenant_id · upload_id · version · pack(jsonb) · sello(jsonb)
+                 · plantilla_version · activa · creado_por(null) · created_at
+```
+
+**`uploads.tipo ∈ {negocio, referencia}` NACE CON LA TABLA**, no se agrega después: es la decisión 1 del §7 y su
+consecuencia declarada en el §8.
+
+**Tres detalles que no son cosméticos:**
+
+- **Una sola versión activa, garantizada por la base.** Un booleano invita a que haya dos. Un índice único
+  parcial —`unique (tenant_id) where activa`— hace que tener dos sea **imposible**, no improbable. Misma idea
+  que RLS: la garantía vive en la base, no en un `if`.
+- **El sello de plausibilidad va DENTRO de `fact_pack_versions`**, no en `uploads`. Califica las lecturas de
+  ESE pack: si el usuario asumió una observación, eso tiene que volver con el pack al recargar. En `uploads` se
+  perdería.
+- **Append-only.** Rollback = marcar activa la versión anterior. Una operación, sin recálculo, auditada.
+
+**El hash** es sha-256 del archivo original. No es único: un cliente puede subir el mismo archivo dos veces a
+propósito. Sirve para que la ingesta pueda decir «este archivo ya lo subiste el 12 de agosto» y para auditar.
+
+**Retención** (decisión 4 del §7): el original **12 meses**, las versiones del pack **siempre**. Por eso el pack
+tiene que ser **autosuficiente**: la fuente (archivo · hoja · fila) se guarda como texto DENTRO del pack, nunca
+como puntero al archivo que se va a borrar.
+
+## 3.3 · Las políticas
+
+Toda tabla lleva `tenant_id` y **RLS activada**. La política es una sola idea, repetida:
+
+> se ve y se escribe solo donde `tenant_id` sea igual al del pase.
+
+En SQL, el `tenant_id` sale del claim del pase (`request.jwt.claims`). El rol de base es uno propio del
+producto —no `service_role`, no los de Supabase Auth— para que no herede supuestos que todavía no existen.
+
+**Storage** lleva su propia política: la ruta es `tenant_id/upload_id.xlsx` y solo se lee lo que empiece con el
+`tenant_id` del pase.
+
+⚠️ **El día que haya personas**, la política pasa de «mi empresa» a «mi empresa Y soy miembro». Se agrega, no se
+reescribe.
+
+## 3.4 · Los cinco puntos de integración, exactos
+
+| # | Archivo | Qué cambia | Runtime |
+|---|---|---|---|
+| 1 | `src/ingesta/handleIngesta.server.js` | Tras ingestar, antes de devolver: guardar `uploads` + `fact_pack_versions` **inactiva** | **node** |
+| 2 | *(nuevo)* `op: "activar"` | Hoy «Seguir con estos números» solo llama a `initTenant` en memoria. Marca la versión activa | node |
+| 3 | `src/data/tenantService.server.js` → `handleData` | `TENANTS[tenantId]` pasa a ser la lectura del pack ACTIVO | **edge** |
+| 4 | `src/data/tenantStore.js` → `getTenantId()` | Cierra el `"demo"` por defecto sin empresa cargada | navegador |
+| 5 | `src/ui/App.jsx` + `src/ingesta/estadoCarga.js` | El sello vuelve del servidor al cargar, no vive solo en memoria | navegador |
+
+**El punto 3 es una sustitución, no un rediseño**: el contrato de `handleData` ya tiene la forma correcta —
+`{ ok, tenantId, origen, nombre, dataset }` — y `resolverTenantDeSesion` ya separa «qué empresa» de «entregar el
+dato». Solo cambia de dónde sale el dataset.
+
+⚠️ **EL PUNTO 3 CORRE EN EDGE.** Junto con `adi-access`, `adi-narrate`, `adi-plan` y `adi-spec`, son **cinco
+endpoints** que importan `gatewayFetch`. **Nada que dependa de un módulo de Node puede entrar a ese camino**:
+ignorarlo costó tres builds rotos y dejó producción atrás una tarde, con los 177 gates en verde porque ninguno
+empaquetaba para edge. Hoy lo vigila `_edge_bundle_gate`.
+**Por eso el cliente de Supabase se escribe acá**: unas 40 líneas sobre `fetch` contra PostgREST, sin
+dependencias, sirviendo a los dos runtimes. Es la misma decisión que se tomó con el lector de `.xlsx`, y por la
+misma razón.
+
+## 3.5 · El orden de trabajo
+
+Cada paso deja `dev` verde y **no cambia nada en producción hasta el último**. Todo lo que toca la base va
+detrás de una bandera de entorno: **sin credenciales configuradas, el código no persiste y la app se comporta
+exactamente como hoy.**
+
+| Paso | Qué | Necesita el proyecto Supabase |
+|---|---|---|
+| 3.a | Esquema y migraciones como `.sql` en el repo | **no** |
+| 3.b | El emisor del pase + el cliente REST propio | **no** |
+| 3.c | `handleIngesta` guarda (detrás de bandera) | no para escribirlo · sí para probarlo en vivo |
+| 3.d | `op: "activar"` + la pantalla | ídem |
+| 3.e | `handleData` lee el pack activo, con respaldo al registro estático | ídem |
+| 3.f | Sembrar el demo como tenant normal | **sí** |
+| 3.g | Cerrar el `"demo"` de `getTenantId()` | no |
+
+**El demo se siembra como una empresa más** (aprobado por el owner). Un solo camino de código: si el demo queda
+como respaldo estático, el camino que van a usar los clientes no se ejerce hasta el primer cliente, y ahí es
+tarde para descubrir que falla.
+
+## 3.6 · Cómo se prueba cada paso sin gastar y sin credenciales
+
+Esta vía **no llama al modelo en ningún punto**: la ingesta ya es determinística. El gasto de esta vía es cero.
+
+- **El esquema** se prueba leyéndolo: un candado que exige que toda tabla tenga `tenant_id`, tenga RLS activada
+  y tenga política — y que se ponga rojo si alguien agrega una tabla sin las tres cosas.
+- **El pase** se prueba firmando y verificando en memoria, sin red: que lleve el `tenant_id`, que expire, y que
+  un pase de otra empresa no valide. Con carnada, como el resto de los candados.
+- **El cliente REST** se prueba contra un doble que responde en memoria: que arme la URL correcta, que mande el
+  pase en la cabecera, y —lo que importa— que **nunca** mande la llave de servicio en una lectura.
+- **Los endpoints edge** siguen cubiertos por `_edge_bundle_gate`: si el cliente nuevo arrastra algo de Node, se
+  pone rojo antes del deploy y no en el build de Vercel.
+- **Sin credenciales**, todo lo anterior corre igual: el candado del esquema lee SQL, el del pase firma en
+  memoria y el del cliente habla con un doble.
+
+## 3.7 · Lo que el owner tiene que hacer, y lo que no
+
+**Suyo, porque no lo hago yo:** crear la cuenta y el proyecto de Supabase, y poner las variables en Vercel —
+la URL del proyecto, el secreto JWT y la llave de servicio (esta última **solo** para migrar y sembrar).
+
+⚠️ **Ninguna credencial entra al repo, y ninguna lleva prefijo `VITE_`**: ese prefijo las hornea en el paquete
+que baja el navegador. Es la misma regla que ya rige para la llave del proveedor.
+
+**Mío:** todo lo demás. Los pasos 3.a, 3.b y 3.g no necesitan el proyecto creado; se pueden escribir y probar
+desde ya.
