@@ -12,6 +12,44 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 1.14 — producción · tag `v1.14`
+
+**Sentrix deja de sacar conclusiones.** La orden del owner, textual: «no es hacer cosas nuevas, sino quitarle
+conclusiones — no hay necesidad, si dejamos botones que expliquen lo que está en Sentrix y ADI lo hará. Es
+duplicar cosas». Se quitaron dos piezas de la cara **Comercial**, y nada más:
+
+- **La «Lectura ejecutiva»**, con el titular del veredicto («El volumen crece, pero el margen no acompaña»), su
+  soporte («7 clientes explican el 81.4%…») y la línea que reconciliaba cartera y plano.
+- **El botón flotante «Preguntar a ADI sobre esta vista»**, que era un segundo camino para lo que cada pieza ya
+  ofrece: cada KPI, cada fila y cada tira se preguntan solas, y con el contexto de ESA pieza — que apunta mejor
+  que «la vista entera».
+
+**Los cuatro KPI se quedan.** Son cifras, no conclusiones. La cara ahora abre en «01 · QUÉ ESTÁ PASANDO» y va
+directo a las cifras.
+
+⚠️ **El veredicto NO se borró del motor.** `buildResumenComercial` lo sigue emitiendo entero —titular, soporte,
+reconciliación— y su gate de datos lo sigue probando: es de donde ADI lo toma para responder. Lo que se fue es
+su **impresión** en el tablero. Si mañana hiciera falta, se vuelve a pintar sin recalcular nada.
+
+**Y el contexto de la vista tampoco se perdió**: `useVistaContext("comercial", …)` lo sigue publicando como
+ambiente, que es el requisito de que ADI sepa qué pantalla estás mirando aunque escribas directo en el chat sin
+tocar ningún botón. Lo que se fue es el botón.
+
+**Se quitaron también los restos**, que es donde suele quedar la basura: los dos contextos del manifiesto que
+describían piezas que ya no se pintan (la cobertura es biyectiva a propósito), y los **74 px de colchón** que el
+scroll reservaba para que el botón flotante no se posara encima.
+
+**22 afirmaciones del gate cambiaron de plano, ninguna se borró.** Las que exigían el veredicto en el DOM ahora
+exigen **que no esté impreso Y que el módulo lo siga emitiendo** — borrarlas habría dejado al motor sin red. Las
+que contaban «aparece una sola vez» ahora exigen **cero**. La del botón está invertida. La del colchón exige que
+el padding vuelva a ser parejo. El gate de la cara comercial pasó de **428 a 430** comprobaciones.
+
+Verificado en pantalla con la Mesa abierta: la cara arranca en «01 · QUÉ ESTÁ PASANDO» y sigue con los cuatro
+KPI; ni el titular, ni la lectura ejecutiva, ni el 80/20 en prosa, ni la reconciliación, ni el botón.
+Gates **181 PASS · 0 FAIL · 0 TOCARON LA RED · 0 CON CREDENCIAL VIVA**.
+
+---
+
 ## 1.13 — producción · tag `v1.13`
 
 **ADI pasa a pizarra.** El owner lo dijo mirando la pantalla partida: «el contraste blanco y negro es un poco
