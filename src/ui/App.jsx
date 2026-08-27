@@ -133,6 +133,11 @@ export default function App({ animate = true }) {
     /* EL SELLO QUEDA REGISTRADO, y desde acá gobierna lo que ADI dice: la carpeta que ve el cerebro lo lleva,
      * y el camino natural lo antepone cuando la respuesta usa una lectura afectada. Ver selloEnRespuesta.js. */
     registrarCarga(sello, quien);
+    /* ⚠️ `setDatosListos(true)` NO ESTABA, y hasta hoy no hacía falta: a esta pantalla solo se llegaba con el
+     * demo ya cargado, así que la bandera ya venía en true. Viniendo de una empresa SIN datos —el caso que
+     * abrió la vía 3— quedaba en false y el usuario confirmaba su archivo para quedarse mirando una pantalla
+     * negra. El dato estaba bien, guardado y activo; lo que faltaba era decir que ya había con qué pintar. */
+    setDatosListos(true);
     setCargaActiva(quien); setDatosAbiertos(false); setDatosVersion((v) => v + 1);
   };
   const volverAlDemo = () => {
@@ -209,9 +214,24 @@ export default function App({ animate = true }) {
   if (_hash === "#acceso" && !access.granted) return <AccessGate onGranted={(g) => { setAccess((a) => ({ ...a, checked: true, granted: g })); window.location.hash = ""; }} reason={access.reason} expiresAt={access.expiresAt}/>;   // vista previa de la puerta
   if (!access.checked) return <div style={{ height:"100vh", background:C.bg }}/>;   // sin flash del producto antes del veredicto
   if (access.required && !access.granted) return <AccessGate onGranted={(g) => setAccess((a) => ({ ...a, granted: g }))} reason={access.reason} expiresAt={access.expiresAt}/>;
+  const panelDatos = datosAbiertos ? (
+    <PanelDatos
+      activo={cargaActiva}
+      sinDatos={sinDatos}
+      onCerrar={() => setDatosAbiertos(false)}
+      onActivar={(...a) => { setSinDatos(null); return activarDatos(...a); }}
+      onVerDemo={sinDatos ? verElDemo : null}
+      onVolverAlDemo={volverAlDemo}/>
+  ) : null;
+
   // vía 1 · MISMA pantalla neutra que el pre-veredicto: el producto no se pinta sobre la forma vacía. En el camino
   // normal esto no se ve (main.jsx ya trajo el dato); se ve el instante justo después de escribir el código.
-  if (!datosListos) return <div style={{ height:"100vh", background:C.bg }}/>;
+  //
+  // ⚠️ PERO «TODAVÍA NO SUBISTE NADA» NO ES UN INSTANTE: ES DONDE SE QUEDA una empresa recién creada, y sin esto
+  // se queda ahí MIRANDO UNA PANTALLA NEGRA. Este retorno temprano es anterior al bloque que abre «Tus datos», así
+  // que la pantalla se abría en un árbol que nunca se pintaba. Lo encontró el click en vivo: el servidor
+  // respondía perfecto —`sin-datos` con su mensaje— y el navegador no mostraba nada.
+  if (!datosListos) return <div style={{ height:"100vh", background:C.bg }}>{panelDatos}</div>;
 
   return (
     <div key={datosVersion} className="app-root" style={{ height:"100vh", background:C.bg, fontFamily:"'DM Sans','Segoe UI',sans-serif", color:C.text, display:"flex", flexDirection:"column", overflow:"hidden" }}>
@@ -312,15 +332,7 @@ export default function App({ animate = true }) {
 
       {/* TUS DATOS · fuera del <main> por lo mismo que la guía: es `position:fixed` sobre toda la app y no
           debe heredar el `overflow:hidden` del layout. */}
-      {datosAbiertos && (
-        <PanelDatos
-          activo={cargaActiva}
-          sinDatos={sinDatos}
-          onCerrar={() => setDatosAbiertos(false)}
-          onActivar={(...a) => { setSinDatos(null); return activarDatos(...a); }}
-          onVerDemo={sinDatos ? verElDemo : null}
-          onVolverAlDemo={volverAlDemo}/>
-      )}
+      {panelDatos}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap');
