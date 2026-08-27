@@ -96,8 +96,12 @@ H("3 · QUIÉN VIVE EN QUÉ MUNDO · la regla, hecha imports");
   ok(/^import \{ C, T, esPapel \} from "\.\/theme\.js";/m.test(chat),
     "el chat importa las dos paletas: conversa en papel y mide en tablero");
   const main = leer("./src/main.jsx");
-  ok(/get\("papel"\) === "1"/.test(main) && /aplicarTema\("papel"\)/.test(main),
-    "el interruptor es `?papel=1`, el mismo patrón que `?historial=1` y `?barra=…`");
+  /* ⚠️ EL INTERRUPTOR SE DIO VUELTA (owner 2026-08-26: «subeloooo»). Nació apagado tras `?papel=1`; ahora el
+   * papel ES la app y el tablero es la vuelta atrás, con `?papel=0`. Lo que NO cambió —y es lo que las
+   * secciones 1 y 2 protegen— es que el defecto del MÓDULO siga siendo el tablero: los gates y cualquier
+   * prueba fuera del navegador tienen que seguir viendo la paleta sellada. */
+  ok(/get\("papel"\) !== "0"/.test(main) && /aplicarTema\("papel"\)/.test(main),
+    "el papel está ENCENDIDO por defecto, y el tablero queda detrás de `?papel=0`");
   /* Se comparan las LLAMADAS, no los imports: los `import` van todos arriba por definición, así que compararlos
    * no dice nada sobre el orden de ejecución. La primera versión de este chequeo se puso roja por eso. */
   const iAplica = main.indexOf('aplicarTema("papel")');

@@ -12,7 +12,38 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 1.7 — producción · tag `v1.7`
+## 1.8 — producción · tag `v1.8`
+
+**La app cambia de cara.** ADI pasa a papel claro; Sentrix se queda en negro. El corte del medio deja de ser un
+defecto y pasa a ser el mensaje: **a la izquierda se conversa, a la derecha se mide.**
+
+Es el rediseño que subió apagado en la 1.7. El owner lo miró y lo encendió.
+
+- **Lo que se ve.** El lienzo de la conversación en papel, el historial un paso más adentro, las tarjetas en
+  blanco puro: la jerarquía se hace con el papel y no con líneas. El campo de hexágonos se invierte —de luz
+  tenue sobre negro a tinta tenue sobre papel— y late. La respuesta de ADI **pierde la burbuja**: queda el
+  hexágono al costado y el texto sobre la hoja, de modo que se lee como algo escrito y no encajonado.
+- **Lo que sigue en negro, y por qué.** Sentrix entero, los gráficos que ADI dibuja dentro de sus respuestas y
+  el pulso del inicio. La regla es *todo lo que mide viene en oscuro*, y la costura entre los dos mundos es una
+  **sombra**: el tablero se apoya sobre la hoja en vez de cortarla. Gracias a eso no se recalibró ni una serie,
+  ni un semáforo, ni un sello — siguen sobre el fondo donde ya funcionaban.
+- **El pulso del inicio se queda** y pasa a ser una tarjeta oscura apoyada sobre la hoja. Sus cuatro cifras
+  siguen siendo botones que mandan una pregunta ya verificada al chat: son puertas de entrada, no datos
+  repetidos de la Mesa.
+- **La vuelta atrás, en la dirección.** Agregar **`?papel=0`** devuelve la app oscura completa, sin tocar una
+  línea ni desplegar nada. Es el mismo interruptor de la 1.7, dado vuelta.
+
+Verificado antes de subir en los dos sentidos: sin parámetro el lienzo queda en `#fafafa` con el texto en
+`#17181c` y el pulso como tarjeta negra; con `?papel=0` vuelve a `#0a0a0a` con el pulso en banda. **181 PASS ·
+0 FAIL · 0 tocaron la red.**
+
+⚠️ **El defecto de la 1.7 que quedó cerrado antes de encender esto:** el hexágono de la marca, en la barra
+lateral, tenía su trazo en blanco escrito a mano y sobre papel desaparecía. Con el rediseño apagado nadie lo
+habría notado; encendido, es lo primero que se ve. Se cazó con un barrido de contraste sobre la app corriendo.
+
+**Sin decidir todavía**, y ninguna bloquea: el tono del panel de historial y los tres modos de la barra lateral.
+
+## 1.7 — tag `v1.7` (estuvo en producción el 2026-08-26)
 
 **Nada cambia de aspecto al entrar.** Esta versión sube dos cosas que están apagadas o que no se ven: el
 rediseño «papel y tablero» detrás de un interruptor, y un candado que protege la estructura de la plantilla.
