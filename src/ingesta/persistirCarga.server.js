@@ -26,6 +26,7 @@
  */
 import { clienteDesdeEntorno } from "../data/supabaseRest.js";
 import { emitirPase } from "../data/paseTenant.js";
+import { confirmarSello } from "./plausibilidad.js";
 
 const BUCKET = "adi-originales";
 const TIPO_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -118,6 +119,48 @@ export async function persistirCarga({
   await db.actualizar("uploads", { pase, filtros: { id: `eq.${uploadId}` }, cambios: { estado: "ingestado" } });
 
   return { guardado: true, uploadId, versionId: alt.filas[0].id, version, hash, original };
+}
+
+/* activarVersion({ tenantId, versionId, env, cliente }) → { activada, version? , motivo? }
+ *
+ * ⚠️ ES EL MOMENTO EN QUE EL CLIENTE ADOPTA SUS DATOS, y por eso pasan dos cosas a la vez: la versión queda
+ * activa Y su sello pasa a confirmado. Separarlas dejaría una versión activa cuyo sello sigue diciendo que
+ * nadie asumió las observaciones — la contradicción que el guardado evita al no confirmar de antemano.
+ *
+ * Las dos escrituras ocurren DENTRO de la base, en una función (`003_activar_version.sql`). No es una
+ * preferencia de estilo: apagar la anterior y encender esta desde acá, en dos llamadas, deja un instante sin
+ * ninguna versión activa —permanente si la segunda falla— y además choca contra el índice que impide dos
+ * activas a la vez. La transacción es la única forma correcta.
+ *
+ * NO REDACTA EL SELLO: lo lee de la fila guardada y lo pasa por `confirmarSello`, que es la MISMA función que
+ * redacta el sello de la lectura. Dos redacciones del mismo hallazgo son dos verdades. */
+export async function activarVersion({ tenantId, versionId, env, cliente, ttlSegundos } = {}) {
+  if (!tenantId) return { activada: false, motivo: "sin sesión con empresa" };
+  if (!versionId) return { activada: false, motivo: "no se dijo qué versión activar" };
+
+  const e = env || (typeof process !== "undefined" && process.env) || {};
+  const db = cliente || clienteDesdeEntorno(e);
+  if (!db) return { activada: false, motivo: "base no configurada" };
+
+  const p = await emitirPase({ tenantId, secreto: e.SUPABASE_JWT_SECRET || "", ...(ttlSegundos ? { ttlSegundos } : {}) });
+  if (!p.ok) return { activada: false, motivo: `no se pudo emitir el pase: ${p.motivo}` };
+
+  /* El sello guardado es el de la lectura, sin confirmar. Se lee para confirmarlo con la redacción de la casa,
+   * en vez de aceptar el que mande el navegador: quien decide qué dice el sello es el servidor. */
+  const previa = await db.seleccionar("fact_pack_versions", {
+    pase: p.pase, columnas: "sello", filtros: { id: `eq.${versionId}` }, limite: 1,
+  });
+  if (!previa.ok) return { activada: false, motivo: `no se pudo leer la versión: ${previa.motivo}` };
+  if (!previa.filas.length) return { activada: false, motivo: "esa versión no existe para esta empresa" };
+
+  const sello = confirmarSello(previa.filas[0].sello);
+
+  const r = await db.llamarFuncion("adi_activar_version",
+    { p_version_id: versionId, p_sello: sello }, { pase: p.pase });
+  if (!r.ok) return { activada: false, motivo: `no se pudo activar: ${r.motivo}` };
+  if (!r.filas.length) return { activada: false, motivo: "la base no confirmó la activación" };
+
+  return { activada: true, versionId, version: r.filas[0].version, sello };
 }
 
 /* cargasPrevias({ tenantId, hash, env, cliente }) → { hubo, cuando } | { hubo:false }

@@ -200,8 +200,25 @@ export function selloDeLaLectura(lectura, { confirmado = false } = {}) {
     confirmadoPorElUsuario: !!confirmado,
     tipos,
     observaciones,
-    nota: confirmado
-      ? `sobre datos que confirmaste, con ${tipos.length === 1 ? "una observación abierta" : `${tipos.length} observaciones abiertas`}`
-      : `hay ${tipos.length === 1 ? "una observación" : `${tipos.length} observaciones`} sin resolver sobre este archivo`,
+    nota: _notaDelSello(tipos, confirmado),
   };
+}
+
+/* LA REDACCIÓN, EN UN SOLO LUGAR. Se extrajo cuando la confirmación pasó a ocurrir en otro momento que la
+ * lectura (vía 3 · 3.d): al activar una versión guardada ya no hay `lectura` a mano, solo el sello guardado, y
+ * volver a redactar la nota ahí habría creado una SEGUNDA VERDAD sobre el mismo hallazgo — el defecto que este
+ * producto persigue en todas sus superficies. Las dos rutas pasan por acá, y el candado lo comprueba. */
+function _notaDelSello(tipos, confirmado) {
+  return confirmado
+    ? `sobre datos que confirmaste, con ${tipos.length === 1 ? "una observación abierta" : `${tipos.length} observaciones abiertas`}`
+    : `hay ${tipos.length === 1 ? "una observación" : `${tipos.length} observaciones`} sin resolver sobre este archivo`;
+}
+
+/* confirmarSello(sello) → el mismo sello, ya asumido por el usuario.
+ * Se usa al ACTIVAR una versión guardada: confirmar y activar son el mismo acto, y hasta ese momento la fila
+ * guardada dice —con razón— que el usuario no decidió. Un sello sin alarmas no se toca: no hay nada que asumir. */
+export function confirmarSello(sello) {
+  if (!sello || !sello.conAlarmas) return sello || null;
+  const tipos = Array.isArray(sello.tipos) ? sello.tipos : [];
+  return { ...sello, confirmadoPorElUsuario: true, nota: _notaDelSello(tipos, true) };
 }

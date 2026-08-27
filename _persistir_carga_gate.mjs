@@ -19,7 +19,8 @@
  * chequeo, es un despliegue.
  *
  * OFFLINE · un doble en memoria + la ingesta determinística · no puede gastar. */
-import { persistirCarga, cargasPrevias, hashSha256 } from "./src/ingesta/persistirCarga.server.js";
+import { persistirCarga, cargasPrevias, activarVersion, hashSha256 } from "./src/ingesta/persistirCarga.server.js";
+import { selloDeLaLectura, confirmarSello } from "./src/ingesta/plausibilidad.js";
 import { handleIngesta } from "./src/ingesta/handleIngesta.server.js";
 import { crearClienteRest } from "./src/data/supabaseRest.js";
 import { verificarPase } from "./src/data/paseTenant.js";
@@ -47,13 +48,17 @@ const BYTES = new Uint8Array([80, 75, 3, 4, 9, 9, 9]);
 /* ── EL DOBLE ────────────────────────────────────────────────────────────────────────────────────────────
  * Responde como respondería la base, y REGISTRA todo. `versionesPrevias` deja simular una empresa que ya
  * tiene historia; `falla` deja simular que una operación puntual se cae. */
-function doble({ versionesPrevias = [], falla = {}, cargasConHash = [] } = {}) {
+function doble({ versionesPrevias = [], falla = {}, cargasConHash = [], versionActiva = [] } = {}) {
   const log = [];
   const cli = {
     async seleccionar(tabla, o) {
       log.push({ op: "seleccionar", tabla, ...o });
       if (falla.seleccionar === tabla) return { ok: false, motivo: "la base respondió 500" };
-      if (tabla === "fact_pack_versions") return { ok: true, filas: versionesPrevias };
+      if (tabla === "fact_pack_versions") {
+        /* Buscar POR ID es leer una versión puntual (activar); buscar por empresa es pedir la última (guardar).
+         * El doble distingue igual que la base, o si no `activarVersion` recibiría la lista equivocada. */
+        return { ok: true, filas: o && o.filtros && o.filtros.id ? versionActiva : versionesPrevias };
+      }
       if (tabla === "uploads") return { ok: true, filas: cargasConHash };
       return { ok: true, filas: [] };
     },
@@ -72,6 +77,11 @@ function doble({ versionesPrevias = [], falla = {}, cargasConHash = [] } = {}) {
       log.push({ op: "subirObjeto", bucket, ruta, bytes, ...o });
       if (falla.subirObjeto) return { ok: false, motivo: "el depósito no respondió" };
       return { ok: true, filas: [] };
+    },
+    async llamarFuncion(nombre, argumentos, o) {
+      log.push({ op: "llamarFuncion", nombre, argumentos, ...o });
+      if (falla.llamarFuncion === nombre) return { ok: false, motivo: "la base rechazó la llamada" };
+      return { ok: true, filas: [{ id: argumentos.p_version_id, version: 3, activa: true }] };
     },
   };
   return { cli, log };
@@ -290,7 +300,83 @@ console.log("=".repeat(100));
 }
 
 console.log("\n" + "=".repeat(100));
-console.log("11 · CARNADA · estos chequeos tienen que poder ponerse rojos");
+console.log("11 · ACTIVAR · confirmar y adoptar son el mismo acto (3.d)");
+console.log("=".repeat(100));
+{
+  const SIN_CONFIRMAR = { conAlarmas: true, confirmadoPorElUsuario: false, tipos: ["a", "b"], observaciones: [], nota: "hay 2 observaciones sin resolver sobre este archivo" };
+  const { cli, log } = doble({ versionActiva: [{ sello: SIN_CONFIRMAR }] });
+  const r = await activarVersion({ tenantId: "acme", versionId: "v-1", env: ENV_CON_BASE, cliente: cli });
+  ok(r.activada, "activa la versión", r.motivo);
+  ok(r.version === 3, `y devuelve qué versión quedó activa: ${r.version}`);
+
+  const llamada = log.find((x) => x.op === "llamarFuncion");
+  ok(llamada && llamada.nombre === "adi_activar_version",
+    "⚠️ pasa por la función de la base, no por dos escrituras sueltas: apagar y encender son una transacción");
+  ok(llamada.argumentos.p_version_id === "v-1", "…con la versión que se pidió");
+  ok(llamada.argumentos.p_sello.confirmadoPorElUsuario === true,
+    "⚠️ y el sello pasa a CONFIRMADO en el mismo acto: no queda una versión activa que diga que nadie la asumió");
+  ok(/confirmaste/.test(llamada.argumentos.p_sello.nota), `…con la nota reescrita: «${llamada.argumentos.p_sello.nota}»`);
+
+  /* El sello sale de la fila GUARDADA, no de lo que mande el navegador. */
+  const leyo = log.find((x) => x.op === "seleccionar" && x.tabla === "fact_pack_versions");
+  ok(leyo && leyo.filtros.id === "eq.v-1", "lee el sello guardado antes de confirmarlo, en vez de aceptar el que le pasen");
+
+  ok(!(await activarVersion({ versionId: "v-1", env: ENV_CON_BASE, cliente: doble().cli })).activada, "sin empresa no activa");
+  ok(!(await activarVersion({ tenantId: "acme", env: ENV_CON_BASE, cliente: doble().cli })).activada, "sin versión no activa");
+  ok(!(await activarVersion({ tenantId: "acme", versionId: "v-1", env: {} })).activada, "sin base no activa");
+
+  const ajena = await activarVersion({ tenantId: "acme", versionId: "de-otra", env: ENV_CON_BASE, cliente: doble().cli });
+  ok(!ajena.activada && /no existe para esta empresa/.test(ajena.motivo),
+    `⚠️ una versión que el pase no alcanza no se activa: «${ajena.motivo}» — RLS la hace invisible, no hace falta compararla a mano`);
+
+  const rota = doble({ versionActiva: [{ sello: SIN_CONFIRMAR }], falla: { llamarFuncion: "adi_activar_version" } });
+  const r2 = await activarVersion({ tenantId: "acme", versionId: "v-1", env: ENV_CON_BASE, cliente: rota.cli });
+  ok(!r2.activada && /no se pudo activar/.test(r2.motivo), `si la base rechaza, se informa: «${r2.motivo}»`);
+}
+
+console.log("\n" + "=".repeat(100));
+console.log("12 · UNA SOLA REDACCIÓN DEL SELLO · el defecto que este producto persigue");
+console.log("=".repeat(100));
+{
+  /* ⚠️ ESTE ES EL CHEQUEO MÁS IMPORTANTE DE LA SECCIÓN ANTERIOR. Al confirmar ya no hay `lectura` a mano —solo
+   * el sello guardado—, así que había dos formas de llegar al mismo texto: redactarlo de nuevo, o derivarlo.
+   * Redactarlo de nuevo habría creado DOS VERDADES sobre el mismo hallazgo, que es exactamente el defecto que
+   * este producto trata como falla en todas sus superficies. Acá se comprueba que los dos caminos coinciden. */
+  const casos = [
+    { hayAlarmas: true, alarmas: [{ tipo: "periodo-corto" }] },
+    { hayAlarmas: true, alarmas: [{ tipo: "periodo-corto" }, { tipo: "inventario-sobre-techo" }] },
+    { hayAlarmas: true, alarmas: [{ tipo: "a" }, { tipo: "b" }, { tipo: "c" }] },
+  ];
+  for (const l of casos) {
+    const directo = selloDeLaLectura(l, { confirmado: true });
+    const derivado = confirmarSello(selloDeLaLectura(l, { confirmado: false }));
+    ok(JSON.stringify(directo) === JSON.stringify(derivado),
+      `con ${l.alarmas.length} observación(es), confirmar el sello guardado da EXACTAMENTE lo mismo que redactarlo de cero`,
+      `directo:  ${JSON.stringify(directo)}\n      derivado: ${JSON.stringify(derivado)}`);
+  }
+  ok(confirmarSello(null) === null, "un sello vacío no se inventa: sin alarmas no hay nada que asumir");
+  ok(confirmarSello(selloDeLaLectura({ hayAlarmas: false }, {})) === null, "…y una lectura sin alarmas tampoco");
+}
+
+console.log("\n" + "=".repeat(100));
+console.log("13 · ACTIVAR POR EL ENDPOINT · la mitad que le toca a la pantalla");
+console.log("=".repeat(100));
+{
+  const sinSesion = await handleIngesta({ op: "activar", versionId: "v-1" }, { ADI_TOKEN_SECRET: SECRETO_PUERTA });
+  ok(!sinSesion.ok && /sin sesión/.test(sinSesion.motivo), `sin código no se activa: «${sinSesion.motivo}»`);
+
+  const { code } = await makeAccessCode("prueba", 72, SECRETO_PUERTA, Date.now(), "acme");
+  const sinBase = await handleIngesta({ op: "activar", versionId: "v-1", access: code }, { ADI_TOKEN_SECRET: SECRETO_PUERTA });
+  ok(!sinBase.ok && /no configurada/.test(sinBase.motivo),
+    `⚠️ con código válido se llega hasta el intento: «${sinBase.motivo}»`);
+
+  /* Y que activar NO sea una puerta para leer otra cosa: la op solo hace eso. */
+  ok(sinBase.op === "activar" && !sinBase.dataset && !sinBase.preview,
+    "la respuesta de activar no arrastra dataset ni preview: hace una cosa sola");
+}
+
+console.log("\n" + "=".repeat(100));
+console.log("14 · CARNADA · estos chequeos tienen que poder ponerse rojos");
 console.log("=".repeat(100));
 {
   /* El chequeo del «nace inactiva» solo vale si el doble registraría un `true`. Se fuerza el caso contrario

@@ -88,6 +88,7 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, activo }) {
   const [estado, setEstado] = useState("vacio");     // vacio · leyendo · rechazado · listo
   const [r, setR] = useState(null);                  // la respuesta del servidor
   const [error, setError] = useState(null);
+  const [guardando, setGuardando] = useState(false);
   const fileRef = useRef(null);
 
   async function subir(file) {
@@ -102,6 +103,33 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, activo }) {
       setEstado("rechazado");
       setError((e && e.message) || "no se pudo contactar al servidor");
     }
+  }
+
+  /* CONFIRMAR = ADOPTAR. Le avisa al servidor que ESTA versión pasa a ser la de la empresa, y recién después
+   * activa en la sesión. El orden importa: si el servidor no pudo, el usuario tiene que saber que sus datos
+   * no quedaron guardados, no descubrirlo la próxima vez que entre.
+   *
+   * ⚠️ SIN BASE CONFIGURADA NO HAY `versionId`, Y ENTONCES NO SE LLAMA A NADIE: se activa en memoria como
+   * siempre. Es el mismo producto de hoy, sin un paso de más. */
+  async function confirmar() {
+    const versionId = r && r.persistencia && r.persistencia.versionId;
+    if (versionId) {
+      setGuardando(true);
+      try {
+        const resp = await pedir({ op: "activar", versionId });
+        if (!resp || !resp.ok) {
+          setGuardando(false);
+          setError((resp && resp.motivo) || "no se pudieron guardar estos datos");
+          return;
+        }
+      } catch {
+        setGuardando(false);
+        setError("no se pudo contactar al servidor para guardar estos datos");
+        return;
+      }
+      setGuardando(false);
+    }
+    onActivar(r.dataset, r.selloConfirmado, { nombre: p.archivo, empresa: (r.dataset && r.dataset.nombre) || p.archivo });
   }
 
   async function bajarPlantilla(conEjemplo) {
@@ -286,9 +314,9 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, activo }) {
 
             {/* ── paso 4 · confirmar ─────────────────────────────────────────────────────────────────── */}
             <div style={{ marginTop: 20, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <Boton primario testid="datos-activar"
-                onClick={() => onActivar(r.dataset, r.selloConfirmado, { nombre: p.archivo, empresa: (r.dataset && r.dataset.nombre) || p.archivo })}>
-                {r.apertura ? "Seguir con estos números" : "Usar estos datos"}
+              {/* Deshabilitado mientras guarda: dos clicks serían dos activaciones de la misma versión. */}
+              <Boton primario testid="datos-activar" onClick={confirmar} disabled={guardando}>
+                {guardando ? "Guardando…" : (r.apertura ? "Seguir con estos números" : "Usar estos datos")}
               </Boton>
               <Boton testid="datos-otro" onClick={() => { setEstado("vacio"); setR(null); }}>Subir otro archivo</Boton>
             </div>

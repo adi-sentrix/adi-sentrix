@@ -13,8 +13,19 @@ El plan que gobierna estos archivos es la **vía 3** de [`_FRENTE_DATOS_PLANO_VI
 |---|---|
 | `migraciones/001_esquema_base.sql` | Las cuatro tablas, el rol del producto, RLS y los permisos |
 | `migraciones/002_storage_originales.sql` | El depósito privado del `.xlsx` original y sus políticas |
+| `migraciones/003_activar_version.sql` | Adoptar una versión como un solo acto, y leer la activa |
 
 Se aplican **en orden** y son **idempotentes**: correrlas dos veces no rompe nada ni duplica nada.
+
+## Cómo se comprueba que funciona de verdad
+
+```
+node scripts/verificar-supabase.mjs
+```
+
+Hace el camino completo contra la base real —guardar, subir el original, activar— y sobre todo prueba lo
+único que no se puede simular: que **un pase de otra empresa no pueda leer ni escribir estos datos**.
+Necesita las tres variables en el `.env` de la raíz. No gasta nada: habla con Supabase, no con un modelo.
 
 ## Cómo se aplican
 

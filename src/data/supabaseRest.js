@@ -151,6 +151,17 @@ export function crearClienteRest({ url, apikey, transporte = _transportePorDefec
       });
     },
 
+    /* llamarFuncion("adi_activar_version", { p_version_id: "…" }, { pase }) → ejecuta una función de la base.
+     *
+     * POR QUÉ HACE FALTA: hay operaciones que son VARIAS escrituras y tienen que pasar juntas o no pasar —
+     * cambiar de versión activa es la primera. Partida en dos llamadas, entre una y otra la empresa no tiene
+     * ninguna versión activa, y si la segunda falla eso queda así. Adentro de una función es una transacción.
+     * Las funciones corren con los permisos de quien llama, así que RLS sigue aplicándose. */
+    async llamarFuncion(nombre, argumentos = {}, { pase } = {}) {
+      if (!_IDENT.test(String(nombre))) return { ok: false, motivo: `función inválida: ${nombre}` };
+      return _pedir("POST", `/rest/v1/rpc/${nombre}`, { pase, cuerpo: argumentos });
+    },
+
     /* subirObjeto("adi-originales", "demo/abc.xlsx", bytes, { pase }) → guarda el archivo tal como llegó.
      *
      * ⚠️ LA RUTA ES EL CONTROL DE ACCESO, NO UNA CONVENCIÓN DE ORDEN. La política del depósito compara la

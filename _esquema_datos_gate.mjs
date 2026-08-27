@@ -24,6 +24,7 @@ const ok = (cond, label, detalle) => {
 
 const BASE = readFileSync("./db/migraciones/001_esquema_base.sql", "utf8");
 const STORAGE = readFileSync("./db/migraciones/002_storage_originales.sql", "utf8");
+const ACTIVAR = readFileSync("./db/migraciones/003_activar_version.sql", "utf8");
 
 /* Las tablas que este frente declara. Escritas acá a mano A PROPÓSITO: si alguien agrega una tabla al SQL y
  * no la agrega a esta lista, la sección 1 lo caza. Descubrirlas del propio SQL haría que el candado aprobara
@@ -180,7 +181,42 @@ console.log("=".repeat(100));
 }
 
 console.log("\n" + "=".repeat(100));
-console.log("3 · CARNADA · cada chequeo tiene que poder ponerse rojo");
+console.log("3 · LAS FUNCIONES · el muro no se puede saltar por adentro");
+console.log("=".repeat(100));
+{
+  /* ⚠️ EL CHEQUEO QUE IMPORTA ES EL DE `security definer`. Una función marcada así corre con los permisos de
+   * QUIEN LA ESCRIBIÓ, no de quien la llama — y entonces RLS deja de aplicarse adentro. Sería una puerta al
+   * costado del muro, abierta desde el propio esquema y sin que nada se vea distinto desde afuera. */
+  const fns = ACTIVAR.match(/create or replace function public\.(\w+)/g) || [];
+  ok(fns.length >= 2, `la migración declara ${fns.length} funciones`);
+
+  ok(!/security\s+definer/i.test(ACTIVAR),
+    "⚠️ ninguna función es `security definer`: RLS sigue aplicándose adentro");
+  ok((ACTIVAR.match(/security\s+invoker/gi) || []).length >= 2,
+    "…y las dos declaran `security invoker` explícitamente, en vez de confiar en el default");
+
+  ok(!/create or replace function adi\.\w+\s*\([^)]*\)[\s\S]{0,200}returns table/.test(ACTIVAR),
+    "viven en `public` y no en `adi`: PostgREST solo expone los esquemas configurados");
+
+  for (const f of ["adi_activar_version", "adi_version_activa"]) {
+    ok(new RegExp(`grant execute on function public\\.${f}\\(`).test(ACTIVAR), `\`${f}\` se le concede al rol del producto`);
+  }
+
+  /* Apagar la anterior TIENE que ir antes de encender la nueva: el índice único parcial rechaza el estado
+   * intermedio con dos activas. Es un orden que la base impone, no una preferencia. */
+  const apaga = ACTIVAR.indexOf("set activa = false");
+  const enciende = ACTIVAR.indexOf("set activa = true");
+  ok(apaga > 0 && enciende > apaga,
+    "se apaga la anterior ANTES de encender la nueva: al revés, el índice de una sola activa lo rechaza");
+
+  ok(/raise exception/.test(ACTIVAR),
+    "una versión que el pase no alcanza termina en error, no en un silencio que parezca éxito");
+  ok(/coalesce\(p_sello/.test(ACTIVAR),
+    "activar sin sello no borra el que ya está guardado");
+}
+
+console.log("\n" + "=".repeat(100));
+console.log("4 · CARNADA · cada chequeo tiene que poder ponerse rojo");
 console.log("=".repeat(100));
 {
   /* Se muta una COPIA del SQL real con el defecto exacto que el chequeo dice prevenir, y se exige que

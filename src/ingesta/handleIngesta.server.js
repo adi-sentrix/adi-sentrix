@@ -28,7 +28,7 @@ import { plantillaVacia, plantillaEjemplo } from "./plantilla/generarPlantilla.j
 import { POLICY_CONFIG } from "../config/businessPolicy.js";
 import { PLANTILLA_VERSION } from "../config/contract/plantilla.js";
 import { verifyAccessCode } from "../adi/llm/accessToken.js";
-import { persistirCarga, cargasPrevias, hashSha256 } from "./persistirCarga.server.js";
+import { persistirCarga, cargasPrevias, activarVersion, hashSha256 } from "./persistirCarga.server.js";
 
 /* De qué empresa es esta carga. Sale del código firmado y de ningún otro lado.
  *
@@ -69,6 +69,19 @@ export async function handleIngesta(body = {}, env) {
     return { ok: true, op: "plantilla", version: PLANTILLA_VERSION,
       nombre: "Plantilla_ADI_" + PLANTILLA_VERSION + (conEjemplo ? "_ejemplo" : "") + ".xlsx",
       archivo: Buffer.from(libro).toString("base64") };
+  }
+
+  /* ADOPTAR LOS DATOS · el usuario confirmó en la pantalla (3.d).
+   * Es la otra mitad de la carga: subir deja la versión guardada e inactiva, y esto la vuelve la versión de
+   * la que ADI habla. Va acá y no en un endpoint nuevo porque es el mismo acto del mismo usuario sobre el
+   * mismo archivo — partirlo en dos rutas obligaría a la pantalla a saber en cuál está cada mitad. */
+  if (body.op === "activar") {
+    const empresa = await empresaDeLaCarga(body.access, env);
+    if (!empresa) return { ok: false, motivo: "sin sesión con empresa: no se puede activar" };
+    const r = await activarVersion({ tenantId: empresa, versionId: body.versionId, env });
+    return r.activada
+      ? { ok: true, op: "activar", version: r.version, sello: r.sello }
+      : { ok: false, op: "activar", motivo: r.motivo };
   }
 
   const b64 = typeof body.archivo === "string" ? body.archivo : "";
