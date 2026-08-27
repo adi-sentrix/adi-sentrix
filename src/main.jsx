@@ -19,10 +19,19 @@ import App from "./ui/App.jsx";
 import { cargarTenant } from "./data/tenantClient.js";
 import { aplicarTema } from "./ui/theme.js";
 
-/* ── «PAPEL Y TABLERO» · ENCENDIDO POR DEFECTO (owner 2026-08-26) ─────────────────────────────────────────────
- * Nació apagado, detrás de `?papel=1`, mientras se decidía. El owner lo vio y lo encendió: «subeloooo». Desde
- * ahora el papel es LA app y el tablero queda detrás de `?papel=0`, que es la vuelta atrás sin tocar una línea
- * — la misma que valía antes, dada vuelta.
+/* ── LA SUPERFICIE DE ADI · HOY ES LA PIZARRA (owner 2026-08-27) ──────────────────────────────────────────────
+ * TRES SUPERFICIES, UN SOLO INTERRUPTOR, y el orden en que aparecieron cuenta la historia:
+ *   · sin parámetro → PIZARRA. Gris oscuro y frío. Es lo que ve cualquiera que entre.
+ *   · `?papel=1`      → PAPEL. La hoja blanca, que fue LA app entre el 26 y el 27 de agosto.
+ *   · `?papel=0`      → TABLERO. El diseño viejo COMPLETO — no sólo el color: vuelve la burbuja de ADI, el
+ *                     titular largo y el pulso. Es la vuelta atrás sin tocar una línea.
+ *
+ * POR QUÉ SE MOVIÓ: «el contraste blanco y negro es un poco pesado para la vista». El salto de la hoja al
+ * tablero era de 19,2 a 1 y caía en el medio de la pantalla. En pizarra queda en 1,10 a 1, y los dos lados se
+ * separan con un filete de luz en vez de con un tajo. Ver `TEMA_PIZARRA` en theme.js.
+ *
+ * ⚠️ EL PARÁMETRO SIGUE LLAMÁNDOSE `papel` a propósito, aunque ya no sea la superficie por defecto: es el que
+ * está escrito en los gates y el que el owner tiene en el dedo. Renombrarlo no compraba nada y rompía las dos.
  *
  * ⚠️ EL DEFECTO DEL MÓDULO SIGUE SIENDO EL TABLERO, y no es un descuido: `theme.js` se evalúa en tablero, así
  * que todo lo que importe `C` fuera del navegador —los gates, cualquier prueba— sigue viendo la paleta de
@@ -31,7 +40,9 @@ import { aplicarTema } from "./ui/theme.js";
  * Se aplica ACÁ, antes de montar React, para que el primer render ya salga con la superficie correcta y no se
  * vea un parpadeo de negro a papel. */
 try {
-  if (new URLSearchParams(window.location.search).get("papel") !== "0") aplicarTema("papel");
+  const _sup = new URLSearchParams(window.location.search).get("papel");
+  if (_sup === "1") aplicarTema("papel");
+  else if (_sup !== "0") aplicarTema("pizarra");
 } catch { /* sin window (SSR o prueba): queda el tablero, que es el defecto del módulo */ }
 
 const root = createRoot(document.getElementById("root"));

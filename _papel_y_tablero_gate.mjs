@@ -21,7 +21,7 @@ import { readFileSync } from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 initTenant(TENANT_DEMO);
-import { C, T, esPapel, aplicarTema, FINANCIAL_HIGHLIGHT, FINANCIAL_PLAIN, FINANCIAL_TABULAR } from "./src/ui/theme.js";
+import { C, T, esPapel, esSuperficieADI, aplicarTema, FINANCIAL_HIGHLIGHT, FINANCIAL_PLAIN, FINANCIAL_TABULAR } from "./src/ui/theme.js";
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -93,18 +93,22 @@ H("3 · QUIÉN VIVE EN QUÉ MUNDO · la regla, hecha imports");
       `${que}: importa el TABLERO — el interruptor no lo alcanza`);
   }
   const chat = leer("./src/ui/ChatADI.jsx");
-  ok(/^import \{ C, T, esPapel \} from "\.\/theme\.js";/m.test(chat),
-    "el chat importa las dos paletas: conversa en papel y mide en tablero");
+  ok(chat.includes('import { C, T, esPapel, esSuperficieADI } from "./theme.js";'),
+    "el chat importa las dos paletas y los DOS predicados: conversa en su superficie y mide en tablero");
   const main = leer("./src/main.jsx");
   /* ⚠️ EL INTERRUPTOR SE DIO VUELTA (owner 2026-08-26: «subeloooo»). Nació apagado tras `?papel=1`; ahora el
    * papel ES la app y el tablero es la vuelta atrás, con `?papel=0`. Lo que NO cambió —y es lo que las
    * secciones 1 y 2 protegen— es que el defecto del MÓDULO siga siendo el tablero: los gates y cualquier
    * prueba fuera del navegador tienen que seguir viendo la paleta sellada. */
-  ok(/get\("papel"\) !== "0"/.test(main) && /aplicarTema\("papel"\)/.test(main),
-    "el papel está ENCENDIDO por defecto, y el tablero queda detrás de `?papel=0`");
+  ok(main.includes('_sup === "1"') && main.includes('aplicarTema("papel")'),
+    "el PAPEL sigue existiendo, detrás de `?papel=1`");
+  ok(main.includes('_sup !== "0"') && main.includes('aplicarTema("pizarra")'),
+    "la PIZARRA es la superficie por defecto: sin parámetro, es lo que se ve");
+  ok(main.includes('get("papel")'),
+    "…y el parámetro se sigue llamando `papel`: es el que está escrito en los gates y el que el owner usa");
   /* Se comparan las LLAMADAS, no los imports: los `import` van todos arriba por definición, así que compararlos
    * no dice nada sobre el orden de ejecución. La primera versión de este chequeo se puso roja por eso. */
-  const iAplica = main.indexOf('aplicarTema("papel")');
+  const iAplica = main.indexOf('aplicarTema("pizarra")');
   const iMonta = main.indexOf("createRoot(document");
   ok(iAplica > 0 && iMonta > 0 && iAplica < iMonta,
     `el tema se aplica ANTES de montar React (posición ${iAplica} < ${iMonta}): sin parpadeo de negro a papel`);
@@ -113,11 +117,19 @@ H("3 · QUIÉN VIVE EN QUÉ MUNDO · la regla, hecha imports");
 H("4 · LO QUE EL OWNER PIDIÓ CONSERVAR, conservado");
 {
   const chat = leer("./src/ui/ChatADI.jsx");
-  /* La respuesta de ADI sin burbuja es ESTRUCTURA, no color: por eso se resuelve con `esPapel()` y no con un
-   * token. En el tablero la burbuja tiene que seguir existiendo, con su borde celeste. */
-  ok(/esPapel\(\)\s*\n?\s*\?\s*\{ background:"transparent"/.test(chat.replace(/\s+/g, " ").replace(/ \?/g, "\n?")) ||
-     /esPapel\(\)[^]{0,120}background:"transparent"/.test(chat),
-    "sobre papel la respuesta de ADI NO tiene burbuja: texto sobre la hoja");
+  /* La respuesta de ADI sin burbuja es ESTRUCTURA, no color, y esa distincion se pago cara: hasta el 27 de
+   * agosto colgaba de esPapel(), o sea del COLOR, y al pasar la hoja de blanca a gris se habria perdido sola.
+   * Ahora cuelga de esSuperficieADI(). En el tablero de ?papel=0 la burbuja sigue existiendo, con su borde
+   * celeste — eso es lo que prueba la afirmacion de mas abajo. */
+  /* Se mira LA LINEA DE ARRIBA del marcador, no todo el archivo: `...(esPapel()` sigue existiendo mas abajo,
+     en la rama del pulso que solo corre en el tablero. Lo que hay que probar es que ESTA decision —la burbuja—
+     dejo de colgar del color. Con indexOf y sin expresiones regulares: es una comparacion de texto, no un acertijo. */
+  const _iBurbuja = chat.indexOf('background:"transparent", padding:"2px 0 0"');
+  const _antesDeLaBurbuja = _iBurbuja > 0 ? chat.slice(Math.max(0, _iBurbuja - 120), _iBurbuja) : "";
+  ok(_antesDeLaBurbuja.includes("esSuperficieADI("),
+    "en la superficie de ADI la respuesta NO tiene burbuja: texto sobre la hoja");
+  ok(_iBurbuja > 0 && !_antesDeLaBurbuja.includes("esPapel("),
+    "…y esa decision ya no cuelga del color: es estructura, y sobrevive a que la hoja pase de blanca a gris");
   ok(/border:"1px solid rgba\(47,184,218,0\.22\)"/.test(chat),
     "…y en el tablero la burbuja conserva su borde celeste, intacta");
   /* El pulso: el owner eligió «con pulso» como base. Las cifras son BOTONES — es lo que las hace puertas de
@@ -138,7 +150,50 @@ H("4 · LO QUE EL OWNER PIDIÓ CONSERVAR, conservado");
     "la pantalla de carga y su recuadro de procedencia del benchmark, sin tocar");
 }
 
-H("5 · CARNADA · el chequeo de «no se movió nada» tiene que poder ponerse rojo");
+H("5 · LA PIZARRA · el gris que eligió el owner, y lo que prometió NO mover");
+{
+  /* ⚠️ ÉSTE ES EL SELLO DE «MANTENER TODO EL RESTO» (owner 2026-08-27, al elegir la propuesta B). La pizarra
+   * cambia LA SUPERFICIE del lado que conversa y NADA MÁS. Lo que más fácil se rompe después es justamente
+   * eso: alguien toca un semántico «para que combine con el gris» y se lleva puesto el significado. */
+  aplicarTema("pizarra");
+  ok(C.bg === "#14171b", `la pizarra aplica su gris (${C.bg})`);
+  ok(esPapel() === false, "…y NO es papel: es oscura, así que los tintes y las sombras son los de oscuro");
+  ok(esSuperficieADI() === true, "…pero SÍ es superficie de ADI: la estructura nueva se mantiene entera");
+
+  const semanticos = ["celeste","blue","indigo","green","red","amber","cyan","violet","elec","teal","lav"];
+  const movidos = semanticos.filter((k) => C[k] !== TABLERO_SELLADO[k]);
+  ok(movidos.length === 0,
+    `los ${semanticos.length} colores que SIGNIFICAN son los del tablero, byte por byte`,
+    movidos.map((k) => `${k}: sellado ${TABLERO_SELLADO[k]} · vivo ${C[k]}`).join(" · "));
+  ok(C.celeste === "#2fb8da",
+    "…incluido el celeste, que es EL MISMO de Sentrix: el acento lo comparten los dos lados");
+  ok(FINANCIAL_HIGHLIGHT.money.color === "#2fb8da" && FINANCIAL_HIGHLIGHT.pp.background === "rgba(253,224,71,0.06)",
+    "…y el resalte de cifras vuelve a los alfas del tablero, que es donde está calibrado");
+
+  /* LOS HEXÁGONOS · el owner los nombró por su nombre («incluyendo los Hexágonos»), así que tienen que seguir
+   * declarados y con tinta de verdad. Un token vacío los apagaría sin que nadie se entere. */
+  ok(C.hexTrazo === "rgba(198,222,242,0.23)", `la retícula sigue, calibrada para el gris (${C.hexTrazo})`);
+  ok(C.hexLit === "rgba(47,184,218,0.37)", "…y el latido también, con su alfa medido contra el papel");
+
+  ok(typeof C.sombraJunta === "string" && C.sombraJunta.includes("rgba(90,190,220,0.26)"),
+    "la junta es un PLIEGUE ILUMINADO: el filete celeste es lo que distingue esta propuesta de la neutra");
+
+  const trasPizarra = Object.keys(TABLERO_SELLADO).filter((k) => T[k] !== TABLERO_SELLADO[k]);
+  ok(trasPizarra.length === 0, "y T sigue intacto: lo que MIDE no se enteró de nada", trasPizarra.join(", "));
+
+  aplicarTema("tablero");
+  ok(C.bg === "#0a0a0a" && esSuperficieADI() === false,
+    "?papel=0 devuelve el diseño VIEJO entero — no sólo el color: vuelven la burbuja, el titular largo y el pulso");
+
+  const chat = leer("./src/ui/ChatADI.jsx");
+  ok(chat.includes('{esSuperficieADI() ? "¿Por dónde empezamos?"'),
+    "el titular corto cuelga de la superficie de ADI, no del color");
+  ok(chat.includes("{pulso && !esSuperficieADI() &&"), "…el pulso sigue fuera de la superficie de ADI");
+  ok(chat.includes("esSuperficieADI() ? _HEX_LIT_PAPEL : _HEX_LIT"),
+    "…y los hexágonos encendidos siguen corridos al costado, que fue la orden de no interponerse");
+}
+
+H("6 · CARNADA · el chequeo de «no se movió nada» tiene que poder ponerse rojo");
 {
   /* Sin esto, la sección 1 podría estar comparando el sello contra sí mismo y dar verde para siempre. Se
    * fabrica el cambio que el gate existe para cazar y se comprueba que la comparación lo detecta. */

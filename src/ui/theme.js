@@ -58,7 +58,25 @@ const TEMA_TABLERO = {
    * ese mismo pozo ensucia la hoja. Va como token porque es una SOMBRA, no un color: se reemplaza entera. */
   sombraCampo: "0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)",
   sombraCampoFoco: "0 0 0 3px rgba(47,184,218,0.12), inset 0 1px 0 rgba(255,255,255,0.04)",
+  /* LA COSTURA · dónde Sentrix toca a ADI. En el tablero NO hay costura: negro contra negro, no había nada
+     que separar. Va como token —y no como un condicional dentro de App.jsx— porque con TRES superficies un
+     condicional de dos lados ya no alcanza. El `null` dice «acá no se dibuja junta», no es un olvido. */
+  sombraJunta: null,
+  /* LAS PASTILLAS DE LA BARRA · el owner las pidió opacas y con resplandor: «deben estar en cuadro negro
+     notarse». En el tablero eso es un negro más hondo que el fondo. */
+  pastillaBg: "#0b0b0d",
+  pastillaSombra: "0 10px 26px -10px rgba(0,0,0,0.95)",
   esPapel: false,
+  /* ⚠️ `esPapel` Y `esSuperficieADI` NO SON LO MISMO, y confundirlas era el riesgo de esta versión.
+     · `esPapel` = la superficie es CLARA. Decide COLOR: cuánto tinte lleva un resalte, si una sombra
+       hunde o apoya. Sólo la enciende el papel blanco.
+     · `esSuperficieADI` = estamos en el diseño NUEVO del lado que conversa (papel o pizarra). Decide
+       ESTRUCTURA: que la respuesta de ADI no lleve burbuja, que el titular sea corto, que el pulso no vaya,
+       que los hexágonos se corran al costado. Son decisiones del owner sobre LA CONVERSACIÓN, no sobre el
+       color — y por eso tienen que sobrevivir a que la hoja pase de blanca a gris. Fue literalmente lo que
+       pidió al elegir la pizarra: «mantener todo el resto».
+     El tablero de `?papel=0` es el diseño viejo entero: las dos en false. */
+  esSuperficieADI: false,
 };
 
 const TEMA_PAPEL = {
@@ -95,7 +113,66 @@ const TEMA_PAPEL = {
    * la landing. Sin luz interior — sobre blanco no hay nada que iluminar. */
   sombraCampo: "0 1px 2px rgba(23,24,28,0.05), 0 8px 24px -14px rgba(23,24,28,0.20)",
   sombraCampoFoco: "0 0 0 3px rgba(15,114,144,0.14), 0 1px 2px rgba(23,24,28,0.05)",
+  /* sobre la hoja el tablero se APOYA y proyecta sombra hacia la izquierda: profundidad, no un tajo */
+  sombraJunta: "-18px 0 40px -12px rgba(15,23,32,0.30), -1px 0 0 rgba(23,24,28,0.10)",
+  pastillaBg: "#ffffff",
+  pastillaSombra: "0 10px 26px -12px rgba(23,24,28,0.28)",
   esPapel: true,
+  esSuperficieADI: true,
+};
+
+/* ── LA PIZARRA · la superficie que eligió el owner (2026-08-27) ───────────────────────────────────────────────
+ * EL DIAGNÓSTICO, con sus palabras: «el contraste blanco y negro es un poco pesado para la vista». Y la medida
+ * le daba la razón: la hoja en #fafafa contra el tablero en #0a0a0a es un salto de 19,2 a 1 —el rango entero
+ * en un pixel— y ese pixel cae justo en el medio de la pantalla, por donde el ojo cruza cien veces mientras
+ * lee una respuesta y mira el dato. En pizarra ese salto queda en 1,10 a 1.
+ *
+ * DE DOS PROPUESTAS ELIGIÓ ÉSTA (B · pizarra) y no la neutra: gris con una vuelta FRÍA, del lado del celeste,
+ * casi a la misma profundidad que Sentrix. Los dos lados no se separan por un salto de color sino por un
+ * filete de luz en la junta, así que la pantalla se lee como un solo instrumento con dos caras.
+ *
+ * ⚠️ LA ORDEN QUE MANDA ACÁ ES «MANTENER TODO EL RESTO», y por eso esta paleta NO reinventa nada:
+ *   · los SEMÁNTICOS son los del tablero, byte por byte — verde, rojo, ámbar y celeste significan lo mismo y
+ *     ya están calibrados para oscuro, que es donde la pizarra vive. Moverlos obligaría a recalibrar los
+ *     semáforos, los sellos y cada cifra dentro de la prosa.
+ *   · el celeste queda en #2fb8da, EL MISMO de Sentrix. La propuesta lo mostraba un punto más vivo (#35bfdd);
+ *     se descartó a propósito, porque el acento lo comparten los dos lados y el otro lado no se toca.
+ *   · los HEXÁGONOS se quedan —el owner los nombró— y con el MISMO peso en pantalla que tenían sobre papel. */
+const TEMA_PIZARRA = {
+  bg: "#14171b", surface: "#1b1f25", surfaceAlt: "#20242b", surfaceHover: "#262c34",
+  card: "#1b1f25", cardUser: "#222730", cardBorder: "rgba(176,204,232,0.14)",
+  border: "rgba(176,204,232,0.10)", borderLight: "rgba(176,204,232,0.15)",
+  text: "#e8ecf1", textSub: "#9aa4b0", textMuted: "#7d8794",
+  /* IDÉNTICOS AL TABLERO · no es pereza: lo que SIGNIFICA no cambia de superficie */
+  blue: "#00b0d4", indigo: "#0e7fa8", green: "#10b981",
+  red: "#f43f5e", amber: "#fde047", cyan: "#219ebc", violet: "#00a8e8",
+  celeste: "#2fb8da",
+  elec: "#3d74f5", teal: "#7fc9c4", lav: "#a49bd0",
+  hoverSuave: "rgba(190,215,240,0.04)",
+  hoverMedio: "rgba(190,215,240,0.07)",
+  velo: "rgba(190,215,240,0.10)",
+  entidad: "#f2f6fa",
+  /* ⚠️ LA RETÍCULA Y EL LATIDO, MEDIDOS CONTRA LO QUE EL OWNER YA VEÍA. Sobre papel la retícula era tinta al
+     0,203; acá es LUZ sobre gris, que es el mismo gesto al revés, y copiar el número habría dado otra cosa.
+     Se rasterizaron las dos versiones y se buscó el alfa que iguala la tinta total: retícula 0,23 (desvío
+     0,2%) y latido 0,37 (desvío 0,7%). O sea: se notan exactamente igual que ahora, que es lo que se pidió. */
+  hexTrazo: "rgba(198,222,242,0.23)",
+  hexLit: "rgba(47,184,218,0.37)",
+  logoTrazo: "rgba(214,232,245,0.32)",
+  haloNucleo: "rgba(47,184,218,0.14)",
+  haloAmplio: "rgba(47,184,218,0.10)",
+  dashInactivo: "#5f6b78",
+  /* el campo se HUNDE, como en el tablero: sobre gris hay dónde hundirse. El filete de arriba es luz fría. */
+  sombraCampo: "0 2px 10px rgba(0,0,0,0.34), inset 0 1px 0 rgba(190,215,240,0.05)",
+  sombraCampoFoco: "0 0 0 3px rgba(47,184,218,0.13), inset 0 1px 0 rgba(190,215,240,0.06)",
+  /* EL PLIEGUE ILUMINADO · lo que separa las dos caras, y lo que hace que esta propuesta sea ÉSTA y no la
+     neutra. Filete celeste tenue, resplandor corto hacia la izquierda, sombra negra pegada al canto. */
+  sombraJunta: "-14px 0 30px -16px rgba(47,184,218,0.35), -3px 0 12px -6px rgba(0,0,0,0.60), -1px 0 0 rgba(90,190,220,0.26)",
+  /* la pastilla se LEVANTA del fondo (más clara), al revés que en el tablero, donde se hundía */
+  pastillaBg: "#1f242c",
+  pastillaSombra: "0 10px 26px -10px rgba(0,0,0,0.85)",
+  esPapel: false,
+  esSuperficieADI: true,
 };
 
 /** `C` · la superficie donde estás. Arranca en el tablero: sin interruptor, nada cambia. */
@@ -108,9 +185,14 @@ export const T = Object.freeze({ ...TEMA_TABLERO });
 /** ¿la superficie actual es papel? Lo consultan las pocas piezas cuya ESTRUCTURA cambia, no solo su color. */
 export const esPapel = () => C.esPapel === true;
 
+/** ¿estamos en el diseño NUEVO del lado que conversa? Papel y pizarra dicen que sí; el tablero de `?papel=0`
+ *  dice que no. Lo consultan las piezas cuya ESTRUCTURA cambió por decisión del owner —sin burbuja, titular
+ *  corto, sin pulso, hexágonos al costado—, que no dependen de si la hoja es clara u oscura. */
+export const esSuperficieADI = () => C.esSuperficieADI === true;
+
 /* aplicarTema("papel" | "tablero") → reescribe `C` en el lugar. Se llama UNA vez, antes de montar React. */
 export function aplicarTema(nombre) {
-  const fuente = nombre === "papel" ? TEMA_PAPEL : TEMA_TABLERO;
+  const fuente = nombre === "papel" ? TEMA_PAPEL : nombre === "pizarra" ? TEMA_PIZARRA : TEMA_TABLERO;
   for (const k of Object.keys(fuente)) C[k] = fuente[k];
   _aplicarFinancieros(fuente);
   return C;

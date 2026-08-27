@@ -12,6 +12,47 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 1.13 — producción · tag `v1.13`
+
+**ADI pasa a pizarra.** El owner lo dijo mirando la pantalla partida: «el contraste blanco y negro es un poco
+pesado para la vista». Tenía la medida a favor — la hoja en #fafafa contra el tablero en #0a0a0a es un salto de
+**19,2 a 1**, el rango entero en un pixel, y ese pixel cae justo en el medio, por donde el ojo cruza cien veces
+mientras lee una respuesta y mira el dato. **Ahora ese salto es de 1,10 a 1.**
+
+Se le llevaron dos propuestas y eligió **B · pizarra**, la de la vuelta fría, no la neutra: gris del lado del
+celeste, casi a la misma profundidad que Sentrix, con los dos lados separados por **un filete de luz en la
+junta** en vez de por un salto de color. La pantalla se lee como un instrumento con dos caras, no como dos
+pantallas pegadas.
+
+**Su condición fue «solo cambiar ese lado de ADI, mantener todo el resto, incluyendo los hexágonos».** Eso es
+lo que gobierna esta versión:
+
+- **Sentrix no se tocó.** Pinta su propio negro y sigue en él — verificado en pantalla: 720 px de panel en
+  `rgb(0,0,0)`, igual que antes.
+- **Los once colores que SIGNIFICAN son los del tablero, byte por byte** — verde, rojo, ámbar, celeste. Y el
+  celeste queda en **#2fb8da, el mismo de Sentrix**: la propuesta lo mostraba un punto más vivo (#35bfdd) y se
+  descartó a propósito, porque el acento lo comparten los dos lados y el otro lado no cambia.
+- **Los hexágonos siguen, con el mismo peso en pantalla.** No se eligió a ojo: sobre papel eran tinta al 0,203;
+  acá son luz sobre gris, que es el gesto al revés. Se rasterizaron las dos y se buscó el alfa que iguala la
+  tinta: **retícula 0,23 (desvío 0,2%)** y **latido 0,37 (0,7%)**.
+- **Y toda la estructura que el owner fue decidiendo se mantiene**: sin burbuja en las respuestas de ADI,
+  titular corto, sin pulso, hexágonos corridos al costado, centro limpio al conversar.
+
+⚠️ **Lo que casi se pierde solo.** Esas decisiones de estructura colgaban de `esPapel()` — o sea, **del color**.
+Al pasar la hoja de blanca a gris se habrían apagado todas de golpe, sin que nadie tocara nada. Ahora cuelgan de
+`esSuperficieADI()`, que pregunta otra cosa: si estamos en el diseño nuevo del lado que conversa. **`esPapel`
+decide color; `esSuperficieADI` decide estructura.** El gate lo sella con una afirmación que se pone roja si
+alguien vuelve a mezclarlas.
+
+**Tres superficies, un interruptor** — sin parámetro **pizarra**; `?papel=1` la hoja blanca; `?papel=0` el
+diseño viejo COMPLETO (vuelven la burbuja, el titular largo y el pulso). Las tres verificadas en pantalla.
+
+Contraste medido sobre el gris: **15,1 : 1** en el texto y **7,7 : 1** en las cifras celestes.
+Gates **181 PASS · 0 FAIL · 0 TOCARON LA RED · 0 CON CREDENCIAL VIVA** (el de papel y tablero pasó de 30 a 45
+comprobaciones).
+
+---
+
 ## 1.12 — producción · tag `v1.12`
 
 **Las líneas de los hexágonos, todas del mismo grosor.** El owner lo vio de una: «hay unas líneas que no
