@@ -25,7 +25,7 @@ import { JSDOM } from "jsdom";
 import esbuild from "esbuild";
 import { fileURLToPath, pathToFileURL } from "url";
 import path from "path";
-import { rmSync } from "node:fs";
+import { rmSync, readFileSync } from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 
@@ -890,6 +890,26 @@ H("[8] CERO REGRESIONES · las caras Ficha, Capital y Resultado siguen rindiendo
   ok(/(?:Elegí|Elige) un cliente/.test(container.textContent), "la cara PERFIL EJECUTIVO rinde con su selector");
   fireEvent.click(conTexto(container, R.primera.entidad));
   ok(container.textContent.includes(`Importancia de ${R.primera.entidad} en tu cartera`), "…y arma el Perfil Ejecutivo del cliente elegido");
+  /* ⚠️ EL CELESTE ES SOLO DE LO QUE SE TOCA — TAMBIÉN EN ESTA CARA (owner 2026-08-27: «dejaríamos solo el
+     botón de ADI lo explica, el resto blanco, así existe la diferenciación»).
+     POR QUÉ ESTA AFIRMACIÓN NO EXISTÍA ANTES, que es lo que hay que entender para que no vuelva a pasar: la
+     regla se fijó el 2026-08-20 y se selló SOBRE LA CARA COMERCIAL, que era la que el owner estaba mirando.
+     El Perfil Ejecutivo quedó fuera del sello y siguió con sus CUATRO rótulos en celeste, compitiendo con el
+     único enlace de la tarjeta. Lo cazó el owner mirando la pantalla, no el gate. Ahora está cubierta.
+     Se prueba por el ESTILO y no por el texto: el defecto vivía en el color, no en las palabras. */
+  const _ETIQUETAS = ["Perfil Ejecutivo ·", "Cifras clave", "Qué explica la brecha", "Composición de la compra"];
+  const _rot = [...container.querySelectorAll("span")].filter((s) => _ETIQUETAS.some((e) => (s.textContent || "").startsWith(e)));
+  ok(_rot.length >= 3, `los rótulos de la cara se encuentran para poder juzgarlos — ${_rot.length}`);
+  const _rotCeleste = _rot.filter((s) => /#2fb8da/i.test(s.getAttribute("style") || ""));
+  ok(_rotCeleste.length === 0,
+    "ningún rótulo del Perfil Ejecutivo va en celeste: el acento es del botón de ADI",
+    _rotCeleste.map((s) => (s.textContent || "").slice(0, 40)).join(" · "));
+  /* El botón de ADI se prueba en la FUENTE y no en este DOM: la cara monta dos componentes distintos según
+     de qué dimensión sea el sujeto, y esta ruta rinde el que no lo lleva. El color no se decide por
+     componente sino en el helper que pinta TODOS los enlaces a ADI de la cara, que es donde hay que mirar. */
+  const _fuentePanel = readFileSync("./src/ui/SentrixPanel.jsx", "utf8");
+  ok(_fuentePanel.includes('color: C.celeste, fontSize: 14, fontWeight: 600, cursor: "pointer"'),
+    "…y el celeste queda para el botón de ADI, que es lo único que se toca en esas tarjetas");
   fireEvent.click(porTexto(container, "Comercial"));
   ok(container.textContent.includes(R.kpis[0].valor),
     "y volver a Comercial devuelve el resumen del negocio, sin arrastrar la entidad del Perfil Ejecutivo");

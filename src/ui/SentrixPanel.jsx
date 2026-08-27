@@ -5089,7 +5089,7 @@ const _panelStyle = {
   background: "radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0b0b",
   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
 };
-const _panelTitle = { fontFamily: MONO, fontSize: 11.5, letterSpacing: "0.7px", color: C.celeste, textTransform: "uppercase", display: "flex", alignItems: "center" };
+const _panelTitle = { fontFamily: MONO, fontSize: 11.5, letterSpacing: "0.7px", color: C.text, textTransform: "uppercase", display: "flex", alignItems: "center" };
 const _dot = <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>;
 // $ CRUDO (no $K-escalado) — capitalLigado.usd/subtotal vienen en dólares reales (stockUSD), NO en miles como
 // venta/contribución del cuadro comercial: _fmDin de arriba asume input en $K y aquí duplicaría ×1000. Mismo
@@ -5112,9 +5112,9 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
   if (!prof || !prof.coverage || !prof.coverage.supported) {
     return (
       <div style={_panelStyle}>
-        <span style={_panelTitle}>{_dot}Ficha Ejecutiva · {name}</span>
+        <span style={_panelTitle}>{_dot}Perfil Ejecutivo · {name}</span>
         <div style={{ fontSize: 14, color: C.textMuted, marginTop: 8 }}>
-          No tengo datos suficientes para armar la ficha ejecutiva de {name} en este escenario — {(prof && prof.coverage && prof.coverage.reason) || "sin cobertura"}.
+          No tengo datos suficientes para armar el Perfil Ejecutivo de {name} en este escenario — {(prof && prof.coverage && prof.coverage.reason) || "sin cobertura"}.
         </div>
       </div>
     );
@@ -5227,7 +5227,7 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
       {/* 1 · ENCABEZADO EJECUTIVO */}
       <div style={_panelStyle}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-          <span style={_panelTitle}>{_dot}Ficha Ejecutiva · {name}</span>
+          <span style={_panelTitle}>{_dot}Perfil Ejecutivo · {name}</span>
           {_btn("Preguntar a ADI sobre esta cuenta →", `Muéstrame el perfil de ${name}`)}
         </div>
         <div style={{ fontSize: 14, color: C.textSub, lineHeight: 1.6, marginTop: 8 }}>

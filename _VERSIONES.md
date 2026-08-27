@@ -12,6 +12,40 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.2 — producción · tag `v2.2`
+
+**El celeste vuelve a ser solo de lo que se toca, también en el Perfil Ejecutivo.** El owner lo pidió mirando
+esa cara: «dejaríamos solo el botón de ADI lo explica, el resto blanco, así existe la diferenciación». Sus
+cuatro rótulos —PERFIL EJECUTIVO · nombre, CIFRAS CLAVE, QUÉ EXPLICA LA BRECHA, COMPOSICIÓN DE LA COMPRA— iban
+en celeste y competían con el único enlace de la tarjeta. Ahora van en blanco.
+
+**Por qué esta cara se había quedado fuera**, que es lo que importa para que no se repita: la regla se fijó el
+2026-08-20 y se selló SOBRE LA CARA COMERCIAL, que era la que el owner estaba mirando ese día. El Perfil
+Ejecutivo nunca entró al sello. **Lo cazó el owner, no el gate** — así que ahora hay una afirmación que cubre
+esta cara: ningún rótulo puede ir en celeste, y el enlace a ADI sigue siendo el que lo lleva.
+
+**Y dos textos que decían «Ficha» y sobrevivieron al renombre de la 2.1.** El rótulo de cabecera decía todavía
+«Ficha Ejecutiva · nombre». Dos motivos, encadenados:
+
+- El barrido buscaba texto JSX **sin variables adentro**, y este las lleva (`{_dot}` y `{name}`), así que no
+  entró en el reemplazo.
+- El control posterior tampoco lo cazó: la pantalla pinta ese rótulo **en mayúsculas por CSS**, así que buscar
+  «Ficha» en el texto visible daba cero. El barrido ahora va sin distinguir mayúsculas.
+
+El segundo era la frase de la rama sin datos («…para armar la ficha ejecutiva de X»), en minúscula.
+
+**El punto celeste de cada rótulo se queda.** Es la decoración que las otras caras también llevan y no se lee
+como algo que se pueda tocar; lo que competía era el TEXTO.
+
+Verificado en pantalla con una cuenta abierta: los cuatro rótulos en **blanco (245,245,245)**, el botón de ADI
+en **celeste (47,184,218)**, y **cero apariciones de «ficha»** —en cualquier combinación de mayúsculas— en las
+cuatro caras, texto y tooltips. Gates **184 PASS · 0 FAIL** de los propios.
+
+⚠️ Sigue rojo `_esquema_datos_gate`, del frente de datos, desde la 2.0. No se tocó: ese archivo y los SQL que
+lee son idénticos a los publicados por ese frente.
+
+---
+
 ## 2.1 — producción · tag `v2.1`
 
 > ⚠️ **Esta nota se escribió como 1.16 y se renumeró a 2.1 al publicarla.** Mientras el frente UX trabajaba, el
