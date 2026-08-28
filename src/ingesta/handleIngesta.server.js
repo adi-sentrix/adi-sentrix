@@ -78,9 +78,9 @@ export async function handleIngesta(body = {}, env) {
   if (body.op === "activar") {
     const empresa = await empresaDeLaCarga(body.access, env);
     if (!empresa) return { ok: false, motivo: "sin sesión con empresa: no se puede activar" };
-    const r = await activarVersion({ tenantId: empresa, versionId: body.versionId, env });
+    const r = await activarVersion({ tenantId: empresa, versionId: body.versionId, moneda: body.moneda, env });
     return r.activada
-      ? { ok: true, op: "activar", version: r.version, sello: r.sello }
+      ? { ok: true, op: "activar", version: r.version, sello: r.sello, moneda: r.moneda }
       : { ok: false, op: "activar", motivo: r.motivo };
   }
 

@@ -27,6 +27,7 @@
 import { clienteDesdeEntorno } from "../data/supabaseRest.js";
 import { emitirPase } from "../data/paseTenant.js";
 import { confirmarSello } from "./plausibilidad.js";
+import { monedaLimpia } from "../config/moneda.js";
 
 const BUCKET = "adi-originales";
 const TIPO_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -134,7 +135,7 @@ export async function persistirCarga({
  *
  * NO REDACTA EL SELLO: lo lee de la fila guardada y lo pasa por `confirmarSello`, que es la MISMA función que
  * redacta el sello de la lectura. Dos redacciones del mismo hallazgo son dos verdades. */
-export async function activarVersion({ tenantId, versionId, env, cliente, ttlSegundos } = {}) {
+export async function activarVersion({ tenantId, versionId, moneda, env, cliente, ttlSegundos } = {}) {
   if (!tenantId) return { activada: false, motivo: "sin sesión con empresa" };
   if (!versionId) return { activada: false, motivo: "no se dijo qué versión activar" };
 
@@ -155,12 +156,16 @@ export async function activarVersion({ tenantId, versionId, env, cliente, ttlSeg
 
   const sello = confirmarSello(previa.filas[0].sello);
 
+  /* LA MONEDA se limpia acá y NO se completa: si el usuario no respondió y la planilla no la traía, viaja
+   * nula y el pack queda como está. El pack sin moneda se rotula sin símbolo, que es lo honesto. */
+  const monedaDeclarada = monedaLimpia(moneda);
+
   const r = await db.llamarFuncion("adi_activar_version",
-    { p_version_id: versionId, p_sello: sello }, { pase: p.pase });
+    { p_version_id: versionId, p_sello: sello, p_moneda: monedaDeclarada }, { pase: p.pase });
   if (!r.ok) return { activada: false, motivo: `no se pudo activar: ${r.motivo}` };
   if (!r.filas.length) return { activada: false, motivo: "la base no confirmó la activación" };
 
-  return { activada: true, versionId, version: r.filas[0].version, sello };
+  return { activada: true, versionId, version: r.filas[0].version, sello, moneda: monedaDeclarada };
 }
 
 /* cargasPrevias({ tenantId, hash, env, cliente }) → { hubo, cuando } | { hubo:false }

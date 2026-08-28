@@ -148,8 +148,14 @@ console.log("=".repeat(100));
   }
   /* LA PANTALLA TIENE QUE USAR EL CONFIRMADO, no el otro. Este fue un defecto real: se activaba con el sello sin
    * confirmar y la nota decía «observación sin resolver» justo después de que el usuario resolviera seguir. */
-  ok(/onActivar\(r\.dataset, r\.selloConfirmado/.test(PANEL),
+  /* ⚠️ SE MIDE QUÉ SELLO VIAJA, NO CÓMO SE LLAMA EL PRIMER ARGUMENTO. Esto exigía la expresión literal
+   * `onActivar(r.dataset, …` y se puso rojo cuando el dataset pasó a ser una variable —porque la moneda se le
+   * agrega antes de activarlo—. La propiedad que importa no era esa: es que el segundo argumento sea el sello
+   * CONFIRMADO y nunca el otro. Un chequeo que calca la forma se rompe con cada renombre y no protege más. */
+  ok(/onActivar\([^,]+,\s*r\.selloConfirmado\b/.test(PANEL),
     "y al activar, la pantalla entrega el sello CONFIRMADO — no el de antes de preguntar");
+  ok(!/onActivar\([^,]+,\s*r\.sello\b/.test(PANEL),
+    "…y nunca el sello sin confirmar, que es el defecto que este chequeo existe para impedir");
 }
 
 console.log("\n" + "=".repeat(100));

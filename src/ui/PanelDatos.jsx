@@ -91,6 +91,10 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, onVerDemo, act
   const [r, setR] = useState(null);                  // la respuesta del servidor
   const [error, setError] = useState(null);
   const [guardando, setGuardando] = useState(false);
+  /* La moneda que el usuario elige cuando el archivo no la trae. Arranca VACÍA a propósito: preseleccionar una
+   * sería suponerla, que es justo lo que la orden del owner prohíbe. */
+  const [moneda, setMoneda] = useState("");
+  const [otraMoneda, setOtraMoneda] = useState("");
   const fileRef = useRef(null);
 
   async function subir(file) {
@@ -114,11 +118,12 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, onVerDemo, act
    * ⚠️ SIN BASE CONFIGURADA NO HAY `versionId`, Y ENTONCES NO SE LLAMA A NADIE: se activa en memoria como
    * siempre. Es el mismo producto de hoy, sin un paso de más. */
   async function confirmar() {
+    if (!monedaLista) return;   // el botón ya está deshabilitado; esto es el cierre por si alguien lo fuerza
     const versionId = r && r.persistencia && r.persistencia.versionId;
     if (versionId) {
       setGuardando(true);
       try {
-        const resp = await pedir({ op: "activar", versionId });
+        const resp = await pedir({ op: "activar", versionId, moneda: monedaElegida || undefined });
         if (!resp || !resp.ok) {
           setGuardando(false);
           setError((resp && resp.motivo) || "no se pudieron guardar estos datos");
@@ -131,7 +136,13 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, onVerDemo, act
       }
       setGuardando(false);
     }
-    onActivar(r.dataset, r.selloConfirmado, { nombre: p.archivo, empresa: (r.dataset && r.dataset.nombre) || p.archivo });
+    /* La moneda entra al dataset ANTES de activarlo en la sesión: si no, la pantalla mostraría los montos sin
+     * símbolo hasta la próxima recarga, aunque el usuario la acabe de declarar. En la base ya quedó escrita
+     * dentro del pack, en el mismo acto de activar. */
+    const dataset = monedaElegida && !monedaDelArchivo
+      ? { ...r.dataset, perfil: { ...(r.dataset.perfil || {}), moneda: monedaElegida } }
+      : r.dataset;
+    onActivar(dataset, r.selloConfirmado, { nombre: p.archivo, empresa: (dataset && dataset.nombre) || p.archivo });
   }
 
   async function bajarPlantilla(conEjemplo) {
@@ -151,6 +162,15 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, onVerDemo, act
   const p = (r && r.preview) || null;
   const t = (p && p.totales) || null;
   const proc = (t && t.procedencia) || null;
+
+  /* ¿Hay que preguntar la moneda? Solo si el archivo NO la declaró. Quien la puso en la hoja Empresa no ve
+   * esta pregunta nunca — es la mitad «si la planilla trae moneda, se usa» de la regla del owner. */
+  const monedaDelArchivo = (r && r.dataset && r.dataset.perfil && r.dataset.perfil.moneda) || null;
+  const faltaMoneda = Boolean(r && r.ok && !monedaDelArchivo);
+  const monedaElegida = moneda === "otra" ? String(otraMoneda || "").trim().toUpperCase() : moneda;
+  /* Se exige entre 2 y 6 letras, la misma forma que valida el servidor y la base. Sin esto, «Otra» con el
+   * campo vacío dejaría confirmar sin haber declarado nada. */
+  const monedaLista = !faltaMoneda || /^[A-Z]{2,6}$/.test(monedaElegida);
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(6,6,6,0.72)",
@@ -335,12 +355,50 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, onVerDemo, act
               </ul>
             )}
 
+            {/* ── paso 3b · la moneda, si el archivo no la trae ──────────────────────────────────────────
+                Orden del owner (2026-08-27): «no quiero que ADI asuma CLP ni USD». Va DESPUÉS de la preview y
+                ANTES de confirmar, porque es una pregunta sobre lo que se acaba de leer — preguntarla antes
+                sería pedirle al usuario que responda sobre un archivo que todavía no vio.
+
+                ⚠️ NO HAY OPCIÓN PRESELECCIONADA. Un «CLP» marcado por defecto es exactamente la suposición que
+                la orden prohíbe: la mayoría confirmaría sin leer y habríamos declarado su moneda por él. */}
+            {faltaMoneda && (
+              <div data-testid="datos-moneda" style={{ marginTop: 20, padding: "13px 15px", borderRadius: 8,
+                background: C.surfaceAlt, border: `1px solid ${C.borderLight}` }}>
+                <div style={{ fontFamily: SANS, fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 3 }}>
+                  ¿En qué moneda están estos montos: CLP, USD u otra?
+                </div>
+                <div style={{ fontFamily: SANS, fontSize: 11.5, color: C.textMuted, lineHeight: 1.5, marginBottom: 10 }}>
+                  Tu archivo no lo declara y no lo damos por supuesto. Se pregunta una sola vez: queda guardado
+                  con estos datos.
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  {["CLP", "USD"].map((m) => (
+                    <Boton key={m} testid={`datos-moneda-${m}`} primario={moneda === m}
+                      onClick={() => { setMoneda(m); setOtraMoneda(""); }}>{m}</Boton>
+                  ))}
+                  <Boton testid="datos-moneda-otra" primario={moneda === "otra"} onClick={() => setMoneda("otra")}>Otra</Boton>
+                  {moneda === "otra" && (
+                    <input data-testid="datos-moneda-input" value={otraMoneda} autoFocus
+                      onChange={(e) => setOtraMoneda(e.target.value)} placeholder="EUR, PEN, UF…" maxLength={6}
+                      style={{ fontFamily: MONO, fontSize: 13, padding: "8px 10px", borderRadius: 7, width: 120,
+                        background: C.surface, color: C.text, border: `1px solid ${C.borderLight}`, textTransform: "uppercase" }}/>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* ── paso 4 · confirmar ─────────────────────────────────────────────────────────────────── */}
             <div style={{ marginTop: 20, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               {/* Deshabilitado mientras guarda: dos clicks serían dos activaciones de la misma versión. */}
-              <Boton primario testid="datos-activar" onClick={confirmar} disabled={guardando}>
+              {/* Deshabilitado mientras guarda (dos clicks serían dos activaciones) y mientras falte la moneda:
+                  activar sin ella dejaría el pack guardado sin rotular y la pregunta ya no volvería a aparecer. */}
+              <Boton primario testid="datos-activar" onClick={confirmar} disabled={guardando || !monedaLista}>
                 {guardando ? "Guardando…" : (r.apertura ? "Seguir con estos números" : "Usar estos datos")}
               </Boton>
+              {!monedaLista && !guardando && (
+                <span style={{ fontFamily: SANS, fontSize: 11.5, color: C.textMuted }}>Falta declarar la moneda.</span>
+              )}
               <Boton testid="datos-otro" onClick={() => { setEstado("vacio"); setR(null); }}>Subir otro archivo</Boton>
             </div>
             <div style={{ marginTop: 10, fontFamily: SANS, fontSize: 11.3, color: C.textMuted, lineHeight: 1.55 }}>
