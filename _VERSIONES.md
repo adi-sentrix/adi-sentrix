@@ -12,6 +12,61 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.3 — producción · tag `v2.3`
+
+**ADI deja de suponer en qué moneda está tu dinero, y de qué período habla.** Los dos supuestos venían del
+negocio de demostración —que está en pesos y trae un año completo— y eran falsos para la primera planilla real
+que se cargó.
+
+**Qué cambia para el cliente**
+
+- Si su archivo no declara la moneda, **ADI se la pregunta una vez**, después de mostrarle lo que leyó y antes
+  de activar nada. Ninguna opción viene marcada: preseleccionar una es suponerla, y la mayoría confirmaría sin
+  leer. Sin responder no se puede confirmar.
+- Esa respuesta queda **dentro del pack**, así que sobrevive a recargar y a cerrar sesión. Quien la declare en
+  la hoja Empresa —campo nuevo, opcional— no verá la pregunta nunca.
+- **Ya no dice «año cerrado» cuando el archivo trae dos meses.** Dice «el período cargado» o «el mes
+  informado», según lo que el dato sostenga.
+- **El presupuesto que nadie declaró dice que no está**, en vez de mostrarse como `$0`. Un cero afirmaba que el
+  plan del cliente era no vender, y de paso lo dejaba «cumpliendo» cualquier venta.
+
+⚠️ **LO QUE NO SE VEÍA: EL SUPUESTO VIVÍA EN EL MURO, NO EN LA PANTALLA.** Parecía un pedido de formato. Pero
+`boleta.parseFigures` reconocía una cifra de dinero exigiendo un `$` literal: con un negocio en euros, «€4.1M»
+**no se extraía, y lo que no se extrae no se verifica** — una cifra inventada en esa moneda pasaba entera. Lo
+mismo en `guardC`, donde el chequeo del orden sellado se saltaba sin ponerse rojo. **Ninguna de las dos
+fallaba: se volvían ciegas**, que es peor, porque el rechazo se ve y la ceguera no. Cambiar el formato sin
+cerrar eso habría abierto un agujero en la garantía central del producto.
+
+La garantía no se relajó, se extendió: el símbolo pasa a ser el declarado (o ninguno) y `$` se sigue
+aceptando. Y hay una asimetría deliberada: en `guardC` el símbolo puede faltar —el nombre de la columna ya dijo
+que la cifra es dinero—, pero al leer texto libre **no puede**, porque entonces todo número suelto sería un
+monto: los años, los conteos, los códigos.
+
+**Cambia el símbolo, nunca la escala.** El valor de la boleta es el que el texto repite verbatim: si se
+formatearan distinto, el notario dejaría de reconciliarlos y empezaría a vetar cifras correctas.
+
+**Cómo se verificó**
+
+- **187 PASS · 0 FAIL · 0 TOCARON LA RED.** Candados nuevos: `_moneda_en_el_muro_gate` (24), con la carnada de
+  una cifra inventada en euros, y `_marco_y_presupuesto_gate` (19), que no mira la pantalla sino lo que
+  `manifestFor` entrega — de donde salen el contexto y la boleta.
+- **En vivo contra Supabase**, con un archivo en euros y dos meses: la moneda quedó guardada en el pack,
+  sobrevivió a la recarga, la Mesa mostró **48 montos en euros y cero con signo peso**, no apareció «año
+  cerrado» y el presupuesto dijo que no estaba declarado.
+
+⚠️ **Y EL CLICK VOLVIÓ A ENCONTRAR LO QUE LOS CANDADOS NO.** El primer barrido cubrió los 11 formateadores
+locales y quedó por cerrado: faltaban **21 archivos, 144 sitios**. En pantalla eran tres montos con `$` entre
+51 en euros — una proporción que no se nota mirando por encima, y que un cliente en euros habría leído como dos
+monedas mezcladas. Ningún candado compara lo que se PINTA contra la moneda declarada.
+
+🧹 **De paso**: la raíz del repo acumulaba **1242 bundles temporales, 2,2 GB**, que un candado leía enteros —
+así que la suite se degradaba sola con el uso hasta morir sin memoria. Borrados y excluidos. Ese candado pasó
+de morir a los 93 segundos a correr en **0,7**.
+
+**Requiere** la migración `004` aplicada (ya lo está) y las tres variables de Supabase en Vercel.
+
+---
+
 ## 2.2 — producción · tag `v2.2`
 
 **El celeste vuelve a ser solo de lo que se toca, también en el Perfil Ejecutivo.** El owner lo pidió mirando
