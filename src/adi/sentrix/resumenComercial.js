@@ -38,9 +38,10 @@ import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
 import { applyScenarioToSfamiliasMargen, applyScenarioToClientesVentas } from "../../engine/scenarios.js";   // el corte por familia y la venta/presupuesto por cliente, con el escenario aplicado
 import { getTenantData } from "../../data/tenantStore.js";   // multiempresa: la variación y el canal salen del tenant activo, nunca del dataset demo
 import { buildGlobalEvolutionAnclada } from "./temporal.js";   // el año mes a mes (3 series REALES) YA ancladas a la venta oficial — una sola implementación, compartida con trend/composeSpecTemporal
+import { simboloMoneda } from "../../config/moneda.js";
 
-const _M = (raw) => (typeof raw === "number" ? `$${(raw / 1e6).toFixed(1)}M` : "—");
-const _K = (raw) => (typeof raw === "number" ? (Math.abs(raw) >= 1e6 ? `$${(raw / 1e6).toFixed(1)}M` : `$${Math.round(raw / 1000)}K`) : "—");
+const _M = (raw) => (typeof raw === "number" ? `${simboloMoneda()}${(raw / 1e6).toFixed(1)}M` : "—");
+const _K = (raw) => (typeof raw === "number" ? (Math.abs(raw) >= 1e6 ? `${simboloMoneda()}${(raw / 1e6).toFixed(1)}M` : `${simboloMoneda()}${Math.round(raw / 1000)}K`) : "—");
 const _pct = (v, d = 1) => (typeof v === "number" ? `${v.toFixed(d)}%` : "—");
 const _pp = (v) => (typeof v === "number" ? `${Math.abs(v).toFixed(1)} pp` : "—");
 
@@ -764,7 +765,7 @@ function _deterioro(scenario, rows, plano, tension, puente) {
         nombre: r.name, desde: a.mes, hasta: z.mes,
         costoA: a.costoMedio, costoZ: z.costoMedio, dCostoPct, dCostoFmt: `${dCostoPct >= 0 ? "+" : ""}${dCostoPct.toFixed(1)}%`,
         precioA: a.ticket, precioZ: z.ticket, dPrecioPct, dPrecioFmt: `${dPrecioPct >= 0 ? "+" : ""}${dPrecioPct.toFixed(1)}%`,
-        efectoUni, efectoUniFmt: `${efectoUni >= 0 ? "+" : "−"}$${Math.abs(efectoUni).toFixed(2)}`,
+        efectoUni, efectoUniFmt: `${efectoUni >= 0 ? "+" : "−"}${simboloMoneda()}${Math.abs(efectoUni).toFixed(2)}`,
         efecto, efectoFmt: `${efecto >= 0 ? "+" : "−"}${_K(Math.abs(efecto))}`,
         comprime: efectoUni < 0,
       };
@@ -862,7 +863,7 @@ function _deterioro(scenario, rows, plano, tension, puente) {
     return {
       filas, n: filas.length,
       margenProm, margenPromFmt: _pct(margenProm), cargaPromFmt: _pct(cargaProm, 2),
-      tickPromFmt: tickProm ? `$${tickProm.toFixed(2)}` : "—", costoUniPromFmt: costoUniProm ? `$${costoUniProm.toFixed(2)}` : "—",
+      tickPromFmt: tickProm ? `${simboloMoneda()}${tickProm.toFixed(2)}` : "—", costoUniPromFmt: costoUniProm ? `${simboloMoneda()}${costoUniProm.toFixed(2)}` : "—",
       lectura: `${filas.length} de ${plano.n} cuentas que sostienen la venta dejan menos margen que tu promedio (${_pct(margenProm)}), y por causas distintas: ${porAcciones.length ? `en ${porAcciones.map((f) => f.nombre).join(", ")} pesa lo que entregas` : ""}${porAcciones.length && porPrecio.length ? "; " : ""}${porPrecio.length ? `en ${porPrecio.map((f) => f.nombre).join(", ")}, su precio contra su costo` : ""}.`,
       nota: `Falta separar cuánto es precio de venta y cuánto es costo de producto.`,
       estatus: "indicado",

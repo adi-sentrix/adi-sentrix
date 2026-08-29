@@ -19,12 +19,13 @@
 import React, { useState, useRef } from "react";
 import { C } from "./theme.js";
 import { getAccessCode } from "../adi/accessClient.js";
+import { simboloMoneda } from "../config/moneda.js";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
 const SANS = "'DM Sans', system-ui, sans-serif";
 
 const _n = (x) => (typeof x === "number" ? x.toLocaleString("es-CL") : "—");
-const _money = (x) => (typeof x === "number" ? "$" + Math.round(x).toLocaleString("es-CL") : "—");
+const _money = (x) => (typeof x === "number" ? simboloMoneda() + Math.round(x).toLocaleString("es-CL") : "—");
 
 /** Lee el archivo del disco como base64 · el `.xlsx` viaja al servidor porque leerlo exige descomprimir, y el
  *  navegador no tiene con qué. Ver `handleIngesta.server.js` para el porqué completo. */

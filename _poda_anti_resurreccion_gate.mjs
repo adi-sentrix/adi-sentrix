@@ -136,11 +136,23 @@ function importaciones(nombre, codigo) {
 }
 
 // ── los archivos que se barren ────────────────────────────────────────────────────────────────────────────────────
+/* ⚠️ LO QUE NO SE BARRE, Y POR QUÉ (2026-08-29). Esto excluía solo `node_modules`, así que entraba
+ * `.claude/worktrees/` — que hoy tiene ONCE COPIAS COMPLETAS DEL REPO, dos de ellas de 326 MB y 428 MB. El
+ * gate se quedaba sin memoria a los 92 segundos y moría sin diagnóstico, dejando la suite roja por algo que no
+ * tenía nada que ver con el producto.
+ *
+ * Y el consumo de memoria era el síntoma menor: barrer los worktrees significa que un símbolo podado, revivido
+ * en la copia de trabajo de OTRA sesión, ponía rojo este candado. Un falso positivo sobre código que ni
+ * siquiera está en esta rama. Lo que este archivo tiene que vigilar es el repo, no sus copias.
+ *
+ * `dist` y `.git` se excluyen por lo mismo: uno es salida compilada —donde todo símbolo aparece «definido»— y
+ * el otro no es código. */
+const NO_SE_BARRE = new Set(["node_modules", ".claude", ".git", "dist", "coverage", ".vercel"]);
 function archivosDe(dir, ext, acc = []) {
   if (!existsSync(dir)) return acc;
   for (const e of readdirSync(dir)) {
     const p = join(dir, e);
-    if (statSync(p).isDirectory()) { if (e !== "node_modules") archivosDe(p, ext, acc); }
+    if (statSync(p).isDirectory()) { if (!NO_SE_BARRE.has(e)) archivosDe(p, ext, acc); }
     else if (ext.some((x) => e.endsWith(x))) acc.push(p);
   }
   return acc;
@@ -150,7 +162,17 @@ const FUENTES_REPO = [
   ...FUENTES_SRC,
   ...archivosDe(join(ROOT, "api"), [".js", ".mjs"]),
   ...(existsSync(join(ROOT, "server.js")) ? [join(ROOT, "server.js")] : []),
-  ...readdirSync(ROOT).filter((f) => /^_.*\.(mjs|jsx)$/.test(f)).map((f) => join(ROOT, f)),
+  /* ⚠️ LOS BUNDLES TEMPORALES NO SON FUENTE, Y LEERLOS MATÓ ESTE CANDADO (2026-08-29). Varios gates de
+   * pantalla compilan con esbuild a `_..._bundle.tmp<pid>.mjs` en la raíz y no siempre alcanzan a borrarlos.
+   * Se habían acumulado **1242 archivos, 2,2 GB**: este gate los leía todos, los cacheaba, y se quedaba sin
+   * memoria a los 92 segundos muriendo sin diagnóstico — la suite en rojo por basura de corridas viejas.
+   *
+   * Y son lo contrario de lo que hay que barrer: un bundle trae TODO el código inlineado, así que cualquier
+   * símbolo podado aparecería «definido» ahí dentro. Leerlos no solo costaba memoria: podía dar un falso
+   * positivo sobre código que ya no existe en ninguna fuente. */
+  ...readdirSync(ROOT)
+    .filter((f) => /^_.*\.(mjs|jsx)$/.test(f) && !/_bundle(\.tmp\d+)?\.mjs$/.test(f))
+    .map((f) => join(ROOT, f)),
 ];
 const _cache = new Map();
 const codigoDe = (p) => {

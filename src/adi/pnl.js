@@ -52,9 +52,9 @@ import { normalizeResponse } from "./responseContract.js";   // Contrato v2 · F
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _money = (v) => {
   const a = Math.abs(v), s = v < 0 ? "-" : "";
-  if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`;
-  if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`;
-  return `${s}$${Math.round(a)}`;
+  if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`;
+  if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`;
+  return `${s}${simboloMoneda()}${Math.round(a)}`;
 };
 const _moneyK = (vK) => _money(vK * 1000);
 const _fmtPct = (v) => String(_r1(v));
@@ -822,6 +822,7 @@ export function pnlEntidadCanon(nombre) { return _pnlEntityEn(String(nombre == n
  * REGLA DE VOZ (owner): ninguna respuesta del P&L LISTA comandos-sintaxis en el texto; guía con una pregunta y
  * deja los pasos concretos en los chips. ── */
 import { activeCriteria } from "./criteria.js";
+import { simboloMoneda } from "../config/moneda.js";
 function _evidence(extraBol = [], ev = null, guia = false) {
   const list = activeCriteria();
   const pnl = activePnl();
@@ -958,7 +959,7 @@ function _bolCascada(c, e = null) {
  *        capturado (detector) · línea de gasto dominante (supuesto declarado) — las otras como secundarias, y
  *        el cierre es la decisión ejecutiva del contrato («¿Partimos por X ($N) o prefieres Y?»).
  * Asks reusadas gate-proven (_promise_gate · _pnl_gate las prueba por la cadena). Registro ejecutivo. ── */
-const _d100 = (v) => `$${_fmtPct(Math.abs(v))}`;   // la parte de cada $100 de venta ("$71.2" · 1 decimal, como todo %)
+const _d100 = (v) => `${simboloMoneda()}${_fmtPct(Math.abs(v))}`;   // la parte de cada $100 de venta ("$71.2" · 1 decimal, como todo %)
 const _f100 = (label, v) => fig(label, _d100(v), { unit: "money", raw: _r1(Math.abs(v)), source: "computed", formula: "por cada $100 de venta", context: "P&L comercial" });
 const _fMoney = (label, usd, opts = {}) => fig(label, _money(usd), { unit: "money", raw: usd, source: "computed", context: "P&L comercial", ...opts });
 // misma cifra citada por dos caminos (p.ej. la línea top en el frente y en la boleta base) → una sola entrada
@@ -1885,16 +1886,16 @@ export function pnlRecommend(last, ctx = null, state = {}) {
   const bol = [
     _fMoneyK(`Gasto · ${top.nombre}`, top.usdK, { mandatory: true }), _fPct(`Línea · ${top.nombre}`, top.pct),
     _fMoneyK("Resultado comercial", c.resultadoK), _fPct("Gastos · total", c.sumPct), _gPct(simT),
-    ...(metaM ? [fig("Meta sugerida", `$${metaM}M`, { unit: "money", raw: metaM * 1e6, source: "computed", gancho: true, context: "P&L comercial" })] : []),
+    ...(metaM ? [fig("Meta sugerida", `${simboloMoneda()}${metaM}M`, { unit: "money", raw: metaM * 1e6, source: "computed", gancho: true, context: "P&L comercial" })] : []),
   ];
   const simAsk = `¿Qué pasa si bajas ${top.nombre.toLowerCase()} a ${_fmtPct(simT)}%?`;
   const d1 = `1. Revisar la línea que más pesa: ${top.nombre.toLowerCase()} se lleva ${_moneyK(top.usdK)} al año (${_fmtPct(top.pct)}% de la venta). Si el porcentaje real es otro, actualizarlo deja la cuenta honesta — y si puedes bajarlo, el resultado sube de inmediato. Prueba: «${simAsk}»`;
   const d2 = `2. Decidir dónde empujar la venta: las cuentas no dejan lo mismo después de gastos — el cuadro por ${primero.label.sing} muestra quién rinde más sobre su venta. «P&L por ${primero.label.sing}»`;
   const d3 = metaM
-    ? `3. Fijar una meta concreta: dime cuánto quieres que quede y te digo qué venta se necesita. «¿Cuánto tengo que vender para ganar $${metaM}M después de gastos?»`
+    ? `3. Fijar una meta concreta: dime cuánto quieres que quede y te digo qué venta se necesita. «¿Cuánto tengo que vender para ganar ${simboloMoneda()}${metaM}M después de gastos?»`
     : `3. Revisar los porcentajes completos antes de empujar la venta: con el resultado en negativo, cada venta adicional entra igual de cargada. «¿Qué línea pesa más en el resultado?»`;
   return _resp(
     `${neg ? `Primero lo primero: con tus porcentajes el resultado está en negativo (${_moneyK(c.resultadoK)}) — la decisión inicial es revisar las líneas, no la venta.\n\n` : ""}Con tu P&L a la vista, las decisiones a la mano:\n\n${d1}\n\n${d2}\n\n${d3}`,
-    { route: "pnl_reading", suggestions: [simAsk, `P&L por ${primero.label.sing}`, ...(metaM ? [`¿Cuánto tengo que vender para ganar $${metaM}M después de gastos?`] : ["¿Qué línea pesa más en el resultado?"])], bol, ev: { dimension: _BASE_EJE } }
+    { route: "pnl_reading", suggestions: [simAsk, `P&L por ${primero.label.sing}`, ...(metaM ? [`¿Cuánto tengo que vender para ganar ${simboloMoneda()}${metaM}M después de gastos?`] : ["¿Qué línea pesa más en el resultado?"])], bol, ev: { dimension: _BASE_EJE } }
   );
 }

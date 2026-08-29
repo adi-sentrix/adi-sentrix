@@ -11,6 +11,7 @@ import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";   // Mesa 
 import { composeSpecDiagnose } from "../specRetrieval.js";   // PASE 1 Cuadro 2.0 · la capa del asesor por fila = los MISMOS detectores del diagnose (una verdad con la Mesa)
 import { concentracion } from "../diagnosis/economicDiagnosis.js";   // PASE 1 · el punto de movimiento 80/20 (motor · hoy vs año anterior — mismo cálculo del "Qué cambió")
 import { rotacionPonderada } from "./rotacion.js";   // LA rotación media del producto (ponderada por capital) · la MISMA que publica la cara Capital — ver la fila Total
+import { simboloMoneda } from "../../config/moneda.js";
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
@@ -27,9 +28,9 @@ const _mean = (a, f) => (a.length ? _sum(a, f) / a.length : 0);
 const _enAlerta = (x) => (x.alerta && x.alerta !== "ok") || x.rotacion < 2;
 const _money = (v) => {
   const a = Math.abs(v), s = v < 0 ? "-" : "";
-  if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`;
-  if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`;
-  return `${s}$${Math.round(a)}`;
+  if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`;
+  if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`;
+  return `${s}${simboloMoneda()}${Math.round(a)}`;
 };
 // SEMÁFORO CONTRA TU VARA (Mesa 2.0 · owner 2026-07-14): cada fila con margen trae su estado contra benchmarkOf
 // (el criterio C.2 pisa todo) con la MISMA brecha material del detector del diagnose (POLICY.margenBrechaMaterial):

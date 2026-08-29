@@ -42,7 +42,12 @@ globalThis.Node = dom.window.Node;
 globalThis.getComputedStyle = dom.window.getComputedStyle;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-/* Node no importa `.jsx`: se compila con esbuild, igual que los otros candados de pantalla. */
+/* Node no importa `.jsx`: se compila con esbuild, igual que los otros candados de pantalla.
+ *
+ * (Se probó moverlo al directorio temporal para aliviar a `_poda_anti_resurreccion_gate`, que barre todo
+ * archivo `_*.mjs` de la raíz: NO era la causa de su falta de memoria, y allá esbuild no resuelve `react`
+ * porque no hay `node_modules`. Queda en la raíz como los demás, y se borra al terminar.)
+ */
 const root = path.dirname(fileURLToPath(import.meta.url));
 const bundlePath = path.join(root, "_empresa_sin_datos_gate_bundle.mjs");
 await esbuild.build({

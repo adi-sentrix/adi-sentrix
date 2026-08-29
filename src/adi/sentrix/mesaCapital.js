@@ -33,6 +33,7 @@ import { rotacionPonderada } from "./headline.js";   // la ÚNICA rotación medi
 import { transferenciaCapability } from "./capability.js";   // la ÚNICA cuenta de "¿se puede evaluar transferir?"
 // Solo para saber A QUIÉN le calza un producto detenido. De acá NO entra plata: ver `_compradoresDe`.
 import { compradoresSku } from "../../data/clienteSkuMatrix.js";
+import { simboloMoneda } from "../../config/moneda.js";
 /* ⚠️ `skusMargen` NO SE IMPORTA ACÁ, Y ES A PROPÓSITO (owner 2026-08-08, decisión 7). El inventario y la venta
  * comercial no reconcilian en unidad, moneda ni período: `skusMargen.venta` viene en MILES ($100.0M anuales) y
  * `stockUSD` en dólares crudos ($135.000 de inventario); además las unidades vendidas que declara cada fuente
@@ -46,9 +47,9 @@ const _mean = (a, f) => (a.length ? a.reduce((s, x) => s + (typeof f(x) === "num
  * como $33K en una pantalla y $34K en la de al lado. */
 export const _money = (v) => {
   const a = Math.abs(v), s = v < 0 ? "-" : "";
-  if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`;
-  if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`;
-  return `${s}$${Math.round(a)}`;
+  if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`;
+  if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`;
+  return `${s}${simboloMoneda()}${Math.round(a)}`;
 };
 
 // ── LOS 4 ESTADOS DEL MOTOR · label legible + color + su pregunta (todas gate-proven · la pregunta es del ESTADO,

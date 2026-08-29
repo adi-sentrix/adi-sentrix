@@ -16,9 +16,10 @@ import { buildGlobalEvolution, buildGlobalEvolutionAnclada, buildEntityEvolution
 import { clientesMargen, marcasMargen, sfamiliasMargen } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { fig } from "../boleta.js";
+import { simboloMoneda } from "../../config/moneda.js";
 
 const _norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
-const _money = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
+const _money = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
 const _mK = (vK) => _money(vK * 1000);   // las series vienen en MILES de $ (misma escala del dato)
 const _pct1 = (v) => `${Math.round(v * 10) / 10}%`;
 const _sum = (a) => a.reduce((x, y) => x + y, 0);

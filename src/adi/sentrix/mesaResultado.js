@@ -19,13 +19,14 @@
  * Cada fila, foco, línea y chip lleva su PREGUNTA a ADI — todas por _promise_gate. Registro ejecutivo (_registro_gate).
  * Puro · client-side · CERO cálculo nuevo (formatea lo que buildPnlCascade afirma) · motor sellado intacto. */
 import { buildPnlCascade, pnlSimAsk, pnlEjesDisponibles } from "../pnl.js";
+import { simboloMoneda } from "../../config/moneda.js";
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _money = (v) => {
   const a = Math.abs(v), s = v < 0 ? "-" : "";
-  if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`;
-  if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`;
-  return `${s}$${Math.round(a)}`;
+  if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`;
+  if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`;
+  return `${s}${simboloMoneda()}${Math.round(a)}`;
 };
 const _moneyK = (vK) => _money(vK * 1000);
 const _fmtPct = (v) => String(_r1(v));
@@ -142,9 +143,9 @@ export function buildMesaResultado(scenario, cuadroEje = null, cascadaFoco = nul
   if (c.resultadoK > 0) {
     const metaM = Math.max(1, Math.ceil((c.resultadoK * 1.1) / 1000));
     simulaciones.push({
-      key: "meta", delta: `$${metaM}M`,
+      key: "meta", delta: `${simboloMoneda()}${metaM}M`,
       texto: `¿Y la meta al revés? Pregunta cuánta venta necesitas para un resultado objetivo.`,
-      ask: `¿Cuánto tengo que vender para ganar $${metaM}M después de gastos?`,
+      ask: `¿Cuánto tengo que vender para ganar ${simboloMoneda()}${metaM}M después de gastos?`,
     });
   }
 

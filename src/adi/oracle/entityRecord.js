@@ -11,8 +11,9 @@ import { fig } from "../boleta.js";
 import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
 import { ENTITIES } from "../../config/contract/entityRegistry.js";
 import { resolveCanonical, axisCollisions } from "./entityIndex.js";   // CONTRATO v2 · Fase 3: índice Map por eje/tenant (O(1)) + colisiones explícitas
+import { simboloMoneda } from "../../config/moneda.js";
 
-const _money = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
+const _money = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
 
 // META de cada columna real: etiqueta clara (que NO se pise con otra) + unidad + escala ($ en miles K vs crudo).
 // text = no es cifra (contexto). Si una columna no está acá, se ignora (no rompe).

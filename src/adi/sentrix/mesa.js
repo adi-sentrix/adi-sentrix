@@ -20,14 +20,15 @@ import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
 import { buildEntityEvolution } from "./temporal.js";
 import { concentracion } from "../diagnosis/economicDiagnosis.js";
 import { buildCuadroMando } from "./cuadro.js";
+import { simboloMoneda } from "../../config/moneda.js";
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _sum = (a, f) => a.reduce((s, x) => s + (typeof f(x) === "number" ? f(x) : 0), 0);
 const _money = (v) => {
   const a = Math.abs(v), s = v < 0 ? "-" : "";
-  if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`;
-  if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`;
-  return `${s}$${Math.round(a)}`;
+  if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`;
+  if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`;
+  return `${s}${simboloMoneda()}${Math.round(a)}`;
 };
 const _moneyK = (vK) => _money(vK * 1000);   // dato comercial en $K → $
 const _pct = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(_r1(v))}%`;

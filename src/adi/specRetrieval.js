@@ -27,6 +27,7 @@ import { getVentasKPI } from "../engine/metrics.js";   // el MISMO total del esc
 import { composicionCliente, composicionClientePorFamilia } from "../data/clienteSkuMatrix.js";   // matriz cliente×SKU (la MISMA que usa el Pareto de Sentrix — cierra exacto con el cuadro)
 import { datasetCapability } from "./sentrix/capability.js";   // LA declaración canónica de qué cruces sostiene el dato cargado (crosses.atomic) — la misma que ya bloquea "productos que le vendo a este cliente" en entityExplorable
 import { headlineTotal } from "./sentrix/headline.js";   // los TOTALES DE CABECERA (decisión 6): la MISMA fuente oficial que pinta la card, nunca la suma del ranking
+import { simboloMoneda } from "../config/moneda.js";
 
 // carga la fuente vía el CONTRATO: scenarioLoad (scenario-aware) si el manifest lo declara, si no el load base.
 function _load(source, scenario) {
@@ -44,9 +45,9 @@ function _loadReal(source) {
 
 const _money = (v) => {
   const a = Math.abs(v), s = v < 0 ? "-" : "";   // signo ANTES del $ ("-$6K", no "$-6K")
-  if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`;
-  if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`;
-  return `${s}$${Math.round(a)}`;
+  if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`;
+  if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`;
+  return `${s}${simboloMoneda()}${Math.round(a)}`;
 };
 // escala del contrato: money(K) = valor en MILES de $ → a dólares reales antes de formatear (money(raw) = $ crudo)
 const _fmt = (v, unit, scale) => (unit === "money" ? _money(scale === "K" ? v * 1000 : v) : unit === "pct" ? `${v}%` : unit === "ratio" ? `${v.toFixed(1)}x` : unit === "days" ? `${Math.round(v)}d` : String(v));

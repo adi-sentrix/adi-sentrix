@@ -15,12 +15,13 @@ import { applyScenarioToSkuInventario, applyScenarioToClientesMargen } from "../
 import { skusMargen } from "../../data/skusMargen.js";
 import { invKPI } from "../../data/baseKpis.js";
 import { transferenciaCapability } from "./capability.js";   // la ÚNICA cuenta de "¿se puede evaluar transferir?"
+import { simboloMoneda } from "../../config/moneda.js";
 
 // inmovilizado Def2 canónica (igual que el spine/warehouse): alerta crit/warn O rotación < 2.
 const _esInmov = (r) => r.alerta === "crit" || r.alerta === "warn" || r.rotacion < 2;
 const _p1 = (n) => (Math.round((Number(n) || 0) * 10) / 10).toFixed(1);               // % SIEMPRE con 1 decimal (parejos en la visual · solo campos del PANEL, nunca los `sentence` del chat)
-const _fmtK = (n) => "$" + Math.round(n || 0) + "K";                                  // cliente · $K ya en miles
-const _fmtMoney = (n) => "$" + (Math.abs(n) >= 1000 ? (n / 1000).toFixed(1) + "K" : Math.round(n));  // capital · USD
+const _fmtK = (n) => simboloMoneda() + Math.round(n || 0) + "K";                                  // cliente · $K ya en miles
+const _fmtMoney = (n) => simboloMoneda() + (Math.abs(n) >= 1000 ? (n / 1000).toFixed(1) + "K" : Math.round(n));  // capital · USD
 
 // ══════════════════════════ RENDERER ÚNICO ══════════════════════════
 // signals uniforme → lectura. Despacha por mechanism. Mecanismo sin pack → null (honesto · sin reading).
@@ -33,7 +34,7 @@ export function buildReadingFromSignals(signals) {
   if (mech === "internal_margin_compression") return _readMarginCompression(signals);
   return null;
 }
-const _money = (k) => (Math.abs(k) >= 1000 ? "$" + (k / 1000).toFixed(1) + "M" : "$" + Math.round(k || 0) + "K");
+const _money = (k) => (Math.abs(k) >= 1000 ? simboloMoneda() + (k / 1000).toFixed(1) + "M" : simboloMoneda() + Math.round(k || 0) + "K");
 
 // ── render · contribución de cliente · el margen unitario bajo el benchmark COMPRIME la contribución ──
 function _readMarginCompression(signals) {

@@ -346,6 +346,9 @@ export const SCENARIO_TRANSFORMS = {
  * típica del rubro (distribución): el P&L arranca armado con estos supuestos y la declaración del usuario los
  * pisa entera. El benchmark del perfil coincide con el POR-FILA (26.0) — misma fuente, una verdad. */
 export const PERFIL = {
+  // La moneda, declarada (owner 2026-08-27) · mismo criterio que el demo: se hace explícito lo que este
+  // negocio de ejemplo ya mostraba, en vez de dejar que el producto lo suponga. Ver `tenants/demo.js`.
+  moneda: "CLP",
   benchmark: BENCHMARK,     // 26.0 · la vara de cartera de esta empresa (fallback para filas sin benchmark)
   bestPracticeCarga: 3.5,   // mejor práctica de carga del rubro (%)
   targetCarga: 4.0,         // target operativo de carga (%) — ≠ 3.5 del config
