@@ -117,10 +117,45 @@ H("4 · LA CARA MUESTRA, NO CONCLUYE · y no calcula");
   ok(!/\.toFixed\(|Math\.round\(/.test(cara.replace(/const _[A-Za-z]+ = \d+/g, "")),
     "la vista no redondea ni formatea cifras: eso vive en el módulo");
   /* el interruptor: sin él, la cara no existe */
-  ok(/_FLUJO_ON/.test(panel) && /get\("flujo"\) === "1"/.test(panel),
+  ok(/_FLUJO_ON/.test(panel) && /_FLUJO_PARAM === "1"/.test(panel),
     "la cara vive detrás de `?flujo=1`: sin el parámetro, la app no se mueve");
+  /* ⚠️ EL MODO EJEMPLO (owner 2026-08-27). Una empresa que todavía no carga abonos ve —correctamente— un
+   * recuadro vacío, y así no se puede decidir el diseño. `?flujo=demo` abre el negocio de demostración para
+   * poder mirar la lectura con cifras. Lo que este bloque cuida es que eso NUNCA se pueda confundir con el
+   * dato propio: si la banda desaparece, la pantalla pasa a mostrar cifras ajenas sin decirlo. */
+  ok(/_FLUJO_DEMO = _FLUJO_PARAM === "demo"/.test(panel),
+    "…y `?flujo=demo` la enciende sobre el negocio de demostración");
+  const iCara = panel.indexOf("function MesaFlujoCara");
+  const cuerpo = panel.slice(iCara, panel.indexOf("function MesaPanel", iCara));
+  ok(/\{_FLUJO_DEMO && \(/.test(cuerpo),
+    "el modo ejemplo dibuja una banda, y va condicionada solo a él");
+  ok(/negocio de demostración<\/b>, no los datos de tu empresa/.test(cuerpo),
+    "…que dice las DOS cosas: qué estás viendo y qué no");
+  /* Se compara contra el USO del encabezado (`<MovHeadFlujo num=`), no contra su definición: la const se
+     declara arriba de todo y comparar contra ella daba un falso rojo. */
+  ok(cuerpo.indexOf("{_FLUJO_DEMO && (") < cuerpo.indexOf("<MovHeadFlujo num="),
+    "…y va ARRIBA DE TODO, antes del primer bloque: una advertencia al pie no advierte");
+  /* ⚠️ EL VACÍO NO PIDE LO QUE NO EXISTE. La primera versión mandaba a llenar el folio, los días de crédito y
+   * la hoja de Abonos — ninguno de los tres está en la plantilla, porque se decidió no tocarla todavía. */
+  /* ⚠️ SE MIRA EL TEXTO QUE SE PINTA, NO LOS COMENTARIOS. La primera versión de esta línea barría el cuerpo
+     entero y se ponía roja por el comentario que explica el cambio — que justamente nombra las tres columnas
+     para decir que ya NO se piden. Un chequeo que se dispara con su propia explicación no sirve. */
+  const _sinComentarios = cuerpo.split("/*").map((t, n) => (n === 0 ? t : t.slice(t.indexOf("*/") + 2))).join("");
+  ok(!/hoja de Abonos|folio en la hoja de Ventas|días de crédito de cada cliente/.test(_sinComentarios),
+    "el estado vacío NO manda a llenar columnas que la plantilla todavía no tiene");
+  ok(/Habilitarlo es el siguiente paso/.test(cuerpo),
+    "…lo declara como el siguiente paso, y ofrece el camino que sí existe hoy");
   ok(/cara === "flujo" && _FLUJO_ON/.test(panel),
     "…y la rama que la pinta lo vuelve a exigir, no alcanza con la pestaña");
+  /* ⚠️ EL EJEMPLO SE PIDE AL SERVIDOR, NO SE ESCRIBE EN EL CÓDIGO. Escribir un dataset de ejemplo en un módulo
+   * del navegador es exactamente la fuga que `_bundle_sin_datos_gate` existe para cerrar: cuenta los literales
+   * del demo que quedan en el bundle y solo tolera que el número BAJE. Esta línea deja constancia de por qué
+   * el camino es `op: "demo"` y no un import de conveniencia. */
+  const main = leer("./src/main.jsx");
+  ok(/_flujoParam === "demo" \? \{ op: "demo" \}/.test(main),
+    "con ?flujo=demo el dataset se PIDE al servidor por su puerta, no viaja en el bundle");
+  ok(!/from "\.\/data\/tenants\//.test(main),
+    "…y main.jsx sigue sin importar ningún dataset de empresa");
 }
 
 H("5 · LA PLANTILLA TODAVÍA NO SE TOCA · y eso también se comprueba");

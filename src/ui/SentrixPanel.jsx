@@ -1341,9 +1341,13 @@ function clientMesaLink(e) {
  * La cara existe solo con `?flujo=1`. Es el patrón de la casa para todo lo grande: hasta que el owner la mire y
  * diga que sí, la app que corre no se mueve ni un pixel. Sin el parámetro, la pestaña no se dibuja y el módulo
  * ni siquiera se llama. */
-const _FLUJO_ON = (() => {
-  try { return new URLSearchParams(window.location.search).get("flujo") === "1"; } catch { return false; }
+const _FLUJO_PARAM = (() => {
+  try { return new URLSearchParams(window.location.search).get("flujo"); } catch { return null; }
 })();
+/* `?flujo=1` enciende la cara con el dato de la empresa activa · `?flujo=demo` la enciende sobre el negocio de
+   demostración (el cambio de empresa lo hace main.jsx al arrancar). Sin ninguno de los dos, la app no se mueve. */
+const _FLUJO_ON = _FLUJO_PARAM === "1" || _FLUJO_PARAM === "demo";
+const _FLUJO_DEMO = _FLUJO_PARAM === "demo";
 
 /* ── MESA · CARA FLUJO COMERCIAL (owner 2026-08-27) ──────────────────────────────────────────────────────────
  * «Mostrar la venta del cliente, abonos y saldo pendiente, de esa forma se puede controlar si es que a algún
@@ -1391,9 +1395,18 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
   if (!F) return (
     <div style={_panel}>
       <span style={_head}>{_dot}Flujo comercial</span>
+      {/* ⚠️ ESTE TEXTO NO PIDE NADA QUE NO SE PUEDA HACER (owner 2026-08-27). La primera versión nombraba el
+          folio, los días de crédito y la hoja de Abonos como si ya estuvieran en la plantilla — y no están, porque
+          se decidió no tocarla hasta aprobar la cara. Mandar a alguien a llenar columnas que no existen es peor
+          que no decir nada. Ahora declara el estado y ofrece el camino que SÍ existe hoy: mirarla en el negocio
+          de demostración. */}
       <div style={{ fontSize:14, color:C.textSub, lineHeight:1.55, marginTop:8 }}>
-        Todavía no hay abonos cargados. Esta cara necesita, además de tu venta, saber cuánto de esa venta ya
-        entró en caja: el folio en la hoja de Ventas, los días de crédito de cada cliente y una hoja de Abonos.
+        Esta lectura todavía no está habilitada para tu empresa: además de tu venta necesita saber cuánto de esa
+        venta ya entró en caja, y ese dato aún no se está cargando. Habilitarlo es el siguiente paso.
+      </div>
+      <div style={{ fontSize:14, color:C.textMuted, lineHeight:1.55, marginTop:7 }}>
+        Mientras tanto puedes ver cómo queda, con cifras, en el negocio de demostración: agrega
+        <span style={{ fontFamily:MONO, color:C.textSub }}> ?flujo=demo </span> a la dirección.
       </div>
     </div>
   );
@@ -1409,6 +1422,21 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
   const _iPico = F.caja.meses.reduce((best, m, i, a) => (m.montoK > a[best].montoK ? i : best), 0);
 
   return (<>
+    {/* ⚠️ LA BANDA NO ES DECORACIÓN NI SE PUEDE APAGAR. Con ?flujo=demo la app entera está mostrando el negocio
+        de demostración, no la empresa con la que iniciaste sesión, y una pantalla llena de cifras que no son las
+        tuyas es exactamente la clase de confusión que este producto no se permite. Va arriba de todo, en ámbar
+        —el color de «esto no es dato probado»— y dice las dos cosas: qué estás viendo y qué NO. */}
+    {_FLUJO_DEMO && (
+      <div style={{ display:"flex", alignItems:"flex-start", gap:9, padding:"11px 14px", borderRadius:10,
+        border:`1px solid ${C.amber}55`, background:"rgba(253,224,71,0.07)" }}>
+        <span style={{ fontFamily:MONO, fontSize:11.5, fontWeight:600, letterSpacing:"0.6px", color:C.amber,
+          textTransform:"uppercase", flexShrink:0, marginTop:1 }}>Ejemplo</span>
+        <span style={{ fontSize:14, color:C.textSub, lineHeight:1.55 }}>
+          Estás viendo el <b style={{ color:C.text }}>negocio de demostración</b>, no los datos de tu empresa.
+          Sirve para mirar cómo queda la lectura; ninguna cifra de esta pantalla es tuya.
+        </span>
+      </div>
+    )}
     <div>
       <MovHeadFlujo num="01" title="Qué está pasando"
         def={`De todo lo que vendiste en el período, cuánto ya entró en caja y cuánto sigue afuera. El saldo es venta menos abonos; una factura está vencida cuando su vencimiento —la fecha de la factura más los días de crédito del cliente— quedó atrás de la fecha de corte. Todo se mide al ${F.fechaCorteFmt}, que es la fecha que tú declaras: nunca contra el reloj, para que la misma pregunta dé siempre la misma cifra.`}/>

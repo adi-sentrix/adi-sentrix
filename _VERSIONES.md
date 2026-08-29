@@ -12,6 +12,44 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.6 — producción · tag `v2.6`
+
+**Flujo Comercial se puede mirar con cifras, sin tocar el dato de nadie.** El owner abrió la cara en producción
+con `?flujo=1` y vio —correctamente— un recuadro vacío: su empresa todavía no carga abonos, y la cara declara
+la ausencia en vez de inventar. Pero así no se puede decidir el diseño.
+
+**`?flujo=demo`** abre la app sobre el **negocio de demostración**, que sí tiene el dato de cobro declarado, con
+una **banda ámbar arriba de todo** que dice las dos cosas: qué estás viendo y qué no. Cambia la empresa entera,
+no solo esa cara — no se puede mezclar el cobro de un negocio con la venta de otro.
+
+⚠️ **EL EJEMPLO SE PIDE AL SERVIDOR, NO SE ESCRIBE EN EL CÓDIGO**, y esto no era opcional. Escribir un dataset de
+ejemplo en un módulo del navegador es exactamente la fuga que `_bundle_sin_datos_gate` existe para cerrar: ese
+candado exige que ningún módulo de `src/data/tenants/` sea alcanzable desde `main.jsx`, y además **cuenta** los
+literales del demo que quedan en el bundle y solo tolera que el número baje. El servidor ya sabía entregar el
+demo por su propia puerta (`op: "demo"`), así que el dato llega por donde corresponde.
+
+**El texto del estado vacío dejó de pedir lo que no existe.** Decía que hacía falta «el folio en la hoja de
+Ventas, los días de crédito y una hoja de Abonos» — ninguna de las tres está en la plantilla, porque se decidió
+no tocarla. Mandar a alguien a llenar columnas que no existen es peor que no decir nada. Ahora declara el estado
+—«habilitarlo es el siguiente paso»— y ofrece el camino que sí existe hoy.
+
+⚠️ **LA PLANTILLA SIGUE SIN TOCARSE.** El gate lo comprueba en las dos direcciones: que la hoja de Abonos NO
+esté, y que las dos columnas nuevas NO estén. Si alguien las agrega antes de tiempo, se pone rojo.
+
+**Dos cosas que cazaron los gates y que valen más que el cambio:**
+
+- **`_registro_gate`**: el texto nuevo estaba escrito en **voseo** («podés», «agregá») y el producto habla de
+  «tú». Se me coló del registro con el que converso, no del que el producto usa. 1.295 textos limpios.
+- **Dos afirmaciones mías del gate nuevo estaban mal escritas**, no el código: una comparaba la banda contra la
+  *definición* del encabezado en vez de contra su *uso*, y la otra se ponía roja por su propio comentario —el
+  que nombra las tres columnas justamente para decir que ya no se piden—. Un chequeo que se dispara con su
+  propia explicación no sirve.
+
+`_flujo_comercial_gate` · **46 comprobaciones**. Gates **189 PASS · 0 FAIL · 0 TOCARON LA RED** — la suite
+entera verde, incluido el `_esquema_datos_gate` que se arregló antes.
+
+---
+
 ## 2.5 — producción · tag `v2.5`
 
 **Flujo Comercial: la cara del cobro, apagada.** Sube el código, no la pantalla. Sin `?flujo=1` la app es la

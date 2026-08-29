@@ -54,6 +54,22 @@ const _solicitado = import.meta.env.DEV
 
 // Se pinta después del intento — con dato si la sesión lo autoriza, o con la forma vacía y la puerta de acceso.
 // `.catch` no puede faltar: una promesa rota acá dejaría la pantalla en blanco para siempre.
-cargarTenant({ tenantSolicitado: _solicitado })
+/* ── ?flujo=demo · ABRIR EL NEGOCIO DE DEMOSTRACIÓN (owner 2026-08-27) ───────────────────────────────────────
+ * PARA QUÉ: la cara de Flujo Comercial necesita datos de cobro, y una empresa real que todavía no los cargó ve
+ * —correctamente— un recuadro vacío. Para poder decidir el diseño hace falta verla con cifras.
+ *
+ * ⚠️ POR QUÉ SE PIDE AL SERVIDOR Y NO SE ESCRIBE UN EJEMPLO EN EL CÓDIGO. Era lo primero que uno intenta, y está
+ * prohibido con candado: `_bundle_sin_datos_gate` exige que ningún módulo de `src/data/tenants/` sea alcanzable
+ * desde este archivo, y además CUENTA los literales del demo que quedan en el bundle y se pone rojo si el número
+ * crece. Un ejemplo escrito a mano acá sería exactamente la fuga que ese candado existe para cerrar. El servidor
+ * ya sabe entregar el demo por su propia puerta (`op: "demo"`), así que el dato llega por donde corresponde y el
+ * navegador no carga nada que no le hayan dado.
+ *
+ * ⚠️ CAMBIA LA EMPRESA ENTERA, no solo esa cara: las cinco pestañas muestran el negocio de demostración. Es lo
+ * honesto —no se puede mezclar el cobro de un negocio con la venta de otro— y por eso la cara lo dice con una
+ * banda arriba, sin letra chica. */
+const _flujoParam = (() => { try { return new URLSearchParams(window.location.search).get("flujo"); } catch { return null; } })();
+
+cargarTenant(_flujoParam === "demo" ? { op: "demo" } : { tenantSolicitado: _solicitado })
   .catch(() => null)
   .then(() => root.render(<App />));
