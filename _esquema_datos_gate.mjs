@@ -22,9 +22,27 @@ const ok = (cond, label, detalle) => {
   else { fail++; console.log(`  ✗ ${label}`); if (detalle) console.log(`      ${detalle}`); }
 };
 
-const BASE = readFileSync("./db/migraciones/001_esquema_base.sql", "utf8");
-const STORAGE = readFileSync("./db/migraciones/002_storage_originales.sql", "utf8");
-const ACTIVAR = readFileSync("./db/migraciones/003_activar_version.sql", "utf8");
+/* ⚠️ EL SQL SE LEE CON LOS SALTOS DE LÍNEA NORMALIZADOS, y esto no es cosmética: era la causa de un rojo.
+ *
+ * QUÉ PASABA. El repositorio guarda estos .sql con saltos de Unix, pero git los entrega con saltos de
+ * Windows al sacarlos en Windows. Las CARNADAS de la sección 4 —las que sabotean una copia del SQL para
+ * comprobar que la alarma suena— hacen ese sabotaje con un buscar-y-reemplazar de texto, y una de ellas
+ * busca varias líneas seguidas. En Windows ese texto NO existe: el buscar-y-reemplazar no encontraba nada,
+ * la copia salía idéntica a la original, no se le inyectaba ningún defecto, la alarma —con razón— no sonaba,
+ * y la carnada se daba por fallada. El gate quedaba rojo en Windows y verde en Linux, por el mismo código.
+ *
+ * LO PELIGROSO NO ERA EL ROJO, ERA LO QUE ESCONDÍA: mientras esa carnada no dispara, nadie está comprobando
+ * que el chequeo de políticas permisivas funcione. Un rojo permanente que todos aprenden a ignorar es peor
+ * que no tenerlo, porque tapa al siguiente.
+ *
+ * POR QUÉ ACÁ Y NO EN LA CARNADA. Arreglar solo la que falla habría dejado la trampa armada para la próxima:
+ * cualquier carnada nueva que busque dos líneas seguidas volvería a caer. Normalizando en la lectura, el
+ * gate se comporta igual en las dos plataformas y el problema no puede volver. Los .sql en disco no se
+ * tocan — esto solo cambia cómo los lee este gate. */
+const _lf = (t) => t.replace(/\r\n/g, "\n");
+const BASE = _lf(readFileSync("./db/migraciones/001_esquema_base.sql", "utf8"));
+const STORAGE = _lf(readFileSync("./db/migraciones/002_storage_originales.sql", "utf8"));
+const ACTIVAR = _lf(readFileSync("./db/migraciones/003_activar_version.sql", "utf8"));
 
 /* Las tablas que este frente declara. Escritas acá a mano A PROPÓSITO: si alguien agrega una tabla al SQL y
  * no la agrega a esta lista, la sección 1 lo caza. Descubrirlas del propio SQL haría que el candado aprobara
