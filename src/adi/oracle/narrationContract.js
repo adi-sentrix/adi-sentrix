@@ -74,6 +74,7 @@ import { parseFigures } from "../boleta.js";   // el MISMO parser que produce el
 // EL TIPO DE LA CIFRA (owner 2026-08-09, decisiones 1 y 2): el sello y las reglas de verificabilidad son las MISMAS
 // que aplica `fig()`. Acá sólo se refina con el eje, que este módulo sí sabe resolver — nunca se redefine.
 import { SELLOS, refinarPorEje, PERIODO_MIXTO_ETIQUETA } from "../../config/contract/figureType.js";
+import { simboloMoneda } from "../../config/moneda.js";
 
 const _SEP = " · ";
 // SEGUNDA RED DEL HALLAZGO G (owner 2026-08-09). La primera es `ledger._labelDe`, que ya no emite el nombre pelado.
@@ -455,7 +456,7 @@ function _parseCifraUsuario(texto) {
   if (directo.length) return directo;
   const variantes = [
     crudo.replace(/\s*millones?\b/i, "M").replace(/\s*mil\b/i, "K"),
-    "$" + crudo.replace(/\s*millones?\b/i, "M").replace(/\s*mil\b/i, "K").replace(/^\$\s?/, ""),
+    simboloMoneda() + crudo.replace(/\s*millones?\b/i, "M").replace(/\s*mil\b/i, "K").replace(/^\$\s?/, ""),
   ];
   for (const v of variantes) {
     const p = parseFigures(v);

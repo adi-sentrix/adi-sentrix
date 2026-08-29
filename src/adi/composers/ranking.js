@@ -7,6 +7,7 @@ import { applyScenarioToClientesMargen, applyScenarioToSkuInventario } from "../
 import { buildReframe, buildSuggestedAction, calculateRecoverable, classifySeverity, detectInternalDriver } from "../../engine/signals.js";
 import { buildResponseContract, filterTextualSuggestions } from "../helpers.js";
 import { _buildEntityId, _detectMetricInText, _normalizeSemanticText } from "../router.js";
+import { simboloMoneda } from "../../config/moneda.js";
 
 export function composeHonestUnavailable(reason, moduleContext) {
   const moduleSuggestions = {
@@ -186,9 +187,9 @@ export function _formatMetricValue(value, metricKey) {
     const usd = enMiles ? value * 1000 : value;
     // MISMA convención de redondeo que el `_money` de la boleta y de qiRetrieval (K entero), para que la misma
     // cifra no se lea "$18.6K" por una ruta y "$19K" por la otra — una sola verdad también en la presentación.
-    if (Math.abs(usd) >= 1e6) return `$${(usd / 1e6).toFixed(2)}M`;
-    if (Math.abs(usd) >= 1e3) return `$${Math.round(usd / 1e3)}K`;
-    return `$${Math.round(usd)}`;
+    if (Math.abs(usd) >= 1e6) return `${simboloMoneda()}${(usd / 1e6).toFixed(2)}M`;
+    if (Math.abs(usd) >= 1e3) return `${simboloMoneda()}${Math.round(usd / 1e3)}K`;
+    return `${simboloMoneda()}${Math.round(usd)}`;
   }
   return String(value);
 }

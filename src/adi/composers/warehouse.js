@@ -7,6 +7,7 @@ import { SUCURSALES } from "../../data/catalogs.js";
 import { clientesMargen, skuInventario } from "../../data/demoData.js";
 import { applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { buildResponseContract, filterTextualSuggestions } from "../helpers.js";
+import { simboloMoneda } from "../../config/moneda.js";
 
 export function composeWarehouseAnalysis(scenarioId, params) {
   // ── 1. Helpers formato
@@ -14,9 +15,9 @@ export function composeWarehouseAnalysis(scenarioId, params) {
     if (val == null || isNaN(val)) return "$0";
     if (Math.abs(val) >= 1000) {
       const k = val / 1000;
-      return Number.isInteger(k) ? `$${k}K` : `$${k.toFixed(1)}K`;
+      return Number.isInteger(k) ? `${simboloMoneda()}${k}K` : `${simboloMoneda()}${k.toFixed(1)}K`;
     }
-    return `$${Math.round(val)}`;
+    return `${simboloMoneda()}${Math.round(val)}`;
   };
   const safeParams = params || {};
   const specificSucursal = safeParams.specificSucursal || null;
@@ -370,8 +371,8 @@ export function _capitalInmovilizado(inventario) {
 
 export function _cmpFmtK(val) {
   if (val == null || isNaN(val)) return "$0";
-  if (Math.abs(val) >= 1000) { const k = val / 1000; return Number.isInteger(k) ? `$${k}K` : `$${k.toFixed(1)}K`; }
-  return `$${Math.round(val)}`;
+  if (Math.abs(val) >= 1000) { const k = val / 1000; return Number.isInteger(k) ? `${simboloMoneda()}${k}K` : `${simboloMoneda()}${k.toFixed(1)}K`; }
+  return `${simboloMoneda()}${Math.round(val)}`;
 }
 
 export function _cmpRatio(a, b) { if (!b) return 0; const r = a / b; return r >= 1 ? r : 1 / r; }

@@ -18,6 +18,7 @@ import React, { useState, useId } from "react";
  * Es lo que hace que NO haya que recalibrar ni una serie, ni un semáforo, ni un sello: siguen sobre negro. */
 import { T as C } from "./theme.js";
 import { buildGlobalEvolution } from "../adi/sentrix/temporal.js";
+import { simboloMoneda } from "../config/moneda.js";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
 const SANS = "'DM Sans', system-ui, sans-serif";
@@ -74,7 +75,7 @@ function MiniEvolutivo() {
   const yA = ev.actual.map(y), yP = ev.anterior.map(y);
   const dAct = monoPath(xs, yA), dAnt = monoPath(xs, yP);
   const iMax = ev.actual.indexOf(ev.max), iMin = ev.actual.indexOf(ev.min);
-  const fmV = (v) => "$" + (v / 1000).toFixed(1) + "M";
+  const fmV = (v) => simboloMoneda() + (v / 1000).toFixed(1) + "M";
   const up = ev.vsAnterior >= 0;
   // riel de labels: cada serie se nombra donde termina (sin leyenda de swatches). Columna flex centrada en el
   // promedio de los endpoints y ORDENADA por altura — en mobile el SVG se achica pero el texto HTML no, así que

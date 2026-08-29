@@ -6,6 +6,7 @@ import { skusMargen } from "../../data/skusMargen.js";
 import { applyScenarioToClientesMargen, applyScenarioToSfamiliasMargen } from "../../engine/scenarios.js";
 import { detectClientInText, detectSkuInText } from "../detectors.js";
 import { cuentasMasGrandes, filterTextualSuggestions, normalizeText } from "../helpers.js";
+import { simboloMoneda } from "../../config/moneda.js";
 
 export function _parseCurrencyK(raw) {
   if (!raw) return null;
@@ -57,7 +58,7 @@ export function extractInverseProjection(text, scenarioId) {
 }
 
 export function composePortfolioInverse(inv, scenarioId) {
-  const fmtM = (k) => `$${(k / 1000).toFixed(2)}M`;       // $K → $X.XXM
+  const fmtM = (k) => `${simboloMoneda()}${(k / 1000).toFixed(2)}M`;       // $K → $X.XXM
   const pct  = (x) => `${(x * 100).toFixed(1)}%`;
   const cm = applyScenarioToClientesMargen(scenarioId) || [];
 
@@ -142,7 +143,7 @@ export function composePortfolioInverse(inv, scenarioId) {
 export function composeInverseProjection(payload, scenarioId) {
   if (!FEATURE_INVERSE_PROJECTION || !payload || !payload.inverse) return null;
   const inv = payload.inverse;
-  const fmtM = (k) => `$${(k / 1000).toFixed(2)}M`;   // $K → $X.XXM
+  const fmtM = (k) => `${simboloMoneda()}${(k / 1000).toFixed(2)}M`;   // $K → $X.XXM
 
   // ── Honestidad de cartera (§6) · objetivo sin entidad ──
   // ON → sobre determinístico (composePortfolioInverse). OFF → fallback Corte 7 intacto.

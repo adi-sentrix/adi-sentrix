@@ -33,6 +33,7 @@
  * Importa SOLO: parseFigures (el canon de la boleta) y reconcilian (el contrato de universos). */
 import { parseFigures } from "../boleta.js";
 import { reconcilian, UNIVERSOS } from "../../config/contract/figureType.js";
+import { simboloMoneda } from "../../config/moneda.js";
 
 // ── LA TOLERANCIA DE REDONDEO ES LA DE _isCalc (guardC.js), NO UNA SEGUNDA ────────────────────────────────────
 // La misma expresión, verbatim: si el muro y la calculadora toleraran distinto, una cuenta ejecutada acá podría
@@ -46,7 +47,7 @@ export const tolCalculo = (raw, unit) =>
 // producto: ledger.js «SIEMPRE .toFixed(1) para %»); pp igual (la brecha se muestra como «8.1pp»).
 export function formatearCanon(raw, unit) {
   const v = unit === "pct" || unit === "pp" ? +(+raw).toFixed(1) : unit === "ratio" ? +(+raw).toFixed(1) : Math.round(+raw);
-  const semilla = unit === "money" ? `$${v}` : unit === "pct" ? `${v}%` : unit === "pp" ? `${v}pp` : unit === "days" ? `${v}d` : unit === "ratio" ? `${v}x` : String(v);
+  const semilla = unit === "money" ? `${simboloMoneda()}${v}` : unit === "pct" ? `${v}%` : unit === "pp" ? `${v}pp` : unit === "days" ? `${v}d` : unit === "ratio" ? `${v}x` : String(v);
   const p = parseFigures(semilla);
   return p.length ? p[0].canon.slice(p[0].canon.indexOf(":") + 1) : semilla;
 }

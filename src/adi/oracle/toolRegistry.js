@@ -44,6 +44,7 @@ import { METRICS } from "../../config/contract/metricRegistry.js";              
 // sostiene; `pnlDefined`/`pnlDisponibilidad`/`pnlEjesDisponibles`/`pnlEntidadCanon` son su disponibilidad
 // data-driven y su canon de alcance. `pnlRead` (abajo) los ENVUELVE — no reimplementa ni una suma.
 import { composePnl, buildPnlCascade, pnlDefined, pnlDisponibilidad, pnlEjesDisponibles, pnlEntidadCanon } from "../pnl.js";
+import { simboloMoneda } from "../../config/moneda.js";
 
 const _loadSrc = (source, scenario) => { const s = SOURCES[source]; if (!s) return []; return (typeof s.scenarioLoad === "function" ? s.scenarioLoad(scenario) : s.load()) || []; };
 
@@ -55,8 +56,8 @@ const _loadSrc = (source, scenario) => { const s = SOURCES[source]; if (!s) retu
 // (venta/costo/contribución/rebate/presupuesto/anterior/actual = miles); stockUSD/precioLista/costoMedio son crudas y
 // NO se tocan; `usd` tampoco (ya lo maneja el enricher). PURO: clona, no muta la evidence del composer.
 const _MONEY_K = /^(venta|ventas|ventaAnt|costo|costos|contribucion|contribucionAnt|rebates|rebate|presupuesto|anterior|actual)$/;
-const _moneyK = (vK) => { const v = vK * 1000, a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
-const _moneyRaw = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
+const _moneyK = (vK) => { const v = vK * 1000, a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
+const _moneyRaw = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
 function _fmtMoneyFacts(node) {
   if (Array.isArray(node)) return node.map(_fmtMoneyFacts);
   if (node && typeof node === "object") {
@@ -1027,7 +1028,7 @@ const _CALC_NEGOCIO = new Set(["negocio", "el negocio", "cartera", "la cartera",
 // (un factor de regla de tres). El PARSER es el de la boleta (parseFigures) — jamás un segundo.
 function _cifraLibre(texto) {
   const t = String(texto || "").trim().replace(/puntos?\s+porcentuales?|puntos?\s+de\s+(?:margen|brecha|carga)|\bpuntos?\b/gi, "pp");
-  for (const v of [t, t.replace(/\s*millones?\b/i, "M").replace(/\s*mil\b/i, "K"), "$" + t.replace(/\s*millones?\b/i, "M").replace(/\s*mil\b/i, "K").replace(/^\$\s?/, "")]) {
+  for (const v of [t, t.replace(/\s*millones?\b/i, "M").replace(/\s*mil\b/i, "K"), simboloMoneda() + t.replace(/\s*millones?\b/i, "M").replace(/\s*mil\b/i, "K").replace(/^\$\s?/, "")]) {
     const p = parseFigures(v);
     if (p.length) return p[0];
   }

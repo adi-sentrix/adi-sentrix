@@ -25,6 +25,7 @@ import { detectaPorQueCifra, componePorQueCifra } from "./porQueEstaCifra.js";  
 import { coerceFloor } from "./coerceChain.js";   // CONTINUIDAD (owner 2026-07-15): el "sí" ejecuta LA OFERTA con que ADI cerró — por la misma red del piso
 import { CONCEPT_DEFS } from "./sentrix/glossary.js";   // NATURALIDAD (owner 2026-07-27): definiciones de conceptos del negocio (composeDefine)
 import { normalizeResponse } from "./responseContract.js";   // Contrato v2 · Fase 4: la capa conversacional sale con la MISMA forma que el resto
+import { simboloMoneda } from "../config/moneda.js";
 
 /* ── «¿POR QUÉ ESA CIFRA?» · UNA SOLA VERDAD, ALCANZABLE DESDE LOS DOS CAMINOS (owner 2026-08-12) ══════════════
  * ESTA FUNCIÓN NACIÓ DE UN ERROR MÍO, y conviene que quede escrito. La respuesta a «logística por qué tiene un
@@ -266,7 +267,7 @@ export function composeExplain(last, ctx = null, state = {}) {
   // capital (rotación/DOH), NO margen. Reusa la evidencia de inventario · cita solo el total (en boleta) · honesto sobre
   // la causa raíz (el dato dice DÓNDE está frenado, no todavía por qué dejó de venderse).
   if (last.inventory && Array.isArray(last.inventory.bySku) && last.inventory.bySku.length) {
-    const inv = last.inventory, _m = (v) => (v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${Math.round(v / 1e3)}K` : `$${Math.round(v)}`);
+    const inv = last.inventory, _m = (v) => (v >= 1e6 ? `${simboloMoneda()}${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${simboloMoneda()}${Math.round(v / 1e3)}K` : `${simboloMoneda()}${Math.round(v)}`);
     const top = inv.bySku.slice(0, 2).map((s) => s.sku).join(" y ");
     const text = `Lo digo porque esos SKU dejaron de rotar: quedaron con rotación por debajo del umbral y DOH alto, así que el stock no sale y esos ${_m(inv.total)} quedan atrapados en góndola. Los más inmovilizados (${top}) llevan meses sin salida. La causa de fondo — sobrestock, estacionalidad o precio de lista — hay que verla SKU por SKU: el dato te dice DÓNDE está inmovilizado el capital, todavía no por qué dejó de venderse.`;
     // boleta = total + capital POR SKU (money · para que el narrador pueda ser rico) · SIN DOH/rotación sueltas (evitan el
@@ -278,7 +279,7 @@ export function composeExplain(last, ctx = null, state = {}) {
   // CONTINUIDAD (D) tras un DIAGNÓSTICO: el "por qué" explica el FOCO TOP (contribución/carga/capital), no un relleno
   // genérico. Mecanismo por detector · graduado y honesto (lo probado vs la causa raíz que necesita el detalle).
   if (Array.isArray(last.findings) && last.findings.length) {
-    const _m = (v) => (v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${Math.round(v / 1e3)}K` : `$${Math.round(v)}`);
+    const _m = (v) => (v >= 1e6 ? `${simboloMoneda()}${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${simboloMoneda()}${Math.round(v / 1e3)}K` : `${simboloMoneda()}${Math.round(v)}`);
     const f = last.findings[0], topE = (f.items && f.items[0] && f.items[0].entidad) || null;
     const mech = f.detector === "carga"
       ? "la carga comercial está por encima del target interno — es valor que se va en condiciones/rebate y no llega al margen."

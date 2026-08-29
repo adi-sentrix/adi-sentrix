@@ -7,13 +7,14 @@ import { applyScenarioToClientesVentas, applyScenarioToClientesMargen, applyScen
 import { skusMargen } from "../../data/skusMargen.js";
 import { temporalCapability, entityExplorable } from "./capability.js";
 import { benchmarkOf } from "../../config/businessPolicy.js";
+import { simboloMoneda } from "../../config/moneda.js";
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _p1 = (n) => (Math.round((Number(n) || 0) * 10) / 10).toFixed(1);   // % SIEMPRE con 1 decimal (parejos en la visual)
 const _pp = (n) => (n >= 0 ? "+" : "") + _p1(n) + "pp";
-const _fM = (n) => "$" + (Math.abs(Number(n) || 0) / 1000).toFixed(1) + "M";   // $K → $M (cliente/SKU ventas)
-const _fKu = (n) => "$" + (Number(n) || 0).toFixed(1) + "K";                   // valor unitario ya en $K (ticket, costo medio)
-const _fCap = (n) => "$" + (Math.abs(Number(n) || 0) / 1000).toFixed(1) + "K"; // inventario en $ → $K (capital)
+const _fM = (n) => simboloMoneda() + (Math.abs(Number(n) || 0) / 1000).toFixed(1) + "M";   // $K → $M (cliente/SKU ventas)
+const _fKu = (n) => simboloMoneda() + (Number(n) || 0).toFixed(1) + "K";                   // valor unitario ya en $K (ticket, costo medio)
+const _fCap = (n) => simboloMoneda() + (Math.abs(Number(n) || 0) / 1000).toFixed(1) + "K"; // inventario en $ → $K (capital)
 
 // El dato poderoso de la entidad (anticipa la pregunta). Vacío si el tipo no se sostiene aún.
 export function buildEntityKPIs(focusType, focus, scenario) {
@@ -47,7 +48,7 @@ function _skuKPIs(name) {
     { label: "Contribución", value: _fM(sku.contribucion), sub: `${_p1(sku.contribucion / sku.venta * 100)}% de venta` },
     { label: "Costo", value: _p1(costoPct) + "%", sub: "del precio", tone: "warn" },
     { label: "Carga comercial", value: _p1(sku.pctRebate) + "%", sub: "rebate sobre venta", tone: "warn" },
-    { label: "Precio lista", value: "$" + Math.round(sku.precioLista), sub: `costo unitario $${Math.round(sku.costoMedio)}` },
+    { label: "Precio lista", value: simboloMoneda() + Math.round(sku.precioLista), sub: `costo unitario ${simboloMoneda()}${Math.round(sku.costoMedio)}` },
     { label: "vs familia", value: _pp(sku.margen - avgM), sub: `${sku.marca} · ${sku.sfamilia}`, tone: sku.margen >= avgM ? "up" : "down" },
     { label: "Benchmark", value: _p1(bench) + "%", sub: "de cartera" },
   ];
@@ -69,7 +70,7 @@ function _skuKPIs(name) {
 // reconstruye el número EXACTO (sin redondeo) al comparar contra otro camino que lea el mismo raw sin pasar por un
 // string (concentration.js). Con 1 decimal (_fM) el redondeo visual ($33.2M en vez de $33.160M) alcanzaba a diferir
 // en decenas de miles de dólares — la tolerancia de reconciliación (D4) es de $1K, no de redondeo visual.
-const _fM3 = (n) => "$" + (Math.abs(Number(n) || 0) / 1000).toFixed(3) + "M";
+const _fM3 = (n) => simboloMoneda() + (Math.abs(Number(n) || 0) / 1000).toFixed(3) + "M";
 function _marcaKPIs(name, s) {
   const rows = applyScenarioToMarcasMargen(s);
   const m = rows.find((x) => x.nombre === name);

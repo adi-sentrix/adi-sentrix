@@ -14,6 +14,7 @@ import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";   // la ESC
 import { EXECUTIVE_REFRAMES } from "../config/signalRules.js";
 import { applyScenarioToClientesMargen } from "../engine/scenarios.js";
 import { skuInventario } from "../data/demoData.js";
+import { simboloMoneda } from "../config/moneda.js";
 import {
   VOICE_NARRATIVE_LAYER_ENABLED,
   ARCO_ENABLED,
@@ -86,9 +87,9 @@ function _fmtRankMoney(value, metricKey) {
   const spec = RANKING_EXTREMES_METRICS[metricKey];
   if (spec && spec.scale !== "K") {
     const v = Number(value) || 0, a = Math.abs(v);
-    if (a >= 1e6) return `$${(v / 1e6).toFixed(2)}M`;
-    if (a >= 1e3) return `$${Math.round(v / 1e3)}K`;
-    return `$${Math.round(v)}`;
+    if (a >= 1e6) return `${simboloMoneda()}${(v / 1e6).toFixed(2)}M`;
+    if (a >= 1e3) return `${simboloMoneda()}${Math.round(v / 1e3)}K`;
+    return `${simboloMoneda()}${Math.round(v)}`;
   }
   return _fmtMoneyK(value);
 }
@@ -413,14 +414,14 @@ function composeMechanismScanNarrative(signals, posture, ctx) {
       const recK = hl.recoverable_K || 0;
       const recM_bp = hl.recoverable_M_at_bestPractice || 0;
       const top3 = (hl.top3_names || []).join(" · ");
-      const recM_bp_str = recM_bp >= 1 ? `$${recM_bp.toFixed(2)}M` : `${_fmtMoneyK(recM_bp * 1000)}`;
+      const recM_bp_str = recM_bp >= 1 ? `${simboloMoneda()}${recM_bp.toFixed(2)}M` : `${_fmtMoneyK(recM_bp * 1000)}`;
       return `${h.label} concentra ${_fmtMoneyK(recK)} anuales recuperables al promedio interno · ${recM_bp_str} si la carga baja a mejor práctica (3.0%). Opera sobre ${hl.instances_count} cuentas: ${top3}. Controlabilidad alta · intervención inmediata.`;
     }
     if (h.mechanismId === "quality_of_growth_deterioration") {
       const cp = hl.contribPerdida_M || 0;
       const range = hl.crecimiento_range || {};
       const rangeStr = range.min === range.max ? `+${range.min}%` : `entre +${range.min}% y +${range.max}%`;
-      const cp_str = cp >= 1 ? `$${cp.toFixed(2)}M` : _fmtMoneyK(cp * 1000);
+      const cp_str = cp >= 1 ? `${simboloMoneda()}${cp.toFixed(2)}M` : _fmtMoneyK(cp * 1000);
       const derivedNote = h.derived_from === "commercial_erosion"
         ? ` Es derivado de erosión comercial · la carga sostenida es la causa.`
         : "";
@@ -430,7 +431,7 @@ function composeMechanismScanNarrative(signals, posture, ctx) {
       const top3 = (hl.top3_names || []).join(" · ");
       const part = hl.top3_participacion_pct || 0;
       const contrib = hl.top3_contribucion_M || 0;
-      const contrib_str = contrib >= 1 ? `$${contrib.toFixed(2)}M` : _fmtMoneyK(contrib * 1000);
+      const contrib_str = contrib >= 1 ? `${simboloMoneda()}${contrib.toFixed(2)}M` : _fmtMoneyK(contrib * 1000);
       return `${h.label}: ${top3} concentran ${part.toFixed(1)}% de la venta y ${contrib_str} de contribución. Estructural · horizonte 12-18 meses vía diversificación.`;
     }
     if (h.mechanismId === "trapped_capital") {
@@ -478,11 +479,11 @@ function composeMechanismRankingNarrative(signals, posture, ctx) {
     const recK = hl.recoverable_K || 0;
     const recM_bp = hl.recoverable_M_at_bestPractice || 0;
     const top3 = (hl.top3_names || []).join(" · ");
-    const recM_bp_str = recM_bp >= 1 ? `$${recM_bp.toFixed(2)}M` : _fmtMoneyK(recM_bp * 1000);
+    const recM_bp_str = recM_bp >= 1 ? `${simboloMoneda()}${recM_bp.toFixed(2)}M` : _fmtMoneyK(recM_bp * 1000);
     movements.push(`Concentra ${_fmtMoneyK(recK)} anuales recuperables al promedio interno · ${recM_bp_str} si la carga baja a mejor práctica. Opera sobre ${hl.instances_count} cuentas: ${top3}.`);
   } else if (top.mechanismId === "quality_of_growth_deterioration") {
     const cp = hl.contribPerdida_M || 0;
-    const cp_str = cp >= 1 ? `$${cp.toFixed(2)}M` : _fmtMoneyK(cp * 1000);
+    const cp_str = cp >= 1 ? `${simboloMoneda()}${cp.toFixed(2)}M` : _fmtMoneyK(cp * 1000);
     movements.push(`${cp_str} de contribución no capturada vs tu benchmark sobre ${hl.instances_count} cuentas.`);
   } else if (top.mechanismId === "customer_dependency_risk") {
     const top3 = (hl.top3_names || []).join(" · ");
@@ -496,7 +497,7 @@ function composeMechanismRankingNarrative(signals, posture, ctx) {
       const ohl = o.headline || {};
       if (o.id === "quality_of_growth_deterioration") {
         const cp = ohl.contribPerdida_M || 0;
-        const cp_str = cp >= 1 ? `$${cp.toFixed(2)}M` : _fmtMoneyK(cp * 1000);
+        const cp_str = cp >= 1 ? `${simboloMoneda()}${cp.toFixed(2)}M` : _fmtMoneyK(cp * 1000);
         return `${o.label.toLowerCase()} (${cp_str} · ${o.rule.controllability || "media"} controlabilidad)`;
       }
       if (o.id === "customer_dependency_risk") {
@@ -532,7 +533,7 @@ function composeClientDeepDiveNarrative(signals, posture, ctx) {
   // "Falabella es tu cliente Tier 1 · 18.5% de la venta y 16.4% de contribución · $18.5M ventas anuales."
   const tierStr = id.tier ? `Tier ${id.tier}` : "Tier no clasificado";
   const ventasStr = id.ventas_K >= 1000
-    ? `$${(id.ventas_K / 1000).toFixed(1)}M ventas anuales`
+    ? `${simboloMoneda()}${(id.ventas_K / 1000).toFixed(1)}M ventas anuales`
     : `${_fmtMoneyK(id.ventas_K)} ventas anuales`;
   movements.push(`${id.entity} es tu cliente ${tierStr} · ${id.participacion_pct.toFixed(1)}% de la venta y ${id.contribucion_pct.toFixed(1)}% de contribución · ${ventasStr}.`);
 
@@ -1064,7 +1065,7 @@ function composeExecutiveActionNarrative(signals, posture, ctx) {
     let body = "", reason = "";
 
     if (a.type === "commercial_load_renegotiation") {
-      body = `${fmtList(a.entities)} operan con carga comercial sobre el estándar interno. Hay $${a.recoverable_K}K de margen anual recuperable (hasta $${a.recoverable_BP_K}K a mejor práctica).`;
+      body = `${fmtList(a.entities)} operan con carga comercial sobre el estándar interno. Hay ${simboloMoneda()}${a.recoverable_K}K de margen anual recuperable (hasta ${simboloMoneda()}${a.recoverable_BP_K}K a mejor práctica).`;
       // jerarquía de razón · atada a riesgo alto (cuenta estratégica en juego) · NO fija
       if (riesgoAlto) {
         reason = critico
@@ -1073,10 +1074,10 @@ function composeExecutiveActionNarrative(signals, posture, ctx) {
       }
     } else if (a.type === "sku_operational_exit") {
       const verbo = (a.entities && a.entities.length === 1) ? "mantiene" : "mantienen";
-      body = `${fmtList(a.entities)} ${verbo} ${a.avg_doh} días de cobertura y $${a.recoverable_K}K de capital inmovilizado.`;
+      body = `${fmtList(a.entities)} ${verbo} ${a.avg_doh} días de cobertura y ${simboloMoneda()}${a.recoverable_K}K de capital inmovilizado.`;
       // inventario es riesgo bajo · sin jerarquía de razón (atado a señal · no se inventa urgencia)
     } else if (a.type === "tier2_diversification") {
-      body = `${a.entities.slice(0, 3).join(" · ")} concentran ${a.concentration_pct}% del negocio · $${a.exposed_M}M de contribución expuesta.`;
+      body = `${a.entities.slice(0, 3).join(" · ")} concentran ${a.concentration_pct}% del negocio · ${simboloMoneda()}${a.exposed_M}M de contribución expuesta.`;
       // jerarquía de razón SOLO cuando la concentración se volvió crítica (elevación · atada a señal)
       if (critico) {
         const cc = critClientOf(a);
@@ -1085,7 +1086,7 @@ function composeExecutiveActionNarrative(signals, posture, ctx) {
           : ` Más importante aún: el riesgo de concentración dejó de ser latente.`;
       }
     } else {
-      body = `${a.criterion}. Cifra clave $${a.recoverable_K}K.`;
+      body = `${a.criterion}. Cifra clave ${simboloMoneda()}${a.recoverable_K}K.`;
     }
 
     // DECISIÓN · imperativo de cierre derivado de a.verb
@@ -1153,17 +1154,17 @@ function composeHiddenOpportunityNarrative(signals, posture, ctx) {
   // ── MOVIMIENTO 2 · Cifra contrastante ──
   let cifraBlock = null;
   if (ang.reveal === "quality_growth_deterioration") {
-    cifraBlock = `${ang.instances_count} cuentas crecen entre +${ang.growth_min}% y +${ang.growth_max}% YoY · suena bien · pero capturan ese crecimiento a costa de margen unitario. Son $${ang.cifra_M}M de contribución que se pierde frente al benchmark · más que cualquier driver comercial individual.`;
+    cifraBlock = `${ang.instances_count} cuentas crecen entre +${ang.growth_min}% y +${ang.growth_max}% YoY · suena bien · pero capturan ese crecimiento a costa de margen unitario. Son ${simboloMoneda()}${ang.cifra_M}M de contribución que se pierde frente al benchmark · más que cualquier driver comercial individual.`;
   } else if (ang.reveal === "customer_dependency_risk") {
     const names = ang.top3_names.join(" · ");
-    cifraBlock = `${names} concentran ${ang.concentration_pct}% del negocio y $${ang.exposed_M}M de contribución expuesta. Una salida simultánea de los 3 borra cerca de la mitad de la rentabilidad operativa.`;
+    cifraBlock = `${names} concentran ${ang.concentration_pct}% del negocio y ${simboloMoneda()}${ang.exposed_M}M de contribución expuesta. Una salida simultánea de los 3 borra cerca de la mitad de la rentabilidad operativa.`;
   } else if (ang.reveal === "sku_operational") {
     const skuList = ang.sku_names.length === 1
       ? ang.sku_names[0]
       : ang.sku_names.slice(0, -1).join(" · ") + " y " + ang.sku_names[ang.sku_names.length - 1];
-    cifraBlock = `${ang.instances_count === 1 ? "1 SKU concentra" : ang.instances_count + " SKUs concentran"} $${ang.capital_K}K de stock con DOH promedio ${ang.avg_doh} días: ${skuList}. Capital que no rota · que podría reinvertirse en SKUs rotacionales.`;
+    cifraBlock = `${ang.instances_count === 1 ? "1 SKU concentra" : ang.instances_count + " SKUs concentran"} ${simboloMoneda()}${ang.capital_K}K de stock con DOH promedio ${ang.avg_doh} días: ${skuList}. Capital que no rota · que podría reinvertirse en SKUs rotacionales.`;
   } else if (ang.reveal === "commercial_erosion") {
-    cifraBlock = `${ang.instances_count} cuentas operan con carga comercial sobre el promedio interno · $${ang.recuperable_K}K anuales recuperables al promedio · $${(ang.recuperable_BP_M * 1000).toFixed(0)}K si baja a mejor práctica (3.0%). Es la palanca operativa de mayor impacto · NO se ve mirando solo inventario.`;
+    cifraBlock = `${ang.instances_count} cuentas operan con carga comercial sobre el promedio interno · ${simboloMoneda()}${ang.recuperable_K}K anuales recuperables al promedio · ${simboloMoneda()}${(ang.recuperable_BP_M * 1000).toFixed(0)}K si baja a mejor práctica (3.0%). Es la palanca operativa de mayor impacto · NO se ve mirando solo inventario.`;
   }
   if (cifraBlock) movements.push(cifraBlock);
 
@@ -1229,7 +1230,7 @@ function _renderConcernBody(concern) {
   const c = concern.cifras;
   if (concern.mechanism === "commercial_erosion") {
     const bp_K = Math.round((c.recuperable_BP_M || 0) * 1000);
-    return `${c.instances_count} cuentas operan con carga comercial sobre el promedio interno · $${c.recuperable_K}K anuales recuperables al promedio · $${bp_K}K si baja a mejor práctica (3.0%). Es la palanca operativa de mayor impacto · cuanto más se sostiene · más naturaliza el cliente el descuento.`;
+    return `${c.instances_count} cuentas operan con carga comercial sobre el promedio interno · ${simboloMoneda()}${c.recuperable_K}K anuales recuperables al promedio · ${simboloMoneda()}${bp_K}K si baja a mejor práctica (3.0%). Es la palanca operativa de mayor impacto · cuanto más se sostiene · más naturaliza el cliente el descuento.`;
   }
   if (concern.mechanism === "quality_of_growth_deterioration") {
     const isSingleton = c.instances_count === 1;
@@ -1237,12 +1238,12 @@ function _renderConcernBody(concern) {
       ? `+${c.growth_min}% YoY`
       : `entre +${c.growth_min}% y +${c.growth_max}% YoY`;
     const cuentasStr = isSingleton ? "1 cuenta crece" : `${c.instances_count} cuentas crecen`;
-    return `${cuentasStr} ${rangeStr} · pero capturando ese crecimiento a costa de margen unitario. Son $${c.contribucion_perdida_M}M de contribución que se pierde frente al benchmark. Es el patrón clásico de "vende más · gana menos" · que se vuelve irreversible cuando el cliente naturaliza el descuento.`;
+    return `${cuentasStr} ${rangeStr} · pero capturando ese crecimiento a costa de margen unitario. Son ${simboloMoneda()}${c.contribucion_perdida_M}M de contribución que se pierde frente al benchmark. Es el patrón clásico de "vende más · gana menos" · que se vuelve irreversible cuando el cliente naturaliza el descuento.`;
   }
   if (concern.mechanism === "customer_dependency_risk") {
     const names = (c.top3_names || []).join(" · ");
     // "Deuda silenciosa" embedida en el template body (D-N.B.3-1)
-    return `${names} concentran ${c.concentration_pct}% del negocio y $${c.exposed_M}M de contribución expuesta. Una salida simultánea de los 3 borra cerca de la mitad de la rentabilidad operativa. No es plausible mañana · pero no tener un plan de Tier 2 ya activo es la deuda silenciosa: no se siente hasta que vence.`;
+    return `${names} concentran ${c.concentration_pct}% del negocio y ${simboloMoneda()}${c.exposed_M}M de contribución expuesta. Una salida simultánea de los 3 borra cerca de la mitad de la rentabilidad operativa. No es plausible mañana · pero no tener un plan de Tier 2 ya activo es la deuda silenciosa: no se siente hasta que vence.`;
   }
   return null;
 }

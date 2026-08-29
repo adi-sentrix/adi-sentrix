@@ -41,13 +41,14 @@ import { tenantPolicyDefault } from "../../config/businessPolicy.js";
 import { getTenantId, getTenantData, onTenantChange } from "../../data/tenantStore.js";
 import { parseFigures } from "../boleta.js";
 import { composeNoDataMessage } from "./narrationBlocks.js";   // el último recurso ABSOLUTO del suplente digno — la MISMA frase canónica que usa la escalera anti-null, nunca una copia
+import { simboloMoneda } from "../../config/moneda.js";
 
 // ── EL FORMATEADOR DE LA BOLETA, SIN UN SEGUNDO FORMATEADOR ────────────────────────────────────────────────────
 // parseFigures canoniza toda cifra con el _fmtC privado de boleta.js (canon = `unit:_fmtC(raw,unit)`). Darle el
 // crudo en una forma mínima y leer el canon ES usar ese formateador — la única alternativa sería exportar _fmtC
 // (tocar boleta.js, intocable) o copiarlo (el segundo formateador que esta regla prohíbe).
 function _fmtBoleta(raw, unit) {
-  const semilla = unit === "money" ? `$${raw}` : unit === "pct" ? `${raw}%` : unit === "days" ? `${raw}d` : unit === "ratio" ? `${raw}x` : String(raw);
+  const semilla = unit === "money" ? `${simboloMoneda()}${raw}` : unit === "pct" ? `${raw}%` : unit === "days" ? `${raw}d` : unit === "ratio" ? `${raw}x` : String(raw);
   const p = parseFigures(semilla);
   return p.length ? p[0].canon.slice(p[0].canon.indexOf(":") + 1) : semilla;
 }

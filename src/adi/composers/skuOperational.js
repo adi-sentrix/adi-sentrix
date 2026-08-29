@@ -6,6 +6,7 @@
 import { skuInventario } from "../../data/demoData.js";
 import { filterTextualSuggestions } from "../helpers.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../../config/voiceFlags.js";
+import { simboloMoneda } from "../../config/moneda.js";
 
 // ── classifySkuOperationalProfile · perfil individual del SKU (L11476) ────
 // operational_inefficient · DOH > 90 ∧ rotación < 3 → driver activo · liquidar
@@ -94,9 +95,9 @@ export function composeSkuOperationalAnalysis(scenarioId) {
   const fmtK = (val) => {
     if (val >= 1000) {
       const k = val / 1000;
-      return Number.isInteger(k) ? `$${k}K` : `$${k.toFixed(1)}K`;
+      return Number.isInteger(k) ? `${simboloMoneda()}${k}K` : `${simboloMoneda()}${k.toFixed(1)}K`;
     }
-    return `$${Math.round(val)}`;
+    return `${simboloMoneda()}${Math.round(val)}`;
   };
 
   // ── 3. Cálculos para Lectura causal

@@ -6,6 +6,7 @@
 import { skuInventario } from "../data/demoData.js";
 import { ECL_CONT_ENABLED, ADI_ACTIVE_RESULT_CONTINUITY_ENABLED, ADI_MT_SAFETY_ENABLED } from "../config/voiceFlags.js";
 import { isAvailable, unavailableMessage } from "./core/availabilityMap.js";  // ADI Core · 2.2a · anti-fuga · el muro multi-turno = el mismo Availability Map del single-turn
+import { simboloMoneda } from "../config/moneda.js";
 
 // ── classifySkuOperationalProfile (L11476) · módulo-local verbatim ──
 function classifySkuOperationalProfile(sku) {
@@ -55,7 +56,7 @@ export function composeSkuDevelopment(activeResult, scenarioId) {
     const profile = classifySkuOperationalProfile(s);
     return { sku: s.sku, stockUSD: s.stockUSD, doh: s.doh, rotacion: s.rotacion, diasSinVenta: s.diasSinVenta, margenPct: s.margenPct, profile, accion: ACCION[profile] || "revisar pricing" };
   });
-  const fmtK = (v) => "$" + (v / 1000).toFixed(1) + "K";
+  const fmtK = (v) => simboloMoneda() + (v / 1000).toFixed(1) + "K";
   // operational_inefficient = liberable · orden de ejecución por capital atrapado (stockUSD desc = money-first)
   const liquidar = dev.filter(d => d.profile === "operational_inefficient").sort((a, b) => b.stockUSD - a.stockUSD);
   const mantener = dev.filter(d => d.profile === "high_volume_healthy");

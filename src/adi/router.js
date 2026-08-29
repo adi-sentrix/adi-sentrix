@@ -10,6 +10,7 @@ import { MARCAS_ALL, SUCURSALES, SUPERFAMILIAS } from "../data/catalogs.js";
 import { clientesMargen, marcasMargen } from "../data/demoData.js";
 import { CLIENT_KEYWORDS, CLIENT_NAME_MAP, detectBrandInText, detectClientInText, detectSkuInText, _clientKwRegex } from "./detectors.js";
 import { normalizeText } from "./helpers.js";
+import { simboloMoneda } from "../config/moneda.js";
 
 export function semanticNormalize(normalizedText) {
   const tokens = normalizedText.split(/\s+/).filter(Boolean);
@@ -2491,9 +2492,9 @@ export function _brandHasClientWorld(marca) {
 
 // BUG DE FORMATO (sweep 2026-07-09 · cazado por los jueces): el dato viene en MILES de $ → v/1000 son MILLONES.
 // Decía "K" ("Bosch $11.0K") donde son $11.0M — el narrador repetía fiel un piso equivocado. Escala real: M.
-export function _bFmt1(v) { return `$${(v / 1000).toFixed(1)}M`; }
+export function _bFmt1(v) { return `${simboloMoneda()}${(v / 1000).toFixed(1)}M`; }
 
-export function _bFmt2(v) { return `$${(Math.round(v / 10) / 100).toFixed(2)}M`; }
+export function _bFmt2(v) { return `${simboloMoneda()}${(Math.round(v / 10) / 100).toFixed(2)}M`; }
 
 export function _invLineageQuery(norm) {
   if (/\b(mundo-?cliente|mundo cliente|mundo-?fisico|mundo fisico)\b/.test(norm) && /\binventario\b/.test(norm)) return true;

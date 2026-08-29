@@ -8,6 +8,7 @@ import { getInvKPI, getMargenKPI, getVentasKPI } from "../../engine/metrics.js";
 import { applyScenarioToClientesVentas, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { filterTextualSuggestions } from "../helpers.js";
 import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
+import { simboloMoneda } from "../../config/moneda.js";
 
 export function composeModuleOverview(scenarioId, moduloId) {
   // ── ADI Core · 2.2a-2 parte B · CIERRE SEMÁNTICO del overview de inventario ──
@@ -31,14 +32,14 @@ export function composeModuleOverview(scenarioId, moduloId) {
   const fmtM = (val) => {
     // val expressed in same scale as ventasKPI.totalActual (e.g. 100000 = $100M)
     const m = val / 1000;
-    return Number.isInteger(m) ? `$${m}M` : `$${m.toFixed(1)}M`;
+    return Number.isInteger(m) ? `${simboloMoneda()}${m}M` : `${simboloMoneda()}${m.toFixed(1)}M`;
   };
   const fmtK = (val) => {
     if (val >= 1000) {
       const k = val / 1000;
-      return Number.isInteger(k) ? `$${k}K` : `$${k.toFixed(1)}K`;
+      return Number.isInteger(k) ? `${simboloMoneda()}${k}K` : `${simboloMoneda()}${k.toFixed(1)}K`;
     }
-    return `$${Math.round(val)}`;
+    return `${simboloMoneda()}${Math.round(val)}`;
   };
   const pct1 = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
 
@@ -328,14 +329,14 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
   // Helpers internos (mismo formato que legacy)
   const fmtM = (val) => {
     const m = val / 1000;
-    return Number.isInteger(m) ? `$${m}M` : `$${m.toFixed(1)}M`;
+    return Number.isInteger(m) ? `${simboloMoneda()}${m}M` : `${simboloMoneda()}${m.toFixed(1)}M`;
   };
   const fmtK = (val) => {
     if (val >= 1000) {
       const k = val / 1000;
-      return Number.isInteger(k) ? `$${k}K` : `$${k.toFixed(1)}K`;
+      return Number.isInteger(k) ? `${simboloMoneda()}${k}K` : `${simboloMoneda()}${k.toFixed(1)}K`;
     }
-    return `$${Math.round(val)}K`;
+    return `${simboloMoneda()}${Math.round(val)}K`;
   };
   const pct1 = (val) => `${val >= 0 ? "+" : ""}${val.toFixed(1)}%`;
 

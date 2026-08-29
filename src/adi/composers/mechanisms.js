@@ -9,17 +9,18 @@ import { MECHANISM_REGISTRY } from "../../config/mechanisms.js";
 import { VOZ2_ENABLED, VOICE_NARRATIVE_LAYER_ENABLED } from "../../config/voiceFlags.js";
 import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";   // el margen de las filas nombradas · para no AFIRMAR el veredicto de margen sin medirlo
+import { simboloMoneda } from "../../config/moneda.js";
 
 // ── r7_* formatters · copiados verbatim de 41cc33d8 (L19886-19901) ──
 // Usados por composeCustomerDependencyRiskResponse (M y listInstances) y composeMechanismScan (K).
 // Eran referencias libres no resueltas en la extracción previa → ReferenceError latente. Reparado.
 function r7_formatCurrencyK(amount) {
-  if (amount >= 1000) return `aproximadamente $${+(amount / 1000).toFixed(1)}M`;
-  return `aproximadamente $${Math.round(amount)}K`;
+  if (amount >= 1000) return `aproximadamente ${simboloMoneda()}${+(amount / 1000).toFixed(1)}M`;
+  return `aproximadamente ${simboloMoneda()}${Math.round(amount)}K`;
 }
 
 function r7_formatCurrencyM(amountM) {
-  return `$${amountM.toFixed(2)}M`;
+  return `${simboloMoneda()}${amountM.toFixed(2)}M`;
 }
 
 function r7_listInstances(instances, maxNames = 3) {
@@ -64,11 +65,11 @@ export function composeCommercialErosionResponse(m, scan, scenarioId) {
   const fmtK = (val) => {
     if (val >= 1000) {
       const k = val / 1000;
-      return Number.isInteger(k) ? `$${k}K` : `$${k.toFixed(1)}K`;
+      return Number.isInteger(k) ? `${simboloMoneda()}${k}K` : `${simboloMoneda()}${k.toFixed(1)}K`;
     }
-    return `$${Math.round(val)}`;
+    return `${simboloMoneda()}${Math.round(val)}`;
   };
-  const fmtM = (val) => `$${val.toFixed(2)}M`;
+  const fmtM = (val) => `${simboloMoneda()}${val.toFixed(2)}M`;
 
   // ── EVIDENCIA · ranking estructurado con cifras canónicas
   const rankingLines = top3.map(inst =>
@@ -189,11 +190,11 @@ export function composeQualityGrowthDeteriorationResponse(m, scan, scenarioId) {
   const fmtK = (val) => {
     if (val >= 1000) {
       const k = val / 1000;
-      return Number.isInteger(k) ? `$${k}K` : `$${k.toFixed(1)}K`;
+      return Number.isInteger(k) ? `${simboloMoneda()}${k}K` : `${simboloMoneda()}${k.toFixed(1)}K`;
     }
-    return `$${Math.round(val)}`;
+    return `${simboloMoneda()}${Math.round(val)}`;
   };
-  const fmtM = (val) => `$${val.toFixed(2)}M`;
+  const fmtM = (val) => `${simboloMoneda()}${val.toFixed(2)}M`;
 
   // ── Cross-lookup a erosion instances (si triggered) para enriquecer
   //    carga_pct + recuperable por cliente. NO inventa: usa data del scan.
@@ -228,7 +229,7 @@ export function composeQualityGrowthDeteriorationResponse(m, scan, scenarioId) {
     : `${Math.min(...margenes).toFixed(1)}% y ${Math.max(...margenes).toFixed(1)}%`;
   const benchmark = top_instance.benchmark_pct || POLICY.benchmark;
   const totalRecuperable = m.aggregate.contribucion_perdida_M;
-  const totalRecuperableStr = `$${Math.round(totalRecuperable * 1000)}K`;
+  const totalRecuperableStr = `${simboloMoneda()}${Math.round(totalRecuperable * 1000)}K`;
 
   const cuentasWord = top.length === 1 ? "cuenta crece" : "cuentas crecen";
 
@@ -252,7 +253,7 @@ export function composeQualityGrowthDeteriorationResponse(m, scan, scenarioId) {
   } else {
     // Sin datos de carga · foco basado en materialidad y deterioro de margen
     const contribPerdida = top_instance.contribucion_perdida_M;
-    const contribPerdidaStr = `$${Math.round(contribPerdida * 1000)}K`;
+    const contribPerdidaStr = `${simboloMoneda()}${Math.round(contribPerdida * 1000)}K`;
     focoText = `Mecanismo disponible: ${top_instance.clientName} concentra mayor materialidad (${fmtM(lider_contribAbs)} de contribución) y mayor gap vs benchmark (${top_instance.gap_margen_pp}pp) · cuantifica zona donde el cierre de gap recuperaría aproximadamente ${contribPerdidaStr} anuales.`;
   }
 
@@ -533,7 +534,7 @@ export function composeMechanismScan(scenarioId) {
       const crec_min = m.aggregate.crecimiento_range.min;
       const crec_max = m.aggregate.crecimiento_range.max;
       const contrib_perdida = m.aggregate.contribucion_perdida_M;
-      const contrib_perdida_str = `aproximadamente $${Math.round(contrib_perdida * 1000)}K`;
+      const contrib_perdida_str = `aproximadamente ${simboloMoneda()}${Math.round(contrib_perdida * 1000)}K`;
 
       // BRIEF #15-bis · FIX 2 y 3 · idem composeQualityGrowthDeteriorationResponse
       const cuentasWord_s = m.instances.length === 1 ? "cuenta" : "cuentas";

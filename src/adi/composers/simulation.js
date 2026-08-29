@@ -10,6 +10,7 @@ import { detectClientInText, detectSkuInText } from "../detectors.js";
 import { cuentasMasGrandes, filterTextualSuggestions, normalizeText } from "../helpers.js";
 import { deriveBusinessThesis, scanMechanisms } from "./thesis.js";
 import { buildNarrativeSignalsForExecutiveAction } from "./executiveAction.js";
+import { simboloMoneda } from "../../config/moneda.js";
 
 /* ── LOS EJEMPLOS DE LAS PREGUNTAS DE PRECISIÓN · DEL DATO, NO DEL DEMO (2026-08-21) ─────────────────────────
  * Estas preguntas SALEN A PANTALLA: son lo que ADI responde cuando le falta el alcance de una simulación. Traían
@@ -197,7 +198,7 @@ export function composeSimulationDelta(simState, scenarioId) {
       _paso5 = ` Lo siguiente que miraría: cuánto sube la exposición a ${_foco} y si conviene diversificar antes de que el riesgo se concentre más.`;
     }
     // BRIEF FORMATO · bloques (\n\n entre movimientos · wording VERBATIM · solo cambia el separador " "→"\n\n")
-    const _lossB1 = `Perder ${cuenta} te costaría aproximadamente $${costo}K de contribución${depFrase}.`;
+    const _lossB1 = `Perder ${cuenta} te costaría aproximadamente ${simboloMoneda()}${costo}K de contribución${depFrase}.`;
     return [_lossB1, tShift.replace(/^ +/, ""), _paso5.replace(/^ +/, "")].filter(Boolean).join("\n\n");
   }
 
@@ -212,7 +213,7 @@ export function composeSimulationDelta(simState, scenarioId) {
 
   // MAGNITUD · la cifra de la simulación · descendente
   const signo = deltaUSD >= 0 ? "Recuperarías" : "Perderías";
-  const magnitud = `${signo} aproximadamente $${Math.abs(deltaUSD)}K de contribución — el margen pasa de ${pctActual}% a ${pctSim}% en ${cuentasTxt}.`;
+  const magnitud = `${signo} aproximadamente ${simboloMoneda()}${Math.abs(deltaUSD)}K de contribución — el margen pasa de ${pctActual}% a ${pctSim}% en ${cuentasTxt}.`;
 
   if (significancia === "ALTA") {
     // liderar con el cambio de prioridad (no canónico · forma base · se sella en vivo cuando aparezca)
@@ -328,7 +329,7 @@ export function composeGrowthProjection(payload, scenarioId) {
   const deltaAporte = Math.round(contribActual * pct / 100) * signo;
   const contribProy = contribActual + deltaAporte;
 
-  const fmt = (v) => "$" + Math.round(v).toLocaleString() + "K";   // formato del dive (Corte 1)
+  const fmt = (v) => simboloMoneda() + Math.round(v).toLocaleString() + "K";   // formato del dive (Corte 1)
   const deltaAbs = Math.abs(deltaAporte);
   const verbo = signo < 0 ? "cae" : "crece";
   const dirVerbo = signo < 0 ? "baja" : "sube";
@@ -450,7 +451,7 @@ export function composePriceLever(payload, scenarioId) {
   const ventaProy   = Math.round(ventaActual * (1 + signo * pct / 100));
   const margenProy  = ventaProy > 0 ? Math.round((contribProy / ventaProy) * 1000) / 10 : 0;
 
-  const fmt = (v) => "$" + Math.round(v).toLocaleString() + "K";            // formato del dive (Corte 1)
+  const fmt = (v) => simboloMoneda() + Math.round(v).toLocaleString() + "K";            // formato del dive (Corte 1)
   const deltaAbs = Math.abs(deltaAporte);
   const verbo    = signo < 0 ? "bajás" : "subís";
   const dirVerbo = signo < 0 ? "baja"  : "sube";

@@ -12,6 +12,7 @@ import { detectAllBrandsInText, detectAllFamiliesInText, detectAllClientsInText,
 import { detectSkuInText } from "../detectors.js";
 import { ADI_QI_FILTER_ENABLED } from "../../config/voiceFlags.js";
 import { isAvailable } from "../core/availabilityMap.js";   // Fase 2.5 · disponibilidad per-métrica de inventario
+import { simboloMoneda } from "../../config/moneda.js";
 
 const EXECUTIVE_KEYWORDS_RAW = [
   "problema", "foco", "causa", "por que", "porque", "que pasa", "riesgo",
@@ -863,11 +864,11 @@ export function composeRetrieval(qi, scenario, opts) {
 
   // Resolver metrics (fields del row)
   const metricMap = {
-    ventas:        { field: "venta",         label: "Ventas",        formatter: (v) => "$" + Math.round(v / 100) / 10 + "M" },
+    ventas:        { field: "venta",         label: "Ventas",        formatter: (v) => simboloMoneda() + Math.round(v / 100) / 10 + "M" },
     margen:        { field: "margen",        label: "Margen",        formatter: (v) => v.toFixed(1) + "%" },
-    contribucion:  { field: "contribucion",  label: "Contribución",  formatter: (v) => "$" + Math.round(v / 100) / 10 + "M" },
+    contribucion:  { field: "contribucion",  label: "Contribución",  formatter: (v) => simboloMoneda() + Math.round(v / 100) / 10 + "M" },
     carga:         { field: "pctRebate",     label: "Carga Comercial", formatter: (v) => v.toFixed(1) + "%" },
-    aporte:        { field: "contribucion",  label: "Aporte",        formatter: (v) => "$" + Math.round(v / 100) / 10 + "M" },
+    aporte:        { field: "contribucion",  label: "Aporte",        formatter: (v) => simboloMoneda() + Math.round(v / 100) / 10 + "M" },
     // la CLAVE sigue siendo "rentabilidad" (es vocabulario de ENTRADA: el usuario pregunta así y hay que
     // entenderlo). La ETIQUETA de salida dice "Margen", que es lo que el campo realmente contiene: mostrar una
     // columna "Rentabilidad" con el margen adentro afirma un nivel financiero que el dato no sostiene — la
@@ -878,7 +879,7 @@ export function composeRetrieval(qi, scenario, opts) {
     // Fase 2.5c-1 · CAPITAL (stock en valor) MODELADA · campo stockUSD (inventario) · key `capital` (NO el "stock"
     // comercial de arriba). Sólo lo alcanza el resolver (swap qi.metrics) · "capital" NO está en QI_METRIC_VOCAB →
     // cero impacto en el camino comercial/OFF. Con el flag OFF, rows=skusMargen (sin stockUSD) → field-check null → legacy.
-    capital:       { field: "stockUSD",      label: "Capital",       formatter: (v) => "$" + (v / 1000).toFixed(1) + "K" },
+    capital:       { field: "stockUSD",      label: "Capital",       formatter: (v) => simboloMoneda() + (v / 1000).toFixed(1) + "K" },
     // Fase 2.5b · DOH/cobertura MODELADA · el key del QI_VOCAB es "cobertura" (cubre doh) · campo `doh` (canónico ·
     // single source; el campo cobertura es un duplicado redondeado). Con el flag OFF, rows=skusMargen (sin campo doh)
     // → el field-check da null → legacy byte-exacto.

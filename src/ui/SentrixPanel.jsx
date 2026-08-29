@@ -46,6 +46,7 @@ import { useViewContext, useVistaContext } from "./useViewContext.js";
 import { parseAddress, resolveAddress, legacyAddressFrom } from "../adi/sentrix/address.js";
 import { ADI_PROFILE } from "../config/flagProfile.js";   // perfil activo · sub-paths incompletos (placeholder Control · fecha por-entidad EJEMPLO) SOLO en dev
 import { TOOLS } from "../adi/oracle/toolRegistry.js";   // FICHA EJECUTIVA (owner 2026-08-07): misma boleta/políticas que ADI — entityProfile/entityComposicion/entityCapitalLigado/trend, funciones puras sin LLM, cero cálculo paralelo en React
+import { simboloMoneda } from "../config/moneda.js";
 const _isDev = ADI_PROFILE === "dev";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
@@ -116,10 +117,10 @@ function Legend({ color, label, v }) {
     </div>
   );
 }
-const fmtK = (n) => "$" + Math.round(n || 0) + "K";
+const fmtK = (n) => simboloMoneda() + Math.round(n || 0) + "K";
 // formato $ para gráficos. El dato viene en $K → se muestra en $M (÷1000), como las tarjetas KPI
 // (100000→$100.0M · 92900→$92.9M · 6800→$6.8M · -600→−$0.6M). Misma fuente de verdad que el header.
-const fMon = (n) => { const s = (Number(n) || 0) < 0 ? "−" : "", v = Math.abs(Number(n) || 0) / 1000; return s + "$" + v.toFixed(1) + "M"; };
+const fMon = (n) => { const s = (Number(n) || 0) < 0 ? "−" : "", v = Math.abs(Number(n) || 0) / 1000; return s + simboloMoneda() + v.toFixed(1) + "M"; };
 const r1 = (n) => Math.round(n * 10) / 10;
 // % SIEMPRE con 1 decimal (owner: "que queden parejos en la visual") → redondea como r1 pero fuerza el cero final.
 // NO reemplaza a r1 (que también formatea 'x' de rotación, que no lleva decimal fijo). Devuelve string.
@@ -310,7 +311,7 @@ function CapitalEvidence({ rd }) {
       </div>
       {rd.ranking.map((r, i) => {
         const dot = r.alerta === "crit" ? C.red : r.alerta === "warn" ? C.amber : C.textMuted;
-        const cap = "$" + (Math.abs(r.capital) >= 1000 ? (r.capital/1000).toFixed(1)+"K" : Math.round(r.capital));
+        const cap = simboloMoneda() + (Math.abs(r.capital) >= 1000 ? (r.capital/1000).toFixed(1)+"K" : Math.round(r.capital));
         return (
           <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr auto auto", gap:"0 16px", alignItems:"center", padding:"6px 0", borderBottom: i < rd.ranking.length-1 ? `1px solid rgba(255,255,255,0.03)` : "none" }}>
             <span style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
@@ -734,7 +735,7 @@ const _DIAG_ASK = {
 function DiagnosePanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
   const foci = (evidence && evidence.findings) || [];
   const nm = _named(evidence);   // espejo (B.1): lo que ADI nombró con cifra propia
-  const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
+  const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
@@ -1216,7 +1217,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
   // vez o la pantalla dice una cosa distinta según haya evidencia o no. Registro: «inmovilizado», no «detenido».
   const titleParts = String(inv.title || "Capital inmovilizado · dónde está inmovilizado tu capital").split(" · ");
   const isStale = inv.focus === "stale";
-  const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
+  const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
   const maxB = Math.max(1, ...byBodega.map((b) => b.usd));
   const head = { fontFamily:MONO, fontSize:11.5, letterSpacing:"0.5px", color:C.text, textTransform:"uppercase" };
   const nm = _named(evidence);   // espejo: lo que ADI nombró
@@ -2004,7 +2005,7 @@ function ResumenEvolutivo({ ev, R = null, onAsk }) {
             {grid.map((g, i) => (
               <g key={i}>
                 <line x1={padL} x2={W - padR} y1={yAt(g)} y2={yAt(g)} stroke="rgba(255,255,255,0.14)" strokeWidth="1"/>
-                <text x={padL - 6} y={yAt(g) + 3} textAnchor="end" fontFamily={MONO} fontSize="11" fill={C.textMuted}>{`$${(g / 1000).toFixed(1)}M`}</text>
+                <text x={padL - 6} y={yAt(g) + 3} textAnchor="end" fontFamily={MONO} fontSize="11" fill={C.textMuted}>{`${simboloMoneda()}${(g / 1000).toFixed(1)}M`}</text>
               </g>
             ))}
             {vivas.map((s) => {
@@ -2528,7 +2529,7 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
       {num ? <span style={{ color: C.celeste, opacity: 0.85 }}>{num}</span> : null}{title}<InfoDot def={def} align="left"/>
     </div>
   );
-  const usdK = (vK) => { const v = vK * 1000, a = Math.abs(v), s = v < 0 ? "-" : ""; return a >= 1e6 ? `${s}$${(a / 1e6).toFixed(1)}M` : a >= 1e3 ? `${s}$${Math.round(a / 1e3)}K` : `${s}$${Math.round(a)}`; };
+  const usdK = (vK) => { const v = vK * 1000, a = Math.abs(v), s = v < 0 ? "-" : ""; return a >= 1e6 ? `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M` : a >= 1e3 ? `${s}${simboloMoneda()}${Math.round(a / 1e3)}K` : `${s}${simboloMoneda()}${Math.round(a)}`; };
   // ── EMPTY STATE · sin P&L declarado — honesto + la puerta al flujo guiado ──
   if (!mr.defined) {
     return (
@@ -3308,8 +3309,8 @@ function CuadroCapital({ scenario, onAsk = null, watch = null, onWatch = null })
   const [sortKey, setSortKey] = useState("capital");
   const cc = buildCuadroCapital(eje, scenario);
   const cols = cc.columns;
-  const moneyk = (v) => "$" + (Math.abs(v) / 1000).toFixed(1) + "K";
-  const usd = (v) => { const a = Math.abs(v); return a >= 1e6 ? "$" + (a / 1e6).toFixed(1) + "M" : a >= 1e3 ? "$" + Math.round(a / 1e3) + "K" : "$" + Math.round(a); };
+  const moneyk = (v) => simboloMoneda() + (Math.abs(v) / 1000).toFixed(1) + "K";
+  const usd = (v) => { const a = Math.abs(v); return a >= 1e6 ? simboloMoneda() + (a / 1e6).toFixed(1) + "M" : a >= 1e3 ? simboloMoneda() + Math.round(a / 1e3) + "K" : simboloMoneda() + Math.round(a); };
   const fmt = (col, v) => {
     if (v == null) return "—";
     if (col.fmt === "moneyk") return moneyk(v);
@@ -3749,7 +3750,7 @@ function DecisionPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
   useViewContext("comercial/03/decision-accion", espec, { scenario: evidence.periodo, onAsk, ambient: true });
   // $ crudo (subtotal_usd de un finding de diagnose, cuando `factors` trae ESE shape en vez del mesa.accion-shape
   // ya formateado) · mismo patrón que ControlRing/EvidenciaRecibo para bodega (raw USD, no $K).
-  const moneyUSD = (v) => (Math.abs(v) >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1e3 ? "$" + (v / 1e3).toFixed(1) + "K" : "$" + Math.round(v));
+  const moneyUSD = (v) => (Math.abs(v) >= 1e6 ? simboloMoneda() + (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1e3 ? simboloMoneda() + (v / 1e3).toFixed(1) + "K" : simboloMoneda() + Math.round(v));
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
@@ -3821,7 +3822,7 @@ function EvidenciaRecibo({ receipt: r }) {
   const pctColor  = { base: C.textMuted, costo: C.red, carga: C.amber, margen: C.textSub };
   // unidad de la plata: cliente en $K · bodega en $ (stockUSD) → mismo formateo por-tipo que el ring (no errar ×1000).
   const money = r.entityType === "bodega"
-    ? (v) => (Math.abs(v) >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1000 ? "$" + (v / 1000).toFixed(1) + "K" : "$" + Math.round(v))
+    ? (v) => (Math.abs(v) >= 1e6 ? simboloMoneda() + (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1000 ? simboloMoneda() + (v / 1000).toFixed(1) + "K" : simboloMoneda() + Math.round(v))
     : (v) => fMon(v);
   const formula = r.entityType === "bodega" ? "capital = sano + inmovilizado" : "venta − costo − carga = margen";
   return (
@@ -3949,7 +3950,7 @@ function ControlRing({ ring, rd }) {
   // de skusMargen · magnitude-aware) → formateo distinto para no errar ×1000 (B4 · SKU y marca son raw $ como bodega).
   const money = ring.entityType === "client"
     ? (v) => (Math.abs(v) >= 1000 ? fMon(v) : fmtK(v))
-    : (v) => (Math.abs(v) >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1000 ? "$" + (v / 1000).toFixed(1) + "K" : "$" + Math.round(v));
+    : (v) => (Math.abs(v) >= 1e6 ? simboloMoneda() + (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1000 ? simboloMoneda() + (v / 1000).toFixed(1) + "K" : simboloMoneda() + Math.round(v));
   const roleTag = { focus:{ t:"Foco", c:C.celeste }, peer:{ t:"Par", c:C.textMuted }, avg:{ t:"Promedio", c:C.textMuted }, best:{ t:"Mejor", c:C.green } };
   const cellVal = (r, col) => {
     if (col.key === "gap")   return r.role === "avg" ? "—" : (r.gap >= 0 ? "+" : "") + p1(r.gap) + "pp";
@@ -4080,9 +4081,9 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
   const primary = cols.find((c) => c.key !== "accion") || cols[0];
   // si el overview trae una métrica que ES una columna (ej. "margen por cliente" → columna margen), abrimos ordenando por ahí.
   const [sortKey, setSortKey] = useState(initialSort && cols.some((c) => c.key === initialSort) ? initialSort : primary.key);
-  const money = (v) => "$" + (v / 1000).toFixed(1) + "M";       // dato en $K → $M (columnas comerciales)
-  const moneyk = (v) => "$" + (Math.abs(v) / 1000).toFixed(1) + "K";   // dato en $ → $K (inventario)
-  const usd = (v) => { const a = Math.abs(v); return a >= 1e6 ? "$" + (a / 1e6).toFixed(1) + "M" : a >= 1e3 ? "$" + Math.round(a / 1e3) + "K" : "$" + Math.round(a); };   // $ crudo del detector (En juego $)
+  const money = (v) => simboloMoneda() + (v / 1000).toFixed(1) + "M";       // dato en $K → $M (columnas comerciales)
+  const moneyk = (v) => simboloMoneda() + (Math.abs(v) / 1000).toFixed(1) + "K";   // dato en $ → $K (inventario)
+  const usd = (v) => { const a = Math.abs(v); return a >= 1e6 ? simboloMoneda() + (a / 1e6).toFixed(1) + "M" : a >= 1e3 ? simboloMoneda() + Math.round(a / 1e3) + "K" : simboloMoneda() + Math.round(a); };   // $ crudo del detector (En juego $)
   const fmt = (col, v) => {
     if (v == null) return "—";
     if (col.fmt === "money")  return money(v);
@@ -4574,7 +4575,7 @@ function StationCompareFilm({ cmp }) {
   const x = (i) => padL + i * (W - padL - padR) / Math.max(1, n - 1);
   const y = (v) => padT + (1 - (v - lo) / rng) * (H - padT - padB);
   const dOf = (s) => s.map((v, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(v)}`).join(" ");
-  const fmV = (v) => Math.abs(v) >= 1000 ? "$" + (v / 1000).toFixed(1) + "M" : "$" + Math.round(v) + "K";
+  const fmV = (v) => Math.abs(v) >= 1000 ? simboloMoneda() + (v / 1000).toFixed(1) + "M" : simboloMoneda() + Math.round(v) + "K";
   const tipW = 128, tipH = 38;
   const tipX = hov == null ? 0 : Math.max(padL, Math.min(W - padR - tipW, x(hov) - tipW / 2));
   const tipY = hov == null ? 0 : (Math.min(y(A.serie[hov]), y(B.serie[hov])) < tipH + 16 ? H - padB - tipH - 2 : padT - 4);
@@ -4663,7 +4664,7 @@ function StationPeriodo({ a, b }) {
   const y = (v) => padT + (1 - (v - lo) / rng) * (H - padT - padB);
   const d = serie.map((v, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(v)}`).join(" ");
   const iMax = serie.indexOf(hi), iMin = serie.indexOf(lo);
-  const fmV = (v) => "$" + (v / 1000).toFixed(1) + "M";
+  const fmV = (v) => simboloMoneda() + (v / 1000).toFixed(1) + "M";
   // lectura del período: mayor alza / mayor caída CON SUS MESES, derivada de la serie MOSTRADA (12 o 24) — cierra con la curva
   let gDrop = { delta: 0, i: 0 }, gRise = { delta: 0, i: 0 };
   for (let i = 1; i < serie.length; i++) {
@@ -4769,7 +4770,7 @@ const _PARETO_NEG_Q = {
 const _btnADI = (onClick, label) => (
   <button onClick={onClick} style={{ background:"transparent", border:"none", color:C.celeste, fontSize:14, fontWeight:600, cursor:"pointer", padding:0, fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>{label}</button>
 );
-const _fmDin = (v) => (Math.abs(v) >= 1000 ? "$" + (v / 1000).toFixed(1) + "M" : "$" + Math.round(v) + "K");
+const _fmDin = (v) => (Math.abs(v) >= 1000 ? simboloMoneda() + (v / 1000).toFixed(1) + "M" : simboloMoneda() + Math.round(v) + "K");
 
 function MesaPareto({ dim, scenario, sel = null, onAsk = null }) {
   const [met, setMet] = useState("ventas");
@@ -4855,7 +4856,7 @@ function MesaPareto({ dim, scenario, sel = null, onAsk = null }) {
       </div>
       <MiniPareto showTakeaway={false} showCum={false} onPick={onAsk ? (nombre) => onAsk(`Profundiza en ${nombre}`) : null}
         panel={{ totalPct: con.blockPct, cutoff: Math.min(con.blockCount, bars.length), of: con.n,
-          rows: bars.map((b) => ({ nombre: b.name, part: +b.pct.toFixed(1), acum: +b.cumPct.toFixed(1), sub: "$" + (b.value / 1000).toFixed(1) + "M" })) }}/>
+          rows: bars.map((b) => ({ nombre: b.name, part: +b.pct.toFixed(1), acum: +b.cumPct.toFixed(1), sub: simboloMoneda() + (b.value / 1000).toFixed(1) + "M" })) }}/>
       {modo === "posicion" && entBar && (
         <div style={{ fontSize:14, color:C.textSub, marginTop:4 }}>
           {entBar.inBlock !== false && idxEnt < con.blockCount
@@ -5094,7 +5095,7 @@ const _dot = <span style={{ width: 5, height: 5, borderRadius: 3, background: C.
 // $ CRUDO (no $K-escalado) — capitalLigado.usd/subtotal vienen en dólares reales (stockUSD), NO en miles como
 // venta/contribución del cuadro comercial: _fmDin de arriba asume input en $K y aquí duplicaría ×1000. Mismo
 // criterio que el formatter local `usd()` de CuadroMando, factoreado para reusar acá.
-const _fmUsd = (v) => { const a = Math.abs(v); return a >= 1e6 ? "$" + (a / 1e6).toFixed(1) + "M" : a >= 1e3 ? "$" + Math.round(a / 1e3) + "K" : "$" + Math.round(a); };
+const _fmUsd = (v) => { const a = Math.abs(v); return a >= 1e6 ? simboloMoneda() + (a / 1e6).toFixed(1) + "M" : a >= 1e3 ? simboloMoneda() + Math.round(a / 1e3) + "K" : simboloMoneda() + Math.round(a); };
 
 function _KPI({ label, value, sub, tone, def }) {
   if (value == null) return null;
@@ -5467,8 +5468,8 @@ function MesaFicha({ name, row, columns, allRows, dim, dimLabel, onAsk }) {
 
 // (los keyframes adi* los inyecta el import de InlineChart.jsx — set completo, una sola fuente)
 function MesaPerfil({ name, row, columns = null, allRows = [], dim = "cliente", onAsk }) {
-  const fm = (v) => "$" + (v / 1000).toFixed(1) + "M";
-  const fmk = (v) => "$" + (Math.abs(v) / 1000).toFixed(1) + "K";
+  const fm = (v) => simboloMoneda() + (v / 1000).toFixed(1) + "M";
+  const fmk = (v) => simboloMoneda() + (Math.abs(v) / 1000).toFixed(1) + "K";
   const fp = (v) => p1(v) + "%";
   const fmtOf = { money: fm, moneyk: fmk, pct: fp, x: (v) => r1(v) + "x", int: (v) => Math.round(v).toLocaleString("es-CL"), pp: (v) => p1(v) + "pp" };
   if (!row) return null;

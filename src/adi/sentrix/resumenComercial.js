@@ -470,7 +470,12 @@ function _cartera(scenario, rows, total) {
     // esas dos referencias y qué significa el color. El rigor no se pierde por no proclamarlo: vive en los gates.
     // La diferencia entre dato cerrado y plan declarado NO se recorta: es lo que separa una medición de una
     // intención, y sin eso las dos columnas se leerían como si valieran lo mismo.
-    nota: `Venta oficial por cliente (${_M(tV * 1000)}). El año anterior es dato cerrado (${_M(sAnt * 1000)}); el presupuesto, el plan que declaraste (${_M(sPpto * 1000)}). Verde arriba de la referencia, rojo abajo.`,
+    /* ⚠️ Y ACÁ TAMBIÉN: sin presupuesto declarado, `_M(0)` escribía «el plan que declaraste (€0.0M)» — una
+     * frase que le atribuye al usuario un plan de no vender. La nota se parte según lo que el dato sostiene,
+     * en vez de completar el hueco con un cero. */
+    nota: sPpto > 0
+      ? `Venta oficial por cliente (${_M(tV * 1000)}). El año anterior es dato cerrado (${_M(sAnt * 1000)}); el presupuesto, el plan que declaraste (${_M(sPpto * 1000)}). Verde arriba de la referencia, rojo abajo.`
+      : `Venta oficial por cliente (${_M(tV * 1000)}). El año anterior es dato cerrado (${_M(sAnt * 1000)}); ${etiquetaSinDeclarar("presupuesto")}, así que esa columna no compara contra nada. Verde arriba de la referencia, rojo abajo.`,
     // EN PANTALLA ANGOSTA no caben las siete: siete columnas en 360px obligan a scrollear en horizontal y las dos
     // que dan sentido al bloque —los gaps— quedan fuera del primer vistazo. Se apartan participación y
     // contribución, que son las dos que menos aportan a "cómo viene el negocio", y la vista lo DECLARA en vez de

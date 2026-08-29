@@ -6,12 +6,13 @@ import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { buildResponseContract, filterTextualSuggestions } from "../helpers.js";
 import { _buildEntityId } from "../router.js";
 import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
+import { simboloMoneda } from "../../config/moneda.js";
 
 export function composeClientContributionRanking(scenarioId) {
   // ── 1. Helpers formato
   const fmtM = (val) => {
     if (val == null || isNaN(val)) return "$0M";
-    return `$${(val / 1000).toFixed(2)}M`;
+    return `${simboloMoneda()}${(val / 1000).toFixed(2)}M`;
   };
 
   // ── 2. Ranking runtime sobre clientesMargen · SCENARIO-AWARE (fix GAP 2): antes leía SIEMPRE la base cruda → en
