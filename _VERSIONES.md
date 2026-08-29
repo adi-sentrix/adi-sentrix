@@ -12,6 +12,47 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.4 — producción · tag `v2.4`
+
+**Ya se le puede entregar su código a un cliente.** Hasta esta versión no se podía: todo el que entrara,
+entraba al negocio de demostración.
+
+**El defecto, y por qué no se veía.** La vía 1 hizo que la empresa viajara **firmada adentro del código de
+acceso**. La vía 3 le dio a cada empresa su pack en Supabase. Las dos funcionaban y estaban probadas — y las
+dos eran **inalcanzables desde el producto**, porque el servidor emitía con `makeAccessCode(name, hours,
+secret)`: sin empresa. La capacidad multiempresa estaba entera y no había forma de usarla.
+
+No rompía nada. Emitías un código y funcionaba: abría el demo. Por eso sobrevivió a la vía 1, a la vía 3 y a
+dos despliegues.
+
+⚠️ **Y EL PRODUCTO INVITABA AL ERROR.** El único campo del formulario se llamaba «Para quién (nombre o
+empresa)». El owner emitió dos códigos «para prueba» escribiendo el nombre de la compañía ahí —que es lo que
+el rótulo pedía— y los dos abrieron el demo. El error era del rótulo, no suyo. Ahora el nombre es el nombre y
+la empresa tiene su propio campo, con su explicación: es el identificador, no el nombre comercial, y viaja
+firmado.
+
+**Qué cambia**
+
+- `#admin` tiene campo **Empresa**, con el aviso de que en blanco significa demo.
+- El servidor pasa esa empresa a la firma, después de limpiarla: un identificador inválido cae a demo en vez
+  de producir un código que nadie puede usar.
+- **Compatibilidad intacta**: un código sin empresa queda **byte-idéntico** al histórico —el campo no se
+  escribe cuando es demo— así que todo lo ya repartido sigue valiendo y sigue abriendo el demo.
+
+**Candado nuevo · `_emision_por_empresa_gate` (24).** Su sección 4 es la que habría cazado esto: todo lo demás
+ya funcionaba antes —`makeAccessCode` SIEMPRE supo firmar la empresa—, lo que faltaba era que alguien se la
+pasara. Un candado que solo probara la primitiva habría estado verde durante todo el tiempo que el producto
+fue incapaz de emitir un código real. La carnada reproduce la llamada vieja y comprueba que el código abre
+demo aunque el nombre diga otra cosa.
+
+Tres de sus chequeos nacieron rojos por errores míos y quedan anotados: un nombre con acento que fallaba por
+codificación del propio archivo, una expresión regular que no admitía un argumento con paréntesis, y una
+carnada que golpeaba la línea del `import` en vez de la llamada.
+
+**188 PASS · 0 FAIL · 0 TOCARON LA RED · 0 CON CREDENCIAL VIVA.**
+
+---
+
 ## 2.3 — producción · tag `v2.3`
 
 **ADI deja de suponer en qué moneda está tu dinero, y de qué período habla.** Los dos supuestos venían del

@@ -17,7 +17,7 @@ import { resolverModelos } from "./modelDefaults.js";   // el default de modelo 
 import { chooseModel } from "./modelRouter.js";
 import { estimateCostUSD, resolvePricingKey } from "./modelPricing.js";   // el precio se resuelve por FAMILIA (owner 2026-08-11)
 import { emit as emitTelemetria, desdeRespuesta, nuevoTraceId, aReasonCode } from "./telemetry.js";   // observación pura (owner 2026-08-10)
-import { verifyAccessCode, makeAccessCode, makeMintGrant, verifyMintGrant, constantTimeEqual as verifyEq } from "./accessToken.js";
+import { verifyAccessCode, makeAccessCode, makeMintGrant, verifyMintGrant, constantTimeEqual as verifyEq, tenantLimpio } from "./accessToken.js";
 // ARQUITECTURA C (Fase 3 · detrás del flag ADI_ORACLE_ENABLED) · las DOS pasadas del oráculo verificado.
 import { ADI_PERSONA, ADI_PERSONA_PLAN, renderInteractionMemory } from "../oracle/persona.js";
 import { buildPlanSystem, buildPlanSystemSegments, buildPlanUserMessage, PLAN_TOOL } from "../oracle/planPrompt.js";
@@ -143,8 +143,19 @@ export async function handleAccess(body = {}, env) {
     // explícita con la MISMA clave admin): hasta 1 año, para no re-emitir su propio acceso cada 3 días (owner 2026-07-10).
     const cap = body.owner === true ? 24 * 366 : 24 * 30;
     const hours = Math.min(Math.max(Number(body.hours) || 72, 1), cap);
-    const { code, expiresAt } = await makeAccessCode(name, hours, secret);
-    return { ok: true, code, expiresAt, name };
+    /* ⚠️ LA EMPRESA, QUE FALTABA (owner 2026-08-29). Esta llamada era `makeAccessCode(name, hours, secret)`: sin
+     * empresa, y por lo tanto TODO código emitido entraba al demo. La vía 1 hizo que la empresa viajara firmada
+     * adentro del código y la vía 3 le dio a cada una su pack en Supabase — las dos funcionando, y las dos
+     * inalcanzables desde el producto, porque no había forma de entregarle su código a un cliente. No bloqueaba
+     * una prueba: bloqueaba el primer cliente real.
+     *
+     * COMPATIBILIDAD: `makeAccessCode` omite el campo cuando la empresa es «demo» o no viene, así que el payload
+     * queda BYTE-IDÉNTICO al histórico y todos los códigos ya emitidos siguen valiendo. `tenantLimpio` descarta
+     * lo que no sea un id válido en vez de firmarlo: un id raro firmado es un código que nadie puede usar y que
+     * cuesta un rato entender. */
+    const tenant = tenantLimpio(body.tenant);
+    const { code, expiresAt } = await makeAccessCode(name, hours, secret, Date.now(), tenant);
+    return { ok: true, code, expiresAt, name, tenant: tenant || "demo" };
   }
   return { ok: false, error: "op desconocida" };
 }

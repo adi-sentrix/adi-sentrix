@@ -136,6 +136,7 @@ export function AdminAccess() {
   const [adminKey, setAdminKey] = useState(() => { try { return sessionStorage.getItem("adi_admin_key") || ""; } catch { return ""; } });
   const [name, setName] = useState("");
   const [days, setDays] = useState(String(DEMO_CONTACT.demoDays));
+  const [tenant, setTenant] = useState("");   // la empresa del código · en blanco = demo (compatibilidad)
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState(null);    // { code, name, expiresAt } | { error }
   const [hist, setHist] = useState([]);
@@ -184,7 +185,7 @@ export function AdminAccess() {
     try { sessionStorage.setItem("adi_admin_key", adminKey.trim()); } catch { /* opcional */ }
     try {
       const res = await fetch("/api/adi-access", { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ op: "mint", adminKey: adminKey.trim(), grant, name: name.trim(), hours: (Number(days) || DEMO_CONTACT.demoDays) * 24 }) });
+        body: JSON.stringify({ op: "mint", adminKey: adminKey.trim(), grant, name: name.trim(), tenant: tenant.trim(), hours: (Number(days) || DEMO_CONTACT.demoDays) * 24 }) });
       const d = await res.json();
       if (d && d.ok) { setOut(d); setHist((h) => [d, ...h].slice(0, 12)); setName(""); }
       else setOut({ error: (d && d.error) || "no se pudo emitir" });
@@ -250,9 +251,22 @@ export function AdminAccess() {
           </div>
         )}
 
+        {/* ⚠️ LA ETIQUETA DECÍA «nombre o empresa» Y NO EMITÍA NINGUNA EMPRESA. Ese rótulo invitaba a escribir
+            ahí el nombre de la compañía creyendo que servía para algo: el owner emitió dos códigos «para
+            prueba» y los dos entraban al demo, porque la empresa nunca salía de este campo. Ahora el nombre es
+            el nombre, y la empresa tiene el suyo. */}
         <div style={{ display:"flex", gap:10 }}>
-          <div style={{ flex:1 }}><label style={lbl}>Para quién (nombre o empresa)</label><input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && emitir()} style={inp} placeholder="Juan · Empresa X"/></div>
+          <div style={{ flex:1 }}><label style={lbl}>Para quién</label><input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && emitir()} style={inp} placeholder="Juan Pérez"/></div>
           <div style={{ width:86 }}><label style={lbl}>Días</label><input value={days} onChange={(e) => setDays(e.target.value.replace(/[^0-9]/g, ""))} style={inp}/></div>
+        </div>
+        <div>
+          <label style={lbl}>Empresa (en blanco = demo)</label>
+          <input value={tenant} onChange={(e) => setTenant(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+            onKeyDown={(e) => e.key === "Enter" && emitir()} style={inp} placeholder="prueba · acme"/>
+          <div style={{ fontSize:10.5, color:C.textMuted, marginTop:4, lineHeight:1.45 }}>
+            El identificador de la empresa, no su nombre comercial: minúsculas, sin espacios. Viaja FIRMADO
+            adentro del código, así que decide qué datos ve esa persona y no se puede cambiar desde el navegador.
+          </div>
         </div>
         <button onClick={emitir} disabled={busy || !grant || !adminKey.trim() || !name.trim()}
           style={{ padding:"10px 16px", borderRadius:9, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.12)", color:C.celeste, fontSize:13, fontWeight:600, cursor: grant ? "pointer" : "default", fontFamily:"'DM Sans', system-ui, sans-serif", opacity: grant && adminKey.trim() && name.trim() ? 1 : 0.55 }}>
