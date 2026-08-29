@@ -150,12 +150,12 @@ H("4 · LA CARA MUESTRA, NO CONCLUYE · y no calcula");
    * días vencidos»). Nació pegada al nombre del cliente, y ahí se leía como parte del nombre —«Lider 269
    * días»— en vez de como la cifra que es. Al lado del monto vencido dice si esa plata es de la semana pasada
    * o del año pasado, y esas son dos conversaciones distintas con el cliente. */
-  ok(cuerpo.includes("<th style={_th}>Días</th>"),
+  ok(cuerpo.includes("<th style={_th}>Días vencidos</th>"),
     "la antigüedad del vencido tiene su propia columna");
   const _celdaNombre = cuerpo.slice(cuerpo.indexOf("{f.nombre}") - 260, cuerpo.indexOf("{f.nombre}") + 60);
   ok(!/diasVencido/.test(_celdaNombre),
     "…y ya no cuelga del nombre del cliente, donde se leía como si fuera parte del nombre");
-  ok(/«Días» es hace cuánto venció la factura más vieja/.test(cuerpo),
+  ok(/«Días vencidos» es hace cuánto venció la factura más vieja/.test(cuerpo),
     "…y el pie explica qué mide, que no es un promedio");
   ok(/cara === "flujo" && _FLUJO_ON/.test(panel),
     "…y la rama que la pinta lo vuelve a exigir, no alcanza con la pestaña");

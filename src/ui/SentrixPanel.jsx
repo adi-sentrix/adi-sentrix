@@ -1467,7 +1467,7 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
           <thead><tr>
             <th style={{ ..._th, textAlign:"left" }}>Cliente</th>
             <th style={_th}>Venta</th><th style={_th}>Abonado</th><th style={_th}>Saldo</th>
-            <th style={_th}>Recuperado</th><th style={_th}>Vencido</th><th style={_th}>Días</th><th style={_th}>Plazo</th>
+            <th style={_th}>Recuperado</th><th style={_th}>Vencido</th><th style={_th}>Días vencidos</th><th style={_th}>Plazo</th>
           </tr></thead>
           <tbody>
             {F.filas.map((f) => (
@@ -1496,7 +1496,7 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
         </table>
       </div>
       <div style={{ fontSize:14, color:C.textMuted, marginTop:9 }}>
-        Ordenados por saldo vencido. «Días» es hace cuánto venció la factura más vieja que sigue sin pagarse —
+        Ordenados por saldo vencido. «Días vencidos» es hace cuánto venció la factura más vieja que sigue sin pagarse —
         no un promedio. «Plazo» son los días de crédito que le diste a cada uno.
       </div>
     </div>

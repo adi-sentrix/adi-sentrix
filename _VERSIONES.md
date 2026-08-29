@@ -12,6 +12,30 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.8 — producción · tag `v2.8`
+
+**La columna se llama «Días vencidos».** Se llamaba «Días» y obligaba a bajar al pie para saber qué medía. El
+rótulo ahora lo dice solo.
+
+**Y queda confirmado de dónde arranca el reloj**, porque el owner preguntó y vale dejarlo escrito: el plazo
+corre desde **la fecha de la venta que el usuario escribe en la planilla** —la única fecha que el producto
+tiene—, y una factura recién está vencida **cumplido el plazo**. Con 60 días de crédito, el día 60 todavía no
+está vencida y la columna marca «—»; el 61 marca «1d». Cero días vencidos significa que venció justo hoy, no
+que está atrasada.
+
+Verificado sobre la factura real que produce el número más grande del demo: **F-LID-001, emitida el 6 oct 2025,
+vencía el 5 dic 2025, y al corte del 31 ago 2026 van 269 días.** Desde la emisión serían 329 — no es lo que se
+muestra.
+
+**Se comprobó que el rótulo más largo no rompe la tabla.** Sospecha razonable: «Días vencidos» suma 58 px. A
+ancho real (1440) el contenedor mide 641 y la tabla 641: **entra sin scroll**. El desborde que apareció en la
+primera medición era el split de la Mesa quedándose desactualizado tras un cambio de tamaño programático —le
+pasa a todas las caras por igual y no lo introduce esta versión.
+
+Gates **189 PASS · 0 FAIL · 0 TOCARON LA RED**. La plantilla sigue sin tocarse.
+
+---
+
 ## 2.7 — producción · tag `v2.7`
 
 **La antigüedad del vencido pasa a ser una columna.** El owner lo vio mirando la tabla: «creo que le falta una
