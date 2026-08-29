@@ -27,10 +27,15 @@
  * El vocabulario y las reglas viven en config/contract/figureType.js (declaradas, con su evidencia medida); acá
  * sólo se aplican. Es el TIPO, no un guard por ratio: ninguna ruta puede emitir una cifra sin él.
  */
+import { simboloMoneda } from "../config/moneda.js";
 import { deriveFigureType } from "../config/contract/figureType.js";
 
-// formateador canónico · MISMA escala que specRetrieval._money (money en $ CRUDOS)
-const _moneyC = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
+/* formateador canónico · MISMA escala que specRetrieval._money (money en $ CRUDOS)
+ * ⚠️ EL SÍMBOLO ES EL DECLARADO, LA ESCALA NO SE TOCA. Este es el valor que la boleta guarda y que el texto
+ * tiene que repetir VERBATIM: si acá se escribiera de una forma y en la narración de otra, el notario dejaría
+ * de reconciliarlas y vetaría cifras correctas. Por eso cambia el símbolo y nada más — el redondeo, la
+ * abreviación y el signo quedan exactamente como estaban. */
+const _moneyC = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : "", $ = simboloMoneda(); if (a >= 1e6) return `${s}${$}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${$}${Math.round(a / 1e3)}K`; return `${s}${$}${Math.round(a)}`; };
 const _fmtC = (raw, unit) =>
   unit === "money" ? _moneyC(raw) :
   unit === "pct"   ? `${raw}%` :
@@ -125,7 +130,20 @@ export function parseFigures(text) {
   const push = (unit, raw, txt) => { if (Number.isFinite(raw)) out.push({ unit, raw, text: txt, canon: `${unit}:${_fmtC(raw, unit).replace(/\s/g, "")}` }); };
   const num = parseNumeroLocalizado;
   let m;
-  const reMoney = /(-?)\$\s?(\d[\d.,]*\d|\d)\s?([KMB])?/gi;   // -?$X · captura el signo → "-$6K" da raw negativo (canon consistente)
+  /* ⚠️ EL SÍMBOLO SALE DE LA MONEDA DECLARADA, PERO NUNCA ES OPCIONAL (owner 2026-08-27).
+   * Esto era `\$` a secas: con un negocio en euros, «€4.1M» no se extraía y por lo tanto NO SE VERIFICABA —
+   * una cifra inventada en esa moneda pasaba sin que nada se pusiera rojo. Ahora se acepta el símbolo del
+   * negocio además de «$».
+   *
+   * Y acá el símbolo NO puede volverse opcional, a diferencia de `guardC._reFor` —donde el nombre de la
+   * columna ya dijo que la cifra era dinero—. Esta función mira texto libre, sin contexto: un patrón sin
+   * símbolo convertiría en «monto» todo número suelto, incluidos los años, los conteos y los códigos. El
+   * remedio sería peor que la falla. Por eso la moneda se pregunta ANTES de activar: un pack activo siempre
+   * tiene símbolo con el que escribir, y por lo tanto con el que verificar. */
+  const _sim = simboloMoneda().trim();
+  const _sims = [...new Set([_sim, "$"].filter(Boolean))]
+    .map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).sort((a, b) => b.length - a.length);
+  const reMoney = new RegExp(`(-?)(?:${_sims.join("|")})\\s?(\\d[\\d.,]*\\d|\\d)\\s?([KMB])?`, "gi");   // captura el signo → "-$6K" da raw negativo
   while ((m = reMoney.exec(s))) { let v = num(m[2]); const u = (m[3] || "").toUpperCase(); if (u === "K") v *= 1e3; else if (u === "M") v *= 1e6; else if (u === "B") v *= 1e9; if (m[1] === "-") v = -v; push("money", v, m[0]); }
   const rePct = /(-?)(\d[\d.,]*\d|\d)\s?%/g;              // -?X% / X.Y% · captura el signo (mismo criterio que reMoney/rePP) → "-2%" canoniza "pct:-2%", igual que toolRegistry.js (simulateGeneral) para deltas negativos
   while ((m = rePct.exec(s))) { let v = num(m[2]); if (m[1] === "-") v = -v; push("pct", v, m[0]); }

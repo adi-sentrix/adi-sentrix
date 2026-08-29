@@ -11,6 +11,14 @@
  * CERO RED, CERO LLM: funciones puras de src/adi/boleta.js.
  */
 import { parseNumeroLocalizado, parseFigures, guardAgainstBoleta, fig } from "./src/adi/boleta.js";
+/* EL NEGOCIO SE DECLARA ACÁ (moneda · owner 2026-08-27). Este gate no cargaba ninguno porque no le hacía
+ * falta: la boleta formateaba con un «$» escrito a mano. Ahora el símbolo sale de la moneda que el negocio
+ * declara, así que sin negocio cargado la boleta escribe sin símbolo y deja de coincidir con el texto de
+ * prueba. Es la misma migración que forzó la vía 1 cuando el store dejó de traer un dataset por defecto:
+ * lo que antes se heredaba en silencio, ahora se declara. */
+import { initTenant as _initTenantGate } from "./src/data/tenantStore.js";
+import { TENANT_DEMO as _TENANT_DEMO_GATE } from "./src/data/tenants/demo.js";
+_initTenantGate(_TENANT_DEMO_GATE);
 
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log(`  OK  ${n}`); } else { fail++; console.log(`FAIL  ${n}${d ? " — " + d : ""}`); } };

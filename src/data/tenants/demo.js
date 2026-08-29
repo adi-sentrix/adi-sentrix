@@ -420,6 +420,18 @@ export const SCENARIO_TRANSFORMS = {
  * Llaves opcionales (lo no declarado cae al config): las de POLICY_CONFIG + `pnlLineas` (las líneas de gasto
  * default del rubro, % sobre la venta — el usuario las pisa declarando las suyas; el demo no trae). */
 export const PERFIL = {
+  /* LA MONEDA, DECLARADA (owner 2026-08-27). Antes no estaba, y no estaba porque el producto la suponía: todo
+   * escribía «$» a mano. Al hacer que el símbolo salga de lo declarado, un negocio sin moneda pasa a escribir
+   * sus montos SIN símbolo —que es lo correcto y lo que la orden pide— y este dataset se quedó sin él en todas
+   * partes. Lo cazaron 19 candados de una vez.
+   *
+   * Se declara CLP porque es lo que este negocio de ejemplo YA mostraba: «$» con formato chileno. No es una
+   * suposición nueva, es hacer explícito lo que estaba implícito — que es exactamente la diferencia entre
+   * declarar y asumir. Es dato ficticio: si el owner prefiere otra, se cambia acá y en una sola línea.
+   *
+   * ⚠️ Ojo con `skuInventario.stockUSD`: ese nombre habla de la ESCALA (dólares crudos contra la venta en
+   * miles), no de una moneda distinta. Son los dos universos que no reconcilian, y siguen sin reconciliar. */
+  moneda: "CLP",
   benchmark: 30.1,          // margen benchmark de cartera (%) · fallback por-fila (las filas del demo traen 30.1)
   bestPracticeCarga: 3.0,   // mejor práctica interna de carga comercial (%)
   targetCarga: 3.5,         // target operativo de carga comercial (%)

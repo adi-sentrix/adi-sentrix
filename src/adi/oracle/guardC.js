@@ -8,6 +8,7 @@
  *   +  MANDATORY-LITE — la brevedad ejecutiva de C omite subtotales; el guard NO exige citar todo (eso es del juez).
  * PURO · aditivo · NO toca boleta.js/numberGuard.js/entityGuard.js (guard vivo · Falcon). Reusa parseFigures.
  */
+import { patronMonto, numeroDelMonto } from "../../config/moneda.js";
 import { parseFigures } from "../boleta.js";
 import { buildClaims, cifrasDelUsuario } from "./narrationContract.js";   // Proporcionalidad Semántica: el guard lee el MISMO sello que el narrador · v1.2: y la MISMA definición de "cifra del usuario" que el renderer
 import { reconcilian, UNIVERSOS } from "../../config/contract/figureType.js";   // decisiones 1 y 11: el TIPO de la cifra y qué reconcilia con qué
@@ -1112,15 +1113,25 @@ const _ORDER_DIR_KEYWORD = /\bde\s+(?:mayor\s+a\s+menor|menor\s+a\s+mayor)\s+([a
 // "pp" (como marginRead's "descendente por Brecha") caía silenciosamente sin verificarse: ni _MONEY_RE ("$X") ni
 // _PCT_RE ("X%") matchean "8.6pp", así que `seq` quedaba vacía y el chequeo se saltaba entero (mismo camino que
 // "columna sellada ausente" — un falso negativo, no un falso positivo, pero deja el sello sin efecto real).
-const _MONEY_RE = /\$\s?[\d.,]+\s?[KMB]?/, _PCT_RE = /[\d.,]+\s?%/, _PP_RE = /[\d.,]+\s?pp\b/i;
+/* ⚠️ EL DINERO YA NO ES SIEMPRE «$» (owner 2026-08-27, autorizado a tocar el muro).
+ * Esto era `/\$\s?[\d.,]+\s?[KMB]?/`, un literal. Con un negocio en euros —o sin moneda declarada, que es
+ * cuando NO se escribe símbolo porque suponerlo está prohibido— el patrón no encontraba nada, `seq` quedaba
+ * vacía y el chequeo del orden sellado **se saltaba entero**. No se ponía rojo: se volvía ciego. Es el mismo
+ * falso negativo que el comentario de acá arriba ya describía para «pp», y por eso se cierra igual.
+ *
+ * La garantía no se relaja, se extiende: el símbolo pasa a ser el DECLARADO por el negocio (o ninguno), y `$`
+ * se sigue aceptando siempre. Que el símbolo sea opcional es seguro acá porque `_reFor` ya desvió antes los
+ * porcentajes y los «pp» a su propio patrón: en esta rama un número pelado solo puede ser el monto. */
+const _PCT_RE = /[\d.,]+\s?%/, _PP_RE = /[\d.,]+\s?pp\b/i;
+const _moneyRe = () => patronMonto();
 function _toNumOrder(tok) {
-  const dm = String(tok).match(/\$\s?([\d.,]+)\s?([KMB]?)/i);
-  if (dm) { let v = parseFloat(dm[1].replace(/,/g, "")); const s = (dm[2] || "").toUpperCase(); if (s === "K") v *= 1e3; else if (s === "M") v *= 1e6; else if (s === "B") v *= 1e9; return v; }
   const ppm = String(tok).match(/([\d.,]+)\s?pp\b/i);
   if (ppm) return parseFloat(ppm[1].replace(/,/g, ""));
   const pm = String(tok).match(/([\d.,]+)\s?%/);
   if (pm) return parseFloat(pm[1].replace(/,/g, ""));
-  return null;
+  /* El monto va ÚLTIMO, y el orden importa: como su símbolo es opcional, su patrón también matchearía el
+   * número de un «8.6pp» o un «22%». Preguntando primero por los dos que tienen marca propia, eso no pasa. */
+  return numeroDelMonto(tok);
 }
 // _reFor(keyword) → qué patrón usar para extraer valores de la columna/celda sellada — money ($X) / pct (X%) /
 // pp (X puntos porcentuales, ej. brecha). Chequea "pp" ANTES que "pct": un keyword como "brecha" no contiene "%"
@@ -1129,7 +1140,7 @@ function _reFor(keyword) {
   const k = String(keyword || "");
   if (/\bpp\b|brecha|\bgap\b|puntos?\s*porcentual/i.test(k)) return _PP_RE;
   if (/margen|%|porcentaje/i.test(k)) return _PCT_RE;
-  return _MONEY_RE;
+  return _moneyRe();
 }
 function _tableRowsOrder(text) {
   const lines = text.split("\n").map((l) => l.trim()).filter((l) => l.includes("|"));

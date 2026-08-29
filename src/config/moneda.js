@@ -83,6 +83,53 @@ export function fmtMonto(valor, { compacto = false, dataset = null, sinSimbolo =
 /** El rótulo corto de la moneda para una leyenda o una cabecera: «CLP», «USD»… o null si no hay. */
 export const rotuloMoneda = (dataset) => monedaDelNegocio(dataset);
 
+/* simboloMoneda() → el símbolo con el que se escribe un monto, o "" si nadie declaró la moneda.
+ *
+ * Es la pieza que usan los formateadores que ya existían en cada módulo: conservan SU forma de redondear y
+ * abreviar —que es lo que el notario compara contra la boleta— y solo cambian el símbolo. Tocar el número
+ * habría sido otra cosa muy distinta: si un monto pasa de «$4.1M» a «4,10 M», el notario deja de reconocerlo. */
+export function simboloMoneda(dataset) {
+  const codigo = monedaDelNegocio(dataset);
+  if (!codigo) return "";
+  const c = CONOCIDAS[codigo];
+  return c ? c.simbolo : `${codigo} `;   // moneda desconocida: su código delante, nunca un «$» prestado
+}
+
+const _escapar = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/* patronMonto() → cómo se RECONOCE un monto escrito, para el notario.
+ *
+ * ⚠️ ESTA FUNCIÓN EXISTE PORQUE EL MURO TAMBIÉN ASUMÍA «$». `guardC` reconocía una cifra de dinero con
+ * `/\$\s?[\d.,]+\s?[KMB]?/`: con la moneda en euros —o sin moneda declarada, que es cuando no se escribe
+ * símbolo— no encontraba nada, la secuencia quedaba vacía y **el chequeo se saltaba entero**. No fallaba: se
+ * volvía ciego, que es peor. El propio comentario de `guardC` ya advertía de esa forma de falso negativo para
+ * el caso de «pp».
+ *
+ * EL SÍMBOLO ES OPCIONAL A PROPÓSITO, y es seguro: quien llama ya decidió por el nombre de la columna que esa
+ * cifra es dinero —los porcentajes y los «pp» se desvían antes a su propio patrón—, así que un número pelado
+ * en esa rama solo puede ser el monto que se está verificando.
+ *
+ * `$` se acepta siempre, además del símbolo declarado: el negocio de demostración y todo lo ya escrito lo usan. */
+export function patronMonto(dataset, { global = false } = {}) {
+  const s = simboloMoneda(dataset).trim();
+  const simbolos = [...new Set([s, "$"].filter(Boolean))].map(_escapar).sort((a, b) => b.length - a.length);
+  return new RegExp(`(?:${simbolos.join("|")})?\\s?[\\d.,]+\\s?[KMB]?`, global ? "g" : "");
+}
+
+/* numeroDelMonto(texto) → el valor numérico de un monto escrito, con su escala (K/M/B).
+ * La contraparte de `patronMonto`: el notario no solo tiene que ENCONTRAR la cifra, tiene que poder compararla. */
+export function numeroDelMonto(tok, dataset) {
+  const s = simboloMoneda(dataset).trim();
+  const simbolos = [...new Set([s, "$"].filter(Boolean))].map(_escapar).sort((a, b) => b.length - a.length);
+  const m = String(tok).match(new RegExp(`(?:${simbolos.join("|")})?\\s?([\\d.,]+)\\s?([KMB]?)`, "i"));
+  if (!m) return null;
+  let v = parseFloat(String(m[1]).replace(/,/g, ""));
+  if (!Number.isFinite(v)) return null;
+  const esc = (m[2] || "").toUpperCase();
+  if (esc === "K") v *= 1e3; else if (esc === "M") v *= 1e6; else if (esc === "B") v *= 1e9;
+  return v;
+}
+
 /* etiquetaSinDeclarar(que) → cómo se dice que algo no fue declarado, en vez de mostrar un cero.
  *
  * ⚠️ UN CERO NO ES «NO HAY». El owner lo pidió por el presupuesto —que quedó FUERA de la plantilla v1, así que
