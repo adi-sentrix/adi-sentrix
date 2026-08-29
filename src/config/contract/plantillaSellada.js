@@ -50,6 +50,19 @@ export const PLANTILLA_SELLADA = {
         { campo: "bodega", titulo: "bodega", obligatoria: false },
         { campo: "stockUnd", titulo: "stock (unidades)", obligatoria: true },
       ],
+      /* ⚠️ ABONOS SE AGREGÓ EL 2026-08-27 Y NO SUBE LA VERSIÓN, a propósito. La regla de este archivo es
+       * «si agregamos algo, debe ser compatible hacia adelante o ir como nueva versión explícita», y esto es
+       * lo primero: la hoja es OPCIONAL y va al final, así que un archivo llenado con la v1 —que no la trae—
+       * sigue validando igual. Nada de lo sellado se quitó, se renombró, se reordenó ni se volvió obligatorio.
+       * Es el mismo criterio con el que `compararColumnas` ya acepta columnas opcionales agregadas al final.
+       *   LO QUE SÍ SEGUIRÍA EXIGIENDO VERSIÓN NUEVA: una hoja obligatoria, o tocar cualquiera de las de
+       *   arriba. El gate lo comprueba: una hoja nueva que no sea opcional lo pone rojo. */
+      Abonos: [
+        { campo: "fecha", titulo: "fecha (aaaa-mm-dd)", obligatoria: true },
+        { campo: "factura", titulo: "n° de factura", obligatoria: true },
+        { campo: "monto", titulo: "monto", obligatoria: true },
+        { campo: "cliente", titulo: "cliente", obligatoria: false },
+      ],
     },
     parametros: [
       { clave: "empresa_id", etiqueta: "identificador de tu empresa", obligatorio: true },

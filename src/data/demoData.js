@@ -17,11 +17,16 @@ export let historialMargen = _d.historialMargen;
 export let CLIENTES_STRATEGIC_PROFILE = _d.CLIENTES_STRATEGIC_PROFILE;
 // Vocabulario de entrada declarado por el negocio (ver tenants/demo.js) · lo consumen routerData y detectors para
 // derivar el canon de clientes. Opcionales: un tenant que no los declare cae a {}/[] y queda con el nombre pelado.
+/* FLUJO COMERCIAL · lo declarado por el tenant (fecha de corte + los tres números por cliente). Opcional a
+   propósito: un tenant que no lo declare NO tiene la cara de cobro, y el módulo devuelve null en vez de
+   inventarle plazos de crédito a nadie. */
+export let flujoComercial = _d.flujoComercial || null;
 export let clientesAlias = _d.clientesAlias || {};
 export let clientesAmbiguos = _d.clientesAmbiguos || [];
 
 onTenantChange((d) => {
   _d = d;
+  flujoComercial = d.flujoComercial || null;
   clientesVentas = d.clientesVentas;
   clientesMargen = d.clientesMargen;
   marcasVentas = d.marcasVentas;

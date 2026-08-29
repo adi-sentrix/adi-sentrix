@@ -148,6 +148,11 @@ export function construirDataset({ id, nombre, ejes = {} } = {}) {
     MARCAS_ALL: marcas,
     SUCURSALES: bodegas,
     SCENARIO_TRANSFORMS: {},
+    /* FLUJO COMERCIAL · se declara AUSENTE, no se inventa. La planilla puede traer la hoja de Abonos, pero
+       mientras la ingesta no la sepa leer, este negocio no tiene cara de cobro — y la llave tiene que existir
+       igual: si faltara, initTenant activaria un dataset con menos llaves que el de referencia y media app se
+       quedaria pintando lo anterior, sin error. Nulo es una respuesta; ausente es un agujero. */
+    flujoComercial: null,
     clientesAlias: {},             // vocabulario de entrada: lo declara el negocio, no se deduce de la planilla
     clientesAmbiguos: [],
   };

@@ -450,6 +450,58 @@ export const PERFIL = {
 export const clientesAlias = { mercadolibre: "Mercado Libre", lapolar: "La Polar" };
 export const clientesAmbiguos = ["abc", "easy", "paris"];
 
+/* ── FLUJO COMERCIAL · lo que se cobró y lo que falta cobrar (owner 2026-08-27) ──────────────────────────────
+ * EL PEDIDO, con sus palabras: «mostrar la venta del cliente, abonos y saldo pendiente, de esa forma se puede
+ * controlar si es que a algún cliente se le da crédito». NO es contabilidad: es la venta que ya tenemos, más
+ * una sola cosa nueva — cuánto de esa venta ya entró en caja.
+ *
+ * ⚠️ ACÁ SE DECLARAN TRES NÚMEROS POR CLIENTE Y NADA MÁS. Las facturas y los abonos se DERIVAN de ellos, no se
+ * escriben a mano, por dos razones: primero, porque escribir a mano ~50 facturas y sus abonos es una invitación
+ * a que la suma no cuadre con la venta que el resto del producto ya muestra —y dos cifras distintas para la
+ * misma venta es exactamente lo que este producto no se permite—; y segundo, porque la venta cambia con el
+ * escenario (bonanza · tensión · crisis) y unas facturas fijas se despegarían del dato en dos de los tres.
+ * Derivadas, la suma de las facturas de un cliente es SU VENTA, siempre, por construcción.
+ *
+ * ⚠️ ESTO ES EL DEMO. En un cliente real nada de esto se deriva: el folio viene en la hoja de Ventas, los días
+ * de crédito son un atributo del cliente y los abonos son su propia hoja, con fecha y folio. Ver `plantilla.js`.
+ *
+ * LOS TRES NÚMEROS, y por qué esos:
+ *   · diasCredito  — a cuántos días le vendés. Es lo que convierte una fecha de factura en un vencimiento.
+ *   · pctAbonado   — el TECHO de lo que te va a pagar. 1.00 = te paga todo, tarde o temprano, y entonces manda
+ *                    la fecha. Por debajo de 1 = además te debe de atrás, y ahí aparecen las facturas viejas
+ *                    vencidas. Es el caso del cliente al que le diste crédito y no lo está devolviendo.
+ *   · retrasoPago  — cuántos días DESPUÉS del vencimiento paga de verdad. Negativo = paga antes. Es lo único
+ *                    que distingue a un cliente sano de uno que te está financiando con tu propia plata. */
+export const flujoComercial = {
+  /* LA FECHA DE CORTE · sin esto, "vencido hace 36 días" cambia cada mañana y deja de ser reproducible. Es el
+     mismo campo que la plantilla ya le pide al cliente arriba de todo: «fecha de cierre del período». */
+  fechaCorte: "2026-08-31",
+  /* pctAbonado y retrasoPago cuentan una historia: los tres grandes pagan tarde y deben mucho —que es el caso
+     que el owner quiere poder ver—, los chicos pagan bien. Ripley está al día a propósito, para que la pantalla
+     tenga también el caso bueno y no parezca que todo está mal. */
+  clientes: {
+    /* LOS TRES QUE DEBEN DE ATRÁS · Son el caso que la cara existe para mostrar.
+       ⚠️ EL TECHO TIENE QUE ESTAR POR DEBAJO DE LO QUE LAS FECHAS YA COBRAN, o no sirve de nada. Con los
+       plazos de este demo, el cobro que sale solo de las fechas ronda el 58-78% de la venta; un techo de 0,62
+       quedaba POR ENCIMA de eso y no mordía nunca — el cliente moroso salía sano en pantalla. Estos tres están
+       calibrados para morder de verdad. */
+    "Sodimac":       { diasCredito: 60, pctAbonado: 0.35, retrasoPago: 28 },
+    "Lider":         { diasCredito: 60, pctAbonado: 0.45, retrasoPago: 31 },
+    "Easy":          { diasCredito: 30, pctAbonado: 0.40, retrasoPago: 18 },
+    /* LOS SANOS · te pagan todo; lo que varía es cuánto tardan, y de ahí sale su saldo por vencer. */
+    "Falabella":     { diasCredito: 60, pctAbonado: 1.00, retrasoPago: 22 },
+    "Jumbo":         { diasCredito: 45, pctAbonado: 1.00, retrasoPago: 4 },
+    "Tottus":        { diasCredito: 45, pctAbonado: 1.00, retrasoPago: 9 },
+    "Paris":         { diasCredito: 45, pctAbonado: 1.00, retrasoPago: 14 },
+    "Mercado Libre": { diasCredito: 30, pctAbonado: 1.00, retrasoPago: -3 },
+    "Ripley":        { diasCredito: 45, pctAbonado: 1.00, retrasoPago: 2 },
+    "La Polar":      { diasCredito: 30, pctAbonado: 1.00, retrasoPago: 6 },
+    "Hites":         { diasCredito: 30, pctAbonado: 1.00, retrasoPago: 1 },
+    "ABC":           { diasCredito: 30, pctAbonado: 1.00, retrasoPago: 7 },
+    "Unimarc":       { diasCredito: 45, pctAbonado: 1.00, retrasoPago: 11 },
+  },
+};
+
 export const TENANT_DEMO = {
   id: "demo",
   nombre: "ADI Demo",
@@ -459,5 +511,6 @@ export const TENANT_DEMO = {
   ventasKPI, margenKPI, invKPI, ventasMensuales,
   SUPERFAMILIAS, MARCAS_ALL, SUCURSALES,
   SCENARIO_TRANSFORMS,
+  flujoComercial,
   clientesAlias, clientesAmbiguos,
 };

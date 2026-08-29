@@ -355,6 +355,11 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
     SUPERFAMILIAS: familias.length ? ["Todas", ...familias] : [],
     MARCAS_ALL: marcas, SUCURSALES: bodegas,
     SCENARIO_TRANSFORMS: {},
+    /* FLUJO COMERCIAL · AUSENTE, DECLARADO. La plantilla ya pide la hoja de Abonos, pero este motor todavia no
+       la lee: hasta que lo haga, este negocio no tiene cara de cobro y lo dice con un nulo. La llave existe
+       igual porque el dataset ingestado tiene que traer las MISMAS que el tenant de referencia — si faltara,
+       initTenant activaria un negocio a medias y media app quedaria pintando lo anterior, sin un solo error. */
+    flujoComercial: null,
     clientesAlias: {}, clientesAmbiguos: [],
   };
 
