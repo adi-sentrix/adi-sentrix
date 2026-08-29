@@ -38,7 +38,8 @@ import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
 import { applyScenarioToSfamiliasMargen, applyScenarioToClientesVentas } from "../../engine/scenarios.js";   // el corte por familia y la venta/presupuesto por cliente, con el escenario aplicado
 import { getTenantData } from "../../data/tenantStore.js";   // multiempresa: la variación y el canal salen del tenant activo, nunca del dataset demo
 import { buildGlobalEvolutionAnclada } from "./temporal.js";   // el año mes a mes (3 series REALES) YA ancladas a la venta oficial — una sola implementación, compartida con trend/composeSpecTemporal
-import { simboloMoneda } from "../../config/moneda.js";
+import { simboloMoneda, etiquetaSinDeclarar } from "../../config/moneda.js";
+import { marcoDeVentas, esMarcoDeAnio } from "../../config/marcoPeriodo.js";
 
 const _M = (raw) => (typeof raw === "number" ? `${simboloMoneda()}${(raw / 1e6).toFixed(1)}M` : "—");
 const _K = (raw) => (typeof raw === "number" ? (Math.abs(raw) >= 1e6 ? `${simboloMoneda()}${(raw / 1e6).toFixed(1)}M` : `${simboloMoneda()}${Math.round(raw / 1000)}K`) : "—");
@@ -325,6 +326,9 @@ function _evolutivo(oficial) {
   const { actual, anterior, presupuesto } = ev;
   const suma = (s) => (Array.isArray(s) ? s.reduce((a, v) => a + (Number(v) || 0), 0) : 0);
   const tAct = suma(actual), tAnt = suma(anterior), tPpto = suma(presupuesto);
+  /* ¿El negocio DECLARÓ un presupuesto? No alcanza con que el arreglo exista: una serie de ceros es lo que
+   * produce un archivo que no lo trae, y tratarla como plan declarado es el defecto que se está cerrando. */
+  const hayPresupuesto = Array.isArray(presupuesto) && presupuesto.some((v) => typeof v === "number" && v > 0);
   const vsAnt = tAnt ? +(((tAct - tAnt) / tAnt) * 100).toFixed(1) : null;
   const vsPpto = tPpto ? +(((tAct - tPpto) / tPpto) * 100).toFixed(1) : null;
   const iMax = actual.indexOf(Math.max(...actual)), iMin = actual.indexOf(Math.min(...actual));
@@ -342,8 +346,18 @@ function _evolutivo(oficial) {
         nota: "Venta real del período, anclada al total oficial por cliente." },
       { key: "anterior", label: "Año anterior", valores: anterior, total: tAnt, totalFmt: _M(tAnt * 1000), estatus: "probado", anclada: !!(oficial && oficial.anterior),
         nota: "Venta del año anterior, anclada al mismo total oficial." },
-      { key: "presupuesto", label: "Presupuesto", valores: presupuesto, total: tPpto, totalFmt: _M(tPpto * 1000), estatus: "indicado", anclada: false,
-        nota: "El plan que declaraste. No se ancla: no existe presupuesto por cliente contra el cual conciliarlo." },
+      /* ⚠️ UN CERO NO ES «NO HAY» (owner 2026-08-29). El presupuesto quedó FUERA de la plantilla v1 por
+       * decisión suya, así que para cualquier archivo cargado no existe nunca — y `suma([])` da 0, que se
+       * pintaba como «$0». Eso no es un redondeo: dice que el plan del cliente era cero, una afirmación que
+       * nadie hizo y que además lo deja «cumpliendo» cualquier venta. Sin declarar se dice que no está.
+       *
+       * `total: null` y `valores: []` acompañan al texto a propósito: si el número siguiera ahí, cualquier
+       * consumidor que no mire `declarado` volvería a pintar el cero por su cuenta. */
+      hayPresupuesto
+        ? { key: "presupuesto", label: "Presupuesto", valores: presupuesto, total: tPpto, totalFmt: _M(tPpto * 1000), estatus: "indicado", anclada: false, declarado: true,
+            nota: "El plan que declaraste. No se ancla: no existe presupuesto por cliente contra el cual conciliarlo." }
+        : { key: "presupuesto", label: "Presupuesto", valores: [], total: null, totalFmt: etiquetaSinDeclarar("presupuesto"), estatus: "abierto", anclada: false, declarado: false,
+            nota: "Tu archivo no declara presupuesto, así que no hay plan contra el cual comparar. No se muestra como cero: cero sería decir que tu plan era no vender." },
     ],
     totalActual: tAct, totalActualFmt: _M(tAct * 1000),
     vsAnteriorPct: vsAnt, vsAnteriorFmt: typeof vsAnt === "number" ? _sig(vsAnt) : "—",
@@ -1147,7 +1161,14 @@ export function buildResumenComercial(scenario = "actual", { maxEntidades = 10 }
       contribucion: buildPareto(plano, "contribucion", { maxEntidades }),
     },
     kpis: [
-      { key: "ventas", label: "Ventas · año cerrado", valor: _M((total.ventas || 0) * 1000), pie: typeof variacionPct === "number" ? `${variacionPct >= 0 ? "+" : ""}${variacionPct.toFixed(1)}% vs año anterior` : "variación no autorizada en este período", tono: typeof variacionPct === "number" && variacionPct >= 0 ? "ok" : "neutro" },
+      /* El rótulo del KPI decía «año cerrado» escrito a mano: cierto con doce meses, falso con dos. Y el pie
+       * decía «vs año anterior» por lo mismo — con una planilla de dos meses la comparación es contra el
+       * período anterior, no contra un año. Los dos salen ahora del dato. */
+      { key: "ventas", label: `Ventas · ${marcoDeVentas()}`, valor: _M((total.ventas || 0) * 1000),
+        pie: typeof variacionPct === "number"
+          ? `${variacionPct >= 0 ? "+" : ""}${variacionPct.toFixed(1)}% vs ${esMarcoDeAnio(marcoDeVentas()) ? "año anterior" : "período anterior"}`
+          : "variación no autorizada en este período",
+        tono: typeof variacionPct === "number" && variacionPct >= 0 ? "ok" : "neutro" },
       { key: "contribucion", label: "Contribución", valor: _M((total.contribucion || 0) * 1000), pie: typeof total.margen === "number" ? `${_pct(total.margen)} de la venta` : "—", tono: "neutro" },
       { key: "margen", label: "Margen promedio", valor: _pct(total.margen), pie: typeof total._vara === "number" ? `${_pp(total._vara - total.margen)} bajo tu benchmark` : "sin referencia declarada", tono: typeof total._vara === "number" && total.margen < total._vara ? "alerta" : "ok" },
       { key: "acciones", label: "Acciones comerciales", valor: _M((total.acciones || 0) * 1000), pie: `${puente.probadoFmt} sobre tu meta de ${_pct(POLICY.targetCarga)}`, tono: puente.probado > 0 ? "aviso" : "ok" },

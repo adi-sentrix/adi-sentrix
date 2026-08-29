@@ -481,7 +481,18 @@ function _lecturaMinima(token, rec, rawValue) {
   return null;   // sin referencia autorizada — el caller ofrece análisis, no inventa una lectura
 }
 
-const _periodoTxt = (periodo) => (periodo ? (/a[nñ]o cerrado/i.test(periodo) ? "en el año cerrado" : /foto.*hoy/i.test(periodo) ? "a la fecha de hoy" : null) : null);
+/* ⚠️ LOS DOS MARCOS NUEVOS TIENEN QUE ESTAR ACÁ, O EL CAMBIO QUEDA A MEDIAS (owner 2026-08-29). Con solo
+ * «año cerrado» y «foto de hoy», una planilla de dos meses caía en `null` y ADI dejaba de decir de qué
+ * período habla — que es peor que decirlo mal: el marco desaparece y la cifra queda pareciendo universal.
+ * El owner lo pidió explícito: si el marco viaja a la boleta, que cambie completo. Esto es el otro extremo
+ * de ese viaje, donde el marco se vuelve palabra. */
+const _periodoTxt = (periodo) => (periodo
+  ? (/a[nñ]o cerrado/i.test(periodo) ? "en el año cerrado"
+    : /foto.*hoy/i.test(periodo) ? "a la fecha de hoy"
+      : /per[ií]odo cargado/i.test(periodo) ? "en el período cargado"
+        : /mes informado/i.test(periodo) ? "en el mes informado"
+          : null)
+  : null);
 function _oracionCampo(entity, { label, token, value, periodo }) {
   const m = _METRICA_ORACION[token] || { articulo: "el", plural: false, sustantivo: label.toLowerCase() };
   const art = m.articulo.charAt(0).toUpperCase() + m.articulo.slice(1);

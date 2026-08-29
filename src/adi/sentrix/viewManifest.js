@@ -29,6 +29,8 @@
  * alcance honesta, no un placeholder: la entrada funciona.
  */
 
+import { resolverMarco } from "../../config/marcoPeriodo.js";
+
 // ── VOCABULARIO CERRADO (lo consume la validación del ViewContext y la gramática de la dirección) ──────────────
 export const VISTAS = ["comercial", "capital", "resultado", "ficha"];
 export const SECCIONES = ["01", "02", "03", "otro"];
@@ -1028,7 +1030,22 @@ export function builderSpecOf(componentId) {
 // Los componentes de NIVEL 2: los que ADI abre. Se derivan de que declaren `builder` propio — no hay una segunda
 // lista que mantener al día, y una superficie nueva entra sola en cuanto declara el suyo.
 export function componentIdsNivel2() { return Object.keys(VIEW_MANIFEST).filter((id) => !!VIEW_MANIFEST[id].builder); }
-export function manifestFor(componentId) { return VIEW_MANIFEST[componentId] || null; }
+/* ⚠️ EL MARCO DEL PERÍODO SE RESUELVE ACÁ, Y ACÁ ES EL ÚNICO LUGAR DONDE HAY QUE HACERLO (owner 2026-08-29).
+ * El manifiesto declara «año cerrado» escrito a mano en 35 entradas: cierto para el negocio de demostración
+ * —doce meses— y falso para una planilla de dos. Ese string no se queda en la pantalla: viaja al contexto, a
+ * la dirección de cada cifra y a la BOLETA, y el narrador lo compara para decidir cómo hablar.
+ *
+ * La orden del owner fue explícita: «si el marco viaja a la boleta, que cambie completo, no solo el texto
+ * visible». `manifestFor` es el único acceso a una entrada, así que resolviéndolo acá cambian los tres a la
+ * vez y ninguna ruta puede quedarse con el marco viejo por olvido. Reemplazar los 35 literales a mano habría
+ * dejado exactamente esa clase de agujero — y además habría borrado la declaración, que sigue siendo útil:
+ * dice qué QUISO decir la vista, y la resolución dice qué SOSTIENE el dato. */
+export function manifestFor(componentId) {
+  const e = VIEW_MANIFEST[componentId];
+  if (!e) return null;
+  const periodo = resolverMarco(e.periodo);
+  return periodo === e.periodo ? e : { ...e, periodo };
+}
 export function componentIds() { return Object.keys(VIEW_MANIFEST); }
 export function componentIdsForVista(vista) { return Object.keys(VIEW_MANIFEST).filter((id) => VIEW_MANIFEST[id].vista === vista); }
 // el componentId de "la vista entera" — el contexto que viaja cuando el usuario escribe SIN haber tocado nada
