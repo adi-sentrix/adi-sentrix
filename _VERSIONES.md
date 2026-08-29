@@ -12,6 +12,27 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.7 — producción · tag `v2.7`
+
+**La antigüedad del vencido pasa a ser una columna.** El owner lo vio mirando la tabla: «creo que le falta una
+columna que diga los días vencidos». Tenía razón, y el defecto era de lectura, no de dato: el número existía,
+pero iba **pegado al nombre del cliente** —«Lider 269 días»— y ahí se leía como si fuera parte del nombre en vez
+de la cifra que es. Ahora tiene su columna, **Días**, al lado del monto vencido.
+
+Puestos uno junto al otro, los dos números dicen algo que por separado no dicen: **si esa plata es de la semana
+pasada o del año pasado.** Falabella debe $2.5M vencidos hace **8 días** —paga tarde pero corto—; Lider debe
+$4.6M hace **269**. Son dos conversaciones distintas con el cliente, y ahora se distinguen de un vistazo.
+
+**Y el pie explica qué mide**, porque no se explica solo: «Días» es hace cuánto venció **la factura más vieja
+que sigue sin pagarse** — no un promedio, no la suma. La más antigua que sigue abierta.
+
+El gate lo sella en tres partes: que la columna exista, que la antigüedad **ya no cuelgue del nombre**, y que el
+pie diga qué mide. `_flujo_comercial_gate` · **49 comprobaciones**.
+
+Gates **189 PASS · 0 FAIL · 0 TOCARON LA RED**. La plantilla sigue sin tocarse.
+
+---
+
 ## 2.6 — producción · tag `v2.6`
 
 **Flujo Comercial se puede mirar con cifras, sin tocar el dato de nadie.** El owner abrió la cara en producción

@@ -1467,26 +1467,28 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
           <thead><tr>
             <th style={{ ..._th, textAlign:"left" }}>Cliente</th>
             <th style={_th}>Venta</th><th style={_th}>Abonado</th><th style={_th}>Saldo</th>
-            <th style={_th}>Recuperado</th><th style={_th}>Vencido</th><th style={_th}>Plazo</th>
+            <th style={_th}>Recuperado</th><th style={_th}>Vencido</th><th style={_th}>Días</th><th style={_th}>Plazo</th>
           </tr></thead>
           <tbody>
             {F.filas.map((f) => (
               <tr key={f.key} onClick={onAsk ? () => _ask(f.ask) : undefined}
                 title={onAsk ? `Pregúntale a ADI: ${f.ask}` : undefined}
                 style={{ cursor: onAsk ? "pointer" : "default" }}>
+                {/* ⚠️ LA ANTIGÜEDAD ES UNA COLUMNA, NO UN ADORNO DEL NOMBRE (owner 2026-08-27: «creo que le
+                    falta una columna que diga los días vencidos»). Nació pegada al nombre del cliente y ahí se
+                    leía como si fuera parte del nombre —«Lider 269 días»— en vez de como la cifra que es. Con
+                    su propia columna se alinea con las demás y se puede comparar de un vistazo, que es para lo
+                    que sirve: al lado del monto vencido dice si esa plata es de la semana pasada o del año
+                    pasado, y esas son dos conversaciones distintas con el cliente. */}
                 <td style={{ ..._td, textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", color:C.text }}>
                   {f.nombre}
-                  {f.diasVencido > 0 && (
-                    <span style={{ fontFamily:MONO, fontSize:11.5, color:C.amber, marginLeft:8 }}>
-                      {f.diasVencido} días
-                    </span>
-                  )}
                 </td>
                 <td style={{ ..._td, color:C.textSub }}>{f.ventaFmt}</td>
                 <td style={{ ..._td, color:C.textSub }}>{f.abonadoFmt}</td>
                 <td style={{ ..._td, color:C.text }}>{f.saldoFmt}</td>
                 <td style={{ ..._td, color:C.textSub }}>{f.recuperadoFmt}</td>
                 <td style={{ ..._td, color: f.vencidoK > 0 ? C.amber : C.textMuted }}>{f.vencidoFmt || "—"}</td>
+                <td style={{ ..._td, color: f.diasVencido > 0 ? C.amber : C.textMuted }}>{f.diasVencido > 0 ? `${f.diasVencido}d` : "—"}</td>
                 <td style={{ ..._td, color:C.textMuted }}>{f.diasCredito}d</td>
               </tr>
             ))}
@@ -1494,7 +1496,8 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
         </table>
       </div>
       <div style={{ fontSize:14, color:C.textMuted, marginTop:9 }}>
-        Ordenados por saldo vencido. «Plazo» son los días de crédito que le diste a cada uno.
+        Ordenados por saldo vencido. «Días» es hace cuánto venció la factura más vieja que sigue sin pagarse —
+        no un promedio. «Plazo» son los días de crédito que le diste a cada uno.
       </div>
     </div>
 
