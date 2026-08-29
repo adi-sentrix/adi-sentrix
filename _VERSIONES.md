@@ -12,6 +12,50 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.5 — producción · tag `v2.5`
+
+**Flujo Comercial: la cara del cobro, apagada.** Sube el código, no la pantalla. Sin `?flujo=1` la app es la
+de siempre: la pestaña no se dibuja, la rama que la pinta lo vuelve a exigir y el módulo ni siquiera se llama.
+
+**Qué contesta**, con las palabras del owner: «mostrar la venta del cliente, abonos y saldo pendiente, de esa
+forma se puede controlar si es que a algún cliente se le da crédito». De todo lo que vendiste: cuánto entró en
+caja, cuánto falta, y quién te está financiando con tu propia plata.
+
+**Con el demo, la cara abre así:** $99.9M vendidos · $58.7M cobrados · $41.2M pendientes · **$12.6M vencidos**.
+Y arriba de la tabla queda **Lider: te debe $9.8M, te pagó el 45%, y $4.6M están vencidos hace 269 días.**
+
+**Sin recuadro de recomendación** (owner: «las recomendaciones no van, eso ya lo tenemos con ADI, ese es su
+labor»). La tabla llega ordenada por saldo vencido: **el orden ES la prioridad**, y hasta ahí llega el tablero.
+
+⚠️ **LA PLANTILLA NO SE TOCÓ, y se comprobó por bytes.** El owner lo pidió explícito: «que la plantilla
+descargable siga igual por ahora». El folio, los días de crédito y la hoja Abonos están diseñados y discutidos,
+pero no entran hasta que la cara se apruebe — la plantilla es lo único de todo esto que el cliente DESCARGA.
+Verificado generando el .xlsx en esta rama y en producción: **sha256 `c960d07cde3b0e02` en las dos.**
+Y la sección 5 del gate nuevo pasó de comprobar que las columnas ESTÁN a comprobar que **NO** están: si alguien
+las agrega antes de tiempo, se pone rojo.
+
+**El demo se alimenta de su propio dato declarado** —fecha de corte y tres números por cliente— sin pasar por
+la plantilla. Las facturas se DERIVAN de la venta y no se escriben a mano: así su suma ES la venta, exacta, y
+no aparecen dos cifras para lo mismo. En un cliente real nada de esto se deriva.
+
+**Tres defectos aparecieron construyendo, y los tres quedaron anotados en el código:**
+
+1. **Las facturas cubrían cinco meses de un año** — el gráfico tenía siete meses en cero debajo de un título
+   que dice «venta del período».
+2. **El cliente moroso salía «por vencer».** El cobro se aplicaba siempre de la factura más vieja a la más
+   nueva, así que al que debe le quedaban sin pagar las **nuevas** y en pantalla se veía sano. La deuda de
+   quien no te devuelve el crédito es **vieja**. El gate ahora exige 90 días o más.
+3. **Las columnas nuevas iban en el MEDIO de la hoja Ventas** — lo cazó `_plantilla_congelada_gate`: correr
+   una columna rompe los archivos que el cliente ya llenó. (Ese cambio quedó fuera de esta versión igual.)
+
+**`_flujo_comercial_gate` · 38 comprobaciones**, entre ellas la que más importa: el módulo **no puede consultar
+el reloj**. Si alguien reemplaza la fecha de corte declarada por `new Date()`, todo lo demás sigue en verde
+—las sumas cierran igual— pero «vencido hace 269 días» cambiaría cada mañana.
+
+Gates **188 PASS · 0 FAIL** de los propios. Sigue rojo `_esquema_datos_gate`, del frente de datos, desde la 2.0.
+
+---
+
 ## 2.4 — producción · tag `v2.4`
 
 **Ya se le puede entregar su código a un cliente.** Hasta esta versión no se podía: todo el que entrara,

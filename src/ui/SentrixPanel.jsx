@@ -27,7 +27,8 @@ import { METRIC_DEFS } from "../adi/sentrix/glossary.js";   // brick 4 · catál
 import { diagnosisCharts } from "../adi/sentrix/surface.js";   // brick 5 · el motor decide qué gráficos según el foco (LLM-ready)
 import { buildControlRing } from "../adi/sentrix/control.js";   // brick 7 · Control · la tabla-ring (foco vs promedio vs par vs mejor)
 import { buildCuadroMando, CUADRO_DIMS } from "../adi/sentrix/cuadro.js";   // 4ª lente · Cuadro de mando · la grilla operable
-import { buildResumenComercial } from "../adi/sentrix/resumenComercial.js";   // RESUMEN COMERCIAL (owner 2026-08-07) · la cara Comercial entera — veredicto/KPIs/plano 80-20/pareto/puente/insights ya armados y formateados (alcance SIEMPRE global: la firma no acepta selección) · cero cálculo en React
+import { buildResumenComercial } from "../adi/sentrix/resumenComercial.js";
+import { buildMesaFlujo } from "../adi/sentrix/mesaFlujo.js";   // FLUJO COMERCIAL (owner 2026-08-27) · venta, abonos y saldo — toda la aritmética vive ahí   // RESUMEN COMERCIAL (owner 2026-08-07) · la cara Comercial entera — veredicto/KPIs/plano 80-20/pareto/puente/insights ya armados y formateados (alcance SIEMPRE global: la firma no acepta selección) · cero cálculo en React
 import { buildMesaEstado, buildWatchlistEstado } from "../adi/sentrix/mesa.js";   // MESA 2.0 · semáforo contra TU vara + acción priorizada + "qué cambió" + alertas/watchlist (reusa diagnose/POLICY/temporal/cuadro · una verdad)
 import { buildMesaCapital, buildCuadroCapital, CUADRO_CAPITAL_EJES, CAPITAL_ESTADOS } from "../adi/sentrix/mesaCapital.js";   // CARA CAPITAL (owner 2026-07-15) · el mismo sello sobre el inventario — detectores existentes, cero cálculo en UI
 import { buildMesaResultado, pnlMesaLink, pnlExportData } from "../adi/sentrix/mesaResultado.js";   // CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l") · la cascada del P&L comercial — buildPnlCascade, cero cálculo en UI · pnlMesaLink = deep-link puro (evidencia P&L → cara Resultado con su alcance) · pnlExportData = copiar/CSV de lo que se está viendo (una verdad)
@@ -1336,6 +1337,176 @@ function clientMesaLink(e) {
  * ADI lo desglosa al lado). Reusa todo lo construido: resumen ejecutivo, diagnose, buildConcentration, CuadroMando. */
 // registro EJECUTIVO (owner 2026-07-09): las preguntas que ADI ofrece van en lenguaje de directorio — nada de
 // "plata"/"me come"; el usuario puede ser coloquial, lo emitido por ADI no.
+/* ── FLUJO COMERCIAL · DETRÁS DE UN INTERRUPTOR (owner 2026-08-27) ───────────────────────────────────────────
+ * La cara existe solo con `?flujo=1`. Es el patrón de la casa para todo lo grande: hasta que el owner la mire y
+ * diga que sí, la app que corre no se mueve ni un pixel. Sin el parámetro, la pestaña no se dibuja y el módulo
+ * ni siquiera se llama. */
+const _FLUJO_ON = (() => {
+  try { return new URLSearchParams(window.location.search).get("flujo") === "1"; } catch { return false; }
+})();
+
+/* ── MESA · CARA FLUJO COMERCIAL (owner 2026-08-27) ──────────────────────────────────────────────────────────
+ * «Mostrar la venta del cliente, abonos y saldo pendiente, de esa forma se puede controlar si es que a algún
+ * cliente se le da crédito.» De todo lo que vendiste: cuánto entró en caja, cuánto falta, y quién te está
+ * financiando con tu propia plata.
+ *
+ * ⚠️ ACÁ NO SE CALCULA NADA. Todo llega hecho y formateado desde `mesaFlujo.js` — misma regla que las otras
+ * cuatro caras. Si mañana hace falta una cifra nueva, se agrega en el módulo, no acá.
+ *
+ * ⚠️ NO HAY RECUADRO DE RECOMENDACIÓN, y es una decisión, no un olvido. El owner lo dijo mirando la maqueta que
+ * traía uno: «las recomendaciones no van, eso ya lo tenemos con ADI, ese es su labor». La tabla viene ordenada
+ * por saldo vencido —el que más debe queda arriba— y hasta ahí llega el tablero: mostrar. Quién es el urgente y
+ * qué hacer con él lo cuenta ADI, con la cuenta detrás.
+ *
+ * ⚠️ LAS PIEZAS TODAVÍA NO EMITEN ViewContext. En las otras caras, cada cifra publica su contexto para que ADI
+ * sepa exactamente qué estás señalando. Acá, en esta primera versión, los enlaces mandan la pregunta a secas.
+ * Es deliberado: el manifiesto de concordancia es un contrato cerrado y biyectivo con la UI, y no vale la pena
+ * abrirlo para una cara que el owner todavía puede querer distinta. Se cablea cuando la apruebe. */
+function MesaFlujoCara({ flujo: F, onAsk = null }) {
+  const _ask = (q) => { if (onAsk && q) onAsk(q); };
+  const _link = (label, q) => onAsk ? (
+    <button onClick={() => _ask(q)} title={`Pregúntale a ADI: ${q}`}
+      style={{ background:"transparent", border:"none", color:C.celeste, fontSize:12.5, fontWeight:600,
+        cursor:"pointer", padding:0, fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
+      {label} <span aria-hidden="true">→</span>
+    </button>
+  ) : null;
+  const _head = { fontFamily:MONO, fontSize:11.5, letterSpacing:"0.7px", color:C.text, textTransform:"uppercase",
+    display:"flex", alignItems:"center", gap:6 };
+  /* EL ENCABEZADO DE MOVIMIENTO · el mismo sello numerado de las otras caras. Se define acá y no se importa
+     porque en este archivo cada cara declara el suyo adentro (es una const local, no un componente exportado);
+     copiarlo mal fue el primer error de esta cara y la dejó en blanco. */
+  const MovHeadFlujo = ({ num, title, def }) => (
+    <div style={{ ..._head, marginBottom:9 }}>
+      {num ? <span style={{ color:C.celeste, opacity:0.85 }}>{num}</span> : null}{title}<InfoDot def={def} align="left"/>
+    </div>
+  );
+  const _dot = <span style={{ width:5, height:5, borderRadius:3, background:C.celeste, flexShrink:0, display:"inline-block" }}/>;
+  const _panel = { border:`1px solid ${C.cardBorder}`, borderRadius:12, padding:"13px 15px" };
+  const _th = { color:C.textMuted, fontFamily:MONO, fontSize:11.5, textTransform:"uppercase", letterSpacing:"0.5px",
+    borderBottom:`1px solid ${C.border}`, padding:"0 0 7px", textAlign:"right", whiteSpace:"nowrap", fontWeight:400 };
+  const _td = { fontFamily:MONO, fontSize:14, fontVariantNumeric:"tabular-nums", padding:"7px 0",
+    borderTop:`1px solid ${C.border}`, textAlign:"right", whiteSpace:"nowrap" };
+
+  if (!F) return (
+    <div style={_panel}>
+      <span style={_head}>{_dot}Flujo comercial</span>
+      <div style={{ fontSize:14, color:C.textSub, lineHeight:1.55, marginTop:8 }}>
+        Todavía no hay abonos cargados. Esta cara necesita, además de tu venta, saber cuánto de esa venta ya
+        entró en caja: el folio en la hoja de Ventas, los días de crédito de cada cliente y una hoja de Abonos.
+      </div>
+    </div>
+  );
+
+  /* EL GRÁFICO · una sola serie, así que no lleva leyenda: el rótulo la nombra. Rótulos directos SOLO en el
+     pico y en el último punto — un número sobre cada mes es ruido, no información. */
+  const _W = 940, _H = 190, _L = 52, _R = 16, _T = 14, _B = 34;
+  const _n = F.caja.meses.length;
+  const _max = Math.max(F.caja.maxK, 1);
+  const _x = (i) => _L + (_n <= 1 ? 0 : ((_W - _L - _R) * i) / (_n - 1));
+  const _y = (v) => _T + (_H - _T - _B) * (1 - v / _max);
+  const _pts = F.caja.meses.map((m, i) => `${_x(i)},${_y(m.montoK)}`).join(" ");
+  const _iPico = F.caja.meses.reduce((best, m, i, a) => (m.montoK > a[best].montoK ? i : best), 0);
+
+  return (<>
+    <div>
+      <MovHeadFlujo num="01" title="Qué está pasando"
+        def={`De todo lo que vendiste en el período, cuánto ya entró en caja y cuánto sigue afuera. El saldo es venta menos abonos; una factura está vencida cuando su vencimiento —la fecha de la factura más los días de crédito del cliente— quedó atrás de la fecha de corte. Todo se mide al ${F.fechaCorteFmt}, que es la fecha que tú declaras: nunca contra el reloj, para que la misma pregunta dé siempre la misma cifra.`}/>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:9 }}>
+        {F.kpis.map((k) => (
+          <button key={k.key} onClick={onAsk ? () => _ask(k.ask) : undefined}
+            title={onAsk ? `Pregúntale a ADI: ${k.ask}` : undefined}
+            style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${C.border}`, borderRadius:10,
+              padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif",
+              cursor: onAsk ? "pointer" : "default", display:"flex", flexDirection:"column", gap:4 }}>
+            <span style={{ fontSize:14, color:C.textMuted }}>{k.label}</span>
+            <span style={{ fontSize:19, fontWeight:600, color: k.key === "vencido" ? C.amber : C.text,
+              fontFamily:MONO, letterSpacing:"0.2px", fontVariantNumeric:"tabular-nums", lineHeight:1.1 }}>{k.valor}</span>
+            <span style={{ fontSize:14, color:C.textMuted }}>{k.pie}</span>
+          </button>
+        ))}
+      </div>
+      <div style={{ fontSize:14, color:C.textMuted, marginTop:9 }}>{F.alcance}</div>
+    </div>
+
+    <div style={_panel}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:9 }}>
+        <span style={_head}>{_dot}El saldo, cliente por cliente</span>
+        {_link("Que ADI lo explique", "¿Qué clientes me deben más y desde cuándo?")}
+      </div>
+      <div style={{ overflowX:"auto" }}>
+        <table style={{ width:"100%", borderCollapse:"collapse" }}>
+          <thead><tr>
+            <th style={{ ..._th, textAlign:"left" }}>Cliente</th>
+            <th style={_th}>Venta</th><th style={_th}>Abonado</th><th style={_th}>Saldo</th>
+            <th style={_th}>Recuperado</th><th style={_th}>Vencido</th><th style={_th}>Plazo</th>
+          </tr></thead>
+          <tbody>
+            {F.filas.map((f) => (
+              <tr key={f.key} onClick={onAsk ? () => _ask(f.ask) : undefined}
+                title={onAsk ? `Pregúntale a ADI: ${f.ask}` : undefined}
+                style={{ cursor: onAsk ? "pointer" : "default" }}>
+                <td style={{ ..._td, textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", color:C.text }}>
+                  {f.nombre}
+                  {f.diasVencido > 0 && (
+                    <span style={{ fontFamily:MONO, fontSize:11.5, color:C.amber, marginLeft:8 }}>
+                      {f.diasVencido} días
+                    </span>
+                  )}
+                </td>
+                <td style={{ ..._td, color:C.textSub }}>{f.ventaFmt}</td>
+                <td style={{ ..._td, color:C.textSub }}>{f.abonadoFmt}</td>
+                <td style={{ ..._td, color:C.text }}>{f.saldoFmt}</td>
+                <td style={{ ..._td, color:C.textSub }}>{f.recuperadoFmt}</td>
+                <td style={{ ..._td, color: f.vencidoK > 0 ? C.amber : C.textMuted }}>{f.vencidoFmt || "—"}</td>
+                <td style={{ ..._td, color:C.textMuted }}>{f.diasCredito}d</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ fontSize:14, color:C.textMuted, marginTop:9 }}>
+        Ordenados por saldo vencido. «Plazo» son los días de crédito que le diste a cada uno.
+      </div>
+    </div>
+
+    <div style={_panel}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:9 }}>
+        <span style={_head}>{_dot}La entrada de caja, mes a mes</span>
+        {_link("Que ADI lo explique", F.caja.ask)}
+      </div>
+      <svg viewBox={`0 0 ${_W} ${_H}`} style={{ width:"100%", height:"auto", display:"block" }} role="img"
+        aria-label={`Entrada de caja por mes: total ${F.caja.totalFmt}, el mes más alto es ${F.caja.picoLabel} con ${F.caja.picoFmt}.`}>
+        <defs>
+          <linearGradient id="adiFlujoFill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stopColor={C.celeste} stopOpacity="0.22"/>
+            <stop offset="1" stopColor={C.celeste} stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+        {[0, 0.5, 1].map((f, i) => (
+          <line key={i} x1={_L} x2={_W - _R} y1={_y(_max * f)} y2={_y(_max * f)} stroke={C.borderLight} strokeWidth="1"/>
+        ))}
+        <polygon points={`${_pts} ${_x(_n - 1)},${_y(0)} ${_x(0)},${_y(0)}`} fill="url(#adiFlujoFill)"/>
+        <polyline points={_pts} fill="none" stroke={C.celeste} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>
+        <circle cx={_x(_n - 1)} cy={_y(F.caja.meses[_n - 1].montoK)} r="4.5" fill={C.celeste} stroke={C.bg} strokeWidth="2"/>
+        <text x={_x(_iPico)} y={_y(F.caja.meses[_iPico].montoK) - 8} fill={C.celeste} fontFamily={MONO}
+          fontSize="11.5" fontWeight="600" textAnchor="middle">{F.caja.picoFmt}</text>
+        {F.caja.meses.map((m, i) => (
+          (i === 0 || i === _n - 1 || i % 2 === 0) ? (
+            <text key={i} x={_x(i)} y={_H - 12} fill={C.textMuted} fontFamily="'DM Sans', sans-serif"
+              fontSize="11.5" textAnchor="middle">{m.label}</text>
+          ) : null
+        ))}
+        <text x={_L - 8} y={_y(_max) + 4} fill={C.textMuted} fontFamily={MONO} fontSize="11.5" textAnchor="end">{F.caja.picoFmt}</text>
+        <text x={_L - 8} y={_y(0) + 4} fill={C.textMuted} fontFamily={MONO} fontSize="11.5" textAnchor="end">$0</text>
+      </svg>
+      <div style={{ fontSize:14, color:C.textMuted, marginTop:6 }}>
+        Los abonos por su fecha de cobro · suman {F.caja.totalFmt}, que es el abonado de arriba.
+      </div>
+    </div>
+  </>);
+}
+
 function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
   const scenario = (evidence && evidence.periodo) || "bonanza";
   const resumen = React.useMemo(() => buildResumenEjecutivo(scenario), [scenario]);
@@ -1381,6 +1552,9 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
     setUISignal({ mesaCara: cara });
   }, [cara]);
   const capital = React.useMemo(() => buildMesaCapital(scenario), [scenario]);   // una pasada: la cara Capital + la pata de inventario del "En alerta"
+  /* FLUJO COMERCIAL · solo se construye con `?flujo=1`. Sin el interruptor ni se llama al módulo: la app que
+     corre hoy no paga ni un milisegundo por una cara que todavía no está aprobada. */
+  const flujoC = React.useMemo(() => { if (!_FLUJO_ON) return null; try { return buildMesaFlujo(scenario); } catch { return null; } }, [scenario]);
   // CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l"): el P&L se sella CONVERSANDO — cuando ADI lo sella/edita,
   // pnl.js emite "adi-pnl-changed" y la cara se re-arma con la Mesa abierta (sin cerrar/abrir el panel).
   const [pnlTick, setPnlTick] = useState(0);
@@ -1476,7 +1650,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
           <div style={{ fontSize:14, color:C.text, fontWeight:500 }}>Tu negocio, en vivo <span style={{ color:C.textMuted, fontWeight:400 }}>· datos organizados por vista — ADI explica cualquier punto que quieras entender</span></div>
           {/* SELECTOR DE CARA (owner 2026-07-15) · segmented discreto: la misma Mesa mirando lo comercial o el capital */}
           <div style={{ display:"flex", alignItems:"center", gap:0, border:`1px solid ${C.border}`, borderRadius:7, overflow:"hidden", flexShrink:0 }}>
-            {[["comercial", "Comercial"], ["capital", "Capital"], ["resultado", "Resultado"], ["ficha", "Perfil Ejecutivo"]].map(([k, lbl]) => (
+            {[["comercial", "Comercial"], ["capital", "Capital"], ["resultado", "Resultado"], ...(_FLUJO_ON ? [["flujo", "Flujo comercial"]] : []), ["ficha", "Perfil Ejecutivo"]].map(([k, lbl]) => (
               <button key={k} onClick={() => setCara(k)}
                 title={k === "comercial" ? "La cara comercial: ventas, márgenes y contribución" : k === "capital" ? "La cara Capital: tu inventario — qué trabaja, qué se frena, qué reponer" : k === "resultado" ? "La cara Resultado: tu P&L comercial — la cascada hasta el resultado después de gastos" : "El Perfil Ejecutivo de un cliente: su perfil, brecha, evolución, composición y posición en la cartera"}
                 style={{ padding:"4px 12px", fontSize:14, fontWeight: cara === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
@@ -1493,7 +1667,9 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:18 }}>
         {/* CARA CAPITAL / CARA RESULTADO · el mismo sello sobre el inventario o sobre el P&L — la cara
             comercial vive INTACTA en la rama de abajo (regla de oro del owner). */}
-        {cara === "ficha" ? (
+        {cara === "flujo" && _FLUJO_ON ? (
+          <MesaFlujoCara flujo={flujoC} onAsk={onAsk}/>
+        ) : cara === "ficha" ? (
           <MesaFichaCara entity={fichaCliente} scenario={scenario} onAsk={onAsk} onSelect={setFichaCliente}/>
         ) : cara === "resultado" ? (
           <MesaResultadoCara resultado={resultado} scenario={scenario} onAsk={onAsk} onEje={(k) => { setPnlEje(k); setPnlFoco(null); }} onFoco={setPnlFoco}
