@@ -66,6 +66,20 @@ export const PARAMETROS = [
     ayuda: "el nombre como quieres verlo en pantalla." },
   { clave: "periodo_actual", etiqueta: "fecha de cierre del período que informas (aaaa-mm-dd)", tipo: "fecha", obligatorio: true, ejemplo: "2026-08-31",
     ayuda: "el último día del mes que estás informando. escríbelo así: 2026-08-31." },
+  /* ── LA MONEDA (owner 2026-08-27) ──────────────────────────────────────────────────────────────────────
+   * Este campo lo prometía el comentario de arriba desde el principio —«la moneda va en la cabecera, una vez,
+   * y ADI rotula con ella»— y nunca se creó: se cayó al sacar los parámetros de política. Sin él, la regla
+   * «si la planilla trae moneda, se usa» era una rama que no podía ejecutarse nunca.
+   *
+   * ⚠️ OPCIONAL, Y AL FINAL. Es la única forma de agregarlo sin invalidar los archivos ya llenados, que es la
+   * regla de congelamiento del owner. Quien lo deja en blanco no pierde nada: la pantalla de carga se lo
+   * pregunta una vez antes de activar. Quien lo declara no vuelve a ver esa pregunta.
+   *
+   * ⚠️ Y SIGUE SIN INFERIRSE. Ni de acá ni de la pantalla sale un valor por defecto: la moneda se DECLARA. Es
+   * la lección de miles-contra-dólares —dos universos que no reconcilian porque nadie dijo en qué unidad
+   * estaba cada uno— y no depende de cuál sea la moneda. */
+  { clave: "moneda", etiqueta: "moneda de los montos (CLP, USD, …)", tipo: "texto", obligatorio: false, ejemplo: "CLP",
+    ayuda: "en qué moneda están las cifras de venta, costo y stock. si lo dejas en blanco, te lo preguntamos al cargar." },
 ];
 
 /* ── LAS DOS HOJAS DE DATOS ───────────────────────────────────────────────────────────────────────────────────
@@ -107,20 +121,6 @@ export const HOJAS = [
         ayuda: "descuentos, rebates o aportes que le diste al cliente. en dinero, no en %." },
       { campo: "precioLista", titulo: "precio de lista", tipo: "numero", obligatoria: false, atributoDe: "sku",
         ayuda: "tu precio sin descuento. sirve para ver cuánto estás cediendo." },
-      /* ⚠️ EL FOLIO VA ACÁ Y NO EN UNA HOJA DE FACTURAS APARTE (owner 2026-08-27). La fila de venta es una
-       * LÍNEA —fecha + cliente + sku—, no una factura: varias líneas forman una factura y hasta ahora nada las
-       * agrupaba. Con el folio en esta misma hoja, la factura sale de las MISMAS filas que ya producen la
-       * venta, así que su suma ES la venta, exacta, por construcción. Una hoja de facturas aparte habría
-       * creado un SEGUNDO número para la misma venta, y el día que no cuadraran al peso el producto tendría
-       * dos verdades para lo mismo — que es justo lo que no se permite acá. */
-      { campo: "factura", titulo: "n° de factura", tipo: "texto", obligatoria: false,
-        ayuda: "el folio o número del documento. varias líneas pueden compartir el mismo. si no lo tienes, déjalo vacío." },
-      /* ⚠️ EL VENCIMIENTO NO SE PIDE COMO FECHA, y es a propósito. Una factura tiene varias líneas: una fecha
-       * de vencimiento repetida en cada una PUEDE CONTRADECIRSE A SÍ MISMA, y alguien tendría que decidir cuál
-       * gana. Los días de crédito son UN número por cliente —que el dueño sabe de memoria— y el vencimiento
-       * sale de la fecha de la factura más esos días. Viaja como atributo del cliente, igual que el canal. */
-      { campo: "diasCredito", titulo: "días de crédito", tipo: "numero", obligatoria: false, atributoDe: "cliente",
-        ayuda: "a cuántos días le vendes a este cliente: 30, 60, 90. si le vendes al contado, pon 0." },
     ],
   },
   {
@@ -140,36 +140,6 @@ export const HOJAS = [
         ayuda: "cuántas unidades tienes hoy. físicas, no valorizadas: adi calcula el dinero." },
     ],
   },
-  {
-    /* ── ABONOS · lo único que este producto no puede deducir de la venta (owner 2026-08-27) ──────────────
-     * EL PEDIDO: «mostrar la venta del cliente, abonos y saldo pendiente, de esa forma se puede controlar si
-     * es que a algún cliente se le da crédito». La venta ya la tenemos; lo que falta es cuánto de esa venta
-     * ya entró en caja. Tres columnas y alcanza.
-     *
-     * ⚠️ EL ABONO NECESITA FECHA, no solo monto. Un total abonado por cliente da el saldo y nada más: la
-     * entrada de caja necesita saber CUÁNDO entró cada peso. Y como la venta ya trae día, la caja se puede
-     * mirar por semana o por mes sin pedirle nada más al cliente.
-     *
-     * ⚠️ Y NECESITA EL FOLIO, no el cliente. Apuntando a la factura, el saldo se sabe factura por factura y la
-     * antigüedad es real. Apuntando solo al cliente, todo se mezcla en una bolsa y no se puede decir qué está
-     * vencido. El cliente va igual, pero solo para poder avisar si un abono quedó apuntado al de otro.
-     *
-     * VA AL FINAL Y ES OPCIONAL: sin esta hoja el resto del producto funciona igual, y lo único que no se
-     * enciende es la cara de Flujo Comercial. Se declara ausente, no se inventa. */
-    nombre: "Abonos",
-    obligatoria: false,
-    que: "una fila por abono: cuánto te pagaron, cuándo y contra qué factura",
-    columnas: [
-      { campo: "fecha", titulo: "fecha (aaaa-mm-dd)", tipo: "fecha", clave: true, obligatoria: true,
-        ayuda: "el día en que te pagaron. escríbelo así: 2026-08-31." },
-      { campo: "factura", titulo: "n° de factura", tipo: "texto", clave: true, obligatoria: true,
-        ayuda: "el folio que se está pagando. tiene que ser uno de los de la hoja ventas." },
-      { campo: "monto", titulo: "monto", tipo: "numero", obligatoria: true,
-        ayuda: "cuánto te pagaron, sin impuestos. solo el número, sin signo peso." },
-      { campo: "cliente", titulo: "cliente", tipo: "texto", obligatoria: false,
-        ayuda: "quién pagó. no es obligatorio: sirve para avisarte si un abono quedó apuntado a la factura de otro." },
-    ],
-  }
 ];
 
 /** La frase que explica el trato con las columnas opcionales · va escrita en la hoja, no solo en la documentación. */

@@ -123,24 +123,30 @@ H("4 · LA CARA MUESTRA, NO CONCLUYE · y no calcula");
     "…y la rama que la pinta lo vuelve a exigir, no alcanza con la pestaña");
 }
 
-H("5 · LA PLANTILLA PIDE LO QUE ESTA CARA NECESITA · y no rompe la que el cliente ya llenó");
+H("5 · LA PLANTILLA TODAVÍA NO SE TOCA · y eso también se comprueba");
 {
+  /* ⚠️ DECISIÓN DEL OWNER (2026-08-27): «subamos solo la pestaña detrás de ?flujo=1, sin tocar la plantilla
+   * todavía. Quiero verla en producción como cara ejecutiva primero. La hoja Abonos y las columnas nuevas
+   * quedan para el siguiente paso, cuando aprobemos la experiencia.»
+   *
+   * Las tres columnas —folio y días de crédito en Ventas, más la hoja Abonos— están diseñadas, discutidas y
+   * listas, pero NO entran hasta que la cara se apruebe. La razón es sana: la plantilla es lo único de todo
+   * esto que el cliente DESCARGA, y no se le cambia el archivo por una pantalla que todavía puede cambiar.
+   *
+   * Esta sección no es un recordatorio: es el candado. Si alguien agrega las columnas antes de tiempo se pone
+   * roja, y hay que venir a borrar esta nota a mano — que es justo el momento de acordarse de preguntar. */
   const ventas = HOJAS.find((h) => h.nombre === "Ventas");
-  const abonos = HOJAS.find((h) => h.nombre === "Abonos");
-  ok(!!abonos, "la hoja de Abonos está en el contrato");
-  ok(abonos && abonos.obligatoria === false,
-    "…y es OPCIONAL: un archivo llenado antes, sin ella, sigue validando igual");
-  ok(abonos && ["fecha", "factura", "monto"].every((c) => abonos.columnas.some((x) => x.campo === c && x.obligatoria)),
-    "…con fecha, folio y monto obligatorios — sin fecha no hay caja, sin folio no hay antigüedad");
-  const ultimas = ventas.columnas.slice(-2).map((c) => c.campo);
-  ok(ultimas.includes("factura") && ultimas.includes("diasCredito"),
-    `las dos columnas nuevas de Ventas van AL FINAL (${ultimas.join(" · ")}): meterlas en el medio corre de lugar a las demás y rompe los archivos ya llenados`);
-  ok(ventas.columnas.filter((c) => ["factura", "diasCredito"].includes(c.campo)).every((c) => !c.obligatoria),
-    "…y las dos son opcionales");
-  /* ⚠️ EL VENCIMIENTO NO SE PIDE COMO FECHA. Una factura tiene varias líneas y una fecha repetida en cada una
-   * puede contradecirse a sí misma. Se pide el PLAZO, que es un número por cliente. */
-  ok(!ventas.columnas.some((c) => /vencimiento/i.test(c.campo)),
-    "el vencimiento NO se pide como columna: se deriva del plazo del cliente, que no puede contradecirse");
+  ok(!HOJAS.some((h) => h.nombre === "Abonos"),
+    "la hoja de Abonos NO está todavía: la plantilla que el cliente descarga sigue igual");
+  ok(!ventas.columnas.some((c) => c.campo === "factura" || c.campo === "diasCredito"),
+    "…ni el folio ni los días de crédito: la hoja Ventas es la misma de producción");
+  ok(HOJAS.length === 2 && HOJAS[0].nombre === "Ventas" && HOJAS[1].nombre === "Inventario",
+    `el contrato sigue con sus dos hojas de siempre: ${HOJAS.map((h) => h.nombre).join(" · ")}`);
+  /* MIENTRAS TANTO EL DEMO SE ALIMENTA DE SU PROPIO DATO DECLARADO, no de la planilla: es lo que permite ver
+     la cara funcionando sin pedirle nada todavía a ningún cliente. */
+  const F = buildMesaFlujo("actual");
+  ok(F && F.filas.length > 0 && !!F.fechaCorte,
+    "y la cara igual se puede mirar: el demo declara su propio dato de cobro, sin pasar por la plantilla");
 }
 
 console.log(`\n── _flujo_comercial_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

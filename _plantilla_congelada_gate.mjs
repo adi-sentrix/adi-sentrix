@@ -58,19 +58,7 @@ const sello = PLANTILLA_SELLADA[PLANTILLA_VERSION];
 H("2 · LAS HOJAS DE DATOS · quitar, renombrar, reordenar o volver obligatoria EXIGE subir versión");
 {
   const selladas = Object.keys(sello.hojas);
-  /* ⚠️ UNA HOJA NUEVA SOLO PASA SI ES OPCIONAL (2026-08-27, al agregar Abonos). Antes esto exigía igualdad
-   * exacta, y por eso una hoja agregada —aunque fuera opcional y no rompiera ningún archivo— ponía el gate en
-   * rojo igual que si se hubiera borrado una. La regla del sello no es «nada cambia», es «nada ROMPE»: es la
-   * misma vara con la que `compararColumnas` ya acepta columnas opcionales al final.
-   * El candado queda MÁS fuerte que antes, no más flojo: además de que ninguna hoja sellada puede faltar, se
-   * exige explícitamente que toda hoja nueva sea opcional. Una hoja nueva obligatoria invalida cualquier
-   * archivo anterior y sigue exigiendo subir `PLANTILLA_VERSION`. */
-  const nuevas = HOJAS.filter((h) => !selladas.includes(h.nombre));
-  const nuevasObligatorias = nuevas.filter((h) => h.obligatoria);
-  ok(nuevasObligatorias.length === 0,
-    `toda hoja NUEVA es opcional: un archivo viejo que no la trae sigue validando${nuevas.length ? ` (nueva: ${nuevas.map((h) => h.nombre).join(" · ")})` : ""}`,
-    nuevasObligatorias.map((h) => h.nombre).join(" · "));
-  ok(selladas.every((n) => HOJAS.some((h) => h.nombre === n)),
+  ok(selladas.length === HOJAS.length && HOJAS.every((h) => selladas.includes(h.nombre)),
     `las hojas de datos son las selladas: ${selladas.join(" · ")}`,
     `vivas: ${HOJAS.map((h) => h.nombre).join(" · ")} — agregar o quitar una HOJA rompe todo archivo anterior`);
 

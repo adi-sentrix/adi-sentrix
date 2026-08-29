@@ -80,11 +80,7 @@ H("[A] LA PLANTILLA SE GENERA DEL CONTRATO · dos hojas para llenar");
   ok(vacia.length > 1500 && vacia[0] === 0x50 && vacia[1] === 0x4b, `la plantilla vacía es un .xlsx real (${(vacia.length / 1024).toFixed(1)} KB)`);
   ok(Buffer.compare(plantillaVacia(), vacia) === 0, "generarla dos veces da los MISMOS bytes (determinística)");
   ok(Buffer.compare(plantillaEjemplo(), EJEMPLO) === 0, "el ejemplo también es determinístico");
-  /* ⚠️ ERA `HOJAS.length === 2`. La cuenta fija se rompía sola al agregar una hoja compatible; lo que esta
-     línea cuida no es CUÁNTAS son sino que las dos obligatorias estén y en su orden, que es de lo que dependen
-     el generador y el validador. Abonos entró el 2026-08-27, opcional y al final. */
-  ok(HOJAS[0].nombre === "Ventas" && HOJAS[1].nombre === "Inventario" && HOJAS.every((h) => ["Ventas", "Inventario", "Abonos"].includes(h.nombre)),
-    `el contrato declara sus hojas, en orden: ${HOJAS.map((h) => h.nombre).join(" · ")}`);
+  ok(HOJAS.length === 2 && HOJAS[0].nombre === "Ventas" && HOJAS[1].nombre === "Inventario", "el contrato declara DOS hojas: Ventas e Inventario");
 
   const v = val(vacia);
   ok(v.version === PLANTILLA_VERSION, `la vacía se identifica como plantilla ${v.version}`);
