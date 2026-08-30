@@ -34,8 +34,9 @@ export function composeModuleOverview(scenarioId, moduloId) {
   }
   // ── Helpers internos ───────────────────────────────────────────────────
   const fmtM = (val) => {
-    // monto comercial ALMACENADO → M verdaderos (antes asumía miles: 100000 = $100M solo en el demo)
+    // monto comercial ALMACENADO → M verdaderos · bajo $1M se muestra en K (owner 2026-08-30)
     const m = _enM(val);
+    if (Math.abs(m) < 1) return `${simboloMoneda()}${Math.round(m * 1000)}K`;
     return Number.isInteger(m) ? `${simboloMoneda()}${m}M` : `${simboloMoneda()}${m.toFixed(1)}M`;
   };
   const fmtK = (val) => {
@@ -332,7 +333,8 @@ export function composeModuleOverview(scenarioId, moduloId) {
 export function composeModuleOverviewV2(scenarioId, moduloId) {
   // Helpers internos (mismo formato que legacy)
   const fmtM = (val) => {
-    const m = _enM(val);   // comercial almacenado → M verdaderos (demo: identidad)
+    const m = _enM(val);   // comercial almacenado → M verdaderos · bajo $1M en K (owner 2026-08-30)
+    if (Math.abs(m) < 1) return `${simboloMoneda()}${Math.round(m * 1000)}K`;
     return Number.isInteger(m) ? `${simboloMoneda()}${m}M` : `${simboloMoneda()}${m.toFixed(1)}M`;
   };
   const fmtK = (val) => {

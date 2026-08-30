@@ -129,7 +129,7 @@ const enK = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1000;
 const fmtK = (n) => simboloMoneda() + Math.round(enK(n)) + "K";
 // formato $ para gráficos. El dato viene en $K → se muestra en $M (÷1000), como las tarjetas KPI
 // (100000→$100.0M · 92900→$92.9M · 6800→$6.8M · -600→−$0.6M). Misma fuente de verdad que el header.
-const fMon = (n) => { const s = (Number(n) || 0) < 0 ? "−" : "", v = Math.abs(enK(n)) / 1000; return s + simboloMoneda() + v.toFixed(1) + "M"; };
+const fMon = (n) => { const s = (Number(n) || 0) < 0 ? "−" : "", k = Math.abs(enK(n)); return s + simboloMoneda() + (k >= 1000 ? (k / 1000).toFixed(1) + "M" : Math.round(k) + "K"); };   // bajo $1M en K (owner 2026-08-30)
 const r1 = (n) => Math.round(n * 10) / 10;
 // % SIEMPRE con 1 decimal (owner: "que queden parejos en la visual") → redondea como r1 pero fuerza el cero final.
 // NO reemplaza a r1 (que también formatea 'x' de rotación, que no lleva decimal fijo). Devuelve string.
@@ -4542,7 +4542,7 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
   const primary = cols.find((c) => c.key !== "accion") || cols[0];
   // si el overview trae una métrica que ES una columna (ej. "margen por cliente" → columna margen), abrimos ordenando por ahí.
   const [sortKey, setSortKey] = useState(initialSort && cols.some((c) => c.key === initialSort) ? initialSort : primary.key);
-  const money = (v) => simboloMoneda() + (enK(v) / 1000).toFixed(1) + "M";       // dato comercial (escala del pack) → $M (columnas comerciales)
+  const money = (v) => { const k = enK(v); return simboloMoneda() + (Math.abs(k) >= 1000 ? (k / 1000).toFixed(1) + "M" : Math.round(k) + "K"); };   // comercial → $M, y bajo $1M en K (owner 2026-08-30)
   const moneyk = (v) => simboloMoneda() + (Math.abs(v) / 1000).toFixed(1) + "K";   // dato en $ → $K (inventario)
   const usd = (v) => { const a = Math.abs(v); return a >= 1e6 ? simboloMoneda() + (a / 1e6).toFixed(1) + "M" : a >= 1e3 ? simboloMoneda() + Math.round(a / 1e3) + "K" : simboloMoneda() + Math.round(a); };   // $ crudo del detector (En juego $)
   const fmt = (col, v) => {
@@ -5036,7 +5036,7 @@ function StationCompareFilm({ cmp }) {
   const x = (i) => padL + i * (W - padL - padR) / Math.max(1, n - 1);
   const y = (v) => padT + (1 - (v - lo) / rng) * (H - padT - padB);
   const dOf = (s) => s.map((v, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(v)}`).join(" ");
-  const fmV = (v) => { const k = enK(v); return Math.abs(k) >= 1000 ? simboloMoneda() + (k / 1000).toFixed(1) + "M" : simboloMoneda() + Math.round(k) + "K"; };
+  const fmV = (v) => { const k = enK(v); return simboloMoneda() + (Math.abs(k) >= 1000 ? (k / 1000).toFixed(1) + "M" : Math.round(k) + "K"); };
   const tipW = 128, tipH = 38;
   const tipX = hov == null ? 0 : Math.max(padL, Math.min(W - padR - tipW, x(hov) - tipW / 2));
   const tipY = hov == null ? 0 : (Math.min(y(A.serie[hov]), y(B.serie[hov])) < tipH + 16 ? H - padB - tipH - 2 : padT - 4);
@@ -5125,7 +5125,7 @@ function StationPeriodo({ a, b }) {
   const y = (v) => padT + (1 - (v - lo) / rng) * (H - padT - padB);
   const d = serie.map((v, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(v)}`).join(" ");
   const iMax = serie.indexOf(hi), iMin = serie.indexOf(lo);
-  const fmV = (v) => simboloMoneda() + (enK(v) / 1000).toFixed(1) + "M";
+  const fmV = (v) => { const k = enK(v); return simboloMoneda() + (Math.abs(k) >= 1000 ? (k / 1000).toFixed(1) + "M" : Math.round(k) + "K"); };
   // lectura del período: mayor alza / mayor caída CON SUS MESES, derivada de la serie MOSTRADA (12 o 24) — cierra con la curva
   let gDrop = { delta: 0, i: 0 }, gRise = { delta: 0, i: 0 };
   for (let i = 1; i < serie.length; i++) {

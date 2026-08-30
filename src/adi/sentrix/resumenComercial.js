@@ -46,7 +46,9 @@ import { factorComercialDe } from "../../config/contract/figureType.js";   // la
 const _fxc = () => factorComercialDe(getTenantData());
 import { marcoDeVentas, esMarcoDeAnio } from "../../config/marcoPeriodo.js";
 
-const _M = (raw) => (typeof raw === "number" ? `${simboloMoneda()}${(raw / 1e6).toFixed(1)}M` : "—");
+/* BAJO $1M SE MUESTRA EN K (owner 2026-08-30: «$87K, nunca $0.1M») — un monto chico forzado a M pierde toda
+ * resolución. Sobre $1M, byte-idéntico a siempre. */
+const _M = (raw) => (typeof raw === "number" ? (Math.abs(raw) >= 1e6 ? `${simboloMoneda()}${(raw / 1e6).toFixed(1)}M` : `${simboloMoneda()}${Math.round(raw / 1e3)}K`) : "—");
 const _K = (raw) => (typeof raw === "number" ? (Math.abs(raw) >= 1e6 ? `${simboloMoneda()}${(raw / 1e6).toFixed(1)}M` : `${simboloMoneda()}${Math.round(raw / 1000)}K`) : "—");
 const _pct = (v, d = 1) => (typeof v === "number" ? `${v.toFixed(d)}%` : "—");
 const _pp = (v) => (typeof v === "number" ? `${Math.abs(v).toFixed(1)} pp` : "—");

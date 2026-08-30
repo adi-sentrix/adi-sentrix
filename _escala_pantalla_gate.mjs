@@ -100,9 +100,12 @@ H("4 · los 8 formateadores comerciales de SentrixPanel rutean por enK (verifica
   ok(/const fMon = .*Math\.abs\(enK\(n\)\)/.test(s), "fMon rutea por enK");
   ok(/const usdK = \(vK\) => \{ const v = enK\(vK\) \* 1000/.test(s), "usdK (P&L del panel) rutea por enK");
   ok(/Math\.abs\(enK\(v\)\) >= 1000 \? fMon\(v\) : fmtK\(v\)/.test(s), "el umbral del ring compara en unidades convertidas");
-  ok(/const money = \(v\) => simboloMoneda\(\) \+ \(enK\(v\) \/ 1000\)\.toFixed\(1\) \+ "M";/.test(s), "las columnas comerciales del cuadro rutean por enK");
-  ok((s.match(/const fmV = \(v\) => \{ const k = enK\(v\);/g) || []).length === 1 && /const fmV = \(v\) => simboloMoneda\(\) \+ \(enK\(v\) \/ 1000\)/.test(s),
-    "las dos películas (comparada y global) rutean por enK");
+  // DISPLAY K BAJO $1M (owner 2026-08-30): estos formateadores dejaron de ser siempre-M — «$87K, nunca $0.1M».
+  // El ruteo por enK se mantiene (la escala sigue declarada); lo que cambió es la magnitud del sufijo.
+  ok(/const money = \(v\) => \{ const k = enK\(v\); return simboloMoneda\(\) \+ \(Math\.abs\(k\) >= 1000 \? \(k \/ 1000\)\.toFixed\(1\) \+ "M" : Math\.round\(k\) \+ "K"\); \};/.test(s),
+    "las columnas comerciales del cuadro rutean por enK, con K bajo $1M");
+  ok((s.match(/const fmV = \(v\) => \{ const k = enK\(v\); return simboloMoneda\(\) \+ \(Math\.abs\(k\) >= 1000 \? \(k \/ 1000\)\.toFixed\(1\) \+ "M" : Math\.round\(k\) \+ "K"\); \};/g) || []).length === 2,
+    "las dos películas (comparada y global) rutean por enK, con K bajo $1M");
   ok(/const _fmDin = \(v\) => \{ const k = enK\(v\);/.test(s), "el Pareto rutea por enK");
   ok(!/\* 1000(?!\) \/ 10)/.test(s.split("\n").filter((l) => /usdK|fmV|fMon|fmtK|_fmDin|const money =/.test(l)).join("\n").replace(/enK\(vK\) \* 1000/, "")),
     "y ningún formateador comercial conserva un ×1000 fijo");

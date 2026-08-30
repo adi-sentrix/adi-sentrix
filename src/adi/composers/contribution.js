@@ -18,7 +18,7 @@ export function composeClientContributionRanking(scenarioId) {
   // ── 1. Helpers formato
   const fmtM = (val) => {
     if (val == null || isNaN(val)) return "$0M";
-    return `${simboloMoneda()}${_enM(val).toFixed(2)}M`;
+    { const m = _enM(val); return Math.abs(m) >= 1 ? `${simboloMoneda()}${m.toFixed(2)}M` : `${simboloMoneda()}${Math.round(m * 1000)}K`; }
   };
 
   // ── 2. Ranking runtime sobre clientesMargen · SCENARIO-AWARE (fix GAP 2): antes leía SIEMPRE la base cruda → en
