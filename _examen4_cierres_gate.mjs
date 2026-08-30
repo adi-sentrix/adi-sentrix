@@ -271,8 +271,21 @@ console.log("═".repeat(100));
     "una respuesta vieja que hoy tendría un defecto NO se ofrece: el escalón cede al peldaño siguiente");
   // el cableado: el escalón va ANTES de la carpeta, no en vez de ella
   const cn = fs.readFileSync(path.join(root, "src", "adi", "oracle", "caminoNatural.js"), "utf8");
-  ok(/_respaldoDeLoYaAprobado\(memIn, juzgar\) \|\| suplenteDignoDelDato\(/.test(cn),
-    "en la escalera, el escalón nuevo va PRIMERO y la carpeta queda de respaldo — no se reemplaza nada");
+  /* R3 DEL EXAMEN 1 DEL AGENTE (2026-08-31): la firma creció — el caller pasa el CONTEXTO de pertinencia
+   * (pregunta + entidades + lo recién mostrado) para que el marco no afirme «sobre esto» hablando de otra
+   * entidad (T13: pregunta por Falabella → replay de Tottus como «verificado»). */
+  ok(cn.includes("_respaldoDeLoYaAprobado(memIn, juzgar, { pregunta: q, entidades: duenos || [], recienMostrado: respuestaAnterior }) || suplenteDignoDelDato("),
+    "en la escalera, el escalón nuevo va PRIMERO y la carpeta queda de respaldo — con el contexto de pertinencia (R3)");
+
+  /* R3 · los marcos nuevos también pasan el muro (mismo criterio que el marco original: cero cifras propias) */
+  const marcoAjeno = (previa) => [
+    "No pude armar la lectura que pediste con la calidad que corresponde. Lo último que dejamos verificado fue esto:",
+    "", previa.trim(), "",
+    "Pídeme de nuevo lo que buscabas y lo trabajo sobre el dato.",
+  ].join("\n");
+  ok(guardC(marcoAjeno(VIGENTE), CTX).ok, "R3 · el marco honesto (tema ajeno) envuelto también pasa el muro");
+  ok(guardC("No pude armar la lectura nueva que pediste. Lo que te respondí recién sigue verificado y en pie — dime qué parte profundizo o pídeme otro corte del dato.", CTX).ok,
+    "R3 · la línea de la pantalla repetida (T26) pasa el muro — una línea, jamás el muro de texto dos veces");
   /* ⚠️ EL DEFECTO QUE EL EXAMEN 5 CAZÓ EN ESTE MISMO ESCALÓN, a los veinte minutos de escribirlo: leía
    * `recentNarrations`, donde también vive el RESPALDO del turno anterior. Resultado medido: el turno 2
    * devolvió el respaldo del turno 1 anidado dentro del suyo, y encima lo presentó como «quedó verificado».

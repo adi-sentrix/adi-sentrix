@@ -94,13 +94,66 @@ const _motivoDeMulta = (multa) => {
  * NO ES UN CONTRATO NUEVO: es la MISMA escalera de `suplenteDignoDelDato`, con un peldaño más arriba. */
 /* EXPORTADO desde F2 (2026-08-30): la escalera invertida del AGENTE reusa ESTE peldaño tal cual — reescribirlo
  * allá sería la «variante paralela que después diverge». Aditivo: nadie de este módulo cambia. */
-export function _respaldoDeLoYaAprobado(memIn, juzgar) {
+/* R3 · los temas que definen «de qué habla» una pregunta (con y sin tilde: el usuario tipea como tipea). */
+const _TEMAS_RESPALDO = ["margen", "venta", "ventas", "contribución", "contribucion", "carga", "capital",
+  "inventario", "rotación", "rotacion", "acciones", "riesgo", "riesgos", "resumen", "directorio",
+  "proyección", "proyeccion", "presupuesto", "benchmark", "unidades", "simulación", "simulacion", "brecha", "costo"];
+export function _respaldoDeLoYaAprobado(memIn, juzgar, contexto = {}) {
   /* SOLO lo que el notario APROBÓ y no fue respaldo (ver `ultimaAprobada`, más abajo). Leer
    * `recentNarrations` era el defecto: ahí también vive el respaldo del turno anterior, y ofrecerlo como
    * «quedó verificado» es afirmar algo falso sobre un texto que justamente no pudo verificarse. */
   const previa = typeof (memIn && memIn.ultimaAprobada) === "string" && memIn.ultimaAprobada.trim().length > 40
     ? memIn.ultimaAprobada : null;
   if (!previa) return null;
+
+  /* R3 DEL EXAMEN 1 DEL AGENTE (2026-08-31): PERTINENCIA ANTES DE AFIRMAR «sobre esto». Medido en el examen:
+   * este peldaño sirvió la respuesta de TOTTUS a una pregunta por FALABELLA enmarcada como «lo que ya te
+   * respondí sobre esto quedó verificado» (T13 — afirmación falsa con entidad equivocada), el replay de un
+   * clarify como si fuera el resumen pedido (T24), y la misma pantalla dos veces seguidas (T26). El marco solo
+   * afirma pertinencia si la tiene; si no, dice la verdad. El contexto LO PASA EL CALLER — este peldaño sigue
+   * sin leer memorias nuevas (la lección del Examen 5: jamás OFRECE recentNarrations; `recienMostrado` llega
+   * de afuera y solo se COMPARA, nunca se sirve). Sin contexto (callers viejos), todo queda como antes. */
+  const pregunta = String(contexto.pregunta || "");
+  const entidades = Array.isArray(contexto.entidades) ? contexto.entidades : [];
+  const recienMostrado = typeof contexto.recienMostrado === "string" ? contexto.recienMostrado : null;
+  const _re = (t) => new RegExp(`\\b${String(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+
+  const _sellar = (candidato) => {
+    if (typeof juzgar !== "function") return candidato;
+    try { const v = juzgar(candidato); return v && v.ok ? candidato : null; } catch { return null; }
+  };
+
+  // T26: la misma pantalla dos veces seguidas no informa — si lo aprobado ES lo que el usuario acaba de ver,
+  // una línea honesta en vez del muro de texto repetido.
+  if (recienMostrado && recienMostrado.trim() === previa.trim()) {
+    return _sellar("No pude armar la lectura nueva que pediste. Lo que te respondí recién sigue verificado y en pie — dime qué parte profundizo o pídeme otro corte del dato.");
+  }
+
+  // T13/T24: ¿la pregunta nombra entidades o temas que la respuesta vieja NO trae?
+  // Una entidad ajena mata la pertinencia sola (el caso grave); los temas se miden por mayoría.
+  const entQ = entidades.filter((e) => _re(e).test(pregunta));
+  const temasQ = _TEMAS_RESPALDO.filter((c) => _re(c).test(pregunta));
+  let pertinente;
+  if (entQ.length && !entQ.some((n) => _re(n).test(previa))) pertinente = false;
+  else {
+    const nombrados = [...entQ, ...temasQ];
+    const enPrevia = nombrados.filter((n) => _re(n).test(previa)).length;
+    pertinente = !nombrados.length || enPrevia >= Math.ceil(nombrados.length / 2);
+  }
+
+  if (!pertinente) {
+    const temaPrevia = entidades.find((e) => _re(e).test(previa)) || null;
+    return _sellar([
+      temaPrevia
+        ? `No pude armar la lectura que pediste con la calidad que corresponde. Lo último que dejamos verificado fue sobre ${temaPrevia}:`
+        : "No pude armar la lectura que pediste con la calidad que corresponde. Lo último que dejamos verificado fue esto:",
+      "",
+      previa.trim(),
+      "",
+      "Pídeme de nuevo lo que buscabas y lo trabajo sobre el dato.",
+    ].join("\n"));
+  }
+
   const candidato = [
     "No pude armar la lectura nueva con la calidad que corresponde. Lo que ya te respondí sobre esto quedó verificado y sigue en pie:",
     "",
@@ -108,8 +161,7 @@ export function _respaldoDeLoYaAprobado(memIn, juzgar) {
     "",
     "Dime qué parte de esto necesitas y lo trabajo sobre esas mismas cifras.",
   ].join("\n");
-  if (typeof juzgar !== "function") return candidato;
-  try { const v = juzgar(candidato); return v && v.ok ? candidato : null; } catch { return null; }
+  return _sellar(candidato);
 }
 
 export async function answerViaNatural({ text, history, mem, scenario = ESCENARIO_INICIAL, callNatural } = {}) {
@@ -208,7 +260,7 @@ export async function answerViaNatural({ text, history, mem, scenario = ESCENARI
   const res = await responderConNotario({
     juzgar,
     lavar: stripLanguageLeaks,
-    suplente: () => _respaldoDeLoYaAprobado(memIn, juzgar) || suplenteDignoDelDato({ scenario, juzgar }),
+    suplente: () => _respaldoDeLoYaAprobado(memIn, juzgar, { pregunta: q, entidades: duenos || [], recienMostrado: respuestaAnterior }) || suplenteDignoDelDato({ scenario, juzgar }),
     pedir: async ({ intento, multa, anterior }) => {
       if (intento === 1) return callNatural({ mensajes, attempt: 0 });
       // el turno del asistente que se devuelve NUNCA puede ir vacío (el proveedor rechaza un content en blanco).

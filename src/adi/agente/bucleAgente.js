@@ -275,7 +275,8 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     if (final !== null) { estado = "limite"; suplente = true; }
   }
   if (final === null) {
-    final = _respaldoDeLoYaAprobado(memIn, (t) => juzgar(t, "respaldo"));
+    // R3: el contexto de pertinencia viaja — el peldaño no afirma «sobre esto» si la pregunta habla de otra cosa
+    final = _respaldoDeLoYaAprobado(memIn, (t) => juzgar(t, "respaldo"), { pregunta: q, entidades: duenosTenant || [], recienMostrado: recentPrev[0] || null });
     if (final !== null) { estado = "respaldo"; suplente = true; }
   }
   if (final === null) { final = composeNoDataMessage(null); estado = "vacio"; suplente = true; }

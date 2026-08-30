@@ -161,6 +161,18 @@ H("7 · respaldo de lo ya aprobado y genérico — el tablero no existe");
   const sinNada = await answerViaAgente({ text: "seguime con eso", history: [], mem: {}, scenario: "actual", callAgente: mudo });
   ok(sinNada.r.agente.estado === "vacio" && sinNada.r.text.length > 0 && sinNada.r.text.length < 300,
     "sin nada, el genérico pelado — nunca ~12 KPIs", `${sinNada.r.agente.estado} · ${sinNada.r.text.length} chars`);
+
+  /* R3 DEL EXAMEN 1 (2026-08-31): PERTINENCIA. T13 sirvió la respuesta de Tottus a una pregunta por Falabella
+   * como «lo que ya te respondí sobre esto quedó verificado» — afirmación falsa con entidad equivocada. */
+  const otraEntidad = await answerViaAgente({ text: "que hago con Ferretería Aurora?", history: [], mem: { ultimaAprobada: TEXTO_BUENO }, scenario: "actual", callAgente: mudo });
+  ok(otraEntidad.r.agente.estado === "respaldo" && !/sobre esto quedó verificado/.test(otraEntidad.r.text)
+    && /Lo último que dejamos verificado fue sobre Depósito Riachuelo/.test(otraEntidad.r.text) && otraEntidad.r.text.includes("$22.560"),
+    "★ R3: pregunta por OTRA entidad → el replay viaja bajo un marco VERAZ («fue sobre Depósito Riachuelo»)", otraEntidad.r.text.slice(0, 160));
+
+  // T26: lo aprobado ES lo que el usuario acaba de ver → una línea, jamás la misma pantalla dos veces seguidas
+  const repetida = await answerViaAgente({ text: "seguime con eso", history: [], mem: { ultimaAprobada: TEXTO_BUENO, recentNarrations: [TEXTO_BUENO] }, scenario: "actual", callAgente: mudo });
+  ok(repetida.r.agente.estado === "respaldo" && !repetida.r.text.includes("$22.560") && /sigue verificado y en pie/.test(repetida.r.text),
+    "★ R3: la pantalla repetida (T26) se reemplaza por una línea honesta", repetida.r.text.slice(0, 120));
 }
 
 /* ═══ 8 · LA RE-CITA DE LO APROBADO (R2 del examen 1 · 2026-08-31) ════════════════════════════════════════════
@@ -398,6 +410,24 @@ H("11 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionT7c });
       return r.r.agente.estado !== "reparado" && r.r.agente.figs === 0;   // el defecto: el pedido se tiró y el turno murió sin leer
     });
+
+  // (j) R3 · la pertinencia quitada del peldaño vivo: el marco vuelve a mentir la entidad (unidad, caminoNatural)
+  {
+    const m = mutar("src/adi/oracle/caminoNatural.js",
+      [[/  if \(entQ\.length && !entQ\.some\(\(n\) => _re\(n\)\.test\(previa\)\)\) pertinente = false;/, "  if (false) pertinente = false;"],
+       [/    pertinente = !nombrados\.length \|\| enPrevia >= Math\.ceil\(nombrados\.length \/ 2\);/, "    pertinente = true;"]]);
+    if (m.error) ok(false, "carnada «respaldo sin pertinencia»", m.error);
+    else {
+      let cazada = false, detalle = "";
+      try {
+        const Mut = await import(m.url);
+        const texto = Mut._respaldoDeLoYaAprobado({ ultimaAprobada: TEXTO_BUENO }, null,
+          { pregunta: "que hago con Ferretería Aurora?", entidades: ["Depósito Riachuelo", "Ferretería Aurora"], recienMostrado: null });
+        cazada = typeof texto === "string" && /sobre esto quedó verificado/.test(texto);   // el defecto: T13 de vuelta
+      } catch (e) { detalle = `la copia mutada ni siquiera carga: ${e.message}`; }
+      ok(cazada, "carnada «respaldo sin pertinencia (el T13 del examen)» → el chequeo se pone ROJO", detalle || "el defecto pasó DESAPERCIBIDO");
+    }
+  }
 
   // (h) R7 · el expediente ciego: los vetos del guard no se registran
   await carnada("vetos del guard sin registrar",
