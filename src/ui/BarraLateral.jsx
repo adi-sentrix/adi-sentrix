@@ -72,10 +72,9 @@ function Fila({ activo, titulo, onClick, icono, testid, children }) {
  * descifrar antes de poder tocar nada. Queda el comportamiento que la app tenía y sigue teniendo: la barra
  * se ensancha al apuntarla, por encima de lo que hay debajo.
  *
- * ⚠️ EL DEFECTO QUE LAS ORIGINÓ SIGUE ABIERTO, y va escrito acá y no en la memoria de nadie: «cuando pasas
- * el cursor, las cosas que muestra se superponen a la Mesa central, es poco fino». Eso pasa igual que
- * antes. Sacar las variantes no lo arregla: lo deja pendiente y a la vista, que es mejor que tres intentos
- * dormidos fingiendo que está en marcha. */
+ * ⚠️ EL DEFECTO QUE LAS ORIGINÓ SE ARREGLÓ EL 2026-08-27, y con el camino que ninguna de las tres tomaba del
+ * todo: el VELO, pero atado a la superficie. Ver la nota del elemento, más abajo. Lo que se descartó y por qué
+ * queda escrito ahí, porque es la parte que sirve dentro de seis meses. */
 
 /* LOS CUATRO INDICADORES DE ESTADO SE FUERON (owner 2026-08-20: «la fecha no es necesaria, datos actuales
  * tampoco y demo tampoco, quítalos»). Eran «Datos actuales», «Demo/IA», el vencimiento de la demo y
@@ -88,8 +87,30 @@ export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInici
     <div className="adi-rail" aria-label="Barra de ADI"
       style={{ position:"absolute", top:0, left:0, bottom:0, width:44, zIndex:20, background:"transparent",
         display:"flex", flexDirection:"column", alignItems:"flex-start", justifyContent:"center", gap:3, padding:"14px 0" }}>
+      {/* ⚠️ EL VELO · LA CORRECCIÓN DEL DEFECTO QUE EL OWNER MARCÓ EL 2026-08-20 y quedó abierto un mes:
+          «cuando pasas el cursor, las cosas que muestra se superponen a la Mesa central, es poco fino».
+          QUÉ PASABA, medido: la barra no tiene fondo. Al abrirse pasaba de 44 a 236 px por ENCIMA del contenido,
+          y como lo único opaco eran las pastillas, entre una y otra seguía viéndose el texto de abajo y cada
+          pastilla caía sobre una palabra distinta. No era una capa: era un choque.
+          POR QUÉ ESTE ARREGLO Y NO CORRER LA MESA. Se probaron tres caminos en agosto (velo · empujar el panel ·
+          mostrar solo el nombre apuntado) y ninguno se eligió. Empujar el panel obliga a que TODO el dato salte
+          de lugar cada vez que el cursor roza el borde izquierdo, y en un tablero eso es peor que la
+          superposición: se pierde el punto que estabas mirando. El velo no mueve nada — hace que la
+          superposición se lea como lo que es, una capa que se apoya encima y deja ver que abajo sigue habiendo
+          algo, atenuado. El owner pidió que no se superpusiera FEO, no que no se superpusiera.
+          ⚠️ VA DETRÁS (`zIndex:-1`) Y NO RECIBE CLICKS: es fondo, no superficie interactiva. */}
+      <div className="adi-rail-velo" aria-hidden="true"/>
       <style>{`
         .adi-rail{ transition: width .2s ease; }
+        /* EL VELO · aparece con la barra y se disuelve hacia la derecha. El desenfoque hace que lo de abajo se
+           lea como profundidad y no como suciedad; la máscara evita el corte vertical en el borde. */
+        .adi-rail-velo{ position:absolute; top:0; left:0; bottom:0; width:236px; z-index:-1; pointer-events:none;
+          opacity:0; transition:opacity .18s ease;
+          backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+          background:${C.veloBarra};
+          -webkit-mask-image:linear-gradient(90deg,#000 0%,#000 62%,transparent 100%);
+                  mask-image:linear-gradient(90deg,#000 0%,#000 62%,transparent 100%); }
+        .adi-rail:hover .adi-rail-velo, .adi-rail:focus-within .adi-rail-velo{ opacity:1; }
         .adi-rail:hover, .adi-rail:focus-within{ width:236px !important; }
         .adi-rail .adi-rail-pill, .adi-rail .adi-rail-stpill{
           opacity:0; transform:translateX(-10px); pointer-events:none;

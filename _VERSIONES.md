@@ -12,6 +12,45 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.10 — producción · tag `v2.10`
+
+**La barra lateral deja de chocar con lo que hay debajo.** Es el pendiente que quedó anotado en la 2.9 y que
+estuvo abierto un mes: el owner lo marcó el 2026-08-20 —«cuando pasas el cursor, las cosas que muestra se
+superponen a la Mesa central, es poco fino»— y ahora está cerrado.
+
+**Qué pasaba, medido:** la barra **no tiene fondo**. Al pasar el cursor se abre de 44 a 236 px por encima del
+contenido, y como lo único opaco eran las pastillas, entre una y otra se seguía viendo el texto de abajo y cada
+pastilla caía sobre una palabra distinta. No se leía como una capa: se leía como un choque.
+
+**El arreglo es un velo**, y la elección tiene razón. En agosto se habían probado tres caminos y ninguno se
+eligió: el velo, empujar la Mesa, o mostrar solo el nombre de la barrita apuntada. **Empujar la Mesa se
+descarta**: obliga a que todo el dato salte de lugar cada vez que el cursor roza el borde izquierdo, y en un
+tablero eso es peor que la superposición — se pierde el punto que estabas mirando. El velo **no mueve nada**:
+hace que la superposición se lea como lo que es, una capa apoyada encima que deja ver que abajo sigue habiendo
+algo, atenuado. El owner pidió que no se superpusiera **feo**, no que no se superpusiera.
+
+**Tres detalles que hacen la diferencia entre un velo y una mancha:**
+
+- **Desenfoque de 4 px** detrás: lo de abajo se lee como profundidad, no como suciedad.
+- **Se disuelve hacia la derecha** con una máscara: sin ese degradado, el borde del velo es una línea vertical
+  a mitad de pantalla — cambiar un choque por una línea no era arreglarlo.
+- **El color sale de la paleta**, no del CSS. Es la misma superficie viniendo hacia adelante: si el fondo
+  cambia, el velo cambia con él. Escrito a mano, el día que se toque el fondo el velo queda flotando.
+
+Va **detrás** (`z-index:-1`) y **no recibe clicks**: es fondo, no superficie interactiva.
+
+El gate lo sella en cinco líneas —que el velo exista, con desenfoque, con máscara, detrás y sin clicks, y que su
+color venga del token—, para que el defecto no pueda volver sin que nadie se entere.
+
+Verificado con la barra forzada abierta: el velo mide 236 px por el alto completo, cubre las cuatro pastillas,
+está en opacidad 0 en reposo y su regla de apertura existe. Sin errores en consola.
+Gates **189 PASS · 0 FAIL · 0 TOCARON LA RED**, árbol limpio.
+
+**Con esto queda cerrado el frente de UX.** El siguiente es Flujo Comercial con dato real: folio, días de
+crédito y hoja de Abonos.
+
+---
+
 ## 2.9 — producción · tag `v2.9`
 
 **La experiencia elegida deja de ser una variante y pasa a ser la app.** El owner cerró la exploración:

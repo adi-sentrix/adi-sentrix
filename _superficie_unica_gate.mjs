@@ -130,6 +130,17 @@ H("5 · NO QUEDAN VARIANTES DORMIDAS · ni sus restos");
    * antes de descubrir que no hace nada. Estas tres se cerraron el mismo día, por la misma razón. */
   const barra = leer("./src/ui/BarraLateral.jsx");
   ok(!barra.includes('get("barra")'), "la barra ya no lee `?barra`: quedó un solo comportamiento");
+  /* ⚠️ EL VELO NO ES UN ADORNO: ES EL ARREGLO. Sin él la barra se abre por encima del contenido sin fondo, y
+   * como lo único opaco son las pastillas, entre una y otra se sigue viendo el texto de abajo y cada pastilla
+   * cae sobre una palabra distinta. Eso fue lo que el owner marcó el 2026-08-20 —«se superponen a la Mesa
+   * central, es poco fino»— y estuvo abierto un mes. Estas líneas impiden que vuelva sin que nadie se entere. */
+  ok(barra.includes("adi-rail-velo"), "la barra abre con un velo detrás: la superposición es una capa, no un choque");
+  ok(barra.includes("backdrop-filter:blur"), "…con desenfoque, para que lo de abajo se lea como profundidad");
+  ok(barra.includes("mask-image:linear-gradient"), "…y se disuelve a la derecha: sin borde duro");
+  ok(barra.includes("z-index:-1") && barra.includes("pointer-events:none"),
+    "…y va detrás y sin recibir clicks: es fondo, no superficie");
+  ok(barra.includes("background:${C.veloBarra}"),
+    "el color del velo sale de la paleta: si cambia el fondo, el velo cambia con él");
   ok(!barra.includes("adi-rail--velo") && !barra.includes("adi-rail--apuntada"),
     "…y el CSS de sus tres modos se fue con el parámetro");
   const app = leer("./src/ui/App.jsx");

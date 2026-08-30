@@ -64,6 +64,7 @@ const TEMA_TABLERO = {
   sombraJunta: null,
   /* LAS PASTILLAS DE LA BARRA · el owner las pidió opacas y con resplandor: «deben estar en cuadro negro
      notarse». En el tablero eso es un negro más hondo que el fondo. */
+  veloBarra: "linear-gradient(90deg, rgba(10,10,10,0.97) 0%, rgba(10,10,10,0.95) 44%, rgba(10,10,10,0.72) 76%, rgba(10,10,10,0) 100%)",
   pastillaBg: "#0b0b0d",
   pastillaSombra: "0 10px 26px -10px rgba(0,0,0,0.95)",
   /* ⚠️ `esPapel` Y `esSuperficieADI` NO SON LO MISMO, y confundirlas era el riesgo de esta versión.
@@ -132,6 +133,11 @@ const TEMA_PIZARRA = {
   /* EL PLIEGUE ILUMINADO · lo que separa las dos caras, y lo que hace que esta propuesta sea ÉSTA y no la
      neutra. Filete celeste tenue, resplandor corto hacia la izquierda, sombra negra pegada al canto. */
   sombraJunta: "-14px 0 30px -16px rgba(47,184,218,0.35), -3px 0 12px -6px rgba(0,0,0,0.60), -1px 0 0 rgba(90,190,220,0.26)",
+  /* EL VELO DE LA BARRA · el degradado que se enciende detrás de las pastillas cuando la barra se abre. Va como
+     token y no escrito en el CSS porque es LA MISMA superficie viniendo hacia adelante: si el fondo cambia, el
+     velo tiene que cambiar con él o deja de leerse como la misma hoja y pasa a ser una mancha encima. Termina
+     en transparente para que el borde derecho no sea una línea, que es justo lo que se veía mal. */
+  veloBarra: "linear-gradient(90deg, rgba(20,23,27,0.97) 0%, rgba(20,23,27,0.95) 44%, rgba(20,23,27,0.72) 76%, rgba(20,23,27,0) 100%)",
   /* la pastilla se LEVANTA del fondo (más clara), al revés que en el tablero, donde se hundía */
   pastillaBg: "#1f242c",
   pastillaSombra: "0 10px 26px -10px rgba(0,0,0,0.85)",
