@@ -326,8 +326,50 @@ H("11 · R4: el rescate proporcional — cifras del turno, refutación y trato")
   ok(rD.r.agente.estado === "limite" && /(^|\n)jc: /.test(rD.r.text), "…y la línea honesta también");
 }
 
-/* ═══ 12 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
-H("12 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
+/* ═══ 12 · LEER ANTES DE DECLINAR (R6 del examen 1 · 2026-08-31) ══════════════════════════════════════════════
+ * LO MEDIDO: T20 afirmó una limitación FALSA («sin 24 meses no puedo» — el dato trae el año anterior) con 0
+ * herramientas y quedó verde; T16 dijo «no tengo tu venta total» cuando executiveSummary la trae; en 24-28
+ * pidió permiso conversacional para lecturas internas 4 turnos seguidos. Declinar sin boleta es opinar. */
+H("12 · el empujón de R6: declinar sin haber leído recibe UNA chance de verificar");
+{
+  initTenant(PACK);
+  // (a) el espejo de T16/T20: declina en ronda 1 sin herramientas → empujón → lee → responde con cifra
+  let vioNudge = false, llamadasA = 0;
+  const guionT20 = async ({ mensajes, ronda }) => {
+    llamadasA++;
+    vioNudge = vioNudge || mensajes.some((m) => /VERIFICA — pide ahora/.test(m.content));
+    if (ronda === 1 && !vioNudge) return { tipo: "texto", texto: "No tengo el dato de tu venta total consolidada, así que no puedo comparar." };
+    if (!vioNudge) return { tipo: "texto", texto: "cierro" };
+    if (ronda === 2) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
+    return { tipo: "texto", texto: TEXTO_BUENO };
+  };
+  const ra = await answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: "actual", callAgente: guionT20 });
+  ok(vioNudge, "★ R6: la declinación sin lectura recibió el empujón del motor");
+  ok(ra.r.agente.estado === "verde" && ra.r.agente.figs === 2 && /22\.560/.test(ra.r.text),
+    `…y el turno terminó VERDE con boleta llena (${ra.r.agente.estado} · ${ra.r.agente.figs} figs)`);
+
+  // (b) el límite DECLARADO del mapa no recibe empujón: declinar directo ES la conducta (bloque B)
+  let llamadasB = 0;
+  const guionMapa = async () => { llamadasB++; return { tipo: "texto", texto: "El detalle mensual por cliente no está disponible: la serie no reconcilia contra la cifra oficial del período. Lo que sí tengo verificado es el consolidado — pídemelo y lo trabajamos." }; };
+  const rb = await answerViaAgente({ text: "cuanto me compro riachuelo mes a mes?", history: [], mem: {}, scenario: "actual", callAgente: guionMapa });
+  ok(llamadasB === 1, `«no reconcilia» (el límite del mapa) pasa directo, sin empujón ni segunda llamada (${llamadasB})`);
+
+  // (c) una respuesta CON contenido en ronda 1 tampoco lo recibe (el empujón es para declinaciones sin boleta)
+  let llamadasC = 0;
+  const guionResponde = async () => { llamadasC++; return { tipo: "texto", texto: "Ventas totales del negocio: $61K en el período. La cuenta grande es Depósito Riachuelo." }; };
+  const rc = await answerViaAgente({ text: "cuanto vendi?", history: [], mem: {}, scenario: "actual", callAgente: guionResponde });
+  ok(llamadasC === 1, `responder con contenido no dispara el empujón (${llamadasC} llamada)`);
+
+  // (d) el empujón es UNO: el guion que declina por siempre no entra en bucle
+  let llamadasD = 0;
+  const guionNecio = async () => { llamadasD++; return { tipo: "texto", texto: "No puedo responder eso con lo que tengo disponible." }; };
+  const rd = await answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: "actual", callAgente: guionNecio });
+  ok(llamadasD === 2 && typeof rd.r.text === "string" && rd.r.text.length > 0,
+    `el necio recibe UN empujón y su segunda declinación se acepta (${llamadasD} llamadas)`);
+}
+
+/* ═══ 13 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
+H("13 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
   const tmp = [];
   let nCarnada = 0;
@@ -454,6 +496,18 @@ H("12 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       };
       const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionT7c });
       return r.r.agente.estado !== "reparado" && r.r.agente.figs === 0;   // el defecto: el pedido se tiró y el turno murió sin leer
+    });
+
+  // (n) R6 · el empujón quitado: la limitación falsa vuelve a salir verde sin leer (T20)
+  await carnada("declinar sin leer, sin empujón (el T20 del examen)",
+    [[/      if \(calls === 0 && !nudgeUsado && _RE_DECLINA_SIN_LEER\.test\(res\.texto\) && !\/no reconcilia\/i\.test\(res\.texto\)\) \{/,
+      "      if (false) {"]],
+    async (Mut) => {
+      initTenant(PACK);
+      let llamadas = 0;
+      const g = async () => { llamadas++; return { tipo: "texto", texto: "No tengo el dato de tu venta total consolidada, así que no puedo comparar." }; };
+      const r = await Mut.answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: "actual", callAgente: g });
+      return llamadas === 1 && r.r.agente.figs === 0;   // el defecto: la declinación sin boleta pasó sin verificar
     });
 
   // (k) R4a · el rescate vuelve a UNA cifra: la proporcionalidad muere en silencio

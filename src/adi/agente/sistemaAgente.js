@@ -21,6 +21,9 @@ export const INVARIANTES_AGENTE = [
   "Si el dato no está, declina en UNA línea diciendo qué falta, con la cifra más cercana que sí tengas.",
   "Un supuesto del usuario JAMÁS se mezcla con lo verificado sin su etiqueta.",
   "Proporcionalidad real: pregunta puntual → respuesta primero y una línea de lectura; panorama → el arco completo.",
+  // R6 del examen 1 (2026-08-31): T20 afirmó una limitación FALSA con 0 herramientas; en 24-28 pidió permiso
+  // conversacional para lecturas internas. La letra lo dice y el bucle lo empuja (el empujón de R6).
+  "Antes de afirmar un límite del dato o declinar, VERIFICA con una lectura — salvo que el mapa ya declare ese límite. Las lecturas internas no piden permiso: se ejecutan y se sirve el resultado.",
 ].map((s, i) => `${i + 1}. ${s}`).join("\n");
 
 /** sistemaDelAgente(scenario) → { fijo } · el segmento estable del system (persona + invariantes + arco +

@@ -181,10 +181,27 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     return true;
   };
 
+  /* R6 DEL EXAMEN 1 (2026-08-31): LEER ANTES DE DECLINAR U OPINAR. Medido: T20 afirmó una limitación FALSA
+   * («sin 24 meses no puedo» — el dato trae el año anterior) con 0 herramientas y quedó verde; en 5 de 7 turnos
+   * de la ventana 17-23 declinó o clarificó sin UNA cifra; en 24-28 pidió permiso conversacional para lecturas
+   * internas («¿Quieres que tire el Executive Summary? ¿Sí o no?») en vez de ejecutarlas. Declinar sin boleta
+   * es opinar. El empujón es UNO por turno, consume ronda (jamás un bucle infinito) y NO aplica cuando el
+   * límite citado ya es el DECLARADO del mapa («no reconcilia» — ahí declinar directo ES la conducta). */
+  const _RE_DECLINA_SIN_LEER = /\bno (?:tengo|puedo|dispongo|hay|registro)\b|\bsin (?:datos|serie|hist[oó]rico?a?|24 meses)\b|¿(?:quieres|deseas) que\b|¿s[ií] o no\?|¿vamos con\b|¿procedo\b/i;
+  let nudgeUsado = false;
+
   while (rondas < TOPE_RONDAS && texto === null) {
     rondas++;
     const res = await callAgente({ mensajes: [...mensajes], mapa, herramientas, ronda: rondas, attempt: 0, figsEnBoleta: figsTotales.length });
-    if (res && res.tipo === "texto" && typeof res.texto === "string" && res.texto.trim()) { texto = res.texto; break; }
+    if (res && res.tipo === "texto" && typeof res.texto === "string" && res.texto.trim()) {
+      if (calls === 0 && !nudgeUsado && _RE_DECLINA_SIN_LEER.test(res.texto) && !/no reconcilia/i.test(res.texto)) {
+        nudgeUsado = true;
+        mensajes.push({ role: "assistant", content: res.texto });
+        mensajes.push({ role: "user", content: "[MOTOR — no es el usuario] Antes de declinar, afirmar un límite del dato o pedir permiso para una lectura: VERIFICA — pide ahora la(s) herramienta(s) que respalden tu respuesta y las ejecuto. Las lecturas internas no piden permiso: se ejecutan y se sirve el resultado. Solo si el límite ya está declarado en el mapa del dato, responde directo citándolo." });
+        continue;   // la ronda cuenta contra el tope
+      }
+      texto = res.texto; break;
+    }
 
     const pedidos = (res && res.tipo === "herramientas" && Array.isArray(res.pedidos)) ? res.pedidos.filter(Boolean) : [];
     if (!pedidos.length) continue;   // ronda vacía: cuenta contra el tope, jamás un reintento infinito
