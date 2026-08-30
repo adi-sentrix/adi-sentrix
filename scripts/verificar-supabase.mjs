@@ -79,9 +79,14 @@ console.log("0 · EL ESQUEMA · ¿la base tiene lo que este código le va a pedi
     if (!r.ok && /does not exist|42703/i.test(`${r.motivo} ${r.detalle}`)) atrasada = n.mig;
   }
   /* LA FIRMA DE LA FUNCIÓN · con seis argumentos desde la 005. Se la llama con un id que no existe: si la
-   * firma falta, PostgREST contesta PGRST202; si está, contesta cualquier otra cosa, que es lo que se busca. */
+   * firma falta, PostgREST contesta PGRST202; si está, contesta cualquier otra cosa, que es lo que se busca.
+   *
+   * ⚠️ LOS NOMBRES SON LOS QUE USA `persistirCarga`, no los que uno recuerde. PostgREST resuelve la función
+   * por el CONJUNTO EXACTO de argumentos nombrados: escribir `p_pack` en vez de `p_sello` devuelve el mismo
+   * PGRST202 que devolvería una migración sin correr, y ahí el chequeo deja de medir la base y pasa a medir
+   * la memoria del que lo escribió. Ya pasó una vez, en la sonda que precedió a estas líneas. */
   const f = await db.llamarFuncion("adi_activar_version", {
-    p_version_id: "00000000-0000-0000-0000-000000000000", p_pack: {}, p_moneda: "CLP",
+    p_version_id: "00000000-0000-0000-0000-000000000000", p_sello: {}, p_moneda: "CLP",
     p_actor_id: null, p_actor_label: "verificación", p_actor_rol: "owner",
   }, { pase });
   const sinFirma = /PGRST202|Could not find the function/i.test(`${f.motivo || ""} ${f.detalle || ""}`);
