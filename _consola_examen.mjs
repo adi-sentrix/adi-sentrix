@@ -26,7 +26,15 @@ delete process.env.LLM_MODEL_PARSE;
 delete process.env.LLM_MODEL_NARRATE;
 
 import { answerViaNatural } from "./src/adi/oracle/caminoNatural.js";
-import { handleNarrateC } from "./src/adi/llm/gatewayCore.js";
+import { handleNarrateC, handleAgente } from "./src/adi/llm/gatewayCore.js";
+/* F4-PREP (2026-08-30): el examen del AGENTE corre por esta MISMA consola con `--agente` — el mismo bucle real
+ * que ChatADI invoca con la bandera ON (`answerViaAgente` + `handleAgente` del gateway real), estado y
+ * expedientes PROPIOS (`_examen_agente_*.json`) para no contaminar el corpus del natural que lee la
+ * calibración. ⚠️ GASTA IGUAL QUE EL NATURAL: solo con la autorización del owner que NOMBRE el gasto
+ * (protocolo: _EXAMEN_AGENTE_PROTOCOLO.md). Construirlo es gratis; correrlo no. */
+import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { sistemaDelAgente } from "./src/adi/agente/sistemaAgente.js";
+import { catalogoAgente } from "./src/adi/agente/catalogoAgente.js";
 import { proyectarDatoNegocio } from "./src/adi/oracle/datoProyectado.js";
 import { MARCA_CALCULO } from "./src/adi/oracle/narrationBlocks.js";
 import { MODEL_PRICING } from "./src/adi/llm/modelPricing.js";
@@ -99,10 +107,11 @@ function _sello() {
   ].join("\n");
 }
 
-const ESTADO = "_examen_estado.json";
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
 const valor = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : null; };
+const MODO_AGENTE = flag("--agente");
+const ESTADO = MODO_AGENTE ? "_examen_agente_estado.json" : "_examen_estado.json";
 
 let S = fs.existsSync(ESTADO) ? JSON.parse(fs.readFileSync(ESTADO, "utf8")) : null;
 if (flag("--reset") || !S) S = { titulo: valor("--titulo") || "sin título", history: [], mem: {}, turnos: [], costoUSD: 0, llamadas: 0 };
@@ -132,7 +141,7 @@ const _precio = (u) => {
 /* EL EXPEDIENTE DEL TURNO (2026-08-14): cuando un turno cae al suplente, el veredicto solo dice el NOMBRE del
  * veto — y con eso no se puede reparar nada: hay que ver el borrador que el notario rechazó y la multa exacta
  * que se le devolvió. Se captura acá, en el caller, sin tocar una línea del producto. */
-const EXPEDIENTE = () => `_examen_debug_t${S.turnos.length}.json`;   // uno por turno: el del turno 2 no pisa al del 1
+const EXPEDIENTE = () => `${MODO_AGENTE ? "_examen_agente_debug_t" : "_examen_debug_t"}${S.turnos.length}.json`;   // uno por turno: el del turno 2 no pisa al del 1
 let costoTurno = 0, llamadasTurno = 0, crudoUltimo = "";
 const intentos = [];
 const callNatural = async ({ mensajes, attempt, motivoReintento }) => {
@@ -161,12 +170,30 @@ const callNatural = async ({ mensajes, attempt, motivoReintento }) => {
   return nr.narration;
 };
 
+/* EL CEREBRO DEL AGENTE — el MISMO transporte que _fetchAgente (ChatADI) arma para /api/adi-agente, contra el
+ * gatewayCore directo: system fijo (sistemaDelAgente), catálogo mecánico y tier por paso (herramientas → PLAN ·
+ * reparación → cierre). Cada llamada suma al costo del turno y al expediente, igual que el natural. */
+const callAgente = async ({ mensajes, ronda, attempt = 0, motivoReintento }) => {
+  llamadasTurno++;
+  const paso = attempt > 0 ? "cierre" : "herramientas";
+  const data = await handleAgente({ mensajes, system: sistemaDelAgente(ESCENARIO_INICIAL).fijo, tools: catalogoAgente(), paso, attempt, motivoReintento }, process.env);
+  if (data && typeof data.costUSD === "number") costoTurno += data.costUSD;   // el costo lo estima el gateway con el MODELO REAL (tier por paso), no la tarifa sonnet de la consola
+  if (!data || !data.ok) throw new Error((data && data.error) || "gateway sin agente");
+  crudoUltimo = data.tipo === "texto" ? String(data.texto || "") : `[pedidos] ${JSON.stringify(data.pedidos || [])}`;
+  intentos.push({ intento: llamadasTurno, ronda, paso, motivoReintento: motivoReintento || null, tipo: data.tipo, borrador: crudoUltimo,
+    usage: data.usage || null, modelo: data.model || null, costUSD: data.costUSD ?? null });
+  return data.tipo === "herramientas" ? { tipo: "herramientas", pedidos: data.pedidos || [] } : { tipo: "texto", texto: String(data.texto || "") };
+};
+
 const t0 = Date.now();
 let out;
-try { out = await answerViaNatural({ text: q, history: S.history, mem: S.mem, scenario: ESCENARIO_INICIAL, callNatural }); }
-catch (e) { console.log(`\n🔴 EL CAMINO NATURAL LANZÓ: ${String(e && e.message).slice(0, 160)}\n   (en producción, este turno caería al camino actual sin que el usuario vea el error)`); process.exit(1); }
+try {
+  out = MODO_AGENTE
+    ? await answerViaAgente({ text: q, history: S.history, mem: S.mem, scenario: ESCENARIO_INICIAL, callAgente })
+    : await answerViaNatural({ text: q, history: S.history, mem: S.mem, scenario: ESCENARIO_INICIAL, callNatural });
+} catch (e) { console.log(`\n🔴 EL CAMINO ${MODO_AGENTE ? "AGENTE" : "NATURAL"} LANZÓ: ${String(e && e.message).slice(0, 160)}\n   (en producción, este turno caería en cascada al siguiente camino sin que el usuario vea el error)`); process.exit(1); }
 
-const nat = (out.r && out.r.natural) || {};
+const nat = (out.r && (MODO_AGENTE ? out.r.agente : out.r.natural)) || {};
 const visible = String(out.r.text || "");
 S.history = S.history.concat([{ role: "user", text: q }, { role: "adi", text: visible }]);
 S.mem = out.mem || S.mem;
@@ -180,7 +207,12 @@ console.log("┌── LO QUE VE EL USUARIO ────────────
 console.log(visible.split("\n").map((l) => "│ " + l).join("\n"));
 console.log("└──────────────────────────────────────────────────────────────────");
 const fugaCalc = visible.includes(MARCA_CALCULO) || /\bid=c\d+\s*·|\bop=[a-z_]+\s*·/.test(visible);
-console.log(`\n┌── EL VEREDICTO INTERNO ──────────────────────────────────────────`);
+console.log(`\n┌── EL VEREDICTO INTERNO${MODO_AGENTE ? " · AGENTE" : ""} ──────────────────────────────────`);
+if (MODO_AGENTE) {
+  console.log(`│ rondas · calls   : ${nat.rondas ?? "?"} · ${nat.calls ?? "?"} herramientas ejecutadas`);
+  console.log(`│ figs en boleta   : ${nat.figs ?? "?"}`);
+  if (nat.motivos && nat.motivos.length) console.log(`│ límites del dato : ${nat.motivos.join("  ·  ")}`);
+}
 console.log(`│ estado           : ${nat.estado || "?"}${nat.suplenteDigno ? "  ⚠️ respondió el SUPLENTE DIGNO" : ""}`);
 console.log(`│ vetos            : ${(nat.vetos || []).length ? nat.vetos.join("  ·  ") : "ninguno"}`);
 console.log(`│ reparaciones     : ${nat.reparaciones ?? (nat.estado === "reparado" ? 1 : 0)}`);
