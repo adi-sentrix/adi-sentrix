@@ -17,8 +17,11 @@
  *
  * EL CEREBRO SE INYECTA (`callAgente`) — ChatADI pondrá el fetch real cuando el adapter hable el modo libre;
  * los gates ponen GUIONES, incluidos los maliciosos. Contrato de `callAgente({ mensajes, mapa, herramientas,
- * ronda, attempt, motivoReintento })` → Promise<{ tipo:"herramientas", pedidos:[{tool,args}] } |
+ * ronda, attempt, motivoReintento, figsEnBoleta })` → Promise<{ tipo:"herramientas", pedidos:[{tool,args}] } |
  * { tipo:"texto", texto }>. Este módulo no conoce el cable (tool_use nativo vs texto): eso es del adapter.
+ * `figsEnBoleta` (R-eco del examen 1 del agente): cuántas cifras verificadas acumula el turno — el adapter
+ * decide el tier con eso (escalar el cierre a un modelo mejor SOLO cuando hay material que reescribir; con
+ * boleta vacía la escalada fue 66% del gasto y CERO verdes).
  *
  * PURO · sin red · detrás de la bandera ADI_AGENTE (hoy APAGADA en todos los perfiles). */
 import { runPlan } from "../oracle/toolRunner.js";
@@ -36,6 +39,7 @@ import { anteponerSello } from "../../ingesta/selloEnRespuesta.js";
 import { extraerCalculos, stripAllMarks, composeNoDataMessage } from "../oracle/narrationBlocks.js";
 import { normalizeResponse } from "../responseContract.js";
 import { _respaldoDeLoYaAprobado } from "../oracle/caminoNatural.js";
+import { recitaAprobadaDe } from "../oracle/cicloNotarial.js";   // R2 del examen 1: la MISMA memoria de re-cita del camino natural — jamás una segunda paralela
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 import { vetosDeContrato } from "./contratoAgente.js";   // F3 · el juez ciego de sugerencias — se SUMA a guardC, no lo toca
 
@@ -97,6 +101,13 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   const caja = cajaDelAgente(TOOLS);
   const herramientas = Object.keys(caja).sort();
   const mapa = mapaDelDato(scenario);
+  /* R2 DEL EXAMEN 1 DEL AGENTE (2026-08-31): la re-cita de lo YA aprobado a pantalla — el MISMO cable del
+   * camino natural (caminoNatural.js), que acá NUNCA se conectó: el contador marcó 0 en los 28 turnos y las
+   * cifras aprobadas en turnos previos ($194K de T9, re-citado en T13) morían como «no autorizadas». Raíz de
+   * la mayoría de los turnos no-verdes. Los candados del owner viven en recitaAprobadaDe (mismo dueño, misma
+   * unidad, solo textos que el muro aprobó). */
+  const recita = (memIn.recitaAprobada && Array.isArray(memIn.recitaAprobada.figs) && memIn.recitaAprobada.figs.length)
+    ? memIn.recitaAprobada : null;
 
   // ── el hilo que ve el cerebro (la misma disciplina del camino natural: el turno una sola vez) ──
   const mensajes = [];
@@ -116,7 +127,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
 
   while (rondas < TOPE_RONDAS && texto === null) {
     rondas++;
-    const res = await callAgente({ mensajes: [...mensajes], mapa, herramientas, ronda: rondas, attempt: 0 });
+    const res = await callAgente({ mensajes: [...mensajes], mapa, herramientas, ronda: rondas, attempt: 0, figsEnBoleta: figsTotales.length });
     if (res && res.tipo === "texto" && typeof res.texto === "string" && res.texto.trim()) { texto = res.texto; break; }
 
     const pedidos = (res && res.tipo === "herramientas" && Array.isArray(res.pedidos)) ? res.pedidos.filter(Boolean) : [];
@@ -152,7 +163,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
 
   // ── el cierre forzado: agotó las rondas sin responder ──
   if (texto === null) {
-    const res = await callAgente({ mensajes: [...mensajes, { role: "user", content: "[MOTOR — no es el usuario] Se acabaron las rondas de herramientas. Responde AHORA al usuario con lo que tienes; si no alcanza, declina en una línea diciendo qué falta." }], mapa, herramientas, ronda: TOPE_RONDAS + 1, attempt: 0, cierre: true });
+    const res = await callAgente({ mensajes: [...mensajes, { role: "user", content: "[MOTOR — no es el usuario] Se acabaron las rondas de herramientas. Responde AHORA al usuario con lo que tienes; si no alcanza, declina en una línea diciendo qué falta." }], mapa, herramientas, ronda: TOPE_RONDAS + 1, attempt: 0, cierre: true, figsEnBoleta: figsTotales.length });
     if (res && res.tipo === "texto" && typeof res.texto === "string" && res.texto.trim()) texto = res.texto;
   }
 
@@ -165,12 +176,14 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   for (const pf of parseFigures(q)) supuestosDelHilo.push(pf.text);
   for (const f of figsTotales) if (f.source === "user_supuesto" && (f.text || f.value)) supuestosDelHilo.push(String(f.text || f.value));
 
+  const duenosTenant = _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]);
   const _guard = (t) => guardC(t, {
     ledger: { figs: figsTotales }, results: resultsTotales, trace: null, question: q,
     supuestoPendiente: supuestosDelHilo,
+    recitaAprobada: recita,   // R2: cifras aprobadas a pantalla en turnos previos — el muro las re-autoriza con su dueño
     datoProyectado: cifrasDelDato(scenario),
     entidadesDelTenant: _ejes(["cliente", "sku", "marca"]),
-    duenosDelTenant: _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]),
+    duenosDelTenant: duenosTenant,
     contentScope: "full", tablePolicy: "auto",
   });
   /* F3 · EL CONTRATO DE SUGERENCIAS SE SUMA AL MURO, SIN TOCARLO (owner: «ese qué hacer debe ser SUGERENCIAS…
@@ -178,11 +191,20 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * jamás comprensión) que corre DESPUÉS: un texto con cifras perfectas que ORDENA la ejecución («procede
    * con X») recibe multa y entra al MISMO ciclo de una-reparación. También rige la escalera: un respaldo viejo
    * que ordenaba no se re-sirve. Calibrado contra el corpus de exámenes (24 aceptadas · 0 vetos). */
-  const juzgar = (t) => {
+  /* R7 DEL EXAMEN 1 (expediente auditable): CADA veto queda registrado con su sitio y su multa — el examen 1
+   * corrió con «vetos: ninguno» en los 28 veredictos mientras 14 turnos reintentaban por guard, y el post-mortem
+   * quedó a ciegas justo en los turnos degradados. El registro es OBSERVACIÓN pura: no decide nada. */
+  const vetosDelTurno = [];
+  const _multaDe = (v) => (v && (v.multa || (v.violations || []).map((x) => x.detalle || x.detail || x.reason || x).join("\n"))) || "cifras no verificables";
+  const juzgar = (t, sitio = "cierre") => {
     const v = _guard(t);
-    if (!v || !v.ok) return v;
+    if (!v || !v.ok) {
+      vetosDelTurno.push(`${sitio} · ${String(_multaDe(v)).split("\n")[0].slice(0, 180)}`);
+      return v;
+    }
     const vc = vetosDeContrato(t);
     if (!vc.length) return v;
+    vetosDelTurno.push(`${sitio} · ${vc[0].regla}: ${vc[0].multa.split("\n")[0].slice(0, 160)}`);
     return { ok: false, violations: vc.map((x) => ({ rule: x.regla, detalle: x.multa })), multa: vc.map((x) => x.multa).join("\n") };
   };
 
@@ -199,10 +221,10 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       const multa = (v1 && (v1.multa || (v1.violations || []).map((x) => x.detalle || x.reason || x).join("\n"))) || "cifras no verificables";
       const res2 = await callAgente({
         mensajes: [...mensajes, { role: "assistant", content: esNarracionVacia(lavado) ? "(respuesta vacía)" : lavado }, { role: "user", content: _MENSAJE_NOTARIO(multa) }],
-        mapa, herramientas, ronda: rondas, attempt: 1, motivoReintento: "guard",
+        mapa, herramientas, ronda: rondas, attempt: 1, motivoReintento: "guard", figsEnBoleta: figsTotales.length,
       });
       const t2 = res2 && res2.tipo === "texto" ? stripLanguageLeaks(String(res2.texto || "")) : "";
-      const v2 = t2.trim() ? juzgar(t2) : null;
+      const v2 = t2.trim() ? juzgar(t2, "reparacion") : null;
       if (v2 && v2.ok) { final = t2; estado = "reparado"; aprobado = true; }
     }
   }
@@ -210,11 +232,11 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   // ── la escalera INVERTIDA ──
   let suplente = false;
   if (final === null) {
-    final = _lineaHonesta({ motivos: motivosNoSoportado, figs: figsTotales, juzgar });
+    final = _lineaHonesta({ motivos: motivosNoSoportado, figs: figsTotales, juzgar: (t) => juzgar(t, "linea-honesta") });
     if (final !== null) { estado = "limite"; suplente = true; }
   }
   if (final === null) {
-    final = _respaldoDeLoYaAprobado(memIn, juzgar);
+    final = _respaldoDeLoYaAprobado(memIn, (t) => juzgar(t, "respaldo"));
     if (final !== null) { estado = "respaldo"; suplente = true; }
   }
   if (final === null) { final = composeNoDataMessage(null); estado = "vacio"; suplente = true; }
@@ -227,6 +249,12 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
 
   const memOut = { ...memIn, recentNarrations: [pantalla, ...recentPrev].slice(0, 2) };
   if (aprobado && !suplente) memOut.ultimaAprobada = pantalla;
+  /* R2 · la otra punta del cable: lo que el muro APROBÓ presta sus cifras al turno siguiente — el MISMO
+   * constructor y los MISMOS candados del camino natural (un texto vetado o un respaldo no acumulan nada). */
+  if (aprobado) {
+    const recitaNueva = recitaAprobadaDe({ textoAprobado: pantalla, catalogoEntidades: duenosTenant || [], previa: recita });
+    if (recitaNueva) memOut.recitaAprobada = recitaNueva;
+  }
 
   return {
     r: normalizeResponse({
@@ -236,7 +264,9 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       claims: [],
       suggestions: null,
       sentrixAction: null,
-      agente: { estado, rondas, calls, figs: figsTotales.length, motivos: motivosNoSoportado.slice(0, 3) },
+      agente: { estado, rondas, calls, figs: figsTotales.length, motivos: motivosNoSoportado.slice(0, 3),
+        vetos: vetosDelTurno,   // R7 · el expediente auditable: cada veto con su sitio y su multa (observación, no decisión)
+        recitaCifras: recita && Array.isArray(recita.figs) ? recita.figs.length : 0 },
     }),
     mem: memOut,
   };

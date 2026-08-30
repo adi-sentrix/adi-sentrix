@@ -11,9 +11,13 @@
  *       citar como «verificado»;
  *   6 · topes de calls: 8 por ronda (cap de runPlan) y 12 por turno;
  *   7 · el respaldo de lo ya aprobado es el peldaño 2, y el genérico el último — el volcado de KPIs no existe
- *       en la escalera.
+ *       en la escalera;
+ *   8 · R2 (examen 1 del agente): la re-cita de lo aprobado — cifras que el muro YA aprobó a pantalla se
+ *       re-autorizan al re-citarse; sin memoria (o con otra cifra) siguen muriendo;
+ *   9 · R7 (examen 1): cada veto queda en el expediente con su sitio y su multa, y `figsEnBoleta` viaja al
+ *       cerebro para que el adapter decida el tier (R-eco: escalar solo con material que reescribir).
  *
- * ⚠️ CARNADAS (sección 8): cada garantía, probada ROJA mutando una copia del bucle vivo.
+ * ⚠️ CARNADAS (sección 10): cada garantía, probada ROJA mutando una copia del bucle vivo.
  *
  * OFFLINE · determinístico · cerebro = guion · la bandera ADI_AGENTE sigue APAGADA (esto prueba el módulo,
  * no lo enciende). `node --import ./scripts/offline-guard.mjs _agente_bucle_gate.mjs`
@@ -157,8 +161,69 @@ H("7 · respaldo de lo ya aprobado y genérico — el tablero no existe");
     "sin nada, el genérico pelado — nunca ~12 KPIs", `${sinNada.r.agente.estado} · ${sinNada.r.text.length} chars`);
 }
 
-/* ═══ 8 · CARNADAS ════════════════════════════════════════════════════════════════════════════════════════════ */
-H("8 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
+/* ═══ 8 · LA RE-CITA DE LO APROBADO (R2 del examen 1 · 2026-08-31) ════════════════════════════════════════════
+ * EL DEFECTO MEDIDO: `mem.recitaAprobada` jamás se escribía en modo agente (contador 0 en los 28 turnos) — el
+ * borrador de T13 re-citaba el $194K de Falabella APROBADO en T9 y el muro lo mató como «no autorizada». Raíz
+ * de la mayoría de los turnos no-verdes. El cable es el MISMO del camino natural: nada nuevo que calibrar. */
+H("8 · la re-cita: lo aprobado presta sus cifras al turno siguiente");
+{
+  /* Los MISMOS textos de _recita_aprobada_gate (el gate del cable original): $104.0M es una PROYECCIÓN
+   * calculada a la vista — no vive en el dato proyectado, así que la única fuente que puede re-autorizarla
+   * en el turno 2 es la re-cita. (Una cifra REAL del dato no sirve de prueba: la quinta fuente la autoriza
+   * sola, con o sin memoria — la lección del refutado B-grieta-2 del expediente.) Mecánica, no literales. */
+  initTenant(TENANT_DEMO);
+  const Q1 = "Si subo ventas 4%, ¿qué cambia?";
+  const T1 = "Ventas totales del negocio: $100.0M proyectados × 1.04 = $104.0M. Es una proyección con tu supuesto.";
+  const t1 = await answerViaAgente({ text: Q1, history: [], mem: {}, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: T1 }) });
+  const nRecita = ((t1.mem.recitaAprobada || {}).figs || []).length;
+  ok(t1.r.agente.estado === "verde" && nRecita >= 2, `el turno verde ACUMULA la re-cita (${nRecita} cifras con dueño)`);
+
+  // turno 2: cero herramientas y boleta vacía, re-citando la proyección aprobada — el caso EXACTO de T13/T24
+  const HILO = [{ role: "user", text: Q1 }, { role: "adi", text: t1.r.text }];
+  const RE_OK = "Sobre las ventas totales del negocio, esa proyección de $104.0M sigue en pie con tu supuesto.";
+  const guionRecita = async () => ({ tipo: "texto", texto: RE_OK });
+  const t2 = await answerViaAgente({ text: "y entonces en cuanto quedan las ventas?", history: HILO, mem: t1.mem, scenario: "actual", callAgente: guionRecita });
+  ok(t2.r.agente.estado === "verde" && /104\.0M/.test(t2.r.text),
+    `★ re-citar una cifra YA aprobada con boleta vacía es VERDE (${t2.r.agente.estado}) — la raíz de T13/T24, cerrada`);
+  ok(t2.r.agente.recitaCifras >= 2, `y el veredicto declara la memoria que usó (${t2.r.agente.recitaCifras} cifras)`);
+
+  // contraprueba 1: sin memoria, el MISMO texto muere — la re-cita no es un pase libre
+  const t2sin = await answerViaAgente({ text: "y entonces en cuanto quedan las ventas?", history: HILO, mem: {}, scenario: "actual", callAgente: guionRecita });
+  ok(t2sin.r.agente.estado !== "verde" && !/104\.0M/.test(t2sin.r.text),
+    `sin memoria el mismo texto NO pasa (${t2sin.r.agente.estado}) — autoriza la memoria, no la frase`);
+
+  // contraprueba 2: una cifra que NADIE aprobó muere aunque la memoria exista
+  const guionOtra = async () => ({ tipo: "texto", texto: "Sobre las ventas totales del negocio, esa proyección de $117.0M sigue en pie con tu supuesto." });
+  const t3 = await answerViaAgente({ text: "y entonces?", history: HILO, mem: t1.mem, scenario: "actual", callAgente: guionOtra });
+  ok(t3.r.agente.estado !== "verde" && !/117\.0M/.test(t3.r.text),
+    "una cifra que nadie aprobó sigue muriendo — la re-cita autoriza lo aprobado, no lo parecido");
+}
+
+/* ═══ 9 · EL EXPEDIENTE VE LOS VETOS (R7 del examen 1) + figsEnBoleta AL CEREBRO (R-eco) ══════════════════════
+ * EL DEFECTO MEDIDO: los 28 veredictos del examen decían «vetos: ninguno» con 14 turnos reintentando por
+ * guard — el post-mortem quedó a ciegas justo donde dolía. Y la escalada de modelo en el cierre fue 66% del
+ * gasto con CERO verdes: el adapter necesita saber si hay boleta antes de pagar un tier mejor. */
+H("9 · cada veto con su sitio y su multa · figsEnBoleta viaja al cerebro");
+{
+  initTenant(PACK);
+  const figsVistas = [];
+  const guionTerco2 = async ({ ronda, attempt, figsEnBoleta }) => {
+    figsVistas.push(figsEnBoleta);
+    if (ronda === 1 && attempt === 0) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
+    return { tipo: "texto", texto: "Depósito Riachuelo te compró $99.9M el último mes — un récord histórico." };
+  };
+  const r = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionTerco2 });
+  const vetos = r.r.agente.vetos || [];
+  ok(vetos.length >= 2 && vetos.every((v) => typeof v === "string" && v.includes(" · ")),
+    `los vetos quedan registrados con sitio y multa (${vetos.length})`, JSON.stringify(vetos));
+  ok(vetos.some((v) => v.startsWith("cierre ·")) && vetos.some((v) => v.startsWith("reparacion ·")),
+    "…nombrando el sitio: cierre y reparación", JSON.stringify(vetos));
+  ok(figsVistas[0] === 0 && figsVistas[1] === 2,
+    `figsEnBoleta llega al cerebro en cada llamada: ${JSON.stringify(figsVistas)} (0 antes de la ronda · 2 después)`);
+}
+
+/* ═══ 10 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
+H("10 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
   const tmp = [];
   let nCarnada = 0;
@@ -248,6 +313,37 @@ H("8 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       };
       await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: necio });
       return correcciones > 1;   // sano: exactamente UNA corrección en todo el turno
+    });
+
+  // (f) R2 · la re-cita desconectada del muro: el turno 2 que re-cita lo aprobado vuelve a morir
+  const Q1_C = "Si subo ventas 4%, ¿qué cambia?";
+  const T1_C = "Ventas totales del negocio: $100.0M proyectados × 1.04 = $104.0M. Es una proyección con tu supuesto.";
+  await carnada("re-cita sin cablear al muro (la regresión del examen 1)",
+    [[/    recitaAprobada: recita,   \/\/ R2: cifras aprobadas a pantalla en turnos previos — el muro las re-autoriza con su dueño\n/, ""]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const t1 = await Mut.answerViaAgente({ text: Q1_C, history: [], mem: {}, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: T1_C }) });
+      const g2 = async () => ({ tipo: "texto", texto: "Sobre las ventas totales del negocio, esa proyección de $104.0M sigue en pie con tu supuesto." });
+      const t2 = await Mut.answerViaAgente({ text: "y entonces en cuanto quedan las ventas?", history: [{ role: "user", text: Q1_C }, { role: "adi", text: t1.r.text }], mem: t1.mem, scenario: "actual", callAgente: g2 });
+      return t2.r.agente.estado !== "verde";   // el defecto: la re-cita legítima vuelve a morir
+    });
+
+  // (g) R2 · la memoria que no se escribe: el turno aprobado no acumula nada
+  await carnada("re-cita sin escribir en la memoria",
+    [[/    const recitaNueva = recitaAprobadaDe\(\{ textoAprobado: pantalla, catalogoEntidades: duenosTenant \|\| \[\], previa: recita \}\);\n    if \(recitaNueva\) memOut\.recitaAprobada = recitaNueva;\n/, ""]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const t1 = await Mut.answerViaAgente({ text: Q1_C, history: [], mem: {}, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: T1_C }) });
+      return t1.r.agente.estado === "verde" && !t1.mem.recitaAprobada;   // el defecto: verde sin memoria — el contador 0 del examen
+    });
+
+  // (h) R7 · el expediente ciego: los vetos del guard no se registran
+  await carnada("vetos del guard sin registrar",
+    [[/      vetosDelTurno\.push\(`\$\{sitio\} · \$\{String\(_multaDe\(v\)\)\.split\("\\n"\)\[0\]\.slice\(0, 180\)\}`\);\n/, ""]],
+    async (Mut) => {
+      initTenant(PACK);
+      const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionTerco });
+      return (r.r.agente.vetos || []).length === 0;   // el defecto: turno vetado con «vetos: ninguno»
     });
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* */ } }
