@@ -3894,7 +3894,7 @@ function CuadroCapital({ scenario, onAsk = null, watch = null, onWatch = null })
         </div>
       </div>
       <div style={{ fontSize:14, color:C.textMuted, lineHeight:1.5 }}>
-        Ordena por cualquier columna · el Estado es el semáforo del motor contra tu benchmark (rotación {POLICY.rotacionMin}x · {POLICY.dohMax}d de inventario) — tocalo y ADI abre esa historia · el "En juego $" es el capital inmovilizado que el detector afirma (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · la ★ la sigue en "Lo que yo sigo" · rotación media {cc.rotacionMedia}x · <span style={{ color:C.textSub }}>{cc.n} {cc.plural}</span> · escenario {scenario} · sin comparado de 12 meses: no existe serie mensual de stock por SKU (se enciende con el ERP).
+        Ordena por cualquier columna · el Estado es el semáforo del motor contra tu benchmark (rotación {POLICY.rotacionMin}x · {POLICY.dohMax}d de inventario) — tocalo y ADI abre esa historia · el "En juego $" es el capital inmovilizado que el detector afirma (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · la ★ la sigue en "Lo que yo sigo" · rotación media {cc.rotacionMedia}x · <span style={{ color:C.textSub }}>{cc.n} {cc.plural}</span> · sin comparado de 12 meses: no existe serie mensual de stock por SKU (se enciende con el ERP).
       </div>
     </div>
   );
@@ -4811,7 +4811,7 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
       )}
       {sel.length === 2 && !mesa && dim === "cliente" ? <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/> : null}
       <div style={{ fontSize:14, color:C.textMuted, lineHeight:1.5 }}>
-        Toca una fila para seleccionar{resumen ? " y comparar (2 → el comparado de arriba las muestra lado a lado) · \"Ver Perfil Ejecutivo\" abre su Perfil Ejecutivo" : mesa ? " (1 → su perfil vs promedio · 2 → el comparado de arriba las muestra lado a lado)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordena por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu benchmark (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · el "En juego $" es la lectura del detector (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · el comparado de arriba sigue tu selección (sin selección = tu negocio · una fila = vs año anterior · dos = lado a lado){mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:11.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
+        Toca una fila para seleccionar{resumen ? " y comparar (2 → el comparado de arriba las muestra lado a lado) · \"Ver Perfil Ejecutivo\" abre su Perfil Ejecutivo" : mesa ? " (1 → su perfil vs promedio · 2 → el comparado de arriba las muestra lado a lado)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordena por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu benchmark (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · el "En juego $" es la lectura del detector (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · el comparado de arriba sigue tu selección (sin selección = tu negocio · una fila = vs año anterior · dos = lado a lado){mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:11.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span>.
       </div>
     </div>
   );
@@ -6281,7 +6281,7 @@ function ConcentracionCard({ scenario, spec }) {
       </svg>
 
       <div style={{ fontSize:14, color:C.textMuted, lineHeight:1.5, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}` }}>
-        Concentración {sp.byNoun} ($) · escenario {con.scenario} · <span style={{color:C.elec}}>barras azules</span> = el bloque que explica el 80.0% · <span style={{color:C.lav}}>línea lavanda</span> = acumulado, <span style={{color:C.red}}>punto rojo</span> = corte del 80.0%.
+        Concentración {sp.byNoun} ($) · <span style={{color:C.elec}}>barras azules</span> = el bloque que explica el 80.0% · <span style={{color:C.lav}}>línea lavanda</span> = acumulado, <span style={{color:C.red}}>punto rojo</span> = corte del 80.0%.
       </div>
     </Card>
   );

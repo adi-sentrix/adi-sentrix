@@ -57,7 +57,10 @@ ok(segCon.fijo + segCon.variable === conDato, "`fijo + variable` sigue siendo by
 ok(segSin.fijo + segSin.variable === sinDato, "…y sin dato también (la garantía vieja no se movió)");
 // el corte del caché se busca por marcador de texto: si un marcador apareciera DENTRO de la proyección, el corte
 // caería adentro del dato y partiría el bloque en dos. Se afirma que no puede pasar, no se supone.
-ok(!DATO.includes("· Escenario de datos actual:") && !DATO.includes(DOCTRINA_CONTEXTO_VISTA),
+// COLAPSO DEL EJE (retrabajo ultracode 2026-08-30): la línea del escenario murió; los marcadores de corte son
+// ahora la doctrina de pantalla, la memoria (dinámica — no verificable acá) y la instrucción final. Se afirma
+// que NINGUNO de los estáticos puede caer dentro de la proyección.
+ok(!DATO.includes(DOCTRINA_CONTEXTO_VISTA) && !DATO.includes("Emití el plan con emitPlan."),
   "ningún marcador de corte aparece dentro de la proyección — el corte no puede caer adentro del bloque");
 // el fijo es el MISMO con y sin línea de pantalla, con y sin memoria, en cualquier escenario de sesión: todo lo
 // que varía por turno sigue del lado variable, así que el prefijo cacheable no se rompe entre turnos.

@@ -1655,7 +1655,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       const pendienteGlobal = nacePendingSimulation({ dimension: "cliente", entity: null, entities: [], alcance: "global",
         known: { ...pendingSimulationPrev.known }, missingCampo: pendingSimulationPrev.missingCampo });
       if (pendienteGlobal) {
-        const out = _composedBypassResult(`Tomo el escenario sobre el total del negocio. ${_preguntaPorFaltante(pendienteGlobal.missingCampo)} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`, mem, recentNarrationsPrev, scenario);
+        const out = _composedBypassResult(`Tomo la simulación sobre el total del negocio. ${_preguntaPorFaltante(pendienteGlobal.missingCampo)} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`, mem, recentNarrationsPrev, scenario);   // («escenario» era el sentido simulate — vocabulario post-colapso: simulación
         if (out) {
           out.mem = { ...out.mem, pendingSimulation: pendienteGlobal };
           return out;

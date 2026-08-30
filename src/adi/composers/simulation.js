@@ -338,7 +338,7 @@ export function composeGrowthProjection(payload, scenarioId) {
   const lines = [];
   lines.push(`Si ${scope} ${verbo} ${pct}%, su contribución ${dirVerbo} de ${fmt(contribActual)} a ${fmt(contribProy)} (${deltaTxt}).`);
   // Supuesto declarado · texto literal del founder.
-  lines.push(`Modelo simple: crecimiento sobre la venta actual del escenario, manteniendo margen constante.`);
+  lines.push(`Modelo simple: crecimiento sobre la venta actual, manteniendo margen constante.`);   // (sin «del escenario» — colapso del eje)
 
   return {
     opener: lines.join("\n\n"),
@@ -465,7 +465,7 @@ export function composePriceLever(payload, scenarioId) {
   if (scopeType === "familia") {
     const orphans = _priceOrphanSkusForFamily(scope);
     if (orphans.length) {
-      lines.push(`${scope} se proyecta sobre la venta cliente sellada del escenario. Los SKUs ${orphans.join(" y ")} tienen venta de SKU pero no cliente asignado en este dataset; se pueden simular como SKU, pero no se incorporan al total de familia sin inventar relación.`);
+      lines.push(`${scope} se proyecta sobre la venta cliente sellada de la base real. Los SKUs ${orphans.join(" y ")} tienen venta de SKU pero no cliente asignado en este dataset; se pueden simular como SKU, pero no se incorporan al total de familia sin inventar relación.`);
     }
   }
 

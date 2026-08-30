@@ -51,11 +51,13 @@ H("[2] EL CORTE ESTÁ DONDE TERMINA LO ESTABLE · el segmento fijo no depende de
   // lo que varía tiene que estar ENTERO del lado variable: si algo de esto se colara al fijo, el caché no pegaría.
   for (const c of CASOS) {
     const { fijo, variable } = buildPlanSystemSegments(ADI_PERSONA_PLAN, c.mem, c.sc, c.vista);
-    // se busca la LÍNEA DE DECLARACIÓN, no la palabra suelta: "actual" aparece en la doctrina fija por otros
-    // motivos ("el turno ACTUAL del usuario"), y buscar la palabra daba un falso rojo en 3 de los 4 casos.
-    const linea = `· Escenario de datos actual: ${c.sc}.`;
-    ok(!fijo.includes(linea) && variable.includes(linea), `${c.n} — el escenario se declara del lado variable`);
-    if (c.mem) ok(!fijo.includes("jc"), `${c.n} — la memoria de sesión NO está en el fijo`);
+    // COLAPSO DEL EJE (retrabajo ultracode 2026-08-30): la línea «· Escenario de datos actual: X.» MURIÓ — el
+    // único mundo no se declara al modelo. La propiedad que este chequeo guardaba (lo que varía por turno vive
+    // del lado variable) sigue: la memoria y la doctrina de pantalla se verifican abajo, y acá se afirma que la
+    // declaración de escenario no existe EN NINGÚN LADO del prompt — su resurrección sería el concepto volviendo.
+    ok(!fijo.includes("Escenario de datos") && !variable.includes("Escenario de datos"),
+      `${c.n} — la declaración de escenario no existe en el prompt (colapso del eje)`);
+    if (c.mem) ok(!fijo.includes("jc") && variable.includes(c.mem), `${c.n} — la memoria de sesión viaja ENTERA del lado variable`);
     if (c.vista) ok(!fijo.includes(DOCTRINA_CONTEXTO_VISTA) && variable.includes(DOCTRINA_CONTEXTO_VISTA),
       `${c.n} — la doctrina de pantalla viaja del lado variable`);
   }

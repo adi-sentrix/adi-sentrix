@@ -207,7 +207,9 @@ function _construir(scenario) {
   /* LA MONEDA DEL HEADER ES LA DECLARADA. «USD» fijo le afirmaba al cerebro la moneda equivocada de cualquier
    * pack que declare otra (un archivo en CLP quedaba presentado como dólares). Sin declaración cae a «USD» —
    * los tenants de fábrica, byte-idéntico. */
-  L.push(`EL DATO DEL NEGOCIO — ${t.nombre || t.id} · escenario: ${scenario} · moneda ${rotuloMoneda(t) || "USD"}.`);
+  // (el token «escenario: X» murió con el colapso del eje — retrabajo ultracode 2026-08-30: el único mundo no
+  //  se declara al modelo; el parámetro sigue siendo la ranura del dato, no una etiqueta del prompt)
+  L.push(`EL DATO DEL NEGOCIO — ${t.nombre || t.id} · moneda ${rotuloMoneda(t) || "USD"}.`);
   L.push(`Esto es tu conocimiento del negocio completo, para ENTENDER y contextualizar. Dos universos con período distinto: la venta comercial es del AÑO CERRADO; el inventario es la FOTO DE HOY.`);
   L.push("");
 

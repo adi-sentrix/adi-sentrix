@@ -203,9 +203,12 @@ export const DOCTRINA_CONTEXTO_VISTA = `· CONTEXTO DE PANTALLA (owner 2026-08-0
 // nunca lo parte. Sin el argumento, TODO caller viejo produce el mismo system de hoy, byte por byte.
 export function buildPlanSystemSegments(persona, memBlock, scenario, hayVista = false, datoNegocio = null) {
   const completo = buildPlanSystem(persona, memBlock, scenario, hayVista, datoNegocio);
-  // el corte es la primera línea que depende del turno. `hayVista` inserta su doctrina JUSTO antes del escenario,
-  // así que buscar el escenario (que siempre está) deja la doctrina de pantalla del lado variable, donde va.
-  const marca = hayVista ? DOCTRINA_CONTEXTO_VISTA : "· Escenario de datos actual:";
+  // el corte es la primera línea que depende del turno. La línea del escenario MURIÓ (retrabajo ultracode del
+  // colapso, 2026-08-30: el único mundo no se declara al modelo) — el corte cae ahora en la PRIMERA pieza
+  // variable presente: la doctrina de pantalla si hay vista, la memoria si hay memoria, y si no, la instrucción
+  // final (única en el prompt — verificado). Las cuatro combinaciones cortan en el MISMO punto del prefijo, así
+  // que el fijo sigue byte-idéntico entre turnos (lo prueba _plan_cache_gate [2]).
+  const marca = hayVista ? DOCTRINA_CONTEXTO_VISTA : (memBlock || "Emití el plan con emitPlan.");
   const i = completo.indexOf(marca);
   if (i <= 0) return { fijo: completo, variable: "" };   // defensivo: sin corte reconocible, se manda como siempre
   return { fijo: completo.slice(0, i), variable: completo.slice(i) };
@@ -244,9 +247,7 @@ ${buildPrefDoctrine()}
 · TRATO/IDENTIDAD: si da una instrucción de cómo tratarlo → llená memoryUpdate. "llámame X" → nombre:X. "trátame de usted" → trato:usted; "de tú"/"tuteame" → trato:tu. "no uses tecnicismos" → tecnicismo:bajo. "no me muestres tablas" → tablas:false. "prioriza lo financiero/el impacto económico" → prioridad:financiero. Si SOLO da la instrucción → intent="ack", calls=[]. Si además pregunta algo → intent="answer" con sus calls. (Las correcciones de verbosidad/detalle — "háblame más directo", "sin rodeos", "explícame con más detalle" — NO van acá, son "pref", ver arriba.)
 · Elegí las tools mínimas que respondan de verdad. Una respuesta "overview"/"resumen"/"insight del negocio" puede pedir varias (ej. executiveSummary, o diagnose + queryMetric) — pero con el alcance correcto.
 · TEMPORAL: para "mes a mes", "mensual", "evolución", "cómo viene mes a mes", un trimestre/Q, un semestre, un mes puntual, un rango de meses, o "esto mismo mes a mes" → usá la tool 'trend' (metric + dimension o entity + period). El dato mensual REAL es VENTAS y CONTRIBUCIÓN (la propia tool declara honesto lo que no: resultado/P&L mensual, inventario mensual, canal mensual, margen en matriz por eje). CONSERVÁ EL ALCANCE DEL TURNO ANTERIOR: si venías hablando de un EJE (los SKU, los clientes, las marcas) y ahora piden "esto mismo mes a mes", pasá ese eje → dimension:"sku"/"cliente"/"marca" (NO el negocio global: cambiarle el alcance al usuario sin avisar es peor que no responder). Si venías de UNA entidad, pasá entity. Si en un seguimiento la métrica anterior no tiene mensual (ej. costo medio), pedí 'trend' de la que SÍ (ventas/contribución) sobre el MISMO eje — no la foto actual. FUTURO/pronóstico NO existe (no hay serie a futuro): eso sí, intent="answer" y el narrador aclara que no proyecta.
-${datoNegocio ? `\n${DOCTRINA_DATO_PLAN}\n\n${datoNegocio}\n\n` : ""}${hayVista ? DOCTRINA_CONTEXTO_VISTA + "\n" : ""}· Escenario de datos actual: ${scenario}.
-
-${memBlock ? memBlock + "\n\n" : ""}Emití el plan con emitPlan.`;
+${datoNegocio ? `\n${DOCTRINA_DATO_PLAN}\n\n${datoNegocio}\n\n` : ""}${hayVista ? DOCTRINA_CONTEXTO_VISTA + "\n\n" : ""}${memBlock ? memBlock + "\n\n" : ""}Emití el plan con emitPlan.`;
 }
 
 // buildPlanUserMessage(history, text) → el mensaje de usuario para la Pasada 1 (hilo reciente + turno actual).

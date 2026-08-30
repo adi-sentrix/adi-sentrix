@@ -99,8 +99,16 @@ que esa revisión pase (condición del encargo).
 ## Notas para la revisión (cosas vistas y NO tocadas, a propósito)
 
 - **`spine.js:52` `periodo: scenario || ESCENARIO_INICIAL`** — un campo llamado «periodo» que guarda un nombre
-  de escenario (cruce de vocabulario heredado). Se pinneó el default (C3) sin renombrar el campo: renombrarlo
-  toca el shape del spine (consumidores aguas abajo). Candidato a limpieza dirigida.
+  de escenario (cruce de vocabulario heredado). **ACTUALIZADO EN EL RETRABAJO ULTRACODE (2026-08-30): este
+  campo ALIMENTÓ la fuga 1** (el pie del cuadro verbalizaba `evidence.periodo` como «escenario bonanza» al
+  usuario). Evaluación del encargo (¿pin ahora o declarar con más fuerza?): **declarado con más fuerza, el
+  renombre NO entra en este retrabajo** — es cirugía de shape (consumidores por nombre: `answerADI` lee
+  `state.scenario`, `SentrixPanel` lee `evidence.periodo`, y el spine viaja por el seam) con riesgo runtime
+  real, mientras que HOY: (a) las 8 emisiones que lo verbalizaban están muertas, (b) el lock de emisión
+  endurecido caza las cuatro FORMAS por las que se escapó (template, dos-puntos, JSX, mayúscula-a-distancia)
+  con las fugas reales como carnadas verbatim, y (c) el campo quedó como maquinaria pura, igual que
+  `vc.escenario`. Si la segunda tanda de la revisión ordena el renombre, es un corte propio con su gate de
+  shape (spine → seam → evidence → consumidores, las cuatro estaciones).
 - **`filterTextualSuggestions` deja las sugerencias del overview del demo en `[]`** (ventas e inventario) —
   PREEXISTENTE al colapso (la lista que colapsé es byte-igual a la rama bonanza vieja). No es regresión mía;
   candidato a diagnóstico propio.

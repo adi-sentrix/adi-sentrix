@@ -187,10 +187,17 @@ H("C3 · ni un literal de escenario como default — la base real se declara UNA
 /* ═══ C4 · LA SUPERFICIE NO DICE «ESCENARIO» ══════════════════════════════════════════════════════════════════ */
 H("C4 · el único mundo no se etiqueta — ningún emisor compone «escenario X» para el usuario o el modelo");
 {
-  // Formas de EMISIÓN (template literal con el token + interpolación, y las etiquetas por nombre en strings).
-  // SIN EXENCIONES desde C6: el scrub del seam se retiró (los emisores hablan limpio) y este lock es su sucesor.
+  // Formas de EMISIÓN. SIN EXENCIONES desde C6: el scrub del seam se retiró y este lock es su sucesor.
+  // ⚠️ LECCIÓN DEL RETRABAJO ULTRACODE (2026-08-30): la primera versión cazaba SOLO `escenario ${` y las
+  // etiquetas por nombre — y CUATRO fugas reales la evadieron POR FORMA: la interpolación JSX («escenario
+  // {scenario}» sin `$`), la mayúscula con palabras intermedias («Escenario de datos actual: ${scenario}») y
+  // los dos puntos («escenario: ${scenario}»). Un lock que mide una forma mide ESA forma. Las cuatro fugas de
+  // hoy quedan abajo como carnadas VERBATIM: este lock no vuelve a aprobar lo que ya se le escapó.
   const EMISIONES = [
     /escenario \$\{/,                                   // «· escenario ${scenario}» — la forma template
+    /escenario: \$\{/,                                  // «· escenario: ${scenario}» — con dos puntos (fuga real: datoProyectado)
+    /escenario \{[a-zA-Z]/,                             // «· escenario {scenario}» — interpolación JSX (fugas reales: pies del cuadro y el Pareto)
+    /[Ee]scenario[^\n"`]{0,40}\$\{/,                    // «Escenario de datos actual: ${…}» — mayúscula/palabras intermedias a ≤40 chars de la interpolación (fuga real: planPrompt)
     /"[^"\n]*escenario (?:Bonanza|Tensi|Crisis|favorable|cr[ií]tico)/,   // la etiqueta por nombre en un literal
   ];
   const emiten = [];
@@ -285,6 +292,22 @@ H("CARNADA · cada chequeo, probado ROJO con la resurrección adentro");
   // (k) el scrub re-escrito de memoria (la red que ya no ataja nada)
   ok(definicionesDe("_scrubScenario", sinComentarios("function _scrubScenario(text) { return text; }")).length > 0,
     "carnada «scrub re-escrito de memoria» → el detector lo caza");
+
+  // (k2..k5) LAS CUATRO FUGAS REALES DEL RETRABAJO ULTRACODE, verbatim como cebo — la primera versión del lock
+  // las aprobó a todas; esta tiene que cazarlas una por una, para siempre.
+  const _emite = (src) => EMISIONES_TEST.some((re) => re.test(sinComentarios(src)));
+  const EMISIONES_TEST = [
+    /escenario \$\{/, /escenario: \$\{/, /escenario \{[a-zA-Z]/, /[Ee]scenario[^\n"`]{0,40}\$\{/,
+    /"[^"\n]*escenario (?:Bonanza|Tensi|Crisis|favorable|cr[ií]tico)/,
+  ];
+  ok(_emite("const pie = <span>{cm.n} {cm.plural} · escenario {scenario}.</span>;"),
+    "carnada «pie JSX del cuadro (fuga real 1)» → el lock la caza");
+  ok(_emite("const t = `Concentración ${sp.byNoun} ($) · escenario {con.scenario} · barras`;"),
+    "carnada «pie del Pareto (fuga real 2)» → el lock la caza");
+  ok(_emite("const s = `· Escenario de datos actual: ${scenario}.`;"),
+    "carnada «system del PLAN (fuga real 3)» → el lock la caza");
+  ok(_emite("L.push(`EL DATO DEL NEGOCIO — ${t.nombre} · escenario: ${scenario} · moneda USD.`);"),
+    "carnada «header de la proyección (fuga real 4)» → el lock la caza");
 
   // (l) los labels de UI de vuelta en config
   ok(definicionesDe("SCENARIOS", sinComentarios("export const SCENARIOS = { bonanza: { label: \"Bonanza\" } };")).length > 0,

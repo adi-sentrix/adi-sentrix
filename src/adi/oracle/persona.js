@@ -121,7 +121,7 @@ function _lineaPendiente(pending) {
   const ents = (Array.isArray(p.entities) && p.entities.length) ? p.entities : (p.entity ? [p.entity] : []);
   if (!ents.length) return "";
   const sobre = ents.length === 1 ? ents[0] : ents.join(" y ");
-  return `· Simulación EMPEZADA Y SIN CERRAR sobre ${sobre}${p.dimension ? ` (eje ${p.dimension})` : ""}: el usuario ya declaró ${conocido} en ${_deltaEnPalabras(p.known.delta_pct)}, y FALTA ${falta} — es el supuesto que ADI le pidió. Si este turno contesta eso (un porcentaje, "que no cambie", "se mantiene", "sobre el total"), es A ESTA simulación que se refiere, no a un escenario nuevo: conserva ${conocido} en ${_deltaEnPalabras(p.known.delta_pct)} y la misma entidad. Si el turno habla de otra cosa, la simulación sigue esperando: no la des por hecha, no la ejecutes a medias y no la traigas tú.`;
+  return `· Simulación EMPEZADA Y SIN CERRAR sobre ${sobre}${p.dimension ? ` (eje ${p.dimension})` : ""}: el usuario ya declaró ${conocido} en ${_deltaEnPalabras(p.known.delta_pct)}, y FALTA ${falta} — es el supuesto que ADI le pidió. Si este turno contesta eso (un porcentaje, "que no cambie", "se mantiene", "sobre el total"), es A ESTA simulación que se refiere, no a una simulación nueva: conserva ${conocido} en ${_deltaEnPalabras(p.known.delta_pct)} y la misma entidad. Si el turno habla de otra cosa, la simulación sigue esperando: no la des por hecha, no la ejecutes a medias y no la traigas tú.`;
 }
 
 // renderInteractionMemory(mem) → bloque legible de la MEMORIA DE INTERACCIÓN para inyectar en el prompt. Las 4 capas

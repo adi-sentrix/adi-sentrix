@@ -115,7 +115,7 @@ export function getClientDeepDive(clientName, scenarioId, context = {}) {
       ? ` Las cuentas activas son ${_activas.join(", ")}${_resto ? ` y otras ${_resto}` : ""}. ¿Cuál quieres revisar?`
       : "";
     return {
-      opener: `No tengo a ${clientName} en el detalle de la cartera de este escenario.${_cuales}`,
+      opener: `No tengo a ${clientName} en el detalle de la cartera.${_cuales}`,   // (el único mundo no se nombra — retrabajo ultracode del colapso 2026-08-30)
       // BRIEF N-bis · Tipo A puro · suggestions filtradas
       suggestions: filterTextualSuggestions(_activas.map(n => `Cuéntame de ${n}`)),
       // FIX_GREETING_RESET_RRE · query negocio aunque cliente no exista · igual resetea
