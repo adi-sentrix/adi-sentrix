@@ -348,7 +348,7 @@ export function composeRankingExtremes({
   // Dataset base
   let dataset = scope || _buildScopeForMetric(metric, ctx?.scenarioId);
   if (!Array.isArray(dataset) || dataset.length === 0) {
-    return composeHonestUnavailable("no hay datos disponibles en el escenario activo.", spec.domain);
+    return composeHonestUnavailable("no hay datos disponibles en la base real.", spec.domain);
   }
 
   // Si hay scope heredado · filtrar

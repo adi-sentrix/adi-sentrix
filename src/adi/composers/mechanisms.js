@@ -356,7 +356,7 @@ export function composeMechanismInactiveResponse(mechanismId, scan) {
   if (mechanismId === "trapped_capital") {
     mensaje = `${mech.nombre_capitalizado} no se evalúa con precisión cuantitativa sin drilldown por categoría de inventario. La lectura agregada del módulo sugiere presión, pero la confirmación causal requiere desglose por categoría que no está disponible en el escenario actual.`;
   } else if (mechanismId === "liquidity_compression") {
-    mensaje = `${mech.nombre_capitalizado} no se manifiesta materialmente en el escenario activo. El flujo de caja se sostiene en los rangos esperados.`;
+    mensaje = `${mech.nombre_capitalizado} no se manifiesta materialmente con este dato. El flujo de caja se sostiene en los rangos esperados.`;
   } else {
     mensaje = `${mech.nombre_capitalizado} no presenta instancias activas en el escenario actual.`;
   }

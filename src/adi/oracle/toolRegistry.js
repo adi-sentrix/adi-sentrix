@@ -584,7 +584,7 @@ function diagnose({ filters = {}, scenario, focus = null, entityScope = null } =
 
 // executiveSummary · la lectura completa de 5 movimientos (cómo ganás · margen · dónde perdés · por qué · recuperación).
 function executiveSummary({ scenario } = {}) {
-  return _tagBodegaConflation(_pack(composeSpecResumenEjecutivo({ scenario }), "no puedo armar el resumen en este escenario"));
+  return _tagBodegaConflation(_pack(composeSpecResumenEjecutivo({ scenario }), "no puedo armar el resumen con este dato"));
 }
 
 // inventoryStatus · estado de inventario (capital detenido / frenado / cobertura). `focus` = el estado que interesa.

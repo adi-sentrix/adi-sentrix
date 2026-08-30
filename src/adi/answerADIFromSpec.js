@@ -125,10 +125,13 @@ function _assumptionEcho(a) {
 }
 
 // ⚠️ ACÁ VIVÍA `_scrubScenario` — la red del seam que reescribía «· escenario Bonanza» a «· base real» en el
-// texto de salida. SE RETIRÓ CON EL COLAPSO DEL EJE (C6, 2026-08-30): los emisores dicen «base real» DIRECTO
-// (specRetrieval: diagnose + 3 openers) y ninguno compone «escenario X» — una red que no ataja nada es código
-// muerto ocupando el choke point. Su sucesor no es otra red: es el lock de EMISIÓN de _colapso_eje_gate, que
-// pone rojo el repo si un emisor volviera a etiquetar el mundo. (Y este archivo ya no está exento del scan.)
+// texto de salida. SE RETIRÓ CON EL COLAPSO DEL EJE (C6, 2026-08-30). CORRECCIÓN DEL RETRABAJO ULTRACODE (R5):
+// la nota original decía que ya «no atajaba nada» y era FALSA — el A/B de la revisión probó que seguía atajando
+// LITERALES ESTÁTICOS («en este escenario», «en el escenario activo») de diez composers, y al retirarla el
+// usuario los leyó crudos. R5 cortó esos diez literales en su FUENTE (los emisores hablan limpio de verdad
+// ahora), y el lock de emisión de _colapso_eje_gate — endurecido a literales estáticos, no solo
+// interpolaciones — es el sucesor real. La lección queda: retirar una red exige probar A/B qué atajaba, no
+// deducirlo de los emisores que uno recuerda.
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════════════
  * answerADIFromSpec(spec, context, state) → { text, suggestions, sentrixAction, intent, route, context, evidence }
@@ -515,7 +518,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       const resp = composeSpecDiagnose({ filters: spec.filters, scenario, focus: spec.focus });
       if (!resp || !resp.opener) {
         const sc = [spec.filters && spec.filters.marca, spec.filters && spec.filters.familia, spec.filters && spec.filters.bodega, spec.filters && spec.filters.cliente].filter(Boolean).join("/");
-        return _degrade("diagnose-empty", `No encontré fugas materiales${sc ? ` en ${sc}` : ""} en este escenario. Todo lo que veo está sobre su benchmark y con el capital rotando.`, [], ctx);
+        return _degrade("diagnose-empty", `No encontré fugas materiales${sc ? ` en ${sc}` : ""} en la base real. Todo lo que veo está sobre su benchmark y con el capital rotando.`, [], ctx);
       }
       // Fase 1 · CONTRATO de respuesta: envolver el productor en el contrato ejecutivo (diagnose_value_leak) antes de finalizar.
       return _finBoleta(composeContract("diagnose_value_leak", resp, resp.evidence, ctx, scenario), resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
@@ -532,7 +535,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
         // con filtro de alcance, el vacío se responde SOBRE ESE ALCANCE — nunca se sustituye por el global sin avisar.
         const _sc = spec.filters && (spec.filters.bodega || spec.filters.familia || spec.filters.marca || spec.filters.cliente);
         if (_sc) return _degrade("inventory-empty", `En ${_sc} no veo ${({ quiebre: "riesgo de quiebre material", sobrestock: "sobrestock material", stale: "SKU parados por ese plazo" })[spec.focus] || "capital inmovilizado según tu benchmark (rotación bajo 2x o más de 120 días)"} — lo que hay ahí se está moviendo dentro de rango. ¿Te muestro el estado completo de ese alcance?`, [], ctx);
-        return _degrade("inventory-empty", (_fMsg[spec.focus]) || `No veo capital inmovilizado material en este escenario — el inventario está rotando dentro de rango.`, [], ctx);
+        return _degrade("inventory-empty", (_fMsg[spec.focus]) || `No veo capital inmovilizado material en la base real — el inventario está rotando dentro de rango.`, [], ctx);
       }
       const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
       if (r && r.evidence && resp.evidence && resp.evidence.inventory) r.evidence = { ...r.evidence, inventory: resp.evidence.inventory, lens: "inventory", dimension: resp.evidence.dimension };

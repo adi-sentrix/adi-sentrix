@@ -173,7 +173,7 @@ function composePriorityRecommendationV2(scenarioId) {
   // Total fallback: cero cliente Tier 1 con presión en escenario.
   if (!cliente_m || !cliente_v) {
     return {
-      opener: "El detalle de priorización requiere identificación de la cuenta con mayor peso económico en el escenario activo.",
+      opener: "El detalle de priorización requiere identificación de la cuenta con mayor peso económico del negocio.",
       // BRIEF N-bis · Tipo A puro · suggestions filtradas
       suggestions: filterTextualSuggestions(["Ver por cuenta", "Ver capital inmovilizado por categoría", "Comparar Tier 1"]),
       sentrixAction: null,
@@ -470,7 +470,7 @@ function composeM3ComoSeConectan(archetype, domains, evidence, scenarioId) {
     return `Inventario y margen operan sobre escalas temporales distintas pero comprometen la misma capacidad operativa del negocio. Uno congela liquidez presente, el otro reduce rentabilidad presente. La combinación limita doblemente la capacidad de reinvertir en categorías de mayor retorno.`;
   }
 
-  return `Los dominios identificados operan por mecanismos distintos pero comprometen capacidad operativa común del negocio. La conexión es real, observable en datos del escenario activo.`;
+  return `Los dominios identificados operan por mecanismos distintos pero comprometen capacidad operativa común del negocio. La conexión es real, observable en tus datos.`;
 }
 
 // ─── M4 · QUÉ PRIORIZAR ─────────────────────────────────

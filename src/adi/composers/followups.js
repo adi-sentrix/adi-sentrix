@@ -194,7 +194,7 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
 
   // ── Fallback métrica no cubierta (rotacion, cobertura, etc) ─────────────
   else {
-    opener = `No tengo cobertura determinística para la métrica "${metricKey}" sobre ${c.nombre} en este escenario. Puedo revisar carga, margen, contribución o ventas · dime cuál te interesa.`;
+    opener = `No tengo cobertura determinística para la métrica "${metricKey}" sobre ${c.nombre} con este dato. Puedo revisar carga, margen, contribución o ventas · dime cuál te interesa.`;
     suggestions = filterTextualSuggestions([
       `Cuéntame de ${c.nombre}`,
       `Y la carga de ${c.nombre}`,

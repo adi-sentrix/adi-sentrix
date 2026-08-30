@@ -217,7 +217,7 @@ H("C4 · el único mundo no se etiqueta — ningún emisor compone «escenario X
 }
 
 /* ═══ C6 · EL SCRUB Y LOS LABELS, RETIRADOS ═══════════════════════════════════════════════════════════════════ */
-H("C6 · la red transitoria y las etiquetas de UI no vuelven — los emisores hablan limpio de nacimiento");
+H("C6 · la red transitoria y las etiquetas de UI no vuelven (R5 corrigió: el scrub SÍ atajaba literales — cortados en su fuente)");
 {
   for (const nombre of ["_scrubScenario", "SCENARIOS"]) {
     const definidoEn = [], importadoEn = [];
@@ -289,7 +289,7 @@ H("CARNADA · cada chequeo, probado ROJO con la resurrección adentro");
   ok(/\bscenario\s*=\s*"actual"/.test(sinComentarios("export function mapaDelDato(scenario = \"actual\") {}")),
     "carnada «default actual de vuelta en el agente» → el chequeo se pone ROJO");
 
-  // (k) el scrub re-escrito de memoria (la red que ya no ataja nada)
+  // (k) el scrub re-escrito de memoria (R5: su trabajo real —literales estáticos— ya se corta en la fuente y en el lock)
   ok(definicionesDe("_scrubScenario", sinComentarios("function _scrubScenario(text) { return text; }")).length > 0,
     "carnada «scrub re-escrito de memoria» → el detector lo caza");
 

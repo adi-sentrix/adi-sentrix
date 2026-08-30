@@ -71,7 +71,7 @@ export function composePortfolioInverse(inv, scenarioId) {
   const valid = cm.filter(c => c && c.venta > 0 && typeof c.contribucion === "number");
   if (valid.length < 2) {
     return {
-      opener: `No tengo base suficiente para el sobre de cartera en este escenario: necesito al menos dos entidades con venta y margen calculables.`,
+      opener: `No tengo base suficiente para el sobre de cartera con este dato: necesito al menos dos entidades con venta y margen calculables.`,
       suggestions: filterTextualSuggestions([]),
       sentrixAction: null,
       derivedModule: "margenes",
@@ -81,7 +81,7 @@ export function composePortfolioInverse(inv, scenarioId) {
   const SC = valid.reduce((a, c) => a + c.contribucion, 0);
   if (!(SV > 0)) {
     return {
-      opener: `No tengo base suficiente: la cartera no tiene venta agregada en este escenario.`,
+      opener: `No tengo base suficiente: la cartera no tiene venta agregada con este dato.`,
       suggestions: filterTextualSuggestions([]),
       sentrixAction: null,
       derivedModule: "margenes",

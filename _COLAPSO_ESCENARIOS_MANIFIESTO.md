@@ -24,7 +24,7 @@ que esa revisión pase (condición del encargo).
 | C3 · defaults | `f709c8f` | 35 literales `\|\| "bonanza"` / `= "bonanza"` en 17 módulos → `ESCENARIO_INICIAL` (byte-idéntico) |
 | C4 · superficie | `134b701` | Headers qi sin «· escenario X» · diagnose+3 openers emiten «· base real» directo · executiveReport sin favorable/de tensión/crítico · honestFallback «del negocio» · viewContext/progressiveDisclosure dejan de VERBALIZAR el escenario · mapa del agente sin «escenario actual» + defaults del agente a `ESCENARIO_INICIAL` |
 | C5 · defaults «actual» | `c259a9e` | 28 defaults de conveniencia `scenario = "actual"` en 12 módulos oráculo/sentrix/composers → `ESCENARIO_INICIAL` (prod no los usaba: ChatADI pasa la constante; disparaban en gates que omitían) |
-| C6 · scrub y labels | `1b8772f`+fix `938ec3a` | `_scrubScenario` retirado del seam (no atajaba nada — sucesor: el lock de emisión del gate, sin exenciones) · `SCENARIOS` (labels UI) retirado de config · 3 gates re-fuenteados a `SCENARIO_TRANSFORMS` |
+| C6 · scrub y labels | `1b8772f`+fix `938ec3a` | `_scrubScenario` retirado del seam · `SCENARIOS` (labels UI) retirado de config · 3 gates re-fuenteados a `SCENARIO_TRANSFORMS`. **CORRECCIÓN (R5, retrabajo ultracode): la afirmación original «no atajaba nada» era FALSA** — el A/B probó que atajaba LITERALES ESTÁTICOS de diez composers («en este escenario», «en el escenario activo») y al retirarla el usuario los leyó crudos; R5 los cortó en su fuente y endureció el lock a literales |
 | C7 · narrativa | `cadfa70` | Las 6 cadenas if-bonanza/tension/crisis de `composeModuleOverview`/V2 + 6 bloques `suggestionsByScenario` → UNA narrativa data-driven |
 
 ## Ramas desarmadas y qué hacían
