@@ -12,6 +12,31 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.15 — producción · tag `v2.15`
+
+**El tablero deja de estar ciego al tamaño del negocio.** Corte chico y deliberado antes del barrido de
+escenarios: dos mejoras visibles y el agente completo viajando inerte.
+
+**Uno · el piso de materialidad escucha al tamaño del negocio.** «Material» dejó de ser un monto fijo pensado
+para $100M: ahora es el 0,05% de la venta REAL de cada negocio. En una empresa de $58M apareció una fuga de
+$36K que el piso fijo silenciaba — la ceguera de tamaño, demostrada con nombre y cifra. La materialidad es una
+propiedad del negocio, no del lente con que se lo mira: los escenarios simulados no la mueven, y cuando la venta
+real cambie con una carga nueva, el piso la sigue solo. Y el verde dejó de ser mudo: donde decía «sin fugas
+materiales» ahora declara su umbral — «bajo el 0,05% de tu venta: $X». El demo quedó byte-idéntico en los
+cuatro escenarios, vigilado permanente.
+
+**Dos · bajo $1M se muestra en K.** Un negocio de $61 mil ya ve «$61K de venta · $14K de contribución»
+donde veía «$0.1M / $0.0M». Sobre $1M, byte-idéntico.
+
+**Y viaja INERTE el agente completo (F2).** Mapa del dato, bucle de herramientas, cable al proveedor, doctrina
+bajo demanda — todo detrás de la bandera `ADI_AGENTE`, apagada en todos los perfiles: cero conducta nueva en
+producción. Se enciende recién cuando la certificación (F3/F4) lo apruebe. 130 chequeos y 25 carnadas propias lo
+custodian mientras tanto.
+
+**Base de datos:** sin migraciones nuevas.
+
+**Suite: 203 PASS · 0 FAIL · 0 TOCARON LA RED · 0 CON CREDENCIAL VIVA.**
+
 ## 2.14 — producción · tag `v2.14`
 
 **ADI deja de hablar en una escala que no es la del negocio, responde la pregunta insignia, y la carga se vuelve
