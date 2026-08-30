@@ -184,6 +184,36 @@ H("C3 · ni un literal de escenario como default — la base real se declara UNA
     "el spec-path importa ESCENARIO_INICIAL de la única fuente");
 }
 
+/* ═══ C4 · LA SUPERFICIE NO DICE «ESCENARIO» ══════════════════════════════════════════════════════════════════ */
+H("C4 · el único mundo no se etiqueta — ningún emisor compone «escenario X» para el usuario o el modelo");
+{
+  // Formas de EMISIÓN (template literal con el token + interpolación, y las etiquetas por nombre en strings).
+  // Exento mientras viva: el scrub del seam (answerADIFromSpec._scrubScenario) — la red transitoria que REESCRIBE
+  // ese lenguaje si algo lo emitiera; sus regex nombran los patrones para matarlos, no para decirlos.
+  const EXENTO_SCRUB = /answerADIFromSpec\.js$/;
+  const EMISIONES = [
+    /escenario \$\{/,                                   // «· escenario ${scenario}» — la forma template
+    /"[^"\n]*escenario (?:Bonanza|Tensi|Crisis|favorable|cr[ií]tico)/,   // la etiqueta por nombre en un literal
+  ];
+  const emiten = [];
+  for (const [p, cod] of CODIGO) {
+    if (EXENTO_SCRUB.test(p)) continue;
+    if (EMISIONES.some((re) => re.test(cod))) emiten.push(p);
+  }
+  ok(emiten.length === 0, "ningún módulo compone «escenario X» en texto emitido", emiten.join(", "));
+  // el mapa del agente — la superficie NUEVA donde el concepto se estaba colando — no lleva el token
+  const mapa = sinComentarios(LEER(join(ROOT, "src/adi/agente/mapaDelDato.js")));
+  ok(!/escenario \$\{/.test(mapa) && /MAPA DEL DATO/.test(mapa),
+    "el mapa del agente no etiqueta el mundo (y sigue siendo el mapa)");
+  // y el agente lee el MISMO dato que la pantalla: default «actual» (no declarado) prohibido en la superficie
+  // NUEVA (src/adi/agente/ — la filtración que el owner mandó matar). ⚠️ MEDIDO Y PENDIENTE (corte C5): 12
+  // módulos del oráculo/sentrix conservan `scenario = "actual"` como default de conveniencia — en el producto
+  // no dispara (ChatADI pasa la constante explícita en todos los caminos), dispara en gates que omiten el
+  // argumento; unificarlos repinta expectativas y es un corte propio, no un ajuste de este chequeo.
+  const conActual = [...CODIGO].filter(([p, cod]) => /[\\/]agente[\\/]/.test(p) && /\bscenario\s*=\s*"actual"/.test(cod)).map(([p]) => p);
+  ok(conActual.length === 0, "ningún default `scenario = \"actual\"` en el AGENTE — agente y pantalla, una sola carpeta", conActual.join(", "));
+}
+
 /* ═══ CARNADAS ════════════════════════════════════════════════════════════════════════════════════════════════ */
 H("CARNADA · cada chequeo, probado ROJO con la resurrección adentro");
 {
@@ -228,6 +258,16 @@ H("CARNADA · cada chequeo, probado ROJO con la resurrección adentro");
     "carnada «default || \"bonanza\" de vuelta» → el chequeo se pone ROJO");
   ok(/\bscenario\s*=\s*"bonanza"/.test(sinComentarios("export function f(scenario = \"bonanza\") {}")),
     "carnada «default de firma de vuelta» → el chequeo se pone ROJO");
+
+  // (i) un emisor que vuelve a etiquetar el mundo (las dos formas de emisión)
+  ok(/escenario \$\{/.test(sinComentarios("const h = `Top 5 clientes · escenario ${scenarioLabel}.`;")),
+    "carnada «header que etiqueta el escenario» → el chequeo se pone ROJO");
+  ok(/"[^"\n]*escenario (?:Bonanza|Tensi|Crisis|favorable|cr[ií]tico)/.test(sinComentarios("const t = \"Resumen · escenario favorable\";")),
+    "carnada «etiqueta por nombre en un literal» → el chequeo se pone ROJO");
+
+  // (j) el agente que vuelve a leer OTRA carpeta que la pantalla
+  ok(/\bscenario\s*=\s*"actual"/.test(sinComentarios("export function mapaDelDato(scenario = \"actual\") {}")),
+    "carnada «default actual de vuelta en el agente» → el chequeo se pone ROJO");
 }
 
 console.log(`\n── _colapso_eje_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

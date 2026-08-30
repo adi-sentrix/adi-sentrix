@@ -36,6 +36,7 @@ import { anteponerSello } from "../../ingesta/selloEnRespuesta.js";
 import { extraerCalculos, stripAllMarks, composeNoDataMessage } from "../oracle/narrationBlocks.js";
 import { normalizeResponse } from "../responseContract.js";
 import { _respaldoDeLoYaAprobado } from "../oracle/caminoNatural.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 
 const TOPE_RONDAS = 3;      // rondas que pueden pedir herramientas
 const TOPE_CALLS = 12;      // tool-calls por turno, sumadas todas las rondas
@@ -87,7 +88,7 @@ function _lineaHonesta({ motivos, figs, juzgar }) {
  * answerViaAgente({ text, history, mem, scenario, callAgente }) → { r, mem } | throws
  * El caller (ChatADI) atrapa el throw y cae al camino natural — la misma red de resiliencia de siempre.
  */
-export async function answerViaAgente({ text, history, mem, scenario = "actual", callAgente } = {}) {
+export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO_INICIAL, callAgente } = {}) {
   if (typeof callAgente !== "function") throw new TypeError("answerViaAgente sin callAgente: el cerebro lo pone el caller");
   const q = String(text || "").trim();
   const memIn = (mem && typeof mem === "object") ? mem : {};

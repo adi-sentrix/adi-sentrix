@@ -948,12 +948,9 @@ function _composeIntegratedClosing(secciones, ctx) {
 
 // ── _composeReportIntro · intro determinística contextual ────────────────
 function _composeReportIntro(scenarioId, secciones, ctx) {
+  // (la etiqueta por escenario —favorable/de tensión/crítico— murió con el colapso del eje: el único mundo no se etiqueta)
   const n_secciones = Array.isArray(secciones) ? secciones.length : 0;
-  const escenario_label = scenarioId === "bonanza" ? "favorable"
-                        : scenarioId === "tension" ? "de tensión"
-                        : scenarioId === "crisis" ? "crítico"
-                        : "actual";
-  return `Resumen ejecutivo · escenario ${escenario_label}. ${n_secciones} frentes para mirar.`;
+  return `Resumen ejecutivo. ${n_secciones} frentes para mirar.`;
 }
 
 // ── composeExecutiveReport · función pública principal Q.D ───────────────

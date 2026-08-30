@@ -928,20 +928,20 @@ export function composeRetrieval(qi, scenario, opts) {
   }
 
   // Header dinámico
+  // COLAPSO DEL EJE (owner 2026-08-07, ejecutado 2026-08-30): el header decía «· escenario Bonanza» en cada
+  // tabla — la fuga EXACTA que disparó el colapso (el camino 16/0 no pasa por el scrub del seam, así que el
+  // usuario LO VEÍA). El único mundo no se etiqueta: la tabla dice qué mide y con qué filtro, y nada más.
   const metricLabels = qi.metrics.map(m => metricMap[m].label);
-  let scenarioLabel = "Bonanza";
-  if (scenario === "tension") scenarioLabel = "Tensión";
-  else if (scenario === "crisis") scenarioLabel = "Crisis";
 
   // Piece 3 · tag de filtro VISIBLE · si la extracción se equivocó, se ve en el header
   const _filterTag = (_filterOn && _hasFilter) ? ` · filtrado por: ${_filterValuesStr(qi.filtros)}` : "";
   let header;
   if (qi.queryType === "ranked") {
-    header = `Top ${qi.limit} ${dimLabel === "Cliente" ? "clientes" : dimLabel === "SKU" ? "SKUs" : dimLabel === "Familia" ? "familias" : "marcas"} por ${metricLabels[0]} · escenario ${scenarioLabel}${_filterTag}.`;
+    header = `Top ${qi.limit} ${dimLabel === "Cliente" ? "clientes" : dimLabel === "SKU" ? "SKUs" : dimLabel === "Familia" ? "familias" : "marcas"} por ${metricLabels[0]}${_filterTag}.`;
   } else if (qi.queryType === "multi") {
-    header = `${metricLabels.join(" y ")} por ${dimLabel} · escenario ${scenarioLabel}${_filterTag}.`;
+    header = `${metricLabels.join(" y ")} por ${dimLabel}${_filterTag}.`;
   } else {
-    header = `${metricLabels[0]} por ${dimLabel} · escenario ${scenarioLabel}${_filterTag}.`;
+    header = `${metricLabels[0]} por ${dimLabel}${_filterTag}.`;
   }
 
   // Build tabla

@@ -50,7 +50,7 @@ function _generateContextualAlternatives(ctx, modulo, scenario) {
   const universal = [
     `Cómo está el negocio en ${_moduleLabel(modulo).toLowerCase()}`,
     `Top entidades del módulo activo`,
-    `Panorama general del escenario ${scenario}`,
+    `Panorama general del negocio`,
   ];
   let uIdx = 0;
   while (alternatives.length < 3 && uIdx < universal.length) {

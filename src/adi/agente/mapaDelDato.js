@@ -23,6 +23,7 @@ import { getSelloDeCarga } from "../../ingesta/estadoCarga.js";
 import { rotuloMoneda, etiquetaSinDeclarar } from "../../config/moneda.js";
 import { datasetCapability, serieRealDe, esSerieDelArchivo } from "../sentrix/capability.js";
 import { alcanceDeHistoria, periodosDeHechos } from "../../ingesta/historico.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 
 /** cuántos nombres se listan por eje antes de declarar la cola — el tope de tamaño manda sobre la lista */
 const MAX_NOMBRES = 12;
@@ -42,14 +43,18 @@ function _nombres(filas, campoNombre, campoValor) {
   return `${unicos.length}: ${unicos.slice(0, MAX_NOMBRES).join(", ")} … y ${unicos.length - MAX_NOMBRES} más (pídelos con gridTable)`;
 }
 
-/* mapaDelDato(scenario) → el texto del mapa. Determinístico: mismo tenant+escenario → mismos bytes. */
-export function mapaDelDato(scenario = "actual") {
+/* mapaDelDato(scenario) → el texto del mapa. Determinístico: mismo tenant+dato → mismos bytes.
+ * COLAPSO DEL EJE (2026-08-30): el encabezado decía «· escenario actual» — el concepto muerto colándose en la
+ * superficie NUEVA (y con el valor NO declarado «actual», distinto del que corre la pantalla: dos carpetas).
+ * El único mundo no se etiqueta; el default pasa a la base real declarada para que agente y pantalla lean el
+ * MISMO dato. El parámetro queda: es la ranura por la que el sustrato de simulación viaja a las herramientas. */
+export function mapaDelDato(scenario = ESCENARIO_INICIAL) {
   const d = getTenantData() || {};
   const L = [];
 
   const moneda = rotuloMoneda(d);
   const escala = d.escalaComercial === "raw" ? "moneda cruda del archivo" : "miles";
-  L.push(`MAPA DEL DATO — ${d.nombre || d.id || "negocio"} · escenario ${scenario} · moneda ${moneda || "sin declarar"} · montos comerciales en ${escala}.`);
+  L.push(`MAPA DEL DATO — ${d.nombre || d.id || "negocio"} · moneda ${moneda || "sin declarar"} · montos comerciales en ${escala}.`);
 
   /* ── ejes y entidades · SOLO los que el pack trae ─────────────────────────────────────────────────────── */
   const ejes = [
@@ -103,7 +108,7 @@ export function mapaDelDato(scenario = "actual") {
   if (!(typeof kv.totalAnterior === "number" && Number.isFinite(kv.totalAnterior) && kv.totalAnterior !== 0)) limites.push("sin período anterior");
   if (!moneda) limites.push(etiquetaSinDeclarar("moneda"));
   if (!cap.crosses.atomic) limites.push("cruce cliente×SKU: solo afinidad modelada (indicado)");
-  if (!Object.keys(d.SCENARIO_TRANSFORMS || {}).length) limites.push("sin escenarios de simulación declarados");
+  if (!Object.keys(d.SCENARIO_TRANSFORMS || {}).length) limites.push("sin transforms de simulación declarados");
   const sello = getSelloDeCarga();
   if (sello && (sello.conAlarmas || (Array.isArray(sello.tipos) && sello.tipos.length))) {
     limites.push(`sello de carga vigente${Array.isArray(sello.tipos) && sello.tipos.length ? ` (${[...sello.tipos].sort().join(", ")})` : ""} — nómbralo cuando la respuesta use una lectura afectada`);

@@ -9,6 +9,7 @@
  * cacheable del proveedor, la misma disciplina de naturalPrompt. */
 import { ADI_PERSONA } from "../oracle/persona.js";
 import { mapaDelDato } from "./mapaDelDato.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 
 /* Las invariantes del agente — pocas y duras (owner). La letra fina es de F3; el CONTENIDO es el acordado. */
 export const INVARIANTES_AGENTE = [
@@ -21,7 +22,7 @@ export const INVARIANTES_AGENTE = [
 ].map((s, i) => `${i + 1}. ${s}`).join("\n");
 
 /** sistemaDelAgente(scenario) → { fijo } · el segmento estable del system (persona + invariantes + mapa). */
-export function sistemaDelAgente(scenario = "actual") {
+export function sistemaDelAgente(scenario = ESCENARIO_INICIAL) {
   const fijo = [
     ADI_PERSONA,
     "",

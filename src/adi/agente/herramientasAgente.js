@@ -21,6 +21,7 @@ import { findCandidates } from "../oracle/entityIndex.js";
 import { fig } from "../boleta.js";
 import { fmtMonto } from "../../config/moneda.js";
 import { nombreDePeriodo } from "../../ingesta/historico.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 
 const _pct = (v) => `${(+v).toFixed(1)}%`;
 
@@ -37,7 +38,7 @@ function _resolver(nombre) {
 
 /* serieEntidad({ entity, metrica }) → la serie mensual real de esa entidad, o el motivo del bloqueo.
  * `metrica`: venta (default) · contribucion · unidades · acciones · margen. */
-export function serieEntidad({ entity, metrica = "venta" } = {}, { scenario = "actual" } = {}) {
+export function serieEntidad({ entity, metrica = "venta" } = {}, { scenario = ESCENARIO_INICIAL } = {}) {
   const d = getTenantData() || {};
   const sinSoporte = (reason) => ({ facts: null, boleta: [], coverage: { supported: false, reason } });
   if (!entity) return sinSoporte("serieEntidad necesita `entity`: de quién es la serie");

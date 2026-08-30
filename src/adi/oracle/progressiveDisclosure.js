@@ -787,7 +787,7 @@ export function buildComponentExplainInstruction(viewContext, claims = []) {
   if (vc && vc.metrica) mide.push(String(vc.metrica));
   if (vc && vc.eje) mide.push(`por ${vc.eje}`);
   if (vc && vc.periodo) mide.push(`en el período: ${vc.periodo}`);
-  if (vc && vc.escenario) mide.push(`escenario ${vc.escenario}`);
+  // (el escenario dejó de verbalizarse — colapso del eje 2026-08-30)
 
   const uni = vc && vc.universo && typeof vc.universo === "object" ? vc.universo : null;
   const universo = uni ? [uni.label || uni.kind || null, uni.cierraCon ? `cierra con ${uni.cierraCon}` : null].filter(Boolean).join(" — ") : null;

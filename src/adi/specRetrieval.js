@@ -157,7 +157,7 @@ export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario
   const outRows = result.map((x) => ({ name: x.name, value: x.value, fmt: _fmt(x.value, m.unit, _sc) }));
   const lines = outRows.map((x) => `${x.name}: ${x.fmt}`).join(" · ");
   const filt = [filters.marca, filters.familia, filters.bodega].filter(Boolean).join("/");
-  const opener = `${m.label} por ${ent.label.sing}${filt ? ` (${filt})` : ""} · escenario ${scenario}.\n\n${lines}`;
+  const opener = `${m.label} por ${ent.label.sing}${filt ? ` (${filt})` : ""} · base real.\n\n${lines}`;   // (decía «· escenario X» y el scrub lo reescribía — colapso del eje 2026-08-30: se emite directo lo que el usuario leía)
   // BOLETA (primera clase): cada fila del ranking es una cifra autorizada · value == x.fmt del texto (una sola verdad)
   const _bctx = `${m.label} por ${ent.label.sing}${filt ? ` (${filt})` : ""}`;
   const bol = outRows.map((x) => fig(`${x.name} · ${m.label}`, x.fmt, { unit: m.unit, raw: _rawC(x.value, m.unit, _sc), context: _bctx }));
@@ -234,7 +234,7 @@ export function composeSpecDive({ dimension, entity, scenario }) {
     }
   }
   if (!lines.length) return null;                          // entidad no encontrada en ningún source → el seam degrada honesto
-  const opener = `${entity} (${ent.label.sing}) · escenario ${scenario}.\n\n${lines.join(" · ")}`;
+  const opener = `${entity} (${ent.label.sing}) · base real.\n\n${lines.join(" · ")}`;   // (ídem: colapso del eje)
   // BOLETA (primera clase): cada métrica del perfil es una cifra autorizada · value == fmt del texto (una sola verdad)
   const bol = metrics.map((mm) => fig(`${entity} · ${mm.label}`, mm.fmt, { unit: mm.unit, raw: mm.raw, context: `${entity} (${ent.label.sing})` }));
   return { opener, suggestions: null, sentrixAction: null, evidence: { entidad: entity, entityType: dimension, dimension, lens: "cuadro", metrics, boleta: bol } };
@@ -468,7 +468,7 @@ export function composeSpecCompare({ dimension, entities, scenario }) {
     pairs.push({ label: m.label, aFmt, bFmt, aVal: va, bVal: vb, unit: m.unit, polarity: m.polarity });   // Fase 2b · para leer la DIFERENCIA PRINCIPAL
   }
   if (!lines.length) return null;                          // ninguna de las dos entidades encontrada → el seam degrada honesto
-  const opener = `${a} vs ${b} (${ent.label.sing}) · escenario ${scenario}.\n\n${lines.join("\n")}`;
+  const opener = `${a} vs ${b} (${ent.label.sing}) · base real.\n\n${lines.join("\n")}`;   // (ídem: colapso del eje)
   // BOLETA (primera clase): cada lado de cada métrica es una cifra autorizada · value == el fmt del texto (una sola verdad)
   const _ctx = `${a} vs ${b}`;
   const bol = [];
@@ -636,7 +636,9 @@ export function composeSpecDiagnose({ filters = {}, scenario, focus, entityScope
   if (!focos.length) return null;                                             // sin focos materiales → el seam degrada honesto
   focos.sort((a, b) => b.subtotal - a.subtotal);
   const scope = [filters.marca, filters.familia, filters.bodega, filters.cliente].filter(Boolean).join("/");
-  const header = `Diagnóstico${scope ? ` · ${scope}` : ""} · escenario ${scenario}. Miré tus datos y encontré ${focos.length} ${focos.length === 1 ? "foco" : "focos"} donde se pierde margen o se inmoviliza capital:`;
+  // COLAPSO DEL EJE (2026-08-30): el header decía «· escenario ${scenario}» y el scrub del seam lo reescribía a
+  // «· base real» antes de que el usuario lo viera — ahora se emite directo lo que el usuario siempre leyó.
+  const header = `Diagnóstico${scope ? ` · ${scope}` : ""} · base real. Miré tus datos y encontré ${focos.length} ${focos.length === 1 ? "foco" : "focos"} donde se pierde margen o se inmoviliza capital:`;
   // opener: una línea por foco · TODAS las cifras formateadas (el number-guard toma las cifras del texto, no de un crudo)
   const blocks = focos.map((f) => {
     if (f.detector === "capital") {

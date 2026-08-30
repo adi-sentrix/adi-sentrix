@@ -289,7 +289,8 @@ export function projectViewContextForPlan(vc) {
   else if (sel && sel.modo === "explicita" && sel.n > 1) partes.push({ p: 2, t: `selección de ${sel.n} entidades` });
   else if (sel && sel.modo === "filtro") partes.push({ p: 2, t: `selección por filtro (${Object.keys(sel.filtro || {}).join(", ")})` });
   if (vc.periodo) partes.push({ p: 3, t: `período ${vc.periodo}` });
-  partes.push({ p: 3, t: `escenario ${vc.escenario}` });
+  // (el escenario dejó de VERBALIZARSE con el colapso del eje — el campo vc.escenario sigue en la maquinaria
+  //  [dataSnapshotId] pero el único mundo no se describe a sí mismo)
   const fk = Object.keys(vc.filtros || {});
   if (fk.length) partes.push({ p: 3, t: `filtros: ${fk.map((k) => `${k}=${vc.filtros[k]}`).join(", ")}` });
   // la COMPARACIÓN antes que la prosa del universo: "contra qué se está mirando" cambia qué tools pide PLAN; el
