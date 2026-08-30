@@ -275,7 +275,8 @@ export const SUPERFAMILIAS = ["Todas", "Bebidas", "Abarrotes", "Lácteos", "Cong
 export const MARCAS_ALL = ["AndesCola", "Cordillera", "LactoSur", "FrostAl", "NevadaFoods"];
 export const SUCURSALES = ["Bodega Norte", "Bodega Centro", "Bodega Sur"];
 
-// ── ESCENARIOS · los que ESTA empresa declara (ids compartidos con la UI hoy) ────────────────────────────────
+// ── TRANSFORMS DE SIMULACIÓN · los que ESTA empresa declara (la UI ya no muestra escenarios — colapso del eje
+//    2026-08-30; los ids alimentan el motor de transforms, sustrato de Simulate v2 y de los gates) ─────────────
 // bonanza = identidad EXACTA por construcción (growth derivado de actual/anterior con precisión completa →
 // round(anterior·(1+g/100)) == actual). tension/crisis = transforms propios; sus kpis se DERIVAN acá mismo
 // replicando la aritmética del motor (una verdad — el fixture no declara cifras que no salgan de sus filas).
