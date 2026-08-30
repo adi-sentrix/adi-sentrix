@@ -218,6 +218,38 @@ trabajo de F2)
 - DESCARTADO hoy: «Forecast deteriorándose» — no hay forecast en el dato; nace solo el día que un cliente lo
   cargue.
 
+## 12 · Mapa de fases posterior: los PROYECTOS (decisión del owner, 2026-08-30 — para el documento, no es
+trabajo de F2/F3)
+
+**El mandato central, textual del owner: «me interesa que eso sea para todo.»** El proyecto es un MECANISMO
+UNIVERSAL, no un catálogo por tema: no existe «proyecto de compras» y «proyecto de márgenes» como features
+separadas — existe UNO general que sirve para cualquier métrica, cualquier eje, cualquier supuesto.
+
+- **Qué es**: trabajo con nombre y memoria. Cualquier conversación del agente —traer series, tabular, jugar
+  con porcentajes— puede volverse proyecto con un «guardalo». Lo que se guarda es un **artefacto ANALÍTICO**:
+  `{referencias al dato real + supuestos etiquetados + cuentas del motor + nombre}`. Números, supuestos y
+  seguimiento — no tareas.
+- **Qué NO es (línea roja del foco)**: NO es un gestor de tareas ni un Gantt. Si el proyecto deriva en
+  asignaciones, responsables y fechas de entrega, perdimos el foco — el producto sigue siendo el análisis del
+  negocio, no la administración del trabajo ajeno.
+- **Plan contra real** (la razón de ser del mecanismo): al llegar una carga nueva, ADI compara lo real contra
+  los supuestos del proyecto activo y lo dice con cifras — «asumiste 3% de crecimiento; septiembre vino 1.8%
+  abajo; sugerencia a evaluar: X». Esto además **hace nacer legítimo el forecast que el §11 descartó**: el
+  «Forecast deteriorándose» no existía porque el dato no traía forecast — con proyectos, el forecast EXISTE
+  porque el usuario lo DECLARÓ. El descarte del §11 no se revierte: se cumple su condición de nacimiento.
+- **Etiquetado sagrado, también en tablas**: cuando una tabla del proyecto mezcla columnas reales con
+  simuladas, CADA COLUMNA declara cuál es. La mezcla sin etiqueta es el pecado capital — la misma invariante
+  del contrato del agente (`registrarSupuesto` / etiqueta en la boleta), extendida a la superficie tabular.
+  Carnada obvia para su gate: una tabla con columna simulada sin declarar → rojo.
+- **Persistencia**: el patrón de los plazos de pago (v2.13) — el proyecto vive EN EL PACK, server-side, con
+  arrastre entre cargas y firma de quién lo declaró. **Roles**: quién crea/edita un plan es la MISMA pregunta
+  que quién activa versiones del pack (memberships ya preparado) — no nace un sistema de permisos nuevo.
+- **Las invariantes de siempre**: el motor calcula, ADI SUGIERE con la cifra, y la decisión es del usuario —
+  el arco qué/porqué/qué-hacer del contrato aplica igual dentro de un proyecto.
+- **Cuándo**: después de certificar el agente (F4) y del registro de playbooks (§11) — comparten
+  infraestructura, y **un playbook puede sembrar un proyecto** (la Revisión de cobranza que termina en «seguir
+  estas 3 cuentas» es un proyecto naciendo de un playbook).
+
 ---
 *Preparado por el frente de ingesta; revisado por el chat principal (verificación independiente de cifras y
 afirmaciones contra el código). Las cifras de costo son estimaciones con supuestos declarados; el número real
