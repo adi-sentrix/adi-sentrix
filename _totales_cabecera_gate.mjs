@@ -28,7 +28,7 @@ import { buildMesaCapital, buildCuadroCapital } from "./src/adi/sentrix/mesaCapi
 import { applyScenarioToSkuInventario } from "./src/engine/scenarios.js";
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
 import { ledgerBoleta } from "./src/adi/oracle/ledger.js";
-import { SCENARIOS } from "./src/config/scenarios.js";
+import { SCENARIO_TRANSFORMS } from "./src/config/scenarios.js";   // C6 del colapso: los ids salen de los transforms del tenant (los labels de UI se retiraron)
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 
@@ -39,7 +39,7 @@ initTenant(TENANT_DEMO);
 let PASS = 0, FAIL = 0;
 const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); } else { FAIL++; console.log("  ✗ " + m + (extra ? "\n      " + extra : "")); } };
 const H = (t) => console.log("\n" + t);
-const ESC = Object.keys(SCENARIOS);
+const ESC = Object.keys(SCENARIO_TRANSFORMS);
 
 // QUÉ CARD PINTA CADA CABECERA. Es lo ÚNICO que este gate declara a mano, y es estructura (dónde mirar), no
 // cifras: el valor lo lee del builder vivo en cada corrida. Si el producto renombra una card, esto se pone rojo.

@@ -13,7 +13,7 @@
  * LO QUE FIJA: una sola declaración (`ESCENARIO_INICIAL`), los dos entornos leyéndola, y que el escenario elegido
  * SEA uno declarado. CERO red, CERO .env. */
 import { readFileSync } from "node:fs";
-import { SCENARIOS, SCENARIO_TRANSFORMS, ESCENARIO_INICIAL } from "./src/config/scenarios.js";
+import { SCENARIO_TRANSFORMS, ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { deriveKpis } from "./src/engine/scenarios.js";
 import { proyectarDatoNegocio, cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { initTenant } from "./src/data/tenantStore.js";
@@ -24,9 +24,12 @@ let pass = 0, fail = 0;
 const ok = (c, m) => { console.log(`  ${c ? "✓" : "✗"} ${m}`); c ? pass++ : fail++; };
 
 console.log("── 1 · EL ESCENARIO INICIAL ES UNO DECLARADO ──");
-ok(!!SCENARIOS[ESCENARIO_INICIAL], `«${ESCENARIO_INICIAL}» está en SCENARIOS (los declarados: ${Object.keys(SCENARIOS).join(", ")})`);
-ok(!!(SCENARIO_TRANSFORMS && SCENARIO_TRANSFORMS[ESCENARIO_INICIAL]), "…y tiene transform del tenant: no cae al dato crudo sin ajustar");
-ok(!SCENARIOS.actual && !(SCENARIO_TRANSFORMS || {}).actual,
+// COLAPSO DEL EJE (C6, 2026-08-30): SCENARIOS (labels de UI) se retiró con el selector — el registro de lo
+// DECLARADO son los transforms del tenant (SCENARIO_TRANSFORMS), que es donde este gate siempre buscó la
+// sustancia (la línea de abajo ya lo exigía). La propiedad guardada es la misma: la base declarada existe.
+ok(!!(SCENARIO_TRANSFORMS && SCENARIO_TRANSFORMS[ESCENARIO_INICIAL]),
+  `«${ESCENARIO_INICIAL}» está declarado en los transforms del tenant: no cae al dato crudo sin ajustar (declarados: ${Object.keys(SCENARIO_TRANSFORMS || {}).join(", ")})`);
+ok(!(SCENARIO_TRANSFORMS || {}).actual,
   "…y «actual», el string que usaba la consola, NO es un escenario declarado (era el agujero)");
 
 console.log("\n── 2 · LOS DOS ENTORNOS LEEN LA MISMA DECLARACIÓN, NINGUNO ESCRIBE EL SUYO ──");
