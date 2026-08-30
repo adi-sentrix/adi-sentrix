@@ -24,6 +24,7 @@ import { VIEW_MANIFEST, SUPERFICIE_BUILDERS, builderKeyOf } from "./viewManifest
 import { buildResumenComercial } from "./resumenComercial.js";
 import { buildMesaCapital } from "./mesaCapital.js";
 import { buildMesaResultado } from "./mesaResultado.js";
+import { buildMesaFlujo } from "./mesaFlujo.js";
 import { buildReadingFromSignals, buildClientContribSignals } from "./reading.js";
 import { buildCuadroMando } from "./cuadro.js";
 import { buildControlRing } from "./control.js";
@@ -68,6 +69,7 @@ const _CORREDORES = {
   comercial: (scn) => buildResumenComercial(scn),
   capital:   (scn) => buildMesaCapital(scn),
   resultado: (scn) => buildMesaResultado(scn),
+  flujo:     (scn) => buildMesaFlujo(scn),   // la quinta cara (2026-08-30) — null si el tenant no declara flujo
   ficha:     (scn) => { const e = primeraEntidadDe("cliente", scn); const s = e && buildClientContribSignals(e, scn); return s ? buildReadingFromSignals(s) : null; },
 
   "cuadro:cliente": (scn) => buildCuadroMando("cliente", scn),

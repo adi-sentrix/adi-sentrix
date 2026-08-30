@@ -32,7 +32,7 @@
 import { resolverMarco } from "../../config/marcoPeriodo.js";
 
 // ── VOCABULARIO CERRADO (lo consume la validación del ViewContext y la gramática de la dirección) ──────────────
-export const VISTAS = ["comercial", "capital", "resultado", "ficha"];
+export const VISTAS = ["comercial", "capital", "resultado", "ficha", "flujo"];
 export const SECCIONES = ["01", "02", "03", "otro"];
 export const TIPOS = ["vista", "veredicto", "kpi", "tabla", "serie", "barra", "lista", "tira"];
 export const COMPARACIONES = ["anterior", "presupuesto", "benchmark", "meta", "promedio_cartera", "vara_usuario", "estado"];
@@ -72,7 +72,7 @@ export const UNIDADES = ["money", "pct", "ratio", "days", "conteo", "texto"];
  * comprueba. Es el texto que ADI le va a decir al usuario cuando esa cifra no cierre. */
 export const CONCORDANCIA_ESTADOS = ["reconciled", "divergent", "unsupported"];
 
-export const VISTA_LABEL = { comercial: "Comercial", capital: "Capital", resultado: "Resultado", ficha: "Perfil Ejecutivo" };
+export const VISTA_LABEL = { comercial: "Comercial", capital: "Capital", resultado: "Resultado", ficha: "Perfil Ejecutivo", flujo: "Flujo Comercial" };
 export const SECCION_LABEL = {
   "comercial/01": "Qué está pasando",
   "comercial/02": "Dónde se deteriora el margen",
@@ -94,6 +94,10 @@ export const VIEW_BUILDERS = {
   capital:   { modulo: "src/adi/sentrix/mesaCapital.js",      fn: "buildMesaCapital",      scenarioAware: true, args: "(scenario)" },
   resultado: { modulo: "src/adi/sentrix/mesaResultado.js",    fn: "buildMesaResultado",    scenarioAware: true, args: "(scenario, cuadroEje, cascadaFoco)" },
   ficha:     { modulo: "src/adi/sentrix/reading.js",          fn: "buildReadingFromSignals", scenarioAware: true, args: "(signals)" },
+  // CONTEXTO DE VISTA UNIVERSAL (owner 2026-08-30, palabra dada — «Flujo Comercial incluido»): la quinta cara
+  // entra al contrato. `buildMesaFlujo` devuelve null cuando el tenant no declara flujo (sin fechaCorte) — la
+  // cara no se pinta y sus componentes no emiten: sin dato no hay contexto, nunca uno inventado.
+  flujo:     { modulo: "src/adi/sentrix/mesaFlujo.js",        fn: "buildMesaFlujo",        scenarioAware: true, args: "(scenario)" },
 };
 
 /* ── LOS BUILDERS DE NIVEL 2 (owner 2026-08-09, decisión 12) ───────────────────────────────────────────────────
@@ -132,6 +136,9 @@ export const SUPERFICIE_BUILDERS = {
 const U_NEGOCIO = { kind: "negocio", label: "el negocio completo, cliente por cliente", cierraCon: "clientesVentas.actual con el escenario aplicado (venta oficial)" };
 const U_GRUPO80 = { kind: "grupo80", label: "el grupo que explica el 80% de la venta del eje", cierraCon: "concentracion() sobre la venta del propio eje" };
 const U_EJE = (eje) => ({ kind: "eje", label: `todas las filas del eje ${eje}`, cierraCon: null });
+// FLUJO (2026-08-30): el universo de la cobranza — los clientes del período de cobro, al corte que el tenant
+// declaró. `cierraCon` nombra la identidad de la cara: saldo = venta − abonos, fila por fila y en el total.
+const U_FLUJO = { kind: "negocio", label: "los clientes del período de cobro, al corte declarado", cierraCon: "flujoComercial declarado: saldo = venta − abonos, fila por fila" };
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
  * EL MANIFIESTO
@@ -926,6 +933,96 @@ export const VIEW_MANIFEST = {
     sinTool: null,
     concordancia: { estado: "unsupported", campos: ["projection[].supuesto", "total.supuesto"],
       razon: "el capital actual por SKU coincide hoy con el que devuelve `queryMetric{capital, sku}` ($135.0K de total en los tres escenarios), pero por una coincidencia del dato y no por contrato: esta proyección corre sobre la fuente base porque `composeSpecSimulate` no declara `scenario`, y el inventario de este tenant no se mueve entre escenarios. El día que se mueva, la columna «Actual» dejará de ser la de la pantalla sin que nada avise — es el mismo defecto que en la proyección de venta ya se mide en 23,3%. Lo que además ninguna tool afirma es el SUPUESTO: es una proyección declarada, no un dato observado, y nace en esta pieza" },
+  },
+
+  /* ══ FLUJO COMERCIAL · LA QUINTA CARA ENTRA AL CONTRATO (owner 2026-08-30, palabra dada) ═══════════════════
+   * La cara de cobranza (v2.13): venta del período vs abonos vs saldo vs vencido, al CORTE DECLARADO por el
+   * tenant. NINGUNA tool del oráculo lee `flujoComercial` todavía — cada entrada declara `sinTool` con el
+   * motivo (el silencio está prohibido): ADI recibe el CONTEXTO de lo que el usuario mira (esta pieza, este
+   * universo, este corte) aunque no pueda contrastar la cifra con una tool. El día que nazca la tool de
+   * cobranza, `evidencia` se declara acá y la concordancia se mide como en las demás caras. */
+  "flujo/otro/vista": {
+    vista: "flujo", seccion: "otro", tipo: "vista", label: "La vista Flujo Comercial completa",
+    campo: "alcance", metrica: null, eje: "cliente",
+    unidad: "texto",   // el contexto ambiente identifica la pantalla; las cifras las autorizan sus piezas
+    periodo: "al corte declarado", universo: U_FLUJO, comparacion: null,
+    estatusDefault: "indicado", estatusCampo: null, controles: [],
+    evidencia: [],
+    sinTool: "ninguna tool del oráculo lee flujoComercial: la cara nació en v2.13 con su dato declarado (fechaCorte + venta/abonos por cliente) y su lectura vive en la pantalla y en los asks de sus piezas; el contexto ambiente identifica la vista para que ADI sepa QUÉ mira el usuario",
+    concordancia: { estado: "unsupported", campos: ["alcance"],
+      razon: "el contexto ambiente no autoriza ninguna cifra (`unidad: texto`); sin tool declarada no hay cruce builder↔ledger posible — identifica la pantalla, no afirma valores" },
+  },
+  "flujo/01/kpi-venta": {
+    vista: "flujo", seccion: "01", tipo: "kpi", label: "Venta del período (flujo)",
+    campo: "kpis[key='venta']", metrica: null, eje: "cliente",
+    // la venta del flujo sale de la DECLARACIÓN de cobranza del tenant (facturas o venta por cliente), no de la
+    // fuente comercial del contrato — en el demo coinciden, pero afirmarlas iguales sin gate sería una segunda
+    // verdad. `metrica: null` + unidad declarada es lo honesto hasta que una tool las reconcilie.
+    unidad: "money", escala: "K", unidadMotivo: "sin métrica del registro: la cifra nace de flujoComercial (declaración del tenant), no de una fuente del contrato comercial",
+    periodo: "al corte declarado", universoCampo: "filas", universo: U_FLUJO, comparacion: null,
+    estatusDefault: "probado", estatusCampo: null, controles: [],
+    evidencia: [],
+    sinTool: "ninguna tool del oráculo lee flujoComercial (ver la nota de la cara)",
+    concordancia: { estado: "unsupported", campos: ["valor"],
+      razon: "sin tool que lea flujoComercial no hay contraste posible; la cifra es la suma directa de la declaración del tenant y la prueban los gates del flujo, no el ledger" },
+  },
+  "flujo/01/kpi-abonado": {
+    vista: "flujo", seccion: "01", tipo: "kpi", label: "Abonado del período",
+    campo: "kpis[key='abonado']", metrica: null, eje: "cliente",
+    unidad: "money", escala: "K", unidadMotivo: "sin métrica del registro: abonos declarados por el tenant (flujoComercial)",
+    periodo: "al corte declarado", universoCampo: "filas", universo: U_FLUJO, comparacion: null,
+    estatusDefault: "probado", estatusCampo: null, controles: [],
+    evidencia: [],
+    sinTool: "ninguna tool del oráculo lee flujoComercial (ver la nota de la cara)",
+    concordancia: { estado: "unsupported", campos: ["valor"],
+      razon: "sin tool que lea flujoComercial no hay contraste posible; suma directa de los abonos declarados" },
+  },
+  "flujo/01/kpi-saldo": {
+    vista: "flujo", seccion: "01", tipo: "kpi", label: "Saldo pendiente",
+    campo: "kpis[key='saldo']", metrica: null, eje: "cliente",
+    unidad: "money", escala: "K", unidadMotivo: "sin métrica del registro: saldo = venta − abonos, sobre la declaración del tenant",
+    periodo: "al corte declarado", universoCampo: "filas", universo: U_FLUJO, comparacion: null,
+    estatusDefault: "probado", estatusCampo: null, controles: [],
+    evidencia: [],
+    sinTool: "ninguna tool del oráculo lee flujoComercial (ver la nota de la cara)",
+    concordancia: { estado: "unsupported", campos: ["valor"],
+      razon: "sin tool que lea flujoComercial no hay contraste posible; aritmética venta−abonos de la declaración" },
+  },
+  "flujo/01/kpi-vencido": {
+    vista: "flujo", seccion: "01", tipo: "kpi", label: "Saldo vencido",
+    campo: "kpis[key='vencido']", metrica: null, eje: "cliente",
+    unidad: "money", escala: "K", unidadMotivo: "sin métrica del registro: vencido según el plazo de pago declarado en la app",
+    periodo: "al corte declarado", universoCampo: "filas", universo: U_FLUJO, comparacion: null,
+    // el vencido DEPENDE del plazo de pago que el usuario declara (v2.13: el plazo se declara en la app) — una
+    // cifra condicionada a un criterio declarado se sella `indicado`, nunca `probado`.
+    estatusDefault: "indicado", estatusCampo: null, controles: [],
+    evidencia: [],
+    sinTool: "ninguna tool del oráculo lee flujoComercial (ver la nota de la cara)",
+    concordancia: { estado: "unsupported", campos: ["valor"],
+      razon: "sin tool que lea flujoComercial no hay contraste posible; el vencido además depende del plazo DECLARADO por el usuario — es lectura condicionada, no dato observado" },
+  },
+  "flujo/01/tabla-saldo-clientes": {
+    vista: "flujo", seccion: "01", tipo: "tabla", label: "El saldo, cliente por cliente",
+    campo: "filas", metrica: null, eje: "cliente",
+    unidad: "money", escala: "K", unidadMotivo: "sin métrica del registro: columnas de la declaración de cobranza (venta·abonado·saldo·vencido·días)",
+    periodo: "al corte declarado", universoCampo: "filas", universo: U_FLUJO, comparacion: null,
+    estatusDefault: "indicado", estatusCampo: "estado", controles: [],
+    evidencia: [],
+    sinTool: "ninguna tool del oráculo lee flujoComercial (ver la nota de la cara)",
+    concordancia: { estado: "unsupported", campos: ["filas"],
+      razon: "sin tool que lea flujoComercial no hay contraste posible; cada fila es la declaración del tenant con la aritmética del corte (los gates del flujo la prueban)" },
+  },
+  "flujo/01/caja-mensual": {
+    vista: "flujo", seccion: "01", tipo: "serie", label: "Lo abonado, mes a mes",
+    campo: "caja", metrica: null, eje: "tiempo",
+    unidad: "money", escala: "K", unidadMotivo: "eje tiempo sobre abonos declarados: metricRegistry no cubre ni el eje temporal ni la fuente de cobranza",
+    periodo: "los meses con abonos hasta el corte", universoCampo: "caja.meses",
+    universo: { kind: "negocio", label: "los abonos de todos los clientes, mes a mes", cierraCon: "caja.totalK = Σ abonos declarados" },
+    comparacion: null, estatusDefault: "probado", estatusCampo: null, controles: [],
+    evidencia: [],
+    sinTool: "ninguna tool del oráculo lee flujoComercial (ver la nota de la cara)",
+    concordancia: { estado: "unsupported", campos: ["caja.meses"],
+      razon: "sin tool que lea flujoComercial no hay contraste posible; la curva agrupa los abonos declarados por mes" },
   },
 };
 

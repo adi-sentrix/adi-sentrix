@@ -1480,9 +1480,25 @@ function MesaFlujoCara({ flujo: F, onAsk = null, onGuardarPlazos = null }) {
      la cara con datos cambiaría la cantidad de hooks y React rompe. Es exactamente el error que la regla de los
      hooks existe para impedir, y acá el return temprano lo hace fácil de cometer. */
   const [_hovMes, _setHovMes] = useState(null);
+  /* CONTEXTO DE VISTA UNIVERSAL (owner 2026-08-30 — «Flujo Comercial incluido»): la quinta cara emite su
+     contexto como las otras cuatro. Los hooks van acá arriba por la misma regla del useState de arriba; con
+     F=null degradan honestos (ctx:null, nada se publica — la cara vacía no describe una pantalla que no hay).
+     `ambient` es seguro: esta cara solo se monta cuando `cara === "flujo"` (montada = visible). */
+  const _oF = { scenario: F && F.scenario, onAsk };
+  useViewContext("flujo/otro/vista", F, { ..._oF, ambient: true });
+  const _vFlujoKpi = {
+    venta: useViewContext("flujo/01/kpi-venta", F, _oF),
+    abonado: useViewContext("flujo/01/kpi-abonado", F, _oF),
+    saldo: useViewContext("flujo/01/kpi-saldo", F, _oF),
+    vencido: useViewContext("flujo/01/kpi-vencido", F, _oF),
+  };
+  const { ask: _askTablaF } = useViewContext("flujo/01/tabla-saldo-clientes", F, _oF);
+  const { ask: _askCajaF } = useViewContext("flujo/01/caja-mensual", F, _oF);
   const _ask = (q) => { if (onAsk && q) onAsk(q); };
-  const _link = (label, q) => onAsk ? (
-    <button onClick={() => _ask(q)} title={`Pregúntale a ADI: ${q}`}
+  // `_link` acepta el ask CONTEXTUAL de la pieza (el del hook); sin él cae al transporte pelado — el botón
+  // funciona igual, solo que sin publicar el contexto de la pieza (contrato a medio cablear jamás rompe la Mesa).
+  const _link = (label, q, askFn = null) => onAsk ? (
+    <button onClick={() => (askFn || _ask)(q)} title={`Pregúntale a ADI: ${q}`}
       style={{ background:"transparent", border:"none", color:C.celeste, fontSize:12.5, fontWeight:600,
         cursor:"pointer", padding:0, fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
       {label} <span aria-hidden="true">→</span>
@@ -1593,7 +1609,7 @@ function MesaFlujoCara({ flujo: F, onAsk = null, onGuardarPlazos = null }) {
         def={`De todo lo que vendiste en el período, cuánto ya entró en caja y cuánto sigue afuera. El saldo es venta menos abonos; una factura está vencida cuando su vencimiento —la fecha de la factura más los días de crédito del cliente— quedó atrás de la fecha de corte. Todo se mide al ${F.fechaCorteFmt}, que es la fecha que tú declaras: nunca contra el reloj, para que la misma pregunta dé siempre la misma cifra.`}/>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:9 }}>
         {F.kpis.map((k) => (
-          <button key={k.key} onClick={onAsk ? () => _ask(k.ask) : undefined}
+          <button key={k.key} onClick={onAsk ? () => ((_vFlujoKpi[k.key] && _vFlujoKpi[k.key].ask) || _ask)(k.ask) : undefined}
             title={onAsk ? `Pregúntale a ADI: ${k.ask}` : undefined}
             style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${C.border}`, borderRadius:10,
               padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif",
@@ -1616,7 +1632,7 @@ function MesaFlujoCara({ flujo: F, onAsk = null, onGuardarPlazos = null }) {
     <div style={_panel}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:9 }}>
         <span style={_head}>{_dot}El saldo, cliente por cliente</span>
-        {_link("Que ADI lo explique", "¿Qué clientes me deben más y desde cuándo?")}
+        {_link("Que ADI lo explique", "¿Qué clientes me deben más y desde cuándo?", _askTablaF)}
       </div>
       {/* ⚠️ EL ANCHO DE LAS COLUMNAS SE DECLARA; NO SE DEJA AL NAVEGADOR (owner 2026-08-29: «se ven unas más
           separadas que las otras»). Con ancho automático, el espacio sobrante se reparte en proporción al
@@ -1692,7 +1708,7 @@ function MesaFlujoCara({ flujo: F, onAsk = null, onGuardarPlazos = null }) {
     <div style={_panel}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:9 }}>
         <span style={_head}>{_dot}La entrada de caja, mes a mes</span>
-        {_link("Que ADI lo explique", F.caja.ask)}
+        {_link("Que ADI lo explique", F.caja.ask, _askCajaF)}
       </div>
       <div style={{ position:"relative" }}>
       <svg viewBox={`0 0 ${_W} ${_H}`} style={{ width:"100%", height:"auto", display:"block" }} role="img"
