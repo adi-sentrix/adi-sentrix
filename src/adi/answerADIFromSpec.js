@@ -25,6 +25,7 @@ import { composeSpecTemporal } from "./composers/temporalTable.js";   // TIEMPO 
 import { composeContract } from "./contracts/contractCloser.js";   // Fase 1 · capa de contratos de respuesta (envuelve el productor · aditiva · el motor sellado NO la importa → 16/0 intacto)
 import { boletaFromText, ensureBoletaCoversText } from "./boleta.js";   // increment 2 · boleta para rutas del MOTOR + cobertura del texto final (flag-independiente)
 import { normalizeResponse } from "./responseContract.js";   // Contrato v2 · Fase 4: el seam de spec sale con la MISMA forma que el resto
+import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 
 // _finBoleta · como _finalize pero adjunta evidence.boleta que CUBRE el texto final, INDEPENDIENTE de flags.
 // Necesario porque _finalize surfacea `evidence` solo con ADI_SENTRIX_BOLETA_ENABLED (colisión con la boleta-Sentrix del panel);
@@ -281,7 +282,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
     // la SIMULACIÓN paramétrica todavía no tiene productor → degrada honesto ofreciendo el estado actual (no ejecuta el "actual" en silencio).
     return _degrade("simulation-not-wired", `La simulación (${_assumptionEcho(spec.assumption)}) todavía no está conectada en esta vista. Puedo mostrarte el estado actual de ${_m(spec.metric)} por ${_d(spec.dimension)}.`, [`${spec.metric}@${spec.dimension}`], ctx);
   }
-  const scenario = "bonanza";   // "actual" → base interna (mapeo invisible · el producto nunca dice "bonanza")
+  const scenario = ESCENARIO_INICIAL;   // "actual" → base interna (mapeo invisible · el producto nunca dice "bonanza")
 
   // (#8b «disponibilidad por escenario» se retiró con el colapso del eje — un par declarado en SURFACE está
   //  disponible; los pares no declarados ya caen honestos en #4/explain_availability)

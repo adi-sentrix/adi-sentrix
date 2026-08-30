@@ -22,6 +22,7 @@ import { buildPnlCascade, pnlSimAsk, pnlEjesDisponibles } from "../pnl.js";
 import { simboloMoneda } from "../../config/moneda.js";
 import { getTenantData } from "../../data/tenantStore.js";
 import { factorComercialDe } from "../../config/contract/figureType.js";   // la escala la DECLARA el pack (2026-08-30)
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _money = (v) => {
@@ -37,7 +38,7 @@ const _fmtPct = (v) => String(_r1(v));
  * simulaciones, cuadro, alerta, alcance? } · cuadroEje = eje del cuadro por entidad (null → el primario) ·
  * cascadaFoco = { eje, nombre } → la cascada de arriba scopeada a esa entidad (pase 2 · espejo del comparado). */
 export function buildMesaResultado(scenario, cuadroEje = null, cascadaFoco = null) {
-  const c = buildPnlCascade(scenario || "bonanza");
+  const c = buildPnlCascade(scenario || ESCENARIO_INICIAL);
   if (!c.defined) {
     return {
       defined: false,
@@ -86,7 +87,7 @@ export function buildMesaResultado(scenario, cuadroEje = null, cascadaFoco = nul
   // venta. El negocio queda a un click («× volver al negocio» en la UI). Cero cálculo nuevo: buildPnlCascade. ──
   let alcance = null, cascadaOut = cascada, lecturaOut = lectura;
   if (cascadaFoco && cascadaFoco.nombre) {
-    const cF = buildPnlCascade(scenario || "bonanza", null, { dimension: cascadaFoco.eje });
+    const cF = buildPnlCascade(scenario || ESCENARIO_INICIAL, null, { dimension: cascadaFoco.eje });
     const eF = cF.porEntidad.find((x) => x.nombre === cascadaFoco.nombre);
     if (eF) {
       alcance = { nombre: eF.nombre, eje: cF.dimension, ask: `P&L de ${eF.nombre}`, volverLabel: "× volver al negocio" };
@@ -157,7 +158,7 @@ export function buildMesaResultado(scenario, cuadroEje = null, cascadaFoco = nul
   const _cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
   const ejes = pnlEjesDisponibles().map((d) => ({ key: d.eje, label: _cap(d.label.sing) }));
   const ejeCuadro = (cuadroEje && ejes.some((x) => x.key === cuadroEje)) ? cuadroEje : ejes[0].key;
-  const cE = ejeCuadro === c.dimension ? c : buildPnlCascade(scenario || "bonanza", null, { dimension: ejeCuadro });
+  const cE = ejeCuadro === c.dimension ? c : buildPnlCascade(scenario || ESCENARIO_INICIAL, null, { dimension: ejeCuadro });
   const rows = cE.porEntidad.map((e) => ({
     name: e.nombre, venta: e.ventaK, contribucion: e.contribK,
     margen: e.ventaK ? _r1((e.contribK / e.ventaK) * 100) : 0,

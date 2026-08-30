@@ -1,5 +1,6 @@
 import { applyScenarioToClientesMargen } from "../engine/scenarios.js";
 import { skusMargen } from "../data/skusMargen.js";
+import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 
 export function detectRceTier(derivedIntentType, intentType, lastComposerResponse) {
   const t = derivedIntentType || intentType || "";
@@ -229,7 +230,7 @@ export function executiveThesisLineGenerator(rawPayload, intentMeta, scenario) {
     return { thesisLine: null, shouldApply: false, reason: "tier_skipped:" + tier };
   }
 
-  const scn = scenario || "bonanza";
+  const scn = scenario || ESCENARIO_INICIAL;
 
   // Build template key
   // Para tier=ferrari: intent_id (intent_id semántico) o legacy type "client"

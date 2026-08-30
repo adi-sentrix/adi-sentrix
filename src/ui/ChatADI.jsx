@@ -38,6 +38,7 @@ import { estimateCostUSD } from "../adi/llm/modelPricing.js";   // router de mod
 import { C, T } from "./theme.js";
 import { renderMarkdownLite, isTabularText, parseMarkdownTable } from "./markdown.jsx";
 import { TypewriterText } from "./TypewriterText.jsx";
+import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 
 // Cuando answerADI devuelve route="not_yet_extracted" (text null), el motor es honesto: no inventa.
 // La UI refleja esa honestidad en vez de fabricar un overview.
@@ -1168,7 +1169,7 @@ function HeroInicio({ scenario, campo, onPregunta }) {
  * pintaba sigue vivo donde corresponde: `HERO_CHIPS` (arriba) alimenta a `GuiaInicio.jsx`, y el resumen ejecutivo
  * se pide hablando —el coerce de «hazme un resumen ejecutivo» arma el mismo spec, gate-proven. */
 
-export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null, registerRun = null, onHayConversacion = null, margenBarra = 0 }) {
+export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null, registerRun = null, onHayConversacion = null, margenBarra = 0 }) {
   const [messages, setMessages] = useState([]);     // [{ id, role, text, sentrixAction, suggestions }]
   const [input, setInput]       = useState("");
   const [showHint, setShowHint] = useState(() => { try { return typeof localStorage !== "undefined" && !localStorage.getItem("adi_hint_v1"); } catch { return false; } });   // hint de primer uso (una vez)

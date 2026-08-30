@@ -34,6 +34,7 @@ import { transferenciaCapability } from "./capability.js";   // la ÚNICA cuenta
 // Solo para saber A QUIÉN le calza un producto detenido. De acá NO entra plata: ver `_compradoresDe`.
 import { compradoresSku } from "../../data/clienteSkuMatrix.js";
 import { simboloMoneda } from "../../config/moneda.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 /* ⚠️ `skusMargen` NO SE IMPORTA ACÁ, Y ES A PROPÓSITO (owner 2026-08-08, decisión 7). El inventario y la venta
  * comercial no reconcilian en unidad, moneda ni período: `skusMargen.venta` viene en MILES ($100.0M anuales) y
  * `stockUSD` en dólares crudos ($135.000 de inventario); además las unidades vendidas que declara cada fuente
@@ -75,7 +76,7 @@ const _RANK = { capital_frenado: 0, riesgo_quiebre: 1, sobrestock: 2, capital_sa
 
 // el diagnóstico del motor + el join con la alerta del dato (crítico) · la ÚNICA entrada de todo el módulo
 function _diag(scenario) {
-  const inv = applyScenarioToSkuInventario(scenario || "bonanza") || [];
+  const inv = applyScenarioToSkuInventario(scenario || ESCENARIO_INICIAL) || [];
   const D = diagnoseInventario(inv, {});
   const bySku = {}; for (const r of inv) bySku[r.sku] = r;
   return { inv, D, bySku };
@@ -538,7 +539,7 @@ const COLS_CAPITAL = {
   ],
 };
 
-export function buildCuadroCapital(eje = "sku", scenario = "bonanza") {
+export function buildCuadroCapital(eje = "sku", scenario = ESCENARIO_INICIAL) {
   const { inv, D, bySku } = _diag(scenario);
   const estadoDe = {}; for (const s of D.perSku) estadoDe[s.sku] = s;
   let rows;

@@ -50,6 +50,7 @@ import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
 import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED, ADI_SMART_GUIDE_ENABLED, ADI_SIM_SCOPE_FOLLOWUP_ENABLED, ADI_SENTRIX_BOLETA_ENABLED, ADI_SENTRIX_READING_ENABLED, ADI_HONESTY_GUARD_ENABLED, ADI_MULTI_ASK_ENABLED, ADI_CUADRO_OVERVIEW_ENABLED, ADI_MECHANISM_SCAN_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
+import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
 // Replica el unified pipeline: applyVoiceContract (L38287) → observación aditiva (L38489-38502).
@@ -665,7 +666,7 @@ function _resolveSequence(trimmed, ctx, scenario) {
 }
 
 export function answerADI(question, context = {}, state = {}) {
-  const scenario = (state && state.scenario) || "bonanza";
+  const scenario = (state && state.scenario) || ESCENARIO_INICIAL;
   let trimmed = (question || "").trim();
   let ctx = context || {};
   // ── ADI Core · 2.2b · resolver el contexto pendiente del spine (ANTES de re-detectar y del topic-change) ──

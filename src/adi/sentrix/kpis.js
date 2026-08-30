@@ -8,6 +8,7 @@ import { skusMargen } from "../../data/skusMargen.js";
 import { temporalCapability, entityExplorable } from "./capability.js";
 import { benchmarkOf } from "../../config/businessPolicy.js";
 import { simboloMoneda } from "../../config/moneda.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _p1 = (n) => (Math.round((Number(n) || 0) * 10) / 10).toFixed(1);   // % SIEMPRE con 1 decimal (parejos en la visual)
@@ -18,7 +19,7 @@ const _fCap = (n) => simboloMoneda() + (Math.abs(Number(n) || 0) / 1000).toFixed
 
 // El dato poderoso de la entidad (anticipa la pregunta). Vacío si el tipo no se sostiene aún.
 export function buildEntityKPIs(focusType, focus, scenario) {
-  const s = scenario || "bonanza";
+  const s = scenario || ESCENARIO_INICIAL;
   if (focusType === "client") return _clientKPIs(focus, s);
   if (focusType === "bodega") return _bodegaKPIs(focus, s);
   if (focusType === "sku")    return _skuKPIs(focus);        // B4 · SKU y marca leen skusMargen (scenario-blind · el motor no ajusta skusMargen)
@@ -115,7 +116,7 @@ function _clientKPIs(name, s) {
 // DESCOMPOSICIÓN del margen (cliente) · margen = 100 − costo% − carga% · descompone el gap vs el promedio en sus
 // palancas y elige la DOMINANTE → la tesis la dice el DATO, no un molde. La reusa la Evidencia (misma cuenta).
 export function buildMarginDecomposition(focus, scenario) {
-  const s = scenario || "bonanza";
+  const s = scenario || ESCENARIO_INICIAL;
   const all = applyScenarioToClientesMargen(s);
   const c = all.find((x) => x.nombre === focus);
   if (!c) return null;
@@ -172,7 +173,7 @@ export function buildBrechaFilm(focus, scenario) {
 // dato NO afirma · derivados de capability, no hardcodeados). Reusa buildMarginDecomposition (misma cuenta que la
 // brecha → cierra exacto). Cliente·margen. Puro · client-side · testable. Null si no aplica (otro tipo/métrica).
 export function buildMarginReceipt(focus, scenario) {
-  const s = scenario || "bonanza";
+  const s = scenario || ESCENARIO_INICIAL;
   const d = buildMarginDecomposition(focus, s);
   if (!d) return null;
   const cv = (applyScenarioToClientesVentas(s) || []).find((c) => c.nombre === focus);
@@ -214,7 +215,7 @@ export function buildMarginReceipt(focus, scenario) {
 // → cierra exacto. Misma forma que el de cliente (lines/comparison/confianza/limites) → UN componente los renderiza
 // ambos. Fuentes ERP · comparación vs promedio de bodegas · límites honestos de inventario. Puro · testable.
 export function buildCapitalReceipt(focus, scenario) {
-  const s = scenario || "bonanza";
+  const s = scenario || ESCENARIO_INICIAL;
   const allInv = applyScenarioToSkuInventario(s) || [];
   const inv = allInv.filter((x) => x.bodega === focus);
   if (!inv.length) return null;

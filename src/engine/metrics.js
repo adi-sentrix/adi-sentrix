@@ -9,8 +9,9 @@ const _enK = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e3;
 import { MESES_IDX, invKPI, margenKPI, ventasKPI, ventasMensuales } from "../data/baseKpis.js";
 import { clientesVentas } from "../data/demoData.js";
 import { applyScenarioToClientesVentas } from "./scenarios.js";
+import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 
-export function getVentasKPI(filtro, filtros, scenario="bonanza") {
+export function getVentasKPI(filtro, filtros, scenario = ESCENARIO_INICIAL) {
   const mesIdx = filtro && filtro !== "Anual" ? MESES_IDX[filtro] : -1;
   // ── Base: si hay override de escenario, usarlo; sino ventasKPI estándar
   const scenarioK = SCENARIO_TRANSFORMS[scenario]?.kpis?.ventas;

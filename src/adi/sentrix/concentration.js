@@ -26,7 +26,7 @@ export const INV_DIMS = [
 const _inmovilizado = (x) => (x.alerta && x.alerta !== "ok") || x.rotacion < 2;
 
 function _rows(dimension, scenario) {
-  const s = scenario || "bonanza";
+  const s = scenario || ESCENARIO_INICIAL;
   if (dimension === "cliente") return applyScenarioToClientesVentas(s).map((x) => ({ name: x.nombre, value: Number(x.actual) || 0 }));
   if (dimension === "marca")   return applyScenarioToMarcasVentas(s).map((x) => ({ name: x.nombre, value: Number(x.actual) || 0 }));
   if (dimension === "familia") return applyScenarioToSfamiliasVentas(s).map((x) => ({ name: x.nombre, value: Number(x.actual) || 0 }));
@@ -37,17 +37,18 @@ function _rows(dimension, scenario) {
 // CONTRIBUCIÓN por dimensión (owner 2026-07-10 · el Pareto de la Mesa con filtro ventas/contribución): la
 // contribución ALMACENADA de cada tabla — el mismo valor que muestra el cuadro (reflejo de la tabla, una verdad).
 import { clientesMargen, marcasMargen, sfamiliasMargen } from "../../data/demoData.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 function _contribRows(dimension, scenario) {
   // cliente: scenario-aware (owner 2026-07-29, D8) — clientesMargen.contribucion ahora se re-deriva de la venta
   // OFICIAL (applyScenarioToClientesMargen) para cerrar con lo que el Cuadro (mismo dato) ya muestra; el import
   // crudo quedaría desincronizado del resto de la Mesa apenas hay un escenario activo.
-  if (dimension === "cliente") return applyScenarioToClientesMargen(scenario || "bonanza").map((x) => ({ name: x.nombre, value: Number(x.contribucion) || 0 }));
+  if (dimension === "cliente") return applyScenarioToClientesMargen(scenario || ESCENARIO_INICIAL).map((x) => ({ name: x.nombre, value: Number(x.contribucion) || 0 }));
   // MARCA y FAMILIA leen el AJUSTADOR, no el literal (owner 2026-08-10 · misma corrección que cuadro.js `_marcas`).
   // El eje cliente ya era scenario-aware y estos dos no, así que el MISMO gráfico, con el MISMO chip de escenario y
   // ante la MISMA pregunta («¿qué explican el 80% de tu contribución?»), sumaba $14.9M por cliente y $25.6M por
   // marca en crisis — 1,71x. Las funciones ya existen en el motor y las consume la Ficha: acá se dejan de ignorar.
-  if (dimension === "marca")   return applyScenarioToMarcasMargen(scenario || "bonanza").map((x) => ({ name: x.nombre, value: Number(x.contribucion) || 0 }));
-  if (dimension === "familia") return applyScenarioToSfamiliasMargen(scenario || "bonanza").map((x) => ({ name: x.nombre, value: Number(x.contribucion) || 0 }));
+  if (dimension === "marca")   return applyScenarioToMarcasMargen(scenario || ESCENARIO_INICIAL).map((x) => ({ name: x.nombre, value: Number(x.contribucion) || 0 }));
+  if (dimension === "familia") return applyScenarioToSfamiliasMargen(scenario || ESCENARIO_INICIAL).map((x) => ({ name: x.nombre, value: Number(x.contribucion) || 0 }));
   if (dimension === "sku")     return skusMargen.map((x) => ({ name: x.nombre, value: Number(x.contribucion) || 0 }));
   return [];
 }
@@ -56,7 +57,7 @@ function _contribRows(dimension, scenario) {
 // (applyScenarioToSkuInventario mueve estado/alerta → más inmovilizado en tensión/crisis). Data-driven: la
 // dimensión es un campo del propio dato (sku/bodega/marca/sfamilia), no se hardcodea.
 function _invRows(dimension, scenario) {
-  const inv = (applyScenarioToSkuInventario(scenario || "bonanza") || []).filter(_inmovilizado);
+  const inv = (applyScenarioToSkuInventario(scenario || ESCENARIO_INICIAL) || []).filter(_inmovilizado);
   const keyOf = dimension === "bodega" ? (x) => x.bodega
     : dimension === "marca"   ? (x) => x.marca
     : dimension === "familia" ? (x) => x.sfamilia
@@ -68,7 +69,7 @@ function _invRows(dimension, scenario) {
 
 // Concentración de una dimensión. metric "ventas" (comercial · default) o "inmovilizado" (inventario). Devuelve
 // barras (desc) + acumulado + el bloque que llega al 80%. El MOTOR elige metric/dims según el foco (ver surface.js).
-export function buildConcentration(dimension = "cliente", scenario = "bonanza", metric = "ventas") {
+export function buildConcentration(dimension = "cliente", scenario = ESCENARIO_INICIAL, metric = "ventas") {
   const raw = metric === "inmovilizado" ? _invRows(dimension, scenario) : metric === "contribucion" ? _contribRows(dimension, scenario) : _rows(dimension, scenario);
   const rows = raw.filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
   const total = rows.reduce((s, r) => s + r.value, 0) || 1;
@@ -84,7 +85,7 @@ export function buildConcentration(dimension = "cliente", scenario = "bonanza", 
   const blockPct = bars[blockCount - 1] ? Math.round(bars[blockCount - 1].cumPct) : 0;   // % REAL en el corte (data-driven)
   const dimList = metric === "inmovilizado" ? INV_DIMS : CONCENTRATION_DIMS;
   const meta = dimList.find((d) => d.key === dimension) || dimList[0];
-  return { dimension, metric, label: meta.label, plural: meta.plural, scenario: scenario || "bonanza", bars, total, n: bars.length, blockCount, blockPct, limite: _limite(dimension, metric, scenario) };
+  return { dimension, metric, label: meta.label, plural: meta.plural, scenario: scenario || ESCENARIO_INICIAL, bars, total, n: bars.length, blockCount, blockPct, limite: _limite(dimension, metric, scenario) };
 }
 
 /* ── EL LÍMITE QUE ESTE GRÁFICO NO PUEDE CERRAR, DECLARADO (owner 2026-08-10) ─────────────────────────────────
@@ -105,7 +106,7 @@ export function buildConcentration(dimension = "cliente", scenario = "bonanza", 
  *    fabricar el dato; ADI ya declina el caso hermano (el ranking de margen por SKU fuera de bonanza).
  * Devuelve null cuando no hay límite que declarar: el caso feliz no arrastra texto. */
 function _limite(dimension, metric, scenario) {
-  const s = scenario || "bonanza";
+  const s = scenario || ESCENARIO_INICIAL;
   if (metric === "inmovilizado") return null;   // el inventario tiene su propio ajustador y sí se mueve entero
   if (dimension === "sku" && s !== "actual") {
     return { tipo: "escenario_no_aplica", entidadesFuera: [],

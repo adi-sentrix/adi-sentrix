@@ -8,6 +8,7 @@ import { applyScenarioToClientesVentas, applyScenarioToClientesMargen, applyScen
 import { skusMargen } from "../../data/skusMargen.js";
 import { buildMarginDecomposition } from "./kpis.js";
 import { transferenciaCapability } from "./capability.js";   // la MISMA cuenta que declara el límite en la cara Capital
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 // STOCK EN ALERTA (owner 2026-08-10) · alerta operativa O rotación bajo el piso — la regla que ADI llama "Def2".
@@ -127,7 +128,7 @@ const _rowClient = (x, role, avgM, note) => ({
   note: note || null,
 });
 function _clientRing(focus, scenario) {
-  const s = scenario || "bonanza";
+  const s = scenario || ESCENARIO_INICIAL;
   const all = applyScenarioToClientesMargen(s);
   const c = all.find((x) => x.nombre === focus);
   if (!c) return null;
@@ -185,7 +186,7 @@ const _rowBodega = (x, role, avgInmovPct, note) => ({
   note: note || null,
 });
 function _bodegaRing(focus, scenario) {
-  const s = scenario || "bonanza";
+  const s = scenario || ESCENARIO_INICIAL;
   const inv = applyScenarioToSkuInventario(s) || [];
   const names = [...new Set(inv.map((x) => x.bodega))];
   const all = names.map((n) => _bodegaStats(inv, n)).filter(Boolean);

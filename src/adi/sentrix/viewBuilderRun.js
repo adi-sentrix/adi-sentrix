@@ -30,6 +30,7 @@ import { buildControlRing } from "./control.js";
 import { buildMarginReceipt, buildCapitalReceipt } from "./kpis.js";
 import { composeSpecSimulate, composeSpecDiagnose } from "../specRetrieval.js";
 import { buildOracleEvidence } from "../oracle/sentrixEvidence.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 
 // ── LA ENTIDAD DEL FOCO · del DATO, jamás de un literal ────────────────────────────────────────────────────────
 // La primera fila real del eje (sin la fila Total ni la de Promedio). Si el eje no trae filas, no hay foco y el
@@ -90,7 +91,7 @@ const _CORREDORES = {
 };
 
 /* ── builderOutFor(componentId, scenario) → la salida VIVA contra la que se deriva ese componente, o null ────── */
-export function builderOutFor(componentId, scenario = "bonanza") {
+export function builderOutFor(componentId, scenario = ESCENARIO_INICIAL) {
   const clave = builderKeyOf(componentId);
   const fn = clave && _CORREDORES[clave];
   if (!fn) return null;
@@ -103,7 +104,7 @@ export function builderOutFor(componentId, scenario = "bonanza") {
 /* ── builderOutsPorComponente(scenario) → { componentId: salida } para TODO el manifiesto ────────────────────
  * Lo que consumen los gates: un solo corredor por clave (el builder de una cara se corre UNA vez y lo comparten
  * sus quince piezas), y una entrada por componente declarado. */
-export function builderOutsPorComponente(scenario = "bonanza") {
+export function builderOutsPorComponente(scenario = ESCENARIO_INICIAL) {
   const cache = new Map();
   const out = {};
   for (const id of Object.keys(VIEW_MANIFEST)) {

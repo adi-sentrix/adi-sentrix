@@ -51,6 +51,7 @@ import { parseAddress, resolveAddress, legacyAddressFrom } from "../adi/sentrix/
 import { ADI_PROFILE } from "../config/flagProfile.js";   // perfil activo · sub-paths incompletos (placeholder Control · fecha por-entidad EJEMPLO) SOLO en dev
 import { TOOLS } from "../adi/oracle/toolRegistry.js";   // FICHA EJECUTIVA (owner 2026-08-07): misma boleta/políticas que ADI — entityProfile/entityComposicion/entityCapitalLigado/trend, funciones puras sin LLM, cero cálculo paralelo en React
 import { simboloMoneda } from "../config/moneda.js";
+import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 const _isDev = ADI_PROFILE === "dev";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
@@ -1766,7 +1767,7 @@ function MesaFlujoCara({ flujo: F, onAsk = null, onGuardarPlazos = null }) {
 }
 
 function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
-  const scenario = (evidence && evidence.periodo) || "bonanza";
+  const scenario = (evidence && evidence.periodo) || ESCENARIO_INICIAL;
   const resumen = React.useMemo(() => buildResumenEjecutivo(scenario), [scenario]);
   // MESA 2.0 · PASE 1 (owner 2026-07-14): el estado contra TU vara + la acción priorizada + el movimiento del
   // período — todo del módulo (mesa.js reusa diagnose/POLICY/temporal · cero cálculo acá).

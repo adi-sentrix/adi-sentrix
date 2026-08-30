@@ -163,6 +163,27 @@ H("C2 · el guard SKU-margen×escenario y el blockedWhen del contrato no vuelven
   ok(consultan.length === 0, "nadie CONSULTA .blockedWhen(…) río abajo", consultan.join(", "));
 }
 
+/* ═══ C3 · LOS DEFAULTS SALEN DE LA ÚNICA FUENTE ══════════════════════════════════════════════════════════════ */
+H("C3 · ni un literal de escenario como default — la base real se declara UNA vez");
+{
+  // Las DOS formas de default que el barrido eliminó (|| "bonanza" · scenario = "bonanza"). Los `=== "bonanza"`
+  // de los composers son COMPARACIONES, no defaults — los desarma C4. Fuera del scan: config/scenarios.js (la
+  // declaración única) y los datos de tenant (SCENARIO_TRANSFORMS nombra sus claves legítimamente).
+  const EXENTOS = /config[\\/]scenarios\.js$|data[\\/]tenants[\\/]/;
+  const DEFAULT_FORMS = [/\|\|\s*"bonanza"/, /\bscenario\s*=\s*"bonanza"/];
+  const conDefault = [];
+  for (const [p, cod] of CODIGO) {
+    if (EXENTOS.test(p)) continue;
+    if (DEFAULT_FORMS.some((re) => re.test(cod))) conDefault.push(p);
+  }
+  ok(conDefault.length === 0, "ningún módulo tiene un default literal de escenario", conDefault.join(", "));
+  // y quienes lo necesitan importan la declaración (muestra representativa: la Mesa y el spec-path)
+  ok(importaciones("ESCENARIO_INICIAL", CODIGO.get(join(ROOT, "src/adi/sentrix/mesa.js")) || ""),
+    "la Mesa importa ESCENARIO_INICIAL de la única fuente");
+  ok(importaciones("ESCENARIO_INICIAL", CODIGO.get(join(ROOT, "src/adi/answerADIFromSpec.js")) || ""),
+    "el spec-path importa ESCENARIO_INICIAL de la única fuente");
+}
+
 /* ═══ CARNADAS ════════════════════════════════════════════════════════════════════════════════════════════════ */
 H("CARNADA · cada chequeo, probado ROJO con la resurrección adentro");
 {
@@ -201,6 +222,12 @@ H("CARNADA · cada chequeo, probado ROJO con la resurrección adentro");
   // (g) un consumidor que vuelve a consultar la condición río abajo
   ok(/\.blockedWhen\s*\(/.test(sinComentarios("const b = sf.blockedWhen(\"bonanza\");")),
     "carnada «consulta a .blockedWhen renacida» → el chequeo se pone ROJO");
+
+  // (h) un default literal que vuelve (las dos formas), y la exención NO tapa un módulo cualquiera
+  ok(/\|\|\s*"bonanza"/.test(sinComentarios("const s = scenario || \"bonanza\";")),
+    "carnada «default || \"bonanza\" de vuelta» → el chequeo se pone ROJO");
+  ok(/\bscenario\s*=\s*"bonanza"/.test(sinComentarios("export function f(scenario = \"bonanza\") {}")),
+    "carnada «default de firma de vuelta» → el chequeo se pone ROJO");
 }
 
 console.log(`\n── _colapso_eje_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

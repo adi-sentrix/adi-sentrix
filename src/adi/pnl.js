@@ -53,6 +53,7 @@ import { SOURCES } from "../config/contract/sourceManifest.js";
 import { detectMultiAnalysis } from "./multiFocus.js";   // pase 2c: una enumeración de lentes es del MULTI, no del P&L
 import { composeSpecDiagnose } from "./specRetrieval.js";   // sello del contrato: los DETECTORES (carga/margen) puentean el porqué de negocio — los mismos de la Mesa (una verdad)
 import { normalizeResponse } from "./responseContract.js";   // Contrato v2 · Fase 4: el P&L sale con la MISMA forma que el oráculo y el legacy
+import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 
 // ── formato (misma escala que mesa.js: dato comercial en $K → $) ─────────────────────────────────────────────
 const _r1 = (n) => Math.round(n * 10) / 10;
@@ -346,7 +347,7 @@ export function detectPnlEllipsis(q) {
 // entidad, resultado_e = contribución_e − Σ(pct_i × venta_e/100), con Σ entidades == total (el gate lo verifica).
 export function buildPnlCascade(scenario, linesOverride = null, opts = null) {
   const lines = linesOverride || _lines;
-  const M = applyScenarioToClientesMargen(scenario || "bonanza") || [];
+  const M = applyScenarioToClientesMargen(scenario || ESCENARIO_INICIAL) || [];
   const sum = (f) => M.reduce((a, r) => a + (typeof f(r) === "number" ? f(r) : 0), 0);
   const ingresoK = sum((r) => r.venta), contribK = sum((r) => r.contribucion);
   const cargaK = sum((r) => (r.venta * (r.pctRebate || 0)) / 100);
@@ -973,7 +974,7 @@ const _dedupeBol = (figs) => { const seen = new Set(); return figs.filter((f) =>
 // los findings del diagnose — los MISMOS detectores de la Mesa (una verdad) · [] si no hay focos materiales
 function _findings(scenario) {
   try {
-    const d = composeSpecDiagnose({ filters: {}, scenario: scenario || "bonanza" });
+    const d = composeSpecDiagnose({ filters: {}, scenario: scenario || ESCENARIO_INICIAL });
     return (d && d.evidence && d.evidence.findings) || [];
   } catch { return []; }
 }
@@ -1124,7 +1125,7 @@ function _analisisResultado(scenario) {
  * LLM #1 clasificó pnl_setup sin red — se resuelve por estado: draft → re-preguntar la etapa · líneas → resultado ·
  * nada → start). El scenario viaja en state (como el resto del camino conversacional). */
 export function composePnl(pi, ctx = null, state = {}) {
-  const scenario = (state && state.scenario) || "bonanza";
+  const scenario = (state && state.scenario) || ESCENARIO_INICIAL;
   // claim del LLM #1 CON ALCANCE (specTool: pnl { entity?, dimension? } — sin action): se normaliza acá contra
   // el canon — el LLM entiende QUÉ quiere el usuario; ADI decide si SE PUEDE y con los nombres reales del dato.
   if (pi && !pi.action && pi.intent === "perdiendo") pi = { action: "perdiendo" };
@@ -1854,7 +1855,7 @@ export function ensurePnlNarration(narr, det, evidence) {
 // «explícame esto más sencillo» sobre una lectura P&L → la cascada contada en llano (alcance de la evidencia/hilo)
 export function pnlExplain(last, ctx = null, state = {}) {
   if (!_lines.length) return null;
-  const scenario = (state && state.scenario) || "bonanza";
+  const scenario = (state && state.scenario) || ESCENARIO_INICIAL;
   const nombre = (last && last.entidad) || (_scope && _scope.entity) || null;
   const eje = (last && last.entityType && ENTITIES[last.entityType]) ? last.entityType
     : (_scope && _scope.entity && ENTITIES[_scope.dimension]) ? _scope.dimension : null;
@@ -1881,7 +1882,7 @@ export function pnlExplain(last, ctx = null, state = {}) {
 // «¿qué decisiones tomo?» sobre una lectura P&L → las decisiones a la mano (línea top · dónde empujar · meta)
 export function pnlRecommend(last, ctx = null, state = {}) {
   if (!_lines.length) return null;
-  const scenario = (state && state.scenario) || "bonanza";
+  const scenario = (state && state.scenario) || ESCENARIO_INICIAL;
   const c = buildPnlCascade(scenario);
   const top = c.gastos.slice().sort((x, y) => y.usdK - x.usdK)[0];
   if (!top) return null;

@@ -17,6 +17,7 @@ import { isAvailable, unavailableMessage } from "./availabilityMap.js";
 import { queryInterpreter, composeRetrieval } from "../composers/qiRetrieval.js";
 import { detectBrandInText } from "../detectors.js";
 import { detectAllClientsInText, detectAllFamiliesInText, detectAllWarehousesInText } from "../router.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 
 const _norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[¿?¡!]/g, "").trim();
 const _has = (norm, term) => new RegExp("\\b" + _norm(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b").test(norm);
@@ -49,7 +50,7 @@ function _evidence(scenario, { metricKey = null, dimKey = null, filtros = {}, op
     metrica: metricKey,
     dimension: dimKey,
     filtros,
-    periodo: scenario || "bonanza",
+    periodo: scenario || ESCENARIO_INICIAL,
     formula,
     fuente: invMetric ? "skuInventario" : (_DIM_SOURCE[dimKey] || null),
     filas_usadas: rowsUsed,

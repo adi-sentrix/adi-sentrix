@@ -23,6 +23,7 @@ import { buildCuadroMando } from "./cuadro.js";
 import { simboloMoneda, etiquetaSinDeclarar } from "../../config/moneda.js";
 import { getTenantData } from "../../data/tenantStore.js";
 import { factorComercialDe } from "../../config/contract/figureType.js";   // la escala la DECLARA el pack (2026-08-30)
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _sum = (a, f) => a.reduce((s, x) => s + (typeof f(x) === "number" ? f(x) : 0), 0);
@@ -73,7 +74,7 @@ const _ACCION = {
 
 /* buildMesaEstado(scenario) → { vara, estados, accion, cambios } · todo formateado (la UI solo renderiza) */
 export function buildMesaEstado(scenario) {
-  const s = scenario || "bonanza";
+  const s = scenario || ESCENARIO_INICIAL;
   const V = applyScenarioToClientesVentas(s) || [];
   const M = applyScenarioToClientesMargen(s) || [];
   const vara = benchmarkOf(null);   // TU vara (criterio C.2 del owner si lo fijó · si no, dato/POLICY)
@@ -280,7 +281,7 @@ function _wlItem(dim, r, why) {
       : `¿Cómo está ${r.name} en ventas y contribución?` };
 }
 export function buildWatchlistEstado(watchlist, scenario) {
-  const s = scenario || "bonanza";
+  const s = scenario || ESCENARIO_INICIAL;
   const list = (Array.isArray(watchlist) ? watchlist : []).filter((w) => w && w.name && _WL_DIMS[w.dim]);
   if (!list.length) return { items: [] };
   const grids = {};

@@ -12,6 +12,7 @@ import { composeSpecDiagnose } from "../specRetrieval.js";   // PASE 1 Cuadro 2.
 import { concentracion } from "../diagnosis/economicDiagnosis.js";   // PASE 1 · el punto de movimiento 80/20 (motor · hoy vs año anterior — mismo cálculo del "Qué cambió")
 import { rotacionPonderada } from "./rotacion.js";   // LA rotación media del producto (ponderada por capital) · la MISMA que publica la cara Capital — ver la fila Total
 import { simboloMoneda } from "../../config/moneda.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
@@ -296,8 +297,8 @@ function _asesor(dimension, s, rows) {
 }
 
 // LA GRILLA de una dimensión: columnas del catálogo + filas (con acción/alerta) + fila promedio de referencia.
-export function buildCuadroMando(dimension = "cliente", scenario = "bonanza") {
-  const s = scenario || "bonanza";
+export function buildCuadroMando(dimension = "cliente", scenario = ESCENARIO_INICIAL) {
+  const s = scenario || ESCENARIO_INICIAL;
   const built = dimension === "bodega" ? _bodegas(s) : dimension === "sku" ? _skus(s) : dimension === "marca" ? _marcas(s) : _clientes(s);
   _asesor(dimension, s, built.rows);   // PASE 1 · microlectura + "En juego $" + ask del chip (aditivo — las filas clásicas intactas)
   if (built.total) { const tEJ = _sum(built.rows, (r) => r.enJuego || 0); built.total.enJuego = tEJ || null; }
