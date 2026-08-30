@@ -35,7 +35,16 @@ if (faltan.length) {
   process.exit(2);
 }
 
-const EMPRESA = TENANT_DEMO.id || "demo";
+/* ⚠️ SE PUEDE SEMBRAR EN OTRA EMPRESA (owner 2026-08-30): `node scripts/sembrar-demo.mjs prueba`.
+ * El motivo es poder probar ADI contra una BASE CONOCIDA. Una empresa que solo tuvo planillas de prueba no
+ * tiene dataset de fábrica al cual volver — y sin él, cada prueba de conversación mide un negocio distinto.
+ *
+ * ⚠️ Y SE LE CAMBIA LA IDENTIDAD AL PACK cuando el destino no es el demo. El pack de fábrica dice adentro
+ * `id: "demo"`, y ese id scopea lo que el usuario declara por empresa (criterios, líneas del P&L).
+ * Sembrarlo tal cual en otra empresa haría que dos empresas compartieran ese scope sin que nadie lo pidiera.
+ * Cambia el rótulo; ni una cifra. */
+const EMPRESA = (process.argv[2] || TENANT_DEMO.id || "demo").trim().toLowerCase();
+const ES_EL_DEMO = EMPRESA === (TENANT_DEMO.id || "demo");
 const MARCA = "siembra-demo";
 
 const db = crearClienteRest({ url: SUPABASE_URL, apikey: SUPABASE_ANON_KEY });
@@ -55,6 +64,10 @@ if (!emp.filas.length) {
   process.exit(1);
 }
 console.log(`  ✓ la empresa existe: ${emp.filas[0].nombre}`);
+
+/* EL PACK QUE SE SIEMBRA · el de fábrica, con la identidad de la empresa destino. */
+const PACK = ES_EL_DEMO ? TENANT_DEMO : { ...TENANT_DEMO, id: EMPRESA, nombre: emp.filas[0].nombre || EMPRESA };
+if (!ES_EL_DEMO) console.log(`  · el pack de fábrica se siembra a nombre de «${PACK.nombre}» — mismas cifras, otro rótulo`);
 
 /* ⚠️ COMPARAR EL CONTENIDO, NO EL TEXTO. `jsonb` **no preserva el orden de las claves**: las reordena al
  * guardarlas. Comparar con `JSON.stringify` da distinto aunque no falte ni sobre nada — la primera versión de
@@ -89,9 +102,9 @@ const ya = await db.seleccionar("fact_pack_versions", {
 });
 if (ya.ok && ya.filas.length) {
   const f = ya.filas[0];
-  if (!mismoPack(f.pack, TENANT_DEMO)) {
+  if (!mismoPack(f.pack, PACK)) {
     const guardadas = Object.keys(f.pack || {});
-    const nuevas = Object.keys(TENANT_DEMO).filter((k) => !guardadas.includes(k));
+    const nuevas = Object.keys(PACK).filter((k) => !guardadas.includes(k));
     console.log(`  · la siembra guardada (versión ${f.version}) es VIEJA: el demo del código cambió desde entonces`);
     if (nuevas.length) console.log(`      le faltan: ${nuevas.join(" · ")}`);
     console.log("  · se siembra una versión nueva en vez de reactivar la vieja");
@@ -119,7 +132,7 @@ const version = (ult.filas && ult.filas.length ? Number(ult.filas[0].version) : 
  * archivo de origen sería escribir en la base una historia que no ocurrió. */
 const alta = await db.insertar("fact_pack_versions", {
   pase, devolver: true,
-  filas: { tenant_id: EMPRESA, version, pack: TENANT_DEMO, sello: null, plantilla_version: MARCA, activa: false },
+  filas: { tenant_id: EMPRESA, version, pack: PACK, sello: null, plantilla_version: MARCA, activa: false },
 });
 if (!alta.ok || !alta.filas.length) {
   console.log(`  ✗ no se pudo guardar: ${alta.motivo} ${alta.detalle || ""}\n`);
@@ -139,7 +152,7 @@ console.log(`  ✓ activada · ahora es la versión de la que ADI habla`);
  * medir el texto diría «no coincide» con el pack perfectamente intacto. */
 const leido = await db.llamarFuncion("adi_version_activa", {}, { pase });
 const vuelto = leido.ok && leido.filas.length ? leido.filas[0].pack : null;
-const igual = mismoPack(vuelto, TENANT_DEMO);
+const igual = mismoPack(vuelto, PACK);
 console.log(igual
   ? `  ✓ y al leerlo de vuelta el contenido es idéntico: el viaje de ida y vuelta no pierde nada`
   : `  ✗ lo que volvió NO coincide con lo que se mandó — revisar antes de seguir`);
