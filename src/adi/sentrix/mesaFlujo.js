@@ -27,6 +27,7 @@
 import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { flujoComercial } from "../../data/demoData.js";
 import { simboloMoneda } from "../../config/moneda.js";
+import { politicaDelNegocio, plazoDe, hayPlazo, alcanceDeLaPolitica, frasePolitica } from "../../config/politicaCobro.js";
 
 const _r1 = (v) => Math.round(v * 10) / 10;
 /* ⚠️ EL SÍMBOLO SALE DE LA MONEDA DECLARADA, NO SE ESCRIBE A MANO (2026-08-30). Este formateador nació con un
@@ -147,16 +148,45 @@ function buildDesdePlanilla(D) {
   const pagado = new Map();
   for (const a of D.abonos) pagado.set(a.folio, _r1((pagado.get(a.folio) || 0) + a.montoK));
 
+  /* ⚠️ LA POLÍTICA SE LEE ACÁ, AL DIBUJAR, y no se hornea en el dato al momento de ingerir. Es lo que permite
+   * que cambiar un plazo se vea en la pantalla enseguida, sin volver a subir el archivo: el plazo es una
+   * decisión que se corrige, y obligar a recargar la planilla para corregirla la volvería un dato del período,
+   * que es justamente lo que el owner dijo que NO es. */
+  const politica = politicaDelNegocio();
+  const conPlazo = hayPlazo(politica);
+
   const porCliente = new Map();
   for (const f of D.facturas) {
-    const c = porCliente.get(f.cliente) || { nombre: f.cliente, ventaK: 0, abonadoK: 0, saldoK: 0, docs: 0 };
+    const c = porCliente.get(f.cliente) || { nombre: f.cliente, ventaK: 0, abonadoK: 0, saldoK: 0, docs: 0,
+      vencidoK: 0, diasMax: 0, dias: plazoDe(politica, f.cliente) };
     /* El abono no puede superar a su factura: lo que sobra ya se declaró como aviso en la ingesta, y dejarlo
      * restar acá convertiría un error de carga en un «saldo a favor» que nadie declaró. */
     const ab = Math.min(pagado.get(f.folio) || 0, f.montoK);
+    const saldo = Math.max(0, _r1(f.montoK - ab));
     c.ventaK = _r1(c.ventaK + f.montoK);
     c.abonadoK = _r1(c.abonadoK + ab);
-    c.saldoK = _r1(c.saldoK + Math.max(0, _r1(f.montoK - ab)));
+    c.saldoK = _r1(c.saldoK + saldo);
     c.docs += 1;
+
+    /* ── EL VENCIDO, DOCUMENTO POR DOCUMENTO ────────────────────────────────────────────────────────────
+     * Vence a los `dias` de la fecha del documento; está vencido si esa fecha ya pasó respecto del corte. Se
+     * calcula por FACTURA y no por cliente: dos documentos del mismo cliente nacen en fechas distintas, así
+     * que uno puede estar vencido y el otro no. Sumar el saldo del cliente contra una sola fecha diría que
+     * debe todo o que no debe nada, y las dos serían falsas.
+     *
+     * ⚠️ Sin plazo para ESE cliente no se decide nada: ni vencido ni al día. Su saldo simplemente no entra a
+     * la cifra, y el alcance lo declara con nombre. */
+    if (c.dias !== null && corte && saldo > 0.05 && f.fecha) {
+      const nace = _fecha(f.fecha);
+      if (!Number.isNaN(nace.getTime())) {
+        const vence = new Date(nace.getTime() + c.dias * _DIA);
+        const atraso = Math.round((corte.getTime() - vence.getTime()) / _DIA);
+        if (atraso > 0) {
+          c.vencidoK = _r1(c.vencidoK + saldo);
+          if (atraso > c.diasMax) c.diasMax = atraso;
+        }
+      }
+    }
     porCliente.set(f.cliente, c);
   }
 
@@ -167,27 +197,46 @@ function buildDesdePlanilla(D) {
       ventaK: c.ventaK, ventaFmt: _mK(c.ventaK),
       abonadoK: c.abonadoK, abonadoFmt: _mK(c.abonadoK),
       saldoK: c.saldoK, saldoFmt: _mK(c.saldoK),
-      vencidoK: null, vencidoFmt: null,
+      /* ⚠️ NULO CUANDO ESE CLIENTE NO TIENE PLAZO, NUNCA CERO — orden textual del owner: «Mantén el vencido en
+       * raya mientras no exista plazo declarado. No mostrar cero». Y se decide POR CLIENTE: con la política a
+       * medio llenar, el que tiene plazo muestra su cifra y el que no, una raya. */
+      vencidoK: c.dias === null ? null : c.vencidoK,
+      vencidoFmt: c.dias === null ? null : (c.vencidoK > 0 ? _mK(c.vencidoK) : null),
       recuperadoPct: _pct(c.abonadoK, c.ventaK), recuperadoFmt: `${_pct(c.abonadoK, c.ventaK)}%`,
       /* ⚠️ EL PLAZO VIAJA FORMATEADO, y no es un capricho de estilo. La tabla escribía `{f.diasCredito}d`, así
        * que sin plazo declarado la celda mostraba una «d» suelta — una unidad sin número. Formatear acá es
        * además la regla de la casa: la vista pinta, el módulo calcula y rotula. */
-      diasCredito: null, diasCreditoFmt: "—",
-      diasVencido: null, diasVencidoFmt: "—",
+      diasCredito: c.dias, diasCreditoFmt: c.dias === null ? "—" : `${c.dias}d`,
+      diasVencido: c.dias === null ? null : c.diasMax,
+      diasVencidoFmt: c.dias !== null && c.diasMax > 0 ? `${c.diasMax}d` : "—",
       documentos: c.docs,
-      /* SIN PLAZO SOLO HAY DOS ESTADOS HONESTOS: pagado o debiendo. «Vencido» y «por vencer» exigen saber
-       * cuándo había que pagar, y eso todavía nadie lo declaró. */
-      estado: c.saldoK <= 0.05 ? "al_dia" : "pendiente",
+      /* ⚠️ SIN PLAZO SOLO HAY DOS ESTADOS HONESTOS: pagado o debiendo. «Vencido» y «por vencer» exigen saber
+       * cuándo había que pagar. Con plazo declarado aparecen los tres del demo, y son la MISMA palabra para la
+       * misma cosa en las dos fuentes — si acá dijera «atrasado» y allá «vencido», serían dos productos. */
+      estado: c.saldoK <= 0.05 ? "al_dia"
+        : c.dias === null ? "pendiente"
+        : c.vencidoK > 0 ? "vencido" : "por_vencer",
       facturaMasVieja: null,
       ask: `¿Cómo viene el cobro de ${c.nombre}?`,
     }))
-    .sort((a, b) => b.saldoK - a.saldoK);
+    /* Con plazo declarado la tabla se ordena por lo vencido —el que más debe atrasado queda arriba, igual que
+       en el demo—; sin plazo, por saldo, que es lo único que se puede priorizar honestamente. */
+    .sort((a, b) => (b.vencidoK || 0) - (a.vencidoK || 0) || b.saldoK - a.saldoK);
 
   if (!filas.length) return null;
 
   const ventaK = _r1(filas.reduce((s, f) => s + f.ventaK, 0));
   const abonadoK = _r1(filas.reduce((s, f) => s + f.abonadoK, 0));
   const saldoK = _r1(filas.reduce((s, f) => s + f.saldoK, 0));
+
+  /* ⚠️ EL TOTAL DEL VENCIDO SUMA SOLO A LOS CLIENTES CON PLAZO, y el alcance dice cuáles quedaron fuera. Si no
+   * hay plazo para nadie, es `null` y la pantalla muestra una raya. La alternativa —tratar como cero al que no
+   * tiene plazo— daría un total que parece del negocio entero y es de una parte: cada fila correcta y el total
+   * mintiendo por omisión, que es exactamente lo que la casa llama un top-N sin cola. */
+  const alcancePol = alcanceDeLaPolitica(politica, filas.map((f) => f.nombre));
+  const vencidoK = conPlazo
+    ? _r1(filas.reduce((s, f) => s + (f.vencidoK || 0), 0))
+    : null;
 
   /* LA CAJA, MES A MES · con los abonos REALES de la hoja. Misma ventana de doce meses que termina en el corte,
      mismo recorte de los meses del principio sin cobro: si el negocio subió ventas de julio y agosto, los meses
@@ -236,8 +285,16 @@ function buildDesdePlanilla(D) {
         ask: "¿Cuánto me han pagado mis clientes?" },
       { key: "saldo",   label: "Saldo pendiente", valor: _mK(saldoK), pie: `${_pct(saldoK, ventaK)}% de la venta a crédito`,
         ask: "¿Cuánto me deben mis clientes?" },
-      { key: "vencido", label: "Saldo vencido", valor: "—", pie: "sin plazo de pago declarado",
-        ask: "¿Por qué no puedo ver el saldo vencido?" },
+      /* ⚠️ LA CUARTA CIFRA CAMBIA SEGÚN HAYA POLÍTICA O NO, y las dos versiones son afirmaciones distintas: con
+       * plazo declarado dice cuánto está vencido; sin plazo dice que no se puede saber. Nunca dice «$0». */
+      conPlazo
+        ? { key: "vencido", label: "Saldo vencido", valor: _mK(vencidoK),
+            pie: alcancePol.completa
+              ? `${_pct(vencidoK, saldoK)}% del saldo`
+              : `${_pct(vencidoK, saldoK)}% del saldo · ${alcancePol.conPlazo} de ${alcancePol.total} clientes`,
+            ask: "¿Qué saldo tengo vencido?" }
+        : { key: "vencido", label: "Saldo vencido", valor: "—", pie: "sin plazo de pago declarado",
+            ask: "¿Por qué no puedo ver el saldo vencido?" },
     ],
     filas,
     facturas: D.facturas.map((f) => ({ numero: f.folio, cliente: f.cliente, fechaIso: f.fecha, montoK: f.montoK, lineas: f.lineas })),
@@ -245,19 +302,23 @@ function buildDesdePlanilla(D) {
     caja,
     /* EL ALCANCE · dice de dónde salió cada cosa y qué no alcanza, que es lo que la pantalla muestra debajo de
        las cifras. Nombra la venta a crédito a propósito: el resto se pagó al contado y no es deuda de nadie. */
-    alcance: `${filas.length} clientes con venta a crédito, ${docs} documentos, al ${corte ? _dLegible(corte) : "cierre del período"}. Las ventas de contado no entran: no generan deuda.`,
-    completo: false,
+    alcance: `${filas.length} clientes con venta a crédito, ${docs} documentos, al ${corte ? _dLegible(corte) : "cierre del período"}. Las ventas de contado no entran: no generan deuda. ${frasePolitica(alcancePol)}`,
+    completo: alcancePol.completa,
     total: {
       ventaK, ventaFmt: _mK(ventaK),
       abonadoK, abonadoFmt: _mK(abonadoK),
       saldoK, saldoFmt: _mK(saldoK),
-      vencidoK: null, vencidoFmt: null,
+      vencidoK, vencidoFmt: vencidoK === null ? null : _mK(vencidoK),
       recuperadoPct: _pct(abonadoK, ventaK), recuperadoFmt: `${_pct(abonadoK, ventaK)}%`,
     },
-    /* ⚠️ LO QUE ESTA CARA TODAVÍA NO PUEDE, DECLARADO PARA QUE LA PANTALLA LO DIGA. Es la mitad del trabajo
-     * que el owner separó a propósito: primero cobrado y pendiente, después vencido. */
-    sinPlazo: true,
-    porQueSinVencido: "Para saber qué parte del saldo está vencida hace falta el plazo de pago, y todavía no está declarado. Lo que sí se puede afirmar es cuánto se vendió a crédito, cuánto entró y cuánto falta.",
+    /* ⚠️ LO QUE ESTA CARA PUEDE Y LO QUE NO, DECLARADO PARA QUE LA PANTALLA LO DIGA. `sinPlazo` era `true` fijo
+     * mientras el plazo no existía en ninguna parte; ahora depende de si esta empresa lo declaró. La frase que
+     * lo acompaña se redacta en `politicaCobro.js`, con el resto de la política. */
+    sinPlazo: !conPlazo,
+    politica: { diasGeneral: alcancePol.diasGeneral, conPlazoPropio: alcancePol.conPlazoPropio,
+      conPlazo: alcancePol.conPlazo, total: alcancePol.total, sinPlazo: alcancePol.sinPlazo,
+      declaradoPor: politica.declaradoPor || null, declaradoEn: politica.declaradoEn || null },
+    porQueSinVencido: conPlazo ? null : frasePolitica(alcancePol),
     avisos: D.avisos || [],
   };
 }

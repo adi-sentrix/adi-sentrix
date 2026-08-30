@@ -28,6 +28,7 @@ import { clienteDesdeEntorno } from "../data/supabaseRest.js";
 import { emitirPase } from "../data/paseTenant.js";
 import { confirmarSello } from "./plausibilidad.js";
 import { monedaLimpia } from "../config/moneda.js";
+import { politicaLimpia } from "../config/politicaCobro.js";
 
 const BUCKET = "adi-originales";
 const TIPO_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -100,10 +101,29 @@ export async function persistirCarga({
    * motivo, en vez de pisar la otra. Resolverlo acá con un candado sería reimplementar mal lo que Postgres ya
    * garantiza — y el caso real (una persona subiendo un archivo) no lo produce. */
   const ult = await db.seleccionar("fact_pack_versions", {
-    pase, columnas: "version", filtros: { tenant_id: `eq.${tenantId}` }, orden: "version.desc", limite: 1,
+    pase, columnas: "version,pack", filtros: { tenant_id: `eq.${tenantId}` }, orden: "version.desc", limite: 1,
   });
   if (!ult.ok) return { guardado: false, motivo: `no se pudo leer la última versión: ${ult.motivo}`, uploadId, hash };
   const version = (ult.filas.length ? Number(ult.filas[0].version) : 0) + 1;
+
+  /* ── 3b · LA POLÍTICA VIAJA A LA VERSIÓN NUEVA ────────────────────────────────────────────────────────
+   * ⚠️ SIN ESTO, EL PLAZO DE PAGO SE PIERDE EN CADA CARGA MENSUAL. El pack se arma entero desde la planilla, y
+   * la planilla no trae el plazo —justamente porque es política y no dato del período, que fue la decisión del
+   * owner—. Así que la versión nueva nacería sin él: el usuario declara sus plazos una vez, sube el archivo del
+   * mes siguiente y el saldo vencido vuelve a una raya sin que nadie haya cambiado nada.
+   *
+   * Es el defecto que hace parecer que el producto «se olvida». Se arrastra explícitamente, desde la última
+   * versión hacia la nueva. La MONEDA no se arrastra acá a propósito: se pregunta al activar, y ahí se escribe
+   * — arrastrarla también sería decidir dos veces la misma cosa en dos lugares.
+   *
+   * Si la planilla del mes trajera su propia política (hoy no puede), la de la planilla manda: lo que el
+   * usuario acaba de subir gana sobre lo que había. */
+  const packAnterior = ult.filas.length ? ult.filas[0].pack : null;
+  const cobroAnterior = packAnterior && packAnterior.perfil ? packAnterior.perfil.cobro : null;
+  const traeCobro = dataset && dataset.perfil && dataset.perfil.cobro;
+  const datasetConPolitica = (!traeCobro && cobroAnterior)
+    ? { ...dataset, perfil: { ...(dataset.perfil || {}), cobro: cobroAnterior } }
+    : dataset;
 
   // ── 4 · la versión del pack · INACTIVA ───────────────────────────────────────────────────────────────
   /* El SELLO viaja adentro de la versión y no en `uploads`: califica las lecturas de ESTE pack, y si el usuario
@@ -114,7 +134,7 @@ export async function persistirCarga({
       tenant_id: tenantId,
       upload_id: uploadId,
       version,
-      pack: dataset,
+      pack: datasetConPolitica,
       sello: sello || null,
       plantilla_version: plantillaVersion || null,
       activa: false,
@@ -199,4 +219,56 @@ export async function cargasPrevias({ tenantId, hash, env, cliente, ttlSegundos 
   });
   if (!r.ok || !r.filas.length) return { hubo: false };
   return { hubo: true, cuando: String(r.filas[0].created_at || "").slice(0, 10) };
+}
+
+/* declararCobro({ tenantId, diasGeneral, porCliente, actor, env }) → { declarada, cobro } | { declarada:false, motivo }
+ *
+ * EL PLAZO DE PAGO DE LA EMPRESA · general y por cliente. Escribe `perfil.cobro` dentro del pack de la versión
+ * activa, con la función de la 006.
+ *
+ * ⚠️ SE VALIDA ACÁ *Y* EN LA BASE, y no es duplicación por descuido. Acá, para poder decirle al usuario qué
+ * estaba mal en su idioma; en la base, porque una regla que solo vive en el servidor no es una garantía — es
+ * una costumbre. Las dos aplican el mismo criterio: lo que no se entiende se DESCARTA, nunca se aproxima.
+ * Un plazo ilegible no puede convertirse en 30 días.
+ *
+ * ⚠️ Y NO SE PUEDE DECLARAR SIN DATOS CARGADOS. La política vive dentro del pack activo: sin pack no hay dónde
+ * escribirla. La base lo rechaza con esas palabras en vez de crear una versión fantasma. */
+export async function declararCobro({ tenantId, diasGeneral, porCliente, actor = null, env, cliente, ttlSegundos } = {}) {
+  if (!tenantId) return { declarada: false, sinBase: true, motivo: "sin sesión con empresa" };
+
+  /* ⚠️ SE VALIDA ANTES DE MIRAR LA BASE, y el orden importa por dos razones. Al usuario hay que decirle qué
+   * escribió mal, no «base no configurada» —que es cierto y no le sirve de nada—. Y una validación que solo
+   * corre con base viva es una validación que ningún candado puede ejercer sin red.
+   *
+   * La misma normalización que usa la pantalla para leer la política: una sola verdad sobre qué es un plazo. */
+  const limpia = politicaLimpia({ diasGeneral, porCliente });
+  if (diasGeneral !== null && diasGeneral !== undefined && diasGeneral !== "" && limpia.diasGeneral === null) {
+    return { declarada: false, motivo: "el plazo general tiene que ser un número entero de 0 a 365 días" };
+  }
+  const pedidos = Object.keys((porCliente && typeof porCliente === "object") ? porCliente : {});
+  const descartados = pedidos.filter((n) => !(n.trim() in limpia.porCliente));
+  if (descartados.length) {
+    return { declarada: false,
+      motivo: `estos plazos no se entienden y no se guardó nada: ${descartados.slice(0, 3).join(", ")}. Tienen que ser números enteros de 0 a 365 días.` };
+  }
+
+  const e = env || (typeof process !== "undefined" && process.env) || {};
+  const db = cliente || clienteDesdeEntorno(e);
+  if (!db) return { declarada: false, sinBase: true, motivo: "base no configurada" };
+
+  const p = await emitirPase({ tenantId, secreto: e.SUPABASE_JWT_SECRET || "", ...(ttlSegundos ? { ttlSegundos } : {}) });
+  if (!p.ok) return { declarada: false, motivo: `no se pudo emitir el pase: ${p.motivo}` };
+
+  const r = await db.llamarFuncion("adi_declarar_cobro", {
+    p_dias_general: limpia.diasGeneral,
+    p_por_cliente: limpia.porCliente,
+    p_actor_id: (actor && actor.id) || null,
+    p_actor_label: (actor && actor.label) || null,
+    p_actor_rol: (actor && actor.rol) || null,
+  }, { pase: p.pase });
+  if (!r.ok) return { declarada: false, motivo: `no se pudo guardar el plazo: ${r.motivo}` };
+  if (!r.filas.length) return { declarada: false, motivo: "la base no confirmó el plazo" };
+
+  /* Vuelve lo que QUEDÓ GUARDADO, no lo que se mandó: si la base descartó algo, la pantalla muestra lo real. */
+  return { declarada: true, version: r.filas[0].version, cobro: politicaLimpia(r.filas[0].cobro) };
 }

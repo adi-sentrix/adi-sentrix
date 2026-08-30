@@ -28,7 +28,9 @@ import { diagnosisCharts } from "../adi/sentrix/surface.js";   // brick 5 · el 
 import { buildControlRing } from "../adi/sentrix/control.js";   // brick 7 · Control · la tabla-ring (foco vs promedio vs par vs mejor)
 import { buildCuadroMando, CUADRO_DIMS } from "../adi/sentrix/cuadro.js";   // 4ª lente · Cuadro de mando · la grilla operable
 import { buildResumenComercial } from "../adi/sentrix/resumenComercial.js";
-import { buildMesaFlujo } from "../adi/sentrix/mesaFlujo.js";   // FLUJO COMERCIAL (owner 2026-08-27) · venta, abonos y saldo — toda la aritmética vive ahí   // RESUMEN COMERCIAL (owner 2026-08-07) · la cara Comercial entera — veredicto/KPIs/plano 80-20/pareto/puente/insights ya armados y formateados (alcance SIEMPRE global: la firma no acepta selección) · cero cálculo en React
+import { buildMesaFlujo } from "../adi/sentrix/mesaFlujo.js";
+import { getTenantData, initTenant } from "../data/tenantStore.js";   // el plazo de pago vive en el pack: al declararlo se reescribe el perfil vivo
+import { getAccessCode } from "../adi/accessClient.js";                  // …y se manda con el codigo firmado, que es lo que dice de que empresa es   // FLUJO COMERCIAL (owner 2026-08-27) · venta, abonos y saldo — toda la aritmética vive ahí   // RESUMEN COMERCIAL (owner 2026-08-07) · la cara Comercial entera — veredicto/KPIs/plano 80-20/pareto/puente/insights ya armados y formateados (alcance SIEMPRE global: la firma no acepta selección) · cero cálculo en React
 import { buildMesaEstado, buildWatchlistEstado } from "../adi/sentrix/mesa.js";   // MESA 2.0 · semáforo contra TU vara + acción priorizada + "qué cambió" + alertas/watchlist (reusa diagnose/POLICY/temporal/cuadro · una verdad)
 import { buildMesaCapital, buildCuadroCapital, CUADRO_CAPITAL_EJES, CAPITAL_ESTADOS } from "../adi/sentrix/mesaCapital.js";   // CARA CAPITAL (owner 2026-07-15) · el mismo sello sobre el inventario — detectores existentes, cero cálculo en UI
 import { buildMesaResultado, pnlMesaLink, pnlExportData } from "../adi/sentrix/mesaResultado.js";   // CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l") · la cascada del P&L comercial — buildPnlCascade, cero cálculo en UI · pnlMesaLink = deep-link puro (evidencia P&L → cara Resultado con su alcance) · pnlExportData = copiar/CSV de lo que se está viendo (una verdad)
@@ -1368,7 +1370,104 @@ const _FLUJO_DEMO = (() => {
  * sepa exactamente qué estás señalando. Acá, en esta primera versión, los enlaces mandan la pregunta a secas.
  * Es deliberado: el manifiesto de concordancia es un contrato cerrado y biyectivo con la UI, y no vale la pena
  * abrirlo para una cara que el owner todavía puede querer distinta. Se cablea cuando la apruebe. */
-function MesaFlujoCara({ flujo: F, onAsk = null }) {
+/* ── EL PLAZO DE PAGO · lo único de esta cara que el usuario ESCRIBE ───────────────────────────────────────
+ *
+ * LA ORDEN DEL OWNER (2026-08-30): «Plazo de pago por cliente, con un plazo general por defecto para la
+ * empresa … Si un cliente no tiene plazo propio, usa el general.»
+ *
+ * ⚠️ ACÁ TAMPOCO SE CALCULA NADA. Este bloque escribe la política y vuelve a pedir el dato; el vencido lo
+ * calcula `mesaFlujo.js` como todo lo demás. Lo que se ve mientras se escribe es lo que el módulo dijo, no una
+ * cuenta hecha en el JSX para «previsualizar».
+ *
+ * ⚠️ NO PRECARGA 30 DÍAS EN EL CAMPO, y es la misma regla que la moneda: un valor sugerido en un campo vacío se
+ * acepta sin leerlo, y de ahí en adelante el número tiene la autoridad de algo que el usuario declaró cuando en
+ * realidad solo apretó guardar. El campo empieza vacío y dice qué se espera.
+ *
+ * ⚠️ SOLO APARECEN LOS CLIENTES CON VENTA A CRÉDITO. Pedirle a alguien el plazo de un cliente que le paga al
+ * contado es pedirle trabajo que no cambia ninguna cifra. */
+function PlazoDePago({ F, onGuardar }) {
+  const pol = F.politica || {};
+  const [general, setGeneral] = useState(pol.diasGeneral === null || pol.diasGeneral === undefined ? "" : String(pol.diasGeneral));
+  const [porCliente, setPorCliente] = useState(() => {
+    const m = {};
+    for (const f of F.filas) if (f.diasCredito !== null && f.diasCredito !== pol.diasGeneral) m[f.nombre] = String(f.diasCredito);
+    return m;
+  });
+  const [abierto, setAbierto] = useState(false);
+  const [estado, setEstado] = useState(null);          // null · "guardando" · "listo" · el motivo del fallo
+
+  const _panel = { border:`1px solid ${C.cardBorder}`, borderRadius:12, padding:"13px 15px" };
+  const _head = { fontFamily:MONO, fontSize:11.5, letterSpacing:"0.7px", color:C.text, textTransform:"uppercase",
+    display:"flex", alignItems:"center", gap:6 };
+  const _dot = <span style={{ width:5, height:5, borderRadius:3, background:C.celeste, flexShrink:0, display:"inline-block" }}/>;
+  const _campo = { width:64, background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}`, borderRadius:7,
+    padding:"5px 8px", color:C.text, fontFamily:MONO, fontSize:14, fontVariantNumeric:"tabular-nums", textAlign:"right" };
+  const _boton = (activo) => ({ background: activo ? C.celeste : "transparent", border:`1px solid ${activo ? C.celeste : C.border}`,
+    color: activo ? "#0b0f14" : C.textMuted, borderRadius:8, padding:"6px 13px", fontSize:13, fontWeight:600,
+    cursor: activo ? "pointer" : "default", fontFamily:"'DM Sans', system-ui, sans-serif" });
+
+  async function guardar() {
+    setEstado("guardando");
+    const limpios = {};
+    for (const [n, v] of Object.entries(porCliente)) if (String(v).trim() !== "") limpios[n] = Number(v);
+    const r = await onGuardar({ diasGeneral: String(general).trim() === "" ? null : Number(general), porCliente: limpios });
+    setEstado(r && r.ok ? "listo" : (r && r.motivo) || "no se pudo guardar el plazo");
+  }
+
+  const hayCambio = true;   // el botón no adivina: guardar lo mismo dos veces es inofensivo y decirlo no lo es
+
+  return (
+    <div style={_panel}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:9 }}>
+        <span style={_head}>{_dot}Plazo de pago</span>
+        <span style={{ fontSize:13, color:C.textMuted }}>
+          {pol.declaradoPor ? `declarado por ${pol.declaradoPor}` : "lo declara tu empresa, no la planilla"}
+        </span>
+      </div>
+
+      <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+        <span style={{ fontSize:14, color:C.textSub }}>Plazo general</span>
+        <input value={general} onChange={(e) => { setGeneral(e.target.value.replace(/[^0-9]/g, "")); setEstado(null); }}
+          placeholder="30" inputMode="numeric" style={_campo} aria-label="Plazo general en días"/>
+        <span style={{ fontSize:14, color:C.textMuted }}>días</span>
+        <button onClick={() => setAbierto(!abierto)} style={{ background:"transparent", border:"none", color:C.celeste,
+          fontSize:13, fontWeight:600, cursor:"pointer", padding:0, fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+          {abierto ? "Ocultar los plazos por cliente" : `Plazos por cliente (${Object.keys(porCliente).length})`}
+        </button>
+        <div style={{ flex:1 }}/>
+        <button onClick={guardar} disabled={estado === "guardando" || !hayCambio} style={_boton(estado !== "guardando")}>
+          {estado === "guardando" ? "Guardando…" : "Guardar"}
+        </button>
+      </div>
+
+      {abierto ? (
+        <div style={{ marginTop:11, display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(240px, 1fr))", gap:8 }}>
+          {F.filas.map((f) => (
+            <div key={f.key} style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ fontSize:14, color:C.textSub, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.nombre}</span>
+              <input value={porCliente[f.nombre] || ""} inputMode="numeric"
+                onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, "");
+                  setPorCliente((p) => { const n = { ...p }; if (v === "") delete n[f.nombre]; else n[f.nombre] = v; return n; });
+                  setEstado(null); }}
+                placeholder={String(general).trim() === "" ? "—" : general} style={_campo} aria-label={`Plazo de ${f.nombre} en días`}/>
+              <span style={{ fontSize:13, color:C.textMuted }}>días</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {/* ⚠️ LO QUE FALTA SE DICE ACÁ MISMO, al lado del campo que lo arregla. La frase la redacta el módulo:
+          duplicarla en React sería una segunda verdad sobre el mismo hallazgo. */}
+      <div style={{ fontSize:14, color: estado && estado !== "listo" && estado !== "guardando" ? C.amber : C.textMuted, marginTop:10 }}>
+        {estado && estado !== "listo" && estado !== "guardando" ? estado
+          : estado === "listo" ? "Guardado. El saldo vencido de arriba ya usa este plazo."
+          : F.porQueSinVencido || `El vencido se mide contra este plazo, desde la fecha de cada documento.${pol.sinPlazo && pol.sinPlazo.length ? ` Sin plazo: ${pol.sinPlazo.join(", ")}.` : ""}`}
+      </div>
+    </div>
+  );
+}
+
+function MesaFlujoCara({ flujo: F, onAsk = null, onGuardarPlazos = null }) {
   /* ⚠️ ESTE HOOK VA ANTES DE TODO, y en particular antes del `if (!F) return` de más abajo. Un useState
      declarado después de un return temprano se ejecuta en unos renders y no en otros — pasar de la cara vacía a
      la cara con datos cambiaría la cantidad de hooks y React rompe. Es exactamente el error que la regla de los
@@ -1501,6 +1600,11 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
       </div>
       <div style={{ fontSize:14, color:C.textMuted, marginTop:9 }}>{F.alcance}</div>
     </div>
+
+    {/* ⚠️ EL PLAZO DE PAGO SE DECLARA ACÁ, y va INMEDIATAMENTE DEBAJO de las cifras a propósito: es lo que hace
+        que la cuarta —el saldo vencido— pase de una raya a un número. Ponerlo al final de la pestaña habría
+        dejado al usuario mirando una raya sin saber que él mismo puede resolverla. */}
+    <PlazoDePago F={F} onGuardar={onGuardarPlazos} />
 
     <div style={_panel}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:9 }}>
@@ -1703,7 +1807,33 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   /* FLUJO COMERCIAL · se construye siempre, como las otras cuatro caras. El módulo devuelve `null` en un
      suspiro cuando la empresa no declara dato de cobro —que hoy es el caso de casi todas— y la cara muestra su
      estado vacío. No hace falta protegerlo con un interruptor: lo que decide es el dato, no la dirección. */
-  const flujoC = React.useMemo(() => { try { return buildMesaFlujo(scenario); } catch { return null; } }, [scenario]);
+  const [plazoTick, setPlazoTick] = useState(0);
+  const flujoC = React.useMemo(() => { try { return buildMesaFlujo(scenario); } catch { return null; } }, [scenario, plazoTick]);
+  /* GUARDAR EL PLAZO DE PAGO · política de la empresa, del lado del servidor.
+   *
+   * ⚠️ NO SE ESCRIBE EN EL DATASET LOCAL Y LISTO. Se manda, se espera la confirmación, y recién ahí se re-arma
+   * la cara con lo que la BASE dijo que quedó guardado. Pintar el número optimistamente dejaría al usuario
+   * mirando un vencido que su empresa no tiene declarado si la escritura falló — el mismo defecto que la carga
+   * que se activaba en memoria y se perdía en la recarga. */
+  const guardarPlazos = React.useCallback(async ({ diasGeneral, porCliente }) => {
+    try {
+      const res = await fetch("/api/adi-ingesta", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ op: "plazos", diasGeneral, porCliente, access: getAccessCode() }),
+      });
+      const r = await res.json();
+      if (r && r.ok) {
+        /* la política vive en el pack: se escribe en el dataset vivo para que la cara la lea enseguida, con lo
+           que devolvió la base — no con lo que el usuario tipeó. */
+        const d = getTenantData();
+        if (d) initTenant({ ...d, perfil: { ...(d.perfil || {}), cobro: r.cobro } });
+        setPlazoTick((t) => t + 1);
+      }
+      return r;
+    } catch {
+      return { ok: false, motivo: "no se pudo contactar al servidor para guardar el plazo" };
+    }
+  }, []);
   // CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l"): el P&L se sella CONVERSANDO — cuando ADI lo sella/edita,
   // pnl.js emite "adi-pnl-changed" y la cara se re-arma con la Mesa abierta (sin cerrar/abrir el panel).
   const [pnlTick, setPnlTick] = useState(0);
@@ -1817,7 +1947,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         {/* CARA CAPITAL / CARA RESULTADO · el mismo sello sobre el inventario o sobre el P&L — la cara
             comercial vive INTACTA en la rama de abajo (regla de oro del owner). */}
         {cara === "flujo" ? (
-          <MesaFlujoCara flujo={flujoC} onAsk={onAsk}/>
+          <MesaFlujoCara flujo={flujoC} onAsk={onAsk} onGuardarPlazos={guardarPlazos}/>
         ) : cara === "ficha" ? (
           <MesaFichaCara entity={fichaCliente} scenario={scenario} onAsk={onAsk} onSelect={setFichaCliente}/>
         ) : cara === "resultado" ? (

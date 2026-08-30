@@ -28,7 +28,7 @@ import { plantillaVacia, plantillaEjemplo } from "./plantilla/generarPlantilla.j
 import { POLICY_CONFIG } from "../config/businessPolicy.js";
 import { PLANTILLA_VERSION } from "../config/contract/plantilla.js";
 import { verifyAccessCode } from "../adi/llm/accessToken.js";
-import { persistirCarga, cargasPrevias, activarVersion, hashSha256 } from "./persistirCarga.server.js";
+import { persistirCarga, cargasPrevias, activarVersion, declararCobro, hashSha256 } from "./persistirCarga.server.js";
 
 /* De qué empresa es esta carga. Sale del código firmado y de ningún otro lado.
  *
@@ -98,6 +98,25 @@ export async function handleIngesta(body = {}, env) {
     return r.activada
       ? { ok: true, op: "activar", version: r.version, sello: r.sello, moneda: r.moneda }
       : { ok: false, op: "activar", motivo: r.motivo };
+  }
+
+  /* DECLARAR EL PLAZO DE PAGO · política del negocio, no dato del período (owner 2026-08-30).
+   *
+   * ⚠️ VA POR ACÁ Y NO POR UN ENDPOINT NUEVO por la misma razón que «activar»: es el mismo usuario, sobre la
+   * misma empresa, decidiendo cómo se leen sus propios datos. Y porque este endpoint ya sabe quién es —el
+   * código firmado trae el nombre—, así que el plazo queda con la firma de quién lo declaró sin agregar nada.
+   *
+   * ⚠️ NO SE PUEDE DECLARAR SIN DATOS ACTIVOS, y la base lo rechaza: la política vive dentro del pack, así que
+   * sin pack no hay dónde escribirla. Es una limitación real y se dice, en vez de guardarla en un limbo. */
+  if (body.op === "plazos") {
+    const s = await sesionDeLaCarga(body.access, env);
+    if (!s) return { ok: false, motivo: "sin sesión con empresa: no se puede declarar el plazo de pago" };
+    const r = await declararCobro({
+      tenantId: s.tenantId, diasGeneral: body.diasGeneral, porCliente: body.porCliente, actor: s.actor, env,
+    });
+    return r.declarada
+      ? { ok: true, op: "plazos", version: r.version, cobro: r.cobro }
+      : { ok: false, op: "plazos", motivo: r.motivo };
   }
 
   const b64 = typeof body.archivo === "string" ? body.archivo : "";
