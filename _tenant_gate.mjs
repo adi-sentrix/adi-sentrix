@@ -159,11 +159,16 @@ ok(/perfil de tu empresa/.test((rStart && rStart.text) || "") && /selles el tuyo
    "«armemos mi P&L» con perfil → rearme guiado sobre esa base (sin promesa falsa de «partir de cero»)");
 resetPnlDraft();
 // la política del perfil en lo EMITIDO (no solo en POLICY): el foco de carga del diagnose sale del TARGET DEL
-// PERFIL — con 4% el único foco material es Aconcagua (5%−4%)×$11.5M = $115K; con el 3.5% del config serían
-// TRES focos y otras cifras ($172K/$70K/$72K). La cifra emitida prueba la vara usada.
+// PERFIL — con 4%, Aconcagua aporta (5%−4%)×$11.5M = $115K; con el 3.5% del config serían otras cifras
+// ($172K/$70K/$72K). La cifra emitida prueba la vara usada.
+// PISO RELATIVO (owner 2026-08-30): la materialidad es 0.05% de la venta REAL del negocio — para empresa-2
+// ($58M) el piso es $29.000, no el $50.000 pensado para el demo de $100M. Con su propio piso, El Puerto
+// ($36K de carga sobre target) DEJA DE SER MUDO: el foco pasa de único a dos cuentas, $151K en total.
+// Ese cambio de cifra es la decisión del owner operando, no una regresión.
 const dg = A(S({ operation: "diagnose", metric: "contribucion", dimension: "cliente" }), {}, {});
-ok(dg && /Carga comercial alta: \$115K/.test(dg.text || "") && /Comercial Aconcagua \$115K/.test(dg.text || ""),
-   "diagnose detecta la carga contra el target del perfil (4%): foco único Aconcagua $115K");
+ok(dg && /Carga comercial alta: \$151K/.test(dg.text || "") && /Comercial Aconcagua \$115K/.test(dg.text || "")
+   && /Mayorista El Puerto \$36K/.test(dg.text || ""),
+   "diagnose con la vara del perfil (4%) y el piso del negocio ($29K): Aconcagua $115K + El Puerto $36K");
 // IDA-Y-VUELTA · lo del usuario en empresa-2 NO viaja al demo — y vuelve intacto al regresar
 setCriterion("margen_minimo", 27);
 setPnlLines(LINES.map((l) => ({ ...l })));

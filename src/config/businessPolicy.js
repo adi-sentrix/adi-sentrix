@@ -31,6 +31,12 @@ export const POLICY_CONFIG = Object.freeze({
   quiebreDohMax: 20,        // … y cobertura BAJA (DOH ≤ días) → se va a quedar sin stock
   sobrestockDohMin: 60,     // sobrestock: DOH entre esto y dohMax (vende, pero cobertura excesiva)
   quiebreMaterialUsd: 20000,// materialidad de la alerta de quiebre: $ mínimo para no secuestrar la respuesta con ruido
+  /* PISO DE FOCOS COMERCIALES, RELATIVO A LA VENTA DEL NEGOCIO (owner 2026-08-30: «no más monto fijo pensado
+   * para $100M — la fuga de 7% de un negocio chico tiene que sonar»). 0.05% de la venta total reproduce EXACTO
+   * el piso histórico de $50.000 sobre el negocio de referencia de $100M: el demo no se mueve un byte, y un
+   * negocio de $61 mil pasa a oír su fuga de $4.5K. Como todo umbral de POLICY, el tenant puede declarar el
+   * suyo por perfil. */
+  materialidadFocoPctVenta: 0.05,
   quiebreMaterialPct: 5,    // … o % del capital del foco
 });
 

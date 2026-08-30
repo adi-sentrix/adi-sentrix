@@ -13,7 +13,7 @@
  *   reusado del cuadro (vara/varaGap/varaRef por fila) · cada uno con su pregunta gate-proven por dimensión.
  * Cada estado, acción y línea lleva su PREGUNTA a ADI (anti-BI: nada mudo) — todas se prueban por _promise_gate.
  * Registro EJECUTIVO en todo texto emitido (lockeado por _registro_gate). Puro · client-side · motor sellado intacto. */
-import { composeSpecDiagnose } from "../specRetrieval.js";
+import { composeSpecDiagnose, declaracionUmbralFocos } from "../specRetrieval.js";
 import { applyScenarioToClientesVentas, applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { getVentasKPI } from "../../engine/metrics.js";   // COHERENCIA (2026-07-15): la card de ventas lee la MISMA KPI que el hero y que la respuesta de ADI — una verdad
 import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
@@ -120,7 +120,9 @@ export function buildMesaEstado(scenario) {
   // capturando?" (mg.subtotal — la no capturada); la carga va aparte, nombrada — nunca un agregado que la respuesta no dice.
   const contribucion = {
     estado: !mg && !cg ? "verde" : mg && cg ? "rojo" : "ambar",
-    linea: !mg && !cg ? "sin fugas materiales contra tu benchmark"
+    // el verde DECLARA su umbral (owner 2026-08-30): «sin fugas materiales» sin decir qué es material para ESTE
+    // negocio es un silencio inauditable — la frase es una sola verdad, viene del mismo módulo que aplica el piso.
+    linea: !mg && !cg ? `sin fugas materiales contra tu benchmark (${declaracionUmbralFocos()})`
       : mg && cg ? `${_money(mg.subtotal_usd)} sin capturar contra tu benchmark · ${_money(cg.subtotal_usd)} de carga sobre el target`
       : mg ? `${_money(mg.subtotal_usd)} sin capturar contra tu benchmark`
       : `${_money(cg.subtotal_usd)} de carga sobre el target`,

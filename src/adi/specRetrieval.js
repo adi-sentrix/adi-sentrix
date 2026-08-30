@@ -490,7 +490,27 @@ export function composeSpecCompare({ dimension, entities, scenario }) {
  * Guardrail scenario-aware: los detectores comerciales corren SOLO sobre CLIENTE (scenario-aware) · capital sobre SKU
  * (margen/carga @sku/@marca son base-only → NO se tocan acá). Umbrales SIEMPRE desde POLICY (nunca literales) → el
  * diagnose no puede citar un target distinto al resto de ADI. Sin focos materiales → null (el seam degrada honesto). */
-const _DIAG_FLOOR_USD = 50000;   // piso de materialidad de focos comerciales ($ · evita el ruido de clientes chicos)
+/* PISO DE MATERIALIDAD RELATIVO, POR NEGOCIO (owner 2026-08-30, decisión B): % de la venta del ESCENARIO BASE
+ * («actual»), sea cual sea el escenario que el foco escanea. **La materialidad es una propiedad del negocio, no
+ * del lente con que se lo mira**: los escenarios son simulaciones declaradas — un negocio de $100M mirando su
+ * crisis hipotética sigue siendo un negocio de $100M, y la misma fuga no puede aparecer y desaparecer entre
+ * pestañas de simulación («una sola verdad»). Cuando la venta REAL cambie (una carga nueva), el escenario base
+ * cambia y el piso lo sigue: el umbral sigue a la realidad e ignora las hipótesis.
+ * 0.05% × $100M = el $50.000 histórico (el demo, byte-idéntico EN LOS 4 ESCENARIOS); 0.05% × $61K ≈ $31. */
+const _pisoFocosUSD = (source, vField) => {
+  const base = _loadReal(source);   // la venta REAL (sin motor de escenarios) — el piso sigue a la realidad
+  const totalRaw = (base || []).reduce((s, r) => s + (typeof r[vField] === "number" ? r[vField] : 0), 0) * _fxe();
+  return totalRaw * ((POLICY.materialidadFocoPctVenta ?? 0.05) / 100);
+};
+/* EL UMBRAL SE DECLARA (owner 2026-08-30): cuando ADI o la Mesa dicen «sin fugas materiales», dicen también QUÉ
+ * es material para ESTE negocio — un silencio sin su umbral es inauditable desde afuera. Una sola frase, una
+ * sola verdad: la card de la Mesa y los composers la interpolan de acá. "" si el contrato no expone ventas@cliente. */
+export function declaracionUmbralFocos() {
+  const vSF = _sf("ventas", "cliente");
+  if (!vSF) return "";
+  const pct = POLICY.materialidadFocoPctVenta ?? 0.05;
+  return `bajo el ${String(pct).replace(".", ",")}% de tu venta: ${_money(_pisoFocosUSD(vSF.source, vSF.field))}`;
+}
 // gate del detector de margen (pp bajo benchmark · = gate quality-growth del motor) · vive en POLICY (una verdad
 // con el semáforo de la Mesa) — LECTURA VIVA (F2 multiempresa: el perfil del tenant la re-resuelve en initTenant;
 // capturarla en import la dejaba stale al cambiar de empresa)
@@ -548,6 +568,7 @@ function _diagComercial(filters, scenario, entityScope) {
   const vKey = (SOURCES[vSF.source] && SOURCES[vSF.source].keyField) || "nombre";
   const mKey = (SOURCES[mSF.source] && SOURCES[mSF.source].keyField) || "nombre";
   const vBy = {}; for (const r of ventas) vBy[r[vKey]] = r;                    // join por keyField (nombre)
+  const piso = _pisoFocosUSD(vSF.source, vSF.field);   // por NEGOCIO: la venta del escenario base, no la del lente
   const contrib = [], carga = [];
   for (const r of margen) {
     const v = vBy[r[mKey]]; if (!v) continue;
@@ -556,12 +577,12 @@ function _diagComercial(filters, scenario, entityScope) {
     // contribución no capturada = venta×benchmark/100 − contribución (K→$) · gate: ≥4pp bajo benchmark y ≥ piso
     if (typeof mg === "number" && typeof cb === "number" && (bmk - mg) >= _DIAG_MARGIN_GAP()) {
       const usd = Math.round(((actual * bmk / 100) - cb) * _fxe());
-      if (usd >= _DIAG_FLOOR_USD) contrib.push({ entidad: r[mKey], usd, gap: +(bmk - mg).toFixed(1) });
+      if (usd >= piso) contrib.push({ entidad: r[mKey], usd, gap: +(bmk - mg).toFixed(1) });
     }
     // carga comercial alta = (carga − target)/100 × venta (K→$) · gate: sobre target y ≥ piso
     if (typeof cg === "number" && cg > POLICY.targetCarga) {
       const usd = Math.round(((cg - POLICY.targetCarga) / 100) * actual * _fxe());
-      if (usd >= _DIAG_FLOOR_USD) carga.push({ entidad: r[mKey], usd, gap: +(cg - POLICY.targetCarga).toFixed(1) });
+      if (usd >= piso) carga.push({ entidad: r[mKey], usd, gap: +(cg - POLICY.targetCarga).toFixed(1) });
     }
   }
   const out = [];
@@ -715,7 +736,7 @@ export function composeSpecResumenEjecutivo({ scenario } = {}) {
   const pctGr = contribK ? Math.round((cGr / contribK) * 100) : 0, pctRe = contribK ? 100 - Math.round((cGr / contribK) * 100) : 0;
   const mGr = vGr ? +((cGr / vGr) * 100).toFixed(1) : 0, mRe = vRe ? +((cRe / vRe) * 100).toFixed(1) : 0;
 
-  const b1 = `**Foto general:** vendiste ${_money(ventasK * _fxe())}${varPct != null ? ` (${varPct >= 0 ? "+" : ""}${varPct}% vs el año anterior)` : ""}, generaste ${_money(contribK * _fxe())} de contribución y cerraste con ${margenProm}% de margen — cartera de ${cm.length} clientes, ${F.length ? `${F.length} ${F.length === 1 ? "foco" : "focos"} de fuga abiertos` : "sin fugas materiales"}.`;
+  const b1 = `**Foto general:** vendiste ${_money(ventasK * _fxe())}${varPct != null ? ` (${varPct >= 0 ? "+" : ""}${varPct}% vs el año anterior)` : ""}, generaste ${_money(contribK * _fxe())} de contribución y cerraste con ${margenProm}% de margen — cartera de ${cm.length} clientes, ${F.length ? `${F.length} ${F.length === 1 ? "foco" : "focos"} de fuga abiertos` : `sin fugas materiales (${declaracionUmbralFocos()})`}.`;
   const b2 = `**Dónde estamos ganando:** la venta la sostienen ${conV.cantidadEntidades} de ${cv.length} clientes (${conV.totalCubiertoPct}%); la contribución la lideran ${topC.map((r) => `${r.nombre} (${_money(r.contribucion * _fxe())})`).join(", ")}.`;
   const b3 = `**Cómo estamos ganando:** no es solo volumen — los tres grandes (${grandes.map((r) => r.nombre).join(", ")}) ponen el ${pctGr}% de la contribución con margen ${mGr}%; el resto de la cartera pone el ${pctRe}% con margen ${mRe}%. ${mRe > mGr ? "La calidad vive en las cuentas medianas: el mix es lo que sostiene el margen." : "El volumen de los grandes también trae la calidad."}`;
   const b4 = `**Cómo se comporta el margen:** el promedio (${margenProm}%) ${margenProm < bench ? "corre bajo" : "está sobre"} tu piso (${bench}%). Los que más venden dejan menos: ${grandes.map((r) => `${r.nombre} ${r.margen}%`).join(", ")} — ${bajoVara.length} de ${cm.length} clientes están bajo el benchmark. El margen sano vive en ${sanos.map((r) => `${r.nombre} (${r.margen}%)`).join(" y ")}: la cartera crece, pero parte del margen se diluye en los grandes.`;
@@ -725,7 +746,7 @@ export function composeSpecResumenEjecutivo({ scenario } = {}) {
   if (cap) fugas.push(`${_money(cap.subtotal_usd)} de capital inmovilizado en ${cap.items.length} SKU`);
   const b5 = fugas.length
     ? `**Dónde estamos perdiendo:** ${fugas.join(" · ")}.`
-    : `**Dónde estamos perdiendo:** sin fugas materiales en este corte — todo sobre benchmark y con el capital rotando.`;
+    : `**Dónde estamos perdiendo:** sin fugas materiales en este corte (${declaracionUmbralFocos()}) — todo sobre benchmark y con el capital rotando.`;
   const causas = [];
   if (mg) causas.push("la contribución se escapa porque los grandes venden bajo el piso (precio/mix, no un costo puntual)");
   if (cg) causas.push(`la carga corre sobre el target de ${POLICY.targetCarga}% (rebates y descuentos${cgTopRow ? ` — ${cgTopRow.nombre} carga ${cgTopRow.pctRebate}%` : ""})`);
@@ -1764,6 +1785,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
     const vSF2 = _sf("ventas", "cliente");
     const vRows = vSF2 ? _load(vSF2.source, scenario) : [];
     const vBy = {}; for (const v of vRows) vBy[v.nombre] = v;
+    const piso2 = vSF2 ? _pisoFocosUSD(vSF2.source, vSF2.field) : 0;   // el MISMO piso por negocio del diagnóstico
     const mRows = _scopeRows(_marginRows("cliente", scenario), {}, entityScope);
     const withGap = [], bajoBench = [];
     for (const r of mRows) {
@@ -1772,12 +1794,12 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
       if (typeof mg !== "number" || typeof cb !== "number") continue;
       const usdTodos = Math.round(((v[vSF2.field] * bmk / 100) - cb) * _fxe());
       // EL UNIVERSO SE CUENTA ANTES DE LOS DOS FILTROS. `withGap` descarta por brecha mínima (_DIAG_MARGIN_GAP)
-      // Y por piso de materialidad (_DIAG_FLOOR_USD); cualquiera de los dos deja cuentas afuera, así que contar
+      // Y por piso de materialidad (el piso relativo); cualquiera de los dos deja cuentas afuera, así que contar
       // después de uno solo vuelve a mentir sobre la cobertura — que es el defecto que esto viene a cerrar.
       if (bmk - mg > 0 && usdTodos > 0) bajoBench.push({ nombre: r.nombre, gap: usdTodos });
       if ((bmk - mg) < _DIAG_MARGIN_GAP()) continue;
       const usd = usdTodos;
-      if (usd >= _DIAG_FLOOR_USD) withGap.push({ nombre: r.nombre, gap: usd, margen: mg });
+      if (usd >= piso2) withGap.push({ nombre: r.nombre, gap: usd, margen: mg });
     }
     withGap.sort((a, b) => b.gap - a.gap);
     const totalGap = withGap.reduce((a, r) => a + r.gap, 0);
@@ -2313,7 +2335,7 @@ function _deltaCargaValido(deltaPp) {
  * Responde las DOS mitades del pedido canónico: «reduce en 2 puntos … y dime si quedan sobre el benchmark».
  *
  * POR QUÉ NO REUSA EL DETECTOR DE CARGA (que es lo que hace el modo target). El detector filtra por DOS gates que
- * son propiedad del escenario "llevar al target": carga > POLICY.targetCarga y recuperable ≥ $50K de materialidad.
+ * son propiedad del escenario "llevar al target": carga > POLICY.targetCarga y recuperable ≥ el piso relativo de materialidad.
  * Ninguno de los dos es propiedad de un delta que el usuario declaró: si el alcance heredado trae una cuenta con
  * carga 3.0% (bajo el target), reusar el detector la haría DESAPARECER de la respuesta en silencio — el mismo
  * defecto de sustituir el alcance, una capa más abajo. Acá el universo son las cuentas DEL ALCANCE, sin más gate
@@ -2733,7 +2755,7 @@ export function buildResumenEjecutivo(scenario) {
   ];
   // LECTURA: sale de los focos del diagnose (mismo motor · data-driven) · si no hay fugas materiales, lo dice honesto
   const diag = composeSpecDiagnose({ filters: {}, scenario });
-  let lectura = "Todo lo que veo está sobre su benchmark y con el capital rotando — sin fugas materiales por ahora.";
+  let lectura = `Todo lo que veo está sobre su benchmark y con el capital rotando — sin fugas materiales por ahora (${declaracionUmbralFocos()}).`;
   const F = diag && diag.evidence && diag.evidence.findings;
   // APERTURA PROACTIVA (asesor · Frente A.3): los focos también salen ESTRUCTURADOS (detector + $ + entidad) para que el
   // hero los vuelva BOTONES de arranque ("¿por cuál empezamos?") — mismos subtotales del diagnose (una verdad, cero recalculo).
