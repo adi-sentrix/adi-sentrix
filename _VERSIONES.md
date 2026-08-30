@@ -12,6 +12,60 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.9 — producción · tag `v2.9`
+
+**La experiencia elegida deja de ser una variante y pasa a ser la app.** El owner cerró la exploración:
+«la UX ya está definida y aprobada. Deja de tratar los interruptores como exploración. Consolidar la
+experiencia elegida como comportamiento normal de la app».
+
+**Se retiraron tres interruptores y todo lo que colgaba de ellos:**
+
+- **`?papel`** — con él vivían TRES superficies: la pizarra, la hoja blanca y el **diseño viejo completo**, con
+  su burbuja, su titular largo y su pulso. Queda una. Se fue `TEMA_PAPEL`, se fueron `esPapel()` y
+  `esSuperficieADI()`, y las cuatro decisiones que colgaban de ellos —respuesta sin burbuja, titular corto, hero
+  sin bajada, hexágonos al costado— quedaron escritas derecho, cada una con la orden que la fijó.
+- **`?barra`** — las tres variantes de la barra lateral (velo · empuja · apuntada). Nunca se eligió ninguna.
+- **`?historial`** — la columna de conversaciones, con su componente. Se veía, pero no guardaba nada.
+
+**Y también el pulso de inicio**, que desde el 26 de agosto solo se pintaba en el diseño viejo: al retirarlo no
+quedaba una sola superficie que lo dibujara. Se fue con su módulo.
+
+⚠️ **EL TABLERO NO SE FUE**, y la distinción es la que sostiene el diseño. Se retiró como **superficie de
+conversación**; sigue entero como **`T`**, la paleta de todo lo que MIDE —Sentrix, los gráficos, los semáforos,
+los sellos—. «A la izquierda se conversa, a la derecha se mide»: eso nunca fue una variante, es la mitad del
+producto. El gate lo sella token por token, congelado.
+
+**Los sellos PROBADO / INDICADO / ABIERTO salieron del Perfil Ejecutivo.** El owner los mandó sacar el
+2026-08-20 —«el usuario no entenderá»— y se aplicó entonces a Comercial, que era la cara que estaba mirando;
+ésta se quedó con los suyos un mes. **Se fue la etiqueta, no la frase**: la oración que venía detrás dice algo
+—sobre todo la tercera, que declara lo que el dato NO permite afirmar— y queda entera. La graduación sigue viva
+en el dato, que es de donde ADI la toma.
+
+**Flujo Comercial pasa a ser pestaña estable.** Nació detrás de `?flujo=1` y ahí vivió lo que tenía que vivir:
+hasta que el owner la miró en producción, la corrigió y la aprobó. El interruptor se fue. **`?flujo=demo`
+sobrevive**, y no como resto: es un modo de demostración con función real — sin él no habría forma de mostrarle
+la lectura a una empresa que aún no carga abonos sin inventarle cifras sobre su propio negocio.
+
+**Un gate cambió de trabajo, no desapareció.** `_papel_y_tablero_gate` existía para comprobar que las variantes
+NO se vieran; con la decisión cerrada, eso dejó de tener objeto. Lo reemplaza `_superficie_unica_gate`, que
+comprueba lo contrario: que hay UNA superficie, que no queda puerta trasera —pedirle «papel» o «tablero» a
+`aplicarTema` devuelve la misma—, que las decisiones del owner ya no cuelgan de ninguna condición, y que no
+sobrevive ningún resto. **Su parte más valiosa viaja intacta: el sello del tablero, con su carnada.**
+
+⚠️ **UN DEFECTO QUEDA ABIERTO Y ESTÁ ESCRITO EN EL CÓDIGO**, no en la memoria de nadie: las tres variantes de la
+barra nacieron de una queja —«cuando pasas el cursor, las cosas que muestra se superponen a la Mesa central, es
+poco fino»— que **sigue sin resolverse**. Retirarlas no lo arregla: lo deja pendiente y a la vista, que es mejor
+que tres intentos dormidos fingiendo que está en marcha.
+
+**No se tocó la plantilla ni los Abonos**, según lo pedido: ese frente se abre después, como dato.
+
+Verificado en pantalla: sin parámetros, la pizarra con sus cinco pestañas y sin la barrita de conversaciones;
+el Perfil Ejecutivo sin sellos; `?papel=1&barra=velo&historial=1` no hace absolutamente nada; y `?flujo=demo`
+sigue abriendo el negocio de demostración con su banda. Build de producción correcto (1,14 MB + 366 KB).
+Gates **189 PASS · 0 FAIL · 0 TOCARON LA RED**, árbol limpio.
+
+---
+
 ## 2.8 — producción · tag `v2.8`
 
 **La columna se llama «Días vencidos».** Se llamaba «Días» y obligaba a bajar al pie para saber qué medía. El

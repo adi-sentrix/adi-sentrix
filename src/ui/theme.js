@@ -66,7 +66,6 @@ const TEMA_TABLERO = {
      notarse». En el tablero eso es un negro más hondo que el fondo. */
   pastillaBg: "#0b0b0d",
   pastillaSombra: "0 10px 26px -10px rgba(0,0,0,0.95)",
-  esPapel: false,
   /* ⚠️ `esPapel` Y `esSuperficieADI` NO SON LO MISMO, y confundirlas era el riesgo de esta versión.
      · `esPapel` = la superficie es CLARA. Decide COLOR: cuánto tinte lleva un resalte, si una sombra
        hunde o apoya. Sólo la enciende el papel blanco.
@@ -76,50 +75,15 @@ const TEMA_TABLERO = {
        color — y por eso tienen que sobrevivir a que la hoja pase de blanca a gris. Fue literalmente lo que
        pidió al elegir la pizarra: «mantener todo el resto».
      El tablero de `?papel=0` es el diseño viejo entero: las dos en false. */
-  esSuperficieADI: false,
 };
 
-const TEMA_PAPEL = {
-  bg: "#fafafa", surface: "#ffffff", surfaceAlt: "#f5f5f6", surfaceHover: "#eeedf0",
-  /* la burbuja del usuario es papel gris; la de ADI no existe — se resuelve en ChatADI, no con un color */
-  card: "#ffffff", cardUser: "#f5f5f6", cardBorder: "#e9e8ea",
-  border: "#e9e8ea", borderLight: "#dbd9dd",
-  text: "#17181c", textSub: "#5c5b63", textMuted: "#8b8a93",
-  /* los SEMÁNTICOS se oscurecen lo justo para seguir significando sobre claro: verde suma, rojo resta, ámbar vara */
-  blue: "#0f7290", indigo: "#0b5c74", green: "#0f8a5f",
-  red: "#c0344b", amber: "#b47908", cyan: "#137f9c", violet: "#0f7290",
-  celeste: "#0f7290",
-  elec: "#2a55c9", teal: "#4f8f8a", lav: "#6f66a0",
-  hoverSuave: "rgba(23,24,28,0.035)",
-  hoverMedio: "rgba(23,24,28,0.06)",
-  velo: "rgba(23,24,28,0.10)",
-  entidad: "#17181c",
-  /* MEDIDOS SOBRE EL PAPEL, no derivados: el 0.036 del tablero invertido a tinta desaparece —el ojo perdona
-   * mucha menos luz sobre claro que sombra sobre negro—, así que la retícula sube a 0.085 y el latido se hace
-   * celeste profundo. El owner lo dijo mirándolo: «los hexágonos quiero que se noten más, al igual que el
-   * efecto que tienen, se nota muy poco». */
-/* ⚠️ CALIBRADO PARA UNA SOLA PASADA (2026-08-26). Estos valores subieron —0,036→0,121 y 0,085→0,264— y
-     NO es que la retícula se haya querido más oscura: se ve igual que antes. Antes cada línea se dibujaba
-     entre 2 y 6 veces encimada y la tinta se acumulaba sola; ahora se dibuja UNA. El número es la media de
-     tinta que daba el dibujo viejo, así que el peso en pantalla no se movió — lo que se fue es que unas
-     líneas salieran al doble que otras. Ver la nota del `pattern` en ChatADI.jsx. */
-  hexTrazo: "rgba(23,24,28,0.203)",
-  hexLit: "rgba(15,114,144,0.30)",
-  logoTrazo: "rgba(23,24,28,0.38)",
-  haloNucleo: "rgba(15,114,144,0.20)",
-  haloAmplio: "rgba(15,114,144,0.12)",
-  dashInactivo: "rgba(23,24,28,0.32)",
-  /* sobre papel el campo se APOYA en vez de hundirse: un filete y una sombra corta y baja, como la tarjeta de
-   * la landing. Sin luz interior — sobre blanco no hay nada que iluminar. */
-  sombraCampo: "0 1px 2px rgba(23,24,28,0.05), 0 8px 24px -14px rgba(23,24,28,0.20)",
-  sombraCampoFoco: "0 0 0 3px rgba(15,114,144,0.14), 0 1px 2px rgba(23,24,28,0.05)",
-  /* sobre la hoja el tablero se APOYA y proyecta sombra hacia la izquierda: profundidad, no un tajo */
-  sombraJunta: "-18px 0 40px -12px rgba(15,23,32,0.30), -1px 0 0 rgba(23,24,28,0.10)",
-  pastillaBg: "#ffffff",
-  pastillaSombra: "0 10px 26px -12px rgba(23,24,28,0.28)",
-  esPapel: true,
-  esSuperficieADI: true,
-};
+/* ⚠️ ACÁ VIVÍA `TEMA_PAPEL`, la hoja blanca. Fue LA superficie del producto entre el 26 y el 27 de agosto, y
+ * se retiró cuando el owner eligió la pizarra: «consolidar la experiencia elegida; sacar las variantes que ya
+ * no vamos a usar». Mantener una paleta clara viva obligaba a decidir dos veces cada color nuevo —cuánto tinte
+ * sobre blanco, cuánta luz sobre gris— para una superficie que nadie iba a ver.
+ * Lo que la hoja blanca dejó y sigue vivo es el MÉTODO: los claros no se inventaron, se midieron de la landing;
+ * la retícula de hexágonos y el latido se calibraron rasterizando y comparando tinta. Esa forma de trabajar es
+ * la que produjo los números de la pizarra. */
 
 /* ── LA PIZARRA · la superficie que eligió el owner (2026-08-27) ───────────────────────────────────────────────
  * EL DIAGNÓSTICO, con sus palabras: «el contraste blanco y negro es un poco pesado para la vista». Y la medida
@@ -171,8 +135,6 @@ const TEMA_PIZARRA = {
   /* la pastilla se LEVANTA del fondo (más clara), al revés que en el tablero, donde se hundía */
   pastillaBg: "#1f242c",
   pastillaSombra: "0 10px 26px -10px rgba(0,0,0,0.85)",
-  esPapel: false,
-  esSuperficieADI: true,
 };
 
 /** `C` · la superficie donde estás. Arranca en el tablero: sin interruptor, nada cambia. */
@@ -183,16 +145,20 @@ export const C = { ...TEMA_TABLERO };
 export const T = Object.freeze({ ...TEMA_TABLERO });
 
 /** ¿la superficie actual es papel? Lo consultan las pocas piezas cuya ESTRUCTURA cambia, no solo su color. */
-export const esPapel = () => C.esPapel === true;
+/* ⚠️ ACÁ VIVÍAN `esPapel()` y `esSuperficieADI()`. Existían para que las piezas del chat supieran sobre qué
+ * superficie estaban dibujando, mientras convivían la pizarra, la hoja blanca y el diseño viejo. Con una sola
+ * superficie no hay nada que preguntar: las decisiones que colgaban de ellos —la respuesta de ADI sin burbuja,
+ * el titular corto, el hero sin bajada y sin pulso, los hexágonos al costado— son el producto, y están escritas
+ * derecho en `ChatADI.jsx`, cada una con la orden del owner que la fijó.
+ * La distinción que ELLOS enseñaron sigue valiendo y quedó anotada donde se aplicó: una cosa es el COLOR y otra
+ * la ESTRUCTURA. Confundirlas fue lo que casi apagó las cuatro decisiones al pasar la hoja de blanca a gris. */
 
-/** ¿estamos en el diseño NUEVO del lado que conversa? Papel y pizarra dicen que sí; el tablero de `?papel=0`
- *  dice que no. Lo consultan las piezas cuya ESTRUCTURA cambió por decisión del owner —sin burbuja, titular
- *  corto, sin pulso, hexágonos al costado—, que no dependen de si la hoja es clara u oscura. */
-export const esSuperficieADI = () => C.esSuperficieADI === true;
 
 /* aplicarTema("papel" | "tablero") → reescribe `C` en el lugar. Se llama UNA vez, antes de montar React. */
 export function aplicarTema(nombre) {
-  const fuente = nombre === "papel" ? TEMA_PAPEL : nombre === "pizarra" ? TEMA_PIZARRA : TEMA_TABLERO;
+  /* Queda una sola superficie de conversación. La firma se conserva —recibe un nombre— porque es la puerta por
+     la que `C` se escribe en el lugar, y catorce archivos dependen de que esa referencia no cambie. */
+  const fuente = TEMA_PIZARRA;
   for (const k of Object.keys(fuente)) C[k] = fuente[k];
   _aplicarFinancieros(fuente);
   return C;
@@ -201,20 +167,23 @@ export function aplicarTema(nombre) {
 /** Las tres tablas de resalte de cifras viven aparte y también tienen que seguir la superficie: una cifra en
  *  celeste #2fb8da sobre papel blanco no se lee. El ámbar, el verde y el rojo CONSERVAN su significado. */
 function _aplicarFinancieros(t) {
-  const cif = t.celeste, ent = t.entidad, papel = t.esPapel;
+  const cif = t.celeste, ent = t.entidad;
   const tinte = (hex, a) => {
     const n = parseInt(hex.slice(1), 16);
     return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
   };
   for (const clave of ["money", "pct", "unit", "mult", "ratio"]) {
-    FINANCIAL_HIGHLIGHT[clave] = { ...NUM_BASE, color: cif, background: tinte(cif, papel ? 0.09 : 0.07), border: `1px solid ${tinte(cif, papel ? 0.16 : 0.13)}` };
+    FINANCIAL_HIGHLIGHT[clave] = { ...NUM_BASE, color: cif, background: tinte(cif, 0.07), border: `1px solid ${tinte(cif, 0.13)}` };
     FINANCIAL_PLAIN[clave].color = cif;
     FINANCIAL_TABULAR[clave].color = cif;
   }
   /* ⚠️ LOS ALFAS DEL TABLERO SON LOS HISTÓRICOS (0.06 y 0.1), no unos redondeados: con el interruptor apagado
    * la app tiene que quedar idéntica, y un tinte 0.02 más fuerte ya es una diferencia. Sobre papel se suben
    * un punto porque un tinte tan tenue sobre blanco no se ve. */
-  const aF = papel ? 0.10 : 0.06, aB = papel ? 0.18 : 0.1;
+  /* ⚠️ LOS ALFAS SON LOS HISTÓRICOS (0.06 y 0.1), no unos redondeados: un tinte 0,02 más fuerte ya es una
+   * diferencia visible sobre oscuro. La rama que los subía un punto era para la hoja blanca —un tinte tan tenue
+   * sobre blanco no se veía— y se fue con ella. */
+  const aF = 0.06, aB = 0.1;
   FINANCIAL_HIGHLIGHT.pp = { ...NUM_BASE, color: t.amber, background: tinte(t.amber, aF), border: `1px solid ${tinte(t.amber, aB)}` };
   FINANCIAL_HIGHLIGHT.up = { ...NUM_BASE, color: t.green, background: tinte(t.green, aF), border: `1px solid ${tinte(t.green, aB)}` };
   FINANCIAL_HIGHLIGHT.down = { ...NUM_BASE, color: t.red, background: tinte(t.red, aF), border: `1px solid ${tinte(t.red, aB)}` };

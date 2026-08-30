@@ -11,7 +11,6 @@ import { C } from "./theme.js";
  * 2026-08-07, así que hace meses que nadie lo veía. Queda anotado porque volver a encenderlo ahora pide, además
  * del flag, decidir dónde vive dentro de la barra — una barrita no puede colapsar un selector de tres estados. */
 import { BarraLateral } from "./BarraLateral.jsx";   // la barra de barritas del borde derecho · reemplaza al header blanco (owner 2026-08-20)
-import { PanelHistorial } from "./PanelHistorial.jsx";   // columna izquierda · historial · EN REVISIÓN, solo con ?historial=1
 import { ChatADI } from "./ChatADI.jsx";
 // Etapa 5 · Sentrix · panel de evidencia (se abre con la lectura). MEJORA 9 (2026-07-26): LAZY — el panel es la
 // pieza más pesada de la UI y no hace falta para el primer paint del chat; se parte del bundle principal y se
@@ -156,10 +155,15 @@ export default function App({ animate = true }) {
    * después, o la deja así». Sigue siendo arrastrable y el botón de agrandar sigue llevándola al 72%. */
   const [panelW, setPanelW]   = useState(() => (typeof window !== "undefined" ? Math.round(window.innerWidth / 2) : 460));
   const [maxed, setMaxed]     = useState(false);  // agrandado
-  // columna izquierda EN REVISIÓN · se monta solo con `?historial=1` (mismo patrón que ?oracle=1 / ?barra=…)
-  const [historialVisible] = useState(() => { try { return new URLSearchParams(window.location.search).get("historial") === "1"; } catch { return false; } });
+  /* ⚠️ LA COLUMNA DE CONVERSACIONES SE FUE ENTERA (owner 2026-08-27: «consolidar la experiencia elegida; sacar
+     las variantes que ya no vamos a usar si no cumplen función real de producción»).
+     POR QUÉ NO CUMPLÍA FUNCIÓN: el panel se veía, pero no guardaba nada. Mostraba la conversación en curso y
+     una línea honesta diciendo que las anteriores aparecerían «cuando el producto empiece a guardarlas». Un
+     panel que enseña un vacío no es una función: es una promesa, y una promesa en pantalla envejece mal.
+     ⚠️ NO SE PERDIÓ NINGUNA CAPACIDAD, porque nunca hubo historial que perder. La memoria de ADI dentro de un
+     hilo sigue intacta; lo que no existía —guardar conversaciones entre sesiones— sigue sin existir, y ahora
+     la pantalla tampoco insinúa que sí. Cuando se construya de verdad, entra con su dato detrás. */
   const [hayConversacion, setHayConversacion] = useState(false);   // lo reporta ChatADI · solo un booleano
-  const [histColapsado, setHistColapsado] = useState(false);
 
   const closePanel = () => { setOpenEv(null); setOpenId(null); setMaxed(false); };
   /* ── EL CABLE QUE FALTABA (owner 2026-08-09 · Contrato de Concordancia ADI ↔ Sentrix) ──────────────────────────
@@ -186,17 +190,6 @@ export default function App({ animate = true }) {
   const [guiaAbierta, setGuiaAbierta] = useState(() => guiaAbreSola());
   // ejecuta un ejemplo de la guía por el MISMO camino que un chip del hero (ChatADI registra su submitSpec acá)
   const runRef = useRef(null);
-  /* EL CHAT TIENE UN PISO, y el historial cede antes que él (owner 2026-08-20: «si las tres columnas quedan
-   * muy apretadas, prefiero que el historial sea plegable antes que achicar el chat principal»).
-   *
-   * ⚠️ ESTO ERA UN EFECTO CONTINUO Y ESE FUE UN DEFECTO REAL, cazado por el owner: «si quiero abrir el panel
-   * izquierdo no lo abre». El efecto miraba el espacio en CADA render, así que apenas el usuario desplegaba el
-   * historial con Sentrix abierto, volvía a plegarlo en el mismo instante — el panel era imposible de abrir.
-   * Ahora es UN SOLO DISPARO, en el momento de abrir Sentrix: se pliega si al hacerlo el chat quedaría por
-   * debajo del piso, y después no se mete más. Si el usuario lo abre a mano en un espacio justo, es su decisión. */
-  const _CHAT_MIN = 520;
-  const _hayQuePlegar = (anchoPanel) => (window.innerWidth - anchoPanel - 44 - 250) < _CHAT_MIN;
-
   const startResize = (e) => {
     e.preventDefault();
     const move = (ev) => {
@@ -251,33 +244,16 @@ export default function App({ animate = true }) {
             // la agrandó ayer y hoy abre en otra pantalla, arranca pareja igual — y desde ahí la mueve.
             const w = Math.round(window.innerWidth / 2);
             setPanelW(w); setMaxed(false);
-            if (historialVisible && !histColapsado && _hayQuePlegar(w)) setHistColapsado(true);   // un solo disparo
             setOpenEv({ lens: "mesa", periodo: scenario }); setOpenId("mesa"); } }}
-          historialAbierto={historialVisible && !histColapsado}
-          onConversaciones={historialVisible ? () => setHistColapsado((v) => !v) : null}
           guiaAbierta={guiaAbierta}
           onGuia={() => setGuiaAbierta((v) => !v)}
           datosAbiertos={datosAbiertos}
           onDatos={() => setDatosAbiertos((v) => !v)}
           onInicio={() => { closePanel(); if (resetRef.current) resetRef.current(); }}/>
         <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"row", flex:1, minHeight:0 }}>
-          {/* COLUMNA IZQUIERDA · propuesta en revisión (owner 2026-08-20), detrás de `?historial=1`. Sin el
-              parámetro no se monta y la app queda igual: esto todavía no decidió nada. Ver PanelHistorial.jsx
-              para lo que falta antes de que el historial sea real (persistencia + memoria de ADI al saltar hilo). */}
-          {/* PLEGADO = NO MONTADO. Con la barra en el borde izquierdo, ELLA es el estado plegado del panel —
-              su barrita «Conversaciones» lo trae de vuelta. Una tira propia de 52 px al lado de la barra serían
-              dos columnas angostas haciendo el mismo trabajo. Es el reparto de Code: barra · panel · centro. */}
-          {historialVisible && !histColapsado && (
-            <PanelHistorial
-              onNueva={() => { closePanel(); if (resetRef.current) resetRef.current(); }}
-              hayConversacion={hayConversacion}
-              onToggleColapso={() => setHistColapsado(true)}
-              usuario={access.granted && access.granted.name}
-              demoDias={access.granted && access.granted.expiresAt ? Math.max(0, Math.ceil((access.granted.expiresAt - Date.now()) / 86400000)) : null}/>
-          )}
           <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
             <ChatADI scenario={scenario} animate={animate} onHayConversacion={setHayConversacion}
-              margenBarra={historialVisible && !histColapsado ? 0 : 44}
+              margenBarra={44}
               onOpenEvidence={(ev, id) => { setOpenEv(ev && !ev.periodo ? { ...ev, periodo: scenario } : ev); setOpenId(id); }}   // periodo = el escenario vivo (la Mesa deep-linkeada desde una respuesta P&L lee el mismo dato que el chat)
               onSentrixAction={openFromAddress}
               openEvidenceId={openId}

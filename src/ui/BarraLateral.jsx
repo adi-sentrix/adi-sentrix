@@ -64,19 +64,18 @@ function Fila({ activo, titulo, onClick, icono, testid, children }) {
   );
 }
 
-/* ══ INTERRUPTOR DE COMPARACIÓN · TEMPORAL, SALE CUANDO EL OWNER ELIJA ══════════════════════════════════════
- * El owner marcó el defecto (2026-08-20): «cuando pasas el cursor, las cosas que muestra se superponen a la
- * Mesa central, es poco fino» — y pidió verlo EN LA APP, sobre el dato real, no sobre un mockup.
- *   ?barra=velo      · velo oscuro con desenfoque detrás de las pastillas + sombra. Nada se mueve de lugar.
- *   ?barra=empuja    · la Mesa se achica lo mismo que crece la barra. Cero superposición, pero el dato salta.
- *   ?barra=apuntada  · la barra no se abre entera: al apuntar una barrita aparece SOLO su nombre.
- *   sin parámetro    · el comportamiento de hoy, sin tocar. El default NO decide nada.
- * Mismo patrón que los overrides de prueba que ya usa el repo (?oracle=1 / ?claims=1): vive en la dirección,
- * no en el perfil, y no cambia lo que ve nadie que no lo escriba. Al elegir, quedan el modo ganador y se van
- * el parámetro y los otros dos. */
-function _modoBarra() {
-  try { return new URLSearchParams(window.location.search).get("barra") || ""; } catch { return ""; }
-}
+/* ⚠️ LAS TRES VARIANTES DE LA BARRA SE FUERON (owner 2026-08-27: «consolidar la experiencia elegida como
+ * comportamiento normal de la app; sacar las variantes que ya no vamos a usar si no cumplen función real
+ * de producción»). Vivían detrás de `?barra=velo|empuja|apuntada` desde el 2026-08-20, para poder elegir
+ * entre ellas mirando la app real y no un mockup. Nunca se eligió ninguna — y una exploración que no se
+ * cierra deja de ser exploración: pasa a ser código que nadie ejecuta y que el próximo lector tiene que
+ * descifrar antes de poder tocar nada. Queda el comportamiento que la app tenía y sigue teniendo: la barra
+ * se ensancha al apuntarla, por encima de lo que hay debajo.
+ *
+ * ⚠️ EL DEFECTO QUE LAS ORIGINÓ SIGUE ABIERTO, y va escrito acá y no en la memoria de nadie: «cuando pasas
+ * el cursor, las cosas que muestra se superponen a la Mesa central, es poco fino». Eso pasa igual que
+ * antes. Sacar las variantes no lo arregla: lo deja pendiente y a la vista, que es mejor que tres intentos
+ * dormidos fingiendo que está en marcha. */
 
 /* LOS CUATRO INDICADORES DE ESTADO SE FUERON (owner 2026-08-20: «la fecha no es necesaria, datos actuales
  * tampoco y demo tampoco, quítalos»). Eran «Datos actuales», «Demo/IA», el vencimiento de la demo y
@@ -84,23 +83,11 @@ function _modoBarra() {
  * con lo que se HACE. Nada de eso se perdió del producto — el modo y el acceso siguen en su lógica; lo que
  * se quitó es su vitrina. */
 export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInicio,
-  historialAbierto = false, onConversaciones = null, datosAbiertos = false, onDatos = null }) {
-  const modo = useMemo(_modoBarra, []);
-  // «empuja» es el ÚNICO modo que necesita JavaScript: CSS no puede, desde el :hover de la barra, ensanchar el
-  // colchón de un panel que es su hermano. Los otros dos son CSS puro.
-  const empujar = (on) => {
-    if (modo !== "empuja") return;
-    try { document.documentElement.style.setProperty("--adi-rail-pad", on ? "236px" : "44px"); } catch {}
-  };
+  datosAbiertos = false, onDatos = null }) {
   return (
-    <div className={`adi-rail${modo ? ` adi-rail--${modo}` : ""}`} aria-label="Barra de ADI"
-      onMouseEnter={() => empujar(true)} onMouseLeave={() => empujar(false)}
-      onFocus={() => empujar(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) empujar(false); }}
+    <div className="adi-rail" aria-label="Barra de ADI"
       style={{ position:"absolute", top:0, left:0, bottom:0, width:44, zIndex:20, background:"transparent",
         display:"flex", flexDirection:"column", alignItems:"flex-start", justifyContent:"center", gap:3, padding:"14px 0" }}>
-      {/* EL VELO · solo en ?barra=velo. Detrás de las pastillas, se disuelve hacia la izquierda: el dato de
-          abajo no se va, se atenúa, y la superposición se lee como una capa a propósito y no como un choque. */}
-      {modo === "velo" && <div className="adi-rail-velo" aria-hidden="true"/>}
       <style>{`
         .adi-rail{ transition: width .2s ease; }
         .adi-rail:hover, .adi-rail:focus-within{ width:236px !important; }
@@ -121,28 +108,6 @@ export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInici
         .adi-rail-item:hover .adi-rail-dash{ background:${C.celeste}; box-shadow:0 0 9px rgba(47,184,218,0.6); }
         .adi-rail-item:focus-visible{ outline:2px solid ${C.celeste}; outline-offset:-2px; border-radius:10px; }
 
-        /* ── A · VELO Y SOMBRA (?barra=velo) ── */
-        .adi-rail-velo{ position:absolute; top:0; left:0; bottom:0; width:236px; z-index:-1; pointer-events:none;
-          opacity:0; transition:opacity .18s ease; backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
-          background:linear-gradient(90deg, rgba(5,5,6,0.96) 0%, rgba(5,5,6,0.90) 46%, rgba(5,5,6,0.62) 76%, transparent 100%);
-          -webkit-mask-image:linear-gradient(90deg,#000 0%,#000 60%,transparent 100%);
-                  mask-image:linear-gradient(90deg,#000 0%,#000 60%,transparent 100%); }
-        .adi-rail--velo:hover .adi-rail-velo, .adi-rail--velo:focus-within .adi-rail-velo{ opacity:1; }
-        .adi-rail--velo .adi-rail-pill, .adi-rail--velo .adi-rail-stpill{ box-shadow:0 8px 26px -8px rgba(0,0,0,0.9); }
-
-        /* ── C · SOLO LA APUNTADA (?barra=apuntada) · la barra NO se abre entera ── */
-        .adi-rail--apuntada:hover, .adi-rail--apuntada:focus-within{ width:44px !important; }
-        .adi-rail--apuntada .adi-rail-pill, .adi-rail--apuntada .adi-rail-stpill,
-        .adi-rail--apuntada .adi-rail-marca-txt{ opacity:0 !important; transform:translateX(-10px) !important; }
-        .adi-rail--apuntada .adi-rail-item:hover .adi-rail-pill,
-        .adi-rail--apuntada .adi-rail-item:focus-visible .adi-rail-pill,
-        .adi-rail--apuntada .adi-rail-st:hover .adi-rail-stpill{
-          opacity:1 !important; transform:none !important; pointer-events:auto;
-          position:absolute; left:34px; top:50%; margin-top:-17px; width:max-content; flex:none;
-          box-shadow:0 8px 26px -8px rgba(0,0,0,0.9); }
-        .adi-rail--apuntada .adi-rail-st:hover .adi-rail-stpill{ margin-top:-12px; }
-        .adi-rail--apuntada .adi-rail-item, .adi-rail--apuntada .adi-rail-st{ position:relative; }
-
         @media (prefers-reduced-motion: reduce){ .adi-rail, .adi-rail *{ transition:none !important; } }
       `}</style>
 
@@ -161,13 +126,10 @@ export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInici
 
       {/* LA PRINCIPAL · abre y cierra el panel de conversaciones (orden del owner: «una de ellas, la principal,
           permita abrir el panel izquierdo»). Va primera porque es la que gobierna la columna que tiene al lado. */}
-      {onConversaciones && (
-        <Fila activo={historialAbierto} onClick={onConversaciones}
-          titulo="Tus conversaciones con ADI"
-          icono={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.9 9.9 0 0 1-4.2-.9L3 20.5l1.6-4.6A8.3 8.3 0 0 1 3.6 11.5a8.4 8.4 0 0 1 8.4-8.4 8.4 8.4 0 0 1 9 8.4z"/></svg>}>
-          Conversaciones
-        </Fila>
-      )}
+      {/* ⚠️ ACÁ IBA «CONVERSACIONES», la puerta al panel de historial. Se fue con el panel el 2026-08-27:
+          el panel se veía pero no guardaba nada — mostraba la conversación en curso y una línea diciendo que
+          las anteriores aparecerían «cuando el producto empiece a guardarlas». Un vacío honesto sigue siendo
+          un vacío. Cuando el historial exista de verdad, la barrita vuelve con él. */}
 
       <Fila activo={mesaAbierta} onClick={onMesa}
         titulo="Tu negocio en vivo: cifras, focos y el 80/20 a la mano, con ADI al lado"

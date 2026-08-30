@@ -1337,17 +1337,19 @@ function clientMesaLink(e) {
  * ADI lo desglosa al lado). Reusa todo lo construido: resumen ejecutivo, diagnose, buildConcentration, CuadroMando. */
 // registro EJECUTIVO (owner 2026-07-09): las preguntas que ADI ofrece van en lenguaje de directorio — nada de
 // "plata"/"me come"; el usuario puede ser coloquial, lo emitido por ADI no.
-/* ── FLUJO COMERCIAL · DETRÁS DE UN INTERRUPTOR (owner 2026-08-27) ───────────────────────────────────────────
- * La cara existe solo con `?flujo=1`. Es el patrón de la casa para todo lo grande: hasta que el owner la mire y
- * diga que sí, la app que corre no se mueve ni un pixel. Sin el parámetro, la pestaña no se dibuja y el módulo
- * ni siquiera se llama. */
-const _FLUJO_PARAM = (() => {
-  try { return new URLSearchParams(window.location.search).get("flujo"); } catch { return null; }
+/* ── FLUJO COMERCIAL · PESTAÑA ESTABLE (owner 2026-08-27) ────────────────────────────────────────────────────
+ * NACIÓ DETRÁS DE `?flujo=1` y ahí vivió lo que tenía que vivir: hasta que el owner la miró en producción, la
+ * corrigió —la antigüedad pasó a ser su propia columna— y la aprobó. Aprobada, el interruptor deja de tener
+ * sentido: «consolidar la experiencia elegida como comportamiento normal de la app». Un parámetro que ya no
+ * decide nada es una variante escondida, y una variante escondida es deuda.
+ *
+ * ⚠️ LO QUE SÍ SOBREVIVE ES `?flujo=demo`, y no como resto de la exploración: es un MODO DE DEMOSTRACIÓN con
+ * una función real. Una empresa que todavía no carga abonos ve —correctamente— un recuadro vacío, y sin este
+ * modo no habría forma de mostrarle la lectura a nadie sin inventarle cifras sobre su propio negocio. Abre el
+ * negocio de demostración, con su banda diciéndolo. */
+const _FLUJO_DEMO = (() => {
+  try { return new URLSearchParams(window.location.search).get("flujo") === "demo"; } catch { return false; }
 })();
-/* `?flujo=1` enciende la cara con el dato de la empresa activa · `?flujo=demo` la enciende sobre el negocio de
-   demostración (el cambio de empresa lo hace main.jsx al arrancar). Sin ninguno de los dos, la app no se mueve. */
-const _FLUJO_ON = _FLUJO_PARAM === "1" || _FLUJO_PARAM === "demo";
-const _FLUJO_DEMO = _FLUJO_PARAM === "demo";
 
 /* ── MESA · CARA FLUJO COMERCIAL (owner 2026-08-27) ──────────────────────────────────────────────────────────
  * «Mostrar la venta del cliente, abonos y saldo pendiente, de esa forma se puede controlar si es que a algún
@@ -1583,9 +1585,10 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
     setUISignal({ mesaCara: cara });
   }, [cara]);
   const capital = React.useMemo(() => buildMesaCapital(scenario), [scenario]);   // una pasada: la cara Capital + la pata de inventario del "En alerta"
-  /* FLUJO COMERCIAL · solo se construye con `?flujo=1`. Sin el interruptor ni se llama al módulo: la app que
-     corre hoy no paga ni un milisegundo por una cara que todavía no está aprobada. */
-  const flujoC = React.useMemo(() => { if (!_FLUJO_ON) return null; try { return buildMesaFlujo(scenario); } catch { return null; } }, [scenario]);
+  /* FLUJO COMERCIAL · se construye siempre, como las otras cuatro caras. El módulo devuelve `null` en un
+     suspiro cuando la empresa no declara dato de cobro —que hoy es el caso de casi todas— y la cara muestra su
+     estado vacío. No hace falta protegerlo con un interruptor: lo que decide es el dato, no la dirección. */
+  const flujoC = React.useMemo(() => { try { return buildMesaFlujo(scenario); } catch { return null; } }, [scenario]);
   // CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l"): el P&L se sella CONVERSANDO — cuando ADI lo sella/edita,
   // pnl.js emite "adi-pnl-changed" y la cara se re-arma con la Mesa abierta (sin cerrar/abrir el panel).
   const [pnlTick, setPnlTick] = useState(0);
@@ -1681,7 +1684,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
           <div style={{ fontSize:14, color:C.text, fontWeight:500 }}>Tu negocio, en vivo <span style={{ color:C.textMuted, fontWeight:400 }}>· datos organizados por vista — ADI explica cualquier punto que quieras entender</span></div>
           {/* SELECTOR DE CARA (owner 2026-07-15) · segmented discreto: la misma Mesa mirando lo comercial o el capital */}
           <div style={{ display:"flex", alignItems:"center", gap:0, border:`1px solid ${C.border}`, borderRadius:7, overflow:"hidden", flexShrink:0 }}>
-            {[["comercial", "Comercial"], ["capital", "Capital"], ["resultado", "Resultado"], ...(_FLUJO_ON ? [["flujo", "Flujo comercial"]] : []), ["ficha", "Perfil Ejecutivo"]].map(([k, lbl]) => (
+            {[["comercial", "Comercial"], ["capital", "Capital"], ["resultado", "Resultado"], ["flujo", "Flujo comercial"], ["ficha", "Perfil Ejecutivo"]].map(([k, lbl]) => (
               <button key={k} onClick={() => setCara(k)}
                 title={k === "comercial" ? "La cara comercial: ventas, márgenes y contribución" : k === "capital" ? "La cara Capital: tu inventario — qué trabaja, qué se frena, qué reponer" : k === "resultado" ? "La cara Resultado: tu P&L comercial — la cascada hasta el resultado después de gastos" : "El Perfil Ejecutivo de un cliente: su perfil, brecha, evolución, composición y posición en la cartera"}
                 style={{ padding:"4px 12px", fontSize:14, fontWeight: cara === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
@@ -1698,7 +1701,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:18 }}>
         {/* CARA CAPITAL / CARA RESULTADO · el mismo sello sobre el inventario o sobre el P&L — la cara
             comercial vive INTACTA en la rama de abajo (regla de oro del owner). */}
-        {cara === "flujo" && _FLUJO_ON ? (
+        {cara === "flujo" ? (
           <MesaFlujoCara flujo={flujoC} onAsk={onAsk}/>
         ) : cara === "ficha" ? (
           <MesaFichaCara entity={fichaCliente} scenario={scenario} onAsk={onAsk} onSelect={setFichaCliente}/>
@@ -5462,17 +5465,22 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
       {f.brechaMargen && (
         <div style={_panelStyle}>
           <span style={_panelTitle}>{_dot}Qué explica la brecha de margen</span>
+          {/* ⚠️ LOS TRES SELLOS SALIERON DE PANTALLA · «Probado», «Indicado» y «Abierto» encabezaban estas tres
+              frases. El owner los mandó sacar el 2026-08-20 —«eso de probado e indicado quítalo, el usuario no
+              entenderá»— y se aplicó a la cara Comercial, que era la que estaba mirando; esta cara se quedó con
+              los suyos y ahí siguieron un mes, hasta el 27.
+              ⚠️ SE FUE LA ETIQUETA, NO LA FRASE. La palabra es vocabulario del contrato interno, no del negocio;
+              la oración que venía detrás sí dice algo y queda entera — sobre todo la tercera, que declara lo que
+              el dato NO permite afirmar. Y la graduación no se pierde del producto: sigue viva en el dato y es
+              lo que ADI usa para saber qué puede afirmar. Lo que se quitó es su vitrina. */}
           <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 9, fontSize: 14, color: C.textSub, lineHeight: 1.55 }}>
             {f.excesoAccionesComerciales && (
-              <div><span style={{ color: C.green, fontFamily: MONO, fontSize: 11.5, fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase", marginRight: 6 }}>Probado</span>
-                Cerrar el exceso de acciones comerciales sobre tu meta ({f.targetCarga}) libera <b style={{ color: C.text }}>{f.excesoAccionesComerciales}</b> — hoy tu carga comercial es {mCarga ? mCarga.fmt : "—"}.</div>
+              <div>Cerrar el exceso de acciones comerciales sobre tu meta ({f.targetCarga}) libera <b style={{ color: C.text }}>{f.excesoAccionesComerciales}</b> — hoy tu carga comercial es {mCarga ? mCarga.fmt : "—"}.</div>
             )}
             {topFamilia && (
-              <div><span style={{ color: C.amber, fontFamily: MONO, fontSize: 11.5, fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase", marginRight: 6 }}>Indicado</span>
-                La familia con más peso, <b style={{ color: C.text }}>{topFamilia.nombre}</b> ({topFamilia.share}% de la compra), tiene margen {topFamilia.margen}%{f.benchmarkMargen ? <> — {topFamilia.margen < parseFloat(f.benchmarkMargen) ? "bajo" : "sobre"} tu benchmark de {f.benchmarkMargen}</> : null}{topEsElPeor ? <>, la más baja de sus {familias.length} familias</> : null}.</div>
+              <div>La familia con más peso, <b style={{ color: C.text }}>{topFamilia.nombre}</b> ({topFamilia.share}% de la compra), tiene margen {topFamilia.margen}%{f.benchmarkMargen ? <> — {topFamilia.margen < parseFloat(f.benchmarkMargen) ? "bajo" : "sobre"} tu benchmark de {f.benchmarkMargen}</> : null}{topEsElPeor ? <>, la más baja de sus {familias.length} familias</> : null}.</div>
             )}
-            <div><span style={{ color: C.textMuted, fontFamily: MONO, fontSize: 11.5, fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase", marginRight: 6 }}>Abierto</span>
-              La brecha total contra tu benchmark es {f.brechaMargen}. El exceso de acciones comerciales explica una parte comprobada; el resto no tiene una causa aislada en el dato disponible (la combinación de productos, el costo u otros factores no separables con lo que hay).</div>
+            <div>La brecha total contra tu benchmark es {f.brechaMargen}. El exceso de acciones comerciales explica una parte comprobada; el resto no tiene una causa aislada en el dato disponible (la combinación de productos, el costo u otros factores no separables con lo que hay).</div>
           </div>
         </div>
       )}

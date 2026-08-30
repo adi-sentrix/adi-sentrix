@@ -16,7 +16,6 @@ import { getUISignals } from "../adi/uiSignals.js";   // memoria UI (owner 2026-
 import { resetPnlDraft, ensurePnlNarration, detectPnlIntent, pnlScope } from "../adi/pnl.js";   // P&L · reset del flujo a medio armar + F4: post-check de frases de la narración (graduación/sello asegurados en código) + la red que le CEDE el turno del P&L a la ruta vieja (C no tiene el flujo guiado) + pnlScope: Etapa 3 (owner 2026-08-04), proyección de entidad hacia conversationScope al SALIR de un turno de P&L
 import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el código viaja en cada llamada al gateway
 import { chartForEvidence } from "../adi/sentrix/chartSpec.js";   // I1 gráfico en la respuesta (owner 2026-07-09) · despachador determinístico
-import { buildPulsoInicio } from "../adi/sentrix/pulsoInicio.js";   // la banda de cifras del inicio · el MOTOR la arma, esta vista solo la pinta (CLAUDE.md §2.3)
 
 /* LA COLUMNA DEL AVATAR · todo lo que ADI dice arranca corrido estos píxeles, porque a su izquierda va el
  * hexágono de la firma. El campo de envío lo usa para quedar a plomo con el texto de las respuestas.
@@ -36,7 +35,7 @@ import { buildNarrateUserMessageC } from "../adi/oracle/narratePromptC.js";
 import { proyectarDatoNegocio } from "../adi/oracle/datoProyectado.js";   // AMPLITUD F1: el dato completo del negocio al segmento fijo de NARRAR
 import { deriveMemoriaLegacy } from "../adi/responseContract.js";   // Contrato v2 · Fase 4: la memoria legacy pasa a ser una VISTA del canónico (conversationScope), no una segunda verdad
 import { estimateCostUSD } from "../adi/llm/modelPricing.js";   // router de modelo (owner 2026-08-02) · costo real por intento, observable por turno
-import { C, T, esPapel, esSuperficieADI } from "./theme.js";
+import { C, T } from "./theme.js";
 import { renderMarkdownLite, isTabularText, parseMarkdownTable } from "./markdown.jsx";
 import { TypewriterText } from "./TypewriterText.jsx";
 
@@ -931,7 +930,10 @@ const _HEX_LIT_PAPEL = [
 function CampoHexagonos({ conversando }) {
   // CONVERSANDO manda otra máscara y NINGÚN halo. El anillo se anula porque la banda vertical ya hace el
   // trabajo: encimar las dos recortaría también los márgenes y no quedaría un solo hexágono a la vista.
-  const _anillo = conversando ? "none" : (esSuperficieADI() ? _HEX_MASK_ANILLO_PAPEL : _HEX_MASK_ANILLO);
+  /* ⚠️ EL HUECO CENTRAL ES EL GRANDE, SIEMPRE (owner 2026-08-26: «el halo central quedaría despejado cuando se
+     iniciara el chat, los hexágonos iban por el costado»). Convivía con el anillo chico del diseño viejo; ese
+     diseño se retiró el 2026-08-27 y la máscara chica se fue con él. */
+  const _anillo = conversando ? "none" : _HEX_MASK_ANILLO_PAPEL;
   const _campo  = conversando ? _HEX_MASK_CONVERSA : _HEX_MASK_CAMPO;
   return (
     <div aria-hidden="true" style={{ position:"absolute", inset:0, zIndex:0, pointerEvents:"none", overflow:"hidden",
@@ -1006,10 +1008,11 @@ function CampoHexagonos({ conversando }) {
         </defs>
         <rect width="100%" height="100%" fill="url(#adiHexCampo)"/>
       </svg>
-      {(esSuperficieADI() ? _HEX_LIT_PAPEL : _HEX_LIT).map((h, i) => (
+      {/* al COSTADO, siempre: los del diseño viejo caían dentro de la columna de texto (owner 2026-08-26) */}
+      {_HEX_LIT_PAPEL.map((h, i) => (
         <svg key={i} viewBox="0 0 90.0666 104" width="90" height="104"
           style={{ position:"absolute", left:h.left, top:h.top, opacity:0,
-            animation:`${esSuperficieADI() ? "adiHeroPrendePapel" : "adiHeroPrende"} ${h.dur} ease-out infinite`, animationDelay:h.delay }}>
+            animation:`adiHeroPrendePapel ${h.dur} ease-out infinite`, animationDelay:h.delay }}>
           <polygon points="45.0333,0 90.0666,26 90.0666,78 45.0333,104 0,78 0,26" fill={C.hexLit}/>
         </svg>
       ))}
@@ -1048,10 +1051,6 @@ const _CHIP_ICONOS = [
 ];
 
 function HeroInicio({ scenario, campo, onPregunta }) {
-  // EL PULSO LO ARMA EL MOTOR. Acá no se suma, no se divide y no se redondea nada: `buildPulsoInicio` devuelve
-  // la cifra y la frase ya hechas y esta vista las pinta. Si el módulo declina (sin cartera), la banda no va —
-  // no se rellena con ceros. useMemo porque el escenario no cambia entre renders del chat.
-  const pulso = useMemo(() => { try { return buildPulsoInicio(scenario); } catch { return null; } }, [scenario]);
 
   return (
     <div style={{ position:"relative", display:"flex", flexDirection:"column", alignItems:"center",
@@ -1083,14 +1082,14 @@ function HeroInicio({ scenario, campo, onPregunta }) {
             En el TABLERO no se toca: es lo que hoy corre en producción y el cambio va detrás del interruptor. */}
         <h1 style={{ margin:0, fontSize:34, fontWeight:600, color:C.text, letterSpacing:"-0.021em",
           lineHeight:1.18, textAlign:"center", textWrap:"balance" }}>
-          {esSuperficieADI() ? "¿Por dónde empezamos?" : "¿Qué quieres entender de tu negocio?"}
+          {/* ⚠️ CORTO Y DIRECTO (owner 2026-08-26: «eso es muy robot, debe ser más simple»). El titular largo
+              era del diseño viejo y se retiró con él. */}
+          ¿Por dónde empezamos?
         </h1>
-        {!esSuperficieADI() && (
-          <p style={{ margin:"10px 0 0", maxWidth:"52ch", fontSize:16.5, fontWeight:500, lineHeight:1.5,
-            color:C.textSub, letterSpacing:"-0.006em", textAlign:"center" }}>
-            Pregúntame por tus ventas, tus márgenes o tu inventario — te respondo con la cifra y con la cuenta que la respalda.
-          </p>
-        )}
+        {/* ⚠️ ACÁ IBA LA BAJADA DEL TITULAR («Pregúntame por tus ventas, tus márgenes o tu inventario…»).
+            El owner la sacó el 2026-08-26 —«quita esas cosas, son datos que tiene Sentrix, es repetirlo,
+            dejemos un hero de ADI más limpio»— y hasta hoy convivía con el diseño viejo, que sí la mostraba.
+            Retirado ese diseño, la condición sobraba: la bajada no va, y punto. */}
 
         {/* el campo que baja y se ancla al primer mensaje · llega por prop, no se declara acá */}
         <div style={{ width:"100%", maxWidth:660, marginTop:26 }}>{campo}</div>
@@ -1114,48 +1113,14 @@ function HeroInicio({ scenario, campo, onPregunta }) {
           ))}
         </div>
 
-        {/* EL PULSO · cifras del motor. Cada una es CLICKEABLE hacia su pregunta: la banda no es un dashboard
-            que se mira, es una fila de puertas a la conversación (anti-BI · misma regla que las filas de Sentrix). */}
-        {/* ⚠️ SOBRE PAPEL EL PULSO ES UN INSTRUMENTO, NO UNA BANDA (owner 2026-08-26, al elegir «con pulso»).
-              Sale de la regla del propio rediseño —«todo lo que MIDE viene en oscuro»— y resuelve de paso la
-              objeción de que el hero repitiera lo que la Mesa ya muestra: deja de ser una fila de cifras sueltas
-              y pasa a ser una tarjeta apoyada sobre la hoja, del mismo material que Sentrix.
-              Las cifras siguen siendo BOTONES que mandan su pregunta al chat: eso no se toca, es lo que las hace
-              puertas de entrada y no datos repetidos. En el tablero, todo queda exactamente como estaba. */}
-        {/* ⚠️ SOBRE PAPEL EL PULSO NO VA (owner 2026-08-26, dos veces: «quita esas cosas, son datos que tiene
-            Sentrix, es repetirlo; dejemos un hero de ADI más limpio» y, al verlo montado, «el cuadro negro
-            dijimos que no iba»). Su argumento es el que manda: repetir en el hero de ADI lo que la Mesa ya
-            muestra es el olor a BI que la estructura por función salió a matar.
-            SE APAGA SOLO EN PAPEL, no en el tablero: el tablero es lo que hoy corre en producción y el
-            interruptor promete no moverlo. `pulsoInicio.js` NO se borra — sigue siendo la forma correcta de que
-            la vista no calcule, y el tablero lo sigue usando. */}
-        {pulso && !esSuperficieADI() && (
-          <div style={{ width:"100%", maxWidth:860, marginTop:34,
-            ...(esPapel()
-              ? { background:T.bg, borderRadius:13, padding:"16px 18px 15px",
-                  boxShadow:"0 16px 40px -14px rgba(10,10,10,0.40), 0 3px 10px -3px rgba(10,10,10,0.16)" }
-              : { paddingTop:24, borderTop:`1px solid ${C.border}` }) }}>
-            <p style={{ margin:"0 0 14px", textAlign:"center", fontSize:11.5, fontWeight:600,
-              letterSpacing:"0.15em", textTransform:"uppercase", color:T.textMuted }}>{pulso.rotulo}</p>
-            <div style={{ display:"grid", gridTemplateColumns:`repeat(auto-fit, minmax(150px, 1fr))`, gap:8 }}>
-              {pulso.cifras.map((c) => (
-                <button key={c.key} onClick={() => onPregunta(c.ask)} title={`Pregúntale a ADI: ${c.ask}`}
-                  style={{ textAlign:"center", padding:"6px 6px 8px", background:"transparent", border:"1px solid transparent",
-                    borderRadius:10, cursor:"pointer", fontFamily:"inherit", transition:"background 0.14s, border-color 0.14s" }}
-                  onMouseEnter={e => { e.currentTarget.style.background=T.hoverSuave; e.currentTarget.style.borderColor=T.border; }}
-                  onMouseLeave={e => { e.currentTarget.style.background="transparent"; e.currentTarget.style.borderColor="transparent"; }}>
-                  <span style={{ display:"block", fontSize:21, fontWeight:600, letterSpacing:"-0.02em", color:T.celeste,
-                    fontVariantNumeric:"tabular-nums lining-nums", lineHeight:1.1 }}>{c.valor}</span>
-                  <span style={{ display:"block", marginTop:5, fontSize:12.5, fontWeight:500, color:T.textMuted, lineHeight:1.35 }}>{c.etiqueta}</span>
-                </button>
-              ))}
-            </div>
-            <p style={{ margin:"18px auto 0", maxWidth:640, textAlign:"center", fontSize:15, fontWeight:500,
-              lineHeight:1.55, color:T.textSub, letterSpacing:"-0.006em" }}>
-              <b style={{ fontWeight:600, color:T.text }}>{pulso.lectura.destacado}</b> {pulso.lectura.cola}
-            </p>
-          </div>
-        )}
+        {/* ⚠️ ACÁ IBA EL PULSO DEL NEGOCIO · la banda de cifras bajo el titular. El owner lo mandó sacar el
+            2026-08-26 («el cuadro negro dijimos que no iba, ¿qué pasó?») y desde entonces solo se pintaba en el
+            diseño viejo, detrás de `?papel=0`. Retirado ese diseño el 2026-08-27, no quedaba una sola
+            superficie que lo dibujara: era código que no se ejecutaba nunca.
+            ⚠️ SE FUE TAMBIÉN `pulsoInicio.js`, que lo armaba. Un módulo que nadie importa no es una reserva:
+            es una pieza que el próximo lector tiene que entender antes de descubrir que no hace nada. La forma
+            de construirlo —el motor calcula, la vista pinta— no se perdió: es como están hechas las cinco
+            caras de la Mesa, y ahí sigue viva. */}
       </div>
     </div>
   );
@@ -1444,13 +1409,11 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                       se conserva TAL CUAL estaba: mismo fondo, mismo borde celeste, misma sombra interior. */}
                   <div data-testid="adi-bubble" style={{
                     flex:1, minWidth:0,
-                    ...(esSuperficieADI()
-                      ? { background:"transparent", padding:"2px 0 0", border:"none", borderRadius:0, boxShadow:"none" }
-                      : { background:C.card, padding:"16px 20px", borderRadius:10,
-                          // el borde con TOQUE (owner 2026-07-10, referencia de la landing): celeste sutil en las
-                          // burbujas de ADI — la misma familia de las cards de gráficos; la del usuario queda neutra.
-                          border:"1px solid rgba(47,184,218,0.22)",
-                          boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)" }),
+                    /* ⚠️ ADI NO TIENE BURBUJA (owner 2026-08-26): «las burbujas tuyas son papel gris; las de
+                       ADI no tienen burbuja — solo el hexágono al costado y el texto sobre la hoja. Eso hace que
+                       la respuesta se sienta escrita, no encajonada». La burbuja con borde celeste era del diseño
+                       viejo y se retiró con él el 2026-08-27. */
+                    background:"transparent", padding:"2px 0 0", border:"none", borderRadius:0, boxShadow:"none",
                     fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:14, lineHeight:1.65,
                     letterSpacing:"-0.01em", color:C.text, fontWeight:400, whiteSpace:"pre-line"
                   }}>

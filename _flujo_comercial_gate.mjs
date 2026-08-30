@@ -117,48 +117,22 @@ H("4 · LA CARA MUESTRA, NO CONCLUYE · y no calcula");
   ok(!/\.toFixed\(|Math\.round\(/.test(cara.replace(/const _[A-Za-z]+ = \d+/g, "")),
     "la vista no redondea ni formatea cifras: eso vive en el módulo");
   /* el interruptor: sin él, la cara no existe */
-  ok(/_FLUJO_ON/.test(panel) && /_FLUJO_PARAM === "1"/.test(panel),
-    "la cara vive detrás de `?flujo=1`: sin el parámetro, la app no se mueve");
-  /* ⚠️ EL MODO EJEMPLO (owner 2026-08-27). Una empresa que todavía no carga abonos ve —correctamente— un
-   * recuadro vacío, y así no se puede decidir el diseño. `?flujo=demo` abre el negocio de demostración para
-   * poder mirar la lectura con cifras. Lo que este bloque cuida es que eso NUNCA se pueda confundir con el
-   * dato propio: si la banda desaparece, la pantalla pasa a mostrar cifras ajenas sin decirlo. */
-  ok(/_FLUJO_DEMO = _FLUJO_PARAM === "demo"/.test(panel),
-    "…y `?flujo=demo` la enciende sobre el negocio de demostración");
-  const iCara = panel.indexOf("function MesaFlujoCara");
-  const cuerpo = panel.slice(iCara, panel.indexOf("function MesaPanel", iCara));
-  ok(/\{_FLUJO_DEMO && \(/.test(cuerpo),
-    "el modo ejemplo dibuja una banda, y va condicionada solo a él");
-  ok(/negocio de demostración<\/b>, no los datos de tu empresa/.test(cuerpo),
-    "…que dice las DOS cosas: qué estás viendo y qué no");
-  /* Se compara contra el USO del encabezado (`<MovHeadFlujo num=`), no contra su definición: la const se
-     declara arriba de todo y comparar contra ella daba un falso rojo. */
-  ok(cuerpo.indexOf("{_FLUJO_DEMO && (") < cuerpo.indexOf("<MovHeadFlujo num="),
-    "…y va ARRIBA DE TODO, antes del primer bloque: una advertencia al pie no advierte");
-  /* ⚠️ EL VACÍO NO PIDE LO QUE NO EXISTE. La primera versión mandaba a llenar el folio, los días de crédito y
-   * la hoja de Abonos — ninguno de los tres está en la plantilla, porque se decidió no tocarla todavía. */
-  /* ⚠️ SE MIRA EL TEXTO QUE SE PINTA, NO LOS COMENTARIOS. La primera versión de esta línea barría el cuerpo
-     entero y se ponía roja por el comentario que explica el cambio — que justamente nombra las tres columnas
-     para decir que ya NO se piden. Un chequeo que se dispara con su propia explicación no sirve. */
-  const _sinComentarios = cuerpo.split("/*").map((t, n) => (n === 0 ? t : t.slice(t.indexOf("*/") + 2))).join("");
-  ok(!/hoja de Abonos|folio en la hoja de Ventas|días de crédito de cada cliente/.test(_sinComentarios),
-    "el estado vacío NO manda a llenar columnas que la plantilla todavía no tiene");
-  ok(/Habilitarlo es el siguiente paso/.test(cuerpo),
-    "…lo declara como el siguiente paso, y ofrece el camino que sí existe hoy");
-
-  /* ⚠️ LA ANTIGÜEDAD VIVE EN SU PROPIA COLUMNA (owner 2026-08-27: «creo que le falta una columna que diga los
-   * días vencidos»). Nació pegada al nombre del cliente, y ahí se leía como parte del nombre —«Lider 269
-   * días»— en vez de como la cifra que es. Al lado del monto vencido dice si esa plata es de la semana pasada
-   * o del año pasado, y esas son dos conversaciones distintas con el cliente. */
-  ok(cuerpo.includes("<th style={_th}>Días vencidos</th>"),
-    "la antigüedad del vencido tiene su propia columna");
-  const _celdaNombre = cuerpo.slice(cuerpo.indexOf("{f.nombre}") - 260, cuerpo.indexOf("{f.nombre}") + 60);
-  ok(!/diasVencido/.test(_celdaNombre),
-    "…y ya no cuelga del nombre del cliente, donde se leía como si fuera parte del nombre");
-  ok(/«Días vencidos» es hace cuánto venció la factura más vieja/.test(cuerpo),
-    "…y el pie explica qué mide, que no es un promedio");
-  ok(/cara === "flujo" && _FLUJO_ON/.test(panel),
-    "…y la rama que la pinta lo vuelve a exigir, no alcanza con la pestaña");
+  /* ⚠️ AFIRMACIONES MOVIDAS, NO BORRADAS (owner 2026-08-27: «si Flujo Comercial también queda aprobado
+   * visualmente, dejarlo como pestaña estable, no solo detrás de ?flujo=1»). Hasta acá estas líneas exigían
+   * lo contrario —que la cara NO existiera sin el parámetro—, y era correcto mientras estaba a prueba. La
+   * cara se aprobó, así que lo que hay que cuidar se dio vuelta: ahora se exige que la pestaña esté SIEMPRE
+   * y que no quede ningún interruptor escondido decidiendo si aparece. Un parámetro que ya no decide nada es
+   * una variante escondida, y una variante escondida es deuda. */
+  ok(!panel.includes("_FLUJO_ON"), "no queda ningún interruptor que decida si la cara existe");
+  ok(!panel.includes('get("flujo") === "1"'), "…ni resto de ?flujo=1");
+  ok(panel.includes('["flujo", "Flujo comercial"], ["ficha"'),
+    "la pestaña está en el selector SIN condición, entre Resultado y Perfil Ejecutivo");
+  ok(panel.includes('cara === "flujo" ? ('),
+    "…y la rama que la pinta tampoco pide permiso");
+  /* EL MODO DEMOSTRACIÓN SÍ SOBREVIVE, y no como resto: es la única forma de mostrarle la lectura a una
+     empresa que todavía no carga abonos sin inventarle cifras sobre su propio negocio. */
+  ok(panel.includes("_FLUJO_DEMO") && panel.includes('get("flujo") === "demo"'),
+    "?flujo=demo sigue vivo como modo de demostración");
   /* ⚠️ EL EJEMPLO SE PIDE AL SERVIDOR, NO SE ESCRIBE EN EL CÓDIGO. Escribir un dataset de ejemplo en un módulo
    * del navegador es exactamente la fuga que `_bundle_sin_datos_gate` existe para cerrar: cuenta los literales
    * del demo que quedan en el bundle y solo tolera que el número BAJE. Esta línea deja constancia de por qué

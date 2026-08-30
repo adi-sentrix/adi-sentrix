@@ -19,31 +19,25 @@ import App from "./ui/App.jsx";
 import { cargarTenant } from "./data/tenantClient.js";
 import { aplicarTema } from "./ui/theme.js";
 
-/* ── LA SUPERFICIE DE ADI · HOY ES LA PIZARRA (owner 2026-08-27) ──────────────────────────────────────────────
- * TRES SUPERFICIES, UN SOLO INTERRUPTOR, y el orden en que aparecieron cuenta la historia:
- *   · sin parámetro → PIZARRA. Gris oscuro y frío. Es lo que ve cualquiera que entre.
- *   · `?papel=1`      → PAPEL. La hoja blanca, que fue LA app entre el 26 y el 27 de agosto.
- *   · `?papel=0`      → TABLERO. El diseño viejo COMPLETO — no sólo el color: vuelve la burbuja de ADI, el
- *                     titular largo y el pulso. Es la vuelta atrás sin tocar una línea.
+/* === src/main.jsx · entry de la app (Fase 6 · Vite) ===
+/* ── LA SUPERFICIE DE ADI · UNA SOLA, Y ES LA PIZARRA (owner 2026-08-27) ─────────────────────────────────────
+ * «La UX ya está definida y aprobada. Deja de tratar los interruptores como exploración. Consolidar la
+ * experiencia elegida como comportamiento normal de la app.»
  *
- * POR QUÉ SE MOVIÓ: «el contraste blanco y negro es un poco pesado para la vista». El salto de la hoja al
- * tablero era de 19,2 a 1 y caía en el medio de la pantalla. En pizarra queda en 1,10 a 1, y los dos lados se
- * separan con un filete de luz en vez de con un tajo. Ver `TEMA_PIZARRA` en theme.js.
+ * ACÁ VIVÍAN TRES SUPERFICIES detrás de `?papel`: la pizarra sin parámetro, la hoja blanca con `=1` y el
+ * diseño viejo COMPLETO con `=0` —con su burbuja, su titular largo y su pulso—. Tenía sentido mientras se
+ * decidía: era la promesa de que nada se movía hasta que el owner mirara. Ya miró y ya eligió, así que las
+ * otras dos dejaron de ser una red de seguridad para pasar a ser dos productos dormidos que había que
+ * mantener vivos en la cabeza de cualquiera que tocara el chat.
  *
- * ⚠️ EL PARÁMETRO SIGUE LLAMÁNDOSE `papel` a propósito, aunque ya no sea la superficie por defecto: es el que
- * está escrito en los gates y el que el owner tiene en el dedo. Renombrarlo no compraba nada y rompía las dos.
+ * ⚠️ LO QUE NO SE FUE ES EL TABLERO, y la distinción importa: sigue entero como `T`, la paleta de TODO LO
+ * QUE MIDE —Sentrix, los gráficos, los semáforos, los sellos—. Eso nunca fue una variante, es la mitad del
+ * diseño: «a la izquierda se conversa, a la derecha se mide». Lo que se retiró es el tablero como SUPERFICIE
+ * DE CONVERSACIÓN, que es otra cosa.
  *
- * ⚠️ EL DEFECTO DEL MÓDULO SIGUE SIENDO EL TABLERO, y no es un descuido: `theme.js` se evalúa en tablero, así
- * que todo lo que importe `C` fuera del navegador —los gates, cualquier prueba— sigue viendo la paleta de
- * siempre y el sello que la compara no se mueve. Lo que cambia es qué aplica ESTE archivo al arrancar la app.
- *
- * Se aplica ACÁ, antes de montar React, para que el primer render ya salga con la superficie correcta y no se
- * vea un parpadeo de negro a papel. */
-try {
-  const _sup = new URLSearchParams(window.location.search).get("papel");
-  if (_sup === "1") aplicarTema("papel");
-  else if (_sup !== "0") aplicarTema("pizarra");
-} catch { /* sin window (SSR o prueba): queda el tablero, que es el defecto del módulo */ }
+ * Se aplica ACÁ, antes de montar React, para que el primer render ya salga con su superficie y no se vea un
+ * parpadeo. */
+try { aplicarTema("pizarra"); } catch { /* sin window (SSR o prueba): queda el defecto del módulo */ }
 
 const root = createRoot(document.getElementById("root"));
 

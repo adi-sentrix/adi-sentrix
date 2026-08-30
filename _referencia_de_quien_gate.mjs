@@ -63,7 +63,10 @@ console.log("=".repeat(100));
    * superficie que vuelva a escribirlo a mano sería invisible en tiempo de ejecución hasta que un cliente sin
    * benchmark abra la app. */
   for (const [archivo, que] of [
-    ["./src/adi/sentrix/pulsoInicio.js", "el pulso de inicio"],
+    /* ⚠️ EL PULSO DE INICIO SALIÓ DE LA LISTA porque el módulo ya no existe: se retiró el 2026-08-27 al
+       consolidar la superficie, y llevaba desde el 26 sin pintarse en ninguna pantalla. La regla que esta
+       lista cuida —que nadie escriba «tu benchmark» a mano— no se aflojó: sigue exigida en los dos módulos
+       que SÍ arman esa frase hoy. Si mañana vuelve un tercero, entra acá. */
     ["./src/adi/sentrix/resumenComercial.js", "el resumen comercial"],
     ["./src/adi/pnl.js", "el P&L"],
   ]) {
