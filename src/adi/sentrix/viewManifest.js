@@ -56,7 +56,7 @@ export const UNIDADES = ["money", "pct", "ratio", "days", "conteo", "texto"];
  *
  * LOS TRES ESTADOS, y qué significa cada uno EXACTAMENTE:
  *   · `reconciled`   la evidencia declarada devuelve LA MISMA cifra que la pantalla. No es una promesa: es lo que
- *                    `_concordancia_numerica_gate` cruza builder↔ledger en los tres escenarios. Si un componente
+ *                    `_concordancia_numerica_gate` cruza builder↔ledger en el cruce del gate de concordancia. Si un componente
  *                    dice `reconciled` y el gate encuentra un solo desacuerdo, el gate FALLA.
  *   · `divergent`    las dos puntas producen una cifra del mismo concepto y NO coinciden (o coincidirían pero se
  *                    calculan con reglas distintas: otro ancla, otro piso de materialidad, otra escala). Es un
@@ -112,7 +112,7 @@ export const VIEW_BUILDERS = {
  * runner la resuelve del propio dato (la primera fila del eje), jamás de un nombre escrito a mano — el manifiesto
  * no puede nombrar una entidad del tenant.
  * `scenarioAware:false` NO es una omisión: es el LÍMITE MEDIDO de esa superficie, y su componente lo declara en
- * `concordancia` con la diferencia contra la pantalla en los tres escenarios. */
+ * `concordancia` con la diferencia contra la pantalla en el cruce del gate de concordancia. */
 export const SUPERFICIE_BUILDERS = {
   "cuadro:cliente": { modulo: "src/adi/sentrix/cuadro.js",  fn: "buildCuadroMando", scenarioAware: true,  args: '("cliente", scenario)' },
   "cuadro:sku":     { modulo: "src/adi/sentrix/cuadro.js",  fn: "buildCuadroMando", scenarioAware: true,  args: '("sku", scenario)' },
@@ -133,7 +133,7 @@ export const SUPERFICIE_BUILDERS = {
 };
 
 // atajos de universo, para no repetir la misma declaración 15 veces (siguen siendo dato, no lógica)
-const U_NEGOCIO = { kind: "negocio", label: "el negocio completo, cliente por cliente", cierraCon: "clientesVentas.actual con el escenario aplicado (venta oficial)" };
+const U_NEGOCIO = { kind: "negocio", label: "el negocio completo, cliente por cliente", cierraCon: "clientesVentas.actual (venta oficial de la base)" };
 const U_GRUPO80 = { kind: "grupo80", label: "el grupo que explica el 80% de la venta del eje", cierraCon: "concentracion() sobre la venta del propio eje" };
 const U_EJE = (eje) => ({ kind: "eje", label: `todas las filas del eje ${eje}`, cierraCon: null });
 // FLUJO (2026-08-30): el universo de la cobranza — los clientes del período de cobro, al corte que el tenant
@@ -154,7 +154,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "executiveSummary", args: {} }],
     sinTool: null,
     concordancia: { estado: "unsupported", campos: ["veredicto"],
-      razon: "el contexto ambiente de la vista no autoriza ninguna cifra (`unidad: texto`): el cruce builder↔ledger no produce un solo par comparable en los tres escenarios, así que no hay nada que reconciliar. Identifica la pantalla; las cifras las demuestran sus piezas" },
+      razon: "el contexto ambiente de la vista no autoriza ninguna cifra (`unidad: texto`): el cruce builder↔ledger no produce un solo par comparable en el cruce del gate de concordancia, así que no hay nada que reconciliar. Identifica la pantalla; las cifras las demuestran sus piezas" },
   },
   /* ⚠️ ACÁ VIVÍAN "comercial/01/veredicto" y "comercial/01/reconciliacion-universos". Se fueron el 2026-08-27
      junto con las piezas que describían: el manifiesto declara lo que SE PINTA y se puede señalar, así que una
@@ -178,7 +178,7 @@ export const VIEW_MANIFEST = {
     // contrastar la cabecera justo cuando ya puede. Lo que falta es el PIE — la variación vs el año anterior —:
     // la evidencia declarada de esta card entrega el valor, no el delta.
     concordancia: { estado: "unsupported", campos: ["pie"], toolsQueNoReconcilian: [],
-      razon: "el VALOR ya cierra: `queryMetric{ventas, cliente}` devuelve el total oficial del negocio y concuerda exacto con la card en los tres escenarios. Lo que la evidencia declarada NO entrega es el PIE: la variación contra el año anterior — el delta no viaja con el ranking y ninguna tool lo emite como cifra propia" },
+      razon: "el VALOR ya cierra: `queryMetric{ventas, cliente}` devuelve el total oficial del negocio y concuerda exacto con la card en el cruce del gate de concordancia. Lo que la evidencia declarada NO entrega es el PIE: la variación contra el año anterior — el delta no viaja con el ranking y ninguna tool lo emite como cifra propia" },
   },
   "comercial/01/kpi-contribucion": {
     vista: "comercial", seccion: "01", tipo: "kpi", label: "Contribución del período",
@@ -188,7 +188,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "contributionRead", args: { dimension: "cliente" }, focus: "rank" }],
     sinTool: null,
     concordancia: { estado: "reconciled",
-      razon: "la contribución total de la card y la que autoriza `contributionRead{cliente}` son la misma cifra en los tres escenarios (cruce builder↔ledger de `_concordancia_numerica_gate`, sección 2)" },
+      razon: "la contribución total de la card y la que autoriza `contributionRead{cliente}` son la misma cifra en el cruce del gate de concordancia (cruce builder↔ledger de `_concordancia_numerica_gate`, sección 2)" },
   },
   "comercial/01/kpi-margen": {
     vista: "comercial", seccion: "01", tipo: "kpi", label: "Margen promedio ponderado",
@@ -201,7 +201,7 @@ export const VIEW_MANIFEST = {
     // El margen ponderado del negocio SÍ lo devuelve `marginRead` desde la decisión 6 (cifra de cabecera). Lo que
     // sigue sin existir como una sola cifra es el PIE: la brecha en pp contra la vara del usuario.
     concordancia: { estado: "unsupported", campos: ["pie"],
-      razon: "el VALOR ya cierra: `marginRead{cliente}` devuelve el margen ponderado del negocio y concuerda exacto con la card en los tres escenarios. Lo que no existe como cifra en ninguna tool es el PIE: la BRECHA en pp contra el benchmark — marginRead emite el margen y el benchmark por separado, nunca su diferencia" },
+      razon: "el VALOR ya cierra: `marginRead{cliente}` devuelve el margen ponderado del negocio y concuerda exacto con la card en el cruce del gate de concordancia. Lo que no existe como cifra en ninguna tool es el PIE: la BRECHA en pp contra el benchmark — marginRead emite el margen y el benchmark por separado, nunca su diferencia" },
   },
   "comercial/01/kpi-acciones-comerciales": {
     vista: "comercial", seccion: "01", tipo: "kpi", label: "Acciones comerciales del período",
@@ -217,10 +217,10 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "queryMetric", args: { metric: "acciones", dimension: "cliente" } }],
     sinTool: null,
     // El `valor` ya cierra: `queryMetric{acciones}` devuelve el mismo total oficial que la card. Lo que sigue sin
-    // cerrar es el PIE — cuánto de esas acciones está SOBRE la meta —, y ahí el piso de materialidad de $50.000 por
+    // cerrar es el PIE — cuánto de esas acciones está SOBRE la meta —, y ahí el piso de materialidad del negocio (0,05% de la venta) por
     // cuenta que aplican diagnose/simulateCarga hace que su subtotal sea ≤ el que la card afirma.
     concordancia: { estado: "divergent", campos: ["pie"], toolsQueNoReconcilian: ["diagnose", "simulateCarga"],
-      razon: "el VALOR ya cierra: `queryMetric{acciones, cliente}` devuelve el mismo monto oficial que la card en los tres escenarios. El PIE no: cuánto de esas acciones está SOBRE la meta lo calculan diagnose y simulateCarga con un piso de materialidad de $50.000 por cuenta que este pie NO aplica, así que su subtotal es siempre ≤ el que la card afirma — la misma fórmula sobre distinto universo de cuentas" },
+      razon: "el VALOR ya cierra: `queryMetric{acciones, cliente}` devuelve el mismo monto oficial que la card en el cruce del gate de concordancia. El PIE no: cuánto de esas acciones está SOBRE la meta lo calculan diagnose y simulateCarga con el piso de materialidad del negocio (0,05% de la venta — POLICY.materialidadFocoPctVenta) que este pie NO aplica, así que su subtotal es siempre ≤ el que la card afirma — la misma fórmula sobre distinto universo de cuentas" },
   },
   "comercial/01/tabla-cartera": {
     vista: "comercial", seccion: "01", tipo: "tabla", label: "El negocio, cliente por cliente",
@@ -233,11 +233,11 @@ export const VIEW_MANIFEST = {
     ],
     sinTool: null,
     // CERRADO 2026-08-09 (paso 2 · decisión 4 · hallazgo A/B): "_ventasRows" ya carga por el contrato scenario-aware
-    // y gridTable recibe el escenario del turno. Las 13 filas por cliente concuerdan EXACTO en los tres escenarios.
+    // y gridTable recibe el escenario del turno. Las 13 filas por cliente concuerdan EXACTO en el cruce del gate de concordancia.
     // Lo único que queda es el TOTAL — ver el mismo motivo declarado en "comercial/01/tabla-cartera-total".
     concordancia: {
       estado: "divergent",
-      razon: "el TOTAL de la tabla (no sus filas) sale de dos anclas distintas: la fila Total suma las filas del escenario y salesRead cita el KPI de ventas del escenario, la misma cifra que la card de la Mesa. Las dos son del escenario correcto y se separan por el ~0,1% que el dataset arrastra entre `ventasKPI` y Σ`clientesVentas` ($99.9M vs $100.0M en bonanza, $92.8M vs $92.9M en tensión, $81.1M vs $81.2M en crisis). Las filas por cliente sí cierran exacto",
+      razon: "el TOTAL de la tabla (no sus filas) sale de dos anclas distintas: la fila Total suma las filas de la base y salesRead cita el KPI de ventas, la misma cifra que la card de la Mesa. Las dos son de la misma base y se separan por el ~0,1% que el dataset arrastra entre `ventasKPI` y Σ`clientesVentas` ($99.9M — Σ de filas — vs $100.0M — el KPI, sobre la base real). Las filas por cliente sí cierran exacto",
       campos: ["total.venta"],
       toolsQueNoReconcilian: ["salesRead"],
     },
@@ -253,12 +253,12 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "salesRead", args: { dimension: "cliente" }, focus: "vs_presupuesto" }],
     sinTool: null,
     // PASO 2 (decisión 4 · hallazgo B) — la CEGUERA está cerrada, la diferencia de ancla NO, y son dos cosas:
-    // antes salesRead contestaba $100.0M en los tres escenarios (hasta 23% de error contra la pantalla); ahora se
+    // antes salesRead contestaba $100.0M en el cruce del gate de concordancia (hasta 23% de error contra la pantalla); ahora se
     // mueve con el escenario y lo que queda es el ~0,1% estructural del dataset. Cuál de las dos anclas es LA venta
     // oficial del negocio es decisión del owner: hoy conviven tres y ninguna es "la mala".
     concordancia: {
       estado: "divergent",
-      razon: "dos anclas del MISMO concepto, las dos del escenario correcto: esta fila Total suma las filas de la cartera (Σ clientesVentas del escenario) y salesRead cita el KPI de ventas del escenario — el mismo que muestra la card de ventas de la Mesa, por decisión del owner del 2026-07-15. Se separan por el ~0,1% que el dataset arrastra entre `ventasKPI` y Σ`clientesVentas`: $99.9M vs $100.0M en bonanza, $92.8M vs $92.9M en tensión, $81.1M vs $81.2M en crisis",
+      razon: "dos anclas del MISMO concepto, las dos de la misma base: esta fila Total suma las filas de la cartera (Σ clientesVentas) y salesRead cita el KPI de ventas — el mismo que muestra la card de ventas de la Mesa, por decisión del owner del 2026-07-15. Se separan por el ~0,1% que el dataset arrastra entre `ventasKPI` y Σ`clientesVentas`: $99.9M (Σ de filas) vs $100.0M (el KPI), sobre la base real",
       campos: ["venta", "vsPresupuesto"],
       toolsQueNoReconcilian: ["salesRead"],
     },
@@ -270,16 +270,16 @@ export const VIEW_MANIFEST = {
     // fila para él. La serie se ancla al total de clientesVentas, así que su escala es la MISMA de la venta oficial.
     unidad: "money", escala: "K",
     unidadMotivo: "eje tiempo: metricRegistry declara escala por eje de entidad y no cubre el eje temporal; la serie hereda la escala de la venta oficial a la que anchorSerie la ancla",
-    periodo: "12 meses del año en foco", universo: { kind: "negocio", label: "el negocio completo, mes a mes", cierraCon: "series ancladas (anchorSerie) al total de clientesVentas del escenario" },
+    periodo: "12 meses del año en foco", universo: { kind: "negocio", label: "el negocio completo, mes a mes", cierraCon: "series ancladas (anchorSerie) al total de clientesVentas de la base" },
     comparacion: "anterior", estatusDefault: "probado", estatusCampo: null, controles: ["oculta", "hov"],
     evidencia: [{ tool: "trend", args: { metric: "ventas" } }],
     sinTool: null,
     // PASO 2 (decisión 4 · hallazgo C): el anclaje vive en UNA sola función ("temporal.buildGlobalEvolutionAnclada")
     // que consumen el gráfico y la tool "trend" — antes el gráfico anclaba y la tool no. La serie del AÑO ANTERIOR
-    // ya cierra exacto en los tres escenarios (era $92.9M vs $93.0M); el residual es sólo el total de este año.
+    // ya cierra exacto en el cruce del gate de concordancia (era $92.9M vs $93.0M); el residual es sólo el total de este año.
     concordancia: {
       estado: "divergent",
-      razon: "el gráfico ancla la curva al total de la cartera (Σ clientesVentas del escenario) y trend la ancla al KPI de ventas del escenario: mismo anclaje, misma función, dos anclas. Diferencia medida ~0,1% ($99.9M vs $100.0M en bonanza, $92.8M vs $92.9M en tensión, $81.1M vs $81.2M en crisis); la forma del año y la serie del año anterior coinciden exacto",
+      razon: "el gráfico ancla la curva al total de la cartera (Σ clientesVentas) y trend la ancla al KPI de ventas: mismo anclaje, misma función, dos anclas. Diferencia medida ~0,1% ($99.9M — Σ de filas — vs $100.0M — el KPI, sobre la base real); la forma del año y la serie del año anterior coinciden exacto",
       campos: ["series[key='actual'].total"],
       toolsQueNoReconcilian: ["trend"],
     },
@@ -295,10 +295,10 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "trend", args: { metric: "ventas" } }],
     sinTool: null,
     // PASO 2 (decisión 4 · hallazgo C): trend lee la MISMA curva anclada que la leyenda. Los totales de "año
-    // anterior" y "presupuesto" cierran exacto en los tres escenarios; queda el de "este año" — ver la serie.
+    // anterior" y "presupuesto" cierran exacto en el cruce del gate de concordancia; queda el de "este año" — ver la serie.
     concordancia: {
       estado: "divergent",
-      razon: "el total de la serie de este año se ancla al total de la cartera (Σ clientesVentas del escenario) y trend al KPI de ventas del escenario: ~0,1% de diferencia ($99.9M vs $100.0M en bonanza, $92.8M vs $92.9M en tensión, $81.1M vs $81.2M en crisis). Los totales de año anterior y presupuesto coinciden exacto",
+      razon: "el total de la serie de este año se ancla al total de la cartera (Σ clientesVentas) y trend al KPI de ventas: ~0,1% de diferencia ($99.9M — Σ de filas — vs $100.0M — el KPI, sobre la base real). Los totales de año anterior y presupuesto coinciden exacto",
       campos: ["total"],
       toolsQueNoReconcilian: ["trend"],
     },
@@ -308,7 +308,7 @@ export const VIEW_MANIFEST = {
     campo: "evolutivo.caida", metrica: "ventas", eje: "tiempo",
     unidad: "money", escala: "K",
     unidadMotivo: "eje tiempo: hereda la escala de la venta oficial de la serie de la que son extremos",
-    periodo: "12 meses del año en foco", universo: { kind: "negocio", label: "la serie del año en foco, ya anclada", cierraCon: "venta oficial del escenario" },
+    periodo: "12 meses del año en foco", universo: { kind: "negocio", label: "la serie del año en foco, ya anclada", cierraCon: "venta oficial de la base" },
     _emitidoPor: "comercial/01/evolutivo-serie",   // la tira se pinta bajo el gráfico y describe SU serie
     comparacion: null, estatusDefault: "probado", estatusCampo: null, controles: [],
     evidencia: [{ tool: "trend", args: { metric: "ventas" } }],
@@ -328,7 +328,7 @@ export const VIEW_MANIFEST = {
     // CERRADO 2026-08-09 (paso 2 · decisión 4 · hallazgo B): "concentracion()" ya era la misma; lo que faltaba era que
     // las filas que recibe salieran del escenario.
     concordancia: { estado: "reconciled",
-      razon: "`salesRead{cliente, concentracion}` corre la MISMA función `concentracion()` sobre las filas del mismo escenario: las barras y el ledger dan la misma cifra en los tres escenarios (18/18 pares en el cruce de `_concordancia_numerica_gate`)" },
+      razon: "`salesRead{cliente, concentracion}` corre la MISMA función `concentracion()` sobre las mismas filas de la base: las barras y el ledger dan la misma cifra en el cruce del gate de concordancia (18/18 pares en el cruce de `_concordancia_numerica_gate`)" },
   },
   "comercial/01/pareto-contribucion": {
     vista: "comercial", seccion: "01", tipo: "barra", label: "Dónde se concentra la contribución",
@@ -338,7 +338,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "contributionRead", args: { dimension: "cliente" }, focus: "concentracion" }],
     sinTool: null,
     concordancia: { estado: "reconciled",
-      razon: "misma función de concentración sobre las mismas filas del escenario: barras y ledger dan la misma cifra en los tres escenarios (18/18 pares en el cruce de `_concordancia_numerica_gate`)" },
+      razon: "misma función de concentración sobre las mismas filas de la base: barras y ledger dan la misma cifra en el cruce del gate de concordancia (18/18 pares en el cruce de `_concordancia_numerica_gate`)" },
   },
   "comercial/01/sostiene-clientes": {
     vista: "comercial", seccion: "01", tipo: "tabla", label: "Quién sostiene el negocio · clientes",
@@ -352,7 +352,7 @@ export const VIEW_MANIFEST = {
     ],
     sinTool: null,
     concordancia: { estado: "unsupported", campos: ["grupoN", "colaN"],
-      razon: "las cifras de la tabla (margen, venta y contribución por cuenta) concuerdan exacto con marginRead/gridTable en los tres escenarios. Lo que ninguna tool entrega es la PARTICIÓN grupo 80% / cola marcada en la misma respuesta: cuántas cuentas caen de cada lado no es una cifra que el oráculo emita" },
+      razon: "las cifras de la tabla (margen, venta y contribución por cuenta) concuerdan exacto con marginRead/gridTable en el cruce del gate de concordancia. Lo que ninguna tool entrega es la PARTICIÓN grupo 80% / cola marcada en la misma respuesta: cuántas cuentas caen de cada lado no es una cifra que el oráculo emita" },
   },
   "comercial/01/sostiene-familias": {
     vista: "comercial", seccion: "01", tipo: "tabla", label: "Quién sostiene el negocio · familias",
@@ -366,12 +366,12 @@ export const VIEW_MANIFEST = {
     ],
     sinTool: null,
     concordancia: { estado: "unsupported", campos: ["reconcilia"],
-      razon: "las cifras por familia concuerdan exacto con queryMetric/marginRead en los tres escenarios. Lo que no tiene equivalente es el campo `reconcilia`: esta vista es OTRO corte del mismo negocio (sfamiliasMargen), no un desglose de la tabla de clientes, y DECLARA si su suma cierra o no con la venta oficial — ninguna tool declara eso de sí misma" },
+      razon: "las cifras por familia concuerdan exacto con queryMetric/marginRead en el cruce del gate de concordancia. Lo que no tiene equivalente es el campo `reconcilia`: esta vista es OTRO corte del mismo negocio (sfamiliasMargen), no un desglose de la tabla de clientes, y DECLARA si su suma cierra o no con la venta oficial — ninguna tool declara eso de sí misma" },
   },
   "comercial/01/sostiene-sku": {
     vista: "comercial", seccion: "01", tipo: "tabla", label: "Quién sostiene el negocio · SKU",
     campo: "sostiene.vistas[key='sku']", universoCampo: "sostiene.vistas[key='sku'].filas",
-    metrica: "margen", eje: "sku", periodo: "año cerrado · dato base, sin escenario", universo: U_GRUPO80,
+    metrica: "margen", eje: "sku", periodo: "año cerrado · dato base directo", universo: U_GRUPO80,
     comparacion: "benchmark", estatusDefault: "indicado", estatusCampo: "sostiene.vistas[key='sku'].reconcilia",
     controles: ["eje", "todos"],
     evidencia: [
@@ -384,7 +384,7 @@ export const VIEW_MANIFEST = {
     // real: el precio/costo por unidad es crudo, así que unidades × precioLista no cierra contra la venta en miles.
     // Declarada en config/contract/figureType.js (DIVERGENCIAS), verificable, ya no "coinciden por convención".
     concordancia: { estado: "divergent", campos: ["costoMedio", "precioLista"],
-      razon: "skusMargen: la venta se declara money(K) en las dos puntas del contrato (alineado 2026-08-09) y las cifras de la tabla concuerdan exacto en los tres escenarios. Queda la divergencia de PRECIO UNITARIO: costoMedio/precioLista son $ por unidad crudos y la venta viene en miles, así que unidades × precio no cierra contra la venta declarada — el par está declarado en `config/contract/figureType.js` (DIVERGENCIAS: venta_comercial ↔ precio_unitario)" },
+      razon: "skusMargen: la venta se declara money(K) en las dos puntas del contrato (alineado 2026-08-09) y las cifras de la tabla concuerdan exacto en el cruce del gate de concordancia. Queda la divergencia de PRECIO UNITARIO: costoMedio/precioLista son $ por unidad crudos y la venta viene en miles, así que unidades × precio no cierra contra la venta declarada — el par está declarado en `config/contract/figureType.js` (DIVERGENCIAS: venta_comercial ↔ precio_unitario)" },
   },
   "comercial/01/sostiene-canales": {
     vista: "comercial", seccion: "01", tipo: "tabla", label: "Quién sostiene el negocio · canales",
@@ -398,7 +398,7 @@ export const VIEW_MANIFEST = {
     ],
     sinTool: null,
     concordancia: { estado: "reconciled",
-      razon: "el eje canal es declarativo y sale de la misma fuente en las dos puntas: las cifras por canal concuerdan exacto en los tres escenarios (12/12 pares en el cruce de `_concordancia_numerica_gate`)" },
+      razon: "el eje canal es declarativo y sale de la misma fuente en las dos puntas: las cifras por canal concuerdan exacto en el cruce del gate de concordancia (12/12 pares en el cruce de `_concordancia_numerica_gate`)" },
   },
   "comercial/01/porque-vende-mucho-deja-poco": {
     vista: "comercial", seccion: "01", tipo: "lista", label: "Por qué vende mucho y deja poco",
@@ -437,7 +437,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "simulateCarga", args: {} }, { tool: "diagnose", args: {}, focus: "carga" }],
     sinTool: null,
     concordancia: { estado: "divergent", campos: ["n", "total"], toolsQueNoReconcilian: ["simulateCarga", "diagnose"],
-      razon: "simulateCarga y diagnose calculan la MISMA fórmula pero con un piso de materialidad de $50.000 por cuenta que esta pill NO aplica: el n de filas y el total no coinciden. Medido en el total recuperable: $701K en pantalla vs $655K en el ledger (bonanza), $1.4M vs $1.3M (tensión), $2.4M vs $2.3M (crisis). DECISIÓN DE OWNER PENDIENTE: unificar el piso o declararlo en ambos lados" },
+      razon: "simulateCarga y diagnose calculan la MISMA fórmula pero con el piso de materialidad del negocio (0,05% de la venta) que esta pill NO aplica: el n de filas y el total no coinciden. Medido en el total recuperable: $701K en pantalla vs $655K en el ledger, sobre la base real. DECISIÓN DE OWNER PENDIENTE: unificar el piso o declararlo en ambos lados" },
   },
   "comercial/02/costo-contra-precio": {
     vista: "comercial", seccion: "02", tipo: "lista", label: "Costo contra precio",
@@ -475,7 +475,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "diagnose", args: {}, focus: "margen" }],
     sinTool: null,
     concordancia: { estado: "divergent", campos: ["grupos"], toolsQueNoReconcilian: ["diagnose"],
-      razon: "el orden y el agrupamiento son una regla de decisión del módulo y diagnose sólo aporta el enJuego por entidad, calculado contra OTRA referencia y sin el piso de esta vista: para las mismas cuentas las dos puntas dan montos distintos (medido en bonanza: $82K en pantalla vs $194K en el ledger para la cuenta líder, $21K vs $125K para la siguiente). El conjunto de cuentas tampoco es el mismo — el ledger nombra SKU que esta lista no lista",
+      razon: "el orden y el agrupamiento son una regla de decisión del módulo y diagnose sólo aporta el enJuego por entidad, calculado contra OTRA referencia y sin el piso de esta vista: para las mismas cuentas las dos puntas dan montos distintos (medido sobre la base real: $82K en pantalla vs $194K en el ledger para la cuenta líder, $21K vs $125K para la siguiente). El conjunto de cuentas tampoco es el mismo — el ledger nombra SKU que esta lista no lista",
     },
     _provisional: true,
   },
@@ -519,7 +519,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "inventoryStatus", args: {}, focus: "estado" }],
     sinTool: null,
     concordancia: { estado: "reconciled",
-      razon: "`inventoryStatus{focus:'estado'}` emite «Capital en inventario · total», la MISMA cifra que pinta la card, y concuerda exacto en los tres escenarios. Límite que la acompaña: es capital en dólares crudos de la foto de hoy — no se puede dividir por la venta ni expresar como % de ella, porque `inventario` y `venta_comercial` están declarados divergentes en config/contract/figureType.js" },
+      razon: "`inventoryStatus{focus:'estado'}` emite «Capital en inventario · total», la MISMA cifra que pinta la card, y concuerda exacto en el cruce del gate de concordancia. Límite que la acompaña: es capital en dólares crudos de la foto de hoy — no se puede dividir por la venta ni expresar como % de ella, porque `inventario` y `venta_comercial` están declarados divergentes en config/contract/figureType.js" },
     _provisional: true,
   },
   // ⚠️ EL NOMBRE DE ESTE COMPONENTE OBEDECE EL CANDADO DE VOCABULARIO DEL OWNER (2026-08-09, `_mesa_capital_gate`):
@@ -537,7 +537,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "inventoryStatus", args: {}, focus: "frenado" }],
     sinTool: null,
     concordancia: { estado: "reconciled",
-      razon: "con el focus `frenado` la tool emite «capital inmovilizado», el mismo subconjunto que cuenta la card, y concuerda exacto en los tres escenarios. Con el focus mal escrito caía al default y respaldaba esta cabecera con otro estado — por eso el arg va declarado" },
+      razon: "con el focus `frenado` la tool emite «capital inmovilizado», el mismo subconjunto que cuenta la card, y concuerda exacto en el cruce del gate de concordancia. Con el focus mal escrito caía al default y respaldaba esta cabecera con otro estado — por eso el arg va declarado" },
     _provisional: true,
   },
   "capital/01/kpi-quiebres": {
@@ -550,7 +550,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "inventoryStatus", args: {}, focus: "quiebre" }],
     sinTool: null,
     concordancia: { estado: "reconciled",
-      razon: "con el focus `quiebre` la tool emite «riesgo de quiebre», el mismo subconjunto que cuenta la card, y concuerda exacto en los tres escenarios. La cifra se apoya en `doh`, que es un valor DECLARADO por la fuente y no una cuenta derivada de stock ÷ venta diaria (esa cuenta no coincide con el dato en 11 de 13 filas): el estado del detector se decide con el declarado, y las dos puntas leen el mismo campo" },
+      razon: "con el focus `quiebre` la tool emite «riesgo de quiebre», el mismo subconjunto que cuenta la card, y concuerda exacto en el cruce del gate de concordancia. La cifra se apoya en `doh`, que es un valor DECLARADO por la fuente y no una cuenta derivada de stock ÷ venta diaria (esa cuenta no coincide con el dato en 11 de 13 filas): el estado del detector se decide con el declarado, y las dos puntas leen el mismo campo" },
     _provisional: true,
   },
   "capital/01/kpi-rotacion": {
@@ -561,7 +561,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "queryMetric", args: { metric: "rotacion", dimension: "sku" } }],
     sinTool: null,
     concordancia: { estado: "reconciled",
-      razon: "la rotación media tiene UNA sola implementación desde el 2026-08-09 —`sentrix/headline.js:rotacionPonderada`, ponderada por capital— y la consumen la card y la tool: concuerdan exacto en los tres escenarios. Antes convivían tres rotaciones medias distintas en el producto (la ponderada de esta card, la del drill y el promedio SIMPLE por SKU de queryMetric) con el mismo nombre, y esta cabecera no se podía contrastar contra su propia evidencia. La rotación es un valor declarado por la fuente: no se recalcula desde stock y unidades" },
+      razon: "la rotación media tiene UNA sola implementación desde el 2026-08-09 —`sentrix/headline.js:rotacionPonderada`, ponderada por capital— y la consumen la card y la tool: concuerdan exacto en el cruce del gate de concordancia. Antes convivían tres rotaciones medias distintas en el producto (la ponderada de esta card, la del drill y el promedio SIMPLE por SKU de queryMetric) con el mismo nombre, y esta cabecera no se podía contrastar contra su propia evidencia. La rotación es un valor declarado por la fuente: no se recalcula desde stock y unidades" },
     _provisional: true,
   },
   "capital/01/cortes": {
@@ -573,7 +573,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "queryMetric", args: { metric: "capital", dimension: "bodega" } }],
     sinTool: null,
     concordancia: { estado: "unsupported", campos: ["vistas[key='familia']", "vistas[key='edad']"],
-      razon: "el corte por BODEGA concuerda exacto con `queryMetric{capital, bodega}` en los tres escenarios. Los otros dos cortes que este control ofrece no tienen equivalente en el oráculo: `metricRegistry` declara la métrica `capital` sólo sobre los ejes `sku` y `bodega`, mientras que Sentrix arma el corte por FAMILIA desde `skuInventario.sfamilia` y el corte por EDAD desde tramos de días sin venta. Los tres reparten el mismo total, pero ADI sólo puede demostrar uno" },
+      razon: "el corte por BODEGA concuerda exacto con `queryMetric{capital, bodega}` en el cruce del gate de concordancia. Los otros dos cortes que este control ofrece no tienen equivalente en el oráculo: `metricRegistry` declara la métrica `capital` sólo sobre los ejes `sku` y `bodega`, mientras que Sentrix arma el corte por FAMILIA desde `skuInventario.sfamilia` y el corte por EDAD desde tramos de días sin venta. Los tres reparten el mismo total, pero ADI sólo puede demostrar uno" },
     _provisional: true,
   },
   "capital/01/focos": {
@@ -589,7 +589,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "inventoryStatus", args: {} }],
     sinTool: null,
     concordancia: { estado: "reconciled",
-      razon: "el $ de cada foco es el de su estado en `diagnoseInventario`, la misma función que corre `inventoryStatus`: concuerdan exacto en los tres escenarios. Lo que ni la tira ni la tool afirman es la CAUSA (obsolescencia, sobrecompra, temporada): no se puede inferir sin historial de stock y ninguna de las dos puntas la emite" },
+      razon: "el $ de cada foco es el de su estado en `diagnoseInventario`, la misma función que corre `inventoryStatus`: concuerdan exacto en el cruce del gate de concordancia. Lo que ni la tira ni la tool afirman es la CAUSA (obsolescencia, sobrecompra, temporada): no se puede inferir sin historial de stock y ninguna de las dos puntas la emite" },
     _provisional: true,
   },
   "capital/01/reponer": {
@@ -601,7 +601,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "inventoryStatus", args: {}, focus: "quiebre" }],   // vocabulario del arg, no el estado
     sinTool: null,
     concordancia: { estado: "reconciled",
-      razon: "las filas y sus días de inventario concuerdan exacto con `inventoryStatus{focus:'quiebre'}` en los tres escenarios: misma clasificación del detector sobre el mismo dato. La lista NO cuantifica la venta en riesgo ni el lead time del proveedor —no están en el dato— y ninguna de las dos puntas los emite" },
+      razon: "las filas y sus días de inventario concuerdan exacto con `inventoryStatus{focus:'quiebre'}` en el cruce del gate de concordancia: misma clasificación del detector sobre el mismo dato. La lista NO cuantifica la venta en riesgo ni el lead time del proveedor —no están en el dato— y ninguna de las dos puntas los emite" },
     _provisional: true,
   },
   "capital/01/liquidar": {
@@ -613,7 +613,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "inventoryStatus", args: {}, focus: "frenado" }],   // vocabulario del arg, no el estado
     sinTool: null,
     concordancia: { estado: "reconciled",
-      razon: "el capital de cada fila concuerda exacto con `inventoryStatus{focus:'frenado'}` en los tres escenarios. LÍMITE DE LA ACCIÓN que esta lista propone: liquidar y rebajar sí; TRANSFERIR entre bodegas no se puede evaluar mientras ningún SKU aparezca en más de una (`capability.transferenciaCapability`, la misma cuenta que declara el límite en la vista)" },
+      razon: "el capital de cada fila concuerda exacto con `inventoryStatus{focus:'frenado'}` en el cruce del gate de concordancia. LÍMITE DE LA ACCIÓN que esta lista propone: liquidar y rebajar sí; TRANSFERIR entre bodegas no se puede evaluar mientras ningún SKU aparezca en más de una (`capability.transferenciaCapability`, la misma cuenta que declara el límite en la vista)" },
     _provisional: true,
   },
   "capital/01/simulaciones": {
@@ -638,7 +638,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "queryMetric", args: { metric: "capital", dimension: "sku" } }],
     sinTool: null,
     concordancia: { estado: "reconciled",
-      razon: "el capital por SKU de las barras y el que autoriza `queryMetric{capital, sku}` es el mismo campo (`skuInventario.stockUSD`) del mismo escenario: concuerdan exacto en los tres. El ledger lista más SKU que las barras porque la vista corta el top — mismo universo, distinto tope" },
+      razon: "el capital por SKU de las barras y el que autoriza `queryMetric{capital, sku}` es el mismo campo (`skuInventario.stockUSD`): concuerdan exacto en el cruce del gate de concordancia. El ledger lista más SKU que las barras porque la vista corta el top — mismo universo, distinto tope" },
     _provisional: true,
   },
   "capital/01/alertas": {
@@ -653,7 +653,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "inventoryStatus", args: {}, focus: "frenado" }],
     sinTool: null,
     concordancia: { estado: "reconciled",
-      razon: "el dinero de la tira es el capital INMOVILIZADO de los SKU críticos y `inventoryStatus{focus:'frenado'}` autoriza esa misma cifra: concuerdan exacto en los tres escenarios. Con el focus implícito la tira quedaba respaldada por el capital del inventario entero, que es otra cifra correcta del mismo nombre" },
+      razon: "el dinero de la tira es el capital INMOVILIZADO de los SKU críticos y `inventoryStatus{focus:'frenado'}` autoriza esa misma cifra: concuerdan exacto en el cruce del gate de concordancia. Con el focus implícito la tira quedaba respaldada por el capital del inventario entero, que es otra cifra correcta del mismo nombre" },
     _provisional: true,
   },
 
@@ -761,19 +761,19 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "gridTable", args: { dimension: "cliente" } }],
     sinTool: null,
     concordancia: { estado: "unsupported", campos: ["enJuego", "lectura", "accion"],
-      razon: "las columnas del DATO (venta, unidades, acciones comerciales, contribución y margen por cuenta) salen de la misma fuente del mismo escenario que `gridTable{cliente}`. Lo que ninguna tool emite es la CAPA DEL ASESOR que esta grilla suma: «En juego $», la microlectura y la Acción son la salida de los detectores del diagnose sobre esa fila —no columnas de la entidad—, y el chip de Acción es una regla de decisión del módulo. En esta pestaña ese «En juego $» es margen no capturado y carga sobre el target: $5.0M en bonanza, $7.3M en tensión, $9.5M en crisis" },
+      razon: "las columnas del DATO (venta, unidades, acciones comerciales, contribución y margen por cuenta) salen de la misma fuente y la misma base que `gridTable{cliente}`. Lo que ninguna tool emite es la CAPA DEL ASESOR que esta grilla suma: «En juego $», la microlectura y la Acción son la salida de los detectores del diagnose sobre esa fila —no columnas de la entidad—, y el chip de Acción es una regla de decisión del módulo. En esta pestaña ese «En juego $» es margen no capturado y carga sobre el target: $5.0M sobre la base real" },
   },
   "comercial/otro/cuadro-mando-sku": {
     vista: "comercial", seccion: "otro", tipo: "tabla", label: "El Cuadro de mando · SKU",
     builder: "cuadro:sku", campo: "rows", universoCampo: "rows",
-    metrica: "margen", eje: "sku", periodo: "año cerrado · dato base, sin escenario",
+    metrica: "margen", eje: "sku", periodo: "año cerrado · dato base directo",
     universo: { kind: "eje", label: "todos los SKU del catálogo: el margen del año y el capital de la foto de inventario, en la misma fila", cierraCon: null },
     comparacion: "benchmark", estatusDefault: "indicado", estatusCampo: null,
     controles: ["dim", "orden", "modo", "busca", "solosel"],
     evidencia: [{ tool: "gridTable", args: { dimension: "sku" } }],
     sinTool: null,
     concordancia: { estado: "unsupported", campos: ["enJuego", "lectura", "accion", "capital", "rotacion"],
-      razon: "el margen por SKU concuerda con `gridTable{sku}`. Lo que la evidencia declarada NO entrega es el resto de la fila: «En juego $», la microlectura y la Acción son la capa del asesor (detectores del diagnose), y las columnas Capital y Rotación vienen del INVENTARIO, un universo que no reconcilia con la venta del mismo SKU (`inventario` ↔ `venta_comercial` en config/contract/figureType.js: miles vs dólares crudos y unidades que difieren entre 4x y 35x). En esta pestaña «En juego $» es capital inmovilizado: $33.2K en bonanza y tensión, $43.0K en crisis — no margen" },
+      razon: "el margen por SKU concuerda con `gridTable{sku}`. Lo que la evidencia declarada NO entrega es el resto de la fila: «En juego $», la microlectura y la Acción son la capa del asesor (detectores del diagnose), y las columnas Capital y Rotación vienen del INVENTARIO, un universo que no reconcilia con la venta del mismo SKU (`inventario` ↔ `venta_comercial` en config/contract/figureType.js: miles vs dólares crudos y unidades que difieren entre 4x y 35x). En esta pestaña «En juego $» es capital inmovilizado: $33.2K sobre la base real — no margen" },
   },
   "comercial/otro/cuadro-mando-marca": {
     vista: "comercial", seccion: "otro", tipo: "tabla", label: "El Cuadro de mando · marcas",
@@ -786,7 +786,7 @@ export const VIEW_MANIFEST = {
     sinTool: null,
     // ÉSTE ES EL CASO QUE EL OWNER NOMBRÓ. La misma columna, la misma etiqueta, el mismo formato, dos universos.
     concordancia: { estado: "unsupported", campos: ["enJuego", "lectura", "accion"],
-      razon: "la venta, las acciones comerciales, la contribución y el margen por marca concuerdan con `gridTable{marca}`. La columna «En juego $» NO: en esta pestaña no es margen no capturado sino CAPITAL INMOVILIZADO agregado por marca desde el inventario —$33.2K en bonanza, contra $5.0M de la pestaña de clientes en el mismo escenario, 151 veces menos bajo la misma etiqueta—, y es capital que ninguna tool agrega por marca (el detector lo emite por SKU). Los dos universos están declarados divergentes en config/contract/figureType.js: la venta comercial se almacena en miles y el inventario en dólares crudos, así que la columna no se puede leer como parte de la misma fila" },
+      razon: "la venta, las acciones comerciales, la contribución y el margen por marca concuerdan con `gridTable{marca}`. La columna «En juego $» NO: en esta pestaña no es margen no capturado sino CAPITAL INMOVILIZADO agregado por marca desde el inventario —$33.2K, contra $5.0M de la pestaña de clientes, 151 veces menos bajo la misma etiqueta—, y es capital que ninguna tool agrega por marca (el detector lo emite por SKU). Los dos universos están declarados divergentes en config/contract/figureType.js: la venta comercial se almacena en miles y el inventario en dólares crudos, así que la columna no se puede leer como parte de la misma fila" },
   },
   "capital/otro/cuadro-mando-bodega": {
     vista: "capital", seccion: "otro", tipo: "tabla", label: "El Cuadro de mando · bodegas",
@@ -806,7 +806,7 @@ export const VIEW_MANIFEST = {
     sinTool: null,
     // MEDIDO, no supuesto: el cruce builder↔ledger encuentra 6 de 12 rotaciones que no cierran, y son de redondeo.
     concordancia: { estado: "divergent", campos: ["rotacion"], toolsQueNoReconcilian: ["queryMetric"],
-      razon: "el capital por bodega concuerda exacto con `queryMetric{capital, bodega}`. La ROTACIÓN no: esta grilla redondea el promedio de la bodega a un decimal ANTES de guardarlo y `queryMetric{rotacion, bodega}` conserva la precisión completa — 5,0x contra 5,025x y 5,3x contra 5,25x, en 6 de las 12 celdas de los tres escenarios (entre 0,5% y 0,9%). En pantalla las dos se ven iguales porque las dos se pintan con un decimal, y por eso el desacuerdo nunca iba a aparecer solo: ordenar por esa columna sí puede diferir. Lo que además la evidencia no entrega es la PARTICIÓN sano/inmovilizado ni su porcentaje —la definición de inmovilizado (en alerta o rotación < 2) vive en Sentrix—, ni «En juego $», la microlectura y la Acción, que son la capa del asesor. Esta pestaña es la única del Cuadro donde el «En juego $» y el resto de la fila comparten universo, porque las dos cifras son inventario" },
+      razon: "el capital por bodega concuerda exacto con `queryMetric{capital, bodega}`. La ROTACIÓN no: esta grilla redondea el promedio de la bodega a un decimal ANTES de guardarlo y `queryMetric{rotacion, bodega}` conserva la precisión completa — 5,0x contra 5,025x y 5,3x contra 5,25x, en 6 de las 12 celdas del cruce del gate (entre 0,5% y 0,9%). En pantalla las dos se ven iguales porque las dos se pintan con un decimal, y por eso el desacuerdo nunca iba a aparecer solo: ordenar por esa columna sí puede diferir. Lo que además la evidencia no entrega es la PARTICIÓN sano/inmovilizado ni su porcentaje —la definición de inmovilizado (en alerta o rotación < 2) vive en Sentrix—, ni «En juego $», la microlectura y la Acción, que son la capa del asesor. Esta pestaña es la única del Cuadro donde el «En juego $» y el resto de la fila comparten universo, porque las dos cifras son inventario" },
   },
 
   // ── LA TABLA-RING · el foco contra su promedio, su par instructivo y el mejor en clase ──────────────────────
@@ -819,12 +819,12 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "marginRead", args: { dimension: "cliente" } }],
     sinTool: null,
     concordancia: { estado: "unsupported", campos: ["rows[role='peer']", "rows[role='avg']", "costoTechoK"],
-      razon: "el margen, la carga y la contribución de las filas reales concuerdan con `marginRead{cliente}` del mismo escenario. Lo que ninguna tool produce es el RING: la ELECCIÓN del par instructivo (la cuenta de carga más parecida entre las que superan al foco) es una regla de decisión del módulo, la fila «Promedio interno» es un promedio simple de la cartera que el ledger no emite como cifra propia, y el techo de recuperación por costo es una cuenta de esta pieza. El ring es la lectura, no el dato" },
+      razon: "el margen, la carga y la contribución de las filas reales concuerdan con `marginRead{cliente}` sobre la misma base. Lo que ninguna tool produce es el RING: la ELECCIÓN del par instructivo (la cuenta de carga más parecida entre las que superan al foco) es una regla de decisión del módulo, la fila «Promedio interno» es un promedio simple de la cartera que el ledger no emite como cifra propia, y el techo de recuperación por costo es una cuenta de esta pieza. El ring es la lectura, no el dato" },
   },
   "comercial/otro/control-ring-sku": {
     vista: "comercial", seccion: "otro", tipo: "tabla", label: "El Control · el ring de un SKU",
     builder: "ring:sku", campo: "rows", universoCampo: "rows", entidadCampo: "focus",
-    metrica: "contribucion", eje: "sku", periodo: "año cerrado · dato base, sin escenario",
+    metrica: "contribucion", eje: "sku", periodo: "año cerrado · dato base directo",
     universo: { kind: "seleccion", label: "el foco contra su familia (o el catálogo entero si la familia es chica), su promedio y el mejor en clase", cierraCon: null },
     comparacion: "promedio_cartera", estatusDefault: "indicado", estatusCampo: null, controles: [],
     evidencia: [{ tool: "marginRead", args: { dimension: "sku" } }],
@@ -837,7 +837,7 @@ export const VIEW_MANIFEST = {
   "comercial/otro/control-ring-marca": {
     vista: "comercial", seccion: "otro", tipo: "tabla", label: "El Control · el ring de una marca",
     builder: "ring:marca", campo: "rows", universoCampo: "rows", entidadCampo: "focus",
-    metrica: "contribucion", eje: "marca", periodo: "año cerrado · dato base, sin escenario",
+    metrica: "contribucion", eje: "marca", periodo: "año cerrado · dato base directo",
     universo: { kind: "seleccion", label: "la marca contra las demás marcas, agregadas desde sus SKU", cierraCon: null },
     comparacion: "promedio_cartera", estatusDefault: "indicado", estatusCampo: null, controles: [],
     evidencia: [{ tool: "marginRead", args: { dimension: "marca" } }],
@@ -857,7 +857,7 @@ export const VIEW_MANIFEST = {
     ],
     sinTool: null,
     concordancia: { estado: "unsupported", campos: ["inmovilizado", "rows[role='peer']", "rows[role='avg']", "quickWinK", "estructuralK"],
-      razon: "el capital y la rotación del foco concuerdan con `queryMetric{capital|rotacion, bodega}` del mismo escenario. Lo que la evidencia declarada no entrega es la partición inmovilizado/sano, la elección del par, la fila de promedio ni los dos caminos que la pieza cuantifica. Y arrastra el límite ya declarado de la cara: TRANSFERIR entre bodegas no es evaluable mientras ningún SKU aparezca en más de una — por eso el título de la tarjeta estructural lo emite el motor (`caminoEstructural`) y no la vista" },
+      razon: "el capital y la rotación del foco concuerdan con `queryMetric{capital|rotacion, bodega}` sobre la misma base. Lo que la evidencia declarada no entrega es la partición inmovilizado/sano, la elección del par, la fila de promedio ni los dos caminos que la pieza cuantifica. Y arrastra el límite ya declarado de la cara: TRANSFERIR entre bodegas no es evaluable mientras ningún SKU aparezca en más de una — por eso el título de la tarjeta estructural lo emite el motor (`caminoEstructural`) y no la vista" },
   },
 
   // ── EL RECIBO FRÍO · «no me creas, acá está la cuenta» ──────────────────────────────────────────────────────
@@ -905,7 +905,7 @@ export const VIEW_MANIFEST = {
   "comercial/otro/simulacion-supuesto": {
     vista: "comercial", seccion: "otro", tipo: "tabla", label: "La proyección · el supuesto sobre la venta",
     builder: "simulacion:comercial", campo: "projection", universoCampo: "projection",
-    metrica: "ventas", eje: "cliente", periodo: "año cerrado · dato base, sin escenario",
+    metrica: "ventas", eje: "cliente", periodo: "año cerrado · dato base directo",
     universo: { kind: "eje", label: "todas las filas del eje con su valor actual, su valor bajo el supuesto y su impacto", cierraCon: "impacto = supuesto − actual, fila por fila" },
     comparacion: null, estatusDefault: "indicado", estatusCampo: null,
     controles: ["metrica", "eje", "pct"],
@@ -920,7 +920,7 @@ export const VIEW_MANIFEST = {
     // aparte, contra la venta oficial del escenario. `composeSpecSimulate` no declara `scenario`, así que el que
     // `runPlan` inyecta en toda call se descarta en silencio — el mismo defecto que la decisión 4 cerró en `gridTable`.
     concordancia: { estado: "divergent", campos: ["projection[].actual", "total.actual"], toolsQueNoReconcilian: ["queryMetric"],
-      razon: "la columna «Actual» no es la venta que muestra la pantalla: `composeSpecSimulate` no declara el parámetro `scenario`, así que carga la fuente base y descarta el escenario del turno. Afirma $100.0M en los tres escenarios contra los $99.9M que devuelve `queryMetric{ventas, cliente}` en bonanza (0,1%), $92.8M en tensión (7,7%) y $81.1M en crisis (23,3%). El supuesto y el impacto se calculan sobre esa base, así que el desvío viaja a todas las columnas. La tool `simulate` no se declara como evidencia a propósito: exige el supuesto, que sólo trae la pregunta del usuario" },
+      razon: "la columna «Actual» no es la venta que muestra la pantalla: `composeSpecSimulate` no declara el parámetro `scenario`, así que carga la fuente base directa: contra la base real la diferencia es el ~0,1% estructural ($100.0M vs los $99.9M de `queryMetric{ventas, cliente}`). El supuesto y el impacto se calculan sobre esa base, así que ese desvío viaja a todas las columnas. La tool `simulate` no se declara como evidencia a propósito: exige el supuesto, que sólo trae la pregunta del usuario" },
   },
   "capital/otro/simulacion-capital": {
     vista: "capital", seccion: "otro", tipo: "tabla", label: "La proyección · el supuesto sobre el capital",
@@ -932,7 +932,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "queryMetric", args: { metric: "capital", dimension: "sku" } }],
     sinTool: null,
     concordancia: { estado: "unsupported", campos: ["projection[].supuesto", "total.supuesto"],
-      razon: "el capital actual por SKU coincide hoy con el que devuelve `queryMetric{capital, sku}` ($135.0K de total en los tres escenarios), pero por una coincidencia del dato y no por contrato: esta proyección corre sobre la fuente base porque `composeSpecSimulate` no declara `scenario`, y el inventario de este tenant no se mueve entre escenarios. El día que se mueva, la columna «Actual» dejará de ser la de la pantalla sin que nada avise — es el mismo defecto que en la proyección de venta ya se mide en 23,3%. Lo que además ninguna tool afirma es el SUPUESTO: es una proyección declarada, no un dato observado, y nace en esta pieza" },
+      razon: "el capital actual por SKU coincide hoy con el que devuelve `queryMetric{capital, sku}` ($135.0K de total en el cruce del gate de concordancia), pero por una coincidencia del dato y no por contrato: esta proyección corre sobre la fuente base directa (`composeSpecSimulate` no declara `scenario`) y hoy coincide porque el inventario del tenant es la misma foto. Si la fuente y la pantalla divergieran, la columna «Actual» dejaría de ser la de la pantalla sin que nada avise — el mismo defecto que la proyección de venta arrastra (hoy, el ~0,1% estructural). Lo que además ninguna tool afirma es el SUPUESTO: es una proyección declarada, no un dato observado, y nace en esta pieza" },
   },
 
   /* ══ FLUJO COMERCIAL · LA QUINTA CARA ENTRA AL CONTRATO (owner 2026-08-30, palabra dada) ═══════════════════
