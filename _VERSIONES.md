@@ -12,6 +12,48 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.13 — lista para desplegar
+
+**El cobro deja de ser una promesa de la plantilla: la hoja Abonos alimenta Flujo Comercial, y el plazo de pago
+se declara en la app.** Es el frente que el owner frenó antes del deploy con la razón exacta: «no quiero subir
+una plantilla v2 que pide Abonos si flujoComercial queda null».
+
+**Uno · el cobro sale del archivo del negocio.** Vendido a crédito, abonado y saldo pendiente, por cliente y en
+total. Solo entra la venta **a crédito** —aporte del owner: «puede resultar que no es toda porque pagó al
+contado»—: incluir el contado infla el pendiente y le inventa al cliente una mora que no tiene. Las líneas de un
+mismo folio son **un documento**, que es la razón por la que Abonos es una hoja y no una columna: el abono va
+contra la factura, no contra una línea de producto. Nada se descarta en silencio — un abono contra un folio que
+no existe, un cliente que no coincide con el de su factura, un folio pagado de más: los tres se declaran.
+
+**Dos · el plazo de pago, general y por cliente.** Un campo para el plazo general de la empresa y, desplegable,
+uno por cliente que lo pisa. Sin plazo propio se usa el general. Es **política del negocio, no dato del
+período**, así que no entra por la planilla: se declara una vez y aplica a todo lo que venga. Se guarda del lado
+del servidor, con la firma de quién lo declaró, y **se arrastra a la carga del mes siguiente** — sin eso el
+usuario declararía sus plazos una vez, subiría el archivo del mes que viene y el vencido volvería a una raya sin
+que nadie hubiera cambiado nada.
+
+**Y la regla que no se movió:** sin plazo declarado el saldo vencido va en **raya, nunca en cero**, y nadie cae a
+un supuesto de 30 días. Con la política a medio llenar, el que tiene plazo muestra su cifra, el que no muestra
+raya, y el total **declara a cuántos cubre y nombra a los que dejó afuera**.
+
+**Tres defectos que ninguna prueba de aritmética veía.** Había **dos claves `flujoComercial`** en el mismo objeto
+del dataset y la vieja pisaba a la nueva: el módulo probado solo daba las cifras correctas y la cara seguía
+vacía. El camino de la planilla devolvía una **forma propia** —`total` en vez de `kpis`— así que la pestaña se
+habría quedado en blanco con el dato cargado. Y una carga que la base rechazaba **se activaba en memoria
+diciendo que todo salió bien**: el archivo desaparecía en la próxima recarga, sin aviso.
+
+**La vitrina pública, corregida.** El demo servía la siembra del 27 de agosto: nombre bien, 13 clientes bien, 13
+SKU bien — y sin Flujo Comercial, porque la pestaña se agregó después. El sembrador preguntaba «¿hay una
+siembra?» en vez de «¿es la de hoy?». Un demo que se queda atrás es peor que uno que falta: nadie lo mira dos
+veces.
+
+**Base de datos:** hay que correr las migraciones **005** y **006** antes de desplegar. Sin ellas, subir una
+planilla falla y el plazo no se puede guardar. Las dos ya están corridas en el proyecto.
+
+**Verificado en vivo contra Supabase:** 25 OK · 0 FALLA en el verificador, 24 OK · 0 FALLA en el viaje del plazo
+(declarar, recargar, subir otra planilla y comprobar que el plazo sobrevive). Candados: **191 PASS · 0 FAIL ·
+0 TOCARON LA RED · 0 CON CREDENCIAL VIVA**.
+
 ## 2.12 — producción · tag `v2.12`
 
 **Flujo Comercial: columnas parejas, cada columna explica su cuenta, y el gráfico responde al cursor.** Tres

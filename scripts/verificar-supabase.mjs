@@ -94,9 +94,20 @@ console.log("0 · EL ESQUEMA · ¿la base tiene lo que este código le va a pedi
     `${f.motivo || ""} ${f.detalle || ""}`.trim().slice(0, 220));
   if (sinFirma) atrasada = "005";
 
+  /* LA POLÍTICA DE COBRO (006) · el plazo de pago. Se la llama con un general fuera de rango: si la función
+   * existe, RECHAZA con su propio mensaje —que es la respuesta que confirma que está—; si no existe, contesta
+   * PGRST202. Se prueba con un valor inválido a propósito para no escribirle una política a nadie. */
+  const c = await db.llamarFuncion("adi_declarar_cobro", {
+    p_dias_general: 99999, p_por_cliente: {}, p_actor_id: null, p_actor_label: null, p_actor_rol: null,
+  }, { pase });
+  const sinCobro = /PGRST202|Could not find the function/i.test(`${c.motivo || ""} ${c.detalle || ""}`);
+  chequeo(!sinCobro, "adi_declarar_cobro existe (migración 006)",
+    `${c.motivo || ""} ${c.detalle || ""}`.trim().slice(0, 220));
+  if (sinCobro) atrasada = "006";
+
   if (atrasada) {
     console.log(`\n  ⚠️ LA BASE ESTÁ ATRASADA: falta correr la migración ${atrasada}.`);
-    console.log(`     Está en db/migraciones/${atrasada}_actor_y_roles.sql — se pega entera en el SQL Editor de Supabase.`);
+    console.log(`     Está en db/migraciones/ (el archivo que empieza con ${atrasada}) — se pega entero en el SQL Editor de Supabase.`);
     console.log("     Hasta que se corra, subir una planilla FALLA. Se frena acá, porque todo lo de abajo mentiría.\n");
     process.exit(1);
   }
