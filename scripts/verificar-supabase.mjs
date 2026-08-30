@@ -250,6 +250,17 @@ console.log("\n5 · EL PRODUCTO · lo que `handleData` le entrega de verdad al n
   chequeo(r.dataset && r.dataset.id === TENANT_DEMO.id && r.dataset.nombre === TENANT_DEMO.nombre,
     `…y es el negocio que se sembró: ${r.dataset && r.dataset.nombre}`);
 
+  /* ⚠️ Y QUE NO SE HAYA QUEDADO ATRÁS, que es distinto de ser el negocio correcto y ya pasó una vez. La siembra
+   * del 27 de agosto tenía el nombre bien, los 13 clientes bien y los 13 SKU bien — y le faltaba `flujoComercial`,
+   * porque la pestaña se agregó después. El visitante sin código veía un demo impecable al que le faltaba una
+   * cara entera, sin un error en ninguna parte. Un demo que se queda atrás es peor que uno que falta: nadie lo
+   * mira dos veces. Se comparan las LLAVES, no el contenido: el pack guardado es una foto legítima de un momento
+   * y sus cifras pueden diferir, pero si le falta una sección es que la siembra quedó vieja. */
+  const faltantes = Object.keys(TENANT_DEMO).filter((k) => !(k in (r.dataset || {})));
+  chequeo(faltantes.length === 0,
+    "…y NO se quedó atrás del demo del código: no le falta ninguna sección",
+    faltantes.length ? `le faltan: ${faltantes.join(" · ")} — correr \`node scripts/sembrar-demo.mjs\`` : undefined);
+
   const demo = await handleData({ op: "demo" }, ENV);
   chequeo(demo.ok && demo.esDemo === true, "«mirar el demo» responde el ejemplo, marcado como tal");
 }
