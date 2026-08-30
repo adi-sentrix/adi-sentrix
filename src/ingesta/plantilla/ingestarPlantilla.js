@@ -59,6 +59,14 @@ export function ingestarPlantilla(archivo, { nombreArchivo = "", fechaCarga = nu
 
   return {
     ok: true, dataset: d,
+    /* LOS HECHOS DEL ARCHIVO, tal como los normalizó el validador (owner 2026-08-30: la carga es histórica).
+     * Son el grano fino que la persistencia guarda DENTRO del pack para poder fusionar por período: sin las
+     * filas, «agregar septiembre» solo podría sumar agregados — y un margen de dos cargas sumadas no es el
+     * margen de nadie. El pack ya era autosuficiente por diseño; esto lo hace autosuficiente de verdad. */
+    hechos: {
+      parametros: v.parametros, fechaCarga: fechaCarga || null, inventarioDe: fechaCarga || null,
+      Ventas: v.tablas.Ventas || [], Inventario: v.tablas.Inventario || [], Abonos: v.tablas.Abonos || [],
+    },
     preview: { ...base, parametros: v.parametros, calculado: m.calculado, bloqueado: m.bloqueado,
       avisos: [...v.avisos, ...m.avisos], periodos: m.periodos, totales,
       disponibilidad: disponibilidadSentrix(d) },

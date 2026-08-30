@@ -28,7 +28,8 @@ import { plantillaVacia, plantillaEjemplo } from "./plantilla/generarPlantilla.j
 import { POLICY_CONFIG } from "../config/businessPolicy.js";
 import { PLANTILLA_VERSION } from "../config/contract/plantilla.js";
 import { verifyAccessCode } from "../adi/llm/accessToken.js";
-import { persistirCarga, cargasPrevias, activarVersion, declararCobro, hashSha256 } from "./persistirCarga.server.js";
+import { persistirCarga, cargasPrevias, activarVersion, declararCobro, hashSha256, historiaActiva } from "./persistirCarga.server.js";
+import { diffDeCarga, periodosDeHechos } from "./historico.js";
 
 /* De qué empresa es esta carga. Sale del código firmado y de ningún otro lado.
  *
@@ -94,10 +95,14 @@ export async function handleIngesta(body = {}, env) {
   if (body.op === "activar") {
     const s = await sesionDeLaCarga(body.access, env);
     if (!s) return { ok: false, motivo: "sin sesión con empresa: no se puede activar" };
-    const r = await activarVersion({ tenantId: s.tenantId, versionId: body.versionId, moneda: body.moneda, actor: s.actor, env });
+    /* `reemplazar` viaja EXPLÍCITO desde la pantalla (owner 2026-08-30): la lista de períodos que el usuario
+     * confirmó pisar. Sin ella, un período repetido corta la activación — el default es cancelar. */
+    const r = await activarVersion({ tenantId: s.tenantId, versionId: body.versionId, moneda: body.moneda,
+      reemplazar: Array.isArray(body.reemplazar) ? body.reemplazar : [], actor: s.actor, env });
     return r.activada
-      ? { ok: true, op: "activar", version: r.version, sello: r.sello, moneda: r.moneda }
-      : { ok: false, op: "activar", motivo: r.motivo };
+      ? { ok: true, op: "activar", version: r.version, sello: r.sello, moneda: r.moneda,
+          ...(r.alcance ? { alcance: r.alcance } : {}), ...(r.pack ? { dataset: r.pack } : {}) }
+      : { ok: false, op: "activar", motivo: r.motivo, ...(r.sinDecision ? { sinDecision: r.sinDecision } : {}) };
   }
 
   /* DECLARAR EL PLAZO DE PAGO · política del negocio, no dato del período (owner 2026-08-30).
@@ -155,12 +160,25 @@ export async function handleIngesta(body = {}, env) {
    * `persistencia`; no se convierte en un rechazo del archivo. */
   let persistencia = { guardado: false, sinBase: true, motivo: "base no configurada" };
   let repetido = null;
+  /* LA HISTORIA, DECLARADA ANTES DE ACTIVAR (owner 2026-08-30): qué períodos ya existían, qué trae el archivo,
+   * y si alguno se pisa — con la pregunta. Sin sesión o sin base no hay historia guardada que comparar: el
+   * diff igual viaja, describiendo la primera carga. */
+  let historia = diffDeCarga({ previos: [], delArchivo: periodosDeHechos(r.hechos) });
   try {
     const s = await sesionDeLaCarga(body.access, env);
     const empresa = s ? s.tenantId : null;
     if (!empresa) {
       persistencia = { guardado: false, sinBase: true, motivo: "sin sesión con empresa: no se guarda" };
     } else {
+      const activa = await historiaActiva({ tenantId: empresa, env });
+      historia = diffDeCarga({ previos: activa.hay ? activa.periodos : [], delArchivo: periodosDeHechos(r.hechos) });
+      /* Una historia activa SIN hechos es una versión de antes de este cambio: se puede decir qué había, pero
+       * no fusionar con ello. Se declara — activar reemplazaría lo anterior completo, como hasta hoy. */
+      if (activa.hay && !activa.hechos) {
+        historia = { ...historia, sinDetallePrevio: true,
+          texto: `${historia.texto} Las cargas anteriores no guardaron su detalle por mes, así que no se pueden combinar: si activas este archivo, pasa a ser la historia completa.`,
+          pideDecision: false, repetidos: [], resultado: periodosDeHechos(r.hechos) };
+      }
       const hash = await hashSha256(buf);
       /* El aviso se calcula ANTES de insertar: después, la carga de recién sería siempre «una carga previa». */
       const previa = await cargasPrevias({ tenantId: empresa, hash, env });
@@ -170,7 +188,7 @@ export async function handleIngesta(body = {}, env) {
        * inactiva. Guardar acá el confirmado dejaría una fila afirmando algo que no pasó. Cuando el usuario
        * confirme (3.d), esa misma versión pasa a activa Y su sello pasa a confirmado: son el mismo acto. */
       persistencia = await persistirCarga({
-        tenantId: empresa, bytes: buf, nombreArchivo, dataset: r.dataset,
+        tenantId: empresa, bytes: buf, nombreArchivo, dataset: r.dataset, hechos: r.hechos,
         sello, plantillaVersion: PLANTILLA_VERSION, hash, env, actor: s.actor,
       });
     }
@@ -182,7 +200,7 @@ export async function handleIngesta(body = {}, env) {
    * duplicar la redacción en React sería una segunda verdad sobre el mismo hallazgo. El sello viaja junto porque
    * la observación tiene que quedar pegada a las lecturas posteriores, no morir en el momento de confirmar. */
   return { ok: true, preview: r.preview, alarmas: lectura.alarmas, dataset: r.dataset,
-    persistencia, ...(repetido ? { repetido } : {}),
+    persistencia, historia, ...(repetido ? { repetido } : {}),
     apertura: textoDeApertura(lectura, { archivo: nombreArchivo }),
     sello,
     /* LOS DOS SELLOS SALEN DE LA MISMA FUNCIÓN, y por eso viajan los dos: el usuario todavía no decidió cuando

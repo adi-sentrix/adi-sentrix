@@ -162,7 +162,10 @@ console.log("=".repeat(100));
   const fuente = readFileSync("./src/ingesta/persistirCarga.server.js", "utf8");
   ok(/cobroAnterior/.test(fuente) && /perfil.*cobro/s.test(fuente),
     "la política se arrastra a la versión nueva al subir otra planilla");
-  ok(/pack: datasetConPolitica/.test(fuente),
+  /* Desde el histórico acumulado (2026-08-30) lo que se guarda es `packAGuardar` — el dataset CON política más
+   * los hechos por período. La garantía es la misma: nace de `datasetConPolitica`, nunca del original pelado. */
+  ok(/packAGuardar = hechos \? \{ \.\.\.datasetConPolitica, hechos \} : datasetConPolitica/.test(fuente)
+     && /pack: packAGuardar/.test(fuente),
     "…y es ESE dataset el que se guarda, no el original sin política");
 
   /* La operación existe y está cableada al mismo endpoint que ya sabe quién es el usuario. */

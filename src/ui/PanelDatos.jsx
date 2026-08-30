@@ -92,6 +92,9 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, onVerDemo, act
   const [r, setR] = useState(null);                  // la respuesta del servidor
   const [error, setError] = useState(null);
   const [guardando, setGuardando] = useState(false);
+  /* ¿El usuario confirmó REEMPLAZAR los períodos repetidos? Arranca en false y no se preselecciona: el owner
+   * fue textual — «reemplazo explícito, no suma silenciosa» y el default es cancelar. */
+  const [aceptaReemplazo, setAceptaReemplazo] = useState(false);
   /* La moneda que el usuario elige cuando el archivo no la trae. Arranca VACÍA a propósito: preseleccionar una
    * sería suponerla, que es justo lo que la orden del owner prohíbe. */
   const [moneda, setMoneda] = useState("");
@@ -100,7 +103,7 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, onVerDemo, act
 
   async function subir(file) {
     if (!file) return;
-    setEstado("leyendo"); setError(null); setR(null);
+    setEstado("leyendo"); setError(null); setR(null); setAceptaReemplazo(false);
     try {
       const resp = await pedir({ archivo: await aBase64(file), nombre: file.name });
       setR(resp);
@@ -132,15 +135,22 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, onVerDemo, act
       setError(`${p.motivo || "no se pudieron guardar estos datos"}. No se activó nada: al recargar se habrían perdido.`);
       return;
     }
+    /* LA HISTORIA ACUMULADA (owner 2026-08-30): lo que se activa en la sesión es lo que quedó activo en la
+     * base — la historia completa que devuelve el servidor—, no el archivo suelto. Y el reemplazo de períodos
+     * repetidos viaja EXPLÍCITO: solo los que el usuario confirmó pisar. */
+    let datasetServidor = null, alcance = null;
     if (versionId) {
       setGuardando(true);
       try {
-        const resp = await pedir({ op: "activar", versionId, moneda: monedaElegida || undefined });
+        const reemplazar = aceptaReemplazo ? ((r.historia && r.historia.repetidos) || []) : [];
+        const resp = await pedir({ op: "activar", versionId, moneda: monedaElegida || undefined, reemplazar });
         if (!resp || !resp.ok) {
           setGuardando(false);
           setError((resp && resp.motivo) || "no se pudieron guardar estos datos");
           return;
         }
+        datasetServidor = resp.dataset || null;
+        alcance = resp.alcance || null;
       } catch {
         setGuardando(false);
         setError("no se pudo contactar al servidor para guardar estos datos");
@@ -151,10 +161,12 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, onVerDemo, act
     /* La moneda entra al dataset ANTES de activarlo en la sesión: si no, la pantalla mostraría los montos sin
      * símbolo hasta la próxima recarga, aunque el usuario la acabe de declarar. En la base ya quedó escrita
      * dentro del pack, en el mismo acto de activar. */
+    const base = datasetServidor || r.dataset;
     const dataset = monedaElegida && !monedaDelArchivo
-      ? { ...r.dataset, perfil: { ...(r.dataset.perfil || {}), moneda: monedaElegida } }
-      : r.dataset;
-    onActivar(dataset, r.selloConfirmado, { nombre: p.archivo, empresa: (dataset && dataset.nombre) || p.archivo });
+      ? { ...base, perfil: { ...(base.perfil || {}), moneda: monedaElegida } }
+      : base;
+    onActivar(dataset, r.selloConfirmado, { nombre: p.archivo, empresa: (dataset && dataset.nombre) || p.archivo,
+      ...(alcance ? { alcance } : {}) });
   }
 
   async function bajarPlantilla(conEjemplo) {
@@ -234,7 +246,10 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, onVerDemo, act
           border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div style={{ fontFamily: SANS, fontSize: 12, color: C.textSub, minWidth: 0 }}>
             {activo
-              ? <>Ahora ADI responde sobre <b style={{ color: C.text }}>{activo.empresa}</b>, de <span style={{ fontFamily: MONO, fontSize: 11.5 }}>{activo.nombre}</span>.</>
+              ? <>Ahora ADI responde sobre <b style={{ color: C.text }}>{activo.empresa}</b>, de <span style={{ fontFamily: MONO, fontSize: 11.5 }}>{activo.nombre}</span>.
+                  {/* EL ALCANCE, DESPUÉS DE ACTIVAR (owner 2026-08-30): hasta dónde llega la historia, con los
+                      huecos nombrados. La frase viene armada del servidor — acá no se calcula. */}
+                  {activo.alcance && activo.alcance.texto ? <> {activo.alcance.texto}</> : null}</>
               : <>Ahora ADI responde sobre el <b style={{ color: C.text }}>negocio de demostración</b>.</>}
           </div>
           {activo && <Boton onClick={onVolverAlDemo} testid="datos-volver-demo">Volver al demo</Boton>}
@@ -284,6 +299,33 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, onVerDemo, act
             <div style={{ fontFamily: SANS, fontSize: 12.8, color: C.textSub, lineHeight: 1.62, whiteSpace: "pre-line" }}>
               {r.apertura}
             </div>
+          </div>
+        )}
+
+        {/* ── paso 2b · LA HISTORIA · qué había, qué trae el archivo, y la pregunta si algo se pisa ─────
+            Owner 2026-08-30, textual: antes de activar se declara qué períodos ya existían y qué trae el
+            archivo; un período repetido es reemplazo EXPLÍCITO o cancelar — nunca suma silenciosa. El texto
+            viene del servidor (historico.js): acá no se redacta ni se calcula nada. */}
+        {estado === "listo" && r.historia && (
+          <div data-testid="datos-historia" style={{ marginTop: 18, padding: "15px 17px", borderRadius: 9,
+            background: r.historia.pideDecision ? "rgba(253,224,71,0.05)" : C.surfaceAlt,
+            border: `1px solid ${r.historia.pideDecision ? "rgba(253,224,71,0.22)" : C.border}` }}>
+            <Eyebrow>Tu historia de datos</Eyebrow>
+            <div style={{ fontFamily: SANS, fontSize: 12.8, color: C.textSub, lineHeight: 1.62 }}>
+              {r.historia.texto}
+            </div>
+            {r.historia.pideDecision && (
+              <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                {/* La decisión es un acto: ningún botón viene apretado. «Cancelar» limpia la carga entera,
+                    que es exactamente lo que la pregunta ofrece. */}
+                <Boton primario={aceptaReemplazo} testid="datos-reemplazar" onClick={() => setAceptaReemplazo(true)}>
+                  {aceptaReemplazo ? "✓ Reemplazar lo repetido" : "Reemplazar lo repetido"}
+                </Boton>
+                <Boton testid="datos-cancelar-reemplazo" onClick={() => { setEstado("vacio"); setR(null); setAceptaReemplazo(false); }}>
+                  Cancelar
+                </Boton>
+              </div>
+            )}
           </div>
         )}
 
@@ -402,14 +444,19 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, onVerDemo, act
 
             {/* ── paso 4 · confirmar ─────────────────────────────────────────────────────────────────── */}
             <div style={{ marginTop: 20, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              {/* Deshabilitado mientras guarda: dos clicks serían dos activaciones de la misma versión. */}
-              {/* Deshabilitado mientras guarda (dos clicks serían dos activaciones) y mientras falte la moneda:
-                  activar sin ella dejaría el pack guardado sin rotular y la pregunta ya no volvería a aparecer. */}
-              <Boton primario testid="datos-activar" onClick={confirmar} disabled={guardando || !monedaLista}>
+              {/* Deshabilitado mientras guarda (dos clicks serían dos activaciones), mientras falte la moneda
+                  (activar sin ella dejaría el pack guardado sin rotular y la pregunta no volvería a aparecer) y
+                  mientras haya períodos repetidos SIN decisión: reemplazar es explícito, el default es cancelar
+                  — y el servidor lo re-verifica igual, por si alguien fuerza el botón. */}
+              <Boton primario testid="datos-activar" onClick={confirmar}
+                disabled={guardando || !monedaLista || Boolean(r.historia && r.historia.pideDecision && !aceptaReemplazo)}>
                 {guardando ? "Guardando…" : (r.apertura ? "Seguir con estos números" : "Usar estos datos")}
               </Boton>
               {!monedaLista && !guardando && (
                 <span style={{ fontFamily: SANS, fontSize: 11.5, color: C.textMuted }}>Falta declarar la moneda.</span>
+              )}
+              {monedaLista && !guardando && Boolean(r.historia && r.historia.pideDecision && !aceptaReemplazo) && (
+                <span style={{ fontFamily: SANS, fontSize: 11.5, color: C.textMuted }}>Falta decidir qué hacer con los meses repetidos.</span>
               )}
               <Boton testid="datos-otro" onClick={() => { setEstado("vacio"); setR(null); }}>Subir otro archivo</Boton>
             </div>

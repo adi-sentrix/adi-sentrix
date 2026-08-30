@@ -29,6 +29,8 @@ import { emitirPase } from "../data/paseTenant.js";
 import { confirmarSello } from "./plausibilidad.js";
 import { monedaLimpia } from "../config/moneda.js";
 import { politicaLimpia } from "../config/politicaCobro.js";
+import { fusionarHechos, alcanceDeHistoria, periodosDeHechos, periodoInformadoDe } from "./historico.js";
+import { calcularDataset } from "./plantilla/motorKpi.js";
 
 const BUCKET = "adi-originales";
 const TIPO_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -45,7 +47,7 @@ export async function hashSha256(bytes) {
  * `cliente` se puede inyectar para ejercer esto con un doble, sin red y sin proyecto creado. */
 export async function persistirCarga({
   tenantId, bytes, nombreArchivo, dataset, sello, plantillaVersion,
-  tipo = "negocio", env, cliente, ttlSegundos, hash: hashDado, actor = null,
+  tipo = "negocio", env, cliente, ttlSegundos, hash: hashDado, actor = null, hechos = null,
 } = {}) {
   /* ⚠️ `sinBase` MARCA LOS DOS CASOS EN QUE NO GUARDAR ES LO CORRECTO —no hay empresa, no hay base— y los
    * separa de los FALLOS. Sin esa marca la pantalla los trataba a todos igual: activaba en memoria y le decía
@@ -125,6 +127,14 @@ export async function persistirCarga({
     ? { ...dataset, perfil: { ...(dataset.perfil || {}), cobro: cobroAnterior } }
     : dataset;
 
+  /* ── 3c · LOS HECHOS VIAJAN DENTRO DEL PACK (owner 2026-08-30: la carga es histórica) ─────────────────
+   * Las filas por período son lo que permite que la PRÓXIMA carga se FUSIONE en vez de reemplazar. Van adentro
+   * del pack —no en una columna nueva— porque el pack es autosuficiente por diseño y porque así el esquema no
+   * cambia: la versión vieja sin `hechos` sigue siendo válida, solo que no se puede fusionar con ella (y eso
+   * se declara al subir el archivo siguiente). En este momento el pack guarda los hechos DEL ARCHIVO: la
+   * fusión con la historia ocurre al ACTIVAR, que es cuando el usuario decide. */
+  const packAGuardar = hechos ? { ...datasetConPolitica, hechos } : datasetConPolitica;
+
   // ── 4 · la versión del pack · INACTIVA ───────────────────────────────────────────────────────────────
   /* El SELLO viaja adentro de la versión y no en `uploads`: califica las lecturas de ESTE pack, y si el usuario
    * asumió una observación eso tiene que volver con el pack al recargar la página. */
@@ -134,7 +144,7 @@ export async function persistirCarga({
       tenant_id: tenantId,
       upload_id: uploadId,
       version,
-      pack: datasetConPolitica,
+      pack: packAGuardar,
       sello: sello || null,
       plantilla_version: plantillaVersion || null,
       activa: false,
@@ -152,6 +162,32 @@ export async function persistirCarga({
   return { guardado: true, uploadId, versionId: alt.filas[0].id, version, hash, original };
 }
 
+/* historiaActiva({ tenantId, env, cliente }) → { hay, periodos, hechos, version } | { hay:false }
+ *
+ * QUÉ HISTORIA TIENE HOY ESTA EMPRESA: los períodos de la versión ACTIVA — la que ADI habla—, para que la
+ * pantalla pueda declarar el diff ANTES de activar («ya tenías enero-agosto; este archivo trae septiembre»).
+ * Una versión activa vieja, guardada antes de que el pack llevara hechos, devuelve `hechos: null` y sus
+ * períodos salen de la serie mensual del pack: se puede DECIR qué había, aunque no se pueda fusionar con ello. */
+export async function historiaActiva({ tenantId, env, cliente, ttlSegundos } = {}) {
+  if (!tenantId) return { hay: false };
+  const e = env || (typeof process !== "undefined" && process.env) || {};
+  const db = cliente || clienteDesdeEntorno(e);
+  if (!db) return { hay: false };
+  const p = await emitirPase({ tenantId, secreto: e.SUPABASE_JWT_SECRET || "", ...(ttlSegundos ? { ttlSegundos } : {}) });
+  if (!p.ok) return { hay: false };
+  const r = await db.seleccionar("fact_pack_versions", {
+    pase: p.pase, columnas: "version,pack", limite: 1,
+    filtros: { tenant_id: `eq.${tenantId}`, activa: "eq.true" },
+  });
+  if (!r.ok || !r.filas.length) return { hay: false };
+  const pack = r.filas[0].pack || {};
+  const hechos = pack.hechos || null;
+  const periodos = hechos
+    ? periodosDeHechos(hechos)
+    : [...new Set((pack.ventasMensuales || []).map((m) => m && m.periodo).filter(Boolean))].sort();
+  return { hay: true, version: r.filas[0].version, hechos, periodos };
+}
+
 /* activarVersion({ tenantId, versionId, env, cliente }) → { activada, version? , motivo? }
  *
  * ⚠️ ES EL MOMENTO EN QUE EL CLIENTE ADOPTA SUS DATOS, y por eso pasan dos cosas a la vez: la versión queda
@@ -165,7 +201,7 @@ export async function persistirCarga({
  *
  * NO REDACTA EL SELLO: lo lee de la fila guardada y lo pasa por `confirmarSello`, que es la MISMA función que
  * redacta el sello de la lectura. Dos redacciones del mismo hallazgo son dos verdades. */
-export async function activarVersion({ tenantId, versionId, moneda, actor = null, env, cliente, ttlSegundos } = {}) {
+export async function activarVersion({ tenantId, versionId, moneda, actor = null, env, cliente, ttlSegundos, reemplazar = [] } = {}) {
   if (!tenantId) return { activada: false, motivo: "sin sesión con empresa" };
   if (!versionId) return { activada: false, motivo: "no se dijo qué versión activar" };
 
@@ -177,14 +213,69 @@ export async function activarVersion({ tenantId, versionId, moneda, actor = null
   if (!p.ok) return { activada: false, motivo: `no se pudo emitir el pase: ${p.motivo}` };
 
   /* El sello guardado es el de la lectura, sin confirmar. Se lee para confirmarlo con la redacción de la casa,
-   * en vez de aceptar el que mande el navegador: quien decide qué dice el sello es el servidor. */
+   * en vez de aceptar el que mande el navegador: quien decide qué dice el sello es el servidor. El pack viaja
+   * en la misma lectura porque la fusión de abajo necesita sus hechos. */
   const previa = await db.seleccionar("fact_pack_versions", {
-    pase: p.pase, columnas: "sello", filtros: { id: `eq.${versionId}` }, limite: 1,
+    pase: p.pase, columnas: "sello,pack", filtros: { id: `eq.${versionId}` }, limite: 1,
   });
   if (!previa.ok) return { activada: false, motivo: `no se pudo leer la versión: ${previa.motivo}` };
   if (!previa.filas.length) return { activada: false, motivo: "esa versión no existe para esta empresa" };
 
   const sello = confirmarSello(previa.filas[0].sello);
+
+  /* ── LA FUSIÓN CON LA HISTORIA (owner 2026-08-30: la carga es histórica y explícita) ─────────────────────
+   * Hasta acá, activar una versión reemplazaba el pack ENTERO: subir abril-junio hacía desaparecer enero-marzo
+   * sin un aviso. Ahora, si la versión trae hechos, se fusionan con los de la versión activa — por período,
+   * sobre las FILAS, nunca sobre los agregados— y el pack acumulado se RECALCULA entero con el mismo motor.
+   *
+   * ⚠️ LA DECISIÓN SE RE-VERIFICA ACÁ, no solo en la pantalla: entre subir y activar la historia pudo cambiar
+   * (otra activación en el medio). Un período repetido que no venga nombrado en `reemplazar` corta la
+   * activación con el motivo — el default es cancelar, nunca pisar.
+   *
+   * ⚠️ EL PERÍODO INFORMADO del acumulado es el ÚLTIMO CON VENTAS de la historia, no el del archivo: re-subir
+   * un mayo corregido no puede volver «el período» de la Mesa a mayo cuando la historia llega a septiembre.
+   *
+   * Una versión SIN hechos (guardada antes de este cambio) se activa como siempre, sin fusión: no hay filas
+   * con qué fusionar, y fabricarlas desde los agregados sería inventar. */
+  const packVersion = previa.filas[0].pack || {};
+  let alcance = null;
+  let packFinal = null;
+  /* ⚠️ REACTIVAR UNA VERSIÓN VIEJA ES VOLVER ATRÁS, NO VOLVER A FUSIONAR. Una versión ya finalizada lleva la
+   * historia completa de su momento (`historiaCompleta`): se restaura TAL CUAL — que es lo que «reversible»
+   * significa. Si se fusionara contra la activa, todos sus meses serían «repetidos» y deshacer exigiría
+   * nombrarlos uno por uno para pisarlos con lo mismo que ya dicen. */
+  if (packVersion.hechos && packVersion.historiaCompleta) {
+    alcance = alcanceDeHistoria(periodosDeHechos(packVersion.hechos));
+    packFinal = packVersion;
+  } else if (packVersion.hechos) {
+    const activa = await historiaActiva({ tenantId, env: e, cliente: db, ttlSegundos });
+    const fusion = fusionarHechos({
+      previos: (activa.hay && activa.hechos) || null,
+      delArchivo: packVersion.hechos,
+      reemplazar: Array.isArray(reemplazar) ? reemplazar : [],
+    });
+    if (!fusion.ok) return { activada: false, motivo: fusion.motivo, sinDecision: fusion.sinDecision || null };
+
+    const h = fusion.hechos;
+    const m = calcularDataset({
+      parametros: { ...(h.parametros || {}), periodo_actual: periodoInformadoDe(h) || (h.parametros || {}).periodo_actual },
+      tablas: { Ventas: h.Ventas, Inventario: h.Inventario, Abonos: h.Abonos },
+      fechaCarga: h.fechaCarga,
+    });
+    /* El plazo de pago sobrevive a la fusión por la misma razón que sobrevivía a la carga: es política, no
+     * dato del período, y el recálculo desde las filas no lo conoce. Se toma del pack recién guardado (que ya
+     * lo arrastró) o, en su defecto, del activo. */
+    const cobro = (packVersion.perfil && packVersion.perfil.cobro) || null;
+    /* `historiaCompleta` sella que ESTE pack ya es la historia fusionada: la próxima activación de esta misma
+     * versión la restaura tal cual en vez de volver a fusionarla. */
+    packFinal = { ...m.dataset, ...(cobro ? { perfil: { ...m.dataset.perfil, cobro } } : {}), hechos: h, historiaCompleta: true };
+    alcance = alcanceDeHistoria(periodosDeHechos(h));
+
+    const upd = await db.actualizar("fact_pack_versions", {
+      pase: p.pase, filtros: { id: `eq.${versionId}` }, cambios: { pack: packFinal },
+    });
+    if (!upd.ok) return { activada: false, motivo: `no se pudo escribir la historia acumulada: ${upd.motivo}` };
+  }
 
   /* LA MONEDA se limpia acá y NO se completa: si el usuario no respondió y la planilla no la traía, viaja
    * nula y el pack queda como está. El pack sin moneda se rotula sin símbolo, que es lo honesto. */
@@ -198,7 +289,14 @@ export async function activarVersion({ tenantId, versionId, moneda, actor = null
   if (!r.ok) return { activada: false, motivo: `no se pudo activar: ${r.motivo}` };
   if (!r.filas.length) return { activada: false, motivo: "la base no confirmó la activación" };
 
-  return { activada: true, versionId, version: r.filas[0].version, sello, moneda: monedaDeclarada };
+  /* EL PACK ACUMULADO VUELVE AL LLAMADOR: la pantalla activa en la sesión LO QUE QUEDÓ ACTIVO en la base — la
+   * historia completa—, no el archivo suelto que acaba de subir. Sin esto, la sesión mostraría solo los meses
+   * del archivo hasta la próxima recarga. La moneda declarada al activar se refleja igual que en la base. */
+  const packSesion = packFinal && monedaDeclarada
+    ? { ...packFinal, perfil: { ...(packFinal.perfil || {}), moneda: monedaDeclarada } }
+    : packFinal;
+  return { activada: true, versionId, version: r.filas[0].version, sello, moneda: monedaDeclarada,
+    ...(alcance ? { alcance } : {}), ...(packSesion ? { pack: packSesion } : {}) };
 }
 
 /* cargasPrevias({ tenantId, hash, env, cliente }) → { hubo, cuando } | { hubo:false }
