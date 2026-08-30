@@ -12,6 +12,38 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.14 — producción · tag `v2.14`
+
+**ADI deja de hablar en una escala que no es la del negocio, responde la pregunta insignia, y la carga se vuelve
+histórica.** Nueve commits sobre la 2.13, tres frentes.
+
+**Uno · la escala es la del archivo del cliente, en todas partes.** El barrido A completo, en tres etapas
+gateadas: la carpeta que lee el cerebro de ADI (un negocio de $61 mil ya no aparece como $61 millones), la
+pantalla (las cards, el headline, el cobro), y la maquinaria honda (las herramientas del oráculo, los composers,
+el P&L). La escala la DECLARA el pack (`escalaComercial`) y viaja con cada versión: los packs viejos no se
+mueven un byte, y el demo quedó byte-idéntico — verificado con una red de paridad de 20 herramientas capturadas
+antes y después. De paso: «presupuesto $0» y «+0% vs presupuesto» sobre negocios sin presupuesto declarado
+pasaron a decirse con palabras, y el encabezado ya no declara «USD» fijo — dice la moneda declarada.
+
+**Dos · «cuánto me compró X el último mes» se responde.** Un puente determinístico entidad×período: con historia
+real cargada responde con el mes, la cifra del archivo y la variación («En agosto 2026, Depósito Riachuelo te
+compró $22.560 (345 unidades). En julio habían sido $24.029: −6,1%»); sobre el histórico de muestra declina
+honesto en una línea — el sintético no reconcilia y no se usa, esa guardia quedó probada con carnada. Cero costo
+por respuesta: no toca el modelo. Nace con fecha de retiro escrita: lo reemplaza la herramienta `serieEntidad`
+de ADI Agente cuando certifique.
+
+**Tres · la carga es histórica y explícita.** Subir abril-junio ya no borra enero-marzo en silencio: los
+períodos se acumulan, el alcance se declara CON los huecos («tengo marzo, mayo y septiembre; faltan…»), y un mes
+repetido exige decisión — reemplazar o cancelar, nunca suma callada. Cada activación es una versión reversible
+del histórico completo. Y la serie mensual POR CLIENTE sale del archivo cuando trae fechas — solo se sirve la
+entidad cuya suma reconcilia exacta con su cifra oficial; la que no cierra se declara con las dos cifras.
+
+**Base de datos:** sin migraciones nuevas — los hechos viajan dentro del pack.
+
+**Suite: 197 PASS · 0 FAIL · 0 TOCARON LA RED · 0 CON CREDENCIAL VIVA.** Verificación independiente del
+supervisor: suite completa re-corrida, insignia sobre demo y sobre planilla, herramientas del oráculo en las dos
+escalas, pantalla del cobro.
+
 ## 2.13 — producción · tag `v2.13`
 
 **El cobro deja de ser una promesa de la plantilla: la hoja Abonos alimenta Flujo Comercial, y el plazo de pago
