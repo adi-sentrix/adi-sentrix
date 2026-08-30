@@ -24,6 +24,7 @@
 import { runPlan } from "../oracle/toolRunner.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
 import { cajaDelAgente } from "./herramientasAgente.js";
+import { doctrinasParaRonda } from "./doctrinaAgente.js";
 import { mapaDelDato } from "./mapaDelDato.js";
 import { guardC, esNarracionVacia } from "../oracle/guardC.js";
 import { cifrasDelDato } from "../oracle/datoProyectado.js";
@@ -140,7 +141,11 @@ export async function answerViaAgente({ text, history, mem, scenario = "actual",
     for (const r of rp.results) if (r.coverage && r.coverage.supported === false && r.coverage.reason) motivosNoSoportado.push(r.coverage.reason);
 
     mensajes.push({ role: "assistant", content: `[pedido de herramientas] ${pedidos.map((p) => p.tool).join(", ")}` });
-    mensajes.push({ role: "user", content: `[HERRAMIENTAS — no es el usuario] Resultados:\n${JSON.stringify(_resumenDeRonda(rp))}\nResponde al usuario con esto, o pide más herramientas si de verdad faltan.` });
+    /* DOCTRINA BAJO DEMANDA (F2b · §10): la instrucción de CADA herramienta usada viaja pegada a su resultado —
+     * el turno que no toca P&L no carga su arco. Bloques byte-estables y en orden fijo (la disciplina del mapa):
+     * el prefijo del proveedor no distingue «mismo contenido en otro orden» de «contenido nuevo». */
+    const doctrina = doctrinasParaRonda(rp.results.map((r) => r.tool));
+    mensajes.push({ role: "user", content: `[HERRAMIENTAS — no es el usuario] Resultados:\n${JSON.stringify(_resumenDeRonda(rp))}${doctrina ? `\n${doctrina}` : ""}\nResponde al usuario con esto, o pide más herramientas si de verdad faltan.` });
   }
 
   // ── el cierre forzado: agotó las rondas sin responder ──
