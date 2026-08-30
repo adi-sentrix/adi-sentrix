@@ -170,7 +170,8 @@ export const ADI_CUADRO_OVERVIEW_ENABLED = P("ADI_CUADRO_OVERVIEW_ENABLED"); // 
 // ── Hardening demo · cablear mechanism_scan · default OFF ──
 export const ADI_MECHANISM_SCAN_ENABLED = P("ADI_MECHANISM_SCAN_ENABLED"); // qué mecanismos activos → composeMechanismScan (extraído, sin cablear → blanco) · OFF = blanco (piso byte-exacto)
 // ── Hardening confianza · guard SKU-margen × escenario · default OFF ──
-export const ADI_SKU_SCENARIO_GUARD_ENABLED = P("ADI_SKU_SCENARIO_GUARD_ENABLED"); // margen por SKU scenario-blind → bloqueo honesto fuera de bonanza (te muestro cliente/familia) · OFF = base byte-exacto
+// ADI_SKU_SCENARIO_GUARD_ENABLED SE RETIRÓ con el colapso del eje (2026-08-30): su guard disparaba solo fuera
+// de bonanza, y ese «fuera» ya no existe. Candado: _colapso_eje_gate.
 // ── Ranking panorámico SIN métrica → Cuadro de mando · default OFF ──
 export const ADI_RANKING_DEFAULT_METRIC_ENABLED = P("ADI_RANKING_DEFAULT_METRIC_ENABLED"); // "los N mejores/peores clientes/SKU" (N explícito o "top", SIN métrica nombrada) → detectRankingExtremesIntent no aborta: default métrica comercial (cliente→contribucion · SKU→sku_margen) → composeRankingExtremes arma la lista real con sentrixAction+evidence → el boleta abre el Cuadro (el monolito TAMBIÉN honest-fallbackea estas frases: no hay nada que extraer, esto es capacidad NUEVA) · scope estricto: "mejores clientes" PELADO (sin N/top) sigue en honest_fallback (gate [36] intacto) · OFF = detectRanking aborta igual que hoy (byte-exacto · el guard de número difería el dígito)
 // ── Smart-fallback · "ADI se adueña de la conversación" (principio premium del owner) · default OFF ──

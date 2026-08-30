@@ -199,7 +199,7 @@ export function validateViewContext(raw) {
   let bloqueo = null;
   if (metrica && eje && ENTITIES[eje] && !e.length) {
     const declarado = Object.prototype.hasOwnProperty.call(SURFACE, `${metrica}@${eje}`);
-    const b = surfaceBlock(metrica, eje, escenario);
+    const b = surfaceBlock(metrica, eje);   // (el escenario dejó de ser condición de disponibilidad — colapso del eje)
     if (b) {
       bloqueo = { motivo: b.reason || null, alternativas: Array.isArray(b.offer) ? b.offer.slice() : [], declarado };
       if (declarado) estatus = "abierto";

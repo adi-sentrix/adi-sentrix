@@ -233,8 +233,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       return _plain(`El ${_m(spec.metric)} no está disponible por ${_d(spec.dimension)}. Sí lo tengo por ${ax.map(_d).join(", ")}.`, { route: "spec_explain", intent: "explain_availability", ctx, offer: ax.map((a) => `${spec.metric}@${a}`) });
     const sf = SURFACE[`${spec.metric}@${spec.dimension}`];
     if (sf) {
-      const b = sf.blockedWhen("bonanza");
-      if (b) return _plain(`${_cap(b.reason)}.`, { route: "spec_explain", intent: "explain_availability", ctx, offer: b.offer });
+      // (el chequeo blockedWhen se retiró con el colapso del eje: un par declarado está disponible, sin condición de escenario)
       return _plain(`Sí lo tengo: ${_m(spec.metric)} por ${_d(spec.dimension)} está disponible (lentes: ${sf.lenses.join(", ")}).`, { route: "spec_explain", intent: "explain_availability", ctx });
     }
     const sib0 = ax.filter((a) => SURFACE[`${spec.metric}@${a}`]).map((a) => `${spec.metric}@${a}`);
@@ -284,12 +283,8 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
   }
   const scenario = "bonanza";   // "actual" → base interna (mapeo invisible · el producto nunca dice "bonanza")
 
-  // ── #8b · disponibilidad de superficie declarada (ej. margen@sku fuera de bonanza) ──
-  const surf = SURFACE[`${spec.metric}@${spec.dimension}`];
-  if (surf) {
-    const blk = surf.blockedWhen(scenario);
-    if (blk) return _degrade("surface-blocked", `${_cap(blk.reason)}.`, blk.offer || [], ctx);
-  }
+  // (#8b «disponibilidad por escenario» se retiró con el colapso del eje — un par declarado en SURFACE está
+  //  disponible; los pares no declarados ya caen honestos en #4/explain_availability)
 
   // ── ejecución por operación ──────────────────────────────────────────────────────────────────────
   try {

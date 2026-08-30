@@ -140,6 +140,29 @@ H("C1 · nada en la app puede ELEGIR un escenario");
     "el sucesor vive: ESCENARIO_INICIAL = \"bonanza\" sigue declarado en config/scenarios.js");
 }
 
+/* ═══ C2 · LAS RAMAS-POR-NOMBRE ESTÁN DESARMADAS ══════════════════════════════════════════════════════════════ */
+H("C2 · el guard SKU-margen×escenario y el blockedWhen del contrato no vuelven a nacer");
+{
+  for (const nombre of ["_esSkuMargenNoBonanza", "_skuMargenScenarioMsg", "ADI_SKU_SCENARIO_GUARD_ENABLED"]) {
+    const definidoEn = [], importadoEn = [];
+    for (const [p, cod] of CODIGO) {
+      if (definicionesDe(nombre, cod).length) definidoEn.push(p);
+      if (importaciones(nombre, cod)) importadoEn.push(p);
+    }
+    ok(definidoEn.length === 0, `nadie DEFINE ${nombre}`, definidoEn.join(", "));
+    ok(importadoEn.length === 0, `ni un import colgando de ${nombre}`, importadoEn.join(", "));
+  }
+  // el campo condicional-por-escenario del contrato de superficie: retirado como PROPIEDAD (los comentarios
+  // pueden y deben seguir contando su historia — el scan corre sin comentarios)
+  const surtido = sinComentarios(LEER(join(ROOT, "src/config/contract/surfaceContract.js")));
+  ok(!/\bblockedWhen\s*:/.test(surtido), "SURFACE no declara blockedWhen — la disponibilidad es del contrato, no del lente");
+  ok(/export function surfaceBlock\(metric, axis\)/.test(surtido),
+    "el sucesor vive: surfaceBlock(metric, axis) — sin parámetro de escenario");
+  // y en TODO el repo, ningún módulo consulta un blockedWhen (llamada), que sería el guard renaciendo río abajo
+  const consultan = [...CODIGO].filter(([, cod]) => /\.blockedWhen\s*\(/.test(cod)).map(([p]) => p);
+  ok(consultan.length === 0, "nadie CONSULTA .blockedWhen(…) río abajo", consultan.join(", "));
+}
+
 /* ═══ CARNADAS ════════════════════════════════════════════════════════════════════════════════════════════════ */
 H("CARNADA · cada chequeo, probado ROJO con la resurrección adentro");
 {
@@ -163,6 +186,21 @@ H("CARNADA · cada chequeo, probado ROJO con la resurrección adentro");
   // (d) un import colgando tras un revert parcial
   ok(importaciones("ScenarioSelector", "import { ScenarioSelector } from \"./ScenarioSelector.jsx\";"),
     "carnada «import colgando tras revert» → el detector lo caza");
+
+  // (e) el guard re-escrito de memoria en answerADI
+  const guardMut = sinComentarios("function _esSkuMargenNoBonanza(intent, trimmed, scenario) {\n  if (!scenario || scenario === \"bonanza\") return false;\n  return true;\n}");
+  ok(definicionesDe("_esSkuMargenNoBonanza", guardMut).length > 0,
+    "carnada «guard SKU-margen re-escrito» → el detector lo caza");
+
+  // (f) el blockedWhen condicional de vuelta en el contrato
+  const surtidoMut = sinComentarios(LEER(join(ROOT, "src/config/contract/surfaceContract.js")))
+    .replace("\"margen@sku\":   { lenses:", "\"margen@sku\":   { blockedWhen: (scn) => scn !== \"bonanza\" ? { reason: \"x\" } : null, lenses:");
+  ok(/\bblockedWhen\s*:/.test(surtidoMut),
+    "carnada «blockedWhen de vuelta en el contrato» → el chequeo se pone ROJO");
+
+  // (g) un consumidor que vuelve a consultar la condición río abajo
+  ok(/\.blockedWhen\s*\(/.test(sinComentarios("const b = sf.blockedWhen(\"bonanza\");")),
+    "carnada «consulta a .blockedWhen renacida» → el chequeo se pone ROJO");
 }
 
 console.log(`\n── _colapso_eje_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
