@@ -375,6 +375,11 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
   const dataset = {
     id: parametros.empresa_id || null,
     nombre: parametros.empresa_nombre || parametros.empresa_id || "",
+    /* LA ESCALA, DECLARADA (owner 2026-08-30): este pack guarda los montos comerciales tal como vienen en el
+     * archivo — moneda CRUDA, no miles. El contrato general dice «K» porque los tenants de fábrica almacenan
+     * así; sin esta declaración, todo lo que multiplica ×1000 aguas abajo infla las cifras del cliente por mil
+     * (medido: $61.483 del archivo → «$61.5M» en la carpeta de ADI). Viaja EN el pack: autosuficiente. */
+    escalaComercial: "raw",
     perfil,
     clientesVentas, clientesMargen,
     marcasVentas: marcasMargen.map((m) => ({ nombre: m.nombre, marca: m.nombre, sfamilia: null, actual: m.actual, anterior: m.anterior, unidades: m.unidades, unidadesAnt: m.unidadesAnt, pctRebate: m.pctRebate })),

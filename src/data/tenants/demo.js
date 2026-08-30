@@ -515,6 +515,9 @@ export const flujoComercial = {
 };
 
 export const TENANT_DEMO = {
+  // la escala del universo comercial de ESTE dataset: se almacena en MILES (contrato figureType · «K»).
+  // Declarada explícita desde 2026-08-30: un pack de planilla declara «raw»; el que no declara cae a «K».
+  escalaComercial: "K",
   id: "demo",
   nombre: "ADI Demo",
   perfil: PERFIL,

@@ -29,6 +29,18 @@ export const MONEDA_BASE = "USD";
 // El FACTOR de cada escala contra el dólar real. "unit" es el $ por unidad (precio/costo medio): también crudo,
 // pero no es sumable con nada — se declara aparte justamente para que nadie lo sume.
 export const ESCALAS = { raw: 1, K: 1e3, M: 1e6, unit: 1 };
+
+/* ── LA ESCALA COMERCIAL LA DECLARA EL PACK (owner 2026-08-30) ────────────────────────────────────────────────
+ * El contrato de abajo declara que el universo comercial se ALMACENA en miles («K») — cierto para los tenants
+ * de fábrica y FALSO para un pack ingestado de planilla, que guarda la moneda cruda del archivo. Medido: el
+ * archivo decía $61.483 y la carpeta que ve ADI decía $61.5M. La salida no es adivinar por la pinta del dato
+ * sino una DECLARACIÓN que viaja EN el pack (`escalaComercial: "raw" | "K"` — vocabulario de ESCALAS), la misma
+ * preferencia ya sentada del owner: un campo declarado antes que un generador más listo.
+ * Sin declarar = «K», el comportamiento de siempre: el demo no se mueve un byte. */
+export function factorComercialDe(dataset) {
+  const e = dataset && dataset.escalaComercial;
+  return ESCALAS[typeof e === "string" && e in ESCALAS ? e : "K"];
+}
 export const PERIODOS = ["anual", "hoy"];
 export const SELLOS = ["probado", "indicado", "abierto"];
 export const UNIDADES = ["money", "pct", "ratio", "days", "count", "pp"];

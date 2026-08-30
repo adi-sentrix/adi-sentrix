@@ -370,6 +370,8 @@ export const clientesAmbiguos = [];
 
 // ── EL TENANT ARMADO · mismo shape que TENANT_DEMO ───────────────────────────────────────────────────────────
 export const TENANT_EMPRESA2 = {
+  // misma declaración que TENANT_DEMO: el universo comercial de este dataset se almacena en MILES («K»).
+  escalaComercial: "K",
   id: "empresa2",
   nombre: "Distribuidora Andina",
   perfil: PERFIL,

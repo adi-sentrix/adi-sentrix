@@ -41,7 +41,8 @@ import { tenantPolicyDefault } from "../../config/businessPolicy.js";
 import { getTenantId, getTenantData, onTenantChange } from "../../data/tenantStore.js";
 import { parseFigures } from "../boleta.js";
 import { composeNoDataMessage } from "./narrationBlocks.js";   // el último recurso ABSOLUTO del suplente digno — la MISMA frase canónica que usa la escalera anti-null, nunca una copia
-import { simboloMoneda } from "../../config/moneda.js";
+import { simboloMoneda, rotuloMoneda, etiquetaSinDeclarar } from "../../config/moneda.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";
 
 // ── EL FORMATEADOR DE LA BOLETA, SIN UN SEGUNDO FORMATEADOR ────────────────────────────────────────────────────
 // parseFigures canoniza toda cifra con el _fmtC privado de boleta.js (canon = `unit:_fmtC(raw,unit)`). Darle el
@@ -57,7 +58,17 @@ function _fmtBoleta(raw, unit) {
 // presentación consistente con pantalla, no un formateador paralelo.
 const _pct1 = (v) => `${(+v).toFixed(1)}%`;
 const _money = (rawUSD) => _fmtBoleta(Math.round(rawUSD), "money");
-const _moneyK = (milesUSD) => _money(milesUSD * 1000);   // venta comercial: almacenada en MILES (contrato: escala K)
+/* VENTA COMERCIAL · con la escala QUE EL PACK DECLARA (owner 2026-08-30). El ×1000 fijo era correcto para los
+ * tenants de fábrica (almacenan en miles) y FALSO para un pack de planilla (moneda cruda): el archivo decía
+ * $61.483 y esta proyección le contaba al cerebro $61.5M — ADI hablaba con cifras mil veces más grandes que las
+ * del cliente. `factorComercialDe` lee `escalaComercial` del pack; sin declarar cae a «K», así que el demo
+ * produce EXACTAMENTE los mismos bytes de siempre. */
+const _moneyK = (almacenado) => _money(almacenado * factorComercialDe(getTenantData()));
+/** ¿hay número de verdad? — un null convertido diría «$0», que es una afirmación, no una ausencia.
+ *  El CERO también cuenta como ausencia acá, y es la convención del propio motor: motorKpi guarda
+ *  `totalAnterior || null` y deriveKpis re-suma un dato ausente como 0 — así que un 0 en estos agregados
+ *  significa «no hubo período/presupuesto», no «vendió cero». */
+const _hay = (v) => typeof v === "number" && Number.isFinite(v) && v !== 0;
 const _dias = (v) => _fmtBoleta(Math.round(v), "days");
 const _ratio = (v) => _fmtBoleta((+v).toFixed(1), "ratio");
 
@@ -192,7 +203,10 @@ function _construir(scenario) {
   // «la carga de Falabella es 3.5%» sería falso y pasaría — el dueño del target es la palabra meta/target)
 
   const L = [];
-  L.push(`EL DATO DEL NEGOCIO — ${t.nombre || t.id} · escenario: ${scenario} · moneda USD.`);
+  /* LA MONEDA DEL HEADER ES LA DECLARADA. «USD» fijo le afirmaba al cerebro la moneda equivocada de cualquier
+   * pack que declare otra (un archivo en CLP quedaba presentado como dólares). Sin declaración cae a «USD» —
+   * los tenants de fábrica, byte-idéntico. */
+  L.push(`EL DATO DEL NEGOCIO — ${t.nombre || t.id} · escenario: ${scenario} · moneda ${rotuloMoneda(t) || "USD"}.`);
   L.push(`Esto es tu conocimiento del negocio completo, para ENTENDER y contextualizar. Dos universos con período distinto: la venta comercial es del AÑO CERRADO; el inventario es la FOTO DE HOY.`);
   L.push("");
 
@@ -202,7 +216,18 @@ function _construir(scenario) {
   L.push("KPIs DEL NEGOCIO (año cerrado, salvo inventario = foto de hoy):");
   // los dueños de CONCEPTO (matriz de calibración 2026-08-14): «vs presupuesto ($97.0M)» nombra a su dueño con
   // la palabra «presupuesto», no con «negocio/total» — cada agregado del KPI lleva además su palabra propia.
-  L.push(`- ${_L.ventas} totales: ${F(_moneyK(kv.totalActual), NEG)} (año anterior ${F(_moneyK(kv.totalAnterior), [...NEG, "anterior"])} · presupuesto ${F(_moneyK(kv.totalPresupuesto), [...NEG, "presupuesto"])} · ${F(_pct1(kv.vsAnterior), [...NEG, "anterior"])} vs año anterior · ${F(_pct1(kv.vsPresupuesto), [...NEG, "presupuesto"])} vs presupuesto).`);
+  /* LO AUSENTE SE DICE CON PALABRAS, NUNCA «$0» (owner 2026-08-30, misma regla que la moneda de la v2.3): un
+   * pack de planilla no declara presupuesto y puede no tener período anterior. `$0 · 0.0% vs presupuesto` acá le
+   * afirmaba al cerebro un presupuesto de cero — una cifra inventada con cara de dato. Con todos los valores
+   * presentes (los tenants de fábrica), la línea es byte-idéntica a la de siempre. */
+  const _kvPartes = [
+    _hay(kv.totalAnterior) ? `año anterior ${F(_moneyK(kv.totalAnterior), [...NEG, "anterior"])}` : "sin período anterior",
+    _hay(kv.totalPresupuesto) ? `presupuesto ${F(_moneyK(kv.totalPresupuesto), [...NEG, "presupuesto"])}` : etiquetaSinDeclarar("presupuesto"),
+    /* el «vs» cuelga de la presencia del TOTAL, no del vs mismo: un año plano da 0.0% legítimo y se dice */
+    ...(_hay(kv.totalAnterior) ? [`${F(_pct1(kv.vsAnterior || 0), [...NEG, "anterior"])} vs año anterior`] : []),
+    ...(_hay(kv.totalPresupuesto) ? [`${F(_pct1(kv.vsPresupuesto || 0), [...NEG, "presupuesto"])} vs presupuesto`] : []),
+  ];
+  L.push(`- ${_L.ventas} totales: ${F(_moneyK(kv.totalActual), NEG)} (${_kvPartes.join(" · ")}).`);
   L.push(`- ${_L.margen} de la cartera: ${F(_pct1(km.pct), NEG)} · ${_L.contribucion} total ${F(_moneyK(km.totalUSD), NEG)}.`);
   // los KPI de INVENTARIO llevan además su palabra propia como dueño (medido 2026-08-14, falso positivo de la
   // defensa del examen): «la foto de inventario suma $135K de capital» nombra al dueño con «inventario», no con
@@ -256,7 +281,12 @@ function _construir(scenario) {
   for (const c of f.clientesVentas) {
     const m = margenPorCliente.get(c.nombre);
     const D = [c.nombre];
-    let linea = `- ${c.nombre} — ${_L.ventas} ${F(_moneyK(c.actual), D)} (año anterior ${F(_moneyK(c.anterior), D)} · presupuesto ${F(_moneyK(c.presupuesto), D)}) · ${c.unidades} unidades · canal ${c.canal} · marca ${c.marca} · familia ${c.sfamilia}`;
+    // año anterior y presupuesto ausentes → palabras, no un «$0» (la misma regla que la línea de KPIs)
+    const _cCola = [
+      _hay(c.anterior) ? `año anterior ${F(_moneyK(c.anterior), D)}` : "sin período anterior",
+      _hay(c.presupuesto) ? `presupuesto ${F(_moneyK(c.presupuesto), D)}` : etiquetaSinDeclarar("presupuesto"),
+    ].join(" · ");
+    let linea = `- ${c.nombre} — ${_L.ventas} ${F(_moneyK(c.actual), D)} (${_cCola}) · ${c.unidades} unidades · canal ${c.canal} · marca ${c.marca} · familia ${c.sfamilia}`;
     if (m) linea += ` · ${_L.margen} ${F(_pct1(m.margen), D)} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D)} · ${_L.costo} ${F(_moneyK(m.costo), D)} · ${_L.carga} ${F(_pct1(m.pctRebate), D)} (${_L.acciones.toLowerCase()} ${F(_moneyK(m.rebates), D)})`;
     if (Number.isFinite(c.actual)) rankings.cliente.ventas.filas.push({ entidad: c.nombre, valor: c.actual });
     if (m) {

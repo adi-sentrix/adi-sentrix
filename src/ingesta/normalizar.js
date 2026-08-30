@@ -25,7 +25,7 @@ import { REQUERIDAS } from "../config/contract/ingestaColumnas.js";
 
 /** Las llaves que un dataset de tenant tiene que traer. Sale de la forma vacía: una sola fuente de verdad. */
 export const LLAVES_DATASET = [
-  "id", "nombre", "perfil",
+  "id", "nombre", "escalaComercial", "perfil",
   "clientesVentas", "clientesMargen", "marcasVentas", "marcasMargen", "sfamiliasVentas", "sfamiliasMargen",
   "skuInventario", "skusMargen", "historialMargen", "CLIENTES_STRATEGIC_PROFILE",
   "ventasKPI", "margenKPI", "invKPI", "ventasMensuales",
@@ -129,6 +129,7 @@ export function construirDataset({ id, nombre, ejes = {} } = {}) {
   const dataset = {
     id: String(id),
     nombre: String(nombre || id),
+    escalaComercial: "raw",        // los montos van tal como vienen en el archivo del cliente: moneda cruda, no miles
     perfil: {},                    // la vara la declara el negocio, no la planilla → cae al config, declarado
     clientesVentas: cv,
     clientesMargen: cm,

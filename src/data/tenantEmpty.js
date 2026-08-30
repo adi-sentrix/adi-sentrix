@@ -35,6 +35,7 @@ const _invKPI = { totalUSD: 0, doh: 0, inmovilizadoPct: 0, inmovilizadoUSD: 0, s
 export const TENANT_VACIO = Object.freeze({
   id: null,
   nombre: "",
+  escalaComercial: "raw",   // sin montos no hay escala que importe; «raw» para que la forma vacía no herede la K del demo
   perfil: {},
 
   clientesVentas: [],
