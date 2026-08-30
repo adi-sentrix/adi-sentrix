@@ -50,14 +50,11 @@ const FEATURE = [
 
 // DEV-TOOLS · herramientas internas · SOLO dev (nunca demo/prod)
 const DEV_TOOLS = [
-  // ADI_SCENARIO_SWITCHER_ENABLED — APAGADO EN TODOS LOS PERFILES (owner 2026-08-07). El selector estaba solo-dev
-  // por diseño, pero el deploy de `dev` es lo que el owner y la demo miran, así que el CONCEPTO de escenario se
-  // filtraba a la superficie del producto: "Bonanza · Tensión · Crisis" en el header, con códigos de demo enviados.
-  // El dato de "bonanza" ES la realidad del negocio (ver la memoria de colapsar escenarios) — lo que sobra es el
-  // concepto, no los datos ni la lógica. Apagarlo acá es el primer paso de ese colapso, no un parche: el eje
-  // `scenario` sigue vivo en el motor (69 archivos, lo necesitan Simulate v2 y el aislamiento por tenant) y la app
-  // queda mostrando el chip neutro "Datos actuales" que App.jsx ya renderiza cuando el flag está en false.
-  // Para volver a verlo en una sesión de desarrollo: reponer el nombre en esta lista, nunca en FEATURE.
+  // El COLAPSO DEL EJE DE ESCENARIOS (owner 2026-08-07, ejecutado 2026-08-30) retiró de acá el switcher: primero
+  // se apagó en todos los perfiles («el dato de bonanza ES la realidad — lo que sobra es el concepto»), y con el
+  // colapso el selector, su flag y el estado de React se BORRARON. El motor de transforms sigue vivo (sustrato de
+  // Simulate v2 y del aislamiento por tenant). Reponer un flag de escenarios acá es resucitar el concepto
+  // eliminado: lo vigila _colapso_eje_gate.
 ];
 
 // EXPERIMENTAL · features nuevas aún no aptas para prod · demo + dev, NO prod · (el owner clasifica acá)

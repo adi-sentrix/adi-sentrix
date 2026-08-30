@@ -34,7 +34,10 @@ console.log("\n── 2 · LOS DOS ENTORNOS LEEN LA MISMA DECLARACIÓN, NINGUNO 
   const app = readFileSync("./src/ui/App.jsx", "utf8");
   const consola = readFileSync("./_consola_examen.mjs", "utf8");
   ok(/import \{[^}]*ESCENARIO_INICIAL[^}]*\} from ".*config\/scenarios\.js"/.test(app), "App.jsx importa ESCENARIO_INICIAL");
-  ok(/useState\(ESCENARIO_INICIAL\)/.test(app), "…y arranca con él, no con un literal");
+  // COLAPSO DEL EJE (owner 2026-08-07, ejecutado 2026-08-30): el escenario dejó de ser ESTADO — es una
+  // CONSTANTE desde la misma declaración. La propiedad que este gate guarda (app y consola arrancan de la
+  // única fuente, jamás de un literal) se volvió más fuerte: ya no hay ni un setter que pudiera moverla.
+  ok(/const scenario = ESCENARIO_INICIAL/.test(app), "…y corre sobre él como CONSTANTE, no con un literal ni un setter");
   ok(/import \{[^}]*ESCENARIO_INICIAL[^}]*\} from ".*config\/scenarios\.js"/.test(consola), "la consola del examen importa la MISMA declaración");
   const literalesApp = (app.match(/useState\("(?:bonanza|tension|crisis|actual)"\)/g) || []);
   const literalesConsola = (consola.match(/(?:scenario:|proyectarDatoNegocio\(|cifrasDelDato\()\s*"(?:bonanza|tension|crisis|actual)"/g) || []);

@@ -21,9 +21,9 @@
  * nombres no se leen: si abriera únicamente por hover, tabular por la barra sería navegar a ciegas. Por eso
  * el despliegue vive en CSS y no en estado de React — `:hover` y `:focus-within` en la misma regla.
  *
- * Lo que NO está acá y hay que recordar: el selector de escenarios (`ADI_SCENARIO_SWITCHER_ENABLED`) está
- * APAGADO en todos los perfiles por decisión del owner, así que la barra muestra el estado neutro «Datos
- * actuales». Si alguna vez se reenciende, necesita un lugar propio acá — no vuelve solo.
+ * Lo que NO está acá: el selector de escenarios se BORRÓ con el colapso del eje (owner 2026-08-07, ejecutado
+ * 2026-08-30) — la base real es una constante y no hay estados que seleccionar. No vuelve solo: reponerlo sería
+ * resucitar el concepto que el colapso eliminó (candado: _colapso_eje_gate).
  */
 import React, { useMemo } from "react";
 import { C } from "./theme.js";

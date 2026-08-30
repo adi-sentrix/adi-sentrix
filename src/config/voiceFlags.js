@@ -341,6 +341,6 @@ export const ADI_AGENTE = P("ADI_AGENTE");
 // autorizada, y la fórmula completa se muestra en Sentrix, no en el chat.
 export const ADI_EPISTEMIC_NOTE_ENABLED = P("ADI_EPISTEMIC_NOTE_ENABLED");
 
-// ── ADI Core · Paso 5 · UX pre-prod · selector de escenarios SOLO en dev · default FALSE ──
-// FALSE = chip estático "Datos actuales" (el escenario interno sigue "bonanza"=base · motor/tests/scenarioLoad intactos). TRUE = ScenarioSelector.
-export const ADI_SCENARIO_SWITCHER_ENABLED = P("ADI_SCENARIO_SWITCHER_ENABLED");
+// ── ADI_SCENARIO_SWITCHER_ENABLED SE RETIRÓ (colapso del eje de escenarios · owner 2026-08-07, ejecutado
+// 2026-08-30): el selector se borró y la base real es constante — un flag que enciende un concepto eliminado
+// no es un flag, es una resurrección. Candado: _colapso_eje_gate. ──

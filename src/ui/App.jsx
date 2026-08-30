@@ -4,12 +4,12 @@
  * Estado UI mínimo: escenario. La UI no calcula nada · el chat consume answerADI. */
 import React, { useState, useRef, useEffect, Suspense } from "react";
 import { C } from "./theme.js";
-/* ⚠️ `ScenarioSelector` SE QUEDÓ SIN LUGAR EN LA PANTALLA (2026-08-20, al reemplazar el header por la barra
- * lateral). No se borró nada: el componente sigue en `ScenarioSelector.jsx` y el eje `scenario` sigue vivo en el
- * motor. Lo que desapareció es su único punto de montaje, que era el header blanco. En la práctica no cambia lo
- * que se ve: `ADI_SCENARIO_SWITCHER_ENABLED` está APAGADO en todos los perfiles por decisión del owner del
- * 2026-08-07, así que hace meses que nadie lo veía. Queda anotado porque volver a encenderlo ahora pide, además
- * del flag, decidir dónde vive dentro de la barra — una barrita no puede colapsar un selector de tres estados. */
+/* ⚠️ EL EJE DE ESCENARIOS COLAPSÓ (owner 2026-08-07, ejecutado 2026-08-30): «al final el escenario bonanza es
+ * el que usó la realidad de los datos, es mantener ese y eliminar el concepto escenario». `ScenarioSelector` se
+ * BORRÓ (llevaba meses sin punto de montaje y su flag apagado en todos los perfiles), el estado de React se fue
+ * con él: `scenario` acá es una CONSTANTE — la base real, declarada una sola vez en config/scenarios.js. Nada en
+ * la app puede elegir otro valor. El motor de transforms sigue vivo porque es el sustrato de Simulate v2 (el
+ * «¿qué pasa si…?» del usuario es una pregunta, no un escenario permanente). Candado: _colapso_eje_gate. */
 import { BarraLateral } from "./BarraLateral.jsx";   // la barra de barritas del borde derecho · reemplaza al header blanco (owner 2026-08-20)
 import { ChatADI } from "./ChatADI.jsx";
 // Etapa 5 · Sentrix · panel de evidencia (se abre con la lectura). MEJORA 9 (2026-07-26): LAZY — el panel es la
@@ -23,8 +23,8 @@ import { cargarTenant } from "../data/tenantClient.js";       // vía 1 · el da
 import { tenantCargado, initTenant, getTenantData } from "../data/tenantStore.js";
 import { setCargaActiva as registrarCarga, limpiarCarga } from "../ingesta/estadoCarga.js";   // el sello vive en un módulo, no en un global del navegador
 import { PanelDatos } from "./PanelDatos.jsx";   // v1.4 · la pantalla de carga: subir la planilla, verla, confirmar y activarla
-import { ADI_LLM_ENABLED, ADI_SCENARIO_SWITCHER_ENABLED } from "../config/voiceFlags.js";
-import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // el escenario inicial se DECLARA una vez (ver el comentario allá): la app y la consola del examen tienen que arrancar en el mismo   // Paso 5 · badge de modo + selector de escenarios (dev)
+import { ADI_LLM_ENABLED } from "../config/voiceFlags.js";
+import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // la base real se DECLARA una vez (ver el comentario allá): la app y la consola del examen corren sobre el mismo dato
 import { initCriteria } from "../adi/criteria.js";   // C.2 · memoria de criterio · re-aplica lo persistido (localStorage) al boot
 import { initPnl } from "../adi/pnl.js";   // P&L COMERCIAL (owner 2026-07-15) · re-aplica las líneas de gasto declaradas al boot
 import { parseAddress, evidenceForAddress } from "../adi/sentrix/address.js";   // dirección canónica ADI↔Sentrix (owner 2026-08-09) · el CTA de una respuesta abre vista+sección+entidad+filtro exactos
@@ -51,7 +51,7 @@ function PanelSkeleton() {
 }
 
 export default function App({ animate = true }) {
-  const [scenario, setScenario] = useState(ESCENARIO_INICIAL);
+  const scenario = ESCENARIO_INICIAL;   // COLAPSO DEL EJE (owner): constante — nada en la app puede elegir otro valor
   // ── DEMO PRIVADA (owner 2026-07-08): con ADI_TOKEN_SECRET en el server la app pide código de 3 días. Sin secret
   // (dev/backcompat) el status dice required:false y no cambia nada. El server es LA verdad (el cliente solo pregunta).
   const [access, setAccess] = useState({ checked: false, required: false, granted: null, reason: null, expiresAt: null });
