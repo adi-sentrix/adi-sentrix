@@ -11,9 +11,12 @@
  *                 2· el respaldo de lo ya aprobado en el hilo · 3· el genérico pelado. El tablero de KPIs
  *                 dejó de ser primer recurso: queda para cuando el usuario lo pida (herramienta executiveSummary).
  *
- * LOS TOPES SON DEL CLIENTE, no promesas del prompt: 3 rondas de herramientas + 1 cierre = máx. 4 llamadas;
- * 8 calls por ronda (el cap de runPlan) y 12 por turno; una herramienta desconocida recibe UNA corrección de
- * contrato y a la segunda quema la ronda. Jamás un reintento infinito.
+ * LOS TOPES SON DEL CLIENTE, no promesas del prompt: 3 rondas de herramientas + 1 cierre, más UNA ronda extra
+ * cuando el cierre o la reparación piden una herramienta VÁLIDA (R1 del examen 1: descartar ese pedido mataba
+ * el turno — T7 vacío pidiendo inventoryStatus) y su re-cierre — techo duro de 6 llamadas al cerebro por
+ * turno (3 rondas + cierre + ronda extra con re-cierre + reparación). 8 calls por ronda (el cap de runPlan) y
+ * 12 por turno; una herramienta desconocida recibe UNA corrección de contrato y a la segunda quema la ronda.
+ * Jamás un reintento infinito.
  *
  * EL CEREBRO SE INYECTA (`callAgente`) — ChatADI pondrá el fetch real cuando el adapter hable el modo libre;
  * los gates ponen GUIONES, incluidos los maliciosos. Contrato de `callAgente({ mensajes, mapa, herramientas,
@@ -122,8 +125,31 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   const figsTotales = [];
   const resultsTotales = [];
   const motivosNoSoportado = [];
-  let calls = 0, rondas = 0, correccionUsada = false;
+  let calls = 0, rondas = 0, correccionUsada = false, rondaExtraUsada = false;
   let texto = null;
+
+  /* ejecuta UNA tanda de pedidos y deja el intercambio en `destino` (el hilo que verá la llamada siguiente).
+   * Es EL cuerpo de la ronda — la ronda normal y la ronda extra de R1 comparten esta única implementación
+   * para que jamás diverjan. false = sin cupo (el tope manda). */
+  const _rondaDeHerramientas = (pedidos, destino) => {
+    const cupo = Math.min(CALLS_POR_RONDA, TOPE_CALLS - calls);
+    if (cupo <= 0) return false;
+    const rp = runPlan({ intent: "answer", calls: pedidos.map((p) => ({ tool: p.tool, args: p.args || {} })) },
+      { scenario, maxCalls: cupo, preguntaUsuario: q, registry: caja });
+    calls += Math.min(pedidos.length, cupo);
+    figsTotales.push(...(rp.ledger && rp.ledger.figs ? rp.ledger.figs : []));
+    resultsTotales.push(...rp.results);
+    for (const u of rp.unsupported || []) if (u && u.reason) motivosNoSoportado.push(u.reason);
+    for (const r of rp.results) if (r.coverage && r.coverage.supported === false && r.coverage.reason) motivosNoSoportado.push(r.coverage.reason);
+
+    destino.push({ role: "assistant", content: `[pedido de herramientas] ${pedidos.map((p) => p.tool).join(", ")}` });
+    /* DOCTRINA BAJO DEMANDA (F2b · §10): la instrucción de CADA herramienta usada viaja pegada a su resultado —
+     * el turno que no toca P&L no carga su arco. Bloques byte-estables y en orden fijo (la disciplina del mapa):
+     * el prefijo del proveedor no distingue «mismo contenido en otro orden» de «contenido nuevo». */
+    const doctrina = doctrinasParaRonda(rp.results.map((r) => r.tool));
+    destino.push({ role: "user", content: `[HERRAMIENTAS — no es el usuario] Resultados:\n${JSON.stringify(_resumenDeRonda(rp))}${doctrina ? `\n${doctrina}` : ""}\nResponde al usuario con esto, o pide más herramientas si de verdad faltan.` });
+    return true;
+  };
 
   while (rondas < TOPE_RONDAS && texto === null) {
     rondas++;
@@ -143,27 +169,28 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       continue;
     }
 
-    const cupo = Math.min(CALLS_POR_RONDA, TOPE_CALLS - calls);
-    if (cupo <= 0) break;
-    const rp = runPlan({ intent: "answer", calls: pedidos.map((p) => ({ tool: p.tool, args: p.args || {} })) },
-      { scenario, maxCalls: cupo, preguntaUsuario: q, registry: caja });
-    calls += Math.min(pedidos.length, cupo);
-    figsTotales.push(...(rp.ledger && rp.ledger.figs ? rp.ledger.figs : []));
-    resultsTotales.push(...rp.results);
-    for (const u of rp.unsupported || []) if (u && u.reason) motivosNoSoportado.push(u.reason);
-    for (const r of rp.results) if (r.coverage && r.coverage.supported === false && r.coverage.reason) motivosNoSoportado.push(r.coverage.reason);
-
-    mensajes.push({ role: "assistant", content: `[pedido de herramientas] ${pedidos.map((p) => p.tool).join(", ")}` });
-    /* DOCTRINA BAJO DEMANDA (F2b · §10): la instrucción de CADA herramienta usada viaja pegada a su resultado —
-     * el turno que no toca P&L no carga su arco. Bloques byte-estables y en orden fijo (la disciplina del mapa):
-     * el prefijo del proveedor no distingue «mismo contenido en otro orden» de «contenido nuevo». */
-    const doctrina = doctrinasParaRonda(rp.results.map((r) => r.tool));
-    mensajes.push({ role: "user", content: `[HERRAMIENTAS — no es el usuario] Resultados:\n${JSON.stringify(_resumenDeRonda(rp))}${doctrina ? `\n${doctrina}` : ""}\nResponde al usuario con esto, o pide más herramientas si de verdad faltan.` });
+    if (!_rondaDeHerramientas(pedidos, mensajes)) break;
   }
+
+  /* R1 DEL EXAMEN 1 (2026-08-31): ¿el pedido trae al menos una herramienta REAL que valga una ronda extra?
+   * En el examen, cuando el cierre o la reparación pedían una herramienta válida el pedido SE DESCARTABA y el
+   * turno moría (T7: el reintento pidió inventoryStatus en cierre → vacío; mismo patrón T13/T24/T26 — 11 de
+   * los 14 no-verdes). La ronda extra es UNA por turno, con el mismo cupo de calls de siempre. */
+  const _pedidosValidos = (res) => {
+    if (rondaExtraUsada || !res || res.tipo !== "herramientas" || !Array.isArray(res.pedidos)) return null;
+    const pedidos = res.pedidos.filter(Boolean);
+    return pedidos.some((p) => caja[p.tool]) ? pedidos : null;
+  };
 
   // ── el cierre forzado: agotó las rondas sin responder ──
   if (texto === null) {
-    const res = await callAgente({ mensajes: [...mensajes, { role: "user", content: "[MOTOR — no es el usuario] Se acabaron las rondas de herramientas. Responde AHORA al usuario con lo que tienes; si no alcanza, declina en una línea diciendo qué falta." }], mapa, herramientas, ronda: TOPE_RONDAS + 1, attempt: 0, cierre: true, figsEnBoleta: figsTotales.length });
+    const pedirCierre = () => callAgente({ mensajes: [...mensajes, { role: "user", content: "[MOTOR — no es el usuario] Se acabaron las rondas de herramientas. Responde AHORA al usuario con lo que tienes; si no alcanza, declina en una línea diciendo qué falta." }], mapa, herramientas, ronda: TOPE_RONDAS + 1, attempt: 0, cierre: true, figsEnBoleta: figsTotales.length });
+    let res = await pedirCierre();
+    const extra = _pedidosValidos(res);
+    if (extra && _rondaDeHerramientas(extra, mensajes)) {   // R1: el cierre pidió una herramienta válida — se ejecuta y se le vuelve a pedir el cierre
+      rondaExtraUsada = true;
+      res = await pedirCierre();
+    }
     if (res && res.tipo === "texto" && typeof res.texto === "string" && res.texto.trim()) texto = res.texto;
   }
 
@@ -219,10 +246,22 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     else {
       // UNA reparación con la multa — la mecánica del ciclo notarial, con el contexto del agente
       const multa = (v1 && (v1.multa || (v1.violations || []).map((x) => x.detalle || x.reason || x).join("\n"))) || "cifras no verificables";
-      const res2 = await callAgente({
-        mensajes: [...mensajes, { role: "assistant", content: esNarracionVacia(lavado) ? "(respuesta vacía)" : lavado }, { role: "user", content: _MENSAJE_NOTARIO(multa) }],
+      const hiloReparacion = [...mensajes, { role: "assistant", content: esNarracionVacia(lavado) ? "(respuesta vacía)" : lavado }, { role: "user", content: _MENSAJE_NOTARIO(multa) }];
+      let res2 = await callAgente({
+        mensajes: [...hiloReparacion],
         mapa, herramientas, ronda: rondas, attempt: 1, motivoReintento: "guard", figsEnBoleta: figsTotales.length,
       });
+      /* R1: la reparación pidió una herramienta VÁLIDA (T7: pidió inventoryStatus y el pedido se tiraba →
+       * turno vacío). Se ejecuta la ronda extra SOBRE EL HILO DE LA REPARACIÓN (la multa sigue a la vista) y
+       * se le pide reescribir con las cifras ya verificadas — recién ahí hay material para pasar el muro. */
+      const extra2 = _pedidosValidos(res2);
+      if (extra2 && _rondaDeHerramientas(extra2, hiloReparacion)) {
+        rondaExtraUsada = true;
+        res2 = await callAgente({
+          mensajes: [...hiloReparacion, { role: "user", content: "[MOTOR — no es el usuario] Las herramientas que pediste ya corrieron: sus cifras están arriba. Reescribe AHORA tu respuesta completa con esas cifras verificadas, corrigiendo lo que observó la verificación." }],
+          mapa, herramientas, ronda: rondas, attempt: 1, motivoReintento: "guard", figsEnBoleta: figsTotales.length,
+        });
+      }
       const t2 = res2 && res2.tipo === "texto" ? stripLanguageLeaks(String(res2.texto || "")) : "";
       const v2 = t2.trim() ? juzgar(t2, "reparacion") : null;
       if (v2 && v2.ok) { final = t2; estado = "reparado"; aprobado = true; }

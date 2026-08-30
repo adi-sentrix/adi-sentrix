@@ -106,7 +106,9 @@ H("4 · el guion que pide herramientas por siempre no cuelga a nadie");
   let llamadas = 0;
   const guionInfinito = async () => { llamadas++; return { tipo: "herramientas", pedidos: [{ tool: "salesRead", args: {} }] }; };
   const r = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionInfinito });
-  ok(llamadas === 4, `el tope corta en 3 rondas + 1 cierre = 4 llamadas (${llamadas})`);
+  /* ERA 4 (3 rondas + 1 cierre). R1 del examen 1 sumó UNA ronda extra cuando el cierre pide una herramienta
+   * válida (acá salesRead lo es) + su re-cierre: 5 llamadas. El tope sigue DURO — la ronda extra es una sola. */
+  ok(llamadas === 5, `el tope corta en 3 rondas + cierre + ronda extra con re-cierre = 5 llamadas (${llamadas})`);
   ok(r.r.agente.rondas === 3, `rondas de herramientas: 3 (${r.r.agente.rondas})`);
   ok(["limite", "respaldo", "vacio"].includes(r.r.agente.estado), `y el turno cae a la escalera (${r.r.agente.estado})`);
   ok(typeof r.r.text === "string" && r.r.text.length > 0 && r.r.text.length < 500, "con una respuesta corta, nunca una pantalla en blanco ni un tablero");
@@ -222,8 +224,53 @@ H("9 · cada veto con su sitio y su multa · figsEnBoleta viaja al cerebro");
     `figsEnBoleta llega al cerebro en cada llamada: ${JSON.stringify(figsVistas)} (0 antes de la ronda · 2 después)`);
 }
 
-/* ═══ 10 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
-H("10 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
+/* ═══ 10 · LA RONDA EXTRA (R1 del examen 1 · 2026-08-31) ══════════════════════════════════════════════════════
+ * EL DEFECTO MEDIDO: cuando el reintento post-veto o el cierre pedían una herramienta VÁLIDA, el pedido se
+ * descartaba y el turno moría — T7 quedó VACÍO pidiendo inventoryStatus (el natural sacó verde el mismo
+ * Pareto); mismo patrón en T13/T24/T26 — 11 de los 14 turnos no-verdes. UNA ronda extra por turno lo cierra. */
+H("10 · la ronda extra: el cierre que pide una herramienta válida la obtiene");
+{
+  initTenant(PACK);
+  // (a) el espejo de T7 — la REPARACIÓN pide la herramienta: se ejecuta y el re-cierre sale con cifra verificada
+  let llamadasA = 0;
+  const guionT7 = async ({ attempt, figsEnBoleta }) => {
+    llamadasA++;
+    if (attempt === 0) return { tipo: "texto", texto: "Depósito Riachuelo te compró $99.9M el último mes — un récord histórico." };
+    if (figsEnBoleta === 0) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
+    return { tipo: "texto", texto: TEXTO_BUENO };
+  };
+  const ra = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionT7 });
+  ok(ra.r.agente.estado === "reparado" && /22\.560/.test(ra.r.text),
+    `★ la reparación pidió la herramienta, corrió, y el re-cierre salió con la cifra VERIFICADA (${ra.r.agente.estado})`);
+  ok(llamadasA === 3 && ra.r.agente.figs === 2, `3 llamadas (cierre + reparación + re-cierre) y la boleta llena (${llamadasA} · ${ra.r.agente.figs} figs)`);
+
+  // (b) el cierre FORZADO pide la herramienta: mismo derecho, misma ronda extra
+  let llamadasB = 0;
+  const guionCierre = async ({ cierre, figsEnBoleta }) => {
+    llamadasB++;
+    if (!cierre) return { tipo: "herramientas", pedidos: [] };   // quema las 3 rondas sin pedir nada
+    if (figsEnBoleta === 0) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
+    return { tipo: "texto", texto: TEXTO_BUENO };
+  };
+  const rb = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionCierre });
+  ok(rb.r.agente.estado === "verde" && /22\.560/.test(rb.r.text),
+    `el cierre forzado que pide una herramienta válida la obtiene y cierra verde (${rb.r.agente.estado})`);
+  ok(llamadasB === 5, `3 rondas vacías + cierre + re-cierre = 5 llamadas (${llamadasB})`);
+
+  // contraprueba: la ronda extra es UNA — un guion que pide herramientas por siempre en el cierre no la repite
+  let llamadasC = 0;
+  const guionInsaciable = async ({ cierre }) => {
+    llamadasC++;
+    if (!cierre) return { tipo: "herramientas", pedidos: [] };
+    return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
+  };
+  const rc = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionInsaciable });
+  ok(llamadasC === 5 && rc.r.agente.estado === "limite",
+    `insaciable: la extra corre UNA vez y el turno cae a la línea honesta con lo leído (${llamadasC} llamadas · ${rc.r.agente.estado})`);
+}
+
+/* ═══ 11 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
+H("11 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
   const tmp = [];
   let nCarnada = 0;
@@ -335,6 +382,21 @@ H("10 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       initTenant(TENANT_DEMO);
       const t1 = await Mut.answerViaAgente({ text: Q1_C, history: [], mem: {}, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: T1_C }) });
       return t1.r.agente.estado === "verde" && !t1.mem.recitaAprobada;   // el defecto: verde sin memoria — el contador 0 del examen
+    });
+
+  // (i) R1 · la ronda extra muerta: el pedido válido del cierre vuelve a descartarse (el vacío de T7)
+  await carnada("ronda extra descartada (la muerte de T7)",
+    [[/    if \(rondaExtraUsada \|\| !res \|\| res\.tipo !== "herramientas" \|\| !Array\.isArray\(res\.pedidos\)\) return null;/,
+      "    return null;\n    if (rondaExtraUsada || !res || res.tipo !== \"herramientas\" || !Array.isArray(res.pedidos)) return null;"]],
+    async (Mut) => {
+      initTenant(PACK);
+      const guionT7c = async ({ attempt, figsEnBoleta }) => {
+        if (attempt === 0) return { tipo: "texto", texto: "Depósito Riachuelo te compró $99.9M el último mes — un récord histórico." };
+        if (figsEnBoleta === 0) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
+        return { tipo: "texto", texto: TEXTO_BUENO };
+      };
+      const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionT7c });
+      return r.r.agente.estado !== "reparado" && r.r.agente.figs === 0;   // el defecto: el pedido se tiró y el turno murió sin leer
     });
 
   // (h) R7 · el expediente ciego: los vetos del guard no se registran
