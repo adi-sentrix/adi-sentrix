@@ -81,7 +81,7 @@ export function composeSkuOperationalAnalysis(scenarioId) {
 
   if (top4.length === 0) {
     return {
-      opener: "El inventario opera dentro de rango óptimo en el escenario actual. No hay SKUs con capital atrapado relevante.",
+      opener: "El inventario opera dentro de rango óptimo con este dato. No hay SKUs con capital atrapado relevante.",
       // BRIEF N-bis · Tipo A puro · filtradas
       suggestions: filterTextualSuggestions([
         "Cómo está la rotación general",

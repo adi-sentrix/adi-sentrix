@@ -376,7 +376,7 @@ function composeM1Donde(archetype, domains, scenarioId) {
       .slice(0, 3);
 
     if (lowQualityGrowers.length === 0) {
-      return `El crecimiento de la cartera no muestra deterioro material de calidad en el escenario actual.`;
+      return `El crecimiento de la cartera no muestra deterioro material de calidad con este dato.`;
     }
 
     const namesList = lowQualityGrowers.map(c =>
@@ -513,7 +513,7 @@ function composeM4QuePriorizar(archetype, domains, scenarioId) {
     return `La palanca prioritaria es liberar capital en categorías de baja rotación con margen sano, no en categorías con margen ya comprimido. La intervención precisa requiere drilldown por categoría dentro del módulo Inventario para identificar qué SKUs combinan capital alto con rotación baja y margen aceptable.`;
   }
 
-  return `La palanca prioritaria requiere análisis específico del dominio detectado con mayor materialidad activa en el escenario.`;
+  return `La palanca prioritaria requiere análisis específico del dominio detectado con mayor materialidad activa en el dato.`;
 }
 
 // ─── SUGGESTIONS ────────────────────────────────────────

@@ -117,7 +117,7 @@ function _limite(dimension, metric, scenario) {
     const fuera = marcasMargen.map((m) => m.nombre).filter((n) => !conCliente.has(n));
     if (fuera.length) {
       return { tipo: "poblacion_incompleta", entidadesFuera: fuera,
-        texto: `${fuera.length === 1 ? "Una marca no aparece" : `${fuera.length} marcas no aparecen`} en este gráfico (${fuera.join(" · ")}): con un escenario activo la venta por marca se reconstruye desde los clientes, y ${fuera.length === 1 ? "esa marca no tiene ninguno" : "esas marcas no tienen ninguno"} en el dato. El Cuadro sí ${fuera.length === 1 ? "la muestra" : "las muestra"}, con su cifra base, así que los dos totales no coinciden.` };
+        texto: `${fuera.length === 1 ? "Una marca no aparece" : `${fuera.length} marcas no aparecen`} en este gráfico (${fuera.join(" · ")}): con transforms de simulación aplicados, la venta por marca se reconstruye desde los clientes, y ${fuera.length === 1 ? "esa marca no tiene ninguno" : "esas marcas no tienen ninguno"} en el dato. El Cuadro sí ${fuera.length === 1 ? "la muestra" : "las muestra"}, con su cifra base, así que los dos totales no coinciden.` };
     }
   }
   return null;

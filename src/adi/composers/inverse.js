@@ -180,7 +180,7 @@ export function composeInverseProjection(payload, scenarioId) {
     if (r) { venta = r.venta; contrib = r.contribucion; nombre = r.nombre; fuenteNota = " (dato directo del SKU)"; }
   }
   if (venta == null || !venta) {
-    return { opener: `No tengo a ${inv.scope} en el detalle de este escenario.`, suggestions: filterTextualSuggestions([]), sentrixAction: null, derivedModule: "margenes" };
+    return { opener: `No tengo a ${inv.scope} en el detalle de este dato.`, suggestions: filterTextualSuggestions([]), sentrixAction: null, derivedModule: "margenes" };
   }
 
   const margenEf = contrib / venta;   // margen EFECTIVO (criterio 2 · cierra el álgebra)

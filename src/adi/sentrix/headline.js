@@ -43,6 +43,7 @@ const _r1 = (n) => Math.round(n * 10) / 10;
  * Se re-exporta para que todo importador existente (mesaCapital.js, _totales_cabecera_gate) siga igual. */
 export { rotacionPonderada } from "./rotacion.js";
 import { rotacionPonderada } from "./rotacion.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // R6 (retrabajo ultracode): el fallback «actual» dejaba armar el PLAN sobre la carpeta cruda
 
 /* ── LAS DOS FUENTES OFICIALES, memoizadas por tenant+escenario ───────────────────────────────────────────────
  * `buildCuadroMando` arrastra la capa de asesor (que corre el diagnose), así que llamarlo por cada fila de un
@@ -129,7 +130,7 @@ export const HEADLINES = {
 export function headlineTotal(metrica, eje, escenario) {
   const d = HEADLINES[`${metrica}@${eje}`];
   if (!d) return null;
-  const v = d.valor(escenario || "actual");
+  const v = d.valor(escenario || ESCENARIO_INICIAL);
   if (typeof v !== "number" || !Number.isFinite(v)) return null;
   // EL PERÍODO NO SE DECLARA ACÁ, SE LEE DEL UNIVERSO. Estaba escrito a mano ("año cerrado" / "foto de inventario
   // a hoy") al lado del universo que ya lo declara, y eso es una segunda verdad esperando divergir — el mismo

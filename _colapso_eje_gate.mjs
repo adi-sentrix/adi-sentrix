@@ -170,13 +170,19 @@ H("C3 · ni un literal de escenario como default — la base real se declara UNA
   // de los composers son COMPARACIONES, no defaults — los desarma C4. Fuera del scan: config/scenarios.js (la
   // declaración única) y los datos de tenant (SCENARIO_TRANSFORMS nombra sus claves legítimamente).
   const EXENTOS = /config[\\/]scenarios\.js$|data[\\/]tenants[\\/]/;
-  const DEFAULT_FORMS = [/\|\|\s*"bonanza"/, /\bscenario\s*=\s*"bonanza"/];
+  // R6: `|| "actual"` entra a las formas — el fallback de conveniencia dejaba armar el PLAN sobre la carpeta
+  // cruda mientras la pantalla sirve la base (la clase «dos carpetas»). EXENTO declarado: answerADIFromSpec
+  // (`spec.scenario || "actual"` es vocabulario del CONTRATO spec — el shape LOCKED del owner 2026-07-02).
+  const EXENTO_SPEC = /answerADIFromSpec\.js$/;
+  const DEFAULT_FORMS = [/\|\|\s*"bonanza"/, /\bscenario\s*=\s*"bonanza"/, /\|\|\s*"actual"/];
   const conDefault = [];
   for (const [p, cod] of CODIGO) {
     if (EXENTOS.test(p)) continue;
-    if (DEFAULT_FORMS.some((re) => re.test(cod))) conDefault.push(p);
+    const formas = DEFAULT_FORMS.filter((re) => re.test(cod));
+    if (formas.length === 1 && formas[0].source.includes("actual") && EXENTO_SPEC.test(p)) continue;
+    if (formas.length) conDefault.push(p);
   }
-  ok(conDefault.length === 0, "ningún módulo tiene un default literal de escenario", conDefault.join(", "));
+  ok(conDefault.length === 0, "ningún módulo tiene un default literal de escenario (bonanza NI actual · exento declarado: el contrato spec)", conDefault.join(", "));
   // y quienes lo necesitan importan la declaración (muestra representativa: la Mesa y el spec-path)
   ok(importaciones("ESCENARIO_INICIAL", CODIGO.get(join(ROOT, "src/adi/sentrix/mesa.js")) || ""),
     "la Mesa importa ESCENARIO_INICIAL de la única fuente");
@@ -193,18 +199,32 @@ H("C4 · el único mundo no se etiqueta — ningún emisor compone «escenario X
   // {scenario}» sin `$`), la mayúscula con palabras intermedias («Escenario de datos actual: ${scenario}») y
   // los dos puntos («escenario: ${scenario}»). Un lock que mide una forma mide ESA forma. Las cuatro fugas de
   // hoy quedan abajo como carnadas VERBATIM: este lock no vuelve a aprobar lo que ya se le escapó.
+  // RONDA 2 (R6 del retrabajo): el A/B de R5 probó que las fugas también viven en LITERALES ESTÁTICOS — sin
+  // interpolación no hay `${` que cazar. Tras sinComentarios, una frase multi-palabra con espacios SOLO puede
+  // vivir dentro de un string (los identificadores no llevan espacios): por eso las formas de frase barren el
+  // código pelado directo. Las etiquetas por nombre ahora cubren las TRES comillas y la minúscula, y la
+  // concatenación con «+» también.
   const EMISIONES = [
     /escenario \$\{/,                                   // «· escenario ${scenario}» — la forma template
     /escenario: \$\{/,                                  // «· escenario: ${scenario}» — con dos puntos (fuga real: datoProyectado)
     /escenario \{[a-zA-Z]/,                             // «· escenario {scenario}» — interpolación JSX (fugas reales: pies del cuadro y el Pareto)
-    /[Ee]scenario[^\n"`]{0,40}\$\{/,                    // «Escenario de datos actual: ${…}» — mayúscula/palabras intermedias a ≤40 chars de la interpolación (fuga real: planPrompt)
-    /"[^"\n]*escenario (?:Bonanza|Tensi|Crisis|favorable|cr[ií]tico)/,   // la etiqueta por nombre en un literal
+    /[Ee]scenario[^\n"`]{0,40}\$\{/,                    // «Escenario de datos actual: ${…}» — mayúscula/palabras a ≤40 chars de la interpolación (fuga real: planPrompt)
+    /(?:en|del) (?:este|el) escenario\b/,               // «en este escenario» / «del escenario» — LITERAL ESTÁTICO (fugas reales R5/R6: diez composers)
+    /escenario activo\b|escenario actual\b/,            // «el escenario activo/actual» — ídem (fuga real: ranking y hermanos)
+    /["'`][^"'`\n]{0,80}escenario (?:[Bb]onanza|[Tt]ensi|[Cc]risis|favorable|cr[ií]tico)/,   // etiqueta por nombre, en CUALQUIER comilla y case
+    /["'`]\s*\+\s*["'`]?\s*escenario\b|escenario:?\s*["'`]\s*\+/,   // la concatenación con «+» que parte el token
   ];
+  // ÚNICO EXENTO (R6, declarado): figureType.js — las `razonEscenario` del tipado de la boleta son vecindario
+  // del NOTARIO (guardrail del owner: guardC y la boleta no se tocan); su rename/reescritura viaja al owner
+  // junto con el kind «escenario-inviable» de guardC (lo lleva el chat principal). No es una fuga nueva: es
+  // territorio que espera su venia, dicho acá para que el silencio no lo tape.
+  const EXENTO_NOTARIO = /contract[\\/]figureType\.js$/;
   const emiten = [];
   for (const [p, cod] of CODIGO) {
+    if (EXENTO_NOTARIO.test(p)) continue;
     if (EMISIONES.some((re) => re.test(cod))) emiten.push(p);
   }
-  ok(emiten.length === 0, "ningún módulo compone «escenario X» en texto emitido (sin exenciones)", emiten.join(", "));
+  ok(emiten.length === 0, "ningún módulo compone «escenario X» en texto emitido (exento declarado: figureType/notario)", emiten.join(", "));
   // el mapa del agente — la superficie NUEVA donde el concepto se estaba colando — no lleva el token
   const mapa = sinComentarios(LEER(join(ROOT, "src/adi/agente/mapaDelDato.js")));
   ok(!/escenario \$\{/.test(mapa) && /MAPA DEL DATO/.test(mapa),
@@ -312,6 +332,25 @@ H("CARNADA · cada chequeo, probado ROJO con la resurrección adentro");
   // (l) los labels de UI de vuelta en config
   ok(definicionesDe("SCENARIOS", sinComentarios("export const SCENARIOS = { bonanza: { label: \"Bonanza\" } };")).length > 0,
     "carnada «labels SCENARIOS de vuelta» → el detector lo caza");
+
+  // (m..p) RONDA 2 (R6): las formas que evadieron la ronda 1, con las fugas REALES verbatim como cebo
+  const EMITE2 = (src) => [
+    /(?:en|del) (?:este|el) escenario\b/, /escenario activo\b|escenario actual\b/,
+    /["'`][^"'`\n]{0,80}escenario (?:[Bb]onanza|[Tt]ensi|[Cc]risis|favorable|cr[ií]tico)/,
+    /["'`]\s*\+\s*["'`]?\s*escenario\b|escenario:?\s*["'`]\s*\+/,
+  ].some((re) => re.test(sinComentarios(src)));
+  ok(EMITE2('return composeHonestUnavailable("no hay datos disponibles en el escenario activo.", spec.domain);'),
+    "carnada «literal estático de ranking (fuga real R5)» → el lock la caza");
+  ok(EMITE2("const t = `No encontré fugas materiales en este escenario.`;"),
+    "carnada «literal estático del diagnose vacío (fuga real R5)» → el lock la caza");
+  ok(EMITE2("const s = 'resultados del escenario bonanza';"),
+    "carnada «etiqueta minúscula en comilla simple» → el lock la caza");
+  ok(EMITE2('const h = "Concentración " + byNoun + " · escenario " + con.scenario;'),
+    "carnada «concatenación con + » → el lock la caza");
+
+  // (q) el default «actual» que vuelve como fallback (la clase dos-carpetas de R6)
+  ok(/\|\|\s*"actual"/.test(sinComentarios('const scn = scenario || "actual";')),
+    "carnada «fallback || \"actual\" de vuelta» → el chequeo se pone ROJO");
 }
 
 console.log(`\n── _colapso_eje_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

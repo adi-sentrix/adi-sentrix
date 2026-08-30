@@ -354,11 +354,11 @@ export function composeMechanismInactiveResponse(mechanismId, scan) {
 
   let mensaje = "";
   if (mechanismId === "trapped_capital") {
-    mensaje = `${mech.nombre_capitalizado} no se evalúa con precisión cuantitativa sin drilldown por categoría de inventario. La lectura agregada del módulo sugiere presión, pero la confirmación causal requiere desglose por categoría que no está disponible en el escenario actual.`;
+    mensaje = `${mech.nombre_capitalizado} no se evalúa con precisión cuantitativa sin drilldown por categoría de inventario. La lectura agregada del módulo sugiere presión, pero la confirmación causal requiere desglose por categoría que no está disponible con este dato.`;
   } else if (mechanismId === "liquidity_compression") {
     mensaje = `${mech.nombre_capitalizado} no se manifiesta materialmente con este dato. El flujo de caja se sostiene en los rangos esperados.`;
   } else {
-    mensaje = `${mech.nombre_capitalizado} no presenta instancias activas en el escenario actual.`;
+    mensaje = `${mech.nombre_capitalizado} no presenta instancias activas con este dato.`;
   }
 
   const opener = mensaje;
@@ -518,7 +518,7 @@ export function composeMechanismScan(scenarioId) {
     return order.indexOf(a.mechanismId) - order.indexOf(b.mechanismId);
   });
 
-  let opener = `La cartera presenta ${activos.length} mecanismos activos y ${inactivos.length} inactivos en el escenario actual.`;
+  let opener = `La cartera presenta ${activos.length} mecanismos activos y ${inactivos.length} inactivos con este dato.`;
 
   for (const { mechanismId, m } of activos) {
     let parrafo = "";

@@ -25,7 +25,7 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
   const c = dataset.find(x => x.nombre === clientName);
   if (!c) {
     return {
-      opener: `No tengo a ${clientName} en el detalle de la cartera de este escenario.`,
+      opener: `No tengo a ${clientName} en el detalle de la cartera.`,
       suggestions: filterTextualSuggestions(cuentasMasGrandes(dataset).map(n => `Cuéntame de ${n}`)),
       sentrixAction: null,
     };

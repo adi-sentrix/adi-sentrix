@@ -25,6 +25,7 @@ import { buildNarrateSystemSegments } from "../oracle/narratePromptC.js";
 // CAMINO NATURAL (owner 2026-08-14): el system del cerebro único (persona + carpeta + doctrina + contrato
 // [[CALCULO]]) — módulo puro, la doctrina es la TEXTUAL del arnés medido (`_corrida_doble.mjs`).
 import { buildNaturalSystemSegments } from "../oracle/naturalPrompt.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // R6 (retrabajo ultracode): el fallback «actual» dejaba armar el PLAN sobre la carpeta cruda
 
 // config del proveedor desde el env (en dev el .env se carga a process.env · en prod lo setea la plataforma).
 // `env` inyectable para runtimes que no exponen process.env global (ej. Cloudflare Workers) · default process.env.
@@ -354,7 +355,7 @@ export async function handlePlan({ text, history, mem, scenario, access, tenantI
     // datoNegocio (owner 2026-08-14) — 5º argumento: entra AL FINAL del fijo, así el prefijo de siempre no se parte
     // y el bloque (estable por tenant+escenario) queda bajo cache:true. String no vacío o nada — mismo trato que
     // el 7º argumento de la pasada de NARRAR, más abajo.
-    const _seg = buildPlanSystemSegments(ADI_PERSONA_PLAN, renderInteractionMemory(mem), scenario || "actual",
+    const _seg = buildPlanSystemSegments(ADI_PERSONA_PLAN, renderInteractionMemory(mem), scenario || ESCENARIO_INICIAL,
       !!(typeof vistaLinea === "string" && vistaLinea.trim()), (typeof datoNegocio === "string" && datoNegocio) || null);
     const system = [{ text: _seg.fijo, cache: true }, { text: _seg.variable, cache: false }];
     const user = buildPlanUserMessage(history, text, typeof vistaLinea === "string" ? vistaLinea : null);

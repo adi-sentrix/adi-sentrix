@@ -39,7 +39,7 @@ function _generateContextualAlternatives(ctx, modulo, scenario) {
 
   // Alternativa por módulo activo (capability conocida del razonador)
   if (modulo === "ventas") {
-    alternatives.push(`Top clientes por contribución del escenario actual`);
+    alternatives.push(`Top clientes por contribución del negocio`);
   } else if (modulo === "margenes") {
     alternatives.push(`Clientes con erosión de margen`);
   } else if (modulo === "inventario") {
@@ -64,7 +64,7 @@ function _generateContextualAlternatives(ctx, modulo, scenario) {
   if (ADI_QI_FILTER_ENABLED) {
     const _inv = /rotaci|inventario|\bdoh\b|stock|capital|cobertura|inmovilizad|atrapad|sobre[\s-]?cobertura|bodega|sucursal|liquidar|quiebre/i;
     let _filt = alternatives.filter(a => !_inv.test(a));
-    for (const _c of [`Cómo está el negocio en márgenes`, `Clientes con erosión de margen`, `Top clientes por contribución del escenario actual`]) {
+    for (const _c of [`Cómo está el negocio en márgenes`, `Clientes con erosión de margen`, `Top clientes por contribución del negocio`]) {
       if (_filt.length >= 3) break;
       if (!_filt.includes(_c)) _filt.push(_c);
     }
@@ -209,7 +209,7 @@ export function composeGlobalHonestFallback(query, conversationContext, modulo, 
     const opener_ood = [
       `Eso no es algo que pueda razonar con los datos del negocio.`,
       ``,
-      `Si querés algo del lado comercial · operacional o de inventario · cualquier pregunta sobre el escenario actual la tomo.`,
+      `Si querés algo del lado comercial · operacional o de inventario · cualquier pregunta sobre tu negocio la tomo.`,
     ].join("\n");
     return {
       opener: applyVoiceCalibration(opener_ood, "explore"),

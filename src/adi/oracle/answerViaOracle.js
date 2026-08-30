@@ -1704,7 +1704,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (scenarioIntent.kind === "no_entity") {
       const recoverable = recentSubjectsPrev.find((s) => s && s.entidad && (s.dimension == null || ["cliente", "sku", "marca", "familia"].includes(s.dimension)));
       if (!recoverable) {
-        const out = _composedBypassResult(`${_avisoVentasComoVolumen(scenarioIntent.variable)}¿Sobre qué cliente, SKU, marca o familia quieres simular este escenario?`, mem, recentNarrationsPrev, scenario);
+        const out = _composedBypassResult(`${_avisoVentasComoVolumen(scenarioIntent.variable)}¿Sobre qué cliente, SKU, marca o familia quieres simular este supuesto?`, mem, recentNarrationsPrev, scenario);
         if (out) {
           // EL PENDIENTE DE ALCANCE SE PERSISTE (owner 2026-08-14, hilo medido): este arm hacía la pregunta y no
           // guardaba NADA — el turno siguiente («simula sobre el total de ventas») caía a PLAN sin ningún estado

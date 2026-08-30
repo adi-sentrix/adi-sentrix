@@ -380,7 +380,7 @@ function _cacheado(scenario) {
 
 /** proyectarDatoNegocio(scenario) → el TEXTO de la proyección (determinístico por tenant+escenario). */
 export function proyectarDatoNegocio(scenario = ESCENARIO_INICIAL) {
-  const base = _cacheado(String(scenario || "actual")).texto;
+  const base = _cacheado(String(scenario || ESCENARIO_INICIAL)).texto;
   /* EL SELLO DE LA CARGA SE SUMA FUERA DEL CACHÉ (owner 2026-08-25), y tiene que ser así: el caché está armado
    * por tenant+escenario, mientras que el sello cambia cuando el usuario activa o descarta un archivo. Dentro
    * del caché serviría la observación de un archivo que ya no está activo — peor que no avisar. Es un hecho de
@@ -392,7 +392,7 @@ export function proyectarDatoNegocio(scenario = ESCENARIO_INICIAL) {
 /** cifrasDelDato(scenario) → { figs: [{canon, value, duenos}], counts: [n...] } — la QUINTA fuente de guardC:
  * cada cifra de la proyección con los tokens dueños que la validan por cercanía. MISMO recorrido que el texto. */
 export function cifrasDelDato(scenario = ESCENARIO_INICIAL) {
-  const c = _cacheado(String(scenario || "actual"));
+  const c = _cacheado(String(scenario || ESCENARIO_INICIAL));
   return { figs: c.figs, counts: c.counts, estados: c.estados, rankings: c.rankings, dias: c.dias };
 }
 
@@ -402,7 +402,7 @@ export function cifrasDelDato(scenario = ESCENARIO_INICIAL) {
  * oración — por eso citarlas verbatim es, por construcción, lo único que este módulo puede ofrecerle a un
  * suplente sin que el muro tenga algo que cobrarle. */
 export function kpisDelNegocio(scenario = ESCENARIO_INICIAL) {
-  return _cacheado(String(scenario || "actual")).kpisLineas.slice();
+  return _cacheado(String(scenario || ESCENARIO_INICIAL)).kpisLineas.slice();
 }
 
 /* ── EL SUPLENTE DIGNO PARA UN CEREBRO SIN BOLETA (corrida doble 2026-08-14) ────────────────────────────────────

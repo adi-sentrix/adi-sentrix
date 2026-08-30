@@ -26,7 +26,7 @@ function composeClientComparison(clientA_name, clientB_name, scenario, modulo) {
   if (!A || !B) {
     const missing = !A ? clientA_name : clientB_name;
     return {
-      opener: `No tengo a ${missing} en el detalle de la cartera de este escenario.`,
+      opener: `No tengo a ${missing} en el detalle de la cartera.`,
       suggestions: filterTextualSuggestions(cuentasMasGrandes(dataset).map(n => `Cuéntame de ${n}`)),
       sentrixAction: null,
     };

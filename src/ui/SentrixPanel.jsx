@@ -2004,7 +2004,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         </>) : (
           // LIMITACIÓN DECLARADA, nunca relleno: sin filas de cliente en el período no hay veredicto que sostener.
           <div style={{ fontSize:14, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px dashed ${C.border}`, borderRadius:10 }}>
-            El resumen comercial necesita la cartera de clientes del período y este escenario no la trae. Sin esas filas no hay lectura que sostener, así que no se muestra ninguna.
+            El resumen comercial necesita la cartera de clientes del período y este dato no la trae. Sin esas filas no hay lectura que sostener, así que no se muestra ninguna.
           </div>
         )}
         {/* ── "EVIDENCIA COMPLETA · OPCIONAL" SE ELIMINÓ (owner 2026-08-08) ──────────────────────────────────────
@@ -5593,7 +5593,7 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
       <div style={_panelStyle}>
         <span style={_panelTitle}>{_dot}Perfil Ejecutivo · {name}</span>
         <div style={{ fontSize: 14, color: C.textMuted, marginTop: 8 }}>
-          No tengo datos suficientes para armar el Perfil Ejecutivo de {name} en este escenario — {(prof && prof.coverage && prof.coverage.reason) || "sin cobertura"}.
+          No tengo datos suficientes para armar el Perfil Ejecutivo de {name} con este dato — {(prof && prof.coverage && prof.coverage.reason) || "sin cobertura"}.
         </div>
       </div>
     );
@@ -5762,7 +5762,7 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
         <span style={_panelTitle}>{_dot}Composición de la compra</span>
         {familias.length === 0 && skus.length === 0 ? (
           <div style={{ fontSize: 14, color: C.textMuted, marginTop: 8 }}>
-            No tengo la composición de la compra de {name} por familia o SKU en este escenario — queda abierto.
+            No tengo la composición de la compra de {name} por familia o SKU con este dato — queda abierto.
           </div>
         ) : (
           <>
@@ -5784,7 +5784,7 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
         <span style={_panelTitle}>{_dot}Importancia de {name} en tu cartera</span>
         {!pos ? (
           <div style={{ fontSize: 14, color: C.textMuted, marginTop: 8 }}>
-            No tengo la posición de {name} en la cartera en este escenario — queda abierto.
+            No tengo la posición de {name} en la cartera con este dato — queda abierto.
           </div>
         ) : (
           <>

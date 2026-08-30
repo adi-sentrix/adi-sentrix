@@ -300,7 +300,7 @@ function valorizationEngine(scenarioId) {
     return {
       available: false,
       scenarioId,
-      reason: "commercial_erosion no triggered en escenario actual · sin base para proyección",
+      reason: "commercial_erosion no triggered con este dato · sin base para proyección",
       presupuesto,
     };
   }
