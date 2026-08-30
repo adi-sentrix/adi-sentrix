@@ -124,31 +124,23 @@ function _assumptionEcho(a) {
   return `${a.type} ${a.value}${u}`;
 }
 
-// ── SCRUB de lenguaje de escenario (producto: base única = real · demo/prod NUNCA dicen Bonanza/Tensión/Crisis) ──
-// Reescribe el label heredado de los composers ("· escenario Bonanza", "cifras runtime sobre escenario X") a
-// "base real" / "dato real". SOLO en el retorno del seam → el motor 16/0 (answerADI) queda byte-exacto · cero cifras tocadas.
-const _SCN = "(?:Bonanza|Tensi[oó]n|Crisis|bonanza|tensi[oó]n|crisis|activo|actual)";
-function _scrubScenario(text) {
-  if (typeof text !== "string" || text.indexOf("escenario") < 0) return text;
-  return text
-    .replace(new RegExp(`runtime (?:sobre|del) escenario ${_SCN}`, "g"), "sobre el dato real")   // "Cifras runtime del escenario Bonanza" → "Cifras sobre el dato real"
-    .replace(new RegExp(`· escenario ${_SCN}`, "g"), "· base real")                              // "… por Cliente · escenario Bonanza" → "… · base real"
-    .replace(new RegExp(`del escenario ${_SCN}`, "g"), "del dato real")
-    .replace(new RegExp(`en (?:este|el) escenario\\b`, "g"), "en la base real")
-    .replace(new RegExp(`escenario ${_SCN}`, "g"), "base real");                                 // residual ("escenario activo/actual")
-}
+// ⚠️ ACÁ VIVÍA `_scrubScenario` — la red del seam que reescribía «· escenario Bonanza» a «· base real» en el
+// texto de salida. SE RETIRÓ CON EL COLAPSO DEL EJE (C6, 2026-08-30): los emisores dicen «base real» DIRECTO
+// (specRetrieval: diagnose + 3 openers) y ninguno compone «escenario X» — una red que no ataja nada es código
+// muerto ocupando el choke point. Su sucesor no es otra red: es el lock de EMISIÓN de _colapso_eje_gate, que
+// pone rojo el repo si un emisor volviera a etiquetar el mundo. (Y este archivo ya no está exento del scan.)
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════════════
  * answerADIFromSpec(spec, context, state) → { text, suggestions, sentrixAction, intent, route, context, evidence }
  * Camino PARALELO/dev · testeable sin proveedor LLM (specs a mano · _spec_gate.mjs). La UI lo usa solo con ADI_LLM_ENABLED.
- * WRAPPER: llama al impl y aplica _scrubScenario al texto de salida (choke point único · gate-safe · no toca el motor).
+ * WRAPPER sobre el impl (choke point único · gate-safe · no toca el motor). El scrub de escenario que vivía acá se retiró (C6).
  * ═══════════════════════════════════════════════════════════════════════════════════════════════════ */
 export function answerADIFromSpec(spec, context = {}, state = {}) {
   // SANEO (crash en prod 2026-07-09): filters:null explícito rompe composers con default {} — se normaliza
   // también acá (cinturón para specs que llegan sin pasar por coerceSpec, ej. chips del inicio).
   if (spec && spec.filters === null) spec = { ...spec, filters: undefined };
   const r = _answerADIFromSpecImpl(spec, context, state);
-  if (r && typeof r.text === "string") r.text = _scrubScenario(r.text);
+  // (el scrub de lenguaje de escenario se retiró acá — C6 del colapso: los emisores ya hablan limpio)
   // SENTRIX · overview/rank/diagnose (evidencia de DIMENSIÓN · sin reading/transform/followup) → abren el CUADRO de la
   // cartera (owner 2026-07-06). El camino LLM no cableaba esto (solo dive→shell e inventario→cuadro lo hacían) → el
   // usuario no veía la evidencia. El CuadroOnlyPanel es genérico (carga la grilla por entityType). Post-proceso del seam:

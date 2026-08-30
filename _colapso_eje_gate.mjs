@@ -188,19 +188,16 @@ H("C3 · ni un literal de escenario como default — la base real se declara UNA
 H("C4 · el único mundo no se etiqueta — ningún emisor compone «escenario X» para el usuario o el modelo");
 {
   // Formas de EMISIÓN (template literal con el token + interpolación, y las etiquetas por nombre en strings).
-  // Exento mientras viva: el scrub del seam (answerADIFromSpec._scrubScenario) — la red transitoria que REESCRIBE
-  // ese lenguaje si algo lo emitiera; sus regex nombran los patrones para matarlos, no para decirlos.
-  const EXENTO_SCRUB = /answerADIFromSpec\.js$/;
+  // SIN EXENCIONES desde C6: el scrub del seam se retiró (los emisores hablan limpio) y este lock es su sucesor.
   const EMISIONES = [
     /escenario \$\{/,                                   // «· escenario ${scenario}» — la forma template
     /"[^"\n]*escenario (?:Bonanza|Tensi|Crisis|favorable|cr[ií]tico)/,   // la etiqueta por nombre en un literal
   ];
   const emiten = [];
   for (const [p, cod] of CODIGO) {
-    if (EXENTO_SCRUB.test(p)) continue;
     if (EMISIONES.some((re) => re.test(cod))) emiten.push(p);
   }
-  ok(emiten.length === 0, "ningún módulo compone «escenario X» en texto emitido", emiten.join(", "));
+  ok(emiten.length === 0, "ningún módulo compone «escenario X» en texto emitido (sin exenciones)", emiten.join(", "));
   // el mapa del agente — la superficie NUEVA donde el concepto se estaba colando — no lleva el token
   const mapa = sinComentarios(LEER(join(ROOT, "src/adi/agente/mapaDelDato.js")));
   ok(!/escenario \$\{/.test(mapa) && /MAPA DEL DATO/.test(mapa),
@@ -210,6 +207,24 @@ H("C4 · el único mundo no se etiqueta — ningún emisor compone «escenario X
   // de conveniencia; los gates que dependían de la omisión ahora declaran su mundo explícito, con porqué).
   const conActual = [...CODIGO].filter(([, cod]) => /\bscenario\s*=\s*"actual"/.test(cod)).map(([p]) => p);
   ok(conActual.length === 0, "ningún default `scenario = \"actual\"` en el repo — nadie lee otra carpeta por default", conActual.join(", "));
+}
+
+/* ═══ C6 · EL SCRUB Y LOS LABELS, RETIRADOS ═══════════════════════════════════════════════════════════════════ */
+H("C6 · la red transitoria y las etiquetas de UI no vuelven — los emisores hablan limpio de nacimiento");
+{
+  for (const nombre of ["_scrubScenario", "SCENARIOS"]) {
+    const definidoEn = [], importadoEn = [];
+    for (const [p, cod] of CODIGO) {
+      if (definicionesDe(nombre, cod).length) definidoEn.push(p);
+      if (importaciones(nombre, cod)) importadoEn.push(p);
+    }
+    ok(definidoEn.length === 0, `nadie DEFINE ${nombre}`, definidoEn.join(", "));
+    ok(importadoEn.length === 0, `ni un import colgando de ${nombre}`, importadoEn.join(", "));
+  }
+  // el sucesor del scrub vive: los emisores dicen «· base real» DIRECTO (specRetrieval, el diagnose y los openers)
+  const spec = sinComentarios(LEER(join(ROOT, "src/adi/specRetrieval.js")));
+  ok((spec.match(/· base real\./g) || []).length >= 4,
+    "el sucesor vive: specRetrieval emite «· base real» directo (diagnose + 3 openers)");
 }
 
 /* ═══ CARNADAS ════════════════════════════════════════════════════════════════════════════════════════════════ */
@@ -266,6 +281,14 @@ H("CARNADA · cada chequeo, probado ROJO con la resurrección adentro");
   // (j) el agente que vuelve a leer OTRA carpeta que la pantalla
   ok(/\bscenario\s*=\s*"actual"/.test(sinComentarios("export function mapaDelDato(scenario = \"actual\") {}")),
     "carnada «default actual de vuelta en el agente» → el chequeo se pone ROJO");
+
+  // (k) el scrub re-escrito de memoria (la red que ya no ataja nada)
+  ok(definicionesDe("_scrubScenario", sinComentarios("function _scrubScenario(text) { return text; }")).length > 0,
+    "carnada «scrub re-escrito de memoria» → el detector lo caza");
+
+  // (l) los labels de UI de vuelta en config
+  ok(definicionesDe("SCENARIOS", sinComentarios("export const SCENARIOS = { bonanza: { label: \"Bonanza\" } };")).length > 0,
+    "carnada «labels SCENARIOS de vuelta» → el detector lo caza");
 }
 
 console.log(`\n── _colapso_eje_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

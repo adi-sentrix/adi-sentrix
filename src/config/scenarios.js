@@ -2,7 +2,8 @@
  * Extraído de 41cc33d8 · valores byte-idénticos · cero recálculo (Fase 2 del refactor).
  * F1 multiempresa (2026-07-26): SCENARIO_TRANSFORMS es DATO DEL TENANT (nombra SUS entidades y trae SUS
  * kpis) → pasa a fachada de la puerta del dato (tenantStore · literal del demo en tenants/demo.js).
- * SCENARIOS (ids/labels de la UI) y SECTORAL_BENCHMARKS (referencias sectoriales) siguen siendo config. */
+ * SECTORAL_BENCHMARKS (referencias sectoriales) sigue siendo config; los labels de UI (SCENARIOS) murieron con
+ * el colapso del eje (ver abajo). */
 import { getTenantData, onTenantChange } from "../data/tenantStore.js";
 
 export let SCENARIO_TRANSFORMS = getTenantData().SCENARIO_TRANSFORMS;
@@ -16,11 +17,11 @@ onTenantChange((d) => { SCENARIO_TRANSFORMS = d.SCENARIO_TRANSFORMS; });
  * `SCENARIO_TRANSFORMS[id].kpis.inventario`). Todo lo medido en consola describía un negocio que la app no mostraba.
  * Un escenario no declarado no debe poder elegirse por escribir mal un string: acá está la única fuente. */
 export const ESCENARIO_INICIAL = "bonanza";
-export const SCENARIOS = {
-  bonanza: { id:"bonanza", label:"Bonanza", sublabel:"La trampa del éxito",   color:"#10b981", dotColor:"#34d399", icon:"🟢" },
-  tension: { id:"tension", label:"Tensión", sublabel:"KPIs dejan de funcionar", color:"#f59e0b", dotColor:"#fbbf24", icon:"🟡" },
-  crisis:  { id:"crisis",  label:"Crisis",  sublabel:"Todo se rompe a la vez",  color:"#ef4444", dotColor:"#f87171", icon:"🔴" },
-};
+// ⚠️ ACÁ VIVÍA `SCENARIOS` — los ids/labels de UI (Bonanza/Tensión/Crisis con colores e íconos). SE RETIRÓ CON
+// EL COLAPSO DEL EJE (C6, 2026-08-30): su único consumidor de producto era el ScenarioSelector (borrado en C1),
+// y las etiquetas de un concepto eliminado no son config, son resurrección en espera. Los IDS de los transforms
+// siguen siendo dato del TENANT (SCENARIO_TRANSFORMS, arriba) — el sustrato de Simulate v2 no los necesita
+// bautizados en la UI. Candado: _colapso_eje_gate.
 
 export const SECTORAL_BENCHMARKS = {
   // doh · = typical_doh U.A

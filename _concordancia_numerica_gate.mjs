@@ -44,7 +44,7 @@ import { deriveViewContextOrErrors, resolvePath } from "./src/adi/sentrix/viewCo
 import { builderOutsPorComponente } from "./src/adi/sentrix/viewBuilderRun.js";
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
 import { ledgerBoleta } from "./src/adi/oracle/ledger.js";
-import { SCENARIOS } from "./src/config/scenarios.js";
+import { SCENARIO_TRANSFORMS } from "./src/config/scenarios.js";
 import { getTenantId } from "./src/data/tenantStore.js";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -57,7 +57,11 @@ let PASS = 0, FAIL = 0;
 const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); } else { FAIL++; console.log("  ✗ " + m + (extra ? "\n      " + extra : "")); } };
 const H = (t) => console.log("\n" + t);
 
-const ESCENARIOS = Object.keys(SCENARIOS);              // bonanza · tension · crisis (los tres, siempre)
+// COLAPSO DEL EJE (C6, 2026-08-30): los ids salían de SCENARIOS (labels de UI, retirados con el selector) —
+// ahora salen de los TRANSFORMS DECLARADOS POR EL TENANT, que es lo que este gate realmente certifica: que las
+// tools de ADI no queden CIEGAS al motor de transforms (el sustrato de Simulate v2), pantalla y voz moviéndose
+// juntas. Mismos tres ids para el demo (bonanza · tension · crisis); un tenant sin transforms declara cero.
+const ESCENARIOS = Object.keys(SCENARIO_TRANSFORMS);
 const RC = { tenantId: getTenantId() };
 
 /* ════════════════════════════════════════════════════════════════════════════════════════════════════════════
