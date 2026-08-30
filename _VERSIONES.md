@@ -12,6 +12,37 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.16 — producción · tag `v2.16`
+
+**El concepto de escenario murió: queda uno solo, la realidad.** La decisión del owner del 7 de agosto,
+ejecutada en siete cortes, auditada por una revisión ultracode multi-agente (63 agentes · 51 hallazgos
+confirmados · 5 refutados · 59 afirmaciones verificadas), y cerrada con dos tandas de retrabajo.
+
+**Lo que el usuario deja de ver y de sufrir:**
+- «· escenario bonanza» desapareció de los pies del tablero, de los headers de tabla y de toda superficie.
+- **Los guiones con cifras inventadas, muertos**: había una séptima cadena guionada que decía «margen 25.6%»
+  a un negocio cuyo margen real era otro, con benchmark clavado a mano. Todo el overview y el ETLG salen del
+  dato o no salen.
+- **Una sola contribución**: un atajo interno servía cifras sin la reconciliación oficial — el ranking decía
+  $23.85M donde la Mesa decía $25.03M. El atajo se mató; ranking y Mesa derivan de la MISMA suma, vigilado
+  transversal por candado que compara contra el motor, no contra literales.
+- **El archivo de bienvenida de un solo mes ya no rompe la pantalla** — declina en palabras.
+- El modelo tampoco lee más el concepto: el system de PLAN y el header del dato viajan sin «escenario».
+
+**La lección quedó en los candados**: el lock de emisión aprendió CADA forma que lo evadió (JSX · dos puntos ·
+mayúscula · literales estáticos · comillas · concatenación), con las fugas reales como carnada verbatim — y al
+estrenarse cazó veinte fugas más él solo. Las simulaciones «¿qué pasa si…?» quedan intactas: una pregunta del
+usuario no es un escenario.
+
+**También viaja (inerte o invisible):** la quinta cara emite su contexto de vista (el botón «explicar» sabe qué
+mirás) · la letra del contrato del agente (F3) calibrada offline — 24 aceptadas, 0 falsos positivos · la
+consola de examen del agente · el procedimiento de baja documentado (db/BAJA_DE_EMPRESA.md) · los mapas de
+fases §10-§12. La bandera `ADI_AGENTE` sigue APAGADA en todos los perfiles.
+
+**Base de datos:** sin migraciones nuevas.
+
+**Suite: 206 PASS · 0 FAIL · 0 TOCARON LA RED · 0 CON CREDENCIAL VIVA.**
+
 ## 2.15 — producción · tag `v2.15`
 
 **El tablero deja de estar ciego al tamaño del negocio.** Corte chico y deliberado antes del barrido de
