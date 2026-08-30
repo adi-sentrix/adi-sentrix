@@ -8,11 +8,17 @@ import { _buildEntityId } from "../router.js";
 import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 import { simboloMoneda } from "../../config/moneda.js";
 
+import { getTenantData } from "../../data/tenantStore.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";
+// unidades VERDADERAS del monto comercial ALMACENADO (barrido A·maquinaria 2026-08-30) — demo: identidad
+const _enM = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e6;
+const _enK = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e3;
+
 export function composeClientContributionRanking(scenarioId) {
   // ── 1. Helpers formato
   const fmtM = (val) => {
     if (val == null || isNaN(val)) return "$0M";
-    return `${simboloMoneda()}${(val / 1000).toFixed(2)}M`;
+    return `${simboloMoneda()}${_enM(val).toFixed(2)}M`;
   };
 
   // ── 2. Ranking runtime sobre clientesMargen · SCENARIO-AWARE (fix GAP 2): antes leía SIEMPRE la base cruda → en
@@ -111,7 +117,7 @@ export function composeClientContributionRanking(scenarioId) {
     decision: top1.nombre,
     evidence: {
       client_count: ranked.length,
-      total_contribucion_M: +totalContrib / 1000,
+      total_contribucion_M: +_enM(totalContrib),
       top_cliente: top1.nombre,
       top_cliente_contribucion_pct: +top1pct,
       top3_concentration_pct: +pctTop3,

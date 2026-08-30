@@ -5,6 +5,10 @@
  * (autorizada) → el guard sigue garantizando que no invente. Multiempresa-safe: lee las fachadas live-binding.
  */
 import { clientesVentas, marcasVentas, skuInventario } from "../../data/demoData.js";
+import { getTenantData } from "../../data/tenantStore.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";
+// escala DECLARADA del pack (barrido A·maquinaria 2026-08-30) — con el demo («K») es la identidad de siempre
+const _fxm = () => factorComercialDe(getTenantData());
 import { SOURCES } from "../../config/contract/sourceManifest.js";   // el CONTRATO decide cómo cada fuente se mueve con el escenario (scenarioLoad) — ver _srcRows
 import { applyScenarioToSfamiliasVentas } from "../../engine/scenarios.js";   // el eje FAMILIA no tiene su Ventas en el manifiesto: entra por la MISMA función del motor que ya usan concentration.js y specRetrieval — ver _sources
 import { fig } from "../boleta.js";
@@ -48,7 +52,7 @@ const F = {
   nombre: { l: "Nombre", u: "text" }, sku: { l: "SKU", u: "text" }, bodega: { l: "Bodega", u: "text" }, marca: { l: "Marca", u: "text" }, sfamilia: { l: "Familia", u: "text" }, canal: { l: "Canal", u: "text" }, estado: { l: "Estado", u: "text" }, alerta: { l: "Alerta", u: "text" }, tipo: { l: "Tipo", u: "text" },
 };
 
-const _fmt = (m, v) => m.u === "money" ? _money(m.k ? v * 1000 : v) : m.u === "pct" ? `${v}%` : m.u === "ratio" ? `${(+v).toFixed(1)}x` : m.u === "days" ? `${Math.round(v)}d` : String(v);
+const _fmt = (m, v) => m.u === "money" ? _money(m.k ? v * _fxm() : v) : m.u === "pct" ? `${v}%` : m.u === "ratio" ? `${(+v).toFixed(1)}x` : m.u === "days" ? `${Math.round(v)}d` : String(v);
 
 // fieldLabel(token) → la etiqueta ("Margen"/"Ventas"/…) de una columna cruda, para el llamador que necesita
 // mapear un token de métrica a la KEY exacta que usa `facts` (requisito "confiabilidad" 2026-07-29, ruta
@@ -234,7 +238,7 @@ function _formatRecord(entity, rec) {
     const m = F[k]; if (!m) continue;
     if (m.u === "text") { if (v != null && v !== "") facts[m.l] = v; continue; }
     if (typeof v !== "number" || !Number.isFinite(v)) continue;
-    add(m.l, _fmt(m, v), m.u, m.u === "money" ? (m.k ? v * 1000 : v) : v);
+    add(m.l, _fmt(m, v), m.u, m.u === "money" ? (m.k ? v * _fxm() : v) : v);
   }
   for (const d of _derived(rec)) if (facts[d.label] == null) add(d.label, _fmt({ u: d.unit, k: false }, d.value), d.unit, d.value);
   return { facts, boleta };

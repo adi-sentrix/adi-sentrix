@@ -9,6 +9,10 @@ import { applyScenarioToClientesVentas, applyScenarioToSkuInventario } from "../
 import { filterTextualSuggestions } from "../helpers.js";
 import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 import { simboloMoneda } from "../../config/moneda.js";
+import { getTenantData } from "../../data/tenantStore.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";
+// monto comercial ALMACENADO → M verdaderos (la escala la declara el pack · demo «K» = identidad · 2026-08-30)
+const _enM = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e6;
 
 export function composeModuleOverview(scenarioId, moduloId) {
   // ── ADI Core · 2.2a-2 parte B · CIERRE SEMÁNTICO del overview de inventario ──
@@ -30,8 +34,8 @@ export function composeModuleOverview(scenarioId, moduloId) {
   }
   // ── Helpers internos ───────────────────────────────────────────────────
   const fmtM = (val) => {
-    // val expressed in same scale as ventasKPI.totalActual (e.g. 100000 = $100M)
-    const m = val / 1000;
+    // monto comercial ALMACENADO → M verdaderos (antes asumía miles: 100000 = $100M solo en el demo)
+    const m = _enM(val);
     return Number.isInteger(m) ? `${simboloMoneda()}${m}M` : `${simboloMoneda()}${m.toFixed(1)}M`;
   };
   const fmtK = (val) => {
@@ -328,7 +332,7 @@ export function composeModuleOverview(scenarioId, moduloId) {
 export function composeModuleOverviewV2(scenarioId, moduloId) {
   // Helpers internos (mismo formato que legacy)
   const fmtM = (val) => {
-    const m = val / 1000;
+    const m = _enM(val);   // comercial almacenado → M verdaderos (demo: identidad)
     return Number.isInteger(m) ? `${simboloMoneda()}${m}M` : `${simboloMoneda()}${m.toFixed(1)}M`;
   };
   const fmtK = (val) => {

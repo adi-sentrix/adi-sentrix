@@ -3,6 +3,12 @@ import { cuentasMasGrandes, filterTextualSuggestions } from "../helpers.js";
 import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 import { simboloMoneda } from "../../config/moneda.js";
 
+import { getTenantData } from "../../data/tenantStore.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";
+// unidades VERDADERAS del monto comercial ALMACENADO (barrido A·maquinaria 2026-08-30) — demo: identidad
+const _enM = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e6;
+const _enK = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e3;
+
 export function composeClientMetricFollowUp(clientName, metricKey, scenario, modulo) {
   // FASE 1.5.B-HOTFIX-3-PATCH-3 · cross-dataset
   // ADI como asesor opera a nivel negocio (no limitado por módulo visible) ·
@@ -99,7 +105,7 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
     opener += `Frente al promedio simple de las cuentas (${avgMargen.toFixed(1)}%), está ${Math.abs(gapVsAvgInternal).toFixed(1)}pp ${gapVsAvgInternal >= 0 ? "arriba" : "debajo"}. `;
 
     if (gapVsBench < -3) {
-      const destruccion = Math.round(c.venta * (benchmark - c.margen) / 100);
+      const destruccion = Math.round(_enK(c.venta * (benchmark - c.margen) / 100));
       opener += `La cuenta está cediendo margen: aproximadamente **${simboloMoneda()}${destruccion}K anuales** de contribución no capturada por estar bajo benchmark.\n\n`;
       opener += `**Mecanismo disponible**: el cruce margen vs carga comercial es la lectura natural · si ${c.nombre} tiene carga sobre ese promedio simple (${avgCarga.toFixed(1)}%), la palanca de rebate opera antes que la de precio.`;
     } else if (gapVsBench >= 0) {

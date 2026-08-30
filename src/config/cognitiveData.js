@@ -2,6 +2,10 @@
  * Datos de ancla extraídos de 41cc33d8 · byte-idénticos (Fase 4c). */
 
 import { PRIMITIVES } from "./primitives.js";
+import { getTenantData } from "../data/tenantStore.js";
+import { factorComercialDe } from "./contract/figureType.js";
+// miles VERDADEROS del monto almacenado (barrido A·maquinaria 2026-08-30) — con el demo es la identidad
+const _enK = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e3;
 import { simboloMoneda } from "./moneda.js";
 
 export const OBSERVABLE_RELATIONS = {
@@ -19,7 +23,7 @@ export const OBSERVABLE_RELATIONS = {
         const deltaCarga = (cm.pctRebate - BEST_PRACTICE).toFixed(1);
         // Recuperable runtime · coherencia con generateSimulation memClient
         // y composePriorityRecommendationV2 (#12) · usa clientesVentas.actual.
-        const recuperable = Math.round((cm.pctRebate - BEST_PRACTICE) / 100 * cv.actual);
+        const recuperable = Math.round(_enK((cm.pctRebate - BEST_PRACTICE) / 100 * cv.actual));
         return {
           triggered: true,
           value: recuperable,

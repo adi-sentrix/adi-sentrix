@@ -37,6 +37,12 @@
  * P&L" · "¿y el de Ripley?") + evidencia ACCIONABLE en las lecturas (entidad/entityList threadean lastEvidence
  * y la memoria manteniendo el verbatim — kind criteria manda en pickNarratedText). */
 import { applyScenarioToClientesMargen } from "../engine/scenarios.js";
+import { factorComercialDe } from "../config/contract/figureType.js";
+// escala DECLARADA del pack (barrido A·maquinaria 2026-08-30) — con el demo («K») es la identidad de siempre
+const _fxm = () => factorComercialDe(getTenantData());
+/* lo que el USUARIO tipea («ganar $2M») entra en unidades ALMACENADAS: con el demo (miles) 2M→2000, con un
+ * pack crudo 2M→2.000.000 — así toda la aritmética interna del P&L sigue en una sola unidad, la del pack. */
+const _aAlmacenado = (kVerdaderos) => kVerdaderos === null ? null : kVerdaderos * 1000 / _fxm();
 import { etiquetaDeLaReferencia } from "../config/businessPolicy.js";   // de quién es la vara: del negocio o nuestra (owner 2026-08-26)
 import { clientesMargen } from "../data/demoData.js";
 import { getTenantData, getTenantId, onTenantChange } from "../data/tenantStore.js";   // F1/F2 multiempresa · derivadas + líneas por tenant en initTenant
@@ -56,7 +62,7 @@ const _money = (v) => {
   if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`;
   return `${s}${simboloMoneda()}${Math.round(a)}`;
 };
-const _moneyK = (vK) => _money(vK * 1000);
+const _moneyK = (vK) => _money(vK * _fxm());
 const _fmtPct = (v) => String(_r1(v));
 const _norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -457,11 +463,11 @@ function _parsePcts(q, lines) {
 // target monetario de una META ("ganar $2M después de gastos" · "2 millones") → $K | null
 function _parseTargetK(q) {
   let m = String(q).match(/\$\s*(\d+(?:[.,]\d+)?)\s*(M|K)?\b/i);
-  if (m) { const v = parseFloat(m[1].replace(",", ".")); return m[2] && m[2].toUpperCase() === "K" ? v : (m[2] ? v * 1000 : (v >= 10000 ? v / 1000 : v * 1000)); }
+  if (m) { const v = parseFloat(m[1].replace(",", ".")); return _aAlmacenado(m[2] && m[2].toUpperCase() === "K" ? v : (m[2] ? v * 1000 : (v >= 10000 ? v / 1000 : v * 1000))); }
   m = String(q).match(/(\d+(?:[.,]\d+)?)\s*(millones|mill[oó]n)\b/i);
-  if (m) return parseFloat(m[1].replace(",", ".")) * 1000;
+  if (m) return _aAlmacenado(parseFloat(m[1].replace(",", ".")) * 1000);
   m = String(q).match(/(\d+(?:[.,]\d+)?)\s*mil\b/i);
-  if (m) return parseFloat(m[1].replace(",", "."));
+  if (m) return _aAlmacenado(parseFloat(m[1].replace(",", ".")));
   return null;
 }
 
@@ -849,7 +855,7 @@ const _resp = (text, { route = "pnl_setup", suggestions = null, bol = [], ev = n
   normalizeResponse({ text, suggestions, sentrixAction: null, evidence: _evidence(bol, ev, guia), route });
 const _gPct = (v, label = "Supuesto %") => fig(label, `${_fmtPct(v)}%`, { unit: "pct", raw: _r1(v), source: "computed", gancho: true, context: "P&L comercial" });
 const _fMoneyK = (label, vK, { mandatory = false, gancho = false } = {}) =>
-  fig(label, _moneyK(vK), { unit: "money", raw: vK * 1000, mandatory, source: "computed", gancho, context: "P&L comercial" });
+  fig(label, _moneyK(vK), { unit: "money", raw: vK * _fxm(), mandatory, source: "computed", gancho, context: "P&L comercial" });
 const _fPct = (label, v, { mandatory = false, gancho = false } = {}) =>
   fig(label, `${_fmtPct(v)}%`, { unit: "pct", raw: _r1(v), mandatory, source: "computed", gancho, context: "P&L comercial" });
 
@@ -1025,7 +1031,7 @@ function _frentesNegocio(scenario, c) {
     const simT = _r1(Math.max(top.pct / 2, top.pct - 1));
     const simDK = (c.ingresoK * (top.pct - simT)) / 100;
     fs.push({
-      key: "gasto", usd: top.usdK * 1000, nombre: `la línea ${top.nombre.toLowerCase()}`,
+      key: "gasto", usd: top.usdK * _fxm(), nombre: `la línea ${top.nombre.toLowerCase()}`,
       accion: `revisar la línea que más pesa de tus gastos: ${top.nombre.toLowerCase()} (${_moneyK(top.usdK)} al año · ${_fmtPct(top.pct)}%) — es supuesto declarado: si el % real es otro, actualizarlo deja la cuenta honesta`,
       corto: `la línea que más pesa (${top.nombre.toLowerCase()} · ${_moneyK(top.usdK)})`,
       ask: pnlSimAsk(top),
@@ -1073,7 +1079,7 @@ function _accionCuenta(scenario, e, eje, c) {
     figs: [_fMoney(`No capturada · ${e.nombre}`, itM.usd)],
   });
   if (top) {
-    const gUsd = (e.ventaK * top.pct / 100) * 1000;
+    const gUsd = (e.ventaK * top.pct / 100) * _fxm();
     const simT = _r1(Math.max(top.pct / 2, top.pct - 1));
     if (gUsd > 0) out.push({
       key: "gasto", usd: gUsd,

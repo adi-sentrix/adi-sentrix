@@ -18,6 +18,12 @@ import {
   composeSpecContribucion, composeSpecSimulate, composeSpecSimulateCarga, composeSpecSimulateCapital, composeSpecSimulateCosto,
   composeSpecComposicion, composeSpecClientCapital,
 } from "../specRetrieval.js";
+import { getTenantData } from "../../data/tenantStore.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";
+/* el dato comercial ALMACENADO → $ crudos con la escala QUE EL PACK DECLARA (owner 2026-08-30, barrido
+ * A·maquinaria): el ×1000 fijo de las figs inflaba mil veces la boleta de un pack de planilla. Con el
+ * demo (declara «K») es la identidad de siempre, byte a byte. */
+const _fxT = () => factorComercialDe(getTenantData());
 import { resolveGlossary } from "../sentrix/glossary.js";   // definiciones AUTORIZADas (antídoto al "inventa algo") · resuelve slug, etiqueta de pantalla y frase libre
 import { fig, parseFigures, parseNumeroLocalizado } from "../boleta.js";
 // LA CALCULADORA (AMPLITUD F2, owner 2026-08-13 · decisión D1: catálogo CERRADO ampliable, jamás fórmula libre):
@@ -56,7 +62,7 @@ const _loadSrc = (source, scenario) => { const s = SOURCES[source]; if (!s) retu
 // (venta/costo/contribución/rebate/presupuesto/anterior/actual = miles); stockUSD/precioLista/costoMedio son crudas y
 // NO se tocan; `usd` tampoco (ya lo maneja el enricher). PURO: clona, no muta la evidence del composer.
 const _MONEY_K = /^(venta|ventas|ventaAnt|costo|costos|contribucion|contribucionAnt|rebates|rebate|presupuesto|anterior|actual)$/;
-const _moneyK = (vK) => { const v = vK * 1000, a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
+const _moneyK = (vK) => { const v = vK * _fxT(), a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
 const _moneyRaw = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
 function _fmtMoneyFacts(node) {
   if (Array.isArray(node)) return node.map(_fmtMoneyFacts);
@@ -253,7 +259,7 @@ function entityProfile({ dimension, entity, scenario } = {}) {
       const cargaM = Array.isArray(r.facts.metrics) && r.facts.metrics.find((m) => /carga comercial/i.test(m.label || "") && typeof m.value === "number");
       const ventaM = Array.isArray(r.facts.metrics) && r.facts.metrics.find((m) => /^ventas$/i.test(m.label || "") && typeof m.value === "number");
       if (cargaM && ventaM && cargaM.value > POLICY.targetCarga) {
-        const excesoUsd = Math.round(((cargaM.value - POLICY.targetCarga) / 100) * ventaM.value * 1000);
+        const excesoUsd = Math.round(((cargaM.value - POLICY.targetCarga) / 100) * ventaM.value * _fxT());
         r.facts = { ...r.facts, excesoAccionesComerciales: _moneyRaw(excesoUsd), targetCarga: `${POLICY.targetCarga}%` };
         r.boleta = [...r.boleta,
           fig("Meta de carga comercial", `${POLICY.targetCarga}%`, { unit: "pct", context: "tu target" }),
@@ -269,7 +275,7 @@ function entityProfile({ dimension, entity, scenario } = {}) {
       const rawRec = rawRecordFor(dim, entity, scenario);
       const ventaK = rawRec && (typeof rawRec.venta === "number" ? rawRec.venta : rawRec.actual);
       if (rawRec && typeof rawRec.unidades === "number" && rawRec.unidades > 0 && typeof ventaK === "number") {
-        const ticket = Math.round((ventaK * 1000) / rawRec.unidades);
+        const ticket = Math.round((ventaK * _fxT()) / rawRec.unidades);
         r.facts = { ...r.facts, ticketPromedio: _moneyRaw(ticket) };
         r.boleta = [...r.boleta, fig(`${entity} · Ticket promedio`, _moneyRaw(ticket), { unit: "money", raw: ticket, context: "precio promedio realizado (venta ÷ unidades) — no es un ticket transaccional real, el dato no trae número de operaciones" })];
       }
@@ -408,7 +414,7 @@ function clientesPorSku({ entities, entity, entityScope, metric = "ventas", topN
     for (const r of top) {
       const pct = Math.round((r.value / totalSku) * 1000) / 10;
       boleta.push(fig(`${r.name} · ${canon}`, _mKsku(r.value), {
-        unit: "money", raw: r.value * 1000, source: "computed",
+        unit: "money", raw: r.value * _fxT(), source: "computed",
         context: `${metLbl} asociada por afinidad de surtido`,
         verificabilidad,
 
@@ -841,8 +847,8 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
   // viejo, que no entiende nada de esto). Estas 2 figs cierran el hueco de raíz, para CUALQUIER camino (1 turno o
   // 2) — no dependen de qué texto haya dicho el usuario en qué turno.
   const boleta = [
-    fig(`${entity} · Venta actual`, _moneyK(ventaActual), { unit: "money", raw: ventaActual * 1000, source: "actual", context: _ctx }),
-    fig(`${entity} · Venta supuesta`, _moneyK(ventaNueva), { unit: "money", raw: ventaNueva * 1000, mandatory: true, source: "computed", formula: _fVenta, context: _ctx }),
+    fig(`${entity} · Venta actual`, _moneyK(ventaActual), { unit: "money", raw: ventaActual * _fxT(), source: "actual", context: _ctx }),
+    fig(`${entity} · Venta supuesta`, _moneyK(ventaNueva), { unit: "money", raw: ventaNueva * _fxT(), mandatory: true, source: "computed", formula: _fVenta, context: _ctx }),
     // SIN "+" manual en positivos (owner, hallazgo en el propio testing de este fix): boleta.js._fmtC formatea
     // pct como `${raw}%` sin signo forzado — un value="+8%" acá generaría canon "pct:+8%", que NUNCA matchea el
     // canon "pct:8%" que parseFigures deriva de la narración real ("un 8%", nunca "un +8%"). Mismo formato que
@@ -863,10 +869,10 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
     facts.contribucionActual = _moneyK(contribActual); facts.contribucionNueva = _moneyK(contribNueva);
     facts.margenActual = `${margenActual}%`; facts.margenNuevo = `${margenNuevo}%`;
     boleta.push(
-      fig(`${entity} · Costo actual`, _moneyK(costoActual), { unit: "money", raw: costoActual * 1000, source: "actual", context: _ctx }),
-      fig(`${entity} · Costo supuesto`, _moneyK(costoNuevo), { unit: "money", raw: costoNuevo * 1000, source: "computed", formula: `costo × (1${volumenVar.pct >= 0 ? "+" : ""}${volumenVar.pct}%)`, context: _ctx }),
-      fig(`${entity} · Contribución actual`, _moneyK(contribActual), { unit: "money", raw: contribActual * 1000, source: "actual", context: _ctx }),
-      fig(`${entity} · Contribución supuesta`, _moneyK(contribNueva), { unit: "money", raw: contribNueva * 1000, mandatory: true, source: "computed", formula: "venta supuesta − costo supuesto", context: _ctx }),
+      fig(`${entity} · Costo actual`, _moneyK(costoActual), { unit: "money", raw: costoActual * _fxT(), source: "actual", context: _ctx }),
+      fig(`${entity} · Costo supuesto`, _moneyK(costoNuevo), { unit: "money", raw: costoNuevo * _fxT(), source: "computed", formula: `costo × (1${volumenVar.pct >= 0 ? "+" : ""}${volumenVar.pct}%)`, context: _ctx }),
+      fig(`${entity} · Contribución actual`, _moneyK(contribActual), { unit: "money", raw: contribActual * _fxT(), source: "actual", context: _ctx }),
+      fig(`${entity} · Contribución supuesta`, _moneyK(contribNueva), { unit: "money", raw: contribNueva * _fxT(), mandatory: true, source: "computed", formula: "venta supuesta − costo supuesto", context: _ctx }),
       fig(`${entity} · Margen actual`, `${margenActual}%`, { unit: "pct", raw: margenActual, source: "actual", context: _ctx }),
       fig(`${entity} · Margen supuesto`, `${margenNuevo}%`, { unit: "pct", raw: margenNuevo, mandatory: true, source: "computed", formula: "contribución supuesta / venta supuesta × 100", context: _ctx }),
     );
@@ -1060,7 +1066,7 @@ function _resolverInsumoCalc(spec, scenario) {
   if (!entidad || _CALC_NEGOCIO.has(_CALC_NORM(entidad))) {
     // el negocio entero: deriveKpis — los MISMOS agregados de la Mesa, nunca una re-suma propia.
     const k = deriveKpis(scenario);
-    const disp = { venta: { raw: k.ventas.totalActual * 1000, unit: "money" }, anterior: { raw: k.ventas.totalAnterior * 1000, unit: "money" }, presupuesto: { raw: k.ventas.totalPresupuesto * 1000, unit: "money" }, contribucion: { raw: k.margen.totalUSD * 1000, unit: "money" }, margen: { raw: k.margen.pct, unit: "pct" }, benchmark: { raw: k.margen.benchmark, unit: "pct" } };
+    const disp = { venta: { raw: k.ventas.totalActual * _fxT(), unit: "money" }, anterior: { raw: k.ventas.totalAnterior * _fxT(), unit: "money" }, presupuesto: { raw: k.ventas.totalPresupuesto * _fxT(), unit: "money" }, contribucion: { raw: k.margen.totalUSD * _fxT(), unit: "money" }, margen: { raw: k.margen.pct, unit: "pct" }, benchmark: { raw: k.margen.benchmark, unit: "pct" } };
     const v = disp[campo];
     if (!v || !Number.isFinite(v.raw)) return { ok: false, razon: `«${spec.metrica}» no está como agregado del negocio entero — nombra la entidad puntual y lo busco en su registro` };
     const label = `Negocio · ${fieldLabel(campo) || campo}`;
@@ -1072,7 +1078,7 @@ function _resolverInsumoCalc(spec, scenario) {
   if (!rec) return { ok: false, razon: `no encuentro '${entidad}' en el dato` };
   const crudo = campo === "benchmark" ? benchmarkOf(rec) : rec[campo];
   if (typeof crudo !== "number" || !Number.isFinite(crudo)) return { ok: false, razon: `«${entidad}» no tiene «${spec.metrica}» en su registro — esa medida no existe en su eje del dato` };
-  const raw = meta.k ? crudo * 1000 : crudo;
+  const raw = meta.k ? crudo * _fxT() : crudo;
   const label = `${rec.nombre || entidad} · ${fieldLabel(campo) || campo}`;
   return { ok: true, insumo: { raw, unit: meta.u, universo: universoDe(label, meta.u), label, value: formatearCanon(raw, meta.u), origen: "motor" } };
 }

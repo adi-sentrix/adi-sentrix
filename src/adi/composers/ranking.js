@@ -1,6 +1,10 @@
 /* === adi/composers/ranking.js ===
  * Composer de ancla extraído de 41cc33d8 · verbatim · solo imports agregados. */
 import { RANKING_EXTREMES_METRICS } from "../../config/rankingData.js";
+import { getTenantData } from "../../data/tenantStore.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";
+// escala DECLARADA del pack (barrido A·maquinaria 2026-08-30) — con el demo («K») es la identidad de siempre
+const _fxm = () => factorComercialDe(getTenantData());
 import { ADI_RANKING_NL_DIRECTION_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_RANKING_DEFAULT_METRIC_ENABLED, VOICE_NARRATIVE_LAYER_ENABLED, VOICE_RANKING_EXTREMES_ENABLED } from "../../config/voiceFlags.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { applyScenarioToClientesMargen, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
@@ -184,7 +188,7 @@ export function _formatMetricValue(value, metricKey) {
     // los $135,0K reales: una cifra de inventario MAYOR que la venta anual del negocio, justo la que haría parecer
     // que los dos universos reconcilian. `scale` lo declara en config/rankingData.js y acá SOLO se lee.
     const enMiles = spec.scale === "K";
-    const usd = enMiles ? value * 1000 : value;
+    const usd = enMiles ? value * _fxm() : value;
     // MISMA convención de redondeo que el `_money` de la boleta y de qiRetrieval (K entero), para que la misma
     // cifra no se lea "$18.6K" por una ruta y "$19K" por la otra — una sola verdad también en la presentación.
     if (Math.abs(usd) >= 1e6) return `${simboloMoneda()}${(usd / 1e6).toFixed(2)}M`;

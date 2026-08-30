@@ -14,6 +14,12 @@ import { cuentasMasGrandes, filterTextualSuggestions } from "../helpers.js";
 import { scanMechanisms } from "./thesis.js";
 import { simboloMoneda } from "../../config/moneda.js";
 
+import { getTenantData } from "../../data/tenantStore.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";
+// unidades VERDADERAS del monto comercial ALMACENADO (barrido A·maquinaria 2026-08-30) — demo: identidad
+const _enM = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e6;
+const _enK = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e3;
+
 export function getObservableRelations(entityType, entityId, scenario, dataset) {
   try {
     const relations = OBSERVABLE_RELATIONS[entityType];
@@ -293,7 +299,7 @@ export function _deriveTierFromContribution(entityName, ventasScope) {
   if (pct >= 10) tier = 1;
   else if (pct >= 3) tier = 2;
   else tier = 3;
-  return { tier, participacion_pct: +pct.toFixed(2), ventas_K: entity.actual };
+  return { tier, participacion_pct: +pct.toFixed(2), ventas_K: _enK(entity.actual) };
 }
 
 export function buildNarrativeSignalsForClientDeepDive(clientName, scenarioId) {
@@ -519,7 +525,7 @@ export function composeCalcula(trace, profile, context = {}) {
   const leakage = trace.layers.primitives.detectLeakage;
 
   // Live metrics (read from primitives.evidence)
-  const ventasM        = +(lastPeriod.evidence.actual / 1000).toFixed(1);
+  const ventasM        = +_enM(lastPeriod.evidence.actual).toFixed(1);
   const participacion  = concentration.evidence.participacion;
   const variacion      = lastPeriod.evidence.deltaPct;
   const variacionLabel = variacion >= 0 ? `+${variacion}%` : `${variacion}%`;
@@ -530,7 +536,7 @@ export function composeCalcula(trace, profile, context = {}) {
   // Contribucion still requires direct dataset read (not in primitives)
   const margenes = applyScenarioToClientesMargen(trace.scenario);
   const m = margenes.find(c => c.nombre === clientName);
-  const contribucionM = m ? +(m.contribucion / 1000).toFixed(2) : null;
+  const contribucionM = m ? +_enM(m.contribucion).toFixed(2) : null;
 
   // BRIEF #12-C.4 · Branch by active module
   if (activeModule === "margenes") {
@@ -560,7 +566,7 @@ export function composeCalcula(trace, profile, context = {}) {
   // BRIEF #12-C.6 · Voice rewrite: dato + causa + consecuencia.
   // Add absolute $ delta alongside % YoY. Use "Sin embargo" conector when
   // margin is below benchmark. Carga comercial migrates to INTERPRETA.
-  const deltaM = +((lastPeriod.evidence.delta) / 1000).toFixed(2);
+  const deltaM = +_enM(lastPeriod.evidence.delta).toFixed(2);
   const deltaLabel = variacion >= 0 ? `+${simboloMoneda()}${Math.abs(deltaM)}M` : `-${simboloMoneda()}${Math.abs(deltaM)}M`;
   const deltaPhrase = variacion >= 0
     ? `crece ${variacionLabel} YoY, equivalente a aproximadamente ${deltaLabel} en ventas adicionales`
@@ -603,7 +609,7 @@ export function composeContextualiza(trace, profile, incrementalGrowth, fullData
   if (incrementalGrowth !== null && incrementalGrowth > 0) {
     bullets.push(`aproximadamente ${incrementalGrowth}% del crecimiento incremental anual de la cartera`);
   } else if (variacion < 0) {
-    bullets.push(`pérdida directa de aproximadamente ${simboloMoneda()}${Math.abs(+(v.actual - v.anterior).toFixed(0))}K contra el año anterior`);
+    bullets.push(`pérdida directa de aproximadamente ${simboloMoneda()}${Math.abs(+_enK(v.actual - v.anterior).toFixed(0))}K contra el año anterior`);
   }
 
   // Bullet B · categoría dominante
@@ -750,13 +756,13 @@ export function composeRecommendation(trace, profile, context = {}) {
   const carga = leakage.evidence.pctRebate;
   const bestPractice = leakage.evidence.bestPractice;
   const ventasK = lastPeriod.evidence.actual;
-  const ventasM = +(ventasK / 1000).toFixed(1);
+  const ventasM = +_enM(ventasK).toFixed(1);
   const participacion = concentration.evidence.participacion;
 
   // Contribution from margin dataset
   const margenes = applyScenarioToClientesMargen(trace.scenario);
   const m = margenes.find(c => c.nombre === clientName);
-  const contribucionM = m ? +(m.contribucion / 1000).toFixed(2) : null;
+  const contribucionM = m ? +_enM(m.contribucion).toFixed(2) : null;
 
   // ─── RAMA C · MONITOR (decline sano) ──────────────────
   // Strong decline AND margin at or above benchmark.
@@ -821,7 +827,7 @@ export function composeRecommendation(trace, profile, context = {}) {
       // Operational target: 3.5% (between best practice 3% and current load)
       const operationalTarget = POLICY.targetCarga;
       const pointsToReduce = +(carga - operationalTarget).toFixed(1);
-      const impactK = Math.round(ventasK * pointsToReduce / 100);
+      const impactK = Math.round(_enK(ventasK * pointsToReduce / 100));
       action = `Reducir gradualmente la carga comercial desde ${carga}% hacia niveles cercanos al benchmark interno de ${operationalTarget}% permitiría recuperar aproximadamente ${simboloMoneda()}${impactK}K anuales de contribución.`;
       reason = `El objetivo no es reducir volumen, sino frenar el deterioro del margen y mejorar el margen de la cuenta sin afectar participación en el corto plazo.`;
       risk = `El principal riesgo está en próximas negociaciones comerciales, donde ${clientName} podría exigir compensaciones para mantener las condiciones actuales.`;

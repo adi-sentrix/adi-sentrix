@@ -2,6 +2,10 @@
  * ADI conversacional extraído de 41cc33d8 · verbatim · solo imports agregados.
  * Importa motor (engine/) + datos/config sellados. Cero cambio de cálculo. */
 import { MECHANISM_REGISTRY } from "../../config/mechanisms.js";
+import { getTenantData } from "../../data/tenantStore.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";
+// miles VERDADEROS del monto comercial almacenado (2026-08-30) — demo: identidad
+const _enKt = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e3;
 import { applyScenarioToClientesMargen, applyScenarioToClientesVentas, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 
@@ -210,8 +214,8 @@ export function scanMechanisms(scenarioId, override) {
         recuperable_total_K: Math.round(total_recuperable_3_5),
         recuperable_total_M_at_3_0: +(total_recuperable_3_0 / 1000).toFixed(2),
         recuperable_total_M_at_3_5: +(total_recuperable_3_5 / 1000).toFixed(2),
-        pct_of_total_sales: +((sum_ventas_top3_K / totalVentas) * 100).toFixed(1),
-        pct_of_total_contribution: +((total_recuperable_3_5 / totalContribucion) * 100).toFixed(1),
+        pct_of_total_sales: +((sum_ventas_top3_K / _enKt(totalVentas)) * 100).toFixed(1),   // numerador en K VERDADEROS: el denominador va igual
+        pct_of_total_contribution: +((total_recuperable_3_5 / _enKt(totalContribucion)) * 100).toFixed(1),
         instances_count: instances.length,
         top3_count: top3_instances.length,
       };

@@ -2,6 +2,10 @@
  * MOTOR PURO extraído de 41cc33d8 · misma entrada → misma salida · sin React.
  * Funciones copiadas verbatim; solo se agregan imports. Cero cambio de cálculo. */
 import { SCENARIO_TRANSFORMS } from "../config/scenarios.js";
+import { getTenantData } from "../data/tenantStore.js";
+import { factorComercialDe } from "../config/contract/figureType.js";
+// miles VERDADEROS del monto almacenado (barrido A·maquinaria 2026-08-30) — con el demo es la identidad
+const _enK = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e3;
 import { MESES_IDX, invKPI, margenKPI, ventasKPI, ventasMensuales } from "../data/baseKpis.js";
 import { clientesVentas } from "../data/demoData.js";
 import { applyScenarioToClientesVentas } from "./scenarios.js";
@@ -124,8 +128,8 @@ export function _aggregateMargenes(dataset) {
       max: sortedM.length > 0 ? +sortedM[sortedM.length - 1].toFixed(1) : 0,
       median: +median.toFixed(1),
     },
-    recuperableBenchmark: Math.round(recuperableBenchmark),
-    recuperableBestPractice: Math.round(recuperableBestPractice),
+    recuperableBenchmark: Math.round(_enK(recuperableBenchmark)),
+    recuperableBestPractice: Math.round(_enK(recuperableBestPractice)),
   };
 }
 

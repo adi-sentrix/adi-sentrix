@@ -1,4 +1,10 @@
 import { skuInventario } from "../../data/demoData.js";
+
+import { getTenantData } from "../../data/tenantStore.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";
+// unidades VERDADERAS del monto comercial ALMACENADO (barrido A·maquinaria 2026-08-30) — demo: identidad
+const _enM = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e6;
+const _enK = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e3;
 import {
   applyScenarioToClientesMargen,
   applyScenarioToClientesVentas,
@@ -176,14 +182,14 @@ function composePriorityRecommendationV2(scenarioId) {
 
   // Cifras runtime (cero hardcode · todas del dataset).
   const cliente_nombre  = cliente_m.nombre;
-  const venta_M         = (cliente_v.actual / 1000).toFixed(1);          // 19.4
-  const contrib_M       = (cliente_m.contribucion / 1000).toFixed(2);     // 4.07 (dataset · NO 4.27 BRIEF)
+  const venta_M         = _enM(cliente_v.actual).toFixed(1);          // 19.4
+  const contrib_M       = _enM(cliente_m.contribucion).toFixed(2);     // 4.07 (dataset · NO 4.27 BRIEF)
   const margen_pct      = cliente_m.margen;                               // 22
   const carga_actual    = cliente_m.pctRebate;                            // 4.5
   const gap_pp          = (carga_actual - bestPractice).toFixed(1);       // 1.5
   // Recuperación bajar 1pp · misma fórmula que generateSimulation memClient
   // (clientesVentas.actual · NO clientesMargen.venta) · coherencia T1/T2 caso founder.
-  const recuperable     = Math.round(((carga_actual - target_carga) / 100) * cliente_v.actual);
+  const recuperable     = Math.round(_enK(((carga_actual - target_carga) / 100) * cliente_v.actual));
 
   // ── BLOQUE 2 · POR DÓNDE PARTIRÍA (BRIEF #15 Executive V1 LOCKED) ─────
   const b2 = `Partiría por ${cliente_nombre} · bajar carga de ${carga_actual.toFixed(1)}% a ${target_carga.toFixed(1)}% recupera aproximadamente ${simboloMoneda()}${recuperable}K anuales.`;
@@ -326,7 +332,7 @@ function composeM1Donde(archetype, domains, scenarioId) {
     );
     const fugaContrib = tier1WithPressure.reduce((s, c) => {
       const carga_excedente_pp = c.pctRebate - target_carga;
-      const recuperable = (carga_excedente_pp / 100) * c.venta;
+      const recuperable = _enK((carga_excedente_pp / 100) * c.venta);
       return s + recuperable;
     }, 0);
     const fugaK = Math.round(fugaContrib);
@@ -388,8 +394,8 @@ function composeM1Donde(archetype, domains, scenarioId) {
       return s + (v ? v.actual : 0);
     }, 0);
     const top3Participacion = ((top3Ventas / totalActual) * 100).toFixed(1);
-    const top3ContribM = (top3Contrib / 1000).toFixed(2);
-    const top3VentasM = (top3Ventas / 1000).toFixed(1);
+    const top3ContribM = _enM(top3Contrib).toFixed(2);
+    const top3VentasM = _enM(top3Ventas).toFixed(1);
     const namesList = top3.map(c => c.nombre).join(", ");
 
     return `Los tres principales clientes por contribución son ${namesList}, que combinados representan ${simboloMoneda()}${top3ContribM}M de contribución y ${top3Participacion}% de la cartera total. Una salida simultánea de los tres significaría -${simboloMoneda()}${top3VentasM}M en ventas anuales y eliminaría aproximadamente la mitad de la contribución.`;
@@ -489,10 +495,10 @@ function composeM4QuePriorizar(archetype, domains, scenarioId) {
     const cuenta = _cuentaPrioritaria(margenes, benchmark, target_carga);
     if (!cuenta) return `La palanca prioritaria requiere identificación de la cuenta de mayor materialidad activa.`;
 
-    const recuperable = ((cuenta.pctRebate - target_carga) / 100) * cuenta.venta;
+    const recuperable = _enK(((cuenta.pctRebate - target_carga) / 100) * cuenta.venta);
     const recuperableK = Math.round(recuperable);
 
-    return `La palanca de mayor impacto inmediato está en carga comercial sobre ${cuenta.nombre}, porque combina el mayor peso económico en la cartera (${simboloMoneda()}${(cuenta.contribucion/1000).toFixed(2)}M de contribución), el mayor control directo (es decisión comercial directa) y el efecto secundario de liberar margen para absorber inventario sin compromiso explícito de volumen. Una reducción gradual desde ${cuenta.pctRebate}% hacia ${target_carga}% recuperaría aproximadamente ${simboloMoneda()}${recuperableK}K anuales en contribución.`;
+    return `La palanca de mayor impacto inmediato está en carga comercial sobre ${cuenta.nombre}, porque combina el mayor peso económico en la cartera (${simboloMoneda()}${_enM(cuenta.contribucion).toFixed(2)}M de contribución), el mayor control directo (es decisión comercial directa) y el efecto secundario de liberar margen para absorber inventario sin compromiso explícito de volumen. Una reducción gradual desde ${cuenta.pctRebate}% hacia ${target_carga}% recuperaría aproximadamente ${simboloMoneda()}${recuperableK}K anuales en contribución.`;
   }
 
   if (archetype === "calidad_crecimiento") {

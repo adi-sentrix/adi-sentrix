@@ -1,6 +1,11 @@
 /* === adi/composers/inverse.js ===
  * Composer de ancla extraído de 41cc33d8 · verbatim · solo imports agregados. */
 import { FEATURE_INVERSE_PROJECTION, FEATURE_PORTFOLIO_INVERSE } from "../../config/features.js";
+import { getTenantData } from "../../data/tenantStore.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";
+// escala DECLARADA del pack (barrido A·maquinaria 2026-08-30) — con el demo («K») es la identidad de siempre
+const _fxm = () => factorComercialDe(getTenantData());
+const _aAlmacenado = (kVerdaderos) => kVerdaderos === null ? null : Math.round(kVerdaderos * 1000 / _fxm());
 import { SUPERFAMILIAS } from "../../data/catalogs.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { applyScenarioToClientesMargen, applyScenarioToSfamiliasMargen } from "../../engine/scenarios.js";
@@ -13,10 +18,10 @@ export function _parseCurrencyK(raw) {
   const t = normalizeText(raw);
   // millones: "$2M" · "2 millones" · "2 millon"
   let m = t.match(/(?<![a-z0-9-])(\d+(?:[.,]\d+)?)\s*(?:m\b|millon(?:es)?\b)/);
-  if (m) return Math.round(parseFloat(m[1].replace(",", ".")) * 1000);
+  if (m) return _aAlmacenado(parseFloat(m[1].replace(",", ".")) * 1000);
   // miles: "$500K" · "500 mil" · "500k"
   m = t.match(/(?<![a-z0-9-])(\d+(?:[.,]\d+)?)\s*(?:k\b|mil\b)/);
-  if (m) return Math.round(parseFloat(m[1].replace(",", ".")));
+  if (m) return _aAlmacenado(parseFloat(m[1].replace(",", ".")));
   return null;
 }
 

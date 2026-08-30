@@ -13,6 +13,10 @@
  * LA HISTORIA primero (tendencia · mejor/peor mes · quién tracciona — registro ejecutivo, cifras una por línea,
  * todas en la boleta) + LA TABLA estructurada en la evidencia (tabla_matriz → InlineChart). */
 import { buildGlobalEvolution, buildGlobalEvolutionAnclada, buildEntityEvolutionComparado, resolveEntityName, reconcileMonthly } from "../sentrix/temporal.js";
+import { getTenantData } from "../../data/tenantStore.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";
+// escala DECLARADA del pack (barrido A·maquinaria 2026-08-30) — con el demo («K») es la identidad de siempre
+const _fxm = () => factorComercialDe(getTenantData());
 import { clientesMargen, marcasMargen, sfamiliasMargen } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { fig } from "../boleta.js";
@@ -20,7 +24,7 @@ import { simboloMoneda } from "../../config/moneda.js";
 
 const _norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 const _money = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
-const _mK = (vK) => _money(vK * 1000);   // las series vienen en MILES de $ (misma escala del dato)
+const _mK = (v) => _money(v * _fxm());   // las series vienen en la ESCALA DECLARADA del dato
 const _pct1 = (v) => `${Math.round(v * 10) / 10}%`;
 const _sum = (a) => a.reduce((x, y) => x + y, 0);
 // dv(actual, base) → "+X.X%"/"-X.X%" — variación porcentual entre 2 valores REALES de la serie (nunca inventada,
@@ -97,7 +101,7 @@ export function composeSpecTemporal({ metric, dimension = null, entity = null, p
   const fmt = met === "margen" ? _pct1 : _mK;
   const unit = met === "margen" ? "pct" : "money";
   const bol = [];
-  const F = (label, v, extra = {}) => { bol.push(fig(label, fmt(v), { unit, raw: unit === "money" ? v * 1000 : v, source: "computed", context: `${metLbl} ${_plabel(p)}`, ...extra })); return fmt(v); };
+  const F = (label, v, extra = {}) => { bol.push(fig(label, fmt(v), { unit, raw: unit === "money" ? v * _fxm() : v, source: "computed", context: `${metLbl} ${_plabel(p)}`, ...extra })); return fmt(v); };
 
   /* ── COBERTURA DE LA SERIE · SE DECLARA, NO SE SUPONE (owner 2026-08-11, defecto 4 de la certificación) ────────
    * EL CASO MEDIDO: la boleta de E3.t2 llegó con SIETE meses (Ene, Mar, Abr, May, Jun, Ago, Nov) y un total de

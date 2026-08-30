@@ -3,6 +3,17 @@
 
 import { applyScenarioToClientesMargen, applyScenarioToClientesVentas } from "../engine/scenarios.js";
 import { PRIMITIVES } from "./primitives.js";
+import { getTenantData } from "../data/tenantStore.js";
+import { factorComercialDe } from "./contract/figureType.js";
+
+/* LOS CAMPOS _M Y LOS RECUPERABLES SALEN EN UNIDADES VERDADERAS (owner 2026-08-30, barrido A·maquinaria).
+ * El «÷1000» de siempre convertía miles-almacenados en millones — cierto para el dato de fábrica y FALSO para
+ * un pack de planilla (moneda cruda): un recuperable de $4.500 viajaba como si fueran $4.5M. Desde acá:
+ *   _enM(v) = millones VERDADEROS del monto almacenado · _enK(v) = miles VERDADEROS.
+ * Aguas abajo, todo «M × 1000 → K» y «K × 1000 → $» queda siendo matemática de unidades, correcta para
+ * cualquier escala. Con el demo (declara «K») las dos son la identidad de siempre, byte a byte. */
+const _enM = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e6;
+const _enK = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e3;
 
 export const MECHANISM_REGISTRY = {
   commercial_erosion: {
@@ -40,15 +51,15 @@ export const MECHANISM_REGISTRY = {
 
       return {
         clientName,
-        ventas_M: +(cliente.actual / 1000).toFixed(2),
+        ventas_M: +_enM(cliente.actual).toFixed(2),
         margen_pct: margenCliente.margen,
         gap_margen_pp: +(benchmark.evidence.gap).toFixed(1),
         carga_pct: leakage.evidence.pctRebate,
         gap_carga_pp: +gap_carga_pp.toFixed(1),
         bestPractice_pct: bestPractice,
-        recuperable_at_target_3_5: Math.round(recuperable_at_target),
-        recuperable_at_bestPractice_3_0: Math.round(recuperable_at_bestPractice),
-        contribucion_M: +(margenCliente.contribucion / 1000).toFixed(2),
+        recuperable_at_target_3_5: Math.round(_enK(recuperable_at_target)),
+        recuperable_at_bestPractice_3_0: Math.round(_enK(recuperable_at_bestPractice)),
+        contribucion_M: +_enM(margenCliente.contribucion).toFixed(2),
       };
     },
 
@@ -90,15 +101,15 @@ export const MECHANISM_REGISTRY = {
 
       if (!cliente || !margenCliente) return null;
 
-      const crecimiento_M = +((cliente.actual - cliente.anterior) / 1000).toFixed(2);
+      const crecimiento_M = +_enM(cliente.actual - cliente.anterior).toFixed(2);
       const benchmark_pct = 30.1;
-      const contrib_teorica = (cliente.actual * benchmark_pct) / 100 / 1000;
-      const contrib_real = margenCliente.contribucion / 1000;
+      const contrib_teorica = _enM(cliente.actual * benchmark_pct / 100);
+      const contrib_real = _enM(margenCliente.contribucion);
       const contribucion_perdida = +(contrib_teorica - contrib_real).toFixed(2);
 
       return {
         clientName,
-        ventas_M: +(cliente.actual / 1000).toFixed(2),
+        ventas_M: +_enM(cliente.actual).toFixed(2),
         crecimiento_pct: lastPeriod.evidence.deltaPct,
         crecimiento_M: crecimiento_M,
         margen_pct: margenCliente.margen,
@@ -142,10 +153,10 @@ export const MECHANISM_REGISTRY = {
 
       return {
         clientName,
-        ventas_M: +(cliente.actual / 1000).toFixed(2),
+        ventas_M: +_enM(cliente.actual).toFixed(2),
         participacion_pct: concentration.evidence.participacion,
-        contribucion_M: +(margenCliente.contribucion / 1000).toFixed(2),
-        contribucion_expuesta_M: +(margenCliente.contribucion / 1000).toFixed(2),
+        contribucion_M: +_enM(margenCliente.contribucion).toFixed(2),
+        contribucion_expuesta_M: +_enM(margenCliente.contribucion).toFixed(2),
       };
     },
 
