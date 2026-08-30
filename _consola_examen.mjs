@@ -32,7 +32,7 @@ import { handleNarrateC, handleAgente } from "./src/adi/llm/gatewayCore.js";
  * expedientes PROPIOS (`_examen_agente_*.json`) para no contaminar el corpus del natural que lee la
  * calibración. ⚠️ GASTA IGUAL QUE EL NATURAL: solo con la autorización del owner que NOMBRE el gasto
  * (protocolo: _EXAMEN_AGENTE_PROTOCOLO.md). Construirlo es gratis; correrlo no. */
-import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { answerViaAgente, TECHO_ENTRADA_CIERRE_CHARS } from "./src/adi/agente/bucleAgente.js";
 import { sistemaDelAgente } from "./src/adi/agente/sistemaAgente.js";
 import { catalogoAgente } from "./src/adi/agente/catalogoAgente.js";
 import { vetosDeContrato } from "./src/adi/agente/contratoAgente.js";   // R7b · el sello del agente prueba su juez en vivo
@@ -194,7 +194,10 @@ const callAgente = async ({ mensajes, ronda, attempt = 0, motivoReintento, cierr
    * plomería rota (hoy reparada: R1/R2). El tier caro se paga SOLO cuando hay cifras verificadas que
    * reescribir; con boleta vacía, el cierre/reparación va al tier de PLAN. Mismo criterio que el adapter
    * de producción (_fetchAgente). */
-  const paso = (attempt > 0 || cierre) && (figsEnBoleta | 0) > 0 ? "cierre" : "herramientas";
+  /* P3 de la corrida 2: tampoco se escala con el hilo enorme — el cierre re-paga la boleta entera en CADA
+   * intento (78% del gasto de esa corrida). El techo lo declara el bucle: una sola verdad con producción. */
+  const _charsHilo = (mensajes || []).reduce((n, m) => n + String((m && m.content) || "").length, 0);
+  const paso = (attempt > 0 || cierre) && (figsEnBoleta | 0) > 0 && _charsHilo <= TECHO_ENTRADA_CIERRE_CHARS ? "cierre" : "herramientas";
   const data = await handleAgente({ mensajes, system: sistemaDelAgente(ESCENARIO_INICIAL).fijo, tools: catalogoAgente(), paso, attempt, motivoReintento }, process.env);
   if (data && typeof data.costUSD === "number") costoTurno += data.costUSD;   // el costo lo estima el gateway con el MODELO REAL (tier por paso), no la tarifa sonnet de la consola
   if (!data || !data.ok) throw new Error((data && data.error) || "gateway sin agente");

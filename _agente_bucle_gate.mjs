@@ -21,7 +21,12 @@
  *   11 · R4 (examen 1): el rescate proporcional — hasta 4 cifras verificadas del turno, la refutación del
  *        supuesto contradicho y el trato registrado, también en los peldaños.
  *
- * ⚠️ CARNADAS (sección 12): cada garantía, probada ROJA mutando una copia del bucle vivo.
+ *   12 · R6 (examen 1): leer antes de declinar — el empujón de verificación, UNO por turno;
+ *   13 · R9 (examen 1): entidad×período bloqueada va al puente; con serie real, el cerebro corre;
+ *   14 · lo que la CORRIDA 2 midió: P1b (la reparación nombra la cifra vetada) · P2 (reformular no dispara el
+ *        empujón — 43× medido) · P3 (el hilo del cierre se poda, las cifras van todas) · P4 (la unidad del eco).
+ *
+ * ⚠️ CARNADAS (sección 15): cada garantía, probada ROJA mutando una copia del bucle vivo.
  *
  * OFFLINE · determinístico · cerebro = guion · la bandera ADI_AGENTE sigue APAGADA (esto prueba el módulo,
  * no lo enciende). `node --import ./scripts/offline-guard.mjs _agente_bucle_gate.mjs`
@@ -33,7 +38,8 @@ import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { plantillaEjemplo } from "./src/ingesta/plantilla/generarPlantilla.js";
 import { ingestarPlantilla } from "./src/ingesta/plantilla/ingestarPlantilla.js";
-import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { answerViaAgente, TECHO_ENTRADA_CIERRE_CHARS } from "./src/adi/agente/bucleAgente.js";
+import { registrarSupuesto } from "./src/adi/agente/herramientasAgente.js";   // P4 · la unidad del eco
 import { setNombreUsuario, olvidarNombreUsuario } from "./src/adi/agente/preferenciaNombre.js";   // R4c · el trato en los rescates
 
 let pass = 0, fail = 0;
@@ -298,10 +304,16 @@ H("11 · R4: el rescate proporcional — cifras del turno, refutación y trato")
     if (ronda === 1 && attempt === 0) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
     return { tipo: "texto", texto: "Depósito Riachuelo te compró $99.9M el último mes — un récord histórico." };
   };
+  /* P1a DE LA CORRIDA 2 (2026-08-31) · R4a SE REVIERTE, MEDIDO: el empaquetado de 4 cifras en una oración le
+   * dio al binding semántico del muro varias cifras que atribuir y el propio rescate se vetó — T2 registró
+   * `linea-honesta · «$4.9M» narrado como margen, pero pertenece a costo/ventas`, tercer peldaño de la cascada
+   * que terminó en VACÍO. Un rescate que no sale no es proporcional: es nada. Vuelve a UNA cifra (la conducta
+   * de la corrida 1, que pasaba). La refutación de R4b se CONSERVA — se prueba abajo. */
   const rA = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: tercoSerie });
-  ok(rA.r.agente.estado === "limite" && /22\.560/.test(rA.r.text) && /24\.029/.test(rA.r.text),
-    "★ R4a: la línea honesta trae LAS cifras verificadas del turno (ambos meses), no una sola", rA.r.text.slice(0, 220));
-  ok(rA.r.text.length < 500, `y sigue corta (${rA.r.text.length} chars) — proporcional no es tablero`);
+  const _cifrasRescate = (rA.r.text.match(/\$[\d.]+/g) || []).length;
+  ok(rA.r.agente.estado === "limite" && _cifrasRescate === 1 && /verificado/.test(rA.r.text),
+    `★ P1a: la línea honesta sirve UNA cifra verificada (${_cifrasRescate}) — el paquete que se auto-vetaba murió`, rA.r.text.slice(0, 200));
+  ok(rA.r.text.length < 400, `y sigue corta (${rA.r.text.length} chars) — el rescate que sale vale más que el que se veta`);
 
   // R4b · el supuesto contradicho se refuta EN el rescate (el 30%→22.0% perdido de T5)
   const guionSup = async ({ ronda, attempt }) => {
@@ -409,8 +421,75 @@ H("13 · entidad×período bloqueada → el puente; con serie real, el cerebro")
     `con serie REAL el agente sigue siendo agente (${llamadasB} llamadas · ${rb.r.agente.estado})`);
 }
 
-/* ═══ 14 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
-H("14 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
+/* ═══ 14 · LO QUE LA CORRIDA 2 MIDIÓ (P1b · P2 · P3 · P4 · 2026-08-31) ════════════════════════════════════════
+ * La corrida 2 salió PEOR (19/28, verdes 14→2) y el expediente —legible gracias a R7— dijo por qué: una cascada
+ * de falsos positivos de atribución que terminó en 4 vacíos, un empujón que se cobró 43× en re-narraciones, y
+ * un cierre que re-paga la boleta entera en cada intento (78% del gasto). guardC NO se toca: se corrigen la
+ * forma del rescate, la instrucción de la reparación, el ruteo del empujón y el peso del hilo. */
+H("14 · P1b: la reparación nombra la cifra vetada — no repite la frase entera");
+{
+  initTenant(PACK);
+  let multaVista = null;
+  const guionVeta = async ({ mensajes, attempt }) => {
+    if (attempt === 0) return { tipo: "texto", texto: "Depósito Riachuelo te compró $99.9M el último mes — un récord histórico." };
+    multaVista = mensajes[mensajes.length - 1].content;
+    return { tipo: "texto", texto: "No tengo esa cifra verificada." };
+  };
+  await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionVeta });
+  ok(!!multaVista && /Lo rechazado es esta cifra: \$99\.9M/.test(multaVista),
+    "★ P1b: el reintento recibe LA cifra rechazada, nombrada", (multaVista || "").slice(0, 220));
+  ok(/Reescribe SOLO la oración que la contiene/.test(multaVista || "") && /Repetir la misma frase recibe el mismo rechazo/.test(multaVista || ""),
+    "…con la instrucción quirúrgica y el aviso de que repetir no sirve (el T2 de la corrida 2)");
+}
+
+H("14b · P2: reformular lo ya dicho NO dispara el empujón (43× medido)");
+{
+  initTenant(PACK);
+  const _declina = async () => ({ tipo: "texto", texto: "No puedo darte esa versión sin cruzar antes el dato verificado." });
+  let n1 = 0;
+  const g1 = async (a) => { n1++; return _declina(a); };
+  const rRe = await answerViaAgente({ text: "dame una versión más dura, como si tuviera que presentarla al gerente", history: [], mem: {}, scenario: "actual", callAgente: g1 });
+  ok(n1 === 1, `★ P2: la re-narración responde en UNA llamada (${n1}) — sin empujón`, rRe.r.agente.estado);
+  let n2 = 0;
+  const g2 = async (a) => { n2++; return _declina(a); };
+  await answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: "actual", callAgente: g2 });
+  ok(n2 === 2, `…y una pregunta de DATO sigue recibiendo el empujón de R6 (${n2} llamadas) — la mejora no se perdió`);
+  let n3 = 0;
+  const g3 = async (a) => { n3++; return _declina(a); };
+  await answerViaAgente({ text: "hazme un resumen ejecutivo para el directorio", history: [], mem: {}, scenario: "actual", callAgente: g3 });
+  ok(n3 === 2, `…y «resumen ejecutivo» NO es re-narración: es lectura nueva, y se empuja (${n3} llamadas)`);
+}
+
+H("14c · P3: el hilo que viaja al cierre se poda — las cifras citables van TODAS");
+{
+  initTenant(TENANT_DEMO);
+  const hilos = [];
+  const guionGrid = async ({ mensajes, ronda }) => {
+    hilos.push(mensajes.reduce((n, m) => n + String(m.content || "").length, 0));
+    if (ronda === 1) return { tipo: "herramientas", pedidos: [{ tool: "gridTable", args: { dimension: "sku" } }] };
+    return { tipo: "texto", texto: "La cartera de SKU está leída; dime por dónde profundizamos." };
+  };
+  const rG = await answerViaAgente({ text: "dame la tabla completa por sku", history: [], mem: {}, scenario: "bonanza", callAgente: guionGrid });
+  ok(hilos[1] > 0 && hilos[1] < 20000,
+    `★ P3: tras una lectura grande el hilo queda en ${hilos[1]} chars (sin poda eran ~24.400 — medido −36%)`);
+  ok(rG.r.agente.figs === 263, `y la boleta viaja ENTERA al muro (${rG.r.agente.figs} figs) — se poda el hilo, no la verificación`);
+  ok(TECHO_ENTRADA_CIERRE_CHARS === 28000, "el techo del cierre caro es UNA sola verdad, exportada del bucle");
+}
+
+H("14d · P4: la unidad del eco del supuesto la dice el usuario ($ y % no se cruzan)");
+{
+  initTenant(TENANT_DEMO);
+  const sup = registrarSupuesto({ texto: "Falabella tiene 30% de margen", cifra: 30 });   // sin declarar unidad: el default era money
+  ok(sup.boleta[0].value === "30.0%" && sup.boleta[0].unit === "pct",
+    `★ P4: «30%» en el texto → el eco dice 30.0%, no $30 (${sup.boleta[0].value})`);
+  const supM = registrarSupuesto({ texto: "el cliente promete comprar $45.000 este mes", cifra: 45000 });
+  ok(supM.boleta[0].unit === "money", "…y «$45.000» sigue siendo dinero");
+  const supDecl = registrarSupuesto({ texto: "sube tres puntos", cifra: 3, unidad: "pct" });
+  ok(supDecl.boleta[0].unit === "pct", "…y sin símbolo en el texto, manda lo declarado por el cerebro");
+}
+
+/* ═══ 15 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
+H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
   const tmp = [];
   let nCarnada = 0;
@@ -539,6 +618,47 @@ H("14 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       return r.r.agente.estado !== "reparado" && r.r.agente.figs === 0;   // el defecto: el pedido se tiró y el turno murió sin leer
     });
 
+  // (q) P1b · la multa sin la cifra: el reintento reformula a ciegas y cosecha el mismo veto (el T2 de la corrida 2)
+  await carnada("multa sin la cifra rechazada",
+    [[/const _CIFRA_EN_MULTA = \/[^\n]+\/gi;/, "const _CIFRA_EN_MULTA = /$^/g;"]],
+    async (Mut) => {
+      initTenant(PACK);
+      let multa = null;
+      const g = async ({ mensajes, attempt }) => {
+        if (attempt === 0) return { tipo: "texto", texto: "Depósito Riachuelo te compró $99.9M el último mes — un récord histórico." };
+        multa = mensajes[mensajes.length - 1].content;
+        return { tipo: "texto", texto: "No tengo esa cifra verificada." };
+      };
+      await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: g });
+      return !!multa && !/Lo rechazado es/.test(multa);   // el defecto: «reescribe todo» sin decir qué
+    });
+
+  // (r) P2 · el empujón sin la exclusión de re-narración: vuelven las 5 llamadas por reformular (43×)
+  await carnada("empujón sobre una re-narración",
+    [[/  const esRenarracion = _RE_RENARRACION\.test\(q\);/, "  const esRenarracion = false;"]],
+    async (Mut) => {
+      initTenant(PACK);
+      let n = 0;
+      const g = async () => { n++; return { tipo: "texto", texto: "No puedo darte esa versión sin cruzar antes el dato verificado." }; };
+      await Mut.answerViaAgente({ text: "dame una versión más dura, como si tuviera que presentarla al gerente", history: [], mem: {}, scenario: "actual", callAgente: g });
+      return n > 1;   // el defecto: reformular vuelve a pagar una ronda extra
+    });
+
+  // (s) P3 · la poda quitada: el hilo del cierre vuelve a llevar la tabla entera
+  await carnada("hilo sin podar (el cierre re-paga la boleta)",
+    [[/const TOPE_RESULTADO_CHARS = 6000;/, "const TOPE_RESULTADO_CHARS = 1e9;"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const hilos = [];
+      const g = async ({ mensajes, ronda }) => {
+        hilos.push(mensajes.reduce((n, m) => n + String(m.content || "").length, 0));
+        if (ronda === 1) return { tipo: "herramientas", pedidos: [{ tool: "gridTable", args: { dimension: "sku" } }] };
+        return { tipo: "texto", texto: "Leído; dime por dónde seguimos." };
+      };
+      await Mut.answerViaAgente({ text: "dame la tabla completa por sku", history: [], mem: {}, scenario: "bonanza", callAgente: g });
+      return hilos[1] > 20000;   // el defecto: ~24.400 chars re-pagados en cada llamada
+    });
+
   // (p) [10] · el relabel quitado: el eco de plantilla vuelve a contarse verde (el T8 del examen)
   await carnada("eco de plantilla contado como verde",
     [[/  if \(aprobado && typeof final === "string" && \/\^No pude \(\?:completar\|armar\) la lectura\/\.test\(final\.trim\(\)\)\) \{\n    estado = "limite";\n  \}/,
@@ -564,7 +684,7 @@ H("14 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (n) R6 · el empujón quitado: la limitación falsa vuelve a salir verde sin leer (T20)
   await carnada("declinar sin leer, sin empujón (el T20 del examen)",
-    [[/      if \(calls === 0 && !nudgeUsado && _RE_DECLINA_SIN_LEER\.test\(res\.texto\) && !\/no reconcilia\/i\.test\(res\.texto\)\) \{/,
+    [[/      if \(calls === 0 && !nudgeUsado && !esRenarracion && _RE_DECLINA_SIN_LEER\.test\(res\.texto\) && !\/no reconcilia\/i\.test\(res\.texto\)\) \{/,
       "      if (false) {"]],
     async (Mut) => {
       initTenant(PACK);
@@ -574,9 +694,9 @@ H("14 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       return llamadas === 1 && r.r.agente.figs === 0;   // el defecto: la declinación sin boleta pasó sin verificar
     });
 
-  // (k) R4a · el rescate vuelve a UNA cifra: la proporcionalidad muere en silencio
-  await carnada("rescate de una sola cifra (la pobreza de T4)",
-    [[/\]\.filter\(\(f\) => f !== contra\)\.slice\(0, 4\);/, "].filter((f) => f !== contra).slice(0, 1);"]],
+  // (k) P1a · el empaquetado de vuelta: el rescate junta cifras en una oración y se expone al veto de atribución
+  await carnada("rescate empaquetado (el auto-veto de T2)",
+    [[/\]\.filter\(\(f\) => f !== contra\)\.slice\(0, 1\);/, "].filter((f) => f !== contra).slice(0, 4);"]],
     async (Mut) => {
       initTenant(PACK);
       const terco2 = async ({ ronda, attempt }) => {
@@ -584,8 +704,7 @@ H("14 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
         return { tipo: "texto", texto: "Depósito Riachuelo te compró $99.9M el último mes — un récord histórico." };
       };
       const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: terco2 });
-      // el defecto: UNA cifra donde había dos (cuál sobrevive depende del orden de la serie — lo que se caza es la pérdida)
-      return r.r.agente.estado === "limite" && !(/22\.560/.test(r.r.text) && /24\.029/.test(r.r.text));
+      return (r.r.text.match(/\$[\d.]+/g) || []).length > 1;   // el defecto: el paquete vuelve (y con él la exposición al veto)
     });
 
   // (l) R4b · la refutación quitada: el supuesto contradicho queda sin refutar (el 30% de T5 otra vez)
@@ -642,6 +761,27 @@ H("14 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionTerco });
       return (r.r.agente.vetos || []).length === 0;   // el defecto: turno vetado con «vetos: ninguno»
     });
+
+  // (t) P4 · la unidad del eco leída del argumento y no del usuario: «30%» vuelve a salir como «$30»
+  {
+    const abs = path.join(process.cwd(), "src", "adi", "agente", "herramientasAgente.js");
+    const txt = fs.readFileSync(abs, "utf8").replace(/\r\n/g, "\n");
+    const de = '  const u = _unidadDelTexto(texto, v) || unidad || "money";';
+    if (!txt.includes(de)) ok(false, "carnada «unidad del eco desde el argumento»", "no encontré qué mutar");
+    else {
+      const destino = abs.replace(/\.js$/, `.carnada${process.pid}_p4.js`);
+      fs.writeFileSync(destino, txt.replace(de, '  const u = unidad || "money";'));
+      let cazada = false, detalle = "";
+      try {
+        const Mut = await import(pathToFileURL(destino).href);
+        initTenant(TENANT_DEMO);
+        const s = Mut.registrarSupuesto({ texto: "Falabella tiene 30% de margen", cifra: 30 });
+        cazada = /^\$/.test(String(s.boleta[0].value));   // el defecto: el % del usuario ecoado como dinero
+      } catch (e) { detalle = `la copia mutada ni siquiera carga: ${e.message}`; }
+      try { fs.unlinkSync(destino); } catch { /* */ }
+      ok(cazada, "carnada «unidad del eco desde el argumento (el «$30» de T17)» → el chequeo se pone ROJO", detalle || "el defecto pasó DESAPERCIBIDO");
+    }
+  }
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* */ } }
 }

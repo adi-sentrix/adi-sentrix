@@ -364,8 +364,12 @@ async function _fetchAgente({ mensajes, scenario, requestContext, ronda, attempt
   const { catalogoAgente } = await import("../adi/agente/catalogoAgente.js");
   /* R-eco del examen 1 (2026-08-31): el tier caro se paga SOLO cuando hay cifras verificadas que reescribir —
    * en el examen la escalada con boleta VACÍA fue el 66% del gasto y produjo CERO verdes. Mismo criterio que
-   * la consola del examen. `figsEnBoleta` viene del bucle en cada llamada. */
-  const paso = (cierre || attempt > 0) && (figsEnBoleta | 0) > 0 ? "cierre" : "herramientas";
+   * la consola del examen. `figsEnBoleta` viene del bucle en cada llamada.
+   * P3 de la corrida 2: …y tampoco cuando el hilo ya es enorme (el cierre re-paga la boleta entera en cada
+   * intento: 78% del gasto de esa corrida, con resultado PEOR). El techo es UNA sola verdad, del bucle. */
+  const { TECHO_ENTRADA_CIERRE_CHARS } = await import("../adi/agente/bucleAgente.js");
+  const _charsHilo = (mensajes || []).reduce((n, m) => n + String((m && m.content) || "").length, 0);
+  const paso = (cierre || attempt > 0) && (figsEnBoleta | 0) > 0 && _charsHilo <= TECHO_ENTRADA_CIERRE_CHARS ? "cierre" : "herramientas";
   const res = await fetch("/api/adi-agente", {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ mensajes, system: sistemaDelAgente(scenario).fijo, tools: catalogoAgente(), paso,

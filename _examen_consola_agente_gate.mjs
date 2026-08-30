@@ -33,11 +33,16 @@ ok(C.includes('vetosDeContrato("La carga subió. Procede con la renegociación d
 ok(C.includes("la ruta del agente se prueba con --agente"),
   "el sello del natural ya no habla por el agente");
 
-console.log("\n2 · R-eco: el tier caro SOLO con boleta no vacía (consola Y producción)");
-ok(C.includes('const paso = (attempt > 0 || cierre) && (figsEnBoleta | 0) > 0 ? "cierre" : "herramientas";'),
-  "la consola condiciona la escalada a figsEnBoleta > 0");
-ok(CH.includes('const paso = (cierre || attempt > 0) && (figsEnBoleta | 0) > 0 ? "cierre" : "herramientas";'),
+console.log("\n2 · R-eco + P3: el tier caro SOLO con boleta no vacía Y con el hilo bajo el techo");
+ok(C.includes('const paso = (attempt > 0 || cierre) && (figsEnBoleta | 0) > 0 && _charsHilo <= TECHO_ENTRADA_CIERRE_CHARS ? "cierre" : "herramientas";'),
+  "la consola condiciona la escalada a figsEnBoleta > 0 y al techo del hilo");
+ok(CH.includes('const paso = (cierre || attempt > 0) && (figsEnBoleta | 0) > 0 && _charsHilo <= TECHO_ENTRADA_CIERRE_CHARS ? "cierre" : "herramientas";'),
   "el adapter de producción (_fetchAgente) aplica el MISMO criterio");
+/* P3 de la corrida 2: el techo es UNA sola verdad — si consola y producción lo escribieran cada una, el día que
+ * se ajuste uno el otro seguiría pagando. Los dos lo IMPORTAN del bucle. */
+ok(C.includes("TECHO_ENTRADA_CIERRE_CHARS } from \"./src/adi/agente/bucleAgente.js\"") &&
+   CH.includes('const { TECHO_ENTRADA_CIERRE_CHARS } = await import("../adi/agente/bucleAgente.js");'),
+  "…y los dos IMPORTAN el techo del bucle: una sola verdad, no dos copias");
 
 console.log("\n3 · R7·[10]: el veredicto cuenta lo que pasó");
 ok(C.includes('intentos.filter((i) => i.motivoReintento === "guard").length'),

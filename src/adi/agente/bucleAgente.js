@@ -53,7 +53,25 @@ const TOPE_RONDAS = 3;      // rondas que pueden pedir herramientas
 const TOPE_CALLS = 12;      // tool-calls por turno, sumadas todas las rondas
 const CALLS_POR_RONDA = 8;  // el cap vigente de runPlan
 
-const _MENSAJE_NOTARIO = (multa) => `[NOTARIO — no es el usuario] Tu respuesta no pasó la verificación:\n${multa}\nReescribe tu respuesta COMPLETA corrigiendo solo lo observado, manteniendo tu calidad de asesor. No menciones esta corrección.`;
+/* P1b DE LA CORRIDA 2 (2026-08-31): LA REPARACIÓN TIENE QUE SABER QUÉ CIFRA SE VETÓ. Medido en T2: el cierre
+ * y su reparación cosecharon la multa IDÉNTICA («30.1% narrado como ventas, pero pertenece a margen») porque
+ * el mensaje pedía «reescribe tu respuesta COMPLETA» y el modelo devolvía la misma frase con otro envoltorio.
+ * La multa YA nombra la cifra ofensora: se extrae mecánicamente y se le pide reformular ESA oración —o quitarla—
+ * con el aviso de que repetir cosecha el mismo rechazo. Determinístico: regex sobre la multa, cero comprensión. */
+const _CIFRA_EN_MULTA = /\$\s?[\d.,]+\s?[KMB]?|[\d.,]+\s*(?:%|pp|x)\b/gi;
+function _cifrasDeMulta(multa) {
+  const t = String(multa || "");
+  const entrecomilladas = (t.match(/«[^»]{1,40}»|"[^"]{1,40}"/g) || []).join(" ");
+  const fuente = /\d/.test(entrecomilladas) ? entrecomilladas : t;
+  return [...new Set((fuente.match(_CIFRA_EN_MULTA) || []).map((s) => s.trim()))].slice(0, 4);
+}
+const _MENSAJE_NOTARIO = (multa) => {
+  const cifras = _cifrasDeMulta(multa);
+  const foco = cifras.length
+    ? `\nLo rechazado es ${cifras.length === 1 ? "esta cifra" : "estas cifras"}: ${cifras.join(" · ")}. Reescribe SOLO la oración que ${cifras.length === 1 ? "la" : "las"} contiene: dale el dueño y el concepto que de verdad le corresponden según tus resultados, o quítala. Repetir la misma frase recibe el mismo rechazo.`
+    : "";
+  return `[NOTARIO — no es el usuario] Tu respuesta no pasó la verificación:\n${multa}${foco}\nDevuelve tu respuesta COMPLETA con esa corrección, manteniendo tu calidad de asesor. No menciones esta corrección.`;
+};
 
 const _ejes = (lista) => {
   const o = [];
@@ -61,15 +79,44 @@ const _ejes = (lista) => {
   return o.length ? o : null;
 };
 
+/* P3 DE LA CORRIDA 2 (2026-08-31) · EL CIERRE RE-PAGA LA BOLETA ENTERA. Los resultados viajan sin caché y cada
+ * llamada posterior (cierre · reparación · re-cierre) los re-paga completos: 4 turnos con gridTable fueron el
+ * 57% de la corrida. MEDIDO acá, sobre el demo: gridTable(cliente) 16.201 chars · gridTable(sku) 24.389 ·
+ * el resto de las herramientas < 3.700. Y de ese peso, lo CITABLE (label + valor de cada fila) es 9.715 y
+ * 14.959: el resto son `facts` con las mismas filas en otra forma.
+ * LA PODA: por encima del tope, `facts` se recorta a sus escalares de cabecera (lens, dimensión, n, totales) y
+ * se DECLARA el corte — nunca en silencio (la ley del mapa). Las cifras van TODAS: lo que el modelo puede citar
+ * verbatim no se toca, y las figs completas siguen yendo a guardC, que corre local y gratis. Las herramientas
+ * chicas no se tocan: se poda lo que pesa, no todo. */
+const TOPE_RESULTADO_CHARS = 6000;
+/* LA SEGUNDA PALANCA DE P3, declarada y medida: por encima de este hilo, el cierre NO escala al tier caro.
+ * Con la poda de arriba, un turno con la tabla entera de SKU deja el hilo en ~15.6K chars (medido: 24.389 →
+ * 15.646, −36%); superarlo requiere DOS lecturas grandes en el mismo turno, y ahí el tier caro dejó de comprar
+ * calidad — la corrida 2 gastó el 78% en cierres que re-pagaban boleta y salió PEOR (verdes 14→2). Es una
+ * palanca de COSTO, explícita y revisable, no una regla de calidad. Se mide en chars (determinístico, sin
+ * tokenizer). UNA sola verdad: la consola del examen y el adapter de producción importan esta constante. */
+export const TECHO_ENTRADA_CIERRE_CHARS = 28000;
+function _factsCompactos(facts) {
+  const out = {};
+  if (facts && typeof facts === "object") {
+    for (const [k, v] of Object.entries(facts)) if (v === null || typeof v !== "object") out[k] = v;
+  }
+  out.detalle_recortado = "las filas completas no viajan en el hilo — cada cifra citable está en `cifras`";
+  return out;
+}
 /** el resumen de una ronda de herramientas, para el cerebro — datos crudos, no prosa. */
 function _resumenDeRonda(rp) {
-  return rp.results.map((r) => ({
-    tool: r.tool,
-    ok: !(r.coverage && r.coverage.supported === false),
-    ...(r.coverage && r.coverage.supported === false ? { motivo: r.coverage.reason } : {}),
-    facts: r.facts,
-    cifras: (r.boleta || []).map((f) => ({ label: f.label, valor: f.text || f.value })),
-  }));
+  return rp.results.map((r) => {
+    const base = {
+      tool: r.tool,
+      ok: !(r.coverage && r.coverage.supported === false),
+      ...(r.coverage && r.coverage.supported === false ? { motivo: r.coverage.reason } : {}),
+      facts: r.facts,
+      cifras: (r.boleta || []).map((f) => ({ label: f.label, valor: f.text || f.value })),
+    };
+    if (JSON.stringify(base).length <= TOPE_RESULTADO_CHARS) return base;
+    return { ...base, facts: _factsCompactos(r.facts) };
+  });
 }
 
 /* ── LA ESCALERA INVERTIDA · peldaño 1: la línea honesta con lo VERIFICADO del turno ─────────────────────────── */
@@ -102,13 +149,17 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades }) {
     }
   }
 
-  /* R4a DEL EXAMEN 1: PROPORCIONALIDAD del rescate — hasta 4 cifras verificadas del turno, no una sola (T4
-   * sirvió UNA cifra donde el suplente natural servía el tablero). Sigue siendo CORTO y solo con lo que ESTE
-   * turno verificó: el tablero de KPIs sigue fuera de la escalera (decisión del owner, intacta). */
+  /* R4a SE REVIERTE — MEDIDO EN LA CORRIDA 2 (P1a, 2026-08-31). El empaquetado de hasta 4 cifras en UNA
+   * oración («A = x; B = y; C = z») le da al binding semántico del muro varias cifras juntas para atribuir, y
+   * el propio rescate empezó a vetarse: T2 registró `linea-honesta · «$4.9M» narrado como margen, pero
+   * pertenece a costo/ventas` — el tercer peldaño de la cascada que terminó en VACÍO. En la corrida 1, con
+   * UNA cifra, este peldaño pasaba y el turno cerraba como `limite`. Un rescate que no sale no es proporcional:
+   * es nada. Vuelve a UNA (obligatoria primero) — la mejora de CONTENIDO de R4b (la refutación del supuesto,
+   * que funcionó en T17 de la corrida 2) SE CONSERVA: es una afirmación con su propio dueño, no un paquete. */
   const destacadas = [
     ...verificadas.filter((f) => f.mandatory),
     ...verificadas.filter((f) => !f.mandatory),
-  ].filter((f) => f !== contra).slice(0, 4);
+  ].filter((f) => f !== contra).slice(0, 1);
 
   /* sin un LÍMITE que nombrar ni contenido que ofrecer, este peldaño no tiene nada honesto que decir: cede al
    * siguiente (el respaldo de lo ya aprobado), que sí tiene contenido de verdad. */
@@ -217,13 +268,22 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * es opinar. El empujón es UNO por turno, consume ronda (jamás un bucle infinito) y NO aplica cuando el
    * límite citado ya es el DECLARADO del mapa («no reconcilia» — ahí declinar directo ES la conducta). */
   const _RE_DECLINA_SIN_LEER = /\bno (?:tengo|puedo|dispongo|hay|registro)\b|\bsin (?:datos|serie|hist[oó]rico?a?|24 meses)\b|¿(?:quieres|deseas) que\b|¿s[ií] o no\?|¿vamos con\b|¿procedo\b/i;
+  /* P2 DE LA CORRIDA 2 (2026-08-31): EL EMPUJÓN NO APLICA A RE-NARRACIONES. Medido sobre la MISMA pregunta
+   * («dame una versión más dura, como si tuviera que presentarla al gerente»): corrida 1 = US$0.0059, verde,
+   * UNA llamada barata desde la historia; corrida 2 con el empujón = US$0.2534, limite, 5 llamadas con dos
+   * cierres del tier caro. 43× más caro y PEOR. Reformular lo ya dicho no necesita leer nada: lo que hace
+   * falta ya está en el hilo. Patrones CONSERVADORES (sobre la pregunta, no sobre la respuesta): «versión más
+   * X», reformular/reescribir, «de otra manera», «más corto/duro/formal», «resumí eso/lo anterior», «como si
+   * tuviera que…». NO caza «resumen ejecutivo» ni «resumen para el directorio»: esas son lecturas NUEVAS. */
+  const _RE_RENARRACION = /\bversi[oó]n (?:m[aá]s|distinta|corta|dura)\b|\breformul|\breescrib|\bde otra manera\b|\ben otras palabras\b|\bm[aá]s (?:corto|corta|breve|conciso|concisa|duro|dura|simple|formal|directo|directa|suave)\b|\bresum[ií](?:lo|melo|me)?\s+(?:eso|esto|lo anterior|lo que)\b|\bmismo (?:texto|mensaje)\b|\bcomo si (?:tuviera|fuera|se lo|lo)\b/i;
+  const esRenarracion = _RE_RENARRACION.test(q);
   let nudgeUsado = false;
 
   while (rondas < TOPE_RONDAS && texto === null) {
     rondas++;
     const res = await callAgente({ mensajes: [...mensajes], mapa, herramientas, ronda: rondas, attempt: 0, figsEnBoleta: figsTotales.length });
     if (res && res.tipo === "texto" && typeof res.texto === "string" && res.texto.trim()) {
-      if (calls === 0 && !nudgeUsado && _RE_DECLINA_SIN_LEER.test(res.texto) && !/no reconcilia/i.test(res.texto)) {
+      if (calls === 0 && !nudgeUsado && !esRenarracion && _RE_DECLINA_SIN_LEER.test(res.texto) && !/no reconcilia/i.test(res.texto)) {
         nudgeUsado = true;
         mensajes.push({ role: "assistant", content: res.texto });
         mensajes.push({ role: "user", content: "[MOTOR — no es el usuario] Antes de declinar, afirmar un límite del dato o pedir permiso para una lectura: VERIFICA — pide ahora la(s) herramienta(s) que respalden tu respuesta y las ejecuto. Las lecturas internas no piden permiso: se ejecutan y se sirve el resultado. Solo si el límite ya está declarado en el mapa del dato, responde directo citándolo." });
@@ -320,8 +380,12 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     const v1 = juzgar(lavado);
     if (v1 && v1.ok) { final = lavado; estado = "verde"; aprobado = true; }
     else {
-      // UNA reparación con la multa — la mecánica del ciclo notarial, con el contexto del agente
-      const multa = (v1 && (v1.multa || (v1.violations || []).map((x) => x.detalle || x.reason || x).join("\n"))) || "cifras no verificables";
+      /* UNA reparación con la multa — la mecánica del ciclo notarial, con el contexto del agente.
+       * ⚠️ LA MULTA SE ARMA CON `_multaDe`, LA MISMA QUE REGISTRA EL EXPEDIENTE (una sola verdad). Acá vivía
+       * una segunda derivación que leía `x.detalle || x.reason` — campos que las violations de guardC NO
+       * tienen (usa `detail`): cuando el veredicto no traía `.multa`, al modelo le llegaba «[object Object]»
+       * y el reintento reformulaba a ciegas. Cazado al escribir el chequeo de P1b (corrida 2). */
+      const multa = _multaDe(v1);
       const hiloReparacion = [...mensajes, { role: "assistant", content: esNarracionVacia(lavado) ? "(respuesta vacía)" : lavado }, { role: "user", content: _MENSAJE_NOTARIO(multa) }];
       let res2 = await callAgente({
         mensajes: [...hiloReparacion],

@@ -89,6 +89,21 @@ export function serieEntidad({ entity, metrica = "venta" } = {}, { scenario = ES
   };
 }
 
+/* P4 DE LA CORRIDA 2 (2026-08-31) · LA UNIDAD DEL ECO LA DICE EL USUARIO. Medido en T17: el usuario dijo
+ * «30%» y el eco salió «Tu supuesto de $30» — el cerebro llamó sin declarar unidad y el default money la
+ * convirtió en dinero. Regla de la casa: $ y % no se cruzan. Este eco CITA al usuario, así que la unidad se
+ * lee de SU texto cuando ahí está explícita, y eso manda sobre el argumento del modelo. Mecánico: se busca la
+ * cifra dentro del texto con su símbolo pegado; si no aparece explícita, se respeta lo declarado. */
+function _unidadDelTexto(texto, cifra) {
+  const n = Number(cifra);
+  if (!Number.isFinite(n)) return null;
+  const t = String(texto || "");
+  const num = String(n).replace(/\./g, "[.,]");
+  if (new RegExp(`${num}\\s?%`).test(t)) return "pct";
+  if (new RegExp(`\\$\\s?${num}(?![\\d.,]*\\s?%)`).test(t)) return "money";
+  return null;
+}
+
 /* registrarSupuesto({ texto, cifra, unidad }) → el supuesto del usuario, a la boleta CON etiqueta.
  * No calcula nada: registra. El cerebro lo usa para comparar contra lo verificado SIN mezclar. */
 export function registrarSupuesto({ texto, cifra, unidad = "money" } = {}) {
@@ -97,11 +112,12 @@ export function registrarSupuesto({ texto, cifra, unidad = "money" } = {}) {
   const v = Number(cifra);
   if (!Number.isFinite(v)) return sinSoporte("registrarSupuesto necesita `cifra`: el número que el usuario ofreció");
   const d = getTenantData() || {};
-  const fmt = unidad === "pct" ? _pct(v) : unidad === "count" ? String(Math.round(v)) : fmtMonto(v, { dataset: d });
+  const u = _unidadDelTexto(texto, v) || unidad || "money";   // P4 · el texto del usuario manda sobre el argumento
+  const fmt = u === "pct" ? _pct(v) : u === "count" ? String(Math.round(v)) : fmtMonto(v, { dataset: d });
   return {
-    facts: { lens: "supuesto_usuario", texto: String(texto).slice(0, 200), cifra: v, unidad, etiqueta: "SUPUESTO DEL USUARIO — no verificado" },
+    facts: { lens: "supuesto_usuario", texto: String(texto).slice(0, 200), cifra: v, unidad: u, etiqueta: "SUPUESTO DEL USUARIO — no verificado" },
     boleta: [fig(`Supuesto del usuario · ${String(texto).slice(0, 60)}`, fmt,
-      { unit: unidad, raw: v, source: "user_supuesto", mandatory: false,
+      { unit: u, raw: v, source: "user_supuesto", mandatory: false,
         context: "cifra ofrecida por el usuario — se compara contra lo verificado, jamás se mezcla sin etiqueta" })],
     coverage: { supported: true, reason: null },
   };

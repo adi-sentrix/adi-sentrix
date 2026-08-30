@@ -104,3 +104,39 @@ original (~US$0.030) se superó en 9 turnos de la corrida 1 por la escalada — 
 techo por turno vuelve a ser creíble.
 
 **FRENO INTACTO: esta corrida NO corre sin la palabra del owner que NOMBRE el gasto.**
+
+---
+
+## TERCERA CORRIDA (tras el examen 2 · 2026-08-31) — pedido de autorización actualizado
+
+**La corrida 2 salió PEOR: 19/28 turnos (frenada por gasto), verdes 14→2.** El expediente —legible por primera
+vez gracias a R7— mostró que la causa NO fue el muro (que siguió impecable: cazó una invención real en T15,
+cero falsos positivos de léxico en 19 turnos) sino tres defectos de plomería que las reparaciones de la
+corrida 1 introdujeron o dejaron abiertos. Los cuatro cortes de esta tanda, todos medidos:
+
+- **P1a** · el rescate vuelve a UNA cifra: el empaquetado de R4a se auto-vetaba por atribución
+  (`linea-honesta · «$4.9M» narrado como margen`), tercer peldaño de la cascada que terminó en VACÍO. La
+  refutación del supuesto (R4b) SE CONSERVA — funcionó en T17.
+- **P1b** · la reparación nombra LA cifra rechazada y pide reformular ESA oración (T2 cosechó la multa
+  idéntica dos veces). Al escribirlo se cazó un defecto peor: cuando el veredicto no traía `.multa`, al modelo
+  le llegaba literalmente «[object Object]» — dos derivaciones distintas de la misma multa, ahora una sola.
+- **P2** · el empujón de R6 NO aplica a re-narraciones: misma pregunta, corrida 1 = US$0.0059 verde en una
+  llamada · corrida 2 = US$0.2534 limite en cinco. 43× más caro y peor. Reformular lo ya dicho no lee nada.
+- **P3** · el hilo que viaja al cierre se poda por encima del tope (medido: 24.389 → 15.646 chars, −36%,
+  con las 263 figs intactas para guardC, que corre local y gratis) y el tier caro no se paga con el hilo sobre
+  el techo (28.000 chars, UNA sola verdad importada por la consola y por producción).
+- **P4** · la unidad del eco del supuesto la dice el usuario: «30%» ya no sale «$30».
+
+**Descartados del veredicto por verificación del supervisor (NO se repararon, y está bien):** el «hueco de
+formas verbales de R3» (T13 sirvió contenido pertinente) y el «blanqueo del supuesto en T17» (T17 fue de las
+mejores respuestas del examen: corrigió la premisa con el dato real y etiquetó el supuesto).
+
+### El gasto de la tercera corrida, nombrado
+
+| Concepto | Cifra |
+|---|---|
+| Turnos | 28 (A: 20 · B: 4 · C: 4) |
+| Costo típico | **≈ US$0.45** (P2 quita las rondas de re-narración · P3 baja el hilo −36% y frena el tier caro en los turnos gigantes) |
+| Techo | **≈ US$1.00** (más el freno del conductor, que el supervisor endureció a chequeo intra-turno y por llamada) |
+
+**FRENO INTACTO: esta corrida NO corre sin la palabra del owner que NOMBRE el gasto.**
