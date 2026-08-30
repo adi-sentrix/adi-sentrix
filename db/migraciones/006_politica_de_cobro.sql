@@ -41,7 +41,6 @@ security invoker
 as $$
 declare
   v_id      uuid;
-  v_tenant  text;
   v_cobro   jsonb;
   v_limpio  jsonb := '{}'::jsonb;
   v_clave   text;
@@ -49,7 +48,7 @@ declare
   v_dias    int;
 begin
   -- la versión activa de la empresa que trae el pase; RLS ya acota a esa empresa
-  select fpv.id, fpv.tenant_id into v_id, v_tenant
+  select fpv.id into v_id
     from public.fact_pack_versions fpv
    where fpv.activa
    limit 1;
