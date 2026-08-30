@@ -234,23 +234,36 @@ H("4 · LA CARA MUESTRA, NO CONCLUYE · y no calcula");
 
 H("5 · LA PLANTILLA TODAVÍA NO SE TOCA · y eso también se comprueba");
 {
-  /* ⚠️ DECISIÓN DEL OWNER (2026-08-27): «subamos solo la pestaña detrás de ?flujo=1, sin tocar la plantilla
-   * todavía. Quiero verla en producción como cara ejecutiva primero. La hoja Abonos y las columnas nuevas
-   * quedan para el siguiente paso, cuando aprobemos la experiencia.»
+  /* ✅ LA ESPERA TERMINÓ (owner 2026-08-30). Esta sección decía lo contrario y era correcta mientras duró: la
+   * decisión del 27 fue «subamos solo la pestaña, sin tocar la plantilla todavía, quiero verla en producción
+   * como cara ejecutiva primero». La cara se aprobó, así que las columnas entran — y la nota se reescribe a
+   * mano, que era exactamente el momento de acordarse de preguntar que este candado buscaba forzar.
    *
-   * Las tres columnas —folio y días de crédito en Ventas, más la hoja Abonos— están diseñadas, discutidas y
-   * listas, pero NO entran hasta que la cara se apruebe. La razón es sana: la plantilla es lo único de todo
-   * esto que el cliente DESCARGA, y no se le cambia el archivo por una pantalla que todavía puede cambiar.
+   * Lo que entra: `folio` OBLIGATORIO en Ventas (única ruptura, aceptada), `tipo de documento` y `condición`
+   * opcionales, y la hoja `Abonos` opcional. Los días de crédito NO entran a la plantilla: son una política,
+   * no un hecho, y se ingresan en la app — igual que los prorrateos del P&L.
    *
-   * Esta sección no es un recordatorio: es el candado. Si alguien agrega las columnas antes de tiempo se pone
-   * roja, y hay que venir a borrar esta nota a mano — que es justo el momento de acordarse de preguntar. */
+   * Ahora el candado vigila lo inverso: que lo que la cara NECESITA esté en el contrato, para que no se pueda
+   * borrar sin que esto se ponga rojo. */
   const ventas = HOJAS.find((h) => h.nombre === "Ventas");
-  ok(!HOJAS.some((h) => h.nombre === "Abonos"),
-    "la hoja de Abonos NO está todavía: la plantilla que el cliente descarga sigue igual");
-  ok(!ventas.columnas.some((c) => c.campo === "factura" || c.campo === "diasCredito"),
-    "…ni el folio ni los días de crédito: la hoja Ventas es la misma de producción");
-  ok(HOJAS.length === 2 && HOJAS[0].nombre === "Ventas" && HOJAS[1].nombre === "Inventario",
-    `el contrato sigue con sus dos hojas de siempre: ${HOJAS.map((h) => h.nombre).join(" · ")}`);
+  const abonos = HOJAS.find((h) => h.nombre === "Abonos");
+  ok(Boolean(abonos), "la hoja de Abonos está en el contrato: es de donde sale el cobro");
+  ok(abonos && abonos.obligatoria === false,
+    "⚠️ …y es OPCIONAL: quien no la llena simplemente no ve esta cara, igual que sin Inventario no ve Capital");
+  ok(abonos && ["cliente", "fecha", "folio", "monto"].every((c) => abonos.columnas.some((x) => x.campo === c)),
+    `…con sus cuatro campos: ${abonos ? abonos.columnas.map((c) => c.campo).join(" · ") : "—"}`);
+
+  const folio = ventas.columnas.find((c) => c.campo === "folio");
+  ok(Boolean(folio) && folio.obligatoria === true,
+    "⚠️ el folio es OBLIGATORIO en Ventas: sin él no hay forma de juntar las líneas de una misma factura");
+  ok(ventas.columnas.some((c) => c.campo === "condicion"),
+    "y está la condición: es el criterio para saber qué venta está REALMENTE a crédito, no solo a quién aplicarle el plazo");
+
+  /* ⚠️ LOS DÍAS DE CRÉDITO NO PUEDEN VOLVER A LA PLANTILLA. Son una política del negocio, no un hecho que
+   * ocurrió, y como columna se repetirían en cada línea de la misma factura pudiendo contradecirse — el mismo
+   * motivo por el que el presupuesto quedó afuera. */
+  ok(!ventas.columnas.some((c) => c.campo === "diasCredito"),
+    "…y los días de crédito NO están: son política, se ingresan en la app");
   /* MIENTRAS TANTO EL DEMO SE ALIMENTA DE SU PROPIO DATO DECLARADO, no de la planilla: es lo que permite ver
      la cara funcionando sin pedirle nada todavía a ningún cliente. */
   const F = buildMesaFlujo("actual");

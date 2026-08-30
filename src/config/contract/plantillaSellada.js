@@ -24,6 +24,70 @@
  * Una entrada por `PLANTILLA_VERSION`. `razon` es obligatoria y no es decorativa: es la única forma de que
  * dentro de seis meses se sepa por qué se rompió la compatibilidad, y de que romperla cueste algo. */
 export const PLANTILLA_SELLADA = {
+  /* ── v2 · EL COBRO ENTRA A LA PLANTILLA (owner 2026-08-30) ──────────────────────────────────────────
+   *
+   * ⚠️ ROMPE LOS ARCHIVOS LLENADOS CON LA v1, y el owner lo decidió sabiéndolo: «no importa si debemos
+   * rellenar nuevamente y volver a cargar los datos, el folio es un campo obligatorio». Lo rompe UNA sola
+   * cosa —el folio obligatorio— y se hace ahora porque es el último momento en que romper cuesta cero: no
+   * hay ningún cliente real cargado. Con clientes adentro, la misma decisión cuesta una migración de datos.
+   *
+   * QUÉ ENTRA:
+   *   · `folio` OBLIGATORIO en Ventas — sin él no hay forma de juntar las líneas de una misma factura, y
+   *     sobre eso se apoyan el cobro, las notas de crédito y cualquier auditoría del documento.
+   *   · `tipo de documento` y `condición`, opcionales. La condición no es solo para saber a quién aplicarle
+   *     el plazo: es el criterio para saber qué venta está REALMENTE a crédito — sin ella el pendiente
+   *     incluiría lo cobrado al contado y estaría inflado.
+   *   · hoja `Abonos`, OPCIONAL. No rompe nada: el validador solo bloquea si falta una hoja obligatoria, y
+   *     quien no la llena simplemente no ve Flujo Comercial, igual que hoy sin Inventario no ve Capital.
+   *   · el orden de Ventas pasa a ser ejecutivo (quién · cuándo · qué documento · dónde · qué · cuánto).
+   *     REORDENAR NO ROMPE: se comprobó en el validador, que busca cada columna por su TÍTULO.
+   *
+   * LO QUE NO ENTRA, y no es olvido: `mes`, `año` y el costo medio unitario salen de columnas que ya están.
+   * La plantilla rechaza columnas calculadas para que no haya dos verdades sobre la misma cifra. */
+  v2: {
+    desde: "2026-08-30",
+    razon:
+      "Entra el cobro. El folio pasa a obligatorio —única ruptura, aceptada por el owner porque hoy no hay " +
+      "ningún cliente real cargado— y con él tipo de documento y condición (crédito/contado), las dos " +
+      "opcionales. Se agrega la hoja Abonos, opcional: quien no la llena no ve Flujo Comercial. Ventas queda " +
+      "en orden ejecutivo; reordenar no rompe nada porque el validador ubica cada columna por su título.",
+    hojas: {
+      Ventas: [
+        { campo: "cliente", titulo: "cliente", obligatoria: true },
+        { campo: "fecha", titulo: "fecha (aaaa-mm-dd)", obligatoria: true },
+        { campo: "folio", titulo: "folio", obligatoria: true },
+        { campo: "tipoDoc", titulo: "tipo de documento", obligatoria: false },
+        { campo: "condicion", titulo: "condición", obligatoria: false },
+        { campo: "puntoVenta", titulo: "punto de venta", obligatoria: false },
+        { campo: "canal", titulo: "canal", obligatoria: false },
+        { campo: "sku", titulo: "sku", obligatoria: true },
+        { campo: "marca", titulo: "marca", obligatoria: false },
+        { campo: "sfamilia", titulo: "familia", obligatoria: false },
+        { campo: "unidades", titulo: "unidades", obligatoria: true },
+        { campo: "venta", titulo: "venta", obligatoria: true },
+        { campo: "costo", titulo: "costo", obligatoria: true },
+        { campo: "acciones", titulo: "acciones comerciales", obligatoria: false },
+        { campo: "precioLista", titulo: "precio de lista", obligatoria: false },
+      ],
+      Inventario: [
+        { campo: "sku", titulo: "sku", obligatoria: true },
+        { campo: "bodega", titulo: "bodega", obligatoria: false },
+        { campo: "stockUnd", titulo: "stock (unidades)", obligatoria: true },
+      ],
+      Abonos: [
+        { campo: "cliente", titulo: "cliente", obligatoria: true },
+        { campo: "fecha", titulo: "fecha (aaaa-mm-dd)", obligatoria: true },
+        { campo: "folio", titulo: "folio", obligatoria: true },
+        { campo: "monto", titulo: "monto", obligatoria: true },
+      ],
+    },
+    parametros: [
+      { clave: "empresa_id", etiqueta: "identificador de tu empresa", obligatorio: true },
+      { clave: "empresa_nombre", etiqueta: "nombre de tu empresa", obligatorio: true },
+      { clave: "periodo_actual", etiqueta: "fecha de cierre del período que informas (aaaa-mm-dd)", obligatorio: true },
+      { clave: "moneda", etiqueta: "moneda de los montos (CLP, USD, …)", obligatorio: false },
+    ],
+  },
   v1: {
     desde: "2026-08-26",
     razon:
@@ -70,39 +134,51 @@ export const PLANTILLA_SELLADA = {
  * rompe todo archivo llenado, porque el validador ubica cada dato por su lugar en la fila. */
 const _mismo = (a, b) => a.campo === b.campo && a.titulo === b.titulo && !!a.obligatoria === !!b.obligatoria;
 
-/** compararColumnas(selladas, vivas) → { compatible, agregadas:[], rupturas:[{ tipo, campo, detalle }] } */
+/* compararColumnas(selladas, vivas) → { compatible, agregadas:[], rupturas:[{ tipo, campo, detalle }] }
+ *
+ * ⚠️ EL ORDEN NO ROMPE NADA, Y ESTA FUNCIÓN DECÍA QUE SÍ (corregido 2026-08-30). Marcaba «reordenada» como
+ * ruptura con este motivo: «el validador ubica cada dato por su columna, así que un archivo ya llenado
+ * quedaría corrido». **Eso es falso.** Se fue a leer el validador: recorre los encabezados DEL ARCHIVO DEL
+ * USUARIO, encuentra cada columna por su TÍTULO y guarda la posición que tiene ahí (`posPorCampo.set(campo, i)`
+ * en `validarPlantilla.js`); después lee cada fila con esa posición. El orden de nuestro contrato no interviene.
+ *
+ * LO QUE COSTABA LA REGLA MAL PUESTA: cobraba una re-carga de todos los archivos por un cambio que no rompe
+ * nada. Una garantía más estricta que la realidad no es prudencia — es una que se va a terminar ignorando, y
+ * el día que ignore una de verdad nadie va a notar la diferencia.
+ *
+ * LO QUE SÍ ROMPE, y es lo único:
+ *   · QUITAR una columna     → el archivo que la trae recibe «columna-de-más» y se bloquea
+ *   · RENOMBRAR una          → el título deja de encontrarse; la columna se lee como ausente
+ *   · VOLVERLA OBLIGATORIA   → todo archivo que la dejó vacía deja de entrar
+ *   · AGREGAR una OBLIGATORIA→ ningún archivo anterior la trae
+ * Agregar una opcional, en cualquier posición, y reordenar: compatibles. */
 export function compararColumnas(selladas = [], vivas = []) {
   const rupturas = [];
-  const porCampoSellado = new Map(selladas.map((c) => [c.campo, c]));
   const porCampoVivo = new Map(vivas.map((c) => [c.campo, c]));
+  const camposSellados = new Set(selladas.map((c) => c.campo));
 
-  for (let i = 0; i < selladas.length; i++) {
-    const s = selladas[i], v = vivas[i];
-    if (!porCampoVivo.has(s.campo)) {
+  for (const s of selladas) {
+    const v = porCampoVivo.get(s.campo);
+    if (!v) {
       rupturas.push({ tipo: "quitada", campo: s.campo, detalle: `«${s.titulo}» ya no está: los archivos que la traen dejan de validar` });
       continue;
     }
-    if (!v || v.campo !== s.campo) {
-      rupturas.push({ tipo: "reordenada", campo: s.campo, detalle: `«${s.titulo}» cambió de lugar (posición ${i + 1}): el validador ubica cada dato por su columna, así que un archivo ya llenado quedaría corrido` });
-      continue;
-    }
     if (v.titulo !== s.titulo) {
-      rupturas.push({ tipo: "renombrada", campo: s.campo, detalle: `«${s.titulo}» pasó a llamarse «${v.titulo}»: el archivo del cliente sigue diciendo lo viejo` });
+      rupturas.push({ tipo: "renombrada", campo: s.campo, detalle: `«${s.titulo}» pasó a llamarse «${v.titulo}»: el archivo del cliente sigue diciendo lo viejo, y el validador busca por título` });
     }
     if (!s.obligatoria && v.obligatoria) {
       rupturas.push({ tipo: "volvio-obligatoria", campo: s.campo, detalle: `«${s.titulo}» era opcional y ahora es obligatoria: todo archivo que la dejó vacía deja de entrar` });
     }
   }
 
-  /* Lo que se agregó al final. Solo es compatible si TODO lo agregado es opcional: una columna nueva obligatoria
-   * invalida cualquier archivo anterior, esté al final o no. */
-  const agregadas = vivas.slice(selladas.length);
+  /* Lo agregado, esté donde esté. Ya no se mira «lo que viene después de la última sellada»: con el orden
+   * libre, esa cuenta no significa nada. Se mira qué campos son nuevos. */
+  const agregadas = vivas.filter((v) => !camposSellados.has(v.campo));
   for (const a of agregadas) {
     if (a.obligatoria) {
       rupturas.push({ tipo: "nueva-obligatoria", campo: a.campo, detalle: `«${a.titulo}» es nueva y obligatoria: ningún archivo anterior la trae, así que todos dejan de validar` });
     }
   }
-  /* Una columna nueva METIDA EN EL MEDIO ya se reporta arriba como «reordenada» de la que desplazó. */
 
   return { compatible: rupturas.length === 0, agregadas: agregadas.map((a) => a.titulo), rupturas };
 }

@@ -17,6 +17,7 @@ import { fig } from "../boleta.js";
 // cifras de todas las calls, así que es donde se completan los campos del tipo que el composer no puede conocer
 // —el escenario del turno, la tool de origen, y el DOMINIO cuando la etiqueta sola no alcanza a decirlo.
 import { conDominioDelTurno, dominioDeFacts } from "../../config/contract/figureType.js";
+import { simboloMoneda } from "../../config/moneda.js";
 
 // createLedger() → ledger vacío. figs: la boleta plana acumulada (cada fig con .origin). calls: el trace por call.
 export function createLedger() {
@@ -28,7 +29,7 @@ export function createLedger() {
 // share…). El LLM interpreta con los facts → citaba cifras REALES pero no autorizadas → guardC abstenía. Autorizar
 // las cifras de los facts es SEGURO (son del motor, no inventadas): el guard sigue bloqueando derivaciones (sumas
 // que NO están en facts) y mala atribución (por-call-scope). Reusa las cifras ya FORMATEADAS de los facts + usd crudo.
-const _moneyE = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
+const _moneyE = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
 // FIX (owner 2026-08-05, hallazgo en vivo agregando variacionMensual a trend): la rama "%" NO capturaba el signo
 // negativo ("-3.2%" solo matcheaba "3.2%", perdiendo el signo) — a diferencia de la rama "$" que sí lo hace
 // (`-?\$...`). Una cifra de facts formateada como string negativo (ej. una variación % que cae bajo presupuesto/

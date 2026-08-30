@@ -26,13 +26,20 @@
 
 import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { flujoComercial } from "../../data/demoData.js";
+import { simboloMoneda } from "../../config/moneda.js";
 
 const _r1 = (v) => Math.round(v * 10) / 10;
+/* ⚠️ EL SÍMBOLO SALE DE LA MONEDA DECLARADA, NO SE ESCRIBE A MANO (2026-08-30). Este formateador nació con un
+ * «$» fijo, dos versiones después de que la 2.3 lo sacara de los otros 32 archivos. Con un negocio en euros,
+ * esta pestaña habría mostrado «$» mientras el resto de la app muestra «€»: dos monedas en la misma pantalla.
+ *
+ * Cambia el SÍMBOLO y nada más. El redondeo y la abreviación quedan idénticos a propósito: el notario compara
+ * verbatim la cifra del texto contra la de la boleta, y tocar la escala lo haría vetar cifras correctas. */
 const _money = (v) => {
-  const a = Math.abs(v), s = v < 0 ? "-" : "";
-  if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`;
-  if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`;
-  return `${s}$${Math.round(a)}`;
+  const a = Math.abs(v), s = v < 0 ? "-" : "", sim = simboloMoneda();
+  if (a >= 1e6) return `${s}${sim}${(a / 1e6).toFixed(1)}M`;
+  if (a >= 1e3) return `${s}${sim}${Math.round(a / 1e3)}K`;
+  return `${s}${sim}${Math.round(a)}`;
 };
 /* el dataset trabaja en miles ($K), igual que venta/contribución del resto de la Mesa */
 const _mK = (vK) => _money(vK * 1000);

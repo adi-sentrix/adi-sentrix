@@ -12,6 +12,7 @@ import { POLICY } from "../../config/businessPolicy.js";   // hardening · polí
 import { getStrategicProfile, getSubstitutionMap } from "../detectors.js";
 import { cuentasMasGrandes, filterTextualSuggestions } from "../helpers.js";
 import { scanMechanisms } from "./thesis.js";
+import { simboloMoneda } from "../../config/moneda.js";
 
 export function getObservableRelations(entityType, entityId, scenario, dataset) {
   try {
@@ -540,15 +541,15 @@ export function composeCalcula(trace, profile, context = {}) {
       : (gapBenchmark < 0 ? `${Math.abs(gapBenchmark)} puntos sobre benchmark` : "en línea con benchmark");
 
     if (profile && profile.tier === 1) {
-      calcula = `${clientName} opera con margen ${margenPct}% (${gapClause}) y carga comercial de ${carga}%. La cuenta concentra ${participacion}% de la cartera con ventas de $${ventasM}M y variación ${variacionLabel} YoY`;
+      calcula = `${clientName} opera con margen ${margenPct}% (${gapClause}) y carga comercial de ${carga}%. La cuenta concentra ${participacion}% de la cartera con ventas de ${simboloMoneda()}${ventasM}M y variación ${variacionLabel} YoY`;
     } else if (profile && profile.tier === 2) {
-      calcula = `${clientName} opera con margen ${margenPct}% (${gapClause}) y carga comercial de ${carga}%. Aporta $${ventasM}M (${participacion}% de la cartera) con variación ${variacionLabel} YoY`;
+      calcula = `${clientName} opera con margen ${margenPct}% (${gapClause}) y carga comercial de ${carga}%. Aporta ${simboloMoneda()}${ventasM}M (${participacion}% de la cartera) con variación ${variacionLabel} YoY`;
     } else {
-      calcula = `${clientName} opera con margen ${margenPct}% (${gapClause}) y carga comercial de ${carga}%. Cuenta de menor escala: $${ventasM}M (${participacion}% de la cartera), variación ${variacionLabel} YoY`;
+      calcula = `${clientName} opera con margen ${margenPct}% (${gapClause}) y carga comercial de ${carga}%. Cuenta de menor escala: ${simboloMoneda()}${ventasM}M (${participacion}% de la cartera), variación ${variacionLabel} YoY`;
     }
 
     if (contribucionM !== null) {
-      calcula += `. Contribución $${contribucionM}M.`;
+      calcula += `. Contribución ${simboloMoneda()}${contribucionM}M.`;
     } else {
       calcula += `.`;
     }
@@ -560,18 +561,18 @@ export function composeCalcula(trace, profile, context = {}) {
   // Add absolute $ delta alongside % YoY. Use "Sin embargo" conector when
   // margin is below benchmark. Carga comercial migrates to INTERPRETA.
   const deltaM = +((lastPeriod.evidence.delta) / 1000).toFixed(2);
-  const deltaLabel = variacion >= 0 ? `+$${Math.abs(deltaM)}M` : `-$${Math.abs(deltaM)}M`;
+  const deltaLabel = variacion >= 0 ? `+${simboloMoneda()}${Math.abs(deltaM)}M` : `-${simboloMoneda()}${Math.abs(deltaM)}M`;
   const deltaPhrase = variacion >= 0
     ? `crece ${variacionLabel} YoY, equivalente a aproximadamente ${deltaLabel} en ventas adicionales`
     : `cae ${variacionLabel} YoY, equivalente a aproximadamente ${deltaLabel} en ventas perdidas`;
 
   let calcula = "";
   if (profile && profile.tier === 1) {
-    calcula = `${clientName} vende $${ventasM}M y representa ${participacion}% de la cartera total. La cuenta ${deltaPhrase}`;
+    calcula = `${clientName} vende ${simboloMoneda()}${ventasM}M y representa ${participacion}% de la cartera total. La cuenta ${deltaPhrase}`;
   } else if (profile && profile.tier === 2) {
-    calcula = `${clientName} aporta $${ventasM}M y representa ${participacion}% de la cartera total. La cuenta ${deltaPhrase}`;
+    calcula = `${clientName} aporta ${simboloMoneda()}${ventasM}M y representa ${participacion}% de la cartera total. La cuenta ${deltaPhrase}`;
   } else {
-    calcula = `${clientName} aporta $${ventasM}M y representa ${participacion}% de la cartera total. La cuenta ${deltaPhrase}`;
+    calcula = `${clientName} aporta ${simboloMoneda()}${ventasM}M y representa ${participacion}% de la cartera total. La cuenta ${deltaPhrase}`;
   }
 
   if (contribucionM !== null) {
@@ -579,7 +580,7 @@ export function composeCalcula(trace, profile, context = {}) {
       ? `${gapBenchmark} puntos bajo el benchmark de cartera`
       : (gapBenchmark < 0 ? `${Math.abs(gapBenchmark)} puntos sobre el benchmark de cartera` : "en línea con el benchmark de cartera");
     const conectorMargen = (gapBenchmark > 0) ? ". Sin embargo, opera" : ". Opera";
-    calcula += `${conectorMargen} con margen de ${margenPct}%, ${gapClause}, y aporta cerca de $${contribucionM}M de contribución.`;
+    calcula += `${conectorMargen} con margen de ${margenPct}%, ${gapClause}, y aporta cerca de ${simboloMoneda()}${contribucionM}M de contribución.`;
   } else {
     calcula += `.`;
   }
@@ -602,7 +603,7 @@ export function composeContextualiza(trace, profile, incrementalGrowth, fullData
   if (incrementalGrowth !== null && incrementalGrowth > 0) {
     bullets.push(`aproximadamente ${incrementalGrowth}% del crecimiento incremental anual de la cartera`);
   } else if (variacion < 0) {
-    bullets.push(`pérdida directa de aproximadamente $${Math.abs(+(v.actual - v.anterior).toFixed(0))}K contra el año anterior`);
+    bullets.push(`pérdida directa de aproximadamente ${simboloMoneda()}${Math.abs(+(v.actual - v.anterior).toFixed(0))}K contra el año anterior`);
   }
 
   // Bullet B · categoría dominante
@@ -821,10 +822,10 @@ export function composeRecommendation(trace, profile, context = {}) {
       const operationalTarget = POLICY.targetCarga;
       const pointsToReduce = +(carga - operationalTarget).toFixed(1);
       const impactK = Math.round(ventasK * pointsToReduce / 100);
-      action = `Reducir gradualmente la carga comercial desde ${carga}% hacia niveles cercanos al benchmark interno de ${operationalTarget}% permitiría recuperar aproximadamente $${impactK}K anuales de contribución.`;
+      action = `Reducir gradualmente la carga comercial desde ${carga}% hacia niveles cercanos al benchmark interno de ${operationalTarget}% permitiría recuperar aproximadamente ${simboloMoneda()}${impactK}K anuales de contribución.`;
       reason = `El objetivo no es reducir volumen, sino frenar el deterioro del margen y mejorar el margen de la cuenta sin afectar participación en el corto plazo.`;
       risk = `El principal riesgo está en próximas negociaciones comerciales, donde ${clientName} podría exigir compensaciones para mantener las condiciones actuales.`;
-      mech = `La carga comercial está en ${carga}% · acercarla al benchmark interno de ${operationalTarget}% liberaría aproximadamente $${impactK}K anuales de contribución · la palanca está en la carga, no en el volumen.`;
+      mech = `La carga comercial está en ${carga}% · acercarla al benchmark interno de ${operationalTarget}% liberaría aproximadamente ${simboloMoneda()}${impactK}K anuales de contribución · la palanca está en la carga, no en el volumen.`;
       break;
     }
     case "margin_erosion":
@@ -839,9 +840,9 @@ export function composeRecommendation(trace, profile, context = {}) {
     case "dependency_risk": {
       const ventasToReplace = +(ventasM * (participacion - 15) / participacion).toFixed(1);
       action = `Diversificar la cartera reduciendo participación de ${clientName} desde ${participacion}% hacia niveles cercanos al 15%.`;
-      reason = `Bajar la participación al umbral prudencial requiere desarrollar cuentas equivalentes a aproximadamente $${ventasToReplace}M en ventas alternativas, lo que reduce el impacto estructural de cualquier variación en la cuenta.`;
+      reason = `Bajar la participación al umbral prudencial requiere desarrollar cuentas equivalentes a aproximadamente ${simboloMoneda()}${ventasToReplace}M en ventas alternativas, lo que reduce el impacto estructural de cualquier variación en la cuenta.`;
       risk = `La diversificación toma 12-18 meses; durante ese período, la pérdida de ${clientName} representaría ${participacion}% de los ingresos del negocio.`;
-      mech = `${clientName} concentra ${participacion}% del negocio · llevar esa concentración hacia un nivel más equilibrado (~15%) requeriría desarrollar aproximadamente $${ventasToReplace}M en cuentas alternativas · el margen de diversificación existe, toma 12-18 meses.`;
+      mech = `${clientName} concentra ${participacion}% del negocio · llevar esa concentración hacia un nivel más equilibrado (~15%) requeriría desarrollar aproximadamente ${simboloMoneda()}${ventasToReplace}M en cuentas alternativas · el margen de diversificación existe, toma 12-18 meses.`;
       break;
     }
     default:

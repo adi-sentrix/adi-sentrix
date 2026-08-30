@@ -3,6 +3,7 @@ import { cuentasMasGrandes, filterTextualSuggestions } from "../helpers.js";
 import { _bFmt1, _bFmt2, _brandHasClientWorld, _brandRow } from "../router.js";
 import { _cmpRatio } from "./warehouse.js";
 import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
+import { simboloMoneda } from "../../config/moneda.js";
 
 function composeClientComparison(clientA_name, clientB_name, scenario, modulo) {
   // FASE 1.5.B-HOTFIX-3-PATCH-3 · cross-dataset
@@ -66,11 +67,11 @@ function composeClientComparison(clientA_name, clientB_name, scenario, modulo) {
   let opener = `**${A.nombre} vs ${B.nombre}** · ${leadInsight}\n\n`;
 
   // Bloque Volumen
-  opener += `**Volumen:** ${A.nombre} factura $${(A.venta/1000).toFixed(1)}M (${pctA_v.toFixed(1)}% cartera) · ${B.nombre} $${(B.venta/1000).toFixed(1)}M (${pctB_v.toFixed(1)}%). `;
+  opener += `**Volumen:** ${A.nombre} factura ${simboloMoneda()}${(A.venta/1000).toFixed(1)}M (${pctA_v.toFixed(1)}% cartera) · ${B.nombre} ${simboloMoneda()}${(B.venta/1000).toFixed(1)}M (${pctB_v.toFixed(1)}%). `;
   if (ventasSimilar) {
     opener += `Escala equivalente.\n\n`;
   } else {
-    opener += `Brecha de $${(Math.abs(diffVentas)/1000).toFixed(1)}M.\n\n`;
+    opener += `Brecha de ${simboloMoneda()}${(Math.abs(diffVentas)/1000).toFixed(1)}M.\n\n`;
   }
 
   // Bloque Margen (solo si ambos tienen margen)
@@ -95,7 +96,7 @@ function composeClientComparison(clientA_name, clientB_name, scenario, modulo) {
   }
 
   // Bloque Contribución
-  opener += `**Contribución absoluta:** ${A.nombre} aporta $${(A.contribucion/1000).toFixed(2)}M (${pctA_c.toFixed(1)}% cartera) · ${B.nombre} $${(B.contribucion/1000).toFixed(2)}M (${pctB_c.toFixed(1)}%).\n\n`;
+  opener += `**Contribución absoluta:** ${A.nombre} aporta ${simboloMoneda()}${(A.contribucion/1000).toFixed(2)}M (${pctA_c.toFixed(1)}% cartera) · ${B.nombre} ${simboloMoneda()}${(B.contribucion/1000).toFixed(2)}M (${pctB_c.toFixed(1)}%).\n\n`;
 
   // Lectura ejecutiva · D-VOZ-V3 · interpretación con inmaterialidad
   const sumPctCartera = pctA_v + pctB_v;

@@ -10,6 +10,7 @@ import { composeBusinessThesisOpener } from "./thesis.js";
 import { _capitalInmovilizado } from "./warehouse.js";
 import { ADI_CAPITAL_DEF_CANONICA_ENABLED } from "../../config/voiceFlags.js";
 import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico · mismos valores)
+import { simboloMoneda } from "../../config/moneda.js";
 
 /* ── LA CUENTA PRIORITARIA · UNA SOLA DEFINICIÓN, DERIVADA (2026-08-21) ──────────────────────────────────────
  * Este archivo nombraba «Falabella» en cinco lugares —dos lookups, la acción de Sentrix y dos sugerencias— y en
@@ -185,7 +186,7 @@ function composePriorityRecommendationV2(scenarioId) {
   const recuperable     = Math.round(((carga_actual - target_carga) / 100) * cliente_v.actual);
 
   // ── BLOQUE 2 · POR DÓNDE PARTIRÍA (BRIEF #15 Executive V1 LOCKED) ─────
-  const b2 = `Partiría por ${cliente_nombre} · bajar carga de ${carga_actual.toFixed(1)}% a ${target_carga.toFixed(1)}% recupera aproximadamente $${recuperable}K anuales.`;
+  const b2 = `Partiría por ${cliente_nombre} · bajar carga de ${carga_actual.toFixed(1)}% a ${target_carga.toFixed(1)}% recupera aproximadamente ${simboloMoneda()}${recuperable}K anuales.`;
 
   // ── BLOQUE 3 · EVIDENCIA (cifras concatenadas · Executive V1) ─────────
   // CADA GAP NOMBRA SU VARA (owner 2026-08-10). «sobre referencia» a secas era ambiguo justo donde más importa: la
@@ -193,7 +194,7 @@ function composePriorityRecommendationV2(scenarioId) {
   // la MEJOR PRÁCTICA INTERNA (3,0%), que es otro umbral. Contra la vara que el propio párrafo nombró una línea
   // antes, el gap sería 1,0pp, no 1,5pp: dos varas vivas en dos renglones consecutivos, sin decir cuál es cuál. El
   // número no cambia — cambia que ahora dice de dónde sale. Mismo patrón honesto que executiveReport.js ya usa.
-  const b3 = `Ventas $${venta_M}M · Contribución $${contrib_M}M · Margen ${margen_pct}% · ${(benchmark - margen_pct).toFixed(1)}pp bajo benchmark · Carga ${gap_pp}pp sobre la mejor práctica interna (${bestPractice.toFixed(1)}%).`;
+  const b3 = `Ventas ${simboloMoneda()}${venta_M}M · Contribución ${simboloMoneda()}${contrib_M}M · Margen ${margen_pct}% · ${(benchmark - margen_pct).toFixed(1)}pp bajo benchmark · Carga ${gap_pp}pp sobre la mejor práctica interna (${bestPractice.toFixed(1)}%).`;
 
   // ── BLOQUE 4 · QUÉ LO EXPLICA (observable · Executive V1) ─────────────
   // BRIEF MICRO 1 (#D-EXEC-15-3 fix) · V1 LOCKED · evita duplicación con B1 ETLG.
@@ -350,10 +351,10 @@ function composeM1Donde(archetype, domains, scenarioId) {
     if (typeof ADI_CAPITAL_DEF_CANONICA_ENABLED !== "undefined" && ADI_CAPITAL_DEF_CANONICA_ENABLED) {
       const _canon = _capitalInmovilizado(skuInventario);
       const _estrictoK = Math.round(_canon.estricto60d / 1000);
-      return `La presión del negocio se concentra simultáneamente en dos lugares: capital inmovilizado en categorías de baja rotación (aproximadamente $${capitalFugadoK}K inmovilizados en stock entre SKUs con alerta operativa; de eso, aproximadamente $${_estrictoK}K corresponde a stock sin venta por más de 60 días), y contribución bajo benchmark sobre cuentas Tier 1 con carga comercial sobre tu meta operativa de carga (${target_carga.toFixed(1)}%) (aproximadamente $${fugaK}K anuales recuperables).`;
+      return `La presión del negocio se concentra simultáneamente en dos lugares: capital inmovilizado en categorías de baja rotación (aproximadamente ${simboloMoneda()}${capitalFugadoK}K inmovilizados en stock entre SKUs con alerta operativa; de eso, aproximadamente ${simboloMoneda()}${_estrictoK}K corresponde a stock sin venta por más de 60 días), y contribución bajo benchmark sobre cuentas Tier 1 con carga comercial sobre tu meta operativa de carga (${target_carga.toFixed(1)}%) (aproximadamente ${simboloMoneda()}${fugaK}K anuales recuperables).`;
     }
 
-    return `La presión del negocio se concentra simultáneamente en dos lugares: capital inmovilizado en categorías de baja rotación (aproximadamente $${capitalFugadoK}K inmovilizados en stock entre SKUs con alerta operativa), y contribución bajo benchmark sobre cuentas Tier 1 con carga comercial sobre tu meta operativa de carga (${target_carga.toFixed(1)}%) (aproximadamente $${fugaK}K anuales recuperables).`;
+    return `La presión del negocio se concentra simultáneamente en dos lugares: capital inmovilizado en categorías de baja rotación (aproximadamente ${simboloMoneda()}${capitalFugadoK}K inmovilizados en stock entre SKUs con alerta operativa), y contribución bajo benchmark sobre cuentas Tier 1 con carga comercial sobre tu meta operativa de carga (${target_carga.toFixed(1)}%) (aproximadamente ${simboloMoneda()}${fugaK}K anuales recuperables).`;
   }
 
   if (archetype === "calidad_crecimiento") {
@@ -391,7 +392,7 @@ function composeM1Donde(archetype, domains, scenarioId) {
     const top3VentasM = (top3Ventas / 1000).toFixed(1);
     const namesList = top3.map(c => c.nombre).join(", ");
 
-    return `Los tres principales clientes por contribución son ${namesList}, que combinados representan $${top3ContribM}M de contribución y ${top3Participacion}% de la cartera total. Una salida simultánea de los tres significaría -$${top3VentasM}M en ventas anuales y eliminaría aproximadamente la mitad de la contribución.`;
+    return `Los tres principales clientes por contribución son ${namesList}, que combinados representan ${simboloMoneda()}${top3ContribM}M de contribución y ${top3Participacion}% de la cartera total. Una salida simultánea de los tres significaría -${simboloMoneda()}${top3VentasM}M en ventas anuales y eliminaría aproximadamente la mitad de la contribución.`;
   }
 
   if (archetype === "trapped_capital") {
@@ -491,7 +492,7 @@ function composeM4QuePriorizar(archetype, domains, scenarioId) {
     const recuperable = ((cuenta.pctRebate - target_carga) / 100) * cuenta.venta;
     const recuperableK = Math.round(recuperable);
 
-    return `La palanca de mayor impacto inmediato está en carga comercial sobre ${cuenta.nombre}, porque combina el mayor peso económico en la cartera ($${(cuenta.contribucion/1000).toFixed(2)}M de contribución), el mayor control directo (es decisión comercial directa) y el efecto secundario de liberar margen para absorber inventario sin compromiso explícito de volumen. Una reducción gradual desde ${cuenta.pctRebate}% hacia ${target_carga}% recuperaría aproximadamente $${recuperableK}K anuales en contribución.`;
+    return `La palanca de mayor impacto inmediato está en carga comercial sobre ${cuenta.nombre}, porque combina el mayor peso económico en la cartera (${simboloMoneda()}${(cuenta.contribucion/1000).toFixed(2)}M de contribución), el mayor control directo (es decisión comercial directa) y el efecto secundario de liberar margen para absorber inventario sin compromiso explícito de volumen. Una reducción gradual desde ${cuenta.pctRebate}% hacia ${target_carga}% recuperaría aproximadamente ${simboloMoneda()}${recuperableK}K anuales en contribución.`;
   }
 
   if (archetype === "calidad_crecimiento") {

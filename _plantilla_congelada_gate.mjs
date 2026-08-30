@@ -97,14 +97,24 @@ H("4 · CARNADA · el candado tiene que poder ponerse rojo, y distinguir");
     { campo: "b", titulo: "b", obligatoria: false },
     { campo: "c", titulo: "c", obligatoria: true },
   ];
+  /* ⚠️ REORDENAR Y METER UNA OPCIONAL EN EL MEDIO PASARON DE «ROMPE» A «PASA» (2026-08-30), y no es que se
+   * haya aflojado la regla: es que la regla estaba MAL. Decía que el validador ubica cada dato por su
+   * posición, y no es así — se fue a leer: recorre los encabezados DEL ARCHIVO DEL USUARIO, encuentra cada
+   * columna por su TÍTULO y lee con la posición que tiene ahí. El orden del contrato no interviene.
+   *
+   * Lo que costaba: una re-carga de todos los archivos por un cambio inofensivo. Una garantía más estricta
+   * que la realidad no es prudencia — es una que se termina ignorando, y ese día tapa a la de al lado. */
   const casos = [
     ["AGREGAR una opcional al final", [...base, { campo: "d", titulo: "d", obligatoria: false }], true, null],
+    ["REORDENAR dos columnas", [base[1], base[0], base[2]], true, null],
+    ["meter una columna OPCIONAL en el medio", [base[0], { campo: "x", titulo: "x", obligatoria: false }, base[1], base[2]], true, null],
     ["QUITAR una columna", base.slice(0, 2), false, "quitada"],
     ["RENOMBRAR una columna", [base[0], { ...base[1], titulo: "be" }, base[2]], false, "renombrada"],
-    ["REORDENAR dos columnas", [base[1], base[0], base[2]], false, "reordenada"],
     ["VOLVER OBLIGATORIA una opcional", [base[0], { ...base[1], obligatoria: true }, base[2]], false, "volvio-obligatoria"],
     ["AGREGAR una obligatoria al final", [...base, { campo: "d", titulo: "d", obligatoria: true }], false, "nueva-obligatoria"],
-    ["meter una columna EN EL MEDIO", [base[0], { campo: "x", titulo: "x", obligatoria: false }, base[1], base[2]], false, "reordenada"],
+    ["meter una OBLIGATORIA en el medio", [base[0], { campo: "x", titulo: "x", obligatoria: true }, base[1], base[2]], false, "nueva-obligatoria"],
+    /* Y el que importa de verdad: renombrar SIGUE rompiendo, justamente porque se busca por título. */
+    ["RENOMBRAR aunque no se mueva de lugar", [base[0], base[1], { ...base[2], titulo: "ce" }], false, "renombrada"],
   ];
   for (const [que, viva, esperadoCompatible, tipoEsperado] of casos) {
     const r = compararColumnas(base, viva);

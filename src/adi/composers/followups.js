@@ -1,6 +1,7 @@
 import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { cuentasMasGrandes, filterTextualSuggestions } from "../helpers.js";
 import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
+import { simboloMoneda } from "../../config/moneda.js";
 
 export function composeClientMetricFollowUp(clientName, metricKey, scenario, modulo) {
   // FASE 1.5.B-HOTFIX-3-PATCH-3 · cross-dataset
@@ -53,7 +54,7 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
     const totalCarga = c.rebates;
 
     opener = `La carga comercial de ${c.nombre} es **${c.pctRebate}%** · ${Math.abs(gapVsAvg).toFixed(1)} puntos ${gapVsAvg >= 0 ? "sobre" : "bajo"} el promedio simple de las cuentas (${avgCarga.toFixed(1)}%).\n\n`;
-    opener += `En valor absoluto representa **$${(totalCarga/1000).toFixed(2)}M anuales** de rebate sobre ventas de $${(c.venta/1000).toFixed(1)}M. `;
+    opener += `En valor absoluto representa **${simboloMoneda()}${(totalCarga/1000).toFixed(2)}M anuales** de rebate sobre ventas de ${simboloMoneda()}${(c.venta/1000).toFixed(1)}M. `;
 
     // Thresholds calibrados · D-1.5.B-HOTFIX-3-VOZ-CARGA-MODERADA firmada
     if (gapVsAvg >= 2) {
@@ -99,7 +100,7 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
 
     if (gapVsBench < -3) {
       const destruccion = Math.round(c.venta * (benchmark - c.margen) / 100);
-      opener += `La cuenta está cediendo margen: aproximadamente **$${destruccion}K anuales** de contribución no capturada por estar bajo benchmark.\n\n`;
+      opener += `La cuenta está cediendo margen: aproximadamente **${simboloMoneda()}${destruccion}K anuales** de contribución no capturada por estar bajo benchmark.\n\n`;
       opener += `**Mecanismo disponible**: el cruce margen vs carga comercial es la lectura natural · si ${c.nombre} tiene carga sobre ese promedio simple (${avgCarga.toFixed(1)}%), la palanca de rebate opera antes que la de precio.`;
     } else if (gapVsBench >= 0) {
       // MISMO DEFECTO QUE comparisons.js (owner 2026-08-09, decisión 1 · hallazgo N): la rama entra por
@@ -139,11 +140,11 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
     const totalCartera = dataset.reduce((s, x) => s + (x.contribucion || 0), 0);
     const pctCartera = totalCartera > 0 ? (c.contribucion / totalCartera * 100) : 0;
 
-    opener = `${c.nombre} aporta **$${(c.contribucion/1000).toFixed(2)}M** de contribución · `;
-    opener += `**${pctCartera.toFixed(1)}%** de la cartera total ($${(totalCartera/1000).toFixed(1)}M).\n\n`;
+    opener = `${c.nombre} aporta **${simboloMoneda()}${(c.contribucion/1000).toFixed(2)}M** de contribución · `;
+    opener += `**${pctCartera.toFixed(1)}%** de la cartera total (${simboloMoneda()}${(totalCartera/1000).toFixed(1)}M).\n\n`;
 
     if (pctCartera > 15) {
-      opener += `Es una cuenta estructural · una salida total significaría perder $${(c.contribucion/1000).toFixed(1)}M de contribución que el resto de la cartera difícilmente absorbe.`;
+      opener += `Es una cuenta estructural · una salida total significaría perder ${simboloMoneda()}${(c.contribucion/1000).toFixed(1)}M de contribución que el resto de la cartera difícilmente absorbe.`;
     } else {
       opener += `Aporte relevante pero no dependiente · la cartera tiene resiliencia ante variaciones de esta cuenta.`;
     }
@@ -166,12 +167,12 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
     const pctCartera = (c.venta / totalCartera * 100);
     const ratioContrib = c.venta > 0 ? (c.contribucion / c.venta) : 0;
 
-    opener = `${c.nombre} factura **$${(c.venta/1000).toFixed(1)}M** anuales · `;
+    opener = `${c.nombre} factura **${simboloMoneda()}${(c.venta/1000).toFixed(1)}M** anuales · `;
     opener += `**${pctCartera.toFixed(1)}%** del volumen total de la cartera.\n\n`;
     if (c.sfamilia && c.marca) {
       opener += `El cliente opera en ${c.sfamilia} con marca principal ${c.marca}. `;
     }
-    opener += `Cada $1 vendido aporta $${ratioContrib.toFixed(2)} de contribución después de carga.`;
+    opener += `Cada $1 vendido aporta ${simboloMoneda()}${ratioContrib.toFixed(2)} de contribución después de carga.`;
 
     suggestions = filterTextualSuggestions([
       `¿Cuánto creció ${c.nombre} YoY?`,

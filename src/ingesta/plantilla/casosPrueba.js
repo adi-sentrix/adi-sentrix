@@ -59,11 +59,14 @@ function completo() {
  * SKU total — y el motor lo DECLARA en los avisos en vez de disimularlo. */
 function minimo() {
   const d = datosEjemplo();
-  const ventas = d.ventas.map(({ fecha, cliente, sku, unidades, venta, costo }) => ({ fecha, cliente, sku, unidades, venta, costo }));
+  /* ⚠️ EL FOLIO ENTRA AL MÍNIMO (v2 · owner 2026-08-30): pasó a ser obligatorio, así que un archivo sin él ya
+   * no es «el mínimo», es un archivo que se rechaza. La hoja Abonos NO entra: es opcional, y este caso existe
+   * justamente para probar que se puede cargar sin lo opcional — quien no la llena no ve Flujo Comercial. */
+  const ventas = d.ventas.map(({ fecha, cliente, folio, sku, unidades, venta, costo }) => ({ fecha, cliente, folio, sku, unidades, venta, costo }));
   const inventario = d.inventario.map(({ sku, stockUnd }) => ({ sku, stockUnd }));
   return libro(
     { parametros: { ...d.parametros, empresa_id: "minimo", empresa_nombre: "Caso Mínimo S.A." }, Ventas: ventas, Inventario: inventario },
-    { Ventas: ["fecha", "cliente", "sku", "unidades", "venta", "costo"], Inventario: ["sku", "stockUnd"] },
+    { Ventas: ["cliente", "fecha", "folio", "sku", "unidades", "venta", "costo"], Inventario: ["sku", "stockUnd"] },
   );
 }
 

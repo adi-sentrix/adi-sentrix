@@ -104,7 +104,7 @@ export function plantillaVacia() {
  * bodegas, un SKU que no se vende hace meses y otro que rota fuerte. */
 export function datosEjemplo() {
   const parametros = {
-    empresa_id: "andes", empresa_nombre: "Andes Distribución S.A.", periodo_actual: "2026-08-31",
+    empresa_id: "andes", empresa_nombre: "Andes Distribución S.A.", periodo_actual: "2026-08-31", moneda: "CLP",
   };
 
   // sku → marca · familia · precio de lista · (se repiten en cada fila: así lo pidió el diseño de dos hojas)
@@ -133,12 +133,22 @@ export function datosEjemplo() {
     ["Obras del Sur", "TRM-450", "Central", 90, 4320, 3300, 190, 0.86],
   ];
   const r0 = (x) => Math.round(x);
+  /* Un folio por cliente y período. Legible a propósito: quien mire el ejemplo tiene que entender la regla
+   * sin que se la expliquen — mismas letras del cliente, distinto mes, distinto documento. */
+  const folioDe = (cliente, mm) => `F-${cliente.slice(0, 3).toUpperCase()}-2026${mm}`;
+  /* DOS CLIENTES A CRÉDITO Y DOS AL CONTADO. El ejemplo tiene que mostrar las dos condiciones: si todas
+   * dijeran crédito, nadie entendería que la columna sirve para separar la venta que de verdad se financia. */
+  const condicionDe = (cliente) => (cliente === "Depósito Riachuelo" || cliente === "Obras del Sur" ? "crédito" : "contado");
   const ventas = [];
   for (const [cliente, sku, bodega, und, venta, costo, acc, f] of mezcla) {
     const [marca, sfamilia, precioLista] = cat[sku];
     const base = { cliente, puntoVenta: sucursal[cliente] ?? null, canal: canal[cliente], sku, marca, sfamilia, precioLista };
-    ventas.push({ fecha: "2026-07-18", ...base, unidades: r0(und * f), venta: r0(venta * f), costo: r0(costo * f), acciones: r0(acc * f) });
-    ventas.push({ fecha: "2026-08-14", ...base, unidades: und, venta, costo, acciones: acc });
+    /* ⚠️ EL FOLIO AGRUPA, Y EL EJEMPLO TIENE QUE ENSEÑARLO. Cada cliente recibe UN folio por período: las
+     * filas de un mismo cliente en el mismo mes comparten documento, que es exactamente el caso que hace
+     * falta entender —una factura son varias líneas— y el que la hoja de Abonos necesita para cruzar. */
+    const fJul = folioDe(cliente, "07"), fAgo = folioDe(cliente, "08");
+    ventas.push({ fecha: "2026-07-18", folio: fJul, tipoDoc: "factura", condicion: condicionDe(cliente), ...base, unidades: r0(und * f), venta: r0(venta * f), costo: r0(costo * f), acciones: r0(acc * f) });
+    ventas.push({ fecha: "2026-08-14", folio: fAgo, tipoDoc: "factura", condicion: condicionDe(cliente), ...base, unidades: und, venta, costo, acciones: acc });
   }
 
   /* EL INVENTARIO DEL EJEMPLO SON HECHOS Y NADA MÁS (owner 2026-08-26): SKU, bodega y stock físico. Ni fecha de
@@ -156,11 +166,24 @@ export function datosEjemplo() {
     { sku: "ELE-TAB12", bodega: "Norte", stockUnd: 60 },
   ];
 
-  return { parametros, ventas, inventario };
+  /* ── LOS ABONOS DEL EJEMPLO ────────────────────────────────────────────────────────────────────────
+   * Solo de los dos clientes a crédito: al contado no hay nada que cobrar, y mostrar abonos de una venta
+   * de contado enseñaría lo contrario de lo que la columna significa.
+   *
+   * ⚠️ Y NO ESTÁN TODOS PAGADOS, A PROPÓSITO. Uno paga completo y el otro deja saldo: si el ejemplo
+   * mostrara todo cobrado, la cara del cobro se vería vacía y nadie entendería para qué existe. Es la misma
+   * razón por la que el inventario del ejemplo trae un SKU que no rota. */
+  const abonos = [
+    { cliente: "Depósito Riachuelo", fecha: "2026-08-05", folio: folioDe("Depósito Riachuelo", "07"), monto: 21000 },
+    { cliente: "Depósito Riachuelo", fecha: "2026-08-28", folio: folioDe("Depósito Riachuelo", "08"), monto: 12000 },
+    { cliente: "Obras del Sur", fecha: "2026-08-12", folio: folioDe("Obras del Sur", "07"), monto: 9000 },
+  ];
+
+  return { parametros, ventas, inventario, abonos };
 }
 
 /** La plantilla LLENA con el ejemplo sintético. */
 export function plantillaEjemplo(datos = datosEjemplo()) {
-  const porHoja = { Ventas: datos.ventas, Inventario: datos.inventario };
+  const porHoja = { Ventas: datos.ventas, Inventario: datos.inventario, Abonos: datos.abonos || [] };
   return construirXlsx([hojaEmpresa(datos.parametros), ...HOJAS.map((h) => hojaDe(h, porHoja[h.nombre] || []))]);
 }

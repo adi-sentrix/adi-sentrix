@@ -40,7 +40,7 @@
 
 /** Versión de la plantilla. Viaja en A1: un archivo viejo en un motor nuevo tiene que ser un rechazo con nombre,
  *  no un misterio. v1 (2026-08-22) colapsó las seis hojas de la v0 a dos. */
-export const PLANTILLA_VERSION = "v1";
+export const PLANTILLA_VERSION = "v2";
 export const MARCA_PLANTILLA = `PLANTILLA OFICIAL ADI/SENTRIX · ${PLANTILLA_VERSION}`;
 
 /* ── LAS HOJAS DEL LIBRO ──────────────────────────────────────────────────────────────────────────────────────
@@ -93,11 +93,35 @@ export const HOJAS = [
     nombre: "Ventas",
     obligatoria: true,
     que: "una fila por venta: qué se vendió, a quién, cuándo y con qué costo",
+    /* ⚠️ EL ORDEN ES EJECUTIVO, Y REORDENAR NO ROMPE NADA (owner 2026-08-30). Se lee como lo leería un
+     * gerente: QUIÉN · CUÁNDO · QUÉ DOCUMENTO · DÓNDE · QUÉ PRODUCTO · CUÁNTO. Antes la fecha abría la hoja y
+     * el cliente venía segundo, que es orden de sistema, no de negocio.
+     *
+     * Que reordenar sea gratis se comprobó en el código, no se supuso: el validador recorre los encabezados
+     * DEL ARCHIVO DEL USUARIO, encuentra cada columna por su TÍTULO y lee con la posición que tiene ahí. El
+     * sello decía que reordenar rompía y estaba equivocado — cobraba una re-carga por un cambio inofensivo. */
     columnas: [
-      { campo: "fecha", titulo: "fecha (aaaa-mm-dd)", tipo: "fecha", clave: true, obligatoria: true,
-        ayuda: "el día de la venta. si solo tienes el mes, pon cualquier día de ese mes." },
       { campo: "cliente", titulo: "cliente", tipo: "texto", clave: true, obligatoria: true,
         ayuda: "a quién le vendiste. escríbelo siempre igual." },
+      { campo: "fecha", titulo: "fecha (aaaa-mm-dd)", tipo: "fecha", clave: true, obligatoria: true,
+        ayuda: "el día de la venta. si solo tienes el mes, pon cualquier día de ese mes." },
+      /* ⚠️ EL FOLIO ES OBLIGATORIO Y ROMPE LOS ARCHIVOS ANTERIORES. Decisión del owner, tomada sabiendo el
+       * costo: «no importa si debemos rellenar nuevamente». Es el momento en que romper es gratis —todavía no
+       * hay ningún cliente real cargado— y sin folio no hay forma de juntar las líneas de una misma factura,
+       * que es lo que sostiene el cobro, las notas de crédito y cualquier auditoría del documento. */
+      { campo: "folio", titulo: "folio", tipo: "texto", clave: true, obligatoria: true,
+        ayuda: "el número del documento. las líneas de una misma factura llevan el mismo folio." },
+      /* TIPO DE DOCUMENTO · el signo de la nota de crédito lo decide ESTA columna, no el monto. El monto
+       * siempre se escribe positivo: pedirle al usuario que ponga negativos es pedirle que se equivoque, y
+       * un negativo en una nota de crédito ya negada se resta dos veces. La validación rechaza esa
+       * contradicción en vez de interpretarla. */
+      { campo: "tipoDoc", titulo: "tipo de documento", tipo: "texto", obligatoria: false,
+        ayuda: "factura, boleta o nota de crédito. si lo dejas vacío se asume factura." },
+      /* CONDICIÓN · lo pidió el owner por dos motivos, y el segundo es el que importa: además de decidir a
+       * quién se le aplica el plazo, es el criterio para saber qué venta está REALMENTE a crédito. Sin esto,
+       * el pendiente incluiría lo que se pagó al contado y estaría inflado. */
+      { campo: "condicion", titulo: "condición", tipo: "texto", obligatoria: false,
+        ayuda: "crédito o contado. si lo dejas vacío se asume contado y no se cuenta como deuda." },
       /* PUNTO DE VENTA (owner 2026-08-26): «muchos clientes tienen varias sucursales, es opcional pero debe
        * estar». Se guarda con la venta desde ya. ADI todavía NO analiza por punto de venta —lo declara en la
        * preview— pero el dato queda capturado para cuando lo haga, igual que el día de la fecha. */
@@ -138,6 +162,41 @@ export const HOJAS = [
         ayuda: "dónde está el stock. si tienes una sola bodega, déjalo vacío." },
       { campo: "stockUnd", titulo: "stock (unidades)", tipo: "numero", obligatoria: true,
         ayuda: "cuántas unidades tienes hoy. físicas, no valorizadas: adi calcula el dinero." },
+    ],
+  },
+  /* ── ABONOS · la hoja del cobro (owner 2026-08-30) ────────────────────────────────────────────────────
+   *
+   * QUÉ CONTESTA: «de todo lo que vendí, cuánto entró de verdad». Es lo que hace posible Flujo Comercial.
+   *
+   * ⚠️ ES UNA HOJA, NO UNA COLUMNA, Y ESA ES LA DECISIÓN. La primera idea era poner el abono en la fila de
+   * Ventas. No funciona, por dos razones que no se arreglan con cuidado:
+   *   1. UNA FILA DE VENTAS ES UNA LÍNEA DE PRODUCTO, NO UNA FACTURA. Una factura de 10 SKU son 10 filas. Un
+   *      abono se hace contra la factura, no contra una línea: habría que repetirlo en las 10 —y entonces se
+   *      contradice solo, que es exactamente lo que dejó al presupuesto fuera de esta plantilla— o ponerlo en
+   *      una fila arbitraria, y el día que el cliente reordene su exportación el dato se mueve.
+   *   2. UNA FACTURA RECIBE VARIOS ABONOS PARCIALES, en fechas distintas. Una columna guarda uno.
+   *
+   * ⚠️ ES OPCIONAL, y eso NO rompe ningún archivo: el validador solo bloquea si falta una hoja OBLIGATORIA.
+   * Quien no la llena simplemente no ve Flujo Comercial — exactamente como hoy quien no llena Inventario no
+   * ve Capital. El precedente ya estaba funcionando; solo había que usarlo.
+   *
+   * ⚠️ EL CLIENTE ES REDUNDANTE A PROPÓSITO. El folio ya dice de quién es la factura, así que ADI no lo
+   * necesita para calcular. Se pide para poder CAZAR UNA CONTRADICCIÓN: si el abono dice «Falabella» y ese
+   * folio es de Lider, hay un error de imputación que vale más declarar que sumar en silencio. Es el único
+   * campo que se pide sin necesitarlo, y se pide por eso. */
+  {
+    nombre: "Abonos",
+    obligatoria: false,
+    que: "una fila por pago recibido: cuándo, contra qué factura y cuánto",
+    columnas: [
+      { campo: "cliente", titulo: "cliente", tipo: "texto", clave: true, obligatoria: true,
+        ayuda: "quién pagó. escríbelo igual que en la hoja ventas." },
+      { campo: "fecha", titulo: "fecha (aaaa-mm-dd)", tipo: "fecha", clave: true, obligatoria: true,
+        ayuda: "el día en que recibiste el pago, no el de la factura." },
+      { campo: "folio", titulo: "folio", tipo: "texto", clave: true, obligatoria: true,
+        ayuda: "el número de la factura que se está pagando. tiene que existir en la hoja ventas." },
+      { campo: "monto", titulo: "monto", tipo: "numero", obligatoria: true,
+        ayuda: "cuánto entró. si la factura se pagó en partes, una fila por cada pago." },
     ],
   },
 ];

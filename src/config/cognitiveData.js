@@ -2,6 +2,7 @@
  * Datos de ancla extraídos de 41cc33d8 · byte-idénticos (Fase 4c). */
 
 import { PRIMITIVES } from "./primitives.js";
+import { simboloMoneda } from "./moneda.js";
 
 export const OBSERVABLE_RELATIONS = {
   cliente: {
@@ -22,7 +23,7 @@ export const OBSERVABLE_RELATIONS = {
         return {
           triggered: true,
           value: recuperable,
-          text: `La carga comercial está ${deltaCarga} puntos sobre la referencia interna · aproximadamente $${recuperable}K menos de captura de contribución vs benchmark.`,
+          text: `La carga comercial está ${deltaCarga} puntos sobre la referencia interna · aproximadamente ${simboloMoneda()}${recuperable}K menos de captura de contribución vs benchmark.`,
         };
       },
     },
