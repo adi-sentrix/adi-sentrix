@@ -83,72 +83,45 @@ export function composeModuleOverview(scenarioId, moduloId) {
       .sort((a, b) => a.g - b.g);
     const worst = decliners[0] || null;
 
-    // ── Header · cifra principal canónica (escala miles → fmtM)
-    const m1 = `El año cerró en ${fmtM(totalActual)} con crecimiento de ${pct1(growth)} versus el período anterior, equivalente a ${fmtM(Math.abs(deltaUSD))} de variación absoluta.`;
+    /* COLAPSO NARRATIVO (owner 2026-08-30, «si autorizado!»): acá vivían TRES guiones por escenario
+     * (bonanza=crecimiento, tensión=meseta, crisis=ruptura) — letra escrita para la película del demo, narrada
+     * sobre el dato de CUALQUIER tenant: un pack con venta −0.9% recibía «crecimiento de −0.9%» (dirección
+     * invertida — la falta sagrada) y causas con reparto inventado («Tier 1», «canal digital», «e-commerce»).
+     * Queda UNA narrativa cuya dirección sale del SIGNO del dato y que solo nombra lo que el pack trae. */
+    // ── Header · cifra principal canónica (escala miles → fmtM) · la dirección la dice el signo
+    const m1 = `El año cerró en ${fmtM(totalActual)} con variación de ${pct1(growth)} versus el período anterior, equivalente a ${fmtM(Math.abs(deltaUSD))} ${deltaUSD >= 0 ? "más" : "menos"} que entonces.`;
 
-    // ── Cuerpo · top 3 + concentración (R3 + R5)
-    const m2 = `${top3Names} concentran el ${top3Pct.toFixed(1)}% de la facturación, lo que explica que la dinámica de la cartera dependa de tres cuentas.`;
+    // ── Cuerpo · top 3 + concentración (R3 + R5) · la lectura de dependencia solo si el dato la sostiene
+    const m2 = `${top3Names} concentran el ${top3Pct.toFixed(1)}% de la facturación${top3Pct >= 50 ? " — la dinámica de la cartera depende de pocas cuentas" : ""}.`;
 
-    // ── Lectura · pattern estructural + outlier (R8)
+    // ── Lectura · el mayor movimiento REAL de la cartera (fastest crece por construcción · worst cae por construcción)
     let m3 = "";
-    if (scenarioId === "bonanza" && fastest) {
-      // UN PROMEDIO ES UN HECHO CALCULADO, NO UNA BANDA ESCRITA A MANO (owner 2026-08-09). Decía "la cartera
-      // promedio opera entre 3% y 5%": una afirmación empírica sobre la población, clavada, y falsa por los dos
-      // extremos —el rango real de carga va de 1,8% a 5,5%— con un piso que además coincide con
-      // `POLICY.bestPracticeCarga`, o sea que presentaba un umbral declarado como si fuera lo que la cartera hace.
-      // Se calcula sobre las mismas filas y se dice cuál promedio es.
-      // DÓNDE VIVE ESTO: rama de ROLLBACK. `VOICE_EXEC_MODULE_OVERVIEW_ENABLED` está en true, así que hoy el
-      // overview lo sirve V2 y este texto no sale a pantalla; sale el día que alguien baje el flag. Se corrige
-      // igual —una salida de rollback que afirma algo falso sigue siendo algo falso que el usuario puede leer— y
-      // se deja anotado que ROMPE la promesa "legacy bitwise" de esa bandera: para este literal, a propósito.
+    if (fastest) {
+      // UN PROMEDIO ES UN HECHO CALCULADO, NO UNA BANDA ESCRITA A MANO (owner 2026-08-09) — el cálculo se queda.
       const _cargaPonderada = (() => {
         const tv = dataset.reduce((s, c) => s + (c.actual || 0), 0);
         if (!tv) return null;
         return +((dataset.reduce((s, c) => s + ((c.pctRebate || 0) / 100) * (c.actual || 0), 0) / tv) * 100).toFixed(1);
       })();
       m3 = _cargaPonderada != null
-        ? `${fastest.nombre} crece ${pct1(fastest.g)} con apenas ${fastest.pctRebate}% de carga comercial, mientras el promedio ponderado de la cartera es ${_cargaPonderada}%. El motor de eficiencia está fuera del top de concentración.`
-        : `${fastest.nombre} crece ${pct1(fastest.g)} con apenas ${fastest.pctRebate}% de carga comercial. El motor de eficiencia está fuera del top de concentración.`;
-    } else if (scenarioId === "tension") {
-      const tier1Growth = top3.map(c => ((c.actual - c.anterior) / c.anterior) * 100);
-      const flatNames = top3.filter((c, i) => Math.abs(tier1Growth[i]) < 3).map(c => c.nombre).join(" y ");
-      m3 = worst
-        ? `${worst.nombre} cae ${pct1(worst.g)}${flatNames ? ` mientras ${flatNames} se mantienen prácticamente planos` : ""}, lo que indica que el deterioro empezó por la periferia y aún no contagia el núcleo Tier 1.`
-        : `El crecimiento del período anterior se desinfló sin que cambiara el portafolio comercial.`;
-    } else if (scenarioId === "crisis") {
-      m3 = worst && fastest
-        ? `${worst.nombre} cae ${pct1(worst.g)} mientras ${fastest.nombre} crece ${pct1(fastest.g)}, lo que muestra ruptura del modelo comercial: el deterioro es estructural en los canales tradicionales y el e-commerce absorbe parcialmente la caída.`
-        : `El portafolio entra en contracción profunda con concentración del riesgo en cuentas Tier 1.`;
-    } else if (fastest) {
-      m3 = `${fastest.nombre} crece ${pct1(fastest.g)} con carga comercial ${fastest.pctRebate}%, lo que explica que la eficiencia de la cartera dependa de un canal con condiciones distintas al promedio.`;
+        ? `${fastest.nombre} crece ${pct1(fastest.g)} con ${fastest.pctRebate}% de carga comercial, contra un promedio ponderado de la cartera de ${_cargaPonderada}%.`
+        : `${fastest.nombre} crece ${pct1(fastest.g)} con ${fastest.pctRebate}% de carga comercial.`;
+    } else if (worst) {
+      m3 = `${worst.nombre} cae ${pct1(worst.g)} — la caída más pronunciada de la cartera.`;
     }
 
     const m4 = `¿Qué quieres entender primero?`;
     const opener = [m1, m2, m3, m4].filter(Boolean).join("\n\n");
 
-    const suggestionsByScenario = {
-      // Las cuentas que se nombran salen del dato: la que más crece (`fastest`) y la más grande (`sorted[0]`),
-      // que es exactamente el papel que cumplían "Mercado Libre" y "Falabella" escritas a mano. Si el escenario
-      // no tiene quien crezca, la sugerencia que la nombraba se cae sola en vez de inventar una cuenta.
-      bonanza: [
-        fastest ? `¿Por qué ${fastest.nombre} crece tanto?` : null,
-        sorted[0] ? `¿Qué pasa si pierdo a ${sorted[0].nombre}?` : null,
-        "¿Dónde están los clientes que caen?",
-      ].filter(Boolean),
-      tension: [
-        "¿Qué clientes están en caída?",
-        "¿La carga comercial está subiendo sin retorno?",
-        "¿Dónde podemos recuperar volumen?",
-      ],
-      crisis: [
-        "¿Qué clientes están perdiendo más volumen?",
-        fastest ? `¿${fastest.nombre} puede compensar?` : null,
-        "¿Dónde corto y dónde sostengo?",
-      ].filter(Boolean),
-    };
-    const suggestions = suggestionsByScenario[scenarioId] || suggestionsByScenario.bonanza;
+    // COLAPSO NARRATIVO: una sola lista, con las cuentas elegidas por su PAPEL en el dato (la que más crece,
+    // la más grande) — sin variantes por escenario. Si no hay quien crezca, la sugerencia se cae sola.
+    const suggestions = [
+      fastest ? `¿Por qué ${fastest.nombre} crece tanto?` : null,
+      sorted[0] ? `¿Qué pasa si pierdo a ${sorted[0].nombre}?` : null,
+      "¿Dónde están los clientes que caen?",
+    ].filter(Boolean);
 
-    // BRIEF N-bis · Tipo A puro · suggestionsByScenario filtradas (LEGACY · no-runtime · por consistencia)
+    // BRIEF N-bis · Tipo A puro · sugerencias filtradas (LEGACY · no-runtime · por consistencia)
     return { opener, suggestions: filterTextualSuggestions(suggestions) };
   }
 
@@ -196,56 +169,28 @@ export function composeModuleOverview(scenarioId, moduloId) {
     const masCaraDeSostener = [...marg].filter(c => c && c.tipo === "cliente")
       .sort((a, b) => (b.pctRebate || 0) - (a.pctRebate || 0))[0];   // la de mayor carga EN % de su venta
 
-    let m1, m2, m3;
-
-    if (scenarioId === "bonanza") {
-      // Bonanza · gap vs benchmark (positivo o negativo según escenario)
-      m1 = `El margen general está en ${margenPct.toFixed(1)}%, ${Math.abs(_gapBench).toFixed(1)} puntos ${_gapBench >= 0 ? "sobre" : "bajo"} tu benchmark (${benchmark.toFixed(1)}%), equivalente a ${fmtM(gapContrib)} de contribución ${_gapBench >= 0 ? "capturada sobre tu referencia" : "no capturada"}.`;
-      m2 = `${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga comercial con margen ${topRebate.margen.toFixed(1)}%, mientras ${ml.nombre} opera con margen ${ml.margen.toFixed(1)}% y carga ${ml.pctRebate}% — la diferencia es estructural, no coyuntural.`;
-      m3 = `La carga comercial sobre cuentas Tier 1 explica gran parte de la diferencia versus benchmark, ya que el resto del portafolio opera dentro de rango.`;
-    } else if (scenarioId === "tension") {
-      m1 = `El margen cayó de ${margenAnt.toFixed(1)}% a ${margenPct.toFixed(1)}% en un año (${deltaPp >= 0 ? "+" : ""}${deltaPp.toFixed(1)}pp), equivalente aproximadamente a ${fmtM(erosionContrib)} de contribución erosionada.`;
-      m2 = `${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga comercial con margen ${topRebate.margen.toFixed(1)}%, lo que muestra que la erosión se origina en las cuentas que más pesan.`;
-      m3 = `La carga comercial subió sin retorno en volumen, lo que significa que el incentivo dejó de comprar ventas y empezó a destruir contribución.`;
-    } else if (scenarioId === "crisis") {
-      m1 = `El margen colapsó de ${margenAnt.toFixed(1)}% a ${margenPct.toFixed(1)}% (${deltaPp >= 0 ? "+" : ""}${deltaPp.toFixed(1)}pp), equivalente aproximadamente a ${fmtM(erosionContrib)} de contribución destruida.`;
-      m2 = `${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga comercial sobre margen ${topRebate.margen.toFixed(1)}%, lo que indica que algunas cuentas Tier 1 están operando cerca o bajo costo real.`;
-      m3 = `La empresa está perdiendo contribución por sostener volumen, ya que la carga comercial supera el retorno marginal de varios clientes.`;
-    } else {
-      m1 = `El margen general está en ${margenPct.toFixed(1)}%, con gap de ${Math.abs(_gapBench).toFixed(1)}pp ${_gapBench >= 0 ? "sobre" : "bajo"} benchmark.`;
-      m2 = `${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga comercial.`;
-      m3 = `La presión sobre margen explica la mayor parte de la brecha versus benchmark.`;
-    }
+    /* COLAPSO NARRATIVO (owner 2026-08-30): los guiones por escenario («colapsó», «Tier 1 bajo costo real»,
+     * «la diferencia es estructural, no coyuntural») narraban causas con reparto inventado. Queda UNA lectura:
+     * la dirección la dicen los signos (_gapBench, deltaPp) y cada nombre sale del dato. */
+    const m1 = `El margen general está en ${margenPct.toFixed(1)}%, ${Math.abs(_gapBench).toFixed(1)} puntos ${_gapBench >= 0 ? "sobre" : "bajo"} tu benchmark (${benchmark.toFixed(1)}%), equivalente a ${fmtM(gapContrib)} de contribución ${_gapBench >= 0 ? "capturada sobre tu referencia" : "no capturada"}.`;
+    const m2 = `${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga comercial con margen ${topRebate.margen.toFixed(1)}%${ml ? `, mientras ${ml.nombre} opera con margen ${ml.margen.toFixed(1)}% y carga ${ml.pctRebate}%` : ""}.`;
+    const m3 = "";   // la «lectura causal» era el guion — la causa la arma ADI con sus herramientas, no una plantilla
 
     const m4 = `¿Por dónde profundizamos?`;
     const opener = [m1, m2, m3, m4].join("\n\n");
 
-    const suggestionsByScenario = {
-      /* Las cuentas se eligen por su PAPEL en la frase, con el criterio dicho, en vez de estar escritas a mano:
-       *   · "¿… está pagando lo que vale?" → la que más carga comercial concentra en $ (`topRebate`).
-       *   · "¿… si bajo la carga comercial de X?" → la que le sigue: la segunda palanca de la misma naturaleza.
-       *   · "¿Cuánto cuesta sostener a X?" → la de mayor carga en PORCENTAJE de su venta, que es lo que la frase
-       *     pregunta. Con el demo esto ya no dice "Ripley" sino la cuenta que efectivamente más cuesta sostener
-       *     (5,5% de carga) — el nombre viejo no salía de ningún criterio, y no había forma de derivarlo. */
-      bonanza: [
-        "¿Cuánto margen perdemos por cliente?",
-        topRebate ? `¿${topRebate.nombre} está pagando lo que vale?` : null,
-        segundoRebate ? `¿Qué pasa si bajo la carga comercial de ${segundoRebate.nombre}?` : null,
-      ].filter(Boolean),
-      tension: [
-        "¿Dónde se está yendo el margen?",
-        "¿Qué cliente concentra la pérdida?",
-        "¿Cuánto recupero si renegocio la carga comercial?",
-      ],
-      crisis: [
-        "¿Qué clientes están en pérdida real?",
-        masCaraDeSostener ? `¿Cuánto cuesta sostener a ${masCaraDeSostener.nombre}?` : null,
-        "¿Qué pasa si subo precios a los Tier 2?",
-      ].filter(Boolean),
-    };
-    const suggestions = suggestionsByScenario[scenarioId] || suggestionsByScenario.bonanza;
+    /* COLAPSO NARRATIVO: una sola lista. Las cuentas se eligen por su PAPEL en la frase, con el criterio dicho:
+     *   · "¿… está pagando lo que vale?" → la que más carga comercial concentra en $ (`topRebate`).
+     *   · "¿… si bajo la carga comercial de X?" → la que le sigue: la segunda palanca de la misma naturaleza.
+     *   · "¿Cuánto cuesta sostener a X?" → la de mayor carga en PORCENTAJE de su venta. */
+    const suggestions = [
+      "¿Cuánto margen perdemos por cliente?",
+      topRebate ? `¿${topRebate.nombre} está pagando lo que vale?` : null,
+      segundoRebate ? `¿Qué pasa si bajo la carga comercial de ${segundoRebate.nombre}?` : null,
+      masCaraDeSostener ? `¿Cuánto cuesta sostener a ${masCaraDeSostener.nombre}?` : null,
+    ].filter(Boolean).slice(0, 3);
 
-    // BRIEF N-bis · Tipo A puro · suggestionsByScenario filtradas (LEGACY · no-runtime · por consistencia)
+    // BRIEF N-bis · Tipo A puro · sugerencias filtradas (LEGACY · no-runtime · por consistencia)
     return { opener, suggestions: filterTextualSuggestions(suggestions) };
   }
 
@@ -280,45 +225,27 @@ export function composeModuleOverview(scenarioId, moduloId) {
     // Header · cifra principal canónica scenario-aware
     const m1 = `El ${inmovPct.toFixed(1)}% del inventario opera fuera de rango óptimo, con ${fmtK(inmovUSD)} comprometidos sobre un total de ${fmtK(totalInvUSD)} en stock. La cobertura promedio se ubica en ${doh} días.`;
 
-    // Cuerpo · top categoría runtime (R3 + R5)
+    /* COLAPSO NARRATIVO (owner 2026-08-30): la «lectura causal por escenario» era guion («rotación sobre 8x»,
+     * «se duplicó versus el escenario base» — cifras y causas escritas a mano). La concentración se AFIRMA solo
+     * cuando el dato la sostiene; la causa la arma ADI con sus herramientas, no una plantilla. */
     let m2 = "";
     if (topCatName) {
-      m2 = `${topCatName} concentra el ${topCatPct.toFixed(1)}% del capital inmovilizado, lo que explica que el problema esté estructuralmente en una sola línea de producto.`;
+      m2 = `${topCatName} concentra el ${topCatPct.toFixed(1)}% del capital inmovilizado${topCatPct >= 50 ? " — el problema está concentrado en una sola línea de producto" : ""}.`;
     }
-
-    // Lectura causal · diferenciada por scenario (R8)
-    let m3 = "";
-    if (scenarioId === "bonanza") {
-      m3 = `El stock inmovilizado es manejable en magnitud pero está concentrado en SKUs específicos, ya que la rotación promedio del portafolio rotacional opera sobre 8x.`;
-    } else if (scenarioId === "tension") {
-      m3 = `La velocidad del deterioro pesa más que el monto absoluto, ya que SKUs que estaban activos hace meses cruzaron a estado lento sin reacción comercial.`;
-    } else if (scenarioId === "crisis") {
-      m3 = `El capital comprometido se duplicó versus el escenario base, lo que provoca presión sobre flujo de caja y obliga a priorizar liquidación versus sostenimiento.`;
-    }
+    const m3 = "";
 
     const m4 = `¿Por dónde quieres empezar a desarmar el problema?`;
     const opener = [m1, m2, m3, m4].filter(Boolean).join("\n\n");
 
-    const suggestionsByScenario = {
-      bonanza: [
-        "¿Qué SKUs están atrapando más capital?",
-        "¿Por qué Materiales de Construcción se desbordó?",
-        "¿Cuánto puedo recuperar si actúo ahora?",
-      ],
-      tension: [
-        "¿Qué productos están deteniéndose?",
-        "¿Por qué Línea Blanca dejó de rotar?",
-        "¿Cuánto pierdo si los liquido?",
-      ],
-      crisis: [
-        "¿Qué SKUs liquido primero?",
-        "¿Cuánto puedo recuperar en 90 días?",
-        "¿Qué productos están en quiebre próximo?",
-      ],
-    };
-    const suggestions = suggestionsByScenario[scenarioId] || suggestionsByScenario.bonanza;
+    // COLAPSO NARRATIVO: una sola lista — y la categoría que se nombra SALE DEL DATO (`topCatName`), no de la
+    // película del demo («Materiales de Construcción»/«Línea Blanca» escritas a mano eran cuentas de OTRO negocio).
+    const suggestions = [
+      "¿Qué SKUs están atrapando más capital?",
+      topCatName ? `¿Por qué ${topCatName} concentra tanto capital inmovilizado?` : null,
+      "¿Cuánto puedo recuperar si actúo ahora?",
+    ].filter(Boolean);
 
-    // BRIEF N-bis · Tipo A puro · suggestionsByScenario filtradas (LEGACY · no-runtime · por consistencia)
+    // BRIEF N-bis · Tipo A puro · sugerencias filtradas (LEGACY · no-runtime · por consistencia)
     return { opener, suggestions: filterTextualSuggestions(suggestions) };
   }
 
@@ -375,54 +302,29 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
       .sort((a, b) => a.g - b.g);
     const worst = decliners[0] || null;
 
-    let b2, b3, b4, b5;
-    if (scenarioId === "bonanza") {
-      b2 = `Las ventas crecen ${pct1(growth)} YoY · la contribución crece a menor velocidad.`;
-      b3 = `Total ${fmtM(totalActual)} · variación +${fmtM(Math.abs(deltaUSD))} · top 3 (${top3Names}) concentran ${top3Pct.toFixed(1)}%${fastest ? ` · ${fastest.nombre} crece ${pct1(fastest.g)} con carga ${fastest.pctRebate}%` : ""}.`;
-      b4 = `El motor de eficiencia opera fuera del top de concentración.`;
-      b5 = `Profundizaría primero en cuentas Tier 1 · luego en canal digital.`;
-    } else if (scenarioId === "tension") {
-      b2 = `Las ventas se quedaron planas YoY (${pct1(growth)}) · el portafolio dejó de traccionar.`;
-      b3 = `Total ${fmtM(totalActual)} · variación ${fmtM(deltaUSD)}${worst ? ` · ${worst.nombre} cae ${pct1(worst.g)}` : ""} · top 3 (${top3Names}) concentran ${top3Pct.toFixed(1)}%.`;
-      b4 = `El deterioro empezó por la periferia · el núcleo Tier 1 todavía no muestra caída.`;
-      b5 = `Profundizaría primero en las cuentas en caída · luego revisaría Tier 1.`;
-    } else if (scenarioId === "crisis") {
-      b2 = `Las ventas cayeron ${pct1(growth)} YoY · la cartera está perdiendo volumen.`;
-      b3 = `Total ${fmtM(totalActual)} · variación ${fmtM(deltaUSD)}${worst ? ` · ${worst.nombre} cae ${pct1(worst.g)}` : ""}${fastest ? ` · ${fastest.nombre} crece ${pct1(fastest.g)}` : ""} · top 3 concentran ${top3Pct.toFixed(1)}%.`;
-      b4 = `El canal tradicional cae · el e-commerce absorbe parcialmente la pérdida.`;
-      b5 = `Profundizaría primero en las cuentas con mayor caída · luego canal digital.`;
-    } else {
-      // Fallback genérico
-      b2 = `Las ventas presentan variación ${pct1(growth)} YoY.`;
-      b3 = `Total ${fmtM(totalActual)} · variación ${fmtM(deltaUSD)} · top 3 (${top3Names}) concentran ${top3Pct.toFixed(1)}%.`;
-      b4 = `La dinámica de la cartera depende de tres cuentas.`;
-      b5 = `Profundizaría primero por cuenta · luego por canal.`;
-    }
+    /* COLAPSO NARRATIVO (owner 2026-08-30, «si autorizado!»): cuatro guiones por escenario narraban la película
+     * del demo sobre el dato de cualquier tenant — «Las ventas crecen −0.9%» (dirección invertida: la falta
+     * sagrada) y «Tier 1»/«canal digital»/«e-commerce» inventados. Queda UNA narrativa: la dirección sale del
+     * SIGNO de la variación, cada nombre sale del pack, la lectura de dependencia solo si el dato la sostiene,
+     * y el siguiente paso SE OFRECE sobre un eje que el dato tiene (cuenta — el eje columna vertebral). */
+    const _dirVentas = growth > 0.5 ? `crecen ${pct1(growth)} YoY`
+      : growth < -0.5 ? `caen ${pct1(growth)} YoY`
+      : `están prácticamente planas YoY (${pct1(growth)})`;
+    const b2 = `Las ventas ${_dirVentas}.`;
+    const b3 = `Total ${fmtM(totalActual)} · variación ${fmtM(deltaUSD)} · top 3 (${top3Names}) concentran ${top3Pct.toFixed(1)}%${fastest ? ` · ${fastest.nombre} crece ${pct1(fastest.g)} con carga ${fastest.pctRebate}%` : ""}${worst ? ` · ${worst.nombre} cae ${pct1(worst.g)}` : ""}.`;
+    const b4 = top3Pct >= 50 ? `La dinámica de la cartera depende de pocas cuentas.` : `La venta está repartida en la cartera.`;
+    const b5 = `Profundizaría primero por cuenta.`;
     const opener = [b2, b3, b4, b5].filter(Boolean).join("\n\n");
 
     // Suggestions intactas (D5 mantener bitwise · legacy wording)
-    const suggestionsByScenario = {
-      // Las cuentas que se nombran salen del dato: la que más crece (`fastest`) y la más grande (`sorted[0]`),
-      // que es exactamente el papel que cumplían "Mercado Libre" y "Falabella" escritas a mano. Si el escenario
-      // no tiene quien crezca, la sugerencia que la nombraba se cae sola en vez de inventar una cuenta.
-      bonanza: [
-        fastest ? `¿Por qué ${fastest.nombre} crece tanto?` : null,
-        sorted[0] ? `¿Qué pasa si pierdo a ${sorted[0].nombre}?` : null,
-        "¿Dónde están los clientes que caen?",
-      ].filter(Boolean),
-      tension: [
-        "¿Qué clientes están en caída?",
-        "¿La carga comercial está subiendo sin retorno?",
-        "¿Dónde podemos recuperar volumen?",
-      ],
-      crisis: [
-        "¿Qué clientes están perdiendo más volumen?",
-        fastest ? `¿${fastest.nombre} puede compensar?` : null,
-        "¿Dónde corto y dónde sostengo?",
-      ].filter(Boolean),
-    };
-    const suggestions = suggestionsByScenario[scenarioId] || suggestionsByScenario.bonanza;
-    // BRIEF N-bis · Tipo A puro · suggestionsByScenario filtradas
+    // COLAPSO NARRATIVO: una sola lista, cuentas por su PAPEL en el dato (la que más crece, la más grande).
+    // Si no hay quien crezca, la sugerencia que la nombraba se cae sola en vez de inventar una cuenta.
+    const suggestions = [
+      fastest ? `¿Por qué ${fastest.nombre} crece tanto?` : null,
+      sorted[0] ? `¿Qué pasa si pierdo a ${sorted[0].nombre}?` : null,
+      "¿Dónde están los clientes que caen?",
+    ].filter(Boolean);
+    // BRIEF N-bis · Tipo A puro · sugerencias filtradas
     return { opener, suggestions: filterTextualSuggestions(suggestions) };
   }
 
@@ -460,60 +362,28 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
     const masCaraDeSostener = [...marg].filter(c => c && c.tipo === "cliente")
       .sort((a, b) => (b.pctRebate || 0) - (a.pctRebate || 0))[0];   // la de mayor carga EN % de su venta
 
-    let b2, b3, b4, b5;
-    if (scenarioId === "bonanza") {
-      b2 = `El margen general está en ${margenPct.toFixed(1)}% · ${Math.abs(_gapBench).toFixed(1)}pp ${_gapBench >= 0 ? "sobre" : "bajo"} tu benchmark.`;
-      // D2 ajuste LOCKED: NO repetir "Margen X%" de B2.
-      b3 = `Benchmark ${benchmark.toFixed(1)}% · gap ${fmtM(gapContrib)} · ${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga${ml ? ` · ${ml.nombre} opera con margen ${ml.margen.toFixed(1)}% y carga ${ml.pctRebate}%` : ""}.`;
-      b4 = `La presión sobre margen se concentra en Tier 1.`;
-      b5 = `Negociaría primero la carga comercial de ${topRebate.nombre} · luego revisaría Tier 2.`;
-    } else if (scenarioId === "tension") {
-      // D2-bis LOCKED: "erosionada" → "menos de contribución capturada"
-      b2 = `El margen cayó de ${margenAnt.toFixed(1)}% a ${margenPct.toFixed(1)}% (${deltaPp >= 0 ? "+" : ""}${deltaPp.toFixed(1)}pp) · aproximadamente ${fmtM(erosionContrib)} menos de contribución capturada.`;
-      // D2 ajuste LOCKED: NO repetir "Margen X%" de B2.
-      b3 = `YoY ${deltaPp.toFixed(1)}pp · brecha de captura ${fmtM(erosionContrib)} · ${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga con margen ${topRebate.margen.toFixed(1)}%.`;
-      b4 = `La caída de margen se origina en las cuentas que más pesan.`;
-      b5 = `Negociaría primero la carga comercial de ${topRebate.nombre} · luego revisaría Tier 1 restante.`;
-    } else if (scenarioId === "crisis") {
-      // D2-bis LOCKED: "colapsó" → "cayó" · "destruida" → "menos de contribución capturada"
-      b2 = `El margen cayó de ${margenAnt.toFixed(1)}% a ${margenPct.toFixed(1)}% (${deltaPp.toFixed(1)}pp) · aproximadamente ${fmtM(erosionContrib)} menos de contribución capturada.`;
-      // D2 ajuste LOCKED: NO repetir "Margen X%" de B2.
-      b3 = `YoY ${deltaPp.toFixed(1)}pp · brecha de captura ${fmtM(erosionContrib)} · ${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga sobre margen ${topRebate.margen.toFixed(1)}%.`;
-      b4 = `Algunas cuentas Tier 1 operan cerca o bajo costo real.`;
-      b5 = `Revisaría primero las cuentas con margen sub-costo · luego negociaría Tier 1 restante.`;
-    } else {
-      b2 = `El margen general está en ${margenPct.toFixed(1)}% · gap ${Math.abs(_gapBench).toFixed(1)}pp ${_gapBench >= 0 ? "sobre" : "bajo"} benchmark.`;
-      b3 = `Benchmark ${benchmark.toFixed(1)}% · ${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga.`;
-      b4 = `La presión sobre margen se concentra en Tier 1.`;
-      b5 = `Negociaría primero la carga comercial de ${topRebate.nombre}.`;
-    }
+    /* COLAPSO NARRATIVO (owner 2026-08-30): los guiones por escenario («Tier 1 bajo costo real», «Tier 2»)
+     * narraban reparto inventado. Queda UNA lectura: dirección por signo (_gapBench), población bajo benchmark
+     * CONTADA del dato (no un tier escrito a mano), y la oferta nombra la segunda palanca REAL si existe. */
+    const _nBajoBench = marg.filter((c) => c && typeof c.margen === "number" && c.margen < benchmark).length;
+    const b2 = `El margen general está en ${margenPct.toFixed(1)}% · ${Math.abs(_gapBench).toFixed(1)}pp ${_gapBench >= 0 ? "sobre" : "bajo"} tu benchmark.`;
+    // D2 ajuste LOCKED: NO repetir "Margen X%" de B2.
+    const b3 = `Benchmark ${benchmark.toFixed(1)}% · gap ${fmtM(gapContrib)} · ${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga${ml ? ` · ${ml.nombre} opera con margen ${ml.margen.toFixed(1)}% y carga ${ml.pctRebate}%` : ""}.`;
+    const b4 = `${_nBajoBench} de ${marg.length} cuentas operan bajo tu benchmark.`;
+    const b5 = `Negociaría primero la carga comercial de ${topRebate.nombre}${segundoRebate ? ` · luego la de ${segundoRebate.nombre}` : ""}.`;
     const opener = [b2, b3, b4, b5].filter(Boolean).join("\n\n");
 
-    const suggestionsByScenario = {
-      /* Las cuentas se eligen por su PAPEL en la frase, con el criterio dicho, en vez de estar escritas a mano:
-       *   · "¿… está pagando lo que vale?" → la que más carga comercial concentra en $ (`topRebate`).
-       *   · "¿… si bajo la carga comercial de X?" → la que le sigue: la segunda palanca de la misma naturaleza.
-       *   · "¿Cuánto cuesta sostener a X?" → la de mayor carga en PORCENTAJE de su venta, que es lo que la frase
-       *     pregunta. Con el demo esto ya no dice "Ripley" sino la cuenta que efectivamente más cuesta sostener
-       *     (5,5% de carga) — el nombre viejo no salía de ningún criterio, y no había forma de derivarlo. */
-      bonanza: [
-        "¿Cuánto margen perdemos por cliente?",
-        topRebate ? `¿${topRebate.nombre} está pagando lo que vale?` : null,
-        segundoRebate ? `¿Qué pasa si bajo la carga comercial de ${segundoRebate.nombre}?` : null,
-      ].filter(Boolean),
-      tension: [
-        "¿Dónde se está yendo el margen?",
-        "¿Qué cliente concentra la pérdida?",
-        "¿Cuánto recupero si renegocio la carga comercial?",
-      ],
-      crisis: [
-        "¿Qué clientes están en pérdida real?",
-        masCaraDeSostener ? `¿Cuánto cuesta sostener a ${masCaraDeSostener.nombre}?` : null,
-        "¿Qué pasa si subo precios a los Tier 2?",
-      ].filter(Boolean),
-    };
-    const suggestions = suggestionsByScenario[scenarioId] || suggestionsByScenario.bonanza;
-    // BRIEF N-bis · Tipo A puro · suggestionsByScenario filtradas
+    /* COLAPSO NARRATIVO: una sola lista. Las cuentas se eligen por su PAPEL en la frase, con el criterio dicho:
+     *   · "¿… está pagando lo que vale?" → la que más carga comercial concentra en $ (`topRebate`).
+     *   · "¿… si bajo la carga comercial de X?" → la que le sigue: la segunda palanca de la misma naturaleza.
+     *   · "¿Cuánto cuesta sostener a X?" → la de mayor carga en PORCENTAJE de su venta. */
+    const suggestions = [
+      "¿Cuánto margen perdemos por cliente?",
+      topRebate ? `¿${topRebate.nombre} está pagando lo que vale?` : null,
+      segundoRebate ? `¿Qué pasa si bajo la carga comercial de ${segundoRebate.nombre}?` : null,
+      masCaraDeSostener ? `¿Cuánto cuesta sostener a ${masCaraDeSostener.nombre}?` : null,
+    ].filter(Boolean).slice(0, 3);
+    // BRIEF N-bis · Tipo A puro · sugerencias filtradas
     return { opener, suggestions: filterTextualSuggestions(suggestions) };
   }
 
@@ -547,60 +417,26 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
       ? [...inmovSkus].sort((a, b) => b.stockUSD - a.stockUSD)[0]
       : null;
 
-    let b2, b3, b4, b5;
-    if (scenarioId === "bonanza") {
-      b2 = `El ${inmovPct.toFixed(1)}% del inventario opera fuera de rango óptimo · cobertura promedio ${doh} días.`;
-      b3 = `Inmovilizado ${fmtK(inmovUSD)} · total ${fmtK(totalInvUSD)}${topCatName ? ` · ${topCatName} concentra ${topCatPct.toFixed(1)}% del capital inmovilizado` : ""}.`;
-      // D2 ajuste LOCKED: B4 lectura ejecutiva · topCatName ya está en B3.
-      b4 = `El problema es estructural en una sola línea de producto.`;
-      b5 = topCatName
-        ? `Atacaría primero los SKUs de ${topCatName} · luego revisaría rotación por familia.`
-        : `Atacaría primero los SKUs de la categoría más concentrada · luego revisaría rotación por familia.`;
-    } else if (scenarioId === "tension") {
-      // D2-bis LOCKED: "velocidad de deterioro creciente" → "SKUs cruzando a estado lento"
-      b2 = `El ${inmovPct.toFixed(1)}% del inventario opera fuera de rango óptimo · cobertura ${doh} días · SKUs cruzando a estado lento.`;
-      b3 = `Inmovilizado ${fmtK(inmovUSD)} · total ${fmtK(totalInvUSD)}${topCatName ? ` · ${topCatName} concentra ${topCatPct.toFixed(1)}% del capital inmovilizado · SKUs activos hace meses cruzaron a estado lento` : ""}.`;
-      // D2 ajuste LOCKED: "pesa más que" → "está en velocidad de cambio · no en magnitud absoluta"
-      b4 = `El problema está en velocidad de cambio · no en magnitud absoluta.`;
-      b5 = topCatName
-        ? `Atacaría primero los SKUs recién cruzados a lento · luego revisaría ${topCatName}.`
-        : `Atacaría primero los SKUs recién cruzados a lento · luego revisaría por familia.`;
-    } else if (scenarioId === "crisis") {
-      // D2-bis LOCKED: "comprometido duplicado vs base" → "sobre el doble del rango base"
-      b2 = `El ${inmovPct.toFixed(1)}% del inventario opera fuera de rango óptimo · cobertura ${doh} días · capital inmovilizado sobre el doble del rango base.`;
-      b3 = `Inmovilizado ${fmtK(inmovUSD)} · total ${fmtK(totalInvUSD)}${topCatName ? ` · ${topCatName} concentra ${topCatPct.toFixed(1)}% del capital inmovilizado` : ""}.`;
-      // D2-bis LOCKED: "presiona" → "impacta el ciclo de caja"
-      b4 = `El capital inmovilizado impacta el ciclo de caja.`;
-      b5 = topCatName
-        ? `Liquidaría primero los SKUs de ${topCatName} · luego priorizaría categorías por cobertura.`
-        : `Liquidaría primero los SKUs de la categoría más concentrada · luego priorizaría por cobertura.`;
-    } else {
-      b2 = `El ${inmovPct.toFixed(1)}% del inventario opera fuera de rango óptimo · cobertura ${doh} días.`;
-      b3 = `Inmovilizado ${fmtK(inmovUSD)} · total ${fmtK(totalInvUSD)}.`;
-      b4 = `El stock inmovilizado requiere lectura por familia.`;
-      b5 = `Revisaría rotación por familia.`;
-    }
+    /* COLAPSO NARRATIVO (owner 2026-08-30): los guiones por escenario afirmaban dinámica inventada («SKUs
+     * cruzando a estado lento», «sobre el doble del rango base» — el dato es FOTO, no película). Queda UNA
+     * lectura: cifras de la foto, concentración afirmada solo si el dato la sostiene, oferta con nombre real. */
+    const b2 = `El ${inmovPct.toFixed(1)}% del inventario opera fuera de rango óptimo · cobertura promedio ${doh} días.`;
+    const b3 = `Inmovilizado ${fmtK(inmovUSD)} · total ${fmtK(totalInvUSD)}${topCatName ? ` · ${topCatName} concentra ${topCatPct.toFixed(1)}% del capital inmovilizado` : ""}.`;
+    // D2 ajuste LOCKED: B4 lectura ejecutiva · topCatName ya está en B3.
+    const b4 = topCatName && topCatPct >= 50 ? `El inmovilizado se concentra en una sola línea de producto.` : `El inmovilizado está repartido entre familias.`;
+    const b5 = topCatName
+      ? `Atacaría primero los SKUs de ${topCatName} · luego revisaría rotación por familia.`
+      : `Atacaría primero los SKUs de la categoría más concentrada · luego revisaría rotación por familia.`;
     const opener = [b2, b3, b4, b5].filter(Boolean).join("\n\n");
 
-    const suggestionsByScenario = {
-      bonanza: [
-        "¿Qué SKUs están atrapando más capital?",
-        "¿Por qué Materiales de Construcción se desbordó?",
-        "¿Cuánto puedo recuperar si actúo ahora?",
-      ],
-      tension: [
-        "¿Qué productos están deteniéndose?",
-        "¿Por qué Línea Blanca dejó de rotar?",
-        "¿Cuánto pierdo si los liquido?",
-      ],
-      crisis: [
-        "¿Qué SKUs liquido primero?",
-        "¿Cuánto puedo recuperar en 90 días?",
-        "¿Qué productos están en quiebre próximo?",
-      ],
-    };
-    const suggestions = suggestionsByScenario[scenarioId] || suggestionsByScenario.bonanza;
-    // BRIEF N-bis · Tipo A puro · suggestionsByScenario filtradas
+    // COLAPSO NARRATIVO: una sola lista — la categoría que se nombra SALE DEL DATO (`topCatName`), no de la
+    // película del demo («Materiales de Construcción»/«Línea Blanca» eran cuentas de OTRO negocio).
+    const suggestions = [
+      "¿Qué SKUs están atrapando más capital?",
+      topCatName ? `¿Por qué ${topCatName} concentra tanto capital inmovilizado?` : null,
+      "¿Cuánto puedo recuperar si actúo ahora?",
+    ].filter(Boolean);
+    // BRIEF N-bis · Tipo A puro · sugerencias filtradas
     // C3.2 · EVIDENCIA DE LA TESIS (nivel 2) · ADITIVO read-only · las 5 piezas con los valores YA computados
     // arriba (inmovUSD/topCatName/topCatPct = los mismos que el opener interpoló · _topInmovSku derivado de
     // inmovSkus ya cargado). SEÑAL DE EXPERIENCIA para Sentrix · NUNCA leída por razonamiento. El opener (prosa)

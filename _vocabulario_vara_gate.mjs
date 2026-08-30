@@ -430,8 +430,12 @@ H("[3] EL CANDADO · los sitios ya corregidos no vuelven atrás");
       /^Tu benchmark$/m, /Benchmark industria/],
     ["src/adi/sentrix/glossary.js", "el «i» de «vs benchmark» no manda a la industria",
       /Distancia del margen contra TU benchmark/, /benchmark de la industria/],
+    // COLAPSO NARRATIVO (2026-08-30): la frase pasó de «…es ${_cargaPonderada}%» a «contra un promedio ponderado
+    // de la cartera de ${_cargaPonderada}%» al colapsar los guiones por escenario — la PROPIEDAD que este candado
+    // guarda (el promedio se CALCULA de las filas, jamás una banda escrita a mano) quedó intacta: la
+    // interpolación de `_cargaPonderada` es lo que se exige ver.
     ["src/adi/composers/overview.js", "la banda de carga de la cartera se calcula, no se clava",
-      /promedio ponderado de la cartera es \$\{_cargaPonderada\}%/, /la cartera promedio opera entre 3% y 5%/],
+      /promedio ponderado de la cartera de \$\{_cargaPonderada\}%/, /la cartera promedio opera entre 3% y 5%/],
     ["src/config/cognitiveData.js", "el pool del rol declarado no compara contra un promedio que nadie midió",
       /sostiene su margen sin exigir carga comercial alta/, /rinde sobre promedio/],
   ];
