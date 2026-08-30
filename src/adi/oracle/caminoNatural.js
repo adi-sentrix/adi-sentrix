@@ -20,8 +20,13 @@
  * oráculo NO se replican acá: mueren con el camino (decisión del encargo, no un olvido).
  *
  * LO QUE ESTE CAMINO NO HACE (v1, medido): no tiene tools — lo que la carpeta no trae se declara como límite
- * (MEDIDO que declina bien). La serie mensual, el P&L guiado y «por qué esa cifra» siguen siendo de los
- * interceptores/camino actual, que corren ANTES en ChatADI. */
+ * (MEDIDO que declina bien). El P&L guiado sí corre ANTES en ChatADI (detectPnlIntent cede el turno).
+ * ⚠️ CORRECCIÓN 2026-08-30 (diagnóstico verificado del owner): acá decía que la serie mensual «seguía siendo de
+ * los interceptores que corren ANTES en ChatADI» — ES FALSO, el único previo es detectPnlIntent. Por ese hueco,
+ * «cuánto me compró Falabella el último mes» no tenía quién la atendiera y caía al suplente, que volcaba el
+ * tablero entero. La atiende el interceptor determinístico de ESTE módulo (serieIntent, abajo), construido como
+ * PUENTE mientras el frente ADI AGENTE certifica — nace con fecha de retiro y su adopción final es decisión del
+ * owner (en consulta, 2026-08-30). */
 import { responderConNotario, alcanceHeredadoDe, recitaAprobadaDe } from "./cicloNotarial.js";
 import { getSelloDeCarga } from "../../ingesta/estadoCarga.js";
 import { anteponerSello } from "../../ingesta/selloEnRespuesta.js";
@@ -35,6 +40,7 @@ import { extraerCalculos, stripAllMarks, composeNoDataMessage } from "./narratio
 import { normalizeResponse } from "../responseContract.js";
 import { detectCriteriaIntent } from "../criteria.js";     // el MISMO detector que answerViaOracle — una red, una verdad
 import { composeCriteria } from "../conversation.js";      // la MISMA composición (setCriterion/forgetCriterion), jamás una copia
+import { composeSerieIntent } from "./serieIntent.js";     // entidad × período → serie real reconciliada, o declinar corto (PUENTE hasta ADI Agente)
 import { envejecerPendingSimulation, pendingSimulationVigente, withOfertaPendiente } from "./conversationScope.js";
 
 // Los MISMOS ejes que el arnés: 3 para «entidades» (cifra-con-dueño), 6 para «dueños» (vocabulario completo).
@@ -128,6 +134,28 @@ export async function answerViaNatural({ text, history, mem, scenario = "actual"
         sentrixAction: cr.sentrixAction || null,
       }),
       mem: mem2,
+    };
+  }
+
+  /* ── ENTIDAD × PERÍODO · interceptor determinístico PUENTE (owner 2026-08-30 · prioridad 2 del frente) ──────
+   * El caso medido que cierra: «cuánto me compró Falabella el último mes» terminaba en el suplente volcando el
+   * tablero entero. Responde SOLO si la serie de esa entidad es dato real reconciliado (`serieRealDe`); si no,
+   * declina CORTO nombrando el límite — nunca el tablero. Determinístico como el bypass de criterio: cada cifra
+   * es lectura directa del dataset. Ante cualquier duda devuelve null y el turno sigue por el cerebro.
+   * ⚠️ NACE CON FECHA DE RETIRO: cuando ADI AGENTE certifique, el cerebro con herramientas se rutea solo y este
+   * bloque se retira. Su adopción está en consulta con el owner (2026-08-30). */
+  const serieR = composeSerieIntent({ q, scenario });
+  if (serieR && serieR.text) {
+    return {
+      r: normalizeResponse({
+        text: serieR.text,
+        route: "natural",
+        deterministic: true,
+        claims: [],
+        suggestions: null,
+        sentrixAction: serieR.sentrixAction || null,
+      }),
+      mem: { ...memIn, recentNarrations: [serieR.text, ...recentNarrationsPrev].slice(0, 2) },
     };
   }
 
