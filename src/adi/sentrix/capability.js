@@ -6,7 +6,7 @@
  * Disciplina: el demo data se trata como "el primer dataset subido". Si esto lo lee bien, lee igual un
  * Excel a medio llenar — la magia del onboarding sale gratis de acá, no es un parche al final. */
 import { ventasMensuales } from "../../data/baseKpis.js";
-import { historialMargen, clientesMargen, skuInventario } from "../../data/demoData.js";
+import { historialMargen, clientesMargen, clientesVentas, marcasMargen, sfamiliasMargen, skuInventario } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
 
 // ¿la serie mensual de una entidad tiene variación REAL (no sintética/plana)? ≥2 valores distintos = real.
@@ -14,6 +14,55 @@ function _hasRealMonthlyVariation(series, field) {
   if (!Array.isArray(series) || series.length < 2) return false;
   const vals = series.map(p => p && p[field]).filter(v => v != null).map(Number);
   return new Set(vals).size > 1;
+}
+
+/* ── LA SERIE QUE SALE DEL ARCHIVO DEL CLIENTE (owner 2026-08-30) ──────────────────────────────────────────────
+ * Segundo camino para encender la película por entidad, y NO relaja el primero: lo endurece.
+ *
+ * EL PRIMERO (arriba) pregunta si el margen varía mes a mes, y es la forma de cazar un histórico modelado: el del
+ * dataset de fábrica es plano en 22% los doce meses, así que se bloquea — y se sigue bloqueando, tal cual pidió el
+ * owner («si no reconcilia con la cifra oficial, ADI hace bien en no usarlo. No bajamos esa guardia»).
+ *
+ * ⚠️ PERO «¿VARÍA EL MARGEN?» ES UN PROXY, Y SOBRE DATO REAL SE ROMPE POR LOS DOS LADOS. Medido con el pack de la
+ * plantilla: una sola cuenta «variaba», de 26.3% a 26.2% — un decimal de redondeo — y eso bastaba para encender la
+ * película de TODO el dataset. Al revés también: un negocio que vende siempre lo mismo con el mismo margen tiene
+ * una serie perfectamente real que el proxy declararía sintética.
+ *
+ * LO QUE SE EXIGE EN CAMBIO, que es lo que el owner pidió textual («solo si esa serie viene de dato real
+ * reconciliado»), y son dos hechos verificables, no un indicio:
+ *   1 · cada punto declara EL PERÍODO del que se sumó — un histórico modelado no lo trae porque no lo tiene;
+ *   2 · el punto del período informado CIERRA EXACTO con la cifra oficial de esa entidad, la que el resto del
+ *       producto muestra. Es la prueba que el histórico de fábrica no pasa: sus doce meses suman $18.8M contra
+ *       una venta oficial de $19.4M.
+ * Sin las dos, no se enciende. */
+export const esSerieDelArchivo = (serie) =>
+  Array.isArray(serie) && serie.length > 0 &&
+  serie.every((p) => p && typeof p.periodo === "string" && /^\d{4}-\d{2}$/.test(p.periodo));
+
+/** ¿Este dataset trae series salidas del archivo del cliente? Distingue el pack de una planilla del histórico
+ *  modelado del dataset de fábrica, y es lo que permite que un «no tengo esa entidad» sea un no y no un sí ajeno. */
+const _hayAlgunaSerieDelArchivo = () =>
+  Object.values(historialMargen || {}).some((s) => esSerieDelArchivo(s));
+
+/** La venta oficial de cada entidad en el período informado — la MISMA que muestran la Mesa y el cuadro.
+ *  Cuenta → `clientesVentas.actual` (decisión D8 del owner). Marca, familia y SKU → la venta de su tabla. */
+function _ventaOficialPorEntidad() {
+  const m = new Map();
+  for (const c of clientesVentas || []) m.set(c.nombre, c.actual);
+  for (const t of [marcasMargen, sfamiliasMargen, skusMargen]) for (const x of t || []) m.set(x.nombre, x.venta);
+  return m;
+}
+
+/** ¿La serie de ESTA entidad es dato real reconciliado? Devuelve el veredicto y el porqué, para que quien
+ *  declina pueda decirlo con nombre en vez de un «no tengo esa serie» a secas. */
+export function serieRealDe(nombre) {
+  const serie = historialMargen && historialMargen[nombre];
+  if (!Array.isArray(serie) || !serie.length) return { real: false, motivo: "sin-serie", n: 0 };
+  if (!esSerieDelArchivo(serie)) return { real: false, motivo: "sin-periodo", n: serie.length };
+  const oficial = _ventaOficialPorEntidad().get(nombre);
+  if (typeof oficial !== "number") return { real: false, motivo: "sin-cifra-oficial", n: serie.length };
+  if (!serie.some((p) => p.venta === oficial)) return { real: false, motivo: "no-reconcilia", n: serie.length };
+  return { real: true, motivo: null, n: serie.length, periodos: serie.map((p) => p.periodo) };
 }
 
 // Declara qué ejes/cruces sostiene el dato CARGADO. Honesto por construcción: detecta, no promete.
@@ -24,10 +73,18 @@ export function datasetCapability() {
   // histórico POR ENTIDAD real: hoy historialMargen es SINTÉTICO (margen plano, ventas lerp) → debe dar false.
   //   Cuando el cliente suba un Excel con histórico real (margen que varía mes a mes) → dará true SOLO,
   //   sin tocar código: la película por entidad se enciende sola. Ese es el punto.
+  //   Con la ingesta de planilla eso ya pasa: la serie sale de las filas del archivo y se enciende por el segundo
+  //   camino (`serieRealDe`), que exige período declarado + cierre exacto con la cifra oficial — nunca por un
+  //   decimal de diferencia entre dos meses.
   let perEntityMonthly = false;
   try {
-    const series = Object.values(historialMargen || {});
-    perEntityMonthly = series.some(s => _hasRealMonthlyVariation(s, "margen"));
+    const nombres = Object.keys(historialMargen || {});
+    perEntityMonthly = nombres.some((n) => {
+      const s = historialMargen[n];
+      // una película necesita al menos dos meses; un solo punto es una cifra, no una evolución
+      if (esSerieDelArchivo(s)) return s.length >= 2 && serieRealDe(n).real;
+      return _hasRealMonthlyVariation(s, "margen");
+    });
   } catch { perEntityMonthly = false; }
 
   return {
@@ -50,7 +107,20 @@ export function temporalCapability(opts = {}) {
     : { status: "blocked", reason: "no hay serie mensual global en el dato" };
   let perEntity = null;
   if (entityType && entity) {
-    perEntity = cap.history.perEntity
+    /* ⚠️ SE MIDE LA ENTIDAD QUE SE PREGUNTÓ, no el dataset entero. Con el histórico modelado daba igual —todas
+     * las entidades estaban en la misma situación—, pero con dato real del cliente no: una cuenta puede tener sus
+     * meses cargados y la de al lado haber vendido sólo en un período anterior. Declarar «se puede» porque OTRA
+     * entidad tiene serie es prometer sobre el vecino. El motivo también sale por entidad, para que quien declina
+     * pueda decir cuál es el límite en vez de un «no tengo esa serie» a secas. */
+    const propia = serieRealDe(entity);
+    if (propia.real && propia.n >= 2) perEntity = { status: "show", scope: "entity", confidence: "high", origen: "archivo" };
+    else if (propia.real) perEntity = { status: "blocked", reason: `de ${entity} hay un solo período cargado: una cifra, no una evolución` };
+    else if (propia.motivo === "no-reconcilia") perEntity = { status: "blocked", reason: `la serie mensual de ${entity} no cierra con su venta del período: son dos cifras del mismo negocio y no se sirve ninguna` };
+    /* ⚠️ EN UN DATASET DEL ARCHIVO, «no tengo la serie de esta entidad» es un NO, no un «sí» prestado del vecino.
+     * Sin esta rama, preguntar por una cuenta que este negocio no tiene devolvía `show` —porque OTRAS entidades
+     * del pack sí tienen serie— y ADI habría prometido una película que no existe. */
+    else if (propia.motivo === "sin-serie" && _hayAlgunaSerieDelArchivo()) perEntity = { status: "blocked", reason: `no hay serie mensual de ${entity} en el dato de esta empresa` };
+    else perEntity = cap.history.perEntity
       ? { status: "show", scope: "entity", confidence: "high" }
       : { status: "blocked", reason: `el histórico por ${_tipoES[entityType] || "entidad"} es sintético (${metric || "esa métrica"} no varía mes a mes) — no hay serie real para afirmar una evolución` };
   }

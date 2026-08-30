@@ -33,6 +33,7 @@
 import { PARAMETROS } from "../../config/contract/plantilla.js";
 import { monedaLimpia } from "../../config/moneda.js";
 import { cobroDesdePlanilla } from "./cobroDesdePlanilla.js";
+import { serieDesdePlanilla, MESES } from "./serieDesdePlanilla.js";
 import { resolverDiasYRotacion, FORMULA_DIAS, FORMULA_ROTACION } from "../../adi/sentrix/diasYRotacion.js";
 import { diagnoseInventarioSku } from "../../adi/diagnosis/economicDiagnosis.js";
 import { METRICS } from "../../config/contract/metricRegistry.js";
@@ -54,6 +55,7 @@ export const CALCULOS = [
   { id: "brechaYTendencia", que: "brecha de margen y tendencia de margen (cabecera)", formula: "brecha = benchmark − margen actual · tendencia = margen actual − margen del período anterior", fuente: "definición del owner 2026-08-23, declarada en metricRegistry.margen (brechaFormula · tendenciaFormula)", medido: "sin benchmark declarado la brecha es null, nunca un cero que parezca meta cumplida" },
   { id: "estadoSku", que: "el estado de cada SKU (inmovilizado · riesgo de quiebre · sobrestock · sano)", formula: "compara rotación y días contra los umbrales del negocio", fuente: "diagnosis/economicDiagnosis · diagnoseInventarioSku (la misma función del producto, no una copia)", medido: null },
   { id: "capital", que: "capital en stock por SKU, bodega y familia", formula: "suma del stock valorizado", fuente: "metricRegistry · METRICS.capital (dato primario, se agrega por suma)", medido: null },
+  { id: "serieEntidad", que: "la serie mes a mes de cada cuenta, marca, familia y SKU", formula: "suma de las filas de esa entidad en cada mes del archivo; se sirve SOLO si el mes informado cierra exacto con la cifra oficial del período de esa entidad", fuente: "las mismas filas y la misma aritmética de las tablas del período · reconciliación contra clientesVentas.actual (decisión D8) y la venta de la tabla de cada eje", medido: "la entidad que no cierra queda sin serie y se declara en los avisos con las dos cifras" },
 ];
 
 /** Lo que el motor NO calcula, con el motivo y qué haría falta para desbloquearlo. */
@@ -62,12 +64,14 @@ export const BLOQUEADOS = [
     paraAbrirlo: "que el negocio los declare, o que se acuerde una forma de generarlos" },
   { id: "presupuesto", que: "venta contra presupuesto", porque: "el presupuesto es por cuenta y período, no por fila de venta: como columna se repetiría en cada fila y se contradiría solo. Quedó fuera de la v1 al colapsar la plantilla a dos hojas (decisión del owner, 2026-08-22)",
     paraAbrirlo: "agregar una tercera hoja chica (período · cuenta · presupuesto) en una v2, si alguien lo pide" },
+  { id: "perfilEstrategico", que: "el perfil estratégico de cada cuenta (tier, poder de negociación, rol, sustitutos)", porque: "son juicios del negocio, no cuentas: ninguna planilla de ventas los contiene. Derivarlos del monto («el que más compra es tier 1») sería inventar una lectura estratégica con cara de dato",
+    paraAbrirlo: "que el negocio los declare por cuenta, como declara su margen de referencia" },
 ];
 
 const _sum = (arr, f) => arr.reduce((s, r) => s + (typeof f(r) === "number" ? f(r) : 0), 0);
 const _r1 = (x) => Math.round(x * 10) / 10;
 const _r2 = (x) => Math.round(x * 100) / 100;
-const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+// los rótulos de mes viven en `serieDesdePlanilla` · una sola definición para la serie por entidad y para la global
 
 /** El bloque de margen de un grupo de filas de venta · TODAS las fórmulas de acá están citadas en CALCULOS. */
 function bloqueMargen(filas, benchmark) {
@@ -333,6 +337,26 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
       })()
     : null;
 
+  /* ── LA SERIE MENSUAL POR ENTIDAD · el grano fino del archivo, reconciliado ───────────────────────────────
+   * El cruce cuenta×mes venía en cada fila de Ventas y se perdía al agregar: `historialMargen` salía `{}` y la
+   * película por entidad quedaba apagada aunque el cliente hubiera subido su histórico real. La cuenta vive en
+   * `serieDesdePlanilla.js`; acá se le pasan las filas, el catálogo de SKU y —lo que hace verificable la
+   * promesa— LA CIFRA OFICIAL YA PUBLICADA de cada entidad. La entidad cuya serie no cierra contra su propia
+   * cifra del período no se sirve: se declara en los avisos con los dos montos.
+   *
+   * DE DÓNDE SALE CADA CIFRA OFICIAL: la de una cuenta es `clientesVentas.actual` (decisión D8 del owner, la
+   * venta oficial por cliente); la de marca, familia y SKU es la venta de la tabla de su eje, que es la que la
+   * Mesa muestra. Se toman de las tablas RECIÉN CONSTRUIDAS arriba, no de una segunda suma: comparar una suma
+   * contra sí misma no verifica nada. */
+  const oficialDelPeriodo = new Map();
+  for (const c of clientesVentas) oficialDelPeriodo.set(c.nombre, c.actual);
+  for (const t of [marcasMargen, sfamiliasMargen, skusMargen]) for (const x of t) oficialDelPeriodo.set(x.nombre, x.venta);
+  const serie = serieDesdePlanilla({
+    ventas, dimSku, periodos, periodoActual: actual,
+    bloqueMargen, oficial: oficialDelPeriodo,
+  });
+  avisos.push(...serie.avisos);
+
   /* ── catálogos · la lista de lo que hay ───────────────────────────────────────────────────────────────── */
   const marcas = [...new Set([...dimSku.values()].map((p) => p.marca).filter(Boolean))];
   const familias = [...new Set([...dimSku.values()].map((p) => p.sfamilia).filter(Boolean))];
@@ -358,7 +382,11 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
     sfamiliasVentas: sfamiliasMargen.map((f) => ({ nombre: f.nombre, sfamilia: f.nombre, marca: null, actual: f.actual, anterior: f.anterior, unidades: f.unidades, unidadesAnt: f.unidadesAnt, pctRebate: f.pctRebate })),
     sfamiliasMargen,
     skuInventario, skusMargen,
-    historialMargen: {},
+    historialMargen: serie.historial,
+    /* EL PERFIL ESTRATÉGICO SIGUE VACÍO, y no por olvido: `tier`, `poderNegociacion`, `rolEstratégico` y
+     * `sustitutosNaturales` son JUICIOS del negocio, no cuentas. Ninguna planilla de ventas los contiene, y
+     * derivarlos de la venta («el que más compra es tier 1») sería inventar una lectura estratégica con cara
+     * de dato. Queda declarado en BLOQUEADOS con lo que haría falta para abrirlo. */
     CLIENTES_STRATEGIC_PROFILE: {},
     ventasKPI, margenKPI, invKPI, ventasMensuales,
     SUPERFAMILIAS: familias.length ? ["Todas", ...familias] : [],

@@ -9,6 +9,7 @@ import { ventasMensuales, ventasKPI } from "../../data/baseKpis.js";
 import { historialMargen, clientesMargen, clientesVentas, marcasVentas, marcasMargen, sfamiliasVentas, sfamiliasMargen } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { onTenantChange } from "../../data/tenantStore.js";   // F1 multiempresa · las anclas del período se re-arman en initTenant
+import { esSerieDelArchivo } from "./capability.js";          // UNA definición de «serie real», compartida con la capa de disponibilidad
 import { getVentasKPI } from "../../engine/metrics.js";       // el total de ventas DEL ESCENARIO (el mismo que lee la card de la Mesa) — ver buildGlobalEvolutionAnclada
 
 const _sum = (a) => a.reduce((x, y) => x + y, 0);
@@ -55,6 +56,34 @@ const _anchor = (serie, total) => {
   out[out.length - 1] += total - _sum(out);
   return out;
 };
+/* ── ¿ESTA SERIE SALE DEL ARCHIVO DEL CLIENTE? (owner 2026-08-30 · ingesta con grano fino) ─────────────────────
+ * Se reconoce porque CADA punto declara el período del que se sumó. Un histórico modelado no lo trae —no lo
+ * tiene: sus meses son una rampa, no la suma de las filas de un mes—, así que el dataset de fábrica sigue
+ * exactamente por donde iba y esta rama no lo toca.
+ *
+ * ⚠️ POR QUÉ IMPORTA LA DISTINCIÓN, y no es cosmética. Todo lo que hace la rama de abajo —modular con la
+ * estacionalidad global y RE-ESCALAR la serie al total del período— existe para arreglar un histórico sintético:
+ * su forma es inventada y su total no cierra, así que se le impone la forma del negocio y se lo ancla. Aplicarle
+ * eso a una serie REAL la destruye. Medido con el pack de la plantilla de ejemplo: la serie de una cuenta era
+ * [19.637 · 20.600] —los dos meses que el usuario cargó— y salía [10.098 · 10.502], porque el ancla comprimía los
+ * DOS meses para que sumaran la venta de UNO. Es decir: la respuesta a «cuánto me compró el último mes» habría
+ * salido a la mitad, con cara de cifra verificada.
+ *
+ * LA REGLA VIVE EN `capability.js` y se importa: es la misma con la que la capa de disponibilidad decide si
+ * enciende la película por entidad. Dos copias de esta condición serían dos definiciones de «serie real», y el
+ * día que una cambiara, la capability diría que se puede y esto serviría otra cosa. */
+const _esSerieDelArchivo = esSerieDelArchivo;
+
+/* La serie del archivo NO se re-escala: cada punto ya es la suma de las filas de su mes. Lo que sí se EXIGE es
+ * que la cifra oficial del período esté EN la serie —el mes informado tiene que coincidir exacto con lo que el
+ * resto del producto muestra—. Si no coincide son dos verdades del mismo negocio, y la regla de la casa es
+ * servir una o ninguna: se declina. La ingesta ya deja fuera a la entidad que no cierra; esto es el segundo
+ * cerrojo, del lado del que sirve, para que un pack armado por otro camino tampoco pueda colarla. */
+function _serieDelArchivo(name, metric, H, serie, oficial) {
+  if (oficial != null && !serie.some((v) => v === oficial)) return null;
+  return _entityAnalysis(name, metric, H.map((m) => m.mes), serie);
+}
+
 // EXPORTADO (owner 2026-08-07 · Resumen comercial): el evolutivo de la cara Comercial tiene que cerrar con la venta
 // OFICIAL por cliente, y la serie mensual vive en OTRA tabla del dataset (difieren ~0.1%). Se reusa ESTA técnica en
 // vez de copiarla: reescala la curva y deja el residuo en el último mes, así el total queda exacto y la FORMA del
@@ -170,6 +199,16 @@ export function buildEntityEvolution(name, metric = "venta") {
   const H = historialMargen && historialMargen[name];
   if (!H || !H.length) return null;
   const P = _PERIOD.get(name) || {};
+  const delArchivo = _esSerieDelArchivo(H);
+  /* MARGEN DEL ARCHIVO · cuando la serie sale de las filas del cliente, el margen de cada mes YA está calculado
+   * con la fórmula declarada sobre las filas de ESE mes; no hay nada que derivar ni que normalizar. Un mes sin
+   * venta no tiene margen (no hay denominador) y llega en null: entonces no hay serie de margen y se declina —
+   * antes que rellenar ese mes con un 0% que diría «marginó cero» en vez de «no vendió». */
+  if (delArchivo && metric === "margen") {
+    const serie = H.map((m) => m.margen);
+    if (serie.some((v) => !Number.isFinite(v))) return null;
+    return _serieDelArchivo(name, metric, H, serie, P.margen);
+  }
   // MARGEN DERIVADO (owner 2026-07-10: "si hay contribución debe tener"): margen del mes = contribución ÷ venta de
   // las MISMAS dos series de la ficha, normalizado para que el agregado del año cierre EXACTO con el margen del
   // período (el del perfil y el cuadro) — conectado por construcción, no una serie aparte. El campo margen plano
@@ -188,6 +227,12 @@ export function buildEntityEvolution(name, metric = "venta") {
   const meses = H.map((m) => m.mes);
   let serie = H.map(get);
   if (serie.some((v) => !Number.isFinite(v))) return null;
+  /* SERIE DEL ARCHIVO · se sirve tal cual, con el mes informado exigido a coincidir. Ni estacionalidad impuesta
+   * ni re-escalado: los dos existen para enderezar un histórico modelado, y sobre dato real lo tuercen. */
+  if (delArchivo) {
+    const oficial = metric === "venta" ? P.venta : metric === "contribucion" ? P.contribucion : metric === "acciones" ? P.acciones : null;
+    return _serieDelArchivo(name, metric, H, serie, oficial);
+  }
   // La venta del historial viene como TENDENCIA suavizada (rampa). Para que el mes a mes refleje el negocio real
   // (owner 2026-07-08: "debe reflejar las alzas y bajas, como la curva global"), se modula con la estacionalidad
   // REAL de la curva global (ventasMensuales) y se re-escala para conservar el total del historial — la misma
@@ -237,6 +282,22 @@ export function buildEntityEvolutionComparado(name, metric = "venta") {
   let anterior = null;
   const antTotal = metric === "venta" ? _PERIOD_ANT.get(name) : null;
   const H = historialMargen && historialMargen[name];
+  /* ⚠️ EN UNA SERIE DEL ARCHIVO, «anterior» SON DOS COSAS DISTINTAS y no se pueden mezclar: `ventaAnt` es el
+   * MISMO MES DEL AÑO PASADO (lo trae el archivo sólo si el cliente cargó ese año), mientras que el `.anterior`
+   * de la tabla del eje es EL PERÍODO PREVIO —el mes pasado— porque en un pack de planilla el período es un mes.
+   * Anclar la curva del año anterior al total del mes anterior mezclaría los dos universos en una sola línea.
+   * Así que el ghost se sirve tal cual lo trae el archivo, o no se sirve: si algún mes no tiene su homólogo del
+   * año anterior, `ventaAnt` llega en null y la curva va sola —honesto, como la bodega sin serie. */
+  if (_esSerieDelArchivo(H)) {
+    if (metric === "venta" && H.length === A.n) {
+      /* ⚠️ `Number(null)` es 0, y 0 es finito: comprobar sólo la finitud daba una curva de ceros para el negocio
+       * que cargó un año solo — un año anterior inventado en plano, dibujado como si fuera dato. El mes sin
+       * homólogo se reconoce por el null, antes de convertirlo. */
+      const serie = H.map((x) => x.ventaAnt);
+      if (serie.every((v) => typeof v === "number" && Number.isFinite(v))) anterior = { serie, total: _sum(serie) };
+    }
+    return { ...A, anterior };
+  }
   if (antTotal != null && H && H.length === A.n) {
     let serie = H.map((x) => Number(x.ventaAnt));
     if (serie.every(Number.isFinite)) {
