@@ -13,7 +13,15 @@ import { guessDimension } from "./oracle/entityRecord.js";   // Etapa 1 (owner 2
 import { POLICY, benchmarkOf } from "../config/businessPolicy.js";   // umbrales de política (UNA verdad) para el diagnose
 import { fig } from "./boleta.js";   // BOLETA de cifras autorizadas (primera clase · emitida por el composer · la valida el guard)
 import { diagnoseInventario, diagnoseClientes, diagnoseSkus, concentracion } from "./diagnosis/economicDiagnosis.js";   // motor: 4 puntas inventario + patrón económico cliente/SKU + concentración 80/20 · UNA verdad
-import { clientesVentas as _cVentas, marcasVentas as _mVentas, sfamiliasVentas as _fVentas, historialMargen as _histM } from "../data/demoData.js";   // ventas con YoY+ppto (marca/familia NO están en el contrato → carga directa) + historial mensual (el año de cada cuenta)
+import { clientesVentas as _cVentas, marcasVentas as _mVentas, sfamiliasVentas as _fVentas, historialMargen as _histM } from "../data/demoData.js";
+import { getTenantData } from "../data/tenantStore.js";
+import { factorComercialDe } from "../config/contract/figureType.js";
+
+/* EL DATO COMERCIAL ALMACENADO → $ CRUDOS, con la escala QUE EL PACK DECLARA (owner 2026-08-30). El ×1000 fijo
+ * de este archivo era correcto para los tenants de fábrica (almacenan en miles) y FALSO para un pack de
+ * planilla (moneda cruda): los focos de la Mesa decían «$4.5M sin capturar» sobre un negocio de $61 mil.
+ * Sin declarar cae a «K»: el demo, byte-idéntico. Los ÷1000 de porcentaje (…* 1000) / 10) no se tocan. */
+const _fxe = () => factorComercialDe(getTenantData());   // ventas con YoY+ppto (marca/familia NO están en el contrato → carga directa) + historial mensual (el año de cada cuenta)
 import { buildCompareEvolution as _cmpEvolution } from "./sentrix/temporal.js";   // las dos curvas del año (tendencia × estacionalidad real) para el causal temporal del compare
 import { detectVirtuousException } from "./proactive.js";   // gancho opcional del diagnóstico (fuera la muletilla · owner 2026-07-09)
 import { deriveBusinessThesis } from "./composers/thesis.js";
@@ -50,7 +58,7 @@ const _money = (v) => {
   return `${s}${simboloMoneda()}${Math.round(a)}`;
 };
 // escala del contrato: money(K) = valor en MILES de $ → a dólares reales antes de formatear (money(raw) = $ crudo)
-const _fmt = (v, unit, scale) => (unit === "money" ? _money(scale === "K" ? v * 1000 : v) : unit === "pct" ? `${v}%` : unit === "ratio" ? `${v.toFixed(1)}x` : unit === "days" ? `${Math.round(v)}d` : String(v));
+const _fmt = (v, unit, scale) => (unit === "money" ? _money(scale === "K" ? v * _fxe() : v) : unit === "pct" ? `${v}%` : unit === "ratio" ? `${v.toFixed(1)}x` : unit === "days" ? `${Math.round(v)}d` : String(v));
 // _rawC(v, unit, scale) → el `raw` de la boleta EN DÓLARES, la misma escala que ya muestra `_fmt` (owner 2026-08-09,
 // decisión 1: la escala se declara, no se adivina). El resto del motor emite `raw: x * 1000` para los montos en
 // miles; estos dos composers pasaban `x.value` CRUDO, así que la MISMA cifra viajaba como 4275 desde queryMetric y
@@ -58,7 +66,7 @@ const _fmt = (v, unit, scale) => (unit === "money" ? _money(scale === "K" ? v * 
 // con las dos escalas en el mismo pool, 4275 + 3839 = 8114 autorizaba «$8K» para una suma que vale $8.1M — un
 // error de ×1000 cruzando el muro con las dos cifras de origen reales. Medido antes del arreglo y cerrado por
 // `_verif_raw_falsa2`. Sólo toca `money`: el resto de las unidades no tiene escala que normalizar.
-const _rawC = (v, unit, scale) => (unit === "money" && scale === "K" ? v * 1000 : v);
+const _rawC = (v, unit, scale) => (unit === "money" && scale === "K" ? v * _fxe() : v);
 
 /* ── LA CIFRA DE CABECERA · la MISMA que muestra la card, no la suma del ranking ─────────────────────────────
  * (owner 2026-08-09, decisión 6 · hallazgo E)
@@ -298,8 +306,8 @@ export function composeSpecComposicion({ dimension, entity, scenario = "actual" 
   familias.forEach((f, i) => {
     bol.push(fig(`${entity} · ${f.nombre} · participación`, `${f.share}%`, { unit: "pct", raw: f.share, context: `composición de ${entity} por familia`, mandatory: i === 0 }));
     if (i === 0) {
-      bol.push(fig(`${entity} · ${f.nombre} · venta`, _fmt(f.venta, "money", "K"), { unit: "money", raw: f.venta * 1000, context: `composición de ${entity} por familia` }));
-      bol.push(fig(`${entity} · ${f.nombre} · contribución`, _fmt(f.contribucion, "money", "K"), { unit: "money", raw: f.contribucion * 1000, context: `composición de ${entity} por familia` }));
+      bol.push(fig(`${entity} · ${f.nombre} · venta`, _fmt(f.venta, "money", "K"), { unit: "money", raw: f.venta * _fxe(), context: `composición de ${entity} por familia` }));
+      bol.push(fig(`${entity} · ${f.nombre} · contribución`, _fmt(f.contribucion, "money", "K"), { unit: "money", raw: f.contribucion * _fxe(), context: `composición de ${entity} por familia` }));
       bol.push(fig(`${entity} · ${f.nombre} · margen`, `${f.margen}%`, { unit: "pct", raw: f.margen, context: `composición de ${entity} por familia`, mandatory: true }));
     }
   });
@@ -547,12 +555,12 @@ function _diagComercial(filters, scenario, entityScope) {
     const bmk = benchmarkOf(r), mg = r[mSF.field], cb = r[cSF.field], cg = r[gSF.field];
     // contribución no capturada = venta×benchmark/100 − contribución (K→$) · gate: ≥4pp bajo benchmark y ≥ piso
     if (typeof mg === "number" && typeof cb === "number" && (bmk - mg) >= _DIAG_MARGIN_GAP()) {
-      const usd = Math.round(((actual * bmk / 100) - cb) * 1000);
+      const usd = Math.round(((actual * bmk / 100) - cb) * _fxe());
       if (usd >= _DIAG_FLOOR_USD) contrib.push({ entidad: r[mKey], usd, gap: +(bmk - mg).toFixed(1) });
     }
     // carga comercial alta = (carga − target)/100 × venta (K→$) · gate: sobre target y ≥ piso
     if (typeof cg === "number" && cg > POLICY.targetCarga) {
-      const usd = Math.round(((cg - POLICY.targetCarga) / 100) * actual * 1000);
+      const usd = Math.round(((cg - POLICY.targetCarga) / 100) * actual * _fxe());
       if (usd >= _DIAG_FLOOR_USD) carga.push({ entidad: r[mKey], usd, gap: +(cg - POLICY.targetCarga).toFixed(1) });
     }
   }
@@ -707,8 +715,8 @@ export function composeSpecResumenEjecutivo({ scenario } = {}) {
   const pctGr = contribK ? Math.round((cGr / contribK) * 100) : 0, pctRe = contribK ? 100 - Math.round((cGr / contribK) * 100) : 0;
   const mGr = vGr ? +((cGr / vGr) * 100).toFixed(1) : 0, mRe = vRe ? +((cRe / vRe) * 100).toFixed(1) : 0;
 
-  const b1 = `**Foto general:** vendiste ${_money(ventasK * 1000)}${varPct != null ? ` (${varPct >= 0 ? "+" : ""}${varPct}% vs el año anterior)` : ""}, generaste ${_money(contribK * 1000)} de contribución y cerraste con ${margenProm}% de margen — cartera de ${cm.length} clientes, ${F.length ? `${F.length} ${F.length === 1 ? "foco" : "focos"} de fuga abiertos` : "sin fugas materiales"}.`;
-  const b2 = `**Dónde estamos ganando:** la venta la sostienen ${conV.cantidadEntidades} de ${cv.length} clientes (${conV.totalCubiertoPct}%); la contribución la lideran ${topC.map((r) => `${r.nombre} (${_money(r.contribucion * 1000)})`).join(", ")}.`;
+  const b1 = `**Foto general:** vendiste ${_money(ventasK * _fxe())}${varPct != null ? ` (${varPct >= 0 ? "+" : ""}${varPct}% vs el año anterior)` : ""}, generaste ${_money(contribK * _fxe())} de contribución y cerraste con ${margenProm}% de margen — cartera de ${cm.length} clientes, ${F.length ? `${F.length} ${F.length === 1 ? "foco" : "focos"} de fuga abiertos` : "sin fugas materiales"}.`;
+  const b2 = `**Dónde estamos ganando:** la venta la sostienen ${conV.cantidadEntidades} de ${cv.length} clientes (${conV.totalCubiertoPct}%); la contribución la lideran ${topC.map((r) => `${r.nombre} (${_money(r.contribucion * _fxe())})`).join(", ")}.`;
   const b3 = `**Cómo estamos ganando:** no es solo volumen — los tres grandes (${grandes.map((r) => r.nombre).join(", ")}) ponen el ${pctGr}% de la contribución con margen ${mGr}%; el resto de la cartera pone el ${pctRe}% con margen ${mRe}%. ${mRe > mGr ? "La calidad vive en las cuentas medianas: el mix es lo que sostiene el margen." : "El volumen de los grandes también trae la calidad."}`;
   const b4 = `**Cómo se comporta el margen:** el promedio (${margenProm}%) ${margenProm < bench ? "corre bajo" : "está sobre"} tu piso (${bench}%). Los que más venden dejan menos: ${grandes.map((r) => `${r.nombre} ${r.margen}%`).join(", ")} — ${bajoVara.length} de ${cm.length} clientes están bajo el benchmark. El margen sano vive en ${sanos.map((r) => `${r.nombre} (${r.margen}%)`).join(" y ")}: la cartera crece, pero parte del margen se diluye en los grandes.`;
   const fugas = [];
@@ -750,14 +758,14 @@ export function composeSpecResumenEjecutivo({ scenario } = {}) {
   const opener = [b1, b2, b3, b4, b5, b6, b7, b8].filter(Boolean).join("\n\n");
   // BOLETA rica: el núcleo obligatorio (KPIs + subtotales de foco vía la boleta del diagnose) + el resto autorizado
   const bol = [
-    fig("Ventas del período", _money(ventasK * 1000), { unit: "money", raw: ventasK * 1000, mandatory: true, context: "resumen ejecutivo" }),
-    fig("Contribución", _money(contribK * 1000), { unit: "money", raw: contribK * 1000, mandatory: true, context: "resumen ejecutivo" }),
+    fig("Ventas del período", _money(ventasK * _fxe()), { unit: "money", raw: ventasK * _fxe(), mandatory: true, context: "resumen ejecutivo" }),
+    fig("Contribución", _money(contribK * _fxe()), { unit: "money", raw: contribK * _fxe(), mandatory: true, context: "resumen ejecutivo" }),
     fig("Margen promedio", `${margenProm}%`, { unit: "pct", raw: margenProm, mandatory: true, context: "resumen ejecutivo" }),
     fig("Piso de margen", `${bench}%`, { unit: "pct", raw: bench, mandatory: false, context: "la referencia declarada" }),   // registro: «vara» está vetada en superficie y el context de la boleta viaja al prompt y a la evidencia
     fig("Target de carga", `${POLICY.targetCarga}%`, { unit: "pct", raw: POLICY.targetCarga, mandatory: false, context: "la referencia declarada" }),   // registro: «vara» está vetada en superficie y el context de la boleta viaja al prompt y a la evidencia
   ];
   if (varPct != null) bol.push(fig("Ventas vs año anterior", `${varPct >= 0 ? "+" : ""}${varPct}%`, { unit: "pct", raw: varPct, mandatory: false, context: "resumen ejecutivo" }));
-  for (const r of topC) bol.push(fig(`${r.nombre} · Contribución`, _money(r.contribucion * 1000), { unit: "money", raw: r.contribucion * 1000, mandatory: false, context: "quién sostiene" }));
+  for (const r of topC) bol.push(fig(`${r.nombre} · Contribución`, _money(r.contribucion * _fxe()), { unit: "money", raw: r.contribucion * _fxe(), mandatory: false, context: "quién sostiene" }));
   for (const r of grandes) bol.push(fig(`${r.nombre} · Margen`, `${r.margen}%`, { unit: "pct", raw: r.margen, mandatory: false, context: "los grandes" }));
   for (const r of sanos) bol.push(fig(`${r.nombre} · Margen`, `${r.margen}%`, { unit: "pct", raw: r.margen, mandatory: false, context: "margen sano" }));
   if (cgTopRow) bol.push(fig(`${cgTopRow.nombre} · Carga`, `${cgTopRow.pctRebate}%`, { unit: "pct", raw: cgTopRow.pctRebate, mandatory: false, context: "causa de carga" }));
@@ -849,10 +857,10 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
     const lines = [], bol = [], alertas = [];
     for (const s of ventaRows) {
       const iv = invBy[s.nombre];
-      if (!iv) { lines.push(`• ${s.nombre}: vende ${_money(s.venta * 1000)} — sin registro de inventario en este dataset.`); continue; }
+      if (!iv) { lines.push(`• ${s.nombre}: vende ${_money(s.venta * _fxe())} — sin registro de inventario en este dataset.`); continue; }
       const flag = iv.alerta === "crit" ? " · CRÍTICO" : (iv.estado && iv.estado !== "Activo" ? ` · ${iv.estado}` : "");
-      lines.push(`• ${s.nombre}: vende ${_money(s.venta * 1000)} — stock ${iv.stockUnd} unidades (${_money(iv.stockUSD)}), ${Math.round(iv.doh)} días de inventario${flag}`);
-      bol.push(fig(`${s.nombre} · Venta`, _money(s.venta * 1000), { unit: "money", raw: s.venta * 1000, mandatory: false, context: "top vendedores × inventario" }));
+      lines.push(`• ${s.nombre}: vende ${_money(s.venta * _fxe())} — stock ${iv.stockUnd} unidades (${_money(iv.stockUSD)}), ${Math.round(iv.doh)} días de inventario${flag}`);
+      bol.push(fig(`${s.nombre} · Venta`, _money(s.venta * _fxe()), { unit: "money", raw: s.venta * _fxe(), mandatory: false, context: "top vendedores × inventario" }));
       bol.push(fig(`${s.nombre} · Stock`, _money(iv.stockUSD), { unit: "money", raw: iv.stockUSD, mandatory: false, context: "top vendedores × inventario" }));
       if (iv.alerta !== "ok" || (iv.estado && iv.estado !== "Activo")) alertas.push({ sku: s.nombre, estado: iv.estado, doh: Math.round(iv.doh) });
     }
@@ -1096,7 +1104,7 @@ const _p1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
 const _benchOf = benchmarkOf;   // C.2 · UNA verdad: respeta el CRITERIO del owner (override) → fila → POLICY (antes duplicaba la lógica sin el override)
 const _markup = (r) => (r && r.precioLista > 0 ? (r.precioLista - r.costoMedio) / r.precioLista * 100 : null);   // markup sobre lista (%)
 const _costShare = (r) => (r && r.precioLista > 0 ? r.costoMedio / r.precioLista * 100 : null);                  // costo como % de la lista
-const _mVenta = (v) => _money(v * 1000);   // venta/contribucion en MILES -> $ real (escala del contrato · consistente con ventas y el resumen ejecutivo · NO para stockUSD, que es crudo)
+const _mVenta = (v) => _money(v * _fxe());   // venta/contribucion en MILES -> $ real (escala del contrato · consistente con ventas y el resumen ejecutivo · NO para stockUSD, que es crudo)
 // panel de Sentrix para margen: cada entidad vs la línea de benchmark (la "calidad de la venta" de un vistazo) + descomposición precio/costo
 // `causa_costo`: «el costo presiona», no «el costo aprieta» (La Poda F2). Estos títulos NO son internos — viajan
 // en `evidence.margin.title` al panel de Sentrix, que los pinta, y a `facts` del oráculo, que los manda al prompt.
@@ -1493,7 +1501,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
   const _kpi = getVentasKPI(null, null, scenario) || _vKPI;
   let rows = _scopeRows(_ventasRows(dim, scenario), filters, entityScope);
   if (!rows.length) return null;
-  const _m = (v) => _money(v * 1000);   // ventas en MILES → $ real (escala del contrato · el total de cartera es ~$100M · consistente con el resumen ejecutivo)
+  const _m = (v) => _money(v * _fxe());   // ventas en MILES → $ real (escala del contrato · el total de cartera es ~$100M · consistente con el resumen ejecutivo)
   const bol = [];
 
   if (focus === "vs_presupuesto") {
@@ -1507,7 +1515,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
     const tp = _pctChg(totA, totP);
     const totLine = `La venta va ${_sgnp(tp)}${_p1(tp)}% ${tp >= 0 ? "sobre" : "bajo"} presupuesto (${_m(totA)} vs ${_m(totP)}).`;
     if (!rowsP.length) {   // sku → sin ppto propio
-      return { lines: [`${totLine} Por ${L.s} no tengo presupuesto propio — sólo por cliente (y al total). El desglose de cumplimiento por ${L.s} no es posible.`, `Por cliente sí puedo mostrarte quién se despega del plan.`], suggestions: ["Desviación vs presupuesto por cliente", "Cómo vamos vs el año anterior"], bol: [fig("Venta total", _m(_kpi.totalActual), { unit: "money", raw: _kpi.totalActual * 1000, mandatory: true, context: "vs presupuesto" }), fig("Presupuesto total", _m(_kpi.totalPresupuesto), { unit: "money", raw: _kpi.totalPresupuesto * 1000, mandatory: false, context: "vs presupuesto" })] };
+      return { lines: [`${totLine} Por ${L.s} no tengo presupuesto propio — sólo por cliente (y al total). El desglose de cumplimiento por ${L.s} no es posible.`, `Por cliente sí puedo mostrarte quién se despega del plan.`], suggestions: ["Desviación vs presupuesto por cliente", "Cómo vamos vs el año anterior"], bol: [fig("Venta total", _m(_kpi.totalActual), { unit: "money", raw: _kpi.totalActual * _fxe(), mandatory: true, context: "vs presupuesto" }), fig("Presupuesto total", _m(_kpi.totalPresupuesto), { unit: "money", raw: _kpi.totalPresupuesto * _fxe(), mandatory: false, context: "vs presupuesto" })] };
     }
     const withDev = rowsP.map((r) => ({ ...r, dev: (r.actual || 0) - r.presupuesto, devp: _pctChg(r.actual || 0, r.presupuesto) })).sort((a, b) => b.dev - a.dev);
     const over = withDev.filter((r) => r.dev > 0), under = withDev.filter((r) => r.dev < 0).sort((a, b) => a.dev - b.dev);
@@ -1519,10 +1527,10 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
       under.length ? `**Cuánto vale:** cerrar lo que falta al plan vale +${_m(short)} este período — el que más pesa es ${under[0].nombre} (${_m(under[0].dev)}).` : "",
       `**Qué hacer:** el foco de recuperación son los que quedan cortos; los de arriba marcan qué está funcionando.`,
     ];
-    if (under.length) bol.push(fig("Medida · cerrar el plan", _m(short), { unit: "money", raw: short * 1000, mandatory: true, source: "computed", formula: "Σ déficit vs presupuesto", context: "cuánto vale la medida" }));
-    for (const r of [...over.slice(0, 3), ...under.slice(0, 2)]) bol.push(fig(`${r.nombre} · vs ppto`, `${_sgnp(r.dev)}${_m(r.dev)}`, { unit: "money", raw: r.dev * 1000, mandatory: false, context: "vs presupuesto" }));
-    bol.push(fig(scoped ? "Venta del grupo" : "Venta total", _m(totA), { unit: "money", raw: totA * 1000, mandatory: true, context: "vs presupuesto" }));
-    bol.push(fig(scoped ? "Presupuesto del grupo" : "Presupuesto total", _m(totP), { unit: "money", raw: totP * 1000, mandatory: false, context: "vs presupuesto" }));
+    if (under.length) bol.push(fig("Medida · cerrar el plan", _m(short), { unit: "money", raw: short * _fxe(), mandatory: true, source: "computed", formula: "Σ déficit vs presupuesto", context: "cuánto vale la medida" }));
+    for (const r of [...over.slice(0, 3), ...under.slice(0, 2)]) bol.push(fig(`${r.nombre} · vs ppto`, `${_sgnp(r.dev)}${_m(r.dev)}`, { unit: "money", raw: r.dev * _fxe(), mandatory: false, context: "vs presupuesto" }));
+    bol.push(fig(scoped ? "Venta del grupo" : "Venta total", _m(totA), { unit: "money", raw: totA * _fxe(), mandatory: true, context: "vs presupuesto" }));
+    bol.push(fig(scoped ? "Presupuesto del grupo" : "Presupuesto total", _m(totP), { unit: "money", raw: totP * _fxe(), mandatory: false, context: "vs presupuesto" }));
     const panel = { kind: "movers", title: "Vs presupuesto", headline: `${_sgnp(tp)}${_p1(tp)}%`, headlineSub: `${_m(totA)} vs ${_m(totP)}`, rows: withDev.map((r) => ({ nombre: r.nombre, val: r.dev, valFmt: `${_sgnp(r.dev)}${_m(r.dev)}`, pct: +r.devp.toFixed(1), pos: r.dev >= 0 })) };
     return { lines, suggestions: ["Cómo vamos vs el año anterior", "Es por volumen o por precio"], bol, panel };
   }
@@ -1551,7 +1559,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
       down.length ? `Restan: ${down.slice(0, 4).map((r) => `${r.nombre} (${_m(r.d)})`).join(" · ")}.` : `Ningún ${LL.s} cae vs el año anterior.`,
       `**Qué hacer:** el neto es positivo, pero los que restan son la fuga a mirar — recuperarlos suma directo.`,
     ];
-    for (const r of [...up.slice(0, 3), ...down.slice(0, 2)]) bol.push(fig(`${r.nombre} · YoY`, `${_sgnp(r.d)}${_m(r.d)}`, { unit: "money", raw: r.d * 1000, mandatory: false, context: "vs año anterior" }));
+    for (const r of [...up.slice(0, 3), ...down.slice(0, 2)]) bol.push(fig(`${r.nombre} · YoY`, `${_sgnp(r.d)}${_m(r.d)}`, { unit: "money", raw: r.d * _fxe(), mandatory: false, context: "vs año anterior" }));
     const panel = { kind: "movers", title: "Vs año anterior", headline: `${_sgnp(tp)}${_p1(tp)}%`, headlineSub: `${_m(tot)} vs ${_m(totAnt)}`, rows: mov.map((r) => ({ nombre: r.nombre, val: r.d, valFmt: `${_sgnp(r.d)}${_m(r.d)}`, pct: +r.p.toFixed(1), pos: r.d >= 0 })).sort((a, b) => b.val - a.val) };
     return { lines, suggestions: ["Es por volumen o por precio", "Quiénes redujeron su compra"], bol, panel };
   }
@@ -1587,7 +1595,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
       `Nota: no tengo flag de "cliente activo/nuevo" ni frecuencia de compra (no hay transacciones) — esto es caída de venta YoY, la señal más cercana a "dejar de comprar".`,
       `**Qué hacer:** la mayor oportunidad de recuperación está justo acá — recuperar a estos clientes vale ${_m(Math.abs(down.slice(0, 4).reduce((a, r) => a + r.d, 0)))}.`,
     ];
-    for (const r of down.slice(0, 4)) bol.push(fig(`${r.nombre} · YoY`, `${_m(r.d)}`, { unit: "money", raw: r.d * 1000, mandatory: false, context: "caída YoY" }));
+    for (const r of down.slice(0, 4)) bol.push(fig(`${r.nombre} · YoY`, `${_m(r.d)}`, { unit: "money", raw: r.d * _fxe(), mandatory: false, context: "caída YoY" }));
     const panel = { kind: "movers", title: "Clientes que retroceden", headlineSub: "vs el año anterior", rows: down.map((r) => ({ nombre: r.nombre, val: r.d, valFmt: _m(r.d), pct: +r.p.toFixed(1), pos: false })) };
     // ORDEN SELLADO (owner 2026-08-03): UNA sola dirección acá (solo "caen", nunca mezclado con los que suben) — el
     // peor primero, en magnitud $ (el guard lee el monto SIN signo, ver _toNumOrder en guardC.js) — seguro de sellar.
@@ -1642,8 +1650,8 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
       restN > 0 ? `El resto (${restN} ${L.p}) aporta el ${_p1(restPct)}% de la venta.` : "",
       `**Qué significa:** ${con.cantidadEntidades <= rowsC.length / 2 ? `tu venta está concentrada en pocas cuentas — cuidar a ${con.cantidadEntidades === 1 ? "esa cuenta" : `esos ${con.cantidadEntidades}`} es prioridad: perder una pega directo en la venta` : "tu venta está bastante repartida — el riesgo por cuenta es menor"}.`,
     ];
-    for (const e of con.entidades.slice(0, 5)) bol.push(fig(`${e.nombre} · venta`, _m(e.valor), { unit: "money", raw: e.valor * 1000, mandatory: false, context: "concentración de venta" }));
-    bol.push(fig("Venta total", _m(totV), { unit: "money", raw: totV * 1000, mandatory: false, context: "concentración de venta" }));
+    for (const e of con.entidades.slice(0, 5)) bol.push(fig(`${e.nombre} · venta`, _m(e.valor), { unit: "money", raw: e.valor * _fxe(), mandatory: false, context: "concentración de venta" }));
+    bol.push(fig("Venta total", _m(totV), { unit: "money", raw: totV * _fxe(), mandatory: false, context: "concentración de venta" }));
     let accC = 0;
     const prows = rowsC.slice().sort((a, b) => b.valor - a.valor).map((r) => { accC += r.valor; return { nombre: r.nombre, valFmt: _m(r.valor), part: +(r.valor / totV * 100).toFixed(1), acum: +(accC / totV * 100).toFixed(1) }; });
     const panel = { kind: "pareto", title: "Quién explica la venta", totalPct: con.totalCubiertoPct, cutoff: con.cantidadEntidades, of: rowsC.length, rows: prows };
@@ -1663,7 +1671,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
       ranked[1] ? `${ranked[0].nombre} lidera con ${_m(ranked[0].venta)}, seguido de ${ranked[1].nombre} (${_m(ranked[1].venta)}).` : `${ranked[0].nombre} lidera con ${_m(ranked[0].venta)}.`,
       `**Ojo:** no tengo presupuesto ni año anterior POR SKU (sólo por cliente/marca/familia), así que no puedo comparar cada SKU contra plan ni contra el año pasado — eso te lo doy a nivel cliente o familia.`,
     ];
-    for (const s of ranked.slice(0, 5)) bol.push(fig(`${s.nombre} · venta`, _m(s.venta), { unit: "money", raw: s.venta * 1000, mandatory: false, context: `ranking de venta${_scLbl}` }));
+    for (const s of ranked.slice(0, 5)) bol.push(fig(`${s.nombre} · venta`, _m(s.venta), { unit: "money", raw: s.venta * _fxe(), mandatory: false, context: `ranking de venta${_scLbl}` }));
     const panel = { kind: "rank", title: `SKU por venta${_scLbl}`, rows: ranked.slice(0, 8).map((s) => ({ nombre: s.nombre, val: s.venta, valFmt: _m(s.venta) })) };
     // ORDEN SELLADO (owner 2026-08-03): ranking único de venta — mismo criterio que "concentracion" arriba.
     return { lines, suggestions: ["Venta vs año anterior por familia", "Los SKU de alto margen subpenetrados"], bol, panel, orden: "descendente por venta" };
@@ -1744,7 +1752,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
       restN > 0 ? `El resto (${restN} ${L.p}) aporta apenas el ${_p1(restPct)}%.` : "",
       `**Qué significa:** tu contribución está ${con.cantidadEntidades <= rows.length / 2 ? "concentrada en pocas cuentas" : "bastante repartida"} — cuidar a esas ${con.cantidadEntidades} es prioridad, perder una pega directo en la contribución.`,
     ];
-    for (const e of con.entidades.slice(0, 5)) bol.push(fig(`${e.nombre} · Contribución`, _mVenta(e.valor), { unit: "money", raw: e.valor * 1000, mandatory: false, context: _ctx }));
+    for (const e of con.entidades.slice(0, 5)) bol.push(fig(`${e.nombre} · Contribución`, _mVenta(e.valor), { unit: "money", raw: e.valor * _fxe(), mandatory: false, context: _ctx }));
     panel = { kind: "pareto", title: "Quién sostiene la contribución", totalPct: con.totalCubiertoPct, cutoff: con.cantidadEntidades, of: rows.length, rows: prows };
     suggestions = ["De dónde viene esa contribución", "Cuánta contribución no capturo"];
   } else if (focus === "no_capturada") {
@@ -1762,7 +1770,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
       const v = vBy[r.nombre]; if (!v || typeof v[vSF2.field] !== "number") continue;
       const bmk = _benchOf(r), mg = r.margen, cb = r.contribucion;
       if (typeof mg !== "number" || typeof cb !== "number") continue;
-      const usdTodos = Math.round(((v[vSF2.field] * bmk / 100) - cb) * 1000);
+      const usdTodos = Math.round(((v[vSF2.field] * bmk / 100) - cb) * _fxe());
       // EL UNIVERSO SE CUENTA ANTES DE LOS DOS FILTROS. `withGap` descarta por brecha mínima (_DIAG_MARGIN_GAP)
       // Y por piso de materialidad (_DIAG_FLOOR_USD); cualquiera de los dos deja cuentas afuera, así que contar
       // después de uno solo vuelve a mentir sobre la cobertura — que es el defecto que esto viene a cerrar.
@@ -1814,7 +1822,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
         `${d.razon}`,
         `**Qué mirar:** ${d.origenContribucion === "volumen" ? "crece por tamaño, no por rentabilidad — subir su margen aunque sea un punto rinde mucho por el volumen que mueve" : d.origenContribucion === "calidad" ? "aporta por calidad de venta — el upside está en ganarle volumen sin resignar ese margen" : "conviene sostener el equilibrio y empujar donde haya espacio"}.`,
       ];
-      if (r) bol.push(fig(`${entity} · Contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * 1000, mandatory: true, context: _ctx }));
+      if (r) bol.push(fig(`${entity} · Contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * _fxe(), mandatory: true, context: _ctx }));
       panel = { kind: "rank", title: `Contribución · contexto de ${entity}`, rows: rows.slice().sort((a, b) => b.contribucion - a.contribucion).slice(0, 8).map((x) => ({ nombre: _mNombre(x), val: x.contribucion, valFmt: _mVenta(x.contribucion), hi: _mNombre(x) === entity })) };
     } else {
       const byO = {}; for (const r of rows) { const d = dc[_mNombre(r)]; if (d) { (byO[d.origenContribucion] = byO[d.origenContribucion] || { c: 0, names: [] }); byO[d.origenContribucion].c += r.contribucion; byO[d.origenContribucion].names.push(_mNombre(r)); } }
@@ -1839,7 +1847,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
       buenM.length ? `Del otro lado, ${buenM.slice(0, 2).map((r) => `${r.nombre} (${_p1(r.margen)}% margen)`).join(" y ")} tienen buen margen pero aportan poco — por tamaño chico, no por calidad.` : "",
       `**Qué hacer:** en los de alto volumen y bajo margen, un punto de margen es lo que más rinde; en los de buen margen y poco tamaño, el upside es ganarles volumen.`,
     ];
-    for (const r of lead.slice(0, 3)) bol.push(fig(`${r.nombre} · Contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * 1000, mandatory: false, context: _ctx }));
+    for (const r of lead.slice(0, 3)) bol.push(fig(`${r.nombre} · Contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * _fxe(), mandatory: false, context: _ctx }));
     panel = { kind: "rank", title: "Venta vs contribución", rows: wd.slice().sort((a, b) => (b.venta || 0) - (a.venta || 0)).slice(0, 8).map((r) => ({ nombre: r.nombre, val: r.contribucion, valFmt: _mVenta(r.contribucion), sub: `${_p1(r.margen)}%` })) };
     suggestions = ["De dónde viene la contribución", "Cuánta contribución no capturo"];
   } else {   // rank
@@ -1853,7 +1861,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
       `Entre los primeros ${Math.min(3, sorted.length)} juntan ${_mVenta(sorted.slice(0, 3).reduce((a, r) => a + r.contribucion, 0))} de los ${_mVenta(totC)} totales.`,
       `**Qué mirar:** son las cuentas que hay que blindar; si quieres ver qué tan concentrada está, mira el 80/20.`,
     ];
-    for (const r of sorted.slice(0, 5)) bol.push(fig(`${_mNombre(r)} · Contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * 1000, mandatory: false, context: _ctx }));
+    for (const r of sorted.slice(0, 5)) bol.push(fig(`${_mNombre(r)} · Contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * _fxe(), mandatory: false, context: _ctx }));
     panel = { kind: "rank", title: `Contribución por ${L.s}`, rows: sorted.slice(0, 8).map((r) => ({ nombre: _mNombre(r), val: r.contribucion, valFmt: _mVenta(r.contribucion) })) };
     suggestions = ["Quién sostiene la contribución", "De dónde viene la contribución"];
   }
@@ -1865,7 +1873,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
   // filtro, un alcance heredado— ese total es el del SUBCONJUNTO y sigue por el camino de siempre, porque el total
   // del negocio ahí respondería otra pregunta.
   const _headlineC = _figHeadline("contribucion", dim, scenario, { acotado: !!(filters.marca || filters.familia || filters.bodega || filters.cliente) || !!(entityScope && entityScope.entities && entityScope.entities.length) });
-  bol.push(_headlineC || fig("Contribución total", _mVenta(totC), { unit: "money", raw: totC * 1000, mandatory: false, context: _ctx }));
+  bol.push(_headlineC || fig("Contribución total", _mVenta(totC), { unit: "money", raw: totC * _fxe(), mandatory: false, context: _ctx }));
   return {
     opener: lines.filter(Boolean).join("\n\n"),
     suggestions,
@@ -1933,14 +1941,14 @@ export function compareCauses(a, b, scenario, dim = "cliente") {
     const yearOf = (E) => {
       const H = _histM[E.name] || [];
       const f = H[0], l = H[H.length - 1];
-      let s = `${E.name} hace su mejor mes en ${E.maxMes} (${_money(E.max * 1000)}) y el más flojo en ${E.minMes} (${_money(E.min * 1000)})`;
+      let s = `${E.name} hace su mejor mes en ${E.maxMes} (${_money(E.max * _fxe())}) y el más flojo en ${E.minMes} (${_money(E.min * _fxe())})`;
       const drivers = [];
       if (f && l && typeof f.rebates === "number" && typeof l.rebates === "number") {
         const d = dPct(f.rebates, l.rebates);
         if (d != null) {
-          drivers.push(`las acciones de precios ${d >= 0 ? "suben" : "bajan"} de ${_money(f.rebates * 1000)} a ${_money(l.rebates * 1000)} al mes${d > 0 ? " empujando la temporada alta" : ""}`);
-          bol.push(fig(`${E.name} · Acciones de precios (inicio)`, _money(f.rebates * 1000), { unit: "money", raw: f.rebates * 1000, mandatory: false, source: "historial", formula: "rebates mensuales (Ene)", context: "el año, mes a mes" }));
-          bol.push(fig(`${E.name} · Acciones de precios (cierre)`, _money(l.rebates * 1000), { unit: "money", raw: l.rebates * 1000, mandatory: false, source: "historial", formula: "rebates mensuales (Dic)", context: "el año, mes a mes" }));
+          drivers.push(`las acciones de precios ${d >= 0 ? "suben" : "bajan"} de ${_money(f.rebates * _fxe())} a ${_money(l.rebates * _fxe())} al mes${d > 0 ? " empujando la temporada alta" : ""}`);
+          bol.push(fig(`${E.name} · Acciones de precios (inicio)`, _money(f.rebates * _fxe()), { unit: "money", raw: f.rebates * _fxe(), mandatory: false, source: "historial", formula: "rebates mensuales (Ene)", context: "el año, mes a mes" }));
+          bol.push(fig(`${E.name} · Acciones de precios (cierre)`, _money(l.rebates * _fxe()), { unit: "money", raw: l.rebates * _fxe(), mandatory: false, source: "historial", formula: "rebates mensuales (Dic)", context: "el año, mes a mes" }));
         }
       }
       if (f && l && typeof f.costoMedio === "number" && typeof l.costoMedio === "number") {
@@ -1952,8 +1960,8 @@ export function compareCauses(a, b, scenario, dim = "cliente") {
         if (d != null && d !== 0) drivers.push(`el ticket ${d >= 0 ? "sube" : "baja"} ${Math.abs(d)}%`);
       }
       if (drivers.length) s += `; detrás del año: ${drivers.join(", ")}`;
-      bol.push(fig(`${E.name} · Mejor mes`, _money(E.max * 1000), { unit: "money", raw: E.max * 1000, mandatory: false, source: "historial", formula: "tendencia del historial × estacionalidad global", context: `mes ${E.maxMes}` }));
-      bol.push(fig(`${E.name} · Mes más flojo`, _money(E.min * 1000), { unit: "money", raw: E.min * 1000, mandatory: false, source: "historial", formula: "tendencia del historial × estacionalidad global", context: `mes ${E.minMes}` }));
+      bol.push(fig(`${E.name} · Mejor mes`, _money(E.max * _fxe()), { unit: "money", raw: E.max * _fxe(), mandatory: false, source: "historial", formula: "tendencia del historial × estacionalidad global", context: `mes ${E.maxMes}` }));
+      bol.push(fig(`${E.name} · Mes más flojo`, _money(E.min * _fxe()), { unit: "money", raw: E.min * _fxe(), mandatory: false, source: "historial", formula: "tendencia del historial × estacionalidad global", context: `mes ${E.minMes}` }));
       return s + ".";
     };
     const eA = filmCmp.a, eB = filmCmp.b;
@@ -2358,7 +2366,7 @@ function _simulateCargaDelta({ filters = {}, scenario, entityScope = null, delta
       margenActual: margenA, margenSupuesto: margenS, benchmark: bmk,
       sobreBenchmark: margenS >= bmk, brechaPp: +Math.abs(margenS - bmk).toFixed(1),
       // el $ del movimiento SIEMPRE sale de la venta oficial (clientesVentas.actual), como el modo target
-      usd: Math.round((Math.abs(movidoPp) / 100) * ventaK * 1000),
+      usd: Math.round((Math.abs(movidoPp) / 100) * ventaK * _fxe()),
     });
   }
   if (!rows.length) return { unsupported: "no encontré cuentas con carga comercial en ese alcance" };
@@ -2571,7 +2579,7 @@ export function composeSpecSimulateCosto({ dimension = "sku", filters = {}, pct,
   const _dSube = totDContrib >= 0;
   const _verboImpacto = _dSube ? "recuperando" : "cediendo";
   const _verboBloque = _dSube ? "de la recuperación" : "de la caída";
-  const opener = `${pct < 0 ? "Bajar" : "Subir"} el costo medio un ${Math.abs(pct)}% en ${nEnt} ${_plural}${scope === "bajo_benchmark" ? " bajo benchmark" : ""} mueve el margen promedio de ${margenPromA}% a ${margenPromS}%, ${_verboImpacto} ${_money(Math.abs(totDContrib) * 1000)} de contribución. ${single ? `El supuesto recae sobre un solo ${_sing}.` : concentrated ? `El impacto se concentra en ${blockCount} ${_plural} que explican el ${blockPct}% ${_verboBloque}.` : `El impacto se reparte entre los ${nEnt} ${_plural}.`} El cálculo es la mecánica contable (costo → contribución → margen); si el proveedor acepta ${pct < 0 ? "bajar" : "subir"} costo, o si cambia calidad/volumen de compra, queda fuera del dato — esa negociación real se decide caso a caso.`;
+  const opener = `${pct < 0 ? "Bajar" : "Subir"} el costo medio un ${Math.abs(pct)}% en ${nEnt} ${_plural}${scope === "bajo_benchmark" ? " bajo benchmark" : ""} mueve el margen promedio de ${margenPromA}% a ${margenPromS}%, ${_verboImpacto} ${_money(Math.abs(totDContrib) * _fxe())} de contribución. ${single ? `El supuesto recae sobre un solo ${_sing}.` : concentrated ? `El impacto se concentra en ${blockCount} ${_plural} que explican el ${blockPct}% ${_verboBloque}.` : `El impacto se reparte entre los ${nEnt} ${_plural}.`} El cálculo es la mecánica contable (costo → contribución → margen); si el proveedor acepta ${pct < 0 ? "bajar" : "subir"} costo, o si cambia calidad/volumen de compra, queda fuera del dato — esa negociación real se decide caso a caso.`;
 
   const bol = [
     // Supuesto % (owner 2026-08-04, GAP 3 consolidación Parte 2) — MISMA razón que composeSpecSimulate (arriba):
@@ -2580,21 +2588,21 @@ export function composeSpecSimulateCosto({ dimension = "sku", filters = {}, pct,
     // el número por resta/suma — cierto en datasets ricos, falso en un pool chico. Ver la sección "GAP 3 · pool
     // adversarial" de _response_contract_parte2_gate.mjs (local, no commiteado).
     fig("Supuesto %", `${_sgn(pct)}${pct}%`, { unit: "pct", raw: pct, context: _ctx, source: "computed", formula: "% del supuesto pedido, aplicado sobre el dato real" }),
-    fig("Total · costo actual", _money(totCostoA * 1000), { unit: "money", raw: totCostoA * 1000, source: "actual", context: _ctx }),
-    fig("Total · costo supuesto", _money(totCostoS * 1000), { unit: "money", raw: totCostoS * 1000, source: "computed", formula: `costo × (1${_sgn(pct)}${pct}%)`, context: _ctx }),
-    fig("Total · contribución actual", _money(totContribA * 1000), { unit: "money", raw: totContribA * 1000, source: "actual", context: _ctx }),
-    fig("Total · contribución supuesta", _money(totContribS * 1000), { unit: "money", raw: totContribS * 1000, mandatory: true, source: "computed", formula: "contribución + (costo actual − costo supuesto)", context: _ctx }),
-    fig("Impacto · contribución", _money(Math.abs(totDContrib) * 1000), { unit: "money", raw: Math.abs(totDContrib) * 1000, mandatory: true, source: "computed", formula: "Σ costo_i × (−pct%)", context: _ctx }),
+    fig("Total · costo actual", _money(totCostoA * _fxe()), { unit: "money", raw: totCostoA * _fxe(), source: "actual", context: _ctx }),
+    fig("Total · costo supuesto", _money(totCostoS * _fxe()), { unit: "money", raw: totCostoS * _fxe(), source: "computed", formula: `costo × (1${_sgn(pct)}${pct}%)`, context: _ctx }),
+    fig("Total · contribución actual", _money(totContribA * _fxe()), { unit: "money", raw: totContribA * _fxe(), source: "actual", context: _ctx }),
+    fig("Total · contribución supuesta", _money(totContribS * _fxe()), { unit: "money", raw: totContribS * _fxe(), mandatory: true, source: "computed", formula: "contribución + (costo actual − costo supuesto)", context: _ctx }),
+    fig("Impacto · contribución", _money(Math.abs(totDContrib) * _fxe()), { unit: "money", raw: Math.abs(totDContrib) * _fxe(), mandatory: true, source: "computed", formula: "Σ costo_i × (−pct%)", context: _ctx }),
     fig("Margen promedio · actual", `${margenPromA}%`, { unit: "pct", raw: margenPromA, source: "actual", context: _ctx }),
     fig("Margen promedio · nuevo", `${margenPromS}%`, { unit: "pct", raw: margenPromS, mandatory: true, source: "computed", formula: "contribución supuesta / venta × 100, ponderado", context: _ctx }),
   ];
   if (concentrated) bol.push(fig("Concentración · bloque", `${blockPct}%`, { unit: "pct", raw: blockPct, mandatory: true, source: "computed", formula: `${blockCount} ${_plural} acumulan el ${blockPct}% del Δ`, context: _ctx }));
   // SIN TOPE por fila (lección D9) — cada candidata trae su costo/margen actual-vs-nuevo YA autorizado
   for (const it of items) {
-    bol.push(fig(`${it.name} · Costo actual`, _money(it.costoA * 1000), { unit: "money", raw: it.costoA * 1000, source: "actual", context: _ctx }));
-    bol.push(fig(`${it.name} · Costo supuesto`, _money(it.costoS * 1000), { unit: "money", raw: it.costoS * 1000, source: "computed", formula: `costo × (1${_sgn(pct)}${pct}%)`, context: _ctx }));
+    bol.push(fig(`${it.name} · Costo actual`, _money(it.costoA * _fxe()), { unit: "money", raw: it.costoA * _fxe(), source: "actual", context: _ctx }));
+    bol.push(fig(`${it.name} · Costo supuesto`, _money(it.costoS * _fxe()), { unit: "money", raw: it.costoS * _fxe(), source: "computed", formula: `costo × (1${_sgn(pct)}${pct}%)`, context: _ctx }));
     if (it.margenS != null) bol.push(fig(`${it.name} · Margen nuevo`, `${it.margenS}%`, { unit: "pct", raw: it.margenS, source: "computed", formula: "(contribución + Δcosto) / venta × 100", context: _ctx }));
-    bol.push(fig(`${it.name} · Δ contribución`, _money(Math.abs(it.dContrib) * 1000), { unit: "money", raw: Math.abs(it.dContrib) * 1000, source: "computed", formula: `costo × (${_sgn(pct)}${pct}%)`, context: _ctx }));
+    bol.push(fig(`${it.name} · Δ contribución`, _money(Math.abs(it.dContrib) * _fxe()), { unit: "money", raw: Math.abs(it.dContrib) * _fxe(), source: "computed", formula: `costo × (${_sgn(pct)}${pct}%)`, context: _ctx }));
   }
 
   return {
@@ -2625,13 +2633,13 @@ export function computeGoalAnchor(metric, pct, dir, scenario) {
   let baseUsd = null, baseLabel = null;
   if (metric === "ventas") {
     const s = _sf2("ventas", "cliente"); if (!s) return null;
-    baseUsd = _sum(_load(s.source, scenario), s.field) * 1000; baseLabel = "tus ventas actuales";
+    baseUsd = _sum(_load(s.source, scenario), s.field) * _fxe(); baseLabel = "tus ventas actuales";
   } else if (metric === "contribucion") {
     const s = _sf2("contribucion", "cliente"); if (!s) return null;
-    baseUsd = _sum(_load(s.source, scenario), s.field) * 1000; baseLabel = "tu contribución actual";
+    baseUsd = _sum(_load(s.source, scenario), s.field) * _fxe(); baseLabel = "tu contribución actual";
   } else if (metric === "margen") {
     const s = _sf2("margen", "cliente"); if (!s) return null;
-    baseUsd = _sum(_load(s.source, scenario), "venta") * 1000; baseLabel = "tu venta base";
+    baseUsd = _sum(_load(s.source, scenario), "venta") * _fxe(); baseLabel = "tu venta base";
   } else if (metric === "capital") {
     const s = _sf2("capital", "sku"); if (!s) return null;
     baseUsd = _sum(_load(s.source, scenario), s.field); baseLabel = "tu capital en inventario";
@@ -2651,7 +2659,7 @@ export function computeGoalAnchor(metric, pct, dir, scenario) {
   if (vs) {
     const movers = _load(vs.source, scenario)
       .filter((r) => typeof r.actual === "number" && typeof r.anterior === "number" && r.anterior > 0)
-      .map((r) => ({ nombre: r.nombre, usd: (r.actual - r.anterior) * 1000 }))
+      .map((r) => ({ nombre: r.nombre, usd: (r.actual - r.anterior) * _fxe() }))
       .filter((x) => x.usd > 0)
       .sort((a, b) => b.usd - a.usd);
     if (movers.length) mover = { nombre: movers[0].nombre, usd: movers[0].usd, usdFmt: _money(movers[0].usd) };
@@ -2718,9 +2726,9 @@ export function buildResumenEjecutivo(scenario) {
   const margenProm = ventaBaseK ? (contribK / ventaBaseK) * 100 : 0;
   // `key` (Mesa 2.0 · aditivo): el semáforo de la Mesa (buildMesaEstado) se une por key, no por label ni orden.
   const kpis = [
-    { key: "ventas",       label: "Ventas del período",    value: _money(ventasK * 1000) },
+    { key: "ventas",       label: "Ventas del período",    value: _money(ventasK * _fxe()) },
     { key: "margen",       label: "Margen promedio",       value: `${margenProm.toFixed(1)}%` },
-    { key: "contribucion", label: "Contribución",          value: _money(contribK * 1000) },
+    { key: "contribucion", label: "Contribución",          value: _money(contribK * _fxe()) },
     { key: "capital",      label: "Capital en inventario", value: _money(capital) },
   ];
   // LECTURA: sale de los focos del diagnose (mismo motor · data-driven) · si no hay fugas materiales, lo dice honesto

@@ -31,8 +31,8 @@
 import { buildCuadroMando } from "./cuadro.js";
 import { applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { diagnoseInventario } from "../diagnosis/economicDiagnosis.js";
-import { getTenantId, onTenantChange } from "../../data/tenantStore.js";
-import { UNIVERSOS } from "../../config/contract/figureType.js";   // el PERÍODO es del universo, no se declara dos veces
+import { getTenantId, getTenantData, onTenantChange } from "../../data/tenantStore.js";
+import { UNIVERSOS, factorComercialDe } from "../../config/contract/figureType.js";   // el PERÍODO es del universo, no se declara dos veces · la escala la DECLARA el pack
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 
@@ -135,7 +135,9 @@ export function headlineTotal(metrica, eje, escenario) {
   // a hoy") al lado del universo que ya lo declara, y eso es una segunda verdad esperando divergir — el mismo
   // desalineamiento de dos declaraciones que la decisión 1 prohíbe. `figureType.UNIVERSOS` manda.
   const periodo = (UNIVERSOS[d.universo] || {}).periodo || null;
-  return { ...d, periodo, valor: v, raw: d.unidad === "money" && d.escala === "K" ? v * 1000 : v };
+  /* «K» acá significa «se almacena en la escala del universo comercial» — y ESA escala la declara el pack
+   * (factorComercialDe · owner 2026-08-30): miles en los tenants de fábrica, moneda cruda en la planilla. */
+  return { ...d, periodo, valor: v, raw: d.unidad === "money" && d.escala === "K" ? v * factorComercialDe(getTenantData()) : v };
 }
 
 /* headlineDe(componentId-ish) — atajo de lectura para quien tiene la métrica y el eje sueltos. */

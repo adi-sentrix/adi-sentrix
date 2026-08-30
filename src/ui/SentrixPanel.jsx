@@ -30,6 +30,7 @@ import { buildCuadroMando, CUADRO_DIMS } from "../adi/sentrix/cuadro.js";   // 4
 import { buildResumenComercial } from "../adi/sentrix/resumenComercial.js";
 import { buildMesaFlujo } from "../adi/sentrix/mesaFlujo.js";
 import { getTenantData, initTenant } from "../data/tenantStore.js";   // el plazo de pago vive en el pack: al declararlo se reescribe el perfil vivo
+import { factorComercialDe } from "../config/contract/figureType.js";   // la escala comercial la DECLARA el pack (2026-08-30)
 import { getAccessCode } from "../adi/accessClient.js";                  // …y se manda con el codigo firmado, que es lo que dice de que empresa es   // FLUJO COMERCIAL (owner 2026-08-27) · venta, abonos y saldo — toda la aritmética vive ahí   // RESUMEN COMERCIAL (owner 2026-08-07) · la cara Comercial entera — veredicto/KPIs/plano 80-20/pareto/puente/insights ya armados y formateados (alcance SIEMPRE global: la firma no acepta selección) · cero cálculo en React
 import { buildMesaEstado, buildWatchlistEstado } from "../adi/sentrix/mesa.js";   // MESA 2.0 · semáforo contra TU vara + acción priorizada + "qué cambió" + alertas/watchlist (reusa diagnose/POLICY/temporal/cuadro · una verdad)
 import { buildMesaCapital, buildCuadroCapital, CUADRO_CAPITAL_EJES, CAPITAL_ESTADOS } from "../adi/sentrix/mesaCapital.js";   // CARA CAPITAL (owner 2026-07-15) · el mismo sello sobre el inventario — detectores existentes, cero cálculo en UI
@@ -120,10 +121,15 @@ function Legend({ color, label, v }) {
     </div>
   );
 }
-const fmtK = (n) => simboloMoneda() + Math.round(n || 0) + "K";
+/* EL DATO COMERCIAL ALMACENADO → UNIDADES K, con la escala QUE EL PACK DECLARA (owner 2026-08-30). Los
+ * formateadores de abajo nacieron asumiendo que el dato viene en miles — cierto en los tenants de fábrica y
+ * FALSO en un pack de planilla (moneda cruda): la pantalla mostraba ×1000. Se convierte EN LA ENTRADA y el
+ * formato queda intacto: con escala «K» declarada (el demo) esto es la identidad, byte a byte. */
+const enK = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1000;
+const fmtK = (n) => simboloMoneda() + Math.round(enK(n)) + "K";
 // formato $ para gráficos. El dato viene en $K → se muestra en $M (÷1000), como las tarjetas KPI
 // (100000→$100.0M · 92900→$92.9M · 6800→$6.8M · -600→−$0.6M). Misma fuente de verdad que el header.
-const fMon = (n) => { const s = (Number(n) || 0) < 0 ? "−" : "", v = Math.abs(Number(n) || 0) / 1000; return s + simboloMoneda() + v.toFixed(1) + "M"; };
+const fMon = (n) => { const s = (Number(n) || 0) < 0 ? "−" : "", v = Math.abs(enK(n)) / 1000; return s + simboloMoneda() + v.toFixed(1) + "M"; };
 const r1 = (n) => Math.round(n * 10) / 10;
 // % SIEMPRE con 1 decimal (owner: "que queden parejos en la visual") → redondea como r1 pero fuerza el cero final.
 // NO reemplaza a r1 (que también formatea 'x' de rotación, que no lleva decimal fijo). Devuelve string.
@@ -2984,7 +2990,7 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
       {num ? <span style={{ color: C.celeste, opacity: 0.85 }}>{num}</span> : null}{title}<InfoDot def={def} align="left"/>
     </div>
   );
-  const usdK = (vK) => { const v = vK * 1000, a = Math.abs(v), s = v < 0 ? "-" : ""; return a >= 1e6 ? `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M` : a >= 1e3 ? `${s}${simboloMoneda()}${Math.round(a / 1e3)}K` : `${s}${simboloMoneda()}${Math.round(a)}`; };
+  const usdK = (vK) => { const v = enK(vK) * 1000, a = Math.abs(v), s = v < 0 ? "-" : ""; return a >= 1e6 ? `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M` : a >= 1e3 ? `${s}${simboloMoneda()}${Math.round(a / 1e3)}K` : `${s}${simboloMoneda()}${Math.round(a)}`; };
   // ── EMPTY STATE · sin P&L declarado — honesto + la puerta al flujo guiado ──
   if (!mr.defined) {
     return (
@@ -4404,7 +4410,7 @@ function ControlRing({ ring, rd }) {
   // unidad de la plata: CLIENTE en $K (contribución en miles → fMon) · bodega/SKU/marca en $ raw (stockUSD/contribución
   // de skusMargen · magnitude-aware) → formateo distinto para no errar ×1000 (B4 · SKU y marca son raw $ como bodega).
   const money = ring.entityType === "client"
-    ? (v) => (Math.abs(v) >= 1000 ? fMon(v) : fmtK(v))
+    ? (v) => (Math.abs(enK(v)) >= 1000 ? fMon(v) : fmtK(v))
     : (v) => (Math.abs(v) >= 1e6 ? simboloMoneda() + (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1000 ? simboloMoneda() + (v / 1000).toFixed(1) + "K" : simboloMoneda() + Math.round(v));
   const roleTag = { focus:{ t:"Foco", c:C.celeste }, peer:{ t:"Par", c:C.textMuted }, avg:{ t:"Promedio", c:C.textMuted }, best:{ t:"Mejor", c:C.green } };
   const cellVal = (r, col) => {
@@ -4536,7 +4542,7 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
   const primary = cols.find((c) => c.key !== "accion") || cols[0];
   // si el overview trae una métrica que ES una columna (ej. "margen por cliente" → columna margen), abrimos ordenando por ahí.
   const [sortKey, setSortKey] = useState(initialSort && cols.some((c) => c.key === initialSort) ? initialSort : primary.key);
-  const money = (v) => simboloMoneda() + (v / 1000).toFixed(1) + "M";       // dato en $K → $M (columnas comerciales)
+  const money = (v) => simboloMoneda() + (enK(v) / 1000).toFixed(1) + "M";       // dato comercial (escala del pack) → $M (columnas comerciales)
   const moneyk = (v) => simboloMoneda() + (Math.abs(v) / 1000).toFixed(1) + "K";   // dato en $ → $K (inventario)
   const usd = (v) => { const a = Math.abs(v); return a >= 1e6 ? simboloMoneda() + (a / 1e6).toFixed(1) + "M" : a >= 1e3 ? simboloMoneda() + Math.round(a / 1e3) + "K" : simboloMoneda() + Math.round(a); };   // $ crudo del detector (En juego $)
   const fmt = (col, v) => {
@@ -5030,7 +5036,7 @@ function StationCompareFilm({ cmp }) {
   const x = (i) => padL + i * (W - padL - padR) / Math.max(1, n - 1);
   const y = (v) => padT + (1 - (v - lo) / rng) * (H - padT - padB);
   const dOf = (s) => s.map((v, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(v)}`).join(" ");
-  const fmV = (v) => Math.abs(v) >= 1000 ? simboloMoneda() + (v / 1000).toFixed(1) + "M" : simboloMoneda() + Math.round(v) + "K";
+  const fmV = (v) => { const k = enK(v); return Math.abs(k) >= 1000 ? simboloMoneda() + (k / 1000).toFixed(1) + "M" : simboloMoneda() + Math.round(k) + "K"; };
   const tipW = 128, tipH = 38;
   const tipX = hov == null ? 0 : Math.max(padL, Math.min(W - padR - tipW, x(hov) - tipW / 2));
   const tipY = hov == null ? 0 : (Math.min(y(A.serie[hov]), y(B.serie[hov])) < tipH + 16 ? H - padB - tipH - 2 : padT - 4);
@@ -5119,7 +5125,7 @@ function StationPeriodo({ a, b }) {
   const y = (v) => padT + (1 - (v - lo) / rng) * (H - padT - padB);
   const d = serie.map((v, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(v)}`).join(" ");
   const iMax = serie.indexOf(hi), iMin = serie.indexOf(lo);
-  const fmV = (v) => simboloMoneda() + (v / 1000).toFixed(1) + "M";
+  const fmV = (v) => simboloMoneda() + (enK(v) / 1000).toFixed(1) + "M";
   // lectura del período: mayor alza / mayor caída CON SUS MESES, derivada de la serie MOSTRADA (12 o 24) — cierra con la curva
   let gDrop = { delta: 0, i: 0 }, gRise = { delta: 0, i: 0 };
   for (let i = 1; i < serie.length; i++) {
@@ -5225,7 +5231,7 @@ const _PARETO_NEG_Q = {
 const _btnADI = (onClick, label) => (
   <button onClick={onClick} style={{ background:"transparent", border:"none", color:C.celeste, fontSize:14, fontWeight:600, cursor:"pointer", padding:0, fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>{label}</button>
 );
-const _fmDin = (v) => (Math.abs(v) >= 1000 ? simboloMoneda() + (v / 1000).toFixed(1) + "M" : simboloMoneda() + Math.round(v) + "K");
+const _fmDin = (v) => { const k = enK(v); return Math.abs(k) >= 1000 ? simboloMoneda() + (k / 1000).toFixed(1) + "M" : simboloMoneda() + Math.round(k) + "K"; };
 
 function MesaPareto({ dim, scenario, sel = null, onAsk = null }) {
   const [met, setMet] = useState("ventas");

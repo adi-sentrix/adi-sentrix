@@ -27,6 +27,8 @@
 import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { flujoComercial } from "../../data/demoData.js";
 import { simboloMoneda } from "../../config/moneda.js";
+import { getTenantData } from "../../data/tenantStore.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";   // la escala la DECLARA el pack (2026-08-30)
 import { politicaDelNegocio, plazoDe, hayPlazo, alcanceDeLaPolitica, frasePolitica } from "../../config/politicaCobro.js";
 
 const _r1 = (v) => Math.round(v * 10) / 10;
@@ -43,7 +45,7 @@ const _money = (v) => {
   return `${s}${sim}${Math.round(a)}`;
 };
 /* el dataset trabaja en miles ($K), igual que venta/contribución del resto de la Mesa */
-const _mK = (vK) => _money(vK * 1000);
+const _mK = (v) => _money(v * factorComercialDe(getTenantData()));   // montoK del cobro: en la escala declarada del pack
 const _pct = (parte, todo) => (todo > 0 ? _r1((parte / todo) * 100) : 0);
 
 const _DIA = 86400000;

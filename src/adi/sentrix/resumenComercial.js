@@ -39,6 +39,11 @@ import { applyScenarioToSfamiliasMargen, applyScenarioToClientesVentas } from ".
 import { getTenantData } from "../../data/tenantStore.js";   // multiempresa: la variación y el canal salen del tenant activo, nunca del dataset demo
 import { buildGlobalEvolutionAnclada } from "./temporal.js";   // el año mes a mes (3 series REALES) YA ancladas a la venta oficial — una sola implementación, compartida con trend/composeSpecTemporal
 import { simboloMoneda, etiquetaSinDeclarar } from "../../config/moneda.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";   // la escala la DECLARA el pack (2026-08-30)
+
+/* dato comercial almacenado → $ crudos: el ×1000 fijo inflaba mil veces los packs de planilla (moneda cruda).
+ * Sin declarar cae a «K», así que el demo produce EXACTAMENTE las mismas cifras de siempre. */
+const _fxc = () => factorComercialDe(getTenantData());
 import { marcoDeVentas, esMarcoDeAnio } from "../../config/marcoPeriodo.js";
 
 const _M = (raw) => (typeof raw === "number" ? `${simboloMoneda()}${(raw / 1e6).toFixed(1)}M` : "—");
@@ -171,15 +176,15 @@ export function buildPareto(plano, metrica = "ventas", { maxEntidades = 10 } = {
 
   const barras = [];
   const individuales = cabeza.slice(0, maxEntidades);
-  for (const x of individuales) barras.push({ tipo: "entidad", nombre: x.nombre, valor: x.valor, fmt: _M(x.valor * 1000), acumuladoPct: x.acumuladoPct });
+  for (const x of individuales) barras.push({ tipo: "entidad", nombre: x.nombre, valor: x.valor, fmt: _M(x.valor * _fxc()), acumuladoPct: x.acumuladoPct });
   const restoCabeza = cabeza.slice(maxEntidades);
   if (restoCabeza.length) {
     const v = restoCabeza.reduce((s, x) => s + x.valor, 0);
-    barras.push({ tipo: "resto-cabeza", nombre: `Resto de la cabeza (${restoCabeza.length})`, valor: v, fmt: _M(v * 1000), acumuladoPct: restoCabeza[restoCabeza.length - 1].acumuladoPct, n: restoCabeza.length });
+    barras.push({ tipo: "resto-cabeza", nombre: `Resto de la cabeza (${restoCabeza.length})`, valor: v, fmt: _M(v * _fxc()), acumuladoPct: restoCabeza[restoCabeza.length - 1].acumuladoPct, n: restoCabeza.length });
   }
   if (cola.length) {
     const v = cola.reduce((s, x) => s + x.valor, 0);
-    barras.push({ tipo: "cola", nombre: `Cola (${cola.length})`, valor: v, fmt: _M(v * 1000), acumuladoPct: 100, n: cola.length });
+    barras.push({ tipo: "cola", nombre: `Cola (${cola.length})`, valor: v, fmt: _M(v * _fxc()), acumuladoPct: 100, n: cola.length });
   }
   return {
     metrica, barras, total,
@@ -197,7 +202,7 @@ export function buildPareto(plano, metrica = "ventas", { maxEntidades = 10 } = {
 function _puente(rows, plano, tension) {
   const brechaTotal = rows.reduce((s, r) => s + (r.enJuego || 0), 0);
   const conExceso = rows.filter((r) => typeof r.carga === "number" && r.carga > POLICY.targetCarga);
-  const probado = conExceso.reduce((s, r) => s + ((r.carga - POLICY.targetCarga) / 100) * (r.ventas || 0) * 1000, 0);
+  const probado = conExceso.reduce((s, r) => s + ((r.carga - POLICY.targetCarga) / 100) * (r.ventas || 0) * _fxc(), 0);
   const abierto = Math.max(0, brechaTotal - probado);
   return {
     brechaTotal, brechaTotalFmt: _M(brechaTotal),
@@ -239,13 +244,13 @@ function _insights(plano, rows) {
     .map((r) => {
       const excesoPP = typeof r.carga === "number" ? r.carga - POLICY.targetCarga : null;
       const tieneAccion = typeof excesoPP === "number" && excesoPP > 0;
-      const probado = tieneAccion ? (excesoPP / 100) * (r.ventas || 0) * 1000 : 0;
+      const probado = tieneAccion ? (excesoPP / 100) * (r.ventas || 0) * _fxc() : 0;
       const material = typeof r.varaGap === "number" && r.varaGap <= -POLICY.margenBrechaMaterial;
       return {
         entidad: r.name,
         posVenta: porVenta.indexOf(r.name) + 1,
         posMargen: porMargen.indexOf(r.name) + 1,
-        ventaFmt: _M((r.ventas || 0) * 1000),
+        ventaFmt: _M((r.ventas || 0) * _fxc()),
         margenFmt: _pct(r.margen),
         varaFmt: _pct(r.varaRef),
         brechaFmt: _pp(r.varaGap),
@@ -342,9 +347,9 @@ function _evolutivo(oficial) {
   return {
     meses: ev.meses,
     series: [
-      { key: "actual", label: "Este año", valores: actual, total: tAct, totalFmt: _M(tAct * 1000), estatus: "probado", anclada: !!(oficial && oficial.actual),
+      { key: "actual", label: "Este año", valores: actual, total: tAct, totalFmt: _M(tAct * _fxc()), estatus: "probado", anclada: !!(oficial && oficial.actual),
         nota: "Venta real del período, anclada al total oficial por cliente." },
-      { key: "anterior", label: "Año anterior", valores: anterior, total: tAnt, totalFmt: _M(tAnt * 1000), estatus: "probado", anclada: !!(oficial && oficial.anterior),
+      { key: "anterior", label: "Año anterior", valores: anterior, total: tAnt, totalFmt: _M(tAnt * _fxc()), estatus: "probado", anclada: !!(oficial && oficial.anterior),
         nota: "Venta del año anterior, anclada al mismo total oficial." },
       /* ⚠️ UN CERO NO ES «NO HAY» (owner 2026-08-29). El presupuesto quedó FUERA de la plantilla v1 por
        * decisión suya, así que para cualquier archivo cargado no existe nunca — y `suma([])` da 0, que se
@@ -354,24 +359,24 @@ function _evolutivo(oficial) {
        * `total: null` y `valores: []` acompañan al texto a propósito: si el número siguiera ahí, cualquier
        * consumidor que no mire `declarado` volvería a pintar el cero por su cuenta. */
       hayPresupuesto
-        ? { key: "presupuesto", label: "Presupuesto", valores: presupuesto, total: tPpto, totalFmt: _M(tPpto * 1000), estatus: "indicado", anclada: false, declarado: true,
+        ? { key: "presupuesto", label: "Presupuesto", valores: presupuesto, total: tPpto, totalFmt: _M(tPpto * _fxc()), estatus: "indicado", anclada: false, declarado: true,
             nota: "El plan que declaraste. No se ancla: no existe presupuesto por cliente contra el cual conciliarlo." }
         : { key: "presupuesto", label: "Presupuesto", valores: [], total: null, totalFmt: etiquetaSinDeclarar("presupuesto"), estatus: "abierto", anclada: false, declarado: false,
             nota: "Tu archivo no declara presupuesto, así que no hay plan contra el cual comparar. No se muestra como cero: cero sería decir que tu plan era no vender." },
     ],
-    totalActual: tAct, totalActualFmt: _M(tAct * 1000),
+    totalActual: tAct, totalActualFmt: _M(tAct * _fxc()),
     vsAnteriorPct: vsAnt, vsAnteriorFmt: typeof vsAnt === "number" ? _sig(vsAnt) : "—",
     vsPresupuestoPct: vsPpto, vsPresupuestoFmt: typeof vsPpto === "number" ? _sig(vsPpto) : "—",
-    maxMes: ev.meses[iMax], maxFmt: _M(actual[iMax] * 1000),
-    minMes: ev.meses[iMin], minFmt: _M(actual[iMin] * 1000),
-    caida: caida && caida.delta < 0 ? { ...caida, fmt: _K(Math.abs(caida.delta) * 1000) } : null,
+    maxMes: ev.meses[iMax], maxFmt: _M(actual[iMax] * _fxc()),
+    minMes: ev.meses[iMin], minFmt: _M(actual[iMin] * _fxc()),
+    caida: caida && caida.delta < 0 ? { ...caida, fmt: _K(Math.abs(caida.delta) * _fxc()) } : null,
     cumplimientoPct: tPpto ? +((tAct / tPpto) * 100).toFixed(1) : null,
     cumplimientoFmt: tPpto ? _pct((tAct / tPpto) * 100) : "—",
     // LECTURA EJECUTIVA · una sola: cierre del período, variación interanual, cumplimiento presupuestario y los
     // meses que importan. Describe el movimiento con cifras autorizadas; no dice POR QUÉ — eso es el bloque 02.
     // El cierre del año, la variación y el cumplimiento ya están en el KPI y en la leyenda de las tres series.
     // Acá queda SOLO lo que el gráfico agrega: los meses que importan.
-    lectura: `Mes más alto ${ev.meses[iMax]} (${_M(actual[iMax] * 1000)}), más bajo ${ev.meses[iMin]} (${_M(actual[iMin] * 1000)})${caida && caida.delta < 0 ? `. La mayor caída fue de ${caida.desde} a ${caida.mes} (${_K(Math.abs(caida.delta) * 1000)})` : ""}.`,
+    lectura: `Mes más alto ${ev.meses[iMax]} (${_M(actual[iMax] * _fxc())}), más bajo ${ev.meses[iMin]} (${_M(actual[iMin] * _fxc())})${caida && caida.delta < 0 ? `. La mayor caída fue de ${caida.desde} a ${caida.mes} (${_K(Math.abs(caida.delta) * _fxc())})` : ""}.`,
     nota: `El presupuesto es tu plan declarado; las otras dos series cierran con el KPI de arriba.`,
   };
 }
@@ -413,7 +418,7 @@ function _cartera(scenario, rows, total) {
     const dir = pct >= 0.05 ? "sube" : pct <= -0.05 ? "baja" : "plano";
     return {
       hay: true, base, monto, pct,
-      montoFmt: `${monto >= 0 ? "+" : "−"}${_K(Math.abs(monto) * 1000)}`,
+      montoFmt: `${monto >= 0 ? "+" : "−"}${_K(Math.abs(monto) * _fxc())}`,
       pctFmt: `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`,
       dir, tono: dir === "sube" ? "ok" : dir === "baja" ? "alerta" : "neutro",
     };
@@ -425,9 +430,9 @@ function _cartera(scenario, rows, total) {
     const margen = venta ? +((contribucion / venta) * 100).toFixed(1) : null;
     return {
       nombre: r.name,
-      venta, ventaFmt: _M(venta * 1000),
+      venta, ventaFmt: _M(venta * _fxc()),
       pesoPct: tV ? +((venta / tV) * 100).toFixed(1) : 0, pesoFmt: _pct(tV ? (venta / tV) * 100 : 0),
-      contribucion, contribucionFmt: _K(contribucion * 1000),
+      contribucion, contribucionFmt: _K(contribucion * _fxc()),
       margen, margenFmt: _pct(margen),
       vsAnterior: gap(venta, c ? c.anterior : null),
       vsPresupuesto: gap(venta, c ? c.presupuesto : null),
@@ -440,8 +445,8 @@ function _cartera(scenario, rows, total) {
   const sAnt = filas.reduce((s, f) => s + (f.vsAnterior.hay ? f.vsAnterior.base : 0), 0);
   const sPpto = filas.reduce((s, f) => s + (f.vsPresupuesto.hay ? f.vsPresupuesto.base : 0), 0);
   const totalFila = {
-    nombre: "Total cartera", venta: tV, ventaFmt: _M(tV * 1000), pesoFmt: "100.0%",
-    contribucionFmt: _K(tC * 1000), margenFmt: _pct(tV ? (tC / tV) * 100 : null),
+    nombre: "Total cartera", venta: tV, ventaFmt: _M(tV * _fxc()), pesoFmt: "100.0%",
+    contribucionFmt: _K(tC * _fxc()), margenFmt: _pct(tV ? (tC / tV) * 100 : null),
     vsAnterior: gap(tV, sAnt || null), vsPresupuesto: gap(tV, sPpto || null),
   };
 
@@ -474,8 +479,8 @@ function _cartera(scenario, rows, total) {
      * frase que le atribuye al usuario un plan de no vender. La nota se parte según lo que el dato sostiene,
      * en vez de completar el hueco con un cero. */
     nota: sPpto > 0
-      ? `Venta oficial por cliente (${_M(tV * 1000)}). El año anterior es dato cerrado (${_M(sAnt * 1000)}); el presupuesto, el plan que declaraste (${_M(sPpto * 1000)}). Verde arriba de la referencia, rojo abajo.`
-      : `Venta oficial por cliente (${_M(tV * 1000)}). El año anterior es dato cerrado (${_M(sAnt * 1000)}); ${etiquetaSinDeclarar("presupuesto")}, así que esa columna no compara contra nada. Verde arriba de la referencia, rojo abajo.`,
+      ? `Venta oficial por cliente (${_M(tV * _fxc())}). El año anterior es dato cerrado (${_M(sAnt * _fxc())}); el presupuesto, el plan que declaraste (${_M(sPpto * _fxc())}). Verde arriba de la referencia, rojo abajo.`
+      : `Venta oficial por cliente (${_M(tV * _fxc())}). El año anterior es dato cerrado (${_M(sAnt * _fxc())}); ${etiquetaSinDeclarar("presupuesto")}, así que esa columna no compara contra nada. Verde arriba de la referencia, rojo abajo.`,
     // EN PANTALLA ANGOSTA no caben las siete: siete columnas en 360px obligan a scrollear en horizontal y las dos
     // que dan sentido al bloque —los gaps— quedan fuera del primer vistazo. Se apartan participación y
     // contribución, que son las dos que menos aportan a "cómo viene el negocio", y la vista lo DECLARA en vez de
@@ -515,7 +520,7 @@ function _sostiene(scenario, rows, total) {
     const carga = typeof acciones === "number" && venta ? +((acciones / venta) * 100).toFixed(1) : null;
     return {
       nombre, venta, contribucion,
-      ventaFmt: _M(venta * 1000), contribucionFmt: _K(contribucion * 1000),
+      ventaFmt: _M(venta * _fxc()), contribucionFmt: _K(contribucion * _fxc()),
       margen, margenFmt: _pct(margen), vara, varaFmt: _pct(vara),
       brecha, brechaFmt: typeof brecha === "number" ? `${brecha >= 0 ? "+" : "−"}${Math.abs(brecha).toFixed(1)} pp` : "—",
       bajoBenchmark: typeof brecha === "number" && brecha < 0,
@@ -563,12 +568,12 @@ function _sostiene(scenario, rows, total) {
       key, label, filas, n: filas.length,
       grupoN: grupo.length, grupoPct: conc.totalCubiertoPct, grupoPctFmt: _pct(conc.totalCubiertoPct),
       colaN: filas.length - grupo.length,
-      totalVenta: v, totalVentaFmt: _M(v * 1000), totalContribFmt: _K(c * 1000), reconcilia, lectura,
+      totalVenta: v, totalVentaFmt: _M(v * _fxc()), totalContribFmt: _K(c * _fxc()), reconcilia, lectura,
       // El que CIERRA no necesita explicarse: el chip verde ya lo dice. El que NO cierra sí, pero con la
       // diferencia y nada más — el porqué de no reescalar los márgenes es nuestro, no del usuario.
       notaFuente: reconcilia
-        ? `Cierra exacto con la venta oficial del negocio (${_M(tV * 1000)}).`
-        : `Otro corte del mismo negocio: ${_M(v * 1000)} contra ${_M(tV * 1000)} de la venta oficial (${_pct(dv * 100)} de diferencia). Los márgenes son los del dato, sin reescalar.`,
+        ? `Cierra exacto con la venta oficial del negocio (${_M(tV * _fxc())}).`
+        : `Otro corte del mismo negocio: ${_M(v * _fxc())} contra ${_M(tV * _fxc())} de la venta oficial (${_pct(dv * 100)} de diferencia). Los márgenes son los del dato, sin reescalar.`,
     };
   };
 
@@ -657,7 +662,7 @@ function _deterioro(scenario, rows, plano, tension, puente) {
   const bajoPpto = cv.filter((c) => _falta(c.actual, c.presupuesto) > 0)
     .map((c) => ({
       nombre: c.nombre, actual: c.actual, referencia: c.presupuesto, falta: c.presupuesto - c.actual,
-      actualFmt: _M(c.actual * 1000), referenciaFmt: _M(c.presupuesto * 1000), faltaFmt: _K((c.presupuesto - c.actual) * 1000),
+      actualFmt: _M(c.actual * _fxc()), referenciaFmt: _M(c.presupuesto * _fxc()), faltaFmt: _K((c.presupuesto - c.actual) * _fxc()),
       cumplimientoFmt: _pct((c.actual / c.presupuesto) * 100),
       material: porNombre.get(c.nombre) && porNombre.get(c.nombre).varaGap <= -POLICY.margenBrechaMaterial,
     })).sort((a, b) => b.falta - a.falta);
@@ -669,13 +674,13 @@ function _deterioro(scenario, rows, plano, tension, puente) {
     const pAnt = ant / undAnt, pAct = act / und;
     const volumen = (und - undAnt) * pAnt, precio = (pAct - pAnt) * und;
     return { volumen, precio, cierra: Math.abs(volumen + precio - (act - ant)) < 1,
-      volumenFmt: _K(volumen * 1000), precioFmt: _K(precio * 1000),
+      volumenFmt: _K(volumen * _fxc()), precioFmt: _K(precio * _fxc()),
       dominante: Math.abs(volumen) >= Math.abs(precio) ? "volumen" : "precio" };
   };
   const bajoAnt = cv.filter((c) => _falta(c.actual, c.anterior) > 0)
     .map((c) => ({
       nombre: c.nombre, actual: c.actual, referencia: c.anterior, falta: c.anterior - c.actual,
-      actualFmt: _M(c.actual * 1000), referenciaFmt: _M(c.anterior * 1000), faltaFmt: _K((c.anterior - c.actual) * 1000),
+      actualFmt: _M(c.actual * _fxc()), referenciaFmt: _M(c.anterior * _fxc()), faltaFmt: _K((c.anterior - c.actual) * _fxc()),
       cumplimientoFmt: _pct((c.actual / c.anterior) * 100),
       pv: _pv(c.actual, c.unidades, c.anterior, c.unidadesAnt),
       material: porNombre.get(c.nombre) && porNombre.get(c.nombre).varaGap <= -POLICY.margenBrechaMaterial,
@@ -685,7 +690,7 @@ function _deterioro(scenario, rows, plano, tension, puente) {
   const _insightVenta = (lista, total, refLabel, conPV) => {
     if (!lista.length) return `Ninguna cuenta quedó por debajo ${refLabel}: la venta no se frena contra esa referencia.`;
     const top = lista.slice(0, 2);
-    const base = `La venta se frena en ${top.map((x) => x.nombre).join(" y ")}${lista.length > top.length ? ` (y ${lista.length - top.length} más)` : ""}: ${_K(total * 1000)} por debajo ${refLabel}.`;
+    const base = `La venta se frena en ${top.map((x) => x.nombre).join(" y ")}${lista.length > top.length ? ` (y ${lista.length - top.length} más)` : ""}: ${_K(total * _fxc())} por debajo ${refLabel}.`;
     if (!conPV) return `${base} Contra esa referencia no se puede separar precio de volumen — el presupuesto declara monto, no unidades.`;
     const conDatos = lista.filter((x) => x.pv);
     if (!conDatos.length) return `${base} No hay unidades declaradas para separar precio de volumen.`;
@@ -718,8 +723,8 @@ function _deterioro(scenario, rows, plano, tension, puente) {
         .map((r) => ({
           nombre: r.name, carga: r.carga, cargaFmt: _pct(r.carga),
           exceso: +(r.carga - ref).toFixed(2), excesoFmt: `${(r.carga - ref).toFixed(2)} pp`,
-          ventaFmt: _M((r.ventas || 0) * 1000),
-          recuperable: ((r.carga - ref) / 100) * (r.ventas || 0) * 1000,
+          ventaFmt: _M((r.ventas || 0) * _fxc()),
+          recuperable: ((r.carga - ref) / 100) * (r.ventas || 0) * _fxc(),
         }))
         .map((x) => ({ ...x, recuperableFmt: _K(x.recuperable) }))
         .sort((a, b) => b.recuperable - a.recuperable);
@@ -736,29 +741,29 @@ function _deterioro(scenario, rows, plano, tension, puente) {
       .map((r) => ({
         nombre: r.name, carga: r.carga, cargaFmt: _pct(r.carga),
         holgura: +(promedio - r.carga).toFixed(2), holguraFmt: `${(promedio - r.carga).toFixed(2)} pp`,
-        ventaFmt: _M((r.ventas || 0) * 1000), margenFmt: _pct(r.margen),
+        ventaFmt: _M((r.ventas || 0) * _fxc()), margenFmt: _pct(r.margen),
       })).sort((a, b) => b.holgura - a.holgura);
     const ventaBajo = rows.filter((r) => typeof r.carga === "number" && r.carga < promedio).reduce((s, r) => s + (r.ventas || 0), 0);
     const bajo = {
-      filas: bajoFilas, n: bajoFilas.length, ventaFmt: _M(ventaBajo * 1000),
+      filas: bajoFilas, n: bajoFilas.length, ventaFmt: _M(ventaBajo * _fxc()),
       menorFmt: bajoFilas.length ? bajoFilas[0].cargaFmt : "—", menorNombre: bajoFilas.length ? bajoFilas[0].nombre : null,
       // NO son capital a capturar y eso no se negocia por brevedad — pero se dice en una línea, no en cuatro.
       // «plata» está vetada en superficie (CLAUDE.md §4) y esta línea se pinta en la pestaña Comercial vigente.
       lectura: bajoFilas.length
-        ? `${bajoFilas.length} ${bajoFilas.length === 1 ? "cuenta entrega" : "cuentas entregan"} menos que el promedio y suman ${_M(ventaBajo * 1000)}. No son capital a capturar —llevarlos al promedio sería entregarles más—: son la prueba de que se puede vender entregando menos.`
+        ? `${bajoFilas.length} ${bajoFilas.length === 1 ? "cuenta entrega" : "cuentas entregan"} menos que el promedio y suman ${_M(ventaBajo * _fxc())}. No son capital a capturar —llevarlos al promedio sería entregarles más—: son la prueba de que se puede vender entregando menos.`
         : `No hay clientes por debajo del promedio: todos entregan lo mismo o más.`,
       estatus: "abierto",
     };
     return {
       bajo,
       promedio, promedioFmt: _pct(promedio, 2), meta, metaFmt: _pct(meta),
-      totalFmt: _M(tA * 1000), sobreVentaFmt: _pct(promedio),
+      totalFmt: _M(tA * _fxc()), sobreVentaFmt: _pct(promedio),
       referencias: [
         { key: "promedio", label: "al promedio de tu cartera", refFmt: _pct(promedio, 2), ...alPromedio,
           // «la referencia realista», no «la vara»: la palabra está vetada en superficie desde el sello ejecutivo
           // y esta nota se pinta en la cara Comercial. El concepto no cambia (sigue siendo una referencia, no un
           // objetivo): cambia la palabra que el usuario lee.
-          nota: `El promedio ponderado de tu cartera: ${_K(tA * 1000)} de acciones comerciales sobre ${_M(tV * 1000)} de venta. Es la referencia realista — pregunta qué pasa si los que entregan de más se parecen al resto de tu propia cartera, no a un ideal.` },
+          nota: `El promedio ponderado de tu cartera: ${_K(tA * _fxc())} de acciones comerciales sobre ${_M(tV * _fxc())} de venta. Es la referencia realista — pregunta qué pasa si los que entregan de más se parecen al resto de tu propia cartera, no a un ideal.` },
         { key: "meta", label: `a tu meta de ${_pct(meta)}`, refFmt: _pct(meta), ...aLaMeta,
           nota: `Tu meta declarada. Es más ambiciosa que el promedio, así que el monto es mayor — y por eso las dos se muestran juntas: una dice qué es alcanzable comparándote contigo mismo, la otra qué te propusiste.` },   // «contigo», no «con vos»: registro formal LatAm sin voseo
       ],
@@ -779,7 +784,7 @@ function _deterioro(scenario, rows, plano, tension, puente) {
       const dPrecioPct = +(((z.ticket / a.ticket) - 1) * 100).toFixed(1);
       const mUniA = a.ticket - a.costoMedio, mUniZ = z.ticket - z.costoMedio;
       const efectoUni = +(mUniZ - mUniA).toFixed(2);
-      const efecto = efectoUni * (r.unidades || 0) * 1000;   // el dato de venta viene en $K
+      const efecto = efectoUni * (r.unidades || 0) * _fxc();   // el dato de venta viene en $K
       return {
         nombre: r.name, desde: a.mes, hasta: z.mes,
         costoA: a.costoMedio, costoZ: z.costoMedio, dCostoPct, dCostoFmt: `${dCostoPct >= 0 ? "+" : ""}${dCostoPct.toFixed(1)}%`,
@@ -858,7 +863,7 @@ function _deterioro(scenario, rows, plano, tension, puente) {
           : `Vende ${dTicket >= 0 ? `${dTicket}% más caro` : `${Math.abs(dTicket)}% más barato`} y compra ${dCostoUni >= 0 ? `${dCostoUni}% más caro` : `${Math.abs(dCostoUni)}% más barato`}.`;
         return {
           nombre: r.name,
-          ventaFmt: _M((r.ventas || 0) * 1000), participacionFmt: _pct(((r.ventas || 0) / tV) * 100),
+          ventaFmt: _M((r.ventas || 0) * _fxc()), participacionFmt: _pct(((r.ventas || 0) / tV) * 100),
           margen: r.margen, margenFmt: _pct(r.margen), brecha, brechaFmt: _sig(brecha, "pp"),
           carga, cargaFmt: _pct(carga),
           efCarga, efCargaFmt: _sig(efCarga, "pp"), efCosto, efCostoFmt: _sig(efCosto, "pp"), dominante,
@@ -894,7 +899,7 @@ function _deterioro(scenario, rows, plano, tension, puente) {
   const margenFilas = rows.filter((r) => typeof r.varaGap === "number" && r.varaGap <= -POLICY.margenBrechaMaterial)
     .map((r) => {
       const exceso = typeof r.carga === "number" ? r.carga - POLICY.targetCarga : null;
-      const probado = exceso > 0 ? (exceso / 100) * (r.ventas || 0) * 1000 : 0;
+      const probado = exceso > 0 ? (exceso / 100) * (r.ventas || 0) * _fxc() : 0;
       return {
         nombre: r.name, margenFmt: _pct(r.margen), varaFmt: _pct(r.varaRef), brechaFmt: _pp(r.varaGap),
         enJuego: r.enJuego || 0, enJuegoFmt: _M(r.enJuego || 0),
@@ -915,11 +920,11 @@ function _deterioro(scenario, rows, plano, tension, puente) {
       porDefecto: bajoPpto.length ? "presupuesto" : "anterior",
       referencias: [
         { key: "presupuesto", label: "vs presupuesto", refLabel: "de tu presupuesto", filas: bajoPpto, n: bajoPpto.length,
-          faltaTotal: totalFaltaPpto, faltaTotalFmt: _K(totalFaltaPpto * 1000), descomponible: false,
+          faltaTotal: totalFaltaPpto, faltaTotalFmt: _K(totalFaltaPpto * _fxc()), descomponible: false,
           insight: _insightVenta(bajoPpto, totalFaltaPpto, "de tu presupuesto", false),
           nota: "El presupuesto está declarado por CLIENTE y suma exacto el total del período. No existe por familia ni por marca, así que este corte es de clientes; y como declara monto y no unidades, contra él no se puede separar precio de volumen." },
         { key: "anterior", label: "vs año anterior", refLabel: "del año anterior", filas: bajoAnt, n: bajoAnt.length,
-          faltaTotal: totalFaltaAnt, faltaTotalFmt: _K(totalFaltaAnt * 1000), descomponible: true,
+          faltaTotal: totalFaltaAnt, faltaTotalFmt: _K(totalFaltaAnt * _fxc()), descomponible: true,
           insight: _insightVenta(bajoAnt, totalFaltaAnt, "del año anterior", true),
           nota: "El período comparable trae venta Y unidades, así que acá sí se separa cuánto del retroceso es volumen y cuánto es precio. La descomposición cierra exacta: volumen + precio = la diferencia. Es aritmética, no una causa." },
       ],
@@ -992,13 +997,13 @@ function _prioridades(rows, deterioro, insights) {
     const v = bajoVenta.get(r.name), m = bajoMargen.get(r.name), i = porInsight.get(r.name);
     out[idx[k]].filas.push({
       entidad: r.name,
-      ventaFmt: _M((r.ventas || 0) * 1000),
+      ventaFmt: _M((r.ventas || 0) * _fxc()),
       faltaVentaFmt: v ? v.faltaFmt : null,
       enJuegoFmt: m ? m.enJuegoFmt : null,
       probadoFmt: m && m.probadoFmt ? m.probadoFmt : null,
       brechaFmt: m ? m.brechaFmt : null,
       estatus: m ? m.estatus : "abierto",
-      impacto: (m ? m.enJuego : 0) + (v ? v.falta * 1000 : 0),
+      impacto: (m ? m.enJuego : 0) + (v ? v.falta * _fxc() : 0),
       /* ⚠️ LA ACCIÓN SE ARMA CON LA MISMA REFERENCIA QUE LA CIFRA DE LA FILA, y por eso NO se hereda del insight
        * cuando la cuenta entrega de más: el insight mide contra la meta y la fila contra el promedio de la
        * cartera, así que una misma cuenta salía diciendo "entrega 1.0 pp de más" al lado de un "+0.42 pp". Dos
@@ -1113,13 +1118,13 @@ function _formacion(total) {
     identidad: "Venta − Costo conciliado − Acciones comerciales = Contribución",
     cierra: Math.abs(venta - costo - acciones - contrib) < 0.5,
     lineas: [
-      { key: "venta", signo: "", label: "Venta", montoFmt: _M(venta * 1000), pctFmt: p(venta), estatus: "probado",
+      { key: "venta", signo: "", label: "Venta", montoFmt: _M(venta * _fxc()), pctFmt: p(venta), estatus: "probado",
         nota: "Dato directo: la venta oficial por cliente del período, la misma de todos los bloques de arriba." },
-      { key: "costo", signo: "−", label: "Costo conciliado", montoFmt: _M(costo * 1000), pctFmt: p(costo), estatus: "indicado",
+      { key: "costo", signo: "−", label: "Costo conciliado", montoFmt: _M(costo * _fxc()), pctFmt: p(costo), estatus: "indicado",
         nota: "No está medido: se obtiene por diferencia entre la venta, las acciones comerciales y la contribución. Por eso el costo nunca se afirma como causa de la brecha — hay que ir a aislarlo." },
-      { key: "acciones", signo: "−", label: "Acciones comerciales", montoFmt: _M(acciones * 1000), pctFmt: p(acciones), estatus: "probado",
+      { key: "acciones", signo: "−", label: "Acciones comerciales", montoFmt: _M(acciones * _fxc()), pctFmt: p(acciones), estatus: "probado",
         nota: `Medido cuenta por cuenta: rebates y descuentos. Tu meta es ${_pct(POLICY.targetCarga)} de la venta.` },
-      { key: "contribucion", signo: "=", label: "Contribución", montoFmt: _M(contrib * 1000), pctFmt: p(contrib), estatus: "probado",
+      { key: "contribucion", signo: "=", label: "Contribución", montoFmt: _M(contrib * _fxc()), pctFmt: p(contrib), estatus: "probado",
         nota: "Lo que queda después del costo y de las acciones comerciales. Es el margen del negocio." },
     ],
     lectura: `De cada ${_pct(100)} que vendes, ${p(costo)} se va en costo, ${p(acciones)} en acciones comerciales y ${p(contrib)} queda como contribución.`,
@@ -1169,14 +1174,14 @@ export function buildResumenComercial(scenario = "actual", { maxEntidades = 10 }
       /* El rótulo del KPI decía «año cerrado» escrito a mano: cierto con doce meses, falso con dos. Y el pie
        * decía «vs año anterior» por lo mismo — con una planilla de dos meses la comparación es contra el
        * período anterior, no contra un año. Los dos salen ahora del dato. */
-      { key: "ventas", label: `Ventas · ${marcoDeVentas()}`, valor: _M((total.ventas || 0) * 1000),
+      { key: "ventas", label: `Ventas · ${marcoDeVentas()}`, valor: _M((total.ventas || 0) * _fxc()),
         pie: typeof variacionPct === "number"
           ? `${variacionPct >= 0 ? "+" : ""}${variacionPct.toFixed(1)}% vs ${esMarcoDeAnio(marcoDeVentas()) ? "año anterior" : "período anterior"}`
           : "variación no autorizada en este período",
         tono: typeof variacionPct === "number" && variacionPct >= 0 ? "ok" : "neutro" },
-      { key: "contribucion", label: "Contribución", valor: _M((total.contribucion || 0) * 1000), pie: typeof total.margen === "number" ? `${_pct(total.margen)} de la venta` : "—", tono: "neutro" },
+      { key: "contribucion", label: "Contribución", valor: _M((total.contribucion || 0) * _fxc()), pie: typeof total.margen === "number" ? `${_pct(total.margen)} de la venta` : "—", tono: "neutro" },
       { key: "margen", label: "Margen promedio", valor: _pct(total.margen), pie: typeof total._vara === "number" ? `${_pp(total._vara - total.margen)} bajo tu benchmark` : "sin referencia declarada", tono: typeof total._vara === "number" && total.margen < total._vara ? "alerta" : "ok" },
-      { key: "acciones", label: "Acciones comerciales", valor: _M((total.acciones || 0) * 1000), pie: `${puente.probadoFmt} sobre tu meta de ${_pct(POLICY.targetCarga)}`, tono: puente.probado > 0 ? "aviso" : "ok" },
+      { key: "acciones", label: "Acciones comerciales", valor: _M((total.acciones || 0) * _fxc()), pie: `${puente.probadoFmt} sobre tu meta de ${_pct(POLICY.targetCarga)}`, tono: puente.probado > 0 ? "aviso" : "ok" },
     ],
   };
 }

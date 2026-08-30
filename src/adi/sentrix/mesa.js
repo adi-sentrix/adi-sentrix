@@ -20,7 +20,9 @@ import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
 import { buildEntityEvolution } from "./temporal.js";
 import { concentracion } from "../diagnosis/economicDiagnosis.js";
 import { buildCuadroMando } from "./cuadro.js";
-import { simboloMoneda } from "../../config/moneda.js";
+import { simboloMoneda, etiquetaSinDeclarar } from "../../config/moneda.js";
+import { getTenantData } from "../../data/tenantStore.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";   // la escala la DECLARA el pack (2026-08-30)
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _sum = (a, f) => a.reduce((s, x) => s + (typeof f(x) === "number" ? f(x) : 0), 0);
@@ -30,7 +32,10 @@ const _money = (v) => {
   if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`;
   return `${s}${simboloMoneda()}${Math.round(a)}`;
 };
-const _moneyK = (vK) => _money(vK * 1000);   // dato comercial en $K → $
+/* DATO COMERCIAL ALMACENADO → $ CRUDOS, con la escala QUE EL PACK DECLARA (owner 2026-08-30). El ×1000 fijo
+ * era correcto para los tenants de fábrica (miles) y FALSO para un pack de planilla (moneda cruda): esta card
+ * decía «$4.5M sin capturar» sobre un negocio de $61 mil. Sin declarar cae a «K» — el demo, byte-idéntico. */
+const _moneyK = (v) => _money(v * factorComercialDe(getTenantData()));
 const _pct = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(_r1(v))}%`;
 
 // buildAccionFrom(finding) → {titulo, detalle, ask, usdFmt, askLabel} | null — LA MISMA plantilla de acción por
@@ -85,10 +90,21 @@ export function buildMesaEstado(scenario) {
   // presupuesto POR FILA y contaba otro cumplimiento que la respuesta que abre su click — card y ADI, una verdad.
   const ventasK = _sum(V, (r) => r.actual);   // total del período por fila (movers/simulaciones — no la línea del KPI)
   const K = getVentasKPI(null, null, s);
+  /* SIN PRESUPUESTO DECLARADO NO HAY «+0% vs presupuesto» (owner 2026-08-30, la regla de la v2.3 aplicada a la
+   * card): un pack de planilla no declara presupuesto y la card afirmaba un cumplimiento del 0% contra un plan
+   * que no existe. El cero también es ausencia acá — la misma convención del motor (`totalPresupuesto || null`).
+   * Con presupuesto declarado (los tenants de fábrica), la línea y el estado son byte-idénticos a los de siempre. */
+  const _hayPpto = typeof K.totalPresupuesto === "number" && Number.isFinite(K.totalPresupuesto) && K.totalPresupuesto !== 0;
+  const _hayAnt = typeof K.totalAnterior === "number" && Number.isFinite(K.totalAnterior) && K.totalAnterior !== 0;
   const ventas = {
-    estado: K.totalActual >= K.totalPresupuesto ? "verde" : K.totalActual >= K.totalAnterior ? "ambar" : "rojo",
-    linea: `${_pct(K.vsPresupuesto)} vs presupuesto · ${_pct(K.vsAnterior)} vs año anterior`,
-    ask: "¿Cómo van las ventas contra el presupuesto?",
+    estado: _hayPpto
+      ? (K.totalActual >= K.totalPresupuesto ? "verde" : K.totalActual >= K.totalAnterior ? "ambar" : "rojo")
+      : (_hayAnt ? (K.totalActual >= K.totalAnterior ? "verde" : "rojo") : "verde"),
+    linea: [
+      _hayPpto ? `${_pct(K.vsPresupuesto)} vs presupuesto` : etiquetaSinDeclarar("presupuesto"),
+      _hayAnt ? `${_pct(K.vsAnterior)} vs año anterior` : "sin período anterior",
+    ].join(" · "),
+    ask: _hayPpto ? "¿Cómo van las ventas contra el presupuesto?" : "¿Cómo vienen las ventas?",
   };
   // MARGEN · contra TU benchmark, con la MISMA brecha material del detector (una verdad — no un umbral de UI).
   const ventaBaseK = _sum(M, (r) => r.venta), contribK = _sum(M, (r) => r.contribucion);

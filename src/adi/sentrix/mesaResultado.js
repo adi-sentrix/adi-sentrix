@@ -20,6 +20,8 @@
  * Puro · client-side · CERO cálculo nuevo (formatea lo que buildPnlCascade afirma) · motor sellado intacto. */
 import { buildPnlCascade, pnlSimAsk, pnlEjesDisponibles } from "../pnl.js";
 import { simboloMoneda } from "../../config/moneda.js";
+import { getTenantData } from "../../data/tenantStore.js";
+import { factorComercialDe } from "../../config/contract/figureType.js";   // la escala la DECLARA el pack (2026-08-30)
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _money = (v) => {
@@ -28,7 +30,7 @@ const _money = (v) => {
   if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`;
   return `${s}${simboloMoneda()}${Math.round(a)}`;
 };
-const _moneyK = (vK) => _money(vK * 1000);
+const _moneyK = (v) => _money(v * factorComercialDe(getTenantData()));   // escala declarada del pack, nunca ×1000 fijo
 const _fmtPct = (v) => String(_r1(v));
 
 /* buildMesaResultado(scenario, cuadroEje?, cascadaFoco?) → { defined, empty? | cascada, resultado, foco, accion,
@@ -210,7 +212,7 @@ export function pnlExportData(scenario, cuadroEje = null, cascadaFoco = null) {
   for (const r of mr.cascada) L.push([`${r.label}${r.kind === "supuesto" ? " (supuesto declarado)" : ""}`, r.usdFmt].join(S));
   L.push("");
   L.push([mr.cuadro.colLabel, "Venta (USD)", "Contribución (USD)", "Margen %", "Gastos (USD)", "Resultado (USD)", "Resultado %"].join(S));
-  const _usd = (vK) => Math.round(vK * 1000);
+  const _usd = (v) => Math.round(v * factorComercialDe(getTenantData()));
   for (const r of mr.cuadro.rows) L.push([r.name, _usd(r.venta), _usd(r.contribucion), r.margen, _usd(r.gasto), _usd(r.resultado), r.resultadoPct].join(S));
   const t = mr.cuadro.total;
   L.push(["Total", _usd(t.venta), _usd(t.contribucion), t.margen != null ? t.margen : "", _usd(t.gasto), _usd(t.resultado), t.resultadoPct != null ? t.resultadoPct : ""].join(S));
