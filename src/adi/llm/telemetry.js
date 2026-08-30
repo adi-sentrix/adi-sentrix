@@ -16,7 +16,9 @@
  * redacta los dígitos del motivo, que es el único campo de texto libre que sobrevive.
  */
 
-export const ETAPAS = ["plan", "narrar", "deterministica"];
+// «agente» (F2 · 2026-08-30): las rondas del bucle agéntico — herramientas y cierre. Aditivo: nada del
+// vocabulario viejo cambia, y una etapa fuera de esta lista se sigue anulando (nunca texto libre).
+export const ETAPAS = ["plan", "narrar", "deterministica", "agente"];
 export const RESULTADOS = ["ok", "rechazado", "error", "rate_limited", "bloqueado"];
 
 // Lista blanca. Lo que no está acá NO sale. (El candado, no la buena intención.)

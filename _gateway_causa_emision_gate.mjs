@@ -59,6 +59,9 @@ const META = {
   handleNarrateC: { n: "NARRAR-C", frenos: 3, causa: true },
   handleSpec: { n: "SPEC", frenos: 2, causa: false },
   handleNarrate: { n: "NARRAR-LEGACY", frenos: 2, causa: false },
+  // ADI AGENTE (F2 · 2026-08-30): el bucle detrás de bandera. Frenos ANTES del cruce: acceso · rate limit ·
+  // config faltante · sin mensajes · sin system · sin herramientas = 6, y lleva causa del reintento como C.
+  handleAgente: { n: "AGENTE", frenos: 6, causa: true },
 };
 ok(GASTAN.length >= 4, `el fuente declara ${GASTAN.length} handlers que llaman al proveedor — ${JSON.stringify(GASTAN)}`);
 ok(GASTAN.every((n) => META[n]), "TODO handler que puede gastar está inspeccionado por este gate (uno nuevo sin instrumentar rompe acá)",
@@ -134,7 +137,7 @@ for (const { n, body } of HANDLERS) {
 
 H("[4] LA CAUSA NUNCA ES NULA EN UN REINTENTO · lo no declarado es «unknown», no silencio");
 {
-  ok(CON_CAUSA.length === 2, `los dos handlers con reintento resuelven la causa del intento — ${CON_CAUSA.map((h) => h.n).join(", ")}`);
+  ok(CON_CAUSA.length === 3, `los tres handlers con reintento resuelven la causa del intento — ${CON_CAUSA.map((h) => h.n).join(", ")}`);
   ok(CON_CAUSA.every((h) => /_causaDelIntento\s*\(/.test(h.body)), "los dos llaman al resolvedor de causa");
   const i = SRC.indexOf("function _causaDelIntento");
   const fn = SRC.slice(i, i + 260);

@@ -198,10 +198,21 @@ trabajo de F2)
 
 - **Registro de playbooks una vez** (el patrón habilidad: detección→investigación→decisión, cada uno con
   candado, carnada y calibración) · **la Mesa como puerta**: cada card invoca su playbook.
-- SUMAR en orden: **Margen en Riesgo** (1º — dato completo hoy) · **Directorio** (formalizar el arco
-  existente) · **Cliente perdiendo contribución** (exige historia real; declina corto sin ella) · **Caída de
-  ventas** · **Inventario inmovilizado** (límite declarado: el dato no trae la causa) · **Desviación
-  presupuestaria** (condicional a presupuesto declarado; absorbe la lectura de ritmo/run-rate).
+- **Principio de registro (palabra del owner, 2026-08-30)**: cada playbook nace con su **LISTA NOTARIAL
+  PROPIA** — chequeos mecánicos específicos de sus promesas, con carnada, que EXTIENDEN el notario POR REGLAS,
+  jamás por comprensión (el juez no opina: compara; un juez que entiende es un juez al que se le discute). Del
+  lado que sí «entiende»: los MOTIVOS DE VETO pueden ganar precisión por tipo de análisis para que el cerebro
+  repare mejor a la primera — el juez sigue ciego, sus multas más finas. Ningún playbook futuro nace sin su
+  lista.
+- SUMAR en orden (actualizado 2026-08-30): **Margen en Riesgo** (1º — dato completo hoy) · **Directorio**
+  (formalizar el arco existente) · **Revisión de cobranza** (Flujo Comercial + plazos + vencido: «quién debe,
+  qué está vencido, a quién llamar primero y con qué cifra») · **Cierre del mes** (viable recién ahora: la
+  carga histórica le da el mes anterior) · **Cliente perdiendo contribución** (exige historia real; declina
+  corto sin ella) · **Caída de ventas** · **Inventario inmovilizado** (límite declarado: el dato no trae la
+  causa) · **Desviación presupuestaria** (condicional a presupuesto declarado; absorbe la lectura de
+  ritmo/run-rate).
+- **Deslinde**: la mejora conversacional NO es un playbook — es el contrato del agente (F3). Carriles
+  separados a propósito.
 - REFORMULADO: «Oportunidad de precio» → **«Brecha de precio y descuentos vs lista»** (elasticidad/mercado no
   existen en el dato; no se promete).
 - DESCARTADO hoy: «Forecast deteriorándose» — no hay forecast en el dato; nace solo el día que un cliente lo

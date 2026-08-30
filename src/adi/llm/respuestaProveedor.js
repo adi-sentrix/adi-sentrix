@@ -98,3 +98,32 @@ export function errorDeRespuesta(data, { proveedor = null, esperado = "tool_call
   err.code = `sin_${esperado}`;
   return err;
 }
+
+/* ── EL MODO LIBRE DEL AGENTE (F2 · 2026-08-30) · la respuesta del proveedor → el contrato del bucle ──────────
+ * Viven ACÁ y no en los adapters ni en un módulo aparte por la regla de higiene que _respuesta_malformada_gate
+ * exige: un adapter solo importa ESTE módulo, y el parseo de respuestas del proveedor es exactamente su casa.
+ * PURAS · cero red · cero producto — el gate del cable las ejerce behavioralmente dentro de la suite. */
+
+/** bloques de Anthropic → {tipo:"herramientas",pedidos}|{tipo:"texto",texto}. */
+export function parseAgenteAnthropic(data) {
+  const bloques = (data && data.content) || [];
+  const pedidos = bloques.filter((b) => b && b.type === "tool_use").map((b) => ({ tool: b.name, args: b.input || {} }));
+  if (pedidos.length) return { tipo: "herramientas", pedidos };
+  const texto = bloques.filter((b) => b && b.type === "text").map((b) => b.text).join(String.fromCharCode(10));
+  return { tipo: "texto", texto };
+}
+
+/** choices de OpenAI (function calling) → ídem. Args ilegibles caen a {} — jamás revientan la ronda. */
+export function parseAgenteOpenai(data) {
+  const msg = data && data.choices && data.choices[0] && data.choices[0].message;
+  const calls = (msg && msg.tool_calls) || [];
+  if (calls.length) {
+    const pedidos = calls.map((c) => {
+      let args = {};
+      try { args = JSON.parse(c.function.arguments || "{}"); } catch { args = {}; }
+      return { tool: c.function.name, args };
+    });
+    return { tipo: "herramientas", pedidos };
+  }
+  return { tipo: "texto", texto: (msg && msg.content) || "" };
+}

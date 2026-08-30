@@ -173,6 +173,29 @@ async function _call(body) {
   }
 }
 
+/* ── MODO LIBRE · ADI AGENTE (F2 · 2026-08-30) ─────────────────────────────────────────────────────────────────
+ * A diferencia de parse (tool FORZADA), acá las herramientas son OPCIONALES: el modelo decide si pide una, varias
+ * en paralelo, o responde con texto. El hilo viaja como messages de texto (los resultados de herramientas van
+ * como turnos de usuario rotulados [HERRAMIENTAS] — decisión de F2: sin pareo tool_use/tool_result nativo en la
+ * v1, el bucle es dueño del protocolo y este adapter solo traduce). El system y el catálogo son prefijo FIJO —
+ * cacheable, la misma disciplina del parse. */
+export function buildAgenteBody({ mensajes, system, tools, model }) {
+  const msgs = (Array.isArray(mensajes) ? mensajes : [])
+    .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
+    .map((m) => ({ role: m.role, content: m.content }));
+  return {
+    model, ...narrateBudget(),
+    system: _systemBlocks(system),
+    tools: (Array.isArray(tools) ? tools : []).map((t) => ({ name: t.name, description: t.description, input_schema: t.input_schema })),
+    // SIN tool_choice: forzarla convertiría el modo libre en el modo parse — el modelo elige, ese es el punto.
+    messages: msgs.length && msgs[msgs.length - 1].role === "user" ? msgs : [...msgs, { role: "user", content: "(continúa)" }],
+  };
+}
+
+/** la traducción vive en agente/wireAgente.js (pura y gateable EN SUITE) — acá solo se re-exporta. */
+export { parseAgenteAnthropic as parseRespuestaAgente } from "../respuestaProveedor.js";
+import { parseAgenteAnthropic as _parseAgente } from "../respuestaProveedor.js";
+
 export const anthropicAdapter = {
   name: "anthropic",
   keyEnv: "ANTHROPIC_API_KEY",
@@ -212,5 +235,14 @@ export const anthropicAdapter = {
     return { text: txt, usage: _usage(data.usage), model: data.model || null, stop: data.stop_reason || null,
       // los TIPOS de bloque que vinieron (no su contenido): con texto en cero, es lo único que dice qué llegó
       bloques: (data.content || []).map((b) => b && b.type).filter(Boolean) };   // modelo EFECTIVO · ver parse()
+  },
+
+  // MODO LIBRE (F2 · ADI Agente): herramientas opcionales, el modelo elige. Ver buildAgenteBody arriba.
+  async agente({ mensajes, system, tools, model }) {
+    if (!system) throw new Error("agente() sin system: el contrato debe venir armado del caller, el adapter no define uno propio");
+    const data = await _call(buildAgenteBody({ mensajes, system, tools, model }));
+    const ajeno = sobreAjeno(data, "anthropic");
+    if (ajeno) throw ajeno;
+    return { ..._parseAgente(data), usage: _usage(data.usage), model: data.model || null, stop: data.stop_reason || null };
   },
 };

@@ -107,6 +107,27 @@ const _isReasoningFamily = (model) => /^gpt-5/i.test(model || "");
 const _systemText = (system) => (typeof system === "string" ? system
   : (Array.isArray(system) ? system : []).filter((s) => s && typeof s.text === "string").map((s) => s.text).join(""));
 
+/* ── MODO LIBRE · ADI AGENTE (F2 · 2026-08-30) · espejo del de anthropic.js ──────────────────────────────────
+ * Function calling SIN tool_choice: el modelo decide entre pedir herramientas (una o varias) o responder texto. */
+export function buildAgenteBody({ mensajes, system, tools, model }) {
+  const msgs = (Array.isArray(mensajes) ? mensajes : [])
+    .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
+    .map((m) => ({ role: m.role, content: m.content }));
+  const reasoning = _isReasoningFamily(model);
+  const body = {
+    model,
+    messages: [{ role: "system", content: _systemText(system) }, ...msgs],
+    tools: (Array.isArray(tools) ? tools : []).map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } })),
+    // SIN tool_choice: forzarla convertiría el modo libre en el modo parse.
+  };
+  body[reasoning ? "max_completion_tokens" : "max_tokens"] = 3072;
+  return body;
+}
+
+/** la traducción vive en agente/wireAgente.js (pura y gateable EN SUITE) — acá solo se re-exporta. */
+export { parseAgenteOpenai as parseRespuestaAgente } from "../respuestaProveedor.js";
+import { parseAgenteOpenai as _parseAgente } from "../respuestaProveedor.js";
+
 export const openaiAdapter = {
   name: "openai",
   keyEnv: "OPENAI_API_KEY",
@@ -168,4 +189,13 @@ export const openaiAdapter = {
     // mismo motivo de corte que en el adapter de Anthropic, con el nombre que usa este proveedor
     return { text: txt, usage: _usage(data.usage), model: data.model || null, stop: (data.choices && data.choices[0] && data.choices[0].finish_reason) || null };
   },
+
+  // MODO LIBRE (F2 · ADI Agente): herramientas opcionales, el modelo elige. Ver buildAgenteBody arriba.
+  async agente({ mensajes, system, tools, model }) {
+    if (!system) throw new Error("agente() sin system: el contrato debe venir armado del caller, el adapter no define uno propio");
+    const data = await _call(buildAgenteBody({ mensajes, system, tools, model }));
+    const ajeno = sobreAjeno(data, "openai");
+    if (ajeno) throw ajeno;
+    return { ..._parseAgente(data), usage: _usage(data.usage), model: data.model || null };
+  }
 };

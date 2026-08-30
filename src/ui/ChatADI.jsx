@@ -24,7 +24,7 @@ const _GUTTER_ADI = 44;
 const _SCROLLBAR = 8;
 import { InlineChart } from "./InlineChart.jsx";
 import { composeFollowupRecommendation } from "../adi/specRetrieval.js";   // follow-up (fallback regex del camino sin LLM)
-import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIMS_ONLY_ENABLED, ADI_BYPASS_SIN_PAGO, ADI_CAMINO_NATURAL } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag) · bypass sin pago (detrás de flag, hoy apagado) · camino natural como principal (owner 2026-08-14)
+import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIMS_ONLY_ENABLED, ADI_BYPASS_SIN_PAGO, ADI_CAMINO_NATURAL, ADI_AGENTE } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag) · bypass sin pago (detrás de flag, hoy apagado) · camino natural como principal (owner 2026-08-14)
 import { registrarTurno, resumenTelemetria, exportarTelemetria, borrarTelemetria } from "../adi/telemetria.js";   // el renglón de salud del turno · sin dato de negocio (ver telemetria.js)
 import { answerViaNatural } from "../adi/oracle/caminoNatural.js";   // el camino natural: cerebro único + notario + ciclo de reparación (flag ADI_CAMINO_NATURAL)
 import { puedeResponderSinPagar } from "../adi/bypassConfianza.js";   // ¿el piso entiende esta pregunta lo bastante bien como para NO pagar? (owner 2026-08-12)
@@ -354,6 +354,25 @@ async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, r
 // La key sigue server-side; `datoNegocio` viaja igual que en el camino actual (misma proyección memoizada).
 // A DIFERENCIA de _fetchNarrateC, una narración VACÍA no lanza: el ciclo notarial la trata como veredicto propio
 // (narracion-vacia) y dispara la reparación/suplente — lanzar acá le robaría el caso al ciclo.
+/* ── ADI AGENTE · una ronda del bucle (F2 · detrás de ADI_AGENTE, hoy APAGADA) ────────────────────────────────
+ * El bucle vive en bucleAgente.js; esto es su única puerta al mundo: system fijo (persona+invariantes+mapa) +
+ * hilo + catálogo → el gateway (/api/adi-agente, runtime node) → {tipo:"herramientas"|"texto"}. El `paso` decide
+ * el tier (herramientas→mini de PLAN · cierre/reparación→el de NARRAR). Con la bandera apagada, nadie llama. */
+async function _fetchAgente({ mensajes, scenario, requestContext, ronda, attempt, motivoReintento, cierre }) {
+  const { sistemaDelAgente } = await import("../adi/agente/sistemaAgente.js");
+  const { catalogoAgente } = await import("../adi/agente/catalogoAgente.js");
+  const paso = (cierre || attempt > 0) ? "cierre" : "herramientas";
+  const res = await fetch("/api/adi-agente", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ mensajes, system: sistemaDelAgente(scenario).fijo, tools: catalogoAgente(), paso,
+      access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt, motivoReintento }),
+  });
+  const data = await res.json();
+  if (_accessDenied(data)) throw new Error("acceso requerido");
+  if (!data || !data.ok) throw new Error((data && data.error) || "gateway sin agente");
+  return data.tipo === "herramientas" ? { tipo: "herramientas", pedidos: data.pedidos || [] } : { tipo: "texto", texto: String(data.texto || "") };
+}
+
 async function _fetchNatural({ mensajes, mem, scenario, requestContext, attempt, motivoReintento, cortes }) {
   const res = await fetch("/api/adi-narrate-c", {
     method: "POST", headers: { "content-type": "application/json" },
@@ -487,6 +506,23 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
        * RED DE RESILIENCIA (condición 2): si el camino natural LANZA (gateway caído, config faltante, error), el
        * turno CAE al oráculo actual acá abajo, en el MISMO turno — el usuario nunca ve el error.
        * Flag OFF → este bloque no existe: el turno sigue por answerViaOracle, byte-idéntico a hoy. */
+      /* ── ADI AGENTE (F2 · bandera ADI_AGENTE, hoy APAGADA en todos los perfiles) ─────────────────────────
+       * Cuando encienda (tras la certificación de F4): agente → catch → natural → catch → oráculo — la misma
+       * red de resiliencia en cascada. Con la bandera apagada este bloque no existe y el turno sigue igual. */
+      if (ADI_AGENTE) {
+        try {
+          const { answerViaAgente } = await import("../adi/agente/bucleAgente.js");
+          const o = await answerViaAgente({ text: q, history, mem, scenario,
+            callAgente: (args) => _fetchAgente({ ...args, scenario, requestContext }) });
+          if (o && o.r) {
+            _ph(3);
+            const rr = { ...o.r, context: { ...(context || {}), memoriaInteraccion: o.mem, conversationId } };
+            return _turnFromResult(q, rr, context, "agente", scenario);
+          }
+        } catch (e) {
+          if (typeof console !== "undefined" && console.warn) console.warn("[ADI] el agente falló y el turno cayó al camino natural:", e);
+        }
+      }
       if (ADI_CAMINO_NATURAL) {
         try {
           const cortesDelTurno = [];   // un motivo de corte por llamada · viaja al registro de salud, no a pantalla

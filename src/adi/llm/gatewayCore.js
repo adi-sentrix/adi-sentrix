@@ -505,10 +505,76 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt, 
 }
 
 // path → handler (para los wrappers que enrutan por URL)
+/* ── ADI AGENTE · UNA RONDA DEL BUCLE (F2 · 2026-08-30 · detrás de la bandera ADI_AGENTE, hoy apagada) ─────────
+ * El bucle vive EN EL CLIENTE (bucleAgente.js — el dato del tenant está allá); este handler es UNA llamada al
+ * cerebro en modo libre: system + mensajes + catálogo de herramientas → el modelo pide herramientas o responde.
+ * Mismos frenos que las demás pasadas (acceso, rate limit, config) y misma telemetría, etapa «agente».
+ * El MODELO por paso: las rondas de herramientas van al tier de PLAN (elegir herramientas es clasificación — el
+ * trabajo del mini); el cierre y la reparación, al tier de NARRAR. `paso` viaja del cliente; la escalación por
+ * reintento es la de siempre (`_resolveModel` con su freno de presupuesto por tenant). */
+export async function handleAgente({ mensajes, system, tools, paso, access, tenantId, attempt, motivoReintento } = {}, env) {
+  const { provider, model: modelPlanTier, narrateModel, falta } = _config(env);
+  const tier1 = paso === "herramientas" ? modelPlanTier : narrateModel;   // PLAN-tier elige · NARRATE-tier narra
+  const _t0 = Date.now();
+  const _causa = _causaDelIntento(motivoReintento, attempt);
+  let _modelo = tier1;
+  let _salioAlProveedor = false;   // el cruce · falla cerrada: sin marca explícita, la llamada se cuenta como NO salida
+  let _emitidos = 0;               // la red de seguridad del pie: NINGUNA excepción se va sin evento, y NUNCA dos por llamada
+  const _emitir = (respuesta, causa) => {
+    _emitidos++;
+    const ev = desdeRespuesta({ traceId: nuevoTraceId(), proveedor: provider, modelo: _modelo, etapa: "agente",
+      intento: Number(attempt) || 0, latencia_ms: Date.now() - _t0, respuesta, ruta_deterministica: false, salioAlProveedor: _salioAlProveedor });
+    ev.reasonCode = causa || ev.reasonCode || _causa;
+    emitTelemetria(ev);
+  };
+  const _frenado = (r, causa) => { _emitir(r, causa); return r; };
+  try {
+    const acc = await _access(access, env);
+    if (!acc.ok) return _frenado({ ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" });
+    if (!_checkRateLimit(tenantId, env)) return _frenado({ ok: false, error: "rate_limited", reason: "demasiadas solicitudes, esperá un momento" });
+    if (falta) return _frenado({ ok: false, error: mensajeFaltaProveedor(falta), configFaltante: falta }, "config_missing");
+    const _msgs = Array.isArray(mensajes) ? mensajes.filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim()) : [];
+    if (!_msgs.length) return _frenado({ ok: false, error: "agente sin mensajes: el hilo es obligatorio" });
+    if (!(typeof system === "string" && system.trim()) && !Array.isArray(system)) return _frenado({ ok: false, error: "agente sin system: el contrato viene armado del cliente" });
+    if (!Array.isArray(tools) || !tools.length) return _frenado({ ok: false, error: "agente sin herramientas: el catálogo es obligatorio" });
+
+    const routed = _resolveModel({ provider, tier1, attempt, step: "narrate", mode: `agente:${paso || "herramientas"}`, env, tenantId });
+    const model = routed ? routed.model : tier1;
+    _modelo = model;
+    let tipo, pedidos, texto, usage, modeloEfectivo;
+    try {
+      /* el cruce se marca ANTES de la llamada (la convención de todos los handlers: una llamada que revienta por
+       * timeout YA fue generada y facturada por el proveedor — contar «no salió» sería la mentira cara). Un
+       * proveedor sin `agente()` cae a este catch con su TypeError nombrándolo; se cuenta como salida por prudencia. */
+      _salioAlProveedor = true;
+      const salida = await getAdapter(provider).agente({ mensajes: _msgs, system, tools, model });
+      // el desarmado DENTRO del try (la lección de narrateC): una respuesta inutilizable llegó y se pagó igual
+      ({ tipo, pedidos, texto, usage, model: modeloEfectivo } = salida);
+      if (!tipo) throw new TypeError("el proveedor devolvió una respuesta vacía");
+    } catch (e) {
+      // se emite y se RELANZA intacta — el cliente cae al camino natural con la causa a la vista.
+      _emitir({ ok: false, error: "el proveedor no respondió" }, aReasonCode((e && e.message) || "provider"));
+      throw e;
+    }
+    // el costo se calcula UNA vez, sobre el modelo EFECTIVO — la misma regla de PLAN y NARRAR-C
+    const modeloReal = modeloEfectivo || model;
+    const out = { ok: true, tipo, ...(tipo === "herramientas" ? { pedidos } : { texto }),
+      usage: usage || null, model: modeloReal, modelFamilia: resolvePricingKey(modeloReal),
+      costUSD: estimateCostUSD(modeloReal, usage), routing: routed ? { model, tier: routed.tier, reason: routed.reason } : null };
+    _emitir(out);
+    return out;
+  } catch (e) {
+    // LA RED DE SEGURIDAD (ver el try): sólo emite si ninguna rama de adentro contó ya esta llamada, y relanza.
+    if (!_emitidos) _emitir({ ok: false, error: "el turno no llegó al proveedor" }, aReasonCode((e && e.message) || "unknown"));
+    throw e;
+  }
+}
+
 export const GATEWAY_ROUTES = {
   "/api/adi-spec": handleSpec,
   "/api/adi-narrate": handleNarrate,
   "/api/adi-access": handleAccess,   // demo privada · status/check/mint (owner 2026-07-08)
   "/api/adi-plan": handlePlan,       // Arquitectura C · Pasada 1 (detrás del flag · fallback intacto)
   "/api/adi-narrate-c": handleNarrateC, // Arquitectura C · Pasada 2
+  "/api/adi-agente": handleAgente,   // ADI Agente · una ronda del bucle (F2 · bandera apagada)
 };
