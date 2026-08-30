@@ -615,7 +615,12 @@ function _diagCapital(filters, scenario, entityScope) {
   // VERBATIM — sin pasar por `stripLanguageLeaks`, que solo lava la narración VIVA. Por ahí salió a la pantalla
   // del owner «Valparaíso · Capital detenido» pese a que CLAUDE.md §4 fija «inmovilizado». El registro se corrige
   // EN EL ORIGEN (una sola verdad: el mismo string que autoriza la cifra es el que se lee) — ver `_ESTADO_LABEL`.
-  return items.length ? [_diagFoco("capital", "Capital inmovilizado", items)] : [];
+  /* RÓTULO 6/13 (GO del owner, 2026-08-31 — «alinea también el rótulo 6/13 con la distinción de la Mesa»):
+   * los items de este foco son el predicado FRENADO (rotación bajo piso / DOH sobre techo) — el mismo dinero
+   * que la Mesa y la tool ya nombran «frenado» desde R5. El título viaja a las figs verbatim (el comentario de
+   * arriba): la palabra sigue a la cifra. Fue «Capital detenido» → «Capital inmovilizado» (La Poda F2) → hoy
+   * «Capital frenado», con los reconocedores tolerantes de siempre. */
+  return items.length ? [_diagFoco("capital", "Capital frenado", items)] : [];
 }
 
 // arma un foco: ordena sus items por $, subtotal, top-N (para el texto) e items completos (para Sentrix)
@@ -655,7 +660,7 @@ export function composeSpecDiagnose({ filters = {}, scenario, focus, entityScope
     const e = f.top[0] && f.top[0].entidad;
     if (f.detector === "carga")   return e ? `Cómo recupero la carga de ${e}` : null;
     if (f.detector === "margen")  return e ? `Por qué ${e} cede margen` : null;
-    if (f.detector === "capital") return "Capital inmovilizado en detalle";
+    if (f.detector === "capital") return "Capital frenado en detalle";   // rótulo 6/13 · equivalencia de ruteo probada (coerceFloor IGUAL)
     return null;
   }).filter(Boolean);
   // BOLETA (primera clase): subtotales (obligatorios) + top-3 por foco · value == el _money del texto (una sola verdad)
@@ -899,7 +904,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
       : `Los ${ventaRows.length} tienen stock sano para su ritmo de venta — sin quiebres ni frenos a la vista.`;
     return {
       opener: `Tus ${ventaRows.length} SKU que más venden, con su inventario disponible:\n\n${lines.join("\n")}\n\n${lectura}`,
-      suggestions: ["¿Qué SKU está en riesgo de quiebre?", "Capital inmovilizado en detalle", "Margen por SKU"],
+      suggestions: ["¿Qué SKU está en riesgo de quiebre?", "Capital frenado en detalle", "Margen por SKU"],
       sentrixAction: null,
       evidence: { metrica: "ventas", dimension: "sku", boleta: bol },
     };
@@ -2538,7 +2543,7 @@ export function composeSpecSimulateCapital({ filters = {}, scenario, entityScope
   for (const it of top) bol.push(fig(`${it.entidad} · Liberable`, _money(it.usd), { unit: "money", raw: it.usd, source: "computed", formula: `capital inmovilizado de ${it.entidad}`, context: _ctx }));
   return {
     opener: [supuesto, efecto, dondePega, limite, decision].join("\n\n"),
-    suggestions: ["Capital inmovilizado en detalle"],
+    suggestions: ["Capital frenado en detalle"],
     sentrixAction: null,
     evidence: { lens: "diagnostico", metrica: "capital", dimension: "sku", boleta: bol, findings: [cap],
       simulate: { action: "liberar_capital" } },
