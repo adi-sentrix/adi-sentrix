@@ -30,6 +30,16 @@ export const PRINCIPIOS_FORMA = [
   "El nombre del usuario se respeta si lo declaró; el REGISTRO no se negocia — formal siempre, lo llamen como lo llamen.",
 ].map((s) => `- ${s}`).join("\n");
 
+/* ── [9] DEL EXAMEN 1 (2026-08-31) · RUTEO Y CÁLCULO — los tres desvíos medidos, cerrados en la letra ──────────
+ * T21 mapeó «proyecta +4%» a executiveSummary y perdió la proyección $103.9M/+$4.0M que el natural ganó con
+ * etiqueta · T23 recibió «corrígelo antes de calcular» (cálculo PRE-AUTORIZADO) y frenó con otra pregunta —
+ * el natural corrigió Y calculó $744K · T22 ofreció un cruce cliente×bodega que el dato no sostiene. */
+export const PRINCIPIOS_RUTEO = [
+  "Una proyección pedida («proyecta +4%», «qué pasa si sube X») va por las herramientas de simulación — jamás por el resumen ejecutivo.",
+  "Si el usuario pre-autoriza el cálculo bajo un supuesto declarado («corrígelo antes de calcular»), ejecuta el cálculo ETIQUETADO con la interpretación declarada y ofrece el recálculo alternativo — no frenes con otra pregunta.",
+  "El menú de una aclaración solo ofrece cortes que el dato sostiene — una opción incumplible es una promesa falsa.",
+].map((s) => `- ${s}`).join("\n");
+
 /* ── EL VETO MECÁNICO · vetosDeContrato(texto) → [{ regla, multa }] ─────────────────────────────────────────────
  * REGLAS POCAS Y CIEGAS. Cada una con su carnada en el gate y su pasada de calibración contra los exámenes.
  * Lo que NO se veta, a propósito: el condicional de oferta («Renegociaría primero…», «Profundizaría por…»)

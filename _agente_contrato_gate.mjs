@@ -21,7 +21,8 @@ import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { plantillaEjemplo } from "./src/ingesta/plantilla/generarPlantilla.js";
 import { ingestarPlantilla } from "./src/ingesta/plantilla/ingestarPlantilla.js";
-import { PRINCIPIOS_ARCO, PRINCIPIOS_FORMA, vetosDeContrato } from "./src/adi/agente/contratoAgente.js";
+import { PRINCIPIOS_ARCO, PRINCIPIOS_FORMA, PRINCIPIOS_RUTEO, vetosDeContrato } from "./src/adi/agente/contratoAgente.js";
+import { mapaDelDato } from "./src/adi/agente/mapaDelDato.js";   // [9] · la vara y el límite de bodega, declarados
 import { setNombreUsuario, olvidarNombreUsuario, getNombreUsuario, lineaDeNombre } from "./src/adi/agente/preferenciaNombre.js";
 import { sistemaDelAgente } from "./src/adi/agente/sistemaAgente.js";
 import { cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";
@@ -180,6 +181,22 @@ H("5b · R8: cada fuga que llegó a pantalla en el examen, hoy vetada");
     "el registro sano pasa sin vetos");
 }
 
+/* ═══ 5c · [9] DEL EXAMEN 1 · LOS REFUERZOS DE RUTEO Y DEL MAPA, CABLEADOS ════════════════════════════════════ */
+H("5c · [9]: los tres desvíos medidos tienen letra, y el mapa distingue la vara del promedio");
+{
+  ok(/simulación — jamás por el resumen ejecutivo/.test(PRINCIPIOS_RUTEO), "T21 · la proyección rutea a simulación (letra)");
+  ok(/ejecuta el cálculo ETIQUETADO con la interpretación declarada/.test(PRINCIPIOS_RUTEO), "T23 · el cálculo pre-autorizado se ejecuta, no se frena (letra)");
+  ok(/solo ofrece cortes que el dato sostiene/.test(PRINCIPIOS_RUTEO), "T22 · el menú no promete lo incumplible (letra)");
+  const fijo = sistemaDelAgente("actual").fijo;
+  ok(/RUTEO Y CÁLCULO:/.test(fijo) && /jamás por el resumen ejecutivo/.test(fijo), "…y la letra VIAJA en el system del agente");
+  initTenant(TENANT_DEMO);
+  const mapa = mapaDelDato("bonanza");
+  ok(/BENCHMARK de margen: 30\.1% — vara DECLARADA del negocio\. NO es el promedio de la cartera/.test(mapa),
+    "T3 · el mapa declara la vara Y que NO es el promedio (30.1% del demo, por fila)");
+  ok(/sin cruce cliente×bodega \(los universos no reconcilian\)/.test(mapa),
+    "T22 · el mapa declara el límite estructural de bodega");
+}
+
 /* ═══ 6 · CARNADAS ════════════════════════════════════════════════════════════════════════════════════════════ */
 H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro");
 {
@@ -234,6 +251,11 @@ H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro")
   await carnada("identificadores sin el filtro camelCase", "src/adi/agente/contratoAgente.js",
     [[/    \.filter\(\(n\) => \/\[A-Z\]\/\.test\(n\.slice\(1\)\)\);/, "    ;"]],
     async (Mut) => Mut.vetosDeContrato("Sí se puede calcular: 4 de los 5 SKU explican el 85.7%.").some((x) => x.regla === "identificador-interno"));
+
+  // (c2) [9] · la letra de ruteo que pierde el desvío de T21 (proyección → simulación)
+  await carnada("la letra de ruteo sin el desvío de la proyección", "src/adi/agente/contratoAgente.js",
+    [[/  "Una proyección pedida \(«proyecta \+4%», «qué pasa si sube X»\) va por las herramientas de simulación — jamás por el resumen ejecutivo\.",\n/, ""]],
+    async (Mut) => !/jamás por el resumen ejecutivo/.test(Mut.PRINCIPIOS_RUTEO));
 
   // (c) la letra que pierde el principio de sugerencias
   await carnada("la letra sin la palabra del owner", "src/adi/agente/contratoAgente.js",

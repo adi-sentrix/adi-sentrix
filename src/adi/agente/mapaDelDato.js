@@ -18,6 +18,7 @@
  *
  * PURO · sin red · sin Date.now() · lee el tenant activo. */
 import { getTenantData } from "../../data/tenantStore.js";
+import { POLICY } from "../../config/businessPolicy.js";   // [9] · el fallback de la vara — la regla de precedencia: fila.benchmark ?? POLICY.benchmark
 import { factorComercialDe } from "../../config/contract/figureType.js";
 import { getSelloDeCarga } from "../../ingesta/estadoCarga.js";
 import { rotuloMoneda, etiquetaSinDeclarar } from "../../config/moneda.js";
@@ -81,6 +82,16 @@ export function mapaDelDato(scenario = ESCENARIO_INICIAL) {
     ((d.skusMargen || []).length ? " | sku → venta · margen · contribución" : "") +
     ((d.skuInventario || []).length ? " | inventario → capital · rotación · días (por SKU y bodega)" : ""));
 
+  /* ── [9] del examen 1 (2026-08-31) · BENCHMARK ≠ PROMEDIO. T3 respondió OTRA pregunta: usó el benchmark
+   * (30.1%) donde el usuario pidió el margen medio de la cartera (25.1%) — la equivalencia está prohibida.
+   * La vara es DECLARADA (por fila del dato, con el fallback de política — la regla de precedencia de
+   * businessPolicy); el promedio es una CUENTA sobre el dato. El mapa lo dice para que el cerebro no los funda. */
+  const _bs = [...new Set((d.clientesMargen || []).filter((c) => c && c.tipo === "cliente")
+    .map((c) => (Number.isFinite(c.benchmark) ? c.benchmark : POLICY.benchmark)))].sort((a, b) => a - b);
+  if (_bs.length) {
+    L.push(`BENCHMARK de margen: ${_bs.length === 1 ? `${_bs[0]}%` : `por fila (${_bs[0]}–${_bs[_bs.length - 1]}%)`} — vara DECLARADA del negocio. NO es el promedio de la cartera: si piden el promedio, se calcula del dato.`);
+  }
+
   /* ── períodos y series ────────────────────────────────────────────────────────────────────────────────── */
   const cap = datasetCapability();
   const global = (d.ventasMensuales || []).length;
@@ -108,6 +119,10 @@ export function mapaDelDato(scenario = ESCENARIO_INICIAL) {
   if (!(typeof kv.totalAnterior === "number" && Number.isFinite(kv.totalAnterior) && kv.totalAnterior !== 0)) limites.push("sin período anterior");
   if (!moneda) limites.push(etiquetaSinDeclarar("moneda"));
   if (!cap.crosses.atomic) limites.push("cruce cliente×SKU: solo afinidad modelada (indicado)");
+  /* [9] del examen 1: T22 ofreció un «cruce cliente×bodega» que NO existe — una opción incumplible es una
+   * promesa falsa. El límite es estructural (los universos comercial e inventario no reconcilian — la misma
+   * barrera de la decisión 7 de la Mesa) y se declara donde el cerebro elige qué ofrecer. */
+  if ((d.skuInventario || []).length) limites.push("bodega: SOLO inventario (capital · rotación · días) — sin venta ni margen comercial, y sin cruce cliente×bodega (los universos no reconcilian)");
   if (!Object.keys(d.SCENARIO_TRANSFORMS || {}).length) limites.push("sin transforms de simulación declarados");
   const sello = getSelloDeCarga();
   if (sello && (sello.conAlarmas || (Array.isArray(sello.tipos) && sello.tipos.length))) {

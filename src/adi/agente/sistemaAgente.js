@@ -9,7 +9,7 @@
  * cacheable del proveedor, la misma disciplina de naturalPrompt. */
 import { ADI_PERSONA } from "../oracle/persona.js";
 import { mapaDelDato } from "./mapaDelDato.js";
-import { PRINCIPIOS_ARCO, PRINCIPIOS_FORMA } from "./contratoAgente.js";   // F3 · la letra vive con su veto
+import { PRINCIPIOS_ARCO, PRINCIPIOS_FORMA, PRINCIPIOS_RUTEO } from "./contratoAgente.js";   // F3 · la letra vive con su veto · [9] ruteo
 import { lineaDeNombre } from "./preferenciaNombre.js";   // F3 · «llámame jc» — una línea, "" sin declaración
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 
@@ -41,6 +41,9 @@ export function sistemaDelAgente(scenario = ESCENARIO_INICIAL) {
     "",
     "LA FORMA:",
     PRINCIPIOS_FORMA,
+    "",
+    "RUTEO Y CÁLCULO:",
+    PRINCIPIOS_RUTEO,
     ...(nombre ? ["", nombre] : []),
     "",
     "Tienes herramientas. Pide las que necesites (varias en paralelo si ayuda) y responde cuando tengas el dato. Si una herramienta declara un límite, ese límite ES la respuesta honesta.",
