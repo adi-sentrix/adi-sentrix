@@ -68,17 +68,17 @@ export function composeModuleOverview(scenarioId, moduloId) {
     const sorted = [...dataset].sort((a, b) => b.actual - a.actual);
     const top3 = sorted.slice(0, 3);
     const top3Sum = top3.reduce((s, c) => s + c.actual, 0);
-    const top3Pct = (top3Sum / totalActual) * 100;
+    const top3Pct = totalActual > 0 ? (top3Sum / totalActual) * 100 : 0;   // R7: NaN con total 0
     const top3Names = top3.map(c => c.nombre).join(", ");
 
     const growers = dataset
-      .filter(c => c.actual > c.anterior)
+      .filter(c => c.anterior > 0 && c.actual > c.anterior)   // R7: sin año anterior no hay % (el primer archivo de un mes no divide por cero)
       .map(c => ({ ...c, g: ((c.actual - c.anterior) / c.anterior) * 100 }))
       .sort((a, b) => b.g - a.g);
     const fastest = growers[0] || null;
 
     const decliners = dataset
-      .filter(c => c.actual < c.anterior)
+      .filter(c => c.anterior > 0 && c.actual < c.anterior)   // R7: ídem
       .map(c => ({ ...c, g: ((c.actual - c.anterior) / c.anterior) * 100 }))
       .sort((a, b) => a.g - b.g);
     const worst = decliners[0] || null;
@@ -89,7 +89,11 @@ export function composeModuleOverview(scenarioId, moduloId) {
      * invertida — la falta sagrada) y causas con reparto inventado («Tier 1», «canal digital», «e-commerce»).
      * Queda UNA narrativa cuya dirección sale del SIGNO del dato y que solo nombra lo que el pack trae. */
     // ── Header · cifra principal canónica (escala miles → fmtM) · la dirección la dice el signo
-    const m1 = `El año cerró en ${fmtM(totalActual)} con variación de ${pct1(growth)} versus el período anterior, equivalente a ${fmtM(Math.abs(deltaUSD))} ${deltaUSD >= 0 ? "más" : "menos"} que entonces.`;
+    // R7: el primer archivo de un solo mes no declara período anterior (vsAnterior null) — la variación se
+    // DECLINA en palabras, jamás se calcula sobre nada ni revienta la cara.
+    const m1 = typeof growth === "number" && Number.isFinite(growth)
+      ? `El año cerró en ${fmtM(totalActual)} con variación de ${pct1(growth)} versus el período anterior, equivalente a ${fmtM(Math.abs(deltaUSD))} ${deltaUSD >= 0 ? "más" : "menos"} que entonces.`
+      : `El período cerró en ${fmtM(totalActual)} — sin período anterior declarado para comparar.`;
 
     // ── Cuerpo · top 3 + concentración (R3 + R5) · la lectura de dependencia solo si el dato la sostiene
     const m2 = `${top3Names} concentran el ${top3Pct.toFixed(1)}% de la facturación${top3Pct >= 50 ? " — la dinámica de la cartera depende de pocas cuentas" : ""}.`;
@@ -173,7 +177,7 @@ export function composeModuleOverview(scenarioId, moduloId) {
      * «la diferencia es estructural, no coyuntural») narraban causas con reparto inventado. Queda UNA lectura:
      * la dirección la dicen los signos (_gapBench, deltaPp) y cada nombre sale del dato. */
     const m1 = `El margen general está en ${margenPct.toFixed(1)}%, ${Math.abs(_gapBench).toFixed(1)} puntos ${_gapBench >= 0 ? "sobre" : "bajo"} tu benchmark (${benchmark.toFixed(1)}%), equivalente a ${fmtM(gapContrib)} de contribución ${_gapBench >= 0 ? "capturada sobre tu referencia" : "no capturada"}.`;
-    const m2 = `${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga comercial con margen ${topRebate.margen.toFixed(1)}%${ml ? `, mientras ${ml.nombre} opera con margen ${ml.margen.toFixed(1)}% y carga ${ml.pctRebate}%` : ""}.`;
+    const m2 = `${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga comercial con margen ${topRebate.margen.toFixed(1)}%${ml && topRebate && ml.nombre !== topRebate.nombre ? `, mientras ${ml.nombre} opera con margen ${ml.margen.toFixed(1)}% y carga ${ml.pctRebate}%` : ""}.`;   // R7: con un solo cliente no se compara consigo mismo
     const m3 = "";   // la «lectura causal» era el guion — la causa la arma ADI con sus herramientas, no una plantilla
 
     const m4 = `¿Por dónde profundizamos?`;
@@ -207,7 +211,7 @@ export function composeModuleOverview(scenarioId, moduloId) {
     // Top categoría runtime sobre SKUs con estado !== "Activo"
     // (autorización BRIEF #2 · Opción C)
     const skuScn = applyScenarioToSkuInventario(scenarioId);
-    const inmovSkus = skuScn.filter(s => s.estado !== "Activo");
+    const inmovSkus = (inmovUSD > 0) ? skuScn.filter(s => s.estado !== "Activo") : [];   // R7: el KPI del motor manda — $0 inmovilizado = cero narrativa de concentración
 
     let topCatName = null;
     let topCatPct = 0;
@@ -269,7 +273,7 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
       const k = val / 1000;
       return Number.isInteger(k) ? `${simboloMoneda()}${k}K` : `${simboloMoneda()}${k.toFixed(1)}K`;
     }
-    return `${simboloMoneda()}${Math.round(val)}K`;
+    return `${simboloMoneda()}${Math.round(val)}`;   // R7: bajo 1000 el valor NO está en miles — sufijo K acá era ×1000 de mentira
   };
   const pct1 = (val) => `${val >= 0 ? "+" : ""}${val.toFixed(1)}%`;
 
@@ -287,17 +291,17 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
     const sorted = [...dataset].sort((a, b) => b.actual - a.actual);
     const top3 = sorted.slice(0, 3);
     const top3Sum = top3.reduce((s, c) => s + c.actual, 0);
-    const top3Pct = (top3Sum / totalActual) * 100;
+    const top3Pct = totalActual > 0 ? (top3Sum / totalActual) * 100 : 0;   // R7: NaN con total 0
     const top3Names = top3.map(c => c.nombre).join(", ");
 
     const growers = dataset
-      .filter(c => c.actual > c.anterior)
+      .filter(c => c.anterior > 0 && c.actual > c.anterior)   // R7: sin año anterior no hay % (el primer archivo de un mes no divide por cero)
       .map(c => ({ ...c, g: ((c.actual - c.anterior) / c.anterior) * 100 }))
       .sort((a, b) => b.g - a.g);
     const fastest = growers[0] || null;
 
     const decliners = dataset
-      .filter(c => c.actual < c.anterior)
+      .filter(c => c.anterior > 0 && c.actual < c.anterior)   // R7: ídem
       .map(c => ({ ...c, g: ((c.actual - c.anterior) / c.anterior) * 100 }))
       .sort((a, b) => a.g - b.g);
     const worst = decliners[0] || null;
@@ -307,11 +311,15 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
      * sagrada) y «Tier 1»/«canal digital»/«e-commerce» inventados. Queda UNA narrativa: la dirección sale del
      * SIGNO de la variación, cada nombre sale del pack, la lectura de dependencia solo si el dato la sostiene,
      * y el siguiente paso SE OFRECE sobre un eje que el dato tiene (cuenta — el eje columna vertebral). */
-    const _dirVentas = growth > 0.5 ? `crecen ${pct1(growth)} YoY`
+    // R7: sin período anterior declarado (el primer archivo de un mes) la dirección se DECLINA, no se inventa
+    // ni revienta — y la cláusula de variación se cae de b3 con él.
+    const _hayGrowth = typeof growth === "number" && Number.isFinite(growth);
+    const _dirVentas = !_hayGrowth ? null
+      : growth > 0.5 ? `crecen ${pct1(growth)} YoY`
       : growth < -0.5 ? `caen ${pct1(growth)} YoY`
       : `están prácticamente planas YoY (${pct1(growth)})`;
-    const b2 = `Las ventas ${_dirVentas}.`;
-    const b3 = `Total ${fmtM(totalActual)} · variación ${fmtM(deltaUSD)} · top 3 (${top3Names}) concentran ${top3Pct.toFixed(1)}%${fastest ? ` · ${fastest.nombre} crece ${pct1(fastest.g)} con carga ${fastest.pctRebate}%` : ""}${worst ? ` · ${worst.nombre} cae ${pct1(worst.g)}` : ""}.`;
+    const b2 = _dirVentas ? `Las ventas ${_dirVentas}.` : `Ventas del período: ${fmtM(totalActual)} — sin período anterior declarado para comparar.`;
+    const b3 = `Total ${fmtM(totalActual)}${_hayGrowth ? ` · variación ${fmtM(deltaUSD)}` : ""} · top 3 (${top3Names}) concentran ${top3Pct.toFixed(1)}%${fastest ? ` · ${fastest.nombre} crece ${pct1(fastest.g)} con carga ${fastest.pctRebate}%` : ""}${worst ? ` · ${worst.nombre} cae ${pct1(worst.g)}` : ""}.`;
     const b4 = top3Pct >= 50 ? `La dinámica de la cartera depende de pocas cuentas.` : `La venta está repartida en la cartera.`;
     const b5 = `Profundizaría primero por cuenta.`;
     const opener = [b2, b3, b4, b5].filter(Boolean).join("\n\n");
@@ -368,7 +376,7 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
     const _nBajoBench = marg.filter((c) => c && typeof c.margen === "number" && c.margen < benchmark).length;
     const b2 = `El margen general está en ${margenPct.toFixed(1)}% · ${Math.abs(_gapBench).toFixed(1)}pp ${_gapBench >= 0 ? "sobre" : "bajo"} tu benchmark.`;
     // D2 ajuste LOCKED: NO repetir "Margen X%" de B2.
-    const b3 = `Benchmark ${benchmark.toFixed(1)}% · gap ${fmtM(gapContrib)} · ${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga${ml ? ` · ${ml.nombre} opera con margen ${ml.margen.toFixed(1)}% y carga ${ml.pctRebate}%` : ""}.`;
+    const b3 = `Benchmark ${benchmark.toFixed(1)}% · gap ${fmtM(gapContrib)} · ${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga${ml && topRebate && ml.nombre !== topRebate.nombre ? ` · ${ml.nombre} opera con margen ${ml.margen.toFixed(1)}% y carga ${ml.pctRebate}%` : ""}.`;   // R7: ídem
     const b4 = `${_nBajoBench} de ${marg.length} cuentas operan bajo tu benchmark.`;
     const b5 = `Negociaría primero la carga comercial de ${topRebate.nombre}${segundoRebate ? ` · luego la de ${segundoRebate.nombre}` : ""}.`;
     const opener = [b2, b3, b4, b5].filter(Boolean).join("\n\n");
@@ -398,7 +406,7 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
     const doh = k.doh;
 
     const skuScn = applyScenarioToSkuInventario(scenarioId);
-    const inmovSkus = skuScn.filter(s => s.estado !== "Activo");
+    const inmovSkus = (inmovUSD > 0) ? skuScn.filter(s => s.estado !== "Activo") : [];   // R7: el KPI del motor manda — $0 inmovilizado = cero narrativa de concentración
 
     let topCatName = null;
     let topCatPct = 0;
@@ -423,8 +431,10 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
     const b2 = `El ${inmovPct.toFixed(1)}% del inventario opera fuera de rango óptimo · cobertura promedio ${doh} días.`;
     const b3 = `Inmovilizado ${fmtK(inmovUSD)} · total ${fmtK(totalInvUSD)}${topCatName ? ` · ${topCatName} concentra ${topCatPct.toFixed(1)}% del capital inmovilizado` : ""}.`;
     // D2 ajuste LOCKED: B4 lectura ejecutiva · topCatName ya está en B3.
-    const b4 = topCatName && topCatPct >= 50 ? `El inmovilizado se concentra en una sola línea de producto.` : `El inmovilizado está repartido entre familias.`;
-    const b5 = topCatName
+    const b4 = inmovUSD <= 0 ? `Sin capital inmovilizado material.`   // R7: con el KPI en $0 no hay reparto que leer
+      : topCatName && topCatPct >= 50 ? `El inmovilizado se concentra en una sola línea de producto.` : `El inmovilizado está repartido entre familias.`;
+    const b5 = inmovUSD <= 0 ? `Revisaría rotación por familia.`   // R7: sin inmovilizado no hay SKUs que «atacar»
+      : topCatName
       ? `Atacaría primero los SKUs de ${topCatName} · luego revisaría rotación por familia.`
       : `Atacaría primero los SKUs de la categoría más concentrada · luego revisaría rotación por familia.`;
     const opener = [b2, b3, b4, b5].filter(Boolean).join("\n\n");

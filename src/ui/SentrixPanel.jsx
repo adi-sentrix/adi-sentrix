@@ -33,7 +33,7 @@ import { getTenantData, initTenant } from "../data/tenantStore.js";   // el plaz
 import { factorComercialDe } from "../config/contract/figureType.js";   // la escala comercial la DECLARA el pack (2026-08-30)
 import { getAccessCode } from "../adi/accessClient.js";                  // …y se manda con el codigo firmado, que es lo que dice de que empresa es   // FLUJO COMERCIAL (owner 2026-08-27) · venta, abonos y saldo — toda la aritmética vive ahí   // RESUMEN COMERCIAL (owner 2026-08-07) · la cara Comercial entera — veredicto/KPIs/plano 80-20/pareto/puente/insights ya armados y formateados (alcance SIEMPRE global: la firma no acepta selección) · cero cálculo en React
 import { buildMesaEstado, buildWatchlistEstado } from "../adi/sentrix/mesa.js";   // MESA 2.0 · semáforo contra TU vara + acción priorizada + "qué cambió" + alertas/watchlist (reusa diagnose/POLICY/temporal/cuadro · una verdad)
-import { buildMesaCapital, buildCuadroCapital, CUADRO_CAPITAL_EJES, CAPITAL_ESTADOS } from "../adi/sentrix/mesaCapital.js";   // CARA CAPITAL (owner 2026-07-15) · el mismo sello sobre el inventario — detectores existentes, cero cálculo en UI
+import { buildMesaCapital } from "../adi/sentrix/mesaCapital.js";   // CARA CAPITAL (owner 2026-07-15) · el mismo sello sobre el inventario — detectores existentes, cero cálculo en UI
 import { buildMesaResultado, pnlMesaLink, pnlExportData } from "../adi/sentrix/mesaResultado.js";   // CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l") · la cascada del P&L comercial — buildPnlCascade, cero cálculo en UI · pnlMesaLink = deep-link puro (evidencia P&L → cara Resultado con su alcance) · pnlExportData = copiar/CSV de lo que se está viendo (una verdad)
 import { editPnlLine, removePnlLine, addPnlLine } from "../adi/pnl.js";   // EDICIÓN DIRECTA de supuestos en la cara (owner 2026-07-26 "con opción de cambiarlos") · las MISMAS primitivas del chat (una verdad) · emiten adi-pnl-changed (la cara se re-arma) · editan el criterio, JAMÁS disparan a ADI
 import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED, ADI_SENTRIX_CUADRO_ENABLED } from "../config/voiceFlags.js";
@@ -3776,129 +3776,11 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
   </>);
 }
 
-/* ── CUADRO DE CAPITAL · la grilla del inventario (mismo patrón del cuadro comercial · SIN tocar CuadroMando) ──
- * Eje SKU/bodega · columnas clásicas + Estado del MOTOR + "En juego $" + chip Acción con su pregunta · microlectura
- * SOLO en "En alerta" · estrella → watchlist transversal. SIN comparado ni ficha: no existe serie mensual de stock
- * por SKU (honesto — la serie de venta no la sustituye). */
-function CuadroCapital({ scenario, onAsk = null, watch = null, onWatch = null }) {
-  const [eje, setEje] = useState("sku");
-  const [mode, setMode] = useState("all");
-  const [busca, setBusca] = useState("");
-  const [sortKey, setSortKey] = useState("capital");
-  const cc = buildCuadroCapital(eje, scenario);
-  const cols = cc.columns;
-  const moneyk = (v) => simboloMoneda() + (Math.abs(v) / 1000).toFixed(1) + "K";
-  const usd = (v) => { const a = Math.abs(v); return a >= 1e6 ? simboloMoneda() + (a / 1e6).toFixed(1) + "M" : a >= 1e3 ? simboloMoneda() + Math.round(a / 1e3) + "K" : simboloMoneda() + Math.round(a); };
-  const fmt = (col, v) => {
-    if (v == null) return "—";
-    if (col.fmt === "moneyk") return moneyk(v);
-    if (col.fmt === "usd")    return usd(v);
-    if (col.fmt === "x")      return r1(v) + "x";
-    if (col.fmt === "d")      return Math.round(v) + "d";
-    if (col.fmt === "int")    return Math.round(v).toLocaleString("es-CL");
-    return v;
-  };
-  const _normB = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const sortCol = cols.find((c) => c.key === sortKey) || cols.find((c) => c.key === "capital") || cols[0];
-  let rows = cc.rows.slice().sort((a, b) => sortKey === "estado" ? (a.estadoRank - b.estadoRank) : (sortCol.sort === "asc" ? -1 : 1) * ((b[sortKey] || 0) - (a[sortKey] || 0)));
-  if (busca.trim()) rows = rows.filter((r) => _normB(r.name).includes(_normB(busca)));
-  if (mode === "top") rows = rows.slice(0, 10);
-  else if (mode === "bottom") rows = rows.slice(-10);
-  else if (mode === "alert") rows = rows.filter((r) => r.alert);
-  const GRID = `18px 1.3fr ${cols.map(() => "1fr").join(" ")}`;
-  const minWBase = 40 + cols.length * 66 + 110;
-  const pill = (active, label, onClick, key) => (
-    <button key={key} onClick={onClick} style={{ padding:"4px 10px", borderRadius:6, fontSize:14, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap",
-      background: active ? "rgba(255,255,255,0.1)" : "transparent", border:`1px solid ${active ? "rgba(255,255,255,0.35)" : C.border}`, color: active ? C.text : C.textMuted }}>{label}</button>
-  );
-  const actionColor = (a) => (/liquidar|reponer|frenar/.test(a) ? C.amber : C.textMuted);
-  return (
-    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-      {/* eje + filtros de la tabla */}
-      <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-        <div style={{ display:"flex", gap:5 }}>
-          {CUADRO_CAPITAL_EJES.map((d) => pill(eje === d.key, d.label, () => { setEje(d.key); setMode("all"); setBusca(""); setSortKey("capital"); }, d.key))}
-        </div>
-        <span style={{ fontSize:14, color:C.textMuted, marginLeft:6 }}>Ver</span>
-        {pill(mode === "all", "Todos", () => setMode("all"), "all")}
-        {pill(mode === "top", "Top 10", () => setMode("top"), "top")}
-        {pill(mode === "bottom", "Peores 10", () => setMode("bottom"), "bot")}
-        {pill(mode === "alert", "En alerta", () => setMode("alert"), "al")}
-        {cc.rows.length > 12 && (
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={`buscar ${cc.plural}…`}
-            style={{ padding:"4px 10px", borderRadius:6, border:`1px solid ${busca ? "rgba(255,255,255,0.35)" : C.border}`, background:"transparent", color:C.text, fontSize:14, fontFamily:"'DM Sans', system-ui, sans-serif", outline:"none", width:130 }}/>
-        )}
-      </div>
-      {/* la grilla */}
-      <div style={{ overflowX:"auto" }}>
-        <div style={{ minWidth: minWBase }}>
-          <div style={{ display:"grid", gridTemplateColumns:GRID, gap:"0 8px", alignItems:"center", fontSize:11.5, color:C.textMuted, fontFamily:MONO, letterSpacing:"0.4px", textTransform:"uppercase", padding:"0 8px 7px", borderBottom:`1px solid ${C.border}` }}>
-            <span/><span>{cc.label}</span>
-            {cols.map((c) => (
-              <span key={c.key} onClick={() => c.key !== "accion" && setSortKey(c.key)} style={{ textAlign: c.key === "accion" ? "left" : "right", cursor: c.key === "accion" ? "default" : "pointer", color: sortKey === c.key ? C.text : C.textMuted, whiteSpace:"nowrap" }}>
-                {c.label}{sortKey === c.key ? " ↓" : ""}{c.defKey && METRIC_DEFS[c.defKey] ? <InfoDot def={METRIC_DEFS[c.defKey]} align="right"/> : null}
-              </span>
-            ))}
-          </div>
-          {rows.map((r) => (
-            <div key={r.name} style={{ display:"grid", gridTemplateColumns:GRID, gap:"0 8px", alignItems:"center", padding:"8px", borderRadius:6, borderBottom:"1px solid rgba(255,255,255,0.03)" }}>
-              <span style={{ display:"flex", alignItems:"center", justifyContent:"center" }}>
-                {onWatch ? (() => { const onW = (watch || []).some((w) => w.dim === eje && w.name === r.name); return (
-                  <span onClick={(e) => { e.stopPropagation(); onWatch(eje, r.name); }}
-                    title={onW ? "Dejar de seguir" : 'Seguir en "Lo que yo sigo"'}
-                    style={{ color: onW ? C.celeste : "rgba(255,255,255,0.22)", fontSize:14, lineHeight:1, cursor:"pointer", transition:"color 0.15s" }}
-                    onMouseEnter={(e) => { if (!onW) e.currentTarget.style.color = "rgba(47,184,218,0.7)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = onW ? C.celeste : "rgba(255,255,255,0.22)"; }}>{onW ? "★" : "☆"}</span>
-                ); })() : null}
-              </span>
-              <span style={{ display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
-                {r.alert && <span style={{ width:6, height:6, borderRadius:"50%", background: r.estadoColor === "red" ? C.red : C.amber, flexShrink:0 }}/>}
-                <span style={{ color:"#eef2f6", fontWeight:600, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</span>
-              </span>
-              {cols.map((c) => c.key === "accion" ? (
-                onAsk && r.accionAsk ? (
-                  <span key={c.key}>
-                    <button onClick={(e) => { e.stopPropagation(); onAsk(r.accionAsk); }} title={`Pregúntale a ADI: ${r.accionAsk}`}
-                      style={{ padding:"2px 8px", borderRadius:5, border:`1px solid ${C.border}`, background:"transparent", color:actionColor(r.accion), fontSize:14, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap", transition:"all 0.15s" }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(47,184,218,0.5)"; e.currentTarget.style.background = "rgba(47,184,218,0.06)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "transparent"; }}>{r.accion}</button>
-                  </span>
-                ) : (
-                  <span key={c.key} style={{ fontSize:14, color:actionColor(r.accion), whiteSpace:"nowrap" }}>{r.accion}</span>
-                )
-              ) : c.key === "estado" ? (
-                <span key={c.key} title={`${(CAPITAL_ESTADOS[r.estado] && CAPITAL_ESTADOS[r.estado].def) || ""}${onAsk ? " · click y ADI abre esa historia" : ""}`}
-                  onClick={onAsk && CAPITAL_ESTADOS[r.estado] ? (e) => { e.stopPropagation(); onAsk(CAPITAL_ESTADOS[r.estado].ask); } : undefined}
-                  style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6, minWidth:0, ...(onAsk ? { cursor:"pointer" } : {}) }}>
-                  <span style={{ width:7, height:7, borderRadius:"50%", background:_capCol(r.estadoColor), boxShadow:`0 0 6px ${_capCol(r.estadoColor)}88`, flexShrink:0 }}/>
-                  <span style={{ fontSize:14, color:C.textSub, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.estadoLabel}</span>
-                </span>
-              ) : (
-                <span key={c.key} style={{ textAlign:"right" }}><Num color={c.key === "enJuego" ? C.amber : c.fmt === "moneyk" ? C.text : C.textSub}>{fmt(c, r[c.key])}</Num></span>
-              ))}
-              {/* MICROLECTURA · SOLO en "En alerta" (mismo patrón del cuadro comercial): la historia del detector */}
-              {mode === "alert" && r.lectura && (
-                <span style={{ gridColumn:"2 / -1", fontSize:14, color:C.textMuted, lineHeight:1.4, paddingTop:2, minWidth:0 }}>{r.lectura}</span>
-              )}
-            </div>
-          ))}
-          {/* fila TOTALES */}
-          {cc.total && (
-            <div style={{ display:"grid", gridTemplateColumns:GRID, gap:"0 8px", alignItems:"center", padding:"10px 8px", marginTop:4, borderTop:`1px solid ${C.borderLight}`, background:"rgba(255,255,255,0.02)" }}>
-              <span/><span style={{ fontFamily:MONO, fontSize:11.5, fontWeight:600, letterSpacing:"0.6px", textTransform:"uppercase", color:C.text }}>Total</span>
-              {cols.map((c) => c.key === "accion" || c.key === "estado" ? <span key={c.key}/> : (
-                <span key={c.key} style={{ textAlign:"right" }}><Num color={c.key === "enJuego" ? C.amber : C.text}>{cc.total[c.key] == null ? "—" : fmt(c, cc.total[c.key])}</Num></span>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-      <div style={{ fontSize:14, color:C.textMuted, lineHeight:1.5 }}>
-        Ordena por cualquier columna · el Estado es el semáforo del motor contra tu benchmark (rotación {POLICY.rotacionMin}x · {POLICY.dohMax}d de inventario) — tocalo y ADI abre esa historia · el "En juego $" es el capital inmovilizado que el detector afirma (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · la ★ la sigue en "Lo que yo sigo" · rotación media {cc.rotacionMedia}x · <span style={{ color:C.textSub }}>{cc.n} {cc.plural}</span> · sin comparado de 12 meses: no existe serie mensual de stock por SKU (se enciende con el ERP).
-      </div>
-    </div>
-  );
-}
+/* ⚠️ ACÁ VIVÍA `CuadroCapital` (~120 líneas) — la grilla de inventario SIN PUNTO DE MONTAJE (huérfana desde
+   que la cara Capital tomó su lugar). BORRADA en el retrabajo ultracode del colapso (R2-bis, 2026-08-30):
+   una de las fugas de «escenario {scenario}» vivía en su pie — código muerto que igual podía volver a montarse
+   con la fuga adentro. La grilla viva del inventario es la cara Capital (MesaCapitalCara + sus KPI/drill);
+   `buildCuadroCapital` sigue exportado en mesaCapital.js para quien la reviva CON contexto de vista y sin fugas. */
 
 export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false, onAsk = null }) {
   // COMPARACIÓN · tiene PRIORIDAD sobre el shell de reading: el compare del motor trae `reading` además de `pairs`, pero

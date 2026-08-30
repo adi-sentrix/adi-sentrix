@@ -80,6 +80,35 @@ H("3 · los literales nuevos del demo — cambio visible AUTORIZADO por el owner
     "inventario: 35.1% < 50 ⇒ NO se afirma concentración (el guion la clavaba siempre)", i);
 }
 
+/* ═══ 2-bis · LOS CASOS DEGENERADOS (R7 del retrabajo ultracode) ══════════════════════════════════════════════
+ * EL ONBOARDING ESPERADO: el primer archivo de un cliente real trae UN mes, sin año anterior ni presupuesto.
+ * La narrativa colapsada CRASHEABA ahí (pct1 sobre null · división por anterior=0 → Infinity) y el inventario
+ * se contradecía («$0 inmovilizado» junto a «X concentra 53.7% del inmovilizado» — el filtro literal 'Activo'
+ * contra el KPI del motor). La regla: degradar HONESTO en palabras, jamás reventar ni inventar dirección. */
+H("2-bis · el primer archivo de un mes no revienta la cara — declina en palabras");
+{
+  const c0 = PACK.clientesVentas[0];
+  const MINI = { ...PACK,
+    clientesVentas: [{ ...c0, anterior: 0, unidadesAnt: 0, presupuesto: 0 }],
+    clientesMargen: PACK.clientesMargen.filter((m) => m.nombre === c0.nombre),
+    ventasKPI: { ...PACK.ventasKPI, totalActual: c0.actual, totalAnterior: null, vsAnterior: null, totalPresupuesto: null, vsPresupuesto: null },
+  };
+  initTenant(MINI);
+  let v;
+  try { v = composeModuleOverviewV2("bonanza", "ventas"); } catch (e) { v = { opener: `💥 ${e.message}` }; }
+  ok(!/💥/.test(v.opener), "★ ventas de UN mes: la cara compone (antes: crash `null.toFixed`)", v.opener.slice(0, 90));
+  ok(/sin período anterior declarado para comparar/.test(v.opener), "…y la variación se DECLINA en palabras");
+  ok(!/Infinity|NaN|crecen|caen/.test(v.opener), "…sin Infinity/NaN ni una dirección inventada");
+  const m = composeModuleOverviewV2("bonanza", "margenes");
+  ok(!/mientras|opera con margen/.test(m.opener.split("\n")[1] || "") || !new RegExp(`${c0.nombre}[^\\n]*${c0.nombre}`).test(m.opener),
+    "márgenes con UN cliente: no se compara consigo mismo", m.opener.split("\n")[1]);
+  const i = composeModuleOverviewV2("bonanza", "inventario");
+  ok(/Sin capital inmovilizado material\./.test(i.opener) && !/concentra \d+(\.\d+)?% del capital inmovilizado/.test(i.opener),
+    "★ inventario con KPI en $0: cero narrativa de concentración (la contradicción murió)", i.opener.replace(/\n+/g, " § ").slice(0, 140));
+  ok(/Inmovilizado \$0 ·/.test(i.opener), "…y $0 se muestra SIN sufijo K (bajo 1000 el valor no está en miles)");
+  initTenant(TENANT_DEMO);
+}
+
 /* ═══ 3-bis · LA SÉPTIMA CADENA: etlg (R1 del retrabajo ultracode) ════════════════════════════════════════════ */
 H("3-bis · la tesis ejecutiva (etlg) sale del dato o no sale — las cifras clavadas murieron");
 {
@@ -126,9 +155,22 @@ H("4 · CARNADA · las dos leyes, probadas ROJAS con el defecto adentro");
     ok(cazada, `carnada «${nombre}» → el chequeo se pone ROJO`, detalle || "el defecto pasó DESAPERCIBIDO");
   };
 
+  // (a0 · R7) el guard de división quitado: el onboarding de un mes vuelve a reventar/inventar
+  await carnada("división por anterior=0 de vuelta (Infinity en el onboarding)", "src/adi/composers/overview.js",
+    [[/\.filter\(c => c\.anterior > 0 && c\.actual > c\.anterior\)/g, ".filter(c => c.actual > c.anterior)"]],
+    async (Mut) => {
+      const c0 = PACK.clientesVentas[0];
+      initTenant({ ...PACK,
+        clientesVentas: [{ ...c0, anterior: 0, unidadesAnt: 0, presupuesto: 0 }],
+        clientesMargen: PACK.clientesMargen.filter((m) => m.nombre === c0.nombre),
+        ventasKPI: { ...PACK.ventasKPI, totalActual: c0.actual, totalAnterior: null, vsAnterior: null, totalPresupuesto: null, vsPresupuesto: null } });
+      try { return /Infinity|NaN/.test(Mut.composeModuleOverviewV2("bonanza", "ventas").opener); }
+      catch { return true; }   // reventar también es el defecto
+    });
+
   // (a) LA CARNADA DEL OWNER: una variación negativa narrada con «crecen»
   await carnada("dirección invertida — «crecen» incondicional", "src/adi/composers/overview.js",
-    [[/const _dirVentas = growth > 0\.5 \? `crecen \$\{pct1\(growth\)\} YoY`\n      : growth < -0\.5 \? `caen \$\{pct1\(growth\)\} YoY`\n      : `están prácticamente planas YoY \(\$\{pct1\(growth\)\}\)`;/,
+    [[/const _dirVentas = !_hayGrowth \? null\n      : growth > 0\.5 \? `crecen \$\{pct1\(growth\)\} YoY`\n      : growth < -0\.5 \? `caen \$\{pct1\(growth\)\} YoY`\n      : `están prácticamente planas YoY \(\$\{pct1\(growth\)\}\)`;/,
       "const _dirVentas = `crecen ${pct1(growth)} YoY`;"]],
     async (Mut) => {
       initTenant(PACK);
@@ -166,7 +208,7 @@ H("4 · CARNADA · las dos leyes, probadas ROJAS con el defecto adentro");
   //     filterTextualSuggestions ya filtra entidades que el tenant no tiene — verificado: una sugerencia
   //     hardcodeada ni sale. El opener NO pasa por ese filtro, así que la carnada muerde donde el riesgo vive.)
   await carnada("categoría del demo hardcodeada en el opener", "src/adi/composers/overview.js",
-    [[/const b5 = topCatName\n      \? `Atacaría primero los SKUs de \$\{topCatName\} · luego revisaría rotación por familia\.`\n      : `Atacaría primero los SKUs de la categoría más concentrada · luego revisaría rotación por familia\.`;/,
+    [[/const b5 = inmovUSD <= 0 \? `Revisaría rotación por familia\.`[^\n]*\n      : topCatName\n      \? `Atacaría primero los SKUs de \$\{topCatName\} · luego revisaría rotación por familia\.`\n      : `Atacaría primero los SKUs de la categoría más concentrada · luego revisaría rotación por familia\.`;/,
       "const b5 = `Atacaría primero los SKUs de Materiales de Construcción · luego revisaría rotación por familia.`;"]],
     async (Mut) => {
       initTenant(PACK);

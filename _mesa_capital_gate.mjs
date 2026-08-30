@@ -440,9 +440,12 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
     const enTexto = txt.match(/"[^"\n]*cobertura[^"\n]*"|'[^'\n]*cobertura[^'\n]*'|`[^`\n]*cobertura[^`\n]*`/gi) || [];
     ok(enTexto.length === 0, `candado-cobertura-${f}`, enTexto.join(" | ").slice(0, 160));
   }
-  // y en la cara de la vista: los textos escritos a mano del panel de Capital
+  // y en la cara de la vista: los textos escritos a mano del panel de Capital.
+  // DELIMITADOR ACTUALIZADO (R2-bis del retrabajo ultracode 2026-08-30): `CuadroCapital` — el viejo cierre del
+  // bloque — se BORRÓ (huérfano sin punto de montaje); lo que sigue a la cara Capital ahora es el propio
+  // SentrixPanel, así que el bloque se corta ahí. La propiedad vigilada no cambió.
   const panel = fs.readFileSync(path.join(root, "src/ui/SentrixPanel.jsx"), "utf8");
-  const capIni = panel.indexOf("function MesaCapitalCara"), capFin = panel.indexOf("function CuadroCapital");
+  const capIni = panel.indexOf("function MesaCapitalCara"), capFin = panel.indexOf("export function SentrixPanel");
   const bloqueCapital = capIni >= 0 && capFin > capIni ? panel.slice(capIni, capFin) : "";
   ok(bloqueCapital.length > 0 && !/cobertura/i.test(bloqueCapital), "candado-cobertura-cara-capital",
     (bloqueCapital.match(/[^.]*cobertura[^.]*/i) || [""])[0].slice(0, 120));
@@ -470,7 +473,8 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   // …y en los textos escritos a mano de la cara Capital, que el módulo no controla
   const panel = fs.readFileSync(path.join(root, "src/ui/SentrixPanel.jsx"), "utf8");
   const sinCom = panel.replace(/\/\*[^]*?\*\//g, "").replace(/\{\s*\/\*[^]*?\*\/\s*\}/g, "");
-  const ini = sinCom.indexOf("function MesaCapitalCara"), fin = sinCom.indexOf("function CuadroCapital");
+  // (mismo delimitador nuevo que arriba — R2-bis: CuadroCapital borrado, el bloque termina donde empieza el panel)
+  const ini = sinCom.indexOf("function MesaCapitalCara"), fin = sinCom.indexOf("export function SentrixPanel");
   const bloque = ini >= 0 && fin > ini ? sinCom.slice(ini, fin) : "";
   ok(bloque.length > 0 && !/detenid/i.test(bloque), "candado-inmovilizado-cara",
     (bloque.match(/[^.]*detenid[^.]*/i) || [""])[0].slice(0, 140));
