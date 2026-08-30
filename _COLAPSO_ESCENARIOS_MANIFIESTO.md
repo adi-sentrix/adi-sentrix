@@ -23,7 +23,7 @@ que esa revisión pase (condición del encargo).
 | C2 · ramas-por-nombre | `0bb9121` | Guard SKU-margen×escenario completo (`_esSkuMargenNoBonanza`+`_SCN_LABEL`+`_skuMargenScenarioMsg`+dispatch+flag `ADI_SKU_SCENARIO_GUARD_ENABLED`) · `surfaceContract.blockedWhen` (26 entradas) + sus 2 callers + `surfaceBlock` sin parámetro de escenario |
 | C3 · defaults | `f709c8f` | 35 literales `\|\| "bonanza"` / `= "bonanza"` en 17 módulos → `ESCENARIO_INICIAL` (byte-idéntico) |
 | C4 · superficie | `134b701` | Headers qi sin «· escenario X» · diagnose+3 openers emiten «· base real» directo · executiveReport sin favorable/de tensión/crítico · honestFallback «del negocio» · viewContext/progressiveDisclosure dejan de VERBALIZAR el escenario · mapa del agente sin «escenario actual» + defaults del agente a `ESCENARIO_INICIAL` |
-| C5 · defaults «actual» | `c259a9e` | 28 defaults de conveniencia `scenario = "actual"` en 12 módulos oráculo/sentrix/composers → `ESCENARIO_INICIAL` (prod no los usaba: ChatADI pasa la constante; disparaban en gates que omitían) |
+| C5 · defaults «actual» | `c259a9e` | 28 defaults de conveniencia `scenario = "actual"` en 12 módulos oráculo/sentrix/composers → `ESCENARIO_INICIAL`. **CORRECCIÓN (C-2): C5 SÍ cambió conducta en 2 sitios — para bien**: prod no usaba los defaults (ChatADI pasa la constante), pero DOS gates viajaban gratis en la omisión y leían la carpeta cruda (_oracle_venta_d8 · _simulate_general); C5 los obligó a declarar su mundo explícito |
 | C6 · scrub y labels | `1b8772f`+fix `938ec3a` | `_scrubScenario` retirado del seam · `SCENARIOS` (labels UI) retirado de config · 3 gates re-fuenteados a `SCENARIO_TRANSFORMS`. **CORRECCIÓN (R5, retrabajo ultracode): la afirmación original «no atajaba nada» era FALSA** — el A/B probó que atajaba LITERALES ESTÁTICOS de diez composers («en este escenario», «en el escenario activo») y al retirarla el usuario los leyó crudos; R5 los cortó en su fuente y endureció el lock a literales |
 | C7 · narrativa | `cadfa70` | Las 6 cadenas if-bonanza/tension/crisis de `composeModuleOverview`/V2 + 6 bloques `suggestionsByScenario` → UNA narrativa data-driven |
 
@@ -66,14 +66,15 @@ que esa revisión pase (condición del encargo).
 
 ## Candados nuevos
 
-- **`_colapso_eje_gate` (48 PASS · 14 carnadas)** — patrón `_poda_anti_resurreccion_gate`: lista explícita,
+- **`_colapso_eje_gate` (57 PASS · 23 carnadas tras las dos rondas del retrabajo)** — patrón `_poda_anti_resurreccion_gate`: lista explícita,
   DEFINICIÓN-no-mención (scan sin comentarios), sucesor vivo por cada retirado, ni un import colgando, detector
   auto-probado. Locks: elegibilidad muerta · ramas-por-nombre no renacen · cero defaults literales (bonanza Y
-  actual, repo-wide) · **lock de EMISIÓN** («escenario ${…}» y etiquetas por nombre → rojo, sin exenciones).
-- **`_narrativa_del_dato_gate` (13 PASS · 3 carnadas)** — las DOS carnadas del owner: dirección invertida
-  («crecen» incondicional → el pack en caída lo delata) · «Tier 1» sobre un pack que no lo tiene · categoría
-  del demo hardcodeada en el opener (las sugerencias tienen defensa propia: `filterTextualSuggestions` filtra
-  entidades ajenas — verificado empíricamente).
+  actual, repo-wide) · **lock de EMISIÓN** («escenario ${…}», interpolación JSX, frases ESTÁTICAS, tres comillas, concatenación y etiquetas por nombre → rojo; exentos DECLARADOS: figureType/notario y el shape del spec).
+- **`_narrativa_del_dato_gate` (26 PASS · 5 carnadas tras R1/R7)** — las DOS carnadas del owner (dirección
+  invertida · «Tier 1» sobre un pack) + etlg (el mapa clavado resucitado) + el onboarding de un mes (Infinity O
+  crash) + categoría hardcodeada en el opener. **CORRECCIÓN (C-2): mi nota original decía que
+  `filterTextualSuggestions` «filtra entidades ajenas» — FALSO: descarta TODO string (solo pasan cognitive
+  actions Tipo B, decisión de voz vieja y deliberada); por eso las listas textuales se PODARON en C-2.**
 
 ## VIVO A PROPÓSITO, y por qué
 
@@ -82,7 +83,7 @@ que esa revisión pase (condición del encargo).
    vocabulario visible ya no dice «escenario».
 2. **El motor de transforms** (`engine/scenarios.js`, incluidas sus ramas por nombre en inventario y el
    fast-path `bonanza ? clientesMargen : apply(...)` de contribution.js) — sustrato de Simulate v2
-   (`resolveTransform(scenarioId, override)`) y de la identidad bonanza≡base. «La lógica está bien.»
+   (`resolveTransform(scenarioId, override)`). **CORRECCIÓN (C-2): la «identidad bonanza≡base» es POR FUENTE, y para clientesMargen NI SIQUIERA VALE** — `applyScenarioToClientesMargen` reconcilia la venta con la oficial D8 en TODOS los mundos (medido: contribución 4070→4271 en los 13 clientes, ~5%), así que el fast-path de contribution que sirve la base cruda «como identidad» sirve cifras PRE-D8 (medición completa en el reporte del fast-path — la decisión constitucional está corriendo). «La lógica está bien» describe el motor, no ese atajo.
 3. **`SCENARIO_TRANSFORMS`** en los tenants de fábrica (demo, empresa2) — dato del tenant; alimenta el motor y
    los gates que certifican que las tools NO están ciegas a los transforms.
 4. **`figureType.js`** (`ESCENARIO_BASE = "actual"`, `ESCENARIOS_CON_TRANSFORM`, `ESCENARIOS_QUE_ALTERAN_TASAS`,
@@ -93,7 +94,7 @@ que esa revisión pase (condición del encargo).
    overrides de simulación viajan. Quitarlo de las firmas es cirugía masiva sin cambio observable (el valor ya
    es constante en la app); si la revisión lo ordena, es un barrido propio.
 6. **`vc.escenario`** en viewContext — campo de maquinaria (`dataSnapshotId`); dejó de VERBALIZARSE.
-7. **Gates que ejercitan tension/crisis** (concordancia, capital_ligado, marca_reconciliation, figfor,
+7. **Gates que ejercitan tension/crisis** (concordancia, capital_ligado, marca_reconciliation,
    materialidad, carga_delta, tipado_cifra…) — certifican el sustrato de simulación, no la UI.
 
 ## Notas para la revisión (cosas vistas y NO tocadas, a propósito)

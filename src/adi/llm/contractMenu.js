@@ -77,7 +77,7 @@ export function buildContractMenu() {
     L.push(`  · canal = el canal comercial (agrupa los clientes: ${_cv.join(" · ")}). 'ventas por canal' → overview/rank ventas@canal · 'cuánto me deja cada canal' → contribucion@canal · 'compara ${_c0.toLowerCase()} con ${_c1.toLowerCase()}' → compare con comparison.entities ['${_c0}','${_c1}'] y dimension 'canal' · '¿cómo viene el ${_c1.toLowerCase()}?' → dive con dimension 'canal' y entity '${_c1}'.`);
   }
   L.push("");
-  L.push("SUPUESTOS / PROYECCIÓN (campo `transform`): ADI proyecta un SUPUESTO sobre el DATO REAL — es 'actual vs supuesto', NO un escenario del negocio (nada de bonanza/tensión/crisis).");
+  L.push("SUPUESTOS / PROYECCIÓN (campo `transform`): ADI proyecta un SUPUESTO sobre el DATO REAL — es 'actual vs supuesto', NO una segunda base ni un escenario del negocio (nada de bonanza/tensión/crisis).");
   L.push("  · Si el usuario pide proyectar/simular un cambio (ej. 'sube ventas 3%', 'agregales 3% a la contribución', '¿y si crece 5%?', 'bajá el capital 10%'), emití `transform { kind:'assumption', op:'delta', value:<n>, unit:'pct', base:'real' }`. value negativo = baja (ej. -5). Con el condicional explícito ('¿qué pasa si…?', 'y si…') usá operation:'simulate'.");
   L.push("  · Hoy se proyecta sobre ventas / contribución / capital (niveles), en cualquier eje. Otra métrica (margen/rotación/DOH, que son tasas) o eje no habilitado → ADI degrada honesto solo.");
   L.push("  · COMPUESTO: si el pedido combina 2 o más supuestos (ej. 'ventas +3% Y margen +2 puntos'), NO elijas uno solo ni proyectes parcial. Emití `transform { kind:'assumption', op:'multi', base:'real' }` → ADI degrada honesto (hoy proyecta un supuesto a la vez).");

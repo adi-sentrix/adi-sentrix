@@ -110,7 +110,7 @@ function _limite(dimension, metric, scenario) {
   if (metric === "inmovilizado") return null;   // el inventario tiene su propio ajustador y sí se mueve entero
   if (dimension === "sku" && s !== "actual") {
     return { tipo: "escenario_no_aplica", entidadesFuera: [],
-      texto: "El eje SKU muestra la cifra BASE: el dato de SKU no declara ajuste por escenario, así que no se mueve con el chip de arriba y su total no coincide con el de los otros ejes. No se le inventa un ajuste." };
+      texto: "El eje SKU muestra la cifra BASE: el dato de SKU no declara transforms de simulación, así que la cifra es la almacenada y su total no coincide con el de los otros ejes. No se le inventa un ajuste." };
   }
   if (dimension === "marca") {
     const conCliente = new Set(applyScenarioToMarcasVentas(s).map((x) => x.nombre));

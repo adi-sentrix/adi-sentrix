@@ -1790,7 +1790,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
         scope: { level: "global" },
         calls: [{ tool: "simulate", args: { metric: "ventas", dimension: "cliente", transform: { op: "delta", unit: "pct", value: movidas[0].delta_pct } } }] };
     } else if (movidas.length === 0) {
-      const out = _composedBypassResult("Con el precio y el volumen confirmados sin cambios no hay escenario que proyectar: el total queda igual al dato real. Si quieres, plantea un cambio en alguna de las dos variables y lo corro.", mem, recentNarrationsPrev, scenario);
+      const out = _composedBypassResult("Con el precio y el volumen confirmados sin cambios no hay nada que proyectar: el total queda igual al dato real. Si quieres, plantea un cambio en alguna de las dos variables y lo corro.", mem, recentNarrationsPrev, scenario);
       if (out) {
         out.mem = { ...out.mem, pendingSimulation: null };
         return out;

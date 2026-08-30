@@ -263,7 +263,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
   // ── #6 · escenario / supuesto ──
   const specScn = spec.scenario || "actual";
   if (specScn !== "actual" && specScn !== "simulation")
-    return _degrade("bad-scenario", `El escenario "${specScn}" no existe. Uso "actual" o "simulation".`, [], ctx);
+    return _degrade("bad-scenario", `Ese modo "${specScn}" no existe: trabajo sobre el dato real o sobre una simulación declarada.`, [], ctx);
   if (specScn === "simulation") {
     const av = assumptionValid(spec.assumption);   // valida la FORMA del supuesto (aunque la ejecución aún no exista)
     if (!av.ok) return _degrade("bad-assumption", av.reason, av.offer || [], ctx);
@@ -272,7 +272,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
     const blind = ENTITIES[spec.dimension].scenarioAware === false || (mAware && mAware[spec.dimension] === false);
     if (blind) {
       const simAxes = axes.filter((a) => ENTITIES[a].scenarioAware !== false && !(mAware && mAware[a] === false));
-      return _degrade("scenario-blind", `El ${_m(spec.metric)} por ${_d(spec.dimension)} es base-only: no responde a escenario (se enciende con el ERP), así que no lo puedo simular. Te muestro el estado actual, o ${_m(spec.metric)} por un eje que sí simula (${simAxes.map(_d).join(", ") || "cliente"}).`, simAxes.map((a) => `${spec.metric}@${a}`), ctx);
+      return _degrade("scenario-blind", `El ${_m(spec.metric)} por ${_d(spec.dimension)} es base-only: no responde a simulaciones (se enciende con el ERP), así que no lo puedo simular. Te muestro el estado actual, o ${_m(spec.metric)} por un eje que sí simula (${simAxes.map(_d).join(", ") || "cliente"}).`, simAxes.map((a) => `${spec.metric}@${a}`), ctx);
     }
     // la SIMULACIÓN paramétrica todavía no tiene productor → degrada honesto ofreciendo el estado actual (no ejecuta el "actual" en silencio).
     return _degrade("simulation-not-wired", `La simulación (${_assumptionEcho(spec.assumption)}) todavía no está conectada en esta vista. Puedo mostrarte el estado actual de ${_m(spec.metric)} por ${_d(spec.dimension)}.`, [`${spec.metric}@${spec.dimension}`], ctx);

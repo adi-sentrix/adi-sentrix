@@ -1314,7 +1314,7 @@ function calcular({ operacion, insumos, objetivo, umbral, scenario } = {}) {
     formula: principal.formula,
     conCifraDeUsuario,
     nota_formula: "la fórmula de cada resultado está declarada — si preguntan de dónde sale la cifra, citala tal cual",
-    ...(conCifraDeUsuario ? { marco_hipotesis: "una de las cifras la aportó el usuario: el resultado es un ESCENARIO sobre ese supuesto, no un dato medido — narralo como hipótesis, con la procedencia declarada" } : {}),
+    ...(conCifraDeUsuario ? { marco_hipotesis: "una de las cifras la aportó el usuario: el resultado es una PROYECCIÓN sobre ese supuesto, no un dato medido — narralo como hipótesis, con la procedencia declarada" } : {}),
   };
   return { facts, boleta, coverage: { supported: true, figCount: boleta.length } };
 }

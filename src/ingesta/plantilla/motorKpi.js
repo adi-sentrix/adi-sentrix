@@ -60,7 +60,7 @@ export const CALCULOS = [
 
 /** Lo que el motor NO calcula, con el motivo y qué haría falta para desbloquearlo. */
 export const BLOQUEADOS = [
-  { id: "escenarios", que: "los escenarios de simulación", porque: "SCENARIO_TRANSFORMS es un supuesto declarado por el negocio, no un hecho que se derive de las ventas",
+  { id: "transforms de simulación", que: "los transforms de simulación", porque: "SCENARIO_TRANSFORMS es un supuesto declarado por el negocio, no un hecho que se derive de las ventas",
     paraAbrirlo: "que el negocio los declare, o que se acuerde una forma de generarlos" },
   { id: "presupuesto", que: "venta contra presupuesto", porque: "el presupuesto es por cuenta y período, no por fila de venta: como columna se repetiría en cada fila y se contradiría solo. Quedó fuera de la v1 al colapsar la plantilla a dos hojas (decisión del owner, 2026-08-22)",
     paraAbrirlo: "agregar una tercera hoja chica (período · cuenta · presupuesto) en una v2, si alguien lo pide" },

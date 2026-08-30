@@ -2329,7 +2329,7 @@ function _deltaCargaValido(deltaPp) {
   if (deltaPp == null || deltaPp === "") return { declarado: false };
   const v = typeof deltaPp === "number" ? deltaPp : parseFloat(String(deltaPp).replace(",", "."));
   if (!Number.isFinite(v)) return { declarado: true, ok: false, razon: "no me quedó claro en cuántos puntos hay que mover la carga comercial — dime la cifra en puntos (por ejemplo, «bájala 2 puntos»)" };
-  if (v === 0) return { declarado: true, ok: false, razon: "un cambio de 0 puntos deja la carga comercial igual — no hay escenario que simular" };
+  if (v === 0) return { declarado: true, ok: false, razon: "un cambio de 0 puntos deja la carga comercial igual — no hay supuesto que simular" };
   if (Math.abs(v) > _CARGA_DELTA_MAX_PP) return { declarado: true, ok: false, razon: `${Math.abs(v)} puntos de carga comercial está fuera del rango operable (hasta ${_CARGA_DELTA_MAX_PP} puntos): tu carga corre en un dígito, un salto así no es un supuesto realista` };
   return { declarado: true, ok: true, valor: +v.toFixed(2) };
 }

@@ -443,12 +443,14 @@ section("12 · crecimiento del prompt, medido");
  * doctrina que pida espacio tenga que justificarlo con la misma vara — el presupuesto existe para que el costo
  * se DECIDA, no para impedir la capacidad. */
 /* ⚠️ LA LÍNEA DE BASE SE MOVIÓ UNA VEZ, Y SE DECLARA POR QUÉ (2026-08-21, pase de voseo en los prompts).
- * `narrarDefault` pasó de 42357 a 42371 en las pasadas del voseo: **+14 caracteres, ~4 tokens** (el tuteo es más largo en unas formas y más corto en otras: «decilo»→«dilo» descuenta). No entró doctrina nueva — el sistema dice
+ * `narrarDefault` pasó de 42371 a 42372 en C-1 del colapso (2026-08-30): «el único escenario que el motor
+ * corre» → «la única proyección que el motor corre» — +1 carácter exacto, el vocabulario del mundo único en la
+ * doctrina anti-oferta-vaga. Antes: pasó de 42357 a 42371 en las pasadas del voseo: **+14 caracteres, ~4 tokens** (el tuteo es más largo en unas formas y más corto en otras: «decilo»→«dilo» descuenta). No entró doctrina nueva — el sistema dice
  * exactamente lo mismo. Es que el tuteo es un carácter más largo que el voseo en las formas frecuentes («tenés»→
  * «tienes», «podés»→«puedes», «querés»→«quieres»), y en este prompt había 32 «tenés» y 11 «podés».
  * El trinquete sigue en pie con el número nuevo: si NARRAR vuelve a crecer, es doctrina que alguien agregó y hay
  * que justificarla. Mover este número sin escribir el motivo al lado es exactamente lo que el trinquete impide. */
-const BASE = { planSystem: 30534, planTool: 3699, narrarDefault: 42371 };
+const BASE = { planSystem: 30534, planTool: 3699, narrarDefault: 42372 };
 const tok = (n) => Math.round(n / 4);
 const planSystem = buildPlanSystem(ADI_PERSONA_PLAN, "", "actual", false).length;
 const planTool = JSON.stringify(PLAN_TOOL).length;

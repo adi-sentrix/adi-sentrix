@@ -591,7 +591,7 @@ function _sostiene(scenario, rows, total) {
     const fam = applyScenarioToSfamiliasMargen(scenario) || [];
     const v = armar("familia", "Familias", "familia",
       fam.map((f) => fila(f.nombre, f.venta || 0, f.contribucion || 0, f.rebates, f)),
-      "Tabla de familias del período, con el escenario aplicado.");
+      "Tabla de familias del período, sobre la base real.");
     if (v) vistas.push(v);
   } catch { /* sin familias → la vista no se ofrece */ }
   // SKU · tabla propia del dataset

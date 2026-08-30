@@ -45,11 +45,11 @@ import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje
 export const NOT_YET_TEXT =
   "Esa vista todavía no la tengo lista — y prefiero no inventarte un número. Hoy te puedo ayudar con ventas, márgenes e inventario, por cliente, producto, marca o bodega. ¿Arrancamos por ahí?";
 
-// UX pre-prod · saca el LENGUAJE DE ESCENARIO DEMO de lo que ve el usuario. El motor sigue devolviendo "Bonanza"
-// (byte-exacto · gate intacto) · esto es SOLO display: "escenario <nombre>" → "escenario actual". NO toca cifras.
-function _sanitizeScenario(text) {
-  return typeof text === "string" ? text.replace(/(escenario\s+)(bonanza|tensi[oó]n|tension|crisis)/gi, "$1actual") : text;
-}
+// ⚠️ ACÁ VIVÍA `_sanitizeScenario` — la red de display que reescribía «escenario bonanza» → «escenario actual».
+// RETIRADA en C-1 del colapso (2026-08-30): su comentario ya era FALSO (el motor no devuelve «Bonanza» desde C4/
+// C7 — el lock de emisión lo garantiza repo-wide), su SALIDA era vocabulario prohibido («escenario actual»), y
+// era un riesgo real: le habría reescrito el nombre a un cliente que se llame «Escenario Bonanza SpA». El
+// sucesor es el lock de _colapso_eje_gate, no otra red.
 
 // pnlScope() (pnl.js) → { dimension, entity|null, entities|null, global? } — el hilo PROPIO de P&L ("P&L de
 // Falabella" / "los que veníamos mirando"). Etapa 3 (owner 2026-08-04, "wiring de P&L a conversationScope, sin
@@ -164,7 +164,7 @@ function _turnFromResult(q, r, context, source, escenario) {
   const memoriaInteraccion = (!deferred && typeof r.route === "string" && r.route.indexOf("pnl_") === 0)
     ? _pnlScopeProjection(baseContext.memoriaInteraccion)
     : baseContext.memoriaInteraccion;
-  const memoriaLegacy = updateMemoria((context && context.memoria) || null, deferred ? null : { ...r, text: _sanitizeScenario(r.text) });
+  const memoriaLegacy = updateMemoria((context && context.memoria) || null, deferred ? null : { ...r, text: r.text });
   const memoriaVista = (!deferred && deriveMemoriaLegacy(memoriaInteraccion && memoriaInteraccion.conversationScope, {
     prev: memoriaLegacy, route: r.route, suggestions: r.suggestions,
   })) || memoriaLegacy;
@@ -174,7 +174,7 @@ function _turnFromResult(q, r, context, source, escenario) {
     userMsg: { role: "user", text: q },
     adiMsg: {
       role: "adi",
-      text: deferred ? NOT_YET_TEXT : _sanitizeScenario(r.text),
+      text: deferred ? NOT_YET_TEXT : r.text,
       route: r.route,
       _source: source || "demo",   // UX · origen: "demo" (sin LLM) · "llm" (narrado) · "deterministico" (LLM parse-only o fallback)
       sentrixAction: r.sentrixAction || null,
@@ -236,7 +236,7 @@ async function _fetchSpec(text, scenario, context) {
 async function _fetchNarration(validated) {
   const res = await fetch("/api/adi-narrate", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text: _sanitizeScenario(validated.text), evidence: validated.evidence || null, access: getAccessCode() }),
+    body: JSON.stringify({ text: validated.text, evidence: validated.evidence || null, access: getAccessCode() }),
   });
   const data = await res.json();
   if (_accessDenied(data)) throw new Error("acceso requerido");

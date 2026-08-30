@@ -119,11 +119,7 @@ export function composeModuleOverview(scenarioId, moduloId) {
 
     // COLAPSO NARRATIVO: una sola lista, con las cuentas elegidas por su PAPEL en el dato (la que más crece,
     // la más grande) — sin variantes por escenario. Si no hay quien crezca, la sugerencia se cae sola.
-    const suggestions = [
-      fastest ? `¿Por qué ${fastest.nombre} crece tanto?` : null,
-      sorted[0] ? `¿Qué pasa si pierdo a ${sorted[0].nombre}?` : null,
-      "¿Dónde están los clientes que caen?",
-    ].filter(Boolean);
+    const suggestions = [];   // PODA (C-2 del retrabajo, decisión del chat principal): filterTextualSuggestions descarta TODO string desde la decisión de voz vieja (solo cognitive actions Tipo B pasan) — una lista que jamás llega a pantalla es código que miente «sugiere». Si el owner quiere sugerencias vivas acá, nacen como acciones Tipo B, encargo propio.
 
     // BRIEF N-bis · Tipo A puro · sugerencias filtradas (LEGACY · no-runtime · por consistencia)
     return { opener, suggestions: filterTextualSuggestions(suggestions) };
@@ -187,12 +183,7 @@ export function composeModuleOverview(scenarioId, moduloId) {
      *   · "¿… está pagando lo que vale?" → la que más carga comercial concentra en $ (`topRebate`).
      *   · "¿… si bajo la carga comercial de X?" → la que le sigue: la segunda palanca de la misma naturaleza.
      *   · "¿Cuánto cuesta sostener a X?" → la de mayor carga en PORCENTAJE de su venta. */
-    const suggestions = [
-      "¿Cuánto margen perdemos por cliente?",
-      topRebate ? `¿${topRebate.nombre} está pagando lo que vale?` : null,
-      segundoRebate ? `¿Qué pasa si bajo la carga comercial de ${segundoRebate.nombre}?` : null,
-      masCaraDeSostener ? `¿Cuánto cuesta sostener a ${masCaraDeSostener.nombre}?` : null,
-    ].filter(Boolean).slice(0, 3);
+    const suggestions = [];   // PODA (C-2 del retrabajo, decisión del chat principal): filterTextualSuggestions descarta TODO string desde la decisión de voz vieja (solo cognitive actions Tipo B pasan) — una lista que jamás llega a pantalla es código que miente «sugiere». Si el owner quiere sugerencias vivas acá, nacen como acciones Tipo B, encargo propio.
 
     // BRIEF N-bis · Tipo A puro · sugerencias filtradas (LEGACY · no-runtime · por consistencia)
     return { opener, suggestions: filterTextualSuggestions(suggestions) };
@@ -243,11 +234,7 @@ export function composeModuleOverview(scenarioId, moduloId) {
 
     // COLAPSO NARRATIVO: una sola lista — y la categoría que se nombra SALE DEL DATO (`topCatName`), no de la
     // película del demo («Materiales de Construcción»/«Línea Blanca» escritas a mano eran cuentas de OTRO negocio).
-    const suggestions = [
-      "¿Qué SKUs están atrapando más capital?",
-      topCatName ? `¿Por qué ${topCatName} concentra tanto capital inmovilizado?` : null,
-      "¿Cuánto puedo recuperar si actúo ahora?",
-    ].filter(Boolean);
+    const suggestions = [];   // PODA (C-2 del retrabajo, decisión del chat principal): filterTextualSuggestions descarta TODO string desde la decisión de voz vieja (solo cognitive actions Tipo B pasan) — una lista que jamás llega a pantalla es código que miente «sugiere». Si el owner quiere sugerencias vivas acá, nacen como acciones Tipo B, encargo propio.
 
     // BRIEF N-bis · Tipo A puro · sugerencias filtradas (LEGACY · no-runtime · por consistencia)
     return { opener, suggestions: filterTextualSuggestions(suggestions) };
@@ -327,11 +314,7 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
     // Suggestions intactas (D5 mantener bitwise · legacy wording)
     // COLAPSO NARRATIVO: una sola lista, cuentas por su PAPEL en el dato (la que más crece, la más grande).
     // Si no hay quien crezca, la sugerencia que la nombraba se cae sola en vez de inventar una cuenta.
-    const suggestions = [
-      fastest ? `¿Por qué ${fastest.nombre} crece tanto?` : null,
-      sorted[0] ? `¿Qué pasa si pierdo a ${sorted[0].nombre}?` : null,
-      "¿Dónde están los clientes que caen?",
-    ].filter(Boolean);
+    const suggestions = [];   // PODA (C-2 del retrabajo, decisión del chat principal): filterTextualSuggestions descarta TODO string desde la decisión de voz vieja (solo cognitive actions Tipo B pasan) — una lista que jamás llega a pantalla es código que miente «sugiere». Si el owner quiere sugerencias vivas acá, nacen como acciones Tipo B, encargo propio.
     // BRIEF N-bis · Tipo A puro · sugerencias filtradas
     return { opener, suggestions: filterTextualSuggestions(suggestions) };
   }
@@ -385,12 +368,7 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
      *   · "¿… está pagando lo que vale?" → la que más carga comercial concentra en $ (`topRebate`).
      *   · "¿… si bajo la carga comercial de X?" → la que le sigue: la segunda palanca de la misma naturaleza.
      *   · "¿Cuánto cuesta sostener a X?" → la de mayor carga en PORCENTAJE de su venta. */
-    const suggestions = [
-      "¿Cuánto margen perdemos por cliente?",
-      topRebate ? `¿${topRebate.nombre} está pagando lo que vale?` : null,
-      segundoRebate ? `¿Qué pasa si bajo la carga comercial de ${segundoRebate.nombre}?` : null,
-      masCaraDeSostener ? `¿Cuánto cuesta sostener a ${masCaraDeSostener.nombre}?` : null,
-    ].filter(Boolean).slice(0, 3);
+    const suggestions = [];   // PODA (C-2 del retrabajo, decisión del chat principal): filterTextualSuggestions descarta TODO string desde la decisión de voz vieja (solo cognitive actions Tipo B pasan) — una lista que jamás llega a pantalla es código que miente «sugiere». Si el owner quiere sugerencias vivas acá, nacen como acciones Tipo B, encargo propio.
     // BRIEF N-bis · Tipo A puro · sugerencias filtradas
     return { opener, suggestions: filterTextualSuggestions(suggestions) };
   }
@@ -441,11 +419,7 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
 
     // COLAPSO NARRATIVO: una sola lista — la categoría que se nombra SALE DEL DATO (`topCatName`), no de la
     // película del demo («Materiales de Construcción»/«Línea Blanca» eran cuentas de OTRO negocio).
-    const suggestions = [
-      "¿Qué SKUs están atrapando más capital?",
-      topCatName ? `¿Por qué ${topCatName} concentra tanto capital inmovilizado?` : null,
-      "¿Cuánto puedo recuperar si actúo ahora?",
-    ].filter(Boolean);
+    const suggestions = [];   // PODA (C-2 del retrabajo, decisión del chat principal): filterTextualSuggestions descarta TODO string desde la decisión de voz vieja (solo cognitive actions Tipo B pasan) — una lista que jamás llega a pantalla es código que miente «sugiere». Si el owner quiere sugerencias vivas acá, nacen como acciones Tipo B, encargo propio.
     // BRIEF N-bis · Tipo A puro · sugerencias filtradas
     // C3.2 · EVIDENCIA DE LA TESIS (nivel 2) · ADITIVO read-only · las 5 piezas con los valores YA computados
     // arriba (inmovUSD/topCatName/topCatPct = los mismos que el opener interpoló · _topInmovSku derivado de

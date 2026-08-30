@@ -2224,7 +2224,7 @@ function ResumenCartera({ R, onFicha, onAsk }) {
           <span style={{ ..._RC_HEAD, color: C.text, display: "flex", alignItems: "center" }}>
             <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
             El negocio, cliente por cliente
-            <InfoDot def={`Tu cartera entera de una sola mirada, con la venta OFICIAL por cliente: la misma que suma el KPI de arriba, así que la participación y los dos gaps salen todos de esa cifra y no de otra tabla del dato. Las dos referencias no valen lo mismo y por eso van selladas distinto: el año anterior es dato cerrado y los escenarios nunca lo reescriben; el presupuesto es el plan que tú declaraste — suma exacto el total del período, pero es una intención, no una medición. Esta tabla dice CÓMO VIENE cada cuenta; dónde se diluye el margen se lee más abajo, contra tu benchmark.`} align="left"/>
+            <InfoDot def={`Tu cartera entera de una sola mirada, con la venta OFICIAL por cliente: la misma que suma el KPI de arriba, así que la participación y los dos gaps salen todos de esa cifra y no de otra tabla del dato. Las dos referencias no valen lo mismo y por eso van selladas distinto: el año anterior es dato cerrado y las simulaciones nunca lo reescriben; el presupuesto es el plan que tú declaraste — suma exacto el total del período, pero es una intención, no una medición. Esta tabla dice CÓMO VIENE cada cuenta; dónde se diluye el margen se lee más abajo, contra tu benchmark.`} align="left"/>
           </span>
           <span style={{ display: "block", fontSize: 14, color: C.text, lineHeight: 1.5, marginTop: 5 }}>{K.lectura}</span>
         </span>

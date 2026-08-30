@@ -265,7 +265,10 @@ console.log("\n── 4 · QUÉ CORRE EN GLOBAL, Y QUÉ SE DECLINA (evidencia de
     text: "el precio queda igual", history: [], mem: c0b.mem, scenario: "actual",
     callPlan: NUNCA_PLAN("las dos variables en 0 se responden sin plan"), callNarrate: NUNCA_NARRAR,
   });
-  ok(rC && /no hay escenario que proyectar/i.test(rC.r.text) && /queda igual al dato real/i.test(rC.r.text),
+  // C-1 del colapso (2026-08-30): la letra dejó el token «escenario» — «no hay nada que proyectar» (la frase del
+  // propio diseño). La variante «no hay proyección que hacer» la vetó guardC (juicio-sin-marcar) y el bypass
+  // devolvió null: el notario juzga HASTA el texto determinístico, y eso es exactamente lo que este gate cazó.
+  ok(rC && rC.r && /no hay nada que proyectar/i.test(rC.r.text || "") && /queda igual al dato real/i.test(rC.r.text || ""),
     `0% en ambas → se declara que no hay nada que proyectar — obtuvo "${rC && rC.r.text}"`);
   ok(rC && rC.mem.pendingSimulation == null, "…y el pendiente se cierra: no queda una pregunta abierta sin objeto");
 }

@@ -165,7 +165,7 @@ export const RULES = [
     id: "sku-margen-base-only", severity: "info", modes: ["ci", "demo", "prod"],
     desc: "El margen por SKU es base-only (scenario-blind) · fuera de bonanza lo bloquea el surfaceContract",
     check: (ctx) => (ctx.ENTITIES.sku.scenarioAware === false && ctx.METRICS.margen.scenarioAware.sku === false)
-      ? [{ where: "margen@sku", msg: "declarado base-only: skusMargen no tiene transform de escenario (por diseño del demo · se enciende con el ERP)" }]
+      ? [{ where: "margen@sku", msg: "declarado base-only: skusMargen no declara transform de simulación (se enciende con el ERP)" }]
       : [],
   },
 ];

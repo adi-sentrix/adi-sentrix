@@ -168,7 +168,7 @@ export function construirDataset({ id, nombre, ejes = {} } = {}) {
   declararAusente("marcasMargen / sfamiliasMargen", "los agregados por marca y familia", "no se derivan: en los tenants existentes son valores declarados y el validador los trata como fuente de verdad");
   declararAusente("ventasKPI / margenKPI / invKPI", "los KPI de cabecera", "la Mesa no muestra totales hasta que el negocio los declare o se acuerde una derivación");
   declararAusente("historialMargen / ventasMensuales", "la serie temporal", "sin evolución mes a mes ni tendencia");
-  declararAusente("SCENARIO_TRANSFORMS", "los escenarios", "sin simulación de escenarios sobre este dato");
+  declararAusente("SCENARIO_TRANSFORMS", "las simulaciones", "sin transforms de simulación sobre este dato");
   declararAusente("perfil", "la vara del negocio (benchmark, piso de rotación, techo de días)", "los umbrales caen al config general hasta que el negocio declare los suyos");
 
   return { ok: true, dataset, ausentes, bloqueos, avisos };
