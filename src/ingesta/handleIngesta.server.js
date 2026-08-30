@@ -36,10 +36,26 @@ import { persistirCarga, cargasPrevias, activarVersion, hashSha256 } from "./per
  * negocio de demostración es correcto —es lo que hay que mostrar—; GUARDAR ahí el archivo real de un cliente
  * sería meter su contabilidad adentro del ejemplo. Para escribir hace falta un código verificado, o nada. */
 async function empresaDeLaCarga(access, env) {
+  const s = await sesionDeLaCarga(access, env);
+  return s ? s.tenantId : null;
+}
+
+/* sesionDeLaCarga(access, env) → { tenantId, actor } | null · QUIÉN, EN QUÉ EMPRESA, CON QUÉ ROL.
+ *
+ * ⚠️ EL ACTOR SE PUEDE REGISTRAR HOY, ANTES DE QUE HAYA CUENTAS (owner 2026-08-30). El código de acceso lleva
+ * FIRMADO el nombre de a quién se le emitió: eso no identifica a una persona como lo haría una cuenta —dos
+ * personas pueden compartir un código— pero es información real y verificada, no un «desconocido». Se guarda
+ * como etiqueta; el `id` queda nulo hasta que existan las cuentas, y ese día se llena sin migrar nada.
+ *
+ * El ROL viaja al lado y también se guarda en el momento de la acción: los roles cambian, y lo que hay que
+ * poder responder es con qué rol se hizo ESO. Hoy no hay membresías, así que va nulo — el campo existe para
+ * que el día que haya, no haya que decidir qué poner en el histórico. */
+async function sesionDeLaCarga(access, env) {
   const secreto = (env && env.ADI_TOKEN_SECRET) || "";
   if (!secreto || !access) return null;
   const r = await verifyAccessCode(access, secreto);
-  return r.ok ? (r.tenant || null) : null;
+  if (!r.ok || !r.tenant) return null;
+  return { tenantId: r.tenant, actor: { id: null, label: r.name || null, rol: null } };
 }
 
 /** Los umbrales con los que se juzga la plausibilidad.
@@ -76,9 +92,9 @@ export async function handleIngesta(body = {}, env) {
    * la que ADI habla. Va acá y no en un endpoint nuevo porque es el mismo acto del mismo usuario sobre el
    * mismo archivo — partirlo en dos rutas obligaría a la pantalla a saber en cuál está cada mitad. */
   if (body.op === "activar") {
-    const empresa = await empresaDeLaCarga(body.access, env);
-    if (!empresa) return { ok: false, motivo: "sin sesión con empresa: no se puede activar" };
-    const r = await activarVersion({ tenantId: empresa, versionId: body.versionId, moneda: body.moneda, env });
+    const s = await sesionDeLaCarga(body.access, env);
+    if (!s) return { ok: false, motivo: "sin sesión con empresa: no se puede activar" };
+    const r = await activarVersion({ tenantId: s.tenantId, versionId: body.versionId, moneda: body.moneda, actor: s.actor, env });
     return r.activada
       ? { ok: true, op: "activar", version: r.version, sello: r.sello, moneda: r.moneda }
       : { ok: false, op: "activar", motivo: r.motivo };
@@ -121,7 +137,8 @@ export async function handleIngesta(body = {}, env) {
   let persistencia = { guardado: false, motivo: "base no configurada" };
   let repetido = null;
   try {
-    const empresa = await empresaDeLaCarga(body.access, env);
+    const s = await sesionDeLaCarga(body.access, env);
+    const empresa = s ? s.tenantId : null;
     if (!empresa) {
       persistencia = { guardado: false, motivo: "sin sesión con empresa: no se guarda" };
     } else {
@@ -135,7 +152,7 @@ export async function handleIngesta(body = {}, env) {
        * confirme (3.d), esa misma versión pasa a activa Y su sello pasa a confirmado: son el mismo acto. */
       persistencia = await persistirCarga({
         tenantId: empresa, bytes: buf, nombreArchivo, dataset: r.dataset,
-        sello, plantillaVersion: PLANTILLA_VERSION, hash, env,
+        sello, plantillaVersion: PLANTILLA_VERSION, hash, env, actor: s.actor,
       });
     }
   } catch (e) {

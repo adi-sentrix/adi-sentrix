@@ -43,6 +43,7 @@ const _lf = (t) => t.replace(/\r\n/g, "\n");
 const BASE = _lf(readFileSync("./db/migraciones/001_esquema_base.sql", "utf8"));
 const STORAGE = _lf(readFileSync("./db/migraciones/002_storage_originales.sql", "utf8"));
 const ACTIVAR = _lf(readFileSync("./db/migraciones/003_activar_version.sql", "utf8"));
+const ACTOR = _lf(readFileSync("./db/migraciones/005_actor_y_roles.sql", "utf8"));
 
 /* Las tablas que este frente declara. Escritas acá a mano A PROPÓSITO: si alguien agrega una tabla al SQL y
  * no la agrega a esta lista, la sección 1 lo caza. Descubrirlas del propio SQL haría que el candado aprobara
@@ -291,6 +292,54 @@ console.log("=".repeat(100));
 
   /* Y el control que hace que la carnada signifique algo: el SQL real NO tiene ninguno de esos rojos. */
   ok(rojos(revisar(BASE, STORAGE)).length === 0, "…y el SQL real no dispara ninguno de ellos");
+}
+
+console.log("\n" + "=".repeat(100));
+console.log("5 · EL ACTOR · quién hizo qué, antes de que existan las personas");
+console.log("=".repeat(100));
+{
+  /* LA ORDEN DEL OWNER (2026-08-30): «que lo que se haga ahora no lo bloquee» cuando lleguen los usuarios
+   * reales. La prueba no es que el campo exista —eso es fácil— sino que exista en las TRES acciones sensibles
+   * y que NINGUNA sea obligatoria: si lo fueran, hoy no se podría guardar nada, porque no hay cuentas todavía.
+   * Un esquema que exige lo que aún no existe no está preparado para el futuro: está roto en el presente. */
+  const CAMPOS = [
+    "subido_por_label", "subido_por_rol",
+    "creado_por_label", "creado_por_rol",
+    "activada_en", "activada_por", "activada_por_label", "activada_por_rol",
+  ];
+  for (const c of CAMPOS) {
+    ok(new RegExp(`add column if not exists\\s+${c}\\b`).test(ACTOR), `se registra «${c}»`);
+  }
+  /* Los dos que ya venían del esquema base, para que la lista esté completa y no parezca que faltan. */
+  ok(/^\s*subido_por\s+uuid/m.test(bloqueDeTabla(BASE, "uploads") || ""), "…y «subido_por», que ya venía del esquema base");
+  ok(/^\s*creado_por\s+uuid/m.test(bloqueDeTabla(BASE, "fact_pack_versions") || ""), "…y «creado_por», ídem");
+
+  ok(!/add column if not exists\s+\w+\s+\w+\s+not null/i.test(ACTOR),
+    "⚠️ ninguna columna de actor es obligatoria: hoy no hay cuentas, y exigirla frenaría toda carga");
+
+  /* ACTIVAR es la acción más sensible —decide de qué datos habla ADI para toda la empresa, y fija la moneda—
+   * y era la ÚNICA sin rastro: la fila cambiaba de estado y no quedaba quién ni cuándo. */
+  ok(/activada_en\s*=\s*now\(\)/.test(ACTOR),
+    "⚠️ activar deja su marca de tiempo, y la pone la BASE — no el cliente, que podría mentirla");
+  ok(/p_actor_id/.test(ACTOR) && /p_actor_label/.test(ACTOR) && /p_actor_rol/.test(ACTOR),
+    "…y la función de activar recibe al actor completo");
+
+  for (const r of ["owner", "admin", "editor", "viewer"]) {
+    ok(new RegExp(`'${r}'`).test(ACTOR), `el rol «${r}» está declarado`);
+  }
+  ok(/alter column rol set default 'viewer'/.test(ACTOR),
+    "⚠️ el rol por defecto es el MENOS privilegiado: uno otorgado por descuido no puede romper nada");
+  ok(/check \(rol in \('owner', 'admin', 'editor', 'viewer'\)\)/.test(ACTOR),
+    "…y el vocabulario viejo (admin/usuario) quedó reemplazado, no conviviendo");
+
+  /* Carnada · estos chequeos tienen que poder ponerse rojos. */
+  const sinCampo = ACTOR.replace("add column if not exists subido_por_label text;", "");
+  ok(!/add column if not exists\s+subido_por_label\b/.test(sinCampo),
+    "quitarle un campo de actor a la migración pondría rojo lo de arriba");
+  const obligado = ACTOR.replace("add column if not exists subido_por_label text;",
+    "add column if not exists subido_por_label text not null;");
+  ok(/add column if not exists\s+\w+\s+\w+\s+not null/i.test(obligado),
+    "…y volverlo obligatorio también");
 }
 
 console.log(`\n── _esquema_datos_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

@@ -44,7 +44,7 @@ export async function hashSha256(bytes) {
  * `cliente` se puede inyectar para ejercer esto con un doble, sin red y sin proyecto creado. */
 export async function persistirCarga({
   tenantId, bytes, nombreArchivo, dataset, sello, plantillaVersion,
-  tipo = "negocio", env, cliente, ttlSegundos, hash: hashDado,
+  tipo = "negocio", env, cliente, ttlSegundos, hash: hashDado, actor = null,
 } = {}) {
   if (!tenantId) return { guardado: false, motivo: "sin sesión con empresa: no se guarda" };
   if (!dataset) return { guardado: false, motivo: "no hay dataset que guardar" };
@@ -71,6 +71,10 @@ export async function persistirCarga({
       hash_sha256: hash,
       bytes: bytes.length,
       estado: "recibido",
+      /* QUIÉN · el `id` va nulo hasta que haya cuentas; la etiqueta sale del código firmado. */
+      subido_por: (actor && actor.id) || null,
+      subido_por_label: (actor && actor.label) || null,
+      subido_por_rol: (actor && actor.rol) || null,
     },
   });
   if (!alta.ok || !alta.filas.length) {
@@ -111,6 +115,9 @@ export async function persistirCarga({
       sello: sello || null,
       plantilla_version: plantillaVersion || null,
       activa: false,
+      creado_por: (actor && actor.id) || null,
+      creado_por_label: (actor && actor.label) || null,
+      creado_por_rol: (actor && actor.rol) || null,
     },
   });
   if (!alt.ok || !alt.filas.length) {
@@ -135,7 +142,7 @@ export async function persistirCarga({
  *
  * NO REDACTA EL SELLO: lo lee de la fila guardada y lo pasa por `confirmarSello`, que es la MISMA función que
  * redacta el sello de la lectura. Dos redacciones del mismo hallazgo son dos verdades. */
-export async function activarVersion({ tenantId, versionId, moneda, env, cliente, ttlSegundos } = {}) {
+export async function activarVersion({ tenantId, versionId, moneda, actor = null, env, cliente, ttlSegundos } = {}) {
   if (!tenantId) return { activada: false, motivo: "sin sesión con empresa" };
   if (!versionId) return { activada: false, motivo: "no se dijo qué versión activar" };
 
@@ -161,7 +168,10 @@ export async function activarVersion({ tenantId, versionId, moneda, env, cliente
   const monedaDeclarada = monedaLimpia(moneda);
 
   const r = await db.llamarFuncion("adi_activar_version",
-    { p_version_id: versionId, p_sello: sello, p_moneda: monedaDeclarada }, { pase: p.pase });
+    { p_version_id: versionId, p_sello: sello, p_moneda: monedaDeclarada,
+      p_actor_id: (actor && actor.id) || null,
+      p_actor_label: (actor && actor.label) || null,
+      p_actor_rol: (actor && actor.rol) || null }, { pase: p.pase });
   if (!r.ok) return { activada: false, motivo: `no se pudo activar: ${r.motivo}` };
   if (!r.filas.length) return { activada: false, motivo: "la base no confirmó la activación" };
 
