@@ -366,6 +366,16 @@ H("12 · el empujón de R6: declinar sin haber leído recibe UNA chance de verif
   const rd = await answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: "actual", callAgente: guionNecio });
   ok(llamadasD === 2 && typeof rd.r.text === "string" && rd.r.text.length > 0,
     `el necio recibe UN empujón y su segunda declinación se acepta (${llamadasD} llamadas)`);
+
+  /* [10] DEL EXAMEN 1 · EL CONTEO HONESTO: T8 papagayeó la plantilla de rescate y se contó VERDE (el mismo
+   * texto en T6 fue «limite» — infló la tasa del criterio A). El muro no lo veta (la cifra era verdadera con
+   * dueño — refutado T-transversal-5); la ETIQUETA se corrige: eso ES un rescate. */
+  initTenant(TENANT_DEMO);
+  const ECO = "No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: las ventas totales del negocio suman $99.9M. Dime por dónde quieres que siga y lo trabajo sobre lo disponible.";
+  const re2 = await answerViaAgente({ text: "dame la foto del negocio", history: [], mem: {}, scenario: "bonanza", callAgente: async () => ({ tipo: "texto", texto: ECO }) });
+  ok(re2.r.agente.estado === "limite" && /99\.9M/.test(re2.r.text),
+    `★ [10]: el eco de la plantilla APRUEBA el muro pero se CUENTA como límite (${re2.r.agente.estado}) — el T8 del examen`);
+  ok(!re2.mem.ultimaAprobada, "…y NO se vuelve `ultimaAprobada`: el respaldo jamás re-ofrece un rescate como respuesta de verdad");
 }
 
 /* ═══ 13 · EL PUENTE EN MODO AGENTE (R9 del examen 1 · 2026-08-31) ════════════════════════════════════════════
@@ -527,6 +537,17 @@ H("14 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       };
       const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionT7c });
       return r.r.agente.estado !== "reparado" && r.r.agente.figs === 0;   // el defecto: el pedido se tiró y el turno murió sin leer
+    });
+
+  // (p) [10] · el relabel quitado: el eco de plantilla vuelve a contarse verde (el T8 del examen)
+  await carnada("eco de plantilla contado como verde",
+    [[/  if \(aprobado && typeof final === "string" && \/\^No pude \(\?:completar\|armar\) la lectura\/\.test\(final\.trim\(\)\)\) \{\n    estado = "limite";\n  \}/,
+      "  if (false) { estado = \"limite\"; }"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const ECO2 = "No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: las ventas totales del negocio suman $99.9M. Dime por dónde quieres que siga y lo trabajo sobre lo disponible.";
+      const r = await Mut.answerViaAgente({ text: "dame la foto del negocio", history: [], mem: {}, scenario: "bonanza", callAgente: async () => ({ tipo: "texto", texto: ECO2 }) });
+      return r.r.agente.estado === "verde";   // el defecto: la no-respuesta infla el conteo
     });
 
   // (o) R9 · el puente desconectado: la serie bloqueada vuelve al cerebro (la lotería de T9)

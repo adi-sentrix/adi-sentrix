@@ -359,10 +359,13 @@ async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, r
  * El bucle vive en bucleAgente.js; esto es su única puerta al mundo: system fijo (persona+invariantes+mapa) +
  * hilo + catálogo → el gateway (/api/adi-agente, runtime node) → {tipo:"herramientas"|"texto"}. El `paso` decide
  * el tier (herramientas→mini de PLAN · cierre/reparación→el de NARRAR). Con la bandera apagada, nadie llama. */
-async function _fetchAgente({ mensajes, scenario, requestContext, ronda, attempt, motivoReintento, cierre }) {
+async function _fetchAgente({ mensajes, scenario, requestContext, ronda, attempt, motivoReintento, cierre, figsEnBoleta }) {
   const { sistemaDelAgente } = await import("../adi/agente/sistemaAgente.js");
   const { catalogoAgente } = await import("../adi/agente/catalogoAgente.js");
-  const paso = (cierre || attempt > 0) ? "cierre" : "herramientas";
+  /* R-eco del examen 1 (2026-08-31): el tier caro se paga SOLO cuando hay cifras verificadas que reescribir —
+   * en el examen la escalada con boleta VACÍA fue el 66% del gasto y produjo CERO verdes. Mismo criterio que
+   * la consola del examen. `figsEnBoleta` viene del bucle en cada llamada. */
+  const paso = (cierre || attempt > 0) && (figsEnBoleta | 0) > 0 ? "cierre" : "herramientas";
   const res = await fetch("/api/adi-agente", {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ mensajes, system: sistemaDelAgente(scenario).fijo, tools: catalogoAgente(), paso,

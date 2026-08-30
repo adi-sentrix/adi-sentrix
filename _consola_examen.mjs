@@ -35,6 +35,7 @@ import { handleNarrateC, handleAgente } from "./src/adi/llm/gatewayCore.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
 import { sistemaDelAgente } from "./src/adi/agente/sistemaAgente.js";
 import { catalogoAgente } from "./src/adi/agente/catalogoAgente.js";
+import { vetosDeContrato } from "./src/adi/agente/contratoAgente.js";   // R7b · el sello del agente prueba su juez en vivo
 import { proyectarDatoNegocio } from "./src/adi/oracle/datoProyectado.js";
 import { MARCA_CALCULO } from "./src/adi/oracle/narrationBlocks.js";
 import { MODEL_PRICING } from "./src/adi/llm/modelPricing.js";
@@ -93,10 +94,23 @@ function _sello() {
     ajena = guardC(`${cli} vendió ${cifraDeOtro.value} en el año.`, CTX);
   }
   const P = (b) => (b ? "✅" : "🔴");
+  /* R7b DEL EXAMEN 1 (2026-08-31): el sello de AMBAS corridas imprimió «camino natural REAL» en un examen del
+   * AGENTE — mentía de ruta. El sello del agente ahora PRUEBA su ruta (no la declara): el bucle importado, el
+   * catálogo con las tres herramientas propias, la letra F3 viajando y el juez del contrato vetando en vivo. */
+  const _rutaAgente = () => {
+    const cat = catalogoAgente().map((t) => t.name);
+    const fijo = sistemaDelAgente(ESCENARIO_INICIAL).fijo;
+    const juez = vetosDeContrato("La carga subió. Procede con la renegociación de Falabella.").some((v) => v.regla === "decision-por-tomada");
+    return [
+      `│ ruta             : camino AGENTE REAL (answerViaAgente + handleAgente con tier por paso) — probada, no declarada`,
+      `│ bucle · catálogo : ${P(typeof answerViaAgente === "function")} answerViaAgente importado  ·  ${P(cat.includes("serieEntidad") && cat.includes("registrarSupuesto") && cat.includes("preferenciaNombre"))} las 3 herramientas del agente en el catálogo (${cat.length} total)`,
+      `│ letra · juez     : ${P(/RUTEO Y CÁLCULO:/.test(fijo) && /INVARIANTES/.test(fijo))} la letra F3+[9] viaja en el system  ·  ${P(juez)} vetosDeContrato multa «procede con» en vivo`,
+    ];
+  };
   return [
     `┌── SELLO DE VERSIÓN ──────────────────────────────────────────────`,
     `│ commit           : ${commit}${sucio ? "  ⚠️ con cambios sin commitear en el motor" : "  (motor limpio)"}`,
-    `│ ruta             : camino natural REAL (answerViaNatural + gateway con modoNatural) — no hay otra en esta consola`,
+    ...(MODO_AGENTE ? _rutaAgente() : [`│ ruta             : camino natural REAL (answerViaNatural + gateway con modoNatural) — la ruta del agente se prueba con --agente`]),
     `│ escenario        : ${ESCENARIO_INICIAL}  (el MISMO que arranca la app — declarado en config/scenarios.js)`,
     `│ carpeta          : ${(_dato.match(/Ventas totales: \$[\d.]+M/) || ["?"])[0]}  ·  KPI de inventario ${/Inventario \(foto de hoy\)/.test(_dato) ? "presente ✅" : "AUSENTE 🔴"}`,
     `│ contrato · dueño : ${P(sinDueno && !sinDueno.ok && /campo «dueño»/.test(String((sinDueno.violations[0] || {}).detail || "")))} sin dueño la cuenta NO autoriza  ·  ${P(conDueno && conDueno.ok)} con dueño sí  (probado con ${cli || "?"} a ${pp || "?"} del benchmark)`,
@@ -173,9 +187,14 @@ const callNatural = async ({ mensajes, attempt, motivoReintento }) => {
 /* EL CEREBRO DEL AGENTE — el MISMO transporte que _fetchAgente (ChatADI) arma para /api/adi-agente, contra el
  * gatewayCore directo: system fijo (sistemaDelAgente), catálogo mecánico y tier por paso (herramientas → PLAN ·
  * reparación → cierre). Cada llamada suma al costo del turno y al expediente, igual que el natural. */
-const callAgente = async ({ mensajes, ronda, attempt = 0, motivoReintento }) => {
+const callAgente = async ({ mensajes, ronda, attempt = 0, motivoReintento, cierre = false, figsEnBoleta = 0 }) => {
   llamadasTurno++;
-  const paso = attempt > 0 ? "cierre" : "herramientas";
+  /* R-eco DEL EXAMEN 1 (2026-08-31): la escalada al tier de NARRAR fue el 66% del gasto (US$0.3758, 14
+   * llamadas) y produjo CERO verdes — todas con la boleta VACÍA: no había material que reescribir, solo
+   * plomería rota (hoy reparada: R1/R2). El tier caro se paga SOLO cuando hay cifras verificadas que
+   * reescribir; con boleta vacía, el cierre/reparación va al tier de PLAN. Mismo criterio que el adapter
+   * de producción (_fetchAgente). */
+  const paso = (attempt > 0 || cierre) && (figsEnBoleta | 0) > 0 ? "cierre" : "herramientas";
   const data = await handleAgente({ mensajes, system: sistemaDelAgente(ESCENARIO_INICIAL).fijo, tools: catalogoAgente(), paso, attempt, motivoReintento }, process.env);
   if (data && typeof data.costUSD === "number") costoTurno += data.costUSD;   // el costo lo estima el gateway con el MODELO REAL (tier por paso), no la tarifa sonnet de la consola
   if (!data || !data.ok) throw new Error((data && data.error) || "gateway sin agente");
@@ -198,7 +217,8 @@ const visible = String(out.r.text || "");
 S.history = S.history.concat([{ role: "user", text: q }, { role: "adi", text: visible }]);
 S.mem = out.mem || S.mem;
 S.costoUSD += costoTurno; S.llamadas += llamadasTurno;
-S.turnos.push({ q, estado: nat.estado || "?", vetos: nat.vetos || [], costoUSD: costoTurno, visible });
+S.turnos.push({ q, estado: nat.estado || "?", vetos: nat.vetos || [], costoUSD: costoTurno, visible,
+  ...(MODO_AGENTE ? { herramientas: nat.calls ?? 0, figs: nat.figs ?? 0, recitaCifras: nat.recitaCifras ?? 0, reintentosGuard: intentos.filter((i) => i.motivoReintento === "guard").length } : {}) });
 fs.writeFileSync(ESTADO, JSON.stringify(S, null, 2), "utf8");
 
 console.log(`\n╔═══ ${S.titulo} · turno ${S.turnos.length} ═══╗`);
@@ -210,10 +230,17 @@ const fugaCalc = visible.includes(MARCA_CALCULO) || /\bid=c\d+\s*·|\bop=[a-z_]+
 console.log(`\n┌── EL VEREDICTO INTERNO${MODO_AGENTE ? " · AGENTE" : ""} ──────────────────────────────────`);
 if (MODO_AGENTE) {
   console.log(`│ rondas · calls   : ${nat.rondas ?? "?"} · ${nat.calls ?? "?"} herramientas ejecutadas`);
-  console.log(`│ figs en boleta   : ${nat.figs ?? "?"}`);
+  console.log(`│ figs en boleta   : ${nat.figs ?? "?"} · re-cita en mem: ${nat.recitaCifras ?? 0} cifras aprobadas`);
   if (nat.motivos && nat.motivos.length) console.log(`│ límites del dato : ${nat.motivos.join("  ·  ")}`);
+  /* R7 (2026-08-31): el post-mortem del examen 1 quedó a ciegas — «vetos: ninguno» con 14 turnos reintentando
+   * por guard. Ahora se cuentan los reintentos Y las multas viajan (nat.vetos, del bucle). */
+  const porGuard = intentos.filter((i) => i.motivoReintento === "guard").length;
+  console.log(`│ reintentos guard : ${porGuard}`);
 }
-console.log(`│ estado           : ${nat.estado || "?"}${nat.suplenteDigno ? "  ⚠️ respondió el SUPLENTE DIGNO" : ""}`);
+/* [10] (2026-08-31): un «verde» sin UNA herramienta ni UNA cifra no certifica lectura — se marca para que el
+ * tablero no lo cuente igual que un verde con boleta (T16/T20 del examen: limitación falsa sellada verde). */
+const sinLectura = MODO_AGENTE && nat.estado === "verde" && !(nat.calls > 0) && !(nat.figs > 0) && !(nat.recitaCifras > 0);
+console.log(`│ estado           : ${nat.estado || "?"}${nat.suplenteDigno ? "  ⚠️ respondió el SUPLENTE DIGNO" : ""}${sinLectura ? "  ⚠️ VERDE SIN LECTURA (0 herramientas · 0 figs · 0 re-citas)" : ""}`);
 console.log(`│ vetos            : ${(nat.vetos || []).length ? nat.vetos.join("  ·  ") : "ninguno"}`);
 console.log(`│ reparaciones     : ${nat.reparaciones ?? (nat.estado === "reparado" ? 1 : 0)}`);
 console.log(`│ vacías           : ${(nat.vacias || []).length ? nat.vacias.join(",") : "0"}`);

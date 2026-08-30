@@ -344,8 +344,19 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     }
   }
 
+  /* [10] DEL EXAMEN 1 (2026-08-31): EL CONTEO HONESTO. T8 — el modelo papagayeó la plantilla de rescate tras 7
+   * fallbacks seguidos en su historial y el turno se contó VERDE (el MISMO texto que en T6 fue «limite»: infló
+   * la tasa del criterio A). El muro hizo bien en no vetarlo — la cifra era verdadera y con dueño (quinta
+   * fuente; el refutado T-transversal-5 lo probó reproduciendo guardC) — lo deshonesto era la ETIQUETA. Un
+   * texto aprobado que ES la plantilla de rescate se cuenta como lo que es: un rescate. Tampoco se vuelve
+   * `ultimaAprobada` (no es una respuesta de verdad que el respaldo pueda re-ofrecer). */
+  if (aprobado && typeof final === "string" && /^No pude (?:completar|armar) la lectura/.test(final.trim())) {
+    estado = "limite";
+  }
+
   // ── la escalera INVERTIDA ──
   let suplente = false;
+  if (estado === "limite" && final !== null) suplente = true;   // [10] · el eco de plantilla es un rescate también para la memoria
   if (final === null) {
     final = _lineaHonesta({ motivos: motivosNoSoportado, figs: figsTotales, juzgar: (t) => juzgar(t, "linea-honesta"), entidades: duenosTenant || [] });
     if (final !== null) { estado = "limite"; suplente = true; }

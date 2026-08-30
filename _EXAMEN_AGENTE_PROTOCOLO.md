@@ -64,3 +64,43 @@ reparaciones salen gratis (gates + calibración) antes de pagar una segunda corr
 *F4-preparación (frente de arreglos, 2026-08-30). Todo lo de este documento es GRATIS salvo la corrida misma.
 Construido: consola `--agente` cableada al bucle real · protocolo con gasto nombrado. El examen espera la
 palabra del owner.*
+
+---
+
+## SEGUNDA CORRIDA (tras el examen 1 · 2026-08-31) — pedido de autorización actualizado
+
+**El examen 1 corrió (autorización nombrada del owner, hasta US$1) y NO aprobó: 9/20 verdes en A contra
+20/20 del natural — regresión de CAPACIDAD, no de honestidad (cero cifras inventadas en 28 pantallas; el
+muro sostuvo).** El análisis del expediente (59 agentes, verificación adversarial) localizó las causas turno
+por turno: TODAS de plomería/letra, TODAS reparadas GRATIS y con gate+carnada:
+
+- **R1** la ronda extra (el cierre que pide una herramienta válida la obtiene — T7 ya no muere en vacío)
+- **R2** la re-cita cableada (cifras YA aprobadas se re-autorizan — la raíz de la mayoría de los no-verdes)
+- **R3** el respaldo con pertinencia (nunca más Tottus como respuesta «sobre» Falabella)
+- **R4** el rescate proporcional (hasta 4 cifras del turno · refutación del supuesto · trato registrado)
+- **R5** el rótulo del $33K dice FRENADO (la palabra sigue a la cifra — toda la superficie)
+- **R6** leer antes de declinar (el empujón de verificación; la limitación falsa de T20 ya no sale gratis)
+- **R7** expediente auditable (cada veto con sitio y multa · reintentos por guard contados · sello --agente
+  PRUEBA la ruta del agente)
+- **R8** léxico de superficie como VETO ciego (escenario · tensión · instrumento · tirar · identificadores)
+- **R9** entidad×período bloqueada va al puente (1-2 líneas, razón verdadera, puerta real — fin de la lotería)
+- **[9]** refuerzos del cerebro (benchmark ≠ promedio en el mapa · proyección→simulación · pre-autorizado se
+  ejecuta etiquetado · menú solo con cortes sostenibles)
+- **[10]** conteo honesto (el eco de plantilla se cuenta límite, no verde · «verde sin lectura» marcado)
+- **R-eco** escalada condicionada (el tier caro SOLO con boleta no vacía — en el examen 1 fue 66% del gasto
+  con CERO verdes)
+
+### El gasto de la segunda corrida, nombrado
+
+| Concepto | Cifra |
+|---|---|
+| Turnos | 28 (A: los 20 turnos REALES de los consolidados — el 24 del protocolo original era estimación; existen 20 · B: 4 · C: 4) |
+| Costo típico | **≈ US$0.60** (menos que la corrida 1: la escalada condicionada apaga el 66% estéril) |
+| Techo | **≈ US$1.00** (el mismo freno de siempre + `--frenar-en-vacia` + el freno acumulado del supervisor) |
+
+Notas de conteo para el veredicto: T16-tipo (criterio sin ejercitar) se cuenta «sin probar», no aprobado;
+un «verde sin lectura» no suma al criterio A (la consola ya lo marca). El techo por turno del protocolo
+original (~US$0.030) se superó en 9 turnos de la corrida 1 por la escalada — con R-eco condicionada, el
+techo por turno vuelve a ser creíble.
+
+**FRENO INTACTO: esta corrida NO corre sin la palabra del owner que NOMBRE el gasto.**
