@@ -112,7 +112,9 @@ console.log("[5] CARD CAPITAL == COMPOSER (frenado) · la medida cuantifica EXAC
 const cap = diag.evidence.findings.find((f) => f.detector === "capital");
 const iComp = composeSpecInventory({ scenario: S, focus: "frenado" });
 ok(mesa.estados.capital.linea.includes(_money(cap.subtotal_usd)), `el sub de la card cita ${_money(cap.subtotal_usd)}`, mesa.estados.capital.linea);
-ok((iComp.opener || "").includes(`Tienes ${_money(cap.subtotal_usd)} de capital inmovilizado`), "la respuesta abre con el mismo total");
+// R5 del examen 1 del agente (2026-08-31): la apertura dice «capital frenado» — la palabra que corresponde a la
+// cifra (el subconjunto frenado del detector). El chequeo sigue midiendo lo mismo: card y composer, MISMO total.
+ok((iComp.opener || "").includes(`Tienes ${_money(cap.subtotal_usd)} de capital frenado`), "la respuesta abre con el mismo total");
 const mHacer = (iComp.opener || "").match(/arranca por ([A-Z0-9-]+(?: y [A-Z0-9-]+)?)/);
 const mVale = (iComp.opener || "").match(/liberar ([A-Z0-9-]+(?: y [A-Z0-9-]+)?) devuelve (\$\d+(?:\.\d+)?[KM]?)/);
 ok(!!mHacer && !!mVale, "existen el «arranca por» y el «cuánto vale»");

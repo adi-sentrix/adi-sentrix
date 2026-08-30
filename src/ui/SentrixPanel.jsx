@@ -1225,7 +1225,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
   const cpColor = cmap[cp && cp.color] || C.red;
   // el fallback replica el `title` de composeSpecInventory (specRetrieval.js) — se corrige en los DOS lados a la
   // vez o la pantalla dice una cosa distinta según haya evidencia o no. Registro: «inmovilizado», no «detenido».
-  const titleParts = String(inv.title || "Capital inmovilizado · dónde está inmovilizado tu capital").split(" · ");
+  const titleParts = String(inv.title || "Capital frenado · dónde está frenado tu capital").split(" · ");   // R5: el fallback dice lo que el bloque ES (el foco frenado)
   const isStale = inv.focus === "stale";
   const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
   const maxB = Math.max(1, ...byBodega.map((b) => b.usd));

@@ -527,7 +527,9 @@ export const VIEW_MANIFEST = {
   // `campo` es la del builder (clave interna que nadie lee en pantalla) y por eso se conserva tal cual; lo que sí
   // se ve —el componentId, que viaja en la dirección y compone la etiqueta del CTA— usa la palabra del producto.
   "capital/01/kpi-inmovilizado": {
-    vista: "capital", seccion: "01", tipo: "kpi", label: "Capital inmovilizado",
+    // R5 (examen 1 del agente, 2026-08-31): el label dice FRENADO — la cifra de la card es el subconjunto
+    // frenado, no el inmovilizado amplio. El componentId es histórico y NO cambia (viaja en direcciones/CTA).
+    vista: "capital", seccion: "01", tipo: "kpi", label: "Capital frenado",
     campo: "kpis[key='detenido']", metrica: "capital", eje: "sku", periodo: "foto de inventario a hoy",
     universo: { kind: "estado", label: "los SKU que el detector clasifica como capital frenado", cierraCon: "diagnoseInventario sobre doh/rotación" },
     comparacion: "estado", estatusDefault: "indicado", estatusCampo: null, controles: ["drill"],
@@ -648,12 +650,12 @@ export const VIEW_MANIFEST = {
     _noMontado: "la tira de estados salió de la cara Capital el 2026-08-09; la entrada queda declarada para cuando vuelva",
     comparacion: "estado", estatusDefault: "indicado", estatusCampo: null, controles: [],
     // `frenado` DECLARADO, no heredado del default (misma regla que kpi-inmovilizado/kpi-quiebres): el dinero que
-    // esta tira muestra es el capital INMOVILIZADO de los SKU críticos, no el capital del inventario. Escrito, la
+    // esta tira muestra es el capital FRENADO de los SKU críticos (R5), no el capital del inventario. Escrito, la
     // pieza dice de qué subconjunto habla; implícito, quedaba a merced del default de la tool.
     evidencia: [{ tool: "inventoryStatus", args: {}, focus: "frenado" }],
     sinTool: null,
     concordancia: { estado: "reconciled",
-      razon: "el dinero de la tira es el capital INMOVILIZADO de los SKU críticos y `inventoryStatus{focus:'frenado'}` autoriza esa misma cifra: concuerdan exacto en el cruce del gate de concordancia. Con el focus implícito la tira quedaba respaldada por el capital del inventario entero, que es otra cifra correcta del mismo nombre" },
+      razon: "el dinero de la tira es el capital FRENADO de los SKU críticos y `inventoryStatus{focus:'frenado'}` autoriza esa misma cifra: concuerdan exacto en el cruce del gate de concordancia. Con el focus implícito la tira quedaba respaldada por el capital del inventario entero, que es otra cifra correcta del mismo nombre" },
     _provisional: true,
   },
 

@@ -272,8 +272,10 @@ export function composeExplain(last, ctx = null, state = {}) {
     const text = `Lo digo porque esos SKU dejaron de rotar: quedaron con rotación por debajo del umbral y DOH alto, así que el stock no sale y esos ${_m(inv.total)} quedan atrapados en góndola. Los más inmovilizados (${top}) llevan meses sin salida. La causa de fondo — sobrestock, estacionalidad o precio de lista — hay que verla SKU por SKU: el dato te dice DÓNDE está inmovilizado el capital, todavía no por qué dejó de venderse.`;
     // boleta = total + capital POR SKU (money · para que el narrador pueda ser rico) · SIN DOH/rotación sueltas (evitan el
     // guard) · sin `inventory` pesado en la evidencia → la narración pasa el guard (NARRADO), no cae a tabla cruda.
-    const bol = [fig("Capital inmovilizado · total", _m(inv.total), { unit: "money", raw: inv.total, mandatory: true, context: "capital inmovilizado" })];
-    for (const s of inv.bySku.slice(0, 3)) bol.push(fig(`SKU · ${s.sku}`, _m(s.usd), { unit: "money", raw: s.usd, context: "capital inmovilizado" }));
+    /* R5 del examen 1 del agente (2026-08-31): `inv.total` es el subconjunto FRENADO (el foco del bloque de
+     * inventario) — el rótulo dice lo que la cifra es; «inmovilizado» es la categoría AMPLIA y es OTRA cifra. */
+    const bol = [fig("Capital frenado · total", _m(inv.total), { unit: "money", raw: inv.total, mandatory: true, context: "capital frenado" })];
+    for (const s of inv.bySku.slice(0, 3)) bol.push(fig(`SKU · ${s.sku}`, _m(s.usd), { unit: "money", raw: s.usd, context: "capital frenado" }));
     return { text, suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "explain", boleta: bol }, route: "followup_explain" };
   }
   // CONTINUIDAD (D) tras un DIAGNÓSTICO: el "por qué" explica el FOCO TOP (contribución/carga/capital), no un relleno

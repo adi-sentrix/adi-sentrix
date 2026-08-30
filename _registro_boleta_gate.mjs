@@ -439,7 +439,12 @@ H("══ [4] ESTÁTICO · la fuente de los labels de inventario ══");
   ok(!!mEstado, "no se encontró `_ESTADO_LABEL` en specRetrieval.js — el gate perdió su ancla, arreglalo antes de seguir");
   if (mEstado) {
     ok(!VETADAS.test(mEstado[0]), `_ESTADO_LABEL trae una palabra vetada: ${mEstado[0].replace(/\s+/g, " ").slice(0, 160)}`);
-    ok(/capital_frenado:\s*"capital inmovilizado"/.test(mEstado[0]), "`_ESTADO_LABEL.capital_frenado` dejó de ser \"capital inmovilizado\" — es EL label que llegó a la pantalla del owner");
+    /* R5 DEL EXAMEN 1 DEL AGENTE (2026-08-31): el canon pasó a «capital frenado» — el dinero del foco ES el
+     * subconjunto frenado, y «capital inmovilizado» (la categoría AMPLIA, $56K) lo tapaba con la palabra
+     * cruzada (T6/T8 del examen: «Capital inmovilizado · total = $33K» subdeclaraba en 41%). La INTENCIÓN de
+     * este pin no cambia: jamás «detenido» (la captura del owner 2026-08-14) — eso lo cubre VETADAS arriba;
+     * lo que se pinnea ahora es el canon vigente. */
+    ok(/capital_frenado:\s*"capital frenado"/.test(mEstado[0]), "`_ESTADO_LABEL.capital_frenado` dejó de ser \"capital frenado\" — el label dice lo que la cifra ES (R5, distinción amplio/frenado del owner)");
   }
   const mFoco = src.match(/_diagFoco\("capital",\s*"([^"]+)"/);
   ok(!!mFoco && !VETADAS.test(mFoco[1]), `el título del foco de capital trae una palabra vetada: «${mFoco ? mFoco[1] : "(no encontrado)"}»`);
@@ -455,7 +460,9 @@ H("══ [5] EL TURNO DE LA CAPTURA · «Valparaíso · Capital detenido marca 
   ok(!!fila, "la boleta de inventoryStatus(frenado) ya no trae la fila de Valparaíso — el caso de la captura dejó de ser reproducible por este gate");
   if (fila) {
     ok(!VETADAS.test(fila.label), `la fila de la captura sigue con palabra vetada: «${fila.label}»`);
-    ok(/Capital inmovilizado/.test(fila.label), `la fila de la captura no dice «Capital inmovilizado»: «${fila.label}»`);
+    // R5 (2026-08-31): la fila dice «Capital frenado» — la palabra que corresponde a la cifra que muestra
+    // (el frenado de Valparaíso). «Detenido» sigue vetado por VETADAS; «inmovilizado» acá era el rótulo cruzado.
+    ok(/Capital frenado/.test(fila.label), `la fila de la captura no dice «Capital frenado»: «${fila.label}»`);
     ok(/^\$\d/.test(String(fila.value || "")), `la fila de la captura perdió su cifra: «${fila.value}» — corregir el registro no puede costar el dato`);
     console.log(`  · fila de la captura, hoy: «${fila.label} = ${fila.value}»`);
   }

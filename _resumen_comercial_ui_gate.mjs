@@ -781,10 +781,11 @@ H("[5] LO QUE SALE DE COMERCIAL · tiras legacy · capital · bodegas · evoluci
   fireEvent.click(porTexto(container, "Comercial"));
   // …y lo que salió NO se perdió: el mismo supuesto vive en la cara Capital
   fireEvent.click(porTexto(container, "Capital"));
-  // "detenido" → "inmovilizado" en toda la cara Capital (owner 2026-08-09): la palabra que ya usan el Perfil Ejecutivo, el
-  // glosario y los composers de ADI. Lo que NO cambió son las `ask` que se le mandan a ADI — su vocabulario de
-  // entrada es contrato suyo, y tocarlo estaba fuera de alcance.
-  ok(/capital inmovilizado/i.test(container.textContent), "el supuesto de liberar capital inmovilizado sigue vivo en la cara Capital (se movió, no se borró)");
+  // "detenido" → "inmovilizado" (owner 2026-08-09) → "frenado" (R5 del examen 1 del agente, 2026-08-31): la
+  // palabra sigue a la cifra — el dinero de la cara es el subconjunto FRENADO, no el inmovilizado amplio. Esta
+  // vez las `ask` SÍ migraron con la pantalla: la equivalencia vieja↔nueva está probada campo por campo en el
+  // arnés 20b de _mesa_capital_gate (coerceFloor resuelve ambas al MISMO pedido).
+  ok(/capital frenado/i.test(container.textContent), "el supuesto de liberar capital frenado sigue vivo en la cara Capital (se movió, no se borró)");
   ok(!/capital detenido/i.test(container.textContent), "…y la cara ya no dice «capital detenido» en ninguna parte");
   fireEvent.click(porTexto(container, "Comercial"));
   ok(!R.kpis.some((k) => k.key === "capital"), "el KPI de CAPITAL no está entre los KPI principales (su historia vive en la cara Capital)");

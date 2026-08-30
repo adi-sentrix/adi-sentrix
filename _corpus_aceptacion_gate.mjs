@@ -287,7 +287,9 @@ pregunta(9, "¿Puedo mover el stock lento de Valparaíso a Santiago?", "declina 
     ok(gMal.violations.some((v) => v.kind === "transferencia-no-evaluable"),
       "recomendar la transferencia se BLOQUEA",
       `verdict=${gMal.verdict} · ${JSON.stringify(gMal.violations.map((v) => v.kind))}`);
-    const inm = figDe(figs, /^Capital inmovilizado · total$/);
+    // R5 del examen 1 del agente (2026-08-31): la fig de total del foco frenado se renombró — el $33K ES el
+    // subconjunto frenado, no el inmovilizado amplio ($56K); el rótulo ahora dice lo que la cifra es.
+    const inm = figDe(figs, /^Capital frenado · total$/);
     const gBien = guard(`No puedo evaluar mover stock entre bodegas: cada SKU aparece en una sola, así que no hay dos colocaciones que comparar. Lo que sí está medido es el capital detenido, ${inm && inm.value}.`);
     ok(gBien.ok, "la declinación honesta —con el capital detenido como salida— pasa el muro", JSON.stringify(gBien.violations));
     // PREGUNTADA Y NO CONTESTADA (owner 2026-08-10, certificación live · defecto C1) — el chequeo 19 es la otra

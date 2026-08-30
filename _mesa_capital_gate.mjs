@@ -479,10 +479,14 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   ok(bloque.length > 0 && !/detenid/i.test(bloque), "candado-inmovilizado-cara",
     (bloque.match(/[^.]*detenid[^.]*/i) || [""])[0].slice(0, 140));
   // el rótulo del estado y el KPI son LA misma palabra (si se separan, la card y la leyenda dejan de coincidir)
-  ok(CAPITAL_ESTADOS.capital_frenado.label === "inmovilizado", "candado-inmovilizado-estado", CAPITAL_ESTADOS.capital_frenado.label);
+  /* R5 DEL EXAMEN 1 DEL AGENTE (2026-08-31): el canon pasó a «frenado» — el dinero de la card ES el subconjunto
+   * frenado (rotación bajo piso / DOH sobre techo), no el inmovilizado AMPLIO (estado ≠ Activo, $56K vs $33K en
+   * el demo). Doctrina textual del owner (Examen 2): «usá la palabra que corresponde a la cifra que estés
+   * citando». La INTENCIÓN de estos candados no cambia: jamás «detenido», y card+leyenda con LA misma palabra. */
+  ok(CAPITAL_ESTADOS.capital_frenado.label === "frenado", "candado-inmovilizado-estado", CAPITAL_ESTADOS.capital_frenado.label);
   for (const sc of ["bonanza", "tension", "crisis"]) {
     const k = buildMesaCapital(sc).kpis.find((x) => x.key === "detenido");
-    ok(k.label === "Capital inmovilizado", `candado-inmovilizado-kpi@${sc}`, k.label);
+    ok(k.label === "Capital frenado", `candado-inmovilizado-kpi@${sc}`, k.label);
   }
 }
 
@@ -499,6 +503,11 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
     ["¿Qué pasa si libero el capital detenido?", "¿Qué pasa si libero el capital inmovilizado?"],
     ["¿Cómo libero el capital detenido en Valparaíso?", "¿Cómo libero el capital inmovilizado en Valparaíso?"],
     ["Qué SKU están detenidos", "Qué SKU están inmovilizados"],
+    // R5 (2026-08-31) · la generación nueva: las ask de la Mesa dicen «frenado» y tienen que resolver al MISMO
+    // pedido que las formas anteriores (probado IGUAL antes del corte — el vocabulario de entrada ya la traía).
+    ["¿Dónde está inmovilizado mi capital?", "¿Dónde está frenado mi capital?"],
+    ["Por qué el capital está inmovilizado", "Por qué el capital está frenado"],
+    ["¿Qué pasa si libero el capital inmovilizado?", "¿Qué pasa si libero el capital frenado?"],
   ];
   for (const [viejo, nuevo] of EQUIVALENTES) {
     const a = coerceFloor(viejo, false, null), b = coerceFloor(nuevo, false, null);

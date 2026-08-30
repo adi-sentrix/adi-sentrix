@@ -828,7 +828,13 @@ export function composeSpecResumenEjecutivo({ scenario } = {}) {
 // palabra, en el origen. Los consumidores que hacían match por texto aceptan AMBAS formas (narrationContract
 // `_PALANCAS`, progressiveDisclosure `composeProsaEjecutiva`, narratePromptC `_CONCEPTOS_INVENTARIO`), así que
 // ninguna boleta vieja —ni la del camino legado, que no se toca acá— deja de reconocerse.
-const _ESTADO_LABEL = { capital_frenado: "capital inmovilizado", riesgo_quiebre: "riesgo de quiebre", sobrestock: "sobrestock", capital_sano: "capital sano" };
+/* R5 DEL EXAMEN 1 DEL AGENTE (2026-08-31): «capital_frenado» dice FRENADO — su dinero es el subconjunto crítico
+ * (rotación bajo piso / DOH sobre techo), no el inmovilizado AMPLIO (estado ≠ Activo), que es OTRA cifra
+ * (distinción del owner desde el Examen 2, declarada en datoProyectado y exigida por el notario). La etiqueta
+ * equivocada AUTORIZABA la afirmación equivocada (el mismo binding semántico del hallazgo 2026-08-09, una capa
+ * más arriba): «Valparaíso · Capital inmovilizado = $25K» era el frenado de Valparaíso. Los reconocedores
+ * tolerantes (narrationContract · progressiveDisclosure) suman la forma nueva, como en la migración anterior. */
+const _ESTADO_LABEL = { capital_frenado: "capital frenado", riesgo_quiebre: "riesgo de quiebre", sobrestock: "sobrestock", capital_sano: "capital sano" };
 const _ESTADO_ORDEN = ["capital_frenado", "riesgo_quiebre", "sobrestock", "capital_sano"];
 const _FOCUS_ESTADO = { frenado: "capital_frenado", quiebre: "riesgo_quiebre", sobrestock: "sobrestock" };
 const _ESTADO_COLOR = { capital_frenado: "amber", riesgo_quiebre: "red", sobrestock: "cyan", capital_sano: "green" };
@@ -1035,19 +1041,25 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
       // los críticos si los hay (la razón se declara: rotación más baja y más días sin venta), si no los de más capital.
       const arranque = crit.length ? crit.slice(0, 2) : skus.slice(0, 2);
       B = {
-        // el `title` NO es decoración: encabeza la fig de total («Capital inmovilizado · total», por el split en
+        // el `title` NO es decoración: encabeza la fig de total («Capital frenado · total», por el split en
         // " ·") y viaja en `evidence.inventory.title` al panel de Sentrix, que lo pinta tal cual (SentrixPanel.jsx).
-        // Por eso su segunda mitad también va en registro: «dónde está inmovilizado», nunca «detenido».
-        focusEst: est, color: "amber", title: "Capital inmovilizado · dónde está inmovilizado tu capital", ctx: "capital inmovilizado", total, skus, byBod, byFam, dim: "bodega", arranque,
+        // Por eso su segunda mitad también va en registro: «dónde está frenado», nunca «detenido».
+        /* R5 DEL EXAMEN 1 DEL AGENTE (2026-08-31): EL RÓTULO DICE LO QUE LA CIFRA ES. Este `total` suma el
+         * subconjunto FRENADO (rotación bajo el piso o DOH sobre el techo — 3 SKU, $33K en el demo); el capital
+         * inmovilizado AMPLIO (estado ≠ Activo) es otra cifra ($56K en 5 SKU) — distinción del owner desde el
+         * Examen 2, declarada en datoProyectado y exigida por el notario («usá la palabra que corresponde a la
+         * cifra que estés citando»). En el examen salió «Capital inmovilizado · total = $33K» a pantalla:
+         * subdeclaraba el inmovilizado en 41% con la palabra cruzada. */
+        focusEst: est, color: "amber", title: "Capital frenado · dónde está frenado tu capital", ctx: "capital frenado", total, skus, byBod, byFam, dim: "bodega", arranque,
         lines: [
-          `Tienes ${_money(total)} de capital inmovilizado en ${skus.length} SKU sin rotar. Se concentra en ${topB.nombre} (${_money(topB.usd)}, ${topB.pct}%).`,
+          `Tienes ${_money(total)} de capital frenado en ${skus.length} SKU sin rotar (el subconjunto crítico de tu capital inmovilizado). Se concentra en ${topB.nombre} (${_money(topB.usd)}, ${topB.pct}%).`,
           `Por bodega: ${byBod.map((b) => `${b.nombre} ${_money(b.usd)}`).join(" · ")}.`,
           byFam.length ? `Por familia lo carga ${byFam[0].nombre} (${_money(byFam[0].usd)})${byFam[1] ? ` y ${byFam[1].nombre} (${_money(byFam[1].usd)})` : ""}.` : "",
           `Los SKU que lo explican: ${skuList}.`,
           `**Por qué:** dejaron de rotar — rotación bajo ${P.rotacionMin}x o DOH sobre ${P.dohMax}d. Es stock que no sale y deja el capital inmovilizado.`,
-          `**Qué hacer:** arranca por ${arranque.map((r) => r.sku).join(" y ")} (${crit.length ? "los críticos: la rotación más baja y más días sin venta" : "los de más capital inmovilizado"}) — liquidación o reasignación libera ese capital para SKU que sí rotan; después revisa la reposición para no repetirlo.`,
+          `**Qué hacer:** arranca por ${arranque.map((r) => r.sku).join(" y ")} (${crit.length ? "los críticos: la rotación más baja y más días sin venta" : "los de más capital frenado"}) — liquidación o reasignación libera ese capital para SKU que sí rotan; después revisa la reposición para no repetirlo.`,
         ],
-        suggestions: ["Por qué el capital está inmovilizado", "Qué SKU libero primero"],
+        suggestions: ["Por qué el capital está frenado", "Qué SKU libero primero"],   // R5: la sugerencia sale del bloque frenado — misma palabra que su cifra
       };
     }
   }

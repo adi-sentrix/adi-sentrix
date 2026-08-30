@@ -536,7 +536,7 @@ export function composeProsaEjecutiva(claims, { entidad = null, hayDetalleEnFich
   const palanca = míos.find((c) => c.coberturaCausal === "parcial" && c.explica);
   // las DOS formas del label (La Poda F2): el canónico pasó a «Capital inmovilizado» en specRetrieval
   // `_ESTADO_LABEL`; la vieja se sigue reconociendo porque el camino legado todavía la emite.
-  const capital = míos.find((c) => /capital (?:detenido|inmovilizado)/i.test(String(c.metrica || "")) && /subtotal/i.test(String(c.metrica || "")));
+  const capital = míos.find((c) => /capital (?:detenido|inmovilizado|frenado)/i.test(String(c.metrica || "")) && /subtotal/i.test(String(c.metrica || "")));   // R5: +frenado (el canónico nuevo)
 
   const p = [];
   // QUÉ PASA

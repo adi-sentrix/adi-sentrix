@@ -211,8 +211,11 @@ for (const c of colsAlerta) {
 const kpisB = buildEntityKPIs("bodega", "Santiago", SC);
 ok(!kpisB.some((k) => /inmoviliz/i.test(k.label)), "ningún KPI de bodega usa la palabra «inmovilizado» para la regla de alerta",
   kpisB.filter((k) => /inmoviliz/i.test(k.label)).map((k) => k.label).join(" | "));
-const kpiCap = (buildMesaCapital(SC).kpis || []).find((k) => /inmovilizado/i.test(k.label || ""));
-ok(kpiCap != null, "la cara Capital SÍ conserva la palabra: es el dueño del concepto");
+/* R5 del examen 1 del agente (2026-08-31): la palabra del concepto en la cara pasó a «frenado» (el dinero de la
+ * card ES el subconjunto frenado — la palabra sigue a la cifra, doctrina del owner). La INTENCIÓN del chequeo no
+ * cambia: el concepto tiene UN dueño (la cara Capital) y las columnas de bodega siguen sin usurpar la palabra. */
+const kpiCap = (buildMesaCapital(SC).kpis || []).find((k) => /frenado/i.test(k.label || ""));
+ok(kpiCap != null, "la cara Capital SÍ conserva la palabra del concepto (hoy «frenado»): es el dueño");
 // y el glosario no puede contradecirse consigo mismo sobre esa palabra
 const gInm = resolveGlossary("Inmovilizado");
 ok(gInm && /detector|rotaci/i.test(gInm.def) && /detector|rotaci/i.test(METRIC_DEFS["Inmovilizado"] || ""),

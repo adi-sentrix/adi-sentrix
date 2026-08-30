@@ -399,7 +399,9 @@ const _PALANCAS = [
   // inmovilizado» (specRetrieval `_ESTADO_LABEL`) porque el respaldo determinístico lo imprime VERBATIM y §4 veta
   // «detenido». `re` reconoce ambas para no perder los claims del camino legado, que sigue emitiendo la vieja;
   // `accion` va en la palabra correcta porque VIAJA AL PROMPT como acción permitida y el narrador la ecoa.
-  { re: /capital (?:detenido|inmovilizado)/i, clase: "capital_detenido",  accion: "liberar el capital inmovilizado en inventario",           esParte: true },
+  // R5 (examen 1 del agente, 2026-08-31): el canónico pasó a «capital frenado» (el dinero del foco ES el
+  // subconjunto frenado); las dos formas viejas se siguen reconociendo, misma mecánica de la migración anterior.
+  { re: /capital (?:detenido|inmovilizado|frenado)/i, clase: "capital_detenido",  accion: "liberar el capital inmovilizado en inventario",           esParte: true },
   { re: /\bbrecha\b/i,                     clase: "brecha_margen",        accion: "cerrar la brecha de margen contra el benchmark",          esParte: false },
 ];
 export function buildAllowedActions(claims) {
