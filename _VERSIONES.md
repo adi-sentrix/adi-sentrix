@@ -12,7 +12,7 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 2.13 — lista para desplegar
+## 2.13 — producción · tag `v2.13`
 
 **El cobro deja de ser una promesa de la plantilla: la hoja Abonos alimenta Flujo Comercial, y el plazo de pago
 se declara en la app.** Es el frente que el owner frenó antes del deploy con la razón exacta: «no quiero subir

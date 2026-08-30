@@ -18,4 +18,4 @@
 export const ADI_VERSION = "2.13";
 
 /** La última versión que de verdad llegó a producción. Se actualiza EN EL MISMO commit del deploy. */
-export const ADI_VERSION_DESPLEGADA = "2.12";
+export const ADI_VERSION_DESPLEGADA = "2.13";
