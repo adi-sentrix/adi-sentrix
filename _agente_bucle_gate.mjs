@@ -15,9 +15,13 @@
  *   8 · R2 (examen 1 del agente): la re-cita de lo aprobado — cifras que el muro YA aprobó a pantalla se
  *       re-autorizan al re-citarse; sin memoria (o con otra cifra) siguen muriendo;
  *   9 · R7 (examen 1): cada veto queda en el expediente con su sitio y su multa, y `figsEnBoleta` viaja al
- *       cerebro para que el adapter decida el tier (R-eco: escalar solo con material que reescribir).
+ *       cerebro para que el adapter decida el tier (R-eco: escalar solo con material que reescribir);
+ *   10 · R1 (examen 1): la ronda extra — el cierre o la reparación que piden una herramienta VÁLIDA la
+ *        obtienen (una por turno) en vez de morir con el pedido descartado;
+ *   11 · R4 (examen 1): el rescate proporcional — hasta 4 cifras verificadas del turno, la refutación del
+ *        supuesto contradicho y el trato registrado, también en los peldaños.
  *
- * ⚠️ CARNADAS (sección 10): cada garantía, probada ROJA mutando una copia del bucle vivo.
+ * ⚠️ CARNADAS (sección 12): cada garantía, probada ROJA mutando una copia del bucle vivo.
  *
  * OFFLINE · determinístico · cerebro = guion · la bandera ADI_AGENTE sigue APAGADA (esto prueba el módulo,
  * no lo enciende). `node --import ./scripts/offline-guard.mjs _agente_bucle_gate.mjs`
@@ -30,6 +34,7 @@ import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { plantillaEjemplo } from "./src/ingesta/plantilla/generarPlantilla.js";
 import { ingestarPlantilla } from "./src/ingesta/plantilla/ingestarPlantilla.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { setNombreUsuario, olvidarNombreUsuario } from "./src/adi/agente/preferenciaNombre.js";   // R4c · el trato en los rescates
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -281,8 +286,48 @@ H("10 · la ronda extra: el cierre que pide una herramienta válida la obtiene")
     `insaciable: la extra corre UNA vez y el turno cae a la línea honesta con lo leído (${llamadasC} llamadas · ${rc.r.agente.estado})`);
 }
 
-/* ═══ 11 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
-H("11 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
+/* ═══ 11 · EL RESCATE PROPORCIONAL (R4 del examen 1 · 2026-08-31) ═════════════════════════════════════════════
+ * LO MEDIDO: T4 sirvió UNA cifra donde el suplente natural servía el tablero; la corrección 30%→22.0% de T5
+ * existía en los borradores y nunca llegó (el usuario quedó creyendo el 30%); el trato registrado (jc) jamás
+ * apareció en pantalla (T14/T15). El tablero de KPIs sigue FUERA de la escalera (decisión del owner intacta):
+ * la proporcionalidad viene de lo que ESTE turno verificó, no de un volcado. */
+H("11 · R4: el rescate proporcional — cifras del turno, refutación y trato");
+{
+  initTenant(PACK);
+  const tercoSerie = async ({ ronda, attempt }) => {
+    if (ronda === 1 && attempt === 0) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
+    return { tipo: "texto", texto: "Depósito Riachuelo te compró $99.9M el último mes — un récord histórico." };
+  };
+  const rA = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: tercoSerie });
+  ok(rA.r.agente.estado === "limite" && /22\.560/.test(rA.r.text) && /24\.029/.test(rA.r.text),
+    "★ R4a: la línea honesta trae LAS cifras verificadas del turno (ambos meses), no una sola", rA.r.text.slice(0, 220));
+  ok(rA.r.text.length < 500, `y sigue corta (${rA.r.text.length} chars) — proporcional no es tablero`);
+
+  // R4b · el supuesto contradicho se refuta EN el rescate (el 30%→22.0% perdido de T5)
+  const guionSup = async ({ ronda, attempt }) => {
+    if (ronda === 1 && attempt === 0) return { tipo: "herramientas", pedidos: [
+      { tool: "registrarSupuesto", args: { texto: "Depósito Riachuelo margen 30%", cifra: 30, unidad: "pct" } },
+      { tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "margen" } },
+    ] };
+    return { tipo: "texto", texto: "Depósito Riachuelo opera con margen 45% — récord absoluto." };
+  };
+  const rB = await answerViaAgente({ text: "ponele que riachuelo tiene 30% de margen, que hacemos?", history: [], mem: {}, scenario: "actual", callAgente: guionSup });
+  ok(rB.r.agente.estado === "limite" && /El supuesto que registraste no coincide con lo verificado/.test(rB.r.text) && /21\.5%/.test(rB.r.text),
+    "★ R4b: la refutación del supuesto llega con la cifra real del dato", rB.r.text.slice(0, 260));
+  ok(!/45%/.test(rB.r.text) && !/= 30\.0%/.test(rB.r.text), "…sin la cifra inventada y sin blanquear el 30% como verificado");
+
+  // R4c · el trato registrado viaja también en los peldaños (T14: «jc» jamás apareció)
+  setNombreUsuario("jc");
+  const rC = await answerViaAgente({ text: "seguime con eso", history: [], mem: { ultimaAprobada: TEXTO_BUENO }, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: "" }) });
+  const rD = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: tercoSerie });
+  olvidarNombreUsuario();
+  ok(rC.r.agente.estado === "respaldo" && /(^|\n)jc: /.test(rC.r.text),
+    "★ R4c: el respaldo saluda con el trato registrado («jc: …»)", rC.r.text.slice(0, 90));
+  ok(rD.r.agente.estado === "limite" && /(^|\n)jc: /.test(rD.r.text), "…y la línea honesta también");
+}
+
+/* ═══ 12 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
+H("12 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
   const tmp = [];
   let nCarnada = 0;
@@ -348,8 +393,8 @@ H("11 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (d) el supuesto blanqueado como «verificado»
   await carnada("peldaño 1 citando supuestos",
-    [[/  const verificadas = figs\.filter\(\(f\) => f\.source !== "user_supuesto"\);\n  const fig = verificadas\.find\(\(f\) => f\.mandatory\) \|\| verificadas\.find\(\(f\) => f\.label && \(f\.text \|\| f\.value\)\) \|\| null;/,
-      "  const fig = figs.find((f) => f.mandatory) || figs.find((f) => f.label && (f.text || f.value)) || null;"]],
+    [[/  const verificadas = figs\.filter\(\(f\) => f\.source !== "user_supuesto" && f\.label && \(f\.text \|\| f\.value\)\);/,
+      "  const verificadas = figs.filter((f) => f.label && (f.text || f.value));"]],
     async (Mut) => {
       initTenant(PACK);
       const guion = async ({ ronda }) => {
@@ -409,6 +454,48 @@ H("11 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       };
       const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionT7c });
       return r.r.agente.estado !== "reparado" && r.r.agente.figs === 0;   // el defecto: el pedido se tiró y el turno murió sin leer
+    });
+
+  // (k) R4a · el rescate vuelve a UNA cifra: la proporcionalidad muere en silencio
+  await carnada("rescate de una sola cifra (la pobreza de T4)",
+    [[/\]\.filter\(\(f\) => f !== contra\)\.slice\(0, 4\);/, "].filter((f) => f !== contra).slice(0, 1);"]],
+    async (Mut) => {
+      initTenant(PACK);
+      const terco2 = async ({ ronda, attempt }) => {
+        if (ronda === 1 && attempt === 0) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
+        return { tipo: "texto", texto: "Depósito Riachuelo te compró $99.9M el último mes — un récord histórico." };
+      };
+      const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: terco2 });
+      // el defecto: UNA cifra donde había dos (cuál sobrevive depende del orden de la serie — lo que se caza es la pérdida)
+      return r.r.agente.estado === "limite" && !(/22\.560/.test(r.r.text) && /24\.029/.test(r.r.text));
+    });
+
+  // (l) R4b · la refutación quitada: el supuesto contradicho queda sin refutar (el 30% de T5 otra vez)
+  await carnada("refutación del supuesto quitada",
+    [[/        refutacion = `El supuesto que registraste no coincide con lo verificado: \$\{contra\.label\} = \$\{contra\.text \|\| contra\.value\}\.`;/,
+      "        refutacion = null;"]],
+    async (Mut) => {
+      initTenant(PACK);
+      const g = async ({ ronda, attempt }) => {
+        if (ronda === 1 && attempt === 0) return { tipo: "herramientas", pedidos: [
+          { tool: "registrarSupuesto", args: { texto: "Depósito Riachuelo margen 30%", cifra: 30, unidad: "pct" } },
+          { tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "margen" } },
+        ] };
+        return { tipo: "texto", texto: "Depósito Riachuelo opera con margen 45% — récord absoluto." };
+      };
+      const r = await Mut.answerViaAgente({ text: "ponele que riachuelo tiene 30% de margen, que hacemos?", history: [], mem: {}, scenario: "actual", callAgente: g });
+      return r.r.agente.estado === "limite" && !/no coincide con lo verificado/.test(r.r.text);   // el defecto: sin refutar
+    });
+
+  // (m) R4c · el trato quitado de los rescates: «jc» vuelve a no llegar jamás (T14)
+  await carnada("trato ausente en los rescates",
+    [[/    const trato = getNombreUsuario\(\);/, "    const trato = null;"]],
+    async (Mut) => {
+      initTenant(PACK);
+      setNombreUsuario("jc");
+      const r = await Mut.answerViaAgente({ text: "seguime con eso", history: [], mem: { ultimaAprobada: TEXTO_BUENO }, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: "" }) });
+      olvidarNombreUsuario();
+      return r.r.agente.estado === "respaldo" && !/(^|\n)jc: /.test(r.r.text);   // el defecto: el trato no viaja
     });
 
   // (j) R3 · la pertinencia quitada del peldaño vivo: el marco vuelve a mentir la entidad (unidad, caminoNatural)

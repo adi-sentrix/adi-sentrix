@@ -45,6 +45,7 @@ import { _respaldoDeLoYaAprobado } from "../oracle/caminoNatural.js";
 import { recitaAprobadaDe } from "../oracle/cicloNotarial.js";   // R2 del examen 1: la MISMA memoria de re-cita del camino natural — jamás una segunda paralela
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 import { vetosDeContrato } from "./contratoAgente.js";   // F3 · el juez ciego de sugerencias — se SUMA a guardC, no lo toca
+import { getNombreUsuario } from "./preferenciaNombre.js";   // R4c · el trato registrado viaja también en los rescates
 
 const TOPE_RONDAS = 3;      // rondas que pueden pedir herramientas
 const TOPE_CALLS = 12;      // tool-calls por turno, sumadas todas las rondas
@@ -69,22 +70,51 @@ function _resumenDeRonda(rp) {
   }));
 }
 
-/* ── LA ESCALERA INVERTIDA · peldaño 1: la línea honesta con la cifra más cercana VERIFICADA ─────────────────── */
-function _lineaHonesta({ motivos, figs, juzgar }) {
+/* ── LA ESCALERA INVERTIDA · peldaño 1: la línea honesta con lo VERIFICADO del turno ─────────────────────────── */
+/* R4b · métricas para emparejar un supuesto con su contraparte verificada (con y sin tilde). */
+const _METRICAS_REFUTACION = ["margen", "venta", "ventas", "contribución", "contribucion", "carga", "capital",
+  "inventario", "rotación", "rotacion", "unidades", "acciones", "costo"];
+const _reWord = (t) => new RegExp(`\\b${String(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+function _lineaHonesta({ motivos, figs, juzgar, entidades }) {
   const motivo = motivos.length ? motivos[motivos.length - 1] : null;
-  /* «la cifra más cercana» sale de la BOLETA ACUMULADA — verificada por el muro antes de adoptarse, nunca
-   * compuesta libre (F1 §9.3). Primero una obligatoria; si no hay, la primera con dueño.
+  /* las cifras salen de la BOLETA ACUMULADA — verificadas por el muro antes de adoptarse, nunca compuestas
+   * libres (F1 §9.3). Obligatorias primero.
    * ⚠️ JAMÁS UN SUPUESTO DEL USUARIO: la frase dice «lo que sí tengo verificado», y una cifra que el usuario
    * ofreció es exactamente lo contrario — citarla acá la blanquearía como dato. */
-  const verificadas = figs.filter((f) => f.source !== "user_supuesto");
-  const fig = verificadas.find((f) => f.mandatory) || verificadas.find((f) => f.label && (f.text || f.value)) || null;
-  /* sin un LÍMITE que nombrar ni una cifra que ofrecer, este peldaño no tiene nada honesto que decir: cede al
-   * siguiente (el respaldo de lo ya aprobado), que sí tiene contenido de verdad. Una línea genérica acá taparía
-   * al peldaño con sustancia. */
-  if (!motivo && !fig) return null;
+  const verificadas = figs.filter((f) => f.source !== "user_supuesto" && f.label && (f.text || f.value));
+
+  /* R4b DEL EXAMEN 1 (2026-08-31): si el turno registró un supuesto y lo verificado lo CONTRADICE, la
+   * refutación viaja también en el rescate — la corrección 30%→22.0% de T5 existía en los borradores y nunca
+   * llegó: el usuario quedó creyendo el 30%. Emparejamiento CONSERVADOR: entidad Y métrica del supuesto
+   * presentes en el label verificado, misma unidad, valor distinto — ante cualquier duda, nada. */
+  let refutacion = null, contra = null;
+  const sup = figs.find((f) => f.source === "user_supuesto" && f.label);
+  if (sup) {
+    const entSup = (Array.isArray(entidades) ? entidades : []).find((e) => _reWord(e).test(sup.label)) || null;
+    const metSup = _METRICAS_REFUTACION.find((m) => _reWord(m).test(sup.label)) || null;
+    if (entSup && metSup) {
+      contra = verificadas.find((f) => _reWord(entSup).test(String(f.label)) && _reWord(metSup).test(String(f.label))) || null;
+      if (contra && contra.unit === sup.unit && Number.isFinite(contra.raw) && Number.isFinite(sup.raw) && Math.abs(contra.raw - sup.raw) > 1e-9) {
+        refutacion = `El supuesto que registraste no coincide con lo verificado: ${contra.label} = ${contra.text || contra.value}.`;
+      } else { contra = null; }
+    }
+  }
+
+  /* R4a DEL EXAMEN 1: PROPORCIONALIDAD del rescate — hasta 4 cifras verificadas del turno, no una sola (T4
+   * sirvió UNA cifra donde el suplente natural servía el tablero). Sigue siendo CORTO y solo con lo que ESTE
+   * turno verificó: el tablero de KPIs sigue fuera de la escalera (decisión del owner, intacta). */
+  const destacadas = [
+    ...verificadas.filter((f) => f.mandatory),
+    ...verificadas.filter((f) => !f.mandatory),
+  ].filter((f) => f !== contra).slice(0, 4);
+
+  /* sin un LÍMITE que nombrar ni contenido que ofrecer, este peldaño no tiene nada honesto que decir: cede al
+   * siguiente (el respaldo de lo ya aprobado), que sí tiene contenido de verdad. */
+  if (!motivo && !destacadas.length && !refutacion) return null;
   const partes = [
     motivo ? `No pude completar la lectura que pediste: ${motivo}.` : "No pude completar la lectura que pediste con la calidad que corresponde.",
-    fig ? `Lo que sí tengo verificado: ${fig.label} = ${fig.text || fig.value}.` : null,
+    destacadas.length ? `Lo que sí tengo verificado: ${destacadas.map((f) => `${f.label} = ${f.text || f.value}`).join("; ")}.` : null,
+    refutacion,
     "Dime por dónde quieres que siga y lo trabajo sobre lo disponible.",
   ].filter(Boolean);
   const candidato = partes.join(" ");
@@ -271,7 +301,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   // ── la escalera INVERTIDA ──
   let suplente = false;
   if (final === null) {
-    final = _lineaHonesta({ motivos: motivosNoSoportado, figs: figsTotales, juzgar: (t) => juzgar(t, "linea-honesta") });
+    final = _lineaHonesta({ motivos: motivosNoSoportado, figs: figsTotales, juzgar: (t) => juzgar(t, "linea-honesta"), entidades: duenosTenant || [] });
     if (final !== null) { estado = "limite"; suplente = true; }
   }
   if (final === null) {
@@ -280,6 +310,19 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     if (final !== null) { estado = "respaldo"; suplente = true; }
   }
   if (final === null) { final = composeNoDataMessage(null); estado = "vacio"; suplente = true; }
+
+  /* R4c DEL EXAMEN 1 (2026-08-31): el trato registrado llega TAMBIÉN en los peldaños de rescate — en T14/T15
+   * «jc»/«wachin» se guardaron en el motor y jamás aparecieron en pantalla (los verdes lo traen porque el
+   * cerebro lee lineaDeNombre; los rescates son deterministas y no lo leían). El prefijo se verifica igual que
+   * todo lo que sale a pantalla; si no pasa, sale sin trato — jamás sin respuesta. La sonda no registra veto
+   * en el expediente a propósito: es cosmética, no una reparación fallida. */
+  if (suplente && typeof final === "string" && final) {
+    const trato = getNombreUsuario();
+    if (trato && !final.startsWith(`${trato}:`)) {
+      const conTrato = `${trato}: ${final}`;
+      try { const vt = _guard(conTrato); if (vt && vt.ok && !vetosDeContrato(conTrato).length) final = conTrato; } catch { /* sin trato antes que sin respuesta */ }
+    }
+  }
 
   // ── pantalla · misma limpieza y sello que el camino natural ──
   const ex = extraerCalculos(final);
