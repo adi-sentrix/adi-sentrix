@@ -1,5 +1,6 @@
-import { applyScenarioToClientesMargen } from "../engine/scenarios.js";
+import { applyScenarioToClientesMargen, applyScenarioToClientesVentas } from "../engine/scenarios.js";
 import { skusMargen } from "../data/skusMargen.js";
+import { POLICY, benchmarkOf } from "../config/businessPolicy.js";   // R1 (retrabajo ultracode 2026-08-30): la vara del NEGOCIO, jamás un 30.1 clavado
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 
 export function detectRceTier(derivedIntentType, intentType, lastComposerResponse) {
@@ -17,41 +18,35 @@ export function detectRceTier(derivedIntentType, intentType, lastComposerRespons
   return "ferrari";
 }
 
+/* R1 · LA SÉPTIMA CADENA GUIONADA, TRATADA COMO C7 (retrabajo ultracode 2026-08-30). Acá vivían las variantes
+ * por escenario con CIFRAS INVENTADAAS y clavadas ({bonanza:25.6, tension:22.4, crisis:18.9}, «+7.6%», «-12.6%»,
+ * benchmark 30.1, target 3.5) que se le decían AL USUARIO como primera línea — un tenant real con margen 25.0%
+ * leía «El margen está en 25.6%». La regla de C7 aplica entera: la dirección sale del SIGNO del dato, cada
+ * cifra sale del dato o de POLICY, las lecturas de dependencia se AFIRMAN solo si el dato las sostiene, y el
+ * guion que no puede derivarse MUERE (el mecanismo ya tiene passthrough silencioso: sin plantilla, la
+ * respuesta de abajo — que sí es data-driven — abre sola). */
 const ETLG_THESIS_TEMPLATES = {
-  // ── Tier ferrari · variantes scenario completas (D6) ────────────────────
-  priority_recommendation: {
-    requires_concepts: [], // matchea por intent_id directo
-    bonanza: () => "Las ventas están creciendo, pero el crecimiento no se está convirtiendo en la misma proporción en contribución y además tienes capital inmovilizado en inventario.",
-    tension: () => "Las ventas se quedaron planas, el margen perdió tracción y tienes capital inmovilizado en inventario · tres problemas activos al mismo tiempo.",
-    crisis:  () => "Las ventas cayeron, el margen cayó y tienes capital inmovilizado en inventario · tres problemas activos al mismo tiempo en magnitud severa.",
-  },
+  /* priority_recommendation, fuga_distribuida y los tres module_overview_* MURIERON: eran guiones puros (la
+   * película del demo o causas dobles sin cómputo). Para los module_overview además eran REDUNDANTES: desde C7
+   * el opener del overview ya abre con su propia conclusión data-driven — prepender una tesis era decir la
+   * misma cifra dos veces (o peor: una inventada encima de la real). */
 
   // ── Tier ferrari · paramétricos runtime ─────────────────────────────────
-  fuga_distribuida: {
-    requires_concepts: ["loss_explicit"],
-    template: () => "El margen está cayendo en dos lugares a la vez: capital frenado en stock y carga comercial sobre cuentas grandes.",
-  },
-
   mechanism_explore_erosion: {
     requires_concepts: [],
     template: (params) => {
-      const n = params.tier1Count || "Tres";
-      return `${n} cuentas Tier 1 están aportando volumen pero no margen · el costo viene de la carga comercial que pagan.`;
+      if (!params.tier1Count) return null;   // cero cuentas en esa condición → sin tesis (no se inventa una)
+      return `${params.tier1Count} ${params.n === 1 ? "cuenta está" : "cuentas están"} bajo tu benchmark con la carga comercial sobre el target.`;
     },
     resolve_params: (scenario) => {
       try {
         const rows = applyScenarioToClientesMargen(scenario);
-        const benchmark = 30.1;
-        const target_carga = 3.5;
-        const count = rows.filter(c => c.margen < benchmark && c.pctRebate > target_carga).length;
-        let word;
-        if (count === 1) word = "Una";
-        else if (count === 2) word = "Dos";
-        else if (count === 3) word = "Tres";
-        else if (count === 4) word = "Cuatro";
-        else word = String(count);
-        return { tier1Count: word };
-      } catch (e) { return { tier1Count: "Tres" }; }
+        // la vara del NEGOCIO (POLICY/benchmarkOf — el criterio C.2 del usuario manda), jamás un literal
+        const count = rows.filter(c => typeof c.margen === "number" && c.margen < benchmarkOf(c) && (c.pctRebate || 0) > POLICY.targetCarga).length;
+        if (!count) return {};
+        const palabras = { 1: "Una", 2: "Dos", 3: "Tres", 4: "Cuatro" };
+        return { tier1Count: palabras[count] || String(count), n: count };
+      } catch (e) { return {}; }
     },
   },
 
@@ -66,7 +61,11 @@ const ETLG_THESIS_TEMPLATES = {
       if (!params.clientName) return null;
       const name = params.clientName;
       const sizeDesc = params.sizeDesc || "más grande";
-      return `${name} es la cuenta ${sizeDesc} pero también la más cara · el margen no compensa la concentración.`;
+      // R1: «pero también la más cara · el margen no compensa» AFIRMABA carga y compensación sin computarlas.
+      // Lo que sí está medido: el tamaño (rank por venta) y el margen contra TU vara — solo eso se dice.
+      return params.bajoVara
+        ? `${name} es la cuenta ${sizeDesc} y opera bajo tu benchmark (${params.margen}%).`
+        : `${name} es la cuenta ${sizeDesc} de la cartera.`;
     },
     resolve_params: (scenario, intentMeta) => {
       try {
@@ -79,12 +78,14 @@ const ETLG_THESIS_TEMPLATES = {
         // afirmaba propiedades ("la más cara · el margen no compensa") de cuentas inexistentes (Walmart/Corona)
         // ANTES del degrade honesto — fabricación de piso que el narrador después amplificaba.
         if (rank === -1) return { clientName: null };
-        let sizeDesc = "del Tier 1";
+        let sizeDesc = "del grupo que más vende";
         if (rank === 0) sizeDesc = "más grande";
         else if (rank === 1) sizeDesc = "segunda más grande";
-        else if (rank >= 2 && rank <= 4) sizeDesc = "del Tier 1";
+        else if (rank >= 2 && rank <= 4) sizeDesc = "del grupo que más vende";   // R1: «Tier 1» era reparto inventado — el rank medido sí existe
         else sizeDesc = "del portafolio";
-        return { clientName, sizeDesc };
+        const row = sorted[rank];
+        const bajoVara = typeof row.margen === "number" && row.margen < benchmarkOf(row);
+        return { clientName, sizeDesc, bajoVara, margen: bajoVara ? row.margen : null };
       } catch (e) { return { clientName: null }; }
     },
   },
@@ -99,8 +100,10 @@ const ETLG_THESIS_TEMPLATES = {
       if (!params.clientName) return null;
       const name = params.clientName;
       const pct = params.contribPct;
-      if (pct) return `Perder a ${name} significa aproximadamente ${pct}% menos contribución del portafolio · es una de las cuentas más concentradas.`;
-      return `Perder a ${name} es perder una de las cuentas más concentradas del portafolio.`;
+      // R1: «una de las más concentradas» se AFIRMA solo cuando el dato la sostiene (≥10% del total) — la
+      // misma regla de C7 para las lecturas de dependencia.
+      if (pct) return `Perder a ${name} significa aproximadamente ${pct}% menos contribución del portafolio${pct >= 10 ? " · es una de las cuentas más concentradas" : ""}.`;
+      return null;   // sin el % medido no hay tesis — la respuesta de abajo trae la cuenta completa
     },
     resolve_params: (scenario, intentMeta) => {
       try {
@@ -120,8 +123,9 @@ const ETLG_THESIS_TEMPLATES = {
     requires_concepts: [],
     template: (params) => {
       const pct = params.top3Pct;
-      if (pct) return `Tres cuentas concentran ${pct}% de la contribución total · la cartera depende de ese trío.`;
-      return "Tres cuentas concentran la mayor parte de la contribución total · la cartera depende de ese trío.";
+      // R1 (regla C7): la cifra medida o nada; «depende de ese trío» solo si el dato la sostiene (≥50%).
+      if (!pct) return null;
+      return `Tres cuentas concentran ${pct}% de la contribución total${pct >= 50 ? " · la cartera depende de ese trío" : ""}.`;
     },
     resolve_params: (scenario) => {
       try {
@@ -139,8 +143,9 @@ const ETLG_THESIS_TEMPLATES = {
     requires_concepts: [],
     template: (params) => {
       const pct = params.top4Pct;
-      if (pct) return `Cuatro SKUs concentran ${pct}% de la contribución total · el resto del portafolio aporta participación fragmentada.`;
-      return "Pocos SKUs concentran la mayor parte de la contribución total · el resto del portafolio aporta participación fragmentada.";
+      // R1 (regla C7): ídem — cifra medida o nada; «fragmentada» solo si la concentración lo sostiene.
+      if (!pct) return null;
+      return `Cuatro SKUs concentran ${pct}% de la contribución total${pct >= 50 ? " · el resto del portafolio aporta participación fragmentada" : ""}.`;
     },
     resolve_params: () => {
       try {
@@ -154,16 +159,35 @@ const ETLG_THESIS_TEMPLATES = {
   },
 
   profitability_gap: {
+    // R1: los concepts venían de la PREGUNTA, no del dato — «Las ventas están creciendo» se afirmaba porque el
+    // usuario lo dijo. La dirección sale del SIGNO: se VERIFICA crecimiento real y margen bajo la vara, o no
+    // hay tesis (la respuesta de abajo trae la cuenta completa igual).
     requires_concepts: ["growth_positive", "profitability_negative"],
-    template: () => "Las ventas están creciendo pero el margen se está comprimiendo · el crecimiento no se está convirtiendo en utilidad.",
+    template: (params) => {
+      if (!params.sostenido) return null;
+      return `Las ventas crecen (${params.growthFmt}) y el margen corre bajo tu benchmark · el crecimiento no se está convirtiendo en utilidad.`;
+    },
+    resolve_params: (scenario) => {
+      try {
+        const v = applyScenarioToClientesVentas(scenario);
+        const act = v.reduce((s, r) => s + (r.actual || 0), 0), ant = v.reduce((s, r) => s + (r.anterior || 0), 0);
+        const growth = ant > 0 ? ((act - ant) / ant) * 100 : null;
+        const m = applyScenarioToClientesMargen(scenario);
+        const venta = m.reduce((s, r) => s + (r.venta || 0), 0), contrib = m.reduce((s, r) => s + (r.contribucion || 0), 0);
+        const margenProm = venta > 0 ? (contrib / venta) * 100 : null;
+        const sostenido = growth != null && growth > 0 && margenProm != null && margenProm < benchmarkOf(null);
+        return sostenido ? { sostenido, growthFmt: `+${growth.toFixed(1)}%` } : {};
+      } catch (e) { return {}; }
+    },
   },
 
   exposure_analysis: {
     requires_concepts: [],
     template: (params) => {
       const pct = params.top3Pct;
-      if (pct) return `Tres clientes concentran ${pct}% de la contribución · una salida simultánea elimina aproximadamente la mitad de la rentabilidad operativa.`;
-      return "Tres clientes concentran la mayor parte de la contribución · una salida simultánea afecta directamente la rentabilidad operativa.";
+      // R1: «elimina aproximadamente la mitad» era aritmética inventada — la cifra medida ES la exposición.
+      if (!pct) return null;
+      return `Tres clientes concentran ${pct}% de la contribución · una salida simultánea se lleva esa proporción.`;
     },
     resolve_params: (scenario) => {
       try {
@@ -177,32 +201,11 @@ const ETLG_THESIS_TEMPLATES = {
     },
   },
 
-  // ── Tier module_overview · variantes scenario (D6 margen + ventas) ──────
-  module_overview_margenes: {
-    requires_concepts: [],
-    bonanza: (params) => `El margen está en ${params.actualMargin}%, bajo tu benchmark · la diferencia viene de la carga comercial sobre las cuentas Tier 1.`,
-    tension: (params) => `El margen cayó de 25.6% a ${params.actualMargin}% · la carga comercial sobre las cuentas grandes está absorbiendo más del crecimiento.`,
-    crisis:  (params) => `El margen cayó a ${params.actualMargin}% · tres clientes están operando bajo costo real con la carga comercial actual.`,
-    resolve_params: (scenario) => {
-      // margen actual del KPI del scenario
-      const margins = { bonanza: "25.6", tension: "22.4", crisis: "18.9" };
-      return { actualMargin: margins[scenario] || "25.6" };
-    },
-  },
-
-  module_overview_ventas: {
-    requires_concepts: [],
-    bonanza: () => "Las ventas crecieron +7.6% versus el año anterior · el crecimiento se concentra en tres cuentas grandes.",
-    tension: () => "Las ventas se quedaron planas (0%) versus el año anterior · el portafolio dejó de tracciónar.",
-    crisis:  () => "Las ventas cayeron -12.6% versus el año anterior · la cartera está perdiendo volumen en magnitud significativa.",
-  },
-
-  module_overview_inventario: {
-    requires_concepts: [],
-    bonanza: () => "Hay capital inmovilizado en stock · la rotación opera bajo el promedio operativo en algunas familias.",
-    tension: () => "Hay capital inmovilizado en stock · la velocidad de deterioro empezó a acelerarse en categorías específicas.",
-    crisis:  () => "Hay capital inmovilizado en stock · el monto comprometido empezó a impactar el ciclo de caja del negocio.",
-  },
+  /* ⚠️ ACÁ VIVÍAN module_overview_margenes / _ventas / _inventario — los guiones con el mapa de cifras
+   * INVENTADAS ({bonanza:"25.6", tension:"22.4", crisis:"18.9"}, «+7.6%», «-12.6%») que cualquier tenant real
+   * leía como SU cifra. MURIERON en R1 (retrabajo ultracode 2026-08-30): además de guionados eran redundantes —
+   * desde C7 el opener del overview abre con su propia conclusión data-driven, así que el tier module_overview
+   * cae al passthrough silencioso del mecanismo (template_not_found) y la respuesta real abre sola. */
 };
 
 // ── PIEZA 1 · executiveThesisLineGenerator ──────────────────────────────────

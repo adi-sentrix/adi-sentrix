@@ -23,6 +23,7 @@ import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { plantillaEjemplo } from "./src/ingesta/plantilla/generarPlantilla.js";
 import { ingestarPlantilla } from "./src/ingesta/plantilla/ingestarPlantilla.js";
 import { composeModuleOverview, composeModuleOverviewV2 } from "./src/adi/composers/overview.js";
+import { answerADI } from "./src/adi/answerADI.js";   // R1: etlg se prueba por el camino REAL (el prepend del 16/0)
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -79,6 +80,25 @@ H("3 · los literales nuevos del demo — cambio visible AUTORIZADO por el owner
     "inventario: 35.1% < 50 ⇒ NO se afirma concentración (el guion la clavaba siempre)", i);
 }
 
+/* ═══ 3-bis · LA SÉPTIMA CADENA: etlg (R1 del retrabajo ultracode) ════════════════════════════════════════════ */
+H("3-bis · la tesis ejecutiva (etlg) sale del dato o no sale — las cifras clavadas murieron");
+{
+  initTenant(PACK);
+  const rP = await answerADI("márgenes", [], {}, "bonanza");
+  const tP = String((rP && (rP.text || rP.opener)) || "");
+  ok(!/25\.6/.test(tP.split("\n")[0]), "★ el pack ya NO abre con el 25.6% clavado del guion", tP.split("\n")[0]);
+  ok(/22\.4%/.test(tP.split("\n")[0]), "…abre con SU margen real (22.4%) — el opener data-driven de C7", tP.split("\n")[0]);
+  ok(!GUION.test(tP), "…y sin el reparto del demo (Tier 1 y compañía)");
+  const rV = await answerADI("ventas", [], {}, "bonanza");
+  const tV = String((rV && (rV.text || rV.opener)) || "");
+  ok(!/\+7\.6%|crecieron \+7\.6/.test(tV.split("\n")[0]) || /caen -0\.9%/.test(tV.split("\n")[0]),
+    "ventas del pack: sin el «+7.6%» clavado — la dirección es la del dato", tV.split("\n")[0]);
+  initTenant(TENANT_DEMO);
+  const rD = await answerADI("márgenes", [], {}, "bonanza");
+  ok(/25\.6%/.test(String((rD && (rD.text || rD.opener)) || "").split("\n")[0]),
+    "el demo dice 25.6% porque ES su cifra (del dato, ya no del mapa clavado)");
+}
+
 /* ═══ 4 · CARNADAS ════════════════════════════════════════════════════════════════════════════════════════════ */
 H("4 · CARNADA · las dos leyes, probadas ROJAS con el defecto adentro");
 {
@@ -123,6 +143,23 @@ H("4 · CARNADA · las dos leyes, probadas ROJAS con el defecto adentro");
     async (Mut) => {
       initTenant(PACK);
       return /Tier 1/.test(Mut.composeModuleOverviewV2("bonanza", "margenes").opener);
+    });
+
+  // (b2 · R1) el guion de etlg re-escrito de memoria: el mapa de cifras clavadas de vuelta → el pack vuelve a
+  //     leer «25.6%» como primera línea → rojo. La carnada inyecta la plantilla muerta COMPLETA (verbatim).
+  await carnada("el mapa clavado de etlg resucitado", "src/adi/etlg.js",
+    [[/const ETLG_THESIS_TEMPLATES = \{/,
+      `const ETLG_THESIS_TEMPLATES = {
+  module_overview_margenes: {
+    requires_concepts: [],
+    bonanza: (params) => \`El margen está en \${params.actualMargin}%, bajo tu benchmark · la diferencia viene de la carga comercial sobre las cuentas Tier 1.\`,
+    resolve_params: (scenario) => ({ actualMargin: ({ bonanza: "25.6", tension: "22.4", crisis: "18.9" })[scenario] || "25.6" }),
+  },`]],
+    async (Mut) => {
+      initTenant(PACK);
+      const meta = { intent_id: null, intent_type: null, archetype: null, concepts: [], modulo: "margenes", client_name: null, tier: "module_overview" };
+      const r = Mut.executiveThesisLineGenerator({ opener: "x", suggestions: null, sentrixAction: null }, meta, "bonanza");
+      return !!(r && r.shouldApply && /25\.6/.test(r.thesisLine || ""));   // el defecto: la cifra clavada volvió a nacer
     });
 
   // (c) la categoría del demo escrita a mano de vuelta en el OPENER (las sugerencias tienen su propia defensa:
