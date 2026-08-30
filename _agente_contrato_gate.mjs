@@ -147,7 +147,37 @@ H("5 · el veto, calibrado contra los textos que YA salieron a pantalla");
     } catch { /* estado ilegible: no es objeto de esta pasada */ }
   }
   ok(aceptadas >= 20, `el corpus está (${aceptadas} textos aceptados)`);
-  ok(vetadas.length === 0, "cero vetos sobre lo aceptado — sin falsos positivos estrenados", vetadas.join(", "));
+  /* R8 (2026-08-31) · UNA EXCEPCIÓN DECLARADA, no una relajación: el t5 del examen 2 dice «escenarios» y fue
+   * aceptado ANTES del colapso del eje — hoy el criterio es binario (cero «escenario» en pantalla) y el propio
+   * narrador natural lo reescribiría. El récord del examen no se edita; la excepción se declara con su regla
+   * exacta, y si el texto dejara de vetear (la regla se aflojó) la excepción quedaría estéril y ESO también
+   * se caza. */
+  const EXENTOS = { "_examen2_consolidado.json t5": "lexico-escenario" };
+  const noExentas = vetadas.filter((v) => !EXENTOS[v]);
+  ok(noExentas.length === 0, "cero vetos sobre lo aceptado — sin falsos positivos estrenados", noExentas.join(", "));
+  ok(vetadas.some((v) => EXENTOS[v]), "…y la excepción declarada (t5 pre-colapso) SIGUE vetando — si esto falla, la regla se aflojó o el récord cambió");
+}
+
+/* ═══ 5b · R8 · EL LÉXICO DE SUPERFICIE CAZA LAS FUGAS MEDIDAS (verbatim del examen) ══════════════════════════ */
+H("5b · R8: cada fuga que llegó a pantalla en el examen, hoy vetada");
+{
+  const caza = (texto, regla, etiqueta) => {
+    const v = vetosDeContrato(texto);
+    ok(v.some((x) => x.regla === regla), `${etiqueta} → ${regla}`, JSON.stringify(v.map((x) => x.regla)));
+  };
+  caza("O si prefieres que simule el escenario donde Falabella efectivamente tuviera 30% de margen.", "lexico-escenario", "T25 · «simule el escenario»");
+  caza("Ese $194K es un dato de tensión, no de volumen.", "lexico-tension", "T9 · «dato de tensión»");
+  caza("No tengo la serie mensual desagregada (la herramienta de histórico por entidad está bloqueada).", "lexico-herramienta", "T9-T12 · «la herramienta … bloqueada»");
+  caza("Con eso puedo tirarte la cifra limpia. ¿Me das esos tres datos?", "lexico-tirar", "T9 · «tirarte la cifra»");
+  caza("Necesito exactamente 2 variables distintas — precio (precioLista) y volumen, cada una con su % de cambio.", "identificador-interno", "T2 · «precioLista» verbatim");
+  caza("El plan pide inventoryStatus antes de responder.", "identificador-interno", "nombre de tool camelCase");
+  // y lo LEGÍTIMO pasa: la familia real del pack, la palabra común que también nombra una tool, el registro sano
+  ok(vetosDeContrato("La familia Herramientas concentra $18K de venta en el período.").length === 0,
+    "«la familia Herramientas» (entidad real del pack ferretero) pasa LIMPIA — jamás se reescribe un nombre");
+  ok(vetosDeContrato("Sí se puede calcular: 4 de los 5 SKU explican el 85.7%.").length === 0,
+    "«calcular» (palabra común que también es nombre de tool) pasa — solo se veta el camelCase reconocible");
+  ok(vetosDeContrato("Te traigo la cifra verificada del período y la trabajamos juntos.").length === 0,
+    "el registro sano pasa sin vetos");
 }
 
 /* ═══ 6 · CARNADAS ════════════════════════════════════════════════════════════════════════════════════════════ */
@@ -194,6 +224,16 @@ H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro")
   await carnada("el veto de «procede con» vaciado", "src/adi/agente/contratoAgente.js",
     [[/const _DECISION_TOMADA = \/[^/]+\/i;/, "const _DECISION_TOMADA = /$^/;"]],
     async (Mut) => Mut.vetosDeContrato("El margen cede 5pp — procede con la renegociación que vimos.\n\nSi quieres, seguimos por SKU.").length === 0);
+
+  // (b2) R8 · el veto de «escenario» vaciado: la fuga BINARIA del examen (T25) vuelve a pasar desapercibida
+  await carnada("el léxico de escenario vaciado", "src/adi/agente/contratoAgente.js",
+    [[/\{ re: \/\\bescenarios\?\\b\/i, regla: "lexico-escenario",/, '{ re: /$^/, regla: "lexico-escenario",']],
+    async (Mut) => Mut.vetosDeContrato("O si prefieres que simule el escenario donde Falabella tuviera 30% de margen.").length === 0);
+
+  // (b3) R8 · los identificadores internos sin filtro camelCase: «calcular» del corpus vuelve a caer
+  await carnada("identificadores sin el filtro camelCase", "src/adi/agente/contratoAgente.js",
+    [[/    \.filter\(\(n\) => \/\[A-Z\]\/\.test\(n\.slice\(1\)\)\);/, "    ;"]],
+    async (Mut) => Mut.vetosDeContrato("Sí se puede calcular: 4 de los 5 SKU explican el 85.7%.").some((x) => x.regla === "identificador-interno"));
 
   // (c) la letra que pierde el principio de sugerencias
   await carnada("la letra sin la palabra del owner", "src/adi/agente/contratoAgente.js",
