@@ -26,6 +26,7 @@ import { crearClienteRest } from "./src/data/supabaseRest.js";
 import { verificarPase } from "./src/data/paseTenant.js";
 import { plantillaEjemplo } from "./src/ingesta/plantilla/generarPlantilla.js";
 import { makeAccessCode } from "./src/adi/llm/accessToken.js";
+import { readFileSync } from "node:fs";
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -399,6 +400,52 @@ console.log("=".repeat(100));
   const { cli: c2 } = doble();
   const bueno = await persistirCarga({ tenantId: "acme", bytes: BYTES, dataset: DATASET, env: ENV_CON_BASE, cliente: c2 });
   ok(bueno.guardado && !solo.guardado, "guarda cuando corresponde y no cuando no: distingue, no dice que sí a todo");
+}
+
+console.log("\n" + "=".repeat(100));
+console.log("NO GUARDAR POR ELECCIÓN vs NO PODER GUARDAR · la marca que separa las dos cosas");
+console.log("=".repeat(100));
+{
+  /* ⚠️ EL DEFECTO QUE ESTO CIERRA, y que ninguna prueba veía porque técnicamente nada se caía: cuando la base
+   * rechazaba la escritura, la respuesta era `{guardado:false, motivo}` — la MISMA forma que cuando no hay base
+   * configurada. La pantalla trataba a las dos igual: activaba el negocio en memoria, decía que todo salió
+   * bien, y el archivo desaparecía en la próxima recarga sin un aviso. Apareció con la base atrasada respecto
+   * del código (le pedía columnas que todavía no existían), que es justo el escenario en que un cliente sube su
+   * planilla por primera vez. `sinBase` marca los dos casos en que no guardar es CORRECTO. */
+  const sinBase = await persistirCarga({ tenantId: "acme", bytes: BYTES, dataset: DATASET, env: {} });
+  ok(sinBase.guardado === false && sinBase.sinBase === true,
+    "sin base configurada: no guarda, y lo marca como esperado (`sinBase`)");
+
+  const sinEmpresa = await persistirCarga({ bytes: BYTES, dataset: DATASET, env: ENV_CON_BASE, cliente: doble().cli });
+  ok(sinEmpresa.guardado === false && sinEmpresa.sinBase === true,
+    "sin empresa en la sesión: lo mismo — es el demo, no un fallo");
+
+  /* Y ahora los FALLOS DE VERDAD: los tres tienen que quedar SIN la marca, porque hay que decírselos al usuario. */
+  const rotoAlta = await persistirCarga({ tenantId: "acme", bytes: BYTES, dataset: DATASET, env: ENV_CON_BASE,
+    cliente: doble({ falla: { insertar: "uploads" } }).cli });
+  ok(rotoAlta.guardado === false && !rotoAlta.sinBase,
+    `⚠️ la base rechaza la carga: es FALLO, no un caso esperado · «${rotoAlta.motivo}»`);
+
+  const rotoVersion = await persistirCarga({ tenantId: "acme", bytes: BYTES, dataset: DATASET, env: ENV_CON_BASE,
+    cliente: doble({ falla: { insertar: "fact_pack_versions" } }).cli });
+  ok(rotoVersion.guardado === false && !rotoVersion.sinBase,
+    `⚠️ la base rechaza la versión: es FALLO · «${rotoVersion.motivo}»`);
+
+  const rotoLectura = await persistirCarga({ tenantId: "acme", bytes: BYTES, dataset: DATASET, env: ENV_CON_BASE,
+    cliente: doble({ falla: { seleccionar: "fact_pack_versions" } }).cli });
+  ok(rotoLectura.guardado === false && !rotoLectura.sinBase,
+    `⚠️ la base no deja leer la última versión: es FALLO · «${rotoLectura.motivo}»`);
+
+  /* LA PANTALLA TIENE QUE FRENAR. La regla vive en `PanelDatos.jsx`: sin versión guardada y sin la marca, no se
+   * activa nada y se dice por qué. Se comprueba que la puerta esté escrita, porque es lo único que impide que
+   * un fallo de guardado se vea como un éxito. */
+  const panel = readFileSync("./src/ui/PanelDatos.jsx", "utf8");
+  ok(/guardado === false && !p\.sinBase/.test(panel),
+    "la pantalla distingue las dos cosas antes de activar");
+  ok(/al recargar se habr[íi]an perdido/.test(panel),
+    "…y le dice al usuario qué habría pasado, en vez de un «error» a secas");
+  ok(panel.indexOf("!p.sinBase") < panel.indexOf("if (versionId) {"),
+    "…y frena ANTES de activar, no después");
 }
 
 console.log(`\n── _persistir_carga_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

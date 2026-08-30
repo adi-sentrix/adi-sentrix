@@ -46,12 +46,15 @@ export async function persistirCarga({
   tenantId, bytes, nombreArchivo, dataset, sello, plantillaVersion,
   tipo = "negocio", env, cliente, ttlSegundos, hash: hashDado, actor = null,
 } = {}) {
-  if (!tenantId) return { guardado: false, motivo: "sin sesión con empresa: no se guarda" };
+  /* ⚠️ `sinBase` MARCA LOS DOS CASOS EN QUE NO GUARDAR ES LO CORRECTO —no hay empresa, no hay base— y los
+   * separa de los FALLOS. Sin esa marca la pantalla los trataba a todos igual: activaba en memoria y le decía
+   * al usuario que había quedado guardado. Una carga que se pierde en silencio es peor que una que se cae. */
+  if (!tenantId) return { guardado: false, sinBase: true, motivo: "sin sesión con empresa: no se guarda" };
   if (!dataset) return { guardado: false, motivo: "no hay dataset que guardar" };
 
   const e = env || (typeof process !== "undefined" && process.env) || {};
   const db = cliente || clienteDesdeEntorno(e);
-  if (!db) return { guardado: false, motivo: "base no configurada" };
+  if (!db) return { guardado: false, sinBase: true, motivo: "base no configurada" };
 
   const secreto = e.SUPABASE_JWT_SECRET || "";
   const p = await emitirPase({ tenantId, secreto, ...(ttlSegundos ? { ttlSegundos } : {}) });

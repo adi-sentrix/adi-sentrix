@@ -134,13 +134,13 @@ export async function handleIngesta(body = {}, env) {
    * Va envuelto en su propio `try` porque nada de acá adentro puede tumbar una carga que ya salió bien: el
    * usuario hizo su parte, el archivo es válido y la preview está lista. Un problema de base se INFORMA en
    * `persistencia`; no se convierte en un rechazo del archivo. */
-  let persistencia = { guardado: false, motivo: "base no configurada" };
+  let persistencia = { guardado: false, sinBase: true, motivo: "base no configurada" };
   let repetido = null;
   try {
     const s = await sesionDeLaCarga(body.access, env);
     const empresa = s ? s.tenantId : null;
     if (!empresa) {
-      persistencia = { guardado: false, motivo: "sin sesión con empresa: no se guarda" };
+      persistencia = { guardado: false, sinBase: true, motivo: "sin sesión con empresa: no se guarda" };
     } else {
       const hash = await hashSha256(buf);
       /* El aviso se calcula ANTES de insertar: después, la carga de recién sería siempre «una carga previa». */

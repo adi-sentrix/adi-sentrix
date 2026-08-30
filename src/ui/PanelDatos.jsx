@@ -121,6 +121,17 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, onVerDemo, act
   async function confirmar() {
     if (!monedaLista) return;   // el botón ya está deshabilitado; esto es el cierre por si alguien lo fuerza
     const versionId = r && r.persistencia && r.persistencia.versionId;
+    /* ⚠️ UNA CARGA QUE NO SE PUDO GUARDAR NO SE ACTIVA COMO SI SÍ. Sin esta puerta, cualquier fallo al escribir
+     * en la base caía en el mismo camino que «no hay base configurada»: se activaba en memoria, la pantalla
+     * decía que todo salió bien, y el archivo desaparecía en la próxima recarga sin un solo aviso. Apareció con
+     * la base atrasada respecto del código —le pedía columnas que todavía no existían— y ninguna prueba lo veía,
+     * porque técnicamente nada se había caído. `sinBase` marca los dos casos en que no guardar es lo correcto;
+     * todo lo demás es un fallo y se dice. */
+    const p = (r && r.persistencia) || {};
+    if (!versionId && p.guardado === false && !p.sinBase) {
+      setError(`${p.motivo || "no se pudieron guardar estos datos"}. No se activó nada: al recargar se habrían perdido.`);
+      return;
+    }
     if (versionId) {
       setGuardando(true);
       try {
