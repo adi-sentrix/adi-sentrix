@@ -41,7 +41,11 @@ initTenant(TENANT_DEMO);   // arranca en demo (costModel autorizado) — cada se
 
 console.log("── 1 · DETERMINÍSTICO — TOOLS.simulateGeneral (sin LLM) ──");
 {
-  const args = { dimension: "cliente", entity: "Falabella", variableA: { campo: "precioLista", delta_pct: 5 }, variableB: { campo: "unidades", delta_pct: -10 } };
+  // COLAPSO DEL EJE (C5, 2026-08-30): esta llamada OMITÍA el escenario y viajaba gratis en el default de
+  // conveniencia (`"actual"` = la base cruda); al unificarse los defaults a la base real declarada, las cifras
+  // hardcodeadas de la identidad (19433/15158 — el mundo crudo) dejaban de coincidir. El mundo del ancla ahora
+  // va EXPLÍCITO: la identidad multiplicativa se prueba sobre la base cruda declarada, no sobre un default.
+  const args = { dimension: "cliente", entity: "Falabella", variableA: { campo: "precioLista", delta_pct: 5 }, variableB: { campo: "unidades", delta_pct: -10 }, scenario: "actual" };
   const r = simulateGeneral(args);
   ok(r.coverage.supported === true, "caso ancla (Falabella, precio+5%, volumen-10%): supported=true");
   ok(r.facts.costModelAutorizado === true, "demo tiene costModel autorizado — trae costo/margen/contribución");

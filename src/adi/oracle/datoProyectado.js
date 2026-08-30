@@ -43,6 +43,7 @@ import { parseFigures } from "../boleta.js";
 import { composeNoDataMessage } from "./narrationBlocks.js";   // el último recurso ABSOLUTO del suplente digno — la MISMA frase canónica que usa la escalera anti-null, nunca una copia
 import { simboloMoneda, rotuloMoneda, etiquetaSinDeclarar } from "../../config/moneda.js";
 import { factorComercialDe } from "../../config/contract/figureType.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
 
 // ── EL FORMATEADOR DE LA BOLETA, SIN UN SEGUNDO FORMATEADOR ────────────────────────────────────────────────────
 // parseFigures canoniza toda cifra con el _fmtC privado de boleta.js (canon = `unit:_fmtC(raw,unit)`). Darle el
@@ -376,7 +377,7 @@ function _cacheado(scenario) {
 }
 
 /** proyectarDatoNegocio(scenario) → el TEXTO de la proyección (determinístico por tenant+escenario). */
-export function proyectarDatoNegocio(scenario = "actual") {
+export function proyectarDatoNegocio(scenario = ESCENARIO_INICIAL) {
   const base = _cacheado(String(scenario || "actual")).texto;
   /* EL SELLO DE LA CARGA SE SUMA FUERA DEL CACHÉ (owner 2026-08-25), y tiene que ser así: el caché está armado
    * por tenant+escenario, mientras que el sello cambia cuando el usuario activa o descarta un archivo. Dentro
@@ -388,7 +389,7 @@ export function proyectarDatoNegocio(scenario = "actual") {
 
 /** cifrasDelDato(scenario) → { figs: [{canon, value, duenos}], counts: [n...] } — la QUINTA fuente de guardC:
  * cada cifra de la proyección con los tokens dueños que la validan por cercanía. MISMO recorrido que el texto. */
-export function cifrasDelDato(scenario = "actual") {
+export function cifrasDelDato(scenario = ESCENARIO_INICIAL) {
   const c = _cacheado(String(scenario || "actual"));
   return { figs: c.figs, counts: c.counts, estados: c.estados, rankings: c.rankings, dias: c.dias };
 }
@@ -398,7 +399,7 @@ export function cifrasDelDato(scenario = "actual") {
  * Cada cifra de estas líneas ya está registrada en `figs` con su dueño y aparece CON ese dueño en su propia
  * oración — por eso citarlas verbatim es, por construcción, lo único que este módulo puede ofrecerle a un
  * suplente sin que el muro tenga algo que cobrarle. */
-export function kpisDelNegocio(scenario = "actual") {
+export function kpisDelNegocio(scenario = ESCENARIO_INICIAL) {
   return _cacheado(String(scenario || "actual")).kpisLineas.slice();
 }
 
@@ -418,7 +419,7 @@ export function kpisDelNegocio(scenario = "actual") {
  * `juzgar` se INYECTA (no se importa guardC acá) para no cerrar un ciclo: guardC → narrationBlocks, y este módulo
  * ya es una hoja del grafo. Sin `juzgar`, se adopta el peldaño 1 tal cual (el caller sin muro no tiene qué
  * verificar) — nunca se devuelve vacío. */
-export function suplenteDignoDelDato({ scenario = "actual", juzgar = null } = {}) {
+export function suplenteDignoDelDato({ scenario = ESCENARIO_INICIAL, juzgar = null } = {}) {
   const kpis = kpisDelNegocio(scenario);
   const candidato = [
     "No pude entregarte la lectura que pediste con la calidad que corresponde. Para que no te quedes sin nada, estas son las cifras verificadas de tu negocio:",

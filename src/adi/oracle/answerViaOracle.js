@@ -64,6 +64,7 @@ import { detectCriteriaIntent } from "../criteria.js";   // C.2 memoria de crite
 import { composeCriteria } from "../conversation.js";     // UNA VERDAD: reusa la MISMA composición (setCriterion/forgetCriterion) de la ruta legacy, nunca la reimplementa acá
 import { pnlOraclePlan } from "../pnl.js";                // decisión 3 · el plan determinístico del RESULTADO (P&L) — evita que "resultado" se conteste con la CONTRIBUCIÓN
 import { clientCapitalRelacion } from "../specRetrieval.js";   // decisión 9 · ¿el dato sostiene la relación cliente×SKU? (la MISMA medición que usa el composer, nunca un criterio paralelo)
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
 
 // ── BACKOFF ante RATE-LIMIT real (owner 2026-08-03, investigación cruzada de los 5 gates de Arquitectura C:
 // clarify_mode/multimodo/provider_certification/plan/tension) — hallazgo transversal CONFIRMADO en vivo, múltiples
@@ -1468,7 +1469,7 @@ function _composedBypassResult(text, mem, recentNarrationsPrev, scenario, conser
 // REEMPLAZA en cada turno con datos (nunca se acumula) y un turno sin datos no la pisa: un «no entiendo»
 // intermedio no borra la tabla que el próximo turno necesita explicar.
 const BOLETA_ANTERIOR_FIGS_MAX = 24;
-export async function answerViaOracle({ text, history = [], mem = {}, scenario = "actual", callPlan, callNarrate, maxCalls = 6, requestContext = null, uiSignals = null, viewContext = null } = {}) {
+export async function answerViaOracle({ text, history = [], mem = {}, scenario = ESCENARIO_INICIAL, callPlan, callNarrate, maxCalls = 6, requestContext = null, uiSignals = null, viewContext = null } = {}) {
   if (typeof callPlan !== "function" || typeof callNarrate !== "function") return null;
   const q = (text || "").trim();
   if (!q) return null;

@@ -28,6 +28,7 @@ import { makeAddress, buildSentrixActionFromAddress } from "../sentrix/address.j
 import { fmtMonto } from "../../config/moneda.js";
 import { factorComercialDe } from "../../config/contract/figureType.js";
 import { nombreDePeriodo } from "../../ingesta/historico.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
 
 /* ── SEÑALES ────────────────────────────────────────────────────────────────────────────────────────────────── */
 
@@ -161,7 +162,7 @@ function _puertaFicha(eje, entidad, escenario) {
  *   serie no real (demo)    → declina corto: el histórico de muestra no reconcilia y no se usa. Puerta a la ficha;
  *   nombre en dos ejes      → se pregunta cuál, nunca se elige;
  *   sin serie de esa entidad→ declina con nombre. Jamás el tablero. */
-export function composeSerieIntent({ q, scenario = "actual" } = {}) {
+export function composeSerieIntent({ q, scenario = ESCENARIO_INICIAL } = {}) {
   let det;
   try { det = detectSerieIntent(q); } catch { return null; }
   if (!det) return null;

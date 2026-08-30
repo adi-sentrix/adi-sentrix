@@ -36,6 +36,7 @@ import { composicionCliente, composicionClientePorFamilia } from "../data/client
 import { datasetCapability } from "./sentrix/capability.js";   // LA declaración canónica de qué cruces sostiene el dato cargado (crosses.atomic) — la misma que ya bloquea "productos que le vendo a este cliente" en entityExplorable
 import { headlineTotal } from "./sentrix/headline.js";   // los TOTALES DE CABECERA (decisión 6): la MISMA fuente oficial que pinta la card, nunca la suma del ranking
 import { simboloMoneda } from "../config/moneda.js";
+import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
 
 // carga la fuente vía el CONTRATO: scenarioLoad (scenario-aware) si el manifest lo declara, si no el load base.
 function _load(source, scenario) {
@@ -206,7 +207,7 @@ function _entityValue(name, m, dimension, scenario) {
 
 // sampleEntities(dimension, n, scenario) → hasta n nombres reales del eje (data-driven · para repreguntas de comparación
 // con opciones concretas · nada hardcodeado). Excluye duplicados; primeros del source. Vacío si el eje no existe.
-export function sampleEntities(dimension, n = 3, scenario = "actual") {
+export function sampleEntities(dimension, n = 3, scenario = ESCENARIO_INICIAL) {
   const ent = ENTITIES[dimension]; if (!ent) return [];
   const src = SOURCES[ent.source]; if (!src) return [];
   const seen = [];
@@ -248,7 +249,7 @@ export function composeSpecDive({ dimension, entity, scenario }) {
 // familia/SKU no tienen "de qué se compone" en este sentido. LÍMITE HONESTO: la matriz cliente×SKU no varía por
 // escenario (bonanza/tensión/crisis) — es la MISMA base que ya muestra el Pareto de Sentrix en cualquier
 // escenario (limitación heredada del dato de demo, no nueva de esta función).
-export function composeSpecComposicion({ dimension, entity, scenario = "actual" }) {
+export function composeSpecComposicion({ dimension, entity, scenario = ESCENARIO_INICIAL }) {
   if (dimension !== "cliente" || !entity) return null;
   const porVenta = composicionClientePorFamilia(entity, "ventas");
   const porContrib = composicionClientePorFamilia(entity, "contribucion");
@@ -337,7 +338,7 @@ export function composeSpecComposicion({ dimension, entity, scenario = "actual" 
 // cliente" en `sentrix/capability.js:entityExplorable` — este composer dejó de contradecirla. Y la cobertura se
 // MIDE contra el dato (cuántos SKU con inventario quedan dentro del mix), no se asume: si mañana el ERP trae la
 // matriz real, el estado cambia solo, sin tocar esta función.
-export function clientCapitalRelacion({ entity, scenario = "actual" } = {}) {
+export function clientCapitalRelacion({ entity, scenario = ESCENARIO_INICIAL } = {}) {
   const base = { entidad: entity || null, skusInventario: 0, skusEnMix: 0, atomico: false };
   if (!entity) return { ...base, estado: "unsupported", relacion: "sin_entidad", razon: "no se indicó de qué cliente" };
   const atomico = !!(datasetCapability().crosses && datasetCapability().crosses.atomic);
@@ -429,7 +430,7 @@ export function composeSpecClientCapital({ dimension, entity, scenario }) {
 
 // comparePairs(dimension, entities, scenario) → pairs A vs B (métrica por métrica) + participación (share de ventas) para
 // el PANEL COMPARATIVO de Sentrix. null si falta una entidad (→ el texto del motor degrada honesto, sin panel roto).
-export function comparePairs(dimension, entities, scenario = "actual") {
+export function comparePairs(dimension, entities, scenario = ESCENARIO_INICIAL) {
   const ent = ENTITIES[dimension];
   if (!ent || !Array.isArray(entities) || entities.length !== 2) return null;
   const [a, b] = entities; const pairs = []; let aAny = false, bAny = false;

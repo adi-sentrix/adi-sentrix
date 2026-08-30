@@ -205,13 +205,11 @@ H("C4 · el único mundo no se etiqueta — ningún emisor compone «escenario X
   const mapa = sinComentarios(LEER(join(ROOT, "src/adi/agente/mapaDelDato.js")));
   ok(!/escenario \$\{/.test(mapa) && /MAPA DEL DATO/.test(mapa),
     "el mapa del agente no etiqueta el mundo (y sigue siendo el mapa)");
-  // y el agente lee el MISMO dato que la pantalla: default «actual» (no declarado) prohibido en la superficie
-  // NUEVA (src/adi/agente/ — la filtración que el owner mandó matar). ⚠️ MEDIDO Y PENDIENTE (corte C5): 12
-  // módulos del oráculo/sentrix conservan `scenario = "actual"` como default de conveniencia — en el producto
-  // no dispara (ChatADI pasa la constante explícita en todos los caminos), dispara en gates que omiten el
-  // argumento; unificarlos repinta expectativas y es un corte propio, no un ajuste de este chequeo.
-  const conActual = [...CODIGO].filter(([p, cod]) => /[\\/]agente[\\/]/.test(p) && /\bscenario\s*=\s*"actual"/.test(cod)).map(([p]) => p);
-  ok(conActual.length === 0, "ningún default `scenario = \"actual\"` en el AGENTE — agente y pantalla, una sola carpeta", conActual.join(", "));
+  // y NADIE lee otra carpeta que la pantalla por default: `scenario = "actual"` (el valor NO declarado — la
+  // base cruda) prohibido como default EN TODO EL REPO (C5 cerró los 12 módulos oráculo/sentrix que lo tenían
+  // de conveniencia; los gates que dependían de la omisión ahora declaran su mundo explícito, con porqué).
+  const conActual = [...CODIGO].filter(([, cod]) => /\bscenario\s*=\s*"actual"/.test(cod)).map(([p]) => p);
+  ok(conActual.length === 0, "ningún default `scenario = \"actual\"` en el repo — nadie lee otra carpeta por default", conActual.join(", "));
 }
 
 /* ═══ CARNADAS ════════════════════════════════════════════════════════════════════════════════════════════════ */

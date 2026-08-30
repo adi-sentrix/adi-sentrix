@@ -16,6 +16,7 @@ import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
 import { ENTITIES } from "../../config/contract/entityRegistry.js";
 import { resolveCanonical, axisCollisions } from "./entityIndex.js";   // CONTRATO v2 · Fase 3: índice Map por eje/tenant (O(1)) + colisiones explícitas
 import { simboloMoneda } from "../../config/moneda.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
 
 const _money = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
 
@@ -69,7 +70,7 @@ export const TEXT_LABELS = new Set(Object.values(F).filter((m) => m.u === "text"
 // rawRecordFor(dimension, entity) → el registro CRUDO (números sin formatear) de UNA entidad, case/acento-
 // insensitive — para el llamador que necesita el VALOR numérico para comparar (nunca para mostrar: lo que se
 // muestra siempre es el fig() ya formateado y autorizado en la boleta, una sola verdad).
-export function rawRecordFor(dimension, entity, scenario = "actual") {
+export function rawRecordFor(dimension, entity, scenario = ESCENARIO_INICIAL) {
   return _rawRecord(dimension, resolveEntity(dimension, entity, scenario), scenario);
 }
 
@@ -116,7 +117,7 @@ const _srcRows = (name, scenario) => {
   if (!s) return [];
   return (typeof s.scenarioLoad === "function" ? s.scenarioLoad(scenario) : s.load()) || [];
 };
-function _sources(dimension, scenario = "actual") {
+function _sources(dimension, scenario = ESCENARIO_INICIAL) {
   const A = (x) => (Array.isArray(x) ? x : []);
   switch (dimension) {
     case "sku": return [{ rows: A(_srcRows("skuInventario", scenario)), key: "sku" }, { rows: A(_srcRows("skusMargen", scenario)), key: "nombre" }];
@@ -171,7 +172,7 @@ function _derived(rec) {
 // de cualquier comparación — mismo patrón `_norm` de coerceChain.js/temporalTable.js, duplicado a propósito (capas
 // distintas del pipeline, no vale acoplarlas por una función de 1 línea).
 const _norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
-export function resolveEntity(dimension, entity, scenario = "actual") {
+export function resolveEntity(dimension, entity, scenario = ESCENARIO_INICIAL) {
   if (entity == null) return entity;
   // CONTRATO v2 · FASE 3: primero el índice Map por eje/tenant (O(1) — ver entityIndex.js). El scan lineal de
   // abajo queda como RED: cubre cualquier fuente que el índice no cachee (ej. el eje cliente que acá se lee
@@ -189,7 +190,7 @@ export function resolveEntity(dimension, entity, scenario = "actual") {
 // omite si `venta` ya llegó de la fuente Margen (siempre primera en _sources) para no emitir un fig() duplicado
 // con el mismo label y (antes del fix D8) valores distintos — hallazgo real: los 2 sobrevivían en el boleta array,
 // autorizando cualquiera de los dos números a la narración.
-function _rawRecord(dimension, entity, scenario = "actual") {
+function _rawRecord(dimension, entity, scenario = ESCENARIO_INICIAL) {
   const srcs = _sources(dimension, scenario);
   if (!srcs || entity == null) return null;
   const canon = resolveEntity(dimension, entity, scenario);
@@ -266,7 +267,7 @@ function _groupBySourceRows(sourceName) {
   if (sourceName === "clientesVentas") return clientesVentas;
   return null;
 }
-function _axisNames(dimension, scenario = "actual") {
+function _axisNames(dimension, scenario = ESCENARIO_INICIAL) {
   const direct = _sources(dimension, scenario);
   if (direct) return direct;
   const E = ENTITIES[dimension];
@@ -280,7 +281,7 @@ function _axisNames(dimension, scenario = "actual") {
 // para sku/cliente/marca/familia (nadie llama esta función con dimension="bodega"/"canal" hoy — gridTable/
 // tensionRead/buildEntityRecord no las soportan, ver toolContracts.js), y ahora también sirve como base de
 // resolveEntity() para bodega/canal (normalización case/acento-insensitive, guessDimension de abajo).
-function _allEntities(dimension, scenario = "actual") {
+function _allEntities(dimension, scenario = ESCENARIO_INICIAL) {
   const srcs = _axisNames(dimension, scenario); if (!srcs) return [];
   const seen = new Set(); const out = [];
   for (const s of srcs) for (const r of s.rows) { const id = r && r[s.key]; if (id != null && !seen.has(String(id))) { seen.add(String(id)); out.push(String(id)); } }
@@ -322,7 +323,7 @@ export function guessDimensionDetallado(entity) {
 }
 
 // buildEntityRecord(dimension, entity, scenario) → { facts, boleta } | null
-export function buildEntityRecord(dimension, entity, scenario = "actual") {
+export function buildEntityRecord(dimension, entity, scenario = ESCENARIO_INICIAL) {
   const canon = resolveEntity(dimension, entity, scenario);
   const rec = _rawRecord(dimension, canon, scenario);
   if (!rec) return null;
@@ -333,7 +334,7 @@ export function buildEntityRecord(dimension, entity, scenario = "actual") {
 
 // axisHasField(dimension, field) → true si ALGUNA fuente de ese eje trae esa columna numérica (turno 14 del
 // veredicto de 18 turnos: base de buildTension — determina qué cruces existen REALMENTE en el dato).
-export function axisHasField(dimension, field, scenario = "actual") {
+export function axisHasField(dimension, field, scenario = ESCENARIO_INICIAL) {
   const srcs = _sources(dimension, scenario);
   if (!srcs) return false;
   return srcs.some((s) => s.rows.some((r) => r && typeof r[field] === "number"));
@@ -359,7 +360,7 @@ function _applyEntityScope(ents, entityScope) {
   return scoped.length ? scoped : ents;
 }
 
-export function buildTension(dimension, { metricA = "contribucion", metricB = "stockUSD", limit = 10, dirA = "desc", dirB = "desc", entityScope = null, scenario = "actual" } = {}) {
+export function buildTension(dimension, { metricA = "contribucion", metricB = "stockUSD", limit = 10, dirA = "desc", dirB = "desc", entityScope = null, scenario = ESCENARIO_INICIAL } = {}) {
   const hasA = axisHasField(dimension, metricA, scenario), hasB = axisHasField(dimension, metricB, scenario);
   const lblA = (F[metricA] && F[metricA].l) || metricA, lblB = (F[metricB] && F[metricB].l) || metricB;
   if (!hasA || !hasB) {
@@ -439,7 +440,7 @@ function _resolveSortField(sortBy) {
   if (_LABEL2FIELD[low]) return { field: _LABEL2FIELD[low], ok: true };
   return { field: F["venta"] ? "venta" : "contribucion", ok: false };
 }
-export function buildGrid(dimension, { sortBy = null, dir = "desc", limit = 20, entityScope = null, scenario = "actual" } = {}) {
+export function buildGrid(dimension, { sortBy = null, dir = "desc", limit = 20, entityScope = null, scenario = ESCENARIO_INICIAL } = {}) {
   let ents = _allEntities(dimension, scenario); if (!ents.length) return null;
   ents = _applyEntityScope(ents, entityScope);   // Etapa 2: "de esos clientes, armame la tabla" — ver _applyEntityScope arriba
   const { field } = _resolveSortField(sortBy);

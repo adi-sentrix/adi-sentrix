@@ -30,6 +30,7 @@ import { simboloMoneda } from "../../config/moneda.js";
 import { getTenantData } from "../../data/tenantStore.js";
 import { factorComercialDe } from "../../config/contract/figureType.js";   // la escala la DECLARA el pack (2026-08-30)
 import { politicaDelNegocio, plazoDe, hayPlazo, alcanceDeLaPolitica, frasePolitica } from "../../config/politicaCobro.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
 
 const _r1 = (v) => Math.round(v * 10) / 10;
 /* ⚠️ EL SÍMBOLO SALE DE LA MONEDA DECLARADA, NO SE ESCRIBE A MANO (2026-08-30). Este formateador nació con un
@@ -325,7 +326,7 @@ function buildDesdePlanilla(D) {
   };
 }
 
-export function buildMesaFlujo(scenario = "actual") {
+export function buildMesaFlujo(scenario = ESCENARIO_INICIAL) {
   const D = flujoComercial;
   if (!D || !D.fechaCorte) return null;
   /* Una planilla real trae `facturas`; el demo trae `clientes` con sus parámetros. */

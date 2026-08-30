@@ -14,6 +14,7 @@ import { diagnosticarVacio } from "./toolContracts.js";   // VERACIDAD DEL VACÍ
 import { resolveCanonical } from "./entityIndex.js";   // para distinguir «no cabe en la tool» de «no existe en el eje»
 import { periodoDeFiguras, PERIODO_TXT } from "../../config/contract/figureType.js";
 import { setToolsDeclaradas } from "../llm/telemetry.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
 
 // EL REGISTRO DE TOOLS SE DECLARA UNA VEZ, ACÁ (owner 2026-08-10, cierre de la certificación live). La telemetría
 // necesita saber qué nombres de tool son legítimos para poder emitirlos SIN riesgo de que se le cuele un dato del
@@ -80,7 +81,7 @@ function _veraz(name, args, res) {
 /* `registry` (F2 · ADI Agente, 2026-08-30): el agente corre con la caja EXTENDIDA (TOOLS + serieEntidad +
  * registrarSupuesto). Se inyecta el registro completo en vez de duplicar el ejecutor — sin pasarlo, TODO
  * queda byte-idéntico a siempre. */
-export function runPlan(plan, { scenario = "actual", maxCalls = 8, preguntaUsuario = null, registry = null } = {}) {
+export function runPlan(plan, { scenario = ESCENARIO_INICIAL, maxCalls = 8, preguntaUsuario = null, registry = null } = {}) {
   const REG = registry || TOOLS;
   const ledger = createLedger();
   const results = [];

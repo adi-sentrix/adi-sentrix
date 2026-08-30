@@ -11,6 +11,7 @@ import { skusMargen } from "../../data/skusMargen.js";
 import { onTenantChange } from "../../data/tenantStore.js";   // F1 multiempresa · las anclas del período se re-arman en initTenant
 import { esSerieDelArchivo } from "./capability.js";          // UNA definición de «serie real», compartida con la capa de disponibilidad
 import { getVentasKPI } from "../../engine/metrics.js";       // el total de ventas DEL ESCENARIO (el mismo que lee la card de la Mesa) — ver buildGlobalEvolutionAnclada
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
 
 const _sum = (a) => a.reduce((x, y) => x + y, 0);
 const _round1 = (n) => Math.round(n * 10) / 10;
@@ -158,13 +159,13 @@ export function buildGlobalEvolution() {
  * y elegir cuál es LA venta oficial es decisión del owner. Acá se conserva la que ADI ya tenía comprometida y el
  * resto queda declarado en el manifiesto.
  */
-export function ventaOficialDelPeriodo(scenario = "actual") {
+export function ventaOficialDelPeriodo(scenario = ESCENARIO_INICIAL) {
   const k = getVentasKPI(null, null, scenario) || {};
   return { actual: k.totalActual || null, anterior: k.totalAnterior || null };
 }
 // `oficial` explícito gana sobre el escenario: el llamador que YA resolvió su venta oficial (Sentrix, desde el
 // total del cuadro) sigue anclando contra la suya, byte-idéntico — lo que se comparte es el anclaje, no el ancla.
-export function buildGlobalEvolutionAnclada(scenario = "actual", oficial = null) {
+export function buildGlobalEvolutionAnclada(scenario = ESCENARIO_INICIAL, oficial = null) {
   const ev = buildGlobalEvolution();
   if (!ev || !ev.n || !Array.isArray(ev.actual)) return null;
   const of = oficial || ventaOficialDelPeriodo(scenario);

@@ -45,6 +45,7 @@ import { factorComercialDe } from "../../config/contract/figureType.js";   // la
  * Sin declarar cae a «K», así que el demo produce EXACTAMENTE las mismas cifras de siempre. */
 const _fxc = () => factorComercialDe(getTenantData());
 import { marcoDeVentas, esMarcoDeAnio } from "../../config/marcoPeriodo.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
 
 /* BAJO $1M SE MUESTRA EN K (owner 2026-08-30: «$87K, nunca $0.1M») — un monto chico forzado a M pierde toda
  * resolución. Sobre $1M, byte-idéntico a siempre. */
@@ -1134,7 +1135,7 @@ function _formacion(total) {
 }
 
 // ── LA VISTA COMPLETA ──────────────────────────────────────────────────────────────────────────────────────────
-export function buildResumenComercial(scenario = "actual", { maxEntidades = 10 } = {}) {
+export function buildResumenComercial(scenario = ESCENARIO_INICIAL, { maxEntidades = 10 } = {}) {
   const cuadro = buildCuadroMando("cliente", scenario);
   const rows = (cuadro.rows || []).filter((r) => r && !r._total && !r._ref);
   if (!rows.length) return null;

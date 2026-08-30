@@ -110,14 +110,18 @@ console.log("\n── 4 · toolRegistry.js vía runPlan — marginRead/entityRec
 
 console.log("\n── 5 · entityRecord.js directo — buildEntityRecord/buildGrid citan la venta oficial y NO duplican el fig() 'Ventas' ──");
 {
+  // COLAPSO DEL EJE (C5, 2026-08-30): estas llamadas OMITÍAN el escenario y viajaban gratis en el default de
+  // conveniencia (`= "actual"`); al unificarse los defaults a la base real declarada, la omisión mezclaba mundos
+  // con las demás secciones (que ya pasaban "actual" explícito). La regla del propio gate: UNA voz = UN mundo,
+  // declarado — así que el mundo va explícito, no heredado de un default.
   for (const nombre of ["Falabella", "Lider", "Unimarc"]) {
-    const rec = buildEntityRecord("cliente", nombre);
+    const rec = buildEntityRecord("cliente", nombre, "actual");
     const cK = _toK(rec.facts.Ventas);
     ok(_closeK(cK, OFICIAL.get(nombre)), `buildEntityRecord(${nombre}).facts.Ventas=${rec.facts.Ventas} == oficial $${OFICIAL.get(nombre)}K`);
     const figsVentas = rec.boleta.filter((f) => f.label === `${nombre} · Ventas`);
     ok(figsVentas.length === 1, `boleta trae EXACTAMENTE 1 fig() "${nombre} · Ventas" (de venta+actual duplicados) — obtuvo ${figsVentas.length}`);
   }
-  const grid = buildGrid("cliente", {});
+  const grid = buildGrid("cliente", { scenario: "actual" });
   ok(grid.facts.sortBy === "venta", "gridTable default sortBy sigue siendo 'venta' (ahora ya reconciliado)");
   let mismGrid = 0;
   for (const row of grid.facts.rows) { const o = OFICIAL.get(row.entidad), c = _toK(row.Ventas); if (!_closeK(o, c)) mismGrid++; }
@@ -153,7 +157,7 @@ console.log("\n── 7 · GATE #1 (dos ventas distintas) — cruzar TODOS los c
     if (mr) vals.add(_asK(mr.venta));
     const pe = pnl.porEntidad.find((r) => r.nombre === nombre);
     if (pe) vals.add(pe.ventaK);
-    const rec = buildEntityRecord("cliente", nombre);
+    const rec = buildEntityRecord("cliente", nombre, "actual");   // mundo explícito (C5 — ver sección 5)
     vals.add(_toK(rec.facts.Ventas));
     // todas las lecturas deben caer dentro de ±60K entre sí (redondeo de "$X.XM"), nunca una diferencia real
     const arr = [...vals];

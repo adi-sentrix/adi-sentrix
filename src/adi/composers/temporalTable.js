@@ -21,6 +21,7 @@ import { clientesMargen, marcasMargen, sfamiliasMargen } from "../../data/demoDa
 import { skusMargen } from "../../data/skusMargen.js";
 import { fig } from "../boleta.js";
 import { simboloMoneda } from "../../config/moneda.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
 
 const _norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 const _money = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
@@ -92,7 +93,7 @@ export function temporalDeclarado(metric) {
 // `scenario` (owner 2026-08-09, decisión 4 · hallazgo C): la rama GLOBAL leía `buildGlobalEvolution()` pelado —
 // serie cruda de `ventasMensuales`, ajena al escenario y sin anclar a la venta oficial por cliente. Ahora entra por
 // `buildGlobalEvolutionAnclada`, la MISMA función que ancla el evolutivo de Sentrix.
-export function composeSpecTemporal({ metric, dimension = null, entity = null, periodo = null, scenario = "actual" } = {}) {
+export function composeSpecTemporal({ metric, dimension = null, entity = null, periodo = null, scenario = ESCENARIO_INICIAL } = {}) {
   if (dimension === "canal") return temporalDeclarado("canal");   // el mes a mes por canal no está desglosado en el dato
   const met = metric === "ventas" ? "venta" : metric;   // canon del contrato → canon del historial
   if (!["venta", "contribucion", "margen"].includes(met)) return temporalDeclarado(metric);

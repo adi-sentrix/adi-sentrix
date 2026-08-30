@@ -17,6 +17,7 @@
  * pase: si el tenantId del contexto no coincide con el tenant activo, aborta en vez de calcular con datos ajenos.
  */
 import { getTenantId } from "../../data/tenantStore.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
 
 export const REQUEST_CONTEXT_VERSION = "adi-request-context@1.0.0";
 // versión del ESQUEMA de métricas/dimensiones que el catálogo (planPrompt.js TOOL_CATALOG) expone — súbela cuando
@@ -31,7 +32,7 @@ const _DEFAULT_TIMEZONE = "America/Santiago";
 // chat — ChatADI.jsx genera uno por sesión de componente); locale/moneda/timezone se pueden pisar por `overrides`
 // o (si no) se toman de la identidad ya guardada en `mem` (persona.js ya lee `mem.identidad.moneda` — este
 // contexto no lo reemplaza, lo hace EXPLÍCITO y trazable en la boleta/evidence).
-export function buildRequestContext({ conversationId = null, scenario = "actual", mem = {}, userId = null, role = "owner", locale, currency, timezone } = {}) {
+export function buildRequestContext({ conversationId = null, scenario = ESCENARIO_INICIAL, mem = {}, userId = null, role = "owner", locale, currency, timezone } = {}) {
   const tenantId = getTenantId();
   const id = (mem && mem.identidad) || {};
   return {

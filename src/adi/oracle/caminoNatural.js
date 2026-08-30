@@ -42,6 +42,7 @@ import { detectCriteriaIntent } from "../criteria.js";     // el MISMO detector 
 import { composeCriteria } from "../conversation.js";      // la MISMA composición (setCriterion/forgetCriterion), jamás una copia
 import { composeSerieIntent } from "./serieIntent.js";     // entidad × período → serie real reconciliada, o declinar corto (PUENTE hasta ADI Agente)
 import { envejecerPendingSimulation, pendingSimulationVigente, withOfertaPendiente } from "./conversationScope.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
 
 // Los MISMOS ejes que el arnés: 3 para «entidades» (cifra-con-dueño), 6 para «dueños» (vocabulario completo).
 const _EJES_ENTIDADES = ["cliente", "sku", "marca"];
@@ -111,7 +112,7 @@ export function _respaldoDeLoYaAprobado(memIn, juzgar) {
   try { const v = juzgar(candidato); return v && v.ok ? candidato : null; } catch { return null; }
 }
 
-export async function answerViaNatural({ text, history, mem, scenario = "actual", callNatural } = {}) {
+export async function answerViaNatural({ text, history, mem, scenario = ESCENARIO_INICIAL, callNatural } = {}) {
   if (typeof callNatural !== "function") throw new TypeError("answerViaNatural sin callNatural: el cerebro lo pone el caller");
   const q = String(text || "").trim();
   const memIn = (mem && typeof mem === "object") ? mem : {};
