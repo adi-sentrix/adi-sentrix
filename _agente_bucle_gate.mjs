@@ -368,8 +368,39 @@ H("12 · el empujón de R6: declinar sin haber leído recibe UNA chance de verif
     `el necio recibe UN empujón y su segunda declinación se acepta (${llamadasD} llamadas)`);
 }
 
-/* ═══ 13 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
-H("13 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
+/* ═══ 13 · EL PUENTE EN MODO AGENTE (R9 del examen 1 · 2026-08-31) ════════════════════════════════════════════
+ * LO MEDIDO (bloque B): las 4 variantes declinaron honestas PERO en 8-11 líneas con menú; T9 divergió con un
+ * cuestionario que prometía una cifra que el bloqueo hace imposible; las 4 expusieron el instrumento. El
+ * puente resuelve el MISMO caso en 1-2 líneas — y con serie real el cerebro sigue siendo agente. */
+H("13 · entidad×período bloqueada → el puente; con serie real, el cerebro");
+{
+  // (a) DEMO (serie sintética que no reconcilia): el puente responde SOLO, en una línea, sin cerebro
+  initTenant(TENANT_DEMO);
+  let llamadasA = 0;
+  const espia = async () => { llamadasA++; return { tipo: "texto", texto: "no debería llegar acá" }; };
+  const ra = await answerViaAgente({ text: "cuanto me compro falabella el ultimo mes", history: [], mem: {}, scenario: "bonanza", callAgente: espia });
+  ok(ra.r.agente.estado === "puente" && llamadasA === 0 && ra.r.deterministic === true,
+    `★ R9: la serie bloqueada va al puente — 0 llamadas al cerebro (${ra.r.agente.estado})`);
+  ok(/no reconcilia con la cifra oficial/.test(ra.r.text) && /ficha/.test(ra.r.text),
+    "la razón es la VERDADERA y la puerta es REAL (la ficha) — sin cuestionario, sin promesa imposible");
+  ok(ra.r.text.split("\n").filter((l) => l.trim()).length <= 2 && !/la herramienta/i.test(ra.r.text),
+    `y son 1-2 líneas sin el instrumento expuesto (${ra.r.text.split("\n").filter((l) => l.trim()).length})`);
+
+  // (b) PACK (serie real reconciliada): el cerebro corre con su herramienta — cero sobre-intercepción
+  initTenant(PACK);
+  let llamadasB = 0;
+  const guionFeliz = async ({ ronda }) => {
+    llamadasB++;
+    if (ronda === 1) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
+    return { tipo: "texto", texto: TEXTO_BUENO };
+  };
+  const rb = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionFeliz });
+  ok(llamadasB === 2 && rb.r.agente.estado === "verde",
+    `con serie REAL el agente sigue siendo agente (${llamadasB} llamadas · ${rb.r.agente.estado})`);
+}
+
+/* ═══ 14 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
+H("14 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
   const tmp = [];
   let nCarnada = 0;
@@ -496,6 +527,18 @@ H("13 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       };
       const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionT7c });
       return r.r.agente.estado !== "reparado" && r.r.agente.figs === 0;   // el defecto: el pedido se tiró y el turno murió sin leer
+    });
+
+  // (o) R9 · el puente desconectado: la serie bloqueada vuelve al cerebro (la lotería de T9)
+  await carnada("puente de serie bloqueada desconectado",
+    [[/    const det = \(\(\) => \{ try \{ return detectSerieIntent\(q\); \} catch \{ return null; \} \}\)\(\);/,
+      "    const det = null;"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      let llamadas = 0;
+      const g = async () => { llamadas++; return { tipo: "texto", texto: "El consolidado anual de Falabella está verificado — pídemelo y lo vemos juntos." }; };
+      await Mut.answerViaAgente({ text: "cuanto me compro falabella el ultimo mes", history: [], mem: {}, scenario: "bonanza", callAgente: g });
+      return llamadas > 0;   // el defecto: la pregunta bloqueada volvió a la lotería del cerebro
     });
 
   // (n) R6 · el empujón quitado: la limitación falsa vuelve a salir verde sin leer (T20)

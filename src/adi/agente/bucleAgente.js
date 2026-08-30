@@ -46,6 +46,8 @@ import { recitaAprobadaDe } from "../oracle/cicloNotarial.js";   // R2 del exame
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 import { vetosDeContrato } from "./contratoAgente.js";   // F3 · el juez ciego de sugerencias — se SUMA a guardC, no lo toca
 import { getNombreUsuario } from "./preferenciaNombre.js";   // R4c · el trato registrado viaja también en los rescates
+import { detectSerieIntent, composeSerieIntent } from "../oracle/serieIntent.js";   // R9 · el puente, también en modo agente
+import { serieRealDe } from "../sentrix/capability.js";
 
 const TOPE_RONDAS = 3;      // rondas que pueden pedir herramientas
 const TOPE_CALLS = 12;      // tool-calls por turno, sumadas todas las rondas
@@ -134,6 +136,33 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   const caja = cajaDelAgente(TOOLS);
   const herramientas = Object.keys(caja).sort();
   const mapa = mapaDelDato(scenario);
+  /* R9 DEL EXAMEN 1 (2026-08-31): ENTIDAD×PERÍODO BLOQUEADA → EL PUENTE, también en modo agente. Medido en el
+   * bloque B: las 4 variantes declinaron honestas PERO en 8-11 líneas con menú, T9 divergió con un cuestionario
+   * que prometía una cifra que el bloqueo hace imposible («con eso puedo traerte la cifra limpia» — puerta
+   * falsa), y las 4 expusieron el instrumento. El puente determinístico resuelve el MISMO caso en 1-2 líneas
+   * con la razón verdadera y la puerta real (la ficha) — esa ES la letra, y acá se sirve VERBATIM, como en el
+   * camino natural (determinístico aprobado; el mismo espejo, no una segunda letra). SOLO intercepta la serie
+   * BLOQUEADA o el nombre ambiguo: con serie real reconciliada el cerebro corre con su herramienta
+   * (serieEntidad) — el agente sigue siendo agente donde el dato responde. */
+  {
+    const det = (() => { try { return detectSerieIntent(q); } catch { return null; } })();
+    const bloqueada = det && !det.ambiguo && det.entidad && (() => { try { return !serieRealDe(det.entidad).real; } catch { return false; } })();
+    if (det && (det.ambiguo || bloqueada)) {
+      const puente = (() => { try { return composeSerieIntent({ q, scenario }); } catch { return null; } })();
+      if (puente && puente.text) {
+        const pantalla = anteponerSello(puente.text, getSelloDeCarga(), { calculos: [] });
+        return {
+          r: normalizeResponse({
+            text: pantalla, route: "agente", deterministic: true, claims: [], suggestions: null,
+            sentrixAction: puente.sentrixAction || null,
+            agente: { estado: "puente", rondas: 0, calls: 0, figs: 0, motivos: [], vetos: [], recitaCifras: 0 },
+          }),
+          mem: { ...memIn, recentNarrations: [pantalla, ...recentPrev].slice(0, 2) },
+        };
+      }
+    }
+  }
+
   /* R2 DEL EXAMEN 1 DEL AGENTE (2026-08-31): la re-cita de lo YA aprobado a pantalla — el MISMO cable del
    * camino natural (caminoNatural.js), que acá NUNCA se conectó: el contador marcó 0 en los 28 turnos y las
    * cifras aprobadas en turnos previos ($194K de T9, re-citado en T13) morían como «no autorizadas». Raíz de
