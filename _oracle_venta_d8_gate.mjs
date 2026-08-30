@@ -167,5 +167,49 @@ console.log("\n── 7 · GATE #1 (dos ventas distintas) — cruzar TODOS los c
   ok(contradicciones === 0, `0 clientes con 2+ ventas DISTINTAS entre engine/marginRead/pnl/entityRecord (de ${clientesVentas.length})`);
 }
 
+/* ── 8 · UNA SOLA CONTRIBUCIÓN (el corte del fast-path · decisión constitucional del chat principal, 2026-08-30) ──
+ * EL DEFECTO QUE CIERRA: contribution.js tenía un atajo «bonanza sirve la base almacenada» que se creía
+ * identidad y NO LO ERA — desde el fix D8, applyScenarioToClientesMargen reconcilia la venta con la OFICIAL en
+ * TODOS los mundos, así que el atajo servía filas PRE-reconciliación: el usuario podía leer $23.85M en el
+ * ranking y $25.06M en la Mesa para LA MISMA contribución (Falabella $4.07M vs $4.3M, los 13 clientes, ~5%).
+ * LA PROPIEDAD: el ranking y la Mesa del MISMO mundo derivan de LA MISMA Σ — D8 vigilada transversalmente. */
+console.log("\n── 8 · UNA SOLA CONTRIBUCIÓN — ranking y Mesa derivan de la MISMA Σ reconciliada ──");
+{
+  const { composeClientContributionRanking } = await import("./src/adi/composers/contribution.js");
+  const { buildResumenComercial } = await import("./src/adi/sentrix/resumenComercial.js");
+  const MUNDO = "bonanza";   // el mundo SERVIDO (la base declarada de la app)
+  const S = applyScenarioToClientesMargen(MUNDO).filter((c) => c && c.tipo === "cliente")
+    .reduce((s, c) => s + (c.contribucion || 0), 0);   // la Σ D8-reconciliada, en miles
+  const enRanking = `$${(S / 1000).toFixed(2)}M`;       // el formato del ranking (2 decimales)
+  const enMesa = `$${(S * 1000 / 1e6).toFixed(1)}M`;    // el formato de la Mesa (_M · 1 decimal)
+  const cr = composeClientContributionRanking(MUNDO);
+  ok((cr.opener || "").includes(`aportan ${enRanking} de contribución`),
+    `el ranking dice la Σ reconciliada (${enRanking}) — no la base pre-D8`);
+  const kv = Object.fromEntries(buildResumenComercial(MUNDO).kpis.map((k) => [k.key, k.valor]));
+  ok(kv.contribucion === enMesa,
+    `la Mesa dice LA MISMA Σ (${enMesa}) — dos formatos, un solo crudo (${S} miles)`);
+
+  // CARNADA · el atajo pre-reconciliación resucitado, verbatim → el ranking se separa de la Σ → ROJO
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { pathToFileURL } = await import("node:url");
+  const abs = path.join(process.cwd(), "src/adi/composers/contribution.js");
+  let txt = fs.readFileSync(abs, "utf8").replace(/\r\n/g, "\n");
+  const VIVO = "const source = applyScenarioToClientesMargen(scenarioId);";
+  const MUERTO = 'const source = scenarioId === "bonanza" ? clientesMargen : applyScenarioToClientesMargen(scenarioId);';
+  if (!txt.includes(VIVO)) { ok(false, "carnada «atajo resucitado» — no encontré la línea viva para mutar"); }
+  else {
+    const destino = abs.replace(/\.js$/, `.carnada${process.pid}_d8.js`);
+    fs.writeFileSync(destino, txt.replace(VIVO, MUERTO));
+    try {
+      const Mut = await import(pathToFileURL(destino).href);
+      const crMut = Mut.composeClientContributionRanking(MUNDO);
+      ok(!(crMut.opener || "").includes(`aportan ${enRanking} de contribución`),
+        "carnada «atajo pre-D8 resucitado» → el chequeo se pone ROJO (el ranking se separa de la Σ)");
+    } catch (e) { ok(false, "carnada «atajo resucitado»", String(e.message).slice(0, 100)); }
+    try { fs.unlinkSync(destino); } catch { /* */ }
+  }
+}
+
 console.log(`\n── _oracle_venta_d8_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

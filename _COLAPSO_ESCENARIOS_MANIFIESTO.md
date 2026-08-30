@@ -81,8 +81,11 @@ que esa revisión pase (condición del encargo).
 1. **`ESCENARIO_INICIAL = "bonanza"`** (config/scenarios.js) — el único valor del eje colapsado, declarado una
    vez. Renombrarlo (p.ej. «BASE_REAL») es churn de identificadores internos sin valor de producto; el
    vocabulario visible ya no dice «escenario».
-2. **El motor de transforms** (`engine/scenarios.js`, incluidas sus ramas por nombre en inventario y el
-   fast-path `bonanza ? clientesMargen : apply(...)` de contribution.js) — sustrato de Simulate v2
+2. **El motor de transforms** (`engine/scenarios.js`, incluidas sus ramas por nombre en inventario) —
+   sustrato de Simulate v2. **ACTUALIZADO: el fast-path de contribution.js SE MATÓ** (decisión constitucional
+   del chat principal tras la medición: no era identidad — servía filas PRE-reconciliación D8, $23.85M en el
+   ranking vs $25.06M en la Mesa para la misma contribución; ahora todos los mundos pasan por apply y la
+   carnada de una-sola-verdad vive en _oracle_venta_d8_gate §8)
    (`resolveTransform(scenarioId, override)`). **CORRECCIÓN (C-2): la «identidad bonanza≡base» es POR FUENTE, y para clientesMargen NI SIQUIERA VALE** — `applyScenarioToClientesMargen` reconcilia la venta con la oficial D8 en TODOS los mundos (medido: contribución 4070→4271 en los 13 clientes, ~5%), así que el fast-path de contribution que sirve la base cruda «como identidad» sirve cifras PRE-D8 (medición completa en el reporte del fast-path — la decisión constitucional está corriendo). «La lógica está bien» describe el motor, no ese atajo.
 3. **`SCENARIO_TRANSFORMS`** en los tenants de fábrica (demo, empresa2) — dato del tenant; alimenta el motor y
    los gates que certifican que las tools NO están ciegas a los transforms.

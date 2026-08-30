@@ -23,10 +23,15 @@ export function composeClientContributionRanking(scenarioId) {
 
   // ── 2. Ranking runtime sobre clientesMargen · SCENARIO-AWARE (fix GAP 2): antes leía SIEMPRE la base cruda → en
   // crisis/tensión el cuerpo quedaba byte-idéntico a bonanza y contradecía su propio titular scenario-aware (46% vs 49%).
-  // BONANZA usa la base ALMACENADA (contribucion tal cual · byte-idéntico al oráculo/monolito · el oráculo corre en
-  // bonanza) · crisis/tensión aplican el escenario (que recomputa contribucion=venta×margen) → el cuerpo reconcilia con
-  // el titular. clientesMargen tiene contribucion en miles USD.
-  const source = scenarioId === "bonanza" ? clientesMargen : applyScenarioToClientesMargen(scenarioId);
+  /* EL FAST-PATH DE BONANZA SE MATÓ (retrabajo ultracode del colapso · decisión constitucional del chat
+   * principal, 2026-08-30). El atajo `bonanza ? clientesMargen : apply(...)` se creía una identidad y NO LO
+   * ERA: desde el fix D8, `applyScenarioToClientesMargen` reconcilia la venta con la OFICIAL en TODOS los
+   * mundos — el atajo servía las filas PRE-reconciliación. Medido en el mundo servido: contribución distinta
+   * en LOS 13 clientes (Falabella $4.07M vs $4.3M, ~5%), y el usuario podía leer $23.85M en este ranking y
+   * $25.06M en la Mesa PARA LA MISMA contribución. Una sola verdad > micro-optimización: todos los mundos
+   * pasan por apply — la reconciliación D8 es el camino, no un desvío. Candado: la carnada de una-sola-verdad
+   * en _oracle_venta_d8_gate (el atajo resucitado → rojo). */
+  const source = applyScenarioToClientesMargen(scenarioId);
   const ranked = [...source]
     .filter(c => c.tipo === "cliente")
     .sort((a, b) => b.contribucion - a.contribucion);

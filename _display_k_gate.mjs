@@ -54,19 +54,23 @@ H("1 · el pack de $61 mil dice K, nunca «$0.XM»");
   ok(!CERO_M.test(cr.opener || ""), "…sin «$0.XM» en el ranking");
 }
 
-/* ═══ 2 · EL DEMO SIGUE EN M, BYTE POR BYTE ═══════════════════════════════════════════════════════════════════ */
-H("2 · sobre $1M nada cambió: el demo de $100M, literal");
+/* ═══ 2 · EL DEMO SIGUE EN M, BYTE POR BYTE ═══════════════════════════════════════════════════════════════════
+ * CORRECCIÓN (retrabajo ultracode, corte del fast-path 2026-08-30): esta sección certificaba el mundo «actual»
+ * — QUE NADIE SIRVE (la app corre la base declarada). Confesado en la medición del fast-path y corregido: los
+ * literales son ahora los del MUNDO SERVIDO. Con el atajo muerto, el ranking dice $25.03M/$4.27M — las cifras
+ * D8-reconciliadas que la Mesa también suma (mismo crudo 25028, dos formatos: $25.0M / $25.03M). */
+H("2 · sobre $1M nada cambió: el demo, literal, EN EL MUNDO SERVIDO");
 {
   initTenant(TENANT_DEMO);
-  const R = buildResumenComercial("actual");
+  const R = buildResumenComercial("bonanza");
   const kv = Object.fromEntries(R.kpis.map((k) => [k.key, k.valor]));
-  ok(kv.ventas === "$100.0M" && kv.contribucion === "$25.1M" && kv.acciones === "$4.1M",
-    "los KPI del demo: $100.0M · $25.1M · $4.1M", JSON.stringify(kv));
-  const ov = composeModuleOverview("actual", "ventas");
-  ok(/Total \$100M · variación \$7\.1M/.test(ov.opener || ""), "overview del demo: «Total $100M · variación $7.1M»");
-  const cr = composeClientContributionRanking("actual");
-  ok(/aportan \$25\.06M de contribución/.test(cr.opener || "") && /Contribución \$4\.28M/.test(cr.opener || ""),
-    "ranking del demo: «$25.06M» y «$4.28M», como siempre");
+  ok(kv.ventas === "$99.9M" && kv.contribucion === "$25.0M" && kv.acciones === "$4.1M",
+    "los KPI del demo servido: $99.9M · $25.0M · $4.1M", JSON.stringify(kv));
+  const ov = composeModuleOverview("bonanza", "ventas");
+  ok(/Total \$100\.0M · variación \$7\.1M/.test(ov.opener || ""), "overview del demo: «Total $100.0M · variación $7.1M»");
+  const cr = composeClientContributionRanking("bonanza");
+  ok(/aportan \$25\.03M de contribución/.test(cr.opener || "") && /Contribución \$4\.27M/.test(cr.opener || ""),
+    "ranking del demo servido: «$25.03M» y «$4.27M» — las cifras D8-reconciliadas (el atajo pre-D8 murió)");
 }
 
 /* ═══ 3 · CARNADAS ════════════════════════════════════════════════════════════════════════════════════════════ */
