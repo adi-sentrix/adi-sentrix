@@ -1415,13 +1415,29 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
 
   /* EL GRÁFICO · una sola serie, así que no lleva leyenda: el rótulo la nombra. Rótulos directos SOLO en el
      pico y en el último punto — un número sobre cada mes es ruido, no información. */
-  const _W = 940, _H = 190, _L = 52, _R = 16, _T = 14, _B = 34;
+  /* ⚠️ EL GRÁFICO ESTABA MAL ENCAJADO, y el owner lo vio: la línea llegaba pegada al borde derecho y el rótulo
+     del pico se salía por arriba del lienzo. Tres cosas lo causaban, y las tres están corregidas acá:
+
+       1) NO HABÍA AIRE ARRIBA. El techo de la escala era el propio pico, así que el punto más alto quedaba
+          contra el borde y su rótulo —que va ENCIMA del punto— se dibujaba fuera del viewBox. Ahora la escala
+          lleva un 18% de holgura: el pico nunca toca el techo.
+       2) EL MARGEN DERECHO ERA DE 16 y el último punto caía prácticamente sobre el borde de la tarjeta, con su
+          marcador partido al medio. Pasa a 44, que es lo que necesita el rótulo del último mes sin recortarse.
+       3) EL NÚMERO ESTABA DOS VECES. El eje rotulaba su tope con el valor del pico, y el pico llevaba además su
+          rótulo directo: la misma cifra escrita dos veces a diez píxeles de distancia. El eje se queda solo con
+          el cero —que es la referencia que de verdad hace falta— y las cifras van donde significan algo. */
+  const _W = 940, _H = 200, _L = 56, _R = 44, _T = 30, _B = 36;
   const _n = F.caja.meses.length;
-  const _max = Math.max(F.caja.maxK, 1);
+  const _max = Math.max(F.caja.maxK, 1) * 1.18;
   const _x = (i) => _L + (_n <= 1 ? 0 : ((_W - _L - _R) * i) / (_n - 1));
   const _y = (v) => _T + (_H - _T - _B) * (1 - v / _max);
   const _pts = F.caja.meses.map((m, i) => `${_x(i)},${_y(m.montoK)}`).join(" ");
   const _iPico = F.caja.meses.reduce((best, m, i, a) => (m.montoK > a[best].montoK ? i : best), 0);
+  /* ⚠️ RÓTULOS DIRECTOS: EL ÚLTIMO SIEMPRE, EL PICO SOLO SI NO SE PISAN. Un número sobre cada mes es ruido, no
+     información. El último mes es el que se mira —es la caja que acaba de entrar— y el pico da la referencia de
+     altura. Si caen a menos de dos meses de distancia, sus rótulos se solapan, y ahí gana el último. */
+  const _iUlt = _n - 1;
+  const _picoAparte = _iPico <= _iUlt - 2;
 
   return (<>
     {/* ⚠️ LA BANDA NO ES DECORACIÓN NI SE PUEDE APAGAR. Con ?flujo=demo la app entera está mostrando el negocio
@@ -1522,15 +1538,19 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
         <polygon points={`${_pts} ${_x(_n - 1)},${_y(0)} ${_x(0)},${_y(0)}`} fill="url(#adiFlujoFill)"/>
         <polyline points={_pts} fill="none" stroke={C.celeste} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>
         <circle cx={_x(_n - 1)} cy={_y(F.caja.meses[_n - 1].montoK)} r="4.5" fill={C.celeste} stroke={C.bg} strokeWidth="2"/>
-        <text x={_x(_iPico)} y={_y(F.caja.meses[_iPico].montoK) - 8} fill={C.celeste} fontFamily={MONO}
-          fontSize="11.5" fontWeight="600" textAnchor="middle">{F.caja.picoFmt}</text>
+        {_picoAparte && (
+          <text x={_x(_iPico)} y={_y(F.caja.meses[_iPico].montoK) - 10} fill={C.textMuted} fontFamily={MONO}
+            fontSize="11.5" textAnchor="middle">{F.caja.picoFmt}</text>
+        )}
+        <text x={_x(_iUlt)} y={_y(F.caja.meses[_iUlt].montoK) - 12} fill={C.celeste} fontFamily={MONO}
+          fontSize="12.5" fontWeight="600" textAnchor="end">{F.caja.meses[_iUlt].fmt}</text>
         {F.caja.meses.map((m, i) => (
           (i === 0 || i === _n - 1 || i % 2 === 0) ? (
             <text key={i} x={_x(i)} y={_H - 12} fill={C.textMuted} fontFamily="'DM Sans', sans-serif"
               fontSize="11.5" textAnchor="middle">{m.label}</text>
           ) : null
         ))}
-        <text x={_L - 8} y={_y(_max) + 4} fill={C.textMuted} fontFamily={MONO} fontSize="11.5" textAnchor="end">{F.caja.picoFmt}</text>
+        {/* el tope del eje ya no se rotula: era el mismo número que el rótulo del pico, dos veces */}
         <text x={_L - 8} y={_y(0) + 4} fill={C.textMuted} fontFamily={MONO} fontSize="11.5" textAnchor="end">$0</text>
       </svg>
       <div style={{ fontSize:14, color:C.textMuted, marginTop:6 }}>

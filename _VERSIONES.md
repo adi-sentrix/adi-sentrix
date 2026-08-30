@@ -12,6 +12,36 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.11 — producción · tag `v2.11`
+
+**El gráfico de caja de Flujo Comercial ahora cabe en su tarjeta.** El owner lo dijo mirando la pantalla: «eso
+no se ve bien encajado». Tenía razón, y no era una cosa: eran tres, y las tres se ven en la misma imagen.
+
+**Uno · no había aire arriba.** La escala terminaba justo en el mes más alto, así que ese punto quedaba pegado
+al borde de arriba y el número que lo acompaña —que se dibuja *encima* del punto— se salía del dibujo. Un SVG no
+avisa cuando eso pasa: recorta y sigue. Ahora la escala deja un 18% de holgura sobre el pico, que es lo que
+necesita su rótulo para tener dónde ponerse.
+
+**Dos · el último mes caía contra el borde derecho**, con su marcador partido al medio. Y justamente el último
+mes es el que se mira: es la caja que acaba de entrar. El margen pasó de 16 a 44 px.
+
+**Tres · el mismo número estaba escrito dos veces.** El eje rotulaba su tope con el valor del mes más alto, y ese
+mes llevaba además su propio rótulo, a diez píxeles de distancia. Leído rápido parecen dos cifras distintas. El
+eje se queda solo con el **$0** —que es la referencia que de verdad hace falta— y los números van sobre los
+puntos que significan algo: **el último mes siempre**, y el pico solo si no se pisan.
+
+**Verificado en pantalla, no en el código.** Se midió cada texto, cada punto y la línea contra el borde del
+dibujo: **nada se sale**. Es la lección que ya nos costó una vez — «corre» y «se ve» no son lo mismo.
+
+**El encuadre queda con candado.** `_flujo_comercial_gate` gana cuatro comprobaciones y se probó que saben
+ponerse rojas: al deshacer el aire y el margen, el gate cayó a 45/2. Un gate no ve una pantalla, pero sí impide
+que esto se deshaga solo la próxima vez que alguien toque el dibujo.
+
+**No se tocó nada más.** Ni la plantilla descargable, ni la hoja Abonos, ni el resto de Sentrix. Ese frente
+—folio, días de crédito y abonos como dato real— sigue cerrado hasta que el owner lo abra.
+
+---
+
 ## 2.10 — producción · tag `v2.10`
 
 **La barra lateral deja de chocar con lo que hay debajo.** Es el pendiente que quedó anotado en la 2.9 y que

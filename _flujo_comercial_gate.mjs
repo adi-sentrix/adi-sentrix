@@ -129,6 +129,27 @@ H("4 · LA CARA MUESTRA, NO CONCLUYE · y no calcula");
     "la pestaña está en el selector SIN condición, entre Resultado y Perfil Ejecutivo");
   ok(panel.includes('cara === "flujo" ? ('),
     "…y la rama que la pinta tampoco pide permiso");
+
+  /* ⚠️ EL GRÁFICO DE CAJA TIENE QUE CABER EN SU LIENZO. El owner lo vio de una: «eso no se ve bien encajado».
+   * Tres cosas lo rompían y las tres son fáciles de reintroducir sin darse cuenta, así que las tres quedan acá:
+   *
+   *   1) SIN AIRE ARRIBA, el techo de la escala ES el pico, y el rótulo del pico —que se dibuja ENCIMA del
+   *      punto— cae fuera del viewBox. Un SVG no avisa: recorta y sigue. La holgura del 18% es lo que hace
+   *      que el punto más alto tenga dónde poner su número.
+   *   2) EL MARGEN DERECHO CHICO deja el último punto partido contra el borde de la tarjeta. Y el último punto
+   *      es justamente el que se mira: es la caja que acaba de entrar.
+   *   3) SI EL EJE ROTULA SU TOPE, escribe el mismo número que el rótulo del pico, a diez píxeles. Dos veces la
+   *      misma cifra no es redundancia inofensiva: hace dudar de si son dos cosas distintas.
+   *
+   * Esto NO reemplaza mirar la pantalla —un gate no ve— pero sí impide que el encuadre se deshaga solo. */
+  ok(panel.includes("Math.max(F.caja.maxK, 1) * 1.18"),
+    "la escala del gráfico deja aire arriba: el pico nunca toca el techo del lienzo");
+  ok(panel.includes("_R = 44"),
+    "…y el margen derecho alcanza para el último punto y su rótulo");
+  ok(!panel.includes("y={_y(_max) + 4}"),
+    "…y el eje ya no rotula su tope: era el mismo número que el rótulo del pico, dos veces");
+  ok(panel.includes("_picoAparte = _iPico <= _iUlt - 2"),
+    "el rótulo del pico solo aparece si no se pisa con el del último mes");
   /* EL MODO DEMOSTRACIÓN SÍ SOBREVIVE, y no como resto: es la única forma de mostrarle la lectura a una
      empresa que todavía no carga abonos sin inventarle cifras sobre su propio negocio. */
   ok(panel.includes("_FLUJO_DEMO") && panel.includes('get("flujo") === "demo"'),
