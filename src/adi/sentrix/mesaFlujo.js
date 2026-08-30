@@ -199,11 +199,18 @@ export function buildMesaFlujo(scenario = "actual") {
   while (meses.length > 2 && meses[0].montoK <= 0.05) meses.shift();
   const pico = meses.reduce((a, b) => (b.montoK > a.montoK ? b : a), meses[0]);
   const valle = meses.reduce((a, b) => (b.montoK < a.montoK ? b : a), meses[0]);
+  /* ⚠️ EL TOTAL SE CALCULA UNA VEZ, y el % de cada mes SALE DE ACÁ, no de la pantalla. El tooltip del gráfico
+     muestra qué parte de la caja del período trajo cada mes; esa división vive en este módulo con el resto de la
+     aritmética. La regla de esta cara es que la vista no calcula nada — es lo que permite que el gate compruebe
+     las cifras sin abrir un componente, y lo que impide que el mismo número salga distinto en dos lugares. */
+  const cajaTotalK = _r1(meses.reduce((s, x) => s + x.montoK, 0));
   const caja = {
-    meses: meses.map((x) => ({ ...x, fmt: _mK(x.montoK) })),
+    meses: meses.map((x) => ({ ...x, fmt: _mK(x.montoK), pctFmt: `${_pct(x.montoK, cajaTotalK)}%`,
+      /* el mes CON SU AÑO: la ventana cruza el cambio de año, y «ene» solo no dice cuál. */
+      periodo: `${x.label} ${x.y}` })),
     maxK: pico.montoK,
-    totalK: _r1(meses.reduce((s, x) => s + x.montoK, 0)),
-    totalFmt: _mK(_r1(meses.reduce((s, x) => s + x.montoK, 0))),
+    totalK: cajaTotalK,
+    totalFmt: _mK(cajaTotalK),
     picoLabel: pico.label, picoFmt: _mK(pico.montoK),
     valleLabel: valle.label, valleFmt: _mK(valle.montoK),
     ask: "¿Cómo viene mi entrada de caja mes a mes?",

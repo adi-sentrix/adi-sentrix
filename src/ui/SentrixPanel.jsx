@@ -1369,6 +1369,11 @@ const _FLUJO_DEMO = (() => {
  * Es deliberado: el manifiesto de concordancia es un contrato cerrado y biyectivo con la UI, y no vale la pena
  * abrirlo para una cara que el owner todavía puede querer distinta. Se cablea cuando la apruebe. */
 function MesaFlujoCara({ flujo: F, onAsk = null }) {
+  /* ⚠️ ESTE HOOK VA ANTES DE TODO, y en particular antes del `if (!F) return` de más abajo. Un useState
+     declarado después de un return temprano se ejecuta en unos renders y no en otros — pasar de la cara vacía a
+     la cara con datos cambiaría la cantidad de hooks y React rompe. Es exactamente el error que la regla de los
+     hooks existe para impedir, y acá el return temprano lo hace fácil de cometer. */
+  const [_hovMes, _setHovMes] = useState(null);
   const _ask = (q) => { if (onAsk && q) onAsk(q); };
   const _link = (label, q) => onAsk ? (
     <button onClick={() => _ask(q)} title={`Pregúntale a ADI: ${q}`}
@@ -1393,6 +1398,18 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
     borderBottom:`1px solid ${C.border}`, padding:"0 0 7px", textAlign:"right", whiteSpace:"nowrap", fontWeight:400 };
   const _td = { fontFamily:MONO, fontSize:14, fontVariantNumeric:"tabular-nums", padding:"7px 0",
     borderTop:`1px solid ${C.border}`, textAlign:"right", whiteSpace:"nowrap" };
+  /* ⚠️ CADA COLUMNA EXPLICA QUÉ MIDE Y CÓMO SE CALCULA (owner 2026-08-29). Usa el MISMO `InfoDot` que ya llevan
+     los encabezados del ring en las otras caras — no un tooltip nuevo: dos ayudas distintas en la misma pantalla
+     se leen como dos productos. `tip` encuadra el globo según dónde cae la columna, para que no se salga en las
+     de la derecha. Las definiciones dicen la CUENTA, no una paráfrasis: el que las lee tiene que poder rehacer
+     el número a mano. Si la cuenta cambia en `mesaFlujo.js`, estas frases mienten — por eso el gate las ata. */
+  const ThFlujo = ({ children, def, tip = "center" }) => (
+    <th style={_th}>
+      <span style={{ display:"inline-flex", alignItems:"center", justifyContent:"flex-end" }}>
+        {children}<InfoDot def={def} align={tip}/>
+      </span>
+    </th>
+  );
 
   if (!F) return (
     <div style={_panel}>
@@ -1438,6 +1455,16 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
      altura. Si caen a menos de dos meses de distancia, sus rótulos se solapan, y ahí gana el último. */
   const _iUlt = _n - 1;
   const _picoAparte = _iPico <= _iUlt - 2;
+  /* ⚠️ EL TOOLTIP DEL GRÁFICO (owner 2026-08-29: «en el gráfico debería tener tooltip»). Tres decisiones:
+     · LA ZONA SENSIBLE ES UNA BANDA POR MES, del alto completo del lienzo — no el punto. Apuntarle a un círculo
+       de 4 px con el mouse es una pelea; con la banda, cualquier lugar de esa columna vertical sirve.
+     · AL APUNTAR SE APAGAN LOS RÓTULOS FIJOS. Si no, el globo del último mes cae justo encima de su propio
+       número y se lee la cifra dos veces superpuesta. El hover REEMPLAZA el estado en reposo, no se le suma.
+     · EL GLOBO SE DA VUELTA SOLO en los bordes: hacia la izquierda en los últimos meses, hacia abajo cuando el
+       punto está tan arriba que no le queda lugar encima. Sin eso, en el pico se sale de la tarjeta — el mismo
+       defecto que acabamos de arreglar en el rótulo. */
+  const _hover = _hovMes != null && F.caja.meses[_hovMes] != null;
+  const _banda = _n <= 1 ? _W - _L - _R : (_W - _L - _R) / (_n - 1);
 
   return (<>
     {/* ⚠️ LA BANDA NO ES DECORACIÓN NI SE PUEDE APAGAR. Con ?flujo=demo la app entera está mostrando el negocio
@@ -1480,12 +1507,40 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
         <span style={_head}>{_dot}El saldo, cliente por cliente</span>
         {_link("Que ADI lo explique", "¿Qué clientes me deben más y desde cuándo?")}
       </div>
-      <div style={{ overflowX:"auto" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse" }}>
+      {/* ⚠️ EL ANCHO DE LAS COLUMNAS SE DECLARA; NO SE DEJA AL NAVEGADOR (owner 2026-08-29: «se ven unas más
+          separadas que las otras»). Con ancho automático, el espacio sobrante se reparte en proporción al
+          CONTENIDO de cada columna — y acá el contenido más ancho de varias es el TÍTULO, no la cifra. Medido en
+          pantalla: «Días vencidos» ocupa 89 px de título y 32 px de dato, así que se llevaba la columna más ancha
+          de la tabla para mostrar «269d», mientras «Saldo» —que sí lleva plata— se quedaba con 38. Eso es lo que
+          se veía desparejo: el ritmo lo estaba fijando el largo de las palabras.
+
+          Con `fixed` + anchos declarados, las siete columnas de cifras miden EXACTAMENTE lo mismo a cualquier
+          ancho de pantalla, y el nombre del cliente se queda con el 18% que necesita «Mercado Libre» (96 px
+          medidos). El `minWidth` es el punto donde el título más largo con su «i» todavía cabe sin cortarse;
+          más angosto que eso, la tarjeta scrollea, que es lo que ya hacía antes. */}
+      {/* ⚠️ LOS 8 px DE LA DERECHA NO SON ESTÉTICA: SACAN UNA BARRA DE SCROLL FANTASMA. Medido: el globo de
+          ayuda de la última columna se apoya 6 px más allá del borde de la tabla (`.tip-r` abre en `right:-6px`),
+          y aunque está invisible sigue ocupando lugar — el contenedor pasaba a 1526 px de contenido en 1521 de
+          caja y aparecía una barra horizontal de 10 px bajo una tabla que cabía entera. El relleno le da a ese
+          globo dónde apoyarse dentro de la caja. No se toca `.tip-r`, que la comparten las tablas del ring en
+          las otras caras y ahí no está pegado al borde. */}
+      <div style={{ overflowX:"auto", paddingRight:8 }}>
+        <table style={{ width:"100%", minWidth:920, borderCollapse:"collapse", tableLayout:"fixed" }}>
+          <colgroup>
+            <col style={{ width:"18%" }}/>
+            <col style={{ width:"11.714%" }}/><col style={{ width:"11.714%" }}/><col style={{ width:"11.714%" }}/>
+            <col style={{ width:"11.714%" }}/><col style={{ width:"11.714%" }}/><col style={{ width:"11.714%" }}/>
+            <col style={{ width:"11.714%" }}/>
+          </colgroup>
           <thead><tr>
             <th style={{ ..._th, textAlign:"left" }}>Cliente</th>
-            <th style={_th}>Venta</th><th style={_th}>Abonado</th><th style={_th}>Saldo</th>
-            <th style={_th}>Recuperado</th><th style={_th}>Vencido</th><th style={_th}>Días vencidos</th><th style={_th}>Plazo</th>
+            <ThFlujo def="Lo que le facturaste en el período: la suma de sus facturas, antes de cualquier cobro.">Venta</ThFlujo>
+            <ThFlujo def="Lo que de esa venta ya entró en caja. Suma los abonos por su fecha de cobro, no por la fecha de la factura.">Abonado</ThFlujo>
+            <ThFlujo def="Lo que todavía te debe: venta menos abonado. Incluye lo vencido Y lo que aún está dentro de plazo.">Saldo</ThFlujo>
+            <ThFlujo def="Abonado ÷ venta. Qué parte de lo que le vendiste ya se convirtió en caja.">Recuperado</ThFlujo>
+            <ThFlujo tip="right" def={`La parte del saldo cuyas facturas ya pasaron su vencimiento al ${F.fechaCorteFmt}. El resto del saldo sigue dentro de plazo: se debe, pero todavía no te lo deben.`}>Vencido</ThFlujo>
+            <ThFlujo tip="right" def={`Hace cuánto venció la factura más vieja que sigue impaga, al ${F.fechaCorteFmt}. Es el peor caso de este cliente, no un promedio: dice si ese saldo es de la semana pasada o del año pasado.`}>Días vencidos</ThFlujo>
+            <ThFlujo tip="right" def="Los días de crédito que le diste. El vencimiento es la fecha de la venta más este plazo; recién al día siguiente empieza a contar como vencida.">Plazo</ThFlujo>
           </tr></thead>
           <tbody>
             {F.filas.map((f) => (
@@ -1513,9 +1568,13 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
           </tbody>
         </table>
       </div>
+      {/* ⚠️ EL PIE DEJA DE DEFINIR LAS COLUMNAS, porque ahora lo hace cada «i». Repetir la definición en los dos
+          lugares es el mismo defecto que acabamos de sacar del gráfico —el mismo dato escrito dos veces— y además
+          envejece mal: se corrige una y la otra queda mintiendo. Acá se queda SOLO lo que ninguna «i» dice: por
+          qué la tabla llega en este orden, y contra qué fecha está medida toda la pantalla. */}
       <div style={{ fontSize:14, color:C.textMuted, marginTop:9 }}>
-        Ordenados por saldo vencido. «Días vencidos» es hace cuánto venció la factura más vieja que sigue sin pagarse —
-        no un promedio. «Plazo» son los días de crédito que le diste a cada uno.
+        Ordenados por saldo vencido: el orden es la prioridad de cobro. Cada columna explica en su «i» qué mide y
+        cómo se calcula. Todo medido al {F.fechaCorteFmt}.
       </div>
     </div>
 
@@ -1524,7 +1583,9 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
         <span style={_head}>{_dot}La entrada de caja, mes a mes</span>
         {_link("Que ADI lo explique", F.caja.ask)}
       </div>
+      <div style={{ position:"relative" }}>
       <svg viewBox={`0 0 ${_W} ${_H}`} style={{ width:"100%", height:"auto", display:"block" }} role="img"
+        onMouseLeave={() => _setHovMes(null)}
         aria-label={`Entrada de caja por mes: total ${F.caja.totalFmt}, el mes más alto es ${F.caja.picoLabel} con ${F.caja.picoFmt}.`}>
         <defs>
           <linearGradient id="adiFlujoFill" x1="0" x2="0" y1="0" y2="1">
@@ -1538,21 +1599,55 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
         <polygon points={`${_pts} ${_x(_n - 1)},${_y(0)} ${_x(0)},${_y(0)}`} fill="url(#adiFlujoFill)"/>
         <polyline points={_pts} fill="none" stroke={C.celeste} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>
         <circle cx={_x(_n - 1)} cy={_y(F.caja.meses[_n - 1].montoK)} r="4.5" fill={C.celeste} stroke={C.bg} strokeWidth="2"/>
-        {_picoAparte && (
+        {!_hover && _picoAparte && (
           <text x={_x(_iPico)} y={_y(F.caja.meses[_iPico].montoK) - 10} fill={C.textMuted} fontFamily={MONO}
             fontSize="11.5" textAnchor="middle">{F.caja.picoFmt}</text>
         )}
-        <text x={_x(_iUlt)} y={_y(F.caja.meses[_iUlt].montoK) - 12} fill={C.celeste} fontFamily={MONO}
-          fontSize="12.5" fontWeight="600" textAnchor="end">{F.caja.meses[_iUlt].fmt}</text>
+        {!_hover && (
+          <text x={_x(_iUlt)} y={_y(F.caja.meses[_iUlt].montoK) - 12} fill={C.celeste} fontFamily={MONO}
+            fontSize="12.5" fontWeight="600" textAnchor="end">{F.caja.meses[_iUlt].fmt}</text>
+        )}
+        {_hover && (
+          <g pointerEvents="none">
+            <line x1={_x(_hovMes)} x2={_x(_hovMes)} y1={_T - 8} y2={_y(0)} stroke={C.celeste} strokeOpacity="0.42" strokeWidth="1"/>
+            <circle cx={_x(_hovMes)} cy={_y(F.caja.meses[_hovMes].montoK)} r="5" fill={C.celeste} stroke={C.bg} strokeWidth="2"/>
+          </g>
+        )}
+        {/* el mes apuntado SIEMPRE se rotula aunque el eje lo estuviera saltando, y se aclara: el eje acompaña
+            al globo en vez de dejarlo solo. */}
         {F.caja.meses.map((m, i) => (
-          (i === 0 || i === _n - 1 || i % 2 === 0) ? (
-            <text key={i} x={_x(i)} y={_H - 12} fill={C.textMuted} fontFamily="'DM Sans', sans-serif"
+          (i === 0 || i === _n - 1 || i % 2 === 0 || i === _hovMes) ? (
+            <text key={i} x={_x(i)} y={_H - 12} fill={i === _hovMes ? C.text : C.textMuted} fontFamily="'DM Sans', sans-serif"
               fontSize="11.5" textAnchor="middle">{m.label}</text>
           ) : null
         ))}
         {/* el tope del eje ya no se rotula: era el mismo número que el rótulo del pico, dos veces */}
         <text x={_L - 8} y={_y(0) + 4} fill={C.textMuted} fontFamily={MONO} fontSize="11.5" textAnchor="end">$0</text>
+        {/* LAS BANDAS VAN AL FINAL: transparentes, encima de todo, una por mes. Son la zona sensible. */}
+        {F.caja.meses.map((m, i) => (
+          <rect key={`b${i}`} x={_x(i) - _banda / 2} y={0} width={_banda} height={_H} fill="transparent"
+            style={{ cursor:"crosshair" }} onMouseEnter={() => _setHovMes(i)}/>
+        ))}
       </svg>
+      {_hover && (
+        <div style={{ position:"absolute", zIndex:6, pointerEvents:"none", whiteSpace:"nowrap",
+          left:`${(_x(_hovMes) / _W) * 100}%`, top:`${(_y(F.caja.meses[_hovMes].montoK) / _H) * 100}%`,
+          transform:`translate(${_x(_hovMes) / _W < 0.14 ? "0%" : _x(_hovMes) / _W > 0.86 ? "-100%" : "-50%"}, ${_y(F.caja.meses[_hovMes].montoK) / _H > 0.34 ? "-100%" : "0%"})`,
+          marginTop: _y(F.caja.meses[_hovMes].montoK) / _H > 0.34 ? -12 : 12,
+          background:"#0b0b0d", border:`1px solid ${C.celeste}66`, borderRadius:8, padding:"7px 10px",
+          boxShadow:"0 6px 20px rgba(0,0,0,0.55)" }}>
+          <div style={{ fontFamily:MONO, fontSize:11, letterSpacing:"0.6px", textTransform:"uppercase", color:C.textMuted }}>
+            {F.caja.meses[_hovMes].periodo}
+          </div>
+          <div style={{ fontFamily:MONO, fontSize:15, fontWeight:600, color:C.text, fontVariantNumeric:"tabular-nums", marginTop:2 }}>
+            {F.caja.meses[_hovMes].fmt}
+          </div>
+          <div style={{ fontSize:12, color:C.textMuted, marginTop:2 }}>
+            {F.caja.meses[_hovMes].pctFmt} de la caja del período
+          </div>
+        </div>
+      )}
+      </div>
       <div style={{ fontSize:14, color:C.textMuted, marginTop:6 }}>
         Los abonos por su fecha de cobro · suman {F.caja.totalFmt}, que es el abonado de arriba.
       </div>

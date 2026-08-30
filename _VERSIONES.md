@@ -12,6 +12,51 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.12 — producción · tag `v2.12`
+
+**Flujo Comercial: columnas parejas, cada columna explica su cuenta, y el gráfico responde al cursor.** Tres
+cosas que pidió el owner mirando la pantalla.
+
+**Uno · las columnas se veían desparejas, y la causa era medible.** Con el ancho automático, el navegador reparte
+el espacio sobrante **en proporción al contenido de cada columna** — y en esta tabla el contenido más ancho de
+varias no es la cifra, es el **título**. Medido en pantalla: «Días vencidos» ocupaba 89 px de título contra 32 px
+de dato, así que se llevaba la columna más ancha de la tabla para mostrar «269d», mientras «Saldo» —que sí lleva
+dinero— se quedaba con 38. El ritmo lo estaba fijando el largo de las palabras. Ahora los anchos se **declaran**:
+las siete columnas de cifras miden exactamente lo mismo a cualquier ancho de pantalla, y el nombre del cliente se
+queda con lo que necesita «Mercado Libre».
+
+**Dos · cada columna explica qué mide y cómo se calcula.** Una «i» en el encabezado — la misma que ya usan las
+tablas de las otras caras, no un invento nuevo. Están las siete, no solo las cuatro que se pidieron. Las
+definiciones dicen **la cuenta**, no una paráfrasis: quien las lee puede rehacer el número a mano. «Recuperado»
+dice *abonado ÷ venta*; «Saldo», *venta menos abonado*; «Plazo» aclara que recién al día siguiente de cumplido el
+plazo empieza a contar como vencida. **Y el pie de la tabla dejó de repetirlas**: el mismo dato en dos lugares
+envejece mal — se corrige uno y el otro queda mintiendo.
+
+**Tres · el gráfico tiene tooltip.** Apuntando cualquier mes aparece el mes con su año, cuánto entró y qué parte
+de la caja del período fue. La zona sensible es una **banda por mes**, del alto completo: apuntarle a un punto de
+4 px es una pelea. Los rótulos fijos **se apagan** mientras se apunta, o el globo caería justo encima de su propio
+número. Y el globo **se da vuelta solo** en los bordes en vez de salirse de la tarjeta.
+
+**Un defecto que apareció midiendo y no se veía:** el globo de ayuda de la última columna se apoyaba 6 px más
+allá del borde de la tabla y, aunque está invisible, ocupa lugar — hacía aparecer una **barra de scroll
+horizontal bajo una tabla que cabía entera**. Corregido.
+
+**Verificado en pantalla, columna por columna.** Los siete anchos idénticos (177 px a 1600 px de ventana), ningún
+encabezado cortado, ningún globo fuera de la tarjeta, el tooltip probado en seis meses distintos —incluidos el
+primero y el último, donde tiene que darse vuelta— y nada saliéndose del lienzo del gráfico.
+
+**El registro lo corrigió el gate, no yo:** una de las definiciones decía «plata», que es de las palabras que el
+producto no usa. `_registro_gate` la encontró entre 1.295 textos.
+
+**Candados nuevos:** `_flujo_comercial_gate` pasa de 47 a 70 comprobaciones. Las que importan atan **la frase al
+cálculo**: si alguien cambia la fórmula en `mesaFlujo.js` y no toca la definición, el tooltip empieza a mentir y
+en pantalla no se nota, porque el número se sigue viendo bien. Se probó que saben ponerse rojas: cinco sabotajes
+deliberados, ocho fallos.
+
+**No se tocó la plantilla ni la hoja Abonos.**
+
+---
+
 ## 2.11 — producción · tag `v2.11`
 
 **El gráfico de caja de Flujo Comercial ahora cabe en su tarjeta.** El owner lo dijo mirando la pantalla: «eso

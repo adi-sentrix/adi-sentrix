@@ -51,6 +51,18 @@ for (const scn of ESCENARIOS) {
   const kAbonado = F.kpis.find((k) => k.key === "abonado");
   ok(F.caja.totalFmt === kAbonado.valor,
     `${scn}: la caja mes a mes suma exactamente el abonado de cabecera (${F.caja.totalFmt})`);
+  /* ⚠️ LO QUE MUESTRA EL TOOLTIP TAMBIÉN ES ARITMÉTICA, y por eso se comprueba acá y no se confía en la vista.
+     El globo del gráfico dice qué parte de la caja del período trajo cada mes; si esos porcentajes no suman
+     100, el gráfico está contando una historia que no cierra con su propio total. Se permite medio punto de
+     holgura porque cada uno viene redondeado a un decimal, y doce redondeos acumulan. */
+  const sumaPct = F.caja.meses.reduce((s, m) => s + parseFloat(m.pctFmt), 0);
+  ok(Math.abs(sumaPct - 100) <= 0.5,
+    `${scn}: los % del tooltip suman la caja entera (${sumaPct.toFixed(1)}%)`);
+  /* el mes del globo lleva SU AÑO: la ventana cruza el cambio de año y «ene» solo no dice cuál de los dos. */
+  const anios = new Set(F.caja.meses.map((m) => m.periodo.split(" ")[1]));
+  ok(F.caja.meses.every((m) => { const p = m.periodo.split(" ");
+      return p.length === 2 && p[0].length === 3 && p[1].length === 4 && Number(p[1]) > 2000; }),
+    `${scn}: cada mes del gráfico se nombra con su año (${[...anios].join(" y ")})`);
 }
 
 H("2 · LA ANTIGÜEDAD ES REPRODUCIBLE · se mide contra una fecha declarada, nunca contra el reloj");
@@ -150,6 +162,61 @@ H("4 · LA CARA MUESTRA, NO CONCLUYE · y no calcula");
     "…y el eje ya no rotula su tope: era el mismo número que el rótulo del pico, dos veces");
   ok(panel.includes("_picoAparte = _iPico <= _iUlt - 2"),
     "el rótulo del pico solo aparece si no se pisa con el del último mes");
+
+  /* ⚠️ EL ANCHO DE LAS COLUMNAS SE DECLARA (owner 2026-08-29: «se ven unas más separadas que las otras»). Con
+   * `table-layout: auto` el navegador reparte el espacio sobrante en proporción al contenido de cada columna, y
+   * en esta tabla el contenido más ancho de varias es el TÍTULO: medido, «Días vencidos» ocupaba 89 px de título
+   * contra 32 px de dato y se llevaba la columna más ancha para mostrar «269d». El ritmo lo fijaba el largo de
+   * las palabras. Volver a `auto` —o soltar el `colgroup`— reintroduce exactamente eso, sin romper nada visible
+   * en una prueba rápida, así que queda atado. */
+  ok(panel.includes('tableLayout:"fixed"') && panel.includes("<colgroup>"),
+    "la tabla de clientes declara sus anchos: el navegador no los reparte por el largo del título");
+  const anchos = (panel.match(/width:"11.714%"/g) || []).length;
+  ok(anchos === 7, `las siete columnas de cifras miden lo mismo (declaradas: ${anchos})`);
+
+  /* ⚠️ CADA COLUMNA EXPLICA SU CUENTA, Y LA EXPLICACIÓN TIENE QUE SEGUIR SIENDO CIERTA. El owner pidió ayuda al
+   * menos en saldo, recuperado, vencido y días vencidos; están las siete. Lo que se comprueba acá no es que el
+   * texto exista —eso sería decorativo— sino que la frase y el cálculo digan lo mismo: si alguien cambia la
+   * fórmula en `mesaFlujo.js` y no toca la frase, el tooltip pasa a mentir y nadie se entera mirando la pantalla,
+   * porque el número se sigue viendo bien. Esa es la clase de error que un gate sí puede atrapar. */
+  const modulo = leer("./src/adi/sentrix/mesaFlujo.js");
+  ok((panel.match(/<ThFlujo /g) || []).length === 7,
+    "las siete columnas de cifras llevan su «i» de ayuda");
+  ok(panel.includes("Abonado ÷ venta") && modulo.includes("recuperadoPct: _pct(abonadoK, ventaK)"),
+    "«Recuperado» dice abonado ÷ venta, y eso es lo que el módulo calcula");
+  ok(panel.includes("venta menos abonado") && modulo.includes("const saldo = _r1(f.montoK - ab)"),
+    "«Saldo» dice venta menos abonado, y eso es lo que el módulo calcula");
+  ok(panel.includes("ya pasaron su vencimiento al") && modulo.includes("if (dias > 0) {"),
+    "«Vencido» se define contra el vencimiento, y el módulo lo cuenta con dias > 0");
+  ok(panel.includes("la factura más vieja que sigue impaga") && modulo.includes("if (dias > diasMax)"),
+    "«Días vencidos» dice la factura más vieja, y el módulo se queda con el máximo");
+  ok(panel.includes("recién al día siguiente empieza a contar como vencida"),
+    "«Plazo» dice la regla que eligió el owner: cumplidos los días, el siguiente es el primero vencido");
+  /* y el pie NO repite lo que dicen las «i»: el mismo dato en dos lugares envejece mal — se corrige uno y el
+     otro queda mintiendo. Es el defecto que acabamos de sacar del gráfico, con otra ropa. */
+  ok(!panel.includes("«Plazo» son los días de crédito que le diste a cada uno"),
+    "el pie de la tabla ya no repite las definiciones que ahora viven en cada «i»");
+
+  /* ⚠️ EL GRÁFICO RESPONDE AL CURSOR (owner 2026-08-29: «en el gráfico debería tener tooltip»). Tres cosas que
+   * se pueden deshacer sin darse cuenta: la zona sensible tiene que ser una BANDA por mes —apuntarle a un punto
+   * de 4 px es una pelea—, los rótulos fijos tienen que APAGARSE mientras se apunta —si no, el globo del último
+   * mes cae encima de su propio número— y el globo tiene que darse vuelta en los bordes, o se sale de la
+   * tarjeta, que es el mismo defecto que arreglamos en el rótulo del pico. */
+  ok(panel.includes("onMouseEnter={() => _setHovMes(i)}") && panel.includes('fill="transparent"'),
+    "cada mes tiene su banda sensible: se apunta la columna, no el punto");
+  ok(panel.includes("{!_hover && _picoAparte && (") && panel.includes("{!_hover && ("),
+    "los rótulos fijos se apagan mientras se apunta: el número no se escribe dos veces encima");
+  ok(panel.includes('< 0.14 ? "0%" : ') && panel.includes('> 0.86 ? "-100%"'),
+    "el globo se da vuelta en los bordes laterales en vez de salirse de la tarjeta");
+  ok(panel.includes('> 0.34 ? "-100%" : "0%"'),
+    "…y se va abajo del punto cuando arriba no le queda lugar");
+  ok(panel.includes("onMouseLeave={() => _setHovMes(null)}"),
+    "al salir del gráfico el globo se va: no queda uno pegado");
+  /* el hook antes del return temprano · esta cara TIENE un `if (!F) return`, así que el orden importa de verdad */
+  const iHook = panel.indexOf("const [_hovMes, _setHovMes] = useState(null)");
+  const iRet  = panel.indexOf("if (!F) return (");
+  ok(iHook > 0 && iHook < iRet,
+    "el useState del hover se declara ANTES del return temprano de la cara vacía");
   /* EL MODO DEMOSTRACIÓN SÍ SOBREVIVE, y no como resto: es la única forma de mostrarle la lectura a una
      empresa que todavía no carga abonos sin inventarle cifras sobre su propio negocio. */
   ok(panel.includes("_FLUJO_DEMO") && panel.includes('get("flujo") === "demo"'),
