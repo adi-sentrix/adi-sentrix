@@ -30,6 +30,7 @@ export const DOCTRINAS = {
   pnlRead: "DOCTRINA · P&L: la cascada va en orden (ingreso → costo → margen bruto → carga → contribución → gastos → resultado) y cada línea con su signo. Los gastos declarados por el usuario son SUPUESTOS suyos y se etiquetan así.",
   clientesPorSku: "DOCTRINA · clientes por SKU: es AFINIDAD MODELADA (indicado), jamás compra observada — dilo con esas palabras. Ninguna cifra de inventario se atribuye a una cuenta.",
   registrarSupuesto: "DOCTRINA · supuesto del usuario: al citarlo lleva SIEMPRE su etiqueta («tu supuesto de $X»). Compararlo contra lo verificado está bien; mezclarlos sin etiqueta, jamás. Una línea de oferta, no un sermón.",
+  preferenciaNombre: "DOCTRINA · nombre del usuario: guardaste SOLO el nombre. Confírmalo en una línea y úsalo con naturalidad. El registro NO cambia: formal siempre, lo llamen como lo llamen — un apodo no es un permiso de tono.",
   inventoryStatus: "DOCTRINA · inventario: es la FOTO de hoy en moneda cruda — no reconcilia con la venta del período y no se suman. «Inmovilizado» es la categoría amplia; «frenado» el subconjunto crítico. Di «capital», nunca «plata dormida».",
   entityCapitalLigado: "DOCTRINA · capital ligado: la relación cuenta→capital es INDICADA (vía surtido), no una deuda de esa cuenta. Decláralo al citar el monto.",
   executiveSummary: "DOCTRINA · resumen ejecutivo: solo cuando el usuario pidió el panorama. Arco completo: qué pasa → por qué/dónde → qué hacer primero, con las cifras de la boleta y ninguna más.",

@@ -37,6 +37,7 @@ import { extraerCalculos, stripAllMarks, composeNoDataMessage } from "../oracle/
 import { normalizeResponse } from "../responseContract.js";
 import { _respaldoDeLoYaAprobado } from "../oracle/caminoNatural.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
+import { vetosDeContrato } from "./contratoAgente.js";   // F3 · el juez ciego de sugerencias — se SUMA a guardC, no lo toca
 
 const TOPE_RONDAS = 3;      // rondas que pueden pedir herramientas
 const TOPE_CALLS = 12;      // tool-calls por turno, sumadas todas las rondas
@@ -164,7 +165,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   for (const pf of parseFigures(q)) supuestosDelHilo.push(pf.text);
   for (const f of figsTotales) if (f.source === "user_supuesto" && (f.text || f.value)) supuestosDelHilo.push(String(f.text || f.value));
 
-  const juzgar = (t) => guardC(t, {
+  const _guard = (t) => guardC(t, {
     ledger: { figs: figsTotales }, results: resultsTotales, trace: null, question: q,
     supuestoPendiente: supuestosDelHilo,
     datoProyectado: cifrasDelDato(scenario),
@@ -172,6 +173,18 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     duenosDelTenant: _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]),
     contentScope: "full", tablePolicy: "auto",
   });
+  /* F3 · EL CONTRATO DE SUGERENCIAS SE SUMA AL MURO, SIN TOCARLO (owner: «ese qué hacer debe ser SUGERENCIAS…
+   * las decisiones son del usuario»). guardC queda INTACTO; `vetosDeContrato` es un juez NUEVO y CIEGO (regex,
+   * jamás comprensión) que corre DESPUÉS: un texto con cifras perfectas que ORDENA la ejecución («procede
+   * con X») recibe multa y entra al MISMO ciclo de una-reparación. También rige la escalera: un respaldo viejo
+   * que ordenaba no se re-sirve. Calibrado contra el corpus de exámenes (24 aceptadas · 0 vetos). */
+  const juzgar = (t) => {
+    const v = _guard(t);
+    if (!v || !v.ok) return v;
+    const vc = vetosDeContrato(t);
+    if (!vc.length) return v;
+    return { ok: false, violations: vc.map((x) => ({ rule: x.regla, detalle: x.multa })), multa: vc.map((x) => x.multa).join("\n") };
+  };
 
   let estado = "vacio";
   let aprobado = false;

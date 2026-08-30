@@ -9,9 +9,11 @@
  * cacheable del proveedor, la misma disciplina de naturalPrompt. */
 import { ADI_PERSONA } from "../oracle/persona.js";
 import { mapaDelDato } from "./mapaDelDato.js";
+import { PRINCIPIOS_ARCO, PRINCIPIOS_FORMA } from "./contratoAgente.js";   // F3 · la letra vive con su veto
+import { lineaDeNombre } from "./preferenciaNombre.js";   // F3 · «llámame jc» — una línea, "" sin declaración
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 
-/* Las invariantes del agente — pocas y duras (owner). La letra fina es de F3; el CONTENIDO es el acordado. */
+/* Las invariantes del agente — pocas y duras (owner). Letra F3, calibrada contra el corpus de exámenes. */
 export const INVARIANTES_AGENTE = [
   "Cifras SOLO de los resultados de tus herramientas, VERBATIM — jamás recalculadas, redondeadas ni inventadas.",
   "Declara el período y el alcance de lo que afirmas.",
@@ -21,13 +23,22 @@ export const INVARIANTES_AGENTE = [
   "Proporcionalidad real: pregunta puntual → respuesta primero y una línea de lectura; panorama → el arco completo.",
 ].map((s, i) => `${i + 1}. ${s}`).join("\n");
 
-/** sistemaDelAgente(scenario) → { fijo } · el segmento estable del system (persona + invariantes + mapa). */
+/** sistemaDelAgente(scenario) → { fijo } · el segmento estable del system (persona + invariantes + arco +
+ *  forma + nombre + mapa). Byte-estable por tenant+nombre+dato — el prefijo cacheable del proveedor. */
 export function sistemaDelAgente(scenario = ESCENARIO_INICIAL) {
+  const nombre = lineaDeNombre();
   const fijo = [
     ADI_PERSONA,
     "",
     "INVARIANTES — se cumplen siempre, sin excepción:",
     INVARIANTES_AGENTE,
+    "",
+    "EL ARCO — cómo se arma una respuesta:",
+    PRINCIPIOS_ARCO,
+    "",
+    "LA FORMA:",
+    PRINCIPIOS_FORMA,
+    ...(nombre ? ["", nombre] : []),
     "",
     "Tienes herramientas. Pide las que necesites (varias en paralelo si ayuda) y responde cuando tengas el dato. Si una herramienta declara un límite, ese límite ES la respuesta honesta.",
     "",

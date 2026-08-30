@@ -22,6 +22,7 @@ import { fig } from "../boleta.js";
 import { fmtMonto } from "../../config/moneda.js";
 import { nombreDePeriodo } from "../../ingesta/historico.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
+import { setNombreUsuario } from "./preferenciaNombre.js";   // F3 · «llámame jc» — solo el nombre, jamás el tono
 
 const _pct = (v) => `${(+v).toFixed(1)}%`;
 
@@ -106,8 +107,21 @@ export function registrarSupuesto({ texto, cifra, unidad = "money" } = {}) {
   };
 }
 
-/** la caja completa del agente: el registro de siempre + las dos nuevas. Se arma acá para que el bucle y los
+/* preferenciaNombre({ nombre }) → guarda cómo prefiere ser llamado el usuario (F3 · «llámame jc»).
+ * SOLO el nombre: no existe campo de tono ni de registro — lo que no existe no se puede aflojar. */
+export function preferenciaNombre({ nombre } = {}) {
+  const sinSoporte = (reason) => ({ facts: null, boleta: [], coverage: { supported: false, reason } });
+  const r = setNombreUsuario(nombre);
+  if (!r.ok) return sinSoporte(`preferenciaNombre: ${r.reason}`);
+  return {
+    facts: { lens: "preferencia_nombre", nombre: r.nombre, nota: "el registro no cambia — solo el nombre" },
+    boleta: [],   // una preferencia no es una cifra: nada que autorizar
+    coverage: { supported: true, reason: null },
+  };
+}
+
+/** la caja completa del agente: el registro de siempre + las nuevas. Se arma acá para que el bucle y los
  *  gates tengan UNA fuente del catálogo. */
 export function cajaDelAgente(TOOLS_BASE) {
-  return { ...TOOLS_BASE, serieEntidad, registrarSupuesto };
+  return { ...TOOLS_BASE, serieEntidad, registrarSupuesto, preferenciaNombre };
 }

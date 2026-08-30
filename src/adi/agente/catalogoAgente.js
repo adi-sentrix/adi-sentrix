@@ -27,6 +27,13 @@ export const CONTRATOS_AGENTE = {
     entityScopeNativo: false, escribeEntityList: false,
     notas: "registra una cifra QUE EL USUARIO OFRECIÓ, etiquetada como supuesto — para compararla contra lo verificado sin mezclar jamás.",
   },
+  preferenciaNombre: {
+    dimensionesSoportadas: [],
+    entidad: "none", aceptaEntidadPuntual: false, multiCardinality: null,
+    inputsObligatorios: ["nombre"], supuestosRequeridos: null, operacionValida: ["answer"],
+    entityScopeNativo: false, escribeEntityList: false,
+    notas: "guarda cómo prefiere ser llamado el usuario («llámame jc») — SOLO el nombre; el registro y el tono no se configuran.",
+  },
 };
 
 /** la descripción de una herramienta, derivada del contrato — mecánica, nunca prosa nueva por turno. */
