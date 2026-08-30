@@ -126,9 +126,148 @@ function _abonosDe(facturas, ventaK, params, corte) {
 }
 
 /** buildMesaFlujo(scenario) → la cara entera, ya formateada. */
+/* buildDesdePlanilla(D) → la misma cara, pero con FACTURAS REALES (owner 2026-08-30).
+ *
+ * ⚠️ LAS DOS FUENTES NO SE PARECEN, Y ESO ES CORRECTO. El demo declara tres parámetros por cliente y las
+ * facturas se DERIVAN de su venta; una planilla real trae los documentos de verdad, con su folio. Forzar una
+ * sola forma habría significado inventarle parámetros al cliente real o inventarle folios al demo. Cada fuente
+ * entra como es y las dos terminan en la misma fila de pantalla.
+ *
+ * ⚠️ ACÁ NO HAY VENCIDO. Sin plazo de pago declarado no se puede saber si un saldo está vencido, y el plazo
+ * todavía no se ingresa en ninguna parte. Se devuelve `vencidoK: null` —no cero— para que la pantalla pueda
+ * decir que no lo sabe. Un cero significaría «no debe nada vencido», que es una afirmación que nadie sostiene.
+ *
+ * ⚠️ Y DEVUELVE EXACTAMENTE LAS MISMAS LLAVES QUE EL DEMO, aunque las cuentas de adentro sean otras. La primera
+ * versión de esta función inventó una forma propia —`total` en vez de `kpis`, sin `caja`, sin `alcance`— y la
+ * pestaña, que lee las del demo, se habría quedado en blanco con el dato cargado: ninguna prueba de aritmética
+ * lo veía, porque las cuentas estaban bien. Lo que fallaba era el enchufe. Por eso el candado compara las dos
+ * formas llave por llave: mientras haya dos caminos hacia la misma pantalla, tienen que entregar lo mismo. */
+function buildDesdePlanilla(D) {
+  const corte = D.fechaCorte ? _fecha(D.fechaCorte) : null;
+  const pagado = new Map();
+  for (const a of D.abonos) pagado.set(a.folio, _r1((pagado.get(a.folio) || 0) + a.montoK));
+
+  const porCliente = new Map();
+  for (const f of D.facturas) {
+    const c = porCliente.get(f.cliente) || { nombre: f.cliente, ventaK: 0, abonadoK: 0, saldoK: 0, docs: 0 };
+    /* El abono no puede superar a su factura: lo que sobra ya se declaró como aviso en la ingesta, y dejarlo
+     * restar acá convertiría un error de carga en un «saldo a favor» que nadie declaró. */
+    const ab = Math.min(pagado.get(f.folio) || 0, f.montoK);
+    c.ventaK = _r1(c.ventaK + f.montoK);
+    c.abonadoK = _r1(c.abonadoK + ab);
+    c.saldoK = _r1(c.saldoK + Math.max(0, _r1(f.montoK - ab)));
+    c.docs += 1;
+    porCliente.set(f.cliente, c);
+  }
+
+  const filas = [...porCliente.values()]
+    .filter((c) => c.ventaK > 0)
+    .map((c) => ({
+      key: c.nombre, nombre: c.nombre,
+      ventaK: c.ventaK, ventaFmt: _mK(c.ventaK),
+      abonadoK: c.abonadoK, abonadoFmt: _mK(c.abonadoK),
+      saldoK: c.saldoK, saldoFmt: _mK(c.saldoK),
+      vencidoK: null, vencidoFmt: null,
+      recuperadoPct: _pct(c.abonadoK, c.ventaK), recuperadoFmt: `${_pct(c.abonadoK, c.ventaK)}%`,
+      /* ⚠️ EL PLAZO VIAJA FORMATEADO, y no es un capricho de estilo. La tabla escribía `{f.diasCredito}d`, así
+       * que sin plazo declarado la celda mostraba una «d» suelta — una unidad sin número. Formatear acá es
+       * además la regla de la casa: la vista pinta, el módulo calcula y rotula. */
+      diasCredito: null, diasCreditoFmt: "—",
+      diasVencido: null, diasVencidoFmt: "—",
+      documentos: c.docs,
+      /* SIN PLAZO SOLO HAY DOS ESTADOS HONESTOS: pagado o debiendo. «Vencido» y «por vencer» exigen saber
+       * cuándo había que pagar, y eso todavía nadie lo declaró. */
+      estado: c.saldoK <= 0.05 ? "al_dia" : "pendiente",
+      facturaMasVieja: null,
+      ask: `¿Cómo viene el cobro de ${c.nombre}?`,
+    }))
+    .sort((a, b) => b.saldoK - a.saldoK);
+
+  if (!filas.length) return null;
+
+  const ventaK = _r1(filas.reduce((s, f) => s + f.ventaK, 0));
+  const abonadoK = _r1(filas.reduce((s, f) => s + f.abonadoK, 0));
+  const saldoK = _r1(filas.reduce((s, f) => s + f.saldoK, 0));
+
+  /* LA CAJA, MES A MES · con los abonos REALES de la hoja. Misma ventana de doce meses que termina en el corte,
+     mismo recorte de los meses del principio sin cobro: si el negocio subió ventas de julio y agosto, los meses
+     anteriores no tienen abonos que explicar y dibujarlos en cero diría que no se cobró nada, que es falso. */
+  const meses = [];
+  for (let k = 11; k >= 0 && corte; k--) {
+    const d = new Date(Date.UTC(corte.getUTCFullYear(), corte.getUTCMonth() - k, 1));
+    meses.push({ y: d.getUTCFullYear(), m: d.getUTCMonth(), label: _MES[d.getUTCMonth()], montoK: 0 });
+  }
+  const idx = new Map(meses.map((x, i) => [`${x.y}-${x.m}`, i]));
+  const abonosFecha = [];
+  for (const a of D.abonos) {
+    const cuando = a.fecha ? _fecha(a.fecha) : null;
+    if (!cuando || Number.isNaN(cuando.getTime())) continue;
+    abonosFecha.push({ factura: a.folio, cliente: a.cliente, fecha: cuando, fechaIso: _iso(cuando), fechaFmt: _dLegible(cuando), montoK: a.montoK });
+    const i = idx.get(`${cuando.getUTCFullYear()}-${cuando.getUTCMonth()}`);
+    if (i != null) meses[i].montoK = _r1(meses[i].montoK + a.montoK);
+  }
+  while (meses.length > 2 && meses[0].montoK <= 0.05) meses.shift();
+  const pico = meses.length ? meses.reduce((a, b) => (b.montoK > a.montoK ? b : a), meses[0]) : { label: "—", montoK: 0 };
+  const valle = meses.length ? meses.reduce((a, b) => (b.montoK < a.montoK ? b : a), meses[0]) : { label: "—", montoK: 0 };
+  const cajaTotalK = _r1(meses.reduce((s, x) => s + x.montoK, 0));
+  const caja = {
+    meses: meses.map((x) => ({ ...x, fmt: _mK(x.montoK), pctFmt: `${_pct(x.montoK, cajaTotalK)}%`, periodo: `${x.label} ${x.y}` })),
+    maxK: pico.montoK,
+    totalK: cajaTotalK,
+    totalFmt: _mK(cajaTotalK),
+    picoLabel: pico.label, picoFmt: _mK(pico.montoK),
+    valleLabel: valle.label, valleFmt: _mK(valle.montoK),
+    ask: "¿Cómo viene mi entrada de caja mes a mes?",
+  };
+
+  const docs = D.facturas.length;
+  return {
+    origen: "planilla",
+    scenario: "actual",
+    fechaCorte: D.fechaCorte || null,
+    fechaCorteFmt: corte ? _dLegible(corte) : null,
+    /* LAS MISMAS CUATRO CIFRAS DE ARRIBA QUE EL DEMO, en el mismo orden y con las mismas llaves — la cuarta es
+       la que cambia: en vez de un monto vencido lleva una raya, porque no hay plazo con qué calcularlo. Mostrar
+       «$0» ahí sería la mentira más barata de toda esta cara. */
+    kpis: [
+      { key: "venta",   label: "Venta a crédito del período", valor: _mK(ventaK), pie: `${filas.length} clientes · ${docs} documentos`,
+        ask: "¿Cuánto vendí a crédito en el período?" },
+      { key: "abonado", label: "Abonado", valor: _mK(abonadoK), pie: `${_pct(abonadoK, ventaK)}% de la venta a crédito`,
+        ask: "¿Cuánto me han pagado mis clientes?" },
+      { key: "saldo",   label: "Saldo pendiente", valor: _mK(saldoK), pie: `${_pct(saldoK, ventaK)}% de la venta a crédito`,
+        ask: "¿Cuánto me deben mis clientes?" },
+      { key: "vencido", label: "Saldo vencido", valor: "—", pie: "sin plazo de pago declarado",
+        ask: "¿Por qué no puedo ver el saldo vencido?" },
+    ],
+    filas,
+    facturas: D.facturas.map((f) => ({ numero: f.folio, cliente: f.cliente, fechaIso: f.fecha, montoK: f.montoK, lineas: f.lineas })),
+    abonos: abonosFecha,
+    caja,
+    /* EL ALCANCE · dice de dónde salió cada cosa y qué no alcanza, que es lo que la pantalla muestra debajo de
+       las cifras. Nombra la venta a crédito a propósito: el resto se pagó al contado y no es deuda de nadie. */
+    alcance: `${filas.length} clientes con venta a crédito, ${docs} documentos, al ${corte ? _dLegible(corte) : "cierre del período"}. Las ventas de contado no entran: no generan deuda.`,
+    completo: false,
+    total: {
+      ventaK, ventaFmt: _mK(ventaK),
+      abonadoK, abonadoFmt: _mK(abonadoK),
+      saldoK, saldoFmt: _mK(saldoK),
+      vencidoK: null, vencidoFmt: null,
+      recuperadoPct: _pct(abonadoK, ventaK), recuperadoFmt: `${_pct(abonadoK, ventaK)}%`,
+    },
+    /* ⚠️ LO QUE ESTA CARA TODAVÍA NO PUEDE, DECLARADO PARA QUE LA PANTALLA LO DIGA. Es la mitad del trabajo
+     * que el owner separó a propósito: primero cobrado y pendiente, después vencido. */
+    sinPlazo: true,
+    porQueSinVencido: "Para saber qué parte del saldo está vencida hace falta el plazo de pago, y todavía no está declarado. Lo que sí se puede afirmar es cuánto se vendió a crédito, cuánto entró y cuánto falta.",
+    avisos: D.avisos || [],
+  };
+}
+
 export function buildMesaFlujo(scenario = "actual") {
   const D = flujoComercial;
-  if (!D || !D.fechaCorte || !D.clientes) return null;
+  if (!D || !D.fechaCorte) return null;
+  /* Una planilla real trae `facturas`; el demo trae `clientes` con sus parámetros. */
+  if (Array.isArray(D.facturas)) return buildDesdePlanilla(D);
+  if (!D.clientes) return null;
   const corte = _fecha(D.fechaCorte);
   const base = applyScenarioToClientesMargen(scenario) || [];
 
@@ -169,8 +308,10 @@ export function buildMesaFlujo(scenario = "actual") {
       saldoK, saldoFmt: _mK(saldoK),
       vencidoK, vencidoFmt: vencidoK > 0 ? _mK(vencidoK) : null,
       recuperadoPct: _pct(abonadoK, ventaK), recuperadoFmt: `${_pct(abonadoK, ventaK)}%`,
-      diasCredito: params.diasCredito,
-      diasVencido: diasMax,
+      /* el plazo va también FORMATEADO: la tabla ya no le pega la unidad a mano, porque el camino de la
+         planilla no tiene plazo que mostrar y le quedaba una «d» sola en la celda. */
+      diasCredito: params.diasCredito, diasCreditoFmt: `${params.diasCredito}d`,
+      diasVencido: diasMax, diasVencidoFmt: diasMax > 0 ? diasMax + "d" : "—",
       /* EL ESTADO NO ES UNA OPINIÓN: sale de comparar el vencimiento contra la fecha de corte declarada. */
       estado: saldoK <= 0.05 ? "al_dia" : vencidoK > 0 ? "vencido" : "por_vencer",
       facturaMasVieja: masVieja ? { numero: masVieja.numero, vencFmt: masVieja.vencFmt } : null,

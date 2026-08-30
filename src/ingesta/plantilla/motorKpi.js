@@ -32,6 +32,7 @@
  */
 import { PARAMETROS } from "../../config/contract/plantilla.js";
 import { monedaLimpia } from "../../config/moneda.js";
+import { cobroDesdePlanilla } from "./cobroDesdePlanilla.js";
 import { resolverDiasYRotacion, FORMULA_DIAS, FORMULA_ROTACION } from "../../adi/sentrix/diasYRotacion.js";
 import { diagnoseInventarioSku } from "../../adi/diagnosis/economicDiagnosis.js";
 import { METRICS } from "../../config/contract/metricRegistry.js";
@@ -89,6 +90,7 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
   const avisos = [];
   const ventas = tablas.Ventas || [];
   const inventario = tablas.Inventario || [];
+  const abonosHoja = tablas.Abonos || [];
 
   const benchmark = typeof parametros.benchmark === "number" ? parametros.benchmark : null;
   if (benchmark === null) avisos.push({ tipo: "benchmark-sin-declarar", detalle: "el negocio no declaró su margen de referencia: ADI usa el general y lo dice en pantalla" });
@@ -362,11 +364,18 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
     SUPERFAMILIAS: familias.length ? ["Todas", ...familias] : [],
     MARCAS_ALL: marcas, SUCURSALES: bodegas,
     SCENARIO_TRANSFORMS: {},
-    /* FLUJO COMERCIAL · AUSENTE, DECLARADO. La plantilla ya pide la hoja de Abonos, pero este motor todavia no
-       la lee: hasta que lo haga, este negocio no tiene cara de cobro y lo dice con un nulo. La llave existe
-       igual porque el dataset ingestado tiene que traer las MISMAS que el tenant de referencia — si faltara,
-       initTenant activaria un negocio a medias y media app quedaria pintando lo anterior, sin un solo error. */
-    flujoComercial: null,
+    /* EL COBRO · sale de la hoja Abonos cruzada con los folios a crédito de Ventas.
+     *
+     * ⚠️ ACÁ HABÍA DOS `flujoComercial` EN EL MISMO OBJETO, y el segundo —un `null` declarado mientras el motor
+     * todavía no leía la hoja— pisaba al primero en silencio. El módulo funcionaba perfecto probado solo y la
+     * cara seguía sin dibujarse: JavaScript no avisa cuando una clave repetida gana. La nota de ese `null` era
+     * correcta y honesta mientras duró; se borra ahora, que es cuando deja de ser cierta.
+     *
+     * Sigue devolviendo `null` cuando el negocio no declaró ninguna venta a crédito, y por la misma razón que
+     * daba aquella nota: la llave tiene que existir igual, porque el dataset ingestado debe traer las MISMAS
+     * que el tenant de referencia — si faltara, `initTenant` activaría un negocio a medias y media app quedaría
+     * pintando lo anterior, sin un solo error. */
+    flujoComercial: cobroDesdePlanilla({ ventas, abonos: abonosHoja, fechaCorte: parametros.periodo_actual || null }),
     clientesAlias: {}, clientesAmbiguos: [],
   };
 

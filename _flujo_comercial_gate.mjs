@@ -128,6 +128,11 @@ H("4 · LA CARA MUESTRA, NO CONCLUYE · y no calcula");
    * que una cuenta se escapó al JSX, donde ningún gate la puede revisar. */
   ok(!/\.toFixed\(|Math\.round\(/.test(cara.replace(/const _[A-Za-z]+ = \d+/g, "")),
     "la vista no redondea ni formatea cifras: eso vive en el módulo");
+  /* ⚠️ NI LE PEGA LA UNIDAD A MANO, que es la misma falta con otra ropa y ya costó un defecto real. La tabla
+   * escribía `{f.diasCredito}d`: cuando llegó el camino de la planilla —que no tiene plazo declarado— la celda
+   * mostraba una «d» sola, una unidad sin número. El módulo manda el texto entero y la vista lo pinta. */
+  ok(!/\{f\.[A-Za-z]+\}(d|%|\s*d[íi]as|M|K)\b/.test(cara),
+    "…ni le pega la unidad a mano al lado de un valor: el módulo manda el texto entero");
   /* el interruptor: sin él, la cara no existe */
   /* ⚠️ AFIRMACIONES MOVIDAS, NO BORRADAS (owner 2026-08-27: «si Flujo Comercial también queda aprobado
    * visualmente, dejarlo como pestaña estable, no solo detrás de ?flujo=1»). Hasta acá estas líneas exigían

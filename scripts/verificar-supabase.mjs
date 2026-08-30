@@ -58,8 +58,47 @@ const paseAjeno = await paseDe(AJENA);
 console.log(`\n════ VERIFICACIÓN EN VIVO · empresa «${EMPRESA}» ════`);
 console.log(`  proyecto: ${SUPABASE_URL.replace(/^https:\/\//, "").split(".")[0]}…supabase.co\n`);
 
+// ── 0 · ¿la base está al día con las migraciones que este código necesita? ────────────────────────────
+/* ⚠️ ESTO VA PRIMERO, y aprendido a la mala. El código empezó a mandar las columnas de actor (quién subió,
+ * quién activó) antes de que la migración 005 estuviera corrida en el proyecto: la base contestaba «column
+ * does not exist» y toda la carga fallaba: no degradaba, no avisaba distinto, fallaba. Preguntarle a la base
+ * qué versión del esquema tiene, ANTES de probar nada, convierte media hora de desconcierto en una línea.
+ *
+ * Se pregunta por lo que cada migración CREA, no por su nombre: no hay tabla de migraciones que mentir. */
+console.log("0 · EL ESQUEMA · ¿la base tiene lo que este código le va a pedir?");
+{
+  const NECESITA = [
+    { mig: "005", que: "uploads · quién subió", tabla: "uploads", columnas: "id,subido_por,subido_por_label,subido_por_rol" },
+    { mig: "005", que: "fact_pack_versions · quién creó", tabla: "fact_pack_versions", columnas: "id,creado_por,creado_por_label,creado_por_rol" },
+    { mig: "005", que: "fact_pack_versions · quién activó y cuándo", tabla: "fact_pack_versions", columnas: "id,activada_en,activada_por,activada_por_label,activada_por_rol" },
+  ];
+  let atrasada = null;
+  for (const n of NECESITA) {
+    const r = await db.seleccionar(n.tabla, { pase, columnas: n.columnas, limite: 1 });
+    chequeo(r.ok, `${n.que} (migración ${n.mig})`, `${r.motivo || ""} ${r.detalle || ""}`.trim());
+    if (!r.ok && /does not exist|42703/i.test(`${r.motivo} ${r.detalle}`)) atrasada = n.mig;
+  }
+  /* LA FIRMA DE LA FUNCIÓN · con seis argumentos desde la 005. Se la llama con un id que no existe: si la
+   * firma falta, PostgREST contesta PGRST202; si está, contesta cualquier otra cosa, que es lo que se busca. */
+  const f = await db.llamarFuncion("adi_activar_version", {
+    p_version_id: "00000000-0000-0000-0000-000000000000", p_pack: {}, p_moneda: "CLP",
+    p_actor_id: null, p_actor_label: "verificación", p_actor_rol: "owner",
+  }, { pase });
+  const sinFirma = /PGRST202|Could not find the function/i.test(`${f.motivo || ""} ${f.detalle || ""}`);
+  chequeo(!sinFirma, "adi_activar_version acepta los seis argumentos (migración 005)",
+    `${f.motivo || ""} ${f.detalle || ""}`.trim().slice(0, 220));
+  if (sinFirma) atrasada = "005";
+
+  if (atrasada) {
+    console.log(`\n  ⚠️ LA BASE ESTÁ ATRASADA: falta correr la migración ${atrasada}.`);
+    console.log(`     Está en db/migraciones/${atrasada}_actor_y_roles.sql — se pega entera en el SQL Editor de Supabase.`);
+    console.log("     Hasta que se corra, subir una planilla FALLA. Se frena acá, porque todo lo de abajo mentiría.\n");
+    process.exit(1);
+  }
+}
+
 // ── 1 · ¿la base acepta nuestro pase? ─────────────────────────────────────────────────────────────────
-console.log("1 · EL PASE · ¿lo acepta PostgREST?");
+console.log("\n1 · EL PASE · ¿lo acepta PostgREST?");
 {
   const r = await db.seleccionar("tenants", { pase, columnas: "id,nombre" });
   chequeo(r.ok, "la base acepta el pase firmado con el secreto JWT del proyecto",

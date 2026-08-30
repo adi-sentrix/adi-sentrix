@@ -1561,8 +1561,8 @@ function MesaFlujoCara({ flujo: F, onAsk = null }) {
                 <td style={{ ..._td, color:C.text }}>{f.saldoFmt}</td>
                 <td style={{ ..._td, color:C.textSub }}>{f.recuperadoFmt}</td>
                 <td style={{ ..._td, color: f.vencidoK > 0 ? C.amber : C.textMuted }}>{f.vencidoFmt || "—"}</td>
-                <td style={{ ..._td, color: f.diasVencido > 0 ? C.amber : C.textMuted }}>{f.diasVencido > 0 ? `${f.diasVencido}d` : "—"}</td>
-                <td style={{ ..._td, color:C.textMuted }}>{f.diasCredito}d</td>
+                <td style={{ ..._td, color: f.diasVencido > 0 ? C.amber : C.textMuted }}>{f.diasVencidoFmt}</td>
+                <td style={{ ..._td, color:C.textMuted }}>{f.diasCreditoFmt}</td>
               </tr>
             ))}
           </tbody>
