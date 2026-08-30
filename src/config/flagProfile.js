@@ -60,8 +60,14 @@ const DEV_TOOLS = [
   // Para volver a verlo en una sesión de desarrollo: reponer el nombre en esta lista, nunca en FEATURE.
 ];
 
-// EXPERIMENTAL · features nuevas aún no aptas para prod · demo + dev, NO prod · (vacío por ahora · el owner clasifica acá)
-const EXPERIMENTAL = [];
+// EXPERIMENTAL · features nuevas aún no aptas para prod · demo + dev, NO prod · (el owner clasifica acá)
+const EXPERIMENTAL = [
+  // ADI_AGENTE — APAGADA EN TODOS LOS PERFILES (F2 · owner 2026-08-30: «esta vez quiero ADI agente», detrás de
+  // bandera como nació ADI_CAMINO_NATURAL). El bucle existe y está gateado con cerebro inyectado; encenderlo
+  // exige la certificación de F4 (calibración + examen vivo autorizado). Mientras esta línea sea un comentario,
+  // ningún perfil lo enciende y el camino de producción queda byte-intacto.
+  // "ADI_AGENTE",
+];
 
 const PROFILES = {
   floor: [],

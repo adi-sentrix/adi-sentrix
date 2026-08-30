@@ -77,7 +77,11 @@ function _veraz(name, args, res) {
 //   opts.scenario        escenario base de las tools (default "actual")
 //   opts.maxCalls        cap DURO de tool-calls por plan (costo/latencia · plan patológico) · default 8
 //   opts.preguntaUsuario la frase LITERAL del turno del usuario (solo la lee defineConcept · ver inyección abajo)
-export function runPlan(plan, { scenario = "actual", maxCalls = 8, preguntaUsuario = null } = {}) {
+/* `registry` (F2 · ADI Agente, 2026-08-30): el agente corre con la caja EXTENDIDA (TOOLS + serieEntidad +
+ * registrarSupuesto). Se inyecta el registro completo en vez de duplicar el ejecutor — sin pasarlo, TODO
+ * queda byte-idéntico a siempre. */
+export function runPlan(plan, { scenario = "actual", maxCalls = 8, preguntaUsuario = null, registry = null } = {}) {
+  const REG = registry || TOOLS;
   const ledger = createLedger();
   const results = [];
   const unsupported = [];
@@ -88,7 +92,7 @@ export function runPlan(plan, { scenario = "actual", maxCalls = 8, preguntaUsuar
   calls.forEach((call, i) => {
     const callId = `c${i}`;
     const name = call && call.tool;
-    const tool = name && TOOLS[name];
+    const tool = name && REG[name];
     // ARGS TOLERANTE: el modelo a veces emite los args APLANADOS ({tool:"trend", metric:"ventas", entity:"Falabella"})
     // en vez de anidados en `args`. Antes se descartaban en silencio y la tool corría con sus DEFAULTS → respondía
     // OTRA pregunta con cifras reales (el modo de falla más peligroso: "Falabella mes a mes" narraba el negocio).
@@ -136,7 +140,7 @@ export function runPlan(plan, { scenario = "actual", maxCalls = 8, preguntaUsuar
       // formas del mismo error de contar mal. Se deduplica preservando el ORDEN en que el usuario las nombró.
       const pedidas = Array.isArray(callArgs && callArgs.entities) ? [...new Set(callArgs.entities.filter(Boolean))] : [];
       const dim = callArgs && callArgs.dimension;
-      if (name === "compareEntities" && pedidas.length > 2 && dim && TOOLS.gridTable) {
+      if (name === "compareEntities" && pedidas.length > 2 && dim && REG.gridTable) {
         const enElEje = pedidas.filter((e) => resolveCanonical(dim, e));
         const inexistentes = pedidas.filter((e) => !resolveCanonical(dim, e));
         // se descompone SÓLO si el eje puede servir más de dos: con dos o menos, `compareEntities` es la lectura
@@ -151,7 +155,7 @@ export function runPlan(plan, { scenario = "actual", maxCalls = 8, preguntaUsuar
            * SE LE PASA `enElEje`, NUNCA `pedidas`: medido, `gridTable` con un nombre que no reconoce IGNORA el
            * scope y devuelve el top-N del eje entero (aparecían Jumbo, Sodimac y Tottus, que nadie pidió). Filtrar
            * antes es lo que impide que una entidad inexistente promueva el alcance a todo el eje. */
-          _tool = TOOLS.gridTable; _nombre = "gridTable";
+          _tool = REG.gridTable; _nombre = "gridTable";
           callArgs = { dimension: dim, entityScope: enElEje, ...(callArgs.metric ? { metric: callArgs.metric } : {}) };
           _cobertura = { pedidas: pedidas.length, entidades: pedidas, inexistentes, via: "gridTable",
             motivo: "compareEntities corre de a pares; el eje sirve las N por lectura multi-entidad" };

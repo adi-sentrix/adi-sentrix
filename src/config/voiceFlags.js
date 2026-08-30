@@ -317,6 +317,12 @@ export const ADI_BYPASS_SIN_PAGO = P("ADI_BYPASS_SIN_PAGO");
 // El P&L guiado (detectPnlIntent) y «por qué esa cifra» (responderPorQueCifra) corren ANTES y no son de este flag.
 export const ADI_CAMINO_NATURAL = P("ADI_CAMINO_NATURAL");
 
+// ── ADI AGENTE · el bucle con herramientas detrás de bandera · APAGADO en todos los perfiles (F2 · 2026-08-30) ──
+// TRUE llegará solo tras la certificación de F4 (calibración + examen vivo autorizado por el owner). Con FALSE,
+// ChatADI no toca el bucle y el camino de producción es byte-idéntico. Encenderlo = descomentar "ADI_AGENTE" en
+// EXPERIMENTAL de flagProfile.js — una línea, mismo patrón con que nació el camino natural.
+export const ADI_AGENTE = P("ADI_AGENTE");
+
 // ── CONTRATO v2 · GRADUACIÓN EPISTÉMICA VISIBLE detrás de flag · default FALSE (owner 2026-08-07) ──
 // SEPARA DOS COSAS QUE NO SON LO MISMO:
 //   · EL SELLO (estructural, SIEMPRE activo, no depende de este flag): cada claim lleva su `estatus`

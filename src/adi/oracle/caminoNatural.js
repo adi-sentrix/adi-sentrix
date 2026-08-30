@@ -91,7 +91,9 @@ const _motivoDeMulta = (multa) => {
  * volver a intentar exactamente lo que acaba de fallar. Se juzga igual que cualquier otro peldaño — si el texto
  * viejo no pasa el muro de hoy (una regla nueva puede alcanzarlo), cae al peldaño siguiente sin ruido.
  * NO ES UN CONTRATO NUEVO: es la MISMA escalera de `suplenteDignoDelDato`, con un peldaño más arriba. */
-function _respaldoDeLoYaAprobado(memIn, juzgar) {
+/* EXPORTADO desde F2 (2026-08-30): la escalera invertida del AGENTE reusa ESTE peldaño tal cual — reescribirlo
+ * allá sería la «variante paralela que después diverge». Aditivo: nadie de este módulo cambia. */
+export function _respaldoDeLoYaAprobado(memIn, juzgar) {
   /* SOLO lo que el notario APROBÓ y no fue respaldo (ver `ultimaAprobada`, más abajo). Leer
    * `recentNarrations` era el defecto: ahí también vive el respaldo del turno anterior, y ofrecerlo como
    * «quedó verificado» es afirmar algo falso sobre un texto que justamente no pudo verificarse. */
