@@ -2414,7 +2414,14 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
  * gráfico cierra exacto con el KPI de arriba, que es justo lo que un BI no te garantiza. El presupuesto NO se
  * ancla (es un plan, no tiene contraparte por cliente) y la vista lo declara en vez de disimularlo.
  * Cada serie lleva su estatus: probado el dato real, indicado el plan. */
-const _RC_SERIE_COL = { actual: C.elec, anterior: C.teal, presupuesto: C.lav };
+/* ⚠️ LA SERIE REAL VA EN CELESTE, COMO EN TODO SENTRIX (owner 2026-08-31: «quiero que la línea azul sea
+   celeste»). El azul eléctrico era el único gráfico de la app que no hablaba el idioma del resto: el mismo
+   código, veinte líneas más abajo, ya declaraba la convención — «la segunda entidad en lavanda · el teal queda
+   para año anterior» — con celeste para la serie en foco. Este gráfico se había quedado afuera.
+   Y por eso cambia también el año anterior: medido con el validador, celeste contra el verde-agua da ΔE 8.9 en
+   visión normal, bajo el piso de 15. Cambiar solo el azul habría dejado las dos líneas más comparadas casi del
+   mismo color — el arreglo pedido habría creado un defecto peor que el que resolvía. */
+const _RC_SERIE_COL = { actual: C.celeste, anterior: C.serieRef, presupuesto: C.seriePlan };
 function ResumenEvolutivo({ ev, R = null, onAsk }) {
   const [oculta, setOculta] = useState({});            // las TRES arrancan visibles (regla del owner)
   const [hov, setHov] = useState(null);
@@ -5491,11 +5498,11 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
 
   const familias = (comp && comp.coverage && comp.coverage.supported) ? comp.facts.composicion.familias : [];
   const skus = (comp && comp.coverage && comp.coverage.supported) ? comp.facts.composicion.skus : [];
-  const topFamilia = familias[0] || null;   // composicion.familias ya viene ordenada por venta desc (specRetrieval.js)
-  // familia de margen REAL más bajo — comparando TODAS, nunca asumiendo que la de más peso lo es (owner 2026-08-07,
-  // "no debe llamarse 'el margen más bajo'" — mismo candado que ya se reforzó en narratePromptC.js para el chat).
-  const minMargenFamilia = familias.reduce((min, x) => (typeof x.margen === "number" && (!min || x.margen < min.margen) ? x : min), null);
-  const topEsElPeor = topFamilia && minMargenFamilia && topFamilia.nombre === minMargenFamilia.nombre;
+  /* Aquí se calculaban `topFamilia`, `minMargenFamilia` y `topEsElPeor`: los únicos que los leían eran las
+     frases de «Qué explica la brecha de margen», que se fue el 2026-08-31. Se van con ella en vez de quedar como
+     cálculo huérfano que el próximo lector tiene que rastrear para descubrir que no alimenta nada. El cuidado que
+     los hizo nacer —no llamar «el margen más bajo» a la familia de más peso sin comprobarlo— sigue vivo donde
+     importa: en `narratePromptC.js`, que es lo que ADI usa para decirlo. */
 
   // CAPITAL LIGADO · decisión 9 del owner (2026-08-09): la tool ya no atribuye inventario a un cliente cuando el
   // dato no sostiene esa relación — declina con la razón medida. La Ficha la MUESTRA en vez de rellenar: sin
@@ -5526,19 +5533,19 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
     : _vendeMucho && !_buenMargen ? { label: "RECUPERAR", desc: "Vende mucho, pero deja poco margen", color: C.amber }
     : !_vendeMucho && _buenMargen ? { label: "CRECER", desc: "Vende poco, pero deja buen margen", color: C.celeste }
     : { label: "REVISAR", desc: "Vende poco y deja poco margen", color: C.red };
-  const _cierreCartera = !clase ? null
-    : clase.label === "CUIDAR" ? `${name} es una cuenta importante y rentable. Protegé estas condiciones y usala de referencia para negociar con el resto.`
-    : clase.label === "RECUPERAR" ? `${name} mueve mucho volumen, pero su margen está bajo tu estándar. Acá está la mayor oportunidad de recuperar rentabilidad — empieza por revisar sus acciones comerciales.`
-    : clase.label === "CRECER" ? `${name} deja buen margen pero todavía pesa poco. Si sus condiciones se sostienen, es una cuenta sana para hacer crecer en volumen.`
-    : `Hoy ${name} no es una cuenta importante por volumen y tampoco compensa con rentabilidad. Antes de buscar más ventas, conviene revisar si sus condiciones permiten mejorar el margen.`;
+  /* Aquí se armaba `_cierreCartera`: las cuatro frases de cierre (CUIDAR/RECUPERAR/CRECER/REVISAR) que se
+     imprimían con la barra de color. La tarjeta dejó de mostrarlas el 2026-08-31 —«cualquier conclusión se la
+     dejaremos a ADI»— y el texto se va con ella: cuatro recomendaciones guardadas que nadie imprime son una
+     trampa para el próximo que las encuentre y crea que están vivas. (De paso se llevan un voseo viejo,
+     «Protegé», que sobrevivía sin que nadie lo leyera.) */
 
   // CAPITAL · separo lo DETENIDO (crítico) de lo de ROTACIÓN LENTA (atención) — owner pidió nombrarlo distinto.
   const _criticos = items.filter((it) => it.critico);
   const _lentos = items.filter((it) => !it.critico);
   const _sumUsd = (arr) => arr.reduce((s, it) => s + (typeof it.usd === "number" ? it.usd : 0), 0);
-  const _capTopMonto = items.length ? items.slice().sort((a, b) => (b.usd || 0) - (a.usd || 0))[0] : null;
-  const _capConDias = items.filter((it) => typeof it.diasSinVenta === "number");
-  const _capTopDias = _capConDias.length ? _capConDias.slice().sort((a, b) => b.diasSinVenta - a.diasSinVenta)[0] : null;
+  /* Y aquí `_capTopMonto` / `_capConDias` / `_capTopDias`: existían solo para decidir por cuál SKU empezar en
+     el cierre «Prioriza X…», que se fue por la misma regla. La tabla de inventario no los usa: ordena y muestra
+     todo. Priorizar es de ADI. */
 
   const _ask = (q) => {
     setUISignal({ ficha: { cliente: name, dimension: "cliente", scenario, origen: "ficha_ejecutiva" } });
@@ -5611,29 +5618,16 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
         </div>
       </div>
 
-      {/* 3 · QUÉ EXPLICA LA BRECHA — probado / indicado / abierto (nunca confunde el mecanismo con el total) */}
-      {f.brechaMargen && (
-        <div style={_panelStyle}>
-          <span style={_panelTitle}>{_dot}Qué explica la brecha de margen</span>
-          {/* ⚠️ LOS TRES SELLOS SALIERON DE PANTALLA · «Probado», «Indicado» y «Abierto» encabezaban estas tres
-              frases. El owner los mandó sacar el 2026-08-20 —«eso de probado e indicado quítalo, el usuario no
-              entenderá»— y se aplicó a la cara Comercial, que era la que estaba mirando; esta cara se quedó con
-              los suyos y ahí siguieron un mes, hasta el 27.
-              ⚠️ SE FUE LA ETIQUETA, NO LA FRASE. La palabra es vocabulario del contrato interno, no del negocio;
-              la oración que venía detrás sí dice algo y queda entera — sobre todo la tercera, que declara lo que
-              el dato NO permite afirmar. Y la graduación no se pierde del producto: sigue viva en el dato y es
-              lo que ADI usa para saber qué puede afirmar. Lo que se quitó es su vitrina. */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 9, fontSize: 14, color: C.textSub, lineHeight: 1.55 }}>
-            {f.excesoAccionesComerciales && (
-              <div>Cerrar el exceso de acciones comerciales sobre tu meta ({f.targetCarga}) libera <b style={{ color: C.text }}>{f.excesoAccionesComerciales}</b> — hoy tu carga comercial es {mCarga ? mCarga.fmt : "—"}.</div>
-            )}
-            {topFamilia && (
-              <div>La familia con más peso, <b style={{ color: C.text }}>{topFamilia.nombre}</b> ({topFamilia.share}% de la compra), tiene margen {topFamilia.margen}%{f.benchmarkMargen ? <> — {topFamilia.margen < parseFloat(f.benchmarkMargen) ? "bajo" : "sobre"} tu benchmark de {f.benchmarkMargen}</> : null}{topEsElPeor ? <>, la más baja de sus {familias.length} familias</> : null}.</div>
-            )}
-            <div>La brecha total contra tu benchmark es {f.brechaMargen}. El exceso de acciones comerciales explica una parte comprobada; el resto no tiene una causa aislada en el dato disponible (la combinación de productos, el costo u otros factores no separables con lo que hay).</div>
-          </div>
-        </div>
-      )}
+      {/* ⚠️ AQUÍ VIVÍA «QUÉ EXPLICA LA BRECHA DE MARGEN», y se fue entero el 2026-08-31 por decisión del owner:
+         «cualquier conclusión se la dejaremos a ADI». Es el mismo movimiento que vació de conclusiones a
+         Comercial (v1.14), Capital y Resultado (v1.15): la Mesa muestra el DATO, y quien lo interpreta es ADI —
+         si además la pantalla lo interpreta, el producto dice dos veces lo mismo y con dos voces distintas.
+         La tarjeta atribuía la brecha de margen al exceso de acciones comerciales, nombraba la familia de más
+         peso y declaraba qué parte NO tenía causa aislada en el dato. Nada de eso se pierde del producto: los
+         números que usaba —carga comercial, meta, benchmark, margen— siguen arriba en la fila de KPI, y la
+         composición por familia sigue completa en su propia tarjeta. Lo que se quitó es la lectura, que es de
+         ADI. NO se borró el cálculo: `excesoAccionesComerciales` y `brechaMargen` siguen en el dato y son
+         exactamente lo que ADI usa para responder. */}
 
       {/* 4 · EVOLUCIÓN MENSUAL — venta con año anterior (única serie con ancla), contribución/margen honestos sin ella */}
       <ComparadoCard a={name} rowA={{ varaRef: f.benchmarkMargen ? parseFloat(f.benchmarkMargen) : null }} dim="cliente" onAsk={onAsk}/>
@@ -5677,10 +5671,11 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
                 <InfoDot def={"El rol de la cuenta en un cuadro simple: CUIDAR (vende mucho y deja buen margen) · RECUPERAR (vende mucho, pero deja poco margen) · CRECER (vende poco, pero deja buen margen) · REVISAR (vende poco y deja poco margen). Volumen = si la cuenta está en el grupo que concentra el 80% de tu venta; margen = si está sobre o bajo tu benchmark."} align="left"/>
               </div>
             )}
-            <div style={{ fontSize: 14, color: C.textSub, lineHeight: 1.6, marginTop: 9 }}>
-              {name} {_vendeMucho ? "es una de tus cuentas de mayor volumen" : "vende poco frente al resto de tu cartera"}
-              {_margenNum != null && _benchNum != null ? <> y {_buenMargen ? "su margen supera tu benchmark" : "su margen está por debajo de tu benchmark"}</> : null}.
-            </div>
+            {/* ⚠️ AQUÍ IBA LA FRASE DE LECTURA («X es una de tus cuentas de mayor volumen y su margen está por
+                debajo de tu benchmark»), y se fue el 2026-08-31: «cualquier conclusión se la dejaremos a ADI».
+                No perdía nada el usuario — decía en prosa exactamente lo mismo que las tres líneas de abajo
+                dicen con números y con ranking, que es más preciso: «1º de 13» pesa más que «una de tus cuentas
+                de mayor volumen». Era la misma verdad dos veces, y la versión vaga primero. */}
             <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 9, fontSize: 14, color: C.textSub, lineHeight: 1.5 }}>
               <div><span style={{ color: C.textMuted }}>Ventas:</span> {pos.rankingVenta}º de {pos.totalClientes} clientes.</div>
               <div><span style={{ color: C.textMuted }}>Peso en la cartera:</span> {_vendeMucho ? "dentro" : "fuera"} del grupo que concentra el 80% de las ventas.</div>
@@ -5688,9 +5683,10 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
                 <div><span style={{ color: C.textMuted }}>Margen:</span> {_buenMargen ? "sobre" : "bajo"} tu benchmark de {f.benchmarkMargen}{pos.rankingMargenDesdeAbajo ? ` (${pos.rankingMargenDesdeAbajo}º más bajo de ${pos.totalConMargen})` : ""}.</div>
               )}
             </div>
-            {_cierreCartera && (
-              <div style={{ fontSize: 14, color: C.text, lineHeight: 1.55, marginTop: 10, paddingLeft: 10, borderLeft: `2px solid ${clase ? clase.color : C.celeste}` }}>{_cierreCartera}</div>
-            )}
+            {/* ⚠️ Y AQUÍ EL CIERRE EJECUTIVO («acá está la mayor oportunidad de recuperar rentabilidad — empieza
+                por revisar sus acciones comerciales»). Se fue por lo mismo, y este era el caso más claro de los
+                dos: no interpretaba, RECOMENDABA una acción. Eso es trabajo de ADI, que además puede sostener la
+                recomendación con una conversación; una frase fija en una tarjeta no puede. */}
           </>
         )}
       </div>
@@ -5741,13 +5737,9 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
               {" "}Es capital de tu negocio, no de {name}.
               {!_capObservada ? <> La asociación con {name} es una estimación de afinidad, no una venta registrada.</> : null}
             </div>
-            {_capTopMonto && (
-              <div style={{ fontSize: 14, color: C.text, lineHeight: 1.55, marginTop: 8, paddingLeft: 10, borderLeft: `2px solid ${C.celeste}` }}>
-                {_capTopDias && _capTopDias.sku !== _capTopMonto.sku
-                  ? <>Prioriza <b>{_capTopMonto.sku}</b> por el monto ({_fmUsd(_capTopMonto.usd)}) y <b>{_capTopDias.sku}</b> por llevar {_capTopDias.diasSinVenta} días sin venta.</>
-                  : <>Prioriza <b>{_capTopMonto.sku}</b>: es el mayor monto ({_fmUsd(_capTopMonto.usd)}){typeof _capTopMonto.diasSinVenta === "number" ? <> y lleva {_capTopMonto.diasSinVenta} días sin venta</> : null}.</>}
-              </div>
-            )}
+            {/* ⚠️ AQUÍ IBA EL CIERRE «PRIORIZA X POR EL MONTO…», fuera el 2026-08-31 por la misma regla. La tabla
+                y la suma de montos se quedan: son el dato. Elegir cuál atacar primero es una recomendación, y las
+                recomendaciones son de ADI — que para eso tiene el botón justo debajo. */}
             {_btn(`Pídele a ADI el detalle de este inventario →`, `¿Qué capital tienes inmovilizado en ${_capSujeto}?`)}
           </>
         ) : (
@@ -5817,7 +5809,10 @@ function MesaFicha({ name, row, columns, allRows, dim, dimLabel, onAsk }) {
     <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
         <div style={{ fontFamily:MONO, fontSize:11.5, letterSpacing:"0.8px", color:C.text, textTransform:"uppercase" }}>
-          <span style={{ color:C.celeste }}>Perfil Ejecutivo</span> · {name} <span style={{ color:C.textMuted }}>({dimLabel})</span>
+          {/* ⚠️ EL TÍTULO NO ES CELESTE (owner 2026-08-31: «los títulos deben ser blancos, solo el que ADI lo
+              explique irá en celeste»). Es la misma regla de la v2.2 —el celeste marca lo que se toca— y este
+              título se había quedado atrás: no se clickea, así que prometía una acción que no existe. */}
+          <span style={{ color:C.text }}>Perfil Ejecutivo</span> · {name} <span style={{ color:C.textMuted }}>({dimLabel})</span>
         </div>
         {onAsk ? (
           <button onClick={() => onAsk(`Profundiza en ${name}`)} style={{ background:"transparent", border:"none", color:C.celeste, fontSize:14, fontWeight:600, cursor:"pointer", padding:0, fontFamily:"'DM Sans', system-ui, sans-serif" }}>

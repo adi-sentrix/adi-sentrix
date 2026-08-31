@@ -34,6 +34,21 @@ const TEMA_TABLERO = {
   red: "#f43f5e", amber: "#fde047", cyan: "#219ebc", violet: "#00a8e8",
   celeste: "#2fb8da",
   elec: "#3d74f5", teal: "#7fc9c4", lav: "#a49bd0",
+  /* ⚠️ EL GRIS DE LA SERIE DE REFERENCIA · nació MEDIDO, no elegido a ojo (owner 2026-08-31: «quiero que la línea
+     azul sea celeste y las líneas»). Al pasar «este año» de azul a celeste, el verde-agua del año anterior quedó
+     a ΔE 8.9 del celeste en visión NORMAL — el piso legible son 15. Es decir: las dos líneas que más se comparan
+     habrían pasado a ser casi el mismo color, y en daltonismo peor (7.4 protan). Este gris está a ΔE 17.8 del
+     celeste y a 17.0 de la lavanda, así que las tres se separan. Y dice lo correcto: el año anterior es pasado,
+     y el pasado se lee atenuado. No se tocó `teal`, que otras caras usan con punteado y 55% de opacidad. */
+  serieRef: "#68727f",
+  /* ⚠️ Y LA LAVANDA DEL PLAN, también medida. La original (`lav`, #a49bd0) quedaba a ΔE 12.3 del celeste —bajo
+     el piso de 15— así que «este año» y «presupuesto» tampoco se separaban bien; el validador no lo había dicho
+     porque compara pares ADYACENTES y esas dos series no lo son en la lista, pero en el gráfico se ven las tres
+     juntas y los tres pares importan. Esta versión está a 19.8 del celeste y 19.3 del gris: márgenes parejos.
+     ⚠️ Y ES UN TOKEN NUEVO, NO UN RETOQUE DE `lav`. Ocho gráficos más usan `lav` —la curva acumulada del
+     Pareto, la serie «Carga», la segunda entidad del comparado— y uno de ellos escribe la palabra «lavanda» en
+     pantalla para nombrarla. Cambiarla en el tema habría movido todo eso para arreglar un gráfico. */
+  seriePlan: "#a97ae8",
   /* añadidos por el rediseño · en el tablero valen lo que ya se escribía a mano en cada archivo */
   hoverSuave: "rgba(255,255,255,0.035)",
   hoverMedio: "rgba(255,255,255,0.06)",
@@ -113,6 +128,21 @@ const TEMA_PIZARRA = {
   red: "#f43f5e", amber: "#fde047", cyan: "#219ebc", violet: "#00a8e8",
   celeste: "#2fb8da",
   elec: "#3d74f5", teal: "#7fc9c4", lav: "#a49bd0",
+  /* ⚠️ EL GRIS DE LA SERIE DE REFERENCIA · nació MEDIDO, no elegido a ojo (owner 2026-08-31: «quiero que la línea
+     azul sea celeste y las líneas»). Al pasar «este año» de azul a celeste, el verde-agua del año anterior quedó
+     a ΔE 8.9 del celeste en visión NORMAL — el piso legible son 15. Es decir: las dos líneas que más se comparan
+     habrían pasado a ser casi el mismo color, y en daltonismo peor (7.4 protan). Este gris está a ΔE 17.8 del
+     celeste y a 17.0 de la lavanda, así que las tres se separan. Y dice lo correcto: el año anterior es pasado,
+     y el pasado se lee atenuado. No se tocó `teal`, que otras caras usan con punteado y 55% de opacidad. */
+  serieRef: "#68727f",
+  /* ⚠️ Y LA LAVANDA DEL PLAN, también medida. La original (`lav`, #a49bd0) quedaba a ΔE 12.3 del celeste —bajo
+     el piso de 15— así que «este año» y «presupuesto» tampoco se separaban bien; el validador no lo había dicho
+     porque compara pares ADYACENTES y esas dos series no lo son en la lista, pero en el gráfico se ven las tres
+     juntas y los tres pares importan. Esta versión está a 19.8 del celeste y 19.3 del gris: márgenes parejos.
+     ⚠️ Y ES UN TOKEN NUEVO, NO UN RETOQUE DE `lav`. Ocho gráficos más usan `lav` —la curva acumulada del
+     Pareto, la serie «Carga», la segunda entidad del comparado— y uno de ellos escribe la palabra «lavanda» en
+     pantalla para nombrarla. Cambiarla en el tema habría movido todo eso para arreglar un gráfico. */
+  seriePlan: "#a97ae8",
   hoverSuave: "rgba(190,215,240,0.04)",
   hoverMedio: "rgba(190,215,240,0.07)",
   velo: "rgba(190,215,240,0.10)",

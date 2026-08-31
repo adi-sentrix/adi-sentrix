@@ -12,6 +12,60 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.17 — producción · tag `v2.17`
+
+**El gráfico del año habla el idioma de Sentrix, y el Perfil Ejecutivo deja de sacar conclusiones.**
+
+**El gráfico del año, mes a mes.** «Este año» pasa de azul eléctrico a **celeste**, como todo lo que mide en
+Sentrix. Era el único gráfico de la app que hablaba distinto — y el propio código, veinte líneas más abajo, ya
+declaraba la convención («la segunda entidad en lavanda · el teal queda para año anterior»).
+
+**Y por eso cambiaron también las otras dos líneas, que era lo que el owner intuía.** Medido: con «este año» en
+celeste, «año anterior» en verde-agua quedaba a **ΔE 8.9** — el piso para que dos colores se distingan a simple
+vista es 15. Las dos líneas que más se comparan en todo el gráfico habrían quedado casi del mismo color. Y al
+medir los tres pares apareció otro: celeste contra la lavanda del presupuesto daba 12.3, también bajo el piso.
+Ahora las tres se separan: **20.6 · 19.8 · 19.3**. El año anterior va en gris —el pasado se lee atenuado— y el
+presupuesto en una lavanda más saturada.
+
+**No se tocó el verde-agua ni la lavanda del tema.** Ocho gráficos más los usan; uno hasta escribe la palabra
+«lavanda» en pantalla para nombrar una curva. Se agregaron dos tokens nuevos usados solo por este gráfico.
+
+**El Perfil Ejecutivo pierde sus conclusiones**, que es la misma decisión que ya vació de conclusiones a Comercial
+(v1.14), Capital y Resultado (v1.15): la Mesa muestra el dato, y quien lo interpreta es ADI. Salieron:
+
+- la tarjeta entera **«Qué explica la brecha de margen»**;
+- la lectura en prosa de la cartera («es una de tus cuentas de mayor volumen…»), que decía con palabras vagas lo
+  mismo que la línea de abajo dice con ranking — «1º de 13» es más preciso;
+- el cierre **«acá está la mayor oportunidad de recuperar rentabilidad»**, que no interpretaba: recomendaba;
+- el cierre **«Prioriza X por el monto…»** del inventario.
+
+**Se queda todo el dato**, y el owner lo eligió explícitamente: la etiqueta de rol (sale de dos hechos, volumen ×
+margen), el ranking de ventas, el peso en la cartera, la tabla de inventario, y el párrafo que declara qué **no**
+puede afirmar el dato — eso no opina del negocio, dice dónde está el límite.
+
+**El título «Perfil Ejecutivo» pasa a blanco.** Regla de la v2.2: el celeste marca lo que se toca. Ese título no
+se clickea, así que prometía una acción que no existe y gastaba la promesa del celeste.
+
+**Un defecto que solo se vio en pantalla.** La nota que se dejó donde estaba la tarjeta borrada quedó escrita sin
+las llaves de JSX. En el cuerpo de una función eso es un comentario; entre dos etiquetas **es texto** — y la
+tarjeta estaba imprimiéndole al usuario ocho líneas de explicación interna. Compiló sin una queja y los gates
+siguieron en verde. Es la lección de siempre: «corre» y «se ve» no son lo mismo.
+
+**Candado nuevo: `_mesa_sin_conclusiones_gate`, 32 comprobaciones.** La regla se había dictado cuatro veces y
+nunca había quedado atada — se comprobó: con las conclusiones ya borradas, los 189 gates seguían en verde, o sea
+que ninguno las cuidaba. Ahora trae la aritmética del color adentro (comprueba su propia fórmula antes de juzgar),
+el piso de separación, las frases que no vuelven, **el dato que no se puede borrar** —un gate que solo prohíbe
+empuja a vaciar la pantalla— y el detector de la nota sin llaves. Probado con cuatro sabotajes: 28/4.
+
+**207/207 offline · 0 tocaron la red · 0 con credencial viva.**
+
+**Nota de integración.** Este trabajo se hizo sobre la v2.12 y llegó cuando los otros frentes ya habían subido
+hasta la **2.16** —entre ellas la que abrió el cobro desde la planilla y la que retiró el concepto de escenario—,
+así que sale como **2.17**. El código fusionó limpio: los únicos choques fueron los dos archivos de numeración.
+Después de fusionar se volvió a comprobar todo contra el código nuevo, en pantalla y no solo en los gates: las
+tres líneas del gráfico, las cinco frases que salieron y el título en blanco.
+
+---
 ## 2.16 — producción · tag `v2.16`
 
 **El concepto de escenario murió: queda uno solo, la realidad.** La decisión del owner del 7 de agosto,
