@@ -12,7 +12,7 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 2.19 — producción · tag `v2.19`
+## 2.19 — lista para desplegar
 
 **La tarjeta que había quedado muda recupera su puente a ADI.** Un hueco que abrí yo en la tanda anterior y que
 encontré al revisar contra un criterio del supervisor: *si sacas un texto, deja el ask de esa pieza*.
@@ -40,6 +40,11 @@ porque *suenan* a prosa cuando no lo son:
 
 **209/209 offline · 0 tocaron la red · 0 con credencial viva.** Verificado en pantalla: los cuatro botones hacia
 ADI vivos —cabecera, comparado, composición y el nuevo de cartera— y la tarjeta de inventario sigue fuera.
+
+**Está en `dev`, no en producción.** Mover producción hasta acá arrastraría los playbooks del frente de arreglos,
+que el owner todavía no vio — y eso es decisión suya, no de este frente. El encabezado dice «lista para
+desplegar» y `ADI_VERSION_DESPLEGADA` sigue en 2.18, que es la verdad: el repo no puede afirmar que producción
+corre algo que no corre.
 
 ---
 

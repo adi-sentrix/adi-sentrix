@@ -169,7 +169,21 @@ ok(sinComentarios.includes("Que ADI explique el lugar de"),
 /* ⚠️ LA LIMITACIÓN Y EL ALCANCE NO SON PROSA, aunque lo parezcan en pantalla — y son lo que más fácil se va por
  * accidente en una tanda de recortes, justamente porque suenan a texto explicativo. Una limitación declarada
  * («esto localiza pero no explica la causa») es honestidad: sacarla no simplifica, esconde. Un alcance («los 13
- * clientes del período, al 31 de agosto») es lo que impide que las cifras mientan por omisión. */
+ * clientes del período, al 31 de agosto») es lo que impide que las cifras mientan por omisión.
+ *
+ * ⚠️ PERO LA REGLA TIENE UNA MITAD QUE FALTABA, y salió de un caso real el mismo día. Al sacar la tarjeta de
+ * inventario por cliente se fue con ella su párrafo de limitación — que según la regla de arriba «se queda
+ * siempre». Lo planteé como objeción y la respuesta afinó la regla:
+ *
+ *     UNA LIMITACIÓN NO SE BORRA SOLA: SE BORRA CON LO QUE LIMITABA, O NO SE BORRA.
+ *
+ * Una limitación existe para acotar algo que la pantalla SÍ muestra o promete. Si ese algo desaparece entero
+ * —porque el territorio no es del producto—, la limitación se va con él: conservarla sería una disculpa por no
+ * hacer algo que ya nadie promete, e instala justamente la expectativa de que debería poder hacerse. Eso no es
+ * honestidad, es ruido que crea una promesa falsa.
+ *
+ * Lo prohibido es el movimiento INVERSO: quitar la limitación y dejar la afirmación. Ahí sí se pierde
+ * honestidad, y es lo que estas comprobaciones cuidan. */
 const flujo = leer("./src/adi/sentrix/mesaFlujo.js");
 ok(panel.includes("{F.alcance}"), "la cara Flujo sigue declarando su alcance en pantalla");
 ok(/alcance:/.test(flujo), "…y el módulo sigue produciéndolo, con su fecha de corte");

@@ -51,6 +51,36 @@ const [dM, dm] = _num(ADI_VERSION), [pM, pm] = _num(ADI_VERSION_DESPLEGADA);
 ok(pM < dM || (pM === dM && pm <= dm),
   `la desplegada (${ADI_VERSION_DESPLEGADA}) no va por delante de la declarada (${ADI_VERSION})`);
 
+/* ⚠️ LA NOTA NO PUEDE DECIR «PRODUCCIÓN» DE ALGO QUE NO ESTÁ EN PRODUCCIÓN — y esto se agrega porque pasó
+ * (2026-08-31, frente UX). Escribí la nota de la 2.19 con el encabezado de siempre —«producción · tag v2.19»— y
+ * subí ADI_VERSION_DESPLEGADA a 2.19 en el mismo movimiento, dando por hecho que el deploy salía a continuación.
+ * No salió: quedó esperando una decisión del owner, y el repo pasó a afirmar que producción corría algo que no
+ * corría. Las tres comprobaciones de arriba se quedaron en verde, porque ninguna miraba el TEXTO del encabezado.
+ *
+ * Y la casa ya tenía la convención, escrita en la 2.13: una versión declarada pero no desplegada se encabeza
+ * «lista para desplegar» y NO toca la desplegada. Se agrega el candado, no la convención.
+ *
+ * No se puede preguntar a producción desde acá —este gate corre sin red, a propósito— pero sí se puede exigir
+ * COHERENCIA INTERNA: lo que el repo afirma de sí mismo tiene que cerrar. Si una nota dice «producción», esa
+ * versión no puede ir por delante de la que el repo declara desplegada. */
+const _enc = [...notas.matchAll(/^## (\d+\.\d+)\s*—\s*(.*)$/gm)].map((m) => ({ v: m[1], txt: m[2] }));
+ok(_enc.length > 0, `_VERSIONES.md tiene encabezados legibles (${_enc.length})`);
+const _mayor = (a, b) => { const [aM, am] = _num(a), [bM, bm] = _num(b); return aM > bM || (aM === bM && am > bm); };
+const _mentirosas = _enc.filter((e) => /producci[óo]n/i.test(e.txt) && _mayor(e.v, ADI_VERSION_DESPLEGADA));
+ok(_mentirosas.length === 0,
+  `ninguna nota se declara en producción por delante de la desplegada (${ADI_VERSION_DESPLEGADA})`,
+  _mentirosas.map((e) => `${e.v} dice «${e.txt}»`).join(" · "));
+const _laDeclarada = _enc.find((e) => e.v === ADI_VERSION);
+ok(!_laDeclarada || ADI_VERSION === ADI_VERSION_DESPLEGADA || !/producci[óo]n/i.test(_laDeclarada.txt),
+  `la nota de la versión declarada (${ADI_VERSION}) no se dice desplegada antes de estarlo`,
+  _laDeclarada ? `dice «${_laDeclarada.txt}» y la desplegada es ${ADI_VERSION_DESPLEGADA}` : "");
+/* carnada · si el checker tragara un encabezado mentiroso, todo lo de arriba sería decorado */
+{
+  const cebo = [{ v: "9.9", txt: "producción · tag `v9.9`" }];
+  ok(cebo.filter((e) => /producci[óo]n/i.test(e.txt) && _mayor(e.v, ADI_VERSION_DESPLEGADA)).length === 1,
+    "carnada: una nota que se dice en producción por delante de la desplegada SÍ se detectaría");
+}
+
 // UNA SOLA FUENTE: el endpoint importa el número, no lo escribe. Dos literales divergen — es la regla de la casa.
 ok(/import\s*\{[^}]*ADI_VERSION[^}]*\}\s*from\s*"\.\.\/src\/config\/version\.js"/.test(apiSrc),
   "/api/version importa el número de la fuente única");
