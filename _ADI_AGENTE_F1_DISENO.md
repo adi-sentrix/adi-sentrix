@@ -222,6 +222,25 @@ trabajo de F2)
   corrida 3, el 2º playbook es de **CONSISTENCIA CONVERSACIONAL** (preguntas equivalentes → respuestas
   equivalentes en tamaño, foco y forma; límite corto CON alternativa nombrada; nunca disculpa vacía).
 
+### 11c · EL FALLBACK PROPIO DEL CAMINO NATURAL — pendiente abierto por el owner (2026-08-31)
+
+> «Elijo B: acótalo al agente. **No quiero que una reparación diseñada y medida para el agente cambie de
+> rebote `ADI_CAMINO_NATURAL` en producción.** La disculpa vacía del camino actual la podemos corregir después
+> con un **fallback propio, ejecutivo y breve**; no quiero reemplazarla automáticamente por un tablero largo.»
+> (textual)
+
+- **QUÉ QUEDA ABIERTO**: el camino natural conserva hoy su frase de respaldo de 153 caracteres («No pude armar
+  la lectura nueva que pediste…»), que es la misma «disculpa vacía» que el agente ya no usa. Su corrección es
+  un encargo PROPIO, no un rebote del arreglo del agente.
+- **LA FORMA QUE PIDIÓ**: **ejecutivo y breve**. Explícitamente **NO** el tablero de KPIs de
+  `suplenteDignoDelDato` — medido al acotar: al ceder, ese turno pasaba de 153 a 1.174 caracteres, y esa es
+  justo la sustitución automática que no quiere.
+- **LO QUE YA ESTÁ PROBADO Y SIRVE DE INSUMO**: el peldaño del agente arma «límite corto CON alternativa
+  nombrada» desde lo que el turno ya tiene (motivos + boleta + mapa). Ese patrón se puede reusar sin traer el
+  tablero — es la pieza, no el volcado.
+- **POR QUÉ SE ACOTÓ Y NO SE APLICÓ**: `ADI_CAMINO_NATURAL` va en el perfil `prod` y corre en producción hoy;
+  `ADI_AGENTE` sigue apagada. Un cambio en el peldaño compartido tocaba usuarios reales sin su decisión.
+
 ### 11b · EL TRATO CONFIGURABLE — fase POSTERIOR, anotada por palabra del owner (2026-08-31)
 
 > «Después incluso podemos agregar un ítem más configurable donde el usuario pueda darle un **prompt de cómo

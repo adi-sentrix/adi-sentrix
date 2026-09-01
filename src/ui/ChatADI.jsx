@@ -359,7 +359,7 @@ async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, r
  * El bucle vive en bucleAgente.js; esto es su única puerta al mundo: system fijo (persona+invariantes+mapa) +
  * hilo + catálogo → el gateway (/api/adi-agente, runtime node) → {tipo:"herramientas"|"texto"}. El `paso` decide
  * el tier (herramientas→mini de PLAN · cierre/reparación→el de NARRAR). Con la bandera apagada, nadie llama. */
-async function _fetchAgente({ mensajes, scenario, requestContext, ronda, attempt, motivoReintento, cierre, figsEnBoleta }) {
+async function _fetchAgente({ mensajes, scenario, requestContext, ronda, attempt, motivoReintento, cierre, figsEnBoleta, vetoConCifra }) {
   const { sistemaDelAgente } = await import("../adi/agente/sistemaAgente.js");
   const { catalogoAgente } = await import("../adi/agente/catalogoAgente.js");
   /* R-eco del examen 1 (2026-08-31): el tier caro se paga SOLO cuando hay cifras verificadas que reescribir —
@@ -369,7 +369,10 @@ async function _fetchAgente({ mensajes, scenario, requestContext, ronda, attempt
    * intento: 78% del gasto de esa corrida, con resultado PEOR). El techo es UNA sola verdad, del bucle. */
   const { TECHO_ENTRADA_CIERRE_CHARS } = await import("../adi/agente/bucleAgente.js");
   const _charsHilo = (mensajes || []).reduce((n, m) => n + String((m && m.content) || "").length, 0);
-  const paso = (cierre || attempt > 0) && (figsEnBoleta | 0) > 0 && _charsHilo <= TECHO_ENTRADA_CIERRE_CHARS ? "cierre" : "herramientas";
+  /* …y (ii) de P2: también escala cuando la multa NOMBRA una cifra concreta aunque la boleta esté vacía —
+   * corregir eso es reescribir una oración, que es justo lo que un modelo mejor sabe hacer. Medido sobre la
+   * corrida 4: son 2 escaladas nuevas en 28 turnos, no una puerta abierta. */
+  const paso = (cierre || attempt > 0) && ((figsEnBoleta | 0) > 0 || vetoConCifra) && _charsHilo <= TECHO_ENTRADA_CIERRE_CHARS ? "cierre" : "herramientas";
   const res = await fetch("/api/adi-agente", {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ mensajes, system: sistemaDelAgente(scenario).fijo, tools: catalogoAgente(), paso,

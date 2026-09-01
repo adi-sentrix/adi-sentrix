@@ -240,6 +240,122 @@ H("5d · las aperturas y muletillas coloquiales se vetan — el NOMBRE queda exe
     "…y el condicional de oferta sigue limpio: se corrigió el fin de palabra, no la regla");
 }
 
+/* ═══ 5g · EL `\b` QUE NO EXISTE · el candado de una lección que costó TRES veces ════════════════════════════
+ * En JavaScript `\b` se define sobre `\w` = [A-Za-z0-9_]. Un patrón que cierra con `\b` después de un carácter
+ * que NO está ahí —«%», «$», una vocal acentuada, «ñ»— no matchea nunca esa forma. Mordió tres veces el mismo
+ * día, siempre en candados que sí se creían verdes:
+ *   1 · el cierre imperativo era ciego a TODO el voseo («Ejecutá», «Renegociá», «Liquidá»);
+ *   2 · la cifra del supuesto no veía «crezco 3%:» ni «+4% y dime»;
+ *   3 · el extractor que nombra la cifra rechazada en la multa NO detectaba ni un porcentaje, así que la
+ *       reparación de todo veto de margen/benchmark/carga viajaba sin su instrucción (parte del defecto T10).
+ * Un barrido de texto es lo que corresponde: la enfermedad es de FORMA, no de concepto, y un chequeo de
+ * conducta por regla no la ve hasta que un examen la paga. */
+H("5g · ningún patrón del agente cierra con `\\b` después de un carácter que no es \\w");
+{
+  const ARCHIVOS = ["src/adi/agente/bucleAgente.js", "src/adi/agente/contratoAgente.js",
+    "src/adi/agente/playbooks/margenEnRiesgo.js", "src/adi/agente/playbooks/registro.js",
+    "src/adi/agente/herramientasAgente.js", "src/adi/oracle/caminoNatural.js"];
+  /* EL BARRIDO, PRECISO. Un `\b` es imposible cuando lo que lo precede NO puede ser \w:
+   *   (a) pegado a un no-\w: `%\b`, `$\b`, `á\b`;
+   *   (b) cerrando un grupo cuya ÚLTIMA letra de alguna alternativa es no-\w: `(?:%|pp|x)\b`, `(?:e|é)\b`.
+   * Lo que NO es peligroso —y la primera versión de este barrido marcaba mal, cinco veces— es el acento EN
+   * MEDIO de una palabra que termina en ASCII: `hist[oó]rico\b` o `m[aá]s\b` funcionan perfecto. Distinguirlo
+   * exige mirar el final de cada alternativa, no la presencia del carácter: un candado con falsos positivos se
+   * desactiva solo. */
+  const _NO_W = /[%$áéíóúüñÁÉÍÓÚÜÑ]/;
+  const _finImposible = (linea) => {
+    for (let i = linea.indexOf("\\b"); i >= 0; i = linea.indexOf("\\b", i + 2)) {
+      const prev = linea[i - 1];
+      if (prev === undefined) continue;
+      if (prev !== ")" && prev !== "]") { if (_NO_W.test(prev)) return true; continue; }
+      if (prev === "]") { if (_NO_W.test(linea[i - 2] || "")) return true; continue; }   // clase: `[aá]\b`
+      // grupo: se retrocede hasta su apertura y se mira el final de cada alternativa de primer nivel
+      let d = 0, j = i - 1;
+      for (; j >= 0; j--) { if (linea[j] === ")") d++; else if (linea[j] === "(") { d--; if (!d) break; } }
+      if (j < 0) continue;
+      const cuerpo = linea.slice(j + 1, i - 1).replace(/^\?:/, "");
+      let nivel = 0, alt = "";
+      const finales = [];
+      for (const ch of cuerpo + "|") {
+        if (ch === "(" || ch === "[") nivel++;
+        else if (ch === ")" || ch === "]") nivel--;
+        if (ch === "|" && nivel === 0) { finales.push(alt); alt = ""; } else alt += ch;
+      }
+      if (finales.some((a) => _NO_W.test(a.trim().slice(-1)))) return true;
+    }
+    return false;
+  };
+  const culpables = [];
+  for (const rel of ARCHIVOS) {
+    const txt = fs.readFileSync(path.join(process.cwd(), rel), "utf8").replace(/\r\n/g, "\n");
+    for (const [n, linea] of txt.split("\n").entries()) {
+      if (/^\s*(?:\*|\/\/)/.test(linea)) continue;   // los comentarios explican la trampa: no son la trampa
+      if (_finImposible(linea)) culpables.push(`${rel}:${n + 1} → ${linea.trim().slice(0, 100)}`);
+    }
+  }
+  ok(culpables.length === 0, "★ cero patrones con el `\\b` imposible en el código del agente", culpables.join(" | "));
+  // y la conducta que la lección protege, probada de punta a punta
+  const CIF = /\$\s?[\d.,]+\s?[KMB]?|[\d.,]+\s*%|[\d.,]+\s*(?:pp|x)\b/gi;
+  for (const c of ["1%", "52%", "30.1%", "$4.9M", "2 pp"]) {
+    ok((String(c).match(CIF) || []).length === 1, `el extractor de cifras ve «${c}»`);
+  }
+  /* CARNADA DEL PROPIO SCANNER (auto-probado: un barrido que no se prueba a sí mismo es una lista de deseos).
+   * Se reinstala el `\b` imposible en una COPIA del código vivo y se exige que el barrido lo cace. */
+  {
+    const vivo = fs.readFileSync(path.join(process.cwd(), "src", "adi", "agente", "bucleAgente.js"), "utf8").replace(/\r\n/g, "\n");
+    const mutado = vivo.replace("const _CIFRA_EN_MULTA = /\\$\\s?[\\d.,]+\\s?[KMB]?|[\\d.,]+\\s*%|[\\d.,]+\\s*(?:pp|x)\\b/gi;",
+      "const _CIFRA_EN_MULTA = /\\$\\s?[\\d.,]+\\s?[KMB]?|[\\d.,]+\\s*(?:%|pp|x)\\b/gi;");
+    ok(mutado !== vivo, "la carnada del barrido encontró qué mutar");
+    const cazada = mutado.split("\n").some((l) => !/^\s*(?:\*|\/\/)/.test(l) && _finImposible(l));
+    ok(cazada, "★ carnada: con el `\\b` imposible de vuelta, el barrido se pone ROJO");
+    // el extractor mutado, además, vuelve a ser ciego a los porcentajes: la conducta que el barrido protege
+    const CIF_MUT = /\$\s?[\d.,]+\s?[KMB]?|[\d.,]+\s*(?:%|pp|x)\b/gi;
+    ok("1%".match(CIF_MUT) === null, "…y el defecto que evita es real: con ese patrón, «1%» no se ve");
+  }
+}
+
+/* ═══ 5f · P1 · «MI VENTA» CON SUPUESTO = LA VENTA TOTAL DEL NEGOCIO (owner 2026-08-31) ══════════════════════
+ * «Si digo "mi venta" con un supuesto de crecimiento/proyección, toma por defecto la venta total del negocio,
+ * salvo que el contexto indique otra entidad» (textual). Los dos turnos son verbatim de la corrida 4: salieron
+ * VERDES sin responder nada, devolviéndole al usuario una elección que el default ya resuelve. */
+H("5f · la proyección sobre «mi venta» no se pregunta: el default es el total");
+{
+  initTenant(TENANT_DEMO);
+  const ENTS = ["Falabella", "Lider", "Jumbo", "Tottus", "Sodimac", "Ripley", "Paris", "Mercado Libre"];
+  const ctx = (pregunta) => ({ pregunta, entidades: ENTS });
+  const T8 = "Necesito saber si ese 3% es:\n- **Global** (sobre la venta total de todos los clientes) — o\n- **Por cliente** (cada uno crece 3%)\n\n¿Cuál es tu supuesto?";
+  const T21 = "Necesito saber si ese +4% es:\n\n- **Global** (sobre la venta total anual de todos los clientes) — o\n- **Por cliente** (cada uno crece 4%)\n\n¿Cuál es tu supuesto?";
+  const reglasCtx = (t, q) => vetosDeContrato(t, ctx(q)).map((x) => x.regla);
+  ok(reglasCtx(T8, "ponele que el año que viene crezco 3%: cuanto seria mi venta?").includes("proyeccion-sin-default"),
+    "★ T8 verbatim de la corrida 4 → proyeccion-sin-default");
+  ok(reglasCtx(T21, "Con ese total anual, proyecta 12 meses con +4% y dime cuánto genera adicional.").includes("proyeccion-sin-default"),
+    "★ T21 verbatim (el usuario YA dijo «ese total anual») → proyeccion-sin-default");
+  // «salvo que el contexto indique otra entidad»: con la entidad nombrada, esa manda y no se juzga
+  ok(!reglasCtx(T21, "proyecta +4% sobre la venta de Falabella y dime cuánto genera").includes("proyeccion-sin-default"),
+    "★ con la entidad NOMBRADA en la pregunta, la regla se aparta — «esa manda»");
+  // y la respuesta que SÍ toma el default pasa limpia
+  ok(vetosDeContrato("Proyección sobre la venta total del negocio: $99.9M crecería a $102.9M con tu supuesto de +3%. Si quieres el corte por cliente, dime y lo abro.",
+    ctx("ponele que crezco 3%: cuanto seria mi venta?")).length === 0,
+    "…y la respuesta que toma el total y ofrece el corte por cliente pasa LIMPIA");
+  ok(vetosDeContrato(T8, { pregunta: "cuales son mis clientes bajo benchmark", entidades: ENTS }).length === 0,
+    "…y sin proyección en la pregunta, la regla ni se asoma");
+  // CALIBRACIÓN: cero falsos positivos sobre el corpus (con su propia pregunta como contexto)
+  let vistos = 0; const falsos = [];
+  for (const f of fs.readdirSync(".")) {
+    if (!/^_examen.*consolidado\.json$/.test(f)) continue;
+    try {
+      const S = JSON.parse(fs.readFileSync(f, "utf8"));
+      for (const [i, t] of (S.turnos || []).entries()) {
+        const vis = t && typeof t.visible === "string" ? t.visible : "";
+        if (!vis.trim()) continue;
+        vistos++;
+        if (vetosDeContrato(vis, { pregunta: String(t.q || ""), entidades: ENTS }).some((x) => x.regla === "proyeccion-sin-default")) falsos.push(`${f} t${i + 1}`);
+      }
+    } catch { /* ilegible */ }
+  }
+  ok(vistos >= 20 && falsos.length === 0, `cero falsos positivos sobre las ${vistos} respuestas aceptadas`, falsos.join(", "));
+}
+
 /* ═══ 5e · EL TRATO PERSISTE POR LA MEMORIA DEL TURNO (la causa real del rescate sin nombre) ═════════════════
  * MEDIDO (no supuesto): `preferenciaNombre` guarda en el módulo + localStorage, y la consola del examen corre
  * UN PROCESO POR TURNO sin localStorage — el nombre registrado se perdía al terminar ese proceso. Por eso el
@@ -313,7 +429,8 @@ H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro")
   // (el sitio de la mutación creció al sumarse la lista notarial de los playbooks al MISMO juez — la carnada
   //  sigue midiendo lo mismo: sin el juez de contrato, la orden llega a pantalla)
   await carnada("el bucle sin el juez de sugerencias", "src/adi/agente/bucleAgente.js",
-    [[/    const vc = \[\.\.\.vetosDeContrato\(t\), \.\.\.\(playbookActivo \? vetosDelPlaybook\(playbookActivo, t, \{ figs: figsTotales \}\) : \[\]\)\];/, "    const vc = [];"]],
+    // (el sitio creció otra vez: el juez recibe el contexto de la pregunta desde P1 — la carnada mide lo mismo)
+    [[/    const vc = \[\.\.\.vetosDeContrato\(t, \{ pregunta: q, entidades: duenosTenant \|\| \[\] \}\), \.\.\.\(playbookActivo \? vetosDelPlaybook\(playbookActivo, t, \{ figs: figsTotales \}\) : \[\]\)\];/, "    const vc = [];"]],
     async (Mut) => {
       initTenant(PACK);
       const guion = async ({ ronda }) => ronda === 1
@@ -343,6 +460,23 @@ H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro")
   await carnada("registro coloquial sin vigilar", "src/adi/agente/contratoAgente.js",
     [[/  \{ re: new RegExp\(`\\\\b\(\?:ac\[aá\]\|aqu\[ií\]\)/, '  { re: new RegExp(`$^(?:ac[aá]|aqu[ií])']],
     async (Mut) => Mut.vetosDeContrato("wachin, acá está claro:\n\n**DATO DURO:** Falabella margen 22%.").length === 0);
+
+  // (b6) P1 · el default de «mi venta» quitado: los dos turnos vuelven a devolverle la elección al usuario
+  await carnada("default de «mi venta» sin vigilar", "src/adi/agente/contratoAgente.js",
+    [[/  if \(_q && _PIDE_PROYECCION\.test\(_q\) && _CIFRA_SUPUESTO\.test\(_q\) && _DEVUELVE_LA_ELECCION\.test\(texto\)\) \{/,
+      "  if (false) {"]],
+    async (Mut) => {
+      const T8 = "Necesito saber si ese 3% es:\n- **Global** (sobre la venta total de todos los clientes) — o\n- **Por cliente** (cada uno crece 3%)\n\n¿Cuál es tu supuesto?";
+      return Mut.vetosDeContrato(T8, { pregunta: "ponele que el año que viene crezco 3%: cuanto seria mi venta?", entidades: ["Falabella"] }).length === 0;
+    });
+
+  // (b7) P1 · el `\b` de vuelta tras el «%»: la regla queda ciega ante «3%:» y «+4% y» (la trampa, dos veces)
+  await carnada("cifra del supuesto ciega al «%» final", "src/adi/agente/contratoAgente.js",
+    [[/const _CIFRA_SUPUESTO = \/\\d\[\\d\.,\]\*\\s\*\(\?:%\|pp\\b\)\/;/, "const _CIFRA_SUPUESTO = /\\d[\\d.,]*\\s*(?:%|pp)\\b/;"]],
+    async (Mut) => {
+      const T8 = "Necesito saber si ese 3% es:\n- **Global** — o\n- **Por cliente**\n\n¿Cuál es tu supuesto?";
+      return Mut.vetosDeContrato(T8, { pregunta: "ponele que crezco 3%: cuanto seria mi venta?", entidades: ["Falabella"] }).length === 0;
+    });
 
   // (b5) el fin de palabra sin las vocales acentuadas: vuelve el agujero del voseo (medido en este juez)
   await carnada("fin de palabra ciego al acento (el agujero del voseo)", "src/adi/agente/contratoAgente.js",

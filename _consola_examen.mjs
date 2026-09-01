@@ -187,7 +187,7 @@ const callNatural = async ({ mensajes, attempt, motivoReintento }) => {
 /* EL CEREBRO DEL AGENTE — el MISMO transporte que _fetchAgente (ChatADI) arma para /api/adi-agente, contra el
  * gatewayCore directo: system fijo (sistemaDelAgente), catálogo mecánico y tier por paso (herramientas → PLAN ·
  * reparación → cierre). Cada llamada suma al costo del turno y al expediente, igual que el natural. */
-const callAgente = async ({ mensajes, ronda, attempt = 0, motivoReintento, cierre = false, figsEnBoleta = 0 }) => {
+const callAgente = async ({ mensajes, ronda, attempt = 0, motivoReintento, cierre = false, figsEnBoleta = 0, vetoConCifra = false }) => {
   llamadasTurno++;
   /* R-eco DEL EXAMEN 1 (2026-08-31): la escalada al tier de NARRAR fue el 66% del gasto (US$0.3758, 14
    * llamadas) y produjo CERO verdes — todas con la boleta VACÍA: no había material que reescribir, solo
@@ -197,7 +197,8 @@ const callAgente = async ({ mensajes, ronda, attempt = 0, motivoReintento, cierr
   /* P3 de la corrida 2: tampoco se escala con el hilo enorme — el cierre re-paga la boleta entera en CADA
    * intento (78% del gasto de esa corrida). El techo lo declara el bucle: una sola verdad con producción. */
   const _charsHilo = (mensajes || []).reduce((n, m) => n + String((m && m.content) || "").length, 0);
-  const paso = (attempt > 0 || cierre) && (figsEnBoleta | 0) > 0 && _charsHilo <= TECHO_ENTRADA_CIERRE_CHARS ? "cierre" : "herramientas";
+  // (ii) de P2: también escala si la multa nombra una cifra (reescribir una oración) — mismo criterio que prod
+  const paso = (attempt > 0 || cierre) && ((figsEnBoleta | 0) > 0 || vetoConCifra) && _charsHilo <= TECHO_ENTRADA_CIERRE_CHARS ? "cierre" : "herramientas";
   const data = await handleAgente({ mensajes, system: sistemaDelAgente(ESCENARIO_INICIAL).fijo, tools: catalogoAgente(), paso, attempt, motivoReintento }, process.env);
   if (data && typeof data.costUSD === "number") costoTurno += data.costUSD;   // el costo lo estima el gateway con el MODELO REAL (tier por paso), no la tarifa sonnet de la consola
   if (!data || !data.ok) throw new Error((data && data.error) || "gateway sin agente");

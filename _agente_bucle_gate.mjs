@@ -41,6 +41,8 @@ import { ingestarPlantilla } from "./src/ingesta/plantilla/ingestarPlantilla.js"
 import { answerViaAgente, TECHO_ENTRADA_CIERRE_CHARS } from "./src/adi/agente/bucleAgente.js";
 import { registrarSupuesto } from "./src/adi/agente/herramientasAgente.js";   // P4 · la unidad del eco
 import { setNombreUsuario, olvidarNombreUsuario } from "./src/adi/agente/preferenciaNombre.js";   // R4c · el trato en los rescates
+import { PRINCIPIOS_RUTEO } from "./src/adi/agente/contratoAgente.js";   // P2(i) · la letra del ejemplo numérico
+import { sistemaDelAgente } from "./src/adi/agente/sistemaAgente.js";
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -494,6 +496,46 @@ H("14d · P4: la unidad del eco del supuesto la dice el usuario ($ y % no se cru
   ok(supDecl.boleta[0].unit === "pct", "…y sin símbolo en el texto, manda lo declarado por el cerebro");
 }
 
+/* ═══ 14e · P2 · LA REPARACIÓN QUE PUEDE ARREGLARSE, SE ESCALA (corrida 4 · owner 2026-08-31) ════════════════
+ * T10 murió así: el cerebro aclaró una ambigüedad real con un EJEMPLO numérico sobre una entidad real («ej: si
+ * Falabella tiene 1% de carga hoy…»), el muro vetó ese «1%» —con razón—, la reparación fue al tier barato
+ * porque la boleta estaba vacía (R-eco) y el modelo chico devolvió el MISMO texto: lo único que cambió entre
+ * los dos intentos fue «te referís» → «te refieres», que es el lavado de voseo, no una corrección.
+ * (i) la letra: aclarar en palabras o con cifra verificada, nunca con un ejemplo inventado sobre una entidad.
+ * (ii) el tier: si la multa NOMBRA una cifra, corregir es reescribir una oración — eso sí lo arregla un modelo
+ *      mejor. Medido sobre la corrida 4: 2 escaladas nuevas en 28 turnos (T10 y T18). */
+H("14e · P2: la letra del ejemplo numérico y la escalada de un veto reparable");
+{
+  initTenant(PACK);
+  ok(/nunca con un ejemplo numérico inventado sobre una entidad real/.test(PRINCIPIOS_RUTEO),
+    "★ (i) la letra prohíbe el ejemplo numérico sobre una entidad real");
+  const fijo = sistemaDelAgente("actual").fijo;
+  ok(/nunca con un ejemplo numérico inventado sobre una entidad real/.test(fijo), "…y viaja en el system del agente");
+
+  // (ii) la señal llega al adapter SOLO cuando la multa nombra una cifra
+  const vistas = [];
+  const guionT10 = async ({ attempt, figsEnBoleta, vetoConCifra }) => {
+    vistas.push({ attempt, figsEnBoleta, vetoConCifra: !!vetoConCifra });
+    return { tipo: "texto", texto: "Necesito aclarar el alcance: ¿te refieres a bajar la carga 2 puntos (ej: si Depósito Riachuelo tiene 1% hoy, quedaría en −1%) o a reducirla un 2% relativo?" };
+  };
+  const r = await answerViaAgente({ text: "simula reducir 2 puntos la carga comercial", history: [], mem: {}, scenario: "actual", callAgente: guionT10 });
+  const rep = vistas.find((v) => v.attempt > 0);
+  ok(!!rep && rep.figsEnBoleta === 0 && rep.vetoConCifra === true,
+    "★ (ii) con boleta vacía pero multa que nombra una cifra, la reparación pide el tier bueno", JSON.stringify(vistas));
+  ok((r.r.agente.vetos || []).some((v) => /^cierre · /.test(v)), "el veto quedó registrado con su sitio", JSON.stringify(r.r.agente.vetos));
+
+  // y el caso que R-eco vino a cortar SIGUE cortado: sin cifra en la multa, no se escala
+  const vistas2 = [];
+  const guionSinCifra = async ({ attempt, figsEnBoleta, vetoConCifra }) => {
+    vistas2.push({ attempt, vetoConCifra: !!vetoConCifra });
+    return { tipo: "texto", texto: "Procede con la renegociación de la carga." };   // veto del contrato: sin cifras
+  };
+  await answerViaAgente({ text: "que hago con riachuelo", history: [], mem: {}, scenario: "actual", callAgente: guionSinCifra });
+  const rep2 = vistas2.find((v) => v.attempt > 0);
+  ok(!!rep2 && rep2.vetoConCifra === false,
+    "…y un veto SIN cifra (el cierre imperativo) no escala: el gasto estéril de la corrida 2 sigue cortado", JSON.stringify(vistas2));
+}
+
 /* ═══ 15 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
 H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
@@ -675,6 +717,21 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       const ECO2 = "No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: las ventas totales del negocio suman $99.9M. Dime por dónde quieres que siga y lo trabajo sobre lo disponible.";
       const r = await Mut.answerViaAgente({ text: "dame la foto del negocio", history: [], mem: {}, scenario: "bonanza", callAgente: async () => ({ tipo: "texto", texto: ECO2 }) });
       return r.r.agente.estado === "verde";   // el defecto: la no-respuesta infla el conteo
+    });
+
+  // (u) P2(ii) · la señal del veto reparable apagada: T10 vuelve a repararse con el modelo chico
+  await carnada("veto reparable sin escalar (el T10 de la corrida 4)",
+    [[/      const vetoConCifra = _cifrasDeMulta\(multa\)\.length > 0;/, "      const vetoConCifra = false;"]],
+    async (Mut) => {
+      initTenant(PACK);
+      const vistas = [];
+      const g = async ({ attempt, vetoConCifra }) => {
+        vistas.push({ attempt, vetoConCifra: !!vetoConCifra });
+        return { tipo: "texto", texto: "¿Te refieres a bajar la carga 2 puntos (ej: si Depósito Riachuelo tiene 1% hoy, quedaría en −1%) o a un 2% relativo?" };
+      };
+      await Mut.answerViaAgente({ text: "simula reducir 2 puntos la carga comercial", history: [], mem: {}, scenario: "actual", callAgente: g });
+      const rep = vistas.find((v) => v.attempt > 0);
+      return !!rep && rep.vetoConCifra === false;   // el defecto: la reparación va al tier barato y repite
     });
 
   // (o) R9 · el puente desconectado: la serie bloqueada vuelve al cerebro (la lotería de T9)

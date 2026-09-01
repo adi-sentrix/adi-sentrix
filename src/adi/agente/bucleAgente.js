@@ -59,7 +59,13 @@ const CALLS_POR_RONDA = 8;  // el cap vigente de runPlan
  * el mensaje pedía «reescribe tu respuesta COMPLETA» y el modelo devolvía la misma frase con otro envoltorio.
  * La multa YA nombra la cifra ofensora: se extrae mecánicamente y se le pide reformular ESA oración —o quitarla—
  * con el aviso de que repetir cosecha el mismo rechazo. Determinístico: regex sobre la multa, cero comprensión. */
-const _CIFRA_EN_MULTA = /\$\s?[\d.,]+\s?[KMB]?|[\d.,]+\s*(?:%|pp|x)\b/gi;
+/* ⚠️ EL «%» NO LLEVA `\b` DETRÁS. Medido sobre la corrida 4 y es el defecto que dejó a P1b a medias: este
+ * extractor NO detectaba ni un porcentaje («1%», «52%», «30.1%» → nada), solo dinero y «pp». Así que en cada
+ * veto de porcentaje —los más frecuentes: márgenes, benchmark, carga— la multa viajaba SIN la instrucción
+ * quirúrgica, y el cerebro reformulaba a ciegas: es la tercera parte del defecto de T10. `\b` se define sobre
+ * [A-Za-z0-9_]: entre «%» y el fin de la cadena (o un espacio) no hay frontera. El `\b` queda solo donde la
+ * unidad termina en letra («pp», «x»). Vigilado por `_agente_contrato_gate` §5g. */
+const _CIFRA_EN_MULTA = /\$\s?[\d.,]+\s?[KMB]?|[\d.,]+\s*%|[\d.,]+\s*(?:pp|x)\b/gi;
 function _cifrasDeMulta(multa) {
   const t = String(multa || "");
   const entrecomilladas = (t.match(/«[^»]{1,40}»|"[^"]{1,40}"/g) || []).join(" ");
@@ -441,7 +447,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     /* AL MURO SE LE SUMAN DOS JUECES, y ninguno lo toca: el contrato F3 (el cierre que ordena) y —solo cuando
      * un playbook está activo— SU lista notarial, que chequea las promesas de ESE procedimiento. La lista es
      * del playbook, no del bucle: el notario crece por reglas declaradas, jamás por comprensión. */
-    const vc = [...vetosDeContrato(t), ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales }) : [])];
+    const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [] }), ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales }) : [])];
     if (!vc.length) return v;
     vetosDelTurno.push(`${sitio} · ${vc[0].regla}: ${vc[0].multa.split("\n")[0].slice(0, 160)}`);
     return { ok: false, violations: vc.map((x) => ({ rule: x.regla, detalle: x.multa })), multa: vc.map((x) => x.multa).join("\n") };
@@ -462,10 +468,17 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
        * tienen (usa `detail`): cuando el veredicto no traía `.multa`, al modelo le llegaba «[object Object]»
        * y el reintento reformulaba a ciegas. Cazado al escribir el chequeo de P1b (corrida 2). */
       const multa = _multaDe(v1);
+      /* (ii) DE P2 (owner 2026-08-31, con medición previa): R-eco corta la escalada estéril —la de la corrida
+       * 2, 66% del gasto y CERO verdes—, pero le quitaba la escalada a un veto que SÍ era reparable: T10 murió
+       * porque el tier barato devolvió el mismo texto ante «1%». La condición vuelve a la regla que R-eco
+       * escribió («escalar solo cuando el veto sea reparable por modelo mejor, no por plomería»): si la multa
+       * NOMBRA una cifra concreta, corregir es reescribir una oración, y eso lo hace un modelo mejor. Medido
+       * sobre la corrida 4: son 2 escaladas nuevas en 28 turnos (T10 y T18), no una puerta abierta. */
+      const vetoConCifra = _cifrasDeMulta(multa).length > 0;
       const hiloReparacion = [...mensajes, { role: "assistant", content: esNarracionVacia(lavado) ? "(respuesta vacía)" : lavado }, { role: "user", content: _MENSAJE_NOTARIO(multa) }];
       let res2 = await callAgente({
         mensajes: [...hiloReparacion],
-        mapa, herramientas, ronda: rondas, attempt: 1, motivoReintento: "guard", figsEnBoleta: figsTotales.length,
+        mapa, herramientas, ronda: rondas, attempt: 1, motivoReintento: "guard", figsEnBoleta: figsTotales.length, vetoConCifra,
       });
       /* R1: la reparación pidió una herramienta VÁLIDA (T7: pidió inventoryStatus y el pedido se tiraba →
        * turno vacío). Se ejecuta la ronda extra SOBRE EL HILO DE LA REPARACIÓN (la multa sigue a la vista) y
@@ -475,7 +488,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
         rondaExtraUsada = true;
         res2 = await callAgente({
           mensajes: [...hiloReparacion, { role: "user", content: "[MOTOR — no es el usuario] Las herramientas que pediste ya corrieron: sus cifras están arriba. Reescribe AHORA tu respuesta completa con esas cifras verificadas, corrigiendo lo que observó la verificación." }],
-          mapa, herramientas, ronda: rondas, attempt: 1, motivoReintento: "guard", figsEnBoleta: figsTotales.length,
+          mapa, herramientas, ronda: rondas, attempt: 1, motivoReintento: "guard", figsEnBoleta: figsTotales.length, vetoConCifra,
         });
       }
       const t2 = res2 && res2.tipo === "texto" ? stripLanguageLeaks(String(res2.texto || "")) : "";
@@ -514,7 +527,10 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   }
   if (final === null) {
     // R3: el contexto de pertinencia viaja — el peldaño no afirma «sobre esto» si la pregunta habla de otra cosa
-    final = _respaldoDeLoYaAprobado(memIn, (t) => juzgar(t, "respaldo"), { pregunta: q, entidades: duenosTenant || [], recienMostrado: recentPrev[0] || null });
+    /* `cederSiRepetida` es del AGENTE y solo del agente (owner 2026-08-31): acá, si lo aprobado es lo que el
+     * usuario acaba de ver, el peldaño cede y el turno cae al límite con alternativa. El camino natural NO lo
+     * pasa y conserva su conducta de hoy — su fallback propio es un encargo futuro, no un rebote de este. */
+    final = _respaldoDeLoYaAprobado(memIn, (t) => juzgar(t, "respaldo"), { pregunta: q, entidades: duenosTenant || [], recienMostrado: recentPrev[0] || null, cederSiRepetida: true });
     if (final !== null) { estado = "respaldo"; suplente = true; }
   }
   if (final === null) { final = composeNoDataMessage(null); estado = "vacio"; suplente = true; }

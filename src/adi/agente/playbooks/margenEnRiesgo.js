@@ -73,8 +73,13 @@ export function lecturaDeMargen(figs) {
  * viene, quiénes están bajo, a quién priorizar, cuánto falta. Sin las dos, este playbook no se activa: un
  * playbook que secuestra turnos ajenos es peor que no tenerlo. «Simula/proyecta» queda AFUERA a propósito: esa
  * ruta es de simulación (la letra de RUTEO ya la manda ahí) y el playbook no la pisa. */
+/* ⚠️ EL FIN DE PALABRA CUANDO LA PALABRA TERMINA EN ACENTO — la trampa que cazó el barrido de
+ * `_agente_contrato_gate` §5g, y acá había TRES casos vivos: `\b` se define sobre [A-Za-z0-9_], así que
+ * `qu[eé]\b` NO veía «qué» (con tilde, que es como se escribe), `supon(?:e|é)\b` NO veía «suponé» y
+ * `la causa (?:es|está)\b` NO veía «está». `_FIN` es el cierre que sí cuenta vocales acentuadas y ñ. */
+const _FIN = "(?![a-záéíóúüñ])";
 const _TEMA_MARGEN = /\bm[aá]rgen(?:es)?\b|\bbenchmark\b|\bvara\b|\brentabilidad\b/i;
-const _PIDE_LECTURA = /\bc[oó]mo\b|\bqu[eé]\b|\bqui[eé]n(?:es)?\b|\bcu[aá]l(?:es)?\b|\bcu[aá]nto\b|\bd[oó]nde\b|\bprioriza|\bprioridad\b|\bprimero\b|\brevis|\bmejor(?:ar|a)\b|\bbajo\b|\bdebajo\b|\briesgo\b|\bdame\b|\bmu[eé]stra|\blista\b|\branking\b/i;
+const _PIDE_LECTURA = new RegExp(`\\bc[oó]mo${_FIN}|\\bqu[eé]${_FIN}|\\bqui[eé]n(?:es)?${_FIN}|\\bcu[aá]l(?:es)?${_FIN}|\\bcu[aá]nto${_FIN}|\\bd[oó]nde${_FIN}|\\bprioriza|\\bprioridad\\b|\\bprimero\\b|\\brevis|\\bmejor(?:ar|a)\\b|\\bbajo\\b|\\bdebajo\\b|\\briesgo\\b|\\bdame\\b|\\bmu[eé]stra|\\blista\\b|\\branking\\b`, "i");
 /* ⚠️ LO QUE QUEDA AFUERA, Y POR QUÉ (calibrado contra el corpus de exámenes, cero gasto — cazó tres casos):
  *   · simulación/proyección — esa ruta es de simulateGeneral y la letra de RUTEO ya la manda ahí;
  *   · OTRO EJE — este playbook lee el margen POR CLIENTE. «Ranking de SKU por peor rotación cruzado con
@@ -83,7 +88,7 @@ const _PIDE_LECTURA = /\bc[oó]mo\b|\bqu[eé]\b|\bqui[eé]n(?:es)?\b|\bcu[aá]l(
  *   · OTRO PERÍODO — «compara Q1 vs Q2 en ventas, margen y contribución» (examen 3 t1) es una pregunta de
  *     corte temporal; el dato no lo sostiene y el camino honesto es declinar, no traer la foto anual.
  * Un playbook que se activa de más es peor que no tenerlo: secuestra el turno Y le aplica promesas ajenas. */
-const _FUERA = /\bsimul|\bproyect|\bqu[eé] pasa si\b|\bpon[eé]le que\b|\bsupon(?:e|é|gamos)\b|\bsku\b|\bproducto/i;
+const _FUERA = new RegExp(`\\bsimul|\\bproyect|\\bqu[eé] pasa si\\b|\\bpon[eé]le que\\b|\\bsupon(?:e|é|gamos)${_FIN}|\\bsku\\b|\\bproducto`, "i");
 /* el eje de ESTE playbook es CLIENTE. Cualquier otro eje nombrado lo deja afuera — incluido el que el dato no
  * tiene: «ranking de puntos de venta… no mezcles clientes con puntos de venta» (examen 3 t4) se responde
  * declinando que ese eje no existe, y un playbook de clientes ahí es exactamente la mezcla que el usuario pidió
@@ -207,9 +212,11 @@ export const margenEnRiesgo = {
      * dominio los nombra —incluida la que hay que vetar («cede margen porque su equipo negocia mal»)— y la
      * regla quedaría muerta. Lo que sostiene una causa es el mecanismo declarado por el motor o una cifra. */
     const MECANISMOS = /carga comercial|rebate|contribuci[oó]n no capturada|capital frenado|peso del costo|\bcosto\b|benchmark/i;
-    const CIFRA = /\$\s?[\d.,]+\s?[KMB]?|[\d.,]+\s*(?:%|pp)\b/;
+    // el «%» sin `\b` detrás (ver la nota de _CIFRA_EN_MULTA en bucleAgente): con `\b` esta regla no veía
+    // NINGÚN porcentaje, y en este playbook casi toda cifra que ancla una causa es un margen.
+    const CIFRA = /\$\s?[\d.,]+\s?[KMB]?|[\d.,]+\s*%|[\d.,]+\s*(?:pp|x)\b/;
     for (const oracion of t.split(/[.!?\n]+/)) {
-      if (!/\bporque\b|\bse debe a\b|\bla causa (?:es|está)\b|\bes consecuencia de\b|\bexplica por qu[eé]\b/i.test(oracion)) continue;
+      if (!new RegExp(`\\bporque\\b|\\bse debe a\\b|\\bla causa (?:es|está)${_FIN}|\\bes consecuencia de\\b|\\bexplica por qu[eé]${_FIN}`, "i").test(oracion)) continue;
       if (!MECANISMOS.test(oracion) && !CIFRA.test(oracion)) {
         v.push({ regla: "causa-sin-respaldo",
           multa: "afirmas una causa que el dato no declara: este playbook LOCALIZA (dónde está el exceso y cuánto es); para el porqué hace falta evidencia que este dato no trae. Reformula como localización o di que la causa no está medida." });

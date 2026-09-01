@@ -38,6 +38,10 @@ export const PRINCIPIOS_RUTEO = [
   "Una proyección pedida («proyecta +4%», «qué pasa si sube X») va por las herramientas de simulación — jamás por el resumen ejecutivo.",
   "Si el usuario pre-autoriza el cálculo bajo un supuesto declarado («corrígelo antes de calcular»), ejecuta el cálculo ETIQUETADO con la interpretación declarada y ofrece el recálculo alternativo — no frenes con otra pregunta.",
   "El menú de una aclaración solo ofrece cortes que el dato sostiene — una opción incumplible es una promesa falsa.",
+  // P1 de la corrida 4 (owner, textual): «Si digo "mi venta" con un supuesto de crecimiento/proyección, toma
+  // por defecto la venta total del negocio, salvo que el contexto indique otra entidad».
+  "«Mi venta» con un supuesto de crecimiento o proyección es la venta TOTAL del negocio: ese es el default y no se pregunta. Solo si el contexto nombra otra entidad, esa manda.",
+  "Al aclarar una ambigüedad, plantéala en palabras o con una cifra verificada — nunca con un ejemplo numérico inventado sobre una entidad real.",
 ].map((s) => `- ${s}`).join("\n");
 
 /* ── EL VETO MECÁNICO · vetosDeContrato(texto) → [{ regla, multa }] ─────────────────────────────────────────────
@@ -114,9 +118,36 @@ function _internosRe() {
   return _reInternos;
 }
 
-export function vetosDeContrato(texto) {
+/* P1 DE LA CORRIDA 4 · «MI VENTA» CON SUPUESTO = LA VENTA TOTAL DEL NEGOCIO ─────────────────────────────────
+ * Palabra del owner (textual): «Si digo "mi venta" con un supuesto de crecimiento/proyección, toma por defecto
+ * la venta total del negocio, salvo que el contexto indique otra entidad». Medido en la corrida 4, dos turnos
+ * verdes que no respondieron nada: T8 «ponele que el año que viene crezco 3%: cuánto sería mi venta?» →
+ * «¿Global o Por cliente? ¿Cuál es tu supuesto?» · T21 «Con ESE TOTAL ANUAL, proyecta 12 meses con +4%» → la
+ * misma pregunta, con el contexto ya nombrando la entidad en la propia frase del usuario.
+ * LA REGLA ES CIEGA Y CONSERVADORA: multa solo cuando la pregunta pide una proyección, NO nombra ninguna
+ * entidad del tenant, y la respuesta le devuelve al usuario la elección de entidad. Si la pregunta nombra una
+ * entidad, el default no aplica y no se juzga: «esa manda», como dijo el owner. */
+const _PIDE_PROYECCION = /\bproyect|\bcrec(?:e|és|es|imiento)|\bsi (?:sube|aumenta|baja)\b|pon[eé]le que|qu[eé] pasa si/i;
+/* ⚠️ SIN `\b` DESPUÉS DEL «%» — la misma trampa de `_FIN`, y me mordió por segunda vez el mismo día. `\b` se
+ * define sobre [A-Za-z0-9_]: entre «%» y «:» (o un espacio) NO hay frontera, así que `/\d%\b/` no matchea
+ * «crezco 3%:» ni «+4% y dime». El «%» ya delimita solo; el `\b` queda SOLO donde la palabra termina en letra
+ * («pp»). REGLA DE LA CASA: un `\b` después de un carácter que no es [A-Za-z0-9_] —%, $, á, ñ— no existe. */
+const _CIFRA_SUPUESTO = /\d[\d.,]*\s*(?:%|pp\b)/;
+const _DEVUELVE_LA_ELECCION = /\bglobal\b[\s\S]{0,80}\bpor cliente\b|\bpor cliente\b[\s\S]{0,80}\bglobal\b|sobre cu[aá]l entidad|qu[eé] entidad|cu[aá]l es tu supuesto/i;
+
+export function vetosDeContrato(texto, contexto = {}) {
   if (typeof texto !== "string" || !texto.trim()) return [];
   const v = [];
+
+  const _q = String(contexto.pregunta || "");
+  if (_q && _PIDE_PROYECCION.test(_q) && _CIFRA_SUPUESTO.test(_q) && _DEVUELVE_LA_ELECCION.test(texto)) {
+    const _ents = Array.isArray(contexto.entidades) ? contexto.entidades : [];
+    const nombraEntidad = _ents.some((e) => new RegExp(`\\b${String(e).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(_q));
+    if (!nombraEntidad) {
+      v.push({ regla: "proyeccion-sin-default",
+        multa: "no le devuelvas la elección: cuando pide una proyección sobre «su» venta sin nombrar una entidad, el default es la VENTA TOTAL DEL NEGOCIO. Proyecta sobre el total, dilo («proyección sobre la venta total del negocio»), y ofrece el corte por cliente como alternativa si lo quiere." });
+    }
+  }
   const parrafos = texto.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
   const cierre = parrafos.length ? parrafos[parrafos.length - 1] : "";
   // el cierre se juzga línea a línea (una lista final de acciones imperativas también es un cierre que ordena)

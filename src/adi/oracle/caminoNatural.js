@@ -124,18 +124,28 @@ export function _respaldoDeLoYaAprobado(memIn, juzgar, contexto = {}) {
   };
 
   /* T26: la misma pantalla dos veces seguidas no informa — si lo aprobado ES lo que el usuario acaba de ver,
-   * este peldaño no tiene nada nuevo que ofrecer y CEDE al siguiente.
+   * este peldaño no tiene nada nuevo que ofrecer.
    *
-   * ⚠️ C1 DE LA CORRIDA 3 (2026-08-31): acá vivía una frase FIJA («No pude armar la lectura nueva que pediste.
-   * Lo que te respondí recién sigue verificado y en pie — dime qué parte profundizo…») y era el defecto que el
-   * owner marcó como «disculpa vacía» y «molde único». Dos medidas lo prueban: (a) la condición de arriba es
-   * VERDADERA POR CONSTRUCCIÓN después de cualquier turno aprobado —el bucle escribe la misma pantalla en
-   * `ultimaAprobada` y en `recentNarrations[0]`—, así que una salvaguarda para un caso raro se volvió la
-   * respuesta por defecto del respaldo: cuatro preguntas de familias distintas (T17·T19·T24·T27) recibieron la
-   * MISMA cadena de 153 caracteres; (b) una vez en el hilo, el cerebro la copiaba (T20). Ceder es la corrección
-   * completa: sin frase fija no hay molde que repetir ni que contagiar, y el turno cae al peldaño que SÍ sabe
-   * armar un límite con su alternativa. */
-  if (recienMostrado && recienMostrado.trim() === previa.trim()) return null;
+   * ⚠️ C1 DE LA CORRIDA 3 (2026-08-31), Y SU ALCANCE ACOTADO POR EL OWNER: la frase fija de abajo era el
+   * defecto que él marcó como «disculpa vacía» y «molde único» — su condición es VERDADERA POR CONSTRUCCIÓN
+   * después de cualquier turno aprobado (el caller escribe la misma pantalla en `ultimaAprobada` y en
+   * `recentNarrations[0]`), así que una salvaguarda para un caso raro se volvió la respuesta por defecto:
+   * cuatro preguntas de familias distintas (T17·T19·T24·T27) recibieron la MISMA cadena de 153 caracteres, y
+   * una vez en el hilo el cerebro la copiaba (T20).
+   *
+   * PERO ESTE PELDAÑO LO COMPARTEN DOS CAMINOS, y el natural está VIVO en producción (`ADI_CAMINO_NATURAL` va
+   * en el perfil `prod`; la bandera apagada es `ADI_AGENTE`, que es otra cosa). Medido antes de tocar: al ceder,
+   * el turno del camino natural pasaba de esta frase de 153 chars al tablero de KPIs de `suplenteDignoDelDato`,
+   * 1.174 chars. PALABRA DEL OWNER (2026-08-31, textual): «No quiero que una reparación diseñada y medida para
+   * el agente cambie de rebote ADI_CAMINO_NATURAL en producción. La disculpa vacía del camino actual la podemos
+   * corregir después con un fallback propio, ejecutivo y breve; no quiero reemplazarla automáticamente por un
+   * tablero largo.» Así que CEDE SOLO QUIEN LO PIDE: el agente pasa `cederSiRepetida` y cae a su peldaño de
+   * límite con alternativa; el camino natural no lo pasa y queda BYTE-IDÉNTICO a hoy, con su pendiente
+   * declarado en el mapa (§11c del F1: fallback propio, ejecutivo y breve — NO el tablero). */
+  if (recienMostrado && recienMostrado.trim() === previa.trim()) {
+    if (contexto.cederSiRepetida) return null;
+    return _sellar("No pude armar la lectura nueva que pediste. Lo que te respondí recién sigue verificado y en pie — dime qué parte profundizo o pídeme otro corte del dato.");
+  }
 
   // T13/T24: ¿la pregunta nombra entidades o temas que la respuesta vieja NO trae?
   // Una entidad ajena mata la pertinencia sola (el caso grave); los temas se miden por mayoría.

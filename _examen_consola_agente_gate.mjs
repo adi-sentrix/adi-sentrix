@@ -34,9 +34,12 @@ ok(C.includes("la ruta del agente se prueba con --agente"),
   "el sello del natural ya no habla por el agente");
 
 console.log("\n2 · R-eco + P3: el tier caro SOLO con boleta no vacía Y con el hilo bajo el techo");
-ok(C.includes('const paso = (attempt > 0 || cierre) && (figsEnBoleta | 0) > 0 && _charsHilo <= TECHO_ENTRADA_CIERRE_CHARS ? "cierre" : "herramientas";'),
-  "la consola condiciona la escalada a figsEnBoleta > 0 y al techo del hilo");
-ok(CH.includes('const paso = (cierre || attempt > 0) && (figsEnBoleta | 0) > 0 && _charsHilo <= TECHO_ENTRADA_CIERRE_CHARS ? "cierre" : "herramientas";'),
+/* el criterio creció con P2(ii) (owner 2026-08-31): además de la boleta, escala cuando la multa NOMBRA una
+ * cifra — corregir eso es reescribir una oración, que es lo que un modelo mejor sabe hacer. Medido antes de
+ * aprobarlo: 2 escaladas nuevas en los 28 turnos de la corrida 4, no una puerta abierta. */
+ok(C.includes('const paso = (attempt > 0 || cierre) && ((figsEnBoleta | 0) > 0 || vetoConCifra) && _charsHilo <= TECHO_ENTRADA_CIERRE_CHARS ? "cierre" : "herramientas";'),
+  "la consola escala con boleta llena O con un veto que nombra cifra, y bajo el techo del hilo");
+ok(CH.includes('const paso = (cierre || attempt > 0) && ((figsEnBoleta | 0) > 0 || vetoConCifra) && _charsHilo <= TECHO_ENTRADA_CIERRE_CHARS ? "cierre" : "herramientas";'),
   "el adapter de producción (_fetchAgente) aplica el MISMO criterio");
 /* P3 de la corrida 2: el techo es UNA sola verdad — si consola y producción lo escribieran cada una, el día que
  * se ajuste uno el otro seguiría pagando. Los dos lo IMPORTAN del bucle. */

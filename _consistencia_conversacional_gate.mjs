@@ -30,6 +30,7 @@ import { pathToFileURL } from "node:url";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { _respaldoDeLoYaAprobado } from "./src/adi/oracle/caminoNatural.js";   // (B) del owner: el peldaño compartido, probado en sus dos modos
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -65,9 +66,13 @@ for (const [fam, q, pedidos] of FAMILIAS) {
     salidas.map((s) => `${s.fam}:${s.texto.length}`).join(" · "));
   ok(!textos.some((t) => /sigue verificado y en pie — dime qué parte profundizo/.test(t)),
     "★ la cadena de 153 chars que recibieron T17·T19·T24·T27 no existe más");
+  /* ⚠️ EL ALCANCE, ACOTADO POR EL OWNER: la frase SIGUE VIVA para el camino natural, que corre en producción
+   * («no quiero que una reparación diseñada y medida para el agente cambie de rebote ADI_CAMINO_NATURAL»). Lo
+   * que se exige acá es que el AGENTE no la use nunca; que el natural la conserve BYTE-IDÉNTICA se prueba en
+   * la sección 6, y su corrección propia es un encargo futuro (§11c del F1). */
   const src = fs.readFileSync(path.join(process.cwd(), "src", "adi", "oracle", "caminoNatural.js"), "utf8");
-  ok(!/No pude armar la lectura nueva que pediste\. Lo que te respondí recién/.test(src),
-    "…y tampoco vive en el código: se quitó la frase, no se la escondió");
+  ok(/if \(contexto\.cederSiRepetida\) return null;/.test(src),
+    "…y en el agente la frase no se usa: el peldaño cede cuando el caller lo pide");
 }
 
 /* ═══ 2 · NUNCA DISCULPA VACÍA · con evidencia en la mano, se responde con ella ═══════════════════════════════
@@ -119,6 +124,28 @@ H("4 · misma familia, tamaños comparables (el contraste 6 vs 12)");
     "…y el foco es el mismo: las dos entregan la lectura, no una disculpa");
 }
 
+/* ═══ 6 · EL CAMINO NATURAL QUEDA BYTE-IDÉNTICO (la opción (B) del owner) ════════════════════════════════════
+ * «No quiero que una reparación diseñada y medida para el agente cambie de rebote ADI_CAMINO_NATURAL en
+ * producción» (textual). El camino natural está VIVO en prod (`ADI_CAMINO_NATURAL` va en el perfil `prod`; la
+ * apagada es `ADI_AGENTE`). Medido antes de acotar: al ceder, su turno pasaba de 153 chars a los 1.174 del
+ * tablero de KPIs. Acá se prueba que su conducta NO se movió. */
+H("6 · el arreglo vive solo donde el examen lo midió: el camino natural, intacto");
+{
+  const YA_VISTO = "Las ventas totales del negocio suman $99.9M contra un presupuesto de $97.0M.";
+  const memIn = { ultimaAprobada: YA_VISTO, recentNarrations: [YA_VISTO] };
+  const ctx = { pregunta: "dame un resumen para directorio con los 3 riesgos", entidades: [], recienMostrado: YA_VISTO };
+  const natural = _respaldoDeLoYaAprobado(memIn, null, ctx);                          // sin la señal → camino natural
+  const agente = _respaldoDeLoYaAprobado(memIn, null, { ...ctx, cederSiRepetida: true });   // con la señal → agente
+  ok(typeof natural === "string" && /sigue verificado y en pie — dime qué parte profundizo/.test(natural),
+    "★ el camino natural conserva su conducta de hoy, byte-idéntica", String(natural).slice(0, 80));
+  ok(agente === null, "★ y el agente cede, para caer a su límite con alternativa");
+  const F1 = fs.readFileSync(path.join(process.cwd(), "_ADI_AGENTE_F1_DISENO.md"), "utf8");
+  // (el markdown mete negritas en medio de la frase — se buscan los dos hechos, no una cadena literal)
+  ok(/11c · EL FALLBACK PROPIO DEL CAMINO NATURAL/.test(F1) && /fallback propio.*ejecutivo y breve/i.test(F1)
+    && /\bNO\b\**\s*el tablero de KPIs/i.test(F1),
+    "…y el pendiente del owner queda anotado en el mapa: fallback propio del camino natural, NO el tablero");
+}
+
 /* ═══ 5 · CARNADAS ══════════════════════════════════════════════════════════════════════════════════════════ */
 H("5 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
@@ -150,8 +177,8 @@ H("5 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (a) C1 · la frase fija de vuelta: las familias distintas vuelven a compartir cadena
   await carnada("la frase de molde reinstalada (C1)", "src/adi/oracle/caminoNatural.js",
-    [[/  if \(recienMostrado && recienMostrado\.trim\(\) === previa\.trim\(\)\) return null;/,
-      '  if (recienMostrado && recienMostrado.trim() === previa.trim()) return _sellar("No pude armar la lectura nueva que pediste. Lo que te respondí recién sigue verificado y en pie — dime qué parte profundizo o pídeme otro corte del dato.");']],
+    // el defecto que se reinstala: el AGENTE deja de ceder y vuelve a comer la frase de molde
+    [[/    if \(contexto\.cederSiRepetida\) return null;\n/, ""]],
     /* se prueba EL PELDAÑO, no el bucle: la copia mutada de caminoNatural no es la que el bucle importa, y lo
      * que hay que cazar es exactamente su salida — la misma frase para dos preguntas de familias distintas. */
     async (Mut) => {
