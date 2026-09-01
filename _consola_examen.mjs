@@ -201,7 +201,18 @@ if (flag("--estado")) {
   for (const [i, t] of S.turnos.entries()) console.log(`  ${i + 1}. [${t.estado}${t.vetos.length ? " · " + t.vetos.join("|") : ""}] ${t.q.slice(0, 70)}`);
   process.exit(0);
 }
-const q = args.find((a) => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--titulo");
+/* ⚠️ LA PREGUNTA SE CONFUNDÍA CON EL VALOR DE UNA BANDERA · defecto REAL, costó una llamada (2026-09-01).
+ * Esta línea excluía el valor de UNA sola bandera —`--titulo`— nombrándola a mano, así que el valor de las
+ * otras tres quedaba disponible para ser tomado como pregunta. Medido: `--planilla <ruta> --sello` corrió un
+ * TURNO COMPLETO con la ruta del archivo como pregunta —US$0.0748— en vez de imprimir el sello y salir. El
+ * sello nunca se imprimía y, peor, cada `--reset` de un escenario con planilla habría gastado un turno en
+ * basura antes de empezar: la certificación entera arrancaba torcida.
+ * Se declara qué banderas LLEVAN VALOR, una sola vez. Agregar una bandera nueva sin valor ya no puede romper
+ * esto; agregar una CON valor exige anotarla acá, que es donde se mira.
+ * (Y se usa el índice del callback: `indexOf` devuelve la PRIMERA aparición, así que un valor repetido —dos
+ * rutas iguales, o una pregunta igual a un valor— se evaluaba contra la bandera equivocada.) */
+const BANDERAS_CON_VALOR = new Set(["--titulo", "--planilla", "--tenant", "--fecha"]);
+const q = args.find((a, i) => !a.startsWith("--") && !BANDERAS_CON_VALOR.has(args[i - 1]));
 /* ⚠️ EL RESET TIENE QUE GUARDARSE (medido 2026-08-14 en la 2ª corrida del examen 1): `--reset` sin pregunta
  * armaba el estado nuevo EN MEMORIA y salía por la puerta del «Uso:» sin escribir el archivo — así que el examen
  * siguiente arrancaba con el hilo viejo adentro y el turno 1 se corría con cinco turnos de contexto ajeno. */
