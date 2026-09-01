@@ -481,8 +481,11 @@ H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro")
   // (el sitio de la mutación creció al sumarse la lista notarial de los playbooks al MISMO juez — la carnada
   //  sigue midiendo lo mismo: sin el juez de contrato, la orden llega a pantalla)
   await carnada("el bucle sin el juez de sugerencias", "src/adi/agente/bucleAgente.js",
-    // (el sitio creció otra vez: el juez recibe el contexto de la pregunta desde P1 — la carnada mide lo mismo)
-    [[/    const vc = \[\.\.\.vetosDeContrato\(t, \{ pregunta: q, entidades: duenosTenant \|\| \[\] \}\), \.\.\.\(playbookActivo \? vetosDelPlaybook\(playbookActivo, t, \{ figs: figsTotales \}\) : \[\]\)\];/, "    const vc = [];"]],
+    /* (el sitio creció DOS veces: primero el juez recibió el contexto de la pregunta desde P1, y después se le
+     * sumó el tercer juez —`cifra-sin-boleta`— y el armado pasó a tres líneas. La carnada mide lo mismo: el
+     * bucle sin el juez de sugerencias. Se re-apunta al armado de hoy en vez de dejarla muerta.) */
+    [[/    const vc = \[\.\.\.vetosDeContrato\(t, \{ pregunta: q, entidades: duenosTenant \|\| \[\] \}\),\r?\n      \.\.\.\(vSinBoleta \? \[vSinBoleta\] : \[\]\),\r?\n      \.\.\.\(playbookActivo \? vetosDelPlaybook\(playbookActivo, t, \{ figs: figsTotales \}\) : \[\]\)\];/,
+      "    const vc = [];"]],
     async (Mut) => {
       initTenant(PACK);
       const guion = async ({ ronda }) => ronda === 1

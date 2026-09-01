@@ -44,7 +44,8 @@ import { normalizeResponse } from "../responseContract.js";
 import { _respaldoDeLoYaAprobado } from "../oracle/caminoNatural.js";
 import { recitaAprobadaDe } from "../oracle/cicloNotarial.js";   // R2 del examen 1: la MISMA memoria de re-cita del camino natural — jamás una segunda paralela
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
-import { vetosDeContrato, esIdentificadorInterno } from "./contratoAgente.js";   // F3 · el juez ciego de sugerencias — se SUMA a guardC, no lo toca
+import { vetosDeContrato, esIdentificadorInterno } from "./contratoAgente.js";
+import { vetoCifraSinBoleta } from "./cifraSinBoleta.js";   // el juez del turno que NO leyó — vive SOLO en el agente (ver su cabecera)
 import { getNombreUsuario, setNombreUsuario } from "./preferenciaNombre.js";   // R4c · el trato viaja en los rescates y persiste por `mem`
 import { detectSerieIntent, composeSerieIntent } from "../oracle/serieIntent.js";   // R9 · el puente, también en modo agente
 import { playbookPara, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook } from "./playbooks/registro.js";   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
@@ -454,10 +455,28 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       vetosDelTurno.push(`${sitio} · ${String(_multaDe(v)).split("\n")[0].slice(0, 180)}`);
       return v;
     }
-    /* AL MURO SE LE SUMAN DOS JUECES, y ninguno lo toca: el contrato F3 (el cierre que ordena) y —solo cuando
-     * un playbook está activo— SU lista notarial, que chequea las promesas de ESE procedimiento. La lista es
-     * del playbook, no del bucle: el notario crece por reglas declaradas, jamás por comprensión. */
-    const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [] }), ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales }) : [])];
+    /* AL MURO SE LE SUMAN TRES JUECES, y ninguno lo toca: el contrato F3 (el cierre que ordena), el juez del
+     * turno que no leyó (`cifra-sin-boleta`, ver su archivo) y —solo cuando un playbook está activo— SU lista
+     * notarial, que chequea las promesas de ESE procedimiento. La lista es del playbook, no del bucle: el
+     * notario crece por reglas declaradas, jamás por comprensión.
+     *
+     * EL DE LA BOLETA VACÍA VIVE ACÁ Y SOLO ACÁ (condición del owner y del supervisor): el camino natural
+     * corre en producción con la boleta vacía SIEMPRE, así que esta regla allá no lo endurecería — lo
+     * apagaría. Se le pasa `figsTotales.length`, que es la boleta REAL del turno.
+     *
+     * ⚠️ Y JUZGA AL CEREBRO, NO A LOS PELDAÑOS. Medido al conectarlo: aplicado a toda la función tumbaba 9
+     * checks del gate del bucle, todos de la escalera. Tiene sentido — los peldaños NO inventan cifras: la
+     * línea honesta sirve una que ya pasó el muro, el respaldo replica un texto aprobado y la re-cita repite
+     * lo que el usuario ya vio (que con boleta vacía es VERDE por diseño, la raíz de T13/T24). El defecto que
+     * este juez existe para cazar lo cometió el CEREBRO, en su cierre. Multar al rescate por una cifra que el
+     * bucle ya verificó es castigar al que arregla. */
+    const vSinBoleta = (sitio === "cierre" || sitio === "reparacion") ? vetoCifraSinBoleta({
+      texto: t, figsEnBoleta: figsTotales.length, pregunta: q,
+      recitaAprobada: recita, datoProyectado: cifrasDelDato(scenario),
+    }) : null;
+    const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [] }),
+      ...(vSinBoleta ? [vSinBoleta] : []),
+      ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales }) : [])];
     if (!vc.length) return v;
     vetosDelTurno.push(`${sitio} · ${vc[0].regla}: ${vc[0].multa.split("\n")[0].slice(0, 160)}`);
     return { ok: false, violations: vc.map((x) => ({ rule: x.regla, detalle: x.multa })), multa: vc.map((x) => x.multa).join("\n") };

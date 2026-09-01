@@ -76,8 +76,14 @@ H("1 · feliz: una ronda de herramientas + cierre → verde con boleta");
 H("2 · el guion malicioso inventa una cifra: veto → reparación → verde; sin reparar → escalera honesta");
 {
   initTenant(PACK);
+  /* ⚠️ EL GUION AHORA LEE ANTES DE HABLAR, y no es para que el gate pase. Antes afirmaba «$22.560 en agosto»
+   * SIN correr una sola herramienta: un cerebro que acierta la cifra sin haberla leído sigue siendo un cerebro
+   * que la inventó, y desde `cifra-sin-boleta` eso se multa (es el hueco del $800K del turno 7). El ciclo que
+   * este bloque prueba —veto → UNA reparación → verde, y sin reparar la escalera honesta— no cambia: lo que
+   * cambia es que el guion hace lo que haría el cerebro de verdad, leer y después narrar. */
   let reparo = 0;
-  const guionRepara = async ({ attempt }) => {
+  const guionRepara = async ({ ronda, attempt }) => {
+    if (ronda === 1 && attempt === 0) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
     if (attempt === 1) { reparo++; return { tipo: "texto", texto: TEXTO_BUENO }; }
     return { tipo: "texto", texto: "Depósito Riachuelo te compró $99.9M el último mes — un récord histórico." };
   };
@@ -206,7 +212,14 @@ H("8 · la re-cita: lo aprobado presta sus cifras al turno siguiente");
    * sola, con o sin memoria — la lección del refutado B-grieta-2 del expediente.) Mecánica, no literales. */
   initTenant(TENANT_DEMO);
   const Q1 = "Si subo ventas 4%, ¿qué cambia?";
-  const T1 = "Ventas totales del negocio: $100.0M proyectados × 1.04 = $104.0M. Es una proyección con tu supuesto.";
+  /* ⚠️ EL TURNO 1 AHORA DECLARA SU CUENTA, y no es un ajuste para que el gate pase: es la conducta que la casa
+   * pide desde que existe `cifra-sin-boleta`. Antes hacía la cuenta EN PROSA con la boleta vacía, que es
+   * exactamente el hueco por el que salió el $800K del turno 7 de la certificación. El camino para una cifra
+   * derivada es el bloque [[CALCULO]] —el mecanismo del owner, 2026-08-14—: guardC lo RECOMPUTA y, si cierra
+   * con insumos autorizados, autoriza el resultado. Medido acá: en prosa el turno cae a `vacio`; declarado
+   * sale VERDE y acumula la re-cita igual. Lo que este bloque prueba —el cable de la re-cita— no cambió; lo
+   * que cambió es que el vehículo ahora muestra el trabajo. */
+  const T1 = "Ventas totales del negocio: $100.0M proyectados × 1.04 = $104.0M. Es una proyección con tu supuesto.\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money\n";
   const t1 = await answerViaAgente({ text: Q1, history: [], mem: {}, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: T1 }) });
   const nRecita = ((t1.mem.recitaAprobada || {}).figs || []).length;
   ok(t1.r.agente.estado === "verde" && nRecita >= 2, `el turno verde ACUMULA la re-cita (${nRecita} cifras con dueño)`);
@@ -632,7 +645,9 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (f) R2 · la re-cita desconectada del muro: el turno 2 que re-cita lo aprobado vuelve a morir
   const Q1_C = "Si subo ventas 4%, ¿qué cambia?";
-  const T1_C = "Ventas totales del negocio: $100.0M proyectados × 1.04 = $104.0M. Es una proyección con tu supuesto.";
+  // el MISMO texto del bloque 8, con su cuenta declarada: sin el [[CALCULO]] el turno ya no llega a verde
+  // (`cifra-sin-boleta`) y la carnada dejaba de medir lo suyo — una carnada que no llega al sitio no prueba nada.
+  const T1_C = "Ventas totales del negocio: $100.0M proyectados × 1.04 = $104.0M. Es una proyección con tu supuesto.\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money\n";
   await carnada("re-cita sin cablear al muro (la regresión del examen 1)",
     [[/    recitaAprobada: recita,   \/\/ R2: cifras aprobadas a pantalla en turnos previos — el muro las re-autoriza con su dueño\n/, ""]],
     async (Mut) => {
