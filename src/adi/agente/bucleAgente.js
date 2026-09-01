@@ -31,7 +31,7 @@ import { runPlan } from "../oracle/toolRunner.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
 import { cajaDelAgente } from "./herramientasAgente.js";
 import { doctrinasParaRonda } from "./doctrinaAgente.js";
-import { mapaDelDato } from "./mapaDelDato.js";
+import { mapaDelDato, faltanteQueToca } from "./mapaDelDato.js";   // + lo que el archivo del usuario no trajo (owner 2026-08-31)
 import { guardC, esNarracionVacia } from "../oracle/guardC.js";
 import { cifrasDelDato } from "../oracle/datoProyectado.js";
 import { axisEntityNames } from "../oracle/entityIndex.js";
@@ -131,7 +131,7 @@ function _resumenDeRonda(rp) {
 const _METRICAS_REFUTACION = ["margen", "venta", "ventas", "contribución", "contribucion", "carga", "capital",
   "inventario", "rotación", "rotacion", "unidades", "acciones", "costo"];
 const _reWord = (t) => new RegExp(`\\b${String(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-function _lineaHonesta({ motivos, figs, juzgar, entidades }) {
+function _lineaHonesta({ motivos, figs, juzgar, entidades, falta }) {
   const motivo = motivos.length ? motivos[motivos.length - 1] : null;
   /* las cifras salen de la BOLETA ACUMULADA — verificadas por el muro antes de adoptarse, nunca compuestas
    * libres (F1 §9.3). Obligatorias primero.
@@ -201,9 +201,13 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades }) {
 
   /* sin un LÍMITE que nombrar ni contenido que ofrecer, este peldaño no tiene nada honesto que decir: cede al
    * siguiente. Una disculpa sin cifra ni alternativa no es una respuesta (criterio del owner). */
-  if (!motivo && !candidatas.length && !refutacion) return null;
+  if (!motivo && !candidatas.length && !refutacion && !falta) return null;
+  /* SI LO QUE FALTA ES DEL ARCHIVO, SE NOMBRA (owner 2026-08-31): «tu archivo no trae la hoja Abonos: con
+   * ella te abro quién te debe». Eso es el «límite corto CON alternativa» aplicado al dato incompleto — decir
+   * la CAUSA, no la consecuencia, y con el nombre de la columna o la hoja tal como la ingesta la nombró. */
   const _armar = (fig) => [
-    motivo ? `No pude completar la lectura que pediste: ${motivo}.` : "No pude completar la lectura que pediste con la calidad que corresponde.",
+    falta ? `Tu archivo no trae ${falta.pieza}: con eso te abro ${falta.abre}.`
+      : motivo ? `No pude completar la lectura que pediste: ${motivo}.` : "No pude completar la lectura que pediste con la calidad que corresponde.",
     fig ? `Lo que sí tengo verificado: ${fig.label} = ${fig.text || fig.value}.` : null,
     refutacion,
     alternativa(fig) || "Dime por dónde quieres que siga y lo trabajo sobre lo disponible.",
@@ -522,7 +526,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     }
   }
   if (final === null) {
-    final = _lineaHonesta({ motivos: motivosNoSoportado, figs: figsTotales, juzgar: (t) => juzgar(t, "linea-honesta"), entidades: duenosTenant || [] });
+    final = _lineaHonesta({ motivos: motivosNoSoportado, figs: figsTotales, juzgar: (t) => juzgar(t, "linea-honesta"), entidades: duenosTenant || [], falta: (() => { try { return faltanteQueToca(q); } catch { return null; } })() });
     if (final !== null) { estado = "limite"; suplente = true; }
   }
   if (final === null) {

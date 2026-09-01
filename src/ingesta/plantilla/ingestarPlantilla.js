@@ -11,6 +11,7 @@
 import { validarPlantilla } from "./validarPlantilla.js";
 import { calcularDataset } from "./motorKpi.js";
 import { disponibilidadSentrix } from "../disponibilidad.js";
+import { HOJAS } from "../../config/contract/plantilla.js";   // para derivar QUÉ no trajo el archivo, contra el contrato
 
 /* ingestarPlantilla(archivo, { nombreArchivo }) → { ok, dataset, preview } */
 export function ingestarPlantilla(archivo, { nombreArchivo = "", fechaCarga = null } = {}) {
@@ -57,8 +58,40 @@ export function ingestarPlantilla(archivo, { nombreArchivo = "", fechaCarga = nu
     })(),
   };
 
+  /* ── LO QUE EL ARCHIVO NO TRAJO, VIAJANDO CON EL DATO (owner 2026-08-31, vía el criterio «límite corto CON
+   * alternativa disponible») ──────────────────────────────────────────────────────────────────────────────
+   * MEDIDO en el escenario de planilla PARCIAL: la ingesta SABE que «Ventas no trae "punto de venta"» y que no
+   * vino la hoja Abonos, pero eso moría acá, en el preview. Sin esa memoria, ADI puede decir «no tengo el eje
+   * canal» —la consecuencia— y nunca «tu archivo no trae esa columna: con ella te lo abro», que es la conducta
+   * que el owner pidió para el dato incompleto.
+   * ESTRICTAMENTE ADITIVO: una llave NUEVA, nadie cambia de forma ni de valor. Y su ausencia tiene que ser
+   * inofensiva: los packs YA GUARDADOS en la base no la tienen, y un pack viejo debe comportarse exactamente
+   * como hoy — ausencia de la llave NO significa «no faltaba nada», significa «no se registró». Quien la lea
+   * trata `undefined` y `[]` distinto solo si puede probar la diferencia; el mapa, por eso, no dice nada
+   * cuando no está. */
+  /* LAS AUSENCIAS SE DERIVAN DEL CONTRATO, y eso es un HECHO, no una interpretación: el validador ya sabe qué
+   * hojas vinieron y qué columnas trae cada una (`v.hojas[].columnas`), así que comparar contra `HOJAS` dice
+   * exactamente qué falta y con qué nombre. Los avisos propios de la ingesta («clave más gruesa», «benchmark
+   * sin declarar») se conservan igual: dicen otra cosa y ambos sirven. */
+  const _porHoja = new Map((v.hojas || []).map((h) => [h.hoja, h]));
+  const ausencias = [];
+  for (const def of HOJAS) {
+    const info = _porHoja.get(def.nombre);
+    if (!info || !info.presente) { ausencias.push({ tipo: "hoja-ausente", hoja: def.nombre, detalle: `no vino la hoja «${def.nombre}»` }); continue; }
+    const traidas = new Set((info.columnas || []).map((c) => c.campo));
+    for (const c of def.columnas) {
+      if (c.obligatoria || traidas.has(c.campo)) continue;
+      ausencias.push({ tipo: "columna-ausente", hoja: def.nombre, columna: c.titulo, detalle: `«${def.nombre}» no trae la columna "${c.titulo}"` });
+    }
+  }
+  const avisosDeCarga = [
+    ...ausencias,
+    ...[...v.avisos, ...m.avisos].filter((a) => a && a.detalle)
+      .map((a) => ({ tipo: a.tipo, detalle: String(a.detalle), ...(a.hoja ? { hoja: a.hoja } : {}) })),
+  ];
+
   return {
-    ok: true, dataset: d,
+    ok: true, dataset: { ...d, avisosDeCarga },
     /* LOS HECHOS DEL ARCHIVO, tal como los normalizó el validador (owner 2026-08-30: la carga es histórica).
      * Son el grano fino que la persistencia guarda DENTRO del pack para poder fusionar por período: sin las
      * filas, «agregar septiembre» solo podría sumar agregados — y un margen de dos cargas sumadas no es el

@@ -86,7 +86,8 @@ console.log("\n3c · P3 · el camino que la consola usa, probado EN VIVO con una
   const { datosEjemplo } = await import("./src/ingesta/plantilla/generarPlantilla.js");
   const { ingestarPlantilla } = await import("./src/ingesta/plantilla/ingestarPlantilla.js");
   const { initTenant, getTenantData } = await import("./src/data/tenantStore.js");
-  const { mapaDelDato } = await import("./src/adi/agente/mapaDelDato.js");
+  const { mapaDelDato, faltanteQueToca } = await import("./src/adi/agente/mapaDelDato.js");
+  const { answerViaAgente } = await import("./src/adi/agente/bucleAgente.js");
   const { TENANT_DEMO } = await import("./src/data/tenants/demo.js");
 
   const datos = datosEjemplo();
@@ -109,14 +110,53 @@ console.log("\n3c · P3 · el camino que la consola usa, probado EN VIVO con una
   const mapa = mapaDelDato("actual");
   ok(/sin datos en: marca, familia, bodega, canal/.test(mapa),
     "el mapa que ve el agente declara los ejes que este dato no tiene", mapa.split("\n").find((l) => /sin datos/.test(l)));
-  /* ⚠️ LO QUE FALTA PARA EL CRITERIO DEL OWNER, dejado a la vista y no escondido: la ingesta sabe que «Ventas
-   * no trae punto de venta», pero ESO NO VIAJA AL DATASET —muere en el preview—, así que el agente puede decir
-   * «no tengo el eje canal» y no «tu archivo no trae esa columna». Declinar NOMBRANDO la columna es el criterio
-   * del escenario parcial, y exige que el dato lo lleve: toca el camino de ingesta, que está VIVO en
-   * producción, así que se reporta antes de tocarlo. */
-  ok(getTenantData().avisosDeCarga === undefined,
-    "PENDIENTE DECLARADO: el dataset todavía NO lleva los avisos de la carga (por eso el agente no puede nombrar la columna)");
+  /* ── EL PENDIENTE, CERRADO (owner vía supervisor 2026-08-31) ─────────────────────────────────────────────
+   * Lo que la ingesta descubre YA VIAJA con el dato (`avisosDeCarga`), y con eso el agente puede decir la
+   * CAUSA en vez de la consecuencia. Las cuatro condiciones con las que se aprobó, probadas acá: */
+  const d = getTenantData();
+  ok(Array.isArray(d.avisosDeCarga) && d.avisosDeCarga.length > 0,
+    `★ (1) el dataset lleva lo que el archivo NO trajo (${(d.avisosDeCarga || []).length} entradas)`);
+  ok(d.avisosDeCarga.some((a) => /no vino la hoja «Abonos»/.test(a.detalle))
+    && d.avisosDeCarga.some((a) => /«Ventas» no trae la columna "canal"/.test(a.detalle)),
+    "…nombrando la hoja y la columna por su nombre, contra el contrato");
+  const mapaP = mapaDelDato("actual");
+  ok(/TU ARCHIVO NO TRAE \(\d+\)/.test(mapaP) && /no trae la columna "canal"/.test(mapaP),
+    "★ (3) el mapa DECLARA lo que falta con las palabras de la ingesta — no deriva consecuencias nuevas");
+
+  // (4) LA CONDUCTA OBJETIVO: nombra la pieza, no se disculpa ni inventa
+  const mudo = async () => ({ tipo: "texto", texto: "" });
+  const casos = [
+    ["quien me debe y que esta vencido", /Tu archivo no trae la hoja Abonos: con eso te abro quién te debe/],
+    ["dame el ranking por canal", /Tu archivo no trae la columna «canal» de Ventas/],
+    ["cuanto vendi a credito", /Tu archivo no trae la columna «condición» de Ventas/],
+  ];
+  for (const [q, esperado] of casos) {
+    const r = await answerViaAgente({ text: q, history: [], mem: {}, scenario: "actual", callAgente: mudo });
+    ok(esperado.test(r.r.text) && r.r.agente.estado !== "vacio",
+      `★ (4) «${q.slice(0, 34)}…» → nombra la pieza que falta (${r.r.agente.estado})`, r.r.text.slice(0, 120));
+    ok(!/No tengo información autorizada suficiente/.test(r.r.text), "…y no cae en la disculpa genérica");
+  }
+
+  /* (2) EL PACK VIEJO — hay packs REALES guardados en la base sin esta llave. Su conducta tiene que ser
+   * EXACTAMENTE la de hoy: ausencia de la llave NO significa «no faltaba nada», significa «no se registró». */
+  const { plantillaEjemplo } = await import("./src/ingesta/plantilla/generarPlantilla.js");
+  const completa = ingestarPlantilla(plantillaEjemplo(), { nombreArchivo: "completa.xlsx", fechaCarga: "2026-08-31" });
+  const { avisosDeCarga, ...packViejo } = completa.dataset;   // el pack tal como está guardado hoy en la base
+  initTenant(packViejo);
+  ok(!/TU ARCHIVO NO TRAE/.test(mapaDelDato("actual")),
+    "★ (2) con un pack SIN la llave, el mapa no dice nada de faltantes — ausencia ≠ «no faltaba nada»");
+  ok(faltanteQueToca("quien me debe y que esta vencido") === null,
+    "…y nada se inventa por la ausencia del campo");
+  const rViejo = await answerViaAgente({ text: "quien me debe y que esta vencido", history: [], mem: {}, scenario: "actual", callAgente: mudo });
+  ok(/No tengo información autorizada suficiente/.test(rViejo.r.text),
+    "…la conducta del pack viejo es EXACTAMENTE la de hoy, sin crash ni falta inventada", rViejo.r.text.slice(0, 80));
+
+  /* (1) ESTRICTAMENTE ADITIVO: el pack de la planilla completa es el MISMO de siempre salvo la llave nueva. */
+  const clavesViejas = Object.keys(packViejo).sort().join(",");
+  const clavesNuevas = Object.keys(completa.dataset).sort().filter((k) => k !== "avisosDeCarga").join(",");
+  ok(clavesViejas === clavesNuevas, "★ (1) el pack es byte-idéntico en forma salvo la llave nueva");
   initTenant(TENANT_DEMO);
+  ok(getTenantData().avisosDeCarga === undefined, "…y el demo de fábrica, que no pasa por la ingesta, queda intacto");
 }
 
 console.log("\n4 · el protocolo de la segunda corrida existe con su gasto nombrado");

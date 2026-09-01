@@ -130,5 +130,54 @@ export function mapaDelDato(scenario = ESCENARIO_INICIAL) {
   }
   if (limites.length) L.push(`LÍMITES: ${limites.join(" · ")}.`);
 
+  /* ── LO QUE EL ARCHIVO DEL USUARIO NO TRAJO (owner 2026-08-31) ─────────────────────────────────────────────
+   * DECLARA, NO INTERPRETA: se repite lo que la ingesta ya dijo, con sus palabras («Ventas no trae "punto de
+   * venta"»). Las consecuencias ya las dice el mapa arriba («sin datos en: canal»); esto es la CAUSA, que es
+   * lo único que permite responder «tu archivo no trae esa columna: con ella te lo abro» en vez de «no tengo
+   * ese eje». Si la llave no está —packs viejos guardados antes de que existiera— no se dice NADA: ausencia
+   * no es «no faltaba nada». */
+  const faltas = _faltantesDeclarados(d);
+  if (faltas.length) {
+    L.push(`TU ARCHIVO NO TRAE (${faltas.length}): ${faltas.slice(0, 6).map((f) => f.detalle).join(" · ")}${faltas.length > 6 ? ` · … y ${faltas.length - 6} más` : ""}.`);
+    L.push("Cuando pidan algo que dependa de eso, DILO con la columna o la hoja por su nombre y ofrece lo que sí está — jamás lo inventes ni te disculpes en genérico.");
+  }
+
   return L.join("\n");
+}
+
+/** los avisos de carga que el dataset trae, o [] si el pack es viejo y no los registró (ausencia ≠ nada). */
+function _faltantesDeclarados(d) {
+  const a = d && d.avisosDeCarga;
+  return Array.isArray(a) ? a.filter((x) => x && x.detalle) : [];
+}
+
+/* ── QUÉ HABILITA LO QUE FALTA · el mapeo DECLARADO (no inferido) ──────────────────────────────────────────────
+ * Relaciona una pregunta con la pieza del archivo que la haría posible, para que el rescate pueda nombrarla.
+ * Es una tabla, no una inteligencia: cada fila dice qué falta, qué preguntas toca y qué se abriría con ella.
+ * `dice` sale del aviso de la ingesta cuando existe; acá vive solo el vínculo. */
+const _QUE_HABILITA = [
+  { falta: /hoja «?Abonos/i, toca: /\bcobr|\bdeb[eo]\b|\bdeuda|vencid|\bpag[oó]|cuenta corriente|\bmora\b/i,
+    pieza: "la hoja Abonos", abre: "quién te debe y qué está vencido" },
+  { falta: /"punto de venta"/i, toca: /punto de venta|sucursal|\btienda|\blocal(?:es)?\b/i,
+    pieza: "la columna «punto de venta» de Ventas", abre: "el corte por punto de venta" },
+  { falta: /"condici[oó]n"/i, toca: /cr[eé]dito|contado|condici[oó]n de venta/i,
+    pieza: "la columna «condición» de Ventas", abre: "la venta a crédito" },
+  { falta: /"canal"/i, toca: /\bcanal(?:es)?\b/i, pieza: "la columna «canal» de Ventas", abre: "el corte por canal" },
+  { falta: /"marca"/i, toca: /\bmarca[s]?\b/i, pieza: "la columna «marca» de Ventas", abre: "el corte por marca" },
+  { falta: /"familia"/i, toca: /\bfamilia|\bcategor[ií]a/i, pieza: "la columna «familia» de Ventas", abre: "el corte por familia" },
+  { falta: /"bodega"/i, toca: /\bbodega|\bdep[oó]sito\b|\balmac[eé]n/i, pieza: "la columna «bodega» de Inventario", abre: "el capital por bodega" },
+];
+
+/** faltanteQueToca(pregunta) → { pieza, abre } de lo que el archivo NO trajo y esta pregunta necesita, o null.
+ *  Determinístico y conservador: si el dato no registró faltantes, o ninguno toca la pregunta, devuelve null. */
+export function faltanteQueToca(pregunta) {
+  const q = String(pregunta || "");
+  if (!q.trim()) return null;
+  const faltas = _faltantesDeclarados(getTenantData());
+  if (!faltas.length) return null;
+  for (const regla of _QUE_HABILITA) {
+    if (!regla.toca.test(q)) continue;
+    if (faltas.some((f) => regla.falta.test(f.detalle))) return { pieza: regla.pieza, abre: regla.abre };
+  }
+  return null;
 }
