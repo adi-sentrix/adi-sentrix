@@ -210,9 +210,22 @@ console.log("\n3c · P3 · el camino que la consola usa, probado EN VIVO con una
     ok(!!neutral && /columna «canal»/.test(neutral.pieza), "CONTROL · con marca «Acme», «ranking por canal» nombra la pieza");
     ok(!!homonima && /columna «canal»/.test(homonima.pieza),
       "★ y con una marca llamada «Canal» TAMBIÉN — el tapado ya no se come la palabra del eje", JSON.stringify(homonima));
-    _it(conMarca("Depósito Riachuelo"));
+    /* EL CRUCE, que es donde un arreglo así se rompe (lo señaló el supervisor y por eso queda acá, no en su
+     * medición de una vez): con la marca homónima CARGADA y el aviso de bodega puesto, el tapado del cliente
+     * tiene que seguir en pie. Un arreglo que cure la homónima rompiendo «Depósito Riachuelo» pasaría los dos
+     * checks de arriba por separado y solo este los cruza. */
+    const avisoBodega = [{ tipo: "columna-opcional-vacia", detalle: '«Inventario»: "bodega" quedó vacía en todas las filas' }];
+    const conMarcaYBodega = (marca) => ({ ...packViejo, avisosDeCarga: avisoBodega,
+      marcasMargen: [{ nombre: marca, venta: 1000, margen: 20 }], MARCAS_ALL: [marca] });
+    _it(conMarcaYBodega("Canal"));
     ok(faltanteQueToca("cuánto me compró Depósito Riachuelo el último mes") === null,
-      "…mientras el nombre que CONTIENE la palabra («Depósito Riachuelo») se sigue tapando");
+      "★ CRUCE · con la marca «Canal» cargada, «Depósito Riachuelo» SIGUE tapado — curar uno no rompió el otro",
+      JSON.stringify(faltanteQueToca("cuánto me compró Depósito Riachuelo el último mes")));
+    _it(conMarcaYBodega("Bodega"));
+    const homoBodega = faltanteQueToca("dame el capital por bodega");
+    ok(!!homoBodega && /columna «bodega»/.test(homoBodega.pieza),
+      "★ y el segundo eje igual · con una marca llamada «Bodega», «capital por bodega» nombra la pieza",
+      JSON.stringify(homoBodega));
   }
 
   /* Y EL ORDEN: con la hoja Inventario vacía, la pieza que falta es la HOJA, no su columna — mandar al usuario
