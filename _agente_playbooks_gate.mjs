@@ -187,6 +187,26 @@ H("5 · las promesas del playbook, chequeadas por reglas (nunca por comprensión
   ok(falsos.length === 0, "cero falsos positivos sobre lo que YA salió a pantalla", falsos.join(" | "));
 }
 
+/* ═══ 7 · LA MUESTRA NO MIENTE ═══════════════════════════════════════════════════════════════════════════════
+ * `_PLAYBOOK_MARGEN_MUESTRA.md` existe para que el owner vea el playbook sin encender nada. Un documento que
+ * muestra texto GENERADO envejece en silencio: si el composer cambia, la muestra sigue diciendo lo viejo y el
+ * owner decide sobre algo que ya no existe. Acá se ata al código vivo y al récord del expediente. */
+H("7 · la muestra para el owner dice lo que el código dice hoy");
+{
+  const MU = fs.readFileSync("_PLAYBOOK_MARGEN_MUESTRA.md", "utf8").replace(/\r\n/g, "\n");
+  initTenant(TENANT_DEMO);
+  const r = await answerViaAgente({ text: "como viene mi margen?", history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
+  const vivo = String(r.r.text || "").trim();
+  ok(vivo.length > 100 && MU.includes(vivo), "el entregable de la muestra es el que el código produce HOY, línea por línea",
+    vivo.slice(0, 90));
+  const EXP = fs.readFileSync("_AGENTE_PUNTO_DE_PARTIDA.md", "utf8").replace(/\r\n/g, "\n");
+  const vieja = "jc: No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: Medida · cerrar brecha al piso = $4.9M.";
+  ok(EXP.includes(vieja.slice(0, 120)), "la respuesta «antes» que cita la muestra es verbatim del expediente (T6), no una paráfrasis");
+  ok(MU.includes(vieja.split(" Dime")[0].slice(0, 100)), "…y la muestra la reproduce igual");
+  ok(/cero gasto|Cero gasto/i.test(MU) && /bandera `ADI_AGENTE` sigue apagada/i.test(MU),
+    "la muestra declara lo que es: offline, sin gasto y sin encender la bandera");
+}
+
 /* ═══ 6 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
 H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
@@ -263,6 +283,17 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       initTenant(TENANT_DEMO);
       const figs = boletaDelPlaybook(margenEnRiesgo);
       return Mut.margenEnRiesgo.listaNotarial("No pude armar esa lectura. ¿Cuál cliente quieres mirar?", { figs }).length === 0;
+    });
+
+  // (g) la muestra envejecida: el composer cambia y el documento del owner sigue diciendo lo viejo
+  await carnada("muestra desactualizada (documento que envejece en silencio)", "src/adi/agente/playbooks/margenEnRiesgo.js",
+    [[/Clientes bajo el benchmark: \$\{_val\(L\.conteo\)\}\./, "Clientes bajo la vara: ${_val(L.conteo)}."]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const figs = boletaDelPlaybook(Mut.margenEnRiesgo);
+      const nuevo = Mut.margenEnRiesgo.componer({ figs });
+      const MU = fs.readFileSync("_PLAYBOOK_MARGEN_MUESTRA.md", "utf8").replace(/\r\n/g, "\n");
+      return typeof nuevo === "string" && !MU.includes(nuevo.trim());   // el defecto: la muestra ya no dice lo que el código dice
     });
 
   // (f) el detector ancho: el playbook secuestra turnos que no le tocan
