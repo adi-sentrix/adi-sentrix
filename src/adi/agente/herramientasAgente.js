@@ -1,6 +1,6 @@
-/* === src/adi/agente/herramientasAgente.js · LAS DOS HERRAMIENTAS NUEVAS DEL AGENTE (F2 · owner 2026-08-30) ===
+/* === src/adi/agente/herramientasAgente.js · LAS HERRAMIENTAS PROPIAS DEL AGENTE (F2 · owner 2026-08-30) ======
  *
- * La caja del agente = las 24 de `TOOLS` (toolRegistry, con sus contratos) MÁS estas dos:
+ * La caja del agente = las 24 de `TOOLS` (toolRegistry, con sus contratos) MÁS éstas:
  *
  *   · `serieEntidad` — el cruce entidad×mes REAL RECONCILIADO que este frente construyó. `trend` sirve la
  *     global; este sirve la de UNA entidad, o el MOTIVO del bloqueo con palabras — para que el cerebro decline
@@ -12,14 +12,20 @@
  *     "user_supuesto"`), nunca mezclada con lo verificado. El notario ya vigila supuestos; esto convierte la
  *     etiqueta en un acto de primera clase.
  *
+ *   · `preferenciaNombre` — cómo prefiere ser llamado el usuario. SOLO el nombre: el registro no se configura.
+ *
+ *   · `proyectar` — la venta a futuro con la tasa que el usuario DECLARA. Es la pieza que le faltaba al agente
+ *     para responder una proyección sobre TODO EL NEGOCIO (ver su bloque, más abajo).
+ *
  * MISMA FORMA que las tools del registro: `(args, { scenario }) → { facts, boleta, coverage }`. Los montos van
  * con la escala DECLARADA del pack, como todo desde el barrido A. PURO · sin red. */
 import { getTenantData } from "../../data/tenantStore.js";
 import { factorComercialDe } from "../../config/contract/figureType.js";
 import { serieRealDe } from "../sentrix/capability.js";
+import { ventaOficialDelPeriodo } from "../sentrix/temporal.js";   // `proyectar` · la venta oficial del período: la sola verdad que el owner declaró (2026-07-15)
 import { findCandidates } from "../oracle/entityIndex.js";
 import { fig } from "../boleta.js";
-import { fmtMonto } from "../../config/moneda.js";
+import { fmtMonto, simboloMoneda } from "../../config/moneda.js";
 import { nombreDePeriodo } from "../../ingesta/historico.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 import { setNombreUsuario } from "./preferenciaNombre.js";   // F3 · «llámame jc» — solo el nombre, jamás el tono
@@ -123,6 +129,102 @@ export function registrarSupuesto({ texto, cifra, unidad = "money" } = {}) {
   };
 }
 
+/* === proyectar · LA PIEZA QUE FALTABA (certificación 2026-09-01 · decisión del supervisor: tool nueva) ======
+ *
+ * EL HUECO QUE CIERRA, medido en la corrida: el agente podía LEER la venta total ($100,0M, autorizada) pero no
+ * tenía forma de producir una PROYECCIÓN sellada. `simulate` exige una dimensión de cliente/sku/marca/familia
+ * y no admite «todo el negocio»; `trend` opera sobre UNA entidad nombrada. Sin esta tool pasaban tres cosas, y
+ * las tres se midieron: el turno 2 preguntaba en vez de proyectar; el turno 4 hacía la cuenta en el texto y el
+ * muro vetaba el resultado CON RAZÓN —el propio `calculoCatalogo.js` documenta que no espeja `monto × (1+%)`
+ * porque «los resultados llegan SIEMPRE sellados en la boleta de la tool», premisa que era falsa acá—; y el
+ * turno 7, sin boleta, se quedaba con la quinta fuente como única puerta.
+ *
+ * LAS TRES CONDICIONES DEL SUPERVISOR, cada una en el código:
+ *  1· LA PROYECCIÓN ES UN SUPUESTO, NO UN DATO. La base va a la boleta como cifra verificada; el resultado va
+ *     ETIQUETADO como proyección, con la tasa y el horizonte que la produjeron. Nunca con el mismo tono que
+ *     una cifra medida.
+ *  2· ADMITE «TODO EL NEGOCIO» como alcance legítimo — sin `entity` proyecta sobre la venta oficial del
+ *     período, que es la que el owner declaró como una sola verdad (`ventaOficialDelPeriodo`).
+ *  3· NO REVIVE LA SIMULACIÓN AJENA: no fabrica escenarios ni toca el motor de transforms. Lee una base,
+ *     aplica la tasa que le dieron, y devuelve las tres cifras.
+ *
+ * Y LA PRECISIÓN QUE AHORRA UNA VUELTA (supervisor, textual): «la tool no decide la tasa ni el horizonte — los
+ * recibe». Sin `tasa` declarada NO inventa un default de crecimiento: devuelve la base y dice que falta el
+ * supuesto. Proyectar con una tasa que nadie declaró sería causalidad sin respaldo, en versión futuro. */
+export function proyectar({ tasa, horizonte, entity } = {}, { scenario = ESCENARIO_INICIAL } = {}) {
+  const d = getTenantData() || {};
+  const sinSoporte = (reason) => ({ facts: null, boleta: [], coverage: { supported: false, reason } });
+  const fx = factorComercialDe(d);
+  /* LA MISMA FORMA QUE EL RESTO DE LAS LECTURAS (`_M` de resumenComercial, y la que el muro conoce del dato:
+   * «$99.9M»): un decimal en millones. `fmtMonto({compacto})` redondea a cero decimales sobre 10M y devolvía
+   * «$100M» — una proyección escrita distinto de su propia base se lee como si vinieran de dos sistemas. */
+  const _m = (v) => {
+    const raw = v * fx, abs = Math.abs(raw);
+    return abs >= 1e6 ? `${simboloMoneda()}${(raw / 1e6).toFixed(1)}M`
+      : abs >= 1e3 ? `${simboloMoneda()}${Math.round(raw / 1e3)}K`
+      : fmtMonto(raw, { dataset: d });
+  };
+
+  // ── LA BASE ──────────────────────────────────────────────────────────────────────────────────────────────
+  let base = null, deQuien = null;
+  if (entity) {
+    const res = _resolver(entity);
+    if (!res) return sinSoporte(`no encuentro «${entity}» en ningún eje de este dato`);
+    const estado = serieRealDe(res.nombre);
+    if (!estado.real) return sinSoporte(`no puedo proyectar sobre ${res.nombre}: su cifra del período no reconcilia con el dato oficial`);
+    const serie = (d.historialMargen || {})[res.nombre] || [];
+    const ult = serie.length ? serie[serie.length - 1] : null;
+    base = ult && Number.isFinite(Number(ult.venta)) ? Number(ult.venta) : null;
+    deQuien = res.nombre;
+    if (base == null) return sinSoporte(`no encuentro la venta del período de ${res.nombre} para usarla de base`);
+  } else {
+    const of = ventaOficialDelPeriodo(scenario);
+    base = of && Number.isFinite(Number(of.actual)) ? Number(of.actual) : null;
+    deQuien = "el negocio";
+    if (base == null) return sinSoporte("este dato no trae una venta oficial del período: sin base no hay proyección");
+  }
+
+  // ── LA TASA · se RECIBE, jamás se inventa ────────────────────────────────────────────────────────────────
+  /* `Number(null)` es 0 y `Number("")` también: sin este filtro, un cerebro que llamara con `tasa: null`
+   * recibía una proyección de +0,0% — una cifra futura construida sobre un supuesto que nadie declaró, que es
+   * justo lo que esta tool no puede hacer. Lo cazó el propio gate al probar tasas basura. */
+  const t = (tasa === null || tasa === undefined || tasa === "") ? NaN : Number(tasa);
+  const hz = horizonte == null ? null : String(horizonte).slice(0, 40);
+  const baseFig = fig(`Venta del período · ${deQuien}`, _m(base),
+    { unit: "money", raw: base, source: "dato", mandatory: true, context: "la venta oficial del período — es la base, no la proyección" });
+  if (!Number.isFinite(t)) {
+    return {
+      facts: { lens: "proyeccion", base: _m(base), sobre: deQuien, falta: "el supuesto de crecimiento",
+        nota: "sin una tasa declarada no hay proyección: la base está, el supuesto lo pone el usuario" },
+      boleta: [baseFig],
+      coverage: { supported: true, reason: null },
+    };
+  }
+
+  const resultado = base * (1 + t / 100);
+  const delta = resultado - base;
+  const etq = `${t > 0 ? "+" : ""}${(+t).toFixed(1)}%${hz ? ` a ${hz}` : ""}`;
+  return {
+    facts: {
+      lens: "proyeccion", sobre: deQuien, base: _m(base), tasa: `${(+t).toFixed(1)}%`, horizonte: hz,
+      proyectado: _m(resultado), adicional: _m(delta),
+      etiqueta: "PROYECCIÓN — supuesto del usuario aplicado sobre la venta oficial, no es una cifra medida",
+    },
+    boleta: [
+      baseFig,
+      fig(`Supuesto del usuario · crecimiento${hz ? ` a ${hz}` : ""}`, `${(+t).toFixed(1)}%`,
+        { unit: "pct", raw: t, source: "user_supuesto", mandatory: false, context: "la tasa la puso el usuario — no sale del dato" }),
+      fig(`Proyección · ${deQuien} ${etq}`, _m(resultado),
+        { unit: "money", raw: resultado, source: "proyeccion", mandatory: false,
+          context: "PROYECCIÓN sobre el supuesto del usuario — se nombra como tal, jamás como cifra medida" }),
+      fig(`Proyección · adicional ${etq}`, _m(delta),
+        { unit: "money", raw: delta, source: "proyeccion", mandatory: false,
+          context: "la diferencia contra la base, bajo el mismo supuesto" }),
+    ],
+    coverage: { supported: true, reason: null },
+  };
+}
+
 /* preferenciaNombre({ nombre }) → guarda cómo prefiere ser llamado el usuario (F3 · «llámame jc»).
  * SOLO el nombre: no existe campo de tono ni de registro — lo que no existe no se puede aflojar. */
 export function preferenciaNombre({ nombre } = {}) {
@@ -139,5 +241,5 @@ export function preferenciaNombre({ nombre } = {}) {
 /** la caja completa del agente: el registro de siempre + las nuevas. Se arma acá para que el bucle y los
  *  gates tengan UNA fuente del catálogo. */
 export function cajaDelAgente(TOOLS_BASE) {
-  return { ...TOOLS_BASE, serieEntidad, registrarSupuesto, preferenciaNombre };
+  return { ...TOOLS_BASE, serieEntidad, registrarSupuesto, preferenciaNombre, proyectar };
 }

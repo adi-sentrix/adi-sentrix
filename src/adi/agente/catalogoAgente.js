@@ -27,6 +27,18 @@ export const CONTRATOS_AGENTE = {
     entityScopeNativo: false, escribeEntityList: false,
     notas: "registra una cifra QUE EL USUARIO OFRECIÓ, etiquetada como supuesto — para compararla contra lo verificado sin mezclar jamás.",
   },
+  /* `proyectar` · LA PIEZA QUE FALTABA. `simulate` exige una dimensión de cliente/sku/marca/familia y no admite
+   * «todo el negocio»: por eso el agente preguntaba en vez de proyectar. Sin `entity` el alcance es el negocio
+   * entero, que es el caso que el owner declaró como default. `tasa` NO es obligatoria a propósito: sin ella la
+   * herramienta devuelve la base y declara que falta el supuesto — inventar un crecimiento que nadie declaró
+   * sería causalidad sin respaldo, en versión futuro. */
+  proyectar: {
+    dimensionesSoportadas: [],
+    entidad: "none", aceptaEntidadPuntual: true, multiCardinality: null,
+    inputsObligatorios: [], supuestosRequeridos: null, operacionValida: ["answer"],
+    entityScopeNativo: false, escribeEntityList: false,
+    notas: "proyecta la venta a futuro con la tasa QUE EL USUARIO DECLARA (`tasa`, en %) y su `horizonte`. Sin `entity` proyecta sobre TODO EL NEGOCIO (la venta oficial del período). El resultado sale etiquetado como PROYECCIÓN, nunca como cifra medida. Sin `tasa` devuelve la base y dice que falta el supuesto: jamás inventa un crecimiento.",
+  },
   preferenciaNombre: {
     dimensionesSoportadas: [],
     entidad: "none", aceptaEntidadPuntual: false, multiCardinality: null,
