@@ -45,7 +45,7 @@ import { _respaldoDeLoYaAprobado } from "../oracle/caminoNatural.js";
 import { recitaAprobadaDe } from "../oracle/cicloNotarial.js";   // R2 del examen 1: la MISMA memoria de re-cita del camino natural — jamás una segunda paralela
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 import { vetosDeContrato } from "./contratoAgente.js";   // F3 · el juez ciego de sugerencias — se SUMA a guardC, no lo toca
-import { getNombreUsuario } from "./preferenciaNombre.js";   // R4c · el trato registrado viaja también en los rescates
+import { getNombreUsuario, setNombreUsuario } from "./preferenciaNombre.js";   // R4c · el trato viaja en los rescates y persiste por `mem`
 import { detectSerieIntent, composeSerieIntent } from "../oracle/serieIntent.js";   // R9 · el puente, también en modo agente
 import { playbookPara, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook } from "./playbooks/registro.js";   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
 import { serieRealDe } from "../sentrix/capability.js";
@@ -185,6 +185,16 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   const q = String(text || "").trim();
   const memIn = (mem && typeof mem === "object") ? mem : {};
   const recentPrev = Array.isArray(memIn.recentNarrations) ? memIn.recentNarrations : [];
+  /* EL TRATO VIAJA EN LA MEMORIA DEL TURNO, y esta es la causa REAL de que el rescate de T7 saliera sin nombre
+   * (medido 2026-08-31, no supuesto): `preferenciaNombre` guarda en el módulo + localStorage, y la consola del
+   * examen corre UN PROCESO POR TURNO sin localStorage — el nombre registrado en un turno se perdía al
+   * terminar ese proceso. Por eso el trato aparecía solo cuando el cerebro volvía a llamar la herramienta en el
+   * MISMO turno, y lo que parecía «el apodo persiste once turnos» era el modelo copiándolo del hilo, no la
+   * preferencia funcionando. Se rehidrata desde `mem`, que sí viaja turno a turno por el mismo canal que el
+   * resto de la memoria. En el navegador no cambia nada: el módulo ya lo tiene y esto solo lo respalda. */
+  if (typeof memIn.nombreUsuario === "string" && memIn.nombreUsuario && !getNombreUsuario()) {
+    try { setNombreUsuario(memIn.nombreUsuario); } catch { /* un nombre inválido en memoria no rompe el turno */ }
+  }
   const caja = cajaDelAgente(TOOLS);
   const herramientas = Object.keys(caja).sort();
   const mapa = mapaDelDato(scenario);
@@ -488,6 +498,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   pantalla = anteponerSello(pantalla, getSelloDeCarga(), { calculos: ex.calculos });
 
   const memOut = { ...memIn, recentNarrations: [pantalla, ...recentPrev].slice(0, 2) };
+  { const _trato = getNombreUsuario(); if (_trato) memOut.nombreUsuario = _trato; }   // el trato persiste por el canal de la memoria (ver arriba)
   if (aprobado && !suplente) memOut.ultimaAprobada = pantalla;
   /* R2 · la otra punta del cable: lo que el muro APROBÓ presta sus cifras al turno siguiente — el MISMO
    * constructor y los MISMOS candados del camino natural (un texto vetado o un respaldo no acumulan nada). */

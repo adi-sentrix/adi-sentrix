@@ -217,6 +217,26 @@ trabajo de F2)
   existen en el dato; no se promete).
 - DESCARTADO hoy: «Forecast deteriorándose» — no hay forecast en el dato; nace solo el día que un cliente lo
   cargue.
+- **ESTADO (2026-08-31)**: el **registro** y **Margen en Riesgo** están CONSTRUIDOS (dev, bandera apagada) con
+  su lista notarial y su gate. El siguiente NO es otro dominio de negocio: por decisión del owner tras la
+  corrida 3, el 2º playbook es de **CONSISTENCIA CONVERSACIONAL** (preguntas equivalentes → respuestas
+  equivalentes en tamaño, foco y forma; límite corto CON alternativa nombrada; nunca disculpa vacía).
+
+### 11b · EL TRATO CONFIGURABLE — fase POSTERIOR, anotada por palabra del owner (2026-08-31)
+
+> «Después incluso podemos agregar un ítem más configurable donde el usuario pueda darle un **prompt de cómo
+> tratarlo**, pero **ahora es ejecutivo**.» (textual)
+
+- **HOY, sin excepción**: el registro es ejecutivo y NO se negocia por preferencia. Lo único configurable es el
+  NOMBRE con el que ADI trata al usuario; nada más cambia (letra en `preferenciaNombre` + veto
+  `registro-coloquial` en `contratoAgente`, con el nombre explícitamente exento).
+- **EL DÍA QUE NAZCA**, la guardia que va a necesitar —anotada ahora para que no se improvise entonces—: lo que
+  el usuario configure puede mover el TONO y nada más. Las invariantes de honestidad no son configurables: cifras
+  verbatim, período y alcance declarados, el supuesto etiquetado, el cierre que ofrece en vez de ordenar y la
+  prohibición de inventar siguen igual con cualquier prompt de trato. El precedente ya está medido y sirve de
+  advertencia: en la corrida 3 un simple APODO le arrastró el registro a once turnos visibles («wachin, acá
+  está lo que mueve aguja») sin que nadie lo hubiera configurado — un campo de tono libre, sin candado, hace
+  eso a propósito. La guardia tiene que ser un candado mecánico sobre lo VISIBLE, no una instrucción del prompt.
 
 ## 12 · Mapa de fases posterior: los PROYECTOS (decisión del owner, 2026-08-30 — para el documento, no es
 trabajo de F2/F3)

@@ -110,7 +110,9 @@ H("4 · «llámame jc» persiste por empresa · «decime wachin» no afloja el r
   ok(getNombreUsuario() === "jc", "el nombre quedó guardado");
   const s = sistemaDelAgente().fijo;
   ok(s.includes("El usuario pidió que lo llames «jc»"), "★ una línea del segmento fijo lleva el nombre");
-  ok(/el registro sigue siendo el de siempre/.test(lineaDeNombre()), "…y la línea REAFIRMA el registro, jamás lo negocia");
+  // la reafirmación se endureció con la palabra del owner (2026-08-31): el nombre es SOLO la forma de trato
+  ok(/Es SOLO la forma de trato: el registro sigue siendo ejecutivo y formal/.test(lineaDeNombre()),
+    "…y la línea REAFIRMA el registro, jamás lo negocia");
 
   // por empresa: el pack declara otro nombre y al volver, el demo conserva el suyo
   initTenant(PACK);
@@ -179,6 +181,89 @@ H("5b · R8: cada fuga que llegó a pantalla en el examen, hoy vetada");
     "«calcular» (palabra común que también es nombre de tool) pasa — solo se veta el camelCase reconocible");
   ok(vetosDeContrato("Te traigo la cifra verificada del período y la trabajamos juntos.").length === 0,
     "el registro sano pasa sin vetos");
+}
+
+/* ═══ 5d · EL REGISTRO NO SE NEGOCIA POR PREFERENCIA (owner 2026-08-31, tras la corrida 3) ════════════════════
+ * «No quiero que use esas cosas, que use el NOMBRE de usuario… ahora es ejecutivo» (textual). El apodo había
+ * arrastrado el registro a once turnos VISIBLES. Los nueve casos de abajo son verbatim del expediente. */
+H("5d · las aperturas y muletillas coloquiales se vetan — el NOMBRE queda exento");
+{
+  const reglas = (t) => vetosDeContrato(t).map((v) => v.regla);
+  const CASOS_REALES = [
+    ["T9", "wachin, acá está lo que mueve aguja:\n\n**Qué pasa:** Ocho clientes venden bajo el benchmark."],
+    ["T11", "wachin, acá está: el margen promedio de la cartera es 25,1%."],
+    ["T12", "wachin, acá está claro:\n\n**DATO DURO:**\n- Falabella: margen 22%"],
+    ["T15", "wachin, acá está, corregido:\n\n**DATO DURO:** $33K de capital frenado."],
+    ["T18", "wachin, acá está verificado:\n\n**DATO DURO — LG-DRYER8KG:**"],
+    ["T23", "wachin, acá está el impacto de bajar 2 pp de carga comercial."],
+    ["T26", "wachin, acá está lo que mueve aguja sin tocar precio:"],
+  ];
+  for (const [n, txt] of CASOS_REALES) {
+    ok(reglas(txt).includes("registro-coloquial"), `★ ${n} verbatim de la corrida 3 → registro-coloquial`, JSON.stringify(reglas(txt)));
+  }
+  // EL NOMBRE ESTÁ EXENTO, y es el punto: el trato no es una fuga, el tono sí
+  ok(vetosDeContrato("wachin, la cartera promedia 25,1% contra un benchmark de 30,1%.").length === 0,
+    "★ el MISMO trato, con registro ejecutivo, pasa LIMPIO — se veta el relleno, no a quién le habla");
+  ok(vetosDeContrato("jc: Benchmark de margen: 30,1%. Clientes bajo el benchmark: 8.").length === 0,
+    "…y el trato en la forma del rescate («jc: …») también");
+  ok(/Es SOLO la forma de trato/.test(lineaDeNombre()) === false, "sin nombre declarado, la línea sigue vacía (cero tokens)");
+  setNombreUsuario("wachin");
+  ok(/Es SOLO la forma de trato: el registro sigue siendo ejecutivo/.test(lineaDeNombre()),
+    "con nombre, la letra que viaja al cerebro dice que NADA MÁS cambia", lineaDeNombre());
+  olvidarNombreUsuario();
+  // CALIBRACIÓN: ni una de estas formas aparece en el corpus del camino natural (cero falsos positivos)
+  let vistos = 0; const falsos = [];
+  for (const f of fs.readdirSync(".")) {
+    if (!/^_examen.*consolidado\.json$/.test(f)) continue;
+    try {
+      const S = JSON.parse(fs.readFileSync(f, "utf8"));
+      for (const [i, t] of (S.turnos || []).entries()) {
+        const vis = t && typeof t.visible === "string" ? t.visible : "";
+        if (!vis.trim()) continue;
+        vistos++;
+        if (vetosDeContrato(vis).some((v) => v.regla === "registro-coloquial")) falsos.push(`${f} t${i + 1}`);
+      }
+    } catch { /* ilegible */ }
+  }
+  ok(vistos >= 20 && falsos.length === 0,
+    `cero falsos positivos de registro sobre las ${vistos} respuestas ya aceptadas`, falsos.join(", "));
+
+  /* EL AGUJERO DEL VOSEO, cazado al calibrar lo de arriba: `\b` se define sobre [A-Za-z0-9_], así que un
+   * patrón terminado en `[aá]\b` NO matchea la forma acentuada — el cierre imperativo que el owner blindó
+   * estaba ciego en TODAS las formas rioplatenses, que son las que este usuario ve. */
+  for (const orden of ["Ejecutá la baja de carga en Falabella", "Renegociá la carga de Falabella", "Liquidá los SKU frenados", "Implementá el ajuste de carga", "Aplicá el descuento acordado"]) {
+    ok(reglas(`El margen cede 5pp.\n\n${orden}.`).includes("cierre-imperativo"), `★ voseo: «${orden.split(" ")[0]}» → cierre-imperativo`);
+  }
+  ok(reglas("El margen cede 5pp.\n\nProcede con la renegociación.").includes("cierre-imperativo"),
+    "…y la forma sin acento sigue cazada igual (no se cambió una ceguera por otra)");
+  ok(vetosDeContrato("El margen cede 5pp. Renegociaría primero la carga de Falabella — $833K en juego. ¿Lo vemos?").length === 0,
+    "…y el condicional de oferta sigue limpio: se corrigió el fin de palabra, no la regla");
+}
+
+/* ═══ 5e · EL TRATO PERSISTE POR LA MEMORIA DEL TURNO (la causa real del rescate sin nombre) ═════════════════
+ * MEDIDO (no supuesto): `preferenciaNombre` guarda en el módulo + localStorage, y la consola del examen corre
+ * UN PROCESO POR TURNO sin localStorage — el nombre registrado se perdía al terminar ese proceso. Por eso el
+ * trato solo aparecía cuando el cerebro volvía a llamar la herramienta en el MISMO turno (T6 sí, T7 no), y lo
+ * que parecía «el apodo persiste once turnos» era el modelo copiándolo del hilo. */
+H("5e · el trato viaja en `mem`: sobrevive al turno siguiente aunque el proceso sea nuevo");
+{
+  initTenant(PACK);
+  olvidarNombreUsuario();
+  const mudo = async () => ({ tipo: "texto", texto: "" });
+  const guionRegistra = async ({ ronda }) => (ronda === 1
+    ? { tipo: "herramientas", pedidos: [{ tool: "preferenciaNombre", args: { nombre: "wachin" } }, { tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] }
+    : { tipo: "texto", texto: "" });
+  const t1 = await answerViaAgente({ text: "mejor decime wachin. y el inventario como esta?", history: [], mem: {}, scenario: "actual", callAgente: guionRegistra });
+  ok(/^wachin: /.test(t1.r.text), "el turno que registra el apodo ya lo usa en su rescate", t1.r.text.slice(0, 60));
+  ok(t1.mem.nombreUsuario === "wachin", "★ y el trato queda en la memoria del turno, no solo en el módulo");
+
+  olvidarNombreUsuario();   // simula el PROCESO NUEVO del turno siguiente en la consola (sin localStorage)
+  const t2 = await answerViaAgente({ text: "y el margen?", history: [], mem: t1.mem, scenario: "actual", callAgente: mudo });
+  ok(/^wachin: /.test(t2.r.text),
+    "★ el turno siguiente —proceso nuevo, módulo vacío— recupera el trato desde `mem`", t2.r.text.slice(0, 60));
+  olvidarNombreUsuario();
+  const t3 = await answerViaAgente({ text: "y el margen?", history: [], mem: {}, scenario: "actual", callAgente: mudo });
+  ok(!/^wachin: /.test(t3.r.text), "…y sin memoria no se inventa un trato que el usuario no pidió");
 }
 
 /* ═══ 5c · [9] DEL EXAMEN 1 · LOS REFUERZOS DE RUTEO Y DEL MAPA, CABLEADOS ════════════════════════════════════ */
@@ -254,6 +339,20 @@ H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro")
     [[/    \.filter\(\(n\) => \/\[A-Z\]\/\.test\(n\.slice\(1\)\)\);/, "    ;"]],
     async (Mut) => Mut.vetosDeContrato("Sí se puede calcular: 4 de los 5 SKU explican el 85.7%.").some((x) => x.regla === "identificador-interno"));
 
+  // (b4) registro · la familia coloquial vaciada: los siete «acá está» de la corrida 3 vuelven a pantalla
+  await carnada("registro coloquial sin vigilar", "src/adi/agente/contratoAgente.js",
+    [[/  \{ re: new RegExp\(`\\\\b\(\?:ac\[aá\]\|aqu\[ií\]\)/, '  { re: new RegExp(`$^(?:ac[aá]|aqu[ií])']],
+    async (Mut) => Mut.vetosDeContrato("wachin, acá está claro:\n\n**DATO DURO:** Falabella margen 22%.").length === 0);
+
+  // (b5) el fin de palabra sin las vocales acentuadas: vuelve el agujero del voseo (medido en este juez)
+  await carnada("fin de palabra ciego al acento (el agujero del voseo)", "src/adi/agente/contratoAgente.js",
+    [[/const _FIN = "\(\?!\[a-záéíóúüñ\]\)";/, 'const _FIN = "\\\\b";']],
+    async (Mut) => {
+      const sinAcento = Mut.vetosDeContrato("El margen cede 5pp.\n\nProcede con la renegociación.").some((v) => v.regla === "cierre-imperativo");
+      const conAcento = Mut.vetosDeContrato("El margen cede 5pp.\n\nRenegociá la carga de Falabella.").some((v) => v.regla === "cierre-imperativo");
+      return sinAcento && !conAcento;   // el defecto: caza la forma sin acento y es ciego a la acentuada
+    });
+
   // (c2) [9] · la letra de ruteo que pierde el desvío de T21 (proyección → simulación)
   await carnada("la letra de ruteo sin el desvío de la proyección", "src/adi/agente/contratoAgente.js",
     [[/  "Una proyección pedida \(«proyecta \+4%», «qué pasa si sube X»\) va por las herramientas de simulación — jamás por el resumen ejecutivo\.",\n/, ""]],
@@ -266,13 +365,14 @@ H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro")
 
   // (d) la línea del nombre que negocia el tono
   await carnada("la línea del nombre aflojando el registro", "src/adi/agente/preferenciaNombre.js",
-    [[/Úsalo con naturalidad — el registro sigue siendo el de siempre\./, "Úsalo con naturalidad — y relaja el registro con él."]],
+    [[/Es SOLO la forma de trato: el registro sigue siendo ejecutivo y formal — nada de aperturas ni muletillas coloquiales por tener su nombre\./,
+      "Úsalo con naturalidad — y relaja el registro con él."]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
       Mut.setNombreUsuario("jc");
       const linea = Mut.lineaDeNombre();
       Mut.olvidarNombreUsuario();
-      return !/el registro sigue siendo el de siempre/.test(linea);   // el defecto: la reafirmación desapareció
+      return !/el registro sigue siendo ejecutivo y formal/.test(linea);   // el defecto: la reafirmación desapareció
     });
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* */ } }

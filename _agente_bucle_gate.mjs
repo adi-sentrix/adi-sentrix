@@ -724,6 +724,19 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       return r.r.agente.estado === "limite" && !/no coincide con lo verificado/.test(r.r.text);   // el defecto: sin refutar
     });
 
+  // (m2) el trato que no viaja en `mem`: el turno siguiente (proceso nuevo, sin localStorage) lo pierde
+  await carnada("trato sin persistir en la memoria del turno",
+    [[/  \{ const _trato = getNombreUsuario\(\); if \(_trato\) memOut\.nombreUsuario = _trato; \}.*\n/, ""]],
+    async (Mut) => {
+      initTenant(PACK);
+      setNombreUsuario("wachin");
+      const t1 = await Mut.answerViaAgente({ text: "y el margen?", history: [], mem: {}, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: "" }) });
+      olvidarNombreUsuario();   // el proceso nuevo del turno siguiente
+      const t2 = await Mut.answerViaAgente({ text: "y el inventario?", history: [], mem: t1.mem, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: "" }) });
+      olvidarNombreUsuario();
+      return !/^wachin: /.test(t2.r.text);   // el defecto: el trato se perdió entre turnos
+    });
+
   // (m) R4c · el trato quitado de los rescates: «jc» vuelve a no llegar jamás (T14)
   await carnada("trato ausente en los rescates",
     [[/    const trato = getNombreUsuario\(\);/, "    const trato = null;"]],

@@ -47,7 +47,15 @@ export const PRINCIPIOS_RUTEO = [
 
 // El cierre que ORDENA: el último párrafo arranca con un imperativo de ejecución dirigido al usuario.
 // Verbos acotados a ejecución de negocio (no se vetan «mira», «considera», «recuerda» — ofrecen, no ordenan).
-const _IMPERATIVO_EJECUCION = /^(procede|proced[eé]|ejecut[aá]|implement[aá]|renegoci[aá]|liquid[aá]|aplic[aá]|lanz[aá]|corta|cort[aá]|sub[ií] (el|los|la|las)|baj[aá] (el|los|la|las))\b/i;
+/* ⚠️ EL FIN DE PALABRA, CUANDO LA PALABRA TERMINA EN VOCAL ACENTUADA (cazado 2026-08-31 al calibrar el registro
+ * coloquial). En JavaScript `\b` se define sobre `\w` = [A-Za-z0-9_]: entre «á» y un espacio NO hay frontera,
+ * así que un patrón que termina en `[aá]\b` no matchea la forma acentuada. Medido sobre este mismo juez:
+ * «Ejecutá la baja de carga», «Renegociá la carga de Falabella», «Liquidá los SKU frenados» e «Implementá el
+ * ajuste» pasaban SIN MULTA — el cierre imperativo que el owner blindó estaba ciego justo en las formas
+ * rioplatenses, que son las que este usuario ve. `_FIN` es el fin de palabra que sí cuenta las vocales
+ * acentuadas y la ñ; va en todo patrón que pueda terminar en una. */
+const _FIN = "(?![a-záéíóúüñ])";
+const _IMPERATIVO_EJECUCION = new RegExp(`^(procede|proced[eé]|ejecut[aá]|implement[aá]|renegoci[aá]|liquid[aá]|aplic[aá]|lanz[aá]|corta|cort[aá]|sub[ií] (el|los|la|las)|baj[aá] (el|los|la|las))${_FIN}`, "i");
 // La decisión dada por tomada, en cualquier parte del texto — la carnada NOMBRADA por el owner.
 const _DECISION_TOMADA = /\b(procede con|proced[eé] con|avanz[aá] con la ejecuci[oó]n|queda decidido|ya est[aá] decidido|debes ejecutar|ten[eé]s que ejecutar)\b/i;
 
@@ -72,6 +80,22 @@ const _LEXICO_SUPERFICIE = [
     multa: "no expongas el instrumento: el límite se formula sobre el DATO («el histórico por entidad no reconcilia con la cifra oficial»), jamás sobre «la herramienta» ni su estado." },
   { re: /\btirar(?:te|me|les?|los?|las?)?\b|\btires?\b|\btiro\b/i, regla: "lexico-tirar",
     multa: "registro formal: «tirar» una cifra no — di «traerte», «entregarte» o «servirte» la cifra." },
+
+  /* ── EL REGISTRO NO SE NEGOCIA POR PREFERENCIA DEL USUARIO (owner 2026-08-31) ────────────────────────────────
+   * LO MEDIDO en la corrida 3, sobre lo VISIBLE (no sobre borradores): el apodo persistió, pero le arrastró el
+   * registro a la conversación entera — «wachin, acá está lo que mueve aguja:» (T9) · «acá está:» (T11) ·
+   * «acá está claro:» (T12) · «acá está, corregido:» (T15) · «acá está verificado:» (T18) · «acá está el
+   * impacto…» (T23) · «acá está lo que mueve aguja sin tocar precio:» (T26). Siete turnos con la apertura y
+   * dos con la muletilla, todos a PANTALLA.
+   * LA PALABRA DEL OWNER: «no quiero que use esas cosas, que use el NOMBRE de usuario… ahora es ejecutivo».
+   * EL NOMBRE ESTÁ EXENTO Y ES DELIBERADO: «wachin, la cartera promedia 25,1%…» pasa limpio — el trato no es
+   * una fuga, el tono sí. Lo que se veta es la apertura de relleno y la muletilla, no a quién le habla.
+   * La lista crece con lo que se MIDE en un examen, nunca con lo que se imagina: estas dos familias salen de
+   * los nueve casos de arriba y no aparecen ni una vez en el corpus de exámenes del camino natural. */
+  { re: new RegExp(`\\b(?:ac[aá]|aqu[ií])\\s+(?:est[aá]s?|van?|ten[eé]s|tienes|lo ten[eé]s|te (?:va|dejo|paso))${_FIN}`, "i"), regla: "registro-coloquial",
+    multa: "apertura coloquial: «acá está…» no es registro ejecutivo. Abre con la conclusión y su cifra («la cartera promedia 25,1% contra un benchmark de 30,1%»). El nombre con el que te pidieron que trates al usuario SÍ va — lo que sobra es el relleno." },
+  { re: /\bmueve\s+(?:la\s+)?aguja\b/i, regla: "registro-coloquial",
+    multa: "muletilla coloquial: «lo que mueve aguja» no es registro ejecutivo. Di qué es, con su cifra («los tres clientes que concentran $4,3M de contribución no capturada»)." },
 ];
 /* Los IDENTIFICADORES INTERNOS (nombres de tools y de campos de contrato) jamás van a pantalla — el catálogo es
  * la fuente (lazy y memoizado: nada se deriva al importarse) más los campos que el examen vio fugarse. Una tool

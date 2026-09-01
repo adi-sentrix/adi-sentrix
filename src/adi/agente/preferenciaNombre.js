@@ -57,7 +57,11 @@ export function getNombreUsuario() { _ensure(); return _nombre; }
 /** La línea del segmento fijo — "" sin declaración (cero tokens). Byte-estable por tenant+nombre. */
 export function lineaDeNombre() {
   _ensure();
-  return _nombre ? `El usuario pidió que lo llames «${_nombre}». Úsalo con naturalidad — el registro sigue siendo el de siempre.` : "";
+  /* LA PALABRA DEL OWNER (2026-08-31), tras ver la corrida 3: «no quiero que use esas cosas, que use el NOMBRE
+   * de usuario… ahora es ejecutivo». El apodo le había arrastrado el registro a once turnos («wachin, acá está
+   * lo que mueve aguja»). El nombre es SOLO la forma de trato: nada más cambia. Lo dice la letra y —porque en
+   * este repo la instrucción sola no alcanza— lo veta `registro-coloquial` en contratoAgente. */
+  return _nombre ? `El usuario pidió que lo llames «${_nombre}». Es SOLO la forma de trato: el registro sigue siendo ejecutivo y formal — nada de aperturas ni muletillas coloquiales por tener su nombre.` : "";
 }
 // boot (llamar UNA vez desde la app en el navegador): re-aplica lo persistido del tenant activo
 export function initPreferenciaNombre() {
