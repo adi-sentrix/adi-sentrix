@@ -192,7 +192,9 @@ const _norm = (s) => String(s || "").trim().toLowerCase();
 
 /** la pregunta sin los nombres de las entidades del tenant — para que «Depósito Riachuelo» (un cliente) no se
  *  lea como el eje bodega. Se tapan solo las que de verdad aparecen; sin catálogo, la pregunta va tal cual. */
-function _sinNombresDeEntidad(q) {
+/* EXPORTADA (2026-09-01): el playbook «lectura por eje» la necesita para lo mismo —«Depósito Riachuelo el
+ * último mes» disparaba el eje BODEGA por la palabra del nombre—. Se comparte la función, no se replica. */
+export function _sinNombresDeEntidad(q) {
   let t = q;
   for (const eje of ["cliente", "sku", "marca", "familia", "bodega", "canal"]) {
     let nombres = [];

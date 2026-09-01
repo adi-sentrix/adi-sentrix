@@ -32,7 +32,10 @@ import { PLAYBOOKS, playbookPara, pasosDe, obligatoriasDe, promesasCumplidas, do
 import { margenEnRiesgo, lecturaDeMargen } from "./src/adi/agente/playbooks/margenEnRiesgo.js";
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
-import { cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";
+import { cajaDelAgente, serieEntidad } from "./src/adi/agente/herramientasAgente.js";
+import { guardC } from "./src/adi/oracle/guardC.js";                 // las carnadas de entidad×período juzgan el texto compuesto DIRECTO contra el muro
+import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
+import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -61,6 +64,11 @@ H("1 · el registro cumple su patrón — agregar el segundo playbook es agregar
      * resolvedor que usa el bucle. Para un playbook de forma se prueba con cada una de sus preguntas de
      * muestra (`ejemplos`), así ningún eje queda sin verificar su herramienta. */
     const muestras = Array.isArray(pb.ejemplos) && pb.ejemplos.length ? pb.ejemplos : ["como viene mi margen?"];
+    /* el playbook declara en qué pack ACTIVAN sus ejemplos (`tenantDeMuestra`): entidad-por-período no tiene
+     * serie real en el demo y resolvería cero pasos ahí. Se carga ese pack para verificar el patrón y se
+     * restaura el demo al salir — nunca dejar el proceso en un tenant distinto al que empezó. */
+    if (pb.tenantDeMuestra === "plantilla") initTenant(ingestarPlantilla(Buffer.from(plantillaEjemplo()), { nombreArchivo: "v2.xlsx", fechaCarga: "2026-08-31" }).dataset);
+    else initTenant(TENANT_DEMO);
     for (const q of muestras) {
       const pasos = pasosDe(pb, q);
       ok(pasos.length > 0 && pasos.every((p) => p.tool && p.args && typeof p.para === "string" && p.para.length > 10),
@@ -68,6 +76,7 @@ H("1 · el registro cumple su patrón — agregar el segundo playbook es agregar
       ok(pasos.every((p) => !!cajaDelAgente(TOOLS)[p.tool]), "…y todas sus herramientas existen en la caja del agente");
     }
   }
+  initTenant(TENANT_DEMO);   // de vuelta al demo: los detectores de abajo se miden ahí
   const dentro = ["como viene mi margen?", "que clientes estan bajo el benchmark", "a quien reviso primero por margen",
     "cuanto tendria que mejorar cada cliente para llegar al benchmark", "dame el ranking de margen por cliente"];
   const fuera = ["cuanto me compro falabella el ultimo mes", "dame el inventario", "que productos dejan mas plata",
@@ -138,6 +147,46 @@ H("1b · lectura por eje: un playbook, cinco ejes, la herramienta que sirve cada
   ok(vetosDelPlaybook(pb, pb.componer({ figs: figsMarca, pregunta: "qué marca deja más margen" }), { figs: figsMarca, pregunta: "qué marca deja más margen" }).length === 0,
     "…y su propio entregable pasa su lista: auto-consistente");
 }
+
+/* ═══ 1c · PLAYBOOK 3 · ENTIDAD × PERÍODO — la pregunta insignia del owner (2026-09-01) ══════════════════════
+ * «cuánto me compró Falabella el último mes» tenía dos caminos y un hueco: serie BLOQUEADA → el puente declina
+ * con la razón (cubierto); serie REAL → «el cerebro corre con su herramienta», sin garantía. Este playbook
+ * cierra el segundo con EL MISMO detector del puente: complementarios por construcción. En el DEMO no se
+ * activa nunca (13 clientes «sin-periodo»); se activa en el pack de la PLANTILLA, la forma de un cliente real. */
+H("1c · entidad × período: un detector para las tres piezas, y el entregable con su delta declarado");
+{
+  const PACK = ingestarPlantilla(Buffer.from(plantillaEjemplo()), { nombreArchivo: "v2.xlsx", fechaCarga: "2026-08-31" }).dataset;
+  initTenant(PACK);
+  const pb = playbookPara("cuánto me compró Depósito Riachuelo el último mes");
+  ok(pb && pb.nombre === "entidad-por-periodo", "★ con serie REAL, el playbook toma la pregunta insignia", pb && pb.nombre);
+  ok(playbookPara("cuánto me compró Depósito Riachuelo el último mes") !== lecturaPorEjePb(),
+    "★ y lectura-por-eje NO la secuestra por la palabra «Depósito» del nombre — un nombre de entidad no es un eje");
+  const T = async (q) => answerViaAgente({ text: q, history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
+  const ru = await T("cuánto me compró Depósito Riachuelo el último mes");
+  ok(ru.r.agente.estado === "playbook" && /te compró \$22\.560 en agosto 2026; en julio 2026 habían sido \$24\.029/.test(ru.r.text),
+    `★ «último mes» → el mes con su cifra Y el anterior con la suya (${ru.r.agente.estado})`, ru.r.text.slice(0, 120));
+  ok(/-6\.1% contra el mes anterior/.test(ru.r.text) && ru.r.agente.vetos.length === 0,
+    "★ y el delta pasa el muro: va DECLARADO en [[CALCULO]] con inputs (nuevo; viejo), signo ASCII y dueño — los tres, medidos, hacían falta");
+  const rp = await T("muéstrame la venta de Depósito Riachuelo mes a mes");
+  ok(rp.r.agente.estado === "playbook" && /julio 2026: \$24\.029/.test(rp.r.text) && /agosto 2026: \$22\.560/.test(rp.r.text),
+    `★ «mes a mes» → cada mes con su cifra (${rp.r.agente.estado})`);
+  const rj = await T("cuánto me compró Depósito Riachuelo en julio");
+  ok(rj.r.agente.estado === "playbook" && /en julio 2026: venta de \$24\.029/.test(rj.r.text), `★ «en julio» → ese mes, ese monto (${rj.r.agente.estado})`);
+  // la lista notarial
+  const figs = boletaDelPlaybook(pb, "bonanza", "cuánto me compró Depósito Riachuelo el último mes");
+  const Q = "cuánto me compró Depósito Riachuelo el último mes";
+  ok(vetosDelPlaybook(pb, "Depósito Riachuelo te compró $24.029 en julio 2026.", { figs, pregunta: Q }).some((x) => x.regla === "mes-equivocado"),
+    "responder julio cuando el último mes es agosto → mes-equivocado");
+  ok(vetosDelPlaybook(pb, "En agosto 2026 la compra fue de $22.560.", { figs, pregunta: Q }).some((x) => x.regla === "entidad-ausente"),
+    "la cifra sin el nombre de la entidad → entidad-ausente");
+  ok(vetosDelPlaybook(pb, pb.componer({ figs, pregunta: Q }), { figs, pregunta: Q }).length === 0, "…y su propio entregable pasa su lista");
+  // en el DEMO no hay serie real: el playbook NO aplica y el puente sigue mandando — complementarios, jamás rivales
+  initTenant(TENANT_DEMO);
+  ok(playbookPara("cuánto me compró Falabella el último mes") === null, "★ en el demo (serie de muestra) el playbook se retira: ese caso es del puente");
+  const rd = await T("cuánto me compró Falabella el último mes");
+  ok(rd.r.agente.estado === "puente", `…y el turno sigue yendo al puente (${rd.r.agente.estado})`);
+}
+function lecturaPorEjePb() { return PLAYBOOKS.find((p) => p.nombre === "lectura-por-eje") || null; }
 
 /* ═══ 2 · LA ACEPTACIÓN · el turno documentado que rescataba, ahora RESPONDE ══════════════════════════════════
  * T6 del expediente (`_AGENTE_PUNTO_DE_PARTIDA.md`), verbatim: «llamame jc de ahora en adelante. como viene mi
@@ -407,6 +456,41 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   await carnada("lectura por eje secuestra una simulación", "src/adi/agente/playbooks/lecturaPorEje.js",
     [[/  if \(_FUERA\.test\(q\) \|\| !_PIDE_LECTURA\.test\(q\)\) return null;/, "  if (!_PIDE_LECTURA.test(q)) return null;"]],
     async (Mut) => Mut.lecturaPorEje.cuandoAplica("simula que la marca LG sube 3%: cuánto margen deja"));
+
+  /* ── LAS DE ENTIDAD × PERÍODO ───────────────────────────────────────────────────────────────────────────────
+   * La carnada no puede meter el módulo mutado en el registro del bucle, así que el texto que compone la copia
+   * se juzga DIRECTO contra guardC con el MISMO contexto que el bucle arma en la plantilla (boleta de la
+   * herramienta, dueños del tenant, dato proyectado). Es el muro real, no una imitación. Los tres defectos de
+   * abajo los cometí yo en la primera versión y los cazó la sonda, uno por uno: por eso son carnada. */
+  const PACK_B = ingestarPlantilla(Buffer.from(plantillaEjemplo()), { nombreArchivo: "v2.xlsx", fechaCarga: "2026-08-31" }).dataset;
+  const QB = "cuánto me compró Depósito Riachuelo el último mes";
+  const _juzgaDirecto = (texto) => {
+    initTenant(PACK_B);
+    const figs = serieEntidad({ entity: "Depósito Riachuelo", metrica: "venta" }, { scenario: "bonanza" }).boleta;
+    const duenos = []; for (const e of ["cliente", "sku", "marca", "familia", "bodega", "canal"]) { try { duenos.push(...axisEntityNames(e)); } catch { /* */ } }
+    const v = guardC(String(texto || ""), { ledger: { figs }, results: [], trace: null, question: QB, supuestoPendiente: [],
+      recitaAprobada: null, datoProyectado: cifrasDelDato("bonanza"), entidadesDelTenant: duenos, duenosDelTenant: duenos, contentScope: "full", tablePolicy: "auto" });
+    return { ok: !!(v && v.ok), figs };
+  };
+  const _componeB = (Mut) => { initTenant(PACK_B); const figs = serieEntidad({ entity: "Depósito Riachuelo", metrica: "venta" }, { scenario: "bonanza" }).boleta; return Mut.entidadPorPeriodo.componer({ figs, pregunta: QB }); };
+
+  // (E) los inputs al revés (viejo; nuevo): el muro recompone +6.5% contra −6.1% y veta
+  await carnada("el delta con los inputs al revés (viejo; nuevo)", "src/adi/agente/playbooks/entidadPorPeriodo.js",
+    [[/inputs=\$\{u\.fmt\}; \$\{a\.fmt\}/, "inputs=${a.fmt}; ${u.fmt}"]],
+    async (Mut) => !_juzgaDirecto(_componeB(Mut)).ok);
+  // (F) sin dueño: la cuenta cierra pero no declara de quién es, y el muro la rechaza igual
+  await carnada("el delta sin dueño declarado", "src/adi/agente/playbooks/entidadPorPeriodo.js",
+    [[/ · dueno=\$\{d\.entidad\}\\n`\);/, "\\n`);"]],
+    async (Mut) => !_juzgaDirecto(_componeB(Mut)).ok);
+  // (G) el signo tipográfico «−» (U+2212): el `_num` del muro solo lee `-` ASCII y el resultado no se parsea
+  await carnada("el signo del delta con el «−» tipográfico", "src/adi/agente/playbooks/entidadPorPeriodo.js",
+    [[/const signo = pct >= 0 \? "\+" : "-";/, 'const signo = pct >= 0 ? "+" : "\\u2212";']],
+    async (Mut) => !_juzgaDirecto(_componeB(Mut)).ok);
+  // (H) `_caso` sin exigir serie REAL: el playbook reclama también la bloqueada y compite con el puente
+  await carnada("entidad×período reclama la serie bloqueada (compite con el puente)", "src/adi/agente/playbooks/entidadPorPeriodo.js",
+    [[/  if \(!estado \|\| !estado\.real\) return null;/, "  // CARNADA: la serie bloqueada también"]],
+    async (Mut) => { initTenant(TENANT_DEMO); return Mut.entidadPorPeriodo.cuandoAplica("cuánto me compró Falabella el último mes"); });
+  initTenant(TENANT_DEMO);
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* */ } }
 }

@@ -24,6 +24,9 @@
  *
  * PURO · determinístico · sin red. Cifras VERBATIM de la boleta: este módulo selecciona y ordena, jamás calcula. */
 
+import { detectSerieIntent } from "../../oracle/serieIntent.js";   // UN detector de entidad×período para el puente, entidad-por-período y este playbook
+import { _sinNombresDeEntidad } from "../mapaDelDato.js";        // un nombre de entidad no es un eje — la función del mapa, compartida
+
 const _FIN = "(?![a-záéíóúüñ])";
 /* ⚠️ EL MOTOR SOLO PONE `raw` EN LAS FILAS DESTACADAS (la misma lección que margen-en-riesgo dejó escrita, y
  * que este playbook volvió a pagar en la sonda: «margen por marca» salía SIN ordenar porque de cinco marcas
@@ -73,14 +76,25 @@ const EJES = [
 /* la forma de PEDIR una lectura: ranking, mejores/peores, cuál deja más, cuánto por. Sin esto, «la marca LG»
  * dentro de otra pregunta activaría el playbook por la sola palabra. */
 const _PIDE_LECTURA = new RegExp(`\\branking${_FIN}|\\bmejor(?:es)?${_FIN}|\\bpeor(?:es)?${_FIN}|\\bcu[aá]l(?:es)?${_FIN}|\\bqu[eé]${_FIN}|\\bcu[aá]nto${_FIN}|\\bc[oó]mo${_FIN}|\\bdame${_FIN}|\\bmu[eé]stra|\\blista${_FIN}|\\bpor\\s+(?:canal|marca|familia|bodega|categor)`, "i");
-/* lo que NO es una lectura por eje aunque nombre uno: simulaciones y proyecciones (tienen su playbook), la
- * entidad puntual con período (tiene el puente), y el trato. */
-const _FUERA = new RegExp(`\\bsimul|\\bproyect|\\bqu[eé] pasa si${_FIN}|\\bpon[eé]le que${_FIN}|\\b[uú]ltimo mes${_FIN}|\\bmes a mes${_FIN}|\\bllamame|\\bll[aá]mame`, "i");
+/* lo que NO es una lectura por eje aunque nombre uno: simulaciones y proyecciones (tienen su playbook) y el
+ * trato. La entidad×período NO va acá como regex: la decide `detectSerieIntent`, el MISMO detector del puente y
+ * de entidad-por-período — un solo detector para las tres piezas, o se contradicen entre sí.
+ * ⚠️ ACÁ HABÍA `\b[uú]ltimo mes`, Y ES EL `\b` IMPOSIBLE EN ESPEJO: `\b` se define sobre [A-Za-z0-9_], así que
+ * entre el espacio y la «ú» de «el último» NO hay frontera y la exclusión nunca disparaba. Medido:
+ * /\b[uú]ltimo mes/.test("el último mes") === false. El barrido §5g vigilaba el `\b` DESPUÉS de un no-\w; este
+ * es el de ANTES. Se retira la regex y se usa el detector, que es lo correcto de todos modos. */
+const _FUERA = new RegExp(`\\bsimul|\\bproyect|\\bqu[eé] pasa si${_FIN}|\\bpon[eé]le que${_FIN}|\\bllamame|\\bll[aá]mame`, "i");
 
 const _ejeDe = (pregunta) => {
   const q = String(pregunta || "");
   if (_FUERA.test(q) || !_PIDE_LECTURA.test(q)) return null;
-  return EJES.find((e) => e.re.test(q)) || null;
+  /* entidad × período es de otros dos (puente / entidad-por-período): mismo detector, jamás una segunda regex */
+  try { if (detectSerieIntent(q)) return null; } catch { /* detector mudo: sigue */ }
+  /* ⚠️ UN NOMBRE DE ENTIDAD NO ES UN EJE (la misma lección que el mapa del dato ya pagó con «Depósito
+   * Riachuelo»): el cliente se llama «Depósito…» y disparaba el eje bodega. El eje se busca en la pregunta SIN
+   * los nombres del catálogo del tenant — con la función del mapa, compartida, no replicada. */
+  const qSinNombres = (() => { try { return _sinNombresDeEntidad(q); } catch { return q; } })();
+  return EJES.find((e) => e.re.test(qSinNombres)) || null;
 };
 
 export const lecturaPorEje = {

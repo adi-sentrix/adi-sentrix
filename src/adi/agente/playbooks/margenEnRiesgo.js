@@ -94,7 +94,13 @@ const _FUERA = new RegExp(`\\bsimul|\\bproyect|\\bqu[eé] pasa si\\b|\\bpon[eé]
  * declinando que ese eje no existe, y un playbook de clientes ahí es exactamente la mezcla que el usuario pidió
  * evitar. Equivocarse hacia AFUERA es barato: el turno sigue por el camino de siempre. */
 const _OTRO_EJE = /\brotaci[oó]n\b|\binventario\b|\bstock\b|\bbodega|\bpunto[s]? de venta\b|\bsucursal|\btienda|\bcanal(?:es)?\b|\bfamilia|\bmarca[s]?\b|\bcategor[ií]a/i;
-const _OTRO_PERIODO = /\bq[1-4]\b|\btrimestr|\bmensual\b|\bmes a mes\b|\b[uú]ltimo mes\b|\bsemestr/i;
+/* ⚠️ `\b[uú]ltimo mes` ES EL `\b` IMPOSIBLE EN ESPEJO (cazado 2026-09-01 midiendo el agente entero: un solo
+ * sitio, éste). `\b` se define sobre [A-Za-z0-9_]; entre el espacio y la «ú» de «el último» no hay frontera,
+ * así que la alternativa acentuada jamás matcheaba: /\b[uú]ltimo mes\b/.test("el último mes") === false. Media
+ * ciega: cazaba «ultimo» y no «último». Sin daño visible porque el bucle resuelve entidad×período ANTES de los
+ * playbooks — pero un candado que solo funciona con la ortografía equivocada es un adorno. Sin `\b` delante;
+ * la frontera de atrás con `_FIN`, como el resto del archivo. */
+const _OTRO_PERIODO = new RegExp(`\\bq[1-4]\\b|\\btrimestr|\\bmensual\\b|\\bmes a mes\\b|[uú]ltimo mes${_FIN}|\\bsemestr`, "i");
 
 export const margenEnRiesgo = {
   nombre: "margen-en-riesgo",

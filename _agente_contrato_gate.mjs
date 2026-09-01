@@ -310,15 +310,46 @@ H("5g · ningún patrón del agente cierra con `\\b` después de un carácter qu
     }
     return false;
   };
+  /* EL ESPEJO (2026-09-01). El barrido de arriba mira lo que hay ANTES del `\b`. La misma trampa existe DESPUÉS:
+   * `\b[uú]ltimo` — entre el espacio y la «ú» no hay frontera, así que la alternativa acentuada nunca matchea
+   * y el patrón queda MEDIO CIEGO: caza «ultimo» y no «último». Me lo encontré en mi propio `_FUERA` del
+   * playbook de lectura por eje, y medido sobre el agente entero había exactamente UN sitio más
+   * (margenEnRiesgo `_OTRO_PERIODO`, con el mismo `\b[uú]ltimo mes`). Dos condiciones, ninguna de más:
+   *   (a) `\b` pegado a un acento literal: `\bú…`;
+   *   (b) `\b` abriendo una clase que contiene un acento: `\b[uú]…`.
+   * Lo que NO se marca: `\b` seguido de una letra ASCII aunque la palabra tenga acento más adelante
+   * (`\bm[aá]s`, `\bcu[aá]nto`): ahí la frontera existe. Un candado con falsos positivos se desactiva solo. */
+  const _inicioImposible = (linea) => {
+    for (let i = linea.indexOf("\\b"); i >= 0; i = linea.indexOf("\\b", i + 2)) {
+      const next = linea[i + 2];
+      if (next === undefined) continue;
+      if (next !== "[" && next !== "(") { if (_NO_W.test(next) && !/[%$]/.test(next)) return true; continue; }
+      if (next === "[") {
+        const fin = linea.indexOf("]", i + 3);
+        if (fin > 0 && /[áéíóúüñÁÉÍÓÚÜÑ]/.test(linea.slice(i + 3, fin))) return true;
+      }
+    }
+    return false;
+  };
   const culpables = [];
   for (const rel of ARCHIVOS) {
     const txt = fs.readFileSync(path.join(process.cwd(), rel), "utf8").replace(/\r\n/g, "\n");
     for (const [n, linea] of txt.split("\n").entries()) {
-      if (/^\s*(?:\*|\/\/)/.test(linea)) continue;   // los comentarios explican la trampa: no son la trampa
+      if (/^\s*(?:\*|\/\/|\/\*)/.test(linea)) continue;   // los comentarios explican la trampa: no son la trampa
       if (_finImposible(linea)) culpables.push(`${rel}:${n + 1} → ${linea.trim().slice(0, 100)}`);
+      if (_inicioImposible(linea)) culpables.push(`${rel}:${n + 1} (espejo) → ${linea.trim().slice(0, 100)}`);
     }
   }
-  ok(culpables.length === 0, "★ cero patrones con el `\\b` imposible en el código del agente", culpables.join(" | "));
+  ok(culpables.length === 0, "★ cero patrones con el `\\b` imposible en el código del agente (antes Y después del \\b)", culpables.join(" | "));
+  /* carnada del espejo: se reinstala `\b[uú]ltimo mes` en una COPIA de margenEnRiesgo y el barrido lo caza */
+  {
+    const vivo = fs.readFileSync(path.join(process.cwd(), "src", "adi", "agente", "playbooks", "margenEnRiesgo.js"), "utf8").replace(/\r\n/g, "\n");
+    const mutado = vivo.replace("[uú]ltimo mes${_FIN}", "\\\\b[uú]ltimo mes\\\\b");
+    ok(mutado !== vivo, "la carnada del espejo encontró qué mutar");
+    ok(mutado.split("\n").some((l) => !/^\s*(?:\*|\/\/|\/\*)/.test(l) && _inicioImposible(l)),
+      "★ carnada: con el `\\b` en espejo de vuelta, el barrido se pone ROJO");
+    ok(!/\b[uú]ltimo mes\b/i.test("cuanto me compro riachuelo el último mes"), "…y el defecto que evita es real: ese patrón no ve «el último mes»");
+  }
   // y la conducta que la lección protege, probada de punta a punta
   const CIF = /\$\s?[\d.,]+\s?[KMB]?|[\d.,]+\s*%|[\d.,]+\s*(?:pp|x)\b/gi;
   for (const c of ["1%", "52%", "30.1%", "$4.9M", "2 pp"]) {
@@ -331,7 +362,7 @@ H("5g · ningún patrón del agente cierra con `\\b` después de un carácter qu
     const mutado = vivo.replace("const _CIFRA_EN_MULTA = /\\$\\s?[\\d.,]+\\s?[KMB]?|[\\d.,]+\\s*%|[\\d.,]+\\s*(?:pp|x)\\b/gi;",
       "const _CIFRA_EN_MULTA = /\\$\\s?[\\d.,]+\\s?[KMB]?|[\\d.,]+\\s*(?:%|pp|x)\\b/gi;");
     ok(mutado !== vivo, "la carnada del barrido encontró qué mutar");
-    const cazada = mutado.split("\n").some((l) => !/^\s*(?:\*|\/\/)/.test(l) && _finImposible(l));
+    const cazada = mutado.split("\n").some((l) => !/^\s*(?:\*|\/\/|\/\*)/.test(l) && _finImposible(l));
     ok(cazada, "★ carnada: con el `\\b` imposible de vuelta, el barrido se pone ROJO");
     // el extractor mutado, además, vuelve a ser ciego a los porcentajes: la conducta que el barrido protege
     const CIF_MUT = /\$\s?[\d.,]+\s?[KMB]?|[\d.,]+\s*(?:%|pp|x)\b/gi;
