@@ -417,9 +417,23 @@ H("12 · el empujón de R6: declinar sin haber leído recibe UNA chance de verif
    * texto en T6 fue «limite» — infló la tasa del criterio A). El muro no lo veta (la cifra era verdadera con
    * dueño — refutado T-transversal-5); la ETIQUETA se corrige: eso ES un rescate. */
   initTenant(TENANT_DEMO);
-  const ECO = "No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: las ventas totales del negocio suman $99.9M. Dime por dónde quieres que siga y lo trabajo sobre lo disponible.";
-  const re2 = await answerViaAgente({ text: "dame la foto del negocio", history: [], mem: {}, scenario: "bonanza", callAgente: async () => ({ tipo: "texto", texto: ECO }) });
-  ok(re2.r.agente.estado === "limite" && /99\.9M/.test(re2.r.text),
+  /* ⚠️ LA CIFRA DE ESTE ECO SE ACTUALIZÓ EL 2026-09-01, y el texto histórico queda acá para que no se pierda.
+   * EL VERBATIM DEL T8 DEL EXAMEN 1 era, palabra por palabra:
+   *   «No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado:
+   *    las ventas totales del negocio suman $99.9M. Dime por dónde quieres que siga y lo trabajo sobre lo
+   *    disponible.»
+   * POR QUÉ CAMBIÓ: el owner declaró que el total del negocio es el que muestra la pantalla, así que la quinta
+   * fuente dejó de publicar $99.9M con ese concepto y el muro empezó a vetar ese texto. Medido: con $99.9M el
+   * turno cae a `vacio` con dos vetos, y entonces NUNCA LLEGA AL CONTEO — que es justamente lo que este bloque
+   * vigila. La cifra es el vehículo que lleva el eco hasta el punto de conteo; lo medido es cómo se CUENTA.
+   * Un check que ya no alcanza el sitio que vigila conserva un texto y pierde la garantía.
+   * Y sale del DATO, no de un literal: si mañana el total vuelve a cambiar, este bloque lo sigue. */
+  const _totalHoy = (cifrasDelDato(ESCENARIO_INICIAL).figs || []).find((x) => /^money:/.test(String(x.canon))
+    && Array.isArray(x.duenos) && x.duenos.includes("negocio") && x.duenos.includes("total")
+    && !x.duenos.includes("anterior") && !x.duenos.includes("presupuesto"));
+  const ECO = `No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: las ventas totales del negocio suman ${_totalHoy.value}. Dime por dónde quieres que siga y lo trabajo sobre lo disponible.`;
+  const re2 = await answerViaAgente({ text: "dame la foto del negocio", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: ECO }) });
+  ok(re2.r.agente.estado === "limite" && re2.r.text.includes(_totalHoy.value),
     `★ [10]: el eco de la plantilla APRUEBA el muro pero se CUENTA como límite (${re2.r.agente.estado}) — el T8 del examen`);
   ok(!re2.mem.ultimaAprobada, "…y NO se vuelve `ultimaAprobada`: el respaldo jamás re-ofrece un rescate como respuesta de verdad");
 }
@@ -757,8 +771,13 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       "  if (false) { estado = \"limite\"; }"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
-      const ECO2 = "No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: las ventas totales del negocio suman $99.9M. Dime por dónde quieres que siga y lo trabajo sobre lo disponible.";
-      const r = await Mut.answerViaAgente({ text: "dame la foto del negocio", history: [], mem: {}, scenario: "bonanza", callAgente: async () => ({ tipo: "texto", texto: ECO2 }) });
+      // la cifra sale del DATO, igual que en el bloque [10]: con la vieja el eco muere en el muro y la carnada
+      // no llega al conteo que quiere medir — dejaría de cazar sin decirlo.
+      const _t = (cifrasDelDato(ESCENARIO_INICIAL).figs || []).find((x) => /^money:/.test(String(x.canon))
+        && Array.isArray(x.duenos) && x.duenos.includes("negocio") && x.duenos.includes("total")
+        && !x.duenos.includes("anterior") && !x.duenos.includes("presupuesto"));
+      const ECO2 = `No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: las ventas totales del negocio suman ${_t.value}. Dime por dónde quieres que siga y lo trabajo sobre lo disponible.`;
+      const r = await Mut.answerViaAgente({ text: "dame la foto del negocio", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: ECO2 }) });
       return r.r.agente.estado === "verde";   // el defecto: la no-respuesta infla el conteo
     });
 

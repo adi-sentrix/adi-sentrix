@@ -37,6 +37,7 @@ import { enLaCarpeta } from "../../ingesta/selloEnRespuesta.js";
 import { UNIVERSOS, DIVERGENCIAS } from "../../config/contract/figureType.js";
 import { METRICS } from "../../config/contract/metricRegistry.js";
 import { deriveKpis } from "../../engine/scenarios.js";
+import { getVentasKPI } from "../../engine/metrics.js";   // la venta del negocio que muestra la PANTALLA — decisión del owner 2026-09-01 (ver `_construir`)
 import { tenantPolicyDefault } from "../../config/businessPolicy.js";
 import { getTenantId, getTenantData, onTenantChange } from "../../data/tenantStore.js";
 import { parseFigures } from "../boleta.js";
@@ -125,10 +126,36 @@ function _filas(scenario) {
  * narrador lee es exactamente lo que el muro autoriza (con su dueño), nunca dos listas que puedan divergir.
  * figs: [{ canon, value, duenos: [tokens] }] — `duenos` son los tokens cuya presencia en la MISMA oración de la
  * cita la valida (guardC, quinta fuente). counts: conteos declarados (filas por universo). */
+/* ── LA VENTA DEL NEGOCIO ES LA DE LA PANTALLA (owner 2026-09-01, textual) ──────────────────────────────────
+ * «Usa como venta oficial del negocio la misma cifra que muestra la pantalla. ADI y Sentrix deben decir el
+ * mismo número para el mismo concepto. Si existe otra suma interna, déjala como fuente secundaria o pendiente,
+ * pero no la uses como "total del negocio" en conversación.»
+ *
+ * EL DEFECTO, medido (2026-09-01, escenario `bonanza`): este módulo publicaba los KPI de ventas desde
+ * `deriveKpis`, que SUMA LAS FILAS de clientes (99.887 → «$99.9M»), mientras la superficie —card, hero y la
+ * respuesta que abre su click— usa `getVentasKPI` (99.999 → «$100.0M»); ver `mesa.js:93` y su comentario de
+ * COHERENCIA de 2026-07-15, donde la intención de «una verdad» ya estaba escrita. Divergían TRES cifras del
+ * mismo concepto: el total, el % vs año anterior (7,5 contra 7,6) y el % vs presupuesto (3,0 contra 3,1).
+ *
+ * ⚠️ ACOTADO AL CONCEPTO, Y MEDIDO ANTES DE ACOTARLO: se comparó la familia entera con los mismos dueños
+ * (`negocio+total+cartera+global`). El margen de la cartera (25,1%) y la contribución total ($25K) NO divergen
+ * — la Mesa los calcula sumando las mismas filas que `deriveKpis` (`mesa.js:111`), así que ahí ADI y la
+ * pantalla ya dicen lo mismo y no se tocan. El año anterior y el presupuesto tampoco: son literales del pack.
+ * (La primera medición de esto comparó el margen contra `getMargenKPI` —que existe pero la card NO usa— y daba
+ * un falso «el concepto entero está roto». La fuente de la pantalla es la que la pantalla llama, no la que
+ * lleva su nombre.)
+ *
+ * LA OTRA SUMA NO SE BORRA: `deriveKpis().ventas` sigue siendo el motor de todo lo demás de este módulo y es
+ * la Σ de las filas, que es lo correcto para hablar POR FILA. Queda como FUENTE SECUNDARIA del total: no se
+ * publica como «total del negocio» en conversación, que es exactamente lo que el owner pidió. Los dos números
+ * son sumas de verdad, no un redondeo — difieren en 112 (0,112%) por lo que el dataset arrastra entre
+ * `ventasKPI` y Σ`clientesVentas`, y `sentrix/temporal.js` ya lo declaraba. */
 function _construir(scenario) {
   const t = getTenantData();
   const f = _filas(scenario);
-  const kpis = deriveKpis(scenario);
+  const _derivados = deriveKpis(scenario);
+  const _ventasPantalla = getVentasKPI(null, null, scenario) || {};
+  const kpis = { ..._derivados, ventas: { ...(_derivados.ventas || {}), ..._ventasPantalla } };
   const figs = [];
   const counts = new Set();
   /* ESTADOS y RANKINGS (constitución 2026-08-14, chequeos 3 y 4 del notario): las clasificaciones y los
