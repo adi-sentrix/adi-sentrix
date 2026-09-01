@@ -180,3 +180,73 @@ funciona en vivo y hay que volver al diagnóstico **antes** de los tres escenari
 (1, 3, 6, 8) son la red: si alguno cae, algo de lo ganado se rompió y eso pesa más que cualquier mejora nueva.
 
 **FRENO INTACTO: no corre sin la palabra del owner que NOMBRE el gasto.**
+
+---
+
+## LOS TRES ESCENARIOS DE CERTIFICACIÓN (armados 2026-08-31) — pedido de autorización
+
+**Decisión del owner**: no certifica el agente solo con el demo. Tres datos: **demo de fábrica · planilla
+COMPLETA · planilla PARCIAL**. Él llena las planillas; la consola ya sabe cargarlas (`--planilla <ruta.xlsx>`).
+
+### El reparto, y por qué no son 28 × 3
+
+El demo ya se midió **cuatro veces**: gastar 28 turnos ahí otra vez no compra información. Donde falta medida
+es en los dos datos nuevos: la **completa** prueba el TECHO del producto (los ejes que el demo no tiene) y la
+**parcial** prueba la CONDUCTA con dato incompleto (que nombre la columna ausente).
+
+| Escenario | Turnos | Qué mide | Costo típico | Techo |
+|---|---|---|---|---|
+| **1 · demo** | 8 | la corrida corta de confirmación ya especificada arriba — **si ya se corrió, no se repite** | ≈US$0.16 | ≈US$0.48 |
+| **2 · completa** | 12 | el techo: los ejes que el demo no puede probar + la serie real por cliente | ≈US$0.24 | ≈US$0.72 |
+| **3 · parcial** | 8 | la conducta nueva: nombrar la columna ausente sin degradar lo que sí está | ≈US$0.16 | ≈US$0.48 |
+| **TOTAL** | **28** | | **≈US$0.56** | **≈US$1.68** |
+
+El costo típico sale del **medido**: US$0.5582 / 28 turnos de la corrida 4 = US$0.020 por turno. El techo es
+pesimista a propósito (todos los turnos al precio del más caro de esa corrida, US$0.059) — **en la práctica
+manda el freno del conductor, que reserva el peor turno antes de arrancar y no puede pasar el techo
+autorizado**. Si el owner prefiere autorizar de a uno, cada escenario trae su propio número.
+
+### ESCENARIO 2 · PLANILLA COMPLETA (12 turnos) — el techo del producto
+
+| # | Turno | PASS | FAIL |
+|---|---|---|---|
+| 1 | «cuánto me compró {cliente} el último mes» | **la cifra del mes con su nombre y el delta contra el anterior** | declina como en el demo |
+| 2 | «muéstrame la venta de {cliente} mes a mes» | los meses con sus cifras verbatim | declina o inventa meses |
+| 3 | «ranking por canal: mejores y peores» | usa el eje canal REAL de su archivo | dice que no tiene el eje |
+| 4 | «por punto de venta, ¿quién queda bajo el plan?» | responde por punto de venta | lo confunde con cliente o bodega |
+| 5 | «qué marca deja más margen» | ranking por marca con cifras | declina |
+| 6 | «margen por familia» | ranking por familia con cifras | declina |
+| 7 | «capital por bodega» | capital por bodega, sin mezclar con venta | cruza los dos universos |
+| 8 | «quién me debe y qué está vencido» | usa la hoja Abonos: deuda y vencido con cifras | declina teniendo la hoja |
+| 9 | «cuánto vendí a crédito vs contado» | usa la columna condición | declina teniendo la columna |
+| 10 | «llamame {apodo}. ¿cómo viene mi margen?» | playbook sobre SUS clientes + trato + registro ejecutivo | «acá está» / se disculpa |
+| 11 | «dame los 3 riesgos para el directorio» | tres riesgos con cifras de SU negocio | molde o disculpa |
+| 12 | «compará Q1 vs Q2» (si su archivo no trae trimestres) | límite corto CON la alternativa nombrada | disculpa genérica |
+
+**El turno 1 vale por sí solo**: verificado offline que con una planilla de dos meses reales `serieRealDe` pasa
+a `real:true` y el puente deja de interceptar — **el bloqueo de la serie era del demo (histórico sintético que
+no reconcilia), no del producto**. Si ese turno responde con cifra, queda probado en vivo.
+
+### ESCENARIO 3 · PLANILLA PARCIAL (8 turnos) — la conducta con dato incompleto
+
+Cinco turnos donde la pieza NO está (debe nombrarla) y tres donde SÍ está (no debe degradarse).
+
+| # | Turno | PASS | FAIL |
+|---|---|---|---|
+| 1 | «quién me debe y qué está vencido» | **«tu archivo no trae la hoja Abonos: con eso te abro…»** | disculpa genérica o vacío |
+| 2 | «ranking por canal» | nombra la columna «canal» de Ventas | «no tengo ese eje» sin decir por qué |
+| 3 | «cuánto vendí a crédito» | nombra la columna «condición» de Ventas | disculpa |
+| 4 | «mejores y peores puntos de venta» | nombra la columna «punto de venta» | lo confunde con cliente |
+| 5 | «capital por bodega» | nombra la columna «bodega» de Inventario | inventa el corte |
+| 6 | «¿cómo viene mi margen?» | **funciona igual que con la completa** | se degrada por lo que falta |
+| 7 | «qué SKU tienen capital frenado» | responde por SKU con cifras | declina |
+| 8 | «cuánto me compró {cliente} el último mes» | responde con la serie (las 7 obligatorias la sostienen) | declina |
+
+**Los turnos 6-8 son la mitad que más importa**: un dato incompleto no puede empeorar lo que sí trae. Si
+alguno cae, el arreglo del dato incompleto costó más de lo que dio.
+
+### Cómo se lee
+Cada escenario se lee solo, con sus PASS/FAIL. **La regla de jerarquía es la misma**: una caída de regresión
+(2·10, 2·11, 3·6, 3·7, 3·8) pesa más que cualquier turno nuevo que funcione.
+
+**FRENO INTACTO: nada de esto corre sin la palabra del owner que NOMBRE el gasto.**
