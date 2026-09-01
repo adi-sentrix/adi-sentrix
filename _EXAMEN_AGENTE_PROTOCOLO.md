@@ -140,3 +140,43 @@ mejores respuestas del examen: corrigió la premisa con el dato real y etiquetó
 | Techo | **≈ US$1.00** (más el freno del conductor, que el supervisor endureció a chequeo intra-turno y por llamada) |
 
 **FRENO INTACTO: esta corrida NO corre sin la palabra del owner que NOMBRE el gasto.**
+
+---
+
+## CORRIDA CORTA DE CONFIRMACIÓN (post corrida 4 · armada 2026-08-31) — pedido de autorización
+
+**Para qué**: la corrida 4 midió el registro ejecutivo y la consistencia. Después de ella se cerraron cuatro
+cosas que **nunca se midieron en vivo**: P1 (el default de «mi venta»), P2(i) (la letra del ejemplo numérico),
+P2(ii) (la escalada del veto reparable) y (B) (el peldaño que cede solo en el agente). Esta corrida confirma
+esas cuatro **y** que no se rompió nada de lo ya ganado. **No es un examen nuevo: son 8 turnos.**
+
+### El gasto, nombrado
+
+| Concepto | Cifra |
+|---|---|
+| Turnos | **8** |
+| Costo típico por turno (medido en la corrida 4: US$0.5582 / 28) | ≈ US$0.020 |
+| **Costo típico de la corrida corta** | **≈ US$0.16** |
+| **Techo** (si los 8 turnos costaran como el más caro de la corrida 4, US$0.059) | **≈ US$0.48** |
+
+Con `--frenar-en-vacia` por turno y el freno del conductor que ya reserva el peor turno antes de arrancar.
+
+### Los 8 turnos, en este orden (el orden importa: tres necesitan contexto previo)
+
+| # | Turno | Qué confirma | PASS | FAIL |
+|---|---|---|---|---|
+| 1 | «llamame jc de ahora en adelante. como viene mi margen?» | REGRESIÓN: playbook Margen en Riesgo · trato · registro ejecutivo | responde la lectura (vara 30,1% · 8 bajo · $4,9M) y abre con «jc:» o «jc,» | vuelve «acá está» / se disculpa / pide aclaración |
+| 2 | «ponele que el año que viene crezco 3%: cuanto seria mi venta?» | **P1** (T8 verbatim de la corrida 4) | proyecta sobre la venta TOTAL del negocio y lo dice | pregunta «¿global o por cliente?» |
+| 3 | «Dime cuáles son los clientes que venden mucho pero están bajo el benchmark» | REGRESIÓN: el mejor turno de la corrida 4 | tabla con cifras verbatim, registro ejecutivo | pierde la tabla o cae al rescate |
+| 4 | «Con ese total anual, proyecta 12 meses con +4% y dime cuánto genera adicional.» | **P1** con contexto (T21 verbatim) | proyecta sobre el total ya nombrado en el hilo | vuelve a pedir la entidad |
+| 5 | «Sobre esos clientes, simula reducir 2 puntos porcentuales las acciones comerciales y dime si alguno queda sobre el benchmark.» | **P2(i)+(ii)** (T10 verbatim — el que salió vacío) | aclara SIN ejemplo numérico sobre una entidad real, o repara y entrega | vuelve a salir `vacio` con la disculpa genérica |
+| 6 | «Compara Q1 vs Q2 en ventas, margen y contribución. Si no está en la carpeta, dilo.» | REGRESIÓN: C3, límite con alternativa nombrada | nombra lo que sí tiene («la serie mensual global real, 12 meses») y ofrece | «No tengo información autorizada suficiente» |
+| 7 | «Dame una versión más dura, como si tuviera que presentarla al gerente general.» | **(B)** + P2 · el respaldo tras un verde | reformula con lo del hilo, sin salir a leer y sin la frase de molde | la cadena «sigue verificado y en pie — dime qué parte profundizo» |
+| 8 | «cuanto me compro falabella el ultimo mes» | REGRESIÓN: el puente de la grieta, costo ~cero | una o dos líneas con la razón verdadera y la puerta a la ficha | vuelve a la lotería del cerebro |
+
+### Cómo se lee el resultado
+Los **cuatro turnos de cambio** (2, 4, 5, 7) son binarios: o hacen lo de la columna PASS o el arreglo no
+funciona en vivo y hay que volver al diagnóstico **antes** de los tres escenarios. Los **cuatro de regresión**
+(1, 3, 6, 8) son la red: si alguno cae, algo de lo ganado se rompió y eso pesa más que cualquier mejora nueva.
+
+**FRENO INTACTO: no corre sin la palabra del owner que NOMBRE el gasto.**
