@@ -24,7 +24,7 @@ import { factorComercialDe } from "../../config/contract/figureType.js";
 import { serieRealDe } from "../sentrix/capability.js";
 import { ventaOficialDelPeriodo } from "../sentrix/temporal.js";   // `proyectar` · la venta oficial del período: la sola verdad que el owner declaró (2026-07-15)
 import { findCandidates } from "../oracle/entityIndex.js";
-import { fig } from "../boleta.js";
+import { fig, parseFigures } from "../boleta.js";   // parseFigures se usa como FORMATEADOR (ver `_m` en proyectar): la técnica de la casa, jamás una copia
 import { fmtMonto, simboloMoneda } from "../../config/moneda.js";
 import { nombreDePeriodo } from "../../ingesta/historico.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
@@ -155,14 +155,22 @@ export function proyectar({ tasa, horizonte, entity } = {}, { scenario = ESCENAR
   const d = getTenantData() || {};
   const sinSoporte = (reason) => ({ facts: null, boleta: [], coverage: { supported: false, reason } });
   const fx = factorComercialDe(d);
-  /* LA MISMA FORMA QUE EL RESTO DE LAS LECTURAS (`_M` de resumenComercial, y la que el muro conoce del dato:
-   * «$99.9M»): un decimal en millones. `fmtMonto({compacto})` redondea a cero decimales sobre 10M y devolvía
-   * «$100M» — una proyección escrita distinto de su propia base se lee como si vinieran de dos sistemas. */
+  /* ⚠️ ACÁ ESCRIBÍ UN SEGUNDO FORMATEADOR, que es justo lo que la casa prohíbe. La primera versión copiaba el
+   * `_M` de resumenComercial. Se cambió por LA TÉCNICA DE LA CASA (la misma que usa `datoProyectado._fmtBoleta`,
+   * con su porqué escrito allá): darle el crudo a `parseFigures` en su forma mínima y leer el canon ES usar el
+   * formateador del producto, sin copiarlo ni tocar `boleta.js`.
+   *
+   * ⚠️ Y UNA COSA QUE **NO** ARREGLA, para que nadie la busque acá: en el escenario real (`bonanza`) esta
+   * herramienta publica la base como «$100.0M» y el dato proyectado publica «$99.9M» para el MISMO concepto
+   * (dueños: negocio · total · cartera · global). No es un problema de formato — son las DOS ANCLAS que
+   * `sentrix/temporal.js` ya declara: `getVentasKPI` (99.999) contra Σ`clientesVentas` (99.887), separadas por
+   * el ~0,1% que el dataset arrastra, y «elegir cuál es LA venta oficial es decisión del owner». Esta tool usa
+   * la que el owner declaró en 2026-07-15. La consecuencia práctica: con la boleta de esta herramienta la base
+   * está autorizada; citada de memoria, sin boleta, el muro la veta — y hace bien. */
   const _m = (v) => {
-    const raw = v * fx, abs = Math.abs(raw);
-    return abs >= 1e6 ? `${simboloMoneda()}${(raw / 1e6).toFixed(1)}M`
-      : abs >= 1e3 ? `${simboloMoneda()}${Math.round(raw / 1e3)}K`
-      : fmtMonto(raw, { dataset: d });
+    const raw = Math.round(v * fx);
+    const p = parseFigures(`${simboloMoneda()}${raw}`);
+    return p.length ? p[0].canon.slice(p[0].canon.indexOf(":") + 1) : fmtMonto(raw, { dataset: d });
   };
 
   // ── LA BASE ──────────────────────────────────────────────────────────────────────────────────────────────

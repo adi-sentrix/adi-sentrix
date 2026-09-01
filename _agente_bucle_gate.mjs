@@ -35,6 +35,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { initTenant } from "./src/data/tenantStore.js";
+import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
+import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";   // la cifra de la prueba sale del DATO, jamás de un literal   // el MISMO escenario que arranca la app — medir en otro es medir otro negocio
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { plantillaEjemplo } from "./src/ingesta/plantilla/generarPlantilla.js";
 import { ingestarPlantilla } from "./src/ingesta/plantilla/ingestarPlantilla.js";
@@ -64,7 +66,7 @@ H("1 · feliz: una ronda de herramientas + cierre → verde con boleta");
     if (llamadas === 1) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
     return { tipo: "texto", texto: TEXTO_BUENO };
   };
-  const r = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guion });
+  const r = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
   ok(r.r.agente.estado === "verde", `el turno sale VERDE (${r.r.agente.estado})`);
   ok(llamadas === 2, `dos llamadas al cerebro: herramientas + cierre (${llamadas})`);
   ok(r.r.agente.figs === 2, `la boleta acumuló las figs de la serie (${r.r.agente.figs})`);
@@ -87,7 +89,7 @@ H("2 · el guion malicioso inventa una cifra: veto → reparación → verde; si
     if (attempt === 1) { reparo++; return { tipo: "texto", texto: TEXTO_BUENO }; }
     return { tipo: "texto", texto: "Depósito Riachuelo te compró $99.9M el último mes — un récord histórico." };
   };
-  const r1 = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionRepara });
+  const r1 = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionRepara });
   ok(reparo === 1 && r1.r.agente.estado === "reparado", `la multa llegó y la reparación pasó (${r1.r.agente.estado})`);
   ok(!/99\.9M/.test(r1.r.text), "la cifra inventada jamás llega a pantalla");
 
@@ -95,7 +97,7 @@ H("2 · el guion malicioso inventa una cifra: veto → reparación → verde; si
     if (ronda === 1 && attempt === 0) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
     return { tipo: "texto", texto: "Depósito Riachuelo te compró $99.9M el último mes — un récord histórico." };
   };
-  const r2 = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionTerco });
+  const r2 = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionTerco });
   ok(r2.r.agente.estado === "limite", `terco en la mentira → escalera invertida, peldaño honesto (${r2.r.agente.estado})`);
   ok(!/99\.9M/.test(r2.r.text) && /verificado/.test(r2.r.text) && /\$2[24]\.\d{3}/.test(r2.r.text),
     "la línea honesta cita una cifra VERIFICADA de la boleta, no la inventada", r2.r.text);
@@ -113,7 +115,7 @@ H("3 · una herramienta que no existe recibe UNA corrección de contrato");
     if (ronda === 2) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
     return { tipo: "texto", texto: TEXTO_BUENO };
   };
-  const r = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guion });
+  const r = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
   ok(vioCorreccion, "el cerebro recibió el error de contrato con el catálogo completo");
   ok(r.r.agente.estado === "verde", "corrigió y el turno terminó verde");
 }
@@ -124,7 +126,7 @@ H("4 · el guion que pide herramientas por siempre no cuelga a nadie");
   initTenant(PACK);
   let llamadas = 0;
   const guionInfinito = async () => { llamadas++; return { tipo: "herramientas", pedidos: [{ tool: "salesRead", args: {} }] }; };
-  const r = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionInfinito });
+  const r = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionInfinito });
   /* ERA 4 (3 rondas + 1 cierre). R1 del examen 1 sumó UNA ronda extra cuando el cierre pide una herramienta
    * válida (acá salesRead lo es) + su re-cierre: 5 llamadas. El tope sigue DURO — la ronda extra es una sola. */
   ok(llamadas === 5, `el tope corta en 3 rondas + cierre + ronda extra con re-cierre = 5 llamadas (${llamadas})`);
@@ -141,7 +143,7 @@ H("5 · el supuesto entra etiquetado y la línea honesta no lo blanquea");
     if (ronda === 1) return { tipo: "herramientas", pedidos: [{ tool: "registrarSupuesto", args: { texto: "el cliente dice que comprará el doble", cifra: 45120 } }] };
     return { tipo: "herramientas", pedidos: [{ tool: "toolInexistenteBisBis", args: {} }] };   // fuerza la escalera con SOLO el supuesto en la boleta
   };
-  const r = await answerViaAgente({ text: "registra que riachuelo dice que comprará el doble", history: [], mem: {}, scenario: "actual", callAgente: guion });
+  const r = await answerViaAgente({ text: "registra que riachuelo dice que comprará el doble", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
   ok(r.r.agente.figs === 1, "el supuesto quedó en la boleta como fig");
   ok(!/verificado: Supuesto/.test(r.r.text) && !/45\.120/.test(r.r.text),
     "★ la línea honesta NO cita el supuesto como «verificado» — un supuesto no se blanquea", r.r.text);
@@ -158,14 +160,14 @@ H("6 · 8 calls por ronda · 12 por turno");
     resumen = mensajes.filter((m) => /HERRAMIENTAS/.test(m.content)).length;
     return { tipo: "texto", texto: "Va una lectura corta del negocio con lo disponible." };
   };
-  const r = await answerViaAgente({ text: "leeme todo", history: [], mem: {}, scenario: "actual", callAgente: guion });
+  const r = await answerViaAgente({ text: "leeme todo", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
   ok(r.r.agente.calls === 8, `de 20 pedidos corrieron 8 — el cap por ronda (${r.r.agente.calls})`);
 
   const guionTresRondas = async ({ ronda }) => {
     if (ronda <= 3) return { tipo: "herramientas", pedidos: Array.from({ length: 8 }, () => ({ tool: "salesRead", args: {} })) };
     return { tipo: "texto", texto: "Cierro con lo disponible." };
   };
-  const r2 = await answerViaAgente({ text: "leeme todo", history: [], mem: {}, scenario: "actual", callAgente: guionTresRondas });
+  const r2 = await answerViaAgente({ text: "leeme todo", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionTresRondas });
   ok(r2.r.agente.calls <= 12, `el turno entero no pasa de 12 calls (${r2.r.agente.calls})`);
 }
 
@@ -174,16 +176,16 @@ H("7 · respaldo de lo ya aprobado y genérico — el tablero no existe");
 {
   initTenant(PACK);
   const mudo = async () => ({ tipo: "texto", texto: "" });
-  const conRespaldo = await answerViaAgente({ text: "seguime con eso", history: [], mem: { ultimaAprobada: TEXTO_BUENO }, scenario: "actual", callAgente: mudo });
+  const conRespaldo = await answerViaAgente({ text: "seguime con eso", history: [], mem: { ultimaAprobada: TEXTO_BUENO }, scenario: ESCENARIO_INICIAL, callAgente: mudo });
   ok(conRespaldo.r.agente.estado === "respaldo" && conRespaldo.r.text.includes("$22.560"),
     "sin herramientas ni texto, el peldaño 2 ofrece lo YA aprobado del hilo", conRespaldo.r.agente.estado);
-  const sinNada = await answerViaAgente({ text: "seguime con eso", history: [], mem: {}, scenario: "actual", callAgente: mudo });
+  const sinNada = await answerViaAgente({ text: "seguime con eso", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: mudo });
   ok(sinNada.r.agente.estado === "vacio" && sinNada.r.text.length > 0 && sinNada.r.text.length < 300,
     "sin nada, el genérico pelado — nunca ~12 KPIs", `${sinNada.r.agente.estado} · ${sinNada.r.text.length} chars`);
 
   /* R3 DEL EXAMEN 1 (2026-08-31): PERTINENCIA. T13 sirvió la respuesta de Tottus a una pregunta por Falabella
    * como «lo que ya te respondí sobre esto quedó verificado» — afirmación falsa con entidad equivocada. */
-  const otraEntidad = await answerViaAgente({ text: "que hago con Ferretería Aurora?", history: [], mem: { ultimaAprobada: TEXTO_BUENO }, scenario: "actual", callAgente: mudo });
+  const otraEntidad = await answerViaAgente({ text: "que hago con Ferretería Aurora?", history: [], mem: { ultimaAprobada: TEXTO_BUENO }, scenario: ESCENARIO_INICIAL, callAgente: mudo });
   ok(otraEntidad.r.agente.estado === "respaldo" && !/sobre esto quedó verificado/.test(otraEntidad.r.text)
     && /Lo último que dejamos verificado fue sobre Depósito Riachuelo/.test(otraEntidad.r.text) && otraEntidad.r.text.includes("$22.560"),
     "★ R3: pregunta por OTRA entidad → el replay viaja bajo un marco VERAZ («fue sobre Depósito Riachuelo»)", otraEntidad.r.text.slice(0, 160));
@@ -193,7 +195,7 @@ H("7 · respaldo de lo ya aprobado y genérico — el tablero no existe");
    * resultó ser la «disculpa vacía» que el owner marcó — su condición es verdadera después de CUALQUIER turno
    * aprobado, así que cuatro familias distintas recibían la misma cadena. Ahora CEDE al peldaño siguiente: la
    * garantía medida sigue siendo la misma (no repetir la pantalla), sin molde que repetir ni contagiar. */
-  const repetida = await answerViaAgente({ text: "seguime con eso", history: [], mem: { ultimaAprobada: TEXTO_BUENO, recentNarrations: [TEXTO_BUENO] }, scenario: "actual", callAgente: mudo });
+  const repetida = await answerViaAgente({ text: "seguime con eso", history: [], mem: { ultimaAprobada: TEXTO_BUENO, recentNarrations: [TEXTO_BUENO] }, scenario: ESCENARIO_INICIAL, callAgente: mudo });
   ok(!repetida.r.text.includes("$22.560") && repetida.r.text.trim() !== TEXTO_BUENO.trim(),
     "★ R3: la pantalla que el usuario acaba de ver NO se le sirve de nuevo", repetida.r.text.slice(0, 120));
   ok(!/sigue verificado y en pie — dime qué parte profundizo/.test(repetida.r.text),
@@ -219,28 +221,39 @@ H("8 · la re-cita: lo aprobado presta sus cifras al turno siguiente");
    * con insumos autorizados, autoriza el resultado. Medido acá: en prosa el turno cae a `vacio`; declarado
    * sale VERDE y acumula la re-cita igual. Lo que este bloque prueba —el cable de la re-cita— no cambió; lo
    * que cambió es que el vehículo ahora muestra el trabajo. */
-  const T1 = "Ventas totales del negocio: $100.0M proyectados × 1.04 = $104.0M. Es una proyección con tu supuesto.\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money\n";
-  const t1 = await answerViaAgente({ text: Q1, history: [], mem: {}, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: T1 }) });
+  /* ⚠️ Y LA BASE SALE DEL DATO, NO DE UN LITERAL. Acá decía «$100.0M» escrito a mano, y funcionaba solo porque
+   * el gate corría con `scenario: "actual"` — que NO es un escenario declarado (`scenarios.js:14`) y cae al
+   * dato crudo. Con el escenario REAL de la app la venta total del negocio es otra, así que el literal dejaba
+   * de existir y el bloque medía un negocio que el producto no sirve. Se toma la cifra TAL COMO el dato la
+   * publica; el resultado de la cuenta se deriva de ella. */
+  const _totalNegocio = (cifrasDelDato(ESCENARIO_INICIAL).figs || []).find((f) => /^money:/.test(String(f.canon))
+    && Array.isArray(f.duenos) && f.duenos.includes("negocio") && f.duenos.includes("total")
+    && !f.duenos.includes("anterior"));   // la del PERÍODO, no la del año anterior
+  ok(!!_totalNegocio, "el dato publica el total del negocio con el que se arma la prueba", JSON.stringify(_totalNegocio));
+  const BASE = String(_totalNegocio.value);
+  const PROY = `$${((Number(BASE.replace(/[^\d.]/g, "")) * 1.04)).toFixed(1)}M`;
+  const T1 = `Ventas totales del negocio: ${BASE} proyectados × 1.04 = ${PROY}. Es una proyección con tu supuesto.\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=${BASE}; 4% · formula=${BASE} + 4% · resultado=${PROY} · unidad=money\n`;
+  const t1 = await answerViaAgente({ text: Q1, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: T1 }) });
   const nRecita = ((t1.mem.recitaAprobada || {}).figs || []).length;
   ok(t1.r.agente.estado === "verde" && nRecita >= 2, `el turno verde ACUMULA la re-cita (${nRecita} cifras con dueño)`);
 
   // turno 2: cero herramientas y boleta vacía, re-citando la proyección aprobada — el caso EXACTO de T13/T24
   const HILO = [{ role: "user", text: Q1 }, { role: "adi", text: t1.r.text }];
-  const RE_OK = "Sobre las ventas totales del negocio, esa proyección de $104.0M sigue en pie con tu supuesto.";
+  const RE_OK = `Sobre las ventas totales del negocio, esa proyección de ${PROY} sigue en pie con tu supuesto.`;
   const guionRecita = async () => ({ tipo: "texto", texto: RE_OK });
-  const t2 = await answerViaAgente({ text: "y entonces en cuanto quedan las ventas?", history: HILO, mem: t1.mem, scenario: "actual", callAgente: guionRecita });
-  ok(t2.r.agente.estado === "verde" && /104\.0M/.test(t2.r.text),
+  const t2 = await answerViaAgente({ text: "y entonces en cuanto quedan las ventas?", history: HILO, mem: t1.mem, scenario: ESCENARIO_INICIAL, callAgente: guionRecita });
+  ok(t2.r.agente.estado === "verde" && t2.r.text.includes(PROY),
     `★ re-citar una cifra YA aprobada con boleta vacía es VERDE (${t2.r.agente.estado}) — la raíz de T13/T24, cerrada`);
   ok(t2.r.agente.recitaCifras >= 2, `y el veredicto declara la memoria que usó (${t2.r.agente.recitaCifras} cifras)`);
 
   // contraprueba 1: sin memoria, el MISMO texto muere — la re-cita no es un pase libre
-  const t2sin = await answerViaAgente({ text: "y entonces en cuanto quedan las ventas?", history: HILO, mem: {}, scenario: "actual", callAgente: guionRecita });
-  ok(t2sin.r.agente.estado !== "verde" && !/104\.0M/.test(t2sin.r.text),
+  const t2sin = await answerViaAgente({ text: "y entonces en cuanto quedan las ventas?", history: HILO, mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionRecita });
+  ok(t2sin.r.agente.estado !== "verde" && !t2sin.r.text.includes(PROY),
     `sin memoria el mismo texto NO pasa (${t2sin.r.agente.estado}) — autoriza la memoria, no la frase`);
 
   // contraprueba 2: una cifra que NADIE aprobó muere aunque la memoria exista
   const guionOtra = async () => ({ tipo: "texto", texto: "Sobre las ventas totales del negocio, esa proyección de $117.0M sigue en pie con tu supuesto." });
-  const t3 = await answerViaAgente({ text: "y entonces?", history: HILO, mem: t1.mem, scenario: "actual", callAgente: guionOtra });
+  const t3 = await answerViaAgente({ text: "y entonces?", history: HILO, mem: t1.mem, scenario: ESCENARIO_INICIAL, callAgente: guionOtra });
   ok(t3.r.agente.estado !== "verde" && !/117\.0M/.test(t3.r.text),
     "una cifra que nadie aprobó sigue muriendo — la re-cita autoriza lo aprobado, no lo parecido");
 }
@@ -258,7 +271,7 @@ H("9 · cada veto con su sitio y su multa · figsEnBoleta viaja al cerebro");
     if (ronda === 1 && attempt === 0) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
     return { tipo: "texto", texto: "Depósito Riachuelo te compró $99.9M el último mes — un récord histórico." };
   };
-  const r = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionTerco2 });
+  const r = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionTerco2 });
   const vetos = r.r.agente.vetos || [];
   ok(vetos.length >= 2 && vetos.every((v) => typeof v === "string" && v.includes(" · ")),
     `los vetos quedan registrados con sitio y multa (${vetos.length})`, JSON.stringify(vetos));
@@ -283,7 +296,7 @@ H("10 · la ronda extra: el cierre que pide una herramienta válida la obtiene")
     if (figsEnBoleta === 0) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
     return { tipo: "texto", texto: TEXTO_BUENO };
   };
-  const ra = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionT7 });
+  const ra = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionT7 });
   ok(ra.r.agente.estado === "reparado" && /22\.560/.test(ra.r.text),
     `★ la reparación pidió la herramienta, corrió, y el re-cierre salió con la cifra VERIFICADA (${ra.r.agente.estado})`);
   ok(llamadasA === 3 && ra.r.agente.figs === 2, `3 llamadas (cierre + reparación + re-cierre) y la boleta llena (${llamadasA} · ${ra.r.agente.figs} figs)`);
@@ -296,7 +309,7 @@ H("10 · la ronda extra: el cierre que pide una herramienta válida la obtiene")
     if (figsEnBoleta === 0) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
     return { tipo: "texto", texto: TEXTO_BUENO };
   };
-  const rb = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionCierre });
+  const rb = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionCierre });
   ok(rb.r.agente.estado === "verde" && /22\.560/.test(rb.r.text),
     `el cierre forzado que pide una herramienta válida la obtiene y cierra verde (${rb.r.agente.estado})`);
   ok(llamadasB === 5, `3 rondas vacías + cierre + re-cierre = 5 llamadas (${llamadasB})`);
@@ -308,7 +321,7 @@ H("10 · la ronda extra: el cierre que pide una herramienta válida la obtiene")
     if (!cierre) return { tipo: "herramientas", pedidos: [] };
     return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
   };
-  const rc = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionInsaciable });
+  const rc = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionInsaciable });
   ok(llamadasC === 5 && rc.r.agente.estado === "limite",
     `insaciable: la extra corre UNA vez y el turno cae a la línea honesta con lo leído (${llamadasC} llamadas · ${rc.r.agente.estado})`);
 }
@@ -330,7 +343,7 @@ H("11 · R4: el rescate proporcional — cifras del turno, refutación y trato")
    * `linea-honesta · «$4.9M» narrado como margen, pero pertenece a costo/ventas`, tercer peldaño de la cascada
    * que terminó en VACÍO. Un rescate que no sale no es proporcional: es nada. Vuelve a UNA cifra (la conducta
    * de la corrida 1, que pasaba). La refutación de R4b se CONSERVA — se prueba abajo. */
-  const rA = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: tercoSerie });
+  const rA = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: tercoSerie });
   const _cifrasRescate = (rA.r.text.match(/\$[\d.]+/g) || []).length;
   ok(rA.r.agente.estado === "limite" && _cifrasRescate === 1 && /verificado/.test(rA.r.text),
     `★ P1a: la línea honesta sirve UNA cifra verificada (${_cifrasRescate}) — el paquete que se auto-vetaba murió`, rA.r.text.slice(0, 200));
@@ -344,15 +357,15 @@ H("11 · R4: el rescate proporcional — cifras del turno, refutación y trato")
     ] };
     return { tipo: "texto", texto: "Depósito Riachuelo opera con margen 45% — récord absoluto." };
   };
-  const rB = await answerViaAgente({ text: "ponele que riachuelo tiene 30% de margen, que hacemos?", history: [], mem: {}, scenario: "actual", callAgente: guionSup });
+  const rB = await answerViaAgente({ text: "ponele que riachuelo tiene 30% de margen, que hacemos?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionSup });
   ok(rB.r.agente.estado === "limite" && /El supuesto que registraste no coincide con lo verificado/.test(rB.r.text) && /21\.5%/.test(rB.r.text),
     "★ R4b: la refutación del supuesto llega con la cifra real del dato", rB.r.text.slice(0, 260));
   ok(!/45%/.test(rB.r.text) && !/= 30\.0%/.test(rB.r.text), "…sin la cifra inventada y sin blanquear el 30% como verificado");
 
   // R4c · el trato registrado viaja también en los peldaños (T14: «jc» jamás apareció)
   setNombreUsuario("jc");
-  const rC = await answerViaAgente({ text: "seguime con eso", history: [], mem: { ultimaAprobada: TEXTO_BUENO }, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: "" }) });
-  const rD = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: tercoSerie });
+  const rC = await answerViaAgente({ text: "seguime con eso", history: [], mem: { ultimaAprobada: TEXTO_BUENO }, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: "" }) });
+  const rD = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: tercoSerie });
   olvidarNombreUsuario();
   ok(rC.r.agente.estado === "respaldo" && /(^|\n)jc: /.test(rC.r.text),
     "★ R4c: el respaldo saluda con el trato registrado («jc: …»)", rC.r.text.slice(0, 90));
@@ -376,7 +389,7 @@ H("12 · el empujón de R6: declinar sin haber leído recibe UNA chance de verif
     if (ronda === 2) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
     return { tipo: "texto", texto: TEXTO_BUENO };
   };
-  const ra = await answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: "actual", callAgente: guionT20 });
+  const ra = await answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionT20 });
   ok(vioNudge, "★ R6: la declinación sin lectura recibió el empujón del motor");
   ok(ra.r.agente.estado === "verde" && ra.r.agente.figs === 2 && /22\.560/.test(ra.r.text),
     `…y el turno terminó VERDE con boleta llena (${ra.r.agente.estado} · ${ra.r.agente.figs} figs)`);
@@ -384,19 +397,19 @@ H("12 · el empujón de R6: declinar sin haber leído recibe UNA chance de verif
   // (b) el límite DECLARADO del mapa no recibe empujón: declinar directo ES la conducta (bloque B)
   let llamadasB = 0;
   const guionMapa = async () => { llamadasB++; return { tipo: "texto", texto: "El detalle mensual por cliente no está disponible: la serie no reconcilia contra la cifra oficial del período. Lo que sí tengo verificado es el consolidado — pídemelo y lo trabajamos." }; };
-  const rb = await answerViaAgente({ text: "cuanto me compro riachuelo mes a mes?", history: [], mem: {}, scenario: "actual", callAgente: guionMapa });
+  const rb = await answerViaAgente({ text: "cuanto me compro riachuelo mes a mes?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionMapa });
   ok(llamadasB === 1, `«no reconcilia» (el límite del mapa) pasa directo, sin empujón ni segunda llamada (${llamadasB})`);
 
   // (c) una respuesta CON contenido en ronda 1 tampoco lo recibe (el empujón es para declinaciones sin boleta)
   let llamadasC = 0;
   const guionResponde = async () => { llamadasC++; return { tipo: "texto", texto: "Ventas totales del negocio: $61K en el período. La cuenta grande es Depósito Riachuelo." }; };
-  const rc = await answerViaAgente({ text: "cuanto vendi?", history: [], mem: {}, scenario: "actual", callAgente: guionResponde });
+  const rc = await answerViaAgente({ text: "cuanto vendi?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionResponde });
   ok(llamadasC === 1, `responder con contenido no dispara el empujón (${llamadasC} llamada)`);
 
   // (d) el empujón es UNO: el guion que declina por siempre no entra en bucle
   let llamadasD = 0;
   const guionNecio = async () => { llamadasD++; return { tipo: "texto", texto: "No puedo responder eso con lo que tengo disponible." }; };
-  const rd = await answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: "actual", callAgente: guionNecio });
+  const rd = await answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionNecio });
   ok(llamadasD === 2 && typeof rd.r.text === "string" && rd.r.text.length > 0,
     `el necio recibe UN empujón y su segunda declinación se acepta (${llamadasD} llamadas)`);
 
@@ -437,7 +450,7 @@ H("13 · entidad×período bloqueada → el puente; con serie real, el cerebro")
     if (ronda === 1) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
     return { tipo: "texto", texto: TEXTO_BUENO };
   };
-  const rb = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionFeliz });
+  const rb = await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionFeliz });
   ok(llamadasB === 2 && rb.r.agente.estado === "verde",
     `con serie REAL el agente sigue siendo agente (${llamadasB} llamadas · ${rb.r.agente.estado})`);
 }
@@ -456,7 +469,7 @@ H("14 · P1b: la reparación nombra la cifra vetada — no repite la frase enter
     multaVista = mensajes[mensajes.length - 1].content;
     return { tipo: "texto", texto: "No tengo esa cifra verificada." };
   };
-  await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionVeta });
+  await answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionVeta });
   ok(!!multaVista && /Lo rechazado es esta cifra: \$99\.9M/.test(multaVista),
     "★ P1b: el reintento recibe LA cifra rechazada, nombrada", (multaVista || "").slice(0, 220));
   ok(/Reescribe SOLO la oración que la contiene/.test(multaVista || "") && /Repetir la misma frase recibe el mismo rechazo/.test(multaVista || ""),
@@ -469,15 +482,15 @@ H("14b · P2: reformular lo ya dicho NO dispara el empujón (43× medido)");
   const _declina = async () => ({ tipo: "texto", texto: "No puedo darte esa versión sin cruzar antes el dato verificado." });
   let n1 = 0;
   const g1 = async (a) => { n1++; return _declina(a); };
-  const rRe = await answerViaAgente({ text: "dame una versión más dura, como si tuviera que presentarla al gerente", history: [], mem: {}, scenario: "actual", callAgente: g1 });
+  const rRe = await answerViaAgente({ text: "dame una versión más dura, como si tuviera que presentarla al gerente", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g1 });
   ok(n1 === 1, `★ P2: la re-narración responde en UNA llamada (${n1}) — sin empujón`, rRe.r.agente.estado);
   let n2 = 0;
   const g2 = async (a) => { n2++; return _declina(a); };
-  await answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: "actual", callAgente: g2 });
+  await answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g2 });
   ok(n2 === 2, `…y una pregunta de DATO sigue recibiendo el empujón de R6 (${n2} llamadas) — la mejora no se perdió`);
   let n3 = 0;
   const g3 = async (a) => { n3++; return _declina(a); };
-  await answerViaAgente({ text: "hazme un resumen ejecutivo para el directorio", history: [], mem: {}, scenario: "actual", callAgente: g3 });
+  await answerViaAgente({ text: "hazme un resumen ejecutivo para el directorio", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g3 });
   ok(n3 === 2, `…y «resumen ejecutivo» NO es re-narración: es lectura nueva, y se empuja (${n3} llamadas)`);
 }
 
@@ -531,7 +544,7 @@ H("14e · P2: la letra del ejemplo numérico y la escalada de un veto reparable"
     vistas.push({ attempt, figsEnBoleta, vetoConCifra: !!vetoConCifra });
     return { tipo: "texto", texto: "Necesito aclarar el alcance: ¿te refieres a bajar la carga 2 puntos (ej: si Depósito Riachuelo tiene 1% hoy, quedaría en −1%) o a reducirla un 2% relativo?" };
   };
-  const r = await answerViaAgente({ text: "simula reducir 2 puntos la carga comercial", history: [], mem: {}, scenario: "actual", callAgente: guionT10 });
+  const r = await answerViaAgente({ text: "simula reducir 2 puntos la carga comercial", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionT10 });
   const rep = vistas.find((v) => v.attempt > 0);
   ok(!!rep && rep.figsEnBoleta === 0 && rep.vetoConCifra === true,
     "★ (ii) con boleta vacía pero multa que nombra una cifra, la reparación pide el tier bueno", JSON.stringify(vistas));
@@ -543,7 +556,7 @@ H("14e · P2: la letra del ejemplo numérico y la escalada de un veto reparable"
     vistas2.push({ attempt, vetoConCifra: !!vetoConCifra });
     return { tipo: "texto", texto: "Procede con la renegociación de la carga." };   // veto del contrato: sin cifras
   };
-  await answerViaAgente({ text: "que hago con riachuelo", history: [], mem: {}, scenario: "actual", callAgente: guionSinCifra });
+  await answerViaAgente({ text: "que hago con riachuelo", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionSinCifra });
   const rep2 = vistas2.find((v) => v.attempt > 0);
   ok(!!rep2 && rep2.vetoConCifra === false,
     "…y un veto SIN cifra (el cierre imperativo) no escala: el gasto estéril de la corrida 2 sigue cortado", JSON.stringify(vistas2));
@@ -585,7 +598,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
     [[/    const v1 = juzgar\(lavado\);\n    if \(v1 && v1\.ok\)/, "    const v1 = { ok: true };\n    if (v1 && v1.ok)"]],
     async (Mut) => {
       initTenant(PACK);
-      const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionTerco });
+      const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionTerco });
       return /99\.9M/.test(r.r.text);
     });
 
@@ -596,7 +609,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       initTenant(PACK);
       let n = 0;
       const inf = async () => { n++; if (n > 40) return { tipo: "texto", texto: "me rindo" }; return { tipo: "herramientas", pedidos: [{ tool: "salesRead", args: {} }] }; };
-      await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: inf });
+      await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: inf });
       return n > 10;   // sano: 4 llamadas exactas
     });
 
@@ -609,7 +622,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       // el texto del peldaño se adopta AUNQUE el muro lo rechazara: se demuestra con un juzgar espía en el sano
       // — acá alcanza con probar que el mutado NO llama al juez: se inyecta un guion terco y se compara flujo
       initTenant(PACK);
-      const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionTerco });
+      const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionTerco });
       // en el mutado el peldaño 1 se adopta SIEMPRE (sin veto posible); la señal medible: estado limite con texto
       // idéntico al candidato aunque contenga una fig con dueño de otro (no construible acá) — se mide lo directo:
       return r.r.agente.estado === "limite" && /verificado/.test(r.r.text);
@@ -625,7 +638,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
         if (ronda === 1) return { tipo: "herramientas", pedidos: [{ tool: "registrarSupuesto", args: { texto: "el cliente dice que comprará el doble", cifra: 45120 } }] };
         return { tipo: "herramientas", pedidos: [{ tool: "zzz", args: {} }] };
       };
-      const r = await Mut.answerViaAgente({ text: "registra eso", history: [], mem: {}, scenario: "actual", callAgente: guion });
+      const r = await Mut.answerViaAgente({ text: "registra eso", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
       return /Supuesto del usuario/.test(r.r.text) && /verificado/.test(r.r.text);   // el defecto: blanqueo
     });
 
@@ -639,22 +652,37 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
         correcciones = mensajes.filter((m) => /no existe/.test(m.content) && /catálogo/.test(m.content)).length;
         return { tipo: "herramientas", pedidos: [{ tool: "noExiste", args: {} }] };
       };
-      await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: necio });
+      await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: necio });
       return correcciones > 1;   // sano: exactamente UNA corrección en todo el turno
     });
 
   // (f) R2 · la re-cita desconectada del muro: el turno 2 que re-cita lo aprobado vuelve a morir
   const Q1_C = "Si subo ventas 4%, ¿qué cambia?";
-  // el MISMO texto del bloque 8, con su cuenta declarada: sin el [[CALCULO]] el turno ya no llega a verde
-  // (`cifra-sin-boleta`) y la carnada dejaba de medir lo suyo — una carnada que no llega al sitio no prueba nada.
-  const T1_C = "Ventas totales del negocio: $100.0M proyectados × 1.04 = $104.0M. Es una proyección con tu supuesto.\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money\n";
+  /* el MISMO texto del bloque 8, con su cuenta declarada: sin el [[CALCULO]] el turno ya no llega a verde
+   * (`cifra-sin-boleta`) y la carnada dejaba de medir lo suyo — una carnada que no llega al sitio no prueba
+   * nada. Y sus cifras salen del DATO, por lo mismo: un literal acá volvería a atar la carnada a un escenario
+   * que el producto no sirve. */
+  /* ⚠️ SE CALCULA CON EL TENANT YA CARGADO, no antes. Primero lo puse acá afuera y la carnada dejó de cazar:
+   * a esta altura del gate el tenant activo es `PACK` (lo dejó un bloque anterior), así que la cifra salía de
+   * un dato y la prueba corría con otro. Una cifra del dato solo es «del dato» si se lee del dato que está
+   * cargado en ese momento. */
+  const _delNegocio = () => {
+    const f = (cifrasDelDato(ESCENARIO_INICIAL).figs || []).find((x) => /^money:/.test(String(x.canon))
+      && Array.isArray(x.duenos) && x.duenos.includes("negocio") && x.duenos.includes("total")
+      && !x.duenos.includes("anterior"));   // la del PERÍODO, no la del año anterior
+    const base = String(f.value);
+    const proy = `$${(Number(base.replace(/[^\d.]/g, "")) * 1.04).toFixed(1)}M`;
+    return { base, proy,
+      t1: `Ventas totales del negocio: ${base} proyectados × 1.04 = ${proy}. Es una proyección con tu supuesto.\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=${base}; 4% · formula=${base} + 4% · resultado=${proy} · unidad=money\n` };
+  };
   await carnada("re-cita sin cablear al muro (la regresión del examen 1)",
     [[/    recitaAprobada: recita,   \/\/ R2: cifras aprobadas a pantalla en turnos previos — el muro las re-autoriza con su dueño\n/, ""]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
-      const t1 = await Mut.answerViaAgente({ text: Q1_C, history: [], mem: {}, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: T1_C }) });
-      const g2 = async () => ({ tipo: "texto", texto: "Sobre las ventas totales del negocio, esa proyección de $104.0M sigue en pie con tu supuesto." });
-      const t2 = await Mut.answerViaAgente({ text: "y entonces en cuanto quedan las ventas?", history: [{ role: "user", text: Q1_C }, { role: "adi", text: t1.r.text }], mem: t1.mem, scenario: "actual", callAgente: g2 });
+      const D = _delNegocio();
+      const t1 = await Mut.answerViaAgente({ text: Q1_C, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: D.t1 }) });
+      const g2 = async () => ({ tipo: "texto", texto: `Sobre las ventas totales del negocio, esa proyección de ${D.proy} sigue en pie con tu supuesto.` });
+      const t2 = await Mut.answerViaAgente({ text: "y entonces en cuanto quedan las ventas?", history: [{ role: "user", text: Q1_C }, { role: "adi", text: t1.r.text }], mem: t1.mem, scenario: ESCENARIO_INICIAL, callAgente: g2 });
       return t2.r.agente.estado !== "verde";   // el defecto: la re-cita legítima vuelve a morir
     });
 
@@ -663,7 +691,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
     [[/    const recitaNueva = recitaAprobadaDe\(\{ textoAprobado: pantalla, catalogoEntidades: duenosTenant \|\| \[\], previa: recita \}\);\n    if \(recitaNueva\) memOut\.recitaAprobada = recitaNueva;\n/, ""]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
-      const t1 = await Mut.answerViaAgente({ text: Q1_C, history: [], mem: {}, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: T1_C }) });
+      const t1 = await Mut.answerViaAgente({ text: Q1_C, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: _delNegocio().t1 }) });
       return t1.r.agente.estado === "verde" && !t1.mem.recitaAprobada;   // el defecto: verde sin memoria — el contador 0 del examen
     });
 
@@ -678,7 +706,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
         if (figsEnBoleta === 0) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
         return { tipo: "texto", texto: TEXTO_BUENO };
       };
-      const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionT7c });
+      const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionT7c });
       return r.r.agente.estado !== "reparado" && r.r.agente.figs === 0;   // el defecto: el pedido se tiró y el turno murió sin leer
     });
 
@@ -693,7 +721,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
         multa = mensajes[mensajes.length - 1].content;
         return { tipo: "texto", texto: "No tengo esa cifra verificada." };
       };
-      await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: g });
+      await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g });
       return !!multa && !/Lo rechazado es/.test(multa);   // el defecto: «reescribe todo» sin decir qué
     });
 
@@ -704,7 +732,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       initTenant(PACK);
       let n = 0;
       const g = async () => { n++; return { tipo: "texto", texto: "No puedo darte esa versión sin cruzar antes el dato verificado." }; };
-      await Mut.answerViaAgente({ text: "dame una versión más dura, como si tuviera que presentarla al gerente", history: [], mem: {}, scenario: "actual", callAgente: g });
+      await Mut.answerViaAgente({ text: "dame una versión más dura, como si tuviera que presentarla al gerente", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g });
       return n > 1;   // el defecto: reformular vuelve a pagar una ronda extra
     });
 
@@ -744,7 +772,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
         vistas.push({ attempt, vetoConCifra: !!vetoConCifra });
         return { tipo: "texto", texto: "¿Te refieres a bajar la carga 2 puntos (ej: si Depósito Riachuelo tiene 1% hoy, quedaría en −1%) o a un 2% relativo?" };
       };
-      await Mut.answerViaAgente({ text: "simula reducir 2 puntos la carga comercial", history: [], mem: {}, scenario: "actual", callAgente: g });
+      await Mut.answerViaAgente({ text: "simula reducir 2 puntos la carga comercial", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g });
       const rep = vistas.find((v) => v.attempt > 0);
       return !!rep && rep.vetoConCifra === false;   // el defecto: la reparación va al tier barato y repite
     });
@@ -769,7 +797,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       initTenant(PACK);
       let llamadas = 0;
       const g = async () => { llamadas++; return { tipo: "texto", texto: "No tengo el dato de tu venta total consolidada, así que no puedo comparar." }; };
-      const r = await Mut.answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: "actual", callAgente: g });
+      const r = await Mut.answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g });
       return llamadas === 1 && r.r.agente.figs === 0;   // el defecto: la declinación sin boleta pasó sin verificar
     });
 
@@ -785,7 +813,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
         if (ronda === 1 && attempt === 0) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
         return { tipo: "texto", texto: "Depósito Riachuelo te compró $99.9M el último mes — un récord histórico." };
       };
-      const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: terco2 });
+      const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: terco2 });
       return (r.r.text.match(/\$[\d.]+/g) || []).length > 1;   // el defecto: el paquete vuelve (y con él la exposición al veto)
     });
 
@@ -802,7 +830,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
         ] };
         return { tipo: "texto", texto: "Depósito Riachuelo opera con margen 45% — récord absoluto." };
       };
-      const r = await Mut.answerViaAgente({ text: "ponele que riachuelo tiene 30% de margen, que hacemos?", history: [], mem: {}, scenario: "actual", callAgente: g });
+      const r = await Mut.answerViaAgente({ text: "ponele que riachuelo tiene 30% de margen, que hacemos?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g });
       return r.r.agente.estado === "limite" && !/no coincide con lo verificado/.test(r.r.text);   // el defecto: sin refutar
     });
 
@@ -812,9 +840,9 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
     async (Mut) => {
       initTenant(PACK);
       setNombreUsuario("wachin");
-      const t1 = await Mut.answerViaAgente({ text: "y el margen?", history: [], mem: {}, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: "" }) });
+      const t1 = await Mut.answerViaAgente({ text: "y el margen?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: "" }) });
       olvidarNombreUsuario();   // el proceso nuevo del turno siguiente
-      const t2 = await Mut.answerViaAgente({ text: "y el inventario?", history: [], mem: t1.mem, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: "" }) });
+      const t2 = await Mut.answerViaAgente({ text: "y el inventario?", history: [], mem: t1.mem, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: "" }) });
       olvidarNombreUsuario();
       return !/^wachin: /.test(t2.r.text);   // el defecto: el trato se perdió entre turnos
     });
@@ -825,7 +853,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
     async (Mut) => {
       initTenant(PACK);
       setNombreUsuario("jc");
-      const r = await Mut.answerViaAgente({ text: "seguime con eso", history: [], mem: { ultimaAprobada: TEXTO_BUENO }, scenario: "actual", callAgente: async () => ({ tipo: "texto", texto: "" }) });
+      const r = await Mut.answerViaAgente({ text: "seguime con eso", history: [], mem: { ultimaAprobada: TEXTO_BUENO }, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: "" }) });
       olvidarNombreUsuario();
       return r.r.agente.estado === "respaldo" && !/(^|\n)jc: /.test(r.r.text);   // el defecto: el trato no viaja
     });
@@ -853,7 +881,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
     [[/      vetosDelTurno\.push\(`\$\{sitio\} · \$\{String\(_multaDe\(v\)\)\.split\("\\n"\)\[0\]\.slice\(0, 180\)\}`\);\n/, ""]],
     async (Mut) => {
       initTenant(PACK);
-      const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: "actual", callAgente: guionTerco });
+      const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionTerco });
       return (r.r.agente.vetos || []).length === 0;   // el defecto: turno vetado con «vetos: ninguno»
     });
 

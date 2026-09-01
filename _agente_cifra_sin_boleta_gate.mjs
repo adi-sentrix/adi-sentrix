@@ -101,23 +101,30 @@ H("2 · los cuatro turnos de la certificación, cada uno con su motivo");
  * RECOMPUTA. Este juez lo respeta en vez de duplicarlo. */
 H("3 · una cuenta DECLARADA pasa; la misma cuenta en prosa, no");
 {
-  /* ⚠️ EL ESCENARIO IMPORTA Y NO ES UN DETALLE: la venta oficial del período CAMBIA entre escenarios —
-   * `bonanza` (el inicial) la publica como $99.9M y `actual` como $100.0M—, así que el mismo texto se juzga
-   * distinto según cuál se le pase. Escribí este bloque mezclando los dos (el juez directo con el escenario
-   * inicial, el end-to-end con «actual») y el check se puso rojo con razón: le estaba dando al juez un dato
-   * donde esa cifra no existe. Se usa UNO solo, el mismo en las dos mitades. */
-  const dpActual = cifrasDelDato("actual");
-  const juezA = (o) => vetoCifraSinBoleta({ datoProyectado: dpActual, ...o });
-  const PROSA = "Ventas totales del negocio: $100.0M proyectados × 1.04 = $104.0M. Es una proyección con tu supuesto.";
-  const DECL = PROSA + "\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money\n";
-  ok(!!juezA({ texto: PROSA, figsEnBoleta: 0, pregunta: "Si subo ventas 4%, ¿qué cambia?" }),
-    "★ la cuenta escrita SOLO en prosa, con boleta vacía, se multa");
-  ok(juezA({ texto: DECL, figsEnBoleta: 0, pregunta: "Si subo ventas 4%, ¿qué cambia?" }) === null,
+  /* ⚠️ LA CIFRA DE LA PRUEBA SALE DEL DATO, NO DE UN LITERAL. Este bloque tenía «$100.0M» escrito a mano y
+   * funcionaba solo porque el gate corría con `scenario: "actual"` — que NO es un escenario declarado
+   * (`scenarios.js:14`) y cae al dato crudo. Con el escenario REAL el literal no existe en el dato y el check
+   * se ponía rojo con razón. La regla vale también para un gate: si la cifra no sale del dato, el gate mide un
+   * negocio que el producto no sirve. Se toma el total del negocio TAL COMO el dato lo publica y se arma la
+   * cuenta con él, así el bloque sigue siendo cierto en cualquier escenario. */
+  const _totalDelNegocio = (dp.figs || []).find((f) => /^money:/.test(String(f.canon))
+    && Array.isArray(f.duenos) && f.duenos.includes("negocio") && f.duenos.includes("total")
+    && !f.duenos.includes("anterior"));   // la del PERÍODO, no la del año anterior
+  ok(!!_totalDelNegocio, "el dato publica un total del negocio con el que armar la prueba", JSON.stringify(_totalDelNegocio));
+  const BASE = String(_totalDelNegocio.value);                                  // p.ej. «$99.9M» en bonanza
+  const _raw = Number(String(BASE).replace(/[^\d.]/g, "")) * 1e6;
+  const RES = `$${((_raw * 1.04) / 1e6).toFixed(1)}M`;                          // la cuenta, con la misma escala
+  const PROSA = `Ventas totales del negocio: ${BASE} proyectados × 1.04 = ${RES}. Es una proyección con tu supuesto.`;
+  const DECL = PROSA + `\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=${BASE}; 4% · formula=${BASE} + 4% · resultado=${RES} · unidad=money\n`;
+  const Q = "Si subo ventas 4%, ¿qué cambia?";
+  ok(!!juez({ texto: PROSA, figsEnBoleta: 0, pregunta: Q }),
+    `★ la cuenta escrita SOLO en prosa, con boleta vacía, se multa (${BASE} × 1.04 = ${RES})`);
+  ok(juez({ texto: DECL, figsEnBoleta: 0, pregunta: Q }) === null,
     "★ y la MISMA cuenta declarada en [[CALCULO]] pasa — guardC ya la recomputó con sus insumos",
-    JSON.stringify(juezA({ texto: DECL, figsEnBoleta: 0, pregunta: "Si subo ventas 4%, ¿qué cambia?" })));
+    JSON.stringify(juez({ texto: DECL, figsEnBoleta: 0, pregunta: Q })));
   // end-to-end, por el bucle real: es lo único que prueba que el canal está conectado de verdad
-  const turno = (texto) => answerViaAgente({ text: "Si subo ventas 4%, ¿qué cambia?", history: [], mem: {},
-    scenario: "actual", callAgente: async () => ({ tipo: "texto", texto }) });
+  const turno = (texto) => answerViaAgente({ text: Q, history: [], mem: {},
+    scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto }) });
   const rP = await turno(PROSA), rD = await turno(DECL);
   ok(rP.r.agente.estado !== "verde", `★ end-to-end · en prosa el turno NO sale verde (${rP.r.agente.estado})`);
   ok(rD.r.agente.estado === "verde", `★ end-to-end · declarado SÍ (${rD.r.agente.estado}) — el camino está abierto, no cerrado`);
@@ -200,7 +207,10 @@ await carnada("el juez se asoma aunque el turno HAYA leído (el playbook muere)"
 await carnada("el cálculo declarado deja de valer", "src/adi/agente/cifraSinBoleta.js",
   [[/  const declaradas = _declaradasEnCalculo\(texto\);/, "  const declaradas = new Set();   // CARNADA"]],
   async (M) => !!M.vetoCifraSinBoleta({ figsEnBoleta: 0, pregunta: "Si subo ventas 4%, ¿qué cambia?", datoProyectado: dp,
-    texto: "Proyección: $104.0M.\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money\n" }));
+    /* la cifra de ESTA carnada es deliberadamente ajena al dato: lo que se prueba es que, tapado el canal del
+     * cálculo, un resultado DECLARADO vuelve a multarse. Si saliera del dato pasaría por la otra puerta y la
+     * carnada mediría otra cosa. */
+    texto: "Proyección: $77.7M.\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=$74.7M; 4% · formula=$74.7M + 4% · resultado=$77.7M · unidad=money\n" }));
 
 // (c) el supuesto del usuario, ignorado: su propia cifra se le devuelve como invención (el t5).
 await carnada("el supuesto del usuario deja de contar como suyo", "src/adi/agente/cifraSinBoleta.js",
@@ -216,7 +226,7 @@ await carnada("el juez desconectado del bucle", "src/adi/agente/bucleAgente.js",
   async (M) => {
     initTenant(TENANT_DEMO);
     const T7 = "Falabella es el foco porque es tu cliente más grande ($19.4M). Si recuperas 2-3 puntos ahí, son $800K anuales.";
-    const r = await M.answerViaAgente({ text: "Dame una versión más dura.", history: [], mem: {}, scenario: "actual",
+    const r = await M.answerViaAgente({ text: "Dame una versión más dura.", history: [], mem: {}, scenario: ESCENARIO_INICIAL,
       callAgente: async () => ({ tipo: "texto", texto: T7 }) });
     return /\$800K/.test(String(r.r.text || ""));   // el defecto: la cifra vuelve a pantalla
   });
