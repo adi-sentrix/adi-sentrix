@@ -44,7 +44,7 @@ import { normalizeResponse } from "../responseContract.js";
 import { _respaldoDeLoYaAprobado } from "../oracle/caminoNatural.js";
 import { recitaAprobadaDe } from "../oracle/cicloNotarial.js";   // R2 del examen 1: la MISMA memoria de re-cita del camino natural — jamás una segunda paralela
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
-import { vetosDeContrato } from "./contratoAgente.js";   // F3 · el juez ciego de sugerencias — se SUMA a guardC, no lo toca
+import { vetosDeContrato, esIdentificadorInterno } from "./contratoAgente.js";   // F3 · el juez ciego de sugerencias — se SUMA a guardC, no lo toca
 import { getNombreUsuario, setNombreUsuario } from "./preferenciaNombre.js";   // R4c · el trato viaja en los rescates y persiste por `mem`
 import { detectSerieIntent, composeSerieIntent } from "../oracle/serieIntent.js";   // R9 · el puente, también en modo agente
 import { playbookPara, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook } from "./playbooks/registro.js";   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
@@ -188,7 +188,13 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta }) {
       const partes = String(f.label).split("·").map((s) => s.trim()).filter(Boolean);
       let concepto = partes[0];
       if (partes.length >= 2) concepto = _ents.some((e) => _reWord(e).test(partes[0])) ? partes[partes.length - 1] : partes[0];
+      /* ⚠️ EL FILTRO MEDÍA UN PREFIJO (medido en la certificación, 2026-09-01): `_JERGA` descarta lo que
+       * EMPIEZA con «Medida», «Vs», «% » — y `headlineSub`, que es un nombre de campo del motor, no empieza
+       * con ninguno, así que se ofreció al usuario en pantalla («también tengo Valor y headlineSub»). La
+       * alternativa se le ofrece a una persona: va en su idioma. Se pregunta por el CONCEPTO —¿esto es un
+       * identificador de código?— y no por cómo arranca la palabra. */
       if (!concepto || concepto.length < 5 || /^\d/.test(concepto) || _JERGA.test(concepto)) continue;
+      if (concepto.split(/\s+/).some((p) => esIdentificadorInterno(p, _ents))) continue;
       if (_ents.some((e) => _reWord(e).test(concepto))) continue;   // una entidad no es un concepto que ofrecer
       conteo.set(concepto, (conteo.get(concepto) || 0) + 1);
     }

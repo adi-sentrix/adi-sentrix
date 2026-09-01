@@ -118,6 +118,24 @@ function _internosRe() {
   return _reInternos;
 }
 
+/* ⚠️ LA LISTA NO PUEDE ANTICIPAR EL CAMPO QUE TODAVÍA NO SE FUGÓ (medido en la certificación, 2026-09-01):
+ * `headlineSub` salió a la pantalla del usuario y este juez no lo vio, porque miraba una lista cerrada —los
+ * nombres de tools más cinco campos a mano— cuando la intención escrita arriba era otra: «lo que se fuga
+ * reconocible es el camelCase». Otra vez la forma en lugar del concepto, esta vez en versión lista blanca.
+ * Ahora se mide el camelCase DE VERDAD, y la lista queda como refuerzo para lo que no lo es.
+ *
+ * DOS MINÚSCULAS ANTES DE LA MAYÚSCULA, a propósito: deja fuera las marcas reales que empiezan con una letra
+ * suelta —iPhone, eBay, iPad— que son nombres del mundo, no del motor. Calibrado contra el corpus completo de
+ * exámenes: 77 respuestas a pantalla, un solo hallazgo (`headlineSub`, 4 veces) y cero falsos positivos;
+ * iPhone · eBay · iPad · WhatsApp · PowerPoint · McKinsey · YoY pasan todos. Y una entidad del tenant nunca se
+ * multa: si el negocio se llama así, es su nombre, no jerga nuestra. */
+const _CAMELCASE = /\b([a-z]{2,}[a-z0-9]*[A-Z][A-Za-z0-9]*)\b/;
+export function esIdentificadorInterno(palabra, entidades = []) {
+  const p = String(palabra || "");
+  if (!_CAMELCASE.test(p)) return false;
+  return !entidades.some((e) => String(e || "").toLowerCase() === p.toLowerCase());
+}
+
 /* P1 DE LA CORRIDA 4 · «MI VENTA» CON SUPUESTO = LA VENTA TOTAL DEL NEGOCIO ─────────────────────────────────
  * Palabra del owner (textual): «Si digo "mi venta" con un supuesto de crecimiento/proyección, toma por defecto
  * la venta total del negocio, salvo que el contexto indique otra entidad». Medido en la corrida 4, dos turnos
@@ -133,16 +151,42 @@ const _PIDE_PROYECCION = /\bproyect|\bcrec(?:e|és|es|imiento)|\bsi (?:sube|aume
  * «crezco 3%:» ni «+4% y dime». El «%» ya delimita solo; el `\b` queda SOLO donde la palabra termina en letra
  * («pp»). REGLA DE LA CASA: un `\b` después de un carácter que no es [A-Za-z0-9_] —%, $, á, ñ— no existe. */
 const _CIFRA_SUPUESTO = /\d[\d.,]*\s*(?:%|pp\b)/;
-const _DEVUELVE_LA_ELECCION = /\bglobal\b[\s\S]{0,80}\bpor cliente\b|\bpor cliente\b[\s\S]{0,80}\bglobal\b|sobre cu[aá]l entidad|qu[eé] entidad|cu[aá]l es tu supuesto/i;
+/* ⚠️ ACÁ MEDÍA LA FORMA Y NO EL CONCEPTO — el defecto lo encontré en mi propio candado (corrida de
+ * certificación, 2026-09-01). La versión vieja era una lista de cuatro frases copiadas de los textos de la
+ * corrida 4 («global … por cliente», «sobre cuál entidad», «qué entidad», «cuál es tu supuesto»). El cerebro
+ * cambió la redacción a «si es sobre tu venta total … o si lo aplico a una entidad específica: confirma» y el
+ * candado dejó de verlo: 0 vetos sobre un turno que hacía exactamente lo que la regla prohíbe. Arreglé el
+ * CASO, no la CLASE — el mismo error que vengo cazando en otros lados (van diez de esta familia).
+ *
+ * EL CONCEPTO, que no se esquiva cambiando palabras: si pidió una proyección con su supuesto y no nombró
+ * ninguna entidad, la respuesta TIENE QUE TRAER LA CIFRA PROYECTADA. Da igual cómo esté redactada: sin cifra
+ * de plata no proyectó, y devolverle la elección es la única razón por la que un turno así se queda sin cifra.
+ * Para esquivar esta regla hay que dar la cifra — que es justamente lo que la regla pide.
+ *
+ * HUECO CONOCIDO, a propósito: una respuesta que NO proyecta pero menciona cualquier otro monto pasa (medido:
+ * el turno 4 de la certificación, que falló por otra causa y trae «+$2.3M»). Se prefiere multar de menos:
+ * un candado con falsos positivos se desactiva solo. */
+const _CIFRA_DE_PLATA = /\$\s?\d[\d.,]*\s?[KMB]?\b/;
+/* EL DEFAULT DEL OWNER ES SOBRE LA VENTA, y solo sobre ella: «si digo MI VENTA con un supuesto de
+ * crecimiento/proyección…». Si la pregunta pone el supuesto sobre OTRA medida —«ponele que riachuelo tiene 30%
+ * de MARGEN, qué hacemos»— no hay default que aplicar y la regla no se asoma. Sin esto, mi versión nueva
+ * multaba esa pregunta y tumbaba la refutación del supuesto al genérico: lo cazó el gate del bucle (R4b), no
+ * yo. Una regla más ancha que su motivo rompe cosas que andaban. */
+const _OTRA_MEDIDA = /\bmarg[eé]n|\brentabilidad|\brotaci[oó]n|\bcapital|\bstock|\binventario|\bcosto|\bprecio|\bcontribuci[oó]n|\bcarga\b/i;
 
 export function vetosDeContrato(texto, contexto = {}) {
   if (typeof texto !== "string" || !texto.trim()) return [];
   const v = [];
 
   const _q = String(contexto.pregunta || "");
-  if (_q && _PIDE_PROYECCION.test(_q) && _CIFRA_SUPUESTO.test(_q) && _DEVUELVE_LA_ELECCION.test(texto)) {
+  if (_q && _PIDE_PROYECCION.test(_q) && _CIFRA_SUPUESTO.test(_q) && !_OTRA_MEDIDA.test(_q) && !_CIFRA_DE_PLATA.test(texto)) {
     const _ents = Array.isArray(contexto.entidades) ? contexto.entidades : [];
-    const nombraEntidad = _ents.some((e) => new RegExp(`\\b${String(e).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(_q));
+    /* «esa manda» (owner): la entidad cuenta aunque el usuario escriba solo una parte de su nombre —«riachuelo»
+     * por «Depósito Riachuelo»—, que es como se la nombra de verdad. Solo palabras largas: un token corto
+     * apartaría la regla por casualidad. */
+    const _tokens = (e) => String(e).split(/\s+/).filter((p) => p.length >= 5).concat([String(e)]);
+    const nombraEntidad = _ents.some((e) => _tokens(e).some((p) =>
+      new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(_q)));
     if (!nombraEntidad) {
       v.push({ regla: "proyeccion-sin-default",
         multa: "no le devuelvas la elección: cuando pide una proyección sobre «su» venta sin nombrar una entidad, el default es la VENTA TOTAL DEL NEGOCIO. Proyecta sobre el total, dilo («proyección sobre la venta total del negocio»), y ofrece el corte por cliente como alternativa si lo quiere." });
@@ -162,8 +206,12 @@ export function vetosDeContrato(texto, contexto = {}) {
     if (L.re.test(texto)) v.push({ regla: L.regla, multa: L.multa });
   }
   const mInterno = texto.match(_internosRe());
-  if (mInterno) {
-    v.push({ regla: "identificador-interno", multa: `«${mInterno[1]}» es un nombre interno del sistema y no va a pantalla: describe la lectura o el límite en palabras del negocio.` });
+  const _entsTexto = Array.isArray(contexto.entidades) ? contexto.entidades : [];
+  const mCamel = texto.match(new RegExp(_CAMELCASE.source, "g"));
+  const camelFugado = (mCamel || []).find((p) => esIdentificadorInterno(p, _entsTexto));
+  const fugado = (mInterno && mInterno[1]) || camelFugado || null;
+  if (fugado) {
+    v.push({ regla: "identificador-interno", multa: `«${fugado}» es un nombre interno del sistema y no va a pantalla: describe la lectura o el límite en palabras del negocio.` });
   }
   return v;
 }

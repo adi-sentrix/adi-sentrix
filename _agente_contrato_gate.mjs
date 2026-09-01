@@ -181,6 +181,31 @@ H("5b · R8: cada fuga que llegó a pantalla en el examen, hoy vetada");
     "«calcular» (palabra común que también es nombre de tool) pasa — solo se veta el camelCase reconocible");
   ok(vetosDeContrato("Te traigo la cifra verificada del período y la trabajamos juntos.").length === 0,
     "el registro sano pasa sin vetos");
+
+  /* ⚠️ LA LISTA CERRADA NO PODÍA ANTICIPAR EL CAMPO QUE TODAVÍA NO SE FUGÓ (certificación 2026-09-01):
+   * `headlineSub` salió a la pantalla del usuario y este juez no lo vio, porque miraba nombres de tools más
+   * cinco campos a mano. Es el mismo defecto de la familia, en versión lista blanca. */
+  caza("De este mismo turno también tengo Valor y headlineSub: dime cuál abro.", "identificador-interno",
+    "★ T4 verbatim de la certificación · «headlineSub» NO estaba en ninguna lista");
+  caza("El corte quedó guardado en ventaNetaAcumulada del período.", "identificador-interno",
+    "★ y un campo que nadie vio fugarse todavía — el punto entero de no usar una lista");
+  /* Y LO QUE NO SE PUEDE MULTAR: las marcas del mundo real arrancan con una letra suelta (iPhone, eBay) o en
+   * mayúscula (WhatsApp, McKinsey) — por eso la regla exige DOS minúsculas antes de la mayúscula. Un veto acá
+   * le reescribiría al usuario el nombre de su propio producto. */
+  for (const [t, q] of [
+    ["El SKU iPhone 15 concentra el 22% de la venta.", "iPhone"],
+    ["La cuenta eBay creció 12% en el período.", "eBay"],
+    ["Te lo dejo listo para pasarlo a PowerPoint.", "PowerPoint"],
+    ["El informe de McKinsey usa otro benchmark.", "McKinsey"],
+    ["Lider · YoY = +$2.3M en el período.", "YoY"],
+  ]) {
+    ok(!vetosDeContrato(t).some((x) => x.regla === "identificador-interno"),
+      `…y «${q}» NO se multa: es un nombre del mundo, no del motor`, JSON.stringify(vetosDeContrato(t).map((x) => x.regla)));
+  }
+  // una entidad del tenant que se escriba en camelCase es SU nombre: jamás se le reescribe
+  ok(!vetosDeContrato("La marca miMarca concentra el 22% de la venta.", { entidades: ["miMarca"] })
+    .some((x) => x.regla === "identificador-interno"),
+    "…y una entidad del tenant escrita en camelCase tampoco — si el negocio se llama así, es su nombre");
 }
 
 /* ═══ 5d · EL REGISTRO NO SE NEGOCIA POR PREFERENCIA (owner 2026-08-31, tras la corrida 3) ════════════════════
@@ -333,6 +358,33 @@ H("5f · la proyección sobre «mi venta» no se pregunta: el default es el tota
   // «salvo que el contexto indique otra entidad»: con la entidad nombrada, esa manda y no se juzga
   ok(!reglasCtx(T21, "proyecta +4% sobre la venta de Falabella y dime cuánto genera").includes("proyeccion-sin-default"),
     "★ con la entidad NOMBRADA en la pregunta, la regla se aparta — «esa manda»");
+
+  /* ⚠️ EL CANDADO MEDÍA LA FORMA Y EL CEREBRO LO ESQUIVÓ CAMBIANDO LA REDACCIÓN (certificación 2026-09-01).
+   * Los dos T8/T21 de arriba son las frases contra las que se calibró la regla vieja; ésta es la MISMA
+   * conducta escrita distinto, y salió VERDE en vivo con 0 vetos. Si mañana alguien vuelve a atar la regla a
+   * una lista de frases, este check se pone rojo y el de arriba no. */
+  const T2_CERT = "JC, para simular ese crecimiento necesito saber si es sobre tu **venta total** (todo el negocio de los 13 clientes) o si lo aplico a una entidad específica — un cliente, una marca o una familia.\n\nEl default es venta total: si es eso, confirma y te doy la cifra. Si es otro corte, nombralo y arrancamos.";
+  ok(reglasCtx(T2_CERT, "ponele que el año que viene crezco 3%: cuanto seria mi venta?").includes("proyeccion-sin-default"),
+    "★ T2 verbatim de la certificación · NOMBRA el default y aun así lo pregunta → proyeccion-sin-default", JSON.stringify(reglasCtx(T2_CERT, "ponele que el año que viene crezco 3%: cuanto seria mi venta?")));
+  ok(!reglasCtx("Sobre tu venta total, un +3% te deja en $103,0M. Si querías otro corte, nombralo.",
+    "ponele que el año que viene crezco 3%: cuanto seria mi venta?").includes("proyeccion-sin-default"),
+    "…y la MISMA respuesta con la cifra adentro pasa: para esquivar la regla hay que proyectar, que es lo que pide");
+
+  /* ⚠️ LO QUE ME ENSEÑÓ R4b: mi primera versión de esta regla era más ancha que su motivo y multaba «ponele
+   * que riachuelo tiene 30% de margen», tumbando al genérico la refutación del supuesto — un turno que
+   * andaba bien. Lo cazó el gate del bucle, no yo. El default que declaró el owner es sobre LA VENTA: con el
+   * supuesto puesto sobre otra medida, o con la entidad nombrada aunque sea a medias, la regla se aparta. */
+  ok(!reglasCtx("El supuesto que registraste no coincide con lo verificado: el margen real es 21.5%.",
+    "ponele que riachuelo tiene 30% de margen, que hacemos?").includes("proyeccion-sin-default"),
+    "★ el supuesto sobre OTRA medida (margen) no dispara P1 — el default del owner es sobre la venta");
+  ok(!vetosDeContrato("Con ese supuesto no puedo darte la cifra: la serie de ese cliente no reconcilia.",
+    { pregunta: "ponele que riachuelo crece 3%, cuanto seria?", entidades: [...ENTS, "Depósito Riachuelo"] })
+    .map((x) => x.regla).includes("proyeccion-sin-default"),
+    "★ y con la entidad nombrada a medias («riachuelo» por «Depósito Riachuelo») también se aparta — «esa manda»");
+  ok(vetosDeContrato("Necesito saber si es sobre tu venta total o sobre un cliente: confirma y te doy la cifra.",
+    { pregunta: "ponele que crezco 3%, cuanto seria mi venta?", entidades: [...ENTS, "Depósito Riachuelo"] })
+    .map((x) => x.regla).includes("proyeccion-sin-default"),
+    "…y sin ninguna entidad nombrada, la misma respuesta SÍ se multa — el parcial no desactiva la regla entera");
   // y la respuesta que SÍ toma el default pasa limpia
   ok(vetosDeContrato("Proyección sobre la venta total del negocio: $99.9M crecería a $102.9M con tu supuesto de +3%. Si quieres el corte por cliente, dime y lo abro.",
     ctx("ponele que crezco 3%: cuanto seria mi venta?")).length === 0,
@@ -462,13 +514,35 @@ H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro")
     async (Mut) => Mut.vetosDeContrato("wachin, acá está claro:\n\n**DATO DURO:** Falabella margen 22%.").length === 0);
 
   // (b6) P1 · el default de «mi venta» quitado: los dos turnos vuelven a devolverle la elección al usuario
+  // RE-APUNTADA (2026-09-01): la regla ya no mide una lista de frases sino la ausencia de la cifra proyectada,
+  // así que la carnada vieja señalaba un `if` que no existe más — y una carnada que apunta a un sitio movido
+  // no prueba nada. La mutación es la misma idea sobre el código de hoy.
   await carnada("default de «mi venta» sin vigilar", "src/adi/agente/contratoAgente.js",
-    [[/  if \(_q && _PIDE_PROYECCION\.test\(_q\) && _CIFRA_SUPUESTO\.test\(_q\) && _DEVUELVE_LA_ELECCION\.test\(texto\)\) \{/,
+    [[/  if \(_q && _PIDE_PROYECCION\.test\(_q\) && _CIFRA_SUPUESTO\.test\(_q\) && !_OTRA_MEDIDA\.test\(_q\) && !_CIFRA_DE_PLATA\.test\(texto\)\) \{/,
       "  if (false) {"]],
     async (Mut) => {
       const T8 = "Necesito saber si ese 3% es:\n- **Global** (sobre la venta total de todos los clientes) — o\n- **Por cliente** (cada uno crece 3%)\n\n¿Cuál es tu supuesto?";
       return Mut.vetosDeContrato(T8, { pregunta: "ponele que el año que viene crezco 3%: cuanto seria mi venta?", entidades: ["Falabella"] }).length === 0;
     });
+
+  /* (b6b) P1 · LA REGLA ATADA A LAS FRASES DE LA CORRIDA 4 — la carnada que reproduce el defecto REAL de la
+   * certificación: con la lista vieja, el T2 verbatim (que nombra el default y aun así lo pregunta) salía con
+   * 0 vetos. Es la carnada que distingue medir la forma de medir el concepto. */
+  await carnada("P1 atado a las frases de la corrida 4 (la forma, no el concepto)", "src/adi/agente/contratoAgente.js",
+    [[/  if \(_q && _PIDE_PROYECCION\.test\(_q\) && _CIFRA_SUPUESTO\.test\(_q\) && !_OTRA_MEDIDA\.test\(_q\) && !_CIFRA_DE_PLATA\.test\(texto\)\) \{/,
+      '  const _VIEJA = /\\bglobal\\b[\\s\\S]{0,80}\\bpor cliente\\b|sobre cu[aá]l entidad|qu[eé] entidad|cu[aá]l es tu supuesto/i;\n  if (_q && _PIDE_PROYECCION.test(_q) && _CIFRA_SUPUESTO.test(_q) && _VIEJA.test(texto)) {']],
+    async (Mut) => {
+      const T2 = "JC, para simular ese crecimiento necesito saber si es sobre tu **venta total** (todo el negocio de los 13 clientes) o si lo aplico a una entidad específica — un cliente, una marca o una familia.\n\nEl default es venta total: si es eso, confirma y te doy la cifra. Si es otro corte, nombralo y arrancamos.";
+      return Mut.vetosDeContrato(T2, { pregunta: "ponele que el año que viene crezco 3%: cuanto seria mi venta?", entidades: ["Falabella"] }).length === 0;
+    });
+
+  /* (b8b) R8 · el identificador interno de vuelta a la lista cerrada: `headlineSub` vuelve a pasar a pantalla,
+   * que es exactamente lo que midió la certificación. */
+  await carnada("identificador interno atado a una lista cerrada", "src/adi/agente/contratoAgente.js",
+    [[/  const camelFugado = \(mCamel \|\| \[\]\)\.find\(\(p\) => esIdentificadorInterno\(p, _entsTexto\)\);/,
+      "  const camelFugado = null;   // CARNADA: solo la lista, como antes"]],
+    async (Mut) => Mut.vetosDeContrato("De este mismo turno también tengo Valor y headlineSub: dime cuál abro.")
+      .every((x) => x.regla !== "identificador-interno"));
 
   // (b7) P1 · el `\b` de vuelta tras el «%»: la regla queda ciega ante «3%:» y «+4% y» (la trampa, dos veces)
   await carnada("cifra del supuesto ciega al «%» final", "src/adi/agente/contratoAgente.js",

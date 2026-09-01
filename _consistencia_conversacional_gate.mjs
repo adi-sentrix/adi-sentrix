@@ -89,6 +89,29 @@ H("2 · un turno con cifras en la boleta jamás sale con una disculpa pelada");
   }
   const conAlternativa = salidas.filter((s) => /también tengo .+ y .+: dime cuál abro/i.test(s.texto)).length;
   ok(conAlternativa >= 3, `★ y la alternativa va NOMBRADA, no «pídeme otro corte» (${conAlternativa} de ${salidas.length})`);
+
+  /* ⚠️ LA ALTERNATIVA SE LE OFRECE A UNA PERSONA, ASÍ QUE VA EN SU IDIOMA (certificación 2026-09-01): en el
+   * turno 4 salió a pantalla «también tengo Valor y headlineSub», un nombre de campo del motor. El filtro de
+   * jerga descartaba por PREFIJO («Medida…», «Vs…», «% …») y `headlineSub` no empieza con ninguno.
+   *
+   * ESTE TURNO ES EL DE LA CERTIFICACIÓN, REPRODUCIDO: misma pregunta, misma herramienta, mismo resultado
+   * (`estado=limite`, 32 cifras). Primero lo escribí sobre las cuatro familias de arriba y quedaba VERDE con
+   * el filtro quitado —ninguna de ellas trae un label camelCase—: era un verde de adorno, o sea un check
+   * falso. El turno que SÍ lo produce es el único que prueba algo. */
+  {
+    const r4 = await turno("Con ese total anual, proyecta 12 meses con +4% y dime cuánto genera adicional.",
+      [{ tool: "salesRead", args: {} }]);
+    const t4 = String(r4.r.text || "");
+    const fugado = (t4.match(/\b[a-z]{2,}[a-z0-9]*[A-Z][A-Za-z0-9]*\b/g) || [])[0] || null;
+    /* LOS DOS ARREGLOS SE NECESITAN, y este check lo prueba junto: si la FUENTE vuelve a ofrecer jerga, el
+     * juez del contrato —que ahora sí caza el camelCase— veta la línea honesta y el turno se desploma al
+     * genérico pelado («No tengo información autorizada suficiente», estado `vacio`). Medido con la carnada:
+     * arreglar solo el juez empeoraría la respuesta en vez de mejorarla. Por eso se exige LA CONDUCTA
+     * COMPLETA —ofrece alternativa Y en idioma del usuario—, no una de las dos mitades. */
+    ok(/también tengo/.test(t4) && !fugado && r4.r.agente.estado === "limite",
+      "★ T4 de la certificación · ofrece alternativa Y en palabras del negocio — antes: «Valor y headlineSub»",
+      `estado=${r4.r.agente.estado} figs=${r4.r.agente.figs} fugado=${fugado || "-"} · ${t4.slice(0, 110)}`);
+  }
 }
 
 /* ═══ 3 · C3 · EL PELDAÑO NO SE RINDE CON LA PRIMERA CIFRA ═══════════════════════════════════════════════════ */
