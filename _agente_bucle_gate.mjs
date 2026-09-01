@@ -42,7 +42,7 @@ import { plantillaEjemplo } from "./src/ingesta/plantilla/generarPlantilla.js";
 import { ingestarPlantilla } from "./src/ingesta/plantilla/ingestarPlantilla.js";
 import { answerViaAgente, TECHO_ENTRADA_CIERRE_CHARS } from "./src/adi/agente/bucleAgente.js";
 import { registrarSupuesto } from "./src/adi/agente/herramientasAgente.js";   // P4 · la unidad del eco
-import { setNombreUsuario, olvidarNombreUsuario } from "./src/adi/agente/preferenciaNombre.js";   // R4c · el trato en los rescates
+import { setNombreUsuario, olvidarNombreUsuario, getNombreUsuario } from "./src/adi/agente/preferenciaNombre.js";   // R4c · el trato en los rescates
 import { PRINCIPIOS_RUTEO } from "./src/adi/agente/contratoAgente.js";   // P2(i) · la letra del ejemplo numérico
 import { sistemaDelAgente } from "./src/adi/agente/sistemaAgente.js";
 
@@ -206,6 +206,60 @@ H("7 · respaldo de lo ya aprobado y genérico — el tablero no existe");
  * EL DEFECTO MEDIDO: `mem.recitaAprobada` jamás se escribía en modo agente (contador 0 en los 28 turnos) — el
  * borrador de T13 re-citaba el $194K de Falabella APROBADO en T9 y el muro lo mató como «no autorizada». Raíz
  * de la mayoría de los turnos no-verdes. El cable es el MISMO del camino natural: nada nuevo que calibrar. */
+/* ═══ 8b · EL PELDAÑO SIRVE LO QUE EL TURNO FUE A BUSCAR (T2, certificación 2026-09-01) ══════════════════════
+ * `mandatory` nombraba DOS conceptos: en el contrato de la boleta es «hay que citarla»; este peldaño lo leía
+ * como «es la mejor para rescatar». La tool `proyectar` lo dejó a la vista — la base es obligatoria (dato) y
+ * la proyección no (un supuesto no se exige), las dos con razón — y ante una pregunta de proyección el peldaño
+ * servía la BASE y ofrecía la respuesta: «también tengo Proyección: dime cuál abro». Enumeraba en vez de
+ * servir. La separación, no la inversión: el peldaño gana su criterio (`source` de resultado) y `mandatory`
+ * conserva el suyo dentro de cada grupo. */
+H("8b · el rescate sirve el RESULTADO del turno, no su insumo");
+{
+  initTenant(TENANT_DEMO);
+  // un veto NO podable (una sola oración) fuerza al peldaño a elegir qué servir
+  const guion = async ({ ronda }) => (ronda === 1
+    ? { tipo: "herramientas", pedidos: [{ tool: "proyectar", args: { tasa: 3, horizonte: "12 meses" } }] }
+    : { tipo: "texto", texto: "Falabella creció $77.7M este año." });
+  const r = await answerViaAgente({ text: "ponele que el año que viene crezco 3%: cuanto seria mi venta?",
+    history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
+  ok(r.r.agente.estado === "limite", `el turno cae al peldaño honesto (${r.r.agente.estado}) — el veto no es podable`);
+  ok(/Proyección/.test(r.r.text) && /\$103\.0M/.test(r.r.text),
+    "★ y sirve LA PROYECCIÓN, que es lo que el usuario pidió — antes servía la base y ofrecía esto", r.r.text.slice(0, 130));
+  ok(!/tengo Proyección: dime cuál abro/.test(r.r.text), "…ya no la ENUMERA como alternativa: la entrega");
+}
+
+/* ═══ 8c · EL TRATO SE REGISTRA SOLO (T1, certificación 2026-09-01) ══════════════════════════════════════════
+ * Medido en el expediente: `mem.nombreUsuario` quedó `undefined` en los OCHO turnos. El usuario abrió con
+ * «llamame jc de ahora en adelante» y el cerebro escribió «JC,» en su prosa —lo leyó de la pregunta— pero
+ * NUNCA llamó a `preferenciaNombre`, así que el playbook (determinístico) salió sin trato. El cableado estaba
+ * bien; faltaba el registro. Se hace en el motor y no en la letra: una instrucción al modelo es una promesa,
+ * esto es un hecho. */
+H("8c · «llamame jc» queda registrado sin depender de que el cerebro llame la herramienta");
+{
+  const guionMudo = async ({ ronda }) => (ronda === 1
+    ? { tipo: "herramientas", pedidos: [{ tool: "marginRead", args: { focus: "bajo_benchmark", dimension: "cliente" } }] }
+    : { tipo: "texto", texto: "" });
+  for (const [q, esperado] of [
+    ["llamame jc de ahora en adelante. como viene mi margen?", "jc"],
+    ["llámame Ana. dame el margen", "Ana"],
+    ["me llamo Roberto, como viene?", "Roberto"],
+    ["como viene mi margen?", null],
+  ]) {
+    olvidarNombreUsuario();
+    initTenant(TENANT_DEMO);
+    const r = await answerViaAgente({ text: q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionMudo });
+    const reg = getNombreUsuario();
+    ok(reg === esperado, `★ «${q.slice(0, 34)}…» → trato ${JSON.stringify(esperado)} (obtuvo ${JSON.stringify(reg)})`);
+    if (esperado) ok(r.mem.nombreUsuario === esperado, `…y viaja en la memoria del turno (${JSON.stringify(r.mem.nombreUsuario)})`);
+  }
+  // el punto de fin de oración NO es parte del nombre: «llámame Ana.» registraba «Ana.» y salía «Ana.: …»
+  olvidarNombreUsuario();
+  initTenant(TENANT_DEMO);
+  await answerViaAgente({ text: "llámame Ana. dame el margen", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionMudo });
+  ok(getNombreUsuario() === "Ana", `★ y sin la puntuación pegada (${JSON.stringify(getNombreUsuario())}) — el trato no lleva el punto de la frase`);
+  olvidarNombreUsuario();
+}
+
 H("8 · la re-cita: lo aprobado presta sus cifras al turno siguiente");
 {
   /* Los MISMOS textos de _recita_aprobada_gate (el gate del cable original): $104.0M es una PROYECCIÓN
@@ -707,6 +761,39 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       initTenant(TENANT_DEMO);
       const t1 = await Mut.answerViaAgente({ text: Q1_C, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: _delNegocio().t1 }) });
       return t1.r.agente.estado === "verde" && !t1.mem.recitaAprobada;   // el defecto: verde sin memoria — el contador 0 del examen
+    });
+
+  /* (8b) el peldaño vuelve a ordenar SOLO por `mandatory`: ante una proyección sirve la base y ofrece la
+   * respuesta. Es el defecto exacto del T2 — enumerar en vez de servir. */
+  await carnada("el peldaño vuelve a elegir por `mandatory` (enumera en vez de servir)",
+    [[/    \.\.\.verificadas\.filter\(\(f\) => _esResultado\(f\) && f\.mandatory\),\n    \.\.\.verificadas\.filter\(\(f\) => _esResultado\(f\) && !f\.mandatory\),\n    \.\.\.verificadas\.filter\(\(f\) => !_esResultado\(f\) && f\.mandatory\),\n    \.\.\.verificadas\.filter\(\(f\) => !_esResultado\(f\) && !f\.mandatory\),\n/,
+      "    ...verificadas.filter((f) => f.mandatory),\n    ...verificadas.filter((f) => !f.mandatory),\n"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const g = async ({ ronda }) => (ronda === 1
+        ? { tipo: "herramientas", pedidos: [{ tool: "proyectar", args: { tasa: 3, horizonte: "12 meses" } }] }
+        : { tipo: "texto", texto: "Falabella creció $77.7M este año." });
+      const r = await Mut.answerViaAgente({ text: "ponele que el año que viene crezco 3%: cuanto seria mi venta?",
+        history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g });
+      return /Venta del período/.test(r.r.text) && /tengo Proyección/.test(r.r.text);   // el defecto: sirve el insumo y ofrece la respuesta
+    });
+
+  /* (8c) el registro del trato retirado: «llamame jc» vuelve a depender de que el cerebro llame la herramienta,
+   * y el playbook determinístico vuelve a salir sin nombre — el T1 de la certificación. */
+  await carnada("el trato vuelve a depender de que el cerebro lo registre",
+    [[/    if \(_trato\) \{ try \{ setNombreUsuario\(_trato\); \} catch \{ \/\* un trato inválido no rompe el turno \*\/ \} \}/,
+      "    if (false) { setNombreUsuario(_trato); }   // CARNADA"]],
+    async (Mut) => {
+      olvidarNombreUsuario();
+      initTenant(TENANT_DEMO);
+      const g = async ({ ronda }) => (ronda === 1
+        ? { tipo: "herramientas", pedidos: [{ tool: "marginRead", args: { focus: "bajo_benchmark", dimension: "cliente" } }] }
+        : { tipo: "texto", texto: "" });
+      const r = await Mut.answerViaAgente({ text: "llamame jc de ahora en adelante. como viene mi margen?",
+        history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g });
+      const sinTrato = !getNombreUsuario() && !r.mem.nombreUsuario && !/^jc:/.test(String(r.r.text || ""));
+      olvidarNombreUsuario();
+      return sinTrato;   // el defecto: el owner pidió que lo llamen jc y el turno sale sin nombre
     });
 
   // (i) R1 · la ronda extra muerta: el pedido válido del cierre vuelve a descartarse (el vacío de T7)

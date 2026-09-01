@@ -209,9 +209,25 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta }) {
    * varias cifras): apilar cifras en una misma oración le da al binding semántico del muro varias candidatas
    * que atribuir y el propio rescate se veta — fue el tercer escalón de la cascada que terminó en VACÍO. Se
    * prueban VARIAS, se sirve UNA. */
+  /* ⚠️ `mandatory` NOMBRABA DOS CONCEPTOS, y este peldaño usaba el equivocado (T2 de la certificación,
+   * 2026-09-01). En el contrato de la boleta `mandatory` significa «esta cifra HAY QUE CITARLA»; acá se lo
+   * estaba leyendo como «esta es la MEJOR para rescatar». No son lo mismo, y la tool `proyectar` lo dejó a la
+   * vista: marca la base como obligatoria (es dato verificado) y la proyección como no obligatoria (un
+   * supuesto no se exige) — las dos con razón. Resultado: ante una pregunta de proyección, el peldaño servía
+   * la BASE y ofrecía la respuesta: «también tengo Proyección: dime cuál abro». Enumeraba en vez de servir.
+   *
+   * LA SEPARACIÓN, no la inversión: invertir el orden arregla este caso y rompe el siguiente. El peldaño gana
+   * su propio criterio —«¿qué fue a buscar este turno?»— y `mandatory` conserva el suyo dentro de cada grupo.
+   * La señal es `source`, que la boleta YA declara: una cifra calculada o proyectada es lo que el turno
+   * produjo para responder; una lectura del dato es el insumo con el que lo produjo. (No se puede declarar un
+   * campo nuevo: `fig()` desestructura opciones conocidas y `boleta.js` no se toca.) */
+  const _RESULTADO_DEL_TURNO = new Set(["computed", "proyeccion"]);
+  const _esResultado = (f) => _RESULTADO_DEL_TURNO.has(String(f && f.source));
   const candidatas = [
-    ...verificadas.filter((f) => f.mandatory),
-    ...verificadas.filter((f) => !f.mandatory),
+    ...verificadas.filter((f) => _esResultado(f) && f.mandatory),
+    ...verificadas.filter((f) => _esResultado(f) && !f.mandatory),
+    ...verificadas.filter((f) => !_esResultado(f) && f.mandatory),
+    ...verificadas.filter((f) => !_esResultado(f) && !f.mandatory),
   ].filter((f) => f !== contra);
 
   /* C3 DE LA CORRIDA 3 (2026-08-31) · EL RESCATE DEJA DE RENDIRSE CON LA PRIMERA CIFRA. Medido: «compara Q1 vs
@@ -300,6 +316,24 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * resto de la memoria. En el navegador no cambia nada: el módulo ya lo tiene y esto solo lo respalda. */
   if (typeof memIn.nombreUsuario === "string" && memIn.nombreUsuario && !getNombreUsuario()) {
     try { setNombreUsuario(memIn.nombreUsuario); } catch { /* un nombre inválido en memoria no rompe el turno */ }
+  }
+  /* ⚠️ EL TRATO SE REGISTRA SOLO, NO SE LE PIDE AL CEREBRO (T1 de la certificación, 2026-09-01). El usuario
+   * abrió con «llamame jc de ahora en adelante» y el turno salió sin trato. Medido en el expediente:
+   * `mem.nombreUsuario` quedó `undefined` en los OCHO turnos — el cerebro escribió «JC,» en su prosa (lo leyó
+   * de la pregunta) pero NUNCA llamó a `preferenciaNombre`, así que la preferencia no existió para el motor y
+   * el playbook, que es determinístico, salió sin nombre. El cableado estaba bien: lo que faltaba era el
+   * registro. Y no es que «el bucle no aplique el trato al texto del playbook» —lo aplica, el playbook marca
+   * `suplente`—: nunca hubo nombre que aplicar.
+   * SE HACE ACÁ Y NO EN LA LETRA porque una instrucción al modelo es una promesa y esto es un hecho: la
+   * herramienta sigue existiendo para cuando el cerebro quiera usarla, pero el trato ya no depende de que se
+   * acuerde. Patrón acotado —la forma en que se pide un trato, no cualquier nombre en la frase— y la validación
+   * la hace `setNombreUsuario`, que rechaza lo que no es un nombre corto y simple. */
+  {
+    const m = String(q || "").match(/\b(?:ll[aá]mame|llamame|llam[aá]me|dec[ií]me|dime|puedes llamarme|pod[eé]s llamarme|me llamo|mi nombre es)\s+(?:"|«)?([\p{L}][\p{L}\p{N}.'-]{1,23})/iu);
+    /* el punto de FIN DE ORACIÓN no es parte del nombre: «llámame Ana.» registraba «Ana.» y el trato salía
+     * «Ana.: …». Se permite el punto interno («J.C.») y se recorta la puntuación final. */
+    const _trato = m && m[1] ? m[1].replace(/[.,;:!?]+$/, "") : "";
+    if (_trato) { try { setNombreUsuario(_trato); } catch { /* un trato inválido no rompe el turno */ } }
   }
   const caja = cajaDelAgente(TOOLS);
   const herramientas = Object.keys(caja).sort();
@@ -522,7 +556,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       texto: t, figsEnBoleta: figsTotales.length, pregunta: q,
       recitaAprobada: recita, datoProyectado: cifrasDelDato(scenario),
     }) : null;
-    const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [] }),
+    const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [], limiteDeHerramienta: motivosNoSoportado.length > 0 }),
       ...(vSinBoleta ? [vSinBoleta] : []),
       ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales }) : [])];
     if (!vc.length) return v;

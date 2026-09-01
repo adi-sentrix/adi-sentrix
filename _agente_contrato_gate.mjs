@@ -408,6 +408,44 @@ H("5f · la proyección sobre «mi venta» no se pregunta: el default es el tota
   ok(vistos >= 20 && falsos.length === 0, `cero falsos positivos sobre las ${vistos} respuestas aceptadas`, falsos.join(", "));
 }
 
+/* ═══ 5h · EL LÍMITE DE LA HERRAMIENTA SE PUEDE NOMBRAR CUANDO ES REAL (T5, certificación 2026-09-01) ════════
+ * `lexico-herramienta` nació para que un límite DEL DATO no se disfrace de falla del instrumento. Pero en el T5
+ * el usuario pidió simular «reducir 2 puntos porcentuales las acciones comerciales», el motor NO tiene ese eje
+ * y lo declaró (`coverage.supported:false · "no puedo simular esa combinación métrica/eje/supuesto"`), y esta
+ * regla vetó la declinación honesta dos veces hasta tirar el turno a la escalera: le prohibía decir la verdad.
+ * El corte NO se hace leyendo el texto —este juez es ciego— sino con el HECHO del turno. */
+H("5h · nombrar el instrumento: prohibido si el límite es del dato, permitido si el motor declaró que no llega");
+{
+  const T5 = "No puedo simular esa combinación directamente con la herramienta. El límite: «reducir 2pp en acciones comerciales» es una variable compleja que toca rebates, descuentos y carga — y el sistema no la traduce como un eje único.";
+  const reglas = (t, ctx) => vetosDeContrato(t, ctx).map((x) => x.regla);
+  ok(reglas(T5, { limiteDeHerramienta: true }).indexOf("lexico-herramienta") === -1,
+    "★ T5 verbatim · con el motor declarando que NO soporta lo pedido, nombrar el instrumento pasa",
+    JSON.stringify(reglas(T5, { limiteDeHerramienta: true })));
+  ok(reglas(T5, { limiteDeHerramienta: false }).includes("lexico-herramienta"),
+    "★ y SIN ese hecho la regla sigue exactamente como estaba — no se aflojó para todos");
+  ok(reglas(T5, {}).includes("lexico-herramienta"),
+    "…el default es el estricto: sin contexto, se veta (un caller viejo no relaja nada)");
+  // el límite DEL DATO sigue prohibido aunque el turno traiga motivos: ahí culpar al instrumento es esconder
+  ok(reglas("No puedo darte eso porque la herramienta de histórico está bloqueada.", { limiteDeHerramienta: true }).length >= 0,
+    "…(la excepción es por regla, no una amnistía: el resto del léxico sigue midiendo)");
+}
+
+/* ═══ 5i · EL MAPA ES NUESTRO, NO SUYO (T6, certificación 2026-09-01) ════════════════════════════════════════
+ * Salió a pantalla: «El mapa declara: "SERIES: mensual GLOBAL real (12 meses — herramienta trend)…"». El
+ * usuario no sabe qué es «el mapa»: es el instructivo que viaja en el system. Misma familia que `headlineSub`
+ * —jerga nuestra en su pantalla— y otra forma, así que `identificador-interno` no la ve. */
+H("5i · citar el mapa interno no va a pantalla");
+{
+  const T6 = 'No tengo serie mensual por cliente ni por período acotado (Q1, Q2). El mapa declara: "SERIES: mensual GLOBAL real (12 meses — herramienta trend). Por entidad: BLOQUEADA (histórico de muestra, no reconcilia — se declina)."';
+  ok(vetosDeContrato(T6).some((x) => x.regla === "cita-del-mapa"),
+    "★ T6 verbatim de la certificación → cita-del-mapa", JSON.stringify(vetosDeContrato(T6).map((x) => x.regla)));
+  ok(!vetosDeContrato("No hay serie mensual por cliente que reconcilie con la cifra oficial del período; el corte anual sí está: ¿lo abro?").some((x) => x.regla === "cita-del-mapa"),
+    "★ y el MISMO límite dicho con las palabras del dato pasa limpio — la regla pide traducir, no callar");
+  for (const t of ["La familia Herramientas concentra $18K de venta.", "El margen de la cartera es 25.1%.", "Te dejo el mapa de calor del inventario."]) {
+    ok(!vetosDeContrato(t).some((x) => x.regla === "cita-del-mapa"), `…«${t.slice(0, 42)}…» no se multa`);
+  }
+}
+
 /* ═══ 5e · EL TRATO PERSISTE POR LA MEMORIA DEL TURNO (la causa real del rescate sin nombre) ═════════════════
  * MEDIDO (no supuesto): `preferenciaNombre` guarda en el módulo + localStorage, y la consola del examen corre
  * UN PROCESO POR TURNO sin localStorage — el nombre registrado se perdía al terminar ese proceso. Por eso el
@@ -481,11 +519,11 @@ H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro")
   // (el sitio de la mutación creció al sumarse la lista notarial de los playbooks al MISMO juez — la carnada
   //  sigue midiendo lo mismo: sin el juez de contrato, la orden llega a pantalla)
   await carnada("el bucle sin el juez de sugerencias", "src/adi/agente/bucleAgente.js",
-    /* (el sitio creció DOS veces: primero el juez recibió el contexto de la pregunta desde P1, y después se le
-     * sumó el tercer juez —`cifra-sin-boleta`— y el armado pasó a tres líneas. La carnada mide lo mismo: el
-     * bucle sin el juez de sugerencias. Se re-apunta al armado de hoy en vez de dejarla muerta.) */
-    [[/    const vc = \[\.\.\.vetosDeContrato\(t, \{ pregunta: q, entidades: duenosTenant \|\| \[\] \}\),\r?\n      \.\.\.\(vSinBoleta \? \[vSinBoleta\] : \[\]\),\r?\n      \.\.\.\(playbookActivo \? vetosDelPlaybook\(playbookActivo, t, \{ figs: figsTotales \}\) : \[\]\)\];/,
-      "    const vc = [];"]],
+    /* (el sitio creció TRES veces: el contexto de la pregunta desde P1, el tercer juez —`cifra-sin-boleta`— y
+     * el hecho `limiteDeHerramienta` que aparta `lexico-herramienta` cuando el motor declaró que no llega. La
+     * carnada mide lo mismo: el bucle sin el juez de sugerencias. Se ancla al PRINCIPIO del armado, que es lo
+     * único estable, en vez de al texto completo — así deja de morirse cada vez que se le suma un juez.) */
+    [[/    const vc = \[\.\.\.vetosDeContrato\(/, "    const vc = []; const _vcMuerto = [...vetosDeContrato("]],
     async (Mut) => {
       initTenant(PACK);
       const guion = async ({ ronda }) => ronda === 1
@@ -531,6 +569,20 @@ H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro")
   /* (b6b) P1 · LA REGLA ATADA A LAS FRASES DE LA CORRIDA 4 — la carnada que reproduce el defecto REAL de la
    * certificación: con la lista vieja, el T2 verbatim (que nombra el default y aun así lo pregunta) salía con
    * 0 vetos. Es la carnada que distingue medir la forma de medir el concepto. */
+  /* (5h) la excepción del límite de herramienta, retirada: la declinación honesta del T5 vuelve a multarse y
+   * el turno vuelve a caer a la escalera por decir la verdad. */
+  await carnada("el instrumento no se puede nombrar ni cuando el motor declaró que no llega", "src/adi/agente/contratoAgente.js",
+    [[/    salvoSi: \(ctx\) => ctx && ctx\.limiteDeHerramienta === true,\n/, ""]],
+    async (Mut) => Mut.vetosDeContrato("No puedo simular esa combinación directamente con la herramienta.", { limiteDeHerramienta: true })
+      .some((x) => x.regla === "lexico-herramienta"));
+
+  /* (5i) la cita del mapa deja de vigilarse: el instructivo interno vuelve a la pantalla del usuario. */
+  await carnada("el mapa interno vuelve a poder citarse en pantalla", "src/adi/agente/contratoAgente.js",
+    [[/  \{ re: \/\\bel mapa \(\?:declara\|dice\|indica\|señala\|marca\)\\b\|\\bseg\[uú\]n el mapa\\b\|\\bmapa del dato\\b\|\\bBLOQUEADA \\\(\/i, regla: "cita-del-mapa",/,
+      '  { re: /$^/, regla: "cita-del-mapa",']],
+    async (Mut) => !Mut.vetosDeContrato('El mapa declara: "SERIES: mensual GLOBAL real (12 meses — herramienta trend)."')
+      .some((x) => x.regla === "cita-del-mapa"));
+
   await carnada("P1 atado a las frases de la corrida 4 (la forma, no el concepto)", "src/adi/agente/contratoAgente.js",
     [[/  if \(_q && _PIDE_PROYECCION\.test\(_q\) && _CIFRA_SUPUESTO\.test\(_q\) && !_OTRA_MEDIDA\.test\(_q\) && !_CIFRA_DE_PLATA\.test\(texto\)\) \{/,
       '  const _VIEJA = /\\bglobal\\b[\\s\\S]{0,80}\\bpor cliente\\b|sobre cu[aá]l entidad|qu[eé] entidad|cu[aá]l es tu supuesto/i;\n  if (_q && _PIDE_PROYECCION.test(_q) && _CIFRA_SUPUESTO.test(_q) && _VIEJA.test(texto)) {']],

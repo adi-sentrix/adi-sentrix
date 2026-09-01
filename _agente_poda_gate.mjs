@@ -149,7 +149,11 @@ await carnada("la poda desconectada (el todo-o-nada de vuelta)",
       : { tipo: "texto", texto: T2 });
     const r = await M.answerViaAgente({ text: "ponele que el año que viene crezco 3%: cuanto seria mi venta?",
       history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
-    return r.r.agente.estado !== "podado" && !/\$103\.0M/.test(r.r.text);
+    /* ⚠️ ESTA COMPROBACIÓN EXIGÍA que sin poda la cifra NO llegara a pantalla, y dejó de distinguir en cuanto
+     * se arregló el peldaño: ahora el rescate TAMBIÉN sirve «$103.0M», porque aprendió a servir el resultado
+     * del turno en vez de la base. La carnada seguía roja por casualidad y habría quedado verde sin medir.
+     * Lo que separa los dos mundos no es la cifra: es si el usuario recibe LA RESPUESTA o un rescate. */
+    return r.r.agente.estado !== "podado" && /No pude completar la lectura/.test(String(r.r.text || ""));
   });
 
 // (b) la condición que salió de MEDIR: sin ella el T4 queda afirmando una diferencia contra un término borrado.

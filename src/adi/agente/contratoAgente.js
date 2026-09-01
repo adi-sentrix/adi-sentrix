@@ -80,8 +80,31 @@ const _LEXICO_SUPERFICIE = [
    * vetar la palabra pelada haría que la reparación reescriba un nombre de entidad (la lección de
    * _sanitizeScenario). Se vetan el artículo singular («la/esta herramienta…») y los atributos internos
    * («herramienta bloqueada/interna/del sistema»); «la familia Herramientas» pasa limpia. */
+  /* ⚠️ ESTA REGLA LE PROHIBÍA DECIR LA VERDAD (T5 de la certificación, 2026-09-01). El usuario pidió simular
+   * «reducir 2 puntos porcentuales las acciones comerciales»; el motor NO tiene ese eje y lo declaró —
+   * `coverage.supported: false · "no puedo simular esa combinación métrica/eje/supuesto"`. El cerebro declinó
+   * honesto («no puedo simular esa combinación con la herramienta… el sistema no la traduce como un eje
+   * único») y esta regla lo vetó dos veces, hasta tirar el turno a la escalera.
+   *
+   * La regla nació para otro caso y sigue haciendo falta ahí: cuando el límite es DEL DATO —el histórico no
+   * reconcilia— culpar al instrumento es esconder el motivo real. Pero cuando el motor DECLARÓ que no soporta
+   * lo pedido, el límite ES del instrumento, y prohibir nombrarlo obliga a inventar una excusa sobre el dato.
+   *
+   * EL CORTE NO SE HACE LEYENDO EL TEXTO —este juez es ciego a propósito— sino con un HECHO del turno:
+   * `limiteDeHerramienta` lo pone el bucle cuando `motivosNoSoportado` trae algo, o sea cuando el motor mismo
+   * dijo que no llega. Sin ese hecho, la regla se aplica igual que siempre. */
   { re: /\b(?:la|una|esa|esta|otra|cada|mi|tu) herramientas?\b|\bherramientas? (?:internas?|bloqueadas?|del sistema|de hist[oó]rico)\b/i, regla: "lexico-herramienta",
+    salvoSi: (ctx) => ctx && ctx.limiteDeHerramienta === true,
     multa: "no expongas el instrumento: el límite se formula sobre el DATO («el histórico por entidad no reconcilia con la cifra oficial»), jamás sobre «la herramienta» ni su estado." },
+  /* ⚠️ EL MAPA ES NUESTRO, NO SUYO (T6 de la certificación, 2026-09-01). Salió a pantalla: «El mapa declara:
+   * "SERIES: mensual GLOBAL real (12 meses — herramienta trend). Por entidad: BLOQUEADA (histórico de muestra,
+   * no reconcilia — se declina)."». El usuario no sabe qué es «el mapa»: es el documento de instrucción que
+   * viaja en el system. Misma familia que `headlineSub` —jerga nuestra en la pantalla del usuario— pero otra
+   * forma, así que `identificador-interno` no la ve: no hay camelCase, hay una CITA del instructivo.
+   * El límite se dice con el dato («no hay serie mensual por cliente que reconcilie»), no leyendo el manual
+   * en voz alta. Acotado a nombrar el mapa como fuente y a sus etiquetas de estado — no a la palabra suelta. */
+  { re: /\bel mapa (?:declara|dice|indica|señala|marca)\b|\bseg[uú]n el mapa\b|\bmapa del dato\b|\bBLOQUEADA \(/i, regla: "cita-del-mapa",
+    multa: "no cites el mapa: es el instructivo interno, no algo que el usuario pueda ver. Di el límite con las palabras del DATO («no hay serie mensual por cliente que reconcilie con la cifra oficial») y ofrece lo que sí está." },
   { re: /\btirar(?:te|me|les?|los?|las?)?\b|\btires?\b|\btiro\b/i, regla: "lexico-tirar",
     multa: "registro formal: «tirar» una cifra no — di «traerte», «entregarte» o «servirte» la cifra." },
 
@@ -203,6 +226,9 @@ export function vetosDeContrato(texto, contexto = {}) {
     v.push({ regla: "decision-por-tomada", multa: "das una decisión por tomada («procede con…») — las decisiones son del usuario y él debe evaluarlas. Preséntala como sugerencia con su cifra." });
   }
   for (const L of _LEXICO_SUPERFICIE) {
+    // `salvoSi` es la excepción DECLARADA de una regla, evaluada contra un HECHO del turno — jamás contra el
+    // texto (ver `lexico-herramienta`). Sin `salvoSi`, la regla se comporta exactamente como siempre.
+    if (typeof L.salvoSi === "function" && L.salvoSi(contexto)) continue;
     if (L.re.test(texto)) v.push({ regla: L.regla, multa: L.multa });
   }
   const mInterno = texto.match(_internosRe());
