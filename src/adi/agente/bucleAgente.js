@@ -150,30 +150,71 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades }) {
     }
   }
 
-  /* R4a SE REVIERTE — MEDIDO EN LA CORRIDA 2 (P1a, 2026-08-31). El empaquetado de hasta 4 cifras en UNA
-   * oración («A = x; B = y; C = z») le da al binding semántico del muro varias cifras juntas para atribuir, y
-   * el propio rescate empezó a vetarse: T2 registró `linea-honesta · «$4.9M» narrado como margen, pero
-   * pertenece a costo/ventas` — el tercer peldaño de la cascada que terminó en VACÍO. En la corrida 1, con
-   * UNA cifra, este peldaño pasaba y el turno cerraba como `limite`. Un rescate que no sale no es proporcional:
-   * es nada. Vuelve a UNA (obligatoria primero) — la mejora de CONTENIDO de R4b (la refutación del supuesto,
-   * que funcionó en T17 de la corrida 2) SE CONSERVA: es una afirmación con su propio dueño, no un paquete. */
-  const destacadas = [
+  /* UNA CIFRA POR ORACIÓN, SIEMPRE (P1a de la corrida 2, y la regla se mantiene acá aunque ahora se prueben
+   * varias cifras): apilar cifras en una misma oración le da al binding semántico del muro varias candidatas
+   * que atribuir y el propio rescate se veta — fue el tercer escalón de la cascada que terminó en VACÍO. Se
+   * prueban VARIAS, se sirve UNA. */
+  const candidatas = [
     ...verificadas.filter((f) => f.mandatory),
     ...verificadas.filter((f) => !f.mandatory),
-  ].filter((f) => f !== contra).slice(0, 1);
+  ].filter((f) => f !== contra);
+
+  /* C3 DE LA CORRIDA 3 (2026-08-31) · EL RESCATE DEJA DE RENDIRSE CON LA PRIMERA CIFRA. Medido: «compara Q1 vs
+   * Q2» con `trend` corrido llegaba acá con 46 cifras verificadas en la boleta; este peldaño elegía la primera
+   * obligatoria («Venta del período = $100.0M»), el muro la vetaba CON RAZÓN —es una derivada que el dato
+   * declara no reconciliada— y como no había segundo intento el turno caía al genérico pelado: «No tengo
+   * información autorizada suficiente», con la serie mensual del negocio en la mano. No faltaba dato: estaba
+   * mal elegida la cifra. Ahora se recorren las candidatas hasta que una pase el muro.
+   * Y LA ALTERNATIVA SE NOMBRA (criterio del owner: «límite corto CON alternativa disponible… el trimestre no
+   * está en el dato; el corte anual sí: ¿lo abro?»): sale de lo que ESTE turno ya tiene —los conceptos que la
+   * boleta trajo—, no de adivinar la familia de la pregunta. Sin cifras en esa oración: es una oferta, no una
+   * afirmación. */
+  /* EL CONCEPTO DE UN LABEL, con la convención de la boleta («Entidad · Concepto» o «Serie · Punto»): si la
+   * IZQUIERDA es una entidad del tenant, el concepto es la derecha («Falabella · Margen» → «Margen»); si no lo
+   * es, la izquierda ya ES el concepto («Este año · Ene» → «Este año»). Se descartan las etiquetas de medida
+   * interna («Medida …», «Vs …», «% del total»): la alternativa se le ofrece al usuario, así que va en su
+   * idioma, no en el del motor. */
+  const _ents = Array.isArray(entidades) ? entidades : [];
+  const _JERGA = /^(?:medida|vs\b|% |porcentaje)/i;
+  const alternativa = (excluida) => {
+    const conteo = new Map();
+    for (const f of verificadas) {
+      const partes = String(f.label).split("·").map((s) => s.trim()).filter(Boolean);
+      let concepto = partes[0];
+      if (partes.length >= 2) concepto = _ents.some((e) => _reWord(e).test(partes[0])) ? partes[partes.length - 1] : partes[0];
+      if (!concepto || concepto.length < 5 || /^\d/.test(concepto) || _JERGA.test(concepto)) continue;
+      if (_ents.some((e) => _reWord(e).test(concepto))) continue;   // una entidad no es un concepto que ofrecer
+      conteo.set(concepto, (conteo.get(concepto) || 0) + 1);
+    }
+    const yaCitado = excluida ? String(excluida.label) : "";
+    const nombres = [...conteo.entries()]
+      .filter(([c, n]) => (n >= 2 || verificadas.some((f) => f.mandatory && String(f.label).includes(c))) && !yaCitado.includes(c))
+      .sort((a, b) => b[1] - a[1]).map(([c]) => c).slice(0, 2);
+    return nombres.length ? `De este mismo turno también tengo ${nombres.join(" y ")}: dime cuál abro.` : null;
+  };
 
   /* sin un LÍMITE que nombrar ni contenido que ofrecer, este peldaño no tiene nada honesto que decir: cede al
-   * siguiente (el respaldo de lo ya aprobado), que sí tiene contenido de verdad. */
-  if (!motivo && !destacadas.length && !refutacion) return null;
-  const partes = [
+   * siguiente. Una disculpa sin cifra ni alternativa no es una respuesta (criterio del owner). */
+  if (!motivo && !candidatas.length && !refutacion) return null;
+  const _armar = (fig) => [
     motivo ? `No pude completar la lectura que pediste: ${motivo}.` : "No pude completar la lectura que pediste con la calidad que corresponde.",
-    destacadas.length ? `Lo que sí tengo verificado: ${destacadas.map((f) => `${f.label} = ${f.text || f.value}`).join("; ")}.` : null,
+    fig ? `Lo que sí tengo verificado: ${fig.label} = ${fig.text || fig.value}.` : null,
     refutacion,
-    "Dime por dónde quieres que siga y lo trabajo sobre lo disponible.",
-  ].filter(Boolean);
-  const candidato = partes.join(" ");
-  if (typeof juzgar !== "function") return candidato;
-  try { const v = juzgar(candidato); return v && v.ok ? candidato : null; } catch { return null; }
+    alternativa(fig) || "Dime por dónde quieres que siga y lo trabajo sobre lo disponible.",
+  ].filter(Boolean).join(" ");
+
+  const _pasa = (t) => {
+    if (typeof juzgar !== "function") return true;
+    try { const v = juzgar(t); return !!(v && v.ok); } catch { return false; }
+  };
+  const TOPE_INTENTOS = 6;   // acotado: recorrer la boleta entera sería pagar juicios sin fin por un rescate
+  for (const fig of candidatas.slice(0, TOPE_INTENTOS)) {
+    const c = _armar(fig);
+    if (_pasa(c)) return c;
+  }
+  // ninguna cifra pasó (o no había): el límite igual se dice, con su alternativa y sin cifra que lo hunda
+  const sinCifra = _armar(null);
+  return _pasa(sinCifra) ? sinCifra : null;
 }
 
 /**

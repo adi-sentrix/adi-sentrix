@@ -123,11 +123,19 @@ export function _respaldoDeLoYaAprobado(memIn, juzgar, contexto = {}) {
     try { const v = juzgar(candidato); return v && v.ok ? candidato : null; } catch { return null; }
   };
 
-  // T26: la misma pantalla dos veces seguidas no informa — si lo aprobado ES lo que el usuario acaba de ver,
-  // una línea honesta en vez del muro de texto repetido.
-  if (recienMostrado && recienMostrado.trim() === previa.trim()) {
-    return _sellar("No pude armar la lectura nueva que pediste. Lo que te respondí recién sigue verificado y en pie — dime qué parte profundizo o pídeme otro corte del dato.");
-  }
+  /* T26: la misma pantalla dos veces seguidas no informa — si lo aprobado ES lo que el usuario acaba de ver,
+   * este peldaño no tiene nada nuevo que ofrecer y CEDE al siguiente.
+   *
+   * ⚠️ C1 DE LA CORRIDA 3 (2026-08-31): acá vivía una frase FIJA («No pude armar la lectura nueva que pediste.
+   * Lo que te respondí recién sigue verificado y en pie — dime qué parte profundizo…») y era el defecto que el
+   * owner marcó como «disculpa vacía» y «molde único». Dos medidas lo prueban: (a) la condición de arriba es
+   * VERDADERA POR CONSTRUCCIÓN después de cualquier turno aprobado —el bucle escribe la misma pantalla en
+   * `ultimaAprobada` y en `recentNarrations[0]`—, así que una salvaguarda para un caso raro se volvió la
+   * respuesta por defecto del respaldo: cuatro preguntas de familias distintas (T17·T19·T24·T27) recibieron la
+   * MISMA cadena de 153 caracteres; (b) una vez en el hilo, el cerebro la copiaba (T20). Ceder es la corrección
+   * completa: sin frase fija no hay molde que repetir ni que contagiar, y el turno cae al peldaño que SÍ sabe
+   * armar un límite con su alternativa. */
+  if (recienMostrado && recienMostrado.trim() === previa.trim()) return null;
 
   // T13/T24: ¿la pregunta nombra entidades o temas que la respuesta vieja NO trae?
   // Una entidad ajena mata la pertinencia sola (el caso grave); los temas se miden por mayoría.

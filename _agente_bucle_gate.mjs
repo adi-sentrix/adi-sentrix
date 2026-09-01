@@ -180,10 +180,16 @@ H("7 · respaldo de lo ya aprobado y genérico — el tablero no existe");
     && /Lo último que dejamos verificado fue sobre Depósito Riachuelo/.test(otraEntidad.r.text) && otraEntidad.r.text.includes("$22.560"),
     "★ R3: pregunta por OTRA entidad → el replay viaja bajo un marco VERAZ («fue sobre Depósito Riachuelo»)", otraEntidad.r.text.slice(0, 160));
 
-  // T26: lo aprobado ES lo que el usuario acaba de ver → una línea, jamás la misma pantalla dos veces seguidas
+  /* T26: lo aprobado ES lo que el usuario acaba de ver → jamás la misma pantalla dos veces seguidas.
+   * ⚠️ LA CONDUCTA CAMBIÓ CON C1 (corrida 3, 2026-08-31): acá el peldaño devolvía una FRASE FIJA, y esa frase
+   * resultó ser la «disculpa vacía» que el owner marcó — su condición es verdadera después de CUALQUIER turno
+   * aprobado, así que cuatro familias distintas recibían la misma cadena. Ahora CEDE al peldaño siguiente: la
+   * garantía medida sigue siendo la misma (no repetir la pantalla), sin molde que repetir ni contagiar. */
   const repetida = await answerViaAgente({ text: "seguime con eso", history: [], mem: { ultimaAprobada: TEXTO_BUENO, recentNarrations: [TEXTO_BUENO] }, scenario: "actual", callAgente: mudo });
-  ok(repetida.r.agente.estado === "respaldo" && !repetida.r.text.includes("$22.560") && /sigue verificado y en pie/.test(repetida.r.text),
-    "★ R3: la pantalla repetida (T26) se reemplaza por una línea honesta", repetida.r.text.slice(0, 120));
+  ok(!repetida.r.text.includes("$22.560") && repetida.r.text.trim() !== TEXTO_BUENO.trim(),
+    "★ R3: la pantalla que el usuario acaba de ver NO se le sirve de nuevo", repetida.r.text.slice(0, 120));
+  ok(!/sigue verificado y en pie — dime qué parte profundizo/.test(repetida.r.text),
+    "★ C1: y la frase de molde que producía la «disculpa vacía» ya no existe");
 }
 
 /* ═══ 8 · LA RE-CITA DE LO APROBADO (R2 del examen 1 · 2026-08-31) ════════════════════════════════════════════
@@ -541,8 +547,9 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (c) la línea honesta sin verificar por el muro
   await carnada("peldaño 1 sin juzgar",
-    [[/  const candidato = partes\.join\(" "\);\n  if \(typeof juzgar !== "function"\) return candidato;\n  try \{ const v = juzgar\(candidato\); return v && v\.ok \? candidato : null; \} catch \{ return null; \}/,
-      '  const candidato = partes.join(" ");\n  return candidato;']],
+    // (el sitio creció con C3: el peldaño ahora prueba varias cifras; sin juez adopta la primera sin verificar)
+    [[/  const _pasa = \(t\) => \{\n    if \(typeof juzgar !== "function"\) return true;\n    try \{ const v = juzgar\(t\); return !!\(v && v\.ok\); \} catch \{ return false; \}\n  \};/,
+      "  const _pasa = () => true;"]],
     async (Mut) => {
       // el texto del peldaño se adopta AUNQUE el muro lo rechazara: se demuestra con un juzgar espía en el sano
       // — acá alcanza con probar que el mutado NO llama al juez: se inyecta un guion terco y se compara flujo
@@ -695,8 +702,11 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
     });
 
   // (k) P1a · el empaquetado de vuelta: el rescate junta cifras en una oración y se expone al veto de atribución
+  /* (con C3 el peldaño PRUEBA varias cifras pero SIRVE UNA — el defecto se reinstala donde haría daño: en el
+   * armador, apilando cifras en la misma oración, que es lo que expone al veto de atribución de proximidad) */
   await carnada("rescate empaquetado (el auto-veto de T2)",
-    [[/\]\.filter\(\(f\) => f !== contra\)\.slice\(0, 1\);/, "].filter((f) => f !== contra).slice(0, 4);"]],
+    [[/    fig \? `Lo que sí tengo verificado: \$\{fig\.label\} = \$\{fig\.text \|\| fig\.value\}\.` : null,/,
+      "    fig ? \"Lo que sí tengo verificado: \" + candidatas.slice(0, 4).map((x) => x.label + \" = \" + (x.text || x.value)).join(\"; \") + \".\" : null,"]],
     async (Mut) => {
       initTenant(PACK);
       const terco2 = async ({ ronda, attempt }) => {
