@@ -66,11 +66,32 @@ const _desescapar = (s) => String(s)
   .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
   .replace(/&amp;/g, "&");   // el & va ÚLTIMO: si no, "&amp;lt;" se desescaparía dos veces
 
+/* ⚠️ EL PREFIJO DE ESPACIO DE NOMBRES · defecto REAL, encontrado el 2026-09-01 con las dos planillas que el
+ * owner llenó para la certificación. Un `.xlsx` puede escribir sus etiquetas con prefijo —`<x:sheet>`,
+ * `<x:row>`, `<x:c>`— en vez de con el espacio de nombres por defecto —`<sheet>`, `<row>`, `<c>`—. Es el MISMO
+ * documento y la misma norma OOXML: cambia sólo la FORMA de escribirlo, y hay generadores muy usados (la
+ * librería OpenXML de .NET, entre otros) que emiten la forma prefijada.
+ *
+ * Este lector era ciego a esa forma, así que un archivo perfectamente válido —25 clientes, 4 hojas, 127KB de
+ * ventas— salía como UNA hoja vacía llamada «Hoja1» y el validador contestaba *«el archivo no trae la hoja
+ * Empresa»* sobre un archivo que sí la traía. Es el peor rechazo posible: el que le echa la culpa al usuario
+ * de un defecto nuestro, y justo en la primera pantalla del producto.
+ *
+ * Es el séptimo caso del mismo patrón del proyecto: **medir la FORMA de escribir en vez del CONCEPTO.**
+ * `_P` es ese prefijo, opcional, y va en TODA etiqueta que este lector busque. */
+const _P = "(?:[A-Za-z_][\\w.\\-]*:)?";
+/** `<tag …>cuerpo</tag>` tolerando el prefijo, en las dos puntas. */
+const _par = (tag) => new RegExp(`<${_P}${tag}\\b[^>]*>([\\s\\S]*?)</${_P}${tag}>`, "g");
+/** `<tag …/>` o `<tag …>cuerpo</tag>` · devuelve [1]=atributos [2]=cuerpo (vacío si viene autocerrada).
+ *  ⚠️ La forma AUTOCERRADA no es un detalle: una fila vacía se escribe `<x:row r="2"/>` y el lector anterior
+ *  —que exigía `>…</row>`— la salteaba entera, corriendo todas las filas siguientes un lugar hacia arriba. */
+const _solaOPar = (tag) => new RegExp(`<${_P}${tag}\\b([^>]*?)(?:/>|>([\\s\\S]*?)</${_P}${tag}>)`, "g");
+const _RE_SI = _par("si"), _RE_T = _par("t"), _RE_FILA = _solaOPar("row"), _RE_CELDA = _solaOPar("c");
+const _RE_V = new RegExp(`<${_P}v\\b[^>]*>([\\s\\S]*?)</${_P}v>`);
+const _valorDe = (cuerpo) => { const m = _RE_V.exec(cuerpo); return m ? m[1] : null; };
+
 /** Todo el texto de los `<t>` de un nodo (un string compartido puede venir partido en varios `<r><t>`). */
-const _textoDeNodo = (xml) => {
-  const partes = [...xml.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map((m) => _desescapar(m[1]));
-  return partes.join("");
-};
+const _textoDeNodo = (xml) => [...String(xml).matchAll(_RE_T)].map((m) => _desescapar(m[1])).join("");
 
 /** `A12` → `{ col: 0, fila: 12 }` · la columna se decodifica en base 26 (A..Z, AA..) */
 function refCelda(ref) {
@@ -87,17 +108,23 @@ function leerXlsx(buf) {
 
   const compartidos = [];
   const ss = leer("xl/sharedStrings.xml");
-  if (ss) for (const m of ss.matchAll(/<si>([\s\S]*?)<\/si>/g)) compartidos.push(_textoDeNodo(m[1]));
+  if (ss) for (const m of ss.matchAll(_RE_SI)) compartidos.push(_textoDeNodo(m[1]));
 
   // nombre de hoja → archivo, cruzando workbook.xml con sus rels
   const wb = leer("xl/workbook.xml") || "";
   const rels = leer("xl/_rels/workbook.xml.rels") || "";
   const destinoPorId = new Map();
-  for (const m of rels.matchAll(/<Relationship\b[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g)) {
-    destinoPorId.set(m[1], m[2].replace(/^\/?xl\//, "").replace(/^\//, ""));
+  /* ⚠️ EL ORDEN DE LOS ATRIBUTOS NO SIGNIFICA NADA EN XML, y esto exigía uno. El patrón anterior pedía
+   * `Id="…"` ANTES de `Target="…"`; el archivo del owner los escribe `Type · Target · Id`, que es igual de
+   * válido, así que no encontraba ni una relación y ninguna hoja sabía en qué archivo vivía. Mismo defecto de
+   * fondo que el prefijo: se medía cómo estaba escrito, no qué decía. Ahora se aísla el elemento y se le
+   * pregunta por cada atributo por separado. */
+  for (const m of rels.matchAll(new RegExp(`<${_P}Relationship\\b[^>]*>`, "g"))) {
+    const id = /\bId="([^"]+)"/.exec(m[0]), destino = /\bTarget="([^"]+)"/.exec(m[0]);
+    if (id && destino) destinoPorId.set(id[1], destino[1].replace(/^\/?xl\//, "").replace(/^\//, ""));
   }
   const hojasDeclaradas = [];
-  for (const m of wb.matchAll(/<sheet\b[^>]*\/?>/g)) {
+  for (const m of wb.matchAll(new RegExp(`<${_P}sheet\\b[^>]*/?>`, "g"))) {
     const nombre = /name="([^"]*)"/.exec(m[0]);
     const rid = /r:id="([^"]+)"/.exec(m[0]);
     hojasDeclaradas.push({
@@ -112,33 +139,34 @@ function leerXlsx(buf) {
     const xml = leer(`xl/${h.archivo}`) || leer(h.archivo);
     if (!xml) continue;
     const matriz = [];
-    for (const mf of xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
+    for (const mf of xml.matchAll(_RE_FILA)) {
+      const attrsFila = mf[1] || "", cuerpoFila = mf[2] || "";
       const fila = [];
-      for (const mc of mf[1].matchAll(/<c\b([^>]*)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+      for (const mc of cuerpoFila.matchAll(_RE_CELDA)) {
         const attrs = mc[1] || "", cuerpo = mc[2] || "";
-        const r = /r="([A-Z]+\d+)"/.exec(attrs);
+        const r = /\br="([A-Z]+\d+)"/.exec(attrs);
         const idx = r ? (refCelda(r[1]) || {}).col : fila.length;
-        const tipo = (/t="([^"]+)"/.exec(attrs) || [])[1] || "n";
+        const tipo = (/\bt="([^"]+)"/.exec(attrs) || [])[1] || "n";
+        const bruto = _valorDe(cuerpo);
         let valor = null;
-        if (tipo === "s") {                                   // string compartido
-          const iv = /<v>([\s\S]*?)<\/v>/.exec(cuerpo);
-          valor = iv ? (compartidos[Number(iv[1])] ?? "") : "";
-        } else if (tipo === "inlineStr") {
-          valor = _textoDeNodo(cuerpo);
-        } else if (tipo === "str") {                          // resultado de fórmula, como texto
-          const iv = /<v>([\s\S]*?)<\/v>/.exec(cuerpo);
-          valor = iv ? _desescapar(iv[1]) : "";
-        } else if (tipo === "b") {
-          const iv = /<v>([\s\S]*?)<\/v>/.exec(cuerpo);
-          valor = iv ? iv[1] === "1" : null;
-        } else {                                              // numérico
-          const iv = /<v>([\s\S]*?)<\/v>/.exec(cuerpo);
-          valor = iv ? Number(iv[1]) : null;
-        }
+        if (tipo === "s") valor = bruto != null ? (compartidos[Number(bruto)] ?? "") : "";   // string compartido
+        else if (tipo === "inlineStr") valor = _textoDeNodo(cuerpo);
+        else if (tipo === "str") valor = bruto != null ? _desescapar(bruto) : "";            // fórmula, como texto
+        else if (tipo === "b") valor = bruto != null ? bruto === "1" : null;
+        else valor = bruto != null ? Number(bruto) : null;                                   // numérico
         while (fila.length < idx) fila.push(null);            // celdas vacías salteadas por el escritor
         fila[idx] = valor;
       }
-      matriz.push(fila);
+      /* LA FILA VA EN EL RENGLÓN QUE ELLA DECLARA, no en el siguiente que toque. El escritor tiene permitido
+       * saltarse las filas vacías —y varios lo hacen— así que contarlas de a una corre todo hacia arriba y el
+       * archivo termina leyéndose desalineado sin que nada se ponga rojo. Es la misma disciplina que las
+       * celdas, que ya se ubicaban por su `r="A12"`.
+       * El salto absurdo NO se rellena: una celda perdida en el renglón 900.000 es un archivo con basura al
+       * fondo, no novecientas mil filas de datos, y reservarlas sería quedarse sin memoria por un descuido. */
+      const rf = /\br="(\d+)"/.exec(attrsFila);
+      const iFila = rf && Number(rf[1]) - 1 - matriz.length <= 10000 ? Number(rf[1]) - 1 : matriz.length;
+      while (matriz.length < iFila) matriz.push([]);
+      matriz[iFila] = fila;
     }
     hojas.push({ nombre: h.nombre, matriz });
   }

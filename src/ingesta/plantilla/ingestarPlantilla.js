@@ -78,6 +78,18 @@ export function ingestarPlantilla(archivo, { nombreArchivo = "", fechaCarga = nu
   for (const def of HOJAS) {
     const info = _porHoja.get(def.nombre);
     if (!info || !info.presente) { ausencias.push({ tipo: "hoja-ausente", hoja: def.nombre, detalle: `no vino la hoja «${def.nombre}»` }); continue; }
+    /* ⚠️ LA HOJA VACÍA ES EL CASO NORMAL, NO EL RARO — y era el que se estaba perdiendo (2026-09-01).
+     * La regla de arriba solo declara la hoja AUSENTE, y una hoja ausente casi no puede ocurrir: la plantilla
+     * oficial se descarga CON las cuatro hojas dentro, así que quien no lleva cuenta corriente no borra la hoja
+     * Abonos — la deja en blanco. Resultado medido con la planilla parcial del owner: el archivo entra, Abonos
+     * no tiene una sola fila, y aun así el dato no registraba ningún faltante; a la pregunta «quién me debe»
+     * ADI no tenía con qué nombrar la pieza y volvía a la disculpa que este trabajo vino a eliminar.
+     * Para el usuario las dos situaciones son la MISMA —no hay dato de cobro— y merecen la misma frase. Otra
+     * vez el patrón de siempre: se medía la FORMA (¿está la pestaña?) en vez del CONCEPTO (¿hay dato?). */
+    if (!(v.tablas[def.nombre] || []).length) {
+      ausencias.push({ tipo: "hoja-vacia", hoja: def.nombre, detalle: `la hoja «${def.nombre}» vino sin ninguna fila` });
+      continue;
+    }
     const traidas = new Set((info.columnas || []).map((c) => c.campo));
     for (const c of def.columnas) {
       if (c.obligatoria || traidas.has(c.campo)) continue;
