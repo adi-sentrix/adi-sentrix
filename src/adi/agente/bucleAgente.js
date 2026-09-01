@@ -49,7 +49,7 @@ import { vetosDeContrato, esIdentificadorInterno } from "./contratoAgente.js";
 import { vetoCifraSinBoleta } from "./cifraSinBoleta.js";   // el juez del turno que NO leyó — vive SOLO en el agente (ver su cabecera)
 import { getNombreUsuario, setNombreUsuario } from "./preferenciaNombre.js";   // R4c · el trato viaja en los rescates y persiste por `mem`
 import { detectSerieIntent, composeSerieIntent } from "../oracle/serieIntent.js";   // R9 · el puente, también en modo agente
-import { playbookPara, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook } from "./playbooks/registro.js";   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
+import { playbookPara, pasosDe, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook } from "./playbooks/registro.js";   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
 import { serieRealDe } from "../sentrix/capability.js";
 
 const TOPE_RONDAS = 3;      // rondas que pueden pedir herramientas
@@ -440,13 +440,19 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * apagada; esto no enciende nada. */
   const playbook = (() => { try { return playbookPara(q); } catch { return null; } })();
   let playbookActivo = null;
-  if (playbook && Array.isArray(playbook.pasos) && playbook.pasos.length) {
-    if (_rondaDeHerramientas(playbook.pasos.map((p) => ({ tool: p.tool, args: p.args || {} })), mensajes)) {
+  /* LOS PASOS PUEDEN DEPENDER DE LA PREGUNTA (2026-09-01): `pasosDe` resuelve el Array de siempre o la función
+   * de un playbook de FORMA —«lectura por eje» elige la herramienta según el eje que su detector léxico ya
+   * identificó—. Un playbook cuyos pasos no se resuelven a nada se retira acá mismo, sin ruido. */
+  const _pasosPb = playbook ? pasosDe(playbook, q) : [];
+  if (playbook && _pasosPb.length) {
+    if (_rondaDeHerramientas(_pasosPb.map((p) => ({ tool: p.tool, args: p.args || {} })), mensajes)) {
       /* el playbook solo PROMETE si sus figs obligatorias llegaron: en un dato que no las sostiene se retira
-       * sin ruido y el turno sigue por el camino de siempre (nada de prometer lo que no se puede cumplir). */
-      if (promesasCumplidas(playbook, figsTotales)) {
+       * sin ruido y el turno sigue por el camino de siempre (nada de prometer lo que no se puede cumplir).
+       * Con pasos por pregunta, las obligatorias también dependen de ella — si no, la promesa que se verifica
+       * no sería la que se hizo. */
+      if (promesasCumplidas(playbook, figsTotales, q)) {
         playbookActivo = playbook;
-        mensajes.push({ role: "user", content: doctrinaDelPlaybook(playbook) });
+        mensajes.push({ role: "user", content: doctrinaDelPlaybook(playbook, q) });
       }
     }
   }
@@ -558,7 +564,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     }) : null;
     const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [], limiteDeHerramienta: motivosNoSoportado.length > 0 }),
       ...(vSinBoleta ? [vSinBoleta] : []),
-      ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales }) : [])];
+      ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales, pregunta: q }) : [])];
     if (!vc.length) return v;
     vetosDelTurno.push(`${sitio} · ${vc[0].regla}: ${vc[0].multa.split("\n")[0].slice(0, 160)}`);
     return { ok: false, violations: vc.map((x) => ({ rule: x.regla, detalle: x.multa })), multa: vc.map((x) => x.multa).join("\n") };
@@ -644,7 +650,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * responde la pregunta con las cifras que los pasos verificaron, y se juzga como cualquier otro (guardC + el
    * contrato + la propia lista del playbook): si no pasara, cede al siguiente sin ruido. */
   if (final === null && playbookActivo && typeof playbookActivo.componer === "function") {
-    const _pb = (() => { try { return playbookActivo.componer({ figs: figsTotales }); } catch { return null; } })();
+    const _pb = (() => { try { return playbookActivo.componer({ figs: figsTotales, pregunta: q }); } catch { return null; } })();
     if (_pb && _pb.trim()) {
       const vPb = juzgar(_pb, `playbook:${playbookActivo.nombre}`);
       if (vPb && vPb.ok) { final = _pb; estado = "playbook"; suplente = true; }

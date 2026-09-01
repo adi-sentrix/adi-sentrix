@@ -28,7 +28,7 @@ import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { plantillaEjemplo } from "./src/ingesta/plantilla/generarPlantilla.js";
 import { ingestarPlantilla } from "./src/ingesta/plantilla/ingestarPlantilla.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
-import { PLAYBOOKS, playbookPara, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook } from "./src/adi/agente/playbooks/registro.js";
+import { PLAYBOOKS, playbookPara, pasosDe, obligatoriasDe, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook } from "./src/adi/agente/playbooks/registro.js";
 import { margenEnRiesgo, lecturaDeMargen } from "./src/adi/agente/playbooks/margenEnRiesgo.js";
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
@@ -42,9 +42,10 @@ const ok = (cond, label, detalle) => {
 const H = (t) => console.log(`\n${t}`);
 const MUDO = async () => ({ tipo: "texto", texto: "" });
 /* la boleta que los pasos del playbook traen, para probar composer y lista notarial sin pasar por el bucle */
-const boletaDelPlaybook = (pb, scenario = "bonanza") => {
-  const rp = runPlan({ intent: "answer", calls: pb.pasos.map((p) => ({ tool: p.tool, args: p.args })) },
-    { scenario, maxCalls: 8, preguntaUsuario: "como viene mi margen", registry: cajaDelAgente(TOOLS) });
+// `pasos` puede ser función de la pregunta (2026-09-01): se resuelve con `pasosDe`, como en el bucle
+const boletaDelPlaybook = (pb, scenario = "bonanza", pregunta = "como viene mi margen") => {
+  const rp = runPlan({ intent: "answer", calls: pasosDe(pb, pregunta).map((p) => ({ tool: p.tool, args: p.args })) },
+    { scenario, maxCalls: 8, preguntaUsuario: pregunta, registry: cajaDelAgente(TOOLS) });
   return (rp.ledger && rp.ledger.figs) || [];
 };
 
@@ -56,9 +57,16 @@ H("1 · el registro cumple su patrón — agregar el segundo playbook es agregar
     const campos = ["nombre", "cuandoAplica", "pasos", "obligatorias", "entregable", "componer", "listaNotarial"];
     const faltan = campos.filter((c) => pb[c] === undefined || pb[c] === null);
     ok(!faltan.length, `«${pb.nombre}» declara el patrón completo`, `faltan: ${faltan.join(", ")}`);
-    ok(pb.pasos.every((p) => p.tool && p.args && typeof p.para === "string" && p.para.length > 10),
-      `…y cada paso declara herramienta, args y PARA QUÉ (${pb.pasos.length} pasos)`);
-    ok(pb.pasos.every((p) => !!cajaDelAgente(TOOLS)[p.tool]), "…y todas sus herramientas existen en la caja del agente");
+    /* `pasos` puede ser Array o FUNCIÓN de la pregunta (2026-09-01): se resuelve con `pasosDe`, el mismo
+     * resolvedor que usa el bucle. Para un playbook de forma se prueba con cada una de sus preguntas de
+     * muestra (`ejemplos`), así ningún eje queda sin verificar su herramienta. */
+    const muestras = Array.isArray(pb.ejemplos) && pb.ejemplos.length ? pb.ejemplos : ["como viene mi margen?"];
+    for (const q of muestras) {
+      const pasos = pasosDe(pb, q);
+      ok(pasos.length > 0 && pasos.every((p) => p.tool && p.args && typeof p.para === "string" && p.para.length > 10),
+        `…y cada paso declara herramienta, args y PARA QUÉ (${pasos.length} pasos${muestras.length > 1 ? ` · «${q.slice(0, 28)}»` : ""})`);
+      ok(pasos.every((p) => !!cajaDelAgente(TOOLS)[p.tool]), "…y todas sus herramientas existen en la caja del agente");
+    }
   }
   const dentro = ["como viene mi margen?", "que clientes estan bajo el benchmark", "a quien reviso primero por margen",
     "cuanto tendria que mejorar cada cliente para llegar al benchmark", "dame el ranking de margen por cliente"];
@@ -71,6 +79,64 @@ H("1 · el registro cumple su patrón — agregar el segundo playbook es agregar
   ok(/margen-en-riesgo/.test(doctrinaDelPlaybook(margenEnRiesgo)) && /La evidencia ya está en la mano/.test(doctrinaDelPlaybook(margenEnRiesgo)),
     "la doctrina que viaja al cerebro declara el MÉTODO (no un ánimo)");
   ok(doctrinaDelPlaybook(margenEnRiesgo) === doctrinaDelPlaybook(margenEnRiesgo), "…y es byte-estable (prefijo cacheable)");
+}
+
+/* ═══ 1b · PLAYBOOK 2 · LECTURA POR EJE — pasos como FUNCIÓN de la pregunta (2026-09-01) ═════════════════════
+ * Medido por el supervisor sobre las 28 preguntas de la certificación: 19 sin camino garantizado, agrupadas por
+ * FORMA. Once son la misma pregunta con distinto eje. Con `pasos` estático hacían falta seis playbooks; con
+ * `pasos(pregunta)` es uno. `cuandoAplica` sigue siendo léxico: la función elige la HERRAMIENTA según el eje que
+ * el detector identificó, jamás según comprensión. */
+H("1b · lectura por eje: un playbook, cinco ejes, la herramienta que sirve cada uno");
+{
+  initTenant(TENANT_DEMO);
+  const pb = playbookPara("ranking por canal: mejores y peores");
+  ok(pb && pb.nombre === "lectura-por-eje", "★ el registro tiene el playbook de forma y el detector lo encuentra");
+  ok(typeof pb.pasos === "function" && typeof pb.obligatorias === "function", "★ `pasos` y `obligatorias` son funciones de la pregunta");
+  // la herramienta cambia con el eje — y es la que de verdad sirve ese eje (medido con la sonda por eje)
+  const herr = (q) => pasosDe(pb, q).map((p) => `${p.tool}${p.args.dimension ? ":" + p.args.dimension : ""}${p.args.metric ? "/" + p.args.metric : ""}${p.args.focus ? "#" + p.args.focus : ""}`).join("+");
+  ok(herr("ranking por canal") === "queryMetric:canal/ventas", `canal → queryMetric ventas (${herr("ranking por canal")})`);
+  ok(herr("qué marca deja más margen") === "marginRead:marca", `marca → marginRead (${herr("qué marca deja más margen")})`);
+  ok(herr("margen por familia") === "marginRead:familia", `familia → marginRead (${herr("margen por familia")})`);
+  ok(herr("capital por bodega") === "queryMetric:bodega/capital", `bodega → queryMetric capital — inventoryStatus NO toma dimension (${herr("capital por bodega")})`);
+  ok(herr("qué SKU tienen capital frenado") === "inventoryStatus#frenado", `SKU frenado → inventoryStatus (${herr("qué SKU tienen capital frenado")})`);
+  ok(pasosDe(pb, "como viene mi margen?").length === 0, "…y sin eje no resuelve ningún paso (esa pregunta es de margen-en-riesgo)");
+
+  // ACEPTACIÓN por eje: el MISMO cerebro mudo, cinco preguntas del protocolo, cinco entregables
+  const T = async (q) => answerViaAgente({ text: q, history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
+  const rc = await T("ranking por canal: mejores y peores");
+  ok(rc.r.agente.estado === "playbook" && /Retail: \$94\.4M/.test(rc.r.text) && /E-commerce: \$5\.5M/.test(rc.r.text),
+    `★ canal → responde con el eje canal REAL del dato (${rc.r.agente.estado})`, rc.r.text.slice(0, 90));
+  const rm = await T("qué marca deja más margen");
+  ok(rm.r.agente.estado === "playbook" && /^Margen por marca, de mayor a menor:/m.test(rm.r.text) && rm.r.text.indexOf("Makita") < rm.r.text.indexOf("LG"),
+    "★ marca → ordenada de mayor a menor (Makita 35.5% antes que LG 24.0%) — el motor solo pone `raw` en las destacadas", rm.r.text.slice(0, 100));
+  ok(/Benchmark de margen: 30\.1%/.test(rm.r.text), "…y declara el benchmark, para que «deja más» tenga vara");
+  const rf = await T("margen por familia");
+  ok(rf.r.agente.estado === "playbook" && /Cuidado Personal: 26\.6%/.test(rf.r.text), `★ familia → responde (${rf.r.agente.estado})`);
+  const rb = await T("capital por bodega");
+  ok(rb.r.agente.estado === "playbook" && /Santiago: \$64K/.test(rb.r.text) && !/Ventas|venta/i.test(rb.r.text),
+    "★ bodega → capital por bodega, SIN mezclar con venta (los dos universos)", rb.r.text.slice(0, 90));
+  const rs = await T("qué SKU tienen capital frenado");
+  ok(rs.r.agente.estado === "playbook" && /LG-DRYER8KG: \$14K/.test(rs.r.text) && !/Valparaíso|Antofagasta/.test(rs.r.text),
+    "★ SKU frenado → solo SKU: las bodegas que la boleta trae al lado NO entran al ranking", rs.r.text.slice(0, 120));
+  for (const r of [rc, rm, rf, rb, rs]) ok(r.r.agente.vetos.length === 0, `…y el entregable pasa el muro sin un veto (${r.r.agente.figs} figs)`);
+
+  // el detector NO secuestra: ni la simulación, ni el período, ni el trato, ni la palabra suelta dentro de otra pregunta
+  const fuera = ["simula que la marca LG sube 3%", "ponele que crezco 3% por canal", "cuanto me compro falabella el ultimo mes",
+    "llamame jc", "como viene mi margen?", "por punto de venta, ¿quién queda bajo el plan?", "cuánto vendí a crédito"];
+  ok(fuera.every((q) => playbookPara(q) !== pb), "el detector NO secuestra un turno ajeno", fuera.filter((q) => playbookPara(q) === pb).join(" | "));
+  ok(playbookPara("como viene mi margen?") === margenEnRiesgo, "…y «cómo viene mi margen» sigue siendo de margen-en-riesgo: la precedencia es la del registro");
+  // lo que NO cubre, dicho: punto de venta y condición no tienen herramienta — no se promete
+  ok(playbookPara("mejores y peores puntos de venta") === null && playbookPara("cuánto vendí a crédito vs contado") === null,
+    "★ punto de venta y condición NO entran: ninguna herramienta declara esos ejes, y prometer un eje que el motor no sirve es el defecto de siempre");
+
+  // la lista notarial: sus dos promesas, por reglas
+  const figsMarca = boletaDelPlaybook(pb, "bonanza", "qué marca deja más margen");
+  const v1 = vetosDelPlaybook(pb, "Por familia, Línea Blanca lidera con 24.0%.", { figs: figsMarca, pregunta: "qué marca deja más margen" });
+  ok(v1.some((x) => x.regla === "eje-cambiado"), "responder por OTRO eje del que se pidió → eje-cambiado");
+  const v2 = vetosDelPlaybook(pb, "Los márgenes de tu cartera vienen ajustados y conviene revisarlos.", { figs: figsMarca, pregunta: "qué marca deja más margen" });
+  ok(v2.some((x) => x.regla === "evidencia-sin-usar"), "cinco marcas en la boleta y ninguna nombrada → evidencia-sin-usar");
+  ok(vetosDelPlaybook(pb, pb.componer({ figs: figsMarca, pregunta: "qué marca deja más margen" }), { figs: figsMarca, pregunta: "qué marca deja más margen" }).length === 0,
+    "…y su propio entregable pasa su lista: auto-consistente");
 }
 
 /* ═══ 2 · LA ACEPTACIÓN · el turno documentado que rescataba, ahora RESPONDE ══════════════════════════════════
@@ -246,7 +312,8 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (b) los pasos NO se ejecutan antes: el cerebro decide a ciegas (el corazón del encargo)
   await carnada("evidencia NO precargada (el cerebro decide a ciegas)", "src/adi/agente/bucleAgente.js",
-    [[/    if \(_rondaDeHerramientas\(playbook\.pasos\.map\(\(p\) => \(\{ tool: p\.tool, args: p\.args \|\| \{\} \}\)\), mensajes\)\) \{/,
+    // (re-apuntada 2026-09-01: los pasos ahora se resuelven con `pasosDe` — el sitio cambió de nombre, la carnada mide lo mismo)
+    [[/    if \(_rondaDeHerramientas\(_pasosPb\.map\(\(p\) => \(\{ tool: p\.tool, args: p\.args \|\| \{\} \}\)\), mensajes\)\) \{/,
       "    if (false) {"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
@@ -302,6 +369,44 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   await carnada("detector ancho (secuestra turnos ajenos)", "src/adi/agente/playbooks/margenEnRiesgo.js",
     [[/    return _TEMA_MARGEN\.test\(q\) && _PIDE_LECTURA\.test\(q\);/, "    return true;"]],
     async (Mut) => Mut.margenEnRiesgo.cuandoAplica("llamame jc de ahora en adelante"));
+
+  /* ── LAS DEL PLAYBOOK DE FORMA (lectura por eje) ──────────────────────────────────────────────────────────
+   * (A · la OBLIGATORIA del supervisor) · `pasos` como función que pide una herramienta INEXISTENTE. Lo que
+   * tiene que pasar: el playbook se retira, el turno no rompe. Lo que este candado ve: el invariante de la
+   * sección 1 —cada paso resuelto nombra una herramienta de la caja— se pone ROJO sobre la copia mutada, y el
+   * detector sigue reclamando el turno (o sea: sin ese invariante, prometería con una herramienta fantasma).
+   * El «no rompe el turno» lo garantiza `_rondaDeHerramientas` del bucle, que devuelve false ante una tool
+   * desconocida y deja el turno seguir su camino de siempre — es la misma rama que ya cubre R1. */
+  await carnada("pasos(pregunta) pide una herramienta que no existe", "src/adi/agente/playbooks/lecturaPorEje.js",
+    [[/    pasos: \[\{ tool: "queryMetric", args: \{ metric: "ventas", dimension: "canal" \}/, '    pasos: [{ tool: "noExiste", args: { metric: "ventas", dimension: "canal" }']],
+    async (Mut) => {
+      const q = "ranking por canal";
+      const pasos = Mut.lecturaPorEje.pasos(q);
+      const reclama = Mut.lecturaPorEje.cuandoAplica(q);
+      return reclama && pasos.length > 0 && !pasos.every((p) => !!cajaDelAgente(TOOLS)[p.tool]);
+    });
+
+  // (B) el filtro de SKU retirado: las bodegas vuelven al ranking de «SKU frenado»
+  await carnada("SKU frenado con las bodegas adentro", "src/adi/agente/playbooks/lecturaPorEje.js",
+    [[/      \.filter\(\(x\) => x\.entidad && x\.fmt && \(!esSku \|\| esSku\.has\(x\.entidad\)\)\);/, "      .filter((x) => x.entidad && x.fmt);"]],
+    async (Mut) => {
+      const figs = boletaDelPlaybook(Mut.lecturaPorEje, "bonanza", "qué SKU tienen capital frenado");
+      return /Valparaíso|Antofagasta/.test(String(Mut.lecturaPorEje.componer({ figs, pregunta: "qué SKU tienen capital frenado" }) || ""));
+    });
+
+  // (C) el número leído solo de `raw`: marca vuelve a salir SIN ordenar (el motor no pone raw en todas)
+  await carnada("el ranking por marca sin ordenar (raw solo en las destacadas)", "src/adi/agente/playbooks/lecturaPorEje.js",
+    [[/  if \(f && Number\.isFinite\(f\.raw\)\) return f\.raw;\n  const s = String/, "  return (f && Number.isFinite(f.raw)) ? f.raw : NaN;\n  const s = String"]],
+    async (Mut) => {
+      const figs = boletaDelPlaybook(Mut.lecturaPorEje, "bonanza", "qué marca deja más margen");
+      const t = String(Mut.lecturaPorEje.componer({ figs, pregunta: "qué marca deja más margen" }) || "");
+      return !/de mayor a menor/.test(t) || t.indexOf("Makita") > t.indexOf("LG");
+    });
+
+  // (D) `_FUERA` vaciado: una simulación que nombra un eje queda secuestrada por la lectura
+  await carnada("lectura por eje secuestra una simulación", "src/adi/agente/playbooks/lecturaPorEje.js",
+    [[/  if \(_FUERA\.test\(q\) \|\| !_PIDE_LECTURA\.test\(q\)\) return null;/, "  if (!_PIDE_LECTURA.test(q)) return null;"]],
+    async (Mut) => Mut.lecturaPorEje.cuandoAplica("simula que la marca LG sube 3%: cuánto margen deja"));
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* */ } }
 }

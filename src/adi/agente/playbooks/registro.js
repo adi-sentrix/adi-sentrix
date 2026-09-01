@@ -27,9 +27,11 @@
  * PURO · determinístico · sin red. Cada playbook trae sus carnadas en el gate. */
 
 import { margenEnRiesgo } from "./margenEnRiesgo.js";
+import { lecturaPorEje } from "./lecturaPorEje.js";   // playbook de FORMA: canal · marca · familia · bodega · SKU frenado
 
-/** el registro. Agregar un playbook es agregar UNA línea acá y su archivo con el patrón de arriba. */
-export const PLAYBOOKS = [margenEnRiesgo];
+/** el registro. Agregar un playbook es agregar UNA línea acá y su archivo con el patrón de arriba.
+ *  El ORDEN es la precedencia: margen-en-riesgo primero (y se retira solo ante otro eje), lectura-por-eje después. */
+export const PLAYBOOKS = [margenEnRiesgo, lecturaPorEje];
 
 /** playbookPara(pregunta) → el playbook que aplica, o null. El PRIMERO que declare aplicar (orden del registro
  *  = precedencia declarada); jamás dos a la vez, para que el procedimiento del turno sea uno solo y auditable. */
@@ -42,20 +44,49 @@ export function playbookPara(pregunta) {
   return null;
 }
 
+/* ── PASOS Y PROMESAS QUE PUEDEN DEPENDER DE LA PREGUNTA (2026-09-01) ───────────────────────────────────────
+ * POR QUÉ: con `pasos` estático, «lectura por eje» necesitaba SEIS playbooks —uno por canal, marca, familia,
+ * bodega, condición, punto de venta— en vez de uno. Medido por el supervisor sobre las 28 preguntas de la
+ * certificación: 19 quedaban sin camino garantizado, y se agrupan por FORMA (lectura por eje · entidad×período ·
+ * proyección · síntesis), no por tema. Tres playbooks de forma cubren 18 de esos 19; siete de tema habrían
+ * cubierto menos.
+ *
+ * ⚠️ LO QUE **NO** CAMBIA, y es la línea que no se cruza: `cuandoAplica` sigue siendo LÉXICO y determinístico.
+ * La función de pasos elige la HERRAMIENTA según el eje que el detector ya identificó — jamás según
+ * comprensión. Un playbook que decidiera sus pasos «entendiendo» la pregunta sería el prompt genérico que el
+ * owner rechazó, con otro nombre.
+ *
+ * `obligatorias` también puede depender de la pregunta: si los pasos cambian con el eje, la promesa que se
+ * verifica tiene que cambiar con ellos — si no, no se puede comprobar y el playbook prometería a ciegas. La
+ * regla de retiro es la misma de siempre: falta una fig → se retira sin ruido.
+ *
+ * Los dos resuelven en UN SOLO lugar para que nadie los desenvuelva dos veces con criterios distintos. */
+const _resolver = (campo, pregunta, porDefecto) => {
+  if (typeof campo === "function") {
+    try { const r = campo(String(pregunta || "")); return Array.isArray(r) ? r : porDefecto; } catch { return porDefecto; }
+  }
+  return Array.isArray(campo) ? campo : porDefecto;
+};
+/** los pasos de ESTE turno: Array (los de siempre) o función de la pregunta. */
+export function pasosDe(pb, pregunta) { return _resolver(pb && pb.pasos, pregunta, []); }
+/** las figs que el playbook promete para ESTE turno — mismo contrato que `pasos`. */
+export function obligatoriasDe(pb, pregunta) { return _resolver(pb && pb.obligatorias, pregunta, []); }
+
 /** las figs que el playbook PROMETIÓ, presentes de verdad en la boleta acumulada. */
-export function promesasCumplidas(pb, figs) {
-  if (!pb || !Array.isArray(pb.obligatorias) || !pb.obligatorias.length) return false;
+export function promesasCumplidas(pb, figs, pregunta) {
+  const obligatorias = obligatoriasDe(pb, pregunta);
+  if (!pb || !obligatorias.length) return false;
   const labels = (Array.isArray(figs) ? figs : []).map((f) => String((f && f.label) || ""));
-  return pb.obligatorias.every((re) => labels.some((l) => re.test(l)));
+  return obligatorias.every((re) => labels.some((l) => re.test(l)));
 }
 
 /** el bloque que viaja al cerebro cuando el playbook está activo: el método, no un ánimo.
  *  Byte-estable por playbook (prefijo cacheable: el texto no cambia turno a turno). */
-export function doctrinaDelPlaybook(pb) {
+export function doctrinaDelPlaybook(pb, pregunta) {
   if (!pb) return "";
   return [
     `[PROCEDIMIENTO — no es el usuario] Este turno sigue el playbook «${pb.nombre}». Sus pasos YA se ejecutaron y sus resultados están arriba:`,
-    ...(pb.pasos || []).map((p) => `- ${p.tool} → ${p.para}`),
+    ...pasosDe(pb, pregunta).map((p) => `- ${p.tool} → ${p.para}`),
     "",
     `LO QUE TIENES QUE ENTREGAR: ${pb.entregable}`,
     "La evidencia ya está en la mano: respóndela. No pidas aclaración ni declines por falta de datos sobre lo que estos resultados ya cubren.",
