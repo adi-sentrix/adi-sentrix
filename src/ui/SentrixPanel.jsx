@@ -5679,6 +5679,14 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
                 por revisar sus acciones comerciales»). Se fue por lo mismo, y este era el caso más claro de los
                 dos: no interpretaba, RECOMENDABA una acción. Eso es trabajo de ADI, que además puede sostener la
                 recomendación con una conversación; una frase fija en una tarjeta no puede. */}
+            {/* ⚠️ Y POR ESO MISMO LA TARJETA GANA SU PUENTE. Es la regla que el owner fijó al vaciar la cara
+                Comercial en la v1.14 —«no hay necesidad, si dejaremos botones que expliquen lo que está en
+                Sentrix y ADI lo hará»—: el botón NO es un extra, es la otra mitad de sacar el texto. Esta
+                tarjeta nunca tuvo uno porque su prosa hacía de explicación; sin la prosa, sus tres cifras
+                quedaban mudas y era la única de la cara sin salida hacia ADI.
+                La pregunta es sobre ESTA pieza, no sobre la cuenta en general —de eso ya se ocupa el botón de
+                la cabecera—: lo que estas tres líneas miden es el LUGAR de la cuenta entre las demás. */}
+            {_btn(`Que ADI explique el lugar de ${name} en tu cartera →`, `¿Qué lugar ocupa ${name} en mi cartera y por qué?`)}
           </>
         )}
       </div>

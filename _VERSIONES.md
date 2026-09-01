@@ -12,6 +12,37 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.19 — producción · tag `v2.19`
+
+**La tarjeta que había quedado muda recupera su puente a ADI.** Un hueco que abrí yo en la tanda anterior y que
+encontré al revisar contra un criterio del supervisor: *si sacas un texto, deja el ask de esa pieza*.
+
+**Qué pasaba.** Al vaciar de prosa «Importancia de X en tu cartera» quedó siendo **la única tarjeta de la cara sin
+botón hacia ADI**: tres cifras —ranking, peso en la cartera, margen contra la vara— sin nadie que las explicara.
+No es que le borrara el botón: **nunca tuvo uno, porque su prosa hacía de explicación.** Al sacar la prosa
+desapareció la explicación y no quedó nada en su lugar.
+
+**La regla es del owner y es de la v1.14**, cuando mandó vaciar la cara Comercial: «no hay necesidad, si dejaremos
+botones que expliquen lo que está en Sentrix y ADI lo hará». El botón **no es un adorno que sobrevive al recorte:
+es la otra mitad del recorte.** Sacar el texto sin dejarlo no simplifica la pantalla, la deja muda.
+
+**El botón pregunta por ESTA pieza**, no por la cuenta en general —de eso ya se ocupa el de la cabecera—: lo que
+esas tres líneas miden es el **lugar** de la cuenta entre las demás.
+
+**Y la regla queda contada, no descrita.** El gate cuenta los puentes de la cara y exige que ninguna tanda futura
+baje esa cuenta. Además entran dos categorías que el supervisor marcó como las que más fácil se van por accidente,
+porque *suenan* a prosa cuando no lo son:
+
+- **La limitación declarada** («esto localiza pero no explica la causa») es honestidad: sacarla no simplifica,
+  esconde.
+- **El alcance** («los 13 clientes del período, al 31 de agosto») es lo que impide que las cifras mientan por
+  omisión.
+
+**209/209 offline · 0 tocaron la red · 0 con credencial viva.** Verificado en pantalla: los cuatro botones hacia
+ADI vivos —cabecera, comparado, composición y el nuevo de cartera— y la tarjeta de inventario sigue fuera.
+
+---
+
 ## 2.18 — producción · tag `v2.18`
 
 **El Perfil Ejecutivo deja de hablar de inventario por cliente.** Decisión del owner, y no es un recorte de texto

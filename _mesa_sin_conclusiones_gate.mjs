@@ -152,6 +152,28 @@ ok(panel.includes("del grupo que concentra el 80% de las ventas"), "…y el peso
 ok(panel.includes('label: "RECUPERAR"') && panel.includes('label: "CUIDAR"'),
   "la etiqueta de rol se queda: sale de dos hechos (volumen × margen), no de una opinión");
 
+/* ⚠️ SI SALE UN TEXTO, QUEDA EL PUENTE — y esto lo aprendí fallando. Al vaciar de prosa la tarjeta «Importancia
+ * en tu cartera» quedó siendo la ÚNICA de la cara sin botón hacia ADI: tres cifras (ranking, peso, margen contra
+ * la vara) sin nadie que las explicara. No es que borré su botón; nunca tuvo uno, porque su prosa hacía de
+ * explicación. Al sacar la prosa desapareció la explicación y no quedó nada en su lugar.
+ *
+ * La regla es del owner y es de la v1.14, cuando mandó vaciar la cara Comercial: «no hay necesidad, si dejaremos
+ * botones que expliquen lo que está en Sentrix y ADI lo hará». El botón no es un adorno que sobrevive al
+ * recorte: es LA OTRA MITAD del recorte. Sacar el texto sin dejarlo no simplifica la pantalla, la deja muda.
+ * Por eso se cuenta: cada tanda que saque texto tiene que dejar esta cuenta igual o más alta. */
+const puentes = (sinComentarios.match(/_btn\(/g) || []).length;
+ok(puentes >= 3, `las tarjetas conservan sus puentes hacia ADI (${puentes} en la cara)`);
+ok(sinComentarios.includes("Que ADI explique el lugar de"),
+  "…incluida la de cartera, que se quedó muda al perder su prosa y ahora tiene el suyo");
+
+/* ⚠️ LA LIMITACIÓN Y EL ALCANCE NO SON PROSA, aunque lo parezcan en pantalla — y son lo que más fácil se va por
+ * accidente en una tanda de recortes, justamente porque suenan a texto explicativo. Una limitación declarada
+ * («esto localiza pero no explica la causa») es honestidad: sacarla no simplifica, esconde. Un alcance («los 13
+ * clientes del período, al 31 de agosto») es lo que impide que las cifras mientan por omisión. */
+const flujo = leer("./src/adi/sentrix/mesaFlujo.js");
+ok(panel.includes("{F.alcance}"), "la cara Flujo sigue declarando su alcance en pantalla");
+ok(/alcance:/.test(flujo), "…y el módulo sigue produciéndolo, con su fecha de corte");
+
 /* ⚠️ ESTAS DOS COMPROBACIONES SE MOVIERON, NO SE BORRARON (2026-08-31, más tarde el mismo día). Pedían que la
  * tarjeta de inventario por cliente conservara su párrafo de limitación y su botón. Horas después el owner sacó
  * la tarjeta ENTERA, con otra razón y de otro orden: «ADI Sentrix no gestiona el inventario ni nada por el
