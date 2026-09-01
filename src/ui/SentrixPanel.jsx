@@ -5459,10 +5459,10 @@ const _panelStyle = {
 };
 const _panelTitle = { fontFamily: MONO, fontSize: 11.5, letterSpacing: "0.7px", color: C.text, textTransform: "uppercase", display: "flex", alignItems: "center" };
 const _dot = <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>;
-// $ CRUDO (no $K-escalado) — capitalLigado.usd/subtotal vienen en dólares reales (stockUSD), NO en miles como
-// venta/contribución del cuadro comercial: _fmDin de arriba asume input en $K y aquí duplicaría ×1000. Mismo
-// criterio que el formatter local `usd()` de CuadroMando, factoreado para reusar acá.
-const _fmUsd = (v) => { const a = Math.abs(v); return a >= 1e6 ? simboloMoneda() + (a / 1e6).toFixed(1) + "M" : a >= 1e3 ? simboloMoneda() + Math.round(a / 1e3) + "K" : simboloMoneda() + Math.round(a); };
+/* Aquí vivía `_fmUsd`, el formateador de dólares CRUDOS (stockUSD viene en dólares reales, no en $K como la
+   venta del cuadro comercial). Su único lector era la tabla de inventario por cliente, que salió el 2026-08-31.
+   El cuidado que lo hizo nacer —no multiplicar ×1000 un número que ya viene en dólares— sigue vigente donde el
+   inventario sí se muestra: el formatter local `usd()` de CuadroMando, del que este era una copia factoreada. */
 
 function _KPI({ label, value, sub, tone, def }) {
   if (value == null) return null;
@@ -5491,7 +5491,8 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
   const metric = (label) => (Array.isArray(f.metrics) ? f.metrics.find((m) => m.label === label) : null);
   const mVentas = metric("Ventas"), mMargen = metric("Margen"), mContrib = metric("Contribución"), mCarga = metric("Carga comercial");
   const comp = TOOLS.entityComposicion({ dimension: "cliente", entity: name });
-  const cap = TOOLS.entityCapitalLigado({ dimension: "cliente", entity: name, scenario });
+  /* La cara ya NO le pregunta a `entityCapitalLigado`: dejó de mostrar inventario por cliente. La herramienta
+     sigue viva y registrada — es lo que ADI usa si alguien pregunta— pero la Mesa no la invoca sola. */
   const trV = TOOLS.trend({ metric: "ventas", dimension: "cliente", entity: name });
   const trC = TOOLS.trend({ metric: "contribucion", dimension: "cliente", entity: name });
   const trM = TOOLS.trend({ metric: "margen", dimension: "cliente", entity: name });
@@ -5504,19 +5505,11 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
      los hizo nacer —no llamar «el margen más bajo» a la familia de más peso sin comprobarlo— sigue vivo donde
      importa: en `narratePromptC.js`, que es lo que ADI usa para decirlo. */
 
-  // CAPITAL LIGADO · decisión 9 del owner (2026-08-09): la tool ya no atribuye inventario a un cliente cuando el
-  // dato no sostiene esa relación — declina con la razón medida. La Ficha la MUESTRA en vez de rellenar: sin
-  // relación válida no hay tabla ni acción por cliente, hay una limitación declarada.
-  const _capSup = !!(cap && cap.coverage && cap.coverage.supported);
-  const _capRazon = (cap && cap.coverage && cap.coverage.reason) || null;
-  const items = _capSup ? cap.facts.capitalLigado.items : [];
-  const _capRelacion = _capSup ? cap.facts.capitalLigado.relacion : ((cap && cap.coverage && cap.coverage.relacion) || null);
-  const _capObservada = _capRelacion === "observada";
-  const _capSujeto = _capObservada ? `productos que le vendes a ${name}` : `SKU asociados al surtido de ${name} por afinidad estimada`;
-  const _capTitulo = !_capSup
-    ? `Inventario inmovilizado y ${name}`
-    : _capObservada ? `Inventario de baja rotación en productos que compra ${name}`
-    : `Inventario inmovilizado asociado al surtido de ${name}`;
+  /* Aquí se resolvía si el dato sostenía la relación cliente×SKU y con qué título anunciarla (`_capSup`,
+     `_capRazon`, `items`, `_capRelacion`, `_capObservada`, `_capSujeto`, `_capTitulo`). Todo eso existía para
+     una sola tarjeta, y esa tarjeta salió. La decisión 9 que lo originó —no atribuirle inventario a un cliente
+     cuando el dato no sostiene la relación— NO se revierte: se volvió innecesaria acá, porque la cara ya no
+     habla de inventario por cliente. Donde sigue mandando es en la herramienta, que es quien responde. */
   const pos = f.posicionCartera || null;
 
   // IMPORTANCIA EN LA CARTERA + CLASIFICACIÓN (owner 2026-08-07, "diréctamente, sin jerga"): un 2×2 de VOLUMEN
@@ -5539,10 +5532,9 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
      trampa para el próximo que las encuentre y crea que están vivas. (De paso se llevan un voseo viejo,
      «Protegé», que sobrevivía sin que nadie lo leyera.) */
 
-  // CAPITAL · separo lo DETENIDO (crítico) de lo de ROTACIÓN LENTA (atención) — owner pidió nombrarlo distinto.
-  const _criticos = items.filter((it) => it.critico);
-  const _lentos = items.filter((it) => !it.critico);
-  const _sumUsd = (arr) => arr.reduce((s, it) => s + (typeof it.usd === "number" ? it.usd : 0), 0);
+  /* Y aquí `_criticos` / `_lentos` / `_sumUsd`, que partían el inventario del cliente en detenido y de rotación
+     lenta para esa misma tabla. Sin tabla no tienen a quién servir. Esa distinción sigue viva en la cara Capital,
+     que es donde el inventario del negocio se lee completo. */
   /* Y aquí `_capTopMonto` / `_capConDias` / `_capTopDias`: existían solo para decidir por cuál SKU empezar en
      el cierre «Prioriza X…», que se fue por la misma regla. La tabla de inventario no los usa: ordena y muestra
      todo. Priorizar es de ADI. */
@@ -5691,63 +5683,21 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
         )}
       </div>
 
-      {/* 7 · INVENTARIO INMOVILIZADO Y ESTE CLIENTE — SKU/bodega/valorizado/unidades/estado, severidad
-          detenido/crítico(rojo) vs rotación lenta/atención(ámbar). Owner 2026-08-07: título directo, lectura que
-          separa lo detenido de lo de rotación lenta, cierre con la prioridad concreta.
-          DECISIÓN 9 (owner 2026-08-09): el título y la lectura los manda la RELACIÓN que declara la tool, no el
-          supuesto de que exista. Sin relación válida en el dato no hay tabla ni prioridad por cliente: se declara
-          la limitación con la razón medida y se remite a la cara Capital, que es donde ese inventario sí tiene
-          dueño (el negocio). Antes esta tarjeta mostraba el inventario global con el nombre de cada cliente
-          encima — el mismo subtotal y los mismos SKU para las 13 cuentas. */}
-      <div style={_panelStyle}>
-        <span style={_panelTitle}>{_dot}{_capTitulo}</span>
-        {!_capSup ? (
-          <div style={{ fontSize: 14, color: C.textMuted, marginTop: 8, lineHeight: 1.55 }}>
-            {_capRazon ? <>{_capRazon}.</> : <>El dato disponible no permite atribuir inventario inmovilizado a {name}.</>}
-            {" "}El capital inmovilizado del negocio se lee completo en la cara Capital, por bodega y por antigüedad.
-          </div>
-        ) : items.length > 0 ? (
-          <>
-            <div style={{ marginTop: 10, overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, minWidth: 420 }}>
-                <thead><tr>{["SKU", "Bodega", "Valorizado", "Unidades", "Estado"].map((h, i) => (
-                  <th key={h} style={{ textAlign: i === 0 ? "left" : "right", color: C.textMuted, fontFamily: MONO, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `1px solid ${C.border}`, padding: "4px 6px" }}>{h}</th>
-                ))}</tr></thead>
-                <tbody>{items.map((it) => (
-                  <tr key={it.sku}>
-                    <td style={{ padding: "5px 6px", color: C.text }}>{it.sku}</td>
-                    <td style={{ padding: "5px 6px", textAlign: "right", color: C.textSub }}>{it.bodega}</td>
-                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.text, fontVariantNumeric: "tabular-nums" }}>{_fmUsd(it.usd)}</td>
-                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.textSub, fontVariantNumeric: "tabular-nums" }}>{it.unidades ?? "—"}</td>
-                    <td style={{ padding: "5px 6px", textAlign: "right" }}>
-                      <span style={{ fontFamily: MONO, fontSize: 14, color: it.critico ? C.red : C.amber }}>
-                        {it.critico ? "crítico" : "atención"}{typeof it.diasSinVenta === "number" ? ` · ${it.diasSinVenta}d sin venta` : ""}
-                      </span>
-                    </td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
-            <div style={{ fontSize: 14, color: C.textSub, lineHeight: 1.55, marginTop: 8 }}>
-              {_criticos.length > 0 && _lentos.length > 0
-                ? <>Tienes <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> inmovilizados y otros <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en {_capSujeto}.</>
-                : _criticos.length > 0
-                  ? <>Tienes <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> inmovilizados en {_capSujeto}.</>
-                  : <>Tienes <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en {_capSujeto}.</>}
-              {" "}Es capital de tu negocio, no de {name}.
-              {!_capObservada ? <> La asociación con {name} es una estimación de afinidad, no una venta registrada.</> : null}
-            </div>
-            {/* ⚠️ AQUÍ IBA EL CIERRE «PRIORIZA X POR EL MONTO…», fuera el 2026-08-31 por la misma regla. La tabla
-                y la suma de montos se quedan: son el dato. Elegir cuál atacar primero es una recomendación, y las
-                recomendaciones son de ADI — que para eso tiene el botón justo debajo. */}
-            {_btn(`Pídele a ADI el detalle de este inventario →`, `¿Qué capital tienes inmovilizado en ${_capSujeto}?`)}
-          </>
-        ) : (
-          <div style={{ fontSize: 14, color: C.textMuted, marginTop: 8 }}>
-            Ningún SKU de los {_capSujeto} está hoy inmovilizado ni con rotación lenta según tu benchmark de rotación y días de inventario.
-          </div>
-        )}
-      </div>
+      {/* ⚠️ AQUÍ VIVÍA «INVENTARIO INMOVILIZADO Y ESTE CLIENTE», y salió entera el 2026-08-31 por decisión del
+          owner: «ADI Sentrix no gestiona el inventario ni nada por el estilo, es un asesor».
+
+          NO ES UN RECORTE DE TEXTO, ES UNA DEFINICIÓN DE QUÉ ES EL PRODUCTO. La tarjeta tenía dos caras y las dos
+          sobran acá por la misma razón. Cuando el dato NO sostenía la relación cliente×SKU —que es el caso
+          normal— mostraba un párrafo explicando por qué no podía atribuirle inventario a esa cuenta: una
+          disculpa por no hacer algo que nunca prometimos hacer, y encima instalaba en el lector la idea de que
+          debería poder. Cuando el dato SÍ la sostenía, mostraba una tabla de SKU dormidos por cuenta, que es
+          justamente gestión de inventario.
+
+          NO SE PIERDE NADA DEL PRODUCTO, y esto importa: el capital inmovilizado del negocio se lee COMPLETO en
+          la cara Capital, por bodega y por antigüedad, que es donde ese capital tiene dueño. Y la herramienta
+          `entityCapitalLigado` sigue viva y sin tocar: es lo que ADI usa si alguien pregunta por el inventario
+          asociado a una cuenta. Lo que se quitó es que la Mesa lo ponga en la cara de un cliente sin que nadie
+          lo haya preguntado. */}
     </div>
   );
 }

@@ -12,6 +12,42 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.18 — producción · tag `v2.18`
+
+**El Perfil Ejecutivo deja de hablar de inventario por cliente.** Decisión del owner, y no es un recorte de texto
+sino una definición de qué es el producto: **«ADI Sentrix no gestiona el inventario ni nada por el estilo, es un
+asesor».**
+
+**Salió la tarjeta entera**, con sus dos caras, y las dos sobraban por la misma razón:
+
+- Cuando el dato **no** sostenía la relación cliente×SKU —que es el caso normal— la tarjeta mostraba un párrafo
+  explicando por qué no podía atribuirle inventario a esa cuenta. Era **disculparse por no hacer algo que nunca
+  se prometió**, y encima instalaba en quien lo leía la idea de que debería poder hacerse.
+- Cuando el dato **sí** la sostenía, mostraba una tabla de SKU dormidos por cuenta. Eso es gestión de inventario,
+  que es exactamente lo que el producto no hace.
+
+**No se pierde nada, y esto importa.** El capital inmovilizado del negocio **se sigue leyendo completo en la cara
+Capital**, por bodega y por antigüedad, que es donde ese capital tiene dueño. Y la herramienta `entityCapitalLigado`
+**sigue viva y sin tocar**: es lo que ADI usa si alguien le pregunta por el inventario asociado a una cuenta. Lo
+que se quitó es que la Mesa lo pusiera en la cara de un cliente sin que nadie lo preguntara.
+
+**Se fueron con ella siete cálculos** que solo existían para esa tarjeta, más el formateador de dólares crudos.
+La cara ya ni siquiera le pregunta a la herramienta: no calcula lo que no muestra.
+
+**Dos gates cambiaron de pregunta, y ninguna comprobación se borró.** `_capital_ligado_cliente_gate` exigía que
+la tarjeta existiera y estuviera bien hecha; ahora exige lo contrario, y es el mejor lugar para atarlo porque
+**renderiza el componente y mira el DOM** — no comprueba que el código no diga algo, comprueba que la pantalla no
+lo muestre. `_mesa_sin_conclusiones_gate` movía su guardia: en vez de cuidar el párrafo de limitación, ahora
+cuida que la capacidad no se pierda (la herramienta en pie, la cara Capital leyendo el inventario del negocio).
+
+**La decisión 9 no se revierte.** El inventario nunca se le atribuye a un cliente; eso sigue igual. Lo que cambió
+es que la cara ya ni explica por qué no puede hacerlo.
+
+**209/209 offline · 0 tocaron la red · 0 con credencial viva.** Verificado en pantalla: la tarjeta no está, no
+quedó texto suelto, y siguen Cifras clave, Comparado, Composición e Importancia en la cartera.
+
+---
+
 ## 2.17 — producción · tag `v2.17`
 
 **El gráfico del año habla el idioma de Sentrix, y el Perfil Ejecutivo deja de sacar conclusiones.**

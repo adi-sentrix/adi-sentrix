@@ -163,9 +163,20 @@ H("[3] LA FICHA EJECUTIVA · declara la limitación en vez de rellenar con el in
   const t = container.textContent;
 
   ok(t.includes(`Importancia de ${entity} en tu cartera`), "el Perfil Ejecutivo se renderiza (no es un falso verde por panel vacío)");
-  ok(t.includes(`Inventario inmovilizado y ${entity}`), "la tarjeta se titula por lo que el dato sostiene, no por una relación inexistente");
-  ok(/no registra qué SKU/.test(t), "muestra la razón medida");
-  ok(/cara Capital/.test(t), "remite a donde ese inventario SÍ tiene dueño (el negocio)");
+  /* ⚠️ ESTAS TRES SE DIERON VUELTA, NO SE BORRARON (owner 2026-08-31: «ADI Sentrix no gestiona el inventario ni
+   * nada por el estilo, es un asesor»). Pedían que la tarjeta EXISTIERA y se titulara bien, mostrara la razón
+   * medida y remitiera a la cara Capital. Eran correctas mientras la pregunta fuera «¿está bien hecha esta
+   * tarjeta?»; el owner cambió la pregunta a «¿esta tarjeta debe existir?» y respondió que no.
+   *
+   * La decisión 9 que originó todo esto NO se revierte y por eso las de abajo siguen intactas: el inventario
+   * nunca se le atribuye a un cliente. Lo que cambió es que la cara ya ni siquiera explica por qué no puede
+   * hacerlo — explicar que no gestionamos inventario instalaba la idea de que deberíamos. Este gate es el mejor
+   * lugar para atarlo porque RENDERIZA el componente y mira el DOM: no comprueba que el código no diga algo,
+   * comprueba que la pantalla no lo muestre. */
+  ok(!t.includes(`Inventario inmovilizado y ${entity}`),
+    "el Perfil Ejecutivo NO muestra una tarjeta de inventario por cliente: el producto asesora, no gestiona stock");
+  ok(!/no registra qué SKU/.test(t),
+    "…ni explica por qué no puede atribuirlo: era disculparse por algo que nunca se prometió");
   ok(!t.includes(`productos que compra ${entity}`), `no queda el título viejo "productos que compra ${entity}"`);
   ok(!t.includes(`productos que le vendés a ${entity}`), `no queda la lectura vieja "productos que le vendés a ${entity}"`);
   // la TABLA de inventario por cliente y su cierre de acción ya no existen (sus textos son únicos de esa tarjeta).

@@ -151,10 +151,25 @@ ok(panel.includes("pos.rankingVenta}º de {pos.totalClientes}"), "…con el rank
 ok(panel.includes("del grupo que concentra el 80% de las ventas"), "…y el peso en la cartera");
 ok(panel.includes('label: "RECUPERAR"') && panel.includes('label: "CUIDAR"'),
   "la etiqueta de rol se queda: sale de dos hechos (volumen × margen), no de una opinión");
-ok(panel.includes("El capital inmovilizado del negocio se lee completo en la cara Capital"),
-  "la limitación del inventario por cliente se queda: dice qué NO puede afirmar el dato");
-ok(panel.includes("Pídele a ADI el detalle de este inventario"),
-  "…y el botón que manda a ADI, que es quien sí prioriza");
+
+/* ⚠️ ESTAS DOS COMPROBACIONES SE MOVIERON, NO SE BORRARON (2026-08-31, más tarde el mismo día). Pedían que la
+ * tarjeta de inventario por cliente conservara su párrafo de limitación y su botón. Horas después el owner sacó
+ * la tarjeta ENTERA, con otra razón y de otro orden: «ADI Sentrix no gestiona el inventario ni nada por el
+ * estilo, es un asesor». No es que la comprobación estuviera mal —protegía lo correcto mientras la tarjeta
+ * existía—: cambió la pregunta. Borrarlas y seguir habría dejado el hueco sin vigilar; lo que se vigila ahora es
+ * lo que de verdad no puede perderse cuando una cara deja de hablar de algo: que ese algo siga leyéndose donde
+ * SÍ tiene dueño, y que la herramienta que lo responde siga en pie. */
+const capital = leer("./src/adi/sentrix/mesaCapital.js");
+const retrieval = leer("./src/adi/specRetrieval.js");
+ok(!sinComentarios.includes("_capTitulo") && !sinComentarios.includes("Inventario inmovilizado y "),
+  "el Perfil Ejecutivo ya no muestra inventario por cliente: no es lo que hace el producto");
+ok(!sinComentarios.includes("TOOLS.entityCapitalLigado("),
+  "…y la cara ni siquiera le pregunta a la herramienta: no calcula lo que no muestra");
+/* PERO EL PRODUCTO NO PIERDE LA CAPACIDAD, que es la mitad que importa: */
+ok(retrieval.includes("capitalLigado: { subtotal, items"),
+  "la herramienta de capital ligado sigue en pie: es lo que ADI usa si alguien PREGUNTA por eso");
+ok(capital.length > 0 && /inmovilizado|bodega/i.test(capital),
+  "y el capital inmovilizado del negocio se sigue leyendo en la cara Capital, que es donde tiene dueño");
 
 H("5 · UNA LÁPIDA NO SE IMPRIME · el comentario JSX lleva llaves o no es un comentario");
 /* ⚠️ ESTO PASÓ HOY, Y SOLO SE VIO EN PANTALLA. Al sacar la tarjeta de la brecha se dejó en su lugar un comentario
