@@ -24,6 +24,7 @@ import { getSelloDeCarga } from "../../ingesta/estadoCarga.js";
 import { rotuloMoneda, etiquetaSinDeclarar } from "../../config/moneda.js";
 import { datasetCapability, serieRealDe, esSerieDelArchivo } from "../sentrix/capability.js";
 import { alcanceDeHistoria, periodosDeHechos } from "../../ingesta/historico.js";
+import { axisEntityNames } from "../oracle/entityIndex.js";   // el nombre de una entidad no es un eje (ver `_sinNombresDeEntidad`)
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 
 /** cuántos nombres se listan por eje antes de declarar la cola — el tope de tamaño manda sobre la lista */
@@ -181,6 +182,22 @@ const _QUE_HABILITA = [
   { falta: /"bodega"/i, toca: /\bbodega|\bdep[oó]sito[s]?\b|\balmac[eé]n/i, pieza: "la columna «bodega» de Inventario", abre: "el capital por bodega" },
 ];
 
+/** la pregunta sin los nombres de las entidades del tenant — para que «Depósito Riachuelo» (un cliente) no se
+ *  lea como el eje bodega. Se tapan solo las que de verdad aparecen; sin catálogo, la pregunta va tal cual. */
+function _sinNombresDeEntidad(q) {
+  let t = q;
+  for (const eje of ["cliente", "sku", "marca", "familia", "bodega", "canal"]) {
+    let nombres = [];
+    try { nombres = axisEntityNames(eje) || []; } catch { continue; }
+    for (const n of nombres) {
+      if (!n || String(n).length < 4) continue;   // un nombre de 3 letras taparía media pregunta
+      const re = new RegExp(String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+      if (re.test(t)) t = t.replace(re, " ");
+    }
+  }
+  return t;
+}
+
 /** faltanteQueToca(pregunta) → { pieza, abre } de lo que el archivo NO trajo y esta pregunta necesita, o null.
  *  Determinístico y conservador: si el dato no registró faltantes, o ninguno toca la pregunta, devuelve null. */
 export function faltanteQueToca(pregunta) {
@@ -188,8 +205,15 @@ export function faltanteQueToca(pregunta) {
   if (!q.trim()) return null;
   const faltas = _faltantesDeclarados(getTenantData());
   if (!faltas.length) return null;
+  /* ⚠️ EL NOMBRE DE UNA ENTIDAD NO ES UN EJE (medido 2026-09-01 sobre la parcial corregida): el cliente
+   * «Depósito Riachuelo» hacía que «cuánto me compró Depósito Riachuelo el último mes» disparara la regla de
+   * BODEGA —la palabra «depósito»— y ADI respondía «tu archivo no trae la columna bodega» a una pregunta sobre
+   * un cliente. En distribución esos nombres son la norma («Depósito X», «Almacén Y»), así que el falso
+   * positivo no era raro: era esperable. Las entidades del tenant se TAPAN antes de evaluar — la pregunta se
+   * lee sin ellas, y solo entonces las palabras que quedan pueden nombrar un eje. */
+  const qLimpia = _sinNombresDeEntidad(q);
   for (const regla of _QUE_HABILITA) {
-    if (!regla.toca.test(q)) continue;
+    if (!regla.toca.test(qLimpia)) continue;
     if (faltas.some((f) => regla.falta.test(f.detalle))) return { pieza: regla.pieza, abre: regla.abre };
   }
   return null;

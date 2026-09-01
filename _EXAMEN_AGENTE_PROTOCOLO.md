@@ -229,8 +229,13 @@ no reconcilia), no del producto**. Si ese turno responde con cifra, queda probad
 
 ### ESCENARIO 3 · PLANILLA PARCIAL (8 turnos) — la conducta con dato incompleto
 
-⚠️ **CORRECCIÓN SOBRE EL DATO REAL (2026-08-31)**: la parcial que entregó el owner **no borró las columnas ni
-las hojas: las dejó presentes y VACÍAS**. Es más realista que lo que habíamos especificado —la plantilla
+⚠️ **CORRECCIÓN SOBRE EL DATO REAL (2026-08-31 · ajustada 2026-09-01)**: la parcial que entregó el owner **no
+borró las columnas ni las hojas: las dejó presentes y VACÍAS**. Y se le pide **un solo cambio**: que la hoja
+**Inventario venga CON sus filas y la columna `bodega` en blanco**. Motivo medido: con Inventario totalmente
+vacío, los turnos 5 y 7 pasan a medir **lo mismo** (nombrar la hoja) y se pierde el turno de no-degradación
+junto con toda la cara Capital. Con Inventario lleno y `bodega` en blanco, el 5 nombra la COLUMNA y el 7
+responde con cifras — que es lo que cada uno vino a medir. Verificado de punta a punta sobre esa planilla: **8
+de 8 turnos**. Es más realista que lo que habíamos especificado —la plantilla
 oficial se descarga con las cuatro hojas adentro, así que nadie las borra— y **no hace falta que la rehaga**.
 Lo que cambia es de dónde sale el aviso: en vez de «no vino la hoja X» / «no trae la columna Y», la ingesta
 emite `la hoja «Abonos» vino sin ninguna fila` y `"canal" quedó vacía en todas las filas`. Las reglas del

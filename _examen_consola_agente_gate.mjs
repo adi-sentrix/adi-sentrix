@@ -183,6 +183,17 @@ console.log("\n3c · P3 · el camino que la consola usa, probado EN VIVO con una
     ok(!!f && esperado.test(f.pieza), `★ «${aviso.slice(0, 46)}…» + «${pregunta.slice(0, 30)}» → nombra la pieza`,
       JSON.stringify(f));
   }
+  /* ⚠️ EL NOMBRE DE UNA ENTIDAD NO ES UN EJE (medido sobre la parcial corregida, 2026-09-01): el cliente
+   * «Depósito Riachuelo» hacía que una pregunta sobre ÉL disparara la regla de BODEGA por la palabra
+   * «depósito», y ADI contestaba «tu archivo no trae la columna bodega» a una pregunta de cliente. En
+   * distribución esos nombres son la norma, así que el falso positivo era esperable, no raro. */
+  initTenant({ ...packViejo, avisosDeCarga: [{ tipo: "columna-opcional-vacia", detalle: '«Inventario»: "bodega" quedó vacía en todas las filas' }] });
+  ok(faltanteQueToca("cuánto me compró Depósito Riachuelo el último mes") === null,
+    "★ el nombre de un cliente («Depósito Riachuelo») NO se lee como el eje bodega",
+    JSON.stringify(faltanteQueToca("cuánto me compró Depósito Riachuelo el último mes")));
+  ok(!!faltanteQueToca("dame el capital por bodega"),
+    "…y la pregunta que SÍ es del eje sigue nombrando la pieza");
+
   /* Y EL ORDEN: con la hoja Inventario vacía, la pieza que falta es la HOJA, no su columna — mandar al usuario
    * a agregar «bodega» en una hoja que vino en blanco sería mandarlo a arreglar lo que no es. */
   initTenant({ ...packViejo, avisosDeCarga: [
