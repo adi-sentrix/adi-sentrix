@@ -149,6 +149,21 @@ El volcado completo de KPIs deja de ser primer recurso: queda disponible SOLO si
 - Pendientes que la F2 hereda de este frente y siguen abiertos: el barrido ×1000 de las superficies (decisión
   A/B en el owner) y el destino del interceptor-puente (congelado, en consulta).
 
+### 8b · LÍMITE DECLARADO · el nombre propio que suena a eje (medido con el supervisor, 2026-09-01)
+
+Cuando el archivo del cliente no trae una columna, ADI nombra la pieza que falta si la pregunta la toca
+(«tu archivo no trae la columna «canal» de Ventas»). Para no confundir el EJE con una ENTIDAD que lo
+contiene, la pregunta se lee sin los nombres del catálogo del tenant: así «cuánto me compró Depósito
+Riachuelo» (un cliente) no se lee como una pregunta por bodega. Dos bordes, los dos a la vista:
+
+- **Corregido**: una entidad llamada EXACTAMENTE como el eje —una marca «Canal»— ya no se tapa. Tapándola
+  se borraba de la pregunta la palabra que la regla necesita y la pieza dejaba de nombrarse, en silencio.
+  Un nombre que ES la palabra del eje no desambigua nada, así que taparlo solo podía quitar señal.
+- **Límite declarado, no defecto**: si el usuario escribe «Almacén Central» y eso NO es una entidad del
+  tenant, se sigue leyendo como el eje bodega. Ninguna regla determinística puede distinguir ahí un nombre
+  propio de un lugar. El costo máximo es un falso positivo VISIBLE (ADI nombra una pieza de más), nunca un
+  silencio: la preferencia está elegida a propósito.
+
 ## 9 · Agregados de la revisión (chat principal, 2026-08-30 — aceptados)
 
 1. **El MAPA lleva candado propio con carnada**: «mapa fiel al dato» — lo que declara existir existe y lo que

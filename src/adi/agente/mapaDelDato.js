@@ -182,6 +182,14 @@ const _QUE_HABILITA = [
   { falta: /"bodega"/i, toca: /\bbodega|\bdep[oó]sito[s]?\b|\balmac[eé]n/i, pieza: "la columna «bodega» de Inventario", abre: "el capital por bodega" },
 ];
 
+/* las palabras que NOMBRAN un eje en este mapa — las mismas que disparan las reglas de arriba. Un nombre de
+ * entidad que es EXACTAMENTE una de estas no se tapa: ver el porqué en `_sinNombresDeEntidad`. */
+const _PALABRAS_DE_EJE = new Set(["canal", "canales", "bodega", "bodegas", "deposito", "depositos", "depósito",
+  "depósitos", "almacen", "almacén", "marca", "marcas", "familia", "familias", "categoria", "categoría",
+  "inventario", "stock", "capital", "sucursal", "sucursales", "tienda", "tiendas", "local", "locales",
+  "punto de venta", "puntos de venta", "abonos", "ventas"]);
+const _norm = (s) => String(s || "").trim().toLowerCase();
+
 /** la pregunta sin los nombres de las entidades del tenant — para que «Depósito Riachuelo» (un cliente) no se
  *  lea como el eje bodega. Se tapan solo las que de verdad aparecen; sin catálogo, la pregunta va tal cual. */
 function _sinNombresDeEntidad(q) {
@@ -191,6 +199,16 @@ function _sinNombresDeEntidad(q) {
     try { nombres = axisEntityNames(eje) || []; } catch { continue; }
     for (const n of nombres) {
       if (!n || String(n).length < 4) continue;   // un nombre de 3 letras taparía media pregunta
+      /* ⚠️ EL TAPADO CURABA DE MÁS (medido con control, 2026-09-01): una entidad llamada EXACTAMENTE como el
+       * eje —una marca «Canal», una bodega «Bodega»— borraba de la pregunta la palabra que la regla necesita,
+       * y «ranking por canal» dejaba de nombrar la pieza. Falla SILENCIOSA: ADI volvía a la disculpa y nada se
+       * ponía rojo. Un nombre que ES la palabra del eje no desambigua nada —no distingue «la marca Canal» de
+       * «el eje canal»—, así que taparlo solo puede quitar señal. El trade-off es consciente: con una entidad
+       * homónima preferimos un falso positivo VISIBLE («tu archivo no trae la columna canal») antes que un
+       * silencio. «Depósito Riachuelo» no entra acá: no es la palabra, la contiene, y se sigue tapando.
+       * ⚠️ LÍMITE DECLARADO, no defecto: «Almacén Central» escrito por el usuario SIN ser entidad del tenant
+       * se sigue leyendo como el eje. Ninguna regla determinística puede saber que ahí es un nombre propio. */
+      if (_PALABRAS_DE_EJE.has(_norm(n))) continue;
       const re = new RegExp(String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
       if (re.test(t)) t = t.replace(re, " ");
     }

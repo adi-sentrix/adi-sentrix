@@ -194,6 +194,27 @@ console.log("\n3c · P3 · el camino que la consola usa, probado EN VIVO con una
   ok(!!faltanteQueToca("dame el capital por bodega"),
     "…y la pregunta que SÍ es del eje sigue nombrando la pieza");
 
+  /* ⚠️ EL TAPADO NO PUEDE CURAR DE MÁS (control del supervisor, 2026-09-01): con una entidad llamada
+   * EXACTAMENTE como el eje, tapar borraba de la pregunta la palabra que la regla necesita y la pieza dejaba
+   * de nombrarse — falla SILENCIOSA, la peor: nada se pone rojo. El control aísla la única variable (el nombre
+   * de la entidad) dejando el aviso presente en los dos casos. */
+  {
+    const { initTenant: _it } = await import("./src/data/tenantStore.js");
+    const avisoCanal = [{ tipo: "columna-opcional-vacia", detalle: '«Ventas»: "canal" quedó vacía en todas las filas' }];
+    const conMarca = (marca) => ({ ...packViejo, avisosDeCarga: avisoCanal,
+      marcasMargen: [{ nombre: marca, venta: 1000, margen: 20 }], MARCAS_ALL: [marca] });
+    _it(conMarca("Acme"));
+    const neutral = faltanteQueToca("ranking por canal");
+    _it(conMarca("Canal"));
+    const homonima = faltanteQueToca("ranking por canal");
+    ok(!!neutral && /columna «canal»/.test(neutral.pieza), "CONTROL · con marca «Acme», «ranking por canal» nombra la pieza");
+    ok(!!homonima && /columna «canal»/.test(homonima.pieza),
+      "★ y con una marca llamada «Canal» TAMBIÉN — el tapado ya no se come la palabra del eje", JSON.stringify(homonima));
+    _it(conMarca("Depósito Riachuelo"));
+    ok(faltanteQueToca("cuánto me compró Depósito Riachuelo el último mes") === null,
+      "…mientras el nombre que CONTIENE la palabra («Depósito Riachuelo») se sigue tapando");
+  }
+
   /* Y EL ORDEN: con la hoja Inventario vacía, la pieza que falta es la HOJA, no su columna — mandar al usuario
    * a agregar «bodega» en una hoja que vino en blanco sería mandarlo a arreglar lo que no es. */
   initTenant({ ...packViejo, avisosDeCarga: [
