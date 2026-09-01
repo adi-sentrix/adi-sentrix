@@ -1,7 +1,18 @@
 /* === _conversation_scope_gate.mjs · Etapa 1/3 · continuidad conversacional universal — arnés determinístico ===
  * LOCAL, NO commiteado (convención del repo: _*_gate.mjs es local). Cero red, cero LLM: ejercita funciones puras
  * de src/adi/oracle/conversationScope.js directo (mismo patrón que _model_router_gate.mjs / _guardc_repetition_
- * degraded_gate.mjs — mockea el estado a mano, nunca llama a callPlan/callNarrate reales).
+ * degraded_gate.mjs — mockea el estado a mano, jamás pasa por el oráculo ni por el gateway).
+ *
+ * ⚠️ LA FRASE DE ARRIBA NOMBRABA LAS DOS FUNCIONES DEL ORÁCULO, y eso solo bastaba para que el clasificador de
+ * `gates-offline` mandara este gate a la lista LIVE — o sea: el comentario que declaraba su inocencia era lo
+ * que lo dejaba FUERA de la corrida. Estuvo afuera desde el 2026-08-21 y nadie lo supo. Se dice lo mismo sin
+ * nombrarlas.
+ *
+ * ⚠️ Y DECLARA SU TENANT (2026-09-01). El commit `26abfae` quitó el dataset por defecto de `tenantStore` —con
+ * razón: con el default puesto, el bundle de producción se llevaba el dato de OTRA empresa—. Desde entonces
+ * «en Node (gates, consola, exámenes) lo declara quien corre», igual que `ESCENARIO_INICIAL`. Este gate no lo
+ * declaraba: con el store vacío ninguna entidad se reconoce y los 53 checks caían. El producto nunca se rompió;
+ * el gate se quedó atrás en un cambio de contrato de 89 archivos.
  *
  * Cubre, como mínimo, lo pedido por el owner para cerrar Etapa 1:
  *   1. la referencia resuelve desde un resultado ESTRUCTURADO anterior (boleta), nunca de prosa/narración.
@@ -27,6 +38,7 @@ import { guessDimension } from "./src/adi/oracle/entityRecord.js";
 import { composeSpecInventory } from "./src/adi/specRetrieval.js";
 import { initTenant, getTenantData } from "./src/data/tenantStore.js";
 import { TENANTS } from "./src/data/tenants/index.js";
+initTenant(TENANTS.demo);   // el dato se DECLARA (26abfae) — sin esto el store arranca vacío y nada se reconoce
 
 let pass = 0, fail = 0;
 function ok(name, cond, detail) {

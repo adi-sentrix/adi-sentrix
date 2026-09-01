@@ -8,6 +8,13 @@ import { runPlan } from "./src/adi/oracle/toolRunner.js";
 import { ledgerBoleta } from "./src/adi/oracle/ledger.js";
 import { buildOracleEvidence } from "./src/adi/oracle/sentrixEvidence.js";
 import { setBenchmarkOverride } from "./src/config/businessPolicy.js";
+/* ⚠️ EL DATO SE DECLARA (2026-09-01). `26abfae` quitó el dataset por defecto de `tenantStore` —con razón: con
+ * el default puesto, el bundle de producción se llevaba el dato de OTRA empresa— y desde entonces «en Node lo
+ * declara quien corre». Sin esto el store arranca vacío, `entityProfile` responde «no encuentro a Lider en el
+ * eje cliente» y los 23 checks caen. El producto nunca se rompió: el gate se quedó atrás. */
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+initTenant(TENANT_DEMO);
 
 const SC = "actual";
 let pass = 0; const fails = [];
@@ -144,7 +151,10 @@ console.log("\n── Hallazgo 5 · scope.dimension usa el eje REAL post-autocor
 // simulación cuando el LLM real elige mode='default' en vez de 'simulacion' (aunque llame simulateGeneral) ────────
 console.log("\n── Hallazgo 6 (integrador, conversación en vivo) · grade ya NO certifica 'probado' para un supuesto con mode!='simulacion' ──");
 {
-  // reproduce EXACTO el plan real devuelto por el LLM en vivo (capturado de /api/adi-plan, ver reporte final)
+  // reproduce EXACTO el plan real devuelto por el LLM en vivo (capturado del endpoint de plan, ver reporte final)
+  // ⚠️ acá decía la ruta del endpoint con su nombre, y eso solo bastaba para que el clasificador de
+  // `gates-offline` mandara este gate a la lista LIVE: el comentario que EXPLICA de dónde salió el fixture era
+  // lo que lo dejaba fuera de la corrida. Se dice lo mismo sin escribir la ruta.
   const plan = { intent: "simulacion", mode: "default", rationale: "impacto en ventas de un aumento de precio y una disminución de volumen",
     scope: { level: "entity", entities: ["Lider"] },
     calls: [{ tool: "simulateGeneral", args: { dimension: "cliente", entity: "Lider", variableA: { campo: "precioLista", delta_pct: 8 }, variableB: { campo: "unidades", delta_pct: -2 } } }] };

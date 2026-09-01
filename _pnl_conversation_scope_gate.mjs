@@ -18,9 +18,28 @@
  * módulo de pnl.js (_lines/_scope) — un import directo por separado sería una instancia de módulo DISTINTA.
  *
  * CERO llamadas LLM reales en todo el archivo: composePnl/buildAdiTurn (camino demo) son 100% síncronos y
- * determinísticos, sin fetch ni callPlan/callNarrate.
+ * determinísticos: no abren un socket ni pasan por el oráculo.
+ *
+ * ⚠️ LA FRASE DE ARRIBA NOMBRABA LAS DOS FUNCIONES DEL ORÁCULO, y con eso el clasificador de `gates-offline`
+ * mandaba este gate a la lista LIVE: el comentario que declaraba su inocencia era lo que lo dejaba FUERA de la
+ * corrida. Estuvo afuera desde el 2026-08-21 y nadie lo supo. Se dice lo mismo sin nombrarlas.
+ *
+ * ⚠️ EL TENANT SE DECLARA DOS VECES, Y NO ES UNA DUPLICADA — no borres ninguna.
+ * El commit `26abfae` quitó el dataset por defecto de `tenantStore` (con razón: con el default puesto, el
+ * bundle de producción se llevaba el dato de OTRA empresa), así que en Node lo declara quien corre. Pero acá
+ * hay DOS instancias del store, no una:
+ *   1· la del PROCESO de este gate — para `composePnl` y todo lo que se importa directo (LADO A).
+ *   2· la del BUNDLE de esbuild — `buildAdiTurn` viaja en un bundle propio, con su propia copia de los módulos
+ *      y por lo tanto su propio store, que la llamada del proceso NO alcanza. Es el mismo patrón que
+ *      `_spec_gate` ya declara en su cabecera: «el entry re-exporta también initTenant/TENANT_DEMO: hay que
+ *      declarárselo AL BUNDLE».
+ * Medido el 2026-09-01: con solo la del proceso, 15 PASS · 2 FAIL — las dos que sobrevivían eran justamente
+ * las del bloque bundleado. Con las dos, 17 · 0.
  */
 import fs from "fs";
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+initTenant(TENANT_DEMO);   // (1) el store del PROCESO — ver la nota de arriba: la del bundle está más abajo
 for (const ln of fs.readFileSync(".env", "utf8").split(/\r?\n/)) { const m = ln.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ""); }
 
 let pass = 0, fail = 0;
@@ -117,6 +136,9 @@ console.log("═".repeat(90));
   fs.writeFileSync(entry, [
     'export { buildAdiTurn } from "./src/ui/ChatADI.jsx";',
     'export { setPnlLines, clearPnl, resetPnlDraft, pnlScope } from "./src/adi/pnl.js";',
+    // (2) el store del BUNDLE — hay que declarárselo A ÉL, no alcanza con el del proceso (ver la cabecera)
+    'export { initTenant } from "./src/data/tenantStore.js";',
+    'export { TENANT_DEMO } from "./src/data/tenants/demo.js";',
   ].join("\n"));
   await esbuild.build({
     entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", jsx: "automatic",
@@ -126,6 +148,7 @@ console.log("═".repeat(90));
   const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
   try { fs.unlinkSync(entry); } catch {} try { fs.unlinkSync(out); } catch {}
   const { buildAdiTurn, setPnlLines, clearPnl, resetPnlDraft, pnlScope } = M;
+  M.initTenant(M.TENANT_DEMO);   // (2) el store del BUNDLE, que es OTRO — sin esto el bloque 9 cae, medido
 
   console.log("\n── 9 · CASO OBLIGATORIO — \"P&L de Falabella\" (texto libre, camino demo completo) proyecta la entidad ──");
   {
