@@ -229,7 +229,16 @@ no reconcilia), no del producto**. Si ese turno responde con cifra, queda probad
 
 ### ESCENARIO 3 · PLANILLA PARCIAL (8 turnos) — la conducta con dato incompleto
 
-Cinco turnos donde la pieza NO está (debe nombrarla) y tres donde SÍ está (no debe degradarse).
+⚠️ **CORRECCIÓN SOBRE EL DATO REAL (2026-08-31)**: la parcial que entregó el owner **no borró las columnas ni
+las hojas: las dejó presentes y VACÍAS**. Es más realista que lo que habíamos especificado —la plantilla
+oficial se descarga con las cuatro hojas adentro, así que nadie las borra— y **no hace falta que la rehaga**.
+Lo que cambia es de dónde sale el aviso: en vez de «no vino la hoja X» / «no trae la columna Y», la ingesta
+emite `la hoja «Abonos» vino sin ninguna fila` y `"canal" quedó vacía en todas las filas`. Las reglas del
+agente se verificaron **contra esos textos exactos** y contra las preguntas en plural, que es como se
+pregunta de verdad. Los PASS/FAIL de abajo valen igual: lo que se mide es que **nombre la pieza**, no de qué
+forma faltó.
+
+Cinco turnos donde la pieza no tiene dato (debe nombrarla) y tres donde sí lo tiene (no debe degradarse).
 
 | # | Turno | PASS | FAIL |
 |---|---|---|---|

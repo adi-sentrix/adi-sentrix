@@ -155,17 +155,30 @@ function _faltantesDeclarados(d) {
  * Relaciona una pregunta con la pieza del archivo que la haría posible, para que el rescate pueda nombrarla.
  * Es una tabla, no una inteligencia: cada fila dice qué falta, qué preguntas toca y qué se abriría con ella.
  * `dice` sale del aviso de la ingesta cuando existe; acá vive solo el vínculo. */
+/* ⚠️ EL ORDEN ES PARTE DE LA REGLA: gana la primera que aplica, así que **la hoja va antes que su columna**.
+ * Si la hoja Inventario vino vacía no falta «la columna bodega»: falta el inventario entero, y decir lo primero
+ * sería mandar al usuario a arreglar lo que no es. */
 const _QUE_HABILITA = [
-  { falta: /hoja «?Abonos/i, toca: /\bcobr|\bdeb[eo]\b|\bdeuda|vencid|\bpag[oó]|cuenta corriente|\bmora\b/i,
+  { falta: /hoja «?Abonos/i, toca: /\bcobr|\bdeb[eo]\b|\bdeuda|vencid|\bpag[oó]|cuenta corriente|\bmora\b|flujo comercial/i,
     pieza: "la hoja Abonos", abre: "quién te debe y qué está vencido" },
-  { falta: /"punto de venta"/i, toca: /punto de venta|sucursal|\btienda|\blocal(?:es)?\b/i,
+  /* HUECO CAZADO POR EL SUPERVISOR sobre la planilla REAL del owner (2026-08-31): la regla de bodega busca la
+   * COLUMNA, y en su parcial la hoja Inventario vino sin una sola fila — ningún patrón la matcheaba, así que
+   * «capital por bodega» volvía a la disculpa sin nombre. La hoja vacía es el caso NORMAL, no el raro: la
+   * plantilla oficial se descarga con las cuatro hojas adentro, así que nadie las borra — las deja en blanco. */
+  { falta: /hoja «?Inventario/i, toca: /\binventario\b|\bstock\b|\bcapital\b|rotaci[oó]n|frenad|inmoviliz|\bbodega|\bdep[oó]sito[s]?\b|d[ií]as de inventario|\bquiebre/i,
+    pieza: "la hoja Inventario", abre: "el capital, la rotación y los días de tu inventario" },
+  /* ⚠️ EL PLURAL CUENTA: «ranking de puntoS de venta» es la forma en que se pregunta de verdad —es el turno
+   * textual del escenario 3— y el singular pelado no lo veía. Cazado por el propio gate al probar con la
+   * pregunta real en vez de con la que yo había imaginado. Misma familia que el `\b` acentuado: la regla medía
+   * UNA forma de escribir, no el concepto. */
+  { falta: /"punto de venta"/i, toca: /punto[s]? de venta|sucursal|\btienda|\blocal(?:es)?\b/i,
     pieza: "la columna «punto de venta» de Ventas", abre: "el corte por punto de venta" },
   { falta: /"condici[oó]n"/i, toca: /cr[eé]dito|contado|condici[oó]n de venta/i,
     pieza: "la columna «condición» de Ventas", abre: "la venta a crédito" },
   { falta: /"canal"/i, toca: /\bcanal(?:es)?\b/i, pieza: "la columna «canal» de Ventas", abre: "el corte por canal" },
   { falta: /"marca"/i, toca: /\bmarca[s]?\b/i, pieza: "la columna «marca» de Ventas", abre: "el corte por marca" },
   { falta: /"familia"/i, toca: /\bfamilia|\bcategor[ií]a/i, pieza: "la columna «familia» de Ventas", abre: "el corte por familia" },
-  { falta: /"bodega"/i, toca: /\bbodega|\bdep[oó]sito\b|\balmac[eé]n/i, pieza: "la columna «bodega» de Inventario", abre: "el capital por bodega" },
+  { falta: /"bodega"/i, toca: /\bbodega|\bdep[oó]sito[s]?\b|\balmac[eé]n/i, pieza: "la columna «bodega» de Inventario", abre: "el capital por bodega" },
 ];
 
 /** faltanteQueToca(pregunta) → { pieza, abre } de lo que el archivo NO trajo y esta pregunta necesita, o null.

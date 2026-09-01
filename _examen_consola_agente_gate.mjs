@@ -151,6 +151,47 @@ console.log("\n3c · P3 · el camino que la consola usa, probado EN VIVO con una
   ok(/No tengo información autorizada suficiente/.test(rViejo.r.text),
     "…la conducta del pack viejo es EXACTAMENTE la de hoy, sin crash ni falta inventada", rViejo.r.text.slice(0, 80));
 
+  /* ── LAS REGLAS, CONTRA LOS AVISOS QUE LA INGESTA EMITE DE VERDAD (no contra los que yo esperaba) ────────
+   * El supervisor midió la planilla REAL del owner y encontró el hueco: mis reglas buscaban la COLUMNA
+   * ausente, pero en un archivo de verdad las hojas y columnas opcionales no se borran — **vienen vacías**.
+   * La plantilla oficial se descarga con las cuatro hojas adentro, así que la hoja vacía es el caso NORMAL:
+   * `hoja «Abonos» vino sin ninguna fila` y `"canal" quedó vacía en todas las filas`. Con la hoja Inventario
+   * vacía, NINGUNA regla matcheaba y «capital por bodega» volvía a la disculpa sin nombre.
+   * Se prueban acá los textos exactos que la ingesta produce, uno por uno: una regla que solo funciona con el
+   * aviso que imaginé es una regla que no funciona. */
+  const AVISOS_REALES = [
+    ["la hoja «Abonos» vino sin ninguna fila", "quién me debe y qué está vencido", /la hoja Abonos/],
+    ["la hoja «Inventario» vino sin ninguna fila", "dame el capital por bodega", /la hoja Inventario/],
+    ["la hoja «Inventario» vino sin ninguna fila", "qué SKU tienen capital frenado", /la hoja Inventario/],
+    ['"canal" quedó vacía en todas las filas', "ranking por canal", /columna «canal»/],
+    ['"condición" quedó vacía en todas las filas', "cuánto vendí a crédito", /columna «condición»/],
+    ['"punto de venta" quedó vacía en todas las filas', "mejores y peores puntos de venta", /columna «punto de venta»/],
+    ['"bodega" quedó vacía en todas las filas', "capital por bodega", /columna «bodega»/],
+    ['"marca" quedó vacía en todas las filas', "qué marca deja más margen", /columna «marca»/],
+    ['"familia" quedó vacía en todas las filas', "margen por familia", /columna «familia»/],
+    /* EL PLURAL, que es como se pregunta de verdad — «ranking de puntoS de venta» es el turno textual del
+     * escenario 3 y el patrón en singular no lo veía. Misma familia que el `\b` acentuado: la regla medía una
+     * FORMA de escribir, no el concepto. Cazado por este gate al usar la pregunta real. */
+    ['"punto de venta" quedó vacía en todas las filas', "ranking de puntos de venta", /columna «punto de venta»/],
+    ['"canal" quedó vacía en todas las filas', "ranking por canales", /columna «canal»/],
+    ['"bodega" quedó vacía en todas las filas', "capital por bodegas", /columna «bodega»/],
+    ['"familia" quedó vacía en todas las filas', "margen por familias", /columna «familia»/],
+  ];
+  for (const [aviso, pregunta, esperado] of AVISOS_REALES) {
+    initTenant({ ...packViejo, avisosDeCarga: [{ tipo: "x", detalle: aviso }] });
+    const f = faltanteQueToca(pregunta);
+    ok(!!f && esperado.test(f.pieza), `★ «${aviso.slice(0, 46)}…» + «${pregunta.slice(0, 30)}» → nombra la pieza`,
+      JSON.stringify(f));
+  }
+  /* Y EL ORDEN: con la hoja Inventario vacía, la pieza que falta es la HOJA, no su columna — mandar al usuario
+   * a agregar «bodega» en una hoja que vino en blanco sería mandarlo a arreglar lo que no es. */
+  initTenant({ ...packViejo, avisosDeCarga: [
+    { tipo: "hoja-vacia", detalle: "la hoja «Inventario» vino sin ninguna fila" },
+    { tipo: "columna-opcional-vacia", detalle: '"bodega" quedó vacía en todas las filas' }] });
+  const fOrden = faltanteQueToca("dame el capital por bodega");
+  ok(!!fOrden && /la hoja Inventario/.test(fOrden.pieza),
+    "★ con la hoja vacía Y la columna vacía, gana la HOJA: falta el inventario entero, no una columna", JSON.stringify(fOrden));
+
   /* (1) ESTRICTAMENTE ADITIVO: el pack de la planilla completa es el MISMO de siempre salvo la llave nueva. */
   const clavesViejas = Object.keys(packViejo).sort().join(",");
   const clavesNuevas = Object.keys(completa.dataset).sort().filter((k) => k !== "avisosDeCarga").join(",");
