@@ -47,6 +47,7 @@ import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del 
 import { vetosDeContrato } from "./contratoAgente.js";   // F3 · el juez ciego de sugerencias — se SUMA a guardC, no lo toca
 import { getNombreUsuario } from "./preferenciaNombre.js";   // R4c · el trato registrado viaja también en los rescates
 import { detectSerieIntent, composeSerieIntent } from "../oracle/serieIntent.js";   // R9 · el puente, también en modo agente
+import { playbookPara, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook } from "./playbooks/registro.js";   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
 import { serieRealDe } from "../sentrix/capability.js";
 
 const TOPE_RONDAS = 3;      // rondas que pueden pedir herramientas
@@ -279,6 +280,27 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   const esRenarracion = _RE_RENARRACION.test(q);
   let nudgeUsado = false;
 
+  /* ── EL PLAYBOOK · LA EVIDENCIA ANTES DE LA DECISIÓN (owner 2026-08-31) ────────────────────────────────────
+   * «Responder con toda la evidencia disponible antes de rescatar o pedir aclaración… como criterio
+   * ESTRUCTURAL, idealmente apoyado en playbooks, no con prompts genéricos de "sé menos cauteloso"» (textual).
+   * Acá está la estructura: cuando un playbook aplica, sus pasos corren ANTES de la primera llamada al
+   * cerebro, por el MISMO cuerpo de ronda que todo lo demás (mismos cupos, misma boleta, misma doctrina). El
+   * cerebro no decide «si se anima a leer»: cuando decide, la evidencia ya está en la mano. Y si igual falla,
+   * el playbook tiene su entregable determinístico en la escalera (más abajo). La bandera del agente sigue
+   * apagada; esto no enciende nada. */
+  const playbook = (() => { try { return playbookPara(q); } catch { return null; } })();
+  let playbookActivo = null;
+  if (playbook && Array.isArray(playbook.pasos) && playbook.pasos.length) {
+    if (_rondaDeHerramientas(playbook.pasos.map((p) => ({ tool: p.tool, args: p.args || {} })), mensajes)) {
+      /* el playbook solo PROMETE si sus figs obligatorias llegaron: en un dato que no las sostiene se retira
+       * sin ruido y el turno sigue por el camino de siempre (nada de prometer lo que no se puede cumplir). */
+      if (promesasCumplidas(playbook, figsTotales)) {
+        playbookActivo = playbook;
+        mensajes.push({ role: "user", content: doctrinaDelPlaybook(playbook) });
+      }
+    }
+  }
+
   while (rondas < TOPE_RONDAS && texto === null) {
     rondas++;
     const res = await callAgente({ mensajes: [...mensajes], mapa, herramientas, ronda: rondas, attempt: 0, figsEnBoleta: figsTotales.length });
@@ -365,7 +387,10 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       vetosDelTurno.push(`${sitio} · ${String(_multaDe(v)).split("\n")[0].slice(0, 180)}`);
       return v;
     }
-    const vc = vetosDeContrato(t);
+    /* AL MURO SE LE SUMAN DOS JUECES, y ninguno lo toca: el contrato F3 (el cierre que ordena) y —solo cuando
+     * un playbook está activo— SU lista notarial, que chequea las promesas de ESE procedimiento. La lista es
+     * del playbook, no del bucle: el notario crece por reglas declaradas, jamás por comprensión. */
+    const vc = [...vetosDeContrato(t), ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales }) : [])];
     if (!vc.length) return v;
     vetosDelTurno.push(`${sitio} · ${vc[0].regla}: ${vc[0].multa.split("\n")[0].slice(0, 160)}`);
     return { ok: false, violations: vc.map((x) => ({ rule: x.regla, detalle: x.multa })), multa: vc.map((x) => x.multa).join("\n") };
@@ -421,6 +446,17 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   // ── la escalera INVERTIDA ──
   let suplente = false;
   if (estado === "limite" && final !== null) suplente = true;   // [10] · el eco de plantilla es un rescate también para la memoria
+  /* PELDAÑO 0 · EL ENTREGABLE DEL PLAYBOOK. Va ARRIBA de la línea honesta a propósito: cuando el procedimiento
+   * ya trajo la evidencia, «no pude completar la lectura» es FALSO — la lectura está hecha. Este peldaño
+   * responde la pregunta con las cifras que los pasos verificaron, y se juzga como cualquier otro (guardC + el
+   * contrato + la propia lista del playbook): si no pasara, cede al siguiente sin ruido. */
+  if (final === null && playbookActivo && typeof playbookActivo.componer === "function") {
+    const _pb = (() => { try { return playbookActivo.componer({ figs: figsTotales }); } catch { return null; } })();
+    if (_pb && _pb.trim()) {
+      const vPb = juzgar(_pb, `playbook:${playbookActivo.nombre}`);
+      if (vPb && vPb.ok) { final = _pb; estado = "playbook"; suplente = true; }
+    }
+  }
   if (final === null) {
     final = _lineaHonesta({ motivos: motivosNoSoportado, figs: figsTotales, juzgar: (t) => juzgar(t, "linea-honesta"), entidades: duenosTenant || [] });
     if (final !== null) { estado = "limite"; suplente = true; }

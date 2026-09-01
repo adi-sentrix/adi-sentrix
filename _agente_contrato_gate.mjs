@@ -225,8 +225,10 @@ H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro")
   };
 
   // (a) el bucle que deja de aplicar el juez de contrato
+  // (el sitio de la mutación creció al sumarse la lista notarial de los playbooks al MISMO juez — la carnada
+  //  sigue midiendo lo mismo: sin el juez de contrato, la orden llega a pantalla)
   await carnada("el bucle sin el juez de sugerencias", "src/adi/agente/bucleAgente.js",
-    [[/    const vc = vetosDeContrato\(t\);/, "    const vc = [];"]],
+    [[/    const vc = \[\.\.\.vetosDeContrato\(t\), \.\.\.\(playbookActivo \? vetosDelPlaybook\(playbookActivo, t, \{ figs: figsTotales \}\) : \[\]\)\];/, "    const vc = [];"]],
     async (Mut) => {
       initTenant(PACK);
       const guion = async ({ ronda }) => ronda === 1

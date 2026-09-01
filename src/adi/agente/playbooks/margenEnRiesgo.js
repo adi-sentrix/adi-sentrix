@@ -1,0 +1,221 @@
+/* === src/adi/agente/playbooks/margenEnRiesgo.js · PLAYBOOK 1 · MARGEN EN RIESGO (§11 del F1) =================
+ *
+ * QUÉ RESUELVE, con los casos del expediente (`_AGENTE_PUNTO_DE_PARTIDA.md`): T6 «cómo viene mi margen» salió
+ * como `limite` con UNA cifra suelta («Medida · cerrar brecha al piso = $4.9M») teniendo la cartera entera en
+ * la mano; el corpus tiene el mismo hueco en «qué clientes están bajo el benchmark» y «a quién reviso primero».
+ * El procedimiento junta la evidencia ANTES de que exista la opción de rescatar.
+ *
+ * EL MÉTODO (los pasos son del playbook, no del ánimo del cerebro):
+ *   1 · marginRead{focus:"bajo_benchmark", dimension:"cliente"} — quiénes están bajo la vara, con su margen y
+ *       su venta, el benchmark DECLARADO del negocio, el margen promedio y el conteo.
+ *   2 · diagnose{} — cuánta contribución no se captura, por cliente y en total, y dónde localiza el motor el
+ *       exceso de carga comercial. Es lo que permite decir «a quién primero y con cuánto en juego» sin inventar
+ *       una prioridad: el orden sale de una cifra verificada.
+ *
+ * LO QUE NO HACE: explicar POR QUÉ un cliente cede margen. El dato LOCALIZA (dónde está el exceso, cuánto es);
+ * la causa raíz necesita evidencia que este dato no trae. Su lista notarial veta cruzar esa línea.
+ *
+ * PURO · determinístico · sin red. Cifras VERBATIM de la boleta: este módulo selecciona y ordena, jamás calcula. */
+
+const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
+/* ⚠️ EL MOTOR SOLO PONE `raw` EN LAS FILAS DESTACADAS (medido: de los 13 clientes con margen, 5 traen `raw` y
+ * 8 traen solo su valor de pantalla «26.5%»). Para SELECCIONAR quién está bajo la vara hace falta el número de
+ * las trece, así que el porcentaje se lee de la cifra que el motor YA publicó. Eso no es recalcular: la cifra
+ * que se cita sigue siendo la suya, verbatim; leerla para compararla es lo mismo que ordenarla. Y el candado
+ * está puesto donde importa — la selección se AUTO-VERIFICA contra el conteo que el propio motor declara
+ * («clientes bajo el benchmark»): si no coincide exactamente, el playbook no sirve la lista. */
+const _pct = (f) => {
+  const r = _num(f);
+  if (Number.isFinite(r)) return r;
+  const m = /^-?[\d.,]+\s*%$/.exec(String((f && (f.text || f.value)) || "").trim());
+  return m ? parseFloat(m[0].replace("%", "").replace(",", ".")) : NaN;
+};
+const _val = (f) => String((f && (f.text || f.value)) || "");
+const _lab = (f) => String((f && f.label) || "");
+const _find = (figs, re) => (Array.isArray(figs) ? figs : []).find((f) => re.test(_lab(f))) || null;
+const _all = (figs, re) => (Array.isArray(figs) ? figs : []).filter((f) => re.test(_lab(f)));
+const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const _re = (t) => new RegExp(`\\b${_esc(t)}\\b`, "i");
+
+/* la entidad de un label «Entidad · Concepto» — la MISMA convención de la boleta, no un parser nuevo. */
+const _entidadDe = (label) => {
+  const p = String(label || "").split("·").map((s) => s.trim());
+  return p.length >= 2 ? p[0] : null;
+};
+
+/** lo que el playbook lee de la boleta, una sola vez y para todos sus usos (composer y lista notarial). */
+export function lecturaDeMargen(figs) {
+  const bench = _find(figs, /^Benchmark de margen$/i);
+  const conteo = _find(figs, /clientes bajo el benchmark/i);
+  const promedio = _find(figs, /^Margen promedio$/i);
+  const totalJuego = _find(figs, /^Contribuci[oó]n no capturada · subtotal$/i);
+  const cargaTotal = _find(figs, /^Carga comercial alta · subtotal$/i);
+
+  const margenes = _all(figs, /· Margen$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), pct: _pct(f), fmt: _val(f) }))
+    .filter((x) => x.entidad && Number.isFinite(x.pct));
+  const ventas = new Map(_all(figs, /· Venta$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
+  const juego = _all(figs, /· Contribuci[oó]n no capturada$/i)
+    .map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
+    .filter((x) => x.entidad && Number.isFinite(x.usd))
+    .sort((a, b) => b.usd - a.usd);
+  const carga = _all(figs, /· Carga comercial alta$/i)
+    .map((f) => ({ entidad: _entidadDe(_lab(f)), fmt: _val(f), usd: _num(f) }))
+    .filter((x) => x.entidad && Number.isFinite(x.usd))
+    .sort((a, b) => b.usd - a.usd);
+
+  const benchPct = bench ? _pct(bench) : NaN;
+  const bajo = Number.isFinite(benchPct) ? margenes.filter((m) => m.pct < benchPct).sort((a, b) => a.pct - b.pct) : [];
+  return { bench, benchPct, conteo, promedio, totalJuego, cargaTotal, margenes, ventas, juego, carga, bajo };
+}
+
+/* ── EL DETECTOR · determinístico y ANGOSTO ────────────────────────────────────────────────────────────────────
+ * Dos condiciones a la vez: el turno habla de MARGEN (o de la vara), y pide una LECTURA de ese margen — cómo
+ * viene, quiénes están bajo, a quién priorizar, cuánto falta. Sin las dos, este playbook no se activa: un
+ * playbook que secuestra turnos ajenos es peor que no tenerlo. «Simula/proyecta» queda AFUERA a propósito: esa
+ * ruta es de simulación (la letra de RUTEO ya la manda ahí) y el playbook no la pisa. */
+const _TEMA_MARGEN = /\bm[aá]rgen(?:es)?\b|\bbenchmark\b|\bvara\b|\brentabilidad\b/i;
+const _PIDE_LECTURA = /\bc[oó]mo\b|\bqu[eé]\b|\bqui[eé]n(?:es)?\b|\bcu[aá]l(?:es)?\b|\bcu[aá]nto\b|\bd[oó]nde\b|\bprioriza|\bprioridad\b|\bprimero\b|\brevis|\bmejor(?:ar|a)\b|\bbajo\b|\bdebajo\b|\briesgo\b|\bdame\b|\bmu[eé]stra|\blista\b|\branking\b/i;
+/* ⚠️ LO QUE QUEDA AFUERA, Y POR QUÉ (calibrado contra el corpus de exámenes, cero gasto — cazó tres casos):
+ *   · simulación/proyección — esa ruta es de simulateGeneral y la letra de RUTEO ya la manda ahí;
+ *   · OTRO EJE — este playbook lee el margen POR CLIENTE. «Ranking de SKU por peor rotación cruzado con
+ *     margen» (examen 2 t4) y «ranking de puntos de venta» (examen 3 t4) NO son suyos: activarse ahí cargaba
+ *     la cartera de clientes para responder de inventario, y su lista notarial juzgaba texto de otro dominio;
+ *   · OTRO PERÍODO — «compara Q1 vs Q2 en ventas, margen y contribución» (examen 3 t1) es una pregunta de
+ *     corte temporal; el dato no lo sostiene y el camino honesto es declinar, no traer la foto anual.
+ * Un playbook que se activa de más es peor que no tenerlo: secuestra el turno Y le aplica promesas ajenas. */
+const _FUERA = /\bsimul|\bproyect|\bqu[eé] pasa si\b|\bpon[eé]le que\b|\bsupon(?:e|é|gamos)\b|\bsku\b|\bproducto/i;
+/* el eje de ESTE playbook es CLIENTE. Cualquier otro eje nombrado lo deja afuera — incluido el que el dato no
+ * tiene: «ranking de puntos de venta… no mezcles clientes con puntos de venta» (examen 3 t4) se responde
+ * declinando que ese eje no existe, y un playbook de clientes ahí es exactamente la mezcla que el usuario pidió
+ * evitar. Equivocarse hacia AFUERA es barato: el turno sigue por el camino de siempre. */
+const _OTRO_EJE = /\brotaci[oó]n\b|\binventario\b|\bstock\b|\bbodega|\bpunto[s]? de venta\b|\bsucursal|\btienda|\bcanal(?:es)?\b|\bfamilia|\bmarca[s]?\b|\bcategor[ií]a/i;
+const _OTRO_PERIODO = /\bq[1-4]\b|\btrimestr|\bmensual\b|\bmes a mes\b|\b[uú]ltimo mes\b|\bsemestr/i;
+
+export const margenEnRiesgo = {
+  nombre: "margen-en-riesgo",
+
+  cuandoAplica(pregunta) {
+    const q = String(pregunta || "");
+    if (_FUERA.test(q) || _OTRO_EJE.test(q) || _OTRO_PERIODO.test(q)) return false;
+    return _TEMA_MARGEN.test(q) && _PIDE_LECTURA.test(q);
+  },
+
+  pasos: [
+    { tool: "marginRead", args: { focus: "bajo_benchmark", dimension: "cliente" },
+      para: "quiénes están bajo el benchmark, con su margen y su venta, más el benchmark declarado, el margen promedio y el conteo" },
+    { tool: "diagnose", args: {},
+      para: "cuánta contribución no se captura —por cliente y en total— y dónde localiza el motor el exceso de carga comercial" },
+  ],
+
+  /* las figs que este playbook PROMETE. Si el dato de un tenant no las sostiene, el playbook no promete nada y
+   * se retira: sin vara declarada o sin conteo, «quiénes están bajo el benchmark» no tiene respuesta honesta. */
+  obligatorias: [/^Benchmark de margen$/i, /clientes bajo el benchmark/i],
+
+  entregable: "qué clientes están bajo el benchmark (con su margen y su venta), cuánta contribución no se captura —total y por cliente— y a quién conviene revisar primero, con su cifra. Las acciones se OFRECEN para que el usuario las evalúe; jamás se ordenan.",
+
+  /* ── EL ENTREGABLE DETERMINÍSTICO · el peldaño que responde cuando el cerebro no pudo ────────────────────────
+   * Cifras VERBATIM de la boleta. Una línea por cliente A PROPÓSITO: apilar varias cifras en una sola oración
+   * es lo que expuso al rescate al veto de atribución (P1a de la corrida 2) — cada cifra viaja con su dueño en
+   * su propia oración. Se AUTO-VERIFICA contra el conteo del motor: si la lista que arma no reconcilia con
+   * «clientes bajo el benchmark», no sirve nada y cede al peldaño siguiente. */
+  componer({ figs } = {}) {
+    const L = lecturaDeMargen(figs);
+    if (!L.bench || !L.conteo || !L.bajo.length) return null;
+    const nDeclarado = _num(L.conteo);
+    if (!Number.isFinite(nDeclarado) || L.bajo.length !== nDeclarado) return null;   // la selección no reconcilia: no se sirve
+
+    const top = L.juego.slice(0, 3);
+    const partes = [];
+    partes.push(`${L.promedio ? `Margen promedio de la cartera: ${_val(L.promedio)}. ` : ""}Benchmark de margen: ${_val(L.bench)}. Clientes bajo el benchmark: ${_val(L.conteo)}.`);
+
+    if (top.length) {
+      partes.push(`\nLos de mayor contribución no capturada (${top.length} de los ${_val(L.conteo)} bajo el benchmark):`);
+      for (const t of top) {
+        const m = L.bajo.find((b) => b.entidad === t.entidad);
+        const venta = L.ventas.get(t.entidad);
+        partes.push(`- ${t.entidad} · contribución no capturada ${t.fmt}${m ? ` · margen ${m.fmt}` : ""}${venta ? ` · venta ${venta}` : ""}`);
+      }
+    }
+    if (L.totalJuego) partes.push(`\nContribución no capturada · subtotal: ${_val(L.totalJuego)}.`);
+    if (L.cargaTotal) {
+      const c0 = L.carga[0];
+      partes.push(`Donde el motor localiza el exceso: Carga comercial alta · subtotal ${_val(L.cargaTotal)}${c0 ? `, con ${c0.entidad} en ${c0.fmt}` : ""}.`);
+    }
+    if (top.length) partes.push(`\nSi quieres, empiezo por ${top[0].entidad}: es el de mayor contribución no capturada. Dime y lo abrimos.`);
+    return partes.join("\n");
+  },
+
+  /* ── LA LISTA NOTARIAL DEL PLAYBOOK · chequeos MECÁNICOS de SUS promesas ─────────────────────────────────────
+   * Se SUMA al muro (guardC intacto) y solo corre cuando el playbook está activo y trajo sus obligatorias.
+   * El notario crece por REGLAS, nunca por comprensión: cada una compara texto contra la boleta. */
+  listaNotarial(texto, { figs } = {}) {
+    const t = String(texto || "");
+    if (!t.trim()) return [];
+    const L = lecturaDeMargen(figs);
+    const v = [];
+
+    /* 1 · LA CONDUCTA DEL OWNER, hecha regla: con la evidencia en la mano, no se pide aclaración ni se declina.
+     * Se dispara solo si el texto NO trae ninguna de las cifras del playbook Y encima pide definir o declina. */
+    const cifrasClave = [L.bench, L.conteo, L.promedio, L.totalJuego].filter(Boolean).map((f) => _val(f));
+    const citaAlguna = cifrasClave.some((c) => c && t.includes(c));
+    /* «pedir que el usuario defina» = una pregunta de ELECCIÓN antes de responder. Se busca el interrogativo
+     * DENTRO de la pregunta (no pegado al «¿»): en la corrida 3 el turno decía «¿Sobre cuál entidad…?» y un
+     * patrón anclado al signo lo dejaba pasar. El cierre-oferta del contrato F3 («¿lo vemos por ahí?»,
+     * «¿arrancamos?») NO trae interrogativo de elección y sigue siendo legítimo — como debe ser. */
+    const pideDefinir = /¿[^?]{0,90}\b(?:cu[aá]l(?:es)?|qu[eé]|qui[eé]n(?:es)?)\b[^?]*\?|necesito que me digas|dime (?:si|cu[aá]l|qu[eé])|aclar[ae]mos|clarifiquemos/i.test(t);
+    const declina = /\bno (?:pude|puedo|tengo|dispongo)\b/i.test(t);
+    if (!citaAlguna && (pideDefinir || declina)) {
+      v.push({ regla: "evidencia-sin-usar",
+        multa: "el procedimiento ya trajo la evidencia de este turno (benchmark, cuántos clientes están bajo la vara y cuánta contribución no se captura) y tu respuesta no la usa: responde con esas cifras antes de pedir una aclaración o declinar." });
+    }
+
+    /* 2 · La lista enumerada tiene que declarar su corte: nombrar 2+ de los que están bajo la vara sin decir
+     * «N de M» es un top-N presentado como si fuera todo (la regla de la casa sobre top-N).
+     * ACOTADA AL ROL (calibración): solo cuando el texto los presenta COMO la lista de bajo-la-vara. Nombrar a
+     * dos clientes al pasar —«Lider está en 21.5% y Jumbo en 24.0%, entre los tres grandes» (examen 4 t2)— no
+     * es presentar una lista recortada, y multarlo sería vetar prosa legítima que ya salió a pantalla. */
+    const _ROL_BAJO = /bajo (?:el|la) (?:benchmark|vara|referencia)|por debajo (?:del|de la)|bajo la referencia|no (?:llegan|alcanzan) (?:al|a la)/i;
+    const nombradosBajo = L.bajo.filter((b) => _re(b.entidad).test(t)).length;
+    const declaraCorte = new RegExp(`\\bde (?:los |las )?${L.bajo.length}\\b|\\bde un total\\b|\\btop\\s*\\d|\\bprimeros\\b|\\blos ${L.bajo.length}\\b|\\bentre los\\b|\\blos (?:dos|tres|cuatro|cinco) (?:m[aá]s|grandes|primeros|mayores)\\b`, "i").test(t);
+    if (_ROL_BAJO.test(t) && L.bajo.length > 3 && nombradosBajo >= 2 && nombradosBajo < L.bajo.length && !declaraCorte) {
+      v.push({ regla: "lista-sin-corte",
+        multa: `nombras ${nombradosBajo} de los ${L.bajo.length} clientes bajo el benchmark sin declarar que es un recorte: di «${nombradosBajo} de ${L.bajo.length}» o nómbralos a todos.` });
+    }
+
+    /* 3 · EL ORDEN DECLARADO TIENE QUE SER EL APLICADO. La promesa NO es «mi métrica es la única»: es que la
+     * prioridad no salga de la nada. Si el texto DECLARA su criterio con su cifra —«empieza por Lider: cerrar
+     * sus 3.6pp suma $641K, el mayor impacto en $ de los cinco» (examen 1 t3, aceptado)— eso es exactamente
+     * la promesa cumplida, aunque ordene por otra métrica que la del playbook. La multa es para la prioridad
+     * MUDA: proponer a alguien que no es el mayor por la cifra del procedimiento y no decir por qué. */
+    const mPrim = /(?:empiez[oa]|empez[aá]|empezar[ií]a|arranco|arrancar[ií]a|primero|prioridad|priorizar[ií]a)\s+(?:por|con|es|:)?\s*([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ .'-]{2,30})/i.exec(t);
+    if (mPrim && L.juego.length) {
+      const propuesto = L.juego.find((j) => _re(j.entidad).test(mPrim[1]));
+      const citados = L.juego.filter((j) => _re(j.entidad).test(t));
+      const declaraCriterio = /\bel (?:mayor|m[aá]s alto|de mayor)\b|\bmayor impacto\b|\bel que m[aá]s\b|\bpor(?:que)? (?:tiene|es) el\b|\bcriterio\b|\bordenad[oa] por\b|\bpor su\b/i.test(t);
+      if (propuesto && citados.length > 1 && citados[0].entidad !== propuesto.entidad && !declaraCriterio) {
+        v.push({ regla: "orden-no-aplicado",
+          multa: `propones empezar por ${propuesto.entidad}, pero entre los que nombras el de mayor contribución no capturada es ${citados[0].entidad} (${citados[0].fmt}): ordena por la cifra o di con qué criterio priorizas.` });
+      }
+    }
+
+    /* 4 · LOCALIZAR ≠ EXPLICAR: una afirmación causal solo vale si se apoya en algo del dato — el mecanismo que
+     * el motor declara, o una cifra (que el muro ya verificó). Lo que se veta es la causa INVENTADA, del tipo
+     * «cede margen porque su equipo negocia mal»: ninguna cifra, ningún mecanismo, pura atribución. Una
+     * justificación anclada en cifras —«porque juntos explican $1.24M de los $1.57M» (examen 1 t3, aceptado)—
+     * NO es una causa inventada y no se multa: el dato la sostiene. */
+    /* ⚠️ «margen» y «venta» NO entran acá: son el TEMA del playbook, así que casi toda oración causal de este
+     * dominio los nombra —incluida la que hay que vetar («cede margen porque su equipo negocia mal»)— y la
+     * regla quedaría muerta. Lo que sostiene una causa es el mecanismo declarado por el motor o una cifra. */
+    const MECANISMOS = /carga comercial|rebate|contribuci[oó]n no capturada|capital frenado|peso del costo|\bcosto\b|benchmark/i;
+    const CIFRA = /\$\s?[\d.,]+\s?[KMB]?|[\d.,]+\s*(?:%|pp)\b/;
+    for (const oracion of t.split(/[.!?\n]+/)) {
+      if (!/\bporque\b|\bse debe a\b|\bla causa (?:es|está)\b|\bes consecuencia de\b|\bexplica por qu[eé]\b/i.test(oracion)) continue;
+      if (!MECANISMOS.test(oracion) && !CIFRA.test(oracion)) {
+        v.push({ regla: "causa-sin-respaldo",
+          multa: "afirmas una causa que el dato no declara: este playbook LOCALIZA (dónde está el exceso y cuánto es); para el porqué hace falta evidencia que este dato no trae. Reformula como localización o di que la causa no está medida." });
+        break;
+      }
+    }
+    return v;
+  },
+};
