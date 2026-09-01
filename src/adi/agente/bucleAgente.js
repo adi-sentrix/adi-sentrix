@@ -42,6 +42,7 @@ import { anteponerSello } from "../../ingesta/selloEnRespuesta.js";
 import { extraerCalculos, stripAllMarks, composeNoDataMessage } from "../oracle/narrationBlocks.js";
 import { normalizeResponse } from "../responseContract.js";
 import { _respaldoDeLoYaAprobado } from "../oracle/caminoNatural.js";
+import { _oracionesDe } from "../oracle/narratePromptC.js";   // la PODA usa el cortador que ya existe — jamás un tercero (ver `_podarOracionVetada`)
 import { recitaAprobadaDe } from "../oracle/cicloNotarial.js";   // R2 del examen 1: la MISMA memoria de re-cita del camino natural — jamás una segunda paralela
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 import { vetosDeContrato, esIdentificadorInterno } from "./contratoAgente.js";
@@ -80,6 +81,53 @@ const _MENSAJE_NOTARIO = (multa) => {
     : "";
   return `[NOTARIO — no es el usuario] Tu respuesta no pasó la verificación:\n${multa}${foco}\nDevuelve tu respuesta COMPLETA con esa corrección, manteniendo tu calidad de asesor. No menciones esta corrección.`;
 };
+
+/* ── _podarOracionVetada · quitar la oración que el muro rechazó, cuando la respuesta NO depende de ella ─────
+ * Devuelve el texto sin esas oraciones, o `null` si podar sería mutilar. Las cuatro condiciones son
+ * acumulativas y se verifican acá — ninguna se declara:
+ *   (a) la multa NOMBRA cifras (si el veto no está localizado en una cifra, no hay oración que señalar);
+ *   (b) las oraciones ofensoras son POCAS — hasta `TOPE_PODA`: si media respuesta está vetada, el problema no
+ *       es una frase de color y el turno tiene que declinar como siempre;
+ *   (c) queda texto Y queda al menos UNA cifra de la boleta de este turno — o sea: lo que el usuario pidió
+ *       sobrevive al corte. Si la cifra vetada era la respuesta, no se poda nada;
+ *   (d) el resultado vuelve al muro completo (lo hace el caller).
+ * El corte usa `_oracionesDe` de `narratePromptC` —el mismo criterio de bordes que guardC, con las cifras
+ * enmascaradas para que el punto de «$13.3M» no parta una oración—: no se escribe un tercer cortador. */
+const TOPE_PODA = 2;
+export function _podarOracionVetada(texto, multa, figs) {   // exportada para que el gate y la medición usen LA función, no una copia
+  const cifras = _cifrasDeMulta(multa);
+  if (!cifras.length) return null;                                   // (a)
+  const t = String(texto || "");
+  let tramos = [];
+  try { tramos = _oracionesDe(t) || []; } catch { return null; }
+  if (tramos.length < 2) return null;                                // una sola oración: podarla es tirar el turno
+  const _norm = (s) => String(s).replace(/\s+/g, "");
+  const ofensoras = tramos.filter(([lo, hi]) => cifras.some((c) => _norm(t.slice(lo, hi)).includes(_norm(c))));
+  if (!ofensoras.length || ofensoras.length > TOPE_PODA) return null;   // (b)
+  /* (b2) NO PODAR SI LA ORACIÓN SIGUIENTE LA REFERENCIA. Medido sobre el corpus: en el T4 la multa señala
+   * «$1.0M» en «si entran a margen actual, sumas $1.0M», y la oración de después dice «…sumas $1.2M — una
+   * diferencia de $200K». Podando la primera, la segunda afirma una diferencia contra un término que ya no
+   * está: el texto queda gramatical y MIENTE. Una comparación explícita después de la ofensora es señal de que
+   * la ofensora sostiene lo que sigue — y lo que sostiene algo no es una frase de color. */
+  /* ⚠️ `\bvs\.?\b` NO EXISTE, y lo escribí yo: `\b` se define sobre [A-Za-z0-9_], así que después del punto de
+   * «vs.» no hay frontera y esa alternativa jamás matchea. Es el mismo defecto que este frente lleva cazando
+   * toda la semana; me lo cazó el barrido de §5g del gate del contrato, no yo. El cierre correcto es el
+   * negative-lookahead de la casa. */
+  const _COMPARA = /\buna diferencia de\b|\bversus\b|\bvs\.?(?![a-záéíóúüñ])|\bfrente a\b|\bcomparad[oa] con\b|\ben vez de\b|\bcontra (?:los|las|el|la)\b|\bcontra \$|\bm[aá]s que\b|\bmenos que\b|\ben cambio\b|\bpor el contrario\b|\bsi en (?:cambio|vez)\b/i;
+  const finUltimaOfensora = Math.max(...ofensoras.map(([, hi]) => hi));
+  const posteriores = tramos.filter(([lo]) => lo >= finUltimaOfensora).map(([lo, hi]) => t.slice(lo, hi)).join(" ");
+  if (_COMPARA.test(posteriores)) return null;
+
+  const quedan = tramos.filter((x) => !ofensoras.includes(x));
+  const podado = quedan.map(([lo, hi]) => t.slice(lo, hi)).join("").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (!podado) return null;
+  /* (c) LA RESPUESTA TIENE QUE SOBREVIVIR. Una cifra de LA BOLETA DE ESTE TURNO es la prueba de que lo que
+   * quedó sigue respondiendo con lo que el turno leyó — no un texto sin cifras que suene bien. */
+  const deLaBoleta = (Array.isArray(figs) ? figs : []).map((f) => _norm(f && f.value)).filter(Boolean);
+  if (!deLaBoleta.length) return null;
+  const sobrevive = deLaBoleta.some((v) => _norm(podado).includes(v));
+  return sobrevive ? podado : null;
+}
 
 const _ejes = (lista) => {
   const o = [];
@@ -523,6 +571,24 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       const t2 = res2 && res2.tipo === "texto" ? stripLanguageLeaks(String(res2.texto || "")) : "";
       const v2 = t2.trim() ? juzgar(t2, "reparacion") : null;
       if (v2 && v2.ok) { final = t2; estado = "reparado"; aprobado = true; }
+      /* ── LA PODA · TIRAR LA ORACIÓN, NO EL TURNO (certificación 2026-09-01) ────────────────────────────────
+       * EL DEFECTO MEDIDO, T2: el turno tenía la respuesta pedida, completa y correcta —«tu venta del período
+       * es $100.0M; con +3.0% a 12 meses la proyección te deja en $103.0M, $3.0M adicionales»— y el usuario
+       * recibió «No pude completar la lectura». Lo que lo mató fue UNA ORACIÓN DE COLOR que sobraba: «los
+       * $3.0M extra no te recuperan los $4.9M… en Falabella, Lider y Jumbo», con una cifra traída de memoria
+       * cuyo dueño real es otro. La reparación la reformuló («que vimos en» → «concentrada en») sin mover la
+       * atribución, y el turno entero se descartó por una frase accesoria. Era todo-o-nada.
+       *
+       * SE INTENTA SOLO CUANDO LA REPARACIÓN YA FALLÓ: no es un atajo del muro, es lo último antes de tirar
+       * una respuesta que existe. Y el texto podado VUELVE A PASAR EL MURO COMPLETO — no se sirve por confiar
+       * en el corte. */
+      if (!aprobado && t2.trim() && v2 && !v2.ok) {
+        const podado = _podarOracionVetada(t2, _multaDe(v2), figsTotales);
+        if (podado) {
+          const v3 = juzgar(podado, "poda");
+          if (v3 && v3.ok) { final = podado; estado = "podado"; aprobado = true; }
+        }
+      }
     }
   }
 

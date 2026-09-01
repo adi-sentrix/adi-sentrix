@@ -699,8 +699,12 @@ function _conMarca(oracion, marca) {
 // _oracionesDe(text) → los MISMOS límites que usa guardC (calculados sobre el texto con las cifras enmascaradas,
 // para que el punto decimal de "$13.3M" no parta una oración). Se replica el criterio, no se importa, porque el
 // del guard es privado; el gate verifica que los dos coincidan sobre los mismos casos.
+/* ⚠️ EXPORTADO (2026-09-01) para que la PODA del bucle del agente use ESTE cortador y no escriba un tercero.
+ * El de guardC es privado y guardC no se toca; este ya replica su criterio con el porqué escrito arriba. Un
+ * tercer cortador de oraciones sería el segundo formateador de la semana pasada. Se exporta y nada más: ni una
+ * coma de la lógica cambia, y quien lo usa hereda el mismo criterio de bordes. */
 const _SENT_END_R = /[.!?\n]/;
-function _oracionesDe(text) {
+export function _oracionesDe(text) {
   const s = String(text || "");
   let masked = s;
   for (const f of parseFigures(s)) {
