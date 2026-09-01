@@ -65,15 +65,32 @@ console.log("=".repeat(100));
 {
   /* La condición del owner. Un código sin empresa tiene que quedar BYTE-IDÉNTICO al histórico: si el payload
    * cambiara de forma, todos los códigos ya repartidos dejarían de verificar. */
-  const sin = await makeAccessCode("invitado", 72, SECRET, 1788000000000);
-  const conDemo = await makeAccessCode("invitado", 72, SECRET, 1788000000000, "demo");
+  /* ⚠️ ESTE BLOQUE TENÍA BOMBA DE TIEMPO (cazada 2026-09-01). Emitía el código con una fecha CONGELADA
+   * (1788000000000 = 29-ago-2026 10:40) y después lo VERIFICABA contra el reloj real. El código vive 72 h, así
+   * que el gate estuvo verde hasta las 10:40 del 1-sep y se puso rojo a las 10:41 — sin que nadie tocara una
+   * línea del producto. Dos horas de diagnóstico buscando una rotura de aislamiento de datos que no existía.
+   *
+   * LA CAUSA DE FONDO: el bloque mezclaba dos cosas que necesitan tiempos distintos. La FORMA del payload se
+   * mide con fecha congelada —es lo único que hace comparables dos códigos byte a byte—, pero la CONDUCTA
+   * (verificar, resolver la sesión) necesita un código vigente. Se separan: cada mitad con el tiempo que le
+   * corresponde. `resolverTenantDeSesion` no recibe `now`, así que su código tiene que nacer vigente. */
+  const CONGELADA = 1788000000000;   // solo para comparar FORMA, jamás para verificar
+  const sin = await makeAccessCode("invitado", 72, SECRET, CONGELADA);
+  const conDemo = await makeAccessCode("invitado", 72, SECRET, CONGELADA, "demo");
   ok(sin.code === conDemo.code,
     "pedir «demo» explícitamente da el MISMO código que no pedir nada: el payload no cambia de forma");
 
-  const v = await verifyAccessCode(sin.code, SECRET);
+  const vigente = await makeAccessCode("invitado", 72, SECRET, Date.now());
+  const v = await verifyAccessCode(vigente.code, SECRET);
   ok(v.ok && v.tenant === "demo", `un código sin empresa se resuelve como demo: ${v.tenant}`);
-  const r = await resolverTenantDeSesion({ access: sin.code }, ENV);
+  const r = await resolverTenantDeSesion({ access: vigente.code }, ENV);
   ok(r.ok && r.tenantId === "demo", "…y la sesión abre el demo, como siempre");
+
+  /* Y que la fecha congelada siga sirviendo para lo suyo: un código vencido NO entra. Sin este chequeo,
+   * cambiar la constante de arriba por `Date.now()` haría pasar todo el bloque sin medir el vencimiento. */
+  const vencido = await verifyAccessCode(sin.code, SECRET);
+  ok(!vencido.ok && vencido.reason === "expired",
+    `el código de fecha congelada YA venció y se rechaza: ${vencido.reason}`);
 
   /* Y el payload no lleva el campo cuando no hace falta — es lo que hace que sea byte-idéntico. */
   const cuerpo = JSON.parse(Buffer.from(sin.code.split(".")[0].slice(4).replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"));
