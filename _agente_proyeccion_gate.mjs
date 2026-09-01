@@ -131,7 +131,11 @@ H("6 · el T2 de la certificación, con la tool disponible → verde y con la ci
     ? { tipo: "herramientas", pedidos: [{ tool: "proyectar", args: { tasa: 3, horizonte: "el año que viene" } }] }
     : { tipo: "texto", texto });
   const BUENA = "JC, sobre tu venta del período de $100.0M, un crecimiento de +3% a el año que viene te deja en $103.0M — son $3.0M adicionales. Es una proyección sobre tu supuesto, no una cifra medida. Si querés el corte por cliente, lo abro.";
-  const r = await answerViaAgente({ text: "ponele que el año que viene crezco 3%: cuanto seria mi venta?",
+  /* la pregunta va SIN «%» a propósito (re-apuntada 2026-09-01): con «crezco 3%» el playbook proyección-declarada
+   * toma el turno y llama `proyectar` él mismo — y como el guion también la llama, la boleta traía OCHO cifras y
+   * el cerebro nunca hablaba. Este bloque mide que el TEXTO DEL CEREBRO pase el muro con la proyección sellada:
+   * sin supuesto en la pregunta C se retira, el guion sigue trayendo la proyección, y el juicio es sobre el texto. */
+  const r = await answerViaAgente({ text: "cuanto seria mi venta si crece el año que viene?",
     history: [], mem: {}, scenario: "bonanza", callAgente: guion(BUENA) });
   ok(r.r.agente.estado === "verde" && !r.r.agente.vetos.length,
     `★ el turno sale VERDE sin vetos (${r.r.agente.estado}) — antes el muro vetaba la proyección con razón`,

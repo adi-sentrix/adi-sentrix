@@ -188,6 +188,52 @@ H("1c · entidad × período: un detector para las tres piezas, y el entregable 
 }
 function lecturaPorEjePb() { return PLAYBOOKS.find((p) => p.nombre === "lectura-por-eje") || null; }
 
+/* ═══ 1d · PLAYBOOK 4 · PROYECCIÓN DECLARADA — los tres turnos binarios de la certificación (2026-09-01) ═════
+ * T2 preguntó en vez de proyectar · T4 hizo la cuenta en prosa y el muro la vetó · T5 pidió un `simulate` que el
+ * motor no tiene y salió vacío. Los tres tenían herramienta y ninguno camino garantizado. El detector de la
+ * forma «venta» es EL MISMO del juez P1 (exportado del contrato): si P1 multa «no proyectaste», este playbook es
+ * el que proyecta — un detector, dos usos. La forma «carga» va a `simulateCarga{delta_pp}`. */
+H("1d · proyección declarada: la evidencia se calcula antes y llega sellada");
+{
+  initTenant(TENANT_DEMO);
+  const pbC = PLAYBOOKS.find((p) => p.nombre === "proyeccion-declarada");
+  ok(!!pbC, "★ el registro tiene el playbook de proyección");
+  const T = async (q) => answerViaAgente({ text: q, history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
+  const T2 = "ponele que el año que viene crezco 3%: cuanto seria mi venta?";
+  const T4 = "Con ese total anual, proyecta 12 meses con +4% y dime cuánto genera adicional.";
+  const T5 = "Sobre esos clientes, simula reducir 2 puntos porcentuales las acciones comerciales y dime si alguno queda sobre el benchmark.";
+  ok(playbookPara(T2) === pbC && playbookPara(T4) === pbC && playbookPara(T5) === pbC, "★ los tres turnos verbatim de la certificación tienen playbook");
+  const herr = (q) => pasosDe(pbC, q).map((p) => `${p.tool}${p.args.delta_pp != null ? "#" + p.args.delta_pp : ""}${p.args.tasa != null ? "#" + p.args.tasa + "%" : ""}${p.args.horizonte ? "@" + p.args.horizonte : ""}`).join("+");
+  ok(herr(T2) === "proyectar#3%@12 meses", `T2 → proyectar con la tasa Y el horizonte LEÍDOS de la pregunta («año que viene» = 12 meses) (${herr(T2)})`);
+  ok(herr(T4) === "proyectar#4%@12 meses", `T4 → proyectar +4% a 12 meses (${herr(T4)})`);
+  ok(herr(T5) === "simulateCarga#-2", `T5 → simulateCarga con delta_pp NEGATIVO: «reducir» baja (${herr(T5)})`);
+  const r2 = await T(T2);
+  ok(r2.r.agente.estado === "playbook" && /\$100\.0M/.test(r2.r.text) && /\$103\.0M/.test(r2.r.text) && r2.r.agente.vetos.length === 0,
+    `★ T2 → base y proyección, sellada, cero vetos (${r2.r.agente.estado}) — antes preguntaba «¿global o por cliente?»`, r2.r.text.slice(0, 100));
+  ok(/proyección/i.test(r2.r.text) && /no una cifra medida/.test(r2.r.text), "…y se NOMBRA como proyección: jamás con el tono de un dato");
+  const r4 = await T(T4);
+  ok(r4.r.agente.estado === "playbook" && /\$104\.0M/.test(r4.r.text) && /Adicional generado: \$4\.0M/.test(r4.r.text),
+    `★ T4 → $104.0M y el adicional, sin vetar (${r4.r.agente.estado}) — antes el muro vetaba la cuenta en prosa`);
+  ok(!/^(?:cuánto|si):/.test(r4.r.text), "★ y sin el trato falso «cuánto:» — «dime cuánto» NO es «llámame X»", r4.r.text.slice(0, 40));
+  const r5 = await T(T5);
+  ok(r5.r.agente.estado === "playbook" && /Quedan sobre el benchmark 6 de 13/.test(r5.r.text) && /La Polar: margen supuesto 36\.0%/.test(r5.r.text),
+    `★ T5 → quiénes quedan sobre el benchmark con −2pp, del motor (${r5.r.agente.estado}) — antes salía vacío`, r5.r.text.slice(0, 120));
+  ok(!/Falabella: margen supuesto/.test(r5.r.text) && /quedan por debajo/.test(r5.r.text),
+    "…Falabella (24.0%) NO figura arriba, y se dice quiénes quedan por debajo: la respuesta completa, y lo que el chequeo de estados del muro reconoce");
+  ok(r5.r.agente.vetos.length === 0, "…cero vetos");
+  // el detector: el MISMO de P1, con sus salidas — otra medida, entidad nombrada, simulación de otra cosa
+  ok(playbookPara("ponele que riachuelo tiene 30% de margen, que hacemos?") !== pbC, "el supuesto sobre OTRA medida no es una proyección de venta (como en P1)");
+  ok(playbookPara("proyecta +4% sobre la venta de Falabella") !== pbC, "…con una entidad nombrada, «esa manda»: no es sobre el total");
+  ok(playbookPara("como viene mi margen?") === margenEnRiesgo && playbookPara("ranking por canal") === lecturaPorEjePb(), "…y no toca lo de los otros playbooks");
+  // la lista notarial
+  const figs5 = boletaDelPlaybook(pbC, "bonanza", T5);
+  ok(vetosDelPlaybook(pbC, "Quedan sobre el benchmark: Falabella y La Polar.", { figs: figs5, pregunta: T5 }).some((x) => x.regla === "sobre-benchmark-falso"),
+    "afirmar que Falabella queda sobre el benchmark (24.0% < 30.1%) → sobre-benchmark-falso");
+  ok(vetosDelPlaybook(pbC, "Tu venta queda en $103.0M el año que viene.", { figs: boletaDelPlaybook(pbC, "bonanza", T2), pregunta: T2 }).some((x) => x.regla === "proyeccion-sin-etiqueta"),
+    "una proyección dicha como hecho → proyeccion-sin-etiqueta");
+  ok(vetosDelPlaybook(pbC, pbC.componer({ figs: figs5, pregunta: T5 }), { figs: figs5, pregunta: T5 }).length === 0, "…y su propio entregable pasa su lista");
+}
+
 /* ═══ 2 · LA ACEPTACIÓN · el turno documentado que rescataba, ahora RESPONDE ══════════════════════════════════
  * T6 del expediente (`_AGENTE_PUNTO_DE_PARTIDA.md`), verbatim: «llamame jc de ahora en adelante. como viene mi
  * margen?» salió `limite` con UNA cifra suelta teniendo la cartera entera en la boleta. Mismo cerebro (uno que
@@ -490,6 +536,34 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   await carnada("entidad×período reclama la serie bloqueada (compite con el puente)", "src/adi/agente/playbooks/entidadPorPeriodo.js",
     [[/  if \(!estado \|\| !estado\.real\) return null;/, "  // CARNADA: la serie bloqueada también"]],
     async (Mut) => { initTenant(TENANT_DEMO); return Mut.entidadPorPeriodo.cuandoAplica("cuánto me compró Falabella el último mes"); });
+
+  /* ── LAS DE PROYECCIÓN DECLARADA ────────────────────────────────────────────────────────────────────────── */
+  const T5C = "Sobre esos clientes, simula reducir 2 puntos porcentuales las acciones comerciales y dime si alguno queda sobre el benchmark.";
+  const _juzgaC = (texto) => {
+    initTenant(TENANT_DEMO);
+    const rp = runPlan({ intent: "answer", calls: [{ tool: "simulateCarga", args: { dimension: "cliente", delta_pp: -2 } }] }, { scenario: "bonanza", registry: cajaDelAgente(TOOLS) });
+    const figs = (rp.ledger && rp.ledger.figs) || [];
+    const duenos = []; for (const e of ["cliente", "sku", "marca", "familia", "bodega", "canal"]) { try { duenos.push(...axisEntityNames(e)); } catch { /* */ } }
+    const v = guardC(String(texto || ""), { ledger: { figs }, results: rp.results || [], trace: null, question: T5C, supuestoPendiente: [], recitaAprobada: null,
+      datoProyectado: cifrasDelDato("bonanza"), entidadesDelTenant: duenos, duenosDelTenant: duenos, contentScope: "full", tablePolicy: "auto" });
+    return { ok: !!(v && v.ok), figs };
+  };
+  // (I) el horizonte INVENTADO: sin horizonte en la pregunta, el playbook no puede ponerle uno — sería un supuesto que nadie declaró
+  await carnada("el horizonte se inventa cuando la pregunta no lo trae", "src/adi/agente/playbooks/proyeccionDeclarada.js",
+    [[/  return null;\n\};\n\/\* la tasa: el porcentaje de la pregunta/, '  return "12 meses";   // CARNADA\n};\n/* la tasa: el porcentaje de la pregunta']],
+    async (Mut) => { initTenant(TENANT_DEMO); const p = Mut.proyeccionDeclarada.pasos("proyecta con +4% y dime cuánto genera"); return !!(p[0] && p[0].args.horizonte); });
+  // (J) «reducir» que no baja: el signo del delta se pierde y la simulación mueve la carga hacia ARRIBA
+  await carnada("«reducir 2pp» simula +2pp (el signo perdido)", "src/adi/agente/playbooks/proyeccionDeclarada.js",
+    [[/    const delta = _BAJA\.test\(q\) \? -Math\.abs\(n\) : Math\.abs\(n\);/, "    const delta = Math.abs(n);   // CARNADA"]],
+    async (Mut) => { initTenant(TENANT_DEMO); const p = Mut.proyeccionDeclarada.pasos(T5C); return !!(p[0] && p[0].args.delta_pp > 0); });
+  // (K) sin la línea de «quiénes quedan por debajo»: el chequeo de estados del muro veta el entregable (medido)
+  await carnada("el entregable de carga sin decir quiénes quedan por debajo", "src/adi/agente/playbooks/proyeccionDeclarada.js",
+    [[/      const bajo = sup\.filter\(\(x\) => x\.pct < vara\);\n      if \(bajo\.length\) partes\.push\(/, "      const bajo = [];   // CARNADA\n      if (bajo.length) partes.push("]],
+    async (Mut) => { const { figs } = _juzgaC(""); return !_juzgaC(Mut.proyeccionDeclarada.componer({ figs, pregunta: T5C })).ok; });
+  // (L) sin «esa manda»: una proyección sobre UNA entidad queda secuestrada como si fuera sobre el total
+  await carnada("proyección sobre una entidad tomada como si fuera sobre el total", "src/adi/agente/playbooks/proyeccionDeclarada.js",
+    [[/ && !_nombraEntidad\(q\)\) \{/, ") {   // CARNADA"]],
+    async (Mut) => { initTenant(TENANT_DEMO); return Mut.proyeccionDeclarada.cuandoAplica("proyecta +4% sobre la venta de Falabella"); });
   initTenant(TENANT_DEMO);
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* */ } }

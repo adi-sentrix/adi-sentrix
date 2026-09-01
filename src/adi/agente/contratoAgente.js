@@ -168,12 +168,15 @@ export function esIdentificadorInterno(palabra, entidades = []) {
  * LA REGLA ES CIEGA Y CONSERVADORA: multa solo cuando la pregunta pide una proyección, NO nombra ninguna
  * entidad del tenant, y la respuesta le devuelve al usuario la elección de entidad. Si la pregunta nombra una
  * entidad, el default no aplica y no se juzga: «esa manda», como dijo el owner. */
-const _PIDE_PROYECCION = /\bproyect|\bcrec(?:e|és|es|imiento)|\bsi (?:sube|aumenta|baja)\b|pon[eé]le que|qu[eé] pasa si/i;
+/* EXPORTADOS (2026-09-01): el playbook «proyección declarada» decide CON ESTOS MISMOS tres si una pregunta pide
+ * una proyección sobre la venta. Si tuviera los suyos, el juez P1 y el playbook podrían discrepar sobre la
+ * misma frase — uno multando y el otro sin activarse. Un detector, dos usos. */
+export const _PIDE_PROYECCION = /\bproyect|\bcrec(?:e|és|es|imiento)|\bsi (?:sube|aumenta|baja)\b|pon[eé]le que|qu[eé] pasa si/i;
 /* ⚠️ SIN `\b` DESPUÉS DEL «%» — la misma trampa de `_FIN`, y me mordió por segunda vez el mismo día. `\b` se
  * define sobre [A-Za-z0-9_]: entre «%» y «:» (o un espacio) NO hay frontera, así que `/\d%\b/` no matchea
  * «crezco 3%:» ni «+4% y dime». El «%» ya delimita solo; el `\b` queda SOLO donde la palabra termina en letra
  * («pp»). REGLA DE LA CASA: un `\b` después de un carácter que no es [A-Za-z0-9_] —%, $, á, ñ— no existe. */
-const _CIFRA_SUPUESTO = /\d[\d.,]*\s*(?:%|pp\b)/;
+export const _CIFRA_SUPUESTO = /\d[\d.,]*\s*(?:%|pp\b)/;
 /* ⚠️ ACÁ MEDÍA LA FORMA Y NO EL CONCEPTO — el defecto lo encontré en mi propio candado (corrida de
  * certificación, 2026-09-01). La versión vieja era una lista de cuatro frases copiadas de los textos de la
  * corrida 4 («global … por cliente», «sobre cuál entidad», «qué entidad», «cuál es tu supuesto»). El cerebro
@@ -195,7 +198,7 @@ const _CIFRA_DE_PLATA = /\$\s?\d[\d.,]*\s?[KMB]?\b/;
  * de MARGEN, qué hacemos»— no hay default que aplicar y la regla no se asoma. Sin esto, mi versión nueva
  * multaba esa pregunta y tumbaba la refutación del supuesto al genérico: lo cazó el gate del bucle (R4b), no
  * yo. Una regla más ancha que su motivo rompe cosas que andaban. */
-const _OTRA_MEDIDA = /\bmarg[eé]n|\brentabilidad|\brotaci[oó]n|\bcapital|\bstock|\binventario|\bcosto|\bprecio|\bcontribuci[oó]n|\bcarga\b/i;
+export const _OTRA_MEDIDA = /\bmarg[eé]n|\brentabilidad|\brotaci[oó]n|\bcapital|\bstock|\binventario|\bcosto|\bprecio|\bcontribuci[oó]n|\bcarga\b/i;
 
 export function vetosDeContrato(texto, contexto = {}) {
   if (typeof texto !== "string" || !texto.trim()) return [];

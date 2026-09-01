@@ -58,7 +58,10 @@ H("2 · el turno completo, por el bucle: de «no pude completar» a la respuesta
   const guion = async ({ ronda }) => (ronda === 1
     ? { tipo: "herramientas", pedidos: [{ tool: "proyectar", args: { tasa: 3, horizonte: "12 meses" } }] }
     : { tipo: "texto", texto: T2 });
-  const r = await answerViaAgente({ text: "ponele que el año que viene crezco 3%: cuanto seria mi venta?",
+  /* sin «%» a propósito (re-apuntado 2026-09-01): con «crezco 3%» el playbook proyección-declarada compone
+   * ANTES de que el cerebro hable y la poda nunca corre. Este bloque mide LA PODA sobre el texto del cerebro,
+   * así que la pregunta se queda sin supuesto (C se retira) y el guion sigue trayendo la proyección a la boleta. */
+  const r = await answerViaAgente({ text: "cuanto seria mi venta si crece el año que viene?",
     history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
   ok(r.r.agente.estado === "podado", `★ el turno termina en «podado» (${r.r.agente.estado}) — antes: «limite»`);
   ok(/\$103\.0M/.test(r.r.text), "★ y la cifra que el usuario pidió LLEGA A PANTALLA", r.r.text.slice(0, 120));
@@ -147,7 +150,8 @@ await carnada("la poda desconectada (el todo-o-nada de vuelta)",
     const guion = async ({ ronda }) => (ronda === 1
       ? { tipo: "herramientas", pedidos: [{ tool: "proyectar", args: { tasa: 3, horizonte: "12 meses" } }] }
       : { tipo: "texto", texto: T2 });
-    const r = await M.answerViaAgente({ text: "ponele que el año que viene crezco 3%: cuanto seria mi venta?",
+    // sin «%», como el bloque 2: con supuesto el playbook C compone y la poda nunca corre
+    const r = await M.answerViaAgente({ text: "cuanto seria mi venta si crece el año que viene?",
       history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
     /* ⚠️ ESTA COMPROBACIÓN EXIGÍA que sin poda la cifra NO llegara a pantalla, y dejó de distinguir en cuanto
      * se arregló el peldaño: ahora el rescate TAMBIÉN sirve «$103.0M», porque aprendió a servir el resultado

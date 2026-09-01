@@ -329,7 +329,11 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * acuerde. Patrón acotado —la forma en que se pide un trato, no cualquier nombre en la frase— y la validación
    * la hace `setNombreUsuario`, que rechaza lo que no es un nombre corto y simple. */
   {
-    const m = String(q || "").match(/\b(?:ll[aá]mame|llamame|llam[aá]me|dec[ií]me|dime|puedes llamarme|pod[eé]s llamarme|me llamo|mi nombre es)\s+(?:"|«)?([\p{L}][\p{L}\p{N}.'-]{1,23})/iu);
+    /* ⚠️ SIN «dime»/«decime» (cazado en la sonda del playbook C, 2026-09-01): «proyecta 12 meses con +4% y DIME
+     * CUÁNTO genera» registraba «cuánto» como el nombre del usuario, y «dime SI alguno queda» registraba «si».
+     * La respuesta salía «cuánto: Sobre tu venta…». «Dime X» casi nunca es un trato y casi siempre es una
+     * pregunta; «llámame X» / «me llamo X» / «mi nombre es X» sí lo son, y con eso alcanza. */
+    const m = String(q || "").match(/\b(?:ll[aá]mame|llamame|llam[aá]me|puedes llamarme|pod[eé]s llamarme|me llamo|mi nombre es)\s+(?:"|«)?([\p{L}][\p{L}\p{N}.'-]{1,23})/iu);
     /* el punto de FIN DE ORACIÓN no es parte del nombre: «llámame Ana.» registraba «Ana.» y el trato salía
      * «Ana.: …». Se permite el punto interno («J.C.») y se recorta la puntuación final. */
     const _trato = m && m[1] ? m[1].replace(/[.,;:!?]+$/, "") : "";

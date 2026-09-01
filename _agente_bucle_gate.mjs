@@ -220,7 +220,10 @@ H("8b · el rescate sirve el RESULTADO del turno, no su insumo");
   const guion = async ({ ronda }) => (ronda === 1
     ? { tipo: "herramientas", pedidos: [{ tool: "proyectar", args: { tasa: 3, horizonte: "12 meses" } }] }
     : { tipo: "texto", texto: "Falabella creció $77.7M este año." });
-  const r = await answerViaAgente({ text: "ponele que el año que viene crezco 3%: cuanto seria mi venta?",
+  /* la pregunta NO lleva «%» a propósito: con «crezco 3%» el playbook proyección-declarada (C) toma el turno y
+   * compone antes de que exista el peldaño — este bloque mide el PELDAÑO, así que la pregunta se queda sin
+   * supuesto (C se retira) y el guion sigue trayendo la proyección a la boleta. Re-apuntado el 2026-09-01. */
+  const r = await answerViaAgente({ text: "cuanto seria mi venta si crece el año que viene?",
     history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
   ok(r.r.agente.estado === "limite", `el turno cae al peldaño honesto (${r.r.agente.estado}) — el veto no es podable`);
   ok(/Proyección/.test(r.r.text) && /\$103\.0M/.test(r.r.text),
@@ -244,6 +247,10 @@ H("8c · «llamame jc» queda registrado sin depender de que el cerebro llame la
     ["llámame Ana. dame el margen", "Ana"],
     ["me llamo Roberto, como viene?", "Roberto"],
     ["como viene mi margen?", null],
+    /* ⚠️ «dime» NO es un trato (cazado en la sonda del playbook C): «…y dime cuánto genera» registraba «cuánto»
+     * y «dime si alguno queda» registraba «si» — la respuesta salía «cuánto: Sobre tu venta…». */
+    ["Con ese total anual, proyecta 12 meses con +4% y dime cuánto genera adicional.", null],
+    ["simula reducir 2 puntos y dime si alguno queda sobre el benchmark", null],
   ]) {
     olvidarNombreUsuario();
     initTenant(TENANT_DEMO);
@@ -612,7 +619,10 @@ H("14e · P2: la letra del ejemplo numérico y la escalada de un veto reparable"
     vistas.push({ attempt, figsEnBoleta, vetoConCifra: !!vetoConCifra });
     return { tipo: "texto", texto: "Necesito aclarar el alcance: ¿te refieres a bajar la carga 2 puntos (ej: si Depósito Riachuelo tiene 1% hoy, quedaría en −1%) o a reducirla un 2% relativo?" };
   };
-  const r = await answerViaAgente({ text: "simula reducir 2 puntos la carga comercial", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionT10 });
+  /* «dos puntos» en letras a propósito (re-apuntado 2026-09-01): con «2 puntos» el playbook C toma el turno y
+   * simula antes de que el cerebro hable — este bloque mide la SEÑAL DEL TIER en la reparación, así que la
+   * pregunta se queda sin cifra (C se retira) y la multa sigue nombrando el «1%» del guion. */
+  const r = await answerViaAgente({ text: "simula bajar la carga comercial dos puntos", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionT10 });
   const rep = vistas.find((v) => v.attempt > 0);
   ok(!!rep && rep.figsEnBoleta === 0 && rep.vetoConCifra === true,
     "★ (ii) con boleta vacía pero multa que nombra una cifra, la reparación pide el tier bueno", JSON.stringify(vistas));
@@ -773,7 +783,8 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       const g = async ({ ronda }) => (ronda === 1
         ? { tipo: "herramientas", pedidos: [{ tool: "proyectar", args: { tasa: 3, horizonte: "12 meses" } }] }
         : { tipo: "texto", texto: "Falabella creció $77.7M este año." });
-      const r = await Mut.answerViaAgente({ text: "ponele que el año que viene crezco 3%: cuanto seria mi venta?",
+      // sin «%», como el bloque 8b: con supuesto el playbook C compone y el peldaño nunca corre
+      const r = await Mut.answerViaAgente({ text: "cuanto seria mi venta si crece el año que viene?",
         history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g });
       return /Venta del período/.test(r.r.text) && /tengo Proyección/.test(r.r.text);   // el defecto: sirve el insumo y ofrece la respuesta
     });
