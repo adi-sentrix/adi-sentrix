@@ -55,6 +55,70 @@ ok(C.includes("VERDE SIN LECTURA"),
 ok(C.includes("reintentosGuard:"),
   "…y los contadores viajan al estado del examen (post-mortem gratis)");
 
+/* ═══ P3 · LA CONSOLA APUNTA A CUALQUIER EMPRESA (owner 2026-08-31) ══════════════════════════════════════════
+ * El owner certifica con TRES escenarios (demo · planilla completa · planilla PARCIAL) y la consola solo sabía
+ * cargar el demo: `initTenant(TENANT_DEMO)` clavado. Acá se prueba el cableado (textual, porque la consola lee
+ * `.env` al importarse y GASTA si corre) y —eso sí en vivo— el camino que usa: ingesta real → tenant → mapa. */
+console.log("\n3b · P3 · la consola puede examinar otra empresa, no solo el demo");
+ok(/const RUTA_PLANILLA = _arg\("--planilla"\)/.test(C) && /const TENANT_ID = _arg\("--tenant"\)/.test(C),
+  "la consola acepta --planilla y --tenant");
+ok(/ingestarPlantilla\(buf, \{ nombreArchivo/.test(C),
+  "★ --planilla ingesta por el camino REAL (`ingestarPlantilla`), no por un atajo del examen");
+ok(/initTenant\(ing\.dataset\)/.test(C) && /initTenant\(pack\)/.test(C) && /initTenant\(TENANT_DEMO\)/.test(C),
+  "…y los tres orígenes terminan en el MISMO initTenant: demo, planilla y base");
+ok(/LA PLANILLA NO PASÓ LA INGESTA/.test(C),
+  "una planilla que la app rechazaría tampoco arranca el examen (no se mide sobre un dato que no existiría)");
+ok(/NEGOCIO examinado: \$\{ORIGEN\.nombre\}/.test(C),
+  "★ el sello NOMBRA el negocio examinado — sin eso, tres corridas se vuelven indistinguibles");
+ok(/lo que el archivo NO trae/.test(C) && /el agente debe DECLINAR nombrando esto/.test(C),
+  "★ y con planilla declara lo que el archivo NO trae: es lo que el escenario PARCIAL viene a medir");
+ok(/SALIÓ A LA RED/.test(C), "la rama --tenant DECLARA que salió a la red (no gasta modelo, pero es red)");
+ok(/S\.negocio = \{ tipo: ORIGEN\.tipo/.test(C) && /falta: \(ORIGEN\.avisos \|\| \[\]\)/.test(C),
+  "el expediente guarda el negocio y lo que le faltaba al dato — hace comparables los tres escenarios");
+ok(/motivosDelDato: \(nat\.motivos/.test(C), "…y por turno, el motivo del motor cuando el dato no soportó algo");
+
+console.log("\n3c · P3 · el camino que la consola usa, probado EN VIVO con una planilla parcial");
+{
+  /* la planilla PARCIAL del owner: solo las columnas OBLIGATORIAS y sin la hoja Abonos. Se arma con el
+   * escritor del producto para que sea el archivo que un cliente podría mandar, no una maqueta. */
+  const { construirXlsx, ESTILO } = await import("./src/ingesta/escribirLibro.js");
+  const { HOJAS, PARAMETROS, HOJA_EMPRESA, MARCA_PLANTILLA, AVISO_OPCIONALES } = await import("./src/config/contract/plantilla.js");
+  const { datosEjemplo } = await import("./src/ingesta/plantilla/generarPlantilla.js");
+  const { ingestarPlantilla } = await import("./src/ingesta/plantilla/ingestarPlantilla.js");
+  const { initTenant, getTenantData } = await import("./src/data/tenantStore.js");
+  const { mapaDelDato } = await import("./src/adi/agente/mapaDelDato.js");
+  const { TENANT_DEMO } = await import("./src/data/tenants/demo.js");
+
+  const datos = datosEjemplo();
+  const porHoja = { Ventas: datos.ventas, Inventario: datos.inventario };
+  const empresa = { nombre: HOJA_EMPRESA, anchos: [52, 30], filas: [[{ v: MARCA_PLANTILLA, s: ESTILO.TITULO }], [], [{ v: "completa estos tres campos.", s: ESTILO.AYUDA }], [],
+    ...PARAMETROS.flatMap((p) => [[{ v: p.etiqueta, s: p.obligatorio ? ESTILO.OBLIGATORIA : ESTILO.OPCIONAL }, datos.parametros[p.clave] ?? null], [{ v: p.ayuda, s: ESTILO.AYUDA }], []])] };
+  const hojas = HOJAS.filter((h) => h.nombre !== "Abonos").map((h) => {
+    const cols = h.columnas.filter((c) => c.obligatoria);
+    return { nombre: h.nombre, anchos: cols.map(() => 18), filas: [[{ v: h.que, s: ESTILO.AYUDA }], [{ v: AVISO_OPCIONALES, s: ESTILO.AYUDA }], [],
+      cols.map((c) => ({ v: c.ayuda, s: ESTILO.AYUDA })), cols.map((c) => ({ v: c.titulo, s: ESTILO.OBLIGATORIA })),
+      ...(porHoja[h.nombre] || []).map((f) => cols.map((c) => (f[c.campo] ?? null)))] };
+  });
+  const ing = ingestarPlantilla(construirXlsx([empresa, ...hojas]), { nombreArchivo: "parcial.xlsx", fechaCarga: "2026-08-31" });
+  ok(ing.ok && !!ing.dataset, "★ una planilla con SOLO las columnas obligatorias CARGA (el escenario parcial existe)",
+    JSON.stringify(((ing.preview || {}).bloqueos || []).map((b) => b.tipo)));
+  const avisos = (ing.preview || {}).avisos || [];
+  ok(avisos.some((a) => /punto de venta/.test(String(a.detalle))) && avisos.some((a) => /bodega/.test(String(a.detalle))),
+    `la ingesta SÍ sabe qué columnas faltaron (${avisos.length} avisos)`, avisos.map((a) => a.tipo).join(", "));
+  initTenant(ing.dataset);
+  const mapa = mapaDelDato("actual");
+  ok(/sin datos en: marca, familia, bodega, canal/.test(mapa),
+    "el mapa que ve el agente declara los ejes que este dato no tiene", mapa.split("\n").find((l) => /sin datos/.test(l)));
+  /* ⚠️ LO QUE FALTA PARA EL CRITERIO DEL OWNER, dejado a la vista y no escondido: la ingesta sabe que «Ventas
+   * no trae punto de venta», pero ESO NO VIAJA AL DATASET —muere en el preview—, así que el agente puede decir
+   * «no tengo el eje canal» y no «tu archivo no trae esa columna». Declinar NOMBRANDO la columna es el criterio
+   * del escenario parcial, y exige que el dato lo lleve: toca el camino de ingesta, que está VIVO en
+   * producción, así que se reporta antes de tocarlo. */
+  ok(getTenantData().avisosDeCarga === undefined,
+    "PENDIENTE DECLARADO: el dataset todavía NO lleva los avisos de la carga (por eso el agente no puede nombrar la columna)");
+  initTenant(TENANT_DEMO);
+}
+
 console.log("\n4 · el protocolo de la segunda corrida existe con su gasto nombrado");
 ok(P.includes("SEGUNDA CORRIDA") && P.includes("FRENO INTACTO: esta corrida NO corre sin la palabra del owner que NOMBRE el gasto."),
   "el pedido de autorización actualizado está — y el freno del gasto, intacto");

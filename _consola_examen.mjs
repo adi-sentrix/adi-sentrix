@@ -42,7 +42,52 @@ import { MODEL_PRICING } from "./src/adi/llm/modelPricing.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";   // MISMO escenario que la app: medir en otro es medir otro negocio
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
-initTenant(TENANT_DEMO);
+import { ingestarPlantilla } from "./src/ingesta/plantilla/ingestarPlantilla.js";
+
+/* ── P3 · LA CONSOLA APUNTA A CUALQUIER EMPRESA (owner 2026-08-31) ────────────────────────────────────────────
+ * EL BLOQUEO QUE ESTO ABRE: la consola cargaba `TENANT_DEMO` clavado, así que los tres exámenes midieron el
+ * demo porque era lo único que sabía leer. El owner quiere certificar con TRES escenarios —demo de fábrica ·
+ * planilla COMPLETA · planilla PARCIAL (solo las columnas obligatorias)— y los dos últimos no se podían correr.
+ *
+ *   `--planilla <ruta.xlsx>` → ingesta por el camino REAL (`ingestarPlantilla`, el mismo que usa un cliente) e
+ *                              `initTenant` sobre ESE dataset. Sin atajos ni datos fabricados acá.
+ *   `--tenant <id>`          → una empresa ya cargada en la base. ⚠️ SALE A LA RED contra Supabase (no gasta
+ *                              modelo, pero es red) y por eso se DECLARA en el sello.
+ *   sin flags                → el demo de siempre, byte-idéntico.
+ *
+ * EL SELLO NOMBRA EL NEGOCIO EXAMINADO: sin eso, tres corridas distintas se vuelven indistinguibles a la
+ * semana, y son justo las tres que hay que comparar. */
+const _arg = (n) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : null; };
+const RUTA_PLANILLA = _arg("--planilla");
+const TENANT_ID = _arg("--tenant");
+let ORIGEN = { tipo: "demo", nombre: "demo de fábrica", avisos: [], bloqueos: [], totales: null };
+
+if (RUTA_PLANILLA) {
+  const buf = fs.readFileSync(RUTA_PLANILLA);
+  const ing = ingestarPlantilla(buf, { nombreArchivo: RUTA_PLANILLA.split(/[\\/]/).pop(), fechaCarga: _arg("--fecha") || null });
+  if (!ing.ok || !ing.dataset) {
+    console.log(`\n🔴 LA PLANILLA NO PASÓ LA INGESTA — el examen no arranca sobre un dato que la app tampoco aceptaría.`);
+    for (const b of (ing.preview && ing.preview.bloqueos) || []) console.log(`   · ${b.tipo}: ${b.detalle}`);
+    process.exit(1);
+  }
+  initTenant(ing.dataset);
+  ORIGEN = { tipo: "planilla", nombre: `${RUTA_PLANILLA.split(/[\\/]/).pop()} · ${ing.dataset.nombre || ing.dataset.id || "(sin nombre)"}`,
+    avisos: (ing.preview && ing.preview.avisos) || [], bloqueos: [], totales: (ing.preview && ing.preview.totales) || null };
+} else if (TENANT_ID) {
+  /* ⚠️ ESTA RAMA SALE A LA RED. Se declara en el sello y se pide por el MISMO servicio que usa la app
+   * (`handleData`), no por un atajo: examinar una empresa que la app no serviría igual no mide nada. */
+  const { handleData } = await import("./src/data/tenantService.server.js");
+  const res = await handleData({ tenantId: TENANT_ID }, process.env);
+  const pack = res && (res.pack || (res.data && res.data.pack));
+  if (!pack) {
+    console.log(`\n🔴 NO PUDE TRAER LA EMPRESA «${TENANT_ID}» DE LA BASE: ${JSON.stringify(res && (res.estado || res.error || res)).slice(0, 200)}`);
+    process.exit(1);
+  }
+  initTenant(pack);
+  ORIGEN = { tipo: "tenant", nombre: `${TENANT_ID}${res.nombre ? ` · ${res.nombre}` : ""} (desde la base · SALIÓ A LA RED)`, avisos: [], bloqueos: [], totales: null };
+} else {
+  initTenant(TENANT_DEMO);
+}
 
 /* ── EL SELLO DE VERSIÓN (owner 2026-08-14) ───────────────────────────────────────────────────────────────────
  * «Antes de medir, confirma explícitamente: versión de código servida · ruta que respondió · bloque [[CALCULO]]
@@ -107,9 +152,29 @@ function _sello() {
       `│ letra · juez     : ${P(/RUTEO Y CÁLCULO:/.test(fijo) && /INVARIANTES/.test(fijo))} la letra F3+[9] viaja en el system  ·  ${P(juez)} vetosDeContrato multa «procede con» en vivo`,
     ];
   };
+  /* P3 · QUÉ NEGOCIO SE ESTÁ EXAMINANDO. Sin esta línea, tres corridas sobre tres datos distintos producen
+   * expedientes indistinguibles — y son justo las tres que el owner quiere comparar. Con planilla se declara
+   * además lo que el archivo NO trae: es lo que el escenario PARCIAL viene a medir. */
+  const _negocio = () => {
+    const L = [`│ NEGOCIO examinado: ${ORIGEN.nombre}  ·  origen: ${ORIGEN.tipo}`];
+    if (ORIGEN.totales) {
+      const t = ORIGEN.totales;
+      L.push(`│ tamaño del dato  : ${t.clientes ?? "?"} clientes · ${t.skus ?? "?"} SKU · ${t.marcas ?? "?"} marcas · ${t.familias ?? "?"} familias · ${t.bodegas ?? "?"} bodegas`);
+    }
+    if (ORIGEN.avisos && ORIGEN.avisos.length) {
+      L.push(`│ lo que el archivo NO trae (${ORIGEN.avisos.length}) — el agente debe DECLINAR nombrando esto, jamás inventarlo:`);
+      for (const a of ORIGEN.avisos.slice(0, 8)) L.push(`│   · ${a.tipo}: ${String(a.detalle || "").slice(0, 96)}`);
+      if (ORIGEN.avisos.length > 8) L.push(`│   · … y ${ORIGEN.avisos.length - 8} avisos más`);
+    } else if (ORIGEN.tipo === "planilla") {
+      L.push(`│ lo que el archivo NO trae: nada — la planilla vino completa`);
+    }
+    if (ORIGEN.tipo === "tenant") L.push(`│ ⚠️ RED           : esta corrida SALIÓ A LA RED contra la base para traer la empresa (no gastó modelo)`);
+    return L;
+  };
   return [
     `┌── SELLO DE VERSIÓN ──────────────────────────────────────────────`,
     `│ commit           : ${commit}${sucio ? "  ⚠️ con cambios sin commitear en el motor" : "  (motor limpio)"}`,
+    ..._negocio(),
     ...(MODO_AGENTE ? _rutaAgente() : [`│ ruta             : camino natural REAL (answerViaNatural + gateway con modoNatural) — la ruta del agente se prueba con --agente`]),
     `│ escenario        : ${ESCENARIO_INICIAL}  (el MISMO que arranca la app — declarado en config/scenarios.js)`,
     `│ carpeta          : ${(_dato.match(/Ventas totales: \$[\d.]+M/) || ["?"])[0]}  ·  KPI de inventario ${/Inventario \(foto de hoy\)/.test(_dato) ? "presente ✅" : "AUSENTE 🔴"}`,
@@ -221,8 +286,15 @@ const visible = String(out.r.text || "");
 S.history = S.history.concat([{ role: "user", text: q }, { role: "adi", text: visible }]);
 S.mem = out.mem || S.mem;
 S.costoUSD += costoTurno; S.llamadas += llamadasTurno;
+/* P3 · el expediente declara SOBRE QUÉ NEGOCIO se corrió y qué le faltaba al dato. Se escribe una vez por
+ * corrida (no por turno): es lo que hace comparables los tres escenarios del owner una semana después. */
+S.negocio = { tipo: ORIGEN.tipo, nombre: ORIGEN.nombre, totales: ORIGEN.totales || null,
+  falta: (ORIGEN.avisos || []).map((a) => ({ tipo: a.tipo, detalle: String(a.detalle || "").slice(0, 160) })) };
 S.turnos.push({ q, estado: nat.estado || "?", vetos: nat.vetos || [], costoUSD: costoTurno, visible,
-  ...(MODO_AGENTE ? { herramientas: nat.calls ?? 0, figs: nat.figs ?? 0, recitaCifras: nat.recitaCifras ?? 0, reintentosGuard: intentos.filter((i) => i.motivoReintento === "guard").length } : {}) });
+  ...(MODO_AGENTE ? { herramientas: nat.calls ?? 0, figs: nat.figs ?? 0, recitaCifras: nat.recitaCifras ?? 0, reintentosGuard: intentos.filter((i) => i.motivoReintento === "guard").length,
+    // cuando el dato no soportó algo, el motivo del MOTOR queda en el expediente: es lo que el escenario
+    // PARCIAL viene a medir («declinó nombrando la columna que falta» vs «se disculpó»).
+    motivosDelDato: (nat.motivos || []).slice(0, 3) } : {}) });
 fs.writeFileSync(ESTADO, JSON.stringify(S, null, 2), "utf8");
 
 console.log(`\n╔═══ ${S.titulo} · turno ${S.turnos.length} ═══╗`);
