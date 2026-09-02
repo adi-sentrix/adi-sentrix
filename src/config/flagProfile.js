@@ -59,11 +59,20 @@ const DEV_TOOLS = [
 
 // EXPERIMENTAL · features nuevas aún no aptas para prod · demo + dev, NO prod · (el owner clasifica acá)
 const EXPERIMENTAL = [
-  // ADI_AGENTE — APAGADA EN TODOS LOS PERFILES (F2 · owner 2026-08-30: «esta vez quiero ADI agente», detrás de
-  // bandera como nació ADI_CAMINO_NATURAL). El bucle existe y está gateado con cerebro inyectado; encenderlo
-  // exige la certificación de F4 (calibración + examen vivo autorizado). Mientras esta línea sea un comentario,
-  // ningún perfil lo enciende y el camino de producción queda byte-intacto.
-  // "ADI_AGENTE",
+  /* ADI_AGENTE — ENCENDIDO CONTROLADO (owner 2026-09-02: «de forma controlada, no como cambio global
+   * irreversible»). Nació apagada en todos los perfiles (F2 · owner 2026-08-30) y la certificación F4 ya se
+   * pagó y se cerró: 28/28 turnos con conducta medida en vivo, cero cifras inventadas, congelada en
+   * `_certificacion_congelada_gate`.
+   *
+   * POR QUÉ ACÁ Y NO EN `FEATURE`, que es lo que hace que este encendido sea CONTROLADO: `EXPERIMENTAL` entra
+   * en `demo` y `dev` y **NO en `prod`** — está tres líneas abajo, en PROFILES, y es la clasificación que el
+   * owner definió para esto exactamente. El sitio publicado sigue yendo por `ADI_CAMINO_NATURAL` sin una sola
+   * línea de conducta nueva; el agente se prueba en demo/dev con el dato real.
+   *
+   * APAGARLO ES VOLVER A COMENTAR ESTA LÍNEA. Una línea, sin tocar nada más, sin migración ni estado que
+   * revertir — la misma reversibilidad de una línea que se le exigió a `ADI_CAMINO_NATURAL` (condición 2 del
+   * owner al encenderlo). `floor` (Node/gates) sigue en `[]`: la suite no cambia de comportamiento. */
+  "ADI_AGENTE",
 ];
 
 const PROFILES = {
