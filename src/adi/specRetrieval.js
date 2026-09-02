@@ -1229,7 +1229,11 @@ function _leverFoco(scenario, detector, entityScope) {
   }
   return f;
 }
-const _pp1 = (r) => (r && typeof r.venta === "number" && r.venta > 0 ? Math.round(r.venta * 10) : null);   // 1pp de margen en $ (venta K × 1000 × 1%)
+/* 1pp de margen en $: venta almacenada × factor del pack × 1%. El «× 10» que vivía acá llevaba la escala
+ * ESCRITA A MANO (venta en miles × 1000 ÷ 100): correcto para los tenants de fábrica y 1000× para un pack de
+ * planilla (`escalaComercial: "raw"`) — el MISMO defecto ya pagado en datoProyectado, en otro sitio. La escala
+ * la declara el pack y la resuelve `_fxe()` (factorComercialDe), la única puerta; con "K" da exactamente ×10. */
+const _pp1 = (r) => (r && typeof r.venta === "number" && r.venta > 0 ? Math.round(r.venta * _fxe() / 100) : null);
 const _figLever = (label, usd, formula, mandatory = false) => fig(label, _money(usd), { unit: "money", raw: usd, mandatory, source: "computed", formula, context: "cuánto vale la medida" });
 
 export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchmark", dimension = "cliente", negativo = false, pct = false, gap = null, entityScope = null } = {}) {

@@ -684,9 +684,13 @@ function marginRead({ filters = {}, scenario, focus = "bajo_benchmark", dimensio
     if (Array.isArray(rows)) {
       const seen = new Set(r.boleta.map((f) => f.label));
       const add = (label, usd) => { if (usd > 0 && !seen.has(label)) { seen.add(label); r.boleta.push(fig(label, _moneyRaw(usd), { unit: "money", raw: usd, source: "computed", formula: "venta × (benchmark − margen)", context: "cuánto vale la medida" })); } };
+      /* la escala del campo venta la declara el PACK, no esta línea (2026-09-01): el «× 10» hardcodeado asumía
+       * venta en miles (×1000 ÷100) — correcto para el demo y 1000× para una planilla (`escalaComercial:"raw"`,
+       * medido contra la del owner: venta $9.1M, brecha 10.3pp ≈ $937K, salía $937.8M). `_fxT()` es la única
+       * puerta (factorComercialDe); con "K" la cuenta da exactamente ×10 y el demo no se mueve un byte. */
       for (const row of rows.filter((x) => x.below && typeof x.venta === "number")) {
-        if (bench != null && typeof row.margen === "number") add(`${row.nombre} · Medida cerrar brecha`, Math.round(row.venta * 10 * (bench - row.margen)));
-        const pp1 = Math.round(row.venta * 10);   // venta (miles) × 1000 × 1% = venta × 10 (misma fórmula que _pp1 del composer)
+        if (bench != null && typeof row.margen === "number") add(`${row.nombre} · Medida cerrar brecha`, Math.round(row.venta * _fxT() * (bench - row.margen) / 100));
+        const pp1 = Math.round(row.venta * _fxT() / 100);   // venta × factor × 1% (misma fórmula que _pp1 del composer)
         if (pp1 > 0) { const label = `${row.nombre} · Medida 1pp`; if (!seen.has(label)) { seen.add(label); r.boleta.push(fig(label, _moneyRaw(pp1), { unit: "money", raw: pp1, source: "computed", formula: "venta × 1%", context: "cuánto vale la medida" })); } }
       }
     }
