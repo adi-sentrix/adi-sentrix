@@ -46,6 +46,20 @@ const FEATURE = [
   // turno libre va por el cerebro único + notario + ciclo de reparación. `floor` (Node/gates) sigue en [] —
   // byte-exacto intacto. APAGARLO EN TODAS PARTES = borrar esta línea (rollback de una línea, condición 2).
   "ADI_CAMINO_NATURAL",
+  /* ADI AGENTE COMO EL CAMINO PRINCIPAL (owner 2026-09-02, textual: «No quiero mantener dos ADIs como opción
+   * de producto. El agente debe pasar a ser el camino principal. El viejo puede quedar solo como rollback
+   * técnico temporal, no como camino paralelo ni como algo que sigamos mejorando.»)
+   *
+   * CÓMO RUTEA (ChatADI.jsx:523): con esta bandera encendida el turno libre va PRIMERO por el agente
+   * certificado (28/28, congelado en `_certificacion_congelada_gate`); si el agente lanza, el MISMO turno cae
+   * en cascada al camino natural y el usuario no ve el error. O sea: el natural queda EXACTAMENTE en el papel
+   * que el owner le asignó — rollback técnico, automático por turno y manual por bandera.
+   *
+   * APAGADO DE EMERGENCIA = comentar esta línea (producción vuelve al natural entera). Una línea, sin
+   * migración, sin estado. Tras la validación en vivo, el natural SE RETIRA del código (La Poda) — y esta
+   * nota se reescribe ese día.
+   * ⚠️ REGLA DEL OWNER DESDE HOY: el natural NO SE MEJORA MÁS. Toda mejora nueva va al agente. */
+  "ADI_AGENTE",
 ];
 
 // DEV-TOOLS · herramientas internas · SOLO dev (nunca demo/prod)
@@ -59,7 +73,10 @@ const DEV_TOOLS = [
 
 // EXPERIMENTAL · features nuevas aún no aptas para prod · demo + dev, NO prod · (el owner clasifica acá)
 const EXPERIMENTAL = [
-  /* ADI_AGENTE — ENCENDIDO CONTROLADO (owner 2026-09-02: «de forma controlada, no como cambio global
+  /* (2026-09-02, tarde) ADI_AGENTE ASCENDIÓ A FEATURE por decisión del owner — ver la nota allá arriba.
+   * Esta entrada se retiró de EXPERIMENTAL el mismo día para que la bandera viva en UN solo lugar.
+   *
+   * (nota histórica del encendido controlado de la mañana: «de forma controlada, no como cambio global
    * irreversible»). Nació apagada en todos los perfiles (F2 · owner 2026-08-30) y la certificación F4 ya se
    * pagó y se cerró: 28/28 turnos con conducta medida en vivo, cero cifras inventadas, congelada en
    * `_certificacion_congelada_gate`.
@@ -72,7 +89,6 @@ const EXPERIMENTAL = [
    * APAGARLO ES VOLVER A COMENTAR ESTA LÍNEA. Una línea, sin tocar nada más, sin migración ni estado que
    * revertir — la misma reversibilidad de una línea que se le exigió a `ADI_CAMINO_NATURAL` (condición 2 del
    * owner al encenderlo). `floor` (Node/gates) sigue en `[]`: la suite no cambia de comportamiento. */
-  "ADI_AGENTE",
 ];
 
 const PROFILES = {
