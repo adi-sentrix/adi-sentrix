@@ -277,8 +277,11 @@ H("5d · las aperturas y muletillas coloquiales se vetan — el NOMBRE queda exe
  * conducta por regla no la ve hasta que un examen la paga. */
 H("5g · ningún patrón del agente cierra con `\\b` después de un carácter que no es \\w");
 {
+  /* los playbooks se listan del DIRECTORIO, no a mano (2026-09-01): la lista fija se quedó sin lectura-por-eje
+   * ni cobranza al crecer el registro — un barrido que no barre lo nuevo envejece en silencio, que es la misma
+   * enfermedad de los gates ausentes. Un playbook nuevo entra al barrido solo, sin tocar esta línea. */
   const ARCHIVOS = ["src/adi/agente/bucleAgente.js", "src/adi/agente/contratoAgente.js",
-    "src/adi/agente/playbooks/margenEnRiesgo.js", "src/adi/agente/playbooks/registro.js",
+    ...fs.readdirSync(path.join(process.cwd(), "src/adi/agente/playbooks")).filter((f) => f.endsWith(".js")).map((f) => `src/adi/agente/playbooks/${f}`),
     "src/adi/agente/herramientasAgente.js", "src/adi/oracle/caminoNatural.js"];
   /* EL BARRIDO, PRECISO. Un `\b` es imposible cuando lo que lo precede NO puede ser \w:
    *   (a) pegado a un no-\w: `%\b`, `$\b`, `á\b`;

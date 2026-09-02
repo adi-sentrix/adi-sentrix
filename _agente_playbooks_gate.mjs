@@ -310,6 +310,130 @@ H("1e · cobranza: quién debe con nombre, y el vencido en raya cuando no hay pl
   initTenant(TENANT_DEMO);
 }
 
+/* ═══ 1f · LOS 4 DE ASESORÍA — cliente perdiendo · inventario inmovilizado · caída de ventas · precio ════════
+ * (owner 2026-09-01) Las tres leyes del encargo, cada una probada: 01 QUÉ · 02 DÓNDE (localiza, jamás causas)
+ * · 03 QUÉ HACER PRIMERO (ofrece, jamás ordena); detector léxico CONSERVADOR con no-secuestro medido contra
+ * las preguntas que los gates existentes ejercitan; y la MATERIALIDAD del piso relativo mandando sobre el
+ * entregable (declarada cuando deja algo afuera). Medidos contra el DEMO acá y contra la COMPLETA del owner
+ * al final del bloque (condicional al archivo, como §1e). */
+H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materialidad mandando");
+{
+  const nombres = PLAYBOOKS.map((p) => p.nombre);
+  ok(["cliente-perdiendo-contribucion", "inventario-inmovilizado", "caida-de-ventas", "oportunidad-de-precio"].every((n) => nombres.includes(n)),
+    "★ los cuatro están en el registro", nombres.join(", "));
+
+  // LA GUARDIA DE NO-SECUESTRO: las preguntas que los gates existentes ejercitan siguen con su dueño de siempre.
+  initTenant(TENANT_DEMO);
+  const GUARDIA = [
+    ["qué clientes están bajo el benchmark", "margen-en-riesgo"], ["¿cómo viene mi margen?", "margen-en-riesgo"],
+    ["ranking por canal: mejores y peores", "lectura-por-eje"], ["qué SKU tienen capital frenado", "lectura-por-eje"],
+    ["capital por bodega", "lectura-por-eje"], ["qué marca deja más margen", "lectura-por-eje"],
+    ["ponele que el año que viene crezco 3%: cuanto seria mi venta?", "proyeccion-declarada"],
+    ["quién me debe y qué está vencido", "cobranza"], ["cuánto vendí a crédito vs contado", "cobranza"],
+  ];
+  const rotas = GUARDIA.filter(([q, esp]) => (playbookPara(q) || {}).nombre !== esp);
+  ok(rotas.length === 0, "★ NO-SECUESTRO · las 9 preguntas de los gates existentes siguen con su dueño de siempre",
+    rotas.map(([q, esp]) => `«${q}» era ${esp} → ${(playbookPara(q) || {}).nombre || "(nada)"}`).join(" | "));
+  const NUEVAS = [
+    ["qué clientes estoy perdiendo", "cliente-perdiendo-contribucion"], ["dónde estoy perdiendo contribución", "cliente-perdiendo-contribucion"],
+    ["qué hago con el inventario inmovilizado", "inventario-inmovilizado"], ["cómo libero el capital frenado", "inventario-inmovilizado"],
+    ["por qué cayeron mis ventas", "caida-de-ventas"], ["se me está cayendo la venta, ¿dónde?", "caida-de-ventas"],
+    ["dónde tengo oportunidad de precio", "oportunidad-de-precio"], ["qué precios debería revisar", "oportunidad-de-precio"],
+  ];
+  const perdidas = NUEVAS.filter(([q, esp]) => (playbookPara(q) || {}).nombre !== esp);
+  ok(perdidas.length === 0, "…y las preguntas de asesoría encuentran su playbook (8 formas)",
+    perdidas.map(([q]) => q).join(" | "));
+  ok(playbookPara("por punto de venta, ¿quién queda bajo el plan?") === null,
+    "…y «bajo el plan» NO es una caída: «punto de venta» contiene «venta» y «bajo» — la trampa medida que el detector esquiva");
+
+  // E2E EN EL DEMO, por el bucle entero (muro incluido) — escenario declarado: "actual", el de la pantalla.
+  const T = async (q) => answerViaAgente({ text: q, history: [], mem: {}, scenario: "actual", callAgente: MUDO });
+  const ra = await T("qué clientes estoy perdiendo");
+  ok(ra.r.agente.estado === "playbook" && /La Polar · -\$417K contra el año anterior/.test(ra.r.text) && /Ripley · -\$414K/.test(ra.r.text),
+    `★ A · quiénes caen, cada uno con su cifra YoY (${ra.r.agente.estado})`, ra.r.text.slice(0, 120));
+  ok(/por qué se cae no está en este dato/.test(ra.r.text) && /Si quieres, abrimos la serie mensual de La Polar/.test(ra.r.text),
+    "…02 LOCALIZA sin causas y 03 OFRECE abrir al que más cae");
+  const rb = await T("qué hago con el inventario inmovilizado");
+  ok(rb.r.agente.estado === "playbook" && /Capital inmovilizado \(frenado\): \$33K/.test(rb.r.text) && /capital frenado \$14K/.test(rb.r.text),
+    `★ B · el total y cada SKU con el monto pegado a su concepto (${rb.r.agente.estado})`, rb.r.text.slice(0, 120));
+  ok(/bajo el 0,05% de tu venta: \$50K/.test(rb.r.text) && /no es tu incendio de hoy/.test(rb.r.text),
+    "★ B · MATERIALIDAD: $33K está bajo el piso relativo y el entregable LO DICE con el umbral declarado");
+  ok(/Si igual quieres verlo/.test(rb.r.text) && !/ten[eé]s que|hay que|liquid[aá]/i.test(rb.r.text),
+    "…y el 03 sigue ofreciendo (nunca ordenando) aun cuando no es material");
+  const rc2 = await T("se me está cayendo la venta, ¿dónde?");
+  ok(rc2.r.agente.estado === "playbook" && /7\.6%/.test(rc2.r.text) && /NO viene cayendo/.test(rc2.r.text),
+    `★ C · el veredicto es del DATO, no del nombre del playbook: en el demo la venta sube y lo dice (${rc2.r.agente.estado})`, rc2.r.text.slice(0, 120));
+  ok(/La Polar · -\$417K/.test(rc2.r.text) && /Los que más suben: Lider \+\$2\.3M/.test(rc2.r.text),
+    "…y localiza igual: los que caen (materiales) y los que más suben, cada uno con su cifra");
+  const rd2 = await T("dónde tengo oportunidad de precio");
+  ok(rd2.r.agente.estado === "playbook" && /SKU bajo el benchmark: 12/.test(rd2.r.text) && /MAK-COMP-AIR · margen de venta 7\.9%/.test(rd2.r.text),
+    `★ D · los peores por margen DE VENTA (el muro exige decir cuál margen) (${rd2.r.agente.estado})`, rd2.r.text.slice(0, 120));
+  ok(/esta lectura publica el margen de 10 de los 12/.test(rd2.r.text),
+    "★ D · el CORTE declarado contra lo publicado: el panel trae 10 de los 12 — se dice, no se finge completitud");
+  ok(/no está en esta lectura: no lo afirmo/.test(rd2.r.text) && /vemos su estructura antes de tocar ningún precio/.test(rd2.r.text),
+    "…y no culpa al precio sin driver: ofrece abrir la estructura");
+
+  // LA LISTA NOTARIAL DE CADA UNO: la mentira multada, la frase legítima intacta, y el propio entregable limpio.
+  const pbA = PLAYBOOKS.find((p) => p.nombre === "cliente-perdiendo-contribucion");
+  const pbB = PLAYBOOKS.find((p) => p.nombre === "inventario-inmovilizado");
+  const pbC = PLAYBOOKS.find((p) => p.nombre === "caida-de-ventas");
+  const pbD = PLAYBOOKS.find((p) => p.nombre === "oportunidad-de-precio");
+  const figsA = boletaDelPlaybook(pbA, "actual", "qué clientes estoy perdiendo");
+  ok(vetosDelPlaybook(pbA, "La Polar cae porque su comprador nos bajó el share.", { figs: figsA }).some((x) => x.regla === "causa-sin-respaldo"),
+    "A · la causa inventada se multa (localizar no es explicar)");
+  ok(vetosDelPlaybook(pbA, "Empiezo por Ripley para revisar la caída.", { figs: figsA }).some((x) => x.regla === "prioridad-muda"),
+    "A · la prioridad muda se multa (Ripley no es el que más cae y no se declara criterio)");
+  ok(!vetosDelPlaybook(pbA, "Empiezo por Ripley: prefiero su cuenta por criterio comercial, aunque el que más cae es La Polar.", { figs: figsA }).some((x) => x.regla === "prioridad-muda"),
+    "…y la prioridad CON criterio declarado no se multa");
+  const figsB = boletaDelPlaybook(pbB, "actual", "qué hago con el inventario inmovilizado");
+  ok(vetosDelPlaybook(pbB, "Liquidá LG-DRYER8KG ya mismo: hay que sacárselo de encima.", { figs: figsB }).some((x) => x.regla === "accion-ordenada"),
+    "B · la orden se multa (el 03 ofrece, jamás ordena)");
+  ok(!vetosDelPlaybook(pbB, "Si quieres, una opción es liquidarlo; dime y lo vemos.", { figs: figsB }).some((x) => x.regla === "accion-ordenada"),
+    "…y la MISMA acción ofrecida no se multa");
+  const figsCpos = [{ label: "headline", value: "7.6%", raw: 7.6 }];
+  const figsCneg = [{ label: "headline", value: "-40.5%", raw: -40.5 }];
+  ok(pbC.listaNotarial("Tus ventas caen fuerte este año.", { figs: figsCpos }).some((x) => x.regla === "caida-inventada"),
+    "C · decir «caen» cuando la lectura publicada sube se multa contra el signo del dato");
+  ok(pbC.listaNotarial("Tus ventas no caen, vienen sanas.", { figs: figsCneg }).some((x) => x.regla === "alza-inventada"),
+    "C · …y decir «no caen» cuando la lectura publicada baja, también (las dos direcciones)");
+  const figsD = boletaDelPlaybook(pbD, "actual", "dónde tengo oportunidad de precio");
+  ok(vetosDelPlaybook(pbD, "El precio de MAK-COMP-AIR está muy bajo, por eso pierde.", { figs: figsD }).some((x) => x.regla === "precio-culpado-sin-driver"),
+    "D · culpar al precio sin driver se multa (puede ser costo)");
+  ok(!vetosDelPlaybook(pbD, "En MAK-COMP-AIR el driver que declara el dato es el costo de su estructura.", { figs: figsD }).some((x) => x.regla === "precio-culpado-sin-driver"),
+    "…y nombrar el driver del dato no se multa");
+  for (const [pb, figs, q] of [[pbA, figsA, "qué clientes estoy perdiendo"], [pbB, figsB, "qué hago con el inventario inmovilizado"], [pbD, figsD, "dónde tengo oportunidad de precio"]]) {
+    const propio = pb.componer({ figs, pregunta: q });
+    ok(typeof propio === "string" && vetosDelPlaybook(pb, propio, { figs, pregunta: q }).length === 0,
+      `${pb.nombre} · su propio entregable pasa su propia lista notarial (auto-consistencia)`);
+  }
+
+  // LA COMPLETA DEL OWNER (condicional al archivo, como §1e): los cuatro sobre el dato real.
+  const REAL2 = "C:/Users/jcnav/Downloads/Plantilla_ADI_v2_completa_25_clientes_ajustada.xlsx";
+  if (fs.existsSync(REAL2)) {
+    const ing2 = ingestarPlantilla(fs.readFileSync(REAL2), { nombreArchivo: "completa.xlsx", fechaCarga: "2026-09-01" });
+    if (ing2.ok && ing2.dataset) {
+      initTenant(ing2.dataset);
+      const ca = await T("qué clientes estoy perdiendo");
+      ok(/Comercial Valparaiso · -\$11\.0M/.test(ca.r.text) && /Bazar Centro · -\$10\.6M/.test(ca.r.text),
+        "★ COMPLETA · A: los dos que caen de verdad, con sus cifras", ca.r.text.slice(0, 120));
+      const cb = await T("qué hago con el inventario inmovilizado");
+      ok(/\$38\.1M/.test(cb.r.text) && /ELE-CAB25/.test(cb.r.text) && /el único con capital frenado/.test(cb.r.text),
+        "★ COMPLETA · B: $38.1M en ELE-CAB25, nombrado como el único");
+      const cc = await T("se me está cayendo la venta, ¿dónde?");
+      ok(/-40\.5%/.test(cc.r.text) && /viene por debajo/.test(cc.r.text),
+        "★ COMPLETA · C: la caída real (-40.5%) dicha con la cifra publicada");
+      const cd = await T("dónde tengo oportunidad de precio");
+      ok(/ELE-CAB25 · margen de venta 19\.8%/.test(cd.r.text) && /SKU bajo el benchmark: 3/.test(cd.r.text),
+        "★ COMPLETA · D: el peor margen real primero, reconciliado con el conteo (3 de 3)");
+      ok(!/\$937\.8M/.test(cd.r.text),
+        "★ COMPLETA · D NO cita la «Medida cerrar brecha» rota (1000× la venta del SKU — defecto medido y reportado): una medida mayor que la venta del propio SKU no sale a pantalla");
+    }
+  } else {
+    console.log("      (la planilla real del owner no está en esta máquina: 5 checks de la completa no corren)");
+  }
+  initTenant(TENANT_DEMO);
+}
+
 /* ═══ 2 · LA ACEPTACIÓN · el turno documentado que rescataba, ahora RESPONDE ══════════════════════════════════
  * T6 del expediente (`_AGENTE_PUNTO_DE_PARTIDA.md`), verbatim: «llamame jc de ahora en adelante. como viene mi
  * margen?» salió `limite` con UNA cifra suelta teniendo la cartera entera en la boleta. Mismo cerebro (uno que
@@ -666,6 +790,51 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   await carnada("cobranza secuestra el capital frenado del inventario", "src/adi/agente/playbooks/cobranza.js",
     [[/  if \(!q\.trim\(\) \|\| _FUERA\.test\(q\)\) return null;/, "  if (!q.trim()) return null;   // CARNADA"]],
     async (Mut) => Mut.cobranza.cuandoAplica("qué SKU tienen capital frenado y cuánta plata vencida hay ahí"));
+
+  /* ── LOS 4 DE ASESORÍA (owner 2026-09-01) · la carnada de no-secuestro obligatoria de CADA uno, más las dos
+   * promesas nuevas (el veredicto contra el signo del dato, y la medida rota que no sale a pantalla). ── */
+  // (P) C sin su _FUERA: secuestra una pregunta de período puntual que su lectura (YoY del período) no responde
+  await carnada("caída-de-ventas secuestra el período puntual («el último mes»)", "src/adi/agente/playbooks/asesoria.js",
+    [[/if \(_SIMULA\.test\(q\) \|\| _DEUDA\.test\(q\) \|\| _C_FUERA\.test\(q\)\) return false;/, "if (_SIMULA.test(q) || _DEUDA.test(q)) return false;   // CARNADA"]],
+    async (Mut) => Mut.caidaDeVentas.cuandoAplica("cuánto cayó la venta el último mes")
+      && !PLAYBOOKS.find((p) => p.nombre === "caida-de-ventas").cuandoAplica("cuánto cayó la venta el último mes"));
+  // (Q) B sin exigir la señal de asesoría: le roba a lectura-por-eje su pregunta de siempre
+  await carnada("inventario-inmovilizado le roba a lectura-por-eje el «qué SKU tienen capital frenado»", "src/adi/agente/playbooks/asesoria.js",
+    [[/return _B_TEMA\.test\(q\) && _B_ESTADO\.test\(q\) && _B_ASESORIA\.test\(q\);/, "return _B_TEMA.test(q) && _B_ESTADO.test(q);   // CARNADA"]],
+    async (Mut) => Mut.inventarioInmovilizado.cuandoAplica("qué SKU tienen capital frenado")
+      && !PLAYBOOKS.find((p) => p.nombre === "inventario-inmovilizado").cuandoAplica("qué SKU tienen capital frenado"));
+  // (R) D sin su _FUERA: se mete con el eje cliente, que no es suyo
+  await carnada("oportunidad-de-precio se mete con el eje cliente", "src/adi/agente/playbooks/asesoria.js",
+    [[/if \(_SIMULA\.test\(q\) \|\| _DEUDA\.test\(q\) \|\| _D_FUERA\.test\(q\)\) return false;/, "if (_SIMULA.test(q) || _DEUDA.test(q)) return false;   // CARNADA"]],
+    async (Mut) => Mut.oportunidadDePrecio.cuandoAplica("a qué clientes conviene subir los precios")
+      && !PLAYBOOKS.find((p) => p.nombre === "oportunidad-de-precio").cuandoAplica("a qué clientes conviene subir los precios"));
+  // (S) A sin retirarse ante entidad×período: compite con el puente por su pregunta
+  await carnada("cliente-perdiendo compite con el puente por la entidad×período", "src/adi/agente/playbooks/asesoria.js",
+    [[/    if \(detectSerieIntent\(q\)\) return false;   \/\/ «cuánto cayó Falabella el último mes» es del puente/, "    // CARNADA: sin el retiro"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);   // serieIntent resuelve entidades DEL TENANT: «Falabella» existe en el demo, no en el pack del cobro
+      const q = "el cliente Falabella viene cayendo: ¿cuánto le vendí el último mes?";   // serieIntent la reclama (medido)
+      return Mut.clientePerdiendoContribucion.cuandoAplica(q)
+        && !PLAYBOOKS.find((p) => p.nombre === "cliente-perdiendo-contribucion").cuandoAplica(q);
+    });
+  // (T) la regla «caida-inventada» vaciada: decir «caen» con la lectura publicada subiendo deja de multarse
+  await carnada("«tus ventas caen» con el dato subiendo deja de multarse", "src/adi/agente/playbooks/asesoria.js",
+    [[/      if \(diceCae && !caeDato\) v\.push\(\{ regla: "caida-inventada"/, "      if (false) v.push({ regla: \"caida-inventada\""]],
+    async (Mut) => !Mut.caidaDeVentas.listaNotarial("Tus ventas caen fuerte este año.", { figs: [{ label: "headline", value: "7.6%", raw: 7.6 }] })
+      .some((x) => x.regla === "caida-inventada"));
+  // (U) el guardián de la medida rota desarmado: la «Medida cerrar brecha» 1000× la venta saldría a pantalla
+  await carnada("la Medida 1000× la venta del SKU sale a pantalla", "src/adi/agente/playbooks/asesoria.js",
+    [[/      const medidaOk = mf && vf && Number\.isFinite\(_num\(mf\)\) && Number\.isFinite\(_num\(vf\)\) && _num\(mf\) <= _num\(vf\);/, "      const medidaOk = !!mf;   // CARNADA"]],
+    async (Mut) => {
+      const figs = [
+        { label: "Benchmark de margen", value: "30.1%", raw: 30.1 }, { label: "SKU bajo el benchmark", value: "1", raw: 1 },
+        { label: "ELE-CAB25 · Margen", value: "19.8%", raw: 19.8 }, { label: "ELE-CAB25 · Venta", value: "$9.1M", raw: 9100000 },
+        { label: "ELE-CAB25 · Medida cerrar brecha", value: "$937.8M", raw: 937800000 },
+      ];
+      const conCarnada = Mut.oportunidadDePrecio.componer({ figs, pregunta: "dónde tengo oportunidad de precio" });
+      const real = PLAYBOOKS.find((p) => p.nombre === "oportunidad-de-precio").componer({ figs, pregunta: "dónde tengo oportunidad de precio" });
+      return /\$937\.8M/.test(String(conCarnada)) && !/\$937\.8M/.test(String(real));
+    });
   initTenant(TENANT_DEMO);
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* */ } }

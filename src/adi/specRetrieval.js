@@ -512,6 +512,13 @@ export function declaracionUmbralFocos() {
   const pct = POLICY.materialidadFocoPctVenta ?? 0.05;
   return `bajo el ${String(pct).replace(".", ",")}% de tu venta: ${_money(_pisoFocosUSD(vSF.source, vSF.field))}`;
 }
+/* el MISMO piso, como número (playbooks de asesoría del agente, 2026-09-01): la materialidad que decide qué
+ * entra a un entregable es LA del negocio — exportarla evita un segundo cálculo del umbral que diverge de éste.
+ * Devuelve el piso en las unidades de los `raw` de la boleta; 0 si el contrato no expone ventas@cliente. */
+export function pisoFocosUSD() {
+  const vSF = _sf("ventas", "cliente");
+  return vSF ? _pisoFocosUSD(vSF.source, vSF.field) : 0;
+}
 // gate del detector de margen (pp bajo benchmark · = gate quality-growth del motor) · vive en POLICY (una verdad
 // con el semáforo de la Mesa) — LECTURA VIVA (F2 multiempresa: el perfil del tenant la re-resuelve en initTenant;
 // capturarla en import la dejaba stale al cambiar de empresa)

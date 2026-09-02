@@ -27,17 +27,20 @@
  * PURO · determinístico · sin red. Cada playbook trae sus carnadas en el gate. */
 
 import { margenEnRiesgo } from "./margenEnRiesgo.js";
+import { clientePerdiendoContribucion, inventarioInmovilizado, caidaDeVentas, oportunidadDePrecio } from "./asesoria.js";   // los 4 de ASESORÍA (owner 2026-09-01): 01 QUÉ · 02 DÓNDE · 03 QUÉ HACER PRIMERO
 import { lecturaPorEje } from "./lecturaPorEje.js";   // playbook de FORMA: canal · marca · familia · bodega · SKU frenado
 import { entidadPorPeriodo } from "./entidadPorPeriodo.js";   // playbook de FORMA: «cuánto me compró X el último mes» con serie REAL (la bloqueada es del puente)
 import { proyeccionDeclarada } from "./proyeccionDeclarada.js";   // playbook de FORMA: «crezco 3%» · «proyecta +4%» · «reducir 2pp la carga» — con el MISMO detector que el juez P1
 import { cobranza } from "./cobranza.js";   // playbook del COBRO: «quién me debe» · «crédito vs contado» — la misma mesa que la pestaña
 
 /** el registro. Agregar un playbook es agregar UNA línea acá y su archivo con el patrón de arriba.
- *  El ORDEN es la precedencia: margen-en-riesgo primero (y se retira solo ante otro eje o una simulación),
- *  lectura-por-eje después, entidad-por-período (su detector es el del puente, y el bucle resuelve el puente ANTES
- *  de llegar acá), proyección-declarada (los tres anteriores se retiran ante «simula/proyecta/ponele»), y
- *  cobranza al final: su léxico («quién me debe», «vencido», «a crédito») no pisa a ninguno de los cuatro. */
-export const PLAYBOOKS = [margenEnRiesgo, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada, cobranza];
+ *  El ORDEN es la precedencia: margen-en-riesgo primero (una pregunta de margen es de margen aunque diga
+ *  «perdiendo»); los 4 de ASESORÍA después y ANTES de lectura-por-eje («cómo libero el capital frenado» nombra
+ *  el eje frenado — sin esta precedencia la lista simple taparía la asesoría; la disjunción con las preguntas
+ *  de lectura es léxica y está medida en el gate); lectura-por-eje, entidad-por-período (su detector es el del
+ *  puente, y el bucle resuelve el puente ANTES de llegar acá), proyección-declarada (los anteriores se retiran
+ *  ante «simula/proyecta/ponele»), y cobranza al final: su léxico no pisa a ninguno. */
+export const PLAYBOOKS = [margenEnRiesgo, clientePerdiendoContribucion, inventarioInmovilizado, caidaDeVentas, oportunidadDePrecio, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada, cobranza];
 
 /** playbookPara(pregunta) → el playbook que aplica, o null. El PRIMERO que declare aplicar (orden del registro
  *  = precedencia declarada); jamás dos a la vez, para que el procedimiento del turno sea uno solo y auditable. */
