@@ -43,10 +43,14 @@ const MUDO = async () => ({ tipo: "texto", texto: "" });
 const turno = (text, pedidos = [], mem = {}) => answerViaAgente({ text, history: [], mem, scenario: "bonanza",
   callAgente: async ({ ronda }) => (ronda === 1 && pedidos.length ? { tipo: "herramientas", pedidos } : { tipo: "texto", texto: "" }) });
 
-/* las cuatro familias del expediente, cada una con la lectura que le corresponde */
+/* las cuatro familias del expediente, cada una con la lectura que le corresponde.
+ * ⚠️ RE-APUNTADO 2026-09-02 (el precedente vive en la sección 2, «sin "%" a propósito»): «Q1 vs Q2» y «riesgos
+ * para directorio» ganaron camino garantizado (limite-honesto · sintesis-ejecutiva) y ya no llegan al peldaño
+ * que ESTE gate mide. Se cambia el VEHÍCULO —preguntas sin dueño, mismo guion y misma herramienta— y la
+ * conducta nueva de aquellas dos se certifica donde corresponde: §1g del gate de playbooks. */
 const FAMILIAS = [
-  ["periodo", "compara Q1 vs Q2 en ventas, margen y contribución", [{ tool: "trend", args: {} }]],
-  ["directorio", "dame un resumen para directorio con los 3 riesgos principales", [{ tool: "diagnose", args: {} }]],
+  ["periodo", "compara marzo vs abril en ventas, margen y contribución", [{ tool: "trend", args: {} }]],
+  ["directorio", "dame un resumen para el equipo con los 3 focos principales", [{ tool: "diagnose", args: {} }]],
   ["inventario", "ranking de SKU por peor rotación cruzado con margen", [{ tool: "inventoryStatus", args: {} }]],
   ["cartera", "qué clientes están bajo el benchmark de margen", [{ tool: "marginRead", args: { focus: "bajo_benchmark", dimension: "cliente" } }]],
 ];
@@ -120,7 +124,8 @@ H("2 · un turno con cifras en la boleta jamás sale con una disculpa pelada");
 /* ═══ 3 · C3 · EL PELDAÑO NO SE RINDE CON LA PRIMERA CIFRA ═══════════════════════════════════════════════════ */
 H("3 · con 46 cifras en la boleta, el rescate encuentra una servible");
 {
-  const r = await turno("compara Q1 vs Q2 en ventas, margen y contribución", [{ tool: "trend", args: {} }]);
+  // el vehículo sin dueño (ver la nota de FAMILIAS): «Q1 vs Q2» ahora lo compone limite-honesto y no llega acá
+  const r = await turno("compara marzo vs abril en ventas, margen y contribución", [{ tool: "trend", args: {} }]);
   ok(r.r.agente.figs > 40, `el turno traía la serie entera (${r.r.agente.figs} figs)`);
   ok(r.r.agente.estado !== "vacio", `y NO cae al genérico pelado (${r.r.agente.estado}) — antes: «vacio»`);
   ok(/\$92\.9M/.test(r.r.text),
@@ -221,7 +226,7 @@ H("5 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
      [/  const sinCifra = _armar\(null\);\n  return _pasa\(sinCifra\) \? sinCifra : null;/, "  return null;"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
-      const r = await turnoMut(Mut, "compara Q1 vs Q2 en ventas, margen y contribución", [{ tool: "trend", args: {} }]);
+      const r = await turnoMut(Mut, "compara marzo vs abril en ventas, margen y contribución", [{ tool: "trend", args: {} }]);
       return r.r.agente.figs > 40 && /No tengo información autorizada suficiente/.test(r.r.text);
     });
 

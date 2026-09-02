@@ -36,6 +36,14 @@ export function ingestarPlantilla(archivo, { nombreArchivo = "", fechaCarga = nu
     capital: { informado: cuenta("capital", "informado"), calculado: cuenta("capital", "calculado"), sinDato: cuenta("capital", "sin dato") },
   } : null;
 
+  /* CAPTURADO PERO NO ANALIZADO (owner 2026-08-26): «que punto de venta quede declarado como dato disponible
+   * para futuro, no como métrica activa». UNA sola cuenta para el preview Y el dataset (2026-09-02): antes
+   * vivía solo acá adentro y moría con el preview — el agente no podía decir el límite que la ingesta ya sabía. */
+  const guardadoSinAnalizar = (() => {
+    const filas = (v.tablas.Ventas || []).filter((f) => f.puntoVenta);
+    return filas.length ? [{ campo: "punto de venta", filas: filas.length, distintos: new Set(filas.map((f) => f.puntoVenta)).size }] : [];
+  })();
+
   const totales = {
     clientes: d.clientesVentas.length, skus: d.skusMargen.length, marcas: d.MARCAS_ALL.length,
     familias: Math.max(0, d.SUPERFAMILIAS.length - 1), bodegas: d.SUCURSALES.length,
@@ -50,12 +58,8 @@ export function ingestarPlantilla(archivo, { nombreArchivo = "", fechaCarga = nu
      * parezca una meta del cliente». Viaja como dato, no como frase, para que la pantalla y el texto digan lo
      * mismo sin repetir la redacción. */
     referencia: d.margenKPI ? { valor: d.margenKPI.benchmark, procedencia: d.margenKPI.benchmarkProcedencia } : null,
-    /* CAPTURADO PERO NO ANALIZADO (owner 2026-08-26): «que punto de venta quede declarado como dato disponible
-     * para futuro, no como métrica activa». Se declara acá para que el usuario no crea que puede preguntarlo. */
-    guardadoSinAnalizar: (() => {
-      const filas = (v.tablas.Ventas || []).filter((f) => f.puntoVenta);
-      return filas.length ? [{ campo: "punto de venta", filas: filas.length, distintos: new Set(filas.map((f) => f.puntoVenta)).size }] : [];
-    })(),
+    /* se declara acá para que el usuario no crea que puede preguntarlo — la cuenta es LA de arriba, una sola */
+    guardadoSinAnalizar,
   };
 
   /* ── LO QUE EL ARCHIVO NO TRAJO, VIAJANDO CON EL DATO (owner 2026-08-31, vía el criterio «límite corto CON
@@ -101,9 +105,14 @@ export function ingestarPlantilla(archivo, { nombreArchivo = "", fechaCarga = nu
     ...[...v.avisos, ...m.avisos].filter((a) => a && a.detalle)
       .map((a) => ({ tipo: a.tipo, detalle: String(a.detalle), ...(a.hoja ? { hoja: a.hoja } : {}) })),
   ];
-
+  /* CAPTURADO PERO NO ANALIZADO, VIAJANDO CON EL DATO (owner 2026-09-02, certificación T4) — el mismo criterio
+   * y la misma disciplina que `avisosDeCarga`: la declaración ya existía en el preview («guardado, pero ADI
+   * todavía no analiza por punto de venta», owner 2026-08-26) y MORÍA ahí — el agente respondía por clientes
+   * sin poder decir que el eje pedido está capturado sin analizar. ESTRICTAMENTE ADITIVO: la MISMA cuenta que
+   * publica el preview (la const de arriba — una sola verdad), llave nueva, y su ausencia en un pack viejo
+   * significa «no se registró», jamás «no había nada» — quien la lee trata `undefined` como silencio. */
   return {
-    ok: true, dataset: { ...d, avisosDeCarga },
+    ok: true, dataset: { ...d, avisosDeCarga, guardadoSinAnalizar },
     /* LOS HECHOS DEL ARCHIVO, tal como los normalizó el validador (owner 2026-08-30: la carga es histórica).
      * Son el grano fino que la persistencia guarda DENTRO del pack para poder fusionar por período: sin las
      * filas, «agregar septiembre» solo podría sumar agregados — y un margen de dos cargas sumadas no es el

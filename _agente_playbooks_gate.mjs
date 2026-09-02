@@ -434,6 +434,94 @@ H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materi
   initTenant(TENANT_DEMO);
 }
 
+/* ═══ 1g · LOS 2 DE LA CERTIFICACIÓN — límite honesto con alternativa · síntesis ejecutiva (owner 2026-09-02) ═
+ * Los 4 fallos de toda la certificación eran 2 conductas. Acá se certifican las dos, con los turnos VERBATIM
+ * de la evidencia y en los tres mundos: el límite se declara con la razón EXACTA del dataset activo (razones
+ * DISTINTAS del mismo límite en completa vs parcial), la alternativa va nombrada con su eje (jamás el menú de
+ * labels internos), y los 3 riesgos del directorio salen por materialidad — sin inventar el que falta. */
+H("1g · certificación: el límite honesto con alternativa, y los 3 riesgos del directorio");
+{
+  const nombres2 = PLAYBOOKS.map((p) => p.nombre);
+  ok(nombres2.includes("limite-honesto") && nombres2.includes("sintesis-ejecutiva"), "★ los dos están en el registro");
+  const T = async (q) => answerViaAgente({ text: q, history: [], mem: {}, scenario: "actual", callAgente: MUDO });
+
+  // DEMO T6 · «Compara Q1 vs Q2…» — el turno que salía con el menú de labels internos
+  initTenant(TENANT_DEMO);
+  const rq = await T("Compara Q1 vs Q2 en ventas, margen y contribución. Si no está en la carpeta, dilo.");
+  ok(rq.r.agente.estado === "playbook" && /no trae un corte por trimestre/.test(rq.r.text) && /no la invento/.test(rq.r.text),
+    `★ T6 · el corte por trimestre se declina con su razón, sin inventar la suma de meses (${rq.r.agente.estado})`, rq.r.text.slice(0, 110));
+  ok(/lectura por CLIENTE contra el año anterior/.test(rq.r.text) && /7\.6%/.test(rq.r.text) && !/dime cu[aá]l abro/.test(rq.r.text),
+    "★ …y la alternativa va NOMBRADA con su eje y su cifra — el menú de labels internos no vuelve");
+  // DEMO · los 3 riesgos — con 2 materiales, se dice el número verdadero
+  const rr2 = await T("dame los 3 riesgos para el directorio");
+  ok(rr2.r.agente.estado === "playbook" && /2 riesgos materiales/.test(rr2.r.text) && /no invento el que falta/.test(rr2.r.text),
+    `★ riesgos DEMO · el dato sostiene 2 materiales y LO DICE con el umbral, sin inventar el tercero (${rr2.r.agente.estado})`, rr2.r.text.slice(0, 110));
+  ok(/1 · Contribución no capturada: \$4\.9M\./.test(rr2.r.text) && /encabeza Falabella con \$1\.6M/.test(rr2.r.text),
+    "…QUÉ con cifra verbatim y DÓNDE con dueño, uno por oración");
+  ok(/si quieres, abrimos/.test(rr2.r.text) && !/ten[eé]s que|hay que\b/i.test(rr2.r.text),
+    "…y el PRIMERO de cada riesgo se OFRECE, jamás se ordena");
+  // «versión más dura» NO es de este playbook: re-narración (medido 43× más caro con el empujón)
+  ok(playbookPara("Dame una versión más dura, como si tuviera que presentarla al gerente general.") === null,
+    "★ «versión más dura» queda FUERA a propósito: es re-narración del hilo, no una síntesis nueva");
+
+  // COMPLETA (fábrica + el estado que la planilla real del owner SÍ declara) vs PARCIAL: razones DISTINTAS
+  const FAB2 = ingestarPlantilla(Buffer.from(plantillaEjemplo()), { nombreArchivo: "v2.xlsx", fechaCarga: "2026-08-31" }).dataset;
+  initTenant({ ...FAB2, guardadoSinAnalizar: [{ campo: "punto de venta", filas: 118, distintos: 4 }] });
+  const rg = await T("por punto de venta, ¿quién queda bajo el plan?");
+  ok(rg.r.agente.estado === "playbook" && /SÍ trae punto de venta \(118 filas con 4 valores distintos\)/.test(rg.r.text) && /todavía no analiza por ese eje/.test(rg.r.text),
+    `★ COMPLETA T4 · la razón es la del dato: capturado SIN analizar, con sus filas y valores (${rg.r.agente.estado})`, rg.r.text.slice(0, 120));
+  const PARCIAL2 = { ...FAB2, avisosDeCarga: [{ tipo: "columna-vacia", detalle: '"punto de venta" quedó vacía en todas las filas' }, ...(FAB2.avisosDeCarga || [])], guardadoSinAnalizar: [] };
+  initTenant(PARCIAL2);
+  const rp2 = await T("mejores y peores puntos de venta");
+  ok(rp2.r.agente.estado === "playbook" && /no trae la columna «punto de venta»/.test(rp2.r.text),
+    `★ PARCIAL T4 · la razón es OTRA: la columna vino vacía — el mismo límite, dos verdades distintas (${rp2.r.agente.estado})`, rp2.r.text.slice(0, 120));
+  ok(!/SÍ trae punto de venta/.test(rp2.r.text) && /SÍ trae punto de venta/.test(rg.r.text),
+    "★ …y las dos respuestas NO se confunden: cada mundo dice SU razón (la condición del encargo)");
+  // en el DEMO nadie declara nada sobre punto de venta: el playbook se retira — no inventa límites
+  initTenant(TENANT_DEMO);
+  ok(playbookPara("por punto de venta, ¿quién queda bajo el plan?") === null,
+    "★ en el DEMO (sin declaración del dato) el playbook se RETIRA: inventar «no existe» sin declaración sería el mismo pecado");
+
+  // el cableado del guardado: la ingesta ahora lleva la MISMA cuenta del preview en el dataset (una verdad)
+  const conPdv = ingestarPlantilla(Buffer.from(plantillaEjemplo()), { nombreArchivo: "v2.xlsx", fechaCarga: "2026-08-31" });
+  ok(Array.isArray(conPdv.dataset.guardadoSinAnalizar),
+    "★ el dataset lleva `guardadoSinAnalizar` (antes moría en el preview y el agente no podía decir el límite)");
+
+  // las listas notariales de los dos, mentira multada y frase legítima intacta
+  const pbL = PLAYBOOKS.find((p) => p.nombre === "limite-honesto");
+  const pbS = PLAYBOOKS.find((p) => p.nombre === "sintesis-ejecutiva");
+  const qPdv = "por punto de venta, ¿quién queda bajo el plan?";
+  ok(vetosDelPlaybook(pbL, "Los clientes bajo el benchmark son Obras del Sur y Casa Belgrano.", { figs: [], pregunta: qPdv }).some((x) => x.regla === "eje-servido-a-escondidas"),
+    "L · responder por clientes SIN nombrar jamás el eje pedido se multa (la conducta T4 exacta)");
+  ok(!vetosDelPlaybook(pbL, "El corte por punto de venta no está disponible; por cliente sí tengo la lectura.", { figs: [], pregunta: qPdv }).some((x) => x.regla === "eje-servido-a-escondidas"),
+    "…y nombrar el límite antes de la alternativa no se multa");
+  ok(vetosDelPlaybook(pbL, "De este mismo turno también tengo Este año y Valor: dime cuál abro.", { figs: [], pregunta: qPdv }).some((x) => x.regla === "menu-de-labels"),
+    "L · el menú de labels internos se multa (el rescate medido en T6/T11)");
+  ok(vetosDelPlaybook(pbS, "1 · El margen viene flojo y hay que mirarlo.\n2 · Riesgo de inventario: $38.1M.", { figs: [] }).some((x) => x.regla === "riesgo-sin-cifra"),
+    "S · un riesgo enumerado sin cifra se multa (opinión con número de orden)");
+  ok(vetosDelPlaybook(pbS, "1 · riesgo $1M.\n2 · riesgo $2M.\n3 · riesgo $3M.\n4 · riesgo $4M.", { figs: [] }).some((x) => x.regla === "sintesis-inflada"),
+    "S · cuatro riesgos numerados se multan: la síntesis es EXACTAMENTE 3");
+
+  // LA PLANILLA REAL DEL OWNER (condicional): los DOS turnos de su certificación, verbatim
+  const REAL3 = "C:/Users/jcnav/Downloads/Plantilla_ADI_v2_completa_25_clientes_ajustada.xlsx";
+  if (fs.existsSync(REAL3)) {
+    const ing3 = ingestarPlantilla(fs.readFileSync(REAL3), { nombreArchivo: "completa.xlsx", fechaCarga: "2026-08-31" });
+    if (ing3.ok && ing3.dataset) {
+      initTenant(ing3.dataset);
+      const cr = await T("por punto de venta, ¿quién queda bajo el plan?");
+      ok(cr.r.agente.estado === "playbook" && /150 filas con 5 valores distintos/.test(cr.r.text) && /todavía no analiza/.test(cr.r.text),
+        "★ REAL T4 · su planilla declara el guardado (150 filas · 5 valores) y ADI ahora LO DICE", cr.r.text.slice(0, 120));
+      const cs = await T("dame los 3 riesgos para el directorio");
+      ok(cs.r.agente.estado === "playbook" && /Los 3 riesgos, por materialidad:/.test(cs.r.text)
+        && /Venta contra el año anterior: -40\.5%/.test(cs.r.text) && /Capital frenado en inventario: \$38\.1M/.test(cs.r.text) && /encabeza ELE-CAB25/.test(cs.r.text),
+        "★ REAL T11 · los 3 riesgos con sus cifras: la venta cayendo primero, el capital frenado localizado", cs.r.text.slice(0, 140));
+    }
+  } else {
+    console.log("      (la planilla real del owner no está en esta máquina: 2 checks de la certificación no corren)");
+  }
+  initTenant(TENANT_DEMO);
+}
+
 /* ═══ 2 · LA ACEPTACIÓN · el turno documentado que rescataba, ahora RESPONDE ══════════════════════════════════
  * T6 del expediente (`_AGENTE_PUNTO_DE_PARTIDA.md`), verbatim: «llamame jc de ahora en adelante. como viene mi
  * margen?» salió `limite` con UNA cifra suelta teniendo la cartera entera en la boleta. Mismo cerebro (uno que
@@ -835,6 +923,34 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       const real = PLAYBOOKS.find((p) => p.nombre === "oportunidad-de-precio").componer({ figs, pregunta: "dónde tengo oportunidad de precio" });
       return /\$937\.8M/.test(String(conCarnada)) && !/\$937\.8M/.test(String(real));
     });
+
+  /* ── LOS 2 DE LA CERTIFICACIÓN (owner 2026-09-02) · no-secuestro en las DOS direcciones + sus promesas ── */
+  // (V) el límite sin el cruce con el estado del dato: en el DEMO (donde nadie declara nada) inventaría el límite
+  await carnada("limite-honesto inventa un límite que el dato no declara", "src/adi/agente/playbooks/limiteHonesto.js",
+    [[/    if \(_PDV\.test\(q\)\) return _estadoPdv\(q\) !== null;      \/\/ solo si el DATO declara el límite; en el demo se retira/, "    if (_PDV.test(q)) return true;   // CARNADA"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const q = "por punto de venta, ¿quién queda bajo el plan?";
+      return Mut.limiteHonesto.cuandoAplica(q) && !PLAYBOOKS.find((p) => p.nombre === "limite-honesto").cuandoAplica(q);
+    });
+  // (W) la trampa en la dirección INVERSA: el detector ensanchado con «venta» le roba a caída-de-ventas su turno
+  await carnada("limite-honesto secuestra la caída de ventas (detector ancho)", "src/adi/agente/playbooks/limiteHonesto.js",
+    [[/const _TRIM = \/\\bq\[1-4\]\\s\*\(\?:vs\\\.\?\|contra\|y\|-\)\\s\*q\[1-4\]\\b\|\\btrimestre\[s\]\?\\b\|\\btrimestral\(\?:es\)\?\\b\/i;/,
+      "const _TRIM = /\\bq[1-4]\\s*(?:vs\\.?|contra|y|-)\\s*q[1-4]\\b|\\btrimestre[s]?\\b|\\btrimestral(?:es)?\\b|\\bventa[s]?\\b/i;   // CARNADA"]],
+    async (Mut) => {
+      const q = "se me está cayendo la venta, ¿dónde?";
+      return Mut.limiteHonesto.cuandoAplica(q) && !PLAYBOOKS.find((p) => p.nombre === "limite-honesto").cuandoAplica(q);
+    });
+  // (X) la regla del menú de labels vaciada: el rescate de T6/T11 volvería a pasar sin multa
+  await carnada("el menú de labels internos deja de multarse", "src/adi/agente/playbooks/limiteHonesto.js",
+    [[/      v\.push\(\{ regla: "menu-de-labels",/, "      false && v.push({ regla: \"menu-de-labels\","]],
+    async (Mut) => !Mut.limiteHonesto.listaNotarial("De este mismo turno también tengo Este año y Valor: dime cuál abro.", { figs: [], pregunta: "compara Q1 vs Q2" })
+      .some((x) => x.regla === "menu-de-labels"));
+  // (Y) «exactamente 3» vaciado: cinco riesgos numerados pasarían como síntesis
+  await carnada("la síntesis inflada (4+ riesgos) deja de multarse", "src/adi/agente/playbooks/sintesisEjecutiva.js",
+    [[/    if \(enumerados\.length > 3\) \{/, "    if (false) {"]],
+    async (Mut) => !Mut.sintesisEjecutiva.listaNotarial("1 · riesgo $1M.\n2 · riesgo $2M.\n3 · riesgo $3M.\n4 · riesgo $4M.", { figs: [] })
+      .some((x) => x.regla === "sintesis-inflada"));
   initTenant(TENANT_DEMO);
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* */ } }
