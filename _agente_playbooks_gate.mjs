@@ -32,7 +32,7 @@ import { PLAYBOOKS, playbookPara, pasosDe, obligatoriasDe, promesasCumplidas, do
 import { margenEnRiesgo, lecturaDeMargen } from "./src/adi/agente/playbooks/margenEnRiesgo.js";
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
-import { cajaDelAgente, serieEntidad } from "./src/adi/agente/herramientasAgente.js";
+import { cajaDelAgente, serieEntidad, cobranza } from "./src/adi/agente/herramientasAgente.js";
 import { guardC } from "./src/adi/oracle/guardC.js";                 // las carnadas de entidad×período juzgan el texto compuesto DIRECTO contra el muro
 import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
@@ -134,9 +134,14 @@ H("1b · lectura por eje: un playbook, cinco ejes, la herramienta que sirve cada
     "llamame jc", "como viene mi margen?", "por punto de venta, ¿quién queda bajo el plan?", "cuánto vendí a crédito"];
   ok(fuera.every((q) => playbookPara(q) !== pb), "el detector NO secuestra un turno ajeno", fuera.filter((q) => playbookPara(q) === pb).join(" | "));
   ok(playbookPara("como viene mi margen?") === margenEnRiesgo, "…y «cómo viene mi margen» sigue siendo de margen-en-riesgo: la precedencia es la del registro");
-  // lo que NO cubre, dicho: punto de venta y condición no tienen herramienta — no se promete
-  ok(playbookPara("mejores y peores puntos de venta") === null && playbookPara("cuánto vendí a crédito vs contado") === null,
-    "★ punto de venta y condición NO entran: ninguna herramienta declara esos ejes, y prometer un eje que el motor no sirve es el defecto de siempre");
+  /* lo que NO cubre, dicho: punto de venta sigue sin herramienta — no se promete. «Condición» dejó de estar en
+   * esta lista el 2026-09-01: la herramienta `cobranza` existe desde hoy y su playbook garantiza esa pregunta
+   * (ver 1e). El check se actualizó CON la herramienta, no antes: prometer primero y construir después es el
+   * defecto de siempre en el otro orden. */
+  ok(playbookPara("mejores y peores puntos de venta") === null,
+    "★ punto de venta NO entra: ninguna herramienta declara ese eje, y prometer un eje que el motor no sirve es el defecto de siempre");
+  ok(playbookPara("cuánto vendí a crédito vs contado") !== null && playbookPara("cuánto vendí a crédito vs contado").nombre === "cobranza",
+    "…y «crédito vs contado» pasó de sin-garantía a cobranza — el eje tiene herramienta desde hoy");
 
   // la lista notarial: sus dos promesas, por reglas
   const figsMarca = boletaDelPlaybook(pb, "bonanza", "qué marca deja más margen");
@@ -232,6 +237,77 @@ H("1d · proyección declarada: la evidencia se calcula antes y llega sellada");
   ok(vetosDelPlaybook(pbC, "Tu venta queda en $103.0M el año que viene.", { figs: boletaDelPlaybook(pbC, "bonanza", T2), pregunta: T2 }).some((x) => x.regla === "proyeccion-sin-etiqueta"),
     "una proyección dicha como hecho → proyeccion-sin-etiqueta");
   ok(vetosDelPlaybook(pbC, pbC.componer({ figs: figs5, pregunta: T5 }), { figs: figs5, pregunta: T5 }).length === 0, "…y su propio entregable pasa su lista");
+}
+
+/* ═══ 1e · PLAYBOOK 5 · COBRANZA — el cobro, de la misma mesa que la pestaña (owner 2026-09-01) ══════════════
+ * El hueco medido: ninguna herramienta leía `flujoComercial` — «quién me debe y qué está vencido» era
+ * incontestable en la completa del owner con 158 abonos cargados. La regla del owner es textual y es la que
+ * este bloque defiende: el vencido sin plazo declarado es «—», JAMÁS $0. */
+H("1e · cobranza: quién debe con nombre, y el vencido en raya cuando no hay plazo");
+{
+  const PACK = ingestarPlantilla(Buffer.from(plantillaEjemplo()), { nombreArchivo: "v2.xlsx", fechaCarga: "2026-08-31" }).dataset;
+  const pbCob = PLAYBOOKS.find((p) => p.nombre === "cobranza");
+  ok(!!pbCob, "★ el registro tiene el playbook del cobro");
+  const T = async (q) => answerViaAgente({ text: q, history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
+
+  // la PLANTILLA (sin plazo declarado — el caso REAL del owner)
+  initTenant(PACK);
+  const rd = await T("quién me debe y qué está vencido");
+  ok(rd.r.agente.estado === "playbook" && /Te deben:/.test(rd.r.text) && /Obras del Sur: \$31K/.test(rd.r.text),
+    `★ la deuda con nombre y saldo (${rd.r.agente.estado})`, rd.r.text.slice(0, 110));
+  ok(/no se puede saber/.test(rd.r.text) && /no declaró plazo/.test(rd.r.text) && !/vencid[oa][^.\n]*\$\s?\d|\$\s?0/.test(rd.r.text),
+    "★ LA REGLA DEL OWNER: el vencido se dice con palabras («no se puede saber… sin plazo») — ni $0 ni ninguna cifra");
+  const boletaCob = cobranza({}, { scenario: "bonanza" }).boleta;
+  ok(!boletaCob.some((f) => /vencido/i.test(String(f.label))), "★ y la herramienta NO emite ninguna fig de vencido sin plazo — la raya empieza en la fuente");
+  const rc = await T("cuánto vendí a crédito vs contado");
+  ok(rc.r.agente.estado === "playbook" && /Vendiste a crédito \$87K/.test(rc.r.text) && /contado no generan deuda/.test(rc.r.text),
+    `★ crédito vs contado: la cifra declarada, sin restar un contado que el dato no trae (${rc.r.agente.estado})`, rc.r.text.slice(0, 110));
+
+  // la PARCIAL (sin hoja Abonos): el playbook se retira y el mapa nombra la hoja — la conducta de siempre
+  initTenant({ ...PACK, flujoComercial: null, avisosDeCarga: [{ tipo: "hoja-ausente", detalle: "no vino la hoja «Abonos»" }, ...(PACK.avisosDeCarga || [])] });
+  const rp = await T("quién me debe y qué está vencido");
+  ok(rp.r.agente.estado !== "playbook" && /Tu archivo no trae la hoja Abonos/.test(rp.r.text),
+    `★ en la PARCIAL el playbook se retira sin ruido y la respuesta nombra la hoja (${rp.r.agente.estado})`, rp.r.text.slice(0, 100));
+
+  // el DEMO (con plazo declarado): el vencido SÍ es una cifra, con quien encabeza
+  initTenant(TENANT_DEMO);
+  const rv = await T("quién me debe y qué está vencido");
+  ok(rv.r.agente.estado === "playbook" && /Saldo vencido: \$12\.6M/.test(rv.r.text) && /encabeza Lider con \$4\.6M/.test(rv.r.text),
+    `★ con plazo declarado el vencido es cifra y nombra a quien encabeza (${rv.r.agente.estado})`, rv.r.text.slice(0, 140));
+
+  // el detector NO secuestra
+  const fueraCob = ["como viene mi margen?", "ranking por canal", "qué SKU tienen capital frenado", "simula reducir 2 puntos porcentuales las acciones comerciales",
+    "cuanto me compro falabella el ultimo mes", "ponele que crezco 3%: cuanto seria mi venta?"];
+  ok(fueraCob.every((q) => playbookPara(q) !== pbCob), "el detector NO secuestra un turno ajeno", fueraCob.filter((q) => playbookPara(q) === pbCob).join(" | "));
+
+  // la lista notarial, con el flujo del demo (que sí tiene clientes con saldo)
+  initTenant(PACK);
+  const figsCob = boletaDelPlaybook(pbCob, "bonanza", "quién me debe y qué está vencido");
+  ok(vetosDelPlaybook(pbCob, "El saldo vencido es $0: nadie está en mora.", { figs: figsCob, pregunta: "quién me debe y qué está vencido" })
+    .some((x) => x.regla === "vencido-inventado"), "escribir «$0 vencido» sin plazo → vencido-inventado");
+  ok(vetosDelPlaybook(pbCob, "Tienes deuda pendiente considerable y conviene revisarla.", { figs: figsCob, pregunta: "quién me debe y qué está vencido" })
+    .some((x) => x.regla === "deuda-sin-nombre"), "la deuda sin nombrar a nadie → deuda-sin-nombre");
+  ok(vetosDelPlaybook(pbCob, "Vendiste a crédito $87K y al contado $13K.", { figs: figsCob, pregunta: "cuánto vendí a crédito vs contado" })
+    .some((x) => x.regla === "contado-derivado"), "un monto de contado que el dato no declara → contado-derivado");
+  ok(vetosDelPlaybook(pbCob, pbCob.componer({ figs: figsCob, pregunta: "quién me debe y qué está vencido" }), { figs: figsCob, pregunta: "quién me debe y qué está vencido" }).length === 0,
+    "…y su propio entregable pasa su lista");
+
+  /* la COMPLETA del owner, si está en esta máquina: los saldos verificados por el supervisor, del archivo real */
+  const REAL = "C:/Users/jcnav/Downloads/Plantilla_ADI_v2_completa_25_clientes_ajustada.xlsx";
+  if (fs.existsSync(REAL)) {
+    const ing = ingestarPlantilla(fs.readFileSync(REAL), { nombreArchivo: "completa.xlsx", fechaCarga: "2026-09-01" });
+    if (ing.ok) {
+      initTenant(ing.dataset);
+      const rr = await T("quién me debe y qué está vencido");
+      ok(/\$118\.8M/.test(rr.r.text) && /\$266\.5M/.test(rr.r.text) && /Comercial Valparaiso: \$17\.7M/.test(rr.r.text),
+        "★ COMPLETA DEL OWNER · saldo $118.8M de $266.5M a crédito, y Comercial Valparaiso encabeza con $17.7M", rr.r.text.slice(0, 140));
+      ok(/no se puede saber/.test(rr.r.text) && !/vencid[oa][^.\n]*\$/.test(rr.r.text),
+        "★ …y su vencido va con palabras: su planilla no declara plazo — el caso real, no el borde");
+    }
+  } else {
+    console.log("      (la planilla real del owner no está en esta máquina: 2 checks de la completa no corren)");
+  }
+  initTenant(TENANT_DEMO);
 }
 
 /* ═══ 2 · LA ACEPTACIÓN · el turno documentado que rescataba, ahora RESPONDE ══════════════════════════════════
@@ -564,6 +640,32 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   await carnada("proyección sobre una entidad tomada como si fuera sobre el total", "src/adi/agente/playbooks/proyeccionDeclarada.js",
     [[/ && !_nombraEntidad\(q\)\) \{/, ") {   // CARNADA"]],
     async (Mut) => { initTenant(TENANT_DEMO); return Mut.proyeccionDeclarada.cuandoAplica("proyecta +4% sobre la venta de Falabella"); });
+
+  /* ── LAS DE COBRANZA ────────────────────────────────────────────────────────────────────────────────────── */
+  const PACK_COB = ingestarPlantilla(Buffer.from(plantillaEjemplo()), { nombreArchivo: "v2.xlsx", fechaCarga: "2026-08-31" }).dataset;
+  // (M) LA REGLA DEL OWNER, mutada en la HERRAMIENTA: sin plazo, emitir «Saldo vencido · total = $0». El check
+  //     «ninguna fig de vencido sin plazo» y el candado del composer existen para exactamente esto.
+  await carnada("la herramienta emite un vencido de $0 sin plazo declarado", "src/adi/agente/herramientasAgente.js",
+    [[/  const vencidoCalculable = !!\(kX && kX\.valor && kX\.valor !== "—"\);/,
+      '  const vencidoCalculable = true; if (kX && kX.valor === "—") kX.valor = "$0";   // CARNADA: el cero inventado']],
+    async (Mut) => {
+      initTenant(PACK_COB);
+      const b = Mut.cobranza({}, { scenario: "bonanza" }).boleta;
+      return b.some((f) => /vencido/i.test(String(f.label)));   // el defecto: la fig de vencido existe sin plazo
+    });
+  // (N) la regla «vencido-inventado» vaciada: «$0 vencido» vuelve a pasar la lista notarial
+  await carnada("«$0 vencido» deja de multarse", "src/adi/agente/playbooks/cobranza.js",
+    [[/    if \(!hayVencidoCalculado && \/vencid/, "    if (false && /vencid"]],
+    async (Mut) => {
+      initTenant(PACK_COB);
+      const figs = boletaDelPlaybook(Mut.cobranza, "bonanza", "quién me debe y qué está vencido");
+      return !Mut.cobranza.listaNotarial("El saldo vencido es $0: nadie está en mora.", { figs, pregunta: "quién me debe y qué está vencido" })
+        .some((x) => x.regla === "vencido-inventado");
+    });
+  // (O) `_FUERA` vaciado: «capital frenado» —que no es deuda de nadie— queda secuestrado por el cobro
+  await carnada("cobranza secuestra el capital frenado del inventario", "src/adi/agente/playbooks/cobranza.js",
+    [[/  if \(!q\.trim\(\) \|\| _FUERA\.test\(q\)\) return null;/, "  if (!q.trim()) return null;   // CARNADA"]],
+    async (Mut) => Mut.cobranza.cuandoAplica("qué SKU tienen capital frenado y cuánta plata vencida hay ahí"));
   initTenant(TENANT_DEMO);
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* */ } }

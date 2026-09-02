@@ -39,6 +39,15 @@ export const CONTRATOS_AGENTE = {
     entityScopeNativo: false, escribeEntityList: false,
     notas: "proyecta la venta a futuro con la tasa QUE EL USUARIO DECLARA (`tasa`, en %) y su `horizonte`. Sin `entity` proyecta sobre TODO EL NEGOCIO (la venta oficial del período). El resultado sale etiquetado como PROYECCIÓN, nunca como cifra medida. Sin `tasa` devuelve la base y dice que falta el supuesto: jamás inventa un crecimiento.",
   },
+  /* `cobranza` · el cobro, de la MISMA mesa que la pestaña Flujo Comercial (owner 2026-09-01). Sin args: la
+   * mesa decide qué hay. El vencido sin plazo declarado viaja como «—», jamás $0 — regla textual del owner. */
+  cobranza: {
+    dimensionesSoportadas: [],
+    entidad: "none", aceptaEntidadPuntual: false, multiCardinality: null,
+    inputsObligatorios: [], supuestosRequeridos: null, operacionValida: ["answer"],
+    entityScopeNativo: false, escribeEntityList: false,
+    notas: "quién te debe y cuánto: venta a crédito, abonado y saldo pendiente por cliente, de la misma mesa que la pestaña Flujo Comercial. El saldo vencido solo existe con plazo de pago declarado; sin plazo viaja «—» y el porqué — jamás $0. Las ventas de contado no generan deuda y no entran.",
+  },
   preferenciaNombre: {
     dimensionesSoportadas: [],
     entidad: "none", aceptaEntidadPuntual: false, multiCardinality: null,

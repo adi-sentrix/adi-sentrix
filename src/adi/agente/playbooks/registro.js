@@ -30,12 +30,14 @@ import { margenEnRiesgo } from "./margenEnRiesgo.js";
 import { lecturaPorEje } from "./lecturaPorEje.js";   // playbook de FORMA: canal · marca · familia · bodega · SKU frenado
 import { entidadPorPeriodo } from "./entidadPorPeriodo.js";   // playbook de FORMA: «cuánto me compró X el último mes» con serie REAL (la bloqueada es del puente)
 import { proyeccionDeclarada } from "./proyeccionDeclarada.js";   // playbook de FORMA: «crezco 3%» · «proyecta +4%» · «reducir 2pp la carga» — con el MISMO detector que el juez P1
+import { cobranza } from "./cobranza.js";   // playbook del COBRO: «quién me debe» · «crédito vs contado» — la misma mesa que la pestaña
 
 /** el registro. Agregar un playbook es agregar UNA línea acá y su archivo con el patrón de arriba.
  *  El ORDEN es la precedencia: margen-en-riesgo primero (y se retira solo ante otro eje o una simulación),
  *  lectura-por-eje después, entidad-por-período (su detector es el del puente, y el bucle resuelve el puente ANTES
- *  de llegar acá), y proyección-declarada al final: los tres anteriores se retiran ante «simula/proyecta/ponele». */
-export const PLAYBOOKS = [margenEnRiesgo, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada];
+ *  de llegar acá), proyección-declarada (los tres anteriores se retiran ante «simula/proyecta/ponele»), y
+ *  cobranza al final: su léxico («quién me debe», «vencido», «a crédito») no pisa a ninguno de los cuatro. */
+export const PLAYBOOKS = [margenEnRiesgo, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada, cobranza];
 
 /** playbookPara(pregunta) → el playbook que aplica, o null. El PRIMERO que declare aplicar (orden del registro
  *  = precedencia declarada); jamás dos a la vez, para que el procedimiento del turno sea uno solo y auditable. */

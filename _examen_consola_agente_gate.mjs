@@ -138,9 +138,15 @@ console.log("\n3c · P3 · el camino que la consola usa, probado EN VIVO con una
   }
 
   /* (2) EL PACK VIEJO — hay packs REALES guardados en la base sin esta llave. Su conducta tiene que ser
-   * EXACTAMENTE la de hoy: ausencia de la llave NO significa «no faltaba nada», significa «no se registró». */
+   * EXACTAMENTE la de hoy: ausencia de la llave NO significa «no faltaba nada», significa «no se registró».
+   * ⚠️ 2026-09-01: «la de hoy» ya no se hardcodea. El check nació afirmando la disculpa genérica porque esa ERA
+   * la conducta de hoy; al ganar «quién me debe» camino garantizado (playbook cobranza), el hardcode caducó. Se
+   * mide la propiedad que el check siempre nombró: misma pregunta contra el pack DE HOY y el viejo, igualdad
+   * exacta — y que ambas sean la respuesta REAL (dos fallas idénticas no cuentan como conducta). */
   const { plantillaEjemplo } = await import("./src/ingesta/plantilla/generarPlantilla.js");
   const completa = ingestarPlantilla(plantillaEjemplo(), { nombreArchivo: "completa.xlsx", fechaCarga: "2026-08-31" });
+  initTenant(completa.dataset);
+  const rHoy = await answerViaAgente({ text: "quien me debe y que esta vencido", history: [], mem: {}, scenario: "actual", callAgente: mudo });
   const { avisosDeCarga, ...packViejo } = completa.dataset;   // el pack tal como está guardado hoy en la base
   initTenant(packViejo);
   ok(!/TU ARCHIVO NO TRAE/.test(mapaDelDato("actual")),
@@ -148,8 +154,9 @@ console.log("\n3c · P3 · el camino que la consola usa, probado EN VIVO con una
   ok(faltanteQueToca("quien me debe y que esta vencido") === null,
     "…y nada se inventa por la ausencia del campo");
   const rViejo = await answerViaAgente({ text: "quien me debe y que esta vencido", history: [], mem: {}, scenario: "actual", callAgente: mudo });
-  ok(/No tengo información autorizada suficiente/.test(rViejo.r.text),
-    "…la conducta del pack viejo es EXACTAMENTE la de hoy, sin crash ni falta inventada", rViejo.r.text.slice(0, 80));
+  ok(rViejo.r.text === rHoy.r.text && /Saldo pendiente/.test(rViejo.r.text),
+    "…la conducta del pack viejo es EXACTAMENTE la de hoy — la respuesta real del cobro, sin crash ni falta inventada",
+    rViejo.r.text.slice(0, 80));
 
   /* ── LAS REGLAS, CONTRA LOS AVISOS QUE LA INGESTA EMITE DE VERDAD (no contra los que yo esperaba) ────────
    * El supervisor midió la planilla REAL del owner y encontró el hueco: mis reglas buscaban la COLUMNA

@@ -23,6 +23,7 @@ import { getTenantData } from "../../data/tenantStore.js";
 import { factorComercialDe } from "../../config/contract/figureType.js";
 import { serieRealDe } from "../sentrix/capability.js";
 import { ventaOficialDelPeriodo } from "../sentrix/temporal.js";   // `proyectar` · la venta oficial del período: la sola verdad que el owner declaró (2026-07-15)
+import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";   // `cobranza` · la MISMA mesa que la pestaña Flujo Comercial — una sola verdad, cero recalculo
 import { findCandidates } from "../oracle/entityIndex.js";
 import { fig, parseFigures } from "../boleta.js";   // parseFigures se usa como FORMATEADOR (ver `_m` en proyectar): la técnica de la casa, jamás una copia
 import { fmtMonto, simboloMoneda } from "../../config/moneda.js";
@@ -233,6 +234,78 @@ export function proyectar({ tasa, horizonte, entity } = {}, { scenario = ESCENAR
   };
 }
 
+/* === cobranza · EL COBRO, DE LA MISMA MESA QUE LA PESTAÑA (owner 2026-09-01) =================================
+ *
+ * EL HUECO, medido por el supervisor: ninguna herramienta del catálogo leía `flujoComercial` — «quién me debe
+ * y qué está vencido» era incontestable en la completa del owner CON 158 abonos cargados. La pestaña Flujo
+ * Comercial ya contesta esa pregunta; el agente no podía ni mirarla.
+ *
+ * UNA SOLA VERDAD: lee `buildMesaFlujo`, el MISMO módulo que dibuja la pestaña, y no suma ni un peso propio.
+ * Todas las cifras van VERBATIM del módulo (sus `*Fmt`), con el cliente como dueño en el label.
+ *
+ * ⚠️ EL VENCIDO SIN PLAZO DECLARADO ES «—», JAMÁS $0 — regla textual del owner («Mantén el vencido en raya
+ * mientras no exista plazo declarado. No mostrar cero»), y su planilla ES este caso: no declara plazo. La fig
+ * de «Saldo vencido» solo existe cuando el módulo la calculó; sin plazo, facts dice «—» y el porqué, y el
+ * playbook de cobranza veta a quien lo escriba como cifra.
+ *
+ * ⚠️ «CRÉDITO VS CONTADO» NO RESTA: el dato declara la venta A CRÉDITO (la columna condición); el contado no
+ * genera deuda y NO está declarado como cifra. Derivarlo (venta oficial − crédito) cruzaría dos fuentes con
+ * escalas y períodos propios — la clase de cuenta que el muro existe para vetar. Se sirve el crédito con su
+ * alcance, que ya dice que el contado no entra. */
+export function cobranza(_args = {}, { scenario = ESCENARIO_INICIAL } = {}) {
+  const sinSoporte = (reason) => ({ facts: null, boleta: [], coverage: { supported: false, reason } });
+  let M = null;
+  try { M = buildMesaFlujo(scenario); } catch { M = null; }
+  if (!M || !Array.isArray(M.filas) || !M.filas.length) {
+    return sinSoporte("este dato no trae el flujo comercial: sin la hoja Abonos no hay cobro que leer");
+  }
+  const d = getTenantData() || {};
+  const fx = factorComercialDe(d);
+  const boleta = [];
+  const _fig = (label, fmt, rawK, extra = {}) => boleta.push(fig(label, fmt, {
+    unit: "money", raw: Number.isFinite(rawK) ? rawK * fx : null, source: "actual",
+    context: `flujo comercial al ${M.fechaCorteFmt || "cierre del período"} — la misma mesa que la pestaña`, ...extra }));
+
+  /* los TOTALES · con el label del propio módulo (en la planilla dice «a crédito»; en el demo, «del período») */
+  const esPlanilla = M.origen === "planilla";
+  const ventaLabel = esPlanilla ? "Venta a crédito del período" : "Venta del período (flujo)";
+  const T = M.total || null;
+  const kpiDe = (key) => (M.kpis || []).find((k) => k.key === key) || null;
+  const kV = kpiDe("venta"), kA = kpiDe("abonado"), kS = kpiDe("saldo"), kX = kpiDe("vencido");
+  if (kV) _fig(ventaLabel, T ? T.ventaFmt : kV.valor, T ? T.ventaK : NaN, { mandatory: true });
+  if (kA) _fig("Abonado · total", T ? T.abonadoFmt : kA.valor, T ? T.abonadoK : NaN, { mandatory: true });
+  if (kS) _fig("Saldo pendiente · total", T ? T.saldoFmt : kS.valor, T ? T.saldoK : NaN, { mandatory: true });
+  const vencidoCalculable = !!(kX && kX.valor && kX.valor !== "—");
+  if (vencidoCalculable) _fig("Saldo vencido · total", kX.valor, T && T.vencidoK != null ? T.vencidoK : NaN);
+
+  /* las FILAS · cap 8, en el orden del módulo (vencido primero, después saldo) — cada cifra con su dueño */
+  const filas = M.filas.slice(0, 8);
+  for (const f of filas) {
+    _fig(`${f.nombre} · ${esPlanilla ? "Venta a crédito" : "Venta (flujo)"}`, f.ventaFmt, f.ventaK);
+    _fig(`${f.nombre} · Abonado`, f.abonadoFmt, f.abonadoK);
+    _fig(`${f.nombre} · Saldo pendiente`, f.saldoFmt, f.saldoK);
+    if (f.vencidoFmt != null) _fig(`${f.nombre} · Saldo vencido`, f.vencidoFmt, f.vencidoK);
+  }
+
+  return {
+    facts: {
+      lens: "cobranza",
+      fechaCorte: M.fechaCorteFmt || null,
+      sinPlazo: !!M.sinPlazo,
+      vencido: vencidoCalculable ? (kX && kX.valor) : "—",
+      porQueSinVencido: M.porQueSinVencido || null,
+      alcance: M.alcance || null,
+      clientes: filas.map((f) => ({ nombre: f.nombre, venta: f.ventaFmt, abonado: f.abonadoFmt, saldo: f.saldoFmt,
+        vencido: f.vencidoFmt == null ? "—" : f.vencidoFmt, diasVencido: f.diasVencidoFmt || "—", estado: f.estado, recuperado: f.recuperadoFmt })),
+      masFilas: Math.max(0, M.filas.length - filas.length),
+      nota: vencidoCalculable ? null
+        : "el saldo vencido va en «—»: sin plazo de pago declarado no se puede calcular — dilo así, JAMÁS como $0",
+    },
+    boleta,
+    coverage: { supported: true, reason: null },
+  };
+}
+
 /* preferenciaNombre({ nombre }) → guarda cómo prefiere ser llamado el usuario (F3 · «llámame jc»).
  * SOLO el nombre: no existe campo de tono ni de registro — lo que no existe no se puede aflojar. */
 export function preferenciaNombre({ nombre } = {}) {
@@ -249,5 +322,5 @@ export function preferenciaNombre({ nombre } = {}) {
 /** la caja completa del agente: el registro de siempre + las nuevas. Se arma acá para que el bucle y los
  *  gates tengan UNA fuente del catálogo. */
 export function cajaDelAgente(TOOLS_BASE) {
-  return { ...TOOLS_BASE, serieEntidad, registrarSupuesto, preferenciaNombre, proyectar };
+  return { ...TOOLS_BASE, serieEntidad, registrarSupuesto, preferenciaNombre, proyectar, cobranza };
 }
