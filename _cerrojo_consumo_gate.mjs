@@ -166,6 +166,12 @@ console.log("\n── 4 · EL BLOQUEO DE RED (sondas que INTENTAN salir) ──"
 /* ══ 5 · EL CLASIFICADOR · nada live se cuela a la corrida offline ═════════════════════════════════════ */
 console.log("\n── 5 · EL CLASIFICADOR ESTÁTICO DEL RUNNER ──");
 const RUNNER = readFileSync(join(ROOT, "scripts", "gates-offline.mjs"), "utf8");
+/* Desde 2026-09-01 el clasificador vive en scripts/clasificarGates.mjs — extraído con autorización del owner
+ * («siempre que no cambie su conducta»), verificado archivo por archivo en la extracción (277 gates, tipo y
+ * motivo idénticos) y vigilado desde entonces: los marcadores se exigen sobre ESE texto, y más abajo se exige
+ * que el runner clasifique importando ESE archivo — sin el cableado, los marcadores podrían vivir en un módulo
+ * que nadie usa y este gate certificaría un adorno. La conducta medida es la misma de siempre. */
+const CLASIFICADOR = readFileSync(join(ROOT, "scripts", "clasificarGates.mjs"), "utf8");
 {
   // marcadores exigidos, armados por concatenación (ver NOTA DE FORMA)
   const EXIGIDOS = [
@@ -175,7 +181,7 @@ const RUNNER = readFileSync(join(ROOT, "scripts", "gates-offline.mjs"), "utf8");
     [lit("gateway", "Core"), "el núcleo del gateway"],
     [lit("gateway", "Fetch"), "el handler del gateway"],
     [lit("/api/", "adi-"), "los endpoints del gateway"],
-    // los marcadores viven como REGEX en el runner: el punto va escapado, así que se compara contra esa forma
+    // los marcadores viven como REGEX en el clasificador: el punto va escapado, así que se compara contra esa forma
     [lit("api\\.", "openai", "\\.com"), "el dominio del proveedor OpenAI"],
     [lit("api\\.", "anthropic", "\\.com"), "el dominio del proveedor Anthropic"],
     [lit("OPENAI", "_API_KEY"), "la credencial de OpenAI"],
@@ -183,7 +189,13 @@ const RUNNER = readFileSync(join(ROOT, "scripts", "gates-offline.mjs"), "utf8");
     [lit("adiai", "\\.cl"), "el dominio desplegado"],
     [lit("call", "Plan"), "la inyección del oráculo"],
   ];
-  for (const [m, que] of EXIGIDOS) ok(RUNNER.includes(m), `el clasificador sigue marcando ${que}`);
+  for (const [m, que] of EXIGIDOS) ok(CLASIFICADOR.includes(m), `el clasificador sigue marcando ${que}`);
+
+  // el cableado: el runner clasifica con ESE archivo, no con una copia propia — sin esto, los 12 checks de
+  // arriba podrían estar verdes sobre un módulo muerto mientras el runner decide con otra cosa.
+  ok(new RegExp(lit("from\\s+[\"']\\./", "clasificarGates", "\\.mjs[\"']")).test(RUNNER) && RUNNER.includes(lit("clasificarGates", "(ROOT)")),
+    "el runner importa el clasificador extraído y clasifica con él (una sola fuente de verdad)");
+  ok(!new RegExp(lit("const\\s+LIVE\\s*=\\s*\\[")).test(RUNNER), "y no le quedó una lista de marcadores propia (una copia diverge sin avisar)");
 
   // el runner tiene que EXCLUIR lo live y CORRER lo offline con el candado y el entorno limpio
   ok(/--import/.test(RUNNER) && /offline-guard/.test(RUNNER), "los gates offline se corren con el candado precargado (--import)");

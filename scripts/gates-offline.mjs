@@ -5,7 +5,7 @@
  * `npm run gates` NO sirve para eso (ver el aviso de su propio archivo).
  *
  * TRES CANDADOS, no uno:
- *   1. ESTÁTICO (acá) · cada `_*_gate.mjs` se lee y se clasifica LIVE si menciona un marcador de red. Los LIVE
+ *   1. ESTÁTICO (scripts/clasificarGates.mjs) · cada `_*_gate.mjs` se lee y se clasifica LIVE si menciona un marcador de red. Los LIVE
  *      NO SE CORREN — se listan explícitamente al final. Nada se omite en silencio: si un gate queda afuera, el
  *      reporte dice cuál y por qué marcador.
  *   2. DE CREDENCIAL (acá + scripts/offline-guard.mjs) · los hijos se spawnean con el entorno LIMPIO: ninguna
@@ -29,11 +29,11 @@
  *   exit 3  → el entorno limpio NO quedó limpio: se aborta antes de correr nada (nunca debería pasar)
  *   exit 98 (de un hijo) → el candado detectó una credencial viva dentro del proceso
  */
-import { readdirSync, readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { limpiarEntorno, credencialesVisibles } from "./provider-keys.mjs";
+import { clasificarGates } from "./clasificarGates.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // `--import` exige un ESPECIFICADOR, no una ruta: en Windows `C:\...\guard.mjs` NO es una URL válida y Node sale
@@ -43,73 +43,11 @@ const GUARD = pathToFileURL(join(ROOT, "scripts", "offline-guard.mjs")).href;
 // ── EL ENTORNO QUE VIAJA A LOS HIJOS · sin una sola credencial de proveedor.
 const { env: ENV_LIMPIO, barridas: BARRIDAS } = limpiarEntorno(process.env);
 
-// ── marcadores de red. Cada uno es una forma REAL de salir a internet desde un gate de este repo.
-// `handlePlan`/`handleNarrateC` son funciones LOCALES del gateway, pero las dos terminan llamando al proveedor:
-// mencionarlas es señal suficiente de que el gate es live. El candado de runtime igual las atraparía.
-const LIVE = [
-  [/\bfetch\s*\(/, "fetch("],
-  [/\bhandlePlan\b/, "handlePlan"],
-  [/\bhandleNarrateC\b/, "handleNarrateC"],
-  [/\bhandleNarrate\b/, "handleNarrate"],
-  [/gatewayCore/, "gatewayCore"],
-  // CUALQUIER endpoint del gateway, no solo plan/narrate (owner 2026-08-09): antes esto decía `adi-(plan|narrate)`
-  // y dejaba pasar como offline a los gates que tocan `/api/adi-spec` y `/api/adi-access` — y `adi-spec` es
-  // exactamente la ruta por la que la UI pide una lectura al LLM. Ver el reporte del cerrojo.
-  [/\/api\/adi-[a-z0-9-]+/i, "endpoint /api/adi-*"],
-  [/\bgatewayFetch\b|\bdevGateway\b/, "gateway (gatewayFetch/devGateway)"],
-  [/adiai\.cl|vercel\.app/, "dominio desplegado"],
-  [/api\.openai\.com|OPENAI_API_KEY/, "proveedor/credencial (OpenAI)"],
-  [/api\.anthropic\.com|ANTHROPIC_API_KEY|ANTHROPIC_AUTH_TOKEN/, "proveedor/credencial (Anthropic)"],
-  [/\bopenaiAdapter\b|\banthropicAdapter\b|adapters\/(openai|anthropic)/, "adapter de proveedor"],
-  [/node:https|node:http\b|require\(["']https?["']\)/, "cliente http crudo"],
-  [/from\s+["'](node-fetch|axios|undici)["']|require\(["'](node-fetch|axios|undici)["']\)/, "cliente http de librería"],
-  [/callPlan|callNarrate/, "callPlan/callNarrate (inyección del oráculo)"],
-];
-
-// NO es marcador: que un gate se autocargue el `.env`. 41 gates lo hacen y la mayoría son determinísticos —
-// marcarlos LIVE perdería cobertura real sin ganar seguridad, porque el candado de runtime ya les sirve el `.env`
-// sin credenciales y les rechaza la escritura. Se neutraliza, no se excluye.
-
-const archivos = readdirSync(ROOT).filter((f) => /^_.*_gate\.mjs$/.test(f)).sort();
-const offline = [], live = [];
-for (const f of archivos) {
-  let src = "";
-  try { src = readFileSync(join(ROOT, f), "utf8"); } catch { /* ilegible → tratarlo como live, nunca correrlo a ciegas */ live.push({ file: f, motivo: "no se pudo leer" }); continue; }
-  const hit = LIVE.find(([re]) => re.test(src));
-  // INSPECCIÓN ESTÁTICA (owner 2026-08-10) · escape ESTRECHO y por archivo, nunca una relajación global del
-  // clasificador. Un gate que LEE código fuente como texto (para certificar que el cableado existe) menciona
-  // inevitablemente los símbolos del gateway y queda marcado LIVE — y un gate que no corre no certifica nada.
-  // Las tres condiciones son acumulativas y se verifican acá, no se confía en la declaración:
-  //   (a) declara el marcador en su cabecera,  (b) NO importa nada del gateway ni del adapter,
-  //   (c) NO invoca a nadie: ni fetch, ni handlePlan/handleNarrateC, ni callPlan/callNarrate.
-  // El candado de RUNTIME sigue aplicándose igual (--import offline-guard): si este escape se usara mal, el
-  // proceso muere con exit 97 antes de tocar la red. Esto solo devuelve el gate a la suite; no lo desprotege.
-  const declara = /@inspeccion-estatica/.test(src);
-  const importaGateway = /^\s*import[^\n]*from\s+["'][^"']*(gatewayCore|providerAdapter|adapters\/)/m.test(src);
-  const invoca = /\b(handlePlan|handleNarrateC|handleNarrate|callPlan|callNarrate)\s*\(/.test(src) || /\bfetch\s*\(/.test(src);
-  if (hit && declara && !importaGateway && !invoca) { offline.push(f); continue; }
-  // ── INYECCIÓN SIMULADA (owner 2026-08-10, Contrato v1.2) · el SEGUNDO escape, con la misma disciplina ────────
-  // EL PROBLEMA QUE CIERRA: `answerViaOracle` no sabe hablar con ningún proveedor — recibe las dos pasadas como
-  // argumentos (`callPlan`/`callNarrate`). Un gate que se las pasa a mano ejercita el motor ENTERO sin abrir un
-  // socket, pero nombra esos dos símbolos y queda LIVE. Resultado hasta hoy: ~20 gates de oráculo —los únicos que
-  // miden el COSTO REAL de un turno y la memoria que ve el narrador— quedaban fuera de la suite y solo corrían a
-  // mano. Un gate que hay que acordarse de correr no es una garantía.
-  // CUATRO CONDICIONES ACUMULATIVAS, todas verificadas acá — la declaración nunca alcanza sola:
-  //   (a) declara el marcador,
-  //   (b) NO importa el gateway ni un adapter (los únicos módulos del repo que hablan con un proveedor),
-  //   (c) NO contiene `fetch(` — ninguna salida cruda,
-  //   (d) NO importa nada de `src/ui/` : ahí viven `_fetchPlanC`/`_fetchNarrateC`, las ÚNICAS implementaciones
-  //       reales de esas dos funciones. Sin (d), un gate podría declarar el marcador y pasar las de producción.
-  // Y el candado de RUNTIME se aplica igual: si este escape se usara mal, el proceso muere con exit 97 antes de
-  // abrir el socket y el runner sale con exit 2 denunciando la clasificación. El scan clasifica; el candado
-  // garantiza — la misma doctrina que este archivo declara desde su cabecera.
-  const declaraInyeccion = /@inyeccion-simulada/.test(src);
-  const importaUI = /^\s*import[^\n]*from\s+["'][^"']*(src\/ui\/|\/ui\/[A-Za-z])/m.test(src);
-  const salidaCruda = /\bfetch\s*\(/.test(src);
-  if (hit && declaraInyeccion && !importaGateway && !importaUI && !salidaCruda) { offline.push(f); continue; }
-  if (hit) live.push({ file: f, motivo: hit[1] });
-  else offline.push(f);
-}
+// ── LA CLASIFICACIÓN (candado 1) vive en scripts/clasificarGates.mjs — extraída SIN CAMBIAR UNA COMA
+// (owner 2026-09-01: «siempre que no cambie su conducta») para que el candado de gates ausentes
+// (`_gates_en_la_corrida_gate.mjs`) consulte LA MISMA clasificación en vez de copiarla. Los marcadores de red,
+// los dos escapes (@inspeccion-estatica · @inyeccion-simulada) y sus condiciones están ahí, con sus porqués.
+const { archivos, offline, live } = clasificarGates(ROOT);
 
 function runOne(file) {
   return new Promise((resolve) => {
