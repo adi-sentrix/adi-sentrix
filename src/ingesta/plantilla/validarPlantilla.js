@@ -181,6 +181,12 @@ export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
         if (col.tipo === "numero") {
           const n = _num(bruto);
           if (Number.isNaN(n)) { B("valor-no-numerico", `«${def.nombre}» fila ${nFila}: "${col.titulo}" tiene "${bruto}" y se esperaba un número`, { hoja: def.nombre, fila: nFila }); rota = true; continue; }
+          /* EL RANGO PLAUSIBLE (fuzzing 2026-09-03): un monto de 1e308 CARGABA en silencio y envenenaba todos
+           * los KPIs del negocio (venta total = 1e+308, márgenes basura) — el peor rechazo es el que no ocurre.
+           * El tope es deliberadamente generoso (un billón: mil veces cualquier línea real de una pyme en
+           * moneda local) para no bloquear jamás un dato legítimo; lo que pasa de ahí no es un negocio, es un
+           * dedo resbalado o una celda de otra cosa, y se dice con la fila y el valor. */
+          if (!Number.isFinite(n) || Math.abs(n) > 1e12) { B("numero-fuera-de-rango", `«${def.nombre}» fila ${nFila}: "${col.titulo}" tiene "${bruto}" — fuera de todo rango plausible para este negocio; revisa esa celda`, { hoja: def.nombre, fila: nFila }); rota = true; continue; }
           fila[campo] = n;
         } else if (col.tipo === "periodo") {
           const s = String(bruto).trim();

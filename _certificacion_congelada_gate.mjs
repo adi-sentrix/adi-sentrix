@@ -30,6 +30,15 @@
  * CARNADAS — una por familia, la red de todo lo demás: desconectar los playbooks pone ROJO el t1 del demo Y el
  * replay; revertir la poda pone ROJO el replay (su tercer veto desaparece); apagar el trato pone ROJO el t1.
  *
+ * ═══ EL PROCESO DE CRECIMIENTO DE ESTE GATE (owner 2026-09-03, la regla del «UN SOLO ADI») ═════════════════
+ * Cada defecto REAL encontrado en uso entra como TURNO de este gate **ANTES de arreglarse**: se escribe el
+ * turno con la conducta correcta como veredicto, se ve ROJO (la prueba de que el turno reproduce el defecto),
+ * y queda VERDE con el arreglo — TDD de conducta. El turno lleva la fecha y de dónde salió (la captura, el
+ * reporte del owner, el examen). Así la certificación no es una foto de septiembre: es el acumulado de todo lo
+ * que el producto ya se equivocó una vez, y nadie degrada mañana lo que un usuario ya pagó por descubrir.
+ *   caso 1 · t9 del demo (2026-09-02): «Mercado Norte» → declinaba sobre «Mercado Libre» — el sujeto
+ *            sustituido. Verde con 310ca8f (solo exacto resuelve; el parecido se ofrece).
+ *
  * OFFLINE · determinístico · cerebro = mudo o guion del expediente · CERO llamadas al modelo.
  * `node --import ./scripts/offline-guard.mjs _certificacion_congelada_gate.mjs` */
 import fs from "node:fs";
@@ -109,6 +118,16 @@ await escenario("DEMO", [
   { q: "cuanto me compro falabella el ultimo mes", check: (a, t) => {
     ok(a.estado === "puente" && /no reconcilia|de muestra/.test(t) && /Falabella/.test(t),
       `t8 · la serie bloqueada se declina con la razón VERDADERA y la puerta a la ficha (${a.estado})`, t.slice(0, 90));
+  } },
+  /* ── EL PROCESO DE CRECIMIENTO · caso 1 (ver la doctrina en la cabecera) ──────────────────────────────────
+   * 2026-09-02, captura del owner EN USO: preguntó por «Mercado Norte» y ADI declinó sobre «Mercado Libre» —
+   * el sujeto sustituido en silencio. Entró acá como turno ANTES del arreglo (rojo) y quedó verde con 310ca8f:
+   * el nombre pedido no existe en el demo, se declina NOMBRÁNDOLO y el parecido se OFRECE, jamás se asume. */
+  { q: "¿Cuánto me compró Mercado Norte el último mes?", check: (a, t) => {
+    ok(a.estado === "puente" && /No encuentro «Mercado Norte» entre tus clientes/.test(t),
+      `t9 · PROCESO caso 1: el sujeto de la pregunta es sagrado — se declina con SU nombre (${a.estado})`, t.slice(0, 100));
+    ok(/¿Quisiste decir Mercado Libre\?/.test(t) && !/de Mercado Libre no está/.test(t),
+      "t9 · …y Mercado Libre se ofrece, jamás se asume — ni una línea sobre el cliente equivocado");
   } },
 ]);
 

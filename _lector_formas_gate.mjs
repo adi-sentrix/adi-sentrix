@@ -156,5 +156,50 @@ ok(faltan.some((a) => a.tipo === "hoja-vacia" && /Abonos/i.test(a.detalle)),
   "queda registrado que Abonos vino sin filas",
   `avisos: ${faltan.map((a) => a.tipo).join(", ")}`);
 
+/* ═══ EL FUZZING DE LA PUERTA (owner 2026-09-03) · NINGÚN ARCHIVO ROMPE SIN MENSAJE ═════════════════════════
+ * Batería de archivos rotos y raros contra la puerta entera. El criterio NO es que carguen: es que ninguno
+ * rompa feo — o carga bien, o BLOQUEA nombrando el problema. Medido: 20 formas; las dos que envenenaban en
+ * silencio (monto 1e308 · venta total negativa) se arreglaron y quedan pineadas acá. */
+console.log("\n── el fuzzing de la puerta: roto con mensaje, jamás roto a secas ──");
+{
+  const bloqueoDe = (buf) => {
+    try {
+      const r = ingestarPlantilla(buf, { nombreArchivo: "fuzz.xlsx", fechaCarga: "2026-08-31" });
+      if (r.ok) return { veredicto: "carga", r };
+      const b = (((r.preview || {}).bloqueos) || []).map((x) => String(x.detalle || x.tipo)).join(" | ");
+      return { veredicto: b ? "bloquea+mensaje" : "bloquea-mudo", detalle: b };
+    } catch (e) { return { veredicto: "rompe-feo", detalle: String(e.message) }; }
+  };
+  const noZip = bloqueoDe(Buffer.from("esto no es un xlsx, es texto con nombre mentiroso"));
+  ok(noZip.veredicto === "bloquea+mensaje" && /no parece un archivo/.test(noZip.detalle),
+    "un archivo que NO es zip bloquea nombrando el problema («no parece un archivo .xlsx»)", noZip.detalle);
+  const base = Buffer.from(plantillaEjemplo());
+  const trunc = bloqueoDe(base.subarray(0, Math.floor(base.length / 2)));
+  ok(trunc.veredicto === "bloquea+mensaje", "un xlsx TRUNCADO a la mitad bloquea con mensaje, no explota", trunc.detalle);
+
+  const armaConVenta = (muta) => {
+    const datos = datosEjemplo();
+    const ventas = datos.ventas.map((f, i) => (i === 1 ? muta({ ...f }) : f));
+    const empresa = { nombre: HOJA_EMPRESA, anchos: [52, 30], filas: [[MARCA_PLANTILLA], [], [], [],
+      ...PARAMETROS.flatMap((p) => [[p.etiqueta, datos.parametros[p.clave] ?? null], [p.ayuda], []])] };
+    const hojas = HOJAS.map((h) => ({ nombre: h.nombre, anchos: h.columnas.map(() => 18),
+      filas: [[h.que], [], [], h.columnas.map((c) => c.ayuda), h.columnas.map((c) => c.titulo),
+        ...(({ Ventas: ventas, Inventario: datos.inventario })[h.nombre] || []).map((f) => h.columnas.map((c) => f[c.campo] ?? null))] }));
+    return construirXlsx([empresa, ...hojas]);
+  };
+  const absurdo = bloqueoDe(armaConVenta((f) => ({ ...f, venta: 1e308 })));
+  ok(absurdo.veredicto === "bloquea+mensaje" && /fuera de todo rango plausible/.test(absurdo.detalle),
+    "★ el monto 1e308 BLOQUEA nombrando fila y valor — antes cargaba en silencio y envenenaba todos los KPIs", absurdo.detalle);
+  const negativo = bloqueoDe(armaConVenta((f) => ({ ...f, venta: -1000000000 })));
+  ok(negativo.veredicto === "carga" && (negativo.r.dataset.avisosDeCarga || []).some((a) => a.tipo === "venta-total-no-positiva"),
+    "★ la venta total NEGATIVA carga CON el aviso «venta-total-no-positiva» — el signo dado vuelta ya no es silencioso");
+  const fechaLoca = bloqueoDe(armaConVenta((f) => ({ ...f, fecha: "32/13/2026" })));
+  ok(fechaLoca.veredicto === "bloquea+mensaje" && /32\/13\/2026/.test(fechaLoca.detalle),
+    "la fecha imposible bloquea citando el valor y el formato esperado", fechaLoca.detalle);
+  const montoTexto = bloqueoDe(armaConVenta((f) => ({ ...f, venta: " $1.234,56 " })));
+  ok(montoTexto.veredicto === "bloquea+mensaje" && /1\.234,56/.test(montoTexto.detalle),
+    "el monto escrito como texto con símbolo bloquea citando la celda", montoTexto.detalle);
+}
+
 console.log(`\n${fail === 0 ? "✅" : "❌"} _lector_formas_gate · ${pass} PASS · ${fail} FAIL\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -105,6 +105,13 @@ export function ingestarPlantilla(archivo, { nombreArchivo = "", fechaCarga = nu
     ...[...v.avisos, ...m.avisos].filter((a) => a && a.detalle)
       .map((a) => ({ tipo: a.tipo, detalle: String(a.detalle), ...(a.hoja ? { hoja: a.hoja } : {}) })),
   ];
+  /* LA VENTA TOTAL NO POSITIVA SE DICE (fuzzing 2026-09-03): un monto negativo por fila es legítimo (una nota
+   * de crédito), pero un PERÍODO que suma cero o negativo casi siempre es un signo equivocado en una celda
+   * grande — cargaba en silencio y todos los KPIs salían con la venta al revés. Es AVISO y no bloqueo: el
+   * dato raro-pero-verdadero pasa, avisado; el silencioso era el problema. */
+  if (d.ventasKPI && typeof d.ventasKPI.totalActual === "number" && d.ventasKPI.totalActual <= 0) {
+    avisosDeCarga.push({ tipo: "venta-total-no-positiva", detalle: `la venta del período quedó en ${d.ventasKPI.totalActual} (cero o negativa): revisa los montos con signo en «Ventas» — una nota de crédito mal tipeada da vuelta todos los KPIs` });
+  }
   /* CAPTURADO PERO NO ANALIZADO, VIAJANDO CON EL DATO (owner 2026-09-02, certificación T4) — el mismo criterio
    * y la misma disciplina que `avisosDeCarga`: la declaración ya existía en el preview («guardado, pero ADI
    * todavía no analiza por punto de venta», owner 2026-08-26) y MORÍA ahí — el agente respondía por clientes

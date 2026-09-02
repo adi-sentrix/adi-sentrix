@@ -33,15 +33,20 @@ import { setNombreUsuario } from "./preferenciaNombre.js";   // F3 · «llámame
 
 const _pct = (v) => `${(+v).toFixed(1)}%`;
 
-/** resuelve el nombre contra los cuatro ejes del historial — tolera tipeo, jamás adivina entre dos. */
+/** resuelve el nombre contra los cuatro ejes del historial — LA LEY DEL ÚNICO BUSCADOR (owner 2026-09-03):
+ *  solo el match EXACTO del índice canónico resuelve; el parecido se DEVUELVE COMO SUGERENCIA para que el
+ *  cerebro lo ofrezca, jamás se asume. La versión anterior «toleraba tipeo» y con eso también el PREFIJO:
+ *  `serieEntidad({entity:"Mercado Norte"})` respondía la serie de Mercado Libre — texto sobre un sujeto que el
+ *  usuario no preguntó, la misma familia del defecto de producción que el owner encontró en la captura. */
 function _resolver(nombre) {
+  let sugerencia = null;
   for (const eje of ["cliente", "marca", "familia", "sku"]) {
     const c = findCandidates(eje, nombre, { max: 2 });
     if (!c.length) continue;
-    if (c.length > 1 && c[0].motivo !== "exacto" && c[0].distancia === c[1].distancia) continue;
-    return { nombre: c[0].nombre, eje };
+    if (c[0].motivo === "exacto") return { nombre: c[0].nombre, eje };
+    if (!sugerencia || c[0].distancia < sugerencia.distancia) sugerencia = { nombre: c[0].nombre, eje, distancia: c[0].distancia };
   }
-  return null;
+  return sugerencia ? { sugerencia: sugerencia.nombre } : null;
 }
 
 /* serieEntidad({ entity, metrica }) → la serie mensual real de esa entidad, o el motivo del bloqueo.
@@ -51,7 +56,7 @@ export function serieEntidad({ entity, metrica = "venta" } = {}, { scenario = ES
   const sinSoporte = (reason) => ({ facts: null, boleta: [], coverage: { supported: false, reason } });
   if (!entity) return sinSoporte("serieEntidad necesita `entity`: de quién es la serie");
   const res = _resolver(entity);
-  if (!res) return sinSoporte(`no encuentro «${entity}» en ningún eje de este dato`);
+  if (!res || res.sugerencia) return sinSoporte(`no encuentro «${entity}» en ningún eje de este dato${res && res.sugerencia ? ` — ¿quisiste decir ${res.sugerencia}? Ofrécelo, no lo asumas` : ""}`);
 
   const estado = serieRealDe(res.nombre);
   if (!estado.real) {
@@ -184,7 +189,7 @@ export function proyectar({ tasa, horizonte, entity } = {}, { scenario = ESCENAR
   let base = null, deQuien = null;
   if (entity) {
     const res = _resolver(entity);
-    if (!res) return sinSoporte(`no encuentro «${entity}» en ningún eje de este dato`);
+    if (!res || res.sugerencia) return sinSoporte(`no encuentro «${entity}» en ningún eje de este dato${res && res.sugerencia ? ` — ¿quisiste decir ${res.sugerencia}? Ofrécelo, no lo asumas` : ""}`);
     const estado = serieRealDe(res.nombre);
     if (!estado.real) return sinSoporte(`no puedo proyectar sobre ${res.nombre}: su cifra del período no reconcilia con el dato oficial`);
     const serie = (d.historialMargen || {})[res.nombre] || [];
