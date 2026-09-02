@@ -49,6 +49,17 @@ const _horizonteDe = (q) => {
 };
 /* la tasa: el porcentaje de la pregunta (el primero) */
 const _tasaDe = (q) => { const m = /([+-]?\d+(?:[.,]\d+)?)\s*%/.exec(q); return m ? parseFloat(m[1].replace(",", ".")) : null; };
+/* ⚠️ LA DIRECCIÓN DEL SUPUESTO SE LEE, NO SE ASUME (cazado 2026-09-02 al ampliar el detector): «ponele que
+ * baja 3%: ¿cuánto sería mi venta?» proyectaba **+3%** — el usuario declaraba una caída y recibía un
+ * crecimiento, con la cifra bien formateada y MAL. El signo explícito («-3%») manda; sin signo, un verbo de
+ * caída en la pregunta vuelve la tasa negativa. Sin «bajo» suelto (homógrafo de la preposición). */
+const _CAE_VENTA = new RegExp(`\\bbaj(?:a|as|an|amos|ara|aran|e|en)${_FIN}|\\bca(?:e|en|igo|emos|yera)${_FIN}|\\breduc|\\breduzc|\\bdecrec|\\bpierd|\\bperd(?:emos|iera|i[eé]ramos)`, "i");
+const _tasaConDireccion = (q) => {
+  const tasa = _tasaDe(q);
+  if (tasa === null) return null;
+  if (/[+-]\s*\d[\d.,]*\s*%/.test(q)) return tasa;            // el signo explícito manda
+  return _CAE_VENTA.test(q) ? -Math.abs(tasa) : tasa;
+};
 /* «esa manda»: con una entidad del tenant nombrada, la proyección no es sobre el total — se deja al cerebro */
 const _nombraEntidad = (q) => {
   for (const eje of ["cliente", "sku", "marca", "familia"]) {
@@ -69,7 +80,7 @@ function _caso(pregunta) {
   }
   // (a) el crecimiento sobre la venta — el MISMO detector del juez P1
   if (_PIDE_PROYECCION.test(q) && _CIFRA_SUPUESTO.test(q) && !_OTRA_MEDIDA.test(q) && !_nombraEntidad(q)) {
-    const tasa = _tasaDe(q);
+    const tasa = _tasaConDireccion(q);
     if (tasa === null) return null;
     return { forma: "venta", tasa, horizonte: _horizonteDe(q) };
   }
@@ -79,7 +90,8 @@ function _caso(pregunta) {
 export const proyeccionDeclarada = {
   nombre: "proyeccion-declarada",
   ejemplos: ["ponele que el año que viene crezco 3%: cuanto seria mi venta?", "Con ese total anual, proyecta 12 meses con +4% y dime cuánto genera adicional.",
-    "Sobre esos clientes, simula reducir 2 puntos porcentuales las acciones comerciales y dime si alguno queda sobre el benchmark."],
+    "Sobre esos clientes, simula reducir 2 puntos porcentuales las acciones comerciales y dime si alguno queda sobre el benchmark.",
+    "Si crezco 3% los próximos 12 meses, ¿cuánto vendería?"],   // la forma del owner (orden textual 2026-09-02)
 
   cuandoAplica(pregunta) { return _caso(pregunta) !== null; },
 
@@ -111,8 +123,8 @@ export const proyeccionDeclarada = {
       if (!base) return null;
       if (!proy) return `Tu venta del período es ${_val(base)}. Para proyectarla necesito el supuesto de crecimiento: dime el porcentaje y te doy la cifra.`;
       const hz = c.horizonte ? ` a ${c.horizonte}` : "";
-      return [`Sobre tu venta del período de ${_val(base)}, un crecimiento de ${c.tasa > 0 ? "+" : ""}${c.tasa}%${hz} te deja en ${_val(proy)}.`,
-        adic ? `Adicional generado: ${_val(adic)}.` : null,
+      return [`Sobre tu venta del período de ${_val(base)}, ${c.tasa < 0 ? `una caída de ${Math.abs(c.tasa)}%` : `un crecimiento de +${c.tasa}%`}${hz} te deja en ${_val(proy)}.`,
+        adic ? (c.tasa < 0 ? `La diferencia contra tu base: ${_val(adic)}.` : `Adicional generado: ${_val(adic)}.`) : null,
         `Es una proyección sobre el supuesto que declaraste, no una cifra medida.`].filter(Boolean).join("\n");
     }
     // carga

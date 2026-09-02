@@ -193,5 +193,81 @@ await carnada("«todo el negocio» deja de ser un alcance válido", "src/adi/age
     '    return sinSoporte("necesito una entidad");   // CARNADA: como `simulate`, que exige dimensión\n    const of = ventaOficialDelPeriodo(scenario);']],
   async (M) => !M.proyectar({ tasa: 4 }).coverage.supported);
 
+/* ═══ 8 · LA FORMA DEL OWNER (orden textual 2026-09-02) · el CONCEPTO ampliado, medido en las dos caras ══════
+ * «Amplía el detector de proyección para cubrir esta forma exacta: "Si crezco 3% los próximos 12 meses,
+ * ¿cuánto vendería?" Debe entrar al playbook de proyección y responder con el sello explícito.» El baseline la
+ * corrió y la cifra salió BIEN pero sin garantía: el cerebro respondió, el sello no existía. La raíz: el lema
+ * «crecer» estaba a medias — la alternación vieja no veía «crezco» (-zc-), y la forma certificada pasaba por
+ * «ponele que». Se amplió la ESTRUCTURA (condicional de cambio · lema completo · pregunta por la venta futura),
+ * no una lista de frases; el detector es COMPARTIDO con el juez P1, así que acá se miden las dos caras. */
+H("8 · la forma del owner: «Si crezco 3%…, ¿cuánto vendería?» — el concepto, no la frase");
+{
+  const { playbookPara } = await import("./src/adi/agente/playbooks/registro.js");
+  const { proyeccionDeclarada } = await import("./src/adi/agente/playbooks/proyeccionDeclarada.js");
+  const { vetosDeContrato } = await import("./src/adi/agente/contratoAgente.js");
+  initTenant(TENANT_DEMO);
+  const MUDO = async () => ({ tipo: "texto", texto: "" });
+
+  const OWNER = "Si crezco 3% los próximos 12 meses, ¿cuánto vendería?";
+  const ENTRAN = [OWNER,
+    "suponiendo que crezca 5%, ¿cuál sería mi venta?", "si subimos 4% el año que viene, ¿a cuánto llego?",
+    "con un crecimiento del 3%, ¿cuánto vendería?", "si creciera un 2%, ¿cuál sería mi venta?",
+    "¿cuánto vendería con un 3% más?", "si aumento 6% las ventas, ¿cuánto sería?",
+    "si cae 3% la venta, ¿en cuánto quedo?", "si bajamos 2%, ¿cuál sería mi venta?"];
+  const dentro = ENTRAN.filter((q) => (playbookPara(q) || {}).nombre !== "proyeccion-declarada");
+  ok(dentro.length === 0, `★ ENTRAN: la forma del owner y ${ENTRAN.length - 1} variantes de la estructura (condicional+tasa+venta futura)`, dentro.join(" | "));
+
+  // la otra dirección: lo que NO entra — el pasado no es hipótesis, la otra métrica no es una venta inventada
+  ok(playbookPara("crecí 3% el año pasado, ¿cuánto vendí?") === null && playbookPara("cuánto vendí el año pasado") === null,
+    "★ NO ENTRAN: el pasado («crecí 3% el año pasado») es historia, no supuesto");
+  ok((playbookPara("si crezco 3%, ¿mejora mi margen?") || {}).nombre !== "proyeccion-declarada",
+    "★ NO ENTRA a proyección la OTRA métrica («¿mejora mi margen?»): no se inventa una proyección de venta");
+  ok((playbookPara("se me está cayendo la venta, ¿dónde?") || {}).nombre === "caida-de-ventas"
+    && (playbookPara("Sobre esos clientes, simula reducir 2 puntos porcentuales las acciones comerciales y dime si alguno queda sobre el benchmark.") || {}).nombre === "proyeccion-declarada",
+    "★ NO-SECUESTRO: caída-de-ventas conserva su turno y la simulación de carga sigue en su sub-forma");
+
+  // e2e: la forma del owner con el SELLO explícito — la orden completa
+  const rOwner = await answerViaAgente({ text: OWNER, history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
+  ok(rOwner.r.agente.estado === "playbook" && /\$103\.0M/.test(rOwner.r.text) && /a 12 meses/.test(rOwner.r.text),
+    `★ e2e: proyecta sobre el total con el horizonte leído (${rOwner.r.agente.estado})`, rOwner.r.text.slice(0, 100));
+  ok(/Es una proyección sobre el supuesto que declaraste, no una cifra medida\./.test(rOwner.r.text),
+    "★ …y el SELLO explícito que el owner exigió está, palabra por palabra");
+
+  /* LA DIRECCIÓN DEL SUPUESTO (cazada al medir esta ampliación): «ponele que baja 3%» proyectaba +3% — el
+   * usuario declaraba una caída y recibía un crecimiento con la cifra bien formateada y MAL. El signo se lee. */
+  const rBaja = await answerViaAgente({ text: "ponele que baja 3%: ¿cuánto sería mi venta?", history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
+  ok(/una caída de 3%/.test(rBaja.r.text) && /\$97\.0M/.test(rBaja.r.text) && !/crecimiento de \+3%/.test(rBaja.r.text),
+    "★ EL SIGNO: «baja 3%» proyecta HACIA ABAJO ($97.0M) — antes salía «un crecimiento de +3%» ($103.0M)", rBaja.r.text.slice(0, 90));
+  ok(/-\$3\.0M/.test(rBaja.r.text), "…y la diferencia negativa sale con el formato de la casa (-$3.0M), no un churro sin abreviar");
+
+  /* EL REBOTE SOBRE EL JUEZ P1, medido en las dos caras — el detector es compartido:
+   * (i) la forma nueva AHORA está protegida: responderla sin la cifra proyectada se multa;
+   * (ii) la otra métrica NO se multa — `_OTRA_MEDIDA` corta, y los turnos que hoy pasan siguen pasando. */
+  const sinCifra = "Puedo proyectarlo si me confirmas sobre qué alcance lo aplico.";
+  const vOwner = vetosDeContrato(sinCifra, { pregunta: OWNER, figs: [], limiteDeHerramienta: false });
+  ok(vOwner.some((v) => /proyec/i.test(String(v.regla || "")) || /proyec/i.test(String(v.multa || ""))),
+    "★ P1 cara (i): la forma del owner sin cifra proyectada se MULTA — la garantía cubre la forma nueva");
+  const vMargen = vetosDeContrato(sinCifra, { pregunta: "si crezco 3%, ¿mejora mi margen?", figs: [], limiteDeHerramienta: false });
+  ok(!vMargen.some((v) => /proyec/i.test(String(v.regla || "")) || /proyec/i.test(String(v.multa || ""))),
+    "★ P1 cara (ii): la OTRA métrica no se multa — el rebote de ampliar el detector compartido, cortado por _OTRA_MEDIDA");
+
+  ok(Array.isArray(proyeccionDeclarada.ejemplos) && proyeccionDeclarada.ejemplos.includes(OWNER),
+    "la forma del owner quedó en los `ejemplos` del playbook: el patrón §1 la verifica en cada corrida");
+}
+
+/* las dos carnadas de la ampliación */
+// (d) la dirección ignorada: quitar la lectura del verbo de caída devuelve el «+3%» sobre una caída declarada
+await carnada("«baja 3%» vuelve a proyectar +3% (la dirección ignorada)", "src/adi/agente/playbooks/proyeccionDeclarada.js",
+  [[/  return _CAE_VENTA\.test\(q\) \? -Math\.abs\(tasa\) : tasa;/, "  return tasa;   // CARNADA"]],
+  async (M) => {
+    const pasos = M.proyeccionDeclarada.pasos("ponele que baja 3%: ¿cuánto sería mi venta?");
+    return pasos.length === 1 && pasos[0].args.tasa === 3;
+  });
+// (e) no-secuestro: sin el corte de _OTRA_MEDIDA, la proyección se roba «¿mejora mi margen?»
+await carnada("proyección secuestra la pregunta de margen (sin _OTRA_MEDIDA)", "src/adi/agente/playbooks/proyeccionDeclarada.js",
+  [[/if \(_PIDE_PROYECCION\.test\(q\) && _CIFRA_SUPUESTO\.test\(q\) && !_OTRA_MEDIDA\.test\(q\) && !_nombraEntidad\(q\)\) \{/,
+    "if (_PIDE_PROYECCION.test(q) && _CIFRA_SUPUESTO.test(q) && !_nombraEntidad(q)) {   // CARNADA"]],
+  async (M) => M.proyeccionDeclarada.cuandoAplica("si crezco 3%, ¿mejora mi margen?"));
+
 console.log(`\n── _agente_proyeccion_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

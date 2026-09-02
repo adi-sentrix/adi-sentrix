@@ -171,7 +171,16 @@ export function esIdentificadorInterno(palabra, entidades = []) {
 /* EXPORTADOS (2026-09-01): el playbook «proyección declarada» decide CON ESTOS MISMOS tres si una pregunta pide
  * una proyección sobre la venta. Si tuviera los suyos, el juez P1 y el playbook podrían discrepar sobre la
  * misma frase — uno multando y el otro sin activarse. Un detector, dos usos. */
-export const _PIDE_PROYECCION = /\bproyect|\bcrec(?:e|és|es|imiento)|\bsi (?:sube|aumenta|baja)\b|pon[eé]le que|qu[eé] pasa si/i;
+/* ⚠️ AMPLIADO POR ORDEN DEL OWNER (2026-09-02, textual: «Amplía el detector de proyección para cubrir esta
+ * forma exacta: "Si crezco 3% los próximos 12 meses, ¿cuánto vendería?"») — y se amplía el CONCEPTO, no una
+ * lista de frases. La estructura que esto reconoce: un CONDICIONAL DE CAMBIO sobre el negocio (el lema
+ * «crecer» completo — la versión vieja no veía «crezco»: la alternación cubría crece/crecés/crecimiento y el
+ * presente de primera persona lleva -zc-; más «si subo/subimos/aumento/aumentamos», «si cae/caigo», «si
+ * bajas/bajamos» — nunca «si bajo», homógrafo de la preposición: «¿quién queda bajo el plan?») o una PREGUNTA
+ * POR LA VENTA FUTURA («cuánto vendería», «a cuánto llego»). La tasa la exige `_CIFRA_SUPUESTO` al lado y la
+ * métrica ajena la corta `_OTRA_MEDIDA`: este regex solo. El pasado queda AFUERA a propósito («crecí 3% el año
+ * pasado» es historia, no hipótesis): crecier(a|as|an) entra, «crecieron»/«crecí» no. */
+export const _PIDE_PROYECCION = /\bproyect|\bcrec(?:e|és|es|imiento|er|iendo)|\bcrezc|\bcrecier(?:a|as|an)\b|\bsi (?:sub(?:e|o|en|imos)|aument(?:a|o|an|amos)|baj(?:a|as|an|amos)|ca(?:e|en|igo|emos))\b|pon[eé]le que|qu[eé] pasa si|\bvender[ií]a|\ba cu[aá]nto lleg/i;
 /* ⚠️ SIN `\b` DESPUÉS DEL «%» — la misma trampa de `_FIN`, y me mordió por segunda vez el mismo día. `\b` se
  * define sobre [A-Za-z0-9_]: entre «%» y «:» (o un espacio) NO hay frontera, así que `/\d%\b/` no matchea
  * «crezco 3%:» ni «+4% y dime». El «%» ya delimita solo; el `\b` queda SOLO donde la palabra termina en letra

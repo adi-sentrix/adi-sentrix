@@ -116,7 +116,10 @@ H("3 · una cuenta DECLARADA pasa; la misma cuenta en prosa, no");
   const RES = `$${((_raw * 1.04) / 1e6).toFixed(1)}M`;                          // la cuenta, con la misma escala
   const PROSA = `Ventas totales del negocio: ${BASE} proyectados × 1.04 = ${RES}. Es una proyección con tu supuesto.`;
   const DECL = PROSA + `\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=${BASE}; 4% · formula=${BASE} + 4% · resultado=${RES} · unidad=money\n`;
-  const Q = "Si subo ventas 4%, ¿qué cambia?";
+  /* RE-APUNTADO 2026-09-02: «Si subo ventas 4%…» ganó camino garantizado (el detector de proyección ampliado
+   * por orden del owner cubre «si subo») y el playbook precargaba boleta — este e2e necesita la boleta VACÍA.
+   * «Si muevo…» conserva la forma y el «4%» del usuario, y ningún detector la reclama. El guion no cambia. */
+  const Q = "Si muevo 4% las ventas, ¿qué cambia?";
   ok(!!juez({ texto: PROSA, figsEnBoleta: 0, pregunta: Q }),
     `★ la cuenta escrita SOLO en prosa, con boleta vacía, se multa (${BASE} × 1.04 = ${RES})`);
   ok(juez({ texto: DECL, figsEnBoleta: 0, pregunta: Q }) === null,

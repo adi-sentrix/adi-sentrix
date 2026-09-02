@@ -170,8 +170,14 @@ export function proyectar({ tasa, horizonte, entity } = {}, { scenario = ESCENAR
    * está autorizada; citada de memoria, sin boleta, el muro la veta — y hace bien. */
   const _m = (v) => {
     const raw = Math.round(v * fx);
-    const p = parseFigures(`${simboloMoneda()}${raw}`);
-    return p.length ? p[0].canon.slice(p[0].canon.indexOf(":") + 1) : fmtMonto(raw, { dataset: d });
+    /* el signo va AFUERA del parseo (2026-09-02, al habilitar la dirección del supuesto): `$-2999970` adentro
+     * de parseFigures devolvía el canon sin abreviar («$-2.999.970») y el adicional negativo salía con otro
+     * formato que el resto de la boleta. Se formatea el ABSOLUTO con la técnica de la casa y el «-» ASCII se
+     * antepone — para positivos, byte-idéntico a lo de siempre. */
+    const abs = Math.abs(raw);
+    const p = parseFigures(`${simboloMoneda()}${abs}`);
+    const fmt = p.length ? p[0].canon.slice(p[0].canon.indexOf(":") + 1) : fmtMonto(abs, { dataset: d });
+    return raw < 0 ? `-${fmt}` : fmt;
   };
 
   // ── LA BASE ──────────────────────────────────────────────────────────────────────────────────────────────
