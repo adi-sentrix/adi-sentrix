@@ -353,7 +353,10 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   {
     const det = (() => { try { return detectSerieIntent(q); } catch { return null; } })();
     const bloqueada = det && !det.ambiguo && det.entidad && (() => { try { return !serieRealDe(det.entidad).real; } catch { return false; } })();
-    if (det && (det.ambiguo || bloqueada)) {
+    /* `noResuelve` también es del puente (2026-09-02): el nombre pedido no existe en el índice y el compose
+     * declina nombrándolo y ofreciendo el parecido — sin esta rama, el turno seguía al cerebro con un intent
+     * sin entidad y la declinación honesta no llegaba a pantalla. */
+    if (det && (det.ambiguo || det.noResuelve || bloqueada)) {
       const puente = (() => { try { return composeSerieIntent({ q, scenario }); } catch { return null; } })();
       if (puente && puente.text) {
         const pantalla = anteponerSello(puente.text, getSelloDeCarga(), { calculos: [] });

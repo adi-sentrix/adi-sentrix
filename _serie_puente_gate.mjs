@@ -217,6 +217,102 @@ H("6 · CARNADA · cada afirmación, probada ROJA con el defecto adentro");
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* */ } }
 }
 
+/* ═══ 7 · EL SUJETO NO SE SUSTITUYE EN SILENCIO (owner 2026-09-02, captura de PRODUCCIÓN) ════════════════════
+ * El owner preguntó por «Mercado Norte» y ADI declinó sobre «Mercado Libre»: cambió el cliente de la pregunta
+ * y siguió como si nada. La raíz: el barrido de n-gramas aceptaba el candidato de un PEDAZO del nombre
+ * (prefijo/tipeo del índice) cuando el nombre completo no existía. La conducta cableada: solo el match EXACTO
+ * del índice canónico resuelve; el parecido se OFRECE con el nombre DEL USUARIO delante — jamás se asume. */
+H("7 · el sujeto de la pregunta es sagrado: exacto resuelve, parecido se ofrece");
+{
+  initTenant(TENANT_DEMO);
+  // el caso de la captura, y sus hermanos medidos
+  const capt = composeSerieIntent({ q: "¿Cuánto me compró Mercado Norte el último mes?", scenario: "bonanza" });
+  ok(!!capt && /No encuentro «Mercado Norte» entre tus clientes/.test(capt.text),
+    "★ LA CAPTURA: «Mercado Norte» se declina NOMBRANDO lo que el usuario pidió", capt && capt.text.slice(0, 110));
+  ok(!!capt && /¿Quisiste decir Mercado Libre\?/.test(capt.text) && !/de Mercado Libre no está/.test(capt.text),
+    "★ …y Mercado Libre se OFRECE, jamás se asume — ni una línea respondida sobre el cliente equivocado");
+  const det2 = detectSerieIntent("cuánto me compró Mercado Sur el último mes");
+  ok(!!det2 && !!det2.noResuelve && det2.noResuelve.pedido === "Mercado Sur",
+    "«Mercado Sur» → el mismo trato: el pedido del usuario, con sus palabras");
+  const fexp = composeSerieIntent({ q: "muéstrame la venta de Falabella Express mes a mes", scenario: "bonanza" });
+  ok(!!fexp && /No encuentro «Falabella Express»/.test(fexp.text) && /¿Quisiste decir Falabella\?/.test(fexp.text),
+    "★ «Falabella Express»: el match exacto de un PEDAZO tampoco resuelve — el usuario nombró algo más largo");
+  // los controles: lo exacto sigue resolviendo, lo lejano sigue igual que siempre
+  const ml = detectSerieIntent("cuánto me compró Mercado Libre el último mes");
+  ok(!!ml && ml.entidad === "Mercado Libre", "CONTROL · «Mercado Libre» exacto sigue resolviendo");
+  const fal = detectSerieIntent("cuanto me compro falabella el ultimo mes");
+  ok(!!fal && fal.entidad === "Falabella", "CONTROL · «falabella» en minúsculas sigue resolviendo (normalización, no laxitud)");
+  ok(detectSerieIntent("cuánto me compró Zaragoza el último mes") === null,
+    "CONTROL · «Zaragoza» (sin parecidos) sigue en null: el camino de siempre");
+  const typo = composeSerieIntent({ q: "cuánto me compró falabela el último mes", scenario: "bonanza" });
+  ok(!!typo && /No encuentro «falabela»/.test(typo.text) && /¿Quisiste decir Falabella\?/.test(typo.text),
+    "el tipeo («falabela») también se ofrece en vez de asumirse — la conducta de resolveEntityRef, en el puente");
+  // e2e por el bucle del agente: el puente entrega la declinación honesta
+  {
+    const { answerViaAgente } = await import("./src/adi/agente/bucleAgente.js");
+    const r = await answerViaAgente({ text: "¿Cuánto me compró Mercado Norte el último mes?", history: [], mem: {}, scenario: "bonanza", callAgente: async () => ({ tipo: "texto", texto: "" }) });
+    ok(r.r.agente.estado === "puente" && /No encuentro «Mercado Norte»/.test(r.r.text),
+      `★ e2e agente: el puente reclama el turno y declina honesto (${r.r.agente.estado})`);
+  }
+  // la planilla REAL del owner (condicional al archivo): su insignia intacta, y el defecto también muerto ahí
+  const REAL7 = "C:/Users/jcnav/Downloads/Plantilla_ADI_v2_completa_25_clientes_ajustada.xlsx";
+  if (fs.existsSync(REAL7)) {
+    const { ingestarPlantilla } = await import("./src/ingesta/plantilla/ingestarPlantilla.js");
+    initTenant(ingestarPlantilla(fs.readFileSync(REAL7), { nombreArchivo: "c.xlsx", fechaCarga: "2026-08-31" }).dataset);
+    const mn = detectSerieIntent("cuánto me compró Mercado Norte el último mes");
+    ok(!!mn && mn.entidad === "Mercado Norte", "★ COMPLETA REAL · «Mercado Norte» EXISTE ahí y sigue resolviendo: la insignia no se movió");
+    const fe = composeSerieIntent({ q: "muéstrame la venta de Falabella Express mes a mes", scenario: "bonanza" });
+    ok(!!fe && /No encuentro «Falabella Express»/.test(fe.text),
+      "★ COMPLETA REAL · «Falabella Express» también se ofrece ahí — el defecto no era del demo");
+    initTenant(TENANT_DEMO);
+  } else {
+    console.log("      (la planilla real del owner no está en esta máquina: 2 checks no corren — saltados y declarados)");
+  }
+
+  // las carnadas: revivir la sustitución tiene que arder
+  const tmp7 = [];
+  let n7 = 0;
+  const mutar7 = (reemplazos) => {
+    const abs = path.join(process.cwd(), "src", "adi", "oracle", "serieIntent.js");
+    let txt = fs.readFileSync(abs, "utf8").replace(/\r\n/g, "\n");
+    for (const [de, a] of reemplazos) { const antes = txt; txt = txt.replace(de, a); if (txt === antes) return { error: "no encontró qué mutar" }; }
+    /* sufijo PROPIO de esta sección: la §6 ya importó copias `.carnada<pid>_N` de ESTE módulo y el caché de
+     * ESM es por URL y sobrevive al unlink — reutilizar el nombre devuelve el módulo VIEJO, no el mutado
+     * (medido: las dos carnadas daban «desapercibido» con la mutación bien escrita). */
+    const destino = abs.replace(/\.js$/, `.carnada7_${process.pid}_${++n7}.js`);
+    fs.writeFileSync(destino, txt);
+    tmp7.push(destino);
+    return { url: pathToFileURL(destino).href };
+  };
+  // (a) el casi-match vuelve a resolver: el roce se sirve como entidad en vez de ofrecerse
+  {
+    const m = mutar7([[/  if \(roce\) \{\n    const ext = _extender\(palabras, roce\.i, roce\.n\);\n    return \{ noResuelve: \{ pedido: ext\.frase, eje: roce\.eje, sugerencias: \[\.\.\.new Set\(roce\.sugerencias\)\]\.slice\(0, 2\) \} \};\n  \}/,
+      "  if (roce) { return { nombre: roce.sugerencias[0], eje: roce.eje, distancia: roce.distancia, i: roce.i, n: roce.n, palabras }; }   // CARNADA"]]);
+    if (m.error) ok(false, "carnada «el casi-match vuelve a resolver»", m.error);
+    else {
+      try {
+        const Mut = await import(m.url);
+        const d = Mut.detectSerieIntent("¿Cuánto me compró Mercado Norte el último mes?");
+        ok(!!d && d.entidad === "Mercado Libre", "carnada «el casi-match vuelve a resolver» → el check de la captura se pone ROJO (la mutación sustituye de nuevo)", JSON.stringify(d));
+      } catch (e) { ok(false, "carnada «el casi-match vuelve a resolver»", `la copia mutada no carga: ${e.message}`); }
+    }
+  }
+  // (b) la extensión del nombre ignorada: «Falabella Express» vuelve a recortarse a Falabella
+  {
+    const m = mutar7([[/    if \(ext\.crecio\) return \{ noResuelve: \{ pedido: ext\.frase, eje: info\.eje, sugerencias: \[nombre\] \} \};/,
+      "    // CARNADA: la extensión ignorada"]]);
+    if (m.error) ok(false, "carnada «la extensión del nombre ignorada»", m.error);
+    else {
+      try {
+        const Mut = await import(m.url);
+        const d = Mut.detectSerieIntent("muéstrame la venta de Falabella Express mes a mes");
+        ok(!!d && d.entidad === "Falabella", "carnada «la extensión del nombre ignorada» → «Falabella Express» se recorta de nuevo: el check se pone ROJO", JSON.stringify(d));
+      } catch (e) { ok(false, "carnada «la extensión del nombre ignorada»", `la copia mutada no carga: ${e.message}`); }
+    }
+  }
+  for (const f of tmp7) { try { fs.unlinkSync(f); } catch { /* */ } }
+}
+
 initTenant(TENANT_DEMO);
 console.log(`\n── _serie_puente_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);
