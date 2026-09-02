@@ -100,9 +100,16 @@ export const entidadPorPeriodo = {
       const pct = ((u.raw - a.raw) / Math.abs(a.raw)) * 100;
       /* ⚠️ EL SIGNO ES EL GUION ASCII, no el «−» tipográfico (U+2212). La primera versión escribía «−6.1%» y el
        * `_num` del muro solo acepta `-?`: el campo `resultado` no se parseaba, el [[CALCULO]] no cerraba y el
-       * turno caía a la escalera con dos vetos. Medido en la sonda, no supuesto. */
-      const signo = pct >= 0 ? "+" : "-";
-      lineas.push(`Eso es ${signo}${Math.abs(pct).toFixed(1)}% contra el mes anterior.`);
+       * turno caía a la escalera con dos vetos. Medido en la sonda, no supuesto.
+       * ⚠️ Y EL «+» TAMBIÉN ROMPE (cazado al congelar la certificación, 2026-09-02): el mismo parser `-?` no
+       * lee «+43.6%», así que el recompute daba 43.6% contra un declarado «+43.6%» y el muro vetaba la cuenta
+       * QUE CERRABA — la insignia de la completa (Mercado Norte, delta positivo) moría en el peldaño. El caso
+       * negativo del demo (−6.1%) jamás lo mostró: media suerte, no cobertura. El positivo va SIN signo en el
+       * resultado y con el alza dicha en palabras; el negativo queda como estaba (verificado). */
+      const signo = pct >= 0 ? "" : "-";
+      lineas.push(pct >= 0
+        ? `Eso es ${Math.abs(pct).toFixed(1)}% más contra el mes anterior.`
+        : `Eso es -${Math.abs(pct).toFixed(1)}% contra el mes anterior.`);
       /* ⚠️ EL ORDEN DE LOS INPUTS ES (NUEVO; VIEJO): guardC recompone `variacion_pct` como (v[0] − v[1]) / v[1].
        * Escribí (viejo; nuevo) y el muro obtuvo +6.5% contra mi −6.1%: veto, y el turno a la escalera. No es
        * un formato que se adivina: se lee del recompute (guardC:3056). */

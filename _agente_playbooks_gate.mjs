@@ -817,8 +817,10 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
     [[/ · dueno=\$\{d\.entidad\}\\n`\);/, "\\n`);"]],
     async (Mut) => !_juzgaDirecto(_componeB(Mut)).ok);
   // (G) el signo tipográfico «−» (U+2212): el `_num` del muro solo lee `-` ASCII y el resultado no se parsea
+  // (re-apuntada 2026-09-02: el positivo va SIN signo desde que el «+» también rompía el parser — la carnada
+  // muta el signo NEGATIVO al «−» tipográfico, que es el caso que siempre cazó)
   await carnada("el signo del delta con el «−» tipográfico", "src/adi/agente/playbooks/entidadPorPeriodo.js",
-    [[/const signo = pct >= 0 \? "\+" : "-";/, 'const signo = pct >= 0 ? "+" : "\\u2212";']],
+    [[/const signo = pct >= 0 \? "" : "-";/, 'const signo = pct >= 0 ? "" : "\\u2212";']],
     async (Mut) => !_juzgaDirecto(_componeB(Mut)).ok);
   // (H) `_caso` sin exigir serie REAL: el playbook reclama también la bloqueada y compite con el puente
   await carnada("entidad×período reclama la serie bloqueada (compite con el puente)", "src/adi/agente/playbooks/entidadPorPeriodo.js",

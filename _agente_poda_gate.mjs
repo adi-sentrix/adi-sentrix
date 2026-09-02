@@ -90,40 +90,43 @@ H("4 · si lo vetado es lo que el usuario pidió, no se corta nada");
     "…y si la multa no nombra ninguna cifra, no hay oración que señalar");
 }
 
-/* ═══ 5 · EL CORPUS · el riesgo de mutilar, medido ══════════════════════════════════════════════════════════
- * Se aplica la poda a TODOS los borradores vetados de los exámenes guardados. El número tiene que ser cero, y
- * si algún día deja de serlo, este check lo dice antes que un usuario. */
-H("5 · sobre el corpus de exámenes: ninguna respuesta queda mutilada");
+/* ═══ 5 · EL CORPUS · el riesgo de mutilar, medido sobre el expediente CONGELADO ════════════════════════════
+ * Se aplica la poda a los borradores vetados REALES de las corridas de certificación. El número de mutiladas
+ * tiene que ser cero, y si algún día deja de serlo, este check lo dice antes que un usuario.
+ * ⚠️ RE-APUNTADO 2026-09-02: la primera versión leía los archivos de corrida MUTABLES del checkout principal,
+ * pareando estado↔debug POR ÍNDICE. Cada corrida nueva del supervisor los sobreescribía y el corpus se volvía
+ * pares Frankenstein (el borrador de un turno juzgado con la multa de otro): la selectividad dio «0 de 22» sin
+ * que la poda hubiera cambiado — el corpus había muerto debajo del check, la misma enfermedad del documento
+ * que envejece. Ahora el corpus está CONGELADO en fixtures/poda-corpus-2026-09.json, auto-pareado (cada caso
+ * lleva el veto de SU propio turno) y commiteado: 32 borradores, de los que HOY se podan 15 — medido al
+ * congelar, con el t4 de la certificación (estado real: podado) adentro. */
+H("5 · sobre el corpus congelado del expediente: ninguna respuesta queda mutilada");
 {
-  const R = "C:/Users/jcnav/ADI-Sentrix/ADI_PROYECTO/";
   const HUERFANA = /\b(es[eoa]s?|aquell[oa]s?)\s+(cifra|monto|clientes?|puntos?)\b|\bes[oa]\s+(mismo|misma)\b/i;
   const cierreFinal = (s) => /[?¿][^?]*$/.test(String(s).trim().split(/\n/).slice(-1)[0] || "");
+  const F = JSON.parse(fs.readFileSync(path.join(process.cwd(), "fixtures", "poda-corpus-2026-09.json"), "utf8"));
   let vistos = 0, podados = 0; const malos = [];
-  for (const e of ["_examen_agente_estado_escenario1.json", "_examen_agente_estado_escenario1_corrida1.json", "_examen_agente_estado.json"]) {
-    let j; try { j = JSON.parse(fs.readFileSync(R + e, "utf8")); } catch { continue; }
-    for (const [i, t] of (j.turnos || []).entries()) {
-      if (!t || !(t.vetos || []).length) continue;
-      let d; try { d = JSON.parse(fs.readFileSync(`${R}_examen_agente_debug_t${i + 1}.json`, "utf8")); } catch { continue; }
-      for (const it of (d.intentos || [])) {
-        if (it.tipo !== "texto" || typeof it.borrador !== "string" || !it.borrador.trim()) continue;
-        vistos++;
-        const p = _podarOracionVetada(it.borrador, String(t.vetos[0] || ""), figsDe(it.borrador));
-        if (!p) continue;
-        podados++;
-        const problemas = [];
-        if (recortarMunonDeOracion(p) !== p) problemas.push("muñón");
-        if (HUERFANA.test(p) && !HUERFANA.test(it.borrador)) problemas.push("huérfana");
-        if (cierreFinal(it.borrador) && !cierreFinal(p)) problemas.push("sin cierre");
-        if (problemas.length) malos.push(`t${i + 1} ${problemas.join("+")}`);
-      }
-    }
+  for (const c of F.casos) {
+    vistos++;
+    const p = _podarOracionVetada(c.borrador, c.multa, figsDe(c.borrador));
+    if (!p) continue;
+    podados++;
+    const problemas = [];
+    if (recortarMunonDeOracion(p) !== p) problemas.push("muñón");
+    if (HUERFANA.test(p) && !HUERFANA.test(c.borrador)) problemas.push("huérfana");
+    if (cierreFinal(c.borrador) && !cierreFinal(p)) problemas.push("sin cierre");
+    if (problemas.length) malos.push(`${c.t} ${problemas.join("+")}`);
   }
-  if (!vistos) { ok(false, "el corpus de exámenes no está donde se esperaba — la medición no corrió"); }
-  else {
-    console.log(`      corpus: ${vistos} borradores vetados · se podan ${podados}`);
-    ok(malos.length === 0, `★ CERO respuestas mutiladas de ${podados} podas`, malos.join(" · "));
-    ok(podados > 0 && podados < vistos, `★ y la poda es SELECTIVA: ${podados} de ${vistos} — ni todas ni ninguna`);
-  }
+  console.log(`      corpus congelado: ${vistos} borradores vetados · se podan ${podados}`);
+  ok(malos.length === 0, `★ CERO respuestas mutiladas de ${podados} podas`, malos.join(" · "));
+  ok(podados > 0 && podados < vistos, `★ y la poda es SELECTIVA: ${podados} de ${vistos} — ni todas ni ninguna`);
+  /* ⚠️ EL T4 «PODADO» NO SE RE-PODA DESDE ESTE FIXTURE, y no es un hueco: los vetos que el registro guarda son
+   * ETIQUETAS RECORTADAS («reparacion · 4.9x»), no la multa completa que viajó en vivo — y la poda decide con
+   * la multa completa. Medido: con la etiqueta corta (y aun con la boleta real de gridTable) este par no poda.
+   * La prueba VIVA del t4 está donde corresponde: el replay de `_certificacion_congelada_gate` re-ejecuta el
+   * turno entero con el cerebro del expediente y la multa real en vuelo, y exige el rastro «poda · …» — con
+   * carnada que revierte la poda y lo pone rojo. Acá el corpus mide lo que el corpus sabe medir: mutilaciones
+   * (cero) y selectividad. */
 }
 
 /* ═══ 6 · CARNADAS ═════════════════════════════════════════════════════════════════════════════════════════ */

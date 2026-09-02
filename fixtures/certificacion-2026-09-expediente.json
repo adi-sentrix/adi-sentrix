@@ -1,0 +1,19 @@
+{
+  "origen": "certificación 2026-09-01 · escenario COMPLETA · turno 4 (antes del playbook limite-honesto) — estado podado",
+  "q": "por punto de venta, ¿quién queda bajo el plan?",
+  "estadoOriginal": "podado",
+  "vetosOriginales": [
+    "cierre · 4.9x",
+    "reparacion · 4.9x"
+  ],
+  "pedidos": [
+    {
+      "tool": "gridTable",
+      "args": {
+        "dimension": "cliente"
+      }
+    }
+  ],
+  "borradorVetado": "Bajo el benchmark de margen (30.1%), tienes estos clientes con brecha negativa:\n\n**Peores (margen más lejano del plan):**\n- Comercial Valparaiso: 18.4% (brecha: -11.7pp) — ventas $3.1M, caída de 78% vs. año anterior ($14.1M)\n- La Polar: 18.4% (brecha: -11.7pp) — ventas $2.1M, caída de 77% vs. año anterior ($9.0M)\n- Tottus: 21.6% (brecha: -8.5pp) — ventas $2.8M, caída de 78% vs. año anterior ($12.6M)\n- Unimarc: 24% (brecha: -6.1pp) — ventas $3.2M, pero crecimiento de 4.9x vs. año anterior ($644K)\n- Distribuidora Pacifico: 24% (brecha: -6.1pp) — ventas $5.5M, crecimiento de 3.6x vs. año anterior ($1.2M)\n\n**Lo crítico:** Comercial Valparaiso, La Polar y Tottus no solo están bajo benchmark — vinieron de volúmenes enormes y se desplomaron. Comercial Valparaiso pasó de $14.1M a $3.1M; La Polar de $9M a $2.1M; Tottus de $12.6M a $2.8M.\n\n**Dónde actuar primero:** Comercial Valparaiso. Es tu caída más severa ($11M perdidos), el margen más alejado del plan, y el volumen todavía relevante ($3.1M). Antes de cualquier ajuste de precio o rebate, necesitas entender qué perdiste ahí — si fue volumen, mix de SKU o precio de venta. ¿Quieres ver qué SKU o familia movía esa cuenta antes?",
+  "borradorReparado": "Bajo el benchmark de margen (30.1%), tienes estos clientes con brecha negativa:\n\n**Peores (margen más lejano del plan):**\n- Comercial Valparaiso: margen 18.4% (brecha: -11.7pp) — ventas $3.1M, caída de 78% vs. año anterior ($14.1M)\n- La Polar: margen 18.4% (brecha: -11.7pp) — ventas $2.1M, caída de 77% vs. año anterior ($9.0M)\n- Tottus: margen 21.6% (brecha: -8.5pp) — ventas $2.8M, caída de 78% vs. año anterior ($12.6M)\n- Unimarc: margen 24% (brecha: -6.1pp) — ventas $3.2M, crecimiento de 4.9x vs. año anterior ($644K)\n- Distribuidora Pacifico: margen 24% (brecha: -6.1pp) — ventas $5.5M, crecimiento de 3.6x vs. año anterior ($1.2M)\n\n**Lo crítico:** Comercial Valparaiso, La Polar y Tottus no solo están bajo benchmark — vinieron de volúmenes enormes y se desplomaron. Comercial Valparaiso pasó de $14.1M a $3.1M; La Polar de $9M a $2.1M; Tottus de $12.6M a $2.8M.\n\n**Dónde actuar primero:** Comercial Valparaiso. Es tu caída más severa ($11M perdidos), el margen más alejado del plan, y el volumen todavía relevante ($3.1M). Antes de cualquier ajuste de precio o rebate, necesitas entender qué perdiste ahí — si fue volumen, mix de SKU o precio de venta. ¿Quieres ver qué SKU o familia movía esa cuenta antes?"
+}
