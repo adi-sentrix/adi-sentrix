@@ -22,17 +22,43 @@
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 
-const TECHO = 1.68;      // el autorizado por el owner para los tres escenarios
-const RESERVA = 0.26;    // el peor turno jamás medido (US$0.2534), redondeado hacia arriba
+/* ⚠️ CORRIDA AISLADA DEL ESCENARIO 2 (owner 2026-09-02): «Máximo aprox. US$0.28 de los US$0.68 restantes».
+ * El tope del owner va COSIDO AL FRENO, no prometido: TECHO = gastado acumulado (US$0.9976) + US$0.28.
+ * Y LA RESERVA BAJA DE 0.26 A 0.04 CON MOTIVO MEDIDO: el 0.26 venía del peor turno de la corrida 2 de agosto
+ * (un ciclo de reparación desbocado, US$0.2534) — una configuración que YA NO EXISTE: todos los turnos corren
+ * con `--frenar-en-vacia`, que corta un turno roto en UNA llamada. El peor turno observado en las tres corridas
+ * de esta configuración es US$0.0391. Reserva 0.04 = ese peor caso redondeado. Con la reserva vieja, el freno
+ * cortaría con US$0.02 gastados y el tope del owner sería inalcanzable por diseño — un freno que no deja
+ * arrancar no protege: impide medir. */
+const TECHO = 1.2776;    // 0.9976 acumulado + 0.28 del tope de ESTA corrida (el techo global 1.68 sigue arriba)
+const RESERVA = 0.04;    // el peor turno de la configuración ACTUAL (0.0391), no el de la extinta
 /* ⚠️ LO YA GASTADO DE ESTA AUTORIZACIÓN, DECLARADO. El 2026-09-01, verificando que el agente estuviera listo,
  * `--planilla <ruta> --sello` corrió un turno completo con la ruta como pregunta (defecto del parser de la
  * consola, ya arreglado) y costó US$0.0748. Ese gasto salió del mismo permiso del owner, así que se descuenta
  * del techo: si no se descontara, el techo autorizado se superaría por esa diferencia y el freno sería una
  * cuenta que no cierra. Un gasto que no se cuenta es exactamente el que se repite. */
-const GASTADO_ANTES = 0.0748;
+/* 0.0748 turno accidental + 0.1057 corrida 1 + 0.1380 corrida 2 + 0.1214 escenario 1 de la corrida única.
+ * ⚠️ NO incluye los US$0.0287 del escenario 2: ese expediente NO se reinicia, así que su costo lo aporta
+ * `leerCosto()` cuando se lo lee. Sumarlo acá también lo contaría dos veces y el freno cortaría de más. */
+const GASTADO_ANTES = 0.9976;   // TODO lo gastado hasta hoy: 0.4686 pre-reanudación + 0.5290 de la reanudación (incluye el re-run indebido del demo)
 const ESTADO = "_examen_agente_estado.json";
 const LOG = "_examen_agente_certificacion_run.log";
 const SOLO = (() => { const i = process.argv.indexOf("--solo"); return i > 0 ? process.argv[i + 1] : null; })();
+/* ⚠️ REANUDAR SIN REINICIAR (owner 2026-09-02, tras cortarse la corrida por falta de créditos de la API — no
+ * por el freno). `--desde <escenario>:<n>` retoma ese escenario en el turno n SIN `--reset`: el expediente
+ * conserva los turnos ya medidos Y EL HILO, que es lo que importa — varios turnos leen el contexto del
+ * anterior («ese total», «esos clientes»), así que reiniciar no perdería solo dinero: mediría otra cosa.
+ * Los escenarios NO nombrados acá arrancan de cero como siempre. */
+const DESDE = (() => {
+  const i = process.argv.indexOf("--desde");
+  if (i < 0) return {};
+  const m = {};
+  for (const par of String(process.argv[i + 1] || "").split(",")) {
+    const [esc, n] = par.split(":");
+    if (esc && Number(n) > 0) m[esc.trim()] = Number(n);
+  }
+  return m;
+})();
 
 const P = "C:/Users/jcnav/Downloads/Plantilla_ADI_v2_";
 const COMPLETA = `${P}completa_25_clientes_ajustada.xlsx`;
@@ -111,10 +137,13 @@ for (const esc of aCorrer) {
   log(`\n${"═".repeat(92)}\n███ ESCENARIO ${esc.id} · ${esc.nombre}\n${"═".repeat(92)}`);
   const base = esc.planilla ? ["--planilla", esc.planilla] : [];
   if (esc.planilla && !fs.existsSync(esc.planilla)) { log(`✗ no encuentro la planilla: ${esc.planilla}`); break; }
-  log(consola([...base, "--reset", "--titulo", esc.titulo]));
+  const saltar = Number(DESDE[esc.id] || 0);   // cuántos turnos de este escenario YA están medidos
+  if (saltar > 0) log(`  ⟲ REANUDA en el turno ${saltar + 1}/${esc.turnos.length} — no se reinicia: el expediente y EL HILO se conservan.`);
+  else log(consola([...base, "--reset", "--titulo", esc.titulo]));
   log(consola([...base, "--sello"]));
 
   for (const [i, t] of esc.turnos.entries()) {
+    if (i < saltar) continue;   // ya medido en la corrida anterior
     const acum = gastadoPrevio + (leerCosto() || 0);
     if (acum + RESERVA > TECHO) {
       log(`\n■ FRENO PREVENTIVO: acumulado US$${acum.toFixed(4)} + reserva US$${RESERVA} > techo US$${TECHO}.`);
