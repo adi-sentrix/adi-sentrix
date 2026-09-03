@@ -85,30 +85,57 @@ los huecos que se declaren graves.*
 
 ---
 
+---
+
 ## 6 · VUELTA 1 · lo cerrado (2026-09-05)
 
-**Mapa antes → después: 84 sin piso → 74 · 49 con playbook → 59.** Suite 232·0 en cada paso.
+**Mapa antes → después: 84 fraseos sin piso → 74 · 49 con playbook → 59.** Suite 232·0 en cada paso, cero
+composers nuevos.
 
-### T1 · léxico corto (7 fraseos, cero composers nuevos)
- ·  ·  → síntesis ejecutiva, por dos
-puertas nuevas y angostas (riesgos como conjunto · entrega a comité).  ·
- ·  ·  ·  →
-margen (cartera por estado · tema en pregunta corta · las tres personas del verbo).
- **sin período** → entidad×período, con detector propio del playbook: es del camino natural (§7) y no se toca. Verificado en la planilla: responde la película mes a mes en vez de
-inventar un mes que nadie pidió.
+### T1 · léxico corto — el detector pedía más de lo que la gente escribe
 
-### T2 · los asks de Capital, en sus dos clases (adenda del owner)
-· **Libres** —  ·  ·  → piso determinístico. El detector pedía señal de asesoría («qué hago», «liberar») que un botón
-no trae; se sumó la forma locativa, que es lo que el botón pregunta.
-· **De cuadro** — SEMBRADOS, no construidos, como ordenó el owner. Ver .
+| fraseo que no tenía camino | ahora lo atiende | cómo se abrió |
+|---|---|---|
+| «los 3 riesgos» · «resumen para el directorio» · «qué le digo al directorio» | síntesis ejecutiva | dos puertas nuevas y angostas: riesgos **como conjunto** · entrega **a comité** |
+| «qué clientes están mal» · «mis peores clientes por margen» | margen en riesgo | la cartera nombrada por su **estado**, cediendo si aparece otra métrica |
+| «y el margen?» · «necesito ver márgenes» | margen en riesgo | tema + **pregunta corta** (en una frase larga, el margen al pasar no es el pedido) |
+| «mantenés lo que dijiste» | seguimiento del diario | las **tres personas** del verbo (tuteo · voseo · tercera) |
+| «cuánto me compró X» **sin período** | entidad × período | detector **propio del playbook**: `detectSerieIntent` es del camino natural y §7 dice que no se mejora |
+
+El último se verificó contra la planilla real: responde la película mes a mes en vez de inventar un mes que
+nadie pidió. Cada ampliación se probó con sus **casos negativos**: cero secuestros en los siete controles.
+
+### T2 · los asks de Capital, en las dos clases de la adenda
+
+- **Libres** — «¿Dónde está frenado mi capital?» · «¿Dónde está inmovilizado mi capital?» · «¿Dónde sobra
+  inventario?» → piso determinístico. El detector exigía una señal de asesoría («qué hago», «liberar») que un
+  botón no trae; se sumó la **forma locativa**, que es literalmente lo que el botón pregunta.
+- **De cuadro** — **sembrados, no construidos**, como ordenó el owner. Contrato en
+  `_CONTRATO_ASK_DE_CUADRO.md`.
 
 ### El hallazgo de la siembra
-**El emisor ya sembraba y el receptor no escuchaba**: la UI arma el contexto de la pieza tocada desde el
-Contrato de Concordancia (agosto) y se lo pasaba solo al camino natural —  no lo recibía.
-Cableado: entra, viaja y queda en el expediente (), con su caso congelado. Los de Sentrix no se tocaron: son contrato congelado, el receptor aprende y el emisor no cambia.
 
-### Lo que sigue sin piso y por qué (para la vuelta 2)
-·  ·  — tema sin estado ni ubicación: entran en T3 con la lectura
-neutra, no forzadas acá.
-· Los ~35 asks de cuadro de Capital ( ·  · ): **esperan el pulido del anclaje**, que el owner difirió. Hoy su contexto ya llega.
-· T3 (lectura neutra de ventas · serie mes a mes) y T4 (ficha de entidad) siguen abiertos, como estaba previsto.
+**El emisor ya sembraba y el receptor no escuchaba.** La UI arma el contexto de la pieza tocada desde el
+Contrato de Concordancia (agosto) y se lo pasaba **solo al camino natural**: `answerViaAgente` no lo recibía.
+Cableado: entra, viaja y queda en el expediente del turno (`r.agente.viewContext`), con su caso congelado en la
+certificación — llega · no se inventa cuando falta · no trae cifras. Los `ask` de Sentrix **no se tocaron**:
+son contrato congelado; el receptor aprende, el emisor no cambia.
+
+### Lo que sigue sin piso, y por qué no se forzó
+
+- «qué stock no rota» · «cómo está el inventario» — tema sin estado ni ubicación. Entran en **T3** con la
+  lectura neutra; forzarlos acá habría sido ensanchar un detector sin necesidad.
+- Los ~35 **asks de cuadro** de Capital («¿Cuánto capital tengo en Santiago?» · «Profundiza en SAM-REF500L» ·
+  «¿Cómo libero el capital de LG-DRYER8KG?»): **esperan el pulido del anclaje**, que el owner difirió. Su
+  contexto ya llega al agente, así que el pulido tiene de dónde agarrarse.
+- **T3** (lectura neutra de ventas · serie mes a mes) y **T4** (ficha de entidad) siguen abiertos, como estaba
+  previsto en la priorización.
+
+### Dos checks se movieron, y los dos eran mejoras
+
+- «resumen ejecutivo para el directorio» **ya no necesita el empujón de R6**: tiene camino garantizado. El
+  empujón se sigue midiendo, pero con una lectura que sí sigue sin playbook.
+- La carnada del «detector ancho» se re-apuntó a la línea que hoy decide el caso general de margen.
+
+*Y el `\b` imposible mordió por tercera vez, en el detector nuevo de «cuánto me compró X» — «compró» termina en
+vocal acentuada. Corregido con el cierre unicode del §5g.*
