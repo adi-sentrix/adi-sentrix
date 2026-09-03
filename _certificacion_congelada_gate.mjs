@@ -161,6 +161,49 @@ H("1b · PROCESO caso 2: la brecha del negocio que no cierra muere en el muro");
     `caso 2: …y sigue siendo una respuesta con cifras, no un silencio (${r.r.agente.estado})`, t.slice(0, 90));
 }
 
+/* ═══ 1c · PROCESO casos 3 y 4 · LAS DOS SEÑALES DEL OWNER EN PRODUCCIÓN (2026-09-05) ═══════════════════════
+ * Probó la 2.x («esto me gusta mucho más») y trajo dos preguntas que caían al rescate honesto. Medido antes de
+ * arreglar: las dos daban `playbookPara` = NINGUNO → el cerebro quedaba sin piso → veto → rescate. El diario NO
+ * falló (la tesis se guarda y sobrevive turnos ajenos); lo que no existía era la RUTA.
+ *   caso 3 · el SEGUIMIENTO: «¿cambia tu lectura?» con una tesis viva en el hilo tiene que RE-MEDIR y decir
+ *            confirma/cambió — jamás una lectura nueva desde cero, jamás un declive.
+ *   caso 4 · el RESUMEN GENERAL: «¿cómo va el negocio?» / «resumen ejecutivo de negocio» es la FOTO (distinta
+ *            de los riesgos del directorio, que ya tiene su playbook) y no tenía camino garantizado. */
+H("1c · PROCESO casos 3 y 4: las dos señales del owner — seguimiento y resumen general");
+{
+  initTenant(TENANT_DEMO);
+  /* caso 3 · el seguimiento re-mide sobre la tesis del hilo */
+  const previo = await answerViaAgente({ text: "por que estamos perdiendo margen?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
+  ok(!!(previo.mem && previo.mem.diarioTesis), "caso 3 · la premisa: el turno del porqué deja su tesis en el hilo");
+  const seg = await answerViaAgente({ text: "¿cambia tu lectura?", history: [{ role: "user", text: "por que estamos perdiendo margen?" }, { role: "adi", text: previo.r.text }],
+    mem: previo.mem, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
+  const ts = String(seg.r.text || "");
+  ok(seg.r.agente.estado === "playbook" && !/No pude completar la lectura/.test(ts),
+    `★ caso 3: el seguimiento tiene camino garantizado — ni rescate ni vacío (${seg.r.agente.estado})`, ts.slice(0, 100));
+  ok(/no cambia|sigue|confirma/i.test(ts) && /(?:al )?volver a medir|re-?medi|midiendo de nuevo/i.test(ts),
+    "★ caso 3: responde confirmando y NOMBRA la re-medición — no repite de memoria", ts.slice(0, 140));
+  ok(/lo nuevo/i.test(ts), "★ caso 3: declara QUÉ APORTA este turno («lo nuevo es…») — un seguimiento sin novedad es un eco");
+  /* …y sin tesis en el hilo, el mismo turno es honesto y arma la lectura */
+  const segSin = await answerViaAgente({ text: "¿cambia tu lectura?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
+  ok(/no tenemos una lectura previa|no hay una lectura previa/i.test(String(segSin.r.text || "")),
+    "★ caso 3: sin tesis en el hilo lo dice y arma la lectura — jamás finge recordar", String(segSin.r.text || "").slice(0, 110));
+
+  /* caso 4 · el resumen general del negocio */
+  for (const q of ["¿cómo va el negocio?", "dame un resumen ejecutivo de negocio", "puntos altos y bajos"]) {
+    const r = await answerViaAgente({ text: q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
+    const t = String(r.r.text || "");
+    ok(r.r.agente.estado === "playbook" && !/No pude completar la lectura/.test(t),
+      `★ caso 4 «${q}»: la foto del negocio tiene camino garantizado (${r.r.agente.estado})`, t.slice(0, 90));
+    ok(/\$/.test(t) && /(?:alto|bien|sostiene|favor)/i.test(t) && /(?:bajo|presion|cuida|riesgo|atenci)/i.test(t),
+      `★ caso 4 «${q}»: cuenta la historia con cifras — lo que va bien y lo que no`, t.slice(0, 110));
+  }
+  /* y el DESLINDE: los riesgos del directorio siguen siendo de la síntesis, no de la foto */
+  ok(playbookPara("dame los 3 riesgos para el directorio") && playbookPara("dame los 3 riesgos para el directorio").nombre === "sintesis-ejecutiva",
+    "★ caso 4: el deslinde se mantiene — «los 3 riesgos para el directorio» sigue siendo de la síntesis ejecutiva");
+  ok(playbookPara("¿cómo va el negocio?") && playbookPara("¿cómo va el negocio?").nombre !== "sintesis-ejecutiva",
+    "…y «cómo va el negocio» NO cae en la síntesis: son dos preguntas distintas y el registro no duda");
+}
+
 /* ═══ 2 · COMPLETA · los 12 turnos del techo del producto (condicional al archivo del owner) ═════════════════ */
 H("2 · COMPLETA · el techo del producto, congelado");
 if (fs.existsSync(COMPLETA)) {

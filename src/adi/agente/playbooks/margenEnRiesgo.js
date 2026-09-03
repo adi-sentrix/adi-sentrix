@@ -87,6 +87,17 @@ const _FIN = "(?![a-záéíóúüñ])";
  * sin tilde y pegado o separado, «a qué se debe», «qué lo explica», «cuál es la causa/razón/motivo»,
  * «profundiza». Sin `\b` delante de vocal acentuada (el `\b` imposible, §5g del contrato). */
 const _PIDE_PORQUE = new RegExp(`\\bpor\\s?qu[eé]${_FIN}|\\bporqu[eé]${_FIN}|\\ba qu[eé] se debe${_FIN}|\\bqu[eé] lo explica${_FIN}|\\b(?:cu[aá]l es la|la) (?:causa|raz[oó]n|explicaci[oó]n)\\b|\\bmotivo\\b|\\bprofundiz|\\bexplic[aá]${_FIN}|\\bexpl[ií]came${_FIN}`, "i");
+/* ⚠️ EL SEGUIMIENTO (owner 2026-09-05): la pregunta que refiere a la LECTURA PREVIA en vez de pedir una nueva.
+ * No nombra el tema —«¿cambia tu lectura?» no dice «margen»— así que el detector no puede exigirlo; a cambio es
+ * ANGOSTO y léxico, y los excluyentes de siempre (otro eje, otro período, simulación) lo siguen frenando. Hoy
+ * la única tesis que el diario guarda es la del margen; el día que haya otra, esto se reparte por `clave`. */
+const _PIDE_SEGUIMIENTO = new RegExp([
+  `\\bcambia (?:tu|la) lectura${_FIN}`, `\\bcambi[oó] (?:tu|la) lectura${_FIN}`,
+  `\\bsigue igual${_FIN}`, `\\bsigue siendo (?:as[ií]|igual)${_FIN}`, `\\bse mantiene${_FIN}`,
+  `\\bmantien[eé]s lo que dijiste${_FIN}`, `\\bsostien[eé]s lo que dijiste${_FIN}`,
+  `\\bvolviendo a(?:l| la)\\b`, `\\bretomando\\b`,
+  `\\bcambi[oó] algo${_FIN}`, `\\bsigue en pie${_FIN}`,
+].join("|"), "i");
 const _TEMA_MARGEN = /\bm[aá]rgen(?:es)?\b|\bbenchmark\b|\bvara\b|\brentabilidad\b/i;
 const _PIDE_LECTURA = new RegExp(`\\bc[oó]mo${_FIN}|\\bqu[eé]${_FIN}|\\bqui[eé]n(?:es)?${_FIN}|\\bcu[aá]l(?:es)?${_FIN}|\\bcu[aá]nto${_FIN}|\\bd[oó]nde${_FIN}|\\bprioriza|\\bprioridad\\b|\\bprimero\\b|\\brevis|\\bmejor(?:ar|a)\\b|\\bbajo\\b|\\bdebajo\\b|\\briesgo\\b|\\bdame\\b|\\bmu[eé]stra|\\blista\\b|\\branking\\b`, "i");
 /* ⚠️ LO QUE QUEDA AFUERA, Y POR QUÉ (calibrado contra el corpus de exámenes, cero gasto — cazó tres casos):
@@ -136,6 +147,50 @@ export function diarioDeTesis(scenario) {
       ? "los que caen bajo el benchmark son los mismos que sostienen la facturación"
       : "los que caen bajo el benchmark caen por razones distintas",
   };
+}
+
+/* ── EL SEGUIMIENTO · «¿cambia tu lectura?» (owner 2026-09-05, señal de producción) ────────────────────────
+ * Su redacción esperada, que es la especificación de este composer:
+ *   «No cambia la lectura: el margen sigue presionado por los mismos clientes grandes que sostienen la venta.
+ *    La tesis era margen bajo + concentración + carga comercial en las mismas cuentas. Al volver a medir,
+ *    Falabella/Lider/Jumbo siguen concentrando la brecha. Lo nuevo es que la decisión no es subir precio a
+ *    todos, sino revisar si la carga comercial fue apuesta deliberada o descontrol.»
+ * El molde tiene CUATRO piezas y las cuatro son obligatorias: veredicto (no cambia / cambió) · qué ERA la
+ * tesis · la RE-MEDICIÓN nombrada (se vuelve a medir de verdad, no se recuerda una frase) · y «lo nuevo es»
+ * — porque un seguimiento sin novedad declarada suena a eco. Sin tesis en el hilo, se dice y se arma la
+ * lectura completa: fingir que se recuerda sería la peor versión de un diario. */
+function componerElSeguimiento({ figs, semilla, scenario, mem }) {
+  const tesis = mem && mem.diarioTesis && mem.diarioTesis.clave === "margen-roles" ? mem.diarioTesis : null;
+  if (!tesis || !tesis.huella) return null;                    // sin tesis: el caller arma la lectura completa
+  let A = null;
+  try { A = buildRolesCartera(scenario); } catch { A = null; }
+  if (!A || !A.hay) return null;
+  const C = A.concurrencia || {};
+  const h = tesis.huella;
+  const igual = h.caen === (C.caen || 0) && h.grandesQueCaen === (C.grandesQueCaen || 0) && h.mismaGente === !!C.mismaGente;
+  const ero = A.roles && A.roles.erosion_por_acciones;
+  const nombres = ero && ero.n ? ero.items.slice(0, 3).map((f) => f.entidad) : [];
+  const p = [];
+
+  /* 1 · EL VEREDICTO, primero — es lo que la pregunta pide */
+  p.push(igual
+    ? `No cambia la lectura: el margen sigue presionado por las mismas cuentas grandes que sostienen tu facturación.`
+    : `Sí cambia, y por eso vale la pena que preguntes: la medición de hoy ya no dice lo mismo que la de antes en este hilo.`);
+  /* 2 · QUÉ ERA la tesis — el diario habla de lo suyo, con la frase que se guardó */
+  p.push(`La tesis que dejamos era esta: ${tesis.resumen}.`);
+  /* 3 · LA RE-MEDICIÓN, NOMBRADA — se volvió a medir, no se recordó */
+  const _CUENTA = ["", "una", "dos", "tres"];
+  p.push(nombres.length
+    ? `Al volver a medir: ${nombres.join(" · ")} siguen concentrando la brecha, y ${igual ? "el reparto de papeles no se movió" : "el reparto de papeles cambió"} — ${C.caen} clientes bajo el benchmark, ${C.grandesQueCaen} de ellos entre los que mueven la facturación.`
+    : `Al volver a medir: ${C.caen} clientes quedan bajo el benchmark y ${C.grandesQueCaen} de ellos están entre los que mueven la facturación.`);
+  /* 4 · LO NUEVO — qué aporta este turno aunque la tesis se sostenga (sin esto es un eco) */
+  const preg = A.preguntaAlDueno;
+  p.push(variante(semilla, [
+    `Lo nuevo es que la decisión ya no es tocarle el precio a todos: es separar en ${_CUENTA[Math.min(3, nombres.length)] || "esas"} cuentas qué parte de la carga comercial fue deliberada y qué parte se descontroló.${preg ? ` Sigue en pie mi pregunta: ${preg.texto}` : ""}`,
+    `Lo nuevo es el foco: no un ajuste parejo de precio, sino distinguir en esas cuentas la carga deliberada de la que se escapó.${preg ? ` Y sigue abierta mi pregunta: ${preg.texto}` : ""}`,
+    `Lo nuevo está en qué hacer: en vez de mover el precio de toda la cartera, separar en esas cuentas la carga deliberada de la que no lo fue.${preg ? ` Mi pregunta sigue esperando: ${preg.texto}` : ""}`,
+  ]));
+  return p.join("\n\n");
 }
 
 function componerElPorque({ figs, semilla, scenario, mem }) {
@@ -229,6 +284,8 @@ export const margenEnRiesgo = {
   cuandoAplica(pregunta) {
     const q = String(pregunta || "");
     if (_FUERA.test(q) || _OTRO_EJE.test(q) || _OTRO_PERIODO.test(q)) return false;
+    /* el SEGUIMIENTO entra sin nombrar el tema: refiere a la lectura previa, y esa lectura es la de acá */
+    if (_PIDE_SEGUIMIENTO.test(q)) return true;
     return _TEMA_MARGEN.test(q) && _PIDE_LECTURA.test(q);
   },
 
@@ -244,7 +301,9 @@ export const margenEnRiesgo = {
       { tool: "diagnose", args: {},
         para: "cuánta contribución no se captura —por cliente y en total— y dónde localiza el motor el exceso de carga comercial" },
     ];
-    if (!_PIDE_PORQUE.test(String(pregunta || ""))) return base;
+    /* el SEGUIMIENTO también la paga: re-medir es el punto — y sus conteos tienen que estar en la boleta de
+     * ESTE turno, no en el recuerdo del anterior, o el muro los vetaría con razón. */
+    if (!_PIDE_PORQUE.test(String(pregunta || "")) && !_PIDE_SEGUIMIENTO.test(String(pregunta || ""))) return base;
     return [...base, { tool: "rolesCartera", args: {},
       para: "el PAPEL de cada cliente (fuga por acciones · volumen a margen bajo · margen delgado · sano) y la huella de cada mecanismo con su sello — la evidencia para razonar el porqué sin inventarlo" }];
   },
@@ -272,6 +331,15 @@ export const margenEnRiesgo = {
      * trajeron los papeles, el peldaño determinístico RAZONA en vez de repetir dónde y cuánto — que es
      * exactamente el defecto que el owner encontró en producción. Si los papeles no están (la tool no corrió),
      * cae al entregable de siempre sin ruido. */
+    /* EL SEGUIMIENTO va primero: «¿cambia tu lectura?» pide comparar contra la tesis del hilo, no una lectura
+     * nueva. Con tesis → confirma o corrige RE-MIDIENDO; sin tesis → lo dice y arma el porqué completo, que es
+     * lo honesto: un diario que finge recordar es peor que no tenerlo. */
+    if (_PIDE_SEGUIMIENTO.test(String(pregunta || ""))) {
+      const seg = componerElSeguimiento({ figs, semilla, scenario, mem });
+      if (seg) return seg;
+      const nuevo = componerElPorque({ figs, semilla, scenario, mem });
+      if (nuevo) return `No tenemos una lectura previa en este hilo, así que te la armo ahora.\n\n${nuevo}`;
+    }
     if (_PIDE_PORQUE.test(String(pregunta || ""))) {
       const porque = componerElPorque({ figs, semilla, scenario, mem });
       if (porque) return porque;
