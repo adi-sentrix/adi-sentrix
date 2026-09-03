@@ -185,10 +185,16 @@ function componerElSeguimiento({ figs, semilla, scenario, mem }) {
     : `Al volver a medir: ${C.caen} clientes quedan bajo el benchmark y ${C.grandesQueCaen} de ellos están entre los que mueven la facturación.`);
   /* 4 · LO NUEVO — qué aporta este turno aunque la tesis se sostenga (sin esto es un eco) */
   const preg = A.preguntaAlDueno;
+  /* ⚠️ LAS TRES VARIANTES LLEVAN LA MARCA DE CRITERIO, y esto lo enseñó una corrida del supervisor (2026-09-05):
+   * la tercera decía «Lo nuevo está en QUÉ HACER: …» —que dispara `_RECOMIENDA` en el muro— sin decir que era
+   * juicio mío, y `juicio-sin-marcar` la cazó con razón. Mi gate solo la había probado con UNA semilla, así
+   * que la variante rota vivía escondida hasta que otro largo de hilo la sacaba. Las tres proponen un curso de
+   * acción: las tres se marcan. La lección quedó en el gate de variación, que ahora corre TODAS × varios
+   * largos por el turno completo. */
   p.push(variante(semilla, [
-    `Lo nuevo es que la decisión ya no es tocarle el precio a todos: es separar en ${_CUENTA[Math.min(3, nombres.length)] || "esas"} cuentas qué parte de la carga comercial fue deliberada y qué parte se descontroló.${preg ? ` Sigue en pie mi pregunta: ${preg.texto}` : ""}`,
-    `Lo nuevo es el foco: no un ajuste parejo de precio, sino distinguir en esas cuentas la carga deliberada de la que se escapó.${preg ? ` Y sigue abierta mi pregunta: ${preg.texto}` : ""}`,
-    `Lo nuevo está en qué hacer: en vez de mover el precio de toda la cartera, separar en esas cuentas la carga deliberada de la que no lo fue.${preg ? ` Mi pregunta sigue esperando: ${preg.texto}` : ""}`,
+    `Lo nuevo —criterio mío, no una cifra del dato— es que la decisión ya no es tocarle el precio a todos: es separar en ${_CUENTA[Math.min(3, nombres.length)] || "esas"} cuentas qué parte de la carga comercial fue deliberada y qué parte se descontroló.${preg ? ` Sigue en pie mi pregunta: ${preg.texto}` : ""}`,
+    `Lo nuevo es el foco, y es criterio mío, no una cifra del dato: no un ajuste parejo de precio, sino distinguir en esas cuentas la carga deliberada de la que se escapó.${preg ? ` Y sigue abierta mi pregunta: ${preg.texto}` : ""}`,
+    `Lo nuevo está en qué haría yo —criterio mío, no una cifra del dato—: en vez de mover el precio de toda la cartera, separar en esas cuentas la carga deliberada de la que no lo fue.${preg ? ` Mi pregunta sigue esperando: ${preg.texto}` : ""}`,
   ]));
   return p.join("\n\n");
 }

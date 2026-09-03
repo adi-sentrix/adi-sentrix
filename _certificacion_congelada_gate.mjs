@@ -188,6 +188,22 @@ H("1c · PROCESO casos 3 y 4: las dos señales del owner — seguimiento y resum
   ok(/no tenemos una lectura previa|no hay una lectura previa/i.test(String(segSin.r.text || "")),
     "★ caso 3: sin tesis en el hilo lo dice y arma la lectura — jamás finge recordar", String(segSin.r.text || "").slice(0, 110));
 
+  /* caso 3-bis · EL REPRO DEL SUPERVISOR, congelado tal cual (2026-09-05). Su corrida cayó al rescate donde la
+   * mía pasaba: mismo turno, OTRO largo de hilo → otra semilla → otra variante del cierre, y esa variante
+   * («Lo nuevo está en QUÉ HACER: …») recomendaba sin marcar el criterio. La lección quedó en el gate de
+   * variación (todas las variantes × varios largos, por el turno completo); acá queda el turno exacto que lo
+   * destapó, con SU forma: history vacío en los dos turnos y la memoria acarreada. */
+  {
+    const p1 = await answerViaAgente({ text: "dime por qué estamos perdiendo margen", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
+    const p2 = await answerViaAgente({ text: "Volviendo al margen, ¿cambia tu lectura?", history: [], mem: p1.mem, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
+    const t2 = String(p2.r.text || "");
+    ok(p2.r.agente.estado === "playbook" && !(p2.r.agente.vetos || []).length,
+      `★ caso 3-bis (repro del supervisor): el seguimiento con history vacío y mem acarreado NO cae al rescate (${p2.r.agente.estado})`,
+      `${t2.slice(0, 100)} · vetos: ${JSON.stringify((p2.r.agente.vetos || []).map((v) => String(v).slice(0, 60)))}`);
+    ok(/criterio m[íi]o|dato duro|no sale del dato/i.test(t2),
+      "★ caso 3-bis: la variante que salga marca su criterio — la que recomendaba sin marcarlo era la que se vetaba");
+  }
+
   /* caso 4 · el resumen general del negocio */
   for (const q of ["¿cómo va el negocio?", "dame un resumen ejecutivo de negocio", "puntos altos y bajos"]) {
     const r = await answerViaAgente({ text: q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });

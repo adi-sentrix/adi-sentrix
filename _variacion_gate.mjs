@@ -116,5 +116,46 @@ H("3 · carnada: si variante() dejara de variar, este gate lo ve");
   }
 }
 
+
+/* ═══ 4 · TODAS LAS VARIANTES × VARIOS LARGOS, POR EL TURNO COMPLETO (supervisor 2026-09-05) ═════════════════
+ * LA LECCIÓN QUE LO PIDE, y es cara: el cierre del SEGUIMIENTO tenía tres variantes y mi gate probaba UNA
+ * semilla. La tercera decía «Lo nuevo está en QUÉ HACER: …» sin marcar que era juicio mío — `juicio-sin-marcar`
+ * la vetaba con razón— y vivió escondida hasta que el supervisor corrió el mismo turno con otro largo de hilo
+ * y le tocó esa variante. Una variante probada con una sola semilla no está probada: es una respuesta que el
+ * owner va a pisar tarde o temprano.
+ *
+ * LA REGLA, ahora candado: por cada familia con cierre variable se recorren largos de hilo hasta CUBRIR las
+ * tres variantes, y cada una sale por el TURNO ENTERO (muro + contrato + notarial). Si una familia no logra
+ * cubrir sus tres, el gate lo dice — cobertura declarada, no supuesta. */
+H("4 · cada variante de cada familia, por el turno completo — ninguna se prueba con una sola semilla");
+{
+  const FAMILIAS = [
+    { nombre: "margen · el porqué", q: "por que estamos perdiendo margen?", mem: () => ({}) },
+    { nombre: "margen · el seguimiento", q: "Volviendo al margen, ¿cambia tu lectura?", mem: (m) => m },
+    { nombre: "síntesis ejecutiva", q: "dame los 3 riesgos para el directorio", mem: () => ({}) },
+    { nombre: "la foto del negocio", q: "¿cómo va el negocio?", mem: () => ({}) },
+  ];
+  /* la tesis viva para el seguimiento: el mismo camino que el hilo real (T1 deja la tesis, T2 la usa) */
+  const T1 = await answerViaAgente({ text: "dime por qué estamos perdiendo margen", history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
+  const MEM_CON_TESIS = T1.mem || {};
+
+  for (const F of FAMILIAS) {
+    const cierres = new Set();
+    let vetados = 0, corridos = 0;
+    for (let len = 0; len <= 24 && cierres.size < 3; len += 2) {
+      const r = await answerViaAgente({ text: F.q, history: relleno(len), mem: F.mem(MEM_CON_TESIS), scenario: "bonanza", callAgente: MUDO });
+      corridos++;
+      const vetos = (r.r.agente.vetos || []).length;
+      if (r.r.agente.estado !== "playbook" || vetos) vetados++;
+      /* se compara el TEXTO COMPLETO, no la última línea: en la síntesis lo que varía es la oferta y la última
+       * línea es el umbral, constante — medir la cola daba «1 variante» sobre un texto que sí variaba. Con
+       * cerebro mudo y el mismo escenario, la ÚNICA fuente de variación es la semilla. */
+      cierres.add(String(r.r.text || "").trim());
+    }
+    ok(vetados === 0, `★ «${F.nombre}»: las ${cierres.size} variantes vistas en ${corridos} largos de hilo salen por el TURNO ENTERO sin un solo veto`);
+    ok(cierres.size >= 2, `…y varían de verdad entre turnos (${cierres.size} cierres distintos)`);
+  }
+}
+
 console.log(`\n── _variacion_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
 process.exit(FAIL ? 1 : 0);
