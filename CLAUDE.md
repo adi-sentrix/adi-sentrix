@@ -146,12 +146,18 @@ C:\Users\jcnav\.claude\projects\C--Users-jcnav-ADI-Sentrix\memory\MEMORY.md
 
 ---
 
-## 7. El agente es EL camino (owner 2026-09-02)
+## 7. El agente es EL camino — y el natural ya no existe (La Poda, owner 2026-09-05)
 
-**«No quiero mantener dos ADIs.»** El turno libre lo atiende **ADI Agente** (certificado 28/28, congelado en
-`_certificacion_congelada_gate`). El camino natural es **SOLO rollback técnico temporal** — cascada automática
-por turno (agente → natural → oráculo) y apagado manual de una línea (comentar `"ADI_AGENTE"` en FEATURE).
+**«No quiero mantener dos ADIs.»** El turno libre lo atiende **ADI Agente** (certificación congelada en
+`_certificacion_congelada_gate`). El **camino natural se retiró del código** el 2026-09-05 con la palabra del
+owner («poda inmediata», tras el pulido del anclaje): no existe `caminoNatural.js`, ni `naturalPrompt.js`, ni
+la rama `modoNatural` del gateway, ni el flag `ADI_CAMINO_NATURAL`.
 
-- ⛔ **PROHIBIDO mejorar el camino natural.** Toda mejora nueva va al agente. Un arreglo al natural solo se
-  justifica si es un defecto de seguridad mientras siga siendo rollback, y con palabra del owner.
-- Tras la validación en vivo, el natural **se retira del código** (La Poda) — ese día esta sección se reescribe.
+- La cascada del turno libre es **agente → oráculo** (dos peldaños, probada con carnada en
+  `_cascada_resiliencia_gate`). Apagado manual del agente: comentar `"ADI_AGENTE"` en FEATURE — eso deja el
+  turno en el oráculo, la red más profunda.
+- **El rollback de La Poda es `git revert`** del commit del retiro (ver `_PODA_NATURAL_PLAN.md`). No hay flag
+  que lo devuelva: revivir el natural es una decisión humana con commit propio.
+- ⛔ **Lo retirado no vuelve por accidente**: `_poda_natural_anti_resurreccion_gate` barre imports,
+  re-definiciones y el flag (sin contar comentarios — la historia del repo se conserva). Si necesitás nombrar
+  al natural en un comentario nuevo, adelante; re-declararlo en código pone la suite en rojo.

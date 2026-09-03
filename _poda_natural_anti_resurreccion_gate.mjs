@@ -14,7 +14,9 @@
  *   3 · LO QUE LOS REEMPLAZÓ SIGUE VIVO: la cascada agente → oráculo y el freno tipado del gateway.
  *   4 · EL DETECTOR SE PRUEBA A SÍ MISMO: sintéticos que SÍ debe cazar y menciones que NO puede cazar.
  *
- * CERO RED, CERO LLM: solo lee archivos como texto. */
+ * CERO RED, CERO LLM: solo lee archivos como texto. @inspeccion-estatica — menciona `gatewayCore` porque LEE
+ * ese archivo para certificar el freno tipado; no lo importa ni invoca nada (las condiciones del escape del
+ * clasificador, verificadas por él, no confiadas). */
 import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 

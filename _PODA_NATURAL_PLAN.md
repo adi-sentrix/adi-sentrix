@@ -114,9 +114,24 @@ compartido, pero la CONDUCTA del turno alrededor era distinta en cada camino y h
 veces). Cada defecto futuro cuesta doble mientras haya dos caminos; cada certificación, doble; cada
 playbook nuevo, doble o desigual.
 
-**Checklist ejecutable:**
+**Checklist ejecutable — LA PODA SE EJECUTÓ EL 2026-09-05** (la palabra del owner: «poda inmediata» tras el
+pulido del anclaje; la semana de uso del paso 1 la eliminó él mismo — pasos 1+2 fueron al mismo commit, y por
+eso el rollback es UNO: `git revert` del commit del retiro):
 - [x] 0 · extraer `_respaldoDeLoYaAprobado` → módulo compartido · suite verde — HECHO 2026-09-03 (`respaldoAprobado.js`, extracción verbatim verificada contra HEAD; natural y agente importan del mismo módulo; candado de una-fuente en _examen4_cierres_gate)
-- [ ] 1 · `ADI_CAMINO_NATURAL` fuera de FEATURE · re-apuntar `_cascada_resiliencia_gate` a dos peldaños · suite verde · **una semana de uso + humo verde**
-- [ ] 2 · retiro físico (caminoNatural.js · rama modoNatural · _fetchNatural/bloque ChatADI · flag) · matar 2 gates, re-apuntar 4, retirar el check del molde · suite verde
-- [ ] 3 · `_poda_natural_anti_resurreccion_gate` con carnada · suite verde
-- [ ] cada paso: commit propio, push a dev, palabra del owner antes del paso 2
+- [x] 1+2 · retiro físico COMPLETO — HECHO 2026-09-05 (commit «feat(poda): LA PODA»): caminoNatural.js ·
+      naturalPrompt.js (solo lo importaban el orquestador y la rama) · rama modoNatural del gateway (freno
+      TIPADO para callers viejos) y de los DOS adapters · _fetchNatural/bloque ChatADI · flag fuera de
+      FEATURE y de voiceFlags · 2 gates muertos · re-apuntados: cascada (dos peldaños con carnada), puente
+      (por el bucle del agente), ficha de texto libre, sello (cableado del agente), examen4 (respaldo y
+      `ultimaAprobada` del agente), telemetría/razonamiento (el stop del agente, que el gateway tiraba),
+      consola solo-agente, probe A2.e. Suite 230·0 · build verde · bundle sin rastros.
+      **Dos conductas re-cableadas que el retiro destapó:** la puerta a la ficha desde texto libre
+      (`detectFichaIntent` quedaba huérfano — el plan lo daba por compartido y su único caller era el
+      orquestador) ahora la adjunta el bucle del agente; y el `stop` del proveedor en el canal del agente,
+      que el adapter devolvía y el gateway tiraba.
+- [x] 3 · `_poda_natural_anti_resurreccion_gate` — HECHO 2026-09-05, 20/20 con la carnada ejecutada de punta
+      a punta (import plantado → 19/20 ROJO → restaurado → 20/20). Suite final: 231·0.
+- [x] §7 de CLAUDE.md reescrito el mismo día, como estaba previsto.
+- Falcon (`numberGuard.js` · `entityGuard.js` · `_guard_gate.mjs`) NI SE ROZÓ. Pendiente menor anotado: la
+  rama sin-señal de `respaldoAprobado.js` (el molde «sigue verificado y en pie») quedó sin caller — se
+  conserva como contrato de la función; retirarla es una decisión aparte.
