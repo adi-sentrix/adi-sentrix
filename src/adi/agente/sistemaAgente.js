@@ -7,7 +7,10 @@
  *
  * DETERMINÍSTICO por tenant+escenario (persona fija · invariantes fijas · mapa determinístico) — el prefijo
  * cacheable del proveedor, la misma disciplina de naturalPrompt. */
-import { ADI_PERSONA } from "../oracle/persona.js";
+/* LA CARTA DEL ASESOR (owner 2026-09-03) reemplaza acá a `ADI_PERSONA` suelta — y NO es una segunda fuente de
+ * carácter: la carta IMPORTA esa misma persona como su capítulo 1 y le suma el oficio (audiencia · cuándo
+ * profundizar · cómo justifica · cómo suena · qué jamás). El agente recibe una sola cosa, entera. */
+import { CARTA_DEL_ASESOR } from "./cartaAsesor.js";
 import { mapaDelDato } from "./mapaDelDato.js";
 import { PRINCIPIOS_ARCO, PRINCIPIOS_FORMA, PRINCIPIOS_RUTEO } from "./contratoAgente.js";   // F3 · la letra vive con su veto · [9] ruteo
 import { lineaDeNombre } from "./preferenciaNombre.js";   // F3 · «llámame jc» — una línea, "" sin declaración
@@ -31,7 +34,7 @@ export const INVARIANTES_AGENTE = [
 export function sistemaDelAgente(scenario = ESCENARIO_INICIAL) {
   const nombre = lineaDeNombre();
   const fijo = [
-    ADI_PERSONA,
+    CARTA_DEL_ASESOR,
     "",
     "INVARIANTES — se cumplen siempre, sin excepción:",
     INVARIANTES_AGENTE,
