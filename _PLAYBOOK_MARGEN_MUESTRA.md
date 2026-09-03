@@ -26,20 +26,23 @@ Una disculpa, una cifra suelta y una pregunta de vuelta — **teniendo la carter
 ### AHORA (con el playbook · estado `playbook` · 2 herramientas · 63 cifras verificadas en la boleta)
 
 ```
-jc: Margen promedio de la cartera: 25.1%. Benchmark de margen: 30.1%. Clientes bajo el benchmark: 8.
+jc: Tu margen promedio viene en 25.1% — 5.0 pp bajo el benchmark que declaraste (30.1%). 8 de tus clientes están bajo esa referencia.
 
-Los de mayor contribución no capturada (3 de los 8 bajo el benchmark):
-- Falabella · contribución no capturada $1.6M · margen 22.0% · venta $19.4M
-- Lider · contribución no capturada $1.5M · margen 21.5% · venta $17.8M
-- Jumbo · contribución no capturada $1.1M · margen 24.0% · venta $17.3M
+Donde más contribución dejas sin capturar — los 3 de los 8 que más pesan:
+- Falabella · deja $1.6M sin capturar · margen 22.0% · venta $19.4M
+- Lider · deja $1.5M sin capturar · margen 21.5% · venta $17.8M
+- Jumbo · deja $1.1M sin capturar · margen 24.0% · venta $17.3M
 
-Contribución no capturada · subtotal: $4.9M.
-Donde el motor localiza el exceso: Carga comercial alta · subtotal $655K, con Falabella en $194K.
+La contribución sin capturar que el motor detecta suma $4.9M.
+Dónde lo localiza el motor: carga comercial alta por $655K — la más pesada es la de Falabella ($194K).
 
-Si quieres, empiezo por Falabella: es el de mayor contribución no capturada. Dime y lo abrimos.
+¿Lo abrimos por Falabella? Es donde hay más contribución en juego.
 ```
 
-**Lo que cambió, en una línea:** la evidencia se junta ANTES de que exista la opción de rescatar.
+**Lo que cambió, en una línea:** la evidencia se junta ANTES de que exista la opción de rescatar. Y desde el
+2026-09-03 el entregable habla con LA VOZ del asesor (encargo de la voz humana del owner): las mismas cifras
+con los mismos dueños — la brecha «5.0 pp» sale SELLADA de la boleta, la misma cifra de la card de la Mesa —
+pero escritas como escribe una persona.
 
 ---
 
@@ -55,17 +58,17 @@ Esa pregunta **no llega a pantalla**. La lista notarial del propio playbook la m
 trajo la evidencia de este turno y tu respuesta no la usa»— y, como el cerebro insiste, responde el entregable:
 
 ```
-Margen promedio de la cartera: 25.1%. Benchmark de margen: 30.1%. Clientes bajo el benchmark: 8.
+Tu margen promedio viene en 25.1% — 5.0 pp bajo el benchmark que declaraste (30.1%). 8 de tus clientes están bajo esa referencia.
 
-Los de mayor contribución no capturada (3 de los 8 bajo el benchmark):
-- Falabella · contribución no capturada $1.6M · margen 22.0% · venta $19.4M
-- Lider · contribución no capturada $1.5M · margen 21.5% · venta $17.8M
-- Jumbo · contribución no capturada $1.1M · margen 24.0% · venta $17.3M
+Donde más contribución dejas sin capturar — los 3 de los 8 que más pesan:
+- Falabella · deja $1.6M sin capturar · margen 22.0% · venta $19.4M
+- Lider · deja $1.5M sin capturar · margen 21.5% · venta $17.8M
+- Jumbo · deja $1.1M sin capturar · margen 24.0% · venta $17.3M
 
-Contribución no capturada · subtotal: $4.9M.
-Donde el motor localiza el exceso: Carga comercial alta · subtotal $655K, con Falabella en $194K.
+La contribución sin capturar que el motor detecta suma $4.9M.
+Dónde lo localiza el motor: carga comercial alta por $655K — la más pesada es la de Falabella ($194K).
 
-Si quieres, empiezo por Falabella: es el de mayor contribución no capturada. Dime y lo abrimos.
+¿Lo abrimos por Falabella? Es donde hay más contribución en juego.
 ```
 
 ---
@@ -78,10 +81,10 @@ Si quieres, empiezo por Falabella: es el de mayor contribución no capturada. Di
 - **La lista se prueba a sí misma.** El motor declara «clientes bajo el benchmark = 8»; el playbook arma su
   lista y la compara contra ese conteo. Si no coinciden exactamente, no muestra nada y cede el paso. Un
   componente que se verifica contra una fuente que él no controla.
-- **El cierre ofrece, no ordena.** «Si quieres, empiezo por Falabella… Dime y lo abrimos» — la decisión sigue
-  siendo del usuario, como pidió el owner cuando definió el contrato del agente.
-- **Localiza, no inventa causas.** Dice *dónde* está el exceso («Carga comercial alta · $655K, con Falabella
-  en $194K») porque eso lo declara el motor. No dice *por qué* Falabella cede margen: eso el dato no lo sabe,
+- **El cierre ofrece, no ordena.** «¿Lo abrimos por Falabella? Es donde hay más contribución en juego» — la
+  decisión sigue siendo del usuario, como pidió el owner cuando definió el contrato del agente.
+- **Localiza, no inventa causas.** Dice *dónde* está el exceso («carga comercial alta por $655K — la más pesada es
+  la de Falabella, $194K») porque eso lo declara el motor. No dice *por qué* Falabella cede margen: eso el dato no lo sabe,
   y la lista notarial del playbook veta cruzar esa línea.
 - **El muro no se tocó.** Si el cerebro escribe una cifra que el dato no sostiene, sigue muriendo igual. Y si
   el cerebro responde BIEN por su cuenta, manda su respuesta: el texto determinístico no lo pisa.

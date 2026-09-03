@@ -83,12 +83,13 @@ export const cobranza = {
       .filter((x) => x.entidad);
     if (!porCliente.length) return null;
     const vencidos = _all(figs, /· Saldo vencido$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), fmt: _val(f) })).filter((x) => x.entidad);
-    const partes = [`Saldo pendiente: ${_val(saldo)} de una venta ${esCredito ? "a crédito " : ""}de ${_val(venta)} (abonado: ${_val(abonado)}).`];
-    partes.push(`Te deben:`);
+    // LA VOZ (2026-09-03): un asesor cuenta la deuda, no la lista un ledger — mismas cifras, mismos dueños.
+    const partes = [`Tienes ${_val(saldo)} por cobrar, de una venta ${esCredito ? "a crédito " : ""}de ${_val(venta)} — ya te abonaron ${_val(abonado)}.`];
+    partes.push(`Quién te debe:`);
     for (const x of porCliente.slice(0, 6)) partes.push(`- ${x.entidad}: ${x.fmt}`);
     if (porCliente.length > 6) partes.push(`(y ${porCliente.length - 6} más)`);
     if (vencidoTotal) {
-      partes.push(`Saldo vencido: ${_val(vencidoTotal)}${vencidos.length ? ` — encabeza ${vencidos[0].entidad} con ${vencidos[0].fmt}` : ""}.`);
+      partes.push(`De eso, ${_val(vencidoTotal)} ya está vencido${vencidos.length ? ` — el más pesado es ${vencidos[0].entidad} con ${vencidos[0].fmt}` : ""}.`);
     } else {
       /* la regla del owner, con palabras: sin plazo no hay vencido que mostrar — y se dice por qué */
       partes.push(`Qué parte está vencida no se puede saber: tu empresa no declaró plazo de pago. Cuando lo declares, el vencido se calcula solo — sin volver a subir el archivo.`);

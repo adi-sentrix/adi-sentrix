@@ -48,6 +48,7 @@ export function lecturaDeMargen(figs) {
   const bench = _find(figs, /^Benchmark de margen$/i);
   const conteo = _find(figs, /clientes bajo el benchmark/i);
   const promedio = _find(figs, /^Margen promedio$/i);
+  const brechaNegocio = _find(figs, /^El negocio · Brecha al benchmark$/i);   // sellada (2026-09-03): la MISMA cifra de la card de la Mesa
   const totalJuego = _find(figs, /^Contribuci[oó]n no capturada · subtotal$/i);
   const cargaTotal = _find(figs, /^Carga comercial alta · subtotal$/i);
 
@@ -65,7 +66,7 @@ export function lecturaDeMargen(figs) {
 
   const benchPct = bench ? _pct(bench) : NaN;
   const bajo = Number.isFinite(benchPct) ? margenes.filter((m) => m.pct < benchPct).sort((a, b) => a.pct - b.pct) : [];
-  return { bench, benchPct, conteo, promedio, totalJuego, cargaTotal, margenes, ventas, juego, carga, bajo };
+  return { bench, benchPct, conteo, promedio, brechaNegocio, totalJuego, cargaTotal, margenes, ventas, juego, carga, bajo };
 }
 
 /* ── EL DETECTOR · determinístico y ANGOSTO ────────────────────────────────────────────────────────────────────
@@ -128,7 +129,14 @@ export const margenEnRiesgo = {
    * Cifras VERBATIM de la boleta. Una línea por cliente A PROPÓSITO: apilar varias cifras en una sola oración
    * es lo que expuso al rescate al veto de atribución (P1a de la corrida 2) — cada cifra viaja con su dueño en
    * su propia oración. Se AUTO-VERIFICA contra el conteo del motor: si la lista que arma no reconcilia con
-   * «clientes bajo el benchmark», no sirve nada y cede al peldaño siguiente. */
+   * «clientes bajo el benchmark», no sirve nada y cede al peldaño siguiente.
+   *
+   * LA VOZ (owner 2026-09-03, «la voz humana en los textos determinísticos»): escribe como un asesor, no como
+   * un ledger — sin perder un byte de garantía. Las mismas cifras con los mismos dueños, PERO además cumpliendo
+   * los candados que este mismo frente estrenó: la brecha del negocio sale de la fig SELLADA («El negocio ·
+   * Brecha al benchmark» — la cifra de la card) y solo si la boleta la trae; «margen promedio» y «benchmark»
+   * se nombran con su palabra al lado de su % (las anclas léxicas del humo); el recorte se declara («3 de los
+   * 8»); la prioridad nombra su criterio. Cercanía sí, adulación no: si el margen viene mal, se dice derecho. */
   componer({ figs } = {}) {
     const L = lecturaDeMargen(figs);
     if (!L.bench || !L.conteo || !L.bajo.length) return null;
@@ -137,22 +145,29 @@ export const margenEnRiesgo = {
 
     const top = L.juego.slice(0, 3);
     const partes = [];
-    partes.push(`${L.promedio ? `Margen promedio de la cartera: ${_val(L.promedio)}. ` : ""}Benchmark de margen: ${_val(L.bench)}. Clientes bajo el benchmark: ${_val(L.conteo)}.`);
+    const abre = L.promedio
+      ? (L.brechaNegocio
+        ? `Tu margen promedio viene en ${_val(L.promedio)} — ${_val(L.brechaNegocio)} bajo el benchmark que declaraste (${_val(L.bench)}).`
+        : `Tu margen promedio viene en ${_val(L.promedio)}, contra el benchmark de ${_val(L.bench)} que declaraste.`)
+      : `Tu benchmark declarado es ${_val(L.bench)}.`;
+    partes.push(`${abre} ${_val(L.conteo)} de tus clientes están bajo esa referencia.`);
 
     if (top.length) {
-      partes.push(`\nLos de mayor contribución no capturada (${top.length} de los ${_val(L.conteo)} bajo el benchmark):`);
+      partes.push(`\nDonde más contribución dejas sin capturar — los ${top.length} de los ${_val(L.conteo)} que más pesan:`);
       for (const t of top) {
         const m = L.bajo.find((b) => b.entidad === t.entidad);
         const venta = L.ventas.get(t.entidad);
-        partes.push(`- ${t.entidad} · contribución no capturada ${t.fmt}${m ? ` · margen ${m.fmt}` : ""}${venta ? ` · venta ${venta}` : ""}`);
+        partes.push(`- ${t.entidad} · deja ${t.fmt} sin capturar${m ? ` · margen ${m.fmt}` : ""}${venta ? ` · venta ${venta}` : ""}`);
       }
     }
-    if (L.totalJuego) partes.push(`\nContribución no capturada · subtotal: ${_val(L.totalJuego)}.`);
+    // «En total: …» moría en el muro, Y CON RAZÓN: la fig es el SUBTOTAL de los focos del detector, no el
+    // total del universo — la voz lo atribuye a su dueño (el motor) en vez de totalizarlo.
+    if (L.totalJuego) partes.push(`\nLa contribución sin capturar que el motor detecta suma ${_val(L.totalJuego)}.`);
     if (L.cargaTotal) {
       const c0 = L.carga[0];
-      partes.push(`Donde el motor localiza el exceso: Carga comercial alta · subtotal ${_val(L.cargaTotal)}${c0 ? `, con ${c0.entidad} en ${c0.fmt}` : ""}.`);
+      partes.push(`Dónde lo localiza el motor: carga comercial alta por ${_val(L.cargaTotal)}${c0 ? ` — la más pesada es la de ${c0.entidad} (${c0.fmt})` : ""}.`);
     }
-    if (top.length) partes.push(`\nSi quieres, empiezo por ${top[0].entidad}: es el de mayor contribución no capturada. Dime y lo abrimos.`);
+    if (top.length) partes.push(`\n¿Lo abrimos por ${top[0].entidad}? Es donde hay más contribución en juego.`);
     return partes.join("\n");
   },
 

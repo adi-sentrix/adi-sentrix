@@ -922,8 +922,8 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   /* (con C3 el peldaño PRUEBA varias cifras pero SIRVE UNA — el defecto se reinstala donde haría daño: en el
    * armador, apilando cifras en la misma oración, que es lo que expone al veto de atribución de proximidad) */
   await carnada("rescate empaquetado (el auto-veto de T2)",
-    [[/    fig \? `Lo que sí tengo verificado: \$\{fig\.label\} = \$\{fig\.text \|\| fig\.value\}\.` : null,/,
-      "    fig ? \"Lo que sí tengo verificado: \" + candidatas.slice(0, 4).map((x) => x.label + \" = \" + (x.text || x.value)).join(\"; \") + \".\" : null,"]],
+    [[/    fig \? `Lo que sí tengo verificado: \$\{fig\.label\}, \$\{fig\.text \|\| fig\.value\}\.` : null,/,
+      "    fig ? \"Lo que sí tengo verificado: \" + candidatas.slice(0, 4).map((x) => x.label + \", \" + (x.text || x.value)).join(\"; \") + \".\" : null,"]],
     async (Mut) => {
       initTenant(PACK);
       const terco2 = async ({ ronda, attempt }) => {

@@ -88,17 +88,19 @@ export const sintesisEjecutiva = {
     const partes = [];
     const n = elegidos.length + (ventaCae ? 1 : 0);
     partes.push(n >= 3 ? "Los 3 riesgos, por materialidad:" : `Tu dato sostiene ${n === 1 ? "un riesgo material" : `${n} riesgos materiales`}${_umbral() ? ` (el resto queda ${_umbral()})` : ""} — no invento el que falta:`);
+    // LA VOZ (2026-09-03): el telegrama «QUÉ. Dónde: X. Primero: Y.» se cuenta como lo contaría un asesor —
+    // mismas cifras, mismos dueños, misma estructura de tres, y las ofertas siguen siendo ofertas.
     let i = 1;
     if (ventaCae) {
-      partes.push(`\n${i++} · Venta contra el año anterior: ${_val(ventaCae)}. Dónde se cae por cliente no está en esta síntesis. Primero: si quieres, abro esa lectura.`);
+      partes.push(`\n${i++} · La venta viene cayendo: ${_val(ventaCae)} contra el año anterior. Dónde se cae por cliente no está en esta síntesis — si quieres, abro esa lectura primero.`);
     }
     for (const c of elegidos) {
-      partes.push(`\n${i++} · ${c.nombre}: ${_val(c.f)}.${c.top ? ` Dónde: encabeza ${c.top.entidad} con ${c.top.fmt}.` : ""} Primero: si quieres, abrimos ${c.top ? c.top.entidad : c.abrir}.`);
+      partes.push(`\n${i++} · ${c.nombre}: ${_val(c.f)}${c.top ? ` — encabeza ${c.top.entidad} con ${c.top.fmt}` : ""}. Si quieres, abrimos ${c.top ? c.top.entidad : c.abrir}.`);
     }
     if (fuera > 0 && n >= 3) partes.push(`\n(${fuera} foco${fuera > 1 ? "s quedan" : " queda"} ${_umbral() || "bajo el umbral de materialidad"}.)`);
     /* «Cada» al inicio de oración casi-matchea «Casa Belgrano» y el corruptor de entidades lo veta (medido en
-     * la parcial y en la completa real): el cierre arranca en minúscula-neutral a propósito. */
-    partes.push(`\nLos «primero» son ofertas: dime cuál y lo abrimos. Por qué pasa lo de arriba no está en este dato: queda localizado.`);
+     * la parcial y en la completa real): el cierre arranca en «El porqué» a propósito. */
+    partes.push(`\nEl porqué de cada riesgo no está en este dato: queda localizado, no explicado. ¿Cuál abrimos primero?`);
     return partes.join("\n");
   },
 

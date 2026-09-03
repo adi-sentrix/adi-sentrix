@@ -97,13 +97,16 @@ export const clientePerdiendoContribucion = {
     const materiales = _materiales(caen, piso);
     const contrib = new Map(_all(figs, /· Contribuci[oó]n$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
     const partes = [];
+    // LA VOZ (2026-09-03): el asesor cuenta, no rotula — mismas cifras, mismos dueños. Y una precisión que
+    // la voz obligó a hacer: `total` es la contribución DEL NEGOCIO (contexto para dimensionar), no «lo en
+    // juego» — la frase vieja lo insinuaba de más.
     if (!materiales.length) {
       partes.push(`Ningún cliente cae de forma material contra el año anterior${caen.length ? ` (${caen.length} caen, todos ${_fraseUmbral() || "bajo el umbral de materialidad del negocio"})` : ""}.`);
-      partes.push(`Contribución total: ${_val(total)}.`);
+      partes.push(`Para dimensionar: la contribución total del negocio es ${_val(total)}.`);
       return partes.join("\n");
     }
     const top = materiales.slice(0, 4);
-    partes.push(`Clientes cayendo contra el año anterior: ${materiales.length}${caen.length > materiales.length ? ` (otros ${caen.length - materiales.length} caen ${_fraseUmbral() || "bajo el umbral de materialidad"})` : ""}. Contribución total en juego del negocio: ${_val(total)}.`);
+    partes.push(`Se te están cayendo ${materiales.length} clientes contra el año anterior${caen.length > materiales.length ? ` (otros ${caen.length - materiales.length} caen ${_fraseUmbral() || "bajo el umbral de materialidad"})` : ""}. Para dimensionar: la contribución total del negocio es ${_val(total)}.`);
     partes.push(`\nLos ${top.length} que más caen:`);
     for (const c of top) partes.push(`- ${c.entidad} · ${c.fmt} contra el año anterior${contrib.has(c.entidad) ? ` · contribución actual ${contrib.get(c.entidad)}` : ""}`);
     partes.push(`\nDónde se cae queda localizado; por qué se cae no está en este dato.`);
@@ -173,7 +176,8 @@ export const inventarioInmovilizado = {
     const piso = _piso();
     const esMaterial = Number.isFinite(_num(total)) && piso > 0 ? _num(total) >= piso : true;
     const partes = [];
-    partes.push(`Capital inmovilizado (frenado): ${_val(total)}.${esMaterial ? "" : ` Está ${_fraseUmbral() || "bajo el umbral de materialidad de tu negocio"} — no es tu incendio de hoy.`}`);
+    // LA VOZ (2026-09-03): «Capital inmovilizado (frenado): $X.» rotulaba; el asesor lo dice.
+    partes.push(`Tienes ${_val(total)} de capital inmovilizado — stock que no está rotando.${esMaterial ? "" : ` Está ${_fraseUmbral() || "bajo el umbral de materialidad de tu negocio"} — no es tu incendio de hoy.`}`);
     const top = skus.slice(0, 4);
     partes.push(`\nDónde está:`);
     for (const s of top) {
@@ -245,7 +249,10 @@ export const caidaDeVentas = {
     const caen = _materiales(yoy.filter((x) => x.usd < 0), piso).sort((a, b) => a.usd - b.usd);
     const suben = _materiales(yoy.filter((x) => x.usd > 0), piso).sort((a, b) => b.usd - a.usd);
     const partes = [];
-    partes.push(`Contra el año anterior, la lectura del período es ${_val(head)}: ${cae ? "la venta viene por debajo." : "la venta NO viene cayendo."}`);
+    // LA VOZ (2026-09-03): el asesor abre con el veredicto y lo respalda — sin endulzar el que viene mal.
+    partes.push(cae
+      ? `Sí: tu venta viene por debajo del año anterior — ${_val(head)} en la lectura del período.`
+      : `Tu venta NO viene cayendo: la lectura del período contra el año anterior es ${_val(head)}.`);
     if (caen.length) {
       partes.push(`\nDónde ${cae ? "se cae" : "sí hay caída, aunque el total suba"}:`);
       for (const c of caen.slice(0, 4)) partes.push(`- ${c.entidad} · ${c.fmt} contra el año anterior`);
@@ -323,7 +330,8 @@ export const oportunidadDePrecio = {
     const medida = new Map(_all(figs, /· Medida cerrar brecha$/i).map((f) => [_entidadDe(_lab(f)), f]));
     const top = bajo.slice(0, 3);
     const partes = [];
-    partes.push(`Benchmark de margen: ${_val(bench)}. SKU bajo el benchmark: ${_val(conteo)}.`);
+    // LA VOZ (2026-09-03): rotular era «Benchmark: X. SKU bajo: N.» — el asesor lo dice en una frase.
+    partes.push(`Tu benchmark de margen es ${_val(bench)}, y ${_val(conteo)} SKU venden por debajo de esa referencia.`);
     partes.push(`\nDónde está la oportunidad (los ${top.length} de menor margen${Number.isFinite(n) && bajo.length < n ? ` — esta lectura publica el margen de ${bajo.length} de los ${_val(conteo)}` : `, de los ${_val(conteo)} bajo el benchmark`}):`);
     for (const s of top) {
       const vf = venta.get(s.entidad);

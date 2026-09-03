@@ -117,9 +117,9 @@ H("1b · lectura por eje: un playbook, cinco ejes, la herramienta que sirve cada
   ok(rc.r.agente.estado === "playbook" && /Retail: \$94\.4M/.test(rc.r.text) && /E-commerce: \$5\.5M/.test(rc.r.text),
     `★ canal → responde con el eje canal REAL del dato (${rc.r.agente.estado})`, rc.r.text.slice(0, 90));
   const rm = await T("qué marca deja más margen");
-  ok(rm.r.agente.estado === "playbook" && /^Margen por marca, de mayor a menor:/m.test(rm.r.text) && rm.r.text.indexOf("Makita") < rm.r.text.indexOf("LG"),
+  ok(rm.r.agente.estado === "playbook" && /margen por marca, de mayor a menor:/i.test(rm.r.text) && rm.r.text.indexOf("Makita") < rm.r.text.indexOf("LG"),
     "★ marca → ordenada de mayor a menor (Makita 35.5% antes que LG 24.0%) — el motor solo pone `raw` en las destacadas", rm.r.text.slice(0, 100));
-  ok(/Benchmark de margen: 30\.1%/.test(rm.r.text), "…y declara el benchmark, para que «deja más» tenga vara");
+  ok(/benchmark de margen es 30\.1%/i.test(rm.r.text), "…y declara el benchmark, para que «deja más» tenga vara");
   const rf = await T("margen por familia");
   ok(rf.r.agente.estado === "playbook" && /Cuidado Personal: 26\.6%/.test(rf.r.text), `★ familia → responde (${rf.r.agente.estado})`);
   const rb = await T("capital por bodega");
@@ -254,7 +254,7 @@ H("1e · cobranza: quién debe con nombre, y el vencido en raya cuando no hay pl
   // la PLANTILLA (sin plazo declarado — el caso REAL del owner)
   initTenant(PACK);
   const rd = await T("quién me debe y qué está vencido");
-  ok(rd.r.agente.estado === "playbook" && /Te deben:/.test(rd.r.text) && /Obras del Sur: \$31K/.test(rd.r.text),
+  ok(rd.r.agente.estado === "playbook" && /Quién te debe:/.test(rd.r.text) && /Obras del Sur: \$31K/.test(rd.r.text),
     `★ la deuda con nombre y saldo (${rd.r.agente.estado})`, rd.r.text.slice(0, 110));
   ok(/no se puede saber/.test(rd.r.text) && /no declaró plazo/.test(rd.r.text) && !/vencid[oa][^.\n]*\$\s?\d|\$\s?0/.test(rd.r.text),
     "★ LA REGLA DEL OWNER: el vencido se dice con palabras («no se puede saber… sin plazo») — ni $0 ni ninguna cifra");
@@ -273,7 +273,7 @@ H("1e · cobranza: quién debe con nombre, y el vencido en raya cuando no hay pl
   // el DEMO (con plazo declarado): el vencido SÍ es una cifra, con quien encabeza
   initTenant(TENANT_DEMO);
   const rv = await T("quién me debe y qué está vencido");
-  ok(rv.r.agente.estado === "playbook" && /Saldo vencido: \$12\.6M/.test(rv.r.text) && /encabeza Lider con \$4\.6M/.test(rv.r.text),
+  ok(rv.r.agente.estado === "playbook" && /\$12\.6M ya está vencido/.test(rv.r.text) && /el más pesado es Lider con \$4\.6M/.test(rv.r.text),
     `★ con plazo declarado el vencido es cifra y nombra a quien encabeza (${rv.r.agente.estado})`, rv.r.text.slice(0, 140));
 
   // el detector NO secuestra
@@ -355,7 +355,7 @@ H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materi
   ok(/por qué se cae no está en este dato/.test(ra.r.text) && /Si quieres, abrimos la serie mensual de La Polar/.test(ra.r.text),
     "…02 LOCALIZA sin causas y 03 OFRECE abrir al que más cae");
   const rb = await T("qué hago con el inventario inmovilizado");
-  ok(rb.r.agente.estado === "playbook" && /Capital inmovilizado \(frenado\): \$33K/.test(rb.r.text) && /capital frenado \$14K/.test(rb.r.text),
+  ok(rb.r.agente.estado === "playbook" && /\$33K de capital inmovilizado/.test(rb.r.text) && /capital frenado \$14K/.test(rb.r.text),
     `★ B · el total y cada SKU con el monto pegado a su concepto (${rb.r.agente.estado})`, rb.r.text.slice(0, 120));
   ok(/bajo el 0,05% de tu venta: \$50K/.test(rb.r.text) && /no es tu incendio de hoy/.test(rb.r.text),
     "★ B · MATERIALIDAD: $33K está bajo el piso relativo y el entregable LO DICE con el umbral declarado");
@@ -367,7 +367,7 @@ H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materi
   ok(/La Polar · -\$417K/.test(rc2.r.text) && /Los que más suben: Lider \+\$2\.3M/.test(rc2.r.text),
     "…y localiza igual: los que caen (materiales) y los que más suben, cada uno con su cifra");
   const rd2 = await T("dónde tengo oportunidad de precio");
-  ok(rd2.r.agente.estado === "playbook" && /SKU bajo el benchmark: 12/.test(rd2.r.text) && /MAK-COMP-AIR · margen de venta 7\.9%/.test(rd2.r.text),
+  ok(rd2.r.agente.estado === "playbook" && /12 SKU venden por debajo/.test(rd2.r.text) && /MAK-COMP-AIR · margen de venta 7\.9%/.test(rd2.r.text),
     `★ D · los peores por margen DE VENTA (el muro exige decir cuál margen) (${rd2.r.agente.estado})`, rd2.r.text.slice(0, 120));
   ok(/esta lectura publica el margen de 10 de los 12/.test(rd2.r.text),
     "★ D · el CORTE declarado contra lo publicado: el panel trae 10 de los 12 — se dice, no se finge completitud");
@@ -424,7 +424,7 @@ H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materi
       ok(/-40\.5%/.test(cc.r.text) && /viene por debajo/.test(cc.r.text),
         "★ COMPLETA · C: la caída real (-40.5%) dicha con la cifra publicada");
       const cd = await T("dónde tengo oportunidad de precio");
-      ok(/ELE-CAB25 · margen de venta 19\.8%/.test(cd.r.text) && /SKU bajo el benchmark: 3/.test(cd.r.text),
+      ok(/ELE-CAB25 · margen de venta 19\.8%/.test(cd.r.text) && /3 SKU venden por debajo/.test(cd.r.text),
         "★ COMPLETA · D: el peor margen real primero, reconciliado con el conteo (3 de 3)");
       ok(!/\$937\.8M/.test(cd.r.text),
         "★ COMPLETA · D NO cita la «Medida cerrar brecha» rota (1000× la venta del SKU — defecto medido y reportado): una medida mayor que la venta del propio SKU no sale a pantalla");
@@ -457,9 +457,9 @@ H("1g · certificación: el límite honesto con alternativa, y los 3 riesgos del
   const rr2 = await T("dame los 3 riesgos para el directorio");
   ok(rr2.r.agente.estado === "playbook" && /2 riesgos materiales/.test(rr2.r.text) && /no invento el que falta/.test(rr2.r.text),
     `★ riesgos DEMO · el dato sostiene 2 materiales y LO DICE con el umbral, sin inventar el tercero (${rr2.r.agente.estado})`, rr2.r.text.slice(0, 110));
-  ok(/1 · Contribución no capturada: \$4\.9M\./.test(rr2.r.text) && /encabeza Falabella con \$1\.6M/.test(rr2.r.text),
+  ok(/1 · Contribución no capturada: \$4\.9M — encabeza Falabella con \$1\.6M/.test(rr2.r.text),
     "…QUÉ con cifra verbatim y DÓNDE con dueño, uno por oración");
-  ok(/si quieres, abrimos/.test(rr2.r.text) && !/ten[eé]s que|hay que\b/i.test(rr2.r.text),
+  ok(/si quieres, abrimos/i.test(rr2.r.text) && !/ten[eé]s que|hay que\b/i.test(rr2.r.text),
     "…y el PRIMERO de cada riesgo se OFRECE, jamás se ordena");
   // «versión más dura» NO es de este playbook: re-narración (medido 43× más caro con el empujón)
   ok(playbookPara("Dame una versión más dura, como si tuviera que presentarla al gerente general.") === null,
@@ -514,7 +514,7 @@ H("1g · certificación: el límite honesto con alternativa, y los 3 riesgos del
         "★ REAL T4 · su planilla declara el guardado (150 filas · 5 valores) y ADI ahora LO DICE", cr.r.text.slice(0, 120));
       const cs = await T("dame los 3 riesgos para el directorio");
       ok(cs.r.agente.estado === "playbook" && /Los 3 riesgos, por materialidad:/.test(cs.r.text)
-        && /Venta contra el año anterior: -40\.5%/.test(cs.r.text) && /Capital frenado en inventario: \$38\.1M/.test(cs.r.text) && /encabeza ELE-CAB25/.test(cs.r.text),
+        && /-40\.5%[^\n]{0,50}año anterior/.test(cs.r.text) && /Capital frenado en inventario: \$38\.1M/.test(cs.r.text) && /encabeza ELE-CAB25/.test(cs.r.text),
         "★ REAL T11 · los 3 riesgos con sus cifras: la venta cayendo primero, el capital frenado localizado", cs.r.text.slice(0, 140));
     }
   } else {
@@ -534,10 +534,11 @@ H("2 · ★ ACEPTACIÓN · el caso T6 del expediente deja de rescatar");
   const r = await answerViaAgente({ text: T6, history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
   ok(r.r.agente.estado === "playbook", `el turno YA NO rescata: estado «${r.r.agente.estado}» (era «limite»)`);
   ok(!/No pude completar la lectura/.test(r.r.text), "★ y en pantalla no queda una línea de disculpa");
-  ok(/Clientes bajo el benchmark: 8/.test(r.r.text) && /Benchmark de margen: 30\.1%/.test(r.r.text),
+  // (conducta, no frase — desde la voz humana 2026-09-03: el 8 con su «bajo» y el benchmark con su %)
+  ok(/\b8\b[^\n]{0,60}bajo (?:esa referencia|el benchmark)/i.test(r.r.text) && /(?:benchmark|referencia)[^\n]{0,60}30\.1%|30\.1%[^\n]{0,60}benchmark/i.test(r.r.text),
     "★ responde la pregunta: la vara y cuántos están bajo ella", r.r.text.slice(0, 120));
-  ok(/Falabella/.test(r.r.text) && /\$1\.6M/.test(r.r.text) && /Contribución no capturada · subtotal: \$4\.9M/.test(r.r.text),
-    "★ con a quién revisar primero y cuánto hay en juego (total y por cliente)");
+  ok(/Falabella/.test(r.r.text) && /\$1\.6M/.test(r.r.text) && /(?:sin capturar|no capturada)[^\n]{0,60}\$4\.9M|\$4\.9M[^\n]{0,60}(?:sin capturar|no capturada)/i.test(r.r.text),
+    "★ con a quién revisar primero y cuánto hay en juego (subtotal y por cliente)");
   ok(r.r.agente.calls === 2 && r.r.agente.figs > 40, `la evidencia se juntó ANTES de decidir (${r.r.agente.calls} herramientas · ${r.r.agente.figs} figs)`);
   // el contraste honesto: sin el playbook, el MISMO cerebro y la misma pregunta caen al rescate de una línea
   const sinPb = await answerViaAgente({ text: "y el inventario como esta?", history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
@@ -553,7 +554,7 @@ H("3 · pedir aclaración teniendo la evidencia: multa, y el entregable responde
   const r = await answerViaAgente({ text: "como viene mi margen?", history: [], mem: {}, scenario: "bonanza", callAgente: pregunton });
   ok((r.r.agente.vetos || []).some((v) => /evidencia-sin-usar/.test(v)), "★ la aclaración con evidencia disponible recibe multa del playbook",
     JSON.stringify(r.r.agente.vetos));
-  ok(r.r.agente.estado === "playbook" && /Clientes bajo el benchmark: 8/.test(r.r.text),
+  ok(r.r.agente.estado === "playbook" && /\b8\b[^\n]{0,60}bajo (?:esa referencia|el benchmark)/i.test(r.r.text),
     "…y como el cerebro insiste, el entregable determinístico responde la pregunta");
   ok(!/¿Sobre cuál entidad/.test(r.r.text), "la pregunta vacía jamás llega a pantalla");
 }
@@ -582,7 +583,7 @@ H("4 · el muro, el contrato y el cerebro bueno: todo sigue mandando");
   const figsPack = boletaDelPlaybook(margenEnRiesgo, "actual");
   const cumple = promesasCumplidas(margenEnRiesgo, figsPack);
   const compuesto = margenEnRiesgo.componer({ figs: figsPack });
-  ok(!cumple || (compuesto === null) || /Benchmark de margen/.test(compuesto),
+  ok(!cumple || (compuesto === null) || /benchmark/i.test(compuesto),
     "en otro dato: o cumple sus promesas y compone, o se retira — nunca promete lo que no puede");
   initTenant(TENANT_DEMO);
 }
@@ -746,7 +747,7 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       initTenant(TENANT_DEMO);
       const figs = boletaDelPlaybook(margenEnRiesgo);
       const t = Mut.margenEnRiesgo.componer({ figs });
-      return typeof t === "string" && /Clientes bajo el benchmark: 8/.test(t) && Mut.lecturaDeMargen(figs).bajo.length !== 8;
+      return typeof t === "string" && /\b8 de tus clientes están bajo/.test(t) && Mut.lecturaDeMargen(figs).bajo.length !== 8;
     });
 
   // (e) la regla de la conducta del owner, vaciada: preguntar con la evidencia en la mano pasa sin multa
@@ -771,7 +772,7 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (g) la muestra envejecida: el composer cambia y el documento del owner sigue diciendo lo viejo
   await carnada("muestra desactualizada (documento que envejece en silencio)", "src/adi/agente/playbooks/margenEnRiesgo.js",
-    [[/Clientes bajo el benchmark: \$\{_val\(L\.conteo\)\}\./, "Clientes bajo la vara: ${_val(L.conteo)}."]],
+    [[/de tus clientes están bajo esa referencia\./, "de tus clientes están bajo esa marca de agua."]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
       const figs = boletaDelPlaybook(Mut.margenEnRiesgo);

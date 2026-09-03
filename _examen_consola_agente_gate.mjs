@@ -154,7 +154,7 @@ console.log("\n3c · P3 · el camino que la consola usa, probado EN VIVO con una
   ok(faltanteQueToca("quien me debe y que esta vencido") === null,
     "…y nada se inventa por la ausencia del campo");
   const rViejo = await answerViaAgente({ text: "quien me debe y que esta vencido", history: [], mem: {}, scenario: "actual", callAgente: mudo });
-  ok(rViejo.r.text === rHoy.r.text && /Saldo pendiente/.test(rViejo.r.text),
+  ok(rViejo.r.text === rHoy.r.text && /por cobrar/.test(rViejo.r.text),
     "…la conducta del pack viejo es EXACTAMENTE la de hoy — la respuesta real del cobro, sin crash ni falta inventada",
     rViejo.r.text.slice(0, 80));
 

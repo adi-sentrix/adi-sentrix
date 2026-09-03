@@ -89,7 +89,9 @@ initTenant(TENANT_DEMO);
 await escenario("DEMO", [
   { q: "llamame jc de ahora en adelante. como viene mi margen?", check: (a, t) => {
     ok(a.estado === "playbook" && /^jc[:,]/.test(t), `t1 · playbook margen CON el trato «jc» registrado solo (${a.estado})`, t.slice(0, 80));
-    ok(/Benchmark de margen: 30\.1%/.test(t) && /Clientes bajo el benchmark: 8/.test(t), "t1 · la cartera con sus cifras: benchmark 30.1% y los 8 bajo la vara");
+    // (conducta, no frase — la voz humana 2026-09-03 reescribió el entregable; las cifras son las mismas)
+    ok(/(?:benchmark|referencia)[^\n]{0,60}30\.1%|30\.1%[^\n]{0,60}benchmark/i.test(t) && /\b8\b[^\n]{0,60}bajo (?:esa referencia|el benchmark)/i.test(t),
+      "t1 · la cartera con sus cifras: benchmark 30.1% y los 8 bajo la vara");
   } },
   { q: "ponele que el año que viene crezco 3%: cuanto seria mi venta?", check: (a, t) => {
     ok(a.estado === "playbook" && /\$103\.0M/.test(t) && /proyección sobre el supuesto que declaraste/.test(t),
@@ -97,7 +99,7 @@ await escenario("DEMO", [
     ok(!/¿[^?]*global o por cliente/i.test(t), "t2 · NO pregunta «¿global o por cliente?» — el defecto P1 no vuelve");
   } },
   { q: "Dime cuáles son los clientes que venden mucho pero están bajo el benchmark", check: (a, t) => {
-    ok(a.estado === "playbook" && /contribuci[oó]n no capturada/i.test(t) && /Falabella/.test(t),
+    ok(a.estado === "playbook" && /contribuci[oó]n (?:no capturada|sin capturar)/i.test(t) && /Falabella/.test(t),
       `t3 · la cartera bajo el benchmark con cifras verbatim (${a.estado})`);
   } },
   { q: "Con ese total anual, proyecta 12 meses con +4% y dime cuánto genera adicional.", check: (a, t) => {
@@ -209,9 +211,9 @@ if (fs.existsSync(COMPLETA)) {
         "c10 · PISO: una cifra verificada presente, sin molde y sin disculpa pelada");
     } },
     { q: "dame los 3 riesgos para el directorio", check: (a, t) => {
-      ok(a.estado === "playbook" && /Los 3 riesgos, por materialidad:/.test(t) && /Venta contra el año anterior: -40\.5%/.test(t),
+      ok(a.estado === "playbook" && /Los 3 riesgos, por materialidad:/.test(t) && /-40\.5%[^\n]{0,50}a[ñn]o anterior|a[ñn]o anterior[^\n]{0,50}-40\.5%/i.test(t),
         `c11 · los 3 riesgos, la venta cayendo primero (${a.estado})`);
-      ok(/Capital frenado en inventario: \$38\.1M/.test(t) && /encabeza ELE-CAB25/.test(t) && /si quieres/.test(t),
+      ok(/Capital frenado en inventario: \$38\.1M/.test(t) && /encabeza ELE-CAB25/.test(t) && /si quieres/i.test(t),
         "c11 · QUÉ·DÓNDE·PRIMERO con cifras del negocio — ofertas, jamás órdenes");
     } },
     { q: "compará Q1 vs Q2", check: (a, t) => {
@@ -240,7 +242,7 @@ if (fs.existsSync(PARCIAL)) {
     } },
     { q: "capital por bodega", check: (a, t) => ok(/columna «bodega»/.test(t) && !/Central|Norte|Sur/.test(t), `p5 · nombra la columna «bodega» sin inventar el corte (${a.estado})`) },
     { q: "¿cómo viene mi margen?", check: (a, t) => {
-      ok(a.estado === "playbook" && /Benchmark de margen: 30\.1%/.test(t) && /Clientes bajo el benchmark: 6/.test(t),
+      ok(a.estado === "playbook" && /(?:benchmark|referencia)[^\n]{0,60}30\.1%|30\.1%[^\n]{0,60}benchmark/i.test(t) && /\b6\b[^\n]{0,60}bajo (?:esa referencia|el benchmark)/i.test(t),
         `p6 · NO-DEGRADACIÓN: el margen funciona igual con el dato incompleto (${a.estado})`);
     } },
     { q: "qué SKU tienen capital frenado", check: (a, t) => {
@@ -317,7 +319,7 @@ H("5 · carnadas: la certificación congelada es la RED de todo lo demás");
     async (bucleMut) => {
       initTenant(TENANT_DEMO);
       const r = await bucleMut({ text: "llamame jc de ahora en adelante. como viene mi margen?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
-      return !(r.r.agente.estado === "playbook" && /Benchmark de margen: 30\.1%/.test(r.r.text));
+      return !(r.r.agente.estado === "playbook" && /30\.1%/.test(r.r.text));
     });
   // (2) la poda revertida: el replay pierde su tercer peldaño (el veto sobre el producto de la poda desaparece)
   if (fs.existsSync(COMPLETA)) {

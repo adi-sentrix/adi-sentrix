@@ -92,7 +92,7 @@ H("2 · un turno con cifras en la boleta jamás sale con una disculpa pelada");
     ok(s.figs > 0 && (citaCifra || ofrece),
       `«${s.fam}» (${s.figs} figs) responde con cifra o alternativa nombrada`, s.texto.slice(0, 110));
   }
-  const conAlternativa = salidas.filter((s) => /también tengo .+ y .+: dime cuál abro/i.test(s.texto)).length;
+  const conAlternativa = salidas.filter((s) => /también tengo .+ y .+: ¿te abro alguno\?/i.test(s.texto)).length;
   ok(conAlternativa >= 3, `★ y la alternativa va NOMBRADA, no «pídeme otro corte» (${conAlternativa} de ${salidas.length})`);
 
   /* ⚠️ LA ALTERNATIVA SE LE OFRECE A UNA PERSONA, ASÍ QUE VA EN SU IDIOMA (certificación 2026-09-01): en el
@@ -152,7 +152,7 @@ H("4 · misma familia, tamaños comparables (el contraste 6 vs 12)");
   ok(a.r.agente.estado === "playbook" && b.r.agente.estado === "playbook",
     `las dos preguntas de la familia cartera van por el mismo procedimiento (${a.r.agente.estado}/${b.r.agente.estado})`);
   ok(ratio <= 1.5, `★ tamaños comparables: ${la} vs ${lb} chars (${ratio.toFixed(2)}×) — el contraste medido era 5,6×`);
-  ok(/Clientes bajo el benchmark: 8/.test(a.r.text) && /Clientes bajo el benchmark: 8/.test(b.r.text),
+  ok(/\b8\b[^\n]{0,60}bajo (?:esa referencia|el benchmark)/i.test(a.r.text) && /\b8\b[^\n]{0,60}bajo (?:esa referencia|el benchmark)/i.test(b.r.text),
     "…y el foco es el mismo: las dos entregan la lectura, no una disculpa");
 }
 
@@ -233,7 +233,7 @@ H("5 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (c) la alternativa sin nombrar: vuelve el «pídeme otro corte» genérico
   await carnada("alternativa sin nombrar", "src/adi/agente/bucleAgente.js",
-    [[/    return nombres\.length \? `De este mismo turno también tengo \$\{nombres\.join\(" y "\)\}: dime cuál abro\.` : null;/,
+    [[/    return nombres\.length \? `De este mismo turno también tengo \$\{nombres\.join\(" y "\)\}: ¿te abro alguno\?` : null;/,
       "    return null;"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);

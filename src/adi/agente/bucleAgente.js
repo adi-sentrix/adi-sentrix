@@ -267,7 +267,9 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta }) {
     const nombres = [...conteo.entries()]
       .filter(([c, n]) => (n >= 2 || verificadas.some((f) => f.mandatory && String(f.label).includes(c))) && !yaCitado.includes(c))
       .sort((a, b) => b[1] - a[1]).map(([c]) => c).slice(0, 2);
-    return nombres.length ? `De este mismo turno también tengo ${nombres.join(" y ")}: dime cuál abro.` : null;
+    /* LA VOZ (2026-09-03): «dime cuál abro» era además LA MISMA cadena que el humo marca como el menú de
+     * labels — el peldaño legítimo y el defecto histórico compartían frase. La oferta ahora pregunta. */
+    return nombres.length ? `De este mismo turno también tengo ${nombres.join(" y ")}: ¿te abro alguno?` : null;
   };
 
   /* sin un LÍMITE que nombrar ni contenido que ofrecer, este peldaño no tiene nada honesto que decir: cede al
@@ -279,7 +281,7 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta }) {
   const _armar = (fig) => [
     falta ? `Tu archivo no trae ${falta.pieza}: con eso te abro ${falta.abre}.`
       : motivo ? `No pude completar la lectura que pediste: ${motivo}.` : "No pude completar la lectura que pediste con la calidad que corresponde.",
-    fig ? `Lo que sí tengo verificado: ${fig.label} = ${fig.text || fig.value}.` : null,
+    fig ? `Lo que sí tengo verificado: ${fig.label}, ${fig.text || fig.value}.` : null,
     refutacion,
     alternativa(fig) || "Dime por dónde quieres que siga y lo trabajo sobre lo disponible.",
   ].filter(Boolean).join(" ");

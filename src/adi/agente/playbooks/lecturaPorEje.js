@@ -129,10 +129,12 @@ export const lecturaPorEje = {
     const conRaw = filas.every((x) => Number.isFinite(x.raw));
     if (conRaw) filas.sort((a, b) => b.raw - a.raw);
     const bench = _all(figs, /^Benchmark de margen$/i)[0] || null;
-    const partes = [`${e.unidad.charAt(0).toUpperCase() + e.unidad.slice(1)} por ${e.eje === "sku_frenado" ? "SKU" : e.eje}${conRaw ? ", de mayor a menor" : ""}:`];
+    // LA VOZ (2026-09-03): la apertura habla, el ranking sigue siendo un ranking — y «de mayor a menor»
+    // se conserva textual: es la promesa de ORDEN que el muro verifica contra la tabla.
+    const partes = [`Así viene tu ${e.unidad} por ${e.eje === "sku_frenado" ? "SKU" : e.eje}${conRaw ? ", de mayor a menor" : ""}:`];
     for (const x of filas.slice(0, 8)) partes.push(`- ${x.entidad}: ${x.fmt}`);
     if (filas.length > 8) partes.push(`(y ${filas.length - 8} más)`);
-    if (bench) partes.push(`Benchmark de margen: ${_val(bench)}.`);
+    if (bench) partes.push(`Tu benchmark de margen es ${_val(bench)}.`);
     return partes.join("\n");
   },
 
