@@ -29,6 +29,7 @@
 
 import { detectSerieIntent } from "../../oracle/serieIntent.js";
 import { pisoFocosUSD, declaracionUmbralFocos } from "../../specRetrieval.js";
+import { variante } from "../variacion.js";   // los cierres varían por semilla («matar la repetición», 2026-09-03)
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 const _val = (f) => String((f && (f.text || f.value)) || "");
@@ -86,7 +87,7 @@ export const clientePerdiendoContribucion = {
   ],
   obligatorias: [/· YoY$/i, /^Contribuci[oó]n total$/i],
   entregable: "qué clientes están cayendo contra el año anterior (cada uno con su cifra YoY), sobre cuánta contribución total, y a quién abrir primero — ofrecido, jamás ordenado. Localiza dónde se cae; el porqué no está en este dato.",
-  componer({ figs } = {}) {
+  componer({ figs, semilla } = {}) {
     const total = _find(figs, /^Contribuci[oó]n total$/i);
     const caen = _all(figs, /· YoY$/i)
       .map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
@@ -110,7 +111,11 @@ export const clientePerdiendoContribucion = {
     partes.push(`\nLos ${top.length} que más caen:`);
     for (const c of top) partes.push(`- ${c.entidad} · ${c.fmt} contra el año anterior${contrib.has(c.entidad) ? ` · contribución actual ${contrib.get(c.entidad)}` : ""}`);
     partes.push(`\nDónde se cae queda localizado; por qué se cae no está en este dato.`);
-    partes.push(`Si quieres, abrimos la serie mensual de ${top[0].entidad} —el que más cae— para ver desde cuándo. Dime y la traigo.`);
+    partes.push(variante(semilla, [
+      `Si quieres, abrimos la serie mensual de ${top[0].entidad} —el que más cae— para ver desde cuándo. Dime y la traigo.`,
+      `Vale la pena ver desde cuándo: ¿abrimos la serie mensual de ${top[0].entidad}, el que más cae?`,
+      `Para ver desde cuándo se cae, te abro la serie mensual de ${top[0].entidad} —el que más cae— si quieres.`,
+    ]));
     return partes.join("\n");
   },
   listaNotarial(texto, { figs } = {}) {
@@ -161,7 +166,7 @@ export const inventarioInmovilizado = {
   ],
   obligatorias: [/^Capital frenado · total$/i, /· Capital frenado$/i],
   entregable: "cuánto capital está inmovilizado (y si es material para este negocio, con el umbral declarado), en qué SKU está, y cuál abrir primero — ofrecido con su cifra, jamás ordenado. Se localiza dónde; el porqué de cada freno no está en este dato.",
-  componer({ figs } = {}) {
+  componer({ figs, semilla } = {}) {
     const total = _find(figs, /^Capital frenado · total$/i);
     if (!total) return null;
     const dias = new Map(_all(figs, /· D[ií]as de inventario$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
@@ -191,7 +196,11 @@ export const inventarioInmovilizado = {
     partes.push(esMaterial
       ? (skus.length === 1
         ? `Si quieres, empiezo por ${top[0].entidad}: es el único con capital frenado. Dime y lo abrimos.`
-        : `Si quieres, empiezo por ${top[0].entidad}: es el mayor (${top[0].fmt} de ${_val(total)}). Dime y lo abrimos.`)
+        : variante(semilla, [
+          `Si quieres, empiezo por ${top[0].entidad}: es el mayor (${top[0].fmt} de ${_val(total)}). Dime y lo abrimos.`,
+          `El mayor es ${top[0].entidad} (${top[0].fmt} de ${_val(total)}) — ¿lo abrimos?`,
+          `Si te parece, arranco por ${top[0].entidad}: es el mayor (${top[0].fmt} de ${_val(total)}).`,
+        ]))
       : `Si igual quieres verlo, empiezo por ${top[0].entidad}, que es el mayor. Dime y lo abrimos.`);
     return partes.join("\n");
   },
@@ -239,7 +248,7 @@ export const caidaDeVentas = {
   ],
   obligatorias: [/^headline$/i, /· YoY$/i],
   entregable: "si la venta cae o no contra el año anterior (la lectura del período, verbatim), quiénes explican el movimiento (YoY por cliente, materialidad mediante) y a quién abrir primero — ofrecido. Localiza; el porqué no está en este dato.",
-  componer({ figs } = {}) {
+  componer({ figs, semilla } = {}) {
     const head = _find(figs, /^headline$/i);
     if (!head || !Number.isFinite(_pct(head))) return null;
     const cae = _pct(head) < 0;
@@ -261,7 +270,11 @@ export const caidaDeVentas = {
     }
     if (suben.length) partes.push(`${caen.length ? "\n" : ""}Los que más suben: ${suben.slice(0, 2).map((s) => `${s.entidad} ${s.fmt}`).join(" · ")}.`);
     partes.push(`\nPor qué ${cae ? "cae" : "se mueve así"} no está en este dato: queda localizado quién y cuánto.`);
-    if (caen.length) partes.push(`Si quieres, abrimos la serie mensual de ${caen[0].entidad} —el que más cae— para ver desde cuándo. Dime y la traigo.`);
+    if (caen.length) partes.push(variante(semilla, [
+      `Si quieres, abrimos la serie mensual de ${caen[0].entidad} —el que más cae— para ver desde cuándo. Dime y la traigo.`,
+      `Vale la pena ver desde cuándo: ¿abrimos la serie mensual de ${caen[0].entidad}, el que más cae?`,
+      `Para ver desde cuándo se cae, te abro la serie mensual de ${caen[0].entidad} —el que más cae— si quieres.`,
+    ]));
     return partes.join("\n");
   },
   listaNotarial(texto, { figs } = {}) {
@@ -313,7 +326,7 @@ export const oportunidadDePrecio = {
   ],
   obligatorias: [/^Benchmark de margen$/i, /^SKU bajo el benchmark$/i],
   entregable: "el benchmark declarado, cuántos SKU están bajo él, cuáles son (margen y venta de cada uno) y cuál abrir primero — ofrecido como revisión, jamás como orden de subir precios. Si el driver es costo o precio no está en esta lectura: se ofrece abrirlo, no se afirma.",
-  componer({ figs } = {}) {
+  componer({ figs, semilla } = {}) {
     const bench = _find(figs, /^Benchmark de margen$/i);
     const conteo = _find(figs, /^SKU bajo el benchmark$/i);
     if (!bench || !conteo || !Number.isFinite(_pct(bench))) return null;
@@ -343,7 +356,11 @@ export const oportunidadDePrecio = {
       partes.push(`- ${s.entidad} · margen de venta ${s.fmt}${vf ? ` · venta ${_val(vf)}` : ""}${medidaOk ? ` · cerrar su brecha al benchmark vale ${_val(mf)}` : ""}`);
     }
     partes.push(`\nSi el problema de cada uno es precio o costo no está en esta lectura: no lo afirmo.`);
-    partes.push(`Si quieres, abrimos ${top[0].entidad} —el de menor margen— y vemos su estructura antes de tocar ningún precio. Dime y lo abrimos.`);
+    partes.push(variante(semilla, [
+      `Si quieres, abrimos ${top[0].entidad} —el de menor margen— y vemos su estructura antes de tocar ningún precio. Dime y lo abrimos.`,
+      `Antes de tocar ningún precio, ¿abrimos ${top[0].entidad}? Es el de menor margen.`,
+      `Te propongo abrir ${top[0].entidad} —el de menor margen— y ver su estructura antes de tocar ningún precio.`,
+    ]));
     return partes.join("\n");
   },
   listaNotarial(texto, { figs } = {}) {

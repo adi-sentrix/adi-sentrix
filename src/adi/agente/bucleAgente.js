@@ -51,6 +51,7 @@ import { getNombreUsuario, setNombreUsuario } from "./preferenciaNombre.js";   /
 import { detectSerieIntent, composeSerieIntent } from "../oracle/serieIntent.js";   // R9 · el puente, también en modo agente
 import { playbookPara, pasosDe, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook } from "./playbooks/registro.js";   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
 import { serieRealDe } from "../sentrix/capability.js";
+import { getTenantId } from "../../data/tenantStore.js";   // la semilla de variación: tenant + pregunta + largo del hilo
 
 const TOPE_RONDAS = 3;      // rondas que pueden pedir herramientas
 const TOPE_CALLS = 12;      // tool-calls por turno, sumadas todas las rondas
@@ -659,7 +660,12 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * responde la pregunta con las cifras que los pasos verificaron, y se juzga como cualquier otro (guardC + el
    * contrato + la propia lista del playbook): si no pasara, cede al siguiente sin ruido. */
   if (final === null && playbookActivo && typeof playbookActivo.componer === "function") {
-    const _pb = (() => { try { return playbookActivo.componer({ figs: figsTotales, pregunta: q }); } catch { return null; } })();
+    /* LA SEMILLA DE VARIACIÓN (owner 2026-09-03, «matar la repetición»): tenant + pregunta + largo del hilo —
+     * todo del turno mismo, cero estado nuevo. Determinística (los gates replican byte a byte) y distinta
+     * entre turnos (el hilo crece), así el mismo cierre no sale tres veces seguidas. Los composers sin
+     * semilla devuelven su primera opción: nada cambia para quien no la pasa. */
+    const _semilla = `${(() => { try { return getTenantId() || "demo"; } catch { return "demo"; } })()}::${q}::${Array.isArray(history) ? history.length : 0}`;
+    const _pb = (() => { try { return playbookActivo.componer({ figs: figsTotales, pregunta: q, semilla: _semilla }); } catch { return null; } })();
     if (_pb && _pb.trim()) {
       const vPb = juzgar(_pb, `playbook:${playbookActivo.nombre}`);
       if (vPb && vPb.ok) { final = _pb; estado = "playbook"; suplente = true; }

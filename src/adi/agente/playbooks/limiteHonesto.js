@@ -30,6 +30,7 @@
 
 import { getTenantData } from "../../../data/tenantStore.js";
 import { faltanteQueToca } from "../mapaDelDato.js";
+import { variante } from "../variacion.js";   // la oferta varía por semilla («matar la repetición», 2026-09-03)
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 const _val = (f) => String((f && (f.text || f.value)) || "");
@@ -78,7 +79,7 @@ export const limiteHonesto = {
 
   entregable: "el corte pedido no está disponible y POR QUÉ, con la razón exacta que el dataset declara (guardado sin analizar · columna vacía · sin corte trimestral); qué lectura SÍ hay, nombrada con su eje (cliente, contra el año anterior); y una oferta de una línea. Jamás responder por otro eje sin declarar el límite, jamás un menú de labels internos.",
 
-  componer({ figs, pregunta } = {}) {
+  componer({ figs, pregunta, semilla } = {}) {
     const q = String(pregunta || "");
     const head = _find(figs, /^headline$/i);
     if (!head) return null;
@@ -107,8 +108,12 @@ export const limiteHonesto = {
     if (cae) piezas.push(`el que más cae es ${cae.entidad} (${cae.fmt})`);
     partes.push(`\nLo que sí tengo es la lectura por CLIENTE contra el año anterior: el período viene en ${_val(head)}${piezas.length ? ` — ${piezas.join(" y ")}` : ""}.`);
 
-    /* 3 · LA OFERTA, una línea */
-    partes.push(`Si te sirve ese eje, la abro completa. Dime y la traigo.`);
+    /* 3 · LA OFERTA, una línea — varía por semilla; toda variante nombra «ese eje» (el ancla verificable) */
+    partes.push(variante(semilla, [
+      "Si te sirve ese eje, la abro completa. Dime y la traigo.",
+      "¿Te abro la lectura completa por ese eje?",
+      "Si ese eje te sirve, te la traigo completa.",
+    ]));
     return partes.join("\n");
   },
 

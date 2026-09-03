@@ -17,6 +17,8 @@
  *
  * PURO · determinístico · sin red. Cifras VERBATIM de la boleta: este módulo selecciona y ordena, jamás calcula. */
 
+import { variante } from "../variacion.js";   // el cierre varía por semilla («matar la repetición», 2026-09-03)
+
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 /* ⚠️ EL MOTOR SOLO PONE `raw` EN LAS FILAS DESTACADAS (medido: de los 13 clientes con margen, 5 traen `raw` y
  * 8 traen solo su valor de pantalla «26.5%»). Para SELECCIONAR quién está bajo la vara hace falta el número de
@@ -137,7 +139,7 @@ export const margenEnRiesgo = {
    * Brecha al benchmark» — la cifra de la card) y solo si la boleta la trae; «margen promedio» y «benchmark»
    * se nombran con su palabra al lado de su % (las anclas léxicas del humo); el recorte se declara («3 de los
    * 8»); la prioridad nombra su criterio. Cercanía sí, adulación no: si el margen viene mal, se dice derecho. */
-  componer({ figs } = {}) {
+  componer({ figs, semilla } = {}) {
     const L = lecturaDeMargen(figs);
     if (!L.bench || !L.conteo || !L.bajo.length) return null;
     const nDeclarado = _num(L.conteo);
@@ -167,7 +169,13 @@ export const margenEnRiesgo = {
       const c0 = L.carga[0];
       partes.push(`Dónde lo localiza el motor: carga comercial alta por ${_val(L.cargaTotal)}${c0 ? ` — la más pesada es la de ${c0.entidad} (${c0.fmt})` : ""}.`);
     }
-    if (top.length) partes.push(`\n¿Lo abrimos por ${top[0].entidad}? Es donde hay más contribución en juego.`);
+    /* el cierre VARÍA (owner 2026-09-03, «matar la repetición») — determinístico por semilla, y toda variante
+     * conserva las anclas: nombra la entidad, declara el criterio («contribución en juego») y OFRECE. */
+    if (top.length) partes.push(variante(semilla, [
+      `\n¿Lo abrimos por ${top[0].entidad}? Es donde hay más contribución en juego.`,
+      `\nSi te parece, empiezo por ${top[0].entidad}: es donde hay más contribución en juego.`,
+      `\nDonde hay más contribución en juego es ${top[0].entidad} — ¿lo abrimos?`,
+    ]));
     return partes.join("\n");
   },
 

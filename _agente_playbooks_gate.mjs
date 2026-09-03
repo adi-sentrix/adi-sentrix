@@ -352,7 +352,8 @@ H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materi
   const ra = await T("qué clientes estoy perdiendo");
   ok(ra.r.agente.estado === "playbook" && /La Polar · -\$417K contra el año anterior/.test(ra.r.text) && /Ripley · -\$414K/.test(ra.r.text),
     `★ A · quiénes caen, cada uno con su cifra YoY (${ra.r.agente.estado})`, ra.r.text.slice(0, 120));
-  ok(/por qué se cae no está en este dato/.test(ra.r.text) && /Si quieres, abrimos la serie mensual de La Polar/.test(ra.r.text),
+  // (ancla común de TODAS las variantes del cierre — la oferta varía por semilla desde 2026-09-03)
+  ok(/por qué se cae no está en este dato/.test(ra.r.text) && /la serie mensual de La Polar/.test(ra.r.text),
     "…02 LOCALIZA sin causas y 03 OFRECE abrir al que más cae");
   const rb = await T("qué hago con el inventario inmovilizado");
   ok(rb.r.agente.estado === "playbook" && /\$33K de capital inmovilizado/.test(rb.r.text) && /capital frenado \$14K/.test(rb.r.text),
@@ -371,7 +372,8 @@ H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materi
     `★ D · los peores por margen DE VENTA (el muro exige decir cuál margen) (${rd2.r.agente.estado})`, rd2.r.text.slice(0, 120));
   ok(/esta lectura publica el margen de 10 de los 12/.test(rd2.r.text),
     "★ D · el CORTE declarado contra lo publicado: el panel trae 10 de los 12 — se dice, no se finge completitud");
-  ok(/no está en esta lectura: no lo afirmo/.test(rd2.r.text) && /vemos su estructura antes de tocar ningún precio/.test(rd2.r.text),
+  // (ancla común de TODAS las variantes del cierre — la oferta varía por semilla desde 2026-09-03)
+  ok(/no está en esta lectura: no lo afirmo/.test(rd2.r.text) && /antes de tocar ningún precio/i.test(rd2.r.text),
     "…y no culpa al precio sin driver: ofrece abrir la estructura");
 
   // LA LISTA NOTARIAL DE CADA UNO: la mentira multada, la frase legítima intacta, y el propio entregable limpio.

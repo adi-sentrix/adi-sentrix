@@ -20,6 +20,7 @@
  * PURO · determinístico · sin red. Cifras VERBATIM de la boleta; selecciona y ordena, jamás calcula. */
 
 import { pisoFocosUSD, declaracionUmbralFocos } from "../../specRetrieval.js";
+import { variante } from "../variacion.js";   // el cierre varía por semilla («matar la repetición», 2026-09-03)
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 const _val = (f) => String((f && (f.text || f.value)) || "");
@@ -63,7 +64,7 @@ export const sintesisEjecutiva = {
 
   entregable: "exactamente 3 riesgos para el directorio, elegidos por materialidad (el piso relativo manda): cada uno con QUÉ (la cifra verbatim, con su dueño) · DÓNDE (localiza, sin causas que el dato no declara) · QUÉ HACER PRIMERO (una oferta, jamás una orden). Si el dato sostiene menos de 3 materiales, se dice el número verdadero.",
 
-  componer({ figs } = {}) {
+  componer({ figs, semilla } = {}) {
     const piso = _piso();
     /* los candidatos, cada uno con su cifra y su locator — SOLO familias que el diagnóstico declara */
     const candidatos = [];
@@ -100,7 +101,11 @@ export const sintesisEjecutiva = {
     if (fuera > 0 && n >= 3) partes.push(`\n(${fuera} foco${fuera > 1 ? "s quedan" : " queda"} ${_umbral() || "bajo el umbral de materialidad"}.)`);
     /* «Cada» al inicio de oración casi-matchea «Casa Belgrano» y el corruptor de entidades lo veta (medido en
      * la parcial y en la completa real): el cierre arranca en «El porqué» a propósito. */
-    partes.push(`\nEl porqué de cada riesgo no está en este dato: queda localizado, no explicado. ¿Cuál abrimos primero?`);
+    partes.push("\n" + variante(semilla, [
+      "El porqué de cada riesgo no está en este dato: queda localizado, no explicado. ¿Cuál abrimos primero?",
+      "El porqué de cada riesgo no está en este dato: queda localizado, no explicado. ¿Por cuál entramos?",
+      "El porqué de cada riesgo no está en este dato: queda localizado, no explicado. Dime cuál abrimos y entro ahí.",
+    ]));
     return partes.join("\n");
   },
 

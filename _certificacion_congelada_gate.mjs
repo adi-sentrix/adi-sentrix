@@ -217,7 +217,7 @@ if (fs.existsSync(COMPLETA)) {
         "c11 · QUÉ·DÓNDE·PRIMERO con cifras del negocio — ofertas, jamás órdenes");
     } },
     { q: "compará Q1 vs Q2", check: (a, t) => {
-      ok(a.estado === "playbook" && /no trae un corte por trimestre/.test(t) && /Si te sirve ese eje/.test(t),
+      ok(a.estado === "playbook" && /no trae un corte por trimestre/.test(t) && /ese eje/.test(t),
         `c12 · límite corto CON la alternativa nombrada (${a.estado})`);
     } },
   ]);
