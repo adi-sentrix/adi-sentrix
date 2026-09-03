@@ -10,6 +10,7 @@
  *   · applyVoiceCalibration
  */
 import { _fmtMoneyK } from "../engine/formatters.js";
+import { benchmarkOf } from "../config/businessPolicy.js";   // la vara única (ley 2026-09-03)
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";   // la ESCALA DECLARADA de cada métrica del ranking (ver _fmtRankMoney)
 import { EXECUTIVE_REFRAMES } from "../config/signalRules.js";
 import { applyScenarioToClientesMargen } from "../engine/scenarios.js";
@@ -1051,7 +1052,7 @@ function composeExecutiveActionNarrative(signals, posture, ctx) {
   // cuenta concentrada que opera bajo media benchmark (MISMA señal de deterioro · MAT-B3/C)
   const critClientOf = (a) => (a.entities || []).find(name => {
     const cm = applyScenarioToClientesMargen(signals.scenario).find(x => x.nombre === name);
-    return cm && cm.margen != null && cm.margen < (cm.benchmark || 30.1) / 2;
+    return cm && cm.margen != null && cm.margen < benchmarkOf(cm) / 2;   // la vara: por la puerta, jamás un literal (ley 2026-09-03)
   });
 
   // ── INTRO · materialidad (reemplaza la apertura en primera persona) ──

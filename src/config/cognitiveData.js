@@ -2,6 +2,7 @@
  * Datos de ancla extraídos de 41cc33d8 · byte-idénticos (Fase 4c). */
 
 import { PRIMITIVES } from "./primitives.js";
+import { benchmarkOf } from "./businessPolicy.js";   // la vara única (ley 2026-09-03)
 import { getTenantData } from "../data/tenantStore.js";
 import { factorComercialDe } from "./contract/figureType.js";
 // miles VERDADEROS del monto almacenado (barrido A·maquinaria 2026-08-30) — con el demo es la identidad
@@ -38,7 +39,7 @@ export const OBSERVABLE_RELATIONS = {
         const cv = ventas.find(c => c.nombre === clientName);
         const cm = margenes.find(c => c.nombre === clientName);
         if (!cv || !cm) return null;
-        const benchmark_cartera = 30.1;
+        const benchmark_cartera = benchmarkOf(cm);   // la vara: SIEMPRE por la puerta — jamás un literal (ley 2026-09-03)
         if (!cv.anterior || cv.anterior <= 0) return null;
         const crecimiento = ((cv.actual - cv.anterior) / cv.anterior) * 100;
         // Trigger: crecimiento >5% YoY AND margen por debajo de benchmark
@@ -57,7 +58,7 @@ export const OBSERVABLE_RELATIONS = {
       evaluate: (clientName, margenes, ventas, scenario) => {
         const cm = margenes.find(c => c.nombre === clientName);
         if (!cm) return null;
-        const benchmark_cartera = 30.1;
+        const benchmark_cartera = benchmarkOf(cm);   // la vara: SIEMPRE por la puerta — jamás un literal (ley 2026-09-03)
         // Trigger: margen del cliente más de 2pp bajo benchmark de cartera
         if (cm.margen >= benchmark_cartera - 2.0) return null;
         const deltaMargen = (benchmark_cartera - cm.margen).toFixed(1);

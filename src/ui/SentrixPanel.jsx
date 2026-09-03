@@ -1141,7 +1141,7 @@ function VentasPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }
 // benchmark (bajo la línea = margen delgado) + descomposición precio/costo cuando el foco lo pide. Respalda el texto de ADI.
 function MarginPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
   const p = (evidence && evidence.margin && evidence.margin.panel) || {};
-  const rows = p.rows || [], bench = p.bench || 30.1;
+  const rows = p.rows || [], bench = p.bench || benchmarkOf(null);   // la vara: por la puerta, jamás un literal (ley 2026-09-03)
   const scale = Math.max(40, ...rows.map((r) => r.margen || 0));   // eje 0..scale (%)
   const benchPct = Math.min(100, bench / scale * 100);
   const head = { fontFamily: MONO, fontSize: 11.5, letterSpacing: "0.5px", color: C.text, textTransform: "uppercase" };

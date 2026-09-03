@@ -2,6 +2,7 @@
  * MOTOR PURO extraído de 41cc33d8 · misma entrada → misma salida · sin React.
  * Funciones copiadas verbatim; solo se agregan imports. Cero cambio de cálculo. */
 import { FEATURE_FAMILY_MARGEN_BLENDED } from "../config/features.js";
+import { benchmarkOf } from "../config/businessPolicy.js";   // la vara única: perfil del tenant → config, con el criterio C.2 encima
 import { SCENARIO_TRANSFORMS } from "../config/scenarios.js";
 import { clientesMargen, clientesVentas, marcasMargen, marcasVentas, sfamiliasMargen, sfamiliasVentas, skuInventario } from "../data/demoData.js";
 
@@ -161,7 +162,7 @@ export function applyScenarioToSfamiliasMargen(scenarioId) {
       by[c.sfamilia] = {
         nombre:c.sfamilia, tipo:"sfamilia", marca:c.marca, sfamilia:c.sfamilia,
         venta:0, costo:0, rebates:0, contribucion:0, unidades:0,
-        pctRebate:0, margen:0, costoMedio:0, precioLista:0, benchmark:30.1,
+        pctRebate:0, margen:0, costoMedio:0, precioLista:0, benchmark:benchmarkOf(null),   // la vara del grupo sintético: por la puerta, jamás un literal (ley 2026-09-03)
         _count:0,
       };
     }
@@ -237,7 +238,7 @@ export function deriveKpis(scenarioId, override) {
   // MARGEN (puro · pct = contribución agregada / ventas agregadas)
   const totalUSD = margenes.reduce((s, c) => s + (c.contribucion || 0), 0);
   const pct = totalActual > 0 ? +((totalUSD / totalActual) * 100).toFixed(1) : 0;
-  const benchmark = 30.1;
+  const benchmark = benchmarkOf(null);   // la vara: SIEMPRE por la puerta (benchmarkOf) — jamás un literal (ley de la vara única, 2026-09-03)
 
   // pctAnt e inventario: PRESERVADOS del literal (no derivables del estado actual · v1)
   const lit = (typeof SCENARIO_TRANSFORMS !== "undefined" && SCENARIO_TRANSFORMS[scenarioId] && SCENARIO_TRANSFORMS[scenarioId].kpis) || {};

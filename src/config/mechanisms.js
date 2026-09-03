@@ -2,6 +2,7 @@
  * Datos extraídos de 41cc33d8 · byte-idénticos · surfaceados en Fase 4 (aditivo). */
 
 import { applyScenarioToClientesMargen, applyScenarioToClientesVentas } from "../engine/scenarios.js";
+import { benchmarkOf } from "./businessPolicy.js";   // la vara única (ley 2026-09-03)
 import { PRIMITIVES } from "./primitives.js";
 import { getTenantData } from "../data/tenantStore.js";
 import { factorComercialDe } from "./contract/figureType.js";
@@ -102,7 +103,7 @@ export const MECHANISM_REGISTRY = {
       if (!cliente || !margenCliente) return null;
 
       const crecimiento_M = +_enM(cliente.actual - cliente.anterior).toFixed(2);
-      const benchmark_pct = 30.1;
+      const benchmark_pct = benchmarkOf(margenCliente);   // la vara: SIEMPRE por la puerta (benchmarkOf) — jamás un literal (ley de la vara única, 2026-09-03)
       const contrib_teorica = _enM(cliente.actual * benchmark_pct / 100);
       const contrib_real = _enM(margenCliente.contribucion);
       const contribucion_perdida = +(contrib_teorica - contrib_real).toFixed(2);

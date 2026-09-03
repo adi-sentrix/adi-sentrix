@@ -2,6 +2,7 @@
  * Datos extraídos de 41cc33d8 · byte-idénticos · surfaceados en Fase 4 (aditivo). */
 
 import { getSubstitutionMap } from "../adi/detectors.js";
+import { benchmarkOf } from "./businessPolicy.js";   // la vara única (ley 2026-09-03)
 import { applyScenarioToClientesMargen, applyScenarioToClientesVentas } from "../engine/scenarios.js";
 
 export const PRIMITIVES = {
@@ -66,7 +67,7 @@ export const PRIMITIVES = {
     const m = margenes.find(c => c.nombre === clientName);
     if (!m) return { triggered: false, severity: null, confidence: "high", evidence: {}, silent_reason: "client not in margin dataset" };
 
-    const benchmark = m.benchmark || 30.1;
+    const benchmark = benchmarkOf(m);   // la vara: por la puerta, jamás un literal (ley 2026-09-03)
     const gap       = benchmark - m.margen;  // positive = below benchmark
     const material  = Math.abs(gap) >= 2;    // 2pp materiality
 
@@ -116,7 +117,7 @@ export const PRIMITIVES = {
     const m = margenes.find(c => c.nombre === clientName);
     if (!m) return { triggered: false, severity: null, confidence: "medium", evidence: {}, silent_reason: "client not in margin dataset" };
 
-    const benchmark = m.benchmark || 30.1;
+    const benchmark = benchmarkOf(m);   // la vara: por la puerta, jamás un literal (ley 2026-09-03)
     const gap       = benchmark - m.margen;
     const eroded    = gap >= 4; // 4pp threshold for erosion
 
@@ -145,7 +146,7 @@ export const PRIMITIVES = {
     if (!v || !m) return { triggered: false, severity: null, confidence: "low", evidence: {}, silent_reason: "incomplete data for causal analysis" };
 
     const variacion = ((v.actual - v.anterior) / v.anterior) * 100;
-    const gap       = (m.benchmark || 30.1) - m.margen;
+    const gap       = benchmarkOf(m) - m.margen;
     const carga     = v.pctRebate;
 
     // Surface signals that pair (CAUSAL layer interprets them)
@@ -178,7 +179,7 @@ export const PRIMITIVES = {
     if (!v || !m) return { triggered: false, severity: null, confidence: "low", evidence: {}, silent_reason: "incomplete data" };
 
     const variacion = ((v.actual - v.anterior) / v.anterior) * 100;
-    const gap       = (m.benchmark || 30.1) - m.margen;
+    const gap       = benchmarkOf(m) - m.margen;
     // Tradeoff: sales growth + margin below benchmark + high rebate
     const tradeoff = variacion >= 5 && gap >= 4 && v.pctRebate >= 4;
 
@@ -275,7 +276,7 @@ export const PRIMITIVES = {
     const m = margenes.find(c => c.nombre === clientName);
     if (!v || !m) return { triggered: false, severity: null, confidence: "high", evidence: {}, silent_reason: "incomplete data" };
 
-    const benchmark    = m.benchmark || 30.1;
+    const benchmark    = benchmarkOf(m);   // la vara: por la puerta, jamás un literal (ley 2026-09-03)
     const variacion    = ((v.actual - v.anterior) / v.anterior) * 100;
     const totalActual  = ventas.reduce((s, c) => s + c.actual, 0);
     const participacion = (v.actual / totalActual) * 100;
@@ -369,7 +370,7 @@ export const PRIMITIVES = {
     if (!v || !m) return { triggered: false, severity: null, confidence: "low", evidence: {}, silent_reason: "incomplete data" };
 
     const variacion = ((v.actual - v.anterior) / v.anterior) * 100;
-    const gap       = (m.benchmark || 30.1) - m.margen;
+    const gap       = benchmarkOf(m) - m.margen;
     // Low quality growth: client is growing, but margin is below benchmark
     const deterioration = variacion >= 5 && gap >= 4;
 

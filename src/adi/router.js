@@ -2,6 +2,7 @@
  * ROUTER del ADI extraído de 41cc33d8 · verbatim · solo imports agregados.
  * Importa motor + datos/config + el resto del adi. Cero cambio de ruteo. */
 import { FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_FAMILY_AS_ENTITY, FEATURE_FAMILY_INVENTORY, FEATURE_GROWTH_PROJECTION, FEATURE_INVENTORY_PREMIUM } from "../config/features.js";
+import { benchmarkOf } from "../config/businessPolicy.js";   // la vara única (ley 2026-09-03)
 import { INTENTS_REGISTRY } from "../config/intentsRegistry.js";
 import { CONCEPT_ONTOLOGY, SEMANTIC_FAMILIES } from "../config/ontology.js";
 import { AFFIRMATIVE_REPLIES, CLIENT_NAMES, CROSS_DOMAIN_EXECUTIVE_EXPRESSIONS, DOMAIN_KEYWORDS, EXECUTIVE_INTENT_PATTERNS, EXECUTIVE_REPORT_PATTERNS, EntityRegistry, KEYWORDS_DICTIONARY, RANKING_INTENT_PATTERNS, SEMANTIC_ENTITIES, SEMANTIC_INTENTS, SEMANTIC_METRICS, SEMANTIC_QUALIFIERS, _D30BIS_MEASURES_PATTERNS, _DEICTIC_CLIENT_HINT, _DEICTIC_PLURAL_DEMONSTRATIVE, _DEICTIC_QUANTIFIED, _DEICTIC_SKU_HINT, _VENTAS_TOTAL_GLOBAL_PHRASES } from "../config/routerData.js";
@@ -2313,7 +2314,7 @@ export function detectSimulationAction(text, context) {
         entity: client || sku,
         entityType: client ? "client" : "sku",
         metric: "margen",
-        target: 30.1,
+        target: benchmarkOf(null),   // la vara: por la puerta, jamás un literal (ley 2026-09-03)
       },
     };
   }

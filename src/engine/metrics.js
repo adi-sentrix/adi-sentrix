@@ -4,6 +4,7 @@
 import { SCENARIO_TRANSFORMS } from "../config/scenarios.js";
 import { getTenantData } from "../data/tenantStore.js";
 import { factorComercialDe } from "../config/contract/figureType.js";
+import { benchmarkOf } from "../config/businessPolicy.js";   // la vara única: la puerta (criterio → perfil → config), jamás un literal
 // miles VERDADEROS del monto almacenado (barrido A·maquinaria 2026-08-30) — con el demo es la identidad
 const _enK = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e3;
 import { MESES_IDX, invKPI, margenKPI, ventasKPI, ventasMensuales } from "../data/baseKpis.js";
@@ -46,10 +47,23 @@ export function getVentasKPI(filtro, filtros, scenario = ESCENARIO_INICIAL) {
   return base;
 }
 
+/* ⚠️ LA VARA ES POLÍTICA VIVA, NO UN DATO DEL PERÍODO (ley de la vara única, 2026-09-03 · hallazgo medido con la
+ * sonda del supervisor). `margenKPI.benchmark` lo CONGELA la ingesta: si el negocio declara su benchmark
+ * DESPUÉS de cargar el archivo —el mismo caso del plazo de cobro, que sí re-arma su cara con lo guardado— el
+ * KPI de cabecera seguía mostrando la vara vieja mientras el motor, la Mesa y ADI ya usaban la nueva. Cuatro
+ * superficies, dos varas: exactamente lo que esta ley existe para impedir.
+ * LA REGLA: si el pack DECLARA una vara, la VIGENTE (la puerta `benchmarkOf`, que resuelve criterio → perfil →
+ * config) manda sobre la congelada, y la brecha se recompone con la MISMA cuenta declarada por el owner
+ * (brecha = benchmark − margen actual). Un pack que no declara benchmark queda BYTE-IDÉNTICO: el demo y
+ * empresa-2 no traen el campo, así que no se les inventa uno. */
 export function getMargenKPI(scenarioId) {
   const k = SCENARIO_TRANSFORMS[scenarioId]?.kpis?.margen;
-  if (!k) return margenKPI;
-  return { ...margenKPI, ...k };
+  const base = k ? { ...margenKPI, ...k } : margenKPI;
+  if (typeof base.benchmark !== "number") return base;               // sin vara declarada: nada que refrescar
+  const vigente = benchmarkOf(null);
+  if (!Number.isFinite(vigente) || vigente === base.benchmark) return base;
+  return { ...base, benchmark: vigente,
+    brechaPuntos: typeof base.pct === "number" ? Math.round((vigente - base.pct) * 10) / 10 : base.brechaPuntos };
 }
 
 export function getInvKPI(scenarioId) {
@@ -92,7 +106,7 @@ export function _aggregateMargenes(dataset) {
       spread: { min: 0, max: 0, median: 0 }, recuperableBenchmark: 0, recuperableBestPractice: 0,
     };
   }
-  const benchmark = dataset[0]?.benchmark || 30.1;
+  const benchmark = benchmarkOf(dataset[0] || null);   // la vara: SIEMPRE por la puerta (benchmarkOf) — jamás un literal (ley de la vara única, 2026-09-03)
   const margenes_arr = dataset.map(c => c.margen).filter(v => typeof v === "number");
   const cargas_arr = dataset.map(c => c.pctRebate).filter(v => typeof v === "number");
   const margenPromedio = margenes_arr.length > 0
