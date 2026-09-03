@@ -441,7 +441,12 @@ export const margenEnRiesgo = {
      * DENTRO de la pregunta (no pegado al «¿»): en la corrida 3 el turno decía «¿Sobre cuál entidad…?» y un
      * patrón anclado al signo lo dejaba pasar. El cierre-oferta del contrato F3 («¿lo vemos por ahí?»,
      * «¿arrancamos?») NO trae interrogativo de elección y sigue siendo legítimo — como debe ser. */
-    const pideDefinir = /¿[^?]{0,90}\b(?:cu[aá]l(?:es)?|qu[eé]|qui[eé]n(?:es)?)\b[^?]*\?|necesito que me digas|dime (?:si|cu[aá]l|qu[eé])|aclar[ae]mos|clarifiquemos/i.test(t);
+    /* ⚠️ EL `\b` IMPOSIBLE, VIVO EN ESTA REGLA DESDE QUE NACIÓ (lo destapó el barrido del §5g al arreglarle su
+     * propio hueco, 2026-09-05): `(?:cu[aá]l(?:es)?|qu[eé]|qui[eé]n(?:es)?)\b` — la alternativa «qu[eé]»
+     * termina en clase con «é», y `\b` no cierra ahí. O sea que esta regla veía «que» y NO «qué», que es como
+     * se escribe la pregunta que existe para cazar. Media ciega desde el día uno, sin daño visible porque el
+     * resto del patrón la cubría de casualidad. Cierra con `_FIN`, el lookahead que sí cuenta acentos. */
+    const pideDefinir = new RegExp(`¿[^?]{0,90}\\b(?:cu[aá]l(?:es)?|qu[eé]|qui[eé]n(?:es)?)${_FIN}[^?]*\\?|necesito que me digas|dime (?:si|cu[aá]l|qu[eé])|aclar[ae]mos|clarifiquemos`, "i").test(t);
     const declina = /\bno (?:pude|puedo|tengo|dispongo)\b/i.test(t);
     if (!citaAlguna && (pideDefinir || declina)) {
       v.push({ regla: "evidencia-sin-usar",

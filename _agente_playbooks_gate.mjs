@@ -907,7 +907,12 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
     async (Mut) => !_juzgaDirecto(_componeB(Mut)).ok);
   // (H) `_caso` sin exigir serie REAL: el playbook reclama también la bloqueada y compite con el puente
   await carnada("entidad×período reclama la serie bloqueada (compite con el puente)", "src/adi/agente/playbooks/entidadPorPeriodo.js",
-    [[/  if \(!estado \|\| !estado\.real\) return null;/, "  // CARNADA: la serie bloqueada también"]],
+    /* (re-apuntada 2026-09-05: el playbook ahora SÍ toma la serie bloqueada, pero SOLO en la forma que el
+     *  puente no puede ver —la entidad sin período— y para declinar honesto. La carnada muta la guarda que
+     *  mantiene esa separación: sin ella, reclama también la forma CON período y le pisa el turno al puente,
+     *  que es exactamente lo que este candado existe para impedir.) */
+    [[/  if \(sinPeriodo\) return \{ \.\.\.det, sinSerie: true, motivoSerie: \(estado && estado\.motivo\) \|\| null \};/,
+      "  return { ...det, sinSerie: true };   // CARNADA: reclama también la que es del puente"]],
     async (Mut) => { initTenant(TENANT_DEMO); return Mut.entidadPorPeriodo.cuandoAplica("cuánto me compró Falabella el último mes"); });
 
   /* ── LAS DE PROYECCIÓN DECLARADA ────────────────────────────────────────────────────────────────────────── */

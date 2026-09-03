@@ -60,14 +60,21 @@ function _sinPeriodo(pregunta) {
   return null;
 }
 function _caso(pregunta) {
-  let det = null;
+  let det = null, sinPeriodo = false;
   try { det = detectSerieIntent(String(pregunta || "")); } catch { return null; }
-  if (!det || det.ambiguo || !det.entidad || !det.metrica) det = _sinPeriodo(pregunta);
+  if (!det || det.ambiguo || !det.entidad || !det.metrica) { det = _sinPeriodo(pregunta); sinPeriodo = !!det; }
   if (!det || det.ambiguo || !det.entidad || !det.metrica) return null;
   let estado = null;
   try { estado = serieRealDe(det.entidad); } catch { return null; }
-  if (!estado || !estado.real) return null;   // la serie bloqueada es del puente, no de este playbook
-  return det;
+  if (estado && estado.real) return det;
+  /* ⚠️ LA SERIE BLOQUEADA, CUANDO EL PUENTE NO LA VE (supervisor 2026-09-05, sobre el demo): «cuánto me compró
+   * Falabella» —sin período— caía al declive GENÉRICO. El puente atiende la serie bloqueada, pero solo entra
+   * con `detectSerieIntent`, que exige el corte temporal; esta forma no llega ahí y no la atendía nadie. Un
+   * prospecto escribe exactamente esa frase en el demo. La conducta de la casa es declinar CON la razón y una
+   * alternativa, no rescatar en genérico — y la misma servirá para un cliente real cuya planilla venga sin la
+   * hoja de historial. Solo se toma el caso que el puente NO puede tomar: nunca se le pisa el turno. */
+  if (sinPeriodo) return { ...det, sinSerie: true, motivoSerie: (estado && estado.motivo) || null };
+  return null;
 }
 
 /** los puntos de la serie de ESA entidad y ESA métrica, en el orden de la boleta (el motor los emite por mes). */
@@ -90,11 +97,17 @@ export const entidadPorPeriodo = {
 
   pasos(pregunta) {
     const d = _caso(pregunta);
+    if (d && d.sinSerie) return [{ tool: "marginRead", args: { focus: "bajo_benchmark", dimension: "cliente" },
+      para: "la venta del período por cliente (el label «X · Venta») — para ofrecer el año cerrado cuando la serie mensual no existe" }];
     return d ? [{ tool: "serieEntidad", args: { entity: d.entidad, metrica: d.metrica },
       para: `la serie mensual REAL y reconciliada de ${d.entidad} (${_METRICA_TXT[d.metrica] || d.metrica}), mes por mes con su cifra` }] : [];
   },
   obligatorias(pregunta) {
     const d = _caso(pregunta);
+    /* con la serie bloqueada, la promesa NO es la serie: es la cifra de la alternativa que se ofrece. Una
+     * lista vacía de obligatorias hace que el playbook se considere sin promesas cumplidas y se retire —
+     * medido acá: el composer estaba bien y el turno igual caía al rescate. */
+    if (d && d.sinSerie) return [new RegExp(`^${_esc(d.entidad)} · Venta$`, "i")];
     return d ? [new RegExp(`^${_esc(d.entidad)} · ${_esc(d.metrica)} · `, "i")] : [];
   },
 
@@ -107,6 +120,17 @@ export const entidadPorPeriodo = {
   componer({ figs, pregunta } = {}) {
     const d = _caso(pregunta);
     if (!d) return null;
+    if (d.sinSerie) {
+      /* el declive HONESTO: la razón verdadera + la alternativa que sí existe, con su cifra de la boleta */
+      const _lbl = new RegExp(`^${_esc(d.entidad)} · Venta$`, "i");
+      const anual = (Array.isArray(figs) ? figs : []).find((f) => _lbl.test(_lab(f)));
+      const razon = d.motivoSerie === "no-reconcilia"
+        ? `La serie mensual de ${d.entidad} no cierra contra su cifra oficial del período, así que no te la sirvo`
+        : `Este dato no trae la serie mensual por cliente`;
+      return anual
+        ? `${razon}. Lo que sí tengo es su año cerrado: ${d.entidad} suma ${_val(anual)} en el período. Si tu archivo trae el detalle mes a mes, con eso te abro la evolución.`
+        : `${razon}, y por eso no te doy un mes que no puedo verificar. Si tu archivo trae el detalle mensual, con eso te abro la evolución.`;
+    }
     const p = _puntos(figs, d);
     if (!p.length) return null;
     const txt = _METRICA_TXT[d.metrica] || d.metrica;

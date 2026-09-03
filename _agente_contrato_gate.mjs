@@ -309,7 +309,20 @@ H("5g · ningún patrón del agente cierra con `\\b` después de un carácter qu
         else if (ch === ")" || ch === "]") nivel--;
         if (ch === "|" && nivel === 0) { finales.push(alt); alt = ""; } else alt += ch;
       }
-      if (finales.some((a) => _NO_W.test(a.trim().slice(-1)))) return true;
+      /* ⚠️ UNA ALTERNATIVA PUEDE TERMINAR EN UNA CLASE, y ahí el último carácter es `]` — no la letra que de
+       * verdad cierra la palabra. Por eso este barrido dejó pasar `(?:compr[oó]|compra|vendi[oó])\b` (la
+       * TERCERA mordida del mismo perro, 2026-09-05): miraba el `]` y no la `ó` de adentro. Cuando la
+       * alternativa cierra en clase, se juzga el CONTENIDO de esa clase: si alguna de sus letras no es \w, el
+       * `\b` es imposible para esa rama y el patrón queda medio ciego. */
+      const _cierraEnNoW = (a) => {
+        const t = a.trim();
+        if (t.endsWith("]")) {
+          const abre = t.lastIndexOf("[");
+          return abre >= 0 && _NO_W.test(t.slice(abre + 1, -1));
+        }
+        return _NO_W.test(t.slice(-1));
+      };
+      if (finales.some(_cierraEnNoW)) return true;
     }
     return false;
   };
