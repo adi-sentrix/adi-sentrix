@@ -101,6 +101,32 @@ const _PIDE_SEGUIMIENTO = new RegExp([
   `\\bcambi[oó] algo${_FIN}`, `\\bsigue en pie${_FIN}`,
 ].join("|"), "i");
 const _TEMA_MARGEN = /\bm[aá]rgen(?:es)?\b|\bbenchmark\b|\bvara\b|\brentabilidad\b/i;
+/* ── EL PORQUÉ ELÍPTICO (T5, 2026-09-05) ───────────────────────────────────────────────────────────────────
+ * «por qué pasa eso» · «cuál es la causa» · «profundiza en el porqué» · «¿y qué harías primero?» — el owner
+ * las pregunta así, SIN nombrar el tema, después de una lectura. El re-censo midió que caían a `vacio` aun
+ * con hilo de margen. El trato es el del seguimiento (puertas ANGOSTAS, léxicas), más una condición que el
+ * seguimiento no necesitó: la ÚLTIMA lectura del hilo tiene que ser de margen — sin hilo, o con la última
+ * lectura de cobranza o de inventario, la elíptica NO abre. Abrir igual sería cambiarle el tema al usuario
+ * en silencio, que es un secuestro de hilo. Hoy la única tesis con porqué es la del margen (misma nota que
+ * el seguimiento); el día que haya otra, esta puerta se reparte por la lectura que el hilo traiga. */
+const _PIDE_PORQUE_ELIPTICO = new RegExp([
+  `\\bpor qu[eé] pasa(?: eso| esto)?\\s*\\??$`, `\\bcu[aá]l es la causa\\s*\\??$`,
+  `\\bprofundiza en el porqu[eé]`, `\\by qu[eé] har[ií]as primero\\s*\\??$`, `\\bqu[eé] har[ií]as primero\\s*\\??$`,
+].join("|"), "i");
+/* la última respuesta del asistente habla de margen: la palabra Y una señal de lectura (benchmark/vara/pp).
+ * La ficha y la foto también la traen —su tesis abre por el margen— y ahí el porqué de la cartera ES la
+ * explicación disponible; una respuesta de cobranza o de inventario no la trae, y la puerta queda cerrada. */
+const _HABLA_DE_MARGEN = new RegExp(`\\bm[aá]rgen(?:es)?${_FIN}`, "i");
+const _SENAL_DE_LECTURA = new RegExp(`\\bbenchmark${_FIN}|\\bpp${_FIN}|%`, "i");
+function _hiloDeMargen(ctx) {
+  const h = ctx && Array.isArray(ctx.history) ? ctx.history : [];
+  for (let i = h.length - 1; i >= 0; i--) {
+    const m = h[i];
+    if (!m || m.role === "user" || typeof m.text !== "string" || !m.text.trim()) continue;
+    return _HABLA_DE_MARGEN.test(m.text) && _SENAL_DE_LECTURA.test(m.text);   // SOLO la última del asistente decide
+  }
+  return false;
+}
 /* LA CONTRIBUCIÓN NO CAPTURADA es este playbook con otro nombre: su entregable ya dice, cliente por cliente,
  * «deja $X sin capturar» contra el benchmark declarado. El ask de la Mesa comercial lo pregunta así —«¿Cuánta
  * contribución no estoy capturando?»— y caía a `vacio` (censo, 🔴: un botón que el producto ofrece).
@@ -317,11 +343,14 @@ export const margenEnRiesgo = {
   nombre: "margen-en-riesgo",
   diarioDeTesis,   // el diario de la tesis (paso 1): el bucle la guarda en la memoria del hilo al aprobar el turno del porqué
 
-  cuandoAplica(pregunta) {
+  cuandoAplica(pregunta, ctx) {
     const q = String(pregunta || "");
     if (_FUERA.test(q) || _OTRO_EJE.test(q) || _OTRO_PERIODO.test(q)) return false;
     /* el SEGUIMIENTO entra sin nombrar el tema: refiere a la lectura previa, y esa lectura es la de acá */
     if (_PIDE_SEGUIMIENTO.test(q)) return true;
+    /* el PORQUÉ ELÍPTICO entra solo si la última lectura del hilo fue de margen (ver arriba): sin hilo — los
+     * gates de siempre no lo pasan — o con la última de otro tema, la puerta queda cerrada y no roba nada. */
+    if (_PIDE_PORQUE_ELIPTICO.test(q) && _hiloDeMargen(ctx)) return true;
     if (_TEMA_MARGEN.test(q) && _PIDE_LECTURA.test(q)) return true;
     if (_TEMA_CAPTURA.test(q) && _PIDE_LECTURA.test(q)) return true;
     /* ── EL LÉXICO CORTO (censo T1, 2026-09-05) ────────────────────────────────────────────────────────────

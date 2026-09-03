@@ -896,6 +896,55 @@ H("1i · T4 · la ficha de entidad: siete formas, la vara al lado, y el porqué 
     "…y nombrar una cuenta al pasar no dispara la ficha: hace falta pedirla");
 }
 
+/* ═══ 1j · T5 · EL PORQUÉ ELÍPTICO — abre SOLO si la última lectura del hilo fue de margen ═══════════════════
+ * «por qué pasa eso» · «cuál es la causa» · «profundiza en el porqué» · «¿y qué harías primero?» — el owner
+ * las preguntó así en vivo y salían por suerte del cerebro (re-censo: `vacio` AUN con hilo de margen). El
+ * trato del seguimiento más una condición nueva: el hilo viaja al detector, y sin la lectura de margen como
+ * última respuesta la puerta NO abre — abrir igual sería cambiarle el tema al usuario en silencio. */
+H("1j · T5 · el porqué elíptico: abre con hilo de margen, cerrado con cualquier otro");
+{
+  initTenant(TENANT_DEMO);
+  const HILO_MARGEN = [{ role: "user", text: "como viene mi margen?" },
+    { role: "assistant", text: "Tu margen promedio viene en 25.1% — 5.0 pp bajo el benchmark que declaraste (30.1%). 8 de tus clientes están bajo esa referencia." }];
+  const HILO_COBRANZA = [{ role: "user", text: "quién me debe" },
+    { role: "assistant", text: "Te deben $12.4M en total. Lo vencido es $3.1M y lo encabeza Falabella con $1.2M." }];
+  const HILO_INVENTARIO = [{ role: "user", text: "qué tengo frenado" },
+    { role: "assistant", text: "Así viene tu capital frenado por SKU, de mayor a menor:\n- LG-DRYER8KG: $14K\n- BOS-SANDER: $11K" }];
+  const FORMAS = ["por qué pasa eso", "cuál es la causa", "profundiza en el porqué pasa", "¿y qué harías primero?"];
+  const turno = (q, hilo) => answerViaAgente({ text: q, history: hilo, mem: {}, scenario: "bonanza", callAgente: MUDO });
+
+  /* con la lectura de margen atrás, las cuatro formas tienen piso — y cada una con SU rama */
+  for (const q of FORMAS) {
+    const r = await turno(q, HILO_MARGEN);
+    ok(r.r.agente.estado === "playbook" && (r.r.agente.vetos || []).length === 0,
+      `con hilo de margen, «${q}» abre por playbook y pasa el muro`, `${r.r.agente.estado} · ${JSON.stringify(r.r.agente.vetos)}`);
+  }
+  const tPorque = String((await turno("por qué pasa eso", HILO_MARGEN)).r.text || "");
+  ok(/benchmark de margen/i.test(tPorque) && /criterio m[ií]o|decisi[oó]n/i.test(tPorque),
+    "★ la elíptica del porqué compone EL PORQUÉ (papeles y criterio marcado), no una lectura cualquiera", tPorque.slice(0, 110));
+  const tPrimero = String((await turno("¿y qué harías primero?", HILO_MARGEN)).r.text || "");
+  /* toda variante del cierre conserva las anclas (nombra la entidad + «contribución en juego» + ofrece):
+   * el aserto mide las anclas, no una frase de una semilla. */
+  ok(/margen promedio viene en 25\.1%/.test(tPrimero) && /Falabella/.test(tPrimero.trim().split("\n").pop()) && /contribuci[oó]n en juego/i.test(tPrimero),
+    "★ «¿y qué harías primero?» responde el molde completo y cierra priorizando (la entidad + el criterio)", tPrimero.slice(-120));
+
+  /* la mitad que no se negocia: SIN la lectura de margen, la puerta queda CERRADA — cambiar de tema en
+   * silencio es un secuestro de hilo. Cobranza, inventario y sin hilo: 12 combinaciones, ninguna abre. */
+  for (const [nombre, hilo] of [["cobranza", HILO_COBRANZA], ["inventario", HILO_INVENTARIO], ["sin hilo", []]]) {
+    for (const q of FORMAS) {
+      const r = await turno(q, hilo);
+      ok(r.r.agente.estado !== "playbook",
+        `con ${nombre}, «${q}» NO abre (la elíptica no cambia de tema)`, r.r.agente.estado);
+    }
+  }
+  /* y el detector sin contexto (como lo llaman los gates de siempre) mide el peor caso: cerrado */
+  ok(playbookPara("por qué pasa eso") === null && playbookPara("¿y qué harías primero?") === null,
+    "…y sin contexto (los callers de siempre) la elíptica no existe: cerrada por diseño");
+  /* la forma LARGA que nombra otro tema no es elíptica: tiene su dueño o su declive */
+  ok((playbookPara("por qué pasa eso con el inventario", { history: HILO_MARGEN }) || {}).nombre !== "margen-en-riesgo",
+    "…y «por qué pasa eso con el inventario» no entra por esta puerta aunque el hilo venga de margen");
+}
+
 /* ═══ 6 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
 H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
@@ -925,7 +974,8 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (a) el playbook desconectado del bucle: el turno de aceptación vuelve a rescatar
   await carnada("playbook desconectado del bucle", "src/adi/agente/bucleAgente.js",
-    [[/  const playbook = \(\(\) => \{ try \{ return playbookPara\(q\); \} catch \{ return null; \} \}\)\(\);/,
+    // (re-apuntada T5: el sitio ahora pasa el hilo al detector — la carnada mide lo mismo de siempre)
+    [[/  const playbook = \(\(\) => \{ try \{ return playbookPara\(q, \{ history \}\); \} catch \{ return null; \} \}\)\(\);/,
       "  const playbook = null;"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
@@ -1278,6 +1328,19 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       if (!par || !/23\.5%/.test(par.texto) || !/3\.5%/.test(par.texto)) return false;   // sin el par, la carnada no probó nada
       const v = Mut.guardC(par.texto, { ledger: { figs: par.figs }, question: "cómo está Sodimac" });
       return v && v.ok === false && JSON.stringify(v.violations || "").includes("narrado como");
+    });
+
+  // (BB) T5 · la elíptica sin la guarda del hilo: «por qué pasa eso» tras COBRANZA abriría el porqué del
+  // margen — el cambio de tema silencioso que la puerta existe para impedir.
+  await carnada("el porqué elíptico cambia de tema (la guarda del hilo, desarmada)", "src/adi/agente/playbooks/margenEnRiesgo.js",
+    [[/    if \(_PIDE_PORQUE_ELIPTICO\.test\(q\) && _hiloDeMargen\(ctx\)\) return true;/,
+      "    if (_PIDE_PORQUE_ELIPTICO.test(q)) return true;   // CARNADA: el hilo ya no importa"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const HILO_COBRANZA = [{ role: "user", text: "quién me debe" },
+        { role: "assistant", text: "Te deben $12.4M en total. Lo vencido es $3.1M y lo encabeza Falabella con $1.2M." }];
+      return Mut.margenEnRiesgo.cuandoAplica("por qué pasa eso", { history: HILO_COBRANZA })
+        && Mut.margenEnRiesgo.cuandoAplica("por qué pasa eso");   // y hasta sin hilo
     });
   initTenant(TENANT_DEMO);
 

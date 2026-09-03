@@ -461,7 +461,9 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * cerebro no decide «si se anima a leer»: cuando decide, la evidencia ya está en la mano. Y si igual falla,
    * el playbook tiene su entregable determinístico en la escalera (más abajo). La bandera del agente sigue
    * apagada; esto no enciende nada. */
-  const playbook = (() => { try { return playbookPara(q); } catch { return null; } })();
+  /* el hilo viaja al detector (T5): las formas elípticas del porqué solo abren si la última lectura fue de
+   * margen, y eso solo se sabe mirando el hilo. Un caller sin history mide el peor caso: la elíptica no abre. */
+  const playbook = (() => { try { return playbookPara(q, { history }); } catch { return null; } })();
   let playbookActivo = null;
   /* LOS PASOS PUEDEN DEPENDER DE LA PREGUNTA (2026-09-01): `pasosDe` resuelve el Array de siempre o la función
    * de un playbook de FORMA —«lectura por eje» elige la herramienta según el eje que su detector léxico ya

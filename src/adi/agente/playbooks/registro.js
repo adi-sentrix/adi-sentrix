@@ -50,11 +50,15 @@ export const PLAYBOOKS = [margenEnRiesgo, clientePerdiendoContribucion, inventar
 
 /** playbookPara(pregunta) → el playbook que aplica, o null. El PRIMERO que declare aplicar (orden del registro
  *  = precedencia declarada); jamás dos a la vez, para que el procedimiento del turno sea uno solo y auditable. */
-export function playbookPara(pregunta) {
+export function playbookPara(pregunta, ctx) {
   const q = String(pregunta || "").trim();
   if (!q) return null;
+  /* `ctx` es OPCIONAL y solo lleva lo que un detector elíptico necesita para no cambiar de tema: hoy,
+   * `{ history }` (T5, 2026-09-05 — «por qué pasa eso» solo abre si la última lectura fue de margen). Los
+   * detectores que no lo miran lo ignoran; un caller que no lo pasa (los gates de siempre) mide el peor caso:
+   * sin hilo, la elíptica no aplica — que es exactamente la conducta prometida. */
   for (const pb of PLAYBOOKS) {
-    try { if (pb && typeof pb.cuandoAplica === "function" && pb.cuandoAplica(q)) return pb; } catch { /* un detector roto no secuestra el turno */ }
+    try { if (pb && typeof pb.cuandoAplica === "function" && pb.cuandoAplica(q, ctx)) return pb; } catch { /* un detector roto no secuestra el turno */ }
   }
   return null;
 }
