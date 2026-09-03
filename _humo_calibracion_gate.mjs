@@ -7,14 +7,15 @@
  *
  * ESTE GATE calibra los criterios NUEVOS (conducta, no cadena — viven en `_humo_criterios.mjs`, el MISMO
  * módulo que consume `_humo.mjs`: una fuente) contra el corpus REAL congelado
- * (fixtures/humo-calibracion-2026-09.json — 33 turnos de las corridas de certificación, remediciones y
- * prueba de encendido, con todos los fraseos que el cerebro produjo de verdad):
- *   · las 28 respuestas CERTIFICADAS → PASS todas (ni un falso rojo);
- *   · los 5 defectos REALES de su día (los rescates «limite», el vacío del directorio, y la pregunta de
- *     entidad de la corrida 4 — cuyo estado decía «reparado» pero cuya conducta era el defecto P1) → FAIL.
+ * (fixtures/humo-calibracion-2026-09.json — 34 turnos de las corridas de certificación, remediciones,
+ * prueba de encendido y la corrida del supervisor del 2026-09-03, con los fraseos reales del cerebro):
+ *   · las respuestas CERTIFICADAS → PASS todas (ni un falso rojo);
+ *   · los defectos REALES de su día → FAIL. Incluye los DOS textos del 8,6 (la brecha de Lider vestida de
+ *     brecha del negocio — la real es 5,0 = 30,1 − 25,1, la card de la Mesa): eran PASS cuando el criterio
+ *     no hacía la resta, y el owner decidió que caigan — eran defectuosos, el semáforo de su día falló.
  * Y las carnadas en las dos direcciones: la conducta correcta con OTRO fraseo pasa (los dos textos vivos que
  * el medidor viejo mató, verbatim del humo de hoy); la frase certificada SIN la conducta (sin cifras, sujeto
- * dado vuelta) falla.
+ * dado vuelta, la brecha que no cierra o viene sin sus términos) falla.
  *
  * OFFLINE · determinístico · cero red. `node --import ./scripts/offline-guard.mjs _humo_calibracion_gate.mjs` */
 import fs from "node:fs";
@@ -62,8 +63,11 @@ H("2 · la conducta correcta con OTRO fraseo pasa — los dos falsos rojos de la
   // y dos fraseos más que el composer jamás diría — el conjunto de formas es conceptual, no una lista
   ok(veredicto(famDe("proyección declarada"), "Si mantienes ese 3%, venderías $76,4M en los próximos 12 meses — $2,2M más que tu base.").pasa,
     "…y el condicional puro («venderías») también: el tiempo verbal ES la marca de hipótesis");
-  ok(veredicto(famDe("margen (el playbook fundador)"), "Tu margen viene 8.6 puntos por debajo del plan: 15 de tus clientes no llegan a la referencia del 30.1%.").pasa,
-    "…y el margen contra «el plan»/«la referencia» (sin la palabra benchmark) también pasa");
+  // (reescrita 2026-09-03 con el defecto del 8,6: la versión anterior de ESTA carnada traía una brecha del
+  //  negocio sin sus términos — exactamente lo que ahora es FAIL. La conducta con otro léxico sigue pasando,
+  //  pero con la brecha que CIERRA: 30.1 − 25.1 = 5.0.)
+  ok(veredicto(famDe("margen (el playbook fundador)"), "Tu margen promedio (25.1%) viene 5.0 puntos por debajo del plan: 15 de tus clientes no llegan a la referencia del 30.1%.").pasa,
+    "…y el margen contra «el plan»/«la referencia» (sin la palabra benchmark), con la brecha que cierra, también pasa");
 }
 
 /* ═══ 3 · LA OTRA DIRECCIÓN · la frase certificada SIN la conducta, falla ═══════════════════════════════════ */
@@ -80,6 +84,23 @@ H("3 · la cáscara sin conducta falla — el criterio no se engaña con la fras
     "★ el vencido en $0 → FAIL por prohibido: la regla del owner también vive en el semáforo");
   ok(!veredicto(famDe("límite honesto"), "No pude completar la lectura que pediste. Lo que sí tengo verificado: Este año = $8.3M. De este mismo turno también tengo Valor: dime cuál abro.").pasa,
     "★ el menú de labels → FAIL por prohibido, en cualquier familia");
+
+  /* EL CIERRE ARITMÉTICO DE LA BRECHA (owner 2026-09-03), en sus dos patas — el corpus (sección 1) ya trae
+   * los dos textos REALES del 8,6 como FAIL; acá la doctrina, nombrada: */
+  const vTerminos = veredicto(famDe("margen (el playbook fundador)"),
+    "Tu margen está 8,6 puntos por debajo del benchmark — el 25,1% promedio contra el 30,1% que el negocio declara como referencia.");
+  ok(!vTerminos.pasa && /no cierra/.test(String(vTerminos.motivo)),
+    "★ la brecha del negocio que NOMBRA sus términos y no cierra (30,1 − 25,1 ≠ 8,6) → FAIL: el texto se refuta solo");
+  const vSinTerminos = veredicto(famDe("margen (el playbook fundador)"),
+    "JC, tu margen viene 8.6 puntos por debajo del benchmark — y eso te cuesta $4,9M. Ocho clientes cierran bajo el 30,1%.");
+  ok(!vSinTerminos.pasa && /sin sus dos t[eé]rminos/.test(String(vSinTerminos.motivo)),
+    "★ la brecha del negocio SIN sus dos términos → FAIL: una cifra derivada sin sus insumos no es verificable");
+  ok(veredicto(famDe("margen (el playbook fundador)"),
+    "Tu margen promedio está 5,0 pp bajo el benchmark (30,1%): la cartera rinde 25,1%.").pasa,
+    "…y la brecha correcta con sus términos (30,1 − 25,1 = 5,0) pasa — la regla multa el defecto, no la conducta");
+  ok(veredicto(famDe("margen (el playbook fundador)"),
+    "Sodimac: 23,5% de margen — 6,6 puntos bajo el benchmark de 30,1%. El resto de la cartera cumple.").pasa,
+    "…y la brecha DE UN CLIENTE con su nombre no es de esta regla: la señal de negocio manda");
 }
 
 /* ═══ 4 · EL CABLEADO · el humo consume ESTOS criterios, no una copia ═══════════════════════════════════════ */

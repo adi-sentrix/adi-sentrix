@@ -1,269 +1,279 @@
 {
- "origen": "turnos REALES de las corridas de certificación, remediciones y prueba de encendido (capturados 2026-09-03). esperado=PASS para la conducta certificada; FAIL para los defectos reales de su día (rescates limite, vacío, y la pregunta de entidad de la corrida 4 — estado reparado pero conducta P1).",
- "casos": [
-  {
-   "origen": "_examen_agente_estado.json",
-   "familia": "insignia · serie por entidad",
-   "estado": "puente",
-   "esperado": "PASS",
-   "q": "muéstrame la venta de Falabella mes a mes",
-   "visible": "El detalle mes a mes de Falabella no está en el dato de esta empresa: el histórico de muestra no reconcilia con la cifra oficial y no lo uso para responderte. Lo que sí está verificado de Falabella es su lectura del período — pídemela o ábrela en su ficha."
-  },
-  {
-   "origen": "_examen_agente_estado.json",
-   "familia": "cobranza",
-   "estado": "reparado",
-   "esperado": "PASS",
-   "q": "quién me debe y qué está vencido",
-   "visible": "**Al 31 de agosto de 2026, tienes $41.2M en saldo pendiente de cobro, con $12.6M vencido.**\n\nLos dos saldos más críticos:\n\n· **Lider**: $9.8M en saldo, de los cuales $4.6M están vencidos, con 269 días de antigüedad — recuperación del 45%.\n· **Sodimac**: $5.3M en saldo, $1.9M vencido con 251 días de antigüedad — recuperación del 35%.\n\nFalabella, Tottus y Paris también tienen saldo vencido, pero reciente (8 días de antigüedad) y con mejor tasa de recuperación (57-58%), así que no son el foco urgente.\n\n**Qué hacer primero** (esto es criterio mío, no una instrucción del dato): con 269 días de antigüedad y solo 45% recuperado, Lider es el caso que más pesa en el vencido total. Antes de otra gestión comercial con ese cliente, valdría una conversación de cobro formal — plazo, garantía o revisión de la línea de crédito. El dato solo te dice el saldo y la antigüedad; la decisión de cómo abordarlo es tuya."
-  },
-  {
-   "origen": "_examen_agente_estado.json",
-   "familia": "síntesis ejecutiva",
-   "estado": "playbook",
-   "esperado": "PASS",
-   "q": "dame los 3 riesgos para el directorio",
-   "visible": "Tu dato sostiene 2 riesgos materiales (el resto queda bajo el 0,05% de tu venta: $50K) — no invento el que falta:\n\n1 · Contribución no capturada: $4.9M. Dónde: encabeza Falabella con $1.6M. Primero: si quieres, abrimos Falabella.\n\n2 · Carga comercial alta: $655K. Dónde: encabeza Falabella con $194K. Primero: si quieres, abrimos Falabella.\n\nLos «primero» son ofertas: dime cuál y lo abrimos. Por qué pasa lo de arriba no está en este dato: queda localizado."
-  },
-  {
-   "origen": "_examen_agente_estado.json",
-   "familia": "proyección declarada",
-   "estado": "reparado",
-   "esperado": "PASS",
-   "q": "Si crezco 3% los próximos 12 meses, ¿cuánto vendería?",
-   "visible": "**Con un crecimiento del 3% a 12 meses, tu venta proyectada sería $103.0M — $3.0M adicionales sobre tu base de $100.0M.**\n\nEso es el supuesto que declaraste aplicado sobre la venta oficial del período.\n\nAhora, ese crecimiento no mueve el riesgo de fondo: los $4.9M de contribución no capturada, con Tottus/Ripley encabezando, y los $655K de carga comercial alta siguen en el mismo lugar. Un 3% de volumen extra ayuda a diluir el costo fijo, pero no cierra la brecha de margen ni recupera lo que esas cuentas dejan sobre la mesa.\n\n**Si quieres**, podemos ver qué pasa con ese 3% en margen o en carga sobre los clientes que más pesan — pero eso necesita un supuesto de dónde viene el crecimiento (¿mismo mix de clientes? ¿nuevas cuentas? ¿precio?)."
-  },
-  {
-   "origen": "_examen_agente_estado_escenario1.json",
-   "familia": "margen (el playbook fundador)",
-   "estado": "playbook",
-   "esperado": "PASS",
-   "q": "llamame jc de ahora en adelante. como viene mi margen?",
-   "visible": "jc: Margen promedio de la cartera: 25.1%. Benchmark de margen: 30.1%. Clientes bajo el benchmark: 8.\n\nLos de mayor contribución no capturada (3 de los 8 bajo el benchmark):\n- Falabella · contribución no capturada $1.6M · margen 22.0% · venta $19.4M\n- Lider · contribución no capturada $1.5M · margen 21.5% · venta $17.8M\n- Jumbo · contribución no capturada $1.1M · margen 24.0% · venta $17.3M\n\nContribución no capturada · subtotal: $4.9M.\nDonde el motor localiza el exceso: Carga comercial alta · subtotal $655K, con Falabella en $194K.\n\nSi quieres, empiezo por Falabella: es el de mayor contribución no capturada. Dime y lo abrimos."
-  },
-  {
-   "origen": "_examen_agente_estado_escenario1.json",
-   "familia": "proyección declarada",
-   "estado": "reparado",
-   "esperado": "PASS",
-   "q": "ponele que el año que viene crezco 3%: cuanto seria mi venta?",
-   "visible": "Tu venta del período es $100.0M.\n\nCon un crecimiento de 3% a 12 meses, tu proyección es $103.0M — $3.0M adicionales.\n\nAhora bien: ese crecimiento en ventas no cierra el hueco de margen que vimos. A 25.1% de margen promedio, esos $3.0M adicionales te traen ~$750K en contribución bruta. Sigues $4.9M por debajo del benchmark en tus tres clientes principales.\n\n**Lo que hay que mover primero:** no es el volumen — es el margen en Falabella. Está en 22.0%, contra un benchmark de 30.1%. Cerrar esa brecha en esta única cuenta vale más que lo que el crecimiento aporta a toda la cartera.\n\n¿Vamos por Falabella?"
-  },
-  {
-   "origen": "_examen_agente_estado_escenario1.json",
-   "familia": "proyección declarada",
-   "estado": "reparado",
-   "esperado": "PASS",
-   "q": "Con ese total anual, proyecta 12 meses con +4% y dime cuánto genera adicional.",
-   "visible": "Tu venta del período es $100.0M.\n\nCon un crecimiento de 4% a 12 meses, tu proyección es $104.0M — $4.0M adicionales.\n\nA margen promedio de 25.1%, esos $4.0M generan aproximadamente $1.0M en contribución bruta proyectada. Sigue insuficiente: la brecha de margen en Falabella, Lider y Jumbo suma $4.9M en contribución no capturada.\n\n**El punto:** el volumen crece, pero el margen no se cierra solo. Necesitas mover el margen en los tres clientes grandes en paralelo al crecimiento. Si subes 4% sin tocar margen, ganas $1.0M en contribución; si además cierras la brecha de Falabella, recuperas $1.6M de contribución no capturada en esa sola cuenta. Ese es el movimiento que importa.\n\n¿Arrancamos por Falabella?"
-  },
-  {
-   "origen": "_examen_agente_estado_escenario1.json",
-   "familia": "límite honesto",
-   "estado": "verde",
-   "esperado": "PASS",
-   "q": "Compara Q1 vs Q2 en ventas, margen y contribución. Si no está en la carpeta, dilo.",
-   "visible": "jc: No hay dato trimestral. El sistema trabaja mes a mes.\n\nCon la serie mensual puedo armar Q1 y Q2:\n\n**Q1 (Ene-Mar):** $21.1M en venta\n**Q2 (Abr-Jun):** $24.3M en venta\n\nDiferencia: +$3.2M (+15.2% de Q1 a Q2).\n\nEl dato de margen y contribución por trimestre no está desglosado en la carpeta — solo tengo la cifra global (25.1% de margen, $25.1M de contribución total en los 12 meses). No puedo cortarla por trimestre sin perder reconciliación.\n\n**Lo que sí veo:** Q2 crece sobre Q1, pero el margen sigue siendo el cuello de botella. Aunque vendas más, si no cierras la brecha de Falabella, Lider y Jumbo, esa contribución adicional se diluye en carga comercial y rebates.\n\n¿Necesitas margen y contribución por trimestre en un cliente específico, o seguimos con Falabella?"
-  },
-  {
-   "origen": "_examen_agente_estado_escenario1_corrida1.json",
-   "familia": "margen (el playbook fundador)",
-   "estado": "reparado",
-   "esperado": "PASS",
-   "q": "llamame jc de ahora en adelante. como viene mi margen?",
-   "visible": "JC, tu margen viene **8.6 puntos por debajo del benchmark** — y eso te cuesta **$4,9M en contribución no capturada** en el año.\n\n**Quiénes están fuera:**\n\nOcho clientes cierran bajo el 30,1%:\n\n| Cliente | Margen | Venta | Brecha |\n|---------|--------|-------|--------|\n| Lider | 21,5% | $17,8M | –8,6 pp |\n| Falabella | 22,0% | $19,4M | –8,1 pp |\n| Sodimac | 23,5% | $8,2M | –6,6 pp |\n| Jumbo | 24,0% | $17,3M | –6,1 pp |\n| Ripley | 25,0% | $4,7M | –5,1 pp |\n| Paris | 26,5% | $6,3M | –3,6 pp |\n| Tottus | 28,0% | $6,8M | –2,1 pp |\n| Mercado Libre | 29,0% | $5,5M | –1,1 pp |\n\n**Dónde está la presión:**\n\n- **Falabella**: $1,6M en contribución no capturada — es tu cliente más grande ($19,4M en venta) y lidera la brecha.\n- **Lider**: $1,5M en contribución no capturada — similar en volumen y también en margen bajo.\n- **Jumbo**: $1,1M en contribución no capturada — tercera línea de impacto.\n\nEstos tres concentran **$4,2M de los $4,9M** que dejas en la mesa.\n\n**Por qué se erosiona:**\n\nEl diagnóstico apunta a **carga comercial alta** en Falabella (+$194K), Sodimac (+$155K) y Lider (+$125K) — y en ellas el mecanismo declarado es rebate y estructura de descuento.\n\n**Por dónde arrancar:**\n\nRevisa primero a **Falabella**: $19,4M en venta, margen en 22% (8,1 pp bajo el benchmark) y carga de $194K. Si logras mover ese margen 2-3 puntos hacia el benchmark sin perder volumen, recuperas parte de los $1,6M en contribución no capturada que hoy deja sobre la mesa. ¿Quieres que miremos la composición de su negocio o la estructura de su carga comercial?"
-  },
-  {
-   "origen": "_examen_agente_estado_escenario1_corrida1.json",
-   "familia": "proyección declarada",
-   "estado": "reparado",
-   "esperado": "FAIL",
-   "q": "ponele que el año que viene crezco 3%: cuanto seria mi venta?",
-   "visible": "JC, para simular ese crecimiento necesito saber si es sobre tu **venta total** (todo el negocio de los 13 clientes) o si lo aplico a una entidad específica — un cliente, una marca o una familia.\n\nEl default es venta total: si es eso, confirma y te doy la cifra. Si es otro corte, nombralo y arrancamos."
-  },
-  {
-   "origen": "_examen_agente_estado_escenario1_corrida1.json",
-   "familia": "proyección declarada",
-   "estado": "limite",
-   "esperado": "FAIL",
-   "q": "Con ese total anual, proyecta 12 meses con +4% y dime cuánto genera adicional.",
-   "visible": "No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: Lider · YoY = +$2.3M. De este mismo turno también tengo Valor y headlineSub: dime cuál abro."
-  },
-  {
-   "origen": "_examen_agente_estado_escenario1_corrida1.json",
-   "familia": "límite honesto",
-   "estado": "verde",
-   "esperado": "PASS",
-   "q": "Compara Q1 vs Q2 en ventas, margen y contribución. Si no está en la carpeta, dilo.",
-   "visible": "JC, el dato de series mensuales reconciliadas — que es lo que necesito para armar Q1 vs Q2 — no está en la carpeta de forma que cierre limpio contra cifras oficiales por período trimestral.\n\nLo que sí tengo verificado es el **total anual** en venta, margen y contribución por cliente. Si quieres, te doy el desagregue anual por cliente y de ahí extraemos el patrón; o si hay un cliente o marca específica donde necesites ver el comportamiento trimestral, dime y verifico qué se puede reconstituir.\n\n¿Cuál es la pregunta real: quieres ver si hay clientes que aceleraron o frenaron entre Q1 y Q2, o necesitas el margen comparado entre trimestres?"
-  },
-  {
-   "origen": "_examen_agente_estado_escenario2.json",
-   "familia": "insignia · serie por entidad",
-   "estado": "verde",
-   "esperado": "PASS",
-   "q": "cuánto me compró Mercado Norte el último mes",
-   "visible": "Mercado Norte te compró **$8.226.765** en agosto 2026 (el último mes).\n\nEl movimiento es relevante: subió de $5.728.388 en julio a $8.226.765 en agosto — un crecimiento de $2.498.377.\n\nSi necesitas ver qué SKU o margen movió ese volumen, puedo traerlo."
-  },
-  {
-   "origen": "_examen_agente_estado_escenario2.json",
-   "familia": "insignia · serie por entidad",
-   "estado": "playbook",
-   "esperado": "PASS",
-   "q": "muéstrame la venta de Mercado Norte mes a mes",
-   "visible": "Venta de Mercado Norte, mes a mes:\n- marzo 2026: $2.180.776\n- abril 2026: $5.932.641\n- mayo 2026: $860.989\n- junio 2026: $603.850\n- julio 2026: $5.728.388\n- agosto 2026: $8.226.765"
-  },
-  {
-   "origen": "_examen_agente_estado_escenario2.json",
-   "familia": "cobranza",
-   "estado": "playbook",
-   "esperado": "PASS",
-   "q": "quién me debe y qué está vencido",
-   "visible": "Saldo pendiente: $118.8M de una venta a crédito de $266.5M (abonado: $147.7M).\nTe deben:\n- Comercial Valparaiso: $17.7M\n- Super Sur: $12.7M\n- La Polar: $11.7M\n- Paris: $10.2M\n- Sodimac: $8.5M\n- Bazar Centro: $8.2M\n(y 2 más)\nQué parte está vencida no se puede saber: tu empresa no declaró plazo de pago. Cuando lo declares, el vencido se calcula solo — sin volver a subir el archivo."
-  },
-  {
-   "origen": "_examen_agente_estado_escenario2.json",
-   "familia": "cobranza",
-   "estado": "verde",
-   "esperado": "PASS",
-   "q": "cuánto vendí a crédito vs contado",
-   "visible": "**Venta a crédito vs contado:**\n\nVenta a crédito: **$266.5M**\n- Abonado: $147.7M (55.4%)\n- Saldo pendiente: $118.8M (44.6%)\n\nLas ventas de contado no generan deuda y no entran en este corte — la cifra que ves es exclusivamente crédito.\n\n**Quiénes deben (al 31 ago 2026):**\n\n| Cliente | Saldo |\n|---------|-------|\n| Comercial Valparaiso | $17.7M |\n| Super Sur | $12.7M |\n| La Polar | $11.7M |\n| Paris | $10.2M |\n| Sodimac | $8.5M |\n| Bazar Centro | $8.2M |\n| Distribuidora Pacifico | $8.2M |\n| Lider | $7.6M |\n| (6 clientes más) | $34.0M |\n\n**Vencido:** No se puede saber. Tu empresa no ha declarado plazo de pago, así que no hay forma de calcular qué parte del saldo está vencida — eso se define una sola vez en la empresa y aplica a todo lo que venga.\n\n**Lo crítico:** Tienes $118.8M en caja no cobrada. Tres clientes concentran el 39% de ese saldo: Comercial Valparaiso ($17.7M), Super Sur ($12.7M) y La Polar ($11.7M). Los tres son clientes grandes con ventas históricas altas — el mismo grupo que mostró caídas severas en volumen de venta. Antes de acelerar cobro, verifica si la caída de venta es por reducción de compra o por problema de flujo de caja en esos clientes."
-  },
-  {
-   "origen": "_examen_agente_estado_escenario2.json",
-   "familia": "margen (el playbook fundador)",
-   "estado": "reparado",
-   "esperado": "PASS",
-   "q": "llamame jc. ¿cómo viene mi margen?",
-   "visible": "jc, tu margen está bajo el plan en 15 clientes. Eso te cuesta $2.0M en contribución no capturada.\n\n**Quiénes están bajo benchmark (30.1%) — dato verificado:**\n\n| Cliente | Margen | Venta | Brecha |\n|---------|--------|-------|--------|\n| Comercial Valparaiso | 18.4% | $3.1M | -11.7pp |\n| La Polar | 18.4% | $2.1M | -11.7pp |\n| Tottus | 21.6% | $2.8M | -8.5pp |\n| Deposito Riachuelo | 21.6% | $1.2M | -8.5pp |\n| Distribuidora Pacifico | 24.0% | $5.5M | -6.1pp |\n| Unimarc | 24.0% | $3.2M | -6.1pp |\n\n(y 9 más con brecha menor)\n\n**Contribución no capturada — dato verificado, mayor impacto por cliente:**\n- Comercial Valparaiso: $362K\n- Distribuidora Pacifico: $337K\n- La Polar: $240K\n- Tottus: $237K\n- Easy: $222K\n\n**Dónde revisar primero — esto es criterio mío, no un orden que el dato imponga:**\n\nEl dato solo marca la magnitud, no la prioridad. Mi lectura: conviene empezar por **Distribuidora Pacifico**. Es el segundo mayor valor en juego ($337K), pero su brecha es la más cerrable del grupo grande (-6.1pp, contra -11.7pp de Comercial Valparaiso y La Polar), y tiene el mayor volumen de venta de los cinco ($5.5M). Comercial Valparaiso pesa más en $ absolutos, pero su brecha es el doble de profunda — probablemente un problema estructural distinto, no solo de mezcla o precio.\n\nEs tu decisión cuál mueves primero. Si quieres, reviso qué SKU o familia explica el margen de Distribuidora Pacifico antes de tocar nada."
-  },
-  {
-   "origen": "_examen_agente_estado_escenario2.json",
-   "familia": "síntesis ejecutiva",
-   "estado": "limite",
-   "esperado": "FAIL",
-   "q": "dame los 3 riesgos para el directorio",
-   "visible": "jc: No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: Medida · liberar ELE-CAB25 = $38.1M. De este mismo turno también tengo Capital frenado: dime cuál abro."
-  },
-  {
-   "origen": "_examen_agente_estado_escenario2_CONTAMINADO_evidencia.json",
-   "familia": "cobranza",
-   "estado": "verde",
-   "esperado": "PASS",
-   "q": "quién me debe y qué está vencido",
-   "visible": "jc: Al 31 de agosto de 2026.\n\n**Saldo pendiente total:** $118.8M.\n**Vencido:** No se puede saber. Sin plazo de pago declarado en la empresa, no hay forma de determinar qué parte del saldo está vencida.\n\n**Quiénes deben — de mayor a menor saldo:**\n\n· **Comercial Valparaiso** · $17.7M · recuperado 47.9%\n· **Super Sur** · $12.7M · recuperado 46.3%\n· **La Polar** · $11.7M · recuperado 43.4%\n· **Paris** · $10.2M · recuperado 56.3%\n· **Sodimac** · $8.5M · recuperado 43.1%\n· **Bazar Centro** · $8.2M · recuperado 64.4%\n· **Distribuidora Pacifico** · $8.2M · recuperado 55.6%\n· **Lider** · $7.6M · recuperado 44.6%\n· **Seis clientes más** · $34.0M combinados\n\n**Lo que importa:** Comercial Valparaiso debe $17.7M sobre una venta a crédito de $34.0M — solo recuperaste 47.9%. Super Sur es similar: $12.7M pendientes sobre $23.6M vendidos, 46.3% recuperado. Tres clientes (Comercial Valparaiso, Super Sur, La Polar) concentran $41.1M del saldo — casi el 35% de la deuda total.\n\nComercial Valparaiso además es el cliente con la brecha más profunda de margen (11.7pp bajo el benchmark). No solo vende con margen débil: además no paga. Eso es un doble problema en caja.\n\n**Dónde arrancar:** Comercial Valparaiso. $17.7M pendientes + margen en 18.4%. Recuperar ese saldo es más urgente que vender más volumen a un cliente que no cierra margen ni cobra a tiempo."
-  },
-  {
-   "origen": "_examen_agente_estado_escenario2_CONTAMINADO_evidencia.json",
-   "familia": "cobranza",
-   "estado": "verde",
-   "esperado": "PASS",
-   "q": "cuánto vendí a crédito vs contado",
-   "visible": "jc: Al 31 de agosto de 2026.\n\n**Venta a crédito:** $266.5M.\n**Abonado:** $147.7M.\n**Saldo pendiente:** $118.8M.\n\nLas ventas de contado no generan deuda y no entran en este corte.\n\n**Vencido:** No se puede saber. Sin plazo de pago declarado en la empresa, no hay forma de determinar qué parte del saldo está vencida.\n\n**Concentración de deuda — los 8 clientes principales deben $94.8M (79.8% del total):**\n\n· Comercial Valparaiso · $17.7M · recuperado 47.9%\n· Super Sur · $12.7M · recuperado 46.3%\n· La Polar · $11.7M · recuperado 43.4%\n· Paris · $10.2M · recuperado 56.3%\n· Sodimac · $8.5M · recuperado 43.1%\n· Bazar Centro · $8.2M · recuperado 64.4%\n· Distribuidora Pacifico · $8.2M · recuperado 55.6%\n· Lider · $7.6M · recuperado 44.6%\n\n**Lo que esto dice:** Tres clientes (Comercial Valparaiso, Super Sur, La Polar) concentran $41.1M pendientes — casi el 35% de toda la deuda. Comercial Valparaiso recupera solo 47.9% de lo que vendiste; Super Sur y La Polar están en 46.3% y 43.4%. Sin esos tres clientes, tu cobranza mejora casi 10 puntos.\n\nComercial Valparaiso además es el cliente con margen en 18.4% (11.7pp bajo el benchmark). No solo vende débil: no paga rápido.\n\n**Dónde arrancar:** Comercial Valparaiso. $17.7M pendientes + margen de 18.4%. Recuperar ese saldo y revisar la estructura comercial son el mismo movimiento."
-  },
-  {
-   "origen": "_examen_agente_estado_escenario2_CONTAMINADO_evidencia.json",
-   "familia": "margen (el playbook fundador)",
-   "estado": "limite",
-   "esperado": "FAIL",
-   "q": "llamame jc. ¿cómo viene mi margen?",
-   "visible": "jc: No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: Medida · cerrar brecha al piso = $2.0M. De este mismo turno también tengo Venta y Margen: dime cuál abro."
-  },
-  {
-   "origen": "_examen_agente_estado_escenario2_CONTAMINADO_evidencia.json",
-   "familia": "síntesis ejecutiva",
-   "estado": "vacio",
-   "esperado": "FAIL",
-   "q": "dame los 3 riesgos para el directorio",
-   "visible": "jc: No tengo información autorizada suficiente para responder eso con el alcance pedido. Cuéntame qué dato específico necesitas y lo busco."
-  },
-  {
-   "origen": "_examen_agente_estado_escenario2_CONTAMINADO_evidencia.json",
-   "familia": "límite honesto",
-   "estado": "reparado",
-   "esperado": "PASS",
-   "q": "compará Q1 vs Q2",
-   "visible": "jc: No puedo comparar Q1 vs Q2 con precisión. El dato viene por año cerrado, no desglosado por trimestre.\n\nLo que sí veo de año completo (Mar-Ago 2026), comparando venta de este período contra venta del año anterior:\n\n**Clientes que crecieron fuerte:**\n· Distribuidora Pacifico · $1.2M → $5.5M\n· Easy · $1.0M → $4.9M\n· Unimarc · $644K → $3.2M\n· Casa Belgrano · $1.0M → $2.9M\n\n**Clientes que cayeron:**\n· Comercial Valparaiso · $14.1M → $3.1M\n· Retail Andes · $7.3M → $3.1M\n· Tottus · $12.6M → $2.8M\n· La Polar · $9.0M → $2.1M\n\n**Lo que cambia la foto:** Comercial Valparaiso, Retail Andes, Tottus y La Polar sumaban $43.0M año anterior y ahora suman $11.1M — una caída de $31.9M en venta. Esos cuatro clientes concentran casi toda la contracción del período.\n\nEse es tu problema real: no es que el margen caiga — es que perdiste facturación en tus principales clientes tradicionales. El crecimiento en Distribuidora Pacifico, Easy y Unimarc no compensa esa caída.\n\n**Dónde arrancar:** ¿Qué pasó con Comercial Valparaiso, Tottus, La Polar? ¿Fue una decisión comercial, una pérdida de cuenta, o un cambio de mix? Esos cuatro clientes explican casi toda la variación de año a año.\n\n¿Tienes la historia de por qué cayeron?"
-  },
-  {
-   "origen": "_examen_agente_estado_escenario3.json",
-   "familia": "cobranza",
-   "estado": "verde",
-   "esperado": "PASS",
-   "q": "quién me debe y qué está vencido",
-   "visible": "No puedo leer la cobranza.\n\nTu archivo no trae la hoja **Abonos** — sin ella no hay registro de pagos ni saldos que leer. Lo que veo es la venta registrada, pero no quién pagó ni cuánto quedó pendiente.\n\nPara responder \"quién me debe y qué está vencido\" necesitaría:\n- La hoja **Abonos** con los pagos recibidos por cliente y fecha.\n- O, si tu sistema lo maneja diferente, la columna de **plazo de pago** declarado en las facturas (para calcular vencimiento).\n\nSin eso, no tengo cifras de deuda ni de vencido que ofrecerte — y no voy a inventarlas.\n\n¿La hoja Abonos existe en tu archivo pero no llegó a mi lectura, o manejan los pagos en otro lado?"
-  },
-  {
-   "origen": "_examen_agente_estado_escenario3.json",
-   "familia": "cobranza",
-   "estado": "verde",
-   "esperado": "PASS",
-   "q": "cuánto vendí a crédito",
-   "visible": "No tengo la cifra de venta a crédito.\n\nTu archivo no trae la hoja **Abonos** — sin ella no hay registro de pagos ni forma de distinguir qué venta fue a crédito y qué a contado.\n\nLo que veo es la **venta total** registrada (período 2026-06 a 2026-08), pero no puedo segregarla por condición de pago porque esa columna también viene vacía en las facturas.\n\nPara responderte necesitaría:\n- La hoja **Abonos** con los pagos capturados, o\n- La columna **condición** llena en las facturas (crédito / contado).\n\n¿Cuál de las dos tienes disponible?"
-  },
-  {
-   "origen": "_examen_agente_estado_escenario3.json",
-   "familia": "margen (el playbook fundador)",
-   "estado": "playbook",
-   "esperado": "PASS",
-   "q": "¿cómo viene mi margen?",
-   "visible": "Margen promedio de la cartera: 27.1%. Benchmark de margen: 30.1%. Clientes bajo el benchmark: 6.\n\nLos de mayor contribución no capturada (3 de los 6 bajo el benchmark):\n- Easy · contribución no capturada 330K · margen 23.5%\n- Sodimac · contribución no capturada 97K · margen 21.5%\n- Lider · contribución no capturada 77K · margen 24.5%\n\nContribución no capturada · subtotal: 504K.\n\nSi quieres, empiezo por Easy: es el de mayor contribución no capturada. Dime y lo abrimos."
-  },
-  {
-   "origen": "_examen_agente_estado_escenario3.json",
-   "familia": "insignia · serie por entidad",
-   "estado": "reparado",
-   "esperado": "PASS",
-   "q": "cuánto me compró Easy el último mes",
-   "visible": "Easy compró **5.007.016 en agosto de 2026** — el mes más reciente disponible en la serie.\n\nEl mes anterior (julio) fue 1.146.992 — un salto de 3.9M mes a mes.\n\nEse crecimiento explica por qué Easy tira tu venta total hacia arriba, pero también por qué el margen se ve presionado: ese volumen concentrado en agosto viene con margen 23.5%, por debajo del benchmark de 30.1%. Si ese mes pesa fuerte en la venta del período, está jalando el promedio de margen de Easy hacia abajo."
-  },
-  {
-   "origen": "_prueba_encendido_estado.json",
-   "familia": "insignia · serie por entidad",
-   "estado": "verde",
-   "esperado": "PASS",
-   "q": "¿Cuánto me compró Mercado Norte el último mes?",
-   "visible": "**Mercado Norte compró $8.226.765 en agosto 2026** (el último mes del período).\n\nEl mes anterior, julio, había sido $5.728.388 — es decir, agosto subió 44% respecto a julio.\n\nLa serie completa de los seis meses:\n- Marzo: $2.180.776\n- Abril: $5.932.641\n- Mayo: $860.989\n- Junio: $603.850\n- Julio: $5.728.388\n- Agosto: $8.226.765"
-  },
-  {
-   "origen": "_prueba_encendido_estado.json",
-   "familia": "cobranza",
-   "estado": "verde",
-   "esperado": "PASS",
-   "q": "¿Quién me debe más y qué parte está vencida?",
-   "visible": "**Tienes $118,8M en saldo pendiente al 31 de agosto 2026.**\n\nQuién debe más:\n\n- **Comercial Valparaiso**: $17,7M (47,9% recuperado de $34,0M vendido)\n- **Super Sur**: $12,7M (46,3% recuperado de $23,6M)\n- **La Polar**: $11,7M (43,4% recuperado de $20,6M)\n- **Paris**: $10,2M (56,3% recuperado de $23,3M)\n- **Sodimac**: $8,5M (43,1% recuperado de $14,9M)\n- **Bazar Centro**: $8,2M (64,4% recuperado de $23,1M)\n- **Distribuidora Pacifico**: $8,2M (55,6% recuperado de $18,5M)\n- **Lider**: $7,6M (44,6% recuperado de $13,7M)\n- **6 clientes más**: $33,8M (combinado)\n\n**Sobre el vencimiento: no se puede saber qué parte está vencida.** No existe plazo de pago declarado en la empresa — sin eso, no hay forma de medir desde cuándo debería haber entrado cada pago. Una vez que lo declaren, el plazo aplica a todo lo que viene.\n\n**Lo prioritario:** Comercial Valparaiso y Super Sur concentran $30,4M (25,6% del total pendiente). Ahí está el mayor impacto de cobranza."
-  },
-  {
-   "origen": "_prueba_encendido_estado.json",
-   "familia": "síntesis ejecutiva",
-   "estado": "reparado",
-   "esperado": "PASS",
-   "q": "Dame los 3 riesgos principales para el directorio.",
-   "visible": "**Tres riesgos materiales para el directorio:**\n\n---\n\n**1. MARGEN BAJO EL BENCHMARK EN 15 CLIENTES — $2,0M de contribución no capturada**\n\n15 clientes venden por debajo del 30,1% de margen declarado. Los cinco con mayor brecha:\n- Comercial Valparaiso: margen 18,4% sobre venta de $3,1M (brecha 11,7 pp)\n- La Polar: margen 18,4% sobre venta de $2,1M (brecha 11,7 pp)\n- Tottus: margen 21,6% sobre venta de $2,8M (brecha 8,5 pp)\n- Distribuidora Pacifico: margen 24,0% sobre venta de $5,5M (brecha 6,1 pp)\n- Unimarc: margen 24,0% sobre venta de $3,2M (brecha 6,1 pp)\n\nEl margen promedio de la cartera cierra en 28,6% — 1,5 pp por debajo del piso. **Oferta: auditar el costo estructural en estos cinco clientes (donde está la mayor parte de la brecha monetaria) y evaluar si la venta a margen bajo es sostenible o si hay espacio para reposicionar precio o mix.**\n\n---\n\n**2. CAPITAL FRENADO EN INVENTARIO — $38,1M sin movimiento**\n\nEl SKU ELE-CAB25 concentra $38,1M en stock en la bodega Central sin rotación registrada en el período. Ese capital no genera contribución ni flujo.\n\n**Oferta: verificar si ELE-CAB25 tiene demanda futura declarada. Si no, evaluar liquidación o reemplazo de stock; si sí, acelerar la venta con un plan comercial específico para destrabar ese capital.**\n\n---\n\n**3. VENTA EN CAÍDA ANUAL — 40,5% menos que el período anterior**\n\nLas ventas totales son $74,2M para el año, 40,5% por debajo del año anterior. La contribución total es $21,2M, repartida entre 25 clientes activos; Mercado Norte ($2,5M), Ferreteria Aurora ($1,8M) y Lider ($1,6M) son los tres de mayor contribución individual, pero el grueso está distribuido en el resto de la cartera.\n\n**Oferta: priorizar la reactivación de los clientes de mayor contribución individual (donde el retorno del esfuerzo es más predecible) mientras se audita si la cartera dispersa justifica el costo comercial o necesita enfoque.**"
-  },
-  {
-   "origen": "_prueba_encendido_estado.json",
-   "familia": "proyección declarada",
-   "estado": "verde",
-   "esperado": "PASS",
-   "q": "Si crezco 3% los próximos 12 meses, ¿cuánto vendería?",
-   "visible": "**Con un crecimiento de 3% anual, venderías $76,4M en los próximos 12 meses.**\n\nEso es $2,2M adicionales sobre tu venta actual de $74,2M.\n\nDicho de otra forma: crecer 3% en este negocio es sumar menos de $2M en ventas. Es un crecimiento modesto — dado que hoy tienes 40,5% de caída respecto al año anterior, el foco real debería estar en detener esa caída, no en proyectar un crecimiento pequeño. \n\n**¿Quieres explorar qué cifra de crecimiento sería necesaria para recuperar al menos el 50% de lo que perdiste?**"
-  },
-  {
-   "origen": "_remedicion_completa-T11.json",
-   "familia": "síntesis ejecutiva",
-   "estado": "playbook",
-   "esperado": "PASS",
-   "q": "dame los 3 riesgos para el directorio",
-   "visible": "Los 3 riesgos, por materialidad:\n\n1 · Venta contra el año anterior: -40.5%. Dónde se cae por cliente no está en esta síntesis. Primero: si quieres, abro esa lectura.\n\n2 · Capital frenado en inventario: $38.1M. Dónde: encabeza ELE-CAB25 con $38.1M. Primero: si quieres, abrimos ELE-CAB25.\n\n3 · Contribución no capturada: $2.0M. Dónde: encabeza Comercial Valparaiso con $362K. Primero: si quieres, abrimos Comercial Valparaiso.\n\nLos «primero» son ofertas: dime cuál y lo abrimos. Por qué pasa lo de arriba no está en este dato: queda localizado."
-  },
-  {
-   "origen": "_remedicion_demo-T6.json",
-   "familia": "límite honesto",
-   "estado": "reparado",
-   "esperado": "PASS",
-   "q": "Compara Q1 vs Q2 en ventas, margen y contribución. Si no está en la carpeta, dilo.",
-   "visible": "No tengo Q1 vs Q2 en la carpeta — el dataset está organizado por períodos anuales cerrados, no por trimestres.\n\n**Dato verificado disponible:** ventas por cliente contra el año anterior (YoY), año cerrado.\n\n**Ventas totales:** +7.6% | $100.0M vs $92.9M\n\n**Movers principales (dato duro):**\n- Lider: +$2.3M (+14.9%)\n- Jumbo: +$1.9M (+12.2%)\n- Falabella: +$1.5M (+8.2%)\n- Mercado Libre: +$1.1M (+25.3%)\n\n**Caídas:**\n- Ripley: -$422K (-8.2%)\n- La Polar: -$420K (-12.5%)\n\n*Criterio mío, no cifra del dato:* si tu decisión requiere trimestral, vale la pena confirmar si existe fuera de esta carpeta antes de asumir que no hay corte más fino.\n\n**Oferta:** puedo traer margen y contribución con este mismo corte (cliente, YoY) si te sirve para avanzar."
-  }
- ]
+  "origen": "turnos REALES de las corridas de certificación, remediciones y prueba de encendido (capturados 2026-09-03). esperado=PASS para la conducta certificada; FAIL para los defectos reales de su día (rescates limite, vacío, y la pregunta de entidad de la corrida 4 — estado reparado pero conducta P1).",
+  "casos": [
+    {
+      "origen": "_examen_agente_estado.json",
+      "familia": "insignia · serie por entidad",
+      "estado": "puente",
+      "esperado": "PASS",
+      "q": "muéstrame la venta de Falabella mes a mes",
+      "visible": "El detalle mes a mes de Falabella no está en el dato de esta empresa: el histórico de muestra no reconcilia con la cifra oficial y no lo uso para responderte. Lo que sí está verificado de Falabella es su lectura del período — pídemela o ábrela en su ficha."
+    },
+    {
+      "origen": "_examen_agente_estado.json",
+      "familia": "cobranza",
+      "estado": "reparado",
+      "esperado": "PASS",
+      "q": "quién me debe y qué está vencido",
+      "visible": "**Al 31 de agosto de 2026, tienes $41.2M en saldo pendiente de cobro, con $12.6M vencido.**\n\nLos dos saldos más críticos:\n\n· **Lider**: $9.8M en saldo, de los cuales $4.6M están vencidos, con 269 días de antigüedad — recuperación del 45%.\n· **Sodimac**: $5.3M en saldo, $1.9M vencido con 251 días de antigüedad — recuperación del 35%.\n\nFalabella, Tottus y Paris también tienen saldo vencido, pero reciente (8 días de antigüedad) y con mejor tasa de recuperación (57-58%), así que no son el foco urgente.\n\n**Qué hacer primero** (esto es criterio mío, no una instrucción del dato): con 269 días de antigüedad y solo 45% recuperado, Lider es el caso que más pesa en el vencido total. Antes de otra gestión comercial con ese cliente, valdría una conversación de cobro formal — plazo, garantía o revisión de la línea de crédito. El dato solo te dice el saldo y la antigüedad; la decisión de cómo abordarlo es tuya."
+    },
+    {
+      "origen": "_examen_agente_estado.json",
+      "familia": "síntesis ejecutiva",
+      "estado": "playbook",
+      "esperado": "PASS",
+      "q": "dame los 3 riesgos para el directorio",
+      "visible": "Tu dato sostiene 2 riesgos materiales (el resto queda bajo el 0,05% de tu venta: $50K) — no invento el que falta:\n\n1 · Contribución no capturada: $4.9M. Dónde: encabeza Falabella con $1.6M. Primero: si quieres, abrimos Falabella.\n\n2 · Carga comercial alta: $655K. Dónde: encabeza Falabella con $194K. Primero: si quieres, abrimos Falabella.\n\nLos «primero» son ofertas: dime cuál y lo abrimos. Por qué pasa lo de arriba no está en este dato: queda localizado."
+    },
+    {
+      "origen": "_examen_agente_estado.json",
+      "familia": "proyección declarada",
+      "estado": "reparado",
+      "esperado": "PASS",
+      "q": "Si crezco 3% los próximos 12 meses, ¿cuánto vendería?",
+      "visible": "**Con un crecimiento del 3% a 12 meses, tu venta proyectada sería $103.0M — $3.0M adicionales sobre tu base de $100.0M.**\n\nEso es el supuesto que declaraste aplicado sobre la venta oficial del período.\n\nAhora, ese crecimiento no mueve el riesgo de fondo: los $4.9M de contribución no capturada, con Tottus/Ripley encabezando, y los $655K de carga comercial alta siguen en el mismo lugar. Un 3% de volumen extra ayuda a diluir el costo fijo, pero no cierra la brecha de margen ni recupera lo que esas cuentas dejan sobre la mesa.\n\n**Si quieres**, podemos ver qué pasa con ese 3% en margen o en carga sobre los clientes que más pesan — pero eso necesita un supuesto de dónde viene el crecimiento (¿mismo mix de clientes? ¿nuevas cuentas? ¿precio?)."
+    },
+    {
+      "origen": "_examen_agente_estado_escenario1.json",
+      "familia": "margen (el playbook fundador)",
+      "estado": "playbook",
+      "esperado": "PASS",
+      "q": "llamame jc de ahora en adelante. como viene mi margen?",
+      "visible": "jc: Margen promedio de la cartera: 25.1%. Benchmark de margen: 30.1%. Clientes bajo el benchmark: 8.\n\nLos de mayor contribución no capturada (3 de los 8 bajo el benchmark):\n- Falabella · contribución no capturada $1.6M · margen 22.0% · venta $19.4M\n- Lider · contribución no capturada $1.5M · margen 21.5% · venta $17.8M\n- Jumbo · contribución no capturada $1.1M · margen 24.0% · venta $17.3M\n\nContribución no capturada · subtotal: $4.9M.\nDonde el motor localiza el exceso: Carga comercial alta · subtotal $655K, con Falabella en $194K.\n\nSi quieres, empiezo por Falabella: es el de mayor contribución no capturada. Dime y lo abrimos."
+    },
+    {
+      "origen": "_examen_agente_estado_escenario1.json",
+      "familia": "proyección declarada",
+      "estado": "reparado",
+      "esperado": "PASS",
+      "q": "ponele que el año que viene crezco 3%: cuanto seria mi venta?",
+      "visible": "Tu venta del período es $100.0M.\n\nCon un crecimiento de 3% a 12 meses, tu proyección es $103.0M — $3.0M adicionales.\n\nAhora bien: ese crecimiento en ventas no cierra el hueco de margen que vimos. A 25.1% de margen promedio, esos $3.0M adicionales te traen ~$750K en contribución bruta. Sigues $4.9M por debajo del benchmark en tus tres clientes principales.\n\n**Lo que hay que mover primero:** no es el volumen — es el margen en Falabella. Está en 22.0%, contra un benchmark de 30.1%. Cerrar esa brecha en esta única cuenta vale más que lo que el crecimiento aporta a toda la cartera.\n\n¿Vamos por Falabella?"
+    },
+    {
+      "origen": "_examen_agente_estado_escenario1.json",
+      "familia": "proyección declarada",
+      "estado": "reparado",
+      "esperado": "PASS",
+      "q": "Con ese total anual, proyecta 12 meses con +4% y dime cuánto genera adicional.",
+      "visible": "Tu venta del período es $100.0M.\n\nCon un crecimiento de 4% a 12 meses, tu proyección es $104.0M — $4.0M adicionales.\n\nA margen promedio de 25.1%, esos $4.0M generan aproximadamente $1.0M en contribución bruta proyectada. Sigue insuficiente: la brecha de margen en Falabella, Lider y Jumbo suma $4.9M en contribución no capturada.\n\n**El punto:** el volumen crece, pero el margen no se cierra solo. Necesitas mover el margen en los tres clientes grandes en paralelo al crecimiento. Si subes 4% sin tocar margen, ganas $1.0M en contribución; si además cierras la brecha de Falabella, recuperas $1.6M de contribución no capturada en esa sola cuenta. Ese es el movimiento que importa.\n\n¿Arrancamos por Falabella?"
+    },
+    {
+      "origen": "_examen_agente_estado_escenario1.json",
+      "familia": "límite honesto",
+      "estado": "verde",
+      "esperado": "PASS",
+      "q": "Compara Q1 vs Q2 en ventas, margen y contribución. Si no está en la carpeta, dilo.",
+      "visible": "jc: No hay dato trimestral. El sistema trabaja mes a mes.\n\nCon la serie mensual puedo armar Q1 y Q2:\n\n**Q1 (Ene-Mar):** $21.1M en venta\n**Q2 (Abr-Jun):** $24.3M en venta\n\nDiferencia: +$3.2M (+15.2% de Q1 a Q2).\n\nEl dato de margen y contribución por trimestre no está desglosado en la carpeta — solo tengo la cifra global (25.1% de margen, $25.1M de contribución total en los 12 meses). No puedo cortarla por trimestre sin perder reconciliación.\n\n**Lo que sí veo:** Q2 crece sobre Q1, pero el margen sigue siendo el cuello de botella. Aunque vendas más, si no cierras la brecha de Falabella, Lider y Jumbo, esa contribución adicional se diluye en carga comercial y rebates.\n\n¿Necesitas margen y contribución por trimestre en un cliente específico, o seguimos con Falabella?"
+    },
+    {
+      "origen": "_examen_agente_estado_escenario1_corrida1.json",
+      "familia": "margen (el playbook fundador)",
+      "estado": "reparado",
+      "esperado": "FAIL",
+      "q": "llamame jc de ahora en adelante. como viene mi margen?",
+      "visible": "JC, tu margen viene **8.6 puntos por debajo del benchmark** — y eso te cuesta **$4,9M en contribución no capturada** en el año.\n\n**Quiénes están fuera:**\n\nOcho clientes cierran bajo el 30,1%:\n\n| Cliente | Margen | Venta | Brecha |\n|---------|--------|-------|--------|\n| Lider | 21,5% | $17,8M | –8,6 pp |\n| Falabella | 22,0% | $19,4M | –8,1 pp |\n| Sodimac | 23,5% | $8,2M | –6,6 pp |\n| Jumbo | 24,0% | $17,3M | –6,1 pp |\n| Ripley | 25,0% | $4,7M | –5,1 pp |\n| Paris | 26,5% | $6,3M | –3,6 pp |\n| Tottus | 28,0% | $6,8M | –2,1 pp |\n| Mercado Libre | 29,0% | $5,5M | –1,1 pp |\n\n**Dónde está la presión:**\n\n- **Falabella**: $1,6M en contribución no capturada — es tu cliente más grande ($19,4M en venta) y lidera la brecha.\n- **Lider**: $1,5M en contribución no capturada — similar en volumen y también en margen bajo.\n- **Jumbo**: $1,1M en contribución no capturada — tercera línea de impacto.\n\nEstos tres concentran **$4,2M de los $4,9M** que dejas en la mesa.\n\n**Por qué se erosiona:**\n\nEl diagnóstico apunta a **carga comercial alta** en Falabella (+$194K), Sodimac (+$155K) y Lider (+$125K) — y en ellas el mecanismo declarado es rebate y estructura de descuento.\n\n**Por dónde arrancar:**\n\nRevisa primero a **Falabella**: $19,4M en venta, margen en 22% (8,1 pp bajo el benchmark) y carga de $194K. Si logras mover ese margen 2-3 puntos hacia el benchmark sin perder volumen, recuperas parte de los $1,6M en contribución no capturada que hoy deja sobre la mesa. ¿Quieres que miremos la composición de su negocio o la estructura de su carga comercial?",
+      "nota": "defecto del 8,6 (owner 2026-09-03): la brecha de Lider (8,6 pp) presentada como brecha del negocio — la real es 5,0 (30,1 − 25,1, la card de la Mesa). Era PASS cuando el criterio no verificaba la aritmética; el owner decidió que caiga: era defectuosa."
+    },
+    {
+      "origen": "_examen_agente_estado_escenario1_corrida1.json",
+      "familia": "proyección declarada",
+      "estado": "reparado",
+      "esperado": "FAIL",
+      "q": "ponele que el año que viene crezco 3%: cuanto seria mi venta?",
+      "visible": "JC, para simular ese crecimiento necesito saber si es sobre tu **venta total** (todo el negocio de los 13 clientes) o si lo aplico a una entidad específica — un cliente, una marca o una familia.\n\nEl default es venta total: si es eso, confirma y te doy la cifra. Si es otro corte, nombralo y arrancamos."
+    },
+    {
+      "origen": "_examen_agente_estado_escenario1_corrida1.json",
+      "familia": "proyección declarada",
+      "estado": "limite",
+      "esperado": "FAIL",
+      "q": "Con ese total anual, proyecta 12 meses con +4% y dime cuánto genera adicional.",
+      "visible": "No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: Lider · YoY = +$2.3M. De este mismo turno también tengo Valor y headlineSub: dime cuál abro."
+    },
+    {
+      "origen": "_examen_agente_estado_escenario1_corrida1.json",
+      "familia": "límite honesto",
+      "estado": "verde",
+      "esperado": "PASS",
+      "q": "Compara Q1 vs Q2 en ventas, margen y contribución. Si no está en la carpeta, dilo.",
+      "visible": "JC, el dato de series mensuales reconciliadas — que es lo que necesito para armar Q1 vs Q2 — no está en la carpeta de forma que cierre limpio contra cifras oficiales por período trimestral.\n\nLo que sí tengo verificado es el **total anual** en venta, margen y contribución por cliente. Si quieres, te doy el desagregue anual por cliente y de ahí extraemos el patrón; o si hay un cliente o marca específica donde necesites ver el comportamiento trimestral, dime y verifico qué se puede reconstituir.\n\n¿Cuál es la pregunta real: quieres ver si hay clientes que aceleraron o frenaron entre Q1 y Q2, o necesitas el margen comparado entre trimestres?"
+    },
+    {
+      "origen": "_examen_agente_estado_escenario2.json",
+      "familia": "insignia · serie por entidad",
+      "estado": "verde",
+      "esperado": "PASS",
+      "q": "cuánto me compró Mercado Norte el último mes",
+      "visible": "Mercado Norte te compró **$8.226.765** en agosto 2026 (el último mes).\n\nEl movimiento es relevante: subió de $5.728.388 en julio a $8.226.765 en agosto — un crecimiento de $2.498.377.\n\nSi necesitas ver qué SKU o margen movió ese volumen, puedo traerlo."
+    },
+    {
+      "origen": "_examen_agente_estado_escenario2.json",
+      "familia": "insignia · serie por entidad",
+      "estado": "playbook",
+      "esperado": "PASS",
+      "q": "muéstrame la venta de Mercado Norte mes a mes",
+      "visible": "Venta de Mercado Norte, mes a mes:\n- marzo 2026: $2.180.776\n- abril 2026: $5.932.641\n- mayo 2026: $860.989\n- junio 2026: $603.850\n- julio 2026: $5.728.388\n- agosto 2026: $8.226.765"
+    },
+    {
+      "origen": "_examen_agente_estado_escenario2.json",
+      "familia": "cobranza",
+      "estado": "playbook",
+      "esperado": "PASS",
+      "q": "quién me debe y qué está vencido",
+      "visible": "Saldo pendiente: $118.8M de una venta a crédito de $266.5M (abonado: $147.7M).\nTe deben:\n- Comercial Valparaiso: $17.7M\n- Super Sur: $12.7M\n- La Polar: $11.7M\n- Paris: $10.2M\n- Sodimac: $8.5M\n- Bazar Centro: $8.2M\n(y 2 más)\nQué parte está vencida no se puede saber: tu empresa no declaró plazo de pago. Cuando lo declares, el vencido se calcula solo — sin volver a subir el archivo."
+    },
+    {
+      "origen": "_examen_agente_estado_escenario2.json",
+      "familia": "cobranza",
+      "estado": "verde",
+      "esperado": "PASS",
+      "q": "cuánto vendí a crédito vs contado",
+      "visible": "**Venta a crédito vs contado:**\n\nVenta a crédito: **$266.5M**\n- Abonado: $147.7M (55.4%)\n- Saldo pendiente: $118.8M (44.6%)\n\nLas ventas de contado no generan deuda y no entran en este corte — la cifra que ves es exclusivamente crédito.\n\n**Quiénes deben (al 31 ago 2026):**\n\n| Cliente | Saldo |\n|---------|-------|\n| Comercial Valparaiso | $17.7M |\n| Super Sur | $12.7M |\n| La Polar | $11.7M |\n| Paris | $10.2M |\n| Sodimac | $8.5M |\n| Bazar Centro | $8.2M |\n| Distribuidora Pacifico | $8.2M |\n| Lider | $7.6M |\n| (6 clientes más) | $34.0M |\n\n**Vencido:** No se puede saber. Tu empresa no ha declarado plazo de pago, así que no hay forma de calcular qué parte del saldo está vencida — eso se define una sola vez en la empresa y aplica a todo lo que venga.\n\n**Lo crítico:** Tienes $118.8M en caja no cobrada. Tres clientes concentran el 39% de ese saldo: Comercial Valparaiso ($17.7M), Super Sur ($12.7M) y La Polar ($11.7M). Los tres son clientes grandes con ventas históricas altas — el mismo grupo que mostró caídas severas en volumen de venta. Antes de acelerar cobro, verifica si la caída de venta es por reducción de compra o por problema de flujo de caja en esos clientes."
+    },
+    {
+      "origen": "_examen_agente_estado_escenario2.json",
+      "familia": "margen (el playbook fundador)",
+      "estado": "reparado",
+      "esperado": "PASS",
+      "q": "llamame jc. ¿cómo viene mi margen?",
+      "visible": "jc, tu margen está bajo el plan en 15 clientes. Eso te cuesta $2.0M en contribución no capturada.\n\n**Quiénes están bajo benchmark (30.1%) — dato verificado:**\n\n| Cliente | Margen | Venta | Brecha |\n|---------|--------|-------|--------|\n| Comercial Valparaiso | 18.4% | $3.1M | -11.7pp |\n| La Polar | 18.4% | $2.1M | -11.7pp |\n| Tottus | 21.6% | $2.8M | -8.5pp |\n| Deposito Riachuelo | 21.6% | $1.2M | -8.5pp |\n| Distribuidora Pacifico | 24.0% | $5.5M | -6.1pp |\n| Unimarc | 24.0% | $3.2M | -6.1pp |\n\n(y 9 más con brecha menor)\n\n**Contribución no capturada — dato verificado, mayor impacto por cliente:**\n- Comercial Valparaiso: $362K\n- Distribuidora Pacifico: $337K\n- La Polar: $240K\n- Tottus: $237K\n- Easy: $222K\n\n**Dónde revisar primero — esto es criterio mío, no un orden que el dato imponga:**\n\nEl dato solo marca la magnitud, no la prioridad. Mi lectura: conviene empezar por **Distribuidora Pacifico**. Es el segundo mayor valor en juego ($337K), pero su brecha es la más cerrable del grupo grande (-6.1pp, contra -11.7pp de Comercial Valparaiso y La Polar), y tiene el mayor volumen de venta de los cinco ($5.5M). Comercial Valparaiso pesa más en $ absolutos, pero su brecha es el doble de profunda — probablemente un problema estructural distinto, no solo de mezcla o precio.\n\nEs tu decisión cuál mueves primero. Si quieres, reviso qué SKU o familia explica el margen de Distribuidora Pacifico antes de tocar nada."
+    },
+    {
+      "origen": "_examen_agente_estado_escenario2.json",
+      "familia": "síntesis ejecutiva",
+      "estado": "limite",
+      "esperado": "FAIL",
+      "q": "dame los 3 riesgos para el directorio",
+      "visible": "jc: No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: Medida · liberar ELE-CAB25 = $38.1M. De este mismo turno también tengo Capital frenado: dime cuál abro."
+    },
+    {
+      "origen": "_examen_agente_estado_escenario2_CONTAMINADO_evidencia.json",
+      "familia": "cobranza",
+      "estado": "verde",
+      "esperado": "PASS",
+      "q": "quién me debe y qué está vencido",
+      "visible": "jc: Al 31 de agosto de 2026.\n\n**Saldo pendiente total:** $118.8M.\n**Vencido:** No se puede saber. Sin plazo de pago declarado en la empresa, no hay forma de determinar qué parte del saldo está vencida.\n\n**Quiénes deben — de mayor a menor saldo:**\n\n· **Comercial Valparaiso** · $17.7M · recuperado 47.9%\n· **Super Sur** · $12.7M · recuperado 46.3%\n· **La Polar** · $11.7M · recuperado 43.4%\n· **Paris** · $10.2M · recuperado 56.3%\n· **Sodimac** · $8.5M · recuperado 43.1%\n· **Bazar Centro** · $8.2M · recuperado 64.4%\n· **Distribuidora Pacifico** · $8.2M · recuperado 55.6%\n· **Lider** · $7.6M · recuperado 44.6%\n· **Seis clientes más** · $34.0M combinados\n\n**Lo que importa:** Comercial Valparaiso debe $17.7M sobre una venta a crédito de $34.0M — solo recuperaste 47.9%. Super Sur es similar: $12.7M pendientes sobre $23.6M vendidos, 46.3% recuperado. Tres clientes (Comercial Valparaiso, Super Sur, La Polar) concentran $41.1M del saldo — casi el 35% de la deuda total.\n\nComercial Valparaiso además es el cliente con la brecha más profunda de margen (11.7pp bajo el benchmark). No solo vende con margen débil: además no paga. Eso es un doble problema en caja.\n\n**Dónde arrancar:** Comercial Valparaiso. $17.7M pendientes + margen en 18.4%. Recuperar ese saldo es más urgente que vender más volumen a un cliente que no cierra margen ni cobra a tiempo."
+    },
+    {
+      "origen": "_examen_agente_estado_escenario2_CONTAMINADO_evidencia.json",
+      "familia": "cobranza",
+      "estado": "verde",
+      "esperado": "PASS",
+      "q": "cuánto vendí a crédito vs contado",
+      "visible": "jc: Al 31 de agosto de 2026.\n\n**Venta a crédito:** $266.5M.\n**Abonado:** $147.7M.\n**Saldo pendiente:** $118.8M.\n\nLas ventas de contado no generan deuda y no entran en este corte.\n\n**Vencido:** No se puede saber. Sin plazo de pago declarado en la empresa, no hay forma de determinar qué parte del saldo está vencida.\n\n**Concentración de deuda — los 8 clientes principales deben $94.8M (79.8% del total):**\n\n· Comercial Valparaiso · $17.7M · recuperado 47.9%\n· Super Sur · $12.7M · recuperado 46.3%\n· La Polar · $11.7M · recuperado 43.4%\n· Paris · $10.2M · recuperado 56.3%\n· Sodimac · $8.5M · recuperado 43.1%\n· Bazar Centro · $8.2M · recuperado 64.4%\n· Distribuidora Pacifico · $8.2M · recuperado 55.6%\n· Lider · $7.6M · recuperado 44.6%\n\n**Lo que esto dice:** Tres clientes (Comercial Valparaiso, Super Sur, La Polar) concentran $41.1M pendientes — casi el 35% de toda la deuda. Comercial Valparaiso recupera solo 47.9% de lo que vendiste; Super Sur y La Polar están en 46.3% y 43.4%. Sin esos tres clientes, tu cobranza mejora casi 10 puntos.\n\nComercial Valparaiso además es el cliente con margen en 18.4% (11.7pp bajo el benchmark). No solo vende débil: no paga rápido.\n\n**Dónde arrancar:** Comercial Valparaiso. $17.7M pendientes + margen de 18.4%. Recuperar ese saldo y revisar la estructura comercial son el mismo movimiento."
+    },
+    {
+      "origen": "_examen_agente_estado_escenario2_CONTAMINADO_evidencia.json",
+      "familia": "margen (el playbook fundador)",
+      "estado": "limite",
+      "esperado": "FAIL",
+      "q": "llamame jc. ¿cómo viene mi margen?",
+      "visible": "jc: No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: Medida · cerrar brecha al piso = $2.0M. De este mismo turno también tengo Venta y Margen: dime cuál abro."
+    },
+    {
+      "origen": "_examen_agente_estado_escenario2_CONTAMINADO_evidencia.json",
+      "familia": "síntesis ejecutiva",
+      "estado": "vacio",
+      "esperado": "FAIL",
+      "q": "dame los 3 riesgos para el directorio",
+      "visible": "jc: No tengo información autorizada suficiente para responder eso con el alcance pedido. Cuéntame qué dato específico necesitas y lo busco."
+    },
+    {
+      "origen": "_examen_agente_estado_escenario2_CONTAMINADO_evidencia.json",
+      "familia": "límite honesto",
+      "estado": "reparado",
+      "esperado": "PASS",
+      "q": "compará Q1 vs Q2",
+      "visible": "jc: No puedo comparar Q1 vs Q2 con precisión. El dato viene por año cerrado, no desglosado por trimestre.\n\nLo que sí veo de año completo (Mar-Ago 2026), comparando venta de este período contra venta del año anterior:\n\n**Clientes que crecieron fuerte:**\n· Distribuidora Pacifico · $1.2M → $5.5M\n· Easy · $1.0M → $4.9M\n· Unimarc · $644K → $3.2M\n· Casa Belgrano · $1.0M → $2.9M\n\n**Clientes que cayeron:**\n· Comercial Valparaiso · $14.1M → $3.1M\n· Retail Andes · $7.3M → $3.1M\n· Tottus · $12.6M → $2.8M\n· La Polar · $9.0M → $2.1M\n\n**Lo que cambia la foto:** Comercial Valparaiso, Retail Andes, Tottus y La Polar sumaban $43.0M año anterior y ahora suman $11.1M — una caída de $31.9M en venta. Esos cuatro clientes concentran casi toda la contracción del período.\n\nEse es tu problema real: no es que el margen caiga — es que perdiste facturación en tus principales clientes tradicionales. El crecimiento en Distribuidora Pacifico, Easy y Unimarc no compensa esa caída.\n\n**Dónde arrancar:** ¿Qué pasó con Comercial Valparaiso, Tottus, La Polar? ¿Fue una decisión comercial, una pérdida de cuenta, o un cambio de mix? Esos cuatro clientes explican casi toda la variación de año a año.\n\n¿Tienes la historia de por qué cayeron?"
+    },
+    {
+      "origen": "_examen_agente_estado_escenario3.json",
+      "familia": "cobranza",
+      "estado": "verde",
+      "esperado": "PASS",
+      "q": "quién me debe y qué está vencido",
+      "visible": "No puedo leer la cobranza.\n\nTu archivo no trae la hoja **Abonos** — sin ella no hay registro de pagos ni saldos que leer. Lo que veo es la venta registrada, pero no quién pagó ni cuánto quedó pendiente.\n\nPara responder \"quién me debe y qué está vencido\" necesitaría:\n- La hoja **Abonos** con los pagos recibidos por cliente y fecha.\n- O, si tu sistema lo maneja diferente, la columna de **plazo de pago** declarado en las facturas (para calcular vencimiento).\n\nSin eso, no tengo cifras de deuda ni de vencido que ofrecerte — y no voy a inventarlas.\n\n¿La hoja Abonos existe en tu archivo pero no llegó a mi lectura, o manejan los pagos en otro lado?"
+    },
+    {
+      "origen": "_examen_agente_estado_escenario3.json",
+      "familia": "cobranza",
+      "estado": "verde",
+      "esperado": "PASS",
+      "q": "cuánto vendí a crédito",
+      "visible": "No tengo la cifra de venta a crédito.\n\nTu archivo no trae la hoja **Abonos** — sin ella no hay registro de pagos ni forma de distinguir qué venta fue a crédito y qué a contado.\n\nLo que veo es la **venta total** registrada (período 2026-06 a 2026-08), pero no puedo segregarla por condición de pago porque esa columna también viene vacía en las facturas.\n\nPara responderte necesitaría:\n- La hoja **Abonos** con los pagos capturados, o\n- La columna **condición** llena en las facturas (crédito / contado).\n\n¿Cuál de las dos tienes disponible?"
+    },
+    {
+      "origen": "_examen_agente_estado_escenario3.json",
+      "familia": "margen (el playbook fundador)",
+      "estado": "playbook",
+      "esperado": "PASS",
+      "q": "¿cómo viene mi margen?",
+      "visible": "Margen promedio de la cartera: 27.1%. Benchmark de margen: 30.1%. Clientes bajo el benchmark: 6.\n\nLos de mayor contribución no capturada (3 de los 6 bajo el benchmark):\n- Easy · contribución no capturada 330K · margen 23.5%\n- Sodimac · contribución no capturada 97K · margen 21.5%\n- Lider · contribución no capturada 77K · margen 24.5%\n\nContribución no capturada · subtotal: 504K.\n\nSi quieres, empiezo por Easy: es el de mayor contribución no capturada. Dime y lo abrimos."
+    },
+    {
+      "origen": "_examen_agente_estado_escenario3.json",
+      "familia": "insignia · serie por entidad",
+      "estado": "reparado",
+      "esperado": "PASS",
+      "q": "cuánto me compró Easy el último mes",
+      "visible": "Easy compró **5.007.016 en agosto de 2026** — el mes más reciente disponible en la serie.\n\nEl mes anterior (julio) fue 1.146.992 — un salto de 3.9M mes a mes.\n\nEse crecimiento explica por qué Easy tira tu venta total hacia arriba, pero también por qué el margen se ve presionado: ese volumen concentrado en agosto viene con margen 23.5%, por debajo del benchmark de 30.1%. Si ese mes pesa fuerte en la venta del período, está jalando el promedio de margen de Easy hacia abajo."
+    },
+    {
+      "origen": "_prueba_encendido_estado.json",
+      "familia": "insignia · serie por entidad",
+      "estado": "verde",
+      "esperado": "PASS",
+      "q": "¿Cuánto me compró Mercado Norte el último mes?",
+      "visible": "**Mercado Norte compró $8.226.765 en agosto 2026** (el último mes del período).\n\nEl mes anterior, julio, había sido $5.728.388 — es decir, agosto subió 44% respecto a julio.\n\nLa serie completa de los seis meses:\n- Marzo: $2.180.776\n- Abril: $5.932.641\n- Mayo: $860.989\n- Junio: $603.850\n- Julio: $5.728.388\n- Agosto: $8.226.765"
+    },
+    {
+      "origen": "_prueba_encendido_estado.json",
+      "familia": "cobranza",
+      "estado": "verde",
+      "esperado": "PASS",
+      "q": "¿Quién me debe más y qué parte está vencida?",
+      "visible": "**Tienes $118,8M en saldo pendiente al 31 de agosto 2026.**\n\nQuién debe más:\n\n- **Comercial Valparaiso**: $17,7M (47,9% recuperado de $34,0M vendido)\n- **Super Sur**: $12,7M (46,3% recuperado de $23,6M)\n- **La Polar**: $11,7M (43,4% recuperado de $20,6M)\n- **Paris**: $10,2M (56,3% recuperado de $23,3M)\n- **Sodimac**: $8,5M (43,1% recuperado de $14,9M)\n- **Bazar Centro**: $8,2M (64,4% recuperado de $23,1M)\n- **Distribuidora Pacifico**: $8,2M (55,6% recuperado de $18,5M)\n- **Lider**: $7,6M (44,6% recuperado de $13,7M)\n- **6 clientes más**: $33,8M (combinado)\n\n**Sobre el vencimiento: no se puede saber qué parte está vencida.** No existe plazo de pago declarado en la empresa — sin eso, no hay forma de medir desde cuándo debería haber entrado cada pago. Una vez que lo declaren, el plazo aplica a todo lo que viene.\n\n**Lo prioritario:** Comercial Valparaiso y Super Sur concentran $30,4M (25,6% del total pendiente). Ahí está el mayor impacto de cobranza."
+    },
+    {
+      "origen": "_prueba_encendido_estado.json",
+      "familia": "síntesis ejecutiva",
+      "estado": "reparado",
+      "esperado": "PASS",
+      "q": "Dame los 3 riesgos principales para el directorio.",
+      "visible": "**Tres riesgos materiales para el directorio:**\n\n---\n\n**1. MARGEN BAJO EL BENCHMARK EN 15 CLIENTES — $2,0M de contribución no capturada**\n\n15 clientes venden por debajo del 30,1% de margen declarado. Los cinco con mayor brecha:\n- Comercial Valparaiso: margen 18,4% sobre venta de $3,1M (brecha 11,7 pp)\n- La Polar: margen 18,4% sobre venta de $2,1M (brecha 11,7 pp)\n- Tottus: margen 21,6% sobre venta de $2,8M (brecha 8,5 pp)\n- Distribuidora Pacifico: margen 24,0% sobre venta de $5,5M (brecha 6,1 pp)\n- Unimarc: margen 24,0% sobre venta de $3,2M (brecha 6,1 pp)\n\nEl margen promedio de la cartera cierra en 28,6% — 1,5 pp por debajo del piso. **Oferta: auditar el costo estructural en estos cinco clientes (donde está la mayor parte de la brecha monetaria) y evaluar si la venta a margen bajo es sostenible o si hay espacio para reposicionar precio o mix.**\n\n---\n\n**2. CAPITAL FRENADO EN INVENTARIO — $38,1M sin movimiento**\n\nEl SKU ELE-CAB25 concentra $38,1M en stock en la bodega Central sin rotación registrada en el período. Ese capital no genera contribución ni flujo.\n\n**Oferta: verificar si ELE-CAB25 tiene demanda futura declarada. Si no, evaluar liquidación o reemplazo de stock; si sí, acelerar la venta con un plan comercial específico para destrabar ese capital.**\n\n---\n\n**3. VENTA EN CAÍDA ANUAL — 40,5% menos que el período anterior**\n\nLas ventas totales son $74,2M para el año, 40,5% por debajo del año anterior. La contribución total es $21,2M, repartida entre 25 clientes activos; Mercado Norte ($2,5M), Ferreteria Aurora ($1,8M) y Lider ($1,6M) son los tres de mayor contribución individual, pero el grueso está distribuido en el resto de la cartera.\n\n**Oferta: priorizar la reactivación de los clientes de mayor contribución individual (donde el retorno del esfuerzo es más predecible) mientras se audita si la cartera dispersa justifica el costo comercial o necesita enfoque.**"
+    },
+    {
+      "origen": "_prueba_encendido_estado.json",
+      "familia": "proyección declarada",
+      "estado": "verde",
+      "esperado": "PASS",
+      "q": "Si crezco 3% los próximos 12 meses, ¿cuánto vendería?",
+      "visible": "**Con un crecimiento de 3% anual, venderías $76,4M en los próximos 12 meses.**\n\nEso es $2,2M adicionales sobre tu venta actual de $74,2M.\n\nDicho de otra forma: crecer 3% en este negocio es sumar menos de $2M en ventas. Es un crecimiento modesto — dado que hoy tienes 40,5% de caída respecto al año anterior, el foco real debería estar en detener esa caída, no en proyectar un crecimiento pequeño. \n\n**¿Quieres explorar qué cifra de crecimiento sería necesaria para recuperar al menos el 50% de lo que perdiste?**"
+    },
+    {
+      "origen": "_remedicion_completa-T11.json",
+      "familia": "síntesis ejecutiva",
+      "estado": "playbook",
+      "esperado": "PASS",
+      "q": "dame los 3 riesgos para el directorio",
+      "visible": "Los 3 riesgos, por materialidad:\n\n1 · Venta contra el año anterior: -40.5%. Dónde se cae por cliente no está en esta síntesis. Primero: si quieres, abro esa lectura.\n\n2 · Capital frenado en inventario: $38.1M. Dónde: encabeza ELE-CAB25 con $38.1M. Primero: si quieres, abrimos ELE-CAB25.\n\n3 · Contribución no capturada: $2.0M. Dónde: encabeza Comercial Valparaiso con $362K. Primero: si quieres, abrimos Comercial Valparaiso.\n\nLos «primero» son ofertas: dime cuál y lo abrimos. Por qué pasa lo de arriba no está en este dato: queda localizado."
+    },
+    {
+      "origen": "_remedicion_demo-T6.json",
+      "familia": "límite honesto",
+      "estado": "reparado",
+      "esperado": "PASS",
+      "q": "Compara Q1 vs Q2 en ventas, margen y contribución. Si no está en la carpeta, dilo.",
+      "visible": "No tengo Q1 vs Q2 en la carpeta — el dataset está organizado por períodos anuales cerrados, no por trimestres.\n\n**Dato verificado disponible:** ventas por cliente contra el año anterior (YoY), año cerrado.\n\n**Ventas totales:** +7.6% | $100.0M vs $92.9M\n\n**Movers principales (dato duro):**\n- Lider: +$2.3M (+14.9%)\n- Jumbo: +$1.9M (+12.2%)\n- Falabella: +$1.5M (+8.2%)\n- Mercado Libre: +$1.1M (+25.3%)\n\n**Caídas:**\n- Ripley: -$422K (-8.2%)\n- La Polar: -$420K (-12.5%)\n\n*Criterio mío, no cifra del dato:* si tu decisión requiere trimestral, vale la pena confirmar si existe fuera de esta carpeta antes de asumir que no hay corte más fino.\n\n**Oferta:** puedo traer margen y contribución con este mismo corte (cliente, YoY) si te sirve para avanzar."
+    },
+    {
+      "origen": "_examen_agente_estado.json (corrida del supervisor 2026-09-03)",
+      "familia": "margen (el playbook fundador)",
+      "estado": "reparado",
+      "esperado": "FAIL",
+      "q": "¿cómo viene mi margen?",
+      "visible": "Tu margen está **8,6 puntos por debajo del benchmark** — el 25,1% promedio contra el 30,1% que el negocio declara como referencia. Eso se traduce en **$4,9M de contribución no capturada en el año**.\n\n**Quiénes están bajo el benchmark:**\n\n| Cliente | Margen | Venta | Brecha |\n|---------|--------|-------|--------|\n| Lider | 21,5% | $17,8M | –8,6pp |\n| Falabella | 22,0% | $19,4M | –8,1pp |\n| Sodimac | 23,5% | $8,2M | –6,6pp |\n| Jumbo | 24,0% | $17,3M | –6,1pp |\n| Ripley | 25,0% | $4,7M | –5,1pp |\n| Paris | 26,5% | $6,3M | –3,6pp |\n| Tottus | 28,0% | $6,8M | –2,1pp |\n| Mercado Libre | 29,0% | $5,5M | –1,1pp |\n\n**Dónde está el dinero en riesgo:**\n- **Falabella**: $1,6M no capturados\n- **Lider**: $1,5M no capturados  \n- **Jumbo**: $1,1M no capturados\n\nEstos tres concentran la mayor parte del problema.\n\n**El motor que lo frena:**\nLa carga comercial (rebates y descuentos) suma **$655K** en exceso. Los mayores generadores son Falabella ($194K), Sodimac ($155K de carga comercial) y Lider ($125K de carga comercial) — el mismo trío que pierde margen.\n\n**Por dónde empieza:**\nRevisa a **Falabella primero** — $19,4M de venta con margen en 22% y carga de $194K declarada. Si recuperas 2 puntos de margen en esa sola cuenta, capturás $388K. Es el volumen más grande con la brecha más amplia.\n\n¿Quieres profundizar en la composición de esa carga o ver el detalle de SKU en Falabella?",
+      "nota": "el mismo defecto del 8,6 NOMBRANDO ambos términos («el 25,1% promedio contra el 30,1%»): 30,1 − 25,1 = 5,0 ≠ 8,6 — el texto se refuta solo y el criterio ahora hace esa resta."
+    }
+  ]
 }

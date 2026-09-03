@@ -36,6 +36,7 @@ import { cajaDelAgente, serieEntidad, cobranza } from "./src/adi/agente/herramie
 import { guardC } from "./src/adi/oracle/guardC.js";                 // las carnadas de entidad×período juzgan el texto compuesto DIRECTO contra el muro
 import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
+import { buildMesaEstado } from "./src/adi/sentrix/mesa.js";         // la card del margen: la brecha sellada tiene que dar SU número (una sola verdad)
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -611,6 +612,28 @@ H("5 · las promesas del playbook, chequeadas por reglas (nunca por comprensión
   ok(!veto("El benchmark es 30.1%. La brecha de Lider se concentra donde el motor localiza carga comercial alta.").includes("causa-sin-respaldo"),
     "…y localizar con el mecanismo declarado, pasa");
 
+  /* 5 · LA BRECHA DEL NEGOCIO CIERRA CON SUS DOS TÉRMINOS (owner 2026-09-03 · el defecto vivo del 8,6):
+   * producción abrió con la brecha de LIDER (8,6 pp) puesta como brecha del negocio, mientras la card de la
+   * Mesa decía 5,0. La primera oración es verbatim del turno defectuoso. */
+  const VIVO_86 = "Tu margen está 8,6 puntos por debajo del benchmark — el 25,1% promedio contra el 30,1% que el negocio declara como referencia. Eso se traduce en $4,9M de contribución no capturada.";
+  ok(veto(VIVO_86).includes("brecha-del-negocio-no-cierra"),
+    "★ 5 · la brecha de LIDER (8,6) presentada como brecha del negocio → multa (el defecto vivo, verbatim)");
+  ok(veto("JC, tu margen viene 8.6 puntos por debajo del benchmark — y eso te cuesta $4,9M.").includes("brecha-del-negocio-no-cierra"),
+    "…también con punto decimal (el punto de «8.6» no corta la oración — la trampa medida acá mismo)");
+  ok(!veto("Tu margen promedio está 5,0 pp bajo el benchmark (30,1%): la cartera rinde 25,1%.").includes("brecha-del-negocio-no-cierra"),
+    "…y la brecha CORRECTA del negocio (5,0 = 30,1 − 25,1) pasa limpia");
+  ok(!veto("Lider es el más lejos: 21,5% de margen, 8,6 puntos por debajo del benchmark.").includes("brecha-del-negocio-no-cierra"),
+    "…y la brecha DE LIDER con su nombre en la oración es legítima — no se toca");
+  // LA CIFRA SELLADA Y LA CARD, UNA VERDAD: la boleta trae la brecha del negocio derivada con dueño, y da
+  // EXACTAMENTE el número de la card de la Mesa (mesa.js) — la ley del encargo: «si existe, se usa ESA».
+  const figBrecha = figs.find((f) => /^El negocio · Brecha al benchmark$/.test(String(f.label || "")));
+  ok(!!figBrecha && Number.isFinite(figBrecha.raw),
+    "la boleta del playbook trae «El negocio · Brecha al benchmark» sellada (source: computed, dueño: el negocio)");
+  const cardMargen = String(((buildMesaEstado("bonanza") || {}).estados || {}).margen ? buildMesaEstado("bonanza").estados.margen.linea : "");
+  const mCard = /^([\d.,]+) pp bajo/.exec(cardMargen);
+  ok(!!figBrecha && !!mCard && Number(figBrecha.raw) === parseFloat(mCard[1].replace(",", ".")),
+    `una sola verdad: la fig sellada (${figBrecha ? figBrecha.raw : "?"} pp) = la card de la Mesa («${cardMargen}»)`);
+
   // AUTO-CONSISTENCIA: el entregable del propio playbook no puede disparar su propia lista
   const propio = margenEnRiesgo.componer({ figs });
   ok(vetosDelPlaybook(margenEnRiesgo, propio, { figs }).length === 0,
@@ -733,6 +756,17 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       initTenant(TENANT_DEMO);
       const figs = boletaDelPlaybook(margenEnRiesgo);
       return Mut.margenEnRiesgo.listaNotarial("No pude armar esa lectura. ¿Cuál cliente quieres mirar?", { figs }).length === 0;
+    });
+
+  // (e2) la regla de la brecha del negocio, vaciada: el 8,6 de Lider vestido de negocio pasa sin multa
+  await carnada("regla «brecha-del-negocio-no-cierra» vaciada", "src/adi/agente/playbooks/margenEnRiesgo.js",
+    [[/          if \(Math\.abs\(declarada - brechaReal\) > 0\.15\) \{/, "          if (false) {"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const figs = boletaDelPlaybook(margenEnRiesgo);
+      const vivo = "Tu margen está 8,6 puntos por debajo del benchmark — el 25,1% promedio contra el 30,1% que el negocio declara como referencia.";
+      return margenEnRiesgo.listaNotarial(vivo, { figs }).some((x) => x.regla === "brecha-del-negocio-no-cierra")
+        && Mut.margenEnRiesgo.listaNotarial(vivo, { figs }).every((x) => x.regla !== "brecha-del-negocio-no-cierra");
     });
 
   // (g) la muestra envejecida: el composer cambia y el documento del owner sigue diciendo lo viejo

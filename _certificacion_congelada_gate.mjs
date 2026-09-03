@@ -38,6 +38,12 @@
  * que el producto ya se equivocó una vez, y nadie degrada mañana lo que un usuario ya pagó por descubrir.
  *   caso 1 · t9 del demo (2026-09-02): «Mercado Norte» → declinaba sobre «Mercado Libre» — el sujeto
  *            sustituido. Verde con 310ca8f (solo exacto resuelve; el parecido se ofrece).
+ *   caso 2 · replay 1b del demo (2026-09-03, corrida del supervisor): «tu margen está 8,6 puntos por debajo
+ *            del benchmark» — la brecha de LIDER vestida de brecha del negocio (la real: 5,0 = 30,1 − 25,1,
+ *            la card de la Mesa al lado). ROJO antes del arreglo (el borrador salía tal cual: ninguna pieza
+ *            hacía la resta); verde con la regla notarial «brecha-del-negocio-no-cierra» + la fig sellada
+ *            «El negocio · Brecha al benchmark» + el criterio aritmético del humo. La conducta congelada:
+ *            una brecha atribuida al negocio CIERRA con benchmark − promedio, o no sale.
  *
  * OFFLINE · determinístico · cerebro = mudo o guion del expediente · CERO llamadas al modelo.
  * `node --import ./scripts/offline-guard.mjs _certificacion_congelada_gate.mjs` */
@@ -130,6 +136,28 @@ await escenario("DEMO", [
       "t9 · …y Mercado Libre se ofrece, jamás se asume — ni una línea sobre el cliente equivocado");
   } },
 ]);
+
+/* ═══ 1b · EL PROCESO DE CRECIMIENTO · caso 2 · el 8,6 que no cierra (owner 2026-09-03) ═════════════════════
+ * El borrador REAL de la corrida del supervisor (congelado en el expediente como `caso2`), re-emitido por un
+ * cerebro-guion sobre el demo: abre con la brecha de Lider vestida de brecha del negocio. La escalera de HOY
+ * tiene que vetarlo (la notarial nueva hace la resta) y el turno tiene que salir SIN esa afirmación — por
+ * poda o por peldaño, el mecanismo no se congela: la CONDUCTA sí. */
+H("1b · PROCESO caso 2: la brecha del negocio que no cierra muere en el muro");
+{
+  const EXP2 = JSON.parse(fs.readFileSync(path.join(process.cwd(), "fixtures", "certificacion-2026-09-expediente.json"), "utf8"));
+  initTenant(TENANT_DEMO);
+  let n = 0;
+  const guion = async () => (++n === 1 ? { tipo: "texto", texto: EXP2.caso2.borrador } : { tipo: "texto", texto: "" });
+  const r = await answerViaAgente({ text: EXP2.caso2.q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
+  const t = String(r.r.text || "");
+  const vetos = (r.r.agente.vetos || []).map((v) => String(v && (v.multa || v.detail) || v));
+  ok(vetos.some((v) => /declaras que el margen del negocio|brecha-del-negocio/.test(v)),
+    "★ caso 2: el muro caza el borrador vivo del 8,6 — la notarial hace la resta (30,1 − 25,1 ≠ 8,6)");
+  ok(!/(?:tu margen|margen promedio)[^|\n]{0,60}8[.,]6\s*(?:pp|puntos)/i.test(t),
+    "★ caso 2: el turno sale SIN la brecha de Lider vestida de negocio — la conducta que el borrador violaba", t.slice(0, 120));
+  ok(t.trim().length > 80 && /%/.test(t) && r.r.agente.estado !== "vacia",
+    `caso 2: …y sigue siendo una respuesta con cifras, no un silencio (${r.r.agente.estado})`, t.slice(0, 90));
+}
 
 /* ═══ 2 · COMPLETA · los 12 turnos del techo del producto (condicional al archivo del owner) ═════════════════ */
 H("2 · COMPLETA · el techo del producto, congelado");

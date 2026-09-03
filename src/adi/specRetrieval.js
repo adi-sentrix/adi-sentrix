@@ -1488,6 +1488,25 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
   // subconjunto respondería otra pregunta.
   const _headline = _figHeadline("margen", dim, scenario, { acotado: !!(filters.marca || filters.familia || filters.bodega) || !!(entityScope && entityScope.entities && entityScope.entities.length) });
   if (_headline) bol.push(_headline);
+  // LA BRECHA DEL NEGOCIO, SELLADA Y CON DUEÑO (owner 2026-09-03 · el defecto del 8,6): el cerebro tenía
+  // autorizados el promedio (25,1%) y la vara (30,1%) pero NO su resta — y la brecha que publicó fue la de
+  // LIDER (8,6 pp) presentada como si fuera la del negocio, mientras la card de la Mesa decía 5,0. La cifra
+  // entra derivada, con la MISMA secuencia aritmética de la card (mesa.js: _r1(vara − promedio CRUDO) — el
+  // redondeo va AL FINAL; restar los ya-redondeados puede divergir 0,1 en el borde): una sola verdad entre
+  // pantalla y boleta. Solo eje completo (mismo guard que la cabecera) y solo si la cartera está BAJO la vara —
+  // sobre la vara, la card dice otra cosa («pp sobre») y esta fig no la representa.
+  if (_headline) {
+    const _totContrib = rows.reduce((a, r) => a + (r.contribucion || 0), 0);
+    const _promCrudo = totVenta ? (_totContrib / totVenta) * 100 : NaN;
+    const _brechaNegocio = Number.isFinite(_promCrudo) ? Math.round((bench - _promCrudo) * 10) / 10 : NaN;
+    if (Number.isFinite(_brechaNegocio) && _brechaNegocio > 0) {
+      bol.push(fig("El negocio · Brecha al benchmark", `${_p1(_brechaNegocio)} pp`, {
+        unit: "pct", raw: _brechaNegocio, mandatory: false, source: "computed",
+        formula: "benchmark − margen ponderado de la cartera (la misma cuenta de la card de la Mesa)",
+        context: "la brecha del negocio completo — no la de un cliente", entidad: "el negocio completo",
+      }));
+    }
+  }
   return {
     opener: lines.filter(Boolean).join("\n\n"),
     suggestions,

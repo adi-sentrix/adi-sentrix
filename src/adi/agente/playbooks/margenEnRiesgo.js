@@ -217,6 +217,38 @@ export const margenEnRiesgo = {
     /* ⚠️ «margen» y «venta» NO entran acá: son el TEMA del playbook, así que casi toda oración causal de este
      * dominio los nombra —incluida la que hay que vetar («cede margen porque su equipo negocia mal»)— y la
      * regla quedaría muerta. Lo que sostiene una causa es el mecanismo declarado por el motor o una cifra. */
+    /* 5 · LA BRECHA DEL NEGOCIO TIENE QUE CERRAR CON SUS DOS TÉRMINOS (owner 2026-09-03, defecto vivo cazado
+     * por el supervisor verificando el humo): el cerebro abrió con «tu margen está 8,6 puntos por debajo del
+     * benchmark» — y 8,6 es la brecha de LIDER (su propia tabla lo decía al lado); la del negocio es 5,0
+     * (30,1 − 25,1). La pantalla del owner decía 5.0: dos verdades del mismo concepto. Sobrevivió a todo
+     * porque el 8,6 EXISTE en la boleta (es de Lider) y la atribución no lo cazó en esa oración. La regla es
+     * aritmética y quirúrgica: una brecha en pp atribuida AL NEGOCIO (la oración trae señal de negocio y NO
+     * nombra a ningún cliente — la fila «Lider · –8,6 pp» es legítima y no se toca) tiene que cerrar con
+     * benchmark − promedio de la boleta, tolerancia de redondeo. */
+    const _BRECHA_PP = /(\d+(?:[.,]\d+)?)\s*(?:pp\b|puntos?(?:\s+porcentuales)?)\s*(?:por\s+debajo|bajo|abajo)/i;
+    const _DEL_NEGOCIO = /tu margen|margen (?:promedio|de la cartera|general)|la cartera|el negocio|\bpromedio\b/i;
+    if (Number.isFinite(L.benchPct) && L.promedio) {
+      const promPct = _pct(L.promedio);
+      if (Number.isFinite(promPct)) {
+        const brechaReal = L.benchPct - promPct;
+        /* el punto decimal NO corta la oración (medido acá mismo: «8.6 puntos por debajo» quedaba partido en
+         * «…8» / «6 puntos por debajo…» y la señal de negocio moría en el otro fragmento — la variante con
+         * coma multaba y la de punto pasaba limpia). El punto solo corta si NO le sigue un dígito. */
+        for (const oracion of t.split(/[!?\n]+|\.(?!\d)/)) {
+          const m = _BRECHA_PP.exec(oracion);
+          if (!m) continue;
+          if (!_DEL_NEGOCIO.test(oracion)) continue;                            // sin señal de negocio, no es esta regla
+          if (L.margenes.some((x) => _re(x.entidad).test(oracion))) continue;   // nombra un cliente: es SU brecha, no la del negocio
+          const declarada = parseFloat(m[1].replace(",", "."));
+          if (Math.abs(declarada - brechaReal) > 0.15) {
+            v.push({ regla: "brecha-del-negocio-no-cierra",
+              multa: `declaras que el margen del negocio está ${m[1]} pp por debajo del benchmark, pero benchmark (${_val(L.bench)}) menos margen promedio (${_val(L.promedio)}) da ${brechaReal.toFixed(1)} pp — esa cifra es la brecha de OTRA cosa (probablemente un cliente): usa la del negocio o atribúyela a su dueño.` });
+            break;
+          }
+        }
+      }
+    }
+
     const MECANISMOS = /carga comercial|rebate|contribuci[oó]n no capturada|capital frenado|peso del costo|\bcosto\b|benchmark/i;
     // el «%» sin `\b` detrás (ver la nota de _CIFRA_EN_MULTA en bucleAgente): con `\b` esta regla no veía
     // NINGÚN porcentaje, y en este playbook casi toda cifra que ancla una causa es un margen.
