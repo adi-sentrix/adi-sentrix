@@ -39,6 +39,9 @@ import { C, T } from "./theme.js";
 import { renderMarkdownLite, isTabularText, parseMarkdownTable } from "./markdown.jsx";
 import { TypewriterText } from "./TypewriterText.jsx";
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
+import { P } from "../config/flagProfile.js";   // el vigía se enciende por bandera (ADI_VIGIA en FEATURE)
+import { buildVigia, hablarEnChat } from "../adi/sentrix/vigia.js";   // EL VIGÍA (c): habla primero SOLO cuando algo cambió
+import { getTenantId, tenantCargado } from "../data/tenantStore.js";   // la huella de «qué vio ya» es por tenant
 
 // Cuando answerADI devuelve route="not_yet_extracted" (text null), el motor es honesto: no inventa.
 // La UI refleja esa honestidad en vez de fabricar un overview.
@@ -1219,6 +1222,26 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
   // el panel del historial (columna izquierda) necesita saber si hay hilo vivo · solo un booleano, ningún texto:
   // el contenido de la conversación no sale de este componente.
   useEffect(() => { if (onHayConversacion) onHayConversacion(messages.length > 0); }, [messages.length, onHayConversacion]);
+
+  /* EL VIGÍA (c) · owner 2026-09-03 — ADI abre la conversación SOLO cuando algo cambió desde la última vez que
+   * este tenant lo vio (nuevo foco · cruce del piso · foco resuelto); el resto de las veces, silencio absoluto.
+   * El contenido es el composer determinístico de `vigia.js` (cero llamadas); la política de cambio vive en
+   * `hablarEnChat` y está gate-ada con carnada (_vigia_gate). La huella persiste por tenant en este navegador.
+   * Solo sobre una conversación VACÍA: si hay hilo, el vigía jamás interrumpe. */
+  useEffect(() => {
+    try {
+      if (!P("ADI_VIGIA")) return;
+      if (messagesRef.current && messagesRef.current.length) return;
+      if (!tenantCargado()) return;
+      const v = buildVigia(scenario || ESCENARIO_INICIAL);
+      const clave = `adi_vigia_visto_v1::${getTenantId() || "demo"}`;
+      let vista = null; try { vista = localStorage.getItem(clave); } catch { /* sin storage → primera vez */ }
+      const texto = hablarEnChat(vista, v);
+      try { localStorage.setItem(clave, v.huella); } catch { /* sin storage → hablará de nuevo la próxima */ }
+      if (texto) setMessages((prev) => (prev.length ? prev : [{ id: `vigia-${Date.now()}`, role: "adi", text: texto, route: "vigia", deterministic: true }]));
+    } catch { /* el vigía jamás rompe el chat */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 

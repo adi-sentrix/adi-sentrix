@@ -48,7 +48,8 @@ import { setUISignal } from "../adi/uiSignals.js";   // memoria UI (owner 2026-0
 // `legacyAddressFrom` (mismo comportamiento byte-a-byte) cuando no.
 import { useViewContext, useVistaContext } from "./useViewContext.js";
 import { parseAddress, resolveAddress, legacyAddressFrom } from "../adi/sentrix/address.js";
-import { ADI_PROFILE } from "../config/flagProfile.js";   // perfil activo · sub-paths incompletos (placeholder Control · fecha por-entidad EJEMPLO) SOLO en dev
+import { ADI_PROFILE, P } from "../config/flagProfile.js";   // perfil activo · sub-paths incompletos (placeholder Control · fecha por-entidad EJEMPLO) SOLO en dev · P() para el vigía
+import { buildVigia } from "../adi/sentrix/vigia.js";   // EL VIGÍA (a): la franja al abrir la Mesa — el texto viene ARMADO del módulo (cero cálculo acá)
 import { TOOLS } from "../adi/oracle/toolRegistry.js";   // FICHA EJECUTIVA (owner 2026-08-07): misma boleta/políticas que ADI — entityProfile/entityComposicion/entityCapitalLigado/trend, funciones puras sin LLM, cero cálculo paralelo en React
 import { simboloMoneda } from "../config/moneda.js";
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
@@ -1827,6 +1828,8 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
     setUISignal({ mesaCara: cara });
   }, [cara]);
   const capital = React.useMemo(() => buildMesaCapital(scenario), [scenario]);   // una pasada: la cara Capital + la pata de inventario del "En alerta"
+  // EL VIGÍA (a) · la franja de la Mesa — todo del módulo (focos materiales, umbral, texto, ask); flag ADI_VIGIA
+  const vigia = React.useMemo(() => { try { return P("ADI_VIGIA") ? buildVigia(scenario) : null; } catch { return null; } }, [scenario]);
   /* FLUJO COMERCIAL · se construye siempre, como las otras cuatro caras. El módulo devuelve `null` en un
      suspiro cuando la empresa no declara dato de cobro —que hoy es el caso de casi todas— y la cara muestra su
      estado vacío. No hace falta protegerlo con un interruptor: lo que decide es el dato, no la dirección. */
@@ -1963,6 +1966,23 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         </div>
         <EvidenceClaimHeader evidenceSpec={evidence.evidenceSpec}/>
       </div>
+      {/* EL VIGÍA (a) · owner 2026-09-03 — la franja SIEMPRE, en todas las caras: los focos materiales del
+          motor (o el silencio DECLARADO con su umbral), y el botón que abre la pregunta certificada de la
+          síntesis. El texto viene armado de `buildVigia` — acá solo se pinta (regla 3). */}
+      {vigia ? (
+        <div style={{ flexShrink:0, padding:"8px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:12, background:"rgba(125, 200, 247, 0.05)" }}>
+          <div style={{ fontFamily:MONO, fontSize:12, lineHeight:1.5, color: vigia.hayMateriales ? C.text : C.textMuted, minWidth:0, flex:1 }}>
+            {vigia.linea}
+          </div>
+          {onAsk && vigia.hayMateriales ? (
+            <button onClick={() => onAsk(vigia.ask)} title={`Pregúntale a ADI: ${vigia.ask}`}
+              style={{ flexShrink:0, padding:"4px 10px", fontSize:12, fontFamily:"'DM Sans', system-ui, sans-serif", cursor:"pointer",
+                background:"transparent", border:`1px solid ${C.border}`, borderRadius:6, color:C.celeste }}>
+              Abrir con ADI
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {/* ⚠️ ACÁ SE RESERVABAN 74px ABAJO para que el botón flotante «Preguntar a ADI sobre esta vista» no se
           posara sobre la última línea. El botón se quitó el 2026-08-27, así que el colchón se fue con él: era
           espacio muerto sostenido por una pieza que ya no existe. Vuelve al padding parejo de 18. */}

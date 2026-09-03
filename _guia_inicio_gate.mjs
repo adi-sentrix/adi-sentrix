@@ -88,6 +88,13 @@ const { GUIA_EJEMPLOS, GUIA_KEY, GUIA_VISTA, GUIA_NUNCA, GUIA_CAPITULOS, GUIA_PA
 const limpiar = () => {
   try { dom.window.localStorage.clear(); } catch { /* */ }
   try { resetPnlDraft(); } catch { /* */ }
+  /* EL VIGÍA (2026-09-03) habla en la primera visita — legítimo en producto, ruido en ESTE gate (que mide la
+   * guía: 1 pregunta → 1 respuesta). Se siembra su huella como «ya vista» para aislar lo medido; la conducta
+   * del vigía tiene su propio candado (_vigia_gate, con carnadas). */
+  try {
+    const v = typeof ui.buildVigia === "function" ? ui.buildVigia() : null;
+    if (v) dom.window.localStorage.setItem(`adi_vigia_visto_v1::${(typeof ui.getTenantId === "function" && ui.getTenantId()) || "demo"}`, v.huella);
+  } catch { /* sin vigía en este bundle */ }
 };
 const $ = (c, id) => c.querySelector(`[data-testid="${id}"]`);
 const hayGuia = (c) => !!$(c, "guia-inicio");

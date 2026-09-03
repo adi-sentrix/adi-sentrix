@@ -27,7 +27,8 @@ import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del 
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _sum = (a, f) => a.reduce((s, x) => s + (typeof f(x) === "number" ? f(x) : 0), 0);
-const _money = (v) => {
+// exportado para el VIGÍA (2026-09-03): misma moneda, mismo formato — jamás un formateador paralelo
+export const _money = (v) => {
   const a = Math.abs(v), s = v < 0 ? "-" : "";
   if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`;
   if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`;

@@ -60,6 +60,15 @@ const FEATURE = [
    * nota se reescribe ese día.
    * ⚠️ REGLA DEL OWNER DESDE HOY: el natural NO SE MEJORA MÁS. Toda mejora nueva va al agente. */
   "ADI_AGENTE",
+
+  /* EL VIGÍA (owner 2026-09-03, «avanza con todo» — diseño aprobado en `_VIGIA_DISENO.md`, opción (a)+(c)):
+   * ADI habla primero. (a) la franja al abrir la Mesa, SIEMPRE — sin focos declara el silencio con su umbral;
+   * (c) el turno proactivo del chat SOLO-cuando-cambia (nuevo foco · cruce del piso · foco resuelto), silencio
+   * absoluto el resto. Contenido: el composer determinístico ya certificado (los focos del diagnóstico +
+   * la lectura del período, materialidad por el piso relativo, máx 3, localiza sin causas). CERO llamadas.
+   * Motor: `src/adi/sentrix/vigia.js` · candados: `_vigia_gate.mjs` (con las dos carnadas del encargo).
+   * APAGADO = comentar esta línea: las dos superficies desaparecen, cero estado que migrar. */
+  "ADI_VIGIA",
 ];
 
 // DEV-TOOLS · herramientas internas · SOLO dev (nunca demo/prod)

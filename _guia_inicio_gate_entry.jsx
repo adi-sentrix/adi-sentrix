@@ -16,3 +16,7 @@ export { coerceSpec, coerceFloor } from "./src/adi/coerceChain.js";   // el gate
 // copia del store: declararlo en el proceso del gate no la alcanza.
 export { initTenant } from "./src/data/tenantStore.js";
 export { TENANT_DEMO } from "./src/data/tenants/demo.js";
+// EL VIGÍA (2026-09-03): el gate siembra su huella como «ya vista» para aislar lo que mide (la guía: 1 pregunta
+// → 1 respuesta). buildVigia/getTenantId salen DE ACÁ por la misma razón que todo lo demás: la instancia del bundle.
+export { buildVigia } from "./src/adi/sentrix/vigia.js";
+export { getTenantId } from "./src/data/tenantStore.js";
