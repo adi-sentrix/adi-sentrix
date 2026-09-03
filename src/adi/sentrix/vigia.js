@@ -25,8 +25,41 @@ import { composeSpecDiagnose, declaracionUmbralFocos, pisoFocosUSD } from "../sp
 import { getVentasKPI } from "../../engine/metrics.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
 import { _money } from "./mesa.js";
+import { guardC } from "../oracle/guardC.js";                 // EL MURO también acá (supervisor 2026-09-03)
+import { cifrasDelDato } from "../oracle/datoProyectado.js";  // el mismo contexto de dato que usa el bucle
+import { axisEntityNames } from "../oracle/entityIndex.js";
 
 const _r1 = (n) => Math.round(n * 10) / 10;
+
+/* ── EL MURO JUZGA LO QUE SALE (supervisor 2026-09-03) ────────────────────────────────────────────────────────
+ * «La regla de la casa no es 'confiamos en la fuente', es que el muro juzga lo que sale» — el `componer` de los
+ * playbooks es determinístico y de cifras selladas, y aun así se juzga. El vigía lleva cifras a la pantalla del
+ * usuario sin que nadie pregunte: con más razón. Se juzga contra la MISMA boleta que produjo sus cifras (la del
+ * diagnose) más el dato proyectado — el mismo contexto que arma el bucle del agente.
+ * QUÉ PASA SI VETA: el texto NO sale (la franja no se pinta, el chat calla) y el motivo queda en `vetos` para
+ * que se vea. Un texto vetado no se afloja ni se maquilla: se calla y se reporta. */
+const _ejes = (lista) => {
+  const o = [];
+  for (const e of lista) { try { for (const n of axisEntityNames(e)) o.push(n); } catch { /* sin índice: ese eje no participa */ } }
+  return o.length ? o : null;
+};
+function _muro(texto, { boleta, scenario }) {
+  if (!texto) return null;
+  try {
+    const v = guardC(texto, {
+      ledger: { figs: boleta || [] }, results: [], trace: null, question: "",
+      datoProyectado: cifrasDelDato(scenario),
+      entidadesDelTenant: _ejes(["cliente", "sku", "marca"]),
+      duenosDelTenant: _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]),
+      contentScope: "full", tablePolicy: "auto",
+    });
+    if (v && v.ok) return null;
+    const m = v && (v.multa || (Array.isArray(v.violations) && v.violations[0] && (v.violations[0].detail || v.violations[0].kind)));
+    return String(m || "vetado por el muro").split("\n")[0].slice(0, 180);
+  } catch (e) {
+    return `el muro no pudo juzgar: ${String(e && e.message).slice(0, 90)}`;   // sin juicio no se publica
+  }
+}
 
 /* los nombres ejecutivos de las familias del diagnóstico — los MISMOS conceptos de la síntesis certificada.
  * El de margen DECLARA SU UNIVERSO en la frase («la cartera con brecha material»): la cifra del detector en
@@ -57,6 +90,7 @@ export function buildVigia(scenario) {
   /* 2 · LOS FINDINGS DEL DIAGNÓSTICO, materiales por el piso — el detector ya localiza quién encabeza. */
   const diag = (() => { try { return composeSpecDiagnose({ filters: {}, scenario: s }); } catch { return null; } })();
   const F = (diag && diag.evidence && diag.evidence.findings) || [];
+  const boleta = (diag && diag.evidence && diag.evidence.boleta) || [];   // las MISMAS figs con las que el muro lo juzga
   for (const f of F) {
     const fam = _FAMILIA[f.detector];
     if (!fam) continue;
@@ -74,21 +108,41 @@ export function buildVigia(scenario) {
    * piso · foco resuelto; un monto que crece sin cruzar el piso NO re-dispara el chat). */
   const huella = top3.map((f) => f.familia).join("|") || "sin-focos";
 
+  /* ⚠️ DOS LECCIONES QUE EL MURO ME ENSEÑÓ SOBRE ESTE TEXTO (2026-09-03, al cablearlo — las dos multas eran
+   * CORRECTAS y se corrigieron acá, no aflojando al juez):
+   *   · «2 focos materiales» era un CONTEO NO AUTORIZADO: ese 2 no está en ninguna boleta. Va en PALABRAS, el
+   *     mismo precedente que la regla del owner sobre el vencido sin plazo. Con techo de 3, alcanza y sobra.
+   *   · los focos separados por « · » quedaban en UNA oración y el binding del muro atribuía el «$1.6M» de
+   *     contribución a la palabra «carga» del foco siguiente — la lección ya escrita de la casa: UNA CIFRA POR
+   *     ORACIÓN, cada una con su dueño. Ahora cada foco es su propia oración. */
+  const _CUENTA = ["", "un", "dos", "tres"];
+  const _oraciones = (fs2) => fs2.map((f) => `${f.linea.charAt(0).toUpperCase()}${f.linea.slice(1)}.`).join(" ");
+
   /* (a) LA FRANJA — siempre hay texto; el silencio se declara con su umbral. */
-  const linea = hayMateriales
-    ? `ADI vigila — ${top3.length === 1 ? "1 foco material" : `${top3.length} focos materiales`} hoy: ${top3.map((f) => f.linea).join(" · ")}.`
+  const lineaBruta = hayMateriales
+    ? `ADI vigila — ${_CUENTA[top3.length] || top3.length} ${top3.length === 1 ? "foco material" : "focos materiales"} hoy. ${_oraciones(top3)}`
     : `ADI vigila — sin focos materiales hoy${umbral ? ` (${umbral})` : ""}.`;
 
   /* (c) EL TURNO PROACTIVO DEL CHAT — solo el contenido; hablarEnChat decide SI se dice. */
-  const lineaChat = hayMateriales
-    ? `Antes de tu pregunta: hoy veo ${top3.length === 1 ? "un foco material" : `${top3.length} focos materiales`}. ${top3.map((f) => f.linea).join("; ")}. ¿Abro alguno? También podemos seguir con lo tuyo.`
+  const chatBruto = hayMateriales
+    ? `Antes de tu pregunta: hoy veo ${_CUENTA[top3.length] || top3.length} ${top3.length === 1 ? "foco material" : "focos materiales"}. ${_oraciones(top3)} ¿Abro alguno? También podemos seguir con lo tuyo.`
     : null;
+
+  /* EL MURO, en las DOS superficies: lo vetado no sale — ni a la franja ni al chat. Los motivos quedan a la
+   * vista en `vetos` (nadie los maquilla: si el muro veta algo legítimo, se trae, no se afloja). */
+  const vetos = [];
+  const vFranja = _muro(lineaBruta, { boleta, scenario: s });
+  if (vFranja) vetos.push(`franja · ${vFranja}`);
+  const vChat = _muro(chatBruto, { boleta, scenario: s });
+  if (vChat) vetos.push(`chat · ${vChat}`);
+  const linea = vFranja ? null : lineaBruta;
+  const lineaChat = vChat ? null : chatBruto;
 
   /* el botón «Abrir con ADI» lleva a la pregunta CERTIFICADA de la síntesis (28/28, gate-proven): el vigía
    * no estrena promesas — reusa la que ya tiene candado. */
   const ask = "dame los 3 riesgos para el directorio";
 
-  return { focos: top3, umbral, linea, lineaChat, ask, huella, hayMateriales };
+  return { focos: top3, umbral, linea, lineaChat, ask, huella, hayMateriales, vetos, boleta };
 }
 
 /** hablarEnChat(huellaVista, vigia) → string | null — la política (c): SOLO-cuando-cambia, silencio absoluto

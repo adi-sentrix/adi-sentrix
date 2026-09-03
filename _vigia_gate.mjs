@@ -85,6 +85,27 @@ H("4 · el chat habla la primera vez, calla si nada cambió, y anuncia el foco r
     "…y sin focos sostenido (ya visto «sin-focos»): silencio otra vez");
 }
 
+/* ═══ 4b · EL MURO JUZGA LAS DOS SUPERFICIES (supervisor 2026-09-03) ════════════════════════════════════════
+ * «La regla de la casa no es 'confiamos en la fuente', es que el muro juzga lo que sale.» El vigía se juzga
+ * contra la MISMA boleta que produjo sus cifras; lo vetado NO sale (linea/lineaChat en null) y el motivo queda
+ * a la vista. Las dos multas que el muro le puso al primer borrador —el conteo «2 focos» no autorizado y el
+ * «$1.6M» de contribución atribuido a «carga» por ir en la misma oración— eran CORRECTAS y se corrigieron en
+ * la prosa del vigía, no aflojando al juez. */
+H("4b · el muro está puesto en la franja y en el chat, y su veto CALLA en vez de maquillar");
+{
+  ok(Array.isArray(v.vetos) && v.vetos.length === 0,
+    "★ el texto vivo del vigía pasa el muro limpio — cero vetos en las dos superficies", JSON.stringify(v.vetos));
+  ok(typeof v.linea === "string" && typeof v.lineaChat === "string",
+    "…y por eso las dos superficies TIENEN texto (un veto las habría dejado en null)");
+  ok(Array.isArray(v.boleta) && v.boleta.length > 0 && v.boleta.some((f) => /Contribuci[oó]n no capturada · subtotal/i.test(String(f.label))),
+    "★ se juzga contra la boleta REAL del diagnóstico — las mismas figs que produjeron sus cifras, no un contexto vacío");
+  /* las dos lecciones, congeladas como conducta: el conteo va en palabras y cada foco es su propia oración */
+  ok(/\b(?:un|dos|tres) focos? materiales?\b/i.test(v.linea) && !/\b[123] focos?\b/.test(v.linea),
+    "★ el conteo de focos va en PALABRAS (el conteo-no-autorizado que el muro cazó) — el precedente del vencido sin plazo");
+  ok(v.focos.length < 2 || /\.\s+\$/.test(v.linea),
+    "★ cada foco es su propia ORACIÓN — apilarlos con «·» hacía que el muro atribuyera el monto de uno a la métrica del otro");
+}
+
 /* ═══ 5 · CARNADAS · las dos exigidas por el encargo ════════════════════════════════════════════════════════ */
 H("5 · carnadas: el vigía que grita bajo el piso → ROJO · el que repite sin cambio → ROJO");
 {
@@ -121,6 +142,40 @@ H("5 · carnadas: el vigía que grita bajo el piso → ROJO · el que repite sin
       ok(typeof Mut.hablarEnChat(v.huella, v) === "string",
         "★ carnada «repite sin cambio» → habla con la huella YA VISTA — el check de la sección 4 se pondría ROJO");
     } catch (e) { ok(false, "carnada «repite sin cambio»: la copia no carga", e.message); }
+  }
+  /* (c) EL MURO, PROBADO POR CONDUCTA — no por presencia de una línea de código (eso sería un verde de
+   * adorno: pasaría igual con el juez roto). Se plantan DOS copias: las dos inventan una cifra que la boleta
+   * NO sostiene; una conserva el muro y la otra lo desconecta. La DIFERENCIA entre ambas es la prueba. */
+  const INVENTA = [/const lineaBruta = hayMateriales/, "const lineaBruta = hayMateriales && false"];
+  const u3 = mutar("cifra inventada CON muro",
+    /\? `ADI vigila — \$\{_CUENTA\[top3\.length\] \|\| top3\.length\} \$\{top3\.length === 1 \? "foco material" : "focos materiales"\} hoy\. \$\{_oraciones\(top3\)\}`/,
+    "? `ADI vigila — un foco material hoy. $88.8M de contribución no capturada en la cartera con brecha material.`");
+  void INVENTA;
+  let conMuroCalla = null;
+  if (u3) {
+    try { conMuroCalla = (await import(u3)).buildVigia("bonanza"); }
+    catch (e) { ok(false, "carnada «cifra inventada CON muro»: la copia no carga", e.message); }
+  }
+  const u4 = (() => {
+    const m = txt
+      .replace(/\? `ADI vigila — \$\{_CUENTA\[top3\.length\] \|\| top3\.length\} \$\{top3\.length === 1 \? "foco material" : "focos materiales"\} hoy\. \$\{_oraciones\(top3\)\}`/,
+        "? `ADI vigila — un foco material hoy. $88.8M de contribución no capturada en la cartera con brecha material.`")
+      .replace(/const vFranja = _muro\(lineaBruta, \{ boleta, scenario: s \}\);/, "const vFranja = null;   // CARNADA: sin muro");
+    if (m === txt) { ok(false, "carnada «cifra inventada SIN muro»: no encontró qué mutar"); return null; }
+    const destino = abs.replace(/\.js$/, `.carnada${process.pid}_sinmuro.js`);
+    fs.writeFileSync(destino, m);
+    tmp.push(destino);
+    return pathToFileURL(destino).href;
+  })();
+  if (u3 && u4) {
+    try {
+      const sinMuro = (await import(u4)).buildVigia("bonanza");
+      ok(conMuroCalla && conMuroCalla.linea === null && (conMuroCalla.vetos || []).some((x) => /^franja/.test(x)),
+        "★ CON el muro: la franja que inventa $88.8M NO sale (linea = null) y el veto queda registrado",
+        JSON.stringify(conMuroCalla && conMuroCalla.vetos));
+      ok(typeof sinMuro.linea === "string" && /88\.8M/.test(sinMuro.linea),
+        "★ carnada «el muro desconectado» → la MISMA cifra inventada SÍ sale a pantalla: el juez es lo único que lo impedía");
+    } catch (e) { ok(false, "carnada «cifra inventada SIN muro»: la copia no carga", e.message); }
   }
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* */ } }
 }
