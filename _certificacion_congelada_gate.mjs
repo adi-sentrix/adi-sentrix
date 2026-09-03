@@ -220,6 +220,25 @@ H("1c · PROCESO casos 3 y 4: las dos señales del owner — seguimiento y resum
     "…y «cómo va el negocio» NO cae en la síntesis: son dos preguntas distintas y el registro no duda");
 }
 
+/* ═══ 1d · LA SIEMBRA DEL ASK DE CUADRO (owner 2026-09-05, adenda «sembrar, no construir») ══════════════════
+ * El contexto de la pieza tocada YA lo armaba la UI y se lo pasaba solo al camino natural: el agente no lo
+ * recibía. Ahora entra, viaja y queda en el expediente del turno. Esto es TODO lo que se promete hoy — el
+ * anclaje campo-por-campo es el pulido que el owner difirió. El contrato está en .
+ * Se congela acá para que la siembra tenga carnada viva y el pulido futuro tenga de dónde agarrarse. */
+H("1d · la siembra: el ask de cuadro llega con su contexto y queda registrado");
+{
+  initTenant(TENANT_DEMO);
+  const vc = { vista: "capital", seccion: "cuadro-bodegas", eje: "bodega", entidad: "Santiago" };
+  const r = await answerViaAgente({ text: "¿Cuánto capital tengo en Santiago?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, viewContext: vc, callAgente: MUDO });
+  const reg = r.r.agente.viewContext;
+  ok(!!reg && reg.vista === "capital" && reg.seccion === "cuadro-bodegas" && reg.eje === "bodega" && reg.entidad === "Santiago",
+    "★ el contexto del cuadro llega al agente y queda en su expediente — el receptor ya escucha lo que el emisor sembraba", JSON.stringify(reg));
+  const sin = await answerViaAgente({ text: "¿Cuánto capital tengo en Santiago?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
+  ok(sin.r.agente.viewContext === undefined,
+    "…y sin contexto no se inventa uno: la llave no aparece (un contexto adivinado sería peor que ninguno)");
+  ok(!/\$\s?[\d.,]|\d+\s?%/.test(JSON.stringify(reg)),
+    "★ el contexto DESCRIBE la superficie y no trae cifras: el cuadro dice QUÉ mirar, el módulo dice CUÁNTO");
+}
 /* ═══ 2 · COMPLETA · los 12 turnos del techo del producto (condicional al archivo del owner) ═════════════════ */
 H("2 · COMPLETA · el techo del producto, congelado");
 if (fs.existsSync(COMPLETA)) {

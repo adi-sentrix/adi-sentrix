@@ -565,8 +565,22 @@ H("14b · P2: reformular lo ya dicho NO dispara el empujón (43× medido)");
   ok(n2 === 2, `…y una pregunta de DATO sigue recibiendo el empujón de R6 (${n2} llamadas) — la mejora no se perdió`);
   let n3 = 0;
   const g3 = async (a) => { n3++; return _declina(a); };
-  await answerViaAgente({ text: "hazme un resumen ejecutivo para el directorio", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g3 });
-  ok(n3 === 2, `…y «resumen ejecutivo» NO es re-narración: es lectura nueva, y se empuja (${n3} llamadas)`);
+  /* ⚠️ RE-APUNTADO (censo T1, 2026-09-05): este check usaba «hazme un resumen ejecutivo para el directorio»
+   * para probar que una LECTURA NUEVA recibe el empujón de R6. Esa pregunta ahora tiene camino garantizado
+   * (`sintesis-ejecutiva` la toma desde la tanda de léxico corto), y con playbook el empujón sobra: la
+   * evidencia llega ANTES por los pasos. Es una mejora, no una regresión — así que el empujón se mide con una
+   * lectura nueva que sigue sin playbook, y de paso se deja escrito que aquella ya no lo necesita. */
+  await answerViaAgente({ text: "dame la foto de la venta contra el presupuesto", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g3 });
+  ok(n3 === 2, `…y una lectura nueva SIN playbook sigue recibiendo el empujón de R6 (${n3} llamadas)`);
+  {
+    let n4 = 0;
+    const g4 = async (a) => { n4++; return _declina(a); };
+    const r4 = await answerViaAgente({ text: "hazme un resumen ejecutivo para el directorio", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g4 });
+    /* lo que se mide es que NO necesita el empujón y NO cae al rescate: si el cerebro compone algo que pasa el
+     * muro, el turno es «verde» y el playbook queda de piso — las dos salidas son buenas y ninguna gasta de más */
+    ok(["playbook", "verde", "reparado"].includes(r4.r.agente.estado) && n4 <= 2 && !/No pude completar la lectura/.test(String(r4.r.text || "")),
+      `…y «resumen ejecutivo para el directorio» ya no necesita empujón: tiene camino garantizado (${r4.r.agente.estado}, ${n4} llamada(s))`);
+  }
 }
 
 H("14c · P3: el hilo que viaja al cierre se poda — las cifras citables van TODAS");

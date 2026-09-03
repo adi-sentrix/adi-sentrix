@@ -305,7 +305,20 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta }) {
  * answerViaAgente({ text, history, mem, scenario, callAgente }) → { r, mem } | throws
  * El caller (ChatADI) atrapa el throw y cae al camino natural — la misma red de resiliencia de siempre.
  */
-export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO_INICIAL, callAgente } = {}) {
+/* ── LA SIEMBRA DEL CONTEXTO DE CUADRO (owner 2026-09-05, adenda: «sembrar, no construir») ──────────────────
+ * Palabra del owner: «el botón que está en Sentrix en cuadros o tablas, ADI debe explicar exactamente lo que
+ * ve ahí la foto… puedes sembrar el camino». EL HALLAZGO al cablearlo: la UI YA arma ese contexto (el
+ * `registerAsk((q, vc) => …)` de ChatADI guarda la pieza que el usuario tocó) y se lo pasa al camino natural
+ * — pero al AGENTE no se lo pasaba nadie. O sea: el emisor ya sembró y el receptor no escuchaba.
+ *
+ * QUÉ HACE ESTA VERSIÓN MÍNIMA, y qué NO: el contexto entra, viaja y queda REGISTRADO en el expediente del
+ * turno (`agente.viewContext`) para que exista de dónde agarrarse. NO cambia todavía ninguna respuesta: el
+ * pulido —que el texto se ancle campo por campo a lo que ese cuadro pinta— es lo que el owner difirió a
+ * propósito. El contrato de ese pulido está escrito en `_CONTRATO_ASK_DE_CUADRO.md`.
+ *
+ * LA REGLA QUE YA RIGE, para que la siembra no nazca torcida: el contexto DESCRIBE la superficie (vista, eje,
+ * campo), jamás trae cifras. Lo que no entra por el módulo no se cuela al texto — una sola verdad. */
+export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO_INICIAL, callAgente, viewContext = null } = {}) {
   if (typeof callAgente !== "function") throw new TypeError("answerViaAgente sin callAgente: el cerebro lo pone el caller");
   const q = String(text || "").trim();
   const memIn = (mem && typeof mem === "object") ? mem : {};
@@ -741,7 +754,13 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       sentrixAction: null,
       agente: { estado, rondas, calls, figs: figsTotales.length, motivos: motivosNoSoportado.slice(0, 3),
         vetos: vetosDelTurno,   // R7 · el expediente auditable: cada veto con su sitio y su multa (observación, no decisión)
-        recitaCifras: recita && Array.isArray(recita.figs) ? recita.figs.length : 0 },
+        recitaCifras: recita && Array.isArray(recita.figs) ? recita.figs.length : 0,
+        /* la SIEMBRA: el cuadro desde el que se preguntó queda en el expediente — hoy solo se registra, y esa
+         * es toda la promesa (ver la nota de `viewContext` arriba y `_CONTRATO_ASK_DE_CUADRO.md`). */
+        ...(viewContext ? { viewContext: { vista: viewContext.vista || viewContext.view || null,
+          seccion: viewContext.seccion || viewContext.section || null,
+          eje: viewContext.eje || viewContext.dimension || null,
+          entidad: viewContext.entidad || viewContext.entity || null } } : {}) },
     }),
     mem: memOut,
   };

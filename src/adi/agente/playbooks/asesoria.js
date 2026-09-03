@@ -152,8 +152,15 @@ export const clientePerdiendoContribucion = {
  * La lista simple («qué SKU tienen capital frenado») es de lectura-por-eje y AHÍ SE QUEDA: este playbook exige
  * una señal de ASESORÍA (qué hago / liberar / recuperar / plata dormida) que esas preguntas no traen. */
 const _B_TEMA = /\binventario\b|\bstock\b|\bcapital\b|\bmercader[ií]a\b/i;
-const _B_ESTADO = /\binmoviliz|\bfrenad|\bdormid|\bparad[oa]s?\b|\bestancad|\bsin mover(?:se)?\b|\bno rota\b|\bsin rotaci[oó]n\b|\batrapad/i;
-const _B_ASESORIA = new RegExp(`\\bqu[eé] hago${_FIN}|\\bhacer con${_FIN}|\\bliber[aoáé]|\\brecuper[aoáé]|\\bconviene${_FIN}|\\bdesarm|\\bcu[aá]nta plata${_FIN}|\\bplata (?:dormida|parada|atrapada|metida)${_FIN}`, "i");
+/* «sobra» y «no rota» son la misma pregunta con otras palabras — las dos las ofrece la cara Capital (censo T2) */
+const _B_ESTADO = /\binmoviliz|\bfrenad|\bdormid|\bparad[oa]s?\b|\bestancad|\bsin mover(?:se)?\b|\bno rota\b|\bsin rotaci[oó]n\b|\batrapad|\bsobra\b|\bsobrante\b/i;
+/* ⚠️ EL LÉXICO DE LOS ASKS (censo T2, 2026-09-05): la cara Capital OFRECE botones —«¿Dónde está frenado mi
+ * capital?» · «¿Dónde está inmovilizado mi capital?» · «¿Dónde sobra inventario?»— y ninguno tenía camino
+ * porque este detector pedía una señal de ASESORÍA («qué hago», «liberar») que un botón no trae. Un ask es un
+ * click sobre una promesa: no puede caer al rescate. Se suma la forma LOCATIVA («dónde está…»), que es
+ * exactamente lo que esos botones preguntan. */
+const _B_UBICACION = new RegExp(`\\bd[oó]nde\\b[^.\\n]{0,24}\\b(?:est[aá]|tengo|hay|se acumula|sobra|queda)${_FIN}|\\bd[oó]nde (?:sobra|se acumula)${_FIN}`, "i");
+const _B_ASESORIA = new RegExp(`\\bqu[eé] hago${_FIN}|\\bhacer con${_FIN}|\\bliber[aoáé]|\\brecuper[aoáé]|\\bconviene${_FIN}|\\bdesarm|\\bcu[aá]nta plata${_FIN}|\\bplata (?:dormida|parada|atrapada|metida)${_FIN}|${_B_UBICACION.source}`, "i");
 export const inventarioInmovilizado = {
   nombre: "inventario-inmovilizado",
   cuandoAplica(pregunta) {

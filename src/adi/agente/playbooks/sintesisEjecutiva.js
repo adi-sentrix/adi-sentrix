@@ -58,6 +58,15 @@ const _umbral = () => { try { return declaracionUmbralFocos(); } catch { return 
 const _CUENTA = ["", "un", "dos", "tres"];   // el conteo en palabras: un número suelto es un conteo sin boleta (el muro lo caza)
 const _TEMA = /\briesgo[s]?\b|\bs[ií]ntesis ejecutiva\b/i;
 const _EJECUTIVO = /\bdirectorio\b|\bboard\b|\bgerencia\b|\bgerente\b|\bgg\b|\bejecutiv[oa]s?\b|\bs[ií]ntesis ejecutiva\b/i;
+/* las dos puertas del léxico corto (T1) — angostas a propósito: cada una pide una señal que un comentario al
+ * pasar no tiene. «hay riesgo de quiebre en ese SKU» no es «los 3 riesgos»; «te mando el archivo al gerente»
+ * no es «un resumen para el directorio». */
+const _RIESGOS_COMO_CONJUNTO = /\b(?:los|mis|3|tres|principales)\s+(?:\d+\s+)?riesgos?\b|\briesgos?\s+(?:principales|del negocio|de la empresa)\b/i;
+const _ENTREGA_A_COMITE = new RegExp([
+  `\\b(?:resumen|s[ií]ntesis|informe|reporte)\\b[^.\\n]{0,30}\\b(?:para|al|del)\\s+(?:el\\s+)?(?:directorio|board|junta|comit[eé]|gerencia|gerente general)\\b`,
+  /* «qué le digo al directorio» — la forma más natural de todas y la que el censo encontró sin camino */
+  `\\bqu[eé]\\s+(?:le\\s+)?(?:digo|cuento|presento|muestro|llevo|reporto)\\b[^.\\n]{0,20}\\b(?:al|a la|para el|para la)\\s+(?:directorio|board|junta|comit[eé]|gerencia|gerente)\\b`,
+].join("|"), "i");
 
 /* el locator de cada riesgo: el mayor «Entidad · <concepto>» de su familia, para el DÓNDE y el PRIMERO */
 const _topDe = (figs, re) => _all(figs, re)
@@ -69,10 +78,21 @@ const _topDe = (figs, re) => _all(figs, re)
 export const sintesisEjecutiva = {
   nombre: "sintesis-ejecutiva",
 
+  /* ⚠️ EL LÉXICO CORTO (censo de rutas 2026-09-05, tanda T1): el detector exigía TEMA **y** AUDIENCIA juntos, y
+   * la gente escribe una de las dos. «los 3 riesgos» quedaba sin camino (tema sin audiencia) y «resumen para el
+   * directorio» también (audiencia sin tema). Se abren las dos puertas, cada una con su guarda:
+   *   · TEMA SOLO vale cuando los riesgos vienen ENUMERADOS o pedidos como conjunto («los 3 riesgos», «los
+   *     riesgos principales») — «hay riesgo de quiebre en ese SKU» no es una síntesis y sigue afuera;
+   *   · AUDIENCIA SOLA vale con una palabra de entrega («resumen/síntesis/informe para el directorio») — el
+   *     deslinde con la foto se mantiene: «resumen ejecutivo de negocio» NO nombra audiencia de comité y es de
+   *     `resumenDelNegocio`, que además corre después en el registro. */
   cuandoAplica(pregunta) {
     const q = String(pregunta || "");
     if (!q.trim() || _SIMULA.test(q)) return false;
-    return _TEMA.test(q) && _EJECUTIVO.test(q);
+    if (_TEMA.test(q) && _EJECUTIVO.test(q)) return true;
+    if (_RIESGOS_COMO_CONJUNTO.test(q)) return true;
+    if (_ENTREGA_A_COMITE.test(q)) return true;
+    return false;
   },
 
   pasos: [

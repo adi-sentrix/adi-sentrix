@@ -82,3 +82,33 @@ afortunada.
 
 *Nada de esto se tocó todavía: el encargo era el informe. La poda del camino viejo espera a que se cierren
 los huecos que se declaren graves.*
+
+---
+
+## 6 · VUELTA 1 · lo cerrado (2026-09-05)
+
+**Mapa antes → después: 84 sin piso → 74 · 49 con playbook → 59.** Suite 232·0 en cada paso.
+
+### T1 · léxico corto (7 fraseos, cero composers nuevos)
+ ·  ·  → síntesis ejecutiva, por dos
+puertas nuevas y angostas (riesgos como conjunto · entrega a comité).  ·
+ ·  ·  ·  →
+margen (cartera por estado · tema en pregunta corta · las tres personas del verbo).
+ **sin período** → entidad×período, con detector propio del playbook: es del camino natural (§7) y no se toca. Verificado en la planilla: responde la película mes a mes en vez de
+inventar un mes que nadie pidió.
+
+### T2 · los asks de Capital, en sus dos clases (adenda del owner)
+· **Libres** —  ·  ·  → piso determinístico. El detector pedía señal de asesoría («qué hago», «liberar») que un botón
+no trae; se sumó la forma locativa, que es lo que el botón pregunta.
+· **De cuadro** — SEMBRADOS, no construidos, como ordenó el owner. Ver .
+
+### El hallazgo de la siembra
+**El emisor ya sembraba y el receptor no escuchaba**: la UI arma el contexto de la pieza tocada desde el
+Contrato de Concordancia (agosto) y se lo pasaba solo al camino natural —  no lo recibía.
+Cableado: entra, viaja y queda en el expediente (), con su caso congelado. Los de Sentrix no se tocaron: son contrato congelado, el receptor aprende y el emisor no cambia.
+
+### Lo que sigue sin piso y por qué (para la vuelta 2)
+·  ·  — tema sin estado ni ubicación: entran en T3 con la lectura
+neutra, no forzadas acá.
+· Los ~35 asks de cuadro de Capital ( ·  · ): **esperan el pulido del anclaje**, que el owner difirió. Hoy su contexto ya llega.
+· T3 (lectura neutra de ventas · serie mes a mes) y T4 (ficha de entidad) siguen abiertos, como estaba previsto.

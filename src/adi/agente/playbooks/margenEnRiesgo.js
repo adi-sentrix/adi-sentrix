@@ -94,11 +94,18 @@ const _PIDE_PORQUE = new RegExp(`\\bpor\\s?qu[eé]${_FIN}|\\bporqu[eé]${_FIN}|\
 const _PIDE_SEGUIMIENTO = new RegExp([
   `\\bcambia (?:tu|la) lectura${_FIN}`, `\\bcambi[oó] (?:tu|la) lectura${_FIN}`,
   `\\bsigue igual${_FIN}`, `\\bsigue siendo (?:as[ií]|igual)${_FIN}`, `\\bse mantiene${_FIN}`,
-  `\\bmantien[eé]s lo que dijiste${_FIN}`, `\\bsostien[eé]s lo que dijiste${_FIN}`,
+  /* las tres personas del verbo, porque el usuario tutea, vosea o pregunta en tercera: «mantienes» ·
+   * «mantenés» · «mantiene». El censo encontró «mantenés lo que dijiste» sin camino por esto mismo. */
+  `\\bmant(?:ien[eé]s|en[eé]s|iene)\\s+lo que dijiste${_FIN}`, `\\bsost(?:ien[eé]s|en[eé]s|iene)\\s+lo que dijiste${_FIN}`,
   `\\bvolviendo a(?:l| la)\\b`, `\\bretomando\\b`,
   `\\bcambi[oó] algo${_FIN}`, `\\bsigue en pie${_FIN}`,
 ].join("|"), "i");
 const _TEMA_MARGEN = /\bm[aá]rgen(?:es)?\b|\bbenchmark\b|\bvara\b|\brentabilidad\b/i;
+/* la cartera nombrada por su ESTADO: «qué clientes están mal» · «mis peores clientes» · «los que rinden poco».
+ * Exige el eje cliente + un juicio de estado; sin eso no se activa (un «mal» suelto no es una lectura). */
+const _CARTERA_POR_ESTADO = new RegExp(`\\bclientes?\\b[^.\\n]{0,24}\\b(?:mal|flojos?|peores?|rinden poco|no rinden|d[eé]biles)${_FIN}|\\b(?:peores?|mis peores)\\s+clientes?\\b`, "i");
+/* …y se cede si la pregunta nombra OTRA métrica: ahí la lectura no es de margen y tiene su propio camino */
+const _OTRA_METRICA = /\bventas?\b|\brotaci[oó]n\b|\bstock\b|\bcobr|\bdeb[eo]n?\b|\bvencid|\bunidades\b|\bcaja\b/i;
 const _PIDE_LECTURA = new RegExp(`\\bc[oó]mo${_FIN}|\\bqu[eé]${_FIN}|\\bqui[eé]n(?:es)?${_FIN}|\\bcu[aá]l(?:es)?${_FIN}|\\bcu[aá]nto${_FIN}|\\bd[oó]nde${_FIN}|\\bprioriza|\\bprioridad\\b|\\bprimero\\b|\\brevis|\\bmejor(?:ar|a)\\b|\\bbajo\\b|\\bdebajo\\b|\\briesgo\\b|\\bdame\\b|\\bmu[eé]stra|\\blista\\b|\\branking\\b`, "i");
 /* ⚠️ LO QUE QUEDA AFUERA, Y POR QUÉ (calibrado contra el corpus de exámenes, cero gasto — cazó tres casos):
  *   · simulación/proyección — esa ruta es de simulateGeneral y la letra de RUTEO ya la manda ahí;
@@ -309,7 +316,18 @@ export const margenEnRiesgo = {
     if (_FUERA.test(q) || _OTRO_EJE.test(q) || _OTRO_PERIODO.test(q)) return false;
     /* el SEGUIMIENTO entra sin nombrar el tema: refiere a la lectura previa, y esa lectura es la de acá */
     if (_PIDE_SEGUIMIENTO.test(q)) return true;
-    return _TEMA_MARGEN.test(q) && _PIDE_LECTURA.test(q);
+    if (_TEMA_MARGEN.test(q) && _PIDE_LECTURA.test(q)) return true;
+    /* ── EL LÉXICO CORTO (censo T1, 2026-09-05) ────────────────────────────────────────────────────────────
+     * El detector pedía una frase más larga que la que la gente escribe. Dos formas medidas en el censo:
+     *   · ELÍPTICA — «y el margen?» · «necesito ver márgenes»: el tema está y el verbo de lectura no. Vale
+     *     solo si la pregunta es CORTA y no nombra otra cosa: en una frase larga, el margen mencionado al
+     *     pasar no es el pedido (ahí el detector viejo acierta y este no se mete).
+     *   · LA CARTERA POR SU ESTADO — «qué clientes están mal» · «mis peores clientes por margen»: el tema es
+     *     el margen aunque la palabra no aparezca sola. Se exige el eje CLIENTE y un juicio de estado, y se
+     *     cede ante otra métrica nombrada (venta, rotación) para no robarle el turno a quien le toca. */
+    if (_TEMA_MARGEN.test(q) && q.trim().split(/\s+/).length <= 5) return true;
+    if (_CARTERA_POR_ESTADO.test(q) && !_OTRA_METRICA.test(q)) return true;
+    return false;
   },
 
   /* LOS PASOS SON FUNCIÓN DE LA PREGUNTA (owner 2026-09-04): el turno que pregunta CÓMO viene el margen paga

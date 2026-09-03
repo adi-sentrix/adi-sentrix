@@ -26,6 +26,7 @@
 
 import { detectSerieIntent } from "../../oracle/serieIntent.js";
 import { serieRealDe } from "../../sentrix/capability.js";
+import { axisEntityNames } from "../../oracle/entityIndex.js";   // SOLO nombre exacto (ley del único buscador): la entidad sin período
 
 const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const _lab = (f) => String((f && f.label) || "");
@@ -33,9 +34,35 @@ const _val = (f) => String((f && (f.text || f.value)) || "");
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 
 /** el detector del puente, y la condición que este playbook agrega: la serie es REAL. Sin eso, no aplica. */
+/* ⚠️ LA ENTIDAD SIN PERÍODO (censo de rutas T1, 2026-09-05): «cuánto me compró Falabella» —sin decir cuándo—
+ * no tenía camino: `detectSerieIntent` exige el corte temporal. Ese detector es del CAMINO NATURAL, que corre
+ * en producción como rollback y no se mejora (§7), así que NO se toca: el playbook resuelve su propio caso.
+ * Cuando la pregunta nombra una entidad EXACTA del tenant y pide su compra/venta sin decir el período, el
+ * corte honesto es la PELÍCULA (mes a mes, que es lo que el dato tiene) — no se inventa un mes que nadie pidió.
+ * La ley del único buscador se respeta: solo el nombre EXACTO resuelve; un parecido no entra por acá. */
+/* ⚠️ SIN `\b` DESPUÉS DE VOCAL ACENTUADA (el `\b` imposible del §5g — me mordió acá al estrenarlo): «compró»
+ * termina en «ó» y `\b` no cierra ahí, así que el patrón con `\b` no veía la forma que la gente escribe. */
+const _FIN_PALABRA = "(?![a-záéíóúüñ])";
+const _PIDE_COMPRA = new RegExp(`\\bcu[aá]nto\\b[^.\\n]{0,20}(?:me\\s+)?(?:compr[oó]|compra|vendi[oó]|factur[oó])${_FIN_PALABRA}|\\bcu[aá]nto (?:lleva|le vend)`, "i");
+function _sinPeriodo(pregunta) {
+  const q = String(pregunta || "");
+  if (!_PIDE_COMPRA.test(q)) return null;
+  for (const eje of ["cliente", "sku", "marca", "familia"]) {
+    let nombres = [];
+    try { nombres = axisEntityNames(eje) || []; } catch { nombres = []; }
+    for (const n of nombres) {
+      if (String(n).length < 3) continue;
+      if (new RegExp(`\\b${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(q)) {
+        return { entidad: n, metrica: "venta", corte: { tipo: "pelicula" }, ambiguo: false };
+      }
+    }
+  }
+  return null;
+}
 function _caso(pregunta) {
   let det = null;
   try { det = detectSerieIntent(String(pregunta || "")); } catch { return null; }
+  if (!det || det.ambiguo || !det.entidad || !det.metrica) det = _sinPeriodo(pregunta);
   if (!det || det.ambiguo || !det.entidad || !det.metrica) return null;
   let estado = null;
   try { estado = serieRealDe(det.entidad); } catch { return null; }

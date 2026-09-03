@@ -831,7 +831,9 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   //     (la pregunta de prueba pasa los excluyentes de eje/período a propósito: lo que se caza es el detector
   //      de TEMA abierto de par en par, no el filtro de afuera — «llámame jc» no habla de margen ni pide lectura)
   await carnada("detector ancho (secuestra turnos ajenos)", "src/adi/agente/playbooks/margenEnRiesgo.js",
-    [[/    return _TEMA_MARGEN\.test\(q\) && _PIDE_LECTURA\.test\(q\);/, "    return true;"]],
+    /* (re-apuntada 2026-09-05: el detector creció con el léxico corto del censo — la carnada muta la línea que
+     *  hoy decide el caso general; lo que mide es lo mismo, que un TEMA abierto de par en par secuestre) */
+    [[/    if \(_TEMA_MARGEN\.test\(q\) && _PIDE_LECTURA\.test\(q\)\) return true;/, "    return true;"]],
     async (Mut) => Mut.margenEnRiesgo.cuandoAplica("llamame jc de ahora en adelante"));
 
   /* ── LAS DEL PLAYBOOK DE FORMA (lectura por eje) ──────────────────────────────────────────────────────────
