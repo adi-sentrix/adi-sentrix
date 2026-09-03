@@ -222,7 +222,7 @@ H("8 · la forma del owner: «Si crezco 3%…, ¿cuánto vendería?» — el con
     "★ NO ENTRAN: el pasado («crecí 3% el año pasado») es historia, no supuesto");
   ok((playbookPara("si crezco 3%, ¿mejora mi margen?") || {}).nombre !== "proyeccion-declarada",
     "★ NO ENTRA a proyección la OTRA métrica («¿mejora mi margen?»): no se inventa una proyección de venta");
-  ok((playbookPara("se me está cayendo la venta, ¿dónde?") || {}).nombre === "caida-de-ventas"
+  ok((playbookPara("se me está cayendo la venta, ¿dónde?") || {}).nombre === "lectura-de-ventas"
     && (playbookPara("Sobre esos clientes, simula reducir 2 puntos porcentuales las acciones comerciales y dime si alguno queda sobre el benchmark.") || {}).nombre === "proyeccion-declarada",
     "★ NO-SECUESTRO: caída-de-ventas conserva su turno y la simulación de carga sigue en su sub-forma");
 

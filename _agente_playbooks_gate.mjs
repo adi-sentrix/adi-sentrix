@@ -80,10 +80,16 @@ H("1 · el registro cumple su patrón — agregar el segundo playbook es agregar
   initTenant(TENANT_DEMO);   // de vuelta al demo: los detectores de abajo se miden ahí
   const dentro = ["como viene mi margen?", "que clientes estan bajo el benchmark", "a quien reviso primero por margen",
     "cuanto tendria que mejorar cada cliente para llegar al benchmark", "dame el ranking de margen por cliente"];
-  const fuera = ["cuanto me compro falabella el ultimo mes", "dame el inventario", "que productos dejan mas plata",
+  const fuera = ["cuanto me compro falabella el ultimo mes", "que productos dejan mas plata",
     "ponele que el margen sube 3%: cuanto seria", "simula que llevo la carga al target", "llamame jc"];
+  /* «dame el inventario» dejó de estar sin dueño (T3, 2026-09-05: la lectura de inventario en fraseo natural
+   * ya tiene camino). Lo que este check prueba sigue siendo lo mismo —que MARGEN no se lo lleve— así que se
+   * mide contra su dueño real en vez de exigir el vacío que la mejora acaba de llenar. */
+  const deOtroDueno = ["dame el inventario"];
   ok(dentro.every((q) => playbookPara(q) === margenEnRiesgo), "el detector aplica en TODO su dominio",
     dentro.filter((q) => !playbookPara(q)).join(" | "));
+  ok(deOtroDueno.every((q) => playbookPara(q) !== margenEnRiesgo), "…y una lectura de inventario NO se la lleva margen",
+    deOtroDueno.filter((q) => playbookPara(q) === margenEnRiesgo).join(" | "));
   ok(fuera.every((q) => playbookPara(q) === null), "…y NO secuestra un solo turno ajeno (simulación incluida)",
     fuera.filter((q) => playbookPara(q)).join(" | "));
   ok(/margen-en-riesgo/.test(doctrinaDelPlaybook(margenEnRiesgo)) && /La evidencia ya está en la mano/.test(doctrinaDelPlaybook(margenEnRiesgo)),
@@ -320,7 +326,7 @@ H("1e · cobranza: quién debe con nombre, y el vencido en raya cuando no hay pl
 H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materialidad mandando");
 {
   const nombres = PLAYBOOKS.map((p) => p.nombre);
-  ok(["cliente-perdiendo-contribucion", "inventario-inmovilizado", "caida-de-ventas", "oportunidad-de-precio"].every((n) => nombres.includes(n)),
+  ok(["cliente-perdiendo-contribucion", "inventario-inmovilizado", "lectura-de-ventas", "oportunidad-de-precio"].every((n) => nombres.includes(n)),
     "★ los cuatro están en el registro", nombres.join(", "));
 
   // LA GUARDIA DE NO-SECUESTRO: las preguntas que los gates existentes ejercitan siguen con su dueño de siempre.
@@ -338,7 +344,7 @@ H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materi
   const NUEVAS = [
     ["qué clientes estoy perdiendo", "cliente-perdiendo-contribucion"], ["dónde estoy perdiendo contribución", "cliente-perdiendo-contribucion"],
     ["qué hago con el inventario inmovilizado", "inventario-inmovilizado"], ["cómo libero el capital frenado", "inventario-inmovilizado"],
-    ["por qué cayeron mis ventas", "caida-de-ventas"], ["se me está cayendo la venta, ¿dónde?", "caida-de-ventas"],
+    ["por qué cayeron mis ventas", "lectura-de-ventas"], ["se me está cayendo la venta, ¿dónde?", "lectura-de-ventas"],
     ["dónde tengo oportunidad de precio", "oportunidad-de-precio"], ["qué precios debería revisar", "oportunidad-de-precio"],
   ];
   const perdidas = NUEVAS.filter(([q, esp]) => (playbookPara(q) || {}).nombre !== esp);
@@ -379,7 +385,7 @@ H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materi
   // LA LISTA NOTARIAL DE CADA UNO: la mentira multada, la frase legítima intacta, y el propio entregable limpio.
   const pbA = PLAYBOOKS.find((p) => p.nombre === "cliente-perdiendo-contribucion");
   const pbB = PLAYBOOKS.find((p) => p.nombre === "inventario-inmovilizado");
-  const pbC = PLAYBOOKS.find((p) => p.nombre === "caida-de-ventas");
+  const pbC = PLAYBOOKS.find((p) => p.nombre === "lectura-de-ventas");
   const pbD = PLAYBOOKS.find((p) => p.nombre === "oportunidad-de-precio");
   const figsA = boletaDelPlaybook(pbA, "actual", "qué clientes estoy perdiendo");
   ok(vetosDelPlaybook(pbA, "La Polar cae porque su comprador nos bajó el share.", { figs: figsA }).some((x) => x.regla === "causa-sin-respaldo"),
@@ -587,7 +593,10 @@ H("2 · ★ ACEPTACIÓN · el caso T6 del expediente deja de rescatar");
     "★ con a quién revisar primero y cuánto hay en juego (subtotal y por cliente)");
   ok(r.r.agente.calls === 2 && r.r.agente.figs > 40, `la evidencia se juntó ANTES de decidir (${r.r.agente.calls} herramientas · ${r.r.agente.figs} figs)`);
   // el contraste honesto: sin el playbook, el MISMO cerebro y la misma pregunta caen al rescate de una línea
-  const sinPb = await answerViaAgente({ text: "y el inventario como esta?", history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
+  /* re-apuntado (T3, 2026-09-05): el contraste usaba «y el inventario como esta?», que dejó de ser un hueco
+   * al cerrarse la lectura de inventario. Ahora usa un hueco DEL DATO —el lead time de proveedor, que la
+   * carpeta no trae y ningún playbook puede inventar— para que cerrar rutas no vuelva a mover este check. */
+  const sinPb = await answerViaAgente({ text: "cual es el lead time de mis proveedores", history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
   ok(sinPb.r.agente.estado !== "playbook" && sinPb.r.agente.calls === 0,
     `contraste: un turno sin playbook con el MISMO cerebro no lee nada y no responde (${sinPb.r.agente.estado})`);
 }
@@ -724,6 +733,93 @@ H("7 · la muestra para el owner dice lo que el código dice hoy");
   ok(MU.includes(vieja.split(" Dime")[0].slice(0, 100)), "…y la muestra la reproduce igual");
   ok(/cero gasto|Cero gasto/i.test(MU) && /bandera `ADI_AGENTE` sigue apagada/i.test(MU),
     "la muestra declara lo que es: offline, sin gasto y sin encender la bandera");
+}
+
+/* ═══ 1h · T3 · LA LECTURA DE VENTAS, EL PLAN Y EL INVENTARIO EN FRASEO NATURAL ══════════════════════════════
+ * El censo (2026-09-04) midió 15 fraseos de esta familia y 14 caían a `vacio` — entre ellos TRES ask de la
+ * Mesa comercial, o sea botones que el producto ofrece. Lo que faltaba no era motor: era dejar entrar la
+ * pregunta neutra («cómo van las ventas»), la del plan («contra el presupuesto») y la del inventario dicho en
+ * castellano. Cada línea de acá es la que el usuario ve, no una paráfrasis. */
+H("1h · T3 · ventas neutra, contra el plan, la serie y el inventario en fraseo natural");
+{
+  initTenant(TENANT_DEMO);
+  const texto = async (q) => String((await answerViaAgente({ text: q, history: [], mem: {}, scenario: "bonanza", callAgente: MUDO })).r.text || "");
+
+  /* ── la lectura NEUTRA: sin señal de caída, el asesor abre con la lectura y no con un desmentido ── */
+  const NEUTRAS = ["cómo van las ventas", "la venta cómo viene", "cuánto vendimos", "cómo viene la venta", "cuánto facturamos"];
+  ok(NEUTRAS.every((q) => (playbookPara(q) || {}).nombre === "lectura-de-ventas"),
+    `las ${NEUTRAS.length} formas neutras tienen camino garantizado`,
+    NEUTRAS.filter((q) => (playbookPara(q) || {}).nombre !== "lectura-de-ventas").join(" | "));
+  const tN = await texto("cómo van las ventas");
+  ok(/Tu venta del per[ií]odo viene en \$100\.0M y viene creciendo contra el a[ñn]o anterior: 7\.6% sobre los \$92\.9M del a[ñn]o pasado\./.test(tN),
+    "★ la línea que ve el usuario: el total, la dirección y su referencia — las tres cifras del dato", tN.slice(0, 130));
+  ok(!/NO viene cayendo/i.test(tN), "…y NO desmiente una caída que nadie afirmó (esa frase es del caso «por qué caen»)");
+  /* el guion largo delante de un porcentaje se leía como signo menos: se mide que la dirección esté DICHA */
+  ok(/viene creciendo|viene cayendo/.test(tN) && !/viene en \$100\.0M — 7\.6%/.test(tN),
+    "…y la dirección va en palabras, no en un guion que se confunde con un menos");
+
+  /* ── el caso CAÍDA no se movió: la pregunta que afirma la caída sigue recibiendo su desmentido ── */
+  const tC = await texto("por qué caen las ventas");
+  ok(/Tu venta NO viene cayendo: la lectura del per[ií]odo contra el a[ñn]o anterior es 7\.6%\./.test(tC),
+    "el caso «por qué caen» conserva su apertura de siempre (cero regresión)", tC.slice(0, 100));
+
+  /* ── CONTRA EL PLAN: el ask de pantalla, con la referencia nombrada una sola vez ── */
+  const tP = await texto("¿Cómo van las ventas contra el presupuesto?");
+  ok((playbookPara("¿Cómo van las ventas contra el presupuesto?") || {}).nombre === "lectura-de-ventas",
+    "el ask «contra el presupuesto» tiene camino (era 🔴 del censo: un botón sin respuesta)");
+  ok(/por encima del presupuesto comprometido — 3\.1% en la lectura del per[ií]odo\./.test(tP),
+    "★ y responde contra el PLAN, con la cifra del plan", tP.slice(0, 120));
+  ok(/contra su presupuesto/.test(tP) && !/contra el a[ñn]o anterior/.test(tP),
+    "…sin mezclar universos: si la lectura es contra el plan, ninguna línea dice «año anterior»");
+
+  /* ── LA SERIE MES A MES: se declina lo que no se puede dictar y se da lo que sí ── */
+  const tS = await texto("como viene la venta mes a mes");
+  ok(/El mes a mes no te lo puedo dictar ac[aá]/.test(tS) && /se ve en el cuadro de la Mesa/.test(tS),
+    "★ la serie global declara por qué no la dicta y dónde se ve", tS.slice(0, 120));
+  ok(/\$100\.0M/.test(tS), "…y aun así entrega la lectura del período, que sí es del dato");
+
+  /* ── EL INVENTARIO EN CASTELLANO, con el recorte declarado cuando el usuario no lo pidió ── */
+  const INV = ["cómo está el inventario", "qué stock no rota", "capital inmovilizado", "qué tengo frenado"];
+  ok(INV.every((q) => (playbookPara(q) || {}).nombre === "lectura-por-eje"),
+    "el inventario en fraseo natural tiene camino en sus cuatro formas",
+    INV.filter((q) => !playbookPara(q)).join(" | "));
+  const tI = await texto("cómo está el inventario");
+  ok(/De tu inventario, lo que este dato publica es el capital que qued[oó] frenado — no una foto del stock completo\./.test(tI),
+    "★ quien pregunta por el inventario entero recibe el recorte DECLARADO en la primera línea", tI.slice(0, 130));
+  const tF = await texto("capital inmovilizado");
+  ok(!/no una foto del stock completo/.test(tF),
+    "…y quien YA pidió lo inmovilizado no recibe una aclaración que no le hace falta");
+
+  /* ── LOS DOS ASK QUE FALTABAN, cada uno a su dueño ── */
+  ok((playbookPara("¿Cuánta contribución no estoy capturando?") || {}).nombre === "margen-en-riesgo",
+    "«¿Cuánta contribución no estoy capturando?» es margen en riesgo dicho con otras palabras");
+  ok(/deja \$1\.6M sin capturar/.test(await texto("¿Cuánta contribución no estoy capturando?")),
+    "…y responde con la contribución no capturada, cliente por cliente");
+  const tQ = await texto("¿Quiénes son mis principales clientes por venta?");
+  ok((playbookPara("¿Quiénes son mis principales clientes por venta?") || {}).nombre === "lectura-por-eje"
+    && /Así viene tu venta por cliente, de mayor a menor:/.test(tQ) && /Falabella: \$19\.4M/.test(tQ),
+    "★ y el ranking de clientes por venta sale ordenado y con su cifra", tQ.slice(0, 90));
+
+  /* ── EL NO-SECUESTRO, que es lo caro: siete controles que NO pueden cambiar de dueño ── */
+  const AJENOS = [
+    ["cómo va el negocio", "resumen-del-negocio"],
+    ["cómo está el margen", "margen-en-riesgo"],
+    ["qué clientes están mal", "margen-en-riesgo"],
+    ["cuánto me compró Falabella", "entidad-por-periodo"],
+    ["quiénes están perdiendo contribución", "cliente-perdiendo-contribucion"],
+    ["capital por bodega", "lectura-por-eje"],
+    ["quién me debe y qué está vencido", "cobranza"],
+  ];
+  ok(AJENOS.every(([q, n]) => (playbookPara(q) || {}).nombre === n),
+    "…y NINGÚN turno ajeno cambió de dueño con los detectores nuevos",
+    AJENOS.filter(([q, n]) => (playbookPara(q) || {}).nombre !== n).map(([q]) => q).join(" | "));
+  /* el que más duele: la venta DE ALGUIEN no es la venta del negocio */
+  ok((playbookPara("cómo van las ventas de Falabella") || {}).nombre !== "lectura-de-ventas",
+    "★ «cómo van las ventas de Falabella» NO se la lleva la lectura del negocio: nombra a alguien");
+  /* y el que se esquivó a propósito: días de inventario es otra cifra, no el capital frenado */
+  ok((playbookPara("cuántos días de inventario tengo") || {}).nombre !== "lectura-por-eje"
+    || !/Capital frenado/i.test(await texto("cuántos días de inventario tengo")),
+    "…y «días de inventario» no recibe capital frenado en su lugar");
 }
 
 /* ═══ 6 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
@@ -871,7 +967,10 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (D) `_FUERA` vaciado: una simulación que nombra un eje queda secuestrada por la lectura
   await carnada("lectura por eje secuestra una simulación", "src/adi/agente/playbooks/lecturaPorEje.js",
-    [[/  if \(_FUERA\.test\(q\) \|\| !_PIDE_LECTURA\.test\(q\)\) return null;/, "  if (!_PIDE_LECTURA.test(q)) return null;"]],
+    /* re-apuntada (T3, 2026-09-05): la guarda se partió en dos —la simulación por un lado, la forma de pedir
+     * por otro, ahora con la pregunta corta— y la carnada muta la mitad que retira las simulaciones, que es
+     * lo que este candado vigila. */
+    [[/  if \(_FUERA\.test\(q\)\) return null;/, "  if (false) return null;   // CARNADA: la simulación deja de retirarse"]],
     async (Mut) => Mut.lecturaPorEje.cuandoAplica("simula que la marca LG sube 3%: cuánto margen deja"));
 
   /* ── LAS DE ENTIDAD × PERÍODO ───────────────────────────────────────────────────────────────────────────────
@@ -973,9 +1072,11 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
    * promesas nuevas (el veredicto contra el signo del dato, y la medida rota que no sale a pantalla). ── */
   // (P) C sin su _FUERA: secuestra una pregunta de período puntual que su lectura (YoY del período) no responde
   await carnada("caída-de-ventas secuestra el período puntual («el último mes»)", "src/adi/agente/playbooks/asesoria.js",
-    [[/if \(_SIMULA\.test\(q\) \|\| _DEUDA\.test\(q\) \|\| _C_FUERA\.test\(q\)\) return false;/, "if (_SIMULA.test(q) || _DEUDA.test(q)) return false;   // CARNADA"]],
-    async (Mut) => Mut.caidaDeVentas.cuandoAplica("cuánto cayó la venta el último mes")
-      && !PLAYBOOKS.find((p) => p.nombre === "caida-de-ventas").cuandoAplica("cuánto cayó la venta el último mes"));
+    /* re-apuntada (T3, 2026-09-05): `cuandoAplica` delega en `_casoVentas`, y es ahí donde vive la guarda que
+     * mantiene fuera el período puntual. Se muta la línea que ahora la sostiene. */
+    [[/  if \(_SIMULA\.test\(q\) \|\| _DEUDA\.test\(q\) \|\| _C_FUERA\.test\(q\)\) return null;/, "  if (_SIMULA.test(q) || _DEUDA.test(q)) return null;   // CARNADA"]],
+    async (Mut) => Mut.lecturaDeVentas.cuandoAplica("cuánto cayó la venta el último mes")
+      && !PLAYBOOKS.find((p) => p.nombre === "lectura-de-ventas").cuandoAplica("cuánto cayó la venta el último mes"));
   // (Q) B sin exigir la señal de asesoría: le roba a lectura-por-eje su pregunta de siempre
   await carnada("inventario-inmovilizado le roba a lectura-por-eje el «qué SKU tienen capital frenado»", "src/adi/agente/playbooks/asesoria.js",
     [[/return _B_TEMA\.test\(q\) && _B_ESTADO\.test\(q\) && _B_ASESORIA\.test\(q\);/, "return _B_TEMA.test(q) && _B_ESTADO.test(q);   // CARNADA"]],
@@ -998,7 +1099,7 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   // (T) la regla «caida-inventada» vaciada: decir «caen» con la lectura publicada subiendo deja de multarse
   await carnada("«tus ventas caen» con el dato subiendo deja de multarse", "src/adi/agente/playbooks/asesoria.js",
     [[/      if \(diceCae && !caeDato\) v\.push\(\{ regla: "caida-inventada"/, "      if (false) v.push({ regla: \"caida-inventada\""]],
-    async (Mut) => !Mut.caidaDeVentas.listaNotarial("Tus ventas caen fuerte este año.", { figs: [{ label: "headline", value: "7.6%", raw: 7.6 }] })
+    async (Mut) => !Mut.lecturaDeVentas.listaNotarial("Tus ventas caen fuerte este año.", { figs: [{ label: "headline", value: "7.6%", raw: 7.6 }] })
       .some((x) => x.regla === "caida-inventada"));
   // (U) el guardián de la medida rota desarmado: la «Medida cerrar brecha» 1000× la venta saldría a pantalla
   await carnada("la Medida 1000× la venta del SKU sale a pantalla", "src/adi/agente/playbooks/asesoria.js",
@@ -1041,6 +1142,33 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
     [[/    if \(enumerados\.length > 3\) \{/, "    if (false) {"]],
     async (Mut) => !Mut.sintesisEjecutiva.listaNotarial("1 · riesgo $1M.\n2 · riesgo $2M.\n3 · riesgo $3M.\n4 · riesgo $4M.", { figs: [] })
       .some((x) => x.regla === "sintesis-inflada"));
+
+  /* ── LAS DE T3 (2026-09-05) ─────────────────────────────────────────────────────────────────────────────── */
+  // (V) la lectura de ventas sin su guardia de entidad: contesta el total del negocio a quien preguntó por una cuenta
+  await carnada("la lectura de ventas se lleva «las ventas de Falabella»", "src/adi/agente/playbooks/asesoria.js",
+    [[/  if \(nombraEntidad\(q\)\) return null;/, "  // CARNADA: el guardia anti-secuestro, desarmado"]],
+    async (Mut) => { initTenant(TENANT_DEMO); return Mut.lecturaDeVentas.cuandoAplica("cómo van las ventas de Falabella"); });
+
+  // (W) el recorte del inventario deja de declararse: un ranking de lo frenado se lee como si fuera todo el stock
+  await carnada("el inventario recortado se sirve como si fuera el stock entero", "src/adi/agente/playbooks/lecturaPorEje.js",
+    [[/      partes\.push\(`De tu inventario, lo que este dato publica es el capital que quedó frenado — no una foto del stock completo\.`\);/,
+      "      /* CARNADA: el recorte se calla */"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const FIGS = [
+        { label: "LG-DRYER8KG · Capital frenado", value: "$14K", raw: 13600 },
+        { label: "BOS-SANDER · Capital frenado", value: "$11K", raw: 11000 },
+        { label: "LG-DRYER8KG · Rotación", value: "1" }, { label: "BOS-SANDER · Rotación", value: "2" },
+      ];
+      const t = String(Mut.lecturaPorEje.componer({ figs: FIGS, pregunta: "cómo está el inventario" }) || "");
+      /* el composer TIENE que haber respondido: si devolvió vacío, la carnada no probó nada y debe fallar */
+      return /capital frenado por SKU/i.test(t) && !/no una foto del stock completo/.test(t);
+    });
+
+  // (X) el eje cliente sin exigir la métrica: «mis clientes» a secas se convierte en un ranking de venta
+  await carnada("el eje cliente se activa sin que la pregunta diga por cuál métrica", "src/adi/agente/playbooks/lecturaPorEje.js",
+    [[/  \{ eje: "cliente", re: new RegExp\(`[^`]+`, "i"\),/, '  { eje: "cliente", re: /\\bclientes?\\b/i,   // CARNADA: le alcanza con la palabra']],
+    async (Mut) => { initTenant(TENANT_DEMO); return Mut.lecturaPorEje.cuandoAplica("qué clientes están mal"); });
   initTenant(TENANT_DEMO);
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* */ } }

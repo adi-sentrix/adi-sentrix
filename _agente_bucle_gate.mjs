@@ -45,6 +45,7 @@ import { registrarSupuesto } from "./src/adi/agente/herramientasAgente.js";   //
 import { setNombreUsuario, olvidarNombreUsuario, getNombreUsuario } from "./src/adi/agente/preferenciaNombre.js";   // R4c · el trato en los rescates
 import { PRINCIPIOS_RUTEO } from "./src/adi/agente/contratoAgente.js";   // P2(i) · la letra del ejemplo numérico
 import { sistemaDelAgente } from "./src/adi/agente/sistemaAgente.js";
+import { playbookPara } from "./src/adi/agente/playbooks/registro.js";   // 14b · el empujón se mide donde AÚN no hay camino
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -570,8 +571,20 @@ H("14b · P2: reformular lo ya dicho NO dispara el empujón (43× medido)");
    * (`sintesis-ejecutiva` la toma desde la tanda de léxico corto), y con playbook el empujón sobra: la
    * evidencia llega ANTES por los pasos. Es una mejora, no una regresión — así que el empujón se mide con una
    * lectura nueva que sigue sin playbook, y de paso se deja escrito que aquella ya no lo necesita. */
-  await answerViaAgente({ text: "dame la foto de la venta contra el presupuesto", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g3 });
-  ok(n3 === 2, `…y una lectura nueva SIN playbook sigue recibiendo el empujón de R6 (${n3} llamadas)`);
+  /* ⚠️ SEGUNDA VEZ QUE ESTE CHECK SE MUEVE POR UNA MEJORA (T1 y T3, 2026-09-05): cada tanda que cierra un
+   * hueco le quita la pregunta con la que medía. En vez de re-apuntarlo una tercera vez, el check BUSCA una
+   * lectura que hoy siga sin playbook y mide el empujón sobre esa. Si algún día no queda ninguna, no se pone
+   * verde solo: se pone ROJO diciendo que el empujón se quedó sin dominio — que es justo lo que habría que
+   * saber para retirarlo. */
+  const CANDIDATAS = ["dame la foto de la venta contra el presupuesto", "cómo vienen las unidades vendidas",
+    "cuántas unidades movimos", "dame el detalle de costos", "qué precio de lista tengo cargado"];
+  const sinCamino = CANDIDATAS.find((q) => playbookPara(q) === null) || null;
+  if (!sinCamino) {
+    ok(false, "…el empujón de R6 ya no tiene dominio: TODAS las lecturas candidatas tienen playbook — toca decidir si se retira");
+  } else {
+    await answerViaAgente({ text: sinCamino, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g3 });
+    ok(n3 === 2, `…y una lectura nueva SIN playbook sigue recibiendo el empujón de R6 (${n3} llamadas · «${sinCamino.slice(0, 34)}»)`);
+  }
   {
     let n4 = 0;
     const g4 = async (a) => { n4++; return _declina(a); };

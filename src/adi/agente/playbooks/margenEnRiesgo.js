@@ -101,12 +101,18 @@ const _PIDE_SEGUIMIENTO = new RegExp([
   `\\bcambi[oó] algo${_FIN}`, `\\bsigue en pie${_FIN}`,
 ].join("|"), "i");
 const _TEMA_MARGEN = /\bm[aá]rgen(?:es)?\b|\bbenchmark\b|\bvara\b|\brentabilidad\b/i;
+/* LA CONTRIBUCIÓN NO CAPTURADA es este playbook con otro nombre: su entregable ya dice, cliente por cliente,
+ * «deja $X sin capturar» contra el benchmark declarado. El ask de la Mesa comercial lo pregunta así —«¿Cuánta
+ * contribución no estoy capturando?»— y caía a `vacio` (censo, 🔴: un botón que el producto ofrece).
+ * SOLO la forma de la CAPTURA, nunca «contribución» a secas: «qué clientes están perdiendo contribución» es de
+ * cliente-perdiendo-contribucion, y este playbook va antes en el registro — se lo llevaría puesto. */
+const _TEMA_CAPTURA = new RegExp(`\\bcontribuci[oó]n\\b[^.\\n]{0,24}\\b(?:no capturad|sin capturar${_FIN}|no (?:la )?(?:estoy |estamos )?captur)|\\bno (?:estoy|estamos) capturando${_FIN}|\\bcontribuci[oó]n perdida${_FIN}|\\bdejo de capturar${_FIN}`, "i");
 /* la cartera nombrada por su ESTADO: «qué clientes están mal» · «mis peores clientes» · «los que rinden poco».
  * Exige el eje cliente + un juicio de estado; sin eso no se activa (un «mal» suelto no es una lectura). */
 const _CARTERA_POR_ESTADO = new RegExp(`\\bclientes?\\b[^.\\n]{0,24}\\b(?:mal|flojos?|peores?|rinden poco|no rinden|d[eé]biles)${_FIN}|\\b(?:peores?|mis peores)\\s+clientes?\\b`, "i");
 /* …y se cede si la pregunta nombra OTRA métrica: ahí la lectura no es de margen y tiene su propio camino */
 const _OTRA_METRICA = /\bventas?\b|\brotaci[oó]n\b|\bstock\b|\bcobr|\bdeb[eo]n?\b|\bvencid|\bunidades\b|\bcaja\b/i;
-const _PIDE_LECTURA = new RegExp(`\\bc[oó]mo${_FIN}|\\bqu[eé]${_FIN}|\\bqui[eé]n(?:es)?${_FIN}|\\bcu[aá]l(?:es)?${_FIN}|\\bcu[aá]nto${_FIN}|\\bd[oó]nde${_FIN}|\\bprioriza|\\bprioridad\\b|\\bprimero\\b|\\brevis|\\bmejor(?:ar|a)\\b|\\bbajo\\b|\\bdebajo\\b|\\briesgo\\b|\\bdame\\b|\\bmu[eé]stra|\\blista\\b|\\branking\\b`, "i");
+const _PIDE_LECTURA = new RegExp(`\\bc[oó]mo${_FIN}|\\bqu[eé]${_FIN}|\\bqui[eé]n(?:es)?${_FIN}|\\bcu[aá]l(?:es)?${_FIN}|\\bcu[aá]nt[oa]s?${_FIN}|\\bd[oó]nde${_FIN}|\\bprioriza|\\bprioridad\\b|\\bprimero\\b|\\brevis|\\bmejor(?:ar|a)\\b|\\bbajo\\b|\\bdebajo\\b|\\briesgo\\b|\\bdame\\b|\\bmu[eé]stra|\\blista\\b|\\branking\\b`, "i");
 /* ⚠️ LO QUE QUEDA AFUERA, Y POR QUÉ (calibrado contra el corpus de exámenes, cero gasto — cazó tres casos):
  *   · simulación/proyección — esa ruta es de simulateGeneral y la letra de RUTEO ya la manda ahí;
  *   · OTRO EJE — este playbook lee el margen POR CLIENTE. «Ranking de SKU por peor rotación cruzado con
@@ -317,6 +323,7 @@ export const margenEnRiesgo = {
     /* el SEGUIMIENTO entra sin nombrar el tema: refiere a la lectura previa, y esa lectura es la de acá */
     if (_PIDE_SEGUIMIENTO.test(q)) return true;
     if (_TEMA_MARGEN.test(q) && _PIDE_LECTURA.test(q)) return true;
+    if (_TEMA_CAPTURA.test(q) && _PIDE_LECTURA.test(q)) return true;
     /* ── EL LÉXICO CORTO (censo T1, 2026-09-05) ────────────────────────────────────────────────────────────
      * El detector pedía una frase más larga que la que la gente escribe. Dos formas medidas en el censo:
      *   · ELÍPTICA — «y el margen?» · «necesito ver márgenes»: el tema está y el verbo de lectura no. Vale

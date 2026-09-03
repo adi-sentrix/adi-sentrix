@@ -51,7 +51,12 @@ const _entidadDe = (label) => { const p = String(label || "").split("·").map((s
  * «SKU frenado» va primero: «capital frenado por bodega» habla del estado del inventario, no del corte por
  * bodega. Los dos regex de cada eje usan `_FIN` y no `\b`: después de «á»/«ó» no hay frontera de palabra. */
 const EJES = [
-  { eje: "sku_frenado", re: new RegExp(`\\bfrenad|\\binmoviliz|\\bsin rotaci[oó]n|\\bstock (?:lento|muerto|parado)${_FIN}`, "i"),
+  /* «no rota» y el tema a secas (inventario · stock) entran acá porque es la ÚNICA lectura de inventario que
+   * el motor publica: medido, `inventoryStatus` con foco «todos» devuelve exactamente lo mismo que con foco
+   * «frenado». Como eso es una parte del inventario y no la foto entera, el composer declara el recorte
+   * cuando la pregunta no nombró el estado. `d[ií]as de inventario` queda FUERA: quien pregunta por días
+   * pregunta por otra cifra, y darle capital sería contestarle otra cosa. */
+  { eje: "sku_frenado", re: new RegExp(`\\bfrenad|\\binmoviliz|\\bsin rotaci[oó]n|\\bno rot(?:a|an)${_FIN}|\\bstock (?:lento|muerto|parado)${_FIN}|(?<!d[ií]as de )\\binventario${_FIN}|\\bstock${_FIN}`, "i"),
     pasos: [{ tool: "inventoryStatus", args: { focus: "frenado" }, para: "qué SKU tienen el capital frenado, con su monto, sus días de inventario y su rotación" }],
     obligatorias: [/^Capital frenado · total$/i, /· Capital frenado$/i],
     metrica: /· Capital frenado$/i, unidad: "capital frenado" },
@@ -67,6 +72,14 @@ const EJES = [
     pasos: [{ tool: "marginRead", args: { dimension: "familia" }, para: "el margen y la venta por familia, con el benchmark declarado y cuántas están bajo él" }],
     obligatorias: [/· Margen$/i, /^Benchmark de margen$/i],
     metrica: /· Margen$/i, unidad: "margen" },
+  /* EL EJE CLIENTE, y solo POR VENTA: el ask de la Mesa comercial pregunta «¿Quiénes son mis principales
+   * clientes por venta?» y caía a `vacio`. Va detrás de los ejes de producto y exige que la pregunta nombre la
+   * venta — sin esa señal, «mis clientes» a secas es del margen (que va antes en el registro) o de la asesoría.
+   * La métrica no se adivina: quien no dijo por cuál eje ordenar no pidió esta lista. */
+  { eje: "cliente", re: new RegExp(`\\bclientes?\\b[^.\\n]{0,30}\\b(?:venta[s]?|facturaci[oó]n|vende[n]?|compran)${_FIN}|\\b(?:venta[s]?|facturaci[oó]n)\\b[^.\\n]{0,20}\\bpor cliente${_FIN}`, "i"),
+    pasos: [{ tool: "queryMetric", args: { metric: "ventas", dimension: "cliente" }, para: "la venta por cliente, con el nombre de cada cuenta y su cifra" }],
+    obligatorias: [/· Ventas$/i],
+    metrica: /· Ventas$/i, unidad: "venta" },
   { eje: "bodega", re: new RegExp(`\\bbodega[s]?${_FIN}|\\bdep[oó]sito[s]?${_FIN}|\\balmac[eé]n(?:es)?${_FIN}`, "i"),
     pasos: [{ tool: "queryMetric", args: { metric: "capital", dimension: "bodega" }, para: "el capital en inventario por bodega, con el nombre de cada bodega y su monto" }],
     obligatorias: [/· Capital$/i],
@@ -74,8 +87,12 @@ const EJES = [
 ];
 
 /* la forma de PEDIR una lectura: ranking, mejores/peores, cuál deja más, cuánto por. Sin esto, «la marca LG»
- * dentro de otra pregunta activaría el playbook por la sola palabra. */
-const _PIDE_LECTURA = new RegExp(`\\branking${_FIN}|\\bmejor(?:es)?${_FIN}|\\bpeor(?:es)?${_FIN}|\\bcu[aá]l(?:es)?${_FIN}|\\bqu[eé]${_FIN}|\\bcu[aá]nto${_FIN}|\\bc[oó]mo${_FIN}|\\bdame${_FIN}|\\bmu[eé]stra|\\blista${_FIN}|\\bpor\\s+(?:canal|marca|familia|bodega|categor)`, "i");
+ * dentro de otra pregunta activaría el playbook por la sola palabra.
+ * ⚠️ DOS FORMAS QUE FALTABAN, medidas en T3 contra los ask de pantalla: «quiénes» —con el que se pregunta por
+ * personas, y este eje ahora tiene el de cliente— y «principales», que es la palabra del propio botón. Y
+ * `cu[aá]nto` no veía «cuánta» ni «cuántos»: `_FIN` prohíbe la letra siguiente, así que el singular masculino
+ * era el único que pasaba. Es el `\b` imposible en otra forma — el detector escrito para un solo género. */
+const _PIDE_LECTURA = new RegExp(`\\branking${_FIN}|\\bmejor(?:es)?${_FIN}|\\bpeor(?:es)?${_FIN}|\\bcu[aá]l(?:es)?${_FIN}|\\bqu[eé]${_FIN}|\\bqui[eé]n(?:es)?${_FIN}|\\bprincipal(?:es)?${_FIN}|\\bcu[aá]nt[oa]s?${_FIN}|\\bc[oó]mo${_FIN}|\\bdame${_FIN}|\\bmu[eé]stra|\\blista${_FIN}|\\bpor\\s+(?:canal|marca|familia|bodega|categor)`, "i");
 /* lo que NO es una lectura por eje aunque nombre uno: simulaciones y proyecciones (tienen su playbook) y el
  * trato. La entidad×período NO va acá como regex: la decide `detectSerieIntent`, el MISMO detector del puente y
  * de entidad-por-período — un solo detector para las tres piezas, o se contradicen entre sí.
@@ -84,10 +101,18 @@ const _PIDE_LECTURA = new RegExp(`\\branking${_FIN}|\\bmejor(?:es)?${_FIN}|\\bpe
  * /\b[uú]ltimo mes/.test("el último mes") === false. El barrido §5g vigilaba el `\b` DESPUÉS de un no-\w; este
  * es el de ANTES. Se retira la regex y se usa el detector, que es lo correcto de todos modos. */
 const _FUERA = new RegExp(`\\bsimul|\\bproyect|\\bqu[eé] pasa si${_FIN}|\\bpon[eé]le que${_FIN}|\\bllamame|\\bll[aá]mame`, "i");
+/* ¿la pregunta nombró el ESTADO (frenado) o solo el tema (inventario/stock)? Decide si hay que declarar el
+ * recorte: quien pide «lo inmovilizado» ya sabe qué recorte pidió; quien pide «el inventario», no. */
+const _NOMBRA_FRENADO = new RegExp(`\\bfrenad|\\binmoviliz|\\bsin rotaci[oó]n|\\bno rot(?:a|an)${_FIN}|\\bstock (?:lento|muerto|parado)${_FIN}`, "i");
+/* una pregunta CORTA que nombra el tema ES un pedido de lectura: «capital inmovilizado» no trae verbo y es,
+ * palabra por palabra, lo que el botón de la Mesa pregunta. El largo acota el riesgo — dentro de una frase
+ * larga, nombrar el tema al pasar no es pedirlo (la misma regla que cerró «y el margen?» en T1). */
+const _CORTA = (q) => String(q || "").trim().split(/\s+/).filter(Boolean).length <= 4;
 
 const _ejeDe = (pregunta) => {
   const q = String(pregunta || "");
-  if (_FUERA.test(q) || !_PIDE_LECTURA.test(q)) return null;
+  if (_FUERA.test(q)) return null;
+  if (!_PIDE_LECTURA.test(q) && !_CORTA(q)) return null;
   /* entidad × período es de otros dos (puente / entidad-por-período): mismo detector, jamás una segunda regex */
   try { if (detectSerieIntent(q)) return null; } catch { /* detector mudo: sigue */ }
   /* ⚠️ UN NOMBRE DE ENTIDAD NO ES UN EJE (la misma lección que el mapa del dato ya pagó con «Depósito
@@ -131,7 +156,13 @@ export const lecturaPorEje = {
     const bench = _all(figs, /^Benchmark de margen$/i)[0] || null;
     // LA VOZ (2026-09-03): la apertura habla, el ranking sigue siendo un ranking — y «de mayor a menor»
     // se conserva textual: es la promesa de ORDEN que el muro verifica contra la tabla.
-    const partes = [`Así viene tu ${e.unidad} por ${e.eje === "sku_frenado" ? "SKU" : e.eje}${conRaw ? ", de mayor a menor" : ""}:`];
+    /* EL RECORTE, DECLARADO: si preguntó por el inventario en general y lo que existe es la lectura de lo
+     * frenado, se dice en la primera línea. Callarlo dejaría creer que ese ranking es todo su stock. */
+    const partes = [];
+    if (e.eje === "sku_frenado" && !_NOMBRA_FRENADO.test(String(pregunta || ""))) {
+      partes.push(`De tu inventario, lo que este dato publica es el capital que quedó frenado — no una foto del stock completo.`);
+    }
+    partes.push(`Así viene tu ${e.unidad} por ${e.eje === "sku_frenado" ? "SKU" : e.eje}${conRaw ? ", de mayor a menor" : ""}:`);
     for (const x of filas.slice(0, 8)) partes.push(`- ${x.entidad}: ${x.fmt}`);
     if (filas.length > 8) partes.push(`(y ${filas.length - 8} más)`);
     if (bench) partes.push(`Tu benchmark de margen es ${_val(bench)}.`);

@@ -28,6 +28,7 @@
  * eso decide qué se cita, nunca produce una cifra nueva. */
 
 import { detectSerieIntent } from "../../oracle/serieIntent.js";
+import { nombraEntidad } from "./indiceEntidades.js";   // el guardia anti-secuestro, compartido con la foto
 import { pisoFocosUSD, declaracionUmbralFocos } from "../../specRetrieval.js";
 import { variante } from "../variacion.js";   // los cierres varían por semilla («matar la repetición», 2026-09-03)
 
@@ -235,53 +236,132 @@ export const inventarioInmovilizado = {
   },
 };
 
-/* ═══ C · CAÍDA DE VENTAS ═════════════════════════════════════════════════════════════════════════════════════ */
-const _C_TEMA = /\bventa[s]?\b|\bfacturaci[oó]n\b/i;
+/* ═══ C · LECTURA DE VENTAS ═══════════════════════════════════════════════════════════════════════════════════
+ * Se llamaba «caída de ventas» y solo abría si la pregunta ya afirmaba que la venta caía. El censo (2026-09-04)
+ * midió el costo: «cómo van las ventas» · «cuánto vendimos» · «¿Cómo van las ventas contra el presupuesto?»
+ * —este último un ask de pantalla, o sea un botón que el producto ofrece— caían todos a `vacio`. El composer ya
+ * sabía decir «tu venta NO viene cayendo»: lo que faltaba era dejar entrar la pregunta neutra.
+ *
+ * TRES CASOS, un solo entregable: `caida` (lo de antes) · `neutra` (cómo van) · `presupuesto` (contra el plan).
+ * El nombre cambió con el alcance — un identificador que dice «caída» y atiende la lectura entera es la deuda
+ * «una palabra, dos conceptos» que este proyecto ya pagó una vez.
+ *
+ * LA SERIE MES A MES no se narra acá y es a propósito: los valores mensuales viven en `trend.facts.tablaM` y
+ * NO están en la boleta (medido), así que citarlos sería cifra sin respaldo; y los tres totales que `trend` sí
+ * pone en boleta viajan como COMPUTED que el juez del escenario veta con razón. Lo honesto es la lectura del
+ * período —que sí es del dato— y decir dónde se ve el mes a mes. */
+const _C_TEMA = /\bventa[s]?\b|\bfacturaci[oó]n\b|\bfactur(?:amos|aci[oó]n)\b|\bvend(?:imos|emos|iendo)\b/i;
 const _C_CAE = new RegExp(`\\bca[ií]da${_FIN}|\\bcaen${_FIN}|\\bcayendo${_FIN}|\\bcay[oó]${_FIN}|\\bcayeron${_FIN}|\\bbajaron${_FIN}|\\bbajando${_FIN}|\\bbajad[oa]${_FIN}|\\bbaj[oó]n${_FIN}|\\bdesplom|\\bperd[ií]${_FIN}|\\bperdiendo${_FIN}|\\bvenimos mal${_FIN}|\\bvan mal${_FIN}|venta[s]?\\s+baj|facturaci[oó]n\\s+baj`, "i");
-const _C_FUERA = new RegExp(`\\bq[1-4]${_FIN}|\\btrimestr|\\bmes a mes${_FIN}|\\bsemestr|[uú]ltimo mes${_FIN}|\\bpunto[s]? de venta${_FIN}|\\bcliente[s]?${_FIN}`, "i");
-export const caidaDeVentas = {
-  nombre: "caida-de-ventas",
+const _C_FUERA = new RegExp(`\\bq[1-4]${_FIN}|\\btrimestr|\\bsemestr|[uú]ltimo mes${_FIN}|\\bpunto[s]? de venta${_FIN}|\\bcliente[s]?${_FIN}`, "i");
+/* la lectura NEUTRA: cómo van · cómo viene · cuánto vendimos · dame la venta. Sin señal de caída y sin pedir
+ * un eje — quien nombra un eje («ventas por marca») pregunta otra cosa y la atiende lectura-por-eje. */
+const _C_LEE = new RegExp(`\\bc[oó]mo (?:va[n]?|viene[n]?|est[aá]|estamos|andamos|venimos)${_FIN}|\\bcu[aá]nto (?:vendimos|facturamos|llevamos|va|vendemos)${_FIN}|\\bcu[aá]nto (?:es|fue) (?:la|mi|nuestra) (?:venta|facturaci[oó]n)${_FIN}|\\b(?:dame|mu[eé]strame|muestrame|ver|quiero ver|necesito ver)${_FIN}|\\bevoluci[oó]n${_FIN}|\\bqu[eé] tal (?:van|viene|est[aá])${_FIN}`, "i");
+/* el plan comprometido — el ask de pantalla dice «contra el presupuesto» y el dato lo trae (vs_presupuesto). */
+const _C_PPTO = new RegExp(`\\bpresupuest|\\bppto${_FIN}|\\bplan${_FIN}|\\bcomprometid`, "i");
+const _C_SERIE = new RegExp(`\\bmes a mes${_FIN}|\\bmensual(?:es|mente)?${_FIN}|\\bevoluci[oó]n${_FIN}|\\bpor mes${_FIN}`, "i");
+/* PURO detector: devuelve el caso o null. Lo consultan `cuandoAplica`, `pasos` y `componer` — una sola lectura
+ * de la pregunta para los tres, que es lo que evita que el paso pida un foco y el composer redacte otro. */
+function _casoVentas(pregunta) {
+  const q = String(pregunta || "");
+  if (!q.trim()) return null;
+  if (_SIMULA.test(q) || _DEUDA.test(q) || _C_FUERA.test(q)) return null;
+  if (detectSerieIntent(q)) return null;
+  if (!_C_TEMA.test(q)) return null;
+  /* nombra a alguien → no es la lectura del negocio: contestar el total a quien preguntó por una cuenta es
+   * cambiarle la pregunta (el secuestro que el censo encontró en la foto). Ante la duda, false. */
+  if (nombraEntidad(q)) return null;
+  if (_C_CAE.test(q)) return "caida";
+  if (_C_PPTO.test(q) && _C_LEE.test(q)) return "presupuesto";
+  if (_C_SERIE.test(q)) return "serie";
+  if (_C_LEE.test(q)) return "neutra";
+  return null;
+}
+export const lecturaDeVentas = {
+  nombre: "lectura-de-ventas",
   cuandoAplica(pregunta) {
-    const q = String(pregunta || "");
-    if (_SIMULA.test(q) || _DEUDA.test(q) || _C_FUERA.test(q)) return false;
-    if (detectSerieIntent(q)) return false;
-    return _C_TEMA.test(q) && _C_CAE.test(q);
+    return _casoVentas(pregunta) !== null;
   },
   /* ⚠️ SIN el tool `trend`, a propósito (medido 2026-09-01): su «Venta del período» viaja como cifra COMPUTED
    * que el dato declara no reconciliada, y el juez del escenario la veta con razón. La comparación contra el
    * año anterior que SÍ es lectura del dato es la de salesRead (headline + YoY por cliente). */
-  pasos: [
-    { tool: "salesRead", args: {}, para: "la comparación contra el año anterior: la lectura del período (headline) y el YoY por cliente — quién cae y quién sube" },
-  ],
-  obligatorias: [/^headline$/i, /· YoY$/i],
+  pasos(pregunta) {
+    if (_casoVentas(pregunta) === "presupuesto") {
+      return [{ tool: "salesRead", args: { focus: "vs_presupuesto" }, para: "la venta del período contra el presupuesto comprometido (headline) y la brecha por cliente" }];
+    }
+    return [{ tool: "salesRead", args: {}, para: "la comparación contra el año anterior: la lectura del período (headline) y el YoY por cliente — quién cae y quién sube" }];
+  },
+  obligatorias(pregunta) {
+    if (_casoVentas(pregunta) === "presupuesto") return [/^headline$/i, /· vs ppto$/i];
+    return [/^headline$/i, /· YoY$/i];
+  },
   entregable: "si la venta cae o no contra el año anterior (la lectura del período, verbatim), quiénes explican el movimiento (YoY por cliente, materialidad mediante) y a quién abrir primero — ofrecido. Localiza; el porqué no está en este dato.",
-  componer({ figs, semilla } = {}) {
+  componer({ figs, pregunta, semilla } = {}) {
+    const caso = _casoVentas(pregunta) || "caida";
     const head = _find(figs, /^headline$/i);
     if (!head || !Number.isFinite(_pct(head))) return null;
     const cae = _pct(head) < 0;
-    const yoy = _all(figs, /· YoY$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
+    /* el par que el motor publica bajo la MISMA etiqueta: [0] el período, [1] su referencia (año anterior o
+     * presupuesto, según el foco pedido). Si no vienen los dos no se cita ninguno — media comparación es una
+     * cifra suelta, y una cifra suelta sin su contra es exactamente lo que el muro castiga. */
+    const subs = _all(figs, /^headlineSub$/i);
+    const par = subs.length === 2 ? { total: _val(subs[0]), ref: _val(subs[1]) } : null;
+    const contraPpto = caso === "presupuesto";
+    const yoy = _all(figs, contraPpto ? /· vs ppto$/i : /· YoY$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
       .filter((x) => x.entidad && Number.isFinite(x.usd));
     const piso = _piso();
     const caen = _materiales(yoy.filter((x) => x.usd < 0), piso).sort((a, b) => a.usd - b.usd);
     const suben = _materiales(yoy.filter((x) => x.usd > 0), piso).sort((a, b) => b.usd - a.usd);
     const partes = [];
     // LA VOZ (2026-09-03): el asesor abre con el veredicto y lo respalda — sin endulzar el que viene mal.
-    partes.push(cae
-      ? `Sí: tu venta viene por debajo del año anterior — ${_val(head)} en la lectura del período.`
-      : `Tu venta NO viene cayendo: la lectura del período contra el año anterior es ${_val(head)}.`);
-    if (caen.length) {
-      partes.push(`\nDónde ${cae ? "se cae" : "sí hay caída, aunque el total suba"}:`);
-      for (const c of caen.slice(0, 4)) partes.push(`- ${c.entidad} · ${c.fmt} contra el año anterior`);
+    if (contraPpto) {
+      /* el par de cifras NO llega en este foco (medido): el motor publica el headline y la brecha por cliente,
+       * y el total contra el plan solo como texto de panel que no entra a la boleta. Se dice lo que hay. */
+      partes.push(cae
+        ? `Tu venta quedó bajo el presupuesto comprometido${par ? `: ${par.total} contra ${par.ref}` : ""} — ${_val(head)} en la lectura del período.`
+        : `Tu venta va por encima del presupuesto comprometido${par ? `: ${par.total} contra ${par.ref}` : ""} — ${_val(head)} en la lectura del período.`);
+    } else if (caso === "neutra" || caso === "serie") {
+      /* la pregunta NO afirmó que la venta cae: se abre con la lectura, no con un desmentido. */
+      /* el guion largo antes de un porcentaje se lee como signo menos: «$100.0M — 7.6%» parecía una caída
+       * cuando el dato dice que crece. La dirección se nombra con la palabra —que la autoriza el signo del raw
+       * publicado, comparar contra cero es selección, no cuenta— y la cifra queda pegada a su referencia. */
+      partes.push(par
+        ? `Tu venta del período viene en ${par.total} y ${cae ? "viene cayendo" : "viene creciendo"} contra el año anterior: ${_val(head)} sobre los ${par.ref} del año pasado.`
+        : `Tu venta ${cae ? "viene cayendo" : "viene creciendo"} contra el año anterior: ${_val(head)} en la lectura del período.`);
+      if (caso === "serie") {
+        partes.push(`\nEl mes a mes no te lo puedo dictar acá: este dato publica el total del período y el detalle mensual se ve en el cuadro de la Mesa. Lo que sí te doy es quién mueve ese total.`);
+      }
     } else {
-      partes.push(`\nNingún cliente cae de forma material contra el año anterior${_fraseUmbral() ? ` (${_fraseUmbral()})` : ""}.`);
+      partes.push(cae
+        ? `Sí: tu venta viene por debajo del año anterior — ${_val(head)} en la lectura del período.`
+        : `Tu venta NO viene cayendo: la lectura del período contra el año anterior es ${_val(head)}.`);
     }
-    if (suben.length) partes.push(`${caen.length ? "\n" : ""}Los que más suben: ${suben.slice(0, 2).map((s) => `${s.entidad} ${s.fmt}`).join(" · ")}.`);
+    /* la referencia se nombra UNA vez y es la del foco que se pidió: mezclar «año anterior» con cifras que
+     * salieron del presupuesto es el defecto de los dos universos, en chico. */
+    const REF = contraPpto ? "contra su presupuesto" : "contra el año anterior";
+    if (caen.length) {
+      partes.push(`\n${contraPpto ? "Quiénes quedan debajo del plan" : `Dónde ${cae ? "se cae" : "sí hay caída, aunque el total suba"}`}:`);
+      for (const c of caen.slice(0, 4)) partes.push(`- ${c.entidad} · ${c.fmt} ${REF}`);
+    } else {
+      partes.push(`\nNingún cliente ${contraPpto ? "queda debajo de su presupuesto" : "cae"} de forma material ${contraPpto ? "" : REF}${_fraseUmbral() ? ` (${_fraseUmbral()})` : ""}.`.replace(/\s+/g, " "));
+    }
+    if (suben.length) partes.push(`${caen.length ? "\n" : ""}Los que más ${contraPpto ? "aportan sobre el plan" : "suben"}: ${suben.slice(0, 2).map((s) => `${s.entidad} ${s.fmt}`).join(" · ")}.`);
     partes.push(`\nPor qué ${cae ? "cae" : "se mueve así"} no está en este dato: queda localizado quién y cuánto.`);
-    if (caen.length) partes.push(variante(semilla, [
-      `Si quieres, abrimos la serie mensual de ${caen[0].entidad} —el que más cae— para ver desde cuándo. Dime y la traigo.`,
-      `Vale la pena ver desde cuándo: ¿abrimos la serie mensual de ${caen[0].entidad}, el que más cae?`,
-      `Para ver desde cuándo se cae, te abro la serie mensual de ${caen[0].entidad} —el que más cae— si quieres.`,
-    ]));
+    /* el ofrecimiento cambia con lo que el turno dejó sin abrir: si hubo caídas, la cuenta que más pesa; si no,
+     * la otra comparación —que existe en el dato y el usuario no pidió— o nada. Jamás se ofrece la serie
+     * mensual POR CLIENTE, que este dato no trae (medido). */
+    if (caen.length) {
+      partes.push(variante(semilla, [
+        `Si quieres, abrimos ${caen[0].entidad} —${contraPpto ? "el que más se aleja del plan" : "el que más cae"}— para ver qué le pasa a su margen. Dime y la traigo.`,
+        `Vale la pena mirar a ${caen[0].entidad}, ${contraPpto ? "el más lejos del plan" : "el que más cae"}: ¿lo abrimos?`,
+        `Te abro ${caen[0].entidad} —${contraPpto ? "el que más se aleja del plan" : "el que más cae"}— si quieres verlo por dentro.`,
+      ]));
+    } else if (!contraPpto && (caso === "neutra" || caso === "serie")) {
+      partes.push(variante(semilla, [
+        `Si quieres, te la abro también contra el presupuesto comprometido.`,
+        `¿La comparamos también contra el presupuesto? Ese corte está en el dato.`,
+        `Te queda pendiente la comparación contra el presupuesto: dime y la traigo.`,
+      ]));
+    }
     return partes.join("\n");
   },
   listaNotarial(texto, { figs } = {}) {
