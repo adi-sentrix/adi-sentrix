@@ -115,7 +115,7 @@ veces). Cada defecto futuro cuesta doble mientras haya dos caminos; cada certifi
 playbook nuevo, doble o desigual.
 
 **Checklist ejecutable:**
-- [ ] 0 · extraer `_respaldoDeLoYaAprobado` → módulo compartido · suite verde
+- [x] 0 · extraer `_respaldoDeLoYaAprobado` → módulo compartido · suite verde — HECHO 2026-09-03 (`respaldoAprobado.js`, extracción verbatim verificada contra HEAD; natural y agente importan del mismo módulo; candado de una-fuente en _examen4_cierres_gate)
 - [ ] 1 · `ADI_CAMINO_NATURAL` fuera de FEATURE · re-apuntar `_cascada_resiliencia_gate` a dos peldaños · suite verde · **una semana de uso + humo verde**
 - [ ] 2 · retiro físico (caminoNatural.js · rama modoNatural · _fetchNatural/bloque ChatADI · flag) · matar 2 gates, re-apuntar 4, retirar el check del molde · suite verde
 - [ ] 3 · `_poda_natural_anti_resurreccion_gate` con carnada · suite verde

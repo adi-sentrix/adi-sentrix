@@ -977,7 +977,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (j) R3 · la pertinencia quitada del peldaño vivo: el marco vuelve a mentir la entidad (unidad, caminoNatural)
   {
-    const m = mutar("src/adi/oracle/caminoNatural.js",
+    const m = mutar("src/adi/oracle/respaldoAprobado.js",
       [[/  if \(entQ\.length && !entQ\.some\(\(n\) => _re\(n\)\.test\(previa\)\)\) pertinente = false;/, "  if (false) pertinente = false;"],
        [/    pertinente = !nombrados\.length \|\| enPrevia >= Math\.ceil\(nombrados\.length \/ 2\);/, "    pertinente = true;"]]);
     if (m.error) ok(false, "carnada «respaldo sin pertinencia»", m.error);

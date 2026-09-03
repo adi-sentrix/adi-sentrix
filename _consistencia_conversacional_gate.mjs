@@ -30,7 +30,7 @@ import { pathToFileURL } from "node:url";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
-import { _respaldoDeLoYaAprobado } from "./src/adi/oracle/caminoNatural.js";   // (B) del owner: el peldaño compartido, probado en sus dos modos
+import { _respaldoDeLoYaAprobado } from "./src/adi/oracle/respaldoAprobado.js";   // (B) del owner: el peldaño compartido, probado en sus dos modos (módulo propio desde el paso 0 de la Poda)
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -74,7 +74,8 @@ for (const [fam, q, pedidos] of FAMILIAS) {
    * («no quiero que una reparación diseñada y medida para el agente cambie de rebote ADI_CAMINO_NATURAL»). Lo
    * que se exige acá es que el AGENTE no la use nunca; que el natural la conserve BYTE-IDÉNTICA se prueba en
    * la sección 6, y su corrección propia es un encargo futuro (§11c del F1). */
-  const src = fs.readFileSync(path.join(process.cwd(), "src", "adi", "oracle", "caminoNatural.js"), "utf8");
+  // (el cuerpo del peldaño vive en respaldoAprobado.js desde el paso 0 de la Poda — el check lee al módulo compartido)
+  const src = fs.readFileSync(path.join(process.cwd(), "src", "adi", "oracle", "respaldoAprobado.js"), "utf8");
   ok(/if \(contexto\.cederSiRepetida\) return null;/.test(src),
     "…y en el agente la frase no se usa: el peldaño cede cuando el caller lo pide");
 }
@@ -207,7 +208,7 @@ H("5 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
     callAgente: async ({ ronda }) => (ronda === 1 && pedidos.length ? { tipo: "herramientas", pedidos } : { tipo: "texto", texto: "" }) });
 
   // (a) C1 · la frase fija de vuelta: las familias distintas vuelven a compartir cadena
-  await carnada("la frase de molde reinstalada (C1)", "src/adi/oracle/caminoNatural.js",
+  await carnada("la frase de molde reinstalada (C1)", "src/adi/oracle/respaldoAprobado.js",
     // el defecto que se reinstala: el AGENTE deja de ceder y vuelve a comer la frase de molde
     [[/    if \(contexto\.cederSiRepetida\) return null;\n/, ""]],
     /* se prueba EL PELDAÑO, no el bucle: la copia mutada de caminoNatural no es la que el bucle importa, y lo

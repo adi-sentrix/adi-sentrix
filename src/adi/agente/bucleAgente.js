@@ -41,7 +41,7 @@ import { getSelloDeCarga } from "../../ingesta/estadoCarga.js";
 import { anteponerSello } from "../../ingesta/selloEnRespuesta.js";
 import { extraerCalculos, stripAllMarks, composeNoDataMessage } from "../oracle/narrationBlocks.js";
 import { normalizeResponse } from "../responseContract.js";
-import { _respaldoDeLoYaAprobado } from "../oracle/caminoNatural.js";
+import { _respaldoDeLoYaAprobado } from "../oracle/respaldoAprobado.js";   // paso 0 de la Poda: el peldaño compartido ya no vive en el módulo con fecha de retiro
 import { _oracionesDe } from "../oracle/narratePromptC.js";   // la PODA usa el cortador que ya existe — jamás un tercero (ver `_podarOracionVetada`)
 import { recitaAprobadaDe } from "../oracle/cicloNotarial.js";   // R2 del examen 1: la MISMA memoria de re-cita del camino natural — jamás una segunda paralela
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla

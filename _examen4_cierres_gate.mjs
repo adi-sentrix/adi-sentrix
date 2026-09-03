@@ -270,7 +270,10 @@ console.log("═".repeat(100));
   ok(!guardC(marco(VIEJA_CON_DEFECTO), CTX).ok,
     "una respuesta vieja que hoy tendría un defecto NO se ofrece: el escalón cede al peldaño siguiente");
   // el cableado: el escalón va ANTES de la carpeta, no en vez de ella
+  // (paso 0 de la Poda, 2026-09-03: el CUERPO del peldaño vive en respaldoAprobado.js — módulo compartido sin
+  //  fecha de retiro; el call-site de la escalera sigue en caminoNatural. Los checks leen a cada uno lo suyo.)
   const cn = fs.readFileSync(path.join(root, "src", "adi", "oracle", "caminoNatural.js"), "utf8");
+  const ra = fs.readFileSync(path.join(root, "src", "adi", "oracle", "respaldoAprobado.js"), "utf8");
   /* R3 DEL EXAMEN 1 DEL AGENTE (2026-08-31): la firma creció — el caller pasa el CONTEXTO de pertinencia
    * (pregunta + entidades + lo recién mostrado) para que el marco no afirme «sobre esto» hablando de otra
    * entidad (T13: pregunta por Falabella → replay de Tottus como «verificado»). */
@@ -290,12 +293,19 @@ console.log("═".repeat(100));
    * `recentNarrations`, donde también vive el RESPALDO del turno anterior. Resultado medido: el turno 2
    * devolvió el respaldo del turno 1 anidado dentro del suyo, y encima lo presentó como «quedó verificado».
    * Ahora lee `ultimaAprobada`, que el camino natural marca SOLO cuando el notario aprobó y NO fue respaldo. */
-  ok(/memIn.ultimaAprobada/.test(cn), "el escalón lee la última APROBADA, no la última MOSTRADA");
-  ok(!/memIn.recentNarrations/.test(cn.slice(cn.indexOf("_respaldoDeLoYaAprobado"), cn.indexOf("export async function"))),
+  ok(/memIn.ultimaAprobada/.test(ra), "el escalón lee la última APROBADA, no la última MOSTRADA");
+  ok(!/memIn.recentNarrations/.test(ra),
     "…y ya no mira `recentNarrations`: ahí también vive el respaldo, y ofrecerlo como verificado sería mentir");
   ok(cn.includes("res.aprobado && !suplenteDigno) memOut.ultimaAprobada"),
     "y `ultimaAprobada` se marca SOLO si el muro aprobó y el turno no fue respaldo");
-  ok(/juzgar\(candidato\)/.test(cn), "…y el escalón se JUZGA como cualquier otro peldaño, sin relajar el muro");
+  ok(/juzgar\(candidato\)/.test(ra), "…y el escalón se JUZGA como cualquier otro peldaño, sin relajar el muro");
+  /* PASO 0 DE LA PODA · UNA FUENTE: los DOS caminos importan el peldaño del MISMO módulo compartido. El día
+   * del retiro del natural, el agente no pierde nada — esa independencia es exactamente la pre-condición. */
+  const ba = fs.readFileSync(path.join(root, "src", "adi", "agente", "bucleAgente.js"), "utf8");
+  ok(/from "\.\/respaldoAprobado\.js"/.test(cn) && /from "\.\.\/oracle\/respaldoAprobado\.js"/.test(ba),
+    "paso 0 de la Poda: natural y agente importan el peldaño del MISMO módulo — el agente ya no depende del módulo con fecha de retiro");
+  ok(!/export function _respaldoDeLoYaAprobado/.test(cn),
+    "…y el cuerpo ya NO vive en caminoNatural: retirar el natural no se lleva el peldaño");
 }
 console.log(`\n── _examen4_cierres_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail === 0 ? 0 : 1);
