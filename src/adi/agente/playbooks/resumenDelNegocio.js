@@ -17,21 +17,13 @@
 
 import { variante } from "../variacion.js";
 import { buildRolesCartera } from "../../sentrix/rolesCartera.js";
-import { axisEntityNames } from "../../oracle/entityIndex.js";   // SOLO para saber si la pregunta nombra a alguien: la foto es del negocio entero
-
+import { nombraEntidad } from "./indiceEntidades.js";   // el guardia, compartido: la foto es del negocio entero
 /* ¿la pregunta nombra una entidad del tenant? — se pregunta por PRESENCIA, jamás se resuelve un parecido
- * (la ley del único buscador: acá no se ofrece ni se asume nada, solo se cede el turno a quien le toca). */
-const _nombraEntidad = (q) => {
-  for (const eje of ["cliente", "sku", "marca", "familia", "bodega", "canal"]) {
-    let nombres = [];
-    try { nombres = axisEntityNames(eje) || []; } catch { nombres = []; }
-    for (const n of nombres) {
-      if (String(n).length < 3) continue;
-      if (new RegExp(`\\b${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(q)) return true;
-    }
-  }
-  return false;
-};
+ * (la ley del único buscador: acá no se ofrece ni se asume nada, solo se cede el turno a quien le toca).
+ * El guardia se COMPARTE con la lectura de ventas y con la ficha (T3/T4, 2026-09-05): esta copia local se
+ * retiró, y con eso la foto dejó de llevarse «cómo viene LG» —una marca de dos letras que el filtro de
+ * nombres cortos salteaba— sin que nadie tuviera que acordarse de arreglar dos archivos. */
+const _nombraEntidad = (q) => nombraEntidad(q);
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 const _val = (f) => String((f && (f.text || f.value)) || "");

@@ -34,6 +34,7 @@ import { runPlan } from "./src/adi/oracle/toolRunner.js";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
 import { cajaDelAgente, serieEntidad, cobranza } from "./src/adi/agente/herramientasAgente.js";
 import { guardC } from "./src/adi/oracle/guardC.js";                 // las carnadas de entidad×período juzgan el texto compuesto DIRECTO contra el muro
+import { fichaDeEntidad } from "./src/adi/agente/playbooks/fichaDeEntidad.js";   // T4 · la carnada del muro captura su par (texto+figs) del turno vivo
 import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
 import { buildMesaEstado } from "./src/adi/sentrix/mesa.js";         // la card del margen: la brecha sellada tiene que dar SU número (una sola verdad)
@@ -64,7 +65,11 @@ H("1 · el registro cumple su patrón — agregar el segundo playbook es agregar
     /* `pasos` puede ser Array o FUNCIÓN de la pregunta (2026-09-01): se resuelve con `pasosDe`, el mismo
      * resolvedor que usa el bucle. Para un playbook de forma se prueba con cada una de sus preguntas de
      * muestra (`ejemplos`), así ningún eje queda sin verificar su herramienta. */
-    const muestras = Array.isArray(pb.ejemplos) && pb.ejemplos.length ? pb.ejemplos : ["como viene mi margen?"];
+    /* la ficha no puede declarar `ejemplos` en su módulo: nombraría entidades del demo dentro del bundle del
+     * frontend (el gate del bundle lo cazó). Sus preguntas de muestra viven ACÁ, que es quien las usa. */
+    const EJEMPLOS_DEL_GATE = { "ficha-de-entidad": ["dame la ficha de Lider", "qué pasa con Jumbo", "cómo viene LG", "dame la ficha de LG-DRYER8KG"] };
+    const muestras = EJEMPLOS_DEL_GATE[pb.nombre]
+      || (Array.isArray(pb.ejemplos) && pb.ejemplos.length ? pb.ejemplos : ["como viene mi margen?"]);
     /* el playbook declara en qué pack ACTIVAN sus ejemplos (`tenantDeMuestra`): entidad-por-período no tiene
      * serie real en el demo y resolvería cero pasos ahí. Se carga ese pack para verificar el patrón y se
      * restaura el demo al salir — nunca dejar el proceso en un tenant distinto al que empezó. */
@@ -822,6 +827,68 @@ H("1h · T3 · ventas neutra, contra el plan, la serie y el inventario en fraseo
     "…y «días de inventario» no recibe capital frenado en su lugar");
 }
 
+/* ═══ 1i · T4 · LA FICHA DE ENTIDAD ══════════════════════════════════════════════════════════════════════════
+ * Las siete formas del censo caían a `vacio`, y el producto ya la prometía solo: el puente cierra con «pídemela
+ * o ábrela en su ficha». Un solo paso y una sola fuente (`entityProfile`): medido sobre los 13 clientes,
+ * `entityRecord` difiere en uno (Lider — redondeo), y dos cifras para lo mismo es el defecto de siempre. */
+H("1i · T4 · la ficha de entidad: siete formas, la vara al lado, y el porqué declinado");
+{
+  initTenant(TENANT_DEMO);
+  const texto = async (q) => String((await answerViaAgente({ text: q, history: [], mem: {}, scenario: "bonanza", callAgente: MUDO })).r.text || "");
+
+  const FORMAS = ["dame la ficha de Lider", "qué pasa con Jumbo", "cómo viene Falabella", "háblame de Ripley",
+    "cómo está Sodimac", "Tottus", "dame la ficha de LG-DRYER8KG"];
+  ok(FORMAS.every((q) => (playbookPara(q) || {}).nombre === "ficha-de-entidad"),
+    `las ${FORMAS.length} formas de pedir la ficha tienen camino garantizado`,
+    FORMAS.filter((q) => (playbookPara(q) || {}).nombre !== "ficha-de-entidad").join(" | "));
+
+  /* la línea que ve el usuario: identidad, peso y la vara al lado (la ley de la vara única) */
+  const tF = await texto("cómo viene Falabella");
+  ok(/Falabella · cliente\. Venta del período: \$19\.4M — 1º de 13 por venta\./.test(tF),   // sin ^: el trato del nombre puede anteponer «jc: »
+    "★ la apertura: quién es, cuánto vende y qué lugar ocupa", tF.slice(0, 90));
+  ok(/Su margen es 22%, bajo el benchmark declarado \(30\.1%\)\./.test(tF),
+    "★ el margen JAMÁS viaja solo: la vara declarada va en la misma oración", tF.slice(90, 190));
+  ok(/la ficha localiza, no explica/.test(tF),
+    "…y el porqué se declina en la propia ficha: localizar no es explicar");
+
+  /* el SKU trae su lado de inventario, con el término de pantalla (jamás «cobertura») */
+  const tS = await texto("dame la ficha de LG-DRYER8KG");
+  ok(/Por el lado del inventario: .*capital en inventario.*rotación.*días de inventario/i.test(tS),
+    "el SKU suma capital · rotación · días de inventario", tS.slice(0, 200));
+  ok(!/\bcobertura\b/i.test(tS),
+    "…y «cobertura» no aparece: el término de pantalla es días de inventario (resuelto por eliminación)");
+
+  /* el secuestro que este playbook cierra: la marca de DOS letras que el guardia viejo salteaba */
+  ok((playbookPara("cómo viene LG") || {}).nombre === "ficha-de-entidad",
+    "★ «cómo viene LG» es la ficha de la marca — ya no se lo lleva la foto del negocio (guardia compartido)");
+
+  /* la voz que el muro vetó y se corrigió: cada cifra pegada a su concepto (Sodimac, margen 23.5% + meta 3.5%) */
+  const rSod = await answerViaAgente({ text: "cómo está Sodimac", history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
+  ok(rSod.r.agente.estado === "playbook" && (rSod.r.agente.vetos || []).length === 0,
+    `★ la ficha de Sodimac pasa el muro sin vetos (era el falso positivo de la subcadena «3.5%» en «23.5%»)`,
+    JSON.stringify(rSod.r.agente.vetos));
+
+  /* los deslindes: cada vecino conserva su turno */
+  const VECINOS = [
+    ["cuánto me compró Falabella", "entidad-por-periodo"],
+    ["cómo va el negocio", "resumen-del-negocio"],
+    ["cómo van las ventas", "lectura-de-ventas"],
+    ["qué marca deja más margen", "lectura-por-eje"],
+    ["cómo está el margen", "margen-en-riesgo"],
+    ["quién me debe y qué está vencido", "cobranza"],
+  ];
+  ok(VECINOS.every(([q, n]) => (playbookPara(q) || {}).nombre === n),
+    "…y NINGÚN vecino cambió de dueño con la ficha en el registro",
+    VECINOS.filter(([q, n]) => (playbookPara(q) || {}).nombre !== n).map(([q]) => q).join(" | "));
+  /* la forma CON período sigue siendo del puente (la ficha no la pisa) */
+  const rP = await answerViaAgente({ text: "cuanto me compro falabella el ultimo mes", history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
+  ok(rP.r.agente.estado === "puente" && (playbookPara("cuanto me compro falabella el ultimo mes") || null) === null,
+    "…y la entidad×período sigue siendo del puente, con la ficha mirando desde afuera");
+  /* nombrar a alguien AL PASAR no es pedir su ficha (ante la duda, false) */
+  ok((playbookPara("el descuento de Falabella me parece alto") || {}).nombre !== "ficha-de-entidad",
+    "…y nombrar una cuenta al pasar no dispara la ficha: hace falta pedirla");
+}
+
 /* ═══ 6 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
 H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
@@ -1169,6 +1236,42 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   await carnada("el eje cliente se activa sin que la pregunta diga por cuál métrica", "src/adi/agente/playbooks/lecturaPorEje.js",
     [[/  \{ eje: "cliente", re: new RegExp\(`[^`]+`, "i"\),/, '  { eje: "cliente", re: /\\bclientes?\\b/i,   // CARNADA: le alcanza con la palabra']],
     async (Mut) => { initTenant(TENANT_DEMO); return Mut.lecturaPorEje.cuandoAplica("qué clientes están mal"); });
+
+  /* ── LAS DE T4 (2026-09-05) ─────────────────────────────────────────────────────────────────────────────── */
+  // (Y) la ficha sin exigir que se la pidan: cualquier mención de una cuenta se la lleva
+  await carnada("la ficha se activa con solo nombrar a alguien", "src/adi/agente/playbooks/fichaDeEntidad.js",
+    [[/  if \(!soloElNombre && !_PIDE_FICHA\.test\(q\)\) return null;/, "  // CARNADA: nombrar ya alcanza"]],
+    async (Mut) => { initTenant(TENANT_DEMO); return Mut.fichaDeEntidad.cuandoAplica("el descuento de Falabella me parece alto"); });
+
+  // (Z) la vara invertida sin juez: la ficha podría decir «sobre el benchmark» con el margen por debajo
+  await carnada("la vara invertida deja de multarse en la ficha", "src/adi/agente/playbooks/fichaDeEntidad.js",
+    [[/        if \(bajo && \/\\b\(\?:sobre\|por encima de\|supera\)\\b\[\^\.\\n\]\{0,30\}\\bbenchmark\\b\/i\.test\(t\)\) \{/,
+      "        if (false) {   // CARNADA: el juez de la vara, dormido"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const FIGS = [{ label: "Falabella · Margen", text: "22.0%", value: "22.0%", raw: 22 },
+        { label: "Benchmark de margen", text: "30.1%", value: "30.1%" }];
+      return !Mut.fichaDeEntidad.listaNotarial("Falabella rinde sobre el benchmark declarado.", { figs: FIGS, pregunta: "cómo viene Falabella" })
+        .some((x) => x.regla === "vara-invertida");
+    });
+
+  // (AA) el muro con el `indexOf` desnudo de vuelta: «3.5%» se encuentra DENTRO de «23.5%» y la ficha de
+  // Sodimac —una respuesta correcta— vuelve a vetarse. Se captura el par real (texto + figs) del turno vivo
+  // y se juzga con la copia mutada de guardC: el falso positivo tiene que REAPARECER para probar que el
+  // arreglo es lo único que lo frena.
+  await carnada("el muro vuelve a leer «3.5%» adentro de «23.5%» (indexOf desnudo)", "src/adi/oracle/guardC.js",
+    [[/    const idx = _indiceConFrontera\(text, f\.text\);/, "    const idx = text.indexOf(f.text);   // CARNADA"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      let par = null;
+      const orig = fichaDeEntidad.componer;
+      fichaDeEntidad.componer = function (arg) { const out = orig.call(this, arg); par = { texto: out, figs: (arg && arg.figs) || [] }; return out; };
+      try { await answerViaAgente({ text: "cómo está Sodimac", history: [], mem: {}, scenario: "bonanza", callAgente: MUDO }); }
+      finally { fichaDeEntidad.componer = orig; }
+      if (!par || !/23\.5%/.test(par.texto) || !/3\.5%/.test(par.texto)) return false;   // sin el par, la carnada no probó nada
+      const v = Mut.guardC(par.texto, { ledger: { figs: par.figs }, question: "cómo está Sodimac" });
+      return v && v.ok === false && JSON.stringify(v.violations || "").includes("narrado como");
+    });
   initTenant(TENANT_DEMO);
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* */ } }

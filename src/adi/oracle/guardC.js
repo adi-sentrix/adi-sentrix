@@ -299,6 +299,16 @@ function _metricOwners(ledger) {
   }
   return owners;
 }
+/* La posición de una cifra EN SU PROPIA APARICIÓN: la primera que no viene pegada a otro número. Sin esto,
+ * «3.5%» se encuentra dentro de «23.5%» y la ventana local queda en la oración de al lado. Si la cifra solo
+ * aparece como parte de otra, devuelve -1 y el caller no la juzga: sin posición confiable, no hay veredicto. */
+function _indiceConFrontera(text, cifra) {
+  const s = String(cifra || "");
+  if (!s) return -1;
+  const re = new RegExp(`(?<![\\d.,])${s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+  const m = re.exec(String(text || ""));
+  return m ? m.index : -1;
+}
 // _metricBindingViolations(narration, ledger) → cifra real colgada de la métrica equivocada.
 // CRITERIO NÍTIDO (mismo principio que _attributionViolations, para no castigar prosa legítima): solo marca cuando
 // en la ventana local de la cifra hay UNA sola métrica reconocida y NO es de las que autorizan ese valor. Si hay
@@ -312,7 +322,12 @@ function _metricBindingViolations(narration, ledger) {
   for (const f of parseFigures(text)) {
     const ownerSet = owners.get(f.canon);
     if (!ownerSet || !ownerSet.size) continue;      // valor sin métrica dueña → no se juzga
-    const idx = text.indexOf(f.text);
+    // ⚠️ LA CIFRA SE LOCALIZA CON FRONTERA, no con `indexOf` desnudo: «3.5%» aparece DENTRO de «23.5%», y el
+    // índice de esa subcadena arrastraba la ventana a la oración equivocada. Repro medido (ficha de Sodimac,
+    // 2026-09-05): «Su margen es 23.5%… Su carga comercial es 5.4% de su venta, contra tu nivel de carga
+    // comercial declarado de 3.5%» — la meta de carga se juzgaba en la ventana del MARGEN y salía «3.5%
+    // narrado como margen». Un bloqueo de más degrada respuestas correctas, que es lo que este muro evita.
+    const idx = _indiceConFrontera(text, f.text);
     if (idx < 0) continue;
     // LÍMITES DE ORACIÓN SOBRE EL TEXTO ENMASCARADO: `_SENT_END` incluye "." y el punto DECIMAL de una cifra
     // ("$4.3M", "$17.8M") cortaba la ventana en falso — hacia adelante dejaba afuera la métrica que sigue, y

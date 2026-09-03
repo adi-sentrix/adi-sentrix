@@ -34,6 +34,7 @@ import { proyeccionDeclarada } from "./proyeccionDeclarada.js";   // playbook de
 import { cobranza } from "./cobranza.js";   // playbook del COBRO: «quién me debe» · «crédito vs contado» — la misma mesa que la pestaña
 import { limiteHonesto } from "./limiteHonesto.js";   // certificación (owner 2026-09-02): el eje NO disponible se declara con la razón del dato + alternativa
 import { sintesisEjecutiva } from "./sintesisEjecutiva.js";
+import { fichaDeEntidad } from "./fichaDeEntidad.js";   // T4 · la ficha de una entidad: va ANTES de la foto (que es del negocio entero)
 import { resumenDelNegocio } from "./resumenDelNegocio.js";   // señal del owner (2026-09-05): «¿cómo va el negocio?» — LA FOTO, distinta de los riesgos del directorio   // certificación (owner 2026-09-02): los 3 riesgos del directorio, por materialidad
 
 /** el registro. Agregar un playbook es agregar UNA línea acá y su archivo con el patrón de arriba.
@@ -45,7 +46,7 @@ import { resumenDelNegocio } from "./resumenDelNegocio.js";   // señal del owne
  *  ante «simula/proyecta/ponele»), cobranza, y al final los DOS de la certificación (limite-honesto ·
  *  sintesis-ejecutiva): sus preguntas no tienen dueño previo — nadie de arriba las toma (medido), así que ir
  *  últimos garantiza que no le quitan un turno a nadie. */
-export const PLAYBOOKS = [margenEnRiesgo, clientePerdiendoContribucion, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada, cobranza, limiteHonesto, sintesisEjecutiva, resumenDelNegocio];
+export const PLAYBOOKS = [margenEnRiesgo, clientePerdiendoContribucion, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada, cobranza, fichaDeEntidad, limiteHonesto, sintesisEjecutiva, resumenDelNegocio];
 
 /** playbookPara(pregunta) → el playbook que aplica, o null. El PRIMERO que declare aplicar (orden del registro
  *  = precedencia declarada); jamás dos a la vez, para que el procedimiento del turno sea uno solo y auditable. */
