@@ -66,16 +66,16 @@ const _AJENO = new RegExp([
 
 export const resumenDelNegocio = {
   nombre: "resumen-del-negocio",
+  /* responde POR EL NEGOCIO ENTERO: si la pregunta nombra una entidad del índice, el registro lo retira
+   * ANTES de consultarlo (propiedad aplicada una vez en playbookPara — tanda 2 post-poda, 2026-09-05). */
+  respondePorElNegocio: true,
 
   cuandoAplica(pregunta) {
     const q = String(pregunta || "");
     if (!q.trim() || _AJENO.test(q)) return false;
-    /* ⚠️ Y SI LA PREGUNTA NOMBRA UNA ENTIDAD, NO ES LA FOTO (secuestro cazado por el censo de rutas,
-     * 2026-09-05): «cómo viene Falabella» matcheaba «cómo viene» y `_AJENO` solo excluía la palabra literal
-     * «cliente» — un NOMBRE propio se colaba. La foto es del negocio ENTERO; preguntar por una cuenta es otra
-     * pregunta y tiene su camino. Se usa el índice solo para SABER SI la pregunta nombra a alguien (no para
-     * resolver ni para ofrecer un parecido): el mismo uso declarado que `_sinNombresDeEntidad` del mapa. */
-    if (_nombraEntidad(q)) return false;
+    /* (tanda 2 post-poda, 2026-09-05: el guardia ad-hoc de nombres —el que cerró el secuestro de «cómo viene
+     * Falabella» y luego el de «cómo viene LG»— es hoy la PROPIEDAD `respondePorElNegocio`, aplicada UNA vez
+     * en playbookPara. Una verdad, no una línea por autor.) */
     return _PANORAMA.test(q);
   },
 

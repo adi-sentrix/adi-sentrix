@@ -26,7 +26,7 @@
 
 import { detectSerieIntent } from "../../oracle/serieIntent.js";
 import { serieRealDe } from "../../sentrix/capability.js";
-import { axisEntityNames } from "../../oracle/entityIndex.js";   // SOLO nombre exacto (ley del único buscador): la entidad sin período
+import { entidadNombrada } from "./indiceEntidades.js";   // el guardia ÚNICO (ley del único buscador): la entidad sin período, nombre exacto del índice
 
 const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const _lab = (f) => String((f && f.label) || "");
@@ -47,17 +47,13 @@ const _PIDE_COMPRA = new RegExp(`\\bcu[aá]nto\\b[^.\\n]{0,20}(?:me\\s+)?(?:comp
 function _sinPeriodo(pregunta) {
   const q = String(pregunta || "");
   if (!_PIDE_COMPRA.test(q)) return null;
-  for (const eje of ["cliente", "sku", "marca", "familia"]) {
-    let nombres = [];
-    try { nombres = axisEntityNames(eje) || []; } catch { nombres = []; }
-    for (const n of nombres) {
-      if (String(n).length < 3) continue;
-      if (new RegExp(`\\b${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(q)) {
-        return { entidad: n, metrica: "venta", corte: { tipo: "pelicula" }, ambiguo: false };
-      }
-    }
-  }
-  return null;
+  /* (tanda 2 post-poda, 2026-09-05: acá vivía la CUARTA copia divergente del buscador de nombres — salteaba
+   * los de menos de 3 caracteres, usaba `\b` sobre nombres con guion y solo 4 ejes. Medido: «cuánto me compró
+   * LG» caía al rescate genérico. Ahora busca `entidadNombrada`, el guardia único; la bodega y el canal no
+   * compran, así que esos ejes se filtran acá — el filtro es de ESTE dominio, el buscador es el compartido.) */
+  const ent = (() => { try { return entidadNombrada(q); } catch { return null; } })();
+  if (!ent || ent.eje === "bodega" || ent.eje === "canal") return null;
+  return { entidad: ent.nombre, eje: ent.eje, metrica: "venta", corte: { tipo: "pelicula" }, ambiguo: false };
 }
 function _caso(pregunta) {
   let det = null, sinPeriodo = false;
@@ -97,6 +93,11 @@ export const entidadPorPeriodo = {
 
   pasos(pregunta) {
     const d = _caso(pregunta);
+    /* el declive por eje (tanda 2 post-poda): con el guardia único, «cuánto me compró LG» resuelve una MARCA
+     * — y marginRead{cliente} no trae su fila. El año cerrado de un eje no-cliente sale de queryMetric por
+     * ESE eje; el caso cliente conserva su paso congelado. */
+    if (d && d.sinSerie && d.eje && d.eje !== "cliente") return [{ tool: "queryMetric", args: { metric: "ventas", dimension: d.eje },
+      para: `la venta del período por ${d.eje} (el label «X · Ventas») — para ofrecer el año cerrado cuando la serie mensual no existe` }];
     if (d && d.sinSerie) return [{ tool: "marginRead", args: { focus: "bajo_benchmark", dimension: "cliente" },
       para: "la venta del período por cliente (el label «X · Venta») — para ofrecer el año cerrado cuando la serie mensual no existe" }];
     return d ? [{ tool: "serieEntidad", args: { entity: d.entidad, metrica: d.metrica },
@@ -107,7 +108,7 @@ export const entidadPorPeriodo = {
     /* con la serie bloqueada, la promesa NO es la serie: es la cifra de la alternativa que se ofrece. Una
      * lista vacía de obligatorias hace que el playbook se considere sin promesas cumplidas y se retire —
      * medido acá: el composer estaba bien y el turno igual caía al rescate. */
-    if (d && d.sinSerie) return [new RegExp(`^${_esc(d.entidad)} · Venta$`, "i")];
+    if (d && d.sinSerie) return [new RegExp(`^${_esc(d.entidad)} · Venta${d.eje && d.eje !== "cliente" ? "s" : ""}$`, "i")];
     return d ? [new RegExp(`^${_esc(d.entidad)} · ${_esc(d.metrica)} · `, "i")] : [];
   },
 
@@ -122,11 +123,12 @@ export const entidadPorPeriodo = {
     if (!d) return null;
     if (d.sinSerie) {
       /* el declive HONESTO: la razón verdadera + la alternativa que sí existe, con su cifra de la boleta */
-      const _lbl = new RegExp(`^${_esc(d.entidad)} · Venta$`, "i");
+      const _lbl = new RegExp(`^${_esc(d.entidad)} · Venta${d.eje && d.eje !== "cliente" ? "s" : ""}$`, "i");
       const anual = (Array.isArray(figs) ? figs : []).find((f) => _lbl.test(_lab(f)));
+      const _EJE_TXT = { cliente: "cliente", sku: "SKU", marca: "marca", familia: "familia" };
       const razon = d.motivoSerie === "no-reconcilia"
         ? `La serie mensual de ${d.entidad} no cierra contra su cifra oficial del período, así que no te la sirvo`
-        : `Este dato no trae la serie mensual por cliente`;
+        : `Este dato no trae la serie mensual por ${_EJE_TXT[d.eje] || "cliente"}`;
       return anual
         ? `${razon}. Lo que sí tengo es su año cerrado: ${d.entidad} suma ${_val(anual)} en el período. Si tu archivo trae el detalle mes a mes, con eso te abro la evolución.`
         : `${razon}, y por eso no te doy un mes que no puedo verificar. Si tu archivo trae el detalle mensual, con eso te abro la evolución.`;

@@ -101,6 +101,20 @@ const _PIDE_SEGUIMIENTO = new RegExp([
   `\\bcambi[oó] algo${_FIN}`, `\\bsigue en pie${_FIN}`,
 ].join("|"), "i");
 const _TEMA_MARGEN = /\bm[aá]rgen(?:es)?\b|\bbenchmark\b|\bvara\b|\brentabilidad\b/i;
+/* ── UNA SOLA RUTA POR PREGUNTA (tanda 2 post-poda, 2026-09-05) ────────────────────────────────────────────
+ * `cuandoAplica` abría con el léxico elíptico y `pasos`/`componer`/`listaNotarial` re-derivaban con
+ * `_PIDE_PORQUE` — dos léxicos que pueden divergir es el turno partido en dos cerebros (el molde correcto es
+ * el `_caso` de askDeCuadro: una derivación, todos los puntos de entrada la consultan). La ruta:
+ *   «seguimiento» → el diario ·  «porque» → los papeles (las elípticas del porqué INCLUIDAS) ·
+ *   «estandar»    → la lectura completa — que es ADONDE VA «¿y qué harías primero?» a propósito: el molde
+ *                   entero ya cierra priorizando con el criterio dicho (gateado en §1j), no necesita los roles. */
+function _rutaDe(pregunta) {
+  const q = String(pregunta || "");
+  if (_PIDE_SEGUIMIENTO.test(q)) return "seguimiento";
+  if (_PIDE_PORQUE.test(q)) return "porque";
+  if (_PIDE_PORQUE_ELIPTICO.test(q) && !new RegExp(`\\bhar[ií]as primero`, "i").test(q)) return "porque";
+  return "estandar";
+}
 /* ── EL PORQUÉ ELÍPTICO (T5, 2026-09-05) ───────────────────────────────────────────────────────────────────
  * «por qué pasa eso» · «cuál es la causa» · «profundiza en el porqué» · «¿y qué harías primero?» — el owner
  * las pregunta así, SIN nombrar el tema, después de una lectura. El re-censo midió que caían a `vacio` aun
@@ -239,6 +253,33 @@ function componerElSeguimiento({ figs, semilla, scenario, mem }) {
 }
 
 function componerElPorque({ figs, semilla, scenario, mem }) {
+  /* 00 · ¿HAY CASO? (residual del criterio, tanda 2 post-poda 2026-09-05). Con una vara DECLARADA por el
+   * usuario («mi margen mínimo es 25%») el promedio puede quedar ENCIMA — y el porqué de una pérdida que no
+   * existe no se cuenta: los papeles de la cartera describen la erosión contra la vara vieja y su partición
+   * deja de cuadrar (medido: la propia lista notarial vetaba «3 de 4 sin declarar el recorte» y el turno
+   * caía al rescate). La rama honesta abre con la verdad del turno: no hay pérdida material a nivel negocio
+   * contra TU vara; lo que sigue abierto se nombra con sus cifras de la boleta. */
+  {
+    const promedio0 = _find(figs, /^Margen promedio$/i);
+    const bench0 = _find(figs, /^Benchmark de margen$/i);
+    if (promedio0 && bench0 && Number.isFinite(_pct(promedio0)) && Number.isFinite(_pct(bench0)) && _pct(promedio0) >= _pct(bench0)) {
+      const p0 = [];
+      p0.push(`Contra el benchmark de ${_val(bench0)} que declaraste, tu margen promedio (${_val(promedio0)}) está encima: a nivel negocio no hay una pérdida de margen que explicar.`);
+      const cuenta0 = _find(figs, /clientes bajo el benchmark/i);
+      const juego0 = _find(figs, /^Contribuci[oó]n no capturada · subtotal$/i);
+      const carga0 = _find(figs, /^Carga comercial alta · subtotal$/i);
+      const abiertos = [];
+      if (cuenta0 && juego0) abiertos.push(`${_val(cuenta0)} clientes siguen bajo esa referencia y dejan ${_val(juego0)} de contribución sin capturar`);
+      if (carga0) abiertos.push(`la carga comercial alta suma ${_val(carga0)}`);
+      if (abiertos.length) p0.push(`Lo que sigue abierto, cuenta por cuenta: ${abiertos.join(" · ")}.`);
+      p0.push(variante(semilla, [
+        `Si quieres, te abro esa parte cliente por cliente.`,
+        `¿Te abro esa parte, cliente por cliente?`,
+        `La abrimos cliente por cliente cuando digas.`,
+      ]));
+      return p0.join("\n\n");
+    }
+  }
   let A = null;
   try { A = buildRolesCartera(scenario); } catch { A = null; }
   if (!A || !A.hay) return null;
@@ -341,6 +382,9 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
 
 export const margenEnRiesgo = {
   nombre: "margen-en-riesgo",
+  /* responde POR EL NEGOCIO ENTERO: si la pregunta nombra una entidad del índice, el registro lo retira
+   * ANTES de consultarlo (propiedad aplicada una vez en playbookPara — tanda 2 post-poda, 2026-09-05). */
+  respondePorElNegocio: true,
   diarioDeTesis,   // el diario de la tesis (paso 1): el bucle la guarda en la memoria del hilo al aprobar el turno del porqué
 
   cuandoAplica(pregunta, ctx) {
@@ -380,7 +424,7 @@ export const margenEnRiesgo = {
     ];
     /* el SEGUIMIENTO también la paga: re-medir es el punto — y sus conteos tienen que estar en la boleta de
      * ESTE turno, no en el recuerdo del anterior, o el muro los vetaría con razón. */
-    if (!_PIDE_PORQUE.test(String(pregunta || "")) && !_PIDE_SEGUIMIENTO.test(String(pregunta || ""))) return base;
+    if (_rutaDe(pregunta) === "estandar") return base;
     return [...base, { tool: "rolesCartera", args: {},
       para: "el PAPEL de cada cliente (fuga por acciones · volumen a margen bajo · margen delgado · sano) y la huella de cada mecanismo con su sello — la evidencia para razonar el porqué sin inventarlo" }];
   },
@@ -411,13 +455,13 @@ export const margenEnRiesgo = {
     /* EL SEGUIMIENTO va primero: «¿cambia tu lectura?» pide comparar contra la tesis del hilo, no una lectura
      * nueva. Con tesis → confirma o corrige RE-MIDIENDO; sin tesis → lo dice y arma el porqué completo, que es
      * lo honesto: un diario que finge recordar es peor que no tenerlo. */
-    if (_PIDE_SEGUIMIENTO.test(String(pregunta || ""))) {
+    if (_rutaDe(pregunta) === "seguimiento") {
       const seg = componerElSeguimiento({ figs, semilla, scenario, mem });
       if (seg) return seg;
       const nuevo = componerElPorque({ figs, semilla, scenario, mem });
       if (nuevo) return `No tenemos una lectura previa en este hilo, así que te la armo ahora.\n\n${nuevo}`;
     }
-    if (_PIDE_PORQUE.test(String(pregunta || ""))) {
+    if (_rutaDe(pregunta) === "porque") {
       const porque = componerElPorque({ figs, semilla, scenario, mem });
       if (porque) return porque;
     }
@@ -616,7 +660,7 @@ export const margenEnRiesgo = {
      * el `datoProyectado` puesto, el muro dejó pasar «te está costando unos $780K» — un monto que NO existe
      * en el dato (verificado: 0 coincidencias en las 318 cifras del negocio). El hueco es del muro y está
      * reportado; esta regla cierra la puerta en el territorio del playbook, que es el mío. */
-    if (_PIDE_PORQUE.test(String(pregunta || ""))) {
+    if (_rutaDe(pregunta) === "porque") {
       const montosBoleta = new Set(_all(figs, /./).map((f) => _val(f).replace(/\s+/g, "")));
       for (const m of t.match(/\$\s?[\d.,]+\s?[KMB]?/g) || []) {
         if (!montosBoleta.has(m.replace(/\s+/g, ""))) {

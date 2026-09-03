@@ -51,6 +51,17 @@ const _PIDE_FICHA = new RegExp([
   `\\bqu[eé] pasa con${_FIN}`, `\\bqu[eé] onda${_FIN}`, `\\bh[aá]blame de${_FIN}`, `\\bcont[aá]me de${_FIN}`,
   `\\bc[oó]mo (?:viene|va|est[aá]|anda)${_FIN}`, `\\bqu[eé] tal (?:viene|va|est[aá])${_FIN}`,
   `\\bmu[eé]strame${_FIN}`, `\\bdame (?:todo|los datos|el detalle)${_FIN}`, `\\brev[ií]same${_FIN}`,
+  /* LA MÉTRICA DE ALGUIEN (tanda 2 post-poda, 2026-09-05): «margen de Falabella» · «el stock de Samsung» ·
+   * «los riesgos de Falabella». Antes esas preguntas las SECUESTRABA un playbook del negocio entero (la
+   * cartera completa, un ranking sin Samsung, la síntesis del negocio) — el retiro-por-nombre las liberó y
+   * esta puerta les da dueño: la ficha de ESA entidad, que trae su margen contra la vara, su venta, su carga
+   * y —si es SKU— su lado de inventario. La entidad la confirma el índice en `_caso`, no este regex. */
+  `\\b(?:m[aá]rgen(?:es)?|venta[s]?|stock|inventario|capital|carga|contribuci[oó]n|riesgos?|n[uú]meros?|cifras) de(?:l| la| los| las)?\\s`,
+  /* EL PORQUÉ DE UNA ENTIDAD («¿Por qué Falabella cede margen?» — ask de pantalla): la causa por cuenta NO
+   * está medida en este dato, y la respuesta honesta es exactamente la de la ficha — su cuadro contra la
+   * vara MÁS el límite dicho («la ficha localiza, no explica»). El porqué de la CARTERA sigue siendo del
+   * margen: sin nombre, esta puerta no existe (la entidad la confirma el índice en `_caso`). */
+  `\\bpor qu[eé]${_FIN}[^.\\n]{0,40}\\b(?:cede|pierde|rinde|deja|cae|baja|sube)`,
 ].join("|"), "i");
 /* lo que NO es una ficha aunque nombre a alguien: la serie y el período (puente / entidad-por-período), la
  * simulación, el cobro, y las lecturas que piden UNA métrica cruzada por otro eje. */
@@ -189,6 +200,21 @@ export const fichaDeEntidad = {
      * como campos distintos, y el que se muestra es `doh` bajo el nombre «días de inventario». */
     if (/\bcobertura\b/i.test(t)) {
       v.push({ regla: "termino-declinado", multa: "«cobertura» no es un término de pantalla: el dato trae dos campos distintos y el que se usa es días de inventario. Decílo así." });
+    }
+    /* (4) TODO MONTO SALE DE LA BOLETA DE ESTE TURNO — la MISMA capa local de margen-en-riesgo, con su misma
+     * razón medida: con el `datoProyectado` puesto, el muro dejó pasar «te está costando unos $780K» (tanda 2
+     * post-poda: al ceder margen los turnos «<métrica> de <entidad>», el mentiroso del gate de amnistía entró
+     * por ACÁ y salió verde). El hueco del muro está reportado; esta regla cierra la puerta en el territorio
+     * de la ficha, que es el mío. */
+    {
+      const montosBoleta = new Set((Array.isArray(figs) ? figs : []).map((f) => _val(f).replace(/\s+/g, "")));
+      for (const m of t.match(/\$\s?[\d.,]+\s?[KMB]?/g) || []) {
+        if (!montosBoleta.has(m.replace(/\s+/g, ""))) {
+          v.push({ regla: "monto-fuera-de-boleta",
+            multa: `citas ${m} y ese monto no está en la evidencia de este turno: en la ficha toda cifra sale de la boleta, con su dueño. Un marcador de criterio no autoriza un número.` });
+          break;
+        }
+      }
     }
     return v;
   },

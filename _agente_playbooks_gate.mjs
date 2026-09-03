@@ -1037,6 +1037,75 @@ H("1k · el ask de cuadro: anclado a SU fila, contra el cuadro VIVO");
     DUENOS.filter(([q, n]) => (playbookPara(q) || {}).nombre !== n).map(([q]) => q).join(" | "));
 }
 
+/* ═══ 1m · TANDA 2 POST-PODA · el retiro-por-nombre como PROPIEDAD, y los cuatro secuestros cerrados ═════════
+ * La revisión de máximo esfuerzo reprodujo cuatro secuestros con la misma causa: un playbook que responde POR
+ * EL NEGOCIO ENTERO tomó una pregunta que nombraba a alguien. El guardia era una línea que cada autor tenía
+ * que recordar — tres lo olvidaron en una semana. Desde hoy es la propiedad `respondePorElNegocio`, aplicada
+ * UNA vez en playbookPara; estos checks congelan los cuatro casos y la invariante. */
+H("1m · tanda 2: la propiedad del negocio entero, los secuestros cerrados y el residual del criterio");
+{
+  initTenant(TENANT_DEMO);
+  const texto = async (q, mem = {}) => String((await answerViaAgente({ text: q, history: [], mem, scenario: "actual", callAgente: MUDO })).r.text || "");
+
+  /* ── la INVARIANTE: los cinco del negocio la declaran, y el registro la aplica ── */
+  const DEL_NEGOCIO = ["margen-en-riesgo", "lectura-de-ventas", "lectura-por-eje", "sintesis-ejecutiva", "resumen-del-negocio"];
+  ok(DEL_NEGOCIO.every((n) => (PLAYBOOKS.find((p) => p.nombre === n) || {}).respondePorElNegocio === true),
+    "★ los cinco playbooks del negocio entero DECLARAN la propiedad (no una línea por autor)",
+    DEL_NEGOCIO.filter((n) => (PLAYBOOKS.find((p) => p.nombre === n) || {}).respondePorElNegocio !== true).join(" | "));
+
+  /* ── los cuatro secuestros, cerrados con dueño (la regla del owner: responder por ESA entidad) ── */
+  const S5 = await texto("¿Cuáles son los principales riesgos de Falabella?");
+  ok((playbookPara("¿Cuáles son los principales riesgos de Falabella?") || {}).nombre === "ficha-de-entidad"
+    && /^(?:jc: )?Falabella · cliente\./.test(S5.trim()),
+    "★ «los riesgos de Falabella» responde POR Falabella (su ficha), no la síntesis del negocio", S5.slice(0, 80));
+  ok((playbookPara("margen de Falabella?") || {}).nombre === "ficha-de-entidad"
+    && (playbookPara("y el margen de Lider?") || {}).nombre === "ficha-de-entidad",
+    "★ «margen de Falabella» / «y el margen de Lider» son de la FICHA — la cartera ya no los secuestra");
+  const S7 = await texto("el stock de Samsung");
+  ok((playbookPara("el stock de Samsung") || {}).nombre === "ficha-de-entidad" && /Samsung · marca\./.test(S7),
+    "★ «el stock de Samsung» responde SOBRE Samsung — nunca más un ranking que no lo nombra", S7.slice(0, 80));
+  const SP = await texto("¿Por qué Falabella cede margen?");
+  ok(/Por qué rinde así no está en este dato: la ficha localiza, no explica\./.test(SP),
+    "★ «¿Por qué Falabella cede margen?» (ask de pantalla): la ficha con el límite DICHO — la causa por cuenta no está medida", SP.slice(0, 90));
+
+  /* ── el guardia único también en entidad×período: la marca de dos letras ── */
+  const S9 = await texto("cuánto me compró LG");
+  ok(/Este dato no trae la serie mensual por marca/.test(S9) && /LG suma \$24\.6M/.test(S9),
+    "★ «cuánto me compró LG» (marca, dos letras): el declive honesto POR MARCA con su año cerrado — la 4ª copia del guardia murió", S9.slice(0, 100));
+
+  /* ── los controles del negocio SIN nombre: ninguno cedió ── */
+  const CONTROLES = [["cómo está el margen", "margen-en-riesgo"], ["los 3 riesgos", "sintesis-ejecutiva"],
+    ["cómo va el negocio", "resumen-del-negocio"], ["cómo van las ventas", "lectura-de-ventas"],
+    ["qué marca deja más margen", "lectura-por-eje"], ["¿Quiénes son mis principales clientes por venta?", "lectura-por-eje"]];
+  ok(CONTROLES.every(([q, n]) => (playbookPara(q) || {}).nombre === n),
+    "…y los seis controles del negocio SIN nombre conservan su dueño",
+    CONTROLES.filter(([q, n]) => (playbookPara(q) || {}).nombre !== n).map(([q]) => q).join(" | "));
+
+  /* ── el RESIDUAL del criterio: el porqué con la vara declarada encima del promedio ── */
+  const rc = await answerViaAgente({ text: "recuerda que mi margen mínimo es 25%", history: [], mem: {}, scenario: "actual", callAgente: MUDO });
+  const RP = await texto("dime por qué estamos perdiendo margen", rc.mem);
+  ok(/Contra el benchmark de 25\.0% que declaraste, tu margen promedio \(25\.1%\) está encima: a nivel negocio no hay una pérdida de margen que explicar\./.test(RP),
+    "★ con la vara declarada ENCIMA del promedio, el porqué abre con la verdad — no un rescate", RP.slice(0, 120));
+  ok(/sigue abierto/.test(RP) && /sin capturar|carga comercial/.test(RP),
+    "…y nombra lo que sigue abierto con sus cifras de la boleta, cuenta por cuenta");
+
+  /* ── el mentiroso que la propiedad dejó entrar por la ficha, frenado por su capa local ── */
+  const mentiroso = async () => ({ tipo: "texto", texto: "La carga comercial de Falabella te está costando unos $780K al año." });
+  const rm = await answerViaAgente({ text: "cuanto me cuesta la carga de Falabella?", history: [], mem: {}, scenario: "bonanza", callAgente: mentiroso });
+  ok(!/780/.test(String(rm.r.text || "")) && (rm.r.agente.vetos || []).some((v) => /monto-fuera-de-boleta/.test(v)),
+    "★ el $780K inventado en un turno de FICHA no llega a pantalla: la capa monto-fuera-de-boleta es de la ficha también");
+
+  /* ⚠️ EL CRITERIO ES ESTADO GLOBAL DEL PROCESO (setCriterion muta la POLICY): el caso de arriba dejó la vara
+   * en 25% y las carnadas de más abajo medían contra ESE benchmark — dos dejaron de morder y el «8 de tus
+   * clientes» del fixture se volvía 4 (el MISMO artefacto de arnés que el supervisor confesó en su sonda).
+   * Se restaura por la puerta REAL (forget del propio bypass), y se VERIFICA: un tearDown que falla en
+   * silencio es otro verde de adorno. */
+  const rF = await answerViaAgente({ text: "olvida mi margen mínimo", history: [], mem: rc.mem, scenario: "actual", callAgente: MUDO });
+  const RV = await texto("cómo está el margen");
+  ok(rF.r.agente && rF.r.agente.estado === "criterio" && /30\.1%/.test(RV),
+    "…y el criterio declarado se OLVIDA por su propia puerta: la vara vuelve a la del negocio (30.1%)", RV.slice(0, 90));
+}
+
 /* ═══ 6 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
 H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
@@ -1361,9 +1430,18 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   /* ── LAS DE T3 (2026-09-05) ─────────────────────────────────────────────────────────────────────────────── */
   // (V) la lectura de ventas sin su guardia de entidad: contesta el total del negocio a quien preguntó por una cuenta
+  /* re-apuntada (tanda 2 post-poda, 2026-09-05): el guardia ad-hoc de asesoria.js es hoy la PROPIEDAD
+   * `respondePorElNegocio`, aplicada una vez en el registro. La carnada muta LA PROPIEDAD y prueba por
+   * `playbookPara` — el punto de entrada real — que sin ella el secuestro vuelve. */
   await carnada("la lectura de ventas se lleva «las ventas de Falabella»", "src/adi/agente/playbooks/asesoria.js",
-    [[/  if \(nombraEntidad\(q\)\) return null;/, "  // CARNADA: el guardia anti-secuestro, desarmado"]],
-    async (Mut) => { initTenant(TENANT_DEMO); return Mut.lecturaDeVentas.cuandoAplica("cómo van las ventas de Falabella"); });
+    [[/  \/\* responde POR EL NEGOCIO ENTERO: el registro lo retira si la pregunta nombra una entidad del índice \*\/\n  respondePorElNegocio: true,/, "  respondePorElNegocio: false,   // CARNADA: la propiedad, apagada"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      /* el registro re-importado con el módulo mutado no es trivial: se prueba la conducta equivalente —
+       * cuandoAplica dice true (siempre lo dijo tras retirar el ad-hoc) Y la propiedad quedó apagada, que es
+       * exactamente la condición con la que playbookPara lo dejaría pasar. */
+      return Mut.lecturaDeVentas.respondePorElNegocio === false && Mut.lecturaDeVentas.cuandoAplica("cómo van las ventas de Falabella");
+    });
 
   // (W) el recorte del inventario deja de declararse: un ranking de lo frenado se lee como si fuera todo el stock
   await carnada("el inventario recortado se sirve como si fuera el stock entero", "src/adi/agente/playbooks/lecturaPorEje.js",

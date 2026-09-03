@@ -279,9 +279,9 @@ function _casoVentas(pregunta) {
    * el pasado es historia, no supuesto). La COMPARACIÓN contra ese pasado sí es de acá. */
   if (new RegExp(`\\ba[ñn]o (?:pasado|anterior)${_FIN}|\\bmes pasado${_FIN}`, "i").test(q)
     && !new RegExp(`\\bcontra${_FIN}|\\bvs\\.?${_FIN}|\\bversus${_FIN}|\\bcompar`, "i").test(q)) return null;
-  /* nombra a alguien → no es la lectura del negocio: contestar el total a quien preguntó por una cuenta es
-   * cambiarle la pregunta (el secuestro que el censo encontró en la foto). Ante la duda, false. */
-  if (nombraEntidad(q)) return null;
+  /* (tanda 2 post-poda, 2026-09-05: acá vivía el guardia ad-hoc `nombraEntidad` — hoy es la PROPIEDAD
+   * `respondePorElNegocio` del playbook, aplicada UNA vez en playbookPara. Una línea que cada autor tenía
+   * que recordar se olvidó tres veces en una semana; la propiedad no se olvida.) */
   if (_C_CAE.test(q)) return "caida";
   if (_C_PPTO.test(q) && _C_LEE.test(q)) return "presupuesto";
   if (_C_SERIE.test(q)) return "serie";
@@ -290,6 +290,8 @@ function _casoVentas(pregunta) {
 }
 export const lecturaDeVentas = {
   nombre: "lectura-de-ventas",
+  /* responde POR EL NEGOCIO ENTERO: el registro lo retira si la pregunta nombra una entidad del índice */
+  respondePorElNegocio: true,
   cuandoAplica(pregunta) {
     return _casoVentas(pregunta) !== null;
   },

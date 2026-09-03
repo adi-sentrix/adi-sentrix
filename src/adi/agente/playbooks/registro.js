@@ -27,6 +27,7 @@
  * PURO · determinístico · sin red. Cada playbook trae sus carnadas en el gate. */
 
 import { margenEnRiesgo } from "./margenEnRiesgo.js";
+import { nombraEntidad } from "./indiceEntidades.js";   // el retiro-por-nombre, aplicado UNA vez en playbookPara
 import { clientePerdiendoContribucion, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio } from "./asesoria.js";   // los 4 de ASESORÍA (owner 2026-09-01): 01 QUÉ · 02 DÓNDE · 03 QUÉ HACER PRIMERO
 import { lecturaPorEje } from "./lecturaPorEje.js";   // playbook de FORMA: canal · marca · familia · bodega · SKU frenado
 import { entidadPorPeriodo } from "./entidadPorPeriodo.js";   // playbook de FORMA: «cuánto me compró X el último mes» con serie REAL (la bloqueada es del puente)
@@ -62,8 +63,21 @@ export function playbookPara(pregunta, ctx) {
    * `{ history }` (T5, 2026-09-05 — «por qué pasa eso» solo abre si la última lectura fue de margen). Los
    * detectores que no lo miran lo ignoran; un caller que no lo pasa (los gates de siempre) mide el peor caso:
    * sin hilo, la elíptica no aplica — que es exactamente la conducta prometida. */
+  /* ── EL RETIRO POR NOMBRE ES PROPIEDAD DEL PLAYBOOK, aplicada UNA vez acá (tanda 2 post-poda, 2026-09-05).
+   * Tres secuestros en una semana tuvieron la misma causa: un playbook que responde POR EL NEGOCIO ENTERO
+   * tomó una pregunta que nombraba a alguien («los riesgos de Falabella» → la síntesis del negocio; «margen
+   * de Falabella» → la cartera; «el stock de Samsung» → un ranking sin Samsung). El guardia existía, pero era
+   * una línea que cada autor tenía que recordar — y tres lo olvidaron. Desde hoy el playbook lo DECLARA
+   * (`respondePorElNegocio: true`) y el registro lo aplica acá, una sola vez: si la pregunta nombra una
+   * entidad del índice, ese playbook no compite y el turno le queda a quien responde por ESA entidad. La
+   * mención se calcula UNA vez por turno, no una por playbook. */
+  const _nombra = (() => { let v = null; return () => { if (v === null) { try { v = nombraEntidad(q); } catch { v = false; } } return v; }; })();
   for (const pb of PLAYBOOKS) {
-    try { if (pb && typeof pb.cuandoAplica === "function" && pb.cuandoAplica(q, ctx)) return pb; } catch { /* un detector roto no secuestra el turno */ }
+    try {
+      if (!pb || typeof pb.cuandoAplica !== "function") continue;
+      if (pb.respondePorElNegocio === true && _nombra()) continue;
+      if (pb.cuandoAplica(q, ctx)) return pb;
+    } catch { /* un detector roto no secuestra el turno */ }
   }
   return null;
 }

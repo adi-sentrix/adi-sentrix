@@ -77,6 +77,9 @@ const _topDe = (figs, re) => _all(figs, re)
 
 export const sintesisEjecutiva = {
   nombre: "sintesis-ejecutiva",
+  /* responde POR EL NEGOCIO ENTERO: si la pregunta nombra una entidad del índice, el registro lo retira
+   * ANTES de consultarlo (propiedad aplicada una vez en playbookPara — tanda 2 post-poda, 2026-09-05). */
+  respondePorElNegocio: true,
 
   /* ⚠️ EL LÉXICO CORTO (censo de rutas 2026-09-05, tanda T1): el detector exigía TEMA **y** AUDIENCIA juntos, y
    * la gente escribe una de las dos. «los 3 riesgos» quedaba sin camino (tema sin audiencia) y «resumen para el

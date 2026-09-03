@@ -703,6 +703,14 @@ H("16 · la tanda post-poda: criterio · alcance heredado · el stop punta a pun
   ok(Array.isArray(rs.r.agente.cortes) && rs.r.agente.cortes.length >= 1 && rs.r.agente.cortes.every((c) => c === "end_turn"),
     `★ el expediente lleva el motivo de corte de CADA llamada (${(rs.r.agente.cortes || []).length} cortes)`);
 
+  /* ⚠️ EL CRITERIO ES ESTADO GLOBAL DEL PROCESO: el caso de arriba dejó la vara en 25% y todo lo que corra
+   * después en este gate mediría contra ella (el artefacto de arnés del supervisor, y el que envenenó dos
+   * carnadas del gate de playbooks). Se restaura por la puerta real y se VERIFICA. */
+  const rOlvida = await answerViaAgente({ text: "olvida mi margen mínimo", history: [], mem: rc.mem, scenario: "bonanza", callAgente: MUDO_STOP });
+  const rVara = await answerViaAgente({ text: "cómo está el margen", history: [], mem: {}, scenario: "bonanza", callAgente: MUDO_STOP });
+  ok(rOlvida.r.agente.estado === "criterio" && /30\.1%/.test(String(rVara.r.text || "")),
+    "…y el criterio se olvida por su propia puerta: la vara vuelve a 30.1% para lo que sigue");
+
   /* ── LA CADENA COMPLETA, estática: cliente y adapter no vuelven a tirar el motivo; la salud lee al agente ── */
   const CHAT = fs.readFileSync(path.join(process.cwd(), "src", "ui", "ChatADI.jsx"), "utf8").replace(/\r\n/g, "\n");
   ok(/stop: data\.stop \?\? null/.test(CHAT), "_fetchAgente lleva `data.stop` al bucle (el arreglo del gateway ya no muere un salto después)");

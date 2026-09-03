@@ -124,6 +124,9 @@ const _ejeDe = (pregunta) => {
 
 export const lecturaPorEje = {
   nombre: "lectura-por-eje",
+  /* responde POR EL NEGOCIO ENTERO: si la pregunta nombra una entidad del índice, el registro lo retira
+   * ANTES de consultarlo (propiedad aplicada una vez en playbookPara — tanda 2 post-poda, 2026-09-05). */
+  respondePorElNegocio: true,
   /* las preguntas de muestra, una por eje: el gate resuelve `pasos` con cada una y verifica que la herramienta
    * exista y que la promesa se cumpla sobre el dato demo. Son las del protocolo, no inventadas. */
   ejemplos: ["ranking por canal: mejores y peores", "qué marca deja más margen", "margen por familia", "capital por bodega", "qué SKU tienen capital frenado"],
