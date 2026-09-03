@@ -667,6 +667,52 @@ H("14e · P2: la letra del ejemplo numérico y la escalada de un veto reparable"
     "…y un veto SIN cifra (el cierre imperativo) no escala: el gasto estéril de la corrida 2 sigue cortado", JSON.stringify(vistas2));
 }
 
+/* ═══ 16 · LA TANDA POST-PODA · lo que la revisión de máximo esfuerzo encontró borrado ═══════════════════════
+ * La poda retiró el ORQUESTADOR y con él tres garantías que nadie re-cableó al agente (la revisión sobre
+ * main..dev las confirmó por sonda): el bypass de la memoria de criterio (gastaba una llamada y NO persistía),
+ * el alcance heredado del muro («esos clientes» + uno agregado en silencio SALÍA — el gate que lo probaba
+ * murió con el natural), y el motivo de corte del proveedor que moría en el cliente. Cada una vuelve con su
+ * caso congelado acá. */
+H("16 · la tanda post-poda: criterio · alcance heredado · el stop punta a punta");
+{
+  initTenant(TENANT_DEMO);
+  /* ── EL CRITERIO: cero llamadas, persiste, y el turno siguiente MIDE con él ── */
+  let llamadas = 0;
+  const espia = async () => { llamadas++; return { tipo: "texto", texto: "" }; };
+  const rc = await answerViaAgente({ text: "recuerda que mi margen mínimo es 25%", history: [], mem: {}, scenario: "bonanza", callAgente: espia });
+  ok(llamadas === 0, `★ «recuerda que mi margen mínimo es 25%» NO gasta: cero llamadas al cerebro (${llamadas})`);
+  ok(rc.r.agente && rc.r.agente.estado === "criterio" && /desde ahora tu margen mínimo es 25%/i.test(String(rc.r.text || "")),
+    "★ y confirma en pantalla, con el estado «criterio» en el expediente", String(rc.r.text || "").slice(0, 90));
+  const rc2 = await answerViaAgente({ text: "cómo está el margen", history: [], mem: rc.mem, scenario: "bonanza", callAgente: async () => ({ tipo: "texto", texto: "" }) });
+  ok(/benchmark de 25\.0% que declaraste/.test(String(rc2.r.text || "")),
+    "★ y el turno SIGUIENTE mide contra el criterio persistido (benchmark 25.0%, no el 30.1% de fábrica)",
+    String(rc2.r.text || "").slice(0, 110));
+
+  /* ── EL ALCANCE HEREDADO: la reposición del caso del gate muerto, sobre el camino del agente ── */
+  const T1 = "Los clientes bajo tu benchmark que más pesan: Falabella deja $1.6M sin capturar, Lider $1.5M, Jumbo $1.1M y Sodimac $0.4M.";
+  const HILO = [{ role: "user", text: "quiénes están bajo el benchmark" }, { role: "assistant", text: T1 }];
+  const TRAMPA = async () => ({ tipo: "texto", texto: "De esos clientes, Falabella deja $1.6M, Lider $1.5M, Jumbo $1.1M, Sodimac $0.4M y Ripley $0.3M sin capturar." });
+  const ra = await answerViaAgente({ text: "cuánto dejan de capturar esos clientes", history: HILO, mem: { recentNarrations: [T1] }, scenario: "bonanza", callAgente: TRAMPA });
+  ok(!/Ripley/.test(String(ra.r.text || "")), "★ «esos clientes» + Ripley agregado en silencio NO sale a pantalla");
+  ok((ra.r.agente.vetos || []).some((v) => /el alcance del turno anterior/.test(v) && /Ripley/.test(v)),
+    "★ y el veto es el del ALCANCE HEREDADO, nombrando al colado", JSON.stringify(ra.r.agente.vetos || []).slice(0, 140));
+
+  /* ── EL STOP: el motivo de corte del proveedor queda en el expediente, por llamada ── */
+  const MUDO_STOP = async () => ({ tipo: "texto", texto: "", stop: "end_turn" });
+  const rs = await answerViaAgente({ text: "cómo está el margen", history: [], mem: {}, scenario: "bonanza", callAgente: MUDO_STOP });
+  ok(Array.isArray(rs.r.agente.cortes) && rs.r.agente.cortes.length >= 1 && rs.r.agente.cortes.every((c) => c === "end_turn"),
+    `★ el expediente lleva el motivo de corte de CADA llamada (${(rs.r.agente.cortes || []).length} cortes)`);
+
+  /* ── LA CADENA COMPLETA, estática: cliente y adapter no vuelven a tirar el motivo; la salud lee al agente ── */
+  const CHAT = fs.readFileSync(path.join(process.cwd(), "src", "ui", "ChatADI.jsx"), "utf8").replace(/\r\n/g, "\n");
+  ok(/stop: data\.stop \?\? null/.test(CHAT), "_fetchAgente lleva `data.stop` al bucle (el arreglo del gateway ya no muere un salto después)");
+  ok(/const nat = \(r && r\.natural\) \|\| \(r && r\.agente \? \{/.test(CHAT),
+    "y `_rastroDeRuta` mapea el expediente del AGENTE a la fila de salud — la telemetría dejó de estar ciega");
+  const OAI = fs.readFileSync(path.join(process.cwd(), "src", "adi", "llm", "adapters", "openai.js"), "utf8").replace(/\r\n/g, "\n");
+  ok(/agente\(\{ mensajes, system, tools, model \}\) \{[\s\S]{0,900}finish_reason/.test(OAI),
+    "y `openai.agente()` devuelve el finish_reason: paridad de proveedor con anthropic");
+}
+
 /* ═══ 15 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
 H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
@@ -1050,6 +1096,32 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
     }
   }
 
+
+  // ── LAS DE LA TANDA POST-PODA (2026-09-05) ──────────────────────────────────────────────────────────────
+  // (t1a) el alcance heredado desconectado del muro: «esos clientes» + Ripley agregado vuelve a salir
+  await carnada("el alcance heredado desconectado (Ripley se cuela en «esos clientes»)",
+    [[/    alcanceHeredado: heredado,.*\n/, ""]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const T1 = "Los clientes bajo tu benchmark que más pesan: Falabella deja $1.6M sin capturar, Lider $1.5M, Jumbo $1.1M y Sodimac $0.4M.";
+      const HILO = [{ role: "user", text: "quiénes están bajo el benchmark" }, { role: "assistant", text: T1 }];
+      const TRAMPA = async () => ({ tipo: "texto", texto: "De esos clientes, Falabella deja $1.6M, Lider $1.5M, Jumbo $1.1M, Sodimac $0.4M y Ripley $0.3M sin capturar." });
+      const r = await Mut.answerViaAgente({ text: "cuánto dejan de capturar esos clientes", history: HILO, mem: { recentNarrations: [T1] }, scenario: "bonanza", callAgente: TRAMPA });
+      /* la cifra del colado ($0.3M) la caza ADEMÁS el candado de cifra-no-autorizada — doble red, medido al
+       * escribir esta carnada. Lo que ESTE cable aporta es la multa que NOMBRA el alcance y al colado: sin el
+       * cable, esa multa desaparece y el check ★ del §16 daría ✗. Eso es lo que se prueba. */
+      return !(r.r.agente.vetos || []).some((v) => /el alcance del turno anterior/.test(v));
+    });
+  // (t1b) el bypass de criterio quitado: la declaración vuelve a gastar una llamada
+  await carnada("la memoria de criterio vuelve a gastar (el bypass, quitado)",
+    [[/    const criteriaIntent = \(\(\) => \{ try \{ return detectCriteriaIntent\(q\); \} catch \{ return null; \} \}\)\(\);/, "    const criteriaIntent = null;   // CARNADA: el bypass, quitado"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      let llamadas = 0;
+      const espia = async () => { llamadas++; return { tipo: "texto", texto: "" }; };
+      await Mut.answerViaAgente({ text: "recuerda que mi margen mínimo es 25%", history: [], mem: {}, scenario: "bonanza", callAgente: espia });
+      return llamadas > 0;   // el defecto: el turno administrativo gastó
+    });
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* */ } }
 }
 

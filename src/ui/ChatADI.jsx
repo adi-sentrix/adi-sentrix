@@ -102,7 +102,16 @@ const _ahora = () => { try { return Date.now(); } catch { return null; } };
 const _msDelTurno = () => { try { return _t0Turno ? Date.now() - _t0Turno : null; } catch { return null; } };
 function _rastroDeRuta(q, r, source, escenario) {
   try {
-    const nat = (r && r.natural) || null;
+    /* (tanda post-poda 2026-09-05): `r.natural` ya no lo escribe nadie — el camino se retiró y la salud quedó
+     * CIEGA justo cuando el agente pasó a ser el único camino. El expediente del agente lleva los mismos
+     * conceptos con otros nombres; acá se mapean a la fila de siempre (estado · vetos · cortes · llamadas). */
+    const nat = (r && r.natural) || (r && r.agente ? {
+      estado: r.agente.estado || null,
+      suplenteDigno: r.agente.estado === "limite" || r.agente.estado === "vacio",
+      vetos: Array.isArray(r.agente.vetos) ? r.agente.vetos : null,
+      cortes: Array.isArray(r.agente.cortes) ? r.agente.cortes : null,
+      vacias: null,   // el bucle no cuenta vacías por separado: el estado «vacio» del expediente lo dice
+    } : null);
     /* LAS CINCO COSAS QUE UNA MEDICIÓN DEBE DECLARAR (owner 2026-08-15): escenario · carpeta · ruta · versión ·
      * rastro. La consola las imprime en su sello; acá van al rastro, para que medir en la app y medir en la
      * consola NO puedan volver a describir negocios distintos sin que nada lo diga. La FIRMA de la carpeta es su
@@ -385,7 +394,8 @@ async function _fetchAgente({ mensajes, scenario, requestContext, ronda, attempt
   const data = await res.json();
   if (_accessDenied(data)) throw new Error("acceso requerido");
   if (!data || !data.ok) throw new Error((data && data.error) || "gateway sin agente");
-  return data.tipo === "herramientas" ? { tipo: "herramientas", pedidos: data.pedidos || [] } : { tipo: "texto", texto: String(data.texto || "") };
+  // el motivo de corte viaja al bucle (tanda post-poda): el gateway lo re-emite, y tirarlo acá lo dejaba muerto un salto después
+  return data.tipo === "herramientas" ? { tipo: "herramientas", pedidos: data.pedidos || [], stop: data.stop ?? null } : { tipo: "texto", texto: String(data.texto || ""), stop: data.stop ?? null };
 }
 
 /* `_fetchNatural` vivió acá hasta LA PODA (2026-09-05): era el fetch del camino natural, retirado del código

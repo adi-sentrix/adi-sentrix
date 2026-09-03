@@ -44,7 +44,10 @@ import { extraerCalculos, stripAllMarks, composeNoDataMessage } from "../oracle/
 import { normalizeResponse } from "../responseContract.js";
 import { _respaldoDeLoYaAprobado } from "../oracle/respaldoAprobado.js";   // paso 0 de la Poda: el peldaño compartido ya no vive en el módulo con fecha de retiro
 import { _oracionesDe } from "../oracle/narratePromptC.js";   // la PODA usa el cortador que ya existe — jamás un tercero (ver `_podarOracionVetada`)
-import { recitaAprobadaDe } from "../oracle/cicloNotarial.js";   // R2 del examen 1: la MISMA memoria de re-cita del camino natural — jamás una segunda paralela
+import { recitaAprobadaDe, alcanceHeredadoDe } from "../oracle/cicloNotarial.js";   // R2: la MISMA memoria de re-cita · y el ALCANCE HEREDADO («esos clientes»), re-cableado tras la poda
+import { detectCriteriaIntent } from "../criteria.js";     // el MISMO detector que answerViaOracle — una red, una verdad
+import { composeCriteria } from "../conversation.js";      // la MISMA composición (setCriterion/forgetCriterion), jamás una copia
+import { envejecerPendingSimulation, pendingSimulationVigente, withOfertaPendiente } from "../oracle/conversationScope.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 import { vetosDeContrato, esIdentificadorInterno } from "./contratoAgente.js";
 import { vetoCifraSinBoleta } from "./cifraSinBoleta.js";   // el juez del turno que NO leyó — vive SOLO en el agente (ver su cabecera)
@@ -356,6 +359,34 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     const _trato = m && m[1] ? m[1].replace(/[.,;:!?]+$/, "") : "";
     if (_trato) { try { setNombreUsuario(_trato); } catch { /* un trato inválido no rompe el turno */ } }
   }
+  /* ── MEMORIA DE CRITERIO · el bypass ANTES del cerebro (re-cableado en la tanda post-poda, 2026-09-05) ────
+   * La poda dejó esta conducta INALCANZABLE: `detectCriteriaIntent`/`composeCriteria` solo vivían en
+   * coerceChain/answerViaOracle, y el peldaño del agente respondía antes — «recuerda que mi margen mínimo es
+   * 25%» GASTABA una llamada y no persistía nada. Es el MISMO bloque que tenía el natural (y que answerViaOracle
+   * conserva): mismo detector, misma composición, mismo trato de memoria. NO pasa por guardC por la razón
+   * documentada allá: es confirmación administrativa con cifras que el usuario nombró — el muro la vetaría
+   * como cifra-no-autorizada. */
+  {
+    const criteriaIntent = (() => { try { return detectCriteriaIntent(q); } catch { return null; } })();
+    if (criteriaIntent) {
+      const cr = composeCriteria(criteriaIntent);
+      let mem2 = { ...memIn, lastOffer: null, pendingSimulation: envejecerPendingSimulation(pendingSimulationVigente(memIn.pendingSimulation)), recentNarrations: [cr.text, ...recentPrev].slice(0, 2) };
+      if (mem2.conversationScope) mem2 = { ...mem2, conversationScope: withOfertaPendiente(mem2.conversationScope, null) };
+      return {
+        r: normalizeResponse({
+          text: cr.text,
+          route: "oracle",   // byte-idéntico al bypass del oráculo: es el MISMO bypass, conservado
+          evidence: cr.evidence,
+          deterministic: true,
+          claims: [],
+          suggestions: cr.suggestions || null,
+          sentrixAction: cr.sentrixAction || null,
+          agente: { estado: "criterio", rondas: 0, calls: 0, figs: 0, motivos: [], vetos: [], recitaCifras: 0 },
+        }),
+        mem: mem2,
+      };
+    }
+  }
   const caja = cajaDelAgente(TOOLS);
   const herramientas = Object.keys(caja).sort();
   const mapa = mapaDelDato(scenario);
@@ -483,9 +514,18 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     }
   }
 
+  /* EL MOTIVO DE CORTE DEL PROVEEDOR, por llamada (tanda post-poda, 2026-09-05): el gateway ya lo re-emite y
+   * el cliente lo lee — acá se junta en el expediente. La lección del natural, completa de punta a punta:
+   * un turno vacío que solo dice «vacio» es indiagnosticable. Observación pura: no decide nada. */
+  const cortesDelTurno = [];
+  const _llamarCerebro = async (args) => {
+    const res = await callAgente(args);
+    if (res && typeof res === "object" && "stop" in res) cortesDelTurno.push(String(res.stop || "(no declarado)"));
+    return res;
+  };
   while (rondas < TOPE_RONDAS && texto === null) {
     rondas++;
-    const res = await callAgente({ mensajes: [...mensajes], mapa, herramientas, ronda: rondas, attempt: 0, figsEnBoleta: figsTotales.length });
+    const res = await _llamarCerebro({ mensajes: [...mensajes], mapa, herramientas, ronda: rondas, attempt: 0, figsEnBoleta: figsTotales.length });
     if (res && res.tipo === "texto" && typeof res.texto === "string" && res.texto.trim()) {
       if (calls === 0 && !nudgeUsado && !esRenarracion && _RE_DECLINA_SIN_LEER.test(res.texto) && !/no reconcilia/i.test(res.texto)) {
         nudgeUsado = true;
@@ -524,7 +564,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
 
   // ── el cierre forzado: agotó las rondas sin responder ──
   if (texto === null) {
-    const pedirCierre = () => callAgente({ mensajes: [...mensajes, { role: "user", content: "[MOTOR — no es el usuario] Se acabaron las rondas de herramientas. Responde AHORA al usuario con lo que tienes; si no alcanza, declina en una línea diciendo qué falta." }], mapa, herramientas, ronda: TOPE_RONDAS + 1, attempt: 0, cierre: true, figsEnBoleta: figsTotales.length });
+    const pedirCierre = () => _llamarCerebro({ mensajes: [...mensajes, { role: "user", content: "[MOTOR — no es el usuario] Se acabaron las rondas de herramientas. Responde AHORA al usuario con lo que tienes; si no alcanza, declina en una línea diciendo qué falta." }], mapa, herramientas, ronda: TOPE_RONDAS + 1, attempt: 0, cierre: true, figsEnBoleta: figsTotales.length });
     let res = await pedirCierre();
     const extra = _pedidosValidos(res);
     if (extra && _rondaDeHerramientas(extra, mensajes)) {   // R1: el cierre pidió una herramienta válida — se ejecuta y se le vuelve a pedir el cierre
@@ -544,10 +584,24 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   for (const f of figsTotales) if (f.source === "user_supuesto" && (f.text || f.value)) supuestosDelHilo.push(String(f.text || f.value));
 
   const duenosTenant = _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]);
+  /* EL ALCANCE HEREDADO, re-cableado (tanda post-poda, 2026-09-05): la poda se llevó el gate del natural y
+   * nadie notó que el BUCLE nunca lo pasó a guardC — «esos clientes» + uno agregado en silencio SALÍA. El
+   * armado es el del natural, de las mismas fuentes: la respuesta anterior es recentNarrations[0] (la memoria
+   * que ya existe, jamás una nueva) y el catálogo por eje sale del índice del tenant. */
+  const catalogoPorEje = (() => {
+    const o = {};
+    for (const eje of ["cliente", "sku", "marca", "familia", "bodega", "canal"]) {
+      try { const n = axisEntityNames(eje); if (n && n.length) o[eje] = n; } catch { /* sin índice */ }
+    }
+    return o;
+  })();
+  const respuestaAnterior = typeof recentPrev[0] === "string" ? recentPrev[0] : null;
+  const heredado = (() => { try { return alcanceHeredadoDe({ pregunta: q, respuestaAnterior, catalogoPorEje }); } catch { return null; } })();
   const _guard = (t) => guardC(t, {
     ledger: { figs: figsTotales }, results: resultsTotales, trace: null, question: q,
     supuestoPendiente: supuestosDelHilo,
     recitaAprobada: recita,   // R2: cifras aprobadas a pantalla en turnos previos — el muro las re-autoriza con su dueño
+    alcanceHeredado: heredado,   // «esos clientes» hereda el conjunto del turno anterior — agregar uno en silencio es veto
     datoProyectado: cifrasDelDato(scenario),
     entidadesDelTenant: _ejes(["cliente", "sku", "marca"]),
     duenosDelTenant: duenosTenant,
@@ -619,7 +673,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
        * sobre la corrida 4: son 2 escaladas nuevas en 28 turnos (T10 y T18), no una puerta abierta. */
       const vetoConCifra = _cifrasDeMulta(multa).length > 0;
       const hiloReparacion = [...mensajes, { role: "assistant", content: esNarracionVacia(lavado) ? "(respuesta vacía)" : lavado }, { role: "user", content: _MENSAJE_NOTARIO(multa) }];
-      let res2 = await callAgente({
+      let res2 = await _llamarCerebro({
         mensajes: [...hiloReparacion],
         mapa, herramientas, ronda: rondas, attempt: 1, motivoReintento: "guard", figsEnBoleta: figsTotales.length, vetoConCifra,
       });
@@ -762,6 +816,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       sentrixAction: (() => { try { const f = detectFichaIntent(q, { escenario: scenario }); return (f && f.sentrixAction) || null; } catch { return null; } })(),
       agente: { estado, rondas, calls, figs: figsTotales.length, motivos: motivosNoSoportado.slice(0, 3),
         vetos: vetosDelTurno,   // R7 · el expediente auditable: cada veto con su sitio y su multa (observación, no decisión)
+        cortes: cortesDelTurno.slice(0, 6),   // el motivo de corte del proveedor, por llamada (la lección del natural, punta a punta)
         recitaCifras: recita && Array.isArray(recita.figs) ? recita.figs.length : 0,
         /* la SIEMBRA: el cuadro desde el que se preguntó queda en el expediente — hoy solo se registra, y esa
          * es toda la promesa (ver la nota de `viewContext` arriba y `_CONTRATO_ASK_DE_CUADRO.md`). */

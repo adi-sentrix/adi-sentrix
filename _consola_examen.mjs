@@ -260,7 +260,7 @@ const callAgente = async ({ mensajes, ronda, attempt = 0, motivoReintento, cierr
   intentos.push({ intento: llamadasTurno, ronda, paso, motivoReintento: motivoReintento || null, tipo: data.tipo, borrador: crudoUltimo,
     stop: (data && data.stop) || null,   // el motivo de corte, SIEMPRE: comparar una vacía contra una buena es el diagnóstico
     usage: data.usage || null, modelo: data.model || null, costUSD: data.costUSD ?? null });
-  return data.tipo === "herramientas" ? { tipo: "herramientas", pedidos: data.pedidos || [] } : { tipo: "texto", texto: String(data.texto || "") };
+  return data.tipo === "herramientas" ? { tipo: "herramientas", pedidos: data.pedidos || [], stop: (data && data.stop) || null } : { tipo: "texto", texto: String(data.texto || ""), stop: (data && data.stop) || null };
 };
 
 const t0 = Date.now();

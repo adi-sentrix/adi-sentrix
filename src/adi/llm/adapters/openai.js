@@ -189,6 +189,9 @@ export const openaiAdapter = {
     const data = await _call(buildAgenteBody({ mensajes, system, tools, model }));
     const ajeno = sobreAjeno(data, "openai");
     if (ajeno) throw ajeno;
-    return { ..._parseAgente(data), usage: _usage(data.usage), model: data.model || null };
+    /* el motivo de corte, con PARIDAD de proveedor (tanda post-poda 2026-09-05): narrate() ya lo devolvía y
+     * agente() lo tiraba — anthropic sí lo daba, y un examen con openai quedaba ciego justo en las vacías. */
+    return { ..._parseAgente(data), usage: _usage(data.usage), model: data.model || null,
+      stop: (data.choices && data.choices[0] && data.choices[0].finish_reason) || null };
   }
 };
