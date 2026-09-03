@@ -261,9 +261,26 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
   }
 
   /* 3 · LAS HIPÓTESIS CON SU HUELLA — cada mecanismo, qué marca deja y cuál está en ESTE dato */
-  const linea = (h) => `- ${h.mecanismo} · ${h.sello.toUpperCase()}: ${h.porque}${h.falta ? ` Para cerrarlo: ${h.falta}.` : ""}`;
+  /* ⚠️ EL SELLO SE QUEDA, LA ETIQUETA SE VA (owner 2026-09-05): vio «PROBADO/ABIERTO/INDICADO» en mayúsculas y
+   * eso es vocabulario NUESTRO, no del gerente que lee. La proporcionalidad (regla 1) no se negocia — lo que
+   * cambia es cómo suena: el mismo sello dicho en la lengua del negocio. La doctrina interna los sigue
+   * nombrando; a pantalla salen como una frase. */
+  const _SELLO_EN_VOZ = {
+    probado: (porque) => `esto está medido: ${porque}`,
+    indicado: (porque) => `el patrón apunta ahí, sin prueba todavía: ${porque}`,
+    abierto: (porque) => `esto el dato no lo prueba, queda abierto: ${porque}`,
+  };
+  const linea = (h) => {
+    const voz = _SELLO_EN_VOZ[h.sello] || ((porque) => porque);
+    return `- ${h.mecanismo} — ${voz(h.porque)}${h.falta ? ` Para cerrarlo: ${h.falta}.` : ""}`;
+  };
+  /* ⚠️ LAS SECCIONES QUE DICEN LO MISMO SE FUNDEN (pulido del owner 2026-09-05): cuando arriba ya se contó
+   * «volumen y fuga en la misma cuenta», la huella de volumen repite esa conclusión con otras palabras —y el
+   * lector la lee dos veces. Una cosa se dice UNA vez; lo que se omite acá ya está dicho, no perdido. */
+  const yaContada = new Set();
+  if (!(vol && vol.n) && C.grandesQueCaen) yaContada.add("volumen a margen bajo");
   p.push(`\n**Por qué pasa, con lo que el dato permite afirmar y lo que no:**`);
-  for (const h of A.huellas) p.push(linea(h));
+  for (const h of A.huellas) { if (!yaContada.has(h.mecanismo)) p.push(linea(h)); }
 
   /* 4 · LA REGLA DE DECISIÓN — convierte la duda en un experimento, no en una opinión */
   p.push(`\n**Cómo se resuelve la duda:** si el exceso de carga se repite parejo en toda la cartera, es política comercial y se corrige con una regla; si cambia cliente por cliente, es negociación y se corrige cuenta por cuenta. Tu dato dice que el exceso va de ${C.excesoMin} a ${C.excesoMax} puntos: no es parejo.`);

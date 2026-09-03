@@ -17,6 +17,21 @@
 
 import { variante } from "../variacion.js";
 import { buildRolesCartera } from "../../sentrix/rolesCartera.js";
+import { axisEntityNames } from "../../oracle/entityIndex.js";   // SOLO para saber si la pregunta nombra a alguien: la foto es del negocio entero
+
+/* ¿la pregunta nombra una entidad del tenant? — se pregunta por PRESENCIA, jamás se resuelve un parecido
+ * (la ley del único buscador: acá no se ofrece ni se asume nada, solo se cede el turno a quien le toca). */
+const _nombraEntidad = (q) => {
+  for (const eje of ["cliente", "sku", "marca", "familia", "bodega", "canal"]) {
+    let nombres = [];
+    try { nombres = axisEntityNames(eje) || []; } catch { nombres = []; }
+    for (const n of nombres) {
+      if (String(n).length < 3) continue;
+      if (new RegExp(`\\b${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(q)) return true;
+    }
+  }
+  return false;
+};
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 const _val = (f) => String((f && (f.text || f.value)) || "");
@@ -60,6 +75,12 @@ export const resumenDelNegocio = {
   cuandoAplica(pregunta) {
     const q = String(pregunta || "");
     if (!q.trim() || _AJENO.test(q)) return false;
+    /* ⚠️ Y SI LA PREGUNTA NOMBRA UNA ENTIDAD, NO ES LA FOTO (secuestro cazado por el censo de rutas,
+     * 2026-09-05): «cómo viene Falabella» matcheaba «cómo viene» y `_AJENO` solo excluía la palabra literal
+     * «cliente» — un NOMBRE propio se colaba. La foto es del negocio ENTERO; preguntar por una cuenta es otra
+     * pregunta y tiene su camino. Se usa el índice solo para SABER SI la pregunta nombra a alguien (no para
+     * resolver ni para ofrecer un parecido): el mismo uso declarado que `_sinNombresDeEntidad` del mapa. */
+    if (_nombraEntidad(q)) return false;
     return _PANORAMA.test(q);
   },
 

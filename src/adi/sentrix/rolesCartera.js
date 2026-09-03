@@ -98,8 +98,8 @@ export function buildRolesCartera(scenario) {
     presente: ero.length > 0,
     sello: ero.length > 0 ? "probado" : "abierto",
     porque: ero.length > 0
-      ? `la carga está medida por cuenta: ${ero.length} de los que caen la tienen sobre el ${target}%`
-      : `ningún cliente bajo el benchmark supera el nivel de referencia de carga del ${target}%: por acá no se escapa`,
+      ? `${ero.length} de los que caen la tienen sobre el ${target}%`
+      : `ningún cliente bajo el benchmark supera el ${target}% de carga`,
     items: ero.slice(0, 4),
   });
   const vol = roles.apuesta_de_volumen.items;
@@ -109,8 +109,8 @@ export function buildRolesCartera(scenario) {
     presente: vol.length > 0,
     sello: vol.length > 0 ? "indicado" : "abierto",
     porque: vol.length > 0
-      ? "el patrón está en el dato (venta alta, margen bajo, sin exceso de carga), pero si es una apuesta deliberada solo lo sabe el dueño: el dato no mide intención"
-      : "ningún cliente del tramo alto cae bajo el benchmark sin carga excedida",
+      ? "venta alta y margen bajo sin exceso de carga; si es apuesta deliberada solo lo sabe el dueño"
+      : "ningún cliente del tramo alto cae sin carga excedida",
     items: vol.slice(0, 4),
   });
   const conMarkup = filas.filter((f) => f.brecha > 0 && f.markup !== null);
@@ -126,7 +126,7 @@ export function buildRolesCartera(scenario) {
     porque: conMarkup.length === 0
       ? "tu dato no trae precio de lista y costo medio por cliente: sin eso el precio no se puede separar del costo"
       : (mkBajo
-        ? "los que caen tienen el precio más pegado al costo que los sanos — el patrón apunta a precio o costo, no a la carga comercial"
+        ? "los que caen tienen el precio más pegado al costo que los sanos"
         : "el markup de los que caen no es menor que el de los sanos: por acá el patrón no aparece"),
     items: conMarkup.slice(0, 4),
   });
@@ -135,7 +135,7 @@ export function buildRolesCartera(scenario) {
     huella: "margen por familia DENTRO de cada cliente",
     presente: false,
     sello: "abierto",
-    porque: "tu dato no cruza cliente con familia: hay margen por cliente y margen por familia, pero no el margen de cada familia dentro de un cliente",
+    porque: "tu dato no cruza cliente con familia",
     falta: "agregar la familia (o la línea de producto) a cada fila de venta en la planilla — con eso el mix deja de ser hipótesis y pasa a cuenta",
     items: [],
   });

@@ -93,8 +93,11 @@ H("3 · el análisis del porqué trae las seis piezas del alineamiento del owner
     "★ PARTICIÓN declarada contra el conteo del motor, antes de nombrar a nadie");
   ok(/acciones comerciales/i.test(t) && /(volumen|margen delgado)/i.test(t),
     "★ LOS PAPELES: la fuga por acciones y el resto, separados — estrategia distinguida de fuga");
-  ok(/PROBADO/.test(t) && /ABIERTO/.test(t),
-    "★ HUELLAS CON SELLO: lo que el dato permite afirmar y lo que no, cada una con el suyo");
+  /* (re-apuntado 2026-09-05: este check medía la ETIQUETA en mayúsculas —«PROBADO»/«ABIERTO»— y el owner
+   * mandó sacarlas de pantalla por ser vocabulario nuestro. El SELLO sigue siendo obligatorio; lo que se
+   * verifica ahora es la CONDUCTA: que se distinga lo medido de lo que el dato no prueba, en su lengua.) */
+  ok(/est[áa] medido|medido por cuenta|est[áa] medida/i.test(t) && /no lo prueba|queda abierto|sin prueba/i.test(t),
+    "★ HUELLAS CON SELLO: lo que el dato permite afirmar y lo que no, cada una con el suyo — dicho, no rotulado");
   ok(/agregar la familia .* a cada fila de venta en la planilla/i.test(t),
     "★ …y donde el dato se acaba, QUÉ agregar a la planilla — la investigación no muere en «no se puede»");
   ok(/si el exceso de carga se repite parejo/i.test(t) && /es política comercial/i.test(t),

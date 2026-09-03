@@ -457,6 +457,31 @@ for (const sano of ["Yo resolví eso ayer.", "El motor resuelve la cuenta sola."
   }
   okv(barridos >= 15, `la escoba por patrón barre ${barridos} módulos de superficie — por ruta, sin lista que actualizar`);
   okv(sucios.length === 0, "★ ninguna superficie emite registro viejo, y una superficie NUEVA nace barrida", sucios.slice(0, 6).join(" | "));
+  /* ── LOS SELLOS, EN VOZ DE NEGOCIO (owner 2026-09-05) ────────────────────────────────────────────────────
+   * Vio «PROBADO/ABIERTO/INDICADO» en mayúsculas y los leyó como lo que son: etiquetas de nuestro vocabulario.
+   * El SELLO se queda (regla 1, la proporcionalidad se declara siempre); la ETIQUETA no sale a pantalla — se
+   * dice en la lengua del negocio («esto está medido» · «el patrón apunta ahí, sin prueba todavía» · «el dato
+   * no lo prueba, queda abierto»). La doctrina interna los sigue nombrando: es vocabulario nuestro. */
+  {
+    /* se caza la ETIQUETA, no la palabra: el glosario explica los tres sellos como CONCEPTOS y eso es
+     * legítimo (ahí se está definiendo el vocabulario, no rotulando una línea al gerente). La forma que el
+     * owner rechazó es la de rótulo — «· ABIERTO:» / «— PROBADO:» pegado a la afirmación. */
+    const SELLO_EN_CAPS = /[·—–-]\s*(?:PROBADO|INDICADO|ABIERTO)\s*[:·]/;
+    const sellosSueltos = [];
+    for (const raiz of RAICES_SUPERFICIE) {
+      for (const f of _arch(path.join(root, raiz))) {
+        for (const lit of _literales(_sinComentarios(fs.readFileSync(f, "utf8")))) {
+          if (SELLO_EN_CAPS.test(_sinInterpolaciones(lit))) sellosSueltos.push(`${path.relative(root, f).replace(/\\/g, "/")}: ${lit.slice(0, 70)}`);
+        }
+      }
+    }
+    okv(sellosSueltos.length === 0,
+      "★ ningún composer emite el sello en MAYÚSCULAS: el sello se dice, la etiqueta se queda adentro",
+      sellosSueltos.slice(0, 4).join(" | "));
+    okv(SELLO_EN_CAPS.test("- mix · ABIERTO: el dato no cruza cliente con familia"),
+      "★ carnada: la forma vieja del sello la caza este chequeo — si vuelve a pantalla, arde");
+  }
+
   /* CARNADA · el texto con que nació `rolesCartera`: la escoba tiene que verlo. */
   const carnada = 'const REGLAS = [{ titulo: "sobre la vara", regla: "margen bajo la vara" }];';
   const cazada = _literales(carnada).some((l) => BANNED.test(l) && !ES_REGEX(l) && !ES_SELECTOR(l));
