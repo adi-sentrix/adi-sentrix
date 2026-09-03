@@ -816,7 +816,7 @@ export const VIEW_MANIFEST = {
     vista: "comercial", seccion: "otro", tipo: "tabla", label: "El Control · el ring de una cuenta",
     builder: "ring:cliente", campo: "rows", universoCampo: "rows", entidadCampo: "focus",
     metrica: "contribucion", eje: "cliente", periodo: "año cerrado",
-    universo: { kind: "seleccion", label: "cuatro filas: el foco, el par que aísla la palanca, el promedio interno y el mejor en clase", cierraCon: null },
+    universo: { kind: "seleccion", label: "cuatro filas: el foco, el par que aísla el factor, el promedio interno y el mejor en clase", cierraCon: null },
     comparacion: "promedio_cartera", estatusDefault: "indicado", estatusCampo: null, controles: [],
     evidencia: [{ tool: "marginRead", args: { dimension: "cliente" } }],
     sinTool: null,

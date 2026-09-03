@@ -39,16 +39,16 @@ const _markup = (r) => {
  * porque una fuga medida no se disculpa con un relato de estrategia. */
 export const REGLAS_DE_ROL = [
   { rol: "erosion_por_acciones", titulo: "erosión por acciones comerciales", etiqueta: "Clientes · erosión por acciones comerciales",
-    regla: "margen bajo la vara Y carga comercial sobre el target declarado",
+    regla: "margen bajo el benchmark Y carga comercial sobre el nivel de referencia",
     lectura: "las acciones comerciales se están comiendo la contribución: es fuga, no precio" },
   { rol: "apuesta_de_volumen", titulo: "volumen a margen bajo", etiqueta: "Clientes · volumen a margen bajo",
-    regla: "margen bajo la vara, carga DENTRO del target, y venta en el tramo alto de la cartera",
+    regla: "margen bajo el benchmark, carga DENTRO del nivel de referencia, y venta en el tramo alto de la cartera",
     lectura: "el margen bajo viene del precio o del mix, no de la carga comercial — puede ser una apuesta deliberada" },
   { rol: "margen_delgado", titulo: "margen delgado", etiqueta: "Clientes · margen delgado sin volumen ni carga",
-    regla: "margen bajo la vara, carga dentro del target, venta fuera del tramo alto",
+    regla: "margen bajo el benchmark, carga dentro del nivel de referencia, venta fuera del tramo alto",
     lectura: "ni la carga ni el volumen lo explican: el precio de lista o el mix de lo que compra" },
-  { rol: "sano", titulo: "sobre la vara", etiqueta: "Clientes · sobre la vara",
-    regla: "margen igual o sobre la vara declarada",
+  { rol: "sano", titulo: "sobre el benchmark", etiqueta: "Clientes · sobre el benchmark",
+    regla: "margen igual o sobre el benchmark declarado",
     lectura: "no es un problema de margen; si además carga alto, sostiene la carga con mejor costo" },
 ];
 
@@ -93,24 +93,24 @@ export function buildRolesCartera(scenario) {
   const huellas = [];
   const ero = roles.erosion_por_acciones.items;
   huellas.push({
-    mecanismo: "acciones comerciales sobre el target",
-    huella: "clientes bajo la vara que además pagan más carga que el target declarado",
+    mecanismo: "acciones comerciales sobre el nivel de referencia",
+    huella: "clientes bajo el benchmark que además pagan más carga que el nivel de referencia",
     presente: ero.length > 0,
     sello: ero.length > 0 ? "probado" : "abierto",
     porque: ero.length > 0
-      ? `la carga está medida por cuenta: ${ero.length} de los que caen la tienen sobre el ${target}% declarado`
-      : `ningún cliente bajo la vara supera el target de carga del ${target}%: por acá no se escapa`,
+      ? `la carga está medida por cuenta: ${ero.length} de los que caen la tienen sobre el ${target}%`
+      : `ningún cliente bajo el benchmark supera el nivel de referencia de carga del ${target}%: por acá no se escapa`,
     items: ero.slice(0, 4),
   });
   const vol = roles.apuesta_de_volumen.items;
   huellas.push({
     mecanismo: "volumen a margen bajo",
-    huella: "clientes del tramo alto de venta, bajo la vara, con la carga DENTRO del target",
+    huella: "clientes del tramo alto de venta, bajo el benchmark, con la carga DENTRO del nivel de referencia",
     presente: vol.length > 0,
     sello: vol.length > 0 ? "indicado" : "abierto",
     porque: vol.length > 0
       ? "el patrón está en el dato (venta alta, margen bajo, sin exceso de carga), pero si es una apuesta deliberada solo lo sabe el dueño: el dato no mide intención"
-      : "ningún cliente del tramo alto cae bajo la vara sin carga excedida",
+      : "ningún cliente del tramo alto cae bajo el benchmark sin carga excedida",
     items: vol.slice(0, 4),
   });
   const conMarkup = filas.filter((f) => f.brecha > 0 && f.markup !== null);

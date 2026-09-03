@@ -401,6 +401,68 @@ for (const [donde, texto, esperado] of [
  * donde chocarían con el pretérito y romperían una oración correcta. */
 for (const sano of ["Yo resolví eso ayer.", "El motor resuelve la cuenta sola.", "Ayer, vendé las unidades que quedaban.", "Con eso resolvé el margen."])
   okv(stripLanguageLeaks(sano) === sano, `no toca prosa correcta: «${sano}»`, stripLanguageLeaks(sano));
+
+/* ═══ LA ESCOBA POR PATRÓN · toda superficie que compone texto, barrida sin lista (owner 2026-09-04) ═════════
+ * EL DEFECTO QUE LO PIDE: `rolesCartera` nació el 2026-09-04 diciendo «bajo la vara» en tres de sus campos y en
+ * su prosa, y NINGÚN gate ardió — porque este barría una LISTA ENUMERADA de módulos y el nuevo no estaba en
+ * ella. Es la clase de siempre: la escoba que hay que acordarse de extender no barre lo que nace mañana.
+ * AHORA SE BARRE POR RUTA: todo `.js` bajo las superficies que componen texto de usuario (las caras de Sentrix
+ * y los entregables de los playbooks). Un módulo nuevo ahí nace barrido, sin tocar este gate.
+ *
+ * QUÉ QUEDA FUERA, DECLARADO POR CONCEPTO (no por archivo — una excepción por archivo se pudre igual que la
+ * lista): (1) los literales que son REGEX DE DETECCIÓN, donde la palabra está para ENTENDER al usuario que la
+ * escribe («cuánta plata tengo dormida»), que es lo contrario de emitirla; (2) los SELECTORES y rutas internas,
+ * que no son prosa; (3) los prompts al MODELO, que viven fuera de estas rutas y ya tienen su propio lavado
+ * (stripLanguageLeaks) más el barrido runtime de arriba. */
+{
+  const RAICES_SUPERFICIE = ["src/adi/sentrix", "src/adi/agente/playbooks"];
+  const _arch = (dir, out = []) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const q = path.join(dir, e.name);
+      if (e.isDirectory()) _arch(q, out);
+      else if (/\.jsx?$/.test(e.name) && !/\.carnada/.test(e.name)) out.push(q);
+    }
+    return out;
+  };
+  const _sinComentarios = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => {
+    const i = l.indexOf("//");
+    if (i < 0) return l;
+    const antes = l.slice(0, i);
+    return (antes.match(/["'`]/g) || []).length % 2 === 0 ? antes : l;
+  }).join("\n");
+  /* (3ª exención por concepto) LOS ALIAS DE ENTRADA DEL GLOSARIO no son prosa emitida: son la lista de cómo el
+   * usuario PUEDE nombrar un concepto, para reconocerlo cuando lo escribe. Lo resolvió el owner el 2026-08-15
+   * sobre esta misma palabra: «vara» queda como alias de entrada y desaparece de todo lo visible. Se recortan
+   * los arrays `etiquetas: [...]` antes de mirar los literales — entender no es emitir, igual que un regex. */
+  const _sinAliasDeEntrada = (src) => src.replace(/etiquetas\s*:\s*\[[^\]]*\]/g, "etiquetas: []");
+  const _literales = (src) => _sinAliasDeEntrada(src).match(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g) || [];
+  const ES_REGEX = (l) => /\\b|\\s|\(\?:|\$\{_FIN\}|\[[a-záéíóú]/.test(l);
+  const ES_SELECTOR = (l) => /\[key=|kpis\[|\.js|\//.test(l);
+  /* (4ª y 5ª exención, del mismo espíritu) LO QUE HAY DENTRO DE `${…}` ES CÓDIGO, no prosa: `${gapVara}` es un
+   * nombre de variable y la línea que lo usa dice «pp bajo tu benchmark», que es registro correcto. Y un
+   * literal de UNA SOLA PALABRA sin espacios es un identificador (una clave de estado como "detenido"), no una
+   * oración: la prosa ejecutiva de este producto nunca es una palabra suelta. */
+  const _sinInterpolaciones = (l) => l.replace(/\$\{[^}]*\}/g, "·");
+  const ES_IDENTIFICADOR = (l) => !/\s/.test(l.slice(1, -1).trim());
+  let barridos = 0; const sucios = [];
+  for (const raiz of RAICES_SUPERFICIE) {
+    for (const f of _arch(path.join(root, raiz))) {
+      barridos++;
+      for (const lit of _literales(_sinComentarios(fs.readFileSync(f, "utf8")))) {
+        const limpio = _sinInterpolaciones(lit);
+        if (!BANNED.test(limpio) || ES_REGEX(limpio) || ES_SELECTOR(limpio) || ES_IDENTIFICADOR(limpio)) continue;
+        sucios.push(`${path.relative(root, f).replace(/\\/g, "/")}: ${lit.slice(0, 80)}`);
+      }
+    }
+  }
+  okv(barridos >= 15, `la escoba por patrón barre ${barridos} módulos de superficie — por ruta, sin lista que actualizar`);
+  okv(sucios.length === 0, "★ ninguna superficie emite registro viejo, y una superficie NUEVA nace barrida", sucios.slice(0, 6).join(" | "));
+  /* CARNADA · el texto con que nació `rolesCartera`: la escoba tiene que verlo. */
+  const carnada = 'const REGLAS = [{ titulo: "sobre la vara", regla: "margen bajo la vara" }];';
+  const cazada = _literales(carnada).some((l) => BANNED.test(l) && !ES_REGEX(l) && !ES_SELECTOR(l));
+  okv(cazada, "★ carnada: «sobre la vara» —el texto con que nació rolesCartera— lo caza la escoba: si mañana nace otra superficie así, arde");
+}
+
 console.log(`── _registro_gate: ${pass} textos limpios · ${fail} con registro viejo ──`);
 if (legadoVistos) console.log(`   · ${legadoVistos} emisión(es) del residual de voseo DECLARADO del camino legado (contractCloser, migra con answerADIFromSpec)`);
 

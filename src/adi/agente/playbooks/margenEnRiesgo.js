@@ -19,6 +19,7 @@
 
 import { variante } from "../variacion.js";   // el cierre varía por semilla («matar la repetición», 2026-09-03)
 import { buildRolesCartera } from "../../sentrix/rolesCartera.js";   // el porqué: el papel de cada cliente y la huella de cada mecanismo
+import { etiquetaDeLaCarga } from "../../../config/businessPolicy.js";   // DE QUIÉN es el nivel de carga: jamás «tu target declarado» si el cliente no lo declaró
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 /* ⚠️ EL MOTOR SOLO PONE `raw` EN LAS FILAS DESTACADAS (medido: de los 13 clientes con margen, 5 traen `raw` y
@@ -135,8 +136,8 @@ function componerElPorque({ figs, semilla, scenario }) {
    * «bajo tu benchmark (30.1%) … sostienen la venta» el binding leía ese % como cifra de ventas). Cada cifra
    * en su oración, con su dueño — la misma lección que el vigía aprendió el día anterior. */
   p.push(C.mismaGente && C.grandesQueCaen > 1
-    ? `Lo primero, y cambia la decisión: los que caen bajo tu referencia de margen son los mismos que sostienen tu facturación. No son dos problemas —uno de margen y otro de concentración—: es uno solo con dos caras.`
-    : `Lo primero: no todos los que caen bajo tu referencia de margen caen por la misma razón, y por eso no se tratan igual.`);
+    ? `Lo primero, y cambia la decisión: los que caen bajo tu benchmark de margen son los mismos que sostienen tu facturación. No son dos problemas —uno de margen y otro de concentración—: es uno solo con dos caras.`
+    : `Lo primero: no todos los que caen bajo tu benchmark de margen caen por la misma razón, y por eso no se tratan igual.`);
 
   /* 2 · LOS PAPELES — la distinción que el owner pidió: estrategia vs fuga.
    * La PARTICIÓN se declara entera contra el conteo del motor antes de nombrar a nadie: así el lector ve que
@@ -146,21 +147,21 @@ function componerElPorque({ figs, semilla, scenario }) {
   const conteoTotal = _find(figs, /clientes bajo el benchmark/i);
   const partes = [ero, vol, del].filter((r) => r && r.n).map((r) => `${r.n} ${r.titulo}`);
   if (conteoTotal && partes.length > 1) {
-    p.push(`\nDe los ${_val(conteoTotal)} que están bajo la vara: ${partes.join(" · ")}. No son el mismo problema y no se tratan igual.`);
+    p.push(`\nDe los ${_val(conteoTotal)} que están bajo el benchmark: ${partes.join(" · ")}. No son el mismo problema y no se tratan igual.`);
   }
   if (ero && ero.n) {
     const nombres = ero.items.slice(0, 3).map((f) => {
       const b = brechaDe(f.entidad), c = cargaDe(f.entidad);
-      return `${f.entidad}${b ? ` (${_val(b)} bajo la vara${c ? `, carga ${_val(c)}` : ""})` : ""}`;
+      return `${f.entidad}${b ? ` (${_val(b)} bajo el benchmark${c ? `, carga ${_val(c)}` : ""})` : ""}`;
     });
     /* el CORTE se declara en cada grupo («los 3 que más pesan de los N»): nombrar algunos sin decir cuántos
      * son es la lista-sin-corte que este mismo playbook multa — y me la multó al estrenar el porqué. */
-    p.push(`\n**Los que pagan el margen en acciones comerciales.** ${_val(cuenta)} de tus clientes están bajo la vara Y además cargan más acciones comerciales que tu target${target ? ` (${_val(target)})` : ""}. Los ${nombres.length} que más pesan de esos ${_val(cuenta)}: ${nombres.join(" · ")}. Acá el margen no se pierde en el precio: se entrega en la negociación comercial.`);
+    p.push(`\n**Los que pagan el margen en acciones comerciales.** ${_val(cuenta)} de tus clientes están bajo el benchmark Y además cargan más acciones comerciales que ${etiquetaDeLaCarga()}${target ? ` (${_val(target)})` : ""}. Los ${nombres.length} que más pesan de esos ${_val(cuenta)}: ${nombres.join(" · ")}. Acá el margen no se pierde en el precio: se entrega en la negociación comercial.`);
   }
   if (vol && vol.n) {
-    p.push(`\n**Los que compran volumen a margen bajo.** ${vol.items.slice(0, 3).map((f) => f.entidad).join(" · ")}: margen bajo la vara pero con la carga dentro del target. Eso ya no es fuga por carga — es precio. Puede ser una decisión tuya: volumen a cambio de rotación y liquidez.`);
+    p.push(`\n**Los que compran volumen a margen bajo.** ${vol.items.slice(0, 3).map((f) => f.entidad).join(" · ")}: margen bajo el benchmark pero con la carga dentro del nivel de referencia. Eso ya no es fuga por carga — es precio. Puede ser una decisión tuya: volumen a cambio de rotación y liquidez.`);
   } else if (C.grandesQueCaen) {
-    p.push(`\n**Volumen y fuga, en la misma cuenta.** En tu dato no hay un solo cliente grande que caiga SIN exceder el target de carga: los ${C.grandesQueCaen} que mueven la venta y caen, todos cargan de más (entre ${C.excesoMin} y ${C.excesoMax} puntos sobre el target). Por eso no se puede recortar la carga sin tocar a los que sostienen la facturación — ahí está la decisión difícil.`);
+    p.push(`\n**Volumen y fuga, en la misma cuenta.** En tu dato no hay un solo cliente grande que caiga SIN exceder el nivel de referencia de carga: los ${C.grandesQueCaen} que mueven la venta y caen, todos cargan de más (entre ${C.excesoMin} y ${C.excesoMax} puntos sobre ese nivel). Por eso no se puede recortar la carga sin tocar a los que sostienen la facturación — ahí está la decisión difícil.`);
   }
   if (del && del.n) {
     p.push(`\n**Los de margen delgado sin carga alta ni volumen.** ${del.items.slice(0, 3).map((f) => f.entidad).join(" · ")}: ni pagan carga de más ni mueven volumen. Ahí el margen es precio de lista o mix de lo que compran.`);
@@ -181,9 +182,9 @@ function componerElPorque({ figs, semilla, scenario }) {
   const primero = (ero && ero.items[0]) || (vol && vol.items[0]) || null;
   if (primero) {
     p.push(variante(semilla, [
-      `Yo partiría por ${primero.entidad} —criterio mío, no una cifra del dato—: es donde la carga sobre el target y el volumen coinciden. Pídeme su serie mes a mes y vemos desde cuándo se abrió la brecha.`,
-      `Criterio mío, no una cifra del dato: empezaría por ${primero.entidad}, donde la carga sobre el target y el volumen coinciden. Si quieres, abro su serie mes a mes y vemos desde cuándo.`,
-      `Si fuera mi decisión, entraría por ${primero.entidad} —criterio mío— porque ahí coinciden la carga sobre el target y el volumen. Te abro su serie mes a mes cuando digas.`,
+      `Yo partiría por ${primero.entidad} —criterio mío, no una cifra del dato—: es donde la carga excedida y el volumen coinciden. Pídeme su serie mes a mes y vemos desde cuándo se abrió la brecha.`,
+      `Criterio mío, no una cifra del dato: empezaría por ${primero.entidad}, donde la carga excedida y el volumen coinciden. Si quieres, abro su serie mes a mes y vemos desde cuándo.`,
+      `Si fuera mi decisión, entraría por ${primero.entidad} —criterio mío— porque ahí coinciden la carga excedida y el volumen. Te abro su serie mes a mes cuando digas.`,
     ]));
   }
   return p.join("\n");
@@ -302,7 +303,7 @@ export const margenEnRiesgo = {
     const declina = /\bno (?:pude|puedo|tengo|dispongo)\b/i.test(t);
     if (!citaAlguna && (pideDefinir || declina)) {
       v.push({ regla: "evidencia-sin-usar",
-        multa: "el procedimiento ya trajo la evidencia de este turno (benchmark, cuántos clientes están bajo la vara y cuánta contribución no se captura) y tu respuesta no la usa: responde con esas cifras antes de pedir una aclaración o declinar." });
+        multa: "el procedimiento ya trajo la evidencia de este turno (benchmark, cuántos clientes están bajo el benchmark y cuánta contribución no se captura) y tu respuesta no la usa: responde con esas cifras antes de pedir una aclaración o declinar." });
     }
 
     /* 2 · La lista enumerada tiene que declarar su corte: nombrar 2+ de los que están bajo la vara sin decir
@@ -375,7 +376,7 @@ export const margenEnRiesgo = {
     }
 
     /* ⚠️ REAPUNTADA AL CONCEPTO (owner 2026-09-04, calibrando el corpus del porqué): esta lista exigía la
-     * cadena literal «carga comercial» y multó «porque ahí coinciden la carga sobre el target y el volumen» —
+     * cadena literal «carga comercial» y multó «porque ahí coinciden la carga excedida y el volumen» —
      * una oración que nombra EXACTAMENTE el mecanismo que el motor mide (`pctRebate` contra el target). Era
      * medir la forma en vez del concepto: el caso 13 del patrón, dentro de mi propia regla. Ahora entran los
      * mecanismos MEDIDOS con sus nombres reales (la carga en cualquiera de sus formas, las acciones

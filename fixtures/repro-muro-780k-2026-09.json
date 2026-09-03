@@ -1,0 +1,24 @@
+{
+  "que_es": "EL REPRO EXACTO del hallazgo del muro que el supervisor no pudo reproducir (2026-09-04). Regla de la casa: no se diagnostica un veto —ni su ausencia— sin el borrador que lo produjo. Acá está el borrador, el contexto completo y la matriz de qué opción abre la puerta.",
+  "por_que_no_reproducia": "El ledger. Con 1 fig guardC VETA correctamente; con el ledger REAL del turno del porqué (95 figs) la cifra inventada PASA. El tamaño/composición del ledger es la variable, no el texto.",
+  "tenant": "TENANT_DEMO",
+  "escenario": "bonanza",
+  "como_se_arma_el_ledger": "runPlan({ intent:'answer', calls: pasosDe(margenEnRiesgo, 'por que estamos perdiendo margen?') }, { scenario:'bonanza', maxCalls:8, preguntaUsuario:'por que estamos perdiendo margen?', registry: cajaDelAgente(TOOLS) }) → ledger.figs (95 figs)",
+  "texto": "Mi lectura, criterio mío: la carga comercial de Falabella te está costando unos $780K al año, que es donde yo pondría el foco.",
+  "la_cifra": {
+    "monto": "$780K",
+    "existe_en_el_dato": false,
+    "verificacion": "0 coincidencias de «780» entre las 318 cifras de cifrasDelDato('bonanza'), y 0 entre las 95 figs del ledger del turno. Las figs en K del turno son: $655K $194K $155K $125K $33K $14K $11K $8K …"
+  },
+  "matriz": [
+    { "caso": "A · ledger completo (95 figs), sin nada más", "opciones": "{ ledger:{figs}, contentScope:'full', tablePolicy:'auto' }", "resultado": "PASA 🔴" },
+    { "caso": "B · A + results", "opciones": "+ results: rp.results", "resultado": "veta ✓ (cifra-no-autorizada)" },
+    { "caso": "C · B + question", "opciones": "+ question", "resultado": "veta ✓ (cifra-no-autorizada)" },
+    { "caso": "D · C + datoProyectado", "opciones": "+ datoProyectado: cifrasDelDato('bonanza')", "resultado": "PASA 🔴" },
+    { "caso": "E · D + entidadesDelTenant/duenosDelTenant (el contexto que arma el bucle)", "opciones": "+ ejes cliente/sku/marca y los seis dueños", "resultado": "PASA 🔴" },
+    { "caso": "F · E pero con ledger de 1 fig (el del supervisor)", "opciones": "ledger:{figs: figs.slice(0,1)}", "resultado": "veta ✓ (cifra-no-autorizada)" }
+  ],
+  "lectura": "Dos condiciones abren la puerta y ambas son las del turno REAL del agente: (1) un ledger grande sin `results`, y (2) `datoProyectado` puesto, que anula incluso el veto que `results` restauraba. El caso E es exactamente el contexto que el bucle arma en producción.",
+  "mientras_tanto": "La regla `monto-fuera-de-boleta` (lista notarial de margenEnRiesgo) cierra la puerta en el territorio del playbook: en un análisis del porqué, todo monto citado tiene que estar en la boleta del turno. No sustituye al muro — lo cubre donde este frente lo usa.",
+  "no_tocado": "guardC no se modificó. El hallazgo se comisiona con este repro; si el supervisor lo confirma como defecto, la corrección es suya."
+}

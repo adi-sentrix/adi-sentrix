@@ -169,7 +169,7 @@ export const proyeccionDeclarada = {
       if (Number.isFinite(vara) && /sobre el benchmark/i.test(t) && !/ning[uú]n/i.test(t)) {
         const nombrados = sup.filter((x) => t.includes(x.entidad));
         const falsos = nombrados.filter((x) => x.pct < vara);
-        if (falsos.length) v.push({ regla: "sobre-benchmark-falso", multa: `${falsos.map((x) => x.entidad).join(", ")} NO queda sobre el benchmark con ese supuesto (margen supuesto bajo ${_val(bench)}): solo los que el motor deja arriba de la vara.` });
+        if (falsos.length) v.push({ regla: "sobre-benchmark-falso", multa: `${falsos.map((x) => x.entidad).join(", ")} NO queda sobre el benchmark con ese supuesto (margen supuesto bajo ${_val(bench)}): solo los que el motor deja arriba del benchmark.` });
       }
     }
     return v;

@@ -89,7 +89,7 @@ H("3 · el análisis del porqué trae las seis piezas del alineamiento del owner
   const t = String(r.r.text || "");
   ok(/No son dos problemas|no todos los que caen .* por la misma razón/i.test(t),
     "★ TESIS que une los puntos — «no son dos problemas, es uno con dos caras»");
-  ok(/De los \d+ que están bajo la vara: .*·/.test(t),
+  ok(/De los \d+ que están bajo el benchmark: .*·/.test(t),
     "★ PARTICIÓN declarada contra el conteo del motor, antes de nombrar a nadie");
   ok(/acciones comerciales/i.test(t) && /(volumen|margen delgado)/i.test(t),
     "★ LOS PAPELES: la fuga por acciones y el resto, separados — estrategia distinguida de fuga");

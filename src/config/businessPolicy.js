@@ -157,6 +157,25 @@ export const procedenciaDeLaReferencia = () => (referenciaEsDelNegocio() ? "inte
 export const etiquetaDeLaReferencia = () =>
   (referenciaEsDelNegocio() ? "tu benchmark" : "la referencia general de ADI");
 
+/* ── LA MISMA DOCTRINA, PARA LA CARGA COMERCIAL (owner 2026-09-04, defecto cazado por el supervisor) ─────────
+ * El análisis del porqué decía «tu target declarado (3.5%)» — y ese 3,5% vive SOLO en `POLICY_CONFIG`: la
+ * plantilla no tiene ningún campo para que el cliente lo declare. Es EXACTAMENTE la clase que el owner cerró
+ * en agosto con el benchmark: «no quiero que la referencia general parezca una meta del cliente». La
+ * infraestructura del valor ya estaba (POLICY resuelve `perfil.targetCarga` si algún día llega); lo que
+ * faltaba era decir DE QUIÉN es. Se resuelve igual que la vara y en el mismo archivo, por la misma razón:
+ * quien resuelve el valor resuelve la procedencia, o hay dos verdades sobre la misma cifra.
+ *
+ * ⚠️ REGISTRO: en superficie no se dice «target» (anglicismo) ni «vara» (prohibida). Se dice «nivel de
+ * referencia de carga comercial». */
+export const cargaEsDelNegocio = () => _perfilVal("targetCarga") !== undefined;
+
+/** "interna_empresa" si el negocio declaró su nivel de carga · "general_adi" si es el nuestro. */
+export const procedenciaDeLaCarga = () => (cargaEsDelNegocio() ? "interna_empresa" : "general_adi");
+
+/** Cómo se NOMBRA el nivel de carga en pantalla y en prosa — una sola redacción para todas las superficies. */
+export const etiquetaDeLaCarga = () =>
+  (cargaEsDelNegocio() ? "tu nivel de carga comercial declarado" : "el nivel de referencia de carga comercial que uso");
+
 /** La frase corta que declara el límite cuando la vara es nuestra, o "" cuando es del negocio. */
 export const notaDeLaReferencia = () =>
   (referenciaEsDelNegocio() ? "" : "es la referencia general de ADI, no una meta que tu negocio haya declarado");
