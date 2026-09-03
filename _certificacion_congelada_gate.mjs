@@ -213,7 +213,10 @@ if (fs.existsSync(COMPLETA)) {
     { q: "dame los 3 riesgos para el directorio", check: (a, t) => {
       ok(a.estado === "playbook" && /Los 3 riesgos, por materialidad:/.test(t) && /-40\.5%[^\n]{0,50}a[ñn]o anterior|a[ñn]o anterior[^\n]{0,50}-40\.5%/i.test(t),
         `c11 · los 3 riesgos, la venta cayendo primero (${a.estado})`);
-      ok(/Capital frenado en inventario: \$38\.1M/.test(t) && /encabeza ELE-CAB25/.test(t) && /si quieres/i.test(t),
+      // (la OFERTA, medida como conducta desde la voz ejecutiva del owner 2026-09-03: pregunta o «si te
+      //  parece/si quieres», y ninguna orden — el cierre pasó a ser UNO solo, priorizado)
+      ok(/Capital frenado en inventario: \$38\.1M/.test(t) && /encabeza ELE-CAB25/.test(t)
+        && (/¿[^?]{0,80}\?/.test(t) || /si (?:quieres|te parece)/i.test(t)) && !/ten[eé]s que|hay que\b/i.test(t),
         "c11 · QUÉ·DÓNDE·PRIMERO con cifras del negocio — ofertas, jamás órdenes");
     } },
     { q: "compará Q1 vs Q2", check: (a, t) => {

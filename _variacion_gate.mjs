@@ -77,6 +77,22 @@ const turno = (histLen) => answerViaAgente({ text: Q, history: relleno(histLen),
   const seguidos = [];
   for (const len of [0, 2, 4]) seguidos.push(String((await turno(len)).r.text).trim().split("\n").pop());
   ok(new Set(seguidos).size >= 2, `★ tres turnos seguidos → no sale tres veces el mismo cierre (${new Set(seguidos).size} distintos)`, seguidos.join(" | "));
+
+  /* LA SÍNTESIS EJECUTIVA, desde la voz del owner (2026-09-03): su cierre es UNO solo y priorizado, con la
+   * oferta variando por semilla. Las TRES variantes tienen que salir por el turno entero sin un veto — es
+   * donde el muro ya me cazó la priorización sin marcar el criterio. */
+  const QS = "dame los 3 riesgos para el directorio";
+  const turnoS = (histLen) => answerViaAgente({ text: QS, history: relleno(histLen), mem: {}, scenario: "bonanza", callAgente: MUDO });
+  const ofertas = new Set();
+  let vetadosS = 0;
+  for (let len = 0; len <= 12; len += 2) {
+    const r = await turnoS(len);
+    if (r.r.agente.estado !== "playbook" || (r.r.agente.vetos || []).length) vetadosS++;
+    const m = /(¿[^?]{0,60}\?|Si te parece, entro por ahí\.)/.exec(String(r.r.text).split("\n").filter(Boolean).slice(-2).join(" "));
+    if (m) ofertas.add(m[1]);
+  }
+  ok(vetadosS === 0, "★ la SÍNTESIS: todas las variantes de su cierre único pasan el turno entero — muro, contrato y notarial, cero vetos");
+  ok(ofertas.size >= 2, `★ …y la oferta del cierre rota de verdad entre turnos (${ofertas.size} formas distintas)`, [...ofertas].join(" | "));
 }
 
 /* ═══ 3 · CARNADA · la variación apagada (siempre la primera opción) → el checkeo se pone ROJO ═══════════════ */

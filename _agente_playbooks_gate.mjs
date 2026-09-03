@@ -457,12 +457,56 @@ H("1g · certificación: el límite honesto con alternativa, y los 3 riesgos del
     "★ …y la alternativa va NOMBRADA con su eje y su cifra — el menú de labels internos no vuelve");
   // DEMO · los 3 riesgos — con 2 materiales, se dice el número verdadero
   const rr2 = await T("dame los 3 riesgos para el directorio");
-  ok(rr2.r.agente.estado === "playbook" && /2 riesgos materiales/.test(rr2.r.text) && /no invento el que falta/.test(rr2.r.text),
+  /* (re-apuntado a CONDUCTA 2026-09-03, tras la voz ejecutiva del owner: este check medía la FORMA —«2 riesgos
+   * materiales» y «no invento el que falta»— y esa segunda frase era justamente el defecto DEFENSIVO que él
+   * marcó en producción. La conducta certificada es: dice el número VERDADERO de materiales, declara el
+   * umbral en algún lado, y NO se disculpa.) */
+  ok(rr2.r.agente.estado === "playbook" && /\bdos riesgos materiales\b|\b2 riesgos materiales\b/.test(rr2.r.text)
+    && /0,05% de tu venta|umbral de materialidad/.test(rr2.r.text) && !/no invento|no puedo/i.test(rr2.r.text),
     `★ riesgos DEMO · el dato sostiene 2 materiales y LO DICE con el umbral, sin inventar el tercero (${rr2.r.agente.estado})`, rr2.r.text.slice(0, 110));
   ok(/1 · Contribución no capturada: \$4\.9M — encabeza Falabella con \$1\.6M/.test(rr2.r.text),
     "…QUÉ con cifra verbatim y DÓNDE con dueño, uno por oración");
-  ok(/si quieres, abrimos/i.test(rr2.r.text) && !/ten[eé]s que|hay que\b/i.test(rr2.r.text),
-    "…y el PRIMERO de cada riesgo se OFRECE, jamás se ordena");
+  /* la CONDUCTA, no la cadena: el cierre OFRECE (pregunta o «si te parece/si quieres») y no ordena. Y desde la
+   * voz ejecutiva del owner el cierre es UNO solo, priorizado — no uno por foco (con 3 focos serían 3). */
+  const _ofertas = (rr2.r.text.match(/¿[^?]{0,80}\?|si (?:quieres|te parece)/gi) || []).length;
+  ok(_ofertas >= 1 && _ofertas <= 2 && !/ten[eé]s que|hay que\b|proced[ea]\b/i.test(rr2.r.text),
+    `…y el cierre OFRECE una vez (${_ofertas}), jamás ordena — el cierre por foco no escala`);
+  ok(/criterio m[íi]o|dato duro|no sale del dato/i.test(rr2.r.text),
+    "…y la PRIORIDAD se marca como criterio del asesor, no como orden del dato (la regla `juicio-sin-marcar` del muro)");
+
+  /* ── LA VOZ EJECUTIVA DEL OWNER (2026-09-03 · primer hallazgo de uso real), congelada como conducta ──────
+   * Sus tres defectos de forma, cada uno con su candado; y el ESCALADO que pidió (1 y 3 focos), medido con
+   * boletas sintéticas porque el demo solo sostiene 2 focos materiales. */
+  ok(!/no invento el que falta|no puedo/i.test(rr2.r.text) && /dejar[íi]a el resto como monitoreo/i.test(rr2.r.text),
+    "★ VOZ 1 · el límite es CRITERIO («dejaría el resto como monitoreo»), no un descargo — la defensiva que el owner marcó no vuelve");
+  ok(!/^\s*(?:Veo|Los 3)[^\n]*0,05%/.test(rr2.r.text) && /0,05% de tu venta/.test(rr2.r.text),
+    "★ VOZ 2 · el umbral NO abre la respuesta pero SIGUE presente (proporcionalidad entera, en frase de negocio al final)");
+  {
+    const _fg = (label, text, raw) => ({ label, text, value: text, raw, unit: "money" });
+    const UNO = [_fg("Contribución no capturada · subtotal", "$4.9M", 4900000), _fg("Falabella · Contribución no capturada", "$1.6M", 1600000)];
+    const TRES_MISMA = [...UNO,
+      _fg("Carga comercial alta · subtotal", "$655K", 655000), _fg("Falabella · Carga comercial alta", "$194K", 194000),
+      _fg("Capital frenado · subtotal", "$38.1M", 38100000), _fg("ELE-CAB25 · Capital frenado", "$12.0M", 12000000)];
+    const TRES_DISTINTAS = [...UNO,
+      _fg("Carga comercial alta · subtotal", "$655K", 655000), _fg("Sodimac · Carga comercial alta", "$194K", 194000),
+      _fg("Capital frenado · subtotal", "$38.1M", 38100000), _fg("ELE-CAB25 · Capital frenado", "$12.0M", 12000000)];
+    const _pbSint = PLAYBOOKS.find((x) => x.nombre === "sintesis-ejecutiva");
+    const t1 = _pbSint.componer({ figs: UNO, semilla: "s::1" });
+    ok(/Veo un riesgo material\b/.test(t1) && !/los materiales|riesgos materiales/.test(t1),
+      "★ ESCALA A UNO: dice «un riesgo material» — nunca el plural ni «los materiales»", String(t1).split("\n")[0]);
+    const t3 = _pbSint.componer({ figs: TRES_MISMA, semilla: "s::1" });
+    const cierres3 = (String(t3).match(/Empezar[íi]a por/g) || []).length;
+    ok(cierres3 === 1 && /concentra dos de los tres focos/.test(t3),
+      `★ ESCALA A TRES: UN solo cierre (${cierres3}) y la prioridad se justifica con el HECHO de la boleta — la entidad que concentra dos focos (la clave del owner)`);
+    const t3b = _pbSint.componer({ figs: TRES_DISTINTAS, semilla: "s::1" });
+    ok(/Empezar[íi]a por ELE-CAB25/.test(t3b) && /foco más pesado/.test(t3b),
+      "…y si NINGUNA entidad repite, manda el foco más pesado y se DICE el criterio — nunca una prioridad muda");
+    /* NO CONTRADECIR AL VIGÍA: cuando nada pasa el piso, la síntesis se RETIRA (null) — el vigía es quien
+     * dice «sin focos materiales» con su umbral. Dos superficies, una sola verdad sobre el silencio. */
+    const BAJO_PISO = [_fg("Contribución no capturada · subtotal", "$1K", 1000), _fg("Falabella · Contribución no capturada", "$1K", 1000)];
+    ok(_pbSint.componer({ figs: BAJO_PISO, semilla: "s::1" }) === null,
+      "★ con TODO bajo el piso la síntesis se retira (null) — no contradice al vigía, que es quien declara el silencio con su umbral");
+  }
   // «versión más dura» NO es de este playbook: re-narración (medido 43× más caro con el empujón)
   ok(playbookPara("Dame una versión más dura, como si tuviera que presentarla al gerente general.") === null,
     "★ «versión más dura» queda FUERA a propósito: es re-narración del hilo, no una síntesis nueva");

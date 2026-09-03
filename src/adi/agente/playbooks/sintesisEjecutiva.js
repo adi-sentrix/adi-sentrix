@@ -17,7 +17,26 @@
  * pregunta pida la síntesis ejecutiva en sus palabras (riesgos · directorio · síntesis ejecutiva); ante la
  * duda, false.
  *
- * PURO · determinístico · sin red. Cifras VERBATIM de la boleta; selecciona y ordena, jamás calcula. */
+ * PURO · determinístico · sin red. Cifras VERBATIM de la boleta; selecciona y ordena, jamás calcula.
+ *
+ * ═══ LA VARA DE VOZ EJECUTIVA (owner 2026-09-03 · PRIMER HALLAZGO DE USO REAL EN PRODUCCIÓN) ═══════════════
+ * Probó «Dame los 3 riesgos principales para el directorio» y el defecto NO fue de cálculo: fue de FORMA. Lo
+ * que aprobó y no se toca: no inventó el tercero · declaró el umbral · dio monto, foco y cliente · dijo que
+ * el porqué no está. Los tres defectos que marcó, con su redacción esperada CITADA — esta es la vara para
+ * TODOS los composers, no solo para este:
+ *
+ *   1 · DEFENSIVA. «no invento el que falta» suena a disculpa. «Un asesor no anuncia que no miente — lo
+ *       demuestra callando lo inmaterial.» Su redacción: «Veo 2 riesgos materiales y dejaría el resto como
+ *       monitoreo, no como tema de directorio» — EL LÍMITE COMO CRITERIO EJECUTIVO, que es lo que un
+ *       directorio quiere oír.
+ *   2 · JERGA DE UMBRAL. «bajo el 0,05% de tu venta: $50K» en la PRIMERA línea es lenguaje de ingeniería. La
+ *       proporcionalidad se mantiene entera (regla 1), pero el umbral NO ABRE la respuesta: va al final, en
+ *       frase de negocio. «Que sea auditable no significa que vaya en el titular.»
+ *   3 · REPETICIÓN. «Si quieres, abrimos Falabella» dos veces: el cierre POR FOCO no escala (con tres focos
+ *       serían tres). UNO solo, priorizado — y su clave: «abriría primero Falabella, porque concentra ambos
+ *       focos», que es un HECHO de la boleta (la misma entidad encabezando dos focos), no una opinión.
+ *
+ * Su frase, que resume el encargo entero: «MISMO DATO, MEJOR FORMA DE PRESENTARLO». Ni una cifra cambió. */
 
 import { pisoFocosUSD, declaracionUmbralFocos } from "../../specRetrieval.js";
 import { variante } from "../variacion.js";   // el cierre varía por semilla («matar la repetición», 2026-09-03)
@@ -36,6 +55,7 @@ const _SIMULA = new RegExp(`\\bsimul|\\bproyect|\\bqu[eé] pasa si${_FIN}|\\bpon
 const _piso = () => { try { return pisoFocosUSD() || 0; } catch { return 0; } };
 const _umbral = () => { try { return declaracionUmbralFocos(); } catch { return ""; } };
 
+const _CUENTA = ["", "un", "dos", "tres"];   // el conteo en palabras: un número suelto es un conteo sin boleta (el muro lo caza)
 const _TEMA = /\briesgo[s]?\b|\bs[ií]ntesis ejecutiva\b/i;
 const _EJECUTIVO = /\bdirectorio\b|\bboard\b|\bgerencia\b|\bgerente\b|\bgg\b|\bejecutiv[oa]s?\b|\bs[ií]ntesis ejecutiva\b/i;
 
@@ -88,24 +108,65 @@ export const sintesisEjecutiva = {
 
     const partes = [];
     const n = elegidos.length + (ventaCae ? 1 : 0);
-    partes.push(n >= 3 ? "Los 3 riesgos, por materialidad:" : `Tu dato sostiene ${n === 1 ? "un riesgo material" : `${n} riesgos materiales`}${_umbral() ? ` (el resto queda ${_umbral()})` : ""} — no invento el que falta:`);
+    /* EL TITULAR · EL LÍMITE COMO CRITERIO, NO COMO DESCARGO (owner 2026-09-03, primer hallazgo de uso real
+     * en producción — su redacción esperada, citada en la cabecera de este archivo). «no invento el que falta»
+     * sonaba a disculpa: un asesor no anuncia que no miente, lo demuestra callando lo inmaterial. Y el umbral
+     * SALE DEL TITULAR: la proporcionalidad se mantiene entera (baja al final, en frase de negocio), pero un
+     * directorio no abre con jerga de ingeniería. El conteo va en PALABRAS — el conteo-no-autorizado que el
+     * muro le cazó al vigía el mismo día. */
+    partes.push(n >= 3
+      ? "Los 3 riesgos, por materialidad:"
+      : `Veo ${_CUENTA[n] || n} ${n === 1 ? "riesgo material" : "riesgos materiales"} y dejaría el resto como monitoreo, no como tema de directorio:`);
     // LA VOZ (2026-09-03): el telegrama «QUÉ. Dónde: X. Primero: Y.» se cuenta como lo contaría un asesor —
     // mismas cifras, mismos dueños, misma estructura de tres, y las ofertas siguen siendo ofertas.
     let i = 1;
     if (ventaCae) {
-      partes.push(`\n${i++} · La venta viene cayendo: ${_val(ventaCae)} contra el año anterior. Dónde se cae por cliente no está en esta síntesis — si quieres, abro esa lectura primero.`);
+      partes.push(`\n${i++} · La venta viene cayendo: ${_val(ventaCae)} contra el año anterior. Dónde se cae por cliente no está en esta síntesis.`);
     }
     for (const c of elegidos) {
-      partes.push(`\n${i++} · ${c.nombre}: ${_val(c.f)}${c.top ? ` — encabeza ${c.top.entidad} con ${c.top.fmt}` : ""}. Si quieres, abrimos ${c.top ? c.top.entidad : c.abrir}.`);
+      /* SIN OFERTA POR FOCO (owner 2026-09-03): «Si quieres, abrimos Falabella» salía una vez por riesgo —
+       * con tres focos serían tres. El cierre es UNO, priorizado, y vive abajo. */
+      partes.push(`\n${i++} · ${c.nombre}: ${_val(c.f)}${c.top ? ` — encabeza ${c.top.entidad} con ${c.top.fmt}` : ""}.`);
     }
     if (fuera > 0 && n >= 3) partes.push(`\n(${fuera} foco${fuera > 1 ? "s quedan" : " queda"} ${_umbral() || "bajo el umbral de materialidad"}.)`);
+
+    /* ── EL CIERRE ÚNICO Y PRIORIZADO (owner 2026-09-03) ──────────────────────────────────────────────────
+     * La repetición que él marcó: «Si quieres, abrimos Falabella» una vez por foco. Ahora es UNO, y la
+     * prioridad se declara con su criterio — que es un HECHO DE LA BOLETA, no una opinión: si la misma
+     * entidad encabeza más de un foco, se nombra POR ESO («concentra los dos focos» — sus palabras). Si
+     * ninguna repite, manda el foco más pesado, y se dice cuál es. Cero cálculo: contar en cuántos focos
+     * aparece un nombre que el motor ya publicó es selección, igual que ordenar. */
+    const conDueno = elegidos.filter((c) => c.top && c.top.entidad);
+    let lider = null, enCuantos = 0;
+    for (const c of conDueno) {
+      const k = c.top.entidad;
+      const cuantos = conDueno.filter((x) => x.top.entidad === k).length;
+      if (cuantos > enCuantos) { lider = c; enCuantos = cuantos; }
+    }
+    /* ⚠️ Y LA PRIORIDAD SE MARCA COMO CRITERIO (el muro me lo cazó al estrenar esta voz, con razón: la regla
+     * `juicio-sin-marcar` de guardC — «el dato no ordena prioridades»). Priorizar es juicio del asesor aunque
+     * el HECHO que lo sostiene sea de la boleta: se dice cuál es cada cosa. */
+    const _CUANTOS = ["", "un", "dos", "tres"];
+    const _MARCA = "—criterio mío, no una cifra del dato—";
+    let prioridad = null;
+    if (lider && enCuantos >= 2) {
+      prioridad = `Empezaría por ${lider.top.entidad} ${_MARCA}: concentra ${enCuantos === elegidos.length ? `los ${_CUANTOS[enCuantos] || enCuantos} focos` : `${_CUANTOS[enCuantos] || enCuantos} de los ${_CUANTOS[elegidos.length] || elegidos.length} focos`}.`;
+    } else if (lider) {
+      prioridad = `Empezaría por ${lider.top.entidad} ${_MARCA}: encabeza el foco más pesado (${_val(lider.f)}).`;
+    } else if (ventaCae) {
+      prioridad = `Empezaría por la caída de venta ${_MARCA}: es lo que más pesa y todavía no está abierto por cliente.`;
+    }
     /* «Cada» al inicio de oración casi-matchea «Casa Belgrano» y el corruptor de entidades lo veta (medido en
      * la parcial y en la completa real): el cierre arranca en «El porqué» a propósito. */
-    partes.push("\n" + variante(semilla, [
-      "El porqué de cada riesgo no está en este dato: queda localizado, no explicado. ¿Cuál abrimos primero?",
-      "El porqué de cada riesgo no está en este dato: queda localizado, no explicado. ¿Por cuál entramos?",
-      "El porqué de cada riesgo no está en este dato: queda localizado, no explicado. Dime cuál abrimos y entro ahí.",
-    ]));
+    const _oferta = variante(semilla, [
+      "¿Lo abrimos?",
+      "¿Entramos por ahí?",
+      "Si te parece, entro por ahí.",
+    ]);
+    partes.push(`\n${prioridad ? `${prioridad} ` : ""}El porqué de cada riesgo no está en este dato: queda localizado, no explicado. ${_oferta}`);
+    /* EL UMBRAL, FUERA DEL TITULAR pero PRESENTE (regla 1 intacta): la proporcionalidad no se negocia, su
+     * lugar sí. Va al final y en frase de negocio — auditable no significa que abra la respuesta. */
+    if (_umbral() && n < 3) partes.push(`Lo que dejo fuera del directorio queda ${_umbral()}.`);
     return partes.join("\n");
   },
 
