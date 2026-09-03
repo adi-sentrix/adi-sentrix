@@ -396,8 +396,8 @@ H("5 · carnadas: la certificación congelada es la RED de todo lo demás");
 
   // (1) los playbooks desconectados: el t1 del demo pierde su lectura del margen
   await carnada("los playbooks desconectados del bucle",
-    // (re-apuntada T5 y anclaje, 2026-09-05: el sitio pasa el hilo y el viewContext — mide lo mismo de siempre)
-    [[/  const playbook = \(\(\) => \{ try \{ return playbookPara\(q, \{ history, viewContext \}\); \} catch \{ return null; \} \}\)\(\);/, "  const playbook = null;   // CARNADA"]],
+    // (re-apuntada T5/anclaje/tanda 3, 2026-09-05: el sitio arma ctxTurno y lo pasa — mide lo mismo de siempre)
+    [[/  const playbook = \(\(\) => \{ try \{ return playbookPara\(q, ctxTurno\); \} catch \{ return null; \} \}\)\(\);/, "  const playbook = null;   // CARNADA"]],
     async (bucleMut) => {
       initTenant(TENANT_DEMO);
       const r = await bucleMut({ text: "llamame jc de ahora en adelante. como viene mi margen?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });

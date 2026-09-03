@@ -99,20 +99,23 @@ export function playbookPara(pregunta, ctx) {
  * regla de retiro es la misma de siempre: falta una fig → se retira sin ruido.
  *
  * Los dos resuelven en UN SOLO lugar para que nadie los desenvuelva dos veces con criterios distintos. */
-const _resolver = (campo, pregunta, porDefecto) => {
+/* el ctx (history · viewContext) viaja ENTERO por la cadena (tanda 3 post-poda, 2026-09-05): antes se
+ * tiraba acá y askDeCuadro prometía en su cabecera una desambiguación que ningún dato alimentaba. Un campo
+ * función lo recibe como segundo argumento; los que no lo miran, lo ignoran. */
+const _resolver = (campo, pregunta, porDefecto, ctx) => {
   if (typeof campo === "function") {
-    try { const r = campo(String(pregunta || "")); return Array.isArray(r) ? r : porDefecto; } catch { return porDefecto; }
+    try { const r = campo(String(pregunta || ""), ctx); return Array.isArray(r) ? r : porDefecto; } catch { return porDefecto; }
   }
   return Array.isArray(campo) ? campo : porDefecto;
 };
-/** los pasos de ESTE turno: Array (los de siempre) o función de la pregunta. */
-export function pasosDe(pb, pregunta) { return _resolver(pb && pb.pasos, pregunta, []); }
+/** los pasos de ESTE turno: Array (los de siempre) o función de la pregunta (+ctx opcional). */
+export function pasosDe(pb, pregunta, ctx) { return _resolver(pb && pb.pasos, pregunta, [], ctx); }
 /** las figs que el playbook promete para ESTE turno — mismo contrato que `pasos`. */
-export function obligatoriasDe(pb, pregunta) { return _resolver(pb && pb.obligatorias, pregunta, []); }
+export function obligatoriasDe(pb, pregunta, ctx) { return _resolver(pb && pb.obligatorias, pregunta, [], ctx); }
 
 /** las figs que el playbook PROMETIÓ, presentes de verdad en la boleta acumulada. */
-export function promesasCumplidas(pb, figs, pregunta) {
-  const obligatorias = obligatoriasDe(pb, pregunta);
+export function promesasCumplidas(pb, figs, pregunta, ctx) {
+  const obligatorias = obligatoriasDe(pb, pregunta, ctx);
   if (!pb || !obligatorias.length) return false;
   const labels = (Array.isArray(figs) ? figs : []).map((f) => String((f && f.label) || ""));
   return obligatorias.every((re) => labels.some((l) => re.test(l)));

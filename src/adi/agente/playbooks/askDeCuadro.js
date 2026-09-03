@@ -54,11 +54,17 @@ function _caso(pregunta, ctx) {
   if (!q.trim()) return null;
   const vc = ctx && ctx.viewContext && typeof ctx.viewContext === "object" ? ctx.viewContext : null;
   if (_F_LIBERO_PRIMERO.test(q)) return { forma: "libero", eje: "sku", nombre: null };   // sin nombre: el ranking frenado decide
-  const ent = entidadNombrada(q);
+  let ent = entidadNombrada(q);
+  /* LA COLISIÓN DE EJES, resuelta como promete la cabecera (el ctx viaja entero desde la tanda 3): si el
+   * nombre existe en DOS ejes, el viewContext del cuadro tocado decide; sin él, se conserva la colisión y el
+   * composer la DECLARA en vez de elegir en silencio. */
+  if (ent && Array.isArray(ent.colision) && vc && vc.eje && ent.colision.includes(vc.eje)) {
+    ent = { ...ent, eje: vc.eje, colision: undefined };
+  }
   if (_F_CAPITAL_EN.test(q)) {
     if (_TRAMO.test(q)) return { forma: "capital_en", eje: "edad", nombre: (q.match(_TRAMO) || [""])[0] };
     if (!ent) return null;                                       // nombre fuera del índice: no se adivina
-    if (ent.eje === "bodega" || ent.eje === "familia") return { forma: "capital_en", eje: ent.eje, nombre: ent.nombre };
+    if (ent.eje === "bodega" || ent.eje === "familia") return { forma: "capital_en", eje: ent.eje, nombre: ent.nombre, colision: ent.colision };
     /* nombre de OTRO eje (un cliente, un SKU): ese corte no es del cuadro de capital — que lo tome su dueño */
     return null;
   }
@@ -148,6 +154,10 @@ export const askDeCuadro = {
     if (c.forma === "capital_en") {
       const mia = _find(figs, new RegExp(`^${_esc(c.nombre)} · Capital$`, "i"));
       if (!mia) return null;
+      /* la colisión sin viewContext se DECLARA en la primera línea: el corte servido y la otra cara ofrecida */
+      if (Array.isArray(c.colision) && c.colision.length > 1) {
+        p.push(`«${c.nombre}» existe en tu catálogo como ${c.colision.join(" y como ")} — respondo por ${c.eje}; si buscabas la otra cara, dímelo o tócala desde su cuadro.`);
+      }
       const todas = _all(figs, /· Capital$/i).map((f) => ({ nombre: _lab(f).split("·")[0].trim(), raw: _num(f), fmt: _val(f) }))
         .filter((x) => Number.isFinite(x.raw)).sort((a, b) => b.raw - a.raw);
       const lugar = todas.findIndex((x) => x.nombre.toLowerCase() === c.nombre.toLowerCase());
@@ -188,10 +198,23 @@ export const askDeCuadro = {
       const frenados = _all(figs, /· Capital frenado$/i)
         .map((f) => ({ nombre: _lab(f).split("·")[0].trim(), raw: _num(f), fmt: _val(f) }))
         .filter((x) => esSku.has(x.nombre) && Number.isFinite(x.raw)).sort((a, b) => b.raw - a.raw);
+      /* LA COLA DEL TOP-4 (punto 15 de la revisión, confirmado en el emisor): `inventoryStatus` publica los 4
+       * SKU que más pesan + una fila «Resto (N de M) · Capital frenado». Con 5+ frenados, una lista sin la
+       * cola se lee completa — y negar contra ella negaría en pantalla un SKU frenado real. La cola se
+       * DECLARA, y con cola presente la negación cambia de forma: «no aparece entre los publicados». */
+      const resto = _find(figs, /^Resto \(\d+ de \d+\) · Capital frenado$/i);
+      const _colaTxt = resto ? ` — y ${_lab(resto).split("·")[0].trim().toLowerCase()} suma ${_val(resto)}` : "";
       const deBodega = c.eje === "bodega" ? _find(figs, new RegExp(`^${_esc(c.nombre)} · Capital frenado$`, "i")) : null;
 
       if (c.nombre && c.eje === "sku") {
         const mio = frenados.find((x) => x.nombre.toLowerCase() === c.nombre.toLowerCase());
+        if (!mio && resto) {
+          /* hay cola no publicada por nombre: negar sería afirmar sobre filas que este corte no muestra */
+          p.push(`${c.nombre} no aparece entre los SKU que este corte publica por nombre (los ${frenados.length} que más pesan de un total mayor).`);
+          p.push(`Los publicados son ${frenados.map((x) => x.nombre).join(" · ")}${_colaTxt}. El capital frenado suma ${_val(total)}.`);
+          p.push(`Si lo que buscas es la fila de ${c.nombre} en el inventario, te la abro.`);
+          return p.join("\n");
+        }
         if (!mio) {
           /* la forma NEGADA CANÓNICA («no está frenado»), y EN SU PROPIA ORACIÓN — el juez del estado lee la
            * negación solo pegada a la palabra Y evalúa oración por oración: si el no-frenado y la lista de
@@ -218,14 +241,14 @@ export const askDeCuadro = {
           p.push(`El capital frenado del negocio suma ${_val(total)}.`);
           return p.join("\n");
         }
-        const mios = frenados.length ? ` Los SKU frenados del negocio, de mayor a menor: ${frenados.map((x) => `${x.nombre} ${x.fmt}`).join(" · ")}.` : "";
+        const mios = frenados.length ? ` Los SKU frenados del negocio, de mayor a menor: ${frenados.map((x) => `${x.nombre} ${x.fmt}`).join(" · ")}${_colaTxt}.` : "";
         p.push(`En ${c.nombre} hay ${_val(deBodega)} de capital frenado.${mios}`);
         p.push(`Por qué se frenó no está en este dato: el cuadro localiza el capital, no la causa.`);
         return p.join("\n");
       }
       /* sin nombre: «¿Qué SKU libero primero?» — el primero del corte, con el criterio dicho */
       if (!frenados.length) return null;
-      p.push(`El capital frenado suma ${_val(total)}. De mayor a menor: ${frenados.map((x) => `${x.nombre} ${x.fmt}`).join(" · ")}.`);
+      p.push(`El capital frenado suma ${_val(total)}. De mayor a menor: ${frenados.map((x) => `${x.nombre} ${x.fmt}`).join(" · ")}${_colaTxt}.`);
       p.push(`Si el criterio es capital frenado —criterio mío, el del cuadro—, el primero es ${frenados[0].nombre}: es donde más capital hay sin rotar.`);
       p.push(`Por qué se frenó cada uno no está en este dato.`);
       return p.join("\n");

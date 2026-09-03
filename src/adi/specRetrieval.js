@@ -196,10 +196,10 @@ function _entityValue(name, m, dimension, scenario) {
   if (!src) return null;
   const rows = _load(sba.source, scenario);
   const ent = ENTITIES[dimension];
-  if (ent && ent.isGroupBy) {
+  if (ent && (ent.isGroupBy || sba.groupByField)) {   // groupByField: el corte lo declara la MÉTRICA (capital@familia — ver el group-by principal)
     const via = sba.groupVia ? new Map(_load(sba.groupVia.source, scenario).map((r) => [String(r[sba.groupVia.key]), r[sba.groupVia.field]])) : null;
     const vals = rows
-      .filter((r) => String(via ? via.get(String(r[src.keyField])) : r[ent.keyField]) === String(name))
+      .filter((r) => String(via ? via.get(String(r[src.keyField])) : r[sba.groupByField || ent.keyField]) === String(name))
       .map((r) => r[sba.field]).filter((v) => typeof v === "number");
     if (!vals.length) return null;
     const sum = vals.reduce((a, b) => a + b, 0);
@@ -2146,9 +2146,9 @@ function _crossByEntity(crossMetric, dimension) {
   const rows = _loadReal(sba.source);
   if (!Array.isArray(rows) || !rows.length) return null;
   const field = sba.field, map = {};
-  if (ent.isGroupBy) {
+  if (ent.isGroupBy || sba.groupByField) {   // groupByField: capital@familia y sus hermanos (tanda 3 post-poda)
     const groups = {};
-    for (const r of rows) { const k = r[ent.keyField]; if (k == null) continue; (groups[k] = groups[k] || []).push(r); }
+    for (const r of rows) { const k = r[sba.groupByField || ent.keyField]; if (k == null) continue; (groups[k] = groups[k] || []).push(r); }
     const agg = sba.agg || "avg";
     for (const [name, grp] of Object.entries(groups)) {
       const vals = grp.map((r) => r[field]).filter((v) => typeof v === "number"), sum = vals.reduce((a, b) => a + b, 0);
@@ -2205,9 +2205,9 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
 
   const field = sba.field;
   let actual;
-  if (ent.isGroupBy) {
+  if (ent.isGroupBy || sba.groupByField) {   // groupByField: ídem — las TRES ramas group-by leen el mismo contrato
     const groups = {};
-    for (const r of rows) { const k = r[ent.keyField]; if (k == null) continue; (groups[k] = groups[k] || []).push(r); }
+    for (const r of rows) { const k = r[sba.groupByField || ent.keyField]; if (k == null) continue; (groups[k] = groups[k] || []).push(r); }
     const agg = sba.agg || "sum";
     actual = Object.entries(groups).map(([name, grp]) => {
       const vals = grp.map((r) => r[field]).filter((v) => typeof v === "number");

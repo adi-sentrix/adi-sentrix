@@ -76,12 +76,15 @@ const _FUERA = new RegExp([
 ].join("|"), "i");
 
 /** el caso: `{ nombre, eje }` de la entidad, o null. Una sola lectura de la pregunta para todo el playbook. */
-function _caso(pregunta) {
+function _caso(pregunta, ctx) {
   const q = String(pregunta || "");
   if (!q.trim() || _FUERA.test(q)) return null;
   try { if (detectSerieIntent(q)) return null; } catch { /* detector mudo: sigue */ }
-  const ent = entidadNombrada(q);
+  let ent = entidadNombrada(q);
   if (!ent) return null;
+  /* la colisión de ejes: el viewContext del cuadro tocado la resuelve; sin él, viaja y el composer la declara */
+  const vc = ctx && ctx.viewContext && typeof ctx.viewContext === "object" ? ctx.viewContext : null;
+  if (Array.isArray(ent.colision) && vc && vc.eje && ent.colision.includes(vc.eje)) ent = { ...ent, eje: vc.eje, colision: undefined };
   /* el nombre SOLO (una palabra, la que nombra a alguien) es un pedido de ficha: así se escribe en un chat.
    * Con más texto alrededor, hace falta que ese texto pida la lectura — nombrar a alguien al pasar no la pide. */
   const soloElNombre = q.trim().replace(/[¿?¡!.,]/g, "").trim().toLowerCase() === ent.nombre.toLowerCase();
@@ -97,7 +100,7 @@ export const fichaDeEntidad = {
    * el grafo de esbuild). Las preguntas de muestra viven en `_agente_playbooks_gate.mjs`, que es quien las
    * necesita — el código de producción no carga nombres de nadie. */
 
-  cuandoAplica(pregunta) { return _caso(pregunta) !== null; },
+  cuandoAplica(pregunta, ctx) { return _caso(pregunta, ctx) !== null; },
 
   pasos(pregunta) {
     const ent = _caso(pregunta);
@@ -112,8 +115,8 @@ export const fichaDeEntidad = {
 
   entregable: "la ficha de esa entidad en una lectura: cuánto vende y qué lugar ocupa, con qué margen contra el benchmark declarado, cuánta contribución deja, qué le cuesta en acciones comerciales — y, si es un SKU, su capital, su rotación y sus días de inventario. Localiza; el porqué de su rendimiento no está en este dato.",
 
-  componer({ figs, pregunta, semilla } = {}) {
-    const ent = _caso(pregunta);
+  componer({ figs, pregunta, semilla, ctx } = {}) {
+    const ent = _caso(pregunta, ctx);
     if (!ent) return null;
     const de = (concepto) => _find(figs, new RegExp(`^${_esc(ent.nombre)} · ${concepto}$`, "i"));
     const venta = de("Ventas?");
@@ -132,12 +135,22 @@ export const fichaDeEntidad = {
     const QUE_ES = { cliente: "cliente", sku: "SKU", marca: "marca", familia: "familia", bodega: "bodega", canal: "canal" }[ent.eje] || ent.eje;
     const p = [];
 
-    /* 1 · QUÉ ESTÁ PASANDO — cuánto pesa y cómo rinde, con la vara al lado (la ley de la vara única) */
+    /* la colisión de ejes sin viewContext que la resuelva: se DECLARA, jamás se elige en silencio */
+    if (Array.isArray(ent.colision) && ent.colision.length > 1) {
+      p.push(`«${ent.nombre}» existe en tu catálogo como ${ent.colision.join(" y como ")} — respondo por ${QUE_ES}; si buscabas la otra cara, dímelo.`);
+    }
+    /* 1 · QUÉ ESTÁ PASANDO — cuánto pesa y cómo rinde, con la vara al lado (la ley de la vara única).
+     * ⚠️ EN UN SKU, LA PROCEDENCIA SE DICE (tanda 3 post-poda): su ficha junta DOS universos que no
+     * reconcilian — la venta comercial (skusMargen) y el inventario (skuInventario) — y «margen» existe en
+     * los dos con cifras distintas (comercial 11.1% vs inventario 22% en SAM-REF500L, medido). Cada bloque
+     * nombra su universo, el margen se rotula COMERCIAL, y la colisión del rótulo queda dicha en el bloque
+     * de inventario. Pegarlos sin decirlo es la clase-alarma de CLAUDE.md. */
+    const esSku = ent.eje === "sku";
     const bajoLaVara = bench && Number.isFinite(_pct(margen)) && Number.isFinite(_pct(bench)) && _pct(margen) < _pct(bench);
-    p.push(`${ent.nombre} · ${QUE_ES}. Venta del período: ${_val(venta)}${ranking && _val(ranking) ? ` — ${_val(ranking)} por venta` : ""}.`);
+    p.push(`${ent.nombre} · ${QUE_ES}. ${esSku ? "Su lado comercial (la venta): venta" : "Venta"} del período: ${_val(venta)}${ranking && _val(ranking) ? ` — ${_val(ranking)} por venta` : ""}.`);
     p.push(bench
-      ? `Su margen es ${_val(margen)}, ${bajoLaVara ? "bajo" : "sobre"} el benchmark declarado (${_val(bench)}).`
-      : `Su margen es ${_val(margen)}.`);
+      ? `Su margen ${esSku ? "comercial " : ""}es ${_val(margen)}, ${bajoLaVara ? "bajo" : "sobre"} el benchmark declarado (${_val(bench)}).`
+      : `Su margen ${esSku ? "comercial " : ""}es ${_val(margen)}.`);
 
     /* 2 · DÓNDE — lo que deja y lo que cuesta, sin decir por qué (el dato no lo trae) */
     /* ⚠️ CADA CIFRA PEGADA A SU CONCEPTO, en oraciones cortas. La versión larga —«…una carga de 3.2% sobre su
@@ -156,7 +169,7 @@ export const fichaDeEntidad = {
       if (capital) inv.push(`${_val(capital)} de capital en inventario`);
       if (rotacion) inv.push(`rotación ${_val(rotacion)}`);
       if (doh) inv.push(`${_val(doh)} de días de inventario`);
-      p.push(`\nPor el lado del inventario: ${inv.join(" · ")}.`);
+      p.push(`\nSu lado de inventario (otro universo del dato, que no reconcilia con la venta): ${inv.join(" · ")}. El cuadro de Capital muestra además su margen de inventario — es otro campo con el mismo nombre, no este.`);
     }
 
     /* 3 · QUÉ HACER PRIMERO — ofrecido, y el límite dicho */
@@ -169,11 +182,11 @@ export const fichaDeEntidad = {
     return p.join("\n");
   },
 
-  listaNotarial(texto, { figs, pregunta } = {}) {
+  listaNotarial(texto, { figs, pregunta, ctx } = {}) {
     const t = String(texto || "");
     if (!t.trim()) return [];
     const v = [];
-    const ent = _caso(pregunta);
+    const ent = _caso(pregunta, ctx);
     /* (1) LA VARA NO SE INVIERTE: si el texto dice que rinde sobre el benchmark y la boleta dice lo contrario
      * —o al revés—, miente. Es el signo de una comparación entre dos raw ya publicados, cero cálculo nuevo. */
     if (ent) {

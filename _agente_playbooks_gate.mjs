@@ -35,6 +35,7 @@ import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
 import { cajaDelAgente, serieEntidad, cobranza } from "./src/adi/agente/herramientasAgente.js";
 import { guardC } from "./src/adi/oracle/guardC.js";
 import { buildMesaCapital } from "./src/adi/sentrix/mesaCapital.js";   // 1k · el ANCLAJE VIVO: la respuesta contra el cuadro, del mismo builder                 // las carnadas de entidad×período juzgan el texto compuesto DIRECTO contra el muro
+import { entidadNombrada } from "./src/adi/agente/playbooks/indiceEntidades.js";   // 1n · la colisión devuelta
 import { askDeCuadro } from "./src/adi/agente/playbooks/askDeCuadro.js";   // 1k · las carnadas del anclaje
 import { fichaDeEntidad } from "./src/adi/agente/playbooks/fichaDeEntidad.js";   // T4 · la carnada del muro captura su par (texto+figs) del turno vivo
 import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
@@ -863,8 +864,12 @@ H("1i · T4 · la ficha de entidad: siete formas, la vara al lado, y el porqué 
 
   /* el SKU trae su lado de inventario, con el término de pantalla (jamás «cobertura») */
   const tS = await texto("dame la ficha de LG-DRYER8KG");
-  ok(/Por el lado del inventario: .*capital en inventario.*rotación.*días de inventario/i.test(tS),
-    "el SKU suma capital · rotación · días de inventario", tS.slice(0, 200));
+  /* (tanda 3 post-poda: el bloque de inventario del SKU declara PROCEDENCIA — dos universos que no
+   * reconcilian — y la colisión del rótulo margen queda dicha; el margen del SKU se rotula COMERCIAL) */
+  ok(/Su lado de inventario \(otro universo del dato, que no reconcilia con la venta\): .*capital en inventario.*rotación.*días de inventario/i.test(tS),
+    "el SKU suma capital · rotación · días de inventario — con la procedencia del universo DICHA", tS.slice(0, 200));
+  ok(/Su margen comercial es/.test(tS) && /su margen de inventario — es otro campo con el mismo nombre/.test(tS),
+    "…y el rótulo «margen» queda desambiguado: comercial acá, el de inventario NOMBRADO como otro campo");
   ok(!/\bcobertura\b/i.test(tS),
     "…y «cobertura» no aparece: el término de pantalla es días de inventario (resuelto por eliminación)");
 
@@ -926,10 +931,12 @@ H("1j · T5 · el porqué elíptico: abre con hilo de margen, cerrado con cualqu
   ok(/benchmark de margen/i.test(tPorque) && /criterio m[ií]o|decisi[oó]n/i.test(tPorque),
     "★ la elíptica del porqué compone EL PORQUÉ (papeles y criterio marcado), no una lectura cualquiera", tPorque.slice(0, 110));
   const tPrimero = String((await turno("¿y qué harías primero?", HILO_MARGEN)).r.text || "");
-  /* toda variante del cierre conserva las anclas (nombra la entidad + «contribución en juego» + ofrece):
-   * el aserto mide las anclas, no una frase de una semilla. */
-  ok(/margen promedio viene en 25\.1%/.test(tPrimero) && /Falabella/.test(tPrimero.trim().split("\n").pop()) && /contribuci[oó]n en juego/i.test(tPrimero),
-    "★ «¿y qué harías primero?» responde el molde completo y cierra priorizando (la entidad + el criterio)", tPrimero.slice(-120));
+  /* (tanda 3 post-poda, con el ejemplo vivo del owner: la PRIORIDAD ABRE — jamás re-servir la lectura que el
+   * usuario acaba de leer con la prioridad relegada a la cola) */
+  ok(/^(?:jc: )?Entraría por Falabella\. Una sola cosa\./.test(tPrimero.trim()) && /Por qué primero — criterio mío:/.test(tPrimero) && /deja \$1\.6M sin capturar/.test(tPrimero),
+    "★ «¿y qué harías primero?» ABRE con la prioridad, en primera persona y con el criterio marcado", tPrimero.slice(0, 120));
+  ok(!/8 de tus clientes están bajo/.test(tPrimero),
+    "…y NO re-sirve la lectura que el usuario acaba de leer");
 
   /* la mitad que no se negocia: SIN la lectura de margen, la puerta queda CERRADA — cambiar de tema en
    * silencio es un secuestro de hilo. Cobranza, inventario y sin hilo: 12 combinaciones, ninguna abre. */
@@ -1106,6 +1113,77 @@ H("1m · tanda 2: la propiedad del negocio entero, los secuestros cerrados y el 
     "…y el criterio declarado se OLVIDA por su propia puerta: la vara vuelve a la del negocio (30.1%)", RV.slice(0, 90));
 }
 
+/* ═══ 1n · TANDA 3 POST-PODA · universos, colas, colisiones y el canal del escenario ═════════════════════════ */
+H("1n · tanda 3: la cola del top-4, la colisión declarada, la procedencia del SKU y el canal del escenario");
+{
+  initTenant(TENANT_DEMO);
+
+  /* ── LA COLA DEL TOP-4 (punto 15, confirmado en el emisor): con 5+ frenados el corte publica top-4 + una
+   * fila «Resto (N de M)». El composer de `libero` NO niega contra una lista recortada y declara la cola. */
+  const FIGS5 = [
+    { label: "Capital frenado · total", value: "$60K", raw: 60000 },
+    { label: "AAA-1 · Capital frenado", value: "$20K", raw: 20000 }, { label: "AAA-1 · Rotación", value: "0.5x" },
+    { label: "BBB-2 · Capital frenado", value: "$15K", raw: 15000 }, { label: "BBB-2 · Rotación", value: "0.6x" },
+    { label: "CCC-3 · Capital frenado", value: "$12K", raw: 12000 }, { label: "CCC-3 · Rotación", value: "0.7x" },
+    { label: "DDD-4 · Capital frenado", value: "$8K", raw: 8000 }, { label: "DDD-4 · Rotación", value: "0.8x" },
+    { label: "Resto (2 de 6) · Capital frenado", value: "$5K", raw: 5000 },
+  ];
+  const tCola = String(askDeCuadro.componer({ figs: FIGS5, pregunta: "¿Cómo libero el capital de LG-DRYER8KG?", semilla: "s" }) || "");
+  ok(/no aparece entre los SKU que este corte publica por nombre/.test(tCola) && !/no está frenado/.test(tCola),
+    "★ con cola presente, el SKU ausente NO se niega: «no aparece entre los publicados» (negar contra top-4 mentiría)", tCola.slice(0, 120));
+  ok(/resto \(2 de 6\) suma \$5K/i.test(tCola),
+    "…y la cola se DECLARA con su cifra — la lista recortada ya no se lee completa", tCola.slice(0, 160));
+  const tQ5 = String(askDeCuadro.componer({ figs: FIGS5, pregunta: "¿Qué SKU libero primero?", semilla: "s" }) || "");
+  ok(/AAA-1 \$20K/.test(tQ5) && /resto \(2 de 6\) suma \$5K/i.test(tQ5),
+    "…y el ranking de «qué libero primero» lleva la cola también", tQ5.slice(0, 160));
+  /* el demo real (3 frenados, sin Resto): la negación canónica de siempre sigue intacta */
+  const tSin = await (async () => String((await answerViaAgente({ text: "¿Cómo libero el capital de SAM-REF500L?", history: [], mem: {}, scenario: "bonanza", callAgente: MUDO })).r.text || ""))();
+  ok(/SAM-REF500L no está frenado en el corte de este turno\./.test(tSin),
+    "…y SIN cola (el corte completo publicado), la negación canónica se conserva");
+
+  /* ── LA COLISIÓN DE EJES (punto 11): un tenant cuyo catálogo repite el nombre en dos ejes ── */
+  {
+    const CLON = JSON.parse(JSON.stringify(TENANT_DEMO));
+    /* la bodega pasa a llamarse como un cliente real: la colisión que un catálogo real puede traer */
+    for (const s of CLON.skuInventario || []) if (s.bodega === "Valparaíso") s.bodega = "Falabella";
+    initTenant(CLON);
+    const ent = entidadNombrada("¿Cuánto capital tengo en Falabella?");
+    ok(ent && Array.isArray(ent.colision) && ent.colision.includes("cliente") && ent.colision.includes("bodega"),
+      "★ el guardia DEVUELVE la colisión (cliente y bodega), no la traga", JSON.stringify(ent));
+    /* con viewContext del cuadro de bodegas, el ask de cuadro resuelve por bodega y responde SU fila */
+    const cVC = askDeCuadro.cuandoAplica("¿Cuánto capital tengo en Falabella?", { viewContext: { eje: "bodega" } });
+    ok(cVC === true, "★ con el viewContext del cuadro tocado, la colisión se resuelve y el botón tiene camino");
+    /* sin viewContext: el corte no es del cuadro de capital si el ganador es el cliente — pero si se sirve,
+     * el composer DECLARA. Acá el eje ganador es cliente (mismo largo, primer eje) → no aplica: honesto. */
+    const cSin = askDeCuadro.cuandoAplica("¿Cuánto capital tengo en Falabella?");
+    ok(cSin === false, "…y sin viewContext no se adivina el cuadro: el eje ganador (cliente) no es de capital");
+    initTenant(TENANT_DEMO);   // SIEMPRE de vuelta al demo
+  }
+
+  /* ── EL CANAL DEL ESCENARIO (punto 12), por mecanismo: el runner mete el scenario DEL TURNO en args y las
+   * cuatro tools de la caja lo leen de ahí (antes lo esperaban en un segundo argumento que el runner no
+   * manda — toda llamada por playbook corría con ESCENARIO_INICIAL). El eje de escenarios está colapsado
+   * (un solo escenario real), así que el candado es de CADENA, no de cifra. */
+  const HER = fs.readFileSync(path.join(process.cwd(), "src", "adi", "agente", "herramientasAgente.js"), "utf8").replace(/\r\n/g, "\n");
+  ok((HER.match(/\(args && args\.scenario\) \|\| \(ctx && ctx\.scenario\) \|\| ESCENARIO_INICIAL|\(_args && _args\.scenario\) \|\| \(ctx && ctx\.scenario\) \|\| ESCENARIO_INICIAL/g) || []).length === 4,
+    "las CUATRO tools de la caja leen el escenario del turno (args) con el ctx de respaldo — el canal del runner ya no se pierde");
+  const RUN = fs.readFileSync(path.join(process.cwd(), "src", "adi", "oracle", "toolRunner.js"), "utf8").replace(/\r\n/g, "\n");
+  ok(/const args = \{ \.\.\.callArgs, scenario/.test(RUN), "…y el runner mete el scenario del TURNO en esos args (la fuente única)");
+
+  /* ── LAS TRES RAMAS GROUP-BY (punto 13): capital@familia agrupa por el contrato en las tres ── */
+  const SPEC = fs.readFileSync(path.join(process.cwd(), "src", "adi", "specRetrieval.js"), "utf8").replace(/\r\n/g, "\n");
+  ok((SPEC.match(/sba\.groupByField \|\| ent\.keyField/g) || []).length >= 3,
+    "las tres ramas hermanas del group-by (fila puntual · cruce · simulación) agrupan por el campo del contrato");
+
+  /* ── EL CTX ENTERO (punto 14): la cadena ya no lo tira, y la cabecera del ask de cuadro dice la verdad ── */
+  const REG = fs.readFileSync(path.join(process.cwd(), "src", "adi", "agente", "playbooks", "registro.js"), "utf8").replace(/\r\n/g, "\n");
+  ok(/const r = campo\(String\(pregunta \|\| ""\), ctx\)/.test(REG), "el resolvedor pasa el ctx a pasos/obligatorias que lo pidan");
+  const BUC = fs.readFileSync(path.join(process.cwd(), "src", "adi", "agente", "bucleAgente.js"), "utf8").replace(/\r\n/g, "\n");
+  ok(/componer\(\{ figs: figsTotales, pregunta: q, semilla: _semilla, scenario, mem: memIn, ctx: ctxTurno \}\)/.test(BUC)
+    && /vetosDelPlaybook\(playbookActivo, t, \{ figs: figsTotales, pregunta: q, ctx: ctxTurno \}\)/.test(BUC),
+    "…y el bucle lo pasa a componer y a la lista notarial: la desambiguación prometida tiene con qué");
+}
+
 /* ═══ 6 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
 H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
@@ -1135,8 +1213,8 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (a) el playbook desconectado del bucle: el turno de aceptación vuelve a rescatar
   await carnada("playbook desconectado del bucle", "src/adi/agente/bucleAgente.js",
-    // (re-apuntada T5 y anclaje: el sitio pasa el hilo Y el viewContext al detector — mide lo mismo de siempre)
-    [[/  const playbook = \(\(\) => \{ try \{ return playbookPara\(q, \{ history, viewContext \}\); \} catch \{ return null; \} \}\)\(\);/,
+    // (re-apuntada T5/anclaje/tanda 3: el sitio arma ctxTurno y lo pasa — mide lo mismo de siempre)
+    [[/  const playbook = \(\(\) => \{ try \{ return playbookPara\(q, ctxTurno\); \} catch \{ return null; \} \}\)\(\);/,
       "  const playbook = null;"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
@@ -1549,6 +1627,34 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
         pregunta: "¿Cuánto capital tengo en Más de 90 días?", semilla: "s",
       }) || "");
       return t.length > 0 && !/no tengo una cifra verificada para dictarte por ese corte/.test(t);
+    });
+
+  /* ── LAS DE LA TANDA 3 (2026-09-05) ─────────────────────────────────────────────────────────────────────── */
+  // (FF) la rama de la cola quitada: el composer vuelve a NEGAR contra una lista recortada
+  await carnada("el frenado ausente se niega contra el top-4 (la cola, ignorada)", "src/adi/agente/playbooks/askDeCuadro.js",
+    [[/        if \(!mio && resto\) \{/, "        if (false) {   // CARNADA: la cola vuelve a ignorarse"]],
+    async (Mut) => {
+      const FIGS5 = [
+        { label: "Capital frenado · total", value: "$60K", raw: 60000 },
+        { label: "AAA-1 · Capital frenado", value: "$20K", raw: 20000 }, { label: "AAA-1 · Rotación", value: "0.5x" },
+        { label: "BBB-2 · Capital frenado", value: "$15K", raw: 15000 }, { label: "BBB-2 · Rotación", value: "0.6x" },
+        { label: "CCC-3 · Capital frenado", value: "$12K", raw: 12000 }, { label: "CCC-3 · Rotación", value: "0.7x" },
+        { label: "DDD-4 · Capital frenado", value: "$8K", raw: 8000 }, { label: "DDD-4 · Rotación", value: "0.8x" },
+        { label: "Resto (2 de 6) · Capital frenado", value: "$5K", raw: 5000 },
+      ];
+      const t = String(Mut.askDeCuadro.componer({ figs: FIGS5, pregunta: "¿Cómo libero el capital de LG-DRYER8KG?", semilla: "s" }) || "");
+      return /no está frenado en el corte de este turno/.test(t);   // el defecto: negar con cola invisible
+    });
+  // (GG) la colisión tragada: el guardia vuelve a elegir en silencio
+  await carnada("la colisión de ejes se traga (el guardia elige en silencio)", "src/adi/agente/playbooks/indiceEntidades.js",
+    [[/      else if \(mejor && nombre === mejor\.nombre && eje !== mejor\.eje\) \{\n        mejor = \{ \.\.\.mejor, colision: \[\.\.\.\(mejor\.colision \|\| \[mejor\.eje\]\), eje\] \};\n      \}/, "      // CARNADA: la colisión, tragada"]],
+    async (Mut) => {
+      const CLON = JSON.parse(JSON.stringify(TENANT_DEMO));
+      for (const s of CLON.skuInventario || []) if (s.bodega === "Valparaíso") s.bodega = "Falabella";
+      initTenant(CLON);
+      const ent = Mut.entidadNombrada("¿Cuánto capital tengo en Falabella?");
+      initTenant(TENANT_DEMO);
+      return !(ent && Array.isArray(ent.colision));   // el defecto: la colisión desaparece
     });
   initTenant(TENANT_DEMO);
 

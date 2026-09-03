@@ -52,7 +52,13 @@ function _resolver(nombre) {
 
 /* serieEntidad({ entity, metrica }) → la serie mensual real de esa entidad, o el motivo del bloqueo.
  * `metrica`: venta (default) · contribucion · unidades · acciones · margen. */
-export function serieEntidad({ entity, metrica = "venta" } = {}, { scenario = ESCENARIO_INICIAL } = {}) {
+/* ⚠️ EL ESCENARIO ENTRA POR LOS DOS CANALES (tanda 3 post-poda, 2026-09-05): el runner del bucle mete el
+ * scenario DEL TURNO dentro de args y llama con UN argumento — estas firmas lo esperaban en el segundo, así
+ * que TODA llamada por playbook corría con ESCENARIO_INICIAL aunque el turno midiera otra carpeta (el
+ * mecanismo del hallazgo «directo vs en turno»). El arg del turno manda; el ctx queda para callers directos. */
+export function serieEntidad(args = {}, ctx = {}) {
+  const { entity, metrica = "venta" } = args || {};
+  const scenario = (args && args.scenario) || (ctx && ctx.scenario) || ESCENARIO_INICIAL;
   const d = getTenantData() || {};
   const sinSoporte = (reason) => ({ facts: null, boleta: [], coverage: { supported: false, reason } });
   if (!entity) return sinSoporte("serieEntidad necesita `entity`: de quién es la serie");
@@ -158,7 +164,9 @@ export function registrarSupuesto({ texto, cifra, unidad = "money" } = {}) {
  * Y LA PRECISIÓN QUE AHORRA UNA VUELTA (supervisor, textual): «la tool no decide la tasa ni el horizonte — los
  * recibe». Sin `tasa` declarada NO inventa un default de crecimiento: devuelve la base y dice que falta el
  * supuesto. Proyectar con una tasa que nadie declaró sería causalidad sin respaldo, en versión futuro. */
-export function proyectar({ tasa, horizonte, entity } = {}, { scenario = ESCENARIO_INICIAL } = {}) {
+export function proyectar(args = {}, ctx = {}) {
+  const { tasa, horizonte, entity } = args || {};
+  const scenario = (args && args.scenario) || (ctx && ctx.scenario) || ESCENARIO_INICIAL;
   const d = getTenantData() || {};
   const sinSoporte = (reason) => ({ facts: null, boleta: [], coverage: { supported: false, reason } });
   const fx = factorComercialDe(d);
@@ -264,7 +272,8 @@ export function proyectar({ tasa, horizonte, entity } = {}, { scenario = ESCENAR
  * genera deuda y NO está declarado como cifra. Derivarlo (venta oficial − crédito) cruzaría dos fuentes con
  * escalas y períodos propios — la clase de cuenta que el muro existe para vetar. Se sirve el crédito con su
  * alcance, que ya dice que el contado no entra. */
-export function cobranza(_args = {}, { scenario = ESCENARIO_INICIAL } = {}) {
+export function cobranza(_args = {}, ctx = {}) {
+  const scenario = (_args && _args.scenario) || (ctx && ctx.scenario) || ESCENARIO_INICIAL;
   const sinSoporte = (reason) => ({ facts: null, boleta: [], coverage: { supported: false, reason } });
   let M = null;
   try { M = buildMesaFlujo(scenario); } catch { M = null; }
@@ -340,7 +349,8 @@ export function preferenciaNombre({ nombre } = {}) {
  * acciones · volumen a margen bajo · margen delgado · sano) y la HUELLA de cada mecanismo con su sello
  * (probado · indicado · abierto), incluida la que el dato NO sostiene y qué haría falta para cerrarla.
  * Cero cifras nuevas fuera de las cuentas que `rolesCartera.js` declara; la interpretación es del cerebro. */
-export function rolesCartera(_args = {}, { scenario = ESCENARIO_INICIAL } = {}) {
+export function rolesCartera(_args = {}, ctx = {}) {
+  const scenario = (_args && _args.scenario) || (ctx && ctx.scenario) || ESCENARIO_INICIAL;
   let A = null;
   try { A = buildRolesCartera(scenario); } catch { A = null; }
   if (!A || !A.hay) return { facts: null, boleta: [], coverage: { supported: false, reason: "este dato no trae margen por cliente: sin eso no hay papeles que leer" } };

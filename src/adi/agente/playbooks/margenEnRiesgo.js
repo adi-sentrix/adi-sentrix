@@ -111,8 +111,12 @@ const _TEMA_MARGEN = /\bm[aá]rgen(?:es)?\b|\bbenchmark\b|\bvara\b|\brentabilida
 function _rutaDe(pregunta) {
   const q = String(pregunta || "");
   if (_PIDE_SEGUIMIENTO.test(q)) return "seguimiento";
+  /* «¿y qué harías primero?» ABRE con la prioridad (supervisor 2026-09-05, sobre el ejemplo vivo del owner:
+   * «Entraría por Falabella. Una sola cosa. La acción: … Por qué primero — criterio mío: …») — jamás
+   * re-servir la lectura que el usuario acaba de leer con la prioridad relegada a la cola. */
+  if (new RegExp(`\\bhar[ií]as primero`, "i").test(q)) return "primero";
   if (_PIDE_PORQUE.test(q)) return "porque";
-  if (_PIDE_PORQUE_ELIPTICO.test(q) && !new RegExp(`\\bhar[ií]as primero`, "i").test(q)) return "porque";
+  if (_PIDE_PORQUE_ELIPTICO.test(q)) return "porque";
   return "estandar";
 }
 /* ── EL PORQUÉ ELÍPTICO (T5, 2026-09-05) ───────────────────────────────────────────────────────────────────
@@ -248,6 +252,32 @@ function componerElSeguimiento({ figs, semilla, scenario, mem }) {
     `Lo nuevo —criterio mío, no una cifra del dato— es que la decisión ya no es tocarle el precio a todos: es separar en ${_CUENTA[Math.min(3, nombres.length)] || "esas"} cuentas qué parte de la carga comercial fue deliberada y qué parte se descontroló.${preg ? ` Sigue en pie mi pregunta: ${preg.texto}` : ""}`,
     `Lo nuevo es el foco, y es criterio mío, no una cifra del dato: no un ajuste parejo de precio, sino distinguir en esas cuentas la carga deliberada de la que se escapó.${preg ? ` Y sigue abierta mi pregunta: ${preg.texto}` : ""}`,
     `Lo nuevo está en qué haría yo —criterio mío, no una cifra del dato—: en vez de mover el precio de toda la cartera, separar en esas cuentas la carga deliberada de la que no lo fue.${preg ? ` Mi pregunta sigue esperando: ${preg.texto}` : ""}`,
+  ]));
+  return p.join("\n\n");
+}
+
+/* «¿y qué harías primero?» — LA PRIORIDAD PRIMERO, con el molde vivo del owner (2026-09-04, textual:
+ * «Entraría por Falabella. Una sola cosa. La acción: … Por qué primero — criterio mío: …»). El usuario que
+ * pregunta qué hacer YA leyó la lectura: re-servírsela con la prioridad en la cola es no escucharlo. Cifras
+ * VERBATIM de la boleta del turno (los pasos base ya la traen); la selección es la de siempre — quien más
+ * contribución deja sin capturar. */
+function componerLaPrioridad({ figs, semilla }) {
+  const juego = _all(figs, /· Contribuci[oó]n no capturada$/i)
+    .map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
+    .filter((x) => x.entidad && Number.isFinite(x.usd))
+    .sort((a, b) => b.usd - a.usd);
+  if (!juego.length) return null;
+  const top = juego[0];
+  const total = _find(figs, /^Contribuci[oó]n no capturada · subtotal$/i);
+  const cargaTop = _find(figs, new RegExp(`^${_esc(top.entidad)} · Carga comercial alta$`, "i"));
+  const p = [];
+  p.push(`Entraría por ${top.entidad}. Una sola cosa.`);
+  p.push(`La acción: separar en ${top.entidad} la carga comercial deliberada de la que no lo fue${cargaTop ? ` — su carga excedida es ${_val(cargaTop)}` : ""}, y decidir esa parte cuenta por cuenta.`);
+  p.push(`Por qué primero — criterio mío: es donde hay más contribución en juego. ${top.entidad} deja ${top.fmt} sin capturar${total ? `, del subtotal de ${_val(total)} que el motor detecta` : ""}.`);
+  p.push(variante(semilla, [
+    `Cuando lo trabajes, seguimos con el siguiente de la lista.`,
+    `Si quieres, te dejo armado el siguiente de la lista para después.`,
+    `El siguiente de la lista queda listo para cuando cierres este.`,
   ]));
   return p.join("\n\n");
 }
@@ -424,7 +454,7 @@ export const margenEnRiesgo = {
     ];
     /* el SEGUIMIENTO también la paga: re-medir es el punto — y sus conteos tienen que estar en la boleta de
      * ESTE turno, no en el recuerdo del anterior, o el muro los vetaría con razón. */
-    if (_rutaDe(pregunta) === "estandar") return base;
+    if (_rutaDe(pregunta) === "estandar" || _rutaDe(pregunta) === "primero") return base;   // la prioridad usa la evidencia base; los roles son del porqué/seguimiento
     return [...base, { tool: "rolesCartera", args: {},
       para: "el PAPEL de cada cliente (fuga por acciones · volumen a margen bajo · margen delgado · sano) y la huella de cada mecanismo con su sello — la evidencia para razonar el porqué sin inventarlo" }];
   },
@@ -460,6 +490,11 @@ export const margenEnRiesgo = {
       if (seg) return seg;
       const nuevo = componerElPorque({ figs, semilla, scenario, mem });
       if (nuevo) return `No tenemos una lectura previa en este hilo, así que te la armo ahora.\n\n${nuevo}`;
+    }
+    if (_rutaDe(pregunta) === "primero") {
+      const prioridad = componerLaPrioridad({ figs, semilla });
+      if (prioridad) return prioridad;
+      /* sin la evidencia de la prioridad (diagnose no corrió), la lectura completa sigue siendo respuesta */
     }
     if (_rutaDe(pregunta) === "porque") {
       const porque = componerElPorque({ figs, semilla, scenario, mem });
@@ -660,7 +695,7 @@ export const margenEnRiesgo = {
      * el `datoProyectado` puesto, el muro dejó pasar «te está costando unos $780K» — un monto que NO existe
      * en el dato (verificado: 0 coincidencias en las 318 cifras del negocio). El hueco es del muro y está
      * reportado; esta regla cierra la puerta en el territorio del playbook, que es el mío. */
-    if (_rutaDe(pregunta) === "porque") {
+    if (_rutaDe(pregunta) === "porque" || _rutaDe(pregunta) === "primero") {
       const montosBoleta = new Set(_all(figs, /./).map((f) => _val(f).replace(/\s+/g, "")));
       for (const m of t.match(/\$\s?[\d.,]+\s?[KMB]?/g) || []) {
         if (!montosBoleta.has(m.replace(/\s+/g, ""))) {

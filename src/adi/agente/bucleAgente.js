@@ -495,19 +495,20 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * apagada; esto no enciende nada. */
   /* el hilo viaja al detector (T5): las formas elípticas del porqué solo abren si la última lectura fue de
    * margen, y eso solo se sabe mirando el hilo. Un caller sin history mide el peor caso: la elíptica no abre. */
-  const playbook = (() => { try { return playbookPara(q, { history, viewContext }); } catch { return null; } })();
+  const ctxTurno = { history, viewContext };   // el ctx del turno, ENTERO, para toda la cadena del playbook
+  const playbook = (() => { try { return playbookPara(q, ctxTurno); } catch { return null; } })();
   let playbookActivo = null;
   /* LOS PASOS PUEDEN DEPENDER DE LA PREGUNTA (2026-09-01): `pasosDe` resuelve el Array de siempre o la función
    * de un playbook de FORMA —«lectura por eje» elige la herramienta según el eje que su detector léxico ya
    * identificó—. Un playbook cuyos pasos no se resuelven a nada se retira acá mismo, sin ruido. */
-  const _pasosPb = playbook ? pasosDe(playbook, q) : [];
+  const _pasosPb = playbook ? pasosDe(playbook, q, ctxTurno) : [];
   if (playbook && _pasosPb.length) {
     if (_rondaDeHerramientas(_pasosPb.map((p) => ({ tool: p.tool, args: p.args || {} })), mensajes)) {
       /* el playbook solo PROMETE si sus figs obligatorias llegaron: en un dato que no las sostiene se retira
        * sin ruido y el turno sigue por el camino de siempre (nada de prometer lo que no se puede cumplir).
        * Con pasos por pregunta, las obligatorias también dependen de ella — si no, la promesa que se verifica
        * no sería la que se hizo. */
-      if (promesasCumplidas(playbook, figsTotales, q)) {
+      if (promesasCumplidas(playbook, figsTotales, q, ctxTurno)) {
         playbookActivo = playbook;
         mensajes.push({ role: "user", content: doctrinaDelPlaybook(playbook, q) });
       }
@@ -644,7 +645,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     }) : null;
     const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [], limiteDeHerramienta: motivosNoSoportado.length > 0 }),
       ...(vSinBoleta ? [vSinBoleta] : []),
-      ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales, pregunta: q }) : [])];
+      ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales, pregunta: q, ctx: ctxTurno }) : [])];
     if (!vc.length) return v;
     vetosDelTurno.push(`${sitio} · ${vc[0].regla}: ${vc[0].multa.split("\n")[0].slice(0, 160)}`);
     return { ok: false, violations: vc.map((x) => ({ rule: x.regla, detalle: x.multa })), multa: vc.map((x) => x.multa).join("\n") };
@@ -738,7 +739,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     /* `scenario` viaja desde 2026-09-04: el composer del porqué necesita LEER el motor de papeles (qué rol
      * tiene cada cliente, qué huella está sellada) — leer el motor no es calcular, es la misma técnica que
      * `pisoFocosUSD()` en los playbooks de asesoría. Las CIFRAS siguen saliendo verbatim de la boleta. */
-    const _pb = (() => { try { return playbookActivo.componer({ figs: figsTotales, pregunta: q, semilla: _semilla, scenario, mem: memIn }); } catch { return null; } })();
+    const _pb = (() => { try { return playbookActivo.componer({ figs: figsTotales, pregunta: q, semilla: _semilla, scenario, mem: memIn, ctx: ctxTurno }); } catch { return null; } })();
     if (_pb && _pb.trim()) {
       const vPb = juzgar(_pb, `playbook:${playbookActivo.nombre}`);
       if (vPb && vPb.ok) { final = _pb; estado = "playbook"; suplente = true; }

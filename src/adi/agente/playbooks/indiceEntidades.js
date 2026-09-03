@@ -40,6 +40,13 @@ export function entidadNombrada(pregunta) {
       const re = new RegExp(`(?<![\\w-])${_esc(nombre)}(?![\\w-])`, corto ? "" : "i");
       if (!re.test(q)) continue;
       if (!mejor || nombre.length > mejor.nombre.length) mejor = { nombre, eje };
+      /* LA COLISIÓN SE DEVUELVE, NO SE TRAGA (tanda 3 post-poda, 2026-09-05): el MISMO nombre puede existir
+       * en dos ejes de un catálogo real («Valparaíso» bodega y cliente). Elegir en silencio contradice el
+       * contrato del ask de cuadro; quien recibe el resultado decide con el viewContext o DECLARA. La
+       * colisión es del nombre elegido — un nombre más largo que contiene a otro no colisiona con él. */
+      else if (mejor && nombre === mejor.nombre && eje !== mejor.eje) {
+        mejor = { ...mejor, colision: [...(mejor.colision || [mejor.eje]), eje] };
+      }
     }
   }
   return mejor;
