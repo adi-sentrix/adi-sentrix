@@ -18,6 +18,11 @@
  */
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
+/* LOS VEREDICTOS VIVEN EN _humo_criterios.mjs — CONDUCTA, no cadenas (re-apuntado 2026-09-03 tras la primera
+ * corrida viva: dos respuestas IMPECABLES dieron FAIL porque los regex de acá pedían frases del composer y el
+ * cerebro respondió mejor con otras palabras — el caso 13 del patrón, en el medidor). El módulo es UNO para
+ * el humo y para su gate de calibración (_humo_calibracion_gate, corpus real congelado): una sola fuente. */
+import { FAMILIAS } from "./_humo_criterios.mjs";
 
 const TECHO = 0.10;      // el techo del humo, cosido — diez centavos, no más
 const RESERVA = 0.02;    // un turno normal del agente (medido en certificación: ~US$0.005-0.02)
@@ -26,27 +31,7 @@ const arg = (k, d = null) => { const i = process.argv.indexOf(k); return i > 0 ?
 const PLANILLA = arg("--planilla");
 const CLIENTE = arg("--cliente", PLANILLA ? "Mercado Norte" : "Falabella");
 
-/* las 6 familias, cada una con su PASS y su PROHIBIDO mecánicos */
-const TURNOS = [
-  { familia: "insignia · serie por entidad", q: `muéstrame la venta de ${CLIENTE} mes a mes`,
-    pasa: /(?:- \w+ (?:de )?2\d{3}: .*\d|mes a mes: .*\d|no está en el dato de esta empresa|[Nn]o encuentro «)/,
-    prohibido: /No tengo información autorizada suficiente|dime cuál abro/ },
-  { familia: "cobranza", q: "quién me debe y qué está vencido",
-    pasa: /(?:Te deben:|no trae la hoja Abonos)/,
-    prohibido: /vencid[oa][^.\n]*\$\s*0\b|No tengo información autorizada suficiente/ },
-  { familia: "síntesis ejecutiva", q: "dame los 3 riesgos para el directorio",
-    pasa: /(?:riesgos, por materialidad|riesgos? materiales)/i,
-    prohibido: /dime cuál abro|No tengo información autorizada suficiente/ },
-  { familia: "proyección declarada", q: "Si crezco 3% los próximos 12 meses, ¿cuánto vendería?",
-    pasa: /proyección sobre (?:el|tu) supuesto/i,
-    prohibido: /¿[^?]*global o por cliente|No tengo información autorizada suficiente/i },
-  { familia: "límite honesto", q: "compará Q1 vs Q2",
-    pasa: /no trae un corte por trimestre/i,
-    prohibido: /dime cuál abro|No tengo información autorizada suficiente/ },
-  { familia: "margen (el playbook fundador)", q: "¿cómo viene mi margen?",
-    pasa: /[Bb]enchmark de margen/,
-    prohibido: /sigue verificado y en pie|No tengo información autorizada suficiente/ },
-];
+const TURNOS = FAMILIAS.map((f) => ({ familia: f.familia, q: f.pregunta({ cliente: CLIENTE }), pasa: f.pasa, prohibido: f.prohibido }));
 
 const consola = (args) => execFileSync("node", ["_consola_examen.mjs", "--agente", ...args], { encoding: "utf8", timeout: 240000 });
 const leerCosto = () => { try { return JSON.parse(fs.readFileSync(ESTADO, "utf8")).costoUSD || 0; } catch { return null; } };
@@ -71,10 +56,10 @@ for (const [i, t] of TURNOS.entries()) {
   try { salida = consola([...base, "--frenar-en-vacia", t.q]); }
   catch (e) { console.error(`✗ TURNO CON ERROR: ${String(e.message).slice(0, 200)}`); fallas++; continue; }
   console.log(salida.split("\n").slice(-14).join("\n"));
-  const okPasa = t.pasa.test(salida);
-  const okProhibido = !t.prohibido.test(salida);
-  if (okPasa && okProhibido) console.log(`✓ PASS · ${t.familia}`);
-  else { fallas++; console.log(`✗ FAIL · ${t.familia} — ${!okPasa ? "falta la conducta certificada" : "apareció un patrón prohibido"}`); }
+  const razonProhibida = t.prohibido(salida);
+  const okPasa = t.pasa(salida);
+  if (okPasa && !razonProhibida) console.log(`✓ PASS · ${t.familia}`);
+  else { fallas++; console.log(`✗ FAIL · ${t.familia} — ${razonProhibida ? `apareció un patrón prohibido (${razonProhibida})` : "falta la conducta certificada"}`); }
 }
 
 const total = leerCosto();
