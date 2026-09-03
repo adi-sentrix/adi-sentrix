@@ -17,7 +17,9 @@ import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { TENANT_EMPRESA2 } from "./src/data/tenants/empresa2.js";
 initTenant(TENANT_DEMO);
 import { detectFichaIntent } from "./src/adi/oracle/fichaIntent.js";
-import { answerViaNatural } from "./src/adi/oracle/caminoNatural.js";
+/* (La Poda 2026-09-05: acá se importaba `answerViaNatural` — el camino natural se retiró y la puerta a la
+ * ficha se re-cableó al orquestador vivo: el bucle del agente adjunta `detectFichaIntent` a todo turno.) */
+import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
 import { parseAddress, resolveAddress } from "./src/adi/sentrix/address.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 
@@ -96,13 +98,15 @@ ok(!detectFichaIntent("explicame Falabella", { escenario: ESCENARIO_INICIAL }),
 initTenant(TENANT_DEMO);   // se devuelve el tenant declarado
 
 console.log("\n" + "=".repeat(100));
-console.log("6 · EN EL CAMINO NATURAL COMPLETO · donde antes había un null fijo");
+console.log("6 · EN EL CAMINO VIVO COMPLETO (el agente, tras La Poda) · donde antes había un null fijo");
 console.log("=".repeat(100));
 {
-  const cerebro = async () => "Falabella aporta $19.4M de venta comercial en el año cerrado, con 22.0% de margen de venta.";
-  const o = await answerViaNatural({ text: "explicame falabela", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callNatural: cerebro });
-  ok(!!(o && o.r && o.r.sentrixAction), "el turno sale CON la acción de ficha");
-  const o2 = await answerViaNatural({ text: "cuánto vendió Falabella", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callNatural: cerebro });
+  /* mismo par de casos que tenía el natural: el pedido de ficha (typo incluido) sale CON el botón; la
+   * consulta de dato sale sin él. El cerebro va MUDO: la acción la adjunta el orquestador, no el modelo. */
+  const MUDO = async () => ({ tipo: "texto", texto: "" });
+  const o = await answerViaAgente({ text: "explicame falabela", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
+  ok(!!(o && o.r && o.r.sentrixAction), "el turno del agente sale CON la acción de ficha (typo incluido)");
+  const o2 = await answerViaAgente({ text: "cuánto vendió Falabella", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
   ok(!(o2 && o2.r && o2.r.sentrixAction), "…y una consulta de dato sale sin ella");
 }
 

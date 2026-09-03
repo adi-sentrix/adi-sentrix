@@ -42,10 +42,10 @@ const FEATURE = [
   // intacto, esta lista no lo toca. El override por navegador (localStorage adi_oracle / ?oracle=0) sigue vivo para
   // comparar con la ruta vieja si hiciera falta.
   "ADI_ORACLE_ENABLED",
-  // CAMINO NATURAL COMO PRINCIPAL (owner 2026-08-14, autorizado con 6 condiciones — ver caminoNatural.js): el
-  // turno libre va por el cerebro único + notario + ciclo de reparación. `floor` (Node/gates) sigue en [] —
-  // byte-exacto intacto. APAGARLO EN TODAS PARTES = borrar esta línea (rollback de una línea, condición 2).
-  "ADI_CAMINO_NATURAL",
+  /* (La Poda · owner 2026-09-05) Acá vivió "ADI_CAMINO_NATURAL" — el camino natural fue principal
+   * (2026-08-14) y luego rollback técnico del agente (2026-09-02). Se retiró DEL CÓDIGO con la palabra del
+   * owner tras el pulido del anclaje: la cascada es agente → oráculo. Rollback de la poda: git revert del
+   * commit del retiro (ver _PODA_NATURAL_PLAN.md). Re-declararlo acá lo caza el gate anti-resurrección. */
   /* ADI AGENTE COMO EL CAMINO PRINCIPAL (owner 2026-09-02, textual: «No quiero mantener dos ADIs como opción
    * de producto. El agente debe pasar a ser el camino principal. El viejo puede quedar solo como rollback
    * técnico temporal, no como camino paralelo ni como algo que sigamos mejorando.»)

@@ -35,7 +35,7 @@ const ok = (cond, label, detalle) => {
 
 const PROMPTS = [
   "src/adi/oracle/persona.js",                 // el carácter de ADI · va en TODO system del camino natural
-  "src/adi/oracle/naturalPrompt.js",           // la doctrina y el contrato de cálculo
+  /* (La Poda 2026-09-05: naturalPrompt.js se retiró con el camino natural — salió de este barrido) */
   "src/adi/oracle/guardC.js",                  // las MULTAS: lo que el modelo lee antes de reescribir
   "src/adi/oracle/narratePromptC.js",          // narrador del camino legado
   "src/adi/oracle/conversationalContract.js",  // los 7 modos

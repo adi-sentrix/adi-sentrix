@@ -92,22 +92,14 @@ console.log("\n── A2.d · parse()/narrate() usan ESTOS builders (fuente leí
     "max_tokens: 1024 aparece UNA sola vez en el archivo (el de parse) — el de narrar ya no está fijo");
 }
 
-console.log("\n── A2.e · MODO NATURAL (camino natural 2026-08-14): el hilo viaja como messages · sin el modo, byte-igual ──");
+console.log("\n── A2.e · (La Poda 2026-09-05) el MODO NATURAL se retiró del adapter: todo payload viaja serializado ──");
 {
-  const MENSAJES = [
-    { role: "user", content: "¿Qué clientes venden mucho pero dejan poco margen?" },
-    { role: "assistant", content: "Falabella, Lider, Jumbo y Sodimac — los cuatro bajo tu benchmark." },
-    { role: "user", content: "reduce en 2 puntos las acciones comerciales de esos clientes" },
-  ];
-  const body = buildNarrateBody({ modoNatural: true, mensajes: MENSAJES }, { model: "claude-sonnet-5", system: SYSTEM });
-  ok(J(body.messages) === J(MENSAJES), "con modoNatural, messages ES el hilo (roles y contenidos intactos)");
+  /* la prueba que quedó: un payload que TODAVÍA declare modoNatural (un caller viejo) no recibe trato
+   * especial — viaja como el contrato de siempre, y el freno tipado vive en el gateway. */
+  const body = buildNarrateBody({ modoNatural: true, mensajes: [{ role: "user", content: "hola" }] }, { model: "claude-sonnet-5", system: SYSTEM });
+  ok(body.messages.length === 1 && body.messages[0].role === "user" && body.messages[0].content.includes("modoNatural"),
+    "un payload con modoNatural ya NO arma el hilo: viaja serializado como cualquier otro (la rama murió)");
   ok(body.max_tokens === 3072 && body.system[0].cache_control.type === "ephemeral", "mismo tope y mismo corte de caché que narrate() de siempre");
-  // el saneo: roles ajenos / contents vacíos no viajan, y sin turno de usuario al final NO hay modo natural
-  const sucio = buildNarrateBody({ modoNatural: true, mensajes: [{ role: "system", content: "no va" }, { role: "user", content: "  " }, ...MENSAJES] }, { model: "m", system: SYSTEM });
-  ok(J(sucio.messages) === J(MENSAJES), "roles ajenos y contents en blanco se filtran antes de viajar");
-  const sinUserFinal = buildNarrateBody({ modoNatural: true, mensajes: [{ role: "user", content: "hola" }, { role: "assistant", content: "hola" }] }, { model: "m", system: SYSTEM });
-  ok(sinUserFinal.messages.length === 1 && sinUserFinal.messages[0].content.includes("modoNatural"),
-    "sin turno de usuario al final, cae al contrato de siempre (el payload serializado) — nunca un request inválido");
   // y el candado de no-regresión: cualquier payload SIN modoNatural produce el body de siempre, byte por byte
   const normal = buildNarrateBody(PAYLOAD, { model: "claude-sonnet-5", system: SYSTEM });
   ok(normal.messages.length === 1 && normal.messages[0].content === JSON.stringify(PAYLOAD),

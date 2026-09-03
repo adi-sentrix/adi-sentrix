@@ -25,7 +25,10 @@ import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { calcularDataset } from "./src/ingesta/plantilla/motorKpi.js";
 import { composeSerieIntent, detectSerieIntent } from "./src/adi/oracle/serieIntent.js";
-import { answerViaNatural } from "./src/adi/oracle/caminoNatural.js";
+/* (La Poda 2026-09-05: el transportador del puente ya no es el natural — el puente vive en el bucle del agente
+ * (R9, ANTES del cerebro) y estos checks lo ejercitan por ahí. Miden lo mismo: cero gasto, la declinación
+ * honesta con la puerta a la ficha, y la carnada de la integración quitada.) */
+import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -46,21 +49,21 @@ const PACK = calcularDataset({
   ], Inventario: [] }, fechaCarga: "2026-08-31",
 }).dataset;
 
-const espia = () => { let llamadas = 0; return { fn: async () => { llamadas++; throw new Error("freno del espía"); }, veces: () => llamadas }; };
+const espia = () => { let llamadas = 0; return { fn: async () => { llamadas++; throw new Error("freno del espía"); }, veces: () => llamadas }; };   // callAgente con freno: cuenta y corta
 
 /* ═══ 1 · EL CASO INSIGNIA · nunca más el tablero ═════════════════════════════════════════════════════════════ */
 H("1 · «cuánto me compró Falabella el último mes» — el turno del owner, cerrado");
 {
   initTenant(TENANT_DEMO);
   const e = espia();
-  const r = await answerViaNatural({ text: "cuanto me compro falabella el ultimo mes", history: [], mem: {}, scenario: "actual", callNatural: e.fn });
+  const r = await answerViaAgente({ text: "cuanto me compro falabella el ultimo mes", history: [], mem: {}, scenario: "actual", callAgente: e.fn });
   ok(e.veces() === 0, "el turno se responde SIN llamar al cerebro (cero gasto)");
   ok(/Falabella/.test(r.r.text), "y nombra a Falabella — lo que el tablero jamás hizo");
   ok(/no reconcilia|hist[oó]rico de muestra/.test(r.r.text), "declina por la razón verdadera: el histórico de muestra no reconcilia", r.r.text);
   ok(!/\$\d/.test(r.r.text), "declina CORTO: ni una cifra del sintético, ni un KPI del tablero", r.r.text);
   ok(r.r.text.length < 400, `y en corto de verdad (${r.r.text.length} chars, no ~12 KPIs)`);
   ok(!!r.r.sentrixAction, "con la puerta a la ficha de Falabella — se declina guiando, no con un portazo");
-  ok(r.r.deterministic === true && r.r.route === "natural", "declarado determinístico, ruta natural");
+  ok(r.r.deterministic === true && r.r.route === "agente" && r.r.agente.estado === "puente", "declarado determinístico, ruta agente · estado puente");
 }
 
 /* ═══ 2 · CON SERIE REAL, LAS CIFRAS EXACTAS DEL DATASET ═════════════════════════════════════════════════════ */
@@ -110,8 +113,8 @@ H("4 · lo que no es una lectura de serie sigue al cerebro");
     "como esta Falabella",
   ]) ok(detectSerieIntent(q) === null || composeSerieIntent({ q, scenario: "actual" }) === null, `no toma: «${q.slice(0, 52)}»`);
   const e = espia();
-  try { await answerViaNatural({ text: "como esta mi margen", history: [], mem: {}, scenario: "actual", callNatural: e.fn }); } catch { /* el freno del espía */ }
-  ok(e.veces() === 1, "y una pregunta normal SÍ llega al cerebro (la integración no se comió el turno)");
+  try { await answerViaAgente({ text: "como esta mi margen", history: [], mem: {}, scenario: "actual", callAgente: e.fn }); } catch { /* el freno del espía */ }
+  ok(e.veces() >= 1, "y una pregunta normal SÍ llega al cerebro (la integración no se comió el turno)");
 }
 
 /* ═══ 5 · LA GUARDIA Y LA AMBIGÜEDAD ═════════════════════════════════════════════════════════════════════════ */
@@ -194,13 +197,14 @@ H("6 · CARNADA · cada afirmación, probada ROJA con el defecto adentro");
       return !!r && /\$\d/.test(r.text || "");   // el defecto: una cifra del sintético en pantalla
     });
 
-  // (e) la integración quitada: la pregunta insignia vuelve a caer al cerebro (y de ahí, al suplente)
-  await carnada("answerViaNatural sin el puente", "src/adi/oracle/caminoNatural.js",
-    [[/  const serieR = composeSerieIntent\(\{ q, scenario \}\);\n  if \(serieR && serieR\.text\) \{[\s\S]*?\n  \}\n/, "\n"]],
+  // (e) la integración quitada: la pregunta insignia vuelve a caer al cerebro (y de ahí, al rescate)
+  // (re-apuntada en La Poda 2026-09-05: el transportador vivo del puente es el bucle del agente — R9)
+  await carnada("answerViaAgente sin el puente", "src/adi/agente/bucleAgente.js",
+    [[/    if \(det && \(det\.ambiguo \|\| det\.noResuelve \|\| bloqueada\)\) \{/, "    if (false) {   // CARNADA: el puente, desconectado"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
       const e = espia();
-      try { await Mut.answerViaNatural({ text: "cuanto me compro falabella el ultimo mes", history: [], mem: {}, scenario: "actual", callNatural: e.fn }); } catch { /* espía */ }
+      try { await Mut.answerViaAgente({ text: "cuanto me compro falabella el ultimo mes", history: [], mem: {}, scenario: "actual", callAgente: e.fn }); } catch { /* espía */ }
       return e.veces() > 0;   // el defecto: el cerebro (pagado) recibe el turno
     });
 

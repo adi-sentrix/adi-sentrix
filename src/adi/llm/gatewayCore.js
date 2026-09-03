@@ -22,9 +22,8 @@ import { verifyAccessCode, makeAccessCode, makeMintGrant, verifyMintGrant, const
 import { ADI_PERSONA, ADI_PERSONA_PLAN, renderInteractionMemory } from "../oracle/persona.js";
 import { buildPlanSystem, buildPlanSystemSegments, buildPlanUserMessage, PLAN_TOOL } from "../oracle/planPrompt.js";
 import { buildNarrateSystemSegments } from "../oracle/narratePromptC.js";
-// CAMINO NATURAL (owner 2026-08-14): el system del cerebro único (persona + carpeta + doctrina + contrato
-// [[CALCULO]]) — módulo puro, la doctrina es la TEXTUAL del arnés medido (`_corrida_doble.mjs`).
-import { buildNaturalSystemSegments } from "../oracle/naturalPrompt.js";
+/* (La Poda 2026-09-05: acá se importaba `buildNaturalSystemSegments` de naturalPrompt.js — el system del
+ * cerebro único se retiró con el camino natural.) */
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // R6 (retrabajo ultracode): el fallback «actual» dejaba armar el PLAN sobre la carpeta cruda
 
 // config del proveedor desde el env (en dev el .env se carga a process.env · en prod lo setea la plataforma).
@@ -432,18 +431,11 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt, 
     if (!payload || typeof payload !== "object") return _frenado({ ok: false, error: "sin payload" });
     if (!_checkRateLimit(tenantId, env)) return _frenado({ ok: false, error: "rate_limited", reason: "demasiadas solicitudes, esperá un momento" });
     if (falta) return _frenado({ ok: false, error: mensajeFaltaProveedor(falta), configFaltante: falta }, "config_missing");   // ver el bloque en handleSpec
-    // ── CAMINO NATURAL (owner 2026-08-14) · payload.modoNatural: el hilo ENTERO viaja como mensajes y el system
-    // es el del cerebro único (naturalPrompt.js). Los frenos van acá, ANTES de rutear —mismo criterio que el de
-    // config: no se gasta un milisegundo en un turno que no puede salir— y con error TIPADO: el cliente lo lee,
-    // lanza, y la red de resiliencia de ChatADI cae al camino actual en el mismo turno.
-    const esNatural = payload.modoNatural === true;
-    if (esNatural) {
-      const _msgs = Array.isArray(payload.mensajes) ? payload.mensajes.filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim()) : [];
-      if (!_msgs.length || _msgs[_msgs.length - 1].role !== "user")
-        return _frenado({ ok: false, error: "modo natural sin mensajes: payload.mensajes debe traer el hilo con el turno del usuario al final" });
-      // sin carpeta no hay camino natural: un cerebro sin dato inventa — se frena acá, nunca se llama a medias.
-      if (!(typeof datoNegocio === "string" && datoNegocio.trim()))
-        return _frenado({ ok: false, error: "modo natural sin datoNegocio: la carpeta del negocio es obligatoria" });
+    /* (La Poda · owner 2026-09-05) Acá vivió la rama `payload.modoNatural` — el hilo entero como mensajes y
+     * el system del cerebro único (naturalPrompt.js, retirado con ella). El camino natural se retiró del
+     * código; un payload con `modoNatural` hoy es un caller viejo y se frena con error tipado. */
+    if (payload.modoNatural === true) {
+      return _frenado({ ok: false, error: "el modo natural fue retirado (La Poda 2026-09-05): este gateway ya no lo sirve" });
     }
     // ROUTER: intento 0 = tier1 (idéntico a hoy). El turno vuelve a pasar por acá SOLO cuando answerViaOracle.js
     // reintentó tras un rechazo de guardC (ver el loop de 3 intentos ahí) — cada reintento escala de modelo antes de
@@ -469,17 +461,8 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt, 
     // no repara nada no paga ni un token. El objeto viene SELLADO del contrato de narración, no del plan crudo.
     // datoNegocio (AMPLITUD F1) — 7º argumento: entra AL FINAL del fijo, así el prefijo de siempre no se parte
     // y el bloque (estable por tenant+escenario) queda bajo cache:true. String no vacío o nada.
-    // MODO NATURAL: el system es el del cerebro único — MISMO contrato de segmentos y MISMO corte de caché
-    // (fijo = persona+carpeta+doctrina+contrato, estable por tenant+escenario · variable = memoria de interacción).
-    // Sin modoNatural, el system es byte-idéntico al de siempre.
-    let system;
-    if (esNatural) {
-      const _segNat = buildNaturalSystemSegments(ADI_PERSONA, datoNegocio, renderInteractionMemory(mem));
-      system = [{ text: _segNat.fijo, cache: true }, { text: _segNat.variable, cache: false }];
-    } else {
-      const _segN = buildNarrateSystemSegments(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista, payload.reparacion || null, (typeof datoNegocio === "string" && datoNegocio) || null);
-      system = [{ text: _segN.fijo, cache: true }, { text: _segN.variable, cache: false }];
-    }
+    const _segN = buildNarrateSystemSegments(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista, payload.reparacion || null, (typeof datoNegocio === "string" && datoNegocio) || null);
+    const system = [{ text: _segN.fijo, cache: true }, { text: _segN.variable, cache: false }];
     let narration, usage, modeloEfectivo, motivoCorte, bloquesRecibidos;
     try {
       _salioAlProveedor = true;   // el cruce, antes del await · ver handleSpec
@@ -542,7 +525,7 @@ export async function handleAgente({ mensajes, system, tools, paso, access, tena
     const routed = _resolveModel({ provider, tier1, attempt, step: "narrate", mode: `agente:${paso || "herramientas"}`, env, tenantId });
     const model = routed ? routed.model : tier1;
     _modelo = model;
-    let tipo, pedidos, texto, usage, modeloEfectivo;
+    let tipo, pedidos, texto, usage, modeloEfectivo, motivoCorte;
     try {
       /* el cruce se marca ANTES de la llamada (la convención de todos los handlers: una llamada que revienta por
        * timeout YA fue generada y facturada por el proveedor — contar «no salió» sería la mentira cara). Un
@@ -550,7 +533,7 @@ export async function handleAgente({ mensajes, system, tools, paso, access, tena
       _salioAlProveedor = true;
       const salida = await getAdapter(provider).agente({ mensajes: _msgs, system, tools, model });
       // el desarmado DENTRO del try (la lección de narrateC): una respuesta inutilizable llegó y se pagó igual
-      ({ tipo, pedidos, texto, usage, model: modeloEfectivo } = salida);
+      ({ tipo, pedidos, texto, usage, model: modeloEfectivo, stop: motivoCorte } = salida);
       if (!tipo) throw new TypeError("el proveedor devolvió una respuesta vacía");
     } catch (e) {
       // se emite y se RELANZA intacta — el cliente cae al camino natural con la causa a la vista.
@@ -559,8 +542,10 @@ export async function handleAgente({ mensajes, system, tools, paso, access, tena
     }
     // el costo se calcula UNA vez, sobre el modelo EFECTIVO — la misma regla de PLAN y NARRAR-C
     const modeloReal = modeloEfectivo || model;
+    /* `stop` viaja al caller (La Poda 2026-09-05): el adapter ya lo devolvía y el gateway lo tiraba — la
+     * lección del natural («un turno vacío que solo dice vacio es indiagnosticable») vale igual acá. */
     const out = { ok: true, tipo, ...(tipo === "herramientas" ? { pedidos } : { texto }),
-      usage: usage || null, model: modeloReal, modelFamilia: resolvePricingKey(modeloReal),
+      usage: usage || null, model: modeloReal, modelFamilia: resolvePricingKey(modeloReal), stop: motivoCorte || null,
       costUSD: estimateCostUSD(modeloReal, usage), routing: routed ? { model, tier: routed.tier, reason: routed.reason } : null };
     _emitir(out);
     return out;

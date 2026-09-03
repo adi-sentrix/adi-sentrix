@@ -308,15 +308,13 @@ export const ADI_CLAIMS_ONLY_ENABLED = P("ADI_CLAIMS_ONLY_ENABLED");
 // criterio que ADI_CLAIMS_ONLY_ENABLED: cambiar de dónde sale la respuesta no se declara cerrado sin esa medición.
 export const ADI_BYPASS_SIN_PAGO = P("ADI_BYPASS_SIN_PAGO");
 
-// ── CAMINO NATURAL COMO PRINCIPAL · detrás de flag · ON en demo/prod/dev (owner 2026-08-14, autorizado) ──
-// TRUE = en ChatADI el turno libre va por el camino natural (un solo cerebro + notario + ciclo de reparación —
-// ver caminoNatural.js): el flujo de la constitución, medido en `_corrida_doble.mjs` (28 turnos, 3 corridas).
-// Si el camino natural LANZA (gateway caído, error), el turno CAE al oráculo actual en el mismo turno — el
-// usuario nunca ve el error (red de resiliencia, condición 2 del owner).
-// FALSE = byte-idéntico a hoy: el turno va por answerViaOracle como siempre; el camino actual NO se tocó y sigue
-// entero. Apagarlo es UNA línea: sacar "ADI_CAMINO_NATURAL" de FEATURE en flagProfile.js.
-// El P&L guiado (detectPnlIntent) y «por qué esa cifra» (responderPorQueCifra) corren ANTES y no son de este flag.
-export const ADI_CAMINO_NATURAL = P("ADI_CAMINO_NATURAL");
+/* ── EL CAMINO NATURAL, RETIRADO (La Poda · owner 2026-09-05) ─────────────────────────────────────────────
+ * Acá vivió `ADI_CAMINO_NATURAL` (principal desde 2026-08-14; rollback técnico del agente desde 2026-09-02).
+ * Con la palabra del owner —«poda inmediata», tras el pulido del anclaje— el flag, su orquestador
+ * (caminoNatural.js), su fetch y su rama del gateway se retiraron del código: la cascada del turno libre es
+ * agente → oráculo. El rollback de la poda es `git revert` del commit del retiro, documentado en
+ * `_PODA_NATURAL_PLAN.md`. Re-declarar este flag o re-importar el orquestador lo caza
+ * `_poda_natural_anti_resurreccion_gate` — lo muerto no vuelve por accidente. */
 
 // ── ADI AGENTE · el bucle con herramientas detrás de bandera · APAGADO en todos los perfiles (F2 · 2026-08-30) ──
 // TRUE llegará solo tras la certificación de F4 (calibración + examen vivo autorizado por el owner). Con FALSE,

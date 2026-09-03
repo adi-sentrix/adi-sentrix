@@ -282,7 +282,7 @@ H("5g · ningún patrón del agente cierra con `\\b` después de un carácter qu
    * enfermedad de los gates ausentes. Un playbook nuevo entra al barrido solo, sin tocar esta línea. */
   const ARCHIVOS = ["src/adi/agente/bucleAgente.js", "src/adi/agente/contratoAgente.js",
     ...fs.readdirSync(path.join(process.cwd(), "src/adi/agente/playbooks")).filter((f) => f.endsWith(".js")).map((f) => `src/adi/agente/playbooks/${f}`),
-    "src/adi/agente/herramientasAgente.js", "src/adi/oracle/caminoNatural.js"];
+    "src/adi/agente/herramientasAgente.js"];   // (La Poda 2026-09-05: caminoNatural.js salió del barrido con su retiro)
   /* EL BARRIDO, PRECISO. Un `\b` es imposible cuando lo que lo precede NO puede ser \w:
    *   (a) pegado a un no-\w: `%\b`, `$\b`, `á\b`;
    *   (b) cerrando un grupo cuya ÚLTIMA letra de alguna alternativa es no-\w: `(?:%|pp|x)\b`, `(?:e|é)\b`.

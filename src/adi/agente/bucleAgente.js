@@ -39,6 +39,7 @@ import { parseFigures } from "../boleta.js";
 import { stripLanguageLeaks } from "../llm/voiceGuard.js";
 import { getSelloDeCarga } from "../../ingesta/estadoCarga.js";
 import { anteponerSello } from "../../ingesta/selloEnRespuesta.js";
+import { detectFichaIntent } from "../oracle/fichaIntent.js";   // la puerta a la ficha desde texto libre (re-cableada en La Poda: era del natural)
 import { extraerCalculos, stripAllMarks, composeNoDataMessage } from "../oracle/narrationBlocks.js";
 import { normalizeResponse } from "../responseContract.js";
 import { _respaldoDeLoYaAprobado } from "../oracle/respaldoAprobado.js";   // paso 0 de la Poda: el peldaño compartido ya no vive en el módulo con fecha de retiro
@@ -753,7 +754,12 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       deterministic: false,
       claims: [],
       suggestions: null,
-      sentrixAction: null,
+      /* LA PUERTA A LA FICHA DESDE TEXTO LIBRE (re-cableada en La Poda, 2026-09-05): `detectFichaIntent` era
+       * huérfano tras el retiro — su único caller era el orquestador del natural, y el plan lo daba por
+       * compartido. La conducta es la de siempre: si la pregunta pide la ficha de una entidad (typos
+       * incluidos), el turno sale CON el botón que la abre; una consulta de dato sale sin él. El detector es
+       * puro y va después de componer: adjunta una acción, jamás cambia el texto ni las cifras. */
+      sentrixAction: (() => { try { const f = detectFichaIntent(q, { escenario: scenario }); return (f && f.sentrixAction) || null; } catch { return null; } })(),
       agente: { estado, rondas, calls, figs: figsTotales.length, motivos: motivosNoSoportado.slice(0, 3),
         vetos: vetosDelTurno,   // R7 · el expediente auditable: cada veto con su sitio y su multa (observación, no decisión)
         recitaCifras: recita && Array.isArray(recita.figs) ? recita.figs.length : 0,

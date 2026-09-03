@@ -22,7 +22,7 @@ import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
-import { DOCTRINA_NOTARIO_NATURAL } from "./src/adi/oracle/naturalPrompt.js";
+/* (La Poda 2026-09-05: la DOCTRINA_NOTARIO_NATURAL se retiró con el camino natural — los checks que exigían sus frases en el prompt murieron con su cerebro; la conducta equivalente del agente vive en sus composers, su muro y su carta, con gates propios.) */
 // el bloque 10 comprueba el CABLEADO de la escalera contra el código, no solo su salida
 import fs from "node:fs";
 import path from "path";
@@ -139,9 +139,9 @@ console.log("5 · EL CONTRATO LLEGA AL CEREBRO · un chequeo que el prompt no en
 console.log("═".repeat(100));
 /* Los tres se pueden cumplir solo si el modelo sabe que existen. Si alguien saca la regla del prompt, el muro
  * seguiría vetando y cada turno caería al suplente sin que nadie entienda por qué: por eso se fija acá. */
-ok(/UN SUPERLATIVO ES UNA CLASIFICACI[ÓO]N/.test(DOCTRINA_NOTARIO_NATURAL), "la doctrina le enseña la regla de los superlativos");
-ok(/SEPARA EL DATO DURO DE TU CRITERIO/.test(DOCTRINA_NOTARIO_NATURAL), "…la de separar dato duro de criterio");
-ok(/LOS DOS CAMPOS DE D[ÍI]AS NO SON EL MISMO/.test(DOCTRINA_NOTARIO_NATURAL), "…y la de los dos campos de días");
+// (La Poda: el check de la doctrina del natural murió con ella)
+// (ídem)
+// (ídem — la regla sigue viva en el MURO, que es quien la hace cumplir: ver los muere() de arriba)
 
 
 console.log("\n" + "═".repeat(100));
@@ -240,7 +240,7 @@ vive("| Falabella | $19.4M | 22.0% | -8.1pp | 4.5% | $1.57M |", "total-sin-decla
   "FILA DE TABLA · una celda no afirma ningún total");
 vive("MAK-COMP-AIR generó $1.7M en ventas con $135K de contribución y 7.9% de margen — el margen de venta más bajo de toda la cartera.",
   "total-sin-declarar", "ALCANCE DEL SUPERLATIVO · el monto es del SKU, «de toda la cartera» califica al margen");
-ok(/UN TOTAL DEL CONJUNTO ES UNA CUENTA/.test(DOCTRINA_NOTARIO_NATURAL), "…y la doctrina se lo enseña al cerebro");
+// (La Poda: ídem — el muro de arriba es el candado que quedó)
 
 console.log("\n" + "═".repeat(100));
 console.log("10 · EL ESCALÓN QUE FALTABA EN LA ESCALERA DEL SUPLENTE (owner 2026-08-21)");
@@ -269,16 +269,16 @@ console.log("═".repeat(100));
   const VIEJA_CON_DEFECTO = "Están frenados por rotación bajo 2.0x o más de 120 días sin rotar, en 3 SKU.";
   ok(!guardC(marco(VIEJA_CON_DEFECTO), CTX).ok,
     "una respuesta vieja que hoy tendría un defecto NO se ofrece: el escalón cede al peldaño siguiente");
-  // el cableado: el escalón va ANTES de la carpeta, no en vez de ella
-  // (paso 0 de la Poda, 2026-09-03: el CUERPO del peldaño vive en respaldoAprobado.js — módulo compartido sin
-  //  fecha de retiro; el call-site de la escalera sigue en caminoNatural. Los checks leen a cada uno lo suyo.)
-  const cn = fs.readFileSync(path.join(root, "src", "adi", "oracle", "caminoNatural.js"), "utf8");
+  // el cableado: el escalón va ANTES del rescate, no en vez de él
+  // (La Poda 2026-09-05: el call-site del natural murió con él; el que queda es el de la ESCALERA DEL AGENTE,
+  //  y estos checks se re-apuntaron ahí — miden lo mismo: contexto de pertinencia, una sola fuente, el juicio.)
   const ra = fs.readFileSync(path.join(root, "src", "adi", "oracle", "respaldoAprobado.js"), "utf8");
+  const ba0 = fs.readFileSync(path.join(root, "src", "adi", "agente", "bucleAgente.js"), "utf8");
   /* R3 DEL EXAMEN 1 DEL AGENTE (2026-08-31): la firma creció — el caller pasa el CONTEXTO de pertinencia
    * (pregunta + entidades + lo recién mostrado) para que el marco no afirme «sobre esto» hablando de otra
    * entidad (T13: pregunta por Falabella → replay de Tottus como «verificado»). */
-  ok(cn.includes("_respaldoDeLoYaAprobado(memIn, juzgar, { pregunta: q, entidades: duenos || [], recienMostrado: respuestaAnterior }) || suplenteDignoDelDato("),
-    "en la escalera, el escalón nuevo va PRIMERO y la carpeta queda de respaldo — con el contexto de pertinencia (R3)");
+  ok(ba0.includes("_respaldoDeLoYaAprobado(memIn, (t) => juzgar(t, \"respaldo\"), { pregunta: q, entidades: duenosTenant || [], recienMostrado: recentPrev[0] || null"),
+    "en la escalera del agente, el escalón del respaldo lleva el contexto de pertinencia (R3)");
 
   /* R3 · los marcos nuevos también pasan el muro (mismo criterio que el marco original: cero cifras propias) */
   const marcoAjeno = (previa) => [
@@ -296,16 +296,17 @@ console.log("═".repeat(100));
   ok(/memIn.ultimaAprobada/.test(ra), "el escalón lee la última APROBADA, no la última MOSTRADA");
   ok(!/memIn.recentNarrations/.test(ra),
     "…y ya no mira `recentNarrations`: ahí también vive el respaldo, y ofrecerlo como verificado sería mentir");
-  ok(cn.includes("res.aprobado && !suplenteDigno) memOut.ultimaAprobada"),
-    "y `ultimaAprobada` se marca SOLO si el muro aprobó y el turno no fue respaldo");
+  /* (La Poda: el que marca `ultimaAprobada` ahora es EL AGENTE — misma condición que tenía el natural:
+   * solo turnos aprobados y no-suplentes. Sin esta marca, el peldaño no tendría qué ofrecer.) */
+  ok(/if \(aprobado && !suplente\) memOut\.ultimaAprobada = pantalla;/.test(ba0),
+    "y `ultimaAprobada` la marca el agente SOLO si el muro aprobó y el turno no fue respaldo");
   ok(/juzgar\(candidato\)/.test(ra), "…y el escalón se JUZGA como cualquier otro peldaño, sin relajar el muro");
-  /* PASO 0 DE LA PODA · UNA FUENTE: los DOS caminos importan el peldaño del MISMO módulo compartido. El día
-   * del retiro del natural, el agente no pierde nada — esa independencia es exactamente la pre-condición. */
-  const ba = fs.readFileSync(path.join(root, "src", "adi", "agente", "bucleAgente.js"), "utf8");
-  ok(/from "\.\/respaldoAprobado\.js"/.test(cn) && /from "\.\.\/oracle\/respaldoAprobado\.js"/.test(ba),
-    "paso 0 de la Poda: natural y agente importan el peldaño del MISMO módulo — el agente ya no depende del módulo con fecha de retiro");
-  ok(!/export function _respaldoDeLoYaAprobado/.test(cn),
-    "…y el cuerpo ya NO vive en caminoNatural: retirar el natural no se lleva el peldaño");
+  /* PASO 0 DE LA PODA · UNA FUENTE (verificado el día del retiro): el peldaño vive en el módulo compartido y
+   * el agente lo importa de ahí — retirar el natural no se llevó nada, que era exactamente la pre-condición. */
+  ok(/from "\.\.\/oracle\/respaldoAprobado\.js"/.test(ba0),
+    "el agente importa el peldaño del módulo compartido — el retiro del natural no se lo llevó");
+  ok(/export function _respaldoDeLoYaAprobado/.test(ra),
+    "…y el cuerpo vive en respaldoAprobado.js, el módulo sin fecha de retiro");
 }
 console.log(`\n── _examen4_cierres_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail === 0 ? 0 : 1);

@@ -30,8 +30,10 @@ ok(C.includes("answerViaAgente importado") && C.includes("las 3 herramientas del
   "…y las pruebas mecánicas existen (bucle importado · catálogo con las 3 propias)");
 ok(C.includes('vetosDeContrato("La carga subió. Procede con la renegociación de Falabella.")'),
   "…y el juez del contrato se prueba EN VIVO en el sello");
-ok(C.includes("la ruta del agente se prueba con --agente"),
-  "el sello del natural ya no habla por el agente");
+/* (La Poda 2026-09-05: la consola quedó SOLO-agente — el sello del natural desapareció con su modo. Lo que
+ * este check protege desde hoy: que la consola no conserve una rama viva del camino retirado.) */
+ok(!C.includes("await answerViaNatural(") && C.includes("const MODO_AGENTE = true"),
+  "la consola es solo-agente: sin rama viva del natural, y el sello habla del camino que corre");
 
 console.log("\n2 · R-eco + P3: el tier caro SOLO con boleta no vacía Y con el hilo bajo el techo");
 /* el criterio creció con P2(ii) (owner 2026-08-31): además de la boleta, escala cuando la multa NOMBRA una

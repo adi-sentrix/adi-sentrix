@@ -158,10 +158,11 @@ H("4 · misma familia, tamaños comparables (el contraste 6 vs 12)");
 
 /* ═══ 6 · EL CAMINO NATURAL QUEDA BYTE-IDÉNTICO (la opción (B) del owner) ════════════════════════════════════
  * «No quiero que una reparación diseñada y medida para el agente cambie de rebote ADI_CAMINO_NATURAL en
- * producción» (textual). El camino natural está VIVO en prod (`ADI_CAMINO_NATURAL` va en el perfil `prod`; la
- * apagada es `ADI_AGENTE`). Medido antes de acotar: al ceder, su turno pasaba de 153 chars a los 1.174 del
- * tablero de KPIs. Acá se prueba que su conducta NO se movió. */
-H("6 · el arreglo vive solo donde el examen lo midió: el camino natural, intacto");
+ * producción» (textual — dicho cuando el natural corría en prod).
+ * (La Poda 2026-09-05: el orquestador del natural se retiró del código. La rama SIN señal de este módulo
+ * compartido quedó sin caller — se conserva como contrato de la función y este check la documenta
+ * byte-idéntica; retirarla es un pendiente menor anotado, no una conducta viva de producción.) */
+H("6 · el arreglo vive solo donde el examen lo midió: la rama sin señal, intacta (hoy sin caller)");
 {
   const YA_VISTO = "Las ventas totales del negocio suman $99.9M contra un presupuesto de $97.0M.";
   const memIn = { ultimaAprobada: YA_VISTO, recentNarrations: [YA_VISTO] };

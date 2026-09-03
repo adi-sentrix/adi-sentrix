@@ -58,10 +58,9 @@ H("1 · el juez vive SOLO en el agente — el natural no puede importarlo");
     }
   };
   mirar(path.join(ROOT, "src"));
-  ok(!fuera.length, "★ nadie fuera de `src/adi/agente/` importa el juez — el camino natural queda intacto", fuera.join(" · "));
-  const natural = fs.readFileSync(path.join(ROOT, "src", "adi", "oracle", "caminoNatural.js"), "utf8");
-  ok(/ledger: \{ figs: \[\] \}/.test(natural),
-    "…y sigue siendo cierto POR QUÉ: el natural arma su juez con la boleta vacía fija, en todos sus turnos");
+  ok(!fuera.length, "★ nadie fuera de `src/adi/agente/` importa el juez — el resto de la casa queda intacto", fuera.join(" · "));
+  /* (La Poda 2026-09-05: acá se verificaba además POR QUÉ el juez no aplicaba al natural — su boleta vacía
+   * fija. El natural se retiró del código; el aserto de arriba sigue siendo el candado que importa.) */
 }
 
 /* ═══ 2 · LOS CUATRO TURNOS DE LA CORRIDA ═══════════════════════════════════════════════════════════════════ */

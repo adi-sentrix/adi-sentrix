@@ -161,16 +161,19 @@ console.log("=".repeat(100));
 }
 
 console.log("\n" + "=".repeat(100));
-console.log("8 · CABLEADO EN EL CAMINO NATURAL · y DESPUÉS del muro, que es donde corresponde");
+console.log("8 · CABLEADO EN EL CAMINO VIVO (el agente, tras La Poda) · y DESPUÉS del muro, que es donde corresponde");
 console.log("=".repeat(100));
 {
-  const src = readFileSync("./src/adi/oracle/caminoNatural.js", "utf8");
-  ok(/anteponerSello\(/.test(src), "el camino natural aplica el cerrojo");
-  const iMuro = src.indexOf("await responderConNotario");
-  const iSello = src.indexOf("anteponerSello(textoPantalla");
+  /* (La Poda 2026-09-05: esta sección verificaba el cableado en caminoNatural.js, retirado del código. El
+   * candado se re-apunta al camino que quedó — el bucle del agente — y mide LO MISMO: que el sello se
+   * antepone, que va después del juicio, y que lleva los cálculos declarados.) */
+  const src = readFileSync("./src/adi/agente/bucleAgente.js", "utf8");
+  ok(/anteponerSello\(/.test(src), "el bucle del agente aplica el cerrojo");
+  const iMuro = src.indexOf("juzgar(");
+  const iSello = src.indexOf("pantalla = anteponerSello(pantalla");
   ok(iMuro > 0 && iSello > iMuro,
-    `va DESPUÉS del notario (${iMuro} < ${iSello}): la frase no afirma nada del negocio, no hay qué verificar`);
-  ok(/anteponerSello\(textoPantalla, getSelloDeCarga\(\), \{ calculos: ex\.calculos \}\)/.test(src),
+    `va DESPUÉS del juicio (${iMuro} < ${iSello}): la frase no afirma nada del negocio, no hay qué verificar`);
+  ok(/anteponerSello\(pantalla, getSelloDeCarga\(\), \{ calculos: ex\.calculos \}\)/.test(src),
     "…y se le pasan los cálculos declarados, no solo la prosa");
   const dato = readFileSync("./src/adi/oracle/datoProyectado.js", "utf8");
   ok(/enLaCarpeta\(getSelloDeCarga\(\)\)/.test(dato), "y la carpeta suma el bloque de doctrina");

@@ -85,10 +85,16 @@ const GW = leer(path.join("src", "adi", "llm", "gatewayCore.js"));
 ok(/stop:\s*motivoCorte \|\| null/.test(GW) && /bloques:\s*bloquesRecibidos \|\| null/.test(GW),
   "el gateway los deja pasar hasta el caller");
 const CON = leer("_consola_examen.mjs");
-ok(/CADENA VACÍA · motivo de corte/.test(CON) && /bloques que devolvió el proveedor/.test(CON),
+/* (La Poda 2026-09-05: la consola quedó solo-agente. El GRITO y el expediente se re-cablearon a su canal —
+ * handleAgente re-emite el stop del adapter, que antes se tiraba; los BLOQUES eran diagnóstico del narrate
+ * del natural y murieron con él: el equivalente del agente es tipo+pedidos, ya guardados por intento.) */
+ok(/CADENA VACÍA · motivo de corte/.test(CON),
   "y la consola del examen los GRITA cuando el borrador vuelve vacío");
-ok(/stop: \(nr && nr\.stop\)/.test(CON) && /bloques: \(nr && nr\.bloques\)/.test(CON),
+ok(/stop: \(data && data\.stop\) \|\| null/.test(CON),
   "…además de guardarlos en el expediente, SIEMPRE: comparar una vacía contra una buena es el diagnóstico");
+const GWA = leer("src/adi/llm/gatewayCore.js");
+ok(/stop: motivoCorte \|\| null/.test(GWA),
+  "…y handleAgente re-emite el stop del adapter (antes se tiraba): el canal del agente no pierde el motivo");
 
 console.log(`\n── _razonamiento_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail === 0 ? 0 : 1);

@@ -130,8 +130,11 @@ console.log("=".repeat(100));
   const chat = fs.readFileSync(path.join(root, "src", "ui", "ChatADI.jsx"), "utf8");
   ok(/window\.__ADI_SALUD__/.test(chat), "la app expone `__ADI_SALUD__()` para leer el resumen sin gastar una llamada");
   ok(/filas: \(\) => exportarTelemetria\(\)/.test(chat), "…y `.filas()`, que son los renglones que Supabase va a heredar");
-  ok(/cortes: cortesDelTurno/.test(chat) && /cortes\.push\(String\(\(data && data\.stop\)/.test(chat),
-    "el motivo de corte se recoge del gateway en CADA llamada del turno, no se pierde en el camino");
+  /* (La Poda 2026-09-05: acá se exigía el patrón de `_fetchNatural` — cortes.push(data.stop) por llamada. El
+   * natural se retiró; la conducta equivalente del camino vivo es el EXPEDIENTE del agente (estado · vetos ·
+   * motivo por turno, en r.agente) y la etapa «agente» de la telemetría, gateada con carnada en
+   * `_agente_adapter_gate` §4. La lección original —un turno vacío jamás dice «vacio y nada más»— sigue
+   * teniendo candado; solo cambió de dueño.) */
 }
 
 console.log(`\n── _telemetria_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

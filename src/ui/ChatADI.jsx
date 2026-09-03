@@ -24,9 +24,10 @@ const _GUTTER_ADI = 44;
 const _SCROLLBAR = 8;
 import { InlineChart } from "./InlineChart.jsx";
 import { composeFollowupRecommendation } from "../adi/specRetrieval.js";   // follow-up (fallback regex del camino sin LLM)
-import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIMS_ONLY_ENABLED, ADI_BYPASS_SIN_PAGO, ADI_CAMINO_NATURAL, ADI_AGENTE } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag) · bypass sin pago (detrás de flag, hoy apagado) · camino natural como principal (owner 2026-08-14)
+import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIMS_ONLY_ENABLED, ADI_BYPASS_SIN_PAGO, ADI_AGENTE } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag) · bypass sin pago (detrás de flag, hoy apagado) · el agente como camino (La Poda 2026-09-05 retiró ADI_CAMINO_NATURAL)
 import { registrarTurno, resumenTelemetria, exportarTelemetria, borrarTelemetria } from "../adi/telemetria.js";   // el renglón de salud del turno · sin dato de negocio (ver telemetria.js)
-import { answerViaNatural } from "../adi/oracle/caminoNatural.js";   // el camino natural: cerebro único + notario + ciclo de reparación (flag ADI_CAMINO_NATURAL)
+/* (La Poda 2026-09-05: acá vivía el import de `answerViaNatural` — el camino natural se retiró del código;
+ * la cascada del turno libre quedó agente → oráculo.) */
 import { puedeResponderSinPagar } from "../adi/bypassConfianza.js";   // ¿el piso entiende esta pregunta lo bastante bien como para NO pagar? (owner 2026-08-12)
 import { getLastOffer } from "../adi/oracle/dialogueState.js";   // la oferta viva del turno anterior — cambia el sentido de "sí" o "el segundo"
 import { answerViaOracle } from "../adi/oracle/answerViaOracle.js";   // Arquitectura C · Fase 3 · seam PLAN→BATCH→NARRAR (fallback intacto)
@@ -387,20 +388,9 @@ async function _fetchAgente({ mensajes, scenario, requestContext, ronda, attempt
   return data.tipo === "herramientas" ? { tipo: "herramientas", pedidos: data.pedidos || [] } : { tipo: "texto", texto: String(data.texto || "") };
 }
 
-async function _fetchNatural({ mensajes, mem, scenario, requestContext, attempt, motivoReintento, cortes }) {
-  const res = await fetch("/api/adi-narrate-c", {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ payload: { modoNatural: true, mensajes }, mem, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt, motivoReintento, datoNegocio: proyectarDatoNegocio(scenario) }),
-  });
-  const data = await res.json();
-  if (_accessDenied(data)) throw new Error("acceso requerido");
-  if (!data || !data.ok) throw new Error((data && data.error) || "gateway sin narración");
-  /* EL MOTIVO DE CORTE SE RECOGE ACÁ (owner 2026-08-21). El gateway ya lo manda; el producto lo tiraba, así que
-   * un turno vacío en producción decía «vacio» y nada más — exactamente el hueco que hizo indiagnosticables
-   * cuatro fallas y obligó a pagar una corrida para entenderlas. Es una razón de corte, no dato de nadie. */
-  if (Array.isArray(cortes)) cortes.push(String((data && data.stop) || "(no declarado)"));
-  return typeof data.narration === "string" ? data.narration : "";
-}
+/* `_fetchNatural` vivió acá hasta LA PODA (2026-09-05): era el fetch del camino natural, retirado del código
+ * con su orquestador. La lección que dejó escrita —el motivo de corte se RECOGE, no se tira— vive hoy en el
+ * expediente del agente (motivos/vetos por turno). */
 
 // FOLLOW-UP EJECUTIVO · "qué hacemos / qué recomendás / qué sigue / y ahora / cuál es la acción" → recomendación sobre la
 // última evidencia (NO se re-parsea como consulta nueva de eje/métrica). Solo dispara si hay una evidencia accionable previa.
@@ -514,15 +504,12 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
       // operación transporta explícitamente con qué tenant/conversación/snapshot está trabajando).
       const conversationId = (context && context.conversationId) || (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `conv_${Date.now()}_${Math.random().toString(36).slice(2)}`);
       const requestContext = buildRequestContext({ conversationId, scenario, mem });
-      /* ── CAMINO NATURAL COMO PRINCIPAL (owner 2026-08-14 · flag ADI_CAMINO_NATURAL · ver caminoNatural.js) ────
-       * Flag ON → el turno va por el cerebro único + notario + ciclo de reparación, con el hilo entero. El P&L
-       * guiado y «por qué esa cifra» YA cedieron/reclamaron ARRIBA — son features con estado propio, no narración.
-       * RED DE RESILIENCIA (condición 2): si el camino natural LANZA (gateway caído, config faltante, error), el
-       * turno CAE al oráculo actual acá abajo, en el MISMO turno — el usuario nunca ve el error.
-       * Flag OFF → este bloque no existe: el turno sigue por answerViaOracle, byte-idéntico a hoy. */
-      /* ── ADI AGENTE (F2 · bandera ADI_AGENTE, hoy APAGADA en todos los perfiles) ─────────────────────────
-       * Cuando encienda (tras la certificación de F4): agente → catch → natural → catch → oráculo — la misma
-       * red de resiliencia en cascada. Con la bandera apagada este bloque no existe y el turno sigue igual. */
+      /* ── LA CASCADA, TRAS LA PODA (owner 2026-09-05: el camino natural SE RETIRÓ del código) ─────────────
+       * agente → catch → oráculo. El natural fue el rollback técnico temporal entre 2026-09-02 y la poda;
+       * con la palabra del owner («poda inmediata») el peldaño del medio se retiró: la red que queda es el
+       * oráculo, la más profunda de siempre. RED DE RESILIENCIA: si el agente LANZA (gateway caído, config
+       * faltante, error), el turno CAE al oráculo en el MISMO turno — el usuario nunca ve el error, y el
+       * fallo deja rastro en consola (la lección medida del catch mudo del 2026-08-14). */
       if (ADI_AGENTE) {
         try {
           const { answerViaAgente } = await import("../adi/agente/bucleAgente.js");
@@ -538,27 +525,10 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
             return _turnFromResult(q, rr, context, "agente", scenario);
           }
         } catch (e) {
-          if (typeof console !== "undefined" && console.warn) console.warn("[ADI] el agente falló y el turno cayó al camino natural:", e);
-        }
-      }
-      if (ADI_CAMINO_NATURAL) {
-        try {
-          const cortesDelTurno = [];   // un motivo de corte por llamada · viaja al registro de salud, no a pantalla
-          const o = await answerViaNatural({ text: q, history, mem, scenario,
-            callNatural: (args) => _fetchNatural({ ...args, mem, scenario, requestContext, cortes: cortesDelTurno }) });
-          if (o && o.r && o.r.natural) o.r.natural.cortes = cortesDelTurno;
-          if (o && o.r) {
-            _ph(3);
-            const rr = { ...o.r, context: { ...(context || {}), memoriaInteraccion: o.mem, conversationId } };   // persiste memoria + conversationId en el hilo
-            return _turnFromResult(q, rr, context, "natural", scenario);
-          }
-        } catch (e) {
-          /* RED DE RESILIENCIA · pero NUNCA MUDA (medido en la app 2026-08-14): el catch era `catch {}` a secas, así
-           * que cuando el camino natural fallaba el turno caía al oráculo y NADIE se enteraba — ni el usuario, que
-           * veía una respuesta peor con cifras distintas, ni nosotros. Cinco turnos seguidos se respondieron por el
-           * camino viejo creyendo que era el nuevo. El fallback se conserva TAL CUAL (es la garantía de que el
-           * usuario nunca ve un error); lo único que cambia es que el fallo deja rastro. */
-          if (typeof console !== "undefined" && console.warn) console.warn("[ADI] el camino natural falló y el turno cayó al oráculo:", e);
+          /* RED DE RESILIENCIA · pero NUNCA MUDA (medido en la app 2026-08-14, con el natural de entonces): un
+           * catch a secas hacía indistinguible la caída — cinco turnos se respondieron por el camino viejo
+           * creyendo que era el nuevo. El fallback se conserva TAL CUAL; el fallo deja rastro. */
+          if (typeof console !== "undefined" && console.warn) console.warn("[ADI] el agente falló y el turno cayó al oráculo:", e);
         }
       }
       // ROUTING TRACE (owner 2026-08-02 — ver modelRouter.js): closures frescas POR TURNO (nunca module-level, no

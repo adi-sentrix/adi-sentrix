@@ -25,7 +25,7 @@ process.env.LLM_PROVIDER = "anthropic";
 delete process.env.LLM_MODEL_PARSE;
 delete process.env.LLM_MODEL_NARRATE;
 
-import { answerViaNatural } from "./src/adi/oracle/caminoNatural.js";
+/* (La Poda 2026-09-05: answerViaNatural se retiró — la consola corre SOLO el agente; --agente queda por compat) */
 import { handleNarrateC, handleAgente } from "./src/adi/llm/gatewayCore.js";
 /* F4-PREP (2026-08-30): el examen del AGENTE corre por esta MISMA consola con `--agente` — el mismo bucle real
  * que ChatADI invoca con la bandera ON (`answerViaAgente` + `handleAgente` del gateway real), estado y
@@ -98,7 +98,7 @@ import { execSync } from "node:child_process";
 import { guardC } from "./src/adi/oracle/guardC.js";
 import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
-import { CONTRATO_CALCULO_NATURAL } from "./src/adi/oracle/naturalPrompt.js";
+/* (La Poda: CONTRATO_CALCULO_NATURAL murió con naturalPrompt.js — el check del sello que lo leía se retiró) */
 function _sello() {
   const commit = (() => { try { return execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim(); } catch { return "(sin git)"; } })();
   // `numberGuard.js` y `entityGuard.js` son trabajo sin commitear de OTRA sesión (CLAUDE.md §3: no se tocan ni se
@@ -175,12 +175,12 @@ function _sello() {
     `┌── SELLO DE VERSIÓN ──────────────────────────────────────────────`,
     `│ commit           : ${commit}${sucio ? "  ⚠️ con cambios sin commitear en el motor" : "  (motor limpio)"}`,
     ..._negocio(),
-    ...(MODO_AGENTE ? _rutaAgente() : [`│ ruta             : camino natural REAL (answerViaNatural + gateway con modoNatural) — la ruta del agente se prueba con --agente`]),
+    ..._rutaAgente(),
     `│ escenario        : ${ESCENARIO_INICIAL}  (el MISMO que arranca la app — declarado en config/scenarios.js)`,
     `│ carpeta          : ${(_dato.match(/Ventas totales: \$[\d.]+M/) || ["?"])[0]}  ·  KPI de inventario ${/Inventario \(foto de hoy\)/.test(_dato) ? "presente ✅" : "AUSENTE 🔴"}`,
     `│ contrato · dueño : ${P(sinDueno && !sinDueno.ok && /campo «dueño»/.test(String((sinDueno.violations[0] || {}).detail || "")))} sin dueño la cuenta NO autoriza  ·  ${P(conDueno && conDueno.ok)} con dueño sí  (probado con ${cli || "?"} a ${pp || "?"} del benchmark)`,
     `│ atribución       : ${P(ajena && !ajena.ok)} la cifra de ${otro || "otro"} puesta en ${cli || "?"} NO pasa (obtuvo ${ajena ? (ajena.ok ? "PASÓ 🔴" : ajena.verdict) : "sin caso"})`,
-    `│ prompt del cerebro: ${P(/dueno=<de QUIÉN/.test(CONTRATO_CALCULO_NATURAL))} el contrato que lee el modelo pide el dueño`,
+    /* (La Poda: la línea del contrato del cerebro natural se retiró con su prompt) */
     `│ rastro interno   : ✅ activo (estado · vetos · reparaciones · cálculos · [[CALCULO]] oculto, por turno)`,
     `└──────────────────────────────────────────────────────────────────`,
   ].join("\n");
@@ -189,7 +189,8 @@ function _sello() {
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
 const valor = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : null; };
-const MODO_AGENTE = flag("--agente");
+const MODO_AGENTE = true;   // (La Poda: el único modo es el agente; el flag --agente queda aceptado por compat)
+void flag("--agente");
 const ESTADO = MODO_AGENTE ? "_examen_agente_estado.json" : "_examen_estado.json";
 
 let S = fs.existsSync(ESTADO) ? JSON.parse(fs.readFileSync(ESTADO, "utf8")) : null;
@@ -234,35 +235,7 @@ const _precio = (u) => {
 const EXPEDIENTE = () => `${MODO_AGENTE ? "_examen_agente_debug_t" : "_examen_debug_t"}${S.turnos.length}.json`;   // uno por turno: el del turno 2 no pisa al del 1
 let costoTurno = 0, llamadasTurno = 0, crudoUltimo = "";
 const intentos = [];
-const callNatural = async ({ mensajes, attempt, motivoReintento }) => {
-  llamadasTurno++;
-  const ultimo = mensajes.length ? mensajes[mensajes.length - 1] : null;
-  const nr = await handleNarrateC({ payload: { modoNatural: true, mensajes }, mem: S.mem, attempt, motivoReintento, datoNegocio: DATO });
-  if (nr && nr.usage) costoTurno += _precio(nr.usage);
-  if (!nr.ok) throw new Error(nr.error || "gateway sin narración");
-  crudoUltimo = nr.narration || "";
-  /* EL EXPEDIENTE GUARDA POR QUÉ (owner 2026-08-21). Cuatro veces el cerebro devolvió CADENA VACÍA y solo
-   * sabíamos contarlas: el expediente traía el borrador y nada más. Con el motivo de corte y los tokens, una
-   * vacía se diagnostica sola — corte por límite, fin de turno sin texto, o negativa — en vez de costar otra
-   * corrida. Se registra SIEMPRE, no solo cuando falla: comparar una vacía contra una buena es el diagnóstico. */
-  intentos.push({ intento: llamadasTurno, motivoReintento: motivoReintento || null, multaRecibida: attempt > 0 && ultimo ? ultimo.content : null, borrador: crudoUltimo,
-    stop: (nr && nr.stop) || null, usage: (nr && nr.usage) || null, modelo: (nr && nr.modelo) || null, bloques: (nr && nr.bloques) || null });
-  if (!String(crudoUltimo || "").trim()) {
-    const u = (nr && nr.usage) || {};
-    const b = (nr && nr.bloques) || [];
-    console.log(`   ⚠️ CADENA VACÍA · motivo de corte: ${(nr && nr.stop) || "(no declarado)"} · tokens de salida: ${u.output_tokens ?? "?"} · entrada: ${u.input_tokens ?? "?"} · modelo: ${(nr && nr.modelo) || "?"}`);
-    console.log(`      bloques que devolvió el proveedor: ${b.length ? b.join(" · ") : "(ninguno)"}`);
-    /* FRENO DE DIAGNÓSTICO (--frenar-en-vacia). El ciclo de reparación reintenta ante una vacía, y el reintento
-     * vuelve a costar lo mismo: el Examen 5 pagó DOS vacías seguidas en el turno 1 por nada. Con este freno una
-     * corrida de diagnóstico cuesta UNA llamada en vez de dos. Es de la consola: el producto sigue reparando. */
-    if (flag("--frenar-en-vacia")) throw new Error("FRENO: primera respuesta vacía · diagnóstico capturado, no se paga el reintento");
-  }
-  return nr.narration;
-};
-
-/* EL CEREBRO DEL AGENTE — el MISMO transporte que _fetchAgente (ChatADI) arma para /api/adi-agente, contra el
- * gatewayCore directo: system fijo (sistemaDelAgente), catálogo mecánico y tier por paso (herramientas → PLAN ·
- * reparación → cierre). Cada llamada suma al costo del turno y al expediente, igual que el natural. */
+/* (La Poda 2026-09-05: acá vivía callNatural — el fetch del modo natural de esta consola) */
 const callAgente = async ({ mensajes, ronda, attempt = 0, motivoReintento, cierre = false, figsEnBoleta = 0, vetoConCifra = false }) => {
   llamadasTurno++;
   /* R-eco DEL EXAMEN 1 (2026-08-31): la escalada al tier de NARRAR fue el 66% del gasto (US$0.3758, 14
@@ -279,7 +252,13 @@ const callAgente = async ({ mensajes, ronda, attempt = 0, motivoReintento, cierr
   if (data && typeof data.costUSD === "number") costoTurno += data.costUSD;   // el costo lo estima el gateway con el MODELO REAL (tier por paso), no la tarifa sonnet de la consola
   if (!data || !data.ok) throw new Error((data && data.error) || "gateway sin agente");
   crudoUltimo = data.tipo === "texto" ? String(data.texto || "") : `[pedidos] ${JSON.stringify(data.pedidos || [])}`;
+  /* EL GRITO DE LA VACÍA (heredado del natural, re-cableado en La Poda): cuatro turnos vacíos fueron
+   * indiagnosticables por no guardar el motivo de corte — acá se grita y se guarda SIEMPRE. */
+  if (data.tipo === "texto" && !String(data.texto || "").trim()) {
+    console.log(`   ⚠ CADENA VACÍA · motivo de corte del proveedor: ${String((data && data.stop) || "(no declarado)")}`);
+  }
   intentos.push({ intento: llamadasTurno, ronda, paso, motivoReintento: motivoReintento || null, tipo: data.tipo, borrador: crudoUltimo,
+    stop: (data && data.stop) || null,   // el motivo de corte, SIEMPRE: comparar una vacía contra una buena es el diagnóstico
     usage: data.usage || null, modelo: data.model || null, costUSD: data.costUSD ?? null });
   return data.tipo === "herramientas" ? { tipo: "herramientas", pedidos: data.pedidos || [] } : { tipo: "texto", texto: String(data.texto || "") };
 };
@@ -287,10 +266,8 @@ const callAgente = async ({ mensajes, ronda, attempt = 0, motivoReintento, cierr
 const t0 = Date.now();
 let out;
 try {
-  out = MODO_AGENTE
-    ? await answerViaAgente({ text: q, history: S.history, mem: S.mem, scenario: ESCENARIO_INICIAL, callAgente })
-    : await answerViaNatural({ text: q, history: S.history, mem: S.mem, scenario: ESCENARIO_INICIAL, callNatural });
-} catch (e) { console.log(`\n🔴 EL CAMINO ${MODO_AGENTE ? "AGENTE" : "NATURAL"} LANZÓ: ${String(e && e.message).slice(0, 160)}\n   (en producción, este turno caería en cascada al siguiente camino sin que el usuario vea el error)`); process.exit(1); }
+  out = await answerViaAgente({ text: q, history: S.history, mem: S.mem, scenario: ESCENARIO_INICIAL, callAgente });
+} catch (e) { console.log(`\n🔴 EL CAMINO AGENTE LANZÓ: ${String(e && e.message).slice(0, 160)}\n   (en producción, este turno caería en cascada al oráculo sin que el usuario vea el error)`); process.exit(1); }
 
 const nat = (out.r && (MODO_AGENTE ? out.r.agente : out.r.natural)) || {};
 const visible = String(out.r.text || "");
