@@ -463,7 +463,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * apagada; esto no enciende nada. */
   /* el hilo viaja al detector (T5): las formas elípticas del porqué solo abren si la última lectura fue de
    * margen, y eso solo se sabe mirando el hilo. Un caller sin history mide el peor caso: la elíptica no abre. */
-  const playbook = (() => { try { return playbookPara(q, { history }); } catch { return null; } })();
+  const playbook = (() => { try { return playbookPara(q, { history, viewContext }); } catch { return null; } })();
   let playbookActivo = null;
   /* LOS PASOS PUEDEN DEPENDER DE LA PREGUNTA (2026-09-01): `pasosDe` resuelve el Array de siempre o la función
    * de un playbook de FORMA —«lectura por eje» elige la herramienta según el eje que su detector léxico ya

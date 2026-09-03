@@ -33,7 +33,9 @@ import { margenEnRiesgo, lecturaDeMargen } from "./src/adi/agente/playbooks/marg
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
 import { cajaDelAgente, serieEntidad, cobranza } from "./src/adi/agente/herramientasAgente.js";
-import { guardC } from "./src/adi/oracle/guardC.js";                 // las carnadas de entidad×período juzgan el texto compuesto DIRECTO contra el muro
+import { guardC } from "./src/adi/oracle/guardC.js";
+import { buildMesaCapital } from "./src/adi/sentrix/mesaCapital.js";   // 1k · el ANCLAJE VIVO: la respuesta contra el cuadro, del mismo builder                 // las carnadas de entidad×período juzgan el texto compuesto DIRECTO contra el muro
+import { askDeCuadro } from "./src/adi/agente/playbooks/askDeCuadro.js";   // 1k · las carnadas del anclaje
 import { fichaDeEntidad } from "./src/adi/agente/playbooks/fichaDeEntidad.js";   // T4 · la carnada del muro captura su par (texto+figs) del turno vivo
 import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
@@ -67,7 +69,8 @@ H("1 · el registro cumple su patrón — agregar el segundo playbook es agregar
      * muestra (`ejemplos`), así ningún eje queda sin verificar su herramienta. */
     /* la ficha no puede declarar `ejemplos` en su módulo: nombraría entidades del demo dentro del bundle del
      * frontend (el gate del bundle lo cazó). Sus preguntas de muestra viven ACÁ, que es quien las usa. */
-    const EJEMPLOS_DEL_GATE = { "ficha-de-entidad": ["dame la ficha de Lider", "qué pasa con Jumbo", "cómo viene LG", "dame la ficha de LG-DRYER8KG"] };
+    const EJEMPLOS_DEL_GATE = { "ficha-de-entidad": ["dame la ficha de Lider", "qué pasa con Jumbo", "cómo viene LG", "dame la ficha de LG-DRYER8KG"],
+      "ask-de-cuadro": ["¿Cuánto capital tengo en Valparaíso?", "¿Cuánto capital tengo en Línea Blanca?", "¿Cuánto capital tengo en Más de 90 días?", "Profundiza en SAM-REF500L", "¿Cómo libero el capital de LG-DRYER8KG?", "¿Cómo viene el cobro de Lider?"] };
     const muestras = EJEMPLOS_DEL_GATE[pb.nombre]
       || (Array.isArray(pb.ejemplos) && pb.ejemplos.length ? pb.ejemplos : ["como viene mi margen?"]);
     /* el playbook declara en qué pack ACTIVAN sus ejemplos (`tenantDeMuestra`): entidad-por-período no tiene
@@ -945,6 +948,95 @@ H("1j · T5 · el porqué elíptico: abre con hilo de margen, cerrado con cualqu
     "…y «por qué pasa eso con el inventario» no entra por esta puerta aunque el hilo venga de margen");
 }
 
+/* ═══ 1k · EL PULIDO DEL ANCLAJE — el botón responde SU cuadro (owner 2026-09-05) ════════════════════════════
+ * La especificación, textual: «Cada botón debe responder sobre el cuadro exacto que el usuario está mirando,
+ * no sobre el negocio general ni sobre otro eje.» Estos checks la ejercitan en positivo Y en su miedo exacto:
+ * que la respuesta derive al total del negocio, a otra bodega, o al otro universo (venta comercial). */
+H("1k · el ask de cuadro: anclado a SU fila, contra el cuadro VIVO");
+{
+  initTenant(TENANT_DEMO);
+  const texto = async (q) => String((await answerViaAgente({ text: q, history: [], mem: {}, scenario: "bonanza", callAgente: MUDO })).r.text || "");
+
+  /* ── EL CHECK DE ORO: la cifra de la respuesta ES la del cuadro, leída del MISMO builder que pinta la Mesa.
+   * No un literal: si mañana el dato cambia, el cuadro y la respuesta se mueven JUNTOS o esto se pone rojo. */
+  const M = buildMesaCapital("bonanza");
+  const vBod = M.cortes.vistas.find((v) => v.key === "bodega");
+  const vFam = M.cortes.vistas.find((v) => v.key === "familia");
+  for (const fila of vBod.filas) {
+    const t = await texto(fila.ask);
+    ok(new RegExp(`En ${fila.nombre} tienes \\${fila.usdFmt} de capital en inventario`).test(t),
+      `★ ANCLAJE VIVO · «${fila.ask}» responde ${fila.usdFmt} — la cifra del cuadro, del mismo módulo`, t.slice(0, 90));
+    /* …y el miedo del owner: la respuesta NO sirve el total del negocio como si fuera la fila */
+    ok(!new RegExp(`En ${fila.nombre} tienes \\${M.totalFmt}`).test(t),
+      `…y NO le sirve el total del negocio (${M.totalFmt}) en lugar de su fila`);
+  }
+  for (const fila of vFam.filas.slice(0, 2)) {
+    const t = await texto(fila.ask);
+    ok(new RegExp(`En ${fila.nombre} tienes \\${fila.usdFmt} de capital en inventario`).test(t),
+      `★ ANCLAJE VIVO · «${fila.ask}» responde ${fila.usdFmt} — familia, mismo módulo`, t.slice(0, 90));
+  }
+  /* la fila de OTRA bodega no contamina la citada: la respuesta de Valparaíso no abre con Santiago */
+  const tV = await texto("¿Cuánto capital tengo en Valparaíso?");
+  ok(/^(?:jc: )?En Valparaíso tienes/.test(tV.trim()),
+    "…y la respuesta ABRE por la bodega pedida, no por otra ni por el ranking", tV.slice(0, 70));
+
+  /* ── PROFUNDIZA: la fila de inventario del SKU, la frontera de universos cerrada ── */
+  const tP = await texto("Profundiza en SAM-REF500L");
+  ok(/SAM-REF500L, en el cuadro de Capital: \$19K de capital en inventario · rotación 9\.8x · 17d de días de inventario\./.test(tP),
+    "★ «Profundiza en <SKU>» responde SU fila de inventario (capital · rotación · días)", tP.slice(0, 120));
+  ok(!/\$5\.6M|margen|contribuci[oó]n/i.test(tP),
+    "★ …y NO cita la venta comercial ni margen: la frontera de universos (mesaCapital no importa skusMargen)");
+  ok(/\bficha\b/i.test(tP), "…y ofrece la ficha para el lado comercial, en vez de servirlo acá");
+
+  /* ── LIBERO: el frenado con sus cifras; el no frenado dicho con el estado que la carpeta declara ── */
+  const tL = await texto("¿Cómo libero el capital de LG-DRYER8KG?");
+  ok(/LG-DRYER8KG tiene \$14K frenados — 165d de días de inventario, rotación 1\.0x\./.test(tL),
+    "★ el SKU frenado: su monto, sus días y su rotación — la fila del corte frenado", tL.slice(0, 110));
+  ok(/Por qué se frenó no está en este dato/.test(tL), "…y la causa NO se inventa: el cuadro localiza");
+  const tN = await texto("¿Cómo libero el capital de SAM-REF500L?");
+  ok(/SAM-REF500L no está frenado en el corte de este turno\./.test(tN) && /LG-DRYER8KG · BOS-SANDER · MAK-COMP-AIR/.test(tN),
+    "★ el SKU NO frenado se dice con el estado que la carpeta declara (y quiénes sí lo están)", tN.slice(0, 120));
+  const tB = await texto("¿Cómo libero el capital inmovilizado en Valparaíso?");
+  ok(/En Valparaíso hay \$25K de capital frenado\./.test(tB),
+    "★ la variante por bodega ancla a SU bodega ($25K es Valparaíso, no el total $33K)", tB.slice(0, 90));
+  const tQ = await texto("¿Qué SKU libero primero?");
+  ok(/el primero es LG-DRYER8KG/.test(tQ) && /criterio m[ií]o/.test(tQ),
+    "★ «¿Qué SKU libero primero?» prioriza con el criterio DICHO como criterio", tQ.slice(0, 120));
+
+  /* ── EDAD: el corte que el motor no publica SE DECLARA — y la alternativa va con cifra ── */
+  const tE = await texto("¿Cuánto capital tengo en Más de 90 días?");
+  ok(/no est[aá] publicado como lectura del motor/.test(tE) && /no tengo una cifra verificada para dictarte por ese corte/.test(tE),
+    "★ el corte por edad se DECLARA (regla 2: jamás el corte más parecido en su lugar)", tE.slice(0, 120));
+  ok(/Santiago \$64K/.test(tE), "…y la alternativa ofrecida lleva cifra verificada, no promesa");
+
+  /* ── COBRO: la fila de ESE cliente; sin fila publicada, el declive nombra lo que hay ── */
+  const tC = await texto("¿Cómo viene el cobro de Lider?");
+  ok(/El cobro de Lider: venta del per[ií]odo \(flujo\) \$17\.8M · abonado \$8\.0M · saldo pendiente \$9\.8M · vencido \$4\.6M\./.test(tC),
+    "★ «el cobro de <cliente>» responde SU fila completa de la mesa del cobro", tC.slice(0, 130));
+  const tU = await texto("¿Cómo viene el cobro de Unimarc?");
+  ok(/no publica la fila de Unimarc/.test(tU) && /vencido total del negocio/.test(tU),
+    "…y el cliente sin fila publicada recibe el declive que nombra lo que SÍ hay", tU.slice(0, 120));
+
+  /* ── SIN ADIVINACIÓN: nombre fuera del índice o de otro eje → el playbook no toma el turno ── */
+  ok(playbookPara("¿Cuánto capital tengo en Rancagua?") === null,
+    "«…capital en Rancagua» (no existe en el índice) NO se adivina: el playbook no abre");
+  ok((playbookPara("¿Cuánto capital tengo en Falabella?") || {}).nombre !== "ask-de-cuadro",
+    "«…capital en Falabella» (un cliente) no es un corte del cuadro de capital: no se sirve otro eje");
+
+  /* ── LOS DUEÑOS DE SIEMPRE, INTACTOS ── */
+  const DUENOS = [
+    ["¿Dónde está frenado mi capital?", "inventario-inmovilizado"],
+    ["qué hago con el inventario inmovilizado", "inventario-inmovilizado"],
+    ["capital por bodega", "lectura-por-eje"],
+    ["quién me debe y qué está vencido", "cobranza"],
+    ["dame la ficha de Lider", "ficha-de-entidad"],
+    ["cómo está el margen", "margen-en-riesgo"],
+  ];
+  ok(DUENOS.every(([q, n]) => (playbookPara(q) || {}).nombre === n),
+    "…y ningún dueño de siempre perdió su turno con el ask de cuadro en el registro",
+    DUENOS.filter(([q, n]) => (playbookPara(q) || {}).nombre !== n).map(([q]) => q).join(" | "));
+}
+
 /* ═══ 6 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
 H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
@@ -974,8 +1066,8 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (a) el playbook desconectado del bucle: el turno de aceptación vuelve a rescatar
   await carnada("playbook desconectado del bucle", "src/adi/agente/bucleAgente.js",
-    // (re-apuntada T5: el sitio ahora pasa el hilo al detector — la carnada mide lo mismo de siempre)
-    [[/  const playbook = \(\(\) => \{ try \{ return playbookPara\(q, \{ history \}\); \} catch \{ return null; \} \}\)\(\);/,
+    // (re-apuntada T5 y anclaje: el sitio pasa el hilo Y el viewContext al detector — mide lo mismo de siempre)
+    [[/  const playbook = \(\(\) => \{ try \{ return playbookPara\(q, \{ history, viewContext \}\); \} catch \{ return null; \} \}\)\(\);/,
       "  const playbook = null;"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
@@ -1341,6 +1433,44 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
         { role: "assistant", text: "Te deben $12.4M en total. Lo vencido es $3.1M y lo encabeza Falabella con $1.2M." }];
       return Mut.margenEnRiesgo.cuandoAplica("por qué pasa eso", { history: HILO_COBRANZA })
         && Mut.margenEnRiesgo.cuandoAplica("por qué pasa eso");   // y hasta sin hilo
+    });
+
+  /* ── LAS DEL PULIDO DEL ANCLAJE (2026-09-05) ────────────────────────────────────────────────────────────── */
+  // (CC) el anclaje suelto: la respuesta deja de nombrar la fila pedida y su propia lista notarial debe multar
+  await carnada("el cuadro responde sin nombrar la fila pedida (anclaje suelto)", "src/adi/agente/playbooks/askDeCuadro.js",
+    [[/      p\.push\(`En \$\{c\.nombre\} tienes \$\{_val\(mia\)\} de capital en inventario\$\{lugar >= 0 && todas\.length > 1 \? ` — la \$\{lugar \+ 1\}ª \$\{c\.eje\} de \$\{todas\.length\} por capital` : ""\}\.`\);/,
+      "      p.push(`El capital del negocio suma sus bodegas.`);   // CARNADA: la fila pedida desaparece"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const v = Mut.askDeCuadro.listaNotarial("El capital del negocio suma sus bodegas.\nEl corte completo, de mayor a menor: Santiago $64K.",
+        { figs: [], pregunta: "¿Cuánto capital tengo en Valparaíso?" });
+      return v.some((x) => x.regla === "cuadro-desanclado");
+    });
+
+  // (DD) la frontera de universos desarmada: la respuesta del cuadro de capital citando venta comercial
+  await carnada("el cuadro de capital cita la venta comercial (universo cruzado)", "src/adi/agente/playbooks/askDeCuadro.js",
+    /* la mutación apunta a la multa (la línea estable), no al if de regex compuesta */
+    [[/      v\.push\(\{ regla: "universo-cruzado", multa: "estás citando venta comercial o margen en la respuesta de un cuadro de capital: ese es el otro universo y esta respuesta no lo carga\." \}\);/,
+      "      /* CARNADA: la frontera, desarmada */"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const v = Mut.askDeCuadro.listaNotarial("SAM-REF500L, en el cuadro de Capital: $19K. Su venta del período es $5.6M con margen 11.1%.",
+        { figs: [], pregunta: "Profundiza en SAM-REF500L" });
+      return !v.some((x) => x.regla === "universo-cruzado");
+    });
+
+  // (EE) el corte por edad servido con el «más parecido»: la declaración desaparece y el check textual del
+  // gate (1k) es quien lo caza — acá se prueba que la mutación de esa rama deja el texto SIN la declaración.
+  await carnada("el corte por edad deja de declararse (sirve el más parecido)", "src/adi/agente/playbooks/askDeCuadro.js",
+    [[/      p\.push\(`El corte «\$\{c\.nombre\}» lo arma el cuadro de Capital tramando los d[ií]as sin venta, y ese tramado no est[aá] publicado como lectura del motor: no tengo una cifra verificada para dictarte por ese corte\.`\);/,
+      "      // CARNADA: el tramo se sirve como si fuera el corte por bodega"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const t = String(Mut.askDeCuadro.componer({
+        figs: [{ label: "Santiago · Capital", value: "$64K", raw: 63800 }],
+        pregunta: "¿Cuánto capital tengo en Más de 90 días?", semilla: "s",
+      }) || "");
+      return t.length > 0 && !/no tengo una cifra verificada para dictarte por ese corte/.test(t);
     });
   initTenant(TENANT_DEMO);
 

@@ -46,11 +46,33 @@ el emisor no cambia.
 3. **El contexto no autoriza cifras**: sigue rigiendo la boleta. El cuadro dice QUÉ mirar, el módulo dice
    CUÁNTO.
 
-## 5 · Qué falta para cerrarlo (inventario honesto)
+## 5 · EL PULIDO, HECHO (GO del owner 2026-09-05)
 
-- **Cobertura del emisor**: hay que verificar cuáles de los ~40 asks de la cara Capital viajan hoy con
-  `viewContext` completo y cuáles no. Los que no, **esperan la siembra del emisor** y así quedan listados en el
-  censo — mejor hueco declarado que promesa a medias.
-- **Composer por corte**: ninguno todavía, y es deliberado.
-- **Carnada del anclaje**: cuando exista el pulido, su gate debe probar que una respuesta anclada a OTRO corte
-  se pone roja. Hoy solo está la carnada de que el contexto llega y queda registrado.
+**La palabra del owner que lo ordenó, textual:** *«Vamos con el pulido del anclaje de los 41 botones de
+cuadro y después poda inmediata. No quiero podar dejando promesas clickeables sin piso. Cada botón debe
+responder sobre el cuadro exacto que el usuario está mirando, no sobre el negocio general ni sobre otro eje.»*
+
+Vive en `src/adi/agente/playbooks/askDeCuadro.js`, y las tres reglas del §4 se cumplieron así:
+
+1. **Anclaje por módulo**: capital por bodega/familia sale de `queryMetric{capital,·}`, que agrupa
+   `skuInventario.stockUSD` por el MISMO campo que `mesaCapital` (familia se declaró en el contrato de
+   métricas con `groupByField: "sfamilia"` — el campo exacto del cuadro). El gate lo prueba **contra el
+   cuadro VIVO**: recorre `buildMesaCapital().cortes` y exige que la respuesta diga la cifra de cada fila —
+   si el dato cambia, cuadro y respuesta se mueven juntos o el gate se pone rojo.
+2. **El corte sin lectura del motor se declara**: los tramos de EDAD («0–30 días»…) son un derivado de
+   mesaCapital (días sin venta tramados), no un campo del dato — declararlos en el motor habría sido una
+   segunda verdad del tramo. La respuesta lo dice y ofrece la alternativa CON cifra. Con carnada.
+3. **El contexto no autoriza cifras**: `viewContext` viaja al detector (`playbookPara(q, {history, viewContext})`)
+   solo para desambiguar; las formas nombran su corte en la frase del botón, y un nombre fuera del índice
+   **no se adivina** (gateado: «Rancagua» no abre nada; «capital en Falabella» no se sirve por otro eje).
+
+**La frontera de universos, gateada**: la respuesta de un cuadro de Capital no cita venta comercial ni margen
+— y el margen del SKU existe DOS veces con el mismo rótulo (drill del cuadro: margen de inventario 22%;
+skusMargen: comercial 11.1% — medido en SAM-REF500L), así que no se cita ninguno. Regla notarial
+`universo-cruzado` + carnada.
+
+**Cobertura**: las 4 formas × sus variantes (12 casos de turno completo en el gate, incluidos los declives:
+el SKU no frenado con el estado que la carpeta declara, el cliente sin fila publicada en la mesa del cobro,
+el tramo de edad declarado). El emisor sigue sin sembrar viewContext en los cuadros de Capital — ya no
+bloquea: las formas se anclan por la frase del botón; la siembra del emisor queda como mejora de
+desambiguación para catálogos con nombres repetidos entre ejes.

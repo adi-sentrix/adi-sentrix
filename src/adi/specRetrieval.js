@@ -115,14 +115,18 @@ export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario
 
   const field = sba.field;
   let result;
-  if (ent.isGroupBy) {
+  if (ent.isGroupBy || sba.groupByField) {
     // eje de agrupación (bodega/canal): agrupar por el keyField y agregar (sum · avg según el contrato).
     // groupVia (eje canal · 2026-07-26): la etiqueta de grupo puede venir de OTRA fuente por join declarado
     // (clientesMargen no trae canal — el canon nombre↔canal vive en clientesVentas · agregación exacta).
+    // groupByField (pulido del anclaje · 2026-09-05): una MÉTRICA puede declarar su propio campo de agrupación
+    // cuando el eje es una entidad con filas propias en OTRO universo — capital×familia agrupa skuInventario
+    // por `sfamilia` (el MISMO campo con el que el cuadro de Capital arma su corte), sin tocar a la entidad
+    // familia comercial ni mezclar los dos universos.
     const via = sba.groupVia ? new Map(_load(sba.groupVia.source, scenario).map((r) => [String(r[sba.groupVia.key]), r[sba.groupVia.field]])) : null;
     const srcKey = (SOURCES[sba.source] && SOURCES[sba.source].keyField) || "nombre";
     const groups = {};
-    for (const r of rows) { const k = via ? via.get(String(r[srcKey])) : r[ent.keyField]; if (k == null) continue; (groups[k] = groups[k] || []).push(r); }
+    for (const r of rows) { const k = via ? via.get(String(r[srcKey])) : r[sba.groupByField || ent.keyField]; if (k == null) continue; (groups[k] = groups[k] || []).push(r); }
     const agg = sba.agg || "sum";
     result = Object.entries(groups).map(([name, grp]) => {
       const vals = grp.map((r) => r[field]).filter((v) => typeof v === "number");

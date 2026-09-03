@@ -120,10 +120,16 @@ export const METRICS = {
      * días y rotación: `formula` sigue en null porque el valor almacenado del demo no cierra con esta cuenta;
      * `formulaSiFalta` es la que se aplica cuando hay que producirlo. */
     formulaSiFalta: "stock_actual * (costo_del_periodo / unidades_vendidas_del_periodo)",
-    axes: ["sku", "bodega"], scenarioAware: { sku: true, bodega: true },
+    axes: ["sku", "bodega", "familia"], scenarioAware: { sku: true, bodega: true, familia: true },
     sourceByAxis: {
       sku:    { source: "skuInventario", field: "stockUSD" },
       bodega: { source: "skuInventario", field: "stockUSD", agg: "sum" },   // group-by bodega
+      /* familia (pulido del anclaje, owner 2026-09-05: «cada botón debe responder sobre el cuadro exacto que
+       * el usuario está mirando»): el cuadro de Capital corta por familia y su ask «¿Cuánto capital tengo en
+       * Línea Blanca?» no tenía lectura del motor — mismo source, mismo field, mismo group-by que bodega. El
+       * corte por EDAD del cuadro NO se declara acá a propósito: sus tramos son un derivado de mesaCapital
+       * (días sin venta tramados), no un campo del dato — declararlo sería una segunda verdad del tramo. */
+      familia: { source: "skuInventario", field: "stockUSD", agg: "sum", groupByField: "sfamilia" },
     },
   },
   /* ⚠️ `formula` SIGUE EN null A PROPÓSITO, y `formulaSiFalta` es otra cosa (owner 2026-08-22).

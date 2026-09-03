@@ -257,3 +257,18 @@ camino nuevo con su caso de certificación (la línea textual) y su carnada en R
 movieron se re-apuntaron sin perder lo que reclamaban — y el contraste del empujón R6, que ya se había movido
 en T1, ahora se busca su pregunta solo: si un día no queda ninguna lectura sin playbook, se pone rojo para
 avisar que el empujón se quedó sin dominio.*
+
+---
+
+## 8 · CODA · el pulido del anclaje (GO del owner, 2026-09-05)
+
+Con la palabra del owner —*«cada botón debe responder sobre el cuadro exacto que el usuario está mirando»*—
+los 41 `ask` de cuadro diferidos se cerraron el mismo día en `askDeCuadro.js` + T5 (el porqué elíptico, que
+abre SOLO con hilo de margen). **El censo queda: 118 de 135 con camino garantizado · 2 en el puente · 15 sin
+piso** — y esos 15 son las simulaciones de ask (5), la proyección sin tasa (2), las elípticas del porqué
+medidas sin hilo (4 — CON hilo de margen ya abren, que es como llegan en vivo), los imposibles por diseño
+(3: re-narración, «quiénes dejaron de comprar», la caja mes a mes) y la comparación entidad×año (1).
+
+El anclaje se prueba **contra el cuadro vivo** (`buildMesaCapital` en el gate, fila por fila), la frontera de
+universos quedó como regla notarial con carnada, y el corte por edad —que el motor no publica— se declara en
+vez de servirse el más parecido. Detalle de reglas y decisiones: `_CONTRATO_ASK_DE_CUADRO.md` §5.

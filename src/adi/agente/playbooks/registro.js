@@ -32,6 +32,11 @@ import { lecturaPorEje } from "./lecturaPorEje.js";   // playbook de FORMA: cana
 import { entidadPorPeriodo } from "./entidadPorPeriodo.js";   // playbook de FORMA: «cuánto me compró X el último mes» con serie REAL (la bloqueada es del puente)
 import { proyeccionDeclarada } from "./proyeccionDeclarada.js";   // playbook de FORMA: «crezco 3%» · «proyecta +4%» · «reducir 2pp la carga» — con el MISMO detector que el juez P1
 import { cobranza } from "./cobranza.js";   // playbook del COBRO: «quién me debe» · «crédito vs contado» — la misma mesa que la pestaña
+/* el pulido del anclaje (owner 2026-09-05: «cada botón debe responder sobre el cuadro exacto que el usuario
+ * está mirando»). Va TEMPRANO en el registro a propósito: sus formas son las frases de los botones —
+ * inequívocas— y con la precedencia alta «¿Cómo libero el capital inmovilizado en Valparaíso?» se ancla a SU
+ * bodega en vez de caer a la asesoría general del inmovilizado (que va después y conserva todo lo demás). */
+import { askDeCuadro } from "./askDeCuadro.js";
 import { limiteHonesto } from "./limiteHonesto.js";   // certificación (owner 2026-09-02): el eje NO disponible se declara con la razón del dato + alternativa
 import { sintesisEjecutiva } from "./sintesisEjecutiva.js";
 import { fichaDeEntidad } from "./fichaDeEntidad.js";   // T4 · la ficha de una entidad: va ANTES de la foto (que es del negocio entero)
@@ -46,7 +51,7 @@ import { resumenDelNegocio } from "./resumenDelNegocio.js";   // señal del owne
  *  ante «simula/proyecta/ponele»), cobranza, y al final los DOS de la certificación (limite-honesto ·
  *  sintesis-ejecutiva): sus preguntas no tienen dueño previo — nadie de arriba las toma (medido), así que ir
  *  últimos garantiza que no le quitan un turno a nadie. */
-export const PLAYBOOKS = [margenEnRiesgo, clientePerdiendoContribucion, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada, cobranza, fichaDeEntidad, limiteHonesto, sintesisEjecutiva, resumenDelNegocio];
+export const PLAYBOOKS = [margenEnRiesgo, clientePerdiendoContribucion, askDeCuadro, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada, cobranza, fichaDeEntidad, limiteHonesto, sintesisEjecutiva, resumenDelNegocio];
 
 /** playbookPara(pregunta) → el playbook que aplica, o null. El PRIMERO que declare aplicar (orden del registro
  *  = precedencia declarada); jamás dos a la vez, para que el procedimiento del turno sea uno solo y auditable. */
