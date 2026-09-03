@@ -751,7 +751,10 @@ H("1h · T3 · ventas neutra, contra el plan, la serie y el inventario en fraseo
   const texto = async (q) => String((await answerViaAgente({ text: q, history: [], mem: {}, scenario: "bonanza", callAgente: MUDO })).r.text || "");
 
   /* ── la lectura NEUTRA: sin señal de caída, el asesor abre con la lectura y no con un desmentido ── */
-  const NEUTRAS = ["cómo van las ventas", "la venta cómo viene", "cuánto vendimos", "cómo viene la venta", "cuánto facturamos"];
+  /* «¿Cuánto vendí en el período?» es un ask de pantalla que el re-censo encontró sin piso: el verbo estaba
+   * solo en plural. La conjugación es el mismo defecto que el género de «cuánta» — se certifica acá. */
+  const NEUTRAS = ["cómo van las ventas", "la venta cómo viene", "cuánto vendimos", "cómo viene la venta", "cuánto facturamos",
+    "¿Cuánto vendí en el período?", "cuánto vendiste"];
   ok(NEUTRAS.every((q) => (playbookPara(q) || {}).nombre === "lectura-de-ventas"),
     `las ${NEUTRAS.length} formas neutras tienen camino garantizado`,
     NEUTRAS.filter((q) => (playbookPara(q) || {}).nombre !== "lectura-de-ventas").join(" | "));
@@ -804,6 +807,10 @@ H("1h · T3 · ventas neutra, contra el plan, la serie y el inventario en fraseo
   ok((playbookPara("¿Quiénes son mis principales clientes por venta?") || {}).nombre === "lectura-por-eje"
     && /Así viene tu venta por cliente, de mayor a menor:/.test(tQ) && /Falabella: \$19\.4M/.test(tQ),
     "★ y el ranking de clientes por venta sale ordenado y con su cifra", tQ.slice(0, 90));
+
+  /* «cómo vamos» quedó sin piso en el re-censo por la conjugación (la primera persona no estaba): es la foto */
+  ok((playbookPara("cómo vamos") || {}).nombre === "resumen-del-negocio",
+    "«cómo vamos» es la foto del negocio — la primera persona también pregunta el panorama");
 
   /* ── EL NO-SECUESTRO, que es lo caro: siete controles que NO pueden cambiar de dueño ── */
   const AJENOS = [

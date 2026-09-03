@@ -250,12 +250,19 @@ export const inventarioInmovilizado = {
  * NO están en la boleta (medido), así que citarlos sería cifra sin respaldo; y los tres totales que `trend` sí
  * pone en boleta viajan como COMPUTED que el juez del escenario veta con razón. Lo honesto es la lectura del
  * período —que sí es del dato— y decir dónde se ve el mes a mes. */
-const _C_TEMA = /\bventa[s]?\b|\bfacturaci[oó]n\b|\bfactur(?:amos|aci[oó]n)\b|\bvend(?:imos|emos|iendo)\b/i;
+/* el TEMA en sustantivo o en verbo, y el verbo en TODAS sus personas: «¿Cuánto vendí en el período?» es un ask
+ * de pantalla y el tema solo veía el plural (re-censo). «vendí» termina en tilde → `_FIN`, jamás `\b` (§5g). */
+const _C_TEMA = new RegExp(`\\bventa[s]?${_FIN}|\\bfacturaci[oó]n${_FIN}|\\bfactur(?:amos|aste|ando|[eé])${_FIN}|\\bvend(?:imos|emos|iendo|iste|ido|[ií])${_FIN}`, "i");
 const _C_CAE = new RegExp(`\\bca[ií]da${_FIN}|\\bcaen${_FIN}|\\bcayendo${_FIN}|\\bcay[oó]${_FIN}|\\bcayeron${_FIN}|\\bbajaron${_FIN}|\\bbajando${_FIN}|\\bbajad[oa]${_FIN}|\\bbaj[oó]n${_FIN}|\\bdesplom|\\bperd[ií]${_FIN}|\\bperdiendo${_FIN}|\\bvenimos mal${_FIN}|\\bvan mal${_FIN}|venta[s]?\\s+baj|facturaci[oó]n\\s+baj`, "i");
-const _C_FUERA = new RegExp(`\\bq[1-4]${_FIN}|\\btrimestr|\\bsemestr|[uú]ltimo mes${_FIN}|\\bpunto[s]? de venta${_FIN}|\\bcliente[s]?${_FIN}`, "i");
+/* «crédito» y «contado» ceden a cobranza — que va DESPUÉS en el registro, así que si esta lectura no se
+ * retira, se lo lleva puesto: «cuánto vendí a crédito vs contado» es una pregunta del cobro con el verbo
+ * vender adentro (el gate de cobranza lo cazó al ampliar las conjugaciones). */
+const _C_FUERA = new RegExp(`\\bq[1-4]${_FIN}|\\btrimestr|\\bsemestr|[uú]ltimo mes${_FIN}|\\bpunto[s]? de venta${_FIN}|\\bcliente[s]?${_FIN}|\\bcr[eé]dito${_FIN}|\\bcontado${_FIN}`, "i");
 /* la lectura NEUTRA: cómo van · cómo viene · cuánto vendimos · dame la venta. Sin señal de caída y sin pedir
  * un eje — quien nombra un eje («ventas por marca») pregunta otra cosa y la atiende lectura-por-eje. */
-const _C_LEE = new RegExp(`\\bc[oó]mo (?:va[n]?|viene[n]?|est[aá]|estamos|andamos|venimos)${_FIN}|\\bcu[aá]nto (?:vendimos|facturamos|llevamos|va|vendemos)${_FIN}|\\bcu[aá]nto (?:es|fue) (?:la|mi|nuestra) (?:venta|facturaci[oó]n)${_FIN}|\\b(?:dame|mu[eé]strame|muestrame|ver|quiero ver|necesito ver)${_FIN}|\\bevoluci[oó]n${_FIN}|\\bqu[eé] tal (?:van|viene|est[aá])${_FIN}`, "i");
+/* el verbo en TODAS sus personas — «¿Cuánto vendí en el período?» es un ask de pantalla y el detector solo
+ * veía el plural (el re-censo lo cazó: la conjugación es el mismo defecto que el género de «cuánta»). */
+const _C_LEE = new RegExp(`\\bc[oó]mo (?:va[n]?|viene[n]?|est[aá]|estamos|andamos|venimos)${_FIN}|\\bcu[aá]nto (?:vend[ií](?:mos)?|vendiste|factur(?:amos|[eé]|aste)|llevamos|llevo|va|vendemos)${_FIN}|\\bcu[aá]nto (?:es|fue) (?:la|mi|nuestra) (?:venta|facturaci[oó]n)${_FIN}|\\b(?:dame|mu[eé]strame|muestrame|ver|quiero ver|necesito ver)${_FIN}|\\bevoluci[oó]n${_FIN}|\\bqu[eé] tal (?:van|viene|est[aá])${_FIN}`, "i");
 /* el plan comprometido — el ask de pantalla dice «contra el presupuesto» y el dato lo trae (vs_presupuesto). */
 const _C_PPTO = new RegExp(`\\bpresupuest|\\bppto${_FIN}|\\bplan${_FIN}|\\bcomprometid`, "i");
 const _C_SERIE = new RegExp(`\\bmes a mes${_FIN}|\\bmensual(?:es|mente)?${_FIN}|\\bevoluci[oó]n${_FIN}|\\bpor mes${_FIN}`, "i");
@@ -267,6 +274,11 @@ function _casoVentas(pregunta) {
   if (_SIMULA.test(q) || _DEUDA.test(q) || _C_FUERA.test(q)) return null;
   if (detectSerieIntent(q)) return null;
   if (!_C_TEMA.test(q)) return null;
+  /* el PASADO a secas no es esta lectura: «cuánto vendí el año pasado» pide el total de OTRO período, y
+   * abrirle la lectura del período actual sería cambiarle la pregunta (el gate de proyección lo congeló:
+   * el pasado es historia, no supuesto). La COMPARACIÓN contra ese pasado sí es de acá. */
+  if (new RegExp(`\\ba[ñn]o (?:pasado|anterior)${_FIN}|\\bmes pasado${_FIN}`, "i").test(q)
+    && !new RegExp(`\\bcontra${_FIN}|\\bvs\\.?${_FIN}|\\bversus${_FIN}|\\bcompar`, "i").test(q)) return null;
   /* nombra a alguien → no es la lectura del negocio: contestar el total a quien preguntó por una cuenta es
    * cambiarle la pregunta (el secuestro que el censo encontró en la foto). Ante la duda, false. */
   if (nombraEntidad(q)) return null;
@@ -315,10 +327,15 @@ export const lecturaDeVentas = {
     // LA VOZ (2026-09-03): el asesor abre con el veredicto y lo respalda — sin endulzar el que viene mal.
     if (contraPpto) {
       /* el par de cifras NO llega en este foco (medido): el motor publica el headline y la brecha por cliente,
-       * y el total contra el plan solo como texto de panel que no entra a la boleta. Se dice lo que hay. */
-      partes.push(cae
-        ? `Tu venta quedó bajo el presupuesto comprometido${par ? `: ${par.total} contra ${par.ref}` : ""} — ${_val(head)} en la lectura del período.`
-        : `Tu venta va por encima del presupuesto comprometido${par ? `: ${par.total} contra ${par.ref}` : ""} — ${_val(head)} en la lectura del período.`);
+       * y el total contra el plan solo como texto de panel que no entra a la boleta. Se dice lo que hay.
+       * Y el EMPATE PUBLICADO no toma partido: con «0.0%» en pantalla (el pack de plantilla lo produce), decir
+       * «por encima» es afirmar una dirección que la cifra que el usuario ve no muestra. */
+      const empate = /^-?0([.,]0+)?\s*%$/.test(_val(head).trim());
+      partes.push(empate
+        ? `Tu venta viene en línea con el presupuesto comprometido${par ? `: ${par.total} contra ${par.ref}` : ""} — ${_val(head)} en la lectura del período.`
+        : cae
+          ? `Tu venta quedó bajo el presupuesto comprometido${par ? `: ${par.total} contra ${par.ref}` : ""} — ${_val(head)} en la lectura del período.`
+          : `Tu venta va por encima del presupuesto comprometido${par ? `: ${par.total} contra ${par.ref}` : ""} — ${_val(head)} en la lectura del período.`);
     } else if (caso === "neutra" || caso === "serie") {
       /* la pregunta NO afirmó que la venta cae: se abre con la lectura, no con un desmentido. */
       /* el guion largo antes de un porcentaje se lee como signo menos: «$100.0M — 7.6%» parecía una caída

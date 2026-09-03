@@ -39,7 +39,10 @@ const _FIN = "(?![a-záéíóúüñ])";
  * nombre un tema con dueño propio (margen, cobro, inventario, un cliente puntual) — esas ya tienen su camino
  * y secuestrarlas sería peor que no existir. */
 const _PANORAMA = new RegExp([
-  `\\bc[oó]mo (?:va|viene|venimos|estamos|anda)${_FIN}`,
+  /* «vamos» y «andamos» son la primera persona del mismo pedido — «cómo vamos» quedó sin piso en el re-censo
+   * por la conjugación, el mismo defecto que «cuánta» y «vendí». Los excluyentes de abajo siguen mandando:
+   * «cómo vamos de margen» es del margen y «cómo vamos con Falabella» es de la ficha. */
+  `\\bc[oó]mo (?:va|viene|venimos|vamos|estamos|anda|andamos)${_FIN}`,
   `\\bresumen ejecutivo\\b`, `\\bresumen (?:del|de) negocio\\b`, `\\bresumen general\\b`,
   `\\bla foto (?:del negocio|general)\\b`, `\\bpanorama\\b`,
   `\\bpuntos altos\\b`, `\\bfuertes y d[eé]biles\\b`, `\\blo bueno y lo malo\\b`,
