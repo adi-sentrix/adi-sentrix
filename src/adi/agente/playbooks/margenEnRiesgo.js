@@ -18,6 +18,7 @@
  * PURO · determinístico · sin red. Cifras VERBATIM de la boleta: este módulo selecciona y ordena, jamás calcula. */
 
 import { variante } from "../variacion.js";   // el cierre varía por semilla («matar la repetición», 2026-09-03)
+import { buildRolesCartera } from "../../sentrix/rolesCartera.js";   // el porqué: el papel de cada cliente y la huella de cada mecanismo
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 /* ⚠️ EL MOTOR SOLO PONE `raw` EN LAS FILAS DESTACADAS (medido: de los 13 clientes con margen, 5 traen `raw` y
@@ -81,6 +82,10 @@ export function lecturaDeMargen(figs) {
  * `qu[eé]\b` NO veía «qué» (con tilde, que es como se escribe), `supon(?:e|é)\b` NO veía «suponé» y
  * `la causa (?:es|está)\b` NO veía «está». `_FIN` es el cierre que sí cuenta vocales acentuadas y ñ. */
 const _FIN = "(?![a-záéíóúüñ])";
+/* ⚠️ EL DETECTOR DEL PORQUÉ mide el CONCEPTO, no una frase (el caso 13 del patrón de la casa): «por qué» con y
+ * sin tilde y pegado o separado, «a qué se debe», «qué lo explica», «cuál es la causa/razón/motivo»,
+ * «profundiza». Sin `\b` delante de vocal acentuada (el `\b` imposible, §5g del contrato). */
+const _PIDE_PORQUE = new RegExp(`\\bpor\\s?qu[eé]${_FIN}|\\bporqu[eé]${_FIN}|\\ba qu[eé] se debe${_FIN}|\\bqu[eé] lo explica${_FIN}|\\b(?:cu[aá]l es la|la) (?:causa|raz[oó]n|explicaci[oó]n)\\b|\\bmotivo\\b|\\bprofundiz|\\bexplic[aá]${_FIN}|\\bexpl[ií]came${_FIN}`, "i");
 const _TEMA_MARGEN = /\bm[aá]rgen(?:es)?\b|\bbenchmark\b|\bvara\b|\brentabilidad\b/i;
 const _PIDE_LECTURA = new RegExp(`\\bc[oó]mo${_FIN}|\\bqu[eé]${_FIN}|\\bqui[eé]n(?:es)?${_FIN}|\\bcu[aá]l(?:es)?${_FIN}|\\bcu[aá]nto${_FIN}|\\bd[oó]nde${_FIN}|\\bprioriza|\\bprioridad\\b|\\bprimero\\b|\\brevis|\\bmejor(?:ar|a)\\b|\\bbajo\\b|\\bdebajo\\b|\\briesgo\\b|\\bdame\\b|\\bmu[eé]stra|\\blista\\b|\\branking\\b`, "i");
 /* ⚠️ LO QUE QUEDA AFUERA, Y POR QUÉ (calibrado contra el corpus de exámenes, cero gasto — cazó tres casos):
@@ -105,6 +110,85 @@ const _OTRO_EJE = /\brotaci[oó]n\b|\binventario\b|\bstock\b|\bbodega|\bpunto[s]
  * la frontera de atrás con `_FIN`, como el resto del archivo. */
 const _OTRO_PERIODO = new RegExp(`\\bq[1-4]\\b|\\btrimestr|\\bmensual\\b|\\bmes a mes\\b|[uú]ltimo mes${_FIN}|\\bsemestr`, "i");
 
+/* ── EL ENTREGABLE DEL PORQUÉ (owner 2026-09-04) ───────────────────────────────────────────────────────────
+ * Su alineamiento, textual: «hay clientes que venden mucho pero erosionan margen, unos apuntan a volumen,
+ * otros tienen mejor costo… puede ser una decisión gerencial apuntar a volumen y perder un poco de margen
+ * pero eso da rotación, movimiento, liquidez… pero hay otros clientes que bajan el margen por demasiadas
+ * acciones comerciales». Este peldaño lo arma sin cerebro: la ESTRUCTURA la lee del motor de papeles (leer el
+ * motor no es calcular — la misma técnica de `pisoFocosUSD()` en asesoría) y las CIFRAS salen verbatim de la
+ * boleta, como siempre. Si la boleta no trae los papeles, devuelve null y el turno sigue su camino. */
+function componerElPorque({ figs, semilla, scenario }) {
+  let A = null;
+  try { A = buildRolesCartera(scenario); } catch { A = null; }
+  if (!A || !A.hay) return null;
+  const cuenta = _find(figs, /^Clientes · erosi[oó]n por acciones comerciales$/i);
+  if (!cuenta) return null;                                   // la tool no corrió en este turno: no se inventa
+  const bench = _find(figs, /^Benchmark de margen$/i);
+  const target = _find(figs, /^Target de carga$/i);
+  const brechaDe = (e) => _find(figs, new RegExp(`^${_esc(e)} · Brecha al benchmark$`, "i"));
+  const cargaDe = (e) => _find(figs, new RegExp(`^${_esc(e)} · Carga comercial$`, "i"));
+  const C = A.concurrencia || {};
+  const p = [];
+
+  /* 1 · LA TESIS — qué historia cuentan juntos los números (no dos problemas: uno con dos síntomas) */
+  /* ⚠️ EL BENCHMARK NO COMPARTE ORACIÓN CON «la venta» (multa del muro al estrenar esto, y era CORRECTA: con
+   * «bajo tu benchmark (30.1%) … sostienen la venta» el binding leía ese % como cifra de ventas). Cada cifra
+   * en su oración, con su dueño — la misma lección que el vigía aprendió el día anterior. */
+  p.push(C.mismaGente && C.grandesQueCaen > 1
+    ? `Lo primero, y cambia la decisión: los que caen bajo tu referencia de margen son los mismos que sostienen tu facturación. No son dos problemas —uno de margen y otro de concentración—: es uno solo con dos caras.`
+    : `Lo primero: no todos los que caen bajo tu referencia de margen caen por la misma razón, y por eso no se tratan igual.`);
+
+  /* 2 · LOS PAPELES — la distinción que el owner pidió: estrategia vs fuga.
+   * La PARTICIÓN se declara entera contra el conteo del motor antes de nombrar a nadie: así el lector ve que
+   * los grupos suman el total y ninguno de los nombrados pasa por «todos» (la lista-sin-corte que este mismo
+   * playbook multa — y me multó al estrenar esto: la corrección fue de redacción, no de regla). */
+  const ero = A.roles.erosion_por_acciones, vol = A.roles.apuesta_de_volumen, del = A.roles.margen_delgado;
+  const conteoTotal = _find(figs, /clientes bajo el benchmark/i);
+  const partes = [ero, vol, del].filter((r) => r && r.n).map((r) => `${r.n} ${r.titulo}`);
+  if (conteoTotal && partes.length > 1) {
+    p.push(`\nDe los ${_val(conteoTotal)} que están bajo la vara: ${partes.join(" · ")}. No son el mismo problema y no se tratan igual.`);
+  }
+  if (ero && ero.n) {
+    const nombres = ero.items.slice(0, 3).map((f) => {
+      const b = brechaDe(f.entidad), c = cargaDe(f.entidad);
+      return `${f.entidad}${b ? ` (${_val(b)} bajo la vara${c ? `, carga ${_val(c)}` : ""})` : ""}`;
+    });
+    /* el CORTE se declara en cada grupo («los 3 que más pesan de los N»): nombrar algunos sin decir cuántos
+     * son es la lista-sin-corte que este mismo playbook multa — y me la multó al estrenar el porqué. */
+    p.push(`\n**Los que pagan el margen en acciones comerciales.** ${_val(cuenta)} de tus clientes están bajo la vara Y además cargan más acciones comerciales que tu target${target ? ` (${_val(target)})` : ""}. Los ${nombres.length} que más pesan de esos ${_val(cuenta)}: ${nombres.join(" · ")}. Acá el margen no se pierde en el precio: se entrega en la negociación comercial.`);
+  }
+  if (vol && vol.n) {
+    p.push(`\n**Los que compran volumen a margen bajo.** ${vol.items.slice(0, 3).map((f) => f.entidad).join(" · ")}: margen bajo la vara pero con la carga dentro del target. Eso ya no es fuga por carga — es precio. Puede ser una decisión tuya: volumen a cambio de rotación y liquidez.`);
+  } else if (C.grandesQueCaen) {
+    p.push(`\n**Volumen y fuga, en la misma cuenta.** En tu dato no hay un solo cliente grande que caiga SIN exceder el target de carga: los ${C.grandesQueCaen} que mueven la venta y caen, todos cargan de más (entre ${C.excesoMin} y ${C.excesoMax} puntos sobre el target). Por eso no se puede recortar la carga sin tocar a los que sostienen la facturación — ahí está la decisión difícil.`);
+  }
+  if (del && del.n) {
+    p.push(`\n**Los de margen delgado sin carga alta ni volumen.** ${del.items.slice(0, 3).map((f) => f.entidad).join(" · ")}: ni pagan carga de más ni mueven volumen. Ahí el margen es precio de lista o mix de lo que compran.`);
+  }
+
+  /* 3 · LAS HIPÓTESIS CON SU HUELLA — cada mecanismo, qué marca deja y cuál está en ESTE dato */
+  const linea = (h) => `- ${h.mecanismo} · ${h.sello.toUpperCase()}: ${h.porque}${h.falta ? ` Para cerrarlo: ${h.falta}.` : ""}`;
+  p.push(`\n**Por qué pasa, con lo que el dato permite afirmar y lo que no:**`);
+  for (const h of A.huellas) p.push(linea(h));
+
+  /* 4 · LA REGLA DE DECISIÓN — convierte la duda en un experimento, no en una opinión */
+  p.push(`\n**Cómo se resuelve la duda:** si el exceso de carga se repite parejo en toda la cartera, es política comercial y se corrige con una regla; si cambia cliente por cliente, es negociación y se corrige cuenta por cuenta. Tu dato dice que el exceso va de ${C.excesoMin} a ${C.excesoMax} puntos: no es parejo.`);
+
+  /* 5 · LA PREGUNTA AL DUEÑO — solo lo que ninguna columna puede saber */
+  if (A.preguntaAlDueno) p.push(`\n${A.preguntaAlDueno.texto} De tu respuesta depende si eso es estrategia o fuga: el dato mide la carga comercial, no la intención.`);
+
+  /* 6 · EL PASO SIGUIENTE, DENTRO DE ADI — jamás «convendría reunirse» si se puede avanzar acá */
+  const primero = (ero && ero.items[0]) || (vol && vol.items[0]) || null;
+  if (primero) {
+    p.push(variante(semilla, [
+      `Yo partiría por ${primero.entidad} —criterio mío, no una cifra del dato—: es donde la carga sobre el target y el volumen coinciden. Pídeme su serie mes a mes y vemos desde cuándo se abrió la brecha.`,
+      `Criterio mío, no una cifra del dato: empezaría por ${primero.entidad}, donde la carga sobre el target y el volumen coinciden. Si quieres, abro su serie mes a mes y vemos desde cuándo.`,
+      `Si fuera mi decisión, entraría por ${primero.entidad} —criterio mío— porque ahí coinciden la carga sobre el target y el volumen. Te abro su serie mes a mes cuando digas.`,
+    ]));
+  }
+  return p.join("\n");
+}
+
 export const margenEnRiesgo = {
   nombre: "margen-en-riesgo",
 
@@ -114,12 +198,22 @@ export const margenEnRiesgo = {
     return _TEMA_MARGEN.test(q) && _PIDE_LECTURA.test(q);
   },
 
-  pasos: [
-    { tool: "marginRead", args: { focus: "bajo_benchmark", dimension: "cliente" },
-      para: "quiénes están bajo el benchmark, con su margen y su venta, más el benchmark declarado, el margen promedio y el conteo" },
-    { tool: "diagnose", args: {},
-      para: "cuánta contribución no se captura —por cliente y en total— y dónde localiza el motor el exceso de carga comercial" },
-  ],
+  /* LOS PASOS SON FUNCIÓN DE LA PREGUNTA (owner 2026-09-04): el turno que pregunta CÓMO viene el margen paga
+   * dos lecturas; el que pregunta POR QUÉ suma la tercera —`rolesCartera`, el papel de cada cliente y la huella
+   * de cada mecanismo— porque sin ella el cerebro no tiene con qué razonar el porqué y termina repitiendo
+   * dónde y cuánto (el defecto que el owner encontró en producción). El que no pregunta el porqué no la paga:
+   * la evidencia cara viaja solo cuando hace falta, igual que la doctrina. */
+  pasos(pregunta) {
+    const base = [
+      { tool: "marginRead", args: { focus: "bajo_benchmark", dimension: "cliente" },
+        para: "quiénes están bajo el benchmark, con su margen y su venta, más el benchmark declarado, el margen promedio y el conteo" },
+      { tool: "diagnose", args: {},
+        para: "cuánta contribución no se captura —por cliente y en total— y dónde localiza el motor el exceso de carga comercial" },
+    ];
+    if (!_PIDE_PORQUE.test(String(pregunta || ""))) return base;
+    return [...base, { tool: "rolesCartera", args: {},
+      para: "el PAPEL de cada cliente (fuga por acciones · volumen a margen bajo · margen delgado · sano) y la huella de cada mecanismo con su sello — la evidencia para razonar el porqué sin inventarlo" }];
+  },
 
   /* las figs que este playbook PROMETE. Si el dato de un tenant no las sostiene, el playbook no promete nada y
    * se retira: sin vara declarada o sin conteo, «quiénes están bajo el benchmark» no tiene respuesta honesta. */
@@ -139,7 +233,15 @@ export const margenEnRiesgo = {
    * Brecha al benchmark» — la cifra de la card) y solo si la boleta la trae; «margen promedio» y «benchmark»
    * se nombran con su palabra al lado de su % (las anclas léxicas del humo); el recorte se declara («3 de los
    * 8»); la prioridad nombra su criterio. Cercanía sí, adulación no: si el margen viene mal, se dice derecho. */
-  componer({ figs, semilla } = {}) {
+  componer({ figs, semilla, pregunta, scenario } = {}) {
+    /* EL PORQUÉ TIENE SU PROPIO ENTREGABLE (owner 2026-09-04). Cuando la pregunta pide la causa y los pasos
+     * trajeron los papeles, el peldaño determinístico RAZONA en vez de repetir dónde y cuánto — que es
+     * exactamente el defecto que el owner encontró en producción. Si los papeles no están (la tool no corrió),
+     * cae al entregable de siempre sin ruido. */
+    if (_PIDE_PORQUE.test(String(pregunta || ""))) {
+      const porque = componerElPorque({ figs, semilla, scenario });
+      if (porque) return porque;
+    }
     const L = lecturaDeMargen(figs);
     if (!L.bench || !L.conteo || !L.bajo.length) return null;
     const nDeclarado = _num(L.conteo);
@@ -182,7 +284,7 @@ export const margenEnRiesgo = {
   /* ── LA LISTA NOTARIAL DEL PLAYBOOK · chequeos MECÁNICOS de SUS promesas ─────────────────────────────────────
    * Se SUMA al muro (guardC intacto) y solo corre cuando el playbook está activo y trajo sus obligatorias.
    * El notario crece por REGLAS, nunca por comprensión: cada una compara texto contra la boleta. */
-  listaNotarial(texto, { figs } = {}) {
+  listaNotarial(texto, { figs, pregunta } = {}) {
     const t = String(texto || "");
     if (!t.trim()) return [];
     const L = lecturaDeMargen(figs);
@@ -272,7 +374,76 @@ export const margenEnRiesgo = {
       }
     }
 
-    const MECANISMOS = /carga comercial|rebate|contribuci[oó]n no capturada|capital frenado|peso del costo|\bcosto\b|benchmark/i;
+    /* ⚠️ REAPUNTADA AL CONCEPTO (owner 2026-09-04, calibrando el corpus del porqué): esta lista exigía la
+     * cadena literal «carga comercial» y multó «porque ahí coinciden la carga sobre el target y el volumen» —
+     * una oración que nombra EXACTAMENTE el mecanismo que el motor mide (`pctRebate` contra el target). Era
+     * medir la forma en vez del concepto: el caso 13 del patrón, dentro de mi propia regla. Ahora entran los
+     * mecanismos MEDIDOS con sus nombres reales (la carga en cualquiera de sus formas, las acciones
+     * comerciales, el markup/precio de lista contra el costo, el volumen del tramo alto). Lo que sigue
+     * cayendo —y su carnada lo prueba— es la causa que no nombra ningún mecanismo medido: «cede margen porque
+     * su equipo negocia mal». */
+    /* ── LAS TRES REGLAS DEL RAZONAMIENTO (owner 2026-09-04) ──────────────────────────────────────────────
+     * Nacieron del ANTI-CORPUS que el supervisor exigió antes que el código: escritas las trampas con el tono
+     * de asesor bien puesto, TRES pasaron el muro. Enseñarle a ADI a razonar el porqué abre puertas nuevas, y
+     * estas son sus cerraduras. El riesgo no era que el notario multara de más: era que el tono seguro le
+     * hiciera pasar una mentira. */
+
+    /* 6 · UNA HIPÓTESIS NO SE VUELVE CERTEZA EN LA ORACIÓN SIGUIENTE. La trampa: «Podría ser el mix. Ese mix
+     * explica la brecha de 6.1 puntos de Jumbo». Abre marcado y cierra afirmando — el disfraz más peligroso,
+     * porque la marca de honestidad está puesta y aun así la conclusión se sirve como probada. */
+    const _MARCA_HIP = /\b(?:puede|pueden|podr[íi]a(?:n)?|quiz[áa]s?|tal vez|probablemente|posiblemente|hip[oó]tesis|sospecho|mi hip[oó]tesis)\b/i;
+    const _AFIRMA_CAUSA = /\b(?:explica|explican|es lo que causa|es la causa|confirma que|demuestra que|por eso (?:cae|baja|pierde))\b/i;
+    const _MECANISMO_NOMBRADO = /\bmix\b|\bcarga\b|acciones comerciales|\brebate|\bprecio\b|\bcosto\b|\bvolumen\b|\bdescuento/i;
+    {
+      const oraciones = t.split(/(?<=[.!?])\s+|\n+/).filter((o) => o.trim());
+      for (let i = 0; i < oraciones.length; i++) {
+        if (!(_MARCA_HIP.test(oraciones[i]) && _MECANISMO_NOMBRADO.test(oraciones[i]))) continue;
+        const mecanismo = (oraciones[i].match(_MECANISMO_NOMBRADO) || [])[0];
+        for (const sig of oraciones.slice(i + 1, i + 3)) {
+          if (_AFIRMA_CAUSA.test(sig) && new RegExp(_esc(mecanismo), "i").test(sig) && !_MARCA_HIP.test(sig)) {
+            v.push({ regla: "hipotesis-vuelta-certeza",
+              multa: `abres «${mecanismo}» como hipótesis y en la oración siguiente la tratas como explicación probada: una hipótesis marcada obliga a seguir marcada, o el marcador es decorativo. Di qué la confirmaría, no que ya explica.` });
+            break;
+          }
+        }
+        if (v.some((x) => x.regla === "hipotesis-vuelta-certeza")) break;
+      }
+    }
+
+    /* 7 · LA INTENCIÓN DEL DUEÑO NO ESTÁ EN NINGUNA COLUMNA. La trampa: «Falabella y Jumbo son tu apuesta de
+     * volumen deliberada… no hay nada que corregir ahí». El dato mide la carga, no el propósito: eso se
+     * PREGUNTA (y el módulo de papeles emite la pregunta), jamás se declara. Se multa la afirmación; la
+     * pregunta y la posibilidad marcada pasan limpias — que es justo la conducta que el owner pidió. */
+    const _AFIRMA_INTENCION = /\b(?:es|son|fue|fueron)\s+(?:tu|su|una)\s+(?:apuesta|decisi[oó]n|estrategia)\s+(?:deliberada|consciente|gerencial|tuya|comercial)?|\bdecidiste\b|\blo hiciste a prop[oó]sito\b/i;
+    for (const oracion of t.split(/(?<=[.!?])\s+|\n+/)) {
+      if (!_AFIRMA_INTENCION.test(oracion)) continue;
+      /* ⚠️ AFINADA EN LA MISMA CALIBRACIÓN: la primera versión multó «Lo que el dato no sabe: SI ese volumen
+       * a ese margen fue una decisión tuya» — una subordinada de DUDA, que es justo la conducta correcta.
+       * Distinguir afirmación de duda es el trabajo de la regla; medir solo el verbo era medir la forma. */
+      const _DUDA = /\bsi\s+(?:eso|ese|esa|esto|es|fue|son|fueron)\b|\bno s[ée] si\b|\bno puedo saber\b|\bel dato no (?:sabe|mide|dice)\b|\bhabr[íi]a que (?:confirmar|preguntar)\b|\bdepende de\b/i;
+      if (/[¿?]/.test(oracion) || _MARCA_HIP.test(oracion) || _DUDA.test(oracion)
+        || /\bme dijiste\b|\bseg[uú]n me confirmaste\b|\bcomo me contaste\b/i.test(oracion)) continue;
+      v.push({ regla: "intencion-declarada",
+        multa: "declaras como hecho una INTENCIÓN del dueño (que ese volumen o ese margen es una apuesta deliberada) y eso no está en ninguna columna del dato: se pregunta, o se cita porque él ya lo dijo. El dato mide la carga comercial, no el propósito." });
+      break;
+    }
+
+    /* 8 · EN EL ANÁLISIS DEL PORQUÉ, TODO MONTO SALE DE LA BOLETA DE ESTE TURNO. Defensa propia, medida: con
+     * el `datoProyectado` puesto, el muro dejó pasar «te está costando unos $780K» — un monto que NO existe
+     * en el dato (verificado: 0 coincidencias en las 318 cifras del negocio). El hueco es del muro y está
+     * reportado; esta regla cierra la puerta en el territorio del playbook, que es el mío. */
+    if (_PIDE_PORQUE.test(String(pregunta || ""))) {
+      const montosBoleta = new Set(_all(figs, /./).map((f) => _val(f).replace(/\s+/g, "")));
+      for (const m of t.match(/\$\s?[\d.,]+\s?[KMB]?/g) || []) {
+        if (!montosBoleta.has(m.replace(/\s+/g, ""))) {
+          v.push({ regla: "monto-fuera-de-boleta",
+            multa: `citas ${m} y ese monto no está en la evidencia de este turno: en un análisis del porqué toda cifra sale de la boleta, con su dueño. Un marcador de criterio («mi lectura») no autoriza un número.` });
+          break;
+        }
+      }
+    }
+
+    const MECANISMOS = /carga(?:\s+(?:comercial|sobre|alta|del?))?\b|acciones comerciales|rebate|contribuci[oó]n no capturada|capital frenado|peso del costo|\bcosto\b|\bmarkup\b|precio de lista|\bmix\b|benchmark|volumen/i;
     // el «%» sin `\b` detrás (ver la nota de _CIFRA_EN_MULTA en bucleAgente): con `\b` esta regla no veía
     // NINGÚN porcentaje, y en este playbook casi toda cifra que ancla una causa es un margen.
     const CIFRA = /\$\s?[\d.,]+\s?[KMB]?|[\d.,]+\s*%|[\d.,]+\s*(?:pp|x)\b/;

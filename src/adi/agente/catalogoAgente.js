@@ -48,6 +48,16 @@ export const CONTRATOS_AGENTE = {
     entityScopeNativo: false, escribeEntityList: false,
     notas: "quién te debe y cuánto: venta a crédito, abonado y saldo pendiente por cliente, de la misma mesa que la pestaña Flujo Comercial. El saldo vencido solo existe con plazo de pago declarado; sin plazo viaja «—» y el porqué — jamás $0. Las ventas de contado no generan deuda y no entran.",
   },
+  /* `rolesCartera` · LA HERRAMIENTA DEL PORQUÉ (owner 2026-09-04). El agente sabía decir dónde y cuánto y no
+   * tenía con qué razonar el porqué: esta trae el PAPEL de cada cliente y la HUELLA de cada mecanismo, sellada.
+   * Es evidencia para pensar, no una causa servida: el contrato viaja en sus propios `facts`. */
+  rolesCartera: {
+    dimensionesSoportadas: ["cliente"],
+    entidad: "none", aceptaEntidadPuntual: false, multiCardinality: null,
+    inputsObligatorios: [], supuestosRequeridos: null, operacionValida: ["answer"],
+    entityScopeNativo: false, escribeEntityList: false,
+    notas: "POR QUÉ se pierde margen: el papel de cada cliente (erosiona por acciones comerciales · vende volumen a margen bajo · margen delgado · sano) con la regla que lo clasifica, y la huella de cada mecanismo (acciones sobre el target · volumen · precio pegado al costo · mix por familia) con su sello probado/indicado/abierto y, cuando está abierto, QUÉ falta en el dato para cerrarlo. Trae además la pregunta al dueño cuando la distinción depende de una intención que ninguna columna mide. Son patrones medidos para razonar, jamás causas probadas.",
+  },
   preferenciaNombre: {
     dimensionesSoportadas: [],
     entidad: "none", aceptaEntidadPuntual: false, multiCardinality: null,

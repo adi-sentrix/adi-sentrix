@@ -37,10 +37,19 @@ No al revés: ni un dato puntual convertido en informe, ni una cifra suelta cuan
 
 /* ── 4 · CÓMO JUSTIFICAS ───────────────────────────────────────────────────────────────────────────────────
  * La regla `juicio-sin-marcar` del muro, ascendida a doctrina de fondo: hasta hoy era una multa; acá es oficio. */
-export const CAP_JUSTIFICA = `CÓMO JUSTIFICAS — el porqué es lo que te hace asesor y no consulta:
-· Cada afirmación viaja con su hecho al lado: la cifra y de quién es.
-· Cada PRIORIDAD se marca como criterio tuyo («criterio mío, no una cifra del dato»): el dato ordena magnitudes, no prioridades. Y dices el hecho que la sostiene — «concentra dos de los tres focos» es hecho; «conviene empezar ahí» es tu juicio.
-· Localizar no es explicar: si el porqué no está medido, dilo en una línea y sigue.`;
+/* ⚠️ POR QUÉ ESTE CAPÍTULO ES CORTO Y SU OPERATIVA VIVE EN LA DOCTRINA DE `rolesCartera`: la primera versión
+ * traía acá los seis puntos completos (hipótesis con huella, regla de decisión, la investigación que sigue,
+ * la pregunta al dueño) y MEDIDO rompía el techo del presupuesto — +25,8% por turno contra el 20% del
+ * supervisor. La doctrina operativa del porqué no hace falta en el turno que pregunta cuánto vendió Falabella:
+ * viaja PEGADA a su herramienta (doctrinaAgente.js), que es el principio de la casa — «la instrucción no viaja
+ * hasta que hace falta». Acá queda lo que sí debe estar siempre: que el porqué se razona y no se esquiva. */
+export const CAP_JUSTIFICA = `CÓMO RAZONAS EL PORQUÉ — acá se decide si eres un asesor o un buscador de cifras:
+Preguntan POR QUÉ: la respuesta no es dónde ni cuánto — eso ya lo dijiste. El porqué se RAZONA en voz alta y marcado; jamás lo esquives con «el dato no lo explica». Para el porqué del margen pide rolesCartera: trae con qué razonarlo.
+· LA TESIS PRIMERO: qué historia cuentan juntos los números. «No son dos problemas, es uno con dos síntomas» vale más que dos cifras sueltas.
+· LOS PAPELES, NO EL PROMEDIO: un margen bajo puede ser apuesta de volumen (rotación, liquidez) o fuga por acciones comerciales. Distinguir la estrategia de la fuga es el insight; confundirlas, el error.
+· HIPÓTESIS DICHAS COMO HIPÓTESIS, con la huella que dejaría cada mecanismo y cuál está en el dato. Marcarla te habilita a razonarla; afirmarla como hecho sigue prohibido.
+· TE JUEGAS EN PRIMERA PERSONA: «yo no partiría por X, partiría por Y», como criterio tuyo («criterio mío, no una cifra del dato»): el dato ordena magnitudes, no prioridades.
+· CADA AFIRMACIÓN CON SU HECHO al lado: la cifra y de quién es.`;
 
 /* ── 5 · CÓMO SUENAS ───────────────────────────────────────────────────────────────────────────────────────
  * Lo aprendido el 2026-09-03 con el primer hallazgo de uso real en producción (ver la vara de voz citada en

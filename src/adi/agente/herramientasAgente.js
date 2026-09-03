@@ -24,6 +24,7 @@ import { factorComercialDe } from "../../config/contract/figureType.js";
 import { serieRealDe } from "../sentrix/capability.js";
 import { ventaOficialDelPeriodo } from "../sentrix/temporal.js";   // `proyectar` · la venta oficial del período: la sola verdad que el owner declaró (2026-07-15)
 import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";   // `cobranza` · la MISMA mesa que la pestaña Flujo Comercial — una sola verdad, cero recalculo
+import { buildRolesCartera, REGLAS_DE_ROL } from "../sentrix/rolesCartera.js";   // `rolesCartera` · el papel de cada cliente y la huella de cada mecanismo (el porqué, hecho evidencia)
 import { findCandidates } from "../oracle/entityIndex.js";
 import { fig, parseFigures } from "../boleta.js";   // parseFigures se usa como FORMATEADOR (ver `_m` en proyectar): la técnica de la casa, jamás una copia
 import { fmtMonto, simboloMoneda } from "../../config/moneda.js";
@@ -332,6 +333,54 @@ export function preferenciaNombre({ nombre } = {}) {
 
 /** la caja completa del agente: el registro de siempre + las nuevas. Se arma acá para que el bucle y los
  *  gates tengan UNA fuente del catálogo. */
+/* ── `rolesCartera` · EL PORQUÉ, HECHO EVIDENCIA (owner 2026-09-04) ─────────────────────────────────────────
+ * El defecto que el owner encontró en producción: ante «¿por qué perdemos margen?» ADI decía dónde y cuánto,
+ * jamás por qué. No era falta de permiso —el muro siempre admitió hipotetizar marcado— era falta de EVIDENCIA
+ * del porqué: ninguna herramienta traía con qué razonarlo. Esta lo trae: el PAPEL de cada cliente (fuga por
+ * acciones · volumen a margen bajo · margen delgado · sano) y la HUELLA de cada mecanismo con su sello
+ * (probado · indicado · abierto), incluida la que el dato NO sostiene y qué haría falta para cerrarla.
+ * Cero cifras nuevas fuera de las cuentas que `rolesCartera.js` declara; la interpretación es del cerebro. */
+export function rolesCartera(_args = {}, { scenario = ESCENARIO_INICIAL } = {}) {
+  let A = null;
+  try { A = buildRolesCartera(scenario); } catch { A = null; }
+  if (!A || !A.hay) return { facts: null, boleta: [], coverage: { supported: false, reason: "este dato no trae margen por cliente: sin eso no hay papeles que leer" } };
+  const boleta = [];
+  const _ctx = "el papel de cada cliente en el margen";
+  boleta.push(fig("Benchmark de margen", `${A.vara}%`, { unit: "pct", raw: A.vara, mandatory: false, context: "la referencia declarada" }));
+  if (A.target !== null) boleta.push(fig("Target de carga", `${A.target}%`, { unit: "pct", raw: A.target, mandatory: false, context: "la referencia declarada" }));
+  /* los CONTEOS entran a la boleta: un número dicho en la respuesta sin fig detrás es un conteo-no-autorizado */
+  for (const reg of REGLAS_DE_ROL) {
+    const r = A.roles[reg.rol];
+    if (r && r.n > 0) boleta.push(fig(reg.etiqueta, String(r.n), { unit: "count", raw: r.n, mandatory: false, context: `${_ctx} · regla: ${reg.regla}` }));
+  }
+  const C = A.concurrencia || {};
+  if (C.grandesQueCaen) boleta.push(fig("Clientes del tramo alto bajo la vara", String(C.grandesQueCaen), { unit: "count", raw: C.grandesQueCaen, mandatory: false, context: `${_ctx} · los que mueven la venta y además caen` }));
+  if (C.grandesQueCaenYExcedenCarga) boleta.push(fig("De esos, los que además exceden el target de carga", String(C.grandesQueCaenYExcedenCarga), { unit: "count", raw: C.grandesQueCaenYExcedenCarga, mandatory: false, context: `${_ctx} · volumen y fuga en la misma cuenta` }));
+  /* cada cliente que cae, con SU papel y sus cifras — una por concepto, cada una con su dueño */
+  /* ⚠️ NO SE REPUBLICA «X · Margen» (medido al estrenar la herramienta): `marginRead` ya lo publica en el mismo
+   * turno y el playbook lee los márgenes de la boleta para SELECCIONAR quién está bajo la vara — dos figs con
+   * el mismo rótulo duplicaban cada cliente, el auto-verificado del composer dejaba de reconciliar y la
+   * notarial contaba 16 clientes donde hay 8. Cada herramienta publica LO SUYO; el margen ya tiene dueño. */
+  for (const f of A.filas.filter((x) => x.brecha > 0).sort((a, b) => b.venta - a.venta).slice(0, 8)) {
+    boleta.push(fig(`${f.entidad} · Brecha al benchmark`, `${f.brecha} pp`, { unit: "pct", raw: f.brecha, mandatory: false, source: "computed", formula: "benchmark declarado − margen del cliente", context: `${_ctx} · papel: ${(A.roles[f.rol] || {}).titulo || f.rol}` }));
+    if (f.carga !== null) boleta.push(fig(`${f.entidad} · Carga comercial`, `${f.carga}%`, { unit: "pct", raw: f.carga, mandatory: false, context: `${_ctx} · el target declarado es ${A.target}%` }));
+    if (f.markup !== null) boleta.push(fig(`${f.entidad} · Markup sobre costo`, `${f.markup}%`, { unit: "pct", raw: f.markup, mandatory: false, source: "computed", formula: "(precio de lista − costo medio) ÷ costo medio × 100", context: `${_ctx} · el precio contra lo que cuesta` }));
+  }
+  return {
+    facts: {
+      vara: A.vara, target: A.target,
+      roles: Object.values(A.roles).map((r) => ({ rol: r.rol, titulo: r.titulo, regla: r.regla, lectura: r.lectura, n: r.n, pesoVenta: r.pesoVenta, entidades: r.items.slice(0, 5).map((f) => f.entidad) })),
+      huellas: A.huellas.map((h) => ({ mecanismo: h.mecanismo, huella: h.huella, presente: h.presente, sello: h.sello, porque: h.porque, ...(h.falta ? { falta: h.falta } : {}), entidades: (h.items || []).map((f) => f.entidad) })),
+      concurrencia: A.concurrencia,
+      preguntaAlDueno: A.preguntaAlDueno,
+      /* la frontera, dicha en los propios facts para que el cerebro la tenga a mano al razonar */
+      contrato: "Los papeles y las huellas son PATRONES medidos, no causas probadas. Puedes razonar el porqué apoyándote en ellos —marcando la hipótesis como hipótesis y diciendo qué la confirmaría—; afirmar la causa como hecho sigue prohibido.",
+    },
+    boleta,
+    coverage: { supported: true },
+  };
+}
+
 export function cajaDelAgente(TOOLS_BASE) {
-  return { ...TOOLS_BASE, serieEntidad, registrarSupuesto, preferenciaNombre, proyectar, cobranza };
+  return { ...TOOLS_BASE, serieEntidad, registrarSupuesto, preferenciaNombre, proyectar, cobranza, rolesCartera };
 }

@@ -36,6 +36,10 @@ export const DOCTRINAS = {
   inventoryStatus: "DOCTRINA · inventario: es la FOTO de hoy en moneda cruda — no reconcilia con la venta del período y no se suman. «Inmovilizado» es la categoría amplia; «frenado» el subconjunto crítico. Di «capital», nunca «plata dormida».",
   entityCapitalLigado: "DOCTRINA · capital ligado: la relación cuenta→capital es INDICADA (vía surtido), no una deuda de esa cuenta. Decláralo al citar el monto.",
   executiveSummary: "DOCTRINA · resumen ejecutivo: solo cuando el usuario pidió el panorama. Arco completo: qué pasa → por qué/dónde → qué hacer primero, con las cifras de la boleta y ninguna más.",
+  /* la operativa del PORQUÉ viaja acá y no en la carta: solo hace falta en el turno que la pide, y en el system
+   * rompía el techo del presupuesto (medido: +25,8% contra el 20% autorizado). El principio de este módulo,
+   * aplicado a la pieza más cara: la instrucción no viaja hasta que hace falta. */
+  rolesCartera: "DOCTRINA · el porqué del margen: papeles y huellas son PATRONES, no causas — razona con ellos. Nombra los caminos (carga comercial sobre el target · precio pegado al costo · mix), di qué huella deja cada uno y CUÁL está acá, con su sello. Da la regla que lo resolvería: «si se repite en toda la cartera es política comercial; si cambia por cliente, es negociación». Cierra con el paso que TÚ puedes dar ahora, no con una reunión; si el dato se acaba, di qué agregar a la planilla. Si la distinción depende de una intención que solo el dueño sabe, pregúntala.",
 };
 
 /** doctrinasParaRonda(nombresDeHerramientas) → el bloque de doctrina de ESA ronda: solo las herramientas

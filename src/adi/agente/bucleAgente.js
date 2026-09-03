@@ -665,7 +665,10 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
      * entre turnos (el hilo crece), así el mismo cierre no sale tres veces seguidas. Los composers sin
      * semilla devuelven su primera opción: nada cambia para quien no la pasa. */
     const _semilla = `${(() => { try { return getTenantId() || "demo"; } catch { return "demo"; } })()}::${q}::${Array.isArray(history) ? history.length : 0}`;
-    const _pb = (() => { try { return playbookActivo.componer({ figs: figsTotales, pregunta: q, semilla: _semilla }); } catch { return null; } })();
+    /* `scenario` viaja desde 2026-09-04: el composer del porqué necesita LEER el motor de papeles (qué rol
+     * tiene cada cliente, qué huella está sellada) — leer el motor no es calcular, es la misma técnica que
+     * `pisoFocosUSD()` en los playbooks de asesoría. Las CIFRAS siguen saliendo verbatim de la boleta. */
+    const _pb = (() => { try { return playbookActivo.componer({ figs: figsTotales, pregunta: q, semilla: _semilla, scenario }); } catch { return null; } })();
     if (_pb && _pb.trim()) {
       const vPb = juzgar(_pb, `playbook:${playbookActivo.nombre}`);
       if (vPb && vPb.ok) { final = _pb; estado = "playbook"; suplente = true; }

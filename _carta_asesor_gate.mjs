@@ -79,7 +79,12 @@ H("3 · el oficio, escrito: audiencia · cuándo profundizar · cómo justifica 
   tiene(/DE DATO[\s\S]{0,120}UNA línea de lectura/i, "★ 3 · la pregunta de dato recibe el dato con su lectura — «siempre interpreta», la regla vigente");
   tiene(/DUDA REAL[\s\S]{0,140}Jamás un menú/i, "★ 3 · la duda real se resuelve con UNA pregunta corta, jamás con un menú");
   tiene(/criterio mío, no una cifra del dato/i, "★ 4 · la prioridad se marca como criterio (la regla `juicio-sin-marcar`, ahora doctrina de fondo)");
-  tiene(/Localizar no es explicar/i, "★ 4 · localizar ≠ explicar, escrito en la carta y no solo en la multa");
+  /* (re-apuntado 2026-09-04, encargo del razonamiento: este check pedía la frase «Localizar no es explicar»,
+   * que era justamente la que le enseñaba a FRENAR —«si el porqué no está medido, dilo y sigue»— y el owner
+   * la mandó a cambiar. La frontera no se movió, la letra sí: lo que se vigila es que la carta declare que se
+   * razona MARCADO y que afirmar la causa sigue prohibido. Medía forma; ahora mide la frontera.) */
+  tiene(/afirmarla como hecho sigue prohibido/i, "★ 4 · LA FRONTERA escrita: razonar la causa marcada es el oficio; afirmarla como hecho sigue prohibido");
+  tiene(/El porqué se RAZONA en voz alta y marcado/i, "★ 4 · …y el porqué se razona, no se esquiva — el defecto que el owner encontró en producción");
   tiene(/mismo dato, mejor forma de presentarlo/i, "★ 5 · LA VARA DEL OWNER, citada literal");
   tiene(/dejaría el resto como monitoreo/i, "★ 5 · el límite como criterio ejecutivo — su redacción, contra la defensiva que marcó en producción");
   tiene(/UNA oferta, priorizada/i, "★ 5 · una sola oferta priorizada, nunca un menú ni una por punto");

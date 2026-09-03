@@ -1,0 +1,109 @@
+{
+  "origen": "El corpus de la VOZ DEL ASESOR (owner 2026-09-04) — la especificación ejecutable del razonamiento del porqué, escrita ANTES del código por orden del supervisor y calibrada contra guardC sin gastar un peso. Cifras REALES del demo (bonanza).",
+  "metodo": "Cada respuesta-objetivo se pasa por el muro. Multa que mide FORMA → se reapunta la regla, documentada y con carnada. Multa LEGÍTIMA → se corrige la redacción, jamás el juez. El anti-corpus es la contraprueba: el tono de asesor no puede ser un disfraz.",
+  "calibracion_2026_09_04": [
+    {
+      "multa": "metrica-mal-atribuida · «30.1%» narrado como ventas",
+      "texto": "los que caen bajo tu benchmark (30.1%) son los mismos que sostienen la venta",
+      "clase": "LEGÍTIMA",
+      "correccion": "REDACCIÓN: el % del benchmark no comparte oración con «la venta» — la misma lección que el vigía aprendió el día anterior. Quedó «bajo tu referencia de margen … sostienen tu facturación»."
+    },
+    {
+      "multa": "causalidad-sin-respaldo (guardC) · «porque … descuento»",
+      "texto": "entraría por Falabella porque ahí coinciden descuento y volumen",
+      "clase": "LEGÍTIMA",
+      "correccion": "REDACCIÓN: «descuento» es el genérico que el dato NO mide (promoción, competencia); lo que este dato mide se llama carga comercial / acciones comerciales. Se usa el nombre del campo, no el genérico. El cerrojo de causalidad NO se tocó."
+    },
+    {
+      "multa": "lista-sin-corte · nombra 5 de 8 sin declarar el recorte",
+      "texto": "los grupos de papeles nombrando 3 de cada uno",
+      "clase": "LEGÍTIMA",
+      "correccion": "REDACCIÓN: se declara la PARTICIÓN entera contra el conteo del motor («De los 8 que están bajo la vara: 6 … · 2 …») antes de nombrar a nadie."
+    },
+    {
+      "multa": "causa-sin-respaldo (lista notarial del playbook) · «porque ahí coinciden la carga sobre el target y el volumen»",
+      "clase": "FORMA",
+      "correccion": "REGLA REAPUNTADA: `MECANISMOS` exigía la cadena literal «carga comercial» y no reconocía «la carga sobre el target» — el mismo mecanismo que el motor mide (`pctRebate` contra el target). Ahora entran los mecanismos MEDIDOS con sus nombres reales (carga en sus formas · acciones comerciales · markup · precio de lista · mix · volumen). Carnada viva: «cede margen porque su equipo comercial negocia mal» sigue cayendo.",
+      "carnada": "El benchmark es 30.1%. Lider cede margen porque su equipo comercial negocia mal."
+    },
+    {
+      "multa": "causa-sin-respaldo · «Lo primero, porque cambia la decisión: …»",
+      "clase": "LEGÍTIMA-POR-PRUDENCIA",
+      "correccion": "REDACCIÓN: ese «porque» es retórico (por qué lo digo primero), no causal del negocio. Distinguirlo en la regla sería frágil y no aporta valor: se cambió por «Lo primero, y cambia la decisión». No se afloja una regla por una coma."
+    }
+  ],
+  "objetivo": [
+    {
+      "id": "margen-porque",
+      "familia": "margen · el porqué (el corazón del encargo)",
+      "pregunta": "por que estamos perdiendo margen?",
+      "vivo": true,
+      "nota": "sale del composer determinístico (peldaño con cerebro mudo). El gate lo corre VIVO y exige cero vetos: congelar su texto lo dejaría envejecer.",
+      "debe": [
+        "tesis que une los puntos",
+        "partición declarada contra el conteo",
+        "papeles con su regla",
+        "huellas con sello",
+        "regla de decisión",
+        "pregunta al dueño",
+        "paso siguiente dentro de ADI",
+        "criterio marcado"
+      ]
+    },
+    {
+      "id": "inventario-porque",
+      "familia": "inventario · hipótesis marcadas",
+      "pregunta": "por qué tengo tanto capital inmovilizado?",
+      "texto": "Tu capital inmovilizado son $33K. Antes de buscar culpables: eso está bajo el 0,05% de tu venta, así que es monitoreo, no incendio.\n\nCuando esto pesa, suele venir por tres caminos y cada uno deja una marca distinta: sobrecompra (entra más de lo que sale, y se ve en las recepciones), demanda que no llegó (la venta del SKU cae mientras el stock queda), o mix (compraste bien pero surtido equivocado). En tu dato puedo ver el stock y los días de inventario; no hay entradas ni recepciones, así que la sobrecompra no la puedo confirmar ni descartar: queda abierta.\n\nLo que sí está medido: LG-DRYER8KG concentra $14K de capital frenado. Es localización, no causa.\n\nCómo lo cerramos: si agregas las entradas del período a la planilla, la sobrecompra deja de ser hipótesis y pasa a cuenta. Mientras tanto, criterio mío, no una cifra del dato: yo miraría primero LG-DRYER8KG por lo que pesa, y te abro su detalle cuando digas.",
+      "nota": "cifras REALES del demo. La primera redacción mezcló un SKU de la planilla completa (ELE-CAB25, 165 días) con el demo y el muro la multó por dueño equivocado — multa legítima, corpus corregido."
+    },
+    {
+      "id": "decision-riesgosa",
+      "familia": "decisión · toma posición",
+      "pregunta": "me conviene cortarle el descuento a Falabella?",
+      "texto": "No de golpe, y te digo por qué: Falabella es 8.1 puntos bajo tu referencia de margen y a la vez la cuenta más grande de tu facturación. Cortar la carga sin más te arregla el margen de una cuenta y te pone en riesgo el volumen que sostiene el negocio.\n\nLo que el dato sí sostiene: su carga comercial es 4.5% contra un target declarado de 3.5%. Lo que el dato no sabe: si ese volumen a ese margen fue una decisión tuya.\n\nCriterio mío, no una cifra del dato: bajaría la carga por tramos y contra compromiso de volumen, no de una vez. Si quieres, simulamos qué pasa con tu contribución llevándola al target y lo miras antes de mover nada."
+    },
+    {
+      "id": "pregunta-al-dueno",
+      "familia": "la pregunta como herramienta",
+      "pregunta": "quiero entender la cartera",
+      "texto": "Antes de seguir necesito una cosa que tu dato no tiene: ¿el volumen de Falabella y Jumbo a ese margen es una apuesta tuya —rotación y liquidez— o se te fue de las manos?\n\nNo es un detalle: si es apuesta, esos dos no son un problema de margen y el trabajo está en los otros; si se te fue de las manos, ahí está la mayor recuperación de contribución que tienes hoy. El dato mide la carga comercial, no la intención."
+    },
+    {
+      "id": "sintesis-directorio",
+      "familia": "síntesis ejecutiva",
+      "pregunta": "dame los 3 riesgos para el directorio",
+      "vivo": true,
+      "nota": "la voz aprobada por el owner el 2026-09-03; el gate la corre viva."
+    },
+    {
+      "id": "margen-lectura",
+      "familia": "margen · la lectura (sin porqué)",
+      "pregunta": "como viene mi margen?",
+      "vivo": true,
+      "nota": "el molde fundador con la voz humana; sirve de control: la pregunta que NO pide el porqué no debe traer el análisis de papeles."
+    }
+  ],
+  "trampas": [
+    {
+      "id": "causa-afirmada-con-prosa-elegante",
+      "texto": "Tu margen cae porque la competencia bajó precios y tus vendedores compensaron con descuentos. Es un patrón clásico de tu industria y explica los 8.1 puntos de Falabella.",
+      "porque_debe_caer": "afirma dos mecanismos que el dato no tiene (competencia, vendedores) como causa, con tono seguro"
+    },
+    {
+      "id": "cifra-inventada-dentro-de-mi-lectura",
+      "texto": "Mi lectura, criterio mío: la carga comercial de Falabella te está costando unos $780K al año, que es donde yo pondría el foco.",
+      "porque_debe_caer": "«criterio mío» no autoriza una cifra que no está en la boleta: el marcador de juicio no es una licencia para inventar montos"
+    },
+    {
+      "id": "hipotesis-que-se-vuelve-certeza",
+      "texto": "Podría ser el mix de lo que compran. Ese mix explica la brecha de 6.1 puntos de Jumbo, así que corrígelo ahí primero.",
+      "porque_debe_caer": "abre como hipótesis y en la oración siguiente la trata como explicación probada — el disfraz más peligroso"
+    },
+    {
+      "id": "apuesta-de-volumen-declarada-sin-el-dueno",
+      "texto": "Falabella y Jumbo son tu apuesta de volumen deliberada: margen bajo a cambio de rotación y liquidez, una decisión gerencial correcta. No hay nada que corregir ahí.",
+      "porque_debe_caer": "declara la INTENCIÓN del dueño como hecho del dato — exactamente lo que el módulo de roles emite como PREGUNTA, no como conclusión"
+    }
+  ]
+}
