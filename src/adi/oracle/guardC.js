@@ -1399,19 +1399,51 @@ function _scopedCalcPool(authFigs, entityNames, mentionedEntities) {
     return !owners.length || owners.some((o) => mentioned.has(o));
   });
 }
-function _isCalc(raw, unit, authFigs, entityNames = [], mentionedEntities = []) {
+/* ── LA AMNISTÍA EXIGE LOS INSUMOS DICHOS (owner 2026-09-04, cirugía comisionada por el supervisor) ──────────
+ * EL DEFECTO, MEDIDO CON MATRIZ DE DENSIDAD: sobre la boleta real del turno del porqué (95 figs), «unos $780K»
+ * —un monto que NO existe en el dato (0 de 318 cifras)— PASABA este chequeo, porque con 60+ cifras en el pool
+ * y la tolerancia de redondeo casi cualquier monto de 2-3 dígitos significativos coincide con ALGUNA resta o
+ * suma entre los ~4.500 pares. Con figs≤40 vetaba; con 60+ amnistiaba. La combinatoria mató la regla justo en
+ * los turnos más ricos — los del razonamiento del porqué.
+ * LA FRONTERA (dirección del supervisor, opción 1): una cuenta legítima tiene INSUMOS DICHOS — el cerebro que
+ * deriva una cifra muestra su cuenta («$100.0M de base, −3%: $97.0M») y esos operandos están EN el texto. Una
+ * coincidencia aritmética entre dos cifras que el texto jamás nombró no es una cuenta: es lotería. Por eso el
+ * par (a,b) solo amnistía si AMBOS operandos aparecen como cifras del texto juzgado (con la misma tolerancia
+ * de formato). MEDIDO ANTES DE TOCAR: con la amnistía ciega apagada del todo, CERO borradores legítimos de los
+ * 230 gates cayeron — solo los 2 gates que prueban la amnistía misma. Esta versión es MÁS laxa que ese apagón
+ * (conserva las cuentas mostradas), así que ninguna legítima nueva puede caer.
+ * `presentes` = los raw de las cifras del propio texto, por unidad — los junta el chequeo 1, que ya las parsea. */
+const _presenteEnTexto = (v, unit, presentes, tol) => {
+  const lista = (presentes && presentes.get(unit === "pp" ? "pct" : unit)) || [];
+  for (const p of lista) if (Math.abs(p - v) <= Math.max(tol, Math.abs(v) * 0.02)) return true;
+  return false;
+};
+function _isCalc(raw, unit, authFigs, entityNames = [], mentionedEntities = [], presentes = null) {
+  if (typeof process !== "undefined" && process.env && process.env.ADI_MEDICION_AMNISTIA === "off") return false;   // instrumento de calibración (solo Node: en el navegador no existe process)
   if (!Number.isFinite(raw)) return false;
   // pp (puntos porcentuales, ej. la brecha "8.1pp") se deriva de DOS cifras unit:"pct" (benchmark − margen) — no
   // hay figs "pp" originales en ningún ledger, así que el pool de candidatos para una resta/suma es el de "pct".
   const srcUnit = unit === "pp" ? "pct" : unit;
   const pool = _scopedCalcPool(authFigs, entityNames, mentionedEntities);
-  const vals = pool.filter((f) => f.unit === srcUnit && Number.isFinite(f.raw)).map((f) => f.raw);
+  /* cada candidato conserva si tiene DUEÑO-ENTIDAD: entró al pool porque su entidad está MENCIONADA en el
+   * texto (el scope de arriba), y una cuenta entre dos figs de entidades nombradas es una cuenta con dueños
+   * dichos («LG-DRYER8KG y LG-AIR9000 juntos representan $195K») — la segunda forma legítima de mostrarla. */
+  const vals = pool.filter((f) => f.unit === srcUnit && Number.isFinite(f.raw))
+    .map((f) => ({ raw: f.raw, conDueno: _figEntityOwners(f.label, entityNames).length > 0 }));
   if (vals.length < 2) return false;
   const tol = unit === "money" ? Math.max(1000, Math.abs(raw) * 0.02) : (unit === "pct" || unit === "pp") ? 0.2 : unit === "ratio" ? 0.15 : unit === "days" ? 0.6 : 0.05;
+  /* LA FRONTERA (2026-09-04): el par amnistía si sus insumos están DICHOS — como MONTOS en el texto («$100.0M
+   * −3%: $97.0M») o como DUEÑOS nombrados (ambas figs de entidades mencionadas). Un par de cifras
+   * ESTRUCTURALES (subtotales, conteos, sin dueño) que el texto jamás nombró no es una cuenta: es la lotería
+   * combinatoria que dejaba pasar $780K en boletas de 60+ figs. Sin `presentes` (callers históricos y gates
+   * unitarios) la conducta es la de siempre. */
+  const _ok = (a, b) => !presentes
+    || (_presenteEnTexto(a.raw, unit, presentes, tol) && _presenteEnTexto(b.raw, unit, presentes, tol))
+    || (a.conDueno && b.conDueno);
   for (let i = 0; i < vals.length; i++) for (let j = 0; j < vals.length; j++) {
     if (i === j) continue;
-    if (Math.abs((vals[i] - vals[j]) - raw) <= tol) return true;                 // resta a−b
-    if (i < j && Math.abs((vals[i] + vals[j]) - raw) <= tol) return true;        // suma a+b
+    if (Math.abs((vals[i].raw - vals[j].raw) - raw) <= tol && _ok(vals[i], vals[j])) return true;                 // resta a−b
+    if (i < j && Math.abs((vals[i].raw + vals[j].raw) - raw) <= tol && _ok(vals[i], vals[j])) return true;        // suma a+b
   }
   return false;
 }
@@ -1430,7 +1462,13 @@ function _figsOfEntity(authFigs, name) {
   return authFigs.filter((f) => String(f.label || "").split("·").some((seg) => _norm(seg.trim()) === n));
 }
 function _diffs(vals) { const out = []; for (let i = 0; i < vals.length; i++) for (let j = 0; j < vals.length; j++) if (i !== j) out.push(vals[i] - vals[j]); return out; }
+/* EL NIVEL 2 NO NECESITA la condición de montos dichos (evaluado 2026-09-04 con sus propios casos de gate):
+ * su scope YA ES la frontera de dueños dichos — solo combina figs de las 1-2 entidades MENCIONADAS y exige ≥2
+ * valores propios por entidad, así que sus operandos siempre tienen dueño nombrado. Exigir además las brechas
+ * como montos mataba la elipsis legítima del español («Alfa 15.6 pp… y Beta de 9.6») donde el segundo número
+ * va sin unidad. Y el texto que menciona UNA sola entidad ni llega acá (entityNames < 2). */
 function _isCalc2(raw, unit, authFigs, entityNames) {
+  if (typeof process !== "undefined" && process.env && process.env.ADI_MEDICION_AMNISTIA === "off") return false;   // instrumento de calibración (solo Node: en el navegador no existe process)
   if (!Number.isFinite(raw) || !Array.isArray(entityNames) || entityNames.length < 2) return false;
   const srcUnit = unit === "pp" ? "pct" : unit;
   const tol = unit === "money" ? Math.max(1000, Math.abs(raw) * 0.02) : (unit === "pct" || unit === "pp") ? 0.2 : unit === "ratio" ? 0.15 : unit === "days" ? 0.6 : 0.05;
@@ -3576,7 +3614,17 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // dueño por fila: re-citar lo que el usuario nombró o lo que ADI misma ya mostró conserva su estatus de siempre.
   const _ecoCanon = new Set([...qFigs.map((f) => f.canon), ...supFigs.map((f) => f.canon), ...bolFigs.map((f) => f.canon)]);
   const _ecoVerbatim = new Set([...qFigs.map((f) => _stripSpace(f.text)), ...supFigs.map((f) => _stripSpace(f.text)), ...bolFigs.map((f) => _stripSpace(f.text))]);
-  for (const f of parseFigures(narration)) {
+  /* LOS INSUMOS DICHOS (2026-09-04): las cifras del PROPIO texto, por unidad — la amnistía de cálculo solo
+   * acepta un par (a,b) si ambos operandos están acá. Es lo que separa una cuenta mostrada («$100.0M −3%:
+   * $97.0M») de la lotería combinatoria que dejaba pasar montos inventados en boletas de 60+ figs. */
+  const _narrFigsTodas = parseFigures(narration);
+  const _presentes = new Map();
+  for (const nf of _narrFigsTodas) {
+    const u = nf.unit === "pp" ? "pct" : nf.unit;
+    if (!_presentes.has(u)) _presentes.set(u, []);
+    if (Number.isFinite(nf.raw)) _presentes.get(u).push(nf.raw);
+  }
+  for (const f of _narrFigsTodas) {
     /* DUEÑO POR FILA EN LA BOLETA (encargo 2026-08-13, ver _duenosDeBoleta): una cifra de una fig con dueño, de
      * una métrica con 2+ dueños este turno, narrada en una oración que nombra OTRA entidad y no a ningún dueño
      * legítimo → mis-atribución activa, se veta con el dueño real en el detalle. Misma ventana de oración que la
@@ -3598,7 +3646,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     // usuario con el dato del motor NO es inventada — es legítima y su problema es OTRO (cómo se presenta), que
     // juzga el chequeo 21. Rechazarla acá la bloquearía con el veredicto equivocado y el reintento buscaría
     // corregir algo que no estaba mal.
-    if (authCanon.has(f.canon) || authVerbatim.has(_stripSpace(f.text)) || _isCalc(f.raw, f.unit, figs, entityNames, mentionedEntities) || _isCalc2(f.raw, f.unit, figs, mentionedEntities) || _derivadaDeSupuesto(f, supFigs, figs)) continue;
+    if (authCanon.has(f.canon) || authVerbatim.has(_stripSpace(f.text)) || _isCalc(f.raw, f.unit, figs, entityNames, mentionedEntities, _presentes) || _isCalc2(f.raw, f.unit, figs, mentionedEntities) || _derivadaDeSupuesto(f, supFigs, figs)) continue;
     // AMPLITUD F2: ¿es el resultado exacto de una operación del CATÁLOGO sobre el pool acotado del turno?
     // Corre DESPUÉS de los niveles 1-2 (subset intacto) y ANTES de la quinta fuente: una cuenta legítima del
     // catálogo que coincida con una cifra del dato no debe caer al veto de dueño.
