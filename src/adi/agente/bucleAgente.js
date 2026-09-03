@@ -668,7 +668,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     /* `scenario` viaja desde 2026-09-04: el composer del porqué necesita LEER el motor de papeles (qué rol
      * tiene cada cliente, qué huella está sellada) — leer el motor no es calcular, es la misma técnica que
      * `pisoFocosUSD()` en los playbooks de asesoría. Las CIFRAS siguen saliendo verbatim de la boleta. */
-    const _pb = (() => { try { return playbookActivo.componer({ figs: figsTotales, pregunta: q, semilla: _semilla, scenario }); } catch { return null; } })();
+    const _pb = (() => { try { return playbookActivo.componer({ figs: figsTotales, pregunta: q, semilla: _semilla, scenario, mem: memIn }); } catch { return null; } })();
     if (_pb && _pb.trim()) {
       const vPb = juzgar(_pb, `playbook:${playbookActivo.nombre}`);
       if (vPb && vPb.ok) { final = _pb; estado = "playbook"; suplente = true; }
@@ -715,6 +715,20 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   if (aprobado) {
     const recitaNueva = recitaAprobadaDe({ textoAprobado: pantalla, catalogoEntidades: duenosTenant || [], previa: recita });
     if (recitaNueva) memOut.recitaAprobada = recitaNueva;
+  }
+  /* EL DIARIO DE LA TESIS · paso 1 (owner 2026-09-04): cuando el turno del porqué SALE APROBADO con su tesis,
+   * la HUELLA MEDIDA queda en la memoria del hilo — y el próximo porqué la confirma o la corrige en voz alta.
+   * Solo turnos aprobados y no-suplentes escriben (la misma condición que `ultimaAprobada`: un rescate no es
+   * una tesis); un turno de otro tema no la toca. El corte conservador aprobado: hilo, no servidor. */
+  /* el entregable del playbook marca suplente=true para la memoria de re-cita — pero SU tesis del porqué
+   * es legítima: la produjo el procedimiento con la evidencia en la mano. estado==="playbook" la habilita. */
+  /*  solo lo encienden los caminos del CEREBRO (verde/reparado/podado); el peldaño del playbook
+   * pasó su PROPIO juicio antes de adoptarse (vPb.ok) — estado==="playbook" ya es un turno juzgado. */
+  if ((estado === "playbook" || (aprobado && !suplente)) && playbookActivo && typeof playbookActivo.diarioDeTesis === "function") {
+    try {
+      const _tesis = playbookActivo.diarioDeTesis(scenario);
+      if (_tesis && /por\s?qu[eé]|porqu[eé]|a qu[eé] se debe|motivo|profundiz|explic/i.test(q)) memOut.diarioTesis = _tesis;
+    } catch { /* el diario jamás rompe el turno */ }
   }
 
   return {

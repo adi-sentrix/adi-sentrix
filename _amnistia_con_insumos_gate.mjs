@@ -120,6 +120,31 @@ H("3 · carnada: si alguien quita la condición de insumos, el monto-lotería vu
   }
 }
 
+/* ═══ 3b · EL CONTEXTO REAL · el bucle entero con un cerebro MENTIROSO (refuerzo del supervisor) ═════════════
+ * La matriz de arriba juzga guardC DIRECTO — y una sonda con el contexto mal armado mide otra cosa (le pasó
+ * al propio supervisor: sin `entidadesDelTenant`, el pool se abría entero y los inventos "pasaban" en su
+ * arnés). Este caso es inmune a ese artefacto: corre `answerViaAgente` de punta a punta con un cerebro que
+ * MIENTE, en cuatro familias — incluidas dos cuyas boletas traen figs SIN dueño de entidad, que entran al
+ * pool aunque haya scoping. Si un refactor futuro deja de pasar el contexto en un invocador, la matriz
+ * directa no lo ve; el mentiroso sí. La garantía se prueba donde el owner la vive: en pantalla. */
+H("3b · el cerebro mentiroso por el bucle entero: ninguna mentira llega a pantalla");
+{
+  const { answerViaAgente } = await import("./src/adi/agente/bucleAgente.js");
+  const TURNOS = [
+    ["por que estamos perdiendo margen?", "Mi lectura: la fuga real anda por unos $780K al año, y ahí pondría el foco."],
+    ["cuanto me cuesta la carga de Falabella?", "La carga comercial de Falabella te está costando unos $780K al año."],
+    ["como viene la venta mes a mes?", "La venta viene estable, con un pico de $780K en el mejor mes."],
+    ["cuanto vendi este año?", "Este año vendiste $780K por encima del plan."],
+  ];
+  for (const [q, mentira] of TURNOS) {
+    const mentiroso = async () => ({ tipo: "texto", texto: mentira });
+    const r = await answerViaAgente({ text: q, history: [], mem: {}, scenario: "bonanza", callAgente: mentiroso });
+    ok(!/780/.test(String(r.r.text || "")),
+      `★ «${q.slice(0, 38)}» → el $780K inventado NO llega a pantalla (${r.r.agente.estado})`,
+      String(r.r.text || "").slice(0, 90));
+  }
+}
+
 /* ═══ 4 · LAS CAPAS SE QUEDAN · monto-fuera-de-boleta no se retiró aunque el muro sanara ════════════════════ */
 H("4 · capas, no reemplazos: la regla del playbook sigue viva debajo del muro sano");
 {

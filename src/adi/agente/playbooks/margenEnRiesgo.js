@@ -118,7 +118,27 @@ const _OTRO_PERIODO = new RegExp(`\\bq[1-4]\\b|\\btrimestr|\\bmensual\\b|\\bmes 
  * acciones comerciales». Este peldaño lo arma sin cerebro: la ESTRUCTURA la lee del motor de papeles (leer el
  * motor no es calcular — la misma técnica de `pisoFocosUSD()` en asesoría) y las CIFRAS salen verbatim de la
  * boleta, como siempre. Si la boleta no trae los papeles, devuelve null y el turno sigue su camino. */
-function componerElPorque({ figs, semilla, scenario }) {
+/* ── EL DIARIO DE LA TESIS · paso 1 del diario de la relación (owner 2026-09-04, GO del supervisor) ─────────
+ * La tesis que ADI se jugó queda en la MEMORIA DEL HILO (`mem.diarioTesis` — el mismo canal por el que ya
+ * persisten el trato y la última aprobada; cero servidor, el corte conservador aprobado), y en el próximo
+ * turno del porqué ADI la CONFIRMA o la CORRIGE en voz alta: «esto confirma lo que vimos» / «la lectura
+ * cambió y lo corrijo». La huella que se compara es MEDIDA (la concurrencia del motor de papeles), no el
+ * recuerdo de una frase: confirmar una tesis es re-medirla, no repetirla. */
+export function diarioDeTesis(scenario) {
+  let A = null;
+  try { A = buildRolesCartera(scenario); } catch { A = null; }
+  if (!A || !A.hay) return null;
+  const C = A.concurrencia || {};
+  return {
+    clave: "margen-roles",
+    huella: { caen: C.caen || 0, grandesQueCaen: C.grandesQueCaen || 0, mismaGente: !!C.mismaGente },
+    resumen: C.mismaGente && C.grandesQueCaen > 1
+      ? "los que caen bajo el benchmark son los mismos que sostienen la facturación"
+      : "los que caen bajo el benchmark caen por razones distintas",
+  };
+}
+
+function componerElPorque({ figs, semilla, scenario, mem }) {
   let A = null;
   try { A = buildRolesCartera(scenario); } catch { A = null; }
   if (!A || !A.hay) return null;
@@ -130,6 +150,18 @@ function componerElPorque({ figs, semilla, scenario }) {
   const cargaDe = (e) => _find(figs, new RegExp(`^${_esc(e)} · Carga comercial$`, "i"));
   const C = A.concurrencia || {};
   const p = [];
+
+  /* 0 · EL DIARIO HABLA PRIMERO: si este hilo ya tiene una tesis guardada, se CONFIRMA o se CORRIGE en voz
+   * alta antes de re-contarla — comparando la huella MEDIDA de entonces contra la de hoy, no el recuerdo de
+   * una frase. Sin tesis previa, no se dice nada: el silencio del diario es un estado válido. */
+  const tesisPrevia = mem && mem.diarioTesis && mem.diarioTesis.clave === "margen-roles" ? mem.diarioTesis : null;
+  if (tesisPrevia && tesisPrevia.huella) {
+    const h = tesisPrevia.huella;
+    const igual = h.caen === (C.caen || 0) && h.grandesQueCaen === (C.grandesQueCaen || 0) && h.mismaGente === !!C.mismaGente;
+    p.push(igual
+      ? `Esto confirma la lectura que ya teníamos en este hilo: ${tesisPrevia.resumen}.`
+      : `La lectura cambió respecto de lo que vimos en este hilo (antes: ${tesisPrevia.resumen}) — lo corrijo con el dato de hoy.`);
+  }
 
   /* 1 · LA TESIS — qué historia cuentan juntos los números (no dos problemas: uno con dos síntomas) */
   /* ⚠️ EL BENCHMARK NO COMPARTE ORACIÓN CON «la venta» (multa del muro al estrenar esto, y era CORRECTA: con
@@ -192,6 +224,7 @@ function componerElPorque({ figs, semilla, scenario }) {
 
 export const margenEnRiesgo = {
   nombre: "margen-en-riesgo",
+  diarioDeTesis,   // el diario de la tesis (paso 1): el bucle la guarda en la memoria del hilo al aprobar el turno del porqué
 
   cuandoAplica(pregunta) {
     const q = String(pregunta || "");
@@ -234,13 +267,13 @@ export const margenEnRiesgo = {
    * Brecha al benchmark» — la cifra de la card) y solo si la boleta la trae; «margen promedio» y «benchmark»
    * se nombran con su palabra al lado de su % (las anclas léxicas del humo); el recorte se declara («3 de los
    * 8»); la prioridad nombra su criterio. Cercanía sí, adulación no: si el margen viene mal, se dice derecho. */
-  componer({ figs, semilla, pregunta, scenario } = {}) {
+  componer({ figs, semilla, pregunta, scenario, mem } = {}) {
     /* EL PORQUÉ TIENE SU PROPIO ENTREGABLE (owner 2026-09-04). Cuando la pregunta pide la causa y los pasos
      * trajeron los papeles, el peldaño determinístico RAZONA en vez de repetir dónde y cuánto — que es
      * exactamente el defecto que el owner encontró en producción. Si los papeles no están (la tool no corrió),
      * cae al entregable de siempre sin ruido. */
     if (_PIDE_PORQUE.test(String(pregunta || ""))) {
-      const porque = componerElPorque({ figs, semilla, scenario });
+      const porque = componerElPorque({ figs, semilla, scenario, mem });
       if (porque) return porque;
     }
     const L = lecturaDeMargen(figs);
