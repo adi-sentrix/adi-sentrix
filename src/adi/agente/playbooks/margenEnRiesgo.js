@@ -421,11 +421,16 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
   if (A.preguntaAlDueno) {
     /* DIARIO ETAPA 2: si el dueño YA respondió (su cita guardada toca alguna de las entidades en cuestión),
      * no se le vuelve a preguntar — se CITA su palabra, textual, sin interpretarla más allá de lo que dijo. */
-    const _citaGuardada = (Array.isArray(mem && mem.intenciones) ? mem.intenciones : [])
-      .find((x) => x && x.pregunta === "volumen_deliberado" && Array.isArray(x.entidades)
-        && x.entidades.some((e) => A.preguntaAlDueno.entidades.includes(e)));
+    const _intenciones = (Array.isArray(mem && mem.intenciones) ? mem.intenciones : [])
+      .filter((x) => x && x.pregunta === "volumen_deliberado" && Array.isArray(x.entidades) && x.entidades.length);
+    const _citaGuardada = _intenciones.find((x) => x.entidades.some((e) => A.preguntaAlDueno.entidades.includes(e)));
     if (_citaGuardada) {
       p.push(`\nSobre ${_citaGuardada.entidades.join(" y ")} tu palabra ya está anotada${_citaGuardada.fecha ? ` (${_citaGuardada.fecha})` : ""}: «${_citaGuardada.cita}». La leo como decisión tuya — dime si cambió.`);
+    } else if (_intenciones.length) {
+      /* el refinamiento del supervisor (2026-09-05): la palabra dada sobre OTRA cuenta de la cartera también
+       * se recuerda — se nombra lo resuelto y la pregunta queda SOLO para lo abierto. */
+      const _ya = _intenciones[_intenciones.length - 1];
+      p.push(`\nSobre ${_ya.entidades.join(" y ")} ya me lo declaraste («${_ya.cita}») — la duda queda en ${A.preguntaAlDueno.entidades.join(" y ")}: ${A.preguntaAlDueno.texto} El dato mide la carga comercial, no la intención.`);
     } else {
       p.push(`\n${A.preguntaAlDueno.texto} De tu respuesta depende si eso es estrategia o fuga: el dato mide la carga comercial, no la intención.`);
     }

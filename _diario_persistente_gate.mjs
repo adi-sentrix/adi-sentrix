@@ -73,6 +73,13 @@ H("1c · la cita reemplaza la re-pregunta; la caducidad re-mide; el olvido borra
     "★ el porqué siguiente CITA la palabra guardada (con su fecha) en vez de re-preguntar", t3.slice(0, 120));
   ok(!/apuesta tuya —rotación y liquidez— o se te fue/.test(t3), "…y la pregunta NO se repite");
 
+  /* el refinamiento del supervisor: la palabra dada sobre OTRA cuenta también se recuerda — se nombra lo
+   * resuelto y la pregunta queda SOLO para lo abierto */
+  const rCruz2 = await answerViaAgente({ text: "el volumen de Lider es apuesta mía, lo decidí yo", history: HILO1, mem: r1.mem, scenario: "actual", callAgente: MUDO });
+  const rQ = await answerViaAgente({ text: "profundiza en el porqué pasa", history: HILO1, mem: rCruz2.mem, scenario: "actual", callAgente: MUDO });
+  ok(/Sobre Lider ya me lo declaraste \(«el volumen de Lider es apuesta mía, lo decidí yo»\) — la duda queda en Falabella y Jumbo:/.test(String(rQ.r.text || "")),
+    "★ la palabra dada sobre OTRA cuenta se NOMBRA, y la pregunta queda solo para lo abierto", String(rQ.r.text || "").slice(0, 140));
+
   const memOtraCarga = { ...r2.mem, diarioTesis: { ...r2.mem.diarioTesis, carga: "vieja.xlsx@2026-08-01" } };
   const r4 = await answerViaAgente({ text: "por qué estamos perdiendo margen", history: [], mem: memOtraCarga, scenario: "actual", callAgente: MUDO });
   ok(/era de tu carga anterior/.test(String(r4.r.text || "")),
