@@ -37,13 +37,14 @@ const t1 = await answerViaAgente({ text: "por que estamos perdiendo margen?", hi
 }
 {
   const t2 = await answerViaAgente({ text: "y por que el margen sigue asi?", history: [], mem: t1.mem, scenario: "bonanza", callAgente: MUDO });
-  ok(/^Esto confirma la lectura que ya teníamos en este hilo/.test(String(t2.r.text)) && !(t2.r.agente.vetos || []).length,
+  /* (etapa 2, 2026-09-05: la tesis lleva FECHA — la frase pasa de «en este hilo» a «(guardada el …)») */
+  ok(/^(?:jc: )?Esto confirma la lectura que ya teníamos \(guardada el \d{4}-\d{2}-\d{2}\)/.test(String(t2.r.text).trim()) && !(t2.r.agente.vetos || []).length,
     "★ CONFIRMAR: el segundo porqué del hilo abre confirmando — la huella de hoy coincide con la guardada", String(t2.r.text).split("\n")[0].slice(0, 100));
 }
 {
   const memAlt = { ...t1.mem, diarioTesis: { ...t1.mem.diarioTesis, huella: { caen: 3, grandesQueCaen: 0, mismaGente: false }, resumen: "los que caen bajo el benchmark caen por razones distintas" } };
   const t3 = await answerViaAgente({ text: "por que perdemos margen?", history: [], mem: memAlt, scenario: "bonanza", callAgente: MUDO });
-  ok(/^La lectura cambió respecto de lo que vimos en este hilo/.test(String(t3.r.text)) && /lo corrijo con el dato de hoy/.test(String(t3.r.text)),
+  ok(/^(?:jc: )?La lectura cambió respecto de lo que vimos \(guardado el \d{4}-\d{2}-\d{2}\)/.test(String(t3.r.text).trim()) && /lo corrijo con el dato de hoy/.test(String(t3.r.text)),
     "★ CORREGIR: con una huella guardada que ya no coincide, ADI lo dice y se corrige — jamás sostiene la tesis vieja por orgullo");
   ok(!(t3.r.agente.vetos || []).length, "…y la corrección pasa el muro entera");
 }
@@ -61,8 +62,10 @@ H("2 · carnada: sin el guardado del bucle, el diario muere en silencio — y es
 {
   const abs = path.join(process.cwd(), "src", "adi", "agente", "bucleAgente.js");
   const txt = fs.readFileSync(abs, "utf8").replace(/\r\n/g, "\n");
-  const m = txt.replace(/if \(_tesis && \/por\\s\?qu\[eé\]\|porqu\[eé\]\|a qu\[eé\] se debe\|motivo\|profundiz\|explic\/i\.test\(q\)\) memOut\.diarioTesis = _tesis;/,
-    "void _tesis;   // CARNADA: el diario no se guarda");
+  /* (re-apuntada en la etapa 2: el guardado es un bloque — fecha, carga, aviso — y la línea que muta es la
+   * escritura misma de memOut.diarioTesis) */
+  const m = txt.replace(/        memOut\.diarioTesis = \{ \.\.\._tesis, fecha: new Date\(\)\.toISOString\(\)\.slice\(0, 10\), carga: \(\(\) => \{ try \{ return idDeCargaActiva\(\); \} catch \{ return null; \} \}\)\(\) \};/,
+    "        void _tesis;   // CARNADA: el diario no se guarda");
   if (m === txt) { ok(false, "carnada: no encontró el guardado a mutar"); }
   else {
     const destino = abs.replace(/\.js$/, `.carnada${process.pid}.js`);

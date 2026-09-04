@@ -37,9 +37,10 @@ import { cifrasDelDato } from "../oracle/datoProyectado.js";
 import { axisEntityNames } from "../oracle/entityIndex.js";
 import { parseFigures } from "../boleta.js";
 import { stripLanguageLeaks } from "../llm/voiceGuard.js";
-import { getSelloDeCarga } from "../../ingesta/estadoCarga.js";
+import { getSelloDeCarga, idDeCargaActiva } from "../../ingesta/estadoCarga.js";
 import { anteponerSello } from "../../ingesta/selloEnRespuesta.js";
 import { detectFichaIntent } from "../oracle/fichaIntent.js";   // la puerta a la ficha desde texto libre (re-cableada en La Poda: era del natural)
+import { entidadNombrada } from "./playbooks/indiceEntidades.js";   // DIARIO ETAPA 2: la entidad de la cita manda sobre la de la pregunta
 import { extraerCalculos, stripAllMarks, composeNoDataMessage } from "../oracle/narrationBlocks.js";
 import { normalizeResponse } from "../responseContract.js";
 import { _respaldoDeLoYaAprobado } from "../oracle/respaldoAprobado.js";   // paso 0 de la Poda: el peldaño compartido ya no vive en el módulo con fecha de retiro
@@ -358,6 +359,62 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
      * «Ana.: …». Se permite el punto interno («J.C.») y se recorta la puntuación final. */
     const _trato = m && m[1] ? m[1].replace(/[.,;:!?]+$/, "") : "";
     if (_trato) { try { setNombreUsuario(_trato); } catch { /* un trato inválido no rompe el turno */ } }
+  }
+  /* ── DIARIO ETAPA 2 · EL CAPTURADOR DE INTENCIÓN y EL OLVIDO (owner 2026-09-05, GO al plan) ──────────────
+   * rolesCartera emite la pregunta al dueño («¿El volumen de X a ese margen es una apuesta tuya…?») y hasta
+   * hoy NADIE capturaba la respuesta. El capturador es ANGOSTO y determinístico (cero llamadas, el patrón
+   * del criterio): solo si el turno ANTERIOR del asistente contiene la pregunta (su frase fija, con las
+   * entidades que la propia casa escribió) y el usuario AFIRMA — se guarda SU CITA textual, jamás un resumen.
+   * Ante la duda, no se guarda y el turno sigue su camino normal. */
+  {
+    const _prevAsistente = (() => {
+      const h = Array.isArray(history) ? history : [];
+      for (let i = h.length - 1; i >= 0; i--) {
+        const m = h[i];
+        if (m && m.role !== "user" && typeof m.text === "string" && m.text.trim()) return m.text;
+      }
+      return "";
+    })();
+    const _mPregunta = /¿El volumen de (.+?)(?: y (.+?))? a ese margen es una apuesta tuya/.exec(_prevAsistente);
+    /* sin `\b` tras clases con vocal acentuada (§5g — quinta mordida del mismo perro, cazada por el barrido) */
+    const _FINP = "(?![a-záéíóúüñ])";
+    const _AFIRMA = new RegExp([
+      `\\bapuesta m[ií]a${_FINP}`, `\\bes (?:una )?apuesta${_FINP}`, `\\blo (?:decid[ií]|empuj[oé]) yo${_FINP}`,
+      `\\bes deliberad`, `\\bes estrategia${_FINP}`, `\\bs[ií]${_FINP}[^.\\n]{0,30}(?:apuesta|deliberad|estrategia|m[ií]a${_FINP})`,
+    ].join("|"), "i");
+    if (_mPregunta && _AFIRMA.test(q) && q.trim().length <= 240) {
+      /* LA ENTIDAD DE LA CITA MANDA (medido en la sonda al estrenar esto): se preguntó por Falabella y Jumbo
+       * y el dueño respondió «el volumen de LIDER es apuesta mía» — anotar su palabra bajo las entidades de
+       * LA PREGUNTA la desalineaba. Si su frase nombra a alguien del índice, se anota bajo ESE nombre; si no
+       * nombra a nadie, respondió a la pregunta tal cual y valen las entidades preguntadas. */
+      const _delaCita = (() => { try { const e = entidadNombrada(q); return e ? [e.nombre] : null; } catch { return null; } })();
+      const entidades = _delaCita || [_mPregunta[1], _mPregunta[2]].filter(Boolean);
+      const intencion = { cita: q.trim(), pregunta: "volumen_deliberado", entidades,
+        fecha: new Date().toISOString().slice(0, 10), carga: (() => { try { return idDeCargaActiva(); } catch { return null; } })() };
+      const previas = Array.isArray(memIn.intenciones) ? memIn.intenciones : [];
+      const mem2 = { ...memIn, intenciones: [...previas.filter((x) => !(x && x.pregunta === "volumen_deliberado" && JSON.stringify(x.entidades) === JSON.stringify(entidades))), intencion].slice(-10), diarioCambio: true };
+      const texto = `Anotado, con tu palabra: «${q.trim()}». Cuando lea el margen de ${entidades.join(" y ")}, lo voy a recordar como decisión tuya — y si el dato cambia, te lo digo re-midiendo, no de memoria.`;
+      return {
+        r: normalizeResponse({ text: texto, route: "agente", deterministic: true, claims: [], suggestions: null, sentrixAction: null,
+          agente: { estado: "intencion", rondas: 0, calls: 0, figs: 0, motivos: [], vetos: [], recitaCifras: 0 } }),
+        mem: { ...mem2, recentNarrations: [texto, ...recentPrev].slice(0, 2) },
+      };
+    }
+    /* EL OLVIDO — con persistencia real, «cerrar el chat» ya no borra: el usuario manda sobre su memoria.
+     * Detector angosto del objeto DIARIO (el criterio tiene el suyo); borrar acá + la marca para el server. */
+    const _OLVIDA = /\bolvid[aá](?:te)?\b[^.\n]{0,50}\b(?:lo que (?:guardaste|anotaste|ten[eé]s guardado)|la (?:lectura|tesis)|mi (?:respuesta|palabra)|esa intenci[oó]n|todo lo que (?:guardaste|anotaste|sabes de m[ií]))/i;
+    if (_OLVIDA.test(q)) {
+      const habia = !!(memIn.diarioTesis || (Array.isArray(memIn.intenciones) && memIn.intenciones.length));
+      const mem2 = { ...memIn, diarioTesis: null, intenciones: [], diarioCambio: true };
+      const texto = habia
+        ? "Listo: borré la lectura y las respuestas que tenía guardadas. El borrado es definitivo — no lo puedo deshacer, y una carga nueva no lo revive."
+        : "No tenía nada guardado tuyo — no hay nada que borrar.";
+      return {
+        r: normalizeResponse({ text: texto, route: "agente", deterministic: true, claims: [], suggestions: null, sentrixAction: null,
+          agente: { estado: "olvido", rondas: 0, calls: 0, figs: 0, motivos: [], vetos: [], recitaCifras: 0 } }),
+        mem: { ...mem2, recentNarrations: [texto, ...recentPrev].slice(0, 2) },
+      };
+    }
   }
   /* ── MEMORIA DE CRITERIO · el bypass ANTES del cerebro (re-cableado en la tanda post-poda, 2026-09-05) ────
    * La poda dejó esta conducta INALCANZABLE: `detectCriteriaIntent`/`composeCriteria` solo vivían en
@@ -798,7 +855,19 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   if ((estado === "playbook" || (aprobado && !suplente)) && playbookActivo && typeof playbookActivo.diarioDeTesis === "function") {
     try {
       const _tesis = playbookActivo.diarioDeTesis(scenario);
-      if (_tesis && /por\s?qu[eé]|porqu[eé]|a qu[eé] se debe|motivo|profundiz|explic/i.test(q)) memOut.diarioTesis = _tesis;
+      if (_tesis && /por\s?qu[eé]|porqu[eé]|a qu[eé] se debe|motivo|profundiz|explic/i.test(q)) {
+        /* DIARIO ETAPA 2 (owner 2026-09-05): la tesis lleva FECHA y la IDENTIDAD DE LA CARGA con la que se
+         * midió — la caducidad del diario persistente se decide contra estas dos (una tesis de otra carga se
+         * re-mide y se dice; una de 30+ días no se afirma, se ofrece retomar). Y el guardado SE AVISA en una
+         * línea, para que la memoria no sea secreta: solo cuando la tesis es nueva o su huella cambió. */
+        const _previa = memIn.diarioTesis && memIn.diarioTesis.clave === _tesis.clave ? memIn.diarioTesis : null;
+        const _huellaCambio = !_previa || JSON.stringify(_previa.huella) !== JSON.stringify(_tesis.huella);
+        memOut.diarioTesis = { ..._tesis, fecha: new Date().toISOString().slice(0, 10), carga: (() => { try { return idDeCargaActiva(); } catch { return null; } })() };
+        if (_huellaCambio) {
+          memOut.diarioCambio = true;   // la marca para que el caller persista (ChatADI · op:"diario")
+          pantalla = `${pantalla}\n\n(Me guardo esta lectura para la próxima.)`;
+        }
+      }
     } catch { /* el diario jamás rompe el turno */ }
   }
 

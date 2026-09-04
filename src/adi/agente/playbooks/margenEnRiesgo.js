@@ -20,6 +20,7 @@
 import { variante } from "../variacion.js";   // el cierre varía por semilla («matar la repetición», 2026-09-03)
 import { buildRolesCartera } from "../../sentrix/rolesCartera.js";   // el porqué: el papel de cada cliente y la huella de cada mecanismo
 import { etiquetaDeLaCarga } from "../../../config/businessPolicy.js";   // DE QUIÉN es el nivel de carga: jamás «tu target declarado» si el cliente no lo declaró
+import { idDeCargaActiva } from "../../../ingesta/estadoCarga.js";   // DIARIO ETAPA 2: la tesis se compara contra la carga con la que se lee — una sola función, jamás dos derivaciones
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 /* ⚠️ EL MOTOR SOLO PONE `raw` EN LAS FILAS DESTACADAS (medido: de los 13 clientes con margen, 5 traen `raw` y
@@ -327,11 +328,28 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
    * una frase. Sin tesis previa, no se dice nada: el silencio del diario es un estado válido. */
   const tesisPrevia = mem && mem.diarioTesis && mem.diarioTesis.clave === "margen-roles" ? mem.diarioTesis : null;
   if (tesisPrevia && tesisPrevia.huella) {
+    /* DIARIO ETAPA 2 · LA CADUCIDAD (owner, GO 2026-09-05): la tesis persiste entre sesiones, así que ya no
+     * alcanza con «este hilo». Tres casos, y en TODOS se re-mide (la huella de hoy manda — nada guardado se
+     * afirma sin re-medir): (a) la carga cambió → se dice que la lectura era de la carga anterior; (b) 30+
+     * días sin re-confirmar → no se AFIRMA la continuidad: se ofrece retomar, y la lectura de hoy sigue
+     * sola; (c) vigente → confirmar o corregir, como siempre. */
     const h = tesisPrevia.huella;
     const igual = h.caen === (C.caen || 0) && h.grandesQueCaen === (C.grandesQueCaen || 0) && h.mismaGente === !!C.mismaGente;
-    p.push(igual
-      ? `Esto confirma la lectura que ya teníamos en este hilo: ${tesisPrevia.resumen}.`
-      : `La lectura cambió respecto de lo que vimos en este hilo (antes: ${tesisPrevia.resumen}) — lo corrijo con el dato de hoy.`);
+    const cargaActual = (() => { try { return idDeCargaActiva(); } catch { return null; } })();
+    const otraCarga = (tesisPrevia.carga || null) !== (cargaActual || null);
+    const dias = tesisPrevia.fecha ? Math.floor((Date.now() - Date.parse(tesisPrevia.fecha)) / 86400000) : null;
+    const vieja = Number.isFinite(dias) && dias > 30;
+    if (vieja) {
+      p.push(`Tengo guardada una lectura del margen del ${tesisPrevia.fecha}, pero pasó más de un mes: no la doy por vigente. ¿La retomamos después de esta? Va la lectura de hoy:`);
+    } else if (otraCarga) {
+      p.push(igual
+        ? `La lectura que guardamos${tesisPrevia.fecha ? ` el ${tesisPrevia.fecha}` : ""} era de tu carga anterior — re-medida contra la de hoy, se confirma: ${tesisPrevia.resumen}.`
+        : `La lectura que guardamos${tesisPrevia.fecha ? ` el ${tesisPrevia.fecha}` : ""} era de tu carga anterior y con el dato de hoy cambió (antes: ${tesisPrevia.resumen}) — lo corrijo acá.`);
+    } else {
+      p.push(igual
+        ? `Esto confirma la lectura que ya teníamos${tesisPrevia.fecha ? ` (guardada el ${tesisPrevia.fecha})` : " en este hilo"}: ${tesisPrevia.resumen}.`
+        : `La lectura cambió respecto de lo que vimos${tesisPrevia.fecha ? ` (guardado el ${tesisPrevia.fecha})` : " en este hilo"} (antes: ${tesisPrevia.resumen}) — lo corrijo con el dato de hoy.`);
+    }
   }
 
   /* 1 · LA TESIS — qué historia cuentan juntos los números (no dos problemas: uno con dos síntomas) */
@@ -400,7 +418,18 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
   p.push(`\n**Cómo se resuelve la duda:** si el exceso de carga se repite parejo en toda la cartera, es política comercial y se corrige con una regla; si cambia cliente por cliente, es negociación y se corrige cuenta por cuenta. Tu dato dice que el exceso va de ${C.excesoMin} a ${C.excesoMax} puntos: no es parejo.`);
 
   /* 5 · LA PREGUNTA AL DUEÑO — solo lo que ninguna columna puede saber */
-  if (A.preguntaAlDueno) p.push(`\n${A.preguntaAlDueno.texto} De tu respuesta depende si eso es estrategia o fuga: el dato mide la carga comercial, no la intención.`);
+  if (A.preguntaAlDueno) {
+    /* DIARIO ETAPA 2: si el dueño YA respondió (su cita guardada toca alguna de las entidades en cuestión),
+     * no se le vuelve a preguntar — se CITA su palabra, textual, sin interpretarla más allá de lo que dijo. */
+    const _citaGuardada = (Array.isArray(mem && mem.intenciones) ? mem.intenciones : [])
+      .find((x) => x && x.pregunta === "volumen_deliberado" && Array.isArray(x.entidades)
+        && x.entidades.some((e) => A.preguntaAlDueno.entidades.includes(e)));
+    if (_citaGuardada) {
+      p.push(`\nSobre ${_citaGuardada.entidades.join(" y ")} tu palabra ya está anotada${_citaGuardada.fecha ? ` (${_citaGuardada.fecha})` : ""}: «${_citaGuardada.cita}». La leo como decisión tuya — dime si cambió.`);
+    } else {
+      p.push(`\n${A.preguntaAlDueno.texto} De tu respuesta depende si eso es estrategia o fuga: el dato mide la carga comercial, no la intención.`);
+    }
+  }
 
   /* 6 · EL PASO SIGUIENTE, DENTRO DE ADI — jamás «convendría reunirse» si se puede avanzar acá */
   const primero = (ero && ero.items[0]) || (vol && vol.items[0]) || null;

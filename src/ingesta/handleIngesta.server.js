@@ -28,7 +28,7 @@ import { plantillaVacia, plantillaEjemplo } from "./plantilla/generarPlantilla.j
 import { POLICY_CONFIG } from "../config/businessPolicy.js";
 import { PLANTILLA_VERSION } from "../config/contract/plantilla.js";
 import { verifyAccessCode } from "../adi/llm/accessToken.js";
-import { persistirCarga, cargasPrevias, activarVersion, declararCobro, hashSha256, historiaActiva } from "./persistirCarga.server.js";
+import { persistirCarga, cargasPrevias, activarVersion, declararCobro, declararDiario, hashSha256, historiaActiva } from "./persistirCarga.server.js";
 import { diffDeCarga, periodosDeHechos } from "./historico.js";
 
 /* De qué empresa es esta carga. Sale del código firmado y de ningún otro lado.
@@ -113,6 +113,18 @@ export async function handleIngesta(body = {}, env) {
    *
    * ⚠️ NO SE PUEDE DECLARAR SIN DATOS ACTIVOS, y la base lo rechaza: la política vive dentro del pack, así que
    * sin pack no hay dónde escribirla. Es una limitación real y se dice, en vez de guardarla en un limbo. */
+  /* DIARIO ETAPA 2 (owner, GO 2026-09-05): la memoria entre sesiones va POR ESTA MISMA PUERTA y por la misma
+   * razón que los plazos — el mismo usuario, sobre su misma empresa, decidiendo qué recuerda su asesor. El
+   * objeto llega ARMADO por el motor del hilo (guardar = con la pieza; olvidar = sin ella). */
+  if (body.op === "diario") {
+    const s = await sesionDeLaCarga(body.access, env);
+    if (!s) return { ok: false, motivo: "sin sesión con empresa: no se puede guardar el diario" };
+    const r = await declararDiario({ tenantId: s.tenantId, diario: body.diario, actor: s.actor, env });
+    return r.declarada
+      ? { ok: true, op: "diario", version: r.version, diario: r.diario }
+      : { ok: false, op: "diario", motivo: r.motivo };
+  }
+
   if (body.op === "plazos") {
     const s = await sesionDeLaCarga(body.access, env);
     if (!s) return { ok: false, motivo: "sin sesión con empresa: no se puede declarar el plazo de pago" };

@@ -123,8 +123,14 @@ export async function persistirCarga({
   const packAnterior = ult.filas.length ? ult.filas[0].pack : null;
   const cobroAnterior = packAnterior && packAnterior.perfil ? packAnterior.perfil.cobro : null;
   const traeCobro = dataset && dataset.perfil && dataset.perfil.cobro;
-  const datasetConPolitica = (!traeCobro && cobroAnterior)
-    ? { ...dataset, perfil: { ...(dataset.perfil || {}), cobro: cobroAnterior } }
+  /* DIARIO ETAPA 2 (owner, GO 2026-09-05): la memoria se arrastra COMO el cobro — el objeto TAL CUAL. Lo que
+   * el usuario borró no está en el objeto, así que una carga nueva no lo revive; la planilla jamás trae
+   * diario propio, por eso el arrastre es incondicional cuando hay diario anterior. */
+  const diarioAnterior = packAnterior && packAnterior.perfil ? packAnterior.perfil.diario : null;
+  const datasetConPolitica = ((!traeCobro && cobroAnterior) || diarioAnterior)
+    ? { ...dataset, perfil: { ...(dataset.perfil || {}),
+        ...((!traeCobro && cobroAnterior) ? { cobro: cobroAnterior } : {}),
+        ...(diarioAnterior ? { diario: diarioAnterior } : {}) } }
     : dataset;
 
   /* ── 3c · LOS HECHOS VIAJAN DENTRO DEL PACK (owner 2026-08-30: la carga es histórica) ─────────────────
@@ -369,4 +375,53 @@ export async function declararCobro({ tenantId, diasGeneral, porCliente, actor =
 
   /* Vuelve lo que QUEDÓ GUARDADO, no lo que se mandó: si la base descartó algo, la pantalla muestra lo real. */
   return { declarada: true, version: r.filas[0].version, cobro: politicaLimpia(r.filas[0].cobro) };
+}
+
+/* diarioLimpio(diario) → { tesis, intenciones } normalizado — la ÚNICA verdad de qué es un diario válido.
+ * DIARIO ETAPA 2 (owner, GO 2026-09-05): lo que no se entiende se DESCARTA, nunca se aproxima — el criterio
+ * de politicaLimpia, aplicado a la memoria. La cita es texto del usuario y viaja recortada; jamás se
+ * completa ni se resume acá. */
+export function diarioLimpio(diario) {
+  const d = diario && typeof diario === "object" ? diario : {};
+  const t = d.tesis && typeof d.tesis === "object" ? d.tesis : null;
+  const tesis = t && typeof t.clave === "string" && t.clave && t.huella && typeof t.huella === "object"
+    ? { clave: String(t.clave).slice(0, 40), resumen: String(t.resumen || "").slice(0, 300),
+        huella: t.huella, fecha: typeof t.fecha === "string" ? t.fecha.slice(0, 10) : null,
+        carga: t.carga == null ? null : String(t.carga).slice(0, 120) }
+    : null;
+  const intenciones = (Array.isArray(d.intenciones) ? d.intenciones : [])
+    .filter((x) => x && typeof x === "object" && typeof x.cita === "string" && x.cita.trim())
+    .map((x) => ({ cita: String(x.cita).slice(0, 300), pregunta: String(x.pregunta || "").slice(0, 40),
+      entidades: (Array.isArray(x.entidades) ? x.entidades : []).map((e) => String(e).slice(0, 80)).slice(0, 4),
+      fecha: typeof x.fecha === "string" ? x.fecha.slice(0, 10) : null,
+      carga: x.carga == null ? null : String(x.carga).slice(0, 120) }))
+    .slice(-10);
+  return { ...(tesis ? { tesis } : {}), ...(intenciones.length ? { intenciones } : {}) };
+}
+
+/* declararDiario({ tenantId, diario, actor, env, cliente, ttlSegundos }) → { declarada, version, diario } | { declarada:false, motivo }
+ *
+ * LA MEMORIA ENTRE SESIONES · el patrón EXACTO de declararCobro: se valida ACÁ (para hablarle al usuario en
+ * su idioma) *y* en la base (porque una regla solo-servidor es una costumbre); escribe `perfil.diario` en la
+ * versión activa con la función de la 007; sin datos activos no hay dónde escribir y se dice. El objeto que
+ * llega es el RESULTADO ya armado por el motor del hilo (guardar = el diario con la pieza; olvidar = sin
+ * ella): el arrastre de `persistirCarga` copia el objeto tal cual, así que lo borrado no revive. */
+export async function declararDiario({ tenantId, diario, actor = null, env, cliente, ttlSegundos } = {}) {
+  if (!tenantId) return { declarada: false, sinBase: true, motivo: "sin sesión con empresa" };
+  const limpio = diarioLimpio(diario);
+  const e = env || (typeof process !== "undefined" && process.env) || {};
+  const db = cliente || clienteDesdeEntorno(e);
+  if (!db) return { declarada: false, sinBase: true, motivo: "base no configurada" };
+  const p = await emitirPase({ tenantId, secreto: e.SUPABASE_JWT_SECRET || "", ...(ttlSegundos ? { ttlSegundos } : {}) });
+  if (!p.ok) return { declarada: false, motivo: `no se pudo emitir el pase: ${p.motivo}` };
+  const r = await db.llamarFuncion("adi_escribir_diario", {
+    p_diario: limpio,
+    p_actor_id: (actor && actor.id) || null,
+    p_actor_label: (actor && actor.label) || null,
+    p_actor_rol: (actor && actor.rol) || null,
+  }, { pase: p.pase });
+  if (!r.ok) return { declarada: false, motivo: `no se pudo guardar el diario: ${r.motivo}` };
+  if (!r.filas.length) return { declarada: false, motivo: "la base no confirmó el diario" };
+  /* vuelve lo que QUEDÓ GUARDADO, no lo que se mandó — el criterio de declararCobro */
+  return { declarada: true, version: r.filas[0].version, diario: diarioLimpio(r.filas[0].diario) };
 }

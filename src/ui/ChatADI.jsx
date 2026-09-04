@@ -42,7 +42,7 @@ import { TypewriterText } from "./TypewriterText.jsx";
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 import { P } from "../config/flagProfile.js";   // el vigía se enciende por bandera (ADI_VIGIA en FEATURE)
 import { buildVigia, hablarEnChat } from "../adi/sentrix/vigia.js";   // EL VIGÍA (c): habla primero SOLO cuando algo cambió
-import { getTenantId, tenantCargado } from "../data/tenantStore.js";   // la huella de «qué vio ya» es por tenant
+import { getTenantId, tenantCargado, getTenantData } from "../data/tenantStore.js";   // la huella de «qué vio ya» es por tenant · getTenantData: la siembra del diario viaja en el pack
 
 // Cuando answerADI devuelve route="not_yet_extracted" (text null), el motor es honesto: no inventa.
 // La UI refleja esa honestidad en vez de fabricar un overview.
@@ -507,7 +507,19 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
   if (_oracleOn() && !detectPnlIntent(q)) {
     try {
       _ph(0);
-      const mem = (context && context.memoriaInteraccion) || {};
+      /* DIARIO ETAPA 2 (owner, GO 2026-09-05): en un hilo NUEVO, la memoria persistida llega DENTRO del pack
+       * que adi-data ya sirve (`perfil.diario` — ni un fetch extra) y siembra el mem del hilo: el motor re-mide
+       * contra la huella como siempre. El mem vivo del hilo manda sobre la siembra (jamás pisar lo del turno). */
+      const mem = (() => {
+        const vivo = (context && context.memoriaInteraccion) || {};
+        if (vivo.diarioTesis || (Array.isArray(vivo.intenciones) && vivo.intenciones.length)) return vivo;
+        try {
+          const _td = getTenantData();
+          const d = (_td && _td.perfil && _td.perfil.diario) || null;
+          if (!d || typeof d !== "object") return vivo;
+          return { ...vivo, ...(d.tesis ? { diarioTesis: d.tesis } : {}), ...(Array.isArray(d.intenciones) && d.intenciones.length ? { intenciones: d.intenciones } : {}) };
+        } catch { return vivo; }
+      })();
       const history = Array.isArray(recentTurns) ? recentTurns : [];
       // conversationId: UNA por hilo de chat — se genera la PRIMERA vez y se persiste en `context` (mismo mecanismo
       // que memoriaInteraccion), nunca se recalcula a mitad de conversación (owner 2026-07-29, multiempresa: cada
@@ -531,7 +543,21 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
             callAgente: (args) => _fetchAgente({ ...args, scenario, requestContext }) });
           if (o && o.r) {
             _ph(3);
-            const rr = { ...o.r, context: { ...(context || {}), memoriaInteraccion: o.mem, conversationId } };
+            /* DIARIO ETAPA 2 · LA PERSISTENCIA: cuando el turno CAMBIÓ el diario (tesis nueva, intención
+             * anotada, olvido), se manda a la puerta de siempre — fire-and-forget CON rastro (la lección del
+             * catch mudo): si falla, la memoria del hilo sigue viva y el fallo queda en consola. En el demo
+             * sin sesión, el servidor lo rechaza y no pasa nada — la promesa de recordar es del tenant real. */
+            const memTurno = o.mem || {};
+            if (memTurno.diarioCambio) {
+              delete memTurno.diarioCambio;
+              const diario = { ...(memTurno.diarioTesis ? { tesis: memTurno.diarioTesis } : {}),
+                ...(Array.isArray(memTurno.intenciones) && memTurno.intenciones.length ? { intenciones: memTurno.intenciones } : {}) };
+              fetch("/api/adi-ingesta", { method: "POST", headers: { "content-type": "application/json" },
+                body: JSON.stringify({ op: "diario", diario, access: getAccessCode() }) })
+                .then((res) => res.json()).then((d) => { if (!d || !d.ok) console.warn("[ADI] el diario no se persistió:", d && d.motivo); })
+                .catch((e) => console.warn("[ADI] el diario no se persistió:", e && e.message));
+            }
+            const rr = { ...o.r, context: { ...(context || {}), memoriaInteraccion: memTurno, conversationId } };
             return _turnFromResult(q, rr, context, "agente", scenario);
           }
         } catch (e) {

@@ -25,6 +25,15 @@ export const getSelloDeCarga = () => _sello;
 /** getArchivoActivo() → { nombre, empresa } del archivo que el usuario activó, o null si corre el demo. */
 export const getArchivoActivo = () => _archivo;
 
+/** idDeCargaActiva() → la identidad de la carga con la que se está leyendo, o null (el demo).
+ *  DIARIO ETAPA 2: la tesis guardada lleva esta identidad — una tesis medida contra OTRA carga se re-mide y
+ *  se dice, jamás se afirma. Una sola función para escribir y para comparar: dos derivaciones divergirían. */
+export const idDeCargaActiva = () => {
+  const a = _archivo;
+  if (!a || typeof a !== "object") return null;
+  return String(a.hash || a.sha || `${a.nombre || "?"}@${a.fechaCarga || a.fecha || "?"}`);
+};
+
 /** onCargaChange(fn) → se avisa cuando cambia el archivo activo. Mismo patrón que `onTenantChange`. */
 export const onCargaChange = (fn) => { _avisos.push(fn); };
 
