@@ -414,11 +414,15 @@ export async function declararDiario({ tenantId, diario, actor = null, env, clie
   if (!db) return { declarada: false, sinBase: true, motivo: "base no configurada" };
   const p = await emitirPase({ tenantId, secreto: e.SUPABASE_JWT_SECRET || "", ...(ttlSegundos ? { ttlSegundos } : {}) });
   if (!p.ok) return { declarada: false, motivo: `no se pudo emitir el pase: ${p.motivo}` };
+  /* la acción del rastro (008): el objeto YA limpio manda — vacío es un olvido (el borrado dejó el diario
+   * sin piezas), con contenido es un guardado. Se infiere acá y la base valida el vocabulario cerrado. */
+  const accion = (limpio.tesis || (limpio.intenciones && limpio.intenciones.length)) ? "diario:guardar" : "diario:olvidar";
   const r = await db.llamarFuncion("adi_escribir_diario", {
     p_diario: limpio,
     p_actor_id: (actor && actor.id) || null,
     p_actor_label: (actor && actor.label) || null,
     p_actor_rol: (actor && actor.rol) || null,
+    p_accion: accion,
   }, { pase: p.pase });
   if (!r.ok) return { declarada: false, motivo: `no se pudo guardar el diario: ${r.motivo}` };
   if (!r.filas.length) return { declarada: false, motivo: "la base no confirmó el diario" };

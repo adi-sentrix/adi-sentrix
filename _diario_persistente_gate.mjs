@@ -126,6 +126,14 @@ H("2 · el server: lo que no se entiende se descarta, el round-trip devuelve lo 
     "★ EL MURO: el pase lleva el tenant de la sesión — la empresa B jamás puede escribir el diario de A", JSON.stringify(payload));
   const sinSesion = await declararDiario({ tenantId: null, diario: sucio, env: {}, cliente: mockDb });
   ok(sinSesion.declarada === false, "…y sin sesión con empresa, no hay escritura");
+
+  /* EL RASTRO (008): la acción se infiere del objeto YA limpio — con contenido es guardar, vacío es olvidar.
+   * El mock captura lo que la RPC recibiría: es la conducta viva de declararDiario, no una lectura del texto. */
+  ok(capturado.args.p_accion === "diario:guardar",
+    "★ el guardado viaja con accion «diario:guardar» — el rastro distingue el verbo (008)");
+  await declararDiario({ tenantId: "empresa-a", diario: {}, actor: { label: "jc" }, env: { SUPABASE_JWT_SECRET: "secreto-de-prueba" }, cliente: mockDb });
+  ok(capturado.args.p_accion === "diario:olvidar",
+    "★ el olvido (objeto vacío) viaja con accion «diario:olvidar» — quién borró queda escrito con su verbo");
 }
 
 /* ═══ 3 · LA CADENA ESTÁTICA · la 007, la op, el arrastre y la siembra existen y dicen la verdad ═══════════ */
@@ -147,6 +155,33 @@ H("3 · la cadena: migración → op → arrastre → siembra (estático, cada e
     "la siembra lee `perfil.diario` del pack (ni un fetch nuevo) y alimenta el mem del hilo");
   ok(/op: "diario", diario, access: getAccessCode\(\)/.test(chat) && /el diario no se persistió/.test(chat),
     "…y el turno que cambió el diario lo persiste por la puerta, con rastro si falla (jamás mudo)");
+
+  /* ── LA 008 · access_audit: el contrato, el muro, el append-only y las dos trampas que romperían el diario ── */
+  const sql8 = fs.readFileSync(path.join(root, "db", "migraciones", "008_access_audit.sql"), "utf8");
+  const vivo8 = sql8.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n");
+  ok(/create table if not exists public\.access_audit/.test(sql8)
+     && ["tenant_id", "actor_id", "actor_label", "actor_rol", "accion", "detalle", "creado_en"].every((c) => new RegExp("\\b" + c + "\\b").test(sql8)),
+    "la 008 crea access_audit con el contrato EXACTO que la 007 ya escribía (las 6 columnas + creado_en)");
+  ok((sql8.match(/add column if not exists/g) || []).length >= 6 && /create index if not exists/.test(sql8)
+     && (vivo8.match(/drop policy if exists/g) || []).length === (vivo8.match(/create policy/g) || []).length,
+    "…idempotente TEXTUALMENTE: cada alter con if-not-exists y cada policy VIVA precedida de su drop (contado sin comentarios)");
+  ok(/alter table public\.access_audit enable row level security/.test(sql8)
+     && /for select\s*\n\s*using \(tenant_id = adi\.tenant_actual\(\)\)/.test(sql8)
+     && /for insert\s*\n\s*with check \(tenant_id = adi\.tenant_actual\(\)\)/.test(sql8),
+    "★ EL MURO: RLS habilitado y las dos políticas cuelgan del claim del pase — una empresa no lee el rastro de otra");
+  ok(!/for (update|delete)/.test(vivo8) && /revoke update, delete on public\.access_audit/.test(sql8),
+    "★ APPEND-ONLY: ni una política de update/delete en el SQL vivo, y el revoke lo dice explícito");
+  ok(/grant select, insert on public\.access_audit to adi_tenant/.test(sql8),
+    "★ LA TRAMPA DEL PERMISO: el grant a adi_tenant está — sin él, crear la tabla rompería el diario (permission denied no es undefined_table)");
+  ok(/drop function if exists public\.adi_escribir_diario\(jsonb, uuid, text, text\);/.test(sql8)
+     && /p_accion\s+text\s+default 'diario'/.test(sql8),
+    "★ LA TRAMPA DE LA SOBRECARGA: la firma vieja de 4 se retira antes de crear la de 5 — dos vivas = «function is not unique»");
+  ok(/p_accion not in \('diario', 'diario:guardar', 'diario:olvidar'\)/.test(sql8),
+    "…y la base valida el vocabulario CERRADO de la acción — una regla solo-servidor es una costumbre");
+  ok(/exception when undefined_table then null/.test(sql8) && /exception when undefined_table then null/.test(sql),
+    "la cláusula defensiva SE QUEDA en las dos (007 y 008) — es la que salvó la operación cuando la tabla no existía");
+  ok(/jsonb_build_object\('claves'/.test(sql8) && !/p_diario->'tesis'->>'resumen'/.test(sql8),
+    "…y el detalle lleva las CLAVES tocadas, jamás el contenido — las citas del dueño no se duplican en la auditoría");
 }
 
 /* ═══ 4 · CARNADAS · cada garantía, probada ROJA con el defecto adentro ════════════════════════════════════ */

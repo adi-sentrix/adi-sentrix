@@ -38,6 +38,9 @@ $$;
 -- ── ESCRIBIR EL DIARIO ───────────────────────────────────────────────────────────────────────────────
 -- Recibe el diario COMPLETO ya armado por el servidor (guardar = merge, olvidar = quitar — la mutación es
 -- del servidor; la base escribe el resultado y lo devuelve, para que nadie tenga que adivinar qué quedó).
+-- ⚠️ LA VERSIÓN CANÓNICA DE ESTA FUNCIÓN VIVE EN LA 008 (agrega `p_accion` para distinguir guardar de
+-- olvidar en el rastro, y retira esta firma para que no queden dos sobrecargas). Esta queda como historia
+-- para leer la base tal como estuvo entre la 007 y la 008 — esta migración NO se reescribe: ya corrió.
 create or replace function public.adi_escribir_diario(
   p_diario      jsonb,
   p_actor_id    uuid default null,
