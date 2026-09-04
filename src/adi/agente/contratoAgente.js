@@ -74,6 +74,19 @@ const _DECISION_TOMADA = /\b(procede con|proced[eé] con|avanz[aá] con la ejecu
 const _LEXICO_SUPERFICIE = [
   { re: /\bescenarios?\b/i, regla: "lexico-escenario",
     multa: "«escenario» no existe en pantalla (colapso del eje): di «supuesto» para lo que el usuario plantea y «proyección» para lo que calculas sobre él." },
+  /* ⚠️ «META» SOBRE EL BENCHMARK O LA CARGA (owner en producción, 2026-09-05: el cerebro re-fraseó «contra
+   * una meta de 3.5%» dos veces — el piso determinístico estaba limpio, la palabra la puso la prosa viva).
+   * La regla es VIEJA y dura: benchmark ≠ meta, «las metas las fija el cliente, no nosotros» (CLAUDE.md §4)
+   * y la procedencia de agosto («no quiero que la referencia general parezca una meta del cliente»). El
+   * barredor del registro barre NUESTROS composers; este cerrojo cubre la prosa del cerebro, que era el
+   * agujero. La regla veta NUESTRA atribución, no las palabras del usuario: si ÉL nombró su meta en la
+   * pregunta, citarla es legítimo (salvoSi sobre el hecho del turno, jamás sobre el texto juzgado). */
+  /* la ventana de oración admite el punto DECIMAL («4.4%» cortaba `[^.\n]` y la regla no veía la frase del
+   * owner — la misma trampa que guardC documenta con sus cifras enmascaradas): punto solo entre dígitos. */
+  { re: /\b(?:meta|target)s?\b(?:[^.\n]|(?<=\d)\.(?=\d)){0,60}\b(?:benchmark|carga(?:\s+comercial)?|margen m[ií]nimo|rebate)|\b(?:benchmark|carga comercial|nivel de carga)\b(?:[^.\n]|(?<=\d)\.(?=\d)){0,60}\b(?:meta|target)s?\b/i,
+    regla: "lexico-meta",
+    salvoSi: (ctx) => /\bmetas?\b|\btargets?\b/i.test(String((ctx && ctx.pregunta) || "")),
+    multa: "«meta»/«target» sobre el benchmark o la carga atribuye al cliente una meta que no fijó — las metas las fija el cliente, no nosotros. Di «benchmark declarado» o «tu nivel de carga comercial declarado»; «meta» solo citando la que el usuario nombró." },
   { re: /\btensi[oó]n\b/i, regla: "lexico-tension",
     multa: "«tensión» es vocabulario interno (y coincide con un nombre de mundo): en pantalla se dice «brecha contra el benchmark» o la palabra del dato que corresponda." },
   /* ⚠️ ACOTADO A USOS-INSTRUMENTO: en el pack de ferretería «Herramientas» es una FAMILIA del dato real —

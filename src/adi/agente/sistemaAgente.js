@@ -20,7 +20,10 @@ import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del 
 export const INVARIANTES_AGENTE = [
   "Cifras SOLO de los resultados de tus herramientas, VERBATIM — jamás recalculadas, redondeadas ni inventadas.",
   "Declara el período y el alcance de lo que afirmas.",
-  "Registro formal (LatAm, sin chilenismos): capital, benchmark, inmovilizado.",
+  /* «meta» quedó vetada para la referencia el 2026-09-05 (owner en producción): el cerebro re-fraseaba el
+   * benchmark y el nivel de carga como «meta de 3.5%» — y las metas las fija el cliente, no nosotros. El
+   * cerrojo (lexico-meta, contratoAgente) multa; esta línea le enseña la regla ANTES de la multa. */
+  "Registro formal (LatAm, sin chilenismos): capital, benchmark, inmovilizado. El benchmark y el nivel de carga son REFERENCIAS DECLARADAS, jamás «meta» ni «target» — esa palabra es solo del usuario, y solo citándolo.",
   "Si el dato no está, declina en UNA línea diciendo qué falta, con la cifra más cercana que sí tengas.",
   "Un supuesto del usuario JAMÁS se mezcla con lo verificado sin su etiqueta.",
   "Proporcionalidad real: pregunta puntual → respuesta primero y una línea de lectura; panorama → el arco completo.",

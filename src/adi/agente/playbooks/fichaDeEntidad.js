@@ -139,6 +139,14 @@ export const fichaDeEntidad = {
     if (Array.isArray(ent.colision) && ent.colision.length > 1) {
       p.push(`«${ent.nombre}» existe en tu catálogo como ${ent.colision.join(" y como ")} — respondo por ${QUE_ES}; si buscabas la otra cara, dímelo.`);
     }
+    /* ⚠️ EL PEDIDO DE INVENTARIO DE UN EJE QUE NO LO TIENE (owner en producción, 2026-09-05): «el stock de
+     * Samsung» respondía el lado comercial entero SIN decir que el inventario por marca no está en el dato —
+     * responder otra pregunta como si fuera la hecha es la sustitución de siempre. El inventario vive por
+     * SKU; para marca/familia/cliente se DECLARA el corte ausente y se ofrece lo que hay. El SKU no pasa por
+     * acá: su ficha ya trae el lado de inventario. */
+    if (ent.eje !== "sku" && new RegExp(`\\bstock${_FIN}|\\binventario${_FIN}|\\brotaci[oó]n${_FIN}|d[ií]as de inventario`, "i").test(String(pregunta || ""))) {
+      p.push(`El inventario de ${ent.nombre} no está en tu dato con ese corte: el inventario vive por SKU, no por ${QUE_ES}. Lo que sí tengo es su lado comercial — y si me nombras un SKU, te doy su stock.`);
+    }
     /* 1 · QUÉ ESTÁ PASANDO — cuánto pesa y cómo rinde, con la vara al lado (la ley de la vara única).
      * ⚠️ EN UN SKU, LA PROCEDENCIA SE DICE (tanda 3 post-poda): su ficha junta DOS universos que no
      * reconcilian — la venta comercial (skusMargen) y el inventario (skuInventario) — y «margen» existe en

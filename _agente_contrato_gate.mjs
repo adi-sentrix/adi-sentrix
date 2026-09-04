@@ -155,7 +155,16 @@ H("5 · el veto, calibrado contra los textos que YA salieron a pantalla");
    * narrador natural lo reescribiría. El récord del examen no se edita; la excepción se declara con su regla
    * exacta, y si el texto dejara de vetear (la regla se aflojó) la excepción quedaría estéril y ESO también
    * se caza. */
-  const EXENTOS = { "_examen2_consolidado.json t5": "lexico-escenario" };
+  const EXENTOS = { "_examen2_consolidado.json t5": "lexico-escenario",
+    /* lexico-meta (2026-09-05): el récord de los exámenes es PRE-regla y dice «la meta de 3.5%» por el nivel
+     * de carga — exactamente la falta que el owner vio en producción y que el cerrojo nuevo existe para
+     * vetar. El récord no se reescribe; se declara, igual que el t5 pre-colapso. */
+    "_examen1_consolidado.json t1": "lexico-meta", "_examen1_consolidado.json t2": "lexico-meta",
+    "_examen1_consolidado.json t4": "lexico-meta", "_examen1_consolidado.json t5": "lexico-meta",
+    "_examen4_consolidado.json t1": "lexico-meta", "_examen4_consolidado.json t2": "lexico-meta",
+    "_examen4_consolidado.json t4": "lexico-meta", "_examen4_consolidado.json t5": "lexico-meta",
+    "_examen_estado.json t1": "lexico-meta", "_examen_estado.json t2": "lexico-meta",
+    "_examen_estado.json t4": "lexico-meta" };
   const noExentas = vetadas.filter((v) => !EXENTOS[v]);
   ok(noExentas.length === 0, "cero vetos sobre lo aceptado — sin falsos positivos estrenados", noExentas.join(", "));
   ok(vetadas.some((v) => EXENTOS[v]), "…y la excepción declarada (t5 pre-colapso) SIGUE vetando — si esto falla, la regla se aflojó o el récord cambió");
@@ -170,6 +179,16 @@ H("5b · R8: cada fuga que llegó a pantalla en el examen, hoy vetada");
   };
   caza("O si prefieres que simule el escenario donde Falabella efectivamente tuviera 30% de margen.", "lexico-escenario", "T25 · «simule el escenario»");
   caza("Ese $194K es un dato de tensión, no de volumen.", "lexico-tension", "T9 · «dato de tensión»");
+  /* «meta» sobre la referencia (owner EN PRODUCCIÓN, 2026-09-05 — el cerebro re-fraseó dos veces): benchmark
+   * ≠ meta, «las metas las fija el cliente, no nosotros». Las dos frases vetadas son las SUYAS, verbatim. */
+  caza("Tu carga comercial es 4.4%, contra una meta de 3.5%.", "lexico-meta", "prod · «contra una meta de 3.5%»");
+  caza("Falabella excede 0.9 puntos la meta de 3.5% sobre su carga comercial.", "lexico-meta", "prod · «excede … la meta de 3.5%»");
+  caza("El benchmark que declaraste es tu target de margen.", "lexico-meta", "«target» sobre el benchmark");
+  /* …y la CALIBRACIÓN del cerrojo: la meta DEL USUARIO citada es legítima (la regla veta NUESTRA atribución) */
+  ok(vetosDeContrato("Tu meta de vender $120M este año queda 20% arriba del cierre actual.", { pregunta: "mi meta es vender 120M, ¿cómo voy?" }).every((x) => x.regla !== "lexico-meta"),
+    "la meta que EL USUARIO nombró se cita sin multa (salvoSi sobre el hecho del turno)");
+  ok(vetosDeContrato("Su carga comercial es 4.2% de su venta, contra tu nivel de carga comercial declarado de 3.5%.").every((x) => x.regla !== "lexico-meta"),
+    "…y la voz de la casa («nivel de carga declarado») pasa limpia");
   caza("No tengo la serie mensual desagregada (la herramienta de histórico por entidad está bloqueada).", "lexico-herramienta", "T9-T12 · «la herramienta … bloqueada»");
   caza("Con eso puedo tirarte la cifra limpia. ¿Me das esos tres datos?", "lexico-tirar", "T9 · «tirarte la cifra»");
   caza("Necesito exactamente 2 variables distintas — precio (precioLista) y volumen, cada una con su % de cambio.", "identificador-interno", "T2 · «precioLista» verbatim");
@@ -590,6 +609,11 @@ H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro")
   await carnada("el léxico de escenario vaciado", "src/adi/agente/contratoAgente.js",
     [[/\{ re: \/\\bescenarios\?\\b\/i, regla: "lexico-escenario",/, '{ re: /$^/, regla: "lexico-escenario",']],
     async (Mut) => Mut.vetosDeContrato("O si prefieres que simule el escenario donde Falabella tuviera 30% de margen.").length === 0);
+
+  // (b2m) el cerrojo de «meta» vaciado: la frase del owner en producción vuelve a pantalla
+  await carnada("el cerrojo de «meta» sobre la referencia, vaciado", "src/adi/agente/contratoAgente.js",
+    [[/    regla: "lexico-meta",/, '    regla: "lexico-meta-x",']],
+    async (Mut) => Mut.vetosDeContrato("Tu carga comercial es 4.4%, contra una meta de 3.5%.").every((x) => x.regla !== "lexico-meta"));
 
   // (b3) R8 · los identificadores internos sin filtro camelCase: «calcular» del corpus vuelve a caer
   await carnada("identificadores sin el filtro camelCase", "src/adi/agente/contratoAgente.js",

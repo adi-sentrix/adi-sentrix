@@ -61,7 +61,7 @@
       "id": "decision-riesgosa",
       "familia": "decisión · toma posición",
       "pregunta": "me conviene cortarle el descuento a Falabella?",
-      "texto": "No de golpe, y te digo por qué: Falabella es 8.1 puntos bajo tu referencia de margen y a la vez la cuenta más grande de tu facturación. Cortar la carga sin más te arregla el margen de una cuenta y te pone en riesgo el volumen que sostiene el negocio.\n\nLo que el dato sí sostiene: su carga comercial es 4.5% contra un target declarado de 3.5%. Lo que el dato no sabe: si ese volumen a ese margen fue una decisión tuya.\n\nCriterio mío, no una cifra del dato: bajaría la carga por tramos y contra compromiso de volumen, no de una vez. Si quieres, simulamos qué pasa con tu contribución llevándola al target y lo miras antes de mover nada."
+      "texto": "No de golpe, y te digo por qué: Falabella es 8.1 puntos bajo tu referencia de margen y a la vez la cuenta más grande de tu facturación. Cortar la carga sin más te arregla el margen de una cuenta y te pone en riesgo el volumen que sostiene el negocio.\n\nLo que el dato sí sostiene: su carga comercial es 4.5% contra tu nivel de carga comercial declarado de 3.5%. Lo que el dato no sabe: si ese volumen a ese margen fue una decisión tuya.\n\nCriterio mío, no una cifra del dato: bajaría la carga por tramos y contra compromiso de volumen, no de una vez. Si quieres, simulamos qué pasa con tu contribución llevándola a tu nivel declarado y lo miras antes de mover nada."
     },
     {
       "id": "pregunta-al-dueno",

@@ -382,7 +382,11 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
   };
   const linea = (h) => {
     const voz = _SELLO_EN_VOZ[h.sello] || ((porque) => porque);
-    return `- ${h.mecanismo} — ${voz(h.porque)}${h.falta ? ` Para cerrarlo: ${h.falta}.` : ""}`;
+    /* el punto antes de «Para cerrarlo» (owner en producción, 2026-09-05: «…cliente con familia Para
+     * cerrarlo…» salió pegado): las huellas vienen sin puntuación final y la costura la pone esta línea. */
+    const dicho = voz(h.porque).trim();
+    const conPunto = /[.!?…]$/.test(dicho) ? dicho : `${dicho}.`;
+    return `- ${h.mecanismo} — ${h.falta ? `${conPunto} Para cerrarlo: ${h.falta}.` : dicho}`;
   };
   /* ⚠️ LAS SECCIONES QUE DICEN LO MISMO SE FUNDEN (pulido del owner 2026-09-05): cuando arriba ya se contó
    * «volumen y fuga en la misma cuenta», la huella de volumen repite esa conclusión con otras palabras —y el

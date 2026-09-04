@@ -1184,6 +1184,28 @@ H("1n · tanda 3: la cola del top-4, la colisión declarada, la procedencia del 
     "…y el bucle lo pasa a componer y a la lista notarial: la desambiguación prometida tiene con qué");
 }
 
+/* ═══ 1o · LA VUELTA CORTA POST-DEPLOY (owner en producción, 2026-09-05) ═════════════════════════════════════ */
+H("1o · post-deploy: el corte de inventario ausente se declara, y la costura del porqué lleva su punto");
+{
+  initTenant(TENANT_DEMO);
+  /* «el stock de Samsung»: pedir INVENTARIO de una marca no se responde con el lado comercial en silencio —
+   * el corte ausente SE DECLARA y se ofrece lo que hay (la sustitución que el owner vio en su pantalla). */
+  const tS = String((await answerViaAgente({ text: "el stock de Samsung", history: [], mem: {}, scenario: "actual", callAgente: MUDO })).r.text || "");
+  ok(/^(?:jc: )?El inventario de Samsung no está en tu dato con ese corte: el inventario vive por SKU, no por marca\./.test(tS.trim()),
+    "★ «el stock de Samsung» ABRE declarando el corte ausente — jamás responde otra pregunta como si fuera la hecha", tS.slice(0, 120));
+  ok(/si me nombras un SKU, te doy su stock/.test(tS) && /Samsung · marca\./.test(tS),
+    "…y ofrece lo que hay: su lado comercial y la puerta al SKU");
+  /* el SKU no pasa por la declaración: su ficha SÍ trae inventario */
+  const tK = String((await answerViaAgente({ text: "el stock de SAM-REF500L", history: [], mem: {}, scenario: "actual", callAgente: MUDO })).r.text || "");
+  ok(!/no está en tu dato con ese corte/.test(tK) && /Su lado de inventario/.test(tK),
+    "…y el mismo pedido sobre un SKU responde su inventario directo (la declaración es solo del corte ausente)");
+
+  /* el typo de producción: «…cliente con familia Para cerrarlo…» — la costura lleva su punto */
+  const tP = String((await answerViaAgente({ text: "por qué estamos perdiendo margen", history: [], mem: {}, scenario: "actual", callAgente: MUDO })).r.text || "");
+  ok(!/[a-záéíóúñ] Para cerrarlo/.test(tP) && /\. Para cerrarlo:/.test(tP),
+    "★ la costura del porqué lleva el punto antes de «Para cerrarlo» (el typo que el owner vio)", (tP.split("\n").find((l) => /Para cerrarlo/.test(l)) || "").slice(0, 120));
+}
+
 /* ═══ 6 · CARNADAS ═══════════════════════════════════════════════════════════════════════════════════════════ */
 H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 {
