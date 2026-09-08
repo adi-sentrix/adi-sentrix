@@ -524,6 +524,9 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
       // conversationId: UNA por hilo de chat — se genera la PRIMERA vez y se persiste en `context` (mismo mecanismo
       // que memoriaInteraccion), nunca se recalcula a mitad de conversación (owner 2026-07-29, multiempresa: cada
       // operación transporta explícitamente con qué tenant/conversación/snapshot está trabajando).
+      /* el hilo lo SIEMBRA el componente antes de enviar (ver `hiloDelChat`): acá solo se lee. Vale para todos
+       * los caminos, incluidos los que no pasan por el oráculo — un turno de P&L es tan conversación como otro.
+       * El `||` queda como red por si alguien llama a esta función fuera del chat (los gates la bundlean). */
       const conversationId = (context && context.conversationId) || (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `conv_${Date.now()}_${Math.random().toString(36).slice(2)}`);
       const requestContext = buildRequestContext({ conversationId, scenario, mem });
       /* ── LA CASCADA, TRAS LA PODA (owner 2026-09-05: el camino natural SE RETIRÓ del código) ─────────────
@@ -1208,6 +1211,25 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
   const idRef = useRef(0);
   const ctxRef = useRef(context);   // SIEMPRE el contexto más reciente (evita la stale-closure de React en el camino LLM async · threading de lastEvidence)
+
+  /* ── EL HILO ES DEL CHAT, NO DE UN CAMINO DE RESPUESTA (owner 2026-09-08, defecto medido) ─────────────────
+   * EL DEFECTO: el `conversationId` nacía DENTRO de la rama del oráculo. Pero no todas las preguntas pasan por
+   * ahí — las de P&L la saltan por diseño (`detectPnlIntent`) y el bypass sin pago también. En esos turnos el
+   * hilo quedaba sin identificador, así que el guardado del historial no tenía qué nombrar y se iba en
+   * silencio: el owner preguntó por su P&L, ADI respondió bien, y la conversación no aparecía en Recientes.
+   * LA RAÍZ, y por eso el arreglo va acá y no en el guardado: una conversación es del CHAT. Que su nombre
+   * dependiera de qué motor contestó era la confusión de fondo — un turno de P&L es tan conversación como
+   * cualquier otro. Se crea una vez por hilo, sobrevive a los cambios de camino, y muere con «Nuevo chat». */
+  const hiloRef = useRef(null);
+  const hiloDelChat = () => {
+    const enCtx = (ctxRef.current && ctxRef.current.conversationId) || null;
+    if (enCtx) { hiloRef.current = enCtx; return enCtx; }
+    if (!hiloRef.current) {
+      hiloRef.current = (typeof crypto !== "undefined" && crypto.randomUUID)
+        ? crypto.randomUUID() : `conv_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    }
+    return hiloRef.current;
+  };
   // REENTRADA (fix): mismo patrón que ctxRef, mismo motivo. `messages` (el state) solo refleja el turno recién agregado
   // DESPUÉS de que React re-renderice — si el usuario reingresa (Enter/click) antes de ese re-render, el `submit` en
   // vuelo en ese instante todavía cierra sobre el `messages` de la render ANTERIOR, más corto. messagesRef.current se
@@ -1288,6 +1310,7 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
       const fresh = initialContext || (modulo ? { activeModule: modulo } : {});
       ctxRef.current = fresh;
       resetPnlDraft();   // conversación nueva → el P&L a medio armar se descarta (lo sellado queda: es memoria C.2)
+      hiloRef.current = null;   // hilo nuevo: la conversación anterior YA quedó guardada con su propio nombre
       setMessages([]); setInput(""); setPendingId(null); setSuggestionsVisible(false); setContext(fresh);
     });
   }, [registerReset]);
@@ -1301,9 +1324,9 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
    * y el panel lo dice con su razón en vez de mostrar una lista vacía. */
   useEffect(() => {
     if (!messages.length) return;
-    const hilo = (context && context.conversationId) || null;
-    if (!hilo) return;                                   // todavía no hubo turno por el oráculo: nada que nombrar
     if (messages.some((m) => m.pending)) return;         // no se guarda un turno a medias
+    if (!messages.some((m) => m.role === "user")) return; // solo el vigía habló: no hay conversación que guardar
+    const hilo = hiloDelChat();                          // del CHAT, no del camino que contestó (ver hiloRef)
     const id = setTimeout(() => {
       fetch("/api/adi-ingesta", { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ op: "conversaciones", accion: "guardar", hilo,
@@ -1326,6 +1349,7 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
       const base = initialContext || (modulo ? { activeModule: modulo } : {});
       const fresh = { ...base, conversationId: conv.hilo };
       ctxRef.current = fresh;
+      hiloRef.current = conv.hilo;   // seguir preguntando acá continúa ESTA conversación, no abre una gemela
       resetPnlDraft();
       setPendingId(null); setInput(""); setSuggestionsVisible(false); setContext(fresh);
       setMessages(conv.mensajes.map((m) => ({ id: ++idRef.current, role: m.role === "user" ? "user" : "adi", text: String(m.text || "") })));
@@ -1348,6 +1372,11 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
     // ver la nota junto a isSubmittingRef. El camino demo/piso (sync, más abajo) nunca prende esta guardia porque
     // corre y termina en el mismo tick: no hay ventana para reentrar.
     if (isSubmittingRef.current) return;
+    /* EL HILO SE SIEMBRA ACÁ, antes de elegir camino (owner 2026-09-08): así lo llevan TODOS los turnos —el del
+     * oráculo, el de P&L y el del bypass— y la conversación tiene un solo nombre pase por donde pase. Antes lo
+     * creaba la rama del oráculo y los otros caminos quedaban sin él: el owner preguntó por su P&L y no apareció
+     * en Recientes. Es un ref, no estado: sembrarlo no re-renderiza ni cambia el turno. */
+    ctxRef.current = { ...(ctxRef.current || {}), conversationId: hiloDelChat() };
     setInput("");
     // el contexto de pantalla del turno: el de la pieza que el usuario tocó, si tocó alguna. Se consume UNA vez —
     // dejarlo pegado teñiría el turno siguiente, que es justo lo que la invalidación del contrato impide.
