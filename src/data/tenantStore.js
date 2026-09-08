@@ -49,3 +49,17 @@ export function initTenant(tenant) {
   for (const fn of _rebuilds) fn(_data);
   return _data;
 }
+
+/* EL DIARIO, AL DÍA EN CALIENTE (owner 2026-09-08, textual: «no se puede cerrar y crear un nuevo chat para
+ * probar la continuidad»). EL DEFECTO, MEDIDO: el diario se persiste por su propia puerta y vuelve confirmado
+ * desde el servidor, pero el pack que YA está en memoria conservaba el diario viejo — y la siembra de un hilo
+ * nuevo (ChatADI) lee justamente de ahí. Resultado: abrir un chat nuevo DENTRO de la misma sesión sembraba un
+ * diario rancio (vacío, la primera vez) y la memoria parecía no existir hasta recargar la página entera.
+ * POR QUÉ NO DISPARA LOS REBUILDS: el diario no es dato del negocio —es la relación— y ninguna vista, motor ni
+ * boleta deriva de él; correr los rebuilds acá recalcularía la Mesa entera por una escritura que nadie mira.
+ * SE GUARDA LO QUE EL SERVIDOR CONFIRMÓ, no lo que se mandó: el mismo criterio de `declararDiario`. */
+export function actualizarDiarioDelPack(diario) {
+  if (!_data || esTenantVacio(_data)) return false;
+  _data = { ..._data, perfil: { ...(_data.perfil || {}), diario: (diario && typeof diario === "object") ? diario : {} } };
+  return true;
+}

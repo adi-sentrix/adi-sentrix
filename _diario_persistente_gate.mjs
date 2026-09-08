@@ -156,6 +156,30 @@ H("3 · la cadena: migración → op → arrastre → siembra (estático, cada e
   ok(/op: "diario", diario, access: getAccessCode\(\)/.test(chat) && /el diario no se persistió/.test(chat),
     "…y el turno que cambió el diario lo persiste por la puerta, con rastro si falla (jamás mudo)");
 
+  /* ── EL CHAT NUEVO NO PIERDE LA MEMORIA (owner 2026-09-08) ─────────────────────────────────────────────
+   * EL DEFECTO, MEDIDO: el diario se persistía en el servidor pero el pack EN MEMORIA quedaba con el diario
+   * viejo, y la siembra de un hilo nuevo lee de ahí — así que «Nuevo chat» dentro de la misma sesión sembraba
+   * un diario rancio y la continuidad solo aparecía al recargar la página entera. Justo la prueba que el owner
+   * no podía hacer. Se cierra actualizando el pack con lo que el SERVIDOR CONFIRMÓ. */
+  const store = fs.readFileSync(path.join(root, "src", "data", "tenantStore.js"), "utf8");
+  ok(/export function actualizarDiarioDelPack/.test(store) && /perfil: \{ \.\.\.\(_data\.perfil \|\| \{\}\), diario:/.test(store),
+    "★ el pack en memoria se puede poner al día con el diario — sin eso, un chat nuevo siembra lo viejo");
+  ok(/actualizarDiarioDelPack\(d\.diario\)/.test(chat),
+    "★ …y ChatADI lo llama con lo que el SERVIDOR confirmó (`d.diario`), no con lo que mandó");
+  ok(!/for \(const fn of _rebuilds\) fn\(_data\);[\s\S]{0,80}actualizarDiarioDelPack/.test(store)
+     && /export function actualizarDiarioDelPack[\s\S]{0,600}?\n\}/.test(store)
+     && !/actualizarDiarioDelPack[\s\S]{0,400}?_rebuilds/.test(store),
+    "…y NO dispara los rebuilds: el diario es la relación, no dato del negocio — nada derivado depende de él");
+  const rail = fs.readFileSync(path.join(root, "src", "ui", "BarraLateral.jsx"), "utf8");
+  ok(/testid="chat-nuevo"/.test(rail) && /Nuevo chat/.test(rail) && /onClick=\{onInicio\}/.test(rail),
+    "★ «Nuevo chat» es una puerta VISIBLE de la barra — la acción existía solo en el clic del logo, y a lo que no se llega no existe");
+  /* ⚠️ CON LOS COMENTARIOS DESCONTADOS, y la primera versión de este check se puso roja por no hacerlo: la
+   * palabra vive en las notas que EXPLICAN por qué el panel no está. Medir la forma en vez del concepto — el
+   * mismo patrón que este proyecto persigue, esta vez dentro del candado que lo persigue. */
+  const railVivo = rail.replace(/\{?\/\*[\s\S]*?\*\/\}?/g, "").replace(/^\s*\/\/.*$/gm, "");
+  ok(!/Conversaciones/.test(railVivo),
+    "…y no promete historial: guardar conversaciones anteriores todavía no está construido (un vacío honesto sigue siendo un vacío)");
+
   /* ── LA 008 · access_audit: el contrato, el muro, el append-only y las dos trampas que romperían el diario ── */
   const sql8 = fs.readFileSync(path.join(root, "db", "migraciones", "008_access_audit.sql"), "utf8");
   const vivo8 = sql8.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n");

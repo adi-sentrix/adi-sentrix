@@ -145,12 +145,18 @@ export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInici
         </span>
       </button>
 
-      {/* LA PRINCIPAL · abre y cierra el panel de conversaciones (orden del owner: «una de ellas, la principal,
-          permita abrir el panel izquierdo»). Va primera porque es la que gobierna la columna que tiene al lado. */}
-      {/* ⚠️ ACÁ IBA «CONVERSACIONES», la puerta al panel de historial. Se fue con el panel el 2026-08-27:
-          el panel se veía pero no guardaba nada — mostraba la conversación en curso y una línea diciendo que
-          las anteriores aparecerían «cuando el producto empiece a guardarlas». Un vacío honesto sigue siendo
-          un vacío. Cuando el historial exista de verdad, la barrita vuelve con él. */}
+      {/* NUEVO CHAT · owner 2026-09-08, textual: «no se puede cerrar y crear un nuevo chat para probar la
+          continuidad si no existe cómo hacerlo». La acción EXISTÍA desde siempre —es el mismo reset del logo,
+          `onInicio`— pero solo se llegaba a ella haciendo clic en la marca, que nadie lee como «empezar de
+          cero»: una función a la que no se puede llegar no existe para el producto. Acá se nombra.
+          ⚠️ NO ES EL PANEL DE HISTORIAL, y por eso no dice «Conversaciones»: guardar y volver a abrir
+          conversaciones anteriores sigue sin construirse (ver la nota de App.jsx). Este botón promete
+          exactamente lo que hace —empezar un hilo nuevo— y ni una palabra más. */}
+      <Fila activo={false} onClick={onInicio} testid="chat-nuevo"
+        titulo="Empieza una conversación nueva · lo que ADI aprendió de tu negocio se mantiene"
+        icono={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}><path d="M21 11.5a8.38 8.38 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.2A8.5 8.5 0 0 1 4 11.5a8.38 8.38 0 0 1 8.4-9 8.5 8.5 0 0 1 8.6 9z"/><line x1="12" y1="8" x2="12" y2="14"/><line x1="9" y1="11" x2="15" y2="11"/></svg>}>
+        Nuevo chat
+      </Fila>
 
       <Fila activo={mesaAbierta} onClick={onMesa}
         titulo="Tu negocio en vivo: cifras, focos y el 80/20 a la mano, con ADI al lado"

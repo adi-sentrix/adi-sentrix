@@ -42,7 +42,7 @@ import { TypewriterText } from "./TypewriterText.jsx";
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 import { P } from "../config/flagProfile.js";   // el vigía se enciende por bandera (ADI_VIGIA en FEATURE)
 import { buildVigia, hablarEnChat } from "../adi/sentrix/vigia.js";   // EL VIGÍA (c): habla primero SOLO cuando algo cambió
-import { getTenantId, tenantCargado, getTenantData } from "../data/tenantStore.js";   // la huella de «qué vio ya» es por tenant · getTenantData: la siembra del diario viaja en el pack
+import { getTenantId, tenantCargado, getTenantData, actualizarDiarioDelPack } from "../data/tenantStore.js";   // la huella de «qué vio ya» es por tenant · getTenantData: la siembra del diario viaja en el pack
 
 // Cuando answerADI devuelve route="not_yet_extracted" (text null), el motor es honesto: no inventa.
 // La UI refleja esa honestidad en vez de fabricar un overview.
@@ -554,7 +554,13 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
                 ...(Array.isArray(memTurno.intenciones) && memTurno.intenciones.length ? { intenciones: memTurno.intenciones } : {}) };
               fetch("/api/adi-ingesta", { method: "POST", headers: { "content-type": "application/json" },
                 body: JSON.stringify({ op: "diario", diario, access: getAccessCode() }) })
-                .then((res) => res.json()).then((d) => { if (!d || !d.ok) console.warn("[ADI] el diario no se persistió:", d && d.motivo); })
+                .then((res) => res.json()).then((d) => {
+                  if (!d || !d.ok) { console.warn("[ADI] el diario no se persistió:", d && d.motivo); return; }
+                  /* …y el pack EN MEMORIA se pone al día con lo que el servidor confirmó (owner 2026-09-08):
+                   * sin esto, un chat nuevo de la misma sesión se sembraba del diario viejo y la continuidad
+                   * solo aparecía tras recargar la página. Ver `actualizarDiarioDelPack`. */
+                  actualizarDiarioDelPack(d.diario);
+                })
                 .catch((e) => console.warn("[ADI] el diario no se persistió:", e && e.message));
             }
             const rr = { ...o.r, context: { ...(context || {}), memoriaInteraccion: memTurno, conversationId } };
