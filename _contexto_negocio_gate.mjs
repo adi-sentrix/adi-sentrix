@@ -70,8 +70,13 @@ H("4 · el cableado y la pantalla");
   const pn = leer("src/ui/PanelNegocio.jsx");
   ok(/testid="negocio-panel"/.test(pn) && /testid="negocio-contexto"/.test(pn) && /testid="negocio-guardar"/.test(pn),
     "la pantalla «Tu negocio» existe, con sus anclas");
-  ok(/según lo que me declaraste/.test(pn) && /nunca como fuente de cifras/.test(pn),
-    "…y le dice al usuario las mismas reglas que le dice al cerebro — una sola verdad sobre qué es esto");
+  /* ⚠️ POR CONCEPTO, NO POR FRASE. La primera versión de este check exigía las cadenas «según lo que me
+   * declaraste» y «nunca como fuente de cifras», y se puso ROJO cuando el owner pidió acortar los textos
+   * («aparece mucha lectura») — con la pantalla diciendo lo MISMO en menos palabras: «ADI lo cita; nunca lo
+   * usa como cifra». Medía la forma en vez del concepto, dentro del gate que persigue ese patrón. Lo que hay
+   * que garantizar es que la pantalla le diga al usuario las DOS reglas que el marco le dice al cerebro. */
+  ok(/\bcita\b|declarad/i.test(pn) && /nunca lo usa como cifra|nunca como fuente de cifras|jam[áa]s .{0,20}cifra/i.test(pn),
+    "…y le dice al usuario las mismas dos reglas que le dice al cerebro (lo cita · nunca es cifra) — una sola verdad sobre qué es esto");
   ok(/Cada edición queda auditada/.test(pn), "…y avisa que editar deja rastro — nada de auditoría secreta");
   ok(/plan Pro/i.test(pn), "…y cuando el servidor rechaza por plan, la pantalla lo declara en lenguaje de negocio");
   ok(/activeCriteria/.test(pn) && /diario/.test(pn), "los tres cajones: contexto + criterios + diario, en un lugar");

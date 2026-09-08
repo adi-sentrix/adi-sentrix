@@ -21,6 +21,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { C } from "./theme.js";
 
 const SANS = "'DM Sans', system-ui, sans-serif";
+const MONO = "'JetBrains Mono', ui-monospace, monospace";
 
 /* «hoy», «ayer» y la fecha corta — el mismo criterio que un asesor usaría al nombrar cuándo hablaron. */
 function cuando(iso) {
@@ -36,7 +37,7 @@ function cuando(iso) {
   return d.toLocaleDateString("es-CL", { day: "numeric", month: "short" });
 }
 
-export function PanelHistorial({ abierto, hiloActivo, rev = 0, onAbrirConversacion, onQuitar, onNuevo, onCerrar, cargar }) {
+export function PanelHistorial({ abierto, hiloActivo, rev = 0, ancho = 264, onAbrirConversacion, onQuitar, onNuevo, onCerrar, cargar }) {
   const [filas, setFilas]   = useState([]);
   const filasRef = useRef([]);   // lo que YA está en pantalla: si hay lista, no se borra para volver a pedirla
   const [estado, setEstado] = useState("cargando");   // cargando · listo · sinBase · error
@@ -70,8 +71,8 @@ export function PanelHistorial({ abierto, hiloActivo, rev = 0, onAbrirConversaci
 
   return (
     <aside aria-label="Historial de conversaciones" data-testid="historial-panel"
-      style={{ width: 264, flex: "none", display: "flex", flexDirection: "column", minHeight: 0,
-        borderRight: `1px solid ${C.border}`, background: "rgba(0,0,0,0.22)" }}>
+      style={{ width: ancho, flex: "none", display: "flex", flexDirection: "column", minHeight: 0,
+        background: "rgba(0,0,0,0.22)" }}>
       <style>{`
         .adi-hist-item{ transition: background 140ms ease, color 140ms ease; }
         .adi-hist-item:hover{ background: rgba(255,255,255,0.055); }
@@ -101,8 +102,8 @@ export function PanelHistorial({ abierto, hiloActivo, rev = 0, onAbrirConversaci
         Nuevo chat
       </button>
 
-      <div style={{ fontFamily: SANS, fontSize: 10.5, fontWeight: 600, color: C.textMuted, letterSpacing: "0.06em",
-        textTransform: "uppercase", padding: "2px 14px 6px" }}>Recientes</div>
+      <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: "1.1px", color: C.textMuted,
+        textTransform: "uppercase", padding: "2px 14px 7px" }}>Recientes</div>
 
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 8px 10px" }}>
         {estado === "cargando" && (

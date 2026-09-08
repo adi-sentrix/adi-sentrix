@@ -174,6 +174,25 @@ export default function App({ animate = true }) {
    * recibidor. Quien lo quiera abierto lo abre; nadie tiene que cerrar algo para empezar a preguntar. */
   const [historialAbierto, setHistorialAbierto] = useState(false);
   const [negocioAbierto, setNegocioAbierto] = useState(false);   // «Tu negocio» — abre cerrado, como el historial
+  /* ANCHOS ARRASTRABLES (owner 2026-09-08: «el panel debe ser movible, o sea se debe poder ensanchar… no mates
+   * la experiencia»). Las dos columnas de la izquierda usan EL MISMO gesto que el panel de Sentrix —arrastrar
+   * el divisor— porque una app donde un panel se estira y otro no obliga a descubrir la regla panel por panel. */
+  const [historialW, setHistorialW] = useState(264);
+  const [negocioW, setNegocioW]     = useState(340);
+  /* el divisor de una columna IZQUIERDA mide desde el borde izquierdo (el de Sentrix mide desde el derecho). */
+  const arrastrarIzquierda = (setW, min) => (e) => {
+    e.preventDefault();
+    const move = (ev) => setW(Math.min(Math.max(ev.clientX - 44, min), Math.round(window.innerWidth * 0.5)));
+    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); document.body.style.userSelect = ''; };
+    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+    document.body.style.userSelect = 'none';
+  };
+  const Divisor = ({ onMouseDown }) => (
+    <div onMouseDown={onMouseDown} title="Arrastrar para redimensionar"
+      style={{ width:6, flexShrink:0, cursor:'col-resize', background:'transparent', borderRight:`1px solid ${C.border}`, transition:'background 0.15s' }}
+      onMouseEnter={(e)=>{ e.currentTarget.style.background = 'rgba(47,184,218,0.25)'; }}
+      onMouseLeave={(e)=>{ e.currentTarget.style.background = 'transparent'; }}/>
+  );
   const [hiloActivo, setHiloActivo] = useState(null);
   /* la revisión del índice: sube cada vez que una conversación se guarda, y es lo que hace que el panel
      vuelva a preguntar. Sin esto listaba al abrirse y nunca más (defecto medido por el owner). */
@@ -317,8 +336,11 @@ export default function App({ animate = true }) {
               onCerrar={() => setHistorialAbierto(false)}
               onNuevo={() => { closePanel(); if (resetRef.current) resetRef.current(); }}
               onAbrirConversacion={abrirConversacion}
+              ancho={historialW}
               onQuitar={quitarConversacion}/>
-            <PanelNegocio abierto={negocioAbierto} onCerrar={() => setNegocioAbierto(false)}/>
+            {historialAbierto && <Divisor onMouseDown={arrastrarIzquierda(setHistorialW, 200)}/>}
+            <PanelNegocio abierto={negocioAbierto} ancho={negocioW} onCerrar={() => setNegocioAbierto(false)}/>
+            {negocioAbierto && <Divisor onMouseDown={arrastrarIzquierda(setNegocioW, 260)}/>}
           </div>
           <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
             <ChatADI scenario={scenario} animate={animate} onHayConversacion={setHayConversacion}
