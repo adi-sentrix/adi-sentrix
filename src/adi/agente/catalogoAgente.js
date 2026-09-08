@@ -58,6 +58,17 @@ export const CONTRATOS_AGENTE = {
     entityScopeNativo: false, escribeEntityList: false,
     notas: "POR QUÉ se pierde margen: el papel de cada cliente (erosiona por acciones comerciales · vende volumen a margen bajo · margen delgado · sano) con la regla que lo clasifica, y la huella de cada mecanismo (acciones sobre el target · volumen · precio pegado al costo · mix por familia) con su sello probado/indicado/abierto y, cuando está abierto, QUÉ falta en el dato para cerrarlo. Trae además la pregunta al dueño cuando la distinción depende de una intención que ninguna columna mide. Son patrones medidos para razonar, jamás causas probadas.",
   },
+  /* `cuadroSentrix` · EL CUADRO QUE EL USUARIO ESTÁ MIRANDO (owner 2026-09-08). No se pide por comprensión: el
+   * botón de Sentrix trae la dirección exacta de la pieza y el playbook la ejecuta antes de que el cerebro
+   * decida. Está en el catálogo para que el cerebro pueda volver a mirarla si la conversación sigue sobre ese
+   * mismo cuadro; sin `componentId` no adivina nada y lo dice. */
+  cuadroSentrix: {
+    dimensionesSoportadas: [],
+    entidad: "none", aceptaEntidadPuntual: false, multiCardinality: null,
+    inputsObligatorios: ["componentId"], supuestosRequeridos: null, operacionValida: ["answer"],
+    entityScopeNativo: false, escribeEntityList: false,
+    notas: "el cuadro que el usuario tiene delante en Sentrix, por su dirección (`componentId`): qué mide, sobre qué eje, de qué período, con qué filtros y contra qué se compara — y SUS CIFRAS VISIBLES verbatim del módulo que lo pinta, incluidas las frases que el propio cuadro muestra. Sirve para explicar ESE cuadro, no el negocio en general. Si la pieza no existe en esta carga, devuelve la razón exacta en vez de un corte parecido.",
+  },
   preferenciaNombre: {
     dimensionesSoportadas: [],
     entidad: "none", aceptaEntidadPuntual: false, multiCardinality: null,

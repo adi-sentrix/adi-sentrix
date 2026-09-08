@@ -23,7 +23,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { initTenant } from "./src/data/tenantStore.js";
+import { initTenant, getTenantId } from "./src/data/tenantStore.js";
+import { builderOutFor } from "./src/adi/sentrix/viewBuilderRun.js";       // el ancla del cuadro, del builder VIVO
+import { deriveViewContext } from "./src/adi/sentrix/viewContextFrom.js";  // …sellada por el mismo camino de la app
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { plantillaEjemplo } from "./src/ingesta/plantilla/generarPlantilla.js";
 import { ingestarPlantilla } from "./src/ingesta/plantilla/ingestarPlantilla.js";
@@ -49,6 +51,10 @@ const ok = (cond, label, detalle) => {
 };
 const H = (t) => console.log(`\n${t}`);
 const MUDO = async () => ({ tipo: "texto", texto: "" });
+/* EL ANCLA VIVA de una pieza de Sentrix: el MISMO camino que corre en la app (builder vivo → deriveViewContext
+ * sellado), nunca un objeto escrito a mano. Un ancla de fixture probaría el fixture, no el producto. */
+const _anclaViva = (componentId, controles = {}, scenario = "actual") =>
+  deriveViewContext(componentId, builderOutFor(componentId, scenario), { scenario, controles, tenantId: getTenantId() });
 /* la boleta que los pasos del playbook traen, para probar composer y lista notarial sin pasar por el bucle */
 // `pasos` puede ser función de la pregunta (2026-09-01): se resuelve con `pasosDe`, como en el bucle
 const boletaDelPlaybook = (pb, scenario = "bonanza", pregunta = "como viene mi margen") => {
@@ -71,16 +77,23 @@ H("1 · el registro cumple su patrón — agregar el segundo playbook es agregar
     /* la ficha no puede declarar `ejemplos` en su módulo: nombraría entidades del demo dentro del bundle del
      * frontend (el gate del bundle lo cazó). Sus preguntas de muestra viven ACÁ, que es quien las usa. */
     const EJEMPLOS_DEL_GATE = { "ficha-de-entidad": ["dame la ficha de Lider", "qué pasa con Jumbo", "cómo viene LG", "dame la ficha de LG-DRYER8KG"],
-      "ask-de-cuadro": ["¿Cuánto capital tengo en Valparaíso?", "¿Cuánto capital tengo en Línea Blanca?", "¿Cuánto capital tengo en Más de 90 días?", "Profundiza en SAM-REF500L", "¿Cómo libero el capital de LG-DRYER8KG?", "¿Cómo viene el cobro de Lider?"] };
+      "ask-de-cuadro": ["¿Cuánto capital tengo en Valparaíso?", "¿Cuánto capital tengo en Línea Blanca?", "¿Cuánto capital tengo en Más de 90 días?", "Profundiza en SAM-REF500L", "¿Cómo libero el capital de LG-DRYER8KG?", "¿Cómo viene el cobro de Lider?"],
+      "cuadro-explicado": ["¿Qué clientes explican el 80% de mi venta?"] };
+    const CTX_DEL_GATE = { "cuadro-explicado": () => ({ cuadro: _anclaViva("comercial/01/pareto-ventas", { met: "ventas" }) }) };
     const muestras = EJEMPLOS_DEL_GATE[pb.nombre]
       || (Array.isArray(pb.ejemplos) && pb.ejemplos.length ? pb.ejemplos : ["como viene mi margen?"]);
+    /* EL CONTEXTO DE MUESTRA · hermano de `EJEMPLOS_DEL_GATE`. Hay playbooks a los que NO los abre la pregunta:
+     * `cuadro-explicado` lo abre el CLICK en una pieza de Sentrix, así que sin su ancla resuelve cero pasos —
+     * y medirlo sin ancla mediría el playbook apagado. El ancla se construye con el MISMO camino de producción
+     * (el builder vivo → deriveViewContext), nunca escrita a mano: un fixture inventado probaría otra cosa. */
+    const ctxMuestra = (CTX_DEL_GATE[pb.nombre] || (() => undefined))();
     /* el playbook declara en qué pack ACTIVAN sus ejemplos (`tenantDeMuestra`): entidad-por-período no tiene
      * serie real en el demo y resolvería cero pasos ahí. Se carga ese pack para verificar el patrón y se
      * restaura el demo al salir — nunca dejar el proceso en un tenant distinto al que empezó. */
     if (pb.tenantDeMuestra === "plantilla") initTenant(ingestarPlantilla(Buffer.from(plantillaEjemplo()), { nombreArchivo: "v2.xlsx", fechaCarga: "2026-08-31" }).dataset);
     else initTenant(TENANT_DEMO);
     for (const q of muestras) {
-      const pasos = pasosDe(pb, q);
+      const pasos = pasosDe(pb, q, ctxMuestra);
       ok(pasos.length > 0 && pasos.every((p) => p.tool && p.args && typeof p.para === "string" && p.para.length > 10),
         `…y cada paso declara herramienta, args y PARA QUÉ (${pasos.length} pasos${muestras.length > 1 ? ` · «${q.slice(0, 28)}»` : ""})`);
       ok(pasos.every((p) => !!cajaDelAgente(TOOLS)[p.tool]), "…y todas sus herramientas existen en la caja del agente");
@@ -1165,8 +1178,20 @@ H("1n · tanda 3: la cola del top-4, la colisión declarada, la procedencia del 
    * manda — toda llamada por playbook corría con ESCENARIO_INICIAL). El eje de escenarios está colapsado
    * (un solo escenario real), así que el candado es de CADENA, no de cifra. */
   const HER = fs.readFileSync(path.join(process.cwd(), "src", "adi", "agente", "herramientasAgente.js"), "utf8").replace(/\r\n/g, "\n");
-  ok((HER.match(/\(args && args\.scenario\) \|\| \(ctx && ctx\.scenario\) \|\| ESCENARIO_INICIAL|\(_args && _args\.scenario\) \|\| \(ctx && ctx\.scenario\) \|\| ESCENARIO_INICIAL/g) || []).length === 4,
-    "las CUATRO tools de la caja leen el escenario del turno (args) con el ctx de respaldo — el canal del runner ya no se pierde");
+  /* ⚠️ ANTES ESTO CONTABA CUATRO, Y CONTAR ERA EL DEFECTO. Un número fijo verifica el pasado: la quinta tool de
+   * la caja (`cuadroSentrix`, 2026-09-08) puso el candado rojo SIN romper nada — y un candado que se pone rojo
+   * porque el sistema creció enseña a subirle el número, que es exactamente cómo mueren. Ahora se pregunta por
+   * MECANISMO y tool por tool: la que depende del escenario tiene que leerlo del turno. Una tool nueva queda
+   * cubierta el día que se escribe, sin tocar esta línea. */
+  const _cuerpos = HER.split(/\nexport function /).slice(1)
+    .map((ch) => ({ nombre: (ch.match(/^(\w+)/) || [])[1] || "", src: ch.split("\nexport function ")[0] }));
+  const _dependenDelEscenario = _cuerpos.filter((c) => c.nombre && c.nombre !== "cajaDelAgente" && /\bscenario\b/.test(c.src));
+  const _sinCanal = _dependenDelEscenario.filter((c) =>
+    !/\((?:_?args) && \1?\w*\.?scenario\)/.test(c.src) &&
+    !/\(_?args && _?args\.scenario\) \|\| \(ctx && ctx\.scenario\) \|\| ESCENARIO_INICIAL/.test(c.src));
+  ok(_dependenDelEscenario.length >= 4 && _sinCanal.length === 0,
+    `las ${_dependenDelEscenario.length} tools de la caja que dependen del escenario lo leen del turno (args) con el ctx de respaldo — el canal del runner ya no se pierde`,
+    _sinCanal.map((c) => c.nombre).join(", "));
   const RUN = fs.readFileSync(path.join(process.cwd(), "src", "adi", "oracle", "toolRunner.js"), "utf8").replace(/\r\n/g, "\n");
   ok(/const args = \{ \.\.\.callArgs, scenario/.test(RUN), "…y el runner mete el scenario del TURNO en esos args (la fuente única)");
 

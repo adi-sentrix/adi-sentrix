@@ -545,11 +545,14 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
       if (ADI_AGENTE) {
         try {
           const { answerViaAgente } = await import("../adi/agente/bucleAgente.js");
-          /* el CONTEXTO DEL CUADRO viaja también al agente (siembra 2026-09-05): la UI ya lo tenía y se lo
-           * pasaba solo al camino natural — el agente no lo recibía. Hoy solo queda registrado en su
-           * expediente; el anclaje campo-por-campo es el pulido que el owner difirió. */
+          /* EL ANCLA DEL CUADRO VIAJA POR SU PROPIO CANAL (owner 2026-09-08: «el botón no manda solo texto»).
+           * `viewContext` es lo que el turno tiene delante (el click si lo hubo, si no el AMBIENTE de la vista
+           * abierta) y sigue sirviendo para desambiguar. `cuadro` es SOLO el click de este turno — el ambiente
+           * queda fuera a propósito: sigue publicado mientras la Mesa está abierta, así que dejarlo entrar
+           * haría que la siguiente pregunta escrita a mano se respondiera como si fuera un botón. */
           const o = await answerViaAgente({ text: q, history, mem, scenario,
             viewContext: viewContext || (getUISignals() || {}).viewContext || null,
+            cuadro: viewContext || null,
             callAgente: (args) => _fetchAgente({ ...args, scenario, requestContext }) });
           if (o && o.r) {
             _ph(3);

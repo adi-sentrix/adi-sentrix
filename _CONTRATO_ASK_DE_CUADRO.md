@@ -3,8 +3,9 @@
 **Palabra del owner:** *«el botón que está en Sentrix en cuadros o tablas, ADI debe explicar exactamente lo que
 ve ahí la foto… lo importante es ADI y el agente y su calidad de respuesta. Pero puedes sembrar el camino».*
 
-**Estado: SEMBRADO, no construido.** Lo que existe hoy es el cable y el contrato escrito. El pulido —que la
-respuesta se ancle campo por campo a lo que ese cuadro pinta— lo difirió el owner a propósito.
+**Estado: CONSTRUIDO.** La siembra (2026-09-05) fue el cable; el pulido de las 4 formas de Capital, el §5; y el
+ancla completa y transversal de todos los botones «Que ADI lo explique», **el §6 (2026-09-08) — empezá por ahí
+si venís a tocar esto**. Lo que sigue abierto está declarado al final del §6, con su razón.
 
 ---
 
@@ -76,3 +77,63 @@ el SKU no frenado con el estado que la carpeta declara, el cliente sin fila publ
 el tramo de edad declarado). El emisor sigue sin sembrar viewContext en los cuadros de Capital — ya no
 bloquea: las formas se anclan por la frase del botón; la siembra del emisor queda como mejora de
 desambiguación para catálogos con nombres repetidos entre ejes.
+
+---
+
+## 6 · EL ANCLA COMPLETA, TRANSVERSAL (GO del owner 2026-09-08)
+
+**Su palabra, textual:** *«Sí, hazlo una vez para todos los botones "Que ADI lo explique". Regla: el botón no
+manda solo texto. Manda el ancla completa del cuadro que el usuario está viendo. Debe incluir: cara/módulo ·
+nombre del cuadro · métrica principal · eje o entidad · período · filtros aplicados · cifras visibles · qué
+pregunta concreta debe explicar. ADI debe responder ese cuadro, no una pregunta libre ni un ranking genérico. Si
+el cuadro muestra un 80/20, explica el 80/20. Si el cuadro muestra presupuesto, explica presupuesto. Si no
+existe dato suficiente para ese cuadro, debe decir exactamente qué falta. Hazlo transversal para todas las
+caras, no parche por cuadro.»*
+
+**Lo que se midió antes de construir** (los 5 botones de la cara Comercial, con el cerebro mudo): **2 caían en
+«no tengo información autorizada suficiente»** —incluido el que el owner clickeó— y los otros 3 devolvían un
+ranking del negocio. El del 80/20 contestaba *«Así viene tu venta por cliente, de mayor a menor»*: correcto
+como lectura, y no era la pregunta.
+
+### Las cuatro piezas
+
+| pieza | qué aporta |
+|---|---|
+| `src/adi/sentrix/lecturaDeCuadro.js` | lee LO QUE ESA PIEZA PINTA: su identidad declarada (del manifiesto) y sus **cifras visibles**, del mismo módulo que la pinta. |
+| `cuadroSentrix` (`herramientasAgente.js` + `catalogoAgente.js`) | la herramienta: esa lectura convertida en boleta, con unidad y crudo derivados por los **lectores del propio muro** (`parseFigures` + `parseCounts`). |
+| `src/adi/agente/playbooks/cuadroExplicado.js` | el playbook: lo abre el CLICK, sus pasos corren antes del cerebro, su entregable NOMBRA ese cuadro, y su lista notarial exige que la respuesta no se suelte del ancla. |
+| `_ancla_de_cuadro_gate.mjs` | 109 chequeos: los 8 campos del ancla, el barrido del manifiesto, cada botón contra el **cuadro vivo**, el 80/20 con su conmutador, el presupuesto, el «qué falta», un-click-un-turno, el muro intacto, el inventario del emisor y 4 carnadas. |
+
+### Las cuatro decisiones que hay que conocer antes de tocar esto
+
+1. **`cuadro` es un campo DISTINTO de `viewContext`, y no es duplicación.** `viewContext` es lo que el turno
+   tiene delante (el click si lo hubo, si no el **ambiente** de la vista abierta). `cuadro` es **solo el
+   click**, y se consume una vez. El ambiente sigue publicado mientras la Mesa está abierta: abrir la
+   explicación de cuadro por ambiente haría que la siguiente pregunta escrita a mano se respondiera como si
+   fuera un botón. *Un click, un turno.* Gateado con carnada.
+2. **Un solo paso: `cuadroSentrix`.** La primera versión sumaba la `evidencia` declarada del manifiesto y salió
+   ROJA con razón: en el cuadro del año mes a mes quedaban dos figs del mismo valor y distinta procedencia —el
+   total del cuadro (medido) y el de `trend` (derivado, que el manifiesto declara `divergent`)— y el muro vetó
+   el turno entero. Con el cuadro anclado la respuesta correcta es **una sola fuente: la que el usuario mira**.
+   El cerebro conserva la caja completa para la ronda siguiente.
+3. **El diccionario de campos NO es un parche por cuadro.** El lector traduce el campo del builder (`ventaFmt`,
+   `usdFmt`, `doh`…) al rótulo del negocio con **un** diccionario compartido por todas las caras — que es la
+   aplicación literal de «una sola verdad: mismo concepto, misma palabra». Un campo que no está, no se lee: una
+   cifra con rótulo inventado es peor que una cifra ausente. El gate exige que ni el lector ni el playbook
+   nombren un solo `componentId`.
+4. **`sin-cifras` es un límite MÍO, no del dato.** El lector distingue tres motivos: `sin-modulo` y `sin-campo`
+   son del DATO y se le DICEN al usuario; `sin-cifras` —la pieza pinta números pero no los publica en forma
+   citable— **no abre el playbook**, porque declararlo como límite del negocio sería mentirle al usuario sobre
+   su propia carga.
+
+### Lo que queda declarado como deuda (y vive en el gate, §9)
+
+Las dos superficies de **nivel 2** cuyo botón todavía manda la pregunta sin ancla, cada una con su razón:
+- **`CapitalDrill`** — la tabla de drill de Capital no está declarada en el manifiesto: anclarla pide entrada
+  nueva + emisor propio.
+- **`MesaPareto`** — el Pareto del Cuadro cambia de universo con la selección (negocio · posición ·
+  composición): son tres piezas, no una.
+
+Y las **21 piezas `sin-cifras`** (los cuadros de mando, los rings, los recibos, las simulaciones, la Ficha):
+publican sus números crudos y los formatea la vista, así que no hay cadena que citar verbatim. El día que sus
+builders publiquen sus `*Fmt`, quedan explicadas sin tocar una línea de este camino.

@@ -25,8 +25,10 @@ import { serieRealDe } from "../sentrix/capability.js";
 import { ventaOficialDelPeriodo } from "../sentrix/temporal.js";   // `proyectar` · la venta oficial del período: la sola verdad que el owner declaró (2026-07-15)
 import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";   // `cobranza` · la MISMA mesa que la pestaña Flujo Comercial — una sola verdad, cero recalculo
 import { buildRolesCartera, REGLAS_DE_ROL } from "../sentrix/rolesCartera.js";   // `rolesCartera` · el papel de cada cliente y la huella de cada mecanismo (el porqué, hecho evidencia)
+import { lecturaDeCuadro } from "../sentrix/lecturaDeCuadro.js";   // `cuadroSentrix` · lo que ESE cuadro pinta, del mismo módulo que lo pinta (owner 2026-09-08)
 import { findCandidates } from "../oracle/entityIndex.js";
 import { fig, parseFigures } from "../boleta.js";   // parseFigures se usa como FORMATEADOR (ver `_m` en proyectar): la técnica de la casa, jamás una copia
+import { parseCounts } from "../oracle/guardC.js";   // `cuadroSentrix` · el MISMO lector de conteos del muro: lo que el notario busca es lo que la frase del cuadro autoriza
 import { fmtMonto, simboloMoneda } from "../../config/moneda.js";
 import { nombreDePeriodo } from "../../ingesta/historico.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
@@ -391,6 +393,100 @@ export function rolesCartera(_args = {}, ctx = {}) {
   };
 }
 
+/* === cuadroSentrix · EL CUADRO QUE EL USUARIO ESTÁ MIRANDO (owner 2026-09-08) ================================
+ *
+ * LA PALABRA DEL OWNER, textual: «El botón no manda solo texto. Manda el ancla completa del cuadro que el
+ * usuario está viendo… ADI debe responder ese cuadro, no una pregunta libre ni un ranking genérico. Si el
+ * cuadro muestra un 80/20, explica el 80/20. Si el cuadro muestra presupuesto, explica presupuesto.»
+ *
+ * QUÉ TRAE. La identidad declarada de esa pieza (cara · nombre · métrica · eje · período · filtros · universo ·
+ * comparación · sello · su límite declarado) y SUS CIFRAS VISIBLES, verbatim del módulo que la pinta —
+ * `lecturaDeCuadro` no calcula: selecciona. Es el mismo patrón de `cobranza`, que lee la mesa del Flujo en vez
+ * de rehacer el cobro; acá se generaliza a cualquier cuadro declarado en el manifiesto, sin una rama por cuadro.
+ *
+ * LA UNIDAD Y EL CRUDO DE CADA CIFRA SE DERIVAN CON `parseFigures` — el MISMO parser con el que el muro busca
+ * números en el texto. Así, lo que la herramienta autoriza y lo que el notario va a buscar hablan el mismo
+ * idioma por construcción, y no por dos criterios que alguien tiene que mantener sincronizados.
+ *
+ * ⚠️ LAS FRASES DEL MÓDULO TAMBIÉN AUTORIZAN SUS CIFRAS, y esto merece decirse: la lectura al pie de un cuadro
+ * («El 80% se alcanza en Mercado Libre», «4 cuentas venden menos que el año pasado») la escribió el MÓDULO y
+ * está EN LA PANTALLA que el usuario tiene delante. Que ADI la repita no puede ser una invención — y sin
+ * autorizarlas, el muro mataba la cita textual de lo que el usuario está leyendo. Se autoriza el token exacto,
+ * no una reescritura.
+ *
+ * ⚠️ Y LO QUE NO SE PUEDE LEER SE DECLINA CON SU RAZÓN: `coverage.reason` es el string que va a pantalla y al
+ * prompt. El motivo distingue el límite del DATO (la pieza no existe en esta carga) del límite del LECTOR (la
+ * pieza no publica sus cifras formateadas) — nunca se le dice al usuario que su dato no trae algo que sí trae. */
+export function cuadroSentrix(args = {}, ctx = {}) {
+  const scenario = (args && args.scenario) || (ctx && ctx.scenario) || ESCENARIO_INICIAL;
+  const componentId = String((args && (args.componentId || args.cuadro)) || "");
+  const controles = (args && args.controles && typeof args.controles === "object") ? args.controles : null;
+  const sinSoporte = (reason) => ({ facts: null, boleta: [], coverage: { supported: false, reason } });
+  if (!componentId) return sinSoporte("no me dijeron qué cuadro explicar: sin la dirección de la pieza no puedo responder por ella.");
+
+  const L = lecturaDeCuadro(componentId, { scenario, controles });
+  if (!L.ok) return sinSoporte(L.falta);
+
+  const I = L.identidad;
+  const boleta = [];
+  const _ctx = `del cuadro «${I.cuadro}» de la cara ${I.cara}${I.periodo ? ` · ${I.periodo}` : ""} — la misma cifra que está en pantalla`;
+  /* la unidad y el crudo salen del parser del muro; un conteo entero no lleva símbolo y se declara `count`. */
+  const _emitir = (label, valor, extra = {}) => {
+    const tok = (() => { try { return parseFigures(valor)[0] || null; } catch { return null; } })();
+    const n = Number(String(valor).replace(",", "."));
+    boleta.push(fig(label, valor, {
+      unit: tok ? tok.unit : "count",
+      raw: tok ? tok.raw : (Number.isFinite(n) ? n : null),
+      source: "actual", context: _ctx, ...extra,
+    }));
+  };
+
+  /* 1 · LA CABECERA del cuadro — lo que el cuadro afirma de sí mismo (su total, su corte, su universo) */
+  for (const c of L.cabecera) _emitir(`${I.cuadro} · ${c.label}`, c.valor, { mandatory: true });
+  /* 2 · LAS FILAS — cada cifra con su dueño en el label, la ley de la boleta */
+  for (const f of L.filas) for (const c of f.cifras) _emitir(`${f.nombre} · ${c.label}`, c.valor);
+  /* 3 · LAS FRASES DEL MÓDULO, con sus cifras autorizadas verbatim.
+   * Se extraen con los DOS lectores del muro —`parseFigures` para montos/porcentajes/días y `parseCounts` para
+   * los enteros contables («4 cuentas venden menos que el año pasado»)— y no por gusto: lo que el notario va a
+   * buscar en el texto es exactamente lo que la frase del módulo autoriza, sin un criterio paralelo que alguien
+   * tenga que mantener sincronizado. Medido: sin `parseCounts`, la lectura del propio cuadro se caía en
+   * «conteo-no-autorizado» — el muro vetando una frase que está impresa en la pantalla. */
+  for (const t of L.textos) {
+    let toks = [];
+    try { toks = [...(parseFigures(t.texto) || []), ...(parseCounts(t.texto) || [])]; } catch { toks = []; }
+    for (const tk of toks) boleta.push(fig(`${I.cuadro} · lo que dice el cuadro`, tk.text, {
+      unit: tk.unit, raw: tk.raw, source: "actual",
+      context: `frase que el propio cuadro «${I.cuadro}» muestra en pantalla, citada textual`,
+    }));
+  }
+
+  return {
+    facts: {
+      lens: "cuadro",
+      cuadro: {
+        cara: I.cara, movimiento: I.movimiento, nombre: I.cuadro, tipo: I.tipo,
+        mide: I.metricaLabel, eje: I.eje, periodo: I.periodo,
+        compara: I.comparacion, universo: I.universo,
+        corte: L.corte ? L.corte.label : null,
+        filtros: I.controles && Object.keys(I.controles).length ? I.controles : null,
+        filas: L.n, campo: L.filasLlave,
+      },
+      /* lo que el cuadro dice de sí mismo, en sus propias palabras (las que están en pantalla) */
+      loQueDiceElCuadro: L.textos.map((t) => t.texto),
+      cifras: [
+        ...L.cabecera.map((c) => ({ de: I.cuadro, concepto: c.label, valor: c.valor })),
+        ...L.filas.map((f) => ({ de: f.nombre, valores: f.cifras.map((c) => ({ concepto: c.label, valor: c.valor })) })),
+      ],
+      /* EL LÍMITE DECLARADO de esta pieza: qué de lo que muestra no tiene respaldo, con su razón verificable */
+      limite: L.limite && L.limite.estado !== "reconciled"
+        ? { estado: L.limite.estado, campos: L.limite.campos, razon: L.limite.razon } : null,
+      contrato: "Estas cifras son las del cuadro que el usuario tiene delante, verbatim del módulo que lo pinta. Explica ESE cuadro: qué mide, qué muestran sus filas y qué decisión sale de ahí. No lo reemplaces por el ranking del negocio ni por otro eje.",
+    },
+    boleta,
+    coverage: { supported: true, reason: null },
+  };
+}
+
 export function cajaDelAgente(TOOLS_BASE) {
-  return { ...TOOLS_BASE, serieEntidad, registrarSupuesto, preferenciaNombre, proyectar, cobranza, rolesCartera };
+  return { ...TOOLS_BASE, serieEntidad, registrarSupuesto, preferenciaNombre, proyectar, cobranza, rolesCartera, cuadroSentrix };
 }

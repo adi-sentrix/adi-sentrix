@@ -1,0 +1,274 @@
+/* === src/adi/sentrix/lecturaDeCuadro.js · LEER EL CUADRO QUE EL USUARIO ESTÁ MIRANDO ==========================
+ * (owner 2026-09-08 · «el botón no manda solo texto: manda el ancla completa del cuadro»)
+ *
+ * LA PALABRA DEL OWNER, textual: «El botón no manda solo texto. Manda el ancla completa del cuadro que el
+ * usuario está viendo. Debe incluir: cara/módulo · nombre del cuadro · métrica principal · eje o entidad ·
+ * período · filtros aplicados · cifras visibles · qué pregunta concreta debe explicar. ADI debe responder ese
+ * cuadro, no una pregunta libre ni un ranking genérico. Si el cuadro muestra un 80/20, explica el 80/20. Si el
+ * cuadro muestra presupuesto, explica presupuesto. Si no existe dato suficiente para ese cuadro, debe decir
+ * exactamente qué falta. Hazlo transversal para todas las caras, no parche por cuadro.»
+ *
+ * QUÉ HACE. Dado un `componentId` del manifiesto, devuelve LO QUE ESA PIEZA PINTA: su identidad declarada
+ * (cara, nombre, métrica, eje, período, comparación, universo, sello) y sus CIFRAS VISIBLES — las mismas del
+ * módulo, no una reconstrucción.
+ *
+ * ── POR QUÉ ESTO NO ES UNA SEGUNDA VERDAD, que es la pregunta que corresponde hacerse ─────────────────────
+ * La regla 3 de la casa dice «cero cálculo en React: la frase y el número se arman en el MÓDULO, la vista solo
+ * pinta». Ese contrato tiene una consecuencia que hasta hoy nadie había usado: **todo lo que el usuario ve en
+ * pantalla ya existe formateado en la salida del builder**, con una convención estable — el campo `xFmt` junto
+ * al `x` crudo. Leer los `xFmt` no es transcribir la pantalla ni recalcular: es leer la MISMA cadena que el
+ * componente pinta. Acá no se calcula nada (ni una suma, ni un porcentaje, ni un orden): se selecciona.
+ * Es el patrón que ya usa `cobranza`, que lee `buildMesaFlujo` —el builder de la pestaña— en vez de rehacer el
+ * cobro; esto lo generaliza a cualquier cuadro declarado.
+ *
+ * ── TRANSVERSAL POR FORMA, NO POR CUADRO ──────────────────────────────────────────────────────────────────
+ * No hay una rama por componente. Hay:
+ *   · un resolvedor de FILAS que conoce las llaves con que los builders de la casa publican listas
+ *     (`filas · rows · barras · series · meses · tramos · items · lista · grupos`), y
+ *   · un DICCIONARIO DE CAMPOS del negocio (venta, contribución, margen, capital, saldo, días…) que traduce el
+ *     nombre técnico del campo al rótulo del negocio.
+ * El diccionario es lo contrario de un parche: es la aplicación literal de «una sola verdad — mismo concepto,
+ * misma palabra y mismo número en toda superficie». Un campo que no está en el diccionario NO SE LEE: una
+ * cifra con rótulo inventado sería peor que una cifra ausente.
+ *
+ * ── Y LO QUE NO PUEDE LEER, LO DICE ───────────────────────────────────────────────────────────────────────
+ * Si el builder no corre, si el campo declarado no resuelve o si el cuadro no publica filas, devuelve `falta`
+ * con la razón EXACTA en palabras de negocio. Es la tercera regla del owner y la regla 2 del contrato del ask
+ * de cuadro: el corte que no existe se declara, no se sirve parecido.
+ *
+ * PURO · SIN DOM · SIN REACT · SIN RED · SIN LLM · sin cálculo.
+ */
+import { VIEW_MANIFEST, VISTA_LABEL, SECCION_LABEL, concordanciaDe } from "./viewManifest.js";
+import { builderOutFor } from "./viewBuilderRun.js";
+import { resolvePath } from "./viewContextFrom.js";
+import { METRICS } from "../../config/contract/metricRegistry.js";
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
+
+/* ── LAS LLAVES CON QUE LOS BUILDERS DE LA CASA PUBLICAN UNA LISTA ─────────────────────────────────────────
+ * El orden importa: `filas` primero porque es la llave canónica; `series` va después de `meses` porque una
+ * serie temporal se lee por sus meses y no por sus tres curvas. */
+const LLAVES_DE_FILAS = ["filas", "rows", "barras", "meses", "tramos", "items", "lista", "grupos", "series"];
+/* el nombre de una fila, en el orden en que los builders lo publican */
+const LLAVES_DE_NOMBRE = ["nombre", "label", "sku", "entidad", "name", "mes", "key", "periodo"];
+
+/* ── EL DICCIONARIO DE CAMPOS · el vocabulario del negocio, uno solo para todas las caras ──────────────────
+ * clave = el campo del builder SIN el sufijo `Fmt`. valor = el rótulo con que ese concepto se nombra en toda
+ * superficie (CLAUDE.md §2, «una sola verdad»). Los que no están, no se leen. */
+const CAMPOS = {
+  // venta y su descomposición
+  venta: "Venta", ventas: "Venta", valor: "Valor", monto: "Monto", total: "Total", totalVenta: "Venta total",
+  contribucion: "Contribución", totalContrib: "Contribución total", margen: "Margen", costo: "Costo",
+  precio: "Precio", unidades: "Unidades", ticket: "Ticket promedio",
+  // participación y concentración
+  peso: "Participación", pesoPct: "Participación", participacion: "Participación",
+  acumulado: "Acumulado", acumuladoPct: "Acumulado", pct: "Porcentaje", pctTotal: "Participación",
+  grupoPct: "Lo que explica el grupo", cubrePct: "Lo que cubre lo mostrado", cubre: "Lo que cubre lo mostrado",
+  // referencias y brechas
+  vara: "Benchmark", benchmark: "Benchmark", ref: "Referencia", brecha: "Brecha",
+  cumplimiento: "Cumplimiento del presupuesto", presupuesto: "Presupuesto",
+  // acciones comerciales (vocabulario cerrado: la TASA es «carga comercial», el MONTO son «acciones comerciales»)
+  carga: "Carga comercial", acciones: "Acciones comerciales", rebate: "Acciones comerciales",
+  exceso: "Exceso sobre la referencia", recuperable: "Contribución no capturada",
+  // capital e inventario (registro de la casa: «inmovilizado» / «frenado», jamás «detenido»)
+  capital: "Capital", usd: "Capital", stock: "Stock", stockUnd: "Unidades en stock",
+  inmovilizado: "Capital frenado", detenido: "Capital frenado", frenado: "Capital frenado",
+  rotacion: "Rotación", doh: "Días de inventario", diasSinVenta: "Días sin venta",
+  // cobro
+  abonado: "Abonado", saldo: "Saldo pendiente", vencido: "Saldo vencido", recuperado: "Recuperado",
+  diasCredito: "Días de crédito", diasVencido: "Días vencido",
+  // serie temporal
+  totalActual: "Total del año", max: "Mes más alto", min: "Mes más bajo",
+  pico: "Mes más alto", valle: "Mes más bajo", caida: "Mayor caída mes a mes",
+};
+
+/* los CONTEOS que el cuadro muestra como cifra (no llevan sufijo `Fmt` porque son enteros) */
+const CONTEOS = {
+  n: "Entidades en el cuadro", entidadesReales: "Entidades del universo",
+  grupoN: "Entidades que hacen el grupo", colaN: "Entidades en la cola",
+  blockCount: "Entidades que hacen el bloque", tope: "Filas mostradas", resto: "Filas no mostradas",
+  agrupadas: "Entidades agrupadas en «otros»",
+};
+
+/* los TEXTOS del propio módulo que están EN PANTALLA — la lectura que la vista ya muestra, escrita por el
+ * módulo (no por el cerebro). `pie` es la segunda línea de una card de KPI. */
+const TEXTOS = ["titulo", "lectura", "nota", "criterio", "accion", "resumenTope", "notaFuente", "cruce80", "pie", "linea"];
+
+/* las comparaciones anidadas: `{hay, montoFmt, pctFmt, dir}` — la forma con que la cartera publica sus deltas */
+const COMPARADOS = { vsAnterior: "vs año anterior", vsPresupuesto: "vs presupuesto", vsAnio: "vs año anterior" };
+
+const _txt = (v) => (typeof v === "string" && v.trim() ? v.trim() : null);
+const _fmtDe = (k) => (k.endsWith("Fmt") ? k.slice(0, -3) : null);
+
+/** el rótulo de negocio de un campo, o null si el diccionario no lo declara (y entonces no se lee). */
+function _rotulo(clave) {
+  if (Object.prototype.hasOwnProperty.call(CAMPOS, clave)) return CAMPOS[clave];
+  return null;
+}
+
+/** las cifras VISIBLES de un objeto (fila o cabecera): sus `xFmt` declarados + sus comparaciones anidadas.
+ *  `metrica` es el rótulo de la métrica del cuadro: lo usan las dos formas que publican su valor principal SIN
+ *  nombre de campo — la barra de un Pareto (`fmt`) y la card de un KPI (`valor` ya formateado). */
+function _cifrasDe(obj, metrica) {
+  const out = [];
+  if (!obj || typeof obj !== "object") return out;
+  for (const k of Object.keys(obj)) {
+    const base = _fmtDe(k);
+    if (base) {
+      const rot = _rotulo(base);
+      const val = _txt(obj[k]);
+      if (rot && val) out.push({ clave: base, label: rot, valor: val });
+      continue;
+    }
+    /* EL VALOR PRINCIPAL SIN NOMBRE DE CAMPO. Tres formas de la casa lo publican así y las tres están en
+     * pantalla: la barra de un Pareto (`fmt`, la etiqueta bajo la barra) y la card de un KPI, que según la cara
+     * lo llama `valor` (Comercial, Flujo) o `value` (Capital). Se distingue del crudo por el TIPO: una cadena es
+     * lo que se pinta, un número es el crudo que ordena — y ese no se lee, porque su versión visible viaja en
+     * otro campo. */
+    if ((k === "fmt" || k === "valor" || k === "value") && _txt(obj[k])) {
+      out.push({ clave: "principal", label: metrica || "Valor", valor: _txt(obj[k]) });
+      continue;
+    }
+    /* EL ACUMULADO DE LA CURVA · el 80/20. El módulo lo publica en puntos (`19.4`) y la vista lo pinta con su
+     * signo de porcentaje («acum 19.4%»): acá se transcribe ese mismo token, no se calcula nada. */
+    if (k === "acumuladoPct" && typeof obj[k] === "number" && Number.isFinite(obj[k])) {
+      out.push({ clave: "acumulado", label: CAMPOS.acumulado, valor: `${obj[k]}%` });
+      continue;
+    }
+    /* la comparación anidada: se lee su MONTO y su PORCENTAJE, que es lo que la celda pinta */
+    if (COMPARADOS[k] && obj[k] && typeof obj[k] === "object" && obj[k].hay !== false) {
+      const c = obj[k];
+      const m = _txt(c.montoFmt), p = _txt(c.pctFmt);
+      if (m) out.push({ clave: k, label: COMPARADOS[k], valor: m });
+      if (p) out.push({ clave: `${k}Pct`, label: `${COMPARADOS[k]} (%)`, valor: p });
+      continue;
+    }
+    /* el conteo entero que el cuadro muestra */
+    if (CONTEOS[k] && typeof obj[k] === "number" && Number.isFinite(obj[k])) {
+      out.push({ clave: k, label: CONTEOS[k], valor: String(obj[k]), conteo: true });
+    }
+  }
+  return out;
+}
+
+/** el nombre de una fila. Sin nombre no hay fila: una cifra sin dueño no entra a la boleta (regla de la casa). */
+function _nombreDe(f) {
+  if (typeof f === "string") return f.trim() || null;
+  if (!f || typeof f !== "object") return null;
+  for (const k of LLAVES_DE_NOMBRE) if (_txt(f[k])) return _txt(f[k]);
+  return null;
+}
+
+/** las filas legibles de una lista: nombre + al menos una cifra visible. */
+function _leerFilas(lista, metrica) {
+  const filas = [];
+  for (const f of lista) {
+    const nombre = _nombreDe(f);
+    if (!nombre) continue;                       // cifra sin dueño no entra: la ley de la boleta
+    const cifras = _cifrasDe(f, metrica);
+    if (!cifras.length) continue;
+    filas.push({ nombre, cifras, linea: _txt(f && f.linea) || null });
+  }
+  return filas;
+}
+
+/* la lista de filas del nodo + de dónde salió, o null.
+ * ⚠️ SE PRUEBA LLAVE POR LLAVE HASTA QUE UNA DÉ FILAS LEGIBLES, y esa es toda la sutileza de esta función: el
+ * evolutivo publica `meses` (doce cadenas: los rótulos del eje) Y `series` (las tres curvas con su total
+ * formateado, que es lo que la leyenda muestra). Quedarse con la primera llave presente devolvía cero filas y
+ * el cuadro se declaraba ilegible teniendo sus totales a la vista. */
+function _filasDe(node, metrica) {
+  if (Array.isArray(node)) return { llave: "(el campo es la lista)", filas: _leerFilas(node, metrica) };
+  if (!node || typeof node !== "object") return null;
+  for (const k of LLAVES_DE_FILAS) {
+    if (!Array.isArray(node[k]) || !node[k].length) continue;
+    const filas = _leerFilas(node[k], metrica);
+    if (filas.length) return { llave: k, filas };
+  }
+  return null;
+}
+
+/* ── LA VISTA ACTIVA · «filtros aplicados», el 6º campo del ancla del owner ────────────────────────────────
+ * Varios cuadros publican SUS cortes como `vistas[{key,label,…}]` y la pantalla muestra UNO (el corte de
+ * Capital, el eje de «quién sostiene»). Cuál se está mirando lo dice el CONTROL que viajó en el contexto; sin
+ * control manda el `porDefecto` que el propio módulo declara. Nunca se leen todos a la vez: eso sería
+ * responder un cuadro que el usuario no tiene delante. */
+function _vistaActiva(node, controles) {
+  if (!node || typeof node !== "object" || !Array.isArray(node.vistas) || !node.vistas.length) return null;
+  const claves = node.vistas.map((v) => v && v.key).filter(Boolean);
+  const pedida = Object.values(controles || {}).map((x) => String(x)).find((x) => claves.includes(x));
+  const key = pedida || (_txt(node.porDefecto) && claves.includes(node.porDefecto) ? node.porDefecto : claves[0]);
+  const v = node.vistas.find((x) => x && x.key === key) || null;
+  return v ? { key, label: _txt(v.label) || key, nodo: v, porControl: !!pedida } : null;
+}
+
+/* ── LA LECTURA ───────────────────────────────────────────────────────────────────────────────────────────
+ * lecturaDeCuadro(componentId, { scenario, controles }) →
+ *   { ok, identidad, cabecera[], filas[], textos[], limite, corte, falta }
+ * `falta` (string) llega SIEMPRE que `ok` es false, y dice en palabras de negocio qué no se pudo leer. */
+export function lecturaDeCuadro(componentId, { scenario = ESCENARIO_INICIAL, controles = null, builderOut = null } = {}) {
+  const id = String(componentId || "");
+  const m = VIEW_MANIFEST[id];
+  if (!m) return { ok: false, motivo: "sin-declarar", falta: `no tengo declarado el cuadro «${id}»: no puedo responder por una pieza que no está en el contrato de pantalla.` };
+
+  const identidad = {
+    componentId: id,
+    vista: m.vista, cara: VISTA_LABEL[m.vista] || m.vista,
+    seccion: m.seccion, movimiento: SECCION_LABEL[`${m.vista}/${m.seccion}`] || null,
+    cuadro: m.label, tipo: m.tipo,
+    metrica: m.metrica || null,
+    metricaLabel: (m.metrica && METRICS[m.metrica] && METRICS[m.metrica].label) || m.metrica || null,
+    eje: m.eje || null,
+    periodo: m.periodo || null,
+    comparacion: m.comparacion || null,
+    universo: (m.universo && m.universo.label) || null,
+    controles: controles && typeof controles === "object" ? { ...controles } : {},
+  };
+  /* EL LÍMITE DECLARADO de esta pieza: qué de lo que muestra NO tiene respaldo en el motor, con su razón
+   * verificable. Es lo que hace posible «decir exactamente qué falta» sin inventar el faltante. */
+  const conc = concordanciaDe(m) || null;
+  const limite = conc ? { estado: conc.estado, campos: conc.campos || [], razon: conc.razon || null } : null;
+
+  const out = builderOut || builderOutFor(id, scenario);
+  if (!out) return { ok: false, motivo: "sin-modulo", identidad, limite, falta: `el cuadro «${m.label}» no se puede reconstruir con este dato: su módulo (${m.vista}) no devolvió nada para este período.` };
+
+  let node = resolvePath(out, m.campo);
+  if (node === undefined || node === null) {
+    return { ok: false, motivo: "sin-campo", identidad, limite,
+      falta: m.campoOpcional
+        ? `este dato no trae «${m.label}»: es una pieza opcional del cuadro de ${identidad.cara} y esta carga no la publica.`
+        : `el cuadro «${m.label}» no publicó su contenido en esta construcción: no tengo sus cifras para explicarlo.` };
+  }
+
+  /* el corte que el usuario tiene delante */
+  const va = _vistaActiva(node, controles);
+  let corte = null;
+  if (va) { node = va.nodo; corte = { key: va.key, label: va.label, porControl: va.porControl }; }
+
+  const cabecera = _cifrasDe(node, identidad.metricaLabel);
+  const textos = TEXTOS.map((k) => ({ clave: k, texto: _txt(node[k]) })).filter((x) => x.texto);
+
+  const fl = _filasDe(node, identidad.metricaLabel);
+  const filas = fl ? fl.filas : [];
+
+  /* ⚠️ «SIN CIFRAS» ES UN LÍMITE MÍO, NO DEL DATO — y por eso lleva un motivo propio. Los dos de arriba
+   * (`sin-modulo`, `sin-campo`) son del DATO: la pieza no existe en esta carga, y eso se le DICE al usuario
+   * («exactamente qué falta», la regla del owner). Éste es otro animal: la pieza está y pinta números, pero
+   * los publica de una forma que este lector no sabe transcribir. Confundirlos haría que ADI le dijera al
+   * usuario que su dato no trae algo que sí trae — una limitación mía disfrazada de límite del negocio, que
+   * es la peor clase de mentira honesta. Quien consume esto declina los del dato y se retira en el mío. */
+  if (!cabecera.length && !filas.length) {
+    return { ok: false, motivo: "sin-cifras", identidad, limite, corte, textos,
+      falta: `el cuadro «${m.label}» no publica sus cifras en una forma que yo pueda citar verbatim.` };
+  }
+
+  return { ok: true, identidad, cabecera, filas, textos, limite, corte, filasLlave: fl ? fl.llave : null, n: filas.length };
+}
+
+/** los componentes que ESTE dato sabe leer — lo consume el gate para barrer el manifiesto entero. */
+export function cuadrosLegibles(scenario = ESCENARIO_INICIAL) {
+  return Object.keys(VIEW_MANIFEST).filter((id) => {
+    try { return lecturaDeCuadro(id, { scenario }).ok; } catch { return false; }
+  });
+}
+
+export { CAMPOS as CAMPOS_DEL_CUADRO, CONTEOS as CONTEOS_DEL_CUADRO };

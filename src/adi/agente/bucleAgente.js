@@ -316,14 +316,21 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta }) {
  * `registerAsk((q, vc) => …)` de ChatADI guarda la pieza que el usuario tocó) y se lo pasa al camino natural
  * — pero al AGENTE no se lo pasaba nadie. O sea: el emisor ya sembró y el receptor no escuchaba.
  *
- * QUÉ HACE ESTA VERSIÓN MÍNIMA, y qué NO: el contexto entra, viaja y queda REGISTRADO en el expediente del
- * turno (`agente.viewContext`) para que exista de dónde agarrarse. NO cambia todavía ninguna respuesta: el
- * pulido —que el texto se ancle campo por campo a lo que ese cuadro pinta— es lo que el owner difirió a
- * propósito. El contrato de ese pulido está escrito en `_CONTRATO_ASK_DE_CUADRO.md`.
+ * EL CONTEXTO entra, viaja y queda REGISTRADO en el expediente del turno (`agente.viewContext`).
  *
- * LA REGLA QUE YA RIGE, para que la siembra no nazca torcida: el contexto DESCRIBE la superficie (vista, eje,
- * campo), jamás trae cifras. Lo que no entra por el módulo no se cuela al texto — una sola verdad. */
-export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO_INICIAL, callAgente, viewContext = null } = {}) {
+ * LA REGLA QUE RIGE: el contexto DESCRIBE la superficie (vista, eje, campo), jamás trae cifras. Lo que no
+ * entra por el módulo no se cuela al texto — una sola verdad.
+ *
+ * ── `cuadro` · EL ANCLA DEL CLICK, QUE ES OTRA COSA QUE `viewContext` (owner 2026-09-08) ──────────────────
+ * «El botón no manda solo texto: manda el ancla completa del cuadro que el usuario está viendo.» Los dos
+ * campos transportan un ViewContext, y la diferencia es de ORIGEN, que es lo único que importa acá:
+ *   · `viewContext` = lo que el turno tiene delante — el explícito si hubo click, y si no, EL AMBIENTE de la
+ *     vista abierta. Sirve para desambiguar; sigue sin cambiar por sí solo ninguna respuesta.
+ *   · `cuadro`      = SOLO el explícito: la pieza que el usuario TOCÓ en este turno. Se consume una vez.
+ * Un click, un turno: el ambiente sigue publicado mientras la Mesa está abierta, así que abrir la explicación
+ * de cuadro por ambiente haría que la siguiente pregunta escrita a mano se respondiera como si fuera un botón.
+ * Por eso son dos campos y no uno. Ver `_CONTRATO_ASK_DE_CUADRO.md`. */
+export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO_INICIAL, callAgente, viewContext = null, cuadro = null } = {}) {
   if (typeof callAgente !== "function") throw new TypeError("answerViaAgente sin callAgente: el cerebro lo pone el caller");
   const q = String(text || "").trim();
   const memIn = (mem && typeof mem === "object") ? mem : {};
@@ -552,7 +559,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * apagada; esto no enciende nada. */
   /* el hilo viaja al detector (T5): las formas elípticas del porqué solo abren si la última lectura fue de
    * margen, y eso solo se sabe mirando el hilo. Un caller sin history mide el peor caso: la elíptica no abre. */
-  const ctxTurno = { history, viewContext };   // el ctx del turno, ENTERO, para toda la cadena del playbook
+  const ctxTurno = { history, viewContext, cuadro };   // el ctx del turno, ENTERO, para toda la cadena del playbook
   const playbook = (() => { try { return playbookPara(q, ctxTurno); } catch { return null; } })();
   let playbookActivo = null;
   /* LOS PASOS PUEDEN DEPENDER DE LA PREGUNTA (2026-09-01): `pasosDe` resuelve el Array de siempre o la función
@@ -567,7 +574,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
        * no sería la que se hizo. */
       if (promesasCumplidas(playbook, figsTotales, q, ctxTurno)) {
         playbookActivo = playbook;
-        mensajes.push({ role: "user", content: doctrinaDelPlaybook(playbook, q) });
+        mensajes.push({ role: "user", content: doctrinaDelPlaybook(playbook, q, ctxTurno) });
       }
     }
   }

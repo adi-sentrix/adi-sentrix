@@ -38,6 +38,11 @@ import { cobranza } from "./cobranza.js";   // playbook del COBRO: «quién me d
  * inequívocas— y con la precedencia alta «¿Cómo libero el capital inmovilizado en Valparaíso?» se ancla a SU
  * bodega en vez de caer a la asesoría general del inmovilizado (que va después y conserva todo lo demás). */
 import { askDeCuadro } from "./askDeCuadro.js";
+/* el ancla completa del cuadro (owner 2026-09-08: «el botón no manda solo texto»). Va JUSTO DESPUÉS de
+ * `ask-de-cuadro`: las cuatro formas de Capital ya tienen su anclaje pulido y gateado contra el cuadro vivo, y
+ * éste toma todo lo demás — que hasta ese día era «todo lo demás menos cuatro formas». No lo abre la pregunta:
+ * lo abre el CLICK (`ctx.cuadro`), así que no puede quitarle un turno a nadie que responda texto libre. */
+import { cuadroExplicado } from "./cuadroExplicado.js";
 import { limiteHonesto } from "./limiteHonesto.js";   // certificación (owner 2026-09-02): el eje NO disponible se declara con la razón del dato + alternativa
 import { sintesisEjecutiva } from "./sintesisEjecutiva.js";
 import { fichaDeEntidad } from "./fichaDeEntidad.js";   // T4 · la ficha de una entidad: va ANTES de la foto (que es del negocio entero)
@@ -52,7 +57,7 @@ import { resumenDelNegocio } from "./resumenDelNegocio.js";   // señal del owne
  *  ante «simula/proyecta/ponele»), cobranza, y al final los DOS de la certificación (limite-honesto ·
  *  sintesis-ejecutiva): sus preguntas no tienen dueño previo — nadie de arriba las toma (medido), así que ir
  *  últimos garantiza que no le quitan un turno a nadie. */
-export const PLAYBOOKS = [margenEnRiesgo, clientePerdiendoContribucion, askDeCuadro, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada, cobranza, fichaDeEntidad, limiteHonesto, sintesisEjecutiva, resumenDelNegocio];
+export const PLAYBOOKS = [margenEnRiesgo, clientePerdiendoContribucion, askDeCuadro, cuadroExplicado, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada, cobranza, fichaDeEntidad, limiteHonesto, sintesisEjecutiva, resumenDelNegocio];
 
 /** playbookPara(pregunta) → el playbook que aplica, o null. El PRIMERO que declare aplicar (orden del registro
  *  = precedencia declarada); jamás dos a la vez, para que el procedimiento del turno sea uno solo y auditable. */
@@ -113,6 +118,18 @@ export function pasosDe(pb, pregunta, ctx) { return _resolver(pb && pb.pasos, pr
 /** las figs que el playbook promete para ESTE turno — mismo contrato que `pasos`. */
 export function obligatoriasDe(pb, pregunta, ctx) { return _resolver(pb && pb.obligatorias, pregunta, [], ctx); }
 
+/** el ENTREGABLE de ESTE turno: la cadena de siempre, o una función de la pregunta (+ctx opcional).
+ *  Mismo motivo que `pasos`/`obligatorias`: cuando el playbook se abre sobre una PIEZA distinta en cada click,
+ *  el entregable tiene que nombrar ESA pieza — un entregable genérico le pediría al cerebro «explica el cuadro»
+ *  sin decirle cuál, que es justo el defecto que el owner midió. */
+export function entregableDe(pb, pregunta, ctx) {
+  const e = pb && pb.entregable;
+  if (typeof e === "function") {
+    try { const r = e(String(pregunta || ""), ctx); return typeof r === "string" && r.trim() ? r : ""; } catch { return ""; }
+  }
+  return typeof e === "string" ? e : "";
+}
+
 /** las figs que el playbook PROMETIÓ, presentes de verdad en la boleta acumulada. */
 export function promesasCumplidas(pb, figs, pregunta, ctx) {
   const obligatorias = obligatoriasDe(pb, pregunta, ctx);
@@ -122,14 +139,16 @@ export function promesasCumplidas(pb, figs, pregunta, ctx) {
 }
 
 /** el bloque que viaja al cerebro cuando el playbook está activo: el método, no un ánimo.
- *  Byte-estable por playbook (prefijo cacheable: el texto no cambia turno a turno). */
-export function doctrinaDelPlaybook(pb, pregunta) {
+ *  Byte-estable por playbook (prefijo cacheable: el texto no cambia turno a turno) — con UNA excepción
+ *  declarada: `cuadro-explicado` cambia con la pieza tocada, porque el ancla del cuadro ES su método. Un
+ *  entregable que dijera «explica el cuadro» sin decir cuál sería el prompt genérico que el owner rechazó. */
+export function doctrinaDelPlaybook(pb, pregunta, ctx) {
   if (!pb) return "";
   return [
     `[PROCEDIMIENTO — no es el usuario] Este turno sigue el playbook «${pb.nombre}». Sus pasos YA se ejecutaron y sus resultados están arriba:`,
-    ...pasosDe(pb, pregunta).map((p) => `- ${p.tool} → ${p.para}`),
+    ...pasosDe(pb, pregunta, ctx).map((p) => `- ${p.tool} → ${p.para}`),
     "",
-    `LO QUE TIENES QUE ENTREGAR: ${pb.entregable}`,
+    `LO QUE TIENES QUE ENTREGAR: ${entregableDe(pb, pregunta, ctx)}`,
     "La evidencia ya está en la mano: respóndela. No pidas aclaración ni declines por falta de datos sobre lo que estos resultados ya cubren.",
     "Cada cifra, verbatim de los resultados. Localiza dónde está el problema; no afirmes por qué pasa si el dato no lo declara.",
   ].join("\n");
