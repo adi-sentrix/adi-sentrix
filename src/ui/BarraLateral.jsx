@@ -81,7 +81,7 @@ function Fila({ activo, titulo, onClick, icono, testid, children }) {
  * «Live · fecha»: heredados del header blanco, informaban de la sesión, no del negocio. La barra queda solo
  * con lo que se HACE. Nada de eso se perdió del producto — el modo y el acceso siguen en su lógica; lo que
  * se quitó es su vitrina. */
-export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInicio,
+export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInicio, historialAbierto, onHistorial,
   datosAbiertos = false, onDatos = null }) {
   return (
     <div className="adi-rail" aria-label="Barra de ADI"
@@ -152,6 +152,14 @@ export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInici
           ⚠️ NO ES EL PANEL DE HISTORIAL, y por eso no dice «Conversaciones»: guardar y volver a abrir
           conversaciones anteriores sigue sin construirse (ver la nota de App.jsx). Este botón promete
           exactamente lo que hace —empezar un hilo nuevo— y ni una palabra más. */}
+      {/* CONVERSACIONES · la puerta al historial. Vuelve el 2026-09-08, y la regla que la sacó en agosto es la
+          misma que la deja volver: un panel que no guarda nada es una promesa. Ahora hay tabla detrás (009). */}
+      <Fila activo={historialAbierto} onClick={onHistorial} testid="historial-abrir"
+        titulo="Tus conversaciones guardadas · vuelve a abrir cualquiera"
+        icono={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>}>
+        Conversaciones
+      </Fila>
+
       <Fila activo={false} onClick={onInicio} testid="chat-nuevo"
         titulo="Empieza una conversación nueva · lo que ADI aprendió de tu negocio se mantiene"
         icono={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}><path d="M21 11.5a8.38 8.38 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.2A8.5 8.5 0 0 1 4 11.5a8.38 8.38 0 0 1 8.4-9 8.5 8.5 0 0 1 8.6 9z"/><line x1="12" y1="8" x2="12" y2="14"/><line x1="9" y1="11" x2="15" y2="11"/></svg>}>

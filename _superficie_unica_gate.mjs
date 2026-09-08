@@ -145,9 +145,21 @@ H("5 · NO QUEDAN VARIANTES DORMIDAS · ni sus restos");
     "…y el CSS de sus tres modos se fue con el parámetro");
   const app = leer("./src/ui/App.jsx");
   ok(!app.includes('get("historial")'), "la app ya no lee `?historial`");
-  ok(!app.includes("PanelHistorial"), "…y el panel que mostraba un historial que no existía tampoco está");
-  ok(leer("./src/ui/PanelHistorial.jsx") === "", "…ni su archivo");
-  ok(!barra.includes("onConversaciones"), "…ni la barrita que lo abría");
+  /* ⚠️ ESTOS TRES CHECKS CAMBIARON DE OBJETO EL 2026-09-08, y el cambio es la regla, no una excepción.
+   * Congelaban la AUSENCIA del panel de historial — correcto mientras el panel era una promesa vacía («se veía
+   * pero no guardaba nada», owner 2026-08-27). El owner lo volvió a pedir con la referencia de Codex en mano, y
+   * esta vez SÍ hay dato: la migración 009, su tabla con muro por empresa y el rastro de borrado.
+   * Lo que se congela ahora es la REGLA que él fijó, que nunca fue «no haya panel» sino **que ningún panel
+   * prometa un historial que no guarda**. Así que el check se invierte y se ata a la evidencia: si alguien
+   * repone el panel sin su persistencia detrás, esto se pone rojo igual que antes. */
+  ok(app.includes("PanelHistorial"), "el panel de historial existe (owner 2026-09-08) — y los tres checks de abajo son los que lo obligan a tener dato detrás");
+  const panelHist = leer("./src/ui/PanelHistorial.jsx");
+  ok(panelHist.includes("cargar()") && !/mensajes\s*:\s*\[\]/.test(panelHist),
+    "★ …y la lista sale de una llamada real, no de un arreglo escrito a mano: la promesa vacía de agosto no vuelve");
+  ok(leer("./db/migraciones/009_conversaciones.sql").includes("create table if not exists public.conversaciones")
+     && leer("./src/ingesta/handleIngesta.server.js").includes('body.op === "conversaciones"'),
+    "★ …y el dato detrás EXISTE de punta a punta: la tabla de la 009 y su puerta en el servidor");
+  ok(barra.includes("historial-abrir"), "…y la barrita que lo abre vuelve CON él, no antes");
 }
 
 H("6 · CARNADA · el sello del tablero tiene que poder ponerse rojo");

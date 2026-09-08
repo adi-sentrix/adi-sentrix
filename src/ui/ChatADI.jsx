@@ -1198,7 +1198,7 @@ function HeroInicio({ scenario, campo, onPregunta }) {
  * pintaba sigue vivo donde corresponde: `HERO_CHIPS` (arriba) alimenta a `GuiaInicio.jsx`, y el resumen ejecutivo
  * se pide hablando —el coerce de «hazme un resumen ejecutivo» arma el mismo spec, gate-proven. */
 
-export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null, registerRun = null, onHayConversacion = null, margenBarra = 0 }) {
+export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null, registerRun = null, registerCargarConversacion = null, onHayConversacion = null, margenBarra = 0 }) {
   const [messages, setMessages] = useState([]);     // [{ id, role, text, sentrixAction, suggestions }]
   const [input, setInput]       = useState("");
   const [showHint, setShowHint] = useState(() => { try { return typeof localStorage !== "undefined" && !localStorage.getItem("adi_hint_v1"); } catch { return false; } });   // hint de primer uso (una vez)
@@ -1291,6 +1291,46 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
       setMessages([]); setInput(""); setPendingId(null); setSuggestionsVisible(false); setContext(fresh);
     });
   }, [registerReset]);
+
+  /* ── EL HISTORIAL · GUARDAR (owner 2026-09-08) ────────────────────────────────────────────────────────────
+   * Se guarda DESPUÉS de cada turno resuelto, fire-and-forget CON rastro — el patrón del diario. Es un upsert
+   * por hilo (la 009 tiene índice único por empresa+hilo), así que guardar en cada turno ACTUALIZA la misma
+   * fila: no hay copias ni hay que decidir «cuándo cerrar» una conversación, que es la clase de decisión que
+   * el usuario nunca toma y termina perdiendo su trabajo.
+   * ⚠️ Sin empresa firmada el servidor lo rechaza y no pasa nada: en el demo no hay a nombre de quién guardar,
+   * y el panel lo dice con su razón en vez de mostrar una lista vacía. */
+  useEffect(() => {
+    if (!messages.length) return;
+    const hilo = (context && context.conversationId) || null;
+    if (!hilo) return;                                   // todavía no hubo turno por el oráculo: nada que nombrar
+    if (messages.some((m) => m.pending)) return;         // no se guarda un turno a medias
+    const id = setTimeout(() => {
+      fetch("/api/adi-ingesta", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ op: "conversaciones", accion: "guardar", hilo,
+          mensajes: messages.map((m) => ({ role: m.role, text: m.text })), access: getAccessCode() }) })
+        .then((res) => res.json())
+        .then((d) => { if (!d || !d.ok) console.warn("[ADI] la conversación no se guardó:", d && d.motivo); })
+        .catch((e) => console.warn("[ADI] la conversación no se guardó:", e && e.message));
+    }, 400);   // un respiro: dos turnos seguidos escriben una vez, no dos
+    return () => clearTimeout(id);
+  }, [messages, context]);
+
+  /* ── EL HISTORIAL · ABRIR UNA (lo que hace el clic del panel) ─────────────────────────────────────────────
+   * Se pinta lo que se dijo, con su `conversationId` puesto: si el usuario sigue preguntando, el turno nuevo
+   * se guarda EN ESA MISMA conversación en vez de abrir una gemela. La memoria del hilo NO se restaura —lo que
+   * viaja es texto, no el estado del motor— y el panel lo declara: se lee, no se revive. */
+  useEffect(() => {
+    if (typeof registerCargarConversacion !== "function") return;
+    registerCargarConversacion((conv) => {
+      if (!conv || !Array.isArray(conv.mensajes)) return;
+      const base = initialContext || (modulo ? { activeModule: modulo } : {});
+      const fresh = { ...base, conversationId: conv.hilo };
+      ctxRef.current = fresh;
+      resetPnlDraft();
+      setPendingId(null); setInput(""); setSuggestionsVisible(false); setContext(fresh);
+      setMessages(conv.mensajes.map((m) => ({ id: ++idRef.current, role: m.role === "user" ? "user" : "adi", text: String(m.text || "") })));
+    });
+  }, [registerCargarConversacion]);
 
   // aplica el estado de un turno YA resuelto (idéntico para piso y LLM)
   const _applyTurn = (turn, adiId) => {

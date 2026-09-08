@@ -173,12 +173,14 @@ H("3 · la cadena: migración → op → arrastre → siembra (estático, cada e
   const rail = fs.readFileSync(path.join(root, "src", "ui", "BarraLateral.jsx"), "utf8");
   ok(/testid="chat-nuevo"/.test(rail) && /Nuevo chat/.test(rail) && /onClick=\{onInicio\}/.test(rail),
     "★ «Nuevo chat» es una puerta VISIBLE de la barra — la acción existía solo en el clic del logo, y a lo que no se llega no existe");
-  /* ⚠️ CON LOS COMENTARIOS DESCONTADOS, y la primera versión de este check se puso roja por no hacerlo: la
-   * palabra vive en las notas que EXPLICAN por qué el panel no está. Medir la forma en vez del concepto — el
-   * mismo patrón que este proyecto persigue, esta vez dentro del candado que lo persigue. */
-  const railVivo = rail.replace(/\{?\/\*[\s\S]*?\*\/\}?/g, "").replace(/^\s*\/\/.*$/gm, "");
-  ok(!/Conversaciones/.test(railVivo),
-    "…y no promete historial: guardar conversaciones anteriores todavía no está construido (un vacío honesto sigue siendo un vacío)");
+  /* ⚠️ ESTE CHECK VIVIÓ UN DÍA CON EL OBJETO EQUIVOCADO. Nació el 2026-09-08 exigiendo que la barra NO dijera
+   * «Conversaciones» —porque el historial no existía y una puerta a la nada es una promesa rota— y esa misma
+   * tarde el owner pidió el historial de verdad, con su referencia en mano. Se construyó (migración 009), así
+   * que la puerta ya no promete: entrega. Lo que se conserva es la REGLA, atada ahora a la evidencia. */
+  ok(/testid="historial-abrir"/.test(rail),
+    "★ la puerta al historial existe en la barra…");
+  ok(fs.existsSync(path.join(root, "db", "migraciones", "009_conversaciones.sql")),
+    "★ …y NO promete: la persistencia que la respalda (009) está en el repo — sin ella, esta puerta sería el vacío de agosto");
 
   /* ── LA 008 · access_audit: el contrato, el muro, el append-only y las dos trampas que romperían el diario ── */
   const sql8 = fs.readFileSync(path.join(root, "db", "migraciones", "008_access_audit.sql"), "utf8");

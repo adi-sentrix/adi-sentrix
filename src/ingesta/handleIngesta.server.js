@@ -28,7 +28,8 @@ import { plantillaVacia, plantillaEjemplo } from "./plantilla/generarPlantilla.j
 import { POLICY_CONFIG } from "../config/businessPolicy.js";
 import { PLANTILLA_VERSION } from "../config/contract/plantilla.js";
 import { verifyAccessCode } from "../adi/llm/accessToken.js";
-import { persistirCarga, cargasPrevias, activarVersion, declararCobro, declararDiario, hashSha256, historiaActiva } from "./persistirCarga.server.js";
+import { persistirCarga, cargasPrevias, activarVersion, declararCobro, declararDiario, hashSha256, historiaActiva,
+         guardarConversacion, listarConversaciones, leerConversacion, borrarConversacion } from "./persistirCarga.server.js";
 import { diffDeCarga, periodosDeHechos } from "./historico.js";
 
 /* De qué empresa es esta carga. Sale del código firmado y de ningún otro lado.
@@ -123,6 +124,36 @@ export async function handleIngesta(body = {}, env) {
     return r.declarada
       ? { ok: true, op: "diario", version: r.version, diario: r.diario }
       : { ok: false, op: "diario", motivo: r.motivo };
+  }
+
+  /* EL HISTORIAL DE CONVERSACIONES (owner 2026-09-08): «guardando el historial etc. tal como lo hago con
+   * claude o gpt». Cuatro verbos por la MISMA puerta y el MISMO pase — guardar (upsert por hilo, corre en
+   * cada turno), listar (el panel: títulos y fechas, sin contenido), abrir (una) y borrar (con su rastro).
+   * ⚠️ La sesión se exige en LOS CUATRO, incluido listar: el historial es lo más privado que guarda el
+   * producto — las preguntas del dueño y las cifras de su negocio. Sin empresa firmada no se responde. */
+  if (body.op === "conversaciones") {
+    const s = await sesionDeLaCarga(body.access, env);
+    if (!s) return { ok: false, motivo: "sin sesión con empresa: el historial es de la empresa, no del navegador" };
+    const base = { tenantId: s.tenantId, env };
+    if (body.accion === "guardar") {
+      const r = await guardarConversacion({ ...base, hilo: body.hilo, mensajes: body.mensajes, actor: s.actor });
+      return r.ok ? { ok: true, op: "conversaciones", accion: "guardar", hilo: r.hilo, titulo: r.titulo }
+                  : { ok: false, op: "conversaciones", motivo: r.motivo };
+    }
+    if (body.accion === "abrir") {
+      const r = await leerConversacion({ ...base, hilo: body.hilo });
+      return r.ok ? { ok: true, op: "conversaciones", accion: "abrir", hilo: r.hilo, titulo: r.titulo, mensajes: r.mensajes }
+                  : { ok: false, op: "conversaciones", motivo: r.motivo };
+    }
+    if (body.accion === "borrar") {
+      const r = await borrarConversacion({ ...base, hilo: body.hilo, actor: s.actor });
+      return r.ok ? { ok: true, op: "conversaciones", accion: "borrar", borradas: r.borradas }
+                  : { ok: false, op: "conversaciones", motivo: r.motivo };
+    }
+    /* por defecto, LISTAR: es lo que el panel pide al abrir y la única acción sin efectos. */
+    const r = await listarConversaciones({ ...base, limite: body.limite });
+    return r.ok ? { ok: true, op: "conversaciones", accion: "listar", conversaciones: r.conversaciones }
+                : { ok: false, op: "conversaciones", motivo: r.motivo, conversaciones: [] };
   }
 
   if (body.op === "plazos") {

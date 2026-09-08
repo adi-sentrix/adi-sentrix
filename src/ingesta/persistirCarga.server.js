@@ -429,3 +429,93 @@ export async function declararDiario({ tenantId, diario, actor = null, env, clie
   /* vuelve lo que QUEDÓ GUARDADO, no lo que se mandó — el criterio de declararCobro */
   return { declarada: true, version: r.filas[0].version, diario: diarioLimpio(r.filas[0].diario) };
 }
+
+/* ═══ EL HISTORIAL DE CONVERSACIONES (owner 2026-09-08) ═══════════════════════════════════════════════════
+ * «no tiene el panel para crear un nuevo chat, y guardando el historial etc. tal como lo hago con claude o
+ * gpt». Mismo canal, mismo pase, mismo criterio que el diario: se valida ACÁ para hablarle al usuario en su
+ * idioma *y* en la base, porque una regla solo-servidor es una costumbre; y vuelve lo que QUEDÓ guardado.
+ *
+ * QUÉ SE GUARDA DE CADA MENSAJE, y es menos de lo que hay en pantalla A PROPÓSITO: el papel y el texto. Los
+ * botones de Sentrix, la evidencia desplegable y el estado del turno NO se persisten — son propiedades de
+ * ESTE turno, no de la conversación, y guardarlas obligaría a reconstruir un contexto que ya no existe.
+ * Al reabrir, la conversación se lee: es un registro fiel de lo que se dijo, no un turno vivo congelado.
+ * Se declara así en el panel para que nadie espere lo que no hay. */
+const _TOPE_MENSAJES = 400;      // una conversación con 400 mensajes ya no es una conversación
+const _TOPE_TEXTO    = 20000;    // por mensaje · el techo de la base (256KB) es el otro candado
+
+export function conversacionLimpia(mensajes) {
+  return (Array.isArray(mensajes) ? mensajes : [])
+    .filter((m) => m && typeof m === "object" && typeof m.text === "string" && m.text.trim() && !m.pending)
+    .map((m) => ({ role: m.role === "user" ? "user" : "adi", text: String(m.text).slice(0, _TOPE_TEXTO) }))
+    .slice(-_TOPE_MENSAJES);
+}
+
+/* EL TÍTULO ES DETERMINÍSTICO — la primera pregunta del usuario, recortada. Cero llamadas: un título bonito
+ * generado por el modelo costaría dinero en cada conversación y no vale lo que cuesta. Si el hilo todavía no
+ * tiene pregunta (lo abrió el vigía), queda vacío y la base no lo pisa cuando llegue la primera. */
+export function tituloDeConversacion(mensajes) {
+  const primera = (Array.isArray(mensajes) ? mensajes : []).find((m) => m && m.role === "user" && typeof m.text === "string" && m.text.trim());
+  if (!primera) return "";
+  const t = String(primera.text).trim().replace(/\s+/g, " ");
+  return t.length <= 60 ? t : t.slice(0, 57).replace(/[\s,;:.]+\S*$/, "") + "…";
+}
+
+const _clienteYPase = async ({ tenantId, env, cliente, ttlSegundos }) => {
+  if (!tenantId) return { motivo: "sin sesión con empresa" };
+  const e = env || (typeof process !== "undefined" && process.env) || {};
+  const db = cliente || clienteDesdeEntorno(e);
+  if (!db) return { motivo: "base no configurada" };
+  const p = await emitirPase({ tenantId, secreto: e.SUPABASE_JWT_SECRET || "", ...(ttlSegundos ? { ttlSegundos } : {}) });
+  if (!p.ok) return { motivo: `no se pudo emitir el pase: ${p.motivo}` };
+  return { db, pase: p.pase };
+};
+
+/** guardarConversacion → { ok, hilo, titulo } · upsert por hilo: guardar el mismo hilo ACTUALIZA, no duplica. */
+export async function guardarConversacion({ tenantId, hilo, mensajes, actor = null, env, cliente, ttlSegundos } = {}) {
+  if (!hilo) return { ok: false, motivo: "sin hilo: no se guarda una conversación anónima" };
+  const limpios = conversacionLimpia(mensajes);
+  if (!limpios.length) return { ok: false, motivo: "conversación vacía: no hay nada que guardar" };
+  const c = await _clienteYPase({ tenantId, env, cliente, ttlSegundos });
+  if (!c.db) return { ok: false, sinBase: true, motivo: c.motivo };
+  const r = await c.db.llamarFuncion("adi_guardar_conversacion", {
+    p_hilo_id: String(hilo), p_titulo: tituloDeConversacion(limpios), p_mensajes: limpios,
+    p_actor_id: (actor && actor.id) || null, p_actor_label: (actor && actor.label) || null, p_actor_rol: (actor && actor.rol) || null,
+  }, { pase: c.pase });
+  if (!r.ok) return { ok: false, motivo: `no se pudo guardar la conversación: ${r.motivo}` };
+  if (!r.filas.length) return { ok: false, motivo: "la base no confirmó la conversación" };
+  return { ok: true, hilo: r.filas[0].hilo_id, titulo: r.filas[0].titulo, actualizado: r.filas[0].actualizado_en };
+}
+
+/** listarConversaciones → { ok, conversaciones:[{hilo,titulo,actualizado,mensajes}] } · SIN el contenido. */
+export async function listarConversaciones({ tenantId, limite = 50, env, cliente, ttlSegundos } = {}) {
+  const c = await _clienteYPase({ tenantId, env, cliente, ttlSegundos });
+  if (!c.db) return { ok: false, sinBase: true, motivo: c.motivo, conversaciones: [] };
+  const r = await c.db.llamarFuncion("adi_listar_conversaciones", { p_limite: limite }, { pase: c.pase });
+  if (!r.ok) return { ok: false, motivo: `no se pudo listar el historial: ${r.motivo}`, conversaciones: [] };
+  return { ok: true, conversaciones: r.filas.map((f) => ({ hilo: f.hilo_id, titulo: f.titulo, actualizado: f.actualizado_en, mensajes: f.mensajes })) };
+}
+
+/** leerConversacion → { ok, hilo, titulo, mensajes } · el contenido, ya limpio. */
+export async function leerConversacion({ tenantId, hilo, env, cliente, ttlSegundos } = {}) {
+  if (!hilo) return { ok: false, motivo: "sin hilo" };
+  const c = await _clienteYPase({ tenantId, env, cliente, ttlSegundos });
+  if (!c.db) return { ok: false, sinBase: true, motivo: c.motivo };
+  const r = await c.db.llamarFuncion("adi_leer_conversacion", { p_hilo_id: String(hilo) }, { pase: c.pase });
+  if (!r.ok) return { ok: false, motivo: `no se pudo abrir la conversación: ${r.motivo}` };
+  if (!r.filas.length) return { ok: false, motivo: "esa conversación no está en el historial de esta empresa" };
+  return { ok: true, hilo: r.filas[0].hilo_id, titulo: r.filas[0].titulo, mensajes: conversacionLimpia(r.filas[0].mensajes) };
+}
+
+/** borrarConversacion → { ok, borradas } · borra de verdad, y el rastro de que se borró NO se puede borrar. */
+export async function borrarConversacion({ tenantId, hilo, actor = null, env, cliente, ttlSegundos } = {}) {
+  if (!hilo) return { ok: false, motivo: "sin hilo" };
+  const c = await _clienteYPase({ tenantId, env, cliente, ttlSegundos });
+  if (!c.db) return { ok: false, sinBase: true, motivo: c.motivo };
+  const r = await c.db.llamarFuncion("adi_borrar_conversacion", {
+    p_hilo_id: String(hilo), p_actor_id: (actor && actor.id) || null,
+    p_actor_label: (actor && actor.label) || null, p_actor_rol: (actor && actor.rol) || null,
+  }, { pase: c.pase });
+  if (!r.ok) return { ok: false, motivo: `no se pudo borrar la conversación: ${r.motivo}` };
+  const n = Number(r.filas && r.filas.length ? (r.filas[0].adi_borrar_conversacion ?? r.filas[0]) : 0);
+  return { ok: true, borradas: Number.isFinite(n) ? n : 0 };
+}

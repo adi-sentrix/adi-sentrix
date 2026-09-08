@@ -2,7 +2,7 @@
  * Raíz de la app. Por ahora: header (logo + LIVE + escenario) + ChatADI corriendo como app real.
  * SIN panel de datos / módulos todavía (entran en el próximo paso de Fase 5).
  * Estado UI mínimo: escenario. La UI no calcula nada · el chat consume answerADI. */
-import React, { useState, useRef, useEffect, Suspense } from "react";
+import React, { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { C } from "./theme.js";
 /* ⚠️ EL EJE DE ESCENARIOS COLAPSÓ (owner 2026-08-07, ejecutado 2026-08-30): «al final el escenario bonanza es
  * el que usó la realidad de los datos, es mantener ese y eliminar el concepto escenario». `ScenarioSelector` se
@@ -23,6 +23,7 @@ import { cargarTenant } from "../data/tenantClient.js";       // vía 1 · el da
 import { tenantCargado, initTenant, getTenantData } from "../data/tenantStore.js";
 import { setCargaActiva as registrarCarga, limpiarCarga } from "../ingesta/estadoCarga.js";   // el sello vive en un módulo, no en un global del navegador
 import { PanelDatos } from "./PanelDatos.jsx";   // v1.4 · la pantalla de carga: subir la planilla, verla, confirmar y activarla
+import { PanelHistorial } from "./PanelHistorial.jsx";   // el historial de conversaciones (owner 2026-09-08) · vuelve porque ahora hay tabla detrás
 import { ADI_LLM_ENABLED } from "../config/voiceFlags.js";
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // la base real se DECLARA una vez (ver el comentario allá): la app y la consola del examen corren sobre el mismo dato
 import { initCriteria } from "../adi/criteria.js";   // C.2 · memoria de criterio · re-aplica lo persistido (localStorage) al boot
@@ -165,6 +166,33 @@ export default function App({ animate = true }) {
      la pantalla tampoco insinúa que sí. Cuando se construya de verdad, entra con su dato detrás. */
   const [hayConversacion, setHayConversacion] = useState(false);   // lo reporta ChatADI · solo un booleano
 
+  /* ── EL HISTORIAL (owner 2026-09-08) · la columna vuelve, ahora CON su dato detrás (migración 009) ────────
+   * La regla que él fijó en agosto al retirar el panel viejo sigue en pie y es la que lo deja volver: un panel
+   * que no guarda nada es una promesa, y una promesa en pantalla envejece mal. Ahora guarda.
+   * ADI abre CERRADO a propósito: el chat es la cara del producto y el índice es una herramienta, no el
+   * recibidor. Quien lo quiera abierto lo abre; nadie tiene que cerrar algo para empezar a preguntar. */
+  const [historialAbierto, setHistorialAbierto] = useState(false);
+  const [hiloActivo, setHiloActivo] = useState(null);
+  const cargarConvRef = useRef(null);
+
+  const listarConversaciones = useCallback(async () => {
+    const r = await fetch("/api/adi-ingesta", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ op: "conversaciones", accion: "listar", access: getAccessCode() }) });
+    return r.json();
+  }, []);
+
+  const abrirConversacion = useCallback(async (hilo) => {
+    try {
+      const r = await fetch("/api/adi-ingesta", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ op: "conversaciones", accion: "abrir", hilo, access: getAccessCode() }) });
+      const d = await r.json();
+      if (!d || !d.ok) { console.warn("[ADI] no se pudo abrir la conversación:", d && d.motivo); return; }
+      closePanel();
+      setHiloActivo(d.hilo);
+      if (cargarConvRef.current) cargarConvRef.current(d);
+    } catch (e) { console.warn("[ADI] no se pudo abrir la conversación:", e && e.message); }
+  }, []);
+
   const closePanel = () => { setOpenEv(null); setOpenId(null); setMaxed(false); };
   /* ── EL CABLE QUE FALTABA (owner 2026-08-09 · Contrato de Concordancia ADI ↔ Sentrix) ──────────────────────────
    * `sentrixAction` estaba INERTE por dos motivos a la vez: answerViaOracle lo devolvía en null y, aunque lo
@@ -249,8 +277,21 @@ export default function App({ animate = true }) {
           onGuia={() => setGuiaAbierta((v) => !v)}
           datosAbiertos={datosAbiertos}
           onDatos={() => setDatosAbiertos((v) => !v)}
+          historialAbierto={historialAbierto}
+          onHistorial={() => setHistorialAbierto((v) => !v)}
           onInicio={() => { closePanel(); if (resetRef.current) resetRef.current(); }}/>
         <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"row", flex:1, minHeight:0 }}>
+          {/* EL HISTORIAL · columna propia a la derecha del riel (owner 2026-09-08). Va ANTES del chat en el
+              flujo porque es su índice: se lee de izquierda a derecha, como en la referencia que él trajo.
+              El margen izquierdo libra el riel flotante, que vive fuera del flujo. */}
+          <div style={{ marginLeft: historialAbierto ? 44 : 0, display:"flex", minHeight:0 }}>
+            <PanelHistorial abierto={historialAbierto}
+              hiloActivo={hiloActivo}
+              cargar={listarConversaciones}
+              onCerrar={() => setHistorialAbierto(false)}
+              onNuevo={() => { closePanel(); if (resetRef.current) resetRef.current(); }}
+              onAbrirConversacion={abrirConversacion}/>
+          </div>
           <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
             <ChatADI scenario={scenario} animate={animate} onHayConversacion={setHayConversacion}
               margenBarra={44}
@@ -259,7 +300,8 @@ export default function App({ animate = true }) {
               openEvidenceId={openId}
               registerAsk={(fn) => { askRef.current = fn; }}
               registerReset={(fn) => { resetRef.current = fn; }}
-              registerRun={(fn) => { runRef.current = fn; }}/>
+              registerRun={(fn) => { runRef.current = fn; }}
+              registerCargarConversacion={(fn) => { cargarConvRef.current = fn; }}/>
           </div>
           {openEv && (isMobile ? (
             /* MOBILE: overlay a pantalla completa — el ✕ del panel vuelve al chat (sin divisor ni resize) */
