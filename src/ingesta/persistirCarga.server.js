@@ -446,7 +446,21 @@ const _TOPE_TEXTO    = 20000;    // por mensaje · el techo de la base (256KB) e
 export function conversacionLimpia(mensajes) {
   return (Array.isArray(mensajes) ? mensajes : [])
     .filter((m) => m && typeof m === "object" && typeof m.text === "string" && m.text.trim() && !m.pending)
-    .map((m) => ({ role: m.role === "user" ? "user" : "adi", text: String(m.text).slice(0, _TOPE_TEXTO) }))
+    .map((m) => {
+      const base = { role: m.role === "user" ? "user" : "adi", text: String(m.text).slice(0, _TOPE_TEXTO) };
+      /* LA TABLA SE GUARDA (owner 2026-09-08: «muy bien con fecha»). Es CONTENIDO, no un botón: el texto de ADI
+       * la nombra —«la cascada completa»— así que sin ella el registro queda hablando de algo que no está.
+       * ⚠️ PERO SE GUARDA CON SU PROCEDENCIA, y por eso el owner dijo «con fecha»: una tabla guardada es la FOTO
+       * del dato de ese día. Reabierta después de una carga nueva, mostraría cifras viejas como si fueran las de
+       * hoy — la mezcla de verdades que la regla 1 prohíbe. La fecha y la carga viajan con ella (`sello`) y la
+       * pantalla las declara al reabrir. Sin sello no se pinta tabla: preferimos el texto solo a una cifra
+       * huérfana de su fecha. */
+      if (m.evidence && typeof m.evidence === "object" && m.sello && typeof m.sello === "object") {
+        base.evidence = m.evidence;
+        base.sello = { fecha: String(m.sello.fecha || "").slice(0, 10), carga: m.sello.carga == null ? null : String(m.sello.carga).slice(0, 120) };
+      }
+      return base;
+    })
     .slice(-_TOPE_MENSAJES);
 }
 

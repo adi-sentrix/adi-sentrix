@@ -43,6 +43,9 @@ import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje
 import { P } from "../config/flagProfile.js";   // el vigía se enciende por bandera (ADI_VIGIA en FEATURE)
 import { buildVigia, hablarEnChat } from "../adi/sentrix/vigia.js";   // EL VIGÍA (c): habla primero SOLO cuando algo cambió
 import { getTenantId, tenantCargado, getTenantData, actualizarDiarioDelPack } from "../data/tenantStore.js";   // la huella de «qué vio ya» es por tenant · getTenantData: la siembra del diario viaja en el pack
+import { idDeCargaActiva } from "../ingesta/estadoCarga.js";   // la MISMA identidad de carga que sella el diario: una sola derivación, jamás dos
+import { selloDelHistorial } from "../ingesta/selloHistorial.js";   // la frase la arma el módulo, la vista solo pinta (regla 3)
+const _cargaActual = () => { try { return idDeCargaActiva(); } catch { return null; } };
 
 // Cuando answerADI devuelve route="not_yet_extracted" (text null), el motor es honesto: no inventa.
 // La UI refleja esa honestidad en vez de fabricar un overview.
@@ -1330,7 +1333,12 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
     const id = setTimeout(() => {
       fetch("/api/adi-ingesta", { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ op: "conversaciones", accion: "guardar", hilo,
-          mensajes: messages.map((m) => ({ role: m.role, text: m.text })), access: getAccessCode() }) })
+          /* la tabla viaja CON SU SELLO (owner 2026-09-08: «con fecha»): la misma identidad de carga que usa el
+           * diario, para que reabrir declare de qué dato son esas cifras y no las presente como las de hoy. */
+          mensajes: messages.map((m) => (m.evidence
+            ? { role: m.role, text: m.text, evidence: m.evidence, sello: { fecha: new Date().toISOString().slice(0, 10), carga: _cargaActual() } }
+            : { role: m.role, text: m.text })),
+          access: getAccessCode() }) })
         .then((res) => res.json())
         .then((d) => {
           if (!d || !d.ok) { console.warn("[ADI] la conversación no se guardó:", d && d.motivo); return; }
@@ -1358,7 +1366,18 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
       hiloRef.current = conv.hilo;   // seguir preguntando acá continúa ESTA conversación, no abre una gemela
       resetPnlDraft();
       setPendingId(null); setInput(""); setSuggestionsVisible(false); setContext(fresh);
-      setMessages(conv.mensajes.map((m) => ({ id: ++idRef.current, role: m.role === "user" ? "user" : "adi", text: String(m.text || "") })));
+      /* LA TABLA VUELVE, CON SU FECHA DECLARADA (owner 2026-09-08). El sello dice de qué carga son esas cifras;
+       * si la carga activa YA NO es esa, el mensaje lo dice antes de pintarlas — una tabla de otra carga
+       * mostrada como la de hoy sería la mezcla de verdades que la regla 1 prohíbe. Sin sello no se pinta. */
+      const cargaHoy = _cargaActual();
+      setMessages(conv.mensajes.map((m) => {
+        const msg = { id: ++idRef.current, role: m.role === "user" ? "user" : "adi", text: String(m.text || "") };
+        if (m.evidence && m.sello && m.sello.fecha) {
+          msg.evidence = m.evidence;
+          msg.selloHistorial = { ...m.sello, vigente: m.sello.carga != null && cargaHoy != null && String(m.sello.carga) === String(cargaHoy) };
+        }
+        return msg;
+      }));
     });
   }, [registerCargarConversacion]);
 
@@ -1596,6 +1615,15 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
                     })()}
                   </div>
                 </div>
+                {/* LA FECHA DE LAS CIFRAS REABIERTAS (owner 2026-09-08: «muy bien con fecha»). Una tabla del
+                    historial es la foto del dato de ESE día; si la carga activa ya es otra, se dice antes de
+                    que el dueño lea esas cifras como las de hoy. La frase la arma `selloDelHistorial` en el
+                    módulo — la vista solo pinta (regla 3: cero cálculo en React). */}
+                {msg.selloHistorial && (
+                  <div style={{ marginLeft: 44, marginTop: 4, fontSize: 11, lineHeight: 1.45, color: C.textMuted, fontStyle: "italic" }}>
+                    {selloDelHistorial(msg.selloHistorial)}
+                  </div>
+                )}
                 {!isPending && !isTyping && <SourceBadge source={msg._source}/>}
                 <SentrixButton sentrixAction={msg.sentrixAction} onSentrixAction={onSentrixAction} msgId={msg.id}/>
                 <EvidenceButton evidence={msg.evidence} active={openEvidenceId === msg.id}
