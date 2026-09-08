@@ -520,8 +520,13 @@ export async function leerConversacion({ tenantId, hilo, env, cliente, ttlSegund
   return { ok: true, hilo: r.filas[0].hilo_id, titulo: r.filas[0].titulo, mensajes: conversacionLimpia(r.filas[0].mensajes) };
 }
 
-/** borrarConversacion → { ok, borradas } · borra de verdad, y el rastro de que se borró NO se puede borrar. */
-export async function borrarConversacion({ tenantId, hilo, actor = null, env, cliente, ttlSegundos } = {}) {
+/** ocultarConversacion → { ok, ocultas } · LA QUITA DEL PANEL, no de la base (owner 2026-09-08: «los chat
+ * deben poder borrarse del panel, no de la data»).
+ * ⚠️ EL VERBO IMPORTA Y POR ESO CAMBIÓ: la pantalla dice «Quitar del panel» y el rastro dice
+ * `conversacion:ocultar`. Un botón que dijera «Borrar» sin borrar sería una promesa falsa sobre el dato
+ * financiero de un cliente, y este proyecto no las hace. Si algún día hace falta el borrado real —un cliente
+ * que exige que su conversación desaparezca— es OTRA acción, con su nombre y su rastro. */
+export async function ocultarConversacion({ tenantId, hilo, actor = null, env, cliente, ttlSegundos } = {}) {
   if (!hilo) return { ok: false, motivo: "sin hilo" };
   const c = await _clienteYPase({ tenantId, env, cliente, ttlSegundos });
   if (!c.db) return { ok: false, sinBase: true, motivo: c.motivo };
@@ -529,7 +534,7 @@ export async function borrarConversacion({ tenantId, hilo, actor = null, env, cl
     p_hilo_id: String(hilo), p_actor_id: (actor && actor.id) || null,
     p_actor_label: (actor && actor.label) || null, p_actor_rol: (actor && actor.rol) || null,
   }, { pase: c.pase });
-  if (!r.ok) return { ok: false, motivo: `no se pudo borrar la conversación: ${r.motivo}` };
+  if (!r.ok) return { ok: false, motivo: `no se pudo quitar la conversación del panel: ${r.motivo}` };
   const n = Number(r.filas && r.filas.length ? (r.filas[0].adi_borrar_conversacion ?? r.filas[0]) : 0);
-  return { ok: true, borradas: Number.isFinite(n) ? n : 0 };
+  return { ok: true, ocultas: Number.isFinite(n) ? n : 0 };
 }

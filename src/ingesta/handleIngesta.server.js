@@ -29,7 +29,7 @@ import { POLICY_CONFIG } from "../config/businessPolicy.js";
 import { PLANTILLA_VERSION } from "../config/contract/plantilla.js";
 import { verifyAccessCode } from "../adi/llm/accessToken.js";
 import { persistirCarga, cargasPrevias, activarVersion, declararCobro, declararDiario, hashSha256, historiaActiva,
-         guardarConversacion, listarConversaciones, leerConversacion, borrarConversacion } from "./persistirCarga.server.js";
+         guardarConversacion, listarConversaciones, leerConversacion, ocultarConversacion } from "./persistirCarga.server.js";
 import { diffDeCarga, periodosDeHechos } from "./historico.js";
 
 /* De qué empresa es esta carga. Sale del código firmado y de ningún otro lado.
@@ -145,9 +145,11 @@ export async function handleIngesta(body = {}, env) {
       return r.ok ? { ok: true, op: "conversaciones", accion: "abrir", hilo: r.hilo, titulo: r.titulo, mensajes: r.mensajes }
                   : { ok: false, op: "conversaciones", motivo: r.motivo };
     }
-    if (body.accion === "borrar") {
-      const r = await borrarConversacion({ ...base, hilo: body.hilo, actor: s.actor });
-      return r.ok ? { ok: true, op: "conversaciones", accion: "borrar", borradas: r.borradas }
+    /* QUITAR DEL PANEL, no borrar (owner 2026-09-08): la fila queda en la base y sale de la lista. Se acepta
+     * el verbo viejo para no romper a quien ya lo llama, pero lo que se responde dice lo que de verdad pasó. */
+    if (body.accion === "ocultar" || body.accion === "borrar") {
+      const r = await ocultarConversacion({ ...base, hilo: body.hilo, actor: s.actor });
+      return r.ok ? { ok: true, op: "conversaciones", accion: "ocultar", ocultas: r.ocultas }
                   : { ok: false, op: "conversaciones", motivo: r.motivo };
     }
     /* por defecto, LISTAR: es lo que el panel pide al abrir y la única acción sin efectos. */

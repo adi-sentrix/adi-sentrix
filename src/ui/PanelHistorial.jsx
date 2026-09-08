@@ -36,7 +36,7 @@ function cuando(iso) {
   return d.toLocaleDateString("es-CL", { day: "numeric", month: "short" });
 }
 
-export function PanelHistorial({ abierto, hiloActivo, rev = 0, onAbrirConversacion, onNuevo, onCerrar, cargar }) {
+export function PanelHistorial({ abierto, hiloActivo, rev = 0, onAbrirConversacion, onQuitar, onNuevo, onCerrar, cargar }) {
   const [filas, setFilas]   = useState([]);
   const filasRef = useRef([]);   // lo que YA está en pantalla: si hay lista, no se borra para volver a pedirla
   const [estado, setEstado] = useState("cargando");   // cargando · listo · sinBase · error
@@ -139,6 +139,15 @@ export function PanelHistorial({ abierto, hiloActivo, rev = 0, onAbrirConversaci
                 {cuando(f.actualizado)}
               </span>
             </button>
+            {/* QUITAR DEL PANEL · owner 2026-09-08: «los chat deben poder borrarse del panel, no de la data».
+                ⚠️ POR ESO NO DICE «BORRAR». La conversación sale de la lista y la fila queda en la base: un
+                botón que prometiera borrado sobre el dato financiero de un cliente y no borrara sería
+                exactamente la clase de promesa que este producto no hace. El rótulo dice lo que ocurre. */}
+            <button className="adi-hist-x" onClick={() => onQuitar(f.hilo)}
+              title="Quitar del panel · la conversación sale de esta lista"
+              aria-label={`Quitar del panel: ${f.titulo || "conversación"}`}
+              style={{ position: "absolute", right: 6, top: 9, background: "transparent", border: "none",
+                color: C.textMuted, cursor: "pointer", font: "inherit", fontSize: 13, lineHeight: 1, padding: "3px 5px" }}>×</button>
           </div>
         ))}
       </div>

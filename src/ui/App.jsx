@@ -184,6 +184,20 @@ export default function App({ animate = true }) {
     return r.json();
   }, []);
 
+  /* QUITAR DEL PANEL (owner 2026-09-08: «los chat deben poder borrarse del panel, no de la data»). La fila sale
+   * de la lista al instante —el gesto responde— y la base guarda cuándo se ocultó. NO se borra: por eso ni el
+   * botón ni esta función dicen «borrar». */
+  const quitarConversacion = useCallback(async (hilo) => {
+    setRevConversaciones((v) => v + 1);
+    try {
+      const r = await fetch("/api/adi-ingesta", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ op: "conversaciones", accion: "ocultar", hilo, access: getAccessCode() }) });
+      const d = await r.json();
+      if (!d || !d.ok) console.warn("[ADI] no se pudo quitar del panel:", d && d.motivo);
+    } catch (e) { console.warn("[ADI] no se pudo quitar del panel:", e && e.message); }
+    setRevConversaciones((v) => v + 1);   // y la lista se re-pide con la verdad del servidor
+  }, []);
+
   const abrirConversacion = useCallback(async (hilo) => {
     /* EL CLIC MARCA ANTES DE PREGUNTAR (owner 2026-09-08: «debería ser más espontáneo, instantáneo»). La fila
      * se enciende en el mismo gesto y el contenido llega cuando llega: esperar la respuesta para recién
@@ -298,7 +312,8 @@ export default function App({ animate = true }) {
               cargar={listarConversaciones}
               onCerrar={() => setHistorialAbierto(false)}
               onNuevo={() => { closePanel(); if (resetRef.current) resetRef.current(); }}
-              onAbrirConversacion={abrirConversacion}/>
+              onAbrirConversacion={abrirConversacion}
+              onQuitar={quitarConversacion}/>
           </div>
           <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
             <ChatADI scenario={scenario} animate={animate} onHayConversacion={setHayConversacion}
