@@ -179,10 +179,60 @@ export default function App({ animate = true }) {
    * el divisor— porque una app donde un panel se estira y otro no obliga a descubrir la regla panel por panel. */
   const [historialW, setHistorialW] = useState(264);
   const [negocioW, setNegocioW]     = useState(340);
+  /* ⚠️ ADI NO SE PUEDE APLASTAR (owner 2026-09-08: «el ADI debe tener un límite, o sea no deben poder minimizar
+   * por completo un panel… Claude puede ajustar los 3 paneles pero hasta cierto límite»). El defecto que él vio:
+   * cada panel tenía su propio tope —el historial hasta 50%, Sentrix hasta 72%— pero NADIE defendía al chat, así
+   * que abriendo los dos laterales anchos el chat quedaba en una tira ilegible con el texto partido.
+   * LA REGLA: el tope de un panel no es una constante suya, es lo que SOBRA. Cada arrastre se acota con lo que
+   * los otros ya ocupan, y el chat conserva siempre su mínimo. Es la regla que el owner nombró: los tres se
+   * ajustan, ninguno desaparece. */
+  const MIN_CHAT = 420;   // por debajo de esto una respuesta de ADI deja de ser legible (el texto se parte)
+  const RIEL = 44, DIVISOR = 6;
+  /* cuánto puede crecer ESTE panel sin comerse el mínimo del chat: el ancho útil menos lo que ocupan los otros */
+  const topeDe = (cual) => {
+    const w = typeof window !== "undefined" ? window.innerWidth : 1280;
+    const otros = (cual !== "historial" && historialAbierto ? historialW + DIVISOR : 0)
+                + (cual !== "negocio" && negocioAbierto ? negocioW + DIVISOR : 0)
+                + (cual !== "sentrix" && openEv ? (maxed ? Math.round(w * 0.72) : panelW) + DIVISOR : 0);
+    return Math.max(220, w - RIEL - DIVISOR - otros - MIN_CHAT);
+  };
+  /* ⚠️ Y EL TOPE NO ALCANZA SI SOLO VIVE EN EL ARRASTRE — medido: acotar el drag protegía al chat mientras el
+   * usuario tiraba del divisor, pero ABRIR un tercer panel lo aplastaba igual, que es exactamente la foto que
+   * mandó el owner. El reparto del espacio se decide al PINTAR, no al arrastrar. Acá se calculan los anchos
+   * EFECTIVOS: si lo que queda para el chat baja de su mínimo, las columnas se encogen —proporcionalmente y
+   * hasta su piso— antes que dejarlo ilegible. Cada panel guarda el ancho que el usuario le dio; lo que cambia
+   * es lo que se pinta hoy, con los paneles que hoy están abiertos. */
+  const PISO_COL = 200;
+  /* ⚠️ Y HAY QUE RE-PINTAR CUANDO LA VENTANA CAMBIA. `anchosEfectivos` lee `window.innerWidth`, que no es
+   * estado de React: sin este oyente, agrandar la ventana dejaba las columnas con el ancho que se les había
+   * calculado cuando era angosta (medido: 200 px en una ventana de 1600, con espacio de sobra al lado). El
+   * oyente no guarda el ancho —solo pide un repintado— y así el reparto se recalcula con la medida real. */
+  const [, redibujar] = useState(0);
+  useEffect(() => {
+    const on = () => redibujar((v) => v + 1);
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  const anchosEfectivos = () => {
+    const w = typeof window !== "undefined" ? window.innerWidth : 1280;
+    const sentrix = (openEv && !isMobile) ? (maxed ? Math.round(w * 0.72) : panelW) : 0;
+    let h = historialAbierto ? historialW : 0;
+    let n = negocioAbierto ? negocioW : 0;
+    const divisores = (h ? DIVISOR : 0) + (n ? DIVISOR : 0) + (sentrix ? DIVISOR : 0);
+    const sobra = w - RIEL - divisores - sentrix - h - n;
+    if (sobra >= MIN_CHAT) return { historial: h, negocio: n };
+    const recortable = (h ? Math.max(0, h - PISO_COL) : 0) + (n ? Math.max(0, n - PISO_COL) : 0);
+    if (recortable <= 0) return { historial: h, negocio: n };   // ya están en el piso: no hay más que ceder
+    const factor = Math.min(1, (MIN_CHAT - sobra) / recortable);
+    return {
+      historial: h ? Math.round(h - Math.max(0, h - PISO_COL) * factor) : 0,
+      negocio:   n ? Math.round(n - Math.max(0, n - PISO_COL) * factor) : 0,
+    };
+  };
   /* el divisor de una columna IZQUIERDA mide desde el borde izquierdo (el de Sentrix mide desde el derecho). */
-  const arrastrarIzquierda = (setW, min) => (e) => {
+  const arrastrarIzquierda = (setW, min, cual) => (e) => {
     e.preventDefault();
-    const move = (ev) => setW(Math.min(Math.max(ev.clientX - 44, min), Math.round(window.innerWidth * 0.5)));
+    const move = (ev) => setW(Math.min(Math.max(ev.clientX - RIEL, min), topeDe(cual)));
     const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); document.body.style.userSelect = ''; };
     window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
     document.body.style.userSelect = 'none';
@@ -264,7 +314,9 @@ export default function App({ animate = true }) {
   const startResize = (e) => {
     e.preventDefault();
     const move = (ev) => {
-      const w = Math.min(Math.max(window.innerWidth - ev.clientX, 360), Math.round(window.innerWidth * 0.72));
+      /* el 72% dejó de ser el techo solo: ahora compite con el mínimo del chat y con lo que ocupen las columnas
+       * de la izquierda (owner 2026-09-08 — «no deben poder minimizar por completo un panel»). Gana el menor. */
+      const w = Math.min(Math.max(window.innerWidth - ev.clientX, 360), Math.round(window.innerWidth * 0.72), topeDe("sentrix"));
       setPanelW(w);
     };
     const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); document.body.style.userSelect = ""; };
@@ -336,11 +388,11 @@ export default function App({ animate = true }) {
               onCerrar={() => setHistorialAbierto(false)}
               onNuevo={() => { closePanel(); if (resetRef.current) resetRef.current(); }}
               onAbrirConversacion={abrirConversacion}
-              ancho={historialW}
+              ancho={anchosEfectivos().historial}
               onQuitar={quitarConversacion}/>
-            {historialAbierto && <Divisor onMouseDown={arrastrarIzquierda(setHistorialW, 200)}/>}
-            <PanelNegocio abierto={negocioAbierto} ancho={negocioW} onCerrar={() => setNegocioAbierto(false)}/>
-            {negocioAbierto && <Divisor onMouseDown={arrastrarIzquierda(setNegocioW, 260)}/>}
+            {historialAbierto && <Divisor onMouseDown={arrastrarIzquierda(setHistorialW, 200, "historial")}/>}
+            <PanelNegocio abierto={negocioAbierto} ancho={anchosEfectivos().negocio} onCerrar={() => setNegocioAbierto(false)}/>
+            {negocioAbierto && <Divisor onMouseDown={arrastrarIzquierda(setNegocioW, 260, "negocio")}/>}
           </div>
           <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
             <ChatADI scenario={scenario} animate={animate} onHayConversacion={setHayConversacion}
