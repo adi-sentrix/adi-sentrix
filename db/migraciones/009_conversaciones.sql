@@ -97,6 +97,13 @@ returns table (hilo_id text, titulo text, actualizado_en timestamptz)
 language plpgsql
 security invoker
 as $$
+/* ⚠️ `use_column` NO ES DECORACIÓN: sin esta línea la función se crea sin quejarse y REVIENTA AL LLAMARLA con
+ * «column reference "hilo_id" is ambiguous» (42702). Los nombres de `returns table (...)` son variables PL/pgSQL
+ * dentro del cuerpo, y el `on conflict (tenant_id, hilo_id)` de más abajo no admite calificar la columna —
+ * así que PostgreSQL no sabe si ese `hilo_id` es la columna o la variable de salida. Medido contra la base
+ * real: la primera versión de esta migración dio Success al correrla y falló en el primer guardado.
+ * Ningún candado offline lo podía ver: es semántica de Postgres, no texto. La verificación en vivo sí. */
+#variable_conflict use_column
 declare
   v_tenant text := adi.tenant_actual();
   v_nueva  boolean;
