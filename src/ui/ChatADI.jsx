@@ -1201,7 +1201,7 @@ function HeroInicio({ scenario, campo, onPregunta }) {
  * pintaba sigue vivo donde corresponde: `HERO_CHIPS` (arriba) alimenta a `GuiaInicio.jsx`, y el resumen ejecutivo
  * se pide hablando —el coerce de «hazme un resumen ejecutivo» arma el mismo spec, gate-proven. */
 
-export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null, registerRun = null, registerCargarConversacion = null, onHayConversacion = null, margenBarra = 0 }) {
+export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null, registerRun = null, registerCargarConversacion = null, onConversacionGuardada = null, onHayConversacion = null, margenBarra = 0 }) {
   const [messages, setMessages] = useState([]);     // [{ id, role, text, sentrixAction, suggestions }]
   const [input, setInput]       = useState("");
   const [showHint, setShowHint] = useState(() => { try { return typeof localStorage !== "undefined" && !localStorage.getItem("adi_hint_v1"); } catch { return false; } });   // hint de primer uso (una vez)
@@ -1332,7 +1332,13 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
         body: JSON.stringify({ op: "conversaciones", accion: "guardar", hilo,
           mensajes: messages.map((m) => ({ role: m.role, text: m.text })), access: getAccessCode() }) })
         .then((res) => res.json())
-        .then((d) => { if (!d || !d.ok) console.warn("[ADI] la conversación no se guardó:", d && d.motivo); })
+        .then((d) => {
+          if (!d || !d.ok) { console.warn("[ADI] la conversación no se guardó:", d && d.motivo); return; }
+          /* …y SE AVISA (owner 2026-09-08): el panel listaba UNA vez al abrirse y no se enteraba de las
+           * conversaciones nuevas — el owner vio la primera en Recientes y ninguna después, con las cuatro
+           * guardadas en la base. Un índice que no se entera de lo que se indexa miente por omisión. */
+          if (typeof onConversacionGuardada === "function") onConversacionGuardada(d.hilo || hilo);
+        })
         .catch((e) => console.warn("[ADI] la conversación no se guardó:", e && e.message));
     }, 400);   // un respiro: dos turnos seguidos escriben una vez, no dos
     return () => clearTimeout(id);

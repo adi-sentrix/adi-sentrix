@@ -36,7 +36,7 @@ function cuando(iso) {
   return d.toLocaleDateString("es-CL", { day: "numeric", month: "short" });
 }
 
-export function PanelHistorial({ abierto, hiloActivo, onAbrirConversacion, onNuevo, onCerrar, cargar }) {
+export function PanelHistorial({ abierto, hiloActivo, rev = 0, onAbrirConversacion, onNuevo, onCerrar, cargar }) {
   const [filas, setFilas]   = useState([]);
   const [estado, setEstado] = useState("cargando");   // cargando · listo · sinBase · error
 
@@ -55,7 +55,10 @@ export function PanelHistorial({ abierto, hiloActivo, onAbrirConversacion, onNue
     } catch (e) { console.warn("[ADI] el historial no se pudo leer:", (e && e.message) || e); setEstado("error"); }
   }, [cargar]);
 
-  useEffect(() => { if (abierto) refrescar(); }, [abierto, hiloActivo, refrescar]);
+  /* `rev` sube cada vez que una conversación se guarda: sin esa dependencia el panel listaba al abrirse y no
+   * se enteraba de ninguna nueva — el owner vio la primera en Recientes y ninguna después, con las cuatro ya
+   * guardadas en la base. Un índice que no se entera de lo que se indexa miente por omisión. */
+  useEffect(() => { if (abierto) refrescar(); }, [abierto, hiloActivo, rev, refrescar]);
 
   if (!abierto) return null;
 

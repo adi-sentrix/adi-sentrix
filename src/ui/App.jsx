@@ -173,6 +173,9 @@ export default function App({ animate = true }) {
    * recibidor. Quien lo quiera abierto lo abre; nadie tiene que cerrar algo para empezar a preguntar. */
   const [historialAbierto, setHistorialAbierto] = useState(false);
   const [hiloActivo, setHiloActivo] = useState(null);
+  /* la revisión del índice: sube cada vez que una conversación se guarda, y es lo que hace que el panel
+     vuelva a preguntar. Sin esto listaba al abrirse y nunca más (defecto medido por el owner). */
+  const [revConversaciones, setRevConversaciones] = useState(0);
   const cargarConvRef = useRef(null);
 
   const listarConversaciones = useCallback(async () => {
@@ -286,7 +289,7 @@ export default function App({ animate = true }) {
               El margen izquierdo libra el riel flotante, que vive fuera del flujo. */}
           <div style={{ marginLeft: historialAbierto ? 44 : 0, display:"flex", minHeight:0 }}>
             <PanelHistorial abierto={historialAbierto}
-              hiloActivo={hiloActivo}
+              hiloActivo={hiloActivo} rev={revConversaciones}
               cargar={listarConversaciones}
               onCerrar={() => setHistorialAbierto(false)}
               onNuevo={() => { closePanel(); if (resetRef.current) resetRef.current(); }}
@@ -301,7 +304,8 @@ export default function App({ animate = true }) {
               registerAsk={(fn) => { askRef.current = fn; }}
               registerReset={(fn) => { resetRef.current = fn; }}
               registerRun={(fn) => { runRef.current = fn; }}
-              registerCargarConversacion={(fn) => { cargarConvRef.current = fn; }}/>
+              registerCargarConversacion={(fn) => { cargarConvRef.current = fn; }}
+              onConversacionGuardada={(hilo) => { setHiloActivo(hilo); setRevConversaciones((v) => v + 1); }}/>
           </div>
           {openEv && (isMobile ? (
             /* MOBILE: overlay a pantalla completa — el ✕ del panel vuelve al chat (sin divisor ni resize) */
