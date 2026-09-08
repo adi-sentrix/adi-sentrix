@@ -18,10 +18,20 @@ Dos piezas de un mismo producto, con reparto de trabajo que no se cruza:
 
 La tesis: **Comercial DETECTA → la Ficha EXPLICA → Sentrix DEMUESTRA.**
 
-**La promesa**, y gobierna cada superficie: toda pregunta se responde con las tres cosas, en orden —
+**La promesa**, y gobierna el producto: toda pregunta se responde con las tres cosas, en orden —
 **01 QUÉ ESTÁ PASANDO · 02 POR QUÉ / DÓNDE · 03 QUÉ HACER PRIMERO.**
-Superficie que muestra el qué y no el qué hacer está **incompleta**. Que afirma el porqué sin evidencia,
-**miente**.
+
+⚠️ **Y SE CUMPLE ENTRE LAS DOS SUPERFICIES, NO DENTRO DE CADA UNA** (owner 2026-09-08, al retirar el bloque 03
+de la cara Comercial): *«al final Sentrix muestra dato, el que te dice qué hacer es ADI; por lo tanto eso no
+aportará y puede confundir al usuario»*. **Sentrix muestra el 01 y el 02; el 03 es de ADI.** Un tablero que
+ordena acciones sin poder explicarlas ni escuchar el contexto del dueño es la mitad de un asesor — y dos
+superficies diciendo qué hacer son dos verdades. El módulo sigue calculando el cruce de deterioros: es la
+evidencia con la que ADI arma la prioridad cuando se la piden.
+
+Corolario de vocabulario: **ADI asesora, no gestiona.** Nada de *«recuperar margen»* ni *«recuperar venta»* como
+si fueran tareas del sistema — palabra del owner: *«no somos un sistema que gestiona cosas, es asesor»*.
+
+Que afirma el porqué sin evidencia, **miente**.
 
 ---
 

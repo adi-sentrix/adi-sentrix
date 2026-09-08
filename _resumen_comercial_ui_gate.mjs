@@ -143,14 +143,21 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
     ["Quién sostiene el negocio", "5 · quién sostiene el negocio (clientes/familias/SKU/canales)"],
     ["Dónde se deteriora el margen", "02 · movimiento DÓNDE SE DETERIORA EL MARGEN"],
     ["Qué mueve el margen", "5 · las dos causas: acciones comerciales y costo vs precio"],
-    ["Qué hacer primero", "03 · movimiento QUÉ HACER PRIMERO"],
-    [R.prioridades.encabezado, "7 · decisiones prioritarias, cruzadas"],
+    /* ⚠️ EL BLOQUE 03 SE FUE DE ESTA CARA (owner 2026-09-08, textual: «eso yo lo quitaría, porque al final
+       Sentrix muestra dato, el que te dice qué hacer es ADI»). Este gate lo exigía presente y en secuencia —
+       hacía bien su trabajo: la doctrina de entonces decía que una superficie sin «qué hacer» está incompleta.
+       LA DOCTRINA CAMBIÓ, no el rigor: la promesa de los tres bloques se cumple ENTRE LAS DOS SUPERFICIES
+       (CLAUDE.md §1), Sentrix con los dos primeros y ADI con el tercero. Así que el check se INVIERTE — lo que
+       hay que garantizar ahora es que la cara NO ordene acciones, porque ordenar sin poder explicar es
+       exactamente lo que el owner sacó. Si alguien lo repone, esto se pone rojo igual que antes. */
   ];
   const pos = bloques.map(([marca]) => T.indexOf(marca));
   for (let i = 0; i < bloques.length; i++) ok(pos[i] >= 0, `bloque ${bloques[i][1]} presente`);
   ok(pos.every((p, i) => i === 0 || (p > pos[i - 1] && pos[i - 1] >= 0)), `TODOS vienen en la secuencia exacta — ${pos.join(" < ")}`);
-  ok(T.trimEnd().endsWith(R.prioridades.nota || R.prioridades.encabezado) || T.indexOf(R.prioridades.encabezado) > 0,
-    "la cara termina en las decisiones: no hay una tabla de evidencia después que le robe el cierre");
+  ok(!T.includes("Qué hacer primero") && !T.includes(R.prioridades.encabezado),
+    "★ la cara NO ordena acciones: el «qué hacer» es de ADI, no del tablero (owner 2026-09-08)");
+  ok(!/\bRecuperar (margen|venta)\b/i.test(T),
+    "★ …ni usa el vocabulario de gestión: «no somos un sistema que gestiona cosas, es asesor» — «recuperar» no aplica");
   // UNA SOLA LECTURA DE ALCANCE (owner 2026-08-07): el universo 80/20 se declaraba en tres lugares distintos.
   ok(!T.includes("Plano de decisión:"), "la banda \"Plano de decisión\" ya NO existe (su contenido subió al veredicto)");
   ok(!T.includes(R.plano.frase), "…ni queda su frase suelta en ningún lado");
@@ -196,11 +203,15 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   ok(R.deterioro.margen.costoPrecio.estatus === "indicado", "la causa derivada lleva su sello declarado en el módulo");
   const i0 = R.insights[0];
   ok(T.includes(i0.entidad) && T.includes(i0.enJuegoFmt), `la primera decisión — ${i0.entidad} · ${i0.enJuegoFmt}`);
+  /* ⚠️ LOS DOS CHECKS DE «LA ACCIÓN A LA VISTA» SE INVIRTIERON (owner 2026-09-08). Exigían que el tablero
+   * mostrara la acción concreta y qué falta aislar — la doctrina de agosto. Con el «qué hacer» mudado a ADI,
+   * lo que hay que garantizar es lo contrario: que el tablero muestre la EVIDENCIA (la cuenta y su cifra, que
+   * el check de arriba sigue exigiendo) y NO la orden. El módulo `prioridades` sigue calculando todo eso: es
+   * la evidencia con la que ADI arma la prioridad cuando se la piden — lo que se retiró es su vitrina. */
   const _g0 = R.prioridades.grupos.find((g) => g.filas.some((f) => f.entidad === i0.entidad));
-  ok(!!_g0 && T.includes(_g0.accionTitulo || _g0.filas.find((f) => f.entidad === i0.entidad).accionCorta),
-    "la acción concreta está a la vista: en el título del grupo, o en la fila si el grupo quedó mezclado");
-  ok(!!_g0 && (_g0.faltas || []).length > 0 && _g0.faltas.every((t) => T.includes(t)),
-    "…y qué falta aislar, al pie del grupo — todos los distintos, ninguno de más");
+  ok(!!_g0, "★ el módulo SIGUE cruzando los deterioros — es la evidencia con la que ADI arma la prioridad");
+  ok(!!_g0 && !T.includes(_g0.accionTitulo || "«sin acción»"),
+    "★ …pero su ACCIÓN no se pinta: el tablero muestra, ADI dice qué hacer");
   ok(!T.includes(i0.razon), "la tarjeta larga de informe ya no está — quedó la fila corta");
   // la primera profundización sugerida YA NO es una banda aparte: es la PRIMERA FILA de decisión (owner: no
   // repetir cifras ni conceptos). Se verifica que ese lugar lo ocupe la cuenta de mayor prioridad del módulo.
@@ -208,8 +219,8 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   // Con una CARD por grupo (owner 2026-08-08), la prioridad se lee en el ORDEN de las cards: el grupo peligroso
   // primero. Se comprueba sobre la posición real en el texto, que es lo que el usuario recorre.
   const _gs = R.prioridades.grupos;
-  ok(_gs.length < 2 || T.indexOf(_gs[0].label) < T.indexOf(_gs[1].label),
-    `el margen abre el bloque 03 — "${_gs[0].label}"`);
+  ok(_gs.length < 2 || (T.indexOf(_gs[0].label) === -1 && T.indexOf(_gs[1].label) === -1),
+    `★ los grupos de acción no se pintan en la cara — su orden vive en el módulo, para ADI ("${_gs[0].label}")`);
   /* El orden cambió a propósito (owner 2026-08-08): la card que separaba a las cuentas con los DOS deterioros se
    * eliminó, así que su prioridad sobrevive en el ORDEN — van primero dentro de su grupo. "La de mayor impacto
    * encabeza" ya no describe la regla vigente; describe la anterior. */
@@ -341,8 +352,15 @@ H("[1b] EL EVOLUTIVO · tres líneas, y su total ES el del KPI");
   }
   ok(T.includes(e.totalActualFmt) && e.totalActualFmt === R.kpis[0].valor,
     `RECONCILIA a la vista: el cierre del gráfico y el KPI de ventas son el MISMO número — ${e.totalActualFmt}`);
-  ok(T.includes(e.lectura), "la lectura del año viene del módulo (cierre, variación, mes más alto y más bajo)");
-  ok(T.includes(e.nota) && /cierran con el KPI|anclad/i.test(e.nota), "…y la nota dice qué series cierran con el KPI y cuál es solo un plan");
+  /* ⚠️ LOS DOS SE INVIRTIERON (owner 2026-09-08). Exigían la lectura sobre el gráfico y la nota del pie; él las
+   * retiró con dos razones distintas: la lectura REPETÍA lo que el pie ya dice pegado al eje de meses («el mes
+   * año alto se repite, debe quedar solo bajo el eje de meses») y la nota explicaba fontanería nuestra —qué
+   * serie se ancla al KPI— («eso del presupuesto es tu plan, quítalo, no aporta nada»). Lo que se garantiza
+   * ahora es que el dato del módulo siga a la vista UNA vez, en el pie, y que ninguna de las dos vuelva. */
+  ok(T.includes(e.maxMes) && T.includes(e.minMes) && T.includes(e.maxFmt) && T.includes(e.minFmt),
+    "★ el mes más alto y el más bajo se leen UNA vez, en el pie del eje (no tres veces en la misma tarjeta)");
+  ok(!T.includes(e.lectura) && !T.includes(e.nota),
+    "★ …y ni la lectura duplicada ni la nota de fontanería vuelven a la tarjeta");
   ok(e.meses.every((m) => T.includes(m)), `los ${e.meses.length} meses están rotulados`);
   ok(T.includes(e.maxMes) && T.includes(e.maxFmt) && T.includes(e.minMes) && T.includes(e.minFmt),
     `el mes más alto (${e.maxMes} ${e.maxFmt}) y el más bajo (${e.minMes} ${e.minFmt}) se identifican solos`);
@@ -544,35 +562,37 @@ H("[1d2] VENDEN MUCHO PERO DEJAN POCO · dentro de quién sostiene, y cerrado po
   cleanup();
 }
 
-H("[1e] QUÉ HACER PRIMERO · el cruce, con el grupo peligroso adelante");
+/* ⚠️ ESTA SECCIÓN CAMBIÓ DE OBJETO EL 2026-09-08, y el cambio ES la doctrina nueva.
+ * Verificaba que el bloque «03 · Qué hacer primero» estuviera PINTADO en la cara: sus grupos, su criterio, su
+ * aviso del error comercial, el orden del grupo peligroso. Hacía bien su trabajo con la ley de entonces.
+ * El owner lo retiró con una razón de fondo: «al final Sentrix muestra dato, el que te dice qué hacer es ADI;
+ * eso no aportará y puede confundir al usuario» — y de paso mató su vocabulario: «no somos un sistema que
+ * gestiona cosas, es asesor, por lo tanto eso de recuperar no aplica».
+ * LO QUE SE CONGELA AHORA son las dos mitades de esa decisión: que el MÓDULO siga calculando el cruce (es la
+ * evidencia con la que ADI arma la prioridad — retirarlo sería perder la capacidad, no la vitrina) y que la
+ * CARA no lo pinte. Si alguien repone el bloque, esto se pone rojo igual que antes. */
+H("[1e] EL CRUCE VIVE EN EL MÓDULO, NO EN LA CARA · el tablero muestra, ADI dice qué hacer");
 {
   const { container } = abrir(evTemporal());
   const P = R.prioridades;
   const T = container.textContent;
-  ok(T.includes(P.encabezado), `el encabezado sale del cruce — "${P.encabezado}"`);
+  ok(!!P && Array.isArray(P.grupos) && P.grupos.length > 0 && !!P.encabezado,
+    "★ el módulo SIGUE cruzando los dos deterioros y componiendo su prioridad — la capacidad no se perdió");
+  ok(!T.includes(P.encabezado), "★ …pero el encabezado que ORDENA no se pinta («Empieza por…» es de ADI)");
   for (const g of P.grupos) {
-    ok(T.includes(g.label), `grupo "${g.label}"`);
-    ok(T.includes(g.criterio) && T.includes(g.porQue), "…con su criterio y su porqué a la vista");
-    for (const x of g.filas) {
-      ok(T.includes(x.entidad), `  ${x.entidad}`);
-      // Las cifras de la fila las decide el módulo según el problema del grupo, y se miden contra el PROMEDIO de
-      // la cartera — no contra una meta que el usuario no fijó (owner 2026-08-08).
-      for (const c of x.cifras) ok(T.includes(c.valor) && T.includes(c.etiqueta), `  …${c.valor} ${c.etiqueta}`);
-      ok(!/\bmeta\b/i.test(x.cifras.map((c) => c.etiqueta).join(" ")), "  …y ninguna habla de una «meta» ajena");
-    }
+    ok(!T.includes(g.label), `★ el grupo "${g.label}" no está en la cara`);
+    ok(!T.includes(g.criterio) && !T.includes(g.porQue), "…ni su criterio ni su porqué — eso lo explica ADI cuando se lo piden");
   }
-  const prot = P.grupos.find((g) => g.key === "proteger");
-  if (prot) {
-    ok(T.indexOf(prot.label) < Math.min(...P.grupos.filter((g) => g.key !== "proteger").map((g) => T.indexOf(g.label))),
-      "el grupo peligroso se pinta PRIMERO");
-    ok(/agranda la brecha en vez de cerrarla/.test(T), "y el aviso del error comercial está a la vista");
+  ok(!/agranda la brecha en vez de cerrarla/.test(T), "★ …ni el aviso del error comercial: es un consejo, y los consejos son de ADI");
+  /* ⚠️ LO QUE NO SE PERDIÓ: el Perfil Ejecutivo sigue a un clic desde la cartera, que es la tabla que SÍ
+   * muestra dato. El camino a la explicación no dependía del bloque retirado. */
+  const cuenta = R.cartera.filas[0].nombre;
+  const btn = botones(container).find((b) => b.title === `Abrir el Perfil Ejecutivo de ${cuenta}`);
+  ok(!!btn, `la cartera sigue ofreciendo el Perfil Ejecutivo de ${cuenta}`);
+  if (btn) {
+    fireEvent.click(btn);
+    ok(container.textContent.includes(`Importancia de ${cuenta} en tu cartera`), `y abre el Perfil Ejecutivo de ${cuenta}`);
   }
-  // cada fila abre el Perfil Ejecutivo de esa cuenta
-  const primera = P.grupos[0].filas[0];
-  const btn = botones(container).find((b) => b.title === `Abrir el Perfil Ejecutivo de ${primera.entidad}`);
-  ok(!!btn, `la fila de ${primera.entidad} ofrece su Perfil Ejecutivo`);
-  fireEvent.click(btn);
-  ok(container.textContent.includes(`Importancia de ${primera.entidad} en tu cartera`), `y abre el Perfil Ejecutivo de ${primera.entidad}`);
   cleanup();
 }
 
@@ -608,12 +628,15 @@ H("[2] ALCANCE GLOBAL · una selección previa NO puede teñir la cara Comercial
 
 H("[3] NAVEGACIÓN A LA FICHA · detecta acá, explica allá (el Perfil Ejecutivo REAL, no una vista paralela)");
 {
-  // a · desde una fila de decisión (el primer grupo del cruce, que es el que la vista pone adelante)
+  /* a · desde la CARTERA. Antes se probaba desde una fila del bloque 03, que el owner retiró el 2026-09-08
+   *     («Sentrix muestra dato, el que te dice qué hacer es ADI»). Lo que hay que garantizar sigue igual —que
+   *     desde la cara se llegue al Perfil Ejecutivo real— y ahora se prueba desde la tabla que SÍ muestra dato,
+   *     que además es el camino que el usuario recorre de verdad. */
   {
     const { container } = abrir(evTemporal());
-    const objetivo = R.prioridades.grupos[0].filas[0].entidad;
-    const btn = botones(container).find((b) => b.title === `Abrir el Perfil Ejecutivo de ${objetivo}` && b.textContent.includes("Abrir Perfil Ejecutivo"));
-    ok(!!btn, `la fila de decisión de ${objetivo} trae "Abrir Perfil Ejecutivo"`);
+    const objetivo = R.cartera.filas[0].nombre;
+    const btn = botones(container).find((b) => b.title === `Abrir el Perfil Ejecutivo de ${objetivo}`);
+    ok(!!btn, `★ la cartera lleva al Perfil Ejecutivo de ${objetivo}`);
     fireEvent.click(btn);
     ok(container.textContent.includes(`Importancia de ${objetivo} en tu cartera`),
       `abre el Perfil Ejecutivo REAL de ${objetivo} (cara Perfil Ejecutivo)`);
@@ -826,9 +849,10 @@ H("[5] LO QUE SALE DE COMERCIAL · tiras legacy · capital · bodegas · evoluci
   // LA CARA CIERRA EN LAS DECISIONES · nada cuelga después del bloque 03
   ok(!/O que ADI cuente el caso/i.test(container.textContent),
     "…y el enlace duplicado a la primera cuenta salió: cada fila ya trae su \"Abrir Perfil Ejecutivo\"");
-  const iDec = container.textContent.indexOf(R.prioridades.encabezado);
-  ok(iDec > 0 && container.textContent.slice(iDec).length < 3000,
-    "la cara termina en qué hacer primero: no queda una cola de señales después");
+  /* ⚠️ INVERTIDO (owner 2026-09-08): la cara ya no termina en «qué hacer primero» porque ese bloque se fue a
+   * ADI. Lo que hay que garantizar es que su cierre siga siendo evidencia y no una cola de señales sueltas. */
+  ok(!container.textContent.includes(R.prioridades.encabezado),
+    "★ la cara NO cierra ordenando: el «empieza por…» es de ADI, no del tablero");
   cleanup();
 }
 
@@ -979,8 +1003,11 @@ H("[9] PROPORCIONALIDAD SEMÁNTICA · la vista no afirma más de lo que la evide
   ok(!/sector|industria|estándar de la industria/i.test(cabecera), "la referencia se narra como TUYA, nunca sectorial");
   // costo/precio/composición siguen declarados como pendientes de aislar — ahora en cada fila de decisión del
   // bloque 03, que es donde el usuario decide, y en la nota del costo contra precio.
-  ok(/cu[áa]nto es el costo del producto|cu[áa]nto es lo que cuesta el producto/i.test(T) && /mezcla de lo que vendiste/i.test(T),
-    "lo que falta aislar se declara en castellano, no como «separar composición»");
+  /* ⚠️ ESTE VIVÍA EN LAS FILAS DEL BLOQUE 03, retirado el 2026-09-08. Lo que se declara en castellano —qué
+   * falta aislar— sigue en el MÓDULO, que es de donde ADI lo toma cuando explica; la cara ya no lo imprime. */
+  const _faltas = (R.prioridades.grupos || []).flatMap((g) => g.faltas || []).join(" ");
+  ok(/cu[áa]nto es el costo del producto|cu[áa]nto es lo que cuesta el producto|mezcla de lo que vendiste/i.test(_faltas),
+    "★ lo que falta aislar sigue declarado en castellano EN EL MÓDULO — es lo que ADI dirá al explicar");
   ok(R.deterioro.margen.costoPrecio.estatus === "indicado",
     "y el efecto costo/precio nunca se presenta como probado");
   ok(!/rentabilidad/i.test(cabecera), "no le llama rentabilidad a un margen");
@@ -997,11 +1024,9 @@ H("[10] SÍNTESIS · nada se dice dos veces, y nada queda tapado (owner 2026-08-
   for (const [aguja, que] of [
     /* la lectura de alcance y la reconciliación salieron de esta lista al quitarse del tablero: ya no pueden
        aparecer «una sola vez» porque no aparecen ninguna. Se comprueban abajo, exigiendo CERO. */
-    [R.evolutivo.lectura, "la lectura del año"],
     [R.deterioro.margen.acciones.lectura, "la lectura de acciones comerciales"],
     [R.deterioro.margen.costoPrecio.lectura, "la lectura de costo contra precio"],
     [R.sostiene.vistas[0].lectura, "la lectura de quién sostiene"],
-    [R.prioridades.encabezado, "el encabezado de decisiones"],
   ]) ok(veces(aguja) === 1, `"${que}" aparece UNA sola vez — ${veces(aguja)}`);
   // el % del plano sobre la oportunidad total vive en la reconciliación Y en el tramo indicado (son dos
   // afirmaciones distintas sobre el mismo hecho); lo que NO puede pasar es que el ALCANCE se repita textual.

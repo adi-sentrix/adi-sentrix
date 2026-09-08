@@ -2009,10 +2009,17 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             def={"Las dos cosas que mueven el margen, cada una contra su propia referencia: lo que entregas en acciones comerciales (contra el promedio de tu cartera o contra tu meta) y cómo se movió tu costo unitario contra tu precio entre el primer mes del período y el último."}>
             <ResumenDeterioro R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
           </ResumenMovimiento>
-          <ResumenMovimiento num="03" title="Qué hacer primero"
-            def={"Las cuentas cruzadas por los dos deterioros medidos. De ese cruce sale la prioridad — y el grupo que va primero es el peligroso: donde empujar volumen con descuento agrandaría la brecha en vez de cerrarla. Cada fila lleva a su Perfil Ejecutivo, que es donde la explicación se demuestra."}>
-            <ResumenPrioridades R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
-          </ResumenMovimiento>
+          {/* ⚠️ «03 · QUÉ HACER PRIMERO» SE RETIRÓ DE LA CARA COMERCIAL (owner 2026-09-08, textual: «eso yo lo
+              quitaría, porque al final Sentrix muestra dato, el que te dice qué hacer es ADI; por lo tanto eso
+              no aportará y puede confundir al usuario»). Y de paso mató un vocabulario que ya no era nuestro:
+              «RECUPERAR margen / RECUPERAR venta» — su palabra: «no somos un sistema que gestiona cosas, es
+              asesor, por lo tanto eso de recuperar no aplica».
+              ⚠️ ESTO CAMBIA UNA LEY ESCRITA, y por eso la ley se reescribió con él (CLAUDE.md §1): la promesa
+              de los tres bloques —qué pasa · por qué/dónde · qué hacer primero— sigue viva, pero se cumple
+              ENTRE LAS DOS SUPERFICIES: Sentrix muestra los dos primeros y ADI da el tercero, que es el que
+              exige criterio. Un tablero que ordena acciones sin poder explicarlas es la mitad de un asesor.
+              El componente `ResumenPrioridades` queda en el archivo: su cruce de deterioros es la evidencia con
+              la que ADI arma la prioridad, y se retira el día que nadie lo lea. */}
         </>) : (
           // LIMITACIÓN DECLARADA, nunca relleno: sin filas de cliente en el período no hay veredicto que sostener.
           <div style={{ fontSize:14, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px dashed ${C.border}`, borderRadius:10 }}>
@@ -2353,11 +2360,10 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
             Concentración comercial · 80/20
             <InfoDot def={"Las barras son la venta (o la contribución) de cada cliente y la curva roja punteada el porcentaje acumulado; la punteada marca el umbral del 80% y el punto ámbar, dónde se cruza de verdad. Las barras están acotadas para que se lean, pero la curva y el cruce se calculan con TODOS tus clientes: agrupar es dibujo, nunca aritmética — por eso las barras (con el resto de la cabeza y la cola incluidos) suman exacto el total. Cambia a Contribución para ver dónde una venta grande deja poco valor. Toca la barra de un cliente y se abre su Perfil Ejecutivo."} align="left"/>
           </span>
-          {/* el "X clientes explican el Y%" NO se repite acá: ya lo dijo el veredicto (una sola lectura de
-              alcance). Este bloque aporta lo que solo él puede aportar — el contraste entre volumen y valor. */}
-          <span style={{ display: "block", fontSize: 14, color: C.text, lineHeight: 1.5, marginTop: 5 }}>
-            Cambia a Contribución: las barras que se achican son las que dejan poco.
-          </span>
+          {/* ⚠️ SE RETIRÓ LA INSTRUCCIÓN «Cambia a Contribución…» (owner 2026-09-08). Era la pantalla enseñando
+              a leerse a sí misma — y su razón de ser desaparece con el botón de al lado: «si tendremos el botón
+              que ADI lo explique, debe saber qué pasa en ese gráfico, explicar el 80% claramente; si el usuario
+              cambia a contribución, debe explicarlo también». Interpretar es trabajo de ADI, no un cartel. */}
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <span style={{ display: "flex", gap: 3 }}>{pill("ventas", "Ventas")}{pill("contribucion", "Contribución")}</span>
@@ -2466,7 +2472,10 @@ function ResumenEvolutivo({ ev, R = null, onAsk }) {
             El año, mes a mes
             <InfoDot def={"Las tres series del período: este año, el año anterior y el presupuesto que declaraste. Las dos reales están ANCLADAS al total oficial de venta por cliente, así que el cierre del gráfico es el mismo número del KPI de arriba — no dos verdades al lado. El presupuesto no se ancla porque no existe presupuesto por cliente contra el cual conciliarlo, y eso se dice. Toca una serie de la leyenda para apagarla y pasa el cursor para ver mes por mes. Los puntos marcados son el mes más alto y el más bajo del año en foco."} align="left"/>
           </span>
-          <span style={{ display: "block", fontSize: 14, color: C.text, lineHeight: 1.5, marginTop: 5 }}>{ev.lectura}</span>
+          {/* ⚠️ LA LECTURA DE ARRIBA SE FUE (owner 2026-09-08: «el mes año alto se repite, debe quedar solo bajo
+              el eje de meses»). Decía exactamente lo mismo que la fila de marcas del pie —mes más alto, mes más
+              bajo, mayor caída— y encima del gráfico que ya los pinta en color. Tres veces el mismo dato en una
+              tarjeta: el pie es el lugar correcto porque está pegado al eje que nombra los meses. */}
         </span>
         {askEvo ? <span style={{ flexShrink: 0 }}>{_btnADI(() => askEvo("¿Cómo viene la venta mes a mes este año?"), "Que ADI lo explique →")}</span> : null}
       </div>
@@ -2549,7 +2558,11 @@ function ResumenEvolutivo({ ev, R = null, onAsk }) {
         <span><span style={{ color: C.red }}>●</span> mes más bajo · {ev.minMes} {ev.minFmt}</span>
         {ev.caida ? <span>mayor caída · {ev.caida.desde}→{ev.caida.mes} {ev.caida.fmt}</span> : null}
       </div>
-      <div style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.5, marginTop: 6 }}>{ev.nota}</div>
+      {/* ⚠️ Y LA NOTA DEL PIE TAMBIÉN (owner 2026-09-08: «eso del presupuesto es tu plan, quítalo, no aporta
+          nada»). Explicaba la mecánica de las tres series —cuál se ancla al KPI y cuál no—: cierto, pero es
+          fontanería nuestra, no una lectura de su negocio. Lo que un dueño necesita saber de esa serie ya está
+          en la leyenda, que la nombra «Presupuesto» con su cifra. El detalle sigue vivo en el InfoDot del
+          título, que es donde vive lo que se consulta una vez y no se lee todos los días. */}
     </div>
   );
 }
