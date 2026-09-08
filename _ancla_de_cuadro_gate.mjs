@@ -37,7 +37,7 @@ import { cuadroExplicado } from "./src/adi/agente/playbooks/cuadroExplicado.js";
 import { lecturaDeCuadro } from "./src/adi/sentrix/lecturaDeCuadro.js";
 import { cuadroSentrix, cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";
 import { CONTRATOS_AGENTE } from "./src/adi/agente/catalogoAgente.js";
-import { VIEW_MANIFEST } from "./src/adi/sentrix/viewManifest.js";
+import { VIEW_MANIFEST, tituloDeExplicacion } from "./src/adi/sentrix/viewManifest.js";
 import { builderOutFor } from "./src/adi/sentrix/viewBuilderRun.js";
 import { deriveViewContext } from "./src/adi/sentrix/viewContextFrom.js";
 import { buildResumenComercial } from "./src/adi/sentrix/resumenComercial.js";
@@ -69,18 +69,20 @@ const turno = (componentId, pregunta, controles = {}) => {
 };
 const texto = async (...a) => String((await turno(...a)).r.text || "");
 
-/* LOS BOTONES DE LA MESA, uno por cara — la pregunta es la que el botón manda HOY (contrato congelado). */
+/* LOS BOTONES DE LA MESA, uno por cara. El texto que mandan es EL TÍTULO derivado del manifiesto (owner
+ * 2026-09-08: «al hacer click no debería ir una pregunta sino el título de la tabla») — la intención ya no
+ * viaja en la pregunta: viaja en el ancla, y por eso acá no hay una pregunta escrita a mano por botón. */
 const BOTONES = [
-  { cid: "comercial/01/tabla-cartera", q: "¿Qué clientes están por debajo de su presupuesto?", ctrl: { todos: "0" } },
-  { cid: "comercial/01/pareto-ventas", q: "¿Qué clientes explican el 80% de mi venta?", ctrl: { met: "ventas" } },
-  { cid: "comercial/01/pareto-contribucion", q: "¿En cuántos clientes se concentra mi contribución?", ctrl: { met: "contribucion" } },
-  { cid: "comercial/01/evolutivo-serie", q: "¿Cómo viene la venta mes a mes este año?", ctrl: {} },
-  { cid: "comercial/01/sostiene-clientes", q: "¿Quiénes son mis principales clientes por venta?", ctrl: { eje: "cliente" } },
-  { cid: "capital/01/cortes", q: "¿Cuánto capital tengo por bodega?", ctrl: { corte: "bodega" } },
-  { cid: "capital/01/liquidar", q: "¿Qué SKU libero primero?", ctrl: {} },
-  { cid: "flujo/01/tabla-saldo-clientes", q: "¿Qué clientes me deben más y desde cuándo?", ctrl: {} },
-  { cid: "flujo/01/caja-mensual", q: "¿Cómo viene mi entrada de caja mes a mes?", ctrl: {} },
-];
+  { cid: "comercial/01/tabla-cartera", ctrl: { todos: "0" } },
+  { cid: "comercial/01/pareto-ventas", ctrl: { met: "ventas" } },
+  { cid: "comercial/01/pareto-contribucion", ctrl: { met: "contribucion" } },
+  { cid: "comercial/01/evolutivo-serie", ctrl: {} },
+  { cid: "comercial/01/sostiene-clientes", ctrl: { eje: "cliente" } },
+  { cid: "capital/01/cortes", ctrl: { corte: "bodega" } },
+  { cid: "capital/01/liquidar", ctrl: {} },
+  { cid: "flujo/01/tabla-saldo-clientes", ctrl: {} },
+  { cid: "flujo/01/caja-mensual", ctrl: {} },
+].map((b) => ({ ...b, q: tituloDeExplicacion(b.cid) }));
 
 /* ═══ 1 · EL ANCLA COMPLETA · los ocho campos que el owner enumeró ══════════════════════════════════════════ */
 H("1 · el ancla completa · los ocho campos, sobre el ancla VIVA");
@@ -96,12 +98,14 @@ H("1 · el ancla completa · los ocho campos, sobre el ancla VIVA");
   ok(I.periodo === "año cerrado", "★ 5/8 · PERÍODO", I.periodo);
   ok(I.controles && I.controles.met === "ventas", "★ 6/8 · FILTROS APLICADOS (el conmutador activo viaja)", JSON.stringify(I.controles));
   ok(L.ok && L.filas.length >= 5 && L.filas[0].cifras.length >= 1, "★ 7/8 · CIFRAS VISIBLES (las filas del cuadro, del mismo módulo que lo pinta)", L.n);
-  const pb = playbookPara("¿Qué clientes explican el 80% de mi venta?", { history: [], cuadro: vc });
+  const tCk = tituloDeExplicacion("comercial/01/pareto-ventas");
+  ok(tCk === "Explicando dónde se concentra la venta", "el click manda EL TÍTULO derivado del manifiesto, no una pregunta escrita a mano", tCk);
+  const pb = playbookPara(tCk, { history: [], cuadro: vc });
   ok(pb && pb.nombre === "cuadro-explicado", "el click abre el playbook del cuadro", pb && pb.nombre);
-  const ent = entregableDe(pb, "¿Qué clientes explican el 80% de mi venta?", { cuadro: vc });
+  const ent = entregableDe(pb, tCk, { cuadro: vc });
   ok(/Dónde se concentra la venta/.test(ent) && /Comercial/.test(ent) && /cliente/.test(ent) && /año cerrado/.test(ent),
     "★ 8/8 · QUÉ PREGUNTA CONCRETA DEBE EXPLICAR — el entregable NOMBRA ese cuadro, no «explica el cuadro» a secas", ent.slice(0, 140));
-  const doc = doctrinaDelPlaybook(pb, "¿Qué clientes explican el 80% de mi venta?", { cuadro: vc });
+  const doc = doctrinaDelPlaybook(pb, tCk, { cuadro: vc });
   ok(/cuadroSentrix/.test(doc) && /Dónde se concentra la venta/.test(doc), "…y la doctrina que viaja al cerebro lleva el ancla, no una instrucción genérica");
 }
 
@@ -147,8 +151,8 @@ for (const b of BOTONES) {
 H("4 · el 80/20 · «si el cuadro muestra un 80/20, explica el 80/20»");
 {
   const R = buildResumenComercial(ESC);
-  const tV = await texto("comercial/01/pareto-ventas", "¿Qué clientes explican el 80% de mi venta?", { met: "ventas" });
-  const tC = await texto("comercial/01/pareto-contribucion", "¿En cuántos clientes se concentra mi contribución?", { met: "contribucion" });
+  const tV = await texto("comercial/01/pareto-ventas", tituloDeExplicacion("comercial/01/pareto-ventas"), { met: "ventas" });
+  const tC = await texto("comercial/01/pareto-contribucion", tituloDeExplicacion("comercial/01/pareto-contribucion"), { met: "contribucion" });
   ok(/\b80\s?%/.test(tV), "★ la respuesta del Pareto EXPLICA el 80%, no sirve un ranking", tV.slice(0, 140));
   ok(tV.includes(R.pareto.ventas.cruce80), `…y dice DÓNDE se cruza (${R.pareto.ventas.cruce80}, del cuadro vivo)`, tV.slice(0, 140));
   ok(tV.includes(String(R.pareto.ventas.entidadesReales)), `…y sobre cuántos (${R.pareto.ventas.entidadesReales}: el universo, no las barras dibujadas)`);
@@ -160,19 +164,46 @@ H("4 · el 80/20 · «si el cuadro muestra un 80/20, explica el 80/20»");
   /* la lista notarial lo exige: un 80/20 respondido como orden simple recibe multa */
   const vc = ancla("comercial/01/pareto-ventas", { met: "ventas" });
   const generico = "Así viene tu venta por cliente, de mayor a menor:\n- Falabella: $19.4M\n- Lider: $17.9M";
-  const v = vetosDelPlaybook(cuadroExplicado, generico, { pregunta: "¿Qué clientes explican el 80% de mi venta?", ctx: { cuadro: vc } });
+  const v = vetosDelPlaybook(cuadroExplicado, generico, { pregunta: tituloDeExplicacion("comercial/01/pareto-ventas"), ctx: { cuadro: vc } });
   ok(v.some((x) => x.regla === "concentracion-sin-explicar"), "★ el ranking genérico recibe MULTA del propio playbook (era el defecto que el owner midió)", JSON.stringify(v));
-  ok(vetosDelPlaybook(cuadroExplicado, tV, { pregunta: "¿Qué clientes explican el 80% de mi venta?", ctx: { cuadro: vc } }).length === 0,
+  ok(vetosDelPlaybook(cuadroExplicado, tV, { pregunta: tituloDeExplicacion("comercial/01/pareto-ventas"), ctx: { cuadro: vc } }).length === 0,
     "…y no se veta a sí mismo: el entregable determinístico pasa su propia lista");
 }
 
-/* ═══ 5 · EL PRESUPUESTO SE EXPLICA COMO PRESUPUESTO ════════════════════════════════════════════════════════ */
-H("5 · «si el cuadro muestra presupuesto, explica presupuesto»");
+/* ═══ 5 · EL PRESUPUESTO SE EXPLICA COMO PRESUPUESTO · interpretando, no calcando ═══════════════════════════ */
+H("5 · «si el cuadro muestra presupuesto, explica presupuesto» — y aporta lo que la tabla no dice");
 {
-  const t = await texto("comercial/01/tabla-cartera", "¿Qué clientes están por debajo de su presupuesto?", { todos: "0" });
+  const t = await texto("comercial/01/tabla-cartera", tituloDeExplicacion("comercial/01/tabla-cartera"), { todos: "0" });
   ok(/presupuesto/i.test(t), "★ el cuadro que compara contra presupuesto lo NOMBRA en la respuesta", t.slice(0, 160));
   const R = buildResumenComercial(ESC);
-  ok(t.includes(R.cartera.lectura) || /bajo su presupuesto/i.test(t), "…con la lectura que el propio cuadro publica", R.cartera.lectura);
+  /* la historia se mide contra las BANDERAS VIVAS del builder: quiénes caen por presupuesto y quiénes por año.
+   * La respuesta tiene que nombrar a las que caen — y la EXCEPCIÓN (cae por un lado y no por el otro) es la
+   * noticia que la tabla tiene y no dice: el corazón del encargo del owner. */
+  const caenPre = R.cartera.filas.filter((f) => f.vsPresupuesto && f.vsPresupuesto.hay !== false && f.vsPresupuesto.dir === "baja").map((f) => f.nombre);
+  const caenAnt = R.cartera.filas.filter((f) => f.vsAnterior && f.vsAnterior.hay !== false && f.vsAnterior.dir === "baja").map((f) => f.nombre);
+  ok(caenPre.length >= 2 && caenPre.every((n) => t.includes(n)), `…nombrando a las ${caenPre.length} que el cuadro marca bajo presupuesto (banderas vivas del builder)`, caenPre.join(", "));
+  const excepcion = caenAnt.filter((n) => !caenPre.includes(n));
+  if (excepcion.length === 1) ok(t.includes(excepcion[0]), `★ y dice LA EXCEPCIÓN (${excepcion[0]}: cae contra el año y aun así cumple su plan) — información que la tabla tiene y no muestra sola`, t.slice(0, 220));
+  ok(!t.includes(R.cartera.lectura), "…sin CALCAR la frase que la pantalla ya muestra bajo el cuadro (interpretar, no duplicar)", R.cartera.lectura);
+}
+
+/* ═══ 5b · INTERPRETAR, NO RECITAR (owner 2026-09-08, segunda regla) ════════════════════════════════════════ */
+H("5b · «usa el cuadro como evidencia, no como texto a recitar» · 2-4 cifras, no todas las filas");
+{
+  const R = buildResumenComercial(ESC);
+  const t = await texto("comercial/01/tabla-cartera", tituloDeExplicacion("comercial/01/tabla-cartera"), { todos: "0" });
+  const nombrados = R.cartera.filas.map((f) => f.nombre).filter((n) => t.includes(n));
+  ok(nombrados.length >= 1 && nombrados.length <= 5, `★ nombra ${nombrados.length} de ${R.cartera.filas.length} filas — evidencia, no la tabla otra vez`, nombrados.join(", "));
+  ok(/qu[eé] pasa|implica|lectura que importa|tapa lo que cae|empezar[ií]a|mirar[ií]a|partir[ií]a/i.test(t),
+    "…y dice qué implica / por dónde empezar — no solo qué hay", t.slice(0, 200));
+  /* la lista notarial del playbook multa las dos formas del defecto, con carnada de texto */
+  const vc5 = ancla("comercial/01/tabla-cartera", { todos: "0" });
+  const recitado = R.cartera.filas.slice(0, 7).map((f) => `· ${f.nombre}: venta ${f.ventaFmt}`).join("\n");
+  const vRec = vetosDelPlaybook(cuadroExplicado, `Esto muestra el cuadro:` + "\n" + recitado, { pregunta: "x", ctx: { cuadro: vc5 } });
+  ok(vRec.some((x) => x.regla === "cuadro-recitado"), "★ recitar las filas recibe MULTA del propio playbook", JSON.stringify(vRec.map((x) => x.regla)));
+  const vCal = vetosDelPlaybook(cuadroExplicado, `Mira: ${R.cartera.lectura} Eso es lo que hay.`, { pregunta: "x", ctx: { cuadro: vc5 } });
+  ok(vCal.some((x) => x.regla === "cuadro-calcado"), "★ calcar la frase de la pantalla recibe MULTA — interpretar, no duplicar", JSON.stringify(vCal.map((x) => x.regla)));
+  ok(vetosDelPlaybook(cuadroExplicado, t, { pregunta: "x", ctx: { cuadro: vc5 } }).length === 0, "…y el entregable determinístico pasa sus propias reglas");
 }
 
 /* ═══ 6 · SIN DATO, SE DICE QUÉ FALTA ═══════════════════════════════════════════════════════════════════════ */
@@ -265,8 +296,10 @@ H("9 · el emisor · «el botón no manda solo texto»");
   ok(conBoton.length >= 6, `hay ${conBoton.length} botones «Que ADI lo explique» en la Mesa`);
   let anclados = 0, exceptuados = 0, sueltos = [];
   for (const b of conBoton) {
-    /* un botón anclado llama a un `ask` que salió del hook (askX / _askX / vX.ask), nunca a `onAsk` pelado */
-    if (/\bask[A-Z_a-z]*\(|_ask[A-Za-z]*\)|\bask\)/.test(b.ln) && !/onAsk\(/.test(b.ln)) { anclados++; continue; }
+    /* un botón anclado llama a `explicar` (el TÍTULO derivado, owner 2026-09-08) o a un `ask` del hook
+     * (askX / _askX / vX.ask) — nunca a `onAsk` pelado. «explicar» es el nombre de la función del hook; el
+     * label del botón dice «explique», así que el patrón no se engaña con el texto visible. */
+    if (/\b_?(?:ask|explicar)[A-Za-z]*\s*\(|_?(?:ask|explicar)[A-Za-z]*\)/.test(b.ln) && !/onAsk\(/.test(b.ln)) { anclados++; continue; }
     const ctx = lineas.slice(Math.max(0, b.n - 260), b.n).join("\n");
     const exc = EXCEPCIONES.find((e) => new RegExp(`function ${e.marca}\\b`).test(ctx));
     if (exc) { exceptuados++; continue; }
@@ -340,6 +373,28 @@ H("10 · carnadas · cada garantía, probada ROJA sobre una copia mutada del có
       initTenant(TENANT_DEMO);
       const r = Mut.cuadroSentrix({ componentId: "resultado/01/cuadro", scenario: ESC });
       return !/no trae|opcional/i.test(String(r.coverage.reason || ""));   // el defecto: una razón genérica, sin decir QUÉ falta
+    });
+
+  // (e) la multa de recitación desarmada → volver a servir la tabla deja de arder
+  await carnada("la multa de recitación desarmada (la tabla vuelve a recitarse)", "src/adi/agente/playbooks/cuadroExplicado.js",
+    [[/if \(nombrados > 5\) v\.push\(\{ regla: "cuadro-recitado"/, 'if (false) v.push({ regla: "cuadro-recitado"']],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const vcM = ancla("comercial/01/tabla-cartera", { todos: "0" });
+      const RB = buildResumenComercial(ESC);
+      const bait = "Esto muestra el cuadro: " + RB.cartera.filas.slice(0, 7).map((f) => `${f.nombre} vende ${f.ventaFmt}`).join(", ") + ".";
+      const v = Mut.cuadroExplicado.listaNotarial(bait, { pregunta: "x", ctx: { cuadro: vcM } });
+      return !v.some((x) => x.regla === "cuadro-recitado");
+    });
+  // (f) la multa de calco desarmada → copiar la frase de la pantalla deja de arder
+  await carnada("la multa de calco desarmada (la pantalla se repite textual)", "src/adi/agente/playbooks/cuadroExplicado.js",
+    [[/v\.push\(\{ regla: "cuadro-calcado"/, 'void ({ regla: "cuadro-calcado"']],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const vcM = ancla("comercial/01/tabla-cartera", { todos: "0" });
+      const RB = buildResumenComercial(ESC);
+      const v = Mut.cuadroExplicado.listaNotarial(`Mira: ${RB.cartera.lectura} Eso es lo que hay.`, { pregunta: "x", ctx: { cuadro: vcM } });
+      return !v.some((x) => x.regla === "cuadro-calcado");
     });
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* limpieza best-effort */ } }

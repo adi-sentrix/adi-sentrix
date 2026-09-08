@@ -137,3 +137,53 @@ Las dos superficies de **nivel 2** cuyo botón todavía manda la pregunta sin an
 Y las **21 piezas `sin-cifras`** (los cuadros de mando, los rings, los recibos, las simulaciones, la Ficha):
 publican sus números crudos y los formatea la vista, así que no hay cadena que citar verbatim. El día que sus
 builders publiquen sus `*Fmt`, quedan explicadas sin tocar una línea de este camino.
+
+---
+
+## 7 · INTERPRETAR, NO RECITAR (owner 2026-09-08, segunda regla — tras ver el §6 en su pantalla)
+
+**Su palabra, textual:** *«El anclaje del botón está bien, pero "Que ADI lo explique" no debe repetir el
+cuadro. De hecho al hacer click no debería ir una pregunta sino el título de la tabla… "Explicando el negocio
+por cliente", algo así. Nueva regla: el botón debe usar el cuadro como evidencia, no como texto a recitar. Debe
+explicar la historia que hay detrás del cuadro: evolución, caídas, puntos altos, variaciones, concentración,
+gaps o anomalías. Debe decir qué implica para el negocio y qué mirar primero. Puede citar 2-4 cifras clave, no
+todas las filas. Si el cuadro ya muestra la tabla, ADI debe aportar interpretación, no duplicarla. Objetivo:
+que el usuario entienda algo que no veía solo mirando el cuadro.»*
+
+**Lo que estaba mal del §6, dicho sin vueltas:** la primera versión respondía el cuadro recitando sus filas —
+al lado de la tabla que las muestra. Anclado, sí; útil, no.
+
+### Cómo se interpreta SIN calcular (la pieza técnica que lo hace posible)
+
+Los builders **ya clasificaron cada fila**: `bajoBenchmark`, `critico`, `sobreMeta`, `estado`, y la dirección
+`sube`/`baja` de cada delta. `lecturaDeCuadro` ahora lee esas **SEÑALES** junto a las cifras, y el composer
+**agrupa filas por el veredicto del módulo** — agrupar no es calcular. De ahí salen las historias que la tabla
+tiene y no dice: *«3 caen contra su presupuesto — y son las mismas que caen contra el año anterior, salvo
+Unimarc, que cae pero cumple su plan»*, *«el total sube mientras esas cuentas bajan: lo que crece tapa lo que
+cae, y por eso el número de arriba no te avisa»*. Los CONTEOS de cada grupo se autorizan como figs (`cuántas
+caen vs presupuesto = 3`): un conteo no autorizado es un conteo inventado y el muro lo mata con razón.
+
+### El título del click
+
+`tituloDeExplicacion(componentId)` deriva del label del manifiesto («Explicando el negocio, cliente por
+cliente») y `useViewContext` expone `explicar()` junto a `ask()`. Los 6 botones «Que ADI lo explique» de la
+Mesa llaman a `explicar()`: **la intención ya no viaja en la pregunta — viaja en el ancla**, así que el texto
+del botón dejó de cargar información y pasó a decirle al usuario qué está leyendo. ⚠️ Esto ES un cambio a un
+`ask` congelado, con la palabra del owner que lo ordena (arriba, textual); los `ask` de FILA (Profundiza en X,
+el cobro de X, los KPI) siguen congelados.
+
+### Los dos vetos nuevos de la lista notarial
+
+- `cuadro-recitado` — nombrar más de 5 filas de un cuadro que tiene 8+ es servir la tabla otra vez.
+- `cuadro-calcado` — copiar textual la frase que el módulo ya pinta bajo el cuadro es duplicar, no interpretar.
+
+Los dos con carnada en `_ancla_de_cuadro_gate` (121 chequeos tras esta tanda).
+
+### Dos defectos mecánicos que costaron una tarde, para no repetirlos
+
+1. **`facts.cuadro.nombre` convertía al cuadro en ENTIDAD**: el muro cosecha toda clave `nombre|name|entidad|
+   entity` de los facts como entidad del turno, y exigía «nombrar» al cuadro como si fuera un cliente. La clave
+   es `titulo`, y las figs de cabecera declaran `entidad: null`.
+2. **El enum `por_vencer` salía a pantalla**: el estado se lee por su RÓTULO (`estadoLabel`); sin rótulo se
+   acepta solo la palabra limpia («vencido») y se calla el identificador. `dominante` no es el estado de la
+   bodega: es dónde CONCENTRA su capital, y se dice así.

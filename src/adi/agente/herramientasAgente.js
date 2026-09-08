@@ -441,10 +441,25 @@ export function cuadroSentrix(args = {}, ctx = {}) {
     }));
   };
 
-  /* 1 · LA CABECERA del cuadro — lo que el cuadro afirma de sí mismo (su total, su corte, su universo) */
-  for (const c of L.cabecera) _emitir(`${I.cuadro} · ${c.label}`, c.valor, { mandatory: true });
+  /* 1 · LA CABECERA del cuadro — lo que el cuadro afirma de sí mismo (su total, su corte, su universo).
+   * ⚠️ `entidad: null` ES DELIBERADO Y ESTÁ MEDIDO: sin declararlo, el tipo toma el primer tramo del label como
+   * la ENTIDAD dueña de la cifra, y el muro exigía «nombrar» al cuadro como si fuera un cliente («81.4% es de
+   * Quién sostiene el negocio · clientes (entidad) pero se narra como si fuera del negocio»). Un agregado del
+   * cuadro no tiene dueña — el mismo criterio de «Capital frenado · total». */
+  for (const c of L.cabecera) _emitir(`${I.cuadro} · ${c.label}`, c.valor, { mandatory: true, entidad: null });
   /* 2 · LAS FILAS — cada cifra con su dueño en el label, la ley de la boleta */
   for (const f of L.filas) for (const c of f.cifras) _emitir(`${f.nombre} · ${c.label}`, c.valor);
+  /* 2b · CUÁNTAS FILAS LLEVA CADA SEÑAL. Es la cifra de la INTERPRETACIÓN («de 13 cuentas, 4 caen»), y sin
+   * autorizarla el muro la mata con razón: un conteo que no corresponde a nada es un conteo inventado. Sale de
+   * agrupar las banderas que el módulo ya puso en cada fila — se cuenta su veredicto, no se calcula nada. */
+  {
+    const porSenal = new Map();
+    for (const f of L.filas) for (const s of (f.senales || [])) {
+      if (!s.alerta) continue;
+      porSenal.set(s.dice, (porSenal.get(s.dice) || 0) + 1);
+    }
+    for (const [dice, n] of porSenal) _emitir(`${I.cuadro} · cuántas ${dice}`, String(n), { entidad: null });
+  }
   /* 3 · LAS FRASES DEL MÓDULO, con sus cifras autorizadas verbatim.
    * Se extraen con los DOS lectores del muro —`parseFigures` para montos/porcentajes/días y `parseCounts` para
    * los enteros contables («4 cuentas venden menos que el año pasado»)— y no por gusto: lo que el notario va a
@@ -455,7 +470,7 @@ export function cuadroSentrix(args = {}, ctx = {}) {
     let toks = [];
     try { toks = [...(parseFigures(t.texto) || []), ...(parseCounts(t.texto) || [])]; } catch { toks = []; }
     for (const tk of toks) boleta.push(fig(`${I.cuadro} · lo que dice el cuadro`, tk.text, {
-      unit: tk.unit, raw: tk.raw, source: "actual",
+      unit: tk.unit, raw: tk.raw, source: "actual", entidad: null,
       context: `frase que el propio cuadro «${I.cuadro}» muestra en pantalla, citada textual`,
     }));
   }
@@ -464,7 +479,11 @@ export function cuadroSentrix(args = {}, ctx = {}) {
     facts: {
       lens: "cuadro",
       cuadro: {
-        cara: I.cara, movimiento: I.movimiento, nombre: I.cuadro, tipo: I.tipo,
+        /* ⚠️ LA CLAVE ES `titulo`, NO `nombre`, Y NO ES ESTILO: el muro cosecha toda clave `nombre|name|entidad|
+         * entity` de los facts como ENTIDAD del turno (`_entityNames`), y con `nombre` el cuadro entero pasaba a
+         * ser «dueño» de sus cifras — el notario exigía nombrarlo como si fuera un cliente y el turno caía.
+         * Medido: «81.4% es de Quién sostiene el negocio · clientes (entidad)…». Un cuadro no es una entidad. */
+        cara: I.cara, movimiento: I.movimiento, titulo: I.cuadro, tipo: I.tipo,
         mide: I.metricaLabel, eje: I.eje, periodo: I.periodo,
         compara: I.comparacion, universo: I.universo,
         corte: L.corte ? L.corte.label : null,

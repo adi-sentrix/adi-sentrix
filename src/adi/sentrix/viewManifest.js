@@ -1150,3 +1150,17 @@ export function componentIdsForVista(vista) { return Object.keys(VIEW_MANIFEST).
 // el componentId de "la vista entera" — el contexto que viaja cuando el usuario escribe SIN haber tocado nada
 // puntual (requisito 2 del owner: ADI recibe el contexto aunque no se haya pulsado un CTA).
 export function vistaComponentId(vista) { return VIEW_MANIFEST[`${vista}/otro/vista`] ? `${vista}/otro/vista` : null; }
+
+/* ── EL TÍTULO DEL CLICK (owner 2026-09-08) ────────────────────────────────────────────────────────────────────
+ * «Al hacer click no debería ir una pregunta sino el título de la tabla… para que el usuario entienda que está
+ * leyendo eso: "Explicando el negocio por cliente", algo así.» Se DERIVA del label declarado — jamás un texto
+ * por botón: un título escrito a mano por cuadro es la lista que el candado del ancla prohíbe. La primera letra
+ * baja a minúscula solo cuando abre una palabra común (no un SKU ni una sigla), para que «El negocio, cliente
+ * por cliente» se lea «Explicando el negocio, cliente por cliente». */
+export function tituloDeExplicacion(componentId) {
+  const m = VIEW_MANIFEST[componentId];
+  const l = m && typeof m.label === "string" ? m.label.trim() : "";
+  if (!l) return "Explicando este cuadro";
+  const baja = l.length > 1 && l[1] === l[1].toLowerCase() && /[A-ZÁÉÍÓÚÜÑ]/.test(l[0]);
+  return `Explicando ${baja ? l[0].toLowerCase() + l.slice(1) : l}`;
+}

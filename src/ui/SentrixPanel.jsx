@@ -1495,13 +1495,13 @@ function MesaFlujoCara({ flujo: F, onAsk = null, onGuardarPlazos = null }) {
     saldo: useViewContext("flujo/01/kpi-saldo", F, _oF),
     vencido: useViewContext("flujo/01/kpi-vencido", F, _oF),
   };
-  const { ask: _askTablaF } = useViewContext("flujo/01/tabla-saldo-clientes", F, _oF);
-  const { ask: _askCajaF } = useViewContext("flujo/01/caja-mensual", F, _oF);
+  const { explicar: _explicarTablaF } = useViewContext("flujo/01/tabla-saldo-clientes", F, _oF);
+  const { explicar: _explicarCajaF } = useViewContext("flujo/01/caja-mensual", F, _oF);
   const _ask = (q) => { if (onAsk && q) onAsk(q); };
   // `_link` acepta el ask CONTEXTUAL de la pieza (el del hook); sin él cae al transporte pelado — el botón
   // funciona igual, solo que sin publicar el contexto de la pieza (contrato a medio cablear jamás rompe la Mesa).
   const _link = (label, q, askFn = null) => onAsk ? (
-    <button onClick={() => (askFn || _ask)(q)} title={`Pregúntale a ADI: ${q}`}
+    <button onClick={() => (askFn || _ask)(q)} title={q ? `Pregúntale a ADI: ${q}` : "Que ADI explique este cuadro"}
       style={{ background:"transparent", border:"none", color:C.celeste, fontSize:12.5, fontWeight:600,
         cursor:"pointer", padding:0, fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
       {label} <span aria-hidden="true">→</span>
@@ -1635,7 +1635,7 @@ function MesaFlujoCara({ flujo: F, onAsk = null, onGuardarPlazos = null }) {
     <div style={_panel}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:9 }}>
         <span style={_head}>{_dot}El saldo, cliente por cliente</span>
-        {_link("Que ADI lo explique", "¿Qué clientes me deben más y desde cuándo?", _askTablaF)}
+        {_link("Que ADI lo explique", undefined, _explicarTablaF)}
       </div>
       {/* ⚠️ EL ANCHO DE LAS COLUMNAS SE DECLARA; NO SE DEJA AL NAVEGADOR (owner 2026-08-29: «se ven unas más
           separadas que las otras»). Con ancho automático, el espacio sobrante se reparte en proporción al
@@ -1711,7 +1711,7 @@ function MesaFlujoCara({ flujo: F, onAsk = null, onGuardarPlazos = null }) {
     <div style={_panel}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:9 }}>
         <span style={_head}>{_dot}La entrada de caja, mes a mes</span>
-        {_link("Que ADI lo explique", F.caja.ask, _askCajaF)}
+        {_link("Que ADI lo explique", undefined, _explicarCajaF)}
       </div>
       <div style={{ position:"relative" }}>
       <svg viewBox={`0 0 ${_W} ${_H}`} style={{ width:"100%", height:"auto", display:"block" }} role="img"
@@ -2213,7 +2213,7 @@ function ResumenCartera({ R, onFicha, onAsk }) {
   // EMISIÓN · el control `todos` es estado declarado del componente (el manifiesto lo lista), así que viaja: "estos
   // clientes" con la tabla recortada significa las 10 visibles, y con la cartera abierta significa las 13. La
   // diferencia la decide el contexto, no una suposición del narrador.
-  const { ask: askCartera } = useViewContext("comercial/01/tabla-cartera", R, {
+  const { explicar: explicarCartera } = useViewContext("comercial/01/tabla-cartera", R, {
     scenario: R.scenario, onAsk, controles: { todos: todos ? "1" : "0" },
     seleccion: { modo: "todas", n: K && K.filas ? (todos ? K.filas.length : Math.min(K.tope || K.filas.length, K.filas.length)) : 0 },
   });
@@ -2247,7 +2247,8 @@ function ResumenCartera({ R, onFicha, onAsk }) {
           </span>
           <span style={{ display: "block", fontSize: 14, color: C.text, lineHeight: 1.5, marginTop: 5 }}>{K.lectura}</span>
         </span>
-        {askCartera ? _btnADI(() => askCartera("¿Qué clientes están por debajo de su presupuesto?"), "Que ADI lo explique →") : null}
+        {/* EL CLICK MANDA EL TÍTULO, NO UNA PREGUNTA (owner 2026-09-08): la intención viaja en el ancla — ver `explicar` en useViewContext */}
+        {explicarCartera ? _btnADI(() => explicarCartera(), "Que ADI lo explique →") : null}
       </div>
       <div style={{ overflowX: "auto", marginTop: 8 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: angosto ? 11 : 11.5, minWidth: angosto ? 0 : 640, tableLayout: "fixed" }}>
@@ -2325,7 +2326,7 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
   // activa — "explicame este gráfico" no puede resolverse contra la barra que el usuario apagó.
   const vParVentas = useViewContext("comercial/01/pareto-ventas", R, { scenario: R.scenario, onAsk, controles: { met } });
   const vParContrib = useViewContext("comercial/01/pareto-contribucion", R, { scenario: R.scenario, onAsk, controles: { met } });
-  const askPareto = (met === "contribucion" ? vParContrib.ask : vParVentas.ask);
+  const explicarPareto = (met === "contribucion" ? vParContrib.explicar : vParVentas.explicar);
   const barras = P.barras || [];
   const n = barras.length;
   if (!n) return null;
@@ -2367,7 +2368,7 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <span style={{ display: "flex", gap: 3 }}>{pill("ventas", "Ventas")}{pill("contribucion", "Contribución")}</span>
-          {askPareto ? _btnADI(() => askPareto(met === "ventas" ? "¿Qué clientes explican el 80% de mi venta?" : "¿En cuántos clientes se concentra mi contribución?"), "Que ADI lo explique →") : null}
+          {explicarPareto ? _btnADI(() => explicarPareto(), "Que ADI lo explique →") : null}
         </span>
       </div>
       {/* el gráfico entero scrollea en horizontal en anchos chicos — nunca se comprime hasta volverse ilegible */}
@@ -2446,7 +2447,7 @@ function ResumenEvolutivo({ ev, R = null, onAsk }) {
   // EMISIÓN · el contexto se deriva de `R` (la salida completa del builder), no de `ev`: el manifiesto declara el
   // path `evolutivo` contra buildResumenComercial, y esa es la única forma de que el componente no dependa de que
   // alguien recuerde qué pedacito le pasaron por props. Las series apagadas viajan como control declarado.
-  const { ask: askEvo } = useViewContext("comercial/01/evolutivo-serie", R, {
+  const { explicar: explicarEvo } = useViewContext("comercial/01/evolutivo-serie", R, {
     scenario: R && R.scenario, onAsk,
     controles: { oculta: Object.keys(oculta).filter((k) => oculta[k]).sort().join(",") || "ninguna" },
   });
@@ -2477,7 +2478,7 @@ function ResumenEvolutivo({ ev, R = null, onAsk }) {
               bajo, mayor caída— y encima del gráfico que ya los pinta en color. Tres veces el mismo dato en una
               tarjeta: el pie es el lugar correcto porque está pegado al eje que nombra los meses. */}
         </span>
-        {askEvo ? <span style={{ flexShrink: 0 }}>{_btnADI(() => askEvo("¿Cómo viene la venta mes a mes este año?"), "Que ADI lo explique →")}</span> : null}
+        {explicarEvo ? <span style={{ flexShrink: 0 }}>{_btnADI(() => explicarEvo(), "Que ADI lo explique →")}</span> : null}
       </div>
       {/* la leyenda ES el control: cada serie con su total y su estatus (probado / indicado) */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", marginBottom: 8 }}>
@@ -2590,7 +2591,7 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
   const vSosFamilia = useViewContext("comercial/01/sostiene-familias", R, _o);
   const vSosSku = useViewContext("comercial/01/sostiene-sku", R, _o);
   const vSosCanal = useViewContext("comercial/01/sostiene-canales", R, _o);
-  const askSostiene = ({ cliente: vSosCliente.ask, familia: vSosFamilia.ask, sku: vSosSku.ask, canal: vSosCanal.ask })[_vEje ? _vEje.key : ""] || vSosCliente.ask;
+  const explicarSostiene = ({ cliente: vSosCliente.explicar, familia: vSosFamilia.explicar, sku: vSosSku.explicar, canal: vSosCanal.explicar })[_vEje ? _vEje.key : ""] || vSosCliente.explicar;
   if (!S || !S.vistas.length) return null;
   const v = S.vistas.find((x) => x.key === eje) || S.vistas[0];
   const filas = todos ? v.filas : v.filas.filter((f) => f.enGrupo);
@@ -2617,7 +2618,7 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
               </button>
             ))}
           </span>
-          {askSostiene ? _btnADI(() => askSostiene("¿Quiénes son mis principales clientes por venta?"), "Que ADI lo explique →") : null}
+          {explicarSostiene ? _btnADI(() => explicarSostiene(), "Que ADI lo explique →") : null}
         </span>
       </div>
       <div style={{ overflowX: "auto", marginTop: 8 }}>

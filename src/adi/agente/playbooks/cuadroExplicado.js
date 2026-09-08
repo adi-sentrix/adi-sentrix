@@ -96,12 +96,38 @@ const _principal = (f) => (f.cifras.find((c) => c.clave === "principal") || f.ci
 const _cifra = (f, clave) => f.cifras.find((c) => c.clave === clave) || null;
 const _texto = (L, clave) => (L.textos || []).find((t) => t.clave === clave) || null;
 const _cab = (L, clave) => (L.cabecera || []).find((c) => c.clave === clave) || null;
+const _plural = (eje) => (eje === "cliente" ? "cuentas" : eje === "sku" ? "SKU" : eje === "familia" ? "familias"
+  : eje === "marca" ? "marcas" : eje === "bodega" ? "bodegas" : eje === "canal" ? "canales" : "filas");
 
-/** «Falabella $19.4M · Lider $17.9M · …» — el orden es el de la pantalla, jamás uno propio. */
-const _listaCorta = (filas, n) => filas.slice(0, n).map((f) => {
-  const p = _principal(f);
-  return p ? `${f.nombre} ${p.valor}` : f.nombre;
-}).join(" · ");
+/* ── LOS GRUPOS DE SEÑAL · el corazón de la interpretación ─────────────────────────────────────────────────
+ * Se agrupan las filas por la bandera que el MÓDULO les puso (no por una cuenta propia). Lo que sale de acá es
+ * lo que la tabla tiene y no dice: cuántas caen, cuáles, y si son las mismas que fallan por el otro lado. */
+function _gruposDeSenal(filas) {
+  const por = new Map();
+  for (const f of filas) for (const s of (f.senales || [])) {
+    if (!s.alerta) continue;
+    if (!por.has(s.clave)) por.set(s.clave, { clave: s.clave, dice: s.dice, dicen: s.dicen || s.dice, filas: [] });
+    por.get(s.clave).filas.push({ fila: f, valor: s.valor || null });
+  }
+  /* el orden es por CUÁNTAS filas toca, de menos a más: una señal que toca 4 de 13 es un hallazgo; una que
+   * toca 11 de 13 es una condición del negocio — las dos se cuentan, pero no se cuentan igual. */
+  return [...por.values()].sort((a, b) => a.filas.length - b.filas.length);
+}
+
+/** «Ripley −8.1%, La Polar −12.4%» — hasta `n` nombres, en el orden del cuadro, cada una con SU cifra.
+ *  La cifra de una señal sin número (un estado) se busca en la fila: primero la columna que HABLA de ese estado
+ *  («vencido» → «Saldo vencido»), y si no existe, el valor principal — así «6 en estado vencido» sale con el
+ *  saldo vencido de cada una y no con una venta que confundiría. */
+const _cifraDeSenal = (x) => {
+  if (x.valor && /\d/.test(x.valor)) return x.valor;
+  if (x.valor) {
+    const c = x.fila.cifras.find((cc) => new RegExp(`\\b${_esc(x.valor)}\\b`, "i").test(cc.label));
+    if (c) return c.valor;
+  }
+  const p0 = _principal(x.fila);
+  return p0 ? p0.valor : null;
+};
+const _conCifra = (items, n) => items.slice(0, n).map((x) => { const v = _cifraDeSenal(x); return `${x.fila.nombre}${v ? ` ${v}` : ""}`; }).join(", ");
 
 export const cuadroExplicado = {
   nombre: "cuadro-explicado",
@@ -161,11 +187,27 @@ export const cuadroExplicado = {
     ].filter(Boolean);
     return [
       `${partes.join(" · ")}.`,
-      "El usuario está MIRANDO esa pieza: responde lo que ella muestra, con SUS cifras — no el ranking del negocio, no otro eje, no otro período.",
-      "Di qué se ve, qué significa para su negocio y qué decisión sale de ahí. Si el cuadro tiene un límite declarado, nómbralo en vez de taparlo.",
+      "El usuario está MIRANDO esa pieza: el cuadro es tu EVIDENCIA, no un texto a recitar — la tabla ya está en pantalla y repetirla es ruido.",
+      "Cuenta la historia que hay detrás: caídas, puntos altos, variaciones, concentración, brechas, anomalías — y sobre todo lo que las filas no dicen solas (quiénes cargan la señal, si son las mismas por los dos lados, qué tapa el total). Di qué implica para el negocio y qué mirarías primero.",
+      "Cita 2 a 4 cifras clave, jamás todas las filas, y no repitas la frase que el propio cuadro ya muestra. La medida del éxito: que entienda algo que no veía solo mirando el cuadro. Si el cuadro tiene un límite declarado, nómbralo en vez de taparlo.",
     ].join(" ");
   },
 
+  /* ── EL ENTREGABLE · INTERPRETAR, NO RECITAR (regla del owner, 2026-09-08) ────────────────────────────────
+   * «El botón debe usar el cuadro como EVIDENCIA, no como texto a recitar. Debe explicar la historia que hay
+   *  detrás: evolución, caídas, puntos altos, variaciones, concentración, gaps o anomalías. Debe decir qué
+   *  implica para el negocio y qué mirar primero. Puede citar 2-4 cifras clave, no todas las filas. Si el
+   *  cuadro ya muestra la tabla, ADI debe aportar interpretación, no duplicarla.»
+   *
+   * LO QUE ESO CAMBIÓ, y por qué la primera versión estaba mal: recitaba las filas al lado de la tabla que las
+   * muestra. Servía la evidencia como si fuera la respuesta. Acá el orden se invierte —hallazgo, evidencia
+   * corta, implicancia, por dónde empezar— y hay dos silencios deliberados:
+   *   · NO se repite la frase que el módulo ya pinta bajo el cuadro (está en pantalla: repetirla es ruido);
+   *   · NO se listan todas las filas: como mucho tres nombres por señal.
+   * El material para interpretar sin inventar son las SEÑALES que el propio módulo puso en cada fila
+   * (`bajoBenchmark`, `critico`, la dirección de cada delta): agrupar por el veredicto del módulo no es
+   * calcular, y lo que aparece —que las que caen son las mismas que fallan el presupuesto, salvo una— es
+   * justo lo que la tabla tiene y no dice. */
   componer({ pregunta, semilla, ctx, scenario } = {}) {
     const c = _caso(ctx, scenario);
     if (!c) return null;
@@ -181,86 +223,96 @@ export const cuadroExplicado = {
 
     const I = L.identidad;
     const p = [];
+    const nEje = _plural(I.eje);
+    const uni = _cab(L, "n") || _cab(L, "entidadesReales");
+    const universo = uni && Number.isFinite(Number(uni.valor)) ? Number(uni.valor) : L.filas.length;
 
-    /* 1 · QUÉ ES ESTE CUADRO — la identidad, en una línea de negocio.
-     * El artículo del período sale de su propia forma: los períodos de la casa se escriben de las dos maneras
-     * («año cerrado» pide «del», «12 meses del año en foco» pide «de los») y una sola plantilla producía
-     * «del 12 meses». Es prosa, no dato: se resuelve mirando el texto, no adivinando el concepto. */
-    const _periodo = I.periodo ? `${/^\d/.test(I.periodo) ? "de los" : "del"} ${I.periodo}` : null;
-    const ident = [
-      `${I.cuadro}`,
-      I.metricaLabel ? `mide ${String(I.metricaLabel).toLowerCase()}` : null,
-      I.eje && I.eje !== "tiempo" ? `por ${I.eje}` : (I.eje === "tiempo" ? "mes a mes" : null),
-      _periodo,
-    ].filter(Boolean);
-    const contra = I.comparacion ? ` ${CONTRA[I.comparacion] || `contra ${I.comparacion}`}` : "";
-    const corte = L.corte ? `, en el corte «${L.corte.label}»` : "";
-    p.push(`El cuadro que tienes delante —${ident.join(", ")}${contra}${corte}— dice esto:`);
-
-    /* 2 · LO QUE EL PROPIO CUADRO YA DICE (la frase del módulo, citada textual).
-     * En un cuadro de concentración la `nota` del módulo ES la frase del cruce («El 80% se alcanza en X») y la
-     * línea de más abajo la dice completa, con el universo: servir las dos sería decir lo mismo dos veces. */
-    const _notaEsElCruce = I.tipo === "barra" && !!_texto(L, "cruce80");
-    const lect = _texto(L, "lectura") || _texto(L, "pie") || _texto(L, "linea") || (_notaEsElCruce ? null : _texto(L, "nota"));
-    if (lect) p.push(lect.texto);
-
-    /* 3 · LAS CIFRAS, por FORMA. El orden es el de la pantalla. */
-    if (I.tipo === "barra") {
-      /* EL 80/20, explicado como 80/20: dónde se cruza, con qué acumulado, y qué queda en la cola. */
-      const uni = _cab(L, "entidadesReales") || _cab(L, "n");
-      const cruce = _texto(L, "cruce80");
-      /* la fila del cruce puede NO estar entre las barras dibujadas (el gráfico acota para que se lea y la
-       * curva se calcula con todas): entonces se dice dónde cruza sin inventarle un acumulado que no se pintó */
-      const filaCruce = cruce ? L.filas.find((f) => f.nombre === cruce.texto) : null;
-      const acum = filaCruce ? _cifra(filaCruce, "acumulado") : null;
-      if (uni && cruce) {
-        p.push(`De ${uni.valor} ${I.eje === "cliente" ? "clientes" : `${I.eje}s`}, el 80% se alcanza en ${cruce.texto}${acum ? `: ahí el acumulado llega a ${acum.valor}` : ""}.`);
+    /* ── 1 · EL HALLAZGO · lo que las señales del módulo dicen y la tabla no ─────────────────────────────── */
+    const grupos = _gruposDeSenal(L.filas);
+    const foco = grupos[0] || null;                       // la señal más ACOTADA: la que señala algo, no todo
+    if (foco) {
+      const cuantas = foco.filas.length;
+      const mayoria = universo > 0 && cuantas / universo >= 0.66;
+      const dichoFoco = cuantas === 1 ? foco.dice : foco.dicen;
+      p.push(mayoria
+        ? `Lo que este cuadro está diciendo: ${cuantas} de ${universo} ${nEje} ${dichoFoco} — no es un caso puntual: pasa en ${cuantas === universo ? "todas" : "casi todas"}${cuantas === universo ? ` tus ${nEje}` : ` tus ${nEje}`}.`
+        : `Lo que este cuadro está diciendo: de ${universo} ${nEje}, ${cuantas} ${dichoFoco} — ${_conCifra(foco.filas, 3)}${cuantas > 3 ? ", entre otras" : ""}.`);
+      /* LA COINCIDENCIA · el hallazgo que ninguna columna muestra sola: ¿las que señala una bandera son las
+       * mismas que señala la otra? Y si hay excepción, la excepción es la noticia. */
+      const otra = grupos.find((g) => g !== foco && g.filas.length);
+      if (otra) {
+        const A = new Set(foco.filas.map((x) => x.fila.nombre));
+        const B = new Set(otra.filas.map((x) => x.fila.nombre));
+        const comunes = [...A].filter((x) => B.has(x));
+        const soloA = [...A].filter((x) => !B.has(x));
+        const soloB = [...B].filter((x) => !A.has(x));
+        if (comunes.length >= 2 && soloA.length <= 1) {
+          if (soloA.length === 1) {
+            p.push(`Y son casi las mismas que ${otra.dicen}, con una excepción: ${soloA[0]} ${foco.dice} pero no ${otra.dice}.`);
+          } else if (soloB.length === 1) {
+            p.push(`Y esas mismas también ${otra.dicen} — ahí se suma ${soloB[0]}, que ${otra.dice} pero no ${foco.dice}.`);
+          } else if (soloB.length === 0) {
+            p.push(`Y son exactamente las mismas que ${otra.dicen}: el deterioro no está repartido, está concentrado en esas ${nEje}.`);
+          }
+        }
       }
-      const cabeza = L.filas.filter((f) => _cifra(f, "acumulado"));
-      if (cabeza.length) p.push(`En orden: ${_listaCorta(cabeza, 8)}.`);
-      const cola = L.filas.find((f) => /^cola\b/i.test(f.nombre));
-      if (cola) { const pc = _principal(cola); if (pc) p.push(`${cola.nombre} suma ${pc.valor}.`); }
-    } else if (I.tipo === "serie") {
-      const tot = _cab(L, "totalActual") || _cab(L, "total");
-      const mx = _cab(L, "max"), mn = _cab(L, "min"), cum = _cab(L, "cumplimiento");
-      /* si el módulo YA dijo los extremos en su lectura, no se repiten: el owner lo pidió textual («aparece
-       * mucha lectura»), y repetir la misma cifra dos veces en cinco líneas es exactamente eso. */
-      const yaDijoExtremos = !!lect && mx && mn && lect.texto.includes(mx.valor) && lect.texto.includes(mn.valor);
-      const linea = [
-        tot ? `El período cierra en ${tot.valor}` : null,
-        !yaDijoExtremos && mx ? `el mes más alto marca ${mx.valor}` : null,
-        !yaDijoExtremos && mn ? `el más bajo ${mn.valor}` : null,
-        cum ? `y el cumplimiento del presupuesto queda en ${cum.valor}` : null,
-      ].filter(Boolean);
-      if (linea.length) p.push(`${linea.join(", ")}.`);
-      if (L.filas.length) p.push(`Las series del cuadro: ${_listaCorta(L.filas, 4)}.`);
-    } else if (I.tipo === "kpi") {
-      const v = _cab(L, "principal");
-      if (v) p.push(`${I.cuadro}: ${v.valor}.`);
-    } else {
-      /* tabla · lista · tira · veredicto — las filas con sus conceptos, en el orden del cuadro */
-      const top = L.filas.slice(0, 5);
-      for (const f of top) {
-        const cifras = f.cifras.slice(0, 4).map((x) => `${x.label.toLowerCase()} ${x.valor}`).join(" · ");
-        p.push(`· ${f.nombre}: ${cifras}${f.linea ? ` — ${f.linea}` : ""}`);
-      }
-      if (L.filas.length > top.length) p.push(`(y ${L.filas.length - top.length} filas más en el cuadro)`);
-      const tot = _cab(L, "totalVenta") || _cab(L, "total") || _cab(L, "capital");
-      if (tot) p.push(`El total del cuadro: ${tot.valor}.`);
     }
 
-    /* ⚠️ EL LÍMITE DECLARADO NO SE IMPRIME ACÁ, y también es una decisión medida. La primera versión sacaba a
-     * pantalla los `campos` del manifiesto —«Lo que este cuadro no demuestra: grupoN, colaN»— y el notario la
-     * vetó con razón: son nombres internos del sistema, y a pantalla van palabras del negocio. El límite no se
-     * pierde: viaja al cerebro en `facts.limite` de la herramienta y en el entregable, que le pide nombrarlo
-     * en sus palabras. El entregable determinístico calla antes que hablar en jerga. */
+    /* ── 2 · LA EVIDENCIA, CORTA · 2-4 cifras, según la forma del cuadro ─────────────────────────────────── */
+    if (I.tipo === "barra") {
+      const cruce = _texto(L, "cruce80");
+      const filaCruce = cruce ? L.filas.find((f) => f.nombre === cruce.texto) : null;
+      const acum = filaCruce ? _cifra(filaCruce, "acumulado") : null;
+      const cola = L.filas.find((f) => /^cola\b/i.test(f.nombre));
+      const primera = L.filas.find((f) => !/^cola\b/i.test(f.nombre));
+      const met = I.metricaDicha || "lectura";
+      if (uni && cruce) p.push(`El 80% de tu ${met} se completa en ${cruce.texto}${acum ? ` (acumulado ${acum.valor})` : ""}, de ${uni.valor} ${nEje} en total.`);
+      if (primera && _principal(primera)) {
+        p.push(`${primera.nombre} sola pone ${_principal(primera).valor}${cola && _principal(cola) ? `; toda la cola junta, ${_principal(cola).valor}` : ""}.`);
+      }
+      p.push(`Lo que implica: tu ${met || "resultado"} depende de muy pocas ${nEje}. Un movimiento arriba mueve el año; uno abajo casi no se nota.`);
+    } else if (I.tipo === "serie") {
+      const tot = _cab(L, "totalActual") || _cab(L, "total");
+      const cum = _cab(L, "cumplimiento");
+      const alto = _cab(L, "max") || _cab(L, "pico"), bajo = _cab(L, "min") || _cab(L, "valle");
+      const linea = [tot ? `El período cierra en ${tot.valor}` : null, cum ? `${cum.valor} del plan` : null].filter(Boolean);
+      if (linea.length) p.push(`${linea.join(", ")}.`);
+      if (alto && bajo) p.push(`Entre el mes más alto (${alto.valor}) y el más bajo (${bajo.valor}) la distancia es grande: tu año no es parejo, así que planificar con el promedio te va a fallar en los dos extremos.`);
+      if (L.filasLlave === "series" && L.filas.length > 1) p.push(`Las series del cuadro: ${L.filas.slice(0, 3).map((f) => `${f.nombre} ${(_principal(f) || {}).valor || ""}`.trim()).join(" · ")}.`);
+    } else if (I.tipo === "kpi") {
+      const v = _cab(L, "principal");
+      const pie = _texto(L, "pie") || _texto(L, "linea");
+      if (v) p.push(`${I.cuadro}: ${v.valor}${pie ? ` — ${pie.texto}` : ""}.`);
+    } else {
+      /* tabla · lista · tira: la evidencia son las DOS puntas del cuadro, no las trece filas */
+      const totalCifra = (L.cabecera || []).find((x) => /^total\./.test(x.clave) && !/Pct/.test(x.clave))
+        || _cab(L, "totalVenta") || _cab(L, "usd") || _cab(L, "capital") || _cab(L, "suma");
+      const delta = (L.cabecera || []).find((x) => /^total\.vs.*Pct$/.test(x.clave));
+      if (totalCifra) p.push(`El cuadro completo cierra en ${totalCifra.valor}${delta ? ` (${delta.valor} ${delta.label.replace(/ \(%\)| · total/g, "")})` : ""}.`);
+      if (totalCifra && delta && foco) {
+        p.push(`Ahí está la lectura que importa: el total se mueve para arriba mientras esas ${nEje} se mueven para abajo — lo que crece tapa lo que cae, y por eso el número de arriba no te avisa.`);
+      }
+      const grupo = _cab(L, "grupoPct"), grupoN = _cab(L, "grupoN");
+      if (grupo && grupoN) p.push(`Y ${grupoN.valor} ${nEje} explican el ${grupo.valor} de la venta: lo que pase en ese grupo es lo que pasa en tu negocio.`);
+    }
 
-    /* 5 · LA PUERTA — qué se puede abrir desde acá */
-    p.push(variante(semilla, [
-      `Si quieres, te abro cualquiera de esas filas por dentro.`,
-      `Dime por cuál fila seguimos y la abro.`,
-      `Puedo abrirte el detalle de la que te interese.`,
-    ]));
+    /* ── 3 · POR DÓNDE EMPEZAR · en primera persona, y sin ordenar nada ──────────────────────────────────── */
+    if (foco && foco.filas.length) {
+      const primero = foco.filas[0].fila.nombre;   // la primera EN EL ORDEN DEL CUADRO: la que más pesa
+      const cifraPrimero = _cifraDeSenal(foco.filas[0]);
+      const conCifra = cifraPrimero ? ` (${cifraPrimero})` : "";
+      p.push(variante(semilla, [
+        `Por dónde empezaría yo: ${primero}${conCifra}, la de más peso entre las señaladas. ¿La abro?`,
+        `Si vas a mirar una sola, miraría ${primero}${conCifra}: pesa más que el resto de las señaladas. ¿Te la abro?`,
+        `Yo partiría por ${primero}${conCifra} — es la mayor de las que este cuadro marca. Dime y la abrimos.`,
+      ]));
+    } else {
+      p.push(variante(semilla, [
+        `Si quieres, te abro cualquiera de esas filas por dentro.`,
+        `Dime por cuál fila seguimos y la abro.`,
+        `Puedo abrirte el detalle de la que te interese.`,
+      ]));
+    }
     return p.join("\n");
   },
 
@@ -299,6 +351,27 @@ export const cuadroExplicado = {
     if (I.eje && EJES.includes(I.eje)) {
       const otro = EJES.filter((e) => e !== I.eje).find((e) => new RegExp(`\\bpor ${e}s?\\b`, "i").test(t));
       if (otro) v.push({ regla: "cuadro-de-otro-eje", multa: `el cuadro es por ${I.eje} y tu respuesta lo lee por ${otro}: ese es otro cuadro y el usuario no lo está mirando.` });
+    }
+
+    /* (4) EL CUADRO NO SE RECITA (owner 2026-09-08: «puede citar 2-4 cifras clave, no todas las filas… si el
+     * cuadro ya muestra la tabla, ADI debe aportar interpretación, no duplicarla»). Se mide contra las FILAS
+     * del propio cuadro: nombrar más de cinco es volver a servir la tabla que el usuario tiene al lado. Solo
+     * aplica cuando el cuadro tiene filas de sobra — un cuadro de tres filas se puede nombrar entero. */
+    const nombresTodos = (c.L.filas || []).map((f) => f.nombre).filter((n) => n && n.length >= 3);
+    if (nombresTodos.length >= 8) {
+      const nombrados = nombresTodos.filter((n) => new RegExp(`\\b${_esc(n)}`, "i").test(t)).length;
+      if (nombrados > 5) v.push({ regla: "cuadro-recitado", multa: `nombras ${nombrados} de las ${nombresTodos.length} filas del cuadro: eso es la tabla otra vez, y la tabla ya está en pantalla. Quédate con 2-4 cifras clave y aporta la lectura que las filas no dicen solas.` });
+    }
+
+    /* (5) LO QUE LA PANTALLA YA DICE NO SE REPITE TEXTUAL. La frase del módulo está impresa bajo el cuadro;
+     * copiarla es duplicar, no interpretar. Se juzga el CALCO literal (>25 caracteres), jamás la idea: decir lo
+     * mismo con otras palabras y más lectura es exactamente el trabajo. */
+    for (const tx of (c.L.textos || [])) {
+      if (tx.clave !== "lectura" && tx.clave !== "resumenTope") continue;
+      if (tx.texto && tx.texto.length > 25 && t.includes(tx.texto)) {
+        v.push({ regla: "cuadro-calcado", multa: `copias textual la frase que el propio cuadro ya muestra en pantalla («${tx.texto.slice(0, 60)}…»): aporta interpretación, no duplicación.` });
+        break;
+      }
     }
     return v;
   },

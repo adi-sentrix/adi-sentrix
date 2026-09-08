@@ -56,7 +56,7 @@ const LLAVES_DE_NOMBRE = ["nombre", "label", "sku", "entidad", "name", "mes", "k
  * superficie (CLAUDE.md §2, «una sola verdad»). Los que no están, no se leen. */
 const CAMPOS = {
   // venta y su descomposición
-  venta: "Venta", ventas: "Venta", valor: "Valor", monto: "Monto", total: "Total", totalVenta: "Venta total",
+  venta: "Venta", ventas: "Venta", valor: "Valor", monto: "Monto", total: "Total", suma: "Total", totalVenta: "Venta total",
   contribucion: "Contribución", totalContrib: "Contribución total", margen: "Margen", costo: "Costo",
   precio: "Precio", unidades: "Unidades", ticket: "Ticket promedio",
   // participación y concentración
@@ -95,6 +95,29 @@ const TEXTOS = ["titulo", "lectura", "nota", "criterio", "accion", "resumenTope"
 
 /* las comparaciones anidadas: `{hay, montoFmt, pctFmt, dir}` — la forma con que la cartera publica sus deltas */
 const COMPARADOS = { vsAnterior: "vs año anterior", vsPresupuesto: "vs presupuesto", vsAnio: "vs año anterior" };
+
+/* ── LAS SEÑALES · lo que el MÓDULO ya clasificó de cada fila ──────────────────────────────────────────────
+ * (owner 2026-09-08: «el botón debe usar el cuadro como evidencia, no como texto a recitar… debe explicar la
+ *  historia que hay detrás: caídas, puntos altos, concentración, gaps o anomalías»)
+ *
+ * POR QUÉ ESTO PERMITE INTERPRETAR SIN INVENTAR. Recitar filas es fácil y es lo que el owner rechazó; contar
+ * la historia parece exigir cálculo — y el cálculo en la superficie está prohibido. La salida es que **los
+ * builders YA clasificaron cada fila**: `bajoBenchmark`, `critico`, `sobreMeta`, `enGrupo`, `estado`, y la
+ * dirección `sube`/`baja` de cada comparación. Agrupar filas por una bandera que el módulo puso NO es calcular:
+ * es leer su propio veredicto. Lo que aparece entonces —que las que caen son las mismas que quedan bajo
+ * presupuesto, salvo una— es información que la tabla TIENE y no DICE, que es exactamente el encargo.
+ *
+ * `alerta: true` marca la señal que pide mirada. Una bandera fuera de este diccionario no se lee. */
+const SENALES = {
+  bajoBenchmark: { alerta: true, dice: "queda bajo el benchmark", dicen: "quedan bajo el benchmark" },
+  sobreMeta: { alerta: true, dice: "carga acciones comerciales sobre tu meta", dicen: "cargan acciones comerciales sobre tu meta" },
+  critico: { alerta: true, dice: "está en estado crítico", dicen: "están en estado crítico" },
+  sinReferencia: { alerta: true, dice: "no tiene referencia declarada", dicen: "no tienen referencia declarada" },
+  material: { alerta: false, dice: "pesa lo suficiente para mover el resultado", dicen: "pesan lo suficiente para mover el resultado" },
+  enGrupo: { alerta: false, dice: "está en el grupo que sostiene la venta", dicen: "están en el grupo que sostiene la venta" },
+};
+/* el ESTADO con nombre propio: el módulo publica el enum y SU rótulo — se lee el rótulo, jamás el enum */
+const ESTADOS = { estado: "estadoLabel", dominante: "dominanteLabel" };
 
 const _txt = (v) => (typeof v === "string" && v.trim() ? v.trim() : null);
 const _fmtDe = (k) => (k.endsWith("Fmt") ? k.slice(0, -3) : null);
@@ -158,7 +181,42 @@ function _nombreDe(f) {
   return null;
 }
 
-/** las filas legibles de una lista: nombre + al menos una cifra visible. */
+/** las señales que el módulo puso en una fila: sus banderas declaradas, su estado y la dirección de sus deltas. */
+function _senalesDe(f) {
+  const out = [];
+  if (!f || typeof f !== "object") return out;
+  for (const k of Object.keys(SENALES)) if (f[k] === true) out.push({ clave: k, ...SENALES[k] });
+  for (const [k, labelKey] of Object.entries(ESTADOS)) {
+    if (typeof f[k] !== "string" || !f[k]) continue;
+    /* ⚠️ EL ENUM NO VA A PANTALLA. El módulo publica el estado con SU rótulo al lado (`estadoLabel`), y ese es
+     * el que se lee. Cuando no hay rótulo se acepta el enum SOLO si ya es una palabra del negocio —«vencido»—
+     * y se descarta si es un identificador —«por_vencer», «riesgo_quiebre»—: el notario veta la jerga interna
+     * con razón, y callar una señal es mejor que nombrarla en el idioma del sistema. */
+    const rot = _txt(f[labelKey]) || (/^[a-záéíóúüñ]+$/i.test(f[k]) ? f[k] : null);
+    if (!rot) continue;
+    if (k === "dominante") {
+      /* «dominante» NO es el estado de la fila: es el tramo donde esa fila tiene LA MAYOR PARTE de su capital.
+       * Decir «la bodega está en quiebre próximo» afirmaría de más — el módulo declaró dónde se concentra. */
+      out.push({ clave: "estado", alerta: true, dice: `concentra su capital en ${rot}`, dicen: `concentran su capital en ${rot}`, valor: rot });
+      continue;
+    }
+    /* «en estado X» concuerda con cualquier género y número («6 cuentas están en estado vencido»); si el rótulo
+     * ya viene con «en» («en rango»), se respeta tal cual. */
+    const conEn = /^en /i.test(rot) ? rot : `en estado ${rot}`;
+    out.push({ clave: "estado", alerta: true, dice: `está ${conEn}`, dicen: `están ${conEn}`, valor: rot });
+  }
+  /* la dirección de cada comparación: `baja` es la anomalía que el cuadro pinta en rojo */
+  for (const [k, label] of Object.entries(COMPARADOS)) {
+    const c = f[k];
+    if (!c || typeof c !== "object" || c.hay === false || !c.dir) continue;
+    const cae = c.dir === "baja" || c.dir === "cae" || c.tono === "alerta";
+    out.push({ clave: k, alerta: cae, cae, dice: `${cae ? "cae" : "sube"} ${label}`, dicen: `${cae ? "caen" : "suben"} ${label}`,
+      valor: _txt(c.pctFmt) || _txt(c.montoFmt) || null });
+  }
+  return out;
+}
+
+/** las filas legibles de una lista: nombre + al menos una cifra visible + lo que el módulo dice de ella. */
 function _leerFilas(lista, metrica) {
   const filas = [];
   for (const f of lista) {
@@ -166,7 +224,7 @@ function _leerFilas(lista, metrica) {
     if (!nombre) continue;                       // cifra sin dueño no entra: la ley de la boleta
     const cifras = _cifrasDe(f, metrica);
     if (!cifras.length) continue;
-    filas.push({ nombre, cifras, linea: _txt(f && f.linea) || null });
+    filas.push({ nombre, cifras, senales: _senalesDe(f), linea: _txt(f && f.linea) || null });
   }
   return filas;
 }
@@ -217,6 +275,11 @@ export function lecturaDeCuadro(componentId, { scenario = ESCENARIO_INICIAL, con
     cuadro: m.label, tipo: m.tipo,
     metrica: m.metrica || null,
     metricaLabel: (m.metrica && METRICS[m.metrica] && METRICS[m.metrica].label) || m.metrica || null,
+    /* la métrica DICHA («tu venta», no «tu Ventas»): el nombre con que la prosa la nombra, del vocabulario
+     * cerrado de la casa — «acciones comerciales» es el monto y «carga comercial» la tasa, nunca al revés */
+    metricaDicha: ({ ventas: "venta", contribucion: "contribución", margen: "margen", capital: "capital",
+      acciones: "acciones comerciales", carga: "carga comercial" })[m.metrica]
+      || ((m.metrica && METRICS[m.metrica] && METRICS[m.metrica].label) || m.metrica || "lectura").toLowerCase(),
     eje: m.eje || null,
     periodo: m.periodo || null,
     comparacion: m.comparacion || null,
@@ -245,6 +308,11 @@ export function lecturaDeCuadro(componentId, { scenario = ESCENARIO_INICIAL, con
   if (va) { node = va.nodo; corte = { key: va.key, label: va.label, porControl: va.porControl }; }
 
   const cabecera = _cifrasDe(node, identidad.metricaLabel);
+  /* LA FILA TOTAL, que vive AL LADO de las filas y no dentro: es la que dice cómo cierra el cuadro completo, y
+   * sin ella la explicación pierde el marco (la cartera crece +7.5% mientras cuatro cuentas caen). */
+  if (node.total && typeof node.total === "object") {
+    for (const c of _cifrasDe(node.total, identidad.metricaLabel)) cabecera.push({ ...c, clave: `total.${c.clave}`, label: `${c.label} · total` });
+  }
   const textos = TEXTOS.map((k) => ({ clave: k, texto: _txt(node[k]) })).filter((x) => x.texto);
 
   const fl = _filasDe(node, identidad.metricaLabel);

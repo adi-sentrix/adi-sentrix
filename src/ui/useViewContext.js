@@ -24,7 +24,7 @@
  * LO QUE NO HACE: no lee el DOM, no calcula, no llama al LLM, no manda tablas. Deriva del builder y sella.
  */
 import { useEffect, useMemo, useRef } from "react";
-import { VIEW_MANIFEST } from "../adi/sentrix/viewManifest.js";
+import { VIEW_MANIFEST, tituloDeExplicacion } from "../adi/sentrix/viewManifest.js";
 import { deriveViewContext } from "../adi/sentrix/viewContextFrom.js";
 import { addressFromViewContext, formatAddress } from "../adi/sentrix/address.js";
 import { setUISignal } from "../adi/uiSignals.js";
@@ -106,9 +106,22 @@ export function useViewContext(componentId, builderOut, {
     };
   }, [onAsk, ctx]);
 
+  /* `explicar` es el click del botón «Que ADI lo explique» (owner 2026-09-08: «no debería ir una pregunta sino
+   * el título de la tabla — para que el usuario entienda que está leyendo eso»). Precarga el TÍTULO derivado del
+   * manifiesto («Explicando el negocio, cliente por cliente») con el mismo contrato que `ask`: informa y
+   * precarga, jamás dispara. La intención ya no viaja en la pregunta: viaja en el ancla — el receptor deriva
+   * del componentId qué explicar, así que el texto del botón dejó de cargar información. */
+  const explicar = useMemo(() => {
+    if (typeof onAsk !== "function") return null;
+    return () => {
+      if (ctx) setUISignal({ viewContext: ctx });
+      onAsk(tituloDeExplicacion(componentId), ctx || null);
+    };
+  }, [onAsk, ctx, componentId]);
+
   const address = useMemo(() => (ctx ? formatAddress(addressFromViewContext(ctx)) : null), [ctx]);
 
-  return { ctx, ask, address, componentId };
+  return { ctx, ask, explicar, address, componentId };
 }
 
 /* ── useVistaContext(vista, builderOut, opts) ──────────────────────────────────────────────────────────────────
