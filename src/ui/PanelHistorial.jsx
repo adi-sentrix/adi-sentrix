@@ -17,7 +17,7 @@
  * CERO CÁLCULO ACÁ (regla 3 de la casa): las fechas se formatean, nada se deriva. La lista llega armada del
  * servidor, ordenada por la base.
  */
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { C } from "./theme.js";
 
 const SANS = "'DM Sans', system-ui, sans-serif";
@@ -38,13 +38,19 @@ function cuando(iso) {
 
 export function PanelHistorial({ abierto, hiloActivo, rev = 0, onAbrirConversacion, onNuevo, onCerrar, cargar }) {
   const [filas, setFilas]   = useState([]);
+  const filasRef = useRef([]);   // lo que YA está en pantalla: si hay lista, no se borra para volver a pedirla
   const [estado, setEstado] = useState("cargando");   // cargando · listo · sinBase · error
 
   const refrescar = useCallback(async () => {
-    setEstado("cargando");
+    /* «QUE SEA INSTANTÁNEO» (owner 2026-09-08). El panel se ponía en «Buscando…» CADA vez —al abrirlo, al
+     * guardar, al hacer clic— aunque ya tuviera la lista en pantalla: el usuario veía parpadear un cargando
+     * sobre datos que ya estaban ahí. Una lista que ya se tiene no se borra para volver a pedirla: se refresca
+     * por detrás y se reemplaza cuando llega. El «Buscando…» queda solo para la PRIMERA vez, que es la única
+     * en que realmente no hay nada que mostrar. */
+    setEstado((e) => (filasRef.current.length ? e : "cargando"));
     try {
       const r = await cargar();
-      if (r && r.ok) { setFilas(Array.isArray(r.conversaciones) ? r.conversaciones : []); setEstado("listo"); return; }
+      if (r && r.ok) { const f = Array.isArray(r.conversaciones) ? r.conversaciones : []; filasRef.current = f; setFilas(f); setEstado("listo"); return; }
       /* SE DECLARA QUE NO SE PUDO, no un vacío mudo: una lista vacía se lee como «no tengo conversaciones»,
        * que es una afirmación FALSA cuando lo que pasó es que no se pudo preguntar.
        * ⚠️ PERO EL MOTIVO CRUDO NO SALE A PANTALLA. La primera versión de esto interpolaba el error tal cual y

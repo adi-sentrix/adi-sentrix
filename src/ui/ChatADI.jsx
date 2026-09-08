@@ -1224,6 +1224,7 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
    * dependiera de qué motor contestó era la confusión de fondo — un turno de P&L es tan conversación como
    * cualquier otro. Se crea una vez por hilo, sobrevive a los cambios de camino, y muere con «Nuevo chat». */
   const hiloRef = useRef(null);
+  const recienCargadaRef = useRef(false);   // «abrir no es escribir»: marca el pintado que viene del historial
   const hiloDelChat = () => {
     const enCtx = (ctxRef.current && ctxRef.current.conversationId) || null;
     if (enCtx) { hiloRef.current = enCtx; return enCtx; }
@@ -1329,6 +1330,11 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
     if (!messages.length) return;
     if (messages.some((m) => m.pending)) return;         // no se guarda un turno a medias
     if (!messages.some((m) => m.role === "user")) return; // solo el vigía habló: no hay conversación que guardar
+    /* ABRIR NO ES ESCRIBIR (owner 2026-09-08, efecto medido en su base): pintar una conversación del historial
+     * disparaba este efecto y la re-guardaba — le movía la fecha, la saltaba al tope de Recientes y, en las
+     * viejas sin tabla, reescribía encima lo mismo. Leer no modifica: el guardado vuelve con la próxima
+     * pregunta, que es cuando la conversación efectivamente cambió. */
+    if (recienCargadaRef.current) { recienCargadaRef.current = false; return; }
     const hilo = hiloDelChat();                          // del CHAT, no del camino que contestó (ver hiloRef)
     const id = setTimeout(() => {
       fetch("/api/adi-ingesta", { method: "POST", headers: { "content-type": "application/json" },
@@ -1364,6 +1370,7 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
       const fresh = { ...base, conversationId: conv.hilo };
       ctxRef.current = fresh;
       hiloRef.current = conv.hilo;   // seguir preguntando acá continúa ESTA conversación, no abre una gemela
+      recienCargadaRef.current = true;   // este pintado NO se re-guarda (ver el efecto del guardado)
       resetPnlDraft();
       setPendingId(null); setInput(""); setSuggestionsVisible(false); setContext(fresh);
       /* LA TABLA VUELVE, CON SU FECHA DECLARADA (owner 2026-09-08). El sello dice de qué carga son esas cifras;

@@ -185,6 +185,11 @@ export default function App({ animate = true }) {
   }, []);
 
   const abrirConversacion = useCallback(async (hilo) => {
+    /* EL CLIC MARCA ANTES DE PREGUNTAR (owner 2026-09-08: «debería ser más espontáneo, instantáneo»). La fila
+     * se enciende en el mismo gesto y el contenido llega cuando llega: esperar la respuesta para recién
+     * responder al clic hace que el panel se sienta lento aunque tarde 200 ms. Si la lectura falla, el
+     * resaltado se corrige solo con el siguiente refresco — y el motivo va a la consola. */
+    setHiloActivo(hilo);
     try {
       const r = await fetch("/api/adi-ingesta", { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ op: "conversaciones", accion: "abrir", hilo, access: getAccessCode() }) });
