@@ -391,7 +391,11 @@ async function _fetchAgente({ mensajes, scenario, requestContext, ronda, attempt
   const paso = (cierre || attempt > 0) && ((figsEnBoleta | 0) > 0 || vetoConCifra) && _charsHilo <= TECHO_ENTRADA_CIERRE_CHARS ? "cierre" : "herramientas";
   const res = await fetch("/api/adi-agente", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ mensajes, system: sistemaDelAgente(scenario).fijo, tools: catalogoAgente(), paso,
+    body: JSON.stringify({ mensajes,
+      /* «TU NEGOCIO» (owner 2026-09-08): el contexto declarado viaja en el system, enmarcado con sus reglas —
+       * ver `bloqueDeContexto`. Sale del pack (perfil.contexto, mismo canal que el diario): cero fetch extra. */
+      system: sistemaDelAgente(scenario, { contextoDelNegocio: (() => { try { const t = getTenantData(); return (t && t.perfil && t.perfil.contexto) || null; } catch { return null; } })() }).fijo,
+      tools: catalogoAgente(), paso,
       access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt, motivoReintento }),
   });
   const data = await res.json();

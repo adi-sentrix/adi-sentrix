@@ -29,7 +29,7 @@ import { POLICY_CONFIG } from "../config/businessPolicy.js";
 import { PLANTILLA_VERSION } from "../config/contract/plantilla.js";
 import { verifyAccessCode } from "../adi/llm/accessToken.js";
 import { persistirCarga, cargasPrevias, activarVersion, declararCobro, declararDiario, hashSha256, historiaActiva,
-         guardarConversacion, listarConversaciones, leerConversacion, ocultarConversacion } from "./persistirCarga.server.js";
+         guardarConversacion, listarConversaciones, leerConversacion, ocultarConversacion, declararContexto } from "./persistirCarga.server.js";
 import { diffDeCarga, periodosDeHechos } from "./historico.js";
 
 /* De qué empresa es esta carga. Sale del código firmado y de ningún otro lado.
@@ -156,6 +156,16 @@ export async function handleIngesta(body = {}, env) {
     const r = await listarConversaciones({ ...base, limite: body.limite });
     return r.ok ? { ok: true, op: "conversaciones", accion: "listar", conversaciones: r.conversaciones }
                 : { ok: false, op: "conversaciones", motivo: r.motivo, conversaciones: [] };
+  }
+
+  /* «TU NEGOCIO» · EL CONTEXTO DECLARADO (owner 2026-09-08, Pro): el negocio en palabras de su dueño. Va por
+   * la puerta de siempre y con la sesion de siempre. Escribir exige empresa firmada; el texto vacio = borrar. */
+  if (body.op === "contexto") {
+    const s2 = await sesionDeLaCarga(body.access, env);
+    if (!s2) return { ok: false, motivo: "sin sesión con empresa: el contexto es de la empresa, no del navegador" };
+    const r = await declararContexto({ tenantId: s2.tenantId, contexto: body.contexto, actor: s2.actor, env });
+    return r.ok ? { ok: true, op: "contexto", version: r.version, contexto: r.contexto }
+                : { ok: false, op: "contexto", motivo: r.motivo };
   }
 
   if (body.op === "plazos") {

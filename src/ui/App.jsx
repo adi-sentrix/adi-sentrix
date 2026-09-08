@@ -23,7 +23,8 @@ import { cargarTenant } from "../data/tenantClient.js";       // vía 1 · el da
 import { tenantCargado, initTenant, getTenantData } from "../data/tenantStore.js";
 import { setCargaActiva as registrarCarga, limpiarCarga } from "../ingesta/estadoCarga.js";   // el sello vive en un módulo, no en un global del navegador
 import { PanelDatos } from "./PanelDatos.jsx";   // v1.4 · la pantalla de carga: subir la planilla, verla, confirmar y activarla
-import { PanelHistorial } from "./PanelHistorial.jsx";   // el historial de conversaciones (owner 2026-09-08) · vuelve porque ahora hay tabla detrás
+import { PanelHistorial } from "./PanelHistorial.jsx";
+import { PanelNegocio } from "./PanelNegocio.jsx";   // «Tu negocio» (owner 2026-09-08): contexto + criterios + diario, visible y editable   // el historial de conversaciones (owner 2026-09-08) · vuelve porque ahora hay tabla detrás
 import { ADI_LLM_ENABLED } from "../config/voiceFlags.js";
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // la base real se DECLARA una vez (ver el comentario allá): la app y la consola del examen corren sobre el mismo dato
 import { initCriteria } from "../adi/criteria.js";   // C.2 · memoria de criterio · re-aplica lo persistido (localStorage) al boot
@@ -172,6 +173,7 @@ export default function App({ animate = true }) {
    * ADI abre CERRADO a propósito: el chat es la cara del producto y el índice es una herramienta, no el
    * recibidor. Quien lo quiera abierto lo abre; nadie tiene que cerrar algo para empezar a preguntar. */
   const [historialAbierto, setHistorialAbierto] = useState(false);
+  const [negocioAbierto, setNegocioAbierto] = useState(false);   // «Tu negocio» — abre cerrado, como el historial
   const [hiloActivo, setHiloActivo] = useState(null);
   /* la revisión del índice: sube cada vez que una conversación se guarda, y es lo que hace que el panel
      vuelva a preguntar. Sin esto listaba al abrirse y nunca más (defecto medido por el owner). */
@@ -301,6 +303,8 @@ export default function App({ animate = true }) {
           onDatos={() => setDatosAbiertos((v) => !v)}
           historialAbierto={historialAbierto}
           onHistorial={() => setHistorialAbierto((v) => !v)}
+          negocioAbierto={negocioAbierto}
+          onNegocio={() => setNegocioAbierto((v) => !v)}
           onInicio={() => { closePanel(); if (resetRef.current) resetRef.current(); }}/>
         <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"row", flex:1, minHeight:0 }}>
           {/* EL HISTORIAL · columna propia a la derecha del riel (owner 2026-09-08). Va ANTES del chat en el
@@ -314,6 +318,7 @@ export default function App({ animate = true }) {
               onNuevo={() => { closePanel(); if (resetRef.current) resetRef.current(); }}
               onAbrirConversacion={abrirConversacion}
               onQuitar={quitarConversacion}/>
+            <PanelNegocio abierto={negocioAbierto} onCerrar={() => setNegocioAbierto(false)}/>
           </div>
           <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
             <ChatADI scenario={scenario} animate={animate} onHayConversacion={setHayConversacion}

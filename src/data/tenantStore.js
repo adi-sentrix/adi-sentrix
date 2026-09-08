@@ -63,3 +63,13 @@ export function actualizarDiarioDelPack(diario) {
   _data = { ..._data, perfil: { ...(_data.perfil || {}), diario: (diario && typeof diario === "object") ? diario : {} } };
   return true;
 }
+
+/* «TU NEGOCIO» (owner 2026-09-08): el gemelo exacto del setter del diario, por la misma razón — el contexto
+ * se persiste por su puerta y el pack EN MEMORIA debe ponerse al día con lo que el servidor confirmó, o el
+ * turno siguiente leería el contexto viejo hasta recargar la página. Tampoco dispara rebuilds: el contexto
+ * orienta al cerebro, nada derivado del pack depende de él. */
+export function actualizarContextoDelPack(contexto) {
+  if (!_data || esTenantVacio(_data)) return false;
+  _data = { ..._data, perfil: { ...(_data.perfil || {}), contexto: (contexto && typeof contexto === "object") ? contexto : {} } };
+  return true;
+}

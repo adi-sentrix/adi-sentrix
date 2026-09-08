@@ -81,7 +81,7 @@ function Fila({ activo, titulo, onClick, icono, testid, children }) {
  * «Live · fecha»: heredados del header blanco, informaban de la sesión, no del negocio. La barra queda solo
  * con lo que se HACE. Nada de eso se perdió del producto — el modo y el acceso siguen en su lógica; lo que
  * se quitó es su vitrina. */
-export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInicio, historialAbierto, onHistorial,
+export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInicio, historialAbierto, onHistorial, negocioAbierto, onNegocio,
   datosAbiertos = false, onDatos = null }) {
   return (
     <div className="adi-rail" aria-label="Barra de ADI"
@@ -170,6 +170,14 @@ export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInici
         titulo="Tu negocio en vivo: cifras, focos y el 80/20 a la mano, con ADI al lado"
         icono={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>}>
         Mesa de control
+      </Fila>
+
+      {/* TU NEGOCIO · owner 2026-09-08: contexto + criterios + diario en un solo lugar — lo que ADI sabe de
+          esta empresa, visible y editable. Funcion Pro: sin plan, la pantalla lo declara al guardar. */}
+      <Fila activo={negocioAbierto} onClick={onNegocio} testid="negocio-abrir"
+        titulo="Lo que ADI sabe de tu negocio: tu contexto, tus criterios y tu diario — visible y editable"
+        icono={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}><path d="M12 2l7 4v6c0 4.4-3 8.4-7 10-4-1.6-7-5.6-7-10V6z"/></svg>}>
+        Tu negocio
       </Fila>
 
       {/* TUS DATOS (v1.4) · la cuarta puerta. Es PERMANENTE y no un paso de arranque a propósito: probar con

@@ -127,10 +127,14 @@ export async function persistirCarga({
    * el usuario borró no está en el objeto, así que una carga nueva no lo revive; la planilla jamás trae
    * diario propio, por eso el arrastre es incondicional cuando hay diario anterior. */
   const diarioAnterior = packAnterior && packAnterior.perfil ? packAnterior.perfil.diario : null;
-  const datasetConPolitica = ((!traeCobro && cobroAnterior) || diarioAnterior)
+  /* EL CONTEXTO DEL NEGOCIO se arrastra igual que el diario (owner 2026-09-08: «sobrevive a nuevas cargas»):
+   * es política de la relación, no dato del período — la planilla del mes no lo trae y no debe borrarlo. */
+  const contextoAnterior = packAnterior && packAnterior.perfil ? packAnterior.perfil.contexto : null;
+  const datasetConPolitica = ((!traeCobro && cobroAnterior) || diarioAnterior || contextoAnterior)
     ? { ...dataset, perfil: { ...(dataset.perfil || {}),
         ...((!traeCobro && cobroAnterior) ? { cobro: cobroAnterior } : {}),
-        ...(diarioAnterior ? { diario: diarioAnterior } : {}) } }
+        ...(diarioAnterior ? { diario: diarioAnterior } : {}),
+        ...(contextoAnterior ? { contexto: contextoAnterior } : {}) } }
     : dataset;
 
   /* ── 3c · LOS HECHOS VIAJAN DENTRO DEL PACK (owner 2026-08-30: la carga es histórica) ─────────────────
@@ -537,4 +541,36 @@ export async function ocultarConversacion({ tenantId, hilo, actor = null, env, c
   if (!r.ok) return { ok: false, motivo: `no se pudo quitar la conversación del panel: ${r.motivo}` };
   const n = Number(r.filas && r.filas.length ? (r.filas[0].adi_borrar_conversacion ?? r.filas[0]) : 0);
   return { ok: true, ocultas: Number.isFinite(n) ? n : 0 };
+}
+
+/* ═══ «TU NEGOCIO» · EL CONTEXTO DECLARADO (owner 2026-09-08, GO con reglas) ══════════════════════════════
+ * El negocio en palabras de su dueño: orienta la LECTURA de ADI, jamás sus cifras. Mismo canal, mismo pase y
+ * mismo criterio que el diario. Las reglas del owner, una por una: no es fuente de cifras (la sostiene el
+ * notario del turno) · se cita como declarado (la sostiene el marco con que viaja al cerebro) · cada edición
+ * auditada (la 011) · tope de tamaño (acá Y en la base) · aislado por empresa (RLS) · sobrevive a cargas
+ * (el arrastre de persistirCarga). */
+const TOPE_CONTEXTO = 2000;
+
+export function contextoLimpio(contexto) {
+  const c = contexto && typeof contexto === "object" ? contexto : {};
+  const texto = typeof c.texto === "string" ? c.texto.trim().slice(0, TOPE_CONTEXTO) : "";
+  return { texto, fecha: typeof c.fecha === "string" ? c.fecha.slice(0, 10) : new Date().toISOString().slice(0, 10) };
+}
+
+/** declararContexto → { ok, version, contexto } · texto vacío = borrado (y el rastro lo dice así). */
+export async function declararContexto({ tenantId, contexto, actor = null, env, cliente, ttlSegundos } = {}) {
+  if (!tenantId) return { ok: false, sinBase: true, motivo: "sin sesión con empresa" };
+  const limpio = contextoLimpio(contexto);
+  if (typeof (contexto && contexto.texto) === "string" && contexto.texto.trim().length > TOPE_CONTEXTO) {
+    return { ok: false, motivo: `el contexto supera el tope de ${TOPE_CONTEXTO} caracteres — recórtalo: lo que ADI necesita es el criterio, no el detalle` };
+  }
+  const c = await _clienteYPase({ tenantId, env, cliente, ttlSegundos });
+  if (!c.db) return { ok: false, sinBase: true, motivo: c.motivo };
+  const r = await c.db.llamarFuncion("adi_escribir_contexto", {
+    p_contexto: limpio,
+    p_actor_id: (actor && actor.id) || null, p_actor_label: (actor && actor.label) || null, p_actor_rol: (actor && actor.rol) || null,
+  }, { pase: c.pase });
+  if (!r.ok) return { ok: false, motivo: `no se pudo guardar el contexto: ${r.motivo}` };
+  if (!r.filas.length) return { ok: false, motivo: "la base no confirmó el contexto" };
+  return { ok: true, version: r.filas[0].version, contexto: contextoLimpio(r.filas[0].contexto) };
 }
