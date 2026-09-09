@@ -37,7 +37,7 @@ import { concentracion } from "../diagnosis/economicDiagnosis.js";
 import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
 import { applyScenarioToSfamiliasMargen, applyScenarioToClientesVentas } from "../../engine/scenarios.js";   // el corte por familia y la venta/presupuesto por cliente, con el escenario aplicado
 import { getTenantData } from "../../data/tenantStore.js";   // multiempresa: la variación y el canal salen del tenant activo, nunca del dataset demo
-import { buildGlobalEvolutionAnclada } from "./temporal.js";   // el año mes a mes (3 series REALES) YA ancladas a la venta oficial — una sola implementación, compartida con trend/composeSpecTemporal
+import { buildGlobalEvolutionAnclada, anchorSerie } from "./temporal.js";   // el año mes a mes (3 series REALES) YA ancladas a la venta oficial — una sola implementación, compartida con trend/composeSpecTemporal
 import { simboloMoneda, etiquetaSinDeclarar } from "../../config/moneda.js";
 import { factorComercialDe } from "../../config/contract/figureType.js";   // la escala la DECLARA el pack (2026-08-30)
 
@@ -327,7 +327,7 @@ function _variacionAnual(of = _ventasOficiales()) {
 // `temporal.buildGlobalEvolutionAnclada`, que ahora consumen TAMBIÉN `composeSpecTemporal`/`trend`. Antes eran dos
 // caminos: el gráfico anclaba y la tool no, así que la misma pregunta daba $99.9M en pantalla y $100.0M en el chat.
 // Sentrix sigue pasando SU `oficial` (el total del cuadro), así que su salida es byte-idéntica a la anterior.
-function _evolutivo(oficial) {
+function _evolutivo(oficial, totalNegocio) {
   let ev = null;
   try { ev = buildGlobalEvolutionAnclada(null, oficial); } catch { return null; }
   if (!ev) return null;
@@ -346,6 +346,56 @@ function _evolutivo(oficial) {
     const d = actual[i] - actual[i - 1];
     if (!caida || d < caida.delta) caida = { delta: d, mes: ev.meses[i], desde: ev.meses[i - 1] };
   }
+  /* ── EL MES POR DENTRO (owner 2026-09-09) ────────────────────────────────────────────────────────────────
+   * «El mes más bajo fue porque hubo un incremento en acciones comerciales… bajó la contribución porque
+   * ganamos volumen pero perdimos margen. Esas son las cosas que debemos saber, y eso SÍ está en los datos.»
+   * Cada mes declara sus HECHOS —unidades, costo y acciones: las mismas columnas de la hoja Ventas, sumadas
+   * por período en la ingesta— y de ahí salen la contribución y el margen del mes con la fórmula declarada
+   * del negocio: venta − costo − acciones = contribución. LAS ANCLAS SON LAS DE ESTA MISMA CARA: la
+   * contribución mensual cierra EXACTO con la formación del margen (total.contribucion) y las acciones con su
+   * total medido (total.acciones) — la misma técnica `anchorSerie` de las tres series de venta. Las unidades
+   * son conteo declarado y no se reescalan. Un tenant que no declara los tres campos no tiene «mes por
+   * dentro»: null, jamás una curva inventada a partir de la forma de la venta. */
+  const porDentro = (() => {
+    const M = getTenantData()?.ventasMensuales;
+    const declara = Array.isArray(M) && M.length === ev.meses.length &&
+      M.every((m) => m && typeof m.costo === "number" && typeof m.unidades === "number" && typeof m.acciones === "number");
+    if (!declara || !totalNegocio) return null;
+    const contribT = Number(totalNegocio.contribucion), accT = Number(totalNegocio.acciones);
+    const rawContrib = M.map((m) => Number(m.actual) - m.costo - m.acciones);
+    if (rawContrib.some((v) => !Number.isFinite(v))) return null;
+    const contribM = Number.isFinite(contribT) && contribT > 0 ? anchorSerie(rawContrib, contribT) : rawContrib;
+    const accM = Number.isFinite(accT) && accT > 0 ? anchorSerie(M.map((m) => m.acciones), accT) : M.map((m) => m.acciones);
+    const unid = M.map((m) => m.unidades);
+    const margen = contribM.map((c, i) => (actual[i] > 0 ? +((c / actual[i]) * 100).toFixed(1) : null));
+    const carga = accM.map((a, i) => (actual[i] > 0 ? +((a / actual[i]) * 100).toFixed(1) : null));
+    const idx = (arr, min) => arr.reduce((k, v, i) => (v == null ? k : (k < 0 || (min ? v < arr[k] : v > arr[k]) ? i : k)), -1);
+    const iMgMin = idx(margen, true), iMgMax = idx(margen, false), iCgMax = idx(carga, false), iCgMin = idx(carga, true);
+    const iUnMin = idx(unid, true), iUnMax = idx(unid, false);
+    const _int = (v) => String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const fx = _fxc();
+    const meses = ev.meses.map((mes, i) => ({
+      mes,
+      unidades: unid[i], unidadesFmt: _int(unid[i]),
+      contribucion: contribM[i], contribucionFmt: _M(contribM[i] * fx),
+      margenPct: margen[i], margenFmt: margen[i] == null ? "—" : _pct(margen[i]),
+      acciones: accM[i], accionesFmt: _K(accM[i] * fx),
+      cargaPct: carga[i], cargaFmt: carga[i] == null ? "—" : _pct(carga[i]),
+      esMargenMin: i === iMgMin, esMargenMax: i === iMgMax,
+      esCargaMax: i === iCgMax, esCargaMin: i === iCgMin,
+      esUnidadesMin: i === iUnMin, esUnidadesMax: i === iUnMax,
+    }));
+    const sum = (a) => a.reduce((x, v) => x + (Number(v) || 0), 0);
+    const margenAnio = tAct > 0 ? +((sum(contribM) / tAct) * 100).toFixed(1) : null;
+    const cargaAnio = tAct > 0 ? +((sum(accM) / tAct) * 100).toFixed(1) : null;
+    return {
+      meses,
+      margenAnioPct: margenAnio, margenAnioFmt: margenAnio == null ? "—" : _pct(margenAnio),
+      cargaAnioPct: cargaAnio, cargaAnioFmt: cargaAnio == null ? "—" : _pct(cargaAnio),
+      unidadesProm: Math.round(sum(unid) / unid.length),
+      nota: "Hechos del mes: unidades, acciones y costo declarados; la contribución y el margen del mes salen de la fórmula del negocio y cierran exacto con la formación del margen.",
+    };
+  })();
   const _sig = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
   return {
     meses: ev.meses,
@@ -372,6 +422,8 @@ function _evolutivo(oficial) {
     vsPresupuestoPct: vsPpto, vsPresupuestoFmt: typeof vsPpto === "number" ? _sig(vsPpto) : "—",
     maxMes: ev.meses[iMax], maxFmt: _M(actual[iMax] * _fxc()),
     minMes: ev.meses[iMin], minFmt: _M(actual[iMin] * _fxc()),
+    porDentro,   // el mes por dentro (unidades · contribución · margen · acciones), o null si el tenant no lo declara
+
     caida: caida && caida.delta < 0 ? { ...caida, fmt: _K(Math.abs(caida.delta) * _fxc()) } : null,
     cumplimientoPct: tPpto ? +((tAct / tPpto) * 100).toFixed(1) : null,
     cumplimientoFmt: tPpto ? _pct((tAct / tPpto) * 100) : "—",
@@ -1161,7 +1213,7 @@ export function buildResumenComercial(scenario = ESCENARIO_INICIAL, { maxEntidad
     tension,
     veredicto,
     cartera: _cartera(scenario, rows, total),        // 01 · la cartera de una sola mirada, antes de los gráficos
-    evolutivo: _evolutivo(oficial),        // 01 · el año mes a mes, tres series, ancladas a la venta oficial
+    evolutivo: _evolutivo(oficial, total),   // 01 · el año mes a mes, tres series ancladas — y cada mes por dentro
     sostiene: _sostiene(scenario, rows, total),      // 01 · quién sostiene el negocio · clientes/familias/SKU/canales
     formacion: _formacion(total),          // 02 · venta − costo conciliado − acciones = contribución
     deterioro,                             // 02 · dónde se frena la venta y dónde se diluye el margen

@@ -140,8 +140,14 @@ function _elementoCitado(pregunta, L) {
   for (const f of (L.filas || [])) {
     if (f.nombre && f.nombre.length >= 3 && q.includes(f.nombre.toLowerCase())) return { tipo: "fila", nombre: f.nombre, fila: f };
   }
-  /* un mes cuenta como elemento SOLO si el propio cuadro lo nombra (en su lectura o en sus etiquetas) */
-  const corpus = [(L.textos || []).map((t) => t.texto).join(" "), (L.filas || []).map((f) => f.nombre).join(" ")].join(" ").toLowerCase();
+  /* un mes cuenta como elemento SOLO si el propio cuadro lo nombra. La fuente primera es EL EJE del cuadro
+   * (`mesesDelCuadro`: las etiquetas que la pantalla pinta — con eso «abril» es citable aunque ningún texto lo
+   * mencione, porque el cuadro lo nombra con su barra); el corpus de lectura queda de respaldo. */
+  const corpus = [
+    (L.mesesDelCuadro || []).join(" "),
+    (L.textos || []).map((t) => t.texto).join(" "),
+    (L.filas || []).map((f) => f.nombre).join(" "),
+  ].join(" ").toLowerCase();
   for (const [abr, completo] of _MESES) {
     if (!new RegExp(`\\b${abr}`, "i").test(corpus)) continue;
     if (new RegExp(`\\b(?:${completo}|${abr})\\b`, "i").test(q)) return { tipo: "mes", nombre: completo, abr };
@@ -336,7 +342,7 @@ export const cuadroExplicado = {
     if (c.elemento || c.porQue) {
       return [
         `${cab}.`,
-        `El usuario pregunta por ${c.elemento ? `«${c.elemento.nombre}»` : "un porqué"} de ese cuadro. LA CAUSA NO ESTÁ EN EL DATO y eso se dice primero — jamás la afirmes como hecho. Después razona como asesor: hipótesis MARCADAS como criterio tuyo («es criterio mío», «el dato no lo confirma»), qué las confirmaría, y el hecho que la serie sí sostiene si viene en los resultados (patronAnual: un extremo que SE REPITE contra el año anterior apunta a estacionalidad; uno nuevo, a algo de este año). Cierra con la verificación concreta que harías.`,
+        `El usuario pregunta por ${c.elemento ? `«${c.elemento.nombre}»` : "un porqué"} de ese cuadro. ANTES de hipotetizar, lee EL MES POR DENTRO si viene en los resultados (mesPorDentro: unidades, contribución, margen y acciones comerciales de cada mes contra su año — hechos del dato, anclados a la formación del margen): qué componente se movió ese mes ES respaldo y se afirma con sus cifras («ganaste volumen y cediste margen», «faltó volumen con el margen acompañando»). LA CAUSA NO ESTÁ EN EL DATO cuando hablas del detonante de fondo —calendario, un cliente que cambió, el mercado— y eso se dice: jamás lo afirmes como hecho. Ahí razona como asesor: hipótesis MARCADAS como criterio tuyo («es criterio mío», «el dato no lo confirma»), qué las confirmaría, y el hecho que la serie sí sostiene (patronAnual: un extremo que SE REPITE contra el año anterior apunta a estacionalidad; uno nuevo, a algo de este año). Cierra con la verificación concreta que harías.`,
       ].join(" ");
     }
     /* el ARCO es el que el owner escribió a mano (2026-09-08) — su texto es el estándar de esta entrega */
@@ -399,18 +405,52 @@ export const cuadroExplicado = {
     if (c.elemento) {
       const el = c.elemento;
       const p = [];
-      if (el.tipo === "mes" && L.patronAnual) {
+      if (el.tipo === "mes" && (L.patronAnual || L.porDentro)) {
         const pa = L.patronAnual;
-        const esMin = pa.mesMin && el.abr && pa.mesMin.toLowerCase().startsWith(el.abr);
-        const esMax = pa.mesMax && el.abr && pa.mesMax.toLowerCase().startsWith(el.abr);
+        const esMin = !!(pa && pa.mesMin && el.abr && pa.mesMin.toLowerCase().startsWith(el.abr));
+        const esMax = !!(pa && pa.mesMax && el.abr && pa.mesMax.toLowerCase().startsWith(el.abr));
         const cifra = esMin ? _cab(L, "min") : esMax ? _cab(L, "max") : null;
+        /* EL MES POR DENTRO (owner 2026-09-09): «el mes más bajo fue porque hubo un incremento en acciones
+         * comerciales… bajó la contribución porque ganamos volumen pero perdimos margen. Esas son las cosas que
+         * debemos saber, y eso SÍ está en los datos.» Cuando el builder publica los hechos del mes (unidades,
+         * contribución, margen, acciones — anclados a la formación del margen de la misma cara), el porqué
+         * INTERNO se lee de ahí: qué componente se movió. La causa EXTERNA (calendario, un cliente que compró
+         * distinto) sigue sin estar, y se dice. La lectura es por UMBRAL DECLARADO, no por olfato. */
+        const pd0 = L.porDentro;
+        const pd = pd0 && Array.isArray(pd0.meses)
+          ? pd0.meses.find((m) => m && m.mes && el.abr && String(m.mes).toLowerCase().startsWith(el.abr)) : null;
+        const EN_LINEA_PP = 0.8;   // a menos de 0.8pp del año, el componente «acompaña»
+        const _num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+        const mgMes = pd && _num(pd.margenPct), mgAnio = pd0 && _num(pd0.margenAnioPct);
+        const cgMes = pd && _num(pd.cargaPct), cgAnio = pd0 && _num(pd0.cargaAnioPct);
+        const mgBajo = mgMes != null && mgAnio != null && mgAnio - mgMes >= EN_LINEA_PP;
+        const mgAlto = mgMes != null && mgAnio != null && mgMes - mgAnio >= EN_LINEA_PP;
+        const cgAlta = cgMes != null && cgAnio != null && cgMes - cgAnio >= EN_LINEA_PP;
+        const volBajo = !!(pd && (pd.esUnidadesMin || (pd0.unidadesProm && pd.unidades < pd0.unidadesProm)));
+        const cruce = pd
+          ? `Por dentro: ${pd.unidades} unidades${pd.esUnidadesMin ? " —las menos del año—" : pd.esUnidadesMax ? " —las más del año—" : ""}, contribución ${pd.contribucionFmt} (margen ${pd.margenFmt}) y ${pd.accionesFmt} en acciones comerciales (${pd.cargaFmt} de la venta).`
+          : null;
         if (esMin || esMax) {
           p.push(`${el.nombre[0].toUpperCase()}${el.nombre.slice(1)} es el ${esMin ? "piso" : "pico"} del año${cifra ? ` (${cifra.valor})` : ""}.`);
-          if (c.porQue) p.push(`El porqué exacto no está en este dato: la serie muestra cuánto se vendió cada mes, no qué lo causó.`);
-          const _comparable = /anterior/i.test(pa.serieComparable) ? "el año anterior" : pa.serieComparable;
-          p.push((esMin ? pa.minSeRepite : pa.maxSeRepite)
-            ? `Lo que la serie sí dice: también fue el ${esMin ? "piso" : "pico"} d${_comparable === "el año anterior" ? "el año anterior" : `e ${_comparable}`}. Cuando el mismo mes repite el extremo dos años seguidos, eso apunta a la estacionalidad de tu negocio — no a un problema puntual de este año.`
-            : `Y hay una señal que importa: ${_comparable === "el año anterior" ? "el año anterior" : _comparable} el ${esMin ? "piso" : "pico"} fue OTRO mes. Esto es de este año, no un patrón que se repita — vale la pena mirar qué cambió.`);
+          if (c.porQue) p.push(cruce
+            ? `El detonante externo no está en este dato — lo que sí está es el mes por dentro.`
+            : `El porqué exacto no está en este dato: la serie muestra cuánto se vendió cada mes, no qué lo causó.`);
+          if (cruce) p.push(cruce);
+          if (pd && esMin) {
+            if (mgBajo && cgAlta) p.push(`La lectura: ese mes cediste más en acciones comerciales (${pd.cargaFmt} contra ${pd0.cargaAnioFmt} del año) y el margen lo pagó (${pd.margenFmt} contra ${pd0.margenAnioFmt}).`);
+            else if (mgBajo) p.push(`La lectura: el margen del mes (${pd.margenFmt}) quedó bajo el del año (${pd0.margenAnioFmt}) sin que las acciones se movieran — la diferencia vive en el costo o la mezcla, y este cuadro no los separa.`);
+            else if (volBajo) p.push(`La lectura: ese mes no muestra un problema de margen ni de acciones — muestra menos volumen, con el margen acompañando al del año (${pd0.margenAnioFmt}).`);
+          }
+          if (pd && esMax) {
+            if (pd.esMargenMax || mgAlto) p.push(`Y fue bien ganado: margen ${pd.margenFmt}${pd.esMargenMax ? " —el mejor del año—" : ""}${pd.esCargaMin ? ` con la carga de acciones más baja del año (${pd.cargaFmt})` : ""}.`);
+            else if (mgBajo) p.push(`Y ojo: ese pico se compró — margen ${pd.margenFmt}, bajo el del año (${pd0.margenAnioFmt}), con ${pd.accionesFmt} en acciones comerciales (${pd.cargaFmt}).`);
+          }
+          if (pa) {
+            const _comparable = /anterior/i.test(pa.serieComparable) ? "el año anterior" : pa.serieComparable;
+            p.push((esMin ? pa.minSeRepite : pa.maxSeRepite)
+              ? `${cruce ? "Y no es nuevo" : "Lo que la serie sí dice"}: también fue el ${esMin ? "piso" : "pico"} d${_comparable === "el año anterior" ? "el año anterior" : `e ${_comparable}`}. Cuando el mismo mes repite el extremo dos años seguidos, eso apunta a la estacionalidad de tu negocio — no a un problema puntual de este año.`
+              : `Y hay una señal que importa: ${_comparable === "el año anterior" ? "el año anterior" : _comparable} el ${esMin ? "piso" : "pico"} fue OTRO mes. Esto es de este año, no un patrón que se repita — vale la pena mirar qué cambió.`);
+          }
           p.push(variante(semilla, [
             `Puedo compararte ese mes contra el mismo mes del año anterior, o seguimos por otra parte del cuadro.`,
             `Si quieres, lo pongo contra el mismo mes del año anterior. Tu calendario comercial es la otra mitad de esta respuesta.`,
@@ -420,10 +460,21 @@ export const cuadroExplicado = {
         }
         /* un mes que no es extremo: se dice qué lugar ocupa sin inventarle drama — CON las cifras de los
          * extremos, que es lo que ubica al mes (y sin ellas la respuesta quedaba desanclada del cuadro:
-         * el propio veto (1) la mataba y el turno caía al rescate — medido con «y julio, ¿por qué?»). */
+         * el propio veto (1) la mataba y el turno caía al rescate — medido con «y julio, ¿por qué?»).
+         * Y si el mes por dentro trae historia (el margen más bajo del año, la carga más alta), SE DICE:
+         * era exactamente lo que el owner pedía saber de estos meses. */
         const cMax = _cab(L, "max"), cMin = _cab(L, "min");
-        p.push(`${el.nombre[0].toUpperCase()}${el.nombre.slice(1)} no es ni el pico ni el piso de tu año — esos son ${pa.mesMax || "?"}${cMax ? ` (${cMax.valor})` : ""} y ${pa.mesMin || "?"}${cMin ? ` (${cMin.valor})` : ""}.`);
-        if (c.porQue) p.push(`Y el porqué de cada mes no está en este dato: la serie trae el cuánto, no la causa.`);
+        const extremos = pa ? ` — esos son ${pa.mesMax || "?"}${cMax ? ` (${cMax.valor})` : ""} y ${pa.mesMin || "?"}${cMin ? ` (${cMin.valor})` : ""}` : "";
+        p.push(`${el.nombre[0].toUpperCase()}${el.nombre.slice(1)} no es ni el pico ni el piso de tu año${extremos}.`);
+        if (pd && (pd.esMargenMin || pd.esCargaMax)) {
+          p.push(`Pero por dentro sí tiene historia: ${[pd.esMargenMin ? `el margen más bajo del año (${pd.margenFmt})` : `margen ${pd.margenFmt}`, pd.esCargaMax ? `la carga de acciones comerciales más alta (${pd.cargaFmt})` : null].filter(Boolean).join(" con ")} — ese mes se cedió más y quedó menos por peso vendido.`);
+        } else if (pd && pd.esUnidadesMax && mgBajo) {
+          /* la frase del owner, con sus cifras: «ganamos volumen pero perdimos margen» */
+          p.push(`Pero por dentro sí tiene historia: ganaste volumen (${pd.unidades} unidades, las más del año) cediendo margen (${pd.margenFmt} contra ${pd0.margenAnioFmt} del año) — ese mes el volumen se compró.`);
+        } else if (cruce) {
+          p.push(cruce);
+        }
+        if (c.porQue) p.push(`${pd ? "El detonante externo" : "Y el porqué de cada mes"} no está en este dato: ${pd ? "estos son los componentes del mes, no la causa de fondo — esa se verifica, no se afirma" : "la serie trae el cuánto, no la causa"}.`);
         p.push(variante(semilla, [`¿Seguimos por los extremos, o por otra parte del cuadro?`, `Puedo abrirte el pico o el piso del año si te sirve.`, `Dime dónde profundizamos.`]));
         return p.join("\n");
       }

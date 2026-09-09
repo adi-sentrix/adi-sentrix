@@ -474,6 +474,22 @@ export function cuadroSentrix(args = {}, ctx = {}) {
       context: `frase que el propio cuadro «${I.cuadro}» muestra en pantalla, citada textual`,
     }));
   }
+  /* 3b · EL MES POR DENTRO (owner 2026-09-09) — los hechos mensuales que el builder publica anclados a la
+   * formación del margen de la misma cara. Van TODOS los meses a la boleta: el turno no sabe de antemano cuál
+   * va a nombrar el usuario, y una cifra del mes citada sin autorización moriría en el muro con el dato al
+   * lado. `entidad: null` por la misma razón de siempre: un mes no es una entidad del negocio. */
+  if (L.porDentro && Array.isArray(L.porDentro.meses)) {
+    const _conCifra = (v) => typeof v === "string" && /\d/.test(v);
+    for (const m of L.porDentro.meses) {
+      if (_conCifra(m.contribucionFmt)) _emitir(`${I.cuadro} · ${m.mes} · contribución`, m.contribucionFmt, { entidad: null });
+      if (_conCifra(m.margenFmt)) _emitir(`${I.cuadro} · ${m.mes} · margen`, m.margenFmt, { entidad: null });
+      if (_conCifra(m.accionesFmt)) _emitir(`${I.cuadro} · ${m.mes} · acciones comerciales`, m.accionesFmt, { entidad: null });
+      if (_conCifra(m.cargaFmt)) _emitir(`${I.cuadro} · ${m.mes} · carga`, m.cargaFmt, { entidad: null });
+      if (typeof m.unidades === "number") _emitir(`${I.cuadro} · ${m.mes} · unidades`, String(m.unidades), { entidad: null });
+    }
+    if (_conCifra(L.porDentro.margenAnioFmt)) _emitir(`${I.cuadro} · margen del año`, L.porDentro.margenAnioFmt, { entidad: null });
+    if (_conCifra(L.porDentro.cargaAnioFmt)) _emitir(`${I.cuadro} · carga del año`, L.porDentro.cargaAnioFmt, { entidad: null });
+  }
 
   return {
     facts: {
@@ -496,6 +512,10 @@ export function cuadroSentrix(args = {}, ctx = {}) {
        * los crudos del builder — sin cifras nuevas — y cambia la lectura del porqué: repetido apunta a
        * estacionalidad; nuevo, a algo de este año. La causa concreta sigue sin estar en el dato. */
       ...(L.patronAnual ? { patronAnual: L.patronAnual } : {}),
+      /* EL MES POR DENTRO: los hechos de cada mes (unidades · contribución · margen · acciones) contra su año,
+       * ya formateados y anclados por el builder. El porqué INTERNO del mes se lee de acá; el detonante de
+       * fondo sigue sin estar en el dato y se marca como criterio. */
+      ...(L.porDentro ? { mesPorDentro: L.porDentro } : {}),
       cifras: [
         ...L.cabecera.map((c) => ({ de: I.cuadro, concepto: c.label, valor: c.valor })),
         ...L.filas.map((f) => ({ de: f.nombre, valores: f.cifras.map((c) => ({ concepto: c.label, valor: c.valor })) })),

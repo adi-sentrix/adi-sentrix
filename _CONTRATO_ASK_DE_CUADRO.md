@@ -422,3 +422,45 @@ de vocal acentuada — la familia de «facturó» — así que **«¿por qué?»
 **Gate:** `_ancla_de_cuadro_gate.mjs` §5i (13 chequeos: el caso del owner contra crudos vivos, la ley primero,
 el patrón, el mes no extremo anclado, el no-secuestro con la cartera, la fila nombrada, los facts y el
 entregable) + carnada (i): quitada la puerta del elemento, la pregunta del owner vuelve a caer al vacío.
+
+## 14 · EL MES POR DENTRO (owner 2026-09-09, octava entrega — corrigiendo la séptima el mismo día)
+
+**Su palabra, textual:** *«pero como no está en el dato, el agente ADI lo que debe entender es: el mes más bajo
+fue porque hubo un incremento en acciones comerciales, por ejemplo, aumentó el costo, bajó la contribución
+porque ganamos volumen pero perdimos margen, etc. Esas son las cosas que debemos saber, y eso SÍ está en los
+datos.»*
+
+**Y tiene razón, verificado columna por columna:** la hoja Ventas de la plantilla trae **fecha, costo,
+unidades y acciones comerciales** en cada fila. De ahí sale, mes por mes, todo lo que su ejemplo pide: venta,
+contribución (venta − costo − acciones, la fórmula declarada), margen, volumen y acciones. La ley «la causa no
+está en el dato» quedó REPARTIDA en dos: el **porqué interno** (qué componente del mes se movió) SÍ está y se
+afirma con cifras; el **detonante de fondo** (calendario, un cliente que cambió) sigue sin estar, y se sigue
+diciendo.
+
+**Las piezas:**
+
+1. **La ingesta** (`motorKpi.js`) suma costo, unidades y acciones **por período** desde las filas — el mismo
+   bucle que ya armaba la venta mensual. El archivo real del cliente alimenta esto sin pedirle nada nuevo.
+2. **El demo lo declara igual** (`ventasMensuales` con los tres campos): hechos mensuales autorizados, NO
+   derivados de la curva de venta. **Las sumas cierran exacto** con lo que la cara Comercial ya publica:
+   contribución $25.1M (la formación del margen), acciones 4,075 (pctRebate × venta), unidades 5,703 (el KPI).
+3. **El builder** publica `evolutivo.porDentro`: cada mes con unidades, contribución, margen, acciones y carga,
+   **anclado con `anchorSerie` a la formación del margen de su propia cara** — la técnica de las tres series.
+   Un tenant sin los tres campos → `null`, jamás una curva inventada.
+4. **El playbook** lee el cruce con **umbral declarado** (±0.8pp del año): margen y acciones acompañan + unidades
+   mínimas → «muestra menos volumen»; carga arriba y margen abajo → «cediste más en acciones y el margen lo
+   pagó»; unidades máximas con margen bajo el año → **«ganaste volumen cediendo margen»** (la frase del owner,
+   con sus cifras). Un mes no extremo con historia interna (margen mínimo / carga máxima del año) la cuenta.
+5. **La boleta** lleva los 12 meses por dentro (el turno no sabe cuál va a nombrar el usuario) y el cerebro
+   recibe `mesPorDentro` en facts + la doctrina: **leer el mes por dentro ANTES de hipotetizar**.
+6. El eje de meses del cuadro (`mesesDelCuadro`) hace citable **cualquier** mes de la serie («¿y abril?»),
+   no solo los que la microlectura nombra.
+
+**Lo que responde hoy el piso** (cerebro mudo, escenario actual): Febrero → «no muestra un problema de margen
+ni de acciones — muestra menos volumen» + estacionalidad. Julio → «el margen más bajo del año (22.9%) con la
+carga de acciones más alta (5.5%)». Noviembre → «bien ganado: el mejor margen del año con la carga más baja».
+Diciembre → «ganaste volumen (560 unidades, las más del año) cediendo margen». Cero vetos del muro.
+
+**Gate:** §5j (11 chequeos: el cierre exacto contra la formación, el cruce en la respuesta con las cifras del
+builder, la lectura por umbral, la ley en pie, la boleta con los 12 meses, la doctrina del cerebro, la ingesta
+real) + carnada (j): sin el ancla, la contribución mensual deriva y el cierre exacto arde.

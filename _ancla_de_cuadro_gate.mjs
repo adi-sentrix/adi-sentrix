@@ -473,6 +473,65 @@ H("5i · el elemento nombrado — el porqué honesto, con el hecho que la serie 
     "★ y al cerebro se le pide el porqué de asesor: la ley primero, hipótesis marcadas como criterio, el patrón si viene, y la verificación concreta");
 }
 
+/* ═══ 5j · EL MES POR DENTRO (owner 2026-09-09, octava entrega — sobre la séptima, el mismo día) ═════════════
+ * «El mes más bajo fue porque hubo un incremento en acciones comerciales, aumentó el costo, bajó la
+ *  contribución porque ganamos volumen pero perdimos margen… esas son las cosas que debemos saber, y eso SÍ
+ *  está en los datos.» Y es cierto: la hoja Ventas trae fecha, costo, unidades y acciones por fila — la ingesta
+ *  las suma por mes, el demo las declara igual, y el builder publica cada mes POR DENTRO anclado a la formación
+ *  del margen de su propia cara. El porqué INTERNO (qué componente se movió) se afirma con cifras; el detonante
+ *  de fondo sigue sin estar en el dato, y se sigue diciendo. */
+H("5j · el mes por dentro — el porqué interno se lee del dato, anclado a la formación del margen");
+{
+  const CID = "comercial/01/evolutivo-serie";
+  const RB = buildResumenComercial(ESC);
+  const pd0 = RB.evolutivo && RB.evolutivo.porDentro;
+  ok(!!pd0 && Array.isArray(pd0.meses) && pd0.meses.length === 12,
+    "el builder publica los 12 meses por dentro (unidades · contribución · margen · acciones)", pd0 && pd0.meses && pd0.meses.length);
+  const sum = (f) => pd0.meses.reduce((x, m) => x + (Number(m[f]) || 0), 0);
+  const fContrib = (RB.formacion.lineas.find((l) => l.key === "contribucion") || {}).montoFmt;
+  const fAcc = (RB.formacion.lineas.find((l) => l.key === "acciones") || {}).montoFmt;
+  ok(Math.abs(sum("contribucion") - Number(RB.total.contribucion)) < 1 && Math.abs(sum("acciones") - Number(RB.total.acciones)) < 1,
+    `★★ los meses CIERRAN EXACTO con la formación del margen de la misma cara (contribución ${fContrib} · acciones ${fAcc}) — una sola verdad`,
+    `Σcontrib ${sum("contribucion")} vs ${RB.total.contribucion} · Σacc ${sum("acciones")} vs ${RB.total.acciones}`);
+  /* el turno del owner: «¿por qué febrero es el mes más bajo?» — ahora con el mes por dentro */
+  const vcE = ancla(CID);
+  const LE = lecturaDeCuadro(CID, { scenario: ESC });
+  const r1 = await answerViaAgente({ text: tituloDeExplicacion(CID), history: [], mem: {}, scenario: ESC, callAgente: MUDO, viewContext: vcE, cuadro: vcE });
+  const hist = [{ role: "user", text: "x" }, { role: "adi", text: r1.r.text }];
+  const r2 = await answerViaAgente({ text: "febrero es el mes más bajo, ¿por qué?", history: hist, mem: r1.mem, scenario: ESC, callAgente: MUDO });
+  const T2 = String(r2.r.text || "");
+  const feb = LE.porDentro.meses.find((m) => /^feb/i.test(m.mes));
+  ok(!!feb && T2.includes(feb.contribucionFmt) && T2.includes(feb.accionesFmt) && T2.includes(String(feb.unidades)),
+    "★★ la respuesta trae EL MES POR DENTRO con las cifras del builder (contribución · acciones · unidades)", T2.slice(0, 220));
+  if (feb && feb.esUnidadesMin && typeof feb.margenPct === "number" && typeof LE.porDentro.margenAnioPct === "number"
+      && Math.abs(feb.margenPct - LE.porDentro.margenAnioPct) < 0.8)
+    ok(/menos volumen/.test(T2), "★ …y la LECTURA sale por umbral declarado: margen y acciones acompañan → «muestra menos volumen», la frase del owner con respaldo", T2);
+  ok(/no est[aá] en este dato/.test(T2), "…y la ley sigue en pie: el detonante de fondo no está en el dato");
+  ok((r2.r.agente.vetos || []).length === 0, "…con el muro sin nada que podar (cada cifra del mes está en la boleta)", JSON.stringify(r2.r.agente.vetos || []));
+  /* julio: el mes que el owner señaló como «la venta fue evolucionando, ¿por qué?» — su historia interna */
+  const r3 = await answerViaAgente({ text: "y julio, por que esta ahi?", history: hist, mem: r1.mem, scenario: ESC, callAgente: MUDO });
+  const T3 = String(r3.r.text || "");
+  const jul = LE.porDentro.meses.find((m) => /^jul/i.test(m.mes));
+  if (jul && (jul.esMargenMin || jul.esCargaMax))
+    ok(/por dentro s[ií] tiene historia/.test(T3) && T3.includes(jul.margenFmt),
+      "★ un mes no extremo CON historia interna la cuenta: el margen más bajo / la carga más alta, con sus cifras", T3.slice(0, 220));
+  ok((r3.r.agente.vetos || []).length === 0, "…también sin vetos", JSON.stringify(r3.r.agente.vetos || []));
+  /* la boleta autoriza TODOS los meses: el turno no sabe cuál va a nombrar el usuario */
+  const figsE = cuadroSentrix({ componentId: CID, scenario: ESC });
+  const labels = (figsE.boleta || []).map((f) => String(f.label || ""));
+  ok(labels.some((l) => /Feb · contribución/.test(l)) && labels.some((l) => /Jul · margen/.test(l)) && labels.some((l) => /margen del año/.test(l)),
+    "la herramienta pone los 12 meses por dentro EN LA BOLETA — una cifra del mes citada sin autorización moriría con el dato al lado");
+  ok(figsE.facts && figsE.facts.mesPorDentro && Array.isArray(figsE.facts.mesPorDentro.meses),
+    "…y el cerebro recibe mesPorDentro en facts");
+  const entPD = entregableDe(cuadroExplicado, "febrero es el mes mas bajo, por que?", { history: hist, mem: r1.mem });
+  ok(/mesPorDentro/.test(entPD) && /ANTES de hipotetizar/i.test(entPD),
+    "★ …con la doctrina: leer el mes por dentro ANTES de hipotetizar — el componente que se movió se afirma; el detonante se marca");
+  /* la ingesta real suma las mismas columnas por período — la fila de venta ya las trae */
+  const motor = sinComentarios(leer("src/ingesta/plantilla/motorKpi.js"));
+  ok(/unidades: Math\.round\(_sum\(delMes, \(r\) => r\.unidades\)\)/.test(motor) && /costo: Math\.round\(_sum\(delMes, \(r\) => r\.costo\)\)/.test(motor) && /acciones: Math\.round\(_sum\(delMes, \(r\) => r\.acciones\)\)/.test(motor),
+    "el archivo real del cliente alimenta lo mismo: la ingesta suma costo, unidades y acciones POR MES desde las filas de la hoja Ventas");
+}
+
 /* ═══ 6 · SIN DATO, SE DICE QUÉ FALTA ═══════════════════════════════════════════════════════════════════════ */
 H("6 · «si no existe dato suficiente para ese cuadro, debe decir exactamente qué falta»");
 {
@@ -696,6 +755,19 @@ H("10 · carnadas · cada garantía, probada ROJA sobre una copia mutada del có
       initTenant(TENANT_DEMO);
       const mem = { cuadroAbierto: { componentId: "comercial/01/evolutivo-serie", escenario: ESC, controles: {}, turno: 2 } };
       return Mut.cuadroExplicado.cuandoAplica("febrero es el mes mas bajo, por que?", { history: [{}, {}], mem }) !== true;
+    });
+
+  // (j) el ancla del mes por dentro, suelta → la contribución mensual deriva y deja de cerrar con la formación
+  await carnada("el mes por dentro pierde su ancla (los meses ya no cierran con la formación del margen)", "src/adi/sentrix/resumenComercial.js",
+    [[/const contribM = Number\.isFinite\(contribT\) && contribT > 0 \? anchorSerie\(rawContrib, contribT\) : rawContrib;/,
+      "const contribM = rawContrib.map((v) => Math.round(v * 1.05));"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const RB = Mut.buildResumenComercial(ESC);
+      const pd = RB && RB.evolutivo && RB.evolutivo.porDentro;
+      if (!pd) return false;
+      const s = pd.meses.reduce((x, m) => x + (Number(m.contribucion) || 0), 0);
+      return Math.abs(s - Number(RB.total.contribucion)) >= 1;   // el defecto: dos verdades de contribución en la misma cara
     });
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* limpieza best-effort */ } }

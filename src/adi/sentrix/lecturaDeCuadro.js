@@ -394,7 +394,13 @@ export function lecturaDeCuadro(componentId, { scenario = ESCENARIO_INICIAL, con
       falta: `el cuadro «${m.label}» no publica sus cifras en una forma que yo pueda citar verbatim.` };
   }
 
-  return { ok: true, identidad, cabecera, filas, textos, limite, corte, concentracion, patronAnual, filasLlave: fl ? fl.llave : null, n: filas.length };
+  /* EL MES POR DENTRO (owner 2026-09-09): si el builder lo publica, el lector lo SELECCIONA — cada cifra ya
+   * viene formateada y anclada a los totales de la propia cara (ver `_evolutivo.porDentro`). Y el EJE DE MESES
+   * del cuadro se expone tal cual lo pinta la pantalla: es lo que hace citable «abril» aunque ningún texto lo
+   * nombre — el cuadro lo nombra con su barra. */
+  const porDentro = node && node.porDentro && Array.isArray(node.porDentro.meses) ? node.porDentro : null;
+  const mesesDelCuadro = node && Array.isArray(node.meses) ? node.meses.map((m) => _txt(m)).filter(Boolean) : [];
+  return { ok: true, identidad, cabecera, filas, textos, limite, corte, concentracion, patronAnual, porDentro, mesesDelCuadro, filasLlave: fl ? fl.llave : null, n: filas.length };
 }
 
 /** los componentes que ESTE dato sabe leer — lo consume el gate para barrer el manifiesto entero. */

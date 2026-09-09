@@ -281,10 +281,18 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
   const ventasMensuales = periodos.map((per) => {
     const mes = MESES[Number(per.slice(5, 7)) - 1] || per;
     const prev = periodos[periodos.indexOf(per) - 1];
+    const delMes = ventas.filter((v) => v.periodo === per);
     return { mes, periodo: per,
-      actual: Math.round(_sum(ventas.filter((v) => v.periodo === per), (r) => r.venta)),
+      actual: Math.round(_sum(delMes, (r) => r.venta)),
       anterior: prev ? Math.round(_sum(ventas.filter((v) => v.periodo === prev), (r) => r.venta)) : null,
-      presupuesto: null };   // fuera de la v1
+      presupuesto: null,   // fuera de la v1
+      /* EL MES POR DENTRO (owner 2026-09-09): «bajó la contribución porque ganamos volumen pero perdimos
+       * margen… eso SÍ está en los datos». Las filas del mes ya traen costo, unidades y acciones — son las
+       * mismas columnas de la hoja Ventas, sumadas por período. La contribución y el margen del mes NO se
+       * guardan: salen de estos tres más la venta, con la fórmula declarada del negocio (la misma del KPI). */
+      unidades: Math.round(_sum(delMes, (r) => r.unidades)),
+      costo: Math.round(_sum(delMes, (r) => r.costo)),
+      acciones: Math.round(_sum(delMes, (r) => r.acciones)) };
   });
 
   /* ── KPI de cabecera · solo lo que es suma de hechos ──────────────────────────────────────────────────── */

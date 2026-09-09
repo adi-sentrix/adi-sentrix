@@ -307,19 +307,34 @@ export const margenKPI = { pct:25.6, pctAnt:23.8, totalUSD:25559, gapPuntos:1.8 
 
 export const invKPI = { totalUSD:135000, doh:48, inmovilizadoPct:41.3, inmovilizadoUSD:55800, sobrestockPct:24.6, riesgoPct:33.0 };
 
+/* ── EL MES POR DENTRO (owner 2026-09-09): «el mes más bajo fue porque hubo un incremento en acciones
+ * comerciales, aumentó el costo, bajó la contribución porque ganamos volumen pero perdimos margen… esas son las
+ * cosas que debemos saber, y eso SÍ está en los datos.» La planilla real lo trae fila por fila (fecha + costo +
+ * unidades + acciones), así que el demo lo declara igual: HECHOS mensuales, no derivados de la curva de venta.
+ *
+ * ⚠️ LAS SUMAS CIERRAN EXACTO con lo que la cara Comercial ya publica — una sola verdad por universo:
+ *   Σcosto 70,868 + Σacciones 4,075 + Σcontribución 25,057 = Σventa 100,000 (contribución = la de la cartera,
+ *   $25.1M) · Σunidades 5,703 = el KPI de cabecera · acciones 4,075 = pctRebate × venta del universo cliente.
+ * Las historias que estos meses cuentan están DECLARADAS acá, no inventadas por ADI:
+ *   Feb  → unidades mínimas con margen en línea (25.2%): faltó volumen, no precio — y repite el piso del año
+ *          anterior (estacionalidad, ver patronAnual).
+ *   Jul  → la mayor caída del año (desde Jun) llega con la carga de acciones más alta (5.5%) y el margen más
+ *          bajo (22.9%): se cedió margen y aún así la venta cayó.
+ *   Nov  → el mejor mes también es el mejor ganado: margen máximo (26.3%) con la carga mínima (3.4%).
+ *   Dic  → volumen máximo (560 unidades) cediendo margen (23.8%, carga 4.7%): se compró volumen. */
 export const ventasMensuales = [
-  { mes:"Ene", actual:6800,  anterior:6300, presupuesto:6500 },
-  { mes:"Feb", actual:6500,  anterior:6050, presupuesto:6300 },
-  { mes:"Mar", actual:7800,  anterior:7200, presupuesto:7500 },
-  { mes:"Abr", actual:7400,  anterior:6950, presupuesto:7400 },
-  { mes:"May", actual:8200,  anterior:7650, presupuesto:8000 },
-  { mes:"Jun", actual:8700,  anterior:8050, presupuesto:8400 },
-  { mes:"Jul", actual:8100,  anterior:7600, presupuesto:8100 },
-  { mes:"Ago", actual:9100,  anterior:8400, presupuesto:8700 },
-  { mes:"Sep", actual:8600,  anterior:7950, presupuesto:8500 },
-  { mes:"Oct", actual:9400,  anterior:8700, presupuesto:9100 },
-  { mes:"Nov", actual:9800,  anterior:9050, presupuesto:9500 },
-  { mes:"Dic", actual:9600,  anterior:9100, presupuesto:9000 },
+  { mes:"Ene", actual:6800,  anterior:6300, presupuesto:6500, unidades:389, costo:4830, acciones:270 },
+  { mes:"Feb", actual:6500,  anterior:6050, presupuesto:6300, unidades:360, costo:4628, acciones:234 },
+  { mes:"Mar", actual:7800,  anterior:7200, presupuesto:7500, unidades:446, costo:5509, acciones:310 },
+  { mes:"Abr", actual:7400,  anterior:6950, presupuesto:7400, unidades:423, costo:5262, acciones:295 },
+  { mes:"May", actual:8200,  anterior:7650, presupuesto:8000, unidades:469, costo:5800, acciones:325 },
+  { mes:"Jun", actual:8700,  anterior:8050, presupuesto:8400, unidades:497, costo:6128, acciones:345 },
+  { mes:"Jul", actual:8100,  anterior:7600, presupuesto:8100, unidades:468, costo:5800, acciones:445 },
+  { mes:"Ago", actual:9100,  anterior:8400, presupuesto:8700, unidades:520, costo:6429, acciones:360 },
+  { mes:"Sep", actual:8600,  anterior:7950, presupuesto:8500, unidades:491, costo:6101, acciones:340 },
+  { mes:"Oct", actual:9400,  anterior:8700, presupuesto:9100, unidades:537, costo:6624, acciones:370 },
+  { mes:"Nov", actual:9800,  anterior:9050, presupuesto:9500, unidades:543, costo:6893, acciones:330 },
+  { mes:"Dic", actual:9600,  anterior:9100, presupuesto:9000, unidades:560, costo:6864, acciones:451 },
 ];
 
 export const SUPERFAMILIAS = ["Todas","Electrodomésticos","Línea Blanca","Cuidado Personal","Materiales de Construcción"];
