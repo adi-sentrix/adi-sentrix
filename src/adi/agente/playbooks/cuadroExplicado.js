@@ -342,7 +342,11 @@ export const cuadroExplicado = {
     if (c.elemento || c.porQue) {
       return [
         `${cab}.`,
-        `El usuario pregunta por ${c.elemento ? `«${c.elemento.nombre}»` : "un porqué"} de ese cuadro. ANTES de hipotetizar, lee EL MES POR DENTRO si viene en los resultados (mesPorDentro: unidades, contribución, margen y acciones comerciales de cada mes contra su año — hechos del dato, anclados a la formación del margen): qué componente se movió ese mes ES respaldo y se afirma con sus cifras («ganaste volumen y cediste margen», «faltó volumen con el margen acompañando»). LA CAUSA NO ESTÁ EN EL DATO cuando hablas del detonante de fondo —calendario, un cliente que cambió, el mercado— y eso se dice: jamás lo afirmes como hecho. Ahí razona como asesor: hipótesis MARCADAS como criterio tuyo («es criterio mío», «el dato no lo confirma»), qué las confirmaría, y el hecho que la serie sí sostiene (patronAnual: un extremo que SE REPITE contra el año anterior apunta a estacionalidad; uno nuevo, a algo de este año). Cierra con la verificación concreta que harías.`,
+        `El usuario pregunta por ${c.elemento ? `«${c.elemento.nombre}»` : "un porqué"} de ese cuadro. RESPONDE EN TRES PASOS, EN ESTE ORDEN — es el método de la casa para todo porqué de un mes o de una caída:`,
+        `(1) EL MECANISMO MEDIDO DEL NEGOCIO, PRIMERO. Lee mesPorDentro en los resultados (unidades, contribución, margen y acciones comerciales de cada mes contra su año, anclados a la formación del margen) y di QUÉ SE MOVIÓ —volumen, margen o acciones comerciales— CON LAS CIFRAS QUE LO SOSTIENEN. Si afirmas «fue volumen y no margen ni acciones», tienes que mostrar las tres: el volumen del mes contra el promedio, el margen del mes contra el del año y la carga de acciones contra la del año. Ejemplo del dueño: «Febrero fue bajo principalmente por volumen: tuvo 360 unidades, bajo el promedio del año; el margen se mantuvo cerca del promedio y las acciones comerciales no saltaron.» Una conclusión sin sus cifras es una opinión con cara de medición, y se veta.`,
+        `(2) DESPUÉS TU HIPÓTESIS, MARCADA. Ejemplo del dueño: «Mi hipótesis es que puede haber estacionalidad, porque febrero también fue bajo el año anterior. Pero eso no está probado solo con este dato.» Tu criterio de mundo ES un aporte y se espera — pero va rotulado y hablando del NEGOCIO DEL USUARIO. PROHIBIDO afirmar cómo se comporta un sector, una industria o un mercado («el sector históricamente cae en febrero», «los clientes retail típicamente reducen compras»): no tienes fuente para eso y llega al lector como estadística. Sin fuente declarada, no se dice.`,
+        `(3) CIERRA PREGUNTÁNDOLE AL DUEÑO, CONCRETO. No necesitas saberlo todo: lo que falta lo sabe él, y consultarlo bien es la asesoría. Ejemplo del dueño: «¿Febrero suele ser un mes bajo en tu negocio, o ese año pasó algo puntual con clientes grandes, stock o campañas?» Con opciones y nombrando cosas de su negocio —campaña, quiebre de stock, un cliente grande, una negociación, el calendario—. «¿Seguimos?» o «¿te lo abro?» NO son esa pregunta y se vetan.`,
+        `El hecho que la serie sí sostiene entra en el paso 2 como señal, no como causa (patronAnual: un extremo que SE REPITE contra el año anterior apunta a estacionalidad; uno nuevo, a algo de este año).`,
       ].join(" ");
     }
     /* el ARCO es el que el owner escribió a mano (2026-09-08) — su texto es el estándar de esta entrega */
@@ -427,64 +431,80 @@ export const cuadroExplicado = {
         const mgAlto = mgMes != null && mgAnio != null && mgMes - mgAnio >= EN_LINEA_PP;
         const cgAlta = cgMes != null && cgAnio != null && cgMes - cgAnio >= EN_LINEA_PP;
         const volBajo = !!(pd && (pd.esUnidadesMin || (pd0.unidadesProm && pd.unidades < pd0.unidadesProm)));
-        const cruce = pd
-          ? `Por dentro: ${pd.unidades} unidades${pd.esUnidadesMin ? " —las menos del año—" : pd.esUnidadesMax ? " —las más del año—" : ""}, contribución ${pd.contribucionFmt} (margen ${pd.margenFmt}) y ${pd.accionesFmt} en acciones comerciales (${pd.cargaFmt} de la venta).`
+        /* ── EL MÉTODO DEL PORQUÉ · TRES PASOS, EN ESTE ORDEN (owner 2026-09-09, novena entrega) ───────────
+         * «No quiero prohibir que ADI mezcle criterio de mundo; eso es aporte. Pero debe hacerlo con método:
+         *  (1) primero el mecanismo MEDIDO del negocio, (2) después la hipótesis del asesor, marcada,
+         *  (3) después una pregunta para corroborar con el usuario. ADI no necesita saber todo: si falta
+         *  contexto, debe consultar bien al usuario para cerrar la lectura. Eso es asesoría: medir, proponer
+         *  hipótesis y validar con el dueño.»
+         * Y su condición dura: «si afirma "fue volumen y no margen/acciones", debe MOSTRAR las cifras que
+         * sostienen esa lectura». Por eso cada mecanismo de acá viaja con las suyas — el mes contra su año,
+         * las tres componentes nombradas. La pregunta del paso 3 apunta a lo que el dato NO tiene y el dueño SÍ
+         * sabe (calendario, un cliente grande, stock, una campaña): concreta, con opciones, nunca «¿seguimos?». */
+        const _prom = pd0 && Number.isFinite(pd0.unidadesProm) ? pd0.unidadesProm : null;
+        const _uds = pd ? `${pd.unidades} unidades${_prom ? ` contra un promedio de ${_prom} en el año` : ""}` : null;
+        const _mgVs = pd && pd0 ? `${pd.margenFmt} contra ${pd0.margenAnioFmt} del año` : null;
+        const _cgVs = pd && pd0 ? `${pd.cargaFmt} contra ${pd0.cargaAnioFmt}` : null;
+        /* PASO 1 · el mecanismo medido, con TODAS las cifras que lo sostienen — nunca la conclusión sola */
+        const mecanismo = (() => {
+          if (!pd || !pd0) return null;
+          if (mgBajo && cgAlta) return `Ese mes cediste margen: las acciones comerciales subieron a ${_cgVs} (${pd.accionesFmt} en total) y el margen quedó en ${_mgVs}, con ${_uds}.`;
+          if (mgBajo && pd.esUnidadesMax) return `Ganaste volumen y cediste margen: ${_uds}, con el margen en ${_mgVs} y las acciones comerciales en ${_cgVs} (${pd.accionesFmt}).`;
+          if (mgBajo) return `El margen del mes quedó bajo el del año (${_mgVs}) sin que las acciones comerciales se movieran (${_cgVs}): la diferencia vive en el costo o en la mezcla de lo que vendiste, y este cuadro no los separa.`;
+          if (mgAlto || (esMax && (pd.esMargenMax || pd.esCargaMin))) return `Y fue bien ganado: el margen quedó en ${_mgVs}${pd.esMargenMax ? " —el mejor del año—" : ""}, con las acciones comerciales en ${_cgVs}${pd.esCargaMin ? " —la carga más baja del año—" : ""}, sobre ${_uds}.`;
+          if (volBajo) return `Fue por volumen: ${_uds}. El margen se mantuvo en línea (${_mgVs}) y las acciones comerciales no saltaron (${_cgVs}), así que no es margen cedido ni una entrega comercial puntual.`;
+          return `Por dentro: ${_uds}, contribución ${pd.contribucionFmt} (margen ${_mgVs}) y ${pd.accionesFmt} en acciones comerciales (${_cgVs}).`;
+        })();
+        /* PASO 2 · la hipótesis del asesor, SIEMPRE marcada — y solo sobre el negocio del usuario, jamás una
+         * afirmación sobre «el sector» (el owner la vetó: sin fuente declarada, esa frase no se dice) */
+        const _comparable = pa ? (/anterior/i.test(pa.serieComparable) ? "el año anterior" : pa.serieComparable) : null;
+        const seRepite = pa ? (esMin ? pa.minSeRepite : esMax ? pa.maxSeRepite : false) : false;
+        const hipotesis = !pa ? null : (esMin || esMax)
+          ? (seRepite
+            ? `Mi hipótesis es que hay estacionalidad, porque ${el.nombre} también fue el ${esMin ? "más bajo" : "más alto"} ${_comparable === "el año anterior" ? "el año anterior" : `en ${_comparable}`}. Con este dato solo no está probado: la repetición es una señal, no la causa.`
+            : `Mi hipótesis es que esto es de este año y no un patrón: ${_comparable === "el año anterior" ? "el año anterior" : _comparable} el ${esMin ? "piso" : "pico"} fue otro mes. Con este dato solo no está probado.`)
           : null;
+        /* PASO 3 · la pregunta concreta al dueño — pide el contexto que el dato no tiene, con opciones */
+        const pregunta = (() => {
+          const M = el.nombre;
+          if (pd && mgBajo && cgAlta) return `¿Esa entrega extra de ${M} fue una negociación puntual con un cliente grande, una campaña planificada, o una corrección de precios?`;
+          if (pd && mgBajo && pd.esUnidadesMax) return `¿Ese volumen de ${M} se compró con una promoción declarada, o fue una negociación puntual con un cliente grande?`;
+          if (esMax) return `¿Qué hiciste distinto en ${M}: mejor mezcla de productos, menos descuento negociado, o un cliente que compró más caro?`;
+          if (seRepite) return `¿${M[0].toUpperCase()}${M.slice(1)} suele ser un mes bajo en tu negocio, o ese año pasó algo puntual con clientes grandes, stock o campañas?`;
+          return `¿Qué cambió en ${M}: un cliente grande que no compró, un quiebre de stock, o una campaña que no salió?`;
+        })();
         if (esMin || esMax) {
           p.push(`${el.nombre[0].toUpperCase()}${el.nombre.slice(1)} es el ${esMin ? "piso" : "pico"} del año${cifra ? ` (${cifra.valor})` : ""}.`);
-          if (c.porQue) p.push(cruce
-            ? `El detonante externo no está en este dato — lo que sí está es el mes por dentro.`
-            : `El porqué exacto no está en este dato: la serie muestra cuánto se vendió cada mes, no qué lo causó.`);
-          if (cruce) p.push(cruce);
-          if (pd && esMin) {
-            if (mgBajo && cgAlta) p.push(`La lectura: ese mes cediste más en acciones comerciales (${pd.cargaFmt} contra ${pd0.cargaAnioFmt} del año) y el margen lo pagó (${pd.margenFmt} contra ${pd0.margenAnioFmt}).`);
-            else if (mgBajo) p.push(`La lectura: el margen del mes (${pd.margenFmt}) quedó bajo el del año (${pd0.margenAnioFmt}) sin que las acciones se movieran — la diferencia vive en el costo o la mezcla, y este cuadro no los separa.`);
-            else if (volBajo) p.push(`La lectura: ese mes no muestra un problema de margen ni de acciones — muestra menos volumen, con el margen acompañando al del año (${pd0.margenAnioFmt}).`);
-          }
-          if (pd && esMax) {
-            if (pd.esMargenMax || mgAlto) p.push(`Y fue bien ganado: margen ${pd.margenFmt}${pd.esMargenMax ? " —el mejor del año—" : ""}${pd.esCargaMin ? ` con la carga de acciones más baja del año (${pd.cargaFmt})` : ""}.`);
-            else if (mgBajo) p.push(`Y ojo: ese pico se compró — margen ${pd.margenFmt}, bajo el del año (${pd0.margenAnioFmt}), con ${pd.accionesFmt} en acciones comerciales (${pd.cargaFmt}).`);
-          }
-          if (pa) {
-            const _comparable = /anterior/i.test(pa.serieComparable) ? "el año anterior" : pa.serieComparable;
-            p.push((esMin ? pa.minSeRepite : pa.maxSeRepite)
-              ? `${cruce ? "Y no es nuevo" : "Lo que la serie sí dice"}: también fue el ${esMin ? "piso" : "pico"} d${_comparable === "el año anterior" ? "el año anterior" : `e ${_comparable}`}. Cuando el mismo mes repite el extremo dos años seguidos, eso apunta a la estacionalidad de tu negocio — no a un problema puntual de este año.`
-              : `Y hay una señal que importa: ${_comparable === "el año anterior" ? "el año anterior" : _comparable} el ${esMin ? "piso" : "pico"} fue OTRO mes. Esto es de este año, no un patrón que se repita — vale la pena mirar qué cambió.`);
-          }
-          p.push(variante(semilla, [
-            `Puedo compararte ese mes contra el mismo mes del año anterior, o seguimos por otra parte del cuadro.`,
-            `Si quieres, lo pongo contra el mismo mes del año anterior. Tu calendario comercial es la otra mitad de esta respuesta.`,
-            `Dime si seguimos por ese mes o por otra dimensión del cuadro.`,
-          ]));
+          if (mecanismo) p.push(mecanismo);
+          else if (c.porQue) p.push(`El porqué exacto no está en este dato: la serie muestra cuánto se vendió cada mes, no qué lo causó.`);
+          if (hipotesis) p.push(hipotesis);
+          p.push(pregunta);
           return p.join("\n");
         }
         /* un mes que no es extremo: se dice qué lugar ocupa sin inventarle drama — CON las cifras de los
          * extremos, que es lo que ubica al mes (y sin ellas la respuesta quedaba desanclada del cuadro:
          * el propio veto (1) la mataba y el turno caía al rescate — medido con «y julio, ¿por qué?»).
-         * Y si el mes por dentro trae historia (el margen más bajo del año, la carga más alta), SE DICE:
-         * era exactamente lo que el owner pedía saber de estos meses. */
+         * El método de tres pasos es el mismo: mecanismo medido → hipótesis marcada → pregunta concreta. */
         const cMax = _cab(L, "max"), cMin = _cab(L, "min");
         const extremos = pa ? ` — esos son ${pa.mesMax || "?"}${cMax ? ` (${cMax.valor})` : ""} y ${pa.mesMin || "?"}${cMin ? ` (${cMin.valor})` : ""}` : "";
         p.push(`${el.nombre[0].toUpperCase()}${el.nombre.slice(1)} no es ni el pico ni el piso de tu año${extremos}.`);
-        if (pd && (pd.esMargenMin || pd.esCargaMax)) {
-          p.push(`Pero por dentro sí tiene historia: ${[pd.esMargenMin ? `el margen más bajo del año (${pd.margenFmt})` : `margen ${pd.margenFmt}`, pd.esCargaMax ? `la carga de acciones comerciales más alta (${pd.cargaFmt})` : null].filter(Boolean).join(" con ")} — ese mes se cedió más y quedó menos por peso vendido.`);
-        } else if (pd && pd.esUnidadesMax && mgBajo) {
-          /* la frase del owner, con sus cifras: «ganamos volumen pero perdimos margen» */
-          p.push(`Pero por dentro sí tiene historia: ganaste volumen (${pd.unidades} unidades, las más del año) cediendo margen (${pd.margenFmt} contra ${pd0.margenAnioFmt} del año) — ese mes el volumen se compró.`);
-        } else if (cruce) {
-          p.push(cruce);
-        }
-        if (c.porQue) p.push(`${pd ? "El detonante externo" : "Y el porqué de cada mes"} no está en este dato: ${pd ? "estos son los componentes del mes, no la causa de fondo — esa se verifica, no se afirma" : "la serie trae el cuánto, no la causa"}.`);
-        p.push(variante(semilla, [`¿Seguimos por los extremos, o por otra parte del cuadro?`, `Puedo abrirte el pico o el piso del año si te sirve.`, `Dime dónde profundizamos.`]));
+        if (mecanismo) p.push(pd && (pd.esMargenMin || pd.esCargaMax || pd.esUnidadesMax) ? `Pero por dentro sí tiene historia. ${mecanismo}` : mecanismo);
+        if (c.porQue) p.push(`${pd ? "El detonante de fondo" : "Y el porqué de cada mes"} no está en este dato: ${pd ? "eso lo sabes tú, y con eso cierro la lectura" : "la serie trae el cuánto, no la causa"}.`);
+        p.push(pregunta);
         return p.join("\n");
       }
-      /* una FILA nombrada (que ningún playbook anterior tomó): su cifra, sus señales, y la ley del porqué */
+      /* una FILA nombrada (que ningún playbook anterior tomó) · MISMO MÉTODO DE TRES PASOS: lo medido con sus
+       * cifras → lo que este cuadro NO puede sostener → la pregunta concreta al dueño. Para una fila la
+       * «hipótesis» honesta es corta: el cuadro localiza dónde pasa, no por qué — así que el peso cae en la
+       * pregunta, que es justamente donde el dueño tiene lo que falta. */
       if (el.fila) {
         const pr = _principal(el.fila);
+        const otras = (el.fila.cifras || []).filter((x) => x !== pr && x.valor && /\d/.test(x.valor)).slice(0, 2);
         const dichos = (el.fila.senales || []).filter((s) => s.alerta).map((s) => s.dice);
         p.push(`${el.nombre}${pr ? `: ${pr.label.toLowerCase()} ${pr.valor}` : ""}${dichos.length ? ` — ${dichos.slice(0, 2).join(", y ")}` : ""}.`);
-        if (c.porQue) p.push(`El porqué no está en este cuadro: localiza dónde pasa, no la causa.`);
-        p.push(variante(semilla, [`¿Te abro esa fila por dentro?`, `Puedo profundizar en ella o en una dimensión del cuadro.`, `Dime si la abrimos.`]));
+        if (otras.length) p.push(`Lo que el cuadro mide de esa cuenta: ${otras.map((x) => `${x.label.toLowerCase()} ${x.valor}`).join(" · ")}.`);
+        if (c.porQue) p.push(`Por qué se mueve así no está en este cuadro: localiza dónde pasa, no la causa. Eso lo sabes tú.`);
+        p.push(`¿Qué pasó con ${el.nombre}: te compró menos por precio, cambió su mezcla de productos, hubo un quiebre de stock, o entró un competidor?`);
         return p.join("\n");
       }
     }
@@ -758,8 +778,18 @@ export const cuadroExplicado = {
        * las tres series («Este año», «Año anterior», «Presupuesto»), y una lectura que habla de meses y montos
        * no nombra ninguna. Estaba vetando una respuesta que citaba TRES cifras del propio cuadro. El anclaje se
        * demuestra con la evidencia usada, no solo con los rótulos de las filas. */
-      const citaSusCifras = [...(c.L.cabecera || []), ...(c.L.filas || []).flatMap((f) => f.cifras || [])]
-        .filter((x) => x.valor && /\d/.test(x.valor) && t.includes(x.valor)).length >= 2;
+      /* ⚠️ Y EL MES POR DENTRO TAMBIÉN ES «SUS CIFRAS» (owner 2026-09-09): al pedir que el mecanismo viaje con
+       * su respaldo, la respuesta correcta se apoya en unidades/margen/carga del mes — que el builder publica
+       * y la boleta autoriza, pero que este veto no miraba. Sin esto, exigir las cifras del mes y a la vez
+       * vetar por citarlas: la casa contra sí misma. Medido con «fue por volumen: 360 unidades…». */
+      const _delMesPorDentro = (c.L.porDentro && Array.isArray(c.L.porDentro.meses))
+        ? [...c.L.porDentro.meses.flatMap((m) => [m.contribucionFmt, m.margenFmt, m.accionesFmt, m.cargaFmt, String(m.unidades)]),
+           c.L.porDentro.margenAnioFmt, c.L.porDentro.cargaAnioFmt, String(c.L.porDentro.unidadesProm)]
+        : [];
+      const citaSusCifras = [
+        ...[...(c.L.cabecera || []), ...(c.L.filas || []).flatMap((f) => f.cifras || [])].map((x) => x.valor),
+        ..._delMesPorDentro,
+      ].filter((val) => val && /\d/.test(val) && t.includes(val)).length >= 2;
       if (!nombra && !nombraElCuadro && !citaSusCifras) {
         v.push({ regla: "cuadro-desanclado", multa: `el usuario pidió el cuadro «${I.cuadro}» y tu respuesta no nombra ni una de sus filas ni lo que mide: explica ESE cuadro, no el negocio en general.` });
       }
@@ -832,6 +862,60 @@ export const cuadroExplicado = {
       if (tx.texto && tx.texto.length > 25 && t.includes(tx.texto)) {
         v.push({ regla: "cuadro-calcado", multa: `copias textual la frase que el propio cuadro ya muestra en pantalla («${tx.texto.slice(0, 60)}…»): aporta interpretación, no duplicación.` });
         break;
+      }
+    }
+
+    /* ── EL MÉTODO DEL PORQUÉ, EXIGIDO (owner 2026-09-09, novena entrega) ───────────────────────────────────
+     * «Primero el mecanismo MEDIDO del negocio; después la hipótesis del asesor, marcada; después una pregunta
+     *  para corroborar con el usuario… Si afirma "fue volumen y no margen/acciones", debe mostrar las cifras
+     *  que sostienen esa lectura… Evitar frases sectoriales fuertes salvo que haya fuente o contexto
+     *  declarado… Las preguntas al usuario deben ser concretas, no genéricas.»
+     * Las tres reglas de abajo son ESO, y solo aplican al turno del porqué: en una lectura normal del cuadro
+     * no hay mecanismo que sostener ni pregunta que hacer. */
+    const esPorQue = !!(c.porQue || c.elemento);
+    if (esPorQue) {
+      /* (6) UN MECANISMO AFIRMADO VIAJA CON SUS CIFRAS. Decir «fue volumen, no margen» es una afirmación sobre
+       * el negocio: sin las cifras que la sostienen es una opinión con cara de medición. Se exigen DOS del mes
+       * en cuestión (el conjunto autorizado es el del propio cuadro, así que citarlas es gratis para quien de
+       * verdad las miró). */
+      const _MECANISMO = /\b(?:fue|es|vino)\s+(?:por\s+)?(?:el\s+)?volumen\b|\bno\s+es\s+(?:el\s+)?margen\b|\bcedis?te?\s+margen\b|\bperdi(?:mos|ste|ó)\s+margen\b|\bganas?te?\s+volumen\b|\bcay[óo]\s+el\s+volumen\b|\bno\s+(?:es|fue)\s+(?:una\s+)?acci[oó]n(?:es)?\s+comercial(?:es)?\b|\bel\s+margen\s+(?:se\s+mantuvo|no\s+se\s+movi[óo]|acompañ[óa])(?![\wáéíóúñ])/i;   // ⚠️ lookahead, no \b: tras «ó» el \b de JS no existe (la familia de «facturó»)
+      if (_MECANISMO.test(t)) {
+        const delMes = (() => {
+          const pdm = c.L.porDentro && Array.isArray(c.L.porDentro.meses) ? c.L.porDentro.meses : [];
+          const abr = c.elemento && c.elemento.abr;
+          const fila = abr ? pdm.find((m) => String(m.mes || "").toLowerCase().startsWith(abr)) : null;
+          const cifras = [];
+          if (fila) cifras.push(fila.margenFmt, fila.cargaFmt, fila.accionesFmt, fila.contribucionFmt, String(fila.unidades));
+          if (c.L.porDentro) cifras.push(c.L.porDentro.margenAnioFmt, c.L.porDentro.cargaAnioFmt, String(c.L.porDentro.unidadesProm));
+          return cifras.filter((x) => x && /\d/.test(x));
+        })();
+        const citadas = new Set(delMes.filter((x) => t.includes(x))).size;
+        if (delMes.length && citadas < 2) {
+          v.push({ regla: "mecanismo-sin-cifras", multa: `afirmas QUÉ movió el mes (volumen, margen o acciones comerciales) sin mostrar las cifras que lo sostienen: ese mes trae ${delMes.slice(0, 4).join(" · ")} y el año su referencia. Muestra al menos dos, o no lo afirmes.` });
+        }
+      }
+
+      /* (7) NADA DE ESTADÍSTICA DE SECTOR SIN FUENTE. Salió de la pantalla del owner: «el sector
+       * electrodomésticos y línea blanca históricamente cae en febrero» — suena a serie histórica de industria
+       * y no lo es. Hipotetizar sobre EL NEGOCIO DEL USUARIO sigue permitido y es el aporte; afirmar cómo se
+       * comporta un sector entero necesita una fuente declarada, y acá no hay ninguna. Marcarlo como criterio
+       * propio NO alcanza: la frase igual llega al lector como dato de industria. */
+      const _SUJETO_SECTOR = "(?:el\\s+sector|la\\s+industria|el\\s+mercado|el\\s+rubro|el\\s+retail|el\\s+canal\\s+retail|los\\s+clientes\\s+retail|el\\s+comercio|la\\s+categor[ií]a)";
+      const _HABITO = "(?:hist[oó]ricamente|t[ií]picamente|por\\s+lo\\s+general|generalmente|suele[n]?|tiende[n]?\\s+a|siempre|normalmente|en\\s+general)";
+      const _FUENTE = /seg[uú]n\s+(?:tu|lo que|el dato|la fuente)|que\s+(?:tú\s+)?declaraste|me\s+dijiste|tu\s+benchmark|el\s+dato\s+que\s+cargaste/i;
+      const _sectorial = new RegExp(`${_SUJETO_SECTOR}[^.;\\n]{0,60}${_HABITO}|${_HABITO}[^.;\\n]{0,40}${_SUJETO_SECTOR}`, "i");
+      const _mSec = t.match(_sectorial);
+      if (_mSec && !_FUENTE.test(t)) {
+        v.push({ regla: "sectorial-sin-fuente", multa: `escribes «${String(_mSec[0]).slice(0, 70)}…»: eso afirma cómo se comporta un sector entero y no tienes fuente para sostenerlo. Habla del NEGOCIO DEL USUARIO —su calendario, sus clientes, sus campañas— como hipótesis tuya, o pregúntaselo.` });
+      }
+
+      /* (8) EL PORQUÉ CIERRA PREGUNTANDO, Y CONCRETO. «ADI no necesita saber todo: si falta contexto, debe
+       * consultar bien al usuario para cerrar la lectura.» Una oferta de navegación («¿seguimos?», «¿te lo
+       * abro?») NO es esa pregunta: no pide el contexto que falta. La concreta nombra algo del negocio. */
+      const _CONCRETA = /\b(?:campañ|promoci|stock|quiebre|cliente|clientes|precio|precios|negociaci|descuento|calendario|temporada|mes bajo|proveedor|mezcla|mix|inventario|licitaci|contrato)/i;
+      const preguntas = (t.match(/[^.!?\n]*\?/g) || []).filter((q) => q.trim().length > 12);
+      if (!preguntas.some((q) => _CONCRETA.test(q))) {
+        v.push({ regla: "porque-sin-pregunta", multa: `cierras el porqué sin preguntarle nada concreto al usuario. El detonante lo sabe él: pregúntale por lo que el dato no tiene —si ese mes suele ser bajo, si hubo una campaña, un quiebre de stock o un cliente grande que no compró—, con opciones, no un «¿seguimos?».` });
       }
     }
     return v;

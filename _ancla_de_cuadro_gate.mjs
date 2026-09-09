@@ -33,7 +33,7 @@ import { initTenant, getTenantId } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
 import { playbookPara, pasosDe, obligatoriasDe, entregableDe, doctrinaDelPlaybook, vetosDelPlaybook } from "./src/adi/agente/playbooks/registro.js";
-import { cuadroExplicado } from "./src/adi/agente/playbooks/cuadroExplicado.js";
+import { cuadroExplicado, _olvidarMemoDelCuadro } from "./src/adi/agente/playbooks/cuadroExplicado.js";
 import { lecturaDeCuadro } from "./src/adi/sentrix/lecturaDeCuadro.js";
 import { cuadroSentrix, cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";
 import { CONTRATOS_AGENTE } from "./src/adi/agente/catalogoAgente.js";
@@ -441,8 +441,9 @@ H("5i · el elemento nombrado — el porqué honesto, con el hecho que la serie 
   const cMin = (LE.cabecera || []).find((x) => x.clave === "min");
   ok(/piso del año/.test(T2) && !!cMin && T2.includes(cMin.valor),
     "…y responde con la cifra que el cuadro publica (el piso, del builder vivo)", T2.split("\n")[0]);
-  ok(/no est[aá] en este dato/.test(T2), "★ la ley va primero: la causa NO está en el dato — jamás se afirma como hecho");
-  ok(LE.patronAnual.minSeRepite ? /tambi[eé]n fue el piso/.test(T2) && /estacionalidad/.test(T2) : /OTRO mes/.test(T2),
+  ok(/no est[aá] probado|no est[aá] en este dato/.test(T2) && /hip[oó]tesis|criterio m[ií]o/i.test(T2),
+    "★ la ley sigue en pie con la forma nueva: lo que no está medido va como HIPÓTESIS y se declara no probado — jamás como hecho", T2);
+  ok(LE.patronAnual.minSeRepite ? /tambi[eé]n fue el (?:piso|m[aá]s bajo)/.test(T2) && /estacionalidad/.test(T2) : /otro mes/i.test(T2),
     "★ …más el HECHO que la serie sí sostiene: extremo repetido → estacionalidad; extremo nuevo → de este año", T2.slice(0, 260));
   ok((r2.r.agente.vetos || []).length === 0, "…y el muro no tuvo nada que podar", JSON.stringify(r2.r.agente.vetos || []));
   /* un mes que NO es extremo se ubica sin drama — Y ANCLADO: sin las cifras de los extremos al lado, el propio
@@ -469,7 +470,7 @@ H("5i · el elemento nombrado — el porqué honesto, con el hecho que la serie 
   ok(figsE.facts && figsE.facts.patronAnual && typeof figsE.facts.patronAnual.minSeRepite === "boolean",
     "la herramienta expone el patrón anual en facts — meses y booleanos, cero cifras nuevas");
   const entPQ = entregableDe(cuadroExplicado, "febrero es el mes mas bajo, por que?", { history: hist, mem: r1.mem });
-  ok(/LA CAUSA NO EST[AÁ] EN EL DATO/.test(entPQ) && /hip[oó]tesis MARCADAS/i.test(entPQ) && /patronAnual/.test(entPQ),
+  ok(/TRES PASOS/.test(entPQ) && /HIPÓTESIS, MARCADA/i.test(entPQ) && /patronAnual/.test(entPQ),
     "★ y al cerebro se le pide el porqué de asesor: la ley primero, hipótesis marcadas como criterio, el patrón si viene, y la verificación concreta");
 }
 
@@ -501,12 +502,14 @@ H("5j · el mes por dentro — el porqué interno se lee del dato, anclado a la 
   const r2 = await answerViaAgente({ text: "febrero es el mes más bajo, ¿por qué?", history: hist, mem: r1.mem, scenario: ESC, callAgente: MUDO });
   const T2 = String(r2.r.text || "");
   const feb = LE.porDentro.meses.find((m) => /^feb/i.test(m.mes));
-  ok(!!feb && T2.includes(feb.contribucionFmt) && T2.includes(feb.accionesFmt) && T2.includes(String(feb.unidades)),
-    "★★ la respuesta trae EL MES POR DENTRO con las cifras del builder (contribución · acciones · unidades)", T2.slice(0, 220));
+  ok(!!feb && T2.includes(String(feb.unidades)) && T2.includes(String(LE.porDentro.unidadesProm)) && T2.includes(feb.margenFmt)
+    && T2.includes(LE.porDentro.margenAnioFmt) && T2.includes(feb.cargaFmt) && T2.includes(LE.porDentro.cargaAnioFmt),
+    "★★ el mecanismo viaja CON LAS CIFRAS QUE LO SOSTIENEN: volumen contra el promedio, margen contra el del año, carga contra la del año", T2.slice(0, 260));
   if (feb && feb.esUnidadesMin && typeof feb.margenPct === "number" && typeof LE.porDentro.margenAnioPct === "number"
       && Math.abs(feb.margenPct - LE.porDentro.margenAnioPct) < 0.8)
-    ok(/menos volumen/.test(T2), "★ …y la LECTURA sale por umbral declarado: margen y acciones acompañan → «muestra menos volumen», la frase del owner con respaldo", T2);
-  ok(/no est[aá] en este dato/.test(T2), "…y la ley sigue en pie: el detonante de fondo no está en el dato");
+    ok(/por volumen/.test(T2) && /se mantuvo en l[ií]nea/.test(T2) && /no saltaron/.test(T2),
+      "★ …y la LECTURA sale por umbral declarado: «fue por volumen; el margen se mantuvo en línea y las acciones no saltaron» — el ejemplo del owner, con respaldo", T2);
+  ok(/\?/.test(T2.trim().split("\n").pop() || ""), "…y el turno CIERRA PREGUNTÁNDOLE al dueño, que es donde vive el detonante", T2.trim().split("\n").pop());
   ok((r2.r.agente.vetos || []).length === 0, "…con el muro sin nada que podar (cada cifra del mes está en la boleta)", JSON.stringify(r2.r.agente.vetos || []));
   /* julio: el mes que el owner señaló como «la venta fue evolucionando, ¿por qué?» — su historia interna */
   const r3 = await answerViaAgente({ text: "y julio, por que esta ahi?", history: hist, mem: r1.mem, scenario: ESC, callAgente: MUDO });
@@ -524,12 +527,108 @@ H("5j · el mes por dentro — el porqué interno se lee del dato, anclado a la 
   ok(figsE.facts && figsE.facts.mesPorDentro && Array.isArray(figsE.facts.mesPorDentro.meses),
     "…y el cerebro recibe mesPorDentro en facts");
   const entPD = entregableDe(cuadroExplicado, "febrero es el mes mas bajo, por que?", { history: hist, mem: r1.mem });
-  ok(/mesPorDentro/.test(entPD) && /ANTES de hipotetizar/i.test(entPD),
-    "★ …con la doctrina: leer el mes por dentro ANTES de hipotetizar — el componente que se movió se afirma; el detonante se marca");
+  ok(/mesPorDentro/.test(entPD) && /MECANISMO MEDIDO DEL NEGOCIO, PRIMERO/.test(entPD),
+    "★ …con la doctrina: el mecanismo medido va PRIMERO y con sus cifras; el detonante se marca y se pregunta");
   /* la ingesta real suma las mismas columnas por período — la fila de venta ya las trae */
   const motor = sinComentarios(leer("src/ingesta/plantilla/motorKpi.js"));
   ok(/unidades: Math\.round\(_sum\(delMes, \(r\) => r\.unidades\)\)/.test(motor) && /costo: Math\.round\(_sum\(delMes, \(r\) => r\.costo\)\)/.test(motor) && /acciones: Math\.round\(_sum\(delMes, \(r\) => r\.acciones\)\)/.test(motor),
     "el archivo real del cliente alimenta lo mismo: la ingesta suma costo, unidades y acciones POR MES desde las filas de la hoja Ventas");
+}
+
+/* ═══ 5k · EL MÉTODO DEL PORQUÉ (owner 2026-09-09, novena entrega — tras ver la v2.20 en su pantalla) ═══════
+ * «No quiero prohibir que ADI mezcle criterio de mundo; eso es aporte. Pero debe hacerlo con MÉTODO. Orden
+ *  esperado: (1) primero el mecanismo medido del negocio; (2) después la hipótesis del asesor, marcada;
+ *  (3) después una pregunta para corroborar con el usuario. ADI no necesita saber todo. Si falta contexto,
+ *  debe consultar bien al usuario para cerrar la lectura. Eso es asesoría: medir, proponer hipótesis y validar
+ *  con el dueño. Además: si afirma "fue volumen y no margen/acciones", debe mostrar las cifras que sostienen
+ *  esa lectura · evitar frases sectoriales fuertes como "el sector históricamente cae" salvo que haya fuente o
+ *  contexto declarado · las preguntas al usuario deben ser concretas, no genéricas.»
+ * Lo que lo disparó: en producción, ADI escribió «los clientes retail típicamente reducen compras después de
+ * enero» y «el sector electrodomésticos y línea blanca históricamente cae en febrero» — con el rótulo «criterio
+ * mío» puesto, pero sin fuente y con la conclusión medida («el volumen cayó») sin mostrar UNA cifra. */
+H("5k · el método del porqué — medir con cifras · hipotetizar marcado · preguntarle al dueño");
+{
+  const CID = "comercial/01/evolutivo-serie";
+  const LE = lecturaDeCuadro(CID, { scenario: ESC });
+  const vcE = ancla(CID);
+  const r1 = await answerViaAgente({ text: tituloDeExplicacion(CID), history: [], mem: {}, scenario: ESC, callAgente: MUDO, viewContext: vcE, cuadro: vcE });
+  const hist = [{ role: "user", text: "x" }, { role: "adi", text: r1.r.text }];
+  const feb = LE.porDentro.meses.find((m) => /^feb/i.test(m.mes));
+  const r2 = await answerViaAgente({ text: "por que febrero es el mas bajo", history: hist, mem: r1.mem, scenario: ESC, callAgente: MUDO });
+  const L2 = String(r2.r.text || "").trim().split("\n").map((x) => x.trim()).filter(Boolean);
+  /* LOS TRES PASOS, EN ORDEN — se verifica la POSICIÓN, no solo la presencia */
+  const iMec = L2.findIndex((l) => /por volumen|cediste margen|ganaste volumen|bien ganado|margen del mes/i.test(l));
+  const iHip = L2.findIndex((l) => /mi hip[oó]tesis/i.test(l));
+  const iPre = L2.findIndex((l) => /\?$/.test(l));
+  ok(iMec > 0 && iHip > iMec && iPre > iHip,
+    "★★ los tres pasos SALEN EN EL ORDEN del owner: mecanismo medido → hipótesis marcada → pregunta al dueño",
+    `mecanismo:${iMec} hipótesis:${iHip} pregunta:${iPre}`);
+  /* (1) el mecanismo NO se afirma sin las cifras que lo sostienen — las tres componentes del ejemplo del owner */
+  ok(L2[iMec].includes(String(feb.unidades)) && L2[iMec].includes(String(LE.porDentro.unidadesProm))
+    && L2[iMec].includes(feb.margenFmt) && L2[iMec].includes(LE.porDentro.margenAnioFmt)
+    && L2[iMec].includes(feb.cargaFmt) && L2[iMec].includes(LE.porDentro.cargaAnioFmt),
+    "★ (1) «fue por volumen y no margen ni acciones» viaja con LAS TRES componentes y su referencia del año", L2[iMec]);
+  /* (2) la hipótesis se declara no probada — y habla del negocio del usuario, no de un sector */
+  ok(/no est[aá] probado/i.test(L2[iHip]) && /estacionalidad|de este año/i.test(L2[iHip]),
+    "★ (2) la hipótesis va MARCADA y declarada no probada con este dato", L2[iHip]);
+  /* (3) la pregunta es concreta: nombra cosas del negocio, no «¿seguimos?» */
+  ok(/campañ|stock|cliente|precio|negociaci|promoci|mezcla|mes bajo/i.test(L2[iPre]) && !/^¿seguimos|^¿te (?:lo )?abro/i.test(L2[iPre]),
+    "★ (3) la pregunta al dueño es CONCRETA y con opciones — no una oferta de navegación", L2[iPre]);
+  ok((r2.r.agente.vetos || []).length === 0, "…y el turno pasa el muro entero", JSON.stringify(r2.r.agente.vetos || []));
+  /* el método vale para TODO mes, no solo el del ejemplo: pico, mes intermedio con historia y fila del cuadro */
+  for (const q of ["y noviembre, que hicimos bien?", "por que diciembre no rinde igual?", "y julio, por que cayo tanto?"]) {
+    const rr = await answerViaAgente({ text: q, history: hist, mem: r1.mem, scenario: ESC, callAgente: MUDO });
+    const T = String(rr.r.text || "").trim();
+    ok(/\?$/.test(T) && /\d/.test(T) && (rr.r.agente.vetos || []).length === 0,
+      `«${q}» · mide con cifras y cierra preguntando`, T.split("\n").pop());
+  }
+  const rC = await turno("comercial/01/tabla-cartera", tituloDeExplicacion("comercial/01/tabla-cartera"), { todos: "0" });
+  const histC = [{ role: "user", text: "x" }, { role: "adi", text: rC.r.text }];
+  const rF = await answerViaAgente({ text: "y ripley por que cae?", history: histC, mem: rC.mem, scenario: ESC, callAgente: MUDO });
+  const TF = String(rF.r.text || "").trim();
+  ok(/no est[aá] en este cuadro/.test(TF) && /\?$/.test(TF) && /stock|precio|mezcla|competidor/i.test(TF),
+    "★ y una FILA que cae sigue el mismo método: lo medido, el límite del cuadro, y la pregunta concreta al dueño", TF.split("\n").pop());
+
+  /* ── LOS TRES VETOS, con el TEXTO REAL que salió en la pantalla del owner ────────────────────────────────
+   * No es un veneno inventado: es lo que ADI escribió en producción el 2026-09-09, copiado de su captura. */
+  const memE = { cuadroAbierto: { componentId: CID, escenario: ESC, controles: {}, turno: 2 } };
+  const ctxE = { history: [{}, {}], mem: memE };
+  const juzgar = (txt) => { _olvidarMemoDelCuadro(); return cuadroExplicado.listaNotarial(txt, { pregunta: "por que febrero es el mas bajo", ctx: ctxE }).map((x) => x.regla); };
+  const REAL_DE_PRODUCCION = [
+    "Febrero cierra en $6.5M, el mes más bajo del año — y ese patrón se repite: febrero fue el mes más bajo también el año anterior.",
+    "Qué pasó en febrero: El volumen cayó. No es margen cedido ni una acción comercial puntual — es una caída de venta mes a mes que el año anterior mostró igual.",
+    "Por qué ocurre — criterio mío, no en el dato: Febrero es post-verano: los clientes retail típicamente reducen compras después de enero. El sector electrodomésticos y línea blanca históricamente cae en febrero.",
+    "Qué verificar para confirmar: Si es estacionalidad pura, debería verse igual en TODOS los clientes y SKU ese mes.",
+  ].join("\n");
+  const vReal = juzgar(REAL_DE_PRODUCCION);
+  ok(vReal.includes("mecanismo-sin-cifras"), "★★ el texto REAL de producción arde por afirmar «el volumen cayó, no es margen» SIN UNA CIFRA que lo sostenga", JSON.stringify(vReal));
+  ok(vReal.includes("sectorial-sin-fuente"), "★★ …y por «el sector históricamente cae en febrero»: eso necesita fuente, y el rótulo «criterio mío» no la reemplaza");
+  ok(vReal.includes("porque-sin-pregunta"), "★★ …y por cerrar sin preguntarle nada al dueño: el detonante lo sabe él");
+  /* y el mismo texto, corregido con el método, pasa limpio */
+  const CON_METODO = [
+    "Febrero es el piso del año ($6.5M).",
+    `Fue por volumen: ${feb.unidades} unidades contra un promedio de ${LE.porDentro.unidadesProm} en el año. El margen se mantuvo en línea (${feb.margenFmt} contra ${LE.porDentro.margenAnioFmt}) y las acciones comerciales no saltaron (${feb.cargaFmt} contra ${LE.porDentro.cargaAnioFmt}).`,
+    "Mi hipótesis es que hay estacionalidad, porque febrero también fue el más bajo el año anterior. Con este dato solo no está probado.",
+    "¿Febrero suele ser un mes bajo en tu negocio, o ese año pasó algo puntual con clientes grandes, stock o campañas?",
+  ].join("\n");
+  ok(juzgar(CON_METODO).length === 0, "★★ el MISMO texto con el método pasa limpio — la regla no prohíbe redactar, exige respaldar", JSON.stringify(juzgar(CON_METODO)));
+  /* el criterio de mundo SOBRE EL NEGOCIO DEL USUARIO sigue siendo bienvenido: eso es el aporte, no se veta */
+  const HIPOTESIS_LEGITIMA = `Febrero es el piso del año ($6.5M). Fue por volumen: ${feb.unidades} unidades contra ${LE.porDentro.unidadesProm} de promedio, con el margen en ${feb.margenFmt} contra ${LE.porDentro.margenAnioFmt}. Mi hipótesis, y es criterio mío, es que tu calendario comercial concentra la compra en otros meses. ¿Sueles hacer campañas en febrero, o tus clientes grandes compran menos ese mes?`;
+  ok(juzgar(HIPOTESIS_LEGITIMA).length === 0, "★ y la hipótesis de mundo SOBRE SU NEGOCIO no se toca: «eso es aporte» — lo vetado es la estadística de sector sin fuente", JSON.stringify(juzgar(HIPOTESIS_LEGITIMA)));
+  ok(juzgar(`Febrero es el piso ($6.5M): ${feb.unidades} unidades contra ${LE.porDentro.unidadesProm}, margen ${feb.margenFmt} contra ${LE.porDentro.margenAnioFmt}. La industria suele caer en febrero. ¿Hubo campañas o un quiebre de stock?`).includes("sectorial-sin-fuente"),
+    "…y la forma suave también arde: «la industria suele caer» es la misma afirmación sin fuente");
+  ok(juzgar(`Febrero es el piso del año ($6.5M). Fue por volumen: ${feb.unidades} unidades contra ${LE.porDentro.unidadesProm} de promedio, margen ${feb.margenFmt} contra ${LE.porDentro.margenAnioFmt}. ¿Seguimos por otra parte del cuadro?`).includes("porque-sin-pregunta"),
+    "…y «¿seguimos?» no cuenta como preguntar: la pregunta tiene que pedir el contexto que falta");
+  /* una LECTURA normal del cuadro no es un porqué: las tres reglas no la tocan */
+  _olvidarMemoDelCuadro();
+  ok(cuadroExplicado.listaNotarial("El período cierra en $100.0M, +3.1% sobre tu presupuesto. Entre el mes más alto ($9.8M) y el más bajo ($6.5M) la distancia es grande.", { pregunta: tituloDeExplicacion(CID), ctx: { cuadro: vcE } }).length === 0,
+    "★ y la lectura normal del cuadro sigue intacta: el método rige el PORQUÉ, no toda respuesta");
+  /* la doctrina del cerebro lleva los tres pasos con los ejemplos del owner */
+  const ent = entregableDe(cuadroExplicado, "por que febrero es el mas bajo", { history: hist, mem: r1.mem });
+  ok(/TRES PASOS/.test(ent) && /MECANISMO MEDIDO DEL NEGOCIO, PRIMERO/.test(ent) && /HIPÓTESIS, MARCADA/.test(ent) && /CIERRA PREGUNTÁNDOLE AL DUEÑO/.test(ent),
+    "★ el cerebro recibe el método completo, en orden");
+  ok(/PROHIBIDO afirmar cómo se comporta un sector/.test(ent) && /360 unidades/.test(ent) && /suele ser un mes bajo en tu negocio/.test(ent),
+    "…con la prohibición del sector y los EJEMPLOS TEXTUALES del owner como estándar");
 }
 
 /* ═══ 6 · SIN DATO, SE DICE QUÉ FALTA ═══════════════════════════════════════════════════════════════════════ */
@@ -768,6 +867,18 @@ H("10 · carnadas · cada garantía, probada ROJA sobre una copia mutada del có
       if (!pd) return false;
       const s = pd.meses.reduce((x, m) => x + (Number(m.contribucion) || 0), 0);
       return Math.abs(s - Number(RB.total.contribucion)) >= 1;   // el defecto: dos verdades de contribución en la misma cara
+    });
+
+  // (k) el método del porqué, desarmado → vuelve a pantalla el texto que el owner rechazó en producción
+  await carnada("las tres reglas del método, apagadas (vuelve el porqué sin cifras, con sector y sin pregunta)", "src/adi/agente/playbooks/cuadroExplicado.js",
+    [[/const esPorQue = !!\(c\.porQue \|\| c\.elemento\);/, "const esPorQue = false;   // CARNADA"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const memE = { cuadroAbierto: { componentId: "comercial/01/evolutivo-serie", escenario: ESC, controles: {}, turno: 2 } };
+      const REAL = "Febrero cierra en $6.5M, el mes más bajo del año. El volumen cayó. No es margen cedido ni una acción comercial puntual.\nCriterio mío: los clientes retail típicamente reducen compras después de enero, y el sector electrodomésticos históricamente cae en febrero.";
+      Mut._olvidarMemoDelCuadro();
+      const v = Mut.cuadroExplicado.listaNotarial(REAL, { pregunta: "por que febrero es el mas bajo", ctx: { history: [{}, {}], mem: memE } });
+      return !v.some((x) => /mecanismo-sin-cifras|sectorial-sin-fuente|porque-sin-pregunta/.test(x.regla));
     });
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* limpieza best-effort */ } }

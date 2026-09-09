@@ -464,3 +464,49 @@ Diciembre → «ganaste volumen (560 unidades, las más del año) cediendo marge
 **Gate:** §5j (11 chequeos: el cierre exacto contra la formación, el cruce en la respuesta con las cifras del
 builder, la lectura por umbral, la ley en pie, la boleta con los 12 meses, la doctrina del cerebro, la ingesta
 real) + carnada (j): sin el ancla, la contribución mensual deriva y el cierre exacto arde.
+
+## 15 · EL MÉTODO DEL PORQUÉ (owner 2026-09-09, novena entrega — viendo la v2.20 en su pantalla)
+
+**Su palabra, textual:** *«No quiero prohibir que ADI mezcle criterio de mundo; eso es aporte. Pero debe
+hacerlo con método. Orden esperado: (1) primero el mecanismo medido del negocio. (2) Después la hipótesis del
+asesor, marcada. (3) Después una pregunta para corroborar con el usuario. ADI no necesita saber todo. Si falta
+contexto, debe consultar bien al usuario para cerrar la lectura. Eso es asesoría: medir, proponer hipótesis y
+validar con el dueño. Además: si afirma "fue volumen y no margen/acciones", debe mostrar las cifras que
+sostienen esa lectura · evitar frases sectoriales fuertes como "el sector históricamente cae" salvo que haya
+fuente o contexto declarado · las preguntas al usuario deben ser concretas, no genéricas.»*
+
+**Qué lo disparó.** En producción ADI escribió, con el rótulo «criterio mío» puesto: *«los clientes retail
+típicamente reducen compras después de enero»* y *«el sector electrodomésticos y línea blanca históricamente
+cae en febrero»* — sin fuente. Y afirmó *«el volumen cayó, no es margen cedido»* **sin mostrar una sola cifra**,
+teniéndolas todas en la boleta del turno. El rótulo salvaba la honestidad; el método faltaba.
+
+**Los tres pasos, en este orden** — el piso los compone y el cerebro los recibe como doctrina, con los ejemplos
+textuales del owner como estándar:
+
+1. **El mecanismo medido, con sus cifras.** «Fue por volumen: 360 unidades contra un promedio de 475 en el año.
+   El margen se mantuvo en línea (25.2% contra 25.1%) y las acciones comerciales no saltaron (3.6% contra 4.1%).»
+   Las **tres** componentes con su referencia del año — una conclusión sin sus cifras es una opinión con cara de
+   medición.
+2. **La hipótesis, marcada y declarada no probada.** «Mi hipótesis es que hay estacionalidad, porque febrero
+   también fue el más bajo el año anterior. Con este dato solo no está probado.»
+3. **La pregunta concreta al dueño.** «¿Febrero suele ser un mes bajo en tu negocio, o ese año pasó algo puntual
+   con clientes grandes, stock o campañas?» Con opciones y nombrando cosas de su negocio.
+
+**Tres vetos nuevos, solo en el turno del porqué** (una lectura normal del cuadro no se toca):
+
+- `mecanismo-sin-cifras` — afirmar qué movió el mes sin citar al menos dos cifras de ese mes.
+- `sectorial-sin-fuente` — «el sector / la industria / los clientes retail + históricamente / típicamente /
+  suelen». **El rótulo «criterio mío» NO lo salva**: la frase llega al lector como estadística de industria.
+  Hipotetizar sobre el **negocio del usuario** sigue siendo bienvenido — eso es el aporte.
+- `porque-sin-pregunta` — cerrar sin pedirle al dueño el contexto que falta. «¿Seguimos?» no cuenta.
+
+**Un falso positivo mío, cazado midiendo:** el veto de anclaje no conocía las cifras del mes por dentro, así
+que exigir el respaldo y a la vez vetar por citarlo — la casa contra sí misma. Corregido: el mes por dentro
+también es «sus cifras».
+
+**Gate:** §5k (20 chequeos) mide **el orden de los tres pasos por posición**, no solo su presencia; usa como
+veneno **el texto real que salió en producción** (arde en los tres vetos) y el mismo texto con método (pasa
+limpio); comprueba que la hipótesis de mundo sobre el negocio del usuario NO se toca. Carnada (k): apagadas las
+tres reglas, vuelve a pantalla el texto que el owner rechazó. §5i y §5j quedaron actualizados a la forma nueva
+sin perder su garantía. De paso, el candado del registro cazó **«palanca»** en mi doctrina — palabra prohibida
+en superficie desde siempre.
