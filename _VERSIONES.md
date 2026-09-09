@@ -12,6 +12,34 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.21 — producción · tag `v2.21`
+
+**ADI deja de nombrar culpables y pasa a explicar mecanismos — y dice lo mismo que la pantalla.** Tres
+entregas del owner en la misma tanda (contrato del ask de cuadro, §16 a §19):
+
+- **El método del porqué, para todo el producto.** Preguntar una causa —desde un cuadro, una ficha, el chat
+  libre, el margen, las ventas, el inventario o el cobro— sigue siempre el mismo orden: **mide primero con
+  cifras · hipótesis marcada y declarada no probada · pregunta concreta al dueño** por lo que el dato no
+  tiene. Tres reglas nuevas lo hacen exigible: afirmar un mecanismo sin cifras arde, una afirmación sobre un
+  sector sin fuente arde (el rótulo «criterio mío» no la salva), y cerrar sin preguntar cuando falta contexto
+  arde. El turno libre —el camino que no tenía ninguna regla— quedó regido.
+- **Descomponer, no solo localizar.** ADI ya puede responder si la venta se movió por **volumen o por
+  precio**, qué familia ganó o perdió participación (**mix**), el **precio realizado**, el **precio neto
+  después de acciones**, y quién cede margen **por precio** o **por costo** — por cliente, SKU, marca, familia
+  y canal. Casi todo ya estaba calculado en el motor: el catálogo del asesor no lo mencionaba. El mix POR
+  CLIENTE quedó **apagado** por orden del owner: era una estimación repartida que sobre un archivo real
+  contradice las filas.
+- **Una sola verdad para el eje marca.** Sentrix decía Samsung $33.2M y ADI $31.6M — en las cuatro marcas.
+  La tabla de margen por marca estaba declarada ciega al escenario. Ahora se reconcilia con la misma fuente
+  que pinta la pantalla, y un candado nuevo (`_una_verdad_por_eje_gate`) impide que cualquier eje vuelva a
+  publicar dos cifras.
+
+**Lo declarado y no hecho, a propósito:** el corte por **punto de venta / sucursal** no existe — la columna
+viaja en el archivo del cliente y el motor no la lee. ADI lo dice en vez de improvisar con otro eje.
+
+**Certificación:** dos rondas adversariales (7 y 6 auditores) reprobaron versiones intermedias; sus hallazgos
+reales quedaron cerrados y sus dos falsos positivos, documentados. 236 gates offline en verde.
+
 ## 2.20 — producción · tag `v2.20`
 
 **El año mes a mes deja de recitarse: se lee por dentro.** Dos entregas del owner el mismo día (contrato del
