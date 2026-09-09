@@ -492,6 +492,10 @@ export function cuadroSentrix(args = {}, ctx = {}) {
       },
       /* lo que el cuadro dice de sí mismo, en sus propias palabras (las que están en pantalla) */
       loQueDiceElCuadro: L.textos.map((t) => t.texto),
+      /* EL PATRÓN ANUAL (solo series con año anterior): ¿el mes extremo SE REPITE? Es un hecho de ORDEN sobre
+       * los crudos del builder — sin cifras nuevas — y cambia la lectura del porqué: repetido apunta a
+       * estacionalidad; nuevo, a algo de este año. La causa concreta sigue sin estar en el dato. */
+      ...(L.patronAnual ? { patronAnual: L.patronAnual } : {}),
       cifras: [
         ...L.cabecera.map((c) => ({ de: I.cuadro, concepto: c.label, valor: c.valor })),
         ...L.filas.map((f) => ({ de: f.nombre, valores: f.cifras.map((c) => ({ concepto: c.label, valor: c.valor })) })),

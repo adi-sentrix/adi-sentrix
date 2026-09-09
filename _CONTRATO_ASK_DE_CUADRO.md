@@ -381,3 +381,44 @@ usuario pide una tabla, ese turno no nace de un cuadro y ADI puede hacerla.
 `Etiqueta: cifra` en líneas seguidas **es una tabla escrita con dos puntos** — el detector la cazó, y tenía
 razón: era exactamente lo que el owner rechaza. El entregable determinístico pasó a prosa en los nueve cuadros,
 y el gate lo verifica cuadro por cuadro (§5h).
+
+## 13 · EL PORQUÉ DEL ELEMENTO NOMBRADO (owner 2026-09-09, séptima entrega — en su pantalla)
+
+**Su palabra, textual:** *«hice click en el del gráfico, el año mes a mes: eso es una lectura de los datos,
+pero no cuenta causas. Ejemplo: ¿por qué febrero es el mes más bajo? La venta fue evolucionando, ¿por qué?
+¿Qué hicimos bien en los meses más altos? Por último, dime por qué ADI, cuando le pregunto por qué febrero es
+el mes más bajo, me dice que no puede completar… esas cosas ya no nos deberían pasar.»*
+
+**Lo que pasaba, medido:** con el cuadro del año abierto, «febrero es el mes mas bajo, por que?» no la tomaba
+**ningún** playbook — «febrero» no es una cifra ni una columna, y esas eran las únicas dos puertas de
+reapertura. El turno quedaba libre, el cerebro improvisó una herramienta equivocada, y la declinación interna
+(«la métrica venta no está declarada para el eje cliente») salió a pantalla.
+
+**La regla:** el ELEMENTO nombrado es la tercera puerta de reapertura del cuadro — una **fila** del cuadro, o
+un **mes que el propio cuadro nombra**. Determinística como las otras dos: si el cuadro abierto no lo nombra,
+la pregunta sigue libre (la cartera no nombra meses; «febrero» con la cartera abierta no secuestra nada).
+
+**La respuesta tiene tres partes, en este orden:**
+
+1. **El lugar del elemento, con su cifra del builder.** «Febrero es el piso del año ($6.5M).» Un mes que no es
+   extremo se ubica sin drama — y con las cifras de los extremos al lado, porque sin ellas la respuesta
+   quedaba desanclada del cuadro y el propio veto (1) la mataba (medido con «y julio, ¿por qué?»).
+2. **La ley de la casa, primero:** *la causa no está en este dato* — la serie trae el cuánto, no el porqué.
+   Jamás se afirma una causa como hecho.
+3. **El hecho que la serie SÍ sostiene — `patronAnual`:** ¿el mismo mes fue también el extremo del año
+   anterior? Es un hecho de **orden sobre los crudos del builder** (cero cifras nuevas): extremo repetido dos
+   años apunta a **estacionalidad del negocio**; extremo nuevo, a algo **de este año**. Cierra con la puerta
+   («te lo comparo contra el mismo mes del año anterior»).
+
+**El cerebro recibe lo mismo:** `patronAnual` viaja en los `facts` de la herramienta (meses y booleanos), y el
+entregable del porqué le exige el arco del asesor — la ley primero, hipótesis **marcadas como criterio**
+(«es criterio mío», «el dato no lo confirma»), el patrón si viene, y la verificación concreta que haría.
+
+**De paso, dos defectos míos que esta tanda destapó:** el mes no extremo respondía sin citar una sola cifra y
+mi propio veto de desanclaje lo mataba (el turno caía al rescate); y `_PIDE_PORQUE` cerraba con `\b` después
+de vocal acentuada — la familia de «facturó» — así que **«¿por qué?» con tilde ni siquiera casaba**. Lo cazó
+`_agente_contrato_gate` §5g.
+
+**Gate:** `_ancla_de_cuadro_gate.mjs` §5i (13 chequeos: el caso del owner contra crudos vivos, la ley primero,
+el patrón, el mes no extremo anclado, el no-secuestro con la cartera, la fila nombrada, los facts y el
+entregable) + carnada (i): quitada la puerta del elemento, la pregunta del owner vuelve a caer al vacío.

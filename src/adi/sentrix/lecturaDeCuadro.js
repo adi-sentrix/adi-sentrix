@@ -327,6 +327,37 @@ export function lecturaDeCuadro(componentId, { scenario = ESCENARIO_INICIAL, con
   const fl = _filasDe(node, identidad.metricaLabel);
   const filas = fl ? fl.filas : [];
 
+  /* ── EL PATRÓN ANUAL · ¿el mes extremo SE REPITE contra el año anterior? ───────────────────────────────
+   * (owner 2026-09-09: «¿por qué febrero es el mes más bajo?») La CAUSA no está en el dato — ley de la casa —
+   * pero hay un HECHO que el cuadro sí sostiene y que cambia la lectura: si el mismo mes fue también el piso
+   * del año anterior, el patrón SE REPITE (apunta a estacionalidad, no a un problema de este año); si no se
+   * repite, es nuevo. Es pura SELECCIÓN sobre los crudos que el builder publica (el índice del mínimo de cada
+   * serie), ninguna cifra nueva: el hecho es de ORDEN y se dice con palabras. Solo existe cuando el nodo
+   * publica la forma serie (meses[] + series[] con valores crudos) y hay una serie comparable del año
+   * anterior — en cualquier otra forma queda null y nadie lo nombra. */
+  const patronAnual = (() => {
+    if (!node || !Array.isArray(node.meses) || !Array.isArray(node.series)) return null;
+    const enFoco = node.series.find((s) => s && s.key === "actual") || node.series[0];
+    const anterior = node.series.find((s) => s && (s.key === "anterior" || /anterior/i.test(String(s.label || ""))));
+    if (!enFoco || !anterior || !Array.isArray(enFoco.valores) || !Array.isArray(anterior.valores)) return null;
+    const idxExtremo = (vals, min) => {
+      let k = -1;
+      for (let i = 0; i < vals.length; i++) {
+        if (typeof vals[i] !== "number" || !Number.isFinite(vals[i])) continue;
+        if (k < 0 || (min ? vals[i] < vals[k] : vals[i] > vals[k])) k = i;
+      }
+      return k;
+    };
+    const iMin = idxExtremo(enFoco.valores, true), iMax = idxExtremo(enFoco.valores, false);
+    const iMinAnt = idxExtremo(anterior.valores, true), iMaxAnt = idxExtremo(anterior.valores, false);
+    if (iMin < 0 || iMax < 0 || iMinAnt < 0 || iMaxAnt < 0) return null;
+    return {
+      mesMin: _txt(node.meses[iMin]) || null, mesMax: _txt(node.meses[iMax]) || null,
+      minSeRepite: iMin === iMinAnt, maxSeRepite: iMax === iMaxAnt,
+      serieComparable: _txt(anterior.label) || "el año anterior",
+    };
+  })();
+
   /* ── LA CURVA ACUMULADA DE LA MISMA CARA ───────────────────────────────────────────────────────────────
    * (owner 2026-09-08: «Falabella, Lider y Jumbo representan 54.6% de las ventas»)
    *
@@ -363,7 +394,7 @@ export function lecturaDeCuadro(componentId, { scenario = ESCENARIO_INICIAL, con
       falta: `el cuadro «${m.label}» no publica sus cifras en una forma que yo pueda citar verbatim.` };
   }
 
-  return { ok: true, identidad, cabecera, filas, textos, limite, corte, concentracion, filasLlave: fl ? fl.llave : null, n: filas.length };
+  return { ok: true, identidad, cabecera, filas, textos, limite, corte, concentracion, patronAnual, filasLlave: fl ? fl.llave : null, n: filas.length };
 }
 
 /** los componentes que ESTE dato sabe leer — lo consume el gate para barrer el manifiesto entero. */

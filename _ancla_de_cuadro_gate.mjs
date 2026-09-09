@@ -418,6 +418,61 @@ H("5h · en un turno de cuadro, ADI no redibuja la tabla");
   }
 }
 
+/* ═══ 5i · «FEBRERO ES EL MES MÁS BAJO, ¿POR QUÉ?» (owner 2026-09-09, séptima entrega) ══════════════════════
+ * Con el cuadro del año abierto, esa pregunta moría: ningún playbook la tomaba, y en la pantalla del owner el
+ * cerebro llegó a pedir una herramienta equivocada y la declinación interna («la métrica venta no está
+ * declarada para el eje cliente») salió a pantalla. «Esas cosas ya no nos deberían pasar.» La CAUSA sigue sin
+ * estar en el dato — ley de la casa, se dice primero — pero la serie SÍ sostiene un hecho que cambia la
+ * lectura: si el mismo mes repite el extremo contra el año anterior, apunta a estacionalidad; si no, es de
+ * este año. Es ORDEN sobre los crudos del builder, ninguna cifra nueva. */
+H("5i · el elemento nombrado — el porqué honesto, con el hecho que la serie sí sostiene");
+{
+  const CID = "comercial/01/evolutivo-serie";
+  const LE = lecturaDeCuadro(CID, { scenario: ESC });
+  ok(LE.patronAnual && LE.patronAnual.mesMin && typeof LE.patronAnual.minSeRepite === "boolean",
+    "el lector calcula el PATRÓN ANUAL sobre los crudos del builder (mes extremo, y si se repite en la otra serie)", JSON.stringify(LE.patronAnual));
+  const vcE = ancla(CID);
+  const r1 = await answerViaAgente({ text: tituloDeExplicacion(CID), history: [], mem: {}, scenario: ESC, callAgente: MUDO, viewContext: vcE, cuadro: vcE });
+  const hist = [{ role: "user", text: "x" }, { role: "adi", text: r1.r.text }];
+  const r2 = await answerViaAgente({ text: "febrero es el mes mas bajo, por que?", history: hist, mem: r1.mem, scenario: ESC, callAgente: MUDO });
+  const T2 = String(r2.r.text || "");
+  ok(!/No tengo informaci[oó]n|no est[aá] declarada/.test(T2) && r2.r.agente.estado !== "vacio",
+    "★★ la pregunta del owner YA NO cae a «no tengo información» ni a una declinación de herramienta", `${r2.r.agente.estado} · ${T2.slice(0, 100)}`);
+  const cMin = (LE.cabecera || []).find((x) => x.clave === "min");
+  ok(/piso del año/.test(T2) && !!cMin && T2.includes(cMin.valor),
+    "…y responde con la cifra que el cuadro publica (el piso, del builder vivo)", T2.split("\n")[0]);
+  ok(/no est[aá] en este dato/.test(T2), "★ la ley va primero: la causa NO está en el dato — jamás se afirma como hecho");
+  ok(LE.patronAnual.minSeRepite ? /tambi[eé]n fue el piso/.test(T2) && /estacionalidad/.test(T2) : /OTRO mes/.test(T2),
+    "★ …más el HECHO que la serie sí sostiene: extremo repetido → estacionalidad; extremo nuevo → de este año", T2.slice(0, 260));
+  ok((r2.r.agente.vetos || []).length === 0, "…y el muro no tuvo nada que podar", JSON.stringify(r2.r.agente.vetos || []));
+  /* un mes que NO es extremo se ubica sin drama — Y ANCLADO: sin las cifras de los extremos al lado, el propio
+   * veto de desanclaje mataba la respuesta y el turno caía al rescate (medido con «y julio, ¿por qué?») */
+  const r3 = await answerViaAgente({ text: "y julio, por que esta ahi?", history: hist, mem: r1.mem, scenario: ESC, callAgente: MUDO });
+  const T3 = String(r3.r.text || "");
+  ok(/no es ni el pico ni el piso/.test(T3) && r3.r.agente.estado === "playbook",
+    "un mes que no es extremo se dice sin drama —con los extremos y sus cifras al lado— y el turno NO cae al rescate", `${r3.r.agente.estado} · ${T3.split("\n")[0]}`);
+  /* NO-SECUESTRO: la puerta del elemento exige que el CUADRO ABIERTO lo nombre */
+  const rC = await turno("comercial/01/tabla-cartera", tituloDeExplicacion("comercial/01/tabla-cartera"), { todos: "0" });
+  const histC = [{ role: "user", text: "x" }, { role: "adi", text: rC.r.text }];
+  const pbX = playbookPara("febrero es el mes mas bajo, por que?", { history: histC, mem: rC.mem });
+  ok(!pbX || pbX.nombre !== "cuadro-explicado",
+    "★ con la CARTERA abierta —que no nombra meses— «febrero» no la secuestra: el elemento tiene que ser DEL cuadro", pbX && pbX.nombre);
+  const pbN = playbookPara("febrero es el mes mas bajo, por que?", { history: [], mem: {} });
+  ok(!pbN || pbN.nombre !== "cuadro-explicado", "…y sin cuadro en la memoria, tampoco: un turno libre sigue siendo libre");
+  /* la FILA nombrada con «por qué»: su cifra, sus señales, y la misma ley */
+  const rF = await answerViaAgente({ text: "y ripley por que cae?", history: histC, mem: rC.mem, scenario: ESC, callAgente: MUDO });
+  const TF = String(rF.r.text || "");
+  ok(/Ripley/.test(TF) && /no est[aá] en este cuadro/.test(TF) && /cae/.test(TF),
+    "una FILA nombrada responde con su cifra y sus señales — y la misma ley del porqué", TF.split("\n")[0]);
+  /* el cerebro recibe lo mismo que el piso: el patrón en facts, y la doctrina del porqué con hipótesis MARCADAS */
+  const figsE = cuadroSentrix({ componentId: CID, scenario: ESC });
+  ok(figsE.facts && figsE.facts.patronAnual && typeof figsE.facts.patronAnual.minSeRepite === "boolean",
+    "la herramienta expone el patrón anual en facts — meses y booleanos, cero cifras nuevas");
+  const entPQ = entregableDe(cuadroExplicado, "febrero es el mes mas bajo, por que?", { history: hist, mem: r1.mem });
+  ok(/LA CAUSA NO EST[AÁ] EN EL DATO/.test(entPQ) && /hip[oó]tesis MARCADAS/i.test(entPQ) && /patronAnual/.test(entPQ),
+    "★ y al cerebro se le pide el porqué de asesor: la ley primero, hipótesis marcadas como criterio, el patrón si viene, y la verificación concreta");
+}
+
 /* ═══ 6 · SIN DATO, SE DICE QUÉ FALTA ═══════════════════════════════════════════════════════════════════════ */
 H("6 · «si no existe dato suficiente para ese cuadro, debe decir exactamente qué falta»");
 {
@@ -632,6 +687,15 @@ H("10 · carnadas · cada garantía, probada ROJA sobre una copia mutada del có
       const figsM = cuadroSentrix({ componentId: "comercial/01/tabla-cartera", scenario: ESC }).boleta;
       const v = Mut.guardC("Yo profundizaría primero en La Polar y Ripley, y después revisaría qué está explicando el menor margen relativo de Lider y Falabella.", { ledger: { figs: figsM }, question: "x", datoProyectado: cifrasDelDato(ESC) });
       return v.ok === false && JSON.stringify(v.violations).includes("superlativo");
+    });
+
+  // (i) la puerta del elemento, quitada → «febrero es el mes más bajo, ¿por qué?» vuelve a morir en el vacío
+  await carnada("la puerta del elemento, quitada (la pregunta del owner vuelve a caer al vacío)", "src/adi/agente/playbooks/cuadroExplicado.js",
+    [[/if \(_elementoCitado\(pregunta, L0\)\) return ancla;/, ""]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const mem = { cuadroAbierto: { componentId: "comercial/01/evolutivo-serie", escenario: ESC, controles: {}, turno: 2 } };
+      return Mut.cuadroExplicado.cuandoAplica("febrero es el mes mas bajo, por que?", { history: [{}, {}], mem }) !== true;
     });
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* limpieza best-effort */ } }

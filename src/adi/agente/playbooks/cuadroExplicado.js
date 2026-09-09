@@ -125,6 +125,31 @@ function _cifraCitada(pregunta, L) {
   return null;
 }
 
+/* ── EL ELEMENTO NOMBRADO · «febrero es el mes más bajo, ¿por qué?» (owner 2026-09-09, en su pantalla) ──────
+ * Con el cuadro del año abierto, esa pregunta caía a «no tengo información» — o peor: el cerebro pedía una
+ * herramienta equivocada y la declinación («la métrica venta no está declarada para el eje cliente») salía a
+ * pantalla. «Febrero» no es una cifra ni una columna: es un ELEMENTO del cuadro — una fila, o un mes que la
+ * lectura del propio módulo nombra. Si el usuario nombra un elemento del cuadro abierto, habla de ese cuadro.
+ * Los meses se resuelven con la tabla de la casa (el módulo escribe «Feb»; el usuario, «febrero»). */
+const _MESES = [["ene", "enero"], ["feb", "febrero"], ["mar", "marzo"], ["abr", "abril"], ["may", "mayo"],
+  ["jun", "junio"], ["jul", "julio"], ["ago", "agosto"], ["sep", "septiembre"], ["oct", "octubre"],
+  ["nov", "noviembre"], ["dic", "diciembre"]];
+function _elementoCitado(pregunta, L) {
+  const q = String(pregunta || "").toLowerCase();
+  if (!L || !L.ok) return null;
+  for (const f of (L.filas || [])) {
+    if (f.nombre && f.nombre.length >= 3 && q.includes(f.nombre.toLowerCase())) return { tipo: "fila", nombre: f.nombre, fila: f };
+  }
+  /* un mes cuenta como elemento SOLO si el propio cuadro lo nombra (en su lectura o en sus etiquetas) */
+  const corpus = [(L.textos || []).map((t) => t.texto).join(" "), (L.filas || []).map((f) => f.nombre).join(" ")].join(" ").toLowerCase();
+  for (const [abr, completo] of _MESES) {
+    if (!new RegExp(`\\b${abr}`, "i").test(corpus)) continue;
+    if (new RegExp(`\\b(?:${completo}|${abr})\\b`, "i").test(q)) return { tipo: "mes", nombre: completo, abr };
+  }
+  return null;
+}
+const _PIDE_PORQUE = /\bpor\s?qu[eé](?![\wáéíóúñ])|\ba qu[eé] se debe\b|\bcu[aá]l es la (?:causa|raz[oó]n)\b|\bqu[eé] (?:pas[oó]|explica)(?![\wáéíóúñ])/i;
+
 export const CUADRO_ABIERTO_TTL_ENTRADAS = 8;   // mismo criterio de caducidad que el contexto de pantalla
 function _anclaDeMemoria(pregunta, ctx) {
   const m = ctx && ctx.mem && ctx.mem.cuadroAbierto && typeof ctx.mem.cuadroAbierto === "object" ? ctx.mem.cuadroAbierto : null;
@@ -137,10 +162,13 @@ function _anclaDeMemoria(pregunta, ctx) {
    * escenario es una pieza de otro cuadro, exactamente lo que todo este contrato existe para impedir. */
   const ancla = { componentId: m.componentId, escenario: typeof m.escenario === "string" ? m.escenario : null,
     controles: (m.controles && typeof m.controles === "object") ? { ...m.controles } : {} };
-  /* DOS puertas, las dos determinísticas: la profundización por columna, y la pregunta por una cifra que ese
-   * cuadro publica. Sin una de las dos, la memoria no abre nada — un turno libre sigue siendo libre. */
+  /* TRES puertas, las tres determinísticas: la profundización por columna, la pregunta por una cifra que ese
+   * cuadro publica, y el ELEMENTO nombrado (una fila, o un mes que la lectura del cuadro nombra). Sin una de
+   * las tres, la memoria no abre nada — un turno libre sigue siendo libre. */
   if (_columnaPedida(pregunta)) return ancla;
-  if (_cifraCitada(pregunta, _leer(ancla, null))) return ancla;
+  const L0 = _leer(ancla, null);
+  if (_cifraCitada(pregunta, L0)) return ancla;
+  if (_elementoCitado(pregunta, L0)) return ancla;
   return null;
 }
 
@@ -168,7 +196,9 @@ function _caso(pregunta, ctx, scenario) {
    * del lector, no del negocio— no se abre: jamás decirle al usuario que su dato no trae algo que sí trae. */
   if (!L.ok && L.motivo !== "sin-modulo" && L.motivo !== "sin-campo") return null;
   const columna = _columnaPedida(pregunta);
-  return { ancla: a, L, columna, citada: columna ? null : _cifraCitada(pregunta, L) };
+  const citada = columna ? null : _cifraCitada(pregunta, L);
+  const elemento = columna || citada ? null : _elementoCitado(pregunta, L);
+  return { ancla: a, L, columna, citada, elemento, porQue: _PIDE_PORQUE.test(String(pregunta || "")) };
 }
 
 /* ── LOS RÓTULOS DE LA COMPARACIÓN, en palabras de negocio ─────────────────────────────────────────────── */
@@ -303,6 +333,12 @@ export const cuadroExplicado = {
         `El usuario ya vio el resumen y quiere ESA dimensión por dentro: qué está pasando ahí, quiénes la mueven, quiénes la deterioran, y qué mirarías primero. Extremos y señalados con su cifra — no la columna entera recitada.`,
       ].join(" ");
     }
+    if (c.elemento || c.porQue) {
+      return [
+        `${cab}.`,
+        `El usuario pregunta por ${c.elemento ? `«${c.elemento.nombre}»` : "un porqué"} de ese cuadro. LA CAUSA NO ESTÁ EN EL DATO y eso se dice primero — jamás la afirmes como hecho. Después razona como asesor: hipótesis MARCADAS como criterio tuyo («es criterio mío», «el dato no lo confirma»), qué las confirmaría, y el hecho que la serie sí sostiene si viene en los resultados (patronAnual: un extremo que SE REPITE contra el año anterior apunta a estacionalidad; uno nuevo, a algo de este año). Cierra con la verificación concreta que harías.`,
+      ].join(" ");
+    }
     /* el ARCO es el que el owner escribió a mano (2026-09-08) — su texto es el estándar de esta entrega */
     return [
       `${cab}.`,
@@ -352,6 +388,54 @@ export const cuadroExplicado = {
         `Puedo abrirte lo que hay detrás de esa cifra.`,
       ]));
       return p.join("\n");
+    }
+
+    /* ═══ EL ELEMENTO NOMBRADO · «febrero es el mes más bajo, ¿por qué?» ═════════════════════════════════
+     * La CAUSA no está en el dato — ley de la casa, y se dice. Pero hay un hecho que la serie SÍ sostiene y
+     * que cambia la lectura: si el mismo mes fue también el extremo del año anterior, el patrón SE REPITE
+     * (huele a estacionalidad del negocio); si no, es de este año. Es un hecho de ORDEN sobre los crudos del
+     * builder — ninguna cifra nueva. La hipótesis fina (feriados, días hábiles, tu ciclo) la razona el
+     * cerebro con su marca de criterio; el piso entrega el hecho y la puerta. */
+    if (c.elemento) {
+      const el = c.elemento;
+      const p = [];
+      if (el.tipo === "mes" && L.patronAnual) {
+        const pa = L.patronAnual;
+        const esMin = pa.mesMin && el.abr && pa.mesMin.toLowerCase().startsWith(el.abr);
+        const esMax = pa.mesMax && el.abr && pa.mesMax.toLowerCase().startsWith(el.abr);
+        const cifra = esMin ? _cab(L, "min") : esMax ? _cab(L, "max") : null;
+        if (esMin || esMax) {
+          p.push(`${el.nombre[0].toUpperCase()}${el.nombre.slice(1)} es el ${esMin ? "piso" : "pico"} del año${cifra ? ` (${cifra.valor})` : ""}.`);
+          if (c.porQue) p.push(`El porqué exacto no está en este dato: la serie muestra cuánto se vendió cada mes, no qué lo causó.`);
+          const _comparable = /anterior/i.test(pa.serieComparable) ? "el año anterior" : pa.serieComparable;
+          p.push((esMin ? pa.minSeRepite : pa.maxSeRepite)
+            ? `Lo que la serie sí dice: también fue el ${esMin ? "piso" : "pico"} d${_comparable === "el año anterior" ? "el año anterior" : `e ${_comparable}`}. Cuando el mismo mes repite el extremo dos años seguidos, eso apunta a la estacionalidad de tu negocio — no a un problema puntual de este año.`
+            : `Y hay una señal que importa: ${_comparable === "el año anterior" ? "el año anterior" : _comparable} el ${esMin ? "piso" : "pico"} fue OTRO mes. Esto es de este año, no un patrón que se repita — vale la pena mirar qué cambió.`);
+          p.push(variante(semilla, [
+            `Puedo compararte ese mes contra el mismo mes del año anterior, o seguimos por otra parte del cuadro.`,
+            `Si quieres, lo pongo contra el mismo mes del año anterior. Tu calendario comercial es la otra mitad de esta respuesta.`,
+            `Dime si seguimos por ese mes o por otra dimensión del cuadro.`,
+          ]));
+          return p.join("\n");
+        }
+        /* un mes que no es extremo: se dice qué lugar ocupa sin inventarle drama — CON las cifras de los
+         * extremos, que es lo que ubica al mes (y sin ellas la respuesta quedaba desanclada del cuadro:
+         * el propio veto (1) la mataba y el turno caía al rescate — medido con «y julio, ¿por qué?»). */
+        const cMax = _cab(L, "max"), cMin = _cab(L, "min");
+        p.push(`${el.nombre[0].toUpperCase()}${el.nombre.slice(1)} no es ni el pico ni el piso de tu año — esos son ${pa.mesMax || "?"}${cMax ? ` (${cMax.valor})` : ""} y ${pa.mesMin || "?"}${cMin ? ` (${cMin.valor})` : ""}.`);
+        if (c.porQue) p.push(`Y el porqué de cada mes no está en este dato: la serie trae el cuánto, no la causa.`);
+        p.push(variante(semilla, [`¿Seguimos por los extremos, o por otra parte del cuadro?`, `Puedo abrirte el pico o el piso del año si te sirve.`, `Dime dónde profundizamos.`]));
+        return p.join("\n");
+      }
+      /* una FILA nombrada (que ningún playbook anterior tomó): su cifra, sus señales, y la ley del porqué */
+      if (el.fila) {
+        const pr = _principal(el.fila);
+        const dichos = (el.fila.senales || []).filter((s) => s.alerta).map((s) => s.dice);
+        p.push(`${el.nombre}${pr ? `: ${pr.label.toLowerCase()} ${pr.valor}` : ""}${dichos.length ? ` — ${dichos.slice(0, 2).join(", y ")}` : ""}.`);
+        if (c.porQue) p.push(`El porqué no está en este cuadro: localiza dónde pasa, no la causa.`);
+        p.push(variante(semilla, [`¿Te abro esa fila por dentro?`, `Puedo profundizar en ella o en una dimensión del cuadro.`, `Dime si la abrimos.`]));
+        return p.join("\n");
+      }
     }
 
     /* ═══ LA PROFUNDIZACIÓN · una dimensión por dentro ═══════════════════════════════════════════════════ */
