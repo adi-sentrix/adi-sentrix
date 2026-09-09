@@ -187,3 +187,38 @@ Los dos con carnada en `_ancla_de_cuadro_gate` (121 chequeos tras esta tanda).
 2. **El enum `por_vencer` salía a pantalla**: el estado se lee por su RÓTULO (`estadoLabel`); sin rótulo se
    acepta solo la palabra limpia («vencido») y se calla el identificador. `dominante` no es el estado de la
    bodega: es dónde CONCENTRA su capital, y se dice así.
+
+---
+
+## 8 · EL RESUMEN EJECUTIVO POR DIMENSIÓN, Y «PROFUNDIZA EN…» (owner 2026-09-08, tercera entrega)
+
+**Su palabra, textual:** *«tienes participación, tienes venta y contribución, tienes el margen, año anterior y
+presupuesto si existe — no todos tendrán ese dato. En la participación podrías decirme breve qué está pasando,
+lo mismo con el resto, explicarme caídas: lo que debe entenderse es un RESUMEN EJECUTIVO de esa tabla. Y si el
+usuario quiere profundizar debes seguir: te podría decir "profundiza en la contribución, o en la
+participación".»*
+
+**El resumen recorre las dimensiones QUE EXISTEN en el cuadro** (las ausentes ni se nombran): marco (total y
+sus deltas) · participación/concentración · contribución **con la inversión** («Jumbo, con venta $17.3M, deja
+$4.2M de contribución; Lider vende $17.9M y deja $3.8M») · margen (el rango) · la señal (caídas + intersección
++ excepción) · por dónde empezar. El material nuevo del lector: **el CRUDO del builder viaja junto al
+formateado** (`venta`/`pesoPct`/`ventaK` según la cara), así que ordenar y leer posiciones no re-parsea nada.
+
+**«Profundiza en…» sigue sobre el mismo cuadro sin click nuevo:** el bucle guarda `mem.cuadroAbierto`
+(dirección + controles, jamás cifras) al cerrar un turno de cuadro; SOLO una forma de profundización
+(verbo + dimensión del vocabulario) la reabre — una pregunta libre jamás (gateado). Caduca a las 8 entradas de
+hilo, el criterio del contexto de pantalla. Encadena («profundiza en la contribución» → «…en la
+participación») y cada drill da extremos + señaladas + la inversión, no la columna recitada.
+
+**Tres lecciones del muro en esta tanda** (todas medidas):
+1. *Binding de métrica*: «Jumbo deja $4.2M … vendiendo menos» hizo leer el $4.2M como VENTA — cada cifra va
+   pegada a su métrica, con las cuatro cifras de la inversión.
+2. *Total-sin-declarar*: «$135K en total» detrás de la cifra reclama el conjunto, y una coincidencia de canon
+   con un crudo de la carpeta le dio dueño (un SKU) — se dice «$135K de capital», la métrica en vez de la
+   coletilla.
+3. *Desanclado*: la serie que no nombraba ningún mes quedó desanclada de su propio cuadro — el pico y el piso
+   se dicen con su mes («jul, $11.9M»).
+
+`_ancla_de_cuadro_gate`: **131 chequeos** — §5c mide el resumen por dimensión contra las banderas vivas del
+builder, la cadena T1 click → T2/T3 profundizaciones → T4 pregunta libre que NO se responde como cuadro, y la
+caducidad de la memoria.

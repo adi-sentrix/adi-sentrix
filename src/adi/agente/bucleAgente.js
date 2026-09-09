@@ -54,7 +54,8 @@ import { vetosDeContrato, esIdentificadorInterno } from "./contratoAgente.js";
 import { vetoCifraSinBoleta } from "./cifraSinBoleta.js";   // el juez del turno que NO leyó — vive SOLO en el agente (ver su cabecera)
 import { getNombreUsuario, setNombreUsuario } from "./preferenciaNombre.js";   // R4c · el trato viaja en los rescates y persiste por `mem`
 import { detectSerieIntent, composeSerieIntent } from "../oracle/serieIntent.js";   // R9 · el puente, también en modo agente
-import { playbookPara, pasosDe, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook } from "./playbooks/registro.js";   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
+import { playbookPara, pasosDe, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook } from "./playbooks/registro.js";
+import { anclaDelCuadro } from "./playbooks/cuadroExplicado.js";   // el cuadro abierto persiste en la memoria del hilo (owner 2026-09-08: «profundiza en…»)   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
 import { serieRealDe } from "../sentrix/capability.js";
 import { getTenantId } from "../../data/tenantStore.js";   // la semilla de variación: tenant + pregunta + largo del hilo
 
@@ -559,7 +560,11 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * apagada; esto no enciende nada. */
   /* el hilo viaja al detector (T5): las formas elípticas del porqué solo abren si la última lectura fue de
    * margen, y eso solo se sabe mirando el hilo. Un caller sin history mide el peor caso: la elíptica no abre. */
-  const ctxTurno = { history, viewContext, cuadro };   // el ctx del turno, ENTERO, para toda la cadena del playbook
+  /* `mem` viaja en el ctx del playbook (owner 2026-09-08, tercera entrega): «si el usuario quiere profundizar
+   * debes seguir — te podría decir "profundiza en la contribución"». El ancla del click se consume en SU turno;
+   * la profundización del turno siguiente la reabre desde `mem.cuadroAbierto` (escrito más abajo), y SOLO una
+   * pregunta con forma de profundización — la memoria desambigua, jamás secuestra un turno libre. */
+  const ctxTurno = { history, viewContext, cuadro, mem: memIn };   // el ctx del turno, ENTERO, para toda la cadena del playbook
   const playbook = (() => { try { return playbookPara(q, ctxTurno); } catch { return null; } })();
   let playbookActivo = null;
   /* LOS PASOS PUEDEN DEPENDER DE LA PREGUNTA (2026-09-01): `pasosDe` resuelve el Array de siempre o la función
@@ -843,6 +848,18 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   pantalla = anteponerSello(pantalla, getSelloDeCarga(), { calculos: ex.calculos });
 
   const memOut = { ...memIn, recentNarrations: [pantalla, ...recentPrev].slice(0, 2) };
+  /* EL CUADRO ABIERTO queda en la memoria del hilo (owner 2026-09-08): cuando el turno respondió un cuadro
+   * —por click o por profundización—, el turno siguiente puede decir «profundiza en la contribución» y seguir
+   * sobre ESA pieza. Se guarda la DIRECCIÓN (componentId + controles), jamás cifras; el playbook lo caduca a
+   * las 8 entradas de hilo y solo lo lee ante una forma de profundización. Un turno de cuadro NUEVO lo pisa. */
+  if (playbookActivo && playbookActivo.nombre === "cuadro-explicado" && estado !== "vacio") {
+    try {
+      const _anclaAbierta = anclaDelCuadro(ctxTurno) || (memIn.cuadroAbierto && typeof memIn.cuadroAbierto === "object" ? { componentId: memIn.cuadroAbierto.componentId, controles: memIn.cuadroAbierto.controles } : null);
+      if (_anclaAbierta && _anclaAbierta.componentId) {
+        memOut.cuadroAbierto = { componentId: _anclaAbierta.componentId, controles: _anclaAbierta.controles || {}, turno: Array.isArray(history) ? history.length : 0 };
+      }
+    } catch { /* la memoria del cuadro jamás rompe el turno */ }
+  }
   { const _trato = getNombreUsuario(); if (_trato) memOut.nombreUsuario = _trato; }   // el trato persiste por el canal de la memoria (ver arriba)
   if (aprobado && !suplente) memOut.ultimaAprobada = pantalla;
   /* R2 · la otra punta del cable: lo que el muro APROBÓ presta sus cifras al turno siguiente — el MISMO

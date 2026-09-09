@@ -139,7 +139,12 @@ function _cifrasDe(obj, metrica) {
     if (base) {
       const rot = _rotulo(base);
       const val = _txt(obj[k]);
-      if (rot && val) out.push({ clave: base, label: rot, valor: val });
+      /* `raw` es el CRUDO que el builder publica al lado del formateado. Los builders lo nombran de tres
+       * maneras según la cara (`venta`/`ventaFmt` · `pesoPct`/`pesoFmt` · `ventaK`/`ventaFmt` en Flujo): se
+       * prueban las tres. Viaja para poder ORDENAR y comparar posiciones sin re-parsear el texto — ordenar por
+       * el número del módulo no es calcular. */
+      const rawDe = [obj[base], obj[`${base}Pct`], obj[`${base}K`]].find((x) => typeof x === "number" && Number.isFinite(x));
+      if (rot && val) out.push({ clave: base, label: rot, valor: val, raw: rawDe !== undefined ? rawDe : null });
       continue;
     }
     /* EL VALOR PRINCIPAL SIN NOMBRE DE CAMPO. Tres formas de la casa lo publican así y las tres están en
@@ -148,26 +153,26 @@ function _cifrasDe(obj, metrica) {
      * lo que se pinta, un número es el crudo que ordena — y ese no se lee, porque su versión visible viaja en
      * otro campo. */
     if ((k === "fmt" || k === "valor" || k === "value") && _txt(obj[k])) {
-      out.push({ clave: "principal", label: metrica || "Valor", valor: _txt(obj[k]) });
+      out.push({ clave: "principal", label: metrica || "Valor", valor: _txt(obj[k]), raw: typeof obj.valor === "number" && Number.isFinite(obj.valor) ? obj.valor : null });
       continue;
     }
     /* EL ACUMULADO DE LA CURVA · el 80/20. El módulo lo publica en puntos (`19.4`) y la vista lo pinta con su
      * signo de porcentaje («acum 19.4%»): acá se transcribe ese mismo token, no se calcula nada. */
     if (k === "acumuladoPct" && typeof obj[k] === "number" && Number.isFinite(obj[k])) {
-      out.push({ clave: "acumulado", label: CAMPOS.acumulado, valor: `${obj[k]}%` });
+      out.push({ clave: "acumulado", label: CAMPOS.acumulado, valor: `${obj[k]}%`, raw: obj[k] });
       continue;
     }
     /* la comparación anidada: se lee su MONTO y su PORCENTAJE, que es lo que la celda pinta */
     if (COMPARADOS[k] && obj[k] && typeof obj[k] === "object" && obj[k].hay !== false) {
       const c = obj[k];
       const m = _txt(c.montoFmt), p = _txt(c.pctFmt);
-      if (m) out.push({ clave: k, label: COMPARADOS[k], valor: m });
-      if (p) out.push({ clave: `${k}Pct`, label: `${COMPARADOS[k]} (%)`, valor: p });
+      if (m) out.push({ clave: k, label: COMPARADOS[k], valor: m, raw: typeof c.monto === "number" ? c.monto : null });
+      if (p) out.push({ clave: `${k}Pct`, label: `${COMPARADOS[k]} (%)`, valor: p, raw: typeof c.pct === "number" ? c.pct : null });
       continue;
     }
     /* el conteo entero que el cuadro muestra */
     if (CONTEOS[k] && typeof obj[k] === "number" && Number.isFinite(obj[k])) {
-      out.push({ clave: k, label: CONTEOS[k], valor: String(obj[k]), conteo: true });
+      out.push({ clave: k, label: CONTEOS[k], valor: String(obj[k]), raw: obj[k], conteo: true });
     }
   }
   return out;

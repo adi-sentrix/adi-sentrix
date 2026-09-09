@@ -193,17 +193,60 @@ H("5b · «usa el cuadro como evidencia, no como texto a recitar» · 2-4 cifras
   const R = buildResumenComercial(ESC);
   const t = await texto("comercial/01/tabla-cartera", tituloDeExplicacion("comercial/01/tabla-cartera"), { todos: "0" });
   const nombrados = R.cartera.filas.map((f) => f.nombre).filter((n) => t.includes(n));
-  ok(nombrados.length >= 1 && nombrados.length <= 5, `★ nombra ${nombrados.length} de ${R.cartera.filas.length} filas — evidencia, no la tabla otra vez`, nombrados.join(", "));
+  /* el resumen POR DIMENSIÓN nombra filas con propósito (rango del margen, la inversión, las que caen): hasta 8
+   * caben en eso — pasar de ahí es la tabla otra vez (mismo umbral que la multa cuadro-recitado) */
+  ok(nombrados.length >= 1 && nombrados.length <= 8, `★ nombra ${nombrados.length} de ${R.cartera.filas.length} filas — evidencia con propósito, no la tabla otra vez`, nombrados.join(", "));
   ok(/qu[eé] pasa|implica|lectura que importa|tapa lo que cae|empezar[ií]a|mirar[ií]a|partir[ií]a/i.test(t),
     "…y dice qué implica / por dónde empezar — no solo qué hay", t.slice(0, 200));
   /* la lista notarial del playbook multa las dos formas del defecto, con carnada de texto */
   const vc5 = ancla("comercial/01/tabla-cartera", { todos: "0" });
-  const recitado = R.cartera.filas.slice(0, 7).map((f) => `· ${f.nombre}: venta ${f.ventaFmt}`).join("\n");
+  const recitado = R.cartera.filas.slice(0, 10).map((f) => `· ${f.nombre}: venta ${f.ventaFmt}`).join("\n");
   const vRec = vetosDelPlaybook(cuadroExplicado, `Esto muestra el cuadro:` + "\n" + recitado, { pregunta: "x", ctx: { cuadro: vc5 } });
   ok(vRec.some((x) => x.regla === "cuadro-recitado"), "★ recitar las filas recibe MULTA del propio playbook", JSON.stringify(vRec.map((x) => x.regla)));
   const vCal = vetosDelPlaybook(cuadroExplicado, `Mira: ${R.cartera.lectura} Eso es lo que hay.`, { pregunta: "x", ctx: { cuadro: vc5 } });
   ok(vCal.some((x) => x.regla === "cuadro-calcado"), "★ calcar la frase de la pantalla recibe MULTA — interpretar, no duplicar", JSON.stringify(vCal.map((x) => x.regla)));
   ok(vetosDelPlaybook(cuadroExplicado, t, { pregunta: "x", ctx: { cuadro: vc5 } }).length === 0, "…y el entregable determinístico pasa sus propias reglas");
+}
+
+/* ═══ 5c · EL RESUMEN EJECUTIVO POR DIMENSIÓN · y «profundiza en…» (owner 2026-09-08, tercera entrega) ══════ */
+H("5c · «un resumen ejecutivo de esa tabla» — dimensión por dimensión, y la profundización que sigue");
+{
+  const R6 = buildResumenComercial(ESC);
+  const vc6 = ancla("comercial/01/tabla-cartera", { todos: "0" });
+  const t6 = tituloDeExplicacion("comercial/01/tabla-cartera");
+  const r1 = await answerViaAgente({ text: t6, history: [], mem: {}, scenario: ESC, callAgente: MUDO, viewContext: vc6, cuadro: vc6 });
+  const T1 = String(r1.r.text || "");
+  ok(/Participaci[oó]n:/.test(T1) && /Contribuci[oó]n:/.test(T1) && /Margen:/.test(T1),
+    "★ el resumen recorre LAS DIMENSIONES del cuadro — participación, contribución, margen — una línea cada una", T1.slice(0, 200));
+  ok(/vs presupuesto/.test(T1) && /vs año anterior/.test(T1), "…y las comparaciones QUE EXISTEN en este cuadro (año anterior y presupuesto)");
+  /* la INVERSIÓN venta↔contribución, medida contra el crudo vivo del builder: si existe un par invertido, el
+   * resumen lo dice con las cuatro cifras — es la clase de cosa que el usuario no ve solo mirando la tabla */
+  const filas6 = R6.cartera.filas;
+  const hayInversion = filas6.some((a, i) => filas6.slice(i + 1).some((b) => b.contribucion > a.contribucion));
+  if (hayInversion) ok(/inversi[oó]n que la tabla no muestra/.test(T1) && /deja .* de contribuci[oó]n/.test(T1),
+    "★ y dice la INVERSIÓN (deja más contribución vendiendo menos) — con cada cifra pegada a su métrica", T1.slice(0, 300));
+  ok((r1.r.agente.vetos || []).length === 0, "…sin un solo veto del muro", JSON.stringify(r1.r.agente.vetos || []));
+  ok(r1.mem && r1.mem.cuadroAbierto && r1.mem.cuadroAbierto.componentId === "comercial/01/tabla-cartera",
+    "★ el cuadro queda ABIERTO en la memoria del hilo (dirección, jamás cifras)", JSON.stringify(r1.mem.cuadroAbierto));
+
+  /* T2 · «profundiza en la contribución» — SIN click: el ancla viene de la memoria del hilo */
+  const hist = [{ role: "user", text: t6 }, { role: "adi", text: T1 }];
+  const r2 = await answerViaAgente({ text: "profundiza en la contribución", history: hist, mem: r1.mem, scenario: ESC, callAgente: MUDO });
+  const T2 = String(r2.r.text || "");
+  ok(/contribuci[oó]n de este cuadro/i.test(T2) && /Arriba:/.test(T2), "★ «profundiza en la contribución» SIGUE sobre el mismo cuadro, sin click nuevo", T2.slice(0, 140));
+  const topC = [...filas6].sort((a, b) => b.contribucion - a.contribucion)[0];
+  ok(T2.includes(topC.nombre) && T2.includes(topC.contribucionFmt), `…con la punta real de esa columna (${topC.nombre} ${topC.contribucionFmt}, del builder vivo)`);
+  /* T3 · encadenada a otra dimensión */
+  const hist3 = [...hist, { role: "user", text: "profundiza en la contribución" }, { role: "adi", text: T2 }];
+  const r3 = await answerViaAgente({ text: "profundiza en la participación", history: hist3, mem: r2.mem, scenario: ESC, callAgente: MUDO });
+  ok(/participaci[oó]n de este cuadro/i.test(String(r3.r.text || "")), "…y encadena a otra dimensión («profundiza en la participación»)");
+  /* T4 · una pregunta LIBRE con el cuadro en memoria NO se responde como cuadro (la memoria desambigua, no secuestra) */
+  const r4 = await answerViaAgente({ text: "como viene mi margen?", history: hist3, mem: r2.mem, scenario: ESC, callAgente: MUDO });
+  ok(!/de este cuadro, por dentro/i.test(String(r4.r.text || "")), "★ una pregunta libre con el cuadro en memoria NO se responde como cuadro");
+  /* la caducidad: a las >8 entradas de hilo, la memoria del cuadro expira */
+  const histViejo = Array.from({ length: 12 }, (_, i) => ({ role: i % 2 ? "adi" : "user", text: `turno ${i}` }));
+  const r5 = await answerViaAgente({ text: "profundiza en la contribución", history: histViejo, mem: r1.mem, scenario: ESC, callAgente: MUDO });
+  ok(!/contribuci[oó]n de este cuadro/i.test(String(r5.r.text || "")), "…y el cuadro abierto CADUCA: nueve entradas después ya no reabre solo");
 }
 
 /* ═══ 6 · SIN DATO, SE DICE QUÉ FALTA ═══════════════════════════════════════════════════════════════════════ */
@@ -250,7 +293,7 @@ H("7 · un click, un turno · el ambiente de la vista no abre la explicación de
   const chat = sinComentarios(leer("src/ui/ChatADI.jsx"));
   ok(/cuadro: viewContext \|\| null/.test(chat), "★ la UI manda por el canal del cuadro SOLO el click del turno (el ambiente queda fuera)");
   const bucle = sinComentarios(leer("src/adi/agente/bucleAgente.js"));
-  ok(/const ctxTurno = \{ history, viewContext, cuadro \}/.test(bucle), "…y el bucle lo pasa entero a la cadena del playbook");
+  ok(/const ctxTurno = \{ history, viewContext, cuadro, mem: memIn \}/.test(bucle), "…y el bucle lo pasa entero a la cadena del playbook — con la memoria del hilo para la profundización");
 }
 
 /* ═══ 8 · NADA SE AFLOJA · el muro juzga lo compuesto ═══════════════════════════════════════════════════════ */
@@ -337,7 +380,7 @@ H("10 · carnadas · cada garantía, probada ROJA sobre una copia mutada del có
 
   // (a) el ancla del click se pierde en el bucle → el botón vuelve a responder una pregunta libre
   await carnada("el ancla no llega al playbook", "src/adi/agente/bucleAgente.js",
-    [[/const ctxTurno = \{ history, viewContext, cuadro \};/, "const ctxTurno = { history, viewContext };"]],
+    [[/const ctxTurno = \{ history, viewContext, cuadro, mem: memIn \};/, "const ctxTurno = { history, viewContext, mem: memIn };"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
       const vc = ancla("comercial/01/pareto-ventas", { met: "ventas" });
@@ -377,12 +420,12 @@ H("10 · carnadas · cada garantía, probada ROJA sobre una copia mutada del có
 
   // (e) la multa de recitación desarmada → volver a servir la tabla deja de arder
   await carnada("la multa de recitación desarmada (la tabla vuelve a recitarse)", "src/adi/agente/playbooks/cuadroExplicado.js",
-    [[/if \(nombrados > 5\) v\.push\(\{ regla: "cuadro-recitado"/, 'if (false) v.push({ regla: "cuadro-recitado"']],
+    [[/if \(nombrados > 8\) v\.push\(\{ regla: "cuadro-recitado"/, 'if (false) v.push({ regla: "cuadro-recitado"']],
     async (Mut) => {
       initTenant(TENANT_DEMO);
       const vcM = ancla("comercial/01/tabla-cartera", { todos: "0" });
       const RB = buildResumenComercial(ESC);
-      const bait = "Esto muestra el cuadro: " + RB.cartera.filas.slice(0, 7).map((f) => `${f.nombre} vende ${f.ventaFmt}`).join(", ") + ".";
+      const bait = "Esto muestra el cuadro: " + RB.cartera.filas.slice(0, 10).map((f) => `${f.nombre} vende ${f.ventaFmt}`).join(", ") + ".";
       const v = Mut.cuadroExplicado.listaNotarial(bait, { pregunta: "x", ctx: { cuadro: vcM } });
       return !v.some((x) => x.regla === "cuadro-recitado");
     });
