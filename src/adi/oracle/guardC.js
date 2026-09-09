@@ -244,7 +244,12 @@ function _attributionViolations(narration, ledger, entityNames) {
 // Declarar las dos NO endurece el chequeo: las dos ventanas pasan de 1 métrica a 2 y caen en la rama "ambiguo →
 // no se juzga" que este mismo bloque fija como criterio (falso negativo antes que falso positivo).
 const _METRIC_VOCAB = [
-  { clave: "ventas",       re: /\bventas?\b|\bvend[eióa]\w*\b|\bfactur\w+\b/i },
+  /* `\w` no cubre vocales acentuadas — y `\b` TAMPOCO funciona tras una: en «facturó», el patrón viejo exigía
+   * `\w+` después de «factur» (la ó no es `\w` → no casaba) y con la clase extendida el `\b` final fallaba
+   * (entre «ó» y el espacio no hay borde `\w`). Resultado medido: «Jumbo facturó $4.2M» —una contribución
+   * vestida de venta— pasaba el muro ENTERO. Agujero preexistente, cazado al calibrar la mención tomada
+   * (2026-09-08) con su corpus de veneno. El cierre va por lookahead negativo, no por `\b`. */
+  { clave: "ventas",       re: /\bventas?\b|\bvend[eióa][\wáéíóúñ]*(?![\wáéíóúñ])|\bfactur[\wáéíóúñ]+(?![\wáéíóúñ])/i },
   { clave: "margen",       re: /\bm[aá]rgen(?:es)?\b/i },
   { clave: "contribucion", re: /\bcontribuci[oó]n\b|\bcontribuy\w+\b/i },
   { clave: "costo",        re: /\bcostos?\b/i },
@@ -343,9 +348,75 @@ function _metricBindingViolations(narration, ledger) {
     const cerca = _metricasEn(text.slice(lo, hi));
     if (cerca.size !== 1) continue;                 // 0 → sin señal · 2+ → ambiguo, no se juzga
     const unica = [...cerca][0];
-    if (!ownerSet.has(unica)) viol.push(`«${f.text}» narrado como ${unica}, pero pertenece a ${[...ownerSet].join("/")}`);
+    if (ownerSet.has(unica)) continue;
+    /* ── LA MENCIÓN TOMADA NO LIGA (owner 2026-09-08, calibrada con su propio texto) ────────────────────────
+     * El falso positivo medido, con la frase que el owner escribió a mano como la lectura que quiere:
+     *   «Falabella vende $19.4M y genera $4.3M de contribución, mientras Jumbo, con $17.3M de venta, genera
+     *    prácticamente lo mismo: $4.2M» → «$4.2M narrado como ventas».
+     * La palabra «venta» que cae en la ventana de $4.2M NO está suelta: es la métrica de $17.3M, que la tiene
+     * PEGADA y a la que describe correctamente. Una mención así está TOMADA — ligarla además a otra cifra es
+     * leer la misma palabra dos veces. La comparación venta↔contribución de una misma cuenta, que es el
+     * corazón de la lectura ejecutiva, quedaba vetada entera por esto.
+     *
+     * El criterio, nítido y DIRECCIONAL — las dos formas del español en que una métrica queda pegada a su
+     * cifra, y solo esas:
+     *   · hacia atrás:    «$17.3M de venta»  — la cifra termina justo antes de la mención, unidas por un
+     *                     conector puro (de/del/en/coma). «$17.3M, y su venta…» NO califica: «y su» abre una
+     *                     afirmación nueva, y esa mención queda LIBRE para juzgar a la cifra siguiente.
+     *   · hacia adelante: «vende $17.9M» · «venta de $17.3M» — la mención seguida a ≤15 caracteres por OTRA
+     *                     cifra (la juzgada no se toma a sí misma).
+     * En ambas, la mención tiene que describir CORRECTAMENTE a esa otra cifra según la boleta. Si TODAS las
+     * menciones de la ventana están tomadas, no queda señal libre y la cifra no se juzga (la rama de siempre:
+     * falso negativo antes que falso positivo). Lo que NO cambia: «tu venta fue $4.2M» sigue vetado (la
+     * mención no tiene otra cifra que la tome), y en «Falabella vende $19.4M, mientras Jumbo vende $4.2M» el
+     * segundo «vende» solo tiene delante a la cifra juzgada — libre, veto en pie. Calibrado con corpus
+     * legítimo (el texto del owner incluido) + veneno en `_binding_guard_gate`. */
+    if (_todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada: idx, finJuzgada: end, owners })) continue;
+    viol.push(`«${f.text}» narrado como ${unica}, pero pertenece a ${[...ownerSet].join("/")}`);
   }
   return viol;
+}
+
+/* las cifras de una ventana, leídas de la MÁSCARA: cada figura ya es un tramo de "#" contiguos en `masked`
+ * (la misma máscara que fija los límites de oración), así que sus posiciones salen sin re-parsear texto. */
+function _tramosDeCifra(masked, lo, hi) {
+  const out = [];
+  let i = lo;
+  while (i < hi) {
+    if (masked[i] === "#") { const ini = i; while (i < hi && masked[i] === "#") i++; out.push([ini, i]); }
+    else i++;
+  }
+  return out;
+}
+/* el conector puro entre una cifra y la métrica que la describe hacia atrás («$17.3M de venta»). «y su», «pero
+ * la», un verbo — cualquier cosa que abra afirmación nueva — NO conecta, y la mención queda libre. */
+const _CONECTOR_ATRAS = /^[\s,]*(?:de(?:l)?|de\s+(?:la|tu|su)|en)?\s*$/i;
+function _todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners }) {
+  const vocab = _METRIC_VOCAB.find((m) => m.clave === unica);
+  if (!vocab) return false;
+  const re = new RegExp(vocab.re.source, vocab.re.flags.includes("g") ? vocab.re.flags : vocab.re.flags + "g");
+  const ventana = text.slice(lo, hi);
+  const tramos = _tramosDeCifra(masked, lo, hi);
+  let m;
+  while ((m = re.exec(ventana))) {
+    const mIni = lo + m.index, mFin = mIni + m[0].length;
+    /* EL INFINITIVO SUELTO NO AFIRMA («hay una diferencia entre vender más y aportar más:») — es discurso, no
+     * una atribución. Se ignora SOLO cuando no tiene ninguna cifra pegada: «espera facturar $4.2M» conserva la
+     * mención (la cifra está al lado) y sigue el camino normal — donde la juzgada no se toma a sí misma. */
+    if (/(?:ar|er|ir)(?:se)?$/i.test(m[0]) && !tramos.some(([gIni, gFin]) => (gFin <= mIni && mIni - gFin <= 15) || (mFin <= gIni && gIni - mFin <= 15))) continue;
+    let tomada = false;
+    for (const [gIni, gFin] of tramos) {
+      if (gIni === idxJuzgada && gFin >= finJuzgada) continue;   // la propia cifra juzgada no toma menciones
+      const haciaAtras = gFin <= mIni && (mIni - gFin) <= 15 && _CONECTOR_ATRAS.test(text.slice(gFin, mIni));
+      const haciaAdelante = mFin <= gIni && (gIni - mFin) <= 15 && !_SENT_END.test(masked.slice(mFin, gIni));
+      if (!haciaAtras && !haciaAdelante) continue;
+      const tok = parseFigures(text.slice(gIni, gFin))[0];
+      const duenos = tok && owners.get(tok.canon);
+      if (duenos && duenos.has(unica)) { tomada = true; break; }   // la mención describe a ESA cifra, correctamente
+    }
+    if (!tomada) return false;   // una mención libre alcanza para juzgar, como siempre
+  }
+  return true;
 }
 
 // ── PERÍODO CONTRADICTORIO · CONTRATO v2 · FASE 2 ──────────────────────────────────────────────────────────────
@@ -4188,11 +4259,43 @@ export function guardC(narration, { ledger, results = [], trace = null, question
                 if (sujetoDetras) break;
               }
             }
+            /* EL POSESIVO PEGADO AL MARCADOR (calibración 2026-09-08, cazada con el texto que el owner escribió
+             * a mano): «…revisaría qué está explicando el menor margen relativo DE LIDER Y FALABELLA». El
+             * español cuelga el dueño del extremo DETRÁS, con «de»: esa atribución es explícita y le gana a la
+             * proximidad — la regla vieja miraba hacia atrás, encontraba «…en La Polar y Ripley» y le cobraba a
+             * Ripley una frase que hablaba de otros dos. Mismo criterio de siempre: si el posesivo nombra a UNA,
+             * esa es la reclamante; si nombra a DOS O MÁS, el extremo es de un grupo y no se adivina (el candado
+             * del plural, ahora también por detrás). Sin «de» a ≤3 palabras del marcador, nada cambia. */
+            let posesivo = null;
+            {
+              const _tras = oracion.slice(iM + mm[0].length);
+              const _mDe = /^((?:\s+[a-záéíóúüñ]+){0,3})\s+de\s+/i.exec(_tras);
+              if (_mDe) {
+                let _resto = _tras.slice(_mDe[0].length);
+                const _encontradas = [];
+                let _sigue = true;
+                while (_sigue) {
+                  _sigue = false;
+                  const _r = _resto.replace(/^\s+/, "");
+                  for (const x of nombradas) {
+                    if (!_r.toLowerCase().startsWith(String(x.entidad).toLowerCase())) continue;
+                    _encontradas.push(x);
+                    _resto = _r.slice(String(x.entidad).length);
+                    const _sep = /^\s*(?:,|y|e)\s+/i.exec(_resto);
+                    if (_sep) { _resto = _resto.slice(_sep[0].length); _sigue = true; }
+                    break;
+                  }
+                }
+                if (_encontradas.length === 1) posesivo = { unica: _encontradas[0] };
+                else if (_encontradas.length >= 2) posesivo = { grupo: true };
+              }
+            }
+            if (posesivo && posesivo.grupo) continue;   // extremo de un GRUPO nombrado por posesivo: sin reclamante único, no se juzga
             /* Y LA CÓPULA MANDA SOBRE LO QUE HAYA DELANTE (intento 1 del mismo turno): «El más grave en severidad
              * es MAK-COMP-AIR (…); el que más capital libera si se actúa es LG-DRYER8KG» son DOS cláusulas en una
              * sola oración. Con MAK-COMP-AIR delante del segundo marcador, mirar hacia atrás vuelve a cobrarle la
              * frase de otro. Cuando el verbo nombra al sujeto, no hay nada que deducir: ese es. */
-            const reclamante = sujetoDetras || (delante.length ? delante[delante.length - 1] : sujetoPrevio);
+            const reclamante = sujetoDetras || (posesivo && posesivo.unica) || (delante.length ? delante[delante.length - 1] : sujetoPrevio);
             if (!reclamante || !conjunto.some((x) => x.entidad === reclamante.entidad)) continue;
             const extremo = conjunto.reduce((a, b) => (alto ? (b.valor > a.valor ? b : a) : (b.valor < a.valor ? b : a)));
             if (extremo.entidad === reclamante.entidad) continue;

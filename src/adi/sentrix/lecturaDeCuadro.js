@@ -323,6 +323,31 @@ export function lecturaDeCuadro(componentId, { scenario = ESCENARIO_INICIAL, con
   const fl = _filasDe(node, identidad.metricaLabel);
   const filas = fl ? fl.filas : [];
 
+  /* ── LA CURVA ACUMULADA DE LA MISMA CARA ───────────────────────────────────────────────────────────────
+   * (owner 2026-09-08: «Falabella, Lider y Jumbo representan 54.6% de las ventas»)
+   *
+   * Ese 54.6% NO se suma acá: lo publica OTRA PIEZA DEL MISMO BUILDER —la curva de concentración de la misma
+   * cara, misma métrica y mismo eje— y se lee de ahí. Sumar tres participaciones sería aritmética en la
+   * superficie, justo lo que la casa prohíbe; leer el acumulado que el módulo ya calculó es una lectura más.
+   *
+   * Se busca POR DECLARACIÓN, jamás por nombre: se recorre el manifiesto buscando una pieza `barra` de la
+   * misma vista/métrica/eje y se resuelve su campo contra ESTA MISMA salida del builder. Sin pieza hermana no
+   * hay acumulado y la explicación se arregla sin él. */
+  const concentracion = (() => {
+    if (!m.metrica || !m.eje) return [];
+    for (const [id2, m2] of Object.entries(VIEW_MANIFEST)) {
+      if (id2 === id || m2.vista !== m.vista || m2.tipo !== "barra") continue;
+      if (m2.metrica !== m.metrica || m2.eje !== m.eje) continue;
+      const n2 = resolvePath(out, m2.campo);
+      const f2 = _filasDe(n2, identidad.metricaLabel);
+      if (!f2) continue;
+      const curva = f2.filas.map((f) => ({ nombre: f.nombre, acumulado: (f.cifras.find((c) => c.clave === "acumulado") || {}).valor || null }))
+        .filter((x) => x.acumulado);
+      if (curva.length) return curva;
+    }
+    return [];
+  })();
+
   /* ⚠️ «SIN CIFRAS» ES UN LÍMITE MÍO, NO DEL DATO — y por eso lleva un motivo propio. Los dos de arriba
    * (`sin-modulo`, `sin-campo`) son del DATO: la pieza no existe en esta carga, y eso se le DICE al usuario
    * («exactamente qué falta», la regla del owner). Éste es otro animal: la pieza está y pinta números, pero
@@ -334,7 +359,7 @@ export function lecturaDeCuadro(componentId, { scenario = ESCENARIO_INICIAL, con
       falta: `el cuadro «${m.label}» no publica sus cifras en una forma que yo pueda citar verbatim.` };
   }
 
-  return { ok: true, identidad, cabecera, filas, textos, limite, corte, filasLlave: fl ? fl.llave : null, n: filas.length };
+  return { ok: true, identidad, cabecera, filas, textos, limite, corte, concentracion, filasLlave: fl ? fl.llave : null, n: filas.length };
 }
 
 /** los componentes que ESTE dato sabe leer — lo consume el gate para barrer el manifiesto entero. */

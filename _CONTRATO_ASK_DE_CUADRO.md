@@ -222,3 +222,46 @@ participación») y cada drill da extremos + señaladas + la inversión, no la c
 `_ancla_de_cuadro_gate`: **131 chequeos** — §5c mide el resumen por dimensión contra las banderas vivas del
 builder, la cadena T1 click → T2/T3 profundizaciones → T4 pregunta libre que NO se responde como cuadro, y la
 caducidad de la memoria.
+
+---
+
+## 9 · EL MURO SUPERVISA, EL AGENTE REDACTA (owner 2026-09-08, cuarta entrega)
+
+**Su palabra, textual:** *«lo que debes lograr es que el agente pueda hacer esa calidad de análisis… el muro
+debe corroborar que nada se invente. Nuestro trabajo es buscar el cómo: que el muro siga siendo supervisor, no
+permita inventos, y que el agente pueda redactar — de lo contrario lo volvemos a privar y vuelve a salir malo.
+Busca la manera sin perder calidad.»*
+
+**El diagnóstico que lo precedió, medido:** el agente SÍ escribía la lectura ejecutiva — el muro se la mataba,
+y el entregable determinístico (más pobre) salía en su lugar. La prueba: el texto que el owner escribió a mano
+como estándar, alimentado como respuesta del cerebro, moría en dos reglas.
+
+### Las dos calibraciones del notario (guardC.js) — ninguna afloja, las dos se miden
+
+1. **La mención tomada no liga** (`_todasLasMencionesTomadas`): en «…con $17.3M **de venta**, genera
+   prácticamente lo mismo: $4.2M», la palabra «venta» pertenece a $17.3M (la tiene pegada y la describe bien
+   según la boleta) — no puede reclamar además al $4.2M. Criterio direccional: «$X de venta» toma hacia atrás
+   solo con conector puro (de/del/en/coma — «y su» abre afirmación nueva y NO toma); «vende $X» toma hacia
+   adelante a ≤15 caracteres. El infinitivo suelto («entre vender más y aportar más») no afirma y no cuenta.
+   **Corpus: 5 frases legítimas pasan · 5 venenos mueren** — incluido un agujero PREEXISTENTE que la
+   calibración destapó: «Jumbo facturó $4.2M» pasaba el muro entero porque ni `\w` ni `\b` de JS funcionan con
+   la ó acentuada («facturó» nunca fue vocabulario). Cerrado por lookahead.
+2. **El posesivo del superlativo** («el menor margen relativo **de Lider y Falabella**»): el español cuelga el
+   dueño del extremo detrás con «de», y la regla vieja miraba hacia atrás y le cobraba a la vecina (Ripley) una
+   frase que hablaba de otros dos. Posesivo con UNA entidad → esa es la reclamante (y se verifica); con DOS o
+   más → es de un grupo y no se adivina — el candado del plural, ahora también por detrás.
+
+### La aceptación (gate §5d, con carnadas g/h)
+
+**EL TEXTO DEL OWNER, verbatim con cifras del demo, pasa el muro sin un solo veto** — y en el turno completo
+sale VERDE a la primera. El arnés juzga con `datoProyectado` (los rankings declarados de la carpeta): sin eso
+el juez de superlativos ni corre y la aceptación mediría a medias — cazado en la propia calibración.
+
+### Y el piso subió al mismo estándar
+
+La rama ejecutiva del composer sigue el arco del owner: tesis → desempeño y quién impulsa → concentración (el
+acumulado 54.6% LEÍDO de la curva de la misma cara, jamás sumado — `L.concentracion` busca la pieza hermana
+POR DECLARACIÓN en el manifiesto) → vender ≠ aportar CON su razón (el margen) → la calidad del mix contra el
+promedio de la cartera → el deterioro PONDERADO por margen (La Polar: 2.9% de la venta, 34.0% de margen — «la
+más cara de perder») → síntesis con las dos tensiones → por dónde profundizar, con el criterio dicho. Los
+cuadros sin comparaciones (el corte de Capital, Qué liquidar, el saldo del Flujo) conservan su señal de estado.

@@ -44,6 +44,7 @@ import { buildResumenComercial } from "./src/adi/sentrix/resumenComercial.js";
 import { guardC } from "./src/adi/oracle/guardC.js";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
+import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";   // §5d · el juez de superlativos compara contra los RANKINGS DECLARADOS del dato
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -216,14 +217,23 @@ H("5c · «un resumen ejecutivo de esa tabla» — dimensión por dimensión, y 
   const t6 = tituloDeExplicacion("comercial/01/tabla-cartera");
   const r1 = await answerViaAgente({ text: t6, history: [], mem: {}, scenario: ESC, callAgente: MUDO, viewContext: vc6, cuadro: vc6 });
   const T1 = String(r1.r.text || "");
-  ok(/Participaci[oó]n:/.test(T1) && /Contribuci[oó]n:/.test(T1) && /Margen:/.test(T1),
-    "★ el resumen recorre LAS DIMENSIONES del cuadro — participación, contribución, margen — una línea cada una", T1.slice(0, 200));
+  /* EL ARCO del owner (cuarta entrega: su lectura escrita a mano es el estándar) — se mide por CONCEPTO
+   * contra el builder vivo, jamás por rótulos de sección (la lección de siempre: forma ≠ concepto) */
+  ok(/pero el crecimiento est[aá] concentrado/.test(T1), "★ abre con la TESIS — la tensión de fondo, no un dato", T1.split("\n")[0]);
+  const _acum3 = (buildResumenComercial(ESC).pareto.ventas.barras[2] || {}).acumuladoPct;
+  ok(_acum3 ? T1.includes(`${_acum3}%`) : true, `★ la concentración con el acumulado que publica la curva de la MISMA cara (${_acum3}%) — leído, no sumado`, T1.slice(0, 400));
+  ok(/La raz[oó]n est[aá] en el margen/.test(T1), "★ vender ≠ aportar lleva SU RAZÓN (el margen que lo explica), no solo el contraste");
+  ok(/margen bajo el promedio de tu cartera \(25\.1%\)/.test(T1) && /calidad del mix/.test(T1),
+    "★ la calidad del MIX: dónde crece respecto del promedio de la cartera (la fila Total del cuadro)");
+  ok(/merece atenci[oó]n especial/.test(T1) && /34\.0%/.test(T1) && /2\.9%/.test(T1),
+    "★ el deterioro PONDERADO: la que pesa poco pero cuyo margen hace más cara cada venta perdida (La Polar, del builder vivo)");
+  ok(/En s[ií]ntesis/.test(T1) && /tensiones/.test(T1), "★ y cierra con la síntesis de las tensiones + la prioridad reformulada");
   ok(/vs presupuesto/.test(T1) && /vs año anterior/.test(T1), "…y las comparaciones QUE EXISTEN en este cuadro (año anterior y presupuesto)");
   /* la INVERSIÓN venta↔contribución, medida contra el crudo vivo del builder: si existe un par invertido, el
    * resumen lo dice con las cuatro cifras — es la clase de cosa que el usuario no ve solo mirando la tabla */
   const filas6 = R6.cartera.filas;
   const hayInversion = filas6.some((a, i) => filas6.slice(i + 1).some((b) => b.contribucion > a.contribucion));
-  if (hayInversion) ok(/inversi[oó]n que la tabla no muestra/.test(T1) && /deja .* de contribuci[oó]n/.test(T1),
+  if (hayInversion) ok(/vender m[aá]s y aportar m[aá]s/.test(T1) && /deja .* de contribuci[oó]n/.test(T1),
     "★ y dice la INVERSIÓN (deja más contribución vendiendo menos) — con cada cifra pegada a su métrica", T1.slice(0, 300));
   ok((r1.r.agente.vetos || []).length === 0, "…sin un solo veto del muro", JSON.stringify(r1.r.agente.vetos || []));
   ok(r1.mem && r1.mem.cuadroAbierto && r1.mem.cuadroAbierto.componentId === "comercial/01/tabla-cartera",
@@ -247,6 +257,45 @@ H("5c · «un resumen ejecutivo de esa tabla» — dimensión por dimensión, y 
   const histViejo = Array.from({ length: 12 }, (_, i) => ({ role: i % 2 ? "adi" : "user", text: `turno ${i}` }));
   const r5 = await answerViaAgente({ text: "profundiza en la contribución", history: histViejo, mem: r1.mem, scenario: ESC, callAgente: MUDO });
   ok(!/contribuci[oó]n de este cuadro/i.test(String(r5.r.text || "")), "…y el cuadro abierto CADUCA: nueve entradas después ya no reabre solo");
+}
+
+/* ═══ 5d · LA REDACCIÓN DEL ASESOR PASA EL MURO (owner 2026-09-08, cuarta entrega) ══════════════════════════
+ * «El muro debe corroborar que nada se invente… nuestro trabajo es que el muro siga siendo supervisor y que el
+ * agente pueda redactar. Busca la manera sin perder calidad.» El estándar es SU texto, escrito a mano: si el
+ * muro se lo veta al cerebro, el agente queda preso del entregable determinístico — que es lo que él vio. */
+H("5d · el texto que el owner escribió a mano PASA el muro — y el veneno sigue muriendo");
+{
+  const figsW = cuadroSentrix({ componentId: "comercial/01/tabla-cartera", scenario: ESC }).boleta;
+  /* ⚠️ CON datoProyectado, SIEMPRE: el juez de superlativos verifica contra los rankings declarados de la
+   * carpeta — sin ellos queda mudo y esta aceptación mediría el muro a MEDIAS (cazado: el posesivo falso
+   * «pasaba» porque el juez ni corría). El arnés juzga con lo mismo que el turno real. */
+  const juzgaW = (t) => (guardC(t, { ledger: { figs: figsW }, question: "x", datoProyectado: cifrasDelDato(ESC) }).violations || []);
+  const TEXTO_OWNER = [
+    "La cartera está creciendo, pero el crecimiento está concentrado y no todas las ventas están aportando la misma calidad de resultado.",
+    "Las ventas llegan a $100.0M, +7.6% vs año anterior y +3.1% sobre presupuesto. El desempeño general es positivo, impulsado principalmente por Lider, Jumbo, Falabella y Mercado Libre.",
+    "La primera señal relevante es la concentración: Falabella, Lider y Jumbo representan 54.6% de las ventas. Esto sostiene el crecimiento, pero también hace que buena parte del resultado dependa de pocas cuentas.",
+    "Hay además una diferencia importante entre vender más y aportar más. Falabella vende $19.4M y genera $4.3M de contribución, mientras Jumbo, con $17.3M de venta, genera prácticamente lo mismo: $4.2M. La razón está en el margen: 24.0% en Jumbo versus 22.0% en Falabella.",
+    "El crecimiento también se está produciendo principalmente en cuentas cuyo margen está por debajo del promedio de la cartera (25.1%): Falabella 22.0%, Lider 21.5% y Jumbo 24.0%.",
+    "El principal foco de deterioro está en Ripley, Easy y La Polar, que caen simultáneamente contra año anterior y presupuesto. La Polar merece especial atención, porque aunque representa solo 2.9% de las ventas, tiene el margen más alto entre estas cuentas (34.0%).",
+    "Yo profundizaría primero en La Polar y Ripley, y después revisaría qué está explicando el menor margen relativo de Lider y Falabella.",
+  ].join("\n\n");
+  ok(juzgaW(TEXTO_OWNER).length === 0, "★★ EL TEXTO DEL OWNER, verbatim con las cifras del demo, pasa el muro SIN un solo veto",
+    JSON.stringify(juzgaW(TEXTO_OWNER).slice(0, 2)));
+  /* las dos calibraciones que lo hicieron posible, cada una con su corpus de VENENO intacto */
+  for (const [bait, motivo] of [
+    ["Tu venta fue de $4.2M.", "una contribución vestida de venta (mención sin cifra que la tome)"],
+    ["Falabella vende $19.4M, mientras Jumbo vende $4.2M.", "el segundo «vende» queda libre: solo tiene delante a la juzgada"],
+    ["Jumbo vende $17.3M, y su venta neta fue de $4.2M.", "«y su» abre afirmación nueva — el conector no toma"],
+    ["Jumbo facturó $4.2M este año.", "el pretérito acentuado que el vocabulario viejo no veía (agujero preexistente)"],
+  ]) {
+    ok(juzgaW(bait).some((v) => v.kind === "metrica-mal-atribuida"), `veneno muerto: «${bait.slice(0, 52)}» — ${motivo}`);
+  }
+  /* el posesivo singular se prueba EN EL CONTEXTO de la oración del owner (4 nombres en juego): con un solo
+   * nombre en la oración la regla nunca juzgó —conjunto < 2— y exigirlo acá sería cobrarle conducta nueva */
+  ok(juzgaW("Yo profundizaría primero en La Polar y Lider, y después revisaría qué está explicando el menor margen relativo de Ripley.").some((v) => v.kind === "superlativo-no-sostenido"),
+    "y el posesivo SINGULAR falso sigue vetado: «el menor margen de Ripley» no es cierto (el extremo es Lider)");
+  ok(juzgaW("Yo profundizaría primero en La Polar y Ripley, y después revisaría qué está explicando el menor margen relativo de Lider.").length === 0,
+    "…mientras el posesivo singular VERDADERO pasa (Lider sí es el margen más bajo del cuadro)");
 }
 
 /* ═══ 6 · SIN DATO, SE DICE QUÉ FALTA ═══════════════════════════════════════════════════════════════════════ */
@@ -438,6 +487,26 @@ H("10 · carnadas · cada garantía, probada ROJA sobre una copia mutada del có
       const RB = buildResumenComercial(ESC);
       const v = Mut.cuadroExplicado.listaNotarial(`Mira: ${RB.cartera.lectura} Eso es lo que hay.`, { pregunta: "x", ctx: { cuadro: vcM } });
       return !v.some((x) => x.regla === "cuadro-calcado");
+    });
+
+  // (g) la mención tomada apagada → el texto del owner vuelve a vetarse (el agente queda preso del piso)
+  await carnada("la calibración de la mención tomada, apagada (la redacción del asesor vuelve a morir)", "src/adi/oracle/guardC.js",
+    [[/function _todasLasMencionesTomadas\(\{ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners \}\) \{/,
+      "function _todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners }) { return false;   // CARNADA"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const figsM = cuadroSentrix({ componentId: "comercial/01/tabla-cartera", scenario: ESC }).boleta;
+      const v = Mut.guardC("Falabella vende $19.4M y genera $4.3M de contribución, mientras Jumbo, con $17.3M de venta, genera prácticamente lo mismo: $4.2M.", { ledger: { figs: figsM }, question: "x", datoProyectado: cifrasDelDato(ESC) });
+      return v.ok === false && JSON.stringify(v.violations).includes("narrado como");
+    });
+  // (h) el posesivo del superlativo, quitado → «de Lider y Falabella» vuelve a cobrársele a la vecina
+  await carnada("el posesivo del superlativo, quitado (el grupo vuelve a adivinarse)", "src/adi/oracle/guardC.js",
+    [[/if \(posesivo && posesivo\.grupo\) continue;/, "if (false) continue;   // CARNADA"]],
+    async (Mut) => {
+      initTenant(TENANT_DEMO);
+      const figsM = cuadroSentrix({ componentId: "comercial/01/tabla-cartera", scenario: ESC }).boleta;
+      const v = Mut.guardC("Yo profundizaría primero en La Polar y Ripley, y después revisaría qué está explicando el menor margen relativo de Lider y Falabella.", { ledger: { figs: figsM }, question: "x", datoProyectado: cifrasDelDato(ESC) });
+      return v.ok === false && JSON.stringify(v.violations).includes("superlativo");
     });
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* limpieza best-effort */ } }

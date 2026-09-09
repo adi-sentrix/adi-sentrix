@@ -1609,10 +1609,15 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (AA) el muro con el `indexOf` desnudo de vuelta: «3.5%» se encuentra DENTRO de «23.5%» y la ficha de
   // Sodimac —una respuesta correcta— vuelve a vetarse. Se captura el par real (texto + figs) del turno vivo
-  // y se juzga con la copia mutada de guardC: el falso positivo tiene que REAPARECER para probar que el
-  // arreglo es lo único que lo frena.
-  await carnada("el muro vuelve a leer «3.5%» adentro de «23.5%» (indexOf desnudo)", "src/adi/oracle/guardC.js",
-    [[/    const idx = _indiceConFrontera\(text, f\.text\);/, "    const idx = text.indexOf(f.text);   // CARNADA"]],
+  // y se juzga con la copia mutada de guardC: el falso positivo tiene que REAPARECER.
+  // ⚠️ DESDE LA CALIBRACIÓN DE LA MENCIÓN TOMADA (2026-09-08) LAS DEFENSAS SON DOS, no una: aun con la ventana
+  // rota, la mención «margen» de la ventana equivocada está TOMADA por su propio «23.5%» y el falso veto no
+  // renace. Eso es el sistema siendo MÁS robusto, no la carnada rota — pero para probar que las dos capas
+  // cargan peso, la carnada ahora quita AMBAS: ventana rota + calibración apagada → el falso positivo revive.
+  await carnada("el muro vuelve a leer «3.5%» adentro de «23.5%» (indexOf desnudo + mención tomada apagada)", "src/adi/oracle/guardC.js",
+    [[/    const idx = _indiceConFrontera\(text, f\.text\);/, "    const idx = text.indexOf(f.text);   // CARNADA"],
+     [/function _todasLasMencionesTomadas\(\{ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners \}\) \{/,
+      "function _todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners }) { return false;   // CARNADA"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
       let par = null;

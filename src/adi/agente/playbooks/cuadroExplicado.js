@@ -162,6 +162,7 @@ const _cifraDeSenal = (x) => {
   const p0 = _principal(x.fila);
   return p0 ? p0.valor : null;
 };
+const _grupoDe = (grupos, claves) => grupos.find((g) => claves.includes(g.clave)) || null;
 const _conCifra = (items, n) => items.slice(0, n).map((x) => { const v = _cifraDeSenal(x); return `${x.fila.nombre}${v ? ` ${v}` : ""}`; }).join(", ");
 
 /* ── ORDENAR POR EL CRUDO DEL BUILDER · posiciones, no aritmética ───────────────────────────────────────── */
@@ -247,11 +248,12 @@ export const cuadroExplicado = {
         `El usuario ya vio el resumen y quiere ESA dimensión por dentro: qué está pasando ahí, quiénes la mueven, quiénes la deterioran, y qué mirarías primero. Extremos y señalados con su cifra — no la columna entera recitada.`,
       ].join(" ");
     }
+    /* el ARCO es el que el owner escribió a mano (2026-09-08) — su texto es el estándar de esta entrega */
     return [
       `${cab}.`,
-      "Entrega un RESUMEN EJECUTIVO de la tabla, dimensión por dimensión — participación, venta, contribución, margen, y las comparaciones que EXISTAN en el cuadro (año anterior, presupuesto): una línea breve por cada una diciendo qué está pasando ahí, no el dato pelado. Las columnas que este dato no trae, ni las nombres.",
-      "El cuadro es tu EVIDENCIA, no un texto a recitar: la tabla ya está en pantalla. Lo tuyo es lo que las filas no dicen solas — quiénes cargan cada señal, si son los mismos por los dos lados, qué tapa el total, dónde hay una anomalía. Cierra con qué implica para el negocio y por dónde empezar.",
-      "Cita pocas cifras clave por dimensión, jamás todas las filas, y no repitas la frase que el propio cuadro ya muestra. Si el usuario después pide profundizar en una dimensión («profundiza en la contribución»), sigue sobre ESTE cuadro: la herramienta cuadroSentrix te lo trae de nuevo.",
+      "Entrega una LECTURA EJECUTIVA de la tabla, con este arco: (1) la TESIS en una línea — la tensión de fondo, no un dato; (2) el desempeño y QUIÉN lo impulsa; (3) la concentración y qué implica depender de pocas cuentas; (4) la diferencia entre vender más y aportar más, CON su razón (el margen que la explica) y tu juicio de asesor; (5) la calidad del mix — dónde está creciendo respecto del promedio; (6) el deterioro PONDERADO: quiénes caen, y cuál importa más aunque pese poco, porque su margen hace más cara cada venta perdida; (7) una síntesis con las tensiones de fondo y la prioridad reformulada; (8) por dónde profundizarías primero, con tu criterio dicho.",
+      "Usa solo las dimensiones que EXISTEN en este cuadro (año anterior y presupuesto pueden no venir: las ausentes ni las nombres). El cuadro es tu EVIDENCIA, no un texto a recitar — la tabla ya está en pantalla; lo tuyo es lo que las filas no dicen solas. Pocas cifras clave por idea, jamás todas las filas, y no repitas la frase que el propio cuadro ya muestra.",
+      "Si el usuario después pide profundizar en una dimensión («profundiza en la contribución»), sigue sobre ESTE cuadro: la herramienta cuadroSentrix te lo trae de nuevo.",
       "La medida del éxito: que entienda algo que no veía solo mirando el cuadro.",
     ].join(" ");
   },
@@ -363,87 +365,141 @@ export const cuadroExplicado = {
       return p.join("\n");
     }
 
-    /* ── tabla · lista · tira — EL RESUMEN EJECUTIVO POR DIMENSIÓN (la tercera entrega del owner) ────────── */
-    /* 1 · EL MARCO: cuántas, cuánto suma, y cómo viene el total */
-    const totalCifra = (L.cabecera || []).find((x) => /^total\./.test(x.clave) && !/Pct|peso/.test(x.clave))
+    /* ── tabla · lista · tira — LA LECTURA EJECUTIVA ────────────────────────────────────────────────────────
+     * El owner escribió a mano la lectura que quería (2026-09-08) y esta rama la persigue pieza por pieza:
+     * tesis → desempeño y quién lo impulsa → concentración → vender ≠ aportar (CON su razón) → la calidad del
+     * mix → el deterioro PONDERADO por margen → síntesis → por dónde profundizar.
+     *
+     * Su frase clave, la que cambió el criterio: «La Polar merece especial atención, porque aunque representa
+     * solo 2.9% de las ventas, tiene el margen más alto entre estas cuentas (34.0%). Perder venta ahí es más
+     * costoso para la rentabilidad de lo que su tamaño comercial podría sugerir.» Antes yo priorizaba por
+     * TAMAÑO —«la mayor de las que caen»—, que es el criterio ingenuo: el que importa es cuánto cuesta perder
+     * ese peso de venta, y eso lo dice el margen. Las dos varas se ofrecen, cada una con su nombre.
+     *
+     * Todo sale de SELECCIONAR y ORDENAR por crudos que el módulo publica, y de COMPARAR dos cifras
+     * autorizadas. Ni una suma: el acumulado del top-3 lo publica la curva de concentración de la misma cara. */
+    const _fmtDe = (f, clave) => { const c = _cifra(f, clave); return c ? c.valor : null; };
+    const totalFila = (L.cabecera || []).find((x) => /^total\./.test(x.clave) && !/Pct|peso/.test(x.clave))
       || _cab(L, "totalVenta") || _cab(L, "usd") || _cab(L, "capital") || _cab(L, "suma");
     const deltaAnt = (L.cabecera || []).find((x) => x.clave === "total.vsAnteriorPct");
     const deltaPre = (L.cabecera || []).find((x) => x.clave === "total.vsPresupuestoPct");
-    if (totalCifra) {
+    const margenMedio = (L.cabecera || []).find((x) => x.clave === "total.margen");
+    const met = I.metricaDicha || "venta";
+
+    /* quién IMPULSA · las que más suman contra el período anterior (orden por el crudo del módulo) */
+    const impulsan = (_ordenadasPor(L.filas, "vsAnterior") || []).filter((x) => typeof x.c.raw === "number" && x.c.raw > 0);
+    /* quiénes CAEN · por señal del módulo, y ordenadas por MARGEN: la de arriba es la más cara de perder */
+    const gCaen = _grupoDe(grupos, ["vsAnterior", "vsAnio"]) || _grupoDe(grupos, ["vsPresupuesto"]);
+    const caen = gCaen ? gCaen.filas.map((x) => x.fila) : [];
+    const caenPorMargen = _ordenadasPor(caen, "margen");
+    const gPre = _grupoDe(grupos, ["vsPresupuesto"]);
+    const dobles = gPre && gCaen && gPre !== gCaen
+      ? gPre.filas.map((x) => x.fila.nombre).filter((n) => caen.some((f) => f.nombre === n)) : [];
+
+    /* ── 1 · LA TESIS · la tensión, en una línea ─────────────────────────────────────────────────────────── */
+    const crece = deltaAnt && !/^-|^−/.test(deltaAnt.valor);
+    const hayConcentracion = !!(L.concentracion && L.concentracion.length >= 3);
+    const hayCalidad = !!(caenPorMargen && margenMedio && caenPorMargen[0] && _cifra(caenPorMargen[0].f, "margen"));
+    if (totalFila && deltaAnt) {
+      const cabezaTesis = crece ? "Tu cartera está creciendo" : "Tu cartera está cayendo";
+      const colaTesis = hayConcentracion && hayCalidad
+        ? `, pero el ${crece ? "crecimiento" : "movimiento"} está concentrado y no todas las ventas te están dejando la misma calidad de resultado.`
+        : hayConcentracion ? `, pero el ${crece ? "crecimiento" : "movimiento"} está concentrado en muy pocas cuentas.`
+        : hayCalidad ? `, pero no todas las ventas te están dejando la misma calidad de resultado.` : ".";
+      p.push(`${cabezaTesis}${colaTesis}`);
+    }
+
+    /* ── 2 · EL DESEMPEÑO · el total, y quién lo empuja ──────────────────────────────────────────────────── */
+    if (totalFila) {
+      const deQue = (totalFila.label || "").replace(/\s*·\s*total/i, "").replace(/\s*total\s*/i, " ").trim().toLowerCase() || met;
       const deltas = [deltaAnt ? `${deltaAnt.valor} vs año anterior` : null, deltaPre ? `${deltaPre.valor} vs presupuesto` : null].filter(Boolean);
-      /* «$135K en total» ponía la coletilla de CONJUNTO detrás de la cifra y el muro la juzga como tal (regla
-       * total-sin-declarar): una coincidencia de canon con un crudo de la carpeta le dio dueño y vetó el turno.
-       * La métrica dicha después de la cifra («$135K de capital») dice lo mismo sin reclamar el conjunto. */
-      const deQue = (totalCifra.label || "").replace(/s*·s*total/i, "").replace(/s*totals*/i, " ").trim().toLowerCase() || I.metricaDicha || "";
-      p.push(`El marco: ${universo} ${nEje}, ${totalCifra.valor}${deQue ? ` de ${deQue}` : ""}${deltas.length ? ` (${deltas.join(" · ")})` : ""}.`);
+      p.push(deltas.length
+        ? `La ${deQue} llega a ${totalFila.valor} (${deltas.join(" · ")})${impulsan.length ? `, empujada sobre todo por ${impulsan.slice(0, 3).map((x) => `${x.f.nombre} ${x.c.valor}`).join(", ")}` : ""}.`
+        : `El marco: ${universo} ${nEje}, ${totalFila.valor}${deQue ? ` de ${deQue}` : ""}.`);
     }
 
-    /* 2 · PARTICIPACIÓN / CONCENTRACIÓN: qué tan repartido está */
-    const grupoN = _cab(L, "grupoN"), grupoPct = _cab(L, "grupoPct");
-    const cubre = _cab(L, "cubre"), tope = _cab(L, "tope");
-    const primeraFila = L.filas[0], pesoPrimera = primeraFila && _cifra(primeraFila, "peso");
-    if (grupoN && grupoPct) {
-      p.push(`Participación: ${grupoN.valor} ${nEje} explican el ${grupoPct.valor} — lo que pase ahí es lo que le pasa a tu negocio.`);
-    } else if (cubre && tope) {
-      p.push(`Participación: las primeras ${tope.valor} cubren el ${cubre.valor}${pesoPrimera ? `; ${primeraFila.nombre} sola pesa ${pesoPrimera.valor}` : ""}.`);
-    } else if (pesoPrimera) {
-      p.push(`Participación: ${primeraFila.nombre} encabeza con ${pesoPrimera.valor} del total.`);
+    /* ── 3 · LA CONCENTRACIÓN · el acumulado que publica la curva de la misma cara ───────────────────────── */
+    if (L.concentracion && L.concentracion.length >= 3) {
+      const tres = L.concentracion.slice(0, 3);
+      p.push(`La primera señal es la concentración: ${tres.map((x) => x.nombre).join(", ")} acumulan el ${tres[2].acumulado} de la ${met}. Eso sostiene el crecimiento, y también hace que buena parte de tu resultado dependa de muy pocas cuentas.`);
+    } else {
+      const grupoN = _cab(L, "grupoN"), grupoPct = _cab(L, "grupoPct");
+      if (grupoN && grupoPct) p.push(`La primera señal es la concentración: ${grupoN.valor} ${nEje} explican el ${grupoPct.valor} — lo que pase ahí es lo que le pasa a tu negocio.`);
     }
 
-    /* 3 · CONTRIBUCIÓN: quién deja el valor — y la inversión que la tabla no muestra sola.
-     * Cada cifra pegada a su métrica (la lección del binding: «vendiendo menos» junto a un monto de
-     * contribución hizo que el notario lo leyera como venta y vetara el turno entero). */
+    /* ── 4 · VENDER ≠ APORTAR · la inversión, con SU RAZÓN ───────────────────────────────────────────────── */
     const inv = _inversion(L.filas, "venta", "contribucion");
-    const topContrib = _ordenadasPor(L.filas, "contribucion");
-    if (topContrib) {
-      const t0 = topContrib[0];
-      const invLinea = inv && _lineaDeInversion(inv, "la contribución");
-      p.push(`Contribución: la más alta la deja ${t0.f.nombre} (${t0.c.valor}).${invLinea ? ` Y hay una inversión que la tabla no muestra sola: ${invLinea}` : ""}`);
-    }
-
-    /* 4 · MARGEN: el rango de la tabla, por el crudo del builder */
-    const ordenMargen = _ordenadasPor(L.filas, "margen");
-    if (ordenMargen && ordenMargen.length >= 3) {
-      const mMax = ordenMargen[0], mMin = ordenMargen[ordenMargen.length - 1];
-      if (mMax.c.valor !== mMin.c.valor) p.push(`Margen: va de ${mMax.c.valor} (${mMax.f.nombre}) a ${mMin.c.valor} (${mMin.f.nombre}) — no todas te dejan lo mismo por peso vendido.`);
-    }
-
-    /* 5 · LAS CAÍDAS / LA SEÑAL: el hallazgo, con la coincidencia y la excepción */
-    const foco = grupos[0] || null;
-    if (foco) {
-      const cuantas = foco.filas.length;
-      const mayoria = universo > 0 && cuantas / universo >= 0.66;
-      const dichoFoco = cuantas === 1 ? foco.dice : foco.dicen;
-      p.push(mayoria
-        ? `La señal: ${cuantas} de ${universo} ${nEje} ${dichoFoco} — no es un caso puntual: pasa en ${cuantas === universo ? "todas" : "casi todas"} tus ${nEje}.`
-        : `La señal: ${cuantas} ${dichoFoco} — ${_conCifra(foco.filas, 3)}${cuantas > 3 ? ", entre otras" : ""}.`);
-      const otra = grupos.find((g) => g !== foco && g.filas.length);
-      if (otra) {
-        const A = new Set(foco.filas.map((x) => x.fila.nombre));
-        const B = new Set(otra.filas.map((x) => x.fila.nombre));
-        const comunes = [...A].filter((x) => B.has(x));
-        const soloA = [...A].filter((x) => !B.has(x));
-        const soloB = [...B].filter((x) => !A.has(x));
-        if (comunes.length >= 2 && soloA.length <= 1) {
-          if (soloA.length === 1) p.push(`Y son casi las mismas que ${otra.dicen}, con una excepción: ${soloA[0]} ${foco.dice} pero no ${otra.dice}.`);
-          else if (soloB.length === 1) p.push(`Y esas mismas también ${otra.dicen} — ahí se suma ${soloB[0]}, que ${otra.dice} pero no ${foco.dice}.`);
-          else if (soloB.length === 0) p.push(`Y son exactamente las mismas que ${otra.dicen}: el deterioro no está repartido, está concentrado ahí.`);
-        }
-      }
-      if (totalCifra && (deltaAnt || deltaPre) && !mayoria) {
-        p.push(`El total sube mientras esas ${nEje} bajan: lo que crece arriba tapa lo que cae abajo, y por eso el número grande no te avisa.`);
+    if (inv) {
+      const vG = _fmtDe(inv.gana.fila, "venta"), vP = _fmtDe(inv.pierde.fila, "venta");
+      const mG = _fmtDe(inv.gana.fila, "margen"), mP = _fmtDe(inv.pierde.fila, "margen");
+      if (vG && vP) {
+        p.push(`Hay una diferencia entre vender más y aportar más: ${inv.pierde.fila.nombre} vende ${vP} y deja ${inv.pierde.v.valor} de contribución, mientras ${inv.gana.fila.nombre}, con ${vG} de venta, deja ${inv.gana.v.valor}.${mG && mP ? ` La razón está en el margen: ${mG} contra ${mP}.` : ""}`);
+        if (mG && mP) p.push(`Yo no miraría solo quién vende más: ${inv.gana.fila.nombre} convierte mejor cada peso vendido en resultado.`);
       }
     }
 
-    /* 6 · POR DÓNDE EMPEZAR — y la puerta a profundizar por dimensión */
-    if (foco && foco.filas.length) {
-      const primero = foco.filas[0].fila.nombre;
-      const cifraPrimero = _cifraDeSenal(foco.filas[0]);
-      const conCifra = cifraPrimero ? ` (${cifraPrimero})` : "";
+    /* ── 5 · LA CALIDAD DEL MIX · dónde está creciendo, contra el margen de la cartera ───────────────────── */
+    if (margenMedio && impulsan.length >= 2) {
+      const mediaRaw = typeof margenMedio.raw === "number" ? margenMedio.raw : parseFloat(String(margenMedio.valor).replace(",", "."));
+      const bajoMedia = impulsan.slice(0, 3).map((x) => ({ f: x.f, m: _cifra(x.f, "margen") }))
+        .filter((x) => x.m && typeof x.m.raw === "number" && Number.isFinite(mediaRaw) && x.m.raw < mediaRaw);
+      if (bajoMedia.length >= 2) {
+        p.push(`Y ese crecimiento está viniendo sobre todo de cuentas con margen bajo el promedio de tu cartera (${margenMedio.valor}): ${bajoMedia.map((x) => `${x.f.nombre} ${x.m.valor}`).join(", ")}. Estás expandiendo venta más rápido de lo que mejora la calidad del mix.`);
+      }
+    }
+
+    /* ── 6 · EL DETERIORO, PONDERADO POR MARGEN ─────────────────────────────────────────────────────────── */
+    if (caenPorMargen && caenPorMargen.length) {
+      const nombresCaen = caen.map((f) => f.nombre);
+      const soloUnLado = nombresCaen.filter((n) => !dobles.includes(n));
+      p.push(dobles.length >= 2
+        ? `El foco de deterioro está en ${dobles.slice(0, 4).join(", ")}, que caen a la vez contra el año anterior y contra tu presupuesto${soloUnLado.length === 1 ? ` — y se suma ${soloUnLado[0]}, que cae solo contra el año` : soloUnLado.length > 1 ? ` — y se suman ${soloUnLado.slice(0, 3).join(", ")}` : ""}.`
+        : `El foco de deterioro está en ${nombresCaen.slice(0, 4).join(", ")}.`);
+      const cara = caenPorMargen[0];
+      const mCara = _cifra(cara.f, "margen"), pCara = _cifra(cara.f, "peso");
+      if (mCara && (!margenMedio || typeof margenMedio.raw !== "number" || mCara.raw > margenMedio.raw)) {
+        p.push(`Pero no todas pesan igual: ${cara.f.nombre} merece atención especial porque${pCara ? `, aunque es solo el ${pCara.valor} de tu venta,` : ""} tiene el margen más alto entre las que caen (${mCara.valor}). Perder venta ahí te cuesta más rentabilidad de lo que su tamaño sugiere.`);
+      }
+    }
+
+    /* ── 6b · LA SEÑAL DE ESTADO, cuando el cuadro no compara contra nada (el corte de Capital, Qué liquidar,
+     * el saldo del Flujo): lo que el módulo marcó — crítico, vencido, dónde se concentra el capital — con su
+     * mayoría dicha como mayoría y sus nombradas con su cifra. Sin esto, la rama ejecutiva dejaba mudos a los
+     * cuadros sin deltas (medido: «El capital por corte» respondía dos líneas sin una sola fila). */
+    if ((!caenPorMargen || !caenPorMargen.length) && grupos[0] && grupos[0].filas.length) {
+      const g0 = grupos[0];
+      const cuantas0 = g0.filas.length;
+      const mayoria0 = universo > 0 && cuantas0 / universo >= 0.66;
+      const dicho0 = cuantas0 === 1 ? g0.dice : g0.dicen;
+      p.push(mayoria0
+        ? `Lo que este cuadro está marcando: ${cuantas0} de ${universo} ${nEje} ${dicho0} — no es un caso puntual: pasa en ${cuantas0 === universo ? "todas" : "casi todas"} tus ${nEje}.`
+        : `Lo que este cuadro está marcando: ${cuantas0} ${dicho0} — ${_conCifra(g0.filas, 3)}${cuantas0 > 3 ? ", entre otras" : ""}.`);
+    }
+
+    /* ── 7 · LA SÍNTESIS Y LA PRIORIDAD ─────────────────────────────────────────────────────────────────── */
+    if (hayConcentracion && hayCalidad && caenPorMargen && caenPorMargen.length) {
+      p.push(`En síntesis: el negocio está sano en crecimiento, pero hay dos tensiones debajo del total — dependencia de pocas cuentas grandes, y deterioro justo en las de mejor margen. La prioridad no es vender más: es proteger las que hoy sostienen el volumen y recuperar donde cada peso vendido deja más.`);
+    } else if (totalFila && caenPorMargen && caenPorMargen.length) {
+      p.push(`En síntesis: el total no te avisa de lo que está pasando debajo — lo que crece arriba tapa lo que cae abajo.`);
+    }
+
+    /* ── 8 · POR DÓNDE PROFUNDIZAR · las dos varas, cada una con su nombre ───────────────────────────────── */
+    if ((!caenPorMargen || !caenPorMargen.length) && grupos[0] && grupos[0].filas.length) {
+      const primero0 = grupos[0].filas[0];
+      const cifra0 = _cifraDeSenal(primero0);
       p.push(variante(semilla, [
-        `Por dónde empezaría yo: ${primero}${conCifra}. Y si quieres una dimensión por dentro, dime «profundiza en la contribución» — o en la que te interese.`,
-        `Yo partiría por ${primero}${conCifra}. También puedo profundizar en una dimensión: contribución, participación, margen — tú dices.`,
-        `Si vas a mirar una sola, miraría ${primero}${conCifra}. Y puedo profundizar en cualquier columna del cuadro cuando digas.`,
+        `Por dónde empezaría yo: ${primero0.fila.nombre}${cifra0 ? ` (${cifra0})` : ""}, la de más peso entre las marcadas. ¿La abro?`,
+        `Yo partiría por ${primero0.fila.nombre}${cifra0 ? ` (${cifra0})` : ""} — es la mayor de las que este cuadro marca. Dime y la abrimos.`,
+        `Si vas a mirar una sola, miraría ${primero0.fila.nombre}${cifra0 ? ` (${cifra0})` : ""}. Y puedo profundizar en cualquier columna del cuadro.`,
+      ]));
+    } else if (caenPorMargen && caenPorMargen.length) {
+      const porMargen = caenPorMargen[0].f.nombre;
+      const porTamano = (_ordenadasPor(caen, "venta") || [])[0];
+      const segundo = porTamano && porTamano.f.nombre !== porMargen ? porTamano.f.nombre : null;
+      p.push(variante(semilla, [
+        `Yo profundizaría primero en ${porMargen}${segundo ? ` y ${segundo}` : ""}: la primera por lo que cuesta su margen, ${segundo ? "la segunda por lo que pesa su venta" : ""}. Y puedo abrirte cualquier columna del cuadro cuando digas.`,
+        `Por dónde empezaría: ${porMargen}${segundo ? `, y después ${segundo}` : ""} — una por margen, ${segundo ? "otra por tamaño" : ""}. Dime si prefieres que profundice en una dimensión (contribución, participación, margen).`,
+        `Si vas a mirar dos, miraría ${porMargen}${segundo ? ` y ${segundo}` : ""}. También puedo profundizar en una columna entera del cuadro.`,
       ]));
     } else {
       p.push(variante(semilla, [
