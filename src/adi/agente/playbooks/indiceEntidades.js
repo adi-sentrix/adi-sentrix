@@ -26,6 +26,19 @@ const _CORTO = 3;   // menos de esto exige capitalización exacta
  * Devuelve `{ nombre, eje }` con el nombre EXACTO del índice (el que las herramientas aceptan).
  * Si nombra más de una, gana la más larga: «LG-DRYER8KG» antes que «LG».
  */
+/* ── EL EJE QUE NO EXISTE · punto de venta / sucursal / local / tienda (owner 2026-09-09) ────────────────────
+ * «Punto de venta/sucursal queda como trabajo de ingesta si hoy no lo lee el motor.» Y no lo lee: la columna
+ * viaja en el archivo del cliente y ningún módulo la agrega. El problema NO era declararlo —el límite ya se
+ * declara— sino que la pregunta ni llegaba a esa declaración: una auditoría adversarial encontró que
+ * «¿cómo viene la sucursal Santiago?» se resolvía con la FICHA DE UNA BODEGA, porque en este dato hay bodegas
+ * con nombre de ciudad y el índice las reconoce. El usuario recibía capital de inventario como si fuera la
+ * lectura de su local. Eso es improvisar con otro eje, que es exactamente lo que el owner pidió evitar.
+ * Acá vive el detector, junto al índice que resuelve los nombres: quien podría contestar por el eje vecino
+ * consulta esto y se retira. */
+const _PIDE_PUNTO_DE_VENTA = /\bpunto[s]? de venta\b|\bsucursal(?:es)?\b|\blocal(?:es)?\b|\btienda[s]?\b/i;
+/** ¿la pregunta pide el eje PUNTO DE VENTA, que este producto todavía no analiza? */
+export function pidePuntoDeVenta(pregunta) { return _PIDE_PUNTO_DE_VENTA.test(String(pregunta || "")); }
+
 export function entidadNombrada(pregunta) {
   const q = String(pregunta || "");
   if (!q.trim()) return null;

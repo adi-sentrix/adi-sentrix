@@ -1186,6 +1186,8 @@ function _marginByCanal(scenario) {
   const mSf = _sf("margen", "cliente"), vSf = _sf("ventas", "cliente");
   if (!mSf || !vSf) return [];
   const mRows = (_load(mSf.source, scenario) || []).filter(Boolean), vRows = (_load(vSf.source, scenario) || []).filter(Boolean);
+  /* la misma guarda que en ventas: sin un solo canal declarado, el eje no existe — no se fabrica un «—». */
+  if (!vRows.some((r) => r && typeof r.canal === "string" && r.canal.trim())) return [];
   const canalBy = {}; for (const v of vRows) canalBy[v.nombre] = v.canal || "—";
   const g = {};
   for (const r of mRows) { const k = canalBy[r.nombre] || "—"; const gg = (g[k] = g[k] || { nombre: k, venta: 0, contribucion: 0, _mw: 0 }); gg.venta += r.venta || 0; gg.contribucion += r.contribucion || 0; gg._mw += (r.margen || 0) * (r.venta || 0); }
@@ -1536,9 +1538,18 @@ const _VLBL = { cliente: { s: "cliente", p: "clientes", art: "Los" }, sku: { s: 
 // —el mismo `applyScenarioToClientesVentas` que consume Sentrix— y marca/familia usan las agregaciones del propio
 // motor (`applyScenarioToMarcasVentas`/`applyScenarioToSfamiliasVentas`, las MISMAS que llama `cuadro.js`).
 // `skusMargen` sigue literal: el manifiesto lo declara scenario-blind.
+/* ⚠️ UN CANAL «—» NO ES UN CANAL (owner 2026-09-09, cazado por auditoría adversarial al habilitar el eje).
+ * La columna «canal» es OPCIONAL en la plantilla: un archivo que no la trae hacía que todos los clientes
+ * cayeran en el grupo `"—"` y la lectura respondía tan campante — «el canal — tiene margen 25.1%, está bajo
+ * el benchmark, recuperar 1pp vale $1.0M». Eso es inventarle al usuario una dimensión que su archivo no
+ * declara. Si NINGÚN cliente trae canal, el eje no existe: se devuelve vacío y la herramienta declina con su
+ * motivo (el camino que ya existe para un eje sin filas). El «—» sigue siendo legítimo cuando SOLO ALGUNOS
+ * no lo traen: ahí es la cola honesta de un eje que sí existe. */
 function _ventasByCanal(scenario) {
+  const filas = _load("clientesVentas", scenario);
+  if (!filas.some((r) => r && typeof r.canal === "string" && r.canal.trim())) return [];
   const g = {};
-  for (const r of _load("clientesVentas", scenario)) { const k = r.canal || "—"; const gg = (g[k] = g[k] || { nombre: k, actual: 0, anterior: 0, unidades: 0, unidadesAnt: 0, presupuesto: 0 }); gg.actual += r.actual || 0; gg.anterior += r.anterior || 0; gg.unidades += r.unidades || 0; gg.unidadesAnt += r.unidadesAnt || 0; gg.presupuesto += r.presupuesto || 0; }
+  for (const r of filas) { const k = r.canal || "—"; const gg = (g[k] = g[k] || { nombre: k, actual: 0, anterior: 0, unidades: 0, unidadesAnt: 0, presupuesto: 0 }); gg.actual += r.actual || 0; gg.anterior += r.anterior || 0; gg.unidades += r.unidades || 0; gg.unidadesAnt += r.unidadesAnt || 0; gg.presupuesto += r.presupuesto || 0; }
   return Object.values(g);
 }
 function _ventasRows(dim, scenario) {

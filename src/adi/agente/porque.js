@@ -80,7 +80,7 @@ export function esPorQue(pregunta) {
  * LA LECTURA (qué herramienta trae mecanismo para cada tema) en vez de nombrar cifras. */
 /* el tope subió de 900 a 1600 al sumar el paso (1b): la letra ahora también dice CON QUÉ descomponer. Sigue
  * siendo un bloque que viaja UNA vez y solo en el turno causal — no entra al system de todos los turnos. */
-export const TOPE_DOCTRINA_CHARS = 1600;
+export const TOPE_DOCTRINA_CHARS = 2400;
 const _DOCTRINA = [
   "MÉTODO DEL PORQUÉ (el usuario pregunta una causa) · TRES PASOS, EN ORDEN:",
   "(1) MIDE PRIMERO: pide el mecanismo del tema —margen→rolesCartera · un mes→cuadroSentrix · una cuenta→entityProfile · una caída→salesRead— y di QUÉ SE MOVIÓ CON SUS CIFRAS («cediste margen: la carga subió contra la del año»). Si ninguna lo trae, dilo: localizas, no explicas. NO rellenes ese hueco con mundo.",
@@ -89,6 +89,14 @@ const _DOCTRINA = [
    * carga comercial, mix, canal o sucursal cuando el dato lo permita.» Las lecturas existían en el motor y el
    * catálogo no las nombraba; acá se le dice CUÁL pedir para cada pregunta, y qué hacer con la que no existe. */
   "(1b) Y NO TE QUEDES EN QUIÉN: DESCOMPÓN. Nombrar al culpable no es explicar. Para la VENTA: salesRead focus=descomposicion_vol_precio (¿volumen o precio?) · focus=mix_familia (efecto mezcla) · focus=precio_realizado (venta÷unidades) · focus=precio_neto (precio neto después de acciones). Para el MARGEN: marginRead focus=causa_precio (lista pegada al costo) · focus=causa_costo (el costo se lleva la lista) · rolesCartera (carga comercial). Los dos leen por eje: cliente · sku · marca · familia · canal. Si el usuario pide una dimensión y existe, ÚSALA; si no existe, dilo y ofrece el corte más cercano. NO HAY corte por punto de venta ni por sucursal: eso el motor no lo lee todavía, y se dice así.",
+  /* ── DOS CAUTELAS QUE SALIERON DE LA CERTIFICACIÓN ADVERSARIAL (owner 2026-09-09) ─────────────────────────
+   * (i) las tres cifras de la descomposición van JUNTAS: sueltas, el muro veta con razón —«+1.8%» coincide con
+   *     la cifra de otra cuenta y sin el total al lado no se sabe de quién es. Medido: la frase completa pasa,
+   *     la suelta cae en cifra-no-autorizada, y el turno degrada a un texto pobre.
+   * (ii) el precio realizado SUBE SI CAMBIA LA MEZCLA, sin que se haya movido un precio. La salvedad la escribe
+   *     el motor pero se pierde antes de llegar acá, así que la ley la lleva: decir «subiste precios» cuando lo
+   *     que cambió fue quién compró es exactamente la causa inventada que este método existe para impedir. */
+  "(1c) DOS CAUTELAS AL DESCOMPONER. Las tres cifras de volumen/precio se citan JUNTAS y en una sola frase (el total y sus dos efectos): sueltas no se pueden verificar y se vetan. Y el «precio realizado» es venta÷unidades: SUBE SOLO PORQUE CAMBIÓ LA MEZCLA de quién o qué compró, sin que hayas movido ningún precio — así que jamás digas «subiste precios» a partir de él; di «el precio realizado subió» y ofrece mirar el mix para separar una cosa de la otra.",
   "(2) TU HIPÓTESIS, MARCADA («mi hipótesis es…») y declarada no probada, sobre EL NEGOCIO DEL USUARIO: su calendario, sus clientes, sus campañas. PROHIBIDO afirmar cómo se comporta un sector o una industria: no tienes fuente y llega como estadística.",
   "(3) PREGÚNTALE AL DUEÑO lo que falta: el detonante lo sabe él. Concreta y con opciones (una campaña, un quiebre de stock, un cliente grande, una negociación). «¿Seguimos?» no cuenta. Si él ya te lo declaró, cítalo en vez de preguntar.",
 ].join("\n");

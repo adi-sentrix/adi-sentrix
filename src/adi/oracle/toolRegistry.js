@@ -336,7 +336,11 @@ function entityComposicion({ dimension, entity, scenario } = {}) {
   return {
     facts: { lens: "composicion", entidad: entity || null },
     boleta: [],
-    coverage: { supported: false, reason: `la composición por familia DENTRO de una cuenta no está medida en este dato: lo que existe es una estimación repartida, y en un archivo real contradice las filas (llega a asignarle a una cuenta una familia que nunca compró). No la sirvo. Lo que sí es dato: el mix por familia del NEGOCIO —qué familia gana o pierde participación— con salesRead focus=mix_familia.` },
+    /* ⚠️ EL MOTIVO SE ESCRIBE EN VOZ DE NEGOCIO, SIN SINTAXIS INTERNA: este texto puede llegar a pantalla
+     * verbatim (el oráculo sirve el motivo de una declinación tal cual), y «salesRead focus=mix_familia» es
+     * jerga nuestra — la casa la tiene prohibida en superficie desde siempre. Lo que el usuario necesita es
+     * qué NO se puede y qué SÍ, en sus palabras. */
+    coverage: { supported: false, reason: `la composición por familia DENTRO de una cuenta no está medida en este dato: lo que existe es una estimación repartida, y sobre un archivo real contradice las filas (llega a asignarle a un cliente una familia que nunca compró). No la sirvo. Lo que sí es dato: cómo se reparte la venta del NEGOCIO por familia, y qué familia gana o pierde participación.` },
   };
 }
 /** la implementación anterior, conservada para el día que el cruce venga de las filas reales (ver arriba). */

@@ -29,7 +29,7 @@
 
 import { detectSerieIntent } from "../../oracle/serieIntent.js";
 import { esPorQue } from "../porque.js";   // la ley del porqué es de la casa (owner 2026-09-09)
-import { nombraEntidad } from "./indiceEntidades.js";   // el guardia anti-secuestro, compartido con la foto
+import { nombraEntidad, pidePuntoDeVenta } from "./indiceEntidades.js";   // el guardia anti-secuestro, compartido con la foto
 import { pisoFocosUSD, declaracionUmbralFocos } from "../../specRetrieval.js";
 import { variante } from "../variacion.js";   // los cierres varían por semilla («matar la repetición», 2026-09-03)
 
@@ -112,6 +112,11 @@ export const clientePerdiendoContribucion = {
     partes.push(`Se te están cayendo ${materiales.length} clientes contra el año anterior${caen.length > materiales.length ? ` (otros ${caen.length - materiales.length} caen ${_fraseUmbral() || "bajo el umbral de materialidad"})` : ""}. Para dimensionar: la contribución total del negocio es ${_val(total)}.`);
     partes.push(`\nLos ${top.length} que más caen:`);
     for (const c of top) partes.push(`- ${c.entidad} · ${c.fmt} contra el año anterior${contrib.has(c.entidad) ? ` · contribución actual ${contrib.get(c.entidad)}` : ""}`);
+    /* ⚠️ SI PREGUNTÓ POR SUCURSAL, SE DICE QUE ESE CORTE NO EXISTE (owner 2026-09-09): esta lectura responde
+     * por CLIENTE, y contestar por el eje vecino sin nombrar el que pidió es improvisar por omisión — el
+     * usuario se queda creyendo que le respondieron su pregunta. El punto de venta viaja en su archivo y el
+     * motor todavía no lo agrega: se declara acá, con la lectura que sí existe al lado. */
+    if (pidePuntoDeVenta(pregunta)) partes.push(`\nTu pregunta era por punto de venta, y ese corte todavía no lo analizo: la columna viaja en tu archivo pero aún no la agrego. Lo de arriba es por cliente, que es lo que sí puedo darte hoy.`);
     partes.push(`\nDónde se cae queda localizado; por qué se cae no está en este dato.`);
     partes.push(variante(semilla, [
       `Si quieres, abrimos la serie mensual de ${top[0].entidad} —el que más cae— para ver desde cuándo. Dime y la traigo.`,
@@ -380,6 +385,9 @@ export const lecturaDeVentas = {
       partes.push(`\nNingún cliente ${contraPpto ? "queda debajo de su presupuesto" : "cae"} de forma material ${contraPpto ? "" : REF}${_fraseUmbral() ? ` (${_fraseUmbral()})` : ""}.`.replace(/\s+/g, " "));
     }
     if (suben.length) partes.push(`${caen.length ? "\n" : ""}Los que más ${contraPpto ? "aportan sobre el plan" : "suben"}: ${suben.slice(0, 2).map((s) => `${s.entidad} ${s.fmt}`).join(" · ")}.`);
+    /* el mismo criterio que en la lectura de arriba: si preguntó por sucursal, se dice que ese corte no existe
+     * todavía en vez de contestar por cliente como si nada (owner 2026-09-09). */
+    if (pidePuntoDeVenta(pregunta)) partes.push(`\nTu pregunta era por punto de venta, y ese corte todavía no lo analizo: la columna viaja en tu archivo pero aún no la agrego. Lo de arriba es por cliente, que es lo que sí puedo darte hoy.`);
     partes.push(`\nPor qué ${cae ? "cae" : "se mueve así"} no está en este dato: queda localizado quién y cuánto.`);
     /* el ofrecimiento cambia con lo que el turno dejó sin abrir: si hubo caídas, la cuenta que más pesa; si no,
      * la otra comparación —que existe en el dato y el usuario no pidió— o nada. Jamás se ofrece la serie

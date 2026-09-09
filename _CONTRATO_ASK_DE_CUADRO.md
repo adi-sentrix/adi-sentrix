@@ -608,3 +608,41 @@ que prometa un `focus` inexistente haría que el motor sirva otra cosa en silenc
 autorizadas**; el precio neto lleva el nombre pedido y su cuenta cierra; el mix estimado declina sin colar una
 sola cifra; y el punto de venta no aparece como eje. De paso, la línea base del gate de divulgación bajó de 100
 a 30 cifras — no porque la poda ahorre menos, sino porque el mix estimado dejó de aportar.
+
+## 18 · LOS CINCO CIERRES DE LA CERTIFICACIÓN (owner 2026-09-09)
+
+Siete auditores adversariales atacaron la descomposición. Cuatro focos fallaron y el owner ordenó cerrar cinco
+cosas. **Y la propia certificación tuvo dos falsos positivos que casi reporto como reales** — la lección de la
+casa otra vez: cuando todo sale rojo a la vez, sospechar del instrumento.
+
+**Los falsos positivos, para que no se re-descubran:** (a) «las tres cifras de la descomposición nunca pasan el
+muro, 12/12» — falso: la sonda del auditor (y la mía en el primer intento) omitía `datoProyectado`, sin el cual
+guardC ni siquiera corre bien. Con el arnés completo, la cifra principal pasa. (b) «la frase que el owner
+rechazó vuelve a salir verde» — falso: recibe veto, y el composer además la corrige con el dato real.
+
+**Los cinco cierres:**
+
+1. **Una bodega no es una sucursal.** *Reproducido:* «¿cómo viene la sucursal Santiago?» se resolvía con la
+   ficha de la **bodega** Santiago — capital de inventario servido como la lectura de un local. En este dato
+   hay bodegas con nombre de ciudad. Ahora la ficha se retira ante una pregunta de punto de venta, y cuando
+   otra lectura responde por cliente **declara qué corte pidió el usuario y por qué no existe todavía**.
+   Preguntar por la *bodega* sigue funcionando: se cerró la confusión, no el eje.
+2. **La descomposición se cita en paquete.** Medido: «el efecto volumen es +5.7%» **sola se veta** —ese +1.8%
+   coincide con la cifra de otra cuenta y sin el total al lado no se puede atribuir—; las tres juntas pasan.
+   La ley se lo dice al cerebro en vez de que lo descubra a golpes de veto.
+3. **La advertencia del mix llega a ADI.** El «precio realizado» es venta÷unidades y **sube si cambia la
+   mezcla de quién compra, sin que se haya movido ningún precio**. El motor escribe la salvedad pero se pierde
+   antes de llegar; ahora la lleva la ley: decir «subiste precios» a partir de él es una causa inventada.
+4. **Un canal «—» no es un canal.** ⚠️ **Este defecto lo abrió esta tanda**: al habilitar el eje canal, un
+   archivo sin esa columna (es opcional) metía a todos los clientes en el grupo `"—"` y la lectura respondía
+   *«el canal — tiene margen 25.1%, recuperar 1pp vale $1.0M»*. Ahora, sin un solo canal declarado, el eje no
+   existe y la herramienta declina. Con la columna puesta, sigue respondiendo.
+5. **La divergencia de marca: verificada, declarada, NO tocada.** En el escenario que muestra la app, la tabla
+   de ventas dice Samsung **33.158** y la de margen **31.600** — y `entityProfile`, `queryMetric` y
+   `entityRecord` publican **la segunda**. O sea: ADI y la pantalla darían cifras distintas para la misma
+   marca, en 4 de 4 marcas. **No se arregla acá a propósito**: `entityRecord.js` ya lo declara como pendiente
+   del owner con su razón (*«cablear el eje MARCA completo mueve cifras de producto y sigue siendo decisión del
+   owner»*) y la función que reconcilia existe sin usar. El gate no exige que coincidan: exige que el pendiente
+   **siga declarado** donde alguien lo vaya a leer, y publica la medición.
+
+**Gate:** `_agente_porque_gate.mjs` §10 (15 chequeos). Total del gate: 149.

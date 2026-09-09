@@ -33,6 +33,10 @@ import { cuadroSentrix } from "./src/adi/agente/herramientasAgente.js";
 import { catalogoAgente } from "./src/adi/agente/catalogoAgente.js";
 import { TOOL_CONTRACTS } from "./src/adi/oracle/toolContracts.js";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
+import { guardC } from "./src/adi/oracle/guardC.js";
+import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
+import { applyScenarioToMarcasVentas } from "./src/engine/scenarios.js";
+import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { builderOutFor } from "./src/adi/sentrix/viewBuilderRun.js";
 import { deriveViewContext } from "./src/adi/sentrix/viewContextFrom.js";
 import { tituloDeExplicacion } from "./src/adi/sentrix/viewManifest.js";
@@ -433,8 +437,8 @@ H("9 · las lecturas de la descomposición — declaradas al cerebro y ejecutabl
     const r = TOOLS.entityComposicion({ dimension: "cliente", entity: "Falabella", scenario: ESC });
     ok(r.coverage && r.coverage.supported === false,
       "★★ el mix POR CLIENTE estimado ya no se sirve: declina en vez de repartir una compra que no ocurrió");
-    ok(/estimación|no está medida/i.test(String(r.coverage.reason)) && /mix_familia/.test(String(r.coverage.reason)),
-      "…declarando el motivo Y ofreciendo el corte que SÍ es dato (el mix por familia del negocio)", String(r.coverage.reason).slice(0, 120));
+    ok(/estimación|no está medida/i.test(String(r.coverage.reason)) && /participación/.test(String(r.coverage.reason)) && !/salesRead|focus=/.test(String(r.coverage.reason)),
+      "…declarando el motivo Y el corte que SÍ es dato, EN VOZ DE NEGOCIO — este texto llega a pantalla verbatim y la jerga interna está prohibida en superficie", String(r.coverage.reason).slice(0, 120));
     ok(((r.boleta || []).length) === 0, "…y sin colar una sola cifra estimada a la boleta del turno");
   }
 
@@ -459,6 +463,101 @@ H("9 · las lecturas de la descomposición — declaradas al cerebro y ejecutabl
     }
     ok(/Si el usuario pide una dimensión y existe, ÚSALA/.test(d) && /si no existe, dilo y ofrece el corte más cercano/.test(d),
       "★★ y lleva la regla del owner sobre la dimensión pedida: si existe se usa; si no, se declara y se ofrece la más cercana");
+  }
+}
+
+
+/* ═══ 10 · LOS CIERRES DE LA CERTIFICACIÓN ADVERSARIAL (owner 2026-09-09) ═══════════════════════════════════
+ * Siete auditores atacaron la descomposición y cuatro focos fallaron. El owner ordenó cerrar cinco cosas.
+ * Cada una tiene acá su chequeo, con el defecto reproducido como carnada de sí mismo. */
+H("10 · los cinco cierres que ordenó el owner tras la certificación");
+{
+  /* ── (1) UNA BODEGA NO ES UNA SUCURSAL ──────────────────────────────────────────────────────────────────
+   * Reproducido: «¿cómo viene la sucursal Santiago?» se resolvía con la ficha de la BODEGA Santiago y servía
+   * capital de inventario como si fuera la lectura de un local. El eje punto de venta no se analiza todavía. */
+  for (const q of ["como viene la sucursal Santiago?", "dame el margen por punto de venta", "que local vende menos?"]) {
+    const r = await answerViaAgente({ text: q, history: [], mem: {}, scenario: ESC, callAgente: MUDO });
+    const T = String(r.r.text || "");
+    ok(!/\bCapital\b.*\$|\$\d+K de capital/.test(T),
+      `★★ «${q}» NO se responde con una bodega: el eje vecino no reemplaza al que el usuario pidió`, T.slice(0, 120));
+  }
+  {
+    /* …y la bodega SIGUE funcionando cuando se la nombra como lo que es */
+    const r = await answerViaAgente({ text: "como viene la bodega Santiago?", history: [], mem: {}, scenario: ESC, callAgente: MUDO });
+    ok(r.r.agente.estado !== "vacio", "★ …y preguntar por la BODEGA sigue funcionando: se cerró la confusión, no el eje", r.r.agente.estado);
+  }
+  {
+    /* …y cuando se responde por otro eje, SE DECLARA cuál se pidió */
+    const r = await answerViaAgente({ text: "por que cayo la venta en la sucursal Providencia?", history: [], mem: {}, scenario: ESC, callAgente: MUDO });
+    ok(/punto de venta.{0,40}no lo analizo/s.test(String(r.r.text || "")),
+      "★★ …y si responde por cliente, DICE que el corte pedido no existe todavía — callarlo es improvisar por omisión", String(r.r.text || "").split("\n").find((l) => /punto de venta/.test(l)) || "(no lo declara)");
+  }
+
+  /* ── (2) LA DESCOMPOSICIÓN SE CITA EN PAQUETE ───────────────────────────────────────────────────────────
+   * Medido en el muro: «el efecto volumen es +5.7%» SOLA se veta (el +1.8% coincide con la cifra de otra
+   * cuenta y sin el total al lado no se sabe de quién es); las tres juntas pasan. La ley lo dice. */
+  {
+    const dv = TOOLS.salesRead({ focus: "descomposicion_vol_precio", dimension: "cliente", scenario: ESC });
+    const arnes = { ledger: { figs: dv.boleta }, question: "por que crecio la venta", datoProyectado: cifrasDelDato(ESC) };
+    const tot = (dv.boleta.find((f) => /Crecimiento total/i.test(f.label)) || {}).value;
+    const vol = (dv.boleta.find((f) => /Efecto volumen/i.test(f.label)) || {}).value;
+    const pre = (dv.boleta.find((f) => /Efecto precio/i.test(f.label)) || {}).value;
+    ok(guardC(`La venta crece ${tot}: el efecto volumen aporta ${vol} y el precio realizado ${pre}.`, arnes).ok,
+      "★★ las tres cifras JUNTAS pasan el muro — así es como se narra una descomposición");
+    ok(!guardC(`El efecto volumen es ${vol}.`, arnes).ok,
+      "…y suelta NO pasa: sin el total al lado la cifra no se puede atribuir (por eso la ley pide el paquete)");
+    ok(/se citan JUNTAS/.test(doctrinaDelPorque()),
+      "★ y la letra se lo dice al cerebro, para que no descubra la regla a golpes de veto");
+  }
+
+  /* ── (3) LA ADVERTENCIA DEL MIX LLEGA A ADI ─────────────────────────────────────────────────────────────
+   * El «precio realizado» es venta÷unidades: SUBE si cambia la mezcla de quién compra, sin que se haya movido
+   * ningún precio. El motor escribe la salvedad pero se pierde antes de llegar al cerebro; la ley la lleva. */
+  {
+    const d = doctrinaDelPorque();
+    ok(/CAMBIÓ LA MEZCLA/.test(d) && /jamás digas «subiste precios»/.test(d),
+      "★★ la ley advierte que el precio realizado se mueve por MEZCLA — decir «subiste precios» a partir de él es una causa inventada");
+  }
+
+  /* ── (4) UN CANAL «—» NO ES UN CANAL ────────────────────────────────────────────────────────────────────
+   * Este defecto lo ABRIÓ esta tanda al habilitar el eje canal: un archivo sin esa columna (es opcional en la
+   * plantilla) hacía que todos los clientes cayeran en el grupo «—» y la lectura respondía tan campante —
+   * «el canal — tiene margen 25.1%, recuperar 1pp vale $1.0M». Inventarle al usuario una dimensión que su
+   * archivo no declara. */
+  {
+    const sinCanal = JSON.parse(JSON.stringify(TENANT_DEMO));
+    for (const c of sinCanal.clientesVentas || []) delete c.canal;
+    initTenant(sinCanal);
+    for (const tool of ["marginRead", "salesRead"]) {
+      const r = TOOLS[tool]({ dimension: "canal", scenario: ESC });
+      ok(r.coverage && r.coverage.supported === false && (r.boleta || []).length === 0,
+        `★★ ${tool}: sin columna canal el eje NO existe — declina en vez de fabricar un canal «—» con cifras`,
+        JSON.stringify((r.boleta || []).slice(0, 2).map((f) => f.label)));
+    }
+    initTenant(TENANT_DEMO);
+    for (const tool of ["marginRead", "salesRead"]) {
+      const r = TOOLS[tool]({ dimension: "canal", scenario: ESC });
+      ok((r.boleta || []).length > 0, `★ …y con la columna declarada, ${tool} por canal sigue respondiendo: se cerró el invento, no el eje`);
+    }
+  }
+
+  /* ── (5) LA DIVERGENCIA DE MARCA · VERIFICADA Y DECLARADA (no se toca) ──────────────────────────────────
+   * Verificado ejecutando: en el escenario que muestra la app, la tabla de VENTAS dice Samsung 33.158 y la de
+   * MARGEN dice 31.600 — y entityProfile/queryMetric/entityRecord publican la SEGUNDA. O sea: ADI y la
+   * pantalla darían cifras distintas para la misma marca.
+   * NO SE ARREGLA ACÁ A PROPÓSITO: `entityRecord.js` lo declara como pendiente del owner con su razón
+   * («cablear el eje MARCA completo mueve cifras de producto y sigue siendo decisión del owner»), y la función
+   * que reconcilia (`applyScenarioToMarcasMargen`) existe sin usar. Este chequeo NO exige que coincidan: exige
+   * que el pendiente siga DECLARADO donde alguien lo vaya a leer. Si un día se cablea, esto sigue verde y el
+   * de la divergencia se apaga solo. */
+  {
+    const record = leer("src/adi/oracle/entityRecord.js");
+    ok(/applyScenarioToMarcasMargen.*sin usar.*decisión del owner|MARCA queda entero sobre el literal/s.test(record),
+      "★ la divergencia de marca entre los dos universos sigue DECLARADA en el código como pendiente del owner — verificada, no silenciada");
+    const mv = applyScenarioToMarcasVentas(ESCENARIO_INICIAL) || [];
+    const mm = TENANT_DEMO.marcasMargen || [];
+    const difieren = mv.filter((v) => { const g = mm.find((x) => x.nombre === v.nombre); return g && g.venta !== v.actual; });
+    ok(true, `   (medición del pendiente: ${difieren.length} de ${mv.length} marcas difieren entre los dos universos en «${ESCENARIO_INICIAL}» — el escenario que muestra la app)`);
   }
 }
 

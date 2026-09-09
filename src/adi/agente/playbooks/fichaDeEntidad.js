@@ -24,7 +24,7 @@
  *
  * PURO · determinístico · sin red. Cifras VERBATIM de la boleta: selecciona y ordena, jamás calcula. */
 
-import { entidadNombrada } from "./indiceEntidades.js";
+import { entidadNombrada, pidePuntoDeVenta } from "./indiceEntidades.js";
 import { detectSerieIntent } from "../../oracle/serieIntent.js";   // la entidad×período es del puente, no de acá
 import { etiquetaDeLaCarga } from "../../../config/businessPolicy.js";
 import { variante } from "../variacion.js";
@@ -86,6 +86,12 @@ function _caso(pregunta, ctx) {
   /* la colisión de ejes: el viewContext del cuadro tocado la resuelve; sin él, viaja y el composer la declara */
   const vc = ctx && ctx.viewContext && typeof ctx.viewContext === "object" ? ctx.viewContext : null;
   if (Array.isArray(ent.colision) && vc && vc.eje && ent.colision.includes(vc.eje)) ent = { ...ent, eje: vc.eje, colision: undefined };
+  /* ⚠️ UNA BODEGA NO ES UNA SUCURSAL (owner 2026-09-09, cazado por auditoría adversarial). En este dato hay
+   * bodegas con nombre de ciudad, así que «¿cómo viene la sucursal Santiago?» encontraba a «Santiago» en el
+   * índice —como BODEGA— y se respondía con su capital de inventario, como si fuera la lectura de un local.
+   * Eso es improvisar con el eje vecino, justo lo que el owner pidió evitar: el punto de venta todavía no se
+   * analiza y el turno tiene que llegar a quien declara ese límite, no a esta ficha. */
+  if (pidePuntoDeVenta(q) && ent.eje === "bodega") return null;
   /* el nombre SOLO (una palabra, la que nombra a alguien) es un pedido de ficha: así se escribe en un chat.
    * Con más texto alrededor, hace falta que ese texto pida la lectura — nombrar a alguien al pasar no la pide. */
   const soloElNombre = q.trim().replace(/[¿?¡!.,]/g, "").trim().toLowerCase() === ent.nombre.toLowerCase();
