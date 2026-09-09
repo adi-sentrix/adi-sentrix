@@ -74,7 +74,13 @@ Derivadas que se rompen seguido:
   Es trabajo sin commitear de otra sesión. Aparecen sucios: es normal. **Nunca `git commit -a` ni `git add -A`.**
 - **`main` no se mueve sin la palabra del owner** (la palabra es *"deployalo"* o *"deploy"*). Se trabaja y se
   empuja a **`dev`**.
-- **El deploy al hosting es manual**: el repo no tiene Vercel enlazado. `main` al día ≠ sitio publicado.
+- **El hosting DESPLIEGA SOLO al mover `main`** — verificado dos veces el 2026-09-08: el commit apareció en
+  `/api/version` ~30 segundos después del push. Acá decía lo contrario («el deploy es manual, el repo no tiene
+  Vercel enlazado, `main` al día ≠ sitio publicado») y eso hacía pedirle al owner un paso que no existe.
+  ⚠️ Lo que sí es cierto y no cambia: **mover `main` PUBLICA**, así que la palabra del owner sigue siendo la
+  única puerta — y la verificación oficial es `curl app.adiai.cl/api/version` mostrando el commit esperado, no
+  el push. Un build roto en el hosting deja el sitio en el commit anterior sin avisar (ya pasó: ver
+  `adi-edge-vs-node-bundle` en la memoria).
 - Decisiones de **diseño y UX son del owner**. Traer opciones, no asumir.
 
 ---
