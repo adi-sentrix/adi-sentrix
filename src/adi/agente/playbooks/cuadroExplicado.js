@@ -69,9 +69,14 @@ const _COLUMNAS = [
   { re: /\bd[ií]as de inventario\b/i, clave: "doh", dicho: "los días de inventario" },
   { re: /\bacumulad[oa]\b|\b80\s?\/?\s?20\b|\bconcentraci[oó]n\b/i, clave: "acumulado", dicho: "la concentración" },
 ];
+/* LA CONTINUACIÓN ELÍPTICA · «¿y el cumplimiento del presupuesto?» (owner 2026-09-08: «si preguntan por
+ * cumplimiento…»). Abrir por «pregunta corta que nombra una columna» habría secuestrado turnos libres —«¿cómo
+ * viene mi margen?» son cuatro palabras y nombra una columna—. El marcador inequívoco es la conjunción de
+ * apertura: nadie empieza una pregunta NUEVA con «y». Con eso alcanza, y no se adivina nada. */
+const _ABRE_CONTINUANDO = /^\s*[¿¡]?\s*y\s+(?:el|la|los|las|qu[eé]|c[oó]mo|cu[aá]l)?\s*/i;
 function _columnaPedida(q) {
   const s = String(q || "");
-  if (!_VERBO_PROFUNDIZAR.test(s)) return null;
+  if (!_VERBO_PROFUNDIZAR.test(s) && !_ABRE_CONTINUANDO.test(s)) return null;
   for (const c of _COLUMNAS) if (c.re.test(s)) return c;
   return null;
 }
@@ -352,8 +357,19 @@ export const cuadroExplicado = {
       }
       const orden = _ordenadasPor(L.filas, c.columna.clave);
       if (!orden) {
-        const traen = [...new Set(L.filas.flatMap((f) => f.cifras.map((x) => x.label)))].slice(0, 6);
-        return `Este cuadro no trae ${c.columna.dicho} como columna. Lo que sí trae: ${traen.join(" · ")}. Dime por cuál seguimos.`;
+        /* LA DIMENSIÓN PUEDE SER DEL CUADRO ENTERO, NO DE SUS FILAS: el cumplimiento del presupuesto, el total,
+         * el universo. Antes se declinaba («este cuadro no trae esa columna») teniendo la cifra en la cabecera
+         * — declinar con el dato en la mano es el peor de los errores honestos. */
+        const enCabecera = (L.cabecera || []).find((x) => x.clave === c.columna.clave);
+        if (enCabecera) {
+          const otras = (L.cabecera || []).filter((x) => x.clave !== enCabecera.clave).slice(0, 3);
+          const p2 = [`${c.columna.dicho[0].toUpperCase()}${c.columna.dicho.slice(1)} de este cuadro: ${enCabecera.valor}.`];
+          if (otras.length) p2.push(`Con el marco al lado: ${otras.map((x) => `${x.label.toLowerCase()} ${x.valor}`).join(" · ")}.`);
+          p2.push(variante(semilla, [`¿Seguimos por alguna de esas?`, `Dime cuál abro.`, `Puedo abrirte cualquiera de ellas.`]));
+          return p2.join("\n");
+        }
+        const traen = [...new Set([...(L.cabecera || []), ...L.filas.flatMap((f) => f.cifras)].map((x) => x.label))].slice(0, 6);
+        return `Este cuadro no trae ${c.columna.dicho}. Lo que sí trae: ${traen.join(" · ")}. Dime por cuál seguimos.`;
       }
       const arriba = orden.slice(0, 3), abajo = orden.slice(-2);
       p.push(`${c.columna.dicho[0].toUpperCase()}${c.columna.dicho.slice(1)} de este cuadro, por dentro:`);
@@ -403,7 +419,15 @@ export const cuadroExplicado = {
       const tot = _cab(L, "totalActual") || _cab(L, "total");
       const cum = _cab(L, "cumplimiento");
       const alto = _cab(L, "max") || _cab(L, "pico"), bajo = _cab(L, "min") || _cab(L, "valle");
-      const linea = [tot ? `El período cierra en ${tot.valor}` : null, cum ? `${cum.valor} del plan` : null].filter(Boolean);
+      /* EL GAP MANDA SOBRE EL CUMPLIMIENTO (owner 2026-09-08): «es mejor decir un gap sobre ventas que un
+       * cumplimiento de 103 — es más ejecutivo». Un gerente lee «+3.0% sobre tu presupuesto» de una; «103.0%
+       * del plan» lo obliga a restar 100 en la cabeza. El cumplimiento no se pierde: se contesta cuando lo
+       * preguntan, y ahí va con su decimal. */
+      const gapPre = _cab(L, "vsPresupuesto");
+      const linea = [
+        tot ? `El período cierra en ${tot.valor}` : null,
+        gapPre ? `${gapPre.valor} sobre tu presupuesto` : (cum ? `${cum.valor} del plan` : null),
+      ].filter(Boolean);
       if (linea.length) p.push(`${linea.join(", ")}.`);
       const _filaDe = (cifra) => cifra && L.filas.find((f) => { const pr = _principal(f); return pr && pr.valor === cifra.valor; });
       const fAlto = _filaDe(alto), fBajo = _filaDe(bajo);
@@ -624,6 +648,22 @@ export const cuadroExplicado = {
         return iV >= 0 && iV - (iN + f.nombre.length) <= 40;
       }).length;
       if (conSuCifra > 6) v.push({ regla: "cuadro-recitado", multa: `sirves ${conSuCifra} de las ${nombresTodos.length} filas con su cifra pegada: eso es la tabla otra vez, y la tabla ya está en pantalla. Nombra las filas que cargan la historia, no la columna entera.` });
+    }
+
+    /* (4b) EL PORCENTAJE NO SE REDONDEA A ENTERO (owner 2026-09-08: «102% lo redondeo en 103, prefiero al
+     * menos un decimal, es mejor»). El módulo publica «103.0%» y el cerebro escribió «103%»: el muro lo dejó
+     * pasar porque el VALOR es el mismo —y para el muro lo es—, pero en pantalla un entero suelto lee como
+     * aproximación y le quita precisión a una cifra que está medida. Se exige citarla como el cuadro la
+     * publica. Se juzga solo el caso inequívoco: el cuadro publica `N.d%` y el texto trae `N%` pelado. */
+    const _todasLasCifras = [...(c.L.cabecera || []), ...(c.L.filas || []).flatMap((f) => f.cifras || [])];
+    for (const cif of _todasLasCifras) {
+      const m = /^([+-−]?\d+)\.(\d+)%$/.exec(String(cif.valor || ""));
+      if (!m) continue;
+      const entero = `${m[1]}%`;
+      if (new RegExp(`(?<![\\d.,])${_esc(entero)}`).test(t) && !t.includes(cif.valor)) {
+        v.push({ regla: "porcentaje-redondeado", multa: `escribes «${entero}» donde el cuadro publica «${cif.valor}»: un porcentaje medido va con su decimal — el entero pelado se lee como aproximación.` });
+        break;
+      }
     }
 
     /* (5) LO QUE LA PANTALLA YA DICE NO SE REPITE TEXTUAL. */

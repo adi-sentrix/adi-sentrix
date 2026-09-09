@@ -309,7 +309,13 @@ H("5e · la pregunta por una cifra que ADI acaba de dar");
   const LE = lecturaDeCuadro("comercial/01/evolutivo-serie", { scenario: ESC });
   const cumpl = (LE.cabecera || []).find((x) => x.clave === "cumplimiento");
   ok(!!cumpl, "el cuadro del año PUBLICA el cumplimiento del presupuesto — no es una cuenta de ADI", cumpl && cumpl.valor);
-  ok(String(r1.r.text || "").includes(cumpl.valor), "…y el turno del botón lo cita (viene como fig obligatoria)");
+  /* ⚠️ EL BOTÓN YA NO ABRE CON EL CUMPLIMIENTO — decisión del owner en la entrega siguiente (§5g): la apertura
+   * lleva el GAP, que es más ejecutivo, y el cumplimiento se contesta cuando lo preguntan. Lo que este check
+   * garantiza es lo que importa acá: la cifra ESTÁ AUTORIZADA en la boleta del turno, así que cuando el usuario
+   * pregunte por ella ADI la tiene — que es exactamente lo que falló en la pantalla del owner. */
+  const _figsEvo = cuadroSentrix({ componentId: "comercial/01/evolutivo-serie", scenario: ESC }).boleta;
+  ok(_figsEvo.some((f) => f.value === cumpl.valor && f.mandatory),
+    "…y viaja en la boleta del turno como fig OBLIGATORIA (aunque la apertura hoy lleve el gap)", cumpl.valor);
   /* ⚠️ EL ESCENARIO VIAJA CON LA MEMORIA. Sin él, la reapertura leía el cuadro con ESCENARIO_INICIAL —otra
    * carpeta— y devolvía OTRAS cifras: al preguntar por una cifra, ADI habría contestado con la de otro mundo. */
   ok(r1.mem.cuadroAbierto && r1.mem.cuadroAbierto.escenario === ESC,
@@ -345,6 +351,40 @@ H("5f · la lectura rica del cerebro NO recibe multa — y la tabla recitada sí
   const TABLA = RB.cartera.filas.slice(0, 8).map((f) => `${f.nombre} ${f.ventaFmt}`).join(" · ");
   ok(vetosDelPlaybook(cuadroExplicado, TABLA, { pregunta: "x", ctx: { cuadro: vcC } }).some((x) => x.regla === "cuadro-recitado"),
     "★ y servir ocho filas con su cifra pegada SIGUE siendo la tabla otra vez", TABLA.slice(0, 90));
+}
+
+/* ═══ 5g · EL GAP MANDA, Y EL PORCENTAJE LLEVA SU DECIMAL (owner 2026-09-08, quinta entrega) ════════════════
+ * «Ojo con decir cumplimiento de 103, porque es mejor decir con un gap sobre ventas: es más ejecutivo. Y si
+ *  preguntan por cumplimiento… lo redondeo en 103, prefiero al menos un decimal, es mejor.»
+ * Dos reglas de presentación con consecuencia real: un gerente lee «+3.1% sobre tu presupuesto» de una;
+ * «103.1% del plan» lo obliga a restar 100 de cabeza. Y un entero pelado se lee como aproximación aunque la
+ * cifra esté medida. */
+H("5g · el gap antes que el cumplimiento · y ningún porcentaje sin decimal");
+{
+  const vcE = ancla("comercial/01/evolutivo-serie");
+  const LE = lecturaDeCuadro("comercial/01/evolutivo-serie", { scenario: ESC });
+  const gap = (LE.cabecera || []).find((x) => x.clave === "vsPresupuesto");
+  const cum = (LE.cabecera || []).find((x) => x.clave === "cumplimiento");
+  ok(!!gap && !!cum, "el cuadro publica LAS DOS formas: el gap contra el presupuesto y el cumplimiento", `${gap && gap.valor} · ${cum && cum.valor}`);
+  const r1 = await answerViaAgente({ text: tituloDeExplicacion("comercial/01/evolutivo-serie"), history: [], mem: {}, scenario: ESC, callAgente: MUDO, viewContext: vcE, cuadro: vcE });
+  const T1 = String(r1.r.text || "");
+  ok(T1.includes(gap.valor) && /sobre tu presupuesto/.test(T1), "★ la lectura abre con el GAP, no con el cumplimiento", T1.split("\n")[0]);
+  ok(!/del plan\b/.test(T1), "…y el cumplimiento no ocupa el lugar del gap en la lectura de apertura");
+  /* pero el cumplimiento NO se pierde: se contesta cuando lo preguntan — y ahí va con su decimal */
+  const hist = [{ role: "user", text: "x" }, { role: "adi", text: T1 }];
+  const r2 = await answerViaAgente({ text: "y el cumplimiento del presupuesto?", history: hist, mem: r1.mem, scenario: ESC, callAgente: MUDO });
+  const T2 = String(r2.r.text || "");
+  ok(T2.includes(cum.valor), "★ y si lo preguntan, se responde CON su decimal (la cifra que el cuadro publica)", T2.slice(0, 120));
+  ok(!/No tengo informaci[oó]n/.test(T2), "…sin caer a «no tengo información»: la continuación elíptica («y el…») reabre el cuadro");
+  /* la continuación abre SOLO con su marcador: una pregunta nueva corta que nombra una columna sigue libre */
+  const r3 = await answerViaAgente({ text: "como viene mi margen?", history: hist, mem: r1.mem, scenario: ESC, callAgente: MUDO });
+  ok(!/de este cuadro/.test(String(r3.r.text || "")), "★ «¿cómo viene mi margen?» —corta y con columna— NO la toma el cuadro: el marcador «y» es lo que abre");
+  /* LA MULTA DEL REDONDEO, con su par legítimo */
+  const pares = [[`El cumplimiento cierra en ${cum.valor.replace(/\.\d+%$/, "%")}.`, true], [`El cumplimiento cierra en ${cum.valor}.`, false], [`Vas ${gap.valor} sobre presupuesto.`, false]];
+  for (const [txt, debeMultar] of pares) {
+    const hay = vetosDelPlaybook(cuadroExplicado, txt, { pregunta: "x", ctx: { cuadro: vcE } }).some((x) => x.regla === "porcentaje-redondeado");
+    ok(hay === debeMultar, `${debeMultar ? "★ multa" : "pasa"}: «${txt}»`);
+  }
 }
 
 /* ═══ 6 · SIN DATO, SE DICE QUÉ FALTA ═══════════════════════════════════════════════════════════════════════ */

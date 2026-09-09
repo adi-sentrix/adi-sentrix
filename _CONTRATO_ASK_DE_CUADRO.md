@@ -312,3 +312,36 @@ lectura rica de nueve cuentas pasa · ocho filas con su cifra pegada siguen sien
 `_agente_contrato_gate` rechazó mi `\bqu[eé]\b`: **el `\b` no cierra tras una vocal acentuada**. Es la misma
 lección que el proyecto ya pagó dos veces (`\b[uú]ltimo mes\b`, y el «facturó» del §9). Se usa lookaround
 explícito. El candado hizo exactamente su trabajo.
+
+---
+
+## 11 · EL GAP MANDA, Y NINGÚN PORCENTAJE SIN DECIMAL (owner 2026-09-08, quinta entrega)
+
+**Su palabra, textual:** *«decir cumplimiento de 103, ojo con eso, porque es mejor DECIR CON UN gap sobre
+ventas, es más ejecutivo. Y si preguntan por cumplimiento… lo redondeo en 103, prefiero al menos un decimal,
+es mejor.»*
+
+**Dos reglas de presentación con consecuencia real:**
+
+1. **El GAP abre la lectura, no el cumplimiento.** Un gerente lee «+3.1% sobre tu presupuesto» de una;
+   «103.1% del plan» lo obliga a restar 100 de cabeza. El módulo ya publicaba las dos formas (`vsPresupuestoFmt`
+   y `cumplimientoFmt`) — lo que faltaba era que el lector viera la escalar: `vsPresupuesto`/`vsAnterior` no
+   estaban en el diccionario de campos, así que el gap del cuadro del año **no se leía**. El cumplimiento no se
+   pierde: se contesta cuando lo preguntan.
+2. **Un porcentaje medido va con su decimal.** El cerebro escribió «103%» donde el cuadro publica «103.0%»: el
+   muro lo dejó pasar porque el VALOR es el mismo —y para el muro lo es—, pero en pantalla un entero pelado se
+   lee como aproximación y le quita precisión a una cifra que está medida. Veto nuevo `porcentaje-redondeado`,
+   solo en el caso inequívoco (el cuadro publica `N.d%` y el texto trae `N%`).
+
+**Y dos huecos que la entrega destapó:**
+- **«¿Y el cumplimiento?» caía a vacío.** Es una continuación, no una pregunta nueva. Abrir por «pregunta corta
+  que nombra una columna» habría secuestrado turnos libres —«¿cómo viene mi margen?» son cuatro palabras y
+  nombra una columna—, así que el marcador es la conjunción de apertura: **nadie empieza una pregunta nueva con
+  «y»**. Determinístico, y el control sigue verde.
+- **Se declinaba con el dato en la mano.** La profundización buscaba la columna solo en las FILAS, y el
+  cumplimiento vive en la CABECERA: contestaba «este cuadro no trae esa columna» teniendo la cifra al lado.
+  Declinar con el dato en la mano es el peor de los errores honestos.
+
+**La cifra, para que quede escrita:** en la carpeta del owner el gap es **+3.0% · +$2.9M** (venta $99.9M contra
+presupuesto declarado $97.0M); en la carpeta `actual`, **+3.1% · +$3.0M**. No 2,1% — si su presupuesto declarado
+fuera otro, la cifra se mueve con él.

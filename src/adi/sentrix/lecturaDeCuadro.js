@@ -66,6 +66,10 @@ const CAMPOS = {
   // referencias y brechas
   vara: "Benchmark", benchmark: "Benchmark", ref: "Referencia", brecha: "Brecha",
   cumplimiento: "Cumplimiento del presupuesto", presupuesto: "Presupuesto",
+  /* la forma ESCALAR de las comparaciones (el evolutivo publica `vsPresupuestoFmt` suelto, no anidado como la
+   * cartera). Sin esto el GAP del cuadro del año no se leía — y el gap es la lectura ejecutiva que el owner
+   * pidió («mejor decir un gap sobre ventas que un cumplimiento de 103»). */
+  vsPresupuesto: "vs presupuesto", vsAnterior: "vs año anterior",
   // acciones comerciales (vocabulario cerrado: la TASA es «carga comercial», el MONTO son «acciones comerciales»)
   carga: "Carga comercial", acciones: "Acciones comerciales", rebate: "Acciones comerciales",
   exceso: "Exceso sobre la referencia", recuperable: "Contribución no capturada",
