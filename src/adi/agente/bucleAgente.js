@@ -31,6 +31,7 @@ import { runPlan } from "../oracle/toolRunner.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
 import { cajaDelAgente } from "./herramientasAgente.js";
 import { doctrinasParaRonda } from "./doctrinaAgente.js";
+import { esPorQue, doctrinaDelPorque, vetosDelPorque } from "./porque.js";   // la ley del porqué, transversal (owner 2026-09-09)
 import { mapaDelDato, faltanteQueToca } from "./mapaDelDato.js";   // + lo que el archivo del usuario no trajo (owner 2026-08-31)
 import { guardC, esNarracionVacia } from "../oracle/guardC.js";
 import { cifrasDelDato } from "../oracle/datoProyectado.js";
@@ -57,7 +58,7 @@ import { detectSerieIntent, composeSerieIntent } from "../oracle/serieIntent.js"
 import { playbookPara, pasosDe, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook } from "./playbooks/registro.js";
 import { anclaDelCuadro } from "./playbooks/cuadroExplicado.js";   // el cuadro abierto persiste en la memoria del hilo (owner 2026-09-08: «profundiza en…»)   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
 import { serieRealDe } from "../sentrix/capability.js";
-import { getTenantId } from "../../data/tenantStore.js";   // la semilla de variación: tenant + pregunta + largo del hilo
+import { getTenantId, getTenantData } from "../../data/tenantStore.js";   // getTenantData: el contexto que el negocio declaró — la ley del porqué lo cita en vez de repreguntar   // la semilla de variación: tenant + pregunta + largo del hilo
 
 const TOPE_RONDAS = 3;      // rondas que pueden pedir herramientas
 const TOPE_CALLS = 12;      // tool-calls por turno, sumadas todas las rondas
@@ -584,6 +585,16 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     }
   }
 
+  /* ── LA LEY DEL PORQUÉ, PARA TODO CAMINO (owner 2026-09-09) ─────────────────────────────────────────────
+   * «No quiero que el método del porqué dependa de venir desde un cuadro.» Va ACÁ y no en la doctrina por
+   * herramienta ni en la carta, y las tres razones están medidas: la doctrina del playbook solo se empuja si
+   * `promesasCumplidas` (arriba), así que el TURNO LIBRE —el que más lo necesita: «¿por qué cae mi margen?»
+   * sin playbook— jamás la vería; `DOCTRINAS` exige llave = herramienta real y esta se decide por la PREGUNTA;
+   * y la carta ya rompió su techo con la operativa del porqué. Un mensaje, solo en el turno que lo pide, y
+   * byte-estable — el mismo principio de `doctrinaAgente.js`: la instrucción no viaja hasta que hace falta. */
+  const _esPorQueDelTurno = esPorQue(q);
+  if (_esPorQueDelTurno) mensajes.push({ role: "user", content: doctrinaDelPorque() });
+
   /* EL MOTIVO DE CORTE DEL PROVEEDOR, por llamada (tanda post-poda, 2026-09-05): el gateway ya lo re-emite y
    * el cliente lo lee — acá se junta en el expediente. La lección del natural, completa de punta a punta:
    * un turno vacío que solo dice «vacio» es indiagnosticable. Observación pura: no decide nada. */
@@ -722,8 +733,20 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       texto: t, figsEnBoleta: figsTotales.length, pregunta: q,
       recitaAprobada: recita, datoProyectado: cifrasDelDato(scenario),
     }) : null;
+    /* ⚠️ Y UN CUARTO: LA LEY DEL PORQUÉ (owner 2026-09-09). Vive acá y no en un playbook porque el turno libre
+     * —el que pregunta una causa sin que ningún procedimiento se active— no tiene lista notarial ninguna, y
+     * era justo el camino sin ley. Se acota al cerebro con el mismo criterio que el juez de la boleta (el
+     * módulo lo re-verifica por `sitio`): a los peldaños de rescate no se les cobra lo que ellos arreglan. */
+    const vPorQue = vetosDelPorque(t, {
+      pregunta: q, figs: figsTotales, results: resultsTotales, recita,
+      /* el contexto que el negocio DECLARÓ (perfil del tenant): si el usuario ya nos contó su realidad, la
+       * ley acepta que ADI la cite en vez de volver a preguntar — la condición del owner «si él ya lo
+       * declaró, cítalo». Se lee del tenant, que es donde la UI lo toma para el system. */
+      mem: memIn, contexto: (() => { try { const t = getTenantData(); return (t && t.perfil && t.perfil.contexto) || null; } catch { return null; } })(), sitio,
+    });
     const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [], limiteDeHerramienta: motivosNoSoportado.length > 0 }),
       ...(vSinBoleta ? [vSinBoleta] : []),
+      ...vPorQue,
       ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales, pregunta: q, ctx: ctxTurno }) : [])];
     if (!vc.length) return v;
     vetosDelTurno.push(`${sitio} · ${vc[0].regla}: ${vc[0].multa.split("\n")[0].slice(0, 160)}`);

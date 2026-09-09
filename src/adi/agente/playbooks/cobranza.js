@@ -17,6 +17,8 @@
  *
  * PURO · determinístico · sin red. Cifras VERBATIM de la boleta. */
 
+import { esPorQue } from "../porque.js";   // la ley del porqué es de la casa (owner 2026-09-09)
+
 const _FIN = "(?![a-záéíóúüñ])";
 const _lab = (f) => String((f && f.label) || "");
 const _val = (f) => String((f && (f.text || f.value)) || "");
@@ -93,6 +95,13 @@ export const cobranza = {
     } else {
       /* la regla del owner, con palabras: sin plazo no hay vencido que mostrar — y se dice por qué */
       partes.push(`Qué parte está vencida no se puede saber: tu empresa no declaró plazo de pago. Cuando lo declares, el vencido se calcula solo — sin volver a subir el archivo.`);
+    }
+    /* LA LEY DEL PORQUÉ (owner 2026-09-09): «¿por qué me deben tanto?» es una causa, y el flujo NO la mide —no
+     * hay conducta de pago en el dato: ni retraso medio, ni antigüedad por tramos—. Se dice el límite y se le
+     * pregunta a él, que es quien sabe si cambió un plazo, si hubo una negociación o si alguien dejó de pagar. */
+    if (esPorQue(pregunta)) {
+      partes.push(`\nPor qué te deben eso no está en este dato: el flujo localiza cuánto y de quién, no explica la conducta de pago.`);
+      partes.push(`¿Cambiaste el plazo con alguien, hubo una negociación grande, o hay un cliente que dejó de pagar como antes?`);
     }
     return partes.join("\n");
   },

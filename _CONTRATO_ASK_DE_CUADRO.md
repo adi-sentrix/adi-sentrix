@@ -510,3 +510,53 @@ limpio); comprueba que la hipótesis de mundo sobre el negocio del usuario NO se
 tres reglas, vuelve a pantalla el texto que el owner rechazó. §5i y §5j quedaron actualizados a la forma nueva
 sin perder su garantía. De paso, el candado del registro cazó **«palanca»** en mi doctrina — palabra prohibida
 en superficie desde siempre.
+
+## 16 · LA LEY DEL PORQUÉ, TRANSVERSAL (owner 2026-09-09, décima entrega)
+
+**Su palabra, textual:** *«No quiero que el método del porqué dependa de venir desde un cuadro. Si el usuario
+pregunta "por qué" desde cualquier lugar —cuadro, ficha, chat libre, cliente, margen, ventas, inventario o
+cobranza— ADI debe seguir la misma doctrina: medir primero · hipótesis marcada después · pregunta concreta al
+dueño para completar la causa. Y los tres vetos deben aplicar transversalmente.»*
+
+**Un módulo, no trece parches.** `src/adi/agente/porque.js` tiene el detector único (`esPorQue`), la letra
+(`doctrinaDelPorque`, byte-estable, ≤900 chars) y los tres vetos (`vetosDelPorque`). El bucle la aplica: la
+doctrina como mensaje antes de la primera ronda **con playbook o sin él**, y los vetos como cuarto juez en
+`juzgar()`, acotados al cerebro (a los peldaños de rescate no se les cobra lo que ellos arreglan). Los tres
+vetos SALIERON del playbook del cuadro en el mismo commit: dos jueces con la misma regla sobre la misma oración
+es un turno partido en dos cerebros.
+
+**Lo que la ley NO toca**, y cada exclusión salió de un falso positivo medido: la **procedencia** («¿por qué
+103.1%?» = de dónde sale la cifra — el propio veto del cuadro se lo cobraba a su respuesta correcta), el
+**límite del instrumento** («¿por qué no me muestras el vencido?» — ahí la causa ya se dice entera) y la
+**simulación**. Y no exige cifras donde el dato no tiene mecanismo: en inventario y cobranza obligar respaldo
+empuja al cerebro a rellenar con mundo, que es el defecto que esto cierra.
+
+### El método reprobó su primera versión — y eso es el método funcionando
+
+Tres agentes mapearon el código, uno implementó, seis auditaron adversarialmente. La certificación salió
+**NO CERTIFICADA** con defectos reproducidos en el bucle real. Los seis, corregidos:
+
+1. **REGRESIÓN mía (bloqueante).** La exención que le puse a la ficha era tan ancha que *«Falabella cede margen
+   porque su equipo negocia mal»* salía **verde** — HEAD lo vetaba. Causa: «margen» está en toda oración de un
+   porqué de margen. Ahora la exención pide **marca de hipótesis** o **mecanismo + dos cifras**; y «creo que» /
+   «sospecho» salieron de las marcas: son muletillas, no proporcionalidad.
+2. **Inventario y cobranza contestaban con una lista (bloqueante).** «¿Por qué tengo capital frenado?» lo
+   secuestraba la lectura por eje —por el «qué» de «por qué»— y devolvía un ranking de tres SKU: **cero de tres
+   pasos y cero vetos**. Se retiró de ahí, se le dio dueño al porqué del capital, y cobranza declara su límite
+   y pregunta. Además el veto (c) ya no exige «lectura causal» previa: **esquivar la pregunta también arde**.
+3. **El detector era ciego al castellano corriente.** «¿Cómo se explica?», «¿qué hay detrás?», «¿cuál fue el
+   motivo?» no activaban nada. Trece formas más, medidas.
+4. **Dos exclusiones se tragaban porqués reales:** «¿por qué **es** el margen de Lider tan bajo?» (acotada a la
+   cifra) y «¿por qué **no está** creciendo Falabella?» (acotada al instrumento).
+5. **`getTenantData` no estaba importado** en el bucle: el contexto declarado era siempre null dentro de un
+   try/catch mudo, así que «si él ya te lo declaró, cítalo» estaba muerto.
+6. **Un byte `backspace` dentro de un regex** (`\b` comido por el shell) apagaba media exención en silencio.
+
+**Gate:** `_agente_porque_gate.mjs`, 89 chequeos. El §8 recorre **los ocho lugares que el owner nombró por el
+bucle real** y exige que cada uno cierre preguntándole al dueño algo concreto de su negocio, con el muro
+limpio; y comprueba que una **lectura** en esos mismos lugares sigue intacta. Cinco carnadas.
+
+**Queda abierto y declarado** (no entró, es decisión del owner): el **peldaño oráculo** —la red de respaldo si
+el agente falla— no tiene la ley; y **ventas** no puede cumplir el paso 1 con cifras porque la descomposición
+precio/volumen existe en el módulo pero ninguna herramienta la sirve (hoy localiza, declara el límite y
+pregunta).

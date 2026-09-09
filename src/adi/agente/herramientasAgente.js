@@ -489,6 +489,11 @@ export function cuadroSentrix(args = {}, ctx = {}) {
     }
     if (_conCifra(L.porDentro.margenAnioFmt)) _emitir(`${I.cuadro} · margen del año`, L.porDentro.margenAnioFmt, { entidad: null });
     if (_conCifra(L.porDentro.cargaAnioFmt)) _emitir(`${I.cuadro} · carga del año`, L.porDentro.cargaAnioFmt, { entidad: null });
+    /* ⚠️ Y EL PROMEDIO DE UNIDADES DEL AÑO — lo destapó la ley del porqué al exigir que el mecanismo viaje con
+     * su referencia: la respuesta correcta dice «360 unidades contra un promedio de 475» y el 475 NO estaba
+     * autorizado. Un defecto real, no del veto: si el cerebro escribía esa comparación, el muro se la mataba
+     * con razón. La referencia de una comparación es tan cifra como el valor comparado. */
+    if (Number.isFinite(L.porDentro.unidadesProm)) _emitir(`${I.cuadro} · unidades promedio del año`, String(L.porDentro.unidadesProm), { entidad: null });
   }
 
   return {

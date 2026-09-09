@@ -28,6 +28,7 @@ import { entidadNombrada } from "./indiceEntidades.js";
 import { detectSerieIntent } from "../../oracle/serieIntent.js";   // la entidad×período es del puente, no de acá
 import { etiquetaDeLaCarga } from "../../../config/businessPolicy.js";
 import { variante } from "../variacion.js";
+import { esPorQue, MARCA_HIPOTESIS } from "../porque.js";   // la ley del porqué es de la casa, no de un playbook (owner 2026-09-09)
 
 const _val = (f) => String((f && (f.text || f.value)) || "");
 const _lab = (f) => String((f && f.label) || "");
@@ -182,11 +183,21 @@ export const fichaDeEntidad = {
 
     /* 3 · QUÉ HACER PRIMERO — ofrecido, y el límite dicho */
     p.push(`\nPor qué rinde así no está en este dato: la ficha localiza, no explica.`);
+    /* ⚠️ Y SI EL USUARIO PREGUNTÓ UNA CAUSA, EL TURNO CIERRA PREGUNTÁNDOLE A ÉL (ley del porqué, owner
+     * 2026-09-09): «ADI no necesita saber todo; si falta contexto debe consultar bien al usuario para cerrar
+     * la lectura». Antes esto cerraba con una OFERTA («¿la comparo contra la cartera?») — útil, y se conserva,
+     * pero una oferta de navegación no es preguntar por lo que falta. El detonante lo sabe el dueño. */
     p.push(variante(semilla, [
       `Si quieres, la comparo contra el resto de la cartera para ver si es un caso o un patrón.`,
       `¿La ponemos contra el resto de la cartera? Ahí se ve si es un caso aislado o un patrón.`,
       `Te la puedo contrastar con el resto de la cartera para ver si es la excepción o la regla.`,
     ]));
+    /* ⚠️ Y LA PREGUNTA AL DUEÑO CIERRA EL TURNO — va DESPUÉS de la oferta, no antes: el paso 3 de la ley es el
+     * cierre, y una oferta de navegación puesta al final le roba el lugar. Medido: con la oferta al final, el
+     * turno terminaba en «…si es la excepción o la regla.» y la pregunta quedaba sepultada en el medio. */
+    if (esPorQue(pregunta)) {
+      p.push(`¿Qué pasó con ${ent.nombre}: te compró menos por precio, cambió su mezcla de productos, hubo un quiebre de stock, o entró un competidor?`);
+    }
     return p.join("\n");
   },
 
@@ -212,9 +223,30 @@ export const fichaDeEntidad = {
     }
     /* (2) LA FICHA NO EXPLICA: una causa afirmada sobre una cuenta es la regla 2 del contrato, y este dato no
      * trae por qué una cuenta cede margen. Localizar no es explicar. */
-    for (const o of t.split(/[.!?\n]+/)) {
+    /* ⚠️ CON LA EXENCIÓN DE LA CASA — MEC | CIFRA | HIPÓTESIS MARCADA (owner 2026-09-09, al hacer transversal
+     * el método del porqué). Esta regla era la única de su familia SIN exención: asesoría, síntesis y margen
+     * ya eximen la oración que trae un mecanismo del dominio o una cifra. Sin esto, el paso 2 de la ley —«mi
+     * hipótesis es que cede margen PORQUE su carga es 8.6% contra 4.5%»— moría acá, y la ley nueva se
+     * contradecía con un veto viejo.
+     *
+     * ⚠️ Y LA EXENCIÓN ES ESTRECHA A PROPÓSITO — la primera versión fue una REGRESIÓN que una auditoría
+     * adversarial cazó reproduciéndola: con `MEC | CIFRA` sueltos, «Falabella cede margen PORQUE su equipo
+     * negocia mal» salía a pantalla en verde (la palabra «margen» está en toda oración de un porqué de margen,
+     * así que la exención se tragaba la regla entera). Ahora hay dos puertas, las dos exigentes:
+     *   · la oración MARCA la hipótesis («mi hipótesis», «es criterio mío», «no está probado»), o
+     *   · trae un mecanismo del dominio ACOMPAÑADO DE DOS CIFRAS en la misma oración — el mismo criterio del
+     *     veto (a) de la ley: una conclusión sin su respaldo es una opinión con cara de medición.
+     * Lo que la regla sigue matando es lo que existe para matar: la causa afirmada a secas. */
+    const MEC_FICHA = /benchmark|\bcarga\b|acciones comerciales|ticket promedio|ranking|mezcla|mix|precio de lista/i;
+    const CIFRA_FICHA = /\$\s?[\d.,]+\s?[KMB]?|[\d.,]+\s*(?:%|pp)/g;
+    /* ⚠️ EL CORTE RESPETA EL DECIMAL — la trampa documentada de la casa, y acá hacía daño doble: con
+     * `[.!?\n]+` la oración «su carga es 4.5% contra 3.5%» se partía en «…es 4» / «5% contra 3» / «5%», así
+     * que la exención no veía UNA sola cifra y vetaba la frase mejor respaldada del turno. */
+    for (const o of t.split(/(?<![\d])[.!?;\n](?![\d])/)) {
       if (!new RegExp(`\\bporque${_FIN}|\\bse debe a${_FIN}|\\bla causa (?:es|est[aá])${_FIN}|\\bpor culpa de${_FIN}`, "i").test(o)) continue;
-      v.push({ regla: "causa-sin-respaldo", multa: "afirmas por qué esa cuenta rinde así y este dato no lo declara: localiza (cuánto y dónde) o di que la causa no está medida." });
+      const cifras = (o.match(CIFRA_FICHA) || []).length;
+      if (MARCA_HIPOTESIS.test(o) || (MEC_FICHA.test(o) && cifras >= 2)) continue;
+      v.push({ regla: "causa-sin-respaldo", multa: "afirmas por qué esa cuenta rinde así y este dato no lo declara: localiza (cuánto y dónde), márcalo como hipótesis tuya, o di que la causa no está medida." });
       break;
     }
     /* (3) EL TÉRMINO DE PANTALLA: «cobertura» quedó resuelto POR ELIMINACIÓN — el dato trae `doh` y `cobertura`

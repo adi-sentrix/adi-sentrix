@@ -34,6 +34,7 @@ import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
 import { playbookPara, pasosDe, obligatoriasDe, entregableDe, doctrinaDelPlaybook, vetosDelPlaybook } from "./src/adi/agente/playbooks/registro.js";
 import { cuadroExplicado, _olvidarMemoDelCuadro } from "./src/adi/agente/playbooks/cuadroExplicado.js";
+import { vetosDelPorque } from "./src/adi/agente/porque.js";   // §5k mide la ley donde vive: en la casa, no en el playbook
 import { lecturaDeCuadro } from "./src/adi/sentrix/lecturaDeCuadro.js";
 import { cuadroSentrix, cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";
 import { CONTRATOS_AGENTE } from "./src/adi/agente/catalogoAgente.js";
@@ -593,7 +594,12 @@ H("5k · el método del porqué — medir con cifras · hipotetizar marcado · p
    * No es un veneno inventado: es lo que ADI escribió en producción el 2026-09-09, copiado de su captura. */
   const memE = { cuadroAbierto: { componentId: CID, escenario: ESC, controles: {}, turno: 2 } };
   const ctxE = { history: [{}, {}], mem: memE };
-  const juzgar = (txt) => { _olvidarMemoDelCuadro(); return cuadroExplicado.listaNotarial(txt, { pregunta: "por que febrero es el mas bajo", ctx: ctxE }).map((x) => x.regla); };
+  /* ⚠️ EL JUEZ ES EL MÓDULO DE LA CASA (owner 2026-09-09, décima entrega): las tres reglas salieron del
+   * playbook del cuadro y viven en `porque.js`, que el bucle aplica a TODO turno causal. Este gate las mide
+   * donde están ahora — con la misma boleta del cuadro y los mismos textos. */
+  const _figsDelCuadro = cuadroSentrix({ componentId: CID, scenario: ESC }).boleta;
+  const _resultsDelCuadro = [{ facts: cuadroSentrix({ componentId: CID, scenario: ESC }).facts }];
+  const juzgar = (txt) => vetosDelPorque(txt, { pregunta: "por que febrero es el mas bajo", figs: _figsDelCuadro, results: _resultsDelCuadro, sitio: "cierre" }).map((x) => x.regla);
   const REAL_DE_PRODUCCION = [
     "Febrero cierra en $6.5M, el mes más bajo del año — y ese patrón se repite: febrero fue el mes más bajo también el año anterior.",
     "Qué pasó en febrero: El volumen cayó. No es margen cedido ni una acción comercial puntual — es una caída de venta mes a mes que el año anterior mostró igual.",
@@ -620,9 +626,9 @@ H("5k · el método del porqué — medir con cifras · hipotetizar marcado · p
   ok(juzgar(`Febrero es el piso del año ($6.5M). Fue por volumen: ${feb.unidades} unidades contra ${LE.porDentro.unidadesProm} de promedio, margen ${feb.margenFmt} contra ${LE.porDentro.margenAnioFmt}. ¿Seguimos por otra parte del cuadro?`).includes("porque-sin-pregunta"),
     "…y «¿seguimos?» no cuenta como preguntar: la pregunta tiene que pedir el contexto que falta");
   /* una LECTURA normal del cuadro no es un porqué: las tres reglas no la tocan */
-  _olvidarMemoDelCuadro();
-  ok(cuadroExplicado.listaNotarial("El período cierra en $100.0M, +3.1% sobre tu presupuesto. Entre el mes más alto ($9.8M) y el más bajo ($6.5M) la distancia es grande.", { pregunta: tituloDeExplicacion(CID), ctx: { cuadro: vcE } }).length === 0,
+  ok(vetosDelPorque("El período cierra en $100.0M, +3.1% sobre tu presupuesto. Entre el mes más alto ($9.8M) y el más bajo ($6.5M) la distancia es grande.", { pregunta: tituloDeExplicacion(CID), figs: _figsDelCuadro, results: _resultsDelCuadro, sitio: "cierre" }).length === 0,
     "★ y la lectura normal del cuadro sigue intacta: el método rige el PORQUÉ, no toda respuesta");
+  _olvidarMemoDelCuadro();
   /* la doctrina del cerebro lleva los tres pasos con los ejemplos del owner */
   const ent = entregableDe(cuadroExplicado, "por que febrero es el mas bajo", { history: hist, mem: r1.mem });
   ok(/TRES PASOS/.test(ent) && /MECANISMO MEDIDO DEL NEGOCIO, PRIMERO/.test(ent) && /HIPÓTESIS, MARCADA/.test(ent) && /CIERRA PREGUNTÁNDOLE AL DUEÑO/.test(ent),
@@ -870,14 +876,13 @@ H("10 · carnadas · cada garantía, probada ROJA sobre una copia mutada del có
     });
 
   // (k) el método del porqué, desarmado → vuelve a pantalla el texto que el owner rechazó en producción
-  await carnada("las tres reglas del método, apagadas (vuelve el porqué sin cifras, con sector y sin pregunta)", "src/adi/agente/playbooks/cuadroExplicado.js",
-    [[/const esPorQue = !!\(c\.porQue \|\| c\.elemento\);/, "const esPorQue = false;   // CARNADA"]],
+  await carnada("las tres reglas del método, apagadas (vuelve el porqué sin cifras, con sector y sin pregunta)", "src/adi/agente/porque.js",
+    [[/if \(!esPorQue\(pregunta\)\) return \[\];/, "if (true) return [];   // CARNADA"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
-      const memE = { cuadroAbierto: { componentId: "comercial/01/evolutivo-serie", escenario: ESC, controles: {}, turno: 2 } };
-      const REAL = "Febrero cierra en $6.5M, el mes más bajo del año. El volumen cayó. No es margen cedido ni una acción comercial puntual.\nCriterio mío: los clientes retail típicamente reducen compras después de enero, y el sector electrodomésticos históricamente cae en febrero.";
-      Mut._olvidarMemoDelCuadro();
-      const v = Mut.cuadroExplicado.listaNotarial(REAL, { pregunta: "por que febrero es el mas bajo", ctx: { history: [{}, {}], mem: memE } });
+      const figsM = cuadroSentrix({ componentId: "comercial/01/evolutivo-serie", scenario: ESC });
+      const REAL = "Febrero cierra en $6.5M, el mes más bajo del año. El volumen cayó. No es margen cedido ni una acción comercial puntual.\nCriterio mío: el sector electrodomésticos históricamente cae en febrero.";
+      const v = Mut.vetosDelPorque(REAL, { pregunta: "por que febrero es el mas bajo", figs: figsM.boleta, results: [{ facts: figsM.facts }], sitio: "cierre" });
       return !v.some((x) => /mecanismo-sin-cifras|sectorial-sin-fuente|porque-sin-pregunta/.test(x.regla));
     });
 

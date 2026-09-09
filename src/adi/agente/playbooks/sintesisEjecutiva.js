@@ -39,6 +39,7 @@
  * Su frase, que resume el encargo entero: «MISMO DATO, MEJOR FORMA DE PRESENTARLO». Ni una cifra cambió. */
 
 import { pisoFocosUSD, declaracionUmbralFocos } from "../../specRetrieval.js";
+import { esPorQue } from "../porque.js";   // la ley del porqué es de la casa (owner 2026-09-09)
 import { variante } from "../variacion.js";   // el cierre varía por semilla («matar la repetición», 2026-09-03)
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
@@ -61,7 +62,9 @@ const _EJECUTIVO = /\bdirectorio\b|\bboard\b|\bgerencia\b|\bgerente\b|\bgg\b|\be
 /* las dos puertas del léxico corto (T1) — angostas a propósito: cada una pide una señal que un comentario al
  * pasar no tiene. «hay riesgo de quiebre en ese SKU» no es «los 3 riesgos»; «te mando el archivo al gerente»
  * no es «un resumen para el directorio». */
-const _RIESGOS_COMO_CONJUNTO = /\b(?:los|mis|3|tres|principales)\s+(?:\d+\s+)?riesgos?\b|\briesgos?\s+(?:principales|del negocio|de la empresa)\b/i;
+/* «esos/estos riesgos» es el seguimiento natural de una síntesis y no tenía camino (owner 2026-09-09, medido
+ * al recorrer los ocho lugares del porqué): el turno caía a «no tengo información» con el dato en la mano. */
+const _RIESGOS_COMO_CONJUNTO = /\b(?:los|mis|esos|esas|estos|estas|3|tres|principales)\s+(?:\d+\s+)?riesgos?\b|\briesgos?\s+(?:principales|del negocio|de la empresa)\b/i;
 const _ENTREGA_A_COMITE = new RegExp([
   `\\b(?:resumen|s[ií]ntesis|informe|reporte)\\b[^.\\n]{0,30}\\b(?:para|al|del)\\s+(?:el\\s+)?(?:directorio|board|junta|comit[eé]|gerencia|gerente general)\\b`,
   /* «qué le digo al directorio» — la forma más natural de todas y la que el censo encontró sin camino */
@@ -107,7 +110,7 @@ export const sintesisEjecutiva = {
 
   entregable: "exactamente 3 riesgos para el directorio, elegidos por materialidad (el piso relativo manda): cada uno con QUÉ (la cifra verbatim, con su dueño) · DÓNDE (localiza, sin causas que el dato no declara) · QUÉ HACER PRIMERO (una oferta, jamás una orden). Si el dato sostiene menos de 3 materiales, se dice el número verdadero.",
 
-  componer({ figs, semilla } = {}) {
+  componer({ figs, semilla, pregunta } = {}) {
     const piso = _piso();
     /* los candidatos, cada uno con su cifra y su locator — SOLO familias que el diagnóstico declara */
     const candidatos = [];
@@ -187,6 +190,9 @@ export const sintesisEjecutiva = {
       "Si te parece, entro por ahí.",
     ]);
     partes.push(`\n${prioridad ? `${prioridad} ` : ""}El porqué de cada riesgo no está en este dato: queda localizado, no explicado. ${_oferta}`);
+    /* LA LEY DEL PORQUÉ (owner 2026-09-09): un directorio de riesgos que el usuario pidió EXPLICAR cierra
+     * preguntándole por el contexto que el dato no tiene — no con una oferta de navegación. */
+    if (esPorQue(pregunta)) partes.push(`Para cerrar el porqué necesito tu lado: ¿hubo un cambio de precios, una campaña, un problema de stock o una negociación grande en el período?`);
     /* EL UMBRAL, FUERA DEL TITULAR pero PRESENTE (regla 1 intacta): la proporcionalidad no se negocia, su
      * lugar sí. Va al final y en frase de negocio — auditable no significa que abra la respuesta. */
     if (_umbral() && n < 3) partes.push(`Lo que dejo fuera del directorio queda ${_umbral()}.`);

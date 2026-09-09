@@ -28,6 +28,7 @@
  * eso decide qué se cita, nunca produce una cifra nueva. */
 
 import { detectSerieIntent } from "../../oracle/serieIntent.js";
+import { esPorQue } from "../porque.js";   // la ley del porqué es de la casa (owner 2026-09-09)
 import { nombraEntidad } from "./indiceEntidades.js";   // el guardia anti-secuestro, compartido con la foto
 import { pisoFocosUSD, declaracionUmbralFocos } from "../../specRetrieval.js";
 import { variante } from "../variacion.js";   // los cierres varían por semilla («matar la repetición», 2026-09-03)
@@ -88,7 +89,7 @@ export const clientePerdiendoContribucion = {
   ],
   obligatorias: [/· YoY$/i, /^Contribuci[oó]n total$/i],
   entregable: "qué clientes están cayendo contra el año anterior (cada uno con su cifra YoY), sobre cuánta contribución total, y a quién abrir primero — ofrecido, jamás ordenado. Localiza dónde se cae; el porqué no está en este dato.",
-  componer({ figs, semilla } = {}) {
+  componer({ figs, semilla, pregunta } = {}) {
     const total = _find(figs, /^Contribuci[oó]n total$/i);
     const caen = _all(figs, /· YoY$/i)
       .map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
@@ -117,6 +118,10 @@ export const clientePerdiendoContribucion = {
       `Vale la pena ver desde cuándo: ¿abrimos la serie mensual de ${top[0].entidad}, el que más cae?`,
       `Para ver desde cuándo se cae, te abro la serie mensual de ${top[0].entidad} —el que más cae— si quieres.`,
     ]));
+    /* LA LEY DEL PORQUÉ (owner 2026-09-09): el paso 3 CIERRA el turno — la oferta de navegación va antes.
+     * Medido sobre los ocho lugares que el owner nombró: con la oferta al final, la pregunta que de verdad
+     * cierra la lectura quedaba sepultada en el medio y el turno terminaba ofreciendo otra pantalla. */
+    if (esPorQue(pregunta)) partes.push(`¿Qué pasó con esas cuentas: cambiaron su mezcla, hubo un quiebre de stock, se movió el precio, o entró un competidor?`);
     return partes.join("\n");
   },
   listaNotarial(texto, { figs } = {}) {
@@ -167,6 +172,13 @@ export const inventarioInmovilizado = {
   cuandoAplica(pregunta) {
     const q = String(pregunta || "");
     if (_SIMULA.test(q) || _DEUDA.test(q)) return false;
+    /* ⚠️ EL PORQUÉ DEL CAPITAL FRENADO TAMBIÉN ES SUYO (owner 2026-09-09, cazado por auditoría adversarial):
+     * «¿por qué tengo capital frenado?» se la llevaba la lectura por eje —por el «qué» de «por qué», que su
+     * detector acepta como pedido de lista— y el usuario recibía un ranking de tres SKU, sin límite, sin
+     * hipótesis y sin pregunta. Retirarla de ahí sin darle dueño acá dejaba la pregunta cayendo al rescate,
+     * que es peor. Quien trae el dato del capital frenado responde su porqué: con el límite dicho —la causa
+     * de un freno NO está en este dato, y la casa lo tiene declarado— y la pregunta al dueño. */
+    if (_B_TEMA.test(q) && _B_ESTADO.test(q) && esPorQue(q)) return true;
     return _B_TEMA.test(q) && _B_ESTADO.test(q) && _B_ASESORIA.test(q);
   },
   pasos: [
@@ -174,7 +186,7 @@ export const inventarioInmovilizado = {
   ],
   obligatorias: [/^Capital frenado · total$/i, /· Capital frenado$/i],
   entregable: "cuánto capital está inmovilizado (y si es material para este negocio, con el umbral declarado), en qué SKU está, y cuál abrir primero — ofrecido con su cifra, jamás ordenado. Se localiza dónde; el porqué de cada freno no está en este dato.",
-  componer({ figs, semilla } = {}) {
+  componer({ figs, semilla, pregunta } = {}) {
     const total = _find(figs, /^Capital frenado · total$/i);
     if (!total) return null;
     const dias = new Map(_all(figs, /· D[ií]as de inventario$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
@@ -210,6 +222,10 @@ export const inventarioInmovilizado = {
           `Si te parece, arranco por ${top[0].entidad}: es el mayor (${top[0].fmt} de ${_val(total)}).`,
         ]))
       : `Si igual quieres verlo, empiezo por ${top[0].entidad}, que es el mayor. Dime y lo abrimos.`);
+    /* LA LEY DEL PORQUÉ (owner 2026-09-09): el inventario NO trae la causa de un freno —está declarado en la
+     * casa: sin entradas, sin lead time, sin órdenes de compra— así que el paso 1 no se puede cumplir acá y no
+     * se finge. Lo que sí corresponde es la parte que el dato no puede dar y el dueño sí: preguntársela. */
+    if (esPorQue(pregunta)) partes.push(`¿Qué pasó con esos SKU: fue una sobrecompra, un cambio de temporada, un cliente que no retiró, o un proveedor que llegó tarde?`);
     return partes.join("\n");
   },
   listaNotarial(texto, { figs } = {}) {
@@ -381,6 +397,10 @@ export const lecturaDeVentas = {
         `Te queda pendiente la comparación contra el presupuesto: dime y la traigo.`,
       ]));
     }
+    /* LA LEY DEL PORQUÉ (owner 2026-09-09): el paso 3 CIERRA el turno — la oferta de navegación va antes.
+     * Medido sobre los ocho lugares que el owner nombró: esta lectura localiza quién cae y cuánto, y lo dice;
+     * la causa la tiene él, así que el turno termina preguntándosela. */
+    if (esPorQue(pregunta)) partes.push(`¿Sabes qué cambió con ${(caen[0] && caen[0].entidad) || "esas cuentas"}: una negociación, un quiebre de stock, una campaña que no salió, o un competidor?`);
     return partes.join("\n");
   },
   listaNotarial(texto, { figs } = {}) {
@@ -432,7 +452,7 @@ export const oportunidadDePrecio = {
   ],
   obligatorias: [/^Benchmark de margen$/i, /^SKU bajo el benchmark$/i],
   entregable: "el benchmark declarado, cuántos SKU están bajo él, cuáles son (margen y venta de cada uno) y cuál abrir primero — ofrecido como revisión, jamás como orden de subir precios. Si el driver es costo o precio no está en esta lectura: se ofrece abrirlo, no se afirma.",
-  componer({ figs, semilla } = {}) {
+  componer({ figs, semilla, pregunta } = {}) {
     const bench = _find(figs, /^Benchmark de margen$/i);
     const conteo = _find(figs, /^SKU bajo el benchmark$/i);
     if (!bench || !conteo || !Number.isFinite(_pct(bench))) return null;
@@ -467,6 +487,8 @@ export const oportunidadDePrecio = {
       `Antes de tocar ningún precio, ¿abrimos ${top[0].entidad}? Es el de menor margen.`,
       `Te propongo abrir ${top[0].entidad} —el de menor margen— y ver su estructura antes de tocar ningún precio.`,
     ]));
+    /* LA LEY DEL PORQUÉ: esta lectura no separa costo de precio (lo dice arriba). La otra mitad la tiene él. */
+    if (esPorQue(pregunta)) partes.push(`¿Sabes qué mueve ese margen: te subió el costo, cediste precio en una negociación, o cambió la mezcla de lo que se vende?`);
     return partes.join("\n");
   },
   listaNotarial(texto, { figs } = {}) {

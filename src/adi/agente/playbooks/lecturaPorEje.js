@@ -28,6 +28,7 @@ import { detectSerieIntent } from "../../oracle/serieIntent.js";   // UN detecto
 import { _sinNombresDeEntidad } from "../mapaDelDato.js";        // un nombre de entidad no es un eje — la función del mapa, compartida
 
 const _FIN = "(?![a-záéíóúüñ])";
+import { esPorQue } from "../porque.js";   // un porqué no es una lectura de eje (owner 2026-09-09)
 /* ⚠️ EL MOTOR SOLO PONE `raw` EN LAS FILAS DESTACADAS (la misma lección que margen-en-riesgo dejó escrita, y
  * que este playbook volvió a pagar en la sonda: «margen por marca» salía SIN ordenar porque de cinco marcas
  * solo algunas traían `raw`). Para ORDENAR hace falta el número de todas, así que cuando `raw` falta se lee
@@ -112,6 +113,11 @@ const _CORTA = (q) => String(q || "").trim().split(/\s+/).filter(Boolean).length
 const _ejeDe = (pregunta) => {
   const q = String(pregunta || "");
   if (_FUERA.test(q)) return null;
+  /* ⚠️ UN PORQUÉ NO ES UNA LECTURA (owner 2026-09-09, cazado por auditoría adversarial): «¿por qué tengo
+   * capital frenado?» caía acá por el «qué» de «por qué» —que `_PIDE_LECTURA` acepta como pedido de lista— y
+   * el usuario recibía un ranking de tres SKU: cero de los tres pasos, sin límite, sin hipótesis y sin
+   * pregunta. Este playbook lee ejes; la causa la atiende quien tiene su dato y su ley. */
+  if (esPorQue(q)) return null;
   if (!_PIDE_LECTURA.test(q) && !_CORTA(q)) return null;
   /* entidad × período es de otros dos (puente / entidad-por-período): mismo detector, jamás una segunda regex */
   try { if (detectSerieIntent(q)) return null; } catch { /* detector mudo: sigue */ }

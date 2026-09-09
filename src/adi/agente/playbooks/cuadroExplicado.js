@@ -44,6 +44,7 @@ import { lecturaDeCuadro } from "../../sentrix/lecturaDeCuadro.js";
 import { getTenantId } from "../../../data/tenantStore.js";
 import { VIEW_MANIFEST } from "../../sentrix/viewManifest.js";
 import { variante } from "../variacion.js";
+import { esPorQue } from "../porque.js";   // la ley del porqué, transversal
 
 const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -154,7 +155,7 @@ function _elementoCitado(pregunta, L) {
   }
   return null;
 }
-const _PIDE_PORQUE = /\bpor\s?qu[eé](?![\wáéíóúñ])|\ba qu[eé] se debe\b|\bcu[aá]l es la (?:causa|raz[oó]n)\b|\bqu[eé] (?:pas[oó]|explica)(?![\wáéíóúñ])/i;
+const _PIDE_PORQUE = esPorQue;   // ⚠️ UN SOLO DETECTOR EN LA CASA (owner 2026-09-09): el del módulo de la ley. Tener el propio era tener dos léxicos que podían discrepar sobre la misma frase.
 
 export const CUADRO_ABIERTO_TTL_ENTRADAS = 8;   // mismo criterio de caducidad que el contexto de pantalla
 function _anclaDeMemoria(pregunta, ctx) {
@@ -204,7 +205,7 @@ function _caso(pregunta, ctx, scenario) {
   const columna = _columnaPedida(pregunta);
   const citada = columna ? null : _cifraCitada(pregunta, L);
   const elemento = columna || citada ? null : _elementoCitado(pregunta, L);
-  return { ancla: a, L, columna, citada, elemento, porQue: _PIDE_PORQUE.test(String(pregunta || "")) };
+  return { ancla: a, L, columna, citada, elemento, porQue: _PIDE_PORQUE(pregunta) };
 }
 
 /* ── LOS RÓTULOS DE LA COMPARACIÓN, en palabras de negocio ─────────────────────────────────────────────── */
@@ -865,59 +866,14 @@ export const cuadroExplicado = {
       }
     }
 
-    /* ── EL MÉTODO DEL PORQUÉ, EXIGIDO (owner 2026-09-09, novena entrega) ───────────────────────────────────
-     * «Primero el mecanismo MEDIDO del negocio; después la hipótesis del asesor, marcada; después una pregunta
-     *  para corroborar con el usuario… Si afirma "fue volumen y no margen/acciones", debe mostrar las cifras
-     *  que sostienen esa lectura… Evitar frases sectoriales fuertes salvo que haya fuente o contexto
-     *  declarado… Las preguntas al usuario deben ser concretas, no genéricas.»
-     * Las tres reglas de abajo son ESO, y solo aplican al turno del porqué: en una lectura normal del cuadro
-     * no hay mecanismo que sostener ni pregunta que hacer. */
-    const esPorQue = !!(c.porQue || c.elemento);
-    if (esPorQue) {
-      /* (6) UN MECANISMO AFIRMADO VIAJA CON SUS CIFRAS. Decir «fue volumen, no margen» es una afirmación sobre
-       * el negocio: sin las cifras que la sostienen es una opinión con cara de medición. Se exigen DOS del mes
-       * en cuestión (el conjunto autorizado es el del propio cuadro, así que citarlas es gratis para quien de
-       * verdad las miró). */
-      const _MECANISMO = /\b(?:fue|es|vino)\s+(?:por\s+)?(?:el\s+)?volumen\b|\bno\s+es\s+(?:el\s+)?margen\b|\bcedis?te?\s+margen\b|\bperdi(?:mos|ste|ó)\s+margen\b|\bganas?te?\s+volumen\b|\bcay[óo]\s+el\s+volumen\b|\bno\s+(?:es|fue)\s+(?:una\s+)?acci[oó]n(?:es)?\s+comercial(?:es)?\b|\bel\s+margen\s+(?:se\s+mantuvo|no\s+se\s+movi[óo]|acompañ[óa])(?![\wáéíóúñ])/i;   // ⚠️ lookahead, no \b: tras «ó» el \b de JS no existe (la familia de «facturó»)
-      if (_MECANISMO.test(t)) {
-        const delMes = (() => {
-          const pdm = c.L.porDentro && Array.isArray(c.L.porDentro.meses) ? c.L.porDentro.meses : [];
-          const abr = c.elemento && c.elemento.abr;
-          const fila = abr ? pdm.find((m) => String(m.mes || "").toLowerCase().startsWith(abr)) : null;
-          const cifras = [];
-          if (fila) cifras.push(fila.margenFmt, fila.cargaFmt, fila.accionesFmt, fila.contribucionFmt, String(fila.unidades));
-          if (c.L.porDentro) cifras.push(c.L.porDentro.margenAnioFmt, c.L.porDentro.cargaAnioFmt, String(c.L.porDentro.unidadesProm));
-          return cifras.filter((x) => x && /\d/.test(x));
-        })();
-        const citadas = new Set(delMes.filter((x) => t.includes(x))).size;
-        if (delMes.length && citadas < 2) {
-          v.push({ regla: "mecanismo-sin-cifras", multa: `afirmas QUÉ movió el mes (volumen, margen o acciones comerciales) sin mostrar las cifras que lo sostienen: ese mes trae ${delMes.slice(0, 4).join(" · ")} y el año su referencia. Muestra al menos dos, o no lo afirmes.` });
-        }
-      }
-
-      /* (7) NADA DE ESTADÍSTICA DE SECTOR SIN FUENTE. Salió de la pantalla del owner: «el sector
-       * electrodomésticos y línea blanca históricamente cae en febrero» — suena a serie histórica de industria
-       * y no lo es. Hipotetizar sobre EL NEGOCIO DEL USUARIO sigue permitido y es el aporte; afirmar cómo se
-       * comporta un sector entero necesita una fuente declarada, y acá no hay ninguna. Marcarlo como criterio
-       * propio NO alcanza: la frase igual llega al lector como dato de industria. */
-      const _SUJETO_SECTOR = "(?:el\\s+sector|la\\s+industria|el\\s+mercado|el\\s+rubro|el\\s+retail|el\\s+canal\\s+retail|los\\s+clientes\\s+retail|el\\s+comercio|la\\s+categor[ií]a)";
-      const _HABITO = "(?:hist[oó]ricamente|t[ií]picamente|por\\s+lo\\s+general|generalmente|suele[n]?|tiende[n]?\\s+a|siempre|normalmente|en\\s+general)";
-      const _FUENTE = /seg[uú]n\s+(?:tu|lo que|el dato|la fuente)|que\s+(?:tú\s+)?declaraste|me\s+dijiste|tu\s+benchmark|el\s+dato\s+que\s+cargaste/i;
-      const _sectorial = new RegExp(`${_SUJETO_SECTOR}[^.;\\n]{0,60}${_HABITO}|${_HABITO}[^.;\\n]{0,40}${_SUJETO_SECTOR}`, "i");
-      const _mSec = t.match(_sectorial);
-      if (_mSec && !_FUENTE.test(t)) {
-        v.push({ regla: "sectorial-sin-fuente", multa: `escribes «${String(_mSec[0]).slice(0, 70)}…»: eso afirma cómo se comporta un sector entero y no tienes fuente para sostenerlo. Habla del NEGOCIO DEL USUARIO —su calendario, sus clientes, sus campañas— como hipótesis tuya, o pregúntaselo.` });
-      }
-
-      /* (8) EL PORQUÉ CIERRA PREGUNTANDO, Y CONCRETO. «ADI no necesita saber todo: si falta contexto, debe
-       * consultar bien al usuario para cerrar la lectura.» Una oferta de navegación («¿seguimos?», «¿te lo
-       * abro?») NO es esa pregunta: no pide el contexto que falta. La concreta nombra algo del negocio. */
-      const _CONCRETA = /\b(?:campañ|promoci|stock|quiebre|cliente|clientes|precio|precios|negociaci|descuento|calendario|temporada|mes bajo|proveedor|mezcla|mix|inventario|licitaci|contrato)/i;
-      const preguntas = (t.match(/[^.!?\n]*\?/g) || []).filter((q) => q.trim().length > 12);
-      if (!preguntas.some((q) => _CONCRETA.test(q))) {
-        v.push({ regla: "porque-sin-pregunta", multa: `cierras el porqué sin preguntarle nada concreto al usuario. El detonante lo sabe él: pregúntale por lo que el dato no tiene —si ese mes suele ser bajo, si hubo una campaña, un quiebre de stock o un cliente grande que no compró—, con opciones, no un «¿seguimos?».` });
-      }
-    }
+    /* ── EL MÉTODO DEL PORQUÉ VIVE EN LA CASA, NO ACÁ (owner 2026-09-09, décima entrega) ────────────────────
+     * «No quiero que el método del porqué dependa de venir desde un cuadro.» Las tres reglas nacieron en este
+     * playbook —es donde apareció el defecto— y AL DÍA SIGUIENTE se mudaron a `src/adi/agente/porque.js`, que
+     * el bucle aplica a TODO turno causal: con playbook o sin él, desde un cuadro, una ficha o el chat libre.
+     * Acá no queda una copia: dos jueces con la misma regla sobre la misma oración es el turno partido en dos
+     * cerebros que esta casa ya prohibió, y el que se olvidara de calibrar mataría respuestas correctas.
+     * Lo que este playbook sigue juzgando es lo SUYO: el anclaje al cuadro, el 80/20, el eje, la recitación,
+     * el calco y el decimal — las promesas de ESTE procedimiento. */
     return v;
   },
 };
