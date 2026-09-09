@@ -12,7 +12,23 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 2.19 — lista para desplegar
+## 2.20 — producción · tag `v2.20`
+
+**El año mes a mes deja de recitarse: se lee por dentro.** Dos entregas del owner el mismo día (contrato del
+ask de cuadro, §13 y §14):
+
+- **«¿Por qué febrero es el mes más bajo?» ya no muere.** El ELEMENTO nombrado —una fila del cuadro, o
+  cualquier mes que el cuadro pinta— es la tercera puerta de reapertura, determinística: si el cuadro abierto
+  no lo nombra, la pregunta sigue libre.
+- **El porqué interno sale del dato.** Cada mes publica unidades, contribución, margen y acciones comerciales
+  —las mismas columnas de la hoja Ventas, sumadas por período— anclados a la formación del margen de su propia
+  cara. «Muestra menos volumen» · «cediste más en acciones y el margen lo pagó» · «ganaste volumen cediendo
+  margen» se afirman con cifras, por umbral declarado; el detonante de fondo (calendario, un cliente que
+  cambió) se sigue marcando como verificación, no como hecho.
+- **El muro autoriza los 12 meses en la boleta** y el cerebro recibe `mesPorDentro` con la doctrina «leer el
+  mes por dentro ANTES de hipotetizar». Gates §5i/§5j con carnadas (i) y (j); 234 PASS offline.
+
+## 2.19 — producción · salió sin tag, en las tandas del ancla de cuadro (prod `52c28f5`)
 
 **La tarjeta que había quedado muda recupera su puente a ADI.** Un hueco que abrí yo en la tanda anterior y que
 encontré al revisar contra un criterio del supervisor: *si sacas un texto, deja el ask de esa pieza*.
