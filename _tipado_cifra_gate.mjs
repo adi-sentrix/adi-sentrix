@@ -178,7 +178,12 @@ H("[2] EL SELLO · probado = literal o cálculo que reconcilia · indicado = der
   ok(cierra(skusMargen) === skusMargen.length && cierra(marcasMargen) === marcasMargen.length && cierra(sfamiliasMargen) === sfamiliasMargen.length,
     `y en sku/marca/familia el literal SÍ cierra (${cierra(skusMargen)}/${skusMargen.length} · ${cierra(marcasMargen)}/${marcasMargen.length} · ${cierra(sfamiliasMargen)}/${sfamiliasMargen.length})`);
   const ejes = [...new Set(VERIFICABILIDAD_POR_EJE.flatMap((r) => [...r.ejes, ...(r.ejesSoloConEscenario || [])]))].sort();
-  ok(ejes.join(",") === "canal,cliente,familia", `el refinamiento por eje se limita a los ejes re-derivados por el motor (${ejes.join(", ")})`);
+  /* ⚠️ «marca» ENTRÓ A LA LISTA (owner 2026-09-09, al cerrar las dos verdades del eje marca): la tabla de
+   * margen por marca dejó de ser ciega al escenario —ahora se reconcilia con la venta que muestra la
+   * pantalla— así que en los escenarios con transformación su contribución y su costo son RE-DERIVADOS y su
+   * sello tiene que decirlo. En «actual» la función hace bypass y sirve el literal, exactamente como familia:
+   * por eso va en `ejesSoloConEscenario` y no en `ejes`. */
+  ok(ejes.join(",") === "canal,cliente,familia,marca", `el refinamiento por eje se limita a los ejes re-derivados por el motor (${ejes.join(", ")})`);
   // La lista espejada de escenarios con transformación tiene que coincidir con SCENARIO_TRANSFORMS (mismo criterio
   // que DOMINIO_INVENTARIO: se replica para no romper la pureza del módulo, y se VERIFICA acá en cada corrida).
   const conTransform = Object.keys(SCENARIO_TRANSFORMS).filter((k) => SCENARIO_TRANSFORMS[k] && SCENARIO_TRANSFORMS[k].clientes).sort();

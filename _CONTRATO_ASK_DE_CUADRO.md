@@ -646,3 +646,58 @@ rechazó vuelve a salir verde» — falso: recibe veto, y el composer además la
    **siga declarado** donde alguien lo vaya a leer, y publica la medición.
 
 **Gate:** `_agente_porque_gate.mjs` §10 (15 chequeos). Total del gate: 149.
+
+## 19 · UNA SOLA VERDAD PARA EL EJE MARCA (owner 2026-09-09)
+
+**Su palabra:** *«No quiero dos verdades para el eje marca. Si el usuario ingresa marca en la planilla, Sentrix
+y ADI deben decir lo mismo, en lo que sea. La decisión es una sola verdad: pantalla y agente usan la misma
+cifra reconciliada.»*
+
+### Antes y después, las cuatro marcas del demo
+
+| Marca | Pantalla | ADI (antes) | ADI (ahora) |
+|---|---|---|---|
+| Samsung | $33.2M | $31.6M | **$33.2M** |
+| Philips | $29.4M | $28.0M | **$29.4M** |
+| LG | $25.8M | $24.6M | **$25.8M** |
+| Bosch | $11.5M | $11.0M | **$11.5M** |
+
+### Por qué se movieron
+
+Cada marca tiene **dos tablas**: la de venta (que pinta la pantalla) y la de margen (que respondía ADI). La
+primera se ajustaba con el escenario; la segunda estaba **declarada ciega** (`scenarioLoad: null`), así que se
+quedaba con el número base. No era un error de cálculo: era una **declaración** en el contrato de datos. La
+función que reconcilia —`applyScenarioToMarcasMargen`— existía **sin usar** desde 2026-08-03.
+
+Ahora esa función está cableada en el manifiesto: toma la venta de la misma fuente que pinta la pantalla y
+**re-deriva** contribución y costo conservando el margen% de cada marca (el margen es su eficiencia, no se
+recalcula). El arreglo va en **el contrato, no en cada herramienta**: todo consumidor que pase por el
+manifiesto recibe la misma cifra — que es la definición de «una sola verdad» de esta casa.
+
+**Las cifras que se movieron son las de ADI, no las de la pantalla.** La pantalla ya decía lo correcto.
+
+### Consecuencia que el candado del tipado obligó a declarar
+
+Al reconciliar, la contribución de marca deja de ser un literal y pasa a ser **derivada** en los escenarios con
+transformación — igual que ya pasaba con familia. Su sello cambió de `probado` a `indicado` ahí, y sigue
+`probado` en «actual», donde la función hace bypass y sirve el literal. Lo cazó `_tipado_cifra_gate`, que es
+exactamente para lo que existe: **si una cifra cambia de naturaleza, su sello tiene que decirlo.**
+
+### Con la planilla de un cliente
+
+Un pack de ingesta no declara transformaciones de escenario, así que la reconciliación **hace bypass y sirve la
+tabla tal como vino del archivo — ni un número cambiado.** Verificado también en el segundo tenant del repo
+(5 marcas, cero divergencias).
+
+### El candado: `_una_verdad_por_eje_gate.mjs` (21 chequeos)
+
+No verifica el arreglo, verifica **la propiedad**, que es lo que hace que no vuelva:
+1. Para **cada eje** (marca, familia, cliente) y **cada escenario**, la tabla de ventas y la de margen dicen la
+   misma cifra.
+2. Lo que **ADI publica** coincide con la fuente que pinta la pantalla — una tabla reconciliada que ninguna
+   herramienta usa no sirve de nada.
+3. **Ningún eje agregado se declara ciego al escenario** — persigue la raíz en la declaración, no el síntoma.
+   `skusMargen` es la excepción declarada: es la base de la que se derivan los agregados, no un agregado.
+4. Con planilla, la tabla sale intacta.
+
+Probado revirtiendo el arreglo: **8 chequeos se ponen rojos**.

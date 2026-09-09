@@ -317,9 +317,13 @@ export const VERIFICABILIDAD_POR_METRICA = [
 //                         return sfamiliasMargen`: en «actual» sirve el LITERAL, tal cual está almacenado, y
 //                         cierra 4/4. Sellarla `indicado` ahí era marcar como estimación un dato real — justo lo
 //                         que la decisión 2 prohíbe ("una cifra literal NO debe quedar indicado si es dato real").
-//   · marca y sku       → scenario-BLIND por contrato (`sourceManifest.scenarioLoad = null`, y
-//                         `metricRegistry.scenarioAware.marca/sku = false`): sirven el literal en los cuatro
-//                         escenarios. Medido con la tool real, no con la función de transformación suelta —
+//   · marca             → DESDE 2026-09-09 se comporta como familia (owner: «no quiero dos verdades para el
+//                         eje marca»): `sourceManifest.marcasMargen.scenarioLoad` cablea
+//                         `applyScenarioToMarcasMargen`, que en «actual» hace bypass y sirve el literal, y con
+//                         transformación re-deriva la contribución desde la venta que muestra la pantalla.
+//                         Antes era scenario-blind y ESA era la divergencia: Sentrix decía Samsung 3.2M y ADI
+//                         1.6M, en las 4 marcas.
+//   · sku               → scenario-BLIND por contrato (`sourceManifest.scenarioLoad = null`, y
 //                         `applyScenarioToMarcasMargen` existe pero la ruta de recuperación no la usa.
 export const ESCENARIO_BASE = "actual";
 // Espeja las claves de `SCENARIO_TRANSFORMS` (config/scenarios.js) que traen transformación de clientes — las
@@ -358,7 +362,7 @@ export function escenarioAlteraTasas(escenario) {
 //      Las tres reglas de monto hablan del MONTO del mundo comercial: unidad money y universo venta_comercial.
 export const VERIFICABILIDAD_POR_EJE = [
   {
-    re: /\bcontribuci[oó]n\b/i, ejes: ["cliente", "canal"], ejesSoloConEscenario: ["familia"],
+    re: /\bcontribuci[oó]n\b/i, ejes: ["cliente", "canal"], ejesSoloConEscenario: ["familia", "marca"],
     unidades: ["money"], universos: ["venta_comercial", "resultado_pnl"],
     clase: "derivada_no_reconciliada",
     /* LA MEDICIÓN QUE ORIGINÓ ESTA REGLA (demo · 13 de 13 filas): Falabella $4.3M servido contra $4.1M almacenado,
@@ -371,14 +375,14 @@ export const VERIFICABILIDAD_POR_EJE = [
     razonEscenario: "en este escenario la contribución por familia se re-agrega desde los clientes ya re-derivados (applyScenarioToSfamiliasMargen): difiere del literal almacenado en 4 de 4 filas. En «actual» ese mismo campo se sirve literal y por eso ahí sí es probado",
   },
   {
-    re: /\bcosto\b/i, ejes: ["cliente", "canal"], ejesSoloConEscenario: ["familia"],
+    re: /\bcosto\b/i, ejes: ["cliente", "canal"], ejesSoloConEscenario: ["familia", "marca"],
     unidades: ["money"], universos: ["venta_comercial", "resultado_pnl"],
     clase: "derivada_no_reconciliada",
     razon: "el costo del cliente se re-deriva como venta oficial − contribución re-derivada; no es el costo almacenado",
     razonEscenario: "en este escenario el costo por familia se re-agrega desde los clientes ya re-derivados; en «actual» se sirve el costo almacenado",
   },
   {
-    re: /\b(acciones comerciales|rebates?)\b/i, ejes: ["cliente", "canal"], ejesSoloConEscenario: ["familia"],
+    re: /\b(acciones comerciales|rebates?)\b/i, ejes: ["cliente", "canal"], ejesSoloConEscenario: ["familia", "marca"],
     unidades: ["money"], universos: ["venta_comercial", "resultado_pnl"],
     clase: "derivada_no_reconciliada",
     razon: "el monto de acciones comerciales se re-deriva como venta oficial × % declarado; el monto almacenado se descarta para que `rebates ÷ venta = pctRebate` cierre exacto",

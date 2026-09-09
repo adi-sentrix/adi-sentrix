@@ -11,7 +11,7 @@
 import { clientesMargen, clientesVentas, marcasMargen, sfamiliasMargen, skuInventario } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import {
-  applyScenarioToClientesMargen, applyScenarioToClientesVentas,
+  applyScenarioToClientesMargen, applyScenarioToClientesVentas, applyScenarioToMarcasMargen,
   applyScenarioToSfamiliasMargen, applyScenarioToSkuInventario,
 } from "../../engine/scenarios.js";
 
@@ -65,7 +65,23 @@ export const SOURCES = {
   marcasMargen: {
     origin: { kind: "static", module: "src/data/demoData.js", export: "marcasMargen" },
     load: () => marcasMargen,
-    scenarioLoad: null,                                          // agregación · hoy base (se deriva de sku/cliente · scenario-blind)
+    /* ⚠️ CABLEADO POR ORDEN DEL OWNER (2026-09-09), textual: «No quiero dos verdades para el eje marca. Si el
+     * usuario ingresa marca en la planilla, Sentrix y ADI deben decir lo mismo, en lo que sea.»
+     *
+     * QUÉ PASABA, medido en el escenario que muestra la app: la pantalla decía Samsung $33.2M (de
+     * `marcasVentas`, que SÍ se mueve con el escenario) y ADI decía $31.6M (de esta tabla, que estaba
+     * declarada ciega). Las 4 marcas divergían: Philips $29.4M vs $28.0M · LG $25.8M vs $24.6M · Bosch $11.5M
+     * vs $11.0M. Preguntar «cuánto vendió Samsung» daba una cifra distinta según a quién le preguntaras.
+     *
+     * `applyScenarioToMarcasMargen` ya existía SIN USAR y hace exactamente lo que corresponde: toma la venta de
+     * `applyScenarioToMarcasVentas` —la MISMA fuente que pinta la pantalla— y re-deriva contribución y costo
+     * conservando el margen% reportado (el margen es la eficiencia de la marca, no se recalcula). Por eso el
+     * arreglo va ACÁ, en el contrato, y no herramienta por herramienta: todo consumidor que pase por el
+     * manifiesto recibe la misma cifra, que es la definición de «una sola verdad» de esta casa.
+     *
+     * ⚠️ Y FUNCIONA IGUAL CON LA PLANILLA DE UN CLIENTE: sin transformación de escenario declarada —el caso de
+     * todo pack de ingesta— la función devuelve la tabla del tenant activo tal cual, sin tocar un número. */
+    scenarioLoad: (scn) => applyScenarioToMarcasMargen(scn),     // ← una sola verdad por marca (antes: scenario-blind)
     aggregate: true,                                             // ← AGREGADO: contribución almacenada = fuente de verdad · venta×margen = validación con tolerancia agregada (redondeo del margen ponderado)
     keyField: "nombre",
     schema: { nombre: "string", tipo: "enum(marca)", venta: "money(K)", costo: "money(K)", contribucion: "money(K)", margen: "pct",
