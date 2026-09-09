@@ -83,6 +83,11 @@ function _descripcion(nombre, c) {
   const partes = [];
   if (c.notas) partes.push(c.notas);
   if (c.dimensionesSoportadas && c.dimensionesSoportadas.length) partes.push(`ejes: ${c.dimensionesSoportadas.join("/")}`);
+  /* LAS LECTURAS DEL PORQUÉ (owner 2026-09-09): el cerebro no puede pedir lo que no sabe que existe. Cada
+   * `focus` se nombra con lo que RESPONDE, en palabras de negocio — no con su clave técnica sola. */
+  if (c.lecturasSoportadas && c.lecturasSoportadas.length) {
+    partes.push(`lecturas (focus): ${c.lecturasSoportadas.map((l) => `${l.clave} = ${l.que}`).join(" · ")}`);
+  }
   if (c.entidad === "single") partes.push("opera sobre UNA entidad nombrada");
   else if (c.entidad === "multi") partes.push(`toma una lista de entidades${c.multiCardinality ? ` (${c.multiCardinality})` : ""}`);
   if (c.inputsObligatorios && c.inputsObligatorios.length) partes.push(`requiere: ${c.inputsObligatorios.join(", ")}`);
@@ -99,6 +104,16 @@ function _schema(c) {
       : k === "entities" ? { type: "array", items: { type: "string" } }
       : k === "cifra" ? { type: "number" }
       : { type: "string" };
+  }
+  /* `dimension` y `focus` van como OPCIONALES con enum: el cerebro acierta la clave exacta sin adivinar, y el
+   * motor sigue aplicando su contrato fino en runPlan (la doble validación de siempre). Sin el enum, pedir una
+   * lectura era escribir una cadena a ciegas — y una clave inventada cae al `focus` por defecto en silencio,
+   * que es la peor falla: responde otra cosa sin avisar. */
+  if (c.dimensionesSoportadas && c.dimensionesSoportadas.length && !props.dimension) {
+    props.dimension = { type: "string", enum: [...c.dimensionesSoportadas] };
+  }
+  if (c.lecturasSoportadas && c.lecturasSoportadas.length) {
+    props.focus = { type: "string", enum: c.lecturasSoportadas.map((l) => l.clave) };
   }
   return { type: "object", properties: props, required: [...(c.inputsObligatorios || [])], additionalProperties: true };
 }

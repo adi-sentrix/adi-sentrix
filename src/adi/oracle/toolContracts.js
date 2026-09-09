@@ -175,14 +175,37 @@ export const TOOL_CONTRACTS = {
   // marginRead/salesRead/contributionRead · lectura por eje (bajo benchmark/vs anterior/no capturada), YA nativas
   // de fábrica (_scopeRows ya las trae generalizadas desde antes de este trabajo) — bodega queda fuera (gap
   // preexistente del motor, no introducido acá: _MLBL de specRetrieval.js no declara bodega para estas 3).
+  /* ⚠️ LAS LECTURAS (`focus`) SE DECLARAN AL CEREBRO (owner 2026-09-09, al ampliar el porqué a la
+   * descomposición). Lo que se cerró acá es un hueco medido, no una función nueva: el motor YA calcula el
+   * efecto volumen vs precio, el mix por familia, el precio realizado y quién cede margen por precio o por
+   * costo —con boleta y con sus salvedades escritas—, y el catálogo del agente NO lo mencionaba. El trabajo
+   * estaba hecho y el asesor no sabía que existía: pedía la lectura por defecto y respondía «quién», nunca
+   * «por qué». Cada clave de acá EJECUTA en el motor (specRetrieval.js, `focus === "…"`); el gate lo verifica
+   * una por una, para que esta lista no prometa una lectura que no corre. */
   marginRead: {
-    dimensionesSoportadas: ["cliente", "sku", "marca", "familia"],
+    dimensionesSoportadas: ["cliente", "sku", "marca", "familia", "canal"],
+    lecturasSoportadas: [
+      { clave: "bajo_benchmark", que: "quiénes están bajo el benchmark de margen (la lectura por defecto)" },
+      { clave: "causa_precio", que: "quiénes ceden margen por PRECIO: su lista está pegada al costo (markup fino)" },
+      { clave: "causa_costo", que: "quiénes ceden margen por COSTO: el costo se lleva la mayor parte de la lista" },
+      { clave: "alto_volumen_bajo_margen", que: "quiénes venden mucho a margen bajo — dónde el volumen no paga" },
+      { clave: "palancas", que: "cuánto vale recuperar un punto de margen en cada uno" },
+    ],
     entidad: "none", aceptaEntidadPuntual: true, multiCardinality: null,
     inputsObligatorios: [], supuestosRequeridos: null, operacionValida: ["answer"],
     entityScopeNativo: true, escribeEntityList: true,
   },
   salesRead: {
-    dimensionesSoportadas: ["cliente", "sku", "marca", "familia"],
+    dimensionesSoportadas: ["cliente", "sku", "marca", "familia", "canal"],
+    lecturasSoportadas: [
+      { clave: "vs_anterior", que: "cómo viene la venta contra el período comparable (la lectura por defecto)" },
+      { clave: "descomposicion_vol_precio", que: "si la venta se movió por VOLUMEN o por PRECIO, con el efecto de cada uno" },
+      { clave: "precio_realizado", que: "el precio realizado (venta ÷ unidades) y su variación — NO es un ticket" },
+      { clave: "precio_neto", que: "el precio neto después de acciones comerciales: (venta − acciones) ÷ unidades" },
+      { clave: "mix_familia", que: "el efecto MEZCLA: qué familia ganó o perdió participación, en puntos" },
+      { clave: "caida_clientes", que: "quiénes redujeron su compra contra el período comparable" },
+      { clave: "explica_yoy", que: "quiénes explican la variación contra el año anterior" },
+    ],
     entidad: "none", aceptaEntidadPuntual: true, multiCardinality: null,
     inputsObligatorios: [], supuestosRequeridos: null, operacionValida: ["answer"],
     entityScopeNativo: true, escribeEntityList: true,

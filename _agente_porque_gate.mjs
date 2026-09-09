@@ -30,6 +30,9 @@ import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { esPorQue, doctrinaDelPorque, vetosDelPorque, TOPE_DOCTRINA_CHARS, MARCA_HIPOTESIS } from "./src/adi/agente/porque.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
 import { cuadroSentrix } from "./src/adi/agente/herramientasAgente.js";
+import { catalogoAgente } from "./src/adi/agente/catalogoAgente.js";
+import { TOOL_CONTRACTS } from "./src/adi/oracle/toolContracts.js";
+import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
 import { builderOutFor } from "./src/adi/sentrix/viewBuilderRun.js";
 import { deriveViewContext } from "./src/adi/sentrix/viewContextFrom.js";
 import { tituloDeExplicacion } from "./src/adi/sentrix/viewManifest.js";
@@ -339,6 +342,123 @@ H("8 · los ocho lugares del owner — cada uno cierra preguntándole al dueño"
     const r = await answerViaAgente({ text: q, history: [], mem: {}, scenario: ESC, callAgente: MUDO });
     ok((r.r.agente.vetos || []).length === 0 && r.r.agente.estado !== "vacio",
       `★ ${donde}: una LECTURA sigue intacta — la ley rige el porqué, no toda respuesta`, `${r.r.agente.estado} · ${JSON.stringify(r.r.agente.vetos || [])}`);
+  }
+}
+
+
+/* ═══ 9 · DESCOMPONER, NO SOLO LOCALIZAR (owner 2026-09-09, ampliación del alcance) ══════════════════════════
+ * «Para todo "por qué" de ventas o margen, ADI debe intentar descomponer con las dimensiones que existan en el
+ *  pack… Si el usuario pide una dimensión específica y existe, debe usarla. Si no existe, debe declararlo y
+ *  ofrecer el corte más cercano. Objetivo: que ADI no diga solo "margen bajo por Falabella", sino que pueda
+ *  explicar si viene de precio, costo, carga comercial, mix, canal o sucursal cuando el dato lo permita.»
+ * EL HALLAZGO QUE HIZO BARATO ESTO: el motor YA calculaba casi todo —efecto volumen vs precio, mix por familia,
+ * precio realizado, quién cede por precio y quién por costo, margen por canal— con boleta y con sus salvedades
+ * escritas, y el catálogo del agente no lo mencionaba. El trabajo estaba hecho y el asesor no sabía que
+ * existía. Este bloque verifica que cada lectura declarada EJECUTA de verdad: una lista que prometa un focus
+ * inexistente haría que el motor sirva la lectura por defecto EN SILENCIO — respondiendo otra cosa sin avisar. */
+H("9 · las lecturas de la descomposición — declaradas al cerebro y ejecutables de verdad");
+{
+  const cat = catalogoAgente();
+  const _tool = (n) => cat.find((x) => x.name === n);
+  /* (a) EL CEREBRO LAS VE, con su clave exacta en un enum: pedir una lectura no puede ser adivinar una cadena */
+  for (const [tool, esperadas] of [
+    ["salesRead", ["descomposicion_vol_precio", "mix_familia", "precio_realizado", "precio_neto"]],
+    ["marginRead", ["causa_precio", "causa_costo"]],
+  ]) {
+    const t = _tool(tool);
+    const enEnum = (t && t.input_schema && t.input_schema.properties && t.input_schema.properties.focus && t.input_schema.properties.focus.enum) || [];
+    for (const f of esperadas) ok(enEnum.includes(f), `★ ${tool} declara la lectura «${f}» al cerebro, con su clave exacta`, JSON.stringify(enEnum));
+    ok(/lecturas \(focus\)/.test(String(t && t.description)), `…y la describe en palabras de negocio, no solo con la clave`);
+  }
+  /* (b) EL CANAL, que el owner pidió: los dos lectores lo aceptan como eje */
+  for (const tool of ["salesRead", "marginRead"]) {
+    const dims = (_tool(tool).input_schema.properties.dimension || {}).enum || [];
+    ok(dims.includes("canal"), `★ ${tool} acepta el eje CANAL — el owner lo pidió y el motor ya lo agrupaba`, JSON.stringify(dims));
+  }
+  /* (c) ⚠️ CADA LECTURA DECLARADA EJECUTA · una promesa sin motor es la peor falla: el `focus` desconocido cae
+   * a la lectura por defecto EN SILENCIO y el usuario recibe otra respuesta sin enterarse. */
+  const motor = leer("src/adi/specRetrieval.js");
+  for (const tool of ["salesRead", "marginRead"]) {
+    const c = TOOL_CONTRACTS[tool];
+    for (const l of c.lecturasSoportadas || []) {
+      ok(motor.includes(`focus === "${l.clave}"`), `★★ «${tool} focus=${l.clave}» EXISTE en el motor — la lista no promete lecturas que no corren`);
+    }
+  }
+  /* (d) …y RESPONDEN CON BOLETA: sin cifras autorizadas, la descomposición muere en el muro */
+  const conBoleta = (tool, focus, dimension) => {
+    const r = TOOLS[tool]({ focus, dimension, scenario: ESC });
+    return { n: ((r && r.boleta) || []).length, sup: !(r && r.coverage && r.coverage.supported === false) };
+  };
+  for (const [tool, focus, dim] of [
+    ["salesRead", "descomposicion_vol_precio", "cliente"], ["salesRead", "precio_realizado", "cliente"],
+    ["salesRead", "precio_neto", "cliente"], ["salesRead", "mix_familia", "familia"],
+    ["marginRead", "causa_precio", "cliente"], ["marginRead", "causa_costo", "cliente"],
+    ["marginRead", "bajo_benchmark", "canal"],
+  ]) {
+    const r = conBoleta(tool, focus, dim);
+    ok(r.sup && r.n > 0, `★ ${tool} focus=${focus} por ${dim} responde CON CIFRAS AUTORIZADAS (${r.n} en la boleta)`);
+  }
+
+  /* ── LA DEFINICIÓN DEL OWNER · «precio neto después de acciones» ────────────────────────────────────────
+   * «Precio neto = (venta − acciones comerciales) / unidades. Llámalo "precio neto después de acciones" para
+   * que no se confunda.» El nombre es parte de la orden: la casa ya encadenaba precio de lista y precio
+   * realizado, y un tercer «precio» sin apellido es una ambigüedad de rótulo — lo que este proyecto llama
+   * defecto (un rótulo visible no puede nombrar dos campos). */
+  {
+    const r = TOOLS.salesRead({ focus: "precio_neto", dimension: "cliente", scenario: ESC });
+    const labels = (r.boleta || []).map((f) => String(f.label || ""));
+    ok(labels.some((l) => /Precio neto después de acciones/.test(l)),
+      "★★ la cifra se publica con EL NOMBRE QUE EL OWNER PIDIÓ: «precio neto después de acciones»", labels.slice(0, 2).join(" · "));
+    ok(labels.some((l) => /Precio realizado/.test(l)),
+      "…y viaja al lado del precio realizado, para que se vean como lo que son: dos precios distintos");
+    /* LA CUENTA, verificada contra el dato: el precio neto es el realizado MENOS su carga comercial, y los
+     * tres términos salen de la MISMA fila de ventas. Si alguien cruzara la venta de la tabla de margen
+     * (otra cifra para la misma cuenta) con estas unidades, esta relación dejaría de dar — por eso se mide.
+     * Se mide sobre la cuenta que la lectura DESTACA (la de mayor diferencia entre los dos precios), no sobre
+     * una elegida a mano: así el chequeo sigue al dato si el escenario cambia. */
+    const fNeto = (r.boleta || []).find((f) => /· Precio neto después de acciones$/.test(String(f.label || "")));
+    const quien = fNeto ? String(fNeto.label).split(" · ")[0] : null;
+    const fReal = (r.boleta || []).find((f) => String(f.label || "") === quien + " · Precio realizado");
+    const cargaDe = (TENANT_DEMO.clientesVentas.find((c) => c.nombre === quien) || {}).pctRebate;
+    const razon = (fNeto && fReal && fReal.raw) ? fNeto.raw / fReal.raw : null;
+    ok(razon !== null && Number.isFinite(cargaDe) && Math.abs(razon - (1 - cargaDe / 100)) < 0.005,
+      `★★ la cuenta cierra contra el dato: en ${quien}, el neto es el realizado menos su carga de ${cargaDe}% (razón medida ${razon ? razon.toFixed(4) : "—"})`);
+  }
+
+  /* ── LA OTRA DECISIÓN DEL OWNER · el mix por cliente, APAGADO ───────────────────────────────────────────
+   * «Apaga mix por cliente estimado hasta que pueda calcularse desde filas reales. No quiero estimaciones que
+   * contradigan el dato.» Lo que se servía salía de una matriz repartida por ajuste iterativo: sobre un
+   * archivo real le asignaba a una cuenta una familia que nunca compró. */
+  {
+    const r = TOOLS.entityComposicion({ dimension: "cliente", entity: "Falabella", scenario: ESC });
+    ok(r.coverage && r.coverage.supported === false,
+      "★★ el mix POR CLIENTE estimado ya no se sirve: declina en vez de repartir una compra que no ocurrió");
+    ok(/estimación|no está medida/i.test(String(r.coverage.reason)) && /mix_familia/.test(String(r.coverage.reason)),
+      "…declarando el motivo Y ofreciendo el corte que SÍ es dato (el mix por familia del negocio)", String(r.coverage.reason).slice(0, 120));
+    ok(((r.boleta || []).length) === 0, "…y sin colar una sola cifra estimada a la boleta del turno");
+  }
+
+  /* ── LO QUE NO EXISTE SE DICE · punto de venta / sucursal ───────────────────────────────────────────────
+   * «Punto de venta/sucursal queda como trabajo de ingesta si hoy no lo lee el motor.» Se guarda en el archivo
+   * del cliente y el motor no lo lee ni una vez: prometerlo sería el peor de los errores honestos. */
+  {
+    const dimsVenta = (_tool("salesRead").input_schema.properties.dimension || {}).enum || [];
+    ok(!dimsVenta.includes("puntoVenta") && !dimsVenta.includes("sucursal"),
+      "★ el corte por punto de venta NO se promete: el motor no lo lee, y declararlo sería prometer lo que no hay");
+    ok(/NO HAY corte por punto de venta ni por sucursal/.test(doctrinaDelPorque()),
+      "★★ …y la letra se lo dice al cerebro con esas palabras, para que lo declare en vez de improvisarlo");
+  }
+
+  /* ── LA LETRA MANDA DESCOMPONER ─────────────────────────────────────────────────────────────────────────── */
+  {
+    const d = doctrinaDelPorque();
+    ok(/DESCOMP/i.test(d) && /Nombrar al culpable no es explicar/.test(d),
+      "★★ la doctrina ordena descomponer, no quedarse en quién — el objetivo textual del owner");
+    for (const f of ["descomposicion_vol_precio", "mix_familia", "precio_realizado", "precio_neto", "causa_precio", "causa_costo"]) {
+      ok(d.includes(f), `…y nombra la lectura «${f}» para que el cerebro sepa pedirla`);
+    }
+    ok(/Si el usuario pide una dimensión y existe, ÚSALA/.test(d) && /si no existe, dilo y ofrece el corte más cercano/.test(d),
+      "★★ y lleva la regla del owner sobre la dimensión pedida: si existe se usa; si no, se declara y se ofrece la más cercana");
   }
 }
 

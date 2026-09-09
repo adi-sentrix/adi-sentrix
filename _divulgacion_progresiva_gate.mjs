@@ -86,7 +86,12 @@ H("[4] AHORRO MEDIDO · el costo real, no la promesa");
   const gen = podarPlanProgresivo(p, "perfil de Falabella");
   const l = runPlan({ intent: "answer", calls: gen.plan.calls }, { scenario: "actual" }).ledger;
   const despues = podarLedgerProgresivo(l.figs, { quiereDesglose: false }).figs.length;
-  ok(antes > 100, `el turno completo autoriza ${antes} cifras (el costo de hoy)`);
+  /* ⚠️ LÍNEA BASE BAJADA DE 100 A 30 (owner 2026-09-09): no es que la poda ahorre menos — es que el turno
+   * completo trae MENOS cifras porque `entityComposicion` dejó de servir la composición por familia dentro de
+   * una cuenta. Palabra del owner: «apaga mix por cliente estimado hasta que pueda calcularse desde filas
+   * reales; no quiero estimaciones que contradigan el dato». Lo que este bloque mide sigue intacto: que la
+   * consulta general autorice bastante menos que el turno completo y que lo podado NO se calcule. */
+  ok(antes > 30, `el turno completo autoriza ${antes} cifras (el costo de hoy)`);
   ok(despues < 25, `la consulta general autoriza ${despues} — ${Math.round((1 - despues / antes) * 100)}% menos`);
   ok(l.figs.length < antes, `y las cifras podadas NUNCA se calcularon: el ledger sale con ${l.figs.length}, no con ${antes}`);
 }

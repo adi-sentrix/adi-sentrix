@@ -78,10 +78,17 @@ export function esPorQue(pregunta) {
  * timestamps): el prefijo del proveedor no distingue «mismo contenido en otro orden» de «contenido nuevo».
  * Se inyecta ANTES de la primera ronda, así que no puede saber qué traerá la boleta: por eso su paso 1 ORDENA
  * LA LECTURA (qué herramienta trae mecanismo para cada tema) en vez de nombrar cifras. */
-export const TOPE_DOCTRINA_CHARS = 900;
+/* el tope subió de 900 a 1600 al sumar el paso (1b): la letra ahora también dice CON QUÉ descomponer. Sigue
+ * siendo un bloque que viaja UNA vez y solo en el turno causal — no entra al system de todos los turnos. */
+export const TOPE_DOCTRINA_CHARS = 1600;
 const _DOCTRINA = [
   "MÉTODO DEL PORQUÉ (el usuario pregunta una causa) · TRES PASOS, EN ORDEN:",
   "(1) MIDE PRIMERO: pide el mecanismo del tema —margen→rolesCartera · un mes→cuadroSentrix · una cuenta→entityProfile · una caída→salesRead— y di QUÉ SE MOVIÓ CON SUS CIFRAS («cediste margen: la carga subió contra la del año»). Si ninguna lo trae, dilo: localizas, no explicas. NO rellenes ese hueco con mundo.",
+  /* ── DESCOMPONER, NO SOLO LOCALIZAR (owner 2026-09-09) ────────────────────────────────────────────────────
+   * «Que ADI no diga solo "margen bajo por Falabella", sino que pueda explicar si viene de precio, costo,
+   * carga comercial, mix, canal o sucursal cuando el dato lo permita.» Las lecturas existían en el motor y el
+   * catálogo no las nombraba; acá se le dice CUÁL pedir para cada pregunta, y qué hacer con la que no existe. */
+  "(1b) Y NO TE QUEDES EN QUIÉN: DESCOMPÓN. Nombrar al culpable no es explicar. Para la VENTA: salesRead focus=descomposicion_vol_precio (¿volumen o precio?) · focus=mix_familia (efecto mezcla) · focus=precio_realizado (venta÷unidades) · focus=precio_neto (precio neto después de acciones). Para el MARGEN: marginRead focus=causa_precio (lista pegada al costo) · focus=causa_costo (el costo se lleva la lista) · rolesCartera (carga comercial). Los dos leen por eje: cliente · sku · marca · familia · canal. Si el usuario pide una dimensión y existe, ÚSALA; si no existe, dilo y ofrece el corte más cercano. NO HAY corte por punto de venta ni por sucursal: eso el motor no lo lee todavía, y se dice así.",
   "(2) TU HIPÓTESIS, MARCADA («mi hipótesis es…») y declarada no probada, sobre EL NEGOCIO DEL USUARIO: su calendario, sus clientes, sus campañas. PROHIBIDO afirmar cómo se comporta un sector o una industria: no tienes fuente y llega como estadística.",
   "(3) PREGÚNTALE AL DUEÑO lo que falta: el detonante lo sabe él. Concreta y con opciones (una campaña, un quiebre de stock, un cliente grande, una negociación). «¿Seguimos?» no cuenta. Si él ya te lo declaró, cítalo en vez de preguntar.",
 ].join("\n");

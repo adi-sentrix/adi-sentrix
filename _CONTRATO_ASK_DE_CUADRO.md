@@ -560,3 +560,51 @@ limpio; y comprueba que una **lectura** en esos mismos lugares sigue intacta. Ci
 el agente falla— no tiene la ley; y **ventas** no puede cumplir el paso 1 con cifras porque la descomposición
 precio/volumen existe en el módulo pero ninguna herramienta la sirve (hoy localiza, declara el límite y
 pregunta).
+
+## 17 · DESCOMPONER, NO SOLO LOCALIZAR (owner 2026-09-09, ampliación del alcance)
+
+**Su palabra:** *«Para todo "por qué" de ventas o margen, ADI debe intentar descomponer con las dimensiones que
+existan en el pack… Si el usuario pide una dimensión específica y existe, debe usarla. Si no existe, debe
+declararlo y ofrecer el corte más cercano. Objetivo: que ADI no diga solo "margen bajo por Falabella", sino que
+pueda explicar si viene de precio, costo, carga comercial, mix, canal o sucursal cuando el dato lo permita.»*
+
+**EL HALLAZGO QUE CAMBIÓ EL TAMAÑO DEL TRABAJO: casi todo ya estaba construido.** El motor calcula desde antes
+el efecto volumen vs precio, el mix por familia, el precio realizado, quién cede margen por precio y quién por
+costo, y el margen por canal — con boleta y con sus salvedades escritas (incluida «precio realizado no es un
+ticket»). El catálogo que ve el agente **no lo mencionaba**: el asesor pedía la lectura por defecto y respondía
+*quién*, nunca *por qué*. Esto fue **conectar**, no construir.
+
+**Lo conectado** (`toolContracts.lecturasSoportadas` → el catálogo lo describe y lo expone como enum, así que
+el cerebro pide la clave exacta en vez de adivinar una cadena — un `focus` inventado caía a la lectura por
+defecto EN SILENCIO, respondiendo otra cosa sin avisar):
+
+| Pregunta | Lectura |
+|---|---|
+| ¿La venta se movió por volumen o por precio? | `salesRead focus=descomposicion_vol_precio` |
+| ¿Qué familia ganó o perdió participación? | `salesRead focus=mix_familia` |
+| ¿Cómo viene el precio? | `precio_realizado` · **`precio_neto`** |
+| ¿Quiénes ceden margen por precio? ¿por costo? | `marginRead focus=causa_precio` · `causa_costo` |
+| ¿Y por canal? | los dos lectores aceptan `dimension=canal` |
+
+**Las dos decisiones del owner, cumplidas:**
+
+1. **«Precio neto = (venta − acciones comerciales) / unidades. Llámalo "precio neto después de acciones".»**
+   Construido, con ese nombre exacto — el nombre era parte de la orden: la casa ya encadenaba *precio de lista*
+   y *precio realizado*, y un tercer «precio» sin apellido es una ambigüedad de rótulo. ⚠️ **Los tres términos
+   salen de la MISMA fila de ventas**: la venta de la tabla de ventas y la de la tabla de margen son cifras
+   distintas para la misma cuenta ($19.4M vs $18.5M), y cruzarlas produciría un precio que no existe en ningún
+   universo. El gate lo mide: el neto es el realizado menos su carga, con el dato al lado.
+2. **«Apaga mix por cliente estimado.»** `entityComposicion` ya no sirve la composición por familia dentro de
+   una cuenta: salía de una matriz repartida por ajuste iterativo, y sobre un archivo real le asignaba a un
+   cliente una familia **que nunca compró**. No se borró — **declina con su motivo y ofrece el corte que sí es
+   dato** (el mix por familia del negocio). Se enciende el día que la ingesta agregue el cruce desde las filas.
+
+**Lo que NO se promete, y la letra se lo dice al cerebro con esas palabras:** el corte por **punto de venta /
+sucursal**. El archivo del cliente lo trae y el motor no lo lee ni una vez — queda como **trabajo de ingesta**,
+declarado por orden del owner.
+
+**Gate:** `_agente_porque_gate.mjs` §9 (34 chequeos): cada lectura declarada **existe en el motor** (una lista
+que prometa un `focus` inexistente haría que el motor sirva otra cosa en silencio) y **responde con cifras
+autorizadas**; el precio neto lleva el nombre pedido y su cuenta cierra; el mix estimado declina sin colar una
+sola cifra; y el punto de venta no aparece como eje. De paso, la línea base del gate de divulgación bajó de 100
+a 30 cifras — no porque la poda ahorre menos, sino porque el mix estimado dejó de aportar.

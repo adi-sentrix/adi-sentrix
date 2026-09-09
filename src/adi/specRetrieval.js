@@ -1692,6 +1692,43 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
     return { lines, suggestions: ["Es por volumen o por precio", "Crecimiento YoY por cliente"], bol, panel };
   }
 
+  /* ── PRECIO NETO DESPUÉS DE ACCIONES · la definición la dio el owner (2026-09-09) ────────────────────────
+   * «Precio neto = (venta − acciones comerciales) / unidades. Llámalo "precio neto después de acciones" para
+   * que no se confunda.» Y hacía falta nombrarlo: la casa encadenaba TRES precios sin nombrar el último —
+   * precio de lista → precio realizado (venta ÷ unidades) → y este, que es lo que de verdad queda por unidad
+   * después de lo que se le entrega al cliente.
+   * ⚠️ TODO SALE DE LA MISMA FILA, y no es una formalidad: la venta de la tabla de ventas y la de la tabla de
+   * margen NO son el mismo número ($19.4M vs $18.5M para la misma cuenta). Mezclar la venta de una con las
+   * acciones de la otra produce un precio que no existe en ningún universo. Acá: `actual`, `pctRebate` y
+   * `unidades` de la MISMA fila de ventas. Si el eje no las trae, se declina — no se cruza. */
+  if (focus === "precio_neto") {
+    const conU = rows.filter((r) => r.unidades > 0 && typeof r.pctRebate === "number");
+    if (!conU.length) {
+      return { lines: [`Por ${L.s} no tengo las dos cosas en la misma fila —unidades y acciones comerciales—, así que el precio neto después de acciones ahí sería un cruce de dos universos, no un dato. Por cliente sí lo puedo dar.`],
+        suggestions: ["Precio neto por cliente", "Es por volumen o por precio"], bol: [] };
+    }
+    const conNeto = conU.map((r) => {
+      const acc = (r.actual || 0) * (r.pctRebate / 100);
+      return { nombre: r.nombre, bruto: (r.actual || 0) / r.unidades, neto: ((r.actual || 0) - acc) / r.unidades, carga: r.pctRebate, acc };
+    }).sort((a, b) => (b.bruto - b.neto) - (a.bruto - a.neto));
+    const ced = conNeto[0];
+    /* el MISMO formateador con que la casa publica el ticket promedio (`_moneyRaw` de toolRegistry): un precio
+     * unitario se escribe igual en toda superficie, o son dos verdades tipográficas del mismo número. */
+    const _u = (v) => _money(v * _fxe());
+    const lines = [
+      `**Precio neto después de acciones** = (venta − acciones comerciales) ÷ unidades: es lo que te queda por unidad DESPUÉS de lo que le entregas al cliente, no lo que facturas.`,
+      `Por ${L.s}: ${conNeto.slice(0, 4).map((r) => `${r.nombre} ${_u(r.neto)} (factura ${_u(r.bruto)}, cede ${_p1(r.carga)}%)`).join(" · ")}.`,
+      `Donde más se separan los dos precios es ${ced.nombre}: factura ${_u(ced.bruto)} por unidad y le quedan ${_u(ced.neto)} — la diferencia es su carga comercial de ${_p1(ced.carga)}%.`,
+      `Nota: el precio de LISTA es otra cosa (lo que publicas antes de negociar); esto sale de tu venta real dividida por tus unidades, con las acciones ya descontadas.`,
+    ];
+    for (const r of conNeto.slice(0, 3)) {
+      bol.push(fig(`${r.nombre} · Precio neto después de acciones`, _u(r.neto), { unit: "money", raw: r.neto * _fxe(), mandatory: false, context: "precio neto después de acciones = (venta − acciones) ÷ unidades, de la tabla de ventas" }));
+      bol.push(fig(`${r.nombre} · Precio realizado`, _u(r.bruto), { unit: "money", raw: r.bruto * _fxe(), mandatory: false, context: "venta ÷ unidades, sin descontar acciones" }));
+    }
+    const panel = { kind: "movers", title: "Precio neto después de acciones", rows: conNeto.map((r) => ({ nombre: r.nombre, val: r.neto, valFmt: _u(r.neto), pos: true })) };
+    return { lines, suggestions: ["Cuáles ceden margen por precio", "Es por volumen o por precio"], bol, panel };
+  }
+
   if (focus === "mix_familia") {
     const rowsF = _scopeRows(_ventasRows("familia", scenario), {}, entityScope).filter((r) => typeof r.anterior === "number");   // scope heredado (sólo intersecta si lo heredado son familias)
     const tot = rowsF.reduce((a, r) => a + (r.actual || 0), 0), totA0 = rowsF.reduce((a, r) => a + (r.anterior || 0), 0);

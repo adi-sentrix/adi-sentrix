@@ -318,7 +318,29 @@ function entityProfile({ dimension, entity, scenario } = {}) {
 // degradaba a la tabla cruda de la reparación determinística. Autorizar solo la de la familia top no alcanzó: el narrador
 // arma la tabla de las 4 familias igual (la instrucción FORMATO es "siempre", no "si podés") — así que se
 // autorizan las 4, mismo patrón que entityProfile (arriba): el motor calcula la brecha, no el LLM.
+/* ⛔ APAGADA POR ORDEN DEL OWNER (2026-09-09), textual: «Apaga mix por cliente estimado hasta que pueda
+ * calcularse desde filas reales. No quiero estimaciones que contradigan el dato.»
+ *
+ * QUÉ SE ENCONTRÓ, midiendo: esta composición NO sale de las compras del cliente — sale de `clienteSkuMatrix`,
+ * una matriz REPARTIDA por ajuste proporcional iterativo (IPF) sobre la marca dominante de cada cuenta. En el
+ * demo no hay cruce cliente×familia que la sostenga, y sobre un archivo REAL —donde las filas SÍ traen el
+ * cruce— la estimación contradice al dato: para una cuenta del pack de ejemplo repartía «Herramientas 88,3% ·
+ * Eléctrico 5,9% · Sanitarios 5,8%» cuando sus filas dicen 81,6% · 18,4% · y CERO Sanitarios — una familia que
+ * ese cliente nunca compró. Servir eso como composición es afirmar una compra que no ocurrió.
+ *
+ * NO SE BORRA, SE DECLINA CON SU MOTIVO: el día que la ingesta agregue el cruce cliente×familia desde las filas
+ * (existe en `hechos.Ventas`, hoy nadie lo agrega al pack), esto se enciende cambiando esta guarda. Mientras
+ * tanto el turno recibe una declinación honesta y ADI ofrece el corte que SÍ es dato: el mix por familia del
+ * negocio (`salesRead focus=mix_familia`), que sale de las tablas por familia y cierra con la venta oficial. */
 function entityComposicion({ dimension, entity, scenario } = {}) {
+  return {
+    facts: { lens: "composicion", entidad: entity || null },
+    boleta: [],
+    coverage: { supported: false, reason: `la composición por familia DENTRO de una cuenta no está medida en este dato: lo que existe es una estimación repartida, y en un archivo real contradice las filas (llega a asignarle a una cuenta una familia que nunca compró). No la sirvo. Lo que sí es dato: el mix por familia del NEGOCIO —qué familia gana o pierde participación— con salesRead focus=mix_familia.` },
+  };
+}
+/** la implementación anterior, conservada para el día que el cruce venga de las filas reales (ver arriba). */
+function _entityComposicionDesdeMatrizEstimada({ dimension, entity, scenario } = {}) {
   const r = _pack(composeSpecComposicion({ dimension, entity, scenario }), `no tengo composición por familia para '${entity}' en el eje '${dimension}'`);
   if (r.coverage && r.coverage.supported && r.facts.composicion && Array.isArray(r.facts.composicion.familias) && r.facts.composicion.familias.length) {
     const rawRec = rawRecordFor(dimension, entity, scenario);
