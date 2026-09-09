@@ -243,7 +243,7 @@ H("5c · «un resumen ejecutivo de esa tabla» — dimensión por dimensión, y 
   const hist = [{ role: "user", text: t6 }, { role: "adi", text: T1 }];
   const r2 = await answerViaAgente({ text: "profundiza en la contribución", history: hist, mem: r1.mem, scenario: ESC, callAgente: MUDO });
   const T2 = String(r2.r.text || "");
-  ok(/contribuci[oó]n de este cuadro/i.test(T2) && /Arriba:/.test(T2), "★ «profundiza en la contribución» SIGUE sobre el mismo cuadro, sin click nuevo", T2.slice(0, 140));
+  ok(/contribuci[oó]n de este cuadro/i.test(T2) && /Arriba est[aá]n/.test(T2), "★ «profundiza en la contribución» SIGUE sobre el mismo cuadro, sin click nuevo", T2.slice(0, 140));
   const topC = [...filas6].sort((a, b) => b.contribucion - a.contribucion)[0];
   ok(T2.includes(topC.nombre) && T2.includes(topC.contribucionFmt), `…con la punta real de esa columna (${topC.nombre} ${topC.contribucionFmt}, del builder vivo)`);
   /* T3 · encadenada a otra dimensión */
@@ -384,6 +384,37 @@ H("5g · el gap antes que el cumplimiento · y ningún porcentaje sin decimal");
   for (const [txt, debeMultar] of pares) {
     const hay = vetosDelPlaybook(cuadroExplicado, txt, { pregunta: "x", ctx: { cuadro: vcE } }).some((x) => x.regla === "porcentaje-redondeado");
     ok(hay === debeMultar, `${debeMultar ? "★ multa" : "pasa"}: «${txt}»`);
+  }
+}
+
+/* ═══ 5h · LA TABLA LA PONE SENTRIX, NO ADI (owner 2026-09-08, sexta entrega) ═══════════════════════════════
+ * «La idea no es que ADI vuelva a hacer las tablas; si ese es el caso, las agregamos a Sentrix y que sea
+ *  permanente. Imagina, hace dos tablas diferentes repitiendo datos: lo que el usuario quiere es entender qué
+ *  ve. Ahora, se puede dar que el usuario le pida a ADI "hazme una tabla con la venta mes por mes" y podría
+ *  hacerlo — pero acá está leyendo directo de Sentrix.»
+ * En un turno de cuadro la tabla ESTÁ AL LADO: redibujarla sirve dos veces el mismo dato y gasta el espacio de
+ * la interpretación, que es lo único que ADI aporta ahí. */
+H("5h · en un turno de cuadro, ADI no redibuja la tabla");
+{
+  const vcC = ancla("comercial/01/tabla-cartera", { todos: "0" });
+  ok(cuadroExplicado.tablaProhibida === true, "★ el playbook DECLARA que en su turno la tabla no va (el bucle la traduce a la política del muro)");
+  const bucle = sinComentarios(leer("src/adi/agente/bucleAgente.js"));
+  ok(/playbookActivo && playbookActivo\.tablaProhibida === true\) \? "forbidden" : "auto"/.test(bucle),
+    "…y el bucle la conecta con la política que YA existía — no hizo falta una regla nueva, hacía falta cableársela");
+  /* el cerebro que redibuja la tabla: no llega a pantalla */
+  const CON_TABLA = async () => ({ tipo: "texto", texto: "Los 13 clientes cierran en $100.0M.\n\n| Cliente | Ventas | Margen |\n|---|---|---|\n| Falabella | $19.4M | 22.0% |\n| Lider | $17.9M | 21.5% |\n\nEs criterio mío que revises Lider primero." });
+  const rT = await answerViaAgente({ text: tituloDeExplicacion("comercial/01/tabla-cartera"), history: [], mem: {}, scenario: ESC, callAgente: CON_TABLA, viewContext: vcC, cuadro: vcC });
+  ok(!/\|\s*Cliente\s*\|/.test(String(rT.r.text || "")), "★★ la tabla markdown del cerebro NO llega a pantalla — el usuario ya la tiene al lado");
+  ok((rT.r.agente.vetos || []).some((x) => /tabla/i.test(x)), "…y queda registrado por qué", JSON.stringify(rT.r.agente.vetos || []));
+  /* y el ENTREGABLE se lo dice al cerebro antes, para que no la escriba */
+  const pbT = playbookPara(tituloDeExplicacion("comercial/01/tabla-cartera"), { history: [], cuadro: vcC });
+  ok(/NO ARMES UNA TABLA/.test(entregableDe(pbT, "x", { cuadro: vcC })), "…y el entregable se lo pide de entrada, no solo se lo multa después");
+  /* ⚠️ NI SIQUIERA EL PISO puede escribir en forma de tabla: «Etiqueta: cifra» en líneas seguidas ES una tabla
+   * escrita con dos puntos, y el detector la caza con razón. Se comprueba en TODOS los cuadros. */
+  for (const b of BOTONES) {
+    const t = await texto(b.cid, b.q, b.ctrl);
+    const filas = t.split("\n").filter((l) => /^\s*(?:[-*·]|\d+[.)])?\s*\*{0,2}[^:—|\n]{2,48}\*{0,2}\s*(?::|—|\|)\s*\S*\d/.test(l));
+    ok(filas.length < 3, `«${VIEW_MANIFEST[b.cid].label}» · el entregable determinístico escribe PROSA, no filas etiquetadas`, filas.join(" / ").slice(0, 140));
   }
 }
 
@@ -580,8 +611,13 @@ H("10 · carnadas · cada garantía, probada ROJA sobre una copia mutada del có
 
   // (g) la mención tomada apagada → el texto del owner vuelve a vetarse (el agente queda preso del piso)
   await carnada("la calibración de la mención tomada, apagada (la redacción del asesor vuelve a morir)", "src/adi/oracle/guardC.js",
+    /* ⚠️ LAS DEFENSAS SON DOS desde la calibración de la distancia atributiva (2026-09-08): la mención tomada
+     * y el tope de 25 caracteres entre la métrica y la cifra. Quitar una sola ya NO revive el falso positivo —
+     * eso es el sistema siendo más robusto, no una carnada rota. Se quitan las dos, y ahí la redacción del
+     * asesor vuelve a morir, que es lo que esta carnada existe para demostrar. */
     [[/function _todasLasMencionesTomadas\(\{ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners \}\) \{/,
-      "function _todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners }) { return false;   // CARNADA"]],
+      "function _todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners }) { return false;   // CARNADA"],
+     [/if \(_dist > 25\) continue;/, "if (false) continue;   // CARNADA"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
       const figsM = cuadroSentrix({ componentId: "comercial/01/tabla-cartera", scenario: ESC }).boleta;

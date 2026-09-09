@@ -349,6 +349,26 @@ function _metricBindingViolations(narration, ledger) {
     if (cerca.size !== 1) continue;                 // 0 → sin señal · 2+ → ambiguo, no se juzga
     const unica = [...cerca][0];
     if (ownerSet.has(unica)) continue;
+    /* ── LA MÉTRICA TIENE QUE ESTAR ATRIBUYENDO, NO SOLO ESTAR CERCA (owner 2026-09-08) ────────────────────
+     * Falso positivo MEDIDO sobre prosa de asesor perfectamente correcta: «Los 13 clientes cierran el año en
+     * $100.0M, y los más grandes son los que más presionan el margen» → «$100.0M narrado como margen». La
+     * palabra «margen» está en la ventana, sí, pero en OTRA CLÁUSULA, con su propio verbo, hablando de otra
+     * cosa. Ligarla a la cifra es leer la oración al revés.
+     * Las formas en que el español SÍ atribuye una métrica a una cifra son todas CORTAS y pegadas: «$X de
+     * margen», «el margen es $X», «margen: $X», «margen de contribución llega a $X». Con 25 caracteres alcanza
+     * para todas; más allá, la métrica vive en otra parte de la frase. Sigue rigiendo el principio de la casa:
+     * antes un falso negativo que bloquear una respuesta correcta. */
+    const _dist = (() => {
+      const re = new RegExp(_METRIC_VOCAB.find((m) => m.clave === unica).re.source, "gi");
+      const ventana = text.slice(lo, hi);
+      let best = Infinity, mm;
+      while ((mm = re.exec(ventana))) {
+        const a = lo + mm.index, b = a + mm[0].length;
+        best = Math.min(best, b <= idx ? idx - b : a >= end ? a - end : 0);
+      }
+      return best;
+    })();
+    if (_dist > 25) continue;
     /* ── LA MENCIÓN TOMADA NO LIGA (owner 2026-09-08, calibrada con su propio texto) ────────────────────────
      * El falso positivo medido, con la frase que el owner escribió a mano como la lectura que quiere:
      *   «Falabella vende $19.4M y genera $4.3M de contribución, mientras Jumbo, con $17.3M de venta, genera

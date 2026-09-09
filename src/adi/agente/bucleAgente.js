@@ -675,7 +675,17 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     datoProyectado: cifrasDelDato(scenario),
     entidadesDelTenant: _ejes(["cliente", "sku", "marca"]),
     duenosDelTenant: duenosTenant,
-    contentScope: "full", tablePolicy: "auto",
+    contentScope: "full",
+    /* ── LA TABLA LA PONE SENTRIX, NO ADI (owner 2026-09-08) ─────────────────────────────────────────────
+     * «La idea no es que ADI vuelva a hacer las tablas… imagina, hace dos tablas diferentes repitiendo datos.
+     * Lo que el usuario quiere es entender qué ve.» En un turno nacido de un cuadro, la tabla ESTÁ AL LADO en
+     * la pantalla: redibujarla es servir dos veces el mismo dato y tapar la interpretación, que es lo único
+     * que ADI aporta ahí. El playbook activo lo DECLARA (`tablaProhibida`) y el muro lo hace cumplir con la
+     * política que ya existía — no hace falta una regla nueva, hacía falta conectarla.
+     * ⚠️ Y NO ES UNA PROHIBICIÓN GENERAL: si el usuario PIDE una tabla («hazme una tabla con la venta mes por
+     * mes»), ese turno no nace de un cuadro y la política sigue en «auto». La palabra del owner es explícita:
+     * «se puede dar que el usuario le pida a ADI hazme una tabla… y podría hacerlo». */
+    tablePolicy: (playbookActivo && playbookActivo.tablaProhibida === true) ? "forbidden" : "auto",
   });
   /* F3 · EL CONTRATO DE SUGERENCIAS SE SUMA AL MURO, SIN TOCARLO (owner: «ese qué hacer debe ser SUGERENCIAS…
    * las decisiones son del usuario»). guardC queda INTACTO; `vetosDeContrato` es un juez NUEVO y CIEGO (regex,

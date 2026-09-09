@@ -242,6 +242,16 @@ function _lineaDeInversion(inv, dicho) {
 export const cuadroExplicado = {
   nombre: "cuadro-explicado",
 
+  /* ── LA TABLA LA PONE SENTRIX (owner 2026-09-08) ────────────────────────────────────────────────────────
+   * «La idea no es que ADI vuelva a hacer las tablas; si ese es el caso, las agregamos a Sentrix y que sea
+   * permanente. Imagina, hace dos tablas diferentes repitiendo datos: lo que el usuario quiere es entender
+   * qué ve.» En un turno de cuadro la tabla está AL LADO, en pantalla. Redibujarla gasta el espacio de la
+   * interpretación —lo único que ADI aporta ahí— y encima obliga al usuario a comparar dos versiones del
+   * mismo dato. El bucle traduce esta bandera a la política del muro, que ya existía.
+   * ⚠️ Es de ESTE turno, no una prohibición general: si el usuario pide «hazme una tabla con la venta mes por
+   * mes», ese turno no nace de un cuadro y ADI puede hacerla. */
+  tablaProhibida: true,
+
   cuandoAplica(pregunta, ctx) {
     if (!String(pregunta || "").trim()) return false;
     try { return _caso(pregunta, ctx, null) !== null; } catch { return false; }
@@ -298,6 +308,7 @@ export const cuadroExplicado = {
       `${cab}.`,
       "Entrega una LECTURA EJECUTIVA de la tabla, con este arco: (1) la TESIS en una línea — la tensión de fondo, no un dato; (2) el desempeño y QUIÉN lo impulsa; (3) la concentración y qué implica depender de pocas cuentas; (4) la diferencia entre vender más y aportar más, CON su razón (el margen que la explica) y tu juicio de asesor; (5) la calidad del mix — dónde está creciendo respecto del promedio; (6) el deterioro PONDERADO: quiénes caen, y cuál importa más aunque pese poco, porque su margen hace más cara cada venta perdida; (7) una síntesis con las tensiones de fondo y la prioridad reformulada; (8) por dónde profundizarías primero, con tu criterio dicho.",
       "Usa solo las dimensiones que EXISTEN en este cuadro (año anterior y presupuesto pueden no venir: las ausentes ni las nombres). El cuadro es tu EVIDENCIA, no un texto a recitar — la tabla ya está en pantalla; lo tuyo es lo que las filas no dicen solas. Pocas cifras clave por idea, jamás todas las filas, y no repitas la frase que el propio cuadro ya muestra.",
+      "NO ARMES UNA TABLA: la tabla ya está en pantalla, al lado de tu respuesta. Repetirla es servir dos veces el mismo dato y gastar el espacio de lo único que aportas, que es la interpretación. Escribe en prosa.",
       "Si el usuario después pide profundizar en una dimensión («profundiza en la contribución»), sigue sobre ESTE cuadro: la herramienta cuadroSentrix te lo trae de nuevo.",
       "La medida del éxito: que entienda algo que no veía solo mirando el cuadro.",
     ].join(" ");
@@ -334,7 +345,7 @@ export const cuadroExplicado = {
         `${q.valor} es ${q.fila ? `${q.label.toLowerCase()} de ${q.fila}` : q.label.toLowerCase()}, del cuadro «${I.cuadro}» de la cara ${I.cara}${I.periodo ? ` (${I.periodo})` : ""}.`,
         `No es una cuenta mía: la publica el mismo módulo que pinta ese cuadro, y es la cifra que estás viendo en pantalla.`,
       ];
-      if (otras.length) p.push(`En ese mismo cuadro conviven: ${otras.map((x) => `${x.label.toLowerCase()} ${x.valor}`).join(" · ")}.`);
+      if (otras.length) p.push(`En ese mismo cuadro conviven ${otras.map((x) => `${x.label.toLowerCase()} ${x.valor}`).join(" · ")}.`);
       p.push(variante(semilla, [
         `¿Quieres que abra esa dimensión por dentro?`,
         `Dime si profundizo en esa columna del cuadro.`,
@@ -364,7 +375,7 @@ export const cuadroExplicado = {
         if (enCabecera) {
           const otras = (L.cabecera || []).filter((x) => x.clave !== enCabecera.clave).slice(0, 3);
           const p2 = [`${c.columna.dicho[0].toUpperCase()}${c.columna.dicho.slice(1)} de este cuadro: ${enCabecera.valor}.`];
-          if (otras.length) p2.push(`Con el marco al lado: ${otras.map((x) => `${x.label.toLowerCase()} ${x.valor}`).join(" · ")}.`);
+          if (otras.length) p2.push(`Con el marco al lado — ${otras.map((x) => `${x.label.toLowerCase()} ${x.valor}`).join(" · ")}.`);
           p2.push(variante(semilla, [`¿Seguimos por alguna de esas?`, `Dime cuál abro.`, `Puedo abrirte cualquiera de ellas.`]));
           return p2.join("\n");
         }
@@ -372,9 +383,9 @@ export const cuadroExplicado = {
         return `Este cuadro no trae ${c.columna.dicho}. Lo que sí trae: ${traen.join(" · ")}. Dime por cuál seguimos.`;
       }
       const arriba = orden.slice(0, 3), abajo = orden.slice(-2);
-      p.push(`${c.columna.dicho[0].toUpperCase()}${c.columna.dicho.slice(1)} de este cuadro, por dentro:`);
-      p.push(`Arriba: ${arriba.map((x) => `${x.f.nombre} ${x.c.valor}`).join(" · ")}.`);
-      if (orden.length > 4) p.push(`Abajo: ${abajo.map((x) => `${x.f.nombre} ${x.c.valor}`).join(" · ")}.`);
+      p.push(`Así viene ${c.columna.dicho} de este cuadro por dentro.`);
+      p.push(`Arriba están ${arriba.map((x) => `${x.f.nombre} con ${x.c.valor}`).join(", ")}.`);
+      if (orden.length > 4) p.push(`Abajo quedan ${abajo.map((x) => `${x.f.nombre} con ${x.c.valor}`).join(", ")}.`);
       /* las señaladas de ESTA dimensión, si el módulo marcó alguna */
       const marcadas = grupos[0] && grupos[0].filas.filter((x) => _cifra(x.fila, c.columna.clave));
       if (marcadas && marcadas.length && grupos[0].filas.length < L.filas.length) {
@@ -432,7 +443,7 @@ export const cuadroExplicado = {
       const _filaDe = (cifra) => cifra && L.filas.find((f) => { const pr = _principal(f); return pr && pr.valor === cifra.valor; });
       const fAlto = _filaDe(alto), fBajo = _filaDe(bajo);
       if (alto && bajo) p.push(`Entre el mes más alto (${fAlto ? `${fAlto.nombre}, ` : ""}${alto.valor}) y el más bajo (${fBajo ? `${fBajo.nombre}, ` : ""}${bajo.valor}) la distancia es grande: tu año no es parejo, así que planificar con el promedio te va a fallar en los dos extremos.`);
-      if (L.filasLlave === "series" && L.filas.length > 1) p.push(`Las series del cuadro: ${L.filas.slice(0, 3).map((f) => `${f.nombre} ${(_principal(f) || {}).valor || ""}`.trim()).join(" · ")}.`);
+      if (L.filasLlave === "series" && L.filas.length > 1) p.push(`Las tres series cierran en ${L.filas.slice(0, 3).map((f) => `${f.nombre} ${(_principal(f) || {}).valor || ""}`.trim()).join(" · ")}.`);
       p.push(variante(semilla, [
         `¿Te abro algún mes, o la serie contra el presupuesto?`,
         `Puedo profundizar en un mes puntual si quieres.`,
@@ -499,7 +510,7 @@ export const cuadroExplicado = {
       const deltas = [deltaAnt ? `${deltaAnt.valor} vs año anterior` : null, deltaPre ? `${deltaPre.valor} vs presupuesto` : null].filter(Boolean);
       p.push(deltas.length
         ? `La ${deQue} llega a ${totalFila.valor} (${deltas.join(" · ")})${impulsan.length ? `, empujada sobre todo por ${impulsan.slice(0, 3).map((x) => `${x.f.nombre} ${x.c.valor}`).join(", ")}` : ""}.`
-        : `El marco: ${universo} ${nEje}, ${totalFila.valor}${deQue ? ` de ${deQue}` : ""}.`);
+        : `Tus ${universo} ${nEje} suman ${totalFila.valor}${deQue ? ` de ${deQue}` : ""}.`);
     }
 
     /* ── 3 · LA CONCENTRACIÓN · el acumulado que publica la curva de la misma cara ───────────────────────── */
@@ -556,8 +567,8 @@ export const cuadroExplicado = {
       const mayoria0 = universo > 0 && cuantas0 / universo >= 0.66;
       const dicho0 = cuantas0 === 1 ? g0.dice : g0.dicen;
       p.push(mayoria0
-        ? `Lo que este cuadro está marcando: ${cuantas0} de ${universo} ${nEje} ${dicho0} — no es un caso puntual: pasa en ${cuantas0 === universo ? "todas" : "casi todas"} tus ${nEje}.`
-        : `Lo que este cuadro está marcando: ${cuantas0} ${dicho0} — ${_conCifra(g0.filas, 3)}${cuantas0 > 3 ? ", entre otras" : ""}.`);
+        ? `Este cuadro marca que ${cuantas0} de ${universo} ${nEje} ${dicho0} — no es un caso puntual: pasa en ${cuantas0 === universo ? "todas" : "casi todas"} tus ${nEje}.`
+        : `Este cuadro marca ${cuantas0} que ${dicho0} — ${_conCifra(g0.filas, 3)}${cuantas0 > 3 ? ", entre otras" : ""}.`);
     }
 
     /* ── 7 · LA SÍNTESIS Y LA PRIORIDAD ─────────────────────────────────────────────────────────────────── */
@@ -608,7 +619,13 @@ export const cuadroExplicado = {
     if (nombres.length) {
       const nombra = nombres.some((n) => new RegExp(`\\b${_esc(n)}`, "i").test(t));
       const nombraElCuadro = new RegExp(_esc(I.cuadro), "i").test(t) || (I.metricaLabel && new RegExp(`\\b${_esc(I.metricaLabel)}`, "i").test(t));
-      if (!nombra && !nombraElCuadro) {
+      /* CITAR SUS CIFRAS TAMBIÉN ES ESTAR ANCLADO — falso positivo medido en el cuadro del año: sus «filas» son
+       * las tres series («Este año», «Año anterior», «Presupuesto»), y una lectura que habla de meses y montos
+       * no nombra ninguna. Estaba vetando una respuesta que citaba TRES cifras del propio cuadro. El anclaje se
+       * demuestra con la evidencia usada, no solo con los rótulos de las filas. */
+      const citaSusCifras = [...(c.L.cabecera || []), ...(c.L.filas || []).flatMap((f) => f.cifras || [])]
+        .filter((x) => x.valor && /\d/.test(x.valor) && t.includes(x.valor)).length >= 2;
+      if (!nombra && !nombraElCuadro && !citaSusCifras) {
         v.push({ regla: "cuadro-desanclado", multa: `el usuario pidió el cuadro «${I.cuadro}» y tu respuesta no nombra ni una de sus filas ni lo que mide: explica ESE cuadro, no el negocio en general.` });
       }
     }
@@ -659,9 +676,17 @@ export const cuadroExplicado = {
     for (const cif of _todasLasCifras) {
       const m = /^([+-−]?\d+)\.(\d+)%$/.exec(String(cif.valor || ""));
       if (!m) continue;
+      /* ⚠️ SOLO CUANDO SE PIERDE INFORMACIÓN (decimal ≠ 0) — y esto se aprendió rompiéndolo en producción.
+       * La primera versión multaba TODO entero: el cuadro publica «22.0%» y el cerebro escribía «22%» → multa,
+       * dos veces, y el turno salía podado o caía a «no tengo información». Pero es que SENTRIX MISMO muestra
+       * «22%» en esa columna cuando el decimal es cero: yo le estaba exigiendo a ADI una precisión que la
+       * pantalla no usa, y castigando prosa que copia lo que el usuario ve.
+       * Lo que el owner pidió sigue en pie y es lo único que se multa: «103.1%» escrito «103%» SÍ pierde —el
+       * entero esconde de qué lado del 103 está—, y eso arde. «22.0%» escrito «22%» no esconde nada. */
+      if (Number(m[2]) === 0) continue;
       const entero = `${m[1]}%`;
-      if (new RegExp(`(?<![\\d.,])${_esc(entero)}`).test(t) && !t.includes(cif.valor)) {
-        v.push({ regla: "porcentaje-redondeado", multa: `escribes «${entero}» donde el cuadro publica «${cif.valor}»: un porcentaje medido va con su decimal — el entero pelado se lee como aproximación.` });
+      if (new RegExp(`(?<![\\d.,])${_esc(entero)}(?!\\.\\d)`).test(t) && !t.includes(cif.valor)) {
+        v.push({ regla: "porcentaje-redondeado", multa: `escribes «${entero}» donde el cuadro publica «${cif.valor}»: ahí se pierde el decimal, y el entero pelado esconde de qué lado del número está la cifra real.` });
         break;
       }
     }

@@ -345,3 +345,39 @@ es mejor.»*
 **La cifra, para que quede escrita:** en la carpeta del owner el gap es **+3.0% · +$2.9M** (venta $99.9M contra
 presupuesto declarado $97.0M); en la carpeta `actual`, **+3.1% · +$3.0M**. No 2,1% — si su presupuesto declarado
 fuera otro, la cifra se mueve con él.
+
+---
+
+## 12 · LA TABLA LA PONE SENTRIX, NO ADI (owner 2026-09-08, sexta entrega)
+
+**Su palabra, textual:** *«hay que afinar estas respuestas porque al final la idea no es que ADI vuelva a hacer
+las tablas; si ese es el caso, por ejemplo, los agregamos a Sentrix y que sea permanente. Imagina, hace dos
+tablas diferentes repitiendo datos: lo que el usuario quiere es entender qué ve. Ahora, se puede dar que el
+usuario le pida a ADI "hazme una tabla con la venta mes por mes" y podría hacerlo, pero acá está leyendo
+directo de Sentrix.»*
+
+**La regla:** en un turno nacido de un cuadro, **la tabla está al lado**. Redibujarla sirve dos veces el mismo
+dato y gasta el espacio de la interpretación — lo único que ADI aporta ahí. El playbook lo declara
+(`tablaProhibida: true`) y el bucle lo traduce a `tablePolicy: "forbidden"`, la política que **ya existía en el
+muro**: no hizo falta una regla nueva, hacía falta cableársela. Y **no es una prohibición general**: si el
+usuario pide una tabla, ese turno no nace de un cuadro y ADI puede hacerla.
+
+### Tres defectos que esta entrega destapó — los tres MÍOS, los tres bloqueando al cerebro en producción
+
+1. **Mi regla del decimal multaba prosa correcta.** Exigía «22.0%» donde **la propia tabla de Sentrix muestra
+   «22%»**: le pedía a ADI una precisión que la pantalla no usa. Ahora solo arde cuando **se pierde
+   información** (decimal ≠ 0): «103.1%» escrito «103%» sí esconde de qué lado del número está; «22.0%»
+   escrito «22%» no esconde nada.
+2. **El muro ligaba una métrica que estaba en otra cláusula.** «Los 13 clientes cierran el año en $100.0M, y
+   los más grandes son los que más presionan **el margen**» → *«$100.0M narrado como margen»*. La palabra está
+   en la ventana, sí, pero con su propio verbo y hablando de otra cosa. Ahora la métrica tiene que estar
+   **atribuyendo**: a ≤25 caracteres de la cifra, que cubre todas las formas del español («$X de margen», «el
+   margen es $X», «margen: $X») y excluye la otra cláusula.
+3. **Mi regla de anclaje vetaba una lectura anclada.** En el cuadro del año las «filas» son las tres series, y
+   una lectura que habla de meses y montos no nombra ninguna. **Citar sus cifras también es estar anclado.**
+
+### Y el piso escribía tabla sin saberlo
+
+`Etiqueta: cifra` en líneas seguidas **es una tabla escrita con dos puntos** — el detector la cazó, y tenía
+razón: era exactamente lo que el owner rechaza. El entregable determinístico pasó a prosa en los nueve cuadros,
+y el gate lo verifica cuadro por cuadro (§5h).
