@@ -15,6 +15,9 @@ import { coerceSpec, coerceFloor } from "../adi/coerceChain.js";   // cadena de 
 import { getUISignals } from "../adi/uiSignals.js";   // memoria UI (owner 2026-07-08) · la Mesa/paneles informan el contexto conversacional
 import { resetPnlDraft, ensurePnlNarration, detectPnlIntent, pnlScope } from "../adi/pnl.js";   // P&L · reset del flujo a medio armar + F4: post-check de frases de la narración (graduación/sello asegurados en código) + la red que le CEDE el turno del P&L a la ruta vieja (C no tiene el flujo guiado) + pnlScope: Etapa 3 (owner 2026-08-04), proyección de entidad hacia conversationScope al SALIR de un turno de P&L
 import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el código viaja en cada llamada al gateway
+/* ⚠️ SIN MONTAR desde 2026-09-08 (owner: «eliminar esa supuesta evidencia»). El import se conserva a
+ * propósito, con su módulo y su gate verdes: devolver el gráfico a la respuesta es restaurar el bloque que
+ * quedó comentado más abajo, no reconstruirlo. */
 import { chartForEvidence } from "../adi/sentrix/chartSpec.js";   // I1 gráfico en la respuesta (owner 2026-07-09) · despachador determinístico
 
 /* LA COLUMNA DEL AVATAR · todo lo que ADI dice arranca corrido estos píxeles, porque a su izquierda va el
@@ -847,6 +850,7 @@ function _evLabel(evidence) {
   if (!evidence.reading && !isSim && !isSimOracle && !isCuadro && !isDiagnose && !isCompare && !isInventory && !isMargin && !isVentas && !isContrib) return null;
   return isSim || isSimOracle ? "Ver la proyección en Sentrix" : isCompare ? "Ver la comparación en Sentrix" : isInventory ? "Ver el inventario en Sentrix" : isMargin ? "Ver el margen en Sentrix" : isVentas ? "Ver las ventas en Sentrix" : isContrib ? "Ver la contribución en Sentrix" : isDiagnose ? "Ver el diagnóstico en Sentrix" : isCuadro ? "Ver en el Cuadro de mando" : "Ver evidencia en Sentrix";
 }
+/* ⚠️ SIN MONTAR desde 2026-09-08 (owner: «eliminar esa supuesta evidencia»). Se conserva entero. */
 function EvidenceButton({ evidence, onOpenEvidence, active }) {
   if (!evidence || !onOpenEvidence) return null;
   // primaria + las lentes extra del multi-análisis (cada una abre SU panel; deduplicadas por label)
@@ -1621,12 +1625,15 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
                     ) : (
                       <AdiMessageBody text={msg.text}/>
                     )}
-                    {/* GRÁFICO EN LA RESPUESTA (I1 · owner 2026-07-09): la plantilla la elige el DATO (chartSpec
-                        determinístico sobre la evidencia) — pregunta → respuesta → gráfico → ampliar en Sentrix. */}
-                    {!isPending && !isTyping && (() => {
-                      const _cs = chartForEvidence(msg.evidence);
-                      return _cs ? <InlineChart spec={_cs} onAmpliar={msg.evidence && onOpenEvidence ? () => onOpenEvidence(msg.evidence, msg.id) : null}/> : null;
-                    })()}
+                    {/* ⚠️ EL GRÁFICO/TABLA EN LA RESPUESTA SE RETIRÓ (owner 2026-09-08): «es mejor eliminar esa
+                        supuesta evidencia; viene arrastrada de antes, no la hemos desarrollado y probablemente
+                        no coincida con lo que ya hemos avanzado». Lo que se veía era un panel repitiendo los
+                        MISMOS datos que Sentrix ya muestra al lado — dos tablas del mismo dato, y el usuario
+                        queriendo entender qué ve. Es la misma decisión que la de no redibujar la tabla, una
+                        capa más abajo.
+                        `chartForEvidence` y `InlineChart` QUEDAN VIVOS y con su gate verde (el módulo se
+                        prueba solo, sin la vista): lo que se retiró es el MONTAJE, igual que se hizo con el
+                        bloque 03 de la cara Comercial. Volverlo a poner es restaurar estas cinco líneas. */}
                   </div>
                 </div>
                 {/* LA FECHA DE LAS CIFRAS REABIERTAS (owner 2026-09-08: «muy bien con fecha»). Una tabla del
@@ -1639,9 +1646,10 @@ export function ChatADI({ scenario = ESCENARIO_INICIAL, modulo = null, onSentrix
                   </div>
                 )}
                 {!isPending && !isTyping && <SourceBadge source={msg._source}/>}
+                {/* SentrixButton se conserva: es NAVEGACIÓN («llévame a esa cara»), no evidencia repetida. */}
                 <SentrixButton sentrixAction={msg.sentrixAction} onSentrixAction={onSentrixAction} msgId={msg.id}/>
-                <EvidenceButton evidence={msg.evidence} active={openEvidenceId === msg.id}
-                  onOpenEvidence={onOpenEvidence ? (ev) => onOpenEvidence(ev, msg.id) : null}/>
+                {/* ⚠️ «Ver evidencia en Sentrix» SE RETIRÓ con el panel (owner 2026-09-08, misma frase): abría
+                    el panel lateral de la evidencia arrastrada. El componente queda en el archivo, sin montar. */}
                 {/* Suggestions del turno vigente · aparecen al terminar el typewriter */}
                 {isLastAdi && !isTyping && suggestionsVisible && msg.suggestions && msg.suggestions.length > 0 && (
                   <div style={{ display:"flex", flexDirection:"column", gap:8, marginLeft:44 }}>
