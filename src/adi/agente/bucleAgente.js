@@ -854,9 +854,15 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * las 8 entradas de hilo y solo lo lee ante una forma de profundización. Un turno de cuadro NUEVO lo pisa. */
   if (playbookActivo && playbookActivo.nombre === "cuadro-explicado" && estado !== "vacio") {
     try {
-      const _anclaAbierta = anclaDelCuadro(ctxTurno) || (memIn.cuadroAbierto && typeof memIn.cuadroAbierto === "object" ? { componentId: memIn.cuadroAbierto.componentId, controles: memIn.cuadroAbierto.controles } : null);
+      const _prev = memIn.cuadroAbierto && typeof memIn.cuadroAbierto === "object" ? memIn.cuadroAbierto : null;
+      const _anclaAbierta = anclaDelCuadro(ctxTurno)
+        || (_prev ? { componentId: _prev.componentId, escenario: _prev.escenario, controles: _prev.controles } : null);
       if (_anclaAbierta && _anclaAbierta.componentId) {
-        memOut.cuadroAbierto = { componentId: _anclaAbierta.componentId, controles: _anclaAbierta.controles || {}, turno: Array.isArray(history) ? history.length : 0 };
+        /* el ESCENARIO se guarda con la dirección: reabrir el cuadro en otra carpeta es reabrir OTRO cuadro
+         * (medido: sin esto la reapertura caía a ESCENARIO_INICIAL y devolvía cifras de otro mundo). */
+        memOut.cuadroAbierto = { componentId: _anclaAbierta.componentId,
+          escenario: _anclaAbierta.escenario || scenario || null,
+          controles: _anclaAbierta.controles || {}, turno: Array.isArray(history) ? history.length : 0 };
       }
     } catch { /* la memoria del cuadro jamás rompe el turno */ }
   }

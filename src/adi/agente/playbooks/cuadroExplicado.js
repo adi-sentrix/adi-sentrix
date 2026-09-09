@@ -57,6 +57,7 @@ const _COLUMNAS = [
   { re: /\bcontribuci[oó]n\b/i, clave: "contribucion", dicho: "la contribución" },
   { re: /\bm[aá]rgen(?:es)?\b|\bmargen\b/i, clave: "margen", dicho: "el margen" },
   { re: /\bventas?\b/i, clave: "venta", dicho: "la venta" },
+  { re: /\bcumplimiento\b/i, clave: "cumplimiento", dicho: "el cumplimiento del presupuesto" },
   { re: /\bpresupuesto\b/i, clave: "vsPresupuestoPct", dicho: "el presupuesto" },
   { re: /\ba[ñn]o anterior\b/i, clave: "vsAnteriorPct", dicho: "el año anterior" },
   { re: /\bca[ií]das?\b/i, clave: "_caidas", dicho: "las caídas" },
@@ -90,14 +91,52 @@ function _anclaDelClick(ctx) {
   if (c.filtros && typeof c.filtros === "object") Object.assign(controles, c.filtros);
   return { componentId, escenario: typeof c.escenario === "string" ? c.escenario : null, controles };
 }
+/* ── LA PREGUNTA POR UNA CIFRA QUE ADI ACABA DE DAR (owner 2026-09-08, encontrado en su pantalla) ──────────
+ * «¿De dónde sale ese 103%?» — y ADI contestó «esa cifra la saqué sin verificarla», DESDICIÉNDOSE de un número
+ * que el cuadro publica y que su propia boleta traía como obligatorio. La causa no fue el muro: fue que ese
+ * turno YA NO TENÍA el cuadro. El click se consume en su turno, y «de dónde sale» no era forma de
+ * profundización — el cerebro quedó sin la boleta y prefirió retractarse. Desdecirse de una cifra correcta
+ * cuesta más confianza que no haberla dicho.
+ *
+ * El criterio para reabrir es determinístico y no secuestra nada: la pregunta CITA UNA CIFRA que el cuadro
+ * abierto publica. Si el usuario nombra un número que está en ese cuadro, habla de ese cuadro. Se pide además
+ * que sea CORTA o que traiga marca de procedencia («de dónde», «cómo sale», «por qué», «qué es ese»): una
+ * consulta larga que de paso mencione una cifra sigue siendo un turno libre. */
+/* ⚠️ SIN `\b` PEGADO A UNA VOCAL ACENTUADA — la lección que el proyecto ya pagó dos veces y que
+ * `_agente_contrato_gate` barre: `\bqu[eé]` no casa «qué» porque entre el espacio y la q… casa, pero
+ * `qu[eé]\b` NO cierra tras la é (no hay borde `\w`), y `\b[uú]ltimo` nunca abre. Se usa el lookaround
+ * explícito, que sí funciona con acentos. */
+const _RE_PROCEDENCIA = /(?:^|[^\wáéíóúüñ])(?:de d[oó]nde|c[oó]mo (?:sale|calcul|lleg|obt)|por qu[eé]|qu[eé] es (?:ese|esa|este|esta)|explica(?:me)? (?:ese|esa|el|la))(?![\wáéíóúüñ])/i;
+function _cifraCitada(pregunta, L) {
+  const q = String(pregunta || "");
+  if (!L || !L.ok) return null;
+  if (q.length > 140 && !_RE_PROCEDENCIA.test(q)) return null;
+  const todas = [...(L.cabecera || []), ...(L.filas || []).flatMap((f) => (f.cifras || []).map((c) => ({ ...c, fila: f.nombre })))];
+  /* el match va por el TOKEN VISIBLE y con frontera: «3.1%» no puede encontrarse dentro de «103.1%» */
+  for (const c of todas) {
+    if (!c.valor || !/\d/.test(c.valor)) continue;
+    if (new RegExp(`(?<![\\d.,])${_esc(c.valor)}`, "i").test(q)) return c;
+  }
+  return null;
+}
+
 export const CUADRO_ABIERTO_TTL_ENTRADAS = 8;   // mismo criterio de caducidad que el contexto de pantalla
 function _anclaDeMemoria(pregunta, ctx) {
-  if (!_columnaPedida(pregunta)) return null;   // la memoria SOLO desambigua una profundización, jamás secuestra
   const m = ctx && ctx.mem && ctx.mem.cuadroAbierto && typeof ctx.mem.cuadroAbierto === "object" ? ctx.mem.cuadroAbierto : null;
   if (!m || typeof m.componentId !== "string" || !VIEW_MANIFEST[m.componentId]) return null;
   const largo = Array.isArray(ctx.history) ? ctx.history.length : 0;
   if (typeof m.turno === "number" && largo - m.turno > CUADRO_ABIERTO_TTL_ENTRADAS) return null;   // caducó
-  return { componentId: m.componentId, escenario: null, controles: (m.controles && typeof m.controles === "object") ? { ...m.controles } : {} };
+  /* ⚠️ EL ESCENARIO VIAJA EN LA MEMORIA, y esto se descubrió midiendo: sin él, la reapertura leía el cuadro con
+   * `ESCENARIO_INICIAL` —otra carpeta— y devolvía OTRAS CIFRAS ($99.9M y 103.0% en vez de $100.0M y 103.1%).
+   * Es decir: al preguntar por una cifra, ADI habría contestado con la de otro mundo. Una pieza sin su
+   * escenario es una pieza de otro cuadro, exactamente lo que todo este contrato existe para impedir. */
+  const ancla = { componentId: m.componentId, escenario: typeof m.escenario === "string" ? m.escenario : null,
+    controles: (m.controles && typeof m.controles === "object") ? { ...m.controles } : {} };
+  /* DOS puertas, las dos determinísticas: la profundización por columna, y la pregunta por una cifra que ese
+   * cuadro publica. Sin una de las dos, la memoria no abre nada — un turno libre sigue siendo libre. */
+  if (_columnaPedida(pregunta)) return ancla;
+  if (_cifraCitada(pregunta, _leer(ancla, null))) return ancla;
+  return null;
 }
 
 /** el ancla que el BUCLE persiste en la memoria del hilo al cerrar un turno de cuadro — una sola derivación. */
@@ -123,7 +162,8 @@ function _caso(pregunta, ctx, scenario) {
   /* `ok`, o el DATO no lo sostiene (`sin-modulo`/`sin-campo`): ahí se dice qué falta. Con `sin-cifras` —límite
    * del lector, no del negocio— no se abre: jamás decirle al usuario que su dato no trae algo que sí trae. */
   if (!L.ok && L.motivo !== "sin-modulo" && L.motivo !== "sin-campo") return null;
-  return { ancla: a, L, columna: _columnaPedida(pregunta) };
+  const columna = _columnaPedida(pregunta);
+  return { ancla: a, L, columna, citada: columna ? null : _cifraCitada(pregunta, L) };
 }
 
 /* ── LOS RÓTULOS DE LA COMPARACIÓN, en palabras de negocio ─────────────────────────────────────────────── */
@@ -277,6 +317,26 @@ export const cuadroExplicado = {
     const uni = _cab(L, "n") || _cab(L, "entidadesReales");
     const universo = uni && Number.isFinite(Number(uni.valor)) ? Number(uni.valor) : L.filas.length;
     const grupos = _gruposDeSenal(L.filas);
+
+    /* ═══ LA PROCEDENCIA · «¿de dónde sale ese 103%?» ════════════════════════════════════════════════════
+     * La respuesta correcta es la más simple: esa cifra la publica el cuadro, no la calculó ADI. Y se ofrecen
+     * las OTRAS cifras del mismo cuadro para que el usuario vea el marco del que sale. Nunca «déjame corregir»
+     * sobre un número verificado: desdecirse de lo cierto cuesta más confianza que no haberlo dicho. */
+    if (c.citada) {
+      const q = c.citada;
+      const otras = (L.cabecera || []).filter((x) => x.valor !== q.valor).slice(0, 3);
+      const p = [
+        `${q.valor} es ${q.fila ? `${q.label.toLowerCase()} de ${q.fila}` : q.label.toLowerCase()}, del cuadro «${I.cuadro}» de la cara ${I.cara}${I.periodo ? ` (${I.periodo})` : ""}.`,
+        `No es una cuenta mía: la publica el mismo módulo que pinta ese cuadro, y es la cifra que estás viendo en pantalla.`,
+      ];
+      if (otras.length) p.push(`En ese mismo cuadro conviven: ${otras.map((x) => `${x.label.toLowerCase()} ${x.valor}`).join(" · ")}.`);
+      p.push(variante(semilla, [
+        `¿Quieres que abra esa dimensión por dentro?`,
+        `Dime si profundizo en esa columna del cuadro.`,
+        `Puedo abrirte lo que hay detrás de esa cifra.`,
+      ]));
+      return p.join("\n");
+    }
 
     /* ═══ LA PROFUNDIZACIÓN · una dimensión por dentro ═══════════════════════════════════════════════════ */
     if (c.columna) {
@@ -543,13 +603,27 @@ export const cuadroExplicado = {
       if (otro) v.push({ regla: "cuadro-de-otro-eje", multa: `el cuadro es por ${I.eje} y tu respuesta lo lee por ${otro}: ese es otro cuadro y el usuario no lo está mirando.` });
     }
 
-    /* (4) EL CUADRO NO SE RECITA. Un resumen ejecutivo por dimensión nombra filas CON PROPÓSITO (el rango del
-     * margen, la inversión de la contribución, las que caen): hasta 8 nombres distintos caben en eso. Pasar de
-     * ahí, en un cuadro de 8+ filas, es volver a servir la tabla que el usuario tiene al lado. */
+    /* (4) EL CUADRO NO SE RECITA — Y CONTAR NOMBRES ERA LA MEDIDA EQUIVOCADA (owner 2026-09-08, medido en su
+     * pantalla). Con el umbral por NOMBRES, una lectura ejecutiva rica —que menciona a las que crecen, a las
+     * que caen y a las sanas, nueve cuentas con propósito— caía vetada, y el turno se iba al piso. Era mi
+     * propia regla matando exactamente la respuesta que el owner pidió.
+     *
+     * Lo que hay que impedir no es NOMBRAR: es volver a servir la TABLA. Y una tabla se reconoce porque cada
+     * fila viene con su cifra pegada, una tras otra. Se cuentan las filas cuyo nombre aparece a ≤40 caracteres
+     * de su propio valor principal: mencionar «Ripley, Easy y La Polar caen» no cuenta; «Falabella $19.4M ·
+     * Lider $17.8M · Jumbo $17.3M · Sodimac $8.2M…» sí. Más de seve así, en un cuadro de 8+ filas, es la tabla. */
     const nombresTodos = (c.L.filas || []).map((f) => f.nombre).filter((n) => n && n.length >= 3);
     if (nombresTodos.length >= 8) {
-      const nombrados = nombresTodos.filter((n) => new RegExp(`\\b${_esc(n)}`, "i").test(t)).length;
-      if (nombrados > 8) v.push({ regla: "cuadro-recitado", multa: `nombras ${nombrados} de las ${nombresTodos.length} filas del cuadro: eso es la tabla otra vez, y la tabla ya está en pantalla. Resume por dimensión y quédate con las filas que cargan la historia.` });
+      const conSuCifra = (c.L.filas || []).filter((f) => {
+        if (!f.nombre || f.nombre.length < 3) return false;
+        const pr = _principal(f);
+        if (!pr || !pr.valor) return false;
+        const iN = t.toLowerCase().indexOf(f.nombre.toLowerCase());
+        if (iN < 0) return false;
+        const iV = t.indexOf(pr.valor, iN);
+        return iV >= 0 && iV - (iN + f.nombre.length) <= 40;
+      }).length;
+      if (conSuCifra > 6) v.push({ regla: "cuadro-recitado", multa: `sirves ${conSuCifra} de las ${nombresTodos.length} filas con su cifra pegada: eso es la tabla otra vez, y la tabla ya está en pantalla. Nombra las filas que cargan la historia, no la columna entera.` });
     }
 
     /* (5) LO QUE LA PANTALLA YA DICE NO SE REPITE TEXTUAL. */

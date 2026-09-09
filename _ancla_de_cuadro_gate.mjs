@@ -298,6 +298,55 @@ H("5d · el texto que el owner escribió a mano PASA el muro — y el veneno sig
     "…mientras el posesivo singular VERDADERO pasa (Lider sí es el margen más bajo del cuadro)");
 }
 
+/* ═══ 5e · «¿DE DÓNDE SALE ESE 103%?» · la procedencia, y el escenario que viaja con la memoria ═════════════
+ * Encontrado por el owner EN SU PANTALLA (2026-09-08): preguntó por una cifra que ADI acababa de dar y ADI
+ * contestó «la saqué sin verificarla… déjame corregir» — desdiciéndose de un número que el cuadro publica y
+ * que su boleta traía como obligatorio. Desdecirse de lo cierto cuesta más confianza que no haberlo dicho. */
+H("5e · la pregunta por una cifra que ADI acaba de dar");
+{
+  const vcE = ancla("comercial/01/evolutivo-serie");
+  const r1 = await answerViaAgente({ text: tituloDeExplicacion("comercial/01/evolutivo-serie"), history: [], mem: {}, scenario: ESC, callAgente: MUDO, viewContext: vcE, cuadro: vcE });
+  const LE = lecturaDeCuadro("comercial/01/evolutivo-serie", { scenario: ESC });
+  const cumpl = (LE.cabecera || []).find((x) => x.clave === "cumplimiento");
+  ok(!!cumpl, "el cuadro del año PUBLICA el cumplimiento del presupuesto — no es una cuenta de ADI", cumpl && cumpl.valor);
+  ok(String(r1.r.text || "").includes(cumpl.valor), "…y el turno del botón lo cita (viene como fig obligatoria)");
+  /* ⚠️ EL ESCENARIO VIAJA CON LA MEMORIA. Sin él, la reapertura leía el cuadro con ESCENARIO_INICIAL —otra
+   * carpeta— y devolvía OTRAS cifras: al preguntar por una cifra, ADI habría contestado con la de otro mundo. */
+  ok(r1.mem.cuadroAbierto && r1.mem.cuadroAbierto.escenario === ESC,
+    "★ la memoria del cuadro guarda su ESCENARIO: reabrirlo en otra carpeta sería reabrir otro cuadro", JSON.stringify(r1.mem.cuadroAbierto));
+  const hist = [{ role: "user", text: "x" }, { role: "adi", text: r1.r.text }];
+  const r2 = await answerViaAgente({ text: `de donde sale ese ${cumpl.valor}`, history: hist, mem: r1.mem, scenario: ESC, callAgente: MUDO });
+  const T2 = String(r2.r.text || "");
+  ok(/cumplimiento del presupuesto/i.test(T2) && T2.includes(cumpl.valor), "★ ADI responde QUÉ ES esa cifra y de qué cuadro sale", T2.slice(0, 150));
+  ok(/no es una cuenta m[ií]a|la publica el mismo m[oó]dulo/i.test(T2), "★★ …y que la PUBLICA EL MÓDULO — jamás «déjame corregir» sobre una cifra verificada");
+  ok(!/sin verificar|d[eé]jame corregir|la saqu[eé]/i.test(T2), "…sin desdecirse de lo que es cierto");
+  ok((r2.r.agente.vetos || []).length === 0, "…y sin vetos del muro", JSON.stringify(r2.r.agente.vetos || []));
+  const r3 = await answerViaAgente({ text: "como viene mi margen?", history: hist, mem: r1.mem, scenario: ESC, callAgente: MUDO });
+  ok(!/del cuadro «El año mes a mes»/.test(String(r3.r.text || "")), "★ y una pregunta libre SIN cifra del cuadro sigue siendo libre (la memoria desambigua, no secuestra)");
+}
+
+/* ═══ 5f · MI PROPIA REGLA NO PUEDE MATAR LA LECTURA BUENA ══════════════════════════════════════════════════
+ * El owner vio el piso determinístico donde esperaba al agente: la causa era `cuadro-recitado` contando
+ * NOMBRES — una lectura rica menciona a las que crecen, a las que caen y a las sanas, y caía vetada. Contar
+ * nombres medía la FORMA; lo que hay que impedir es servir la TABLA: filas con su cifra pegada, en fila. */
+H("5f · la lectura rica del cerebro NO recibe multa — y la tabla recitada sí");
+{
+  const vcC = ancla("comercial/01/tabla-cartera", { todos: "0" });
+  const RB = buildResumenComercial(ESC);
+  const RICA = [
+    "**La lectura:** Tu cartera crece $7.1M (+7.6%), pero el crecimiento no es parejo. Lider suma $2.3M, Jumbo $1.9M y Falabella $1.5M.",
+    "**Dónde está el problema:** Ripley, Easy, La Polar y Unimarc caen contra el año anterior. La Polar es la que más preocupa: 2.9% de la venta, pero 34.0% de margen.",
+    "**La prioridad:** es criterio mío que miraría La Polar y Ripley antes que Sodimac o Tottus, que vienen sanas.",
+  ].join("\n");
+  const nombresRica = RB.cartera.filas.filter((f) => RICA.includes(f.nombre)).length;
+  ok(nombresRica >= 9, `la lectura de prueba nombra ${nombresRica} cuentas — la clase de riqueza que el owner pidió`);
+  ok(vetosDelPlaybook(cuadroExplicado, RICA, { pregunta: "x", ctx: { cuadro: vcC } }).length === 0,
+    "★★ nombrar nueve cuentas CON PROPÓSITO no es recitar: la lectura rica pasa el playbook");
+  const TABLA = RB.cartera.filas.slice(0, 8).map((f) => `${f.nombre} ${f.ventaFmt}`).join(" · ");
+  ok(vetosDelPlaybook(cuadroExplicado, TABLA, { pregunta: "x", ctx: { cuadro: vcC } }).some((x) => x.regla === "cuadro-recitado"),
+    "★ y servir ocho filas con su cifra pegada SIGUE siendo la tabla otra vez", TABLA.slice(0, 90));
+}
+
 /* ═══ 6 · SIN DATO, SE DICE QUÉ FALTA ═══════════════════════════════════════════════════════════════════════ */
 H("6 · «si no existe dato suficiente para ese cuadro, debe decir exactamente qué falta»");
 {
@@ -469,12 +518,12 @@ H("10 · carnadas · cada garantía, probada ROJA sobre una copia mutada del có
 
   // (e) la multa de recitación desarmada → volver a servir la tabla deja de arder
   await carnada("la multa de recitación desarmada (la tabla vuelve a recitarse)", "src/adi/agente/playbooks/cuadroExplicado.js",
-    [[/if \(nombrados > 8\) v\.push\(\{ regla: "cuadro-recitado"/, 'if (false) v.push({ regla: "cuadro-recitado"']],
+    [[/if \(conSuCifra > 6\) v\.push\(\{ regla: "cuadro-recitado"/, 'if (false) v.push({ regla: "cuadro-recitado"']],
     async (Mut) => {
       initTenant(TENANT_DEMO);
       const vcM = ancla("comercial/01/tabla-cartera", { todos: "0" });
       const RB = buildResumenComercial(ESC);
-      const bait = "Esto muestra el cuadro: " + RB.cartera.filas.slice(0, 10).map((f) => `${f.nombre} vende ${f.ventaFmt}`).join(", ") + ".";
+      const bait = "Esto muestra el cuadro: " + RB.cartera.filas.slice(0, 10).map((f) => `${f.nombre} ${f.ventaFmt}`).join(" · ") + ".";
       const v = Mut.cuadroExplicado.listaNotarial(bait, { pregunta: "x", ctx: { cuadro: vcM } });
       return !v.some((x) => x.regla === "cuadro-recitado");
     });

@@ -265,3 +265,50 @@ POR DECLARACIÓN en el manifiesto) → vender ≠ aportar CON su razón (el marg
 promedio de la cartera → el deterioro PONDERADO por margen (La Polar: 2.9% de la venta, 34.0% de margen — «la
 más cara de perder») → síntesis con las dos tensiones → por dónde profundizar, con el criterio dicho. Los
 cuadros sin comparaciones (el corte de Capital, Qué liquidar, el saldo del Flujo) conservan su señal de estado.
+
+---
+
+## 10 · DOS DEFECTOS QUE EL OWNER ENCONTRÓ EN SU PANTALLA (2026-09-08, tras el deploy de `c2628b1`)
+
+**Su observación:** *«mejoró un montón, ese es el agente hablando? esto está con el resto de los botones?
+fíjate en la segunda foto es el botón del gráfico, de dónde sale ese 103%, es el agente? le pregunté y dice que
+lo inventó?»*
+
+**Lo que se confirmó de sus capturas:** el cuadro del año mes a mes **lo respondió EL AGENTE** (prosa con
+subtítulos, hipótesis marcadas, «es criterio mío» — nada de eso lo escribe el piso determinístico). La cartera,
+en cambio, salió del PISO: el cerebro no llegó a pantalla. Y el 103% **no fue inventado**: es el
+`cumplimientoFmt` que publica el módulo del cuadro, y viaja en la boleta del turno como fig **obligatoria**.
+
+### Defecto 1 · ADI se desdijo de una cifra correcta
+
+Al preguntarle «¿de dónde sale ese 103%?», contestó *«esa cifra la saqué sin verificarla… déjame corregir»*.
+**La causa no fue el muro: fue que ese turno YA NO TENÍA el cuadro.** El click se consume en su turno, y «de
+dónde sale» no era forma de profundización — el cerebro quedó sin la boleta y prefirió retractarse.
+**Desdecirse de lo cierto cuesta más confianza que no haberlo dicho.**
+
+Arreglo: **la reapertura por CIFRA CITADA.** Si la pregunta nombra un número que el cuadro abierto publica,
+está hablando de ese cuadro — sin ambigüedad que resolver. Se pide además que sea corta o traiga marca de
+procedencia («de dónde», «cómo sale», «por qué», «qué es ese»). La respuesta dice qué ES esa cifra, de qué
+cuadro sale, **que la publica el módulo y no es una cuenta de ADI**, y las otras cifras del mismo cuadro.
+
+⚠️ **Y de paso apareció uno peor: la memoria no guardaba el ESCENARIO.** Sin él, la reapertura leía el cuadro
+con `ESCENARIO_INICIAL` —que es `bonanza`, no la carpeta del turno— y devolvía **otras cifras** ($99.9M y
+103.0% en vez de $100.0M y 103.1%). Al preguntar por una cifra, ADI habría contestado con la de otro mundo.
+`mem.cuadroAbierto` guarda ahora `{componentId, escenario, controles, turno}`.
+
+### Defecto 2 · MI regla mataba la lectura buena
+
+La cartera caía al piso porque `cuadro-recitado` contaba **NOMBRES**, y una lectura ejecutiva rica menciona a
+las que crecen, a las que caen y a las sanas — nueve cuentas con propósito — y quedaba vetada. **Contar nombres
+medía la FORMA.** Lo que hay que impedir es servir la TABLA, y una tabla se reconoce porque cada fila viene con
+su cifra pegada, una tras otra: ahora se cuentan las filas cuyo nombre aparece a ≤40 caracteres de su valor
+principal, y el umbral es 6. «Ripley, Easy y La Polar caen» no cuenta; «Falabella $19.4M · Lider $17.8M · …» sí.
+
+Gate: **§5e** (la procedencia, el escenario en la memoria, y la pregunta libre que sigue libre) y **§5f** (la
+lectura rica de nueve cuentas pasa · ocho filas con su cifra pegada siguen siendo la tabla). 156 chequeos.
+
+### Un tercero, cazado por un candado ajeno
+
+`_agente_contrato_gate` rechazó mi `\bqu[eé]\b`: **el `\b` no cierra tras una vocal acentuada**. Es la misma
+lección que el proyecto ya pagó dos veces (`\b[uú]ltimo mes\b`, y el «facturó» del §9). Se usa lookaround
+explícito. El candado hizo exactamente su trabajo.
