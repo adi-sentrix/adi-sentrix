@@ -71,7 +71,11 @@ const _DECISION_TOMADA = /\b(procede con|proced[eé] con|avanz[aá] con la ejecu
  * VERBATIM en T2). El narrador natural ya prohíbe este léxico en su prompt; el cierre del agente necesita el
  * MISMO piso — y acá es un VETO del juez ciego, no una esperanza del prompt: multa → reparación → si reincide,
  * escalera. La palabra en un texto del USUARIO no pasa por acá (esto juzga SOLO la salida del agente). */
-const _LEXICO_SUPERFICIE = [
+/* SE EXPORTA para que el barredor de RÓTULOS (`_registro_boleta_gate` [1c]) juzgue con ESTA misma regla y no con
+ * una copia. La lección ya está escrita dos veces en este repo —tres listas de voseo incompletas, dos nombres para
+ * la referencia de carga— y volvió a costar: `lexico-meta` multaba «meta»/«target» en la PROSA mientras el motor
+ * publicaba el rótulo «Meta de carga comercial», que el cerebro puede citar textual. Una regla, un archivo. */
+export const _LEXICO_SUPERFICIE = [
   { re: /\bescenarios?\b/i, regla: "lexico-escenario",
     multa: "«escenario» no existe en pantalla (colapso del eje): di «supuesto» para lo que el usuario plantea y «proyección» para lo que calculas sobre él." },
   /* ⚠️ «META» SOBRE EL BENCHMARK O LA CARGA (owner en producción, 2026-09-05: el cerebro re-fraseó «contra

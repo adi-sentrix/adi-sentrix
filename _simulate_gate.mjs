@@ -111,7 +111,7 @@ const bolCg = (rCg.evidence && rCg.evidence.boleta) || [];
 ok("33 · boleta con los campos RESERVADOS de simulate: source computed + formula auditable en el recuperable",
   bolCg.some((f) => f.source === "computed" && /carga/.test(f.formula || "") && /Recuperable/.test(f.label)));
 ok("34 · el texto pasa su propia boleta + target de carga autorizado",
-  guardAgainstBoleta(rCg.text, bolCg).ok && bolCg.some((f) => /Target de carga/.test(f.label)));
+  guardAgainstBoleta(rCg.text, bolCg).ok && bolCg.some((f) => /Nivel de carga comercial declarado/.test(f.label)));
 const rCgF = sim({ operation: "simulate", metric: "carga", dimension: "cliente", simAction: "carga_target", filters: { cliente: "Falabella" } });
 ok("35 · scoped a UN cliente: el supuesto nombra a Falabella y evidence.entidad la declara (garantía del narrador)",
   /Falabella/.test(rCgF.text) && rCgF.evidence && rCgF.evidence.entidad === "Falabella");

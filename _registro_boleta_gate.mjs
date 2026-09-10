@@ -14,10 +14,30 @@
  *     sella `toolRegistry`, los templates verbatim de `dialogueState`/`progressiveDisclosure`— no las tocaba
  *     nadie, y son el camino VIGENTE: el que respondió el turno de la captura.
  *
+ * ── SEGUNDA VEZ, POR TRES AGUJEROS DISTINTOS (owner 2026-09-10, midiendo `entityProfile` y `rolesCartera` con el
+ * pack de demostración). Cuatro rótulos salían mal con este gate en VERDE, y cada uno por su propia razón:
+ *   (a) LA CAJA INCOMPLETA · la matriz corría sobre `TOOLS` (toolRegistry) y el AGENTE tiene caja propia
+ *       (`cajaDelAgente`). Por eso «Clientes del tramo alto bajo la vara» (rolesCartera) convivió con un gate
+ *       que veta «vara» desde agosto. → ahora la matriz sale de `cajaDelAgente(TOOLS)`, una sola fuente.
+ *   (b) LA BOLETA CRUDA · se auditaba `r.boleta`, la que escribe el composer. Pero el turno ve la boleta
+ *       **tipada** (`tiparBoleta`, ledger.js), que la ENRIQUECE desde los `facts` y crea rótulos que nadie
+ *       redactó, armados desde la CLAVE del campo: así nació «Falabella · Ranking Margen Desde Abajo = 2.0%».
+ *       → ahora se barre la tipada, que contiene a la cruda.
+ *   (c) EL VOCABULARIO CORTO · `VETADAS` trae las palabras de CLAUDE.md §4 pero no «meta»/«target» sobre el
+ *       benchmark o la carga, que es una regla VIVA del contrato del agente (`lexico-meta`) aplicada sólo a la
+ *       PROSA. El motor publicaba «Meta de carga comercial = 3.5%» y el cerebro puede citarlo textual: la prosa
+ *       pagaba multa por una palabra que le pasaba el motor. → [1c] consume ESA regla, no una copia.
+ * Y la clase de defecto que ninguno de los tres cubría: una cifra REAL con la unidad de otra naturaleza
+ * («Falabella · Total Con Margen = 13.0%» — son 13 clientes). → [1d].
+ *
  * QUÉ CERTIFICA (5 frentes, todos sobre el camino VIGENTE):
- *   [1] LOS LABELS DE LA BOLETA · se ejecutan las tools reales del catálogo sobre una matriz de argumentos y se
- *       audita CADA fig: `label`, `context`, `formula` y `coverage.reason`. Los cuatro llegan a pantalla o al
- *       prompt como texto autorizado — el label directo por el respaldo, el resto vía narrador y evidencia.
+ *   [1] LOS LABELS DE LA BOLETA · se ejecutan las tools reales del catálogo —oráculo Y agente— sobre una matriz
+ *       de argumentos, se TIPA la boleta como la tipa el turno, y se audita CADA fig: `label`, `context`,
+ *       `formula` y `coverage.reason`. Los cuatro llegan a pantalla o al prompt como texto autorizado — el label
+ *       directo por el respaldo, el resto vía narrador y evidencia. Sobre cada fig corren además dos chequeos:
+ *       [1c] «meta»/«target» sobre el benchmark o la carga (benchmark ≠ meta: las metas las fija el cliente) y
+ *       [1d] la UNIDAD contra el rótulo (un puesto se sella `rank`, un conteo `count`, jamás `pct`).
+ *       [1e] son las carnadas: los cuatro rótulos medidos, tal como salían, tienen que poner esto ROJO.
  *   [2] LOS TEXTOS VERBATIM · `composeExhaustedMechanismAcceptance` (bypass de mecanismo agotado) y
  *       `composeProsaEjecutiva` (reparación del veredicto tabla-no-autorizada) salen SIN pasar por el narrador.
  *   [3] EL GLOSARIO CURADO · `CONCEPT_DEFS` se imprime verbatim por la tool `defineConcept`, y `_registro_gate`
@@ -38,6 +58,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
+import { cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";   // la caja COMPLETA: el agente publica boleta igual que el oráculo (ver [1])
+import { tiparBoleta, esOrdenOConteo } from "./src/adi/oracle/ledger.js";   // la boleta COMO LA VE EL TURNO + la lectura de la naturaleza de una clave
+import { _LEXICO_SUPERFICIE as LEXICO_SUPERFICIE } from "./src/adi/agente/contratoAgente.js";   // `lexico-meta` — la regla viva, no una copia
 import { composeExhaustedMechanismAcceptance, composeOrphanAcceptance, composeVagueOfferAcceptance,
   composeSubjectAmbiguity } from "./src/adi/oracle/dialogueState.js";
 import { composeReferenceAmbiguity, composeReferenceDecline } from "./src/adi/oracle/conversationScope.js";
@@ -102,6 +125,30 @@ const checkVoseo = (origen, texto) => {
   if (palabra) _fallo(origen, texto, palabra); else PASS++;
 };
 const ok = (cond, msg) => { if (cond) PASS++; else { FAIL++; ROTOS.push(msg); console.log("  ✗ " + msg); } };
+
+/* ── [1c] «META»/«TARGET» SOBRE EL BENCHMARK O LA CARGA · LA MISMA REGLA QUE MULTA LA PROSA ────────────────────
+ * NO SE ESCRIBE UN REGEX ACÁ: se consume `lexico-meta` de `contratoAgente._LEXICO_SUPERFICIE`, la regla viva que
+ * el juez ciego ya aplica al texto del cerebro. El agujero medido (owner 2026-09-10, pack de demostración) fue
+ * exactamente la asimetría: la prosa que dijera «meta de carga» pagaba multa, mientras el MOTOR publicaba el
+ * rótulo «Meta de carga comercial = 3.5%» —y otros cuatro con «target»— que el narrador puede citar TEXTUAL. Un
+ * rótulo no es prosa, así que ningún barredor lo miraba; pero es lo que se lee. Copiar el regex acá habría creado
+ * la cuarta lista de vocabulario del repo (ver la nota del voseo, abajo): se importa la de verdad. */
+const _META = (LEXICO_SUPERFICIE.find((L) => L.regla === "lexico-meta") || {}).re;
+ok(_META instanceof RegExp, "no se encontró la regla `lexico-meta` en contratoAgente._LEXICO_SUPERFICIE — el chequeo [1c] quedó sin ancla, arreglalo antes de seguir");
+
+/* ── [1d] LA UNIDAD TIENE QUE CORRESPONDER AL RÓTULO ───────────────────────────────────────────────────────────
+ * EL DEFECTO MEDIDO: «Falabella · Ranking Margen Desde Abajo = 2.0%» (es el 2º de 13) y «Falabella · Total Con
+ * Margen = 13.0%» (son 13 clientes). Cifras REALES selladas con una naturaleza que no les corresponde — la clase
+ * de defecto que esta casa considera cara, porque el número es correcto y por eso nadie lo mira dos veces.
+ * SE JUZGA CONTRA LAS TASAS, NO CONTRA EL «$», y ese corte salió de MEDIR: exigirle `count` a todo rótulo que
+ * empieza con «total» pintaba de rojo ocho subtotales legítimos («Capital frenado · total = $33K», «Saldo vencido
+ * · total = $12.6M») — un total en dinero ES una suma. Un PORCENTAJE que se llama «ranking» o «total de X», en
+ * cambio, no es legítimo nunca: una tasa no es un puesto ni un conteo.
+ * La lectura de la palabra la hace `esOrdenOConteo` (ledger.js), la MISMA función con la que el motor decide no
+ * sellar esas cifras: si alguien afloja el motor, este chequeo se afloja con él y se ve en la carnada de [1e]. */
+const _TASAS = new Set(["pct", "ratio", "days", "pp"]);
+const _CONCEPTO = (label) => String(label || "").split("·").pop();
+const _unidadImpropia = (f) => !!f && _TASAS.has(f.unit) && esOrdenOConteo(_CONCEPTO(f.label));
 
 /* ── EL BARRIDO DE `facts`, RECURSIVO ──────────────────────────────────────────────────────────────────────────
  * POR QUÉ RECURSIVO Y NO UNA LISTA DE CAMPOS. La primera versión de este gate auditaba los campos de `facts` que
@@ -174,27 +221,82 @@ const LLAMADAS = [
   // el glosario servido como tool — la definición sale VERBATIM
   ["defineConcept", { term: "benchmark" }], ["defineConcept", { term: "capital_inmovilizado" }],
   ["defineConcept", { term: "meta" }], ["defineConcept", { term: "brecha" }],
+  /* ── LAS HERRAMIENTAS DEL AGENTE, que hasta hoy este gate no veía ──────────────────────────────────────────
+   * La matriz corría sobre `TOOLS` (toolRegistry) y el agente tiene caja PROPIA (`cajaDelAgente`): por eso el
+   * rótulo «Clientes del tramo alto bajo la vara» de `rolesCartera` convivió con un gate que veta «vara» desde
+   * agosto, en verde. Publican boleta igual que el oráculo; se barren igual. */
+  ["rolesCartera", {}], ["cobranza", {}], ["cuadroSentrix", {}],
+  ["serieEntidad", { dimension: "cliente", entity: "Falabella", metric: "ventas" }],
+  /* la cuenta que NO excede el nivel de carga: rama distinta de la de Falabella, y la que el owner midió al
+   * encontrar que la referencia sólo se publica cuando hay exceso (hallazgo de producto, `_INFORME_ROTULOS.md`) */
+  ["entityProfile", { dimension: "cliente", entity: "Mercado Libre" }],
 ];
+/* LA CAJA COMPLETA · una sola fuente del catálogo, la misma que arma el bucle del agente. */
+const CAJA = cajaDelAgente(TOOLS);
 let figsVistas = 0;
 for (const [nombre, args] of LLAMADAS) {
-  const tool = TOOLS[nombre];
+  const tool = CAJA[nombre];
   if (!tool) { ok(false, `la tool «${nombre}» ya no existe en el catálogo — la matriz de este gate quedó vieja`); continue; }
   let r;
-  try { r = tool({ scenario: "actual", ...args }); }
+  try { r = tool({ scenario: "actual", ...args }, { scenario: "actual" }); }
   catch (e) { ok(false, `${nombre}(${JSON.stringify(args)}) LANZÓ: ${String(e && e.message).slice(0, 90)}`); continue; }
   if (!r) { ok(false, `${nombre}(${JSON.stringify(args)}) devolvió null`); continue; }
   const tag = `${nombre}·${JSON.stringify(args).slice(0, 42)}`;
-  for (const f of (r.boleta || [])) {
+  /* ⚠️ SE BARRE LA BOLETA **TIPADA**, NO LA CRUDA — y ahí estaban dos de los cuatro defectos medidos.
+   * `tiparBoleta` (ledger.js) es el punto por el que pasan TODAS las cifras de TODAS las calls antes de llegar
+   * al narrador, y ENRIQUECE la boleta con los `facts`: rótulos que ningún composer escribió nacen ahí, armados
+   * desde la CLAVE del campo («Falabella · Ranking Margen Desde Abajo»). Auditar `r.boleta` era auditar la mitad
+   * curada y dejar sin mirar justo la mitad que nadie redactó. Se conserva `r.boleta` como subconjunto: `tiparBoleta`
+   * arranca de ella, así que un label del composer sigue barriéndose igual que siempre. */
+  const boletaDelTurno = tiparBoleta({ tool: nombre, callId: "gate", args: { scenario: "actual", ...args } }, r);
+  for (const f of boletaDelTurno) {
     figsVistas++;
     check(`${tag} · label`, f && f.label);
     check(`${tag} · context`, f && f.context);
     check(`${tag} · formula`, f && f.formula);
+    // [1c] · benchmark ≠ meta: las metas las fija el cliente, no nosotros (CLAUDE.md §4 · cerrojo `lexico-meta`)
+    if (_META && f && _META.test(String(f.label || ""))) _fallo(`${tag} · label`, String(f.label), (String(f.label).match(_META) || [""])[0]);
+    else PASS++;
+    // [1d] · la unidad tiene que corresponder al rótulo: un puesto y un conteo no son una tasa
+    if (_unidadImpropia(f)) _fallo(`${tag} · unidad`, `«${f.label}» = ${f.value} sellado como ${f.unit}`, String(f.unit));
+    else PASS++;
   }
   if (r.coverage && r.coverage.reason) check(`${tag} · coverage.reason`, r.coverage.reason);
   barrerFacts(tag, r.facts);
 }
 ok(figsVistas >= 200, `la matriz tiene que ejercitar una boleta de verdad — se auditaron ${figsVistas} figs (mínimo 200; si bajó, alguna tool dejó de devolver dato y este gate se volvió decorativo)`);
 console.log(`  · ${figsVistas} figs auditadas sobre ${LLAMADAS.length} llamadas`);
+
+/* ══ [1e] LAS CARNADAS · si el candado no se pone rojo, no está mirando ═════════════════════════════════════════
+ * Los cuatro rótulos que el owner midió el 2026-09-10, tal cual salían, más las formas vecinas. Un chequeo que
+ * pasa sobre el código de hoy no prueba nada: prueba algo cuando falla sobre el defecto de ayer. */
+H("══ [1e] CARNADAS · los cuatro rótulos medidos, tal como salían ══");
+{
+  const arde = (msg, cond) => ok(cond, `carnada «${msg}» NO se pone roja — el chequeo está ciego`);
+  // [1c] · las dos palabras, en los dos órdenes, con el decimal en el medio (la trampa que documenta `lexico-meta`)
+  arde("Meta de carga comercial", _META.test("Meta de carga comercial"));
+  arde("Target de carga", _META.test("Target de carga"));
+  arde("Target de carga comercial", _META.test("Target de carga comercial"));
+  arde("De esos, los que además exceden el target de carga", _META.test("De esos, los que además exceden el target de carga"));
+  arde("la carga comercial de 4.5% contra su meta", _META.test("la carga comercial de 4.5% contra su meta"));
+  ok(!_META.test("Nivel de carga comercial declarado"), "★ y el rótulo CORREGIDO pasa limpio: «Nivel de carga comercial declarado»");
+  ok(!_META.test("Benchmark de margen"), "…y el benchmark, que no es una meta, tampoco arde");
+  // [1d] · un puesto y un conteo sellados como tasa
+  arde("Falabella · Ranking Margen Desde Abajo = 2.0%", _unidadImpropia({ label: "Falabella · Ranking Margen Desde Abajo", value: "2.0%", unit: "pct" }));
+  arde("Falabella · Total Con Margen = 13.0%", _unidadImpropia({ label: "Falabella · Total Con Margen", value: "13.0%", unit: "pct" }));
+  arde("Lider · Posicion En Cartera = 3.0%", _unidadImpropia({ label: "Lider · Posicion En Cartera", value: "3.0%", unit: "pct" }));
+  // …y los legítimos NO arden: el falso positivo se mide igual que el defecto
+  ok(!_unidadImpropia({ label: "Falabella · ranking de margen desde el más rezagado", value: "2º de 13", unit: "rank" }),
+    "★ el ranking BIEN sellado (unidad `rank`) pasa limpio");
+  ok(!_unidadImpropia({ label: "Capital frenado · total", value: "$33K", unit: "money" }),
+    "★ un subtotal en dinero llamado «total» pasa limpio — una suma no es un conteo (8 falsos positivos medidos con la regla ancha)");
+  ok(!_unidadImpropia({ label: "Clientes del tramo alto bajo el benchmark", value: "3", unit: "count" }),
+    "…y un conteo sellado `count` pasa limpio");
+  ok(!_unidadImpropia({ label: "Falabella · Carga comercial", value: "4.5%", unit: "pct" }),
+    "…y una tasa de verdad pasa limpia");
+  // [1a] · el barrido tiene que ver la caja del AGENTE, no sólo la del oráculo
+  arde("«…bajo la vara» en una tool del agente", VETADAS.test("Clientes del tramo alto bajo la vara") && typeof CAJA.rolesCartera === "function");
+}
 
 /* ══ [2] LOS TEXTOS VERBATIM DEL CAMINO VIGENTE ════════════════════════════════════════════════════════════════
  * Los dos salen a pantalla SIN narrador: el bypass de mecanismo agotado devuelve su string tal cual, y la prosa
@@ -475,5 +577,9 @@ if (ROTOS.length) {
   console.log("\n   CLAUDE.md §4: prohibidas en superficie plata · vara · dormido · guita · palanca · apretar;");
   console.log("   se dice «capital», «benchmark» e «inmovilizado» (nunca «detenido»). Un label de boleta ES");
   console.log("   superficie: el respaldo determinístico lo imprime verbatim cuando el narrador no llega.");
+  console.log("   Y «meta»/«target» sobre el benchmark o la carga (cerrojo `lexico-meta`): benchmark ≠ meta —");
+  console.log("   las metas las fija el cliente. Se dice «Nivel de carga comercial declarado».");
+  console.log("   La UNIDAD tiene que corresponder al rótulo: un puesto se sella `rank` y un conteo `count`,");
+  console.log("   jamás `pct` — una cifra real con la naturaleza cambiada es más cara que una inventada.");
 }
 process.exit(FAIL ? 1 : 0);

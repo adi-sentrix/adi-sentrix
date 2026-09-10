@@ -27,6 +27,7 @@
 import { entidadNombrada, pidePuntoDeVenta } from "./indiceEntidades.js";
 import { detectSerieIntent } from "../../oracle/serieIntent.js";   // la entidad×período es del puente, no de acá
 import { etiquetaDeLaCarga } from "../../../config/businessPolicy.js";
+import { reDeReferencia } from "../../oracle/entityRecord.js";   // el rótulo de la referencia se busca por el MISMO label que se publica
 import { variante } from "../variacion.js";
 import { esPorQue, MARCA_HIPOTESIS } from "../porque.js";
 import { esConversacional, pideLaFicha } from "../formaConversacional.js";   // la ficha gana solo si la piden (owner 2026-09-09)
@@ -144,7 +145,7 @@ export const fichaDeEntidad = {
     const carga = de("Carga comercial");
     const ranking = de("ranking por venta");
     const bench = _find(figs, /^Benchmark de margen$/i);
-    const metaCarga = _find(figs, /^Meta de carga comercial$/i);
+    const metaCarga = _find(figs, reDeReferencia("pctRebate"));
     const capital = de("Capital");
     const rotacion = de("Rotaci[oó]n");
     const doh = de("Cobertura \\(DOH\\)");

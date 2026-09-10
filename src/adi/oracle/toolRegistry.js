@@ -262,7 +262,7 @@ function entityProfile({ dimension, entity, scenario } = {}) {
         const excesoUsd = Math.round(((cargaM.value - POLICY.targetCarga) / 100) * ventaM.value * _fxT());
         r.facts = { ...r.facts, excesoAccionesComerciales: _moneyRaw(excesoUsd), targetCarga: `${POLICY.targetCarga}%` };
         r.boleta = [...r.boleta,
-          fig("Meta de carga comercial", `${POLICY.targetCarga}%`, { unit: "pct", context: "tu target" }),
+          fig(REFERENCIA_CAMPO.pctRebate.label, `${POLICY.targetCarga}%`, { unit: "pct", context: "la referencia declarada" }),
           fig(`${entity} · exceso de acciones comerciales`, _moneyRaw(excesoUsd), { unit: "money", raw: excesoUsd, mandatory: true, context: "carga actual − tu meta, aplicado a la venta — SOLO el exceso comprobado, no la brecha total de margen" }),
         ];
       }

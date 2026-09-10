@@ -9,7 +9,7 @@
 import { METRICS } from "../config/contract/metricRegistry.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SOURCES } from "../config/contract/sourceManifest.js";
-import { guessDimension } from "./oracle/entityRecord.js";   // Etapa 1 (owner 2026-08-04): resuelve el EJE de un entityScope heredado (bodega/canal vs nombre/sku) — ver _scopeRows
+import { guessDimension, REFERENCIA_CAMPO } from "./oracle/entityRecord.js";   // Etapa 1 (owner 2026-08-04): resuelve el EJE de un entityScope heredado (bodega/canal vs nombre/sku) — ver _scopeRows
 import { POLICY, benchmarkOf } from "../config/businessPolicy.js";   // umbrales de política (UNA verdad) para el diagnose
 import { fig } from "./boleta.js";   // BOLETA de cifras autorizadas (primera clase · emitida por el composer · la valida el guard)
 import { diagnoseInventario, diagnoseClientes, diagnoseSkus, concentracion } from "./diagnosis/economicDiagnosis.js";   // motor: 4 puntas inventario + patrón económico cliente/SKU + concentración 80/20 · UNA verdad
@@ -802,7 +802,7 @@ export function composeSpecResumenEjecutivo({ scenario } = {}) {
     fig("Contribución", _money(contribK * _fxe()), { unit: "money", raw: contribK * _fxe(), mandatory: true, context: "resumen ejecutivo" }),
     fig("Margen promedio", `${margenProm}%`, { unit: "pct", raw: margenProm, mandatory: true, context: "resumen ejecutivo" }),
     fig("Piso de margen", `${bench}%`, { unit: "pct", raw: bench, mandatory: false, context: "la referencia declarada" }),   // registro: «vara» está vetada en superficie y el context de la boleta viaja al prompt y a la evidencia
-    fig("Target de carga", `${POLICY.targetCarga}%`, { unit: "pct", raw: POLICY.targetCarga, mandatory: false, context: "la referencia declarada" }),   // registro: «vara» está vetada en superficie y el context de la boleta viaja al prompt y a la evidencia
+    fig(REFERENCIA_CAMPO.pctRebate.label, `${POLICY.targetCarga}%`, { unit: "pct", raw: POLICY.targetCarga, mandatory: false, context: "la referencia declarada" }),   // registro: «vara» está vetada en superficie y el context de la boleta viaja al prompt y a la evidencia
   ];
   if (varPct != null) bol.push(fig("Ventas vs año anterior", `${varPct >= 0 ? "+" : ""}${varPct}%`, { unit: "pct", raw: varPct, mandatory: false, context: "resumen ejecutivo" }));
   for (const r of topC) bol.push(fig(`${r.nombre} · Contribución`, _money(r.contribucion * _fxe()), { unit: "money", raw: r.contribucion * _fxe(), mandatory: false, context: "quién sostiene" }));
@@ -2585,7 +2585,7 @@ export function composeSpecSimulateCarga({ filters = {}, scenario, entityScope =
   const bol = [
     // `formula` NO es un comentario: viaja al prompt como procedencia autorizada («se calcula como …») y a la
     // evidencia del panel. «tu referencia declarada», no «tu vara» — la palabra está vetada en superficie.
-    fig("Target de carga", `${POLICY.targetCarga}%`, { unit: "pct", raw: POLICY.targetCarga, source: "actual", formula: "tu referencia declarada (POLICY · no inventado)", context: _ctx }),
+    fig(REFERENCIA_CAMPO.pctRebate.label, `${POLICY.targetCarga}%`, { unit: "pct", raw: POLICY.targetCarga, source: "actual", formula: "tu referencia declarada (POLICY · no inventado)", context: _ctx }),
     fig("Recuperable · total", _money(cg.subtotal_usd), { unit: "money", raw: cg.subtotal_usd, mandatory: true, source: "computed", formula: "(carga − target) × venta · suma de las cuentas sobre el target", context: _ctx }),
   ];
   for (const it of top) bol.push(fig(`${it.entidad} · Recuperable`, _money(it.usd), { unit: "money", raw: it.usd, source: "computed", formula: `(carga de ${it.entidad} − target) × su venta`, context: _ctx }));

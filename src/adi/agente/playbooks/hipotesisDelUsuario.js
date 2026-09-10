@@ -26,6 +26,7 @@
 
 import { formaConversacional } from "../formaConversacional.js";
 import { entidadNombrada } from "./indiceEntidades.js";
+import { reDeReferencia } from "../../oracle/entityRecord.js";   // el rótulo de la referencia se busca por el MISMO label que se publica
 import { variante } from "../variacion.js";
 
 const _val = (f) => String((f && (f.text || f.value)) || "");
@@ -145,7 +146,7 @@ function _contraste(c, figs) {
     if (!cargas.length) return null;
     /* la referencia declarada se nombra por lo que ES. «Target» es la etiqueta del motor, no una palabra de
      * pantalla: el nivel de carga lo declara el cliente, y decirle «tu meta» le atribuye una que no fijó. */
-    const ref = _find(figs, /^Target de carga$/i);
+    const ref = _find(figs, reDeReferencia("pctRebate"));
     const erosion = _find(figs, /erosi[oó]n por acciones comerciales/i);
     L.push(`El mecanismo existe y está medido: ${erosion ? `${_val(erosion)} clientes ceden margen por acciones comerciales` : `la carga comercial se mide cuenta por cuenta`}${ref ? `, contra un nivel de carga declarado de ${_val(ref)}` : ""}.`);
     L.push(`Donde más pesa: ${lista(cargas)}.`);

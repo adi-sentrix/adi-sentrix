@@ -85,6 +85,34 @@ function _labelDe(entidad, clave) {
   if (!k || _normL(k) === _normL(e)) return e;   // la clave ES el nombre (no agrega concepto) → no se duplica
   return `${e} · ${_humanizeKey(k)}`;
 }
+/* ── LA NATURALEZA DE LA CIFRA MANDA SOBRE LA PALABRA DE LA MÉTRICA (owner 2026-09-10) ───────────────────────
+ * MEDIDO en el pack de demostración: `entityProfile` publicaba «Falabella · Ranking Margen Desde Abajo = 2.0%» y
+ * «Falabella · Total Con Margen = 13.0%». Las dos cifras son REALES —el 2º puesto de 13 y los 13 clientes con
+ * margen— y las dos salían selladas como PORCENTAJE, porque `_KEYUNIT` decide la unidad viendo si la CLAVE
+ * contiene «margen», y `rankingMargenDesdeAbajo`/`totalConMargen` la contienen. Un puesto no es una tasa y un
+ * conteo tampoco: el rótulo decía una cosa y la unidad otra, sobre una cifra estampada como autorizada — que es
+ * la clase de defecto caro de esta casa (una cifra sellada con una naturaleza que no le corresponde).
+ *
+ * NO SE LES INVENTA LA UNIDAD BUENA: SE LAS DEJA PASAR. Un ordinal sin su universo («2» sin «de 13») y un conteo
+ * sin su sustantivo («13») no significan nada sueltos, y el composer que SÍ conoce el universo ya los publica
+ * enteros —«Falabella · ranking de margen desde el más rezagado = 2º de 13», unidad `rank`—, así que
+ * autorizarlos de nuevo acá era además la MISMA cifra bajo dos rótulos. Es el MISMO criterio con que esta rama ya
+ * omite el «$» crudo: si el ledger no puede conocer la unidad sin el formateo del composer, no la sella.
+ *
+ * SÓLO LA RAMA NUMÉRICA, y el alcance es deliberado (mismo corte que el de la entidad, abajo): la rama de texto
+ * trae valores YA formateados por el motor, con su unidad puesta — ahí no hay nada que adivinar ni que corregir. */
+const _PALABRAS_DE_ORDEN = new Set(["ranking", "rank", "posicion", "puesto", "ordinal"]);
+const _PALABRAS_DE_CONTEO = new Set(["total", "totales", "cantidad", "cantidades", "conteo", "numero", "nro", "count"]);
+// la clave se parte por camelCase igual que en `_humanizeKey` — es la MISMA lectura de la clave, no una segunda
+const _palabrasDeClave = (k) => _normL(String(k).replace(/([a-z0-9])([A-Z])/g, "$1 $2")).split(/[^a-z0-9]+/).filter(Boolean);
+export function esOrdenOConteo(clave) {
+  const w = _palabrasDeClave(clave);
+  if (!w.length) return false;
+  // ORDEN en cualquier posición («rankingMargen», «margenRanking»); CONTEO sólo si ENCABEZA y cuenta ALGO
+  // («totalConMargen», «cantidadDeClientes») — un `total` pelado es el subtotal en $ de un composer, no un conteo.
+  return w.some((x) => _PALABRAS_DE_ORDEN.has(x)) || (_PALABRAS_DE_CONTEO.has(w[0]) && w.length > 1);
+}
+
 export function enrichFromFacts(boleta, facts) {
   if (!facts || typeof facts !== "object") return boleta;
   const seen = new Set(boleta.map((f) => f.canon));
@@ -135,6 +163,9 @@ export function enrichFromFacts(boleta, facts) {
         if (typeof v === "string") { const mm = v.match(_FIGRE); if (mm) mm.forEach((g) => add(_labelDe(ent, k), g)); }
         else if (typeof v === "number" && Number.isFinite(v)) {
           // crudos por unidad-según-clave · SOLO días/%/x (el $ se omite por la ambigüedad de escala K/crudo)
+          // …y ANTES que eso, la NATURALEZA: un puesto o un conteo no son una tasa aunque su clave nombre la
+          // métrica sobre la que se ordenan o cuentan (ver `esOrdenOConteo`, arriba — defecto medido en vivo).
+          if (esOrdenOConteo(k)) continue;
           const ku = _KEYUNIT.find(([re]) => re.test(k));
           if (!ku) continue;
           // SIN entidad real (ni siquiera sku/bodega/familia/cliente/marca) → NO se autoriza la cifra suelta:

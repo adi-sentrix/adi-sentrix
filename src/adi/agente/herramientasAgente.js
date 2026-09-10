@@ -27,6 +27,10 @@ import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";   // `cobranza` · la 
 import { buildRolesCartera, REGLAS_DE_ROL } from "../sentrix/rolesCartera.js";   // `rolesCartera` · el papel de cada cliente y la huella de cada mecanismo (el porqué, hecho evidencia)
 import { lecturaDeCuadro } from "../sentrix/lecturaDeCuadro.js";   // `cuadroSentrix` · lo que ESE cuadro pinta, del mismo módulo que lo pinta (owner 2026-09-08)
 import { findCandidates } from "../oracle/entityIndex.js";
+/* el NOMBRE de la referencia de carga sale de REFERENCIA_CAMPO (entityRecord.js), la tabla que ya declara la
+ * referencia autorizada de cada campo: una etiqueta copiada a mano es la forma en que «Target de carga» y «Meta
+ * de carga comercial» llegaron a nombrar la MISMA cifra con dos palabras, y una de ellas prohibida en superficie. */
+import { REFERENCIA_CAMPO } from "../oracle/entityRecord.js";
 import { fig, parseFigures } from "../boleta.js";   // parseFigures se usa como FORMATEADOR (ver `_m` en proyectar): la técnica de la casa, jamás una copia
 import { parseCounts } from "../oracle/guardC.js";   // `cuadroSentrix` · el MISMO lector de conteos del muro: lo que el notario busca es lo que la frase del cuadro autoriza
 import { fmtMonto, simboloMoneda } from "../../config/moneda.js";
@@ -359,15 +363,15 @@ export function rolesCartera(_args = {}, ctx = {}) {
   const boleta = [];
   const _ctx = "el papel de cada cliente en el margen";
   boleta.push(fig("Benchmark de margen", `${A.vara}%`, { unit: "pct", raw: A.vara, mandatory: false, context: "la referencia declarada" }));
-  if (A.target !== null) boleta.push(fig("Target de carga", `${A.target}%`, { unit: "pct", raw: A.target, mandatory: false, context: "la referencia declarada" }));
+  if (A.target !== null) boleta.push(fig(REFERENCIA_CAMPO.pctRebate.label, `${A.target}%`, { unit: "pct", raw: A.target, mandatory: false, context: "la referencia declarada" }));
   /* los CONTEOS entran a la boleta: un número dicho en la respuesta sin fig detrás es un conteo-no-autorizado */
   for (const reg of REGLAS_DE_ROL) {
     const r = A.roles[reg.rol];
     if (r && r.n > 0) boleta.push(fig(reg.etiqueta, String(r.n), { unit: "count", raw: r.n, mandatory: false, context: `${_ctx} · regla: ${reg.regla}` }));
   }
   const C = A.concurrencia || {};
-  if (C.grandesQueCaen) boleta.push(fig("Clientes del tramo alto bajo la vara", String(C.grandesQueCaen), { unit: "count", raw: C.grandesQueCaen, mandatory: false, context: `${_ctx} · los que mueven la venta y además caen` }));
-  if (C.grandesQueCaenYExcedenCarga) boleta.push(fig("De esos, los que además exceden el target de carga", String(C.grandesQueCaenYExcedenCarga), { unit: "count", raw: C.grandesQueCaenYExcedenCarga, mandatory: false, context: `${_ctx} · volumen y fuga en la misma cuenta` }));
+  if (C.grandesQueCaen) boleta.push(fig("Clientes del tramo alto bajo el benchmark", String(C.grandesQueCaen), { unit: "count", raw: C.grandesQueCaen, mandatory: false, context: `${_ctx} · los que mueven la venta y además caen` }));
+  if (C.grandesQueCaenYExcedenCarga) boleta.push(fig("De esos, los que además exceden el nivel de carga declarado", String(C.grandesQueCaenYExcedenCarga), { unit: "count", raw: C.grandesQueCaenYExcedenCarga, mandatory: false, context: `${_ctx} · volumen y fuga en la misma cuenta` }));
   /* cada cliente que cae, con SU papel y sus cifras — una por concepto, cada una con su dueño */
   /* ⚠️ NO SE REPUBLICA «X · Margen» (medido al estrenar la herramienta): `marginRead` ya lo publica en el mismo
    * turno y el playbook lee los márgenes de la boleta para SELECCIONAR quién está bajo la vara — dos figs con

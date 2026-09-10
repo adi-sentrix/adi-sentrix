@@ -196,7 +196,7 @@ section("4 · el sello de proyección: el supuesto nunca se narra como hecho");
 section("5 · el modo «al target» de siempre (el que corre en producción) queda byte-idéntico");
 {
   const T = TOOLS.simulateCarga({ scenario: "actual" });
-  ok(T.coverage.supported && T.boleta.some((f) => f.label === "Target de carga" && f.value === "3.5%"),
+  ok(T.coverage.supported && T.boleta.some((f) => f.label === "Nivel de carga comercial declarado" && f.value === "3.5%"),
     "sin delta_pp la tool sigue simulando «carga → target», con su fig de target");
   ok(T.facts.simulate && T.facts.simulate.action === "carga_target" && T.facts.simulate.target === 3.5,
     `el sello de la simulación sigue siendo carga_target — obtuvo ${JSON.stringify(T.facts.simulate)}`);
@@ -204,10 +204,14 @@ section("5 · el modo «al target» de siempre (el que corre en producción) que
   ok(rec && rec.raw === 655663 && rec.mandatory === true,
     `el recuperable del eje entero no se movió ($655.663 en «actual») — obtuvo ${JSON.stringify(rec && rec.raw)}`);
   ok(!T.facts.proyeccionCarga, "el modo target no emite el detalle del modo delta (nada nuevo se cuela en su forma)");
+  /* ⚠️ EL RÓTULO DE LA REFERENCIA CAMBIÓ, LA CIFRA NO (owner 2026-09-10): «Target de carga» decía la palabra
+   * que `lexico-meta` multa en la prosa —benchmark ≠ meta— y el narrador cita el rótulo textual. Hoy se llama
+   * «Nivel de carga comercial declarado» y sale de REFERENCIA_CAMPO.pctRebate.label, un solo lugar. La huella
+   * sigue congelada byte a byte: lo único que se movió acá es el NOMBRE, ningún valor. */
   // LA HUELLA COMPLETA de la boleta del modo target, congelada. Verificada byte-a-byte contra `HEAD` (2f4d83a)
   // sobre 24 combinaciones (4 escenarios × {sin args · filters.cliente · filters.marca · filters.familia ·
   // entityScope de 2 · entityScope de 4}): idénticas. Esta línea es el candado permanente de esa igualdad.
-  const HUELLA_TARGET_ACTUAL = "Target de carga=3.5% | Recuperable · total=$656K | Falabella · Recuperable=$194K | Sodimac · Recuperable=$156K | Lider · Recuperable=$125K";
+  const HUELLA_TARGET_ACTUAL = "Nivel de carga comercial declarado=3.5% | Recuperable · total=$656K | Falabella · Recuperable=$194K | Sodimac · Recuperable=$156K | Lider · Recuperable=$125K";
   ok(huella(T.boleta) === HUELLA_TARGET_ACTUAL,
     `la boleta ENTERA del modo target no se movió — obtuvo:\n      ${huella(T.boleta)}\n      esperaba:\n      ${HUELLA_TARGET_ACTUAL}`);
   ok(/llevar la carga comercial a tu target \(3\.5%\)/.test(composeSpecSimulateCarga({ scenario: "actual" }).opener),

@@ -85,10 +85,28 @@ export function rawRecordFor(dimension, entity, scenario = ESCENARIO_INICIAL) {
 // texto exacto de la boleta.
 export const REFERENCIA_CAMPO = {
   margen:    { getRef: (rec) => benchmarkOf(rec), unit: "pct", label: "Benchmark de margen", frase: "tu benchmark", umbral: 0.5, fmt: (v) => `${v}%` },
-  pctRebate: { getRef: () => POLICY.targetCarga, unit: "pct", label: "Target de carga comercial", frase: "tu target de carga comercial", umbral: 0.5, fmt: (v) => `${v}%` },
+  /* ⚠️ «TARGET»/«META» NO SON EL NOMBRE DE ESTA CIFRA (owner 2026-09-10, medido en el pack de demostración).
+   * El rótulo decía «Target de carga comercial» y la frase «tu target de carga comercial» — dos veces la palabra
+   * que el cerrojo `lexico-meta` (contratoAgente.js) multa en la prosa, y por la razón de siempre: benchmark ≠
+   * meta, «las metas las fija el cliente, no nosotros» (CLAUDE.md §4). El agujero no era el cerrojo sino la
+   * PROCEDENCIA de la palabra: un `label` no es prosa, así que ningún barredor lo miraba — y el narrador cita el
+   * rótulo TEXTUAL. Se llama por lo que es: un nivel declarado. Misma cifra, misma palabra en toda superficie. */
+  pctRebate: { getRef: () => POLICY.targetCarga, unit: "pct", label: "Nivel de carga comercial declarado", frase: "tu nivel de carga comercial declarado", umbral: 0.5, fmt: (v) => `${v}%` },
   rotacion:  { getRef: () => POLICY.rotacionMin, unit: "ratio", label: "Piso de rotación", frase: "tu piso de rotación", umbralRel: 0.10, fmt: (v) => `${(+v).toFixed(1)}x` },
   doh:       { getRef: () => POLICY.dohMax, unit: "days", label: "Techo de cobertura", frase: "tu techo de cobertura", umbral: 5, fmt: (v) => `${Math.round(v)}d` },
 };
+
+/* reDeReferencia(campo) → el regex que encuentra ESA referencia en una boleta, construido del MISMO `label` que
+ * se publica. Los tres playbooks que la buscaban escribían el literal a mano —`/^Target de carga$/i` en dos y
+ * `/^Meta de carga comercial$/i` en el tercero—: dos nombres para la MISMA cifra, y el que renombrara la etiqueta
+ * en la boleta dejaba a los otros buscando un rótulo inexistente SIN ponerse rojo (`_find` devuelve null y la
+ * frase simplemente se calla). Con esto el nombre se cambia en UN lugar y los tres lo siguen. */
+export function reDeReferencia(campo) {
+  const d = REFERENCIA_CAMPO[campo];
+  if (!d || !d.label) return /(?!)/;   // campo sin referencia declarada: no matchea NADA, jamás todo
+  return new RegExp(`^${d.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+}
+
 // REFERENCIA_ANTERIOR — el período anterior, SOLO cuando el dato lo declara por fila (D8: una sola verdad de
 // venta — `anterior`/`unidadesAnt` ya son columnas F-table normales, autorizadas como cualquier otra).
 export const REFERENCIA_ANTERIOR = {

@@ -27,7 +27,7 @@ console.log("── 1 · DETERMINÍSTICO — entityRecord autoriza la vara REAL 
   const g = runPlan({ intent: "record", calls: [{ tool: "entityRecord", args: { dimension: "sku", entity: "LG-DRYER8KG" } }] }, { scenario: "actual" });
   const labels = g.results[0].boleta.map((f) => f.label);
   ok(labels.includes("Benchmark de margen"), "SKU con margen → autoriza 'Benchmark de margen'");
-  ok(labels.includes("Target de carga comercial"), "SKU con pctRebate → autoriza 'Target de carga comercial'");
+  ok(labels.includes("Nivel de carga comercial declarado"), "SKU con pctRebate → autoriza 'Nivel de carga comercial declarado'");
   ok(labels.includes("Piso de rotación"), "SKU con rotación → autoriza 'Piso de rotación'");
   ok(labels.includes("Techo de cobertura"), "SKU con cobertura → autoriza 'Techo de cobertura'");
   const gc = runPlan({ intent: "record", calls: [{ tool: "entityRecord", args: { dimension: "cliente", entity: "Falabella" } }] }, { scenario: "actual" });
@@ -45,7 +45,7 @@ console.log("\n── 2 · DETERMINÍSTICO — _lecturaMinima: métricas COMPARA
 
   const recFalabella = rawRecordFor("cliente", "Falabella");
   const refRebate = REFERENCIA_CAMPO.pctRebate.getRef(recFalabella);
-  ok(refRebate === 3.5, `Target de carga comercial = 3.5% (obtuvo ${refRebate})`);
+  ok(refRebate === 3.5, `Nivel de carga comercial declarado = 3.5% (obtuvo ${refRebate})`);
   ok(Math.abs(recFalabella.pctRebate - refRebate) >= REFERENCIA_CAMPO.pctRebate.umbral, "diferencia real (4.5 vs 3.5) supera el umbral fijo (0.5pp) — se considera significativa");
 }
 
@@ -68,7 +68,7 @@ console.log("\n── 4 · SMOKE LLM REAL — ruta determinística: oración nat
   // entityRecord; el período deriva del CAMPO pedido, y stockUSD/rotación/DOH son una foto del stock a hoy, no un
   // acumulado anual). El rebate SÍ sigue siendo "año cerrado" (campo comercial anual, no de inventario).
   const casos = [
-    { q: "el rebate de Falabella", esperaVara: /target de carga comercial/i, periodoRe: /a[nñ]o cerrado/i },
+    { q: "el rebate de Falabella", esperaVara: /nivel de carga comercial declarado/i, periodoRe: /a[nñ]o cerrado/i },
     { q: "la rotación del SKU LG-DRYER8KG", esperaVara: /piso de rotaci[oó]n/i, periodoRe: /foto|a la fecha|hoy/i },
     { q: "la cobertura del SKU LG-DRYER8KG", esperaVara: /techo de cobertura/i, periodoRe: /foto|a la fecha|hoy/i },
   ];
@@ -105,7 +105,7 @@ console.log("\n── 6 · SMOKE LLM REAL — 'solo dame el dato' desactiva el a
   const callNarrate = async (args) => { const nr = await handleNarrateC({ payload: buildNarrateUserMessageC(args), mem: args.mem }); return nr.ok ? nr.narration : null; };
   const r = await answerViaOracle({ text: "solo dame el rebate de Falabella, sin análisis", history: [], mem: {}, scenario: "actual", callPlan, callNarrate });
   if (r && r.r.deterministic) {
-    ok(!/target de carga comercial|por encima de|por debajo de|en l[ií]nea con|analizarlo/i.test(r.r.text), `"solo dame el dato" suprime CUALQUIER lectura/oferta — "${r.r.text}"`);
+    ok(!/nivel de carga comercial declarado|por encima de|por debajo de|en l[ií]nea con|analizarlo/i.test(r.r.text), `"solo dame el dato" suprime CUALQUIER lectura/oferta — "${r.r.text}"`);
     ok(/a[nñ]o cerrado/.test(r.r.text), "el período se mantiene aunque se suprima el análisis (requisito 7: oración natural + período, sin análisis adicional)");
     ok(!/^[A-ZÁÉÍÓÚÑ][\w\sÁÉÍÓÚÑáéíóúñ]*\s·\s/.test(r.r.text), `"solo dame el dato" NO degrada a la forma telegráfica "Entidad · Etiqueta: valor" — sigue siendo la MISMA oración natural (requisito 1), solo sin la lectura — "${r.r.text}"`);
     ok(/\bes\b|\bson\b/.test(r.r.text), "la oración natural conserva su verbo (es/son) — la estructura del requisito 1 no se pierde al suprimir el análisis");

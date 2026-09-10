@@ -20,7 +20,8 @@
 import { esConversacional } from "../formaConversacional.js";   // la forma de la pregunta manda (owner 2026-09-09)
 import { variante } from "../variacion.js";   // el cierre varía por semilla («matar la repetición», 2026-09-03)
 import { buildRolesCartera } from "../../sentrix/rolesCartera.js";   // el porqué: el papel de cada cliente y la huella de cada mecanismo
-import { etiquetaDeLaCarga } from "../../../config/businessPolicy.js";   // DE QUIÉN es el nivel de carga: jamás «tu target declarado» si el cliente no lo declaró
+import { etiquetaDeLaCarga } from "../../../config/businessPolicy.js";
+import { reDeReferencia } from "../../oracle/entityRecord.js";   // el rótulo de la referencia se busca por el MISMO label que se publica   // DE QUIÉN es el nivel de carga: jamás «tu target declarado» si el cliente no lo declaró
 import { idDeCargaActiva } from "../../../ingesta/estadoCarga.js";   // DIARIO ETAPA 2: la tesis se compara contra la carga con la que se lee — una sola función, jamás dos derivaciones
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
@@ -318,7 +319,7 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
   const cuenta = _find(figs, /^Clientes · erosi[oó]n por acciones comerciales$/i);
   if (!cuenta) return null;                                   // la tool no corrió en este turno: no se inventa
   const bench = _find(figs, /^Benchmark de margen$/i);
-  const target = _find(figs, /^Target de carga$/i);
+  const target = _find(figs, reDeReferencia("pctRebate"));
   const brechaDe = (e) => _find(figs, new RegExp(`^${_esc(e)} · Brecha al benchmark$`, "i"));
   const cargaDe = (e) => _find(figs, new RegExp(`^${_esc(e)} · Carga comercial$`, "i"));
   const C = A.concurrencia || {};
