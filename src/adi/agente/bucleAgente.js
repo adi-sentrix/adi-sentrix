@@ -32,7 +32,8 @@ import { TOOLS } from "../oracle/toolRegistry.js";
 import { cajaDelAgente } from "./herramientasAgente.js";
 import { doctrinasParaRonda } from "./doctrinaAgente.js";
 import { esPorQue, doctrinaDelPorque, vetosDelPorque } from "./porque.js";   // la ley del porqué, transversal (owner 2026-09-09)
-import { vetosDeReferencia } from "./referenciaDeLaCifra.js";   // owner 2026-09-09: la cifra que sostiene una recomendación trae su referencia
+import { vetosDeReferencia } from "./referenciaDeLaCifra.js";
+import { esReformular, doctrinaDeReformular, vetosDeReformular } from "./reformular.js";   // la misma respuesta, para otro (owner 2026-09-10)   // owner 2026-09-09: la cifra que sostiene una recomendación trae su referencia
 import { mapaDelDato, faltanteQueToca } from "./mapaDelDato.js";   // + lo que el archivo del usuario no trajo (owner 2026-08-31)
 import { guardC, esNarracionVacia } from "../oracle/guardC.js";
 import { cifrasDelDato } from "../oracle/datoProyectado.js";
@@ -454,6 +455,26 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       };
     }
   }
+  /* ── REFORMULAR SIN NADA QUE REFORMULAR (owner 2026-09-10) ─────────────────────────────────────────────
+   * Si piden re-decir lo ya respondido y en el hilo todavía no hay respuesta, no hace falta salir a leer NI
+   * llamar al cerebro: no hay material. Lo que importa es QUÉ se le dice, y la frase de siempre —«no tengo
+   * información autorizada suficiente»— sería falsa otra vez: el dato está, lo que falta es la lectura.
+   * Se responde con la verdad y se ofrece hacerla. Cero herramientas, cero llamadas. */
+  {
+    const _hs = Array.isArray(history) ? history : [];
+    const _hayPrevia = _hs.some((h) => h && h.role !== "user" && typeof h.text === "string" && h.text.trim().length > 40);
+    if (esReformular(q) && !_hayPrevia) {
+      return {
+        r: normalizeResponse({
+          text: "Todavía no te he respondido nada en esta conversación, así que no hay una respuesta que reescribir. Dime qué quieres mirar y la hago; después te la dejo en el tono y el largo que necesites.",
+          route: "agente", deterministic: true, claims: [], evidence: null, suggestions: null, sentrixAction: null,
+          agente: { estado: "sin-que-reformular", rondas: 0, calls: 0, figs: 0, motivos: [], vetos: [], recitaCifras: 0 },
+        }),
+        mem: memIn,
+      };
+    }
+  }
+
   const caja = cajaDelAgente(TOOLS);
   const herramientas = Object.keys(caja).sort();
   const mapa = mapaDelDato(scenario);
@@ -595,6 +616,22 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * byte-estable — el mismo principio de `doctrinaAgente.js`: la instrucción no viaja hasta que hace falta. */
   const _esPorQueDelTurno = esPorQue(q);
   if (_esPorQueDelTurno) mensajes.push({ role: "user", content: doctrinaDelPorque() });
+  /* ── REFORMULAR · la misma respuesta para otro destinatario o en otro largo (owner 2026-09-10) ──────────
+   * Misma mecánica que la ley del porqué y por la misma razón: no es un playbook porque no sale a leer —su
+   * material es la respuesta anterior, que ya pasó el muro—, y un playbook sin pasos no se activa nunca.
+   * `_previaDelHilo` es lo último que ADI respondió en este hilo: el material legítimo de este turno. */
+  /* lo último que ADI respondió, leído del hilo que el bucle ya tiene: es lo que se pide reformular. Se lee
+   * de `history` y no de una memoria nueva — la casa no crea una segunda fuente para lo que ya viaja. */
+  const _previaDelHilo = (() => {
+    const hs = Array.isArray(history) ? history : [];
+    for (let i = hs.length - 1; i >= 0; i--) {
+      const h = hs[i];
+      if (h && h.role !== "user" && typeof h.text === "string" && h.text.trim().length > 40) return h.text;
+    }
+    return null;
+  })();
+  const _esReformularDelTurno = esReformular(q);
+  if (_esReformularDelTurno) mensajes.push({ role: "user", content: doctrinaDeReformular() });
 
   /* EL MOTIVO DE CORTE DEL PROVEEDOR, por llamada (tanda post-poda, 2026-09-05): el gateway ya lo re-emite y
    * el cliente lo lee — acá se junta en el expediente. La lección del natural, completa de punta a punta:
@@ -770,10 +807,12 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
      * ves ahí»— que era correcta cifra por cifra y aun así no servía para decidir. Un 4.5% no es alto ni bajo
      * hasta que se dice contra qué; sin referencia el dueño no evalúa el consejo, solo lo cree. */
     const vRef = vetosDeReferencia(t, { figs: figsTotales, sitio });
+    const vRef2 = vetosDeReformular(t, { pregunta: q, previa: _previaDelHilo, sitio });
     const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [], limiteDeHerramienta: motivosNoSoportado.length > 0 }),
       ...(vSinBoleta ? [vSinBoleta] : []),
       ...vPorQue,
       ...vRef,
+      ...vRef2,
       ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales, pregunta: q, ctx: ctxTurno }) : [])];
     if (!vc.length) return v;
     vetosDelTurno.push(`${sitio} · ${vc[0].regla}: ${vc[0].multa.split("\n")[0].slice(0, 160)}`);
