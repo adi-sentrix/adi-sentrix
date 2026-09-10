@@ -24,6 +24,7 @@ import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { desafiarDecision as PB } from "./src/adi/agente/playbooks/desafiarDecision.js";
 import { PLAYBOOKS, playbookPara, pasosDe, obligatoriasDe, promesasCumplidas } from "./src/adi/agente/playbooks/registro.js";
 import { formaConversacional } from "./src/adi/agente/formaConversacional.js";
+import { reDeReferencia } from "./src/adi/oracle/entityRecord.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
 import { cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";
@@ -68,7 +69,11 @@ const CUENTAS = (() => {
     if (!margen || !bench) continue;
     const m = numDe(margen), b = numDe(bench);
     if (!sana && Number.isFinite(m) && Number.isFinite(b) && m >= b) sana = { n, margen: valDe(margen), bench: valDe(bench) };
-    if (!condicion && Number.isFinite(m) && Number.isFinite(b) && m < b && exceso && numDe(exceso) > 0) condicion = { n, exceso: valDe(exceso), margen: valDe(margen) };
+    if (!condicion && Number.isFinite(m) && Number.isFinite(b) && m < b && exceso && numDe(exceso) > 0) {
+      /* la referencia se lee por el MISMO helper que la publica — nunca por un literal escrito acá */
+      const ref = figs.find((f) => reDeReferencia("pctRebate").test(f.label || "")) || null;
+      condicion = { n, exceso: valDe(exceso), margen: valDe(margen), nivel: ref ? valDe(ref) : null };
+    }
     if (sana && condicion) break;
   }
   return { sana, condicion };
@@ -147,7 +152,7 @@ const T = {};
   const CASOS = [
     ["sana-soltar", `¿debería dejar de venderle a ${CUENTAS.sana.n}?`],
     ["condicion-seguir", `¿me conviene seguir vendiendo a ${CUENTAS.condicion.n} así?`],
-    ["ceder", `¿le doy más descuento a ${CUENTAS.sana.n}?`],
+    ["ceder", `¿le doy más descuento a ${CUENTAS.condicion.n}?`],
     ["volumen", "¿hago bien en priorizar volumen?"],
     ["precio", "¿me conviene bajar precios?"],
     ["sin-anclar", "¿estoy tomando una mala decisión?"],
@@ -228,6 +233,14 @@ H("8 · el registro — la prosa no hereda las palabras internas del motor");
   }
   ok(/nivel (?:de carga )?declarado|benchmark declarado|que tienes declarado/i.test(T["condicion-seguir"].texto),
     "★ y la referencia se nombra «declarada», nunca como una meta que le pusimos nosotros");
+  /* ⚠️ EL CHEQUEO QUE FALTABA, y lo pagó caro: este playbook buscaba el nivel declarado con un literal escrito
+   * a mano. El arreglo de rótulos lo renombró, el `_find` devolvió null y la frase se CALLÓ — sin un solo
+   * gate en rojo, porque ningún chequeo miraba que esa cifra estuviera. Una frase que desaparece en silencio
+   * es peor que una que falla: nadie la extraña. Se exige el VALOR, leído por el mismo helper que lo publica. */
+  ok(CUENTAS.condicion.nivel !== null, `el pack publica el nivel de carga declarado para la cuenta que lo excede (${CUENTAS.condicion.nivel})`);
+  ok(T["ceder"].texto.includes(CUENTAS.condicion.nivel),
+    `★ y al pesar «cederle más» la respuesta CITA ese nivel (${CUENTAS.condicion.nivel}) — sin él, «tienes espacio» es una opinión`,
+    T["ceder"].texto.slice(0, 240));
 }
 
 /* ═══ 9 · LA DECISIÓN SIN NOMBRAR ═══════════════════════════════════════════════════════════════════════════

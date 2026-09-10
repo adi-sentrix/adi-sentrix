@@ -29,6 +29,7 @@
 
 import { formaConversacional } from "../formaConversacional.js";
 import { entidadNombrada } from "./indiceEntidades.js";
+import { reDeReferencia } from "../../oracle/entityRecord.js";   // el rótulo de la referencia se busca por el MISMO label que se publica
 import { variante } from "../variacion.js";
 
 const _val = (f) => String((f && (f.text || f.value)) || "");
@@ -169,8 +170,13 @@ export const desafiarDecision = {
        * calcularlo —los dos porcentajes se ponen uno al lado del otro y el dueño ve el espacio—. */
       const carga = g("Carga comercial");
       /* ⚠️ el nivel declarado SOLO se publica cuando la cuenta lo excede (medido: aparece en la cuenta con
-       * exceso y no en la que está debajo). Por eso se cita si está y se calla si no — nunca se supone. */
-      const nivel = _find(figs, /^(?:Meta|Target|Nivel) de carga comercial$/i);
+       * exceso y no en la que está debajo). Por eso se cita si está y se calla si no — nunca se supone.
+       * ⚠️ Y SE BUSCA POR `reDeReferencia`, NO POR UN LITERAL: este archivo nació con `/^(?:Meta|Target|Nivel)
+       * de carga comercial$/i` escrito a mano y el arreglo de rótulos renombró la etiqueta a «Nivel de carga
+       * comercial declarado» — el regex dejó de matchear, `_find` devolvió null y la frase simplemente se
+       * calló, sin un solo gate en rojo. Es exactamente la falla silenciosa que ese helper existe para
+       * cerrar: el nombre vive en un lugar y todos lo siguen. */
+      const nivel = _find(figs, reDeReferencia("pctRebate"));
       if (c.sentido === "ceder" && carga) {
         p.push(`Y como lo que pesas es cederle MÁS: eso sale de esos ${_val(contrib)} de contribución. Su carga comercial hoy va ${_val(carga)}${nivel ? ` contra un nivel declarado de ${_val(nivel)}` : ""} — el espacio lo ves ahí; la pregunta es contra qué lo cedes.`);
       }
