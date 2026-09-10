@@ -131,7 +131,7 @@ export const desafiarDecision = {
     return [/· Medida 1pp$/i];
   },
 
-  entregable: "PESA LA DECISIÓN con los dos lados medidos, en este orden: (1) di en una línea qué se está pesando, para que él vea si lo entendiste; (2) LO QUE PONE EN JUEGO, con su cifra — lo que la decisión sacrifica; (3) LO QUE HAY DEL OTRO LADO, con su cifra — lo que recupera; si los dos montos son de tamaños distintos, dilo, porque ES el punto; (4) la pieza que él tiene y el dato no, preguntada concreta. ⚠️ NUNCA apruebes ni desapruebes sin las dos cifras: «buena decisión» es complacencia y «deberías cuidar tu margen» es un sermón que vale para cualquier negocio, así que no vale para el suyo. Toma posición —el dueño la pide— pero tómala SOBRE los dos montos. Si el dato no alcanza para pesarla, eso se dice y no se adivina.",
+  entregable: "PESA LA DECISIÓN con los dos lados medidos, en este orden: (1) di en una línea qué se está pesando, para que él vea si lo entendiste; (2) LO QUE PONE EN JUEGO, con su cifra — lo que la decisión sacrifica; (3) LO QUE HAY DEL OTRO LADO, con su cifra — lo que recupera; si los dos montos son de tamaños distintos, dilo, porque ES el punto; (4) la pieza que él tiene y el dato no, preguntada concreta. ⚠️ NUNCA apruebes ni desapruebes sin las dos cifras: «buena decisión» es complacencia y «deberías cuidar tu margen» es un sermón que vale para cualquier negocio, así que no vale para el suyo. Toma posición —el dueño la pide— pero tómala SOBRE los dos montos. Si el dato no alcanza para pesarla, eso se dice y no se adivina. ⚠️ Y CADA COSA UNA SOLA VEZ: los cuatro puntos de arriba son el ancho completo de la respuesta —seis líneas alcanzan—. No cuentes en prosa lo que después vas a repetir en una lista, ni vuelvas a dar una cifra que ya diste: decir dos veces lo mismo con otro formato no agrega nada y hace que el dueño busque la diferencia entre los dos bloques.",
 
   componer({ figs, pregunta, semilla } = {}) {
     const c = _caso(pregunta);
@@ -262,6 +262,17 @@ export const desafiarDecision = {
     } else if ((APRUEBA.test(t) || SERMON.test(t)) && nCitadas < 2) {
       /* UN SOLO LADO NO ES UN TRADEOFF: con una cifra se puede sostener cualquier cosa. */
       v.push({ regla: "decision-de-un-solo-lado", multa: "tomas posición sobre la decisión mostrando un solo lado. Una decisión tiene dos: lo que sacrifica y lo que recupera, cada uno con su cifra del turno. Con un solo número se sostiene cualquier conclusión." });
+    }
+
+    /* ⚠️ (2 bis) DECIR LO MISMO DOS VECES · el owner lo vio en producción (v2.22): esta ruta contestó «¿debería
+     * dejar de venderle a La Polar?» con quince líneas, contra las cuatro a seis de las demás — y dentro de
+     * esas quince daba las MISMAS tres cifras dos veces, primero en prosa y después en una lista. El dueño no
+     * lee eso como generosidad: lo lee buscando en qué se diferencian los dos bloques, y no se diferencian.
+     * El umbral está medido contra el piso determinístico de las cinco rutas, que va de 4 a 6 líneas: ocho es
+     * holgado para cualquier respuesta legítima y estrecho para una que se repite. */
+    const lineas = t.split("\n").map((x) => x.trim()).filter(Boolean).length;
+    if (nCitadas > 0 && lineas > 8) {
+      v.push({ regla: "decision-repetida", multa: `la respuesta va en ${lineas} líneas: los cuatro puntos del procedimiento caben en seis. Casi siempre es lo mismo dicho dos veces —una en prosa y otra en lista—, y decir dos veces lo mismo con otro formato no agrega nada: hace que el dueño busque la diferencia entre los dos bloques. Cada cifra una vez, cada punto una vez.` });
     }
 
     /* (3) SE DICE QUÉ SE ESTÁ PESANDO — y solo se exige si el texto está RESPONDIENDO: vetar la línea honesta

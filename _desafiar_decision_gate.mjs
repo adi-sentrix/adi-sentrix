@@ -215,6 +215,19 @@ H("7 · su lista notarial — las dos fallas que el owner nombró");
     "★ un solo lado ARDE — con una cifra se sostiene cualquier conclusión");
   ok(reglas(`Estás pesando si soltarla. Pones en juego ${dosCifras[0]} y del otro lado ${dosCifras[1]}.`).length === 0,
     "…y el mismo juicio CON los dos lados pasa limpio");
+  /* ⚠️ DECIR LO MISMO DOS VECES (owner 2026-09-10, mirando producción): esta ruta contestó en quince líneas
+   * contra las cuatro a seis de las demás, y dentro de esas quince daba las MISMAS tres cifras dos veces —una
+   * en prosa y otra en lista—. El umbral se midió contra el piso determinístico de las cinco rutas. */
+  {
+    const relleno = Array.from({ length: 9 }, (_, i) => `Línea de relleno ${i} con ${dosCifras[0]} otra vez.`);
+    const largo = [`Estás pesando si soltarla.`, ...relleno].join(String.fromCharCode(10));
+    ok(reglas(largo).includes("decision-repetida"),
+      "★ una respuesta de quince líneas ARDE: los cuatro puntos caben en seis, y el resto es lo mismo dicho dos veces");
+  }
+  for (const [tag, t] of Object.entries(T)) {
+    const n = t.texto.split(String.fromCharCode(10)).map((x) => x.trim()).filter(Boolean).length;
+    ok(n <= 8, `«${tag}» cabe en el ancho del procedimiento (${n} líneas)`);
+  }
   ok(reglas("No tengo información autorizada suficiente para responder eso con el alcance pedido.").length === 0,
     "★ declinar honestamente NO arde — vetar la línea honesta dejaría el turno vacío");
   ok(reglas("").length === 0, "y un texto vacío no genera multas fantasma");

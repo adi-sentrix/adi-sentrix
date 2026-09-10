@@ -279,10 +279,14 @@ export const hipotesisDelUsuario = {
         if (sube) otros.reverse();
         if (otros.length) p.push(`Donde sí pasa lo que describes: ${otros.slice(0, 3).map((x) => `${x.n} ${x.fmt}`).join(" · ")}.`);
       }
+      /* ⚠️ EL CIERRE NOMBRA LA CUENTA, y lo pidió el owner mirando la pantalla de producción: la corrección
+       * lista OTRAS tres cuentas —«donde sí pasa: Ripley · La Polar · Easy»— y después cerraba con «si quieres
+       * LA abro por dentro». El pronombre apunta a la cuenta de la hipótesis, pero el que lee acaba de ver
+       * tres nombres más. Un deíctico a tres líneas de su antecedente no es economía: es una adivinanza. */
       p.push(variante(semilla, [
-        `¿Quieres que abra esa cuenta por dentro para ver de dónde viene el movimiento?`,
-        `Si quieres la abro por dentro y vemos qué la mueve.`,
-        `Dime si la abrimos para ver el detalle.`,
+        `¿Quieres que abra ${c.entidad} por dentro para ver de dónde viene el movimiento?`,
+        `Si quieres abro ${c.entidad} por dentro y vemos qué la mueve.`,
+        `Dime si abrimos ${c.entidad} para ver el detalle.`,
       ]));
       return p.join("\n");
     }

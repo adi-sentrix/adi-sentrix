@@ -149,6 +149,31 @@ H("3 · ★ las cinco piezas que el owner pidió, en cada plan");
     "★ y el «todavía no» viene con SU razón, no como una preferencia");
 }
 
+/* ═══ 3 bis · ★ EL PUENTE CON LA CONVERSACIÓN ═══════════════════════════════════════════════════════════════
+ * El owner lo vio en producción: venía cuatro preguntas hablando de dos cuentas, preguntó «qué hago esta
+ * semana», y el plan abrió por otro frente sin decir una palabra de lo que acababa de mirar. La prioridad
+ * estaba bien; faltaba reconocer de dónde venía la charla. ⚠️ Y el puente NOMBRA el hilo, no lo obedece: la
+ * primera acción se sigue eligiendo por tamaño medido. */
+H("3 bis · ★ reconoce de dónde venía la conversación, y sostiene igual la prioridad medida");
+{
+  const otras = FIGS.filter((f) => /· Saldo vencido$/i.test(f.label || ""))
+    .map((f) => entDe(f.label)).filter((n) => n && n !== CONCENTRA.n).slice(0, 2);
+  const hilo = otras.map((n) => ({ role: "user", text: `¿cómo viene ${n}?` }));
+  const conHilo = await answerViaAgente({ text: Q_GENERAL, history: hilo, mem: {}, scenario: ESC, callAgente: MUDO });
+  const t = String((conHilo.r && conHilo.r.text) || "");
+  ok(/Veníamos mirando/i.test(t), "★ con hilo de otras cuentas, el plan lo RECONOCE en su primera línea", t.split("\n")[0]);
+  ok(otras.length > 0 && otras.every((n) => t.includes(n)), `…y las nombra (${otras.join(" · ")})`);
+  ok(t.includes(`Esta semana haría una cosa`) && t.includes(CONCENTRA.n),
+    "★★ y NO le cambia la prioridad: sigue entrando por la cuenta que concentra el frente mayor");
+  ok(((conHilo.r && conHilo.r.agente && conHilo.r.agente.vetos) || []).length === 0, "…sin vetos del muro");
+  ok(!/Veníamos mirando/i.test(T["general"].texto), "y SIN hilo no hay puente que tender: no se dice nada");
+  const mismo = await answerViaAgente({ text: Q_GENERAL, history: [{ role: "user", text: `¿cómo viene ${CONCENTRA.n}?` }], mem: {}, scenario: ESC, callAgente: MUDO });
+  ok(!/Veníamos mirando/i.test(String((mismo.r && mismo.r.text) || "")),
+    "…ni cuando el hilo venía justo de la cuenta que sale elegida");
+  ok(!/frente de arriba/i.test(T["general"].texto),
+    "★ la referencia se nombra por lo que ES, no por su lugar en el texto");
+}
+
 /* ═══ 4 · ★ OFRECE, NO ORDENA · ADI ASESORA, NO GESTIONA ════════════════════════════════════════════════════ */
 H("4 · ★ la secuencia va en primera persona condicional — no es una lista de tareas");
 {

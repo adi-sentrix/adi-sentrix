@@ -22,7 +22,7 @@
  * PURO · determinístico · sin red. Cifras VERBATIM de la boleta. */
 
 import { formaConversacional } from "../formaConversacional.js";
-import { entidadNombrada } from "./indiceEntidades.js";
+import { entidadNombrada, entidadesNombradas } from "./indiceEntidades.js";
 import { reDeReferencia } from "../../oracle/entityRecord.js";
 import { variante } from "../variacion.js";
 
@@ -126,6 +126,27 @@ function _frentesMedidos(figs) {
     .sort((a, b) => b.v - a.v);
 }
 
+/* ── EL PUENTE CON LA CONVERSACIÓN ─────────────────────────────────────────────────────────────────────────
+ * ⚠️ LO PIDIÓ EL OWNER MIRANDO LA PANTALLA DE PRODUCCIÓN (v2.22): venía cuatro preguntas hablando de dos
+ * cuentas y de margen, preguntó «qué hago esta semana», y ADI abrió por cobranza y otra cuenta sin decir una
+ * palabra de lo que acababa de mirar. La prioridad estaba BIEN —a nivel negocio el cobro vencido pesa varias
+ * veces las condiciones— pero sin el puente parece que cambió de tema.
+ * ⚠️ Y NO ES VOLVER A LEER EL HILO PARA CAMBIARLE EL TEMA, que es lo contrario de lo que la casa protege: el
+ * plan SIGUE eligiendo por tamaño medido, y el hilo solo se NOMBRA. Reconocer de dónde viene la conversación
+ * y sostener igual la prioridad es lo que hace un asesor; lo que no hace es fingir que la charla no existió.
+ * Se leen solo los turnos del USUARIO —lo que él dijo, no lo que ADI respondió— y solo para nombrarlos. */
+function _cuentasDelHilo(ctx) {
+  const hist = (ctx && Array.isArray(ctx.history)) ? ctx.history : [];
+  const nombres = [];
+  for (const h of hist.slice(-8)) {
+    if (!h || h.role !== "user" || typeof h.text !== "string") continue;
+    let ents = [];
+    try { ents = entidadesNombradas(h.text, "cliente") || []; } catch { ents = []; }
+    for (const e of ents) if (!nombres.includes(e.nombre)) nombres.push(e.nombre);
+  }
+  return nombres.slice(-2);
+}
+
 /** quién concentra un frente: el primero de su lista por entidad, con su cifra y la del que le sigue. */
 function _quienLoConcentra(figs, frente) {
   const xs = _all(figs, frente.porEntidad)
@@ -157,7 +178,7 @@ export const planDeAccion = {
 
   entregable: "CONVIERTE LA LECTURA EN UNA SECUENCIA, sin gestionar por él. Las cinco piezas, en este orden: (1) LA PRIMERA ACCIÓN, una sola, nombrando por dónde entrar; (2) POR QUÉ ESA PRIMERO, con su cifra y contra qué se compara, y si es criterio tuyo, dilo; (3) QUÉ MIRAR PARA CONFIRMAR — la pieza que él tiene y el dato no; (4) LA SEGUNDA ACCIÓN si eso se confirma, y la alternativa si no; (5) QUÉ NO HARÍAS TODAVÍA, y por qué el dato no lo sostiene. ⚠️ OFRECE, NO ORDENES: todo en primera persona condicional —«haría», «miraría», «entraría»—, jamás en imperativo. ADI asesora, no gestiona: un «llama a Falabella» convierte al asesor en un sistema de tareas. ⚠️ Y no apoyes la primera acción en una cifra que el dato declare no reconciliada.",
 
-  componer({ figs, pregunta, semilla } = {}) {
+  componer({ figs, pregunta, semilla, ctx } = {}) {
     const c = _caso(pregunta);
     if (!c) return null;
     const frentes = _frentesMedidos(figs);
@@ -196,6 +217,13 @@ export const planDeAccion = {
     const entrada = quien.primero.n;
 
     /* 1 · LA PRIMERA ACCIÓN — una sola, y el owner insistió en eso: «haría una cosa» */
+    /* EL PUENTE, cuando la conversación venía de otro lado. Va PRIMERO y en una línea: reconoce de dónde
+     * viene la charla y sostiene igual la prioridad medida — no la cambia. Si el hilo no nombró cuentas, o
+     * nombró justo la que sale elegida, no hay puente que tender y no se dice nada. */
+    const delHilo = _cuentasDelHilo(ctx).filter((n) => n !== entrada);
+    if (delHilo.length) {
+      p.push(`Veníamos mirando ${delHilo.join(" y ")}. Mirando el negocio entero la semana no arranca ahí, y te digo por qué.`);
+    }
     p.push(`Esta semana haría una cosa: ${uno.accion(entrada)}.`);
     /* 2 · POR QUÉ ESA PRIMERO — la cifra CON su referencia, y el criterio marcado como criterio */
     /* ⚠️ CADA CIFRA CON EL NOMBRE DE SU DUEÑO AL LADO, y lo cazó el guardia de entidades en la primera
@@ -213,7 +241,9 @@ export const planDeAccion = {
     const ultimo = frentes[frentes.length - 1];
     if (ultimo && ultimo.clave !== uno.clave) {
       const otroMundo = ultimo.universo !== uno.universo;
-      p.push(`Lo que NO haría todavía: mover ${ultimo.nombre}. Pesa ${_val(ultimo.tot)} contra ${_val(uno.tot)} del frente de arriba${otroMundo ? `, y encima es otro dinero —ese sale del inventario y el primero de la venta comercial, que en este dato no cierran entre sí, así que se ordenan por urgencia y no se suman—` : ""}. Gastar la semana ahí es gastarla en lo chico.`);
+      /* la referencia se nombra por lo que ES —«contra los $12.6M del cobro vencido»—, no por su lugar en el
+       * texto: «el frente de arriba» le pide al dueño que cuente párrafos para entender contra qué se compara. */
+      p.push(`Lo que NO haría todavía: mover ${ultimo.nombre}. Pesa ${_val(ultimo.tot)} contra ${_val(uno.tot)} de ${uno.nombre}${otroMundo ? `, y encima es otro dinero —ese sale del inventario y el primero de la venta comercial, que en este dato no cierran entre sí, así que se ordenan por urgencia y no se suman—` : ""}. Gastar la semana ahí es gastarla en lo chico.`);
     } else {
       p.push(`Lo que NO haría todavía: repartir la semana en varios frentes. Con una sola cifra medida por delante, abrir tres conversaciones a la vez es quedarse sin ninguna cerrada.`);
     }

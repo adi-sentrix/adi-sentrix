@@ -172,6 +172,12 @@ H("5 · ★ el veredicto — confirma, corrige, o declara qué falta; nunca un �
   ok(sube.texto.includes(MOV.sube.fmt), `…y la corrección viaja con SU cifra (${MOV.sube.fmt})`);
   ok(/es correcta/i.test(baja.texto) && baja.texto.includes(MOV.baja.fmt),
     `★ CONFIRMA cuando el dato le da la razón (${MOV.baja.n} ${MOV.baja.fmt})`, baja.texto.slice(0, 160));
+  /* ⚠️ EL CIERRE NOMBRA LA CUENTA (owner 2026-09-10, mirando producción): la corrección lista OTRAS tres
+   * cuentas y después cerraba con «si quieres LA abro por dentro». Un deíctico a tres líneas de su antecedente
+   * no es economía, es una adivinanza. */
+  const _cierre = sube.texto.split(String.fromCharCode(10)).pop() || "";
+  ok(/(?:abro|abra|abrimos)/i.test(_cierre) && _cierre.includes(MOV.sube.n),
+    `★ el cierre NOMBRA la cuenta (${MOV.sube.n}) en vez de un «la» suelto — el texto acaba de listar otras tres`, sube.texto.slice(-90));
   ok(/tu hip[oó]tesis|contrasto/i.test(sube.texto) && /tu hip[oó]tesis|contrasto/i.test(baja.texto),
     "★ y ambas abren repitiendo QUÉ se está contrastando — si entendió mal, el dueño lo ve en la primera línea");
   /* la caja apretada de este playbook: el mecanismo medido no es la causa probada */
