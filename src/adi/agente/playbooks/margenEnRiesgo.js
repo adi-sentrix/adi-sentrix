@@ -17,6 +17,7 @@
  *
  * PURO · determinístico · sin red. Cifras VERBATIM de la boleta: este módulo selecciona y ordena, jamás calcula. */
 
+import { esConversacional } from "../formaConversacional.js";   // la forma de la pregunta manda (owner 2026-09-09)
 import { variante } from "../variacion.js";   // el cierre varía por semilla («matar la repetición», 2026-09-03)
 import { buildRolesCartera } from "../../sentrix/rolesCartera.js";   // el porqué: el papel de cada cliente y la huella de cada mecanismo
 import { etiquetaDeLaCarga } from "../../../config/businessPolicy.js";   // DE QUIÉN es el nivel de carga: jamás «tu target declarado» si el cliente no lo declaró
@@ -463,6 +464,16 @@ export const margenEnRiesgo = {
     /* el PORQUÉ ELÍPTICO entra solo si la última lectura del hilo fue de margen (ver arriba): sin hilo — los
      * gates de siempre no lo pasan — o con la última de otro tema, la puerta queda cerrada y no roba nada. */
     if (_PIDE_PORQUE_ELIPTICO.test(q) && _hiloDeMargen(ctx)) return true;
+    /* ⚠️ LA FORMA DE LA PREGUNTA MANDA (owner 2026-09-09, textual): «Margen general solo debe ganar cuando la
+     * pregunta es de margen general, NO cuando margen aparece dentro de una comparación o tradeoff.»
+     * Medido: «¿qué es más urgente, margen o cobranza?» y «¿vendo más o protejo margen?» recibían la lectura de
+     * la cartera y una prioridad ENTRE CLIENTES —cuando el usuario pedía elegir entre ÁREAS— y la cobranza,
+     * cuyo playbook también aplica, no se leía nunca.
+     * ⚠️ VA DESPUÉS DE LAS DOS PUERTAS DE SEGUIMIENTO, y no por orden estético: puesta antes, se llevaba
+     * puesto «¿y qué harías primero?» tras una lectura de margen —que es la CONTINUACIÓN legítima de este
+     * mismo playbook, no un secuestro— y el gate de playbooks lo cazó al instante. La regla del owner es que
+     * el margen no gane una conversación AJENA; su propia continuación sigue siendo suya. */
+    if (esConversacional(q)) return false;
     if (_TEMA_MARGEN.test(q) && _PIDE_LECTURA.test(q)) return true;
     if (_TEMA_CAPTURA.test(q) && _PIDE_LECTURA.test(q)) return true;
     /* ── EL LÉXICO CORTO (censo T1, 2026-09-05) ────────────────────────────────────────────────────────────

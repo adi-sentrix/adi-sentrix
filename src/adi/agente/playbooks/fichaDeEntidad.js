@@ -28,7 +28,8 @@ import { entidadNombrada, pidePuntoDeVenta } from "./indiceEntidades.js";
 import { detectSerieIntent } from "../../oracle/serieIntent.js";   // la entidad×período es del puente, no de acá
 import { etiquetaDeLaCarga } from "../../../config/businessPolicy.js";
 import { variante } from "../variacion.js";
-import { esPorQue, MARCA_HIPOTESIS } from "../porque.js";   // la ley del porqué es de la casa, no de un playbook (owner 2026-09-09)
+import { esPorQue, MARCA_HIPOTESIS } from "../porque.js";
+import { esConversacional, pideLaFicha } from "../formaConversacional.js";   // la ficha gana solo si la piden (owner 2026-09-09)
 
 const _val = (f) => String((f && (f.text || f.value)) || "");
 const _lab = (f) => String((f && f.label) || "");
@@ -92,6 +93,15 @@ function _caso(pregunta, ctx) {
    * Eso es improvisar con el eje vecino, justo lo que el owner pidió evitar: el punto de venta todavía no se
    * analiza y el turno tiene que llegar a quien declara ese límite, no a esta ficha. */
   if (pidePuntoDeVenta(q) && ent.eje === "bodega") return null;
+  /* ⚠️ LA FICHA GANA SOLO SI LA PIDEN (owner 2026-09-09, textual): «La ficha de cliente solo debe ganar cuando
+   * el usuario pide realmente la ficha o el detalle de ese cliente.»
+   * Medido en producción: tras un click en la Mesa, TRES preguntas distintas —«¿miro La Polar o Falabella?»,
+   * «¿es cierto que Falabella me deja menos?», «recuerda que Falabella es apuesta mía»— recibían la MISMA
+   * ficha, palabra por palabra. Nombrar a alguien dentro de una comparación, una hipótesis o una declaración
+   * NO es pedir su cuadro; y con la última el usuario ni siquiera preguntaba nada.
+   * La excepción es explícita: si además de la forma conversacional PIDE la ficha («dame el detalle de X y
+   * dime si me conviene»), sigue siendo suya — el usuario mandó las dos cosas y la ficha es la mitad. */
+  if (esConversacional(q) && !pideLaFicha(q)) return null;
   /* el nombre SOLO (una palabra, la que nombra a alguien) es un pedido de ficha: así se escribe en un chat.
    * Con más texto alrededor, hace falta que ese texto pida la lectura — nombrar a alguien al pasar no la pide. */
   const soloElNombre = q.trim().replace(/[¿?¡!.,]/g, "").trim().toLowerCase() === ent.nombre.toLowerCase();

@@ -701,3 +701,54 @@ No verifica el arreglo, verifica **la propiedad**, que es lo que hace que no vue
 4. Con planilla, la tabla sale intacta.
 
 Probado revirtiendo el arreglo: **8 chequeos se ponen rojos**.
+
+## 20 · EL CANDADO CONVERSACIONAL — LA FORMA DE LA PREGUNTA MANDA (owner 2026-09-09)
+
+**Su palabra:** *«Antes de construir rutas nuevas, necesitamos que las puertas actuales cedan cuando la
+pregunta es conversacional. Si la pregunta tiene forma de comparación, hipótesis, recuerdo, decisión, acción o
+contradicción, no puede ser secuestrada por ficha de cliente ni por margen general.»*
+
+### El incidente, y por qué el censo cambió el plan
+
+El owner hizo click en «Que ADI lo explique», recibió una lectura ejecutiva correcta, y preguntó dos cosas.
+Las dos salieron mal: *«¿por qué mirarías La Polar si solo pesa 2.9%?»* recibió **de dónde sale el 2.9%**, y
+*«¿por qué dices que Jumbo convierte mejor?»* recibió **la ficha de Jumbo con una pregunta sobre quiebre de
+stock** — a la cuenta que él mismo había puesto de ejemplo bueno. **Las dos razones estaban en el texto
+anterior de ADI** («el margen más alto entre las que caen, 34.0%» · «la razón está en el margen: 24.0% contra
+21.5%») y no las recuperó.
+
+Un censo de nueve rutas conversacionales (un lector por ruta, probadas contra el bucle real) encontró que **el
+problema no era que faltaran rutas: sobraban dos puertas que se tragaban la conversación**. Medido: tras un
+click, durante ocho turnos, **tres preguntas distintas recibían la misma respuesta palabra por palabra** —una
+comparación, una hipótesis y una **declaración del dueño**. La última lo delata entero: el usuario declara algo
+suyo y recibe una ficha preguntándole por el stock.
+
+### El candado
+
+`src/adi/agente/formaConversacional.js` — **siete formas**: las seis del owner más **`justificar`** (pedirle a
+ADI que defienda su propio criterio), que fue la que disparó todo. Tres puertas ceden ante ellas:
+
+| Puerta | Antes | Ahora |
+|---|---|---|
+| **Memoria del cuadro** | reabría ante cualquier frase que nombrara una fila o citara una cifra | cede; el **click** sigue mandando |
+| **Ficha de cliente** | ganaba por nombrar a alguien | gana solo si **piden la ficha** (`pideLaFicha`) |
+| **Margen general** | ganaba por decir «margen» | cede en comparación/tradeoff; **su propia continuación sigue siendo suya** |
+| **Cierre del quiebre de stock** | salía siempre | solo si **pidieron un porqué** |
+
+⚠️ **Dos calibraciones que la medición obligó:**
+1. **El orden importa.** La guarda del margen puesta antes de sus puertas de seguimiento se llevaba puesto
+   *«¿y qué harías primero?»* tras una lectura de margen — que es su continuación legítima, no un secuestro.
+   Lo cazó `_agente_playbooks_gate` al instante. Va **después**.
+2. **`\b` tras «así»** no existe en JS (tercera vez que muerde): *«¿por qué tengo caja y aun así estoy
+   apretado?»* no activaba nada.
+
+### Lo que este candado NO hace
+
+**No exige que ADI responda bien: exige que deje de responder mal**, que es lo que el owner ordenó primero y a
+propósito. Hoy esas preguntas caen a una **declinación honesta** — resultado esperado. Las rutas se construyen
+después, en el orden que él fijó: validar hipótesis · desafiar decisiones · contradicciones · comparar
+alternativas · plan de acción. Y **«caja apretada» queda como límite declarado**: no hay dato de caja.
+
+**Gate:** `_forma_conversacional_gate.mjs` (24 chequeos) — las siete formas con las frases textuales del owner,
+**17 lecturas corrientes que no se pueden tocar**, el incidente reproducido y cerrado, y las excepciones que él
+dejó escritas (la ficha pedida, el margen general, su continuación). Total de la suite: **237**.

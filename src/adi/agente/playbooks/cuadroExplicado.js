@@ -44,7 +44,8 @@ import { lecturaDeCuadro } from "../../sentrix/lecturaDeCuadro.js";
 import { getTenantId } from "../../../data/tenantStore.js";
 import { VIEW_MANIFEST } from "../../sentrix/viewManifest.js";
 import { variante } from "../variacion.js";
-import { esPorQue } from "../porque.js";   // la ley del porqué, transversal
+import { esPorQue } from "../porque.js";
+import { esConversacional } from "../formaConversacional.js";   // la memoria del cuadro no secuestra una conversación   // la ley del porqué, transversal
 
 const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -161,6 +162,16 @@ export const CUADRO_ABIERTO_TTL_ENTRADAS = 8;   // mismo criterio de caducidad q
 function _anclaDeMemoria(pregunta, ctx) {
   const m = ctx && ctx.mem && ctx.mem.cuadroAbierto && typeof ctx.mem.cuadroAbierto === "object" ? ctx.mem.cuadroAbierto : null;
   if (!m || typeof m.componentId !== "string" || !VIEW_MANIFEST[m.componentId]) return null;
+  /* ⚠️ LA MEMORIA DEL CUADRO NO SECUESTRA UNA CONVERSACIÓN (owner 2026-09-09). Este es el mecanismo exacto del
+   * incidente que el owner vio en su pantalla: tras un click, durante ocho turnos, CUALQUIER frase que nombre
+   * una fila o cite una cifra del cuadro reabría la pieza y respondía la ficha de esa fila o la procedencia de
+   * esa cifra — sin mirar lo que ADI acababa de decir. Así, «¿por qué mirarías La Polar si solo pesa 2.9%?»
+   * recibió de dónde sale el 2.9%, y «¿por qué dices que Jumbo convierte mejor?» recibió la ficha de Jumbo con
+   * una pregunta sobre quiebre de stock. Las dos respuestas estaban en el turno anterior de ADI.
+   * Las tres puertas de reapertura son para SEGUIR LEYENDO el cuadro; una comparación, una hipótesis, una
+   * declaración, una decisión, un plan o una contradicción son otra conversación, y el cuadro cede. El CLICK
+   * (`_anclaDelClick`) no pasa por acá: un botón es un pedido explícito y sigue mandando. */
+  if (esConversacional(pregunta)) return null;
   const largo = Array.isArray(ctx.history) ? ctx.history.length : 0;
   if (typeof m.turno === "number" && largo - m.turno > CUADRO_ABIERTO_TTL_ENTRADAS) return null;   // caducó
   /* ⚠️ EL ESCENARIO VIAJA EN LA MEMORIA, y esto se descubrió midiendo: sin él, la reapertura leía el cuadro con
@@ -504,8 +515,17 @@ export const cuadroExplicado = {
         const dichos = (el.fila.senales || []).filter((s) => s.alerta).map((s) => s.dice);
         p.push(`${el.nombre}${pr ? `: ${pr.label.toLowerCase()} ${pr.valor}` : ""}${dichos.length ? ` — ${dichos.slice(0, 2).join(", y ")}` : ""}.`);
         if (otras.length) p.push(`Lo que el cuadro mide de esa cuenta: ${otras.map((x) => `${x.label.toLowerCase()} ${x.valor}`).join(" · ")}.`);
-        if (c.porQue) p.push(`Por qué se mueve así no está en este cuadro: localiza dónde pasa, no la causa. Eso lo sabes tú.`);
-        p.push(`¿Qué pasó con ${el.nombre}: te compró menos por precio, cambió su mezcla de productos, hubo un quiebre de stock, o entró un competidor?`);
+        /* ⚠️ LA PREGUNTA POR LA CAUSA SOLO SALE SI PIDIERON UN PORQUÉ (owner 2026-09-09, textual): «La pregunta
+         * de quiebre de stock solo debe salir cuando se pidió un porqué, no como cierre automático de cualquier
+         * ficha.» Estaba FUERA de esta condición y se disparaba siempre: el owner la recibió preguntando por
+         * Jumbo —la cuenta que él mismo había puesto de ejemplo BUENO, que no cae— y también ante una simple
+         * comparación. Preguntarle a alguien qué le pasó a una cuenta que crece es no haber leído el turno. */
+        if (c.porQue) {
+          p.push(`Por qué se mueve así no está en este cuadro: localiza dónde pasa, no la causa. Eso lo sabes tú.`);
+          p.push(`¿Qué pasó con ${el.nombre}: te compró menos por precio, cambió su mezcla de productos, hubo un quiebre de stock, o entró un competidor?`);
+        } else {
+          p.push(variante(semilla, [`¿Te abro esa fila por dentro?`, `Puedo profundizar en ella o en otra dimensión del cuadro.`, `Dime si la abrimos.`]));
+        }
         return p.join("\n");
       }
     }
