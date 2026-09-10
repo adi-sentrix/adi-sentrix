@@ -127,7 +127,12 @@ function _rastroDeRuta(q, r, source, escenario) {
     })();
     const rastro = {
       pregunta: String(q || "").slice(0, 80),
-      via: source,                                   // natural · deterministico · sin_pago · demo · oracle
+      via: source,                                   // agente · agente-piso · oracle · deterministico · sin_pago · demo
+      /* ⚠️ EL CAMINO SE DECLARA SIEMPRE (owner 2026-09-10): «nunca más deberíamos evaluar una respuesta sin
+       * saber qué mecanismo la produjo». La prueba local se evaluó entera creyendo que medía al agente y
+       * estaba midiendo al oráculo — la caída era silenciosa. `via` dice QUIÉN respondió; `caida` dice POR QUÉ
+       * se llegó ahí cuando no fue el camino principal. */
+      caida: (r && r._caida) || null,                // { camino, porQue } cuando el turno NO salió por el camino principal
       route: (r && r.route) || null,                 // lo que declara el propio motor
       escenario: escenario || null,
       carpeta,                                       // firma del fact pack que vio el cerebro
@@ -586,7 +591,35 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
           /* RED DE RESILIENCIA · pero NUNCA MUDA (medido en la app 2026-08-14, con el natural de entonces): un
            * catch a secas hacía indistinguible la caída — cinco turnos se respondieron por el camino viejo
            * creyendo que era el nuevo. El fallback se conserva TAL CUAL; el fallo deja rastro. */
-          if (typeof console !== "undefined" && console.warn) console.warn("[ADI] el agente falló y el turno cayó al oráculo:", e);
+          if (typeof console !== "undefined" && console.warn) console.warn("[ADI] el agente falló y el turno cayó al respaldo:", e);
+          /* ── LA LEY DEL RESPALDO (owner 2026-09-10): «la red de respaldo no puede convertirse en un segundo
+           * ADI. Puede ser un segundo camino de entrega, pero no un segundo cerebro.» Y se pagó en vivo: en la
+           * prueba local el endpoint del agente no existía, cada turno caía al oráculo, y el oráculo —otro
+           * cerebro, otro muro— recomendó Falabella donde el procedimiento verificado elige La Polar, dijo
+           * «meta» (prohibida) y dio órdenes. Dos verdades, según qué camino contesta.
+           * EL PRIMER PELDAÑO DEL RESPALDO ES EL MISMO PROCEDIMIENTO SIN CEREBRO: se reintenta el agente con
+           * un cerebro mudo (cero red — lo que falló fue justamente el fetch del cerebro). Los playbooks, el
+           * muro y los pisos son locales y deterministas: si el procedimiento tiene respuesta, el usuario
+           * recibe LA MISMA conclusión con la misma ley, apenas menos pulida. El oráculo queda como red final
+           * para lo que el procedimiento no cubre — entrega, no re-análisis. */
+          try {
+            const _MUDO = async () => ({ tipo: "texto", texto: "" });
+            const { answerViaAgente } = await import("../adi/agente/bucleAgente.js");
+            const piso = await answerViaAgente({ text: q, history, mem, scenario,
+              viewContext: viewContext || (getUISignals() || {}).viewContext || null,
+              cuadro: viewContext || null, callAgente: _MUDO });
+            const est = piso && piso.r && piso.r.agente ? piso.r.agente.estado : null;
+            if (piso && piso.r && est && est !== "vacio") {
+              _ph(3);
+              if (typeof console !== "undefined" && console.warn) console.warn(`[ADI] respaldo-piso: el procedimiento respondió sin cerebro (estado=${est}) · motivo de la caída: ${String(e && e.message).slice(0, 120)}`);
+              const rr = { ...piso.r, context: { ...(context || {}), memoriaInteraccion: piso.mem || {}, conversationId },
+                _caida: { camino: "respaldo-piso", porQue: String(e && e.message || e).slice(0, 160) } };
+              return _turnFromResult(q, rr, context, "agente-piso", scenario);
+            }
+            if (typeof console !== "undefined" && console.warn) console.warn(`[ADI] respaldo-piso sin respuesta (estado=${est}) → oráculo`);
+          } catch (e2) {
+            if (typeof console !== "undefined" && console.warn) console.warn("[ADI] el piso del respaldo también falló → oráculo:", e2);
+          }
         }
       }
       // ROUTING TRACE (owner 2026-08-02 — ver modelRouter.js): closures frescas POR TURNO (nunca module-level, no

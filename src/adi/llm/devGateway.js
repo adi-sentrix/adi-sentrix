@@ -5,7 +5,7 @@
  * Reversible: sacar el plugin de vite.config = como si no existiera.
  */
 import fs from "fs";
-import { handleSpec, handleNarrate, handleAccess, handlePlan, handleNarrateC } from "./gatewayCore.js";
+import { handleSpec, handleNarrate, handleAccess, handlePlan, handleNarrateC, handleAgente } from "./gatewayCore.js";
 import { handleData } from "../../data/tenantService.server.js";   // vía 1 · el dato de UNA empresa (server-side)
 import { resolverProveedor } from "./providerConfig.js";
 
@@ -43,6 +43,13 @@ export function adiGatewayPlugin() {
       mount("/api/adi-access", handleAccess);   // demo privada · status/check/mint (sin ADI_TOKEN_SECRET = abierto)
       mount("/api/adi-plan", handlePlan);       // Arquitectura C · Pasada 1 · PLAN (detrás del flag ADI_ORACLE_ENABLED)
       mount("/api/adi-narrate-c", handleNarrateC); // Arquitectura C · Pasada 2 · NARRAR con persona
+      /* ⚠️ EL CEREBRO DEL AGENTE FALTABA, y lo que costó no fue un error visible: fue una EVALUACIÓN INVÁLIDA.
+       * El owner probó en local (2026-09-10) y cada turno del agente hacía fetch a /api/adi-agente, recibía el
+       * 404 de vite, LANZABA, y la cascada servía el ORÁCULO — sin playbooks, sin la doctrina de reformular y
+       * con un muro con menos leyes («tu meta de 3.5%» y «Renegocia Falabella» llegaron a pantalla; el
+       * contrato del agente veta ambas, medido). Nadie vio el cambio de camino porque la caída era silenciosa.
+       * La regla que deja esto: el gateway de dev monta LO MISMO que producción, o la prueba prueba otra cosa. */
+      mount("/api/adi-agente", (b) => handleAgente(b, process.env));   // el CEREBRO del agente — el mismo camino que producción
       // vía 1 (2026-08-20): el dato de UNA empresa, resuelto server-side. En dev conviene además exportar
       // ADI_DEV_TENANT_SWITCH=true para que `?tenant=empresa2` siga sirviendo para validar a mano — en producción
       // esa variable no existe y el parámetro del navegador no hace nada.
@@ -51,7 +58,7 @@ export function adiGatewayPlugin() {
       // el log declara lo que HAY, no un default inventado (owner 2026-08-13): antes imprimía `provider=anthropic`
       // cuando la variable faltaba, y ese renglón confirmaba una configuración que no existía.
       const { proveedor } = resolverProveedor(process.env);
-      console.log(`[adi-gateway dev] montado · /api/adi-spec + /api/adi-narrate · provider=${proveedor || "SIN DECLARAR (falta LLM_PROVIDER · el gateway no elige por su cuenta)"} (key del .env · server-side · lógica en gatewayCore)`);
+      console.log(`[adi-gateway dev] montado · /api/adi-spec + /api/adi-narrate + /api/adi-agente · provider=${proveedor || "SIN DECLARAR (falta LLM_PROVIDER · el gateway no elige por su cuenta)"} (key del .env · server-side · lógica en gatewayCore)`);
     },
   };
 }

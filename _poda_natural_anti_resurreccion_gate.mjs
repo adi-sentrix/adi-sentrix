@@ -145,8 +145,14 @@ H("3 · lo que lo reemplazó sigue vivo (un candado de ausencias solas se queda 
   ok(/if \(ADI_AGENTE\) \{/.test(chat) && /bucleAgente\.js/.test(chat),
     "el peldaño del AGENTE está en ChatADI (el camino principal)");
   ok(/answerViaOracle\(\{/.test(chat), "…y el ORÁCULO sigue debajo: la cascada de dos peldaños existe");
-  ok(/el agente falló y el turno cayó al oráculo/.test(readFileSync(join(ROOT, "src", "ui", "ChatADI.jsx"), "utf8")),
-    "…con el catch que deja rastro (la lección del catch mudo, conservada)");
+  /* ⚠️ LA LETRA DEL RASTRO CAMBIÓ CON LA LEY DEL RESPALDO (owner 2026-09-10: «la red de respaldo no puede
+   * ser un segundo cerebro»): entre el agente y el oráculo hay ahora un peldaño intermedio —el MISMO
+   * procedimiento con cerebro mudo— así que la caída ya no va «al oráculo» directo: va «al respaldo». La
+   * lección del catch mudo sigue intacta: el fallo deja rastro, y ahora además dice quién respondió. */
+  ok(/el agente falló y el turno cayó al respaldo/.test(readFileSync(join(ROOT, "src", "ui", "ChatADI.jsx"), "utf8")),
+    "…con el catch que deja rastro (la lección del catch mudo, conservada — la letra dice «respaldo» desde la ley del 2026-09-10)");
+  ok(/respaldo-piso/.test(readFileSync(join(ROOT, "src", "ui", "ChatADI.jsx"), "utf8")),
+    "…y el respaldo intenta PRIMERO el mismo procedimiento sin cerebro: la conclusión no cambia de dueño al caer");
   const gw = sinComentarios(readFileSync(join(ROOT, "src", "adi", "llm", "gatewayCore.js"), "utf8").replace(/\r\n/g, "\n"));
   ok(/payload\.modoNatural === true/.test(gw) && /el modo natural fue retirado/.test(readFileSync(join(ROOT, "src", "adi", "llm", "gatewayCore.js"), "utf8")),
     "el gateway FRENA con error tipado a un caller viejo con modoNatural — silencio sería peor");
