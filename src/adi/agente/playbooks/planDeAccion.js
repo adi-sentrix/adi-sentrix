@@ -49,19 +49,21 @@ const _ord = (f) => {
  * el motor lo sella `derivada_no_reconciliada`. Un plan cuya primera acción se apoya en una cifra que el
  * propio dato declara no cerrada es un plan sin piso — y el owner fue explícito: si el dato dice que no
  * cierra, no se usa como apoyo central. Se ordena por lo que SÍ es lectura. */
+/* `senal` es cómo ese frente suena en prosa — la usa el notario de la conclusión para ver si la primera
+ * acción del texto se fue a OTRO frente que el que el procedimiento eligió. Defiende, nunca escribe. */
 const _FRENTES = [
   { clave: "condiciones", re: /^Carga comercial alta · subtotal$/i, porEntidad: /· Carga comercial alta$/i,
-    universo: "comercial", nombre: "las condiciones comerciales",
+    universo: "comercial", nombre: "las condiciones comerciales", senal: /condici[oó]n|carga comercial/i,
     accion: (n) => `entrar por ${n} y revisar su condición`,
     mirar: "si esa carga se pactó a cambio de volumen o se fue dando sola",
     noSostiene: "el dato mide cuánto se cede, no qué se negoció a cambio", siConfirma: "movería esa condición en la próxima renovación" },
   { clave: "cobro", re: /^Saldo vencido · total$/i, porEntidad: /· Saldo vencido$/i,
-    universo: "comercial", nombre: "el cobro vencido",
+    universo: "comercial", nombre: "el cobro vencido", senal: /cobranza|\bcobro\b|vencid/i,
     accion: (n) => `entrar por ${n} y ordenar su cobranza`,
     mirar: "si ese vencido es de una factura en disputa o de plazo simplemente pasado",
     noSostiene: "el dato trae el saldo, no el motivo del atraso", siConfirma: "pondría esa cobranza primera en la semana" },
   { clave: "capital", re: /^Capital frenado · subtotal$/i, porEntidad: /· Capital frenado$/i,
-    universo: "inventario", nombre: "el capital inmovilizado",
+    universo: "inventario", nombre: "el capital inmovilizado", senal: /reposici[oó]n|inventario|bodega|stock/i,
     accion: (n) => `frenar la reposición de ${n}`,
     mirar: "si ese artículo tiene una compra ya comprometida",
     noSostiene: "el dato no trae órdenes de compra ni plazos de proveedor", siConfirma: "frenaría el próximo pedido de ese artículo" },
@@ -156,6 +158,29 @@ function _quienLoConcentra(figs, frente) {
   return xs.length ? { primero: xs[0], segundo: xs[1] || null, cola: xs.length > 2 } : null;
 }
 
+/* ── LA PRIMERA ACCIÓN ES DEL PROCEDIMIENTO, NO DEL NARRADOR (ley del owner, 2026-09-10) ───────────────────
+ * El frente que abre la semana y la cuenta por la que se entra se derivan UNA vez acá, y de esta función
+ * comen los dos lados: `componer` la escribe y `listaNotarial` la defiende. El narrador puede explicar el
+ * plan más corto, más simple o para otro lector; lo que no puede es cambiarle la primera acción — ni el
+ * frente ni su dueño —, porque esa elección salió de las cifras medidas, no de su redacción. */
+function _primeraAccion(figs) {
+  const frentes = _frentesMedidos(figs);
+  if (!frentes.length) return null;
+  const uno = frentes[0];
+  const quien = _quienLoConcentra(figs, uno);
+  if (!quien) return null;
+  return { tipo: "primera-accion", frente: uno, entrada: quien.primero.n, frentes, quien };
+}
+
+/** LA CONCLUSIÓN del procedimiento para esta pregunta con esta boleta — o null si la ruta no aplica. */
+export function conclusionDe(figs, pregunta) {
+  return _caso(pregunta) ? _primeraAccion(figs) : null;
+}
+
+/* darla por sin urgencia también es cambiarla — la misma forma que el veto de comparar, con las mismas razones */
+const _NIEGA = (n) => new RegExp(
+  `${_esc(n)}[^.\\n]{0,60}?\\b(?:no (?:necesita|requiere|urge|corre prisa|amerita)|no es (?:la |lo )?(?:prioridad|urgente|urgencia)|puede esperar)`, "i");
+
 export const planDeAccion = {
   nombre: "plan-de-accion",
 
@@ -181,7 +206,9 @@ export const planDeAccion = {
   componer({ figs, pregunta, semilla, ctx } = {}) {
     const c = _caso(pregunta);
     if (!c) return null;
-    const frentes = _frentesMedidos(figs);
+    /* la primera acción sale de la MISMA función que defiende el notario (ley del 2026-09-10) */
+    const pa = _primeraAccion(figs);
+    const frentes = pa ? pa.frentes : _frentesMedidos(figs);
     if (!frentes.length) return null;
     const nivel = _find(figs, reDeReferencia("pctRebate"));
     const p = [];
@@ -211,10 +238,9 @@ export const planDeAccion = {
     }
 
     /* ── (b) EL PLAN DEL NEGOCIO · la secuencia se ordena por lo que está medido ───────────────────────────── */
-    const [uno, dos] = frentes;
-    const quien = _quienLoConcentra(figs, uno);
-    if (!quien) return null;
-    const entrada = quien.primero.n;
+    if (!pa) return null;
+    const { frente: uno, quien, entrada } = pa;
+    const dos = frentes[1];
 
     /* 1 · LA PRIMERA ACCIÓN — una sola, y el owner insistió en eso: «haría una cosa» */
     /* EL PUENTE, cuando la conversación venía de otro lado. Va PRIMERO y en una línea: reconoce de dónde
@@ -292,6 +318,31 @@ export const planDeAccion = {
     /* (3) EL CRITERIO SE MARCA como criterio — lo que es juicio no puede pasar por lectura del dato */
     if (!/criterio m[ií]o|es criterio|yo (?:entrar[ií]a|har[ií]a|prefiero)|prefiero/i.test(t)) {
       v.push({ regla: "plan-sin-criterio-marcado", multa: "el orden que propones es un juicio tuyo y no lo dices. Marca cuál parte es criterio —«es criterio mío», «prefiero»— para que el dueño sepa qué le está diciendo el dato y qué se lo estás diciendo tú." });
+    }
+    /* ⚠️ (4) LA PRIMERA ACCIÓN ES DEL PROCEDIMIENTO, NO DEL NARRADOR (ley del owner, 2026-09-10). Se busca la
+     * cláusula donde el texto declara su primera acción y se verifica que sea LA MISMA que derivó el
+     * procedimiento — mismo frente, mismo dueño. Si el texto no declara ninguna, ya lo multó (1) por pieza
+     * faltante y acá no se adivina. La derivación es la del composer (`_primeraAccion`): una verdad. */
+    const pa = _primeraAccion(figs);
+    if (pa) {
+      const m1 = /(?:esta semana har[ií]a|una cosa:|primero har[ií]a|entrar[ií]a por)[^.\n]*/i.exec(t);
+      const reEntrada = new RegExp(_esc(pa.entrada).replace(/\s+/g, "\\s+"), "i");
+      if (m1 && !reEntrada.test(m1[0])) {
+        /* ⚠️ los candidatos a «otro dueño» son las cuentas MEDIDAS EN ALGÚN FRENTE — no todo lo que tenga un
+         * «·» en el rótulo: «Contribución no capturada · subtotal» partido por el punto medio parece una
+         * entidad y no lo es, y una lista sucia acá es un falso positivo esperando su turno. */
+        const entidades = [...new Set(_FRENTES.flatMap((f) => _all(figs, f.porEntidad).map((x) => _entidadDe(_lab(x)))).filter(Boolean))];
+        const otra = entidades.find((n) => n !== pa.entrada && new RegExp(`(?:^|[^\\wáéíóúñ])${_esc(n)}(?![\\wáéíóúñ])`, "i").test(m1[0]));
+        const otroFrente = _FRENTES.find((f) => f.clave !== pa.frente.clave && f.senal.test(m1[0]));
+        if (otra || otroFrente) {
+          v.push({ regla: "conclusion-cambiada", multa: `tu primera acción arranca por ${otra ? `«${otra}»` : otroFrente.nombre}, y el procedimiento eligió ${pa.frente.accion(pa.entrada)} con las cifras de esta boleta. La conclusión es del procedimiento, no del narrador: puedes explicar el plan para quien te lo pidieron, no cambiarle la primera acción.` });
+        } else if (!reEntrada.test(t)) {
+          v.push({ regla: "conclusion-cambiada", multa: `la primera acción quedó sin su dueño: el procedimiento eligió entrar por ${pa.entrada} con las cifras de esta boleta y tu plan no lo nombra. Adaptar el plan no es cambiarle el sujeto a la primera acción.` });
+        }
+      }
+      if (_NIEGA(pa.entrada).test(t)) {
+        v.push({ regla: "conclusion-cambiada", multa: `dices que ${pa.entrada} no corre prisa, y es justamente por donde el procedimiento entra primero con las cifras de esta boleta. La conclusión es del procedimiento, no del narrador: la primera acción no se da vuelta al redactarla.` });
+      }
     }
     return v;
   },

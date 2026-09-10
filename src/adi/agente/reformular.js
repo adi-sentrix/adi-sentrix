@@ -109,6 +109,11 @@ const _NO_TENGO = /no tengo (?:informaci[oó]n|datos?)\s+(?:autorizada|autorizad
  * ya lo tiene documentado con las mismas palabras; acá volvió a morder, y su síntoma es el peor de todos: el
  * veto que existe para cazar la cifra inventada la dejaba pasar. */
 const _CIFRA = /\$[\d.,]+\s?[KMB]?|[\d.,]+\s*(?:%|pp\b)/gi;
+const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/* la CONCLUSIÓN de la respuesta anterior, si la declaró con las formas de la casa: la elección de comparar
+ * («Yo entraría por X») o la primera acción del plan («una cosa: entrar por X…»). Es lectura del texto ya
+ * aprobado — el material legítimo de este turno — no una re-derivación. */
+const _ELECCION_PREVIA = /\byo entrar[ií]a por ([^.:\n]{1,40})|\buna cosa: (?:entrar por|ordenar la cobranza de|frenar la reposici[oó]n de)\s+([^.\n]{1,40}?)(?=\s+y[\s,]|[.\n]|$)/i;
 
 /**
  * vetosDeReformular(texto, ctx) → [{ regla, multa }]
@@ -138,6 +143,29 @@ export function vetosDeReformular(texto, { pregunta = "", previa = null, sitio =
     const nuevas = [...new Set((t.match(_CIFRA) || []).map(_canon))].filter((x) => !antes.has(x));
     if (nuevas.length) {
       v.push({ regla: "reformular-cifra-nueva", multa: `«${nuevas[0]}» no estaba en la respuesta que te pidieron reformular. Reformular es decir lo mismo de otra manera: si aparece una cifra nueva, o la inventaste o saliste a leer sin que te lo pidieran. Usa las cifras que ya diste, con su mismo dueño.` });
+    }
+  }
+
+  /* ⚠️ (d) LA CONCLUSIÓN PREVIA NO SE INVIERTE (ley del owner, 2026-09-10: «la conclusión es del
+   * procedimiento, no del narrador» — y reformular es EL turno donde el narrador queda a solas con el texto).
+   * Si la respuesta anterior eligió un camino, decirle a otro lector que ese camino no corre prisa —o poner
+   * primero el descartado— no es reformular: es una segunda opinión con la autoridad de lo ya verificado. */
+  if (hayPrevia) {
+    const mEl = _ELECCION_PREVIA.exec(previa);
+    const elegida = mEl ? String(mEl[1] || mEl[2] || "").trim() : "";
+    if (elegida) {
+      const invierte = new RegExp(
+        `${_esc(elegida)}[^.\\n]{0,60}?\\b(?:no (?:necesita|requiere|urge|corre prisa|amerita)|puede esperar|no es (?:la )?prioridad)` +
+        `|\\bno entrar[ií]a por (?:la |el )?${_esc(elegida)}`, "i");
+      if (invierte.test(t)) {
+        v.push({ regla: "reformular-invierte-conclusion", multa: `la respuesta que te pidieron reformular eligió ${elegida}, y tu versión lo da vuelta. Reformular cambia el vocabulario, el largo o el destinatario — jamás la conclusión: es la misma respuesta para otro lector, no una segunda opinión.` });
+      }
+    }
+    /* (e) Y LA CONCLUSIÓN NO PIERDE SU CIFRA CLAVE — la doctrina §3 lo dice con todas sus letras: «más corto»
+     * no es quitar el número, es quitar el rodeo. Sin ninguna cifra, lo que queda es una opinión. */
+    const teniaCifras = (previa.match(_CIFRA) || []).length > 0;
+    if (teniaCifras && !(t.match(_CIFRA) || []).length) {
+      v.push({ regla: "reformular-pierde-la-cifra", multa: "la respuesta original sostenía su conclusión con cifras y tu versión no trae ninguna. «Más corto» o «para otro lector» no es quitar el número: es quitar el rodeo. La conclusión viaja con su cifra clave — la misma de antes, con el mismo dueño." });
     }
   }
 

@@ -209,6 +209,50 @@ function _contraste(c, figs) {
   return L;
 }
 
+/* ── EL VEREDICTO ES DEL PROCEDIMIENTO, NO DEL NARRADOR (ley del owner, 2026-09-10) ────────────────────────
+ * Confirmar o corregir la hipótesis se deriva UNA vez acá, y de esta función comen los dos lados: `componer`
+ * lo escribe y `listaNotarial` lo defiende. El narrador puede explicar el veredicto con otras palabras; lo
+ * que no puede es invertirlo — confirmarle al dueño lo que el dato desmiente es la peor respuesta posible de
+ * esta ruta, y era posible justamente porque el veredicto vivía solo en la redacción.
+ * ⚠️ Y AL EXTRAERLO APARECIÓ UNA INVERSIÓN LATENTE: en el caso benchmark, «¿está mejorando?» (alza) recibía
+ * «sí» cuando la cuenta estaba POR DEBAJO del benchmark — el «sí» respondía a la posición, no a la dirección
+ * que el usuario afirmó. El veredicto ahora concuerda con la dirección de la hipótesis. */
+function _veredicto(c, figs) {
+  if (c.tema.clave === "compra" && c.entidad) {
+    const mov = _movimientos(figs);
+    const suyo = mov.find((x) => x.n === c.entidad);
+    if (!suyo) return null;
+    const sube = suyo.v > 0;
+    const acierta = (c.direccion === "baja" && !sube) || (c.direccion === "alza" && sube);
+    return { caso: "compra", veredicto: acierta ? "confirma" : "corrige", mov, suyo, sube };
+  }
+  if (c.entidad && c.tema.clave !== "compra" && c.direccion !== "atribucion") {
+    const suMargen = _find(figs, new RegExp(`^${_esc(c.entidad)} · Margen$`, "i"));
+    const bench = _find(figs, /^Benchmark de margen$/i);
+    if (!suMargen || !bench) return { caso: "margen", veredicto: null, suMargen, bench, debajo: null };
+    const mNum = _num(suMargen), bNum = _num(bench);
+    const debajo = Number.isFinite(mNum) && Number.isFinite(bNum) ? mNum < bNum : null;
+    const acierta = debajo === null ? null : c.direccion === "baja" ? debajo : !debajo;
+    return { caso: "margen", veredicto: acierta === null ? null : acierta ? "confirma" : "corrige", suMargen, bench, debajo };
+  }
+  /* atribución («creo que es por descuentos») no dicta un sí/no: el contraste mide la huella y declara que la
+   * causa no está autorizada — y la causa inventada ya tiene su propio cerrojo transversal. */
+  return null;
+}
+
+/** LA CONCLUSIÓN del procedimiento — el veredicto que el narrador no puede invertir — o null. */
+export function conclusionDe(figs, pregunta) {
+  const c = _caso(pregunta);
+  if (!c) return null;
+  const vd = _veredicto(c, figs);
+  return vd && vd.veredicto ? { tipo: "veredicto", veredicto: vd.veredicto } : null;
+}
+
+/* cómo suena en prosa CONFIRMAR y cómo suena CORREGIR — frases inequívocas, nada de cazar un «sí» o un «no»
+ * sueltos: la regla que muerde prosa buena se termina apagando (la lección de plan-que-ordena, acá también) */
+const _AFIRMA = /\bes correcta\b|\bes correcto\b|\best[aá]s en lo (?:correcto|cierto)\b|\b(?:tienes|ten[eé]s) raz[oó]n\b|\bla confirmo\b|\bconfirmada\b|\btal como (?:supon[ií]as|dec[ií]as|dices)\b/i;
+const _CORRIGE = /\bno es lo que dice\b|\bno es (?:correcta|correcto|cierto)\b|\bte equivocas\b|\bal rev[eé]s de lo que\b|\bes al rev[eé]s\b|\bel dato dice lo contrario\b|\bla corrijo\b/i;
+
 export const hipotesisDelUsuario = {
   nombre: "hipotesis-del-usuario",
 
@@ -259,14 +303,13 @@ export const hipotesisDelUsuario = {
     if (!c) return null;
     const p = [];
 
-    /* ── (a) LA HIPÓTESIS SOBRE UNA CUENTA Y SU COMPRA · el caso con veredicto más limpio ─────────────────── */
+    /* ── (a) LA HIPÓTESIS SOBRE UNA CUENTA Y SU COMPRA · el caso con veredicto más limpio ───────────────────
+     * el veredicto sale de la MISMA función que defiende el notario (ley del 2026-09-10) */
     if (c.tema.clave === "compra" && c.entidad) {
-      const mov = _movimientos(figs);
-      const suyo = mov.find((x) => x.n === c.entidad);
-      if (!suyo) return null;
-      const delta = suyo.v;
-      const sube = delta > 0;
-      const acierta = (c.direccion === "baja" && !sube) || (c.direccion === "alza" && sube);
+      const vd = _veredicto(c, figs);
+      if (!vd) return null;
+      const { mov, suyo, sube } = vd;
+      const acierta = vd.veredicto === "confirma";
       p.push(`Tu hipótesis: ${c.entidad} está comprando ${c.direccion === "baja" ? "menos" : "más"}. La contrasto contra el dato.`);
       if (acierta) {
         p.push(`Es correcta: ${c.entidad} va ${suyo.fmt} contra el período comparable.`);
@@ -314,8 +357,10 @@ export const hipotesisDelUsuario = {
      * PERO «está dejando menos» es ambiguo a propósito: puede ser menos QUE EL BENCHMARK (medido) o menos QUE
      * ANTES (no está en esta lectura). Se responde lo que sí se puede y se DECLARA lo otro, en vez de elegir
      * en silencio la lectura que conviene. */
-    const suMargen = _find(figs, new RegExp(`^${_esc(c.entidad)} · Margen$`, "i"));
-    const bench = _find(figs, /^Benchmark de margen$/i);
+    /* el veredicto sale de la MISMA función que defiende el notario — y concuerda con la DIRECCIÓN que el
+     * usuario afirmó, no con la posición a secas (la inversión latente que esta extracción destapó) */
+    const vd = _veredicto(c, figs);
+    const suMargen = vd && vd.suMargen, bench = vd && vd.bench;
     if (!suMargen || !bench) {
       const suyas = _all(figs, new RegExp(`^${_esc(c.entidad)} · `, "i")).slice(0, 3);
       if (!suyas.length) return null;
@@ -324,14 +369,16 @@ export const hipotesisDelUsuario = {
       p.push(`Con esta lectura no puedo darte el veredicto: no trae contra qué compararla. Dime contra qué la mides y la cierro.`);
       return p.join("\n");
     }
-    const mNum = _num(suMargen), bNum = _num(bench);
-    const debajo = Number.isFinite(mNum) && Number.isFinite(bNum) ? mNum < bNum : null;
     const enJuego = _find(figs, new RegExp(`^${_esc(c.entidad)} · Valor en juego$`, "i"));
     p.push(`Tu hipótesis: ${c.entidad} está ${c.direccion === "baja" ? "dejando menos" : "mejorando"}. La contrasto contra el dato.`);
-    if (debajo === true) {
-      p.push(`Contra el benchmark declarado de ${_val(bench)}, sí: ${c.entidad} cierra en ${_val(suMargen)}${enJuego ? `, y esa diferencia vale ${_val(enJuego)}` : ""}.`);
-    } else if (debajo === false) {
-      p.push(`Contra el benchmark declarado de ${_val(bench)}, no: ${c.entidad} cierra en ${_val(suMargen)}, o sea está por encima de la referencia del negocio.`);
+    if (vd.veredicto === "confirma") {
+      p.push(vd.debajo
+        ? `Contra el benchmark declarado de ${_val(bench)}, sí: ${c.entidad} cierra en ${_val(suMargen)}${enJuego ? `, y esa diferencia vale ${_val(enJuego)}` : ""}.`
+        : `Contra el benchmark declarado de ${_val(bench)}, sí: ${c.entidad} cierra en ${_val(suMargen)}, por encima de la referencia del negocio.`);
+    } else if (vd.veredicto === "corrige") {
+      p.push(vd.debajo
+        ? `Contra el benchmark declarado de ${_val(bench)}, no: ${c.entidad} cierra en ${_val(suMargen)}, por debajo de la referencia${enJuego ? ` — y esa diferencia vale ${_val(enJuego)}` : ""}.`
+        : `Contra el benchmark declarado de ${_val(bench)}, no: ${c.entidad} cierra en ${_val(suMargen)}, o sea está por encima de la referencia del negocio.`);
     } else {
       p.push(`Lo que el dato dice de esa cuenta: margen ${_val(suMargen)}, contra un benchmark declarado de ${_val(bench)}.`);
     }
@@ -368,6 +415,20 @@ export const hipotesisDelUsuario = {
     const citaAlgo = (Array.isArray(figs) ? figs : []).some((f) => _val(f) && /\d/.test(_val(f)) && t.includes(_val(f)));
     if (citaAlgo && !/tu hip[oó]tesis|lo que (?:me )?propones|est[aá]s? (?:diciendo|planteando|suponiendo)|contrasto/i.test(t)) {
       v.push({ regla: "hipotesis-no-repetida", multa: "no dices QUÉ estás contrastando. Repite la hipótesis del usuario en una línea antes del veredicto: si la entendiste mal, tiene que poder verlo ahí y no después de leer una respuesta a otra pregunta." });
+    }
+    /* ⚠️ (3) EL VEREDICTO ES DEL PROCEDIMIENTO, NO DEL NARRADOR (ley del owner, 2026-09-10). Con cifras en la
+     * mano, el procedimiento ya sabe si la hipótesis se confirma o se corrige — es la MISMA derivación que
+     * escribe el composer (`_veredicto`), no una copia. Un texto que la invierte le confirma al dueño lo que
+     * su dato desmiente: la falla fundacional de esta ruta, ahora con cifra y todo. Solo se cobra con
+     * evidencia citada — (1) ya cubre el veredicto sin lectura. */
+    if (citaAlgo) {
+      const vd = _veredicto(c, figs);
+      if (vd && vd.veredicto === "confirma" && _CORRIGE.test(t)) {
+        v.push({ regla: "conclusion-cambiada", multa: "corriges la hipótesis y el procedimiento la CONFIRMA con la cifra de esta boleta. El veredicto es del procedimiento, no del narrador: puedes explicarlo o resumirlo, no invertirlo. Vuelve al veredicto medido con su cifra." });
+      }
+      if (vd && vd.veredicto === "corrige" && _AFIRMA.test(t)) {
+        v.push({ regla: "conclusion-cambiada", multa: "le confirmas la hipótesis y el procedimiento la CORRIGE con la cifra de esta boleta: el dato dice lo contrario de lo que él supone. El veredicto es del procedimiento, no del narrador — confirmarle una creencia que su propio dato desmiente es la peor respuesta de esta ruta." });
+      }
     }
     return v;
   },

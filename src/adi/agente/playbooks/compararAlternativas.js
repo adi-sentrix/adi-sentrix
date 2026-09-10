@@ -130,6 +130,99 @@ const _PRECIO_FRENTE = {
   capital: { re: /^Capital frenado · subtotal$|^Capital frenado · total$/i, nombre: "el capital en inventario", que: "es lo que está inmovilizado en bodega" },
 };
 
+/* ── LA CONCLUSIÓN ES DEL PROCEDIMIENTO, NO DEL NARRADOR (ley del owner, 2026-09-10) ───────────────────────
+ * La elección —cuál camino va primero, o que el dato no elige— se deriva UNA vez acá, y de estas funciones
+ * comen los dos lados: `componer` la escribe y `listaNotarial` la defiende. No es una copia del criterio: es
+ * el criterio. El narrador puede explicarla, resumirla o adaptarla al destinatario; lo que no puede es elegir
+ * el otro camino, dar por resuelto el elegido, ni inventar una elección donde el dato no eligió. La falla se
+ * vio en la pantalla del owner el mismo día: el camino de respaldo recomendó renegociar la cuenta descartada
+ * y dio por sana justo la que el procedimiento había elegido — misma boleta, conclusión opuesta. */
+function _ladosDeCuentas(opciones, figs) {
+  const [A, B] = opciones;
+  const g = (e, re) => _find(figs, new RegExp(`^${_esc(e)} · ${re}$`, "i"));
+  const nivel = _find(figs, reDeReferencia("pctRebate"));
+  const lado = (e) => {
+    const contrib = g(e, "Contribución"), carga = g(e, "Carga comercial"), yoy = g(e, "YoY"), margen = g(e, "Margen");
+    if (!contrib) return null;
+    /* el precio: si la cuenta CAE, recuperarla vale lo que dejó de comprar; si CEDE de más, renegociarla
+     * vale volver al nivel declarado. Las dos cosas se dicen con su referencia al lado. */
+    const cae = yoy && Number.isFinite(_ord(yoy)) && _ord(yoy) < 0;
+    const cede = carga && nivel && Number.isFinite(_ord(carga)) && Number.isFinite(_ord(nivel)) && _ord(carga) > _ord(nivel);
+    /* ⚠️ SIN LA REFERENCIA NO SE AFIRMA NADA. La primera versión decía «no cede de más» cuando el nivel
+     * declarado no venía en la boleta — y la cuenta sí cedía. Una carga sin su referencia no autoriza
+     * ninguna de las dos conclusiones: se dice la cifra y se declara que falta contra qué medirla. */
+    const precio = cae ? `viene ${_val(yoy)} contra el período comparable, así que recuperarla es recuperar eso`
+      : cede ? `cede ${_val(carga)} de carga comercial contra un nivel declarado de ${_val(nivel)}, y ahí está lo que una renegociación devuelve`
+      : (carga && nivel) ? `no cae, y su carga va ${_val(carga)} dentro del nivel declarado de ${_val(nivel)}${margen ? `, con el margen en ${_val(margen)}` : ""}: no hay un monto suelto que recuperar`
+      : carga ? `no cae, y cede ${_val(carga)} de carga comercial — pero esta lectura no trae el nivel contra el que se mide, así que no te puedo decir si eso es mucho o poco`
+      : `no cae contra el período comparable${margen ? `, y su margen cierra en ${_val(margen)}` : ""}`;
+    return { e, contrib, texto: `${e} aporta ${_val(contrib)} hoy, y ${precio}.`, urgencia: cae ? Math.abs(_ord(yoy)) : cede ? _ord(carga) - _ord(nivel) : 0, cae, cede };
+  };
+  const la = lado(A), lb = lado(B);
+  return la && lb ? { la, lb } : null;
+}
+/* la decisión, con el MISMO orden de evaluación que siempre tuvo el composer */
+function _eleccionDeCuentas(la, lb) {
+  if (la.cae !== lb.cae && (la.cae || lb.cae)) {
+    const cayendo = la.cae ? la : lb, otro = la.cae ? lb : la;
+    return { regla: "se-esta-yendo", cayendo, otro, eleccion: [cayendo.e], descartada: [otro.e] };
+  }
+  if (la.cede && lb.cede) {
+    const mayor = la.urgencia >= lb.urgencia ? la : lb, menor = la.urgencia >= lb.urgencia ? lb : la;
+    return { regla: "cede-mas", mayor, eleccion: [mayor.e], descartada: [menor.e] };
+  }
+  return { regla: "empate", eleccion: null, descartada: null, opciones: [la.e, lb.e] };
+}
+function _ladosDeDominios(opciones, figs) {
+  const lados = opciones.map((k) => {
+    const d = _PRECIO_FRENTE[k];
+    const f = _find(figs, d.re);
+    return f ? { k, d, f, v: _ord(f) } : null;
+  });
+  return lados.some((x) => !x) ? null : lados;
+}
+/* las palabras con que cada frente puede aparecer en prosa — para DEFENDER la elección, nunca para mostrarla */
+const _FORMAS_FRENTE = {
+  margen: ["el margen", "las condiciones"],
+  cobranza: ["la cobranza", "el cobro"],
+  capital: ["el capital en inventario", "el capital frenado", "el inventario"],
+};
+function _eleccionDeDominios(x, y) {
+  const mayor = x.v >= y.v ? x : y, menor = x.v >= y.v ? y : x;
+  if (Number.isFinite(x.v) && Number.isFinite(y.v) && mayor.v >= menor.v * 2) {
+    return { regla: "tamano", mayor, eleccion: _FORMAS_FRENTE[mayor.k], descartada: _FORMAS_FRENTE[menor.k] };
+  }
+  return { regla: "empate", mayor, eleccion: null, descartada: null, opciones: [..._FORMAS_FRENTE[x.k], ..._FORMAS_FRENTE[y.k]] };
+}
+/* crecer vs proteger no es empate y el porqué está escrito en el composer: crecer sobre una condición cara
+ * multiplica la fuga. La elección es fija; lo variable es la cifra que la sostiene. */
+const _ELECCION_ESTRATEGIAS = { regla: "condicion-primero", eleccion: ["proteger margen", "la condición"], descartada: ["el volumen", "vender más", "crecer"] };
+
+/** LA CONCLUSIÓN del procedimiento para esta pregunta con esta boleta — o null si la ruta no aplica o el dato
+ *  no alcanza. `eleccion`/`descartada` traen las formas con que ese camino se nombra en prosa; `eleccion:
+ *  null` significa que EL DATO NO ELIGIÓ, y eso también es una conclusión que el narrador no puede pisar. */
+export function conclusionDe(figs, pregunta) {
+  const c = _caso(pregunta);
+  if (!c) return null;
+  if (c.tipo === "cuentas") {
+    const d = _ladosDeCuentas(c.opciones, figs);
+    return d ? { tipo: "cuentas", ..._eleccionDeCuentas(d.la, d.lb) } : null;
+  }
+  if (c.tipo === "dominios") {
+    const lados = _ladosDeDominios(c.opciones, figs);
+    return lados ? { tipo: "dominios", ..._eleccionDeDominios(lados[0], lados[1]) } : null;
+  }
+  return _find(figs, /^Carga comercial alta · subtotal$/i) ? { tipo: "estrategias", ..._ELECCION_ESTRATEGIAS } : null;
+}
+
+/* cómo se ve, en prosa, ELEGIR un camino o DARLO POR RESUELTO. Verbos de elección anclados al nombre; nada de
+ * cazar la palabra suelta, que es como nacen los falsos positivos que apagan reglas. */
+const _ELIGE = (n) => new RegExp(
+  `(?:yo entrar[ií]a por|entrar[ií]a por|empezar[ií]a (?:por|con)|empieza (?:por|con)|partir[ií]a por|la prioridad es|priorizar[ií]a|me quedo con|atacar[ií]a)\\s+(?:la |el |las |los )?${_esc(n)}(?![\\wáéíóúñ])` +
+  `|(?:^|[.:;\\n]\\s*)(?:la |el )?${_esc(n)}\\s+primero(?![\\wáéíóúñ])`, "i");
+const _NIEGA = (n) => new RegExp(
+  `${_esc(n)}[^.\\n]{0,60}?\\b(?:no (?:necesita|requiere|urge|corre prisa|amerita)|no es (?:la |lo )?(?:prioridad|urgente|urgencia)|puede esperar)`, "i");
+
 export const compararAlternativas = {
   nombre: "comparar-alternativas",
 
@@ -162,41 +255,24 @@ export const compararAlternativas = {
     if (!c) return null;
     const p = [];
 
-    /* ── (a) DOS CUENTAS · cada camino vale lo que esa cuenta recupera ─────────────────────────────────────── */
+    /* ── (a) DOS CUENTAS · cada camino vale lo que esa cuenta recupera ───────────────────────────────────────
+     * la lectura de cada lado y LA ELECCIÓN salen de las mismas funciones que alimentan a `conclusionDe`: el
+     * notario de abajo defiende exactamente lo que acá se escribe, no una copia (ley del 2026-09-10). */
     if (c.tipo === "cuentas") {
-      const [A, B] = c.opciones;
-      const g = (e, re) => _find(figs, new RegExp(`^${_esc(e)} · ${re}$`, "i"));
-      const nivel = _find(figs, reDeReferencia("pctRebate"));
-      const lado = (e) => {
-        const contrib = g(e, "Contribución"), carga = g(e, "Carga comercial"), yoy = g(e, "YoY"), margen = g(e, "Margen");
-        if (!contrib) return null;
-        /* el precio: si la cuenta CAE, recuperarla vale lo que dejó de comprar; si CEDE de más, renegociarla
-         * vale volver al nivel declarado. Las dos cosas se dicen con su referencia al lado. */
-        const cae = yoy && Number.isFinite(_ord(yoy)) && _ord(yoy) < 0;
-        const cede = carga && nivel && Number.isFinite(_ord(carga)) && Number.isFinite(_ord(nivel)) && _ord(carga) > _ord(nivel);
-        /* ⚠️ SIN LA REFERENCIA NO SE AFIRMA NADA. La primera versión decía «no cede de más» cuando el nivel
-         * declarado no venía en la boleta — y la cuenta sí cedía. Una carga sin su referencia no autoriza
-         * ninguna de las dos conclusiones: se dice la cifra y se declara que falta contra qué medirla. */
-        const precio = cae ? `viene ${_val(yoy)} contra el período comparable, así que recuperarla es recuperar eso`
-          : cede ? `cede ${_val(carga)} de carga comercial contra un nivel declarado de ${_val(nivel)}, y ahí está lo que una renegociación devuelve`
-          : (carga && nivel) ? `no cae, y su carga va ${_val(carga)} dentro del nivel declarado de ${_val(nivel)}${margen ? `, con el margen en ${_val(margen)}` : ""}: no hay un monto suelto que recuperar`
-          : carga ? `no cae, y cede ${_val(carga)} de carga comercial — pero esta lectura no trae el nivel contra el que se mide, así que no te puedo decir si eso es mucho o poco`
-          : `no cae contra el período comparable${margen ? `, y su margen cierra en ${_val(margen)}` : ""}`;
-        return { e, contrib, texto: `${e} aporta ${_val(contrib)} hoy, y ${precio}.`, urgencia: cae ? Math.abs(_ord(yoy)) : cede ? _ord(carga) - _ord(nivel) : 0, cae, cede };
-      };
-      const la = lado(A), lb = lado(B);
-      if (!la || !lb) return null;
+      const d = _ladosDeCuentas(c.opciones, figs);
+      if (!d) return null;
+      const { la, lb } = d;
       p.push(`Los dos caminos, con precio.`);
       p.push(`· ${la.texto}`);
       p.push(`· ${lb.texto}`);
       /* ELEGIR o MARCAR EL TRADEOFF — y la diferencia la decide el dato, no una plantilla */
-      if (la.cae !== lb.cae && (la.cae || lb.cae)) {
-        const cayendo = la.cae ? la : lb, otro = la.cae ? lb : la;
+      const con = _eleccionDeCuentas(la, lb);
+      if (con.regla === "se-esta-yendo") {
+        const { cayendo, otro } = con;
         p.push(`No son la misma decisión: ${cayendo.e} se está yendo y ${otro.e} está entregando margen. Lo que se va no vuelve solo; lo que se entrega lo entregas tú cada vez que renuevas la condición.`);
         p.push(`Yo entraría por ${cayendo.e}: una cuenta que cae tiene una ventana, una condición cara sigue ahí la semana que viene.`);
-      } else if (la.cede && lb.cede) {
-        const mayor = la.urgencia >= lb.urgencia ? la : lb;
-        p.push(`Los dos son el mismo tipo de decisión —condición cara— así que se ordenan por tamaño: ${mayor.e} primero.`);
+      } else if (con.regla === "cede-mas") {
+        p.push(`Los dos son el mismo tipo de decisión —condición cara— así que se ordenan por tamaño: ${con.mayor.e} primero.`);
       } else {
         p.push(`Con estas cifras los dos caminos pesan parecido, así que la elección no la decide el dato: la decide qué relación quieres sostener.`);
       }
@@ -210,12 +286,8 @@ export const compararAlternativas = {
 
     /* ── (b) DOS FRENTES DEL NEGOCIO · margen · cobranza · capital ─────────────────────────────────────────── */
     if (c.tipo === "dominios") {
-      const lados = c.opciones.map((k) => {
-        const d = _PRECIO_FRENTE[k];
-        const f = _find(figs, d.re);
-        return f ? { k, d, f, v: _ord(f) } : null;
-      });
-      if (lados.some((x) => !x)) return null;
+      const lados = _ladosDeDominios(c.opciones, figs);
+      if (!lados) return null;
       const [x, y] = lados;
       p.push(`Los dos frentes, con precio.`);
       p.push(`· ${x.d.nombre[0].toUpperCase()}${x.d.nombre.slice(1)}: ${_val(x.f)} — ${x.d.que}.`);
@@ -225,9 +297,9 @@ export const compararAlternativas = {
       if (cruzaUniverso) {
         p.push(`⚠️ Y no son el mismo dinero: uno sale de tu venta comercial y el otro del inventario en bodega, que en este dato son dos mundos que no cierran entre sí. Se pueden ordenar por urgencia, no sumar.`);
       }
-      const mayor = x.v >= y.v ? x : y, menor = x.v >= y.v ? y : x;
-      if (Number.isFinite(x.v) && Number.isFinite(y.v) && mayor.v >= menor.v * 2) {
-        p.push(`Por tamaño no hay empate: ${mayor.d.nombre} pesa varias veces lo otro, así que ahí es donde una hora tuya rinde más.`);
+      const con = _eleccionDeDominios(x, y);
+      if (con.regla === "tamano") {
+        p.push(`Por tamaño no hay empate: ${con.mayor.d.nombre} pesa varias veces lo otro, así que ahí es donde una hora tuya rinde más.`);
       } else {
         p.push(`Los dos pesan parecido, así que el tamaño no elige: elige el que puedas mover más rápido, y eso lo sabes tú mejor que el dato.`);
       }
@@ -282,6 +354,29 @@ export const compararAlternativas = {
     /* (3) NI ELIGE NI MARCA EL TRADEOFF — el owner pidió una de las dos, no un resumen que deja la pelota */
     if (citadas.length >= 2 && !/yo entrar[ií]a|primero\b|no son la misma|no son el mismo|pesan parecido|no hay empate|por eso elijo|se ordenan por|no elige/i.test(t)) {
       v.push({ regla: "comparacion-sin-cierre", multa: "pusiste los dos caminos y no dijiste nada. El owner pidió elegir o marcar el tradeoff: si un precio es de otro tamaño, elige y di por qué; si miden cosas distintas, dilo. Dejar los dos montos y callarse es devolverle la pregunta." });
+    }
+    /* ⚠️ (4) LA CONCLUSIÓN ES DEL PROCEDIMIENTO, NO DEL NARRADOR (ley del owner, 2026-09-10). El narrador
+     * puede explicar la elección con otras palabras, más corta o para otro lector; no puede elegir el otro
+     * camino, dar por resuelto el elegido, ni inventar una elección donde el dato no eligió. La derivación es
+     * LA MISMA que escribe el composer (`conclusionDe`): no hay dos criterios que puedan discrepar. Solo se
+     * cobra sobre un texto que ya responde con cifras — declinar no se multa, como en (1). */
+    if (citadas.length) {
+      const con = conclusionDe(figs, pregunta);
+      if (con && con.eleccion) {
+        const negada = con.eleccion.find((n) => _NIEGA(n).test(t));
+        if (negada) {
+          v.push({ regla: "conclusion-cambiada", multa: `das por resuelto o sin urgencia «${negada}», y es justamente el camino que el procedimiento eligió con las cifras de esta boleta. La conclusión es del procedimiento, no del narrador: explícala como quieras, pero la elección no se invierte. Vuelve a la elección medida y su porqué.` });
+        }
+        const otra = !negada && (con.descartada || []).find((n) => _ELIGE(n).test(t));
+        if (otra) {
+          v.push({ regla: "conclusion-cambiada", multa: `pones primero «${otra}», y el procedimiento eligió el otro camino con las cifras de esta boleta. La conclusión es del procedimiento, no del narrador: puedes decirla más corta o para otro lector, no darla vuelta.` });
+        }
+      } else if (con && con.opciones) {
+        const inventada = con.opciones.find((n) => _ELIGE(n).test(t));
+        if (inventada) {
+          v.push({ regla: "conclusion-cambiada", multa: `eliges «${inventada}» y el dato no eligió: con estas cifras los caminos pesan parecido, y ESA es la conclusión del procedimiento. Decir que la elección es del dueño no es quedarse corto — inventarle una elección al dato sí es pasarse.` });
+        }
+      }
     }
     return v;
   },
