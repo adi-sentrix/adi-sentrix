@@ -12,6 +12,32 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.24 — producción · tag `v2.24`
+
+**ADI deja de decir que no tiene lo que sí tiene.** El owner lo vio en producción: después de cuatro lecturas
+buenas en pantalla pidió «explícamelo para el equipo comercial» y recibió **«No tengo información autorizada
+suficiente para responder eso»**. La información la tenía — la acababa de servir, con cifras verificadas.
+
+**Eso no es no contestar: es falso.** Declinar cuando no hay dato es un mérito de este producto; declinar
+cuando sí lo hay le enseña al usuario que el asesor es más corto de lo que es, y eso no se recupera con una
+respuesta buena después.
+
+- **La sexta ruta: reformular.** La misma respuesta dicha de otra manera — para otro destinatario, más corta,
+  más simple. Mismo contenido, mismas cifras, **sin correr una sola herramienta**: el material es la respuesta
+  anterior, que ya pasó el muro. De ocho formas naturales de pedirlo, siete no activaban nada.
+- **Es un eje que el censo no había mirado.** Las nueve rutas anteriores eran sobre QUÉ se pregunta; ésta es
+  sobre **para quién es la respuesta**. En un negocio real es de las más usadas: al directorio no se le habla
+  como al vendedor.
+- **Tres candados nuevos:** negar lo que sí se tiene · meter una cifra que no estaba en la respuesta anterior
+  (reformular es re-decir, no re-calcular) · y decir «no tengo información» cuando lo que falta es la lectura.
+- **Y un piso honesto:** si todavía no hay nada que reformular, el turno se resuelve solo —sin gastar una
+  llamada— diciendo qué falta de verdad y ofreciendo hacerlo.
+
+**Verificado:** 244 controles verdes · 0 tocaron la red · 0 con credencial viva · build OK · censo de las cinco
+rutas anteriores sin cambios.
+
+---
+
 ## 2.23 — producción · tag `v2.23`
 
 **Cuatro afinaciones sobre las rutas conversacionales, las cuatro nacidas de mirar la pantalla.** El owner
