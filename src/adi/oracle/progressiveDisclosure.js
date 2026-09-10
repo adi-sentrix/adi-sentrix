@@ -571,8 +571,10 @@ export function composeProsaEjecutiva(claims, { entidad = null, hayDetalleEnFich
    * NO ALCANZA CON ARREGLAR EL LITERAL DE ARRIBA: la frase de la causa interpola `palanca.metrica` CRUDA, o sea
    * un label de boleta que este archivo no controla — hoy «Capital inmovilizado», pero cualquier claim de una
    * boleta vieja (o del camino legado, que sigue emitiendo «capital detenido») entraría con la palabra vetada.
-   * Lavar la salida cierra la CLASE, no el caso. `stripLanguageLeaks` es number-safe e idempotente: las cifras
-   * salen de los claims y ninguna se toca. */
+   * Lavar la salida cierra la CLASE, no el caso. `stripLanguageLeaks` es idempotente y las cifras salen de los
+   * claims: ninguna se inventa ni se reescala. Lo ÚNICO que toca de una cifra —desde el pase del separador
+   * decimal— es escribir el decimal en su forma canónica (punto, ver `figureType.js`), que no cambia el valor.
+   * Esta prosa se sirve VERBATIM, sin muro, así que acá el lavado es la única garantía que hay. */
   return stripLanguageLeaks(p.join(" "));
 }
 

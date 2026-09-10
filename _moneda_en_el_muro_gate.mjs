@@ -46,7 +46,11 @@ console.log("=".repeat(100));
   conMoneda(null);
   ok(monedaDelNegocio() === null, "un negocio sin moneda declarada devuelve null, no un valor cómodo");
   ok(simboloMoneda() === "", "…y no se le pone símbolo: suponerlo es lo que la orden prohíbe");
-  ok(fmtMonto(4100000, { compacto: true }) === "4,1M", `…el monto sale sin símbolo: ${fmtMonto(4100000, { compacto: true })}`);
+  /* «4.1M», con PUNTO: es la forma canónica del decimal (config/contract/figureType.js · SEPARADOR_DECIMAL) y es
+   * además la que usa el resto de ESTE MISMO archivo —«€4.1M», «$4.1M», el `patronMonto` de más abajo— porque es
+   * la que el muro lee. Acá decía «4,1M»: el abreviado de `fmtMonto` era el único sitio que escribía el decimal
+   * con coma, y este assert lo dejaba pasar. Es el mismo defecto que se está cerrando, en miniatura. */
+  ok(fmtMonto(4100000, { compacto: true }) === "4.1M", `…el monto sale sin símbolo: ${fmtMonto(4100000, { compacto: true })}`);
 
   conMoneda("CLP");
   ok(simboloMoneda() === "$", `CLP escribe «$»: ${simboloMoneda()}`);

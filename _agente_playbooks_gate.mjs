@@ -386,7 +386,7 @@ H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materi
   const rb = await T("qué hago con el inventario inmovilizado");
   ok(rb.r.agente.estado === "playbook" && /\$33K de capital inmovilizado/.test(rb.r.text) && /capital frenado \$14K/.test(rb.r.text),
     `★ B · el total y cada SKU con el monto pegado a su concepto (${rb.r.agente.estado})`, rb.r.text.slice(0, 120));
-  ok(/bajo el 0,05% de tu venta: \$50K/.test(rb.r.text) && /no es tu incendio de hoy/.test(rb.r.text),
+  ok(/bajo el 0.05% de tu venta: \$50K/.test(rb.r.text) && /no es tu incendio de hoy/.test(rb.r.text),
     "★ B · MATERIALIDAD: $33K está bajo el piso relativo y el entregable LO DICE con el umbral declarado");
   ok(/Si igual quieres verlo/.test(rb.r.text) && !/ten[eé]s que|hay que|liquid[aá]/i.test(rb.r.text),
     "…y el 03 sigue ofreciendo (nunca ordenando) aun cuando no es material");
@@ -490,7 +490,7 @@ H("1g · certificación: el límite honesto con alternativa, y los 3 riesgos del
    * marcó en producción. La conducta certificada es: dice el número VERDADERO de materiales, declara el
    * umbral en algún lado, y NO se disculpa.) */
   ok(rr2.r.agente.estado === "playbook" && /\bdos riesgos materiales\b|\b2 riesgos materiales\b/.test(rr2.r.text)
-    && /0,05% de tu venta|umbral de materialidad/.test(rr2.r.text) && !/no invento|no puedo/i.test(rr2.r.text),
+    && /0.05% de tu venta|umbral de materialidad/.test(rr2.r.text) && !/no invento|no puedo/i.test(rr2.r.text),
     `★ riesgos DEMO · el dato sostiene 2 materiales y LO DICE con el umbral, sin inventar el tercero (${rr2.r.agente.estado})`, rr2.r.text.slice(0, 110));
   ok(/1 · Contribución no capturada: \$4\.9M — encabeza Falabella con \$1\.6M/.test(rr2.r.text),
     "…QUÉ con cifra verbatim y DÓNDE con dueño, uno por oración");
@@ -507,7 +507,7 @@ H("1g · certificación: el límite honesto con alternativa, y los 3 riesgos del
    * boletas sintéticas porque el demo solo sostiene 2 focos materiales. */
   ok(!/no invento el que falta|no puedo/i.test(rr2.r.text) && /dejar[íi]a el resto como monitoreo/i.test(rr2.r.text),
     "★ VOZ 1 · el límite es CRITERIO («dejaría el resto como monitoreo»), no un descargo — la defensiva que el owner marcó no vuelve");
-  ok(!/^\s*(?:Veo|Los 3)[^\n]*0,05%/.test(rr2.r.text) && /0,05% de tu venta/.test(rr2.r.text),
+  ok(!/^\s*(?:Veo|Los 3)[^\n]*0.05%/.test(rr2.r.text) && /0.05% de tu venta/.test(rr2.r.text),
     "★ VOZ 2 · el umbral NO abre la respuesta pero SIGUE presente (proporcionalidad entera, en frase de negocio al final)");
   {
     const _fg = (label, text, raw) => ({ label, text, value: text, raw, unit: "money" });

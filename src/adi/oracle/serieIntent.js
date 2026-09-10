@@ -167,8 +167,14 @@ export function detectSerieIntent(pregunta) {
 /* ── COMPOSICIÓN · cada cifra es una lectura directa del dataset ────────────────────────────────────────────── */
 
 const _METRICA_TXT = { venta: "venta", margen: "margen", contribucion: "contribución", unidades: "unidades", acciones: "acciones comerciales" };
-const _pct = (v) => `${(+v).toFixed(1).replace(".", ",")}%`;
-const _delta = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(+v).toFixed(1).replace(".", ",")}%`;
+/* EL DECIMAL VA CON PUNTO, como en el resto del producto. La forma canónica —y el porqué— están declarados en
+ * config/contract/figureType.js (`SEPARADOR_DECIMAL`). Acá vivía un `.replace(".", ",")` que escribía «30,1%»
+ * mientras las herramientas del agente escribían «30.1%»: la MISMA cifra con dos ortografías en una sola
+ * conversación, que es lo que el owner vio en producción (v2.22). `toFixed` ya devuelve la forma canónica —
+ * lo que había que sacar era la conversión, no agregar otra.
+ * ⚠️ `_n` NO se toca: ahí el punto de «$22.560» separa MILES, y esa es su forma correcta. */
+const _pct = (v) => `${(+v).toFixed(1)}%`;
+const _delta = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(+v).toFixed(1)}%`;
 const _n = (v) => Math.round(v).toLocaleString("es-CL");
 
 /** el valor de la métrica en un punto de la serie, con su forma de pantalla. null = ese mes no la tiene.
@@ -312,7 +318,7 @@ export function composeSerieIntent({ q, scenario = ESCENARIO_INICIAL } = {}) {
     cola = ` En ${nombreDePeriodo(antes.periodo)} habían sido ${vAntes.fmt}: ${_delta(((v.crudo / vAntes.crudo) - 1) * 100)}.`;
   } else if (vAntes && metrica === "margen") {
     const d = +(v.crudo - vAntes.crudo).toFixed(1);
-    cola = ` En ${nombreDePeriodo(antes.periodo)} había sido ${vAntes.fmt}: ${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(1).replace(".", ",")} pp.`;
+    cola = ` En ${nombreDePeriodo(antes.periodo)} había sido ${vAntes.fmt}: ${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(1)} pp.`;   // punto, igual que _pct/_delta
   }
 
   return { text: frase + cola, sentrixAction: null };

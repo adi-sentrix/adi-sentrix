@@ -1,18 +1,30 @@
 ﻿/* === _voice_gate.mjs · GATE del GUARD DE VOZ determinístico (stripRoboticVoice) ===
  * Lockea: (1) mata aperturas de plantilla ("He revisado tus datos…", "Las proyecciones indican que…").
  * (2) mata muletillas conectoras ("Sin embargo,", "Es importante notar que"). (3) NO toca voz natural ("Mirá,…").
- * (4) idempotente (aplicar 2x = 1x). (5) number-safe (ninguna cifra cambia). (6) preserva recomendaciones reales
+ * (4) idempotente (aplicar 2x = 1x). (5) number-safe: ninguna cifra cambia de VALOR — el único carácter que el
+ * lavado puede reescribir es el separador decimal, para dejarlo en su forma canónica (ver `_nums`, abajo).
+ * (6) preserva recomendaciones reales
  * ("es importante que revises…"). Puro string · sin key · no toca motor/seam. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 // nombres PROPIOS de este gate (ver la nota en _chart_gate.mjs).
 const root = process.cwd(); const entry = path.join(root, `_voice_gate_entry.tmp${process.pid}.js`), out = path.join(root, `_voice_gate_bundle.tmp${process.pid}.mjs`);
-fs.writeFileSync(entry, 'export { stripRoboticVoice, stripOutOfDataOffers, stripLanguageLeaks, detectVoseo, VOSEO_FORMAS } from "./src/adi/llm/voiceGuard.js";\nexport { CONCEPT_DEFS } from "./src/adi/sentrix/glossary.js";\n');
+fs.writeFileSync(entry, 'export { stripRoboticVoice, stripOutOfDataOffers, stripLanguageLeaks, detectVoseo, VOSEO_FORMAS } from "./src/adi/llm/voiceGuard.js";\nexport { CONCEPT_DEFS } from "./src/adi/sentrix/glossary.js";\nexport { normalizarSeparadorDecimal } from "./src/config/contract/figureType.js";\n');
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch {} try { fs.unlinkSync(out); } catch {}
-const { stripRoboticVoice: SV, stripOutOfDataOffers: SOD, stripLanguageLeaks: SLL, detectVoseo: DV, VOSEO_FORMAS: VF, CONCEPT_DEFS: CD } = M;
+const { stripRoboticVoice: SV, stripOutOfDataOffers: SOD, stripLanguageLeaks: SLL, detectVoseo: DV, VOSEO_FORMAS: VF, CONCEPT_DEFS: CD, normalizarSeparadorDecimal: NSD } = M;
 
-const _nums = (s) => (String(s).match(/\$?\d[\d.,]*[%MK]?/g) || []).join("|");
+/* ── LA INVARIANTE ES EL VALOR, NO LA ORTOGRAFÍA (pase del separador decimal) ─────────────────────────────────
+ * Hasta acá este gate exigía que el lavado no cambiara NI UN CARÁCTER de una cifra, y era la forma correcta de
+ * decirlo mientras ninguna regla miraba un dígito. Desde que `stripLanguageLeaks` escribe el decimal en su forma
+ * canónica —«8,1 puntos» → «8.1 puntos», ver config/contract/figureType.js— esa redacción prohibiría justamente
+ * lo que ahora tiene que pasar, y no por eso hay que aflojar la garantía: se afila.
+ *
+ * LA GARANTÍA QUE IMPORTA, y que sigue intacta: **ninguna cifra cambia de VALOR**. Se normaliza el separador en
+ * las dos puntas antes de comparar, así que «8,1» y «8.1» son la misma cifra y «8,1» → «81» sigue siendo un rojo.
+ * Lo que se pierde es la capacidad de detectar un cambio de ortografía; lo que se conserva —lo único que podía
+ * hacerle daño al dueño— es que el número diga otra cosa. */
+const _nums = (s) => (NSD(String(s)).match(/\$?\d[\d.,]*[%MK]?/g) || []).join("|");
 
 const cases = [
   // 1 · aperturas de plantilla
@@ -220,8 +232,10 @@ pOk("V1a · «si subís el volumen 4%» → «si subes el volumen 4%» (el 4% in
   SLL("Dime uno y te muestro qué pasa con esa cuenta si subís el volumen 4%.")
   === "Dime uno y te muestro qué pasa con esa cuenta si subes el volumen 4%.");
 pOk("V1b · «Con esa vara puesta» → «Con esa referencia puesta» (medido en vivo, turno 7 · «vara» es palabra prohibida en superficie, CLAUDE.md §4)",
+  // ⚠️ LA ENTRADA CONSERVA LA COMA a propósito (es la narración medida en vivo) y la SALIDA lleva punto: desde el
+  // pase del separador decimal, el lavado también escribe el decimal en su forma canónica (figureType.js).
   SLL("Con esa vara puesta, Falabella queda 8,1 puntos por debajo.")
-  === "Con esa referencia puesta, Falabella queda 8,1 puntos por debajo.");
+  === "Con esa referencia puesta, Falabella queda 8.1 puntos por debajo.");
 
 // ── V2/V3 · EL INVENTARIO COMPLETO, MEDIDO ───────────────────────────────────────────────────────────────────
 // LAS QUE NO SE CUBREN VAN POR LISTA, NUNCA EN SILENCIO. Son la grafía SIN TILDE del presente voseante en -er/-ir
@@ -374,7 +388,8 @@ pOk("V7c · sin lookbehind en las reglas nuevas (Safari viejo de invitados mobil
 // El pase anterior cubría tres frases (tu/la/declarada) y el narrador escribió una cuarta («esa vara»). Un
 // determinante no cambia el registro: si la palabra está vetada, lo está con cualquiera.
 for (const [inp, exp] of [
-  ["Con esa vara puesta, Falabella queda 8,1 puntos por debajo.", "Con esa referencia puesta, Falabella queda 8,1 puntos por debajo."],
+  // la entrada trae «8,1» (narración viva) y la salida «8.1»: el lavado cierra la palabra Y el separador decimal
+  ["Con esa vara puesta, Falabella queda 8,1 puntos por debajo.", "Con esa referencia puesta, Falabella queda 8.1 puntos por debajo."],
   ["Esta vara la fijaste vos en 30.1%.", "Esta referencia la fijaste tú en 30.1%."],
   ["Una vara más exigente deja 5 clientes abajo.", "Una referencia más exigente deja 5 clientes abajo."],
   ["Su vara declarada es 32%.", "Su referencia declarada es 32%."],

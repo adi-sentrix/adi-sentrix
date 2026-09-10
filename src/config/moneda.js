@@ -68,7 +68,11 @@ export function fmtMonto(valor, { compacto = false, dataset = null, sinSimbolo =
   let cuerpo;
   if (compacto) {
     const abs = Math.abs(valor);
-    if (abs >= 1e6) cuerpo = (valor / 1e6).toFixed(abs >= 1e7 ? 0 : 1).replace(".", ",") + "M";
+    // el abreviado escribe el decimal con PUNTO (config/contract/figureType.js · SEPARADOR_DECIMAL), que es además
+    // la forma exacta con la que `_moneyC` de boleta.js arma el canon del notario («$4.1M»). Acá decía «4,1M»: hoy
+    // no lo pide ningún llamador (`compacto` no se usa en el producto), así que era una trampa dormida — el día
+    // que alguien lo usara, el mismo monto salía escrito de dos formas según qué formateador tocara.
+    if (abs >= 1e6) cuerpo = (valor / 1e6).toFixed(abs >= 1e7 ? 0 : 1) + "M";
     else if (abs >= 1e3) cuerpo = Math.round(valor / 1e3).toLocaleString(locale) + "K";
     else cuerpo = Math.round(valor).toLocaleString(locale);
   } else {

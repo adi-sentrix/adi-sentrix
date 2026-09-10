@@ -71,11 +71,14 @@ H("2 · dato real reconciliado → la respuesta, con las cifras del archivo");
 {
   initTenant(PACK);
   const r1 = composeSerieIntent({ q: "cuanto me compro Nortania el ultimo mes", scenario: "actual" });
-  ok(!!r1 && r1.text === "En agosto 2026, Nortania te compró $2.200 (10 unidades). En julio 2026 habían sido $2.000: +10,0%.",
+  ok(!!r1 && r1.text === "En agosto 2026, Nortania te compró $2.200 (10 unidades). En julio 2026 habían sido $2.000: +10.0%.",
     "punto del último mes: cifra, unidades y delta EXACTOS contra el dataset", r1 && r1.text);
   const r2 = composeSerieIntent({ q: "margen de Nortania en agosto", scenario: "actual" });
   const esperado = PACK.historialMargen["Nortania"].find((p) => p.periodo === "2026-08").margen;
-  const esperadoFmt = `${(+esperado).toFixed(1).replace(".", ",")}%`;   // la forma de pantalla del propio módulo
+  // la forma de pantalla del propio módulo: decimal con PUNTO, la forma canónica que declara
+  // config/contract/figureType.js (`SEPARADOR_DECIMAL`). Acá se replicaba con `.replace(".", ",")`, que era la
+  // misma desviación que tenía el módulo — un gate que copia el defecto del emisor no lo puede ver.
+  const esperadoFmt = `${(+esperado).toFixed(1)}%`;
   ok(!!r2 && r2.text.includes(esperadoFmt), `el margen del mes es el del dataset (${esperadoFmt})`, r2 && r2.text);
   const r3 = composeSerieIntent({ q: "la venta de Nortania mes a mes", scenario: "actual" });
   ok(!!r3 && /Jul \$2\.000 · Ago \$2\.200/.test(r3.text) && /Total del rango: \$4\.200/.test(r3.text),

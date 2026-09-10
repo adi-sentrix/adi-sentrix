@@ -514,7 +514,10 @@ export function declaracionUmbralFocos() {
   const vSF = _sf("ventas", "cliente");
   if (!vSF) return "";
   const pct = POLICY.materialidadFocoPctVenta ?? 0.05;
-  return `bajo el ${String(pct).replace(".", ",")}% de tu venta: ${_money(_pisoFocosUSD(vSF.source, vSF.field))}`;
+  /* el umbral se escribe con el decimal canónico (punto · config/contract/figureType.js): esta frase la
+   * interpolan la card de la Mesa Y los composers del agente, así que era el sitio donde «0,05%» convivía en
+   * la misma pantalla con el «30.1%» del mismo turno. */
+  return `bajo el ${String(pct)}% de tu venta: ${_money(_pisoFocosUSD(vSF.source, vSF.field))}`;
 }
 /* el MISMO piso, como número (playbooks de asesoría del agente, 2026-09-01): la materialidad que decide qué
  * entra a un entregable es LA del negocio — exportarla evita un segundo cálculo del umbral que diverge de éste.

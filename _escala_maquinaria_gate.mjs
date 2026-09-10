@@ -87,7 +87,7 @@ H("3 · la respuesta insignia no se movió con el barrido hondo");
 {
   initTenant(PACK);
   const r = composeSerieIntent({ q: "cuanto me compro Deposito Riachuelo el ultimo mes", scenario: "actual" });
-  ok(!!r && r.text === "En agosto 2026, Depósito Riachuelo te compró $22.560 (345 unidades). En julio 2026 habían sido $24.029: −6,1%.",
+  ok(!!r && r.text === "En agosto 2026, Depósito Riachuelo te compró $22.560 (345 unidades). En julio 2026 habían sido $24.029: −6.1%.",
     "byte a byte la misma respuesta verificada por el chat principal", r && r.text);
 }
 

@@ -24,6 +24,7 @@ fs.writeFileSync(entry, [
   'export { composePnl, setPnlLines, clearPnl, resetPnlDraft, pnlExplain, pnlRecommend } from "./src/adi/pnl.js";',
   'export { buildMesaResultado } from "./src/adi/sentrix/mesaResultado.js";',
   'export { stripLanguageLeaks, detectVoseo } from "./src/adi/llm/voiceGuard.js";',
+  'export { normalizarSeparadorDecimal, SEPARADOR_DECIMAL } from "./src/config/contract/figureType.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
@@ -31,7 +32,7 @@ const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 // que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
 M.initTenant(M.TENANT_DEMO);
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
-const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildWatchlistEstado, buildCuadroMando, buildControlRing, METRIC_DEFS, buildDisponibleMenu, buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, composePnl, setPnlLines, clearPnl, resetPnlDraft, pnlExplain, pnlRecommend, buildMesaResultado, stripLanguageLeaks, detectVoseo } = M;
+const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildWatchlistEstado, buildCuadroMando, buildControlRing, METRIC_DEFS, buildDisponibleMenu, buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, composePnl, setPnlLines, clearPnl, resetPnlDraft, pnlExplain, pnlRecommend, buildMesaResultado, stripLanguageLeaks, detectVoseo, normalizarSeparadorDecimal, SEPARADOR_DECIMAL } = M;
 
 // + palanca (owner 2026-07-14: "esa palabra no se usa") · + apretar/aprieta (owner 2026-07-26: "poco ejecutivo")
 // + detenido/detenida (owner 2026-08-15, autorizando la pasada de registro): «No quiero que el producto sugiera
@@ -80,6 +81,20 @@ const LEGADO_VOSEO_DECLARADO = [
 let legadoVistos = 0;
 
 let pass = 0, fail = 0; const rotos = [];
+/* ── EL SEPARADOR DECIMAL TAMBIÉN ES REGISTRO (owner · defecto visto en producción v2.22) ══════════════════════
+ * EL DEFECTO QUE LO PIDE: en una sola conversación la misma referencia salió «30,1%» en un turno y «3.5%» dos
+ * turnos después. No es una cifra equivocada —el valor es el mismo— pero rompe la regla madre igual que una
+ * palabra vetada: CLAUDE.md §2, «mismo concepto = misma palabra y mismo número en toda superficie». Por eso el
+ * chequeo entra ACÁ y no en un gate nuevo: este gate ya es la escoba de «cómo escribe el producto», y ya barre
+ * cada uno de estos textos. La regla de la casa es extender lo que hay, no abrir un contrato paralelo.
+ *
+ * EL DETECTOR ES EL CORRECTOR, a propósito: un texto está bien escrito si `normalizarSeparadorDecimal` NO lo
+ * cambia. Así no hay una segunda lista que se desalinee con la de runtime — que es exactamente el defecto que
+ * este archivo ya pagó con el voseo (tres listas de la misma cosa, las tres incompletas y distintas entre sí).
+ * Y hereda gratis su prudencia: sólo mira la coma que no puede ser otra cosa que un decimal, así que «$22.560»
+ * (punto de MILES) y «€1.234,56» (un pack en euros) no lo pueden poner rojo. */
+const _sepMal = (t) => normalizarSeparadorDecimal(t) !== t;
+const _gistSep = (t) => { const c = normalizarSeparadorDecimal(t); let i = 0; while (i < t.length && t[i] === c[i]) i++; return t.replace(/\s+/g, " ").slice(Math.max(0, i - 40), i + 40); };
 const check = (origen, texto) => {
   if (typeof texto !== "string" || !texto.trim()) return;
   const m = texto.match(BANNED);
@@ -89,6 +104,7 @@ const check = (origen, texto) => {
     if (LEGADO_VOSEO_DECLARADO.some((d) => texto.includes(d))) { legadoVistos++; pass++; return; }
     const i = texto.indexOf(v); fail++; rotos.push({ origen: `${origen} · voseo`, palabra: v, gist: texto.replace(/\s+/g, " ").slice(Math.max(0, i - 40), i + 40) });
   }
+  else if (_sepMal(texto)) { fail++; rotos.push({ origen: `${origen} · separador`, palabra: `decimal con coma (el canon es «${SEPARADOR_DECIMAL}»)`, gist: _gistSep(texto) }); }
   else pass++;
 };
 // PISO SELLADO (paridad byte-exact del oráculo · triage [39]): las rutas RICAS del motor todavía dicen "palanca";
@@ -102,6 +118,9 @@ const checkResp = (origen, r) => {
   if (sealed) {
     const hard = t.match(/\b(plata|dormid[oa]s?|guita|detenid[oa]s?|varas?)\b/i);
     if (hard) { fail++; rotos.push({ origen: `${origen} [${r.route}]`, palabra: hard[0], gist: t.replace(/\s+/g, " ").slice(Math.max(0, hard.index - 40), hard.index + 40) }); }
+    // el separador SÍ se le exige al piso sellado: la exención de este bloque es para la PALABRA «palanca», que
+    // el prompt tapa en producción porque esas rutas corren narradas. Una cifra mal escrita no la tapa nadie.
+    else if (_sepMal(t)) { fail++; rotos.push({ origen: `${origen} [${r.route}] · separador`, palabra: `decimal con coma (el canon es «${SEPARADOR_DECIMAL}»)`, gist: _gistSep(t) }); }
     else pass++;
   } else check(`${origen} [${r.route || "-"}]`, t);
   for (const s of (r.suggestions || [])) check(`${origen} · sugerencia`, s);
@@ -486,6 +505,89 @@ for (const sano of ["Yo resolví eso ayer.", "El motor resuelve la cuenta sola."
   const carnada = 'const REGLAS = [{ titulo: "sobre la vara", regla: "margen bajo la vara" }];';
   const cazada = _literales(carnada).some((l) => BANNED.test(l) && !ES_REGEX(l) && !ES_SELECTOR(l));
   okv(cazada, "★ carnada: «sobre la vara» —el texto con que nació rolesCartera— lo caza la escoba: si mañana nace otra superficie así, arde");
+}
+
+/* ═══ EL SEPARADOR DECIMAL · UNA SOLA FORMA, BARRIDA EN LAS DOS PUNTAS ═══════════════════════════════════════
+ * Arriba, `check` ya le exige la forma canónica a CADA texto de la batería (el seam completo, los composers
+ * conversacionales, las cuatro caras de la Mesa, el glosario). Esto cierra las dos puntas que esa batería no ve:
+ *   (a) EL LAVADO de la narración VIVA —la del LLM, que la batería no puede ejercitar sin gastar—; y
+ *   (b) LA FUENTE, para que nadie vuelva a escribir la conversión a mano en un módulo nuevo.
+ * La decisión que se está haciendo cumplir NO se toma acá: está declarada en config/contract/figureType.js, con
+ * la palabra del owner que la fijó («separador decimal con punto… la coma es una decisión de producto que se
+ * aplica en todas partes a la vez»). */
+console.log("\n── EL SEPARADOR DECIMAL · la misma cifra, una sola ortografía ──");
+{
+  okv(SEPARADOR_DECIMAL === ".", `el canon declarado es el punto (figureType.js) — hoy «${SEPARADOR_DECIMAL}»`);
+
+  /* (a) EL LAVADO. Es el único punto por donde sale la narración viva, y corre ANTES del muro (bucleAgente.js
+   * :788/:821 · answerViaOracle.js :2898 contra guardC en :2950). Estas cuatro son las que el owner vio en
+   * pantalla en producción v2.22, textuales. */
+  for (const [txt, esp] of [
+    ["Tu carga va 3,5% y el benchmark de margen es 30,1%.", "Tu carga va 3.5% y el benchmark de margen es 30.1%."],
+    ["Falabella cede 8,1pp · Lider 6,6pp · Jumbo 6,1pp.", "Falabella cede 8.1pp · Lider 6.6pp · Jumbo 6.1pp."],
+    ["La brecha es de 3,9 pp contra el benchmark.", "La brecha es de 3.9 pp contra el benchmark."],
+    ["El margen promedio de la cartera es 25,1%.", "El margen promedio de la cartera es 25.1%."],
+  ]) okv(stripLanguageLeaks(txt) === esp, `el lavado escribe el decimal canónico: «${txt.slice(0, 46)}…»`, stripLanguageLeaks(txt));
+
+  /* (b) Y NO ROMPE LOS MILES — el caso vivo con el que se probó: el peldaño de respaldo. Un reemplazo ciego de
+   * comas y puntos destroza estas cifras, así que se prueban acá y no en la teoría. */
+  for (const intacto of [
+    "En agosto 2026, Depósito Riachuelo te compró $22.560 (345 unidades). En julio 2026 habían sido $24.029.",
+    "El total del rango es $20.000.000 y el detalle está en la Ficha.",
+    "Un pack en euros escribe €1.234,56, que es su forma correcta.",
+    "Los clientes 1,2 y 3 quedaron fuera del corte.",
+    "Falabella, Lider y Jumbo cierran bajo el 30.1%.",
+  ]) okv(stripLanguageLeaks(intacto) === intacto, `no toca lo que no es decimal: «${intacto.slice(0, 46)}…»`, stripLanguageLeaks(intacto));
+
+  okv(normalizarSeparadorDecimal(normalizarSeparadorDecimal("30,1% y 8,6 pp")) === "30.1% y 8.6 pp",
+    "el lavado es idempotente: dos pasadas dan lo mismo que una");
+
+  /* CARNADA DEL BARRIDO RUNTIME · lo que los cinco emisores desviados escribían ANTES del arreglo, textual. Es lo
+   * que vuelve verificable el «0 con registro viejo» de arriba: sin esto, un barrido que no caza nada se ve
+   * exactamente igual que uno que caza todo. Si mañana un composer nuevo vuelve a escribir así, `check` lo ve. */
+  for (const viejo of [
+    "bajo el 0,05% de tu venta: $50K",                                                   // specRetrieval
+    "sin fugas materiales contra tu benchmark (bajo el 0,05% de tu venta: $31)",          // la card de la Mesa
+    "En julio 2026 habían sido $24.029: −6,1%.",                                          // serieIntent · _delta
+    "El margen de Nortania en agosto 2026 fue 26,0%.",                                    // serieIntent · _pct
+    "En agosto 2026 había sido 28,3%: +1,8 pp.",                                          // serieIntent · la cola en pp
+    "$4,1M",                                                                              // moneda.js · el abreviado
+  ]) okv(_sepMal(viejo), `★ carnada: el barrido VE la forma vieja «${viejo.slice(0, 52)}»`);
+
+  /* (c) LA FUENTE · ningún módulo vuelve a convertir el canon a coma. Es el defecto REAL que se acaba de cerrar:
+   * cinco sitios escribían `.replace(".", ",")` sobre una cifra —serieIntent (3), specRetrieval y el abreviado de
+   * moneda— mientras el resto del motor escribía con punto. Se barre `src/` ENTERO, no una lista de módulos: la
+   * escoba que hay que acordarse de extender no barre lo que nace mañana (la lección de `rolesCartera`, acá
+   * arriba). Los comentarios se recortan a propósito — el porqué del arreglo NOMBRA la conversión que sacó. */
+  const CONVIERTE_A_COMA = /\.replace\(\s*(?:"\."|'\.'|\/\\\.\/[gimsuy]*)\s*,\s*(?:","|',')/;
+  const _sinComs = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => {
+    const i = l.indexOf("//");
+    if (i < 0) return l;
+    const antes = l.slice(0, i);
+    return (antes.match(/["'`]/g) || []).length % 2 === 0 ? antes : l;
+  }).join("\n");
+  const _todos = (dir, out = []) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const q = path.join(dir, e.name);
+      if (e.isDirectory()) _todos(q, out);
+      else if (/\.jsx?$/.test(e.name)) out.push(q);
+    }
+    return out;
+  };
+  const convierten = _todos(path.join(root, "src"))
+    .filter((f) => CONVIERTE_A_COMA.test(_sinComs(fs.readFileSync(f, "utf8"))))
+    .map((f) => path.relative(root, f).replace(/\\/g, "/"));
+  okv(convierten.length === 0,
+    "★ ningún módulo de src/ convierte el decimal canónico a coma: la cifra se escribe igual la emita quien la emita",
+    convierten.join(" | "));
+
+  /* (d) CARNADA · la línea EXACTA con la que `serieIntent` escribía «30,1%». Si mañana vuelve —o nace en otro
+   * módulo—, el barrido de arriba tiene que verla. Sin esto, un chequeo que no caza nada se ve igual que uno que
+   * caza todo. */
+  okv(CONVIERTE_A_COMA.test(_sinComs('const _pct = (v) => `${(+v).toFixed(1).replace(".", ",")}%`;')),
+    "★ carnada: la línea con la que serieIntent escribía «30,1%» la caza el barrido");
+  okv(!CONVIERTE_A_COMA.test(_sinComs('/* acá vivía un .replace(".", ",") que escribía «30,1%» */\nconst x = 1;')),
+    "★ y el comentario que EXPLICA el arreglo no la caza: se documenta lo que se sacó sin poner el gate rojo");
 }
 
 console.log(`── _registro_gate: ${pass} textos limpios · ${fail} con registro viejo ──`);

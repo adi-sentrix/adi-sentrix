@@ -10,7 +10,7 @@
  * entre pestañas de simulación. Consecuencias gateadas acá:
  *   1 · el demo queda BYTE-IDÉNTICO EN LOS 4 ESCENARIOS (0.05% × $100M = el $50.000 histórico, siempre);
  *   2 · el negocio de $61 mil oye su fuga del 7% (su piso es $31, no $50.000);
- *   3 · el umbral SE DECLARA en pantalla: la rama verde dice «bajo el 0,05% de tu venta: $X» — un silencio
+ *   3 · el umbral SE DECLARA en pantalla: la rama verde dice «bajo el 0.05% de tu venta: $X» — un silencio
  *       sin su umbral es inauditable desde afuera.
  *
  * OFFLINE · determinístico · no puede gastar.
@@ -45,10 +45,10 @@ H("1 · el piso es un % DECLARADO que reproduce el histórico sobre el negocio d
   const ventaDemoRaw = TENANT_DEMO.clientesVentas.reduce((s, c) => s + c.actual, 0) * 1000;   // K declarada
   const piso = ventaDemoRaw * 0.05 / 100;
   ok(piso === 50000, `0.05% × la venta del demo ($${ventaDemoRaw / 1e6}M) = $${piso} — EXACTO el piso histórico`, String(piso));
-  ok(declaracionUmbralFocos() === "bajo el 0,05% de tu venta: $50K",
+  ok(declaracionUmbralFocos() === "bajo el 0.05% de tu venta: $50K",
     "y la frase declarada del demo lo dice con su cifra", declaracionUmbralFocos());
   initTenant(TENANTS.empresa2);
-  ok(declaracionUmbralFocos() === "bajo el 0,05% de tu venta: $29K",
+  ok(declaracionUmbralFocos() === "bajo el 0.05% de tu venta: $29K",
     "empresa-2 ($58M de venta) declara SU umbral: $29K — el piso escucha al tamaño", declaracionUmbralFocos());
 }
 
@@ -92,13 +92,13 @@ H("3 · la fuga del 7% de un negocio de $61 mil ya no es «sin fugas materiales�
 H("4 · la rama verde dice QUÉ es material para ESTE negocio — el silencio deja de ser inauditable");
 {
   // el pack chico llevado a verde con criterios C.2 del usuario (vara al mínimo, target al máximo): la card
-  // verde REAL de un negocio REAL — no un fixture — declara su umbral con su cifra ($31 = 0,05% de $61.483).
+  // verde REAL de un negocio REAL — no un fixture — declara su umbral con su cifra ($31 = 0.05% de $61.483).
   initTenant(PACK);
   setCriterion("margen_minimo", 5);
   setCriterion("target_carga", 15);
   const m = buildMesaEstado("actual");
   ok(m.estados.contribucion.estado === "verde", "con la vara del usuario relajada, la card es verde");
-  ok(m.estados.contribucion.linea === "sin fugas materiales contra tu benchmark (bajo el 0,05% de tu venta: $31)",
+  ok(m.estados.contribucion.linea === "sin fugas materiales contra tu benchmark (bajo el 0.05% de tu venta: $31)",
     "★ y el verde DECLARA su umbral con la cifra de ESTE negocio", m.estados.contribucion.linea);
   forgetCriterion("todo");
 }
@@ -176,7 +176,7 @@ H("5 · CARNADA · el candado se prueba con el defecto adentro");
       setCriterion("target_carga", 15);
       const m = Mut.buildMesaEstado("actual");
       forgetCriterion("todo");
-      return m.estados.contribucion.estado === "verde" && !/bajo el 0,05% de tu venta/.test(m.estados.contribucion.linea);
+      return m.estados.contribucion.estado === "verde" && !/bajo el 0.05% de tu venta/.test(m.estados.contribucion.linea);
     });
 
   for (const f of tmp) { try { fs.unlinkSync(f); } catch { /* */ } }

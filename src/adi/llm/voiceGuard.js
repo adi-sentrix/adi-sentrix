@@ -592,6 +592,11 @@ const _VOSEO = [
 // con tono de debug que el dueño no debe leer). La ORACIÓN completa se elimina (el motor sellado no se toca; esto
 // solo corre en el camino LLM — el piso demo byte-exacto no pasa por acá). Nunca deja el texto vacío.
 const _NOTAS_INTERNAS_RE = /\b(mix-?effect|drill\s?-?down|driver\s+interno|sugerir\s+drilldown)\b/i;
+/* LA FORMA CANÓNICA DE LA CIFRA vive en el contrato del dato, no acá: `figureType.js` es quien declara que
+ * el decimal se escribe con punto y quien sabe distinguirlo de un punto de miles. Este archivo es la
+ * GARANTÍA sobre el texto vivo —igual que con el voseo y el registro—, no la autoridad sobre el formato. */
+import { normalizarSeparadorDecimal } from "../../config/contract/figureType.js";
+
 export function stripLanguageLeaks(text) {
   if (typeof text !== "string" || !text.trim()) return text;
   let s = text;
@@ -621,6 +626,27 @@ export function stripLanguageLeaks(text) {
     out = out.replace(/\s+$/, "");
     if (out.trim()) s = out;
   }
+  /* ── EL SEPARADOR DECIMAL, EN LA FORMA CANÓNICA (owner · defecto visto en producción v2.22) ──────────────────
+   * EL DEFECTO, medido en una sola conversación: «¿debería dejar de venderle a La Polar?» salió con «30,1%» ·
+   * «3,5%» · «3,9pp», y dos turnos después las MISMAS dos referencias salieron «4.5%» · «3.5%». Un número con dos
+   * ortografías en el mismo hilo rompe la regla madre (CLAUDE.md §2: mismo concepto = mismo número en toda
+   * superficie) — y le da al dueño la duda de si son dos cifras distintas.
+   *
+   * ⚠️ VA ANTES DEL MURO, Y NO ES INDIFERENTE CUÁL DE LOS DOS ÓRDENES SE ELIGE. Acá lavamos, y recién después
+   * juzga el notario: `bucleAgente.js` lava en :788 y :821 y juzga a continuación; `answerViaOracle.js` lava en
+   * :2898 y llama a `guardC` en :2950. La razón NO es que el muro no sepa leer una coma —sabe: `parseFigures`
+   * canoniza con `parseNumeroLocalizado`, que lee las dos convenciones (`_boleta_numeros_gate`: «8,3%» y «8.3%»
+   * dan el MISMO canon), y `numberGuard` arma su set con las dos formas—, así que ningún veredicto cambia por el
+   * separador. La razón es otra, y es la que decide el orden:
+   *   · lavar DESPUÉS sería publicar un texto que el muro nunca vio — se aprueba una cadena y se entrega otra;
+   *   · lavar ANTES sólo puede AYUDAR: las cadenas de la boleta están escritas con punto (`_fmtC` las arma con
+   *     `String(number)`/`toFixed`), así que los chequeos que comparan VERBATIM contra la boleta encuentran la
+   *     cifra normalizada y no la de coma. Nunca al revés.
+   *
+   * ⚠️ Y NO ROMPE LOS MILES. La forma canónica se declara y se aplica en `config/contract/figureType.js`, que sólo
+   * toca la coma que no puede ser otra cosa que un decimal: «$22.560» (punto de MILES, el peldaño de respaldo) y
+   * «€1.234,56» (un pack en euros) salen intactos. El porqué de cada condición está allá, junto a la declaración. */
+  s = normalizarSeparadorDecimal(s);
   return s.trim() ? s : text;   // seguridad: nunca dejar vacío
 }
 

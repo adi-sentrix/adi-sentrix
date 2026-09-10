@@ -45,6 +45,55 @@ export const PERIODOS = ["anual", "hoy"];
 export const SELLOS = ["probado", "indicado", "abierto"];
 export const UNIDADES = ["money", "pct", "ratio", "days", "count", "pp"];
 
+/* ── CÓMO SE ESCRIBE EL DECIMAL · UNA SOLA FORMA EN TODA SUPERFICIE ────────────────────────────────────────────
+ * LA DECISIÓN YA ESTABA TOMADA y no se re-decide acá — se declara donde se pueda leer una sola vez. Al subir el
+ * rediseño de la portada (frente UX, memoria [[adi-frente-ux-app]]) el mockup traía «25,1%» y se resolvió, textual:
+ *     «separador decimal con punto — el mockup escribía «25,1%» y la app entera escribe «25.1%»; cambiarlo solo en
+ *      la portada publicaba dos formatos del mismo número. La coma es una decisión de producto que se aplica en
+ *      todas partes a la vez.»
+ * Y coincide con el canon que el notario ya usaba sin nombrarlo: `_fmtC` de boleta.js escribe la cifra con
+ * `String(number)` / `toFixed`, que es punto. Así que el punto no es una convención nueva: es la que el muro
+ * compara.
+ *
+ * ⚠️ EL PUNTO ES EL DECIMAL, PERO NO ES SÓLO EL DECIMAL. En un monto de este dato el punto separa MILES —
+ * «$22.560» son veintidós mil quinientos sesenta, no veintidós con cincuenta y seis— y un pack en euros escribe
+ * «€1.234,56» con las dos cosas a la vez. Por eso lo de abajo NO es un reemplazo de comas por puntos: es un
+ * reconocedor angosto que sólo toca la coma que no puede ser otra cosa que un decimal.
+ *
+ * QUÉ NO SE TOCA, y es deliberado: `config/moneda.js` sigue escribiendo el monto con el locale de la moneda
+ * DECLARADA (un pack en euros escribe «€1.234,56», que es su forma correcta). Ese camino lo selló el owner el
+ * 2026-08-27 con la regla «cambia el símbolo, nunca la escala», y el notario lo reconcilia igual porque
+ * `parseNumeroLocalizado` lee las dos convenciones. Lo que se unifica acá es la cifra SIN moneda —el porcentaje,
+ * el pp, el ratio, los días— que es donde la misma cifra salía escrita de dos formas en una sola conversación. */
+export const SEPARADOR_DECIMAL = ".";
+
+/* Las unidades con las que este producto cierra una cifra. Es el MISMO vocabulario de `parseFigures` (boleta.js):
+ * si una coma decimal no está pegada a una de estas, no se toca — puede ser miles, o una enumeración. */
+const _UNIDAD_DE_CIFRA = String.raw`(?:\s?%|\s?pp\b|\s?puntos?\b|\s?[xX×]\b|\s?veces\b|\s?vez\b|\s?d[ií]as?\b|\s?d\b|\s?[KMB]\b)`;
+
+/* LAS TRES CONDICIONES, todas obligatorias — cualquiera que falte deja la coma donde está:
+ *   1. el número NO trae ningún punto     → «€1.234,56» y «$1.234,56» quedan intactos (ahí la coma sí es decimal,
+ *                                            pero el monto ya está bien escrito en el locale de su moneda);
+ *   2. tras la coma van 1 o 2 dígitos y se acaba el número → un grupo de miles son SIEMPRE 3 («$4,943,664»,
+ *                                            «22,560» y «1,234,567» quedan intactos: son o pueden ser miles);
+ *   3. inmediatamente después va una unidad → «los clientes 1,2 y 3» y «Falabella, Lider y Jumbo» quedan intactos.
+ *
+ * SIN LOOKBEHIND a propósito: esto lo llama `stripLanguageLeaks`, que corre TAMBIÉN en el navegador, y el Safari
+ * viejo de los invitados mobile no lo soporta (la misma razón que ya obliga al detector de voseo de voiceGuard.js).
+ * El carácter de la izquierda se captura y se devuelve. */
+const _COMA_DECIMAL = new RegExp(String.raw`(^|[^\d.,])(\d+),(\d{1,2})(?![\d.,])(?=${_UNIDAD_DE_CIFRA})`, "g");
+
+/* normalizarSeparadorDecimal(texto) → el mismo texto con el decimal en la forma canónica. Puro, idempotente y
+ * conservador: ante la duda NO toca (falso negativo antes que falso positivo, la doctrina de esta casa).
+ *
+ * ES TAMBIÉN EL DETECTOR. Un texto de superficie está bien escrito si esta función no lo cambia — así el candado
+ * (`_registro_gate`) no lleva una segunda lista que se desalinee con el corrector, que es exactamente el defecto
+ * que costó tres listas de voseo desalineadas (voiceGuard.js). */
+export function normalizarSeparadorDecimal(texto) {
+  if (typeof texto !== "string" || !texto) return texto;
+  return texto.replace(_COMA_DECIMAL, `$1$2${SEPARADOR_DECIMAL}$3`);
+}
+
 // ── LOS UNIVERSOS ──────────────────────────────────────────────────────────────────────────────────────────────
 // Un UNIVERSO es el conjunto de cifras que se pueden sumar, comparar y dividir ENTRE SÍ sin mentir. Dos cifras del
 // mismo universo reconcilian por construcción; dos de universos distintos sólo si está declarado abajo.
