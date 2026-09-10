@@ -13,6 +13,23 @@
  *   E3.t2 · pidió una tabla y recibió una lista numerada.
  *   E3.t3 · pidió prosa y recibió la MISMA tabla del turno anterior, con el sujeto cambiado.
  *
+ * ⚠️ @inyeccion-simulada · POR QUÉ ESTE GATE LLEVABA MESES FUERA DE LA SUITE (deuda anotada al cerrar el
+ * respaldo digno, saldada 2026-09-10). Nombra `callPlan`/`callNarrate` porque se los PASA A MANO —es su encargo
+ * entero: el narrador desobediente es un mock de este archivo—, y el clasificador lo marcaba LIVE por esa sola
+ * mención. Un gate que no corre no certifica nada: éste protege la recuperación del producto cuando el narrador
+ * falla, que es exactamente la mitad del camino que la ley del respaldo del owner (2026-09-10) declara
+ * intocable —«la red de respaldo puede ser un segundo camino de entrega, pero no un segundo cerebro»— y estaba
+ * sin vigilancia automática. Las cuatro condiciones del escape se cumplen y las verifica el clasificador, no
+ * esta declaración: no importa el gateway ni un adapter, no importa nada de `src/ui/` (donde viven las ÚNICAS
+ * implementaciones reales de esas dos funciones), y no hace ninguna salida cruda. El candado de runtime se
+ * aplica igual: si esto se usara mal, el proceso muere antes de abrir el socket. Medido al reincorporarlo: 48/48.
+ *
+ * ⚠️ Y ESTA CABECERA CAYÓ EN SU PROPIA TRAMPA AL ESCRIBIRSE: la primera versión decía «no contiene un
+ * f-e-t-c-h con paréntesis» —escrito literal— y el clasificador, que lee TEXTO y no distingue comentario de
+ * código, encontró ahí la salida cruda que la frase juraba no tener. El escape quedó anulado por su propia
+ * explicación. Es la misma familia que la deuda que este archivo salda: nombrar un símbolo de red, aunque sea
+ * para negarlo, cuenta como usarlo. En los comentarios de un gate, esos nombres se describen, no se escriben.
+ *
  * `node --import ./scripts/offline-guard.mjs _fallback_por_forma_gate.mjs`
  */
 import { initTenant } from "./src/data/tenantStore.js";

@@ -72,6 +72,11 @@ await esbuild.build({
   logLevel: "silent",
 });
 const ui = await import(pathToFileURL(bundlePath).href);
+/* ⚠️ EL BUNDLE ES BASURA REGENERABLE, Y HABÍA QUE BARRERLA (2026-09-10). Cada corrida dejaba un archivo con su
+ * PID en la raíz: de este gate solo había 297 copias, 989 MB, y entre los tres hermanos 1,8 GB. Va en `exit` y
+ * no al final del archivo —que es como lo hace `_resumen_comercial_ui_gate`— porque así también limpia cuando
+ * el gate sale por un fallo o revienta, que es justo cuando más veces se corre. */
+process.on("exit", () => { try { fs.rmSync(bundlePath, { force: true }); } catch { /* regenerable */ } });
 // vía 1 (2026-08-20): declarar el tenant SOBRE ESTA instancia — el bundle tiene su propia copia del store.
 ui.initTenant(ui.TENANT_DEMO);
 const React = (await import("react")).default;

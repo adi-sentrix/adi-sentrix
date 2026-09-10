@@ -32,7 +32,11 @@ export const LIVE_DECLARADOS = [
   { file: "_elliptic_entity_inheritance_gate.mjs", motivo: "handlePlan" },
   { file: "_entidad_puntual_gate.mjs", motivo: "handlePlan" },
   { file: "_entidad_puntual_ranking_gate.mjs", motivo: "callPlan/callNarrate (inyección del oráculo)" },
-  { file: "_fallback_por_forma_gate.mjs", motivo: "callPlan/callNarrate (inyección del oráculo)" },
+  /* _fallback_por_forma_gate.mjs SALIÓ DE ESTA LISTA el 2026-09-10: volvió a la corrida con el escape
+   * @inyeccion-simulada (pasa sus dos funciones a mano, no importa gateway ni UI, no hace salidas crudas).
+   * Era una deuda anotada al cerrar el respaldo digno, y la ley del respaldo del owner del mismo día la volvió
+   * urgente: ese gate es el que certifica que el turno igual sale bien cuando el narrador falla o desobedece.
+   * Medido al reincorporarlo: 48/48 en verde — llevaba meses sano y sin vigilancia. */
   { file: "_forma_salida_contrato_gate.mjs", motivo: "fetch(" },
   { file: "_gate_hardening_certification_gate.mjs", motivo: "handlePlan" },
   { file: "_gateway_causa_y_costo_gate.mjs", motivo: "handlePlan" },
