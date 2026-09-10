@@ -298,8 +298,18 @@ console.log("═".repeat(100));
     "…y ya no mira `recentNarrations`: ahí también vive el respaldo, y ofrecerlo como verificado sería mentir");
   /* (La Poda: el que marca `ultimaAprobada` ahora es EL AGENTE — misma condición que tenía el natural:
    * solo turnos aprobados y no-suplentes. Sin esta marca, el peldaño no tendría qué ofrecer.) */
-  ok(/if \(aprobado && !suplente\) memOut\.ultimaAprobada = pantalla;/.test(ba0),
-    "y `ultimaAprobada` la marca el agente SOLO si el muro aprobó y el turno no fue respaldo");
+  /* ⚠️ LA CONDICIÓN SE EXTENDIÓ (owner 2026-09-10) Y SU GARANTÍA NO CAMBIÓ. `aprobado` solo se marca en los
+   * caminos del CEREBRO, así que un turno resuelto por PLAYBOOK no escribía nada — y con las cinco rutas
+   * conversacionales resueltas por playbook, la conversación quedaba sin memoria: el turno siguiente pedía
+   * reformular, el muro vetaba sus cifras por no estar autorizadas, y la escalera terminaba en el genérico.
+   * El owner lo vio tres veces seguidas en producción. Un entregable de playbook pasó SU propio juicio con
+   * el mismo muro, así que es una respuesta verificada como cualquier otra.
+   * ⚠️ LO QUE ESTE CHEQUEO PROTEGE SIGUE INTACTO: un RESPALDO jamás la escribe, porque ofrecerlo después
+   * como «esto quedó verificado» sería mentir sobre un texto que justamente no se pudo verificar. */
+  ok(ba0.includes('|| estado === "playbook") memOut.ultimaAprobada = pantalla;'),
+    "y `ultimaAprobada` la marca el agente si el muro aprobó, o si fue un entregable de playbook (que pasó su propio juicio)");
+  ok(ba0.includes("(aprobado && !suplente)"),
+    "★ …y un RESPALDO sigue sin escribirla: la condición conserva `aprobado && !suplente` para todo lo demás");
   ok(/juzgar\(candidato\)/.test(ra), "…y el escalón se JUZGA como cualquier otro peldaño, sin relajar el muro");
   /* PASO 0 DE LA PODA · UNA FUENTE (verificado el día del retiro): el peldaño vive en el módulo compartido y
    * el agente lo importa de ahí — retirar el natural no se llevó nada, que era exactamente la pre-condición. */

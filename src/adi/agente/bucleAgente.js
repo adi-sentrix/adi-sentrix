@@ -966,10 +966,26 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     } catch { /* la memoria del cuadro jamás rompe el turno */ }
   }
   { const _trato = getNombreUsuario(); if (_trato) memOut.nombreUsuario = _trato; }   // el trato persiste por el canal de la memoria (ver arriba)
-  if (aprobado && !suplente) memOut.ultimaAprobada = pantalla;
+  /* ⚠️ UN ENTREGABLE DE PLAYBOOK ES UNA RESPUESTA VERIFICADA, y no guardarlo dejaba al turno siguiente sin
+   * material. LO PAGÓ EL OWNER EN PRODUCCIÓN (2026-09-10): pidió «explícamelo para el equipo comercial»
+   * después de una respuesta de playbook y recibió TRES VECES «no tengo información autorizada suficiente».
+   * La cadena, medida: `aprobado` solo se marca en los caminos del CEREBRO (verde/reparado/podado); el
+   * peldaño del playbook marca `estado="playbook"` y `suplente=true`, así que esta línea no escribía nada.
+   * El turno siguiente encontraba la memoria vacía, el respaldo no tenía qué re-servir, y la escalera
+   * terminaba en el genérico. Con las CINCO rutas conversacionales resueltas por playbook, eso dejaba sin
+   * memoria a la conversación entera — no solo a la ruta de reformular.
+   * ⚠️ Y NO AFLOJA NADA: el texto del playbook pasó SU PROPIO juicio con el mismo muro (`vPb.ok`) antes de
+   * adoptarse. Es la misma equivalencia que este archivo ya aplica al diario de la tesis unas líneas más
+   * abajo —`estado === "playbook" || (aprobado && !suplente)`—: se extiende el criterio que ya existía, no
+   * se inventa uno. Los demás suplentes (respaldo, línea honesta, re-cita) siguen sin escribir, que es el
+   * contrato de `respaldoAprobado`: un respaldo jamás se ofrece como «esto quedó verificado». */
+  if ((aprobado && !suplente) || estado === "playbook") memOut.ultimaAprobada = pantalla;
   /* R2 · la otra punta del cable: lo que el muro APROBÓ presta sus cifras al turno siguiente — el MISMO
    * constructor y los MISMOS candados del camino natural (un texto vetado o un respaldo no acumulan nada). */
-  if (aprobado) {
+  /* la re-cita sigue la MISMA equivalencia: un entregable de playbook presta sus cifras al turno siguiente,
+   * porque salieron verbatim de la boleta y pasaron el muro. Sin esto, la conversación quedaba sin memoria
+   * de cifras justo después de las rutas que más cifras publican. */
+  if (aprobado || estado === "playbook") {
     const recitaNueva = recitaAprobadaDe({ textoAprobado: pantalla, catalogoEntidades: duenosTenant || [], previa: recita });
     if (recitaNueva) memOut.recitaAprobada = recitaNueva;
   }

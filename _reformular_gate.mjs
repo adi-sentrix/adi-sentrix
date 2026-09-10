@@ -165,5 +165,40 @@ H("6 · sin respuesta previa en el hilo: se dice qué falta de verdad, sin gasta
     "…y si el cerebro falla, el piso re-sirve la respuesta anterior en vez de declinar");
 }
 
+
+/* ═══ 7 · ★★ LA CADENA DE DOS TURNOS · LA PRUEBA QUE FALTÓ ══════════════════════════════════════════════════
+ * ⚠️ ESTE BLOQUE EXISTE PORQUE SU AUSENCIA COSTÓ UN DEPLOY. La ruta se probó con un `history` y un `mem`
+ * escritos a mano, y pasó. En el producto real el turno anterior lo resuelve un PLAYBOOK — las cinco rutas
+ * conversacionales lo son— y un turno de playbook no escribía NADA en la memoria del hilo: `aprobado` solo se
+ * marca en los caminos del cerebro. Sin `recitaAprobada`, las cifras de la respuesta anterior no estaban
+ * autorizadas, el muro vetaba la reformulación («$655K» sin boleta) y la escalera terminaba en el genérico.
+ * El owner lo vio tres veces seguidas en producción.
+ * LA LECCIÓN, y vale para cualquier ruta que dependa del turno anterior: probar la CADENA, no el eslabón.
+ * Acá se encadena de verdad: se corre una ruta real y con SU memoria se pide la reformulación. */
+H("7 · ★★ encadenado de verdad: una ruta real, y después la reformulación con SU memoria");
+{
+  const MUDO2 = async () => ({ tipo: "texto", texto: "" });
+  const t1 = await answerViaAgente({ text: "¿por qué vendo más pero gano menos?", history: [], mem: {}, scenario: ESC, callAgente: MUDO2 });
+  ok(t1.r.agente.estado === "playbook", `el turno 1 lo resuelve un playbook (${t1.r.agente.estado}) — como las cinco rutas del owner`);
+  ok(!!(t1.mem && t1.mem.ultimaAprobada), "★★ …y DEJA memoria del hilo: un entregable de playbook es una respuesta verificada");
+  ok(!!(t1.mem && t1.mem.recitaAprobada && t1.mem.recitaAprobada.figs.length),
+    `★★ …y presta sus cifras al turno siguiente (${(t1.mem && t1.mem.recitaAprobada && t1.mem.recitaAprobada.figs.length) || 0})`);
+
+  const hist = [{ role: "user", text: "¿por qué vendo más pero gano menos?" }, { role: "adi", text: t1.r.text }];
+  /* un cerebro que hace lo que la doctrina pide: re-dice lo anterior con SUS cifras y sus dueños */
+  const REFORMULA = async () => ({ tipo: "texto", texto: "Para el equipo, en corto: la venta creció 7.6% contra el período comparable, pero el margen viene cediendo mes a mes. Se están cediendo $655K de carga comercial por sobre el nivel declarado. El foco de la semana es la condición, no el volumen." });
+  const t2 = await answerViaAgente({ text: Q, history: hist, mem: t1.mem || {}, scenario: ESC, callAgente: REFORMULA });
+  ok((t2.r.agente.vetos || []).length === 0, "★★ la reformulación pasa el muro con las cifras del turno anterior", (t2.r.agente.vetos || [])[0]);
+  ok(t2.r.agente.estado !== "vacio", `…y NO cae al genérico (estado ${t2.r.agente.estado})`);
+  ok(!/no tengo informaci[oó]n autorizada/i.test(String(t2.r.text || "")),
+    "★★ …así que el dueño ya no recibe «no tengo información» teniendo la respuesta en pantalla");
+
+  /* y la carnada: con la memoria del hilo vacía —lo que pasaba antes— el turno se cae, que es el defecto */
+  const memSin = { ...(t1.mem || {}) }; delete memSin.recitaAprobada; delete memSin.ultimaAprobada;
+  const t2malo = await answerViaAgente({ text: Q, history: hist, mem: memSin, scenario: ESC, callAgente: REFORMULA });
+  ok(t2malo.r.agente.estado === "vacio",
+    "★ carnada: sin la memoria del turno anterior el muro veta la reformulación y cae al genérico — el defecto exacto que el owner vio");
+}
+
 console.log(`\n── _reformular_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail === 0 ? 0 : 1);
