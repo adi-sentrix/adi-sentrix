@@ -106,8 +106,16 @@ function _caso(pregunta) {
   if (_ELIPTICA.test(q)) return null;            // su tema está en el hilo: el turno es de otro
   if (_SUPUESTO.test(q)) return null;            // pide qué hacer bajo un supuesto: eso es de la proyección
   const ent = (() => { try { return entidadNombrada(q); } catch { return null; } })();
-  if (!ent && _NOMBRA_OBJETO.test(q)) return null;   // nombra algo que el dato no conoce: se declara, no se rodea
-  return { entidad: ent && ent.eje === "cliente" ? ent.nombre : null };
+  /* ⚠️ NI UNA PREGUNTA SOBRE UNA CUENTA PUNTUAL, y ésta fue la corrección más limpia de las cuatro. La ruta
+   * nació con una rama por cuenta —«¿qué hago con X?»— y eso competía con la FICHA, que existe justo para
+   * responder por una entidad. Las dos salidas eran malas y se midieron: cuando el pack conocía el nombre,
+   * esta ruta reclamaba el turno y su composer no podía cumplirlo (cayó R3 del gate del bucle); cuando no lo
+   * conocía, le contestaba el plan del negocio entero a quien preguntó por algo puntual.
+   * El arreglo es uno solo: EL PLAN DE ACCIÓN ES DEL NEGOCIO. El formato del owner lo dice solo —«entrar por
+   * La Polar/Falabella»—: la cuenta la ELIGE ADI por tamaño medido, no la trae la pregunta. Un turno que
+   * nombra un objeto es de la ficha, que va después en el registro y lo recibe entero. */
+  if (ent || _NOMBRA_OBJETO.test(q)) return null;
+  return { entidad: null };
 }
 
 /** los frentes presentes en la boleta, ordenados por su cifra — de mayor a menor. */

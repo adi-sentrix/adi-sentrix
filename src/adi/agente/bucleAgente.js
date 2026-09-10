@@ -679,7 +679,25 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   })();
   const respuestaAnterior = typeof recentPrev[0] === "string" ? recentPrev[0] : null;
   const heredado = (() => { try { return alcanceHeredadoDe({ pregunta: q, respuestaAnterior, catalogoPorEje }); } catch { return null; } })();
-  const _guard = (t) => guardC(t, {
+  /* ── EL FALSO ROJO DEL PELDAÑO DE RESPALDO (owner 2026-09-10, autorización mínima y explícita) ───────────
+   * EL SÍNTOMA, medido: con la boleta vacía, `guardC` rechazaba el texto que el peldaño de respaldo replica
+   * («cifra-no-autorizada: 22.560, 2026, 24.029») y el turno caía a `vacio`. El bucle documenta ese caso como
+   * VERDE POR DISEÑO —«el respaldo replica un texto aprobado… con boleta vacía es VERDE por diseño, la raíz
+   * de T13/T24»— y el gate del bucle lo exige en su R3. La conducta y su candado decían lo mismo; el cable
+   * faltaba.
+   * ⚠️ EL ARREGLO NO TOCA EL GUARDIA NI LO AFLOJA. Usa el canal que la casa ya tiene para esto,
+   * `boletaAnterior` («re-citar lo que ADI misma ya mostró no es inventar», guardC §Paso 1b), y lo enciende
+   * SOLO en el sitio `respaldo`. Todos los demás sitios siguen llamando exactamente igual que antes: sin
+   * `boletaAnterior`, que es el default de siempre.
+   * ⚠️ Y NO ES CIRCULAR. `ultimaAprobada` guarda, por contrato de `respaldoAprobado.js`, ÚNICAMENTE textos que
+   * el notario aprobó —jamás un respaldo, justo para no afirmar verificación sobre lo que no se verificó—.
+   * Sus cifras ya pasaron el muro contra la boleta del turno que las produjo; lo que se hace acá es cargar esa
+   * verificación, no inventar una. Si el marco del peldaño agregara una cifra que NO está en ese texto, el
+   * guardia la sigue cazando: se autoriza el texto aprobado, no el sitio. */
+  const _boletaAprobadaPrevia = (typeof memIn.ultimaAprobada === "string" && memIn.ultimaAprobada.trim().length > 40)
+    ? { figs: [{ value: memIn.ultimaAprobada }] } : null;
+  const _guard = (t, boletaPrevia = null) => guardC(t, {
+    boletaAnterior: boletaPrevia,
     ledger: { figs: figsTotales }, results: resultsTotales, trace: null, question: q,
     supuestoPendiente: supuestosDelHilo,
     recitaAprobada: recita,   // R2: cifras aprobadas a pantalla en turnos previos — el muro las re-autoriza con su dueño
@@ -710,7 +728,8 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   const vetosDelTurno = [];
   const _multaDe = (v) => (v && (v.multa || (v.violations || []).map((x) => x.detalle || x.detail || x.reason || x).join("\n"))) || "cifras no verificables";
   const juzgar = (t, sitio = "cierre") => {
-    const v = _guard(t);
+    /* el canal de lo ya aprobado se enciende SOLO acá: en cualquier otro sitio la llamada es la de siempre */
+    const v = _guard(t, sitio === "respaldo" ? _boletaAprobadaPrevia : null);
     if (!v || !v.ok) {
       vetosDelTurno.push(`${sitio} · ${String(_multaDe(v)).split("\n")[0].slice(0, 180)}`);
       return v;

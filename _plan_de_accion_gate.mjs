@@ -60,12 +60,12 @@ ok(FIGS.length > 0, `la lectura del plan trae ${FIGS.length} cifras`);
 ok(!!CONCENTRA, `y hay una cuenta que concentra el frente mayor (${CONCENTRA ? `${CONCENTRA.n} ${CONCENTRA.fmt}` : "—"})`);
 if (!CONCENTRA) { console.log("\n── sin eso no se puede medir la ruta ──"); process.exit(1); }
 
-const CASOS = [["general", Q_GENERAL], ["arranque", "por dónde empiezo"], ["equipo", "qué le digo al equipo comercial"], ["cuenta", `¿qué hago con ${CONCENTRA.n}?`]];
+const CASOS = [["general", Q_GENERAL], ["arranque", "por dónde empiezo"], ["equipo", "qué le digo al equipo comercial"], ["pasos", "dame los tres pasos"]];
 
 /* ═══ 1 · EL DETECTOR Y EL CABLEADO ═════════════════════════════════════════════════════════════════════════ */
 H("1 · el detector — pide pasos, y no le quita el turno a nadie");
 {
-  const DEBE = ["qué hago esta semana", "por dónde empiezo", "dame los tres pasos", "qué le digo al equipo comercial", "plan de acción", `¿qué hago con ${CONCENTRA.n}?`];
+  const DEBE = ["qué hago esta semana", "por dónde empiezo", "dame los tres pasos", "qué le digo al equipo comercial", "plan de acción"];
   const miss = DEBE.filter((q) => !PB.cuandoAplica(q));
   ok(miss.length === 0, `★ las ${DEBE.length} formas de pedir una secuencia se reconocen`, miss.join(" · "));
   const NO_DEBE = [
@@ -107,8 +107,14 @@ H("1 · el detector — pide pasos, y no le quita el turno a nadie");
   /* ⚠️ TERCERA REGRESIÓN, la más instructiva: una cuenta que NO está en el pack caía en la rama general y
    * recibía el plan del negocio entero. Peor que declinar: el dueño preguntó por algo puntual y se lleva una
    * respuesta que PARECE contestarle. */
+  /* ⚠️ EL PLAN ES DEL NEGOCIO, y las dos caras del defecto se miden acá: la cuenta que el pack CONOCE y la
+   * que no. Ninguna es suya — la primera es de la ficha, la segunda se declara. */
+  ok(!PB.cuandoAplica(`¿qué hago con ${CONCENTRA.n}?`),
+    "★ una cuenta que el pack CONOCE no es suya: responder por una entidad es de la ficha (esto tumbó R3 del gate del bucle)");
   ok(!PB.cuandoAplica("que hago con Ferretería Aurora?"),
-    "★ un objeto que el dato no conoce NO es suyo: se declara que ese nombre no está, no se rodea con el plan general");
+    "★ y una que NO conoce tampoco: contestarle el plan del negocio a quien preguntó por algo puntual parece contestarle");
+  ok((playbookPara(`¿qué hago con ${CONCENTRA.n}?`, { history: [], viewContext: null, cuadro: null, mem: {} }) || {}).nombre !== PB.nombre,
+    "…y el registro se lo da a otro camino, no a éste");
   ok(playbookPara(Q_GENERAL, { history: [], viewContext: null, cuadro: null, mem: {} }) === PB, "…mientras que el plan general sí es de esta ruta");
 }
 
