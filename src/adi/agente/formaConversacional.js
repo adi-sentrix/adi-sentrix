@@ -39,8 +39,12 @@ const _COMPARAR = new RegExp([
   `\\bversus${_FIN}|\\bvs\\.?${_FIN}`,
   `\\bqu[eé] conviene m[aá]s${_FIN}`,
   `\\bprefier(?:o|es)\\b[^.?!\\n]{0,30}\\bo\\b`,
-  /* la disyuntiva de dos tramos: «¿miro A o B?» · «¿vendo más o protejo margen?» — con «?» o con verbo delante */
-  `\\b(?:miro|reviso|abro|ataco|priorizo|empiezo por|vendo|protejo|subo|bajo|voy)\\b[^.?!\\n]{1,40}\\bo\\b[^.?!\\n]{1,40}`,
+  /* la disyuntiva de dos tramos: «¿miro A o B?» · «¿vendo más o protejo margen?» — con «?» o con verbo delante.
+   * ⚠️ LOS VERBOS DE ACCIÓN COMERCIAL entraron después, y los trajo el owner: «¿renegocio Falabella o recupero
+   * La Polar?» no activaba nada, y es la disyuntiva más útil de las cuatro —dos caminos DISTINTOS sobre dos
+   * cuentas distintas, cada uno con su precio—. La lista es cerrada a propósito: un patrón que aceptara
+   * cualquier verbo terminado en «o» se llevaría media conversación. */
+  `\\b(?:miro|reviso|abro|ataco|priorizo|empiezo por|vendo|protejo|subo|bajo|voy|renegocio|recupero|ajusto|cierro|corto|mantengo|entro|invierto|cobro|repongo|freno|suelto|dejo|arranco|parto)\\b[^.?!\\n]{1,40}\\bo\\b[^.?!\\n]{1,40}`,
 ].join("|"), "i");
 
 /* ── (2) VALIDAR UNA HIPÓTESIS DEL USUARIO · él propone, ADI contrasta ─────────────────────────────────────── */
