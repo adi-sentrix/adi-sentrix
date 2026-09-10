@@ -12,6 +12,39 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.25 — **lista en `dev`, sin publicar** (espera la palabra del owner)
+
+**Una sola conclusión, salga por donde salga.** El owner probó en local, vio respuestas malas y ordenó parar
+antes de tocar nada: «0 → arreglar la prueba. 1 → unificar leyes. 2 → blindar verdad/veredicto. 3 → calibrar
+voz. 4 → recién entonces repetir la batería». Esta versión trae las etapas 0, 1 y 2. La 3 y la 4 esperan su
+palabra porque gastan llamadas.
+
+**El defecto que la abre, y el que la explica.** En producción, pedir «explícamelo para el equipo comercial»
+seguía fallando después del arreglo de la 2.24: la causa real era que **los turnos de procedimiento no dejaban
+memoria de la conversación**, así que el turno siguiente no tenía qué reformular. Y la prueba local del owner
+medía el camino equivocado: **el ambiente de desarrollo no tenía conectado el cerebro del agente**, cada turno
+caía en silencio a la red de respaldo, y evaluábamos a un mecanismo creyendo evaluar al otro.
+
+- **La prueba mide al ADI de verdad** (etapa 0). El agente ya está conectado en desarrollo, y cada respuesta
+  declara **qué mecanismo la produjo** y por qué camino llegó. Nunca más se evalúa una respuesta sin saber
+  quién la escribió.
+- **La red de respaldo dejó de ser un segundo cerebro** (ley del owner). Antes de la red final hay un peldaño
+  nuevo: **el mismo procedimiento, sin cerebro y sin red**. El usuario no debería notar que entró por ahí
+  porque ADI cambió de personalidad o, peor, de conclusión.
+- **Una sola ley de lenguaje para los dos caminos** (etapa 1). Las frases que el owner vio en pantalla —«tu
+  meta de 3.5%», «siéntate con Falabella», «el mandato»— ya no salen por ningún camino: el mismo juez, en un
+  solo archivo, juzga los dos. Y la palabra de la casa pasa a ser **«objetivo»** en toda la superficie.
+- **La conclusión es del procedimiento, no del narrador** (etapa 2, ley del owner). Quien redacta puede
+  explicar más corto, más simple o para otro lector; **no puede** cambiar el cliente prioritario, la cifra
+  relevante, el ranking, el veredicto ni la primera acción. Vale también al reformular: la versión para otro
+  no puede contradecir la original ni perder su cifra.
+- **Un defecto real que apareció al blindar el veredicto:** a una hipótesis de mejora se le respondía «sí»
+  mirando la posición en vez de la dirección preguntada. Corregido, con su prueba.
+- **Higiene del taller.** Un candado que llevaba meses fuera de la suite volvió a correr (246 verificaciones),
+  y tres gates dejaron de acumular basura: 1,8 GB en la raíz.
+
+---
+
 ## 2.24 — producción · tag `v2.24`
 
 **ADI deja de decir que no tiene lo que sí tiene.** El owner lo vio en producción: después de cuatro lecturas
