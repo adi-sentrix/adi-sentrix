@@ -17,7 +17,7 @@
  * `node --import ./scripts/offline-guard.mjs _reformular_gate.mjs` */
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
-import { esReformular, destinatarioDe, doctrinaDeReformular, vetosDeReformular } from "./src/adi/agente/reformular.js";
+import { esReformular, destinatarioDe, doctrinaDeReformular, vetosDeReformular, componerReformulacion } from "./src/adi/agente/reformular.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
 import { playbookPara } from "./src/adi/agente/playbooks/registro.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
@@ -117,7 +117,9 @@ H("3 · el procedimiento llega al cerebro en el turno que lo pide — y en ning�
 H("4 · la ley está conectada, no solo escrita");
 {
   const bucle = readFileSync(new URL("./src/adi/agente/bucleAgente.js", import.meta.url), "utf8");
-  ok(/import \{ esReformular, doctrinaDeReformular, vetosDeReformular \}/.test(bucle), "el bucle la importa");
+  /* el import trae también `componerReformulacion` desde 2026-09-10: el piso que re-dice la previa cuando el
+   * cerebro no puede (ver §8) — sin él, prohibir la frase falsa no alcanzaba para responder. */
+  ok(/import \{ esReformular, doctrinaDeReformular, vetosDeReformular, componerReformulacion \}/.test(bucle), "el bucle la importa");
   ok(/if \(_esReformularDelTurno\) mensajes\.push/.test(bucle), "…empuja su doctrina en el turno que la pide");
   ok(/vetosDeReformular\(t, \{ pregunta: q, previa: _previaDelHilo, sitio \}\)/.test(bucle),
     "★ …y la juzga con la respuesta ANTERIOR del hilo, que es el material del turno");
@@ -161,8 +163,13 @@ H("6 · sin respuesta previa en el hilo: se dice qué falta de verdad, sin gasta
   const conPrevia = await answerViaAgente({ text: Q, history: HILO, mem: { ultimaAprobada: PREVIA }, scenario: ESC, callAgente: MUDO });
   ok(conPrevia.r.agente.estado !== "sin-que-reformular",
     "★ y CON respuesta previa el atajo no se aplica: ahí sí hay material y el turno sigue su camino");
-  ok(/quedó verificado/i.test(String((conPrevia.r && conPrevia.r.text) || "")),
-    "…y si el cerebro falla, el piso re-sirve la respuesta anterior en vez de declinar");
+  /* ⚠️ EL PISO CAMBIÓ Y ES MEJOR (2026-09-10): antes ganaba el respaldo genérico, que re-servía la respuesta
+   * anterior TAL CUAL —«lo que quedó verificado…»—. Ahora gana el peldaño propio de esta ruta, que la re-dice
+   * PARA QUIEN LA PIDIERON, que es lo que el turno pedía. Sigue sin llamar al cerebro y sin cifras nuevas. */
+  ok(conPrevia.r.agente.estado === "reformular-piso",
+    "★★ …y si el cerebro falla, el piso REFORMULA la respuesta anterior en vez de declinar", conPrevia.r.agente.estado);
+  ok(!/no tengo informaci[oó]n autorizada/i.test(String((conPrevia.r && conPrevia.r.text) || "")),
+    "★★ …y jamás sale la frase falsa: prohibirla no alcanzaba, había que tener qué responder");
 }
 
 
@@ -193,11 +200,69 @@ H("7 · ★★ encadenado de verdad: una ruta real, y después la reformulación
   ok(!/no tengo informaci[oó]n autorizada/i.test(String(t2.r.text || "")),
     "★★ …así que el dueño ya no recibe «no tengo información» teniendo la respuesta en pantalla");
 
-  /* y la carnada: con la memoria del hilo vacía —lo que pasaba antes— el turno se cae, que es el defecto */
+  /* ⚠️ ESTA CARNADA LA JUBILÓ SU PROPIO ARREGLO (2026-09-10), y es la lección más cara de la ruta. Medía que
+   * SIN la memoria del turno anterior el turno se caía al genérico —y lo daba por correcto, como «el defecto
+   * exacto que el owner vio»—. Pero el owner lo volvió a ver DESPUÉS, en su prueba de continuidad: con la
+   * respuesta en pantalla, ADI seguía diciendo «no tengo información autorizada». La carnada estaba
+   * certificando el defecto en vez de impedirlo.
+   * LO QUE SE MIDE AHORA: sin esa memoria el turno YA NO se cae, porque el piso lee del HILO —que la app manda
+   * siempre— y no de una memoria que algún peldaño puede no haber escrito. Un piso que se apoya en lo que
+   * puede faltar no es un piso. */
   const memSin = { ...(t1.mem || {}) }; delete memSin.recitaAprobada; delete memSin.ultimaAprobada;
   const t2malo = await answerViaAgente({ text: Q, history: hist, mem: memSin, scenario: ESC, callAgente: REFORMULA });
-  ok(t2malo.r.agente.estado === "vacio",
-    "★ carnada: sin la memoria del turno anterior el muro veta la reformulación y cae al genérico — el defecto exacto que el owner vio");
+  ok(t2malo.r.agente.estado !== "vacio",
+    "★★ sin la memoria del turno anterior el turno SIGUE respondiendo: el material se lee del hilo", t2malo.r.agente.estado);
+  ok(!/no tengo informaci[oó]n autorizada/i.test(String(t2malo.r.text || "")),
+    "★★ …y tampoco ahí sale la frase falsa — que es lo que el owner vio tres veces");
+}
+
+/* ═══ 8 · ★★ EL PISO · PROHIBIR NO ES RESPONDER ═════════════════════════════════════════════════════════════
+ * EL HILO REAL DE LA PRUEBA DE CONTINUIDAD DEL OWNER (2026-09-10, 4/5): cinco turnos encadenados que ADI
+ * resolvió bien, y en el sexto —«Explícamelo para el equipo comercial»— la frase falsa otra vez.
+ * LA RAÍZ, y por eso esta sección existe: los vetos de esta ruta PROHIBEN esa frase, pero el turno se quedaba
+ * sin texto y la escalera terminaba en el mensaje de sin-datos… que es LA MISMA FRASE. El candado cerraba la
+ * puerta y la salida de emergencia daba a la misma habitación.
+ * SE MIDE CON EL CEREBRO EN CONTRA: mudo y, peor, insistiendo con la frase de producción. */
+H("8 · ★★ el piso: con la respuesta en el hilo, el turno responde aunque el cerebro no ayude");
+{
+  const PREVIA_REAL = [
+    "Cuatro clientes explican prácticamente toda la brecha: Lider, Falabella, Sodimac y Jumbo concentran el mecanismo probado — carga comercial sobre el nivel de referencia (3.5%) — y entre los cuatro pesan 73.8% de la venta total.",
+    "Lider: brecha 8.6 pp, margen 21.5%, carga comercial 4.2%, venta $17.8M.",
+    "Con eso, mi recomendación —criterio mío, no algo que el dato ordene— es partir por Falabella: mueve más dinero por punto de ajuste que cualquier otra cuenta.",
+  ].join("\n");
+  const HILO_REAL = [
+    { role: "user", text: "¿Cómo va el negocio?" },
+    { role: "assistant", text: "El margen cruzó, pero deja caja en la mesa: la venta viene +7.5% y el margen cierra en 25.1%, por debajo del benchmark de 30.1%." },
+    { role: "user", text: "¿Qué clientes explican más eso?" },
+    { role: "assistant", text: PREVIA_REAL },
+  ];
+  const FRASE_DE_PRODUCCION = "No tengo información autorizada suficiente para responder eso con el alcance pedido. Cuéntame qué dato específico necesitas y lo busco.";
+  const MUDO = async () => ({ tipo: "texto", texto: "" });
+  const INSISTE = async () => ({ tipo: "texto", texto: FRASE_DE_PRODUCCION });
+
+  for (const [comoEsta, cerebro] of [["mudo", MUDO], ["insistiendo con la frase de producción", INSISTE]]) {
+    const r = await answerViaAgente({ text: Q, history: HILO_REAL, mem: {}, scenario: ESC, callAgente: cerebro });
+    const t = String((r.r && r.r.text) || "");
+    ok(r.r.agente.estado === "reformular-piso", `★★ con el cerebro ${comoEsta}, el turno lo resuelve el piso (${r.r.agente.estado})`);
+    ok(!/no tengo informaci[oó]n autorizada/i.test(t), "★★ …y la frase que el owner vio NO sale");
+    ok(/equipo comercial/i.test(t), "…le habla a quien pidieron: el destinatario se lee entero, con su calificador");
+    ok(/Falabella/.test(t) && /partir por Falabella/i.test(t),
+      "★★ …y CONSERVA LA CONCLUSIÓN del turno anterior — la ley del owner: el piso es otro camino de entrega, no un segundo cerebro");
+    ok(/\$17\.8M|21\.5%|8\.6 pp|3\.5%|73\.8%/.test(t), "…con las cifras que ya estaban en pantalla");
+  }
+
+  /* NO INVENTA: cada cifra del piso tiene que estar en la previa — es re-decir, no re-calcular */
+  const compuesto = componerReformulacion(PREVIA_REAL, { pregunta: Q });
+  const _CIF = /\$[\d.,]+\s?[KMB]?|[\d.,]+\s*(?:%|pp\b)/gi;
+  const nuevas = [...new Set(String(compuesto).match(_CIF) || [])].filter((c) => !PREVIA_REAL.includes(c));
+  ok(nuevas.length === 0, "★ ni una cifra que no estuviera en la respuesta anterior", nuevas.join(" · "));
+  ok(vetosDeReformular(compuesto, { pregunta: Q, previa: PREVIA_REAL, sitio: "cierre" }).length === 0,
+    "★ y su propia salida pasa los vetos de la ruta — el piso no se salva de la ley que aplica a los demás");
+
+  /* SIN MATERIAL NO INVENTA UNO: una previa sin cifras ni conclusión no se puede reformular, y se dice */
+  ok(componerReformulacion("Hola, ¿en qué te ayudo? Cuéntame qué quieres mirar del negocio y lo abrimos juntos.", { pregunta: Q }) === null,
+    "★ una previa sin cifra ni conclusión NO se reformula: mejor ceder al peldaño que lo dice honestamente");
+  ok(componerReformulacion("corto", { pregunta: Q }) === null, "…ni un texto demasiado corto para ser una respuesta");
 }
 
 console.log(`\n── _reformular_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

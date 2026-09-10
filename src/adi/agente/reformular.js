@@ -47,7 +47,12 @@ const _VERBO = "(?:expl[ií]c|res[uú]m|d[ií]|pon|p[aá]s|traduc|arm|escrib)[a-
  * tras vocal acentuada: la misma trampa de creer que el borde de palabra está donde uno lo imagina. */
 const _PIDE_LO_DICHO = new RegExp(`\\b${_VERBO}(?:me|se|te|nos)?l[oa]s?\\b`, "i");
 const _LO_YA_DICHO = /\beso\b|\besto\b|\blo que (?:dijiste|me dijiste|acabas de decir|respondiste)\b|\bla respuesta\b|\blo anterior\b/i;
-const _DESTINATARIO = /\bpara (?:el|la|los|las|mi|mis)\s+[\wáéíóúñ]+|\ba(?:l)? (?:equipo|directorio|gerente|socio|jefe|due[ñn]o|comit[eé]|vendedor)/i;
+/* ⚠️ EL CALIFICADOR ES PARTE DEL DESTINATARIO, y se notó al mirar la pantalla: «para el equipo comercial»
+ * devolvía «el equipo» —una palabra sola— y la reformulación abría hablándole a otro. La lista de
+ * calificadores es CERRADA a propósito: un patrón que acepte cualquier palabra siguiente se termina tragando
+ * media frase («para el equipo que no llegó a la meta»), y un destinatario mal leído es peor que uno genérico. */
+const _CALIF = "(?:\\s+(?:comercial(?:es)?|de ventas|de finanzas|de operaciones|de compras|ejecutiv[oa]s?|t[eé]cnic[oa]s?|regional(?:es)?))?";
+const _DESTINATARIO = new RegExp(`\\bpara (?:el|la|los|las|mi|mis)\\s+[\\wáéíóúñ]+${_CALIF}|\\ba(?:l)? (?:equipo|directorio|gerente|socio|jefe|due[ñn]o|comit[eé]|vendedor)${_CALIF}`, "i");
 const _FORMA = /\bm[aá]s (?:corto|simple|breve|claro|sencillo|f[aá]cil|directo)\b|\ben (?:una|dos|tres) l[ií]neas?\b|\ben vi[ñn]etas\b|\ben bullet/i;
 
 /** ¿la pregunta pide RE-DECIR lo ya respondido, no una lectura nueva? */
@@ -99,6 +104,96 @@ export function doctrinaDeReformular() {
     "    autorizada: la tendrías, y decirle que no la tienes es enseñarle que el producto es más corto de lo",
     "    que es.",
   ].join("\n");
+}
+
+/* ── EL PISO · REFORMULAR SIN CEREBRO ══════════════════════════════════════════════════════════════════════
+ *
+ * ⚠️ EL DEFECTO QUE LO OBLIGA, medido offline con el hilo real del owner (2026-09-10, su prueba de continuidad
+ * 4/5): con la respuesta anterior EN el hilo, «explícamelo para el equipo comercial» salía igual con la frase
+ * falsa —«No tengo información autorizada suficiente para responder eso con el alcance pedido»—. Y no era que
+ * producción estuviera vieja: el turno terminaba `vacio` también en dev.
+ *
+ * LA RAÍZ, y es incómoda: los vetos de esta ruta PROHIBEN esa frase, pero prohibir no es responder. Cuando el
+ * cerebro insistía, el turno se quedaba sin texto y la escalera terminaba en el mensaje de sin-datos… que es
+ * LA MISMA FRASE que el veto acaba de prohibir. El candado cerraba la puerta y la salida de emergencia daba a
+ * la misma habitación.
+ *
+ * LA LEY QUE LO RESUELVE es la del owner del mismo día: «no quiero que el respaldo desaparezca; quiero que sea
+ * igual de confiable aunque sea menos sofisticado». Reformular es, de todas las rutas, la que MENOS necesita
+ * un cerebro: el material ya está escrito y ya pasó el muro. Si el narrador no puede re-decirlo, el
+ * procedimiento lo re-dice sin él — con menos gracia y la misma verdad.
+ *
+ * CÓMO NO INVENTA NADA: las oraciones salen VERBATIM de la respuesta anterior. No se reescriben, no se
+ * resumen con palabras nuevas, no se recalcula nada: se ELIGEN y se ordenan. Por eso este piso no puede
+ * cambiar la conclusión —la copia— ni traer una cifra que no estuviera (la ley de la conclusión, aplicada al
+ * único turno donde el narrador queda a solas con el texto). Y el muro lo juzga igual, con el canal que la
+ * casa ya tiene para esto (`boletaAnterior`: re-citar lo que ADI misma mostró no es inventar).
+ *
+ * ⚠️ EL MATERIAL SE LEE DEL HILO, NO DE LA MEMORIA. `mem.ultimaAprobada` es donde vive lo aprobado, y por eso
+ * mismo puede faltar: fue justamente lo que falló en la 2.24 (los turnos de procedimiento no la escribían) y
+ * lo que el owner vio tres veces. El hilo lo manda la app en cada turno y no depende de que ningún peldaño se
+ * haya acordado de guardar. Un piso que se apoya en lo que puede faltar no es un piso. */
+
+/* las oraciones de un texto, sin partir por el punto decimal de una cifra: se corta solo cuando después del
+ * punto viene un espacio y algo que ABRE oración. «$4.6M de $12.6M» no se parte; «…cartera. Y le sigue» sí. */
+const _ORACIONES = /(?<=[.!?…])\s+(?=[A-ZÁÉÍÓÚÑ¿«¡])/;
+const _ES_TABLA = (l) => /^\s*\|/.test(l) || /^\s*[-:|\s]+$/.test(l);
+const _CIFRA_UNA = /\$[\d.,]+\s?[KMB]?|[\d.,]+\s*(?:%|pp\b)/i;
+
+/** las frases de la previa que llevan cifra o conclusión, verbatim y en su orden original. */
+function _frasesDe(previa) {
+  const out = [];
+  for (const linea of String(previa || "").split(/\r?\n/)) {
+    const l = linea.trim();
+    if (!l || _ES_TABLA(l)) continue;                    // una tabla no se re-narra: se re-ofrece
+    /* un bullet es UNA unidad —«· Lider: brecha 8.6 pp, margen 21.5%…»—: partirlo por el punto lo rompe */
+    if (/^[·•\-*]\s+/.test(l) || /^\d{1,2}[.)]\s+/.test(l)) { out.push(l); continue; }
+    for (const o of l.split(_ORACIONES)) { const s = o.trim(); if (s) out.push(s); }
+  }
+  return out;
+}
+
+/* la frase donde la previa DIJO su conclusión — las formas que los procedimientos de la casa escriben. Va
+ * primero en la reformulación aunque en el original fuera al final: para otro lector, la conclusión abre. */
+const _CONCLUSION = /\byo entrar[ií]a por\b|\bmi recomendaci[oó]n\b|\bes criterio m[ií]o\b|\bpartir[ií]a por\b|\besta semana har[ií]a\b|\bempezar[ií]a por\b|\bel orden correcto\b|\bprimero\b.{0,40}\bdespu[eé]s\b/i;
+
+/** cómo se abre para cada lector. La conclusión no cambia; cambia a quién se le está hablando. */
+function _encabezado(dest) {
+  if (!dest) return "Lo mismo, más corto:";
+  const d = String(dest).toLowerCase();
+  if (/directorio|comit[eé]|junta/.test(d)) return `Para ${dest}, en corto:`;
+  if (/equipo|vendedor|comercial|fuerza/.test(d)) return `Para ${dest}, lo que importa es esto:`;
+  return `Para ${dest}:`;
+}
+
+/**
+ * componerReformulacion(previa, { pregunta }) → texto, o null si no hay material que re-decir.
+ * PURO · determinístico · cero red · cada frase VERBATIM de `previa`.
+ */
+export function componerReformulacion(previa, { pregunta = "" } = {}) {
+  const src = String(previa || "").trim();
+  if (src.length < 40) return null;
+  const frases = _frasesDe(src);
+  if (!frases.length) return null;
+  const dest = destinatarioDe(pregunta);
+  const corto = _FORMA.test(String(pregunta || ""));
+
+  const conclusion = frases.find((f) => _CONCLUSION.test(f)) || null;
+  /* las que sostienen: llevan cifra. Sin ninguna, la reformulación sería una opinión — y ahí es mejor no
+   * componer y dejar que el turno lo diga honestamente, que es lo que hace el peldaño siguiente. */
+  const conCifra = frases.filter((f) => f !== conclusion && _CIFRA_UNA.test(f));
+  if (!conCifra.length && !conclusion) return null;
+
+  const cuerpo = conCifra.slice(0, corto ? 2 : 4);
+  const lineas = [_encabezado(dest)];
+  if (conclusion) lineas.push(conclusion);              // la conclusión abre: es lo que el otro lector necesita
+  for (const c of cuerpo) lineas.push(/^[·•\-*\d]/.test(c) ? c : `· ${c}`);
+  /* el cierre OFRECE y no ordena (el registro de la casa), y dice lo único que este piso sí sabe de sí mismo:
+   * que es la misma respuesta, no una nueva. */
+  lineas.push(dest
+    ? `Es la misma lectura de recién, dicha para ${dest}. Si la quieres más corta, o con otro foco, dime cuál y la ajusto.`
+    : `Es la misma lectura de recién, sin el rodeo. Si la quieres para alguien en particular, dime para quién y la acomodo.`);
+  return lineas.join("\n");
 }
 
 /* ── LOS VETOS ─────────────────────────────────────────────────────────────────────────────────────────────

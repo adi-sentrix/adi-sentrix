@@ -33,7 +33,7 @@ import { cajaDelAgente } from "./herramientasAgente.js";
 import { doctrinasParaRonda } from "./doctrinaAgente.js";
 import { esPorQue, doctrinaDelPorque, vetosDelPorque } from "./porque.js";   // la ley del porqué, transversal (owner 2026-09-09)
 import { vetosDeReferencia } from "./referenciaDeLaCifra.js";
-import { esReformular, doctrinaDeReformular, vetosDeReformular } from "./reformular.js";   // la misma respuesta, para otro (owner 2026-09-10)   // owner 2026-09-09: la cifra que sostiene una recomendación trae su referencia
+import { esReformular, doctrinaDeReformular, vetosDeReformular, componerReformulacion } from "./reformular.js";   // la misma respuesta, para otro (owner 2026-09-10)   // owner 2026-09-09: la cifra que sostiene una recomendación trae su referencia
 import { mapaDelDato, faltanteQueToca } from "./mapaDelDato.js";   // + lo que el archivo del usuario no trajo (owner 2026-08-31)
 import { guardC, esNarracionVacia } from "../oracle/guardC.js";
 import { cifrasDelDato } from "../oracle/datoProyectado.js";
@@ -764,9 +764,17 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * quedó a ciegas justo en los turnos degradados. El registro es OBSERVACIÓN pura: no decide nada. */
   const vetosDelTurno = [];
   const _multaDe = (v) => (v && (v.multa || (v.violations || []).map((x) => x.detalle || x.detail || x.reason || x).join("\n"))) || "cifras no verificables";
+  /* LA PREVIA DEL HILO COMO BOLETA (owner 2026-09-10, su prueba de continuidad): el piso de reformular re-dice
+   * un texto que ADI ya sirvió y el muro ya aprobó en su turno. Es el MISMO canal que usa el respaldo
+   * (`boletaAnterior`, guardC §Paso 1b) y por la misma razón; lo que cambia es de dónde sale el texto: del
+   * HILO, no de `mem.ultimaAprobada`. Esa memoria es justamente la que faltó en la 2.24 —los turnos de
+   * procedimiento no la escribían— y un piso que se apoya en lo que puede faltar no es un piso. Si el marco
+   * agregara una cifra que no está en ese texto, el guardia la sigue cazando: se autoriza el texto, no el sitio. */
+  const _boletaDelHilo = (typeof _previaDelHilo === "string" && _previaDelHilo.trim().length > 40)
+    ? { figs: [{ value: _previaDelHilo }] } : null;
   const juzgar = (t, sitio = "cierre") => {
     /* el canal de lo ya aprobado se enciende SOLO acá: en cualquier otro sitio la llamada es la de siempre */
-    const v = _guard(t, sitio === "respaldo" ? _boletaAprobadaPrevia : null);
+    const v = _guard(t, sitio === "respaldo" ? _boletaAprobadaPrevia : sitio === "reformular-piso" ? _boletaDelHilo : null);
     if (!v || !v.ok) {
       vetosDelTurno.push(`${sitio} · ${String(_multaDe(v)).split("\n")[0].slice(0, 180)}`);
       return v;
@@ -911,6 +919,20 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     if (_pb && _pb.trim()) {
       const vPb = juzgar(_pb, `playbook:${playbookActivo.nombre}`);
       if (vPb && vPb.ok) { final = _pb; estado = "playbook"; suplente = true; }
+    }
+  }
+  /* PELDAÑO 0b · REFORMULAR SIN CEREBRO. Va ARRIBA de la línea honesta por el mismo argumento que el
+   * entregable del playbook: con la respuesta anterior en el hilo, «no pude completar la lectura» es FALSO —
+   * la lectura está hecha y en pantalla. Medido con el hilo real del owner (2026-09-10): sin este peldaño el
+   * turno terminaba `vacio` y la escalera servía el mensaje de sin-datos, que es LA MISMA FRASE que los vetos
+   * de esta ruta acaban de prohibir. El candado cerraba la puerta y la salida de emergencia daba a la misma
+   * habitación. Compone verbatim desde la previa (`componerReformulacion`) y se juzga como todo lo que sale;
+   * si no pasara, cede al siguiente sin ruido. */
+  if (final === null && _esReformularDelTurno && _previaDelHilo) {
+    const _rf = (() => { try { return componerReformulacion(_previaDelHilo, { pregunta: q }); } catch { return null; } })();
+    if (_rf && _rf.trim()) {
+      const vRf = juzgar(_rf, "reformular-piso");
+      if (vRf && vRf.ok) { final = _rf; estado = "reformular-piso"; suplente = true; }
     }
   }
   if (final === null) {

@@ -72,6 +72,59 @@ const _PROSA_IMPERATIVA = /(?:^|[.;:—]\s*|\by\s+)(?:si[eé]ntate|sentate|reneg
 
 const _DECISION_TOMADA = /\b(procede con|proced[eé] con|avanz[aá] con la ejecuci[oó]n|queda decidido|ya est[aá] decidido|debes ejecutar|ten[eé]s que ejecutar)\b/i;
 
+/* ── LA INTENCIÓN NO SE LEE EN EL DATO (owner 2026-09-10, revisando su prueba de continuidad) ───────────────
+ * SU FRASE, textual: «el dato puede no respaldar esa hipótesis, pero no debería inferir intención gerencial».
+ * LO QUE SALIÓ EN SU PANTALLA: «Volumen a margen bajo como apuesta deliberada — descartado por el dato».
+ * El defecto es fino y por eso hay que nombrarlo bien: el dato SÍ puede descartar un patrón (que la carga
+ * esté dentro del nivel, que el margen bajo venga de precio y no de rebate). Lo que NO puede es dictaminar si
+ * alguien lo hizo A PROPÓSITO. «Deliberada» describe una cabeza, no una fila; una planilla no ve intenciones,
+ * y presentarla como algo que el dato confirma o descarta le da al dueño una conclusión sobre su propia
+ * gente con cara de medición.
+ * ⚠️ Y NO VETA PREGUNTAR POR LA INTENCIÓN, que es justo el método del porqué de la casa (medir · marcar la
+ * hipótesis · preguntarle al dueño): «¿es una apuesta tuya de rotación o se les fue de las manos?» es la
+ * pregunta correcta y sale limpia. Tampoco veta el condicional que razona («si fuera estrategia de rotación,
+ * esperaría…») ni declarar el límite («el dato no dice si fue deliberado»), que es exactamente lo que se
+ * quiere. Se veta el DICTAMEN: la intención afirmada, confirmada o descartada como hallazgo.
+ * Misma disciplina que el cerrojo anti-causa-inventada: la regla que muerde prosa buena se termina apagando. */
+const _INTENCION = "(?:deliberad[ao]s?|intencional(?:es)?|a prop[oó]sito|adrede|premeditad[ao]s?|consciente(?:s)?|apuesta deliberada)";
+const _DICTAMEN = "(?:descartad[ao]s?|descarta|confirmad[ao]s?|confirma|probad[ao]s?|demostrad[ao]s?|queda claro|es evidente)";
+/* la cláusula donde vive la palabra: se corta por puntuación fuerte y salto de línea, que es el alcance real
+ * de una afirmación en prosa. Sin acotar, un «?» tres oraciones después absolvía un dictamen. */
+const _CLAUSULA_DE = (texto, idx) => {
+  const desde = Math.max(0, texto.lastIndexOf("\n", idx) + 1);
+  const ini = Math.max(desde, ...[".", ";", "!", "?"].map((p) => texto.lastIndexOf(p, idx) + 1));
+  const finRel = texto.slice(idx).search(/[.;!?\n]/);
+  return texto.slice(ini, finRel < 0 ? texto.length : idx + finRel + 1);
+};
+/* las formas que ABSUELVEN, porque son las que la casa quiere: preguntar, condicionar y declarar el límite */
+const _PREGUNTA_O_LIMITE = /\?|\bsi (?:fuera|fuese|es|era|resulta|hubiera|hubiese)\b|\bsuponiendo\b|\bno (?:puedo|podr[ií]a) (?:saber|afirmar|decir|confirmar)\b|\bno me consta\b|\bel dato no (?:dice|declara|trae|mide|ve)\b|\bno s[eé] si\b|\beso no est[aá] en el dato\b|\bdependiendo de\b|\bpuede ser\b|\bpodr[ií]a ser\b/i;
+/* ⚠️ Y UNA CUARTA, que casi me cuesta un falso positivo en prosa que YA estaba bien: EL CONTRASTE. El composer
+ * de margen escribe «separar qué parte de la carga fue deliberada y qué parte se descontroló» y «la carga
+ * deliberada de la que no lo fue» — frases que dicen exactamente lo contrario de un dictamen: declaran que la
+ * intención está SIN determinar y que justamente hay que distinguirla. Un patrón que solo mirara «fue
+ * deliberada» las mataba, y habría apagado la regla entera el día que alguien se cansara de la multa. */
+const _CONTRASTE = /\bqu[eé] parte\b|\bde la que no lo fue\b|\bde lo que no lo fue\b|\bde la que (?:se )?(?:escap|descontrol)|\bo (?:se )?(?:descontrol|escap)|\bo qu[eé] parte\b|\bdistinguir\b|\bseparar\b/i;
+const _RE_INTENCION = new RegExp(_INTENCION, "gi");
+/* ⚠️ EL SUSTANTIVO INTERMEDIO ES UNA LISTA CERRADA, y la calibración explicó por qué: «es una decisión
+ * deliberada» tiene que arder y «es una lectura consciente de que faltan datos» NO —ahí «consciente» describe
+ * a ADI, no una intención ajena—. Una palabra comodín entre el artículo y el adjetivo cazaba las dos. */
+/* ⚠️ EL PLURAL SE ESCRIBE ENTERO, no con una «s» pegada: «decisión» hace «decisiones», no «decisions» — y con
+ * el sufijo ingenuo «Son decisiones deliberadas, no descuidos» salía limpia. Es la prima hermana de la trampa
+ * del plural que ya costó una métrica entera en el respaldo («Ventas» vs «Venta»). */
+const _COSA_DECIDIDA = "(?:decisi[oó]n(?:es)?|pol[ií]ticas?|apuestas?|estrategias?|jugadas?|movidas?|elecci[oó]n(?:es)?|maniobras?)";
+const _RE_DICTAMEN = new RegExp(`${_DICTAMEN}|\\b(?:es|fue|son|fueron|hay|hubo)\\s+(?:una?s?\\s+)?(?:${_COSA_DECIDIDA}\\s+)?(?:${_INTENCION})`, "i");
+function _intencionDictaminada(texto) {
+  const t = String(texto || "");
+  let m;
+  _RE_INTENCION.lastIndex = 0;
+  while ((m = _RE_INTENCION.exec(t)) !== null) {
+    const cl = _CLAUSULA_DE(t, m.index);
+    if (_PREGUNTA_O_LIMITE.test(cl) || _CONTRASTE.test(cl)) continue;   // preguntar, condicionar, declarar el límite o contrastar es lo correcto
+    if (_RE_DICTAMEN.test(cl)) return m[0];             // afirmada, confirmada o descartada: eso es dictamen
+  }
+  return null;
+}
+
 /* ── R8 DEL EXAMEN 1 (2026-08-31) · EL LÉXICO DE SUPERFICIE, VETADO CIEGO ───────────────────────────────────────
  * Lo MEDIDO en pantalla: «escenario» (T25, replicado T26 — criterio BINARIO del examen: cero escenario, colapso
  * del eje) · «tensión» en 5 turnos (vocabulario interno que además coincide con un nombre de mundo) · «la
@@ -265,6 +318,10 @@ export function vetosDeRegistro(texto, contexto = {}) {
   }
   if (_DECISION_TOMADA.test(texto)) {
     v.push({ regla: "decision-por-tomada", multa: "das una decisión por tomada («procede con…») — las decisiones son del usuario y él debe evaluarlas. Preséntala como sugerencia con su cifra." });
+  }
+  const _int = _intencionDictaminada(texto);
+  if (_int) {
+    v.push({ regla: "intencion-inferida", multa: `dictaminas una intención: «${_int}». El dato puede descartar un PATRÓN —que la carga esté dentro del nivel, que el margen venga del precio y no del rebate— pero no puede decir si alguien lo hizo a propósito: eso vive en una cabeza, no en una fila. Describe el patrón que sí mediste, y si la intención importa, PREGÚNTASELA al dueño («¿fue una apuesta tuya de rotación o se les fue de las manos?»); preguntar está bien, dictaminar no.` });
   }
   for (const L of _LEXICO_SUPERFICIE) {
     // `salvoSi` es la excepción DECLARADA de una regla, evaluada contra un HECHO del turno — jamás contra el
