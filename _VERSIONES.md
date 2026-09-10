@@ -40,6 +40,15 @@ caía en silencio a la red de respaldo, y evaluábamos a un mecanismo creyendo e
   no puede contradecir la original ni perder su cifra.
 - **Un defecto real que apareció al blindar el veredicto:** a una hipótesis de mejora se le respondía «sí»
   mirando la posición en vez de la dirección preguntada. Corregido, con su prueba.
+- **Prohibir no es responder** (el hallazgo de su prueba de continuidad, 4/5). Con la respuesta anterior en
+  pantalla, «explícamelo para el equipo comercial» seguía cayendo en la frase falsa. La razón era incómoda:
+  los candados **prohibían** esa frase, pero cuando el narrador insistía el turno se quedaba sin texto y la
+  salida de emergencia servía **la misma frase prohibida**. Ahora hay un piso propio: el procedimiento re-dice
+  la respuesta anterior —palabra por palabra, para el destinatario pedido, sin una cifra nueva y sin llamar a
+  nadie— conservando la conclusión. Y el material lo lee del hilo, no de una memoria que puede faltar.
+- **La intención no se lee en el dato.** «Volumen a margen bajo como apuesta deliberada — descartado por el
+  dato» daba por dictaminado algo que ninguna planilla ve. El dato descarta **patrones**, no propósitos. Ahora
+  se puede preguntar, condicionar, declarar el límite y contrastar; lo que no se puede es dictaminar.
 - **Higiene del taller.** Un candado que llevaba meses fuera de la suite volvió a correr (246 verificaciones),
   y tres gates dejaron de acumular basura: 1,8 GB en la raíz.
 
