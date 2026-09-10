@@ -12,6 +12,32 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.23 — producción · tag `v2.23`
+
+**Cuatro afinaciones sobre las rutas conversacionales, las cuatro nacidas de mirar la pantalla.** El owner
+revisó v2.22 corriendo en producción y marcó qué mejoraría. Ninguna cambia lo que ADI decide; las cuatro
+cambian cómo se lee.
+
+- **La misma cifra, una sola ortografía.** Una respuesta escribía «30,1%» y dos turnos después la misma
+  referencia salía «30.1%». No era el narrador reescribiendo: eran **cinco emisores del motor** que ponían la
+  coma a mano. El separador se declara ahora **una sola vez** en `figureType.js`, y el lavado de superficie
+  normaliza lo que el narrador redacta libre. No toca los miles: `$22.560` sigue igual.
+- **El cierre nombra la cuenta.** Al corregir una hipótesis, ADI lista otras tres cuentas y antes cerraba con
+  «si quieres **la** abro por dentro». Un deíctico a tres líneas de su antecedente no es economía: es una
+  adivinanza. Ahora dice el nombre.
+- **Cada cosa una sola vez.** Desafiar decisiones contestaba en quince líneas contra las cuatro a seis de las
+  demás rutas, y dentro de esas quince daba las mismas tres cifras dos veces — una en prosa y otra en lista.
+  El dueño no lo lee como generosidad: lo lee buscando en qué se diferencian los dos bloques.
+- **El plan reconoce la conversación.** Tras cuatro preguntas sobre dos cuentas, «qué hago esta semana» abría
+  por otro frente sin mencionar lo que se acababa de mirar. La prioridad estaba bien; faltaba el puente. Ahora
+  lo dice —«veníamos mirando X y Y»— y **sostiene igual la prioridad medida**: el puente nombra el hilo, no lo
+  obedece.
+
+**Verificado:** 243 controles verdes · 0 tocaron la red · 0 con credencial viva · build OK · censo de las cinco
+rutas idéntico al de v2.22, sin roturas silenciosas.
+
+---
+
 ## 2.22 — producción · tag `v2.22`
 
 **ADI deja de responder la pregunta que sabe y empieza a responder la que le hicieron.** Un censo de nueve
