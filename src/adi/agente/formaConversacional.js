@@ -68,6 +68,10 @@ const _DECISION = new RegExp([
   `\\bes (?:una )?(?:mala|buena) (?:decisi[oó]n|idea)${_FIN}`,
   `\\bvale la pena\\b[^.?!\\n]{0,30}\\?`,
   `\\bqu[eé] opinas de (?:mi|lo que)\\b`,
+  /* CONCEDER ALGO A UNA CUENTA — «¿le doy más descuento a X?», «¿le bajo el precio?». Lo destapó la ruta de
+   * desafiar decisiones: es la decisión que el dueño toma más seguido y no la veía ninguna forma. Se pide el
+   * OBJETO comercial explícito para no llevarse «¿qué le digo al equipo?», que es plan de acción. */
+  `\\ble (?:doy|damos|subo|subimos|bajo|bajamos|cedo|cedemos|mejoro|mejoramos)\\b[^.?!\\n]{0,25}\\b(?:descuento|precio|rebate|condiciones|plazo|cr[eé]dito)\\b`,
 ].join("|"), "i");
 
 /* ── (5) PLAN DE ACCIÓN · pide pasos, no diagnóstico ──────────────────────────────────────────────────────── */
