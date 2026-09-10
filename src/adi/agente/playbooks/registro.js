@@ -29,6 +29,7 @@
 import { margenEnRiesgo } from "./margenEnRiesgo.js";
 import { hipotesisDelUsuario } from "./hipotesisDelUsuario.js";   // el usuario propone, ADI contrasta (owner 2026-09-09)
 import { desafiarDecision } from "./desafiarDecision.js";         // el tradeoff con cifra: ni sermón ni complacencia (owner 2026-09-09)
+import { contradiccionDeMetricas } from "./contradiccionDeMetricas.js";   // las dos son ciertas: qué las reconcilia (owner 2026-09-09)
 import { nombraEntidad } from "./indiceEntidades.js";   // el retiro-por-nombre, aplicado UNA vez en playbookPara
 import { clientePerdiendoContribucion, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio } from "./asesoria.js";   // los 4 de ASESORÍA (owner 2026-09-01): 01 QUÉ · 02 DÓNDE · 03 QUÉ HACER PRIMERO
 import { lecturaPorEje } from "./lecturaPorEje.js";   // playbook de FORMA: canal · marca · familia · bodega · SKU frenado
@@ -64,7 +65,7 @@ import { resumenDelNegocio } from "./resumenDelNegocio.js";   // señal del owne
  * que responden la lectura de ese tema y no contrastan nada. El usuario proponía y recibía un ranking. Va
  * antes que todos porque su detector es el más estrecho de la casa: exige forma de hipótesis + un tema
  * identificable + una dirección afirmada; sin las tres se retira, y el turno sigue su camino de siempre. */
-export const PLAYBOOKS = [hipotesisDelUsuario, desafiarDecision, margenEnRiesgo, clientePerdiendoContribucion, askDeCuadro, cuadroExplicado, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada, cobranza, fichaDeEntidad, limiteHonesto, sintesisEjecutiva, resumenDelNegocio];
+export const PLAYBOOKS = [hipotesisDelUsuario, desafiarDecision, contradiccionDeMetricas, margenEnRiesgo, clientePerdiendoContribucion, askDeCuadro, cuadroExplicado, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada, cobranza, fichaDeEntidad, limiteHonesto, sintesisEjecutiva, resumenDelNegocio];
 
 /** playbookPara(pregunta) → el playbook que aplica, o null. El PRIMERO que declare aplicar (orden del registro
  *  = precedencia declarada); jamás dos a la vez, para que el procedimiento del turno sea uno solo y auditable. */

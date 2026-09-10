@@ -69,3 +69,35 @@ export function entidadNombrada(pregunta) {
 export function nombraEntidad(pregunta) {
   return entidadNombrada(pregunta) !== null;
 }
+
+/* ── DOS NOMBRES, NO UNO ───────────────────────────────────────────────────────────────────────────────────
+ * `entidadNombrada` devuelve LA entidad —la más larga— y eso es correcto para la ficha, que responde por una.
+ * Pero hay preguntas cuyo objeto son DOS: «¿por qué Jumbo vende menos que Lider pero aporta más?» no se puede
+ * contestar con Jumbo solo, y comparar alternativas tampoco. Acá se devuelven TODAS, del mismo eje, EN EL
+ * ORDEN EN QUE APARECEN — el orden importa: quien pregunta pone primero el sujeto de su contradicción, y
+ * responder al revés le cambia la pregunta.
+ * Se filtra por contención para no devolver «LG» junto a «LG-DRYER8KG»: es un nombre, no dos. */
+export function entidadesNombradas(pregunta, eje = null) {
+  const q = String(pregunta || "");
+  if (!q.trim()) return [];
+  const ejes = eje ? [eje] : _EJES;
+  const halladas = [];
+  for (const e of ejes) {
+    let nombres = [];
+    try { nombres = axisEntityNames(e) || []; } catch { nombres = []; }
+    for (const n of nombres) {
+      const nombre = String(n);
+      if (!nombre) continue;
+      const corto = nombre.length < _CORTO;
+      const re = new RegExp(`(?<![\\w-])${_esc(nombre)}(?![\\w-])`, corto ? "" : "i");
+      const m = re.exec(q);
+      if (m) halladas.push({ nombre, eje: e, en: m.index });
+    }
+  }
+  /* el nombre contenido en otro más largo que también aparece NO es una entidad aparte */
+  const limpias = halladas.filter((a) => !halladas.some((b) => b !== a && b.nombre.length > a.nombre.length && b.nombre.toLowerCase().includes(a.nombre.toLowerCase())));
+  const vistas = new Set();
+  return limpias.sort((a, b) => a.en - b.en)
+    .filter((x) => { const k = `${x.eje}·${x.nombre}`; if (vistas.has(k)) return false; vistas.add(k); return true; })
+    .map(({ nombre, eje: ej }) => ({ nombre, eje: ej }));
+}

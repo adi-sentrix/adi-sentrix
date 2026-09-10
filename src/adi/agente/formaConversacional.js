@@ -85,7 +85,11 @@ const _ACCION = new RegExp([
 /* ── (6) CONTRADICCIÓN APARENTE · dos métricas que parecen no cerrar ──────────────────────────────────────── */
 const _CONTRADICCION = new RegExp([
   /* «vendo más pero gano menos» · «vende menos pero aporta más» — el «pero» entre dos direcciones opuestas */
-  `\\b(?:m[aá]s|menos|sub[eií]|baj[aoó]|crec[eií]|cae|cay[oó])\\b[^.?!\\n]{0,40}\\bpero\\b[^.?!\\n]{0,40}\\b(?:m[aá]s|menos|sub[eií]|baj[aoó]|crec[eií]|cae|cay[oó]|igual)\\b`,
+  /* ⚠️ LAS MAGNITUDES TAMBIÉN SON DIRECCIONES, y sin ellas dos de las cinco frases del owner no activaban nada
+   * (medido): «deuda ALTA pero POCO vencido» e «inventario bajo en monto pero ALTO en días». El «pero» entre
+   * dos magnitudes opuestas es la misma forma que entre dos verbos; pedir sólo verbos dejaba fuera justo las
+   * contradicciones de cobranza e inventario, que son las que el dueño no puede resolver mirando una tabla. */
+  `\\b(?:m[aá]s|menos|sub[eií]|baj[aoó]|crec[eií]|cae|cay[oó]|alt[oa]s?|baj[oa]s?|poc[oa]s?|much[oa]s?|lent[oa]s?|r[aá]pid[oa]s?)\\b[^.?!\\n]{0,40}\\bpero\\b[^.?!\\n]{0,40}\\b(?:m[aá]s|menos|sub[eií]|baj[aoó]|crec[eií]|cae|cay[oó]|igual|alt[oa]s?|baj[oa]s?|poc[oa]s?|much[oa]s?|lent[oa]s?|r[aá]pid[oa]s?)\\b`,
   `\\bc[oó]mo se entiende${_FIN}`, `\\bno me (?:cuadra|calza|cierra)${_FIN}`, `\\bno cierra${_FIN}`,
   /* ⚠️ `${_FIN}` y no `\b`: tras la «í» de «así» el `\b` de JS no existe — la trampa de la casa, tercera vez
    * que muerde. La medición lo cazó: «¿por qué tengo caja y aun así estoy apretado?» no activaba nada. */
@@ -116,12 +120,30 @@ const _FORMAS = [
   ["decision", _DECISION], ["accion", _ACCION], ["contradiccion", _CONTRADICCION],
 ];
 
+/* ── PEDIR UNA LISTA NO ES PREGUNTAR POR UNA CONTRADICCIÓN ─────────────────────────────────────────────────
+ * ⚠️ ESTO LO PAGÓ LA CERTIFICACIÓN CONGELADA. Al ampliar la forma «contradicción» con las magnitudes —para
+ * que entraran «deuda ALTA pero POCO vencido» e «inventario bajo pero ALTO en días»— el patrón empezó a caer
+ * también sobre «Dime cuáles son los clientes que venden MUCHO pero están BAJO el benchmark», que es un
+ * turno congelado y NO es una contradicción: es una lista con dos condiciones. El usuario no pregunta cómo
+ * conviven las dos cosas, pide los nombres que cumplen ambas.
+ * La diferencia es la forma del pedido, no el «pero»: quien pide una lista abre con «dime cuáles», «dame»,
+ * «muéstrame», «quiénes». Se excluye SOLO de la contradicción — un pedido de lista sí puede ser, por ejemplo,
+ * un plan de acción («dame los tres pasos»), y ahí la forma es correcta. */
+const _PIDE_LISTA = new RegExp([
+  `\\b(?:dime|dame|mu[eé]strame|list[aá]me|ens[eé]ñame)\\b[^.?!\\n]{0,20}\\b(?:cu[aá]l(?:es)?|qui[eé]n(?:es)?|los|las)\\b`,
+  `\\b(?:cu[aá]les|qui[eé]nes) son\\b`, `\\bqu[eé] clientes\\b`, `\\blista de\\b`, `\\bran?king\\b`,
+].join("|"), "i");
+
 /** la FORMA conversacional de la pregunta, o null si es una lectura corriente.
  *  Devuelve la primera que coincide — el orden es el del owner, y una pregunta rara vez es dos cosas. */
 export function formaConversacional(pregunta) {
   const q = String(pregunta || "");
   if (!q.trim()) return null;
-  for (const [nombre, re] of _FORMAS) if (re.test(q)) return nombre;
+  for (const [nombre, re] of _FORMAS) {
+    if (!re.test(q)) continue;
+    if (nombre === "contradiccion" && _PIDE_LISTA.test(q)) continue;
+    return nombre;
+  }
   return null;
 }
 

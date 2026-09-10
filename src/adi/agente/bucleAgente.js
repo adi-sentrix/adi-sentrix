@@ -32,6 +32,7 @@ import { TOOLS } from "../oracle/toolRegistry.js";
 import { cajaDelAgente } from "./herramientasAgente.js";
 import { doctrinasParaRonda } from "./doctrinaAgente.js";
 import { esPorQue, doctrinaDelPorque, vetosDelPorque } from "./porque.js";   // la ley del porqué, transversal (owner 2026-09-09)
+import { vetosDeReferencia } from "./referenciaDeLaCifra.js";   // owner 2026-09-09: la cifra que sostiene una recomendación trae su referencia
 import { mapaDelDato, faltanteQueToca } from "./mapaDelDato.js";   // + lo que el archivo del usuario no trajo (owner 2026-08-31)
 import { guardC, esNarracionVacia } from "../oracle/guardC.js";
 import { cifrasDelDato } from "../oracle/datoProyectado.js";
@@ -744,9 +745,16 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
        * declaró, cítalo». Se lee del tenant, que es donde la UI lo toma para el system. */
       mem: memIn, contexto: (() => { try { const t = getTenantData(); return (t && t.perfil && t.perfil.contexto) || null; } catch { return null; } })(), sitio,
     });
+    /* ⚠️ Y UN QUINTO: LA REFERENCIA DE LA CIFRA (owner 2026-09-09). «Si ADI usa una cifra para sostener una
+     * recomendación, debe traer también su referencia.» Vive en el muro y no en un playbook porque la regla
+     * es del producto entero: nació de una frase del piso determinístico —«su carga va 4.5%, el espacio lo
+     * ves ahí»— que era correcta cifra por cifra y aun así no servía para decidir. Un 4.5% no es alto ni bajo
+     * hasta que se dice contra qué; sin referencia el dueño no evalúa el consejo, solo lo cree. */
+    const vRef = vetosDeReferencia(t, { figs: figsTotales, sitio });
     const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [], limiteDeHerramienta: motivosNoSoportado.length > 0 }),
       ...(vSinBoleta ? [vSinBoleta] : []),
       ...vPorQue,
+      ...vRef,
       ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales, pregunta: q, ctx: ctxTurno }) : [])];
     if (!vc.length) return v;
     vetosDelTurno.push(`${sitio} · ${vc[0].regla}: ${vc[0].multa.split("\n")[0].slice(0, 160)}`);
