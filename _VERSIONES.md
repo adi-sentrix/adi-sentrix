@@ -12,6 +12,48 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.22 — producción · tag `v2.22`
+
+**ADI deja de responder la pregunta que sabe y empieza a responder la que le hicieron.** Un censo de nueve
+rutas conversacionales encontró que el problema no era falta de caminos: **sobraban dos puertas** —la ficha de
+cliente y el margen general— que se tragaban la conversación. Tres preguntas distintas recibían la misma
+respuesta palabra por palabra. Esta versión cierra esas puertas y abre las cinco rutas que el owner ordenó.
+
+- **El candado anti-secuestro.** Si la pregunta tiene forma de comparación, hipótesis, recuerdo, decisión,
+  acción o contradicción, ninguna puerta de tema puede quedársela. La ficha gana solo cuando se pide la ficha;
+  el margen general, solo cuando la pregunta es de margen general.
+- **Validar hipótesis.** El usuario propone y ADI contrasta contra el dato: la confirma, **la corrige** o la
+  deja abierta diciendo qué falta. Era la única ruta donde ADI podía afirmar algo falso y salir limpio: un
+  «sí, está comprando menos» no lleva cifras, así que ningún control tenía qué verificar.
+- **Desafiar decisiones.** Los dos lados con cifra: lo que la decisión pone en juego y lo que recupera. Ni
+  complacencia («buena decisión») ni sermón («deberías cuidar tu margen»): un juicio viaja con los dos montos.
+  El veredicto **cambia con la cuenta** — soltar una cuenta sana cuesta contribución y no devuelve margen.
+- **Contradicciones.** «Vendo más pero gano menos» se responde explicando **las dos** métricas y el mecanismo
+  que las reconcilia, no sirviendo la mitad que se sabe leer.
+- **Comparar alternativas.** Los dos caminos con precio, y **elige o marca el tradeoff**. Cuando la balanza
+  cruza universos —margen contra capital de inventario— lo declara: no son el mismo dinero, se ordenan por
+  urgencia y no se suman.
+- **Plan de acción.** Una cosa esta semana · por qué esa primero · qué mirar para confirmar · la segunda si se
+  confirma · **qué NO haría todavía**. Todo en primera persona condicional: ADI asesora, no gestiona.
+
+**Y una regla nueva que gobierna todo el producto (owner):** si ADI usa una cifra para sostener una
+recomendación, debe traer **su referencia**. No basta «su carga es 4.5%»; dice «4.5% contra el nivel declarado
+de 3.5%». Nació de una frase que era correcta cifra por cifra, estaba en la boleta y tenía los 239 controles
+en verde — y aun así no servía para decidir.
+
+**Lo que el muro frenó por el camino, y está bien que lo frenara.** La primera versión de contradicciones
+citaba el total de venta contra el año anterior; el motor sella esos totales como **no reconciliados** y el
+control volteó el turno entero. Se rehizo sobre cifras verificables una por una.
+
+**Arreglo mínimo, con autorización explícita:** el peldaño de respaldo daba un falso rojo con la boleta vacía
+y mandaba el turno a una declinación genérica. Se conectó el canal que `guardC` ya tenía para re-citar lo ya
+aprobado, encendido solo en ese peldaño; el guardia no se aflojó en ningún otro sitio (probado con cifras
+inventadas, que siguen vetadas).
+
+**Verificado:** 243 controles verdes · 0 tocaron la red · 0 con credencial viva · build OK · censo final 30/30.
+
+---
+
 ## 2.21 — producción · tag `v2.21`
 
 **ADI deja de nombrar culpables y pasa a explicar mecanismos — y dice lo mismo que la pantalla.** Tres
