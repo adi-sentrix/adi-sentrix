@@ -647,6 +647,39 @@ export function stripLanguageLeaks(text) {
    * toca la coma que no puede ser otra cosa que un decimal: «$22.560» (punto de MILES, el peldaño de respaldo) y
    * «€1.234,56» (un pack en euros) salen intactos. El porqué de cada condición está allá, junto a la declaración. */
   s = normalizarSeparadorDecimal(s);
+  /* ── LA PALABRA DEL OWNER PARA LA REFERENCIA: «objetivo» (decisión 2026-09-10) ─────────────────────────────
+   * En la prueba local la prosa viva dijo «tu meta de 3.5%» CINCO veces. La ley de la casa ya vetaba «meta»
+   * sobre la carga/benchmark, pero el owner además ELIGIÓ el reemplazo: no «nivel declarado» (— «suena
+   * demasiado técnico» —) sino «objetivo»: «si el objetivo viene explícitamente del usuario, eso es natural y
+   * mantiene significado». Acá el lavador SANA en vez de multar —el mismo criterio que el separador decimal:
+   * arreglar antes del muro ahorra una vuelta de reparación—, y el veto `lexico-meta` queda como respaldo para
+   * lo que esta ventana no vea. Solo se toca «meta/target» en ámbito de negocio (cerca de carga, benchmark,
+   * rebate, nivel o un porcentaje): una «meta» ajena al tema —si el dueño habla de la meta de su maratón— no
+   * es nuestra palabra que corregir. */
+  {
+    const src = s;
+    /* ⚠️ «meta» ES FEMENINA Y «objetivo» MASCULINO: reemplazar solo el sustantivo dejaba «la objetivo» (lo cazó
+     * `_voice_gate` V4 a la primera — la misma trampa documentada con «la performance → el desempeño»). El
+     * artículo se captura y se concuerda en la misma pasada. Nota: «target es label vivo del dato» dejó de ser
+     * cierto el 2026-09-10 — la sesión de rótulos lo renombró a «Nivel de carga comercial declarado», así que
+     * barrerlo ya no reescribe ninguna etiqueta de la boleta. */
+    const _ART = { la: "el", una: "un", esa: "ese", esta: "este", La: "El", Una: "Un", Esa: "Ese", Esta: "Este" };
+    s = s.replace(/\b(la|una|esa|esta)?(\s+)?(metas?|targets?)\b/gi, (m, art, sp, w, off) => {
+      const ventana = src.slice(Math.max(0, off - 60), off + m.length + 60);
+      if (!/\bcarga\b|\bbenchmark\b|\brebates?\b|\bnivel\b|\d[\d.,]*\s*%/i.test(ventana)) return m;
+      const plural = /^(metas|targets)$/i.test(w);
+      let base = plural ? "objetivos" : "objetivo";
+      if (w === w.toUpperCase()) base = base.toUpperCase();
+      else if (w[0] === w[0].toUpperCase()) base = base[0].toUpperCase() + base.slice(1);
+      if (!art) return `${sp || ""}${base}`;   // sin artículo, el espacio capturado se conserva («tu meta» → «tu objetivo», no «tuobjetivo»)
+      const artNuevo = _ART[art] || _ART[art.toLowerCase()] || art;
+      const artFinal = art[0] === art[0].toUpperCase() ? artNuevo[0].toUpperCase() + artNuevo.slice(1) : artNuevo.toLowerCase();
+      return `${artFinal}${sp || " "}${base}`;
+    });
+  }
+  /* «la cuenta del motor» es tripa del sistema hablándole al dueño (salió DOS veces en la misma pantalla):
+   * se sana a «lo medido», y el veto compartido queda de respaldo. */
+  s = s.replace(/\bLa cuenta del motor\b/g, "Lo medido").replace(/\bla cuenta del motor\b/gi, "lo medido");
   return s.trim() ? s : text;   // seguridad: nunca dejar vacío
 }
 

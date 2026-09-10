@@ -73,9 +73,13 @@ H("[2] EL BARRIDO DE REGISTRO ATRAPA ANGLICISMOS (hilo B turno 2)");
   const nota = "Falabella cede margen por carga alta. Sin driver interno obvio en los 5.";
   ok(stripLanguageLeaks(nota) === "Falabella cede margen por carga alta.",
     "«driver interno» NO se traduce: sigue siendo el marcador de nota interna y la oración entera se elimina", stripLanguageLeaks(nota));
+  /* ⚠️ LA PREMISA DE «target» CADUCÓ DOS VECES: la sesión de rótulos (2026-09-10) renombró el label vivo a
+   * «Nivel de carga comercial declarado», y el owner ese mismo día eligió «objetivo» como LA palabra de la
+   * referencia — «meta»/«target» eran la palabra vetada dicha en dos idiomas. El lavador ahora SANA target y
+   * el gate registra la conducta nueva: benchmark, rebate y gap siguen intactos (vocabulario adoptado). */
   const adoptados = "Tu benchmark es 30.1%, el rebate es parte de la carga, tu target de carga es 3.5% y el gap de margen se descompone.";
-  ok(stripLanguageLeaks(adoptados) === adoptados,
-    "el vocabulario ADOPTADO no se barre: benchmark, rebate, target (label vivo del dato) y gap (etiqueta de brecha)");
+  ok(stripLanguageLeaks(adoptados) === "Tu benchmark es 30.1%, el rebate es parte de la carga, tu objetivo de carga es 3.5% y el gap de margen se descompone.",
+    "benchmark, rebate y gap NO se barren (vocabulario adoptado) — y «target» se corrige a «objetivo», la palabra del owner (2026-09-10)");
   const limpia = "Falabella cede margen por carga alta: 22% contra un benchmark de 30.1%. La brecha es de 8.1 puntos.";
   ok(stripLanguageLeaks(limpia) === limpia, "una narración sin anglicismos sale byte-idéntica");
 }

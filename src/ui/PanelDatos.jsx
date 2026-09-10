@@ -382,7 +382,7 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, onVerDemo, act
                   ? <>Margen de referencia: <b style={{ color: C.text }}>{t.referencia.valor}%</b> — el que declaró tu negocio.</>
                   : <>Margen de referencia: <b style={{ color: C.text }}>{t.referencia.valor}%</b> — es la{" "}
                       <b style={{ color: C.text }}>referencia general de ADI</b>. Tu negocio no declaró una propia,
-                      así que <b style={{ color: C.text }}>no es tu meta</b>: es la vara con la que ADI compara
+                      así que <b style={{ color: C.text }}>no es tu objetivo</b>: es la referencia con la que ADI compara
                       cuando no hay otra.</>}
               </div>
             )}

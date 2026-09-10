@@ -450,7 +450,10 @@ section("12 · crecimiento del prompt, medido");
  * «tienes», «podés»→«puedes», «querés»→«quieres»), y en este prompt había 32 «tenés» y 11 «podés».
  * El trinquete sigue en pie con el número nuevo: si NARRAR vuelve a crecer, es doctrina que alguien agregó y hay
  * que justificarla. Mover este número sin escribir el motivo al lado es exactamente lo que el trinquete impide. */
-const BASE = { planSystem: 30534, planTool: 3699, narrarDefault: 42372 };
+/* narrarDefault 42372 → 42378 (+6 car · owner 2026-09-10): la palabra de la referencia pasó a «objetivo» —
+ * «contra tu meta» → «frente a tu objetivo» en la línea de facts.targetCarga del prompt de NARRAR. No es
+ * doctrina nueva: es la MISMA línea con el vocabulario que el owner eligió ese día. */
+const BASE = { planSystem: 30534, planTool: 3699, narrarDefault: 42378 };
 const tok = (n) => Math.round(n / 4);
 const planSystem = buildPlanSystem(ADI_PERSONA_PLAN, "", "actual", false).length;
 const planTool = JSON.stringify(PLAN_TOOL).length;

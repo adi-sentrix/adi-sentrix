@@ -222,7 +222,7 @@ function _caso(pregunta, ctx, scenario) {
 /* ── LOS RÓTULOS DE LA COMPARACIÓN, en palabras de negocio ─────────────────────────────────────────────── */
 const CONTRA = {
   anterior: "contra el mismo período del año anterior", presupuesto: "contra tu presupuesto",
-  benchmark: "contra tu benchmark", meta: "contra tu meta", promedio_cartera: "contra el promedio de tu cartera",
+  benchmark: "contra tu benchmark", meta: "frente a tu objetivo", promedio_cartera: "contra el promedio de tu cartera",
   vara_usuario: "contra la referencia que declaraste", estado: "contra el estado de cada fila",
 };
 

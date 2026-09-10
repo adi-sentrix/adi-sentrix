@@ -428,7 +428,7 @@ export const VIEW_MANIFEST = {
       razon: "sin evidencia declarada: la REFERENCIA de esta lista es el promedio PONDERADO de la cartera y ninguna tool la conoce (simulateCarga y diagnose sólo comparan contra POLICY.targetCarga). Contrastarla con la lista contra la meta sería reconciliar dos referencias distintas" },
   },
   "comercial/02/acciones-vs-meta": {
-    vista: "comercial", seccion: "02", tipo: "lista", label: "Acciones comerciales contra tu meta",
+    vista: "comercial", seccion: "02", tipo: "lista", label: "Acciones comerciales frente al objetivo",
     campo: "deterioro.margen.acciones.referencias[key='meta']",
     universoCampo: "deterioro.margen.acciones.referencias[key='meta'].filas",
     metrica: "carga", eje: "cliente", periodo: "año cerrado",

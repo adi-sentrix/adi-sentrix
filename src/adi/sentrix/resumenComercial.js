@@ -223,7 +223,7 @@ function _puente(rows, plano, tension) {
     // partición como partición y la localización aparte.
     tramos: [
       { estatus: "probado", esParte: true, monto: _K(probado), titulo: "Acciones comerciales sobre la meta",
-        detalle: `${conExceso.length} ${conExceso.length === 1 ? "cliente opera" : "clientes operan"} con carga comercial sobre tu meta de ${_pct(POLICY.targetCarga)}. Es la única parte de la brecha con una causa medida y cuantificada.` },
+        detalle: `${conExceso.length} ${conExceso.length === 1 ? "cliente opera" : "clientes operan"} con carga comercial sobre tu objetivo de ${_pct(POLICY.targetCarga)}. Es la única parte de la brecha con una causa medida y cuantificada.` },
       { estatus: "abierto", esParte: true, monto: _M(abierto), titulo: "Pendiente de aislar",
         detalle: "El resto debe separarse entre costo de producto, precio y composición de la venta. El motor todavía no aisló ninguno de los tres, así que son rutas de investigación abiertas — no causas." },
       { estatus: "indicado", esParte: false, monto: tension.n ? tension.enJuegoFmt : "—", titulo: "Dónde se concentra la brecha",
@@ -263,7 +263,7 @@ function _insights(plano, rows) {
         estatusCausa: tieneAccion ? "probado" : "abierto",
         // POR QUÉ vale la pena profundizar — localiza, nunca atribuye.
         razon: tieneAccion
-          ? `Parte de la brecha ya está comprobada: opera ${_pp(excesoPP)} sobre tu meta de acciones comerciales, que equivalen a ${_K(probado)}. El resto necesita aislarse en el Perfil Ejecutivo.`
+          ? `Parte de la brecha ya está comprobada: opera ${_pp(excesoPP)} sobre tu objetivo de acciones comerciales, que equivalen a ${_K(probado)}. El resto necesita aislarse en el Perfil Ejecutivo.`
           : `El monto es material, pero la causa todavía no está aislada: hay que separar costo, precio y composición de la venta.`,
         // FILA DE DECISIÓN (owner 2026-08-07): la acción concreta y qué falta, cada una en una línea corta — la
         // tarjeta larga se lee como informe; esto se lee como una decisión.
@@ -686,7 +686,7 @@ function _sostiene(scenario, rows, total) {
     ],
     // El glosario largo se fue al InfoDot, que es donde vive lo que hay que explicar. Acá queda la clave de color,
     // que es lo único que no se deduce mirando.
-    nota: `En ámbar: brecha de ${POLICY.margenBrechaMaterial} pp o más y acciones sobre tu meta de ${_pct(POLICY.targetCarga)}.`,
+    nota: `En ámbar: brecha de ${POLICY.margenBrechaMaterial} pp o más y acciones sobre tu objetivo de ${_pct(POLICY.targetCarga)}.`,
     limitacion: "Por punto de venta no hay corte: las sucursales del dato traen inventario, no venta. Se enciende con el ERP.",
   };
 }
@@ -819,11 +819,11 @@ function _deterioro(scenario, rows, plano, tension, puente) {
           // y esta nota se pinta en la cara Comercial. El concepto no cambia (sigue siendo una referencia, no un
           // objetivo): cambia la palabra que el usuario lee.
           nota: `El promedio ponderado de tu cartera: ${_K(tA * _fxc())} de acciones comerciales sobre ${_M(tV * _fxc())} de venta. Es la referencia realista — pregunta qué pasa si los que entregan de más se parecen al resto de tu propia cartera, no a un ideal.` },
-        { key: "meta", label: `a tu meta de ${_pct(meta)}`, refFmt: _pct(meta), ...aLaMeta,
+        { key: "meta", label: `a tu objetivo de ${_pct(meta)}`, refFmt: _pct(meta), ...aLaMeta,
           nota: `Tu meta declarada. Es más ambiciosa que el promedio, así que el monto es mayor — y por eso las dos se muestran juntas: una dice qué es alcanzable comparándote contigo mismo, la otra qué te propusiste.` },   // «contigo», no «con vos»: registro formal LatAm sin voseo
       ],
       lectura: alPromedio.n
-        ? `${alPromedio.n} de ${rows.length} cuentas entregan más que tu promedio (${_pct(promedio, 2)}). Alinearlas recupera ${_K(alPromedio.total)}; llevarlas a tu meta de ${_pct(meta)}, ${_K(aLaMeta.total)}.`
+        ? `${alPromedio.n} de ${rows.length} cuentas entregan más que tu promedio (${_pct(promedio, 2)}). Alinearlas recupera ${_K(alPromedio.total)}; llevarlas a tu objetivo de ${_pct(meta)}, ${_K(aLaMeta.total)}.`
         : `Ninguna cuenta entrega más que tu promedio (${_pct(promedio, 2)}): por acciones comerciales no hay margen que rescatar.`,
     };
   };
@@ -968,7 +968,7 @@ function _deterioro(scenario, rows, plano, tension, puente) {
   const conProbado = margenFilas.filter((x) => x.probado > 0).length;
   const insightMargen = !margenFilas.length
     ? `Ninguna cuenta cede ${POLICY.margenBrechaMaterial} pp o más contra tu benchmark: el margen no se diluye de forma material.`
-    : `El margen se diluye en ${margenFilas.slice(0, 2).map((x) => x.nombre).join(" y ")}${margenFilas.length > 2 ? ` y ${margenFilas.length - 2} más` : ""}: ${_M(enJuegoTotal)} de contribución en juego. ${conProbado ? `En ${conProbado} de ${margenFilas.length} una parte está medida — operan sobre tu meta de acciones comerciales, ${_K(probadoTotal)} en total` : "En ninguna hay todavía una parte medida"}; el resto necesita aislarse entre costo, precio y composición.`;
+    : `El margen se diluye en ${margenFilas.slice(0, 2).map((x) => x.nombre).join(" y ")}${margenFilas.length > 2 ? ` y ${margenFilas.length - 2} más` : ""}: ${_M(enJuegoTotal)} de contribución en juego. ${conProbado ? `En ${conProbado} de ${margenFilas.length} una parte está medida — operan sobre tu objetivo de acciones comerciales, ${_K(probadoTotal)} en total` : "En ninguna hay todavía una parte medida"}; el resto necesita aislarse entre costo, precio y composición.`;
 
   return {
     venta: {
@@ -988,7 +988,7 @@ function _deterioro(scenario, rows, plano, tension, puente) {
       filas: margenFilas, n: margenFilas.length,
       enJuegoTotal, enJuegoFmt: _M(enJuegoTotal), probadoFmt: _K(probadoTotal), abiertoFmt: _M(Math.max(0, puente.brechaTotal - probadoTotal)),
       insight: insightMargen,
-      nota: `Las cuentas que ceden ${POLICY.margenBrechaMaterial} pp o más contra tu benchmark — el mismo criterio del detector y del cuadro. "En juego" es la contribución no capturada de esa cuenta. Lo PROBADO es el exceso medido de acciones comerciales sobre tu meta; el resto queda ABIERTO entre costo, precio y composición, que el motor todavía no aísla.`,
+      nota: `Las cuentas que ceden ${POLICY.margenBrechaMaterial} pp o más contra tu benchmark — el mismo criterio del detector y del cuadro. "En juego" es la contribución no capturada de esa cuenta. Lo PROBADO es el exceso medido de acciones comerciales sobre tu objetivo; el resto queda ABIERTO entre costo, precio y composición, que el motor todavía no aísla.`,
       // LAS DOS CAUSAS del margen, cada una con su referencia y su monto (owner 2026-08-07)
       acciones: _accionesComerciales(),
       costoPrecio: _costoPrecio(),
@@ -1236,7 +1236,7 @@ export function buildResumenComercial(scenario = ESCENARIO_INICIAL, { maxEntidad
         tono: typeof variacionPct === "number" && variacionPct >= 0 ? "ok" : "neutro" },
       { key: "contribucion", label: "Contribución", valor: _M((total.contribucion || 0) * _fxc()), pie: typeof total.margen === "number" ? `${_pct(total.margen)} de la venta` : "—", tono: "neutro" },
       { key: "margen", label: "Margen promedio", valor: _pct(total.margen), pie: typeof total._vara === "number" ? `${_pp(total._vara - total.margen)} bajo tu benchmark` : "sin referencia declarada", tono: typeof total._vara === "number" && total.margen < total._vara ? "alerta" : "ok" },
-      { key: "acciones", label: "Acciones comerciales", valor: _M((total.acciones || 0) * _fxc()), pie: `${puente.probadoFmt} sobre tu meta de ${_pct(POLICY.targetCarga)}`, tono: puente.probado > 0 ? "aviso" : "ok" },
+      { key: "acciones", label: "Acciones comerciales", valor: _M((total.acciones || 0) * _fxc()), pie: `${puente.probadoFmt} sobre tu objetivo de ${_pct(POLICY.targetCarga)}`, tono: puente.probado > 0 ? "aviso" : "ok" },
     ],
   };
 }

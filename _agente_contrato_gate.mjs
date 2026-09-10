@@ -602,7 +602,11 @@ H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro")
   // (b) la regla «procede con» vaciada del juez — el texto de prueba dispara SOLO esa regla (el «procede con»
   //     va a mitad de párrafo y el cierre es una oferta limpia, para que el cierre-imperativo no tape el hueco)
   await carnada("el veto de «procede con» vaciado", "src/adi/agente/contratoAgente.js",
-    [[/const _DECISION_TOMADA = \/[^/]+\/i;/, "const _DECISION_TOMADA = /$^/;"]],
+    /* ⚠️ desde el 2026-09-10 hay una SEGUNDA regla que caza «procede con…» (prosa-imperativa, transversal):
+     * vaciar solo _DECISION_TOMADA ya no deja pasar la carnada — eso es redundancia buena, no un agujero.
+     * La carnada vacía las dos para probar que el chequeo de verdad mira. */
+    [[/const _DECISION_TOMADA = \/[^/]+\/i;/, "const _DECISION_TOMADA = /$^/;"],
+     [/const _PROSA_IMPERATIVA = \/[\s\S]+?\/im;/, "const _PROSA_IMPERATIVA = /(?!)/;"   /* (?!) jamás matchea; $^ con la bandera m matchea en CADA salto de línea — vaciar con /$^/im no vacía nada */]],
     async (Mut) => Mut.vetosDeContrato("El margen cede 5pp — procede con la renegociación que vimos.\n\nSi quieres, seguimos por SKU.").length === 0);
 
   // (b2) R8 · el veto de «escenario» vaciado: la fuga BINARIA del examen (T25) vuelve a pasar desapercibida

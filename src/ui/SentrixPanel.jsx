@@ -2006,7 +2006,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             <ResumenSostiene R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
           </ResumenMovimiento>
           <ResumenMovimiento num="02" title="Dónde se deteriora el margen"
-            def={"Las dos cosas que mueven el margen, cada una contra su propia referencia: lo que entregas en acciones comerciales (contra el promedio de tu cartera o contra tu meta) y cómo se movió tu costo unitario contra tu precio entre el primer mes del período y el último."}>
+            def={"Las dos cosas que mueven el margen, cada una contra su propia referencia: lo que entregas en acciones comerciales (contra el promedio de tu cartera o frente a tu objetivo) y cómo se movió tu costo unitario contra tu precio entre el primer mes del período y el último."}>
             <ResumenDeterioro R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
           </ResumenMovimiento>
           {/* ⚠️ «03 · QUÉ HACER PRIMERO» SE RETIRÓ DE LA CARA COMERCIAL (owner 2026-09-08, textual: «eso yo lo
@@ -2639,7 +2639,7 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
               <td style={{ ..._RC_TD, color: C.textSub }}>{f.contribucionFmt}</td>
               <td style={{ ..._RC_TD, color: C.text }} title={`contra tu benchmark de ${f.varaFmt}`}>{f.margenFmt}</td>
               <td style={{ ..._RC_TD, color: f.material ? C.amber : f.bajoBenchmark ? C.textSub : C.green }}>{f.brechaFmt}</td>
-              <td style={{ ..._RC_TD, color: f.sobreMeta ? C.amber : C.textSub }} title={f.sobreMeta ? `sobre tu meta de ${p1(POLICY.targetCarga)}%` : `en o bajo tu meta de ${p1(POLICY.targetCarga)}%`}>{f.cargaFmt}</td>
+              <td style={{ ..._RC_TD, color: f.sobreMeta ? C.amber : C.textSub }} title={f.sobreMeta ? `sobre tu objetivo de${p1(POLICY.targetCarga)}%` : `en o bajo tu objetivo de ${p1(POLICY.targetCarga)}%`}>{f.cargaFmt}</td>
             </tr>
           ))}</tbody>
         </table>
@@ -2782,7 +2782,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
             Qué mueve el margen
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
-            {/* A · ACCIONES COMERCIALES · contra el promedio de tu cartera Y contra tu meta */}
+            {/* A · ACCIONES COMERCIALES · contra el promedio de tu cartera Y frente a tu objetivo */}
             {acc && (
               <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 7 }}>

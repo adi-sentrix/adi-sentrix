@@ -202,7 +202,7 @@ sostienen tu lectura, en prosa, no una fila por familia).
   palanca; nombrar "precio y margen" como si fueran algo que se toca directamente es el mismo genérico prohibido
   arriba, con otras palabras.
   CUANTIFICA la prioridad con facts.excesoAccionesComerciales (si viene): es el $ que libera cerrar SOLO el
-  exceso de carga comercial contra tu meta (facts.targetCarga) — CITALO siempre que esté disponible, es la
+  exceso de carga comercial frente a tu objetivo (facts.targetCarga) — CITALO siempre que esté disponible, es la
   cifra que convierte "revisa X" en una prioridad accionable con impacto real ("revisa sus acciones comerciales
   — cerrar la brecha hasta tu meta de Y% libera $Z"). Es DISTINTA de facts.brechaMargen/la contribución no
   capturada (la brecha TOTAL de margen contra el benchmark, casi siempre mayor) — nunca la presentes como si

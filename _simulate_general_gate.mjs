@@ -211,7 +211,9 @@ console.log("\n  ▸ 3c · input completo + modelo de costo NO autorizado → de
 
   // sub-caso: el narrador (mockeado) NO usa "conviene" — pasa limpio en el primer intento, sin reparar.
   let attemptsC2 = 0;
-  const rC2 = await answerViaOracle({ text: "si subo el precio 5% a este cliente pero pierdo 10% de volumen, ¿cómo queda la venta?", history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN_C, callNarrate: async () => { attemptsC2++; return "Con ese supuesto de precio y volumen, la venta baja frente al escenario actual."; } });
+  const rC2 = await answerViaOracle({ text: "si subo el precio 5% a este cliente pero pierdo 10% de volumen, ¿cómo queda la venta?", history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN_C, callNarrate: async () => { attemptsC2++; /* «frente al ESCENARIO actual» dejó de ser limpio el 2026-09-10: el registro es UNA ley para los dos
+     * caminos, y «escenario» está vetado en superficie desde el colapso del eje. La narración limpia habla
+     * como el producto: «frente a lo actual». */ return "Con ese supuesto de precio y volumen, la venta baja frente a lo actual."; } });
   ok(attemptsC2 === 1, `3c control: narración limpia (sin 'conviene') pasa en el PRIMER intento — obtuvo ${attemptsC2}`);
   ok(rC2 && rC2.r && !rC2.r.narrationRepaired, "3c control: NO quedó marcada como reparada — es la narración libre real");
   initTenant(TENANT_DEMO);

@@ -203,7 +203,7 @@ console.log("\n  ▸ 2b · oferta invalidada tras cambio de tema (SIEMPRE recalc
 
   let planCalledB2 = false;
   const callPlanB2 = async () => { planCalledB2 = true; return { intent: "answer", scope: { level: "global" }, calls: [] }; };
-  const callNarrateB2 = async () => "Acá va una respuesta sobre un tema completamente distinto, sin ninguna pregunta de cierre.";
+  const callNarrateB2 = async () => "Esta es una respuesta sobre un tema completamente distinto, sin ninguna pregunta de cierre."   /* «Acá» era registro coloquial: desde el 2026-09-10 la ley formal alcanza también al oráculo */;
   const rB2 = await answerViaOracle({ text: "¿y cómo viene la rotación general del inventario?", history: [], mem: rB1.mem, scenario: "actual", callPlan: callPlanB2, callNarrate: callNarrateB2 });
   ok(planCalledB2, "turno 2 (B, tema nuevo) SÍ llama a PLAN — no es una aceptación, no se bypasea");
   ok(rB2 && rB2.mem.lastOffer == null, `la oferta del turno 1 quedó invalidada tras el cambio de tema (nunca heredada) — obtuvo ${JSON.stringify(rB2 && rB2.mem.lastOffer)}`);
@@ -219,7 +219,7 @@ console.log("\n  ▸ 2c · rechazo y reemplazo de oferta");
 
   let planCalledC2 = false;
   const callPlanC2 = async () => { planCalledC2 = true; return mkPlan("ClienteC1"); };
-  const callNarrateC2 = async () => "Acá va una respuesta distinta a lo que pediste en su lugar.\n\n[[SIGUIENTE_PASO]]\n¿Querés que revisemos también otro segmento distinto?";
+  const callNarrateC2 = async () => "Esta es una respuesta distinta a lo que pediste.\n\n[[SIGUIENTE_PASO]]\n¿Querés que revisemos también otro segmento distinto?";
   const rC2 = await answerViaOracle({ text: "no, mejor mostrame otra cosa", history: [], mem: rC1.mem, scenario: "actual", callPlan: callPlanC2, callNarrate: callNarrateC2 });
   ok(planCalledC2, 'turno 2 (C, rechazo + pedido nuevo) SÍ llama a PLAN — "no, mejor..." no matchea aceptación');
   const ofertaC2 = rC2 && rC2.mem.lastOffer && rC2.mem.lastOffer.texto;

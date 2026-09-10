@@ -61,6 +61,15 @@ export const PRINCIPIOS_RUTEO = [
 const _FIN = "(?![a-záéíóúüñ])";
 const _IMPERATIVO_EJECUCION = new RegExp(`^(procede|proced[eé]|ejecut[aá]|implement[aá]|renegoci[aá]|liquid[aá]|aplic[aá]|lanz[aá]|corta|cort[aá]|sub[ií] (el|los|la|las)|baj[aá] (el|los|la|las))${_FIN}`, "i");
 // La decisión dada por tomada, en cualquier parte del texto — la carnada NOMBRADA por el owner.
+/* ── EL IMPERATIVO EN CUALQUIER PARTE DE LA PROSA (owner 2026-09-10) ────────────────────────────────────────
+ * «siéntate con Falabella y revisa sus acciones» salió en pantalla A MITAD de un párrafo — y la regla del
+ * cierre no lo veía porque solo juzga el último. La ley es la de siempre («ofrece, no ordena»; ADI asesora,
+ * no gestiona) aplicada a toda la prosa. Dos cuidados, los dos ya pagados en esta casa: el verbo se ANCLA al
+ * arranque de la cláusula (imperativo y tercera persona se escriben igual — «la lista CORTA» no ordena
+ * cortar), y los imperativos CONVERSACIONALES quedan fuera: «dime», «cuéntame», «avísame» son la manera
+ * normal de pedirle contexto al dueño. Se vetan los de EJECUCIÓN de negocio. */
+const _PROSA_IMPERATIVA = /(?:^|[.;:—]\s*|\by\s+)(?:si[eé]ntate|sentate|renegoci[aá]|ejecut[aá]|implement[aá]|liquid[aá]|aplic[aá]|lanz[aá]|proced[eé]|convoc[aá]|exig[ií]|llam[aá] a|habl[aá] con)(?![\wáéíóúñ]*r\b)/im;
+
 const _DECISION_TOMADA = /\b(procede con|proced[eé] con|avanz[aá] con la ejecuci[oó]n|queda decidido|ya est[aá] decidido|debes ejecutar|ten[eé]s que ejecutar)\b/i;
 
 /* ── R8 DEL EXAMEN 1 (2026-08-31) · EL LÉXICO DE SUPERFICIE, VETADO CIEGO ───────────────────────────────────────
@@ -140,6 +149,14 @@ export const _LEXICO_SUPERFICIE = [
     multa: "apertura coloquial: «acá está…» no es registro ejecutivo. Abre con la conclusión y su cifra («la cartera promedia 25,1% contra un benchmark de 30,1%»). El nombre con el que te pidieron que trates al usuario SÍ va — lo que sobra es el relleno." },
   { re: /\bmueve\s+(?:la\s+)?aguja\b/i, regla: "registro-coloquial",
     multa: "muletilla coloquial: «lo que mueve aguja» no es registro ejecutivo. Di qué es, con su cifra («los tres clientes que concentran $4,3M de contribución no capturada»)." },
+  /* ⚠️ DOS FUGAS VISTAS EN PANTALLA (owner 2026-09-10, prueba local que cayó al oráculo): la prosa viva dijo
+   * «la cuenta del motor apunta a…» DOS veces —tripa del sistema hablándole al dueño— y «el mandato es
+   * puntual» —lenguaje de ejecución: ADI asesora, no gestiona—. Van al lexicón COMPARTIDO: la ley es una
+   * sola para los dos caminos. */
+  { re: /\b(?:la )?cuenta del motor\b/i, regla: "lexico-cuenta-del-motor",
+    multa: "«la cuenta del motor» es tripa del sistema: en pantalla se dice «lo medido» o «los números» — el dueño no tiene por qué saber que hay un motor." },
+  { re: /\bmandatos?\b/i, regla: "lexico-mandato",
+    multa: "«mandato» es lenguaje de ejecución y ADI asesora, no gestiona: se dice «lo que conviene llevarle» o «la propuesta» — la decisión es del usuario." },
 ];
 /* Los IDENTIFICADORES INTERNOS (nombres de tools y de campos de contrato) jamás van a pantalla — el catálogo es
  * la fuente (lazy y memoizado: nada se deriva al importarse) más los campos que el examen vio fugarse. Una tool
@@ -226,6 +243,38 @@ const _CIFRA_DE_PLATA = /\$\s?\d[\d.,]*\s?[KMB]?\b/;
  * yo. Una regla más ancha que su motivo rompe cosas que andaban. */
 export const _OTRA_MEDIDA = /\bmarg[eé]n|\brentabilidad|\brotaci[oó]n|\bcapital|\bstock|\binventario|\bcosto|\bprecio|\bcontribuci[oó]n|\bcarga\b/i;
 
+/* ── EL REGISTRO ES UNA SOLA LEY PARA LOS DOS CAMINOS (owner 2026-09-10) ────────────────────────────────────
+ * «La red de respaldo no puede convertirse en un segundo ADI. Puede ser un segundo camino de entrega, pero no
+ * un segundo cerebro.» La prueba local lo midió: el oráculo —con un muro sin estas reglas— dijo «tu meta de
+ * 3.5%», dio órdenes y habló de «la cuenta del motor». Este juez reúne las reglas de REGISTRO que no dependen
+ * del contrato del agente (léxico de superficie + imperativos + decisión por tomada) para que el oráculo las
+ * aplique con la MISMA letra: una regla, un archivo. vetosDeContrato lo invoca, así que el agente queda
+ * idéntico; el oráculo lo suma en su propio juez. */
+export function vetosDeRegistro(texto, contexto = {}) {
+  if (typeof texto !== "string" || !texto.trim()) return [];
+  const v = [];
+  const parrafos = texto.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  const cierre = parrafos.length ? parrafos[parrafos.length - 1] : "";
+  // el cierre se juzga línea a línea (una lista final de acciones imperativas también es un cierre que ordena)
+  const lineasCierre = cierre.split("\n").map((l) => l.replace(/^[-·•\d.)\s]+/, "").trim()).filter(Boolean);
+  if (lineasCierre.some((l) => _IMPERATIVO_EJECUCION.test(l))) {
+    v.push({ regla: "cierre-imperativo", multa: "el cierre ORDENA una ejecución — el qué hacer se ofrece con su cifra y la decisión se le entrega al usuario, jamás se da por tomada. Reescribe el cierre como oferta (condicional o pregunta)." });
+  }
+  if (_PROSA_IMPERATIVA.test(texto)) {
+    v.push({ regla: "prosa-imperativa", multa: "ordenas una ejecución en medio de la prosa («siéntate con…», «renegocia…») — ADI asesora, no gestiona: dilo como lo que TÚ harías o como oferta («yo me sentaría con…», «la conversación es renegociar…»), y la decisión queda del lado del usuario." });
+  }
+  if (_DECISION_TOMADA.test(texto)) {
+    v.push({ regla: "decision-por-tomada", multa: "das una decisión por tomada («procede con…») — las decisiones son del usuario y él debe evaluarlas. Preséntala como sugerencia con su cifra." });
+  }
+  for (const L of _LEXICO_SUPERFICIE) {
+    // `salvoSi` es la excepción DECLARADA de una regla, evaluada contra un HECHO del turno — jamás contra el
+    // texto (ver `lexico-herramienta`). Sin `salvoSi`, la regla se comporta exactamente como siempre.
+    if (typeof L.salvoSi === "function" && L.salvoSi(contexto)) continue;
+    if (L.re.test(texto)) v.push({ regla: L.regla, multa: L.multa });
+  }
+  return v;
+}
+
 export function vetosDeContrato(texto, contexto = {}) {
   if (typeof texto !== "string" || !texto.trim()) return [];
   const v = [];
@@ -244,22 +293,7 @@ export function vetosDeContrato(texto, contexto = {}) {
         multa: "no le devuelvas la elección: cuando pide una proyección sobre «su» venta sin nombrar una entidad, el default es la VENTA TOTAL DEL NEGOCIO. Proyecta sobre el total, dilo («proyección sobre la venta total del negocio»), y ofrece el corte por cliente como alternativa si lo quiere." });
     }
   }
-  const parrafos = texto.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
-  const cierre = parrafos.length ? parrafos[parrafos.length - 1] : "";
-  // el cierre se juzga línea a línea (una lista final de acciones imperativas también es un cierre que ordena)
-  const lineasCierre = cierre.split("\n").map((l) => l.replace(/^[-·•\d.)\s]+/, "").trim()).filter(Boolean);
-  if (lineasCierre.some((l) => _IMPERATIVO_EJECUCION.test(l))) {
-    v.push({ regla: "cierre-imperativo", multa: "el cierre ORDENA una ejecución — el qué hacer se ofrece con su cifra y la decisión se le entrega al usuario, jamás se da por tomada. Reescribe el cierre como oferta (condicional o pregunta)." });
-  }
-  if (_DECISION_TOMADA.test(texto)) {
-    v.push({ regla: "decision-por-tomada", multa: "das una decisión por tomada («procede con…») — las decisiones son del usuario y él debe evaluarlas. Preséntala como sugerencia con su cifra." });
-  }
-  for (const L of _LEXICO_SUPERFICIE) {
-    // `salvoSi` es la excepción DECLARADA de una regla, evaluada contra un HECHO del turno — jamás contra el
-    // texto (ver `lexico-herramienta`). Sin `salvoSi`, la regla se comporta exactamente como siempre.
-    if (typeof L.salvoSi === "function" && L.salvoSi(contexto)) continue;
-    if (L.re.test(texto)) v.push({ regla: L.regla, multa: L.multa });
-  }
+  v.push(...vetosDeRegistro(texto, contexto));
   const mInterno = texto.match(_internosRe());
   const _entsTexto = Array.isArray(contexto.entidades) ? contexto.entidades : [];
   const mCamel = texto.match(new RegExp(_CAMELCASE.source, "g"));

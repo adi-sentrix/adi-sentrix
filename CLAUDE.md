@@ -46,6 +46,18 @@ Que afirma el porqué sin evidencia, **miente**.
    configuración declarada por el cliente. Corolario: **cero cálculo en React** — la frase y el número se
    arman en el módulo, la vista solo pinta. Una cuenta dentro de un componente es un defecto.
 
+4. **La conclusión es del procedimiento, no del narrador** (owner 2026-09-10). El LLM decide cómo explicarlo,
+   cuánto resumir, cómo adaptarlo al destinatario. **No puede cambiar**: el cliente prioritario, la cifra
+   relevante, el ranking, la causalidad demostrada, el veredicto, ni la primera acción que el procedimiento
+   determinó.
+5. **La red de respaldo no es un segundo cerebro** (owner 2026-09-10). Puede ser un segundo camino de
+   *entrega*, jamás re-analizar y decidir distinto. El respaldo intenta primero EL MISMO procedimiento sin
+   cerebro (`respaldo-piso` en ChatADI); el oráculo queda como red final y obedece **las mismas leyes de
+   registro** (`vetosDeRegistro`, contratoAgente — una regla, un archivo). Y toda respuesta declara qué
+   mecanismo la produjo (`via`/`caida` en el rastro): nunca se evalúa una respuesta sin saber quién la escribió.
+   Vocabulario de la referencia: se dice **«objetivo»** («meta»/«target» vetadas; «nivel declarado» le pareció
+   técnico al owner). El sello de período («datos del año cerrado») va UNA vez, no estampado en cada respuesta.
+
 Derivadas que se rompen seguido:
 - **Una sola verdad.** Mismo concepto = misma palabra y mismo número en toda superficie, del mismo campo.
 - **Dos montos parecidos de universos distintos NUNCA van juntos** sin decir de cuál sale cada uno.

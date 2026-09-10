@@ -101,11 +101,17 @@ const leakCases = [
   { n: "L5 · texto limpio con entidades y cifras → intacto byte-igual",
     in: "Easy vende $3.4M con margen 32.0% — sobre tu piso de 30.1%.",
     out: "Easy vende $3.4M con margen 32.0% — sobre tu piso de 30.1%." },
+  { n: "V-meta · «sobre la meta» → «sobre el objetivo» (owner 2026-09-10: la palabra es «objetivo», y el género se concuerda)",
+    in: "La carga marca el exceso sobre la meta.",
+    out: "La carga marca el exceso sobre el objetivo." },
+  { n: "V-meta2 · «meta» AJENA al negocio queda intacta (la de una maratón no es nuestra palabra que corregir)",
+    in: "La meta de la maratón es en abril.",
+    out: "La meta de la maratón es en abril." },
   { n: "L6 · mayúscula inicial preservada ('If' → 'Si')",
     // el esperado decía «recuperás»: la fixture afirmaba que el voseo SOBREVIVÍA al lavado, porque esa forma no
     // estaba en `_VOSEO` (owner 2026-08-14, barrido de la clase completa). Ahora sí está, y el esperado es tuteo.
     in: "If la carga baja al target, recuperás $194K.",
-    out: "Si la carga baja al target, recuperas $194K." },
+    out: "Si la carga baja al objetivo, recuperas $194K." },   // «target»→«objetivo» desde la decisión del owner 2026-09-10
   // + REGISTRO EJECUTIVO igualado al gate estático (owner 2026-07-26: "apretado" se coló NARRADO en vivo) · el stripper
   // cubría guita/palanca; faltaban apretar/dormido/plata. Formas enumeradas: preservan inflexión, género y mayúscula.
   { n: "L7 · 'apretado' (adjetivo) → 'ajustado'",
@@ -308,7 +314,9 @@ const LIMPIAS = [
   "Los retenes de stock no aplican en este dato.", "Los soles del período no son una métrica del negocio.",
   "El tomate rota bien en Cuidado Personal.", "Los tomates quedaron fuera del catálogo.",
   // tercera persona — el motor hablando de lo que hace
-  "El motor usa doh y no recomputa los días.", "La carga marca el exceso sobre la meta.",
+  "El motor usa doh y no recomputa los días.",
+  // («La carga marca el exceso sobre la meta.» vivía acá como INTACTA: desde la decisión del owner 2026-09-10
+  //  el lavador la corrige a «el objetivo» — el caso ahora vive abajo, entre las transformaciones esperadas.)
   "El cuadro muestra la venta mes a mes.", "El rebate cobra sobre la venta neta.",
   "La medida logra $194K de recuperación.", "El SKU entra al ranking por rotación.",
   // pretérito de primera — reescribirlo cambiaría lo que la frase dice
@@ -352,7 +360,7 @@ const SUCIOS = [
   ["Primero liquidá o rotá LG-DRYER8KG en Valparaíso; después contanos cómo salió.", "Primero liquida o rota LG-DRYER8KG en Valparaíso; después cuéntanos cómo salió."],
   ["Reponé Electrodomésticos y quedate con el margen de 26%.", "Repón Electrodomésticos y quédate con el margen de 26%."],
   ["Si querés, mostrame el detalle: ponés $874K de acciones y recuperás $194K.", "Si quieres, muéstrame el detalle: pones $874K de acciones y recuperas $194K."],
-  ["Fijate que el 4.5% de carga supera tu meta de 3.5% — pasame el número y lo reviso.", "Fíjate que el 4.5% de carga supera tu meta de 3.5% — pásame el número y lo reviso."],
+  ["Fijate que el 4.5% de carga supera tu meta de 3.5% — pasame el número y lo reviso.", "Fíjate que el 4.5% de carga supera tu objetivo de 3.5% — pásame el número y lo reviso."],
   ["Subís el volumen y entendés el efecto en $100.0M.", "Subes el volumen y entiendes el efecto en $100.0M."],
 ];
 for (const [sucio, esperado] of SUCIOS) {

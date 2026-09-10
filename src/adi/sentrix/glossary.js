@@ -57,7 +57,7 @@ export const METRIC_DEFS = {
   "SKU crít.": "Cuántos SKU de esta bodega están inmovilizados y además marcados como críticos.",
   // la columna del asesor en el Cuadro · una etiqueta por universo (antes las dos decían «En juego $»: $5.0M de
   // contribución del año en la pestaña Clientes contra $33K de capital de hoy en Marcas/SKU/Bodegas, 151x)
-  "Contribución en juego": "La contribución que el detector afirma que esta cuenta no está capturando: margen bajo tu benchmark o carga comercial sobre tu meta, valorizado sobre su venta anual. Es dinero del resultado, no capital en stock.",
+  "Contribución en juego": "La contribución que el detector afirma que esta cuenta no está capturando: margen bajo tu benchmark o carga comercial sobre tu objetivo, valorizado sobre su venta anual. Es dinero del resultado, no capital en stock.",
   // el margen de la FOTO DE INVENTARIO, que no es el margen comercial del mismo SKU (dos universos declarados, sin
   // reconciliación posible): por eso la columna lleva el calificador en el nombre y no sólo en la nota de cabecera
   "Margen inv.": _DEF_MARGEN_INVENTARIO, "Margen de inventario": _DEF_MARGEN_INVENTARIO,
@@ -253,7 +253,7 @@ export const CONCEPT_DEFS = {
   brecha: {
     aka: "brecha",
     etiquetas: ["brecha", "gap", "brecha de margen"],
-    def: "Es la distancia entre una cifra y su referencia declarada — el margen contra el benchmark, la carga contra la meta, la venta contra el presupuesto. Se expresa en puntos porcentuales cuando compara tasas y en $ cuando compara montos.",
+    def: "Es la distancia entre una cifra y su referencia declarada — el margen contra el benchmark, la carga contra el objetivo, la venta contra el presupuesto. Se expresa en puntos porcentuales cuando compara tasas y en $ cuando compara montos.",
     distingue: "La brecha es la distancia; la **contribución no capturada** es esa distancia ya convertida en dinero sobre la venta de la cuenta.",
   },
   /* ✅ RESUELTO POR EL OWNER (2026-08-15), después de un mes frenado. La tensión era real: «vara» está vetada en
@@ -266,21 +266,21 @@ export const CONCEPT_DEFS = {
   vara: {
     aka: "tu referencia",
     etiquetas: ["vara", "vara_usuario", "tu vara", "la vara", "vara declarada", "referencia declarada"],
-    def: "Es la referencia que el usuario fija para juzgar una métrica: el margen mínimo aceptable, la meta de carga comercial, el umbral de días de inventario. Cuando está declarada, reemplaza a la referencia por defecto y ADI mide contra ella.",
+    def: "Es la referencia que el usuario fija para juzgar una métrica: el margen mínimo aceptable, el objetivo de carga comercial, el umbral de días de inventario. Cuando está declarada, reemplaza a la referencia por defecto y ADI mide contra ella.",
     distingue: "No es el **benchmark** por defecto del negocio: es la referencia que tú declaraste para este análisis, y por eso toda cifra medida contra ella se sella INDICADO.",
   },
   meta: {
     aka: "meta",
-    etiquetas: ["meta", "tu meta", "meta de carga", "meta operativa de carga", "mejor práctica interna", "mejor practica interna"],
+    etiquetas: ["objetivo", "tu objetivo", "objetivo de carga", "meta", "tu meta", "meta de carga", "meta operativa de carga", "mejor práctica interna", "mejor practica interna"],
     // DOS UMBRALES VIVOS, NO UNO (owner 2026-08-10). La política declara META OPERATIVA de carga y MEJOR PRÁCTICA
     // INTERNA, y son distintas: sobre la misma cartera seleccionan poblaciones y montos recuperables distintos. El
     // glosario declaraba «meta» en singular, así que «¿qué cuentas están sobre la meta de carga?» no tenía una sola
     // respuesta y los textos podían atribuir una cifra a la vara que no la produjo.
-    def: "Es el valor objetivo declarado para una métrica —típicamente la carga comercial— contra el que se mide cada cuenta. Lo que supera la meta es lo que queda para revisar. En carga comercial conviven DOS umbrales declarados: la META OPERATIVA, que es contra la que se selecciona y se valoriza lo recuperable, y la MEJOR PRÁCTICA INTERNA, más exigente, que marca hasta dónde llegó la mejor cuenta del negocio. No dan la misma lista ni el mismo monto, y por eso cada lectura dice con cuál de las dos se calculó.",
+    def: "Es el valor objetivo declarado para una métrica —típicamente la carga comercial— contra el que se mide cada cuenta. Lo que supera el objetivo es lo que queda para revisar. En carga comercial conviven DOS umbrales declarados: el OBJETIVO OPERATIVO, que es contra el que se selecciona y se valoriza lo recuperable, y la MEJOR PRÁCTICA INTERNA, más exigente, que marca hasta dónde llegó la mejor cuenta del negocio. No dan la misma lista ni el mismo monto, y por eso cada lectura dice con cuál de las dos se calculó.",
     // «más capital», no «más plata» (La Poda F2): este `distingue` se imprime VERBATIM cuando el usuario pregunta
     // qué es la meta (tool `defineConcept` → resolveGlossary), así que es superficie, y «plata» está vetada.
     // Cambio de vocabulario puro: no toca el slug, ni las etiquetas de entrada, ni lo que la frase afirma.
-    distingue: "La meta es un objetivo declarado; el **benchmark** es la referencia de rendimiento del negocio. Una cuenta puede estar sobre la meta y aun así bajo el benchmark. Y la mejor práctica interna no es la meta: es más exigente, así que siempre marca más cuentas y más capital.",
+    distingue: "El objetivo es un valor declarado por el negocio; el **benchmark** es la referencia de rendimiento del negocio. Una cuenta puede estar sobre el objetivo y aun así bajo el benchmark. Y la mejor práctica interna no es el objetivo: es más exigente, así que siempre marca más cuentas y más capital.",
   },
   presupuesto: {
     aka: "presupuesto",

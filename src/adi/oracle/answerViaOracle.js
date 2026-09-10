@@ -6,6 +6,7 @@
  * callPlan/callNarrate son INYECTADOS: headless usan el adapter directo (oráculo/gates), el cliente usa fetch al
  * gateway (la key vive server-side). El motor, la boleta y guardC son los mismos; esto solo los orquesta.
  */
+import { vetosDeRegistro } from "../agente/contratoAgente.js";   // owner 2026-09-10: el registro es UNA ley para los dos caminos — el respaldo no es un segundo cerebro
 import { applyMemoryUpdate } from "./persona.js";
 import { resolverReferencia, REFERENCIA_ANAFORA_RE } from "../../config/businessPolicy.js";
 import { runPlan } from "./toolRunner.js";
@@ -2802,7 +2803,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // justamente explica que no va a mostrar ninguno. Con calls vacías (el caso D2 previo) esto es un no-op:
       // `periodos` era [] y el envoltorio no agregaba nada — la conducta previa queda byte-idéntica.
       const c = (desdeTexto || desdeConfusion) ? candidato : ensureUmbralDeclarado(ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos), results, q), results);
-      if (guardC(c, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) { narration = c; narrationRepaired = true; break; }
+      if (guardC(c, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok && !vetosDeRegistro(c, { pregunta: q }).length) { narration = c; narrationRepaired = true; break; }
     }
   }
 
@@ -2958,7 +2959,18 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // diagnosticar y no convierte el trace en un volcado.
     const _detalle = gVerdict.ok ? null : gVerdict.violations.slice(0, 3).map((v) => `${v.kind}:${v.detail}`);
     narrateAttemptTrace.push({ attempt, guardOk: gVerdict.ok, reason: gVerdict.ok ? (gVerdict.degraded ? `degradado:${gVerdict.advisories.some((a) => a.kind === "orden-decision-tabla-primero") ? "tabla-antes-de-accion" : "repeticion-verbatim"} (reintenta con escalada, no bloquea)` : null) : gVerdict.verdict, ...(_detalle ? { detalle: _detalle } : {}), usage: null });
-    if (gVerdict.ok && !gVerdict.degraded) { narration = n; break; }
+    /* ── LA LEY ES UNA SOLA PARA LOS DOS CAMINOS (owner 2026-09-10) ────────────────────────────────────────
+     * «La red de respaldo no puede convertirse en un segundo ADI.» En la prueba local, el turno caía a este
+     * camino y la narración salió con «tu meta de 3.5%», «siéntate con Falabella» y «el mandato» — todas
+     * frases que el muro del AGENTE veta (medido con las frases exactas de la pantalla). El registro del
+     * negocio no puede depender de qué camino contestó: acá se suma el MISMO juez, con la misma letra
+     * (`vetosDeRegistro`, contratoAgente — una regla, un archivo). Si la narración lo viola, no se acepta:
+     * sigue el flujo de siempre (reintento/salida determinística), que compone desde lo ya autorizado. */
+    const _regVetos = vetosDeRegistro(n, { pregunta: q });
+    if (gVerdict.ok && !gVerdict.degraded && _regVetos.length) {
+      narrateAttemptTrace.push({ attempt, guardOk: false, reason: `registro:${_regVetos[0].regla}`, detalle: [_regVetos[0].multa.slice(0, 140)], usage: null });
+    }
+    if (gVerdict.ok && !gVerdict.degraded && !_regVetos.length) { narration = n; break; }
     // FORMA INCUMPLIDA → SALIDA DETERMINÍSTICA, SIN OTRA LLAMADA (owner 2026-08-07). Reintentar sería gastar una
     // llamada por algo que NO es de suerte: el narrador eligió una presentación que la política del turno no
     // admite, y con las mismas cifras puede volver a elegirla. Las dos salidas se componen desde lo YA autorizado,

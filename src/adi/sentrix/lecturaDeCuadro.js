@@ -114,7 +114,7 @@ const COMPARADOS = { vsAnterior: "vs año anterior", vsPresupuesto: "vs presupue
  * `alerta: true` marca la señal que pide mirada. Una bandera fuera de este diccionario no se lee. */
 const SENALES = {
   bajoBenchmark: { alerta: true, dice: "queda bajo el benchmark", dicen: "quedan bajo el benchmark" },
-  sobreMeta: { alerta: true, dice: "carga acciones comerciales sobre tu meta", dicen: "cargan acciones comerciales sobre tu meta" },
+  sobreMeta: { alerta: true, dice: "carga acciones comerciales sobre tu objetivo", dicen: "cargan acciones comerciales sobre tu objetivo" },
   critico: { alerta: true, dice: "está en estado crítico", dicen: "están en estado crítico" },
   sinReferencia: { alerta: true, dice: "no tiene referencia declarada", dicen: "no tienen referencia declarada" },
   material: { alerta: false, dice: "pesa lo suficiente para mover el resultado", dicen: "pesan lo suficiente para mover el resultado" },

@@ -114,7 +114,7 @@ console.log("=".repeat(100));
 
   const panel = leer("./src/ui/PanelDatos.jsx");
   ok(/datos-referencia/.test(panel), "la pantalla tiene su propio recuadro para esto");
-  ok(/no es tu meta/.test(panel), "…con la misma negación explícita");
+  ok(/no es tu objetivo/.test(panel), "…con la misma negación explícita (la palabra es «objetivo» desde la decisión del owner 2026-09-10)");
   ok(/referencia general de ADI/.test(panel), "…y nombrando de quién es la vara");
 }
 
