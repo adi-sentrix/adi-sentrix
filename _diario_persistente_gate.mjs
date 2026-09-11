@@ -33,7 +33,8 @@ const r1 = await answerViaAgente({ text: "por qué estamos perdiendo margen", hi
   ok(!!T && T.clave === "margen-roles" && /^\d{4}-\d{2}-\d{2}$/.test(String(T.fecha)) && "carga" in T,
     "★ la tesis del porqué se guarda CON fecha y con la identidad de la carga", JSON.stringify(T));
   ok(r1.mem.diarioCambio === true, "…y deja la marca `diarioCambio` para que el caller persista");
-  ok(/\(Me guardo esta lectura para la próxima\.\)/.test(String(r1.r.text || "")),
+  /* la letra del aviso la eligió el owner en la Etapa 3 (2026-09-11): la conducta —avisar cuando la lectura es nueva— es la misma */
+  ok(/\(Lo tendré en cuenta en las próximas lecturas\.\)/.test(String(r1.r.text || "")),
     "★ y el guardado SE AVISA en una línea — la memoria no es secreta");
 }
 const HILO1 = [{ role: "user", text: "por qué estamos perdiendo margen" }, { role: "assistant", text: String(r1.r.text || "") }];

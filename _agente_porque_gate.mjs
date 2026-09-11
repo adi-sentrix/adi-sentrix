@@ -333,7 +333,7 @@ H("8 · los ocho lugares del owner — cada uno cierra preguntándole al dueño"
   for (const [donde, q, hist, mem] of LUGARES) {
     const r = await answerViaAgente({ text: q, history: hist, mem, scenario: ESC, callAgente: MUDO });
     const T = String(r.r.text || "").trim();
-    /* el diario del bucle («Me guardo esta lectura…») es un apéndice del sistema, no parte de la respuesta */
+    /* el diario del bucle («Lo tendré en cuenta en las próximas lecturas.») es un apéndice, no parte de la respuesta */
     const lineas = T.split("\n").map((x) => x.trim()).filter((x) => x && !x.startsWith("("));
     const cierraPreguntando = lineas.slice(-3).some((l) => /\?/.test(l) && CONCRETA.test(l));
     ok(cierraPreguntando && r.r.agente.estado !== "vacio",

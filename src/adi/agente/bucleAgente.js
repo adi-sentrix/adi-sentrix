@@ -1182,7 +1182,8 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
         memOut.diarioTesis = { ..._tesis, fecha: new Date().toISOString().slice(0, 10), carga: (() => { try { return idDeCargaActiva(); } catch { return null; } })() };
         if (_huellaCambio) {
           memOut.diarioCambio = true;   // la marca para que el caller persista (ChatADI · op:"diario")
-          pantalla = `${pantalla}\n\n(Me guardo esta lectura para la próxima.)`;
+          /* la letra la eligió el owner (Etapa 3, 2026-09-11): «lo tendré en cuenta» suena a asesor; «me guardo esta lectura», a sistema */
+          pantalla = `${pantalla}\n\n(Lo tendré en cuenta en las próximas lecturas.)`;
         }
       }
     } catch { /* el diario jamás rompe el turno */ }
