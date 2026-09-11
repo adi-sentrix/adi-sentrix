@@ -49,6 +49,14 @@ caía en silencio a la red de respaldo, y evaluábamos a un mecanismo creyendo e
 - **La intención no se lee en el dato.** «Volumen a margen bajo como apuesta deliberada — descartado por el
   dato» daba por dictaminado algo que ninguna planilla ve. El dato descarta **patrones**, no propósitos. Ahora
   se puede preguntar, condicionar, declarar el límite y contrastar; lo que no se puede es dictaminar.
+- **El referente es del procedimiento** (segunda prueba de continuidad del owner). «¿Qué explica ese
+  resultado?» reducía el negocio a una cuenta, y «profundiza en el primero» —sobre una tabla que abría con
+  Lider— respondía Falabella. La causa: la memoria de continuidad que ya existía quedó desconectada del
+  camino principal cuando se podó el viejo. Se reconectó, sin memoria nueva ni resolutor nuevo: ahora ADI
+  **recuerda qué conjunto mostró y en qué orden**, resuelve «el primero», «el segundo», «ese», «el anterior»,
+  «los otros tres» y la vuelta al negocio entero **antes** de que el modelo escriba, corrige el pedido si el
+  modelo apunta a otra cuenta, y rechaza la respuesta que cambie de referente. Si el modelo falla, el respaldo
+  responde por el referente correcto. Y una respuesta ya no presenta el mismo conjunto en dos órdenes.
 - **Higiene del taller.** Un candado que llevaba meses fuera de la suite volvió a correr (246 verificaciones),
   y tres gates dejaron de acumular basura: 1,8 GB en la raíz.
 
