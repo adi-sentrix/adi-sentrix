@@ -119,7 +119,8 @@ H("4 · la ley está conectada, no solo escrita");
   const bucle = readFileSync(new URL("./src/adi/agente/bucleAgente.js", import.meta.url), "utf8");
   /* el import trae también `componerReformulacion` desde 2026-09-10: el piso que re-dice la previa cuando el
    * cerebro no puede (ver §8) — sin él, prohibir la frase falsa no alcanzaba para responder. */
-  ok(/import \{ esReformular, doctrinaDeReformular, vetosDeReformular, componerReformulacion \}/.test(bucle), "el bucle la importa");
+  /* …y desde la Etapa 3 también `destinatarioDe` y `doctrinaDeAudiencia`: el molde del lector viaja solo en el turno que lo nombra */
+  ok(/import \{ esReformular, doctrinaDeReformular, vetosDeReformular, componerReformulacion, destinatarioDe, doctrinaDeAudiencia \}/.test(bucle), "el bucle la importa");
   ok(/if \(_esReformularDelTurno\) mensajes\.push/.test(bucle), "…empuja su doctrina en el turno que la pide");
   ok(/vetosDeReformular\(t, \{ pregunta: q, previa: _previaDelHilo, sitio \}\)/.test(bucle),
     "★ …y la juzga con la respuesta ANTERIOR del hilo, que es el material del turno");
@@ -263,6 +264,54 @@ H("8 · ★★ el piso: con la respuesta en el hilo, el turno responde aunque el
   ok(componerReformulacion("Hola, ¿en qué te ayudo? Cuéntame qué quieres mirar del negocio y lo abrimos juntos.", { pregunta: Q }) === null,
     "★ una previa sin cifra ni conclusión NO se reformula: mejor ceder al peldaño que lo dice honestamente");
   ok(componerReformulacion("corto", { pregunta: Q }) === null, "…ni un texto demasiado corto para ser una respuesta");
+}
+
+/* ═══ 9 · ★ EL LECTOR CAMBIA LA FORMA, NO LA CONCLUSIÓN (Etapa 3, owner 2026-09-11) ═══════════════════════════
+ * Su vara: «"Más corto" debe significar realmente más corto. "Para directorio" debe subir de nivel. "Para
+ * comercial" debe aterrizar al cliente, cifra y acción. "Dame detalle" sí debe abrir evidencia. La conclusión
+ * debe mantenerse idéntica; cambia la forma.» Y su ejemplo de «más corto»: «Creces, pero con margen presionado.
+ * Falabella concentra la mayor recuperación potencial; yo empezaría por ahí.» — sin una sola cifra. */
+H("9 · ★ el piso por audiencia: misma conclusión, distinta forma — y «más corto» es más corto");
+{
+  const { tipoDeAudiencia, doctrinaDeAudiencia } = await import("./src/adi/agente/reformular.js");
+  ok(tipoDeAudiencia("el directorio") === "directorio" && tipoDeAudiencia("el equipo comercial") === "comercial" && tipoDeAudiencia("el analista") === "analista" && tipoDeAudiencia("mi socio") === "dueno",
+    "los cuatro lectores del owner se reconocen desde el destinatario que ya se detectaba (sin segundo detector)");
+  for (const d of ["el directorio", "el equipo comercial", "el analista"]) {
+    const doc = doctrinaDeAudiencia(d);
+    ok(/LA CONCLUSIÓN NO CAMBIA POR EL LECTOR/.test(doc) && doc === doctrinaDeAudiencia(d), `el molde para «${d}» lleva la invariante y es byte-estable`);
+  }
+  ok(/Sin órdenes/.test(doctrinaDeAudiencia("el equipo comercial")) && /Nada operativo/.test(doctrinaDeAudiencia("el directorio")),
+    "…comercial sin órdenes, directorio sin operativa: las diferencias reales que el owner pidió");
+
+  const MUDO2 = async () => ({ tipo: "texto", texto: "" });
+  const t1 = await answerViaAgente({ text: "¿Cómo va el negocio?", history: [], mem: {}, scenario: ESC, callAgente: MUDO2 });
+  const FOTO = String(t1.r.text || "");
+  const H2 = [{ role: "user", text: "¿Cómo va el negocio?" }, { role: "assistant", text: FOTO }];
+  const pide = async (q) => { const r = await answerViaAgente({ text: q, history: H2, mem: t1.mem, scenario: ESC, callAgente: MUDO2 }); return { t: String(r.r.text || ""), a: r.r.agente }; };
+  const tesis = FOTO.split("\n")[0].trim();
+  /* la ORACIÓN del criterio, no la línea entera: el piso parte por oraciones y deja fuera la oferta que la sigue («Cuando digas, la abro.») */
+  const criterio = ((FOTO.split("\n").find((l) => /entrar[ií]a por|mirar[ií]a primero|empezar[ií]a por/i.test(l)) || "").split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¿«])/)[0] || "").trim();
+  ok(tesis.length > 20 && criterio.length > 20, "la foto trae tesis y criterio para reformular (el material del piso)", `${tesis.slice(0, 50)} · ${criterio.slice(0, 50)}`);
+
+  const corto = await pide("dímelo más corto");
+  const nCorto = corto.t.split(/\s+/).length, nFoto = FOTO.split(/\s+/).length;
+  ok(corto.a.estado === "reformular-piso" && nCorto < nFoto / 2, `★★ «más corto» es de verdad más corto: ${nCorto} palabras contra ${nFoto} de la foto`);
+  ok(corto.t.includes(tesis) && corto.t.includes(criterio), "★ …y conserva la tesis y el criterio — la conclusión idéntica, verbatim");
+  ok(!/Es la misma lectura de recién/.test(corto.t), "…sin la línea que se describía a sí misma (voz de sistema)");
+
+  const dir = await pide("resúmemelo para el directorio");
+  const com = await pide("explícamelo para el equipo comercial");
+  const ana = await pide("explícamelo para el analista");
+  ok(dir.t.includes(tesis) && com.t.includes(tesis) && ana.t.includes(tesis) && dir.t.includes(criterio) && com.t.includes(criterio) && ana.t.includes(criterio),
+    "★★ los tres lectores reciben la MISMA tesis y el MISMO criterio");
+  const nDir = dir.t.split(/\s+/).length, nCom = com.t.split(/\s+/).length, nAna = ana.t.split(/\s+/).length;
+  ok(nDir <= nCom && nCom <= nAna, `…y la evidencia crece con el lector: directorio ${nDir} ≤ comercial ${nCom} ≤ analista ${nAna} palabras`);
+  ok(/Para el directorio/.test(dir.t) && /Para el equipo comercial/.test(com.t) && /Para el analista/.test(ana.t), "…cada uno abre nombrando a su lector");
+  const cifras = (t) => (t.match(/\$[\d.,]+[KMB]?|[\d.,]+\s*%/g) || []).map((c) => c.trim());
+  ok([dir, com, ana].every((r) => cifras(r.t).every((c) => FOTO.includes(c))), "★ ni una cifra que no estuviera en la foto, en ninguno de los tres");
+  /* y la vara del owner para «más corto» sin cifra ya no arde en el cerebro: con la conclusión a bordo, alcanza */
+  ok(vetosDeReformular("Creces, pero con margen presionado. Falabella concentra la mayor recuperación potencial; yo empezaría por ahí.", { pregunta: "dímelo más corto", previa: FOTO, sitio: "cierre" }).length === 0,
+    "★ el ejemplo textual del owner de «más corto» —sin cifra, con la conclusión— pasa limpio los vetos de la ruta");
 }
 
 console.log(`\n── _reformular_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

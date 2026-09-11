@@ -33,7 +33,7 @@ import { cajaDelAgente } from "./herramientasAgente.js";
 import { doctrinasParaRonda } from "./doctrinaAgente.js";
 import { esPorQue, doctrinaDelPorque, vetosDelPorque } from "./porque.js";   // la ley del porqué, transversal (owner 2026-09-09)
 import { vetosDeReferencia } from "./referenciaDeLaCifra.js";
-import { esReformular, doctrinaDeReformular, vetosDeReformular, componerReformulacion } from "./reformular.js";   // la misma respuesta, para otro (owner 2026-09-10)   // owner 2026-09-09: la cifra que sostiene una recomendación trae su referencia
+import { esReformular, doctrinaDeReformular, vetosDeReformular, componerReformulacion, destinatarioDe, doctrinaDeAudiencia } from "./reformular.js";   // la misma respuesta, para otro (owner 2026-09-10)   // owner 2026-09-09: la cifra que sostiene una recomendación trae su referencia
 import { mapaDelDato, faltanteQueToca } from "./mapaDelDato.js";   // + lo que el archivo del usuario no trajo (owner 2026-08-31)
 import { guardC, esNarracionVacia } from "../oracle/guardC.js";
 import { cifrasDelDato } from "../oracle/datoProyectado.js";
@@ -734,6 +734,12 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   })();
   const _esReformularDelTurno = esReformular(q);
   if (_esReformularDelTurno) mensajes.push({ role: "user", content: doctrinaDeReformular() });
+  /* EL MOLDE DEL LECTOR viaja solo cuando la pregunta nombra una audiencia (Etapa 3, owner 2026-09-11) — en un
+   * turno de reformular o en uno nuevo («dame los riesgos para el directorio»). La carta lo remite acá porque
+   * cuatro moldes en cada turno rompían el techo del 20% del system; acá cuesta solo cuando sirve. */
+  const _destinatarioDelTurno = (() => { try { return destinatarioDe(q); } catch { return null; } })();
+  const _doctrinaAud = _destinatarioDelTurno ? doctrinaDeAudiencia(_destinatarioDelTurno) : null;
+  if (_doctrinaAud) mensajes.push({ role: "user", content: _doctrinaAud });
 
   /* EL MOTIVO DE CORTE DEL PROVEEDOR, por llamada (tanda post-poda, 2026-09-05): el gateway ya lo re-emite y
    * el cliente lo lee — acá se junta en el expediente. La lección del natural, completa de punta a punta:

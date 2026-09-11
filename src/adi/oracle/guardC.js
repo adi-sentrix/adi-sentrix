@@ -1412,9 +1412,17 @@ export function recortarMunonDeOracion(text) {
   const recortado = sinCola.slice(0, corte).replace(/\s+$/, "");
   return recortado.trim() ? recortado : s;
 }
-export function ensurePeriodoDeclared(narration, periodos) {
+export function ensurePeriodoDeclared(narration, periodos, { yaDeclaradoEnElHilo = false } = {}) {
   const text = String(narration || "").trim();
   if (!Array.isArray(periodos) || !periodos.length || !text) return text;
+  /* ── EL SELLO SE DICE UNA VEZ POR CONVERSACIÓN (owner 2026-09-10, textual): «"Datos del año cerrado" → una vez,
+   * y solo repetir cuando cambie o importe el período. Repetirlo siempre hace que ADI parezca sistema, no
+   * asesor.» El caller —que es quien tiene el hilo— dice si ESTA familia ya quedó declarada en un turno
+   * anterior de la misma conversación; si es así y el marco es uno solo, el pie no se estampa de nuevo. La
+   * garantía de confiabilidad (2026-07-29) no se afloja: el primer turno de cada familia la declara siempre, el
+   * marco MIXTO se declara siempre (abajo), y el cambio de familia vuelve a declarar porque el caller mide la
+   * familia de ESTE turno, no «alguna». Y si el narrador la nombra por su cuenta, nada cambia. */
+  if (periodos.length === 1 && yaDeclaradoEnElHilo) return text;
   if (periodos.length > 1) {
     if (/dos marcos distintos/i.test(text)) return text;
     // hallazgo 2b del espejo: el envoltorio va tras recortar el muñón, jamás pegado a una oración sin cerrar

@@ -261,7 +261,7 @@ export const planDeAccion = {
     p.push(`Qué miraría para confirmar: ${uno.mirar}. Eso no lo tengo — ${uno.noSostiene}, y lo sabes tú o tu equipo comercial.`);
     /* 4 · LA SEGUNDA ACCIÓN, condicionada a lo anterior */
     p.push(quien.segundo
-      ? `Si se confirma que no hubo nada a cambio, seguiría por ${quien.segundo.n} (${quien.segundo.fmt}) con la misma conversación. Si resulta que no, no insistiría por ahí: pasaría a ${dos ? dos.nombre : "el frente que siga por tamaño"}${dos ? ` (${_val(dos.tot)})` : ""}.`
+      ? `Si se confirma que no hubo nada a cambio, seguiría por ${quien.segundo.n} con la misma conversación. Si resulta que no, no insistiría por ahí: pasaría a ${dos ? dos.nombre : "el frente que siga por tamaño"}${dos ? ` (${_val(dos.tot)})` : ""}.`
       : `Si se confirma, repetiría la conversación con las que siguen en esa lista. Si no, pasaría a ${dos ? `${dos.nombre} (${_val(dos.tot)})` : "el frente que siga por tamaño"}.`);
     /* 5 · QUÉ NO HARÍA TODAVÍA — y la razón sale del dato, no de una opinión */
     const ultimo = frentes[frentes.length - 1];
@@ -269,7 +269,7 @@ export const planDeAccion = {
       const otroMundo = ultimo.universo !== uno.universo;
       /* la referencia se nombra por lo que ES —«contra los $12.6M del cobro vencido»—, no por su lugar en el
        * texto: «el frente de arriba» le pide al dueño que cuente párrafos para entender contra qué se compara. */
-      p.push(`Lo que NO haría todavía: mover ${ultimo.nombre}. Pesa ${_val(ultimo.tot)} contra ${_val(uno.tot)} de ${uno.nombre}${otroMundo ? `, y encima es otro dinero —ese sale del inventario y el primero de la venta comercial, que en este dato no cierran entre sí, así que se ordenan por urgencia y no se suman—` : ""}. Gastar la semana ahí es gastarla en lo chico.`);
+      p.push(`Lo que NO haría todavía: mover ${ultimo.nombre}. Pesa ${_val(ultimo.tot)} contra los ${_val(uno.tot)} de${/^(?:el|la|las|los) /.test(uno.nombre) ? uno.nombre.replace(/^el /, "l ").replace(/^(la|las|los) /, " $1 ") : ` ${uno.nombre}`}${otroMundo ? `, y encima es otro dinero —ese sale del inventario y el primero de la venta comercial, que en este dato no cierran entre sí, así que se ordenan por urgencia y no se suman—` : ""}. Gastar la semana ahí es gastarla en lo chico.`);
     } else {
       p.push(`Lo que NO haría todavía: repartir la semana en varios frentes. Con una sola cifra medida por delante, abrir tres conversaciones a la vez es quedarse sin ninguna cerrada.`);
     }

@@ -93,12 +93,14 @@ export function doctrinaDeReformular() {
     "2 · MISMO CONTENIDO, MISMAS CIFRAS. Cada número que uses tiene que estar en lo que ya respondiste, con el",
     "    mismo dueño al lado. Si en la reformulación aparece una cifra que antes no estaba, la inventaste.",
     "3 · CAMBIA LO QUE TE PIDIERON QUE CAMBIE, y solo eso:",
-    "    · si te pidieron otro DESTINATARIO, cambia el vocabulario y qué se explica — a un equipo comercial se",
-    "      le dice qué hacer y con qué cuenta; a un directorio, cuánto pesa y qué decisión abre. Nunca cambies",
-    "      la conclusión: no es una respuesta nueva, es la misma para otro lector.",
-    "    · si te pidieron otro LARGO, corta lo accesorio y deja la conclusión con su cifra. «Más corto» no es",
-    "      quitar el número: es quitar el rodeo.",
-    "    · si te pidieron más SIMPLE, saca el vocabulario técnico, no el rigor.",
+    "    · si te pidieron otro DESTINATARIO, cambia el vocabulario y qué se explica (el molde del lector viaja",
+    "      aparte). Nunca cambies la conclusión: no es una respuesta nueva, es la misma para otro lector.",
+    "    · si te pidieron MÁS CORTO, es de verdad más corto: la tesis y el criterio, en dos o tres frases —",
+    "      «Creces, pero con margen presionado. Falabella concentra la mayor recuperación potencial; yo",
+    "      empezaría por ahí.» Sin rodeo, sin re-narrar la evidencia. La cifra clave se queda si sostiene la",
+    "      conclusión; si la conclusión ya la carga, no hace falta repetirla.",
+    "    · si te pidieron más SIMPLE, saca el vocabulario técnico, no el rigor ni la conclusión.",
+    "    · si te pidieron DETALLE, ahí sí abre la evidencia: composición, comparaciones, cómo se llega a la cifra.",
     "4 · SI NO HAY NADA QUE REFORMULAR porque todavía no respondiste nada en este hilo, dilo así: que aún no",
     "    hay una respuesta que reescribir, y ofrécele hacer la lectura. JAMÁS digas que no tienes información",
     "    autorizada: la tendrías, y decirle que no la tienes es enseñarle que el producto es más corto de lo",
@@ -155,14 +157,58 @@ function _frasesDe(previa) {
 
 /* la frase donde la previa DIJO su conclusión — las formas que los procedimientos de la casa escriben. Va
  * primero en la reformulación aunque en el original fuera al final: para otro lector, la conclusión abre. */
-const _CONCLUSION = /\byo entrar[ií]a por\b|\bmi recomendaci[oó]n\b|\bes criterio m[ií]o\b|\bpartir[ií]a por\b|\besta semana har[ií]a\b|\bempezar[ií]a por\b|\bel orden correcto\b|\bprimero\b.{0,40}\bdespu[eé]s\b/i;
+const _CONCLUSION = /\byo entrar[ií]a por\b|\bentrar[ií]a por\b|\bmi recomendaci[oó]n\b|\bcriterio m[ií]o\b|\bpartir[ií]a por\b|\besta semana har[ií]a\b|\bempezar[ií]a por\b|\b(?:yo )?mirar[ií]a primero\b|\brevisar[ií]a primero\b|\bel orden correcto\b|\bprimero\b.{0,40}\bdespu[eé]s\b/i;
+
+/* ── EL TIPO DE AUDIENCIA (Etapa 3, owner 2026-09-11) ──────────────────────────────────────────────────────
+ * Cuatro lectores con la MISMA conclusión y distinta forma —«la conclusión debe mantenerse idéntica; cambia la
+ * forma»—. Se lee del destinatario que ya detecta `destinatarioDe`; no hay un segundo detector. */
+export function tipoDeAudiencia(dest) {
+  const d = String(dest || "").toLowerCase();
+  if (!d) return null;
+  if (/directorio|comit[eé]|junta|board|accionista/.test(d)) return "directorio";
+  if (/equipo|vendedor|comercial|fuerza|kam|ventas/.test(d)) return "comercial";
+  if (/analista|controller|finanzas|contador|contralor/.test(d)) return "analista";
+  return "dueno";
+}
+
+/** el molde del lector — viaja SOLO en el turno que nombra una audiencia (la carta lo remite acá a propósito:
+ *  el techo del 20% del system no admite cuatro moldes en cada turno). Byte-estable por tipo. */
+export function doctrinaDeAudiencia(dest) {
+  const tipo = tipoDeAudiencia(dest);
+  if (!tipo) return null;
+  const INVARIANTE = "LA CONCLUSIÓN NO CAMBIA POR EL LECTOR: mismo cliente prioritario, mismas cifras, mismo veredicto, misma primera acción. Cambia qué se resalta y cuánto.";
+  const M = {
+    directorio: [
+      `[PROCEDIMIENTO — no es el usuario] ESTE TURNO ES PARA ${dest.toUpperCase()}.`,
+      "Registro de comité: materialidad (cuánto pesa contra el negocio), riesgo, tendencia y la decisión que se abre. UNA decisión al frente, en tres a cinco frases. Nada operativo, nada del método, ninguna cuenta que no mueva la decisión.",
+      INVARIANTE,
+    ],
+    comercial: [
+      `[PROCEDIMIENTO — no es el usuario] ESTE TURNO ES PARA ${dest.toUpperCase()}.`,
+      "Aterriza a lo que un vendedor puede usar: la cuenta por su nombre, su problema económico en una frase, la cifra que lo mide con su referencia, y qué conviene revisar. Forma: «Falabella: cede 4.5% de carga contra 3.5% de referencia — ahí hay $194K. Lo que revisaría: si esa condición se pactó a cambio de volumen.» Sin órdenes: si el dato no permite prescribir, se dice qué validar. Sin explicar el método.",
+      INVARIANTE,
+    ],
+    analista: [
+      `[PROCEDIMIENTO — no es el usuario] ESTE TURNO ES PARA ${dest.toUpperCase()}.`,
+      "Aquí sí cabe la evidencia: composición, comparaciones, cómo se llega a cada cifra y qué queda fuera del dato. Puede llevar tabla si ayuda. Mismas cifras verificadas, ni una más.",
+      INVARIANTE,
+    ],
+    dueno: [
+      `[PROCEDIMIENTO — no es el usuario] ESTE TURNO ES PARA ${dest.toUpperCase()}.`,
+      "Qué está pasando, cuánto importa y dónde pondrías atención — directo, sin tecnicismos, en pocas frases.",
+      INVARIANTE,
+    ],
+  };
+  return M[tipo].join("\n");
+}
 
 /** cómo se abre para cada lector. La conclusión no cambia; cambia a quién se le está hablando. */
 function _encabezado(dest) {
   if (!dest) return "Lo mismo, más corto:";
-  const d = String(dest).toLowerCase();
-  if (/directorio|comit[eé]|junta/.test(d)) return `Para ${dest}, en corto:`;
-  if (/equipo|vendedor|comercial|fuerza/.test(d)) return `Para ${dest}, lo que importa es esto:`;
+  const tipo = tipoDeAudiencia(dest);
+  if (tipo === "directorio") return `Para ${dest}, en corto:`;
+  if (tipo === "comercial") return `Para ${dest}, lo que importa es esto:`;
+  if (tipo === "analista") return `Para ${dest}, con la evidencia:`;
   return `Para ${dest}:`;
 }
 
@@ -179,20 +225,42 @@ export function componerReformulacion(previa, { pregunta = "" } = {}) {
   const corto = _FORMA.test(String(pregunta || ""));
 
   const conclusion = frases.find((f) => _CONCLUSION.test(f)) || null;
+  /* LA TESIS TAMBIÉN VIAJA (Etapa 3): si la previa abre con una frase sin cifra —«el negocio crece, pero deja menos
+   * margen del que debería»— esa es su tesis, y es lo primero que cualquier lector necesita. Verbatim, como todo. */
+  const tesis = (frases[0] && !_CIFRA_UNA.test(frases[0]) && frases[0] !== conclusion && frases[0].length <= 160) ? frases[0] : null;
   /* las que sostienen: llevan cifra. Sin ninguna, la reformulación sería una opinión — y ahí es mejor no
    * componer y dejar que el turno lo diga honestamente, que es lo que hace el peldaño siguiente. */
   const conCifra = frases.filter((f) => f !== conclusion && _CIFRA_UNA.test(f));
   if (!conCifra.length && !conclusion) return null;
 
-  const cuerpo = conCifra.slice(0, corto ? 2 : 4);
+  /* ── EL LECTOR ELIGE QUÉ FRASES, NO CÓMO SE ESCRIBEN (Etapa 3, owner 2026-09-11) ──────────────────────────
+   * El piso sigue siendo verbatim —no redacta—, pero ya no sirve las mismas cuatro frases a todos: para el
+   * equipo comercial van primero las que nombran una cuenta con su cifra (lo que un vendedor usa); para el
+   * directorio, las de magnitud en dinero (lo que pesa) y pocas; para el analista, todas las que sostienen.
+   * La conclusión abre siempre, para todos: es lo que ningún lector puede perder. */
+  const tipo = tipoDeAudiencia(dest);
+  const _nombraCuenta = (f) => /\b[A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?\b[^.\n]{0,40}(?:\$[\d.,]+|\d[\d.,]*\s*(?:%|pp))/.test(f);
+  const _enDinero = (f) => /\$[\d.,]+/.test(f);
+  let elegidas = conCifra;
+  if (tipo === "comercial") elegidas = [...conCifra.filter(_nombraCuenta), ...conCifra.filter((f) => !_nombraCuenta(f))];
+  if (tipo === "directorio") elegidas = [...conCifra.filter(_enDinero), ...conCifra.filter((f) => !_enDinero(f))];
+  /* «MÁS CORTO» ES DE VERDAD MÁS CORTO (Etapa 3, owner 2026-09-11): la tesis y el criterio, y nada más si los hay
+   * —su vara: «Creces, pero con margen presionado. Falabella concentra la mayor recuperación; yo empezaría por
+   * ahí.»—. El directorio recibe una línea de evidencia; el comercial dos; el analista, todas. */
+  const tieneLoEsencial = !!(tesis || conclusion);
+  const tope = corto ? (tieneLoEsencial ? 0 : 1) : tipo === "directorio" ? 1 : tipo === "analista" ? 6 : tipo === "comercial" ? 2 : 3;
+  const cuerpo = elegidas.slice(0, tope);
   const lineas = [_encabezado(dest)];
-  if (conclusion) lineas.push(conclusion);              // la conclusión abre: es lo que el otro lector necesita
+  if (tesis) lineas.push(tesis);                        // la tesis abre — es la conclusión en una frase
+  if (conclusion) lineas.push(conclusion);              // y el criterio: lo que el otro lector necesita
   for (const c of cuerpo) lineas.push(/^[·•\-*\d]/.test(c) ? c : `· ${c}`);
-  /* el cierre OFRECE y no ordena (el registro de la casa), y dice lo único que este piso sí sabe de sí mismo:
-   * que es la misma respuesta, no una nueva. */
-  lineas.push(dest
-    ? `Es la misma lectura de recién, dicha para ${dest}. Si la quieres más corta, o con otro foco, dime cuál y la ajusto.`
-    : `Es la misma lectura de recién, sin el rodeo. Si la quieres para alguien en particular, dime para quién y la acomodo.`);
+  /* SIN LÍNEA DE CIERRE QUE SE DESCRIBA A SÍ MISMA (Etapa 3): «es la misma lectura de recién… dime cuál y la
+   * ajusto» era voz de sistema y un menú. El siguiente paso ya viene en el criterio («entraría por Falabella»);
+   * si la previa no lo traía, se ofrece derivado de lo que sí hay: la cuenta que la tesis nombra. */
+  if (!conclusion) {
+    const cuenta = (cuerpo.join(" ").match(/\b(?:[A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)(?=[^.\n]{0,40}(?:\$[\d.,]+|\d[\d.,]*\s*(?:%|pp)))/) || [])[0];
+    if (cuenta && !/^(?:Crece|Pero|Tus|Los|Las|El|La|Hay|En|De)$/.test(cuenta)) lineas.push(`Si quieres seguir, abriría ${cuenta}.`);
+  }
   return lineas.join("\n");
 }
 
@@ -258,8 +326,12 @@ export function vetosDeReformular(texto, { pregunta = "", previa = null, sitio =
     }
     /* (e) Y LA CONCLUSIÓN NO PIERDE SU CIFRA CLAVE — la doctrina §3 lo dice con todas sus letras: «más corto»
      * no es quitar el número, es quitar el rodeo. Sin ninguna cifra, lo que queda es una opinión. */
+    /* ⚠️ CON LA VARA DE LA ETAPA 3 (owner 2026-09-11) la cifra puede faltar SI la conclusión viaja: su propio
+     * ejemplo de «más corto» —«Creces, pero con margen presionado. Falabella concentra la mayor recuperación
+     * potencial; yo empezaría por ahí.»— no trae ningún número y es exactamente lo que quiere. Lo que sigue
+     * prohibido es perder las dos cosas: sin cifra Y sin conclusión, lo que queda es una opinión. */
     const teniaCifras = (previa.match(_CIFRA) || []).length > 0;
-    if (teniaCifras && !(t.match(_CIFRA) || []).length) {
+    if (teniaCifras && !(t.match(_CIFRA) || []).length && !_CONCLUSION.test(t)) {
       v.push({ regla: "reformular-pierde-la-cifra", multa: "la respuesta original sostenía su conclusión con cifras y tu versión no trae ninguna. «Más corto» o «para otro lector» no es quitar el número: es quitar el rodeo. La conclusión viaja con su cifra clave — la misma de antes, con el mismo dueño." });
     }
   }

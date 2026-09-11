@@ -403,15 +403,19 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
     });
     /* el CORTE se declara en cada grupo («los 3 que más pesan de los N»): nombrar algunos sin decir cuántos
      * son es la lista-sin-corte que este mismo playbook multa — y me la multó al estrenar el porqué. */
-    p.push(`\n**Los que pagan el margen en acciones comerciales.** ${_val(cuenta)} de tus clientes están bajo el benchmark Y además cargan más acciones comerciales que ${etiquetaDeLaCarga()}${target ? ` (${_val(target)})` : ""}. Los ${nombres.length} que más pesan de esos ${_val(cuenta)}: ${nombres.join(" · ")}. Acá el margen no se pierde en el precio: se entrega en la negociación comercial.`);
+    /* SIN NEGRITAS NI REPETIR LA PARTICIÓN (Etapa 3, owner 2026-09-11: «una respuesta ejecutiva no debería parecer
+     * un reporte de consultoría»): la línea anterior ya dijo cuántos pagan el margen en acciones; acá va quiénes
+     * y contra qué referencia. El corte sigue declarado —«los 3 que más pesan de esos 6»— que es lo que la
+     * notarial cobra. */
+    p.push(`\nLos que lo pagan en acciones comerciales cargan más que ${etiquetaDeLaCarga()}${target ? ` (${_val(target)})` : ""}. Los ${nombres.length} que más pesan de esos ${_val(cuenta)}: ${nombres.join(" · ")}. Ahí el margen no se pierde en el precio: se entrega en la negociación.`);
   }
   if (vol && vol.n) {
-    p.push(`\n**Los que compran volumen a margen bajo.** ${vol.items.slice(0, 3).map((f) => f.entidad).join(" · ")}: margen bajo el benchmark pero con la carga dentro del nivel de referencia. Eso ya no es fuga por carga — es precio. Puede ser una decisión tuya: volumen a cambio de rotación y liquidez.`);
+    p.push(`${vol.items.slice(0, 3).map((f) => f.entidad).join(" · ")} compran volumen a margen bajo con la carga dentro del nivel de referencia: eso no es fuga por carga, es precio — y puede ser una decisión tuya, volumen a cambio de rotación y liquidez.`);
   } else if (C.grandesQueCaen) {
-    p.push(`\n**Volumen y fuga, en la misma cuenta.** En tu dato no hay un solo cliente grande que caiga SIN exceder el nivel de referencia de carga: los ${C.grandesQueCaen} que mueven la venta y caen, todos cargan de más (entre ${C.excesoMin} y ${C.excesoMax} puntos sobre ese nivel). Por eso no se puede recortar la carga sin tocar a los que sostienen la facturación — ahí está la decisión difícil.`);
+    p.push(`Y volumen y fuga van en la misma cuenta: los ${C.grandesQueCaen} grandes que caen cargan todos de más (entre ${C.excesoMin} y ${C.excesoMax} puntos sobre ese nivel). Por eso no se recorta la carga sin tocar a los que sostienen la facturación — ahí está la decisión difícil.`);
   }
   if (del && del.n) {
-    p.push(`\n**Los de margen delgado sin carga alta ni volumen.** ${del.items.slice(0, 3).map((f) => f.entidad).join(" · ")}: ni pagan carga de más ni mueven volumen. Ahí el margen es precio de lista o mix de lo que compran.`);
+    p.push(`${del.items.slice(0, 3).map((f) => f.entidad).join(" · ")} tienen margen delgado sin carga alta ni volumen: ahí es precio de lista o mix de lo que compran.`);
   }
 
   /* 3 · LAS HIPÓTESIS CON SU HUELLA — cada mecanismo, qué marca deja y cuál está en ESTE dato */
@@ -437,11 +441,11 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
    * lector la lee dos veces. Una cosa se dice UNA vez; lo que se omite acá ya está dicho, no perdido. */
   const yaContada = new Set();
   if (!(vol && vol.n) && C.grandesQueCaen) yaContada.add("volumen a margen bajo");
-  p.push(`\n**Por qué pasa, con lo que el dato permite afirmar y lo que no:**`);
+  p.push(`\nPor qué pasa — lo que el dato permite afirmar y lo que no:`);
   for (const h of A.huellas) { if (!yaContada.has(h.mecanismo)) p.push(linea(h)); }
 
   /* 4 · LA REGLA DE DECISIÓN — convierte la duda en un experimento, no en una opinión */
-  p.push(`\n**Cómo se resuelve la duda:** si el exceso de carga se repite parejo en toda la cartera, es política comercial y se corrige con una regla; si cambia cliente por cliente, es negociación y se corrige cuenta por cuenta. Tu dato dice que el exceso va de ${C.excesoMin} a ${C.excesoMax} puntos: no es parejo.`);
+  p.push(`\nLa duda se resuelve así: si el exceso de carga se repite parejo en toda la cartera, es política comercial y se corrige con una regla; si cambia cliente por cliente, es negociación. Tu dato dice que va de ${C.excesoMin} a ${C.excesoMax} puntos: no es parejo.`);
 
   /* 5 · LA PREGUNTA AL DUEÑO — solo lo que ninguna columna puede saber */
   if (A.preguntaAlDueno) {

@@ -12,7 +12,7 @@ import { resolverReferencia, REFERENCIA_ANAFORA_RE } from "../../config/business
 import { runPlan } from "./toolRunner.js";
 import { emit as emitTelemetria, nuevoTraceId, getToolsDeclaradas } from "../llm/telemetry.js";   // observación pura: mide, no decide (owner 2026-08-10)
 import { ledgerBoleta } from "./ledger.js";
-import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared, ensureCountAuthorized, conteosAutorizadosDelTurno } from "./guardC.js";
+import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared, periodoDeclarado, ensureCountAuthorized, conteosAutorizadosDelTurno } from "./guardC.js";
 import { cifrasDelDato } from "./datoProyectado.js";   // AMPLITUD F1: la quinta fuente del muro — las cifras de la proyección del dato, con dueño
 import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable, gradeIndicatedClaims, ensureTransferenciaDeclarada, ensureUmbralDeclarado, markUserProvenance } from "./narratePromptC.js";
 import { buildClaims, sealScopeContract, buildReparacion } from "./narrationContract.js";   // CONTRATO v2 · Fase 4: los claims sellados salen en la respuesta · v1.2: la reparación sellada, la MISMA que ve el narrador
@@ -2642,6 +2642,15 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // sellos para el guard (requisitos 3 y 4, pase quirúrgico 2026-07-29) — SIEMPRE del resultado real del batch, no
   // dependen de qué tool haya corrido (generaliza a cualquier plan futuro sin tocar este bloque de nuevo).
   const periodos = periodosEsperados(results);
+  /* ── ¿ESTA FAMILIA DE PERÍODO YA QUEDÓ DECLARADA EN EL HILO? (owner 2026-09-10: el sello, una vez) ───────────
+   * Se mira lo que ADI YA dijo en esta conversación (los turnos del asistente en `history`) con el MISMO
+   * detector que la garantía usa para reconocer una declaración válida. Vuelve a declararse si el período
+   * IMPORTA en la pregunta —el usuario habla de año, mes, fecha, «a hoy»— o si la familia cambió: el chequeo es
+   * por la familia de ESTE turno. El marco mixto no pasa por acá (se declara siempre). */
+  const _preguntaHablaDePeriodo = /\bper[ií]odos?\b|\ba[ñn]os?\b|\bmes(?:es)?\b|\btrimestres?\b|\bhoy\b|\bfecha\b|\bcerrado\b|\bfoto\b|\bcorte\b/i.test(String(text || ""));
+  const _yaDeclarado = periodos.length === 1 && !_preguntaHablaDePeriodo
+    && (Array.isArray(history) ? history : []).some((h) => h && h.role !== "user" && typeof h.text === "string" && periodoDeclarado(h.text, periodos));
+  const _opPeriodo = { yaDeclaradoEnElHilo: _yaDeclarado };
   const sealedOrders = [];
   for (const r of results) {
     if (r && r.facts) {
@@ -2672,7 +2681,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     const _famDe = (p) => (/a[nñ]o cerrado/i.test(p || "") ? "anual" : /foto.*hoy/i.test(p || "") ? "hoy" : null);
     const _fams = [...new Set((simple.campos || [simple]).map((c) => _famDe(c.periodo)))];
     const periodosSimple = _fams.every(Boolean) && _fams.length ? ["anual", "hoy"].filter((f) => _fams.includes(f)) : periodos;
-    const det = ensureUmbralDeclarado(ensureTransferenciaDeclarada(ensurePeriodoDeclared(detRaw, periodosSimple), results, q), results);
+    const det = ensureUmbralDeclarado(ensureTransferenciaDeclarada(ensurePeriodoDeclared(detRaw, periodosSimple, _opPeriodo), results, q), results);
     if (guardC(det, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) { narration = det; deterministic = true; }
   }
 
@@ -2802,7 +2811,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // `periodos` no viene vacío — estamparle «(Datos del año cerrado.)» le pondría marco de dato a un texto que
       // justamente explica que no va a mostrar ninguno. Con calls vacías (el caso D2 previo) esto es un no-op:
       // `periodos` era [] y el envoltorio no agregaba nada — la conducta previa queda byte-idéntica.
-      const c = (desdeTexto || desdeConfusion) ? candidato : ensureUmbralDeclarado(ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos), results, q), results);
+      const c = (desdeTexto || desdeConfusion) ? candidato : ensureUmbralDeclarado(ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos, _opPeriodo), results, q), results);
       if (guardC(c, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok && !vetosDeRegistro(c, { pregunta: q }).length) { narration = c; narrationRepaired = true; break; }
     }
   }
@@ -2938,7 +2947,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // falla): el resultado NO PUEDE exceder el presupuesto, sin importar qué haya escrito el narrador.
     if (pref.detailLevel === "brief") n = truncateToBriefBudget(n);
     n = ensureHypothesisFraming(n, plan.mode, results);   // requisito SIMULACIÓN: garantía determinística (ver narratePromptC.js)
-    n = ensurePeriodoDeclared(n, periodos);   // requisito 3: garantía determinística, no depende de que el LLM se acuerde
+    n = ensurePeriodoDeclared(n, periodos, _opPeriodo);   // requisito 3: garantía determinística, no depende de que el LLM se acuerde
     n = ensureClarifyClosingQuestion(n, plan.mode);   // requisito CLARIFY: va DESPUÉS del período para quedar al final de verdad
     // BACKSTOP · conteo-no-autorizado (owner 2026-08-03, auditoría de eficiencia de Mini — ver guardC.js): corrige
     // ANTES de llegar al guard el caso más frecuente (el narrador enumera N ítems pero dice un número distinto) —
@@ -2983,7 +2992,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
         ? componerPorForma({ figs, contentScope: pref.contentScope, forma: "tabla" })
         : composeProsaEjecutiva(buildClaims(figs), { entidad: _disclosure.entidad });
       if (alt) {
-        let c = ensurePeriodoDeclared(alt, periodos);
+        let c = ensurePeriodoDeclared(alt, periodos, _opPeriodo);
         c = ensureClarifyClosingQuestion(c, plan.mode);
         c = ensureTransferenciaDeclarada(c, results, q);
         c = ensureUmbralDeclarado(c, results);
@@ -3067,7 +3076,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       composeNoDataMessage(results),
     ].filter(Boolean);
     for (const composed of _candidatosReparacion) {
-      let c = ensurePeriodoDeclared(composed, periodos);
+      let c = ensurePeriodoDeclared(composed, periodos, _opPeriodo);
       // requisitos SIMULACIÓN/CLARIFY (ver narratePromptC.js): la reparación cae acá cuando el narrador libre agotó
       // los 3 intentos — el turno sigue siendo mode=simulacion/clarify, así que la garantía tiene que valer IGUAL.
       // Solo en full: action_only tiene su PROPIO contrato estricto (nunca prosa fuera del bloque [[ACCION]]) y estas
@@ -3114,7 +3123,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
    * (_garantia_anti_null_gate.mjs: matriz de planes×modos×alcances con TODOS los intentos del narrador vetados). */
   if (!narration) {
     const honesto = composeNoDataMessage(results);
-    const c = ensurePeriodoDeclared(honesto, periodos);
+    const c = ensurePeriodoDeclared(honesto, periodos, _opPeriodo);
     if (guardC(c, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
       narration = c;
     } else {
