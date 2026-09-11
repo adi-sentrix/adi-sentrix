@@ -282,6 +282,25 @@ H("5d · las aperturas y muletillas coloquiales se vetan — el NOMBRE queda exe
     "…y la forma sin acento sigue cazada igual (no se cambió una ceguera por otra)");
   ok(vetosDeContrato("El margen cede 5pp. Renegociaría primero la carga de Falabella — $833K en juego. ¿Lo vemos?").length === 0,
     "…y el condicional de oferta sigue limpio: se corrigió el fin de palabra, no la regla");
+
+  /* LA ORDEN AL EQUIPO (batería en vivo de la Etapa 4, T4 — 2026-09-11): «Explícamelo para el equipo comercial»
+   * cerró con «Arranquen por Falabella.» y pasó limpio — la regla solo conocía la segunda persona del singular,
+   * y a un equipo se le habla en plural. El molde de ese lector dice «sin órdenes»; el juez tiene que verlo. */
+  ok(reglas("Para el equipo: 4 cuentas cargan más de la cuenta.\n\nArranquen por Falabella.").includes("cierre-imperativo"),
+    "★★ «Arranquen por Falabella.» —la pantalla de la batería en vivo— ARDE como cierre que ordena");
+  for (const orden of ["Empiecen por Falabella", "Renegocien la carga de Falabella", "Prioricen a Lider", "Partan por Jumbo"]) {
+    ok(reglas(`El margen cede 5pp.\n\n${orden}.`).includes("cierre-imperativo"), `★ plural: «${orden.split(" ")[0]}» → cierre-imperativo`);
+  }
+  ok(reglas("Para el equipo: renegocien la carga de Falabella y sigan con Lider. Yo entraría por ahí.").includes("prosa-imperativa"),
+    "★ y la orden al equipo a mitad de párrafo arde como prosa imperativa");
+  ok(reglas("El margen cede 5pp.\n\nEmpieza por Falabella.").includes("cierre-imperativo") && reglas("El margen cede 5pp.\n\nArrancá por Falabella.").includes("cierre-imperativo"),
+    "★ «empieza / arrancá por X» como cierre también ordena por dónde entrar");
+  ok(vetosDeContrato("Yo entraría por Falabella — $1.6M en juego. ¿Arrancamos por ahí?").length === 0,
+    "…y «¿arrancamos por ahí?» sigue limpio: es la pregunta con la que la casa sugiere");
+  ok(vetosDeContrato("La brecha se explica en parte por carga y parte por precio; yo empezaría por la carga.").length === 0,
+    "…y «parte por precio» descriptivo no arde: la familia singular solo se caza como cierre");
+  ok(vetosDeContrato("Para el equipo: lo que conviene validar en terreno es si esa carga se pactó por volumen. Díganme qué encuentran y lo cruzo.").length === 0,
+    "…ni las conversacionales en plural («díganme»): la manera normal de pedirle contexto al equipo");
 }
 
 /* ═══ 5g · EL `\b` QUE NO EXISTE · el candado de una lección que costó TRES veces ════════════════════════════

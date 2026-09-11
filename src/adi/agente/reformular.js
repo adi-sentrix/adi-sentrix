@@ -258,10 +258,16 @@ export function componerReformulacion(previa, { pregunta = "" } = {}) {
   /* LA TESIS TAMBIÉN VIAJA (Etapa 3): si la previa abre con una frase sin cifra —«el negocio crece, pero deja menos
    * margen del que debería»— esa es su tesis, y es lo primero que cualquier lector necesita. Verbatim, como todo. */
   /* una tesis es una frase completa: no un encabezado («Lo mismo, más corto:») ni un rótulo de dos palabras */
-  const tesis = (frases[0] && !_CIFRA_UNA.test(frases[0]) && frases[0] !== conclusion && frases[0].length <= 160 && !/[:]\s*$/.test(frases[0]) && frases[0].split(/\s+/).length >= 6) ? frases[0] : null;
+  const _fraseCompleta = (f) => !!f && f !== conclusion && f.length <= 220 && !/[:]\s*$/.test(f) && !/^[·•\-*]\s|^\d{1,2}[.)]\s/.test(f) && f.split(/\s+/).length >= 6;
+  const tesisSinCifra = (_fraseCompleta(frases[0]) && !_CIFRA_UNA.test(frases[0]) && frases[0].length <= 160) ? frases[0] : null;
+  /* …y la previa escrita por el cerebro abre con su tesis CON cifras —«la brecha no es difusa: son 5 puntos
+   * concentrados en 6 cuentas»—: sigue siendo la tesis y sigue abriendo (batería en vivo de la Etapa 4, T5: sin
+   * esto, el directorio recibía una sola línea de números y ninguna conclusión). El encabezado de un lector
+   * anterior («Para el equipo comercial…») no es tesis de nadie. */
+  const tesis = tesisSinCifra || ((_fraseCompleta(frases[0]) && !/^Para (?:el|la|los|las|mi|mis|finanzas)\b/i.test(frases[0])) ? frases[0] : null);
   /* las que sostienen: llevan cifra. Sin ninguna, la reformulación sería una opinión — y ahí es mejor no
    * componer y dejar que el turno lo diga honestamente, que es lo que hace el peldaño siguiente. */
-  const conCifra = frases.filter((f) => f !== conclusion && _CIFRA_UNA.test(f));
+  const conCifra = frases.filter((f) => f !== conclusion && f !== tesis && _CIFRA_UNA.test(f));
   if (!conCifra.length && !conclusion) return null;
 
   /* ── EL LECTOR ELIGE QUÉ FRASES, NO CÓMO SE ESCRIBEN (Etapa 3, owner 2026-09-11) ──────────────────────────
@@ -292,7 +298,8 @@ export function componerReformulacion(previa, { pregunta = "" } = {}) {
     const cuenta = (cuerpo.join(" ").match(/\b(?:[A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)(?=[^.\n]{0,40}(?:\$[\d.,]+|\d[\d.,]*\s*(?:%|pp)))/) || [])[0];
     if (cuenta && !/^(?:Crece|Pero|Tus|Los|Las|El|La|Hay|En|De)$/.test(cuenta)) lineas.push(`Si quieres seguir, abriría ${cuenta}.`);
   }
-  return lineas.join("\n");
+  /* verbatim en el contenido, no en el maquillaje: las negritas del cerebro (formato de informe) no se heredan */
+  return lineas.map((l) => l.replace(/\*\*/g, "")).join("\n");
 }
 
 /* ── LOS VETOS ─────────────────────────────────────────────────────────────────────────────────────────────

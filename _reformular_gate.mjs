@@ -356,6 +356,23 @@ H("10 · ★★ la batería en vivo: «dámelo», «ahora para directorio» y la
     "★★ y los tres conservan la tesis y el criterio de la FOTO, verbatim — la cadena ya no degrada el material");
   ok(/^Para el equipo comercial/.test(t4.t) && /^Para el directorio/.test(t5.t), "…cada uno abre nombrando a su lector");
   ok(t3.t.split(/\s+/).length < t1.t.split(/\s+/).length / 2, "…y «más corto» sigue siendo más corto");
+  /* LA PREVIA ESCRITA POR EL CEREBRO (batería en vivo, T5): abre con su tesis CON cifras y no dice «entraría por».
+   * Antes el piso no encontraba tesis ni criterio y el directorio recibía una sola línea de números; ahora la
+   * tesis abre igual, y las negritas del cerebro (formato de informe) no se heredan. */
+  const PREVIA_CEREBRO = [
+    "La brecha no es un problema difuso: son 5 puntos de margen (25.1% contra el benchmark de 30.1%) concentrados en 6 cuentas, y en 4 de ellas hay dos señales que se mueven juntas.",
+    "", "**Lo que se movió, con cifras:**",
+    "- **Falabella, Lider, Jumbo y Sodimac** están bajo el benchmark con carga sobre el 3.5% de referencia.",
+    "  - Falabella: margen 22.0% (brecha 8.1 pp), carga 4.5%, contribución no capturada $1.6M",
+    "  - Lider: margen 21.5% (brecha 8.6 pp), carga 4.2%, $1.5M",
+    "", "¿Sabes si Falabella y Jumbo tienen un rebate pactado por volumen?",
+  ].join("\n");
+  const dirC = componerReformulacion(PREVIA_CEREBRO, { pregunta: "Ahora para directorio." });
+  ok(!!dirC && dirC.split("\n")[1] === "La brecha no es un problema difuso: son 5 puntos de margen (25.1% contra el benchmark de 30.1%) concentrados en 6 cuentas, y en 4 de ellas hay dos señales que se mueven juntas.",
+    "★★ la previa del cerebro abre con su tesis aunque lleve cifras — el directorio recibe la conclusión, no solo una línea de números", dirC);
+  ok(!!dirC && !/\*\*/.test(dirC) && (dirC.match(/\$[\d.,]+[KMB]?/g) || []).length >= 1, "…sin negritas heredadas, y con su línea en dinero", dirC);
+  const comC = componerReformulacion(PREVIA_CEREBRO, { pregunta: "Explícamelo para el equipo comercial." });
+  ok(!!comC && comC.includes("La brecha no es un problema difuso") && !/\*\*/.test(comC) && comC.split("\n").length >= 4, "…y el equipo comercial recibe la tesis más las cuentas con su cifra", comC);
   /* los CONTEOS de la previa («6 pagan margen…») viajan en la boleta del piso: sin eso el muro los vetaba como no autorizados */
   const bucle = readFileSync(new URL("./src/adi/agente/bucleAgente.js", import.meta.url), "utf8");
   ok(/counts: parseCounts\(_previaDelHilo\)/.test(bucle), "★ los conteos de la respuesta previa entran a la boleta del piso (el muro los reconocía como no autorizados)");

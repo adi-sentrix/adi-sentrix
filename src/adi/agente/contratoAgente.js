@@ -59,7 +59,14 @@ export const PRINCIPIOS_RUTEO = [
  * rioplatenses, que son las que este usuario ve. `_FIN` es el fin de palabra que sí cuenta las vocales
  * acentuadas y la ñ; va en todo patrón que pueda terminar en una. */
 const _FIN = "(?![a-záéíóúüñ])";
-const _IMPERATIVO_EJECUCION = new RegExp(`^(procede|proced[eé]|ejecut[aá]|implement[aá]|renegoci[aá]|liquid[aá]|aplic[aá]|lanz[aá]|corta|cort[aá]|sub[ií] (el|los|la|las)|baj[aá] (el|los|la|las))${_FIN}`, "i");
+/* ── LA ORDEN AL EQUIPO (batería en vivo de la Etapa 4, T4 — owner 2026-09-11) ─────────────────────────────
+ * «Explícamelo para el equipo comercial» → el cerebro cerró con «Arranquen por Falabella.»: la misma orden de
+ * siempre, en PLURAL y dirigida a la gente del dueño — que es justo la forma que sale cuando la respuesta es
+ * para un equipo, y el molde de ese lector dice «sin órdenes». La ley no cambia («ADI asesora, no gestiona»);
+ * estaba ciega a la segunda persona del plural y a la familia «arranca / empieza / partí por», que ordena por
+ * dónde entrar. Las conversacionales («díganme», «cuéntenme») siguen fuera; «arrancamos por ahí?» es pregunta. */
+const _ORDEN_AL_EQUIPO = "arranquen|empiecen|partan|prioricen|renegocien|ejecuten|implementen|liquiden|apliquen|lancen|corten|convoquen|exijan|llamen a|hablen con|si[eé]ntense con|suban (?:el|los|la|las)|bajen (?:el|los|la|las)";
+const _IMPERATIVO_EJECUCION = new RegExp(`^(procede|proced[eé]|ejecut[aá]|implement[aá]|renegoci[aá]|liquid[aá]|aplic[aá]|lanz[aá]|corta|cort[aá]|sub[ií] (el|los|la|las)|baj[aá] (el|los|la|las)|arranc[aá] por|empez[aá] por|empieza por|part[ií] por|${_ORDEN_AL_EQUIPO})${_FIN}`, "i");
 // La decisión dada por tomada, en cualquier parte del texto — la carnada NOMBRADA por el owner.
 /* ── EL IMPERATIVO EN CUALQUIER PARTE DE LA PROSA (owner 2026-09-10) ────────────────────────────────────────
  * «siéntate con Falabella y revisa sus acciones» salió en pantalla A MITAD de un párrafo — y la regla del
@@ -69,6 +76,8 @@ const _IMPERATIVO_EJECUCION = new RegExp(`^(procede|proced[eé]|ejecut[aá]|impl
  * cortar), y los imperativos CONVERSACIONALES quedan fuera: «dime», «cuéntame», «avísame» son la manera
  * normal de pedirle contexto al dueño. Se vetan los de EJECUCIÓN de negocio. */
 const _PROSA_IMPERATIVA = /(?:^|[.;:—]\s*|\by\s+)(?:si[eé]ntate|sentate|renegoci[aá]|ejecut[aá]|implement[aá]|liquid[aá]|aplic[aá]|lanz[aá]|proced[eé]|convoc[aá]|exig[ií]|llam[aá] a|habl[aá] con)(?![\wáéíóúñ]*r\b)/im;
+/* …y la misma regla en plural, anclada igual (regex aparte para que la carnada del gate siga vaciando la literal) */
+const _PROSA_ORDEN_AL_EQUIPO = new RegExp(`(?:^|[.;:—]\\s*|\\by\\s+)(?:${_ORDEN_AL_EQUIPO})${_FIN}`, "im");
 
 const _DECISION_TOMADA = /\b(procede con|proced[eé] con|avanz[aá] con la ejecuci[oó]n|queda decidido|ya est[aá] decidido|debes ejecutar|ten[eé]s que ejecutar)\b/i;
 
@@ -323,6 +332,8 @@ export function vetosDeRegistro(texto, contexto = {}) {
   }
   if (_PROSA_IMPERATIVA.test(texto)) {
     v.push({ regla: "prosa-imperativa", multa: "ordenas una ejecución en medio de la prosa («siéntate con…», «renegocia…») — ADI asesora, no gestiona: dilo como lo que TÚ harías o como oferta («yo me sentaría con…», «la conversación es renegociar…»), y la decisión queda del lado del usuario." });
+  } else if (_PROSA_ORDEN_AL_EQUIPO.test(texto)) {
+    v.push({ regla: "prosa-imperativa", multa: "le das una orden al equipo («arranquen por…», «renegocien…») — ADI asesora, no gestiona, y a un equipo se le explica por dónde entraría y por qué, no se le manda: «yo entraría por…», «la conversación con X es…». La decisión queda del lado del usuario." });
   }
   if (_DECISION_TOMADA.test(texto)) {
     v.push({ regla: "decision-por-tomada", multa: "das una decisión por tomada («procede con…») — las decisiones son del usuario y él debe evaluarlas. Preséntala como sugerencia con su cifra." });
