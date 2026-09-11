@@ -210,7 +210,10 @@ H("1c · PROCESO casos 3 y 4: las dos señales del owner — seguimiento y resum
     const t = String(r.r.text || "");
     ok(r.r.agente.estado === "playbook" && !/No pude completar la lectura/.test(t),
       `★ caso 4 «${q}»: la foto del negocio tiene camino garantizado (${r.r.agente.estado})`, t.slice(0, 90));
-    ok(/\$/.test(t) && /(?:alto|bien|sostiene|favor)/i.test(t) && /(?:bajo|presion|cuida|riesgo|atenci)/i.test(t),
+    /* la letra de la foto cambió en la Etapa 3 (owner 2026-09-11: tesis primero, sin subtítulos, cada cifra una
+     * vez): «lo que sostiene / lo que presiona» pasó a «Crece: … / Pero el margen …». La CONDUCTA que se
+     * congela es la misma — cifras, lo que va bien y lo que no — y las dos mitades siguen nombradas. */
+    ok(/\$/.test(t) && /(?:alto|bien|sostiene|favor|crece|creciendo)/i.test(t) && /(?:bajo|presion|cuida|riesgo|atenci|pero el margen|menos margen)/i.test(t),
       `★ caso 4 «${q}»: cuenta la historia con cifras — lo que va bien y lo que no`, t.slice(0, 110));
   }
   /* y el DESLINDE: los riesgos del directorio siguen siendo de la síntesis, no de la foto */

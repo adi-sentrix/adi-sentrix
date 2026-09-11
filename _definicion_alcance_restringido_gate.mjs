@@ -45,7 +45,9 @@ const ok = (cond, label, detail) => {
   else { fail++; console.log(`  ✗ ${label}${detail ? ` — obtuvo ${detail}` : ""}`); }
 };
 const seccion = (t) => console.log(`\n── ${t} ──`);
-const AUSENCIA_RE = /No tengo información autorizada suficiente/i;
+/* la letra del genérico cambió en la Etapa 3 (owner 2026-09-11: «no tengo información autorizada suficiente» era su
+ * ejemplo textual de respuesta burocrática): las dos ramas —con causa y sin causa— tienen firma nueva */
+const AUSENCIA_RE = /No tengo información autorizada suficiente|Con lo que tengo no puedo responder eso con seguridad|Eso no lo puedo afirmar con lo que tengo/i;
 
 // corre un turno contando si el narrador libre llegó a invocarse (la garantía por construcción de esta rama).
 async function turno({ text, mem = {}, plan, narracion = "[[DATOS]]\nprosa libre que NUNCA debería llegar al usuario en un alcance restringido" }) {

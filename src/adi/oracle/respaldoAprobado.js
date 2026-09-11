@@ -71,7 +71,7 @@ export function _respaldoDeLoYaAprobado(memIn, juzgar, contexto = {}) {
    * declarado en el mapa (§11c del F1: fallback propio, ejecutivo y breve — NO el tablero). */
   if (recienMostrado && recienMostrado.trim() === previa.trim()) {
     if (contexto.cederSiRepetida) return null;
-    return _sellar("No pude armar la lectura nueva que pediste. Lo que te respondí recién sigue verificado y en pie — dime qué parte profundizo o pídeme otro corte del dato.");
+    return _sellar("Sobre esto no tengo una lectura nueva que agregar: lo que te respondí recién sigue en pie. Dime qué parte profundizo o pídeme otro corte del dato.");
   }
 
   // T13/T24: ¿la pregunta nombra entidades o temas que la respuesta vieja NO trae?
@@ -90,8 +90,8 @@ export function _respaldoDeLoYaAprobado(memIn, juzgar, contexto = {}) {
     const temaPrevia = entidades.find((e) => _re(e).test(previa)) || null;
     return _sellar([
       temaPrevia
-        ? `No pude armar la lectura que pediste con la calidad que corresponde. Lo último que dejamos verificado fue sobre ${temaPrevia}:`
-        : "No pude armar la lectura que pediste con la calidad que corresponde. Lo último que dejamos verificado fue esto:",
+        ? `Eso no lo pude armar con la calidad que corresponde. Lo último que dejamos verificado fue sobre ${temaPrevia}:`
+        : "Eso no lo pude armar con la calidad que corresponde. Lo último que dejamos verificado fue esto:",
       "",
       previa.trim(),
       "",
@@ -99,8 +99,13 @@ export function _respaldoDeLoYaAprobado(memIn, juzgar, contexto = {}) {
     ].join("\n"));
   }
 
+  /* LA LETRA DEL RESPALDO (Etapa 3, owner 2026-09-11): «cuando ADI no sabe, no queremos una respuesta defensiva ni
+   * burocrática». Antes abría con la disculpa («no pude armar la lectura nueva con la calidad que corresponde»)
+   * y recién después venía lo útil. Ahora abre con lo que SÍ tiene —la respuesta que sigue en pie— y el límite
+   * queda dicho sin aparato. Ni una garantía cambia: el marco veraz para otra entidad y el ceder cuando es lo
+   * recién mostrado siguen exactamente igual. */
   const candidato = [
-    "No pude armar la lectura nueva con la calidad que corresponde. Lo que ya te respondí sobre esto quedó verificado y sigue en pie:",
+    "Sobre esto, lo que tengo es lo que ya te respondí — y sigue en pie:",
     "",
     previa.trim(),
     "",

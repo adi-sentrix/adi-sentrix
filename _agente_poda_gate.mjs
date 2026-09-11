@@ -160,7 +160,8 @@ await carnada("la poda desconectada (el todo-o-nada de vuelta)",
      * se arregló el peldaño: ahora el rescate TAMBIÉN sirve «$103.0M», porque aprendió a servir el resultado
      * del turno en vez de la base. La carnada seguía roja por casualidad y habría quedado verde sin medir.
      * Lo que separa los dos mundos no es la cifra: es si el usuario recibe LA RESPUESTA o un rescate. */
-    return r.r.agente.estado !== "podado" && /No pude completar la lectura/.test(String(r.r.text || ""));
+    /* la firma de la línea honesta cambió en la Etapa 3 (primero lo verificado, después el límite) — el defecto es el mismo */
+    return r.r.agente.estado !== "podado" && /Lo que tengo verificado ahora|no la pude armar con la calidad|No pude armar esa lectura/.test(String(r.r.text || ""));
   });
 
 // (b) la condición que salió de MEDIR: sin ella el T4 queda afirmando una diferencia contra un término borrado.

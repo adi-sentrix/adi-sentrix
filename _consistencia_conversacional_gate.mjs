@@ -169,8 +169,10 @@ H("6 · el arreglo vive solo donde el examen lo midió: la rama sin señal, inta
   const ctx = { pregunta: "dame un resumen para directorio con los 3 riesgos", entidades: [], recienMostrado: YA_VISTO };
   const natural = _respaldoDeLoYaAprobado(memIn, null, ctx);                          // sin la señal → camino natural
   const agente = _respaldoDeLoYaAprobado(memIn, null, { ...ctx, cederSiRepetida: true });   // con la señal → agente
-  ok(typeof natural === "string" && /sigue verificado y en pie — dime qué parte profundizo/.test(natural),
-    "★ el camino natural conserva su conducta de hoy, byte-idéntica", String(natural).slice(0, 80));
+  /* la LETRA del peldaño cambió en la Etapa 3 (owner 2026-09-11: primero lo que sí tiene, sin disculpa burocrática) —
+   * la CONDUCTA que este check protege es la misma: la rama sin señal re-sirve lo aprobado con su oferta */
+  ok(typeof natural === "string" && /lo que te respondí recién sigue en pie\. Dime qué parte profundizo/.test(natural),
+    "★ el camino natural conserva su conducta de hoy (la letra es la de la Etapa 3)", String(natural).slice(0, 80));
   ok(agente === null, "★ y el agente cede, para caer a su límite con alternativa");
   const F1 = fs.readFileSync(path.join(process.cwd(), "_ADI_AGENTE_F1_DISENO.md"), "utf8");
   // (el markdown mete negritas en medio de la frase — se buscan los dos hechos, no una cadena literal)
@@ -219,7 +221,7 @@ H("5 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       const memIn = { ultimaAprobada: YA_VISTO };
       const a = Mut._respaldoDeLoYaAprobado(memIn, null, { pregunta: "dame un resumen para directorio con los 3 riesgos", entidades: [], recienMostrado: YA_VISTO });
       const b = Mut._respaldoDeLoYaAprobado(memIn, null, { pregunta: "dame una versión más dura para el gerente", entidades: [], recienMostrado: YA_VISTO });
-      return typeof a === "string" && a === b && /sigue verificado y en pie/.test(a);   // el defecto: molde único
+      return typeof a === "string" && a === b && /sigue en pie/.test(a);   // el defecto: molde único (la letra de la Etapa 3)
     });
 
   // (b) C3 · el peldaño se rinde con la primera cifra: vuelve el genérico con la boleta llena
@@ -229,7 +231,8 @@ H("5 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
     async (Mut) => {
       initTenant(TENANT_DEMO);
       const r = await turnoMut(Mut, "compara marzo vs abril en ventas, margen y contribución", [{ tool: "trend", args: {} }]);
-      return r.r.agente.figs > 40 && /No tengo información autorizada suficiente/.test(r.r.text);
+      /* el genérico cambió de letra en la Etapa 3 («Con lo que tengo no puedo responder eso con seguridad»): el defecto que se caza es el mismo */
+      return r.r.agente.figs > 40 && /Con lo que tengo no puedo responder eso con seguridad/.test(r.r.text);
     });
 
   // (c) la alternativa sin nombrar: vuelve el «pídeme otro corte» genérico

@@ -146,7 +146,7 @@ export const askDeCuadro = {
        * alternativa va CON cifra (el corte por bodega vino en los pasos). */
       const todas = _all(figs, /· Capital$/i).map((f) => ({ nombre: _lab(f).split("·")[0].trim(), raw: _num(f), fmt: _val(f) }))
         .filter((x) => Number.isFinite(x.raw)).sort((a, b) => b.raw - a.raw);
-      p.push(`El corte «${c.nombre}» lo arma el cuadro de Capital tramando los días sin venta, y ese tramado no está publicado como lectura del motor: no tengo una cifra verificada para dictarte por ese corte.`);
+      p.push(`El corte «${c.nombre}» lo arma el cuadro de Capital tramando los días sin venta, y ese tramado no está publicado como una lectura verificada: no tengo una cifra verificada para dictarte por ese corte.`);
       if (todas.length) p.push(`Lo que sí tengo con cifra verificada es el corte por bodega: ${todas.map((x) => `${x.nombre} ${x.fmt}`).join(" · ")}. También puedo abrirte una familia o un SKU puntual.`);
       return p.join("\n");
     }

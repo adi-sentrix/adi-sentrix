@@ -306,13 +306,26 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = nul
   /* SI LO QUE FALTA ES DEL ARCHIVO, SE NOMBRA (owner 2026-08-31): «tu archivo no trae la hoja Abonos: con
    * ella te abro quién te debe». Eso es el «límite corto CON alternativa» aplicado al dato incompleto — decir
    * la CAUSA, no la consecuencia, y con el nombre de la columna o la hoja tal como la ingesta la nombró. */
-  const _armar = (fig) => [
-    falta ? `Tu archivo no trae ${falta.pieza}: con eso te abro ${falta.abre}.`
-      : motivo ? `No pude completar la lectura que pediste: ${motivo}.` : "No pude completar la lectura que pediste con la calidad que corresponde.",
-    fig ? `Lo que sí tengo verificado: ${fig.label}, ${fig.text || fig.value}.` : null,
-    refutacion,
-    alternativa(fig) || "Dime por dónde quieres que siga y lo trabajo sobre lo disponible.",
-  ].filter(Boolean).join(" ");
+  /* ── EL LÍMITE HACE AVANZAR LA CONVERSACIÓN (Etapa 3, owner 2026-09-11) ────────────────────────────────────
+   * Su vara, textual: no una respuesta «defensiva ni burocrática» («no pude completar la lectura con la calidad
+   * que corresponde»), sino «puedo demostrar X, pero no todavía Y; si me dices Z, separo ambas causas». El
+   * orden cambia de sentido: PRIMERO lo que sí se puede afirmar —la cifra verificada, con su dueño—, DESPUÉS el
+   * límite con su causa cuando la hay, y al final la puerta concreta. Mismo material, misma verdad; el que lee
+   * se lleva primero lo que sirve. Sin causa nombrable y sin cifra, se dice corto y se pide la pista. */
+  const _limite = falta ? `Tu archivo no trae ${falta.pieza}: con eso te abro ${falta.abre}.`
+    : motivo ? `Lo que no pude armar es el resto: ${motivo}.` : null;
+  const _armar = (fig) => (fig
+    ? [
+      `Lo que tengo verificado ahora: ${fig.label}, ${fig.text || fig.value}.`,
+      _limite || "La lectura completa que pediste no la pude armar con la calidad que corresponde.",
+      refutacion,
+      alternativa(fig) || "Dime por dónde quieres que siga y lo trabajo sobre lo disponible.",
+    ]
+    : [
+      _limite || "No pude armar esa lectura con la calidad que corresponde.",
+      refutacion,
+      alternativa(fig) || "Dime qué cuenta, cifra o corte estás mirando y lo trabajo sobre lo disponible.",
+    ]).filter(Boolean).join(" ");
 
   const _pasa = (t) => {
     if (typeof juzgar !== "function") return true;
@@ -916,7 +929,13 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       ...vRef2,
       ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales, pregunta: q, ctx: ctxTurno }) : [])];
     if (!vc.length) return v;
-    vetosDelTurno.push(`${sitio} · ${vc[0].regla}: ${vc[0].multa.split("\n")[0].slice(0, 160)}`);
+    /* TODAS las reglas que ardieron quedan en el expediente, no solo la primera (Etapa 3, 2026-09-11): al sumar
+     * el veto de voz de motor, el borrador certificado del caso 2 ardía por ÉL primero y la resta de la notarial
+     * (30,1 − 25,1 ≠ 8,6) dejaba de verse en el rastro aunque también había ardido. «Nunca evaluar una respuesta
+     * sin saber qué mecanismo la produjo» vale también para saber TODO lo que la rechazó. El formato de siempre
+     * se conserva —sitio · regla: multa— y las demás reglas van entre paréntesis al final. */
+    const _otras = vc.slice(1).map((x) => x.regla);
+    vetosDelTurno.push(`${sitio} · ${vc[0].regla}: ${vc[0].multa.split("\n")[0].slice(0, 160)}${_otras.length ? ` (+ ${_otras.join(", ")})` : ""}`);
     return { ok: false, violations: vc.map((x) => ({ rule: x.regla, detalle: x.multa })), multa: vc.map((x) => x.multa).join("\n") };
   };
 

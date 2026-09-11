@@ -1025,7 +1025,8 @@ H("1k · el ask de cuadro: anclado a SU fila, contra el cuadro VIVO");
 
   /* ── EDAD: el corte que el motor no publica SE DECLARA — y la alternativa va con cifra ── */
   const tE = await texto("¿Cuánto capital tengo en Más de 90 días?");
-  ok(/no est[aá] publicado como lectura del motor/.test(tE) && /no tengo una cifra verificada para dictarte por ese corte/.test(tE),
+  /* «lectura del motor» → «una lectura verificada» (Etapa 3, voz sin motor); la regla 2 es la misma: el corte se declara */
+  ok(/no est[aá] publicado como una lectura verificada/.test(tE) && /no tengo una cifra verificada para dictarte por ese corte/.test(tE),
     "★ el corte por edad se DECLARA (regla 2: jamás el corte más parecido en su lugar)", tE.slice(0, 120));
   ok(/Santiago \$64K/.test(tE), "…y la alternativa ofrecida lleva cifra verificada, no promesa");
 
@@ -1287,7 +1288,8 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
     async (Mut) => {
       initTenant(TENANT_DEMO);
       const r = await Mut.answerViaAgente({ text: "como viene mi margen?", history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
-      return /No pude completar la lectura/.test(r.r.text);   // el defecto: la conducta del expediente, de vuelta
+      /* la firma de la línea honesta cambió en la Etapa 3 («Lo que tengo verificado ahora: …» + el límite): el defecto es el mismo — el rescate en vez del entregable */
+      return /Lo que tengo verificado ahora|no la pude armar con la calidad/.test(r.r.text);   // el defecto: la conducta del expediente, de vuelta
     });
 
   // (d) la auto-verificación del composer quitada: serviría una lista que no reconcilia con el conteo del motor
@@ -1670,7 +1672,7 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   // (EE) el corte por edad servido con el «más parecido»: la declaración desaparece y el check textual del
   // gate (1k) es quien lo caza — acá se prueba que la mutación de esa rama deja el texto SIN la declaración.
   await carnada("el corte por edad deja de declararse (sirve el más parecido)", "src/adi/agente/playbooks/askDeCuadro.js",
-    [[/      p\.push\(`El corte «\$\{c\.nombre\}» lo arma el cuadro de Capital tramando los d[ií]as sin venta, y ese tramado no est[aá] publicado como lectura del motor: no tengo una cifra verificada para dictarte por ese corte\.`\);/,
+    [[/      p\.push\(`El corte «\$\{c\.nombre\}» lo arma el cuadro de Capital tramando los d[ií]as sin venta, y ese tramado no est[aá] publicado como una lectura verificada: no tengo una cifra verificada para dictarte por ese corte\.`\);/,
       "      // CARNADA: el tramo se sirve como si fuera el corte por bodega"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);

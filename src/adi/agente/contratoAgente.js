@@ -210,6 +210,14 @@ export const _LEXICO_SUPERFICIE = [
     multa: "«la cuenta del motor» es tripa del sistema: en pantalla se dice «lo medido» o «los números» — el dueño no tiene por qué saber que hay un motor." },
   { re: /\bmandatos?\b/i, regla: "lexico-mandato",
     multa: "«mandato» es lenguaje de ejecución y ADI asesora, no gestiona: se dice «lo que conviene llevarle» o «la propuesta» — la decisión es del usuario." },
+  /* ── LA VOZ DE MOTOR (Etapa 3, owner 2026-09-11): «el mecanismo debe estar detrás; el criterio, delante».
+   * Medido en los pisos determinísticos del propio producto: «el motor detecta $4.9M», «dónde lo localiza el
+   * motor». Y las formas que el owner listó: «según el procedimiento», «la regla me dice». ADI no se describe
+   * a sí mismo al decir una cifra: la dice. Se veta el MOTOR COMO SUJETO de un verbo de medición, y las
+   * apelaciones a la regla o al procedimiento como autoridad — no la palabra «motor» suelta (un «motor de
+   * crecimiento» es lenguaje de negocio). */
+  { re: /\b(?:el|del|al) motor\b(?:\s+(?:detecta|localiza|calcula|sella|marca|mide|usa|publica|dice|no (?:recomputa|publica)))?|\bque el motor\b|\bseg[uú]n (?:el|la) (?:procedimiento|regla|motor|playbook)\b|\bla regla (?:me )?dice\b|\bel procedimiento (?:me )?(?:dice|indica|manda)\b/i, regla: "lexico-voz-de-motor",
+    multa: "hablas del motor, la regla o el procedimiento como si fueran quien responde («el motor detecta», «según el procedimiento»): el mecanismo va detrás y el criterio delante. Di la cifra y su lectura como asesor — «hay $X sin capturar», «lo que veo es…» — sin describirte a ti mismo." },
 ];
 /* Los IDENTIFICADORES INTERNOS (nombres de tools y de campos de contrato) jamás van a pantalla — el catálogo es
  * la fuente (lazy y memoizado: nada se deriva al importarse) más los campos que el examen vio fugarse. Una tool

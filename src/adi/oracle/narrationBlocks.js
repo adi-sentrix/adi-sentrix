@@ -713,8 +713,12 @@ export function composeFromTextualEvidence(results) {
 export function composeNoDataMessage(results) {
   const list = Array.isArray(results) ? results : [];
   const declined = list.find((r) => r && r.coverage && r.coverage.supported === false && typeof r.coverage.reason === "string" && r.coverage.reason.trim());
-  if (declined) return `No tengo información autorizada suficiente: ${declined.coverage.reason}. Dime el nombre exacto o el dato que buscas y lo reviso.`;
-  return "No tengo información autorizada suficiente para responder eso con el alcance pedido. Cuéntame qué dato específico necesitas y lo busco.";
+  /* LA LETRA DEL GENÉRICO (Etapa 3, owner 2026-09-11): «no tengo información autorizada suficiente» era su ejemplo
+   * textual de respuesta «defensiva y burocrática» — y «autorizada» es tripa del muro, no lenguaje del dueño. El
+   * límite sigue siendo el mismo y sigue diciendo la CAUSA cuando la herramienta la declaró; lo que cambia es
+   * que se dice como asesor y pide la pista concreta que haría avanzar la conversación. */
+  if (declined) return `Eso no lo puedo afirmar con lo que tengo: ${declined.coverage.reason}. Dime el nombre exacto o el dato que buscas y lo reviso.`;
+  return "Con lo que tengo no puedo responder eso con seguridad. Dime qué cuenta, cifra o corte estás mirando y lo busco.";
 }
 
 // ── composeSoloDatosConfusionMessage(results) ── D2 (owner 2026-08-13, Paso 3 de "ADI pierde el hilo") ─────────

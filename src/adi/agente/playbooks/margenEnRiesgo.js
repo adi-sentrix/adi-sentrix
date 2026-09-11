@@ -300,7 +300,7 @@ function componerLaPrioridad({ figs, semilla }) {
   const p = [];
   p.push(`Entraría por ${top.entidad}. Una sola cosa.`);
   p.push(`La acción: separar en ${top.entidad} la carga comercial deliberada de la que no lo fue${cargaTop ? ` — su carga excedida es ${_val(cargaTop)}` : ""}, y decidir esa parte cuenta por cuenta.`);
-  p.push(`Por qué primero — criterio mío: es donde hay más contribución en juego. ${top.entidad} deja ${top.fmt} sin capturar${total ? `, del subtotal de ${_val(total)} que el motor detecta` : ""}.`);
+  p.push(`Por qué primero — criterio mío: es donde hay más contribución en juego. ${top.entidad} deja ${top.fmt} sin capturar${total ? `, de ${_val(total)} no capturados en toda la cartera` : ""}.`);
   p.push(variante(semilla, [
     `Cuando lo trabajes, seguimos con el siguiente de la lista.`,
     `Si quieres, te dejo armado el siguiente de la lista para después.`,
@@ -601,10 +601,15 @@ export const margenEnRiesgo = {
     }
     // «En total: …» moría en el muro, Y CON RAZÓN: la fig es el SUBTOTAL de los focos del detector, no el
     // total del universo — la voz lo atribuye a su dueño (el motor) en vez de totalizarlo.
-    if (L.totalJuego) partes.push(`\nLa contribución sin capturar que el motor detecta suma ${_val(L.totalJuego)}.`);
+    /* «que el motor detecta» era voz de motor (Etapa 3, owner 2026-09-11): la cifra sigue siendo el subtotal de
+     * los focos —no el total del universo— y la frase lo dice por su alcance («entre los que caen»), no por
+     * quién la calculó. */
+    /* ⚠️ «no capturada» y no «sin capturar»: el muro lee «capturar» como verbo de CIERRE y, con «carga comercial»
+     * en la línea siguiente, vetaba el subtotal como brecha adjudicada a una palanca (medido al reescribir). */
+    if (L.totalJuego) partes.push(`\nEntre los que caen, la contribución no capturada suma ${_val(L.totalJuego)}.`);
     if (L.cargaTotal) {
       const c0 = L.carga[0];
-      partes.push(`Dónde lo localiza el motor: carga comercial alta por ${_val(L.cargaTotal)}${c0 ? ` — la más pesada es la de ${c0.entidad} (${c0.fmt})` : ""}.`);
+      partes.push(`Dónde está: en carga comercial alta, ${_val(L.cargaTotal)}${c0 ? ` — la más pesada es la de ${c0.entidad} (${c0.fmt})` : ""}.`);
     }
     /* el cierre VARÍA (owner 2026-09-03, «matar la repetición») — determinístico por semilla, y toda variante
      * conserva las anclas: nombra la entidad, declara el criterio («contribución en juego») y OFRECE. */

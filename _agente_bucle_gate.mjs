@@ -187,7 +187,8 @@ H("7 · respaldo de lo ya aprobado y genérico — el tablero no existe");
   /* R3 DEL EXAMEN 1 (2026-08-31): PERTINENCIA. T13 sirvió la respuesta de Tottus a una pregunta por Falabella
    * como «lo que ya te respondí sobre esto quedó verificado» — afirmación falsa con entidad equivocada. */
   const otraEntidad = await answerViaAgente({ text: "que hago con Ferretería Aurora?", history: [], mem: { ultimaAprobada: TEXTO_BUENO }, scenario: ESCENARIO_INICIAL, callAgente: mudo });
-  ok(otraEntidad.r.agente.estado === "respaldo" && !/sobre esto quedó verificado/.test(otraEntidad.r.text)
+  /* la letra del respaldo cambió en la Etapa 3 (primero lo que sí tiene): la firma del replay SIN marco veraz es ahora «lo que ya te respondí — y sigue en pie» */
+  ok(otraEntidad.r.agente.estado === "respaldo" && !/lo que ya te respondí — y sigue en pie/.test(otraEntidad.r.text)
     && /Lo último que dejamos verificado fue sobre Depósito Riachuelo/.test(otraEntidad.r.text) && otraEntidad.r.text.includes("$22.560"),
     "★ R3: pregunta por OTRA entidad → el replay viaja bajo un marco VERAZ («fue sobre Depósito Riachuelo»)", otraEntidad.r.text.slice(0, 160));
 
@@ -1003,8 +1004,10 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   /* (con C3 el peldaño PRUEBA varias cifras pero SIRVE UNA — el defecto se reinstala donde haría daño: en el
    * armador, apilando cifras en la misma oración, que es lo que expone al veto de atribución de proximidad) */
   await carnada("rescate empaquetado (el auto-veto de T2)",
-    [[/    fig \? `Lo que sí tengo verificado: \$\{fig\.label\}, \$\{fig\.text \|\| fig\.value\}\.` : null,/,
-      "    fig ? \"Lo que sí tengo verificado: \" + candidatas.slice(0, 4).map((x) => x.label + \", \" + (x.text || x.value)).join(\"; \") + \".\" : null,"]],
+    /* la letra del peldaño cambió en la Etapa 3 (owner 2026-09-11: primero lo verificado, después el límite) — la
+     * carnada muta la línea NUEVA; lo que prueba (un rescate empaquetado se auto-veta) es lo mismo */
+    [[/      `Lo que tengo verificado ahora: \$\{fig\.label\}, \$\{fig\.text \|\| fig\.value\}\.`,/,
+      "      \"Lo que tengo verificado ahora: \" + candidatas.slice(0, 4).map((x) => x.label + \", \" + (x.text || x.value)).join(\"; \") + \".\","]],
     async (Mut) => {
       initTenant(PACK);
       const terco2 = async ({ ronda, attempt }) => {
@@ -1068,7 +1071,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
         const Mut = await import(m.url);
         const texto = Mut._respaldoDeLoYaAprobado({ ultimaAprobada: TEXTO_BUENO }, null,
           { pregunta: "que hago con Ferretería Aurora?", entidades: ["Depósito Riachuelo", "Ferretería Aurora"], recienMostrado: null });
-        cazada = typeof texto === "string" && /sobre esto quedó verificado/.test(texto);   // el defecto: T13 de vuelta
+        cazada = typeof texto === "string" && /lo que ya te respondí — y sigue en pie/.test(texto);   // el defecto: T13 de vuelta (la letra nueva del replay sin marco)
       } catch (e) { detalle = `la copia mutada ni siquiera carga: ${e.message}`; }
       ok(cazada, "carnada «respaldo sin pertinencia (el T13 del examen)» → el chequeo se pone ROJO", detalle || "el defecto pasó DESAPERCIBIDO");
     }

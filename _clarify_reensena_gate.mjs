@@ -108,7 +108,8 @@ H("[3] D2 · BAJO SOLO-DATOS: candado intacto y mensaje honesto para la confusi�
     "una pregunta de datos normal → cifras de la boleta, ni mensaje nuevo ni narrador");
 
   const d = await turno({ texto: "no entiendo qué significa el factor zeta", plan: { intent: "define", mode: "clarify", calls: [{ tool: "defineConcept", args: { concept: "factor zeta" } }] }, mem: MEM, narrar: RETEACH, history: HIST });
-  ok(!!d.r && String(d.r.text).startsWith("No tengo información autorizada suficiente:") && d.narrado === 0,
+  /* la letra del genérico con causa cambió en la Etapa 3: «Eso no lo puedo afirmar con lo que tengo: <causa>» */
+  ok(!!d.r && String(d.r.text).startsWith("Eso no lo puedo afirmar con lo que tengo:") && d.narrado === 0,
     "concepto identificado pero desconocido → la razón declinada real sigue mandando", d.r && d.r.text);
 }
 

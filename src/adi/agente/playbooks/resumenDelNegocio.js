@@ -109,16 +109,21 @@ export const resumenDelNegocio = {
     try { A = buildRolesCartera(scenario); } catch { A = null; }
     const p = [];
 
-    /* 1 · LA TESIS EN LA PRIMERA LÍNEA — la voz de la carta: qué historia cuentan juntos los números */
+    /* 1 · LA TESIS EN LA PRIMERA LÍNEA — la voz de la carta: qué historia cuentan juntos los números.
+     * ⚠️ LA TESIS VA SIN CIFRAS Y LA EVIDENCIA DESPUÉS (Etapa 3, owner 2026-09-11: «la conclusión debe aparecer
+     * antes que la demostración… ADI debe comportarse como alguien que ya entendió el análisis antes de
+     * hablar»). La versión anterior abría con la tesis Y las tres cifras en la misma oración, y después las
+     * volvía a citar en «lo que sostiene»: el +7.5% salía dos veces en 120 palabras. Una cifra reaparece cuando
+     * cambia su significado, no porque siga disponible. */
     const sube = yoy && Number.isFinite(_num(yoy)) && _num(yoy) > 0;
     p.push(sube
-      ? `El negocio está creciendo y dejando menos margen del que podría: la venta viene ${_val(yoy)} contra el año anterior, y el margen promedio queda en ${_val(margen)}${bench ? ` contra un benchmark de ${_val(bench)}` : ""}.`
-      : `La foto en una línea: ${_val(ventas)} de venta en el período${yoy ? ` (${_val(yoy)} contra el año anterior)` : ""}, con el margen promedio en ${_val(margen)}${bench ? ` contra un benchmark de ${_val(bench)}` : ""}.`);
+      ? `El negocio está creciendo, pero el crecimiento está dejando menos margen del que debería.`
+      : `El negocio no está creciendo y el margen viene por debajo de lo que debería.`);
 
-    /* 2 · LO QUE SOSTIENE */
+    /* 2 · LO QUE SOSTIENE · la evidencia, una vez — sin subtítulo: es una conversación, no un informe */
     const altos = [];
-    if (sube) altos.push(`la venta crece ${_val(yoy)} contra el año anterior`);
-    if (contrib) altos.push(`la contribución del período es ${_val(contrib)}`);
+    if (yoy) altos.push(`la venta viene ${_val(yoy)} contra el año anterior`);
+    if (contrib) altos.push(`deja ${_val(contrib)} de contribución`);
     const sanos = A && A.roles && A.roles.sano ? A.roles.sano : null;
     /* ⚠️ ESTA AFIRMACIÓN VA CON SU DUEÑO (multa del muro al estrenar: «N clientes rinden sobre tu benchmark»
      * quedaba sin sujeto y el binding la cruzó con Falabella, que está BAJO — la afirmación se leía invertida).
@@ -131,19 +136,23 @@ export const resumenDelNegocio = {
      * su lugar natural: el papel de cada cliente, que ya vive abajo. Si no puedo decirlo sin ambigüedad, no lo
      * digo — la foto no pierde nada y el muro no se afloja por una frase de adorno. */
     void sanos;
-    if (altos.length) p.push(`\n**Lo que sostiene:** ${altos.join(" · ")}.`);
+    if (altos.length) p.push(`${sube ? "Crece" : "La venta"}: ${altos.join(" y ")}.`);
 
     /* 3 · LO QUE PRESIONA, POR PAPEL — la distinción que separa la estrategia de la fuga */
     const bajos = [];
-    /* el subtotal se ATRIBUYE al detector, no se insinúa cerrable: «contra el benchmark» hacía que el muro lo
-       * leyera como una brecha con palanca, y esta boleta no la trae cuantificada. La misma forma que ya pasó
-       * en el molde de margen. */
-      if (noCapturada) bajos.push(`el motor detecta ${_val(noCapturada)} de contribución no capturada`);
+    /* el subtotal se ATRIBUYE por su NATURALEZA, no al detector: «contra el benchmark» hacía que el muro lo
+     * leyera como una brecha con palanca, y esta boleta no la trae cuantificada. La misma forma que ya pasó
+     * en el molde de margen.
+     * ⚠️ «EL MOTOR DETECTA» ERA VOZ DE MOTOR (Etapa 3, owner 2026-09-11: «el mecanismo debe estar detrás; el
+     * criterio, delante»). La cifra es la misma y sigue sellada como subtotal del diagnóstico; lo que cambia es
+     * que ADI no se describe a sí mismo al decirla. */
+    if (noCapturada) bajos.push(`hay ${_val(noCapturada)} de contribución no capturada`);
     /* «sobre el nivel de referencia» era ambiguo y el muro lo cazó: con la entidad de la línea siguiente cerca,
      * el binding leía «Falabella está SOBRE la referencia» —y está bajo—. Se dice el exceso sin la preposición
      * que se puede confundir con el margen: cada afirmación con su métrica clara. */
     if (cargaAlta) bajos.push(`${_val(cargaAlta)} de acciones comerciales en exceso`);
-    if (bajos.length) p.push(`\n**Lo que presiona:** ${bajos.join(" · ")}.`);
+    /* el margen contra su referencia ES la presión — va con ella, no con lo que sostiene */
+    p.push(`Pero el margen promedio queda en ${_val(margen)}${bench ? `, contra un benchmark de ${_val(bench)}` : ""}${bajos.length ? `: ${bajos.join(" y ")}` : ""}.`);
     if (A && A.roles) {
       const ero = A.roles.erosion_por_acciones, vol = A.roles.apuesta_de_volumen;
       const linea = [];
@@ -155,11 +164,13 @@ export const resumenDelNegocio = {
 
     /* 4 · QUÉ MIRARÍA PRIMERO — criterio marcado (la regla `juicio-sin-marcar` del muro, hecha voz) */
     const foco = A && A.roles && A.roles.erosion_por_acciones && A.roles.erosion_por_acciones.items[0];
+    /* el siguiente paso se DERIVA del análisis y se ofrece como criterio (Etapa 3: «si quieres seguir, yo abriría
+     * X: ahí está la mayor recuperación» — nunca «¿deseas profundizar?») */
     if (foco) {
       p.push(variante(semilla, [
-        `\nQué miraría primero —criterio mío, no una cifra del dato—: ${foco.entidad}, donde el volumen y la carga excedida coinciden. Si quieres, te abro el porqué del margen completo.`,
-        `\nCriterio mío, no una cifra del dato: empezaría por ${foco.entidad}, que junta volumen y carga excedida. ¿Te abro el porqué del margen?`,
-        `\nSi fuera mi decisión —criterio mío—, entraría por ${foco.entidad}: ahí coinciden el volumen y la carga excedida. Te abro el análisis completo cuando digas.`,
+        `\nYo miraría primero ${foco.entidad} —criterio mío, no una cifra del dato—: ahí coinciden el volumen y la carga excedida. Si quieres seguir, la abro por ahí.`,
+        `\nCriterio mío, no una cifra del dato: empezaría por ${foco.entidad}, que junta volumen y carga excedida. Si quieres, sigo por ahí.`,
+        `\nSi fuera mi decisión —criterio mío—, entraría por ${foco.entidad}: ahí coinciden el volumen y la carga excedida. Cuando digas, la abro.`,
       ]));
     }
     return p.join("\n");

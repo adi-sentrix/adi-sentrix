@@ -33,8 +33,8 @@ Donde más contribución dejas sin capturar — los 3 de los 8 que más pesan:
 - Lider · deja $1.5M sin capturar · margen 21.5% · venta $17.8M
 - Jumbo · deja $1.1M sin capturar · margen 24.0% · venta $17.3M
 
-La contribución sin capturar que el motor detecta suma $4.9M.
-Dónde lo localiza el motor: carga comercial alta por $655K — la más pesada es la de Falabella ($194K).
+Entre los que caen, la contribución no capturada suma $4.9M.
+Dónde está: en carga comercial alta, $655K — la más pesada es la de Falabella ($194K).
 
 ¿Lo abrimos por Falabella? Es donde hay más contribución en juego.
 ```
@@ -65,8 +65,8 @@ Donde más contribución dejas sin capturar — los 3 de los 8 que más pesan:
 - Lider · deja $1.5M sin capturar · margen 21.5% · venta $17.8M
 - Jumbo · deja $1.1M sin capturar · margen 24.0% · venta $17.3M
 
-La contribución sin capturar que el motor detecta suma $4.9M.
-Dónde lo localiza el motor: carga comercial alta por $655K — la más pesada es la de Falabella ($194K).
+Entre los que caen, la contribución no capturada suma $4.9M.
+Dónde está: en carga comercial alta, $655K — la más pesada es la de Falabella ($194K).
 
 ¿Lo abrimos por Falabella? Es donde hay más contribución en juego.
 ```
