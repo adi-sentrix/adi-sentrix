@@ -30,7 +30,11 @@ H("[1] LOS NUEVE CAMPOS · lo que el owner pidió, completo");
   const e = a[0];
   for (const k of ["traceId", "proveedor", "modelo", "etapa", "intento", "resultado", "reasonCode", "tokens_in", "tokens_out", "latencia_ms", "ruta_deterministica"])
     ok(k in e, `emite \`${k}\``);
-  ok(ETAPAS.join() === "plan,narrar,deterministica", `las tres etapas del owner — ${ETAPAS.join(" · ")}`);
+  // CUATRO etapas, no tres: «agente» es etapa de la telemetría desde 86b43f6 (el cable del modo libre — F2), porque
+  // `handleAgente` en el gateway emite con etapa "agente" y el vocabulario se extendió de forma aditiva. Este check
+  // decía «tres» y estuvo en ✗ desde ese commit sin que nadie lo viera: el gate no cerraba con exit code, así que el
+  // runner de `gates:offline` lo contaba ✓ (arreglado al final del archivo).
+  ok(ETAPAS.join() === "plan,narrar,deterministica,agente", `las cuatro etapas — ${ETAPAS.join(" · ")}`);
   ok(RESULTADOS.includes("rechazado") && RESULTADOS.includes("rate_limited"), "el resultado distingue rechazo de límite de tasa (era justo lo indistinguible)");
 }
 
@@ -125,4 +129,5 @@ H("[6] LO QUE FALTABA · modelo EFECTIVO · tools ejecutadas · caché de entrad
  * offline. Un gate que no corre no certifica nada. La decisión es del owner (ver el informe): o el clasificador
  * distingue "lee el archivo" de "llama al gateway", o esta verificación vive en otro lado. */
 
-
+console.log(`\n── _telemetria_gateway_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
+process.exit(FAIL === 0 ? 0 : 1);
