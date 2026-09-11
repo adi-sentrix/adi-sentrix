@@ -12,7 +12,7 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 2.25 — **lista en `dev`, sin publicar** (espera la palabra del owner)
+## 2.25 — producción · tag `v2.25`
 
 **Una sola conclusión, salga por donde salga.** El owner probó en local, vio respuestas malas y ordenó parar
 antes de tocar nada: «0 → arreglar la prueba. 1 → unificar leyes. 2 → blindar verdad/veredicto. 3 → calibrar
