@@ -122,6 +122,12 @@ const _RE_INTENCION = new RegExp(_INTENCION, "gi");
  * del plural que ya costó una métrica entera en el respaldo («Ventas» vs «Venta»). */
 const _COSA_DECIDIDA = "(?:decisi[oó]n(?:es)?|pol[ií]ticas?|apuestas?|estrategias?|jugadas?|movidas?|elecci[oó]n(?:es)?|maniobras?)";
 const _RE_DICTAMEN = new RegExp(`${_DICTAMEN}|\\b(?:es|fue|son|fueron|hay|hubo)\\s+(?:una?s?\\s+)?(?:${_COSA_DECIDIDA}\\s+)?(?:${_INTENCION})`, "i");
+/* LA INTENCIÓN NEGADA TAMBIÉN ES DICTAMEN (batería en vivo de la Etapa 4, corrida 3 — 2026-09-11): «no es que
+ * vendan barato por estrategia de volumen» salió limpia porque no lleva ninguna palabra de intención — pero negar
+ * que fue estrategia es leer la misma cabeza que afirmarlo. Formas cerradas: «no es que … por estrategia/apuesta/
+ * decisión» y «no es/fue una estrategia tuya · de volumen · comercial». «¿es una apuesta tuya?» sigue siendo
+ * pregunta; «si es estrategia o fuga» sigue siendo condición. */
+const _RE_INTENCION_NEGADA = new RegExp(`\\bno (?:es|fue|era) que [^.;:\\n]{0,50}?\\bpor (?:${_COSA_DECIDIDA})\\b|\\bno (?:es|fue|era|son|fueron) (?:una?s?\\s+)?(?:${_COSA_DECIDIDA})\\s+(?:tuya|suya|de volumen|comercial|de precio|de rotaci[oó]n)\\b`, "i");
 function _intencionDictaminada(texto) {
   const t = String(texto || "");
   let m;
@@ -130,6 +136,11 @@ function _intencionDictaminada(texto) {
     const cl = _CLAUSULA_DE(t, m.index);
     if (_PREGUNTA_O_LIMITE.test(cl) || _CONTRASTE.test(cl)) continue;   // preguntar, condicionar, declarar el límite o contrastar es lo correcto
     if (_RE_DICTAMEN.test(cl)) return m[0];             // afirmada, confirmada o descartada: eso es dictamen
+  }
+  const n = _RE_INTENCION_NEGADA.exec(t);
+  if (n) {
+    const cl = _CLAUSULA_DE(t, n.index);
+    if (!_PREGUNTA_O_LIMITE.test(cl) && !_CONTRASTE.test(cl)) return n[0];
   }
   return null;
 }

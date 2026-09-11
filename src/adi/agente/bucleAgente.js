@@ -130,9 +130,17 @@ export function _podarOracionVetada(texto, multa, figs) {   // exportada para qu
   const finUltimaOfensora = Math.max(...ofensoras.map(([, hi]) => hi));
   const posteriores = tramos.filter(([lo]) => lo >= finUltimaOfensora).map(([lo, hi]) => t.slice(lo, hi)).join(" ");
   if (_COMPARA.test(posteriores)) return null;
+  /* (b3) NI SI LA SIGUIENTE LA SEÑALA CON EL DEDO (batería en vivo de la Etapa 4, corrida 3): la ofensora nombraba
+   * a las cuatro cuentas y la de después abría «en estos cuatro, el margen bajo el benchmark coincide con…» — podada
+   * la primera, «estos cuatro» quedó apuntando a nada en la pantalla del dueño. Un deíctico al arranque de la
+   * oración siguiente (estos · esos · ese · ahí · los tres/cuatro…) es la misma señal que la comparación: la
+   * ofensora sostiene lo que sigue. Solo la INMEDIATA y solo su arranque: más lejos, la referencia es del hilo. */
+  const _SENALA = /^.{0,60}?(?<![\wáéíóúñ])(?:est[oa]s?|es[oa]s?|aqu[eé]ll[oa]s?|ah[ií]|ell[oa]s|los (?:dos|tres|cuatro|cinco|seis)|las (?:dos|tres|cuatro|cinco|seis)|ambos|ambas)(?![\wáéíóúñ])/i;
+  const siguiente = tramos.find(([lo]) => lo >= finUltimaOfensora);
+  if (siguiente && _SENALA.test(t.slice(siguiente[0], siguiente[1]).trim())) return null;
 
   const quedan = tramos.filter((x) => !ofensoras.includes(x));
-  const podado = quedan.map(([lo, hi]) => t.slice(lo, hi)).join("").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  const podado = quedan.map(([lo, hi]) => t.slice(lo, hi)).join("").replace(/[ \t]+\n/g, "\n").replace(/\n[ \t]+/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (!podado) return null;
   /* (c) LA RESPUESTA TIENE QUE SOBREVIVIR. Una cifra de LA BOLETA DE ESTE TURNO es la prueba de que lo que
    * quedó sigue respondiendo con lo que el turno leyó — no un texto sin cifras que suene bien. */

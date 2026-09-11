@@ -561,6 +561,20 @@ function _duenoDelClaim(c, entityNames) {
   const owners = _figEntityOwners(lbl, entityNames || []);
   return owners.length === 1 ? owners[0] : null;   // dos entidades en el mismo label → ambiguo, no se juzga
 }
+/* LA CIFRA SE BUSCA ENTERA (batería en vivo de la Etapa 4, corrida 3 — 2026-09-11): «4%» —la carga de Paris—
+ * aparecía DENTRO de «34%» —el margen de La Polar— y el chequeo 12 la dio por «narrada como del negocio»; la
+ * reparación tropezó con lo mismo y la poda tiró la oración buena, dejando un «en estos cuatro» sin antecedente
+ * en pantalla. Un `indexOf` crudo no sabe dónde empieza un número: la ocurrencia vale solo si el carácter anterior
+ * no es dígito ni separador decimal. Los tres chequeos que buscan la cifra en la prosa (12 · 11 · causa parcial)
+ * usan esta misma función. */
+function _indexDeCifra(text, valor, desde) {
+  let i = Math.max(0, desde | 0);
+  while ((i = text.indexOf(valor, i)) >= 0) {
+    if (i === 0 || !/[\d.,]/.test(text[i - 1])) return i;
+    i += 1;
+  }
+  return -1;
+}
 function _sujetoGeneralizado(narration, claims, entityNames = []) {
   const out = [];
   const text = String(narration || "");
@@ -573,7 +587,7 @@ function _sujetoGeneralizado(narration, claims, entityNames = []) {
     if (!dueno) continue;
     if (textoNorm.includes(norm(dueno))) continue;   // la dueña está nombrada: no hay generalización
     let idx = -1;
-    while ((idx = text.indexOf(c.valor, idx + 1)) >= 0) {
+    while ((idx = _indexDeCifra(text, c.valor, idx + 1)) >= 0) {
       const [lo, hi] = _localWindow(masked, idx, 90);
       const ventana = text.slice(lo, hi);
       if (!_SUJETO_NEGOCIO.test(ventana) && !_EXPANSION.test(ventana)) continue;
@@ -633,7 +647,7 @@ function _brechaMalAdjudicada(narration, claims) {
     const at = c && c.atribucion;
     if (!at || at.cobertura === "total" || !c.valor) continue;
     let idx = -1;
-    while ((idx = text.indexOf(c.valor, idx + 1)) >= 0) {
+    while ((idx = _indexDeCifra(text, c.valor, idx + 1)) >= 0) {
       const [lo, hi] = _localWindow(masked, idx, 140);
       const v = text.slice(lo, hi);
       if (!_PALANCA_N.test(v) || !_VERBO_CIERRE.test(v) || _ATENUANTE.test(v)) continue;
@@ -759,7 +773,7 @@ function _causaSobredimensionada(narration, claims) {
   for (const c of claims) {
     if (!c || c.coberturaCausal !== "parcial" || !c.valor) continue;
     let idx = -1;
-    while ((idx = text.indexOf(c.valor, idx + 1)) >= 0) {
+    while ((idx = _indexDeCifra(text, c.valor, idx + 1)) >= 0) {
       const [lo, hi] = _localWindow(masked, idx, 110);
       const ventana = text.slice(lo, hi);
       if (!_CAUSA_TOTAL.test(ventana)) continue;

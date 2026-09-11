@@ -117,6 +117,13 @@ H("[6] GUARD · bloquea de verdad, y NO bloquea la prosa legítima");
   ok(kinds(g(malo, T_PERFIL)).includes("sujeto-generalizado"), `cifra de Falabella atribuida al negocio → BLOQUEA — ${JSON.stringify(kinds(g(malo, T_PERFIL)))}`);
   const bueno = "Las ventas a Falabella llegaron a $19.4M este año.";
   ok(!kinds(g(bueno, T_PERFIL)).includes("sujeto-generalizado"), "la misma cifra CON su sujeto → PASA");
+  /* LA CIFRA ENTERA (batería en vivo de la Etapa 4, corrida 3): «22%» —el margen de Falabella— NO está dentro de
+   * «122%» ni de «4.22%»; el chequeo daba por narrada-como-del-negocio una cifra que era parte de otra, y la poda
+   * tiró la oración buena. La ocurrencia vale solo si no la precede un dígito ni un separador decimal. */
+  const dentro = "El negocio creció 122% en dos años y La Polar sostiene la cartera con 34% de margen.";
+  ok(!kinds(g(dentro, T_PERFIL)).includes("sujeto-generalizado"), `★ «22%» dentro de «122%» NO es la cifra de Falabella: no bloquea — ${JSON.stringify(kinds(g(dentro, T_PERFIL)))}`);
+  const suelta = "El negocio cerró el año con 22% de margen.";
+  ok(kinds(g(suelta, T_PERFIL)).includes("sujeto-generalizado"), "…y la MISMA cifra suelta, atribuida al negocio, sigue bloqueando (no se cambió una ceguera por otra)");
   // causa sobredimensionada
   const maloC = "La principal causa de la brecha es el exceso de acciones comerciales, que suma $194K.";
   ok(kinds(g(maloC, T_PERFIL)).includes("causa-sobredimensionada"), `"la principal causa" sobre una parte → BLOQUEA — ${JSON.stringify(kinds(g(maloC, T_PERFIL)))}`);

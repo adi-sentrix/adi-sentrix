@@ -52,6 +52,10 @@ const DEBE_ARDER = [
   "El patrón confirma que la política fue consciente.",
   "Es evidente que fue adrede.",
   "Son decisiones deliberadas, no descuidos.",
+  /* la intención NEGADA (batería en vivo de la Etapa 4, corrida 3 — «¿Cómo va?»): negar que fue estrategia es leer la misma cabeza */
+  "Las acciones comerciales se están comiendo la contribución — no es que vendan barato por estrategia de volumen.",
+  "No es una apuesta tuya de volumen: la carga simplemente se descontroló.",
+  "No fue una decisión comercial, fue descuido.",
 ];
 for (const t of DEBE_ARDER) ok(arde(t), `arde · «${t.slice(0, 62)}»`);
 
@@ -71,6 +75,9 @@ const NO_DEBE_ARDER = [
   ["contraste · composer (3)", "La acción: separar en Lider la carga comercial deliberada de la que no lo fue — su carga excedida es $125K, y decidir esa parte cuenta por cuenta."],
   ["citar lo que el dueño DIJO", "Sobre Falabella y Jumbo tu palabra ya está anotada (2026-09-10): «el volumen de Lider es apuesta mía». La leo como decisión tuya — dime si cambió."],
   ["«consciente» sobre ADI misma", "Es una lectura consciente de que faltan datos."],
+  ["la condición del composer (estrategia o fuga)", "De tu respuesta depende si eso es estrategia o fuga: el dato mide la carga comercial, no la intención."],
+  ["negar el PATRÓN, no la intención", "No es un problema de precio: la carga excede el nivel en los cuatro."],
+  ["preguntar en negativo", "¿No fue una decisión tuya de volumen? Dímelo y lo anoto."],
 ];
 for (const [q, t] of NO_DEBE_ARDER) ok(!arde(t), `limpia · ${q}`, t.slice(0, 120));
 
