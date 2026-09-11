@@ -359,5 +359,44 @@ export function vetosDeContrato(texto, contexto = {}) {
   if (fugado) {
     v.push({ regla: "identificador-interno", multa: `«${fugado}» es un nombre interno del sistema y no va a pantalla: describe la lectura o el límite en palabras del negocio.` });
   }
+  /* ── UN CONJUNTO, UN ORDEN (owner 2026-09-11) ────────────────────────────────────────────────────────────
+   * LO QUE SALIÓ EN SU PANTALLA: la prosa enumeró «Falabella, Lider, Jumbo y Sodimac» y la tabla de la misma
+   * respuesta abría con Lider. Dos herramientas, dos órdenes sellados, los dos en una respuesta — y «el primero»
+   * quedó ambiguo dentro de la propia respuesta: el humano leyó la tabla, el modelo su prosa. Cada orden era
+   * correcto por separado; juntos son dos verdades. Se cobra SOLO la ENUMERACIÓN explícita («A, B, C y D» con
+   * tres o más nombres del índice) cuyo orden contradice al de las filas de la tabla de la misma respuesta;
+   * nombrar cuentas sueltas en la prosa, en cualquier orden, sigue siendo libre. */
+  const dosOrdenes = _dosOrdenes(texto, _entsTexto);
+  if (dosOrdenes) {
+    v.push({ regla: "dos-ordenes", multa: `enumeras «${dosOrdenes.prosa.join(", ")}» y la tabla de la misma respuesta los muestra como «${dosOrdenes.tabla.join(", ")}». Un conjunto se presenta en UN orden: si el usuario dice «el primero», tiene que haber uno solo. Enumera en el orden de la tabla, o no enumeres.` });
+  }
   return v;
+}
+
+const _reNombreCont = (n) => new RegExp(`(?:^|[^\\wáéíóúñ])${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\wáéíóúñ])`, "i");
+function _dosOrdenes(texto, entidades) {
+  const ents = (Array.isArray(entidades) ? entidades : []).filter(Boolean);
+  if (ents.length < 3) return null;
+  const lineas = String(texto).split(/\r?\n/);
+  const filas = lineas.filter((l) => /^\s*\|/.test(l) && !/^\s*\|[\s:|-]+\|?\s*$/.test(l));
+  if (!filas.length) return null;
+  const tabla = [];
+  for (const f of filas) { const e = ents.find((n) => _reNombreCont(n).test(f)); if (e && !tabla.includes(e)) tabla.push(e); }
+  if (tabla.length < 3) return null;
+  /* la enumeración: «A, B, C y D» — nombres del índice separados por coma y cerrados con «y» */
+  const prosa = lineas.filter((l) => !/^\s*\|/.test(l)).join("\n");
+  const enumRe = /((?:[^,.\n;:]{2,60},\s*){2,}[^,.\n;:]{2,60}\s+y\s+[^,.\n;:]{2,60})/g;
+  let m;
+  while ((m = enumRe.exec(prosa)) !== null) {
+    const partes = m[1].split(/,\s*|\s+y\s+/).map((s) => s.trim());
+    /* cada parte ABRE con un nombre del índice («Sodimac explican la mayor parte» cuenta: el último ítem
+     * arrastra el resto de la oración); una parte que no abre con nombre no es un ítem de la enumeración */
+    const alInicio = (p) => ents.find((n) => new RegExp(`^${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\wáéíóúñ])`, "i").test(p));
+    const nombres = partes.map(alInicio).filter(Boolean);
+    if (nombres.length < 3 || nombres.length !== partes.length) continue;
+    if (!nombres.every((n) => tabla.includes(n))) continue;
+    const enTabla = tabla.filter((n) => nombres.includes(n));
+    if (enTabla.join("|") !== nombres.join("|")) return { prosa: nombres, tabla: enTabla };
+  }
+  return null;
 }

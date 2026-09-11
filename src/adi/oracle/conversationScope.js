@@ -505,12 +505,36 @@ export function buildEntityList(toolName, result) {
 
 // ── updateConversationScope(scopePrev, {plan, calls, results, turno, requestContext}) → {version,current,history}
 // Corre en el MISMO punto donde hoy corre updateRecentSubjects (dialogueState.js), después de runPlan.
-export function updateConversationScope(scopePrev, { plan, calls, results, turno, requestContext } = {}) {
+export function updateConversationScope(scopePrev, { plan, calls, results, turno, requestContext, seleccion, ordenPresentado } = {}) {
   const prev = (scopePrev && typeof scopePrev === "object") ? scopePrev : emptyConversationScope();
   const history = Array.isArray(prev.history) ? prev.history.slice(0, 3) : [];
   const tenant = (requestContext && requestContext.tenantId)
     ? { tenantId: requestContext.tenantId, dataSnapshotId: requestContext.dataSnapshotId || null }
     : (prev.current && prev.current.tenant) || null;
+
+  /* ── LA SELECCIÓN DENTRO DEL CONJUNTO PRESENTADO (2026-09-11) ──────────────────────────────────────────────
+   * «Profundiza en el primero» NO cambia el conjunto: el usuario sigue mirando los cuatro y eligió uno. Si este
+   * turno pisara `current` con las cifras de Lider, «ahora el segundo» y «los otros tres» se quedarían sin
+   * conjunto. La selección vive en `selection.subset` —el campo que el shape ya tenía para esto— y el conjunto
+   * se conserva. `anterior` guarda la selección previa (para «compáralo con el anterior»), y solo cuando hubo
+   * una: recién mostrado el conjunto, no hay «anterior» que nombrar. Aplica ÚNICAMENTE si lo seleccionado está
+   * dentro del conjunto vigente; una entidad de afuera es un tema nuevo y sigue el camino de siempre. */
+  const selEnts = (seleccion && Array.isArray(seleccion.entities)) ? seleccion.entities.filter(Boolean) : [];
+  /* ⚠️ SOLO UN SUBCONJUNTO PROPIO: si «eso» resolvió al conjunto ENTERO («¿qué clientes explican eso?»), el turno
+   * es una lectura nueva y sigue el camino de siempre — sus resultados, en el orden que la respuesta presentó,
+   * pisan el conjunto. Tratarlo como selección habría conservado el orden VIEJO bajo una tabla nueva: el
+   * mismo defecto que esto cierra, por la puerta de atrás. */
+  if (selEnts.length && prev.current && Array.isArray(prev.current.entities) && prev.current.entities.length >= 2
+      && selEnts.length < prev.current.entities.length
+      && prev.current.dimension !== "cartera" && selEnts.every((e) => prev.current.entities.includes(e))) {
+    const subPrev = prev.current.selection && prev.current.selection.subset;
+    const anterior = (subPrev && Array.isArray(subPrev.entities) && subPrev.entities.length && subPrev.entities.join("|") !== selEnts.join("|")) ? subPrev.entities : (subPrev && subPrev.anterior) || null;
+    const current = {
+      ...prev.current, turno: turno == null ? prev.current.turno : turno,
+      selection: { ...(prev.current.selection || { orden: null }), subset: { kind: "seleccion", entities: selEnts, anterior } },
+    };
+    return { version: 1, current, history };
+  }
 
   // CAMBIO REAL DE TEMA — disparador ÚNICO (a propósito, para no inventar un segundo clasificador difuso):
   // plan.scope.level==="global" es la señal EXPLÍCITA que PLAN ya emite por doctrina existente (planPrompt.js,
@@ -532,12 +556,24 @@ export function updateConversationScope(scopePrev, { plan, calls, results, turno
 
   const arr = Array.isArray(results) ? results : [];
   let built = null, builtFrom = null;
-  for (const r of arr) {
-    const b = buildEntityList(r && r.tool, r);
-    if (b && b.entities.length) { built = b; builtFrom = r; break; }   // primer resultado con entidades reales
-  }
+  /* ⚠️ CON DOS HERRAMIENTAS HAY DOS ÓRDENES SELLADOS, y se vio en la pantalla del owner (2026-09-11): la prosa
+   * enumeró en el orden de `rolesCartera` (Falabella primero, por venta) y la tabla en el de `marginRead`
+   * (Lider primero, por brecha). «El primero» era ambiguo dentro de la misma respuesta. `ordenPresentado` es el
+   * orden en que las entidades aparecen en las FILAS DE TABLA de la respuesta aprobada (y si no hay tabla, en
+   * el texto): NO es la fuente de las entidades —siguen saliendo de un resultado estructurado— sino el criterio
+   * para elegir CUÁL de los resultados sellados es el que el usuario vio. Sin él, gana el primero de siempre. */
+  const primeroVisto = (Array.isArray(ordenPresentado) && ordenPresentado.length) ? ordenPresentado[0] : null;
+  const construidos = arr.map((r) => ({ r, b: buildEntityList(r && r.tool, r) })).filter((x) => x.b && x.b.entities.length);
+  const elegido = (primeroVisto && construidos.find((x) => x.b.entities[0] === primeroVisto)) || construidos[0] || null;
+  if (elegido) { built = elegido.b; builtFrom = elegido.r; }
   const planEntities = (plan && plan.scope && Array.isArray(plan.scope.entities)) ? plan.scope.entities.filter(Boolean) : [];
-  const entities = built ? built.entities : planEntities.filter((e) => guessDimension(e));
+  /* EL CONJUNTO ES LO QUE EL USUARIO VIO, dentro de lo sellado (2026-09-11): la herramienta devolvió ocho
+   * clientes y la tabla mostró cuatro; «los otros tres» son tres, no siete. Se conservan SOLO las entidades del
+   * resultado estructurado que la respuesta presentó, en el orden en que las presentó — nunca un nombre que
+   * la prosa haya inventado (la regla de fidelidad sigue intacta: el filtro corre sobre `built.entities`). Con
+   * menos de dos presentadas no hay conjunto que recortar y queda el de la herramienta. */
+  const vistas = (built && Array.isArray(ordenPresentado)) ? ordenPresentado.filter((e) => built.entities.includes(e)) : [];
+  const entities = built ? (vistas.length >= 2 ? vistas : built.entities) : planEntities.filter((e) => guessDimension(e));
   // sin entidades nuevas que nombrar (declinó / respuesta agregada sin entidad puntual / intent=define-ack) → NO
   // pisa el scope anterior con uno vacío — conserva `current`/`history` tal cual (mismo criterio que "mejor nada
   // que un pendiente roto" en dialogueState.js: perder memoria por una consulta que no trajo nada nuevo sería peor
@@ -618,25 +654,109 @@ const _ORD_PRIMERO_RE = /\bel\s+primero\b|\bla\s+primera\b|\blos?\s+primeros?\b/
 const _ORD_ULTIMO_RE = /\bel\s+[uú]ltimo\b|\bla\s+[uú]ltima\b|\blos?\s+[uú]ltimos?\b/i;
 const _ORD_PEOR_RE = /\bpeor(?:es)?\b/i;
 const _ORD_MEJOR_RE = /\bmejor(?:es)?\b/i;
+/* ══ EL CAMINO DEL AGENTE ENTRA AL SCOPE CANÓNICO (owner 2026-09-11) ═══════════════════════════════════════
+ * LA PRUEBA DE CONTINUIDAD DEL OWNER: «¿qué está explicando ese resultado?» redujo el negocio a Falabella, y
+ * «profundiza en el primero» sobre una tabla que abría con Lider respondió Falabella. Auditado offline: en el
+ * camino del agente NADIE conservaba ni resolvía `scope activo → conjunto presentado → ordinal → entidad
+ * activa` — todo vivía en la lectura que el modelo hace del hilo. Este archivo lo hacía bien para el oráculo
+ * y quedó huérfano tras La Poda. Su orden, textual: «reutilizando conversationScope y los mecanismos
+ * existentes. No quiero otra memoria paralela ni otro resolver». Lo que sigue EXTIENDE este resolver con lo
+ * que la conversación real pide y hoy no leía; no nace otro.
+ *   · «el segundo» / «la tercera» — la posición, no solo primero/último.
+ *   · «el anterior» — la entidad que estaba activa ANTES de la actual (la selección previa dentro del mismo
+ *     conjunto), para «compáralo con el anterior».
+ *   · «los otros (tres)» / «los demás» — el complemento de la selección dentro del conjunto presentado; si
+ *     el número no calza, NO se adivina.
+ *   · el deíctico SINGULAR («ese», «esa cuenta», «¿y ese?», «compáralo») y el NEUTRO («eso», «esto», «ese
+ *     resultado»): el neutro apunta al RESULTADO y conserva el alcance vigente —negocio entero o selección—,
+ *     el otro apunta a UN ítem y exige que haya uno activo; con varios, se pregunta (nunca se elige solo).
+ * LA REGLA DE FIDELIDAD NO CAMBIA: todo esto sigue leyendo SOLO `current.entities` (orden sellado por la
+ * herramienta) y `current.selection.subset` (lo que el usuario seleccionó dentro de ese conjunto). */
+const _ORD_POS = { segund: 2, tercer: 3, cuart: 4, quint: 5 };
+const _ORD_POS_RE = /\b(?:el|la)\s+(segund|tercer|cuart|quint)[oa]\b/i;
+const _ORD_ANTERIOR_RE = /\b(?:el|la)\s+anterior\b/i;
+const _OTROS_RE = /\b(?:los|las)\s+(?:otr[oa]s|dem[aá]s)\b(?:\s+(dos|tres|cuatro|cinco|\d+))?/i;
+/* SINGULAR NEUTRO — apunta a lo dicho, no a un ítem: «eso», «esto», «ese resultado», «esa lectura». Conserva
+ * el alcance vigente: si ADI hablaba del negocio entero, «¿qué explica eso?» sigue siendo del negocio entero.
+ * Es el caso 1 de la prueba del owner: una referencia anafórica jamás REDUCE el scope sin instrucción. */
+const _DEICTIC_NEUTRO_RE = /\b(?:eso|esto)\b|\b(?:es[ea]|est[ea])\s+(?:resultado|an[aá]lisis|lectura|diagn[oó]stico|respuesta|conclusi[oó]n|brecha|ca[ií]da|subida|n[uú]mero|cifra|dato|punto|tema)\b/i;
+/* SINGULAR CON GÉNERO — apunta a UN ítem: «ese», «esa cuenta», «este cliente», «¿y ese?», y el clítico singular
+ * pegado al verbo («compáraLO», «profundízaLA»). Quedan fuera los sustantivos de TIEMPO («esta semana», «este
+ * año» — un plan de la semana no tiene referente de entidad) y los de COMPONENTE («este gráfico», «esa tabla»:
+ * de eso se ocupa DEICTIC_COMPONENT_RE con el ViewContext). */
+/* ⚠️ «esta» SIN TILDE ES «está» EN MEDIO CHAT («Falabella esta perdiendo margen»), y un demostrativo suelto lo
+ * confundiría con un deíctico. Por eso el demostrativo con género solo cuenta en POSICIÓN de referencia: al
+ * arranque o tras una preposición/conjunción («¿y ese?», «en ese», «con esa»), y seguido de puntuación o de un
+ * sustantivo de entidad («esa cuenta», «este cliente»). Un «esta» pegado a un verbo no es un deíctico. */
+const _DEICTIC_SING_RE = /(?:^|[¿¡,;:(]\s*|\b(?:y|en|con|sobre|de|a|por|para|desde|hacia|contra|solo|s[oó]lo)\s+)(?:es[ea]|est[ea])(?=\s*(?:[?.!,;)]|$)|\s+(?:cuenta|cliente|marca|familia|sku|producto|bodega|canal|proveedor|art[ií]culo|categor[ií]a|sucursal|uno|una)\b)|\b(?:comp[aá]r|profund[ií]z|anal[ií]z|rev[ií]s|expl[ií]c|m[ií]r|abr[ií]|sim[uú]l|desglos)al[oa]\b/i;
+export const DEICTIC_SINGULAR_RE = new RegExp(`${_DEICTIC_NEUTRO_RE.source}|${_DEICTIC_SING_RE.source}`, "i");
+/* lo que está ACTIVO dentro del conjunto: la selección si la hay, si no el conjunto entero */
+function _activas(current) {
+  const sub = current && current.selection && current.selection.subset;
+  if (sub && Array.isArray(sub.entities) && sub.entities.length) return sub.entities;
+  return (current && Array.isArray(current.entities)) ? current.entities : [];
+}
+function _anteriorDe(current) {
+  const sub = current && current.selection && current.selection.subset;
+  return (sub && Array.isArray(sub.anterior) && sub.anterior.length) ? sub.anterior : null;
+}
+export function esAlcanceGlobal(text) {
+  /* las MISMAS palabras que la doctrina de PLAN ya trataba como cambio de tema («el negocio», «en general», «la
+   * cartera») — acá en regla, porque el agente no tiene PLAN que lo emita. Lista corta y cerrada a propósito. */
+  return /\b(?:todo el|al|el)\s+negocio(?:\s+(?:completo|entero))?\b|\btoda la cartera\b|\bla cartera(?:\s+(?:completa|entera))?\b|\ben general\b|\bnegocio completo\b|\bvisi[oó]n global\b/i.test(String(text || ""));
+}
 function _ordN(text) {
   const m = _ORD_N_RE.exec(text);
   if (!m) return null;
   const raw = m[1].toLowerCase();
   return _NUM_WORDS[raw] || parseInt(raw, 10) || null;
 }
+/* ⚠️ UNA LECTURA NUEVA NO ES UNA REFERENCIA (cazado al cablear el agente, 2026-09-11): «dame los 5 clientes de
+ * mejor margen» tras una tabla de cuatro resolvía «los 5» y «mejor» sobre el conjunto presentado. En el oráculo
+ * este resolutor corría solo cuando PLAN no había resuelto; en el agente no hay PLAN, así que el contrapeso va
+ * acá: si la frase NOMBRA una métrica es un ranking nuevo sobre esa métrica, y si pide más de los que hay no
+ * puede estar hablando de ellos. Las formas POSICIONALES («el primero», «el segundo», «el anterior», «los
+ * otros») no dependen de métrica alguna y siguen resolviendo. */
+const _NOMBRA_METRICA_RE = /\b(?:m[aá]rgen(?:es)?|ventas?|contribuci[oó]n|carga|rotaci[oó]n|stock|capital|cobertura|rentabilidad|brecha|costos?|precio)\b/i;
 export function resolveOrdinalReference(text, current) {
   const t = String(text || "");
   if (!current || !Array.isArray(current.entities) || !current.entities.length) return null;
   const entities = current.entities;
-  const n = _ordN(t);
+  const nCrudo = _ordN(t);
+  if (nCrudo && nCrudo > entities.length) return null;          // «los 5» sobre cuatro: pide otra cosa
+  const lecturaNueva = _NOMBRA_METRICA_RE.test(t);
+  const n = lecturaNueva ? null : nCrudo;
 
+  /* «el anterior» — la selección PREVIA dentro del mismo conjunto. Con un deíctico singular al lado
+   * («compáraLO con el anterior») la resolución son los dos: la activa y la anterior, en ese orden. */
+  if (_ORD_ANTERIOR_RE.test(t)) {
+    const ant = _anteriorDe(current);
+    if (!ant) return { kind: "decline", reason: "sin_anterior" };
+    const conActiva = _DEICTIC_SING_RE.test(t) ? _activas(current) : [];
+    return { kind: "resolved", entities: [...new Set([...conActiva, ...ant])] };
+  }
+  /* «los otros (tres)» — el complemento de la selección dentro del conjunto presentado */
+  const mOtros = _OTROS_RE.exec(t);
+  if (mOtros) {
+    const activas = _activas(current);
+    const otros = entities.filter((e) => !activas.includes(e));
+    if (!otros.length) return { kind: "decline", reason: "sin_referente" };
+    const k = mOtros[1] ? (_NUM_WORDS[mOtros[1].toLowerCase()] || parseInt(mOtros[1], 10)) : null;
+    if (k && k !== otros.length) return { kind: "decline", reason: "conteo_no_calza", detalle: { pedidos: k, hay: otros.length, otros } };
+    return { kind: "resolved", entities: otros };
+  }
+  const pos = _ORD_POS_RE.exec(t);
+  if (pos) {
+    const i = _ORD_POS[pos[1].toLowerCase()] - 1;
+    return i < entities.length ? { kind: "resolved", entities: [entities[i]] } : { kind: "decline", reason: "sin_referente" };
+  }
   if (_ORD_PRIMERO_RE.test(t)) return { kind: "resolved", entities: entities.slice(0, n || 1) };
   if (_ORD_ULTIMO_RE.test(t)) return { kind: "resolved", entities: entities.slice(-(n || 1)) };
 
   // dirección YA SELLADA por la tool (current.selection.orden), NUNCA re-derivada — sin ella, "peor/mejor" es
   // ambiguo (no sabemos si el ranking mostrado es ascendente o descendente) y se deja pasar (null).
   const ordenTxt = current.selection && typeof current.selection.orden === "string" ? current.selection.orden : null;
-  if (_ORD_PEOR_RE.test(t) || _ORD_MEJOR_RE.test(t)) {
+  if ((_ORD_PEOR_RE.test(t) || _ORD_MEJOR_RE.test(t)) && !lecturaNueva) {
     if (!ordenTxt) return null;
     const asc = /ascendente/i.test(ordenTxt);
     const wantsWorst = _ORD_PEOR_RE.test(t);
@@ -703,7 +823,8 @@ function _dedupeGroups(groups) {
 // rechazo EXPLÍCITO (composeReferenceDecline: "sí había una referencia, no la puedo honrar") de un "none" mudo
 // (no había nada que este módulo debiera resolver este turno, PLAN sigue con su criterio normal).
 function _looksLikeReference(t) {
-  return _DEICTIC_PLURAL_RE.test(t) || _ORD_PRIMERO_RE.test(t) || _ORD_ULTIMO_RE.test(t) || _ORD_PEOR_RE.test(t) || _ORD_MEJOR_RE.test(t) || !!_ordN(t);
+  return _DEICTIC_PLURAL_RE.test(t) || _ORD_PRIMERO_RE.test(t) || _ORD_ULTIMO_RE.test(t) || _ORD_PEOR_RE.test(t) || _ORD_MEJOR_RE.test(t) || !!_ordN(t)
+    || _ORD_POS_RE.test(t) || _ORD_ANTERIOR_RE.test(t) || _OTROS_RE.test(t) || DEICTIC_SINGULAR_RE.test(t);
 }
 
 // _uiSignalsGroup(uiSignals) → {dimension,entities}|null — Etapa 3 (owner 2026-08-03): "chips, tablas, filas de
@@ -815,14 +936,51 @@ export function resolveConversationReference(text, plan, scopePrev, requestConte
   const current = safePrev.current;
 
   // ORDINAL/SUPERLATIVO ("el primero", "los dos peores") — solo sobre `current`, nunca `history`.
-  const ordinal = resolveOrdinalReference(t, current);
+  /* ⚠️ «los otros» ES la excepción medida (2026-09-11): tras «ahora solo Lider» el conjunto de los cuatro puede
+   * haber quedado en `history` si en el medio hubo un cambio de tema; si `current` es UNA entidad que vive
+   * dentro de history[0], «los otros» son los de ese conjunto. Es el único recuerdo implícito, y es angosto:
+   * exige que la entidad activa esté dentro del conjunto recordado. */
+  const baseOrdinal = (() => {
+    if (current && Array.isArray(current.entities) && current.entities.length >= 2) return current;
+    if (current && Array.isArray(current.entities) && current.entities.length === 1 && _OTROS_RE.test(t)) {
+      const h0 = Array.isArray(safePrev.history) ? safePrev.history[0] : null;
+      if (h0 && Array.isArray(h0.entities) && h0.entities.length >= 2 && h0.entities.includes(current.entities[0]) && h0.dimension === current.dimension) {
+        return { ...h0, selection: { ...(h0.selection || { orden: null }), subset: { kind: "seleccion", entities: current.entities, anterior: null } } };
+      }
+    }
+    return current;
+  })();
+  const ordinal = resolveOrdinalReference(t, baseOrdinal);
   if (ordinal) {
-    const revalidated = ordinal.entities.filter((e) => guessDimension(e) === current.dimension);
-    return revalidated.length ? { kind: "resolved", entities: revalidated, dimension: current.dimension } : { kind: "decline", reason: "sin_referente" };
+    if (ordinal.kind === "decline") return ordinal;   // «el anterior» sin selección previa · «los otros dos» cuando son tres — no se adivina
+    const revalidated = ordinal.entities.filter((e) => guessDimension(e) === baseOrdinal.dimension);
+    return revalidated.length ? { kind: "resolved", entities: revalidated, dimension: baseOrdinal.dimension } : { kind: "decline", reason: "sin_referente" };
   }
 
   const isDeictic = _DEICTIC_PLURAL_RE.test(t);
-  if (!isDeictic) return { kind: "none" };   // sin marcador deíctico ni ordinal → nada inequívoco que resolver acá
+  if (!isDeictic) {
+    /* ── EL DEÍCTICO SINGULAR (2026-09-11) ──────────────────────────────────────────────────────────────────
+     * NEUTRO («eso», «ese resultado») → conserva el alcance vigente, sea el negocio entero o la selección.
+     * CON GÉNERO («ese», «esa cuenta», «compáralo») → exige UN ítem activo; con varios, se pregunta. */
+    const neutro = _DEICTIC_NEUTRO_RE.test(t);
+    const conGenero = _DEICTIC_SING_RE.test(t);
+    if (!neutro && !conGenero) return { kind: "none" };   // sin marcador deíctico ni ordinal → nada inequívoco que resolver acá
+    /* sin NINGÚN scope establecido («seguime con eso» como primer mensaje) un neutro no apunta a nada que
+     * este módulo sepa: «none», y el turno sigue su camino de siempre. Distinto de un scope de CARTERA
+     * escrito por un turno del negocio entero, que sí es un alcance que conservar. */
+    if (!current) return { kind: "none" };   // vale para los dos: sin scope, este módulo no tiene a qué apuntar
+    const esCartera = current.dimension === "cartera" || !Array.isArray(current.entities) || !current.entities.length;
+    if (neutro && !conGenero) {
+      if (esCartera) return { kind: "resolved-scope", alcance: "cartera" };
+      const activas = _activas(current).filter((e) => guessDimension(e) === current.dimension);
+      return activas.length ? { kind: "resolved", entities: activas, dimension: current.dimension } : { kind: "resolved-scope", alcance: "cartera" };
+    }
+    if (esCartera) return { kind: "decline", reason: "sin_referente" };
+    const activas = _activas(current).filter((e) => guessDimension(e) === current.dimension);
+    if (activas.length === 1) return { kind: "resolved", entities: activas, dimension: current.dimension };
+    if (!activas.length) return { kind: "decline", reason: "sin_referente" };
+    return { kind: "ambiguous", options: activas.map((e) => ({ dimension: current.dimension, entities: [e] })) };
+  }
 
   // POR QUÉ history NO entra en el caso común: un "estos/esos" PLANO se refiere al tema QUE ESTÁ vigente — dejar
   // que mire `history` también arriesgaría resucitar un tema que un cambio de tema real (plan.scope.level=global)
@@ -883,15 +1041,83 @@ export function resolveConversationReference(text, plan, scopePrev, requestConte
 export function composeReferenceAmbiguity(options) {
   const groups = (Array.isArray(options) ? options : []).filter((g) => g && Array.isArray(g.entities) && g.entities.length);
   if (groups.length < 2) return `No tengo claro a qué te refieres — dime la entidad o el grupo concreto y sigo.`;
+  /* un deíctico singular sobre varios ítems («¿y ese?» con cuatro en pantalla): se listan los ítems, no «grupos» */
+  if (groups.every((g) => g.entities.length === 1)) {
+    const nombres = groups.map((g) => g.entities[0]);
+    return `¿A cuál te refieres: ${nombres.slice(0, -1).join(", ")} o ${nombres[nombres.length - 1]}?`;
+  }
   const partes = groups.map((g) => `${g.entities.join(", ")}${g.dimension ? ` (${g.dimension})` : ""}`);
   return `Tengo más de un grupo reciente que podría ser: ${partes.join(" — o — ")}. ¿A cuál te refieres?`;
 }
 
-export function composeReferenceDecline(reason) {
+export function composeReferenceDecline(reason, detalle = null) {
   const r = String(reason || "").trim();
   if (r === "otro_tenant") return `Esa referencia es de otra empresa/conversación — no puedo reusarla acá. Dime a qué entidad te refieres.`;
   if (r === "sin_referente") return `No tengo un grupo de entidades reciente al que eso pueda referirse — dime a cuáles te refieres.`;
+  if (r === "sin_anterior") return `No hay una selección anterior con la que comparar en esta conversación — dime con cuál.`;
+  if (r === "conteo_no_calza" && detalle && Array.isArray(detalle.otros)) {
+    return `Los otros son ${detalle.otros.length}, no ${detalle.pedidos}: ${detalle.otros.join(", ")}. ¿Sigo con esos?`;
+  }
   return `No puedo resolver esa referencia con lo que tengo — dime a qué entidad o grupo te refieres.`;
+}
+
+/* ── LO QUE EL AGENTE CONSUME DE LA RESOLUCIÓN (2026-09-11) ─────────────────────────────────────────────────
+ * La ley del owner del día anterior, aplicada a la referencia: «la conclusión es del procedimiento, no del
+ * narrador» — y el REFERENTE también. El resolutor decide a quién apunta «el primero»; el cerebro lo recibe
+ * como hecho, no como sugerencia, y si narra sobre otro, el notario lo cobra. */
+
+/** el mensaje de procedimiento para el cerebro — byte-estable para los mismos insumos */
+export function doctrinaDeReferente(ref, current) {
+  if (!ref) return null;
+  if (ref.kind === "resolved-scope" && ref.alcance === "cartera") {
+    return [
+      "[PROCEDIMIENTO — no es el usuario] EL ALCANCE DE ESTE TURNO ES EL NEGOCIO ENTERO (la cartera completa).",
+      "La pregunta apunta al resultado que ya mostraste a nivel de negocio: respóndela a ESE nivel. No lo reduzcas a",
+      "una cuenta. Si nombras cuentas, es para LOCALIZAR dónde pesa algo, no para cambiar el tema a una de ellas.",
+    ].join("\n");
+  }
+  if (ref.kind === "resolved" && Array.isArray(ref.entities) && ref.entities.length) {
+    const conjunto = (current && Array.isArray(current.entities) && current.entities.length >= 2) ? current.entities : null;
+    const varias = ref.entities.length > 1;
+    const lista = varias ? `${ref.entities.slice(0, -1).join(", ")} y ${ref.entities[ref.entities.length - 1]}` : ref.entities[0];
+    return [
+      `[PROCEDIMIENTO — no es el usuario] LA REFERENCIA DE LA PREGUNTA YA ESTÁ RESUELTA: apunta a ${lista}.`,
+      conjunto ? `Es del conjunto que mostraste, en el orden en que lo mostraste: ${conjunto.join(" → ")}.` : null,
+      `Responde sobre ${lista}. No cambies el referente ni lo reemplaces por otra cuenta; si pides`,
+      `herramientas, pídelas para ${varias ? "esas cuentas" : "esa cuenta"}. Si el dato no alcanza para ${varias ? "ellas" : "ella"}, dilo — no contestes por otra.`,
+    ].filter(Boolean).join("\n");
+  }
+  return null;
+}
+
+/** vetoReferente(texto, ref) → { regla, multa } | null — el texto narra sobre OTRO ítem del mismo conjunto y
+ *  no nombra al referente resuelto. Solo referentes singulares: en una comparación las dos se nombran. */
+const _reNombre = (n) => new RegExp(`(?:^|[^\\wáéíóúñ])${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\wáéíóúñ])`, "i");
+export function vetoReferente(texto, ref, current) {
+  const t = String(texto || "");
+  if (!t.trim() || !ref || ref.kind !== "resolved" || !Array.isArray(ref.entities) || ref.entities.length !== 1) return null;
+  const referente = ref.entities[0];
+  if (_reNombre(referente).test(t)) return null;
+  const conjunto = (current && Array.isArray(current.entities)) ? current.entities : [];
+  const otra = conjunto.find((e) => e !== referente && _reNombre(e).test(t));
+  if (!otra) return null;
+  return { regla: "referente-cambiado", multa: `la pregunta apunta a ${referente} —lo resolvió el procedimiento sobre el conjunto que mostraste— y respondes sobre ${otra} sin nombrar a ${referente}. El referente es del procedimiento, no del narrador: responde sobre ${referente}, o di que el dato no alcanza para esa cuenta.` };
+}
+
+/** el orden en que la respuesta aprobada PRESENTÓ las entidades: filas de tabla primero; si no hay tabla, el
+ *  texto. Insumo de `updateConversationScope.ordenPresentado` — elige entre órdenes SELLADOS, no los crea. */
+export function ordenPresentadoEn(texto, catalogo) {
+  const t = String(texto || "");
+  const nombres = Array.isArray(catalogo) ? catalogo.filter(Boolean) : [];
+  if (!t.trim() || !nombres.length) return [];
+  const filas = t.split(/\r?\n/).filter((l) => /^\s*\|/.test(l) && !/^\s*\|[\s:|-]+\|?\s*$/.test(l));
+  const fuente = filas.length ? filas : [t];
+  const orden = [];
+  for (const linea of fuente) {
+    const vistos = nombres.map((n) => ({ n, i: linea.search(_reNombre(n)) })).filter((x) => x.i >= 0).sort((a, b) => a.i - b.i);
+    for (const { n } of vistos) if (!orden.includes(n)) orden.push(n);
+  }
+  return orden;
 }
 
 /* ── CONSOLIDACIÓN — ESTADO AL CIERRE DE ETAPA 4 (2026-08-04, documentado a propósito, para que el próximo agente

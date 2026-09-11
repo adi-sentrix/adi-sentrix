@@ -681,7 +681,9 @@ H("7 · un click, un turno · el ambiente de la vista no abre la explicación de
   const chat = sinComentarios(leer("src/ui/ChatADI.jsx"));
   ok(/cuadro: viewContext \|\| null/.test(chat), "★ la UI manda por el canal del cuadro SOLO el click del turno (el ambiente queda fuera)");
   const bucle = sinComentarios(leer("src/adi/agente/bucleAgente.js"));
-  ok(/const ctxTurno = \{ history, viewContext, cuadro, mem: memIn \}/.test(bucle), "…y el bucle lo pasa entero a la cadena del playbook — con la memoria del hilo para la profundización");
+  /* desde 2026-09-11 el ctx lleva además el REFERENTE resuelto por el scope canónico (ver bucleAgente): el
+   * literal crece, la promesa es la misma — el ctx viaja ENTERO a la cadena del playbook */
+  ok(/const ctxTurno = \{ history, viewContext, cuadro, mem: memIn, referente \}/.test(bucle), "…y el bucle lo pasa entero a la cadena del playbook — con la memoria del hilo para la profundización");
 }
 
 /* ═══ 8 · NADA SE AFLOJA · el muro juzga lo compuesto ═══════════════════════════════════════════════════════ */
@@ -768,7 +770,7 @@ H("10 · carnadas · cada garantía, probada ROJA sobre una copia mutada del có
 
   // (a) el ancla del click se pierde en el bucle → el botón vuelve a responder una pregunta libre
   await carnada("el ancla no llega al playbook", "src/adi/agente/bucleAgente.js",
-    [[/const ctxTurno = \{ history, viewContext, cuadro, mem: memIn \};/, "const ctxTurno = { history, viewContext, mem: memIn };"]],
+    [[/const ctxTurno = \{ history, viewContext, cuadro, mem: memIn, referente \};/, "const ctxTurno = { history, viewContext, mem: memIn, referente };"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
       const vc = ancla("comercial/01/pareto-ventas", { met: "ventas" });

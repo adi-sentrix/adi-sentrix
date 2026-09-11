@@ -78,13 +78,40 @@ const _FUERA = new RegExp([
   `\\bcu[aá]nto me (?:compr[oó]|vendi[oó])${_FIN}`,
 ].join("|"), "i");
 
+/* ── EL REFERENTE RESUELTO ES UNA ENTIDAD NOMBRADA (owner 2026-09-11) ─────────────────────────────────────
+ * «Profundiza en el primero», «ahora el segundo», «¿y ese?»: la pregunta no trae ningún nombre, pero el scope
+ * canónico ya resolvió a quién apunta (`ctx.referente`, escrito por el bucle ANTES de consultar a los
+ * playbooks). Para esta ficha, un referente singular vale lo mismo que el nombre escrito — con la MISMA
+ * condición de siempre: que la pregunta pida la lectura de esa entidad. Acá «pedirla» es la forma de
+ * profundizar/abrir/detallar, o la referencia escueta («¿y ese?», «ahora el segundo») que en un chat es
+ * exactamente cómo se pide el cuadro del siguiente. Así el turno tiene procedimiento y entregable
+ * determinístico: si el cerebro falla, la escalera compone la ficha del referente — no la de otro. */
+const _PROFUNDIZA = new RegExp([
+  `\\bprofundi[cz]`, `\\bab(?:re|rir|r[ií]me|rilo|rila)${_FIN}`, `\\bdet[aá]ll`, `\\bdetalle${_FIN}`,
+  `\\bm[ií]ra(?:lo|la|melo|mela)${_FIN}`, `\\bmu[eé]stra(?:lo|la|melo|mela)${_FIN}`, `\\bahora (?:el|la|solo|s[oó]lo)${_FIN}`,
+].join("|"), "i");
+const _ESCUETA = (q) => String(q).replace(/[¿?¡!.,;:]/g, " ").trim().split(/\s+/).filter(Boolean).length <= 4;
+function _referenteSingular(ctx) {
+  const r = ctx && ctx.referente;
+  if (!r || r.kind !== "resolved" || !Array.isArray(r.entities) || r.entities.length !== 1 || !r.dimension) return null;
+  return { nombre: r.entities[0], eje: r.dimension };
+}
+/* «Ahora solo Lider.» — el nombre con un relleno conversacional delante es el nombre solo: así se pide en un chat */
+const _RELLENO = /^(?:y\s+|ahora\s+|solo\s+|s[oó]lo\s+|dale\s+con\s+|vamos\s+con\s+|veamos\s+|mira\s+)+/i;
+
 /** el caso: `{ nombre, eje }` de la entidad, o null. Una sola lectura de la pregunta para todo el playbook. */
 function _caso(pregunta, ctx) {
   const q = String(pregunta || "");
   if (!q.trim() || _FUERA.test(q)) return null;
   try { if (detectSerieIntent(q)) return null; } catch { /* detector mudo: sigue */ }
   let ent = entidadNombrada(q);
-  if (!ent) return null;
+  if (!ent) {
+    const ref = _referenteSingular(ctx);
+    if (!ref) return null;
+    if (!(_PIDE_FICHA.test(q) || _PROFUNDIZA.test(q) || _ESCUETA(q))) return null;
+    if (esConversacional(q) && !pideLaFicha(q)) return null;
+    return ref;
+  }
   /* la colisión de ejes: el viewContext del cuadro tocado la resuelve; sin él, viaja y el composer la declara */
   const vc = ctx && ctx.viewContext && typeof ctx.viewContext === "object" ? ctx.viewContext : null;
   if (Array.isArray(ent.colision) && vc && vc.eje && ent.colision.includes(vc.eje)) ent = { ...ent, eje: vc.eje, colision: undefined };
@@ -105,7 +132,7 @@ function _caso(pregunta, ctx) {
   if (esConversacional(q) && !pideLaFicha(q)) return null;
   /* el nombre SOLO (una palabra, la que nombra a alguien) es un pedido de ficha: así se escribe en un chat.
    * Con más texto alrededor, hace falta que ese texto pida la lectura — nombrar a alguien al pasar no la pide. */
-  const soloElNombre = q.trim().replace(/[¿?¡!.,]/g, "").trim().toLowerCase() === ent.nombre.toLowerCase();
+  const soloElNombre = q.trim().replace(/[¿?¡!.,]/g, "").trim().replace(_RELLENO, "").trim().toLowerCase() === ent.nombre.toLowerCase();
   if (!soloElNombre && !_PIDE_FICHA.test(q)) return null;
   return ent;
 }
@@ -120,14 +147,14 @@ export const fichaDeEntidad = {
 
   cuandoAplica(pregunta, ctx) { return _caso(pregunta, ctx) !== null; },
 
-  pasos(pregunta) {
-    const ent = _caso(pregunta);
+  pasos(pregunta, ctx) {
+    const ent = _caso(pregunta, ctx);   // el referente resuelto viaja en ctx (2026-09-11)
     return ent ? [{ tool: "entityProfile", args: { entity: ent.nombre },
       para: `el cuadro completo de ${ent.nombre}: venta, margen, contribución, costo, acciones comerciales y carga, con el benchmark declarado y su ranking por venta` }] : [];
   },
 
-  obligatorias(pregunta) {
-    const ent = _caso(pregunta);
+  obligatorias(pregunta, ctx) {
+    const ent = _caso(pregunta, ctx);
     return ent ? [new RegExp(`^${_esc(ent.nombre)} · Ventas?$`, "i"), new RegExp(`^${_esc(ent.nombre)} · Margen$`, "i")] : [];
   },
 

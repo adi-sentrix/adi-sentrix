@@ -51,7 +51,10 @@ import { _oracionesDe } from "../oracle/narratePromptC.js";   // la PODA usa el 
 import { recitaAprobadaDe, alcanceHeredadoDe } from "../oracle/cicloNotarial.js";   // R2: la MISMA memoria de re-cita · y el ALCANCE HEREDADO («esos clientes»), re-cableado tras la poda
 import { detectCriteriaIntent } from "../criteria.js";     // el MISMO detector que answerViaOracle — una red, una verdad
 import { composeCriteria } from "../conversation.js";      // la MISMA composición (setCriterion/forgetCriterion), jamás una copia
-import { envejecerPendingSimulation, pendingSimulationVigente, withOfertaPendiente } from "../oracle/conversationScope.js";
+import { envejecerPendingSimulation, pendingSimulationVigente, withOfertaPendiente,
+  emptyConversationScope, resolveConversationReference, updateConversationScope, composeReferenceAmbiguity, composeReferenceDecline,
+  doctrinaDeReferente, vetoReferente, ordenPresentadoEn, esAlcanceGlobal } from "../oracle/conversationScope.js";   // EL SCOPE CANÓNICO, cableado al agente (owner 2026-09-11): no otra memoria, no otro resolver
+import { buildRequestContext } from "../oracle/requestContext.js";   // el tenant del scope se valida con el MISMO contexto que usa el resto
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 import { vetosDeContrato, esIdentificadorInterno } from "./contratoAgente.js";
 import { vetoCifraSinBoleta } from "./cifraSinBoleta.js";   // el juez del turno que NO leyó — vive SOLO en el agente (ver su cabecera)
@@ -190,7 +193,7 @@ function _resumenDeRonda(rp) {
 const _METRICAS_REFUTACION = ["margen", "venta", "ventas", "contribución", "contribucion", "carga", "capital",
   "inventario", "rotación", "rotacion", "unidades", "acciones", "costo"];
 const _reWord = (t) => new RegExp(`\\b${String(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-function _lineaHonesta({ motivos, figs, juzgar, entidades, falta }) {
+function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = null }) {
   const motivo = motivos.length ? motivos[motivos.length - 1] : null;
   /* las cifras salen de la BOLETA ACUMULADA — verificadas por el muro antes de adoptarse, nunca compuestas
    * libres (F1 §9.3). Obligatorias primero.
@@ -233,12 +236,27 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta }) {
    * campo nuevo: `fig()` desestructura opciones conocidas y `boleta.js` no se toca.) */
   const _RESULTADO_DEL_TURNO = new Set(["computed", "proyeccion"]);
   const _esResultado = (f) => _RESULTADO_DEL_TURNO.has(String(f && f.source));
-  const candidatas = [
+  const _ordenBase = [
     ...verificadas.filter((f) => _esResultado(f) && f.mandatory),
     ...verificadas.filter((f) => _esResultado(f) && !f.mandatory),
     ...verificadas.filter((f) => !_esResultado(f) && f.mandatory),
     ...verificadas.filter((f) => !_esResultado(f) && !f.mandatory),
   ].filter((f) => f !== contra);
+  /* ⚠️ EL RESCATE RESPETA EL REFERENTE Y EL ALCANCE (owner 2026-09-11, su prueba de continuidad). Medido: a
+   * «¿qué está explicando ese resultado?» —pregunta del negocio entero— este peldaño sirvió «Falabella · Brecha
+   * al benchmark, 8.1 pp»: la fila 1 de `rolesCartera`, que ordena por venta. No «recordaba» a Falabella: no
+   * tenía noción alguna de referente ni de alcance. La partición es ESTABLE (el orden de siempre se conserva
+   * dentro de cada mitad): con referente, primero las cifras cuyo dueño es el referente; con alcance de
+   * negocio, primero las que no tienen dueño de cuenta. Sin `preferir`, no cambia un solo byte. */
+  const _duenoDe = (f) => { const l = String(f.label || ""); const i = l.indexOf(" · "); return i === -1 ? null : l.slice(0, i).trim(); };
+  const _esDeEntidad = (f) => { const d = _duenoDe(f); return !!d && (Array.isArray(entidades) ? entidades : []).some((e) => _reWord(e).test(d)); };
+  const _preferida = (f) => {
+    if (!preferir) return true;
+    if (Array.isArray(preferir.entidades) && preferir.entidades.length) { const d = _duenoDe(f); return !!d && preferir.entidades.some((e) => _reWord(e).test(d)); }
+    if (preferir.alcance === "cartera") return !_esDeEntidad(f);
+    return true;
+  };
+  const candidatas = preferir ? [..._ordenBase.filter(_preferida), ..._ordenBase.filter((f) => !_preferida(f))] : _ordenBase;
 
   /* C3 DE LA CORRIDA 3 (2026-08-31) · EL RESCATE DEJA DE RENDIRSE CON LA PRIMERA CIFRA. Medido: «compara Q1 vs
    * Q2» con `trend` corrido llegaba acá con 46 cifras verificadas en la boleta; este peldaño elegía la primera
@@ -525,9 +543,50 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   const _ultimo = mensajes.length ? mensajes[mensajes.length - 1] : null;
   if (!(_ultimo && _ultimo.role === "user" && _ultimo.content.trim() === q)) mensajes.push({ role: "user", content: q });
 
+  /* ── EL SCOPE CANÓNICO ENTRA AL AGENTE (owner 2026-09-11) ──────────────────────────────────────────────────
+   * LA PRUEBA DE CONTINUIDAD DEL OWNER, auditada offline: «¿qué está explicando ese resultado?» redujo el negocio
+   * a Falabella y «profundiza en el primero» —sobre una tabla que abría con Lider— respondió Falabella. En este
+   * camino NADIE conservaba ni resolvía `scope → conjunto presentado → ordinal → entidad activa`: todo vivía en
+   * la lectura que el modelo hace del hilo. `conversationScope` (la memoria canónica del Contrato v2) lo hacía
+   * bien para el oráculo y quedó huérfana tras La Poda: el agente ni la escribía ni la leía.
+   * SU ORDEN: «reutilizando conversationScope y los mecanismos existentes. No quiero otra memoria paralela ni
+   * otro resolver». Acá se LEE (la referencia se resuelve ANTES del cerebro y viaja como hecho del
+   * procedimiento) y al cierre del turno se ESCRIBE (el conjunto que este turno presentó, en su orden).
+   * El plan es SINTÉTICO —el agente no tiene PLAN— y solo declara lo que el turno ya sabe sin adivinar: si la
+   * pregunta pide el negocio entero, y si nombra una entidad del índice. Nada más. */
+  const scopePrev = (memIn.conversationScope && typeof memIn.conversationScope === "object") ? memIn.conversationScope : emptyConversationScope();
+  const requestContext = (() => { try { return buildRequestContext({ scenario, mem: memIn }); } catch { return null; } })();
+  const _nombrada = (() => { try { return entidadNombrada(q); } catch { return null; } })();
+  const planSintetico = { intent: null, mode: null, scope: { level: esAlcanceGlobal(q) ? "global" : (_nombrada ? "entity" : null), entities: _nombrada ? [_nombrada.nombre] : [] } };
+  const referente = (() => { try { return resolveConversationReference(q, planSintetico, scopePrev, requestContext, null, viewContext || null); } catch { return { kind: "none" }; } })();
+  /* AMBIGUO O SIN CONJUNTO → se pregunta o se declina en una línea, SIN llamar al cerebro (cero costo): la
+   * misma composición que ya usaba el oráculo, nunca una pregunta genérica. */
+  if (referente && (referente.kind === "ambiguous" || referente.kind === "decline")) {
+    const texto = referente.kind === "ambiguous" ? composeReferenceAmbiguity(referente.options) : composeReferenceDecline(referente.reason, referente.detalle || null);
+    const pantalla = anteponerSello(texto, getSelloDeCarga(), { calculos: [] });
+    return {
+      r: normalizeResponse({
+        text: pantalla, route: "agente", deterministic: true, claims: [], suggestions: null, sentrixAction: null,
+        agente: { estado: referente.kind === "ambiguous" ? "referente-ambiguo" : "referente-sin-conjunto", rondas: 0, calls: 0, figs: 0, motivos: [], vetos: [], recitaCifras: 0,
+          referente: { kind: referente.kind, reason: referente.reason || null, options: referente.options || null } },
+      }),
+      mem: { ...memIn, recentNarrations: [pantalla, ...recentPrev].slice(0, 2) },
+    };
+  }
+  /* el cambio a negocio entero («volvamos al negocio completo») también se le DICE al cerebro: el resolutor
+   * devuelve «none» ahí a propósito (el cambio de tema lo maneja el escritor), pero el alcance es un hecho. */
+  const _doctrinaRef = doctrinaDeReferente(planSintetico.scope.level === "global" ? { kind: "resolved-scope", alcance: "cartera" } : referente, scopePrev.current);
+  if (_doctrinaRef) mensajes.push({ role: "user", content: _doctrinaRef });
+  /* lo que el resolutor decidió, para el rescate y para el expediente */
+  const preferirDelTurno = referente && referente.kind === "resolved" ? { entidades: referente.entities }
+    : (referente && referente.kind === "resolved-scope" && referente.alcance === "cartera") || planSintetico.scope.level === "global" ? { alcance: "cartera" }
+    : null;
+
   // ── el bucle ──
   const figsTotales = [];
   const resultsTotales = [];
+  const callsDelTurno = [];
+  const motivosCoercion = [];   // pedidos corregidos por el referente resuelto — observación, va al expediente
   const motivosNoSoportado = [];
   let calls = 0, rondas = 0, correccionUsada = false, rondaExtraUsada = false;
   let texto = null;
@@ -535,12 +594,26 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   /* ejecuta UNA tanda de pedidos y deja el intercambio en `destino` (el hilo que verá la llamada siguiente).
    * Es EL cuerpo de la ronda — la ronda normal y la ronda extra de R1 comparten esta única implementación
    * para que jamás diverjan. false = sin cupo (el tope manda). */
-  const _rondaDeHerramientas = (pedidos, destino) => {
+  const _rondaDeHerramientas = (pedidosCrudos, destino) => {
     const cupo = Math.min(CALLS_POR_RONDA, TOPE_CALLS - calls);
     if (cupo <= 0) return false;
+    /* EL REFERENTE RESUELTO MANDA SOBRE EL PEDIDO (2026-09-11): si el procedimiento resolvió «el primero» = Lider
+     * y el cerebro pide la herramienta para Falabella —otra cuenta del MISMO conjunto—, el pedido se corrige
+     * antes de correr (la misma coerción que el oráculo hacía con su plan). Solo cuando el referente es UNA
+     * entidad y la pedida está en el conjunto presentado: un pedido por una cuenta de afuera es otra cosa y
+     * se respeta. Queda en el expediente: nunca una corrección muda. */
+    const pedidos = pedidosCrudos.map((p) => {
+      const ent = p && p.args && typeof p.args.entity === "string" ? p.args.entity : null;
+      if (!ent || !referente || referente.kind !== "resolved" || referente.entities.length !== 1) return p;
+      const conjunto = (scopePrev.current && Array.isArray(scopePrev.current.entities)) ? scopePrev.current.entities : [];
+      if (ent === referente.entities[0] || !conjunto.includes(ent)) return p;
+      motivosCoercion.push(`${p.tool}: pidió ${ent}, el referente resuelto es ${referente.entities[0]}`);
+      return { ...p, args: { ...p.args, entity: referente.entities[0] } };
+    });
     const rp = runPlan({ intent: "answer", calls: pedidos.map((p) => ({ tool: p.tool, args: p.args || {} })) },
       { scenario, maxCalls: cupo, preguntaUsuario: q, registry: caja });
     calls += Math.min(pedidos.length, cupo);
+    callsDelTurno.push(...pedidos.slice(0, cupo).map((p) => ({ tool: p.tool, args: p.args || {} })));
     figsTotales.push(...(rp.ledger && rp.ledger.figs ? rp.ledger.figs : []));
     resultsTotales.push(...rp.results);
     for (const u of rp.unsupported || []) if (u && u.reason) motivosNoSoportado.push(u.reason);
@@ -587,7 +660,11 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * debes seguir — te podría decir "profundiza en la contribución"». El ancla del click se consume en SU turno;
    * la profundización del turno siguiente la reabre desde `mem.cuadroAbierto` (escrito más abajo), y SOLO una
    * pregunta con forma de profundización — la memoria desambigua, jamás secuestra un turno libre. */
-  const ctxTurno = { history, viewContext, cuadro, mem: memIn };   // el ctx del turno, ENTERO, para toda la cadena del playbook
+  /* `referente` viaja también (2026-09-11): «profundiza en el primero» no nombra a nadie, pero el scope canónico ya
+   * resolvió a quién apunta — y un playbook que responde por UNA entidad (la ficha) o por DOS (comparar) puede
+   * tomar el turno con el referente como si lo hubieran nombrado. Así el turno tiene procedimiento y entregable
+   * determinístico, y si el cerebro falla, el respaldo responde por el referente y no por otro. */
+  const ctxTurno = { history, viewContext, cuadro, mem: memIn, referente };   // el ctx del turno, ENTERO, para toda la cadena del playbook
   const playbook = (() => { try { return playbookPara(q, ctxTurno); } catch { return null; } })();
   let playbookActivo = null;
   /* LOS PASOS PUEDEN DEPENDER DE LA PREGUNTA (2026-09-01): `pasosDe` resuelve el Array de siempre o la función
@@ -816,8 +893,12 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
      * hasta que se dice contra qué; sin referencia el dueño no evalúa el consejo, solo lo cree. */
     const vRef = vetosDeReferencia(t, { figs: figsTotales, sitio });
     const vRef2 = vetosDeReformular(t, { pregunta: q, previa: _previaDelHilo, sitio });
+    /* EL REFERENTE ES DEL PROCEDIMIENTO (2026-09-11): «el primero» lo resolvió el scope canónico; si el cerebro
+     * narra sobre otra cuenta del mismo conjunto sin nombrar al referente, se cobra. Solo al cerebro. */
+    const vRefte = (sitio === "cierre" || sitio === "reparacion") ? vetoReferente(t, referente, scopePrev.current) : null;
     const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [], limiteDeHerramienta: motivosNoSoportado.length > 0 }),
       ...(vSinBoleta ? [vSinBoleta] : []),
+      ...(vRefte ? [vRefte] : []),
       ...vPorQue,
       ...vRef,
       ...vRef2,
@@ -936,7 +1017,10 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     }
   }
   if (final === null) {
-    final = _lineaHonesta({ motivos: motivosNoSoportado, figs: figsTotales, juzgar: (t) => juzgar(t, "linea-honesta"), entidades: duenosTenant || [], falta: (() => { try { return faltanteQueToca(q); } catch { return null; } })() });
+    /* `preferir` (2026-09-11): el rescate ya no sirve la fila 1 de la herramienta a ciegas — con un referente
+     * resuelto prefiere SUS cifras, y con alcance de negocio entero prefiere las cifras sin dueño de cuenta.
+     * Es lo que el owner vio: «¿qué explica ese resultado?» rescatado con «Falabella · Brecha 8.1 pp». */
+    final = _lineaHonesta({ motivos: motivosNoSoportado, figs: figsTotales, juzgar: (t) => juzgar(t, "linea-honesta"), entidades: duenosTenant || [], falta: (() => { try { return faltanteQueToca(q); } catch { return null; } })(), preferir: preferirDelTurno });
     if (final !== null) { estado = "limite"; suplente = true; }
   }
   if (final === null) {
@@ -946,6 +1030,20 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
      * pasa y conserva su conducta de hoy — su fallback propio es un encargo futuro, no un rebote de este. */
     final = _respaldoDeLoYaAprobado(memIn, (t) => juzgar(t, "respaldo"), { pregunta: q, entidades: duenosTenant || [], recienMostrado: recentPrev[0] || null, cederSiRepetida: true });
     if (final !== null) { estado = "respaldo"; suplente = true; }
+  }
+  /* ÚLTIMO PELDAÑO ANTES DEL GENÉRICO · EL LÍMITE NOMBRA AL REFERENTE (owner 2026-09-11). Con un referente o un
+   * alcance RESUELTOS y sin lectura que servir, «no tengo información autorizada» es falso —el dato de esa
+   * cuenta está y no cambió— y además pierde el hilo: la respuesta siguiente ya no sabe de qué se hablaba.
+   * Se dice la verdad útil: sobre QUIÉN no se pudo armar la lectura y por dónde se puede entrar. Sin cifras,
+   * juzgado como todo lo que sale. Es la misma lección de reformular: prohibir no es responder. */
+  if (final === null && preferirDelTurno) {
+    const ents = Array.isArray(preferirDelTurno.entidades) ? preferirDelTurno.entidades : [];
+    const _yLista = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}` : String(xs[0] || ""));
+    const txt = ents.length
+      ? `No pude armar la lectura sobre ${_yLista(ents)} con la calidad que corresponde. ${ents.length > 1 ? "Sus datos siguen" : "Su dato sigue"} en pantalla y no ${ents.length > 1 ? "cambiaron" : "cambió"}: dime qué quieres mirar de ${ents.length > 1 ? "ellas" : "esa cuenta"} —el cuadro completo, el margen contra la referencia, la carga comercial— y lo abro.`
+      : `No pude armar la lectura del negocio entero con la calidad que corresponde. La foto del negocio sigue en pie: dime por dónde quieres entrar —margen, cobranza o inventario— y la abro a ese nivel.`;
+    const vL = juzgar(txt, "limite-referente");
+    if (vL && vL.ok) { final = txt; estado = "limite"; suplente = true; }
   }
   if (final === null) { final = composeNoDataMessage(null); estado = "vacio"; suplente = true; }
 
@@ -969,6 +1067,21 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   pantalla = anteponerSello(pantalla, getSelloDeCarga(), { calculos: ex.calculos });
 
   const memOut = { ...memIn, recentNarrations: [pantalla, ...recentPrev].slice(0, 2) };
+  /* ── EL SCOPE CANÓNICO SE ESCRIBE AL CIERRE (owner 2026-09-11) ─────────────────────────────────────────────
+   * Lo que este turno PRESENTÓ queda en `mem.conversationScope` con el MISMO escritor que usaba el oráculo:
+   * las entidades salen de un resultado ESTRUCTURADO (jamás de la prosa), y entre varios resultados se elige
+   * el que la respuesta mostró (`ordenPresentado`, leído de las filas de tabla de la pantalla aprobada). Una
+   * referencia resuelta a un subconjunto se guarda como SELECCIÓN dentro del conjunto —el conjunto se
+   * conserva para «el segundo», «los otros tres», «el anterior»—. Y la entidad nombrada explícitamente
+   * («ahora solo Lider») cuenta como selección cuando vive dentro del conjunto vigente. */
+  try {
+    const seleccion = (referente && referente.kind === "resolved" && Array.isArray(referente.entities) && referente.entities.length) ? { entities: referente.entities }
+      : (_nombrada && _nombrada.nombre) ? { entities: [_nombrada.nombre] } : null;
+    memOut.conversationScope = updateConversationScope(scopePrev, {
+      plan: planSintetico, calls: callsDelTurno, results: resultsTotales, turno: Array.isArray(history) ? history.length : null,
+      requestContext, seleccion, ordenPresentado: ordenPresentadoEn(pantalla, duenosTenant || []),
+    });
+  } catch { /* la memoria canónica jamás rompe el turno: si no se pudo escribir, queda la anterior */ }
   /* EL CUADRO ABIERTO queda en la memoria del hilo (owner 2026-09-08): cuando el turno respondió un cuadro
    * —por click o por profundización—, el turno siguiente puede decir «profundiza en la contribución» y seguir
    * sobre ESA pieza. Se guarda la DIRECCIÓN (componentId + controles), jamás cifras; el playbook lo caduca a
@@ -1053,6 +1166,11 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       sentrixAction: (() => { try { const f = detectFichaIntent(q, { escenario: scenario }); return (f && f.sentrixAction) || null; } catch { return null; } })(),
       agente: { estado, rondas, calls, figs: figsTotales.length, motivos: motivosNoSoportado.slice(0, 3),
         vetos: vetosDelTurno,   // R7 · el expediente auditable: cada veto con su sitio y su multa (observación, no decisión)
+        /* EL REFERENTE Y EL ALCANCE, en el expediente (2026-09-11): «nunca más evaluar una respuesta sin saber
+         * qué mecanismo la produjo» — acá se lee a quién resolvió el procedimiento y qué pedido corrigió. */
+        referente: referente && referente.kind !== "none" ? { kind: referente.kind, entities: referente.entities || null, alcance: referente.alcance || null } : null,
+        alcance: preferirDelTurno ? (preferirDelTurno.alcance || "entidades") : null,
+        coerciones: motivosCoercion.slice(0, 4),
         cortes: cortesDelTurno.slice(0, 6),   // el motivo de corte del proveedor, por llamada (la lección del natural, punta a punta)
         recitaCifras: recita && Array.isArray(recita.figs) ? recita.figs.length : 0,
         /* la SIEMBRA: el cuadro desde el que se preguntó queda en el expediente — hoy solo se registra, y esa

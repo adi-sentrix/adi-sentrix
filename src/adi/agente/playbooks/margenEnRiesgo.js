@@ -133,6 +133,13 @@ function _rutaDe(pregunta) {
 const _PIDE_PORQUE_ELIPTICO = new RegExp([
   `\\bpor qu[eé] pasa(?: eso| esto)?\\s*\\??$`, `\\bcu[aá]l es la causa\\s*\\??$`,
   `\\bprofundiza en el porqu[eé]`, `\\by qu[eé] har[ií]as primero\\s*\\??$`, `\\bqu[eé] har[ií]as primero\\s*\\??$`,
+  /* LAS FORMAS DE LA PRUEBA DE CONTINUIDAD DEL OWNER (2026-09-11): «¿qué está explicando principalmente ese
+   * resultado?» y «¿qué explica eso?» después de la foto del negocio —cuya tesis es el margen contra el
+   * benchmark— piden exactamente este porqué. Sin esta puerta, el turno con el cerebro caído terminaba en el
+   * genérico; con ella, el procedimiento del porqué tiene entregable. Misma condición que las otras: la última
+   * lectura del hilo tiene que hablar de margen, o la puerta no abre. */
+  `\\bqu[eé] (?:est[aá] )?explic(?:a|ando)(?: principalmente)?(?: eso| esto| ese resultado| este resultado| ese n[uú]mero)?\\s*\\??$`,
+  `\\bqu[eé] lo explica\\s*\\??$`, `\\bqu[eé] hay detr[aá]s(?: de eso| de esto)?\\s*\\??$`,
 ].join("|"), "i");
 /* la última respuesta del asistente habla de margen: la palabra Y una señal de lectura (benchmark/vara/pp).
  * La ficha y la foto también la traen —su tesis abre por el margen— y ahí el porqué de la cartera ES la

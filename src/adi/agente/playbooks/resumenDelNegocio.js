@@ -46,6 +46,12 @@ const _PANORAMA = new RegExp([
   `\\bresumen ejecutivo\\b`, `\\bresumen (?:del|de) negocio\\b`, `\\bresumen general\\b`,
   `\\bla foto (?:del negocio|general)\\b`, `\\bpanorama\\b`,
   `\\bpuntos altos\\b`, `\\bfuertes y d[eé]biles\\b`, `\\blo bueno y lo malo\\b`,
+  /* LA VUELTA AL NEGOCIO ENTERO (owner 2026-09-11, su prueba de continuidad): «volvamos al negocio completo»
+   * es el cambio de alcance de una conversación que venía mirando cuentas — y la lectura que pide es la
+   * foto del negocio. Con procedimiento propio, el turno tiene entregable aunque el cerebro falle; sin él,
+   * caía al respaldo y re-servía la ÚLTIMA respuesta, que era justamente la de la cuenta que dejaba. */
+  `\\bvolv(?:amos|er|emos|é|amo) al negocio${_FIN}`, `\\bnegocio (?:completo|entero)${_FIN}`, `\\btodo el negocio${_FIN}`,
+  `\\bla cartera (?:completa|entera)${_FIN}`, `\\bvisi[oó]n global${_FIN}`,
 ].join("|"), "i");
 /* lo que NO es esta pregunta (cada uno con su playbook o su razón) */
 const _AJENO = new RegExp([

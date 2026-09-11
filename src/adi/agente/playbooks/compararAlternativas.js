@@ -102,14 +102,27 @@ const _TIPOS = {
 const _PERIODO = /\bQ[1-4]\b|\btrimestre[s]?\b|\bsemestre[s]?\b|\bene(?:ro)?\b|\bfeb(?:rero)?\b|\bmar(?:zo)?\b|\babr(?:il)?\b|\bmay(?:o)?\b|\bjun(?:io)?\b|\bjul(?:io)?\b|\bago(?:sto)?\b|\bsep(?:tiembre)?\b|\boct(?:ubre)?\b|\bnov(?:iembre)?\b|\bdic(?:iembre)?\b|\baño (?:pasado|anterior)\b|\bmes (?:pasado|anterior)\b/i;
 const _COMPARA_PERIODOS = (q) => (String(q).match(new RegExp(_PERIODO.source, "gi")) || []).length >= 2;
 
+/* «Compáralo con el anterior» (owner 2026-09-11): no tiene la forma de disyuntiva y no nombra a nadie, pero el
+ * scope canónico ya resolvió el PAR —la activa y la anterior— y el verbo pide compararlas. Con dos entidades
+ * resueltas en `ctx.referente`, es la comparación de dos cuentas de siempre, con su procedimiento entero. */
+const _PIDE_COMPARAR = /\bcomp[aá]r(?:a|alo|ala|alos|alas|ar|ame|amelo|amela|emos|en)?(?![\wáéíóúñ])/i;
+function _parResuelto(ctx) {
+  const r = ctx && ctx.referente;
+  return (r && r.kind === "resolved" && Array.isArray(r.entities) && r.entities.length === 2 && r.dimension === "cliente") ? r.entities.slice() : null;
+}
+
 /** el caso: `{ tipo, opciones }` o null si la disyuntiva no se puede pesar con el dato que hay. */
-function _caso(pregunta) {
+function _caso(pregunta, ctx) {
   const q = String(pregunta || "");
-  if (formaConversacional(q) !== "comparar") return null;
+  const par = _parResuelto(ctx);
+  if (formaConversacional(q) !== "comparar") {
+    return (par && _PIDE_COMPARAR.test(q) && !_COMPARA_PERIODOS(q)) ? { tipo: "cuentas", opciones: par } : null;
+  }
   if (_COMPARA_PERIODOS(q)) return null;         // dos períodos no son dos caminos: el turno es de otro
   /* DOS CUENTAS NOMBRADAS mandan: «¿renegocio A o recupero B?» es una disyuntiva ENTRE ELLAS */
   const ents = (() => { try { return entidadesNombradas(q, "cliente"); } catch { return []; } })();
   if (ents.length >= 2) return { tipo: "cuentas", opciones: ents.slice(0, 2).map((e) => e.nombre) };
+  if (par) return { tipo: "cuentas", opciones: par };   // «¿cuál de los dos conviene?» sobre el par resuelto
   /* DOS FRENTES del negocio: margen · cobranza · capital */
   const frentes = [];
   if (_MARGEN.test(q)) frentes.push("margen");
@@ -201,8 +214,8 @@ const _ELECCION_ESTRATEGIAS = { regla: "condicion-primero", eleccion: ["proteger
 /** LA CONCLUSIÓN del procedimiento para esta pregunta con esta boleta — o null si la ruta no aplica o el dato
  *  no alcanza. `eleccion`/`descartada` traen las formas con que ese camino se nombra en prosa; `eleccion:
  *  null` significa que EL DATO NO ELIGIÓ, y eso también es una conclusión que el narrador no puede pisar. */
-export function conclusionDe(figs, pregunta) {
-  const c = _caso(pregunta);
+export function conclusionDe(figs, pregunta, ctx) {
+  const c = _caso(pregunta, ctx);
   if (!c) return null;
   if (c.tipo === "cuentas") {
     const d = _ladosDeCuentas(c.opciones, figs);
@@ -234,14 +247,14 @@ export const compararAlternativas = {
     "¿ataco el margen o el capital frenado?",
   ],
 
-  cuandoAplica(pregunta) { return _caso(pregunta) !== null; },
+  cuandoAplica(pregunta, ctx) { return _caso(pregunta, ctx) !== null; },
 
-  pasos(pregunta) { const c = _caso(pregunta); return c ? _pasosDe(c) : []; },
+  pasos(pregunta, ctx) { const c = _caso(pregunta, ctx); return c ? _pasosDe(c) : []; },
 
   /* la promesa es EL PRECIO: sin poder ponerle cifra a los dos caminos, la respuesta sería una opinión sobre
    * cuál conviene — que es exactamente lo que el owner no quiere. El playbook se retira. */
-  obligatorias(pregunta) {
-    const c = _caso(pregunta);
+  obligatorias(pregunta, ctx) {
+    const c = _caso(pregunta, ctx);
     if (!c) return [];
     if (c.tipo === "cuentas") return [/· Contribución$/i];
     if (c.tipo === "dominios") return [_PRECIO_FRENTE[c.opciones[0]].re, _PRECIO_FRENTE[c.opciones[1]].re];
@@ -250,8 +263,8 @@ export const compararAlternativas = {
 
   entregable: "COMPARA LOS DOS CAMINOS, sin esconder ninguno: (1) nómbralos, para que el dueño vea si entendiste cuáles son; (2) PONLE PRECIO A CADA UNO, con su cifra y SU REFERENCIA —un monto solo no permite elegir—; (3) ELIGE o MARCA EL TRADEOFF: si un precio es de otro tamaño, elige y di por qué; si los dos miden cosas distintas o salen de universos distintos, dilo y no finjas una comparación; (4) cierra pidiendo la pieza que él tiene. ⚠️ RESPONDER UNA SOLA ALTERNATIVA ES LA FALLA: él no pidió ver A, pidió saber cuál. Y esconder la otra es peor que no contestar, porque parece una recomendación. ⚠️ Si los dos montos vienen de universos distintos, di de cuál sale cada uno.",
 
-  componer({ figs, pregunta, semilla } = {}) {
-    const c = _caso(pregunta);
+  componer({ figs, pregunta, semilla, ctx } = {}) {
+    const c = _caso(pregunta, ctx);
     if (!c) return null;
     const p = [];
 
@@ -329,9 +342,9 @@ export const compararAlternativas = {
     return p.join("\n");
   },
 
-  listaNotarial(texto, { figs, pregunta } = {}) {
+  listaNotarial(texto, { figs, pregunta, ctx } = {}) {
     const t = String(texto || "");
-    const c = _caso(pregunta);
+    const c = _caso(pregunta, ctx);
     if (!c || !t.trim()) return [];
     const v = [];
     const citadas = (Array.isArray(figs) ? figs : []).filter((f) => _val(f) && /\d/.test(_val(f)) && t.includes(_val(f)));
@@ -361,7 +374,7 @@ export const compararAlternativas = {
      * LA MISMA que escribe el composer (`conclusionDe`): no hay dos criterios que puedan discrepar. Solo se
      * cobra sobre un texto que ya responde con cifras — declinar no se multa, como en (1). */
     if (citadas.length) {
-      const con = conclusionDe(figs, pregunta);
+      const con = conclusionDe(figs, pregunta, ctx);
       if (con && con.eleccion) {
         const negada = con.eleccion.find((n) => _NIEGA(n).test(t));
         if (negada) {
