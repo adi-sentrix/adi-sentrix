@@ -12,6 +12,52 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.26 — producción · tag `v2.26`
+
+**Pulido Premium v1: ADI habla con la calidad con la que piensa.** El owner cerró la etapa anterior con una
+frase: «ADI ya piensa bien. Ahora queremos que hable con la misma calidad con la que piensa». Esta versión es
+esa etapa entera —la calibración de la voz, medida offline y luego en vivo con su batería de siete turnos, tres
+corridas— y la cierra. Las leyes no se movieron: la conclusión sigue siendo del procedimiento, las cifras de la
+boleta, la causalidad con respaldo, la intención sin dictaminar, el respaldo sin segundo cerebro, y ADI ofrece,
+no ordena.
+
+- **Conclusión primero, sin voz de sistema.** La foto del negocio abre con la tesis en una frase y sin cifras,
+  cada cifra se dice una vez, y ninguna respuesta —ni las del procedimiento ni las del modelo— dice «el motor»,
+  «según el procedimiento» ni «la regla me dice». El límite hace avanzar: abre con lo verificado y pide la
+  pista que falta, nunca «no tengo información autorizada».
+- **El lector cambia la forma, no la conclusión.** «Más corto» es de verdad más corto (tesis y criterio, nada
+  más); «para el equipo comercial» aterriza en cuenta y cifra; «para el directorio» sube de nivel; «dame el
+  detalle» abre la evidencia. Los tres reciben la misma tesis y el mismo criterio, palabra por palabra. Y el
+  molde de cada lector viaja solo en el turno que lo nombra, para respetar el techo de costo de la carta.
+- **Densidad ejecutiva, no brevedad por brevedad** (regla del owner tras la batería en vivo). Si el usuario no
+  pidió detalle, una respuesta con subtítulos, listas largas que nadie pidió o párrafos-pared se le devuelve al
+  modelo una vez para reescribirla como asesor —tesis, evidencia mínima, criterio o siguiente paso— y si
+  insiste, responde el procedimiento, que ya habla así. No se mide un número de palabras: se mide la forma.
+  Con detalle o lista pedidos, la estructura es del usuario. Y la raíz del informe no era solo el modelo:
+  «¿qué harías primero?» recibía la misma instrucción que la lectura completa («total y por cliente») y la
+  obedecía volcando ocho clientes. Ahora cada ruta pide lo suyo: una sola cuenta y su razón.
+- **Cuatro puertas que estaban cerradas** y mandaban al modelo libre justo en las preguntas del owner:
+  «dámelo más corto», «ahora para directorio», «¿por qué está pasando?» y «¿qué parte de eso puedes demostrar
+  y qué parte no?» —esta última con ruta propia: qué está medido, qué es patrón y qué queda abierto, mecanismo
+  por mecanismo, y la intención se le pregunta al dueño. Las reformulaciones encadenadas ya no degradan el
+  material: se reformula la última respuesta sustantiva, no la reformulación anterior.
+- **Quién va primero es del procedimiento.** En vivo el modelo contestó «Lider, no Falabella» con otro
+  criterio; ahora la prioridad se deriva una sola vez, el procedimiento la escribe y el notario la defiende.
+- **La orden al equipo arde en plural.** «Arranquen por Falabella» pasaba porque el juez solo conocía la
+  segunda persona del singular; a un equipo se le explica por dónde entrar, no se le manda.
+- **Tres defectos cazados en la tercera corrida, cerrados con prueba:** el muro leía «4%» dentro de «34%» y
+  podaba una oración buena; la poda dejaba un «en estos cuatro» apuntando a nada; y negar la intención («no es
+  que vendan barato por estrategia de volumen») pasaba limpio — arde igual que afirmarla.
+- **Higiene:** el diario avisa «(Lo tendré en cuenta en las próximas lecturas.)» (letra del owner); el sello
+  «datos del año cerrado» va una vez por conversación; y un gate de telemetría que imprimía un fallo sin poder
+  ponerse rojo ahora falla de verdad.
+
+**Lo que queda abierto, declarado:** al reformular para el directorio, el modelo quiso citar cifras de la foto
+(ya mostradas en el hilo) y la ley solo admite las de la respuesta anterior; aceptar cifras de cualquier
+respuesta previa de ADI es un cambio de ley que espera decisión del owner.
+
+---
+
 ## 2.25 — producción · tag `v2.25`
 
 **Una sola conclusión, salga por donde salga.** El owner probó en local, vio respuestas malas y ordenó parar
