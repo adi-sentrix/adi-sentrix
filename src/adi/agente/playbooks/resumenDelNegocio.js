@@ -92,7 +92,9 @@ export const resumenDelNegocio = {
   ],
   obligatorias: [/^Ventas del período$/i, /^Margen promedio$/i],
 
-  entregable: "la foto del negocio en una lectura: cómo viene la venta contra el año anterior, qué margen deja, quiénes lo sostienen y quiénes lo presionan (por papel, no por lista), qué mira primero un asesor y por qué — el criterio marcado como criterio.",
+  /* «¿Cómo va?» no se convierte en 380 palabras (owner 2026-09-11, medido en su batería en vivo): la foto es la
+   * tesis, la evidencia mínima y por dónde entraría — el porqué y el detalle por cliente son turnos siguientes. */
+  entregable: "la foto del negocio en una lectura corta: la tesis en una frase (crece o no, y qué le pasa al margen), dos o tres cifras que la sostienen, quiénes lo sostienen y quiénes lo presionan (por papel, no por lista), y qué mira primero un asesor y por qué — el criterio marcado como criterio. El porqué y el detalle por cliente se ofrecen, no se despliegan.",
 
   componer({ figs, semilla, scenario } = {}) {
     const ventas = _find(figs, /^Ventas del período$/i);

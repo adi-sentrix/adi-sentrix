@@ -362,7 +362,10 @@ if (fs.existsSync(COMPLETA)) {
   const vetos = (r.r.agente.vetos || []).map((v) => String(v && (v.multa || v.detail) || v));
   ok(vetos.some((v) => /^cierre · 4\.9x/.test(v)) && vetos.some((v) => /^reparacion · 4\.9x/.test(v)),
     "★ el muro veta el borrador del expediente y su reparación (el «4.9x» de agosto sigue muriendo)");
-  ok(vetos.some((v) => /^poda · eje-servido-a-escondidas/.test(v)),
+  /* desde la densidad ejecutiva (2026-09-11) el podado arde ADEMÁS por `formato-de-informe` (tres subtítulos en
+   * negrita que nadie pidió) y ese veto va primero en la línea del expediente; la notarial sigue cazándolo y queda
+   * entre las «otras reglas» de la misma línea — se busca la regla en la línea de la poda, no en su primer puesto */
+  ok(vetos.some((v) => /^poda · /.test(v) && /eje-servido-a-escondidas/.test(v)),
     "★ LA PODA CORRIÓ: tiró la oración del 4.9x, y su producto lo cazó la notarial nueva — la conducta T4 exacta que el owner marcó, ahora con nombre");
   ok(r.r.agente.estado === "playbook" && /SÍ trae punto de venta/.test(r.r.text) && !/4\.9x/.test(r.r.text),
     `★ y el turno termina en la respuesta CORRECTA (el límite honesto), mejor que el «podado» de agosto (${r.r.agente.estado})`);

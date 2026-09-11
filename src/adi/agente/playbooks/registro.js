@@ -33,6 +33,7 @@ import { desafiarDecision } from "./desafiarDecision.js";         // el tradeoff
 import { contradiccionDeMetricas } from "./contradiccionDeMetricas.js";   // las dos son ciertas: qué las reconcilia (owner 2026-09-09)
 import { compararAlternativas } from "./compararAlternativas.js";   // los dos caminos con precio: elegir o marcar tradeoff (owner 2026-09-09)
 import { nombraEntidad } from "./indiceEntidades.js";   // el retiro-por-nombre, aplicado UNA vez en playbookPara
+import { pideDetalle } from "../contratoAgente.js";   // el mismo detector que cobra el veto de formato: una regla, un archivo
 import { clientePerdiendoContribucion, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio } from "./asesoria.js";   // los 4 de ASESORÍA (owner 2026-09-01): 01 QUÉ · 02 DÓNDE · 03 QUÉ HACER PRIMERO
 import { lecturaPorEje } from "./lecturaPorEje.js";   // playbook de FORMA: canal · marca · familia · bodega · SKU frenado
 import { entidadPorPeriodo } from "./entidadPorPeriodo.js";   // playbook de FORMA: «cuánto me compró X el último mes» con serie REAL (la bloqueada es del puente)
@@ -161,7 +162,17 @@ export function doctrinaDelPlaybook(pb, pregunta, ctx) {
     `LO QUE TIENES QUE ENTREGAR: ${entregableDe(pb, pregunta, ctx)}`,
     "La evidencia ya está en la mano: respóndela. No pidas aclaración ni declines por falta de datos sobre lo que estos resultados ya cubren.",
     "Cada cifra, verbatim de los resultados. Localiza dónde está el problema; no afirmes por qué pasa si el dato no lo declara.",
+    formaDelTurno(pregunta),
   ].join("\n");
+}
+
+/* LA FORMA DEL TURNO (owner 2026-09-11, «densidad ejecutiva»): viaja con el procedimiento, no en la carta —la
+ * carta tiene techo de costo y ya dice «conclusión primero»; lo que faltaba era decirlo EN EL TURNO en que el
+ * cerebro tiene la evidencia en la mano y tiende a volcarla entera. Contextual: si el usuario pidió detalle,
+ * el detalle es suyo. El veto `formato-de-informe` (contratoAgente) es la misma regla, cobrada. */
+export function formaDelTurno(pregunta) {
+  if (pideDetalle(pregunta)) return "FORMA: este turno SÍ pide detalle — ábrelo, ordenado, con cada cifra una vez.";
+  return "FORMA (densidad ejecutiva): la tesis en una frase → la evidencia mínima que la sostiene → el criterio o siguiente paso, en prosa. Sin subtítulos; una lista solo si ordena información o la pidieron; negrita, a lo sumo, para una conclusión puntual. El detalle se ofrece, no se despliega.";
 }
 
 /** la lista notarial del playbook activo, con la forma de `vetosDeContrato` (regla + multa). */

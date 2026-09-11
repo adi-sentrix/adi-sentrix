@@ -925,7 +925,8 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     /* EL REFERENTE ES DEL PROCEDIMIENTO (2026-09-11): «el primero» lo resolvió el scope canónico; si el cerebro
      * narra sobre otra cuenta del mismo conjunto sin nombrar al referente, se cobra. Solo al cerebro. */
     const vRefte = (sitio === "cierre" || sitio === "reparacion") ? vetoReferente(t, referente, scopePrev.current) : null;
-    const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [], limiteDeHerramienta: motivosNoSoportado.length > 0 }),
+    /* `sitio` viaja al contrato desde la densidad ejecutiva (2026-09-11): la forma se juzga al cerebro, no a los peldaños */
+    const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [], limiteDeHerramienta: motivosNoSoportado.length > 0, sitio }),
       ...(vSinBoleta ? [vSinBoleta] : []),
       ...(vRefte ? [vRefte] : []),
       ...vPorQue,

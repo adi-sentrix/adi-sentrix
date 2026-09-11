@@ -599,7 +599,25 @@ export const margenEnRiesgo = {
    * se retira: sin vara declarada o sin conteo, «quiénes están bajo el benchmark» no tiene respuesta honesta. */
   obligatorias: [/^Benchmark de margen$/i, /clientes bajo el benchmark/i],
 
-  entregable: "qué clientes están bajo el benchmark (con su margen y su venta), cuánta contribución no se captura —total y por cliente— y a quién conviene revisar primero, con su cifra. Las acciones se OFRECEN para que el usuario las evalúe; jamás se ordenan.",
+  /* EL ENTREGABLE ES DE LA RUTA, no del playbook (densidad ejecutiva, owner 2026-09-11). Medido en su batería en
+   * vivo: ante «¿qué harías primero?» el cerebro recibía el entregable de siempre —«qué clientes están bajo el
+   * benchmark… total y por cliente»— y obedecía: volcó los 8 clientes que nadie pidió. Y el porqué recibía el
+   * mismo pedido de lista y salió en ~520 palabras con cinco subtítulos. Cada ruta pide SU entregable; la
+   * lectura completa sigue siendo la de la ruta estándar, y el detalle se abre cuando lo piden. */
+  entregable(pregunta) {
+    switch (_rutaDe(pregunta)) {
+      case "primero":
+        return "por dónde entrar PRIMERO —una sola cuenta— y por qué esa: la contribución no capturada que concentra, con su cifra y contra el total. Sin recorrer la cartera: el ranking ya lo vio, y si lo quiere lo pide. La acción se OFRECE; jamás se ordena.";
+      case "porque":
+        return "por qué pasa, en prosa: la tesis en una frase; qué está medido, qué es patrón y qué queda abierto —cada mecanismo con su huella, dicho en lengua de negocio, sin etiquetas—; la pregunta al dueño sobre la intención (el dato no la mide); y por dónde entrarías, marcado como criterio tuyo. Los dos o tres que más pesan, con su cifra, alcanzan: la cartera cuenta por cuenta se abre cuando la pidan.";
+      case "sello":
+        return "qué parte está medida, qué parte es patrón y qué parte queda abierta, mecanismo por mecanismo, y lo que ninguna columna prueba —la intención—, que se le pregunta al dueño. Sin volver a contar la lectura entera.";
+      case "seguimiento":
+        return "si la lectura que este hilo ya dejó se confirma o cambia, re-midiendo: qué cambió y qué no, con su cifra, y qué harías con eso — ofrecido.";
+      default:
+        return "qué clientes están bajo el benchmark (con su margen y su venta), cuánta contribución no se captura —total y por cliente— y a quién conviene revisar primero, con su cifra. Las acciones se OFRECEN para que el usuario las evalúe; jamás se ordenan.";
+    }
+  },
 
   /* ── EL ENTREGABLE DETERMINÍSTICO · el peldaño que responde cuando el cerebro no pudo ────────────────────────
    * Cifras VERBATIM de la boleta. Una línea por cliente A PROPÓSITO: apilar varias cifras en una sola oración

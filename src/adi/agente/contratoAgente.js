@@ -389,7 +389,53 @@ export function vetosDeContrato(texto, contexto = {}) {
   if (dosOrdenes) {
     v.push({ regla: "dos-ordenes", multa: `enumeras «${dosOrdenes.prosa.join(", ")}» y la tabla de la misma respuesta los muestra como «${dosOrdenes.tabla.join(", ")}». Un conjunto se presenta en UN orden: si el usuario dice «el primero», tiene que haber uno solo. Enumera en el orden de la tabla, o no enumeres.` });
   }
+  /* la forma se juzga al cerebro, no a los peldaños: cierre, reparación y la poda de ese mismo texto */
+  if (contexto.sitio === "cierre" || contexto.sitio === "reparacion" || contexto.sitio === "poda") v.push(...vetosDeFormato(texto, contexto));
   return v;
+}
+
+/* ── LA DENSIDAD EJECUTIVA (owner 2026-09-11, tras la batería en vivo de la Etapa 4) ────────────────────────
+ * «Quiero cerrar esto como experiencia premium, no solamente como respuesta correcta.» Su regla, textual: la
+ * densidad ejecutiva, no la brevedad por brevedad — tesis → evidencia mínima → criterio o siguiente paso. Y con
+ * criterio CONTEXTUAL: si el usuario no pidió detalle, sin subtítulos, sin bloques largos, sin listas extensas;
+ * una lista solo cuando ordena información o la pidieron; negrita para una conclusión puntual, no un informe
+ * lleno de encabezados. Lo que salió en su batería: «¿Cómo va?» en 380 palabras con tres subtítulos en negrita,
+ * el porqué en ~520 con cinco, y «¿qué harías primero?» volcando una lista de 8 clientes que nadie pidió.
+ * NO se mide un número de palabras (su condición: un tope rígido deteriora la calidad): se mide la FORMA. La
+ * mecánica es la de siempre —el veto da UNA oportunidad de reescribir (la reparación) y, si vuelve a incumplir,
+ * responde el procedimiento determinístico, que ya habla bien—. Se juzga al cerebro, no a los peldaños. */
+const _PIDE_DETALLE = /\bdetalle|\bdetallad|\bdesgl[oó]s|\ba fondo\b|\bcomplet[oa]\b|\buno por uno\b|\bcuenta por cuenta\b|\bcliente por cliente\b|\bsku por sku\b|\bpara el analista\b|\bcon todo\b|\bpaso a paso\b|\bm[aá]s (?:largo|extenso)\b|\bexti[eé]ndete\b|\bexpl[aá]yate\b/i;
+const _PIDE_LISTA = /\bcu[aá]l(?:es)?\b|\bqui[eé]n(?:es)?\b|\bqu[eé] (?:clientes|cuentas|sku|productos|bodegas|familias|canales)\b|\branking\b|\btop\b|\blos (?:\d+|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b|\btod[oa]s\b|\bcada\b|\blista\b|\bl[ií]stame\b|\btabla\b|\ben vi[ñn]etas\b|\benum[eé]ra/i;
+export const pideDetalle = (pregunta) => _PIDE_DETALLE.test(String(pregunta || ""));
+export const pideLista = (pregunta) => _PIDE_LISTA.test(String(pregunta || ""));
+const _ES_ITEM = /^\s*(?:[-·•*]|\d{1,2}[.)])\s+/;
+/* un encabezado: «# Título», una línea que es SOLO un rótulo en negrita, o un rótulo en negrita que abre la
+ * línea y se cierra con dos puntos («**Qué haría primero:** partiría por…»). La negrita en medio de una frase
+ * («la cuenta es **Falabella**») no es encabezado: es énfasis, y una conclusión puntual puede llevarlo. */
+const _ES_ENCABEZADO = (l) => /^\s*#{1,6}\s/.test(l)
+  || /^\s*(?:[-·•*]\s+|\d{1,2}[.)]\s+)?\*\*[^*\n]{2,100}\*\*\s*:?\s*$/.test(l)
+  || /^\s*(?:[-·•*]\s+|\d{1,2}[.)]\s+)?\*\*[^*\n]{2,100}(?::\*\*|\*\*\s*:)/.test(l);
+export const TOPE_ITEMS_SIN_PEDIR = 5;    // una lista de más de cinco ítems que nadie pidió es un informe
+export const TOPE_PALABRAS_BLOQUE = 120;  // un solo párrafo de más de ciento veinte palabras es una pared
+export function vetosDeFormato(texto, { pregunta = "" } = {}) {
+  const t = String(texto || "");
+  if (!t.trim()) return [];
+  const q = String(pregunta || "");
+  if (pideDetalle(q)) return [];                      // pidió detalle: los subtítulos y las listas son suyos
+  const lineas = t.split(/\r?\n/);
+  const motivos = [];
+  /* una conclusión puntual en negrita pasa; dos rótulos ya son un informe. Cuando SÍ pidieron una lista
+   * («los 3 riesgos y las 3 acciones»), dos secciones tituladas son la estructura que ordena — se toleran. */
+  const lista = pideLista(q);
+  const encabezados = lineas.filter(_ES_ENCABEZADO).length;
+  if (encabezados > (lista ? 2 : 1)) motivos.push(`${encabezados} subtítulos`);
+  const items = lineas.filter((l) => _ES_ITEM.test(l)).length;
+  if (items > TOPE_ITEMS_SIN_PEDIR && !lista) motivos.push(`una lista de ${items} ítems que nadie pidió`);
+  const largo = lineas.map((l) => (_ES_ITEM.test(l) || /^\s*\|/.test(l)) ? 0 : l.trim().split(/\s+/).filter(Boolean).length).find((n) => n > TOPE_PALABRAS_BLOQUE);
+  if (largo) motivos.push(`un bloque de ${largo} palabras`);
+  if (!motivos.length) return [];
+  return [{ regla: "formato-de-informe",
+    multa: `esto tiene forma de informe y nadie pidió detalle: ${motivos.join(" · ")}. La forma es densidad ejecutiva: la tesis en una frase, la evidencia mínima que la sostiene (una cifra, una vez) y el criterio o siguiente paso, en prosa. Sin subtítulos; una lista solo si ordena información o la pidieron; negrita, a lo sumo, para una conclusión puntual. El detalle se ofrece, no se despliega. Mismas cifras, misma conclusión.` }];
 }
 
 const _reNombreCont = (n) => new RegExp(`(?:^|[^\\wáéíóúñ])${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\wáéíóúñ])`, "i");
