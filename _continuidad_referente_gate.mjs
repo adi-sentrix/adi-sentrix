@@ -135,22 +135,28 @@ const turno = async (q, cerebro = MUDO) => {
   ok(t2.a.referente && t2.a.referente.alcance === "cartera", "★★ CASO 1: «ese resultado» se resuelve al negocio entero");
   ok(t2.a.estado === "playbook" && !FALSA.test(t2.t), `…y el procedimiento del porqué responde a ese nivel (${t2.a.estado})`, t2.t.slice(0, 120));
   ok(!/^\s*(?:\w[\w ]*) · /.test(t2.t) && !/Lo que sí tengo verificado: [^·\n]+ · Brecha/.test(t2.t), "…sin reducirse a la fila de una cuenta");
+  /* T3 con hilo de margen lo toma el PROCEDIMIENTO del margen (ver §3b): lo que el usuario ve es SU ranking, y el
+   * ordinal sigue a ese ranking — el conjunto presentado P se lee del scope escrito, no del orden del mock. */
   const t3 = await turno("¿Qué clientes explican más eso?", cerebroTabla());
-  ok(t3.cs && t3.cs.entities.join(",") === CUATRO.join(","), `T3 la tabla deja el conjunto presentado: ${CUATRO.join(" → ")}`, t3.cs && t3.cs.entities.join(","));
+  const P = (t3.cs && Array.isArray(t3.cs.entities)) ? t3.cs.entities : [];
+  ok(t3.cs && t3.cs.dimension === "cliente" && P.length >= 3, `T3 deja escrito el conjunto PRESENTADO (${P.length}): ${P.join(" → ")}`, t3.cs && t3.cs.entities.join(","));
+  ok(P.every((n) => nombra(t3.t, n)) && P.map((n) => t3.t.search(new RegExp(`(?:^|[^\\wáéíóúñ])${n}(?![\\wáéíóúñ])`))).every((v, i, a) => i === 0 || v > a[i - 1]),
+    "★ …y ese conjunto es el que la pantalla muestra, en el orden en que lo muestra");
+  const [P1, P2] = P;
   const t4 = await turno("Profundiza en el primero.");
-  ok(t4.a.referente && t4.a.referente.entities && t4.a.referente.entities[0] === E1, `★★ CASO 2: «el primero» = ${E1}`, JSON.stringify(t4.a.referente));
-  ok(t4.a.estado === "playbook" && nombra(t4.t, E1) && !FALSA.test(t4.t), `…y con el cerebro mudo la FICHA de ${E1} responde (${t4.a.estado})`, t4.t.slice(0, 100));
-  ok(!new RegExp(`^${E2}`).test(t4.t), `…no la de ${E2}`);
+  ok(t4.a.referente && t4.a.referente.entities && t4.a.referente.entities[0] === P1, `★★ CASO 2: «el primero» = ${P1} (el primero de lo que acaba de ver)`, JSON.stringify(t4.a.referente));
+  ok(t4.a.estado === "playbook" && nombra(t4.t, P1) && !FALSA.test(t4.t), `…y con el cerebro mudo la FICHA de ${P1} responde (${t4.a.estado})`, t4.t.slice(0, 100));
+  ok(!new RegExp(`^${P2}`).test(t4.t), `…no la de ${P2}`);
   const t5 = await turno("Ahora el segundo.");
-  ok(t5.a.referente.entities[0] === E2 && nombra(t5.t, E2) && t5.a.estado === "playbook", `«Ahora el segundo.» → ${E2}, con ficha`, t5.t.slice(0, 80));
-  ok(t5.cs.selection.subset.entities[0] === E2 && t5.cs.selection.subset.anterior[0] === E1, "…y el scope recuerda la selección y la anterior");
+  ok(t5.a.referente.entities[0] === P2 && nombra(t5.t, P2) && t5.a.estado === "playbook", `«Ahora el segundo.» → ${P2}, con ficha`, t5.t.slice(0, 80));
+  ok(t5.cs.selection.subset.entities[0] === P2 && t5.cs.selection.subset.anterior[0] === P1, "…y el scope recuerda la selección y la anterior");
   const t6 = await turno("¿Y ese?");
-  ok(t6.a.referente.entities[0] === E2 && nombra(t6.t, E2), `«¿Y ese?» → sigue en ${E2}`);
+  ok(t6.a.referente.entities[0] === P2 && nombra(t6.t, P2), `«¿Y ese?» → sigue en ${P2}`);
   const t7 = await turno("Compáralo con el anterior.");
-  ok(t7.a.referente.entities.join(",") === `${E2},${E1}`, `«Compáralo con el anterior.» → ${E2} vs ${E1}`, JSON.stringify(t7.a.referente));
-  ok(t7.a.estado === "playbook" && nombra(t7.t, E1) && nombra(t7.t, E2) && !FALSA.test(t7.t), "…y comparar-alternativas responde con las dos (los dos caminos, con precio)", t7.t.slice(0, 100));
+  ok(t7.a.referente.entities.join(",") === `${P2},${P1}`, `«Compáralo con el anterior.» → ${P2} vs ${P1}`, JSON.stringify(t7.a.referente));
+  ok(t7.a.estado === "playbook" && nombra(t7.t, P1) && nombra(t7.t, P2) && !FALSA.test(t7.t), "…y comparar-alternativas responde con las dos (los dos caminos, con precio)", t7.t.slice(0, 100));
   const t8 = await turno("¿Qué explica eso?");
-  ok(t8.a.referente.entities.join(",") === `${E2},${E1}` && !FALSA.test(t8.t) && nombra(t8.t, E1) && nombra(t8.t, E2), "«¿Qué explica eso?» conserva el par — y si no hay lectura, el límite NOMBRA al par (nunca la frase falsa)", t8.t.slice(0, 120));
+  ok(t8.a.referente.entities.join(",") === `${P2},${P1}` && !FALSA.test(t8.t) && nombra(t8.t, P1) && nombra(t8.t, P2), "«¿Qué explica eso?» conserva el par — y si no hay lectura, el límite NOMBRA al par (nunca la frase falsa)", t8.t.slice(0, 120));
   const t9 = await turno("Volvamos al negocio completo.");
   ok(t9.cs.dimension === "cartera" && t9.a.estado === "playbook" && !FALSA.test(t9.t), "«Volvamos al negocio completo.» → negocio entero, con la foto del negocio como procedimiento", t9.a.estado);
   const t10 = await turno("¿Qué explica eso?");
@@ -158,6 +164,7 @@ const turno = async (q, cerebro = MUDO) => {
 }
 {
   history = []; mem = {};
+  /* sin hilo de margen no hay procedimiento que lo tome: la tabla de CUATRO del mock es lo que se presenta */
   await turno("¿Qué clientes explican más eso?", cerebroTabla());
   const s1 = await turno(`Ahora solo ${E1}.`);
   ok(s1.a.estado === "playbook" && nombra(s1.t, E1) && s1.cs.entities.join(",") === CUATRO.join(",") && s1.cs.selection.subset.entities[0] === E1,
@@ -168,6 +175,47 @@ const turno = async (q, cerebro = MUDO) => {
   /* tras seleccionar a los tres, «los otros» es UNO (la cuenta que quedó afuera): «dos» no calza y se dice */
   const s3 = await turno("¿Y los otros dos?");
   ok(s3.a.estado === "referente-sin-conjunto" && s3.a.calls === 0 && /son 1, no 2/.test(s3.t) && nombra(s3.t, E1), "«¿Y los otros dos?» cuando no calza → se dice cuántos son y quiénes, sin llamar al cerebro", s3.t);
+}
+
+/* ═══ 3b · ★★ LA MINI PRUEBA DEL OWNER (2026-09-11, segunda ronda) — T1 → T2 → T3 → T4 ═══════════════════════
+ * «T2 falla: ADI no conserva la tesis del negocio y no baja a dimensión cliente. T3: al no existir un grupo
+ * válido recién presentado, cae a Falabella — no es una resolución confiable del ordinal.» Dos causas, las dos
+ * cerradas: (a) «¿qué clientes explican más eso?» no tenía procedimiento — iba al cerebro libre, que contestaba
+ * desde el hilo sin herramientas (o no contestaba) y no dejaba conjunto sellado; (b) un ordinal sin lista
+ * devolvía «none» y el cerebro elegía por saliencia. Se mide con el cerebro MUDO y con uno que contesta desde
+ * el hilo sin herramientas, que es lo que parece haber hecho producción. */
+H("3b · ★★ la mini prueba del owner: la tesis del negocio baja a clientes con procedimiento, y el ordinal sigue a ESE ranking");
+{
+  const DESDE_EL_HILO = async ({ mensajes }) => {
+    const t1 = mensajes.filter((m) => m.role === "assistant").map((m) => m.content).find((c) => /benchmark/i.test(c)) || "";
+    const cifras = (t1.match(/\$[\d.,]+[KMB]?/g) || []).slice(0, 3).join(", ");
+    return { tipo: "texto", texto: `Los que más explican esa brecha son ${E2}, ${E1} y ${E4}: entre los tres concentran ${cifras} de contribución no capturada. ¿Abro alguno?` };
+  };
+  for (const [como, cerebroT2] of [["cerebro MUDO", MUDO], ["cerebro que contesta desde el hilo sin herramientas", DESDE_EL_HILO]]) {
+    history = []; mem = {};
+    const t1 = await turno("¿Cómo va el negocio?");
+    ok(t1.a.estado === "playbook" && t1.cs.dimension === "cartera", `[${como}] T1 la foto del negocio deja alcance = negocio entero`);
+    const t2 = await turno("¿Qué clientes explican más eso?", cerebroT2);
+    ok(t2.a.estado === "playbook" && t2.a.calls >= 2, `★★ [${como}] T2 lo toma el PROCEDIMIENTO del margen con sus herramientas (${t2.a.estado}, ${t2.a.calls} calls)`, t2.t.slice(0, 120));
+    ok(/bajo el benchmark/i.test(t2.t) && /sin capturar/i.test(t2.t) && !FALSA.test(t2.t), "★ …restablece la tesis del negocio y baja a los clientes que la explican, con cifras", t2.t.slice(0, 160));
+    ok(t2.cs && t2.cs.dimension === "cliente" && t2.cs.entities.length >= 2, `★ …y deja escrito el conjunto que presentó: ${t2.cs && t2.cs.entities.join(" → ")}`);
+    const primero = t2.cs.entities[0], segundo = t2.cs.entities[1];
+    const t3 = await turno("Profundiza en el primero.");
+    ok(t3.a.referente && t3.a.referente.entities && t3.a.referente.entities[0] === primero, `★★ [${como}] T3 «el primero» = ${primero}, el primero del ranking que acaba de ver — no la cuenta más saliente`, JSON.stringify(t3.a.referente));
+    ok(t3.a.estado === "playbook" && nombra(t3.t, primero) && !FALSA.test(t3.t), `…y responde con la ficha de ${primero}`, t3.t.slice(0, 80));
+    const t4 = await turno("Ahora el segundo.");
+    ok(t4.a.referente && t4.a.referente.entities && t4.a.referente.entities[0] === segundo && nombra(t4.t, segundo), `★ [${como}] T4 «el segundo» = ${segundo}`, t4.t.slice(0, 80));
+  }
+  /* y el ordinal SIN lista: no se adivina, se pide la lista — y las formas de tiempo no son ordinales */
+  history = []; mem = {};
+  await turno("¿Cómo va el negocio?");
+  const sinLista = await turno("Profundiza en el primero.");
+  ok(sinLista.a.estado === "referente-sin-conjunto" && sinLista.a.calls === 0 && /lista reciente/i.test(sinLista.t) && !FALSA.test(sinLista.t),
+    "★★ «el primero» sin ranking previo → se declina nombrando lo que falta (la lista), sin llamar al cerebro y sin elegir por saliencia", sinLista.t.slice(0, 140));
+  const cart = { version: 1, current: { dimension: "cartera", entities: [], selection: null, tenant: { tenantId: RC.tenantId } }, history: [] };
+  for (const q of ["¿es la primera vez que pasa?", "en los primeros meses del año", "el último trimestre", "¿cuál es el primer paso?", "dame los 5 clientes de mejor margen"]) {
+    ok(resolveConversationReference(q, { scope: { level: null, entities: [] } }, cart, RC).kind === "none", `no es un ordinal de lista: «${q}»`);
+  }
 }
 
 /* ═══ 4 · ★★ EL CEREBRO QUE SE EQUIVOCA DE REFERENTE — lo que hizo producción ═══════════════════════════════ */

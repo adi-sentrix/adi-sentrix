@@ -602,7 +602,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
      * antes de correr (la misma coerción que el oráculo hacía con su plan). Solo cuando el referente es UNA
      * entidad y la pedida está en el conjunto presentado: un pedido por una cuenta de afuera es otra cosa y
      * se respeta. Queda en el expediente: nunca una corrección muda. */
-    const pedidos = pedidosCrudos.map((p) => {
+    const pedidosCoercidos = pedidosCrudos.map((p) => {
       const ent = p && p.args && typeof p.args.entity === "string" ? p.args.entity : null;
       if (!ent || !referente || referente.kind !== "resolved" || referente.entities.length !== 1) return p;
       const conjunto = (scopePrev.current && Array.isArray(scopePrev.current.entities)) ? scopePrev.current.entities : [];
@@ -610,6 +610,18 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       motivosCoercion.push(`${p.tool}: pidió ${ent}, el referente resuelto es ${referente.entities[0]}`);
       return { ...p, args: { ...p.args, entity: referente.entities[0] } };
     });
+    /* UNA HERRAMIENTA NO CORRE DOS VECES CON LOS MISMOS ARGUMENTOS EN EL MISMO TURNO (2026-09-11, cazado al
+     * medir la mini prueba): el playbook ya había corrido `marginRead` y el cerebro la volvió a pedir; la boleta
+     * quedó con cada cliente DUPLICADO y el composer, que reconcilia «8 de 8», vio 16 y se retiró. Los resultados
+     * ya están arriba en el hilo: se le dice y no se re-corre — que además es una llamada menos. */
+    const _firma = (p) => `${p.tool}::${JSON.stringify(p.args || {})}`;
+    const yaCorridas = new Set(callsDelTurno.map(_firma));
+    const pedidos = pedidosCoercidos.filter((p) => !yaCorridas.has(_firma(p)));
+    if (!pedidos.length) {
+      destino.push({ role: "assistant", content: `[pedido de herramientas] ${pedidosCoercidos.map((p) => p.tool).join(", ")}` });
+      destino.push({ role: "user", content: "[MOTOR — no es el usuario] Esas herramientas ya corrieron en este turno con esos mismos argumentos y sus resultados están arriba. Responde con ellos; no hace falta volver a pedirlas." });
+      return true;   // la ronda se consume, la boleta no se duplica
+    }
     const rp = runPlan({ intent: "answer", calls: pedidos.map((p) => ({ tool: p.tool, args: p.args || {} })) },
       { scenario, maxCalls: cupo, preguntaUsuario: q, registry: caja });
     calls += Math.min(pedidos.length, cupo);

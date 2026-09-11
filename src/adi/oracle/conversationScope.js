@@ -711,6 +711,11 @@ function _ordN(text) {
   const raw = m[1].toLowerCase();
   return _NUM_WORDS[raw] || parseInt(raw, 10) || null;
 }
+/* la forma ordinal PURA: posición dentro de una lista («el primero», «la segunda», «el último», «el anterior»,
+ * «los otros»). Quedan fuera las de TIEMPO —«la primera vez», «los primeros meses», «el último trimestre»— que
+ * no apuntan a ninguna lista, y la cardinalidad suelta («los 5 clientes»), que sin lista es una lectura nueva. */
+const _ORDINAL_PURO_RE = /\b(?:el|la|los|las)\s+(?:primer[oa]s?|segund[oa]s?|tercer[oa]s?|cuart[oa]s?|quint[oa]s?|[uú]ltim[oa]s?|anterior(?:es)?|otr[oa]s|dem[aá]s)(?!\s+(?:vez|veces|d[ií]as?|mes(?:es)?|semanas?|a[ñn]os?|trimestres?|semestres?|per[ií]odos?|periodos?|meses|quincenas?|horas?|paso|pasos|cosa|cosas|opci[oó]n|opciones|lugar|punto|puntos|parte|partes))(?![\wáéíóúñ])/i;
+function _esOrdinalPuro(text) { return _ORDINAL_PURO_RE.test(String(text || "")); }
 /* ⚠️ UNA LECTURA NUEVA NO ES UNA REFERENCIA (cazado al cablear el agente, 2026-09-11): «dame los 5 clientes de
  * mejor margen» tras una tabla de cuatro resolvía «los 5» y «mejor» sobre el conjunto presentado. En el oráculo
  * este resolutor corría solo cuando PLAN no había resuelto; en el agente no hay PLAN, así que el contrapeso va
@@ -956,6 +961,12 @@ export function resolveConversationReference(text, plan, scopePrev, requestConte
     const revalidated = ordinal.entities.filter((e) => guessDimension(e) === baseOrdinal.dimension);
     return revalidated.length ? { kind: "resolved", entities: revalidated, dimension: baseOrdinal.dimension } : { kind: "decline", reason: "sin_referente" };
   }
+  /* ⚠️ UN ORDINAL SIN LISTA NO SE ADIVINA (mini prueba del owner, 2026-09-11): «profundiza en el primero» con
+   * el turno anterior sin conjunto sellado devolvía «none» y el cerebro elegía por saliencia — cayó en la
+   * cuenta que más se había nombrado, que no era «el primero» de nada. Con una forma ordinal PURA y sin lista
+   * vigente, se declina nombrando lo que falta: la lista. La cardinalidad suelta («los 5 clientes…») no cuenta
+   * como ordinal puro: sin lista es una lectura nueva, y sigue su camino. */
+  if (_esOrdinalPuro(t)) return { kind: "decline", reason: "sin_lista", detalle: { forma: (t.match(_ORDINAL_PURO_RE) || [""])[0].trim() } };
 
   const isDeictic = _DEICTIC_PLURAL_RE.test(t);
   if (!isDeictic) {
@@ -1055,6 +1066,10 @@ export function composeReferenceDecline(reason, detalle = null) {
   if (r === "otro_tenant") return `Esa referencia es de otra empresa/conversación — no puedo reusarla acá. Dime a qué entidad te refieres.`;
   if (r === "sin_referente") return `No tengo un grupo de entidades reciente al que eso pueda referirse — dime a cuáles te refieres.`;
   if (r === "sin_anterior") return `No hay una selección anterior con la que comparar en esta conversación — dime con cuál.`;
+  if (r === "sin_lista") {
+    const forma = detalle && detalle.forma ? `«${detalle.forma}»` : "ese ordinal";
+    return `No tengo una lista reciente de la que tomar ${forma}: la última respuesta no dejó un ranking. Pídeme el ranking —por ejemplo, qué clientes explican más la brecha— y de ahí seguimos con el primero, el segundo o el que quieras.`;
+  }
   if (r === "conteo_no_calza" && detalle && Array.isArray(detalle.otros)) {
     return `Los otros son ${detalle.otros.length}, no ${detalle.pedidos}: ${detalle.otros.join(", ")}. ¿Sigo con esos?`;
   }
@@ -1070,10 +1085,16 @@ export function composeReferenceDecline(reason, detalle = null) {
 export function doctrinaDeReferente(ref, current) {
   if (!ref) return null;
   if (ref.kind === "resolved-scope" && ref.alcance === "cartera") {
+    /* ⚠️ LA PRIMERA LETRA DECÍA «no lo reduzcas a una cuenta» y el cerebro la leyó como «no nombres cuentas»
+     * justo cuando la pregunta pedía cuentas (mini prueba del owner, 2026-09-11). El alcance de negocio NO
+     * prohíbe bajar a la dimensión que la pregunta pide: prohíbe cambiar el tema a UNA cuenta. Bajar la tesis
+     * del negocio a quiénes la explican —con herramientas, del negocio hacia abajo— es exactamente responder. */
     return [
       "[PROCEDIMIENTO — no es el usuario] EL ALCANCE DE ESTE TURNO ES EL NEGOCIO ENTERO (la cartera completa).",
-      "La pregunta apunta al resultado que ya mostraste a nivel de negocio: respóndela a ESE nivel. No lo reduzcas a",
-      "una cuenta. Si nombras cuentas, es para LOCALIZAR dónde pesa algo, no para cambiar el tema a una de ellas.",
+      "La pregunta apunta al resultado que ya mostraste a nivel de negocio: parte de ESA tesis, no de una cuenta.",
+      "Si la pregunta pide QUÉ cuentas (o marcas, familias, SKU) lo explican, la respuesta es el conjunto que lo",
+      "concentra, con sus cifras, leído con herramientas del negocio hacia abajo — jamás una sola cuenta elegida",
+      "por ti, y jamás desde la memoria del hilo sin leer.",
     ].join("\n");
   }
   if (ref.kind === "resolved" && Array.isArray(ref.entities) && ref.entities.length) {

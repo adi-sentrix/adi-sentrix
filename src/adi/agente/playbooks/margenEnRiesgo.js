@@ -141,6 +141,23 @@ const _PIDE_PORQUE_ELIPTICO = new RegExp([
   `\\bqu[eé] (?:est[aá] )?explic(?:a|ando)(?: principalmente)?(?: eso| esto| ese resultado| este resultado| ese n[uú]mero)?\\s*\\??$`,
   `\\bqu[eé] lo explica\\s*\\??$`, `\\bqu[eé] hay detr[aá]s(?: de eso| de esto)?\\s*\\??$`,
 ].join("|"), "i");
+/* ── LA LOCALIZACIÓN ELÍPTICA (mini prueba del owner, 2026-09-11) ─────────────────────────────────────────
+ * «¿Qué clientes explican más eso?» después de la foto del negocio —cuya tesis es el margen bajo el
+ * benchmark— pide BAJAR la tesis a la dimensión cliente: el ranking de quiénes la explican. Es la lectura
+ * ESTÁNDAR de este playbook (quiénes están bajo el benchmark, cuánto deja sin capturar cada uno, a quién
+ * revisar primero), y no tenía puerta: el turno iba al cerebro libre, que contestaba desde el hilo sin
+ * herramientas o no contestaba — y sin herramientas no queda conjunto sellado, así que «profundiza en el
+ * primero» no tenía de dónde tomar «el primero» y caía en la cuenta más saliente. Con procedimiento, el
+ * ranking sale de la boleta y el conjunto que se presenta queda escrito para el ordinal que sigue.
+ * Misma condición que el porqué elíptico: la última lectura del hilo tiene que ser de margen. */
+const _PIDE_QUIENES_ELIPTICO = new RegExp([
+  `\\bqu[eé] (?:clientes?|cuentas?) (?:lo |la )?explic(?:a|an)(?: m[aá]s| mejor)?(?: eso| esto| ese resultado| esa brecha| la brecha)?\\s*\\??$`,
+  `\\bqui[eé]n(?:es)? (?:lo |la )?explic(?:a|an)(?: m[aá]s)?(?: eso| esto)?\\s*\\??$`,
+  `\\ben qu[eé] (?:clientes?|cuentas?) est[aá](?: eso| esto| la brecha)?\\s*\\??$`,
+  `\\bqu[eé] (?:clientes?|cuentas?) (?:concentran|pesan m[aá]s|lo cargan|cargan)(?: eso| esto| en eso| la brecha| esa brecha)?\\s*\\??$`,
+  `\\bd[oó]nde est[aá] (?:eso|esa brecha|la brecha)\\s*\\??$`,
+  `\\bb[aá]ja(?:lo|la|melo|mela)? a clientes?\\s*\\??$`, `\\bpor cliente\\s*\\??$`,
+].join("|"), "i");
 /* la última respuesta del asistente habla de margen: la palabra Y una señal de lectura (benchmark/vara/pp).
  * La ficha y la foto también la traen —su tesis abre por el margen— y ahí el porqué de la cartera ES la
  * explicación disponible; una respuesta de cobranza o de inventario no la trae, y la puerta queda cerrada. */
@@ -472,6 +489,9 @@ export const margenEnRiesgo = {
     /* el PORQUÉ ELÍPTICO entra solo si la última lectura del hilo fue de margen (ver arriba): sin hilo — los
      * gates de siempre no lo pasan — o con la última de otro tema, la puerta queda cerrada y no roba nada. */
     if (_PIDE_PORQUE_ELIPTICO.test(q) && _hiloDeMargen(ctx)) return true;
+    /* la LOCALIZACIÓN elíptica («¿qué clientes explican más eso?») entra con la misma condición: baja la tesis
+     * de margen del hilo a la dimensión cliente, por la ruta estándar (el ranking de quiénes la explican) */
+    if (_PIDE_QUIENES_ELIPTICO.test(q) && _hiloDeMargen(ctx)) return true;
     /* ⚠️ LA FORMA DE LA PREGUNTA MANDA (owner 2026-09-09, textual): «Margen general solo debe ganar cuando la
      * pregunta es de margen general, NO cuando margen aparece dentro de una comparación o tradeoff.»
      * Medido: «¿qué es más urgente, margen o cobranza?» y «¿vendo más o protejo margen?» recibían la lectura de
