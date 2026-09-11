@@ -120,12 +120,14 @@ H("4 · la ley está conectada, no solo escrita");
   /* el import trae también `componerReformulacion` desde 2026-09-10: el piso que re-dice la previa cuando el
    * cerebro no puede (ver §8) — sin él, prohibir la frase falsa no alcanzaba para responder. */
   /* …y desde la Etapa 3 también `destinatarioDe` y `doctrinaDeAudiencia`: el molde del lector viaja solo en el turno que lo nombra */
-  ok(/import \{ esReformular, doctrinaDeReformular, vetosDeReformular, componerReformulacion, destinatarioDe, doctrinaDeAudiencia \}/.test(bucle), "el bucle la importa");
+  /* …y desde la batería en vivo de la Etapa 4 también `previaSustantiva`: la respuesta que se reformula es la última
+   * SUSTANTIVA del hilo — las reformulaciones encadenadas degradaban el material (ver §10) */
+  ok(/import \{ esReformular, doctrinaDeReformular, vetosDeReformular, componerReformulacion, destinatarioDe, doctrinaDeAudiencia, previaSustantiva \}/.test(bucle), "el bucle la importa");
   ok(/if \(_esReformularDelTurno\) mensajes\.push/.test(bucle), "…empuja su doctrina en el turno que la pide");
   ok(/vetosDeReformular\(t, \{ pregunta: q, previa: _previaDelHilo, sitio \}\)/.test(bucle),
     "★ …y la juzga con la respuesta ANTERIOR del hilo, que es el material del turno");
   ok(/\.\.\.vRef2,/.test(bucle), "…y su resultado entra a la lista de vetos que decide el turno");
-  ok(/const _previaDelHilo = /.test(bucle) && /h\.role !== "user"/.test(bucle),
+  ok(/const _previaDelHilo = previaSustantiva\(history\);/.test(bucle),
     "…leyendo el hilo que el bucle ya tiene, sin inventar una segunda memoria");
 }
 
@@ -312,6 +314,51 @@ H("9 · ★ el piso por audiencia: misma conclusión, distinta forma — y «má
   /* y la vara del owner para «más corto» sin cifra ya no arde en el cerebro: con la conclusión a bordo, alcanza */
   ok(vetosDeReformular("Creces, pero con margen presionado. Falabella concentra la mayor recuperación potencial; yo empezaría por ahí.", { pregunta: "dímelo más corto", previa: FOTO, sitio: "cierre" }).length === 0,
     "★ el ejemplo textual del owner de «más corto» —sin cifra, con la conclusión— pasa limpio los vetos de la ruta");
+}
+
+/* ═══ 10 · ★★ LA BATERÍA EN VIVO DE LA ETAPA 4 (owner 2026-09-11): las formas que se iban al cerebro libre ═══
+ * Tres turnos de su batería no eran de esta ruta para el detector: «Dámelo más corto.» (el verbo se escribía
+ * con «í»), «Ahora para directorio.» (sin artículo no había lector) y la cadena entera degradaba el material
+ * porque cada reformulación se apoyaba en la ANTERIOR (dos frases) y no en la respuesta sustantiva. */
+H("10 · ★★ la batería en vivo: «dámelo», «ahora para directorio» y la cadena que no degrada");
+{
+  const { previaSustantiva } = await import("./src/adi/agente/reformular.js");
+  ok(esReformular("Dámelo más corto.") && esReformular("dámelo en dos líneas"), "★ «Dámelo más corto» ES reformular: «dá» y «dí» son el mismo verbo");
+  ok(esReformular("Ahora para directorio.") && esReformular("¿y para comercial?") && esReformular("también para finanzas"),
+    "★ la frase que es SOLO el lector («Ahora para directorio.») pide lo mismo para otro: no hace falta verbo");
+  ok(destinatarioDe("Ahora para directorio.") === "el directorio" && destinatarioDe("Explícamelo para comercial") === "el equipo comercial",
+    "…y el lector sin artículo se nombra completo (directorio → «el directorio», comercial → «el equipo comercial»)");
+  ok(!esReformular("los riesgos para el directorio") && !esReformular("¿qué vendo para el directorio de Falabella?"),
+    "…sin tragarse lecturas nuevas que nombran un lector de paso");
+
+  /* previaSustantiva: la respuesta que se reformula es la última cuya pregunta NO fue reformular */
+  const HS = [
+    { role: "user", text: "¿Cómo va el negocio?" }, { role: "assistant", text: "El negocio está creciendo, pero deja menos margen del que debería. Entraría por Falabella: ahí coinciden el volumen y la carga excedida." },
+    { role: "user", text: "Dámelo más corto." }, { role: "assistant", text: "Lo mismo, más corto: entraría por Falabella. Ahí coinciden el volumen y la carga excedida." },
+    { role: "user", text: "Ahora para directorio." }, { role: "assistant", text: "Para el directorio, en corto: entraría por Falabella. Ahí coinciden el volumen y la carga excedida." },
+  ];
+  ok(previaSustantiva(HS) === HS[1].text, "★★ `previaSustantiva` salta las reformulaciones y devuelve la respuesta sustantiva del hilo");
+  ok(previaSustantiva(HS.slice(0, 2)) === HS[1].text && previaSustantiva([]) === null, "…la primera respuesta cuenta, y sin hilo devuelve null");
+
+  /* la cadena entera del owner con el cerebro MUDO: T1 foto → T3 corto → T4 comercial → T5 directorio.
+   * El material de T4 y T5 es la FOTO (no la reformulación previa): la conclusión llega verbatim a los tres. */
+  const MUDO3 = async () => ({ tipo: "texto", texto: "" });
+  let h = [], mem = {};
+  const paso = async (q) => { const r = await answerViaAgente({ text: q, history: h, mem, scenario: ESC, callAgente: MUDO3 }); h = [...h, { role: "user", text: q }, { role: "assistant", text: String(r.r.text || "") }]; mem = r.mem || mem; return { t: String(r.r.text || ""), a: r.r.agente }; };
+  const t1 = await paso("¿Cómo va el negocio?");
+  const t3 = await paso("Dámelo más corto.");
+  const t4 = await paso("Explícamelo para el equipo comercial.");
+  const t5 = await paso("Ahora para directorio.");
+  const tesis2 = t1.t.split("\n")[0].trim();
+  const criterio2 = ((t1.t.split("\n").find((l) => /entrar[ií]a por|mirar[ií]a primero|empezar[ií]a por/i.test(l)) || "").split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¿«])/)[0] || "").trim();
+  ok(t1.a.estado === "playbook" && [t3, t4, t5].every((x) => x.a.estado === "reformular-piso"), `los tres turnos del owner salen por el piso de reformular (${t3.a.estado} · ${t4.a.estado} · ${t5.a.estado})`);
+  ok([t3, t4, t5].every((x) => x.t.includes(tesis2) && x.t.includes(criterio2)),
+    "★★ y los tres conservan la tesis y el criterio de la FOTO, verbatim — la cadena ya no degrada el material");
+  ok(/^Para el equipo comercial/.test(t4.t) && /^Para el directorio/.test(t5.t), "…cada uno abre nombrando a su lector");
+  ok(t3.t.split(/\s+/).length < t1.t.split(/\s+/).length / 2, "…y «más corto» sigue siendo más corto");
+  /* los CONTEOS de la previa («6 pagan margen…») viajan en la boleta del piso: sin eso el muro los vetaba como no autorizados */
+  const bucle = readFileSync(new URL("./src/adi/agente/bucleAgente.js", import.meta.url), "utf8");
+  ok(/counts: parseCounts\(_previaDelHilo\)/.test(bucle), "★ los conteos de la respuesta previa entran a la boleta del piso (el muro los reconocía como no autorizados)");
 }
 
 console.log(`\n── _reformular_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

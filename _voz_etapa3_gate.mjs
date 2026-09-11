@@ -124,5 +124,49 @@ ok(/¿deseas profundizar\?/.test(CARTA_DEL_ASESOR) && /UNA oferta, priorizada/.t
 ok(/puedo demostrar X, no todavía Y/.test(CARTA_DEL_ASESOR), "el límite que hace avanzar, con la forma del owner");
 ok(/El molde de cada uno viaja cuando lo pides/.test(CARTA_DEL_ASESOR), "…y los moldes por lector NO viajan en cada turno: se remiten (el techo del 20% manda)");
 
+/* ═══ 7 · LA BATERÍA DEL OWNER (Etapa 4, 2026-09-11) CON EL CEREBRO MUDO ══════════════════════════════════
+ * Sus siete turnos, encadenados, y sus cuatro varas: conclusión primero · no repetir cifras · que cambie de
+ * verdad según el lector · que suene a asesor. Lo que el piso garantiza cuando el cerebro no ayuda; la
+ * redacción del cerebro vivo la mide la batería en vivo, con el gasto del owner. En la primera corrida en
+ * vivo, cuatro de los siete turnos cayeron al cerebro libre por puertas cerradas del procedimiento: «¿por qué
+ * está pasando?» (forma progresiva), «dámelo» («dá» ≠ «dí»), «ahora para directorio» (sin artículo) y «¿qué
+ * parte de eso puedes demostrar?» (la ruta del sello). Este bloque las deja abiertas para siempre. */
+H("7 · la batería del owner con el cerebro mudo: siete turnos, cuatro varas");
+{
+  let h = [], mem = {};
+  const paso = async (q) => { const r = await answerViaAgente({ text: q, history: h, mem, scenario: ESC, callAgente: MUDO }); const t = String(r.r.text || ""); h = [...h, { role: "user", text: q }, { role: "assistant", text: t }]; mem = r.mem || mem; return { q, t, a: r.r.agente }; };
+  const B = [];
+  for (const q of ["¿Cómo va el negocio?", "¿Por qué está pasando?", "Dámelo más corto.", "Explícamelo para el equipo comercial.", "Ahora para directorio.", "¿Qué harías primero?", "¿Qué parte de eso puedes demostrar y qué parte no?"]) B.push(await paso(q));
+  const [t1, t2, t3, t4, t5, t6, t7] = B;
+  const ESPERADO = ["playbook", "playbook", "reformular-piso", "reformular-piso", "reformular-piso", "playbook", "playbook"];
+  B.forEach((x, i) => ok(x.a.estado === ESPERADO[i], `T${i + 1} «${x.q}» sale por su procedimiento (${x.a.estado})`, x.t.slice(0, 100)));
+  /* vara 1 · conclusión primero */
+  ok(!/\d/.test(primeraFrase(t1.t)), "★ T1 abre con la conclusión, sin cifras", primeraFrase(t1.t));
+  ok(/^Lo que puedo demostrar y lo que no|^Lo que el dato permite afirmar/.test(t7.t) && /esto está medido:/.test(t7.t) && /queda abierto:/.test(t7.t),
+    "★★ T7 responde la pregunta del sello: qué está medido y qué queda abierto, mecanismo por mecanismo", t7.t.slice(0, 120));
+  ok(/Eso lo sabes tú, no el dato\.|ya me lo dijiste tú/.test(t7.t) && !/apuesta deliberada|decisi[oó]n deliberada —/.test(t7.t),
+    "…y la intención se le pregunta al dueño: no se dictamina");
+  /* vara 2 · no repetir cifras: el corto casi sin cifras, y ninguna cifra nueva en las reformulaciones */
+  ok(cifras(t3.t).length <= 1 && palabras(t3.t) < palabras(t1.t) / 2, `★ T3 «más corto» es más corto (${palabras(t3.t)} vs ${palabras(t1.t)} palabras) y casi sin cifras (${cifras(t3.t).length})`);
+  /* el material de T3-T5 es el PORQUÉ (T2): la última respuesta sustantiva del hilo, no la foto ni la reformulación anterior */
+  ok([t3, t4, t5].every((x) => cifras(x.t).every((c) => cifras(t2.t).includes(c))), "★ ni una cifra en T3-T5 que no estuviera en T2 (el porqué es lo que se reformula)");
+  for (const x of [t1, t6, t7]) ok(repetidas(x.t, 1).length === 0, `«${x.q}»: ninguna cifra se repite`, repetidas(x.t, 1).join(", "));
+  /* vara 3 · cambia de verdad según el lector, con la MISMA conclusión */
+  const tesisB = primeraFrase(t2.t.split("\n")[0]).trim();
+  const criterioB = (t2.t.split("\n").find((l) => /entrar[ií]a por/i.test(l)) || "").split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¿«])/)[0].trim();
+  ok(t4.t !== t5.t && /^Para el equipo comercial/.test(t4.t) && /^Para el directorio/.test(t5.t) && palabras(t5.t) <= palabras(t4.t),
+    `★ T4 y T5 son respuestas distintas, cada una para su lector, y el directorio más corto (${palabras(t5.t)} ≤ ${palabras(t4.t)})`);
+  ok(tesisB.length > 20 && criterioB.length > 20 && [t3, t4, t5].every((x) => x.t.includes(tesisB) && x.t.includes(criterioB)),
+    "★★ …y la conclusión del porqué (tesis + criterio) es la MISMA en los tres, verbatim", `${tesisB.slice(0, 60)} · ${criterioB.slice(0, 60)}`);
+  const top6 = (/^Entraría por ([^.]+)\./.exec(t6.t) || [])[1] || null;
+  ok(!!top6 && new RegExp(`entrar[ií]a por ${top6.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i").test(t1.t), `★★ T6 pone primero a la MISMA cuenta que la foto (${top6}) — la prioridad es del procedimiento`);
+  /* vara 4 · suena a asesor, no a sistema */
+  for (const x of B) {
+    const vm = vetosDeRegistro(x.t, {}).filter((v) => v.regla === "lexico-voz-de-motor");
+    ok(vm.length === 0 && !/\*\*|^\s*#|informaci[oó]n autorizada|Es la misma lectura de reci[eé]n/im.test(x.t), `«${x.q}»: sin voz de motor, sin negritas, sin frases de sistema`, x.t.slice(0, 100));
+  }
+  ok(palabras(t2.t) <= 460, `T2 el porqué bajo su trinquete (${palabras(t2.t)} palabras) — el owner pidió NO recortarlo a la fuerza: se mide, no se poda`);
+}
+
 console.log(`\n══ ${pass} PASS · ${fail} FAIL ══`);
 process.exit(fail ? 1 : 0);

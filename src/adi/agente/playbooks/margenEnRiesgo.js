@@ -18,6 +18,7 @@
  * PURO · determinístico · sin red. Cifras VERBATIM de la boleta: este módulo selecciona y ordena, jamás calcula. */
 
 import { esConversacional } from "../formaConversacional.js";   // la forma de la pregunta manda (owner 2026-09-09)
+import { previaSustantiva } from "../reformular.js";   // la última respuesta SUSTANTIVA del hilo (las reformulaciones no cambian de qué va)
 import { variante } from "../variacion.js";   // el cierre varía por semilla («matar la repetición», 2026-09-03)
 import { buildRolesCartera } from "../../sentrix/rolesCartera.js";   // el porqué: el papel de cada cliente y la huella de cada mecanismo
 import { etiquetaDeLaCarga } from "../../../config/businessPolicy.js";
@@ -119,6 +120,7 @@ function _rutaDe(pregunta) {
    * re-servir la lectura que el usuario acaba de leer con la prioridad relegada a la cola. */
   if (new RegExp(`\\bhar[ií]as primero`, "i").test(q)) return "primero";
   if (_PIDE_PORQUE.test(q)) return "porque";
+  if (_PIDE_SELLO.test(q)) return "sello";
   if (_PIDE_PORQUE_ELIPTICO.test(q)) return "porque";
   return "estandar";
 }
@@ -131,7 +133,13 @@ function _rutaDe(pregunta) {
  * en silencio, que es un secuestro de hilo. Hoy la única tesis con porqué es la del margen (misma nota que
  * el seguimiento); el día que haya otra, esta puerta se reparte por la lectura que el hilo traiga. */
 const _PIDE_PORQUE_ELIPTICO = new RegExp([
-  `\\bpor qu[eé] pasa(?: eso| esto)?\\s*\\??$`, `\\bcu[aá]l es la causa\\s*\\??$`,
+  /* «¿Por qué está pasando?» (batería en vivo de la Etapa 4, T2): la forma progresiva no entraba y el turno se iba
+   * al cerebro libre; vetado dos veces, terminaba en el rescate. Con procedimiento, el porqué tiene entregable. */
+  `\\bpor qu[eé] (?:pasa|est[aá] pasando|ocurre|est[aá] ocurriendo|sucede)(?: eso| esto)?\\s*\\??$`, `\\bcu[aá]l es la causa\\s*\\??$`, `\\ba qu[eé] se debe(?: eso| esto)?\\s*\\??$`,
+  /* Y LA PREGUNTA DEL SELLO (batería en vivo, T7): «¿qué parte de eso puedes demostrar y qué parte no?» ES la
+   * distinción probado/indicado/abierto que este porqué ya compone — y sin puerta, el cerebro la contestaba
+   * dictaminando intenciones y confundiendo dueños, hasta el rescate. */
+  `\\bqu[eé] (?:parte )?(?:de eso )?(?:puedes|pod[eé]s|podr[ií]as) (?:demostrar|probar|afirmar)\\b`, `\\bqu[eé] est[aá] (?:probado|demostrado)\\b`, `\\bqu[eé] es (?:hip[oó]tesis|una hip[oó]tesis)\\b`,
   `\\bprofundiza en el porqu[eé]`, `\\by qu[eé] har[ií]as primero\\s*\\??$`, `\\bqu[eé] har[ií]as primero\\s*\\??$`,
   /* LAS FORMAS DE LA PRUEBA DE CONTINUIDAD DEL OWNER (2026-09-11): «¿qué está explicando principalmente ese
    * resultado?» y «¿qué explica eso?» después de la foto del negocio —cuya tesis es el margen contra el
@@ -164,13 +172,18 @@ const _PIDE_QUIENES_ELIPTICO = new RegExp([
 const _HABLA_DE_MARGEN = new RegExp(`\\bm[aá]rgen(?:es)?${_FIN}`, "i");
 const _SENAL_DE_LECTURA = new RegExp(`\\bbenchmark${_FIN}|\\bpp${_FIN}|%`, "i");
 function _hiloDeMargen(ctx) {
-  const h = ctx && Array.isArray(ctx.history) ? ctx.history : [];
-  for (let i = h.length - 1; i >= 0; i--) {
-    const m = h[i];
-    if (!m || m.role === "user" || typeof m.text !== "string" || !m.text.trim()) continue;
-    return _HABLA_DE_MARGEN.test(m.text) && _SENAL_DE_LECTURA.test(m.text);   // SOLO la última del asistente decide
-  }
-  return false;
+  /* la última respuesta SUSTANTIVA decide (batería en vivo de la Etapa 4, T6): tras «dámelo más corto» y dos
+   * destinatarios, la última respuesta era una reformulación de dos frases sin la palabra «margen» y esta
+   * puerta se cerraba — «¿qué harías primero?» se iba al cerebro libre, que cambió la prioridad. La
+   * reformulación no cambia de qué va el hilo; se salta, como en el propio piso de reformular. */
+  const previa = previaSustantiva(ctx && ctx.history);
+  if (!previa) return false;
+  /* …y las respuestas de ESTE playbook cuentan como hilo de margen aunque no digan «margen» (batería en vivo,
+   * T6→T7): la prioridad —«entraría por Falabella… contribución en juego… sin capturar»— es una lectura de
+   * margen por definición, y sin esto «¿qué puedes demostrar?» después de ella se iba al cerebro libre. Su
+   * vocabulario propio es la firma: contribución en juego / no capturada, carga excedida, bajo el benchmark. */
+  if (/contribuci[oó]n (?:en juego|no capturada)|carga excedida|sin capturar|bajo el benchmark/i.test(previa)) return true;
+  return _HABLA_DE_MARGEN.test(previa) && _SENAL_DE_LECTURA.test(previa);
 }
 /* LA CONTRIBUCIÓN NO CAPTURADA es este playbook con otro nombre: su entregable ya dice, cliente por cliente,
  * «deja $X sin capturar» contra el benchmark declarado. El ask de la Mesa comercial lo pregunta así —«¿Cuánta
@@ -288,13 +301,22 @@ function componerElSeguimiento({ figs, semilla, scenario, mem }) {
  * pregunta qué hacer YA leyó la lectura: re-servírsela con la prioridad en la cola es no escucharlo. Cifras
  * VERBATIM de la boleta del turno (los pasos base ya la traen); la selección es la de siempre — quien más
  * contribución deja sin capturar. */
-function componerLaPrioridad({ figs, semilla }) {
+/* LA PRIORIDAD ES DEL PROCEDIMIENTO (ley del owner 2026-09-10, aplicada acá tras la batería en vivo de la Etapa
+ * 4, T6): la foto y el porqué eligieron Falabella —por contribución en juego— y ante «¿qué harías primero?» el
+ * cerebro contestó «Lider, no Falabella», con otro criterio y dos prioridades a elegir. La derivación es UNA y de
+ * ella comen el composer y la notarial: quién va primero se decide por contribución no capturada, verbatim. */
+export function prioridadDe(figs) {
   const juego = _all(figs, /· Contribuci[oó]n no capturada$/i)
     .map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
     .filter((x) => x.entidad && Number.isFinite(x.usd))
     .sort((a, b) => b.usd - a.usd);
-  if (!juego.length) return null;
-  const top = juego[0];
+  return juego.length ? { top: juego[0], juego } : null;
+}
+function componerLaPrioridad({ figs, semilla }) {
+  /* una sola derivación: la misma que defiende la notarial (`prioridadDe`) — una verdad, no una copia */
+  const pr = prioridadDe(figs);
+  if (!pr) return null;
+  const top = pr.top;
   const total = _find(figs, /^Contribuci[oó]n no capturada · subtotal$/i);
   const cargaTop = _find(figs, new RegExp(`^${_esc(top.entidad)} · Carga comercial alta$`, "i"));
   const p = [];
@@ -307,6 +329,51 @@ function componerLaPrioridad({ figs, semilla }) {
     `El siguiente de la lista queda listo para cuando cierres este.`,
   ]));
   return p.join("\n\n");
+}
+
+/* ── LA RUTA DEL SELLO (batería en vivo de la Etapa 4, T7) ─────────────────────────────────────────────────
+ * «¿Qué parte de eso puedes demostrar y qué parte no?» ES la distinción probado / indicado / abierto que el
+ * porqué ya compone — y sin puerta propia, el cerebro la contestaba dictaminando intenciones y confundiendo
+ * dueños hasta el rescate. La ruta compone SOLO las huellas con su sello y la pregunta al dueño: es la parte
+ * del porqué que la pregunta pide, con las MISMAS piezas (la línea de huella es una sola función). */
+const _PIDE_SELLO = new RegExp([
+  `\\bqu[eé] (?:parte )?(?:de eso )?(?:puedes|pod[eé]s|podr[ií]as) (?:demostrar|probar|afirmar)`,
+  `\\bqu[eé] est[aá] (?:probado|demostrado)`, `\\bqu[eé] es (?:una )?hip[oó]tesis`, `\\bqu[eé] tienes probado`,
+].join("|"), "i");
+const _SELLO_EN_VOZ = {
+  probado: (porque) => `esto está medido: ${porque}`,
+  indicado: (porque) => `el patrón apunta ahí, sin prueba todavía: ${porque}`,
+  abierto: (porque) => `esto el dato no lo prueba, queda abierto: ${porque}`,
+};
+/* el punto antes de «Para cerrarlo» (owner en producción, 2026-09-05: «…cliente con familia Para cerrarlo…»
+ * salió pegado): las huellas vienen sin puntuación final y la costura la pone esta línea. */
+function _lineaDeHuella(h) {
+  const voz = _SELLO_EN_VOZ[h.sello] || ((porque) => porque);
+  const dicho = voz(h.porque).trim();
+  const conPunto = /[.!?…]$/.test(dicho) ? dicho : `${dicho}.`;
+  return `- ${h.mecanismo} — ${h.falta ? `${conPunto} Para cerrarlo: ${h.falta}.` : dicho}`;
+}
+function componerElSello({ figs, semilla, scenario, mem }) {
+  let A = null;
+  try { A = buildRolesCartera(scenario); } catch { A = null; }
+  if (!A || !A.hay || !Array.isArray(A.huellas) || !A.huellas.length) return null;
+  const cuenta = _find(figs, /^Clientes · erosi[oó]n por acciones comerciales$/i);
+  if (!cuenta) return null;                                   // la tool no corrió en este turno: no se inventa
+  const p = [];
+  const probadas = A.huellas.filter((h) => h.sello === "probado").length;
+  p.push(probadas
+    ? `Lo que puedo demostrar y lo que no, mecanismo por mecanismo:`
+    : `Lo que el dato permite afirmar y lo que no, mecanismo por mecanismo:`);
+  for (const h of A.huellas) p.push(_lineaDeHuella(h));
+  /* la intención NUNCA es demostrable: se dice, y se le pregunta al dueño — el sello de esa pregunta es suyo */
+  if (A.preguntaAlDueno) {
+    const _intenciones = (Array.isArray(mem && mem.intenciones) ? mem.intenciones : []).filter((x) => x && x.pregunta === "volumen_deliberado");
+    const _cita = _intenciones.find((x) => Array.isArray(x.entidades) && x.entidades.some((e) => A.preguntaAlDueno.entidades.includes(e)));
+    p.push(_cita
+      ? `Y lo que ninguna columna prueba —la intención— ya me lo dijiste tú: «${_cita.cita}». Lo leo como decisión tuya.`
+      : `Y lo que ninguna columna puede probar es la intención: ${A.preguntaAlDueno.texto} Eso lo sabes tú, no el dato.`);
+  }
+  return p.join("\n");
 }
 
 function componerElPorque({ figs, semilla, scenario, mem }) {
@@ -423,19 +490,7 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
    * eso es vocabulario NUESTRO, no del gerente que lee. La proporcionalidad (regla 1) no se negocia — lo que
    * cambia es cómo suena: el mismo sello dicho en la lengua del negocio. La doctrina interna los sigue
    * nombrando; a pantalla salen como una frase. */
-  const _SELLO_EN_VOZ = {
-    probado: (porque) => `esto está medido: ${porque}`,
-    indicado: (porque) => `el patrón apunta ahí, sin prueba todavía: ${porque}`,
-    abierto: (porque) => `esto el dato no lo prueba, queda abierto: ${porque}`,
-  };
-  const linea = (h) => {
-    const voz = _SELLO_EN_VOZ[h.sello] || ((porque) => porque);
-    /* el punto antes de «Para cerrarlo» (owner en producción, 2026-09-05: «…cliente con familia Para
-     * cerrarlo…» salió pegado): las huellas vienen sin puntuación final y la costura la pone esta línea. */
-    const dicho = voz(h.porque).trim();
-    const conPunto = /[.!?…]$/.test(dicho) ? dicho : `${dicho}.`;
-    return `- ${h.mecanismo} — ${h.falta ? `${conPunto} Para cerrarlo: ${h.falta}.` : dicho}`;
-  };
+  const linea = _lineaDeHuella;
   /* ⚠️ LAS SECCIONES QUE DICEN LO MISMO SE FUNDEN (pulido del owner 2026-09-05): cuando arriba ya se contó
    * «volumen y fuga en la misma cuenta», la huella de volumen repite esa conclusión con otras palabras —y el
    * lector la lee dos veces. Una cosa se dice UNA vez; lo que se omite acá ya está dicho, no perdido. */
@@ -535,7 +590,7 @@ export const margenEnRiesgo = {
     ];
     /* el SEGUIMIENTO también la paga: re-medir es el punto — y sus conteos tienen que estar en la boleta de
      * ESTE turno, no en el recuerdo del anterior, o el muro los vetaría con razón. */
-    if (_rutaDe(pregunta) === "estandar" || _rutaDe(pregunta) === "primero") return base;   // la prioridad usa la evidencia base; los roles son del porqué/seguimiento
+    if (_rutaDe(pregunta) === "estandar" || _rutaDe(pregunta) === "primero") return base;   // la prioridad usa la evidencia base; los roles son del porqué/seguimiento/sello
     return [...base, { tool: "rolesCartera", args: {},
       para: "el PAPEL de cada cliente (fuga por acciones · volumen a margen bajo · margen delgado · sano) y la huella de cada mecanismo con su sello — la evidencia para razonar el porqué sin inventarlo" }];
   },
@@ -576,6 +631,10 @@ export const margenEnRiesgo = {
       const prioridad = componerLaPrioridad({ figs, semilla });
       if (prioridad) return prioridad;
       /* sin la evidencia de la prioridad (diagnose no corrió), la lectura completa sigue siendo respuesta */
+    }
+    if (_rutaDe(pregunta) === "sello") {
+      const sello = componerElSello({ figs, semilla, scenario, mem });
+      if (sello) return sello;
     }
     if (_rutaDe(pregunta) === "porque") {
       const porque = componerElPorque({ figs, semilla, scenario, mem });
@@ -781,6 +840,27 @@ export const margenEnRiesgo = {
      * el `datoProyectado` puesto, el muro dejó pasar «te está costando unos $780K» — un monto que NO existe
      * en el dato (verificado: 0 coincidencias en las 318 cifras del negocio). El hueco es del muro y está
      * reportado; esta regla cierra la puerta en el territorio del playbook, que es el mío. */
+    /* ── LA PRIORIDAD ES DEL PROCEDIMIENTO (ley del owner 2026-09-10, cableada tras la batería en vivo de la
+     * Etapa 4, T6): la foto y el porqué habían elegido Falabella —por contribución en juego— y ante «¿qué
+     * harías primero?» el cerebro contestó «Lider, no Falabella», con otro criterio y dos prioridades a elegir.
+     * El referente y la conclusión no cambian de un turno al otro porque el narrador prefiera otro criterio:
+     * la primera acción es la que deriva `prioridadDe` (la misma que escribe el composer). Se cobra si el texto
+     * abre poniendo primero a OTRA cuenta del ranking, o dice «X, no Y» con Y = la elegida. */
+    if (_rutaDe(pregunta) === "primero") {
+      const pr = prioridadDe(figs);
+      if (pr && pr.top && pr.juego.length > 1) {
+        const top = pr.top.entidad;
+        const otras = pr.juego.slice(1).map((x) => x.entidad);
+        const _re = (n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const primeraOracion = (t.split(/(?<=[.!?])\s+/)[0] || "");
+        const abreConOtra = otras.find((o) => new RegExp(`^\\s*(?:\\*\\*)?${_re(o)}\\b`, "i").test(primeraOracion) || new RegExp(`\\b(?:entrar[ií]a|partir[ií]a|empezar[ií]a|arrancar[ií]a) por (?:la |el )?${_re(o)}\\b`, "i").test(primeraOracion));
+        const niegaLaElegida = new RegExp(`\\b(?:no|en vez de|antes que) (?:por )?${_re(top)}\\b`, "i").test(primeraOracion);
+        if ((abreConOtra && !new RegExp(`\\b${_re(top)}\\b`, "i").test(primeraOracion)) || niegaLaElegida) {
+          v.push({ regla: "conclusion-cambiada",
+            multa: `pones primero a ${abreConOtra || "otra cuenta"} y el procedimiento eligió ${top} —es donde hay más contribución en juego, y es lo que este hilo ya dijo—. La conclusión es del procedimiento, no del narrador: puedes explicar por qué ${top} va primero, no cambiar la prioridad ni ofrecer dos.` });
+        }
+      }
+    }
     if (_rutaDe(pregunta) === "porque" || _rutaDe(pregunta) === "primero") {
       const montosBoleta = new Set(_all(figs, /./).map((f) => _val(f).replace(/\s+/g, "")));
       for (const m of t.match(/\$\s?[\d.,]+\s?[KMB]?/g) || []) {

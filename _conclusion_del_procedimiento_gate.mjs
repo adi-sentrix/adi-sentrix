@@ -29,6 +29,7 @@ import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { compararAlternativas as PBC, conclusionDe as conclusionComparar } from "./src/adi/agente/playbooks/compararAlternativas.js";
 import { planDeAccion as PBP, conclusionDe as conclusionPlan } from "./src/adi/agente/playbooks/planDeAccion.js";
 import { hipotesisDelUsuario as PBH, conclusionDe as conclusionHipotesis } from "./src/adi/agente/playbooks/hipotesisDelUsuario.js";
+import { margenEnRiesgo as PBM, prioridadDe as prioridadMargen } from "./src/adi/agente/playbooks/margenEnRiesgo.js";
 import { vetosDeReformular } from "./src/adi/agente/reformular.js";
 import { reDeReferencia } from "./src/adi/oracle/entityRecord.js";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
@@ -224,6 +225,33 @@ H("6 · la ley está conectada, no solo escrita");
   const bucle = readFileSync(new URL("./src/adi/agente/bucleAgente.js", import.meta.url), "utf8");
   ok(/vetosDelPlaybook\(playbookActivo, t, \{ figs: figsTotales, pregunta: q/.test(bucle),
     "el bucle pasa figs y pregunta al notario del playbook — sin boleta no hay conclusión que defender");
+}
+
+/* ═══ 7 · MARGEN: QUIÉN VA PRIMERO ES DEL PROCEDIMIENTO (batería en vivo de la Etapa 4, T6) ═════════════════
+ * La falla real: la foto y el porqué habían elegido una cuenta por contribución en juego, y ante «¿qué harías
+ * primero?» el cerebro contestó «<otra>, no <la elegida>» con otro criterio y dos prioridades a elegir. La
+ * carnada es esa pantalla. */
+H("7 · margen-en-riesgo · la prioridad («¿qué harías primero?») es del procedimiento");
+{
+  const QP = "¿Qué harías primero?";
+  const figs = figsDe(PBM.pasos(QP), QP);
+  const pr = prioridadMargen(figs);
+  ok(!!pr && !!pr.top && pr.juego.length > 1,
+    `el procedimiento deriva quién va primero por contribución no capturada (${pr && pr.top ? pr.top.entidad : "—"}, sobre ${pr ? pr.juego.length : 0} cuentas)`);
+  const top = pr.top.entidad, otra = pr.juego[1].entidad;
+  const composed = PBM.componer({ figs, pregunta: QP, semilla: 1, scenario: ESC, mem: {} });
+  ok(!!composed && composed.startsWith(`Entraría por ${top}.`),
+    "★ el composer escribe LA MISMA prioridad que la derivación — una verdad, no una copia", String(composed).slice(0, 80));
+  const reglas = (t) => PBM.listaNotarial(t, { figs, pregunta: QP }).map((x) => x.regla);
+  ok(!reglas(composed).includes("conclusion-cambiada"), "el composer no tropieza con su propio notario");
+  ok(reglas(`${otra}, no ${top}. Su carga excedida es más fácil de mover esta semana; ${top} puede esperar.`).includes("conclusion-cambiada"),
+    "★★ la pantalla del owner ARDE: «<otra>, no <la elegida>» es cambiar la prioridad");
+  ok(reglas(`Empezaría por ${otra}: concentra la carga más fácil de renegociar. Después seguiría con ${top}.`).includes("conclusion-cambiada"),
+    "★ abrir poniendo primero a otra cuenta del ranking TAMBIÉN arde — aunque la elegida aparezca después");
+  ok(!reglas(`${top} va primero: es donde hay más contribución en juego. ${otra} queda para después, con el mismo método.`).includes("conclusion-cambiada"),
+    "…y la adaptación legítima pasa limpia: misma prioridad, otras palabras");
+  ok(!reglas(`Entre ${otra} y ${top}, ${top} primero: ahí coinciden volumen y carga excedida.`).includes("conclusion-cambiada"),
+    "…y nombrar a la otra en la misma frase NO arde si la elegida sigue primero");
 }
 
 console.log(`\n══ ${pass} PASS · ${fail} FAIL ══`);

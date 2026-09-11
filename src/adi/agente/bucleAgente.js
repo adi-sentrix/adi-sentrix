@@ -33,9 +33,9 @@ import { cajaDelAgente } from "./herramientasAgente.js";
 import { doctrinasParaRonda } from "./doctrinaAgente.js";
 import { esPorQue, doctrinaDelPorque, vetosDelPorque } from "./porque.js";   // la ley del porqué, transversal (owner 2026-09-09)
 import { vetosDeReferencia } from "./referenciaDeLaCifra.js";
-import { esReformular, doctrinaDeReformular, vetosDeReformular, componerReformulacion, destinatarioDe, doctrinaDeAudiencia } from "./reformular.js";   // la misma respuesta, para otro (owner 2026-09-10)   // owner 2026-09-09: la cifra que sostiene una recomendación trae su referencia
+import { esReformular, doctrinaDeReformular, vetosDeReformular, componerReformulacion, destinatarioDe, doctrinaDeAudiencia, previaSustantiva } from "./reformular.js";   // la misma respuesta, para otro (owner 2026-09-10)   // owner 2026-09-09: la cifra que sostiene una recomendación trae su referencia
 import { mapaDelDato, faltanteQueToca } from "./mapaDelDato.js";   // + lo que el archivo del usuario no trajo (owner 2026-08-31)
-import { guardC, esNarracionVacia } from "../oracle/guardC.js";
+import { guardC, esNarracionVacia, parseCounts } from "../oracle/guardC.js";   // parseCounts: los conteos de la previa se re-autorizan igual que sus cifras (Etapa 4)
 import { cifrasDelDato } from "../oracle/datoProyectado.js";
 import { axisEntityNames } from "../oracle/entityIndex.js";
 import { parseFigures } from "../boleta.js";
@@ -724,14 +724,9 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * `_previaDelHilo` es lo último que ADI respondió en este hilo: el material legítimo de este turno. */
   /* lo último que ADI respondió, leído del hilo que el bucle ya tiene: es lo que se pide reformular. Se lee
    * de `history` y no de una memoria nueva — la casa no crea una segunda fuente para lo que ya viaja. */
-  const _previaDelHilo = (() => {
-    const hs = Array.isArray(history) ? history : [];
-    for (let i = hs.length - 1; i >= 0; i--) {
-      const h = hs[i];
-      if (h && h.role !== "user" && typeof h.text === "string" && h.text.trim().length > 40) return h.text;
-    }
-    return null;
-  })();
+  /* …y es la última SUSTANTIVA (batería en vivo de la Etapa 4): tres reformulaciones seguidas se apoyaban cada
+   * una en la anterior y el material se degradaba en cadena. `previaSustantiva` salta las reformulaciones. */
+  const _previaDelHilo = previaSustantiva(history);
   const _esReformularDelTurno = esReformular(q);
   if (_esReformularDelTurno) mensajes.push({ role: "user", content: doctrinaDeReformular() });
   /* EL MOLDE DEL LECTOR viaja solo cuando la pregunta nombra una audiencia (Etapa 3, owner 2026-09-11) — en un
@@ -840,7 +835,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * verificación, no inventar una. Si el marco del peldaño agregara una cifra que NO está en ese texto, el
    * guardia la sigue cazando: se autoriza el texto aprobado, no el sitio. */
   const _boletaAprobadaPrevia = (typeof memIn.ultimaAprobada === "string" && memIn.ultimaAprobada.trim().length > 40)
-    ? { figs: [{ value: memIn.ultimaAprobada }] } : null;
+    ? { figs: [{ value: memIn.ultimaAprobada }], counts: parseCounts(memIn.ultimaAprobada).map((c) => c.raw).filter(Number.isFinite) } : null;
   const _guard = (t, boletaPrevia = null) => guardC(t, {
     boletaAnterior: boletaPrevia,
     ledger: { figs: figsTotales }, results: resultsTotales, trace: null, question: q,
@@ -878,8 +873,11 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * HILO, no de `mem.ultimaAprobada`. Esa memoria es justamente la que faltó en la 2.24 —los turnos de
    * procedimiento no la escribían— y un piso que se apoya en lo que puede faltar no es un piso. Si el marco
    * agregara una cifra que no está en ese texto, el guardia la sigue cazando: se autoriza el texto, no el sitio. */
+  /* ⚠️ Y LOS CONTEOS TAMBIÉN (batería en vivo de la Etapa 4, T4): la previa decía «6 clientes» y el piso, que la
+   * re-dice verbatim, murió en el muro por «conteo no autorizado» — el canal boletaAnterior tiene su mitad de
+   * conteos (Paso 1b) y el piso solo le pasaba las cifras. Se autoriza lo que ADI YA mostró: figs y conteos. */
   const _boletaDelHilo = (typeof _previaDelHilo === "string" && _previaDelHilo.trim().length > 40)
-    ? { figs: [{ value: _previaDelHilo }] } : null;
+    ? { figs: [{ value: _previaDelHilo }], counts: parseCounts(_previaDelHilo).map((c) => c.raw).filter(Number.isFinite) } : null;
   const juzgar = (t, sitio = "cierre") => {
     /* el canal de lo ya aprobado se enciende SOLO acá: en cualquier otro sitio la llamada es la de siempre */
     const v = _guard(t, sitio === "respaldo" ? _boletaAprobadaPrevia : sitio === "reformular-piso" ? _boletaDelHilo : null);

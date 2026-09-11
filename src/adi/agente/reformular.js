@@ -39,7 +39,8 @@ import { normalizarSeparadorDecimal } from "../../config/contract/figureType.js"
  *   · CAMBIO DE FORMA — «más corto», «más simple», «en una línea», «en viñetas».
  * ⚠️ El verbo solo no alcanza: «explícame el cuadro» es una lectura nueva, no una reformulación. Hace falta el
  * PRONOMBRE que apunta a lo ya dicho («explícaMELO», «resúmeMELO») o un destinatario/forma explícitos. */
-const _VERBO = "(?:expl[ií]c|res[uú]m|d[ií]|pon|p[aá]s|traduc|arm|escrib)[a-záéíóúñ]*";
+/* «Dámelo más corto» (batería en vivo de la Etapa 4, T3): «dá» no es «dí» — el verbo se escribía con i y el turno se iba al cerebro libre, que lo tomó como una lectura nueva. */
+const _VERBO = "(?:expl[ií]c|res[uú]m|d[aáií]|pon|p[aá]s|traduc|arm|escrib)[a-záéíóúñ]*";
 /* ⚠️ EL PRONOMBRE VA PEGADO AL VERBO, y buscarlo suelto con `\b` no lo encuentra JAMÁS. En castellano el
  * clítico es enclítico —«explícaMELO», «resúmeMELO», «díMELO», «pásaLO»— así que «lo» no es una palabra en
  * esas frases: es la última sílaba de otra. Lo pagó la calibración: cuatro de diez formas se caían por eso, y
@@ -52,7 +53,10 @@ const _LO_YA_DICHO = /\beso\b|\besto\b|\blo que (?:dijiste|me dijiste|acabas de 
  * calificadores es CERRADA a propósito: un patrón que acepte cualquier palabra siguiente se termina tragando
  * media frase («para el equipo que no llegó a la meta»), y un destinatario mal leído es peor que uno genérico. */
 const _CALIF = "(?:\\s+(?:comercial(?:es)?|de ventas|de finanzas|de operaciones|de compras|ejecutiv[oa]s?|t[eé]cnic[oa]s?|regional(?:es)?))?";
-const _DESTINATARIO = new RegExp(`\\bpara (?:el|la|los|las|mi|mis)\\s+[\\wáéíóúñ]+${_CALIF}|\\ba(?:l)? (?:equipo|directorio|gerente|socio|jefe|due[ñn]o|comit[eé]|vendedor)${_CALIF}`, "i");
+/* «Ahora para directorio» (batería en vivo de la Etapa 4, T5): sin artículo no se detectaba ningún lector y el
+ * turno se fue al cerebro libre. Las audiencias CONOCIDAS valen sin artículo; las demás siguen exigiéndolo. */
+const _DESTINATARIO = new RegExp(`\\bpara (?:el|la|los|las|mi|mis)\\s+[\\wáéíóúñ]+${_CALIF}|\\bpara (?:directorio|comercial|ventas|finanzas|gerencia|board)\\b|\\ba(?:l)? (?:equipo|directorio|gerente|socio|jefe|due[ñn]o|comit[eé]|vendedor)${_CALIF}`, "i");
+const _SOLO_DESTINATARIO = new RegExp(`^\\s*¿?\\s*(?:y |ahora |tambi[eé]n |lo mismo |igual |pero )*(?:${_DESTINATARIO.source})\\s*[.?!]*\\s*$`, "i");
 const _FORMA = /\bm[aá]s (?:corto|simple|breve|claro|sencillo|f[aá]cil|directo)\b|\ben (?:una|dos|tres) l[ií]neas?\b|\ben vi[ñn]etas\b|\ben bullet/i;
 
 /** ¿la pregunta pide RE-DECIR lo ya respondido, no una lectura nueva? */
@@ -66,6 +70,11 @@ export function esReformular(pregunta) {
    * «resúmemelo para el directorio». El verbo con pronombre alcanza SI además dice para quién o de qué forma —
    * un «explícamelo» a secas es legítimo pero ambiguo, y ahí prefiero que lo tome el camino de siempre. */
   if (apunta && (dest || forma)) return true;
+  /* «Ahora para directorio.» (batería en vivo de la Etapa 4, T5): la frase que es SOLO el destinatario —con «ahora»,
+   * «y» o «también» delante— pide lo mismo para otro lector; no hay verbo ni clítico porque no hace falta. Solo
+   * cuando la frase ENTERA es eso: «los riesgos para el directorio» es una lectura nueva y sigue siendo de la
+   * síntesis. */
+  if (_SOLO_DESTINATARIO.test(q)) return true;
   /* «cómo se lo explico a mi socio» — el dueño pregunta cómo DECIRLO él, que es la misma ruta vista al revés */
   if (/\bc[oó]mo (?:se ?l[oa]|le|les) (?:explico|digo|cuento|present[oó])\b/i.test(q)) return true;
   /* ⚠️ NO HAY TERCERA REGLA «verbo + destinatario SIN pronombre», y la calibración explicó por qué: se llevaba
@@ -76,11 +85,32 @@ export function esReformular(pregunta) {
   return false;
 }
 
+/* ── LA PREVIA SUSTANTIVA (batería en vivo de la Etapa 4, T4-T6) ───────────────────────────────────────────
+ * «Dámelo más corto» → «para el equipo comercial» → «ahora para directorio»: cada reformulación se apoyaba en la
+ * ANTERIOR, y la tercera reformulaba una reformulación de dos frases — el material se degradaba en cadena. Y el
+ * porqué del margen dejaba de reconocer el hilo porque la última respuesta (una reformulación corta) ya no
+ * nombraba el margen. La respuesta que se reformula —y la que dice de qué va el hilo— es la última SUSTANTIVA:
+ * la última del asistente cuya pregunta NO fue una reformulación. Se lee del hilo, como siempre. */
+export function previaSustantiva(history) {
+  const hs = Array.isArray(history) ? history : [];
+  for (let i = hs.length - 1; i >= 0; i--) {
+    const h = hs[i];
+    if (!h || h.role === "user" || typeof h.text !== "string" || h.text.trim().length <= 40) continue;
+    const pregunta = (() => { for (let j = i - 1; j >= 0; j--) { const u = hs[j]; if (u && u.role === "user" && typeof u.text === "string") return u.text; } return ""; })();
+    if (pregunta && esReformular(pregunta)) continue;   // una reformulación no es material: se sigue hacia atrás
+    return h.text;
+  }
+  return null;
+}
+
 /** para quién es, dicho en palabras del negocio — o null si solo pidió otra forma. */
 export function destinatarioDe(pregunta) {
   const m = _DESTINATARIO.exec(String(pregunta || ""));
   if (!m) return null;
-  return m[0].replace(/^\ba(?:l)?\s+/i, "el ").replace(/^para\s+/i, "").trim();
+  const crudo = m[0].replace(/^\ba(?:l)?\s+/i, "el ").replace(/^para\s+/i, "").trim();
+  /* el lector sin artículo se nombra completo: «directorio» → «el directorio», «comercial» → «el equipo comercial» */
+  const SIN_ARTICULO = { directorio: "el directorio", comercial: "el equipo comercial", ventas: "el equipo de ventas", finanzas: "finanzas", gerencia: "la gerencia", board: "el directorio" };
+  return SIN_ARTICULO[crudo.toLowerCase()] || crudo;
 }
 
 /* ── LA DOCTRINA · byte-estable, y solo viaja en el turno que la pide ───────────────────────────────────────
@@ -227,7 +257,8 @@ export function componerReformulacion(previa, { pregunta = "" } = {}) {
   const conclusion = frases.find((f) => _CONCLUSION.test(f)) || null;
   /* LA TESIS TAMBIÉN VIAJA (Etapa 3): si la previa abre con una frase sin cifra —«el negocio crece, pero deja menos
    * margen del que debería»— esa es su tesis, y es lo primero que cualquier lector necesita. Verbatim, como todo. */
-  const tesis = (frases[0] && !_CIFRA_UNA.test(frases[0]) && frases[0] !== conclusion && frases[0].length <= 160) ? frases[0] : null;
+  /* una tesis es una frase completa: no un encabezado («Lo mismo, más corto:») ni un rótulo de dos palabras */
+  const tesis = (frases[0] && !_CIFRA_UNA.test(frases[0]) && frases[0] !== conclusion && frases[0].length <= 160 && !/[:]\s*$/.test(frases[0]) && frases[0].split(/\s+/).length >= 6) ? frases[0] : null;
   /* las que sostienen: llevan cifra. Sin ninguna, la reformulación sería una opinión — y ahí es mejor no
    * componer y dejar que el turno lo diga honestamente, que es lo que hace el peldaño siguiente. */
   const conCifra = frases.filter((f) => f !== conclusion && _CIFRA_UNA.test(f));
