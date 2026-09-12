@@ -3049,15 +3049,25 @@ function _enmascararRango(texto, [ini, fin]) {
  * como «38%»: el primer extremo desaparece y el segundo cambia de signo. Acá el rango se reescribe como sus dos
  * cifras —«37% y 40%», «$1.5M y $1.6M», «entre 42% y 45%»— ANTES de todo chequeo, así cada extremo tiene que
  * existir en la boleta y conservar dueño y métrica, como cualquier cifra. Solo rangos con guion o raya y la
- * forma «entre A y B%»; «entre 0.3 y 1 puntos» y las fechas no se tocan. */
+ * forma «entre A y B%»; «entre 0.3 y 1 puntos» y las fechas no se tocan.
+ *
+ * ⚠️ Y UN EXTREMO TIENE QUE EXISTIR, NO «CALZAR» (medido en la corrida mínima del 2026-09-12, re-juzgada offline
+ * con el ledger real del turno): la descomposición sola no alcanzó. «…Falabella, Jumbo, Lider y Sodimac (markup
+ * 37-40%) que el de los sanos (markup 35-38%)» pasó VERDE con 133 figs porque cada extremo, ya suelto, entraba a
+ * la amnistía aritmética —nivel 2 (`_isCalc2`, que con cuatro entidades nombradas arma miles de restas) y el
+ * catálogo (participaciones entre ~40 montos)— y «35%» calzaba con alguna cuenta que nadie mostró. Un rango es
+ * un RESUMEN de cifras del dato, jamás una cuenta: sus extremos se autorizan solo por existencia (boleta, eco,
+ * re-cita, dato proyectado), nunca por coincidencia aritmética. `extremos`, si viene, recoge cada extremo como
+ * texto de cifra para que el chequeo 1 los reconozca por su canon. */
 const _RANGO_PCT = /(?<![\d.,])(\d+(?:[.,]\d+)?)\s*%?\s*[-–—]\s*(\d+(?:[.,]\d+)?)\s*%/g;
 const _RANGO_ENTRE = /\bentre\s+(\d+(?:[.,]\d+)?)\s*%?\s+y\s+(\d+(?:[.,]\d+)?)\s*%/gi;
 const _RANGO_MONEY = /(\$\s?\d+(?:[.,]\d+)?\s?[KMB]?)\s*[-–—]\s*(\$\s?\d+(?:[.,]\d+)?\s?[KMB]?)/g;
-export function _expandirRangos(texto) {
+export function _expandirRangos(texto, extremos = null) {
+  const _anota = (...xs) => { if (Array.isArray(extremos)) extremos.push(...xs); };
   return String(texto || "")
-    .replace(_RANGO_MONEY, (m, a, b) => `${a.trim()} y ${b.trim()}`)
-    .replace(_RANGO_ENTRE, (m, a, b) => `entre ${a}% y ${b}%`)
-    .replace(_RANGO_PCT, (m, a, b) => `${a}% y ${b}%`);
+    .replace(_RANGO_MONEY, (m, a, b) => { _anota(a.trim(), b.trim()); return `${a.trim()} y ${b.trim()}`; })
+    .replace(_RANGO_ENTRE, (m, a, b) => { _anota(`${a}%`, `${b}%`); return `entre ${a}% y ${b}%`; })
+    .replace(_RANGO_PCT, (m, a, b) => { _anota(`${a}%`, `${b}%`); return `${a}% y ${b}%`; });
 }
 
 export function guardC(narration, { ledger, results = [], trace = null, question = "", supuestoPendiente = null, alcanceHeredado = null, recitaAprobada = null, mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null, entidadesDelTenant = null, duenosDelTenant = null } = {}) {
@@ -3082,7 +3092,10 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   const _rangoCG = contentScope === "full" ? rangoContextoGeneral(narration) : null;
   const _textoCG = _rangoCG ? String(narration).slice(_rangoCG[0], _rangoCG[1]) : null;
   if (_rangoCG) narration = _enmascararRango(String(narration), _rangoCG);
-  narration = _expandirRangos(narration);   // «37-40%» → «37% y 40%»: los dos extremos entran a todos los chequeos (ver arriba)
+  const _extremosDeRango = [];
+  narration = _expandirRangos(narration, _extremosDeRango);   // «37-40%» → «37% y 40%»: los dos extremos entran a todos los chequeos (ver arriba)
+  // el canon de cada extremo: el chequeo 1 les niega la amnistía aritmética (un rango se cita, no se calcula)
+  const _canonDeRango = new Set(_extremosDeRango.flatMap((s) => parseFigures(s).map((pf) => pf.canon)));
   const figs = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
   // ECO DEL USUARIO: repetir una cifra que la PERSONA nombró en su pregunta NO es inventar ("qué es eso de 2x" → ADI
   // dice "2x"). Autorizamos las cifras/conteos del texto de la pregunta además de las de la boleta.
@@ -3864,11 +3877,17 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     // usuario con el dato del motor NO es inventada — es legítima y su problema es OTRO (cómo se presenta), que
     // juzga el chequeo 21. Rechazarla acá la bloquearía con el veredicto equivocado y el reintento buscaría
     // corregir algo que no estaba mal.
-    if (authCanon.has(f.canon) || authVerbatim.has(_stripSpace(f.text)) || _isCalc(f.raw, f.unit, figs, entityNames, mentionedEntities, _presentes) || _isCalc2(f.raw, f.unit, figs, mentionedEntities) || _derivadaDeSupuesto(f, supFigs, figs)) continue;
+    /* EL EXTREMO DE UN RANGO NO SE AMNISTÍA POR CÁLCULO (owner 2026-09-12, ver `_expandirRangos`): «35-38%» es
+     * una cita de dos cifras, y una cita solo vale si existe. La coincidencia aritmética (niveles 1-2 y catálogo)
+     * queda para las cuentas mostradas; acá la lotería combinatoria autorizaba justo el rango inventado. */
+    const _extremoDeRango = _canonDeRango.has(f.canon);
+    if (authCanon.has(f.canon) || authVerbatim.has(_stripSpace(f.text))
+      || (!_extremoDeRango && (_isCalc(f.raw, f.unit, figs, entityNames, mentionedEntities, _presentes) || _isCalc2(f.raw, f.unit, figs, mentionedEntities)))
+      || _derivadaDeSupuesto(f, supFigs, figs)) continue;
     // AMPLITUD F2: ¿es el resultado exacto de una operación del CATÁLOGO sobre el pool acotado del turno?
     // Corre DESPUÉS de los niveles 1-2 (subset intacto) y ANTES de la quinta fuente: una cuenta legítima del
     // catálogo que coincida con una cifra del dato no debe caer al veto de dueño.
-    if (esCalculoDelCatalogo(f.raw, f.unit, _poolCatalogo())) continue;
+    if (!_extremoDeRango && esCalculoDelCatalogo(f.raw, f.unit, _poolCatalogo())) continue;
     // LA RE-CITA APROBADA (ver arriba): la misma cifra, la misma unidad y un dueño de la cita original en esta
     // oración. Aditiva y previa a la quinta fuente: una cifra que ADI ya mostró y aprobó no es un hallazgo nuevo.
     if (_recita) {
@@ -3913,7 +3932,9 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       violations.push({ kind: "cifra-de-dato-sin-dueno", detail: `«${f.text}» existe en el dato del negocio pero su dueño (${[..._duenos].slice(0, 4).join("/")}) no está nombrado en esa oración — con nombrarlo UNA vez en la oración alcanza (no hace falta repetirlo en cada cifra); no cambies la cifra` });
       continue;
     }
-    violations.push({ kind: "cifra-no-autorizada", detail: f.text });
+    violations.push({ kind: "cifra-no-autorizada", detail: _extremoDeRango
+      ? `${f.text} — es el extremo de un rango que narraste y no existe en el dato de este turno: un rango solo puede resumir cifras reales, cita las de sus dueños tal cual están en la boleta`
+      : f.text });
   }
   // 2 · conteos sin signo no autorizados (+ los que el usuario nombró en la pregunta)
   const authCounts = _authorizedCounts(ledger, results);

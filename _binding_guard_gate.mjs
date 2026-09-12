@@ -166,6 +166,40 @@ H("[B3] RANGOS · «X-Y%» se descompone y los dos extremos existen con su dueñ
   /* la ventana viaja en el detalle del veto de significado: sin la frase no se puede adjudicar después */
   const r6 = run("Falabella tiene $4.3M en ventas este año. (Datos del año cerrado.)");
   ok((r6.violations || []).some((v) => v.kind === "metrica-mal-atribuida" && /: "[^"]*\$4\.3M[^"]*"/.test(String(v.detail))), "★ el detalle del veto de significado trae la frase que lo disparó", JSON.stringify((r6.violations || []).map((v) => v.detail)));
+
+  /* ── EL CASO VIVO, CON EL LEDGER REAL (corrida mínima 2026-09-12, re-juzgada offline) ──────────────────────
+   * La descomposición sola NO alcanzó: la oración exacta del ejecutivo pasó VERDE con la boleta real del turno
+   * (executiveSummary + diagnose + rolesCartera + marginRead · 133 figs) porque cada extremo, ya suelto, entraba
+   * a la amnistía aritmética (cuatro entidades nombradas → miles de restas de nivel 2, y las participaciones del
+   * catálogo). Los markups reales: los que caen 37.2-40.6%, los sanos 52.7-61.1%. Un extremo de rango tiene que
+   * EXISTIR; ninguna coincidencia aritmética lo autoriza. Este caso corre sobre el MISMO ledger que el turno vivo
+   * — si alguien vuelve a abrir la amnistía para los rangos, se pone rojo acá, no en producción. */
+  const { runPlan } = await import("./src/adi/oracle/toolRunner.js");
+  const { TOOLS } = await import("./src/adi/oracle/toolRegistry.js");
+  const { cajaDelAgente } = await import("./src/adi/agente/herramientasAgente.js");
+  const { ESCENARIO_INICIAL } = await import("./src/config/scenarios.js");
+  const _qVivo = "Dime cómo va el negocio, qué está explicando el resultado, qué clientes presionan más el margen, qué puedes demostrar y qué harías primero. Al final resúmelo para directorio.";
+  const _rpVivo = runPlan({ intent: "answer", calls: ["executiveSummary", "diagnose", "rolesCartera", "marginRead"].map((tool) => ({ tool, args: {} })) },
+    { scenario: ESCENARIO_INICIAL, maxCalls: 8, preguntaUsuario: _qVivo, registry: cajaDelAgente(TOOLS) });
+  const _figsVivo = (_rpVivo.ledger || {}).figs || [];
+  const runVivo = (n) => guardC(n, { ledger: { figs: _figsVivo }, results: _rpVivo.results, question: _qVivo, contentScope: "full" });
+  ok(_figsVivo.length > 100 && _figsVivo.some((f) => /Markup/.test(String(f.label)) && String(f.value) === "37.2%"), "el ledger real del turno vivo se reconstruye offline (Lider · Markup sobre costo = 37.2%)", `figs=${_figsVivo.length}`);
+  const _oracionViva = "- **Indicado, no cerrado**: el precio de lista de Falabella, Jumbo, Lider y Sodimac está más pegado al costo (markup 37-40%) que el de los sanos (markup 35-38%) — apunta a negociación de lista, pero no es la única acción.";
+  const rv = runVivo(_oracionViva);
+  const _extremosVetados = (rv.violations || []).filter((v) => v.kind === "cifra-no-autorizada" && /extremo de un rango/.test(String(v.detail))).map((v) => String(v.detail).match(/^[\d.,]+%/)[0]);
+  ok(!rv.ok && _extremosVetados.includes("35%") && _extremosVetados.includes("38%"), "★★★ LA ORACIÓN VIVA, CON SU LEDGER REAL → BLOQUEA: «35-38%» de los sanos no existe (son 52.7-61.1%) y la amnistía aritmética ya no lo salva", JSON.stringify((rv.violations || []).map((v) => v.detail)));
+  ok(_extremosVetados.includes("37%") && _extremosVetados.includes("40%"), "…y «37-40%» tampoco: los reales son 37.2% y 40.6% — el extremo se cita tal cual, no redondeado", _extremosVetados.join(","));
+  ok((rv.violations || []).some((v) => /extremo de un rango/.test(String(v.detail))), "la multa dice que es el extremo de un rango (la reparación cita cifras reales, no otro rango)");
+  /* ⚠️ la boleta del turno trae el markup de los OCHO que caen (37.2% a 45.3%) y NINGUNO de los sanos (52.7-61.1%
+   * en el dato): el cerebro, con la huella «markup más bajo en los que caen que en los sanos» y sin la cifra de los
+   * sanos a la vista, la inventó. Queda registrado como residual de la boleta (no se toca en esta versión). */
+  const _lecturaReal = "- **Indicado, no cerrado**: el precio de lista de Lider (markup 37.2%) y Sodimac (40.6%) está más pegado al costo que el de Tottus (45.3%) y Mercado Libre (44.6%) — apunta a negociación de lista, pero no es la única acción.";
+  ok(runVivo(_lecturaReal).ok, "…y la misma lectura con las cifras reales de la boleta y sus dueños PASA", JSON.stringify((runVivo(_lecturaReal).violations || []).map((v) => v.detail)));
+  const _rangoReal = "Lider y Sodimac tienen un markup de 37.2-40.6%, contra 44.6-45.3% de Mercado Libre y Tottus.";
+  ok(runVivo(_rangoReal).ok, "…y un rango cuyos extremos EXISTEN con su dueño («37.2-40.6%») sigue pasando", JSON.stringify((runVivo(_rangoReal).violations || []).map((v) => v.detail)));
+  /* la amnistía por cuenta MOSTRADA sigue viva fuera del rango: una cifra suelta con sus insumos dichos no cambia */
+  ok(runVivo("Falabella vende $19.4M con margen 22.0%, 8.1 puntos bajo el benchmark de 30.1%.").ok, "la cuenta mostrada («30.1% − 22.0% = 8.1 puntos») sigue amnistiada: el cambio es SOLO para extremos de rango",
+    JSON.stringify((runVivo("Falabella vende $19.4M con margen 22.0%, 8.1 puntos bajo el benchmark de 30.1%.").violations || []).map((v) => v.detail)));
 }
 
 H("[C] ENTIDAD MAL ATRIBUIDA · promovida de AVISO a BLOQUEO");

@@ -47,7 +47,12 @@ const reglas = (t, q) => vetosDeFormato(t, { pregunta: q }).map((v) => v.regla);
 const motivo = (t, q) => (vetosDeFormato(t, { pregunta: q })[0] || { multa: "" }).multa;
 initTenant(TENANT_DEMO);
 
-/* LAS PANTALLAS DE LA BATERÍA EN VIVO (2026-09-11, corrida 2) — verbatim: son la carnada de este gate */
+/* LAS PANTALLAS DE LA BATERÍA EN VIVO (2026-09-11, corrida 2) — verbatim: son la carnada de este gate
+ * ⚠️ con UNA corrección numérica (2026-09-12): la pantalla viva decía «markup (37-40%) … los sanos (que rondan 42-45%)»,
+ * rangos redondeados/inventados que el muro de ese día dejó pasar por la amnistía aritmética. Desde que un extremo
+ * de rango tiene que EXISTIR (guardC, «_expandirRangos»), esa línea arde como cifra —y este gate juzga la FORMA,
+ * no la cifra—, así que la carnada lleva los extremos reales de la boleta (Lider 37.2 · Sodimac 40.6 · Mercado
+ * Libre 44.6 · Tottus 45.3) con sus dueños. Todo lo demás, byte a byte. */
 const PANTALLAS = {
   T1: `El negocio crece, pero deja caja sobre la mesa: venta +7.5% versus el año anterior, margen en 25.1% contra un benchmark de 30.1% — 5 puntos de brecha que representan $4.9M de contribución no capturada en el año.
 
@@ -58,7 +63,7 @@ const PANTALLAS = {
 
 **Por qué pasa (patrón medido, no causa probada):** en Falabella, Lider, Jumbo y Sodimac hay dos huellas presentes a la vez:
 - Carga comercial sobre el nivel de referencia — **probado**: los 4 pagan más carga que el 3.5% declarado.
-- Precio de lista pegado al costo — **indicado**: su markup (37-40%) es más bajo que el de los sanos (que rondan 42-45%).
+- Precio de lista pegado al costo — **indicado**: su markup (37.2-40.6%, de Lider a Sodimac) es más bajo que el de Tottus y Mercado Libre (44.6-45.3%), que caen sin exceso de carga.
 
 La huella de "volumen a margen bajo deliberado" está **abierta**: ningún cliente del tramo alto cae sin exceder también la carga — o sea, en los datos, carga y volumen viajan juntos, no se pueden separar todavía. La regla que lo resolvería: si esta combinación de carga alta + markup bajo se repite igual en toda la cartera, es política comercial general; si varía cliente por cliente, es negociación caso a caso — y ahí el terreno de acción es distinto.
 
