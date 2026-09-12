@@ -140,12 +140,25 @@ const _PIDE_LISTA = new RegExp([
 
 /** la FORMA conversacional de la pregunta, o null si es una lectura corriente.
  *  Devuelve la primera que coincide — el orden es el del owner, y una pregunta rara vez es dos cosas. */
+/* la contradicción EXPLÍCITA: una oración con la forma «más … pero … menos» que no sea, ella misma, un pedido
+ * de lista. Se mira por oración a propósito: en un encargo compuesto la lista puede pedirse en OTRA oración
+ * («…qué clientes están detrás…») sin que la contradicción que abre el mensaje deje de serlo. */
+function _contradiccionExplicita(q) {
+  return String(q).split(/(?<=[.;!?])\s+/).some((o) => _CONTRADICCION.test(o) && !_PIDE_LISTA.test(o));
+}
+
 export function formaConversacional(pregunta) {
   const q = String(pregunta || "");
   if (!q.trim()) return null;
   for (const [nombre, re] of _FORMAS) {
     if (!re.test(q)) continue;
-    if (nombre === "contradiccion" && _PIDE_LISTA.test(q)) continue;
+    if (nombre === "contradiccion" && !_contradiccionExplicita(q)) continue;
+    /* LA CONTRADICCIÓN EXPLÍCITA PREVALECE SOBRE LA HIPÓTESIS (owner 2026-09-11): «Estoy vendiendo más pero
+     * siento que gano menos. Quiero que confirmes si es cierto…» se iba a «hipótesis» por «si es cierto», y el
+     * contenido principal es una contradicción económica que la casa ya sabe investigar (vendo más–gano menos).
+     * Su regla: «confirmes si es cierto» no secuestra el turno cuando el mensaje expresa la contradicción
+     * explícita —«más … pero … menos»—. Solo ese cruce cambia; una hipótesis sin «pero» sigue siendo hipótesis. */
+    if (nombre === "hipotesis" && _contradiccionExplicita(q)) return "contradiccion";
     return nombre;
   }
   return null;

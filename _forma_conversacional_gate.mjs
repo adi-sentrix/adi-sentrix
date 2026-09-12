@@ -155,5 +155,35 @@ H("6 · una sola definición de «forma conversacional» en toda la casa");
     "…y con entrada vacía o nula no inventa una forma");
 }
 
+/* ═══ 7 · ★★ LA CONTRADICCIÓN EXPLÍCITA PREVALECE SOBRE LA HIPÓTESIS (owner 2026-09-11) ═══════════════════
+ * Su prompt causal: «Estoy vendiendo más pero siento que gano menos. Quiero que confirmes si es cierto, me digas
+ * por qué, si viene de precio, costo, mix o acciones comerciales, qué clientes están detrás y qué información
+ * te falta.» se iba a «hipótesis» por «si es cierto» — y «contradicción de métricas» (vendo más–gano menos) lo
+ * reconocía si la frase iba sola. Su regla: «"confirmes si es cierto" no debería secuestrar el turno completo si
+ * el contenido principal expresa una contradicción económica explícita que ADI ya sabe investigar». Y la lista
+ * pedida en OTRA oración («qué clientes están detrás») no apaga la contradicción que abre el mensaje. */
+H("7 · ★★ la contradicción explícita prevalece sobre la hipótesis — y la lista en otra oración no la apaga");
+{
+  const { playbookPara } = await import("./src/adi/agente/playbooks/registro.js");
+  const { readFileSync } = await import("node:fs");
+  const CAUSAL = "Estoy vendiendo más pero siento que gano menos. Quiero que confirmes si es cierto, me digas por qué, si viene de precio, costo, mix o acciones comerciales, qué clientes están detrás y qué información te falta.";
+  ok(formaConversacional(CAUSAL) === "contradiccion", "★★ el prompt causal del owner es una contradicción, no una hipótesis");
+  ok(playbookPara(CAUSAL, {}) && playbookPara(CAUSAL, {}).nombre === "contradiccion-de-metricas", "…y lo toma «contradicción de métricas»");
+  ok(formaConversacional("¿será que vendo más pero gano menos?") === "contradiccion" && formaConversacional("Creo que vendo más pero gano menos, ¿es cierto?") === "contradiccion",
+    "…también cuando la contradicción viene envuelta en «será que» o «creo que»");
+  for (const q of ["¿será que Lider está comprando menos?", "¿será que el margen de Lider bajó?", "Creo que Falabella vende menos", "¿Estoy en lo cierto si digo que Jumbo cae?"])
+    ok(formaConversacional(q) === "hipotesis", `una hipótesis sin «pero» sigue siendo hipótesis · «${q}»`);
+  ok(formaConversacional("Dime cuáles son los clientes que venden mucho pero están bajo el benchmark de margen. Ordénalos por mayor venta y dame un resumen ejecutivo.") === null,
+    "★ el turno congelado de la lista sigue sin ser contradicción: la lista y el «pero» van en la MISMA oración");
+  /* de punta a punta con el cerebro mudo: el piso de la contradicción responde, con sus tres lecturas */
+  const MUDO7 = async () => ({ tipo: "texto", texto: "" });
+  const r = await answerViaAgente({ text: CAUSAL, history: [], mem: {}, scenario: ESC, callAgente: MUDO7 });
+  ok(r.r.agente.estado === "playbook" && r.r.agente.calls >= 3 && /^Las dos son ciertas/.test(String(r.r.text || "")),
+    `★ el turno lo resuelve el procedimiento de la contradicción (${r.r.agente.estado}, ${r.r.agente.calls} herramientas): «las dos son ciertas…»`, String(r.r.text || "").slice(0, 100));
+  /* carnada: sin la regla, el prompt vuelve a «hipótesis» — el chequeo ★★ de arriba daría ✗ */
+  const src = readFileSync(new URL("./src/adi/agente/formaConversacional.js", import.meta.url), "utf8");
+  ok(/if \(nombre === "hipotesis" && _contradiccionExplicita\(q\)\) return "contradiccion";/.test(src), "la regla está escrita donde vive la forma (una definición en toda la casa)");
+}
+
 console.log(`\n── _forma_conversacional_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);
