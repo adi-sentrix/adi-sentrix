@@ -149,6 +149,20 @@ H("[B3] RANGOS · «X-Y%» se descompone y los dos extremos existen con su dueñ
   ok(runR("Lider y Falabella dejan $1.5M-$1.6M de contribución no capturada cada uno.").ok, "…y «$1.5M-$1.6M de contribución no capturada» pasa: los dos extremos existen con su métrica");
   const r5 = runR("Lider tiene un margen de 22%.");
   ok(tiene(r5, "entidad-mal-atribuida") || tiene(r5, "metrica-mal-atribuida") || !r5.ok, "el dueño sigue mandando fuera del rango también (22% es de Falabella)", JSON.stringify(kinds(r5)));
+  /* LOS DOS FALSOS POSITIVOS DE CONTEXTO cazados en vivo con la ventana en el detalle (2026-09-12): la mención pegada a
+   * OTRA cifra es de esa cifra aunque su etiqueta no lleve la palabra («49% de la contribución» ← «Contribución de los
+   * grandes»), y la mención pegada DETRÁS de la juzgada es suya aunque otra cifra la siga («22.5% de margen contra 28.2%») */
+  const LEDV = { figs: [
+    fig("Contribución de los grandes", "49%", { unit: "pct", raw: 49 }), fig("Margen de los grandes", "22.5%", { unit: "pct", raw: 22.5 }), fig("Margen del resto", "28.2%", { unit: "pct", raw: 28.2 }),
+    fig("Falabella · Ventas", "$19.4M", { unit: "money", raw: 19400000 }), fig("Lider · Ventas", "$17.8M", { unit: "money", raw: 17800000 }), fig("Jumbo · Ventas", "$17.3M", { unit: "money", raw: 17300000 }),
+  ] };
+  const RESV = [{ tool: "executiveSummary", coverage: { supported: true }, facts: { rows: [{ nombre: "Falabella" }, { nombre: "Lider" }, { nombre: "Jumbo" }] } }];
+  const runV = (n) => guardC(n, { ledger: LEDV, results: RESV, question: "" });
+  ok(!tiene(runV("Concentración de cartera: los grandes (49% de la contribución) rinden 22.5% de margen contra 28.2% del resto."), "metrica-mal-atribuida"),
+    "★★ «…(49% de la contribución) rinden 22.5% de margen contra 28.2%…» PASA: el «de margen» es del 22.5% y el «% de la contribución» es del 49%", JSON.stringify((runV("Concentración de cartera: los grandes (49% de la contribución) rinden 22.5% de margen contra 28.2% del resto.").violations || []).map((v) => v.detail)));
+  ok(!tiene(runV("Los tres grandes —Falabella ($19.4M), Lider ($17.8M) y Jumbo ($17.3M)— son el 49% de la contribución total."), "metrica-mal-atribuida"),
+    "★★ «…Jumbo ($17.3M)— son el 49% de la contribución total» PASA: la participación es del 49%, no del $17.3M");
+  ok(tiene(runV("Los grandes rinden 49% de margen."), "metrica-mal-atribuida"), "…y el 49% narrado como margen (es contribución) sigue ardiendo con su propia mención");
   /* la ventana viaja en el detalle del veto de significado: sin la frase no se puede adjudicar después */
   const r6 = run("Falabella tiene $4.3M en ventas este año. (Datos del año cerrado.)");
   ok((r6.violations || []).some((v) => v.kind === "metrica-mal-atribuida" && /: "[^"]*\$4\.3M[^"]*"/.test(String(v.detail))), "★ el detalle del veto de significado trae la frase que lo disparó", JSON.stringify((r6.violations || []).map((v) => v.detail)));

@@ -469,6 +469,11 @@ function _todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada, fi
      * mención (la cifra está al lado) y sigue el camino normal — donde la juzgada no se toma a sí misma. */
     if (/(?:ar|er|ir)(?:se)?$/i.test(m[0]) && !tramos.some(([gIni, gFin]) => (gFin <= mIni && mIni - gFin <= 15) || (mFin <= gIni && gIni - mFin <= 15))) continue;
     let tomada = false;
+    /* LA MENCIÓN PEGADA DETRÁS DE LA CIFRA JUZGADA ES SUYA («22.5% de margen contra 28.2%»): nadie más se la lleva —
+     * queda libre para juzgarla a ella. Calibrado en vivo (2026-09-12): «28.2%» se la llevaba hacia adelante y el
+     * margen de los grandes salía «narrado como participación» por el «49% de la contribución» de al lado. */
+    const propiaAtras = finJuzgada <= mIni && (mIni - finJuzgada) <= 15 && _CONECTOR_ATRAS.test(text.slice(finJuzgada, mIni));
+    if (propiaAtras) return false;
     for (const [gIni, gFin] of tramos) {
       if (gIni === idxJuzgada && gFin >= finJuzgada) continue;   // la propia cifra juzgada no toma menciones
       const haciaAtras = gFin <= mIni && (mIni - gFin) <= 15 && _CONECTOR_ATRAS.test(text.slice(gFin, mIni));
@@ -480,6 +485,14 @@ function _todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada, fi
       /* una cifra SIN dueño de métrica (un cálculo del turno: «17.9% de la venta total») también toma la mención pegada:
        * describe a esa cifra, y si esa cifra está mal la juzga otro chequeo — no esta ventana (2026-09-12) */
       if (tok && !duenos) { tomada = true; break; }
+      /* LA MENCIÓN PEGADA DETRÁS DE OTRA CIFRA ES DE ESA CIFRA, la describa bien o mal (calibrado en vivo, 2026-09-12):
+       * «Jumbo ($17.3M)— son el 49% de la contribución total» — «% de la contribución» va detrás del 49% (etiquetado
+       * «Contribución de los grandes», sin la palabra participación) y no es del $17.3M de al lado. La forma «X de M»
+       * ata sin ambigüedad; si describe mal a la suya, se cobra cuando se juzgue ESA cifra con su mención libre, jamás
+       * en la ventana de la vecina. Hacia adelante («carga comercial de 21.5% y 22%») la mención es compartida y sigue
+       * exigiendo que la cifra que la toma la tenga por dueña — si no, un rango de dos extremos se pasaría la mención
+       * de una a otra y ninguna se juzgaría. */
+      if (tok && haciaAtras) { tomada = true; break; }
     }
     /* UN CONTEO TAMBIÉN TOMA SU MENCIÓN («1.234 unidades», «8 clientes»): no es una cifra de la boleta —no tiene dueño
      * de métrica— pero la palabra pegada a ese número lo describe a ÉL, no a la cifra juzgada. Cazado al cerrar
