@@ -63,6 +63,7 @@ import { detectSerieIntent, composeSerieIntent } from "../oracle/serieIntent.js"
 import { playbookPara, pasosDe, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook, formaDelTurno } from "./playbooks/registro.js";
 import { anclaDelCuadro } from "./playbooks/cuadroExplicado.js";   // el cuadro abierto persiste en la memoria del hilo (owner 2026-09-08: «profundiza en…»)   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
 import { serieRealDe } from "../sentrix/capability.js";
+import { buildRolesCartera } from "../sentrix/rolesCartera.js";   // las huellas con sello del turno: el juez compartido las lee para no aceptar un mecanismo afirmado sin su sello (owner 2026-09-11)
 import { getTenantId, getTenantData } from "../../data/tenantStore.js";   // getTenantData: el contexto que el negocio declaró — la ley del porqué lo cita en vez de repreguntar   // la semilla de variación: tenant + pregunta + largo del hilo
 
 const TOPE_RONDAS = 3;      // rondas que pueden pedir herramientas
@@ -264,7 +265,31 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = nul
     if (preferir.alcance === "cartera") return !_esDeEntidad(f);
     return true;
   };
-  const candidatas = preferir ? [..._ordenBase.filter(_preferida), ..._ordenBase.filter((f) => !_preferida(f))] : _ordenBase;
+  /* ── EL RÓTULO NO ES SUPERFICIE (owner 2026-09-11, batería compuesta · «natural») ──────────────────────────
+   * Este peldaño sirvió «Lo que tengo verificado ahora: Medida · cerrar brecha al piso, $4.9M»: un rótulo interno
+   * del motor, con su separador, en la pantalla del dueño. La regla ya existía para la ALTERNATIVA que se ofrece
+   * (ver `_JERGA` abajo) y no para la cifra que se CITA. Ahora las dos pasan por el mismo filtro —una medida
+   * interna o un identificador no es una cifra que se pueda decir— y la citada se escribe en prosa: «el margen
+   * de Falabella, 22%», «las ventas del período, $99.9M». Sin rótulo, sin punto medio. */
+  const _JERGA_ROTULO = /^(?:medida|vs(?![a-záéíóúñ])|% |porcentaje|headline|sub(?![a-záéíóúñ]))/i;
+  const _conceptoYDueno = (f) => {
+    const partes = String(f.label || "").split("·").map((x) => x.trim()).filter(Boolean);
+    const _ents = Array.isArray(entidades) ? entidades : [];
+    if (partes.length >= 2 && _ents.some((e) => _reWord(e).test(partes[0]))) return { concepto: partes.slice(1).join(" · "), dueno: partes[0] };
+    return { concepto: partes.join(" · "), dueno: null };
+  };
+  const _decible = (f) => {
+    const { concepto } = _conceptoYDueno(f);
+    if (!concepto || concepto.length < 3 || _JERGA_ROTULO.test(concepto)) return false;
+    return !concepto.split(/\s+/).some((pz) => esIdentificadorInterno(pz, Array.isArray(entidades) ? entidades : []));
+  };
+  const _enProsa = (f) => {
+    const { concepto, dueno } = _conceptoYDueno(f);
+    const c = concepto.replace(/\s*·\s*/g, " "); const cMin = c.charAt(0).toLowerCase() + c.slice(1);
+    return dueno ? `${cMin} de ${dueno}` : cMin;
+  };
+  const _base = _ordenBase.filter(_decible);
+  const candidatas = preferir ? [..._base.filter(_preferida), ..._base.filter((f) => !_preferida(f))] : _base;
 
   /* C3 DE LA CORRIDA 3 (2026-08-31) · EL RESCATE DEJA DE RENDIRSE CON LA PRIMERA CIFRA. Medido: «compara Q1 vs
    * Q2» con `trend` corrido llegaba acá con 46 cifras verificadas en la boleta; este peldaño elegía la primera
@@ -324,7 +349,7 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = nul
     : motivo ? `Lo que no pude armar es el resto: ${motivo}.` : null;
   const _armar = (fig) => (fig
     ? [
-      `Lo que tengo verificado ahora: ${fig.label}, ${fig.text || fig.value}.`,
+      `Lo que tengo verificado ahora: ${_enProsa(fig)}, ${fig.text || fig.value}.`,
       _limite || "La lectura completa que pediste no la pude armar con la calidad que corresponde.",
       refutacion,
       alternativa(fig) || "Dime por dónde quieres que siga y lo trabajo sobre lo disponible.",
@@ -890,6 +915,9 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * conteos (Paso 1b) y el piso solo le pasaba las cifras. Se autoriza lo que ADI YA mostró: figs y conteos. */
   const _boletaDelHilo = (typeof _previaDelHilo === "string" && _previaDelHilo.trim().length > 40)
     ? { figs: [{ value: _previaDelHilo }], counts: parseCounts(_previaDelHilo).map((c) => c.raw).filter(Number.isFinite) } : null;
+  /* las huellas del motor de papeles (probado · indicado · abierto), una vez por turno: el juez compartido las usa
+   * para cobrar «el mecanismo es costo» cuando ese mecanismo está solo indicado o abierto (owner 2026-09-11, B) */
+  const _huellasDelTurno = (() => { try { const A = buildRolesCartera(scenario); return A && A.hay && Array.isArray(A.huellas) ? A.huellas : []; } catch { return []; } })();
   const juzgar = (t, sitio = "cierre") => {
     /* el canal de lo ya aprobado se enciende SOLO acá: en cualquier otro sitio la llamada es la de siempre */
     const v = _guard(t, sitio === "respaldo" ? _boletaAprobadaPrevia : sitio === "reformular-piso" ? _boletaDelHilo : null);
@@ -938,7 +966,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
      * narra sobre otra cuenta del mismo conjunto sin nombrar al referente, se cobra. Solo al cerebro. */
     const vRefte = (sitio === "cierre" || sitio === "reparacion") ? vetoReferente(t, referente, scopePrev.current) : null;
     /* `sitio` viaja al contrato desde la densidad ejecutiva (2026-09-11): la forma se juzga al cerebro, no a los peldaños */
-    const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [], limiteDeHerramienta: motivosNoSoportado.length > 0, sitio }),
+    const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [], limiteDeHerramienta: motivosNoSoportado.length > 0, sitio, huellas: _huellasDelTurno, figs: figsTotales }),
       ...(vSinBoleta ? [vSinBoleta] : []),
       ...(vRefte ? [vRefte] : []),
       ...vPorQue,

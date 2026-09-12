@@ -66,6 +66,7 @@ import { composeCriteria } from "../conversation.js";     // UNA VERDAD: reusa l
 import { pnlOraclePlan } from "../pnl.js";                // decisión 3 · el plan determinístico del RESULTADO (P&L) — evita que "resultado" se conteste con la CONTRIBUCIÓN
 import { clientCapitalRelacion } from "../specRetrieval.js";   // decisión 9 · ¿el dato sostiene la relación cliente×SKU? (la MISMA medición que usa el composer, nunca un criterio paralelo)
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
+import { buildRolesCartera } from "../sentrix/rolesCartera.js";   // las huellas con sello (probado · indicado · abierto) que lee el juez compartido
 
 // ── BACKOFF ante RATE-LIMIT real (owner 2026-08-03, investigación cruzada de los 5 gates de Arquitectura C:
 // clarify_mode/multimodo/provider_certification/plan/tension) — hallazgo transversal CONFIRMADO en vivo, múltiples
@@ -1474,6 +1475,10 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   if (typeof callPlan !== "function" || typeof callNarrate !== "function") return null;
   const q = (text || "").trim();
   if (!q) return null;
+  /* las huellas con sello del motor de papeles, para el juez compartido (mismo criterio que el agente; owner 2026-09-11):
+   * se leen una vez por turno y solo si hacen falta — el oráculo importa el motor por el mismo camino que el agente */
+  let _huellasCache = null;
+  const _huellasDelTurno = () => { if (_huellasCache) return _huellasCache; try { const A = buildRolesCartera(scenario); _huellasCache = A && A.hay && Array.isArray(A.huellas) ? A.huellas : []; } catch { _huellasCache = []; } return _huellasCache; };
   // SELLADO AL ENTRAR — el contexto llega de la UI, así que NO se le cree nada hasta que valide: sealViewContext
   // lo verifica contra ENTITIES/METRICS/SURFACE/el manifiesto, aplica el candado O(1) y lo congela. Un contexto
   // inválido devuelve null y el turno sigue exactamente como hoy (nunca rompe, nunca se usa a medias).
@@ -2812,7 +2817,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // justamente explica que no va a mostrar ninguno. Con calls vacías (el caso D2 previo) esto es un no-op:
       // `periodos` era [] y el envoltorio no agregaba nada — la conducta previa queda byte-idéntica.
       const c = (desdeTexto || desdeConfusion) ? candidato : ensureUmbralDeclarado(ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos, _opPeriodo), results, q), results);
-      if (guardC(c, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok && !vetosDeRegistro(c, { pregunta: q }).length) { narration = c; narrationRepaired = true; break; }
+      if (guardC(c, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok && !vetosDeRegistro(c, { pregunta: q, huellas: _huellasDelTurno(), figs: (ledger && ledger.figs) || [] }).length) { narration = c; narrationRepaired = true; break; }
     }
   }
 
@@ -2975,7 +2980,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
      * negocio no puede depender de qué camino contestó: acá se suma el MISMO juez, con la misma letra
      * (`vetosDeRegistro`, contratoAgente — una regla, un archivo). Si la narración lo viola, no se acepta:
      * sigue el flujo de siempre (reintento/salida determinística), que compone desde lo ya autorizado. */
-    const _regVetos = vetosDeRegistro(n, { pregunta: q });
+    const _regVetos = vetosDeRegistro(n, { pregunta: q, huellas: _huellasDelTurno(), figs: (ledger && ledger.figs) || [] });
     if (gVerdict.ok && !gVerdict.degraded && _regVetos.length) {
       narrateAttemptTrace.push({ attempt, guardOk: false, reason: `registro:${_regVetos[0].regla}`, detalle: [_regVetos[0].multa.slice(0, 140)], usage: null });
     }

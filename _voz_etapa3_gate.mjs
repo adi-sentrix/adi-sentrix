@@ -113,6 +113,21 @@ H("5 · incertidumbre premium: el límite hace avanzar, nunca «no tengo informa
   } else {
     ok(!/informaci[oó]n autorizada/i.test(t) && !/99\.9M/.test(t), `el turno terco sale por otro peldaño (${r.r.agente.estado}) sin la cifra inventada ni la frase burocrática`, t.slice(0, 120));
   }
+  /* EL RÓTULO NO ES SUPERFICIE (owner 2026-09-11, batería compuesta · «natural»): con la boleta llena, el rescate
+   * sirvió «Medida · cerrar brecha al piso, $4.9M» — un rótulo interno del motor. La cifra citada se elige con el
+   * mismo filtro que la alternativa (nada de medidas internas ni identificadores) y se escribe en prosa. */
+  let k2 = 0;
+  const terco2 = async () => { k2++; return k2 === 1
+    ? { tipo: "herramientas", pedidos: [{ tool: "executiveSummary", args: {} }, { tool: "diagnose", args: {} }, { tool: "rolesCartera", args: {} }] }
+    : { tipo: "texto", texto: `El negocio crece 7.5% y ${CLIENTES[0]} tiene 269 d de cobro, la peor de la cartera.` }; };
+  const r2 = await answerViaAgente({ text: "Mira el negocio completo como si fueras mi asesor. Dime qué está bien, qué te preocupa, por qué, cuánto dinero está en juego y dónde actuarías primero.", history: [], mem: {}, scenario: ESC, callAgente: terco2 });
+  const t2 = String(r2.r.text || "");
+  if (r2.r.agente.estado === "limite") {
+    ok(!/ · /.test(t2) && !/\bMedida\b/.test(t2), "★★ el rescate no sirve un rótulo interno: ni «Medida · …» ni el punto medio del motor en pantalla", t2.slice(0, 140));
+    ok(/^Lo que tengo verificado ahora: [a-záéíóúñ]/.test(t2), "…y la cifra citada va en prosa, con minúscula, sin rótulo", t2.slice(0, 80));
+  } else {
+    ok(!/ · /.test(t2) && !/\bMedida\b/.test(t2), `el turno terco sale por otro peldaño (${r2.r.agente.estado}) y tampoco muestra rótulos`, t2.slice(0, 120));
+  }
 }
 
 /* ═══ 6 · LA CARTA LLEVA LAS REGLAS DE VOZ — bajo su techo (el techo lo mide _carta_asesor_gate) ═══════════ */

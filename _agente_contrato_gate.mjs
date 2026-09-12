@@ -737,5 +737,43 @@ H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro")
 
 initTenant(TENANT_DEMO);
 olvidarNombreUsuario();
+
+/* ═══ 7 · EL MECANISMO SIN SU SELLO Y LA CUENTA DERIVADA (owner 2026-09-11, batería compuesta · «comercial») ═══
+ * Dos frases que el muro dejó pasar: «En los cinco, el mecanismo medido es carga comercial/rebate — no costo
+ * estructural. Tottus y Mercado Libre… ahí el mecanismo es costo, no carga» (el costo está INDICADO, no probado,
+ * y se afirma y se niega como hecho) y «$4.9M… casi un punto de venta anual» ($4.9M sobre $99.9M son 4.9 puntos).
+ * Las dos reglas viven en el juez compartido: el agente y el oráculo le pasan las huellas y la boleta del turno. */
+H("7 · el mecanismo afirmado sin su sello arde, y la cuenta derivada que no cierra también — en el juez compartido");
+{
+  const { vetosDeRegistro } = await import("./src/adi/agente/contratoAgente.js");
+  const { buildRolesCartera } = await import("./src/adi/sentrix/rolesCartera.js");
+  const { ESCENARIO_INICIAL } = await import("./src/config/scenarios.js");
+  const huellas = buildRolesCartera(ESCENARIO_INICIAL).huellas;
+  const probado = huellas.find((h) => h.sello === "probado"), noProbado = huellas.find((h) => h.sello !== "probado");
+  ok(!!probado && !!noProbado, `el escenario trae huellas con sello (${huellas.map((h) => h.sello).join(" · ")}) — sin ellas la regla calla`);
+  const r = (t, ctx = {}) => vetosDeRegistro(t, { huellas, figs: [], ...ctx }).map((v) => v.regla);
+  ok(r("En los cinco, el mecanismo medido es carga comercial/rebate — no costo estructural.").includes("mecanismo-sin-sello"),
+    "★★ «no costo estructural» ARDE: negar como hecho un mecanismo indicado es causalidad sin respaldo");
+  ok(r("Tottus y Mercado Libre también están bajo benchmark, pero ahí el mecanismo es costo, no carga.").includes("mecanismo-sin-sello"),
+    "★★ «ahí el mecanismo es costo» ARDE: el costo está indicado, no probado");
+  ok(!r("El mecanismo medido es carga comercial: $655K por sobre el nivel declarado.").includes("mecanismo-sin-sello"), "…el mecanismo PROBADO se afirma sin problema");
+  ok(!r("Tottus · Mercado Libre tienen margen delgado sin carga alta ni volumen: ahí es precio de lista o mix de lo que compran.").includes("mecanismo-sin-sello"), "…la alternativa del composer («precio de lista o mix») pasa");
+  ok(!r("El patrón apunta al precio de lista pegado al costo, sin prueba todavía.").includes("mecanismo-sin-sello") && !r("¿Es costo o es mix? Eso el dato no lo separa.").includes("mecanismo-sin-sello") && !r("Si viene de costo, el dato no lo dice: no cruza cliente con familia.").includes("mecanismo-sin-sello"),
+    "…y la marca, la pregunta y el límite pasan: la regla cobra el hecho, no el razonamiento");
+  ok(vetosDeRegistro("ahí el mecanismo es costo, no carga.", {}).every((v) => v.regla !== "mecanismo-sin-sello"), "sin huellas en el contexto la regla calla (no inventa sellos)");
+  const base = [{ label: "Ventas del período", text: "$99.9M", raw: 99.9e6 }];
+  ok(r("La cartera deja $4.9M de contribución no capturada — casi un punto de venta anual completo.", { figs: base }).includes("cuenta-derivada-no-cierra"),
+    "★★ «casi un punto de venta anual» ARDE con la base en la boleta: son 4.9 puntos");
+  ok(r("La cartera deja $4.9M de contribución no capturada — casi un punto de venta anual completo.").includes("cuenta-derivada-no-cierra"),
+    "★ …y sin la base en la boleta también arde: una equivalencia sin base no se sostiene");
+  ok(!r("$4.9M sobre la venta son casi cinco puntos de venta anual.", { figs: base }).includes("cuenta-derivada-no-cierra"), "…la equivalencia correcta pasa");
+  ok(r("Entre las tres suman $4.16M de los $4.9M totales: ahí vive el 60% del problema.").includes("cuenta-derivada-no-cierra"), "★ «$4.16M de los $4.9M… 60%» ARDE: la cuenta da 85%");
+  ok(!r("Entre las tres suman $4.16M de los $4.9M totales: ahí vive el 84% del problema.").includes("cuenta-derivada-no-cierra"), "…y el 84% real pasa");
+  ok(!r("Falabella deja $1.6M sin capturar, de $4.9M no capturados en toda la cartera.").includes("cuenta-derivada-no-cierra"), "…y la frase del composer de la prioridad (sin porcentaje) pasa");
+  const bucle = fs.readFileSync("src/adi/agente/bucleAgente.js", "utf8"), oraculo = fs.readFileSync("src/adi/oracle/answerViaOracle.js", "utf8");
+  ok(/huellas: _huellasDelTurno, figs: figsTotales/.test(bucle) && /vetosDeRegistro\(c, \{ pregunta: q, huellas: _huellasDelTurno\(\), figs:/.test(oraculo) && /vetosDeRegistro\(n, \{ pregunta: q, huellas: _huellasDelTurno\(\), figs:/.test(oraculo),
+    "…y los dos caminos le pasan al juez las huellas y la boleta del turno (una regla, dos caminos)");
+}
+
 console.log(`\n── _agente_contrato_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

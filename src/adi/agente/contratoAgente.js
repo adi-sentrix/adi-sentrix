@@ -359,8 +359,102 @@ export function vetosDeRegistro(texto, contexto = {}) {
     if (typeof L.salvoSi === "function" && L.salvoSi(contexto)) continue;
     if (L.re.test(texto)) v.push({ regla: L.regla, multa: L.multa });
   }
+  const _mec = _mecanismoSinSello(texto, contexto.huellas);
+  if (_mec) v.push({ regla: "mecanismo-sin-sello", multa: _mec });
+  const _cta = _cuentaDerivada(texto, contexto.figs);
+  if (_cta) v.push({ regla: "cuenta-derivada-no-cierra", multa: _cta });
   return v;
 }
+
+/* ── EL MECANISMO SIN SU SELLO (owner 2026-09-11, batería compuesta · «comercial») ─────────────────────────
+ * Lo que salió: «En los cinco, el mecanismo medido es carga comercial/rebate — no costo estructural. Tottus y
+ * Mercado Libre… ahí el mecanismo es costo, no carga.» El motor de papeles ya dice qué mecanismo está PROBADO,
+ * cuál INDICADO y cuál ABIERTO (las huellas de `rolesCartera`); afirmar como hecho uno indicado o abierto —o
+ * negarlo como hecho— es causalidad sin respaldo con tono seguro, y el juez del porqué solo miraba «porque /
+ * se debe a». La regla lee las huellas del turno (el caller las pasa; sin huellas, calla) y multa la afirmación
+ * sin marca. Pasan: la hipótesis marcada, la pregunta, el límite declarado y las alternativas («precio o mix»). */
+const _MECANISMO_LEXICO = [
+  [/\bcostos?\b|\bprecio de lista\b|\bmarkup\b|\bprecios?\b/i, /precio de lista pegado al costo/i, "costo/precio"],
+  [/\bmix\b|\bsurtido\b/i, /\bmix\b/i, "mix"],
+  [/\bvolumen\b/i, /volumen a margen bajo/i, "volumen"],
+  [/\bcarga\b|acciones comerciales|\brebates?\b|\bdescuentos?\b/i, /acciones comerciales sobre el nivel/i, "carga comercial"],
+];
+/* la afirmación CAPTURA el mecanismo que afirma o niega: se juzga ese, no cualquier mecanismo nombrado de paso en
+ * la misma oración («…ceden margen por acciones comerciales — o sea buena parte de lo que el volumen…» nombra
+ * el precio de paso y afirma la carga, que está probada). */
+const _MECANISMO_PALABRA = "(costos?|precio de lista|precios?|markup|mix|surtido|volumen|carga comercial|carga|acciones comerciales|rebates?|descuentos?)";
+/* ⚠️ SOLO LA AFIRMACIÓN CAUSAL, no cualquier «es X» / «no X» (calibrado contra los composers de la casa): «el foco
+ * de la semana es la condición, no el volumen» habla del FOCO, y «lo que el volumen cuesta no es precio de lista,
+ * es condición negociada» está anclado al conteo probado de la misma oración. Se cobra (a) el marco explícito
+ * —«el mecanismo es X», «viene de X», «se explica por X», «se debe a X», «es un problema/tema de X», «es por X»—
+ * y (b) dentro de una oración que ya habla del mecanismo o la causa, también la negación «…, no X». */
+const _MARCO_CAUSAL = /\bel mecanismo\b|\bla causa\b|\bse explica\b|\bse debe\b|\bviene (?:de|del)\b/i;
+const _AFIRMA_MECANISMO = new RegExp(`\\b(?:el mecanismo (?:medido |real |de fondo )?(?:es|son|no es)|se explica por|se debe (?:a|al)|viene (?:de|del)|es por|es (?:un |una )?(?:tema|problema|cosa|cuesti[oó]n) de)\\s+(?:el |la |los |las )?${_MECANISMO_PALABRA}(?: estructural| comercial)?(?![\\wáéíóúñ])`, "gi");
+const _NIEGA_MECANISMO = new RegExp(`\\bno(?: es| viene de| hay)?\\s+(?:un |una |el |la )?(?:tema |problema |cosa )?(?:de )?${_MECANISMO_PALABRA}(?: estructural| comercial)?(?![\\wáéíóúñ])`, "gi");
+const _ALTERNATIVA = /\b(?:costos?|precio(?: de lista)?|mix|volumen|carga)\b[^.;\n]{0,40}\bo\b[^.;\n]{0,40}\b(?:costos?|precio(?: de lista)?|mix|volumen|carga)\b/i;
+const _MARCA_SELLO = /\b(?:puede|pueden|podr[ií]a(?:n)?|quiz[aá]s?|tal vez|probablemente|posiblemente|hip[oó]tesis|sospecho|apunta|indicio|patr[oó]n|sin prueba|queda abierto|no lo prueba|no est[aá] (?:medido|probado)|indicad[oa]|abiert[oa])\b|\bsi (?:viene|vienen|fuera|fuese|es|era|resulta)\b|\bel dato no (?:lo |la |los |las )?(?:dice|declara|trae|mide|ve|prueba|separa|cruza|distingue)\b/i;
+function _mecanismoSinSello(texto, huellas) {
+  const H = Array.isArray(huellas) ? huellas.filter((h) => h && h.mecanismo && h.sello) : [];
+  if (!H.length) return null;
+  for (const oracion of String(texto).split(/(?<=[.!?])\s+|\n+/)) {
+    if (/[¿?]/.test(oracion) || _MARCA_SELLO.test(oracion) || _PREGUNTA_O_LIMITE.test(oracion) || _ALTERNATIVA.test(oracion)) continue;
+    const palabras = [];
+    for (const re of (_MARCO_CAUSAL.test(oracion) ? [_AFIRMA_MECANISMO, _NIEGA_MECANISMO] : [_AFIRMA_MECANISMO])) {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(oracion)) !== null) palabras.push(m[1]);
+    }
+    for (const palabra of palabras) {
+      const entrada = _MECANISMO_LEXICO.find(([lex]) => lex.test(palabra));
+      if (!entrada) continue;
+      const [, huellaRe, nombre] = entrada;
+      const h = H.find((x) => huellaRe.test(String(x.mecanismo)));
+      if (!h || h.sello === "probado") continue;
+      return `afirmas como hecho que el mecanismo es «${nombre}» («${oracion.trim().slice(0, 90)}»), y en este dato ese mecanismo está ${h.sello.toUpperCase()}: ${h.porque || "no hay prueba"}. Dilo con su sello —«el patrón apunta a…», «queda abierto»— o como hipótesis; afirmarlo o negarlo como hecho es causalidad sin respaldo.`;
+    }
+  }
+  return null;
+}
+
+/* ── LA CUENTA DERIVADA QUE NO CIERRA (owner 2026-09-11, batería compuesta · «comercial») ──────────────────
+ * Lo que salió: «$4.9M de contribución no capturada en el año — casi un punto de venta anual completo». La
+ * venta del período es $99.9M: son casi CINCO puntos. Una equivalencia («N puntos de venta», «X% de Y») es una
+ * cuenta, y toda cuenta se verifica contra la boleta del turno: si la base no está en la boleta, la
+ * equivalencia no se puede sostener y no va; si está y no cierra, se multa con el número correcto. */
+const _NUM_PALABRA = { medio: 0.5, media: 0.5, un: 1, una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
+const _MONTO = /\$\s?(\d+(?:[.,]\d+)?)\s?([KMB])?(?![\wáéíóúñ%])/gi;
+const _montoNum = (s) => { const m = /\$\s?(\d+(?:[.,]\d+)?)\s?([KMB])?/i.exec(s); if (!m) return NaN; return Number(m[1].replace(",", ".")) * ({ K: 1e3, M: 1e6, B: 1e9 }[(m[2] || "").toUpperCase()] || 1); };
+const _PUNTOS_DE_VENTA = /\b(?:casi|cerca de|m[aá]s de|menos de|alrededor de|apenas|unos?|equivale a|representa|es)?\s*(medio|media|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|\d+(?:[.,]\d+)?)\s+puntos?(?:\s+porcentuales?)?\s+(?:de|del|sobre)\s+(?:la\s+|las\s+|tu\s+)?(?:venta|ventas|facturaci[oó]n)\b/i;
+/* la proporción se cobra solo en su forma EXPLÍCITA —«A de los B … (es|vive|representa) el N%»—: entre B y el
+ * porcentaje no puede haber un «que» (una relativa cambia de sujeto: «$25K de los $48K QUE concentran el 80%»
+ * habla del 80% de los $48K, no de $25K/$48K — corpus aceptado del examen 2) */
+const _PCT_DE = /(\$\s?\d+(?:[.,]\d+)?\s?[KMB]?)\b[^.;\n]{0,40}?\b(?:de|del|de los|de las|sobre)\s+(?:los\s+|las\s+)?(\$\s?\d+(?:[.,]\d+)?\s?[KMB]?)\b((?:(?!\bque\b)[^.;\n]){0,60}?)\b(\d+(?:[.,]\d+)?)\s*%/i;
+function _cuentaDerivada(texto, figs) {
+  const F = Array.isArray(figs) ? figs : [];
+  for (const oracion of String(texto).split(/(?<=[.!?])\s+|\n+/)) {
+    const pv = _PUNTOS_DE_VENTA.exec(oracion);
+    if (pv) {
+      const montos = [...oracion.matchAll(_MONTO)].map((m) => _montoNum(m[0])).filter((n) => Number.isFinite(n) && n > 0);
+      if (montos.length) {
+        const declarado = _NUM_PALABRA[pv[1].toLowerCase()] ?? Number(pv[1].replace(",", "."));
+        const base = F.find((f) => /^Ventas? del per[ií]odo$/i.test(String(f && f.label)) && Number.isFinite(f.raw) && f.raw > 0);
+        if (!base) return `dices «${pv[0].trim()}» sobre ${montos.length === 1 ? "un monto" : "montos"} de esta respuesta, y la venta total no está en la evidencia de este turno: una equivalencia es una cuenta, y sin la base en la boleta no se puede sostener. Quita la equivalencia o léela primero.`;
+        const puntos = (100 * montos[0]) / base.raw;
+        if (Math.abs(puntos - declarado) > Math.max(0.6, 0.25 * puntos)) return `dices «${pv[0].trim()}» y no cierra: ${_fmtMonto(montos[0])} sobre ${base.text || base.value} de venta son ${puntos.toFixed(1)} puntos, no ${declarado}. La equivalencia se calcula, no se estima.`;
+      }
+    }
+    const pd = _PCT_DE.exec(oracion);
+    if (pd) {
+      const a = _montoNum(pd[1]), b = _montoNum(pd[2]), pct = Number(pd[4].replace(",", "."));
+      if (Number.isFinite(a) && Number.isFinite(b) && b > 0 && Number.isFinite(pct)) {
+        const real = (100 * a) / b;
+        if (Math.abs(real - pct) > 2) return `dices que ${pd[1].trim()} sobre ${pd[2].trim()} es ${pct}% y la cuenta da ${real.toFixed(0)}%. Una proporción se calcula con las dos cifras de la boleta, no se estima.`;
+      }
+    }
+  }
+  return null;
+}
+const _fmtMonto = (n) => (n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `$${(n / 1e3).toFixed(0)}K` : `$${n}`);
 
 export function vetosDeContrato(texto, contexto = {}) {
   if (typeof texto !== "string" || !texto.trim()) return [];

@@ -228,7 +228,7 @@ H("6 · cableado: la forma se juzga al cerebro y no a los peldaños; sin el juez
 {
   const bucle = readFileSync(new URL("./src/adi/agente/bucleAgente.js", import.meta.url), "utf8");
   const contrato = readFileSync(new URL("./src/adi/agente/contratoAgente.js", import.meta.url), "utf8");
-  ok(/limiteDeHerramienta: motivosNoSoportado\.length > 0, sitio \}/.test(bucle), "el bucle pasa el sitio al contrato");
+  ok(/limiteDeHerramienta: motivosNoSoportado\.length > 0, sitio, huellas: _huellasDelTurno, figs: figsTotales \}/.test(bucle), "el bucle pasa el sitio al contrato (y, desde B, las huellas y la boleta del turno)");
   ok(/if \(contexto\.sitio === "cierre" \|\| contexto\.sitio === "reparacion" \|\| contexto\.sitio === "poda"\) v\.push\(\.\.\.vetosDeFormato\(texto, contexto\)\);/.test(contrato), "el contrato cobra la forma SOLO en cierre, reparación y poda");
   ok(vetosDeContrato(PANTALLAS.T1, { pregunta: "¿Cómo va el negocio?", sitio: "cierre" }).some((v) => v.regla === "formato-de-informe"), "★ juzgado como cierre, el informe arde en el contrato");
   ok(!vetosDeContrato(PANTALLAS.T1, { pregunta: "¿Cómo va el negocio?", sitio: "playbook:resumen-del-negocio" }).some((v) => v.regla === "formato-de-informe") && !vetosDeContrato(PANTALLAS.T1, { pregunta: "¿Cómo va el negocio?" }).some((v) => v.regla === "formato-de-informe"),

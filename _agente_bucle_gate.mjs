@@ -228,7 +228,9 @@ H("8b · el rescate sirve el RESULTADO del turno, no su insumo");
   const r = await answerViaAgente({ text: "cuanto seria mi venta si crece el año que viene?",
     history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
   ok(r.r.agente.estado === "limite", `el turno cae al peldaño honesto (${r.r.agente.estado}) — el veto no es podable`);
-  ok(/Proyección/.test(r.r.text) && /\$103\.0M/.test(r.r.text),
+  /* la cifra citada va en PROSA desde el 2026-09-11 («proyección …», minúscula, sin el punto medio del rótulo —
+   * el owner vio «Medida · cerrar brecha al piso» en pantalla): se mide el contenido, no la mayúscula */
+  ok(/proyecci[oó]n/i.test(r.r.text) && /\$103\.0M/.test(r.r.text),
     "★ y sirve LA PROYECCIÓN, que es lo que el usuario pidió — antes servía la base y ofrecía esto", r.r.text.slice(0, 130));
   ok(!/tengo Proyección: dime cuál abro/.test(r.r.text), "…ya no la ENUMERA como alternativa: la entrega");
 }
@@ -799,7 +801,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
         return { tipo: "herramientas", pedidos: [{ tool: "zzz", args: {} }] };
       };
       const r = await Mut.answerViaAgente({ text: "registra eso", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
-      return /Supuesto del usuario/.test(r.r.text) && /verificado/.test(r.r.text);   // el defecto: blanqueo
+      return /supuesto del usuario/i.test(r.r.text) && /verificado/.test(r.r.text);   // el defecto: blanqueo (la cita va en prosa: minúscula)
     });
 
   // (e) la corrección de contrato infinita: sano = el cerebro la ve UNA vez; mutado = una por ronda
@@ -868,7 +870,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       // sin «%», como el bloque 8b: con supuesto el playbook C compone y el peldaño nunca corre
       const r = await Mut.answerViaAgente({ text: "cuanto seria mi venta si crece el año que viene?",
         history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g });
-      return /Venta del período/.test(r.r.text) && /tengo Proyección/.test(r.r.text);   // el defecto: sirve el insumo y ofrece la respuesta
+      return /venta del per[ií]odo/i.test(r.r.text) && /tengo Proyección/.test(r.r.text);   // el defecto: sirve el insumo y ofrece la respuesta (la cita va en prosa)
     });
 
   /* (8c) el registro del trato retirado: «llamame jc» vuelve a depender de que el cerebro llame la herramienta,
@@ -1006,8 +1008,8 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   await carnada("rescate empaquetado (el auto-veto de T2)",
     /* la letra del peldaño cambió en la Etapa 3 (owner 2026-09-11: primero lo verificado, después el límite) — la
      * carnada muta la línea NUEVA; lo que prueba (un rescate empaquetado se auto-veta) es lo mismo */
-    [[/      `Lo que tengo verificado ahora: \$\{fig\.label\}, \$\{fig\.text \|\| fig\.value\}\.`,/,
-      "      \"Lo que tengo verificado ahora: \" + candidatas.slice(0, 4).map((x) => x.label + \", \" + (x.text || x.value)).join(\"; \") + \".\","]],
+    [[/      `Lo que tengo verificado ahora: \$\{_enProsa\(fig\)\}, \$\{fig\.text \|\| fig\.value\}\.`,/,
+      "      \"Lo que tengo verificado ahora: \" + candidatas.slice(0, 4).map((x) => _enProsa(x) + \", \" + (x.text || x.value)).join(\"; \") + \".\","]],
     async (Mut) => {
       initTenant(PACK);
       const terco2 = async ({ ronda, attempt }) => {

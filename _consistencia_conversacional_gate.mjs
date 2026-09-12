@@ -116,8 +116,13 @@ H("2 · un turno con cifras en la boleta jamás sale con una disculpa pelada");
      * genérico pelado («No tengo información autorizada suficiente», estado `vacio`). Medido con la carnada:
      * arreglar solo el juez empeoraría la respuesta en vez de mejorarla. Por eso se exige LA CONDUCTA
      * COMPLETA —ofrece alternativa Y en idioma del usuario—, no una de las dos mitades. */
-    ok(/también tengo/.test(t4) && !fugado && r4.r.agente.estado === "limite",
-      "★ T4 de la certificación · ofrece alternativa Y en palabras del negocio — antes: «Valor y headlineSub»",
+    /* ⚠️ RE-APUNTADO (2026-09-11, «el rótulo no es superficie»): la cifra citada pasa ahora por el MISMO filtro
+     * que la alternativa —ni medidas internas, ni identificadores, ni «YoY»— y se escribe en prosa. En esta
+     * boleta el único concepto nombrable es el que se cita («valor de Lider»), así que ya no queda alternativa
+     * que ofrecer: lo que se exige es la conducta completa en idioma del usuario —cita en prosa Y, si hay,
+     * alternativa nombrada— y jamás jerga. Ofrecer «% del total» o «YoY» para cumplir el check sería el defecto. */
+    ok(!fugado && r4.r.agente.estado === "limite" && !/ · /.test(t4) && (/también tengo/.test(t4) || /^Lo que tengo verificado ahora: [a-záéíóúñ]/.test(t4)),
+      "★ T4 de la certificación · en palabras del negocio: cita en prosa y, si hay, alternativa nombrada — antes: «Valor y headlineSub»",
       `estado=${r4.r.agente.estado} figs=${r4.r.agente.figs} fugado=${fugado || "-"} · ${t4.slice(0, 110)}`);
   }
 }
