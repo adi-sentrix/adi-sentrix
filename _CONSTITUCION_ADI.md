@@ -65,6 +65,10 @@ el cruce contra la carpeta real. Antes de pantalla:
 
 1. **¿Cada cifra tiene origen verificado?** (carpeta / cálculo / supuesto / herramienta) — con el dueño
    nombrado en la misma oración. Números huérfanos: bloqueados.
+   **Y con su significado** (ley del owner, 2026-09-12): *la verdad no es solo cifra + dueño; también es cifra +
+   dueño + significado.* Una cifra real, de su dueño real, narrada como otra métrica —una participación dicha
+   como crecimiento, una variación dicha como venta— es una respuesta falsa = bloqueado. El rótulo de la
+   carpeta declara lo que la cifra ES, y la prosa no puede cambiarlo.
 2. **¿Cada cálculo se puede recalcular?** La fórmula mostrada se recomputa. No cuadra o no muestra origen →
    bloqueado.
 3. **¿Cada clasificación existe?** «Frenado», «bajo benchmark», «crítico»: solo los estados que la carpeta

@@ -76,6 +76,52 @@ H("[B] MÉTRICA MAL ATRIBUIDA · cifra real bajo otra métrica → BLOQUEA");
   ok(tiene(r3, "metrica-mal-atribuida"), "«margen de 4.5%» (4.5% es carga comercial) → bloquea", JSON.stringify(kinds(r3)));
 }
 
+/* ═══ [B2] CIFRA + DUEÑO + SIGNIFICADO (ley del owner 2026-09-12) ═══════════════════════════════════════════
+ * «Una cifra correcta con significado equivocado sigue siendo una respuesta falsa.» Medido en su batería compuesta:
+ * el panel de ventas vs año anterior etiquetaba su variación % como «% del total» (una participación) y el modelo
+ * la narraba como crecimiento — cifra real, dueño real, significado a merced del rótulo. Tres cierres, con lo que
+ * existía: la tabla de métricas conoce «participación» y «variación/crecimiento»; el rótulo del panel dice lo que
+ * la cifra ES; y con dos métricas en la ventana, las menciones tomadas por otra cifra no compiten (antes: «ambiguo
+ * → no se juzga», que dejaba pasar justo la frase mezclada). Fuera a propósito: «sube/baja/cae» y los verbos
+ * «pesa/concentra/representa» — con ellos, 18 gates de la casa en rojo. */
+H("[B2] CIFRA + DUEÑO + SIGNIFICADO · una participación no se narra como crecimiento, ni al revés");
+{
+  const LED2 = { figs: [
+    fig("Mercado Libre · Variación vs año anterior", "25.3%", { unit: "pct", raw: 25.3 }),
+    fig("Mercado Libre · Carga comercial", "1.8%", { unit: "pct", raw: 1.8 }),
+    fig("Lider · % del total", "14.9%", { unit: "pct", raw: 14.9 }),
+    fig("Lider · YoY", "$2.3M", { unit: "money", raw: 2300000 }),
+    fig("Ventas del período", "$99.9M", { unit: "money", raw: 99900000 }),
+  ] };
+  const RES2 = [{ tool: "salesRead", coverage: { supported: true }, facts: { rows: [{ nombre: "Mercado Libre" }, { nombre: "Lider" }] } }];
+  const run2 = (n) => guardC(n, { ledger: LED2, results: RES2, question: "cómo va el negocio" });
+  ok(!tiene(run2("Mercado Libre: crece 25.3%."), "metrica-mal-atribuida"), "la variación narrada como crecimiento PASA (es lo que la cifra es)");
+  ok(tiene(run2("Mercado Libre pesa 25.3% del total."), "metrica-mal-atribuida"), "★★ la MISMA cifra narrada como participación («25.3% del total») → BLOQUEA");
+  ok(tiene(run2("Lider crece 14.9%."), "metrica-mal-atribuida"), "★★ una participación («Lider · % del total») narrada como crecimiento → BLOQUEA");
+  ok(!tiene(run2("Lider pesa 14.9% del total."), "metrica-mal-atribuida"), "…y narrada como participación PASA");
+  ok(tiene(run2("Lider vende $2.3M."), "metrica-mal-atribuida"), "★ la variación en $ («Lider · YoY») narrada como venta → BLOQUEA");
+  ok(!tiene(run2("Lider creció $2.3M contra el año anterior."), "metrica-mal-atribuida"), "…y narrada como variación PASA");
+  /* la ventana mezclada: la mención tomada por OTRA cifra no compite — antes, «ambiguo → no se juzga» */
+  const LED3 = { figs: [fig("Mercado Libre · % del total", "25.3%", { unit: "pct", raw: 25.3 }), fig("Mercado Libre · Carga comercial", "1.8%", { unit: "pct", raw: 1.8 })] };
+  const run3 = (n) => guardC(n, { ledger: LED3, results: RES2, question: "" });
+  ok(tiene(run3("Mercado Libre: crece 25.3% con solo 1.8% de carga comercial."), "metrica-mal-atribuida"),
+    "★★ «crece 25.3% con solo 1.8% de carga comercial» — «carga comercial» es de 1.8%, la única mención libre de 25.3% es «crece» → BLOQUEA");
+  ok(!tiene(run3("Mercado Libre pesa 25.3% del total con solo 1.8% de carga comercial."), "metrica-mal-atribuida"), "…y con el significado correcto, la misma ventana mezclada PASA");
+  /* lo que sigue pasando: los pisos de la casa y el corpus (verbos ambiguos fuera del vocabulario) */
+  ok(!tiene(run("Falabella concentra $4.3M de contribución y pesa en la cartera. (Datos del año cerrado.)"), "metrica-mal-atribuida"), "«concentra», «pesa» no son participación: prosa de la casa, pasa");
+  ok(!tiene(run("Falabella vende $19.4M y genera $4.3M de contribución, mientras Lider, con $17.8M de venta, genera lo mismo. (Datos del año cerrado.)"), "metrica-mal-atribuida"), "la comparación venta↔contribución del owner sigue pasando");
+  ok(!tiene(run("6 de los que caen la tienen sobre el 4.5% de carga comercial. (Datos del año cerrado.)"), "metrica-mal-atribuida"), "«caen» no es una métrica: el porqué de la casa pasa");
+  /* el canon: «22.0%» y «22%» son la misma cifra para el dueño de la métrica (antes, dos llaves y la cifra sin dueño) */
+  ok(tiene(run("Falabella tiene una carga comercial de 22.0%. (Datos del año cerrado.)"), "metrica-mal-atribuida"), "★ «22.0%» (el margen de Falabella) narrado como carga → BLOQUEA — el canon con decimal cero ya tiene dueño");
+  /* el rótulo del panel dice lo que la cifra ES: en «movers» (ventas vs año anterior) el pct es una variación; en un ranking sigue siendo participación */
+  const { enrichFromFacts } = await import("./src/adi/oracle/ledger.js");
+  const movers = enrichFromFacts([], { ventas: { panel: { kind: "movers", title: "Vs año anterior", rows: [{ nombre: "Mercado Libre", val: 1100000, valFmt: "+$1.1M", pct: 25.3, pos: true }] } } });
+  const rank = enrichFromFacts([], { ventas: { panel: { kind: "rank", title: "Ranking", rows: [{ nombre: "Lider", val: 17800000, valFmt: "$17.8M", pct: 17.8 }] } } });
+  const lab = (b) => (b || []).map((f) => f.label);
+  ok(lab(movers).includes("Mercado Libre · Variación vs año anterior") && !lab(movers).includes("Mercado Libre · % del total"), "★★ el pct del panel «movers» se rotula «Variación vs año anterior», no «% del total»", lab(movers).join(" | "));
+  ok(lab(rank).includes("Lider · % del total"), "…y el pct de un ranking sigue siendo «% del total»", lab(rank).join(" | "));
+}
+
 H("[C] ENTIDAD MAL ATRIBUIDA · promovida de AVISO a BLOQUEO");
 {
   const r = run("Lider aporta $4.3M de contribución. (Datos del año cerrado.)");

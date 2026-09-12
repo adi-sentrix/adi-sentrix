@@ -106,7 +106,9 @@ const _CLAUSULA_DE = (texto, idx) => {
   return texto.slice(ini, finRel < 0 ? texto.length : idx + finRel + 1);
 };
 /* las formas que ABSUELVEN, porque son las que la casa quiere: preguntar, condicionar y declarar el límite */
-const _PREGUNTA_O_LIMITE = /\?|\bsi (?:fuera|fuese|es|era|resulta|hubiera|hubiese)\b|\bsuponiendo\b|\bno (?:puedo|podr[ií]a) (?:saber|afirmar|decir|confirmar)\b|\bno me consta\b|\bel dato no (?:dice|declara|trae|mide|ve)\b|\bno s[eé] si\b|\beso no est[aá] en el dato\b|\bdependiendo de\b|\bpuede ser\b|\bpodr[ií]a ser\b/i;
+/* las absoluciones, con las formas de la CASA («Lo que el dato no sabe: si ese volumen … fue una decisión tuya» es el
+ * límite declarado del corpus objetivo del owner — se lee entero: «el dato no sabe» y «si ese/esa/eso…») */
+const _PREGUNTA_O_LIMITE = /\?|\bsi (?:fuera|fuese|es|era|fue|resulta|hubiera|hubiese|viene|ese|esa|eso|este|esta|esto)\b|\bsuponiendo\b|\bno (?:puedo|podr[ií]a) (?:saber|afirmar|decir|confirmar)\b|\bno me consta\b|\bel dato no (?:lo |la )?(?:dice|declara|trae|mide|ve|sabe|registra|distingue|separa|puede)\b|\bno s[eé] si\b|\beso no est[aá] en el dato\b|\bdependiendo de\b|\bpuede ser\b|\bpodr[ií]a ser\b/i;
 /* ⚠️ Y UNA CUARTA, que casi me cuesta un falso positivo en prosa que YA estaba bien: EL CONTRASTE. El composer
  * de margen escribe «separar qué parte de la carga fue deliberada y qué parte se descontroló» y «la carga
  * deliberada de la que no lo fue» — frases que dicen exactamente lo contrario de un dictamen: declaran que la
@@ -128,6 +130,14 @@ const _RE_DICTAMEN = new RegExp(`${_DICTAMEN}|\\b(?:es|fue|son|fueron|hay|hubo)\
  * decisión» y «no es/fue una estrategia tuya · de volumen · comercial». «¿es una apuesta tuya?» sigue siendo
  * pregunta; «si es estrategia o fuga» sigue siendo condición. */
 const _RE_INTENCION_NEGADA = new RegExp(`\\bno (?:es|fue|era) que [^.;:\\n]{0,50}?\\bpor (?:${_COSA_DECIDIDA})\\b|\\bno (?:es|fue|era|son|fueron) (?:una?s?\\s+)?(?:${_COSA_DECIDIDA})\\s+(?:tuya|suya|de volumen|comercial|de precio|de rotaci[oó]n)\\b`, "i");
+/* LA INTENCIÓN NOMINAL (owner 2026-09-12, batería compuesta · «natural»): «es fuga, NO APUESTA de volumen» pasó
+ * porque no lleva verbo ni adjetivo de intención — el sustantivo solo ya dictamina. Dos formas cerradas más, y
+ * nada más: la contrastiva («…, no apuesta/estrategia/decisión…» tras coma, raya o dos puntos) y la nominal
+ * afirmada con calificador («es una apuesta de volumen · tuya · comercial»). Siguen absueltas la pregunta, el
+ * condicional, el límite declarado y el contraste, exactamente como antes. */
+const _NOMBRE_INTENCION = "(?:apuestas?|estrategias?|decisi[oó]n(?:es)?|jugadas?|movidas?)";
+const _CALIF_INTENCION = "(?:de volumen|tuya|suya|comercial|de precio|de rotaci[oó]n|deliberada|consciente|gerencial)";
+const _RE_INTENCION_NOMINAL = new RegExp(`[,—:]\\s*no (?:una |la |las |unas )?${_NOMBRE_INTENCION}(?:\\s+${_CALIF_INTENCION})?(?![\\wáéíóúñ])|\\b(?:es|son|fue|fueron|era|eran)\\s+(?:una?s?\\s+)?${_NOMBRE_INTENCION}\\s+${_CALIF_INTENCION}(?![\\wáéíóúñ])`, "i");
 function _intencionDictaminada(texto) {
   const t = String(texto || "");
   let m;
@@ -137,10 +147,11 @@ function _intencionDictaminada(texto) {
     if (_PREGUNTA_O_LIMITE.test(cl) || _CONTRASTE.test(cl)) continue;   // preguntar, condicionar, declarar el límite o contrastar es lo correcto
     if (_RE_DICTAMEN.test(cl)) return m[0];             // afirmada, confirmada o descartada: eso es dictamen
   }
-  const n = _RE_INTENCION_NEGADA.exec(t);
-  if (n) {
+  for (const re of [_RE_INTENCION_NEGADA, _RE_INTENCION_NOMINAL]) {
+    const n = re.exec(t);
+    if (!n) continue;
     const cl = _CLAUSULA_DE(t, n.index);
-    if (!_PREGUNTA_O_LIMITE.test(cl) && !_CONTRASTE.test(cl)) return n[0];
+    if (!_PREGUNTA_O_LIMITE.test(cl) && !_CONTRASTE.test(cl)) return n[0].trim();
   }
   return null;
 }

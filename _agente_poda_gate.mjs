@@ -81,6 +81,11 @@ H("3 · no se poda una oración de la que depende la siguiente");
   const T1V = "El negocio crece pero deja caja en la mesa: ventas +7.5% a $99.9M y margen 25.1%.\n\nFalabella, Lider, Jumbo y Sodimac están bajo el benchmark con carga sobre el 3.5%; del otro lado, La Polar (34%) y Hites (33%) sostienen la cartera. El patrón es consistente: en estos cuatro, el margen bajo el benchmark coincide con carga comercial alta.\n\nLo primero que miraría: Falabella, con $1.6M de contribución no capturada.";
   ok(_podarOracionVetada(T1V, 'cierre · "34%" es de La Polar pero se narra como si fuera del negocio', figsDe(T1V).concat([{ value: "34%" }, { value: "$1.6M" }])) === null,
     "★ la pantalla de la batería NO se poda: la oración siguiente abre con «en estos cuatro» — señala a la que se iría");
+  /* la oración siguiente ENTERA (owner 2026-09-12): «…no una acción ya cuantificada que garantice ESE MONTO» señalaba a la
+   * podada desde el carácter 95 — con la revisión acotada a 60, sobrevivió huérfana en pantalla */
+  const T4V = "El problema no está repartido: está concentrado en cuatro cuentas grandes. Las mismas cuatro cuentas dejan $4.9M de contribución no capturada en el año. Es la brecha entre el margen que hoy entregan y el benchmark, no una acción ya cuantificada que garantice ese monto — cerrarla del todo supondría llevarlas al 30.1%. Falabella concentra $1.6M.";
+  ok(_podarOracionVetada(T4V, "cierre · «$4.9M» narrado como cerrable con una palanca", [{ value: "$1.6M" }, { value: "30.1%" }]) === null,
+    "★★ la pantalla del natural NO se poda: «ese monto» al final de la oración siguiente depende de la podada — baja al peldaño");
   const T1S = "El negocio crece pero deja caja en la mesa: ventas +7.5% a $99.9M y margen 25.1%.\n\nDel otro lado, La Polar (34%) y Hites (33%) sostienen la cartera. Falabella concentra $1.6M de contribución no capturada.\n\nLo primero que miraría: Falabella.";
   const ps = _podarOracionVetada(T1S, 'cierre · "34%" es de La Polar pero se narra como si fuera del negocio', figsDe(T1S).concat([{ value: "34%" }, { value: "$1.6M" }]));
   ok(!!ps && !/34%/.test(ps) && !/\n /.test(ps), "…y la misma poda sin deíctico después sí corre — y ningún párrafo queda arrancando con espacio", JSON.stringify(ps));

@@ -60,6 +60,9 @@ Que afirma el porqué sin evidencia, **miente**.
 
 Derivadas que se rompen seguido:
 - **Una sola verdad.** Mismo concepto = misma palabra y mismo número en toda superficie, del mismo campo.
+- **La verdad es cifra + dueño + SIGNIFICADO** (owner 2026-09-12, ley en `_CONSTITUCION_ADI.md`). Una cifra real
+  narrada como otra métrica («% del total» dicho como «crece») es falsa; el rótulo de la boleta declara lo que la
+  cifra es y el muro lo verifica (`_METRIC_VOCAB` en guardC, con `participacion` y `variacion`).
 - **Dos montos parecidos de universos distintos NUNCA van juntos** sin decir de cuál sale cada uno.
 
 ---

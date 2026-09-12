@@ -56,6 +56,10 @@ const DEBE_ARDER = [
   "Las acciones comerciales se están comiendo la contribución — no es que vendan barato por estrategia de volumen.",
   "No es una apuesta tuya de volumen: la carga simplemente se descontroló.",
   "No fue una decisión comercial, fue descuido.",
+  /* la intención NOMINAL (batería compuesta · «natural», 2026-09-12): el sustantivo solo también dictamina */
+  "6 clientes erosionan por acciones comerciales — es fuga, no apuesta de volumen.",
+  "El volumen de Falabella es una apuesta de volumen.",
+  "Lider vende a ese margen porque es una estrategia comercial.",
 ];
 for (const t of DEBE_ARDER) ok(arde(t), `arde · «${t.slice(0, 62)}»`);
 
@@ -78,6 +82,11 @@ const NO_DEBE_ARDER = [
   ["la condición del composer (estrategia o fuga)", "De tu respuesta depende si eso es estrategia o fuga: el dato mide la carga comercial, no la intención."],
   ["negar el PATRÓN, no la intención", "No es un problema de precio: la carga excede el nivel en los cuatro."],
   ["preguntar en negativo", "¿No fue una decisión tuya de volumen? Dímelo y lo anoto."],
+  ["el límite del corpus objetivo del owner", "Lo que el dato no sabe: si ese volumen a ese margen fue una decisión tuya."],
+  ["la condición con sustantivo", "Si fuera una apuesta de volumen, esperaría carga dentro del nivel."],
+  ["«estrategia o fuga» como disyuntiva del porqué", "De tu respuesta depende si eso es estrategia o fuga."],
+  ["«política comercial» del porqué (no es intención de nadie)", "Si el exceso se repite parejo en toda la cartera, es política comercial y se corrige con una regla."],
+  ["negar el FOCO, no una intención", "El foco de la semana es la condición, no el volumen."],
 ];
 for (const [q, t] of NO_DEBE_ARDER) ok(!arde(t), `limpia · ${q}`, t.slice(0, 120));
 

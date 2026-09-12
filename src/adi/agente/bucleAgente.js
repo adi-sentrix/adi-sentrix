@@ -136,8 +136,12 @@ export function _podarOracionVetada(texto, multa, figs) {   // exportada para qu
    * a las cuatro cuentas y la de después abría «en estos cuatro, el margen bajo el benchmark coincide con…» — podada
    * la primera, «estos cuatro» quedó apuntando a nada en la pantalla del dueño. Un deíctico al arranque de la
    * oración siguiente (estos · esos · ese · ahí · los tres/cuatro…) es la misma señal que la comparación: la
-   * ofensora sostiene lo que sigue. Solo la INMEDIATA y solo su arranque: más lejos, la referencia es del hilo. */
-  const _SENALA = /^.{0,60}?(?<![\wáéíóúñ])(?:est[oa]s?|es[oa]s?|aqu[eé]ll[oa]s?|ah[ií]|ell[oa]s|los (?:dos|tres|cuatro|cinco|seis)|las (?:dos|tres|cuatro|cinco|seis)|ambos|ambas)(?![\wáéíóúñ])/i;
+   * ofensora sostiene lo que sigue. Solo la INMEDIATA: más lejos, la referencia es del hilo.
+   * ⚠️ LA ORACIÓN SIGUIENTE ENTERA, no sus primeros 60 caracteres (owner 2026-09-12, batería compuesta · «natural»):
+   * «Es la brecha entre el margen que hoy entregan y el benchmark, no una acción ya cuantificada que garantice ESE
+   * MONTO» señalaba al $4.9M podado desde el carácter 95, y sobrevivió huérfana. Si depende de la podada, no se
+   * poda: el turno baja al peldaño siguiente. */
+  const _SENALA = /(?<![\wáéíóúñ])(?:est[eoa]s?|es[eoa]s?|aqu[eé]ll[oa]s?|ah[ií]|ell[oa]s|dich[oa]s?|(?:el|la|los|las) mism[oa]s?|los (?:dos|tres|cuatro|cinco|seis)|las (?:dos|tres|cuatro|cinco|seis)|ambos|ambas)(?![\wáéíóúñ])/i;
   const siguiente = tramos.find(([lo]) => lo >= finUltimaOfensora);
   if (siguiente && _SENALA.test(t.slice(siguiente[0], siguiente[1]).trim())) return null;
 

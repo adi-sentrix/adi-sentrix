@@ -249,16 +249,36 @@ const _METRIC_VOCAB = [
    * (entre «ó» y el espacio no hay borde `\w`). Resultado medido: «Jumbo facturó $4.2M» —una contribución
    * vestida de venta— pasaba el muro ENTERO. Agujero preexistente, cazado al calibrar la mención tomada
    * (2026-09-08) con su corpus de veneno. El cierre va por lookahead negativo, no por `\b`. */
-  { clave: "ventas",       re: /\bventas?\b|\bvend[eióa][\wáéíóúñ]*(?![\wáéíóúñ])|\bfactur[\wáéíóúñ]+(?![\wáéíóúñ])/i },
+  /* «días sin venta» es SU propia métrica (la etiqueta «Días sin venta», «94d sin venta»): la palabra «venta» ahí no es
+   * la venta — con la cifra ya juzgable (2026-09-12), «rota 1.0x y acumula 94d sin venta» salía «narrado como ventas» */
+  { clave: "ventas",       re: /(?<!\bsin\s)\bventas?\b|\bvend[eióa][\wáéíóúñ]*(?![\wáéíóúñ])|\bfactur[\wáéíóúñ]+(?![\wáéíóúñ])/i },
+  { clave: "sinventa",     re: /\bd[ií]as\s+sin\s+venta\b|(?<=\dd)\s+sin\s+venta\b|\bsin\s+venta\b/i },
   { clave: "margen",       re: /\bm[aá]rgen(?:es)?\b/i },
   { clave: "contribucion", re: /\bcontribuci[oó]n\b|\bcontribuy\w+\b/i },
   { clave: "costo",        re: /\bcostos?\b/i },
   { clave: "carga",        re: /\bcarga comercial\b|\bacciones comerciales\b|\brebates?\b|\bdescuentos?\b/i },
-  { clave: "capital",      re: /\bcapital\b|(?<!d[ií]as\s{1,3}(?:de\s{1,3})?)\binventario\b|\bstocks?\b/i },
+  /* «165d de inventario» es COBERTURA, no capital: el «d» de días pegado a la cifra cuenta como «días» (cazado al cerrar «cifra +
+   * dueño + significado», 2026-09-12 — con la cifra ya juzgable, «inventario» se leía como capital y el piso del inventario ardía) */
+  { clave: "capital",      re: /\bcapital\b|(?<!d[ií]as\s{1,3}(?:de\s{1,3})?|\dd\s{1,3}(?:de\s{1,3})?)\binventario\b|\bstocks?\b/i },
   { clave: "rotacion",     re: /\brotaci[oó]n\b/i },
-  { clave: "cobertura",    re: /\bcobertura\b|\bDOH\b|\bd[ií]as\s+(?:de\s+)?inventario\b|\bd[ií]as\s+inv\b/i },
+  { clave: "cobertura",    re: /\bcobertura\b|\bDOH\b|\bd[ií]as\s+(?:de\s+)?inventario\b|\bd[ií]as\s+inv\b|(?<=\dd)\s+(?:de\s+)?inventario\b/i },
   { clave: "unidades",     re: /\bunidades\b/i },
   { clave: "ticket",       re: /\bticket\b/i },
+  /* ── EL SIGNIFICADO DE LA CIFRA (ley del owner 2026-09-12: «la verdad no es solo cifra + dueño; también es cifra +
+   * dueño + significado») ─────────────────────────────────────────────────────────────────────────────────────
+   * Medido en su batería compuesta («natural»): «Mercado Libre · % del total = 25.3%» —una PARTICIPACIÓN— salió a
+   * pantalla como «Mercado Libre: crece 25.3%». La cifra era real y tenía dueño; el significado era otro, y la
+   * afirmación, falsa. Este chequeo no la veía porque ni «participación» ni «crecimiento» eran vocabulario: la
+   * etiqueta no autorizaba ninguna métrica y la ventana caía en «sin señal → no se juzga». Dos entradas más en la
+   * MISMA tabla, con el mismo criterio de reconocimiento. ⚠️ Fuera a propósito «sube/baja/cae»: en «6 de los que
+   * CAEN la tienen sobre el 3.5%» el verbo no es una métrica, y reconocerlo vetaría el porqué de la casa. */
+  /* solo SUSTANTIVOS y giros explícitos: «pesa», «concentra» y «representa» son verbos de peso o de posición en
+   * la prosa de la casa («Pesa $33K contra los $12.6M del cobro vencido», «Falabella concentra $1.6M»), no una
+   * participación — calibrado contra los pisos determinísticos: con los verbos, 18 gates en rojo */
+  /* ⚠️ la frase arranca DESPUÉS del «%» (lookbehind), no en él: si la mención empezara dentro de la cifra («17.9% de la
+   * venta»), no quedaría pegada a ella y no la tomaría — y el $ de al lado salía «narrado como participación» */
+  { clave: "participacion", re: /\bparticipaci[oó]n\b|(?<=%)\s*del\s+total\b|\bdel\s+total\b|(?<=%)\s*de\s+(?:la\s+|las\s+|el\s+|los\s+)?(?:venta|ventas|cartera|contribuci[oó]n|facturaci[oó]n)\b|\bpeso\s+(?:en|sobre|de)\s+(?:la\s+|el\s+)?(?:venta|ventas|cartera|total|contribuci[oó]n)\b|\bcuota\b|\bshare\b/i },
+  { clave: "variacion",     re: /\bcrec[eií][\wáéíóúñ]*(?![\wáéíóúñ])|\bcrecimiento\b|\bYoY\b|\bvariaci[oó]n\b|\binteranual\b|\b(?:contra|vs\.?|frente a|respecto (?:a|de|al|del))\s+(?:el\s+)?(?:a[ñn]o|per[ií]odo)\s+(?:anterior|pasado|comparable)\b/i },
   // «resultado» · EL PELDAÑO DEL P&L, no la palabra suelta (certificación 2026-08-09, pregunta 14). Medido sobre el
   // ledger real de `pnlRead` —que autoriza «Resultado comercial $18.5M» Y «Contribución $25.0M» en la MISMA
   // boleta—: la frase «El resultado del negocio después de gastos es $25.0M» pasaba el muro con ok=true. La cifra
@@ -299,8 +319,17 @@ function _metricOwners(ledger) {
   for (const f of (ledger.figs || [])) {
     const ms = _metricasEn(f.label);
     if (!ms.size) continue;
-    if (!owners.has(f.canon)) owners.set(f.canon, new Set());
-    for (const m of ms) owners.get(f.canon).add(m);
+    /* ⚠️ DOS CANONES PARA LA MISMA CIFRA (cazado al cerrar «cifra + dueño + significado», 2026-09-12): la boleta
+     * guarda «22.0%» como `pct:22.0%` y `parseFigures` —el que lee la prosa— canoniza «22.0%» como `pct:22%`. La
+     * llave no coincidía y toda cifra con decimal cero quedaba sin dueño de métrica: «margen 22.0%» no tomaba su
+     * mención y ni siquiera se juzgaba. El mapa se indexa por LOS DOS canones; boleta.js no se toca. */
+    const claves = new Set([f.canon]);
+    try { const tok = parseFigures(String(f.text || f.value || ""))[0]; if (tok && tok.canon) claves.add(tok.canon); } catch { /* sin canon parseable: queda el de la boleta */ }
+    for (const c of claves) {
+      if (!c) continue;
+      if (!owners.has(c)) owners.set(c, new Set());
+      for (const m of ms) owners.get(c).add(m);
+    }
   }
   return owners;
 }
@@ -346,8 +375,21 @@ function _metricBindingViolations(narration, ledger) {
     const cut = masked.slice(end, hi0).search(_SENT_END);
     const hi = cut >= 0 ? end + cut : hi0;
     const cerca = _metricasEn(text.slice(lo, hi));
-    if (cerca.size !== 1) continue;                 // 0 → sin señal · 2+ → ambiguo, no se juzga
-    const unica = [...cerca][0];
+    if (!cerca.size) continue;                      // 0 → sin señal, no se juzga
+    let unica;
+    if (cerca.size === 1) unica = [...cerca][0];
+    else {
+      /* ── CIFRA + DUEÑO + SIGNIFICADO (ley del owner 2026-09-12) ──────────────────────────────────────────────
+       * Con dos o más métricas en la ventana, las menciones TOMADAS por otra cifra no compiten: en «Mercado Libre:
+       * crece 25.3% con solo 1.8% de carga comercial», «carga comercial» es de 1.8% (la describe, pegada y
+       * correcta) y la única mención LIBRE alrededor de 25.3% es «crece». Antes esa ventana caía en «ambiguo → no se
+       * juzga» y una participación salía narrada como crecimiento: cifra real, dueño real, significado falso. Con
+       * dos métricas libres sigue siendo ambiguo y no se juzga — el criterio de la casa no cambia, se aplica a las
+       * menciones que de verdad están libres (la misma regla de «mención tomada» de más abajo). */
+      const libres = [...cerca].filter((c) => !_todasLasMencionesTomadas({ text, masked, lo, hi, unica: c, idxJuzgada: idx, finJuzgada: end, owners }));
+      if (libres.length !== 1) continue;
+      unica = libres[0];
+    }
     if (ownerSet.has(unica)) continue;
     /* ── LA MÉTRICA TIENE QUE ESTAR ATRIBUYENDO, NO SOLO ESTAR CERCA (owner 2026-09-08) ────────────────────
      * Falso positivo MEDIDO sobre prosa de asesor perfectamente correcta: «Los 13 clientes cierran el año en
@@ -433,6 +475,21 @@ function _todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada, fi
       const tok = parseFigures(text.slice(gIni, gFin))[0];
       const duenos = tok && owners.get(tok.canon);
       if (duenos && duenos.has(unica)) { tomada = true; break; }   // la mención describe a ESA cifra, correctamente
+      /* una cifra SIN dueño de métrica (un cálculo del turno: «17.9% de la venta total») también toma la mención pegada:
+       * describe a esa cifra, y si esa cifra está mal la juzga otro chequeo — no esta ventana (2026-09-12) */
+      if (tok && !duenos) { tomada = true; break; }
+    }
+    /* UN CONTEO TAMBIÉN TOMA SU MENCIÓN («1.234 unidades», «8 clientes»): no es una cifra de la boleta —no tiene dueño
+     * de métrica— pero la palabra pegada a ese número lo describe a ÉL, no a la cifra juzgada. Cazado al cerrar
+     * «cifra + dueño + significado» (2026-09-12): «…con el margen en 24.9% contra 25.1% del año, sobre 1.234 unidades»
+     * dejaba «unidades» libre y el margen del año salía «narrado como unidades». Solo pegado (≤15 caracteres) y solo
+     * con un número que la máscara NO reconoce como cifra. */
+    if (!tomada) {
+      const antes = text.slice(Math.max(lo, mIni - 16), mIni), despues = text.slice(mFin, Math.min(hi, mFin + 16));
+      const antesM = masked.slice(Math.max(lo, mIni - 16), mIni), despuesM = masked.slice(mFin, Math.min(hi, mFin + 16));
+      const conteoAtras = /\d[\d.,]*\s*(?:de\s+)?$/.test(antes) && !/#\s*(?:de\s+)?$/.test(antesM);
+      const conteoAdelante = /^\s*(?:de|del|en|:)?\s*\d/.test(despues) && !/^\s*(?:de|del|en|:)?\s*#/.test(despuesM);
+      if (conteoAtras || conteoAdelante) tomada = true;
     }
     if (!tomada) return false;   // una mención libre alcanza para juzgar, como siempre
   }
