@@ -71,6 +71,12 @@ const _AJENO = new RegExp([
   `\\bventas?${_FIN}|\\bcontribuci[oó]n${_FIN}|\\bcaja${_FIN}`,
 ].join("|"), "i");
 
+/* el negocio ENTERO, dicho con todas sus letras — la condición del paraguas del encargo compuesto */
+const _NEGOCIO_ENTERO = new RegExp([
+  `\\bnegocio (?:completo|entero)${_FIN}`, `\\btodo el negocio${_FIN}`, `\\bmira el negocio${_FIN}`,
+  `\\bc[oó]mo (?:va|viene|vamos|venimos|est[aá]|anda|andamos) (?:el |mi )?negocio${_FIN}`,
+].join("|"), "i");
+
 export const resumenDelNegocio = {
   nombre: "resumen-del-negocio",
   /* responde POR EL NEGOCIO ENTERO: si la pregunta nombra una entidad del índice, el registro lo retira
@@ -79,7 +85,13 @@ export const resumenDelNegocio = {
 
   cuandoAplica(pregunta) {
     const q = String(pregunta || "");
-    if (!q.trim() || _AJENO.test(q)) return false;
+    if (!q.trim()) return false;
+    /* EL PARAGUAS DEL ENCARGO COMPUESTO (owner 2026-09-11): un encargo con varias partes, claramente referido al
+     * negocio COMPLETO y sin otro dueño en el registro, lo toma la foto aunque nombre el porqué o los clientes de
+     * paso — sus pasos traen la evidencia de todas las partes y el ensamblador compone con ella. Solo compuesto Y
+     * sobre el negocio entero: una pregunta simple o ambigua no entra por acá (medido en el gate). */
+    if (esEncargoCompuesto(q) && _NEGOCIO_ENTERO.test(q)) return true;
+    if (_AJENO.test(q)) return false;
     /* (tanda 2 post-poda, 2026-09-05: el guardia ad-hoc de nombres —el que cerró el secuestro de «cómo viene
      * Falabella» y luego el de «cómo viene LG»— es hoy la PROPIEDAD `respondePorElNegocio`, aplicada UNA vez
      * en playbookPara. Una verdad, no una línea por autor.) */

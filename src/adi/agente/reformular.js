@@ -309,7 +309,12 @@ export function componerReformulacion(previa, { pregunta = "" } = {}) {
    * directorio, las de magnitud en dinero (lo que pesa) y pocas; para el analista, todas las que sostienen.
    * La conclusión abre siempre, para todos: es lo que ningún lector puede perder. */
   const tipo = tipoDeAudiencia(dest);
-  const _nombraCuenta = (f) => /\b[A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?\b[^.\n]{0,40}(?:\$[\d.,]+|\d[\d.,]*\s*(?:%|pp))/.test(f);
+  /* la mayúscula inicial de una oración no es una cuenta («Crece: la venta viene +7.5%» no nombra a nadie) — la misma
+   * lista de arranques comunes que ya usa la oferta derivada, más abajo (encargo compuesto, 2026-09-11) */
+  const _nombraCuenta = (f) => {
+    const m = /\b([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?)\b[^.\n]{0,40}(?:\$[\d.,]+|\d[\d.,]*\s*(?:%|pp))/.exec(f);
+    return !!m && !/^(?:Crece|Pero|Tus|Los|Las|El|La|Hay|En|De|Y|Si|Lo|Donde|Dónde|Entre|Por|Tu|Con|Sin|Para|Ahí|Ah[ií])$/.test(m[1]);
+  };
   const _enDinero = (f) => /\$[\d.,]+/.test(f);
   let elegidas = conCifra;
   if (tipo === "comercial") elegidas = [...conCifra.filter(_nombraCuenta), ...conCifra.filter((f) => !_nombraCuenta(f))];

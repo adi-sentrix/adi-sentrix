@@ -63,7 +63,8 @@ import { detectSerieIntent, composeSerieIntent } from "../oracle/serieIntent.js"
 import { playbookPara, pasosDe, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook, formaDelTurno } from "./playbooks/registro.js";
 import { anclaDelCuadro } from "./playbooks/cuadroExplicado.js";   // el cuadro abierto persiste en la memoria del hilo (owner 2026-09-08: «profundiza en…»)   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
 import { serieRealDe } from "../sentrix/capability.js";
-import { buildRolesCartera } from "../sentrix/rolesCartera.js";   // las huellas con sello del turno: el juez compartido las lee para no aceptar un mecanismo afirmado sin su sello (owner 2026-09-11)
+import { buildRolesCartera } from "../sentrix/rolesCartera.js";
+import { partesDelEncargo, pasosDelEncargo, componerEncargo } from "./encargoCompuesto.js";   // el peldaño del encargo compuesto (owner 2026-09-11): cobertura garantizada cuando el cerebro cae   // las huellas con sello del turno: el juez compartido las lee para no aceptar un mecanismo afirmado sin su sello (owner 2026-09-11)
 import { getTenantId, getTenantData } from "../../data/tenantStore.js";   // getTenantData: el contexto que el negocio declaró — la ley del porqué lo cita en vez de repreguntar   // la semilla de variación: tenant + pregunta + largo del hilo
 
 const TOPE_RONDAS = 3;      // rondas que pueden pedir herramientas
@@ -728,7 +729,13 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   /* LOS PASOS PUEDEN DEPENDER DE LA PREGUNTA (2026-09-01): `pasosDe` resuelve el Array de siempre o la función
    * de un playbook de FORMA —«lectura por eje» elige la herramienta según el eje que su detector léxico ya
    * identificó—. Un playbook cuyos pasos no se resuelven a nada se retira acá mismo, sin ruido. */
-  const _pasosPb = playbook ? pasosDe(playbook, q, ctxTurno) : [];
+  /* EL ENCARGO COMPUESTO (owner 2026-09-11): sus partes se reconocen ANTES del cerebro y los pasos del turno son la
+   * unión de los del procedimiento activo y los de cada parte — el modelo recibe toda la evidencia, y si cae, el
+   * ensamblador (peldaño 0, más abajo) compone con lo ya leído sin salir a buscar nada. Solo con dos o más partes.
+   * Sin procedimiento activo no hay pasos ni peldaño: el encargo sobre el negocio entero lo toma la foto como
+   * paraguas (su detector), y el resto sigue el camino de siempre. */
+  const _partesEncargo = (() => { try { return partesDelEncargo(q); } catch { return []; } })();
+  const _pasosPb = playbook ? (_partesEncargo.length ? pasosDelEncargo(_partesEncargo, pasosDe(playbook, q, ctxTurno), ctxTurno) : pasosDe(playbook, q, ctxTurno)) : [];
   if (playbook && _pasosPb.length) {
     if (_rondaDeHerramientas(_pasosPb.map((p) => ({ tool: p.tool, args: p.args || {} })), mensajes)) {
       /* el playbook solo PROMETE si sus figs obligatorias llegaron: en un dato que no las sostiene se retira
@@ -1063,6 +1070,20 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * ya trajo la evidencia, «no pude completar la lectura» es FALSO — la lectura está hecha. Este peldaño
    * responde la pregunta con las cifras que los pasos verificaron, y se juzga como cualquier otro (guardC + el
    * contrato + la propia lista del playbook): si no pasara, cede al siguiente sin ruido. */
+  /* PELDAÑO 0 · EL ENSAMBLADOR DEL ENCARGO COMPUESTO (owner 2026-09-11). Va ARRIBA del entregable simple: cuando el
+   * usuario pidió varias cosas y las partes tienen evidencia, responder una sola es dejar caer partes explícitamente
+   * pedidas. Cada parte se compone con SU boleta (los resultados de sus propios pasos, ya ejecutados en este
+   * turno; `leer` los re-deriva de las mismas herramientas, sin cerebro y sin red), se juzga como cualquier peldaño
+   * y, si no pasa, cede al piso simple de siempre. */
+  if (final === null && playbookActivo && _partesEncargo.length >= 2) {
+    const _semillaEc = `${(() => { try { return getTenantId() || "demo"; } catch { return "demo"; } })()}::${q}::${Array.isArray(history) ? history.length : 0}`;
+    const _leer = (pasos) => { try { return (runPlan({ intent: "answer", calls: (pasos || []).map((s) => ({ tool: s.tool, args: s.args || {} })) }, { scenario, maxCalls: CALLS_POR_RONDA, preguntaUsuario: q, registry: caja }).ledger || {}).figs || []; } catch { return []; } };
+    const _ec = (() => { try { return componerEncargo({ partes: _partesEncargo, leer: _leer, scenario, mem: memIn, semilla: _semillaEc, pregunta: q }); } catch { return null; } })();
+    if (_ec && _ec.trim()) {
+      const vEc = juzgar(_ec, "encargo-compuesto");
+      if (vEc && vEc.ok) { final = _ec; estado = "encargo-compuesto"; suplente = true; }
+    }
+  }
   if (final === null && playbookActivo && typeof playbookActivo.componer === "function") {
     /* LA SEMILLA DE VARIACIÓN (owner 2026-09-03, «matar la repetición»): tenant + pregunta + largo del hilo —
      * todo del turno mismo, cero estado nuevo. Determinística (los gates replican byte a byte) y distinta

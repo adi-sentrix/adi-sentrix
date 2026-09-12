@@ -126,7 +126,9 @@ H("5 · incertidumbre premium: el límite hace avanzar, nunca «no tengo informa
     ok(!/ · /.test(t2) && !/\bMedida\b/.test(t2), "★★ el rescate no sirve un rótulo interno: ni «Medida · …» ni el punto medio del motor en pantalla", t2.slice(0, 140));
     ok(/^Lo que tengo verificado ahora: [a-záéíóúñ]/.test(t2), "…y la cifra citada va en prosa, con minúscula, sin rótulo", t2.slice(0, 80));
   } else {
-    ok(!/ · /.test(t2) && !/\bMedida\b/.test(t2), `el turno terco sale por otro peldaño (${r2.r.agente.estado}) y tampoco muestra rótulos`, t2.slice(0, 120));
+    /* el punto medio de las viñetas de los composers («- Falabella · deja $1.6M…») no es un rótulo interno: lo que no puede
+     * salir es «Lo que tengo verificado ahora: X · Y» ni «Medida» (desde el ensamblador, este turno sale compuesto) */
+    ok(!/Lo que tengo verificado ahora: [^\n]* · /.test(t2) && !/\bMedida\b/.test(t2), `el turno terco sale por otro peldaño (${r2.r.agente.estado}) y tampoco muestra rótulos`, t2.slice(0, 120));
   }
 }
 

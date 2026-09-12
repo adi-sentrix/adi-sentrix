@@ -178,7 +178,8 @@ H("7 · ★★ la contradicción explícita prevalece sobre la hipótesis — y 
   /* de punta a punta con el cerebro mudo: el piso de la contradicción responde, con sus tres lecturas */
   const MUDO7 = async () => ({ tipo: "texto", texto: "" });
   const r = await answerViaAgente({ text: CAUSAL, history: [], mem: {}, scenario: ESC, callAgente: MUDO7 });
-  ok(r.r.agente.estado === "playbook" && r.r.agente.calls >= 3 && /^Las dos son ciertas/.test(String(r.r.text || "")),
+  /* con el ensamblador (2026-09-11) el causal —un encargo compuesto— sale por «encargo-compuesto», y sigue abriendo con el veredicto de la contradicción */
+  ok((r.r.agente.estado === "playbook" || r.r.agente.estado === "encargo-compuesto") && r.r.agente.calls >= 3 && /^Las dos son ciertas/.test(String(r.r.text || "")),
     `★ el turno lo resuelve el procedimiento de la contradicción (${r.r.agente.estado}, ${r.r.agente.calls} herramientas): «las dos son ciertas…»`, String(r.r.text || "").slice(0, 100));
   /* carnada: sin la regla, el prompt vuelve a «hipótesis» — el chequeo ★★ de arriba daría ✗ */
   const src = readFileSync(new URL("./src/adi/agente/formaConversacional.js", import.meta.url), "utf8");

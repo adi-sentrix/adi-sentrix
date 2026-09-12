@@ -275,8 +275,10 @@ H("7 · el encargo compuesto cuenta como detalle: sin veto de formato, con la fo
   const MUDO7 = async ({ mensajes }) => { if (!capt) capt = mensajes; return { tipo: "texto", texto: "" }; };
   const r = await answerViaAgente({ text: BATERIA.natural, history: [], mem: {}, scenario: ESC, callAgente: MUDO7 });
   const docs = (capt || []).filter((m) => m.role === "user").map((m) => String(m.content || ""));
-  ok(!docs.some((d) => /Este turno sigue el playbook/.test(d)) && docs.some((d) => /FORMA \(encargo compuesto\)/.test(d)),
-    `★ sin procedimiento («mira el negocio completo…»), la forma del encargo compuesto viaja igual (${r.r.agente.estado})`);
+  /* desde el ensamblador (2026-09-11) el encargo compuesto sobre el negocio entero lo toma la foto como paraguas y la
+   * forma viaja con su doctrina; lo que se mide es que VIAJA, con o sin procedimiento */
+  ok(docs.some((d) => /FORMA \(encargo compuesto\)/.test(d)),
+    `★ en «mira el negocio completo…» la forma del encargo compuesto viaja (${r.r.agente.estado}${docs.some((d) => /Este turno sigue el playbook/.test(d)) ? ", con la foto como paraguas" : ", sin procedimiento"})`);
 }
 
 console.log(`\n── _densidad_ejecutiva_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
