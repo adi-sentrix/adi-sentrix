@@ -122,6 +122,38 @@ H("[B2] CIFRA + DUEÑO + SIGNIFICADO · una participación no se narra como crec
   ok(lab(rank).includes("Lider · % del total"), "…y el pct de un ranking sigue siendo «% del total»", lab(rank).join(" | "));
 }
 
+/* ═══ [B3] UN RANGO SE JUZGA POR SUS DOS EXTREMOS (owner 2026-09-12) ═══════════════════════════════════════════
+ * «markup 37-40% vs 35-38% en los sanos» pasó el muro entero y el 35-38% no existe (los reales: 42-45%). El parser
+ * de cifras lee «37-40%» como «-40%»: el primer extremo desaparecía. El rango se reescribe como sus dos cifras antes
+ * de todo chequeo: cada extremo tiene que existir en la boleta y conservar dueño y métrica. */
+H("[B3] RANGOS · «X-Y%» se descompone y los dos extremos existen con su dueño y su métrica");
+{
+  const { _expandirRangos } = await import("./src/adi/oracle/guardC.js");
+  ok(_expandirRangos("markup 37-40% vs 35–38% en los sanos") === "markup 37% y 40% vs 35% y 38% en los sanos", "«37-40% vs 35–38%» → «37% y 40% vs 35% y 38%» (guion y raya)");
+  ok(_expandirRangos("entre 42 y 45%") === "entre 42% y 45%" && _expandirRangos("$1.5M-$1.6M") === "$1.5M y $1.6M", "«entre 42 y 45%» y «$1.5M-$1.6M» también");
+  ok(_expandirRangos("entre 0.3 y 1 puntos sobre ese nivel") === "entre 0.3 y 1 puntos sobre ese nivel" && _expandirRangos("2024-2025 fue peor") === "2024-2025 fue peor" && _expandirRangos("8.1 pp bajo el benchmark") === "8.1 pp bajo el benchmark",
+    "…y los puntos, las fechas y los pp no se tocan");
+  const LEDR = { figs: [
+    fig("Falabella · Markup sobre costo", "39.1%", { unit: "pct", raw: 39.1 }), fig("Lider · Markup sobre costo", "37.2%", { unit: "pct", raw: 37.2 }),
+    fig("Sodimac · Markup sobre costo", "40.6%", { unit: "pct", raw: 40.6 }), fig("Mercado Libre · Markup sobre costo", "44.6%", { unit: "pct", raw: 44.6 }),
+    fig("Lider · Margen", "21.5%", { unit: "pct", raw: 21.5 }), fig("Falabella · Margen", "22%", { unit: "pct", raw: 22 }),
+    fig("Lider · Contribución no capturada", "$1.5M", { unit: "money", raw: 1500000 }), fig("Falabella · Contribución no capturada", "$1.6M", { unit: "money", raw: 1600000 }),
+  ] };
+  const RESR = [{ tool: "rolesCartera", coverage: { supported: true }, facts: { rows: [{ nombre: "Falabella" }, { nombre: "Lider" }, { nombre: "Sodimac" }, { nombre: "Mercado Libre" }] } }];
+  const runR = (n) => guardC(n, { ledger: LEDR, results: RESR, question: "" });
+  const r1 = runR("El markup de estas cuentas está más pegado al costo (37-40% vs 35-38% en los sanos).");
+  ok(!r1.ok && (r1.violations || []).filter((v) => v.kind === "cifra-no-autorizada").length >= 2, "★★ «37-40% vs 35-38%» → BLOQUEA: los extremos que no están en la boleta (35%, 38%, 37%) no pasan", JSON.stringify(kinds(r1)));
+  ok(runR("El markup de Lider (37.2%) y Falabella (39.1%) está más pegado al costo que el de Mercado Libre (44.6%).").ok, "…y las cifras exactas de la boleta pasan");
+  const r3 = runR("Lider y Falabella tienen una carga comercial de 21.5-22%.");
+  ok(tiene(r3, "metrica-mal-atribuida"), "★ un rango cuyos extremos existen pero con OTRA métrica («carga comercial de 21.5-22%», que son márgenes) → BLOQUEA", JSON.stringify(kinds(r3)));
+  ok(runR("Lider y Falabella dejan $1.5M-$1.6M de contribución no capturada cada uno.").ok, "…y «$1.5M-$1.6M de contribución no capturada» pasa: los dos extremos existen con su métrica");
+  const r5 = runR("Lider tiene un margen de 22%.");
+  ok(tiene(r5, "entidad-mal-atribuida") || tiene(r5, "metrica-mal-atribuida") || !r5.ok, "el dueño sigue mandando fuera del rango también (22% es de Falabella)", JSON.stringify(kinds(r5)));
+  /* la ventana viaja en el detalle del veto de significado: sin la frase no se puede adjudicar después */
+  const r6 = run("Falabella tiene $4.3M en ventas este año. (Datos del año cerrado.)");
+  ok((r6.violations || []).some((v) => v.kind === "metrica-mal-atribuida" && /: "[^"]*\$4\.3M[^"]*"/.test(String(v.detail))), "★ el detalle del veto de significado trae la frase que lo disparó", JSON.stringify((r6.violations || []).map((v) => v.detail)));
+}
+
 H("[C] ENTIDAD MAL ATRIBUIDA · promovida de AVISO a BLOQUEO");
 {
   const r = run("Lider aporta $4.3M de contribución. (Datos del año cerrado.)");

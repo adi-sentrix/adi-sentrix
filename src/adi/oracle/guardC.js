@@ -434,7 +434,9 @@ function _metricBindingViolations(narration, ledger) {
      * segundo «vende» solo tiene delante a la cifra juzgada — libre, veto en pie. Calibrado con corpus
      * legítimo (el texto del owner incluido) + veneno en `_binding_guard_gate`. */
     if (_todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada: idx, finJuzgada: end, owners })) continue;
-    viol.push(`«${f.text}» narrado como ${unica}, pero pertenece a ${[...ownerSet].join("/")}`);
+    /* la VENTANA viaja en el detalle (owner 2026-09-12): un veto de significado sin la frase que lo disparó no se puede
+     * adjudicar después —falso positivo o error real— y el expediente guarda la multa, no el borrador */
+    viol.push(`«${f.text}» narrado como ${unica}, pero pertenece a ${[...ownerSet].join("/")}: "${text.slice(lo, hi).trim().replace(/\s+/g, " ").slice(0, 120)}"`);
   }
   return viol;
 }
@@ -3028,6 +3030,23 @@ function _enmascararRango(texto, [ini, fin]) {
   return texto.slice(0, ini) + dentro + texto.slice(fin);
 }
 
+/* ── UN RANGO SE JUZGA POR SUS DOS EXTREMOS (owner 2026-09-12) ─────────────────────────────────────────────
+ * Medido en su batería compuesta: «markup 37-40% vs 35-38% en los sanos» pasó el muro entero, y el «35-38%» no
+ * existe (los reales son 42-45%). `parseFigures` (boleta.js, que no se toca) lee «37-40%» como «-40%» y «35–38%»
+ * como «38%»: el primer extremo desaparece y el segundo cambia de signo. Acá el rango se reescribe como sus dos
+ * cifras —«37% y 40%», «$1.5M y $1.6M», «entre 42% y 45%»— ANTES de todo chequeo, así cada extremo tiene que
+ * existir en la boleta y conservar dueño y métrica, como cualquier cifra. Solo rangos con guion o raya y la
+ * forma «entre A y B%»; «entre 0.3 y 1 puntos» y las fechas no se tocan. */
+const _RANGO_PCT = /(?<![\d.,])(\d+(?:[.,]\d+)?)\s*%?\s*[-–—]\s*(\d+(?:[.,]\d+)?)\s*%/g;
+const _RANGO_ENTRE = /\bentre\s+(\d+(?:[.,]\d+)?)\s*%?\s+y\s+(\d+(?:[.,]\d+)?)\s*%/gi;
+const _RANGO_MONEY = /(\$\s?\d+(?:[.,]\d+)?\s?[KMB]?)\s*[-–—]\s*(\$\s?\d+(?:[.,]\d+)?\s?[KMB]?)/g;
+export function _expandirRangos(texto) {
+  return String(texto || "")
+    .replace(_RANGO_MONEY, (m, a, b) => `${a.trim()} y ${b.trim()}`)
+    .replace(_RANGO_ENTRE, (m, a, b) => `entre ${a}% y ${b}%`)
+    .replace(_RANGO_PCT, (m, a, b) => `${a}% y ${b}%`);
+}
+
 export function guardC(narration, { ledger, results = [], trace = null, question = "", supuestoPendiente = null, alcanceHeredado = null, recitaAprobada = null, mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null, entidadesDelTenant = null, duenosDelTenant = null } = {}) {
   /* CHEQUEO 0 · UNA RESPUESTA VACÍA NO ES UNA RESPUESTA FIEL (ver esNarracionVacia arriba). Va PRIMERO y sale
    * antes que nada: no hay texto que enmascarar, ni cifra que atribuir, ni cuenta que recomputar. El veredicto
@@ -3050,6 +3069,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   const _rangoCG = contentScope === "full" ? rangoContextoGeneral(narration) : null;
   const _textoCG = _rangoCG ? String(narration).slice(_rangoCG[0], _rangoCG[1]) : null;
   if (_rangoCG) narration = _enmascararRango(String(narration), _rangoCG);
+  narration = _expandirRangos(narration);   // «37-40%» → «37% y 40%»: los dos extremos entran a todos los chequeos (ver arriba)
   const figs = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
   // ECO DEL USUARIO: repetir una cifra que la PERSONA nombró en su pregunta NO es inventar ("qué es eso de 2x" → ADI
   // dice "2x"). Autorizamos las cifras/conteos del texto de la pregunta además de las de la boleta.
