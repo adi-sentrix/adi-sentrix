@@ -417,7 +417,21 @@ export function vetosDeContrato(texto, contexto = {}) {
  * responde el procedimiento determinístico, que ya habla bien—. Se juzga al cerebro, no a los peldaños. */
 const _PIDE_DETALLE = /\bdetalle|\bdetallad|\bdesgl[oó]s|\ba fondo\b|\bcomplet[oa]\b|\buno por uno\b|\bcuenta por cuenta\b|\bcliente por cliente\b|\bsku por sku\b|\bpara el analista\b|\bcon todo\b|\bpaso a paso\b|\bm[aá]s (?:largo|extenso)\b|\bexti[eé]ndete\b|\bexpl[aá]yate\b/i;
 const _PIDE_LISTA = /\bcu[aá]l(?:es)?\b|\bqui[eé]n(?:es)?\b|\bqu[eé] (?:clientes|cuentas|sku|productos|bodegas|familias|canales)\b|\branking\b|\btop\b|\blos (?:\d+|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b|\btod[oa]s\b|\bcada\b|\blista\b|\bl[ií]stame\b|\btabla\b|\ben vi[ñn]etas\b|\benum[eé]ra/i;
-export const pideDetalle = (pregunta) => _PIDE_DETALLE.test(String(pregunta || ""));
+/* ── EL ENCARGO COMPUESTO ES UNA SOLICITUD DE PROFUNDIDAD (owner 2026-09-11) ──────────────────────────────
+ * «Dime cómo va, qué está explicando el resultado, qué clientes presionan, qué puedes demostrar y qué harías
+ * primero» enumera lo que quiere saber: ya está pidiendo ese detalle. Con «el detalle se ofrece, no se
+ * despliega» el modelo respondería de menos. Se cuenta la enumeración: tres o más preguntas parciales en un
+ * mensaje largo. Las interrogativas con tilde valen en cualquier parte; sin tilde, solo al arranque de una
+ * cláusula («, que…» «y que…» «¿que…»), para que un «que» conjunción no cuente. */
+/* ⚠️ sin `\b` tras la tilde: «qué\b» no encuentra «qué » nunca (la trampa de siempre de esta casa) — los bordes
+ * se escriben con las clases que sí conocen la tilde y la ñ */
+const _INTERROGATIVA = /(?<![\wáéíóúñ])por qu[eé](?![\wáéíóúñ])|(?<![\wáéíóúñ])(?:qué|cuál(?:es)?|cuánt[oa]s?|quién(?:es)?|cómo|dónde|cuándo)(?![\wáéíóúñ])|(?:^|[,;:¿]\s*|(?<![\wáéíóúñ])y\s+)(?:que|cual(?:es)?|cuant[oa]s?|quien(?:es)?|como|donde|cuando)(?![\wáéíóúñ])|(?<![\wáéíóúñ])si (?:es|era|fue|son|hay|viene|vienen|est[aá]n?|conviene|se debe)(?![\wáéíóúñ])/gi;
+export function esEncargoCompuesto(pregunta) {
+  const q = String(pregunta || "");
+  if (q.trim().split(/\s+/).length < 12) return false;
+  return (q.match(_INTERROGATIVA) || []).length >= 3;
+}
+export const pideDetalle = (pregunta) => _PIDE_DETALLE.test(String(pregunta || "")) || esEncargoCompuesto(pregunta);
 export const pideLista = (pregunta) => _PIDE_LISTA.test(String(pregunta || ""));
 const _ES_ITEM = /^\s*(?:[-·•*]|\d{1,2}[.)])\s+/;
 /* un encabezado: «# Título», una línea que es SOLO un rótulo en negrita, o un rótulo en negrita que abre la

@@ -56,11 +56,11 @@ import { envejecerPendingSimulation, pendingSimulationVigente, withOfertaPendien
   doctrinaDeReferente, vetoReferente, ordenPresentadoEn, esAlcanceGlobal } from "../oracle/conversationScope.js";   // EL SCOPE CANÓNICO, cableado al agente (owner 2026-09-11): no otra memoria, no otro resolver
 import { buildRequestContext } from "../oracle/requestContext.js";   // el tenant del scope se valida con el MISMO contexto que usa el resto
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
-import { vetosDeContrato, esIdentificadorInterno } from "./contratoAgente.js";
+import { vetosDeContrato, esIdentificadorInterno, esEncargoCompuesto } from "./contratoAgente.js";
 import { vetoCifraSinBoleta } from "./cifraSinBoleta.js";   // el juez del turno que NO leyó — vive SOLO en el agente (ver su cabecera)
 import { getNombreUsuario, setNombreUsuario } from "./preferenciaNombre.js";   // R4c · el trato viaja en los rescates y persiste por `mem`
 import { detectSerieIntent, composeSerieIntent } from "../oracle/serieIntent.js";   // R9 · el puente, también en modo agente
-import { playbookPara, pasosDe, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook } from "./playbooks/registro.js";
+import { playbookPara, pasosDe, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook, formaDelTurno } from "./playbooks/registro.js";
 import { anclaDelCuadro } from "./playbooks/cuadroExplicado.js";   // el cuadro abierto persiste en la memoria del hilo (owner 2026-09-08: «profundiza en…»)   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
 import { serieRealDe } from "../sentrix/capability.js";
 import { getTenantId, getTenantData } from "../../data/tenantStore.js";   // getTenantData: el contexto que el negocio declaró — la ley del porqué lo cita en vez de repreguntar   // la semilla de variación: tenant + pregunta + largo del hilo
@@ -743,6 +743,10 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   const _destinatarioDelTurno = (() => { try { return destinatarioDe(q); } catch { return null; } })();
   const _doctrinaAud = _destinatarioDelTurno ? doctrinaDeAudiencia(_destinatarioDelTurno) : null;
   if (_doctrinaAud) mensajes.push({ role: "user", content: _doctrinaAud });
+  /* EL ENCARGO COMPUESTO SIN PROCEDIMIENTO (owner 2026-09-11): la forma del turno viaja con la doctrina del playbook;
+   * cuando ningún procedimiento aplica —«mira el negocio completo como si fueras mi asesor…»— el cerebro trabaja solo
+   * con las herramientas y necesita igual la consigna: una sola lectura, en orden, y el lector al final. */
+  if (!playbookActivo && esEncargoCompuesto(q)) mensajes.push({ role: "user", content: formaDelTurno(q) });
 
   /* EL MOTIVO DE CORTE DEL PROVEEDOR, por llamada (tanda post-poda, 2026-09-05): el gateway ya lo re-emite y
    * el cliente lo lee — acá se junta en el expediente. La lección del natural, completa de punta a punta:

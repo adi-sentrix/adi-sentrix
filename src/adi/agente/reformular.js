@@ -59,8 +59,41 @@ const _DESTINATARIO = new RegExp(`\\bpara (?:el|la|los|las|mi|mis)\\s+[\\wáéí
 const _SOLO_DESTINATARIO = new RegExp(`^\\s*¿?\\s*(?:y |ahora |tambi[eé]n |lo mismo |igual |pero )*(?:${_DESTINATARIO.source})\\s*[.?!]*\\s*$`, "i");
 const _FORMA = /\bm[aá]s (?:corto|simple|breve|claro|sencillo|f[aá]cil|directo)\b|\ben (?:una|dos|tres) l[ií]neas?\b|\ben vi[ñn]etas\b|\ben bullet/i;
 
+/* ── LA INSTRUCCIÓN DE PRESENTACIÓN POSTERIOR (owner 2026-09-11, el encargo compuesto) ──────────────────────
+ * «…qué puedes demostrar y qué harías primero. Después resúmemelo para directorio.» marcaba el turno ENTERO como
+ * reformular —el detector miraba si la frase CONTENÍA la forma, no si la frase ERA eso— y el atajo de «no hay
+ * nada que reformular» respondía sin leer ni llamar. Su regla: si la forma aparece al final, después de un
+ * encargo sustantivo —con «después», «luego», «al final», o como frase de cierre («Explícalo para comercial.»)—,
+ * es una instrucción de presentación de lo que ESTE turno va a producir, no la intención del turno. El lector
+ * sigue viajando (`destinatarioDe` lee el mensaje entero); lo que no viaja es la doctrina de «no salgas a leer». */
+const _POSTERIOR = /^\s*(?:y\s+)?(?:despu[eé]s|luego|al final|finalmente|por [uú]ltimo|al terminar|cuando termines)\b[,\s]*/i;
+const _CORTE_POSTERIOR = /(?<=[.;!?])\s+|\s+(?=(?:y\s+)?(?:despu[eé]s|luego|al final|finalmente|por [uú]ltimo|al terminar|cuando termines)\b)/i;
+export function presentacionPosterior(pregunta) {
+  const q = String(pregunta || "").trim();
+  if (!q) return null;
+  const tramos = q.split(_CORTE_POSTERIOR).map((s) => s.trim()).filter(Boolean);
+  if (tramos.length < 2) return null;
+  const clausula = tramos[tramos.length - 1];
+  const resto = tramos.slice(0, -1).join(" ");
+  const esForma = _esReformularSola(clausula) || (_POSTERIOR.test(clausula) && (_DESTINATARIO.test(clausula) || _FORMA.test(clausula)));
+  if (!esForma) return null;
+  /* sin un encargo sustantivo delante no hay «posterior»: «Lo mismo, pero más corto. Para el directorio.» sigue
+   * siendo una reformulación entera, y una frase de cuatro palabras no es un encargo */
+  if (resto.split(/\s+/).length < 5 || _esReformularSola(resto)) return null;
+  return { clausula, resto, destinatario: destinatarioDe(clausula), corto: _FORMA.test(clausula) };
+}
+/** el mensaje sin su instrucción de presentación posterior — lo que los procedimientos tienen que leer */
+export function sinPresentacionPosterior(pregunta) {
+  const p = presentacionPosterior(pregunta);
+  return p ? p.resto : String(pregunta || "");
+}
+
 /** ¿la pregunta pide RE-DECIR lo ya respondido, no una lectura nueva? */
 export function esReformular(pregunta) {
+  if (presentacionPosterior(pregunta)) return false;   // un encargo con presentación al final es un encargo
+  return _esReformularSola(pregunta);
+}
+function _esReformularSola(pregunta) {
   const q = String(pregunta || "");
   if (!q.trim()) return false;
   const apunta = _PIDE_LO_DICHO.test(q) || _LO_YA_DICHO.test(q);

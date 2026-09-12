@@ -33,7 +33,8 @@ import { desafiarDecision } from "./desafiarDecision.js";         // el tradeoff
 import { contradiccionDeMetricas } from "./contradiccionDeMetricas.js";   // las dos son ciertas: qué las reconcilia (owner 2026-09-09)
 import { compararAlternativas } from "./compararAlternativas.js";   // los dos caminos con precio: elegir o marcar tradeoff (owner 2026-09-09)
 import { nombraEntidad } from "./indiceEntidades.js";   // el retiro-por-nombre, aplicado UNA vez en playbookPara
-import { pideDetalle } from "../contratoAgente.js";   // el mismo detector que cobra el veto de formato: una regla, un archivo
+import { pideDetalle, esEncargoCompuesto } from "../contratoAgente.js";   // el mismo detector que cobra el veto de formato: una regla, un archivo
+import { sinPresentacionPosterior, destinatarioDe } from "../reformular.js";   // el encargo sin su presentación posterior; el lector que nombró (owner 2026-09-11)
 import { clientePerdiendoContribucion, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio } from "./asesoria.js";   // los 4 de ASESORÍA (owner 2026-09-01): 01 QUÉ · 02 DÓNDE · 03 QUÉ HACER PRIMERO
 import { lecturaPorEje } from "./lecturaPorEje.js";   // playbook de FORMA: canal · marca · familia · bodega · SKU frenado
 import { entidadPorPeriodo } from "./entidadPorPeriodo.js";   // playbook de FORMA: «cuánto me compró X el último mes» con serie REAL (la bloqueada es del puente)
@@ -73,7 +74,11 @@ export const PLAYBOOKS = [hipotesisDelUsuario, desafiarDecision, contradiccionDe
 /** playbookPara(pregunta) → el playbook que aplica, o null. El PRIMERO que declare aplicar (orden del registro
  *  = precedencia declarada); jamás dos a la vez, para que el procedimiento del turno sea uno solo y auditable. */
 export function playbookPara(pregunta, ctx) {
-  const q = String(pregunta || "").trim();
+  /* LA AUDIENCIA FINAL NO SECUESTRA EL TEMA (owner 2026-09-11): «…qué harías primero. Después resúmemelo para
+   * directorio» hacía que la foto del negocio se retirara por ver «directorio» (que es de la síntesis) y que
+   * ningún procedimiento aplicara. Los detectores leen el ENCARGO; la instrucción de presentación del final
+   * viaja aparte, como molde de salida (`destinatarioDe` sobre el mensaje entero, en el bucle). */
+  const q = sinPresentacionPosterior(String(pregunta || "").trim()).trim();
   if (!q) return null;
   /* `ctx` es OPCIONAL y solo lleva lo que un detector elíptico necesita para no cambiar de tema: hoy,
    * `{ history }` (T5, 2026-09-05 — «por qué pasa eso» solo abre si la última lectura fue de margen). Los
@@ -171,6 +176,12 @@ export function doctrinaDelPlaybook(pb, pregunta, ctx) {
  * cerebro tiene la evidencia en la mano y tiende a volcarla entera. Contextual: si el usuario pidió detalle,
  * el detalle es suyo. El veto `formato-de-informe` (contratoAgente) es la misma regla, cobrada. */
 export function formaDelTurno(pregunta) {
+  /* EL ENCARGO COMPUESTO (owner 2026-09-11): entender todo el encargo → ejecutar las partes en orden lógico →
+   * integrar UNA sola lectura → adaptar al final al lector que nombró. No seis mini-respuestas. */
+  if (esEncargoCompuesto(pregunta)) {
+    const lector = (() => { try { return destinatarioDe(pregunta); } catch { return null; } })();
+    return `FORMA (encargo compuesto): cúbrelo ENTERO, en el orden en que lo pidió, como UNA sola lectura —no una respuesta por pregunta—: una tesis que la abra, cada cifra una vez, y en cada parte qué está medido y qué es hipótesis, separado. Lo que no puedas cubrir con el dato, dilo en una línea.${lector ? ` Y cierra con la versión para ${lector}: la misma conclusión, en su molde, DESPUÉS de la lectura completa.` : ""}`;
+  }
   if (pideDetalle(pregunta)) return "FORMA: este turno SÍ pide detalle — ábrelo, ordenado, con cada cifra una vez.";
   return "FORMA (densidad ejecutiva): la tesis en una frase → la evidencia mínima que la sostiene → el criterio o siguiente paso, en prosa. Sin subtítulos; una lista solo si ordena información o la pidieron; negrita, a lo sumo, para una conclusión puntual. El detalle se ofrece, no se despliega.";
 }

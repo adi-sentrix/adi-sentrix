@@ -378,5 +378,50 @@ H("10 · ★★ la batería en vivo: «dámelo», «ahora para directorio» y la
   ok(/counts: parseCounts\(_previaDelHilo\)/.test(bucle), "★ los conteos de la respuesta previa entran a la boleta del piso (el muro los reconocía como no autorizados)");
 }
 
+/* ═══ 11 · ★★ EL ENCARGO COMPUESTO CON PRESENTACIÓN AL FINAL (owner 2026-09-11) ═══════════════════════════
+ * Su pantalla: «…qué parte puedes demostrar y qué harías primero. Después resúmemelo para directorio» recibió
+ * «Todavía no te he respondido nada en esta conversación…» — el detector miraba si el mensaje CONTENÍA la forma
+ * de reformular, y el atajo de «no hay nada que reformular» corría antes del scope, del procedimiento y del
+ * cerebro. Su regla: reformular solo cuando el mensaje ES eso; al final, tras «después / luego / al final» o
+ * como frase de cierre, es una instrucción de presentación de lo que este turno produce. Y la audiencia final
+ * no secuestra el tema: los procedimientos leen el encargo, el lector viaja como molde. */
+H("11 · ★★ el encargo compuesto: reformular no eclipsa el turno, y la audiencia final no secuestra el tema");
+{
+  const { presentacionPosterior, sinPresentacionPosterior } = await import("./src/adi/agente/reformular.js");
+  const { playbookPara: pbPara, doctrinaDelPlaybook } = await import("./src/adi/agente/playbooks/registro.js");
+  const OWNER = "Quiero que me digas cómo va el negocio, qué está explicando el resultado, qué clientes están presionando más el margen, qué parte puedes demostrar y qué harías primero. Después resúmemelo para directorio";
+  const P1 = "Dime cómo va el negocio, qué está explicando el resultado, qué clientes presionan más el margen, qué puedes demostrar y qué harías primero. Al final resúmelo para directorio.";
+  const P3 = "Analiza la cartera: quién sostiene ventas, quién destruye margen, dónde está la mayor recuperación y qué tres cuentas revisarías primero. Explícalo para comercial.";
+  const SIN_PUNTO = "dime cómo va el negocio y qué harías primero y después resúmelo para el directorio";
+  ok(!esReformular(OWNER) && !esReformular(P1) && !esReformular(P3) && !esReformular(SIN_PUNTO),
+    "★★ los encargos con presentación al final NO son reformular: «después…», «al final…», «Explícalo para comercial.» de cierre, con y sin punto");
+  const pp = presentacionPosterior(OWNER);
+  ok(!!pp && pp.destinatario === "el directorio" && /^Después resúmemelo/.test(pp.clausula) && /qué harías primero\.$/.test(pp.resto),
+    "…la instrucción posterior se separa del encargo: cláusula, lector y resto", JSON.stringify(pp));
+  ok(destinatarioDe(OWNER) === "el directorio" && destinatarioDe(P3) === "el equipo comercial", "…y el lector sigue viajando como molde (destinatarioDe lee el mensaje entero)");
+  ok(esReformular("Dámelo más corto.") && esReformular("Explícamelo para el equipo comercial.") && esReformular("Ahora para directorio.") && esReformular("resúmemelo para el directorio") && esReformular("¿y para comercial?"),
+    "★ las reformulaciones enteras siguen siendo reformular: nada de lo probado en vivo se afloja");
+  ok(presentacionPosterior("Ahora para directorio.") === null && presentacionPosterior("¿qué pasó después de marzo?") === null && presentacionPosterior("dame los 3 riesgos para el directorio") === null,
+    "…sin encargo delante no hay «posterior», y «después de marzo» no es presentación");
+  ok(pbPara(OWNER, {}) && pbPara(OWNER, {}).nombre === "resumen-del-negocio" && pbPara(P1, {}).nombre === "resumen-del-negocio",
+    "★★ la foto del negocio toma el encargo aunque termine en «para directorio»: la audiencia final no la retira");
+  ok(pbPara("dame los 3 riesgos para el directorio", {}).nombre === "sintesis-ejecutiva" && pbPara("¿Cómo va el negocio?", {}).nombre === "resumen-del-negocio",
+    "…y «los 3 riesgos para el directorio» sigue siendo de la síntesis: ahí el directorio es el tema, no la presentación");
+  ok(sinPresentacionPosterior(P3) === "Analiza la cartera: quién sostiene ventas, quién destruye margen, dónde está la mayor recuperación y qué tres cuentas revisarías primero.",
+    "los procedimientos leen el encargo sin la instrucción de presentación");
+  /* de punta a punta con el cerebro mudo: el turno YA NO se corta en el atajo — lee, y le llevan al cerebro el
+   * procedimiento con la forma del encargo y el molde del lector, pero NO la doctrina de «no salgas a leer» */
+  let capt = null;
+  const MUDO4 = async ({ mensajes }) => { if (!capt) capt = mensajes; return { tipo: "texto", texto: "" }; };
+  const r = await answerViaAgente({ text: OWNER, history: [], mem: {}, scenario: ESC, callAgente: MUDO4 });
+  ok(r.r.agente.estado !== "sin-que-reformular" && r.r.agente.calls >= 3, `★★ la pantalla del owner ya no se corta en el atajo: el turno lee (${r.r.agente.calls} herramientas, ${r.r.agente.estado})`);
+  ok(!/Todavía no te he respondido nada/.test(String(r.r.text || "")), "…y la frase que vio el owner no sale");
+  const docs = (capt || []).filter((m) => m.role === "user").map((m) => String(m.content || ""));
+  ok(!docs.some((d) => /TE PIDIERON LA MISMA RESPUESTA DICHA DE OTRA MANERA/.test(d)), "★ la doctrina de reformular («no salgas a leer») NO viaja en un encargo");
+  ok(docs.some((d) => /ESTE TURNO ES PARA EL DIRECTORIO/i.test(d)), "…el molde del directorio SÍ viaja");
+  ok(docs.some((d) => /FORMA \(encargo compuesto\)/.test(d) && /cierra con la versión para el directorio/.test(d)), "…y la forma del turno dice: una sola lectura, y la versión para el directorio al final");
+  ok(/lectura completa del negocio/.test(doctrinaDelPlaybook(pbPara(OWNER, {}), OWNER)), "…con el entregable completo de la foto, no el corto que «ofrece» el resto");
+}
+
 console.log(`\n── _reformular_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail === 0 ? 0 : 1);

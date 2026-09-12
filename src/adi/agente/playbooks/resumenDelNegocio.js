@@ -18,6 +18,7 @@
 import { variante } from "../variacion.js";
 import { buildRolesCartera } from "../../sentrix/rolesCartera.js";
 import { nombraEntidad } from "./indiceEntidades.js";   // el guardia, compartido: la foto es del negocio entero
+import { esEncargoCompuesto } from "../contratoAgente.js";   // el encargo compuesto pide la lectura completa (owner 2026-09-11)
 /* ¿la pregunta nombra una entidad del tenant? — se pregunta por PRESENCIA, jamás se resuelve un parecido
  * (la ley del único buscador: acá no se ofrece ni se asume nada, solo se cede el turno a quien le toca).
  * El guardia se COMPARTE con la lectura de ventas y con la ficha (T3/T4, 2026-09-05): esta copia local se
@@ -94,7 +95,15 @@ export const resumenDelNegocio = {
 
   /* «¿Cómo va?» no se convierte en 380 palabras (owner 2026-09-11, medido en su batería en vivo): la foto es la
    * tesis, la evidencia mínima y por dónde entraría — el porqué y el detalle por cliente son turnos siguientes. */
-  entregable: "la foto del negocio en una lectura corta: la tesis en una frase (crece o no, y qué le pasa al margen), dos o tres cifras que la sostienen, quiénes lo sostienen y quiénes lo presionan (por papel, no por lista), y qué mira primero un asesor y por qué — el criterio marcado como criterio. El porqué y el detalle por cliente se ofrecen, no se despliegan.",
+  /* …salvo que el ENCARGO sea compuesto (owner 2026-09-11): si enumeró qué quiere saber, los pasos ya trajeron la
+   * evidencia de todo eso —la foto, dónde presiona y el papel de cada cliente— y el entregable es la lectura
+   * completa, no la corta con el resto ofrecido. */
+  entregable(pregunta) {
+    if (esEncargoCompuesto(pregunta)) {
+      return "la lectura completa del negocio, en el orden en que la pidió: la tesis en una frase (crece o no, y qué le pasa al margen), las cifras que la sostienen, qué está explicando el resultado (lo medido separado de la hipótesis; el motivo se localiza, no se inventa), quiénes lo sostienen y quiénes lo presionan (por papel, con su cifra), qué parte está demostrada y qué parte queda abierta, y qué haría primero un asesor y por qué — el criterio marcado como criterio.";
+    }
+    return "la foto del negocio en una lectura corta: la tesis en una frase (crece o no, y qué le pasa al margen), dos o tres cifras que la sostienen, quiénes lo sostienen y quiénes lo presionan (por papel, no por lista), y qué mira primero un asesor y por qué — el criterio marcado como criterio. El porqué y el detalle por cliente se ofrecen, no se despliegan.";
+  },
 
   componer({ figs, semilla, scenario } = {}) {
     const ventas = _find(figs, /^Ventas del período$/i);

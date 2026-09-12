@@ -247,5 +247,37 @@ H("6 · cableado: la forma se juzga al cerebro y no a los peldaños; sin el juez
   } finally { try { unlinkSync(tmp); } catch { /* ya no está */ } }
 }
 
+/* ═══ 7 · EL ENCARGO COMPUESTO ES UNA SOLICITUD DE PROFUNDIDAD (owner 2026-09-11) ═══════════════════════════
+ * «Si el usuario enumera varias cosas que quiere saber, no aplicar la regla de "el detalle se ofrece, no se
+ * despliega": ya está pidiendo ese detalle.» Los cuatro prompts de su batería compuesta cuentan; las
+ * preguntas de una sola cosa, no. */
+H("7 · el encargo compuesto cuenta como detalle: sin veto de formato, con la forma de «una sola lectura»");
+{
+  const { esEncargoCompuesto } = await import("./src/adi/agente/contratoAgente.js");
+  const { entregableDe } = await import("./src/adi/agente/playbooks/registro.js");
+  const BATERIA = {
+    ejecutivo: "Dime cómo va el negocio, qué está explicando el resultado, qué clientes presionan más el margen, qué puedes demostrar y qué harías primero. Al final resúmelo para directorio.",
+    causal: "Estoy vendiendo más pero siento que gano menos. Quiero que confirmes si es cierto, me digas por qué, si viene de precio, costo, mix o acciones comerciales, qué clientes están detrás y qué información te falta.",
+    comercial: "Analiza la cartera: quién sostiene ventas, quién destruye margen, dónde está la mayor recuperación y qué tres cuentas revisarías primero. Explícalo para comercial.",
+    natural: "Mira el negocio completo como si fueras mi asesor. Dime qué está bien, qué te preocupa, por qué, cuánto dinero está en juego y dónde actuarías primero.",
+  };
+  for (const [k, q] of Object.entries(BATERIA)) ok(esEncargoCompuesto(q) && pideDetalle(q), `«${k}» es un encargo compuesto → pide detalle`);
+  for (const q of ["¿Cómo va el negocio?", "¿Por qué está pasando?", "¿Qué parte de eso puedes demostrar y qué parte no?", "¿qué es más urgente, margen o cobranza?", "dame los 3 riesgos para el directorio", "¿Cuánto vende SAM-TV55 y cuánto stock tiene?"])
+    ok(!esEncargoCompuesto(q), `…y «${q}» no lo es`);
+  ok(reglas(PANTALLAS.T2, BATERIA.ejecutivo).length === 0, "★ ante un encargo compuesto, una respuesta con estructura NO recibe el veto de formato: el detalle es suyo");
+  ok(/FORMA \(encargo compuesto\)/.test(formaDelTurno(BATERIA.natural)) && /UNA sola lectura/.test(formaDelTurno(BATERIA.natural)) && !/cierra con la versión para/.test(formaDelTurno(BATERIA.natural)),
+    "la forma del encargo compuesto pide UNA sola lectura en orden — y sin lector nombrado no inventa uno");
+  ok(/cierra con la versión para el equipo comercial/.test(formaDelTurno(BATERIA.comercial)), "…y con lector nombrado, cierra con su versión después de la lectura completa");
+  ok(/lectura completa del negocio/.test(entregableDe(resumenDelNegocio, BATERIA.ejecutivo)) && /lectura corta/.test(entregableDe(resumenDelNegocio, "¿Cómo va el negocio?")),
+    "la foto entrega la lectura completa al encargo compuesto y la corta a «¿cómo va?»");
+  /* el natural sin procedimiento: la forma viaja igual, desde el bucle */
+  let capt = null;
+  const MUDO7 = async ({ mensajes }) => { if (!capt) capt = mensajes; return { tipo: "texto", texto: "" }; };
+  const r = await answerViaAgente({ text: BATERIA.natural, history: [], mem: {}, scenario: ESC, callAgente: MUDO7 });
+  const docs = (capt || []).filter((m) => m.role === "user").map((m) => String(m.content || ""));
+  ok(!docs.some((d) => /Este turno sigue el playbook/.test(d)) && docs.some((d) => /FORMA \(encargo compuesto\)/.test(d)),
+    `★ sin procedimiento («mira el negocio completo…»), la forma del encargo compuesto viaja igual (${r.r.agente.estado})`);
+}
+
 console.log(`\n── _densidad_ejecutiva_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);
