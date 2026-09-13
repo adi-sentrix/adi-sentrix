@@ -95,6 +95,16 @@ el cruce contra la carpeta real. Antes de pantalla:
    - *«Se deterioró» con cualquier sujeto es un movimiento en el tiempo.* Sin serie ni variación de eso en la
      carpeta no se dice — ni como hipótesis ni como alternativa («estrategia deliberada o negociación que se
      deterioró» = bloqueado): lo que hay es un nivel («quedó bajo la referencia»).
+   **Y lo demostrado se describe sin agregarle causalidad ni jerarquía causal** (ley del owner, 2026-09-13,
+   corrida 6 — «describir lo demostrado sin agregar causalidad ni jerarquía causal que el dato no sostenga»):
+   - *La causa dicha de paso también es causa.* «Sostienen contribución con mejor costo relativo», «gracias a su
+     mix», «por un costo más bajo» explican un resultado por un mecanismo que no está probado — los sanos solo
+     tienen demostrado que están sobre el benchmark = bloqueado. La causa se afirma solo con el mecanismo
+     PROBADO; lo demás se describe (nivel, brecha, conteo) sin la causa.
+   - *Un mecanismo probado no es «la causa dominante».* «Dominante», «principal», «sobre todo», «la mayor
+     parte», «pesa más» ordenan las causas, y ese orden exige la parte del efecto medida en la carpeta (efecto
+     carga contra efecto costo, en pp). Lo probado es que el mecanismo EXISTE (su huella) = se dice «un mecanismo
+     probado», «la huella más clara»; «la causa dominante y probada» = bloqueado.
 2. **¿Cada cálculo se puede recalcular?** La fórmula mostrada se recomputa. No cuadra o no muestra origen →
    bloqueado.
 3. **¿Cada clasificación existe?** «Frenado», «bajo benchmark», «crítico»: solo los estados que la carpeta

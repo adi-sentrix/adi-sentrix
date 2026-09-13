@@ -77,6 +77,11 @@ Derivadas que se rompen seguido:
   de la afirmación de al lado no lo cubre); «se deterioró» con cualquier sujeto exige serie, y la hipótesis no absuelve
   esa palabra. Todo en `vetosDeRegistro` (`ganancia-no-comparada`, `mecanismo-sin-sello`, `deterioro-no-medido`) y
   en la doctrina `conclusiones(figs)`, con el sello de cada mecanismo tomado de la boleta.
+- **Lo demostrado se describe sin causa ni jerarquía causal** (owner 2026-09-13, corrida 6; ley en
+  `_CONSTITUCION_ADI.md`): la causa dicha de paso («con mejor costo relativo», «gracias a su mix») vale solo con el
+  mecanismo PROBADO (`mecanismo-sin-sello`, atribución); y «dominante / principal / sobre todo / la mayor parte / pesa
+  más» exigen la parte del efecto medida en la boleta (`jerarquia-causal-sin-medida`, con o sin huellas). Un mecanismo
+  probado es «un mecanismo probado», no «la causa dominante».
 
 ---
 
