@@ -64,7 +64,8 @@ import { playbookPara, pasosDe, promesasCumplidas, doctrinaDelPlaybook, vetosDel
 import { anclaDelCuadro } from "./playbooks/cuadroExplicado.js";   // el cuadro abierto persiste en la memoria del hilo (owner 2026-09-08: «profundiza en…»)   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
 import { serieRealDe } from "../sentrix/capability.js";
 import { buildRolesCartera } from "../sentrix/rolesCartera.js";
-import { partesDelEncargo, pasosDelEncargo, componerEncargo } from "./encargoCompuesto.js";   // el peldaño del encargo compuesto (owner 2026-09-11): cobertura garantizada cuando el cerebro cae   // las huellas con sello del turno: el juez compartido las lee para no aceptar un mecanismo afirmado sin su sello (owner 2026-09-11)
+import { partesDelEncargo, pasosDelEncargo, componerEncargo } from "./encargoCompuesto.js";
+import { esTemaComercial, pasosDelContratoComercial, unirPasos, doctrinaComercial } from "./contratoComercial.js";   // toda pregunta comercial parte de la misma realidad comercial (owner 2026-09-13)   // el peldaño del encargo compuesto (owner 2026-09-11): cobertura garantizada cuando el cerebro cae   // las huellas con sello del turno: el juez compartido las lee para no aceptar un mecanismo afirmado sin su sello (owner 2026-09-11)
 import { getTenantId, getTenantData } from "../../data/tenantStore.js";   // getTenantData: el contexto que el negocio declaró — la ley del porqué lo cita en vez de repreguntar   // la semilla de variación: tenant + pregunta + largo del hilo
 
 const TOPE_RONDAS = 3;      // rondas que pueden pedir herramientas
@@ -207,7 +208,7 @@ function _resumenDeRonda(rp) {
 const _METRICAS_REFUTACION = ["margen", "venta", "ventas", "contribución", "contribucion", "carga", "capital",
   "inventario", "rotación", "rotacion", "unidades", "acciones", "costo"];
 const _reWord = (t) => new RegExp(`\\b${String(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = null }) {
+function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = null, relegar = null }) {
   const motivo = motivos.length ? motivos[motivos.length - 1] : null;
   /* las cifras salen de la BOLETA ACUMULADA — verificadas por el muro antes de adoptarse, nunca compuestas
    * libres (F1 §9.3). Obligatorias primero.
@@ -250,12 +251,13 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = nul
    * campo nuevo: `fig()` desestructura opciones conocidas y `boleta.js` no se toca.) */
   const _RESULTADO_DEL_TURNO = new Set(["computed", "proyeccion"]);
   const _esResultado = (f) => _RESULTADO_DEL_TURNO.has(String(f && f.source));
-  const _ordenBase = [
-    ...verificadas.filter((f) => _esResultado(f) && f.mandatory),
-    ...verificadas.filter((f) => _esResultado(f) && !f.mandatory),
-    ...verificadas.filter((f) => !_esResultado(f) && f.mandatory),
-    ...verificadas.filter((f) => !_esResultado(f) && !f.mandatory),
-  ].filter((f) => f !== contra);
+  /* LAS CIFRAS QUE SOLO TRAJO EL CONTRATO COMERCIAL VAN AL FINAL (2026-09-13): el turno fue a buscar otra cosa —la
+   * proyección, el año anterior, la cuenta nombrada— y eso es lo que el rescate sirve primero; la realidad comercial
+   * de fondo queda como último recurso, no como la fila 1. `relegar(f)` lo decide el bucle, que sabe qué herramienta
+   * trajo cada cifra y quién la pidió. */
+  const _rel = typeof relegar === "function" ? (f) => { try { return !!relegar(f); } catch { return false; } } : () => false;
+  const _cat = (f) => (_esResultado(f) && f.mandatory ? 0 : _esResultado(f) && !f.mandatory ? 1 : f.mandatory ? 2 : 3) + (_rel(f) ? 4 : 0);
+  const _ordenBase = verificadas.map((f, i) => ({ f, i, c: _cat(f) })).sort((a, b) => a.c - b.c || a.i - b.i).map((x) => x.f).filter((f) => f !== contra);
   /* ⚠️ EL RESCATE RESPETA EL REFERENTE Y EL ALCANCE (owner 2026-09-11, su prueba de continuidad). Medido: a
    * «¿qué está explicando ese resultado?» —pregunta del negocio entero— este peldaño sirvió «Falabella · Brecha
    * al benchmark, 8.1 pp»: la fila 1 de `rolesCartera`, que ordena por venta. No «recordaba» a Falabella: no
@@ -631,6 +633,9 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   /* lo que el resolutor decidió, para el rescate y para el expediente */
   const preferirDelTurno = referente && referente.kind === "resolved" ? { entidades: referente.entities }
     : (referente && referente.kind === "resolved-scope" && referente.alcance === "cartera") || planSintetico.scope.level === "global" ? { alcance: "cartera" }
+    /* la cuenta NOMBRADA en la pregunta (contrato comercial, 2026-09-13): la boleta trae a las trece, y el rescate de
+     * «¿qué hago con Ferretería Aurora?» tiene que citar a Ferretería Aurora, no la fila 1 de la primera herramienta */
+    : planSintetico.scope.level === "entity" && planSintetico.scope.entities.length ? { entidades: planSintetico.scope.entities }
     : null;
 
   // ── el bucle ──
@@ -740,15 +745,29 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * paraguas (su detector), y el resto sigue el camino de siempre. */
   const _partesEncargo = (() => { try { return partesDelEncargo(q); } catch { return []; } })();
   const _pasosPb = playbook ? (_partesEncargo.length ? pasosDelEncargo(_partesEncargo, pasosDe(playbook, q, ctxTurno), ctxTurno) : pasosDe(playbook, q, ctxTurno)) : [];
-  if (playbook && _pasosPb.length) {
-    if (_rondaDeHerramientas(_pasosPb.map((p) => ({ tool: p.tool, args: p.args || {} })), mensajes)) {
+  /* EL CONTRATO COMERCIAL (owner 2026-09-13): «toda pregunta comercial parte de la misma realidad comercial; la pregunta
+   * determina el foco de la respuesta, no qué evidencia tiene disponible ADI». Si el tema es comercial, los pasos del
+   * contrato corren en la MISMA ronda que los del procedimiento —unidos, sin repetir una herramienta con los mismos
+   * argumentos— también cuando ningún procedimiento aplica: el cerebro libre recibe la realidad comercial precargada
+   * y elige extras, en vez de elegir desde cero. Los del procedimiento van primero (su orden es su lectura). */
+  const _esComercial = (() => { try { return esTemaComercial(q); } catch { return false; } })();
+  const _pasosContrato = _esComercial ? pasosDelContratoComercial() : [];
+  const _pasosTurno = unirPasos(_pasosPb, _pasosContrato);
+  if (_pasosTurno.length) {
+    if (_rondaDeHerramientas(_pasosTurno.map((p) => ({ tool: p.tool, args: p.args || {} })), mensajes)) {
       /* el playbook solo PROMETE si sus figs obligatorias llegaron: en un dato que no las sostiene se retira
        * sin ruido y el turno sigue por el camino de siempre (nada de prometer lo que no se puede cumplir).
        * Con pasos por pregunta, las obligatorias también dependen de ella — si no, la promesa que se verifica
        * no sería la que se hizo. */
-      if (promesasCumplidas(playbook, figsTotales, q, ctxTurno)) {
+      if (playbook && _pasosPb.length && promesasCumplidas(playbook, figsTotales, q, ctxTurno)) {
         playbookActivo = playbook;
         mensajes.push({ role: "user", content: doctrinaDelPlaybook(playbook, q, ctxTurno, figsTotales) });   // con la boleta: las conclusiones del procedimiento viajan (owner 2026-09-13)
+      }
+      /* y las conclusiones del procedimiento COMERCIAL viajan en todo turno comercial (margen-en-riesgo ya las manda con
+       * su doctrina: ahí no se duplican) — una lectura comercial, una conclusión, en cualquier ruta */
+      if (_pasosContrato.length && (!playbookActivo || playbookActivo.nombre !== "margen-en-riesgo")) {
+        const _dc = doctrinaComercial(figsTotales);
+        if (_dc) mensajes.push({ role: "user", content: _dc });
       }
     }
   }
@@ -1145,7 +1164,18 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     /* `preferir` (2026-09-11): el rescate ya no sirve la fila 1 de la herramienta a ciegas — con un referente
      * resuelto prefiere SUS cifras, y con alcance de negocio entero prefiere las cifras sin dueño de cuenta.
      * Es lo que el owner vio: «¿qué explica ese resultado?» rescatado con «Falabella · Brecha 8.1 pp». */
-    final = _lineaHonesta({ motivos: motivosNoSoportado, figs: figsTotales, juzgar: (t) => juzgar(t, "linea-honesta"), entidades: duenosTenant || [], falta: (() => { try { return faltanteQueToca(q); } catch { return null; } })(), preferir: preferirDelTurno });
+    /* qué cifras trajo SOLO el contrato: las de las herramientas que ni el procedimiento ni el cerebro pidieron */
+    const _figsDelContrato = (() => {
+      try {
+        const pedidas = new Set([..._pasosPb.map((p) => p.tool), ...callsDelTurno.slice(_pasosTurno.length).map((c) => c.tool)]);
+        const soloContrato = new Set(_pasosContrato.map((p) => p.tool).filter((t) => !pedidas.has(t)));
+        const labels = new Set();
+        for (const r of resultsTotales) if (r && soloContrato.has(r.tool)) for (const f of r.boleta || []) labels.add(String(f.label));
+        return labels;
+      } catch { return new Set(); }
+    })();
+    final = _lineaHonesta({ motivos: motivosNoSoportado, figs: figsTotales, juzgar: (t) => juzgar(t, "linea-honesta"), entidades: duenosTenant || [], falta: (() => { try { return faltanteQueToca(q); } catch { return null; } })(), preferir: preferirDelTurno,
+      relegar: _figsDelContrato.size ? (f) => _figsDelContrato.has(String(f && f.label)) : null });
     if (final !== null) { estado = "limite"; suplente = true; }
   }
   if (final === null) {
@@ -1291,6 +1321,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
        * puro y va después de componer: adjunta una acción, jamás cambia el texto ni las cifras. */
       sentrixAction: (() => { try { const f = detectFichaIntent(q, { escenario: scenario }); return (f && f.sentrixAction) || null; } catch { return null; } })(),
       agente: { estado, rondas, calls, figs: figsTotales.length, motivos: motivosNoSoportado.slice(0, 3),
+        contrato: _esComercial ? "comercial" : null,   // el turno partió de la realidad comercial completa (owner 2026-09-13)
         vetos: vetosDelTurno,   // R7 · el expediente auditable: cada veto con su sitio y su multa (observación, no decisión)
         /* EL REFERENTE Y EL ALCANCE, en el expediente (2026-09-11): «nunca más evaluar una respuesta sin saber
          * qué mecanismo la produjo» — acá se lee a quién resolvió el procedimiento y qué pedido corrigió. */

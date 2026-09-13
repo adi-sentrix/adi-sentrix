@@ -258,7 +258,19 @@ function _vals(pool, unit) {
   }
   return out;
 }
-export function esCalculoDelCatalogo(raw, unit, pool) {
+/* EL CONTEO DICHO (contrato comercial, 2026-09-13): con la realidad comercial completa en la boleta (150 cifras, con conteos
+ * de 2 a 13), «$200M» —una cifra que solo existía en el contexto declarado por el usuario— quedó autorizada como
+ * «$25.1M × 8 clientes» sin que el texto dijera ni el monto ni el conteo: un monto por CUALQUIER conteo de la boleta es la
+ * lotería combinatoria. El escalar por conteo amnistía solo si el conteo está en la prosa (una cuenta mostrada). El resto
+ * del catálogo —brecha en pp, participación, monto × pp— sigue como siempre: son las cuentas que la casa hace de corrido.
+ * Sin `presentes` (llamadores históricos, gates unitarios) la conducta es la de siempre. */
+const _dicho = (v, unit, presentes) => {
+  if (!presentes) return true;
+  const lista = (presentes.get && presentes.get(unit === "pp" ? "pct" : unit)) || [];
+  const tol = Math.max(tolCalculo(v, unit), Math.abs(v) * 0.02);
+  return lista.some((x) => Number.isFinite(x) && Math.abs(x - v) <= tol);
+};
+export function esCalculoDelCatalogo(raw, unit, pool, presentes = null) {
   if (!Number.isFinite(raw) || !Array.isArray(pool) || !pool.length) return false;
   const tol = tolCalculo(raw, unit);
   if (unit === "pct") {
@@ -279,7 +291,7 @@ export function esCalculoDelCatalogo(raw, unit, pool) {
   }
   if (unit === "money") {
     const montos = _vals(pool, "money");
-    const factores = [..._vals(pool, "pp"), ..._vals(pool, "count")];
+    const factores = [..._vals(pool, "pp"), ..._vals(pool, "count").filter((v) => _dicho(v, "count", presentes))];
     for (const m of montos) for (const f of factores) {
       if (Math.abs(m * f - raw) <= tol) return true;                                                                       // escalar
     }

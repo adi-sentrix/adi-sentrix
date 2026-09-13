@@ -806,6 +806,10 @@ function _sujetoGeneralizado(narration, claims, entityNames = []) {
     const dueno = _duenoDelClaim(c, entityNames);
     if (!dueno) continue;
     if (textoNorm.includes(norm(dueno))) continue;   // la dueña está nombrada: no hay generalización
+    /* LA MISMA CIFRA SIN DUEÑO EN LA BOLETA (contrato comercial, 2026-09-13): con la realidad comercial completa siempre hay
+     * alguna cuenta con «+3.0%», y «proyección del negocio +3.0%» —una cifra del negocio, autorizada sin dueño— quedaba acusada
+     * de ser la de ABC. Si la boleta trae ese mismo valor como cifra del negocio, narrarla como del negocio no generaliza nada. */
+    if (claims.some((o) => o && o !== c && o.valor === c.valor && !_duenoDelClaim(o, entityNames))) continue;
     let idx = -1;
     while ((idx = _indexDeCifra(text, c.valor, idx + 1)) >= 0) {
       const [lo, hi] = _localWindow(masked, idx, 90);
@@ -2823,15 +2827,31 @@ const _pctDeFig = (f) => {
   const m = /^\s*(-?\d+(?:[.,]\d+)?)\s*%\s*$/.exec(String((f && (f.value ?? f.text)) || ""));
   return m ? parseFloat(m[1].replace(",", ".")) : NaN;
 };
-function _relacionConReferencia(ledger, oracion = null) {
+function _relacionConReferencia(ledger, oracion = null, previa = null) {
   const figs = (ledger && Array.isArray(ledger.figs) ? ledger.figs : []).filter((f) => f && f.unit === "pct" && Number.isFinite(_pctDeFig(f)));
   const bench = figs.find((f) => /benchmark|piso de margen/i.test(String(f.label || "")));
   if (!bench) return null;
   const margenes = figs.filter((f) => /·\s*margen\b/i.test(String(f.label || "")) && !/benchmark|brecha|promedio/i.test(String(f.label || "")));
   const promedio = figs.find((f) => /^margen promedio$/i.test(String(f.label || "").trim())) || null;
+  const _porNombre = (t) => margenes.find((f) => { const ent = String(f.label || "").split("·")[0].trim(); return ent && _RE_ENT(ent).test(t); }) || null;
   let margen = null;
-  if (oracion) margen = margenes.find((f) => { const ent = String(f.label || "").split("·")[0].trim(); return ent && _RE_ENT(ent).test(oracion); }) || null;
-  if (!margen) margen = margenes.length === 1 ? margenes[0] : (promedio || (oracion ? null : margenes[0] || null));
+  if (oracion) margen = _porNombre(oracion);
+  /* «su margen cierra en 34%, sobre el benchmark» (contrato comercial, 2026-09-13): con la boleta comercial completa el
+   * promedio siempre está, y una oración sin nombre caía al promedio —que está bajo— contra una cuenta que está sobre.
+   * Antes del promedio: la cifra citada identifica la cuenta (34% es SU margen), y si no, la cuenta de la oración anterior
+   * (el «su» es anáfora). El promedio queda para la oración que de verdad habla del negocio entero. */
+  if (!margen && oracion) {
+    const citadas = [...String(oracion).matchAll(/(\d+(?:[.,]\d+)?)\s*%/g)].map((m) => Number(String(m[1]).replace(",", ".")));
+    const porCifra = margenes.filter((f) => citadas.some((c) => Math.abs(c - _pctDeFig(f)) < 0.05));
+    const entidadesCitadas = [...new Set(porCifra.map((f) => String(f.label || "").split("·")[0].trim().toLowerCase()))];   // la misma cuenta puede venir de dos herramientas
+    if (entidadesCitadas.length === 1) margen = porCifra[0];
+  }
+  if (!margen && oracion && previa) margen = _porNombre(previa);
+  /* el PROMEDIO solo cuando la oración habla del negocio entero («el margen promedio», «la cartera», «el negocio»): «quedan sobre
+   * el benchmark 6 de 13» habla de seis cuentas, y con la boleta comercial completa el promedio siempre está en la boleta —
+   * caer a él por defecto acusaba de contradicción a cualquier frase sin nombre (medido al cablear el contrato, 2026-09-13) */
+  const _hablaDelNegocio = !oracion || /(?<![\wáéíóúñ])(?:promedio|en conjunto|del negocio|de la cartera|la cartera|el negocio|global|agregad[oa]|consolidad[oa])(?![\wáéíóúñ])|(?<![\wáéíóúñ])(?:el|tu|nuestro|mi)\s+margen(?![\wáéíóúñ])/i.test(String(oracion));   // «el margen se mantiene…» es el del negocio; «su margen» es de una cuenta (anáfora)
+  if (!margen) margen = margenes.length === 1 ? margenes[0] : (_hablaDelNegocio ? promedio : null) || (oracion ? null : margenes[0] || null);
   if (!margen) return null;
   const d = _pctDeFig(margen) - _pctDeFig(bench);
   return { relacion: Math.abs(d) <= _BANDA_EN_LINEA_PP ? "en_linea" : (d > 0 ? "sobre" : "bajo"), delta: d, margen, bench };
@@ -2849,9 +2869,10 @@ function _contradiceLaReferencia(narration, ledger) {
   const _oraciones = String(narration || "").split(/(?<=[.!?])\s+|\n+/);
   const _REFERENCIA_N = /\bbenchmark\b|\bpiso\b|\breferencia\b|\bmeta\b|\best[aá]ndar\b|\bobjetivo\b/i;
   const out = [];
-  for (const o of _oraciones) {
+  for (let _i = 0; _i < _oraciones.length; _i++) {
+    const o = _oraciones[_i];
     if (!_REFERENCIA_N.test(o)) continue;
-    const r = _relacionConReferencia(ledger, o);
+    const r = _relacionConReferencia(ledger, o, _i > 0 ? _oraciones[_i - 1] : null);
     if (!r || r.relacion !== "bajo") continue;
     if (_DICE_CUMPLE.test(o) && !/\bno\s+(?:cumple|se mantiene|est[aá]\s+en l[ií]nea)\b/i.test(o)) {
       out.push(`el ledger dice que ${r.margen.label} (${r.margen.value}) está BAJO ${r.bench.label} (${r.bench.value}) por ${Math.abs(r.delta).toFixed(1)} puntos, y la respuesta afirma que cumple o se mantiene en la referencia`);
@@ -4112,7 +4133,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     // AMPLITUD F2: ¿es el resultado exacto de una operación del CATÁLOGO sobre el pool acotado del turno?
     // Corre DESPUÉS de los niveles 1-2 (subset intacto) y ANTES de la quinta fuente: una cuenta legítima del
     // catálogo que coincida con una cifra del dato no debe caer al veto de dueño.
-    if (!_extremoDeRango && esCalculoDelCatalogo(f.raw, f.unit, _poolCatalogo())) continue;
+    if (!_extremoDeRango && esCalculoDelCatalogo(f.raw, f.unit, _poolCatalogo(), _presentes)) continue;   // con los insumos DICHOS (2026-09-13): una cuenta mostrada, no una coincidencia
     // LA RE-CITA APROBADA (ver arriba): la misma cifra, la misma unidad y un dueño de la cita original en esta
     // oración. Aditiva y previa a la quinta fuente: una cifra que ADI ya mostró y aprobó no es un hallazgo nuevo.
     if (_recita) {

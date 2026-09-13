@@ -27,6 +27,8 @@ import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { recitaAprobadaDe } from "./src/adi/oracle/cicloNotarial.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { vetoCifraSinBoleta } from "./src/adi/agente/cifraSinBoleta.js";
+import { playbookPara } from "./src/adi/agente/playbooks/registro.js";
+import { esTemaComercial } from "./src/adi/agente/contratoComercial.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
 
 let pass = 0, fail = 0;
@@ -118,7 +120,10 @@ H("3 · una cuenta DECLARADA pasa; la misma cuenta en prosa, no");
   /* RE-APUNTADO 2026-09-02: «Si subo ventas 4%…» ganó camino garantizado (el detector de proyección ampliado
    * por orden del owner cubre «si subo») y el playbook precargaba boleta — este e2e necesita la boleta VACÍA.
    * «Si muevo…» conserva la forma y el «4%» del usuario, y ningún detector la reclama. El guion no cambia. */
-  const Q = "Si muevo 4% las ventas, ¿qué cambia?";
+  /* RE-APUNTADO 2026-09-13 (contrato comercial): «las ventas» ya llena la boleta ANTES del cerebro en toda pregunta comercial,
+   * y este e2e necesita la boleta VACÍA. «El inventario» queda fuera del contrato y de todo procedimiento: misma forma, mismo 4%. */
+  const Q = "Si muevo 4% los días de inventario, ¿qué cambia?";
+  ok(playbookPara(Q, {}) === null && !esTemaComercial(Q), "la pregunta del e2e sigue sin procedimiento y fuera del contrato comercial (boleta vacía de verdad)");
   ok(!!juez({ texto: PROSA, figsEnBoleta: 0, pregunta: Q }),
     `★ la cuenta escrita SOLO en prosa, con boleta vacía, se multa (${BASE} × 1.04 = ${RES})`);
   ok(juez({ texto: DECL, figsEnBoleta: 0, pregunta: Q }) === null,

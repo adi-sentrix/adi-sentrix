@@ -564,7 +564,14 @@ export function updateConversationScope(scopePrev, { plan, calls, results, turno
    * para elegir CUÁL de los resultados sellados es el que el usuario vio. Sin él, gana el primero de siempre. */
   const primeroVisto = (Array.isArray(ordenPresentado) && ordenPresentado.length) ? ordenPresentado[0] : null;
   const construidos = arr.map((r) => ({ r, b: buildEntityList(r && r.tool, r) })).filter((x) => x.b && x.b.entities.length);
-  const elegido = (primeroVisto && construidos.find((x) => x.b.entities[0] === primeroVisto)) || construidos[0] || null;
+  /* CON EL CONTRATO COMERCIAL HAY VARIOS RESULTADOS QUE EMPIEZAN POR LA MISMA CUENTA (2026-09-13): salesRead y marginRead
+   * abrían los dos con Lider, y el primero cubría tres de las cuatro filas de la tabla — «los otros tres» eran dos. Entre
+   * los resultados sellados gana el que CUBRE más de lo presentado; a igual cobertura, el que abre con el primero visto;
+   * y si nada se presentó en filas, el primero de siempre. */
+  const _cubre = (x) => (Array.isArray(ordenPresentado) ? ordenPresentado.filter((e) => x.b.entities.includes(e)).length : 0);
+  const elegido = construidos.length
+    ? [...construidos].sort((x, y) => (_cubre(y) - _cubre(x)) || ((y.b.entities[0] === primeroVisto) - (x.b.entities[0] === primeroVisto)) || (construidos.indexOf(x) - construidos.indexOf(y)))[0]
+    : null;
   if (elegido) { built = elegido.b; builtFrom = elegido.r; }
   const planEntities = (plan && plan.scope && Array.isArray(plan.scope.entities)) ? plan.scope.entities.filter(Boolean) : [];
   /* EL CONJUNTO ES LO QUE EL USUARIO VIO, dentro de lo sellado (2026-09-11): la herramienta devolvió ocho
@@ -715,7 +722,10 @@ function _ordN(text) {
  * «los otros»). Quedan fuera las de TIEMPO —«la primera vez», «los primeros meses», «el último trimestre»— que
  * no apuntan a ninguna lista, y la cardinalidad suelta («los 5 clientes»), que sin lista es una lectura nueva. */
 const _ORDINAL_PURO_RE = /\b(?:el|la|los|las)\s+(?:primer[oa]s?|segund[oa]s?|tercer[oa]s?|cuart[oa]s?|quint[oa]s?|[uú]ltim[oa]s?|anterior(?:es)?|otr[oa]s|dem[aá]s)(?!\s+(?:vez|veces|d[ií]as?|mes(?:es)?|semanas?|a[ñn]os?|trimestres?|semestres?|per[ií]odos?|periodos?|meses|quincenas?|horas?|paso|pasos|cosa|cosas|opci[oó]n|opciones|lugar|punto|puntos|parte|partes))(?![\wáéíóúñ])/i;
-function _esOrdinalPuro(text) { return _ORDINAL_PURO_RE.test(String(text || "")); }
+/* «¿cuánto vendimos este año contra el anterior?» (contrato comercial, 2026-09-13): «el anterior» detrás de un marco de
+ * TIEMPO comparado —este año / este mes … contra · vs · frente a— es el período anterior, no la posición en una lista. */
+const _ANTERIOR_TEMPORAL_RE = /\b(?:este|esta|el|la|del)\s+(?:a[ñn]o|mes|trimestre|semestre|per[ií]odo|periodo)\b[^.?!]{0,24}\b(?:contra|vs\.?|versus|frente a|respecto(?: de| a| al)?|comparad[oa] con)\s+(?:el|la|los|las)\s+anterior(?:es)?\b/i;
+function _esOrdinalPuro(text) { const t = String(text || ""); return _ORDINAL_PURO_RE.test(t) && !_ANTERIOR_TEMPORAL_RE.test(t); }
 /* ⚠️ UNA LECTURA NUEVA NO ES UNA REFERENCIA (cazado al cablear el agente, 2026-09-11): «dame los 5 clientes de
  * mejor margen» tras una tabla de cuatro resolvía «los 5» y «mejor» sobre el conjunto presentado. En el oráculo
  * este resolutor corría solo cuando PLAN no había resuelto; en el agente no hay PLAN, así que el contrapeso va

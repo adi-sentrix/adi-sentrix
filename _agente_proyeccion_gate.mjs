@@ -141,7 +141,7 @@ H("6 · el T2 de la certificación, con la tool disponible → verde y con la ci
     `★ el turno sale VERDE sin vetos (${r.r.agente.estado}) — antes el muro vetaba la proyección con razón`,
     JSON.stringify(r.r.agente.vetos));
   ok(/\$103\.0M/.test(r.r.text), "★ y la cifra proyectada LLEGA A PANTALLA: es la respuesta que el owner pidió", r.r.text.slice(0, 140));
-  ok(r.r.agente.figs === 4, `la boleta trae las cuatro cifras de la proyección (${r.r.agente.figs})`);
+  ok(r.r.agente.figs >= 4, `la boleta trae las cuatro cifras de la proyección (${r.r.agente.figs} figs: las cuatro más la realidad comercial del contrato, 2026-09-13)`);
   // y el juez P1 no multa esta respuesta: trae la cifra, que es exactamente lo que la regla pide
   ok(!r.r.agente.vetos.some((v) => /proyeccion-sin-default/.test(String(v))),
     "…y P1 no se queja: la regla pedía la cifra y la cifra está");

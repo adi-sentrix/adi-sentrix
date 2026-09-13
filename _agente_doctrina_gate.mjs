@@ -82,7 +82,10 @@ H("3 · la ronda del bucle lleva la doctrina pegada al resultado");
     mensajeRonda2 = mensajes.filter((m) => /\[HERRAMIENTAS/.test(m.content)).pop();
     return { tipo: "texto", texto: "Va la lectura de ventas con lo disponible." };
   };
-  await answerViaAgente({ text: "como vienen las ventas", history: [], mem: {}, scenario: "actual", callAgente: guion2 });
+  /* RE-APUNTADO 2026-09-13 (contrato comercial): «como vienen las ventas» corre el contrato antes del cerebro y rolesCartera
+   * trae SU doctrina, pertinente; la ronda limpia se mide con una pregunta fuera del contrato, donde la herramienta pedida
+   * (salesRead) sigue sin doctrina propia. */
+  await answerViaAgente({ text: "cuántos días de inventario tengo?", history: [], mem: {}, scenario: "actual", callAgente: guion2 });
   ok(!!mensajeRonda2 && !mensajeRonda2.content.includes("DOCTRINA ·"),
     "una ronda de herramientas sin doctrina viaja limpia — cero tokens de instrucción impertinente");
 }

@@ -34,7 +34,7 @@ const H = (t) => console.log(`\n${t}`);
 initTenant(TENANT_DEMO);
 
 /* el T2 de la certificación, VERBATIM del expediente */
-const T2 = "Tu venta oficial del período es $100.0M. Con un crecimiento de +3.0% a 12 meses, la proyección te deja en $103.0M — es decir, $3.0M adicionales.\n\nAhora bien, JC: ese margen que hoy está en 25.1% sigue igual en la proyección si no cambia nada más. Los $3.0M extra no te recuperan los $4.9M de contribución no capturada que vimos en Falabella, Lider y Jumbo.\n\n¿Vemos cómo mueve el margen si corriges la carga en Falabella?";
+const T2 = "Tu venta oficial del período es $100.0M. Con un crecimiento de +3.0% a 12 meses, la proyección te deja en $103.0M — es decir, $3.0M adicionales.\n\nAhora bien, JC: ese margen que hoy está en 25.1% sigue igual en la proyección si no cambia nada más. Los $3.0M extra no te recuperan los $4.7M de contribución no capturada que vimos en Falabella, Lider y Jumbo.\n\n¿Vemos cómo mueve el margen si corriges la carga en Falabella?";
 /* el T4, VERBATIM: acá la oración vetada SOSTIENE la que sigue («una diferencia de $200K») */
 const T4 = "Con tu venta del período de $100.0M, un +4% a 12 meses te deja en $104.0M.\n\n**Adicional generado: $4.0M.**\n\nSi los $4.0M entran a margen actual, sumas $1.0M en contribución bruta. Si los corriges a benchmark antes de crecer, sumas $1.2M — una diferencia de $200K.\n\n¿Dónde enfocas: en crecer volumen, o en corregir margen primero?";
 const figsDe = (t) => (t.match(/\$\s?[\d.,]+\s?[KMB]?/g) || []).map((v) => ({ value: v.trim() }));
@@ -42,10 +42,13 @@ const figsDe = (t) => (t.match(/\$\s?[\d.,]+\s?[KMB]?/g) || []).map((v) => ({ va
 /* ═══ 1 · EL CASO QUE LO ORIGINÓ ════════════════════════════════════════════════════════════════════════════ */
 H("1 · el T2: se va la oración de color, queda la respuesta");
 {
-  const p = _podarOracionVetada(T2, "cierre · «$4.9M» existe en el dato del negocio pero su dueño (Tottus/Ripley) no está nombrado", figsDe(T2));
+  /* RE-APUNTADO 2026-09-13 (contrato comercial): «$4.9M» pasó a ser una cifra AUTORIZADA en todo turno comercial (el subtotal
+   * oficial de la brecha llega con el contrato), así que la oración de color usa $4.7M —una cifra que no existe— y el veto es
+   * el de siempre: cifra no autorizada. La poda se mide igual: se va esa oración, queda la respuesta. */
+  const p = _podarOracionVetada(T2, "cierre · «$4.7M» — cifra no autorizada: no está en el dato de este turno", figsDe(T2));
   ok(!!p, "★ el T2 se poda", JSON.stringify(p));
   ok(!!p && p.includes("$103.0M") && p.includes("$3.0M"), "★ y la RESPUESTA sobrevive entera: la proyección que el usuario pidió", p);
-  ok(!!p && !p.includes("$4.9M"), "…la cifra vetada se fue");
+  ok(!!p && !p.includes("$4.7M"), "…la cifra vetada se fue");
   ok(!!p && p.includes("JC"), "…el trato se conserva");
   ok(!!p && /¿Vemos cómo mueve el margen/.test(p), "…y el cierre también: no queda un texto sin salida");
   ok(!!p && recortarMunonDeOracion(p) === p, "…sin muñón: el texto cierra donde debe");

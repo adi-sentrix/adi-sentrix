@@ -613,7 +613,7 @@ H("2 · ★ ACEPTACIÓN · el caso T6 del expediente deja de rescatar");
     "★ responde la pregunta: la vara y cuántos están bajo ella", r.r.text.slice(0, 120));
   ok(/Falabella/.test(r.r.text) && /\$1\.6M/.test(r.r.text) && /(?:sin capturar|no capturada)[^\n]{0,60}\$4\.9M|\$4\.9M[^\n]{0,60}(?:sin capturar|no capturada)/i.test(r.r.text),
     "★ con a quién revisar primero y cuánto hay en juego (subtotal y por cliente)");
-  ok(r.r.agente.calls === 2 && r.r.agente.figs > 40, `la evidencia se juntó ANTES de decidir (${r.r.agente.calls} herramientas · ${r.r.agente.figs} figs)`);
+  ok(r.r.agente.calls >= 2 && r.r.agente.figs > 40 && r.r.agente.contrato === "comercial", `la evidencia se juntó ANTES de decidir (${r.r.agente.calls} herramientas · ${r.r.agente.figs} figs · con el contrato comercial)`);
   // el contraste honesto: sin el playbook, el MISMO cerebro y la misma pregunta caen al rescate de una línea
   /* re-apuntado (T3, 2026-09-05): el contraste usaba «y el inventario como esta?», que dejó de ser un hueco
    * al cerrarse la lectura de inventario. Ahora usa un hueco DEL DATO —el lead time de proveedor, que la
@@ -1267,13 +1267,13 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
     async (Mut) => {
       initTenant(TENANT_DEMO);
       const r = await Mut.answerViaAgente({ text: "llamame jc de ahora en adelante. como viene mi margen?", history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
-      return r.r.agente.estado !== "playbook" && r.r.agente.calls === 0;   // el defecto: sin evidencia y sin respuesta
+      return r.r.agente.estado !== "playbook";   // el defecto: sin el procedimiento no hay respuesta del procedimiento (el contrato comercial sigue leyendo, por eso ya no se mide calls === 0)
     });
 
   // (b) los pasos NO se ejecutan antes: el cerebro decide a ciegas (el corazón del encargo)
   await carnada("evidencia NO precargada (el cerebro decide a ciegas)", "src/adi/agente/bucleAgente.js",
     // (re-apuntada 2026-09-01: los pasos ahora se resuelven con `pasosDe` — el sitio cambió de nombre, la carnada mide lo mismo)
-    [[/    if \(_rondaDeHerramientas\(_pasosPb\.map\(\(p\) => \(\{ tool: p\.tool, args: p\.args \|\| \{\} \}\)\), mensajes\)\) \{/,
+    [[/    if \(_rondaDeHerramientas\(_pasosTurno\.map\(\(p\) => \(\{ tool: p\.tool, args: p\.args \|\| \{\} \}\)\), mensajes\)\) \{/,
       "    if (false) {"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);

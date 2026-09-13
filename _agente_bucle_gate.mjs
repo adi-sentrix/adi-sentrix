@@ -45,6 +45,7 @@ import { registrarSupuesto } from "./src/adi/agente/herramientasAgente.js";   //
 import { setNombreUsuario, olvidarNombreUsuario, getNombreUsuario } from "./src/adi/agente/preferenciaNombre.js";   // R4c · el trato en los rescates
 import { PRINCIPIOS_RUTEO } from "./src/adi/agente/contratoAgente.js";   // P2(i) · la letra del ejemplo numérico
 import { sistemaDelAgente } from "./src/adi/agente/sistemaAgente.js";
+import { esTemaComercial } from "./src/adi/agente/contratoComercial.js";   // el dominio que le queda al empujón de R6 (2026-09-13)
 import { playbookPara } from "./src/adi/agente/playbooks/registro.js";   // 14b · el empujón se mide donde AÚN no hay camino
 
 let pass = 0, fail = 0;
@@ -187,10 +188,13 @@ H("7 · respaldo de lo ya aprobado y genérico — el tablero no existe");
   /* R3 DEL EXAMEN 1 (2026-08-31): PERTINENCIA. T13 sirvió la respuesta de Tottus a una pregunta por Falabella
    * como «lo que ya te respondí sobre esto quedó verificado» — afirmación falsa con entidad equivocada. */
   const otraEntidad = await answerViaAgente({ text: "que hago con Ferretería Aurora?", history: [], mem: { ultimaAprobada: TEXTO_BUENO }, scenario: ESCENARIO_INICIAL, callAgente: mudo });
-  /* la letra del respaldo cambió en la Etapa 3 (primero lo que sí tiene): la firma del replay SIN marco veraz es ahora «lo que ya te respondí — y sigue en pie» */
-  ok(otraEntidad.r.agente.estado === "respaldo" && !/lo que ya te respondí — y sigue en pie/.test(otraEntidad.r.text)
-    && /Lo último que dejamos verificado fue sobre Depósito Riachuelo/.test(otraEntidad.r.text) && otraEntidad.r.text.includes("$22.560"),
-    "★ R3: pregunta por OTRA entidad → el replay viaja bajo un marco VERAZ («fue sobre Depósito Riachuelo»)", otraEntidad.r.text.slice(0, 160));
+  /* CON EL CONTRATO COMERCIAL (2026-09-13) la pregunta por una cuenta ya no cae al replay de OTRA cuenta: la realidad comercial
+   * se leyó antes del cerebro y el rescate sirve una cifra VERIFICADA de la cuenta nombrada (Ferretería Aurora), jamás la
+   * respuesta de Depósito Riachuelo bajo ningún marco. La pertinencia de R3 se cumple por construcción: ni «lo que ya te
+   * respondí» ni «sobre esto» — la cuenta que preguntó, con su cifra. */
+  ok(otraEntidad.r.agente.estado === "limite" && otraEntidad.r.agente.contrato === "comercial" && /Ferretería Aurora/.test(otraEntidad.r.text)
+    && !/lo que ya te respondí — y sigue en pie/.test(otraEntidad.r.text) && !/sobre esto/.test(otraEntidad.r.text) && !/Depósito Riachuelo/.test(otraEntidad.r.text.split("\n")[0]),
+    "★ R3: pregunta por OTRA entidad → con el contrato comercial el rescate sirve una cifra verificada de ESA cuenta (ni replay ajeno ni marco falso)", otraEntidad.r.text.slice(0, 160));
 
   /* T26: lo aprobado ES lo que el usuario acaba de ver → jamás la misma pantalla dos veces seguidas.
    * ⚠️ LA CONDUCTA CAMBIÓ CON C1 (corrida 3, 2026-08-31): acá el peldaño devolvía una FRASE FIJA, y esa frase
@@ -454,10 +458,23 @@ H("12 · el empujón de R6: declinar sin haber leído recibe UNA chance de verif
     if (ronda === 2) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
     return { tipo: "texto", texto: TEXTO_BUENO };
   };
-  const ra = await answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionT20 });
+  /* ⚠️ RE-APUNTADO POR EL CONTRATO COMERCIAL (2026-09-13): «compara mi venta contra el año pasado» ya no declina sin leer —
+   * la realidad comercial se lee ANTES del cerebro en toda pregunta comercial, así que el empujón sobra ahí por construcción.
+   * Su dominio son las lecturas sin procedimiento y fuera del contrato (inventario, proveedores…): se mide con una. */
+  const SIN_CONTRATO = "cuántos días de inventario tengo?";
+  ok(playbookPara(SIN_CONTRATO) === null && !esTemaComercial(SIN_CONTRATO), `la pregunta del empujón sigue sin procedimiento y fuera del contrato comercial («${SIN_CONTRATO}»)`);
+  const ra = await answerViaAgente({ text: SIN_CONTRATO, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionT20 });
   ok(vioNudge, "★ R6: la declinación sin lectura recibió el empujón del motor");
   ok(ra.r.agente.estado === "verde" && ra.r.agente.figs === 2 && /22\.560/.test(ra.r.text),
     `…y el turno terminó VERDE con boleta llena (${ra.r.agente.estado} · ${ra.r.agente.figs} figs)`);
+  {
+    /* y en una pregunta COMERCIAL el empujón ya no hace falta: la boleta llega antes y el cerebro que declina lo hace teniendo el dato */
+    let llamadasCom = 0;
+    const declinaCom = async () => { llamadasCom++; return { tipo: "texto", texto: "No tengo el dato de tu venta total consolidada, así que no puedo comparar." }; };
+    const rcom = await answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: declinaCom });
+    ok(rcom.r.agente.contrato === "comercial" && rcom.r.agente.calls > 0 && llamadasCom === 1,
+      `★ …y en una pregunta comercial no hay empujón que dar: el contrato leyó antes (${rcom.r.agente.calls} herramientas, ${llamadasCom} llamada)`);
+  }
 
   // (b) el límite DECLARADO del mapa no recibe empujón: declinar directo ES la conducta (bloque B)
   let llamadasB = 0;
@@ -474,7 +491,7 @@ H("12 · el empujón de R6: declinar sin haber leído recibe UNA chance de verif
   // (d) el empujón es UNO: el guion que declina por siempre no entra en bucle
   let llamadasD = 0;
   const guionNecio = async () => { llamadasD++; return { tipo: "texto", texto: "No puedo responder eso con lo que tengo disponible." }; };
-  const rd = await answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionNecio });
+  const rd = await answerViaAgente({ text: SIN_CONTRATO, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionNecio });
   ok(llamadasD === 2 && typeof rd.r.text === "string" && rd.r.text.length > 0,
     `el necio recibe UN empujón y su segunda declinación se acepta (${llamadasD} llamadas)`);
 
@@ -565,8 +582,8 @@ H("14b · P2: reformular lo ya dicho NO dispara el empujón (43× medido)");
   ok(n1 === 1, `★ P2: la re-narración responde en UNA llamada (${n1}) — sin empujón`, rRe.r.agente.estado);
   let n2 = 0;
   const g2 = async (a) => { n2++; return _declina(a); };
-  await answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g2 });
-  ok(n2 === 2, `…y una pregunta de DATO sigue recibiendo el empujón de R6 (${n2} llamadas) — la mejora no se perdió`);
+  await answerViaAgente({ text: "cuántos días de inventario tengo?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g2 });
+  ok(n2 === 2, `…y una pregunta de DATO sin procedimiento ni contrato sigue recibiendo el empujón de R6 (${n2} llamadas) — la mejora no se perdió`);
   let n3 = 0;
   const g3 = async (a) => { n3++; return _declina(a); };
   /* ⚠️ RE-APUNTADO (censo T1, 2026-09-05): este check usaba «hazme un resumen ejecutivo para el directorio»
@@ -579,9 +596,10 @@ H("14b · P2: reformular lo ya dicho NO dispara el empujón (43× medido)");
    * lectura que hoy siga sin playbook y mide el empujón sobre esa. Si algún día no queda ninguna, no se pone
    * verde solo: se pone ROJO diciendo que el empujón se quedó sin dominio — que es justo lo que habría que
    * saber para retirarlo. */
-  const CANDIDATAS = ["dame la foto de la venta contra el presupuesto", "cómo vienen las unidades vendidas",
-    "cuántas unidades movimos", "dame el detalle de costos", "qué precio de lista tengo cargado"];
-  const sinCamino = CANDIDATAS.find((q) => playbookPara(q) === null) || null;
+  /* ⚠️ TERCERA VEZ (contrato comercial, 2026-09-13): toda lectura COMERCIAL recibe la evidencia antes del cerebro, así que el
+   * empujón ya no tiene dominio ahí — se mide con una lectura sin procedimiento Y fuera del contrato. */
+  const CANDIDATAS = ["cuántos días de inventario tengo?", "qué proveedores tengo cargados?", "qué productos rotan menos?", "compara mi stock contra el año pasado"];
+  const sinCamino = CANDIDATAS.find((q) => playbookPara(q) === null && !esTemaComercial(q)) || null;
   if (!sinCamino) {
     ok(false, "…el empujón de R6 ya no tiene dominio: TODAS las lecturas candidatas tienen playbook — toca decidir si se retira");
   } else {
@@ -654,8 +672,8 @@ H("14e · P2: la letra del ejemplo numérico y la escalada de un veto reparable"
    * pregunta se queda sin cifra (C se retira) y la multa sigue nombrando el «1%» del guion. */
   const r = await answerViaAgente({ text: "simula bajar la carga comercial dos puntos", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionT10 });
   const rep = vistas.find((v) => v.attempt > 0);
-  ok(!!rep && rep.figsEnBoleta === 0 && rep.vetoConCifra === true,
-    "★ (ii) con boleta vacía pero multa que nombra una cifra, la reparación pide el tier bueno", JSON.stringify(vistas));
+  ok(!!rep && rep.vetoConCifra === true,
+    `★ (ii) con multa que nombra una cifra, la reparación pide el tier bueno (la boleta ya no está vacía: el contrato comercial la llenó con ${rep && rep.figsEnBoleta} figs)`, JSON.stringify(vistas));
   ok((r.r.agente.vetos || []).some((v) => /^cierre · /.test(v)), "el veto quedó registrado con su sitio", JSON.stringify(r.r.agente.vetos));
 
   // y el caso que R-eco vino a cortar SIGUE cortado: sin cifra en la multa, no se escala
@@ -860,8 +878,8 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   /* (8b) el peldaño vuelve a ordenar SOLO por `mandatory`: ante una proyección sirve la base y ofrece la
    * respuesta. Es el defecto exacto del T2 — enumerar en vez de servir. */
   await carnada("el peldaño vuelve a elegir por `mandatory` (enumera en vez de servir)",
-    [[/    \.\.\.verificadas\.filter\(\(f\) => _esResultado\(f\) && f\.mandatory\),\n    \.\.\.verificadas\.filter\(\(f\) => _esResultado\(f\) && !f\.mandatory\),\n    \.\.\.verificadas\.filter\(\(f\) => !_esResultado\(f\) && f\.mandatory\),\n    \.\.\.verificadas\.filter\(\(f\) => !_esResultado\(f\) && !f\.mandatory\),\n/,
-      "    ...verificadas.filter((f) => f.mandatory),\n    ...verificadas.filter((f) => !f.mandatory),\n"]],
+    [[/const _cat = \(f\) => \(_esResultado\(f\) && f\.mandatory \? 0 : _esResultado\(f\) && !f\.mandatory \? 1 : f\.mandatory \? 2 : 3\) \+ \(_rel\(f\) \? 4 : 0\);/,
+      "const _cat = (f) => (f.mandatory ? 0 : 1) + (_rel(f) ? 4 : 0);"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
       const g = async ({ ronda }) => (ronda === 1
@@ -870,7 +888,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       // sin «%», como el bloque 8b: con supuesto el playbook C compone y el peldaño nunca corre
       const r = await Mut.answerViaAgente({ text: "cuanto seria mi venta si crece el año que viene?",
         history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g });
-      return /venta del per[ií]odo/i.test(r.r.text) && /tengo Proyección/.test(r.r.text);   // el defecto: sirve el insumo y ofrece la respuesta (la cita va en prosa)
+      return /venta del per[ií]odo/i.test(r.r.text) && !/\$103\.0M/.test(r.r.text);   // el defecto: sirve el insumo (la base, obligatoria) y no la proyección que el usuario pidió
     });
 
   /* (8c) el registro del trato retirado: «llamame jc» vuelve a depender de que el cerebro llame la herramienta,
@@ -998,8 +1016,8 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       initTenant(PACK);
       let llamadas = 0;
       const g = async () => { llamadas++; return { tipo: "texto", texto: "No tengo el dato de tu venta total consolidada, así que no puedo comparar." }; };
-      const r = await Mut.answerViaAgente({ text: "compara mi venta contra el año pasado", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g });
-      return llamadas === 1 && r.r.agente.figs === 0;   // el defecto: la declinación sin boleta pasó sin verificar
+      const r = await Mut.answerViaAgente({ text: "cuántos días de inventario tengo?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g });
+      return llamadas === 1 && r.r.agente.figs === 0;   // el defecto: la declinación sin boleta pasó sin verificar (fuera del contrato comercial, que sí lee antes)
     });
 
   // (k) P1a · el empaquetado de vuelta: el rescate junta cifras en una oración y se expone al veto de atribución
