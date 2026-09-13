@@ -405,13 +405,16 @@ export const VIEW_MANIFEST = {
     campo: "deterioro.margen.porQue", universoCampo: "deterioro.margen.porQue.filas",
     metrica: "margen", eje: "cliente",
     periodo: "año cerrado · el contexto unitario, el último mes del historial",
-    universo: { kind: "grupo80", label: "sólo las cuentas del grupo 80% por debajo del margen promedio ponderado de la cartera", cierraCon: "brecha = (acciones_prom − acciones_cuenta) + (costo%_prom − costo%_cuenta), sin residuo" },
-    comparacion: "promedio_cartera", estatusDefault: "indicado", estatusCampo: "deterioro.margen.porQue.estatus",
+    /* UNA BRECHA, UNA REFERENCIA (owner 2026-09-13): antes esta lista partía la brecha contra el promedio de la cartera
+     * mientras ADI la medía contra el benchmark. Ahora las dos puntas leen la misma aritmética del motor
+     * (`descomposicionDeBrecha`): brecha contra el benchmark = carga sobre el nivel declarado + precio/costo, exacto. */
+    universo: { kind: "grupo80", label: "sólo las cuentas del grupo 80% por debajo de su benchmark de margen", cierraCon: "brecha = (nivel_declarado − carga_cuenta) + (resto: precio de lista y costo), sin residuo — y en dinero: contribución no capturada = carga comercial alta + brecha por precio y costo" },
+    comparacion: "benchmark", estatusDefault: "indicado", estatusCampo: "deterioro.margen.porQue.estatus",
     controles: ["abierto"],
-    evidencia: [],
-    sinTool: "nadie parte la brecha contra el promedio de la cartera en dos términos que sumen exacto, ni compara ticket/costo unitario contra el promedio ponderado. marginRead focus alto_volumen_bajo_margen lista las cuentas, pero no descompone la brecha.",
-    concordancia: { estado: "unsupported", campos: ["filas"],
-      razon: "sin evidencia declarada: ninguna tool descompone la brecha contra el promedio ponderado en dos términos que sumen exacto, así que no hay cifra del oráculo contra la cual reconciliar esta lista (ver `sinTool`)" },
+    evidencia: [{ tool: "diagnose", args: {} }],
+    sinTool: null,
+    concordancia: { estado: "reconciled", campos: ["enJuego", "carga"],
+      razon: "la brecha partida sale de descomposicionDeBrecha (motor) en las dos puntas: diagnose publica «Contribución no capturada», «Carga comercial alta» y «Brecha por precio y costo» por cuenta material y en subtotal con las MISMAS cifras que esta lista (verificado además fila por fila en _resumen_comercial_gate [9d4])" },
   },
 
   // ══ COMERCIAL · 02 · DÓNDE SE DETERIORA EL MARGEN ═════════════════════════════════════════════════════════

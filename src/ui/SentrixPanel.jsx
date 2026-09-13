@@ -2676,9 +2676,9 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
  * que las nombra, y el lector tenía que acordarse de quiénes eran. Acá está pegado, y CERRADO por defecto: la
  * pregunta la hace quien la tiene, no la pantalla.
  *
- * La aritmética que responde: la brecha de una cuenta contra el promedio se parte SIEMPRE en dos términos que
- * suman exacto — lo que le entregás (medido) y la relación entre su precio y su costo. Dos cuentas con la misma
- * brecha pueden tener causas opuestas, y se arreglan distinto. */
+ * La aritmética que responde: la brecha de una cuenta contra su BENCHMARK —la misma referencia que usa ADI, owner
+ * 2026-09-13— se parte SIEMPRE en dos términos que suman exacto: lo que le entregas sobre el nivel declarado (medido)
+ * y la relación entre su precio y su costo. Dos cuentas con la misma brecha pueden tener causas opuestas. */
 function ResumenPorQue({ pq, R = null, onFicha, onAsk = null }) {
   const [abierto, setAbierto] = useState(false);
   // EMISIÓN SIN BOTÓN NUEVO: este bloque no tiene "Que ADI lo explique" y no se le agrega uno (las visuales no se
@@ -2718,7 +2718,7 @@ function ResumenPorQue({ pq, R = null, onFicha, onAsk = null }) {
                   </span>
                   {/* LA BRECHA PARTIDA EN SUS DOS TÉRMINOS · el dominante resaltado, el otro apagado */}
                   <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexShrink: 0, fontFamily: MONO, fontSize: 14, fontVariantNumeric: "tabular-nums" }}>
-                    <span title={`opera con ${x.cargaFmt} de acciones comerciales contra el ${pq.cargaPromFmt} de la cartera`}
+                    <span title={`opera con ${x.cargaFmt} de acciones comerciales contra el nivel declarado de ${pq.cargaRefFmt}`}
                       style={{ color: x.dominante === "acciones" ? C.amber : C.textMuted, fontWeight: x.dominante === "acciones" ? 600 : 400 }}>
                       acciones {x.efCargaFmt}
                     </span>

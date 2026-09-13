@@ -32,6 +32,7 @@
  * sectorial. Costo, precio y mix quedan como rutas ABIERTAS mientras el motor no los aísle.
  */
 import { buildCuadroMando } from "./cuadro.js";
+import { descomposicionDeBrecha } from "../specRetrieval.js";   // la brecha partida contra el BENCHMARK: una aritmética para la pantalla y para ADI (ley del owner, ver _porQue)
 import { etiquetaDeLaReferencia } from "../../config/businessPolicy.js";   // de quién es la vara: del negocio o nuestra (owner 2026-08-26)
 import { concentracion } from "../diagnosis/economicDiagnosis.js";
 import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
@@ -872,22 +873,24 @@ function _deterioro(scenario, rows, plano, tension, puente) {
   // "Quiero saber qué clientes venden mucho pero dejan poco margen. ¿Por qué me dejan poco? ¿Tienen mucha acción
   // comercial? ¿El precio es más barato que el resto y marginamos menos?"
   //
-  // LA ARITMÉTICA QUE LO RESPONDE, y cierra EXACTA: margen% = 100 − costo% − acciones%. Entonces la brecha de una
-  // cuenta contra el promedio de la cartera se parte SIEMPRE en dos términos, sin residuo:
-  //     brecha = (acciones_promedio − acciones_cuenta) + (costo%_promedio − costo%_cuenta)
-  //              └── el término de ACCIONES ──┘          └── el término de PRECIO/COSTO ──┘
-  // El primero está MEDIDO cuenta por cuenta (pctRebate). El segundo es una diferencia de estructura: dice cuánto
-  // de la brecha NO viene del descuento, pero no dice todavía si es que vende más barato o compra más caro. Para
-  // eso está el contexto unitario de abajo — ticket y costo medio contra el promedio ponderado de la cartera.
-  // Nunca se afirma "su costo es el problema": se dice cuánto pesa cada término y qué falta separar.
+  // UNA BRECHA, UNA REFERENCIA, UNA VERDAD (owner 2026-09-13). La brecha de cada cuenta se mide contra SU BENCHMARK —el
+  // mismo que usa ADI para la contribución no capturada— y se parte con la MISMA aritmética del motor
+  // (`descomposicionDeBrecha`, specRetrieval): dos términos que suman EXACTO, sin residuo:
+  //     brecha = (nivel_declarado − carga_cuenta) + (resto: precio de lista y costo)
+  //              └── el término de ACCIONES ──┘     └── el término de PRECIO/COSTO ──┘
+  // Antes esta lista partía la brecha contra el promedio de la cartera mientras ADI la medía contra el benchmark: dos
+  // referencias para la misma brecha. El primer término está MEDIDO cuenta por cuenta (carga contra el nivel declarado).
+  // El segundo es el resto: dice cuánto de la brecha NO viene del descuento, pero no dice todavía si es que vende más
+  // barato o compra más caro. Para eso está el contexto unitario de abajo — ticket y costo medio contra el promedio
+  // ponderado de la cartera (contexto descriptivo, no la referencia de la brecha). Nunca se afirma "su costo es el
+  // problema": se dice cuánto pesa cada término y qué falta separar.
   const _porQue = () => {
     const tV = rows.reduce((s, r) => s + (r.ventas || 0), 0);
-    const tA = rows.reduce((s, r) => s + (r.acciones || 0), 0);
-    const tC = rows.reduce((s, r) => s + (r.contribucion || 0), 0);
     if (!tV) return null;
-    const margenProm = +((tC / tV) * 100).toFixed(2);
-    const cargaProm = +((tA / tV) * 100).toFixed(2);
-    const costoProm = +(100 - margenProm - cargaProm).toFixed(2);
+    const D = descomposicionDeBrecha(scenario);
+    if (!D) return null;
+    const porNombre = new Map(D.filas.map((f) => [f.entidad, f]));
+    const nivel = D.nivelCarga;
     // contexto unitario: ticket y costo medio del último mes, contra el promedio PONDERADO por unidades
     const hist = getTenantData()?.historialMargen || {};
     const uni = new Map();
@@ -901,13 +904,13 @@ function _deterioro(scenario, rows, plano, tension, puente) {
     const enGrupo = new Set(plano.grupo.map((r) => r.name));
 
     const filas = rows
-      .filter((r) => enGrupo.has(r.name) && typeof r.margen === "number" && r.margen < margenProm)
+      .filter((r) => enGrupo.has(r.name) && porNombre.has(r.name) && porNombre.get(r.name).bajoBenchmark)
       .map((r) => {
+        const d = porNombre.get(r.name);
         const carga = typeof r.carga === "number" ? r.carga : 0;
-        const costoPct = +(100 - r.margen - carga).toFixed(2);
-        const brecha = +(r.margen - margenProm).toFixed(2);
-        const efCarga = +(cargaProm - carga).toFixed(2);       // negativo = entrega más que la cartera
-        const efCosto = +(costoProm - costoPct).toFixed(2);    // negativo = su estructura precio/costo pesa más
+        const brecha = +(-d.brechaPp).toFixed(2);                 // negativo = bajo el benchmark (la convención de esta vista)
+        const efCarga = +(nivel - carga).toFixed(2);             // negativo = entrega más que el nivel declarado
+        const efCosto = +(brecha - efCarga).toFixed(2);          // el resto: precio de lista y costo — exacto por construcción
         const dominante = Math.abs(efCarga) >= Math.abs(efCosto) ? "acciones" : "precio/costo";
         const u = uni.get(r.name);
         const dTicket = u && tickProm ? +(((u.ticket / tickProm) - 1) * 100).toFixed(0) : null;
@@ -919,32 +922,36 @@ function _deterioro(scenario, rows, plano, tension, puente) {
         return {
           nombre: r.name,
           ventaFmt: _M((r.ventas || 0) * _fxc()), participacionFmt: _pct(((r.ventas || 0) / tV) * 100),
-          margen: r.margen, margenFmt: _pct(r.margen), brecha, brechaFmt: _sig(brecha, "pp"),
+          margen: r.margen, margenFmt: _pct(r.margen), benchmark: d.benchmark, benchmarkFmt: _pct(d.benchmark),
+          brecha, brechaFmt: _sig(brecha, "pp"),
           carga, cargaFmt: _pct(carga),
           efCarga, efCargaFmt: _sig(efCarga, "pp"), efCosto, efCostoFmt: _sig(efCosto, "pp"), dominante,
+          // la misma brecha en dinero, partida igual — las MISMAS cifras que diagnose publica a ADI
+          enJuego: d.gapUsd, enJuegoFmt: _K(d.gapUsd), cargaUsd: d.cargaUsd, cargaUsdFmt: _K(d.cargaUsd), restoUsd: d.restoUsd, restoUsdFmt: _K(d.restoUsd),
           dTicket, dTicketFmt: dTicket == null ? "—" : _sig(dTicket, "%"),
           dCostoUni, dCostoUniFmt: dCostoUni == null ? "—" : _sig(dCostoUni, "%"),
           contexto,
-          cierra: Math.abs((efCarga + efCosto) - brecha) < 0.05,
+          cierra: Math.abs((efCarga + efCosto) - brecha) < 0.05 && d.gapUsd === d.cargaUsd + d.restoUsd,
           // LA RESPUESTA A "¿por qué me deja poco?" EN UNA LÍNEA. Los dos términos ya van como cifra al lado del
           // nombre, con el dominante resaltado; la frase solo dice CUÁL manda. El "falta separar precio de costo"
           // era idéntico en todas las filas: subió una sola vez a la nota del bloque.
           lectura: dominante === "acciones"
-            ? `Pesa lo que le entregas: ${_pct(carga)} de acciones comerciales contra ${_pct(cargaProm, 2)} de tu cartera.`
+            ? `Pesa lo que le entregas: ${_pct(carga)} de acciones comerciales contra el nivel declarado de ${_pct(nivel)}.`
             : `Pesa su precio contra su costo, no el descuento.${contexto ? ` ${contexto}` : ""}`,
         };
       })
-      .sort((a, b) => b.brecha - a.brecha)   // menos negativo primero… se invierte abajo
       .sort((a, b) => a.brecha - b.brecha);  // la peor brecha arriba
     if (!filas.length) return null;
     const porAcciones = filas.filter((f) => f.dominante === "acciones");
     const porPrecio = filas.filter((f) => f.dominante === "precio/costo");
+    const bmks = [...new Set(filas.map((f) => f.benchmark))];
+    const refFmt = bmks.length === 1 ? _pct(bmks[0]) : "su benchmark";
     return {
       filas, n: filas.length,
-      margenProm, margenPromFmt: _pct(margenProm), cargaPromFmt: _pct(cargaProm, 2),
+      benchmarkFmt: refFmt, cargaRefFmt: _pct(nivel),
       tickPromFmt: tickProm ? `${simboloMoneda()}${tickProm.toFixed(2)}` : "—", costoUniPromFmt: costoUniProm ? `${simboloMoneda()}${costoUniProm.toFixed(2)}` : "—",
-      lectura: `${filas.length} de ${plano.n} cuentas que sostienen la venta dejan menos margen que tu promedio (${_pct(margenProm)}), y por causas distintas: ${porAcciones.length ? `en ${porAcciones.map((f) => f.nombre).join(", ")} pesa lo que entregas` : ""}${porAcciones.length && porPrecio.length ? "; " : ""}${porPrecio.length ? `en ${porPrecio.map((f) => f.nombre).join(", ")}, su precio contra su costo` : ""}.`,
-      nota: `Falta separar cuánto es precio de venta y cuánto es costo de producto.`,
+      lectura: `${filas.length} de ${plano.n} cuentas que sostienen la venta dejan menos margen que tu benchmark (${refFmt}), y por causas distintas: ${porAcciones.length ? `en ${porAcciones.map((f) => f.nombre).join(", ")} pesa lo que entregas` : ""}${porAcciones.length && porPrecio.length ? "; " : ""}${porPrecio.length ? `en ${porPrecio.map((f) => f.nombre).join(", ")}, su precio contra su costo` : ""}.`,
+      nota: `Contra tu benchmark: carga sobre el nivel + precio/costo. Falta separar precio de costo.`,
       estatus: "indicado",
     };
   };

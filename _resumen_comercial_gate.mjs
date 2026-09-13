@@ -423,28 +423,47 @@ H("[9d3] EL OTRO LADO DEL PROMEDIO · los que entregan MENOS (owner 2026-08-07)"
   ok(b.filas.length === 0 || (b.menorNombre && b.menorFmt), `nombra al que menos entrega — ${b.menorNombre} ${b.menorFmt}`);
 }
 
-H("[9d4] VENDEN MUCHO PERO DEJAN POCO · la brecha partida en sus dos términos (owner 2026-08-07)");
+H("[9d4] VENDEN MUCHO PERO DEJAN POCO · la brecha partida en sus dos términos, contra el BENCHMARK (owner 2026-08-07 · 2026-09-13)");
 {
   const q = R.deterioro.margen.porQue;
   ok(!!q, "el análisis existe");
-  // el universo: los del grupo 80% (venden mucho) con margen bajo el promedio de la cartera
-  const esperado = R.rows.filter((r) => R.plano.grupo.some((g) => g.name === r.name) && r.margen < q.margenProm);
-  ok(q.n === esperado.length, `son los del grupo 80% bajo el promedio de margen (${q.margenPromFmt}) — ${q.n} de ${R.plano.n}`);
+  /* UNA BRECHA, UNA REFERENCIA, UNA VERDAD (owner 2026-09-13): la brecha se mide contra el benchmark de cada cuenta —el
+   * mismo que usa ADI— y la aritmética es la del motor (descomposicionDeBrecha), que también publica diagnose. */
+  const { descomposicionDeBrecha } = await import("./src/adi/specRetrieval.js");
+  const D = descomposicionDeBrecha("actual");
+  const porNombre = new Map(D.filas.map((f) => [f.entidad, f]));
+  // el universo: los del grupo 80% (venden mucho) con margen bajo SU benchmark
+  const esperado = R.rows.filter((r) => R.plano.grupo.some((g) => g.name === r.name) && porNombre.has(r.name) && porNombre.get(r.name).bajoBenchmark);
+  ok(q.n === esperado.length, `son los del grupo 80% bajo su benchmark (${q.benchmarkFmt}) — ${q.n} de ${R.plano.n}`);
   ok(q.filas.every((f, i) => i === 0 || q.filas[i - 1].brecha <= f.brecha), "la peor brecha va primero");
-  // ⚠️ LA ARITMÉTICA · la brecha se parte en DOS términos que suman EXACTO, sin residuo
-  ok(q.filas.every((f) => f.cierra), "acciones + precio/costo = la brecha, EXACTO en todas");
+  // ⚠️ LA ARITMÉTICA · la brecha se parte en DOS términos que suman EXACTO, sin residuo — en pp y en dinero
+  ok(q.filas.every((f) => f.cierra), "acciones + precio/costo = la brecha, EXACTO en todas (pp y $)");
   for (const f of q.filas) {
-    const row = R.rows.find((x) => x.name === f.nombre);
-    ok(Math.abs(f.brecha - (row.margen - q.margenProm)) < 0.02, `${f.nombre}: la brecha es su margen contra el promedio — ${f.brechaFmt}`);
-    ok(Math.abs(f.efCarga - (parseFloat(q.cargaPromFmt) - row.carga)) < 0.02, `${f.nombre}: el término de acciones sale de su carga medida (${f.cargaFmt})`);
+    const d = porNombre.get(f.nombre), row = R.rows.find((x) => x.name === f.nombre);
+    ok(Math.abs(f.brecha - (row.margen - d.benchmark)) < 0.02, `${f.nombre}: la brecha es su margen contra SU benchmark (${f.benchmarkFmt}) — ${f.brechaFmt}`);
+    ok(Math.abs(f.efCarga - (d.nivelCarga - row.carga)) < 0.02, `${f.nombre}: el término de acciones es su carga medida (${f.cargaFmt}) contra el nivel declarado (${q.cargaRefFmt})`);
+    ok(f.enJuego === d.gapUsd && f.cargaUsd === d.cargaUsd && f.restoUsd === d.restoUsd && f.enJuego === f.cargaUsd + f.restoUsd, `${f.nombre}: en dinero, las cifras del motor y cierran — ${f.enJuegoFmt} = ${f.cargaUsdFmt} + ${f.restoUsdFmt}`);
     ok(f.dominante === (Math.abs(f.efCarga) >= Math.abs(f.efCosto) ? "acciones" : "precio/costo"), `${f.nombre}: el término dominante es el de mayor peso — ${f.dominante}`);
+  }
+  // LA MISMA CIFRA EN LAS DOS PUNTAS: lo que ADI recibe de diagnose es lo que la pantalla pinta
+  {
+    const { runPlan } = await import("./src/adi/oracle/toolRunner.js");
+    const { TOOLS } = await import("./src/adi/oracle/toolRegistry.js");
+    const rp = runPlan({ intent: "answer", calls: [{ tool: "diagnose", args: {} }] }, { scenario: "actual", maxCalls: 2, preguntaUsuario: "x", registry: TOOLS });
+    const figs = ((rp.ledger || {}).figs || []);
+    const val = (label) => { const f = figs.find((x) => String(x.label) === label); return f ? f.raw : null; };
+    const materiales = q.filas.filter((f) => porNombre.get(f.nombre).material);
+    ok(materiales.length > 0 && materiales.every((f) => val(`${f.nombre} · Contribución no capturada`) === f.enJuego && val(`${f.nombre} · Brecha por precio y costo`) === f.restoUsd && (f.cargaUsd === 0 || val(`${f.nombre} · Carga comercial alta`) === f.cargaUsd)),
+      `★★ una brecha, una verdad: las ${materiales.length} cuentas materiales tienen en la boleta de diagnose las MISMAS cifras que esta lista (contribución no capturada · carga comercial alta · brecha por precio y costo)`);
+    const sub = figs.find((x) => /^Contribución no capturada · subtotal · \d+ cuentas materiales/.test(String(x.label)));
+    const subC = figs.find((x) => /^Carga comercial alta · subtotal · \d+ cuentas materiales/.test(String(x.label)));
+    const subR = figs.find((x) => /^Brecha por precio y costo · subtotal · \d+ cuentas materiales/.test(String(x.label)));
+    ok(sub && subC && subR && sub.raw === subC.raw + subR.raw && sub.raw === D.subtotales.materiales.gap, `★★ y el subtotal oficial cierra exacto: ${sub && sub.value} = ${subC && subC.value} (carga) + ${subR && subR.value} (precio y costo), en el universo declarado`);
   }
   // los dos diagnósticos son DISTINTOS y la vista los distingue
   ok(new Set(q.filas.map((f) => f.dominante)).size >= 1, `cada cuenta declara qué término pesa más — ${q.filas.map((f) => `${f.nombre}:${f.dominante}`).join(" · ")}`);
-  // «entregás» → «entregas» (registro formal, owner 2026-08-14). Se aceptan las dos: lo que esta línea prueba es
-  // que la lectura NOMBRA lo que se entrega y su carga, no cómo se conjuga el verbo.
-  ok(q.filas.filter((f) => f.dominante === "acciones").every((f) => /lo que le entreg[aá]s/.test(f.lectura)),
-    "cuando pesa el descuento, la lectura lo dice y da su carga contra la de la cartera");
+  ok(q.filas.filter((f) => f.dominante === "acciones").every((f) => /lo que le entreg[aá]s/.test(f.lectura) && /nivel declarado/.test(f.lectura)),
+    "cuando pesa el descuento, la lectura lo dice y da su carga contra el nivel declarado");
   ok(q.filas.filter((f) => f.dominante === "precio/costo").every((f) => /no el descuento/i.test(f.lectura)),
     "cuando NO pesa el descuento, la lectura lo descarta explícitamente");
   // el CONTEXTO unitario separa "vende más barato" de "compra más caro"
@@ -456,9 +475,8 @@ H("[9d4] VENDEN MUCHO PERO DEJAN POCO · la brecha partida en sus dos términos 
   // PROPORCIONALIDAD: nunca se afirma que el costo ES la causa
   ok(q.estatus === "indicado", `el análisis va INDICADO — ${q.estatus}`);
   ok(q.filas.every((f) => !/su costo es el problema|por culpa|se debe a/i.test(f.lectura)), "ninguna lectura afirma que el costo sea la causa");
-  ok(!q.filas.some((f) => f.dominante === "precio/costo") || /[Ff]alta separar cuánto es precio/.test(q.nota),
-    "…y donde pesa el término de precio/costo, declara qué falta separar");
-  ok(/causas distintas|dos problemas distintos/.test(q.lectura), `la lectura global cierra con la consecuencia — "${q.lectura.slice(-60)}"`);
+  ok(/[Ff]alta separar/.test(q.nota) && /benchmark/.test(q.nota), "…declara qué falta separar, y que la referencia es el benchmark");
+  ok(/causas distintas|dos problemas distintos/.test(q.lectura) && /benchmark/.test(q.lectura), `la lectura global nombra la referencia y cierra con la consecuencia — "${q.lectura.slice(-60)}"`);
 }
 
 H("[9e] QUÉ HACER PRIMERO · el cruce de los dos deterioros (owner 2026-08-07)");

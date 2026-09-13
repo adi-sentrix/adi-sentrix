@@ -569,39 +569,63 @@ function _scopeRows(rows, filters, entityScope) {
   return rows;
 }
 
+/* ── LA BRECHA DESCOMPUESTA CONTRA EL BENCHMARK (owner 2026-09-13: «una brecha, una referencia, una verdad») ─────
+ * Para cada cuenta bajo el benchmark, la contribución no capturada se parte en DOS términos que suman EXACTO, sin
+ * doble conteo: lo que la carga comercial sobre el nivel declarado se lleva —(carga − nivel) × venta, la MISMA
+ * cuenta del detector de carga alta— y el resto: precio de lista y costo, que este dato no separa. La pestaña
+ * Comercial de Sentrix partía la brecha contra el promedio de la cartera mientras ADI la medía contra el benchmark;
+ * ahora las dos superficies leen de ACÁ. El universo oficial del subtotal es el del detector (las cuentas
+ * MATERIALES: brecha ≥ POLICY.margenBrechaMaterial pp y monto ≥ piso), y el de todas las que están bajo el
+ * benchmark viaja aparte, declarado. Solo aritmética: el término de precio/costo es un resto, no una causa. */
+export function descomposicionDeBrecha(scenario = ESCENARIO_INICIAL, { filters = {}, entityScope = null } = {}) {
+  const vSF = _sf("ventas", "cliente"), mSF = _sf("margen", "cliente"), cSF = _sf("contribucion", "cliente"), gSF = _sf("carga", "cliente");
+  if (!vSF || !mSF || !cSF || !gSF) return null;
+  const ventas = _load(vSF.source, scenario), margen = _scopeRows(_load(mSF.source, scenario), filters, entityScope);
+  if (!ventas.length || !margen.length) return null;
+  const vKey = (SOURCES[vSF.source] && SOURCES[vSF.source].keyField) || "nombre";
+  const mKey = (SOURCES[mSF.source] && SOURCES[mSF.source].keyField) || "nombre";
+  const vBy = {}; for (const r of ventas) vBy[r[vKey]] = r;
+  const piso = _pisoFocosUSD(vSF.source, vSF.field);
+  const nivel = POLICY.targetCarga;
+  const filas = [];
+  for (const r of margen) {
+    const v = vBy[r[mKey]]; if (!v) continue;
+    const actual = v[vSF.field]; if (typeof actual !== "number") continue;
+    const bmk = benchmarkOf(r), mg = r[mSF.field], cb = r[cSF.field], cg = r[gSF.field];
+    if (typeof mg !== "number" || typeof cb !== "number") continue;
+    const brechaCruda = bmk - mg;                                                     // pp, sin redondear (los gates comparan así)
+    const gapUsd = Math.round(((actual * bmk / 100) - cb) * _fxe());                  // contribución no capturada ($)
+    const excedeCarga = typeof cg === "number" && cg > nivel;
+    const cargaUsd = excedeCarga ? Math.round(((cg - nivel) / 100) * actual * _fxe()) : 0;   // carga comercial alta ($)
+    filas.push({
+      entidad: r[mKey], venta: actual, ventaUsd: actual * _fxe(), margen: mg, benchmark: bmk, contribucion: cb,
+      brechaPp: +brechaCruda.toFixed(1), bajoBenchmark: brechaCruda > 0,
+      carga: typeof cg === "number" ? cg : null, nivelCarga: nivel, excesoPp: typeof cg === "number" ? +(cg - nivel).toFixed(1) : null,
+      gapUsd, cargaUsd, restoUsd: gapUsd - cargaUsd,                                  // gap = carga + resto, exacto por construcción
+      material: brechaCruda >= _DIAG_MARGIN_GAP() && gapUsd >= piso,                  // el universo del subtotal oficial
+      cargaMaterial: excedeCarga && cargaUsd >= piso,                                 // el universo del detector de carga alta
+    });
+  }
+  const bajo = filas.filter((f) => f.bajoBenchmark), materiales = bajo.filter((f) => f.material);
+  const suma = (arr, k) => arr.reduce((s, f) => s + f[k], 0);
+  const sub = (arr) => ({ n: arr.length, gap: suma(arr, "gapUsd"), carga: suma(arr, "cargaUsd"), resto: suma(arr, "restoUsd") });
+  return { nivelCarga: nivel, piso, filas, universo: { n: materiales.length, m: bajo.length }, subtotales: { materiales: sub(materiales), bajoBenchmark: sub(bajo) } };
+}
+
 // detectores comerciales (CLIENTE · scenario-aware): contribución no capturada + carga comercial alta
 // entityScope (Etapa 2, owner 2026-08-04): forwarding mecánico a _scopeRows — "de esos clientes, ¿dónde
 // diagnosticamos?" acota el barrido comercial al subconjunto (antes ignoraba cualquier alcance heredado). Un
 // entityScope de SKU (eje de _diagCapital, no de este detector) NO intersecta r.nombre/r.marca/r.sfamilia/r.bodega
 // → el fallback suave de _scopeRows lo ignora y el foco comercial sigue intacto (mismo criterio ya usado por
 // bodega/canal en Etapa 1: cruce de dimensión = alcance incompatible = se ignora, nunca se fuerza).
+// UNA SOLA CUENTA (owner 2026-09-13): los dos detectores leen las filas de `descomposicionDeBrecha` — mismas fórmulas,
+// mismos gates que siempre— y el diagnóstico publica además la brecha partida, que cierra exacto con estos subtotales.
 function _diagComercial(filters, scenario, entityScope) {
-  const vSF = _sf("ventas", "cliente"), mSF = _sf("margen", "cliente"), cSF = _sf("contribucion", "cliente"), gSF = _sf("carga", "cliente");
-  if (!vSF || !mSF || !cSF || !gSF) return [];
-  const ventas = _load(vSF.source, scenario), margen = _scopeRows(_load(mSF.source, scenario), filters, entityScope);
-  if (!ventas.length || !margen.length) return [];
-  const vKey = (SOURCES[vSF.source] && SOURCES[vSF.source].keyField) || "nombre";
-  const mKey = (SOURCES[mSF.source] && SOURCES[mSF.source].keyField) || "nombre";
-  const vBy = {}; for (const r of ventas) vBy[r[vKey]] = r;                    // join por keyField (nombre)
-  const piso = _pisoFocosUSD(vSF.source, vSF.field);   // por NEGOCIO: la venta del escenario base, no la del lente
-  const contrib = [], carga = [];
-  let bajoBenchmark = 0;   // EL UNIVERSO del foco de margen: TODAS las cuentas bajo el benchmark, antes de los dos filtros
-  for (const r of margen) {
-    const v = vBy[r[mKey]]; if (!v) continue;
-    const actual = v[vSF.field]; if (typeof actual !== "number") continue;    // ventas canónicas (K)
-    const bmk = benchmarkOf(r), mg = r[mSF.field], cb = r[cSF.field], cg = r[gSF.field];
-    if (typeof mg === "number" && typeof cb === "number" && (bmk - mg) > 0) bajoBenchmark++;
-    // contribución no capturada = venta×benchmark/100 − contribución (K→$) · gate: ≥4pp bajo benchmark y ≥ piso
-    if (typeof mg === "number" && typeof cb === "number" && (bmk - mg) >= _DIAG_MARGIN_GAP()) {
-      const usd = Math.round(((actual * bmk / 100) - cb) * _fxe());
-      if (usd >= piso) contrib.push({ entidad: r[mKey], usd, gap: +(bmk - mg).toFixed(1) });
-    }
-    // carga comercial alta = (carga − target)/100 × venta (K→$) · gate: sobre target y ≥ piso
-    if (typeof cg === "number" && cg > POLICY.targetCarga) {
-      const usd = Math.round(((cg - POLICY.targetCarga) / 100) * actual * _fxe());
-      if (usd >= piso) carga.push({ entidad: r[mKey], usd, gap: +(cg - POLICY.targetCarga).toFixed(1) });
-    }
-  }
+  const D = descomposicionDeBrecha(scenario, { filters, entityScope });
+  if (!D) return [];
+  const contrib = D.filas.filter((f) => f.material).map((f) => ({ entidad: f.entidad, usd: f.gapUsd, gap: f.brechaPp }));
+  const carga = D.filas.filter((f) => f.cargaMaterial).map((f) => ({ entidad: f.entidad, usd: f.cargaUsd, gap: f.excesoPp }));
+  const bajoBenchmark = D.universo.m;   // EL UNIVERSO del foco de margen: TODAS las cuentas bajo el benchmark, antes de los dos filtros
   const out = [];
   if (carga.length)   out.push(_diagFoco("carga", "Carga comercial alta", carga));
   /* EL UNIVERSO VIAJA CON EL FOCO (owner 2026-09-13, «alcance de los $4,9M»): el subtotal de contribución no
@@ -609,7 +633,9 @@ function _diagComercial(filters, scenario, entityScope) {
    * todas las que están bajo el benchmark. En vivo el modelo lo narró «en los ocho clientes bajo benchmark» (son
    * cinco) y el muro no podía cobrarlo: la fig no declaraba n de m. Una cifra, una definición, en su rótulo. */
   if (contrib.length) out.push({ ..._diagFoco("margen", "Contribución no capturada", contrib),
-    universo: { n: contrib.length, m: bajoBenchmark, universo: "cuentas bajo el benchmark", criterio: `brecha ≥ ${_DIAG_MARGIN_GAP()} pp y monto material` } });
+    universo: { n: contrib.length, m: bajoBenchmark, universo: "cuentas bajo el benchmark", criterio: `brecha ≥ ${_DIAG_MARGIN_GAP()} pp y monto material` },
+    /* la brecha partida, por cuenta material y en subtotal — para que diagnose la publique y cierre exacto */
+    descomposicion: { filas: D.filas.filter((f) => f.material), subtotal: D.subtotales.materiales, nivelCarga: D.nivelCarga } });
   return out;
 }
 
@@ -699,6 +725,29 @@ export function composeSpecDiagnose({ filters = {}, scenario, focus, entityScope
       context: _u ? `${_ctx} · subtotal de las ${_u.n} cuentas con ${_u.criterio}; las ${_u.m} bajo el benchmark no tienen total en esta boleta` : _ctx,
     }));
     for (const it of f.top.slice(0, 3)) bol.push(fig(`${it.entidad} · ${f.titulo}`, _money(it.usd), { unit: "money", raw: it.usd, mandatory: false, context: _ctx }));
+  }
+  for (const f of focos) {
+    /* LA BRECHA PARTIDA (owner 2026-09-13): contribución no capturada = carga comercial alta + precio y costo, por cuenta
+     * material y en subtotal, con el MISMO universo del subtotal oficial. Cierra exacto por construcción (el resto se
+     * define como la diferencia); las cuentas materiales que no entraron al top-3 también salen, para que el cerebro
+     * pueda partir las cinco. «Precio y costo» es un resto aritmético, no una causa: el rótulo lo dice. Viajan como
+     * GANCHO —cifras autorizadas que el texto determinístico no exige (ver boleta.js)—: el diagnóstico en prosa sigue
+     * siendo el de siempre y el cerebro tiene la brecha partida a mano cuando la pregunta la pide. */
+    const _u = f.universo && f.universo.m > f.universo.n ? f.universo : null;
+    if (f.detector === "margen" && f.descomposicion && _u) {
+      const D = f.descomposicion, suf = ` · ${_u.n} cuentas materiales (de ${_u.m} bajo el benchmark)`;
+      const ya = new Set(bol.map((x) => x.label));
+      for (const x of [...D.filas].sort((a, b) => b.gapUsd - a.gapUsd)) {
+        if (!ya.has(`${x.entidad} · ${f.titulo}`)) bol.push(fig(`${x.entidad} · ${f.titulo}`, _money(x.gapUsd), { unit: "money", raw: x.gapUsd, mandatory: false, gancho: true, context: _ctx }));
+        if (x.cargaUsd > 0 && !ya.has(`${x.entidad} · Carga comercial alta`)) bol.push(fig(`${x.entidad} · Carga comercial alta`, _money(x.cargaUsd), { unit: "money", raw: x.cargaUsd, mandatory: false, gancho: true, context: `${_ctx} · (carga ${x.carga}% − nivel ${D.nivelCarga}%) × venta` }));
+        bol.push(fig(`${x.entidad} · Brecha por precio y costo`, _money(x.restoUsd), { unit: "money", raw: x.restoUsd, mandatory: false, gancho: true,
+          context: `${_ctx} · el resto de su contribución no capturada que no explica la carga sobre el nivel declarado: precio de lista y costo, que este dato no separa · cierra exacto: contribución no capturada = carga comercial alta + esto` }));
+      }
+      bol.push(fig(`Carga comercial alta · subtotal${suf}`, _money(D.subtotal.carga), { unit: "money", raw: D.subtotal.carga, mandatory: false, gancho: true,
+        context: `${_ctx} · la parte de la contribución no capturada de las ${_u.n} cuentas materiales que se lleva la carga sobre el nivel declarado (${D.nivelCarga}%)` }));
+      bol.push(fig(`Brecha por precio y costo · subtotal${suf}`, _money(D.subtotal.resto), { unit: "money", raw: D.subtotal.resto, mandatory: false, gancho: true,
+        context: `${_ctx} · el resto: precio de lista y costo, que este dato no separa · cierra exacto con el subtotal de contribución no capturada de las mismas ${_u.n} cuentas` }));
+    }
   }
   // GANCHO OPCIONAL (owner 2026-07-09: fuera la muletilla — "si el LLM interpreta el dato, debe decir la realidad"):
   // la excepción virtuosa (cuenta que crece a contramano con carga baja · calculada, no enlatada) viaja AUTORIZADA
