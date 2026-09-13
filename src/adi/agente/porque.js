@@ -163,6 +163,8 @@ const _FUENTE = /seg[uú]n\s+(?:tu|lo que|el dato|la fuente|me)|que\s+(?:t[uú]\
 const _CONCRETA = /\b(?:campañ|promoci|stock|quiebre|cliente|precio|negoci|acuerdo|convenio|descuento|calendario|temporada|mes bajo|proveedor|mezcla|mix|inventario|licitaci|contrato|competidor|cobro|pago|plazo|surtido|local|sucursal|vendedor|equipo|comprar|compró|compran|vend)/i;
 /* el cortador de preguntas respeta el decimal: «103.1%» no parte la oración (trampa documentada de la casa). */
 const _PREGUNTAS = /(?:[^.!?\n]|(?<=\d)\.(?=\d))*\?/g;
+/* la pregunta devuelta al dueño en indicativo: declara el límite y nombra lo que solo él sabe (ver el chequeo (c)) */
+const _DEVUELVE_AL_DUENO = /\bno (?:puedo|podr[ií]a) saber\b|\b(?:queda|sigue|est[aá]) abiert[oa] si\b|\b(?:esa|esta|la) respuesta la tiene(?:s)? (?:el (?:negocio|due[ñn]o)|t[uú])\b|\beso lo sab[eé]s t[uú]\b|\blo sab[eé]s t[uú]\b|\bd[ií]melo\b|\bel dato no (?:lo |la )?(?:sabe|mide|dice|distingue)\b/i;
 /** ¿el dueño ya declaró el contexto? — su intención registrada, o el contexto del negocio citado en el texto */
 function _contextoYaDado(texto, mem, contexto) {
   const intenciones = (mem && Array.isArray(mem.intenciones)) ? mem.intenciones : [];
@@ -217,7 +219,14 @@ export function vetosDelPorque(texto, { pregunta = "", figs = [], results = [], 
    * «lectura causal que cerrar». Justo el peor caso: el usuario preguntó una causa y se le devolvió una lista.
    * La condición del owner es «cuando falta contexto», y falta salvo que él ya lo haya declarado. */
   if (!_contextoYaDado(t, mem, contexto)) {
-    const preguntas = (t.match(_PREGUNTAS) || []).filter((p) => p.trim().length > 12);
+    /* LA PREGUNTA DEVUELTA EN INDICATIVO TAMBIÉN ES PREGUNTAR (prompt de gerente, 2026-09-13 · borrador capturado):
+     * «Lo que no puedo saber con el dato: si ese volumen a margen bajo en Falabella y Jumbo es una apuesta deliberada
+     * tuya —rotación, liquidez— o si simplemente se fue de las manos en la negociación» y «Queda abierto si…; esa
+     * respuesta la tiene el negocio, no el dato» le entregan al dueño exactamente lo que el dato no tiene, sin signo
+     * de interrogación. Exigir el «¿?» era medir la forma: la reparación buena del modelo caía por esto. La frase
+     * que devuelve la pregunta cuenta como pregunta, con la misma exigencia de ser CONCRETA. */
+    const devueltas = t.split(/(?<![\d])[.;\n](?![\d])/).filter((o) => _DEVUELVE_AL_DUENO.test(o));
+    const preguntas = [...(t.match(_PREGUNTAS) || []), ...devueltas].filter((p) => p.trim().length > 12);
     if (!preguntas.some((p) => _CONCRETA.test(p))) {
       const esquiva = !(MARCA_HIPOTESIS.test(t) || _MECANISMO.test(t) || _DECLARA_LIMITE.test(t));
       v.push({ regla: "porque-sin-pregunta", multa: esquiva

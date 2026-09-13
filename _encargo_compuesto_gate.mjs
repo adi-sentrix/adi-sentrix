@@ -164,6 +164,44 @@ H("3b · ★★ el prompt de gerente con el cerebro mudo: boleta unida, clientes
   ok(!(a.vetos || []).length, `el expediente del turno queda sin vetos (${(a.vetos || []).length})`, (a.vetos || []).join(" | ").slice(0, 240));
 }
 
+/* ═══ 3c · LOS BORRADORES DEL MODELO, POR EL BUCLE: LA MULTA COMPLETA (owner 2026-09-13) ═════════════════════
+ * «ADI no puede degradar una respuesta buena, correcta y completa por falsos positivos internos.» Los dos borradores
+ * capturados en la corrida autorizada (fixtures/gerente-borradores-2026-09-13) se reproducen con un cerebro que los
+ * devuelve tal cual. Lo que este caso fija:
+ *   · el cierre cae por lo REAL (35-38% inventado, $4.9M como cartera entera, prioridad sin criterio) y la multa
+ *     que recibe el modelo lleva TAMBIÉN lo del contrato y el notario («no es un problema de precio ni de mix» sin
+ *     sello) — antes el muro cortaba primero y el modelo reparaba a ciegas la mitad;
+ *   · la reparación del modelo (676 palabras) pasa el muro entero (su único veto era el falso positivo de Lider) y
+ *     cae SOLO por el contrato, por lo que nunca supo: el mecanismo sin sello. Correcto, y ahora dicho a tiempo;
+ *   · con esa oración sellada —lo que un modelo hace cuando se lo nombran— la reparación se SIRVE: estado
+ *     «reparado», el texto del modelo en pantalla, no el respaldo. */
+H("3c · ★★★ los borradores del modelo por el bucle: la multa completa, y la reparación buena se sirve");
+{
+  const FX = JSON.parse(readFileSync(new URL("./fixtures/gerente-borradores-2026-09-13.json", import.meta.url), "utf8"));
+  const [b1, b2] = FX.borradores.map((b) => b.texto);
+  const mensajesVistos = [];
+  const cerebroDe = (textos) => { let i = 0; return async ({ mensajes }) => { mensajesVistos.push(mensajes); const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
+  const r = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2]) });
+  const a = r.r.agente || {};
+  const vetos = a.vetos || [];
+  ok(vetos.length >= 2 && /^cierre · /.test(vetos[0]) && /35%|37%|extremo de un rango/.test(vetos[0]), `el cierre cae por lo real (rango inventado): ${vetos[0].slice(0, 90)}…`, vetos.join(" | ").slice(0, 300));
+  ok(/\(\+ [^)]*mecanismo-sin-sello/.test(vetos[0]), "★★ …y el expediente del cierre lista lo que el contrato vio (mecanismo-sin-sello) aunque el muro cortara primero", vetos[0]);
+  const multaAlModelo = String((mensajesVistos[1] || []).slice(-1)[0]?.content || "");
+  ok(/NOTARIO/.test(multaAlModelo) && /extremo de un rango/.test(multaAlModelo) && /mecanismo|sello/.test(multaAlModelo) && /cartera entera|SUBTOTAL|subtotal/i.test(multaAlModelo),
+    "★★★ la multa que recibe el modelo es COMPLETA: rango + subtotal + mecanismo sin sello, en una sola reparación", multaAlModelo.slice(0, 400));
+  ok(!/narrado como margen/.test(multaAlModelo) && !/afirma que la supera/.test(multaAlModelo) && !/apuesta deliberada/.test(multaAlModelo),
+    "★★ …y NO lleva los tres falsos positivos ($99.9M como margen · Lider supera · apuesta deliberada)", multaAlModelo.slice(0, 400));
+  ok(vetos.length >= 2 && /^reparacion · mecanismo-sin-sello/.test(vetos[1]), `la reparación del modelo pasa el muro entero y cae SOLO por el mecanismo sin sello (correcto): ${String(vetos[1]).slice(0, 80)}…`, vetos.join(" | ").slice(0, 300));
+  ok(a.estado === "encargo-compuesto", `…y el turno cierra por el ensamblador (${a.estado}), como debe cuando la reparación sigue violando una garantía`);
+  /* la reparación con la oración del mecanismo SELLADA — lo que el modelo hace cuando se lo nombran — se sirve */
+  const b2sellado = b2.replace("No es un problema de precio de venta ni de mix por ahora: es un problema de carga comercial.",
+    "Lo demostrado es la carga comercial; el precio de lista queda indicado y el mix, abierto.");
+  const r2 = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2sellado]) });
+  const a2 = r2.r.agente || {};
+  ok(a2.estado === "reparado", `★★★ con el mecanismo sellado, la reparación del modelo SE SIRVE (${a2.estado}): ${palabras(r2.r.text)} palabras del modelo en pantalla, no el respaldo`, (a2.vetos || []).join(" | ").slice(0, 300));
+  ok(/Para directorio/.test(String(r2.r.text)) && /Falabella \(39\.1%\)/.test(String(r2.r.text)) && /esto es criterio mío/.test(String(r2.r.text)), "…con las 5 líneas para directorio, los markups exactos con dueño y el criterio marcado");
+}
+
 /* ═══ 4 · EL PARAGUAS, SOLO PARA EL ENCARGO COMPUESTO SOBRE EL NEGOCIO ENTERO ═════════════════════════════ */
 H("4 · el paraguas de la foto no captura preguntas simples ni ambiguas");
 {

@@ -108,7 +108,13 @@ const _CLAUSULA_DE = (texto, idx) => {
 /* las formas que ABSUELVEN, porque son las que la casa quiere: preguntar, condicionar y declarar el límite */
 /* las absoluciones, con las formas de la CASA («Lo que el dato no sabe: si ese volumen … fue una decisión tuya» es el
  * límite declarado del corpus objetivo del owner — se lee entero: «el dato no sabe» y «si ese/esa/eso…») */
-const _PREGUNTA_O_LIMITE = /\?|\bsi (?:fuera|fuese|es|era|fue|resulta|hubiera|hubiese|viene|ese|esa|eso|este|esta|esto)\b|\bsuponiendo\b|\bno (?:puedo|podr[ií]a) (?:saber|afirmar|decir|confirmar)\b|\bno me consta\b|\bel dato no (?:lo |la )?(?:dice|declara|trae|mide|ve|sabe|registra|distingue|separa|puede)\b|\bno s[eé] si\b|\beso no est[aá] en el dato\b|\bdependiendo de\b|\bpuede ser\b|\bpodr[ií]a ser\b/i;
+/* + LA PREGUNTA ABIERTA DEL MODELO (prompt de gerente, 2026-09-13 — mismo falso positivo en dos corridas): «Queda
+ * abierto si el volumen en Falabella y Jumbo es una apuesta deliberada de rotación o una fuga que se dejó crecer;
+ * esa respuesta la tiene el negocio, no el dato» ardía por «es una apuesta deliberada»: la subordinada arranca en
+ * «si el volumen» (no en «si eso/ese») y «queda abierto» no estaba en la lista. Es la conducta correcta, verbatim:
+ * el límite declarado y la pregunta devuelta al dueño. Entran «si el/la/los/las/un/una…», «queda/sigue/está
+ * abierto», «no está cerrado» y «esa respuesta la tiene el negocio/dueño». */
+const _PREGUNTA_O_LIMITE = /\?|\bsi (?:fuera|fuese|es|era|fue|resulta|hubiera|hubiese|viene|ese|esa|eso|este|esta|esto|el|la|los|las|un|una)\b|\bsuponiendo\b|\bno (?:puedo|podr[ií]a) (?:saber|afirmar|decir|confirmar)\b|\bno me consta\b|\bel dato no (?:lo |la )?(?:dice|declara|trae|mide|ve|sabe|registra|distingue|separa|puede)\b|\bno s[eé] si\b|\beso no est[aá] en el dato\b|\bdependiendo de\b|\bpuede ser\b|\bpodr[ií]a ser\b|\b(?:queda|sigue|est[aá]) abiert[oa]\b|\bno est[aá] cerrad[oa]\b|\b(?:esa|esta|la) respuesta la tiene el (?:negocio|due[ñn]o)\b/i;
 /* ⚠️ Y UNA CUARTA, que casi me cuesta un falso positivo en prosa que YA estaba bien: EL CONTRASTE. El composer
  * de margen escribe «separar qué parte de la carga fue deliberada y qué parte se descontroló» y «la carga
  * deliberada de la que no lo fue» — frases que dicen exactamente lo contrario de un dictamen: declaran que la

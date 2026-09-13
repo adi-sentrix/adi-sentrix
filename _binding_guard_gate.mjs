@@ -202,6 +202,53 @@ H("[B3] RANGOS · «X-Y%» se descompone y los dos extremos existen con su dueñ
     JSON.stringify((runVivo("Falabella vende $19.4M con margen 22.0%, 8.1 puntos bajo el benchmark de 30.1%.").violations || []).map((v) => v.detail)));
 }
 
+/* ═══ [B4] LOS BORRADORES DEL MODELO NO CAEN POR FALSOS POSITIVOS (owner 2026-09-13) ═══════════════════════════
+ * «ADI no puede degradar una respuesta buena, correcta y completa por falsos positivos internos.» Corrida autorizada
+ * del prompt de gerente, con los dos borradores capturados ANTES del muro (fixtures/gerente-borradores-2026-09-13):
+ *   · cierre: cinco hallazgos del muro — tres reales (35-38% inventado para los sanos, $4.9M subtotal narrado como
+ *     cartera entera, prioridad sin criterio) y DOS falsos positivos: «$99.9M narrado como margen» (la mención
+ *     «margen» estaba detrás de «, pero el», con su propia cifra a 39 caracteres) y «Lider · Margen supera la
+ *     referencia» (el «por encima» era de la carga comercial, y la oración decía «bajo el benchmark»);
+ *   · reparación: el modelo corrigió TODO lo que se le nombró y cayó por el único hallazgo que quedaba en el muro:
+ *     el falso positivo de Lider. El usuario recibió el respaldo.
+ * Las tres calibraciones (mención de después solo atribuye pegada por conector · la relación contra la referencia
+ * se resuelve por la entidad de la oración y no confunde la carga con el margen · «queda abierto si» es límite) se
+ * prueban acá con el ledger REAL del turno y los textos verbatim. Lo que era error real sigue ardiendo. */
+H("[B4] LOS BORRADORES DEL MODELO · lo real arde, los falsos positivos no (prompt de gerente, ledger real)");
+{
+  const { readFileSync } = await import("node:fs");
+  const { runPlan } = await import("./src/adi/oracle/toolRunner.js");
+  const { TOOLS } = await import("./src/adi/oracle/toolRegistry.js");
+  const { cajaDelAgente } = await import("./src/adi/agente/herramientasAgente.js");
+  const { ESCENARIO_INICIAL } = await import("./src/config/scenarios.js");
+  const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
+  const { axisEntityNames } = await import("./src/adi/oracle/entityIndex.js");
+  const FX = JSON.parse(readFileSync(new URL("./fixtures/gerente-borradores-2026-09-13.json", import.meta.url), "utf8"));
+  const rp = runPlan({ intent: "answer", calls: FX.pasos.map((tool) => ({ tool, args: {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 8, preguntaUsuario: FX.pregunta, registry: cajaDelAgente(TOOLS) });
+  const figs = (rp.ledger || {}).figs || [];
+  const _ejes = (l) => { const o = []; for (const e of l) { try { for (const n of axisEntityNames(e)) o.push(n); } catch { /* sin índice */ } } return o; };
+  const runG = (n) => guardC(n, { ledger: { figs }, results: rp.results, question: FX.pregunta, datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), entidadesDelTenant: _ejes(["cliente", "sku", "marca"]), duenosDelTenant: _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]), contentScope: "full" });
+  const det = (r) => (r.violations || []).map((v) => `[${v.kind}] ${String(v.detail).slice(0, 90)}`).join(" ‖ ");
+  const b1 = FX.borradores[0].texto, b2 = FX.borradores[1].texto;
+  const r1 = runG(b1);
+  ok(!r1.ok && kinds(r1).filter((k) => k === "cifra-no-autorizada").length >= 2 && (r1.violations || []).some((v) => /extremo de un rango/.test(String(v.detail)) && /^35%/.test(String(v.detail))),
+    "borrador 1 · el 35-38% inventado para los sanos SIGUE ardiendo (extremo de rango que no existe)", det(r1));
+  ok(tiene(r1, "alcance-promovido"), "borrador 1 · «$4.9M … si la cartera entera cerrara al benchmark» SIGUE ardiendo (subtotal narrado como universo)", det(r1));
+  ok(tiene(r1, "juicio-sin-marcar"), "borrador 1 · «Empezaría por Falabella…» sin criterio marcado SIGUE ardiendo", det(r1));
+  ok(!tiene(r1, "metrica-mal-atribuida"), "★★ borrador 1 · «La venta creció +7.5% … a $99.9M, pero el margen promedio…» YA NO es «$99.9M narrado como margen»", det(r1));
+  ok(!tiene(r1, "relacion-contradictoria"), "★★ borrador 1 · «…caen bajo el benchmark Y pagan carga comercial por encima del 3.5% de referencia» YA NO es «Lider supera la referencia»", det(r1));
+  const r2 = runG(b2);
+  ok(r2.ok, "★★★ borrador 2 (la reparación del modelo, 676 palabras) PASA EL MURO ENTERO: su único veto era el falso positivo de Lider", det(r2));
+  /* las reglas siguen vivas contra lo que sí está mal, con el mismo ledger */
+  ok(tiene(runG("Lider está por encima de la referencia."), "relacion-contradictoria"), "«Lider está por encima de la referencia» sigue ardiendo (Lider 21.5% vs 30.1%)");
+  ok(tiene(runG("El margen de Lider supera el benchmark de 30.1%."), "relacion-contradictoria"), "«el margen de Lider supera el benchmark» sigue ardiendo");
+  ok(!tiene(runG("Easy supera el benchmark de 30.1% con 32.0% de margen."), "relacion-contradictoria"), "…y «Easy supera el benchmark» pasa: es verdad (32% vs 30.1%) — la relación es de la entidad de la oración, no del primer margen de la boleta");
+  ok(tiene(runG("El margen, aunque se encuentra bajo un número saludable, se mantiene en el benchmark requerido."), "relacion-contradictoria"), "…y la frase original de E1.t1 («se mantiene en el benchmark») sigue ardiendo con la cartera: sin entidad, manda el margen promedio (25.1% vs 30.1%)");
+  ok(tiene(runG("Falabella aporta $99.9M de margen."), "metrica-mal-atribuida"), "«$99.9M de margen» sigue ardiendo (pegada por conector: atribuye)");
+  ok(tiene(runG("El margen del negocio es $99.9M."), "metrica-mal-atribuida"), "«el margen del negocio es $99.9M» sigue ardiendo (la mención va antes de la cifra)");
+  ok(!tiene(runG("Cierra $99.9M en ventas, pero el margen promedio queda en 25.1%."), "metrica-mal-atribuida"), "…y «$99.9M en ventas, pero el margen…» pasa: la mención de después de una cláusula nueva no atribuye");
+}
+
 H("[C] ENTIDAD MAL ATRIBUIDA · promovida de AVISO a BLOQUEO");
 {
   const r = run("Lider aporta $4.3M de contribución. (Datos del año cerrado.)");

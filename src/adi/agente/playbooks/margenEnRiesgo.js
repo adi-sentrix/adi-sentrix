@@ -864,7 +864,11 @@ export const margenEnRiesgo = {
       /* ⚠️ AFINADA EN LA MISMA CALIBRACIÓN: la primera versión multó «Lo que el dato no sabe: SI ese volumen
        * a ese margen fue una decisión tuya» — una subordinada de DUDA, que es justo la conducta correcta.
        * Distinguir afirmación de duda es el trabajo de la regla; medir solo el verbo era medir la forma. */
-      const _DUDA = /\bsi\s+(?:eso|ese|esa|esto|es|fue|son|fueron)\b|\bno s[ée] si\b|\bno puedo saber\b|\bel dato no (?:sabe|mide|dice)\b|\bhabr[íi]a que (?:confirmar|preguntar)\b|\bdepende de\b/i;
+      /* + LA PREGUNTA ABIERTA DEL MODELO (prompt de gerente, 2026-09-13): «Queda abierto si el volumen en Falabella
+       * y Jumbo es una apuesta deliberada… o una fuga que se dejó crecer; esa respuesta la tiene el negocio, no el
+       * dato» ardía por «es una apuesta deliberada» — la subordinada arranca en «si el volumen», no en «si eso». Un
+       * «queda/sigue abierto si» y un «esa respuesta la tiene el negocio/dueño» son la conducta correcta, verbatim. */
+      const _DUDA = /\bsi\s+(?:eso|ese|esa|esto|es|fue|son|fueron|el|la|los|las|un|una)\b|\bno s[ée] si\b|\bno puedo saber\b|\bel dato no (?:sabe|mide|dice)\b|\bhabr[íi]a que (?:confirmar|preguntar)\b|\bdepende de\b|\b(?:queda|sigue|est[aá]) abiert[oa]\b|\bno est[aá] cerrad[oa]\b|\b(?:esa|esta|la) respuesta la tiene el (?:negocio|due[ñn]o)\b/i;
       if (/[¿?]/.test(oracion) || _MARCA_HIP.test(oracion) || _DUDA.test(oracion)
         || /\bme dijiste\b|\bseg[uú]n me confirmaste\b|\bcomo me contaste\b/i.test(oracion)) continue;
       v.push({ regla: "intencion-declarada",

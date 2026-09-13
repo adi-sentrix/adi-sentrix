@@ -180,7 +180,11 @@ export function formaDelTurno(pregunta) {
    * integrar UNA sola lectura → adaptar al final al lector que nombró. No seis mini-respuestas. */
   if (esEncargoCompuesto(pregunta)) {
     const lector = (() => { try { return destinatarioDe(pregunta); } catch { return null; } })();
-    return `FORMA (encargo compuesto): cúbrelo ENTERO, en el orden en que lo pidió, como UNA sola lectura —no una respuesta por pregunta—: una tesis que la abra, cada cifra una vez, y en cada parte qué está medido y qué es hipótesis, separado. Lo que no puedas cubrir con el dato, dilo en una línea.${lector ? ` Y cierra con la versión para ${lector}: la misma conclusión, en su molde, DESPUÉS de la lectura completa.` : ""}`;
+    /* «EN 5 LÍNEAS PARA DIRECTORIO» ES UN PEDIDO EXACTO (owner 2026-09-13): el modelo cerró con un párrafo de cinco
+     * oraciones y el respaldo con tres líneas. Si pidió N líneas, son N líneas, una idea por línea, sin repetir el
+     * cuerpo palabra por palabra — el número lo pone el usuario, no una regla. */
+    const _nLineas = (() => { const m = /\b(\d{1,2}|una|dos|tres|cuatro|cinco|seis|siete|ocho)\s+l[ií]neas?\b/i.exec(String(pregunta || "")); return m ? m[1] : null; })();
+    return `FORMA (encargo compuesto): cúbrelo ENTERO, en el orden en que lo pidió, como UNA sola lectura —no una respuesta por pregunta—: una tesis que la abra, cada cifra una vez, y en cada parte qué está medido y qué es hipótesis, separado. Lo que no puedas cubrir con el dato, dilo en una línea.${lector ? ` Y cierra con la versión para ${lector}: la misma conclusión, en su molde, DESPUÉS de la lectura completa.` : ""}${_nLineas ? ` Pidió ${_nLineas} líneas para ese cierre: exactamente ${_nLineas}, cada una en su propio renglón y con una idea distinta (qué pasa · por qué · quiénes · cuánto en juego · qué primero), sin repetir el cuerpo palabra por palabra.` : ""}`;
   }
   if (pideDetalle(pregunta)) return "FORMA: este turno SÍ pide detalle — ábrelo, ordenado, con cada cifra una vez.";
   return "FORMA (densidad ejecutiva): la tesis en una frase → la evidencia mínima que la sostiene → el criterio o siguiente paso, en prosa. Sin subtítulos; una lista solo si ordena información o la pidieron; negrita, a lo sumo, para una conclusión puntual. El detalle se ofrece, no se despliega.";

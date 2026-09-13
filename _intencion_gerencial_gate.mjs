@@ -87,8 +87,23 @@ const NO_DEBE_ARDER = [
   ["«estrategia o fuga» como disyuntiva del porqué", "De tu respuesta depende si eso es estrategia o fuga."],
   ["«política comercial» del porqué (no es intención de nadie)", "Si el exceso se repite parejo en toda la cartera, es política comercial y se corrige con una regla."],
   ["negar el FOCO, no una intención", "El foco de la semana es la condición, no el volumen."],
+  /* LA PREGUNTA ABIERTA DEL MODELO (prompt de gerente, 2026-09-13 · borrador capturado, verbatim): ardía en dos corridas
+   * por «es una apuesta deliberada» — la subordinada arranca en «si el volumen», no en «si eso». Es el límite declarado. */
+  ["«queda abierto si…» del modelo (verbatim, prompt de gerente)", "Queda abierto si el volumen en Falabella y Jumbo es una apuesta deliberada de rotación o una fuga que se dejó crecer; esa respuesta la tiene el negocio, no el dato."],
+  ["«no puedo saber con el dato: si ese volumen…» del modelo (verbatim)", "Lo que no puedo saber con el dato: si ese volumen a margen bajo en Falabella y Jumbo es una apuesta deliberada tuya —rotación, liquidez, entrada estratégica— o si simplemente se fue de las manos en la negociación."],
+  ["«sigue abierto» con sustantivo", "Sigue abierto si la carga de Lider es una decisión comercial tuya o una negociación que se escapó."],
 ];
 for (const [q, t] of NO_DEBE_ARDER) ok(!arde(t), `limpia · ${q}`, t.slice(0, 120));
+/* …y el notario del procedimiento (su propia regla «intencion-declarada») absuelve la misma frase */
+{
+  const { margenEnRiesgo } = await import("./src/adi/agente/playbooks/margenEnRiesgo.js");
+  const { initTenant } = await import("./src/data/tenantStore.js");
+  const { TENANT_DEMO } = await import("./src/data/tenants/demo.js");
+  initTenant(TENANT_DEMO);
+  const notarial = (t) => (margenEnRiesgo.listaNotarial(t, { figs: [], pregunta: "" }) || []).map((v) => v.regla);
+  ok(!notarial("Queda abierto si el volumen en Falabella y Jumbo es una apuesta deliberada de rotación o una fuga que se dejó crecer; esa respuesta la tiene el negocio, no el dato.").includes("intencion-declarada"), "notarial · «queda abierto si… es una apuesta deliberada» NO es intención declarada");
+  ok(notarial("El volumen de Falabella y Jumbo es una apuesta deliberada tuya de rotación.").includes("intencion-declarada"), "notarial · afirmarla como hecho SIGUE ardiendo");
+}
 
 /* ═══ 4 · LA CARNADA · si la regla se vacía, esto tiene que ponerse rojo ════════════════════════════════════ */
 H("4 · la carnada: con la regla apagada, el defecto pasaría");

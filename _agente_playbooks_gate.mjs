@@ -1445,10 +1445,14 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   await carnada("«reducir 2pp» simula +2pp (el signo perdido)", "src/adi/agente/playbooks/proyeccionDeclarada.js",
     [[/    const delta = _BAJA\.test\(q\) \? -Math\.abs\(n\) : Math\.abs\(n\);/, "    const delta = Math.abs(n);   // CARNADA"]],
     async (Mut) => { initTenant(TENANT_DEMO); const p = Mut.proyeccionDeclarada.pasos(T5C); return !!(p[0] && p[0].args.delta_pp > 0); });
-  // (K) sin la línea de «quiénes quedan por debajo»: el chequeo de estados del muro veta el entregable (medido)
+  // (K) sin la línea de «quiénes quedan por debajo»: el chequeo directo de arriba («…y se dice quiénes quedan por debajo»)
+  //     se pone rojo. ⚠️ Antes esta carnada la cazaba el muro por COINCIDENCIA: la relación contra la referencia tomaba
+  //     el primer margen de la boleta (Falabella, bajo) y «Quedan sobre el benchmark 6 de 13» sonaba a «la supera» —
+  //     un falso positivo que la calibración del 2026-09-13 (relación por la entidad de la oración) retiró. La promesa
+  //     del composer se cuida donde vive: en su propio texto.
   await carnada("el entregable de carga sin decir quiénes quedan por debajo", "src/adi/agente/playbooks/proyeccionDeclarada.js",
     [[/      const bajo = sup\.filter\(\(x\) => x\.pct < vara\);\n      if \(bajo\.length\) partes\.push\(/, "      const bajo = [];   // CARNADA\n      if (bajo.length) partes.push("]],
-    async (Mut) => { const { figs } = _juzgaC(""); return !_juzgaC(Mut.proyeccionDeclarada.componer({ figs, pregunta: T5C })).ok; });
+    async (Mut) => { const { figs } = _juzgaC(""); return !/quedan por debajo/.test(String(Mut.proyeccionDeclarada.componer({ figs, pregunta: T5C }) || "")); });
   // (L) sin «esa manda»: una proyección sobre UNA entidad queda secuestrada como si fuera sobre el total
   await carnada("proyección sobre una entidad tomada como si fuera sobre el total", "src/adi/agente/playbooks/proyeccionDeclarada.js",
     [[/ && !_nombraEntidad\(q\)\) \{/, ") {   // CARNADA"]],

@@ -965,7 +965,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (u) P2(ii) · la señal del veto reparable apagada: T10 vuelve a repararse con el modelo chico
   await carnada("veto reparable sin escalar (el T10 de la corrida 4)",
-    [[/      const vetoConCifra = _cifrasDeMulta\(multa\)\.length > 0;/, "      const vetoConCifra = false;"]],
+    [[/      const vetoConCifra = _cifrasDeMulta\(_multaDe\(v1\)\)\.length > 0;/, "      const vetoConCifra = false;"]],   // desde la multa completa (2026-09-13) la escalada lee la multa del MURO
     async (Mut) => {
       initTenant(PACK);
       const vistas = [];
@@ -1081,7 +1081,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (h) R7 · el expediente ciego: los vetos del guard no se registran
   await carnada("vetos del guard sin registrar",
-    [[/      vetosDelTurno\.push\(`\$\{sitio\} · \$\{String\(_multaDe\(v\)\)\.split\("\\n"\)\[0\]\.slice\(0, 180\)\}`\);\n/, ""]],
+    [[/      vetosDelTurno\.push\(`\$\{sitio\} · \$\{String\(_multaDe\(v\)\)\.split\("\\n"\)\[0\]\.slice\(0, 180\)\}[^\n]*`\);\n/, ""]],   // la línea creció con la multa completa (2026-09-13): el sufijo se admite
     async (Mut) => {
       initTenant(PACK);
       const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionTerco });

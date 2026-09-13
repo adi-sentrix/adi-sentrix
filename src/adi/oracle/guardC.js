@@ -277,7 +277,7 @@ const _METRIC_VOCAB = [
    * participación — calibrado contra los pisos determinísticos: con los verbos, 18 gates en rojo */
   /* ⚠️ la frase arranca DESPUÉS del «%» (lookbehind), no en él: si la mención empezara dentro de la cifra («17.9% de la
    * venta»), no quedaría pegada a ella y no la tomaría — y el $ de al lado salía «narrado como participación» */
-  { clave: "participacion", re: /\bparticipaci[oó]n\b|(?<=%)\s*del\s+total\b|\bdel\s+total\b|(?<=%)\s*de\s+(?:la\s+|las\s+|el\s+|los\s+)?(?:venta|ventas|cartera|contribuci[oó]n|facturaci[oó]n)\b|\bpeso\s+(?:en|sobre|de)\s+(?:la\s+|el\s+)?(?:venta|ventas|cartera|total|contribuci[oó]n)\b|\bcuota\b|\bshare\b/i },
+  { clave: "participacion", re: /\bparticipaci[oó]n\b|(?<=%)\s*del\s+total\b|\bdel\s+total\b|(?<=%)\s*de\s+(?:la\s+|las\s+|el\s+|los\s+|tu\s+|su\s+|mi\s+|nuestra\s+)?(?:venta|ventas|cartera|contribuci[oó]n|facturaci[oó]n)\b|\bpeso\s+(?:en|sobre|de)\s+(?:la\s+|el\s+)?(?:venta|ventas|cartera|total|contribuci[oó]n)\b|\bcuota\b|\bshare\b/i },
   { clave: "variacion",     re: /\bcrec[eií][\wáéíóúñ]*(?![\wáéíóúñ])|\bcrecimiento\b|\bYoY\b|\bvariaci[oó]n\b|\binteranual\b|\b(?:contra|vs\.?|frente a|respecto (?:a|de|al|del))\s+(?:el\s+)?(?:a[ñn]o|per[ií]odo)\s+(?:anterior|pasado|comparable)\b/i },
   // «resultado» · EL PELDAÑO DEL P&L, no la palabra suelta (certificación 2026-08-09, pregunta 14). Medido sobre el
   // ledger real de `pnlRead` —que autoriza «Resultado comercial $18.5M» Y «Contribución $25.0M» en la MISMA
@@ -374,7 +374,34 @@ function _metricBindingViolations(narration, ledger) {
     const hi0 = Math.min(masked.length, end + 60);
     const cut = masked.slice(end, hi0).search(_SENT_END);
     const hi = cut >= 0 ? end + cut : hi0;
-    const cerca = _metricasEn(text.slice(lo, hi));
+    const cercaTodas = _metricasEn(text.slice(lo, hi));
+    /* ── LA MENCIÓN DE DESPUÉS ATRIBUYE SOLO SI ESTÁ PEGADA POR UN CONECTOR (prompt de gerente, 2026-09-13) ──
+     * Tercer falso positivo de esta familia en dos días, y el que tumbó el cierre del modelo: «La venta creció
+     * +7.5% contra el año anterior a $99.9M, pero el margen promedio de la cartera quedó en 25.1%» → «$99.9M
+     * narrado como margen». «venta» y «creció» estaban tomadas por el +7.5%, y «margen» quedaba libre a 10
+     * caracteres del $99.9M… detrás de «, pero el»: una cláusula nueva, con su propia cifra a 39 caracteres.
+     * Las formas del español que atan una métrica a la cifra que la PRECEDE son cortas y de conector puro —«$X
+     * de margen», «$X en ventas», «$X como contribución»—; «$X, pero el margen…», «$X; la venta…», «$X y su
+     * carga…» abren otra afirmación. La mención que sigue a la cifra solo cuenta si el tramo entre ambas es un
+     * conector (el mismo `_CONECTOR_ATRAS` que ya decide cuándo una cifra se lleva la mención de atrás, más
+     * «como»). Una mención ANTES de la cifra atribuye como siempre («el margen es $X», «vende $X»). */
+    const _atribuyen = new Map();   // clave → [[a, b]] de las menciones que sí atribuyen a esta cifra
+    for (const clave of cercaTodas) {
+      const vocab = _METRIC_VOCAB.find((m) => m.clave === clave);
+      if (!vocab) continue;
+      const re = new RegExp(vocab.re.source, vocab.re.flags.includes("g") ? vocab.re.flags : vocab.re.flags + "g");
+      const ventana = text.slice(lo, hi);
+      let mm;
+      while ((mm = re.exec(ventana))) {
+        const a = lo + mm.index, b = a + mm[0].length;
+        const atribuye = a < end                                                   // antes de la cifra (o dentro de su tramo): atribuye
+          || _tramoDescriptivo(text.slice(end, a), masked.slice(end, a));         // después, sin abrir otra afirmación: atribuye
+        if (!atribuye) continue;
+        if (!_atribuyen.has(clave)) _atribuyen.set(clave, []);
+        _atribuyen.get(clave).push([a, b]);
+      }
+    }
+    const cerca = new Set(_atribuyen.keys());
     if (!cerca.size) continue;                      // 0 → sin señal, no se juzga
     let unica;
     if (cerca.size === 1) unica = [...cerca][0];
@@ -400,14 +427,9 @@ function _metricBindingViolations(narration, ledger) {
      * margen», «el margen es $X», «margen: $X», «margen de contribución llega a $X». Con 25 caracteres alcanza
      * para todas; más allá, la métrica vive en otra parte de la frase. Sigue rigiendo el principio de la casa:
      * antes un falso negativo que bloquear una respuesta correcta. */
-    const _dist = (() => {
-      const re = new RegExp(_METRIC_VOCAB.find((m) => m.clave === unica).re.source, "gi");
-      const ventana = text.slice(lo, hi);
-      let best = Infinity, mm;
-      while ((mm = re.exec(ventana))) {
-        const a = lo + mm.index, b = a + mm[0].length;
-        best = Math.min(best, b <= idx ? idx - b : a >= end ? a - end : 0);
-      }
+    const _dist = (() => {   // solo sobre las menciones que atribuyen (la de después de una cláusula nueva no cuenta)
+      let best = Infinity;
+      for (const [a, b] of (_atribuyen.get(unica) || [])) best = Math.min(best, b <= idx ? idx - b : a >= end ? a - end : 0);
       return best;
     })();
     if (_dist > 25) continue;
@@ -455,6 +477,14 @@ function _tramosDeCifra(masked, lo, hi) {
 /* el conector puro entre una cifra y la métrica que la describe hacia atrás («$17.3M de venta»). «y su», «pero
  * la», un verbo — cualquier cosa que abra afirmación nueva — NO conecta, y la mención queda libre. */
 const _CONECTOR_ATRAS = /^[\s,]*(?:de(?:l)?|de\s+(?:la|tu|su)|en)?\s*$/i;
+/* el tramo entre una cifra y la métrica que la sigue, para que esa mención la ATRIBUYA: «$X de margen», «$X en
+ * ventas», «$X (margen)», y también la cláusula que la DESCRIBE —«$655K — es lo que se está cediendo en acciones
+ * comerciales», «$99.9M, que es la venta del período»—. Lo que NO atribuye es la cláusula que abre OTRA afirmación:
+ * «$X, pero el margen…», «$X y su venta…», «$X; la carga…», «$X, con margen…», «$X frente a $Y de venta» (otra
+ * cifra en medio). Medido (2026-09-13): el conector puro solo tumbaba «El margen: $655K — es lo que se cede en
+ * acciones comerciales» del composer de alternativas, que es descripción legítima. */
+const _ABRE_OTRA_AFIRMACION = /;|(?<![\wáéíóúñ])(?:pero|y|e|aunque|mientras|sin embargo|en cambio|adem[aá]s|tambi[eé]n|ni|o|u|con|contra|frente a|versus|vs\.?|salvo|excepto)(?![\wáéíóúñ])/i;
+const _tramoDescriptivo = (tramo, tramoMasked) => !tramoMasked.includes("#") && !_SENT_END.test(tramoMasked) && !_ABRE_OTRA_AFIRMACION.test(tramo);
 function _todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners }) {
   const vocab = _METRIC_VOCAB.find((m) => m.clave === unica);
   if (!vocab) return false;
@@ -2653,32 +2683,60 @@ function _ledgerContradictorio(ledger, narration) {
 const _BANDA_EN_LINEA_PP = 1.0;
 const _DICE_CUMPLE = /\bcumple\b|\ben l[ií]nea\b|\bse mantiene\b|\bacorde\b|\balinead[oa]\b|\bdentro del?\s+(?:benchmark|piso|est[aá]ndar|objetivo|meta)\b|\ba la altura\b|\bsatisface\b/i;
 const _DICE_SOBRE = /\bpor encima\b|\bsupera\b|\bsobre (?:el|tu) (?:benchmark|piso|meta|objetivo)\b|\bexcede\b/i;
-function _relacionConReferencia(ledger) {
-  const figs = (ledger && Array.isArray(ledger.figs) ? ledger.figs : []).filter((f) => f && typeof f.raw === "number");
-  const bench = figs.find((f) => /benchmark|piso de margen/i.test(String(f.label || "")) && f.unit === "pct");
+/* ── DE QUIÉN ES EL MARGEN QUE SE JUZGA (calibrado en vivo, prompt de gerente 2026-09-13) ──────────────────────
+ * Este chequeo nació en un turno de UNA entidad (E1.t1, el perfil de Falabella) y tomaba «el margen» como la
+ * primera fig «· Margen» de la boleta. En un turno de cartera la boleta trae trece márgenes y el primero es el
+ * más bajo (Lider): «…caen bajo el benchmark Y pagan carga comercial por encima del 3.5% de referencia» salió
+ * vetado como «Lider · Margen está BAJO la referencia y la respuesta afirma que la supera» — el «por encima»
+ * era de la CARGA, y la oración decía «bajo el benchmark» del margen con todas sus letras. Ese falso positivo
+ * tumbó la reparación del modelo (676 palabras, correctas) y el usuario recibió el respaldo.
+ * Ahora la relación se resuelve POR ORACIÓN: manda la entidad nombrada en ella; sin entidad, el margen promedio
+ * (la cifra de cartera); con un solo margen en la boleta, ese. Con varios y ninguno nombrado ni promedio, no
+ * hay relación que verificar y no se juzga (falso negativo antes que bloquear una respuesta correcta). */
+const _RE_ENT = (n) => new RegExp(`(?<![\\wáéíóúñ])${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\wáéíóúñ])`, "i");
+/* el porcentaje de una fig «%»: su `raw` si lo trae, o el número de su valor publicado (el motor solo pone `raw` en
+ * las filas destacadas — 5 de 13 márgenes—; el de Easy vive como «32.0%» y es tan cifra como los otros) */
+const _pctDeFig = (f) => {
+  if (f && Number.isFinite(f.raw)) return f.raw;
+  const m = /^\s*(-?\d+(?:[.,]\d+)?)\s*%\s*$/.exec(String((f && (f.value ?? f.text)) || ""));
+  return m ? parseFloat(m[1].replace(",", ".")) : NaN;
+};
+function _relacionConReferencia(ledger, oracion = null) {
+  const figs = (ledger && Array.isArray(ledger.figs) ? ledger.figs : []).filter((f) => f && f.unit === "pct" && Number.isFinite(_pctDeFig(f)));
+  const bench = figs.find((f) => /benchmark|piso de margen/i.test(String(f.label || "")));
   if (!bench) return null;
-  const margen = figs.find((f) => /·\s*margen\b/i.test(String(f.label || "")) && f.unit === "pct" && !/benchmark|brecha|promedio/i.test(String(f.label || "")));
+  const margenes = figs.filter((f) => /·\s*margen\b/i.test(String(f.label || "")) && !/benchmark|brecha|promedio/i.test(String(f.label || "")));
+  const promedio = figs.find((f) => /^margen promedio$/i.test(String(f.label || "").trim())) || null;
+  let margen = null;
+  if (oracion) margen = margenes.find((f) => { const ent = String(f.label || "").split("·")[0].trim(); return ent && _RE_ENT(ent).test(oracion); }) || null;
+  if (!margen) margen = margenes.length === 1 ? margenes[0] : (promedio || (oracion ? null : margenes[0] || null));
   if (!margen) return null;
-  const d = margen.raw - bench.raw;
+  const d = _pctDeFig(margen) - _pctDeFig(bench);
   return { relacion: Math.abs(d) <= _BANDA_EN_LINEA_PP ? "en_linea" : (d > 0 ? "sobre" : "bajo"), delta: d, margen, bench };
 }
+/* el «por encima / supera / excede» que NO habla del margen: la oración ya dice que el margen está bajo la
+ * referencia, o lo que supera es la carga comercial (su propio nivel de referencia) */
+const _NO_ES_EL_MARGEN = /\bbajo (?:el|la|tu|su|ese|esa|este|esta) (?:benchmark|referencia|vara|piso|objetivo|nivel)\b|\bbrecha\b|\bpor debajo\b|\b(?:carga|acciones comerciales|rebate)\b[^.;\n]{0,60}\b(?:por encima|supera|excede)\b|\b(?:por encima|supera|excede)\b[^.;\n]{0,50}\b(?:de carga|nivel de (?:carga|referencia)|carga comercial)\b/i;
 function _contradiceLaReferencia(narration, ledger) {
-  const r = _relacionConReferencia(ledger);
-  if (!r || r.relacion === "en_linea") return [];
   // LA AFIRMACIÓN TIENE QUE SER SOBRE LA REFERENCIA, no en cualquier parte del texto. La primera versión buscaba
   // «se mantiene» / «en línea» en la narración ENTERA, y son frases corrientísimas sobre otros sujetos («la venta
   // se mantiene», «el nivel se mantiene»): con margen y benchmark en la boleta, cualquier respuesta que las usara
   // quedaba acusada. Medido al cerrar: rompía tres casos legítimos de _forma_manda_sobre_el_alcance_gate y sus
-  // rechazos se llevaban puesto el turno. Ahora se exige que la MISMA oración nombre la referencia.
+  // rechazos se llevaban puesto el turno. Ahora se exige que la MISMA oración nombre la referencia — y desde el
+  // prompt de gerente, cada oración se juzga contra el margen del que HABLA (ver _relacionConReferencia).
   const _oraciones = String(narration || "").split(/(?<=[.!?])\s+|\n+/);
   const _REFERENCIA_N = /\bbenchmark\b|\bpiso\b|\breferencia\b|\bmeta\b|\best[aá]ndar\b|\bobjetivo\b/i;
-  const t = _oraciones.filter((o) => _REFERENCIA_N.test(o)).join(" ");
   const out = [];
-  if (r.relacion === "bajo" && _DICE_CUMPLE.test(t) && !/\bno\s+(?:cumple|se mantiene|est[aá]\s+en l[ií]nea)\b/i.test(t)) {
-    out.push(`el ledger dice que ${r.margen.label} (${r.margen.value}) está BAJO ${r.bench.label} (${r.bench.value}) por ${Math.abs(r.delta).toFixed(1)} puntos, y la respuesta afirma que cumple o se mantiene en la referencia`);
-  }
-  if (r.relacion === "bajo" && _DICE_SOBRE.test(t) && !/\bbrecha\b|\bpor debajo\b/i.test(t)) {
-    out.push(`el ledger dice que ${r.margen.label} está BAJO la referencia y la respuesta afirma que la supera`);
+  for (const o of _oraciones) {
+    if (!_REFERENCIA_N.test(o)) continue;
+    const r = _relacionConReferencia(ledger, o);
+    if (!r || r.relacion !== "bajo") continue;
+    if (_DICE_CUMPLE.test(o) && !/\bno\s+(?:cumple|se mantiene|est[aá]\s+en l[ií]nea)\b/i.test(o)) {
+      out.push(`el ledger dice que ${r.margen.label} (${r.margen.value}) está BAJO ${r.bench.label} (${r.bench.value}) por ${Math.abs(r.delta).toFixed(1)} puntos, y la respuesta afirma que cumple o se mantiene en la referencia`);
+    }
+    if (_DICE_SOBRE.test(o) && !_NO_ES_EL_MARGEN.test(o)) {
+      out.push(`el ledger dice que ${r.margen.label} está BAJO la referencia y la respuesta afirma que la supera`);
+    }
   }
   return out;
 }

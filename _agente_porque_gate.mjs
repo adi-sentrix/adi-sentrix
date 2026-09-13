@@ -173,6 +173,14 @@ H("3 · los tres vetos — el corpus legítimo pasa, el texto de producción ard
     "★ «¿seguimos?» no es preguntar: no pide el contexto que falta");
   ok(j("Mi hipótesis es que hay estacionalidad. ¿Hubo una campaña en febrero o un cliente grande que no compró?").length === 0,
     "…y la concreta, con opciones del negocio, sí lo es");
+  /* LA PREGUNTA DEVUELTA EN INDICATIVO (prompt de gerente, 2026-09-13 · borrador del modelo, verbatim): le entrega al dueño lo
+   * que el dato no tiene, sin «¿?». Exigir el signo tumbaba una reparación buena. La forma esquiva sigue ardiendo. */
+  ok(j("Mi hipótesis es que hay estacionalidad. Lo que no puedo saber con el dato: si ese volumen a margen bajo en Falabella y Jumbo es una apuesta deliberada tuya —rotación, liquidez, entrada estratégica— o si simplemente se fue de las manos en la negociación.").length === 0,
+    "★★ «lo que no puedo saber con el dato: si … es una apuesta tuya o se fue de las manos en la negociación» CUENTA como pregunta al dueño (concreta, en indicativo)");
+  ok(j("Mi hipótesis es que hay estacionalidad. Queda abierto si el volumen en Falabella y Jumbo es una apuesta deliberada de rotación o una fuga que se dejó crecer; esa respuesta la tiene el negocio, no el dato.").length === 0,
+    "★★ «queda abierto si…; esa respuesta la tiene el negocio» también");
+  ok(j("Mi hipótesis es que hay estacionalidad. Eso lo sabes tú.").includes("porque-sin-pregunta"),
+    "…pero «eso lo sabes tú» a secas, sin nombrar QUÉ tendría que decir, sigue ardiendo: no es concreta");
 
   /* la oración CONDICIONAL propone, no afirma */
   ok(j("Yo priorizaría donde el margen acompañaría mejor. Mi hipótesis es que la carga pesa. ¿Negociaste algo distinto?").length === 0,

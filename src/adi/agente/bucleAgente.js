@@ -933,9 +933,39 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     /* el canal de lo ya aprobado se enciende SOLO acá: en cualquier otro sitio la llamada es la de siempre */
     const v = _guard(t, sitio === "respaldo" ? _boletaAprobadaPrevia : sitio === "reformular-piso" ? _boletaDelHilo : null);
     if (!v || !v.ok) {
-      vetosDelTurno.push(`${sitio} · ${String(_multaDe(v)).split("\n")[0].slice(0, 180)}`);
+      /* ── LA MULTA COMPLETA (prompt de gerente, 2026-09-13) ──────────────────────────────────────────────────
+       * Medido con los dos borradores capturados: el muro tumbó el cierre y la multa llevó SOLO lo del muro; el
+       * modelo reparó todo lo que se le nombró (markups exactos con dueño, el subtotal, el criterio marcado) y
+       * cayó en la reparación por lo que el contrato había visto desde el principio y nadie le dijo («no es un
+       * problema de precio ni de mix» sin sello). Con una sola reparación por turno, la multa tiene que decirle
+       * TODO de una vez: cuando el muro tumba al cerebro, se corren también los otros jueces y sus reglas van
+       * en la misma multa. Solo en los sitios del cerebro (cierre · reparación): a los peldaños no se les cobra
+       * lo que ellos arreglan. El veredicto del muro no cambia —sus violaciones siguen primero y son las que
+       * leen la poda y la escalada—; lo del contrato viaja aparte, en `multaCompleta`, para el mensaje al
+       * modelo, y en el expediente entre paréntesis. */
+      if ((sitio === "cierre" || sitio === "reparacion") && v) {
+        const vc = (() => { try { return _otrosJueces(t, sitio); } catch { return []; } })();
+        if (vc.length) {
+          v.multaCompleta = `${_multaDe(v)}\n${vc.map((x) => x.multa).join("\n")}`;
+          v.reglasContrato = vc.map((x) => x.regla);
+        }
+      }
+      vetosDelTurno.push(`${sitio} · ${String(_multaDe(v)).split("\n")[0].slice(0, 180)}${v && v.reglasContrato && v.reglasContrato.length ? ` (+ ${v.reglasContrato.join(", ")})` : ""}`);
       return v;
     }
+    const vc = _otrosJueces(t, sitio);
+    if (!vc.length) return v;
+    /* TODAS las reglas que ardieron quedan en el expediente, no solo la primera (Etapa 3, 2026-09-11): al sumar
+     * el veto de voz de motor, el borrador certificado del caso 2 ardía por ÉL primero y la resta de la notarial
+     * (30,1 − 25,1 ≠ 8,6) dejaba de verse en el rastro aunque también había ardido. «Nunca evaluar una respuesta
+     * sin saber qué mecanismo la produjo» vale también para saber TODO lo que la rechazó. El formato de siempre
+     * se conserva —sitio · regla: multa— y las demás reglas van entre paréntesis al final. */
+    const _otras = vc.slice(1).map((x) => x.regla);
+    vetosDelTurno.push(`${sitio} · ${vc[0].regla}: ${vc[0].multa.split("\n")[0].slice(0, 160)}${_otras.length ? ` (+ ${_otras.join(", ")})` : ""}`);
+    return { ok: false, violations: vc.map((x) => ({ rule: x.regla, detalle: x.multa })), multa: vc.map((x) => x.multa).join("\n") };
+  };
+  /* los jueces que se SUMAN al muro, en una sola lista (los mismos de siempre; ver las notas de cada uno abajo) */
+  function _otrosJueces(t, sitio) {
     /* AL MURO SE LE SUMAN TRES JUECES, y ninguno lo toca: el contrato F3 (el cierre que ordena), el juez del
      * turno que no leyó (`cifra-sin-boleta`, ver su archivo) y —solo cuando un playbook está activo— SU lista
      * notarial, que chequea las promesas de ESE procedimiento. La lista es del playbook, no del bucle: el
@@ -984,16 +1014,8 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       ...vRef,
       ...vRef2,
       ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales, pregunta: q, ctx: ctxTurno }) : [])];
-    if (!vc.length) return v;
-    /* TODAS las reglas que ardieron quedan en el expediente, no solo la primera (Etapa 3, 2026-09-11): al sumar
-     * el veto de voz de motor, el borrador certificado del caso 2 ardía por ÉL primero y la resta de la notarial
-     * (30,1 − 25,1 ≠ 8,6) dejaba de verse en el rastro aunque también había ardido. «Nunca evaluar una respuesta
-     * sin saber qué mecanismo la produjo» vale también para saber TODO lo que la rechazó. El formato de siempre
-     * se conserva —sitio · regla: multa— y las demás reglas van entre paréntesis al final. */
-    const _otras = vc.slice(1).map((x) => x.regla);
-    vetosDelTurno.push(`${sitio} · ${vc[0].regla}: ${vc[0].multa.split("\n")[0].slice(0, 160)}${_otras.length ? ` (+ ${_otras.join(", ")})` : ""}`);
-    return { ok: false, violations: vc.map((x) => ({ rule: x.regla, detalle: x.multa })), multa: vc.map((x) => x.multa).join("\n") };
-  };
+    return vc;
+  }
 
   let estado = "vacio";
   let aprobado = false;
@@ -1009,14 +1031,16 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
        * una segunda derivación que leía `x.detalle || x.reason` — campos que las violations de guardC NO
        * tienen (usa `detail`): cuando el veredicto no traía `.multa`, al modelo le llegaba «[object Object]»
        * y el reintento reformulaba a ciegas. Cazado al escribir el chequeo de P1b (corrida 2). */
-      const multa = _multaDe(v1);
+      /* la multa COMPLETA al modelo (muro + contrato + notarial, ver `juzgar`): una sola reparación, con todo lo que
+       * ardió. La escalada y la poda siguen leyendo la del muro, que es la que nombra cifras. */
+      const multa = (v1 && v1.multaCompleta) || _multaDe(v1);
       /* (ii) DE P2 (owner 2026-08-31, con medición previa): R-eco corta la escalada estéril —la de la corrida
        * 2, 66% del gasto y CERO verdes—, pero le quitaba la escalada a un veto que SÍ era reparable: T10 murió
        * porque el tier barato devolvió el mismo texto ante «1%». La condición vuelve a la regla que R-eco
        * escribió («escalar solo cuando el veto sea reparable por modelo mejor, no por plomería»): si la multa
        * NOMBRA una cifra concreta, corregir es reescribir una oración, y eso lo hace un modelo mejor. Medido
        * sobre la corrida 4: son 2 escaladas nuevas en 28 turnos (T10 y T18), no una puerta abierta. */
-      const vetoConCifra = _cifrasDeMulta(multa).length > 0;
+      const vetoConCifra = _cifrasDeMulta(_multaDe(v1)).length > 0;
       const hiloReparacion = [...mensajes, { role: "assistant", content: esNarracionVacia(lavado) ? "(respuesta vacía)" : lavado }, { role: "user", content: _MENSAJE_NOTARIO(multa) }];
       let res2 = await _llamarCerebro({
         mensajes: [...hiloReparacion],
