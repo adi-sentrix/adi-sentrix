@@ -283,6 +283,12 @@ H("[B5] MÉTRICAS COMPARABLES · una comparación ejecutiva solo vale entre mét
   ok(!tiene(runU("Las 5 cuentas materiales bajo el benchmark dejan $4.9M sin capturar (de 8 que están bajo él)."), "alcance-promovido"), "…«las 5 cuentas materiales … (de 8)» pasa: es la definición");
   ok(!tiene(runU("Ocho de trece clientes están bajo el benchmark. Hay $4.9M de contribución no capturada en las cinco cuentas que más pesan."), "alcance-promovido"), "…y el conteo en OTRA oración no lo cuelga");
   ok(tiene(runU("$4.9M de contribución no capturada si la cartera entera cerrara al benchmark."), "alcance-promovido"), "…«la cartera entera» sigue ardiendo como antes");
+  /* la corrida 3 (fixture b): tres falsos positivos sobre una reparación que obedeció al procedimiento */
+  const l3 = "3. Concentrado en 5 de 8 clientes bajo benchmark (Falabella, Lider, Jumbo, Sodimac, Ripley), que representan $4.9M de contribución no capturada en el año.";
+  ok(!tiene(runU(l3), "alcance-promovido"), "★ «Concentrado en 5 de 8 clientes … que representan $4.9M» PASA: el «5 de» quedaba fuera de la ventana y el 8 se leía como otro conteo", det(runU(l3)));
+  const s3 = "Sodimac tiene el markup más alto del grupo que cae (40.6%), pero comparado con el markup de los sanos — que no está en la boleta —, no puedo decir si es mejor o peor; lo que sí veo es que Falabella, Lider, Jumbo y Sodimac muestran ese markup más ajustado que el resto de la cartera que sí supera el benchmark.";
+  ok(!tiene(runU(s3), "relacion-contradictoria"), "★ «…que el resto de la cartera que sí supera el benchmark» PASA: el sujeto del «supera» es el resto, no Lider", det(runU(s3)));
+  ok(tiene(runU("Lider supera el benchmark de 30.1%."), "relacion-contradictoria"), "…y «Lider supera el benchmark» sigue ardiendo");
 }
 
 H("[C] ENTIDAD MAL ATRIBUIDA · promovida de AVISO a BLOQUEO");

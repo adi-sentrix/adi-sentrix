@@ -968,8 +968,14 @@ export const margenEnRiesgo = {
     // el «%» sin `\b` detrás (ver la nota de _CIFRA_EN_MULTA en bucleAgente): con `\b` esta regla no veía
     // NINGÚN porcentaje, y en este playbook casi toda cifra que ancla una causa es un margen.
     const CIFRA = /\$\s?[\d.,]+\s?[KMB]?|[\d.,]+\s*%|[\d.,]+\s*(?:pp|x)\b/;
+    /* EL PORQUÉ DE UN CRITERIO NO ES UNA CAUSA DEL NEGOCIO (corrida 3 del prompt de gerente, 2026-09-13): «elegí
+     * Falabella porque concentra más dinero en pesos, no porque el dato lo ordene así» explica la elección del asesor
+     * —marcada como criterio— y esta regla la cobraba como causalidad sin respaldo. La regla cobra el «porque» que
+     * explica el RESULTADO; el «porque» de una elección declarada en primera persona queda fuera. */
+    const _PORQUE_DE_CRITERIO = /(?<![\wáéíóúñ])(?:eleg[ií]|elijo|prefiero|prioriz[oé]|entrar[ií]a|partir[ií]a|empezar[ií]a|arrancar[ií]a|lo pongo primero|criterio m[ií]o|lectura m[ií]a|no porque el dato)(?![\wáéíóúñ])/i;   // lookarounds de la casa, nunca `` junto a una vocal acentuada
     for (const oracion of t.split(/[.!?\n]+/)) {
       if (!new RegExp(`\\bporque\\b|\\bse debe a\\b|\\bla causa (?:es|está)${_FIN}|\\bes consecuencia de\\b|\\bexplica por qu[eé]${_FIN}`, "i").test(oracion)) continue;
+      if (_PORQUE_DE_CRITERIO.test(oracion)) continue;
       if (!MECANISMOS.test(oracion) && !CIFRA.test(oracion)) {
         v.push({ regla: "causa-sin-respaldo",
           multa: "afirmas una causa que el dato no declara: este playbook LOCALIZA (dónde está el exceso y cuánto es); para el porqué hace falta evidencia que este dato no trae. Reformula como localización o di que la causa no está medida." });

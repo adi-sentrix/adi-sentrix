@@ -281,6 +281,10 @@ H("7 · margen-en-riesgo · la prioridad («¿qué harías primero?») es del pr
   ok(/subtotal de las 5 cuentas materiales bajo el benchmark \(de 8/.test(doc), "★ …y la definición única del subtotal: «las 5 cuentas materiales bajo el benchmark (de 8)»", doc.split("\n").filter((l) => /subtotal/.test(l)).join(" | ").slice(0, 200));
   ok(/métricas equivalentes/.test(doc) && /no «cae» ni «sube»/.test(doc) && /contribución, no capital/.test(doc), "…y las reglas de comparación y de lenguaje");
   ok(!/CONCLUSIONES DEL PROCEDIMIENTO/.test(doctrinaDelPlaybook(PBM, QG, {})), "…sin boleta, la doctrina es la de siempre (byte-idéntica: sin bloque de conclusiones)");
+  /* el «porque» de una elección declarada como criterio no es una causa del negocio (corrida 3, 2026-09-13) */
+  ok(!reglasG(`Ambos son válidos; elegí ${top} porque concentra más dinero en pesos, no porque el dato lo ordene así.`).includes("causa-sin-respaldo"),
+    "★ «elegí Falabella porque concentra más dinero…, no porque el dato lo ordene» NO es causa sin respaldo: es el criterio, declarado");
+  ok(reglasG("El margen cae porque los vendedores no siguen la política.").includes("causa-sin-respaldo"), "…y una causa del negocio sin mecanismo ni cifra sigue ardiendo");
 }
 
 console.log(`\n══ ${pass} PASS · ${fail} FAIL ══`);

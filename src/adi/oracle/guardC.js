@@ -2792,7 +2792,12 @@ function _contradiceLaReferencia(narration, ledger) {
     if (_DICE_CUMPLE.test(o) && !/\bno\s+(?:cumple|se mantiene|est[aá]\s+en l[ií]nea)\b/i.test(o)) {
       out.push(`el ledger dice que ${r.margen.label} (${r.margen.value}) está BAJO ${r.bench.label} (${r.bench.value}) por ${Math.abs(r.delta).toFixed(1)} puntos, y la respuesta afirma que cumple o se mantiene en la referencia`);
     }
-    if (_DICE_SOBRE.test(o) && !_NO_ES_EL_MARGEN.test(o)) {
+    const ms = _DICE_SOBRE.exec(o);
+    if (ms && !_NO_ES_EL_MARGEN.test(o)) {
+      // el SUJETO del «supera» tiene que ser la cuenta juzgada: «…Lider … muestran ese markup más ajustado que el resto de
+      // la cartera que sí supera el benchmark» habla del resto, no de Lider (corrida 3 del prompt de gerente, 2026-09-13)
+      const antesVerbo = o.slice(Math.max(0, ms.index - 45), ms.index);
+      if (/(?<![\wáéíóúñ])(?:que|quienes|resto(?:\s+de\s+la\s+cartera)?|sanos|dem[aá]s|otr[oa]s|cuales)\s+(?:s[ií]\s+)?$/i.test(antesVerbo)) continue;
       out.push(`el ledger dice que ${r.margen.label} está BAJO la referencia y la respuesta afirma que la supera`);
     }
   }
@@ -2843,8 +2848,11 @@ function _alcancePromovido(narration, ledger) {
       const _PAL = { uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15 };
       // «5 de 8 cuentas» es la DEFINICIÓN (n de m), no otro conteo: el m que sigue a «N de» no cuelga nada
       const reCuenta = /(?<!\d\s+de\s+)\b(?:l[oa]s\s+|es[oa]s\s+|est[oa]s\s+)?(\d{1,2}|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince)\s+(?:cuentas?|clientes?)\b/gi;
+      // el «N de» que define el universo puede quedar justo ANTES del borde de la ventana («…en 5 | de 8 clientes»): el
+      // contexto del conteo se lee del texto entero, no de la ventana recortada (corrida 3 del prompt de gerente)
+      const _ctxCuenta = (i) => text.slice(Math.max(0, lo + i - 12), lo + i);
       let mc, dicho = null;
-      while ((mc = reCuenta.exec(ventana))) { const k = _PAL[mc[1].toLowerCase()] ?? Number(mc[1]); if (Number.isFinite(k) && k !== n && !/\d\s+de\s*$/.test(ventana.slice(0, mc.index))) { dicho = mc[0]; break; } }
+      while ((mc = reCuenta.exec(ventana))) { const k = _PAL[mc[1].toLowerCase()] ?? Number(mc[1]); if (Number.isFinite(k) && k !== n && !/\d\s+de\s*$/.test(_ctxCuenta(mc.index))) { dicho = mc[0]; break; } }
       if (dicho && ([..._metricasEn(ventana)].some((m) => metricas.has(m)) || /\bsubtotal\b/i.test(ventana))) {
         out.push(`«${nf.text}» es el subtotal de ${n} cuentas («${subs[0].f.label}») y se narra como el de «${dicho}»: la cifra tiene una sola definición — cítala con su universo: "${ventana.trim().slice(0, 110)}"`);
         continue;

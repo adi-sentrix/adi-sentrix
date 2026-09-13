@@ -202,6 +202,31 @@ H("3c · ★★★ los borradores del modelo por el bucle: la multa completa, y 
   ok(/Para directorio/.test(String(r2.r.text)) && /Falabella \(39\.1%\)/.test(String(r2.r.text)) && /esto es criterio mío/.test(String(r2.r.text)), "…con las 5 líneas para directorio, los markups exactos con dueño y el criterio marcado");
 }
 
+/* ═══ 3d · LA CORRIDA 3: EL MODELO OBEDECE LAS CONCLUSIONES DEL PROCEDIMIENTO Y SU REPARACIÓN SE SIRVE ═══════════
+ * (owner 2026-09-13 · fixtures/gerente-borradores-2026-09-13b) Con la doctrina de conclusiones (prioridad oficial,
+ * definición del subtotal, métricas comparables, lenguaje), el cierre cayó por lo REAL —nombró a Paris entre las 5
+ * materiales (es Ripley), comparó markup con margen, priorizó sin criterio, negó «volumen» sin sello— y la reparación
+ * corrigió TODO: Falabella primero con Lider como alternativa, «5 de 8 clientes … $4.9M», «el markup de los sanos no
+ * está en la boleta», criterio marcado, 5 líneas numeradas. Cayó por tres falsos positivos, calibrados con este
+ * fixture: el «N de» del universo partido por el borde de la ventana, el «supera el benchmark» cuyo sujeto es «el
+ * resto de la cartera», y el «porque» de una elección declarada como criterio. */
+H("3d · ★★★ la corrida 3: lo real arde en el cierre, la reparación que obedece al procedimiento SE SIRVE");
+{
+  const FX = JSON.parse(readFileSync(new URL("./fixtures/gerente-borradores-2026-09-13b.json", import.meta.url), "utf8"));
+  const [b1, b2] = FX.borradores.map((b) => b.texto);
+  const cerebroDe = (textos) => { let i = 0; return async () => { const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
+  const r = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2]) });
+  const a = r.r.agente || {}, vetos = a.vetos || [];
+  ok(vetos.length >= 1 && /^cierre · /.test(vetos[0]) && /Paris/.test(vetos[0]), `el cierre cae por lo real: Paris entre las 5 materiales (es Ripley) — ${String(vetos[0]).slice(0, 90)}…`, vetos.join(" | ").slice(0, 300));
+  ok(/mecanismo-sin-sello/.test(vetos[0]) && /porque-sin-pregunta/.test(vetos[0]), "…y la multa completa lleva el contrato (volumen negado sin sello · sin pregunta al dueño)", vetos[0]);
+  ok(a.estado === "reparado", `★★★ la reparación SE SIRVE (${a.estado}): ${palabras(r.r.text)} palabras del modelo en pantalla`, vetos.join(" | ").slice(0, 400));
+  const t = String(r.r.text);
+  ok(/Falabella: mayor contribución no capturada \(\$1\.6M\)/.test(t) && /Alternativa si prefieres priorizar por brecha porcentual: Lider/.test(t), "…con la prioridad oficial (Falabella) y Lider como alternativa secundaria");
+  ok(/5 de 8 clientes bajo benchmark \(Falabella, Lider, Jumbo, Sodimac, Ripley\), que representan \$4\.9M/.test(t), "…con el subtotal en su definición («5 de 8 clientes … $4.9M») sin veto de alcance");
+  ok(/el markup de los sanos — que no está en la boleta/.test(t), "…y sin comparar markup con margen");
+  ok(/Para el directorio — 5 líneas/.test(t) && (t.match(/^\d\. /gm) || []).length === 5, "…y las 5 líneas para el directorio, numeradas");
+}
+
 /* ═══ 4 · EL PARAGUAS, SOLO PARA EL ENCARGO COMPUESTO SOBRE EL NEGOCIO ENTERO ═════════════════════════════ */
 H("4 · el paraguas de la foto no captura preguntas simples ni ambiguas");
 {
