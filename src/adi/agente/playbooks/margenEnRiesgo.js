@@ -24,6 +24,7 @@ import { buildRolesCartera } from "../../sentrix/rolesCartera.js";   // el porqu
 import { etiquetaDeLaCarga } from "../../../config/businessPolicy.js";
 import { reDeReferencia } from "../../oracle/entityRecord.js";   // el rótulo de la referencia se busca por el MISMO label que se publica   // DE QUIÉN es el nivel de carga: jamás «tu target declarado» si el cliente no lo declaró
 import { idDeCargaActiva } from "../../../ingesta/estadoCarga.js";   // DIARIO ETAPA 2: la tesis se compara contra la carga con la que se lee — una sola función, jamás dos derivaciones
+import { resolveCanonical } from "../../oracle/entityIndex.js";   // la identidad canónica del cliente: una entidad se cuenta UNA vez aunque dos herramientas la citen (owner 2026-09-13)
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 /* ⚠️ EL MOTOR SOLO PONE `raw` EN LAS FILAS DESTACADAS (medido: de los 13 clientes con margen, 5 traen `raw` y
@@ -51,6 +52,23 @@ const _entidadDe = (label) => {
   return p.length >= 2 ? p[0] : null;
 };
 
+/* ── UNA ENTIDAD, UNA FILA (owner 2026-09-13) ─────────────────────────────────────────────────────────────────
+ * El encargo compuesto lee con la boleta UNIDA de varias herramientas, y dos de ellas pueden citar la misma
+ * cuenta: el resumen ejecutivo trae el margen de las tres grandes y marginRead el de las trece. Medido con el
+ * prompt de gerente y el cerebro caído: `bajo` traía 11 filas para 8 clientes (Lider, Falabella y Jumbo dos
+ * veces) y el notario multó al ensamblador completo con «nombras 8 de los 11 clientes bajo el benchmark» —
+ * un recorte que no existía. Palabra del owner: «la unión de herramientas puede repetir una misma entidad y
+ * eso no debe alterar el universo contra el cual se valida un recorte». Se cuenta por la identidad canónica
+ * del cliente que ya existe (`resolveCanonical`, el índice de entidades del tenant) — jamás por parecido de
+ * texto; un nombre fuera del índice vale tal cual. Gana la PRIMERA aparición, que es la del procedimiento
+ * (sus pasos van antes en la unión). Rige para las tres listas por entidad: márgenes (y `bajo`), contribución
+ * no capturada y carga comercial alta. */
+const _claveCliente = (nombre) => { try { return resolveCanonical("cliente", nombre) || String(nombre || "").trim(); } catch { return String(nombre || "").trim(); } };
+const _unaPorEntidad = (lista) => {
+  const vistas = new Set();
+  return lista.filter((x) => { const k = _claveCliente(x.entidad); if (vistas.has(k)) return false; vistas.add(k); return true; });
+};
+
 /** lo que el playbook lee de la boleta, una sola vez y para todos sus usos (composer y lista notarial). */
 export function lecturaDeMargen(figs) {
   const bench = _find(figs, /^Benchmark de margen$/i);
@@ -60,16 +78,16 @@ export function lecturaDeMargen(figs) {
   const totalJuego = _find(figs, /^Contribuci[oó]n no capturada · subtotal$/i);
   const cargaTotal = _find(figs, /^Carga comercial alta · subtotal$/i);
 
-  const margenes = _all(figs, /· Margen$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), pct: _pct(f), fmt: _val(f) }))
-    .filter((x) => x.entidad && Number.isFinite(x.pct));
+  const margenes = _unaPorEntidad(_all(figs, /· Margen$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), pct: _pct(f), fmt: _val(f) }))
+    .filter((x) => x.entidad && Number.isFinite(x.pct)));
   const ventas = new Map(_all(figs, /· Venta$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
-  const juego = _all(figs, /· Contribuci[oó]n no capturada$/i)
+  const juego = _unaPorEntidad(_all(figs, /· Contribuci[oó]n no capturada$/i)
     .map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
-    .filter((x) => x.entidad && Number.isFinite(x.usd))
+    .filter((x) => x.entidad && Number.isFinite(x.usd)))
     .sort((a, b) => b.usd - a.usd);
-  const carga = _all(figs, /· Carga comercial alta$/i)
+  const carga = _unaPorEntidad(_all(figs, /· Carga comercial alta$/i)
     .map((f) => ({ entidad: _entidadDe(_lab(f)), fmt: _val(f), usd: _num(f) }))
-    .filter((x) => x.entidad && Number.isFinite(x.usd))
+    .filter((x) => x.entidad && Number.isFinite(x.usd)))
     .sort((a, b) => b.usd - a.usd);
 
   const benchPct = bench ? _pct(bench) : NaN;

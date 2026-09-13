@@ -124,6 +124,46 @@ for (const [k, q] of Object.entries(BATERIA)) {
   ok(!(R.natural.a.vetos || []).some((v) => /encargo-compuesto/.test(String(v))), "natural · el ensamblado pasó el muro a la primera");
 }
 
+/* ═══ 3b · EL PROMPT DE GERENTE: BOLETA UNIDA CON CLIENTES REPETIDOS (owner 2026-09-13) ═══════════════════
+ * Lo que destapó C, reproducido exacto: con el cerebro caído (401 del gateway local → respaldo-piso), este encargo
+ * compuesto cae en margen-en-riesgo (va antes que la foto en el registro y el prompt dice «ventas y margen»), lee
+ * con la boleta UNIDA de cuatro herramientas, y el resumen ejecutivo repite el margen de las tres grandes. El
+ * ensamblador compuso la lectura completa y el notario del procedimiento la multó con «nombras 8 de los 11
+ * clientes bajo el benchmark»: contaba apariciones, no clientes. `lecturaDeMargen` cuenta ahora por la identidad
+ * canónica del cliente (resolveCanonical), y el universo del recorte vuelve a ser el real: 8. */
+H("3b · ★★ el prompt de gerente con el cerebro mudo: boleta unida, clientes repetidos, y el notario aprueba los 8 únicos");
+{
+  const { lecturaDeMargen } = await import("./src/adi/agente/playbooks/margenEnRiesgo.js");
+  const { esEncargoCompuesto } = await import("./src/adi/agente/contratoAgente.js");
+  const q = "Mira el negocio completo como si fueras mi asesor. Quiero saber si realmente estamos mejorando o si solo estamos vendiendo más. Dime qué está pasando con ventas y margen, qué está explicando el resultado, qué clientes están ayudando y cuáles están dañando, si el problema parece venir de precio, costo, mix o acciones comerciales, cuánto dinero está en juego, qué puedes demostrar con los datos y qué todavía no puedes saber. Si tuvieras que revisar una sola cosa primero, ¿cuál sería y por qué? Al final déjamelo en 5 líneas para directorio";
+  const partes = partesDelEncargo(q);
+  ok(esEncargoCompuesto(q) && partes.length >= 2, `encargo compuesto (${partes.map((p) => p.clave).join(" → ")})`);
+  const pb = playbookPara(q, {});
+  ok(pb && pb.nombre === "margen-en-riesgo", `el procedimiento es margen-en-riesgo (${pb && pb.nombre})`);
+  const pasos = pasosDelEncargo(partes, pasosDe(pb, q, {}), {});
+  const figs = leer(pasos);
+  ok(pasos.some((p) => p.tool === "marginRead") && pasos.some((p) => p.tool === "executiveSummary"), `boleta unida: ${pasos.map((p) => p.tool).join(" + ")} (${figs.length} figs)`);
+  const margenesCrudos = figs.filter((f) => /· Margen$/i.test(String(f.label)));
+  const rep = ["Lider", "Falabella", "Jumbo"].filter((e) => margenesCrudos.filter((f) => String(f.label).startsWith(e + " ·")).length >= 2);
+  ok(rep.length === 3, `★ la unión repite el margen de las tres grandes (${margenesCrudos.length} filas «· Margen» para 13 clientes: ${rep.join(", ")} dos veces)`);
+  const L = lecturaDeMargen(figs);
+  ok(L.bajo.length === 8 && new Set(L.bajo.map((b) => b.entidad)).size === 8 && String(L.conteo && (L.conteo.value || L.conteo.text)) === "8",
+    `★★ lecturaDeMargen cuenta clientes únicos: bajo el benchmark = 8 de 8 (${L.bajo.map((b) => b.entidad).join(", ")}), igual al conteo del motor`);
+  ok(new Set(L.margenes.map((m) => m.entidad)).size === L.margenes.length && new Set(L.juego.map((j) => j.entidad)).size === L.juego.length && new Set(L.carga.map((c) => c.entidad)).size === L.carga.length,
+    `…y márgenes, contribución no capturada y carga alta tampoco repiten entidad (${L.margenes.length} · ${L.juego.length} · ${L.carga.length})`);
+  const r = await answerViaAgente({ text: q, history: [], mem: {}, scenario: ESC, callAgente: MUDO });
+  const t = String(r.r.text || ""), a = r.r.agente || {};
+  ok(a.estado === "encargo-compuesto", `★★ responde el ensamblador completo (${a.estado}, ${a.calls} herramientas, ${palabras(t)} palabras)`, (a.vetos || []).join(" | ").slice(0, 240));
+  ok(!(a.vetos || []).some((v) => /lista-sin-corte/.test(String(v))), "★ el notario NO multa «8 de los 11»: aprueba los 8/8 únicos bajo el benchmark", (a.vetos || []).join(" | ").slice(0, 240));
+  ok(/Lo primero, y cambia la decisi[oó]n/.test(t) && /- Falabella · deja/.test(t) && /esto está medido:/.test(t) && /queda abierto:/.test(t) && /\$4\.9M/.test(t) && /entrar[ií]a por Falabella/i.test(t) && /Para el directorio, en corto:/.test(t),
+    "la lectura trae porqué, quiénes, demostrado/abierto, cuánto en juego, por dónde entrar y las líneas para el directorio");
+  /* la lectura nombra a algunos de los 8 (los que pesan) y declara el universo real — «de los 8», el conteo del motor;
+   * con las apariciones repetidas, esos mismos nombrados contaban 8 «de los 11» y el recorte declarado no coincidía */
+  const dichos = ["Falabella", "Lider", "Jumbo", "Sodimac", "Ripley", "Paris", "Tottus", "Mercado Libre"].filter((e) => t.includes(e)).length;
+  ok(dichos >= 2 && dichos <= 8 && /De los 8 que están bajo el benchmark/.test(t) && !/de los 11/.test(t), `nombra ${dichos} de los 8 bajo el benchmark y declara el universo real («De los 8 que están bajo el benchmark»)`);
+  ok(!(a.vetos || []).length, `el expediente del turno queda sin vetos (${(a.vetos || []).length})`, (a.vetos || []).join(" | ").slice(0, 240));
+}
+
 /* ═══ 4 · EL PARAGUAS, SOLO PARA EL ENCARGO COMPUESTO SOBRE EL NEGOCIO ENTERO ═════════════════════════════ */
 H("4 · el paraguas de la foto no captura preguntas simples ni ambiguas");
 {
