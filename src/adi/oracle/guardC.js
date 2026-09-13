@@ -423,10 +423,14 @@ function _naturalezaCambiada(narration, ledger) {
       const clave = `${v}@${idx}`;
       if (vistos.has(clave)) break;
       vistos.add(clave);
-      if (palanca && _COMO_PERDIDA.test(ventana)) {
+      /* LA NEGACIÓN ES LA CONDUCTA CORRECTA (corrida 4 del prompt de gerente): «brecha estimada, NO dinero perdido NI caja»,
+       * «(estimado, no pérdida realizada)» dicen exactamente lo que la ley pide. Una frase de pérdida o de caja precedida por
+       * «no / ni / nunca / tampoco / sin ser / no es / no como» no afirma: descarta. */
+      const _negada = (re) => { let mm; const g = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g"); let algunaAfirmada = false; while ((mm = g.exec(ventana))) { const antes = ventana.slice(Math.max(0, mm.index - 28), mm.index); if (!/(?<![\wáéíóúñ])(?:no|ni|nunca|tampoco|jam[aá]s|sin ser|sin)\s+(?:es\s+|son\s+|como\s+|una?\s+|el\s+|la\s+|dinero\s+)*$/i.test(antes)) { algunaAfirmada = true; break; } } return !algunaAfirmada; };
+      if (palanca && _COMO_PERDIDA.test(ventana) && !_negada(_COMO_PERDIDA)) {
         out.push({ kind: "brecha-narrada-como-perdida", detail: `«${v}» (${f.label}) es una brecha ESTIMADA contra el benchmark —lo que sumarías si esas cuentas llegaran al benchmark—, no dinero que ya se perdió: dilo como brecha estimada o contribución no capturada, nunca como pérdida realizada: "${ventana.trim().replace(/\s+/g, " ").slice(0, 120)}"` });
       }
-      if (noEsCaja && _COMO_CAJA.test(ventana)) {
+      if (noEsCaja && _COMO_CAJA.test(ventana) && !_negada(_COMO_CAJA)) {
         out.push({ kind: "cifra-narrada-como-caja", detail: `«${v}» (${f.label}) no es caja ni efectivo: es lo que su rótulo dice (${String(f.label).split("·").pop().trim()}), y este turno no midió ningún flujo de caja. Conserva la naturaleza económica de la cifra: "${ventana.trim().replace(/\s+/g, " ").slice(0, 120)}"` });
       }
     }
@@ -533,9 +537,11 @@ function _metricBindingViolations(narration, ledger) {
      * margen», «el margen es $X», «margen: $X», «margen de contribución llega a $X». Con 25 caracteres alcanza
      * para todas; más allá, la métrica vive en otra parte de la frase. Sigue rigiendo el principio de la casa:
      * antes un falso negativo que bloquear una respuesta correcta. */
-    const _dist = (() => {   // solo sobre las menciones que atribuyen (la de después de una cláusula nueva no cuenta)
+    const _dist = (() => {   // solo sobre las menciones que atribuyen Y están libres (una tomada por otra cifra no acerca nada)
+      const libres = _mencionesLibres({ text, masked, lo, hi, unica, idxJuzgada: idx, finJuzgada: end, owners });
+      const atribuyen = (_atribuyen.get(unica) || []).filter(([a]) => libres.some(([la]) => la === a));
       let best = Infinity;
-      for (const [a, b] of (_atribuyen.get(unica) || [])) best = Math.min(best, b <= idx ? idx - b : a >= end ? a - end : 0);
+      for (const [a, b] of atribuyen) best = Math.min(best, b <= idx ? idx - b : a >= end ? a - end : 0);
       return best;
     })();
     if (_dist > 25) continue;
@@ -591,9 +597,15 @@ const _CONECTOR_ATRAS = /^[\s,]*(?:de(?:l)?|de\s+(?:la|tu|su)|en)?\s*$/i;
  * acciones comerciales» del composer de alternativas, que es descripción legítima. */
 const _ABRE_OTRA_AFIRMACION = /;|(?<![\wáéíóúñ])(?:pero|y|e|aunque|mientras|sin embargo|en cambio|adem[aá]s|tambi[eé]n|ni|o|u|con|contra|frente a|versus|vs\.?|salvo|excepto)(?![\wáéíóúñ])/i;
 const _tramoDescriptivo = (tramo, tramoMasked) => !tramoMasked.includes("#") && !_SENT_END.test(tramoMasked) && !_ABRE_OTRA_AFIRMACION.test(tramo);
-function _todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners }) {
+function _todasLasMencionesTomadas(args) { return _mencionesLibres(args).length === 0; }
+/* las menciones de `unica` en la ventana que NO están tomadas por otra cifra — la distancia a la cifra juzgada se mide solo
+ * sobre ellas (corrida 4 del prompt de gerente, 2026-09-13): «el negocio creció: la venta subió 7.5% contra el año anterior
+ * ($99.9M)» tenía «creció» libre a 50 caracteres y «contra el año anterior» tomada por el 7.5% a 2 — la libre daba el
+ * veredicto y la tomada la distancia, y el $99.9M salía «narrado como variación». Una mención tomada no acerca nada. */
+function _mencionesLibres({ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners }) {
+  const libres = [];
   const vocab = _METRIC_VOCAB.find((m) => m.clave === unica);
-  if (!vocab) return false;
+  if (!vocab) return [[lo, lo]];   // sin vocabulario no hay cómo saber: se juzga como antes (una «libre» vacía)
   const re = new RegExp(vocab.re.source, vocab.re.flags.includes("g") ? vocab.re.flags : vocab.re.flags + "g");
   const ventana = text.slice(lo, hi);
   const tramos = _tramosDeCifra(masked, lo, hi);
@@ -609,7 +621,7 @@ function _todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada, fi
      * queda libre para juzgarla a ella. Calibrado en vivo (2026-09-12): «28.2%» se la llevaba hacia adelante y el
      * margen de los grandes salía «narrado como participación» por el «49% de la contribución» de al lado. */
     const propiaAtras = finJuzgada <= mIni && (mIni - finJuzgada) <= 15 && _CONECTOR_ATRAS.test(text.slice(finJuzgada, mIni));
-    if (propiaAtras) return false;
+    if (propiaAtras) { libres.push([mIni, mFin]); continue; }
     for (const [gIni, gFin] of tramos) {
       if (gIni === idxJuzgada && gFin >= finJuzgada) continue;   // la propia cifra juzgada no toma menciones
       const haciaAtras = gFin <= mIni && (mIni - gFin) <= 15 && _CONECTOR_ATRAS.test(text.slice(gFin, mIni));
@@ -642,9 +654,9 @@ function _todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada, fi
       const conteoAdelante = /^\s*(?:de|del|en|:)?\s*\d/.test(despues) && !/^\s*(?:de|del|en|:)?\s*#/.test(despuesM);
       if (conteoAtras || conteoAdelante) tomada = true;
     }
-    if (!tomada) return false;   // una mención libre alcanza para juzgar, como siempre
+    if (!tomada) libres.push([mIni, mFin]);   // una mención libre alcanza para juzgar, como siempre
   }
-  return true;
+  return libres;
 }
 
 // ── PERÍODO CONTRADICTORIO · CONTRATO v2 · FASE 2 ──────────────────────────────────────────────────────────────
@@ -858,7 +870,11 @@ function _brechaMalAdjudicada(narration, claims) {
     while ((idx = _indexDeCifra(text, c.valor, idx + 1)) >= 0) {
       const [lo, hi] = _localWindow(masked, idx, 140);
       const v = text.slice(lo, hi);
-      if (!_PALANCA_N.test(v) || !_VERBO_CIERRE.test(v) || _ATENUANTE.test(v)) continue;
+      /* EL NOMBRE DE LA FIG NO ES UN VERBO DE CIERRE (corrida 4 del prompt de gerente, 2026-09-13): «La medida para cerrar la
+       * brecha al piso … es $4.9M» lee el rótulo «Medida · cerrar brecha al piso» tal cual; el «cerrar» ahí es el nombre de la
+       * cifra, no la afirmación de que una palanca la cierra. Se descuenta esa frase antes de buscar el verbo. */
+      const vSinRotulo = v.replace(/\bmedida\s+(?:para|de)\s+cerrar\s+(?:la\s+)?brecha\b|\bcerrar\s+(?:la\s+)?brecha\s+al\s+(?:piso|benchmark)\b/gi, " ");
+      if (!_PALANCA_N.test(v) || !_VERBO_CIERRE.test(vSinRotulo) || _ATENUANTE.test(v)) continue;
       out.push(`"${c.valor}" (${c.etiqueta}) se narra como cerrable con una palanca, pero ${at.leyenda}: "${v.trim().slice(0, 120)}"`);
       break;
     }
@@ -4514,7 +4530,11 @@ export function guardC(narration, { ledger, results = [], trace = null, question
        * contra el inventario ENTERO, y un extremo verdadero dentro de su grupo moría contra un tercero que la
        * oración jamás nombró. El universo se declara con «DEL inventario» («el peor del inventario»). */
       const _TODO_EL_CONJUNTO = /\bde\s+(?:toda\s+)?la\s+cartera\b|\bde\s+tod[oa]s?\b|\bdel\s+negocio\b|\bde\s+(?:toda\s+)?la\s+lista\b|\bdel\s+inventario\b|\bde\s+todo\s+el\s+inventario\b|\bde\s+los\s+\d{1,3}\s+SKU\b/i;
-      const _reEnt = (n) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "iu");
+      /* SIN TILDES, PORQUE EL MODELO LAS PONE (corrida 4 del prompt de gerente, 2026-09-13): «Líder tiene … el margen más bajo de
+       * toda la cartera (21,5%)» es VERDAD, pero «Líder» no casaba con «Lider» y el reclamante caía en la Falabella de la oración
+       * anterior → «Falabella es más bajo y no lo es». Cada vocal del nombre admite su versión acentuada. */
+      const _tolerante = (n) => String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/[aá]/gi, "[aá]").replace(/[eé]/gi, "[eé]").replace(/[ií]/gi, "[ií]").replace(/[oó]/gi, "[oó]").replace(/[uú]/gi, "[uú]");
+      const _reEnt = (n) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${_tolerante(n)}(?:[^\\p{L}\\p{N}]|$)`, "iu");
       const _oraciones = String(narration).split(/(?<=[.!?])\s+|\n+/);
       let _vetadoSup = false;
       for (const [oi, oracion] of _oraciones.entries()) {
@@ -4528,6 +4548,9 @@ export function guardC(narration, { ledger, results = [], trace = null, question
            * o tres devuelve siempre que no — un rojo garantizado sobre texto correcto. */
           if (/(?:es|as|os)$/i.test(mm[0].trim()) && /(?:mayores|menores|peores|mejores|principales|alt[ao]s|baj[ao]s|grandes|cr[íi]tic[ao]s|m[áa]xim[ao]s|m[íi]nim[ao]s)$/i.test(mm[0].trim())) continue;
           const iM = oracion.indexOf(mm[0]);
+          /* EL SUPERLATIVO NEGADO NO RECLAMA NADA (prompt de gerente, corrida 4 · 2026-09-13): «Falabella: $1.6M — la mayor
+           * de la cartera, aunque NO el margen más bajo (ese es Líder)» dice justo lo contrario de lo que esta regla cobra */
+          if (/(?<![\wáéíóúñ])(?:no|ni|tampoco|sin ser|aunque no|pero no)\s+(?:[\wáéíóúñ]+\s+){0,3}$/i.test(oracion.slice(Math.max(0, iM - 30), iM))) continue;
           // el eje: el que tenga en su ranking DECLARADO a las entidades que la oración nombra
           for (const eje of Object.keys(_rank)) {
             /* LA MÉTRICA TIENE QUE ESTAR PEGADA AL MARCADOR, no «cerca»: «peor margen», «mayor venta», «carga

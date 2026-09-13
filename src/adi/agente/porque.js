@@ -160,7 +160,7 @@ const _FUENTE = /seg[uú]n\s+(?:tu|lo que|el dato|la fuente|me)|que\s+(?:t[uú]\
 /* ── (c) EL PORQUÉ CIERRA PREGUNTANDO — «CUANDO FALTA CONTEXTO» (la condición textual del owner) ─────────────
  * Falta contexto se define MECÁNICAMENTE, y por eso esta regla no es un capricho: hay una lectura causal que
  * cerrar (hipótesis, mecanismo afirmado o límite declarado), y el dueño NO nos dio ya ese contexto. */
-const _CONCRETA = /\b(?:campañ|promoci|stock|quiebre|cliente|precio|negoci|acuerdo|convenio|descuento|calendario|temporada|mes bajo|proveedor|mezcla|mix|inventario|licitaci|contrato|competidor|cobro|pago|plazo|surtido|local|sucursal|vendedor|equipo|comprar|compró|compran|vend)/i;
+const _CONCRETA = /\b(?:campañ|promoci|stock|quiebre|cliente|precio|negoci|acuerdo|convenio|descuento|calendario|temporada|mes bajo|proveedor|mezcla|mix|inventario|licitaci|contrato|competidor|cobro|pago|plazo|surtido|local|sucursal|vendedor|equipo|comprar|compró|compran|vend|apuesta|rotaci|liquidez|deliberad|pol[ií]tica comercial|caso a caso|se (?:te |les )?fue de las manos|control de daños)/i;   // + la pregunta de la casa por la intención (rotación/liquidez vs se fue de las manos), 2026-09-13
 /* el cortador de preguntas respeta el decimal: «103.1%» no parte la oración (trampa documentada de la casa). */
 const _PREGUNTAS = /(?:[^.!?\n]|(?<=\d)\.(?=\d))*\?/g;
 /* la pregunta devuelta al dueño en indicativo: declara el límite y nombra lo que solo él sabe (ver el chequeo (c)) */

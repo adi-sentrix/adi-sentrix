@@ -303,7 +303,10 @@ H("[B6] NATURALEZA · la brecha estimada no es pérdida realizada; lo que no es 
   const { ESCENARIO_INICIAL } = await import("./src/config/scenarios.js");
   const rp = runPlan({ intent: "answer", calls: ["marginRead", "diagnose", "rolesCartera", "executiveSummary"].map((tool) => ({ tool, args: {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 8, preguntaUsuario: "cómo va el negocio", registry: cajaDelAgente(TOOLS) });
   const figs = (rp.ledger || {}).figs || [];
-  const runN = (n) => guardC(n, { ledger: { figs }, results: rp.results, question: "cómo va el negocio", contentScope: "full" });
+  const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
+  const { axisEntityNames } = await import("./src/adi/oracle/entityIndex.js");
+  const _ejesN = (l) => { const o = []; for (const e of l) { try { for (const n of axisEntityNames(e)) o.push(n); } catch { /* sin índice */ } } return o; };
+  const runN = (n) => guardC(n, { ledger: { figs }, results: rp.results, question: "cómo va el negocio", contentScope: "full", datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), entidadesDelTenant: _ejesN(["cliente", "sku", "marca"]), duenosDelTenant: _ejesN(["cliente", "sku", "marca", "familia", "bodega", "canal"]) });
   const det = (r) => (r.violations || []).map((v) => `[${v.kind}] ${String(v.detail).slice(0, 90)}`).join(" ‖ ");
   const p1 = runN("Entre ellas concentran $4.9M de contribución no capturada en el año cerrado. Ese es el dinero en juego — no es teórico, es lo que ya se dejó de capturar.");
   ok(tiene(p1, "brecha-narrada-como-perdida"), "★★ «$4.9M … no es teórico, es lo que ya se dejó de capturar» → BLOQUEA: la palanca es una estimación contra el benchmark (la glosa está en la oración siguiente y también cuenta)", det(p1));
@@ -315,6 +318,14 @@ H("[B6] NATURALEZA · la brecha estimada no es pérdida realizada; lo que no es 
   ok(!tiene(runN("El subtotal de esa carga excedida en el grupo completo es $655K — contribución cedida en acciones comerciales por sobre el nivel de referencia."), "cifra-narrada-como-caja"), "…con su naturaleza correcta pasa");
   ok(tiene(runN("Falabella vende $19.4M: es la caja que entra por esa cuenta."), "cifra-narrada-como-caja"), "…y la venta narrada como caja también arde: la ley es de toda cifra que no es caja");
   ok(!tiene(runN("¿Ese volumen de Falabella ($19.4M) es una apuesta tuya de rotación y liquidez?"), "cifra-narrada-como-caja"), "…«rotación y liquidez» (lenguaje de negocio) no es caja: pasa");
+  /* LA NEGACIÓN ES LA CONDUCTA CORRECTA (corrida 4 del prompt de gerente): el modelo dijo justo lo que la ley pide */
+  const neg = runN("La medida para cerrar la brecha al piso de benchmark en las 5 cuentas materiales bajo el benchmark (de las 8 totales) es $4.9M de contribución no capturada — brecha estimada contra el benchmark, no dinero perdido ni caja.");
+  ok(!tiene(neg, "brecha-narrada-como-perdida") && !tiene(neg, "cifra-narrada-como-caja") && !tiene(neg, "causa-sobredimensionada"), "★★ «… es $4.9M …, no dinero perdido ni caja» PASA: la negación no afirma, y «la medida para cerrar la brecha» es el nombre de la cifra, no una palanca", det(neg));
+  ok(!tiene(runN("La medida para cerrar la brecha al benchmark en las cuentas materiales es $4.9M (estimado, no pérdida realizada); $655K de eso es contribución ya cedida en carga comercial excedida."), "brecha-narrada-como-perdida"), "…«(estimado, no pérdida realizada)» pasa");
+  ok(!tiene(runN("Falabella solo: $1.6M de contribución no capturada — la mayor de la cartera, aunque no el margen más bajo (ese es Líder, con 21.5% contra 22% de Falabella)."), "superlativo-no-sostenido"), "★ «aunque NO el margen más bajo (ese es Líder)» PASA: un superlativo negado no reclama nada");
+  ok(!tiene(runN("Como alternativa, Líder tiene la brecha más grande (8.6 pp) y el margen más bajo de toda la cartera (21.5%) — mismo mecanismo, cifra distinta."), "superlativo-no-sostenido"), "★ «Líder tiene el margen más bajo de toda la cartera» PASA: es verdad, y «Líder» con tilde es Lider");
+  ok(tiene(runN("Falabella tiene el margen más bajo de toda la cartera (22%)."), "superlativo-no-sostenido"), "…y el superlativo FALSO sigue ardiendo (el extremo es Lider)");
+  ok(!tiene(runN("El negocio creció: la venta subió 7.5% contra el año anterior ($99.9M), pero el margen promedio de la cartera quedó en 25.1%."), "metrica-mal-atribuida"), "★ «la venta subió 7.5% contra el año anterior ($99.9M)» PASA: la mención tomada por el 7.5% no acerca «variación» al $99.9M");
 }
 
 H("[C] ENTIDAD MAL ATRIBUIDA · promovida de AVISO a BLOQUEO");

@@ -218,7 +218,7 @@ H("3d · ★★★ la corrida 3: lo real arde en el cierre, la reparación que o
   const r = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2]) });
   const a = r.r.agente || {}, vetos = a.vetos || [];
   ok(vetos.length >= 1 && /^cierre · /.test(vetos[0]) && /Paris/.test(vetos[0]), `el cierre cae por lo real: Paris entre las 5 materiales (es Ripley) — ${String(vetos[0]).slice(0, 90)}…`, vetos.join(" | ").slice(0, 300));
-  ok(/mecanismo-sin-sello/.test(vetos[0]) && /porque-sin-pregunta/.test(vetos[0]), "…y la multa completa lleva el contrato (volumen negado sin sello · sin pregunta al dueño)", vetos[0]);
+  ok(/mecanismo-sin-sello/.test(vetos[0]), "…y la multa completa lleva el contrato (volumen negado sin sello)", vetos[0]);   // «porque-sin-pregunta» ya no: la pregunta de la casa por la intención cuenta como concreta (2026-09-13)
   /* ── LAS CUATRO GARANTÍAS TRANSVERSALES (owner 2026-09-13, sobre esta misma reparación) ──────────────────────────
    * La reparación obedeció al procedimiento y aun así conservaba: «crecimiento con calidad deteriorada» / «se diluye la
    * calidad» (evolución temporal sin evidencia temporal), «no es teórico, es lo que ya se dejó de capturar» (brecha
@@ -252,6 +252,27 @@ H("3d · ★★★ la corrida 3: lo real arde en el cierre, la reparación que o
   ok(/5 de 8 clientes bajo benchmark \(Falabella, Lider, Jumbo, Sodimac, Ripley\), que representan \$4\.9M/.test(t), "…con el subtotal en su definición («5 de 8 clientes … $4.9M») sin veto de alcance");
   ok(/41\.4% contra 57\.3%/.test(t), "…y la comparación de markup con sus dos lados, de la boleta");
   ok(/Para el directorio — 5 líneas/.test(t) && (t.match(/^\d\. /gm) || []).length === 5, "…y las 5 líneas para el directorio, numeradas");
+}
+
+/* ═══ 3e · LA CORRIDA 4: LA REPARACIÓN QUE CUMPLE LAS CUATRO GARANTÍAS AL PIE DE LA LETRA SE SIRVE ═══════════════
+ * (owner 2026-09-13 · fixtures/gerente-borradores-2026-09-13c) Tras las cuatro garantías, el modelo obedeció con
+ * NEGACIONES —«brecha estimada, no dinero perdido ni caja», «(estimado, no pérdida realizada)», «aunque no el margen más
+ * bajo (ese es Líder)»— y con el rótulo de la fig («la medida para cerrar la brecha … es $4.9M»). Cinco reglas lo cobraron
+ * como si afirmara lo que negaba; calibradas con este fixture. El cierre sigue cayendo por lo real («no una apuesta
+ * deliberada» dictamina; «no es un problema de mix» niega sin sello). */
+H("3e · ★★★ la corrida 4: las negaciones y el rótulo no son afirmaciones — la reparación que cumple las cuatro garantías SE SIRVE");
+{
+  const FX = JSON.parse(readFileSync(new URL("./fixtures/gerente-borradores-2026-09-13c.json", import.meta.url), "utf8"));
+  const [b1, b2] = FX.borradores.map((b) => b.texto);
+  const cerebroDe = (textos) => { let i = 0; return async () => { const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
+  const r = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2]) });
+  const a = r.r.agente || {}, vetos = a.vetos || [], t = String(r.r.text);
+  ok(vetos.length >= 1 && /^cierre · /.test(vetos[0]) && /intencion-inferida|mecanismo-sin-sello/.test(vetos[0]), `el cierre cae por lo real (dictamen de intención · mecanismo negado sin sello): ${String(vetos[0]).slice(0, 80)}…`, vetos.join(" | ").slice(0, 300));
+  ok(a.estado === "reparado", `★★★ la reparación SE SIRVE (${a.estado}): ${palabras(t)} palabras del modelo en pantalla`, vetos.join(" | ").slice(0, 400));
+  ok(/brecha estimada contra el benchmark, no dinero perdido ni caja/.test(t) && /\(estimado, no pérdida realizada\)/.test(t), "…con las negaciones de la casa intactas («no dinero perdido ni caja», «estimado, no pérdida realizada»)");
+  ok(/aunque no el margen más bajo \(ese es Líder/.test(t) && /Líder tiene el margen más bajo de toda la cartera \(21\.5%/.test(t), "…«aunque no el margen más bajo (ese es Líder)» y «Líder tiene el margen más bajo» (verdad, con tilde) sin veto de superlativo");
+  ok(/markup promedio 41\.4% en los que caen contra 57\.3% en los sanos/.test(t), "…con la comparación de markup con sus dos lados");
+  ok(/¿fue apuesta de rotación o se fue de las manos\?/.test(t), "…y la pregunta de la casa al dueño cuenta como pregunta concreta");
 }
 
 /* ═══ 4 · EL PARAGUAS, SOLO PARA EL ENCARGO COMPUESTO SOBRE EL NEGOCIO ENTERO ═════════════════════════════ */

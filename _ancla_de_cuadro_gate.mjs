@@ -836,8 +836,8 @@ H("10 · carnadas · cada garantía, probada ROJA sobre una copia mutada del có
      * y el tope de 25 caracteres entre la métrica y la cifra. Quitar una sola ya NO revive el falso positivo —
      * eso es el sistema siendo más robusto, no una carnada rota. Se quitan las dos, y ahí la redacción del
      * asesor vuelve a morir, que es lo que esta carnada existe para demostrar. */
-    [[/function _todasLasMencionesTomadas\(\{ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners \}\) \{/,
-      "function _todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners }) { return false;   // CARNADA"],
+    [[/    if \(!tomada\) libres\.push\(\[mIni, mFin\]\);/,
+      "    libres.push([mIni, mFin]);   // CARNADA: toda mención queda libre — la «tomada» apagada (re-anclada tras _mencionesLibres, 2026-09-13)"],
      [/if \(_dist > 25\) continue;/, "if (false) continue;   // CARNADA"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);

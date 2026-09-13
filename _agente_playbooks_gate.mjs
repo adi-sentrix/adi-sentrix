@@ -1622,8 +1622,8 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   // cargan peso, la carnada ahora quita AMBAS: ventana rota + calibración apagada → el falso positivo revive.
   await carnada("el muro vuelve a leer «3.5%» adentro de «23.5%» (indexOf desnudo + mención tomada apagada)", "src/adi/oracle/guardC.js",
     [[/    const idx = _indiceConFrontera\(text, f\.text\);/, "    const idx = text.indexOf(f.text);   // CARNADA"],
-     [/function _todasLasMencionesTomadas\(\{ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners \}\) \{/,
-      "function _todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners }) { return false;   // CARNADA"]],
+     [/    if \(!tomada\) libres\.push\(\[mIni, mFin\]\);/,
+      "    libres.push([mIni, mFin]);   // CARNADA: toda mención queda libre — la «tomada» apagada (re-anclada tras _mencionesLibres, 2026-09-13)"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
       let par = null;

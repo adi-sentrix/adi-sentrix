@@ -179,6 +179,8 @@ H("3 · los tres vetos — el corpus legítimo pasa, el texto de producción ard
     "★★ «lo que no puedo saber con el dato: si … es una apuesta tuya o se fue de las manos en la negociación» CUENTA como pregunta al dueño (concreta, en indicativo)");
   ok(j("Mi hipótesis es que hay estacionalidad. Queda abierto si el volumen en Falabella y Jumbo es una apuesta deliberada de rotación o una fuga que se dejó crecer; esa respuesta la tiene el negocio, no el dato.").length === 0,
     "★★ «queda abierto si…; esa respuesta la tiene el negocio» también");
+  ok(j("Lo que el dato no puede decirme es si el volumen de Falabella y Jumbo a ese margen fue una apuesta tuya de rotación y liquidez, o si se fue de las manos. ¿Fue apuesta de rotación o se fue de las manos?").length === 0,
+    "★ la pregunta de la casa por la intención («¿fue apuesta de rotación o se fue de las manos?») ES concreta (corrida 4 del prompt de gerente)");
   ok(j("Mi hipótesis es que hay estacionalidad. Eso lo sabes tú.").includes("porque-sin-pregunta"),
     "…pero «eso lo sabes tú» a secas, sin nombrar QUÉ tendría que decir, sigue ardiendo: no es concreta");
 
