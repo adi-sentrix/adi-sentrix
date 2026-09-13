@@ -120,6 +120,18 @@ el cruce contra la carpeta real. Antes de pantalla:
      declarado + precio y costo, y X + Y explica exactamente el universo declarado, sin doble conteo. Las ventas
      contra el año anterior siguen siendo temporales: el benchmark es la referencia de la brecha, no de toda
      comparación. La pantalla y el agente leen la misma descomposición.
+   **Universos consistentes** (ley del owner, 2026-09-13, sobre la corrida en vivo del contrato): *una cifra solo
+   puede presentarse como parte de otra si realmente pertenece a su universo.*
+   - Si la brecha de las 5 cuentas materiales es $4,9M, cualquier «de eso» / «de los cuales» usa únicamente cifras
+     contenidas en esas mismas 5 cuentas: la carga que vive ahí es $588K, no $655K (que es la carga sobre el nivel
+     en las 6 cuentas que lo exceden, una de ellas sobre el benchmark) = «de eso, $655K», bloqueado.
+   - El usuario entiende qué representa cada subtotal: cada uno viaja con su universo en el rótulo («· 6 cuentas
+     sobre el nivel declarado (5 de ellas bajo el benchmark)») y se presenta aparte, nunca mezclado.
+   - Si la partición está medida, se usa: «de los $4,9M, $588K corresponden al efecto de la carga excedida y el resto,
+     $4,4M, al componente precio y costo» — y con esas dos cifras sí se dice cuál pesa más. Precio y costo es un
+     componente CONJUNTO: separar cuánto es precio y cuánto costo cuando el dato no lo separa = bloqueado.
+   Vive en `vetosDeRegistro` (`subtotal-de-otro-universo`, `precio-y-costo-no-se-separan`, y la jerarquía medida en
+   dinero) para cualquier relación entre subtotales, no solo esta.
 2. **¿Cada cálculo se puede recalcular?** La fórmula mostrada se recomputa. No cuadra o no muestra origen →
    bloqueado.
 3. **¿Cada clasificación existe?** «Frenado», «bajo benchmark», «crítico»: solo los estados que la carpeta

@@ -92,6 +92,12 @@ Derivadas que se rompen seguido:
   y reformular. Y **la brecha se parte contra el BENCHMARK, una sola vez** (`descomposicionDeBrecha` en specRetrieval):
   contribución no capturada = carga comercial alta + brecha por precio y costo, exacto en el universo declarado —
   diagnose la publica al agente (como gancho) y la pestaña Comercial la pinta desde la misma función.
+- **Universos consistentes** (owner 2026-09-13, ley en `_CONSTITUCION_ADI.md`): una cifra solo es parte de otra si
+  pertenece a su universo — «de eso / de los cuales / $Y de los $X» entre subtotales exige el mismo universo declarado
+  en el rótulo (`subtotal-de-otro-universo`); cada subtotal lleva su universo («Carga comercial alta · subtotal · 6
+  cuentas sobre el nivel declarado (5 de ellas bajo el benchmark)»); la partición medida se usa («de los $4,9M, $588K
+  carga y $4,4M precio y costo») y con ella «pesa más» en dinero cuenta como medido; «precio y costo» no se separa
+  (`precio-y-costo-no-se-separan`).
 
 ---
 
