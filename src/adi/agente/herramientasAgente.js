@@ -382,6 +382,15 @@ export function rolesCartera(_args = {}, ctx = {}) {
     if (f.carga !== null) boleta.push(fig(`${f.entidad} · Carga comercial`, `${f.carga}%`, { unit: "pct", raw: f.carga, mandatory: false, context: `${_ctx} · el target declarado es ${A.target}%` }));
     if (f.markup !== null) boleta.push(fig(`${f.entidad} · Markup sobre costo`, `${f.markup}%`, { unit: "pct", raw: f.markup, mandatory: false, source: "computed", formula: "(precio de lista − costo medio) ÷ costo medio × 100", context: `${_ctx} · el precio contra lo que cuesta` }));
   }
+  /* EL OTRO LADO DE LA COMPARACIÓN DE MARKUP (owner 2026-09-13): la huella «precio de lista pegado al costo» compara los
+   * que caen con los sanos y la boleta solo publicaba un lado — el cerebro inventó el otro («35-38%») o lo comparó con
+   * el margen. Los sanos publican SU markup y los dos promedios salen con su dueño: la afirmación queda con cifras. */
+  const _hMk = A.huellas.find((h) => h.mecanismo === "precio de lista pegado al costo");
+  if (_hMk && _hMk.markupCaen !== null && _hMk.markupSanos !== null) {
+    for (const f of (_hMk.sanos || [])) boleta.push(fig(`${f.entidad} · Markup sobre costo`, `${f.markup}%`, { unit: "pct", raw: f.markup, mandatory: false, source: "computed", formula: "(precio de lista − costo medio) ÷ costo medio × 100", context: `${_ctx} · cliente sano: el precio contra lo que cuesta` }));
+    boleta.push(fig("Markup promedio · los que caen", `${_hMk.markupCaen}%`, { unit: "pct", raw: _hMk.markupCaen, mandatory: false, source: "computed", formula: "promedio simple del markup de los clientes bajo el benchmark", context: `${_ctx} · el lado de los que caen en la huella del precio` }));
+    boleta.push(fig("Markup promedio · sanos", `${_hMk.markupSanos}%`, { unit: "pct", raw: _hMk.markupSanos, mandatory: false, source: "computed", formula: "promedio simple del markup de los clientes sobre el benchmark", context: `${_ctx} · el lado de los sanos en la huella del precio` }));
+  }
   return {
     facts: {
       vara: A.vara, target: A.target,

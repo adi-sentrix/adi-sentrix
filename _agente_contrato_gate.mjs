@@ -789,6 +789,24 @@ H("7 · el mecanismo afirmado sin su sello arde, y la cuenta derivada que no cie
   ok(!r("$67K de capital recuperable si ese SKU vuelve a rotar; hoy está inmovilizado en Valparaíso.").includes("lexico-capital-por-contribucion"),
     "…y «capital recuperable» sobre inventario sigue pasando: ahí capital es la palabra correcta");
   ok(!r("De ese subtotal, $655K son contribución recuperable con renegociación de la carga comercial.").includes("lexico-capital-por-contribucion"), "…«contribución recuperable» pasa");
+  /* ── GARANTÍA TRANSVERSAL 1 (owner 2026-09-13): evolución temporal solo con evidencia temporal — cualquier métrica ── */
+  ok(r("La venta creció 7.5% ($99.9M) pero el margen quedó 5.0 puntos bajo el benchmark (25.1% vs 30.1%): crecimiento con calidad deteriorada.", { figs: conVenta }).includes("deterioro-no-medido"),
+    "★★ «crecimiento con calidad deteriorada» ARDE: estar bajo el benchmark no prueba deterioro temporal");
+  ok(r("Eso es crecer volumen mientras se diluye la calidad de esa venta.", { figs: conVenta }).includes("deterioro-no-medido"), "★ «se diluye la calidad de esa venta» también");
+  ok(!r("La venta creció 7.5% y el margen está en 25.1%, 5.0 puntos bajo el benchmark de 30.1%: el crecimiento no llega al margen.", { figs: conVenta }).includes("deterioro-no-medido"), "…«el crecimiento no llega al margen» pasa: es nivel, no evolución");
+  ok(!r("Seis clientes están en erosión por acciones comerciales.", { figs: conVenta }).includes("deterioro-no-medido") && !r("Seis clientes están en erosión por acciones comerciales.", { figs: conVenta }).includes("variacion-no-medida"), "…«erosión por acciones comerciales» es el nombre de un papel: pasa");
+  ok(r("La rotación cae en Valparaíso y la carga comercial sube en las grandes.", { figs: conVenta }).includes("variacion-no-medida"), "★ «la rotación cae» / «la carga sube» sin su variación en la boleta arde: la ley es de cualquier métrica");
+  ok(!r("Lo que no puedo separar con esto es si tu lista quedó baja o si el costo subió: son dos caras de la misma fila.", { figs: conVenta }).includes("variacion-no-medida"), "…«si el costo subió» (hipótesis, no afirmación) pasa");
+  ok(!r("¿Bajó el precio de lista en Falabella este año?", { figs: conVenta }).includes("variacion-no-medida"), "…la pregunta pasa");
+  ok(!r("El margen se deteriora mes a mes: de 28% en enero a 21.1% en diciembre.", { figs: [{ label: "Margen máximo (Ene)", text: "28%", raw: 28 }, { label: "Margen mínimo (Dic)", text: "21.1%", raw: 21.1 }] }).includes("deterioro-no-medido"),
+    "…y con la serie del margen en la boleta, «se deteriora» es legítimo: la ley pide evidencia temporal, no prohíbe el tiempo");
+  /* ── GARANTÍA TRANSVERSAL 4: comparaciones solo entre métricas equivalentes Y disponibles, con sus dos lados ── */
+  const conMk = [{ label: "Falabella · Markup sobre costo", text: "39.1%", raw: 39.1, context: "el precio contra lo que cuesta" }, { label: "Easy · Markup sobre costo", text: "60%", raw: 60, context: "cliente sano: el precio contra lo que cuesta" }, { label: "Markup promedio · los que caen", text: "41.4%", raw: 41.4 }, { label: "Markup promedio · sanos", text: "57.3%", raw: 57.3 }];
+  ok(r("El markup de estos mismos clientes está más pegado al costo que el de los clientes sanos.", { figs: conMk }).includes("markup-sin-el-otro-lado"), "★★ la comparación de markup con los sanos SIN cifras arde aunque el markup de los sanos esté en la boleta: los dos lados van en la oración");
+  ok(!r("El markup promedio de los que caen es 41.4% contra 57.3% de los sanos — huella indicada, no probada.", { figs: conMk }).includes("markup-sin-el-otro-lado"), "…con los dos lados citados pasa");
+  ok(r("El markup de estos clientes está más pegado al costo que el de los sanos.", { figs: [{ label: "Falabella · Markup sobre costo", text: "39.1%", raw: 39.1 }] }).includes("markup-sin-el-otro-lado"), "★ …y sin el markup de los sanos en la boleta, la comparación se prohíbe (no está disponible)");
+  ok(r("Los grandes ceden más carga que el resto de la cartera.", { figs: conVenta }).includes("comparacion-sin-cifras"), "★ «los grandes ceden más carga que el resto» sin una cifra en la oración arde: comparación sin dato");
+  ok(!r("Falabella paga 4.5% de carga contra 3.5% del resto.", { figs: conVenta }).includes("comparacion-sin-cifras"), "…con cifras pasa");
   ok(/huellas: _huellasDelTurno, figs: figsTotales/.test(bucle) && /vetosDeRegistro\(c, \{ pregunta: q, huellas: _huellasDelTurno\(\), figs:/.test(oraculo) && /vetosDeRegistro\(n, \{ pregunta: q, huellas: _huellasDelTurno\(\), figs:/.test(oraculo),
     "…y los dos caminos le pasan al juez las huellas y la boleta del turno (una regla, dos caminos)");
 }

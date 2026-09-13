@@ -115,9 +115,13 @@ export function buildRolesCartera(scenario) {
   });
   const conMarkup = filas.filter((f) => f.brecha > 0 && f.markup !== null);
   const sanosMk = filas.filter((f) => f.rol === "sano" && f.markup !== null);
-  const mkBajo = conMarkup.length && sanosMk.length
-    ? _r1(conMarkup.reduce((a, f) => a + f.markup, 0) / conMarkup.length) < _r1(sanosMk.reduce((a, f) => a + f.markup, 0) / sanosMk.length)
-    : false;
+  /* LOS DOS LADOS DE LA COMPARACIÓN VIAJAN CON LA HUELLA (owner 2026-09-13): «si el markup de los sanos no está disponible,
+   * ADI no puede afirmar que los que caen tienen el markup más pegado al costo que los sanos». La comparación siempre
+   * se calculó acá con las trece filas; lo que faltaba era PUBLICARLA: los dos promedios salen en la huella (y a la
+   * boleta, en rolesCartera), y el porqué los cita — una afirmación con sus dos cifras, no una sin ninguna. */
+  const mkCaen = conMarkup.length ? _r1(conMarkup.reduce((a, f) => a + f.markup, 0) / conMarkup.length) : null;
+  const mkSanos = sanosMk.length ? _r1(sanosMk.reduce((a, f) => a + f.markup, 0) / sanosMk.length) : null;
+  const mkBajo = mkCaen !== null && mkSanos !== null ? mkCaen < mkSanos : false;
   huellas.push({
     mecanismo: "precio de lista pegado al costo",
     huella: "markup (precio de lista sobre costo medio) más bajo en los que caen que en los sanos",
@@ -126,9 +130,10 @@ export function buildRolesCartera(scenario) {
     porque: conMarkup.length === 0
       ? "tu dato no trae precio de lista y costo medio por cliente: sin eso el precio no se puede separar del costo"
       : (mkBajo
-        ? "los que caen tienen el precio más pegado al costo que los sanos"
+        ? `los que caen tienen el precio más pegado al costo que los sanos (markup promedio ${mkCaen}% contra ${mkSanos}%)`
         : "el markup de los que caen no es menor que el de los sanos: por acá el patrón no aparece"),
     items: conMarkup.slice(0, 4),
+    markupCaen: mkCaen, markupSanos: mkSanos, sanos: sanosMk,
   });
   huellas.push({
     mecanismo: "mix de lo que cada cliente compra",

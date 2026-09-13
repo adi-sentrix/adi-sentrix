@@ -279,7 +279,19 @@ H("7 · margen-en-riesgo · la prioridad («¿qué harías primero?») es del pr
   ok(/CONCLUSIONES DEL PROCEDIMIENTO/.test(doc) && new RegExp(`Prioridad oficial: ${esc(top)}`).test(doc) && /alternativa secundaria/.test(doc),
     `★★ la doctrina declara la prioridad oficial (${top}) y que otro criterio va como alternativa secundaria`);
   ok(/subtotal de las 5 cuentas materiales bajo el benchmark \(de 8/.test(doc), "★ …y la definición única del subtotal: «las 5 cuentas materiales bajo el benchmark (de 8)»", doc.split("\n").filter((l) => /subtotal/.test(l)).join(" | ").slice(0, 200));
-  ok(/métricas equivalentes/.test(doc) && /no «cae» ni «sube»/.test(doc) && /contribución, no capital/.test(doc), "…y las reglas de comparación y de lenguaje");
+  ok(/métricas equivalentes/.test(doc) && /el margen no «cae», no «se deteriora»/.test(doc) && /contribución, no capital/.test(doc), "…y las reglas de comparación y de lenguaje");
+  /* las cuatro garantías transversales del owner (2026-09-13), dichas al cerebro antes de escribir */
+  ok(/brecha ESTIMADA contra el benchmark/.test(doc) && /nunca «ya se dejó de capturar»/.test(doc), "★ …$4.9M es brecha ESTIMADA contra el benchmark, nunca pérdida realizada");
+  ok(/contribución cedida en acciones comerciales por sobre el nivel de referencia: no es caja/.test(doc), "★ …$655K conserva su naturaleza: contribución cedida, no caja");
+  ok(/El markup de los sanos NO está en esta boleta/.test(doc) && /no afirmes que los que caen tienen el precio más pegado al costo que los sanos/.test(doc), "★ …sin rolesCartera en los pasos, la doctrina PROHÍBE la comparación de markup con los sanos (no está disponible)");
+  /* con la boleta UNIDA del encargo compuesto (rolesCartera adentro) el markup de los sanos SÍ está, y la comparación se cita con los dos lados */
+  const { partesDelEncargo, pasosDelEncargo } = await import("./src/adi/agente/encargoCompuesto.js");
+  const { pasosDe } = await import("./src/adi/agente/playbooks/registro.js");
+  const figsU = figsDe(pasosDelEncargo(partesDelEncargo(QG), pasosDe(PBM, QG, {}), {}), QG);
+  const docU = doctrinaDelPlaybook(PBM, QG, {}, figsU);
+  ok(figsU.some((f) => /^Markup promedio · sanos$/.test(String(f.label))) && /El markup de los sanos SÍ está en la boleta/.test(docU) && /cita los dos lados en la misma oración/.test(docU) && /huella INDICADA, no probada/.test(docU),
+    "★ …con rolesCartera en la boleta unida, el markup de los sanos está disponible y la comparación se cita con los dos lados, como huella indicada", docU.split("\n").filter((l) => /Comparaciones/.test(l)).join(" ").slice(0, 200));
+  ok(/No hay comparación histórica del margen/.test(doc), "★ …y sin comparación histórica no hay «deterioro» ni «se diluye»");
   ok(!/CONCLUSIONES DEL PROCEDIMIENTO/.test(doctrinaDelPlaybook(PBM, QG, {})), "…sin boleta, la doctrina es la de siempre (byte-idéntica: sin bloque de conclusiones)");
   /* el «porque» de una elección declarada como criterio no es una causa del negocio (corrida 3, 2026-09-13) */
   ok(!reglasG(`Ambos son válidos; elegí ${top} porque concentra más dinero en pesos, no porque el dato lo ordene así.`).includes("causa-sin-respaldo"),

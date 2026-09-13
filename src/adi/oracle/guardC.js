@@ -340,10 +340,11 @@ function _metricOwners(ledger) {
 /* La posición de una cifra EN SU PROPIA APARICIÓN: la primera que no viene pegada a otro número. Sin esto,
  * «3.5%» se encuentra dentro de «23.5%» y la ventana local queda en la oración de al lado. Si la cifra solo
  * aparece como parte de otra, devuelve -1 y el caller no la juzga: sin posición confiable, no hay veredicto. */
-function _indiceConFrontera(text, cifra) {
+function _indiceConFrontera(text, cifra, desde = 0) {   // `desde`: buscar la SIGUIENTE mención (2026-09-13)
   const s = String(cifra || "");
   if (!s) return -1;
-  const re = new RegExp(`(?<![\\d.,])${s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+  const re = new RegExp(`(?<![\\d.,])${s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "g");
+  re.lastIndex = Math.max(0, desde | 0);
   const m = re.exec(String(text || ""));
   return m ? m.index : -1;
 }
@@ -382,6 +383,53 @@ function _comparacionCruzada(narration, ledger) {
     if (!A || !B) continue;                                    // sin dueño de métrica no hay qué comparar
     if ([...A].some((x) => B.has(x))) continue;                // comparten métrica: comparación válida
     out.push(`comparas «${antes.text}» (${[...A].join("/")}) con «${despues.text}» (${[...B].join("/")}): son métricas distintas y una comparación ejecutiva solo vale entre métricas equivalentes — compara ${[...A][0]} con ${[...A][0]}, o presenta cada cifra por separado: "${o.trim().slice(0, 120)}"`);
+  }
+  return out;
+}
+
+/* ── LA NATURALEZA ECONÓMICA DE LA CIFRA SE CONSERVA (owner 2026-09-13, requisitos 2 y 3) ────────────────────
+ * «Los $4,9M deben presentarse siempre como brecha estimada contra benchmark, no como dinero que efectivamente ya se
+ * dejó de capturar» · «Los $655K no son caja que se está yendo». Ninguna cifra estaba mal; la GLOSA la cambiaba de
+ * naturaleza. Dos familias, por el tipo de la fig:
+ *   · la PALANCA (verificabilidad «derivada_no_reconciliada»: contribución no capturada, cerrar brecha, recuperable) es
+ *     una estimación contra una vara — no se narra como pérdida realizada («ya se dejó de capturar», «no es teórico»,
+ *     «dinero perdido»);
+ *   · la contribución cedida en acciones comerciales y la contribución no capturada no son caja ni flujo («caja que se
+ *     está yendo», «efectivo», «liquidez») — el turno no midió ningún flujo de caja. */
+const _COMO_PERDIDA = new RegExp(["ya (?:se )?(?:dej[oó]|dejaron|dejaste) de (?:capturar|ganar|cobrar)", "ya (?:se )?perdi[oó]", "ya perdid[oa]s?", "dinero (?:que )?(?:ya )?(?:perdido|se perdi[oó]|se fue|que se va)", "no es te[oó]ric[oa]", "efectivamente (?:perdid|dejad|cedid)[\wáéíóúñ]*", "p[eé]rdida (?:real|efectiva|ya)"].map((x) => `(?<![\wáéíóúñ])(?:${x})(?![\wáéíóúñ])`).join("|"), "i");   // lookarounds de la casa: «perdió» termina en vocal acentuada y `\b` no cierra ahí
+const _COMO_CAJA = /\bcaja\b|\bflujo de caja\b|\befectivo\b/i;   // «flujo» y «liquidez» a secas son lenguaje de negocio («rotación y liquidez»): solo la caja explícita
+const _ES_PALANCA = (f) => !!(f && f.tipo && f.tipo.verificabilidad === "derivada_no_reconciliada") || /no capturada|cerrar brecha|recuperable/i.test(String((f && f.label) || ""));
+/* LEY TRANSVERSAL (owner 2026-09-13): TODA cifra en dinero conserva su naturaleza. Es CAJA solo lo que el dato mide como caja
+ * —cobranza, saldo vencido, abonos, flujo, pagos—; el resto (venta, contribución, margen, carga, capital en inventario,
+ * precio, resultado) no se narra como caja ni efectivo. Se reconoce por el rótulo de la fig, que es lo que la cifra ES. */
+const _ES_CAJA_REAL = (f) => /cobranza|vencid|abono|flujo|pago|caja|cobro|deuda|cartera por cobrar/i.test(String((f && f.label) || ""));
+function _naturalezaCambiada(narration, ledger) {
+  const text = String(narration || "");
+  if (!text) return [];
+  const masked = _maskFigures(text);
+  const out = [];
+  const vistos = new Set();
+  for (const f of (ledger && Array.isArray(ledger.figs) ? ledger.figs : [])) {
+    const v = String((f && f.value) || "").replace(/\s+/g, "");
+    if (!v || !/^\$/.test(v)) continue;                       // solo montos: la naturaleza se cambia al dinero
+    const palanca = _ES_PALANCA(f), noEsCaja = !_ES_CAJA_REAL(f);
+    if (!palanca && !noEsCaja) continue;
+    let idx = -1;
+    while ((idx = _indiceConFrontera(text, v, idx + 1)) >= 0) {
+      // la glosa suele venir en la oración SIGUIENTE («…$4.9M de contribución no capturada. Ese es el dinero en juego — no es
+      // teórico, es lo que ya se dejó de capturar»): la ventana mira hacia adelante más allá del punto
+      const [lo] = _localWindow(masked, idx, 140);
+      const ventana = text.slice(lo, Math.min(text.length, idx + 260));
+      const clave = `${v}@${idx}`;
+      if (vistos.has(clave)) break;
+      vistos.add(clave);
+      if (palanca && _COMO_PERDIDA.test(ventana)) {
+        out.push({ kind: "brecha-narrada-como-perdida", detail: `«${v}» (${f.label}) es una brecha ESTIMADA contra el benchmark —lo que sumarías si esas cuentas llegaran al benchmark—, no dinero que ya se perdió: dilo como brecha estimada o contribución no capturada, nunca como pérdida realizada: "${ventana.trim().replace(/\s+/g, " ").slice(0, 120)}"` });
+      }
+      if (noEsCaja && _COMO_CAJA.test(ventana)) {
+        out.push({ kind: "cifra-narrada-como-caja", detail: `«${v}» (${f.label}) no es caja ni efectivo: es lo que su rótulo dice (${String(f.label).split("·").pop().trim()}), y este turno no midió ningún flujo de caja. Conserva la naturaleza económica de la cifra: "${ventana.trim().replace(/\s+/g, " ").slice(0, 120)}"` });
+      }
+    }
   }
   return out;
 }
@@ -4148,6 +4196,8 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   for (const v of _metricBindingViolations(narration, ledger)) violations.push({ kind: "metrica-mal-atribuida", detail: v });
   // 9b · COMPARACIÓN ENTRE MÉTRICAS DISTINTAS (owner 2026-09-13): dos tasas correctas, comparadas como si fueran la misma cosa
   for (const v of _comparacionCruzada(narration, ledger)) violations.push({ kind: "comparacion-de-metricas-distintas", detail: v });
+  // 9c · LA NATURALEZA ECONÓMICA SE CONSERVA (owner 2026-09-13): una brecha estimada no es pérdida realizada; la contribución no es caja
+  for (const v of _naturalezaCambiada(narration, ledger)) violations.push(v);
   // 10 · ATRIBUCIÓN DE ENTIDAD promovida de aviso a BLOQUEO (CONTRATO v2 · Fase 2). El cómputo es el MISMO que ya
   // existía como advisory desde 2026-07-28 (criterio nítido: una sola entidad cerca, no es la dueña, y la dueña
   // real no aparece en NINGUNA parte del texto) — no se amplía el criterio, solo se cambia la consecuencia. Ese

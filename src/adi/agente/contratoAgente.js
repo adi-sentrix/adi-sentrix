@@ -382,30 +382,95 @@ export function vetosDeRegistro(texto, contexto = {}) {
     if (typeof L.salvoSi === "function" && L.salvoSi(contexto)) continue;
     if (L.re.test(texto)) v.push({ regla: L.regla, multa: L.multa });
   }
-  /* ── LA VARIACIÓN QUE NADIE MIDIÓ (owner 2026-09-13): «el margen cae a 25.1%» cuando lo único medido es que está
-   * BAJO el benchmark. «Cae» dice que se movió en el tiempo; eso necesita una variación de ESA métrica en la boleta
-   * («Ventas vs año anterior» la tiene; el margen, no). El sujeto tiene que ser la métrica, pegada al verbo: «los
-   * que caen bajo el benchmark» y «cae bajo la referencia» son la forma de la casa para «está por debajo» y pasan. */
+  /* ══ CUATRO GARANTÍAS TRANSVERSALES DEL PRODUCTO (owner 2026-09-13) ═════════════════════════════════════════════
+   * No son excepciones del prompt de gerente: rigen en toda respuesta donde aparezca la situación, por los dos caminos
+   * (el agente y el oráculo pasan por `vetosDeRegistro` con la boleta del turno).
+   *   1 · EVOLUCIÓN TEMPORAL SOLO CON EVIDENCIA TEMPORAL — «cae», «sube», «se deteriora», «calidad deteriorada», «se
+   *       diluye»: decir que una métrica se movió en el tiempo exige que la boleta traiga la variación o la serie de
+   *       ESA métrica. Estar bajo el benchmark no es deteriorarse. Sujetos: cualquier métrica de la casa.
+   *   2 · brecha contra referencia ≠ pérdida realizada y 3 · naturaleza económica de cada cifra: viven en el muro
+   *       (guardC, `_naturalezaCambiada`), porque cuelgan del TIPO de la fig.
+   *   4 · COMPARACIONES SOLO ENTRE MÉTRICAS EQUIVALENTES Y DISPONIBLES — el par de métricas distintas lo cobra el muro
+   *       (`comparacion-de-metricas-distintas`); acá se cobra la comparación SIN cifras de los dos lados: «el markup de
+   *       los que caen está más pegado al costo que el de los sanos» solo vale con el markup de cada lado en la oración.
+   * «Erosión por acciones comerciales» es el nombre de un papel; «los que caen bajo el benchmark» es «están por debajo»;
+   * una SIMULACIÓN («la venta baja frente a lo actual», con supuesto declarado) mide justamente subidas y bajadas. */
   const _figsCtx = Array.isArray(contexto.figs) && contexto.figs.length ? contexto.figs : null;   // sin boleta (reformular re-dice un texto aprobado) no hay contra qué medir
-  // en una SIMULACIÓN («la venta baja frente a lo actual» con un supuesto declarado) subir y bajar SON el resultado medido
   const _esSimulacion = !!_figsCtx && _figsCtx.some((f) => /supuest[oa]s?|proyectad|simulad|escenario|recuperable/i.test(String(f.label || "")) || f.source === "user_supuesto");
   if (_figsCtx && !_esSimulacion) {
-    const _VARIA = /(?<![\wáéíóúñ])(margen|ventas?|contribuci[oó]n)(?![\wáéíóúñ])(?:\s+(?:promedio|bruto|neto|de la cartera|del negocio|total|del per[ií]odo))?\s+(?:se\s+)?(cae|cay[oó]|caen|baja|bajó|bajan|retrocede|retrocedi[oó]|se desploma|viene cayendo|se deteriora|se deterioró|sube|subi[oó]|suben|crece|creci[oó]|crecen|mejora|mejoró|empeora|empeoró)(?![\wáéíóúñ])(?!\s+(?:bajo|por debajo|debajo|de(?:l)?\s+(?:benchmark|referencia|piso|vara|nivel)))/i;   // lookarounds de la casa: jamás `` junto a una vocal acentuada
-    const _reG = new RegExp(_VARIA.source, "gi");
+    const _labels = _figsCtx.map((f) => String(f.label || ""));
+    const _reVar = /variaci|vs\.?\s+a[ñn]o|a[ñn]o anterior|YoY|crecimiento|interanual|per[ií]odo anterior|tendencia|mes a mes|mensual|serie|m[ií]nimo|m[aá]ximo/i;
+    const _reMes = /^(?:Ene(?:ro)?|Feb(?:rero)?|Mar(?:zo)?|Abr(?:il)?|May(?:o)?|Jun(?:io)?|Jul(?:io)?|Ago(?:sto)?|Sep(?:tiembre)?|Oct(?:ubre)?|Nov(?:iembre)?|Dic(?:iembre)?)\s*(?:\d{2,4})?$/i;   // un MES como rótulo entero («Feb», «Mar 2026»): «Margen» empieza por «Mar» y no es marzo
+    /* la FAMILIA de cada sujeto: con qué rótulos de la boleta se prueba que su variación está medida */
+    const _familia = (met) => {
+      const s = met.toLowerCase().replace(/ó/g, "o").replace(/á/g, "a");
+      if (/^venta|^factura/.test(s)) return { re: /ventas?|vendid|factur/i, panel: true };   // los paneles «vs año anterior»/YoY son de venta
+      if (/^margen|^rentabilidad|^calidad/.test(s)) return { re: /m[aá]rgen|rentabilidad/i, serie: true };
+      if (/^contribu/.test(s)) return { re: /contribuci/i };
+      if (/^carga|^rebate|^acciones/.test(s)) return { re: /carga|acciones comerciales|rebate/i };
+      if (/^rotaci/.test(s)) return { re: /rotaci/i };
+      if (/^capital|^inventario|^stock/.test(s)) return { re: /capital|inventario|stock/i };
+      if (/^precio|^markup/.test(s)) return { re: /precio|markup/i };
+      if (/^costo/.test(s)) return { re: /costo/i };
+      if (/^resultado/.test(s)) return { re: /resultado/i };
+      return { re: new RegExp(s.slice(0, 5), "i") };
+    };
+    const _medida = (met) => {
+      const F = _familia(met);
+      if (F.panel && _labels.some((l) => _reVar.test(l))) return true;
+      return _labels.some((l) => (F.re.test(l) && _reVar.test(l)) || (F.serie && _reMes.test(l)));
+    };
+    const _SUJETO = "(margen|ventas?|facturaci[oó]n|contribuci[oó]n|carga(?:\\s+comercial)?|rebates?|acciones comerciales|rotaci[oó]n|capital|inventario|stock|precios?(?:\\s+de\\s+lista)?|markup|costos?|resultado|rentabilidad)";
+    const _VARIA = new RegExp(`(?<![\\wáéíóúñ])${_SUJETO}(?![\\wáéíóúñ])(?:\\s+(?:promedio|bruto|neto|de la cartera|del negocio|total|del per[ií]odo|de lista|medio))?\\s+(?:se\\s+)?(cae|cay[oó]|caen|baja|bajó|bajan|retrocede|retrocedi[oó]|se desploma|viene cayendo|se deteriora|se deterioró|sube|subi[oó]|suben|crece|creci[oó]|crecen|mejora|mejoró|empeora|empeoró|repunta|se recupera)(?![\\wáéíóúñ])(?!\\s+(?:bajo|por debajo|debajo|de(?:l)?\\s+(?:benchmark|referencia|piso|vara|nivel)))`, "gi");
+    /* la HIPÓTESIS y la PREGUNTA no afirman («si el costo subió», «no puedo separar si…», «¿bajó el precio?») — la ley cobra la
+     * afirmación de un movimiento, jamás el razonamiento sobre uno posible */
+    const _CONDICIONAL = /(?:^|[\s(—-])(?:si|o si|si es que|quiz[aá]s?|tal vez|puede que|acaso|aunque|salvo que)\s+(?:el\s+|la\s+|tu\s+|su\s+|los\s+|las\s+|ese\s+|esa\s+)?$/i;
+    const _oracionDe = (i) => { const a = texto.lastIndexOf("\n", i), b = texto.slice(0, i).search(/[.!?](?!\d)[^.!?]*$/); const ini = Math.max(a, b) + 1; const fin = texto.slice(i).search(/[.!?\n]/); return texto.slice(ini, fin < 0 ? texto.length : i + fin + 1); };
     let m;
-    while ((m = _reG.exec(texto))) {   // TODAS las apariciones: «la venta crece» (medida) no exime a «el margen cae» (no medida)
-      const met = m[1].toLowerCase().replace(/^ventas$/, "venta").replace(/ó/g, "o");
-      const _reVar = /variaci|vs\.?\s+a[ñn]o|a[ñn]o anterior|YoY|crecimiento|interanual|per[ií]odo anterior/i;
-      const _labels = _figsCtx.map((f) => String(f.label || ""));
-      /* la variación está MEDIDA si la boleta la trae: para la venta, cualquier panel «vs año anterior»/YoY (son
-       * paneles de venta); para el margen, su propia variación o una serie mensual de margen (mínimo/máximo, meses);
-       * para la contribución, su etiqueta con marcador. Ante la duda, medida (falso negativo antes que veto). */
-      const medida = met.startsWith("venta")
-        ? _labels.some((l) => _reVar.test(l))
-        : met.startsWith("margen")
-          ? _labels.some((l) => (/m[aá]rgen/i.test(l) && (_reVar.test(l) || /m[ií]nimo|m[aá]ximo|mensual|serie/i.test(l))) || /^(?:Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic)\b/i.test(l))
-          : _labels.some((l) => /contribuci/i.test(l) && _reVar.test(l));
-      if (!medida) { v.push({ regla: "variacion-no-medida", multa: `dices que ${m[1].toLowerCase()} «${m[2]}» y este turno no midió ninguna variación de esa métrica (no hay «${m[1].toLowerCase()} vs año anterior» en la boleta): lo medido es su nivel contra la referencia. Di «está en X, bajo el benchmark», no que cae o sube.` }); break; }
+    while ((m = _VARIA.exec(texto))) {   // TODAS las apariciones: «la venta crece» (medida) no exime a «el margen cae» (no medida)
+      if (_medida(m[1])) continue;
+      const antes = texto.slice(Math.max(0, m.index - 40), m.index);
+      const oracion = _oracionDe(m.index);
+      if (_CONDICIONAL.test(antes) || /[¿?]/.test(oracion) || /\bno (?:puedo|s[eé]|podr[ií]a) (?:saber|separar|decir|distinguir|afirmar)\b|\bhip[oó]tesis\b|\bpodr[ií]a (?:haber|estar|ser)\b/i.test(oracion)) continue;
+      v.push({ regla: "variacion-no-medida", multa: `dices que ${m[1].toLowerCase()} «${m[2]}» y este turno no midió ninguna variación de esa métrica (no hay «${m[1].toLowerCase()} vs año anterior» ni su serie en la boleta): lo medido es su nivel contra la referencia. Di «está en X, bajo el benchmark», no que cae o sube.` });
+      break;
+    }
+    /* el deterioro dicho con sustantivo o adjetivo («calidad deteriorada», «se diluye la calidad», «deterioro del margen») */
+    const _DETERIORO = /(?<![\wáéíóúñ])(?:calidad\s+(?:de\s+(?:la\s+|esa\s+)?venta\s+)?deteriorad[oa]|con\s+calidad\s+deteriorada|se\s+diluye\s+la\s+calidad|deterioro\s+(?:del\s+(?:margen|precio|resultado)|de\s+la\s+(?:calidad|rentabilidad|carga|rotaci[oó]n))|(?:el\s+)?(?:margen|precio|resultado|rentabilidad)\s+(?:se\s+)?(?:deteriora|deterior[oó]|se\s+diluye|viene\s+(?:cayendo|bajando|empeorando)|empeora)|cada\s+vez\s+(?:menos\s+(?:margen|rentable)|peor\s+margen)|ha\s+(?:ca[ií]do|bajado|empeorado)\s+(?:el\s+)?(?:margen|precio|rentabilidad)|(?:margen|precio|rentabilidad)\s+ha\s+(?:ca[ií]do|bajado|empeorado))(?![\wáéíóúñ])/i;
+    const md = _DETERIORO.exec(texto);
+    if (md && !_medida(/precio/i.test(md[0]) ? "precio" : /resultado/i.test(md[0]) ? "resultado" : "margen")) {
+      v.push({ regla: "deterioro-no-medido", multa: `«${md[0]}» afirma que algo EMPEORÓ en el tiempo, y este turno no midió ninguna variación de esa métrica: lo medido es su nivel contra el benchmark, que no es lo mismo que deteriorarse. Di «crece la venta y el margen está bajo el benchmark», sin «deterioro» ni «se diluye».` });
+    }
+  }
+  /* ── 4 · LA COMPARACIÓN LLEVA SUS DOS LADOS ──────────────────────────────────────────────────────────────────────
+   * (a) markup / precio de lista de los que caen contra los sanos: la boleta de rolesCartera publica el markup de los sanos
+   *     y los dos promedios; la afirmación vale solo con una cifra de cada lado en la misma oración. Sin cifras de los
+   *     sanos en la boleta, no se dice — ni en el cuerpo ni en el cierre.
+   * (b) en general: una comparación de una métrica entre dos lados nombrados («A tiene más margen que B», «los grandes
+   *     ceden más carga que el resto») sin UNA cifra en la oración es una comparación sin dato. */
+  if (_figsCtx) {
+    const _CLAIM_MK = /(?<![\wáéíóúñ])(?:markup|precio de lista|pegad[oa]s? al costo|ajustad[oa]s?)[^.;\n]{0,90}(?:que|frente a|contra|vs\.?|versus)\s+(?:(?:el|la|los|las|de)\s+){0,3}(?:(?:clientes?\s+|cuentas?\s+)?sanos?|resto\s+de\s+la\s+cartera|los\s+que\s+(?:superan|cumplen|est[aá]n\s+sobre)|(?:clientes?|cuentas?)\s+sobre\s+el\s+benchmark)(?![\wáéíóúñ])|(?<![\wáéíóúñ])(?:sanos|resto\s+de\s+la\s+cartera)[^.;\n]{0,60}(?:markup|precio de lista)[^.;\n]{0,40}m[aá]s\s+(?:alt[oa]|holgad[oa]|amplio|lejos del costo)(?![\wáéíóúñ])/i;
+    const _CIFRA = /\$\s?[\d.,]+\s?[KMB]?|[\d.,]+\s*%|[\d.,]+\s*(?:pp|x)(?![\wáéíóúñ])/;
+    const _COMPARA_LADOS = /(?<![\wáéíóúñ])(?:m[aá]s|menos|mayor|menor|superior|inferior|peor|mejor)(?:es)?\s+(?:margen|carga(?:\s+comercial)?|contribuci[oó]n|venta|ventas|rotaci[oó]n|markup|precio|costo|rentabilidad)?[^.;\n]{0,50}?\s(?:que|frente a|contra)\s+(?:(?:el|la|los|las|de)\s+){0,3}(?:sanos|resto|dem[aá]s|otr[oa]s|grandes|chic[oa]s|peque[ñn][oa]s|cartera|[A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)/;
+    for (const oracion of texto.split(/(?<=[.!?])\s+|\n+/)) {
+      if (_CLAIM_MK.test(oracion)) {
+        const sanosMk = _figsCtx.filter((f) => /Markup promedio · sanos/i.test(String(f.label || "")) || (/Markup sobre costo/i.test(String(f.label || "")) && /sano/i.test(String(f.context || "")))).map((f) => String(f.text || f.value || "").trim()).filter(Boolean);
+        const caenMk = _figsCtx.filter((f) => /Markup promedio · los que caen/i.test(String(f.label || "")) || (/Markup sobre costo/i.test(String(f.label || "")) && !/sano/i.test(String(f.context || "")))).map((f) => String(f.text || f.value || "").trim()).filter(Boolean);
+        if (!sanosMk.length) {
+          v.push({ regla: "markup-sin-el-otro-lado", multa: "comparas el markup (precio de lista) de los que caen con el de los sanos y la boleta de este turno NO trae el markup de los sanos: esa comparación no se puede afirmar — quítala del cuerpo y del cierre, o di solo lo que sí está medido." });
+          break;
+        }
+        const citaSano = sanosMk.some((x) => oracion.includes(x)), citaCaen = caenMk.some((x) => oracion.includes(x));
+        if (!citaSano || !citaCaen) {
+          v.push({ regla: "markup-sin-el-otro-lado", multa: `comparas el markup de los que caen con el de los sanos sin citar los dos lados en la misma oración: la boleta trae «Markup promedio · los que caen» y «Markup promedio · sanos» (${caenMk[0] || "?"} contra ${sanosMk[0] || "?"}) — cítalos, o no compares.` });
+          break;
+        }
+        continue;
+      }
+      if (_COMPARA_LADOS.test(oracion) && !_CIFRA.test(oracion) && /(?<![\wáéíóúñ])(?:margen|carga|contribuci[oó]n|ventas?|rotaci[oó]n|markup|precio|costo|rentabilidad)(?![\wáéíóúñ])/i.test(oracion)) {
+        v.push({ regla: "comparacion-sin-cifras", multa: `comparas dos lados sobre una métrica («${oracion.trim().slice(0, 90)}…») sin una sola cifra en la oración: una comparación ejecutiva lleva la cifra de cada lado, de la boleta — o no se hace.` });
+        break;
+      }
     }
   }
   const _mec = _mecanismoSinSello(texto, contexto.huellas);

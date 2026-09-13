@@ -69,6 +69,19 @@ el cruce contra la carpeta real. Antes de pantalla:
    dueño + significado.* Una cifra real, de su dueño real, narrada como otra métrica —una participación dicha
    como crecimiento, una variación dicha como venta— es una respuesta falsa = bloqueado. El rótulo de la
    carpeta declara lo que la cifra ES, y la prosa no puede cambiarlo.
+   **Cuatro garantías más, transversales** (ley del owner, 2026-09-13 — no excepciones de un prompt: rigen en
+   toda respuesta donde aparezca la situación):
+   - *Evolución temporal solo con evidencia temporal.* «Cae», «sube», «se deteriora», «calidad deteriorada», «se
+     diluye»: decir que una métrica se movió en el tiempo exige que la carpeta traiga su variación o su serie.
+     Estar bajo el benchmark no es deteriorarse = bloqueado.
+   - *Brecha contra referencia ≠ pérdida realizada.* Lo que se calcula contra una vara (contribución no
+     capturada, cerrar brecha, recuperable) es una **estimación**: «ya se dejó de capturar», «no es teórico»,
+     «dinero perdido» = bloqueado.
+   - *Cada cifra conserva su naturaleza económica.* Es caja solo lo que el dato mide como caja; la contribución
+     cedida en acciones comerciales no es «caja que se está yendo» ni «capital» = bloqueado.
+   - *Comparaciones solo entre métricas equivalentes y disponibles.* Markup contra margen = bloqueado; y una
+     comparación entre dos lados («más pegado al costo que los sanos») lleva la cifra de cada lado, de la
+     carpeta — si la carpeta no trae un lado, la comparación no se dice.
 2. **¿Cada cálculo se puede recalcular?** La fórmula mostrada se recomputa. No cuadra o no muestra origen →
    bloqueado.
 3. **¿Cada clasificación existe?** «Frenado», «bajo benchmark», «crítico»: solo los estados que la carpeta

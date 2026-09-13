@@ -219,11 +219,38 @@ H("3d · ★★★ la corrida 3: lo real arde en el cierre, la reparación que o
   const a = r.r.agente || {}, vetos = a.vetos || [];
   ok(vetos.length >= 1 && /^cierre · /.test(vetos[0]) && /Paris/.test(vetos[0]), `el cierre cae por lo real: Paris entre las 5 materiales (es Ripley) — ${String(vetos[0]).slice(0, 90)}…`, vetos.join(" | ").slice(0, 300));
   ok(/mecanismo-sin-sello/.test(vetos[0]) && /porque-sin-pregunta/.test(vetos[0]), "…y la multa completa lleva el contrato (volumen negado sin sello · sin pregunta al dueño)", vetos[0]);
-  ok(a.estado === "reparado", `★★★ la reparación SE SIRVE (${a.estado}): ${palabras(r.r.text)} palabras del modelo en pantalla`, vetos.join(" | ").slice(0, 400));
-  const t = String(r.r.text);
+  /* ── LAS CUATRO GARANTÍAS TRANSVERSALES (owner 2026-09-13, sobre esta misma reparación) ──────────────────────────
+   * La reparación obedeció al procedimiento y aun así conservaba: «crecimiento con calidad deteriorada» / «se diluye la
+   * calidad» (evolución temporal sin evidencia temporal), «no es teórico, es lo que ya se dejó de capturar» (brecha
+   * estimada narrada como pérdida realizada), «$655K — caja que se está yendo» (naturaleza cambiada) y «el markup … más
+   * pegado al costo que el de los sanos» sin las cifras de los dos lados. Las cuatro arden — y son leyes del producto,
+   * no excepciones de este prompt. */
+  ok(a.estado === "encargo-compuesto" && vetos.length >= 2 && /brecha-narrada-como-perdida|cifra-narrada-como-caja|deterioro-no-medido|markup-sin-el-otro-lado/.test(vetos.join(" ")),
+    `★★ la reparación con las cuatro faltas de producto NO se sirve (${a.estado}): las leyes la cobran`, vetos.join(" | ").slice(0, 400));
+  const { guardC } = await import("./src/adi/oracle/guardC.js");
+  const { vetosDeContrato } = await import("./src/adi/agente/contratoAgente.js");
+  const figsB = leer(pasosDelEncargo(partesDelEncargo(FX.pregunta), pasosDe(playbookPara(FX.pregunta, {}), FX.pregunta, {}), {}));
+  const kindsB = (guardC(b2, { ledger: { figs: figsB }, results: [], question: FX.pregunta, contentScope: "full" }).violations || []).map((v) => v.kind);
+  const reglasB = vetosDeContrato(b2, { pregunta: FX.pregunta, sitio: "reparacion", figs: figsB }).map((v) => v.regla);
+  ok(kindsB.includes("brecha-narrada-como-perdida"), "★ «no es teórico, es lo que ya se dejó de capturar» → brecha narrada como pérdida realizada", kindsB.join(","));
+  ok(kindsB.includes("cifra-narrada-como-caja"), "★ «$655K — caja que se está yendo» → la contribución no es caja", kindsB.join(","));
+  ok(reglasB.includes("deterioro-no-medido"), "★ «crecimiento con calidad deteriorada» → evolución temporal sin evidencia temporal", reglasB.join(","));
+  ok(reglasB.includes("markup-sin-el-otro-lado"), "★ «markup … más pegado al costo que el de los sanos» sin cifras → comparación sin sus dos lados", reglasB.join(","));
+  /* la MISMA reparación con las cuatro faltas corregidas —lo que un modelo hace cuando la multa se lo nombra— SE SIRVE */
+  const b2ok = b2
+    .replace("Eso es crecer volumen mientras se diluye la calidad de esa venta.", "Eso es crecer en volumen con el margen bajo el benchmark.")
+    .replace("Ese es el dinero en juego — no es teórico, es lo que ya se dejó de capturar.", "Es la brecha estimada contra el benchmark: lo que sumarían esas cinco cuentas si llegaran a él.")
+    .replace("$655K — caja que se está yendo en descuentos/rebates.", "$655K — contribución cedida en acciones comerciales por sobre el nivel de referencia.")
+    .replace(/Hay una segunda huella, más débil \(sello "indicado", no probado\): el markup de estos mismos clientes está más pegado al costo que el de los clientes sanos\. Sodimac[^]*?aparte de la carga\./, "Hay una segunda huella, más débil (sello \"indicado\", no probado): el markup promedio de los que caen es 41.4% contra 57.3% de los sanos — el precio de lista nace más pegado al costo en estas cuentas, aparte de la carga.")
+    .replace("(25.1% vs 30.1%): crecimiento con calidad deteriorada.", "(25.1% vs 30.1%): el crecimiento no llega al margen.")
+    .replace("4. Ese mismo grupo muestra precio de lista más pegado al costo que el resto de la cartera — señal indicada, no aún probada, de que el problema también empieza en la lista.", "4. El markup promedio de ese grupo es 41.4% contra 57.3% de los sanos — señal indicada, no aún probada, de que el problema también empieza en la lista.");
+  ok(b2ok !== b2 && !/calidad deteriorada|se diluye|no es teórico|caja que|más pegado al costo que el de los clientes sanos/.test(b2ok) && /41.4% contra 57.3%/.test(b2ok), "la reparación corregida ya no tiene las cuatro faltas");
+  const r2 = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2ok]) });
+  const a2 = r2.r.agente || {}, t = String(r2.r.text);
+  ok(a2.estado === "reparado", `★★★ la reparación que obedece al procedimiento Y a las cuatro leyes SE SIRVE (${a2.estado}): ${palabras(t)} palabras del modelo en pantalla`, (a2.vetos || []).join(" | ").slice(0, 400));
   ok(/Falabella: mayor contribución no capturada \(\$1\.6M\)/.test(t) && /Alternativa si prefieres priorizar por brecha porcentual: Lider/.test(t), "…con la prioridad oficial (Falabella) y Lider como alternativa secundaria");
   ok(/5 de 8 clientes bajo benchmark \(Falabella, Lider, Jumbo, Sodimac, Ripley\), que representan \$4\.9M/.test(t), "…con el subtotal en su definición («5 de 8 clientes … $4.9M») sin veto de alcance");
-  ok(/el markup de los sanos — que no está en la boleta/.test(t), "…y sin comparar markup con margen");
+  ok(/41\.4% contra 57\.3%/.test(t), "…y la comparación de markup con sus dos lados, de la boleta");
   ok(/Para el directorio — 5 líneas/.test(t) && (t.match(/^\d\. /gm) || []).length === 5, "…y las 5 líneas para el directorio, numeradas");
 }
 

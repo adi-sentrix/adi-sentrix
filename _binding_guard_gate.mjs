@@ -291,6 +291,32 @@ H("[B5] MÉTRICAS COMPARABLES · una comparación ejecutiva solo vale entre mét
   ok(tiene(runU("Lider supera el benchmark de 30.1%."), "relacion-contradictoria"), "…y «Lider supera el benchmark» sigue ardiendo");
 }
 
+/* ═══ [B6] LA NATURALEZA ECONÓMICA DE CADA CIFRA (owner 2026-09-13, garantías transversales 2 y 3) ═══════════════
+ * «Los $4,9M deben presentarse siempre como brecha estimada contra benchmark, no como dinero que efectivamente ya se
+ * dejó de capturar» · «Los $655K no son caja que se está yendo». Cuelgan del TIPO de la fig (palanca contra una vara ·
+ * dinero que no es caja), así que rigen para cualquier cifra de esa naturaleza en cualquier respuesta. */
+H("[B6] NATURALEZA · la brecha estimada no es pérdida realizada; lo que no es caja no se narra como caja");
+{
+  const { runPlan } = await import("./src/adi/oracle/toolRunner.js");
+  const { TOOLS } = await import("./src/adi/oracle/toolRegistry.js");
+  const { cajaDelAgente } = await import("./src/adi/agente/herramientasAgente.js");
+  const { ESCENARIO_INICIAL } = await import("./src/config/scenarios.js");
+  const rp = runPlan({ intent: "answer", calls: ["marginRead", "diagnose", "rolesCartera", "executiveSummary"].map((tool) => ({ tool, args: {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 8, preguntaUsuario: "cómo va el negocio", registry: cajaDelAgente(TOOLS) });
+  const figs = (rp.ledger || {}).figs || [];
+  const runN = (n) => guardC(n, { ledger: { figs }, results: rp.results, question: "cómo va el negocio", contentScope: "full" });
+  const det = (r) => (r.violations || []).map((v) => `[${v.kind}] ${String(v.detail).slice(0, 90)}`).join(" ‖ ");
+  const p1 = runN("Entre ellas concentran $4.9M de contribución no capturada en el año cerrado. Ese es el dinero en juego — no es teórico, es lo que ya se dejó de capturar.");
+  ok(tiene(p1, "brecha-narrada-como-perdida"), "★★ «$4.9M … no es teórico, es lo que ya se dejó de capturar» → BLOQUEA: la palanca es una estimación contra el benchmark (la glosa está en la oración siguiente y también cuenta)", det(p1));
+  ok(!tiene(runN("Entre ellas concentran $4.9M de contribución no capturada: la brecha estimada contra el benchmark, lo que sumarían si llegaran a él."), "brecha-narrada-como-perdida"), "…«brecha estimada contra el benchmark» pasa");
+  ok(!tiene(runN("Hay $4.9M de contribución no capturada en las cinco cuentas que más pesan."), "brecha-narrada-como-perdida"), "…y la frase de la casa («contribución no capturada») pasa");
+  ok(tiene(runN("Falabella deja $1.6M sin capturar: dinero que ya se perdió en el año."), "brecha-narrada-como-perdida"), "…«$1.6M … dinero que ya se perdió» (la palanca por cuenta) también arde");
+  const c1 = runN("El subtotal de esa carga excedida en el grupo completo es $655K — caja que se está yendo en descuentos/rebates.");
+  ok(tiene(c1, "cifra-narrada-como-caja"), "★★ «$655K — caja que se está yendo» → BLOQUEA: es contribución cedida en acciones comerciales, no caja", det(c1));
+  ok(!tiene(runN("El subtotal de esa carga excedida en el grupo completo es $655K — contribución cedida en acciones comerciales por sobre el nivel de referencia."), "cifra-narrada-como-caja"), "…con su naturaleza correcta pasa");
+  ok(tiene(runN("Falabella vende $19.4M: es la caja que entra por esa cuenta."), "cifra-narrada-como-caja"), "…y la venta narrada como caja también arde: la ley es de toda cifra que no es caja");
+  ok(!tiene(runN("¿Ese volumen de Falabella ($19.4M) es una apuesta tuya de rotación y liquidez?"), "cifra-narrada-como-caja"), "…«rotación y liquidez» (lenguaje de negocio) no es caja: pasa");
+}
+
 H("[C] ENTIDAD MAL ATRIBUIDA · promovida de AVISO a BLOQUEO");
 {
   const r = run("Lider aporta $4.3M de contribución. (Datos del año cerrado.)");

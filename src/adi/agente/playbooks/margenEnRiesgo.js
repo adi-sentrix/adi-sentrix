@@ -636,8 +636,14 @@ export const margenEnRiesgo = {
         ? `- ${_val(L.totalJuego)} de contribución no capturada = el subtotal de las ${mNM[1]} cuentas materiales bajo el benchmark (de ${mNM[2]} que están bajo él). Una sola definición: cítalo siempre así («las ${mNM[1]} cuentas materiales»); no lo narres como el de las ${mNM[2]}, ni como la cartera entera.`
         : `- ${_val(L.totalJuego)} de contribución no capturada es un SUBTOTAL: cítalo con su universo, no como el total de la cartera.`);
     }
-    lineas.push("- Comparaciones: solo entre métricas equivalentes (margen con margen, markup con markup, carga con carga). El markup de los sanos no está en la boleta: no lo compares con su margen.");
-    lineas.push("- El margen no «cae» ni «sube»: este turno mide su nivel contra el benchmark, no su variación. Lo que se recupera de la carga comercial es contribución, no capital.");
+    /* la naturaleza de cada cifra y las comparaciones válidas (owner 2026-09-13, cuatro requisitos de producto) */
+    if (L.totalJuego) lineas.push(`- ${_val(L.totalJuego)} es una brecha ESTIMADA contra el benchmark —lo que sumarían esas cuentas si llegaran al benchmark—, no dinero que ya se perdió ni caja: dilo como «brecha estimada» o «contribución no capturada», nunca «ya se dejó de capturar» ni «no es teórico».`);
+    if (L.cargaTotal) lineas.push(`- ${_val(L.cargaTotal)} es contribución cedida en acciones comerciales por sobre el nivel de referencia: no es caja, flujo ni efectivo. Conserva esa naturaleza al citarlo.`);
+    const mkCaen = _find(figs, /^Markup promedio · los que caen$/i), mkSanos = _find(figs, /^Markup promedio · sanos$/i);
+    lineas.push(mkCaen && mkSanos
+      ? `- Comparaciones: solo entre métricas equivalentes (margen con margen, markup con markup, carga con carga). El markup de los sanos SÍ está en la boleta: si comparas el precio de lista de los que caen con el de los sanos, cita los dos lados en la misma oración (markup promedio ${_val(mkCaen)} los que caen contra ${_val(mkSanos)} los sanos) — y sigue siendo una huella INDICADA, no probada.`
+      : "- Comparaciones: solo entre métricas equivalentes (margen con margen, markup con markup, carga con carga). El markup de los sanos NO está en esta boleta: no afirmes que los que caen tienen el precio más pegado al costo que los sanos — ni en el cuerpo ni en el cierre.");
+    lineas.push("- No hay comparación histórica del margen en este turno: el margen no «cae», no «se deteriora» y la venta no «pierde calidad»; está bajo el benchmark, que es lo medido. Lo que se recupera de la carga comercial es contribución, no capital.");
     return lineas.length > 1 ? lineas.join("\n") : "";
   },
 

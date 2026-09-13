@@ -64,6 +64,13 @@ Derivadas que se rompen seguido:
   narrada como otra métrica («% del total» dicho como «crece») es falsa; el rótulo de la boleta declara lo que la
   cifra es y el muro lo verifica (`_METRIC_VOCAB` en guardC, con `participacion` y `variacion`).
 - **Dos montos parecidos de universos distintos NUNCA van juntos** sin decir de cuál sale cada uno.
+- **Cuatro garantías transversales** (owner 2026-09-13, ley en `_CONSTITUCION_ADI.md`; viven en guardC y en
+  `vetosDeRegistro`, para los dos caminos): (1) evolución temporal solo con evidencia temporal — «cae»,
+  «se deteriora», «calidad deteriorada» exigen la variación o la serie de ESA métrica en la boleta; (2) una brecha
+  contra referencia es una ESTIMACIÓN, nunca «dinero que ya se perdió»; (3) cada cifra conserva su naturaleza
+  económica — la contribución no es caja ni capital; (4) comparaciones solo entre métricas equivalentes y
+  disponibles, con la cifra de cada lado en la oración. Y la conclusión del procedimiento (prioridad oficial,
+  definición de sus subtotales) se le declara al cerebro ANTES de escribir (`conclusiones(figs)` del playbook).
 
 ---
 
