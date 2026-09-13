@@ -125,7 +125,7 @@ export const resumenDelNegocio = {
     const yoy = _find(figs, /^Ventas vs a[ñn]o anterior$/i);
     const bench = _find(figs, /^(?:Piso de margen|Benchmark de margen)$/i);
     const noCapturada = _find(figs, /^Contribuci[oó]n no capturada · subtotal(?: · \d+ cuentas materiales [^·]*)?$/i);
-    const cargaAlta = _find(figs, /^Carga comercial alta · subtotal$/i);
+    const cargaAlta = _find(figs, /^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i);
     const grandesPct = _find(figs, /^Contribución de los grandes$/i);
 
     let A = null;

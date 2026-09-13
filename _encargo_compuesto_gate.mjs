@@ -278,8 +278,11 @@ H("3e · ★★★ la corrida 4: las negaciones y el rótulo no son afirmaciones
   const r0 = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2]) });
   const a0 = r0.r.agente || {};
   ok(a0.estado === "encargo-compuesto" && /reparacion · mecanismo-sin-sello: descartas como hecho el mecanismo «costo\/precio»/.test((a0.vetos || []).join(" ")), `★ la reparación que descarta el precio de lista (INDICADO) NO se sirve (${a0.estado})`, (a0.vetos || []).join(" | ").slice(0, 300));
-  const b2ok = b2.replace("apunta a fuga por acciones comerciales, no a un problema de precio de lista.", "apunta a fuga por acciones comerciales; el precio de lista queda indicado y el mix, abierto.");
-  ok(b2ok !== b2, "la reparación corregida deja al precio de lista con su sello");
+  const b2ok = b2.replace("apunta a fuga por acciones comerciales, no a un problema de precio de lista.", "apunta a fuga por acciones comerciales; el precio de lista queda indicado y el mix, abierto.")
+    /* y los universos (owner 2026-09-13): los $655K no son parte de los $4.9M — la parte que cabe es la carga de las 5 materiales */
+    .replace("- De eso, $655K es contribución cedida en acciones comerciales por sobre el nivel de refer", "- De eso, $588K es el efecto de la carga sobre el nivel declarado en esas cinco cuentas y el resto, $4.4M, el componente precio y costo. Aparte, la carga sobre el nivel suma $655K en las 6 cuentas que lo exceden — contribución cedida en acciones comerciales por sobre el nivel de refer");
+  ok(b2ok !== b2 && !/De eso, \$655K/.test(b2ok), "la reparación corregida deja al precio de lista con su sello y los $655K con su universo, fuera de los $4.9M");
+  ok(/reparacion · [^|]*subtotal-de-otro-universo/.test((a0.vetos || []).join(" | ")), "★ …y la reparación original también ardía por «de eso, $655K» (universo distinto)");
   const r = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2ok]) });
   const a = r.r.agente || {}, vetos = a.vetos || [], t = String(r.r.text);
   ok(vetos.length >= 1 && /^cierre · /.test(vetos[0]) && /intencion-inferida|mecanismo-sin-sello/.test(vetos[0]), `el cierre cae por lo real (dictamen de intención · mecanismo negado sin sello): ${String(vetos[0]).slice(0, 80)}…`, vetos.join(" | ").slice(0, 300));
@@ -344,6 +347,43 @@ H("3g · ★★★ la corrida 6: «con mejor costo relativo» y «la causa domin
   const a = r.r.agente || {}, vetos = a.vetos || [], t = String(r.r.text);
   ok(a.estado === "reparado", `★★★ la reparación corregida SE SIRVE entera (${a.estado}): ${palabras(t)} palabras`, vetos.join(" | ").slice(0, 400));
   ok(/Vendes más; si ganas más, con lo que hay hoy no se puede saber/.test(t) && /El mecanismo probado es el exceso de carga comercial/.test(t) && /están sobre el benchmark\./.test(t), "…con la apertura honesta, el mecanismo probado sin jerarquía y los sanos solo sobre el benchmark");
+}
+
+/* ═══ 3h · LAS TRES CORRIDAS VIVAS DEL CONTRATO COMERCIAL: UNIVERSOS CONSISTENTES ═══════════════════════════════════
+ * (owner 2026-09-13 · fixtures/tres-vivas-contrato-comercial-2026-09-13) Ventas y Falabella salieron del modelo con una
+ * reparación y se sirven tal cual. En el gerente, la reparación decía «de los $4.9M … De eso, $655K es contribución
+ * cedida»: los $655K son la carga sobre el nivel en 6 cuentas (Easy, sana, incluida) — no viven dentro de los $4.9M; la
+ * parte que sí cabe es $588K. Ley: una cifra solo es parte de otra si pertenece a su universo. Corregida con la
+ * partición medida («de eso, $588K es carga y el resto, $4.4M, precio y costo»), la reparación se sirve entera. */
+H("3h · ★★★ las tres corridas vivas: ventas y Falabella se sirven; el gerente arde por «de eso, $655K» y corregido con la partición medida se sirve");
+{
+  const FX = JSON.parse(readFileSync(new URL("./fixtures/tres-vivas-contrato-comercial-2026-09-13.json", import.meta.url), "utf8"));
+  const cerebroDe = (textos) => { let i = 0; return async () => { const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
+  const [V, F, G] = FX.corridas;
+  const rv = await answerViaAgente({ text: V.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe(V.borradores.map((b) => b.texto)) });
+  ok(rv.r.agente.estado === "reparado" && rv.r.agente.contrato === "comercial" && /\+7\.6%/.test(rv.r.text) && /si ganas más no se puede saber/.test(rv.r.text),
+    `«¿Cómo van las ventas?» · la reparación del modelo se sirve (${rv.r.agente.estado}, ${palabras(rv.r.text)} palabras) con la lectura honesta de la ganancia`, (rv.r.agente.vetos || []).join(" | ").slice(0, 300));
+  const rf = await answerViaAgente({ text: F.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe(F.borradores.map((b) => b.texto)) });
+  ok(rf.r.agente.estado === "reparado" && /probado/.test(rf.r.text) && /indicado, no probado/.test(rf.r.text) && /\$194K/.test(rf.r.text) && /39\.1%/.test(rf.r.text),
+    `«¿Por qué Falabella…?» · la reparación del modelo se sirve (${rf.r.agente.estado}, ${palabras(rf.r.text)} palabras): probado e indicado separados, con sus cifras`, (rf.r.agente.vetos || []).join(" | ").slice(0, 300));
+  const rg0 = await answerViaAgente({ text: G.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe(G.borradores.map((b) => b.texto)) });
+  const vg = rg0.r.agente.vetos || [];
+  ok(rg0.r.agente.estado !== "reparado" && /reparacion · [^|]*subtotal-de-otro-universo/.test(vg.join(" | ")),
+    `★★★ el gerente: la reparación con «de eso, $655K» NO se sirve (${rg0.r.agente.estado}) — universo distinto`, vg.join(" | ").slice(0, 400));
+  {
+    const { vetosDeContrato } = await import("./src/adi/agente/contratoAgente.js");
+    const figsG = leer(pasosDelEncargo(partesDelEncargo(G.pregunta), pasosDe(playbookPara(G.pregunta, {}), G.pregunta, {}), {}));
+    const multaG = vetosDeContrato(G.borradores[1].texto, { pregunta: G.pregunta, sitio: "reparacion", figs: figsG }).filter((v) => v.regla === "subtotal-de-otro-universo").map((v) => v.multa).join(" ");
+    ok(/\$588K/.test(multaG) && /5 cuentas materiales/.test(multaG) && /6 cuentas sobre el nivel declarado/.test(multaG), "…y la multa nombra el universo real de los $655K y la cifra que sí cabe ($588K, las 5 cuentas materiales)", multaG.slice(0, 400));
+  }
+  const g2 = G.borradores[1].texto
+    .replace("De eso, **$655K** es contribución cedida en acciones comerciales por sobre el nivel de referencia — no es caja, es margen que se negoció.",
+      "De eso, **$588K** es el efecto de la carga sobre el nivel declarado y el resto, **$4.4M**, el componente precio y costo — que el dato no separa. Aparte, la carga sobre el nivel suma $655K en las 6 cuentas que lo exceden (una de ellas sobre el benchmark); no es caja, es margen que se negoció.")
+    .replace("de los cuales $655K corresponden a acciones comerciales por sobre la referencia.", "de los cuales $588K corresponden a la carga sobre el nivel declarado y $4.4M al componente precio y costo.");
+  ok(g2 !== G.borradores[1].texto && !/De eso, \*\*\$655K|de los cuales \$655K/.test(g2), "la reparación corregida usa la partición medida y deja los $655K aparte, con su universo");
+  const rg = await answerViaAgente({ text: G.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([G.borradores[0].texto, g2]) });
+  ok(rg.r.agente.estado === "reparado" && /\$588K/.test(rg.r.text) && /\$4\.4M/.test(rg.r.text) && /precio y costo/.test(rg.r.text),
+    `★★★ …y corregida SE SIRVE entera (${rg.r.agente.estado}, ${palabras(rg.r.text)} palabras) con la partición medida y sin separar precio de costo`, (rg.r.agente.vetos || []).join(" | ").slice(0, 400));
 }
 
 /* ═══ 4 · EL PARAGUAS, SOLO PARA EL ENCARGO COMPUESTO SOBRE EL NEGOCIO ENTERO ═════════════════════════════ */

@@ -525,8 +525,12 @@ export function vetosDeRegistro(texto, contexto = {}) {
   }
   const _mec = _mecanismoSinSello(texto, contexto.huellas);
   if (_mec) v.push({ regla: "mecanismo-sin-sello", multa: _mec });
-  const _jer = _jerarquiaCausalSinMedida(texto);
+  const _jer = _jerarquiaCausalSinMedida(texto, contexto.figs);
   if (_jer) v.push({ regla: "jerarquia-causal-sin-medida", multa: _jer });
+  const _sub = _subtotalDeOtroUniverso(texto, contexto.figs);
+  if (_sub) v.push({ regla: "subtotal-de-otro-universo", multa: _sub });
+  const _pyc = _precioYCostoSeparados(texto, contexto.figs);
+  if (_pyc) v.push({ regla: "precio-y-costo-no-se-separan", multa: _pyc });
   const _cta = _cuentaDerivada(texto, contexto.figs);
   if (_cta) v.push({ regla: "cuenta-derivada-no-cierra", multa: _cta });
   return v;
@@ -655,14 +659,23 @@ const _RE_JERARQUIA = [
   new RegExp(`(?<![\\wáéíóúñ])(?:la |el |los |las )?(?:principal(?:es)?|primer[oa]?|mayor|gran)\\s+${_CAUSA_PALABRA}s?(?![\\wáéíóúñ])`, "gi"),   // «la principal causa», «el primer mecanismo»
   new RegExp(`(?<![\\wáéíóúñ])(?:principalmente|sobre todo|fundamentalmente|esencialmente|mayoritariamente|en (?:su )?mayor(?:[ií]a| parte| medida)|b[aá]sicamente|ante todo)\\s+(?:por|de|desde|en|es|son|viene de|se explica por)?\\s*(?:la |el |las |los |un |una |su |sus )?(?:exceso de |problema de |tema de )?${_MECANISMO_PALABRA}(?![\\wáéíóúñ])`, "gi"),   // «principalmente por acciones comerciales»
   new RegExp(`(?<![\\wáéíóúñ])(?:la |el )?${_MECANISMO_PALABRA}[^.;:,]{0,30}?\\s+(?:explica|explican|se lleva|se llevan|concentra|concentran|representa|representan)\\s+(?:la mayor parte|el grueso|casi tod[oa]|la mayor[ií]a|lo principal|buena parte|gran parte|m[aá]s de la mitad)(?![\\wáéíóúñ])`, "gi"),   // «la carga explica la mayor parte de la brecha»
-  new RegExp(`(?<![\\wáéíóúñ])(?:la mayor parte|el grueso|buena parte|gran parte|casi tod[oa]|m[aá]s de la mitad)\\s+(?:de |del )(?:la |el |esa |ese |esta |este )?(?:brecha|efecto|resultado|problema|ca[ií]da|diferencia|contribuci[oó]n no capturada)[^.;:]{0,25}?\\s+(?:es|son|viene de|vienen de|se explica por|est[aá] en|la explica|lo explica)\\s+(?:la |el |las |los |un |una )?(?:exceso de )?${_MECANISMO_PALABRA}(?![\\wáéíóúñ])`, "gi"),   // «la mayor parte de la brecha viene de la carga»
+  new RegExp(`(?<![\\wáéíóúñ])(?:la mayor parte|el grueso|buena parte|gran parte|casi tod[oa]|m[aá]s de la mitad)\\s+(?:de |del )(?:la |el |esa |ese |esta |este )?(?:brecha|efecto|resultado|problema|ca[ií]da|diferencia|contribuci[oó]n no capturada)[^.;:]{0,25}?\\s+(?:es|son|viene del?|vienen del?|se explica por(?: el| la)?|est[aá] en(?: el| la)?|la explica|lo explica)\\s+(?:la |el |las |los |un |una )?(?:exceso de )?${_MECANISMO_PALABRA}(?![\\wáéíóúñ])`, "gi"),   // «la mayor parte de la brecha viene de la carga / del costo»
   new RegExp(`(?<![\\wáéíóúñ])lo que m[aá]s (?:pesa|importa|explica|cuenta|manda)\\s+(?:es|son)\\s+(?:la |el |las |los )?(?:exceso de )?${_MECANISMO_PALABRA}(?![\\wáéíóúñ])`, "gi"),   // «lo que más pesa es la carga»
   new RegExp(`(?<![\\wáéíóúñ])(?:la |el |las |los )?${_MECANISMO_PALABRA}\\s+(?:pesa|pesan|importa|importan|cuenta|cuentan|manda|mandan)\\s+m[aá]s(?![\\wáéíóúñ])`, "gi"),   // «la carga pesa más (que el precio)»
 ];
 /* la jerarquía SÍ se dice cuando la parte del efecto está medida y citada: «efecto carga −1.0 pp contra efecto costo −0.5 pp» */
-const _MEDIDA_DE_PESO = /(?:efecto|aporte|peso|parte)\s+(?:de\s+)?(?:la\s+|el\s+|del\s+)?(?:carga|costo|precio|volumen|mix|acciones)[^.;]{0,30}?\d+(?:[.,]\d+)?\s*(?:pp|%)|\d+(?:[.,]\d+)?\s*(?:pp|%)\s+(?:de la|del|de los|de las)\s+(?:brecha|efecto|ca[ií]da|diferencia|total|resultado)|\d+(?:[.,]\d+)?\s*(?:pp|%)\s+(?:contra|frente a|versus|vs\.?)\s+[^.;]{0,20}?\d+(?:[.,]\d+)?\s*(?:pp|%)/i;
+/* …y EN DINERO (owner 2026-09-13): con la brecha partida en la boleta, «precio/costo pesa más: $4.4M contra $588K» es una
+ * jerarquía MEDIDA — las dos partes de un mismo universo, citadas. La forma «de los $4.9M, $588K …» también. */
+const _MEDIDA_DE_PESO = /(?:efecto|aporte|peso|parte)\s+(?:de\s+)?(?:la\s+|el\s+|del\s+)?(?:carga|costo|precio|volumen|mix|acciones)[^.;]{0,30}?\d+(?:[.,]\d+)?\s*(?:pp|%)|\d+(?:[.,]\d+)?\s*(?:pp|%)\s+(?:de la|del|de los|de las)\s+(?:brecha|efecto|ca[ií]da|diferencia|total|resultado)|\d+(?:[.,]\d+)?\s*(?:pp|%)\s+(?:contra|frente a|versus|vs\.?)\s+[^.;]{0,20}?\d+(?:[.,]\d+)?\s*(?:pp|%)|\$\s?\d+(?:[.,]\d+)?\s?[KMB]?\s+(?:contra|frente a|versus|vs\.?)\s+[^.;]{0,30}?\$\s?\d+(?:[.,]\d+)?\s?[KMB]?|\$\s?\d+(?:[.,]\d+)?\s?[KMB]?[^.;]{0,40}?\b(?:de los|de las|del|dentro de los|de es[oa]s?)\s+\$\s?\d+(?:[.,]\d+)?\s?[KMB]?|\bde (?:los|las|es[oa]s?)\s+\$\s?\d+(?:[.,]\d+)?\s?[KMB]?[^.;]{0,60}?\$\s?\d+(?:[.,]\d+)?\s?[KMB]?/i;
 const _sinParentesis = (s) => String(s).replace(/—[^—]*—/g, " ").replace(/\([^)]*\)/g, " ");
-function _jerarquiaCausalSinMedida(texto) {
+function _jerarquiaCausalSinMedida(texto, figs = null) {
+  /* la partición medida, si viaja en la boleta: los dos subtotales del mismo universo (carga · precio y costo) */
+  const _particion = (() => {
+    if (!Array.isArray(figs)) return null;
+    const c = figs.find((f) => /^Carga comercial alta · subtotal · \d+ cuentas materiales/i.test(String(f && f.label || "")));
+    const r = figs.find((f) => /^Brecha por precio y costo · subtotal · \d+ cuentas materiales/i.test(String(f && f.label || "")));
+    return c && r ? `${c.label} = ${c.text || c.value} · ${r.label} = ${r.text || r.value}` : null;
+  })();
   for (const oracion0 of String(texto).split(/(?<=[.!?])\s+|\n+/)) {
     if (/[¿?]/.test(oracion0) || _PREGUNTA_O_LIMITE.test(oracion0) || _MEDIDA_DE_PESO.test(oracion0)) continue;
     const oracion = _sinParentesis(oracion0);
@@ -673,7 +686,151 @@ function _jerarquiaCausalSinMedida(texto) {
         const cl = _clausulaDe(oracion, m.index, m.index + m[0].length);
         if (_MARCA_NEGACION.test(cl) || _MARCA_SELLO.test(cl)) continue;   // «no parece la causa principal», «podría ser el mecanismo principal»
         if (/(?:no|ni|tampoco|sin|nunca)\s+(?:[\wáéíóúñ]+\s+){0,3}$/i.test(oracion.slice(Math.max(0, m.index - 40), m.index))) continue;   // «no es la causa principal»
-        return `«${m[0].trim()}» ordena las causas —jerarquía causal— y este turno no midió qué parte del efecto explica cada mecanismo: lo probado es que el mecanismo EXISTE (su huella), no que sea el dominante ni el principal. Describe lo demostrado —«un mecanismo probado», «la huella más clara»— sin «dominante», «principal» ni «sobre todo», salvo con la parte del efecto medida en la boleta (efecto carga contra efecto costo, en pp).`;
+        return _particion
+          ? `«${m[0].trim()}» ordena las causas —jerarquía causal— sin citar la parte medida. La partición SÍ está en la boleta (${_particion}): cita las dos cifras en la misma oración y ahí sí puedes decir cuál pesa más — como componente conjunto «precio y costo», que el dato no separa. Lo probado es que el mecanismo EXISTE (su huella); su peso es esa cifra, no un adjetivo.`
+          : `«${m[0].trim()}» ordena las causas —jerarquía causal— y este turno no midió qué parte del efecto explica cada mecanismo: lo probado es que el mecanismo EXISTE (su huella), no que sea el dominante ni el principal. Describe lo demostrado —«un mecanismo probado», «la huella más clara»— sin «dominante», «principal» ni «sobre todo», salvo con la parte del efecto medida en la boleta (efecto carga contra efecto costo, en pp).`;
+      }
+    }
+  }
+  return null;
+}
+
+/* ── UNIVERSOS CONSISTENTES: LA RELACIÓN ENTRE SUBTOTALES (owner 2026-09-13, sobre la corrida en vivo) ─────────────
+ * Lo que salió: «La contribución no capturada de las 5 cuentas materiales suma $4.9M … De eso, $655K es contribución
+ * cedida en acciones comerciales». Las dos cifras son ciertas y el muro las autorizó; lo falso era la RELACIÓN: los $655K
+ * son la carga sobre el nivel en las 6 cuentas que la exceden (Easy, sana, incluida) — no viven dentro de los $4.9M. La
+ * parte que sí vive ahí es otro subtotal ($588K, «· 5 cuentas materiales»). La ley: «una cifra solo puede presentarse
+ * como parte de otra si realmente pertenece a su universo», transversal a cualquier par de subtotales.
+ *
+ * CÓMO SE SABE EL UNIVERSO: por el rótulo. Un subtotal es «<concepto> · subtotal[ · <universo>]» (o «<concepto> total»,
+ * el negocio entero); una cifra de cuenta es «<cuenta> · <concepto>». Y (la contenida) cabe en X (el continente) si:
+ *   (a) Y es un subtotal con EXACTAMENTE el mismo universo declarado (la brecha partida: carga y precio/costo «· 5 cuentas
+ *       materiales (de 8…)» dentro de la contribución no capturada «· 5 cuentas materiales (de 8…)»);
+ *   (b) Y es la cifra de una cuenta del MISMO concepto que X (Falabella · Contribución no capturada dentro del subtotal
+ *       de contribución no capturada): la cuenta es miembro porque tiene su fila;
+ *   (c) Y es la cifra de una cuenta de OTRO concepto, pero esa cuenta tiene su fila del concepto de X y ese otro concepto
+ *       tiene subtotal en el mismo universo (Falabella · Carga comercial alta dentro de los $4.9M: es la parte de carga de
+ *       una cuenta material);
+ *   (d) X es la cifra de una cuenta: Y tiene que ser de la MISMA cuenta.
+ * Cualquier otra cosa —dos universos distintos, un subtotal sin universo dentro de otro, un total del negocio dentro de un
+ * recorte— arde, nombrando el universo real de cada uno y, si existe, la cifra que sí cabe. La forma que se juzga es la
+ * de contención («de eso», «de ellos», «de los cuales», «dentro de esa brecha», «$Y de los $X»); una cifra dicha APARTE
+ * («además, $655K…») no es una relación y no se toca. */
+const _MARCA_CONTIENE = /(?<![\wáéíóúñ])(?:de es[oa]s?|de ell[oa]s|de los cuales|de las cuales|de ese (?:total|subtotal|monto)|de esa (?:cifra|brecha|suma|contribuci[oó]n)|dentro de (?:es[oa]s?|ell[oa]s|los|las|esa brecha|ese (?:total|subtotal|monto)|la brecha|el subtotal))(?![\wáéíóúñ])/gi;
+const _MONTO_RE = /\$\s?\d+(?:[.,]\d+)?\s?[KMB]?(?![\wáéíóúñ%])/g;
+const _partesDe = (label) => String(label || "").split("·").map((x) => x.trim()).filter(Boolean);
+/* la ficha de una fig: subtotal (concepto + universo), total del negocio (concepto), o cuenta (entidad + concepto) */
+function _fichaDeFig(f, figs) {
+  const L = String((f && f.label) || "");
+  const p = _partesDe(L);
+  if (p.length >= 2 && /^subtotal$/i.test(p[1])) return { tipo: "subtotal", concepto: p[0].toLowerCase(), universo: p.slice(2).join(" · ").toLowerCase() || "", label: L };
+  if (p.length === 1 && /\btotal\b/i.test(p[0])) return { tipo: "total", concepto: p[0].replace(/\s*total\s*/i, " ").trim().toLowerCase(), universo: "negocio", label: L };
+  if (p.length === 2 && /^(?:total|subtotal)$/i.test(p[1])) return { tipo: "total", concepto: p[0].toLowerCase(), universo: "negocio", label: L };
+  if (p.length === 2) return { tipo: "cuenta", entidad: p[0].toLowerCase(), concepto: p[1].toLowerCase(), label: L };
+  return null;
+}
+function _figsDelMonto(texto, figs) {
+  /* cada monto del texto → las figs money con ese valor formateado (puede haber varias: el mismo $194K en dos rótulos) */
+  const out = [];
+  let m;
+  _MONTO_RE.lastIndex = 0;
+  while ((m = _MONTO_RE.exec(texto))) {
+    const v = m[0].replace(/\s+/g, "");
+    const match = figs.filter((f) => f && f.unit === "money" && String(f.text || f.value || "").replace(/\s+/g, "") === v);
+    out.push({ idx: m.index, fin: m.index + m[0].length, valor: v, figs: match });
+  }
+  return out;
+}
+function _cabeEn(fy, fx, figs) {
+  if (!fy || !fx) return true;   // sin ficha no se juzga (criterio nítido: falso negativo antes que falso positivo)
+  const hay = (ent, concepto) => figs.some((g) => { const c = _fichaDeFig(g, figs); return c && c.tipo === "cuenta" && c.entidad === ent && c.concepto === concepto; });
+  const haySubtotal = (concepto, universo) => figs.some((g) => { const c = _fichaDeFig(g, figs); return c && c.tipo === "subtotal" && c.concepto === concepto && c.universo === universo; });
+  if (fx.tipo === "subtotal") {
+    if (fy.tipo === "subtotal") return fy.universo === fx.universo && fy.universo !== "";                 // (a)
+    if (fy.tipo === "cuenta") return fy.concepto === fx.concepto ? hay(fy.entidad, fx.concepto)          // (b)
+      : (hay(fy.entidad, fx.concepto) && haySubtotal(fy.concepto, fx.universo));                         // (c)
+    return false;   // un total del negocio no cabe en un recorte
+  }
+  if (fx.tipo === "total") {
+    if (fy.tipo === "cuenta") return fy.concepto === fx.concepto || fx.concepto.startsWith(fy.concepto) || fy.concepto.startsWith(fx.concepto);
+    if (fy.tipo === "subtotal") return fy.concepto === fx.concepto;
+    return true;   // un total dentro de otro total («de lo pendiente, lo vencido»): la jerarquía entre conceptos es del dominio, no del rótulo
+  }
+  if (fx.tipo === "cuenta") return fy.tipo === "cuenta" && fy.entidad === fx.entidad;                    // (d)
+  return true;
+}
+function _subtotalDeOtroUniverso(texto, figs) {
+  if (!Array.isArray(figs) || !figs.length) return null;
+  const t = String(texto || "");
+  const montos = _figsDelMonto(t, figs);
+  if (montos.length < 2) return null;
+  const pares = [];
+  /* forma 1: «$X … de eso / de los cuales … $Y» (el continente antes de la marca, la contenida después) */
+  let m;
+  _MARCA_CONTIENE.lastIndex = 0;
+  while ((m = _MARCA_CONTIENE.exec(t))) {
+    const previos = [...montos].reverse().filter((x) => x.fin <= m.index && m.index - x.fin <= 220);
+    const esAgregado = (x) => x.figs.some((g) => { const c = _fichaDeFig(g, figs); return c && (c.tipo === "subtotal" || c.tipo === "total"); });
+    /* «…Easy $2.0M. De eso, $12.6M…»: el «eso» es el total dicho antes, no el último ítem de la lista. El continente es el
+     * agregado más cercano hacia atrás; una cifra de cuenta solo cuenta si no hay agregado y está en la MISMA oración. */
+    const agregado = previos.find(esAgregado);
+    const cuentaMisma = previos[0] && !/[.!?]\s/.test(t.slice(previos[0].fin, m.index)) ? previos[0] : null;
+    const antes = agregado || cuentaMisma || null;
+    const despues = montos.find((x) => x.idx >= m.index + m[0].length && x.idx - (m.index + m[0].length) <= 60);
+    if (antes && despues) pares.push({ x: antes, y: despues, marca: m[0] });
+  }
+  /* forma 2: «$Y de los $X» / «$Y dentro de los $X» / «$Y sobre los $X» */
+  for (let i = 0; i + 1 < montos.length; i++) {
+    const y = montos[i], x = montos[i + 1];
+    const entre = t.slice(y.fin, x.idx);
+    if (entre.length <= 45 && /^\s*(?:[^.;\n$]{0,25}?)\b(?:de los|de las|del|dentro de los|dentro de las|sobre los|sobre las|de un total de|de esos|de esas)\s*$/i.test(entre)) pares.push({ x, y, marca: entre.trim() });
+  }
+  /* forma 3: la oración abre con el continente — «De la contribución total de $X, $Y no se capturan» · «De los $X de Falabella, $Y es carga» */
+  for (const o of t.split(/(?<=[.!?])\s+|\n+/)) {
+    const m3 = /^\s*(?:De|Del|De la|De los|De las)\b[^$.;\n]{0,50}?(\$\s?\d+(?:[.,]\d+)?\s?[KMB]?)[^$.;\n]{0,40}?,\s*[^$.;\n]{0,25}?(\$\s?\d+(?:[.,]\d+)?\s?[KMB]?)/.exec(o);
+    if (!m3) continue;
+    const base = t.indexOf(o);
+    const x = montos.find((z) => z.idx === base + m3.index + m3[0].indexOf(m3[1])), y = montos.find((z) => z.idx === base + m3.index + m3[0].lastIndexOf(m3[2]));
+    if (x && y && x !== y) pares.push({ x, y, marca: o.trim().slice(0, 20) + "…" });
+  }
+  const _NEGADA = /(?<![\wáéíóúñ])no\s+(?:es|son|est[aá]n?|forma[n]?\s+parte|vive[n]?|cabe[n]?|pertenece[n]?|entra[n]?)(?![\wáéíóúñ])/i;
+  for (const par of pares) {
+    if (!par.x.figs.length || !par.y.figs.length) continue;   // una cifra no autorizada la cobra el muro; acá se juzga la relación entre autorizadas
+    const lo = Math.min(par.x.fin, par.y.fin), hi = Math.max(par.x.idx, par.y.idx);
+    if (_NEGADA.test(t.slice(lo, hi))) continue;   // «no es parte de los $4.9M»: negar la relación es justo lo que se pide
+    /* con varias figs por valor, la relación vale si ALGUNA combinación cabe (el mismo $194K es «Falabella · Carga comercial alta» en dos rótulos) */
+    const cabe = par.x.figs.some((fxg) => par.y.figs.some((fyg) => _cabeEn(_fichaDeFig(fyg, figs), _fichaDeFig(fxg, figs), figs)));
+    if (cabe) continue;
+    const _prefiere = (lista) => { const fichas = lista.map((g) => _fichaDeFig(g, figs)).filter(Boolean); return fichas.find((c) => c.tipo === "subtotal") || fichas.find((c) => c.tipo === "total") || fichas[0] || null; };
+    const fx = _prefiere(par.x.figs), fy = _prefiere(par.y.figs);
+    if (!fx || !fy) continue;
+    const universoDe = (f) => (f.tipo === "subtotal" ? `de ${f.universo || "un universo sin declarar"}` : f.tipo === "total" ? "del negocio entero" : `de la cuenta ${f.entidad}`);
+    /* la cifra que SÍ cabe, si existe: el subtotal del concepto de Y en el universo de X */
+    const alternativa = fx.tipo === "subtotal" && fy.tipo === "subtotal"
+      ? figs.find((g) => { const c = _fichaDeFig(g, figs); return c && c.tipo === "subtotal" && c.concepto === fy.concepto && c.universo === fx.universo; }) : null;
+    return `presentas «${par.y.valor}» (${fy.label}) como parte de «${par.x.valor}» (${fx.label}) —«${par.marca.trim()}»— y no pertenece a ese universo: ${par.x.valor} es ${universoDe(fx)} y ${par.y.valor} es ${universoDe(fy)}. ${alternativa ? `La parte que sí cabe es «${alternativa.label} = ${alternativa.text || alternativa.value}».` : "Preséntalas aparte, cada una con su universo."} Una cifra solo es parte de otra si pertenece a su mismo universo.`;
+  }
+  return null;
+}
+
+/* ── PRECIO Y COSTO NO SE SEPARAN (owner 2026-09-13) ──────────────────────────────────────────────────────────────
+ * «Precio/costo puede dominar como componente conjunto si está medido; ADI no debe separar cuánto corresponde a precio y
+ * cuánto a costo si esa separación no existe.» La cifra «Brecha por precio y costo» es un resto conjunto: narrarla como
+ * «$4.4M de precio de lista» o «$4.4M por costo» le inventa una separación que el dato no tiene. */
+function _precioYCostoSeparados(texto, figs) {
+  if (!Array.isArray(figs) || !figs.length) return null;
+  const t = String(texto || "");
+  const conjuntas = figs.filter((f) => f && f.unit === "money" && /precio y costo/i.test(String(f.label || "")));
+  if (!conjuntas.length) return null;
+  for (const f of conjuntas) {
+    const v = String(f.text || f.value || "").replace(/\s+/g, "");
+    if (!v) continue;
+    let i = -1;
+    while ((i = t.indexOf(v, i + 1)) >= 0) {
+      const ventana = t.slice(Math.max(0, i - 70), Math.min(t.length, i + v.length + 70));
+      const dicePrecio = /\bprecio/i.test(ventana), diceCosto = /\bcosto/i.test(ventana);
+      if (dicePrecio !== diceCosto && (/(?:de|del|por|en|es|son|corresponde[n]? al?|viene[n]? del?|explica[n]?|atribuible[s]? al?)\s+(?:el |la |un |una |su |tu )?(?:precio|costo)/i.test(ventana) || /(?:precio|costo)\s*(?:de lista\s*)?:\s*\$/i.test(ventana))) {
+        return `«${v}» es «${f.label}»: un resto CONJUNTO de precio de lista y costo, que este dato no separa — narrarlo como ${dicePrecio ? "precio" : "costo"} solo le inventa una separación. Di «precio y costo» (o «precio/costo»), y si hace falta explica que el dato no los distingue.`;
       }
     }
   }

@@ -138,7 +138,7 @@ const _pasosDe = (c) => { const t = _TIPOS[c.tipo]; return typeof t.pasos === "f
 
 /* el precio de cada frente, con el rótulo por el que se lee y la palabra con que se nombra en pantalla */
 const _PRECIO_FRENTE = {
-  margen: { re: /^Carga comercial alta · subtotal$/i, nombre: "el margen", que: "es lo que se está cediendo en acciones comerciales por sobre el nivel que tienes declarado" },
+  margen: { re: /^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i, nombre: "el margen", que: "es lo que se está cediendo en acciones comerciales por sobre el nivel que tienes declarado" },
   cobranza: { re: /^Saldo vencido · total$/i, nombre: "la cobranza", que: "es lo que ya se pasó de plazo, del total que te deben" },
   capital: { re: /^Capital frenado · subtotal$|^Capital frenado · total$/i, nombre: "el capital en inventario", que: "es lo que está inmovilizado en bodega" },
 };
@@ -225,7 +225,7 @@ export function conclusionDe(figs, pregunta, ctx) {
     const lados = _ladosDeDominios(c.opciones, figs);
     return lados ? { tipo: "dominios", ..._eleccionDeDominios(lados[0], lados[1]) } : null;
   }
-  return _find(figs, /^Carga comercial alta · subtotal$/i) ? { tipo: "estrategias", ..._ELECCION_ESTRATEGIAS } : null;
+  return _find(figs, /^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i) ? { tipo: "estrategias", ..._ELECCION_ESTRATEGIAS } : null;
 }
 
 /* cómo se ve, en prosa, ELEGIR un camino o DARLO POR RESUELTO. Verbos de elección anclados al nombre; nada de
@@ -258,7 +258,7 @@ export const compararAlternativas = {
     if (!c) return [];
     if (c.tipo === "cuentas") return [/· Contribución$/i];
     if (c.tipo === "dominios") return [_PRECIO_FRENTE[c.opciones[0]].re, _PRECIO_FRENTE[c.opciones[1]].re];
-    return [/^Carga comercial alta · subtotal$/i];
+    return [/^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i];
   },
 
   entregable: "COMPARA LOS DOS CAMINOS, sin esconder ninguno: (1) nómbralos, para que el dueño vea si entendiste cuáles son; (2) PONLE PRECIO A CADA UNO, con su cifra y SU REFERENCIA —un monto solo no permite elegir—; (3) ELIGE o MARCA EL TRADEOFF: si un precio es de otro tamaño, elige y di por qué; si los dos miden cosas distintas o salen de universos distintos, dilo y no finjas una comparación; (4) cierra pidiendo la pieza que él tiene. ⚠️ RESPONDER UNA SOLA ALTERNATIVA ES LA FALLA: él no pidió ver A, pidió saber cuál. Y esconder la otra es peor que no contestar, porque parece una recomendación. ⚠️ Si los dos montos vienen de universos distintos, di de cuál sale cada uno.",
@@ -326,7 +326,7 @@ export const compararAlternativas = {
 
     /* ── (c) CRECER vs PROTEGER · la disyuntiva de estrategia ──────────────────────────────────────────────── */
     const crecio = _find(figs, /^headline$/i);
-    const cargaAlta = _find(figs, /^Carga comercial alta · subtotal$/i);
+    const cargaAlta = _find(figs, /^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i);
     const nivel = _find(figs, reDeReferencia("pctRebate"));
     const excedenNivel = _find(figs, /exceden el .*carga|erosión por acciones comerciales/i);
     if (!cargaAlta) return null;

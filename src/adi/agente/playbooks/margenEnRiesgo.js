@@ -76,7 +76,7 @@ export function lecturaDeMargen(figs) {
   const promedio = _find(figs, /^Margen promedio$/i);
   const brechaNegocio = _find(figs, /^El negocio · Brecha al benchmark$/i);   // sellada (2026-09-03): la MISMA cifra de la card de la Mesa
   const totalJuego = _find(figs, /^Contribuci[oó]n no capturada · subtotal(?: · \d+ cuentas materiales [^·]*)?$/i);
-  const cargaTotal = _find(figs, /^Carga comercial alta · subtotal$/i);
+  const cargaTotal = _find(figs, /^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i);
 
   const margenes = _unaPorEntidad(_all(figs, /· Margen$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), pct: _pct(f), fmt: _val(f) }))
     .filter((x) => x.entidad && Number.isFinite(x.pct)));
@@ -409,7 +409,7 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
       p0.push(`Contra el benchmark de ${_val(bench0)} que declaraste, tu margen promedio (${_val(promedio0)}) está encima: a nivel negocio no hay una pérdida de margen que explicar.`);
       const cuenta0 = _find(figs, /clientes bajo el benchmark/i);
       const juego0 = _find(figs, /^Contribuci[oó]n no capturada · subtotal(?: · \d+ cuentas materiales [^·]*)?$/i);
-      const carga0 = _find(figs, /^Carga comercial alta · subtotal$/i);
+      const carga0 = _find(figs, /^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i);
       const abiertos = [];
       if (cuenta0 && juego0) abiertos.push(`${_val(cuenta0)} clientes siguen bajo esa referencia y dejan ${_val(juego0)} de contribución sin capturar`);
       if (carga0) abiertos.push(`la carga comercial alta suma ${_val(carga0)}`);
@@ -638,7 +638,14 @@ export const margenEnRiesgo = {
     }
     /* la naturaleza de cada cifra y las comparaciones válidas (owner 2026-09-13, cuatro requisitos de producto) */
     if (L.totalJuego) lineas.push(`- ${_val(L.totalJuego)} es una brecha ESTIMADA contra el benchmark —lo que sumarían esas cuentas si llegaran al benchmark—, no dinero que ya se perdió ni caja: dilo como «brecha estimada» o «contribución no capturada», nunca «ya se dejó de capturar» ni «no es teórico».`);
-    if (L.cargaTotal) lineas.push(`- ${_val(L.cargaTotal)} es contribución cedida en acciones comerciales por sobre el nivel de referencia: no es caja, flujo ni efectivo. Conserva esa naturaleza al citarlo.`);
+    /* UNIVERSOS CONSISTENTES Y LA PARTICIÓN MEDIDA (owner 2026-09-13, corrida en vivo): «de los $4.9M, $655K» mezclaba dos
+     * universos. El cerebro recibe cada subtotal con su universo y la partición que sí cabe dentro de la brecha. */
+    const _cargaMat = _find(figs, /^Carga comercial alta · subtotal · \d+ cuentas materiales/i), _restoMat = _find(figs, /^Brecha por precio y costo · subtotal · \d+ cuentas materiales/i);
+    if (L.cargaTotal) {
+      const _uC = /· subtotal · (.+)$/.exec(_lab(L.cargaTotal));
+      lineas.push(`- ${_val(L.cargaTotal)} es contribución cedida en acciones comerciales por sobre el nivel de referencia${_uC ? ` en ${_uC[1]} — su universo, que NO es el de la brecha de las cuentas materiales: nunca lo presentes como parte de ella («de eso», «de los cuales»)` : ""}: no es caja, flujo ni efectivo. Conserva esa naturaleza y ese universo al citarlo.`);
+    }
+    if (L.totalJuego && _cargaMat && _restoMat) lineas.push(`- La partición MEDIDA de ${_val(L.totalJuego)} (las mismas cuentas materiales): ${_val(_cargaMat)} corresponden al efecto de la carga sobre el nivel declarado y ${_val(_restoMat)} al componente precio y costo. Úsala cuando expliques la brecha —«de eso, ${_val(_cargaMat)} es carga y el resto, ${_val(_restoMat)}, precio y costo»— y con esas dos cifras sí puedes decir cuál pesa más. «Precio y costo» es un componente conjunto: el dato no separa cuánto es precio y cuánto costo, no lo separes tú.`);
     const mkCaen = _find(figs, /^Markup promedio · los que caen$/i), mkSanos = _find(figs, /^Markup promedio · sanos$/i);
     lineas.push(mkCaen && mkSanos
       ? `- Comparaciones: solo entre métricas equivalentes (margen con margen, markup con markup, carga con carga). El markup de los sanos SÍ está en la boleta: si comparas el precio de lista de los que caen con el de los sanos, cita los dos lados en la misma oración (markup promedio ${_val(mkCaen)} los que caen contra ${_val(mkSanos)} los sanos) — y sigue siendo una huella INDICADA, no probada.`

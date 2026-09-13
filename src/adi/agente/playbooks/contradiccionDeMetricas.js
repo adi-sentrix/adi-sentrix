@@ -172,7 +172,7 @@ export const contradiccionDeMetricas = {
     /* ── (b) EL NEGOCIO · «vendo más pero gano menos» ─────────────────────────────────────────────────────── */
     if (c.tipo === "negocio") {
       const crecio = _find(figs, /^headline$/i);
-      const cargaAlta = _find(figs, /^Carga comercial alta · subtotal$/i);
+      const cargaAlta = _find(figs, /^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i);
       /* LA SERIE MENSUAL, en el orden en que la publica el motor: la caída se ve en las cifras mismas, sin
        * promediar ni resumir. Se muestran la primera, una del medio y la última — y la cola SE DECLARA. */
       const serie = _all(figs, /^(?:Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic)$/i);

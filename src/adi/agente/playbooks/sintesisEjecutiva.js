@@ -119,7 +119,7 @@ export const sintesisEjecutiva = {
       if (f && Number.isFinite(_num(f)) && _num(f) > 0) candidatos.push({ nombre, f, usd: _num(f), top: _topDe(figs, reLoc), abrir });
     };
     mk(/^Contribuci[oó]n no capturada · subtotal(?: · \d+ cuentas materiales [^·]*)?$/i, "Contribución no capturada", /· Contribuci[oó]n no capturada$/i, "esa cuenta");
-    mk(/^Carga comercial alta · subtotal$/i, "Carga comercial alta", /· Carga comercial alta$/i, "esa carga");
+    mk(/^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i, "Carga comercial alta", /· Carga comercial alta$/i, "esa carga");
     mk(/^Capital frenado · subtotal$/i, "Capital frenado en inventario", /· Capital frenado$/i, "ese SKU");
     if (!candidatos.length) return null;
 

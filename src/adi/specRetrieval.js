@@ -627,7 +627,13 @@ function _diagComercial(filters, scenario, entityScope) {
   const carga = D.filas.filter((f) => f.cargaMaterial).map((f) => ({ entidad: f.entidad, usd: f.cargaUsd, gap: f.excesoPp }));
   const bajoBenchmark = D.universo.m;   // EL UNIVERSO del foco de margen: TODAS las cuentas bajo el benchmark, antes de los dos filtros
   const out = [];
-  if (carga.length)   out.push(_diagFoco("carga", "Carga comercial alta", carga));
+  /* EL UNIVERSO DEL SUBTOTAL DE CARGA VA EN SU RÓTULO (owner 2026-09-13, «universos consistentes»): son las cuentas con carga
+   * sobre el nivel declarado y monto material — estén o no bajo el benchmark (Easy, sano, está adentro). En vivo el modelo
+   * narró «de los $4.9M, $655K» y no son parte: la carga que vive dentro de las 5 cuentas materiales es otro subtotal
+   * (el de la brecha partida). Con el universo dicho, el juez de subtotales puede distinguirlos y el usuario también. */
+  const _bajoEntreCarga = D.filas.filter((f) => f.cargaMaterial && f.bajoBenchmark).length;
+  if (carga.length)   out.push({ ..._diagFoco("carga", "Carga comercial alta", carga),
+    alcance: `${carga.length} cuentas sobre el nivel declarado (${_bajoEntreCarga} de ellas bajo el benchmark)` });
   /* EL UNIVERSO VIAJA CON EL FOCO (owner 2026-09-13, «alcance de los $4,9M»): el subtotal de contribución no
    * capturada es el de las cuentas MATERIALES —brecha ≥ POLICY.margenBrechaMaterial pp y monto ≥ piso—, no el de
    * todas las que están bajo el benchmark. En vivo el modelo lo narró «en los ocho clientes bajo benchmark» (son
@@ -720,9 +726,10 @@ export function composeSpecDiagnose({ filters = {}, scenario, focus, entityScope
     /* ⚠️ el universo va en el RÓTULO y no en `cobertura`: `cobertura` enciende el chequeo de estimación-como-hecho
      * (guardC, `_estimacionComoHecho`), que para este agregado estuvo siempre apagado y contra el que ningún
      * composer está calibrado. El muro lee «n de m» del rótulo (chequeo de alcance), que es texto nuestro. */
-    bol.push(fig(`${f.titulo} · subtotal${_u ? ` · ${_u.n} cuentas materiales (de ${_u.m} bajo el benchmark)` : ""}`, _money(f.subtotal), {
+    bol.push(fig(`${f.titulo} · subtotal${_u ? ` · ${_u.n} cuentas materiales (de ${_u.m} bajo el benchmark)` : f.alcance ? ` · ${f.alcance}` : ""}`, _money(f.subtotal), {
       unit: "money", raw: f.subtotal, mandatory: true,
-      context: _u ? `${_ctx} · subtotal de las ${_u.n} cuentas con ${_u.criterio}; las ${_u.m} bajo el benchmark no tienen total en esta boleta` : _ctx,
+      context: _u ? `${_ctx} · subtotal de las ${_u.n} cuentas con ${_u.criterio}; las ${_u.m} bajo el benchmark no tienen total en esta boleta`
+        : f.alcance ? `${_ctx} · el total de la carga sobre el nivel declarado en las cuentas que lo exceden con monto material, estén o no bajo el benchmark — NO es parte de la contribución no capturada de las cuentas materiales (esa parte es su propio subtotal)` : _ctx,
     }));
     for (const it of f.top.slice(0, 3)) bol.push(fig(`${it.entidad} · ${f.titulo}`, _money(it.usd), { unit: "money", raw: it.usd, mandatory: false, context: _ctx }));
   }

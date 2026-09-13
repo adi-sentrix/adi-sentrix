@@ -282,7 +282,8 @@ H("7 · margen-en-riesgo · la prioridad («¿qué harías primero?») es del pr
   ok(/métricas equivalentes/.test(doc) && /el margen no «cae», no «se deteriora»/.test(doc) && /contribución, no capital/.test(doc), "…y las reglas de comparación y de lenguaje");
   /* las cuatro garantías transversales del owner (2026-09-13), dichas al cerebro antes de escribir */
   ok(/brecha ESTIMADA contra el benchmark/.test(doc) && /nunca «ya se dejó de capturar»/.test(doc), "★ …$4.9M es brecha ESTIMADA contra el benchmark, nunca pérdida realizada");
-  ok(/contribución cedida en acciones comerciales por sobre el nivel de referencia: no es caja/.test(doc), "★ …$655K conserva su naturaleza: contribución cedida, no caja");
+  ok(/contribución cedida en acciones comerciales por sobre el nivel de referencia[^\n]*: no es caja/.test(doc), "★ …$655K conserva su naturaleza: contribución cedida, no caja");
+  ok(/cuentas sobre el nivel declarado \(\d+ de ellas bajo el benchmark\) — su universo, que NO es el de la brecha/.test(doc) && /nunca lo presentes como parte de ella/.test(doc), "★ …y lleva su universo, distinto del de la brecha: nunca «de eso» (owner 2026-09-13, universos consistentes)");
   ok(/El markup de los sanos NO está en esta boleta/.test(doc) && /no afirmes que los que caen tienen el precio más pegado al costo que los sanos/.test(doc), "★ …sin rolesCartera en los pasos, la doctrina PROHÍBE la comparación de markup con los sanos (no está disponible)");
   /* con la boleta UNIDA del encargo compuesto (rolesCartera adentro) el markup de los sanos SÍ está, y la comparación se cita con los dos lados */
   const { partesDelEncargo, pasosDelEncargo } = await import("./src/adi/agente/encargoCompuesto.js");
@@ -291,6 +292,7 @@ H("7 · margen-en-riesgo · la prioridad («¿qué harías primero?») es del pr
   const docU = doctrinaDelPlaybook(PBM, QG, {}, figsU);
   ok(figsU.some((f) => /^Markup promedio · sanos$/.test(String(f.label))) && /El markup de los sanos SÍ está en la boleta/.test(docU) && /cita los dos lados en la misma oración/.test(docU) && /huella INDICADA, no probada/.test(docU),
     "★ …con rolesCartera en la boleta unida, el markup de los sanos está disponible y la comparación se cita con los dos lados, como huella indicada", docU.split("\n").filter((l) => /Comparaciones/.test(l)).join(" ").slice(0, 200));
+  ok(/La partición MEDIDA de \$4\.9M/.test(docU) && /\$588K corresponden al efecto de la carga/.test(docU) && /\$4\.4M al componente precio y costo/.test(docU) && /no lo separes tú/.test(docU), "★ …con la boleta unida, la doctrina entrega la partición medida ($588K carga · $4.4M precio y costo) y prohíbe separar precio de costo");
   ok(/No hay comparación histórica del margen/.test(doc), "★ …y sin comparación histórica no hay «deterioro» ni «se diluye»");
   /* lo descartado, lo indicado, lo abierto y lo que cambió en el tiempo (owner 2026-09-13, tras la corrida 5): la doctrina lo
    * declara ANTES de escribir, con el sello de cada mecanismo tomado de la boleta (el markup de los dos lados = precio INDICADO) */

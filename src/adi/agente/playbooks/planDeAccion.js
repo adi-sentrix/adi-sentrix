@@ -52,7 +52,7 @@ const _ord = (f) => {
 /* `senal` es cómo ese frente suena en prosa — la usa el notario de la conclusión para ver si la primera
  * acción del texto se fue a OTRO frente que el que el procedimiento eligió. Defiende, nunca escribe. */
 const _FRENTES = [
-  { clave: "condiciones", re: /^Carga comercial alta · subtotal$/i, porEntidad: /· Carga comercial alta$/i,
+  { clave: "condiciones", re: /^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i, porEntidad: /· Carga comercial alta$/i,
     universo: "comercial", nombre: "las condiciones comerciales", senal: /condici[oó]n|carga comercial/i,
     accion: (n) => `entrar por ${n} y revisar su condición`,
     mirar: "si esa carga se pactó a cambio de volumen o se fue dando sola",
@@ -198,7 +198,7 @@ export const planDeAccion = {
   /* la promesa es el frente que ordena la secuencia: sin una cifra literal que diga por dónde empezar, un
    * plan es una lista de buenas intenciones — y el playbook se retira en vez de improvisar el orden. */
   obligatorias(pregunta) {
-    return _caso(pregunta) ? [/^Carga comercial alta · subtotal$|^Saldo vencido · total$|^Capital frenado · subtotal$/i] : [];
+    return _caso(pregunta) ? [/^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$|^Saldo vencido · total$|^Capital frenado · subtotal$/i] : [];
   },
 
   entregable: "CONVIERTE LA LECTURA EN UNA SECUENCIA, sin gestionar por él. Las cinco piezas, en este orden: (1) LA PRIMERA ACCIÓN, una sola, nombrando por dónde entrar; (2) POR QUÉ ESA PRIMERO, con su cifra y contra qué se compara, y si es criterio tuyo, dilo; (3) QUÉ MIRAR PARA CONFIRMAR — la pieza que él tiene y el dato no; (4) LA SEGUNDA ACCIÓN si eso se confirma, y la alternativa si no; (5) QUÉ NO HARÍAS TODAVÍA, y por qué el dato no lo sostiene. ⚠️ OFRECE, NO ORDENES: todo en primera persona condicional —«haría», «miraría», «entraría»—, jamás en imperativo. ADI asesora, no gestiona: un «llama a Falabella» convierte al asesor en un sistema de tareas. ⚠️ Y no apoyes la primera acción en una cifra que el dato declare no reconciliada.",

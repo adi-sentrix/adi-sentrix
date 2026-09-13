@@ -213,7 +213,7 @@ H("9 · su lista notarial — y las carnadas que prueban que mira");
   const q = "¿qué es más urgente, margen o cobranza?";
   const figs = figsDe(pasosDe(PB, q, {}), q);
   const reglas = (t) => PB.listaNotarial(t, { figs, pregunta: q }).map((v) => v.regla);
-  const margen = valDe(figs.find((f) => /^Carga comercial alta · subtotal$/i.test(f.label)));
+  const margen = valDe(figs.find((f) => /^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i.test(f.label)));
   const cob = valDe(figs.find((f) => /^Saldo vencido · total$/i.test(f.label)));
 
   ok(reglas(`El margen: se están cediendo ${margen}.`).includes("alternativa-escondida"),
