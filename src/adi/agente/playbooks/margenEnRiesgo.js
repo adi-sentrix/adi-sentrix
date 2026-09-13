@@ -649,6 +649,8 @@ export const margenEnRiesgo = {
     const _mkBajo = mkCaen && mkSanos && Number.isFinite(_num(mkCaen)) && Number.isFinite(_num(mkSanos)) && _num(mkCaen) < _num(mkSanos);
     lineas.push(`- Cada mecanismo lleva el sello del procedimiento: carga comercial ${L.cargaTotal ? "PROBADA (hay cuentas bajo el benchmark con carga sobre el nivel de referencia)" : "según su huella"}; precio de lista ${_mkBajo ? `INDICADO (markup promedio ${_val(mkCaen)} en los que caen contra ${_val(mkSanos)} en los sanos)` : "con el sello de su huella"}; mix ABIERTO (el dato no cruza cliente con familia). Un mecanismo indicado o abierto NO se descarta: nada de «no es precio ni mix» ni «apunta a carga, no a precio» — se nombra el probado y los otros quedan con su sello.`);
     lineas.push("- «Se deterioró» / «deterioro» afirma un movimiento en el tiempo: sin serie ni variación de eso en la boleta no se usa, ni como hipótesis ni como alternativa («negociación que se deterioró» → «negociación que quedó bajo la referencia»).");
+    /* describir lo demostrado sin causalidad ni jerarquía causal (owner 2026-09-13, corrida 6) */
+    lineas.push("- Lo demostrado se describe sin agregarle causa ni jerarquía: los que están sobre el benchmark solo tienen eso probado (no «con mejor costo», no «gracias a su mix»); y un mecanismo probado es eso —existe, tiene huella—, no «la causa dominante» ni «principal»: este turno no mide qué parte del efecto explica cada mecanismo. Di «un mecanismo probado» o «la huella más clara».");
     return lineas.length > 1 ? lineas.join("\n") : "";
   },
 

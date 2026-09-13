@@ -299,6 +299,7 @@ H("7 · margen-en-riesgo · la prioridad («¿qué harías primero?») es del pr
     "★ …con la boleta unida, cada mecanismo con su sello (carga PROBADA · precio INDICADO con sus dos markups · mix ABIERTO) y la prohibición de descartar", docU.split("\n").filter((l) => /sello del procedimiento/.test(l)).join(" ").slice(0, 240));
   ok(/precio de lista con el sello de su huella/.test(doc) && /mix ABIERTO/.test(doc), "★ …sin el markup de los dos lados en la boleta, el precio queda «con el sello de su huella» (la doctrina no inventa el INDICADO)");
   ok(/«Se deterioró» \/ «deterioro» afirma un movimiento en el tiempo/.test(doc) && /ni como hipótesis ni como alternativa/.test(doc), "★ …y «se deterioró» no va sin serie, ni como hipótesis ni como alternativa");
+  ok(/sin agregarle causa ni jerarquía/.test(doc) && /no «con mejor costo»/.test(doc) && /no «la causa dominante» ni «principal»/.test(doc), "★ …y lo demostrado se describe sin causa ni jerarquía: ni «con mejor costo» para los sanos ni «la causa dominante» para la carga (owner 2026-09-13, corrida 6)");
   ok(!/CONCLUSIONES DEL PROCEDIMIENTO/.test(doctrinaDelPlaybook(PBM, QG, {})), "…sin boleta, la doctrina es la de siempre (byte-idéntica: sin bloque de conclusiones)");
   /* el «porque» de una elección declarada como criterio no es una causa del negocio (corrida 3, 2026-09-13) */
   ok(!reglasG(`Ambos son válidos; elegí ${top} porque concentra más dinero en pesos, no porque el dato lo ordene así.`).includes("causa-sin-respaldo"),

@@ -320,6 +320,32 @@ H("3f · ★★★ la corrida 5: «de los ocho …, cinco concentran $4.9M» no 
   ok(/Ocho de trece clientes están bajo la referencia; cinco concentran una brecha estimada de \$4\.9M/.test(t), "…y la primera línea del directorio intacta («Ocho de trece …; cinco concentran … $4.9M»)");
 }
 
+/* ═══ 3g · LA CORRIDA 6: DESCRIBIR LO DEMOSTRADO SIN CAUSA NI JERARQUÍA CAUSAL ═══════════════════════════════════
+ * (owner 2026-09-13 · fixtures/gerente-borradores-2026-09-13e) La corrida final en vivo (2 llamadas): el cierre cayó por
+ * criterio sin marcar + lista sin corte (reales) y la reparación se sirvió entera. Sobre ella el owner cobró dos excesos
+ * de interpretación: «sosteniendo contribución con mejor costo relativo» (los sanos solo están probados sobre el
+ * benchmark) y «la causa dominante y probada es exceso de carga comercial» (probado que el mecanismo existe, no que
+ * explique la mayor parte del efecto). Las dos arden; corregidas, la reparación se sirve entera. */
+H("3g · ★★★ la corrida 6: «con mejor costo relativo» y «la causa dominante» no están demostrados — corregidas, la reparación SE SIRVE entera");
+{
+  const FX = JSON.parse(readFileSync(new URL("./fixtures/gerente-borradores-2026-09-13e.json", import.meta.url), "utf8"));
+  const [b1, b2] = FX.borradores.map((b) => b.texto);
+  const cerebroDe = (textos) => { let i = 0; return async () => { const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
+  const r0 = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2]) });
+  const a0 = r0.r.agente || {}, v0 = a0.vetos || [];
+  ok(v0.length >= 1 && /^cierre · /.test(v0[0]) && /DATO DURO|criterio/.test(v0[0]), `el cierre cae por lo real (criterio sin marcar): ${String(v0[0]).slice(0, 70)}…`, v0.join(" | ").slice(0, 300));
+  ok(a0.estado === "encargo-compuesto" && /reparacion · [^|]*mecanismo-sin-sello/.test(v0.join(" | ")) && /jerarquia-causal-sin-medida/.test(v0.join(" | ")),
+    `★★★ la reparación con los dos excesos NO se sirve (${a0.estado}): «con mejor costo relativo» + «la causa dominante» arden`, v0.join(" | ").slice(0, 400));
+  const b2ok = b2
+    .replace("— sobre el benchmark, sosteniendo contribución con mejor costo relativo.", "— están sobre el benchmark.")
+    .replace("La causa dominante y probada es exceso de carga comercial;", "El mecanismo probado es el exceso de carga comercial;");
+  ok(b2ok !== b2 && !/mejor costo relativo|causa dominante/.test(b2ok), "la reparación corregida describe lo demostrado sin causa ni jerarquía");
+  const r = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2ok]) });
+  const a = r.r.agente || {}, vetos = a.vetos || [], t = String(r.r.text);
+  ok(a.estado === "reparado", `★★★ la reparación corregida SE SIRVE entera (${a.estado}): ${palabras(t)} palabras`, vetos.join(" | ").slice(0, 400));
+  ok(/Vendes más; si ganas más, con lo que hay hoy no se puede saber/.test(t) && /El mecanismo probado es el exceso de carga comercial/.test(t) && /están sobre el benchmark\./.test(t), "…con la apertura honesta, el mecanismo probado sin jerarquía y los sanos solo sobre el benchmark");
+}
+
 /* ═══ 4 · EL PARAGUAS, SOLO PARA EL ENCARGO COMPUESTO SOBRE EL NEGOCIO ENTERO ═════════════════════════════ */
 H("4 · el paraguas de la foto no captura preguntas simples ni ambiguas");
 {

@@ -525,6 +525,8 @@ export function vetosDeRegistro(texto, contexto = {}) {
   }
   const _mec = _mecanismoSinSello(texto, contexto.huellas);
   if (_mec) v.push({ regla: "mecanismo-sin-sello", multa: _mec });
+  const _jer = _jerarquiaCausalSinMedida(texto);
+  if (_jer) v.push({ regla: "jerarquia-causal-sin-medida", multa: _jer });
   const _cta = _cuentaDerivada(texto, contexto.figs);
   if (_cta) v.push({ regla: "cuenta-derivada-no-cierra", multa: _cta });
   return v;
@@ -564,12 +566,18 @@ const _AFIRMA_MECANISMO = new RegExp(`\\b(?:el mecanismo (?:medido |real |de fon
  * volumen» describe la huella de una cuenta (lo que NO tiene), no descarta el mecanismo. */
 const _NIEGA_MECANISMO = new RegExp(`(?<![\\wáéíóúñ])(?:no|tampoco|(?<!(?<![\\wáéíóúñ])sin\\s+[^,;.:]{0,40})ni)(?:\\s+(?:es|son|era|fue|viene\\s+de|vienen\\s+de|hay|est[aá]\\s+en|pasa\\s+por|se\\s+explica\\s+por|se\\s+debe\\s+(?:a|al)))?(?!\\s+(?:solo|s[oó]lo|[uú]nicamente|solamente|necesariamente|siempre|tanto|parece|parecen|tan\\s))\\s+(?:a |al |de |del |por |en )?(?:un |una |el |la |los |las )?(?:tema |problema |cosa |cuesti[oó]n |efecto |asunto )?(?:de |del )?${_MECANISMO_PALABRA}(?: estructural| comercial)?(?![\\wáéíóúñ])`, "gi");
 const _DESCARTA_MECANISMO = new RegExp(`(?<![\\wáéíóúñ])(?:(?:se\\s+|queda\\s+|quedan\\s+|podemos\\s+|puedo\\s+|hay\\s+que\\s+|para\\s+)?descart(?:a|an|o|amos|ar|ado|ada|ados|adas)\\s+(?:el |la |los |las |un |una )?(?:tema |problema )?(?:de |del )?${_MECANISMO_PALABRA}|(?:el |la |los |las )?${_MECANISMO_PALABRA}(?:\\s+(?:y|ni|o)\\s+(?:el |la )?${_MECANISMO_PALABRA})?\\s+(?:queda(?:n)?\\s+|est[aá](?:n)?\\s+|fue(?:ron)?\\s+)?descartad[oa]s?|(?:el |la |los |las )?${_MECANISMO_PALABRA}(?:\\s+(?:y|ni|o)\\s+(?:el |la )?${_MECANISMO_PALABRA})?\\s+no\\s+(?:es|son)\\s+(?:el|la|un|una)\\s+(?:problema|causa|mecanismo|explicaci[oó]n|tema|raz[oó]n|factor|origen|driver)|(?:el |la |los |las )?${_MECANISMO_PALABRA}(?:\\s+(?:y|ni|o)\\s+(?:el |la )?${_MECANISMO_PALABRA})?\\s+no\\s+(?:explica|explican|pesa|pesan|juega|juegan|influye|influyen|cuenta|cuentan|est[aá]n?\\s+detr[aá]s|entra|entran))(?![\\wáéíóúñ])`, "gi");
+/* LA ATRIBUCIÓN DICHA DE PASO (owner 2026-09-13, corrida 6): «sosteniendo contribución con mejor costo relativo» explica el
+ * margen de los sanos por el costo, y el dato solo demuestra que están sobre el benchmark. «Gracias a», «debido a»,
+ * «producto de» y «por / con + mejor·menor·mayor·bajo·alto + mecanismo» son causa sin marco explícito: valen solo con el
+ * mecanismo PROBADO; lo demás se describe sin agregarle la causa. «Con carga sobre el nivel» (sin calificativo) describe
+ * la huella medida y no entra. */
+const _ATRIBUYE_MECANISMO = new RegExp(`(?<![\\wáéíóúñ])(?:(?:gracias a|debido a|producto de|a causa de|a ra[ií]z de|por efecto de|de la mano de)\\s+(?:un |una |su |sus |el |la |los |las )?(?:mejor(?:es)?\\s+|peor(?:es)?\\s+|menor(?:es)?\\s+|mayor(?:es)?\\s+|buen[oa]s?\\s+|baj[oa]s?\\s+|alt[oa]s?\\s+)?|(?:por|con)\\s+(?:un |una |su |sus |el |la |los |las )?(?:mejor(?:es)?|peor(?:es)?|menor(?:es)?|mayor(?:es)?|buen[oa]s?|baj[oa]s?|alt[oa]s?|m[aá]s\\s+(?:baj[oa]s?|alt[oa]s?|barat[oa]s?|car[oa]s?))\\s+)${_MECANISMO_PALABRA}(?:\\s+relativ[oa]s?|\\s+unitari[oa]s?|\\s+comercial|\\s+estructural)?(?![\\wáéíóúñ])|(?<![\\wáéíóúñ])(?:por|con)\\s+(?:un |una |su |sus |el |la |los |las )?${_MECANISMO_PALABRA}(?:\\s+relativ[oa]s?|\\s+unitari[oa]s?|\\s+comercial)?\\s+(?:m[aá]s\\s+(?:baj[oa]s?|alt[oa]s?|barat[oa]s?|car[oa]s?)|mejor(?:es)?|peor(?:es)?|menor(?:es)?|mayor(?:es)?)(?![\\wáéíóúñ])`, "gi");
 const _ALTERNATIVA = /\b(?:costos?|precio(?: de lista)?|mix|volumen|carga)\b[^.;\n]{0,40}\bo\b[^.;\n]{0,40}\b(?:costos?|precio(?: de lista)?|mix|volumen|carga)\b/i;
-const _MARCA_SELLO = /\b(?:puede|pueden|podr[ií]a(?:n)?|quiz[aá]s?|tal vez|probablemente|posiblemente|hip[oó]tesis|sospecho|apunta|indicio|patr[oó]n|sin prueba|queda abierto|no lo prueba|no est[aá] (?:medido|probado)|indicad[oa]|abiert[oa]|parece|parecen|pareciera|parecer[ií]a)\b|\bsi (?:viene|vienen|fuera|fuese|es|era|resulta)\b|\bel dato no (?:lo |la |los |las )?(?:dice|declara|trae|mide|ve|prueba|separa|cruza|distingue)\b/i;
+const _MARCA_SELLO = /\b(?:puede|pueden|podr[ií]a(?:n)?|quiz[aá]s?|tal vez|probablemente|posiblemente|hip[oó]tesis|sospecho|apunta|indicio|patr[oó]n|sin prueba|queda abierto|no lo prueba|no est[aá] (?:medid|probad|demostrad)[oa]s?|indicad[oa]|abiert[oa]|parece|parecen|pareciera|parecer[ií]a)\b|\bsi (?:viene|vienen|fuera|fuese|es|era|resulta)\b|\bel dato no (?:lo |la |los |las )?(?:dice|declara|trae|mide|ve|prueba|separa|cruza|distingue)\b/i;
 /* la marca que vale para una NEGACIÓN es la de su propia cláusula: «apunta a carga, no a precio» lleva la marca en la
  * afirmación y deja la negación seca. Absuelven la duda sobre el descarte («no parece precio», «no necesariamente»,
  * «no se puede descartar») y el límite de dato («no hay precio de lista por cliente en la planilla»). */
-const _MARCA_NEGACION = /\b(?:puede|pueden|podr[ií]a(?:n)?|quiz[aá]s?|tal vez|probablemente|posiblemente|hip[oó]tesis|sospecho|parece|parecen|pareciera|parecer[ií]a|necesariamente|del todo|por completo|sin prueba|no est[aá] (?:medido|probado|demostrado)|no lo prueba|no (?:puedo|podemos|se puede|puede|permite) (?:descartar|afirmar|separar|saber|probar)|permite descartar)\b/i;
+const _MARCA_NEGACION = /\b(?:puede|pueden|podr[ií]a(?:n)?|quiz[aá]s?|tal vez|probablemente|posiblemente|hip[oó]tesis|sospecho|parece|parecen|pareciera|parecer[ií]a|necesariamente|del todo|por completo|sin prueba|no est[aá] (?:medid|probad|demostrad)[oa]s?|no lo prueba|no (?:puedo|podemos|se puede|puede|permite) (?:descartar|afirmar|separar|saber|probar)|permite descartar)\b/i;
 const _LIMITE_DE_DATO = /\b(?:dato|datos|planilla|columna|campo|cruce|cruza|medid[oa]|medir|serie|informaci[oó]n|por cliente)\b/i;
 const _clausulaDe = (oracion, i, fin) => {
   const a = oracion.slice(0, i).search(/[,;:—–][^,;:—–]*$/);
@@ -598,6 +606,13 @@ function _mecanismoSinSello(texto, huellas) {
         if (!e || e.h.sello === "probado") continue;
         return `afirmas como hecho que el mecanismo es «${e.nombre}» («${oracion.trim().slice(0, 90)}»), y en este dato ese mecanismo está ${e.h.sello.toUpperCase()}: ${e.h.porque || "no hay prueba"}. Dilo con su sello —«el patrón apunta a…», «queda abierto»— o como hipótesis; afirmarlo o negarlo como hecho es causalidad sin respaldo.`;
       }
+      _ATRIBUYE_MECANISMO.lastIndex = 0;
+      while ((m = _ATRIBUYE_MECANISMO.exec(oracion)) !== null) {
+        if (/(?:^|[^\wáéíóúñ])(?:no|ni|tampoco)\s+$/i.test(oracion.slice(Math.max(0, m.index - 12), m.index))) continue;
+        const e = _huellaDe(m.slice(1).find(Boolean) || "");
+        if (!e || e.h.sello === "probado") continue;
+        return `explicas un resultado por «${m[0].trim()}» («${oracion.trim().slice(0, 90)}»), y en este dato ese mecanismo está ${e.h.sello.toUpperCase()}: ${e.h.porque || "no hay prueba"}. Describe lo demostrado —el nivel, la brecha, el conteo— sin agregarle la causa: la causa se afirma solo con el mecanismo PROBADO.`;
+      }
     }
     /* (b) el DESCARTE: cada negación se juzga por SU cláusula. Negar un mecanismo PROBADO para una cuenta puntual
      * («en Tottus no es carga») sigue pasando —eso lo decide el papel de esa cuenta—, y un patrón que se buscó y no
@@ -619,6 +634,46 @@ function _mecanismoSinSello(texto, huellas) {
         const medible = h.medible !== undefined ? !!h.medible : !h.falta;
         if (h.sello === "abierto" && medible && h.presente === false) continue;
         return `descartas como hecho el mecanismo «${nombre}» («${n.dicho.trim()}», en «${oracion.trim().slice(0, 90)}»), y en este dato ese mecanismo está ${h.sello.toUpperCase()}: ${h.porque || "no hay prueba"}. Lo descartado, lo indicado y lo abierto no se mezclan: nombra el mecanismo probado y deja a los otros con su sello («precio de lista indicado, mix abierto»), sin negarlos.`;
+      }
+    }
+  }
+  return null;
+}
+
+/* ── LA JERARQUÍA CAUSAL SIN MEDIDA (owner 2026-09-13, corrida 6 del prompt de gerente) ─────────────────────
+ * Lo que salió: «La causa dominante y probada es exceso de carga comercial». Lo probado es que el mecanismo EXISTE
+ * (su huella: 6 de los que caen con la carga sobre el nivel), no que explique la mayor parte del efecto. «Dominante»,
+ * «principal», «sobre todo», «la mayor parte», «pesa más» ORDENAN las causas, y ese orden exige la parte del efecto
+ * medida (una descomposición en la boleta: efecto carga contra efecto costo, en pp o %). Sin ella se describe lo
+ * demostrado —«un mecanismo probado», «la huella más clara»— sin jerarquía. Pasan la pregunta, la hipótesis marcada,
+ * la negación, y el peso entre CUENTAS («impulsado sobre todo por Lider y Jumbo»: eso sí es una cifra). No depende
+ * de las huellas: ordenar causas sin medida es falso en cualquier turno. */
+const _JERARQUIA = "(?:dominante|principal(?:es)?|central|de fondo|primari[oa]|n[uú]mero uno|de mayor peso|m[aá]s importante|m[aá]s relevante|de m[aá]s peso|secundari[oa]|marginal)";
+const _CAUSA_PALABRA = "(?:causa|mecanismo|factor|driver|motivo|explicaci[oó]n|origen|palanca|raz[oó]n)";
+const _RE_JERARQUIA = [
+  new RegExp(`(?<![\\wáéíóúñ])(?:la |el |los |las |un |una )?${_CAUSA_PALABRA}s?\\s+(?:m[aá]s\\s+)?${_JERARQUIA}(?![\\wáéíóúñ])`, "gi"),   // «la causa dominante», «el mecanismo principal», «factor de mayor peso»
+  new RegExp(`(?<![\\wáéíóúñ])(?:la |el |los |las )?(?:principal(?:es)?|primer[oa]?|mayor|gran)\\s+${_CAUSA_PALABRA}s?(?![\\wáéíóúñ])`, "gi"),   // «la principal causa», «el primer mecanismo»
+  new RegExp(`(?<![\\wáéíóúñ])(?:principalmente|sobre todo|fundamentalmente|esencialmente|mayoritariamente|en (?:su )?mayor(?:[ií]a| parte| medida)|b[aá]sicamente|ante todo)\\s+(?:por|de|desde|en|es|son|viene de|se explica por)?\\s*(?:la |el |las |los |un |una |su |sus )?(?:exceso de |problema de |tema de )?${_MECANISMO_PALABRA}(?![\\wáéíóúñ])`, "gi"),   // «principalmente por acciones comerciales»
+  new RegExp(`(?<![\\wáéíóúñ])(?:la |el )?${_MECANISMO_PALABRA}[^.;:,]{0,30}?\\s+(?:explica|explican|se lleva|se llevan|concentra|concentran|representa|representan)\\s+(?:la mayor parte|el grueso|casi tod[oa]|la mayor[ií]a|lo principal|buena parte|gran parte|m[aá]s de la mitad)(?![\\wáéíóúñ])`, "gi"),   // «la carga explica la mayor parte de la brecha»
+  new RegExp(`(?<![\\wáéíóúñ])(?:la mayor parte|el grueso|buena parte|gran parte|casi tod[oa]|m[aá]s de la mitad)\\s+(?:de |del )(?:la |el |esa |ese |esta |este )?(?:brecha|efecto|resultado|problema|ca[ií]da|diferencia|contribuci[oó]n no capturada)[^.;:]{0,25}?\\s+(?:es|son|viene de|vienen de|se explica por|est[aá] en|la explica|lo explica)\\s+(?:la |el |las |los |un |una )?(?:exceso de )?${_MECANISMO_PALABRA}(?![\\wáéíóúñ])`, "gi"),   // «la mayor parte de la brecha viene de la carga»
+  new RegExp(`(?<![\\wáéíóúñ])lo que m[aá]s (?:pesa|importa|explica|cuenta|manda)\\s+(?:es|son)\\s+(?:la |el |las |los )?(?:exceso de )?${_MECANISMO_PALABRA}(?![\\wáéíóúñ])`, "gi"),   // «lo que más pesa es la carga»
+  new RegExp(`(?<![\\wáéíóúñ])(?:la |el |las |los )?${_MECANISMO_PALABRA}\\s+(?:pesa|pesan|importa|importan|cuenta|cuentan|manda|mandan)\\s+m[aá]s(?![\\wáéíóúñ])`, "gi"),   // «la carga pesa más (que el precio)»
+];
+/* la jerarquía SÍ se dice cuando la parte del efecto está medida y citada: «efecto carga −1.0 pp contra efecto costo −0.5 pp» */
+const _MEDIDA_DE_PESO = /(?:efecto|aporte|peso|parte)\s+(?:de\s+)?(?:la\s+|el\s+|del\s+)?(?:carga|costo|precio|volumen|mix|acciones)[^.;]{0,30}?\d+(?:[.,]\d+)?\s*(?:pp|%)|\d+(?:[.,]\d+)?\s*(?:pp|%)\s+(?:de la|del|de los|de las)\s+(?:brecha|efecto|ca[ií]da|diferencia|total|resultado)|\d+(?:[.,]\d+)?\s*(?:pp|%)\s+(?:contra|frente a|versus|vs\.?)\s+[^.;]{0,20}?\d+(?:[.,]\d+)?\s*(?:pp|%)/i;
+const _sinParentesis = (s) => String(s).replace(/—[^—]*—/g, " ").replace(/\([^)]*\)/g, " ");
+function _jerarquiaCausalSinMedida(texto) {
+  for (const oracion0 of String(texto).split(/(?<=[.!?])\s+|\n+/)) {
+    if (/[¿?]/.test(oracion0) || _PREGUNTA_O_LIMITE.test(oracion0) || _MEDIDA_DE_PESO.test(oracion0)) continue;
+    const oracion = _sinParentesis(oracion0);
+    for (const re of _RE_JERARQUIA) {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(oracion)) !== null) {
+        const cl = _clausulaDe(oracion, m.index, m.index + m[0].length);
+        if (_MARCA_NEGACION.test(cl) || _MARCA_SELLO.test(cl)) continue;   // «no parece la causa principal», «podría ser el mecanismo principal»
+        if (/(?:no|ni|tampoco|sin|nunca)\s+(?:[\wáéíóúñ]+\s+){0,3}$/i.test(oracion.slice(Math.max(0, m.index - 40), m.index))) continue;   // «no es la causa principal»
+        return `«${m[0].trim()}» ordena las causas —jerarquía causal— y este turno no midió qué parte del efecto explica cada mecanismo: lo probado es que el mecanismo EXISTE (su huella), no que sea el dominante ni el principal. Describe lo demostrado —«un mecanismo probado», «la huella más clara»— sin «dominante», «principal» ni «sobre todo», salvo con la parte del efecto medida en la boleta (efecto carga contra efecto costo, en pp).`;
       }
     }
   }
