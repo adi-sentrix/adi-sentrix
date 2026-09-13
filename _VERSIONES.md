@@ -12,6 +12,42 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.27 — producción · tag `v2.27`
+
+**El prompt de gerente: una respuesta buena no se degrada por falsos positivos, y lo que no está demostrado no se
+dice.** El owner probó la pregunta más exigente del producto —el negocio completo como asesor: si mejora o solo vende
+más, ventas y margen, quiénes ayudan y quiénes dañan, precio·costo·mix·acciones, cuánto está en juego, qué se puede
+demostrar, qué revisar primero y cinco líneas para directorio— y la respuesta cayó al piso honesto. Esta versión es
+ese camino entero, medido en seis corridas en vivo con los borradores del modelo capturados, hasta que la respuesta
+del modelo se sirve completa y cumple las leyes del owner.
+
+- **El encargo compuesto tiene ensamblador.** Varias preguntas en un turno ya no las secuestra «reformular» ni la
+  audiencia final; si el modelo cae dos veces, un peldaño determinístico responde cada parte con su propia boleta,
+  con los composers de siempre y un solo criterio. La cobertura está garantizada aunque el cerebro falle.
+- **ADI no degrada una respuesta buena por falsos positivos** (objetivo de producto del owner). Cada corrida en vivo
+  cazó vetos que no eran errores y cada uno quedó calibrado con su fixture: rangos «37-40%» leídos como «-40%», el
+  «N de M» partido por la ventana, «supera» con sujeto ajeno, negaciones leídas como afirmaciones («no dinero perdido
+  ni caja»), «Líder» con tilde, el conteo que cuelga de la cifra («de los ocho…, cinco concentran $4.9M» es de los
+  cinco). Y cuando el muro tumba al cerebro, la multa lleva TODO lo que hay que corregir en una sola reparación.
+- **La conclusión del procedimiento se le declara al cerebro antes de escribir:** prioridad oficial (Falabella por
+  contribución no capturada; otro criterio, solo como alternativa), una sola definición del subtotal («las 5 cuentas
+  materiales, de 8 bajo el benchmark»), comparaciones solo entre métricas equivalentes, y el sello de cada mecanismo
+  (carga PROBADA · precio de lista INDICADO con sus dos markups · mix ABIERTO). El notario defiende que no cambie.
+- **Leyes transversales del owner, en el juez compartido (agente y oráculo):** evolución temporal solo con evidencia
+  temporal («cae», «se deteriora», «no ganamos más», «se deterioró» con cualquier sujeto exigen la serie o la
+  variación en la boleta); una brecha contra referencia es una estimación, no dinero perdido; cada cifra conserva su
+  naturaleza (la contribución no es caja ni capital); comparaciones con la cifra de cada lado (el markup de los sanos
+  ahora se publica); un mecanismo indicado o abierto no se descarta («apunta a carga, no a precio ni a mix» arde);
+  y lo demostrado se describe sin causa ni jerarquía que el dato no sostenga («con mejor costo relativo», «la causa
+  dominante» arden — lo probado es que el mecanismo existe, no cuánto explica).
+- **La cifra lleva su significado.** Una cifra real narrada como otra métrica (una participación dicha como
+  crecimiento) es falsa: el rótulo declara lo que la cifra es y el muro lo verifica.
+
+**Resultado medido:** la corrida final en vivo se sirvió entera desde el modelo (reparado, 812 palabras, 2 llamadas)
+y cumple cobertura completa, tesis única, cifras con dueño, causalidad con sello, hecho/señal/hipótesis separados,
+criterio explícito y las cinco líneas para directorio. 252 gates en verde, sin tocar la red.
+
+---
 ## 2.26 — producción · tag `v2.26`
 
 **Pulido Premium v1: ADI habla con la calidad con la que piensa.** El owner cerró la etapa anterior con una
