@@ -292,6 +292,13 @@ H("7 · margen-en-riesgo · la prioridad («¿qué harías primero?») es del pr
   ok(figsU.some((f) => /^Markup promedio · sanos$/.test(String(f.label))) && /El markup de los sanos SÍ está en la boleta/.test(docU) && /cita los dos lados en la misma oración/.test(docU) && /huella INDICADA, no probada/.test(docU),
     "★ …con rolesCartera en la boleta unida, el markup de los sanos está disponible y la comparación se cita con los dos lados, como huella indicada", docU.split("\n").filter((l) => /Comparaciones/.test(l)).join(" ").slice(0, 200));
   ok(/No hay comparación histórica del margen/.test(doc), "★ …y sin comparación histórica no hay «deterioro» ni «se diluye»");
+  /* lo descartado, lo indicado, lo abierto y lo que cambió en el tiempo (owner 2026-09-13, tras la corrida 5): la doctrina lo
+   * declara ANTES de escribir, con el sello de cada mecanismo tomado de la boleta (el markup de los dos lados = precio INDICADO) */
+  ok(/no digas «no ganamos más», «ganamos menos» ni «no estamos mejorando»/.test(doc) && /si ganas más no se puede saber con este dato/.test(doc), "★ …ganar más es comparación temporal que este turno no tiene: la doctrina lo dice");
+  ok(/carga comercial PROBADA/.test(docU) && /precio de lista INDICADO \(markup promedio 41\.4% en los que caen contra 57\.3% en los sanos\)/.test(docU) && /mix ABIERTO/.test(docU) && /Un mecanismo indicado o abierto NO se descarta/.test(docU),
+    "★ …con la boleta unida, cada mecanismo con su sello (carga PROBADA · precio INDICADO con sus dos markups · mix ABIERTO) y la prohibición de descartar", docU.split("\n").filter((l) => /sello del procedimiento/.test(l)).join(" ").slice(0, 240));
+  ok(/precio de lista con el sello de su huella/.test(doc) && /mix ABIERTO/.test(doc), "★ …sin el markup de los dos lados en la boleta, el precio queda «con el sello de su huella» (la doctrina no inventa el INDICADO)");
+  ok(/«Se deterioró» \/ «deterioro» afirma un movimiento en el tiempo/.test(doc) && /ni como hipótesis ni como alternativa/.test(doc), "★ …y «se deterioró» no va sin serie, ni como hipótesis ni como alternativa");
   ok(!/CONCLUSIONES DEL PROCEDIMIENTO/.test(doctrinaDelPlaybook(PBM, QG, {})), "…sin boleta, la doctrina es la de siempre (byte-idéntica: sin bloque de conclusiones)");
   /* el «porque» de una elección declarada como criterio no es una causa del negocio (corrida 3, 2026-09-13) */
   ok(!reglasG(`Ambos son válidos; elegí ${top} porque concentra más dinero en pesos, no porque el dato lo ordene así.`).includes("causa-sin-respaldo"),

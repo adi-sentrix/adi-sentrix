@@ -435,9 +435,59 @@ export function vetosDeRegistro(texto, contexto = {}) {
       v.push({ regla: "variacion-no-medida", multa: `dices que ${m[1].toLowerCase()} «${m[2]}» y este turno no midió ninguna variación de esa métrica (no hay «${m[1].toLowerCase()} vs año anterior» ni su serie en la boleta): lo medido es su nivel contra la referencia. Di «está en X, bajo el benchmark», no que cae o sube.` });
       break;
     }
-    /* el deterioro dicho con sustantivo o adjetivo («calidad deteriorada», «se diluye la calidad», «deterioro del margen») */
-    const _DETERIORO = /(?<![\wáéíóúñ])(?:calidad\s+(?:de\s+(?:la\s+|esa\s+)?venta\s+)?deteriorad[oa]|con\s+calidad\s+deteriorada|se\s+diluye\s+la\s+calidad|deterioro\s+(?:del\s+(?:margen|precio|resultado)|de\s+la\s+(?:calidad|rentabilidad|carga|rotaci[oó]n))|(?:el\s+)?(?:margen|precio|resultado|rentabilidad)\s+(?:se\s+)?(?:deteriora|deterior[oó]|se\s+diluye|viene\s+(?:cayendo|bajando|empeorando)|empeora)|cada\s+vez\s+(?:menos\s+(?:margen|rentable)|peor\s+margen)|ha\s+(?:ca[ií]do|bajado|empeorado)\s+(?:el\s+)?(?:margen|precio|rentabilidad)|(?:margen|precio|rentabilidad)\s+ha\s+(?:ca[ií]do|bajado|empeorado))(?![\wáéíóúñ])/i;
-    const md = _DETERIORO.exec(texto);
+    /* ── LA GANANCIA COMPARADA (owner 2026-09-13, corrida 5 del prompt de gerente) ─────────────────────────────────
+     * Lo que salió: «El negocio está vendiendo más, no ganando más». Ganar más, menos o lo mismo —y que el negocio
+     * mejore o empeore— es una comparación EN EL TIEMPO de la contribución, el resultado o el margen. Con la venta
+     * medida contra el año anterior y el margen medido solo contra el benchmark, lo que se sabe es que vende más y
+     * que el margen está bajo la referencia: si gana más no está medido. La afirmación vale con la variación (o la
+     * serie) de contribución, resultado o margen en la boleta. No se cobra la pregunta, la hipótesis («si realmente
+     * estamos mejorando») ni la comparación entre cuentas («ganamos más con A que con B»), que no es temporal. */
+    const _GANANCIA = /(?<![\wáéíóúñ])(?:(?:no|tampoco|ni|sin)\s+)?(?:(?:est[aá](?:s|n|mos|y)?\s+|se\s+est[aá]n?\s+|sigue(?:s|n)?\s+|seguimos\s+|venimos\s+|viene(?:s|n)?\s+)?ganando|ganamos|ganan|ganas|gana|gan[oó]|ganaron|ganaste|se\s+gana|est[aá](?:s|n|mos|y)?\s+(?:mejorando|empeorando)|mejoramos|empeoramos|(?:el\s+)?negocio\s+(?:no\s+)?(?:mejora|mejor[oó]|empeora|empeor[oó]|va\s+(?:mejor|peor))|(?:m[aá]s|menos|mayor|menor)\s+(?:ganancia|utilidad)|(?:ganancia|utilidad)\s+(?:mayor|menor|m[aá]s\s+alta|m[aá]s\s+baja))(\s+(?:m[aá]s|menos|lo\s+mismo|igual|mejor|peor))?(?![\wáéíóúñ])/gi;
+    const _HIPOTESIS_ANTES = /(?:^|[\s(—–-])(?:si|o si|si es que|quiz[aá]s?|tal vez|puede que|acaso|aunque|salvo que|saber si|s[eé] si|confirmar si|ver si|de si)\s+(?:(?:realmente|de verdad|en verdad|efectivamente|solo|s[oó]lo|el negocio|la empresa|ustedes|nosotros|el|la|tu|su|los|las|ese|esa|esto|eso)\s+){0,3}$/i;
+    const _ganMedida = () => _medida("contribución") || _medida("resultado") || _medida("margen");
+    let mg;
+    while ((mg = _GANANCIA.exec(texto))) {
+      const dicho = mg[0];
+      if (/gan/i.test(dicho) && !/ganancia|utilidad/i.test(dicho) && !mg[1]) continue;   // «ganamos $X» no compara: se cobra «ganamos MÁS / MENOS / lo mismo»
+      const despues = texto.slice(mg.index + dicho.length, mg.index + dicho.length + 60);
+      if (/^\s+que\s+(?!(?:el\s+|en\s+|hace\s+)?(?:a[ñn]o|per[ií]odo|mes|trimestre|antes|anterior|\d{4}))/i.test(despues) || /^\s+(?:con|en)\s+[A-ZÁÉÍÓÚ]/.test(despues)) continue;   // «ganamos más QUE con Ripley»: entre cuentas, no en el tiempo
+      const antes = texto.slice(Math.max(0, mg.index - 60), mg.index);
+      const oracion = _oracionDe(mg.index);
+      if (_HIPOTESIS_ANTES.test(antes) || /[¿?]/.test(oracion) || /\bno (?:puedo|s[eé]|podr[ií]a|se puede|podemos) (?:saber|separar|decir|distinguir|afirmar|confirmar)\b|\bhip[oó]tesis\b|\bno est[aá] medid[oa]\b|\bno se sabe\b/i.test(oracion)) continue;
+      if (_ganMedida()) break;
+      v.push({ regla: "ganancia-no-comparada", multa: `dices «${dicho.trim()}» y este turno no midió ninguna variación de contribución, resultado ni margen (no hay «contribución vs año anterior» ni su serie en la boleta): lo medido es que la venta crece y que el margen está bajo el benchmark. Di «vendes más; si ganas más no se puede saber con este dato: no hay comparación histórica de margen ni de contribución», no que ganas más, menos o lo mismo.` });
+      break;
+    }
+    /* ── «SE DETERIORÓ» CON CUALQUIER SUJETO (owner 2026-09-13, corrida 5) ─────────────────────────────────────────
+     * Lo que salió: «…estrategia deliberada o negociación que se deterioró». Deteriorarse es un movimiento en el
+     * tiempo, y eso vale para cualquier sujeto —margen, calidad, negociación, relación, cuenta—: sin la variación o
+     * la serie de ESO en la boleta, no se dice. Tampoco como hipótesis ni como alternativa: la palabra afirma el
+     * movimiento igual (el owner la cobró justo dentro de un «es si … o …»). Lo que hay es un NIVEL: «una negociación
+     * que quedó bajo la referencia». Pasa solo la negación («no hay deterioro medido», «sin deterioro»). */
+    const _DETERIOR = /(?<![\wáéíóúñ])(?:se\s+(?:ha\s+|han\s+|hab[ií]a\s+|est[aá]n?\s+|fue\s+|fueron\s+|viene\s+|vienen\s+)?deterior(?:a|an|[oó]|aron|ando|ado|ada|ados|adas)|deterior(?:o|os|ad[oa]s?)|deteriorarse|en\s+deterioro)(?![\wáéíóúñ])/gi;
+    const _SUJETO_DET = new RegExp(`${_SUJETO}|calidad(?:\\s+de\\s+(?:la\\s+)?venta)?`, "gi");
+    const _sujetoCerca = (i, fin) => {
+      let ult = null, mm;
+      _SUJETO_DET.lastIndex = 0;
+      const atras = texto.slice(Math.max(0, i - 45), i);
+      while ((mm = _SUJETO_DET.exec(atras))) ult = mm[0];
+      if (ult) return ult;
+      const ad = new RegExp(`^\\s*(?:de|del|en)\\s+(?:la\\s+|el\\s+|su\\s+|tu\\s+|esa\\s+|ese\\s+)?(${_SUJETO}|calidad)`, "i").exec(texto.slice(fin, fin + 45));
+      return ad ? ad[1] : null;
+    };
+    let mdg = null, sujDet = null, mm2;
+    while ((mm2 = _DETERIOR.exec(texto))) {
+      if (/(?:no|ni|sin|tampoco|nunca|jam[aá]s)\s+(?:[\wáéíóúñ]+\s+){0,6}$/i.test(texto.slice(Math.max(0, mm2.index - 70), mm2.index))) continue;   // «no hay deterioro medido», «sin deterioro»
+      const suj = _sujetoCerca(mm2.index, mm2.index + mm2[0].length);
+      if (suj && _medida(suj)) continue;
+      mdg = mm2; sujDet = suj; break;
+    }
+    if (mdg) {
+      v.push({ regla: "deterioro-no-medido", multa: `«${mdg[0]}» afirma que algo EMPEORÓ en el tiempo${sujDet ? ` (${sujDet.toLowerCase()})` : ""}, y este turno no midió ninguna variación de eso: lo que hay es su NIVEL contra la referencia. Di el nivel («quedó bajo la referencia», «cede condiciones»), no el movimiento — y tampoco como hipótesis o alternativa: «se deterioró» afirma el movimiento igual.` });
+    }
+    /* el deterioro dicho con otras palabras («se diluye la calidad», «cada vez menos margen», «ha caído el margen») */
+    const _DETERIORO = /(?<![\wáéíóúñ])(?:se\s+diluye\s+la\s+calidad|(?:el\s+)?(?:margen|precio|resultado|rentabilidad)\s+(?:se\s+diluye|viene\s+(?:cayendo|bajando|empeorando)|empeora)|cada\s+vez\s+(?:menos\s+(?:margen|rentable)|peor\s+margen)|ha\s+(?:ca[ií]do|bajado|empeorado)\s+(?:el\s+)?(?:margen|precio|rentabilidad)|(?:margen|precio|rentabilidad)\s+ha\s+(?:ca[ií]do|bajado|empeorado))(?![\wáéíóúñ])/i;
+    const md = mdg ? null : _DETERIORO.exec(texto);
     if (md && !_medida(/precio/i.test(md[0]) ? "precio" : /resultado/i.test(md[0]) ? "resultado" : "margen")) {
       v.push({ regla: "deterioro-no-medido", multa: `«${md[0]}» afirma que algo EMPEORÓ en el tiempo, y este turno no midió ninguna variación de esa métrica: lo medido es su nivel contra el benchmark, que no es lo mismo que deteriorarse. Di «crece la venta y el margen está bajo el benchmark», sin «deterioro» ni «se diluye».` });
     }
@@ -501,30 +551,75 @@ const _MECANISMO_PALABRA = "(costos?|precio de lista|precios?|markup|mix|surtido
  * de la semana es la condición, no el volumen» habla del FOCO, y «lo que el volumen cuesta no es precio de lista,
  * es condición negociada» está anclado al conteo probado de la misma oración. Se cobra (a) el marco explícito
  * —«el mecanismo es X», «viene de X», «se explica por X», «se debe a X», «es un problema/tema de X», «es por X»—
- * y (b) dentro de una oración que ya habla del mecanismo o la causa, también la negación «…, no X». */
-const _MARCO_CAUSAL = /\bel mecanismo\b|\bla causa\b|\bse explica\b|\bse debe\b|\bviene (?:de|del)\b/i;
+ * y (b) dentro de una oración que ya habla del mecanismo, la causa, el patrón o la tesis, también la negación
+ * «…, no X» / «, no a X ni a Y». */
+const _MARCO_CAUSAL = /\bel mecanismo\b|\bla causa\b|\bse explica\b|\bse debe\b|\bviene (?:de|del)\b|\bapunta (?:a|al)\b|\bel patr[oó]n\b|\bla tesis\b|\bel origen\b|\bel problema\b|\bla explicaci[oó]n\b|\bexplica(?:n|do)?\b|\bdetr[aá]s\b|\bdescart|\bpor qu[eé] (?:pasa|ocurre)\b/i;
 const _AFIRMA_MECANISMO = new RegExp(`\\b(?:el mecanismo (?:medido |real |de fondo )?(?:es|son|no es)|se explica por|se debe (?:a|al)|viene (?:de|del)|es por|es (?:un |una )?(?:tema|problema|cosa|cuesti[oó]n) de)\\s+(?:el |la |los |las )?${_MECANISMO_PALABRA}(?: estructural| comercial)?(?![\\wáéíóúñ])`, "gi");
-const _NIEGA_MECANISMO = new RegExp(`\\bno(?: es| viene de| hay)?\\s+(?:un |una |el |la )?(?:tema |problema |cosa )?(?:de )?${_MECANISMO_PALABRA}(?: estructural| comercial)?(?![\\wáéíóúñ])`, "gi");
+/* LA NEGACIÓN ES UN DESCARTE (owner 2026-09-13, corrida 5 del prompt de gerente): «el patrón apunta a carga comercial,
+ * no a precio de lista ni a mix» descartó como hecho un mecanismo INDICADO (el precio: markup más bajo en los que
+ * caen) y uno ABIERTO (el mix: el dato no cruza cliente con familia). «ADI debe conservar siempre la diferencia
+ * entre lo descartado, lo indicado, lo abierto y lo que realmente cambió en el tiempo.» Formas: «no es precio»,
+ * «no viene de precio», «, no a precio de lista», «ni a mix», «no por costo», y el descarte explícito («descarta el
+ * mix», «el precio no es el problema», «el mix no explica»). «No solo precio» no descarta, y «sin carga alta ni
+ * volumen» describe la huella de una cuenta (lo que NO tiene), no descarta el mecanismo. */
+const _NIEGA_MECANISMO = new RegExp(`(?<![\\wáéíóúñ])(?:no|tampoco|(?<!(?<![\\wáéíóúñ])sin\\s+[^,;.:]{0,40})ni)(?:\\s+(?:es|son|era|fue|viene\\s+de|vienen\\s+de|hay|est[aá]\\s+en|pasa\\s+por|se\\s+explica\\s+por|se\\s+debe\\s+(?:a|al)))?(?!\\s+(?:solo|s[oó]lo|[uú]nicamente|solamente|necesariamente|siempre|tanto|parece|parecen|tan\\s))\\s+(?:a |al |de |del |por |en )?(?:un |una |el |la |los |las )?(?:tema |problema |cosa |cuesti[oó]n |efecto |asunto )?(?:de |del )?${_MECANISMO_PALABRA}(?: estructural| comercial)?(?![\\wáéíóúñ])`, "gi");
+const _DESCARTA_MECANISMO = new RegExp(`(?<![\\wáéíóúñ])(?:(?:se\\s+|queda\\s+|quedan\\s+|podemos\\s+|puedo\\s+|hay\\s+que\\s+|para\\s+)?descart(?:a|an|o|amos|ar|ado|ada|ados|adas)\\s+(?:el |la |los |las |un |una )?(?:tema |problema )?(?:de |del )?${_MECANISMO_PALABRA}|(?:el |la |los |las )?${_MECANISMO_PALABRA}(?:\\s+(?:y|ni|o)\\s+(?:el |la )?${_MECANISMO_PALABRA})?\\s+(?:queda(?:n)?\\s+|est[aá](?:n)?\\s+|fue(?:ron)?\\s+)?descartad[oa]s?|(?:el |la |los |las )?${_MECANISMO_PALABRA}(?:\\s+(?:y|ni|o)\\s+(?:el |la )?${_MECANISMO_PALABRA})?\\s+no\\s+(?:es|son)\\s+(?:el|la|un|una)\\s+(?:problema|causa|mecanismo|explicaci[oó]n|tema|raz[oó]n|factor|origen|driver)|(?:el |la |los |las )?${_MECANISMO_PALABRA}(?:\\s+(?:y|ni|o)\\s+(?:el |la )?${_MECANISMO_PALABRA})?\\s+no\\s+(?:explica|explican|pesa|pesan|juega|juegan|influye|influyen|cuenta|cuentan|est[aá]n?\\s+detr[aá]s|entra|entran))(?![\\wáéíóúñ])`, "gi");
 const _ALTERNATIVA = /\b(?:costos?|precio(?: de lista)?|mix|volumen|carga)\b[^.;\n]{0,40}\bo\b[^.;\n]{0,40}\b(?:costos?|precio(?: de lista)?|mix|volumen|carga)\b/i;
-const _MARCA_SELLO = /\b(?:puede|pueden|podr[ií]a(?:n)?|quiz[aá]s?|tal vez|probablemente|posiblemente|hip[oó]tesis|sospecho|apunta|indicio|patr[oó]n|sin prueba|queda abierto|no lo prueba|no est[aá] (?:medido|probado)|indicad[oa]|abiert[oa])\b|\bsi (?:viene|vienen|fuera|fuese|es|era|resulta)\b|\bel dato no (?:lo |la |los |las )?(?:dice|declara|trae|mide|ve|prueba|separa|cruza|distingue)\b/i;
+const _MARCA_SELLO = /\b(?:puede|pueden|podr[ií]a(?:n)?|quiz[aá]s?|tal vez|probablemente|posiblemente|hip[oó]tesis|sospecho|apunta|indicio|patr[oó]n|sin prueba|queda abierto|no lo prueba|no est[aá] (?:medido|probado)|indicad[oa]|abiert[oa]|parece|parecen|pareciera|parecer[ií]a)\b|\bsi (?:viene|vienen|fuera|fuese|es|era|resulta)\b|\bel dato no (?:lo |la |los |las )?(?:dice|declara|trae|mide|ve|prueba|separa|cruza|distingue)\b/i;
+/* la marca que vale para una NEGACIÓN es la de su propia cláusula: «apunta a carga, no a precio» lleva la marca en la
+ * afirmación y deja la negación seca. Absuelven la duda sobre el descarte («no parece precio», «no necesariamente»,
+ * «no se puede descartar») y el límite de dato («no hay precio de lista por cliente en la planilla»). */
+const _MARCA_NEGACION = /\b(?:puede|pueden|podr[ií]a(?:n)?|quiz[aá]s?|tal vez|probablemente|posiblemente|hip[oó]tesis|sospecho|parece|parecen|pareciera|parecer[ií]a|necesariamente|del todo|por completo|sin prueba|no est[aá] (?:medido|probado|demostrado)|no lo prueba|no (?:puedo|podemos|se puede|puede|permite) (?:descartar|afirmar|separar|saber|probar)|permite descartar)\b/i;
+const _LIMITE_DE_DATO = /\b(?:dato|datos|planilla|columna|campo|cruce|cruza|medid[oa]|medir|serie|informaci[oó]n|por cliente)\b/i;
+const _clausulaDe = (oracion, i, fin) => {
+  const a = oracion.slice(0, i).search(/[,;:—–][^,;:—–]*$/);
+  const b = oracion.slice(fin).search(/[,;:—–]/);
+  return oracion.slice(a < 0 ? 0 : a + 1, b < 0 ? oracion.length : fin + b);
+};
 function _mecanismoSinSello(texto, huellas) {
   const H = Array.isArray(huellas) ? huellas.filter((h) => h && h.mecanismo && h.sello) : [];
   if (!H.length) return null;
+  const _huellaDe = (palabra) => {
+    const entrada = _MECANISMO_LEXICO.find(([lex]) => lex.test(palabra));
+    if (!entrada) return null;
+    const [, huellaRe, nombre] = entrada;
+    const h = H.find((x) => huellaRe.test(String(x.mecanismo)));
+    return h ? { h, nombre } : null;
+  };
   for (const oracion of String(texto).split(/(?<=[.!?])\s+|\n+/)) {
-    if (/[¿?]/.test(oracion) || _MARCA_SELLO.test(oracion) || _PREGUNTA_O_LIMITE.test(oracion) || _ALTERNATIVA.test(oracion)) continue;
-    const palabras = [];
-    for (const re of (_MARCO_CAUSAL.test(oracion) ? [_AFIRMA_MECANISMO, _NIEGA_MECANISMO] : [_AFIRMA_MECANISMO])) {
+    if (/[¿?]/.test(oracion) || _PREGUNTA_O_LIMITE.test(oracion)) continue;
+    /* (a) la AFIRMACIÓN: una marca en cualquier parte de la oración la cubre («puede ser…», «el patrón apunta a…») */
+    if (!_MARCA_SELLO.test(oracion) && !_ALTERNATIVA.test(oracion)) {
+      _AFIRMA_MECANISMO.lastIndex = 0;
+      let m;
+      while ((m = _AFIRMA_MECANISMO.exec(oracion)) !== null) {
+        if (/(?:^|[^\wáéíóúñ])(?:no|ni|tampoco)\s+$/i.test(oracion.slice(Math.max(0, m.index - 12), m.index))) continue;   // «no es un tema de precio» es una negación: la juzga (b)
+        const e = _huellaDe(m[1]);
+        if (!e || e.h.sello === "probado") continue;
+        return `afirmas como hecho que el mecanismo es «${e.nombre}» («${oracion.trim().slice(0, 90)}»), y en este dato ese mecanismo está ${e.h.sello.toUpperCase()}: ${e.h.porque || "no hay prueba"}. Dilo con su sello —«el patrón apunta a…», «queda abierto»— o como hipótesis; afirmarlo o negarlo como hecho es causalidad sin respaldo.`;
+      }
+    }
+    /* (b) el DESCARTE: cada negación se juzga por SU cláusula. Negar un mecanismo PROBADO para una cuenta puntual
+     * («en Tottus no es carga») sigue pasando —eso lo decide el papel de esa cuenta—, y un patrón que se buscó y no
+     * está (huella medible, ausente) el dato sí lo descarta. Lo INDICADO y lo que no se puede medir, no. */
+    const negs = [];
+    for (const re of (_MARCO_CAUSAL.test(oracion) ? [_NIEGA_MECANISMO, _DESCARTA_MECANISMO] : [_DESCARTA_MECANISMO])) {
       re.lastIndex = 0;
       let m;
-      while ((m = re.exec(oracion)) !== null) palabras.push(m[1]);
+      while ((m = re.exec(oracion)) !== null) negs.push({ i: m.index, fin: m.index + m[0].length, dicho: m[0], palabras: m.slice(1).filter(Boolean) });
     }
-    for (const palabra of palabras) {
-      const entrada = _MECANISMO_LEXICO.find(([lex]) => lex.test(palabra));
-      if (!entrada) continue;
-      const [, huellaRe, nombre] = entrada;
-      const h = H.find((x) => huellaRe.test(String(x.mecanismo)));
-      if (!h || h.sello === "probado") continue;
-      return `afirmas como hecho que el mecanismo es «${nombre}» («${oracion.trim().slice(0, 90)}»), y en este dato ese mecanismo está ${h.sello.toUpperCase()}: ${h.porque || "no hay prueba"}. Dilo con su sello —«el patrón apunta a…», «queda abierto»— o como hipótesis; afirmarlo o negarlo como hecho es causalidad sin respaldo.`;
+    for (const n of negs) {
+      const cl = _clausulaDe(oracion, n.i, n.fin);
+      if (_MARCA_NEGACION.test(cl) || _PREGUNTA_O_LIMITE.test(cl) || _LIMITE_DE_DATO.test(cl)) continue;
+      for (const palabra of n.palabras) {
+        const e = _huellaDe(palabra);
+        if (!e) continue;
+        const { h, nombre } = e;
+        if (h.sello === "probado" || h.sello === "descartado") continue;
+        const medible = h.medible !== undefined ? !!h.medible : !h.falta;
+        if (h.sello === "abierto" && medible && h.presente === false) continue;
+        return `descartas como hecho el mecanismo «${nombre}» («${n.dicho.trim()}», en «${oracion.trim().slice(0, 90)}»), y en este dato ese mecanismo está ${h.sello.toUpperCase()}: ${h.porque || "no hay prueba"}. Lo descartado, lo indicado y lo abierto no se mezclan: nombra el mecanismo probado y deja a los otros con su sello («precio de lista indicado, mix abierto»), sin negarlos.`;
+      }
     }
   }
   return null;

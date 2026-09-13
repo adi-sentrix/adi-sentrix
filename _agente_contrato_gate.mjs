@@ -807,6 +807,32 @@ H("7 · el mecanismo afirmado sin su sello arde, y la cuenta derivada que no cie
   ok(r("El markup de estos clientes está más pegado al costo que el de los sanos.", { figs: [{ label: "Falabella · Markup sobre costo", text: "39.1%", raw: 39.1 }] }).includes("markup-sin-el-otro-lado"), "★ …y sin el markup de los sanos en la boleta, la comparación se prohíbe (no está disponible)");
   ok(r("Los grandes ceden más carga que el resto de la cartera.", { figs: conVenta }).includes("comparacion-sin-cifras"), "★ «los grandes ceden más carga que el resto» sin una cifra en la oración arde: comparación sin dato");
   ok(!r("Falabella paga 4.5% de carga contra 3.5% del resto.", { figs: conVenta }).includes("comparacion-sin-cifras"), "…con cifras pasa");
+  /* ── LO DESCARTADO, LO INDICADO, LO ABIERTO Y LO QUE CAMBIÓ EN EL TIEMPO (owner 2026-09-13, tras la corrida 5) ──────
+   * Tres cuestiones transversales sobre la respuesta viva: «vendiendo más, no ganando más» (ganar más es comparación
+   * temporal de contribución/resultado/margen, y no la hay), «el patrón apunta a carga comercial, no a precio de lista
+   * ni a mix» (descarta un mecanismo INDICADO y uno ABIERTO: la marca de la afirmación no cubre la negación de al lado)
+   * y «negociación que se deterioró» (movimiento sin serie, con cualquier sujeto — y la hipótesis no absuelve esa palabra). */
+  ok(r("**El negocio está vendiendo más, no ganando más — y son cosas distintas.**", { figs: conVenta }).includes("ganancia-no-comparada"), "★★★ «vendiendo más, no ganando más» ARDE: ganar más es comparación temporal de contribución y este turno no la tiene");
+  ok(r("Vendes más pero ganas menos.", { figs: conVenta }).includes("ganancia-no-comparada") && r("En resumen, no estamos mejorando: vendemos más con menos margen.", { figs: conVenta }).includes("ganancia-no-comparada") && r("El negocio no mejora, solo vende más.", { figs: conVenta }).includes("ganancia-no-comparada"),
+    "★ «ganas menos», «no estamos mejorando», «el negocio no mejora» también");
+  ok(!r("La venta crece 7.5% contra el año anterior; si ganas más no se puede saber con este dato: no hay comparación histórica de margen ni de contribución.", { figs: conVenta }).includes("ganancia-no-comparada")
+    && !r("Quieres saber si realmente estamos mejorando o si solo estamos vendiendo más: lo medido es la venta, que crece 7.5%.", { figs: conVenta }).includes("ganancia-no-comparada")
+    && !r("¿Estamos mejorando? La venta sí crece; el margen no tiene comparación histórica en este turno.", { figs: conVenta }).includes("ganancia-no-comparada"),
+    "…la respuesta honesta, el eco de la pregunta («si realmente estamos mejorando») y la pregunta pasan");
+  ok(!r("Con Falabella ganamos más que con Ripley en contribución absoluta.", { figs: conVenta }).includes("ganancia-no-comparada") && !r("Ganamos $4.9M de contribución si las cinco cuentas llegaran al benchmark.", { figs: conVenta }).includes("ganancia-no-comparada"),
+    "…la comparación entre cuentas y «ganamos $X» (sin más/menos) no son temporales: pasan");
+  ok(!r("Ganamos menos margen que el año pasado.", { figs: [...conVenta, { label: "Contribución · Variación vs año anterior", text: "-3.1%", raw: -3.1 }] }).includes("ganancia-no-comparada"), "…y con la variación de contribución en la boleta, «ganamos menos» pasa (lo mide el muro)");
+  ok(r("**Por qué pasa — la tesis:** el patrón apunta a carga comercial, no a precio de lista ni a mix.").includes("mecanismo-sin-sello"), "★★★ «apunta a carga comercial, no a precio de lista ni a mix» ARDE: «apunta» sella la afirmación, no el descarte de al lado (precio INDICADO, mix ABIERTO)");
+  ok(r("Lo que explica el resultado es la carga comercial, no el mix.").includes("mecanismo-sin-sello") && r("El precio de lista queda descartado: la brecha viene de las acciones comerciales.").includes("mecanismo-sin-sello") && r("El mix no es el problema; el problema es la carga.").includes("mecanismo-sin-sello") && r("Podemos descartar el precio y concentrarnos en la carga.").includes("mecanismo-sin-sello"),
+    "★ «no el mix», «queda descartado», «no es el problema», «podemos descartar el precio» también");
+  ok(!r("El mecanismo probado es la carga comercial; el precio de lista queda indicado (markup promedio 41.4% en los que caen contra 57.3% en los sanos) y el mix queda abierto: el dato no cruza cliente con familia.").includes("mecanismo-sin-sello")
+    && !r("El precio de lista no parece ser el mecanismo principal, aunque sigue indicado.").includes("mecanismo-sin-sello") && !r("No es solo precio: la carga comercial pesa más.").includes("mecanismo-sin-sello")
+    && !r("No hay precio de lista por cliente en la planilla, así que el precio no se puede separar del costo.").includes("mecanismo-sin-sello") && !r("La causa es la carga: no volumen, que ningún grande cae con la carga controlada.").includes("mecanismo-sin-sello"),
+    "…cada mecanismo con su sello, «no parece», «no solo», el límite de dato y el descarte de una huella medida y ausente (volumen) pasan");
+  ok(r("La decisión pendiente es si el volumen a ese margen en las cuentas grandes es estrategia deliberada o negociación que se deterioró.", { figs: conVenta }).includes("deterioro-no-medido"), "★★★ «negociación que se deterioró» ARDE aun dentro de «es si … o …»: la palabra afirma el movimiento igual");
+  ok(r("Falabella muestra una relación comercial deteriorada.", { figs: conVenta }).includes("deterioro-no-medido") && r("Hay deterioro en las condiciones negociadas con los cuatro grandes.", { figs: conVenta }).includes("deterioro-no-medido"), "★ «relación deteriorada», «hay deterioro en las condiciones»: cualquier sujeto");
+  ok(!r("No hay deterioro medido: lo que hay es un nivel bajo el benchmark.", { figs: conVenta }).includes("deterioro-no-medido") && !r("Sin deterioro que mostrar en el tiempo, la lectura es de nivel.", { figs: conVenta }).includes("deterioro-no-medido") && !r("La negociación quedó bajo la referencia.", { figs: conVenta }).includes("deterioro-no-medido"),
+    "…la negación y el nivel («quedó bajo la referencia») pasan");
   ok(/huellas: _huellasDelTurno, figs: figsTotales/.test(bucle) && /vetosDeRegistro\(c, \{ pregunta: q, huellas: _huellasDelTurno\(\), figs:/.test(oraculo) && /vetosDeRegistro\(n, \{ pregunta: q, huellas: _huellasDelTurno\(\), figs:/.test(oraculo),
     "…y los dos caminos le pasan al juez las huellas y la boleta del turno (una regla, dos caminos)");
 }

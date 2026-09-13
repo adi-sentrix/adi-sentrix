@@ -231,6 +231,8 @@ H("3d · ★★★ la corrida 3: lo real arde en el cierre, la reparación que o
   const { vetosDeContrato } = await import("./src/adi/agente/contratoAgente.js");
   const figsB = leer(pasosDelEncargo(partesDelEncargo(FX.pregunta), pasosDe(playbookPara(FX.pregunta, {}), FX.pregunta, {}), {}));
   const kindsB = (guardC(b2, { ledger: { figs: figsB }, results: [], question: FX.pregunta, contentScope: "full" }).violations || []).map((v) => v.kind);
+  const { buildRolesCartera } = await import("./src/adi/sentrix/rolesCartera.js");
+  const huellasFx = (() => { const A = buildRolesCartera(ESC); return A && A.hay ? A.huellas : []; })();
   const reglasB = vetosDeContrato(b2, { pregunta: FX.pregunta, sitio: "reparacion", figs: figsB }).map((v) => v.regla);
   ok(kindsB.includes("brecha-narrada-como-perdida"), "★ «no es teórico, es lo que ya se dejó de capturar» → brecha narrada como pérdida realizada", kindsB.join(","));
   ok(kindsB.includes("cifra-narrada-como-caja"), "★ «$655K — caja que se está yendo» → la contribución no es caja", kindsB.join(","));
@@ -243,8 +245,14 @@ H("3d · ★★★ la corrida 3: lo real arde en el cierre, la reparación que o
     .replace("$655K — caja que se está yendo en descuentos/rebates.", "$655K — contribución cedida en acciones comerciales por sobre el nivel de referencia.")
     .replace(/Hay una segunda huella, más débil \(sello "indicado", no probado\): el markup de estos mismos clientes está más pegado al costo que el de los clientes sanos\. Sodimac[^]*?aparte de la carga\./, "Hay una segunda huella, más débil (sello \"indicado\", no probado): el markup promedio de los que caen es 41.4% contra 57.3% de los sanos — el precio de lista nace más pegado al costo en estas cuentas, aparte de la carga.")
     .replace("(25.1% vs 30.1%): crecimiento con calidad deteriorada.", "(25.1% vs 30.1%): el crecimiento no llega al margen.")
-    .replace("4. Ese mismo grupo muestra precio de lista más pegado al costo que el resto de la cartera — señal indicada, no aún probada, de que el problema también empieza en la lista.", "4. El markup promedio de ese grupo es 41.4% contra 57.3% de los sanos — señal indicada, no aún probada, de que el problema también empieza en la lista.");
-  ok(b2ok !== b2 && !/calidad deteriorada|se diluye|no es teórico|caja que|más pegado al costo que el de los clientes sanos/.test(b2ok) && /41.4% contra 57.3%/.test(b2ok), "la reparación corregida ya no tiene las cuatro faltas");
+    .replace("4. Ese mismo grupo muestra precio de lista más pegado al costo que el resto de la cartera — señal indicada, no aún probada, de que el problema también empieza en la lista.", "4. El markup promedio de ese grupo es 41.4% contra 57.3% de los sanos — señal indicada, no aún probada, de que el problema también empieza en la lista.")
+    /* y las TRES CUESTIONES TRANSVERSALES (owner 2026-09-13, tras la corrida 5): ganar más es comparación temporal que no hay;
+     * el precio (indicado) no se descarta; «deteriorada» no va sin serie */
+    .replace("Estamos vendiendo más, pero no todo eso está mejorando el negocio.", "Estamos vendiendo más; si el negocio gana más no se puede saber con este dato.")
+    .replace("el patrón apunta a fuga por acciones comerciales, no a un problema de costo.", "el patrón apunta a fuga por acciones comerciales; el precio de lista queda indicado y el mix, abierto.");
+  ok(b2ok !== b2 && !/calidad deteriorada|se diluye|no es teórico|caja que|más pegado al costo que el de los clientes sanos|está mejorando el negocio|no a un problema de costo/.test(b2ok) && /41.4% contra 57.3%/.test(b2ok), "la reparación corregida ya no tiene las cuatro faltas (ni las tres cuestiones transversales)");
+  const reglasB2 = vetosDeContrato(b2, { pregunta: FX.pregunta, sitio: "reparacion", figs: figsB, huellas: huellasFx }).map((v) => v.regla);
+  ok(reglasB2.includes("ganancia-no-comparada") && reglasB2.includes("mecanismo-sin-sello"), "★ «no todo eso está mejorando el negocio» y «no a un problema de costo» (precio INDICADO) → ganancia sin comparación temporal + descarte de un mecanismo indicado", reglasB2.join(","));
   const r2 = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2ok]) });
   const a2 = r2.r.agente || {}, t = String(r2.r.text);
   ok(a2.estado === "reparado", `★★★ la reparación que obedece al procedimiento Y a las cuatro leyes SE SIRVE (${a2.estado}): ${palabras(t)} palabras del modelo en pantalla`, (a2.vetos || []).join(" | ").slice(0, 400));
@@ -265,7 +273,14 @@ H("3e · ★★★ la corrida 4: las negaciones y el rótulo no son afirmaciones
   const FX = JSON.parse(readFileSync(new URL("./fixtures/gerente-borradores-2026-09-13c.json", import.meta.url), "utf8"));
   const [b1, b2] = FX.borradores.map((b) => b.texto);
   const cerebroDe = (textos) => { let i = 0; return async () => { const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
-  const r = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2]) });
+  /* «apunta a fuga por acciones comerciales, no a un problema de precio de lista» descarta un mecanismo INDICADO (owner
+   * 2026-09-13, tras la corrida 5): la reparación tal cual ya no se sirve; corregida —el precio con su sello— sí */
+  const r0 = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2]) });
+  const a0 = r0.r.agente || {};
+  ok(a0.estado === "encargo-compuesto" && /reparacion · mecanismo-sin-sello: descartas como hecho el mecanismo «costo\/precio»/.test((a0.vetos || []).join(" ")), `★ la reparación que descarta el precio de lista (INDICADO) NO se sirve (${a0.estado})`, (a0.vetos || []).join(" | ").slice(0, 300));
+  const b2ok = b2.replace("apunta a fuga por acciones comerciales, no a un problema de precio de lista.", "apunta a fuga por acciones comerciales; el precio de lista queda indicado y el mix, abierto.");
+  ok(b2ok !== b2, "la reparación corregida deja al precio de lista con su sello");
+  const r = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2ok]) });
   const a = r.r.agente || {}, vetos = a.vetos || [], t = String(r.r.text);
   ok(vetos.length >= 1 && /^cierre · /.test(vetos[0]) && /intencion-inferida|mecanismo-sin-sello/.test(vetos[0]), `el cierre cae por lo real (dictamen de intención · mecanismo negado sin sello): ${String(vetos[0]).slice(0, 80)}…`, vetos.join(" | ").slice(0, 300));
   ok(a.estado === "reparado", `★★★ la reparación SE SIRVE (${a.estado}): ${palabras(t)} palabras del modelo en pantalla`, vetos.join(" | ").slice(0, 400));
@@ -285,10 +300,22 @@ H("3f · ★★★ la corrida 5: «de los ocho …, cinco concentran $4.9M» no 
   const FX = JSON.parse(readFileSync(new URL("./fixtures/gerente-borradores-2026-09-13d.json", import.meta.url), "utf8"));
   const [b1, b2] = FX.borradores.map((b) => b.texto);
   const cerebroDe = (textos) => { let i = 0; return async () => { const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
-  const r = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2]) });
+  /* LAS TRES CUESTIONES TRANSVERSALES (owner 2026-09-13, sobre esta misma respuesta): «vendiendo más, no ganando más» sin
+   * comparación temporal de contribución; «apunta a carga comercial, no a precio de lista ni a mix» con el precio INDICADO
+   * y el mix ABIERTO; «negociación que se deterioró» sin evidencia temporal (y dentro de un «es si … o …»: la hipótesis no
+   * absuelve esa palabra). Las tres arden en el cierre y en la reparación tal cual; corregidas, la reparación se sirve entera. */
+  const r0 = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2]) });
+  const a0 = r0.r.agente || {}, v0 = a0.vetos || [];
+  ok(v0.length >= 1 && /^cierre · (?:ganancia-no-comparada|mecanismo-sin-sello|deterioro-no-medido)/.test(v0[0]) && /ganancia-no-comparada/.test(v0[0]) && /deterioro-no-medido/.test(v0[0]) && /mecanismo-sin-sello/.test(v0[0]), `★★★ el cierre cae por las tres cuestiones a la vez (ganancia sin comparación · descarte de precio/mix · «se deterioró»): ${String(v0[0]).slice(0, 70)}…`, v0.join(" | ").slice(0, 400));
+  ok(a0.estado === "encargo-compuesto" && /reparacion · ganancia-no-comparada: dices «no ganando más»/.test(v0.join(" ")), `★ la reparación con las tres cuestiones NO se sirve (${a0.estado})`, v0.join(" | ").slice(0, 300));
+  const b2ok = b2
+    .replace("**El negocio está vendiendo más, no ganando más — y son cosas distintas.**", "**El negocio está vendiendo más; si gana más no se puede saber con este dato — y son cosas distintas.**")
+    .replace("el patrón apunta a carga comercial, no a precio de lista ni a mix.", "el patrón apunta a carga comercial; el precio de lista queda indicado y el mix, abierto.")
+    .replace("estrategia deliberada o negociación que se deterioró.", "estrategia deliberada o negociación que quedó bajo la referencia.");
+  ok(b2ok !== b2 && !/no ganando más|no a precio de lista|se deterioró/.test(b2ok), "la reparación corregida conserva la diferencia entre lo probado, lo indicado, lo abierto y lo que cambió en el tiempo");
+  const r = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2ok]) });
   const a = r.r.agente || {}, vetos = a.vetos || [], t = String(r.r.text);
-  ok(vetos.length >= 1 && /^cierre · mecanismo-sin-sello/.test(vetos[0]), `el cierre cae por lo real («no es un problema de precio de lista ni de mix» sin sello): ${String(vetos[0]).slice(0, 70)}…`, vetos.join(" | ").slice(0, 300));
-  ok(a.estado === "reparado", `★★★ la reparación SE SIRVE entera, sin poda (${a.estado}): ${palabras(t)} palabras`, vetos.join(" | ").slice(0, 400));
+  ok(a.estado === "reparado", `★★★ la reparación corregida SE SIRVE entera, sin poda (${a.estado}): ${palabras(t)} palabras`, vetos.join(" | ").slice(0, 400));
   ok(/De los ocho clientes bajo el benchmark, cinco son materiales \(Falabella, Lider, Jumbo, Sodimac, Ripley\) y concentran una brecha estimada de \$4\.9M/.test(t), "…con la definición del $4.9M en su lugar («de los ocho …, cinco son materiales … $4.9M»)");
   ok(/Ocho de trece clientes están bajo la referencia; cinco concentran una brecha estimada de \$4\.9M/.test(t), "…y la primera línea del directorio intacta («Ocho de trece …; cinco concentran … $4.9M»)");
 }

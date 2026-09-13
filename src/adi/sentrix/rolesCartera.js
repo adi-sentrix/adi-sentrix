@@ -96,6 +96,7 @@ export function buildRolesCartera(scenario) {
     mecanismo: "acciones comerciales sobre el nivel de referencia",
     huella: "clientes bajo el benchmark que además pagan más carga que el nivel de referencia",
     presente: ero.length > 0,
+    medible: true,   // la huella se mide en cada cuenta: si no está, el dato la descarta
     sello: ero.length > 0 ? "probado" : "abierto",
     porque: ero.length > 0
       ? `${ero.length} de los que caen la tienen sobre el ${target}%`
@@ -107,6 +108,7 @@ export function buildRolesCartera(scenario) {
     mecanismo: "volumen a margen bajo",
     huella: "clientes del tramo alto de venta, bajo el benchmark, con la carga DENTRO del nivel de referencia",
     presente: vol.length > 0,
+    medible: true,
     sello: vol.length > 0 ? "indicado" : "abierto",
     porque: vol.length > 0
       ? "venta alta y margen bajo sin exceso de carga; si es apuesta deliberada solo lo sabe el dueño"
@@ -126,6 +128,7 @@ export function buildRolesCartera(scenario) {
     mecanismo: "precio de lista pegado al costo",
     huella: "markup (precio de lista sobre costo medio) más bajo en los que caen que en los sanos",
     presente: conMarkup.length > 0 && mkBajo,
+    medible: conMarkup.length > 0,   // sin precio de lista y costo por cliente no hay huella que buscar: abierto de verdad, no descartado
     sello: conMarkup.length === 0 ? "abierto" : (mkBajo ? "indicado" : "abierto"),
     porque: conMarkup.length === 0
       ? "tu dato no trae precio de lista y costo medio por cliente: sin eso el precio no se puede separar del costo"
@@ -139,6 +142,7 @@ export function buildRolesCartera(scenario) {
     mecanismo: "mix de lo que cada cliente compra",
     huella: "margen por familia DENTRO de cada cliente",
     presente: false,
+    medible: false,   // no hay columna que lo mida: nadie puede descartarlo
     sello: "abierto",
     porque: "tu dato no cruza cliente con familia",
     falta: "agregar la familia (o la línea de producto) a cada fila de venta en la planilla — con eso el mix deja de ser hipótesis y pasa a cuenta",
