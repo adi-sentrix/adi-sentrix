@@ -2910,13 +2910,28 @@ function _alcancePromovido(narration, ledger) {
     if (_nm) {
       const n = Number(_nm[1]);
       const _PAL = { uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15 };
-      // «5 de 8 cuentas» es la DEFINICIÓN (n de m), no otro conteo: el m que sigue a «N de» no cuelga nada
-      const reCuenta = /(?<!\d\s+de\s+)\b(?:l[oa]s\s+|es[oa]s\s+|est[oa]s\s+)?(\d{1,2}|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince)\s+(?:cuentas?|clientes?)\b/gi;
-      // el «N de» que define el universo puede quedar justo ANTES del borde de la ventana («…en 5 | de 8 clientes»): el
-      // contexto del conteo se lee del texto entero, no de la ventana recortada (corrida 3 del prompt de gerente)
-      const _ctxCuenta = (i) => text.slice(Math.max(0, lo + i - 12), lo + i);
-      let mc, dicho = null;
-      while ((mc = reCuenta.exec(ventana))) { const k = _PAL[mc[1].toLowerCase()] ?? Number(mc[1]); if (Number.isFinite(k) && k !== n && !/\d\s+de\s*$/.test(_ctxCuenta(mc.index))) { dicho = mc[0]; break; } }
+      /* EL CONTEO QUE MANDA ES EL MÁS CERCANO A LA CIFRA (corrida 5 del prompt de gerente, 2026-09-13): «De los ocho clientes bajo
+       * el benchmark, cinco son materiales (…) y concentran $4.9M» y «Ocho de trece clientes están bajo la referencia; cinco
+       * concentran $4.9M» cuelgan la cifra de los CINCO — el ocho y el trece son el universo, dicho antes. Se recogen todos
+       * los conteos de la ventana (con sustantivo o con verbo: «cinco son materiales», «cinco concentran»), se descartan los
+       * pares «N de M» (la definición), y decide el más cercano a la cifra. «5 de 8» y «ocho de trece» valen igual. */
+      const NUM = "(\\d{1,2}|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince)";
+      const reCuenta = new RegExp(`(?<![\\wáéíóúñ])(?:l[oa]s\\s+|es[oa]s\\s+|est[oa]s\\s+)?${NUM}(?=\\s+(?:cuentas?|clientes?|son\\b|concentran|suman|representan|explican|dejan|acumulan|materiales|est[aá]n))`, "gi");
+      const reParNdeM = new RegExp(`(?<![\\wáéíóúñ])${NUM}\\s+de\\s+${NUM}(?![\\wáéíóúñ])`, "gi");
+      const _ctxCuenta = (i) => text.slice(Math.max(0, lo + i - 14), lo + i);
+      const enPar = new Set();
+      let mp; while ((mp = reParNdeM.exec(ventana))) { enPar.add(mp.index); enPar.add(mp.index + mp[0].length - mp[2].length); }
+      const posCifra = idx - lo;
+      let mc, masCercano = null;
+      while ((mc = reCuenta.exec(ventana))) {
+        const iNum = mc.index + mc[0].length - mc[1].length;
+        if (enPar.has(iNum) || /\d\s+de\s*$|\b(?:uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece)\s+de\s*$/i.test(_ctxCuenta(mc.index))) continue;
+        const k = _PAL[mc[1].toLowerCase()] ?? Number(mc[1]);
+        if (!Number.isFinite(k)) continue;
+        const d = Math.abs(iNum - posCifra);
+        if (!masCercano || d < masCercano.d) masCercano = { k, d, dicho: mc[0].trim() };
+      }
+      const dicho = masCercano && masCercano.k !== n ? masCercano.dicho : null;
       if (dicho && ([..._metricasEn(ventana)].some((m) => metricas.has(m)) || /\bsubtotal\b/i.test(ventana))) {
         out.push(`«${nf.text}» es el subtotal de ${n} cuentas («${subs[0].f.label}») y se narra como el de «${dicho}»: la cifra tiene una sola definición — cítala con su universo: "${ventana.trim().slice(0, 110)}"`);
         continue;

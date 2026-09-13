@@ -283,6 +283,10 @@ H("[B5] MÉTRICAS COMPARABLES · una comparación ejecutiva solo vale entre mét
   ok(!tiene(runU("Las 5 cuentas materiales bajo el benchmark dejan $4.9M sin capturar (de 8 que están bajo él)."), "alcance-promovido"), "…«las 5 cuentas materiales … (de 8)» pasa: es la definición");
   ok(!tiene(runU("Ocho de trece clientes están bajo el benchmark. Hay $4.9M de contribución no capturada en las cinco cuentas que más pesan."), "alcance-promovido"), "…y el conteo en OTRA oración no lo cuelga");
   ok(tiene(runU("$4.9M de contribución no capturada si la cartera entera cerrara al benchmark."), "alcance-promovido"), "…«la cartera entera» sigue ardiendo como antes");
+  /* el conteo que manda es el MÁS CERCANO a la cifra (corrida 5): el universo dicho antes no la cuelga */
+  ok(!tiene(runU("De los ocho clientes bajo el benchmark, cinco son materiales (Falabella, Lider, Jumbo, Sodimac, Ripley) y concentran una brecha estimada de $4.9M en contribución no capturada."), "alcance-promovido"), "★ «De los ocho …, cinco son materiales (…) y concentran $4.9M» PASA: la cifra cuelga de los cinco");
+  ok(!tiene(runU("Ocho de trece clientes están bajo la referencia; cinco concentran una brecha estimada de $4.9M en contribución no capturada."), "alcance-promovido"), "★ «Ocho de trece …; cinco concentran $4.9M» PASA: «ocho de trece» con palabras es el universo");
+  ok(tiene(runU("Los trece clientes de la cartera suman $4.9M de contribución no capturada."), "alcance-promovido"), "…y «los trece clientes suman $4.9M» sigue ardiendo");
   /* la corrida 3 (fixture b): tres falsos positivos sobre una reparación que obedeció al procedimiento */
   const l3 = "3. Concentrado en 5 de 8 clientes bajo benchmark (Falabella, Lider, Jumbo, Sodimac, Ripley), que representan $4.9M de contribución no capturada en el año.";
   ok(!tiene(runU(l3), "alcance-promovido"), "★ «Concentrado en 5 de 8 clientes … que representan $4.9M» PASA: el «5 de» quedaba fuera de la ventana y el 8 se leía como otro conteo", det(runU(l3)));

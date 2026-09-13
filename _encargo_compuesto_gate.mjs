@@ -275,6 +275,24 @@ H("3e · ★★★ la corrida 4: las negaciones y el rótulo no son afirmaciones
   ok(/¿fue apuesta de rotación o se fue de las manos\?/.test(t), "…y la pregunta de la casa al dueño cuenta como pregunta concreta");
 }
 
+/* ═══ 3f · LA CORRIDA 5: EL CONTEO QUE MANDA ES EL MÁS CERCANO A LA CIFRA ═══════════════════════════════════════════
+ * (owner 2026-09-13 · fixtures/gerente-borradores-2026-09-13d) La reparación cumplía todo y fue PODADA: «De los ocho
+ * clientes bajo el benchmark, cinco son materiales (…) y concentran $4.9M» y «Ocho de trece clientes …; cinco concentran
+ * $4.9M» cuelgan la cifra de los CINCO, y el chequeo de alcance leía el ocho y el trece. La poda le quitó al usuario la
+ * definición del $4.9M y la primera línea del directorio. Manda el conteo más cercano; «N de M» con palabras no cuenta. */
+H("3f · ★★★ la corrida 5: «de los ocho …, cinco concentran $4.9M» no es colgar la cifra de los ocho — la reparación SE SIRVE entera");
+{
+  const FX = JSON.parse(readFileSync(new URL("./fixtures/gerente-borradores-2026-09-13d.json", import.meta.url), "utf8"));
+  const [b1, b2] = FX.borradores.map((b) => b.texto);
+  const cerebroDe = (textos) => { let i = 0; return async () => { const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
+  const r = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2]) });
+  const a = r.r.agente || {}, vetos = a.vetos || [], t = String(r.r.text);
+  ok(vetos.length >= 1 && /^cierre · mecanismo-sin-sello/.test(vetos[0]), `el cierre cae por lo real («no es un problema de precio de lista ni de mix» sin sello): ${String(vetos[0]).slice(0, 70)}…`, vetos.join(" | ").slice(0, 300));
+  ok(a.estado === "reparado", `★★★ la reparación SE SIRVE entera, sin poda (${a.estado}): ${palabras(t)} palabras`, vetos.join(" | ").slice(0, 400));
+  ok(/De los ocho clientes bajo el benchmark, cinco son materiales \(Falabella, Lider, Jumbo, Sodimac, Ripley\) y concentran una brecha estimada de \$4\.9M/.test(t), "…con la definición del $4.9M en su lugar («de los ocho …, cinco son materiales … $4.9M»)");
+  ok(/Ocho de trece clientes están bajo la referencia; cinco concentran una brecha estimada de \$4\.9M/.test(t), "…y la primera línea del directorio intacta («Ocho de trece …; cinco concentran … $4.9M»)");
+}
+
 /* ═══ 4 · EL PARAGUAS, SOLO PARA EL ENCARGO COMPUESTO SOBRE EL NEGOCIO ENTERO ═════════════════════════════ */
 H("4 · el paraguas de la foto no captura preguntas simples ni ambiguas");
 {
