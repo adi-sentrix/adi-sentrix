@@ -82,6 +82,19 @@ el cruce contra la carpeta real. Antes de pantalla:
    - *Comparaciones solo entre métricas equivalentes y disponibles.* Markup contra margen = bloqueado; y una
      comparación entre dos lados («más pegado al costo que los sanos») lleva la cifra de cada lado, de la
      carpeta — si la carpeta no trae un lado, la comparación no se dice.
+   **Y la diferencia entre lo descartado, lo indicado, lo abierto y lo que realmente cambió en el tiempo se
+   conserva siempre** (ley del owner, 2026-09-13, tras la corrida 5 del prompt de gerente):
+   - *Ganar más o menos es una comparación temporal.* «No ganamos más», «ganamos menos», «no estamos
+     mejorando» exigen la variación (o la serie) de contribución, resultado o margen en la carpeta. Con la venta
+     medida contra el año anterior y el margen medido solo contra el benchmark, lo honesto es «vendes más; si
+     ganas más no se puede saber con este dato» = lo otro, bloqueado.
+   - *Un mecanismo indicado o abierto no se descarta.* Cada mecanismo lleva el sello del procedimiento
+     (probado · indicado · abierto); la negación es un descarte y se juzga por su propia cláusula: «apunta a
+     carga comercial, no a precio de lista ni a mix» con el precio INDICADO y el mix ABIERTO = bloqueado. Solo
+     se descarta lo que el dato descartó (una huella medible que se buscó y no está).
+   - *«Se deterioró» con cualquier sujeto es un movimiento en el tiempo.* Sin serie ni variación de eso en la
+     carpeta no se dice — ni como hipótesis ni como alternativa («estrategia deliberada o negociación que se
+     deterioró» = bloqueado): lo que hay es un nivel («quedó bajo la referencia»).
 2. **¿Cada cálculo se puede recalcular?** La fórmula mostrada se recomputa. No cuadra o no muestra origen →
    bloqueado.
 3. **¿Cada clasificación existe?** «Frenado», «bajo benchmark», «crítico»: solo los estados que la carpeta

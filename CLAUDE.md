@@ -71,6 +71,12 @@ Derivadas que se rompen seguido:
   económica — la contribución no es caja ni capital; (4) comparaciones solo entre métricas equivalentes y
   disponibles, con la cifra de cada lado en la oración. Y la conclusión del procedimiento (prioridad oficial,
   definición de sus subtotales) se le declara al cerebro ANTES de escribir (`conclusiones(figs)` del playbook).
+- **Lo descartado, lo indicado, lo abierto y lo que cambió en el tiempo no se mezclan** (owner 2026-09-13, tras la
+  corrida 5; ley en `_CONSTITUCION_ADI.md`): «no ganamos más» exige la variación de contribución/resultado/margen;
+  un mecanismo INDICADO o ABIERTO no se descarta («…, no a precio ni a mix» se juzga por su propia cláusula — la marca
+  de la afirmación de al lado no lo cubre); «se deterioró» con cualquier sujeto exige serie, y la hipótesis no absuelve
+  esa palabra. Todo en `vetosDeRegistro` (`ganancia-no-comparada`, `mecanismo-sin-sello`, `deterioro-no-medido`) y
+  en la doctrina `conclusiones(figs)`, con el sello de cada mecanismo tomado de la boleta.
 
 ---
 
