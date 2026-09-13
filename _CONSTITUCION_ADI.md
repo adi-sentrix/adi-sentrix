@@ -105,6 +105,21 @@ el cruce contra la carpeta real. Antes de pantalla:
      parte», «pesa más» ordenan las causas, y ese orden exige la parte del efecto medida en la carpeta (efecto
      carga contra efecto costo, en pp). Lo probado es que el mecanismo EXISTE (su huella) = se dice «un mecanismo
      probado», «la huella más clara»; «la causa dominante y probada» = bloqueado.
+   **El contrato comercial** (ley del owner, 2026-09-13): *toda pregunta comercial parte de la misma realidad
+   comercial; la pregunta determina el foco de la respuesta, no qué evidencia tiene disponible ADI para razonar.*
+   - La base común de toda lectura comercial: ventas y evolución · contribución y margen · benchmark · clientes ·
+     costos · precio/markup · acciones y carga comercial · brecha de contribución · huellas y sellos causales ·
+     evolución disponible. Mix queda abierto mientras el dato no exista; resultado después de gastos queda fuera si
+     no hay P&L. Ninguna ruta comercial queda subinformada por la forma de la pregunta: «¿cómo van las ventas?» no
+     puede quedar sin margen, contribución, costo ni carga si hacen falta para interpretar esas ventas.
+   - La respuesta sigue siendo selectiva: el foco es de la pregunta y del procedimiento; la evidencia es la misma.
+     Preguntas equivalentes no producen verdades distintas por entrar por procedimientos distintos: cada cifra sale
+     del emisor que la publica con su rótulo, una sola vez.
+   - *Una brecha, una referencia, una verdad.* La brecha de margen/contribución se descompone contra el BENCHMARK
+     que usa ADI (nunca contra el promedio de cartera): contribución no capturada = carga comercial sobre el nivel
+     declarado + precio y costo, y X + Y explica exactamente el universo declarado, sin doble conteo. Las ventas
+     contra el año anterior siguen siendo temporales: el benchmark es la referencia de la brecha, no de toda
+     comparación. La pantalla y el agente leen la misma descomposición.
 2. **¿Cada cálculo se puede recalcular?** La fórmula mostrada se recomputa. No cuadra o no muestra origen →
    bloqueado.
 3. **¿Cada clasificación existe?** «Frenado», «bajo benchmark», «crítico»: solo los estados que la carpeta

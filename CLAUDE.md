@@ -82,6 +82,16 @@ Derivadas que se rompen seguido:
   mecanismo PROBADO (`mecanismo-sin-sello`, atribución); y «dominante / principal / sobre todo / la mayor parte / pesa
   más» exigen la parte del efecto medida en la boleta (`jerarquia-causal-sin-medida`, con o sin huellas). Un mecanismo
   probado es «un mecanismo probado», no «la causa dominante».
+- **El contrato comercial** (owner 2026-09-13, ley en `_CONSTITUCION_ADI.md`; `src/adi/agente/contratoComercial.js`):
+  «toda pregunta comercial parte de la misma realidad comercial; la pregunta determina el foco de la respuesta, no qué
+  evidencia tiene disponible ADI». Si el tema es comercial, cinco lecturas corren SIEMPRE antes del cerebro, unidas a las
+  del procedimiento (salesRead · marginRead bajo benchmark · contributionRead · diagnose · rolesCartera; la serie de
+  margen solo con histórico real), y viaja la doctrina comercial (las conclusiones del procedimiento). Medido:
+  22 preguntas comerciales pasaron de 3,0/10 capítulos a 10/10, ~15K chars por turno bajo el techo de 28K
+  (`_contrato_comercial_gate`). Fuera del contrato: inventario, cobranza, otros ejes (marca/familia/canal), definiciones
+  y reformular. Y **la brecha se parte contra el BENCHMARK, una sola vez** (`descomposicionDeBrecha` en specRetrieval):
+  contribución no capturada = carga comercial alta + brecha por precio y costo, exacto en el universo declarado —
+  diagnose la publica al agente (como gancho) y la pestaña Comercial la pinta desde la misma función.
 
 ---
 
