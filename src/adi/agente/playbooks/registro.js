@@ -158,8 +158,14 @@ export function promesasCumplidas(pb, figs, pregunta, ctx) {
  *  Byte-estable por playbook (prefijo cacheable: el texto no cambia turno a turno) — con UNA excepción
  *  declarada: `cuadro-explicado` cambia con la pieza tocada, porque el ancla del cuadro ES su método. Un
  *  entregable que dijera «explica el cuadro» sin decir cuál sería el prompt genérico que el owner rechazó. */
-export function doctrinaDelPlaybook(pb, pregunta, ctx) {
+export function doctrinaDelPlaybook(pb, pregunta, ctx, figs = null) {
   if (!pb) return "";
+  /* LAS CONCLUSIONES DEL PROCEDIMIENTO VIAJAN CON LA DOCTRINA (owner 2026-09-13): «la conclusión es del procedimiento,
+   * no del narrador» (regla 4) solo se cumple si el narrador SABE cuál es antes de escribir. Con la evidencia leída,
+   * el playbook declara lo que fijó —la prioridad oficial y su criterio, la definición de sus cifras de alcance— y el
+   * cerebro las conserva; su criterio propio va después, como alternativa. Sin figs (gates viejos, doctrina
+   * previa a los pasos) el bloque no existe y la doctrina es byte-idéntica a la de siempre. */
+  const _conclusiones = (figs && typeof pb.conclusiones === "function") ? (() => { try { return pb.conclusiones(figs) || ""; } catch { return ""; } })() : "";
   return [
     `[PROCEDIMIENTO — no es el usuario] Este turno sigue el playbook «${pb.nombre}». Sus pasos YA se ejecutaron y sus resultados están arriba:`,
     ...pasosDe(pb, pregunta, ctx).map((p) => `- ${p.tool} → ${p.para}`),
@@ -167,6 +173,7 @@ export function doctrinaDelPlaybook(pb, pregunta, ctx) {
     `LO QUE TIENES QUE ENTREGAR: ${entregableDe(pb, pregunta, ctx)}`,
     "La evidencia ya está en la mano: respóndela. No pidas aclaración ni declines por falta de datos sobre lo que estos resultados ya cubren.",
     "Cada cifra, verbatim de los resultados. Localiza dónde está el problema; no afirmes por qué pasa si el dato no lo declara.",
+    ...(_conclusiones ? [_conclusiones] : []),
     formaDelTurno(pregunta),
   ].join("\n");
 }

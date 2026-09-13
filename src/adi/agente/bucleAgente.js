@@ -748,7 +748,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
        * no sería la que se hizo. */
       if (promesasCumplidas(playbook, figsTotales, q, ctxTurno)) {
         playbookActivo = playbook;
-        mensajes.push({ role: "user", content: doctrinaDelPlaybook(playbook, q, ctxTurno) });
+        mensajes.push({ role: "user", content: doctrinaDelPlaybook(playbook, q, ctxTurno, figsTotales) });   // con la boleta: las conclusiones del procedimiento viajan (owner 2026-09-13)
       }
     }
   }

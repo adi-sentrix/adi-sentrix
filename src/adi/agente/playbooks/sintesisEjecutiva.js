@@ -106,7 +106,7 @@ export const sintesisEjecutiva = {
     { tool: "executiveSummary", args: {}, para: "la foto ejecutiva del período: venta contra el año anterior, contribución, margen contra el piso" },
     { tool: "marginRead", args: { dimension: "cliente" }, para: "el margen por cliente contra el benchmark declarado, para que el cerebro tenga la cartera a mano" },
   ],
-  obligatorias: [/^Contribuci[oó]n no capturada · subtotal$/i],
+  obligatorias: [/^Contribuci[oó]n no capturada · subtotal(?: · \d+ cuentas materiales [^·]*)?$/i],
 
   entregable: "exactamente 3 riesgos para el directorio, elegidos por materialidad (el piso relativo manda): cada uno con QUÉ (la cifra verbatim, con su dueño) · DÓNDE (localiza, sin causas que el dato no declara) · QUÉ HACER PRIMERO (una oferta, jamás una orden). Si el dato sostiene menos de 3 materiales, se dice el número verdadero.",
 
@@ -118,7 +118,7 @@ export const sintesisEjecutiva = {
       const f = _find(figs, re);
       if (f && Number.isFinite(_num(f)) && _num(f) > 0) candidatos.push({ nombre, f, usd: _num(f), top: _topDe(figs, reLoc), abrir });
     };
-    mk(/^Contribuci[oó]n no capturada · subtotal$/i, "Contribución no capturada", /· Contribuci[oó]n no capturada$/i, "esa cuenta");
+    mk(/^Contribuci[oó]n no capturada · subtotal(?: · \d+ cuentas materiales [^·]*)?$/i, "Contribución no capturada", /· Contribuci[oó]n no capturada$/i, "esa cuenta");
     mk(/^Carga comercial alta · subtotal$/i, "Carga comercial alta", /· Carga comercial alta$/i, "esa carga");
     mk(/^Capital frenado · subtotal$/i, "Capital frenado en inventario", /· Capital frenado$/i, "ese SKU");
     if (!candidatos.length) return null;

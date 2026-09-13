@@ -585,10 +585,12 @@ function _diagComercial(filters, scenario, entityScope) {
   const vBy = {}; for (const r of ventas) vBy[r[vKey]] = r;                    // join por keyField (nombre)
   const piso = _pisoFocosUSD(vSF.source, vSF.field);   // por NEGOCIO: la venta del escenario base, no la del lente
   const contrib = [], carga = [];
+  let bajoBenchmark = 0;   // EL UNIVERSO del foco de margen: TODAS las cuentas bajo el benchmark, antes de los dos filtros
   for (const r of margen) {
     const v = vBy[r[mKey]]; if (!v) continue;
     const actual = v[vSF.field]; if (typeof actual !== "number") continue;    // ventas canónicas (K)
     const bmk = benchmarkOf(r), mg = r[mSF.field], cb = r[cSF.field], cg = r[gSF.field];
+    if (typeof mg === "number" && typeof cb === "number" && (bmk - mg) > 0) bajoBenchmark++;
     // contribución no capturada = venta×benchmark/100 − contribución (K→$) · gate: ≥4pp bajo benchmark y ≥ piso
     if (typeof mg === "number" && typeof cb === "number" && (bmk - mg) >= _DIAG_MARGIN_GAP()) {
       const usd = Math.round(((actual * bmk / 100) - cb) * _fxe());
@@ -602,7 +604,12 @@ function _diagComercial(filters, scenario, entityScope) {
   }
   const out = [];
   if (carga.length)   out.push(_diagFoco("carga", "Carga comercial alta", carga));
-  if (contrib.length) out.push(_diagFoco("margen", "Contribución no capturada", contrib));
+  /* EL UNIVERSO VIAJA CON EL FOCO (owner 2026-09-13, «alcance de los $4,9M»): el subtotal de contribución no
+   * capturada es el de las cuentas MATERIALES —brecha ≥ POLICY.margenBrechaMaterial pp y monto ≥ piso—, no el de
+   * todas las que están bajo el benchmark. En vivo el modelo lo narró «en los ocho clientes bajo benchmark» (son
+   * cinco) y el muro no podía cobrarlo: la fig no declaraba n de m. Una cifra, una definición, en su rótulo. */
+  if (contrib.length) out.push({ ..._diagFoco("margen", "Contribución no capturada", contrib),
+    universo: { n: contrib.length, m: bajoBenchmark, universo: "cuentas bajo el benchmark", criterio: `brecha ≥ ${_DIAG_MARGIN_GAP()} pp y monto material` } });
   return out;
 }
 
@@ -681,7 +688,16 @@ export function composeSpecDiagnose({ filters = {}, scenario, focus, entityScope
   const _ctx = `diagnóstico${scope ? ` · ${scope}` : ""}`;
   const bol = [];
   for (const f of focos) {
-    bol.push(fig(`${f.titulo} · subtotal`, _money(f.subtotal), { unit: "money", raw: f.subtotal, mandatory: true, context: _ctx }));
+    /* el rótulo dice DE QUIÉNES es el subtotal («· 5 cuentas materiales (de 8 bajo el benchmark)») — es lo que el
+     * cerebro lee y lo que el muro cobra si la cifra se cuelga de otro conjunto (`cobertura`, chequeo de alcance) */
+    const _u = f.universo && f.universo.m > f.universo.n ? f.universo : null;
+    /* ⚠️ el universo va en el RÓTULO y no en `cobertura`: `cobertura` enciende el chequeo de estimación-como-hecho
+     * (guardC, `_estimacionComoHecho`), que para este agregado estuvo siempre apagado y contra el que ningún
+     * composer está calibrado. El muro lee «n de m» del rótulo (chequeo de alcance), que es texto nuestro. */
+    bol.push(fig(`${f.titulo} · subtotal${_u ? ` · ${_u.n} cuentas materiales (de ${_u.m} bajo el benchmark)` : ""}`, _money(f.subtotal), {
+      unit: "money", raw: f.subtotal, mandatory: true,
+      context: _u ? `${_ctx} · subtotal de las ${_u.n} cuentas con ${_u.criterio}; las ${_u.m} bajo el benchmark no tienen total en esta boleta` : _ctx,
+    }));
     for (const it of f.top.slice(0, 3)) bol.push(fig(`${it.entidad} · ${f.titulo}`, _money(it.usd), { unit: "money", raw: it.usd, mandatory: false, context: _ctx }));
   }
   // GANCHO OPCIONAL (owner 2026-07-09: fuera la muletilla — "si el LLM interpreta el dato, debe decir la realidad"):

@@ -252,6 +252,35 @@ H("7 · margen-en-riesgo · la prioridad («¿qué harías primero?») es del pr
     "…y la adaptación legítima pasa limpia: misma prioridad, otras palabras");
   ok(!reglas(`Entre ${otra} y ${top}, ${top} primero: ahí coinciden volumen y carga excedida.`).includes("conclusion-cambiada"),
     "…y nombrar a la otra en la misma frase NO arde si la elegida sigue primero");
+
+  /* ── LA PRIORIDAD ES ESTABLE EN CUALQUIER RUTA (owner 2026-09-13) ────────────────────────────────────────────
+   * «La recomendación principal no puede cambiar entre Falabella y Líder según el criterio espontáneo del narrador.
+   * ADI debe tener una prioridad oficial y conservarla. Si existe otro criterio válido, puede mostrarse como
+   * alternativa secundaria, no reemplazarla.» Medido en el prompt de gerente (encargo compuesto, no la ruta
+   * «primero»): «Por dónde entraría yo primero: Líder — brecha mayor, causa probada». El notario ahora mira la PRIMERA
+   * frase de prioridad del texto entero, sin importar la ruta, y compara sin tildes. */
+  const QG = "Mira el negocio completo. Dime qué está pasando con ventas y margen, qué clientes dañan, y si tuvieras que revisar una sola cosa primero, cuál sería. Al final déjamelo en 5 líneas para directorio";
+  const figsG = figsDe(PBM.pasos(QG), QG);
+  const reglasG = (t) => PBM.listaNotarial(t, { figs: figsG, pregunta: QG }).map((x) => x.regla);
+  const otraTilde = otra === "Lider" ? "Líder" : otra;
+  const cuerpo = `**Quiénes dañan.** ${top} deja ${pr.top.fmt} sin capturar; ${otra} ${pr.juego[1].fmt}.\n\n**Por dónde entraría yo primero:** ${otraTilde} — tiene la brecha más grande y la causa probada. No es el que más contribución no capturada tiene (eso es ${top}), pero es el caso más limpio.`;
+  ok(reglasG(cuerpo).includes("conclusion-cambiada"),
+    `★★ en un encargo compuesto, «Por dónde entraría yo primero: ${otraTilde}» ARDE aunque declare su criterio — la prioridad oficial es ${top}`, reglasG(cuerpo).join(","));
+  ok(reglasG(`Decisión que se abre: renegociar carga comercial con ${otraTilde} primero (brecha mayor) como caso piloto.`).includes("conclusion-cambiada"),
+    "★ «renegociar … con <otra> primero» en las líneas para el directorio TAMBIÉN arde");
+  ok(!reglasG(`**Por dónde entraría yo primero:** ${top} — es donde hay más contribución en juego (${pr.top.fmt}). Como alternativa secundaria, ${otraTilde} tiene la brecha mayor y la causa probada: sería el segundo.`).includes("conclusion-cambiada"),
+    "…y la prioridad oficial primero + la otra como alternativa secundaria pasa limpia");
+  ok(!reglasG(`${top} concentra ${pr.top.fmt}; ${otraTilde} ${pr.juego[1].fmt}. Ocho de trece están bajo el benchmark.`).includes("conclusion-cambiada"),
+    "…y nombrar cuentas sin frase de prioridad no arde");
+
+  /* la doctrina le dice al cerebro las conclusiones ANTES de escribir: prioridad oficial y definición del subtotal */
+  const { doctrinaDelPlaybook } = await import("./src/adi/agente/playbooks/registro.js");
+  const doc = doctrinaDelPlaybook(PBM, QG, {}, figsG);
+  ok(/CONCLUSIONES DEL PROCEDIMIENTO/.test(doc) && new RegExp(`Prioridad oficial: ${esc(top)}`).test(doc) && /alternativa secundaria/.test(doc),
+    `★★ la doctrina declara la prioridad oficial (${top}) y que otro criterio va como alternativa secundaria`);
+  ok(/subtotal de las 5 cuentas materiales bajo el benchmark \(de 8/.test(doc), "★ …y la definición única del subtotal: «las 5 cuentas materiales bajo el benchmark (de 8)»", doc.split("\n").filter((l) => /subtotal/.test(l)).join(" | ").slice(0, 200));
+  ok(/métricas equivalentes/.test(doc) && /no «cae» ni «sube»/.test(doc) && /contribución, no capital/.test(doc), "…y las reglas de comparación y de lenguaje");
+  ok(!/CONCLUSIONES DEL PROCEDIMIENTO/.test(doctrinaDelPlaybook(PBM, QG, {})), "…sin boleta, la doctrina es la de siempre (byte-idéntica: sin bloque de conclusiones)");
 }
 
 console.log(`\n══ ${pass} PASS · ${fail} FAIL ══`);

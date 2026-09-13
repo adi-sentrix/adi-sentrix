@@ -249,6 +249,42 @@ H("[B4] LOS BORRADORES DEL MODELO · lo real arde, los falsos positivos no (prom
   ok(!tiene(runG("Cierra $99.9M en ventas, pero el margen promedio queda en 25.1%."), "metrica-mal-atribuida"), "…y «$99.9M en ventas, pero el margen…» pasa: la mención de después de una cláusula nueva no atribuye");
 }
 
+/* ═══ [B5] MÉTRICAS COMPARABLES · Y EL SUBTOTAL CON SU UNIVERSO (owner 2026-09-13, tres problemas de producto) ═══
+ * De la respuesta final del prompt de gerente: «Falabella con markup de 39.1%, frente a clientes sanos como Hites o La
+ * Polar en el rango de 33-34% de margen» (markup contra margen) y «el subtotal de contribución no capturada en los ocho
+ * clientes bajo benchmark es $4.9M» (son cinco). Dos reglas nuevas del muro, sobre el ledger REAL del turno: una
+ * comparación ejecutiva solo vale entre métricas equivalentes; y el subtotal —cuyo rótulo declara «5 cuentas
+ * materiales (de 8 bajo el benchmark)»— no se cuelga de otro conteo. */
+H("[B5] MÉTRICAS COMPARABLES · una comparación ejecutiva solo vale entre métricas equivalentes; el subtotal lleva su universo");
+{
+  const { runPlan } = await import("./src/adi/oracle/toolRunner.js");
+  const { TOOLS } = await import("./src/adi/oracle/toolRegistry.js");
+  const { cajaDelAgente } = await import("./src/adi/agente/herramientasAgente.js");
+  const { ESCENARIO_INICIAL } = await import("./src/config/scenarios.js");
+  const rp = runPlan({ intent: "answer", calls: ["marginRead", "diagnose", "rolesCartera", "executiveSummary"].map((tool) => ({ tool, args: {} }))
+  }, { scenario: ESCENARIO_INICIAL, maxCalls: 8, preguntaUsuario: "cómo va el negocio", registry: cajaDelAgente(TOOLS) });
+  const figs = (rp.ledger || {}).figs || [];
+  const runU = (n) => guardC(n, { ledger: { figs }, results: rp.results, question: "cómo va el negocio", contentScope: "full" });
+  const det = (r) => (r.violations || []).map((v) => `[${v.kind}] ${String(v.detail).slice(0, 100)}`).join(" ‖ ");
+  const cruz = runU("El precio de lista está más pegado al costo (Falabella con markup de 39.1%, frente a clientes sanos como Hites o La Polar en el rango de 33-34% de margen).");
+  ok(tiene(cruz, "comparacion-de-metricas-distintas"), "★★ «markup de 39.1% frente a … 33-34% de margen» → BLOQUEA: markup contra margen no es una comparación", det(cruz));
+  ok(!tiene(runU("Falabella tiene margen 22.0% contra el benchmark de 30.1%."), "comparacion-de-metricas-distintas"), "…«margen 22.0% contra el benchmark de 30.1%» pasa: la referencia del margen es margen");
+  ok(!tiene(runU("Falabella paga carga comercial 4.5% frente al 3.5% de referencia."), "comparacion-de-metricas-distintas"), "…«carga 4.5% frente al 3.5% de referencia» pasa: misma métrica");
+  ok(!tiene(runU("Los grandes rinden 22.5% de margen contra 28.2% del resto."), "comparacion-de-metricas-distintas"), "…«22.5% de margen contra 28.2% del resto» pasa");
+  ok(!tiene(runU("El markup de Lider (37.2%) frente al de Sodimac (40.6%) confirma el patrón."), "comparacion-de-metricas-distintas"), "…markup contra markup pasa");
+  ok(!tiene(runU("Falabella vende $19.4M frente a $4.3M de contribución."), "comparacion-de-metricas-distintas"), "…y los montos no se juzgan (venta frente a contribución es lectura corriente)");
+  /* el subtotal con su universo declarado en el rótulo */
+  const sub = figs.find((f) => /^Contribuci[oó]n no capturada · subtotal/.test(String(f.label)));
+  ok(!!sub && /· 5 cuentas materiales \(de 8 bajo el benchmark\)$/.test(String(sub.label)) && String(sub.value) === "$4.9M",
+    "★ el rótulo del subtotal declara su universo: «Contribución no capturada · subtotal · 5 cuentas materiales (de 8 bajo el benchmark)» = $4.9M", sub && sub.label);
+  const ocho = runU("El subtotal de contribución no capturada en los ocho clientes bajo benchmark es $4.9M, de los cuales $655K son carga.");
+  ok(tiene(ocho, "alcance-promovido") && /subtotal de 5 cuentas/.test(det(ocho)), "★★ «en los ocho clientes bajo benchmark es $4.9M» → BLOQUEA: es el subtotal de 5, no de 8", det(ocho));
+  ok(tiene(runU("Hay $4.9M de contribución no capturada. Más adelante: en los ocho clientes bajo benchmark el subtotal es $4.9M."), "alcance-promovido"), "…y también cuando la mención que lo cuelga de otro conteo no es la primera del texto");
+  ok(!tiene(runU("Las 5 cuentas materiales bajo el benchmark dejan $4.9M sin capturar (de 8 que están bajo él)."), "alcance-promovido"), "…«las 5 cuentas materiales … (de 8)» pasa: es la definición");
+  ok(!tiene(runU("Ocho de trece clientes están bajo el benchmark. Hay $4.9M de contribución no capturada en las cinco cuentas que más pesan."), "alcance-promovido"), "…y el conteo en OTRA oración no lo cuelga");
+  ok(tiene(runU("$4.9M de contribución no capturada si la cartera entera cerrara al benchmark."), "alcance-promovido"), "…«la cartera entera» sigue ardiendo como antes");
+}
+
 H("[C] ENTIDAD MAL ATRIBUIDA · promovida de AVISO a BLOQUEO");
 {
   const r = run("Lider aporta $4.3M de contribución. (Datos del año cerrado.)");

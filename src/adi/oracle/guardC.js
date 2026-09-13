@@ -83,6 +83,9 @@ export function parseCounts(text) {
 function _authorizedCounts(ledger, results) {
   const set = new Set();
   for (const f of (ledger.figs || [])) if (f.unit === "count" && Number.isFinite(f.raw)) set.add(f.raw);
+  /* LOS CONTEOS QUE EL PROPIO RÓTULO DECLARA («· subtotal · 5 de 8 cuentas bajo el benchmark») están autorizados
+   * por construcción: son texto nuestro, y el composer determinístico los imprime verbatim (2026-09-13) — la forma es «N cuentas materiales (de M bajo el benchmark)» */
+  for (const f of (ledger.figs || [])) { const m = /·\s*(\d+)\s+(?:cuentas?|clientes?|sku|marcas?|familias?|bodegas?)\s+materiales\s*\(de\s+(\d+)\s+/i.exec(String(f.label || "")); if (m) { set.add(Number(m[1])); set.add(Number(m[2])); } }
   const walk = (v) => {
     if (Array.isArray(v)) { set.add(v.length); v.forEach(walk); }
     else if (v && typeof v === "object") Object.values(v).forEach(walk);
@@ -254,6 +257,7 @@ const _METRIC_VOCAB = [
   { clave: "ventas",       re: /(?<!\bsin\s)\bventas?\b|\bvend[eióa][\wáéíóúñ]*(?![\wáéíóúñ])|\bfactur[\wáéíóúñ]+(?![\wáéíóúñ])/i },
   { clave: "sinventa",     re: /\bd[ií]as\s+sin\s+venta\b|(?<=\dd)\s+sin\s+venta\b|\bsin\s+venta\b/i },
   { clave: "margen",       re: /\bm[aá]rgen(?:es)?\b/i },
+  { clave: "markup",       re: /\bmark-?up\b/i },   // «Markup sobre costo»: el precio contra lo que cuesta — NO es el margen (owner 2026-09-13: métricas comparables)
   { clave: "contribucion", re: /\bcontribuci[oó]n\b|\bcontribuy\w+\b/i },
   { clave: "costo",        re: /\bcostos?\b/i },
   { clave: "carga",        re: /\bcarga comercial\b|\bacciones comerciales\b|\brebates?\b|\bdescuentos?\b/i },
@@ -343,6 +347,45 @@ function _indiceConFrontera(text, cifra) {
   const m = re.exec(String(text || ""));
   return m ? m.index : -1;
 }
+/* ── UNA COMPARACIÓN EJECUTIVA SOLO VALE ENTRE MÉTRICAS EQUIVALENTES (owner 2026-09-13) ──────────────────────
+ * Medido en vivo, prompt de gerente: «Falabella con markup de 39.1%, frente a clientes sanos como Hites o La
+ * Polar en el rango de 33-34% de margen» — cada cifra con su métrica correcta, y la comparación coja: markup
+ * contra margen. Ningún chequeo de cifra lo ve (no hay cifra mal atribuida). Acá se juzga el PAR: dos tasas
+ * unidas por un conector de comparación cuyas métricas dueñas (según la boleta) no comparten ninguna. Solo tasas
+ * (%): comparar un monto de venta con uno de contribución es lectura corriente. La referencia de una métrica es
+ * su misma métrica («Benchmark de margen» es margen; «nivel de carga» es carga), así que «22% contra el
+ * benchmark de 30.1%» y «carga 4.5% frente al 3.5% de referencia» siguen pasando. */
+const _COMPARA_TASAS = /\bfrente a(?:l)?\b|\bcontra (?:el|la|los|las|un|una|su|sus|tu|tus)?\b|\bversus\b|\bvs\.?(?![\wáéíóúñ])|\bcomparad[oa]s? con\b|\b(?:mayor|menor)(?:es)? que\b/i;   // conectores EXPLÍCITOS: «más alto … que» era «el margen más alto entre las que caen» (superlativo + relativo, FP medido)
+function _comparacionCruzada(narration, ledger) {
+  const owners = _metricOwners(ledger);
+  if (!owners.size) return [];
+  const out = [];
+  for (const o of String(narration || "").split(/(?<=[.!?])\s+|\n+/)) {
+    const m = _COMPARA_TASAS.exec(o);
+    if (!m) continue;
+    const corte = m.index;
+    const tasas = parseFigures(o).filter((f) => f.unit === "pct" && Number.isFinite(f.raw));
+    if (tasas.length < 2) continue;
+    const con = (f) => { const s = owners.get(f.canon); return s && s.size ? s : null; };
+    // la ÚLTIMA tasa antes del conector y la PRIMERA después: el par que la frase compara
+    const idxDe = (f) => o.indexOf(f.text);
+    const antes = tasas.filter((f) => idxDe(f) >= 0 && idxDe(f) < corte).pop();
+    const despues = tasas.find((f) => idxDe(f) > corte);
+    if (!antes || !despues) continue;
+    const finConector = corte + m[0].length;
+    // «+7.5% contra el año anterior» es la variación, no una comparación entre dos tasas
+    if (/^\s*(?:el|la|del|al)?\s*(?:a[ñn]o|per[ií]odo|mes|trimestre|semestre|ejercicio)\b/i.test(o.slice(finConector))) continue;
+    // la segunda tasa tiene que estar en la MISMA cláusula: «…contra el año anterior, pero el margen quedó en 25.1%» no compara
+    const entre = o.slice(finConector, idxDe(despues));
+    if (/;|,\s*(?:pero|y|e|aunque|mientras|sin embargo|en cambio|adem[aá]s)(?![\wáéíóúñ])/i.test(entre) || /[.;:!?]/.test(entre) || entre.length > 90) continue;
+    const A = con(antes), B = con(despues);
+    if (!A || !B) continue;                                    // sin dueño de métrica no hay qué comparar
+    if ([...A].some((x) => B.has(x))) continue;                // comparten métrica: comparación válida
+    out.push(`comparas «${antes.text}» (${[...A].join("/")}) con «${despues.text}» (${[...B].join("/")}): son métricas distintas y una comparación ejecutiva solo vale entre métricas equivalentes — compara ${[...A][0]} con ${[...A][0]}, o presenta cada cifra por separado: "${o.trim().slice(0, 120)}"`);
+  }
+  return out;
+}
+
 // _metricBindingViolations(narration, ledger) → cifra real colgada de la métrica equivocada.
 // CRITERIO NÍTIDO (mismo principio que _attributionViolations, para no castigar prosa legítima): solo marca cuando
 // en la ventana local de la cifra hay UNA sola métrica reconocida y NO es de las que autorizan ese valor. Si hay
@@ -363,6 +406,21 @@ function _metricBindingViolations(narration, ledger) {
     // narrado como margen». Un bloqueo de más degrada respuestas correctas, que es lo que este muro evita.
     const idx = _indiceConFrontera(text, f.text);
     if (idx < 0) continue;
+    /* ── EL RÓTULO PEGADO A SU CIFRA ES LA ATRIBUCIÓN (2026-09-13) ──────────────────────────────────────────────
+     * El composer determinístico imprime el label verbatim delante de la cifra («Contribución no capturada · subtotal ·
+     * 5 cuentas materiales (de 8 bajo el benchmark) marca $4.9M (venta comercial, anual)»). Cuando el rótulo del subtotal
+     * creció para declarar su universo, la palabra «contribución» quedó a 90 caracteres y fuera de la ventana; en ella
+     * solo quedaba «venta comercial» —el marco de universo— y la cifra salía «narrada como ventas». Un label de la
+     * boleta que lleva la métrica dueña y termina justo antes de la cifra la atribuye por construcción; un label SIN
+     * métrica («Medida · cerrar brecha al piso») no exime nada, y ese caso sigue cayendo a la tabla, como siempre. */
+    const _antes = text.slice(Math.max(0, idx - 220), idx);
+    const _rotulada = (ledger.figs || []).some((g) => {
+      if (!g || g.canon !== f.canon || !g.label) return false;
+      const pos = _antes.lastIndexOf(String(g.label));
+      if (pos < 0 || _antes.length - (pos + String(g.label).length) > 12) return false;
+      return [..._metricasEn(String(g.label))].some((m) => ownerSet.has(m));
+    });
+    if (_rotulada) continue;
     // LÍMITES DE ORACIÓN SOBRE EL TEXTO ENMASCARADO: `_SENT_END` incluye "." y el punto DECIMAL de una cifra
     // ("$4.3M", "$17.8M") cortaba la ventana en falso — hacia adelante dejaba afuera la métrica que sigue, y
     // hacia atrás dejaba afuera el verbo de la cifra anterior ("A vende $19.4M y B $17.8M" perdía "vende" y
@@ -2750,6 +2808,7 @@ function _alcancePromovido(narration, ledger) {
   const masked = _maskFigures(text);
   const out = [];
   const vistos = new Set();
+  const _cursor = new Map();   // valor → desde dónde buscar su próxima mención
   for (const nf of parseFigures(text)) {
     const grupo = porCanon.get(nf.canon);
     if (!grupo) continue;
@@ -2762,14 +2821,35 @@ function _alcancePromovido(narration, ledger) {
     // alcance total, o no declara ninguno pero habla de la misma métrica, la cita tiene una lectura honesta.
     const ambiguo = grupo.some((g) => g.alcance === "total" || (g.alcance === null && [..._metricasEn(g.f.label)].some((m) => metricas.has(m))));
     if (ambiguo) continue;
-    const idx = text.indexOf(nf.text);
+    /* CADA MENCIÓN, no solo la primera (2026-09-13): «$4.9M» aparecía tres veces y la que colgaba la cifra de «los
+     * ocho clientes» era la tercera; `indexOf` sin cursor volvía siempre a la primera y las demás quedaban sin juzgar */
+    const idx = text.indexOf(nf.text, _cursor.get(nf.text) || 0);
     if (idx < 0 || vistos.has(idx)) continue;
     vistos.add(idx);
+    _cursor.set(nf.text, idx + nf.text.length);
     const [lo] = _localWindow(masked, idx, 90);
     const end = idx + nf.text.length;
     const hi0 = Math.min(masked.length, end + 90);
     const cut = masked.slice(end, hi0).search(_SENT_END);
     const ventana = text.slice(lo, cut >= 0 ? end + cut : hi0);
+    /* ── EL SUBTOTAL NARRADO CON OTRO CONTEO (owner 2026-09-13, «alcance de los $4,9M») ─────────────────────────
+     * El rótulo declara su universo («· 5 cuentas materiales (de 8 bajo el benchmark)»). Si la frase cuelga la
+     * cifra de OTRO conteo de cuentas/clientes —«en los ocho clientes bajo benchmark es $4.9M» (medido en vivo; son
+     * cinco)— es la misma promoción de alcance que «la cartera entera», con número en vez de adjetivo. Solo cuentas
+     * y clientes (el universo del rótulo), y solo cuando el conteo dicho no es el n declarado. */
+    const _nm = subs.map((s) => /·\s*(\d+)\s+(?:cuentas?|clientes?)\s+materiales\s*\(de\s+(\d+)\s+bajo/i.exec(String(s.f.label || ""))).find(Boolean);
+    if (_nm) {
+      const n = Number(_nm[1]);
+      const _PAL = { uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15 };
+      // «5 de 8 cuentas» es la DEFINICIÓN (n de m), no otro conteo: el m que sigue a «N de» no cuelga nada
+      const reCuenta = /(?<!\d\s+de\s+)\b(?:l[oa]s\s+|es[oa]s\s+|est[oa]s\s+)?(\d{1,2}|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince)\s+(?:cuentas?|clientes?)\b/gi;
+      let mc, dicho = null;
+      while ((mc = reCuenta.exec(ventana))) { const k = _PAL[mc[1].toLowerCase()] ?? Number(mc[1]); if (Number.isFinite(k) && k !== n && !/\d\s+de\s*$/.test(ventana.slice(0, mc.index))) { dicho = mc[0]; break; } }
+      if (dicho && ([..._metricasEn(ventana)].some((m) => metricas.has(m)) || /\bsubtotal\b/i.test(ventana))) {
+        out.push(`«${nf.text}» es el subtotal de ${n} cuentas («${subs[0].f.label}») y se narra como el de «${dicho}»: la cifra tiene una sola definición — cítala con su universo: "${ventana.trim().slice(0, 110)}"`);
+        continue;
+      }
+    }
     if (!_ALCANCE_TOTALIZADOR.test(ventana)) continue;
     if (_PART_OF_EXCEPTION.test(ventana) || _TOTAL_DEL_GRUPO.test(ventana) || _DECLARA_PARCIAL.test(ventana)) continue;
     if (![..._metricasEn(ventana)].some((m) => metricas.has(m))) continue;   // la frase habla de otra métrica
@@ -4058,6 +4138,8 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // equivocada. Hasta acá el canon `unit:value` no ataba la etiqueta, así que este error pasaba entero. BLOQUEA:
   // el valor es verdad pero la afirmación es falsa, que para un asesor es igual de grave que inventar el número.
   for (const v of _metricBindingViolations(narration, ledger)) violations.push({ kind: "metrica-mal-atribuida", detail: v });
+  // 9b · COMPARACIÓN ENTRE MÉTRICAS DISTINTAS (owner 2026-09-13): dos tasas correctas, comparadas como si fueran la misma cosa
+  for (const v of _comparacionCruzada(narration, ledger)) violations.push({ kind: "comparacion-de-metricas-distintas", detail: v });
   // 10 · ATRIBUCIÓN DE ENTIDAD promovida de aviso a BLOQUEO (CONTRATO v2 · Fase 2). El cómputo es el MISMO que ya
   // existía como advisory desde 2026-07-28 (criterio nítido: una sola entidad cerca, no es la dueña, y la dueña
   // real no aparece en NINGUNA parte del texto) — no se amplía el criterio, solo se cambia la consecuencia. Ese

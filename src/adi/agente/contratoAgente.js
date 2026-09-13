@@ -253,6 +253,12 @@ export const _LEXICO_SUPERFICIE = [
    * a sí mismo al decir una cifra: la dice. Se veta el MOTOR COMO SUJETO de un verbo de medición, y las
    * apelaciones a la regla o al procedimiento como autoridad — no la palabra «motor» suelta (un «motor de
    * crecimiento» es lenguaje de negocio). */
+  /* «CAPITAL RECUPERABLE» POR CONTRIBUCIÓN (owner 2026-09-13): en esta casa «capital» es el inventario inmovilizado
+   * (la cara Capital); lo que se recupera de la carga comercial es contribución o margen. El modelo escribió «$655K
+   * … capital recuperable con renegociación»: dos mundos con una palabra. Solo cuando la frase habla de carga,
+   * acciones comerciales, contribución o margen — «capital recuperable» sobre inventario sigue siendo legítimo. */
+  { re: /\bcapital\s+recuperable\b(?=[^.;\n]{0,80}\b(?:carga|acciones comerciales|renegociaci[oó]n|contribuci[oó]n|margen)\b)|\b(?:carga|acciones comerciales|contribuci[oó]n|margen)\b[^.;\n]{0,80}\bcapital\s+recuperable\b|\brecuperar\s+capital\b(?=[^.;\n]{0,60}\b(?:carga|acciones comerciales|renegociaci[oó]n)\b)/i, regla: "lexico-capital-por-contribucion",
+    multa: "llamas «capital» a lo que se recupera de la carga comercial: eso es CONTRIBUCIÓN (o margen). «Capital» en esta casa es el inventario inmovilizado. Di «contribución recuperable»." },
   { re: /\b(?:el|del|al) motor\b(?:\s+(?:detecta|localiza|calcula|sella|marca|mide|usa|publica|dice|no (?:recomputa|publica)))?|\bque el motor\b|\bseg[uú]n (?:el|la) (?:procedimiento|regla|motor|playbook)\b|\bla regla (?:me )?dice\b|\bel procedimiento (?:me )?(?:dice|indica|manda)\b/i, regla: "lexico-voz-de-motor",
     multa: "hablas del motor, la regla o el procedimiento como si fueran quien responde («el motor detecta», «según el procedimiento»): el mecanismo va detrás y el criterio delante. Di la cifra y su lectura como asesor — «hay $X sin capturar», «lo que veo es…» — sin describirte a ti mismo." },
 ];
@@ -375,6 +381,32 @@ export function vetosDeRegistro(texto, contexto = {}) {
     // texto (ver `lexico-herramienta`). Sin `salvoSi`, la regla se comporta exactamente como siempre.
     if (typeof L.salvoSi === "function" && L.salvoSi(contexto)) continue;
     if (L.re.test(texto)) v.push({ regla: L.regla, multa: L.multa });
+  }
+  /* ── LA VARIACIÓN QUE NADIE MIDIÓ (owner 2026-09-13): «el margen cae a 25.1%» cuando lo único medido es que está
+   * BAJO el benchmark. «Cae» dice que se movió en el tiempo; eso necesita una variación de ESA métrica en la boleta
+   * («Ventas vs año anterior» la tiene; el margen, no). El sujeto tiene que ser la métrica, pegada al verbo: «los
+   * que caen bajo el benchmark» y «cae bajo la referencia» son la forma de la casa para «está por debajo» y pasan. */
+  const _figsCtx = Array.isArray(contexto.figs) && contexto.figs.length ? contexto.figs : null;   // sin boleta (reformular re-dice un texto aprobado) no hay contra qué medir
+  // en una SIMULACIÓN («la venta baja frente a lo actual» con un supuesto declarado) subir y bajar SON el resultado medido
+  const _esSimulacion = !!_figsCtx && _figsCtx.some((f) => /supuest[oa]s?|proyectad|simulad|escenario|recuperable/i.test(String(f.label || "")) || f.source === "user_supuesto");
+  if (_figsCtx && !_esSimulacion) {
+    const _VARIA = /(?<![\wáéíóúñ])(margen|ventas?|contribuci[oó]n)(?![\wáéíóúñ])(?:\s+(?:promedio|bruto|neto|de la cartera|del negocio|total|del per[ií]odo))?\s+(?:se\s+)?(cae|cay[oó]|caen|baja|bajó|bajan|retrocede|retrocedi[oó]|se desploma|viene cayendo|se deteriora|se deterioró|sube|subi[oó]|suben|crece|creci[oó]|crecen|mejora|mejoró|empeora|empeoró)(?![\wáéíóúñ])(?!\s+(?:bajo|por debajo|debajo|de(?:l)?\s+(?:benchmark|referencia|piso|vara|nivel)))/i;   // lookarounds de la casa: jamás `` junto a una vocal acentuada
+    const _reG = new RegExp(_VARIA.source, "gi");
+    let m;
+    while ((m = _reG.exec(texto))) {   // TODAS las apariciones: «la venta crece» (medida) no exime a «el margen cae» (no medida)
+      const met = m[1].toLowerCase().replace(/^ventas$/, "venta").replace(/ó/g, "o");
+      const _reVar = /variaci|vs\.?\s+a[ñn]o|a[ñn]o anterior|YoY|crecimiento|interanual|per[ií]odo anterior/i;
+      const _labels = _figsCtx.map((f) => String(f.label || ""));
+      /* la variación está MEDIDA si la boleta la trae: para la venta, cualquier panel «vs año anterior»/YoY (son
+       * paneles de venta); para el margen, su propia variación o una serie mensual de margen (mínimo/máximo, meses);
+       * para la contribución, su etiqueta con marcador. Ante la duda, medida (falso negativo antes que veto). */
+      const medida = met.startsWith("venta")
+        ? _labels.some((l) => _reVar.test(l))
+        : met.startsWith("margen")
+          ? _labels.some((l) => (/m[aá]rgen/i.test(l) && (_reVar.test(l) || /m[ií]nimo|m[aá]ximo|mensual|serie/i.test(l))) || /^(?:Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic)\b/i.test(l))
+          : _labels.some((l) => /contribuci/i.test(l) && _reVar.test(l));
+      if (!medida) { v.push({ regla: "variacion-no-medida", multa: `dices que ${m[1].toLowerCase()} «${m[2]}» y este turno no midió ninguna variación de esa métrica (no hay «${m[1].toLowerCase()} vs año anterior» en la boleta): lo medido es su nivel contra la referencia. Di «está en X, bajo el benchmark», no que cae o sube.` }); break; }
+    }
   }
   const _mec = _mecanismoSinSello(texto, contexto.huellas);
   if (_mec) v.push({ regla: "mecanismo-sin-sello", multa: _mec });

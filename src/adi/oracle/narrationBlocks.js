@@ -141,8 +141,11 @@ const _NON_ENTITY_SUFFIX_RE = /^(subtotal|total)$/i;
 function _isEntityAttributed(fig) {
   const segs = String(fig.label || "").split("·").map((s) => s.trim());
   if (segs.length < 2) return false;
+  // un agregado no es una entidad aunque su universo venga DESPUÉS del «subtotal» («… · subtotal · 5 cuentas
+  // materiales (de 8 bajo el benchmark)», 2026-09-13): cualquier segmento «subtotal»/«total» lo descarta
+  if (segs.some((s) => _NON_ENTITY_SUFFIX_RE.test(s))) return false;
   const last = segs[segs.length - 1];
-  return last.length >= 3 && !_NON_ENTITY_SUFFIX_RE.test(last);
+  return last.length >= 3;
 }
 function _bestByMagnitude(figs) {
   let best = figs[0], bestAbs = typeof best.raw === "number" && isFinite(best.raw) ? Math.abs(best.raw) : -Infinity;

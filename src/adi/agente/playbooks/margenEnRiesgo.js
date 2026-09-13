@@ -75,7 +75,7 @@ export function lecturaDeMargen(figs) {
   const conteo = _find(figs, /clientes bajo el benchmark/i);
   const promedio = _find(figs, /^Margen promedio$/i);
   const brechaNegocio = _find(figs, /^El negocio · Brecha al benchmark$/i);   // sellada (2026-09-03): la MISMA cifra de la card de la Mesa
-  const totalJuego = _find(figs, /^Contribuci[oó]n no capturada · subtotal$/i);
+  const totalJuego = _find(figs, /^Contribuci[oó]n no capturada · subtotal(?: · \d+ cuentas materiales [^·]*)?$/i);
   const cargaTotal = _find(figs, /^Carga comercial alta · subtotal$/i);
 
   const margenes = _unaPorEntidad(_all(figs, /· Margen$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), pct: _pct(f), fmt: _val(f) }))
@@ -324,9 +324,9 @@ function componerElSeguimiento({ figs, semilla, scenario, mem }) {
  * cerebro contestó «Lider, no Falabella», con otro criterio y dos prioridades a elegir. La derivación es UNA y de
  * ella comen el composer y la notarial: quién va primero se decide por contribución no capturada, verbatim. */
 export function prioridadDe(figs) {
-  const juego = _all(figs, /· Contribuci[oó]n no capturada$/i)
+  const juego = _unaPorEntidad(_all(figs, /· Contribuci[oó]n no capturada$/i)
     .map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
-    .filter((x) => x.entidad && Number.isFinite(x.usd))
+    .filter((x) => x.entidad && Number.isFinite(x.usd)))   // una entidad, una fila: la boleta unida repite (2026-09-13)
     .sort((a, b) => b.usd - a.usd);
   return juego.length ? { top: juego[0], juego } : null;
 }
@@ -335,7 +335,7 @@ function componerLaPrioridad({ figs, semilla }) {
   const pr = prioridadDe(figs);
   if (!pr) return null;
   const top = pr.top;
-  const total = _find(figs, /^Contribuci[oó]n no capturada · subtotal$/i);
+  const total = _find(figs, /^Contribuci[oó]n no capturada · subtotal(?: · \d+ cuentas materiales [^·]*)?$/i);
   const cargaTop = _find(figs, new RegExp(`^${_esc(top.entidad)} · Carga comercial alta$`, "i"));
   const p = [];
   p.push(`Entraría por ${top.entidad}. Una sola cosa.`);
@@ -408,7 +408,7 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
       const p0 = [];
       p0.push(`Contra el benchmark de ${_val(bench0)} que declaraste, tu margen promedio (${_val(promedio0)}) está encima: a nivel negocio no hay una pérdida de margen que explicar.`);
       const cuenta0 = _find(figs, /clientes bajo el benchmark/i);
-      const juego0 = _find(figs, /^Contribuci[oó]n no capturada · subtotal$/i);
+      const juego0 = _find(figs, /^Contribuci[oó]n no capturada · subtotal(?: · \d+ cuentas materiales [^·]*)?$/i);
       const carga0 = _find(figs, /^Carga comercial alta · subtotal$/i);
       const abiertos = [];
       if (cuenta0 && juego0) abiertos.push(`${_val(cuenta0)} clientes siguen bajo esa referencia y dejan ${_val(juego0)} de contribución sin capturar`);
@@ -616,6 +616,30 @@ export const margenEnRiesgo = {
   /* las figs que este playbook PROMETE. Si el dato de un tenant no las sostiene, el playbook no promete nada y
    * se retira: sin vara declarada o sin conteo, «quiénes están bajo el benchmark» no tiene respuesta honesta. */
   obligatorias: [/^Benchmark de margen$/i, /clientes bajo el benchmark/i],
+
+  /* ── LAS CONCLUSIONES DEL PROCEDIMIENTO, DICHAS AL CEREBRO (owner 2026-09-13) ─────────────────────────────────
+   * Tres problemas de producto, medidos en vivo: la prioridad cambiaba entre Falabella y Líder según el criterio
+   * espontáneo del narrador; el subtotal de $4.9M se narraba «en los ocho clientes» (son cinco); y el markup de una
+   * cuenta se comparaba con el margen de otra. El notario cobra los tres, pero cobrar es la red: la conclusión se
+   * declara ANTES de escribir, con la misma derivación que usa el composer (`prioridadDe`, `lecturaDeMargen`). */
+  conclusiones(figs) {
+    const L = lecturaDeMargen(figs);
+    const pr = prioridadDe(figs);
+    const lineas = ["CONCLUSIONES DEL PROCEDIMIENTO (no las cambies; tu criterio va después, como alternativa):"];
+    if (pr && pr.top) {
+      const otras = pr.juego.slice(1, 3).map((x) => `${x.entidad} (${x.fmt})`).join(", ");
+      lineas.push(`- Prioridad oficial: ${pr.top.entidad} — criterio del procedimiento: mayor contribución no capturada (${pr.top.fmt}${otras ? `; siguen ${otras}` : ""}). La primera acción es sobre ${pr.top.entidad}. Si otro criterio (brecha mayor, causa probada) te lleva a otra cuenta, preséntalo DESPUÉS como alternativa secundaria, nunca como «por dónde entraría primero».`);
+    }
+    if (L.totalJuego) {
+      const mNM = /·\s*(\d+)\s+(?:cuentas?|clientes?)\s+materiales\s*\(de\s+(\d+)\s+bajo/i.exec(_lab(L.totalJuego));
+      lineas.push(mNM
+        ? `- ${_val(L.totalJuego)} de contribución no capturada = el subtotal de las ${mNM[1]} cuentas materiales bajo el benchmark (de ${mNM[2]} que están bajo él). Una sola definición: cítalo siempre así («las ${mNM[1]} cuentas materiales»); no lo narres como el de las ${mNM[2]}, ni como la cartera entera.`
+        : `- ${_val(L.totalJuego)} de contribución no capturada es un SUBTOTAL: cítalo con su universo, no como el total de la cartera.`);
+    }
+    lineas.push("- Comparaciones: solo entre métricas equivalentes (margen con margen, markup con markup, carga con carga). El markup de los sanos no está en la boleta: no lo compares con su margen.");
+    lineas.push("- El margen no «cae» ni «sube»: este turno mide su nivel contra el benchmark, no su variación. Lo que se recupera de la carga comercial es contribución, no capital.");
+    return lineas.length > 1 ? lineas.join("\n") : "";
+  },
 
   /* EL ENTREGABLE ES DE LA RUTA, no del playbook (densidad ejecutiva, owner 2026-09-11). Medido en su batería en
    * vivo: ante «¿qué harías primero?» el cerebro recibía el entregable de siempre —«qué clientes están bajo el
@@ -898,6 +922,34 @@ export const margenEnRiesgo = {
         if ((abreConOtra && !new RegExp(`\\b${_re(top)}\\b`, "i").test(primeraOracion)) || niegaLaElegida) {
           v.push({ regla: "conclusion-cambiada",
             multa: `pones primero a ${abreConOtra || "otra cuenta"} y el procedimiento eligió ${top} —es donde hay más contribución en juego, y es lo que este hilo ya dijo—. La conclusión es del procedimiento, no del narrador: puedes explicar por qué ${top} va primero, no cambiar la prioridad ni ofrecer dos.` });
+        }
+      }
+    }
+    /* ── LA PRIORIDAD ES ESTABLE, EN CUALQUIER RUTA (owner 2026-09-13): «la recomendación principal no puede cambiar
+     * entre Falabella y Líder según el criterio espontáneo del narrador. ADI debe tener una prioridad oficial y
+     * conservarla. Si existe otro criterio válido, puede mostrarse como alternativa secundaria, no reemplazarla.»
+     * La regla de arriba solo miraba la ruta «primero» y su primera oración; en el encargo compuesto el modelo puso
+     * «Por dónde entraría yo primero: Líder — brecha mayor, causa probada» con la prioridad del procedimiento
+     * (Falabella, más contribución en juego) relegada. Acá se busca la PRIMERA frase de prioridad del texto entero
+     * —«entraría/partiría/empezaría/arrancaría por X», «primero: X», «prioridad: X», «X primero», «revisar X primero»,
+     * «renegociar … con X primero»— y la cuenta que nombra tiene que ser la del procedimiento. Un criterio distinto
+     * se admite DESPUÉS, como alternativa. Los nombres se comparan sin tildes (el modelo escribe «Líder»). */
+    {
+      const pr = prioridadDe(figs);
+      if (pr && pr.top && pr.juego.length > 1 && !v.some((x) => x.regla === "conclusion-cambiada")) {
+        const _sinTilde = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const tt = _sinTilde(t).replace(/\*\*/g, "");
+        const cuentas = pr.juego.map((x) => x.entidad);
+        const alt = cuentas.map((n) => _sinTilde(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+        const _PRIORIDAD = new RegExp(`(?:\\b(?:entrar[ií]a|partir[ií]a|empezar[ií]a|arrancar[ií]a|entro|parto|empiezo|arranco)\\b(?:\\s+yo)?(?:\\s+primero)?\\s+(?:por|con)\\s+(?:la\\s+|el\\s+)?(${alt})\\b|\\b(?:primero|prioridad|prioritari[oa]|primera acci[oó]n)\\s*[:—-]\\s*(${alt})\\b|\\b(?:revisar(?:[ií]a)?|renegociar(?:[ií]a)?|tocar(?:[ií]a)?|abrir(?:[ií]a)?)\\b[^.;\\n]{0,40}?\\b(?:con|a|en)?\\s*(${alt})\\s+primero\\b|\\b(${alt})\\s+primero\\b)`, "i");
+        const m = _PRIORIDAD.exec(tt);
+        const nombrada = m ? (m[1] || m[2] || m[3] || m[4]) : null;
+        const topSinTilde = _sinTilde(pr.top.entidad);
+        if (nombrada && _sinTilde(nombrada).toLowerCase() !== topSinTilde.toLowerCase()) {
+          const oficial = cuentas.find((n) => _sinTilde(n).toLowerCase() === topSinTilde.toLowerCase()) || pr.top.entidad;
+          const real = cuentas.find((n) => _sinTilde(n).toLowerCase() === _sinTilde(nombrada).toLowerCase()) || nombrada;
+          v.push({ regla: "conclusion-cambiada",
+            multa: `la primera acción que propones es ${real}, y la prioridad del procedimiento es ${oficial} —es donde hay más contribución en juego (${pr.top.fmt}) y es la que este análisis ya fijó—. La prioridad oficial se conserva: entra por ${oficial}; si tu criterio (brecha, causa probada) apunta a ${real}, muéstralo DESPUÉS como alternativa secundaria, nunca como primera acción.` });
         }
       }
     }

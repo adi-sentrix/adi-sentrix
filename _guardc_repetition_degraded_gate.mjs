@@ -94,7 +94,9 @@ console.log("\n── 2 · guardC() expone `degraded` SIN tocar `ok`/`violations
 console.log("\n── 3 · end-to-end vía answerViaOracle — el reintento SÍ se dispara ante `degraded` (mocks, sin LLM) ──");
 {
   const REPEATED = "El desempeño general del negocio se mantiene estable este período, sin cambios relevantes que reportar en el panorama actual.";
-  const FRESH = "Mirando el trimestre con otro ángulo: la contribución total creció levemente, sostenida por Falabella y Lider, sin cambios de mecanismo relevantes.";
+  /* «creció levemente» sin variación de contribución en la boleta es exactamente lo que el registro veta desde el 2026-09-13
+   * (`variacion-no-medida`); la redacción fresca del mock no afirma una variación que nadie midió. */
+  const FRESH = "Mirando el trimestre con otro ángulo: la contribución total se sostiene en Falabella y Lider, sin cambios de mecanismo relevantes.";
   // LA PREGUNTA DEL ARNÉS ES UNA PRECONDICIÓN, NO DECORACIÓN (owner 2026-08-11). Esta sección mide el loop de
   // reintento ante `degraded`; para eso la respuesta en PROSA tiene que ser una salida admisible. Si la pregunta
   // dispara `tablePolicy:"required"`, guardC la rechaza por `tabla-faltante` y los 3 intentos mueren por un

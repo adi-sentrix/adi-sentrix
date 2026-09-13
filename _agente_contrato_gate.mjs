@@ -771,6 +771,24 @@ H("7 · el mecanismo afirmado sin su sello arde, y la cuenta derivada que no cie
   ok(!r("Entre las tres suman $4.16M de los $4.9M totales: ahí vive el 84% del problema.").includes("cuenta-derivada-no-cierra"), "…y el 84% real pasa");
   ok(!r("Falabella deja $1.6M sin capturar, de $4.9M no capturados en toda la cartera.").includes("cuenta-derivada-no-cierra"), "…y la frase del composer de la prioridad (sin porcentaje) pasa");
   const bucle = fs.readFileSync("src/adi/agente/bucleAgente.js", "utf8"), oraculo = fs.readFileSync("src/adi/oracle/answerViaOracle.js", "utf8");
+  /* ── DOS DETALLES DE LENGUAJE (owner 2026-09-13, prompt de gerente en vivo) ──────────────────────────────────
+   * «el margen promedio cae a 25.1%» cuando lo medido es que está bajo el benchmark, y «capital recuperable» por
+   * contribución recuperable. La variación solo se afirma si ESA métrica trae su variación en la boleta. */
+  const conVenta = [{ label: "Ventas vs año anterior", text: "+7.5%", raw: 7.5 }, { label: "Margen promedio", text: "25.1%", raw: 25.1 }];
+  ok(r("La venta crece 7.5% ($99.9M) pero el margen promedio cae a 25.1%, 5 puntos bajo el benchmark de 30.1%.", { figs: conVenta }).includes("variacion-no-medida"),
+    "★★ «el margen promedio cae a 25.1%» ARDE: el margen no trae variación en la boleta (lo medido es su nivel contra el benchmark)");
+  ok(!r("La venta crece 7.5% contra el año anterior, y el margen promedio está en 25.1%, bajo el benchmark de 30.1%.", { figs: conVenta }).includes("variacion-no-medida"),
+    "…«la venta crece» pasa (la boleta trae «Ventas vs año anterior») y «el margen está en…, bajo el benchmark» también");
+  ok(!r("Los ocho que caen bajo el benchmark pesan 86.1% de la venta; el margen cae bajo la referencia en Falabella.", { figs: conVenta }).includes("variacion-no-medida"),
+    "…y «caen bajo el benchmark» / «cae bajo la referencia» es la forma de la casa para «está por debajo»: pasa");
+  ok(r("La contribución sube si se renegocia la carga.", { figs: conVenta }).includes("variacion-no-medida"), "…«la contribución sube» sin variación medida también arde");
+  ok(!r("El margen promedio cae a 25.1%.", { figs: [...conVenta, { label: "Margen promedio · Variación vs año anterior", text: "-1.2pp", raw: -1.2 }] }).includes("variacion-no-medida"),
+    "…y con la variación del margen EN la boleta, «cae» es legítimo");
+  ok(r("De ese subtotal, $655K son directamente atribuibles a carga comercial — capital recuperable con renegociación, no con más venta.").includes("lexico-capital-por-contribucion"),
+    "★★ «capital recuperable» por lo que se recupera de la carga ARDE: eso es contribución");
+  ok(!r("$67K de capital recuperable si ese SKU vuelve a rotar; hoy está inmovilizado en Valparaíso.").includes("lexico-capital-por-contribucion"),
+    "…y «capital recuperable» sobre inventario sigue pasando: ahí capital es la palabra correcta");
+  ok(!r("De ese subtotal, $655K son contribución recuperable con renegociación de la carga comercial.").includes("lexico-capital-por-contribucion"), "…«contribución recuperable» pasa");
   ok(/huellas: _huellasDelTurno, figs: figsTotales/.test(bucle) && /vetosDeRegistro\(c, \{ pregunta: q, huellas: _huellasDelTurno\(\), figs:/.test(oraculo) && /vetosDeRegistro\(n, \{ pregunta: q, huellas: _huellasDelTurno\(\), figs:/.test(oraculo),
     "…y los dos caminos le pasan al juez las huellas y la boleta del turno (una regla, dos caminos)");
 }
