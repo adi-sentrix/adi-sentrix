@@ -263,7 +263,12 @@ export const _LEXICO_SUPERFICIE = [
    * acciones comerciales, contribución o margen — «capital recuperable» sobre inventario sigue siendo legítimo. */
   { re: /\bcapital\s+recuperable\b(?=[^.;\n]{0,80}\b(?:carga|acciones comerciales|renegociaci[oó]n|contribuci[oó]n|margen)\b)|\b(?:carga|acciones comerciales|contribuci[oó]n|margen)\b[^.;\n]{0,80}\bcapital\s+recuperable\b|\brecuperar\s+capital\b(?=[^.;\n]{0,60}\b(?:carga|acciones comerciales|renegociaci[oó]n)\b)/i, regla: "lexico-capital-por-contribucion",
     multa: "llamas «capital» a lo que se recupera de la carga comercial: eso es CONTRIBUCIÓN (o margen). «Capital» en esta casa es el inventario inmovilizado. Di «contribución recuperable»." },
-  { re: /\b(?:el|del|al) motor\b(?:\s+(?:detecta|localiza|calcula|sella|marca|mide|usa|publica|dice|no (?:recomputa|publica)))?|\bque el motor\b|\bseg[uú]n (?:el|la) (?:procedimiento|regla|motor|playbook)\b|\bla regla (?:me )?dice\b|\bel procedimiento (?:me )?(?:dice|indica|manda)\b/i, regla: "lexico-voz-de-motor",
+  /* ⚠️ el verbo de sistema es OBLIGATORIO (encargo en vivo, 2026-09-14): con el grupo opcional, «el motor de ventas está
+   * sano» y «los tres motores del crecimiento» —metáforas normales de negocio— ardían como voz de sistema, y un borrador
+   * correcto y completo cayó al respaldo. Regla del owner: «una metáfora normal de negocio como "motor de ventas" o
+   * "motores del crecimiento" no debe tratarse como voz interna del sistema». Lo que sigue ardiendo: «el motor detecta»,
+   * «que el motor…», «según el procedimiento/la regla/el motor», «la regla me dice». */
+  { re: /\b(?:el|del|al) motor\s+(?:detecta|localiza|calcula|sella|marca|mide|usa|publica|dice|no (?:recomputa|publica))\b|\bque el motor\b(?!\s+de(?:l)?\s)|\bseg[uú]n (?:el|la) (?:procedimiento|regla|motor|playbook)\b|\bla regla (?:me )?dice\b|\bel procedimiento (?:me )?(?:dice|indica|manda)\b/i, regla: "lexico-voz-de-motor",
     multa: "hablas del motor, la regla o el procedimiento como si fueran quien responde («el motor detecta», «según el procedimiento»): el mecanismo va detrás y el criterio delante. Di la cifra y su lectura como asesor — «hay $X sin capturar», «lo que veo es…» — sin describirte a ti mismo." },
 ];
 /* Los IDENTIFICADORES INTERNOS (nombres de tools y de campos de contrato) jamás van a pantalla — el catálogo es

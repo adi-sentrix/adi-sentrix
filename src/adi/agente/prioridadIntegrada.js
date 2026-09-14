@@ -252,8 +252,11 @@ export function prioridadIntegradaCambiada(texto, figs, dominios = []) {
   const t = String(texto || "");
   const parrafos = t.split(/\n\s*\n/).filter((p) => _PRIORIDAD.test(p));
   if (!parrafos.length) return null;   // sin prioridad dicha, esto no juzga (la cobertura del encargo ya cobra que falte)
-  const esc = primera.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  if (parrafos.some((p) => new RegExp(`\\b${esc}\\b`).test(p))) return null;
+  /* «Líder» con tilde (corrida en vivo, 2026-09-14): el modelo acentuó el nombre las 13 veces y la ley no lo reconoció —
+   * un falso positivo propio que tumbó una respuesta correcta. El nombre se compara sin tildes, en los dos lados. */
+  const _sinTildes = (s) => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const esc = _sinTildes(primera).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (parrafos.some((p) => new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, "iu").test(_sinTildes(p)))) return null;
   const v = P.integrada[0].versus;
   return `la prioridad integrada del procedimiento es ${primera}${v && v.gana.length ? ` (antes que ${v.contra}: más grave en ${v.gana.map((it) => `${it.nombre}, ${it.a} contra ${it.b}`).join("; ")})` : ""} y tu prioridad no la nombra. La conclusión es del procedimiento: explícala, no la cambies — puedes decir la prioridad de cada dominio, pero la integrada abre con ${primera}.`;
 }

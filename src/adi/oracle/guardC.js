@@ -2955,6 +2955,9 @@ function _contradiceLaReferencia(narration, ledger) {
       // la cartera que sí supera el benchmark» habla del resto, no de Lider (corrida 3 del prompt de gerente, 2026-09-13)
       const antesVerbo = o.slice(Math.max(0, ms.index - 45), ms.index);
       if (/(?<![\wáéíóúñ])(?:que|quienes|resto(?:\s+de\s+la\s+cartera)?|sanos|dem[aá]s|otr[oa]s|cuales)\s+(?:s[ií]\s+)?$/i.test(antesVerbo)) continue;
+      /* «Falabella solo la supera en contribución no capturada» (corrida en vivo, 2026-09-14): con un pronombre de objeto
+       * delante —la/lo/le/las/los— o «a <Cuenta>» detrás, «supera» compara dos cuentas, no la cuenta con la referencia */
+      if (/(?<![\wáéíóúñ])(?:la|lo|le|las|los|les)\s+$/i.test(antesVerbo) || /^\s+a\s+[A-ZÁÉÍÓÚÑ]/.test(o.slice(ms.index + ms[0].length, ms.index + ms[0].length + 30))) continue;
       out.push(`el ledger dice que ${r.margen.label} está BAJO la referencia y la respuesta afirma que la supera`);
     }
   }
@@ -3323,7 +3326,7 @@ function _duenosDeBoleta(figs, entityNames, entidadesDelTenant) {
  * 19d)») arde. Con menos entidades que cifras no se adivina nada y decide la regla del sujeto.
  * _grupoCoordinado → {ini, k, n}: el grupo de cifras coordinadas («#, # y #» en el enmascarado) que contiene la
  * aparición [idx, end), con la posición k de esa cifra; null si la cifra va sola. */
-const _SEP_COORD = "(?:,\\s*|\\s+[ye]\\s+)";
+const _SEP_COORD = "(?:,\\s*|\\s+(?:[ye]|contra|vs\\.?|frente a)\\s+)";   // «x y y» · «x contra y» · «x vs y» (corrida en vivo, 2026-09-14)
 /* «15 días y 19 días»: la boleta captura «15 d» y deja «ías» colgando (ver _finDeCifra) — el grupo tolera ese resto */
 function _grupoCoordinado(masked, idx, end, text) {
   const antes = new RegExp("#+(?:[ií]as?)?" + _SEP_COORD + "$", "u"), despues = new RegExp("^" + _SEP_COORD + "#+", "u");
@@ -3381,14 +3384,12 @@ function _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) {
      * entidad. Cuando aplica, DECIDE: la lectura por orden manda sobre la del sujeto, así «PHI-HAIR-PRO y PHI-SHAVER9
      * … (15d y 19d)» arde aunque PHI-SHAVER9 sea la última entidad nombrada antes de la cifra. */
     const grupo = _grupoCoordinado(masked, idx, end, text);
-    if (grupo && grupo.ini > iniOracion) {
-      const ents = _entidadesEnOrden(_norm(text.slice(iniOracion, grupo.ini)), nombresRe);
-      if (ents.length >= grupo.n) {
-        const asignada = ents.slice(-grupo.n)[grupo.k];
-        if ([...duenos].some((d) => _norm(d) === asignada)) return false;
-        ajena = true;
-        continue;
-      }
+    const entsOracion = grupo && grupo.ini > iniOracion ? _entidadesEnOrden(_norm(text.slice(iniOracion, grupo.ini)), nombresRe) : [];
+    if (grupo && grupo.ini > iniOracion && entsOracion.length >= grupo.n) {
+      const asignada = entsOracion.slice(-grupo.n)[grupo.k];
+      if ([...duenos].some((d) => _norm(d) === asignada)) return false;
+      ajena = true;
+      continue;
     }
     const antesN = _norm(text.slice(iniOracion, idx));
     let precedente = null, precPos = -1;
@@ -3405,6 +3406,23 @@ function _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) {
       const tramo = antesN.slice(precPos + _norm(precedente).length);
       const otra = nombresRe.some((re) => { const m2 = re.exec(tramo); if (!m2) return false; return !_reDueno(precedente).test(m2[0]); });
       if (!otra) return false;
+    }
+    /* EL SUJETO ELIDIDO (corrida en vivo, 2026-09-14): «**Lider primero**. Es más grave que Falabella en distancia al
+     * benchmark (8.6 pp contra 8.1 pp)…» — el sujeto de la segunda oración es Lider, dicho en la anterior; con solo
+     * Falabella en la oración, el par «8.6 pp contra 8.1 pp» no tenía dos entidades y «8.6 pp» salía «pegada a otra
+     * entidad». Cuando al grupo le falta UNA entidad, la ÚLTIMA de la oración anterior del mismo párrafo entra primera,
+     * como sujeto que continúa — y solo LIBERA si por orden le toca a un dueño: es una lectura, no una condena. Va
+     * después de la regla del sujeto para no quitarle nada a lo que ya se leía bien. */
+    if (grupo && grupo.ini > iniOracion && entsOracion.length === grupo.n - 1) {
+      const parrafoIni = Math.max(0, text.lastIndexOf("\n\n", iniOracion));
+      const atras = masked.slice(parrafoIni, Math.max(parrafoIni, iniOracion - 1));
+      const kPrev = Math.max(atras.lastIndexOf("."), atras.lastIndexOf("!"), atras.lastIndexOf("?"), atras.lastIndexOf("\n"));
+      const previa = _norm(text.slice(parrafoIni + (kPrev >= 0 ? kPrev + 1 : 0), iniOracion));
+      const entsPrev = _entidadesEnOrden(previa, nombresRe);
+      if (entsPrev.length && !entsOracion.includes(entsPrev[entsPrev.length - 1])) {
+        const asignada = [entsPrev[entsPrev.length - 1], ...entsOracion][grupo.k];
+        if ([...duenos].some((d) => _norm(d) === asignada)) return false;
+      }
     }
     if (nombresRe.some((re) => re.test(ventana))) ajena = true;
   }

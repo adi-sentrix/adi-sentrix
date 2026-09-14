@@ -133,5 +133,67 @@ H("5 · el estándar está escrito donde vive");
   ok(comp === conclusionDePrioridad(FIGS, DOMS) ? false : /^1\. Lider — /m.test(comp), "el cierre y la conclusión al cerebro salen de la misma prioridad (una sola verdad)");
 }
 
+/* ═══ 6 · LA CORRIDA EN VIVO DEL ESTÁNDAR, COMO FIXTURE: EL MODELO LO CUMPLIÓ Y LO TUMBARON DOS FALSOS POSITIVOS ══ */
+H("6 · la corrida viva (autorizada, 2 llamadas): el modelo puso a Lider primero por señales; cayó por «motor de ventas» y «casi el doble» — cerrados");
+{
+  const V2 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo2-2026-09-14.json", import.meta.url), "utf8"));
+  ok(V2.pregunta === Q && V2.borradores.length === 2 && V2.final.estado === "encargo-compuesto", "la corrida: el prompt exacto, dos borradores, y el usuario recibió el respaldo");
+  const b2 = V2.borradores[1].texto;
+  ok(/\*\*Lider va primero\*\*: brecha al benchmark más severa \(8\.6 pp contra 8\.1 pp de Falabella\)/.test(b2) && /Falabella solo le gana en contribución no capturada en pesos \(\$1\.6M vs \$1\.5M\)/.test(b2), "★ el modelo, por su cuenta y con la doctrina, puso a Lider primero señal por señal y dijo en qué gana Falabella");
+  ok(/en comercial, Falabella \(\$1\.6M de contribución no capturada, la mayor brecha en pesos\)/.test(b2) && /En inventario, aparte de las cuentas: LG-DRYER8KG/.test(b2), "…mantuvo a Falabella como prioridad comercial y el inventario aparte");
+  ok(!prioridadIntegradaCambiada(b2, FIGS, DOMS) && !vetosDeRegistro(b2, { pregunta: Q, figs: FIGS, sitio: "cierre" }).length, "★ el borrador reparado pasa hoy el contrato entero: «el motor de ventas está sano» y «los tres motores del crecimiento» ya no son voz de sistema");
+  const { guardC } = await import("./src/adi/oracle/guardC.js");
+  const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
+  const { playbookPara, pasosDe } = await import("./src/adi/agente/playbooks/registro.js");
+  const { pasosDelEncargo } = await import("./src/adi/agente/encargoCompuesto.js");
+  const pb = playbookPara(Q, {});
+  const rp = runPlan({ intent: "answer", calls: pasosDelEncargo(partesDelEncargo(Q), pb ? pasosDe(pb, Q, {}) : [], {}).map((p) => ({ tool: p.tool, args: p.args || {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 18, preguntaUsuario: Q, registry: CAJA });
+  const v = guardC(b2, { ledger: { figs: rp.ledger.figs }, results: rp.results, question: Q, datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), contentScope: "full" });
+  ok(v.ok, "…y el muro entero", (v.violations || []).map((x) => x.kind).join(","));
+  /* el camino del modelo, offline, con ese borrador como cerebro: se sirve VERDE a la primera */
+  const r = await answerViaAgente({ text: Q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: b2, stop: "end_turn" }) });
+  ok(r.r.agente.estado === "verde" && r.r.text === b2, `★ con el borrador vivo como cerebro, el turno se sirve entero y verde (${r.r.agente.estado}): el usuario recibe la lectura del modelo`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
+  /* los dos cierres, con sus candados */
+  const reg = (t) => vetosDeRegistro(t, { pregunta: "x", figs: [] }).map((x) => x.regla);
+  ok(!reg("El motor de ventas está sano y los tres motores del crecimiento son Lider, Jumbo y Falabella.").includes("lexico-voz-de-motor") && !reg("Lo que el motor de crecimiento muestra es sano.").includes("lexico-voz-de-motor"), "«motor de ventas» / «motores del crecimiento» / «motor de crecimiento»: metáfora de negocio, no voz de sistema");
+  ok(reg("El motor detecta 3 SKU frenados.").includes("lexico-voz-de-motor") && reg("Según el procedimiento, Falabella va primero.").includes("lexico-voz-de-motor") && reg("Lo que el motor muestra es capital frenado.").includes("lexico-voz-de-motor"), "candados: «el motor detecta», «según el procedimiento», «lo que el motor muestra» siguen ardiendo");
+  const { relacionEnPalabrasNoCierra } = await import("./src/adi/agente/atributosYRelaciones.js");
+  ok(!relacionEnPalabrasNoCierra("brecha al benchmark más severa (8.6 pp contra 8.1 pp de Falabella), vencido casi el doble ($4.6M vs $2.5M), peor recuperación."), "★ «casi el doble ($4.6M vs $2.5M)» se juzga contra el par que compara: 1.84 veces, pasa — antes ardía contra los 8.1 pp de al lado");
+  const mFalso = relacionEnPalabrasNoCierra("brecha al benchmark más severa (8.6 pp contra 8.1 pp de Falabella), vencido casi el doble ($4.6M vs $4.2M).");
+  ok(mFalso && /\$4\.6M contra \$4\.2M son 1\.1 veces/.test(mFalso), "…y con un par que no cierra ($4.6M vs $4.2M) arde citando ESE par");
+  ok(!!relacionEnPalabrasNoCierra("PHI-SHAVER9 tiene una cobertura de 15 días. Ahí no hay problema. PHI-IRON-PRO tiene 95 días — cuatro veces más lenta.") && !!relacionEnPalabrasNoCierra("Falabella vende $19.4M, más del doble que Lider ($17.8M)."), "candados: «cuatro veces» (6.3×) y «más del doble» (1.1×) siguen ardiendo");
+}
+
+/* ═══ 7 · LA TERCERA CORRIDA VIVA: «LÍDER» CON TILDE, EL SUJETO ELIDIDO Y «LA SUPERA» ════════════════════════════ */
+H("7 · la tercera corrida viva (autorizada, 2 llamadas): la reparación cumplió los cinco puntos y cayó por tres falsos positivos — cerrados");
+{
+  const V3 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo3-2026-09-14.json", import.meta.url), "utf8"));
+  ok(V3.pregunta === Q && V3.borradores.length === 2 && V3.final.estado === "encargo-compuesto", "la corrida: el prompt exacto, dos borradores, y el usuario recibió el respaldo");
+  const b3 = V3.borradores[1].texto;
+  ok((b3.match(/Líder/g) || []).length >= 10 && !/\bLider\b/.test(b3), "el modelo escribió «Líder» con tilde en todas sus apariciones (el dato dice «Lider»)");
+  ok(/\*\*Líder primero\*\*\. Es más grave que Falabella en distancia al benchmark \(8\.6 pp contra 8\.1 pp\), en vencido \(\$4\.6M contra \$2\.5M\)/.test(b3) && /Falabella solo la supera en contribución no capturada \(\$1\.6M contra \$1\.5M\)/.test(b3), "★ …y cumplió los cinco puntos: Lider primero señal por señal, Falabella solo la supera en contribución");
+  ok(!prioridadIntegradaCambiada(b3, FIGS, DOMS), "★ la ley de prioridad reconoce «Líder» con tilde como Lider: ya no arde");
+  const { guardC } = await import("./src/adi/oracle/guardC.js");
+  const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
+  const { playbookPara, pasosDe } = await import("./src/adi/agente/playbooks/registro.js");
+  const { pasosDelEncargo } = await import("./src/adi/agente/encargoCompuesto.js");
+  const pb = playbookPara(Q, {});
+  const rp = runPlan({ intent: "answer", calls: pasosDelEncargo(partesDelEncargo(Q), pb ? pasosDe(pb, Q, {}) : [], {}).map((p) => ({ tool: p.tool, args: p.args || {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 18, preguntaUsuario: Q, registry: CAJA });
+  const muro = (t) => { const v = guardC(t, { ledger: { figs: rp.ledger.figs }, results: rp.results, question: Q, datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), contentScope: "full" }); return v.ok ? [] : (v.violations || []); };
+  ok(muro(b3).length === 0, "★ el muro entero: «8.6 pp contra 8.1 pp» con Lider como sujeto de la oración anterior, y «la supera» entre cuentas, ya no arden", muro(b3).map((x) => x.kind + ": " + String(x.detail).slice(0, 90)).join(" | "));
+  ok(!vetosDeRegistro(b3, { pregunta: Q, figs: rp.ledger.figs, sitio: "cierre" }).length, "…y el contrato entero");
+  const r = await answerViaAgente({ text: Q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: b3, stop: "end_turn" }) });
+  ok(r.r.agente.estado === "verde" && r.r.text === b3, `★ con esa reparación como cerebro, el turno se sirve entero y verde (${r.r.agente.estado})`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
+  /* los candados que no aflojan */
+  const ardeM = (t, kind) => muro(t).some((x) => x.kind === kind);
+  ok(ardeM("Lider vende $19.4M.", "cifra-de-boleta-sin-dueno") && ardeM("Falabella lidera la venta con diferencia y sostiene la mayor parte del canal retail durante todo el año cerrado, mientras que Lider vende $19.4M.", "cifra-de-boleta-sin-dueno"), "candados: «Lider vende $19.4M» (de Falabella) sigue ardiendo, con el dueño cerca o lejos");
+  ok(ardeM("PHI-HAIR-PRO y PHI-SHAVER9 son el mejor caso de la lista — lideran contribución con diferencia sobre el resto del catálogo, sostienen margen sin pedir capital y tienen cobertura corta (15 días y 19 días).", "cifra-de-boleta-sin-dueno"), "candado: la coordinación invertida sigue ardiendo (la del sujeto elidido solo libera, no condena)");
+  ok(!ardeM("Lider tiene el mayor vencido. Falabella vende $19.4M contra $17.8M de Lider.", "cifra-de-boleta-sin-dueno"), "«Falabella vende $19.4M contra $17.8M de Lider»: cada cifra con su dueño, libre");
+  ok(!ardeM("Lider tiene el mayor vencido de la cartera. Es más grave que Falabella en distancia al benchmark (8.6 pp contra 8.1 pp).", "cifra-de-boleta-sin-dueno"), "el sujeto elidido: «Lider … . Es más grave que Falabella … (8.6 pp contra 8.1 pp)» — 8.6 pp es de Lider, libre");
+  ok(ardeM("Sodimac vende $8.2M. Es más grave que Falabella en distancia al benchmark (8.6 pp contra 8.1 pp).", "cifra-de-boleta-sin-dueno"), "…y con otro sujeto en la oración anterior (Sodimac) el mismo par sigue ardiendo: la lectura no condona una atribución equivocada");
+  ok(!ardeM("Falabella está 8.1 pp bajo el benchmark; Falabella solo la supera en contribución no capturada ($1.6M contra $1.5M).", "relacion-contradictoria"), "«Falabella solo la supera en contribución» no es «Falabella supera el benchmark»");
+  ok(ardeM("Falabella supera el benchmark con su margen de 22.0%.", "relacion-contradictoria"), "candado: «Falabella supera el benchmark» (está 8.1 pp bajo) sigue ardiendo");
+}
+
 console.log(`\n── _prioridad_integrada_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
 process.exit(FAIL ? 1 : 0);

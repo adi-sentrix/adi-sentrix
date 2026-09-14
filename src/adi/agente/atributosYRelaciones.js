@@ -179,6 +179,21 @@ export function relacionEnPalabrasNoCierra(texto) {
       let matiz = null;
       for (const x of _MATIZ) { const mm = x.re.exec(antes); if (mm) { matiz = { ...x, dicho: mm[0].trim() }; break; } }
       const rango = matiz || _RANGO_PLANO;
+      const dicho = (matiz ? matiz.dicho + " " : "") + m[0].trim();   // «más del doble», no «del doble»
+      const relTxt = (r) => (r >= 1 ? `${(Math.round(r * 10) / 10).toFixed(1).replace(/\.0$/, "")} veces` : `${Math.round(r * 100)}%`);
+      /* EL PAR QUE LA FRASE COMPARA (encargo en vivo, 2026-09-14): «vencido casi el doble ($4.6M vs $2.5M)» se juzgaba contra
+       * la cifra más cercana de ANTES («8.1 pp», otra métrica) y ardía con 1.1 veces. Regla del owner: «una relación como
+       * "casi el doble" debe juzgarse contra las cifras que realmente está comparando la frase». Si justo después de la
+       * frase vienen dos cifras de la misma unidad unidas por «vs», «contra», «frente a» o «y» (con o sin paréntesis),
+       * ESE es el par: decide él, y la multa lo cita. */
+      const finFrase = m.index + m[0].length;
+      const trasFrase = o.slice(finFrase, finFrase + 70).split(/[.;](?!\d)/)[0];   // el punto DECIMAL («$4.6M») no cierra la oración
+      const par = figsDe(trasFrase).map((f) => ({ ...f, pos: trasFrase.indexOf(f.text) })).filter((f) => f.pos >= 0).sort((a, b) => a.pos - b.pos).slice(0, 2);
+      if (par.length === 2 && par[0].unit === par[1].unit && par[0].pos <= 20 && /^\s*(?:vs\.?|contra|frente a|y|e|a|–|—|-)\s*$/i.test(trasFrase.slice(par[0].pos + par[0].text.length, par[1].pos))) {
+        const rs = [par[0].raw / par[1].raw, par[1].raw / par[0].raw];
+        if (rs.some((r) => { const q = r / k; return q >= rango.lo && q <= rango.hi; })) continue;
+        return `«${dicho}» no cierra con las cifras que compara (${par[0].text} contra ${par[1].text} son ${relTxt(Math.max(...rs))}): una relación dicha en palabras vale lo mismo que una cifra — o es consistente con los números que compara, o no se dice. Di la relación exacta o quítala.`;
+      }
       const pool = oraciones.slice(0, i + 1).flatMap(figsDe);   // el párrafo hasta esta oración
       /* LA CIFRA DE REFERENCIA es la más cercana ANTES de la relación en su oración («…de 95 días — cuatro veces más
        * lenta»): la relación es de ESA unidad y la referencia es uno de los dos operandos. Sin cifra antes, la más cercana
@@ -201,8 +216,7 @@ export function relacionEnPalabrasNoCierra(texto) {
         }
       }
       if (cierra) continue;
-      const dicho = (matiz ? matiz.dicho + " " : "") + m[0].trim();   // «más del doble», no «del doble»
-      const realTxt = mejor ? `${mejor.a.text} contra ${mejor.b.text} son ${mejor.r >= 1 ? `${(Math.round(mejor.r * 10) / 10).toFixed(1).replace(/\.0$/, "")} veces` : `${Math.round(mejor.r * 100)}%`}` : "las cifras de la oración no lo sostienen";
+      const realTxt = mejor ? `${mejor.a.text} contra ${mejor.b.text} son ${relTxt(mejor.r)}` : "las cifras de la oración no lo sostienen";
       return `«${dicho}» no cierra con las cifras (${realTxt}): una relación dicha en palabras vale lo mismo que una cifra — o es consistente con los números que la rodean, o no se dice. Di la relación exacta o quítala.`;
     }
   }

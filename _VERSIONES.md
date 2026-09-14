@@ -12,7 +12,7 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 2.30 — lista para desplegar
+## 2.30 — producción · tag `v2.30`
 
 **La prioridad integrada se decide por señales, no por cuántos dominios coinciden.** Sobre el mismo prompt de producción
 del encargo multidominio, la 2.29 ponía primero a Falabella «porque coincide Comercial + Cobranza». El owner: Lider
@@ -35,9 +35,17 @@ una integrada del negocio, el criterio dicho, sin fórmulas inventadas ni sumas 
 - **Es la conclusión del procedimiento:** viaja al cerebro antes de escribir y `prioridad-integrada-cambiada` veta que
   ponga primero a otra cuenta — el borrador vivo del modelo, que ya había puesto a Lider primero por su cuenta, pasa.
 
+- **Y cinco falsos positivos que tumbaban respuestas correctas, cerrados con sus corridas vivas como fixtures:** «motor de
+  ventas» y «motores del crecimiento» ya no son voz de sistema (el verbo de sistema es obligatorio); «casi el doble
+  ($4.6M vs $2.5M)» se juzga contra el par que la frase compara; «Líder» con tilde es Lider para la ley de prioridad; el
+  sujeto elidido viene de la oración anterior («**Lider primero**. Es más grave que Falabella … (8.6 pp contra 8.1 pp)»);
+  y «Falabella solo la supera en contribución» no es «supera el benchmark».
+
 **Resultado medido:** cerebro mudo sobre el prompt de producción: por dominio comercial → Falabella, cobranza → Lider,
 inventario → LG-DRYER8KG; integrada Lider > Falabella > Sodimac > Jumbo, con el criterio y sin sumar montos; pasa muro,
-contrato y notarial. Suite completa en verde, sin tocar la red.
+contrato y notarial. En vivo (cuatro corridas autorizadas del mismo prompt, una por etapa): la última se sirvió desde la
+reparación del modelo, completa — Lider primero señal por señal, Falabella como prioridad comercial, inventario aparte,
+lectura única. Suite completa en verde, sin tocar la red.
 
 ---
 
