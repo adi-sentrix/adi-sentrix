@@ -466,5 +466,38 @@ H("14 · universo de grupos · ordinales y rankings · «coincide en dos dominio
   for (const [i, b] of V6.borradores.entries()) ok(!M1.muro(b.texto).some((x) => x.kind === "cifra-de-grupo-mal-repartida" || x.kind === "superlativo-no-sostenido") && !vetosDeRegistro(b.texto, { pregunta: Q, figs: M1.rp.ledger.figs, sitio: i ? "reparacion" : "cierre" }).map((x) => x.regla).includes("coincidencia-como-razon"), `el borrador ${i + 1} de la prueba 1 no arde por ninguno de los tres`);
 }
 
+/* ═══ 15 · LA TERCERA CORRIDA DE LA PRUEBA 1: LA REPARACIÓN ERA LA RESPUESTA Y CAYÓ POR CUATRO FALSOS POSITIVOS — CERRADOS ═══ */
+H("15 · tercera corrida viva de la prueba 1 (autorizada, 2 llamadas): «carga baja» adjetivo · «de eso» pegado · «frenados» es capital · «carga» a secas — cerrados; la reparación se sirve entera");
+{
+  const V7 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo7-2026-09-14.json", import.meta.url), "utf8"));
+  const { guardC } = await import("./src/adi/oracle/guardC.js");
+  const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
+  const { playbookPara, pasosDe } = await import("./src/adi/agente/playbooks/registro.js");
+  const { pasosDelEncargo } = await import("./src/adi/agente/encargoCompuesto.js");
+  const { axisEntityNames } = await import("./src/adi/oracle/entityIndex.js");
+  const _ejes = (lista) => { const o = []; for (const e of lista) { try { for (const n of axisEntityNames(e)) o.push(n); } catch { /* eje sin índice */ } } return o.length ? o : null; };
+  const pb = playbookPara(Q, {});
+  const rp = runPlan({ intent: "answer", calls: pasosDelEncargo(partesDelEncargo(Q), pb ? pasosDe(pb, Q, {}) : [], {}).map((p) => ({ tool: p.tool, args: p.args || {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 18, preguntaUsuario: Q, registry: CAJA });
+  const muro = (t) => { const v = guardC(t, { ledger: { figs: rp.ledger.figs }, results: rp.results, trace: null, question: Q, datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), entidadesDelTenant: _ejes(["cliente", "sku", "marca"]), duenosDelTenant: _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]), contentScope: "full" }); return v.ok ? [] : (v.violations || []); };
+  const reglas = (t, sitio) => vetosDeRegistro(t, { pregunta: Q, figs: rp.ledger.figs, sitio }).map((x) => x.regla);
+  const c1 = V7.borradores[0].texto, r1 = V7.borradores[1].texto;
+  ok(V7.pregunta === Q && V7.final.estado === "encargo-compuesto" && /«\$14K» narrado como ventas/.test(V7.final.vetos[0]) && /carga «baja»/.test(V7.final.vetos[1]), "la corrida: el usuario recibió el respaldo; los vetos fueron «$14K narrado como ventas» (cierre) y «carga baja» (reparación)");
+  /* los falsos positivos, cerrados */
+  ok(/el patrón de carga baja está ahí/.test(r1) && !reglas(r1, "reparacion").includes("variacion-no-medida"), "★ «el patrón de carga baja está ahí»: adjetivo, no verbo — ya no arde");
+  ok(/\$9\.8M de saldo pendiente, de eso \$4\.6M vencidos/.test(r1) && !reglas(r1, "reparacion").includes("subtotal-de-otro-universo"), "★ «$9.8M de saldo pendiente, de eso $4.6M vencidos»: el «eso» es la cifra pegada, no el $135K del párrafo anterior — ya no arde");
+  ok(/carga de solo 1\.8%/.test(c1) && !muro(c1).some((x) => x.kind === "metrica-mal-atribuida" && /1\.8%/.test(String(x.detail))) && muro(c1).some((x) => x.kind === "metrica-mal-atribuida" && /\$14K/.test(String(x.detail))), "★ «carga de solo 1.8%» tras «crece»: «carga» a secas es la carga comercial — ya no arde (⚠️ «($14K frenados…)» tras «lo que más vende:» sigue ardiendo: «frenados» no puede entrar como capital porque «75% del frenado total» es una participación — falso positivo del cierre, pendiente)");
+  ok(muro(r1).length === 0 && reglas(r1, "reparacion").length === 0, "★ la reparación pasa entera: muro y contrato", [...muro(r1).map((x) => x.kind), ...reglas(r1, "reparacion")].join(","));
+  const r = await answerViaAgente({ text: Q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: r1, stop: "end_turn" }) });
+  ok(r.r.agente.estado === "verde" && r.r.text === r1, `★ con esa reparación como cerebro, el turno se sirve entero y verde (${r.r.agente.estado}): el usuario recibe la lectura del modelo`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
+  ok(/Lider va primero: peor brecha al benchmark \(8\.6 pp\)/.test(r1) && /la razón de ir primero es la severidad de cada señal, no la coincidencia/.test(r1) && /Falabella es la prioridad si miras solo contribución no capturada/.test(r1) && /En inventario, resolvería LG-DRYER8KG primero/.test(r1) && coberturaDelEncargo(r1, partesDelEncargo(Q)).length === 0, "el modelo cumplió: Lider primero por severidad, la coincidencia como agravante (la doctrina llegó), Falabella por contribución/ventas, inventario aparte, nueve partes cubiertas");
+  /* los vetos legítimos del cierre se quedan */
+  ok(muro(c1).some((x) => x.kind === "dias-etiqueta-incorrecta") && reglas(c1, "cierre").includes("intencion-inferida") && reglas(c1, "cierre").includes("parte-del-encargo-omitida"), "el cierre sigue cayendo por lo legítimo: «165 días sin rotar», la intención negada, las unidades omitidas");
+  /* candados */
+  ok(reglas("En Mercado Libre la carga baja y el margen se sostiene.", "cierre").includes("variacion-no-medida") && reglas("Su carga comercial baja este año.", "cierre").includes("variacion-no-medida"), "candado: «la carga baja» y «su carga comercial baja» (verbo) siguen ardiendo");
+  ok(reglas("El capital total es $135K. De eso, $4.6M están vencidos en Lider.", "cierre").includes("subtotal-de-otro-universo") && reglas("De los $13.3M de SAM-TV55, $12.4M son de LG-WASH11KG.", "cierre").includes("subtotal-de-otro-universo"), "candado: el «de eso» que sí cruza universos y «de los $X de A, $Y son de B» siguen ardiendo");
+  ok(!reglas("De los 5 SKU que más venden (SAM-TV55 $13.3M, LG-WASH11KG $12.4M, PHI-SHAVER9 $12.3M), los 5 están entre los que más contribución dejan.", "cierre").includes("subtotal-de-otro-universo"), "una enumeración «(A $x, B $y)» que abre con «De los» no es un continente");
+  ok(muro("LG-DRYER8KG vende $14K en el período.").some((x) => x.kind === "metrica-mal-atribuida"), "candado: «LG-DRYER8KG vende $14K» (capital narrado como venta) sigue ardiendo");
+}
+
 console.log(`\n── _prioridad_integrada_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
 process.exit(FAIL ? 1 : 0);

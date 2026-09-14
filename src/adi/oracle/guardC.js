@@ -260,7 +260,10 @@ const _METRIC_VOCAB = [
   { clave: "markup",       re: /\bmark-?up\b/i },   // «Markup sobre costo»: el precio contra lo que cuesta — NO es el margen (owner 2026-09-13: métricas comparables)
   { clave: "contribucion", re: /\bcontribuci[oó]n\b|\bcontribuy\w+\b/i },
   { clave: "costo",        re: /\bcostos?\b/i },
-  { clave: "carga",        re: /\bcarga comercial\b|\bacciones comerciales\b|\brebates?\b|\bdescuentos?\b/i },
+  /* «carga de solo 1.8%» (prueba 1, tercera corrida viva · 2026-09-14): «carga» a secas es la carga comercial en este producto (no
+   * hay otra) — sin la palabra, 1.8% se leía como variación por el «crece» de antes: falso positivo sobre un texto correcto.
+   * («frenados» NO entra como capital: «75% del frenado total en esa bodega» es una participación, y con la palabra ardía.) */
+  { clave: "carga",        re: /\bcarga comercial\b|\bcarga\b|\bacciones comerciales\b|\brebates?\b|\bdescuentos?\b/i },
   /* «165d de inventario» es COBERTURA, no capital: el «d» de días pegado a la cifra cuenta como «días» (cazado al cerrar «cifra +
    * dueño + significado», 2026-09-12 — con la cifra ya juzgable, «inventario» se leía como capital y el piso del inventario ardía) */
   { clave: "capital",      re: /\bcapital\b|(?<!d[ií]as\s{1,3}(?:de\s{1,3})?|\dd\s{1,3}(?:de\s{1,3})?)\binventario\b|\bstocks?\b/i },

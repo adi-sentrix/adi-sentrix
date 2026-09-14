@@ -439,6 +439,10 @@ export function vetosDeRegistro(texto, contexto = {}) {
     while ((m = _VARIA.exec(texto))) {   // TODAS las apariciones: «la venta crece» (medida) no exime a «el margen cae» (no medida)
       if (_medida(m[1])) continue;
       const antes = texto.slice(Math.max(0, m.index - 40), m.index);
+      /* «el patrón de carga baja está ahí» (prueba 1, tercera corrida viva · 2026-09-14): «baja» es ADJETIVO —carga baja, no la
+       * carga baja—. El verbo lleva el sujeto con artículo o posesivo delante («la carga baja», «su margen baja»); sin él, es
+       * el nivel («de carga baja», «con carga baja»). Solo para «baja», la única forma ambigua de la lista. */
+      if (/^baja$/i.test(m[2]) && !/(?:^|[^\wáéíóúñ])(?:el|la|los|las|su|tu|mi|es[aet]|est[aet]|nuestr[ao])\s+(?:[\wáéíóúñ]+\s+)?$/i.test(texto.slice(Math.max(0, m.index - 24), m.index))) continue;
       const oracion = _oracionDe(m.index);
       if (_CONDICIONAL.test(antes) || /[¿?]/.test(oracion) || /\bno (?:puedo|s[eé]|podr[ií]a) (?:saber|separar|decir|distinguir|afirmar)\b|\bhip[oó]tesis\b|\bpodr[ií]a (?:haber|estar|ser)\b/i.test(oracion)) continue;
       v.push({ regla: "variacion-no-medida", multa: `dices que ${m[1].toLowerCase()} «${m[2]}» y este turno no midió ninguna variación de esa métrica (no hay «${m[1].toLowerCase()} vs año anterior» ni su serie en la boleta): lo medido es su nivel contra la referencia. Di «está en X, bajo el benchmark», no que cae o sube.` });
@@ -816,9 +820,14 @@ function _subtotalDeOtroUniverso(texto, figs) {
     const esAgregado = (x) => x.figs.some((g) => { const c = _fichaDeFig(g, figs); return c && (c.tipo === "subtotal" || c.tipo === "total"); });
     /* «…Easy $2.0M. De eso, $12.6M…»: el «eso» es el total dicho antes, no el último ítem de la lista. El continente es el
      * agregado más cercano hacia atrás; una cifra de cuenta solo cuenta si no hay agregado y está en la MISMA oración. */
+    /* …salvo la cifra PEGADA a la marca (prueba 1, tercera corrida viva · 2026-09-14): «Lider: $9.8M de saldo pendiente, de eso
+     * $4.6M vencidos» — el continente era el $135K del inventario, a 200 caracteres y un párrafo de distancia, y no el $9.8M de al
+     * lado. El «eso» a ≤ 40 caracteres de una cifra, en la MISMA LÍNEA y la misma oración, es esa cifra. La lista del composer
+     * («Easy $2.0M⏎De eso, $12.6M…») cambia de línea: ahí sigue mandando el agregado dicho antes. */
     const agregado = previos.find(esAgregado);
     const cuentaMisma = previos[0] && !/[.!?]\s/.test(t.slice(previos[0].fin, m.index)) ? previos[0] : null;
-    const antes = agregado || cuentaMisma || null;
+    const pegada = cuentaMisma && m.index - cuentaMisma.fin <= 40 && !/\n/.test(t.slice(cuentaMisma.fin, m.index)) ? cuentaMisma : null;
+    const antes = pegada || agregado || cuentaMisma || null;
     const despues = montos.find((x) => x.idx >= m.index + m[0].length && x.idx - (m.index + m[0].length) <= 60);
     if (antes && despues) pares.push({ x: antes, y: despues, marca: m[0] });
   }
@@ -834,7 +843,13 @@ function _subtotalDeOtroUniverso(texto, figs) {
     if (!m3) continue;
     const base = t.indexOf(o);
     const x = montos.find((z) => z.idx === base + m3.index + m3[0].indexOf(m3[1])), y = montos.find((z) => z.idx === base + m3.index + m3[0].lastIndexOf(m3[2]));
-    if (x && y && x !== y) pares.push({ x, y, marca: o.trim().slice(0, 20) + "…" });
+    if (!x || !y || x === y) continue;
+    /* «De los 5 SKU que más venden (SAM-TV55 $13.3M, LG-WASH11KG $12.4M, …)» (prueba 1, tercera corrida viva · 2026-09-14): la
+     * oración abre con «De los», pero las dos cifras son una ENUMERACIÓN, cada una con su dueño pegado delante — nadie dijo que
+     * $12.4M sea parte de $13.3M. Una cifra precedida por el nombre de su propia cuenta no es un continente ni una contenida. */
+    const _nombrada = (z) => z.figs.some((g) => { const c = _fichaDeFig(g, figs); return c && c.tipo === "cuenta" && c.entidad && new RegExp(String(c.entidad).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*[:(]?\\s*$", "i").test(t.slice(Math.max(0, z.idx - 30), z.idx)); });
+    if (_nombrada(x) && _nombrada(y)) continue;
+    pares.push({ x, y, marca: o.trim().slice(0, 20) + "…" });
   }
   const _NEGADA = /(?<![\wáéíóúñ])no\s+(?:es|son|est[aá]n?|forma[n]?\s+parte|vive[n]?|cabe[n]?|pertenece[n]?|entra[n]?)(?![\wáéíóúñ])/i;
   for (const par of pares) {
