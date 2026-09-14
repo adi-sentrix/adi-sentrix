@@ -1,20 +1,13 @@
 {
   "fecha": "2026-09-14",
-  "nota": "AUDITORÍA FOCALIZADA DEL NOTARIO (owner 2026-09-14): el conjunto de referencia son los 12 borradores reales de las 6 corridas vivas de la v2.31 (3 por prueba, cierre + reparación), leídos a mano contra la boleta del turno. Por borrador: los errores reales que un Notario debe detener (con si el producto actual los detiene) y los vetos que el Notario emitió sobre afirmaciones correctas (falsos positivos, con si están cerrados). Las leyes de la casa (intención inferida, densidad, juicio sin marcar, vocabulario) se cuentan aparte: no son errores de hecho. Este archivo es la VERDAD DE REFERENCIA para medir cobertura y precisión mientras se cierran los huecos.",
+  "nota": "AUDITORÍA FOCALIZADA DEL NOTARIO (owner 2026-09-14): el conjunto de referencia son los 12 borradores reales de las 6 corridas vivas de la v2.31 (3 por prueba, cierre + reparación), leídos a mano contra la boleta del turno. Por borrador: los errores reales que un Notario debe detener (con si el producto actual los detiene) y los vetos que el Notario emitió sobre afirmaciones correctas (falsos positivos, con si están cerrados). Las leyes de la casa (intención inferida, densidad, juicio sin marcar, vocabulario) se cuentan aparte: no son errores de hecho. Este archivo es la VERDAD DE REFERENCIA para medir cobertura y precisión mientras se cierran los huecos. Los deslices de redacción que no contradicen el dato («una quinta» por «una sexta») van en la lista redaccion y no cuentan.",
   "corpus": [
     {
       "id": "P1·1",
       "fixture": "encargo-vivo5-2026-09-14.json",
       "borrador": 1,
       "sitio": "cierre",
-      "errores_reales": [
-        {
-          "texto": "6 cuentas —Falabella, Lider, Jumbo, Sodimac, Paris y una quinta—",
-          "tipo": "conteo/lista inconsistente (cinco nombres + «una quinta» para un grupo de seis)",
-          "detectado_hoy": false,
-          "clave": "una quinta|cinco nombres|5 nombres"
-        }
-      ],
+      "errores_reales": [],
       "falsos_positivos": [
         {
           "kind": "alcance-promovido",
@@ -35,6 +28,12 @@
         "intencion-inferida («no apuesta de volumen»)",
         "juicio-sin-marcar",
         "deterioro-no-medido («la cobranza más deteriorada» — adjetivo, límite de la ley)"
+      ],
+      "redaccion": [
+        {
+          "texto": "6 cuentas —Falabella, Lider, Jumbo, Sodimac, Paris y una quinta—",
+          "tipo": "desliz de redacción («una quinta» por «una sexta»): dice 6, nombra 5 y remata con «una quinta» — no contradice el dato; no cuenta como error de hecho"
+        }
       ]
     },
     {
@@ -42,14 +41,7 @@
       "fixture": "encargo-vivo5-2026-09-14.json",
       "borrador": 2,
       "sitio": "reparacion",
-      "errores_reales": [
-        {
-          "texto": "6 cuentas —Falabella, Lider, Jumbo, Sodimac, Paris y una quinta—",
-          "tipo": "conteo/lista inconsistente",
-          "detectado_hoy": false,
-          "clave": "una quinta|cinco nombres|5 nombres"
-        }
-      ],
+      "errores_reales": [],
       "falsos_positivos": [
         {
           "kind": "cifra-de-boleta-sin-dueno",
@@ -59,7 +51,13 @@
           "clave": "8\\.6 pp"
         }
       ],
-      "leyes_de_la_casa": []
+      "leyes_de_la_casa": [],
+      "redaccion": [
+        {
+          "texto": "6 cuentas —Falabella, Lider, Jumbo, Sodimac, Paris y una quinta—",
+          "tipo": "desliz de redacción («una quinta» por «una sexta»): dice 6, nombra 5 y remata con «una quinta» — no contradice el dato; no cuenta como error de hecho"
+        }
+      ]
     },
     {
       "id": "P1·2",
