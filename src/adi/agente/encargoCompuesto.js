@@ -195,7 +195,7 @@ export function doctrinaDelEncargo(partes, dominios = [], figs = null) {
   }
   /* la conclusión del procedimiento sobre la prioridad viaja ANTES de escribir (ley de la casa: la conclusión es del
    * procedimiento, el cerebro la explica) — solo cuando el encargo pidió la prioridad y hay señales en la boleta */
-  if (figs && partes.some((p) => p.clave === "primero")) {
+  if (figs && (partes.some((p) => p.clave === "primero") || doms.length >= 2)) {   // con varios dominios, la prioridad del procedimiento viaja siempre
     const c = (() => { try { return conclusionDePrioridad(figs, doms); } catch { return ""; } })();
     if (c) L.push(c);
   }
@@ -220,7 +220,11 @@ export function componerEncargo({ partes, leer, scenario, mem, semilla, pregunta
   if (!Array.isArray(partes) || partes.length < 2 || typeof leer !== "function") return null;
   /* el porqué ya contiene el sello (sus huellas con su sello): si piden los dos, va uno */
   const activas = partes.some((p) => p.clave === "porque") ? partes.filter((p) => p.clave !== "sello") : partes;
-  const hayPrimero = activas.some((p) => p.clave === "primero");
+  const doms0 = dominiosDelEncargo(activas);
+  /* «en un encargo multidominio que pide una sola lectura del negocio, ADI debe terminar siempre con una prioridad integrada,
+   * aunque el usuario no use literalmente “prioridad”» (owner 2026-09-14): con dos o más dominios el cierre va siempre, y
+   * ningún criterio de una parte sola («Yo miraría primero Falabella —criterio mío—») sobrevive presentado como global */
+  const hayPrimero = activas.some((p) => p.clave === "primero") || doms0.length >= 2;
   const doms = dominiosDelEncargo(activas);
   const multi = doms.length >= 2;
   const bloques = [];

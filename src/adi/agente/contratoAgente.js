@@ -567,7 +567,7 @@ export function vetosDeRegistro(texto, contexto = {}) {
       }
       /* LA PRIORIDAD INTEGRADA ES DEL PROCEDIMIENTO (owner 2026-09-14): materialidad + severidad + urgencia, señal por señal —
        * el cerebro la explica, no la cambia. Solo cuando el encargo pidió la prioridad y la boleta trae las señales. */
-      if (_partes.some((p) => p.clave === "primero") && Array.isArray(contexto.figs) && contexto.figs.length) {
+      if ((_partes.some((p) => p.clave === "primero") || dominiosDelEncargo(_partes).length >= 2) && Array.isArray(contexto.figs) && contexto.figs.length) {   // con varios dominios, siempre (owner 2026-09-14)
         const _pc = (() => { try { return prioridadIntegradaCambiada(texto, contexto.figs, dominiosDelEncargo(_partes)); } catch { return null; } })();
         if (_pc) v.push({ regla: "prioridad-integrada-cambiada", multa: _pc });
       }

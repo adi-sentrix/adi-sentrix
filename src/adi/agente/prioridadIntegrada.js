@@ -250,13 +250,19 @@ export function prioridadIntegradaCambiada(texto, figs, dominios = []) {
   if (!P || !P.integrada.length) return null;
   const primera = P.integrada[0].entidad;
   const t = String(texto || "");
-  const parrafos = t.split(/\n\s*\n/).filter((p) => _PRIORIDAD.test(p));
-  if (!parrafos.length) return null;   // sin prioridad dicha, esto no juzga (la cobertura del encargo ya cobra que falte)
   /* «Líder» con tilde (corrida en vivo, 2026-09-14): el modelo acentuó el nombre las 13 veces y la ley no lo reconoció —
    * un falso positivo propio que tumbó una respuesta correcta. El nombre se compara sin tildes, en los dos lados. */
   const _sinTildes = (s) => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const esc = _sinTildes(primera).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  if (parrafos.some((p) => new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, "iu").test(_sinTildes(p)))) return null;
+  const _re = (nombre) => new RegExp(`(?<![\\p{L}\\p{N}])${_sinTildes(nombre).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`, "iu");
+  /* el CIERRE es el último párrafo con prioridad QUE HABLA DE LAS CUENTAS (owner 2026-09-14, segundo prompt de producción):
+   * «Yo miraría primero Falabella —criterio mío—» al final de una lectura de tres dominios es una prioridad local servida
+   * como global. La primera del procedimiento tiene que estar nombrada en ese último párrafo, no en cualquiera. Un párrafo
+   * de inventario («LG-DRYER8KG primero») es otra clave y no compite con las cuentas: no cuenta como cierre de éstas. */
+  const cuentas = P.integrada.map((c) => c.entidad);
+  const parrafos = t.split(/\n\s*\n/).filter((p) => _PRIORIDAD.test(p) && cuentas.some((e) => _re(e).test(_sinTildes(p))));
+  if (!parrafos.length) return null;   // sin prioridad dicha sobre las cuentas, esto no juzga (la cobertura del encargo ya cobra que falte)
+  const cierre = parrafos[parrafos.length - 1];
+  if (_re(primera).test(_sinTildes(cierre))) return null;
   const v = P.integrada[0].versus;
   return `la prioridad integrada del procedimiento es ${primera}${v && v.gana.length ? ` (antes que ${v.contra}: más grave en ${v.gana.map((it) => `${it.nombre}, ${it.a} contra ${it.b}`).join("; ")})` : ""} y tu prioridad no la nombra. La conclusión es del procedimiento: explícala, no la cambies — puedes decir la prioridad de cada dominio, pero la integrada abre con ${primera}.`;
 }

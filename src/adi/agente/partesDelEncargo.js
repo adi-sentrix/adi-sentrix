@@ -96,7 +96,12 @@ export const PARTES = [
       `\\bqu[eé] hacer primero`, `\\bprioridad${_FIN}`, `\\bqu[eé] har[ií]a primero`,
       /* «dónde pondrías el foco primero» (producción 2026-09-14) y sus formas */
       `\\bd[oó]nde (?:pondr[ií]as|pones|pondr[ií]a) (?:el |tu )?(?:foco|esfuerzo|energ[ií]a|atenci[oó]n)`, `\\b(?:el )?foco primero${_FIN}`, `\\bqu[eé] priorizar(?:[ií]as)?${_FIN}`, `\\bprioriza(?:r)?${_FIN}`,
-      `\\bqu[eé] (?:atacar|abordar|resolver)(?:[ií]as)? primero`, `\\bpor d[oó]nde partir[ií]as${_FIN}`].join("|"), "i"),
+      `\\bqu[eé] (?:atacar|abordar|resolver)(?:[ií]as)? primero`, `\\bpor d[oó]nde partir[ií]as${_FIN}`,
+      /* las formas naturales de pedir la misma decisión (owner 2026-09-14, segundo prompt de producción): «mayor riesgo», «qué
+       * debería preocuparme», «qué es prioritario», «qué es lo más grave», «qué merece atención primero» */
+      `\\b(?:el |mi |tu )?mayor riesgo${_FIN}`, `\\bd[oó]nde (?:est[aá]|tengo) (?:hoy )?(?:el )?(?:mayor )?riesgo${_FIN}`, `\\bdeber[ií]a (?:preocuparme|preocuparte|preocupar(?:le|nos)?)${_FIN}`,
+      `\\bqu[eé] (?:me|te|nos) preocupa${_FIN}`, `\\bprioritari[oa]s?${_FIN}`, `\\blo m[aá]s grave${_FIN}`, `\\bmerecen? (?:m[aá]s )?atenci[oó]n(?: primero)?${_FIN}`,
+      `\\bqu[eé] (?:cliente|cuenta|sku|producto)s? (?:o (?:cliente|cuenta|sku|producto)s? )?(?:deber[ií]a|tendr[ií]a que|hay que) (?:mirar|atender|revisar|abrir) primero`].join("|"), "i"),
     cubre: /\bprimero\b|\bprioridad|\bfoco\b|\bempezar[ií]a|\bpartir[ií]a|\bentrar[ií]a|\barrancar[ií]a|\bprimer (?:paso|movimiento)/i },
 ];
 

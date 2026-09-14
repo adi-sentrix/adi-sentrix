@@ -134,6 +134,10 @@ Derivadas que se rompen seguido:
   cada lente ordena (prioridad por dominio); entre dominios, señal por señal en la clave real (el cliente), nunca por suma
   de montos; coincidir agrava, no decide; los SKU van aparte; el criterio se dice con las cifras. Es la conclusión del
   procedimiento: viaja al cerebro y `prioridad-integrada-cambiada` veta que la cambie. Medido: Lider antes que Falabella.
+  **Y el cierre integrado va siempre** en un encargo multidominio que pide una sola lectura, aunque el usuario no diga
+  «prioridad» («mayor riesgo», «qué debería preocuparme», «prioritario», «lo más grave», «merece atención primero» son la
+  misma decisión); ninguna prioridad local («Yo miraría primero Falabella, criterio mío») sobrevive como global; el Notario
+  verifica que el último párrafo con prioridad sobre las cuentas nombre a la primera. Dos casos permanentes.
 
 ---
 

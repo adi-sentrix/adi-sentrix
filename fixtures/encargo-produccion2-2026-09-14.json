@@ -1,0 +1,18 @@
+{
+  "fecha": "2026-09-14",
+  "tenant": "demo",
+  "version_observada": "2.30 (producción, commit de369bb)",
+  "nota": "Segundo prompt real del owner en producción v2.30: pidió el mayor riesgo económico del negocio cruzando los tres dominios, una sola lectura y qué cliente o SKU debería preocuparle primero. La cobertura salió bien, pero la respuesta (el respaldo) terminó con «Yo miraría primero Falabella —criterio mío, no una cifra del dato—», la prioridad comercial de la foto del negocio servida como global. Causa: la parte «primero» no se reconocía con esas formas («mayor riesgo», «debería preocuparme», «prioritario») y el cierre integrado estaba condicionado a pedirla literalmente. Estándar del owner: en un encargo multidominio que pide una sola lectura, ADI termina SIEMPRE con la prioridad integrada; ninguna prioridad local sobrevive como global; modelo, reparación y respaldo comparten la conclusión; el Notario la verifica.",
+  "pregunta": "Quiero que mires el negocio completo y me digas dónde tengo hoy el mayor riesgo económico. Cruza ventas, contribución, margen, inventario y cobranza. No quiero cinco análisis separados: quiero una sola lectura. Dime qué cliente o SKU debería preocuparme primero, qué señales lo hacen prioritario, qué está demostrado, qué solo está indicado y qué todavía no puedes saber. Si mi intuición inicial no coincide con los datos, corrígeme.",
+  "dominios_pedidos": [
+    "comercial",
+    "inventario",
+    "cobranza"
+  ],
+  "cierre_observado": "Yo miraría primero Falabella —criterio mío, no una cifra del dato—: ahí coinciden el volumen y la carga excedida. Si quieres seguir, la abro por ahí.",
+  "respuesta_observada": {
+    "estado": "encargo-compuesto",
+    "via": "respaldo",
+    "prioridad_servida": "Falabella (prioridad comercial de la foto del negocio, sin cierre integrado)"
+  }
+}

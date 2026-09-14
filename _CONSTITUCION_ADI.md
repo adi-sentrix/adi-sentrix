@@ -227,6 +227,17 @@ el cruce contra la carpeta real. Antes de pantalla:
    Medido en el demo: por dominio comercial → Falabella, cobranza → Lider, inventario → LG-DRYER8KG; integrada Lider >
    Falabella > Sodimac (por la señal de tiempo sobre Jumbo) > Jumbo; el borrador vivo del modelo, que puso a Lider
    primero por su cuenta, pasa la ley; la versión que pone a Falabella arde con las razones en la multa.
+   - **El cierre integrado va siempre** (owner 2026-09-14, segundo prompt de producción: «dónde tengo hoy el mayor riesgo
+     económico… qué cliente o SKU debería preocuparme primero» — la respuesta terminó con «Yo miraría primero Falabella,
+     criterio mío», la prioridad comercial de la foto servida como global). Textual: *«En un encargo multidominio que
+     pide una sola lectura del negocio, ADI debe terminar siempre con una prioridad integrada, aunque el usuario no use
+     literalmente "prioridad", "qué harías primero" o "dónde pondrías el foco". "Mayor riesgo", "qué debería
+     preocuparme", "qué es prioritario", "qué es lo más grave", "qué merece atención primero" son formas naturales de
+     pedir esa misma decisión.»* Ninguna prioridad local de un solo dominio sobrevive presentada como global; Falabella
+     puede seguir siendo la prioridad comercial; el cierre usa la integrada oficial; modelo, reparación y respaldo
+     comparten la conclusión, y el Notario la verifica (`prioridad-integrada-cambiada`: el último párrafo con prioridad
+     que hable de las cuentas nombra a la primera). Caso permanente: `fixtures/encargo-produccion2-2026-09-14.json`; en
+     vivo, verde en una llamada (`fixtures/encargo2-vivo-2026-09-14.json`).
 2. **¿Cada cálculo se puede recalcular?** La fórmula mostrada se recomputa. No cuadra o no muestra origen →
    bloqueado.
 3. **¿Cada clasificación existe?** «Frenado», «bajo benchmark», «crítico»: solo los estados que la carpeta

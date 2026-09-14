@@ -12,6 +12,28 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.31 — lista para desplegar
+
+**El cierre integrado va siempre.** Segundo prompt real del owner en producción v2.30: «¿dónde tengo hoy el mayor riesgo
+económico?… una sola lectura… qué cliente o SKU debería preocuparme primero». La cobertura salió bien, pero la respuesta
+terminó con «Yo miraría primero Falabella —criterio mío—»: la prioridad comercial de la foto del negocio servida como
+global, porque la parte «qué haría primero» no se reconocía con esas palabras y el cierre integrado estaba condicionado a
+pedirla literalmente. Estándar del owner: en un encargo multidominio que pide una sola lectura, ADI termina siempre con
+la prioridad integrada; «mayor riesgo», «qué debería preocuparme», «prioritario», «lo más grave», «merece atención
+primero» son formas naturales de pedir la misma decisión.
+
+- Con dos o más dominios, el respaldo cierra siempre con la prioridad integrada y ningún criterio de una parte sola
+  sobrevive en su lugar; al cerebro le viaja siempre la conclusión del procedimiento; y el Notario verifica que el último
+  párrafo con prioridad sobre las cuentas nombre a la primera (`prioridad-integrada-cambiada`) — modelo, reparación y
+  respaldo comparten la conclusión.
+- Falabella sigue siendo la prioridad comercial; el inventario va aparte; el cierre usa la integrada oficial: Lider.
+
+**Resultado medido:** los dos prompts de producción como casos permanentes con cerebro mudo (respaldo: Lider primero en
+ambos); en vivo, el segundo prompt salió verde en una llamada: «El mayor riesgo hoy … es Lider», explicado por severidad y
+urgencia, «coincidir … agrava, no lo decide». Suite completa en verde, sin tocar la red.
+
+---
+
 ## 2.30 — producción · tag `v2.30`
 
 **La prioridad integrada se decide por señales, no por cuántos dominios coinciden.** Sobre el mismo prompt de producción

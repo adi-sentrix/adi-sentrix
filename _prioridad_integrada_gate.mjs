@@ -195,5 +195,52 @@ H("7 · la tercera corrida viva (autorizada, 2 llamadas): la reparación cumpli�
   ok(ardeM("Falabella supera el benchmark con su margen de 22.0%.", "relacion-contradictoria"), "candado: «Falabella supera el benchmark» (está 8.1 pp bajo) sigue ardiendo");
 }
 
+/* ═══ 8 · EL SEGUNDO CASO PERMANENTE: «EL MAYOR RIESGO ECONÓMICO» — EL CIERRE INTEGRADO VA SIEMPRE ══════════════════ */
+H("8 · segundo prompt de producción: pide el mayor riesgo con sus palabras — el cierre integrado va siempre y ninguna prioridad local sobrevive como global");
+{
+  const FX2 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-produccion2-2026-09-14.json", import.meta.url), "utf8"));
+  const Q2 = FX2.pregunta;
+  ok(/mayor riesgo económico/.test(Q2) && /debería preocuparme primero/.test(Q2) && /prioritario/.test(Q2) && !/\bprioridad\b|har[ií]as primero|pondr[ií]as el foco/.test(Q2), "el prompt pide la decisión con sus palabras: «mayor riesgo», «debería preocuparme primero», «prioritario» — sin «prioridad» ni «qué harías primero»");
+  const partes2 = partesDelEncargo(Q2);
+  ok(partes2.map((p) => p.clave).join(",") === "foto,cruce-sku,inventario,cobranza,sello,primero", `★ la parte «primero» se reconoce (${partes2.map((p) => p.clave).join(" → ")})`);
+  for (const f of ["¿Dónde está hoy el mayor riesgo del negocio, qué lo explica y qué puedes demostrar?", "Mira ventas y cobranza: qué cliente debería preocuparme, qué está probado y qué es lo más grave.", "Cruza inventario y ventas y dime qué SKU merece atención primero, por qué y qué no sabes."])
+    ok(partesDelEncargo(f).some((p) => p.clave === "primero"), `…y también «${f.slice(0, 60)}…»`);
+  MUDO.llamadas = [];
+  const r = await answerViaAgente({ text: Q2, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
+  const t = r.r.text;
+  const cierre = t.slice(t.indexOf("Dónde pondría el foco primero"));
+  ok(r.r.agente.estado === "encargo-compuesto" && t.indexOf("Dónde pondría el foco primero") > 0, `★ el respaldo cierra con la prioridad integrada (${r.r.agente.estado})`);
+  ok(/^1\. Lider — /m.test(cierre) && /antes que Falabella/.test(cierre) && /Por dominio: comercial → Falabella/.test(cierre) && /En inventario \(clave SKU/.test(cierre), "★ …Lider primero por señales; Falabella sigue como prioridad comercial; el inventario aparte");
+  ok(!/criterio mío|Yo mirar[ií]a primero|entrar[ií]a por Falabella|Si fuera mi decisi[oó]n/.test(t), "★ ninguna prioridad local («Yo miraría primero Falabella —criterio mío—») sobrevive en la lectura");
+  ok(t.trimEnd().endsWith("agrava, no decide.") , "…y la lectura termina en el criterio de la prioridad integrada, no en una oferta de una parte");
+  ok(r.r.agente.vetos.length === 0, "pasa muro, contrato y notarial", JSON.stringify(r.r.agente.vetos).slice(0, 200));
+  const de = (MUDO.llamadas[0] ? MUDO.llamadas[0].mensajes : []).map((m) => String(m.content || "")).find((c) => c.startsWith("[ENCARGO COMPUESTO"));
+  ok(de && /\[PRIORIDAD DEL PROCEDIMIENTO/.test(de) && /1º Lider · 2º Falabella/.test(de), "★ el cerebro recibe la misma conclusión (modelo, reparación y respaldo comparten la prioridad)");
+  /* la ley: el CIERRE con la prioridad local arde; con Lider en el cierre, pasa */
+  const F2 = figsDe(DOMS);
+  const conLocal = t.replace(/\n\nDónde pondría el foco primero[\s\S]*$/, "") + "\n\n" + FX2.cierre_observado;
+  const m = prioridadIntegradaCambiada(conLocal, F2, DOMS);
+  ok(m && /la prioridad integrada del procedimiento es Lider/.test(m), "★ la respuesta observada en producción (cierra con «Yo miraría primero Falabella —criterio mío—») arde: una prioridad local no se sirve como global", String(m).slice(0, 160));
+  ok(vetosDeRegistro(conLocal, { pregunta: Q2, figs: F2, sitio: "cierre" }).some((x) => x.regla === "prioridad-integrada-cambiada"), "…también por vetosDeRegistro, sin que el encargo diga «prioridad» (dos o más dominios bastan)");
+  ok(!prioridadIntegradaCambiada(conLocal + "\n\nIntegrando las señales, Lider va primero: $4.6M vencidos a 269 días y 8.6 pp bajo el benchmark.", F2, DOMS), "…y si el cierre nombra a Lider, pasa aunque antes haya dicho la prioridad comercial de Falabella");
+  ok(!prioridadIntegradaCambiada("Por dominio: en comercial partiría por Falabella. Integrando, pondría Lider primero.\n\nEn inventario, LG-DRYER8KG primero.", F2, DOMS), "un cierre de inventario después del integrado no cambia la conclusión (el último párrafo con prioridad global es el que nombra a Lider… o el de inventario, que no compite con las cuentas)");
+}
+
+/* ═══ 9 · LA CORRIDA VIVA DEL SEGUNDO CASO: VERDE EN UNA LLAMADA, Y EL NOTARIO VERIFICA LA MISMA PRIORIDAD ═══════ */
+H("9 · el segundo prompt en vivo (autorizado, 1 llamada): el modelo terminó en Lider por señales; modelo y respaldo comparten la conclusión");
+{
+  const V = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo2-vivo-2026-09-14.json", import.meta.url), "utf8"));
+  const FX2 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-produccion2-2026-09-14.json", import.meta.url), "utf8"));
+  const tv = V.final.texto;
+  ok(V.pregunta === FX2.pregunta && V.final.estado === "verde" && V.llamadas === 1, "la corrida: el prompt exacto, verde en una llamada");
+  ok(/es \*\*Lider\*\*/.test(tv) && /\*\*Lider es la prioridad integrada\*\*/.test(tv) && /Va primero que Falabella no por el monto de contribución/.test(tv), "★ el modelo abre con Lider como el mayor riesgo y lo explica por severidad y urgencia, no por el monto");
+  ok(/Coincidir en cobranza vencida y margen deprimido agrava el caso, no lo decide por sí solo/.test(tv), "…y dice que coincidir agrava, no decide");
+  ok(/Comercial: Falabella encabeza por monto/.test(tv) && /Inventario: LG-DRYER8KG/.test(tv), "…Falabella sigue como prioridad comercial y el inventario va aparte");
+  const F2 = figsDe(DOMS);
+  ok(!prioridadIntegradaCambiada(tv, F2, DOMS) && !vetosDeRegistro(tv, { pregunta: FX2.pregunta, figs: F2, sitio: "cierre" }).length, "★ el Notario verifica la misma prioridad: la ley pasa sobre el texto servido (agente y Notario avanzan juntos)");
+  const r = await answerViaAgente({ text: FX2.pregunta, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: tv, stop: "end_turn" }) });
+  ok(r.r.agente.estado === "verde" && r.r.text === tv, `…y con ese texto como cerebro el turno se sirve verde offline (${r.r.agente.estado})`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
+}
+
 console.log(`\n── _prioridad_integrada_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
 process.exit(FAIL ? 1 : 0);
