@@ -375,5 +375,49 @@ H("12 · las dos pruebas vivas de la v2.31 (autorizadas, 2 llamadas cada una): d
   ok(!prioridadIntegradaCambiada(f2, FIGS, DOMS, criterioDeLaPregunta(LE.pregunta) || {}) && !vetosDeRegistro(f2, { pregunta: LE.pregunta, figs: M2.rp.ledger.figs, sitio: "poda" }).length && M2.muro(f2).length === 0, "…y lo servido pasa la ley, el contrato y el muro", M2.muro(f2).map((x) => x.kind).join(","));
 }
 
+/* ═══ 13 · LAS SEGUNDAS CORRIDAS (v2.31): DOS FALSOS POSITIVOS MÁS EN LA PRUEBA 1 — CERRADOS — Y LO QUE EL MURO NO VIO EN LA 2 ═ */
+H("13 · segundas corridas vivas (autorizadas, 2 llamadas cada una): la prueba 1 cayó por «recuperas $22K» y «cambia el orden» — cerrados; la prueba 2 sirvió la reparación con dos errores que el muro no vio (caso al owner)");
+{
+  const V6 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo6-2026-09-14.json", import.meta.url), "utf8"));
+  const L2 = JSON.parse(fs.readFileSync(new URL("./fixtures/lectura-ejecutiva-vivo2-2026-09-14.json", import.meta.url), "utf8"));
+  const { guardC } = await import("./src/adi/oracle/guardC.js");
+  const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
+  const { playbookPara, pasosDe } = await import("./src/adi/agente/playbooks/registro.js");
+  const { pasosDelEncargo } = await import("./src/adi/agente/encargoCompuesto.js");
+  const { axisEntityNames } = await import("./src/adi/oracle/entityIndex.js");
+  const _ejes = (lista) => { const o = []; for (const e of lista) { try { for (const n of axisEntityNames(e)) o.push(n); } catch { /* eje sin índice */ } } return o.length ? o : null; };
+  /* el muro con el MISMO contexto que el bucle (entidades y dueños del tenant): sin eso el ranking sin cola ni se evalúa */
+  const muroDe = (pregunta) => {
+    const pb = playbookPara(pregunta, {});
+    const rp = runPlan({ intent: "answer", calls: pasosDelEncargo(partesDelEncargo(pregunta), pb ? pasosDe(pb, pregunta, {}) : [], {}).map((p) => ({ tool: p.tool, args: p.args || {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 18, preguntaUsuario: pregunta, registry: CAJA });
+    return { rp, muro: (t) => { const v = guardC(t, { ledger: { figs: rp.ledger.figs }, results: rp.results, trace: null, question: pregunta, datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), entidadesDelTenant: _ejes(["cliente", "sku", "marca"]), duenosDelTenant: _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]), contentScope: "full" }); return v.ok ? [] : (v.violations || []); } };
+  };
+  /* ── prueba 1, segunda corrida: el respaldo se sirvió porque dos falsos positivos tumbaron al modelo ── */
+  ok(V6.pregunta === Q && V6.final.estado === "encargo-compuesto" && V6.borradores.length === 2 && /«\$22K».*MAK-COMP-AIR/.test(V6.final.vetos[0]) && /anuncias un orden y muestras 8 de 13/.test(V6.final.vetos[1]), "la corrida: el prompt exacto, dos borradores, el usuario recibió el respaldo; los vetos fueron «$22K» y «anuncias un orden y muestras 8 de 13»");
+  const M1 = muroDe(Q);
+  const c1 = V6.borradores[0].texto, r1 = V6.borradores[1].texto;
+  ok(/libéralo junto con MAK-COMP-AIR y recuperas \$22K/.test(c1) && M1.rp.ledger.figs.some((f) => /liberar LG-DRYER8KG y MAK-COMP-AIR/.test(f.label) && f.value === "$22K"), "«libéralo junto con MAK-COMP-AIR y recuperas $22K»: el rótulo de la medida nombra a los dos SKU — no es un total huérfano");
+  ok(!M1.muro(c1).some((x) => x.kind === "total-mal-atribuido" && /\$22K/.test(String(x.detail))), "★ ya no arde: la medida que nombra a sus dueños en el rótulo se cuelga de uno de ellos con razón (el verbo era «contribuye», de la cláusula anterior)");
+  ok(/lo declaro porque cambia el orden/.test(r1) && !M1.muro(r1).some((x) => x.kind === "ranking-sin-cola"), "★ «lo declaro porque cambia el orden» ya no anuncia un ranking: la reparación pasa el muro");
+  ok(M1.muro(r1).length === 0 && !vetosDeRegistro(r1, { pregunta: Q, figs: M1.rp.ledger.figs, sitio: "reparacion" }).length, "…y pasa entera: muro y contrato", M1.muro(r1).map((x) => x.kind).join(","));
+  for (const [i, b] of [c1, r1].entries()) {
+    const r = await answerViaAgente({ text: Q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: b, stop: "end_turn" }) });
+    ok(r.r.agente.estado === "verde" && r.r.text.split(/\s+/).length >= 700, `★ con el ${i ? "segundo" : "primer"} borrador vivo como cerebro, el turno se sirve entero y verde (${r.r.agente.estado}, ${r.r.text.split(/\s+/).length} palabras): el usuario recibe la lectura del modelo`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
+  }
+  ok(/\*\*Lider primero\*\*/.test(c1) && /Con criterio de riesgo integrado \(materialidad \+ severidad \+ urgencia, señal por señal, sin sumar dominios\)/.test(c1) && /Falabella solo le gana en contribución no capturada/.test(c1) && /En inventario, el foco es LG-DRYER8KG/.test(c1) && coberturaDelEncargo(c1, partesDelEncargo(Q)).length === 0, "el modelo cumplió: tres dominios, Lider primero por riesgo integrado con el criterio dicho, Falabella por contribución, inventario aparte");
+  /* candados: lo que sí anuncia un ranking y lo que sí es un total huérfano siguen ardiendo */
+  const ardeK = (t, k) => M1.muro(t).some((x) => x.kind === k);
+  ok(ardeK("El orden es: LG-DRYER8KG, BOS-SANDER, MAK-COMP-AIR, SAM-TV55, LG-WASH11KG, PHI-SHAVER9, SAM-REF500L y PHI-HAIR-PRO.", "ranking-sin-cola") && ardeK("En este orden: LG-DRYER8KG, BOS-SANDER, MAK-COMP-AIR, SAM-TV55, LG-WASH11KG, PHI-SHAVER9, SAM-REF500L y PHI-HAIR-PRO.", "ranking-sin-cola") && ardeK("Ranking de SKU por peor rotación: MAK-COMP-AIR 0.8x, LG-DRYER8KG 1.0x, BOS-SANDER 1.6x, PHI-IRON-PRO 2.4x, SAM-TV55 3.6x, MAK-SAW18V 5.2x, LG-AIR9000 5.8x.", "ranking-sin-cola"), "candados: «el orden es», «en este orden» y «ranking de» con 8 de 13 siguen ardiendo");
+  ok(ardeK("Falabella genera $4.9M de contribución no capturada.", "total-mal-atribuido") && ardeK("SAM-TV55 representa $22K de capital liberable.", "total-mal-atribuido"), "candados: el subtotal de 5 cuentas colgado de Falabella y el $22K colgado de un SKU que el rótulo no nombra siguen ardiendo");
+  /* ── prueba 2, segunda corrida: se sirvió la reparación, y lleva dos errores que el muro no ve (caso al owner, sin publicar) ── */
+  ok(L2.final.estado === "reparado" && L2.borradores.length === 2 && Math.abs(L2.final.texto.length - L2.borradores[1].texto.length) <= 8, "la corrida: dos borradores, el usuario recibió la reparación entera");
+  const M2 = muroDe(L2.pregunta);
+  const f2 = L2.final.texto;
+  ok(/Falabella, Lider, Jumbo, Sodimac y Paris \(73\.8% de la venta\)/.test(f2) && JSON.stringify(M2.rp.results).includes('"n":6,"pesoVenta":73.8'), "lo servido dice «Falabella, Lider, Jumbo, Sodimac y Paris (73.8% de la venta)» — y el 73.8% es el peso de SEIS cuentas en los results (falta Ripley)");
+  ok(/la segunda mayor brecha de margen, 8\.6 pp/.test(f2) && M2.rp.ledger.figs.filter((x) => /Brecha al benchmark/.test(x.label) && !/negocio/i.test(x.label)).every((x) => x.raw <= 8.6), "…y «la segunda mayor brecha de margen, 8.6 pp»: la de Lider es la MAYOR de todas");
+  ok(M2.muro(f2).length === 0, "el muro no ve ninguno de los dos hoy (la cifra de un grupo repartida a un grupo distinto; el ordinal): ESTÁNDAR PENDIENTE DEL OWNER", M2.muro(f2).map((x) => x.kind).join(","));
+  ok(M2.muro(L2.borradores[0].texto).some((x) => x.kind === "total-mal-atribuido" && /\$33K/.test(String(x.detail))), "el cierre cayó además por «$33K frenados en total, concentrados en Valparaíso (75%)»: el total con su parte dicha — FALSO POSITIVO pendiente (decisión del owner), documentado como está hoy");
+}
+
 console.log(`\n── _prioridad_integrada_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
 process.exit(FAIL ? 1 : 0);

@@ -759,6 +759,13 @@ function _totalMisattribution(narration, ledger, entityNames) {
     const near = new Set();
     for (const e of ents) { e.re.lastIndex = 0; let mm; while ((mm = e.re.exec(text))) if (mm.index >= lo && mm.index <= hi) near.add(e.n); }
     if (near.size >= 1 && near.size <= 2) {
+      /* LA MEDIDA QUE NOMBRA A SUS DUEÑOS EN EL RÓTULO (prueba 1 de la v2.31, 2026-09-14, corrida viva): «Medida ·
+       * liberar LG-DRYER8KG y MAK-COMP-AIR = $22K» no es un total huérfano —el rótulo dice de quiénes es, aunque ningún
+       * segmento sea un nombre a secas—, y «libéralo junto con MAK-COMP-AIR y recuperas $22K» se la cuelga a uno de
+       * ellos: correcto. El verbo que disparó era «contribuye», de la cláusula anterior. Si el texto la cuelga de
+       * alguien que el rótulo NO nombra, sigue ardiendo. */
+      const nombradosEnRotulo = new Set((ledger.figs || []).filter((x) => x.canon === f.canon).flatMap((x) => _figEntityOwners(String(x.label || ""), entityNames)));
+      if (nombradosEnRotulo.size && [...near].every((n) => nombradosEnRotulo.has(n))) continue;
       viol.push(`«${f.text}» (cifra total/global, sin dueño único) aparece atribuida a ${[...near].join(" y ")} con un verbo de equivalencia — el dato tiene ${entityNames.length} entidades en juego, no solo esa(s)`);
     }
   }
@@ -3104,7 +3111,11 @@ const _UNIVERSO_DECLARADO = /\ba[nñ]o\s+cerrado\b|\bfoto\s+de\s+hoy\b|\bventa\s
  * bajo de toda la cartera» ya dijo de cuál habla. Exigirlo en cada mención de la palabra es pedir que se repita
  * la etiqueta, no que se declare el universo — y eso vetaba prosa correcta. */
 const _MARGEN_CON_UNIVERSO = /\bmargen(?:es)?\s+(?:de\s+)?(?:inventario|venta|ventas|comercial)\b/i;
-const _ANUNCIA_RANKING = /\branking\b|\bordenad[oa]s?\s+(?:por|de)\b|\bde\s+peor\s+a\s+mejor\b|\bde\s+mejor\s+a\s+peor\b|\bel\s+orden\b/i;
+/* «cambia el orden» / «lo declaro porque cambia el orden» NO anuncian un ranking (prueba 1 de la v2.31, 2026-09-14, corrida
+ * viva: la reparación cayó por «el orden» dicho de pasada sobre la prioridad entre cuentas, y el chequeo contó 8 SKU de 13
+ * repartidos por todo el texto). Anuncia un orden quien lo presenta: «el orden es/queda/sería», «en este orden», «por
+ * orden de», «ordenados por», «ranking». */
+const _ANUNCIA_RANKING = /\branking\b|\bordenad[oa]s?\s+(?:por|de)\b|\bde\s+peor\s+a\s+mejor\b|\bde\s+mejor\s+a\s+peor\b|\bel\s+orden\s+(?:es|ser[ií]a|queda|va)\b|\ben\s+(?:este|ese)\s+orden\b|\bpor\s+orden\s+de\b/i;
 /* UNA TASA ES LA MISMA CIFRA COMO NIVEL («4.5%») O COMO DELTA («4.5pp») — la regla ya vigente para los insumos de
  * un cálculo, subida acá para que también la use la quinta fuente. Sin esto, «el máximo aplicable es 1.8pp» moría
  * como cifra inventada aunque la carpeta declare esa carga como 1.8% con su dueño. Devuelve null si no es tasa. */
