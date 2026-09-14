@@ -128,6 +128,12 @@ Derivadas que se rompen seguido:
   ensamblador)—; el cerebro recibe la doctrina del encargo y el cruce ya no le dice «SOLO cuando cambie la lectura». Una
   pregunta simple de dos dominios no es un encargo: la selectividad sigue permitida. ⚠️ El 20×3 no vio este caso porque
   ninguna de las 20 es un encargo compuesto y medía dominios en la BOLETA, no en la RESPUESTA.
+- **La prioridad integrada por señales** (owner 2026-09-14; ley en `_CONSTITUCION_ADI.md`, `src/adi/agente/prioridadIntegrada.js`,
+  candado `_prioridad_integrada_gate`, caso permanente: el mismo prompt de producción): «materialidad + severidad + urgencia
+  de cada señal, no solo cuántos dominios coinciden». Tres lentes por dominio con señales de la boleta; dentro del dominio
+  cada lente ordena (prioridad por dominio); entre dominios, señal por señal en la clave real (el cliente), nunca por suma
+  de montos; coincidir agrava, no decide; los SKU van aparte; el criterio se dice con las cifras. Es la conclusión del
+  procedimiento: viaja al cerebro y `prioridad-integrada-cambiada` veta que la cambie. Medido: Lider antes que Falabella.
 
 ---
 

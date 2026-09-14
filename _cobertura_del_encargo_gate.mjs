@@ -113,7 +113,7 @@ for (const c of CASOS) {
     ok(!new RegExp(`${CLIENTES.source}[^.\\n]{0,80}\\b(?:stock|inventario|frenad)`, "i").test(t), "   ningún cliente queda relacionado con el inventario (esa clave no existe en el archivo)");
   }
   if (c.dominios.includes("cobranza")) ok(/Tus principales clientes por venta, con su saldo y su vencido al lado/.test(t), "   la cobranza va cruzada por cliente con la venta (clave real: la misma cuenta)");
-  ok(/Dónde pondría el foco primero — una sola lista/.test(t) && (t.match(/^Criterio:/gm) || []).length === 1, "   ★ cierra con UNA prioridad integrada y su criterio dicho");
+  ok(/Dónde pondría el foco primero — por señales comparables dentro de cada dominio/.test(t) && (t.match(/^Criterio:/gm) || []).length === 1, "   ★ cierra con UNA prioridad integrada y su criterio dicho");
   ok(!/¿Lo abrimos por|Dime y lo abrimos|Si igual quieres verlo/.test(t), "   una sola lectura: sin ofertas de cierre de cada parte");
   ok(r.r.agente.vetos.length === 0, "   el ensamblador pasó el muro, el contrato y la notarial sin vetos", JSON.stringify(r.r.agente.vetos).slice(0, 200));
 }
@@ -123,8 +123,8 @@ for (const c of CASOS) {
   ok(/Unidades vendidas en el período/.test(t) && /Jumbo · 1194 unidades/.test(t), "producción: las unidades vendidas por cliente (Jumbo 1194)");
   ok(/Entre los que más venden no aparece capital frenado: el capital frenado está en LG-DRYER8KG, BOS-SANDER, MAK-COMP-AIR/.test(t), "producción: el cruce por SKU dice dónde está el frenado — SKU, no bodegas");
   ok(/Falabella · venta \$19\.4M · saldo \$8\.2M · vencido \$2\.5M/.test(t) && /Lider · venta \$17\.8M · saldo \$9\.8M · vencido \$4\.6M/.test(t), "producción: los principales clientes con su saldo y su vencido al lado");
-  ok(/1\. Falabella \(comercial \+ cobranza\): \$1\.6M de contribución sin capturar en el período y \$2\.5M vencidos al corte/.test(t), "★ producción: la prioridad integrada abre donde coinciden dos dominios en la misma cuenta (Falabella)");
-  ok(/\(inventario\): el mayor capital frenado de la foto, \$14K con 165d de inventario/.test(t), "…y el inventario entra en la misma lista con su marco (LG-DRYER8KG, $14K, 165d)");
+  ok(/^1\. Lider — /m.test(t) && /antes que Falabella: más grave en comercial, distancia al benchmark \(8\.6 pp contra 8\.1 pp\); en cobranza, vencido \(\$4\.6M contra \$2\.5M\)/.test(t), "★ producción: la prioridad integrada abre con Lider, por señales (materialidad + severidad + urgencia), no por «coincide en dos dominios» (ver _prioridad_integrada_gate)");
+  ok(/En inventario \(clave SKU: no se compara con las cuentas\): LG-DRYER8KG primero — \$14K frenados, 165d de inventario, 94d sin venta/.test(t), "…y el inventario entra aparte, con su clave y sus lentes (LG-DRYER8KG, $14K, 165d, 94d sin venta)");
   ok(/Lo que puedo demostrar y lo que no/.test(t) && /queda localizado, no explicado/.test(t), "…y lo demostrado, lo indicado y lo abierto siguen separados");
 }
 
@@ -158,7 +158,7 @@ H("4 · el cerebro recibe la lista completa de lo pedido y la ley del foco; el c
   ok(!!de, "viaja la doctrina del encargo");
   ok(de && /pidió 9 cosas en 3 dominios \(comercial \+ inventario \+ cobranza\)/.test(de) && /LA RESPUESTA LAS CUBRE TODAS/.test(de) && /el foco ordena y jerarquiza, no elimina/.test(de), "…con las 9 cosas, los 3 dominios y la ley del foco", de && de.slice(0, 200));
   ok(de && /- la cobranza: quién debe y qué está vencido/.test(de) && /- el inventario: dónde hay capital frenado/.test(de) && /- las unidades vendidas/.test(de), "…y cada parte nombrada, inventario y cobranza incluidas");
-  ok(de && /por SKU/.test(de) && /por cliente/.test(de) && /Cliente ↔ inventario y bodega ↔ venta no existen/.test(de) && /UNA prioridad común/.test(de), "…con las claves válidas, las que no existen y el cierre común");
+  ok(de && /por SKU/.test(de) && /por cliente/.test(de) && /Cliente ↔ inventario y bodega ↔ venta no existen/.test(de) && /la de cada dominio y la integrada del negocio/.test(de), "…con las claves válidas, las que no existen y el cierre: la prioridad de cada dominio y la integrada");
   ok(de && /El entregable del procedimiento activo es UNA de las partes; el entregable del turno es el encargo completo/.test(de), "…y el entregable del procedimiento (la ficha del cruce) queda como UNA parte, no como el turno");
   const cruce = contenidos.find((c) => c.startsWith("[CRUCE DE DOMINIOS"));
   ok(cruce && /pedidos explícitamente por el usuario: todos entran en la respuesta/.test(cruce) && !/SOLO cuando cambie/.test(cruce), "★ el cruce, en un encargo, dice «todos entran; el foco los ordena», no «SOLO cuando cambie la lectura»");
@@ -176,7 +176,7 @@ H("5 · degradación segura: la parte sin evidencia se declara en una línea y e
   const t = componerEncargo({ partes, leer: sinCobranza, scenario: ESCENARIO_INICIAL, mem: {}, semilla: "s", pregunta: q });
   ok(t && /Sobre la cobranza: quién debe y qué está vencido no pude armar la lectura con lo leído en este turno/.test(t), "sin la evidencia de cobranza, la parte se declara en una línea (no desaparece, no se inventa)");
   ok(t && coberturaDelEncargo(t, partes).length === 0, "…y esa declaración cuenta como cobertura: la ley no arde");
-  ok(t && /\(inventario\): el mayor capital frenado/.test(t) && !/\(cobranza\)/.test(t), "…y el cierre integrado ordena con lo que hay (inventario sí, cobranza no)");
+  ok(t && /inventario → LG-DRYER8KG/.test(t) && !/cobranza → /.test(t) && /^1\. Falabella — /m.test(t), "…y el cierre integrado ordena con lo que hay (inventario sí, cobranza no): sin señal de tiempo entre las cuentas, manda la materialidad (Falabella)");
   const b = boletaDe(q);
   const completo = componerEncargo({ partes, leer, scenario: ESCENARIO_INICIAL, mem: {}, semilla: `demo::${q}::0`, pregunta: q });   // la semilla del bucle: tenant::pregunta::largo del hilo
   const v = guardC(completo, { ledger: { figs: b.figs }, results: b.results, question: q, datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), contentScope: "full" });

@@ -1,6 +1,7 @@
 import { catalogoAgente } from "./catalogoAgente.js";   // R8 · los identificadores internos jamás van a pantalla (lazy: nada se deriva al importarse)
 import { atributoMalAsociado, relacionEnPalabrasNoCierra } from "./atributosYRelaciones.js";   // el atributo (bodega/marca/familia/canal) y la relación dicha en palabras, contra el dato (owner 2026-09-14)
-import { esEncargoCompuesto, partesDelEncargo, coberturaDelEncargo } from "./partesDelEncargo.js";   // las partes de un encargo, por dominio: el ensamblador compone la misma lista que acá se cobra (owner 2026-09-14)
+import { esEncargoCompuesto, partesDelEncargo, coberturaDelEncargo, dominiosDelEncargo } from "./partesDelEncargo.js";
+import { prioridadIntegradaCambiada } from "./prioridadIntegrada.js";   // la prioridad integrada es del procedimiento (owner 2026-09-14)   // las partes de un encargo, por dominio: el ensamblador compone la misma lista que acá se cobra (owner 2026-09-14)
 export { esEncargoCompuesto };   // re-exportado sin cambiar: registro.js y el ensamblador lo toman de acá
 /* === src/adi/agente/contratoAgente.js · LA LETRA DEL CONTRATO Y SU VETO MECÁNICO (F3 · owner 2026-08-30) =====
  *
@@ -558,6 +559,12 @@ export function vetosDeRegistro(texto, contexto = {}) {
       const _faltan = coberturaDelEncargo(texto, _partes);
       if (_faltan.length) {
         v.push({ regla: "parte-del-encargo-omitida", multa: `el encargo pidió ${_partes.length} cosas y la respuesta deja fuera ${_faltan.length}: ${_faltan.map((p) => `«${p.nombre}»`).join(" · ")}. En un encargo múltiple el foco ordena y jerarquiza, no elimina una parte pedida: cubre cada una con lo que la boleta trae (o di en una línea que ese dato no está), en una sola lectura, y cierra con la prioridad común.` });
+      }
+      /* LA PRIORIDAD INTEGRADA ES DEL PROCEDIMIENTO (owner 2026-09-14): materialidad + severidad + urgencia, señal por señal —
+       * el cerebro la explica, no la cambia. Solo cuando el encargo pidió la prioridad y la boleta trae las señales. */
+      if (_partes.some((p) => p.clave === "primero") && Array.isArray(contexto.figs) && contexto.figs.length) {
+        const _pc = (() => { try { return prioridadIntegradaCambiada(texto, contexto.figs, dominiosDelEncargo(_partes)); } catch { return null; } })();
+        if (_pc) v.push({ regla: "prioridad-integrada-cambiada", multa: _pc });
       }
     }
   }

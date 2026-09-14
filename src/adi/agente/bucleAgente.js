@@ -836,7 +836,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
        * lo pedido, la ley de cobertura («el foco ordena, no elimina»), las claves de unión válidas y el cierre integrado.
        * El contrato cobra la misma lista (`parte-del-encargo-omitida`), y el ensamblador la compone si el cerebro cae. */
       if (_partesEncargo.length >= 2) {
-        const _de = (() => { try { return doctrinaDelEncargo(_partesEncargo, _dom.dominios); } catch { return ""; } })();
+        const _de = (() => { try { return doctrinaDelEncargo(_partesEncargo, _dom.dominios, figsTotales); } catch { return ""; } })();
         if (_de) mensajes.push({ role: "user", content: _de });
       }
     }

@@ -52,6 +52,7 @@ import { pasosDe } from "./playbooks/registro.js";
 import { pasosDeDominios, unirPasosDeDominios } from "./contratoDeDominios.js";   // la realidad de inventario para sus partes (owner 2026-09-14)
 import { componerReformulacion, destinatarioDe } from "./reformular.js";
 import { partesDelEncargo as _partesDeLaHoja, dominiosDelEncargo, coberturaDelEncargo, esEncargoCompuesto } from "./partesDelEncargo.js";
+import { componerPrioridadIntegrada, conclusionDePrioridad } from "./prioridadIntegrada.js";   // materialidad + severidad + urgencia, señal por señal (owner 2026-09-14)
 export { esEncargoCompuesto, dominiosDelEncargo, coberturaDelEncargo };
 
 /* ── LOS PROCEDIMIENTOS DE CADA PARTE (la hoja los nombra; acá se resuelven) ─────────────────────────────────── */
@@ -146,39 +147,8 @@ function _cobranzaCruzada({ figs } = {}) {
   return L.join("\n");
 }
 
-/* ── EL CIERRE INTEGRADO: una sola prioridad para un encargo de varios dominios ────────────────────────────────
- * El criterio, dicho: primero la cuenta donde coinciden dos dominios con clave real (el cliente: contribución no
- * capturada del período + saldo vencido al corte); después, el mayor monto de cada dominio. Cada cifra con su marco;
- * las cifras de dominios distintos NO se suman ni se comparan entre sí — se ordenan por coincidencia, no por tamaño. */
-function _cierreIntegrado(lecturas) {
-  const fc = lecturas.get("comercial") || [], fco = lecturas.get("cobranza") || [], fi = lecturas.get("inventario") || [];
-  const ncap = _all(fc, /· Contribución no capturada$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), fmt: _val(f), n: _num(f) })).filter((x) => x.entidad && Number.isFinite(x.n)).sort((a, b) => b.n - a.n);
-  const vencidos = _all(fco, /· Saldo vencido$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), fmt: _val(f), n: _num(f) })).filter((x) => x.entidad && Number.isFinite(x.n) && x.n > 0).sort((a, b) => b.n - a.n);
-  const diasV = new Map(_all(fco, /· Dias Vencido$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
-  const diasI = new Map(_all(fi, /· Días de inventario$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
-  const frenadosTodos = _all(fi, /· Capital frenado$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), fmt: _val(f), n: _num(f) })).filter((x) => x.entidad && Number.isFinite(x.n)).sort((a, b) => b.n - a.n);
-  const frenados = frenadosTodos.filter((x) => diasI.has(x.entidad));   // los SKU (tienen días); una bodega también «tiene» capital frenado y no es un foco accionable por sí sola
-  const items = [];
-  const vistos = new Set();
-  /* 1 · la coincidencia con clave real: un cliente entre los 3 de mayor contribución no capturada que además tiene vencido */
-  const coincide = ncap.slice(0, 3).map((c) => ({ c, v: vencidos.find((x) => x.entidad === c.entidad) })).filter((p) => p.v).sort((a, b) => b.v.n - a.v.n)[0];
-  if (coincide) {
-    items.push(`${coincide.c.entidad} (comercial + cobranza): ${coincide.c.fmt} de contribución sin capturar en el período y ${coincide.v.fmt} vencidos al corte${diasV.get(coincide.c.entidad) ? ` (${diasV.get(coincide.c.entidad)})` : ""} — dos dominios coinciden en la misma cuenta.`);
-    vistos.add(coincide.c.entidad);
-  } else if (ncap[0]) {
-    items.push(`${ncap[0].entidad} (comercial): la mayor contribución sin capturar del período, ${ncap[0].fmt}.`);
-    vistos.add(ncap[0].entidad);
-  }
-  /* 2 · el mayor monto de cada dominio que falte en la lista */
-  const topV = vencidos.find((x) => !vistos.has(x.entidad));
-  if (topV && fco.length) { items.push(`${topV.entidad} (cobranza): el vencido más pesado, ${topV.fmt}${diasV.get(topV.entidad) ? ` a ${diasV.get(topV.entidad)}` : ""}.`); vistos.add(topV.entidad); }
-  if (frenados[0]) items.push(`${frenados[0].entidad} (inventario): el mayor capital frenado de la foto, ${frenados[0].fmt}${diasI.get(frenados[0].entidad) ? ` con ${diasI.get(frenados[0].entidad)} de inventario` : ""}.`);
-  if (!items.length) return null;
-  const L = [`Dónde pondría el foco primero — una sola lista, cada cifra con su marco:`];
-  items.forEach((it, i) => L.push(`${i + 1}. ${it}`));
-  L.push(`Criterio: primero la cuenta donde coinciden dos dominios con clave real (el cliente); después, el mayor monto de cada dominio. Las cifras de dominios distintos no se suman ni se comparan entre sí.`);
-  return L.join("\n");
-}
+/* EL CIERRE INTEGRADO vive en prioridadIntegrada.js (owner 2026-09-14): materialidad + severidad + urgencia por dominio, señal por
+ * señal entre dominios, con el criterio dicho — no por «coincide en dos dominios» ni por suma de montos. */
 
 /** las partes PEDIDAS, en el orden de la casa, con su procedimiento resuelto — [] si no es un encargo compuesto o pide menos de dos */
 export function partesDelEncargo(pregunta) {
@@ -214,14 +184,20 @@ export function pasosDelEncargo(partes, pasosBase, ctx) {
  * Viaja SOLO en un turno de encargo compuesto, después de las doctrinas de dominio: la lista de lo pedido, la ley de
  * cobertura («el foco ordena, no elimina»), las claves de unión válidas y el cierre integrado. El entregable del
  * procedimiento activo (por ejemplo, la ficha del cruce por SKU) es UNA parte; el entregable del turno es el encargo. */
-export function doctrinaDelEncargo(partes, dominios = []) {
+export function doctrinaDelEncargo(partes, dominios = [], figs = null) {
   if (!Array.isArray(partes) || partes.length < 2) return "";
   const doms = dominios && dominios.length ? dominios : dominiosDelEncargo(partes);
   const L = [`[ENCARGO COMPUESTO — no es el usuario] El usuario pidió ${partes.length} cosas${doms.length >= 2 ? ` en ${doms.length} dominios (${doms.join(" + ")})` : ""}, y LA RESPUESTA LAS CUBRE TODAS — el foco ordena y jerarquiza, no elimina una parte pedida:`];
   for (const p of partes) L.push(`- ${p.nombre}${p.pregunta && String(p.pregunta).length <= 80 ? ` (${p.pregunta})` : ""}`);
   if (doms.length >= 2) {
     L.push(`Una sola lectura, no informes separados: relaciona los dominios SOLO por sus claves reales — por SKU (venta y contribución del período frente a stock, días y capital de la foto: lado a lado, sin sumar ni derivar cobertura) y por cliente (la venta del período junto al saldo y el vencido al corte, por cuenta). Cliente ↔ inventario y bodega ↔ venta no existen en este archivo: no las construyas.`);
-    L.push(`Cierra con UNA prioridad común: dónde primero y por qué, con el criterio dicho (primero la cuenta donde coinciden dos dominios con clave real; después, el mayor monto de cada dominio), sin sumar ni comparar cifras de dominios distintos.`);
+    L.push(`Cierra con la prioridad: la de cada dominio y la integrada del negocio, con el criterio dicho — materialidad (cuánto está en juego), severidad (distancia a la referencia declarada) y urgencia (la señal de tiempo) dentro de cada dominio; entre dominios, señal por señal, sin sumar ni comparar montos de dominios distintos; coincidir en dos dominios agrava, no decide.`);
+  }
+  /* la conclusión del procedimiento sobre la prioridad viaja ANTES de escribir (ley de la casa: la conclusión es del
+   * procedimiento, el cerebro la explica) — solo cuando el encargo pidió la prioridad y hay señales en la boleta */
+  if (figs && partes.some((p) => p.clave === "primero")) {
+    const c = (() => { try { return conclusionDePrioridad(figs, doms); } catch { return ""; } })();
+    if (c) L.push(c);
   }
   L.push(`Lo que el dato no trae para una parte se dice en una línea; ninguna parte desaparece. El entregable del procedimiento activo es UNA de las partes; el entregable del turno es el encargo completo.`);
   return L.join("\n");
@@ -287,7 +263,12 @@ export function componerEncargo({ partes, leer, scenario, mem, semilla, pregunta
     bloques.push(salida.join("\n").replace(/\n{3,}/g, "\n\n").trim());
   }
   if (multi && hayPrimero) {
-    const cierre = _cierreIntegrado(lecturas);
+    /* la prioridad lee la realidad de cada dominio (los mismos pasos del contrato de dominios, ya corridos en el turno):
+     * las señales de las tres lentes viven en esa boleta, no en la de cada parte */
+    /* dominio por dominio: `leer` corre con el tope de una ronda (8 llamadas) y los tres dominios juntos lo exceden — medido:
+     * el cierre salía solo con el comercial y la cobranza y el inventario desaparecían de la prioridad */
+    const figsDom = doms.flatMap((d) => { try { return leer(pasosDeDominios({ dominios: [d], eje: null }) || []) || []; } catch { return []; } });
+    const cierre = (() => { try { return componerPrioridadIntegrada(figsDom.length ? figsDom : [...lecturas.values()].flat(), doms); } catch { return null; } })();
     if (cierre) { bloques.push(cierre); compuestas++; }
     else bloques.push(`Sobre qué haría primero no pude armar la lectura con lo leído en este turno.`);
   }

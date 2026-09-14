@@ -201,6 +201,32 @@ el cruce contra la carpeta real. Antes de pantalla:
      distintos no se suman ni se comparan.
    Medido con cerebro mudo (prompt de producción + tres equivalentes de 2 y 3 dominios): dominios pedidos = dominios
    cubiertos, ninguna parte desaparece, ningún cliente relacionado con inventario, una sola prioridad, cero vetos.
+
+   **La prioridad integrada por señales** (owner 2026-09-14, sobre el mismo prompt de producción, que es el caso
+   permanente; `src/adi/agente/prioridadIntegrada.js`, candado `_prioridad_integrada_gate`). Textual: *«Cuando ADI
+   prioriza entre dominios, debe considerar materialidad + severidad + urgencia de cada señal, no solo cuántos dominios
+   coinciden.»* Puede existir una prioridad por dominio (Falabella primero en Comercial) y una prioridad integrada del
+   negocio (Lider). *«La prioridad final debe explicar su criterio. No quiero una fórmula rígida inventada ni sumar
+   magnitudes incompatibles; quiero que ADI use las señales comparables dentro de cada dominio y después justifique
+   cuál requiere atención primero.»*
+   - Tres lentes por dominio, con señales de la boleta y citables verbatim: **materialidad** (cuánto está en juego:
+     contribución sin capturar · saldo vencido · capital frenado), **severidad** (distancia a la referencia declarada:
+     brecha al benchmark en pp · % recuperado · días de inventario), **urgencia** (la señal de tiempo: días de atraso ·
+     días sin venta; el comercial no la trae en este dato, y se dice). Dentro del dominio cada lente ordena: esa es la
+     prioridad POR DOMINIO (manda la materialidad; severidad y urgencia la matizan).
+   - La prioridad INTEGRADA compara entidades señal por señal en los dominios que comparten (la clave real: el cliente
+     entre comercial y cobranza), nunca por suma de montos de dominios distintos: va antes quien es más grave en más
+     señales; en empate, quien tiene la señal de tiempo más grave; después, quien tiene más en juego en su dominio.
+     Coincidir en dos dominios agrava, no decide. Los SKU (otra clave) se ordenan aparte con sus lentes.
+   - El criterio se dice con las señales que decidieron: «Lider antes que Falabella: más lejos del benchmark (8.6 pp
+     contra 8.1 pp) y en cobranza más grave en todo ($4.6M contra $2.5M vencidos, 269d contra 8d, 45% contra 57.7%
+     recuperado); Falabella solo la supera en la brecha comercial ($1.6M contra $1.5M)».
+   - Es la conclusión del procedimiento: viaja al cerebro antes de escribir (`[PRIORIDAD DEL PROCEDIMIENTO]` en la
+     doctrina del encargo) y `prioridad-integrada-cambiada` veta que el cerebro ponga primero a otra cuenta. Lo que
+     NO se hace: umbrales inventados, fórmulas opacas, sumar o comparar magnitudes de dominios distintos.
+   Medido en el demo: por dominio comercial → Falabella, cobranza → Lider, inventario → LG-DRYER8KG; integrada Lider >
+   Falabella > Sodimac (por la señal de tiempo sobre Jumbo) > Jumbo; el borrador vivo del modelo, que puso a Lider
+   primero por su cuenta, pasa la ley; la versión que pone a Falabella arde con las razones en la multa.
 2. **¿Cada cálculo se puede recalcular?** La fórmula mostrada se recomputa. No cuadra o no muestra origen →
    bloqueado.
 3. **¿Cada clasificación existe?** «Frenado», «bajo benchmark», «crítico»: solo los estados que la carpeta

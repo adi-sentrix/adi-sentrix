@@ -12,6 +12,35 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.30 — lista para desplegar
+
+**La prioridad integrada se decide por señales, no por cuántos dominios coinciden.** Sobre el mismo prompt de producción
+del encargo multidominio, la 2.29 ponía primero a Falabella «porque coincide Comercial + Cobranza». El owner: Lider
+también coincide y su severidad conjunta parece mayor ($1,5M sin capturar y $4,6M vencidos con 269 días de atraso;
+Falabella tiene la mayor brecha comercial, $1,6M, pero su vencido es $2,5M a solo 8 días). La regla de producto:
+«materialidad + severidad + urgencia de cada señal, no solo cuántos dominios coinciden», con una prioridad por dominio y
+una integrada del negocio, el criterio dicho, sin fórmulas inventadas ni sumas de magnitudes incompatibles.
+
+- **Tres lentes por dominio, con señales de la boleta:** materialidad (contribución sin capturar · saldo vencido ·
+  capital frenado), severidad (brecha al benchmark en pp · % recuperado · días de inventario) y urgencia (días de atraso
+  · días sin venta; el comercial no la trae en este dato, y se dice). Dentro del dominio cada lente ordena: la prioridad
+  por dominio (manda la materialidad; severidad y urgencia la matizan: «Lider más lejos del benchmark», «MAK-COMP-AIR
+  más severo y más urgente»).
+- **La integrada, señal por señal:** entre las cuentas que comparten clave real (el cliente entre comercial y cobranza),
+  va antes quien es más grave en más señales; en empate, la señal de tiempo; después, lo que hay en juego. Coincidir en
+  dos dominios agrava, no decide. Los SKU se ordenan aparte. Medido: Lider antes que Falabella —más lejos del benchmark
+  (8.6 pp contra 8.1 pp) y en cobranza más grave en todo ($4.6M contra $2.5M vencidos, 269d contra 8d, 45% contra 57.7%
+  recuperado); Falabella solo la supera en la brecha comercial ($1.6M contra $1.5M)—; Sodimac tercera por la señal de
+  tiempo sobre Jumbo.
+- **Es la conclusión del procedimiento:** viaja al cerebro antes de escribir y `prioridad-integrada-cambiada` veta que
+  ponga primero a otra cuenta — el borrador vivo del modelo, que ya había puesto a Lider primero por su cuenta, pasa.
+
+**Resultado medido:** cerebro mudo sobre el prompt de producción: por dominio comercial → Falabella, cobranza → Lider,
+inventario → LG-DRYER8KG; integrada Lider > Falabella > Sodimac > Jumbo, con el criterio y sin sumar montos; pasa muro,
+contrato y notarial. Suite completa en verde, sin tocar la red.
+
+---
+
 ## 2.29 — producción · tag `v2.29`
 
 **Si el usuario pide tres dominios, la respuesta no puede terminar siendo de uno solo.** La prueba real del owner en
