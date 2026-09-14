@@ -12,7 +12,7 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 2.29 — lista para desplegar
+## 2.29 — producción · tag `v2.29`
 
 **Si el usuario pide tres dominios, la respuesta no puede terminar siendo de uno solo.** La prueba real del owner en
 producción v2.28 —«mira ventas, contribución, margen, unidades, inventario y cobranza juntos… qué clientes o SKU empujan
