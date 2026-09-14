@@ -384,7 +384,7 @@ export function conclusionDePrioridad(figs, dominios = [], { criterio = null, mo
 
 /** la ley: la prioridad que cierra la respuesta es la del criterio del usuario; sin criterio, es la de alguna lente y el
  *  criterio está declarado (o la respuesta pregunta qué lente usar) */
-const _PRIORIDAD = /\bprimero\b|\bprioridad|\bprioritari|\bfoco\b|\bantes que\b|\bentrar[ií]a\b|\bpartir[ií]a\b|\bempezar[ií]a\b|\barrancar[ií]a\b|\bmayor riesgo\b/i;
+const _PRIORIDAD = /\bprimero\b|\bprioridad|\bprioritari|\bfoco\b|\bantes que\b|\bentrar[ií]a\b|\bpartir[ií]a\b|\bempezar[ií]a\b|\barrancar[ií]a\b|\bir[ií]a\s+por\b|\bmayor riesgo\b/i;   // «iría por Lider» también es una prioridad (2026-09-14)
 /* ══ LA COINCIDENCIA AGRAVA, NO DECIDE (owner 2026-09-14, segunda corrida de la prueba 2) ═════════════════════════════════
  * Lo servido: «partir por Lider: coincide en dos dominios (…), y esa coincidencia agrava más que cualquier monto aislado».
  * Es ley, no una función nueva: «Coincidir en varios dominios agrava el caso, pero la prioridad se decide por el criterio/
@@ -395,7 +395,9 @@ const _PRIORIDAD = /\bprimero\b|\bprioridad|\bprioritari|\bfoco\b|\bantes que\b|
  * «coincidir agrava, no decide» (la doctrina) también. */
 const _COINCIDE = /coincid(?:e|en|ir|encia)\s+en\s+(?:dos|tres|varios|ambos|los\s+dos|los\s+tres|m[aá]s\s+de\s+un)\s+(?:dominios|frentes|lentes)|(?:esa|esta|la|su)\s+coincidencia/i;
 const _COMO_RAZON = /\b(?:porque|ya\s+que|dado\s+que|por\s+eso\s+que|por)\s+coincid|:\s*coincide\s+en|coincidencia\s+(?:agrava|pesa|cuenta|vale|importa)\s+m[aá]s\s+que|coincidencia\s+(?:decide|manda|basta|es\s+lo\s+que\s+(?:decide|manda|pesa|la\s+pone)|es\s+la\s+raz[oó]n|es\s+el\s+motivo)|(?:va|queda|est[aá]|ir[ií]a|entra)\s+primero\s+porque\s+coincide|primero\s+por\s+coincidir/i;
-const _AGRAVA_NO_DECIDE = /agrava,?\s+(?:pero\s+)?no\s+decide|no\s+(?:es\s+lo\s+que\s+)?decide|no\s+basta|no\s+es\s+(?:la\s+)?raz[oó]n|no\s+por\s+coincidir/i;
+/* «no porque coincidir en dos dominios lo decida solo, sino porque en cada uno pesa más» (prueba 2, tercera corrida viva · 2026-09-14):
+ * la coincidencia NEGADA como razón es justo lo que la ley pide. */
+const _AGRAVA_NO_DECIDE = /agrava,?\s+(?:pero\s+)?no\s+decide|no\s+(?:es\s+lo\s+que\s+)?decide|no\s+basta|no\s+es\s+(?:la\s+)?raz[oó]n|no\s+por(?:que)?\s+coincidir|no\s+porque\s+coincid|decid[ae]\s+(?:solo|sola|por\s+s[ií])|sino\s+porque|no\s+(?:lo|la)\s+decid/i;
 export function coincidenciaComoRazon(texto) {
   const parrafos = String(texto || "").split(/\n\s*\n/).filter((p) => _PRIORIDAD.test(p) && _COINCIDE.test(p));
   for (const p of parrafos) {

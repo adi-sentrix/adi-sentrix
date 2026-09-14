@@ -499,5 +499,36 @@ H("15 · tercera corrida viva de la prueba 1 (autorizada, 2 llamadas): «carga b
   ok(muro("LG-DRYER8KG vende $14K en el período.").some((x) => x.kind === "metrica-mal-atribuida"), "candado: «LG-DRYER8KG vende $14K» (capital narrado como venta) sigue ardiendo");
 }
 
+/* ═══ 16 · LA TERCERA CORRIDA DE LA PRUEBA 2: EL CIERRE ERA LA RESPUESTA Y CAYÓ POR DOS FALSOS POSITIVOS — CERRADOS ═════════ */
+H("16 · tercera corrida viva de la prueba 2 (autorizada, 2 llamadas): el paréntesis no cambia el sujeto · la coincidencia negada no arde · «mayor que» es comparativo · el «la» de dos oraciones atrás — cerrados; el cierre se sirve entero");
+{
+  const L3 = JSON.parse(fs.readFileSync(new URL("./fixtures/lectura-ejecutiva-vivo3-2026-09-14.json", import.meta.url), "utf8"));
+  const { guardC } = await import("./src/adi/oracle/guardC.js");
+  const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
+  const { playbookPara, pasosDe } = await import("./src/adi/agente/playbooks/registro.js");
+  const { pasosDelEncargo } = await import("./src/adi/agente/encargoCompuesto.js");
+  const { axisEntityNames } = await import("./src/adi/oracle/entityIndex.js");
+  const { coincidenciaComoRazon } = await import("./src/adi/agente/prioridadIntegrada.js");
+  const _ejes = (lista) => { const o = []; for (const e of lista) { try { for (const n of axisEntityNames(e)) o.push(n); } catch { /* eje sin índice */ } } return o.length ? o : null; };
+  const Q3 = L3.pregunta;
+  const pb = playbookPara(Q3, {});
+  const rp = runPlan({ intent: "answer", calls: pasosDelEncargo(partesDelEncargo(Q3), pb ? pasosDe(pb, Q3, {}) : [], {}).map((p) => ({ tool: p.tool, args: p.args || {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 18, preguntaUsuario: Q3, registry: CAJA });
+  const muro = (t) => { const v = guardC(t, { ledger: { figs: rp.ledger.figs }, results: rp.results, trace: null, question: Q3, datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), entidadesDelTenant: _ejes(["cliente", "sku", "marca"]), duenosDelTenant: _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]), contentScope: "full" }); return v.ok ? [] : (v.violations || []); };
+  const arde = (t, k) => muro(t).some((x) => x.kind === k);
+  const c1 = L3.borradores[0].texto, r1 = L3.borradores[1].texto;
+  ok(L3.final.estado === "encargo-compuesto" && /«269 d» pertenece a Lider/.test(L3.final.vetos[0]) && /coincidencia-como-razon/.test(L3.final.vetos[0]) && /Falabella es «mayor» en brecha/.test(L3.final.vetos[1]), "la corrida: el usuario recibió el respaldo; los vetos fueron «269 d» + coincidencia (cierre) y «Falabella mayor en brecha» (reparación)");
+  ok(/Lider pesa más: 8,6 pp de brecha \(peor que Falabella\), \$4,6M vencidos con apenas 45% recuperado y 269 días de atraso/.test(c1) && !arde(c1, "cifra-de-boleta-sin-dueno"), "★ «Lider pesa más: 8.6 pp (peor que Falabella), … y 269 días de atraso»: la comparación entre paréntesis no le quita la oración a Lider — ya no arde");
+  ok(/no porque coincidir en dos dominios lo decida solo, sino porque en cada uno pesa más/.test(c1) && !coincidenciaComoRazon(c1), "★ «no porque coincidir en dos dominios lo decida solo, sino porque en cada uno pesa más»: la coincidencia NEGADA como razón es lo que la ley pide — ya no arde");
+  ok(muro(c1).length === 0, "★ el cierre pasa el muro entero", muro(c1).map((x) => x.kind).join(","));
+  const r = await answerViaAgente({ text: Q3, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: c1, stop: "end_turn" }) });
+  ok(r.r.agente.estado === "verde" && r.r.text.split(/\s+/).length >= 450, `★ con ese cierre como cerebro, el turno se sirve entero y verde (${r.r.agente.estado}): el usuario recibe la lectura del modelo`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
+  ok(/su brecha al benchmark es mayor que la de Falabella \(8\.6 pp contra 8\.1 pp\)/.test(r1) && !arde(r1, "superlativo-no-sostenido") && !arde(r1, "cifra-de-boleta-sin-dueno"), "★ la reparación: «su brecha es mayor QUE la de Falabella» es un comparativo, y «Falabella solo la supera ($1.6M contra $1.5M)» tiene el «la» dos oraciones atrás — ya no arden");
+  ok(vetosDeRegistro(r1, { pregunta: Q3, figs: rp.ledger.figs, sitio: "reparacion" }).map((x) => x.regla).includes("deterioro-no-medido"), "…y la reparación sigue cayendo por lo de la casa: «el deterioro es más profundo» sin una variación medida (y tres subtítulos)");
+  /* candados */
+  ok(arde("Lider pesa más en la balanza integrada por la severidad de su brecha y por el peso de su vencido en la cartera, pero Falabella acumula 269 días de atraso.", "cifra-de-boleta-sin-dueno") && arde("Iría por Sodimac. La razón es la severidad. Falabella solo la supera en un punto, la contribución sin capturar ($1.6M contra $1.5M).", "cifra-de-boleta-sin-dueno"), "candados: «Falabella acumula 269 días» y el «la» que no es Lider siguen ardiendo");
+  ok(arde("Falabella tiene la mayor brecha al benchmark de la cartera (8.1 pp).", "superlativo-no-sostenido") && !arde("Lider tiene la mayor brecha al benchmark de la cartera (8.6 pp).", "superlativo-no-sostenido"), "candado: el superlativo de verdad («la mayor brecha … de la cartera») se sigue verificando");
+  ok(!!coincidenciaComoRazon("Iría por Lider porque coincide en dos dominios.") && !coincidenciaComoRazon("Que Lider aparezca pesada en los dos dominios a la vez agrava el caso, pero la decisión la toma la severidad de cada señal."), "candado: «iría por Lider porque coincide en dos dominios» arde; «agrava el caso, pero la decisión la toma la severidad» pasa");
+}
+
 console.log(`\n── _prioridad_integrada_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
 process.exit(FAIL ? 1 : 0);

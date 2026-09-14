@@ -3506,7 +3506,9 @@ function _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) {
     }
     if (precedente !== null) {
       /* ¿alguna OTRA entidad real aparece entre ese dueño y la cifra? si no, el dueño manda la oración hasta acá */
-      const tramo = antesN.slice(precPos + _norm(precedente).length);
+      /* «Lider pesa más: 8.6 pp de brecha (peor que Falabella), $4.6M vencidos … y 269 días de atraso» (prueba 2, tercera corrida
+       * viva · 2026-09-14): la comparación ENTRE PARÉNTESIS no cambia el sujeto — el tramo se mira sin sus paréntesis. */
+      const tramo = antesN.slice(precPos + _norm(precedente).length).replace(/\([^()]*\)/g, " ");
       const otra = nombresRe.some((re) => { const m2 = re.exec(tramo); if (!m2) return false; return !_reDueno(precedente).test(m2[0]); });
       if (!otra) return false;
     }
@@ -3519,12 +3521,19 @@ function _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) {
     if (grupo && grupo.ini > iniOracion && entsOracion.length === grupo.n - 1) {
       const parrafoIni = Math.max(0, text.lastIndexOf("\n\n", iniOracion));
       const atras = masked.slice(parrafoIni, Math.max(parrafoIni, iniOracion - 1));
-      const kPrev = Math.max(atras.lastIndexOf("."), atras.lastIndexOf("!"), atras.lastIndexOf("?"), atras.lastIndexOf("\n"));
-      const previa = _norm(text.slice(parrafoIni + (kPrev >= 0 ? kPrev + 1 : 0), iniOracion));
-      const entsPrev = _entidadesEnOrden(previa, nombresRe);
-      if (entsPrev.length && !entsOracion.includes(entsPrev[entsPrev.length - 1])) {
-        const asignada = [entsPrev[entsPrev.length - 1], ...entsOracion][grupo.k];
-        if ([...duenos].some((d) => _norm(d) === asignada)) return false;
+      /* …y hasta DOS oraciones atrás (prueba 2, tercera corrida viva · 2026-09-14): «iría por Lider. La razón es la severidad: su
+       * brecha … que la de Falabella (…). Falabella solo la supera en un punto ($1.6M contra $1.5M)» — el «la» es Lider, dos
+       * oraciones antes. Cada candidata solo LIBERA si por orden le toca a un dueño: es una lectura, no una condena. */
+      const oracionesPrev = _norm(text.slice(parrafoIni, iniOracion)).split(/(?<=[.!?])\s+|\n+/).filter((o) => o.trim()).slice(-2).reverse();
+      for (const previa of oracionesPrev) {
+        const entsPrev = _entidadesEnOrden(previa, nombresRe).filter((e) => !entsOracion.includes(e));
+        if (!entsPrev.length) continue;
+        /* el elidido va PRIMERO si es el sujeto («Lider primero. Es más grave que Falabella … (8.6 pp contra 8.1 pp)») y va DESPUÉS si es
+         * el objeto («Falabella solo LA supera … ($1.6M contra $1.5M)»): las dos lecturas se prueban, y cualquiera libera */
+        const elidida = entsPrev[entsPrev.length - 1];
+        for (const orden of [[elidida, ...entsOracion], [...entsOracion, elidida]]) {
+          if ([...duenos].some((d) => _norm(d) === orden[grupo.k])) return false;
+        }
       }
     }
     if (nombresRe.some((re) => re.test(ventana))) ajena = true;
@@ -4874,6 +4883,9 @@ export function guardC(narration, { ledger, results = [], trace = null, question
           /* EL SUPERLATIVO NEGADO NO RECLAMA NADA (prompt de gerente, corrida 4 · 2026-09-13): «Falabella: $1.6M — la mayor
            * de la cartera, aunque NO el margen más bajo (ese es Líder)» dice justo lo contrario de lo que esta regla cobra */
           if (/(?<![\wáéíóúñ])(?:no|ni|tampoco|sin ser|aunque no|pero no)\s+(?:[\wáéíóúñ]+\s+){0,3}$/i.test(oracion.slice(Math.max(0, iM - 30), iM))) continue;
+          /* EL COMPARATIVO NO ES UN SUPERLATIVO (prueba 2, tercera corrida viva · 2026-09-14): «su brecha al benchmark es mayor QUE la
+           * de Falabella (8.6 pp contra 8.1 pp)» compara dos cuentas; el posesivo «de Falabella» es la comparada, no la reclamante. */
+          if (/^\s+que(?![\wáéíóúñ])/i.test(oracion.slice(iM + mm[0].length, iM + mm[0].length + 6))) continue;
           // el eje: el que tenga en su ranking DECLARADO a las entidades que la oración nombra
           for (const eje of Object.keys(_rank)) {
             /* LA MÉTRICA TIENE QUE ESTAR PEGADA AL MARCADOR, no «cerca»: «peor margen», «mayor venta», «carga
