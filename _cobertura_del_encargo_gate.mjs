@@ -113,7 +113,7 @@ for (const c of CASOS) {
     ok(!new RegExp(`${CLIENTES.source}[^.\\n]{0,80}\\b(?:stock|inventario|frenad)`, "i").test(t), "   ningún cliente queda relacionado con el inventario (esa clave no existe en el archivo)");
   }
   if (c.dominios.includes("cobranza")) ok(/Tus principales clientes por venta, con su saldo y su vencido al lado/.test(t), "   la cobranza va cruzada por cliente con la venta (clave real: la misma cuenta)");
-  ok(/Dónde pondría el foco primero — por señales comparables dentro de cada dominio/.test(t) && (t.match(/^Criterio:/gm) || []).length === 1, "   ★ cierra con UNA prioridad integrada y su criterio dicho");
+  ok(/Dónde pondría el foco primero — /.test(t) && (t.match(/^Criterio:/gm) || []).length === 1, "   ★ cierra con UNA prioridad integrada y su criterio dicho");
   ok(!/¿Lo abrimos por|Dime y lo abrimos|Si igual quieres verlo/.test(t), "   una sola lectura: sin ofertas de cierre de cada parte");
   ok(r.r.agente.vetos.length === 0, "   el ensamblador pasó el muro, el contrato y la notarial sin vetos", JSON.stringify(r.r.agente.vetos).slice(0, 200));
 }

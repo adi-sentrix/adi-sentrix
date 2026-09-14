@@ -36,6 +36,8 @@
  * PURO · determinístico · sin red. Lo usan el ensamblador (cierre), la doctrina del encargo (la conclusión del
  * procedimiento viaja al cerebro ANTES de escribir) y el contrato (`prioridad-integrada-cambiada`). */
 
+import { axisEntityNames } from "../oracle/entityIndex.js";   // los clientes del dato, para las lentes de ventas y crecimiento
+
 const _lab = (f) => String((f && f.label) || "");
 const _val = (f) => String((f && (f.text || f.value)) || "");
 const _num = (f) => {
@@ -167,6 +169,106 @@ export function prioridadIntegrada(figs, dominios = []) {
 
 export const CRITERIO = "dentro de cada dominio, materialidad (cuánto está en juego), severidad (distancia a la referencia declarada) y urgencia (la señal de tiempo); entre dominios, señal por señal —no por suma de montos—; coincidir en dos dominios agrava, no decide.";
 
+/* ══ EL CRITERIO DEL USUARIO MANDA (owner 2026-09-14, corrección del estándar) ═══════════════════════════════════════
+ * «La prioridad no debe ser rígida ni pertenecer siempre al procedimiento. Depende del objetivo del usuario.» La jerarquía:
+ *   1 · criterio EXPLÍCITO del usuario → manda («prioriza ventas», «prioriza caja», «prioriza riesgo», «quiero recuperar
+ *       contribución», «ahora ordénamelo por caja»).
+ *   2 · criterio IMPLÍCITO pero claro → ADI lo interpreta sin preguntar («mayor riesgo económico» → materialidad +
+ *       severidad + urgencia).
+ *   3 · multidominio realmente ambiguo → ADI puede preguntar qué lente quiere usar, sobre todo si distintos criterios
+ *       producen prioridades distintas.
+ *   4 · lectura ejecutiva general → no frenar al usuario: ADI entrega una prioridad ejecutiva propia (la de la casa: el
+ *       riesgo integrado), declara el criterio y, si es material, indica que otra lente cambiaría el orden.
+ * Lider primero queda asociado al criterio de RIESGO INTEGRADO de estos fixtures, no convertido en prioridad universal. Y
+ * el usuario puede cambiar el criterio después («ahora ordénamelo por caja», «ahora por contribución») sin que cambien los
+ * hechos: las mismas señales, otro orden. El respaldo nunca pregunta (no conversa): entrega con el criterio declarado y
+ * ofrece reordenar; el cerebro recibe la jerarquía y puede preguntar solo en el caso 3. */
+export const CRITERIOS = {
+  riesgo:       { nombre: "riesgo integrado", dicho: "materialidad + severidad + urgencia, señal por señal entre dominios", clave: "cliente" },
+  contribucion: { nombre: "contribución", dicho: "la contribución sin capturar del período, la brecha comercial", clave: "cliente", dominio: "comercial", lente: "materialidad" },
+  caja:         { nombre: "cobranza", dicho: "el saldo vencido al corte y su atraso", clave: "cliente", dominio: "cobranza", lente: "materialidad", desempate: "urgencia" },   // se pide como «caja», «cobranza» o «liquidez»; en pantalla se dice «cobranza» (la palabra «caja» junto a una contribución dispara la naturaleza económica del muro)
+  ventas:       { nombre: "ventas", dicho: "la venta del período", clave: "cliente" },
+  crecimiento:  { nombre: "crecimiento", dicho: "la variación de la venta contra el año anterior", clave: "cliente", figs: /· YoY$/i },
+  capital:      { nombre: "capital", dicho: "el capital frenado en inventario", clave: "sku", dominio: "inventario", lente: "materialidad" },
+};
+const _SINONIMOS = [
+  [/\b(?:riesgo|riesgos|grave|graves|gravedad|urgente|urgencia|peligro)\b/i, "riesgo"],
+  [/\b(?:contribuci[oó]n|margen|m[aá]rgenes|rentabilidad|brecha)\b/i, "contribucion"],
+  [/\b(?:caja|cobranza|cobrar|cobro|liquidez|vencido|vencidos|saldo)\b/i, "caja"],
+  [/\b(?:crecimiento|crecer|crece|crecen)\b/i, "crecimiento"],
+  [/\b(?:ventas?|volumen|facturaci[oó]n)\b/i, "ventas"],
+  [/\b(?:capital|inventario|stock|frenado)\b/i, "capital"],
+];
+const _criterioDe = (palabra) => { for (const [re, c] of _SINONIMOS) if (re.test(String(palabra))) return c; return null; };
+const _OBJ = "(?:ventas?|volumen|facturaci[oó]n|caja|cobranza|cobro|liquidez|riesgo|riesgos|contribuci[oó]n|margen|m[aá]rgenes|rentabilidad|crecimiento|capital|inventario|stock)";
+/* explícito: el usuario nombra el criterio con un verbo de ordenar o de objetivo */
+const _EXPLICITO = [
+  new RegExp(`\\bprioriz[ae]\\w*\\s+(?:por\\s+|la\\s+|el\\s+|las\\s+|los\\s+)?(${_OBJ})`, "i"),
+  new RegExp(`\\b(?:ord[eé]n\\w*|reord[eé]n\\w*|rank\\w*|clasif[ií]c\\w*)\\s*(?:me)?(?:lo|la|los|las)?\\s+(?:ahora\\s+)?por\\s+(?:la\\s+|el\\s+)?(${_OBJ})`, "i"),
+  new RegExp(`\\b(?:ahora|mejor|entonces)\\s+por\\s+(?:la\\s+|el\\s+)?(${_OBJ})`, "i"),
+  new RegExp(`\\b(?:quiero|necesito|me interesa|busco)\\s+(?:recuperar|liberar|cobrar|proteger|cuidar|maximizar|mejorar)\\s+(?:la\\s+|el\\s+)?(${_OBJ})`, "i"),
+  new RegExp(`\\b(?:con|desde|bajo)\\s+(?:la\\s+)?(?:lente|criterio|[oó]ptica|mirada)\\s+de\\s+(?:la\\s+|el\\s+)?(${_OBJ})`, "i"),
+  new RegExp(`\\b(?:criterio|lente)\\s*:\\s*(${_OBJ})`, "i"),
+  new RegExp(`\\blo que (?:m[aá]s )?me importa (?:es|son)\\s+(?:la\\s+|el\\s+|las\\s+|los\\s+)?(${_OBJ})`, "i"),
+];
+/* implícito pero claro: la pregunta describe el OBJETIVO sin nombrar la lente. Solo el riesgo: en un encargo compuesto «riesgo de
+ * cobranza» o «dejo contribución sobre la mesa» son PARTES pedidas, no el criterio de la prioridad (medido: el primer prompt de
+ * producción salía ordenado «por cobranza» por nombrar el riesgo de cobranza de sus principales clientes) */
+const _IMPLICITO = [
+  [/\bmayor riesgo\b|\briesgo econ[oó]mico\b|\blo m[aá]s grave\b|\bdeber[ií]a preocupar|\bqu[eé] (?:me|te|nos) preocupa\b|\bd[oó]nde (?:est[aá]|tengo) (?:hoy )?(?:el )?(?:mayor )?riesgo\b|\bm[aá]s urgente\b/i, "riesgo"],
+];
+/** criterioDeLaPregunta(q) → { criterio, modo: "explicito" | "implicito" } | null */
+export function criterioDeLaPregunta(pregunta) {
+  const q = String(pregunta || "");
+  for (const re of _EXPLICITO) { const m = re.exec(q); if (m) { const c = _criterioDe(m[1]); if (c) return { criterio: c, modo: "explicito" }; } }
+  for (const [re, c] of _IMPLICITO) if (re.test(q)) return { criterio: c, modo: "implicito" };
+  return null;
+}
+
+/* el orden bajo un criterio: la lista de entidades con el valor que las ordena (en palabras), de la más grave a la menos */
+export function ordenPorCriterio(figs, dominios = [], criterio = "riesgo") {
+  const C = CRITERIOS[criterio];
+  if (!C) return null;
+  if (criterio === "riesgo") {
+    const P = prioridadIntegrada(figs, dominios);
+    if (!P || !P.integrada.length) return null;
+    return { criterio, lista: P.integrada.map((c) => ({ entidad: c.entidad, valor: null })), P };
+  }
+  if (C.dominio) {
+    if (dominios.length && !dominios.includes(C.dominio)) return null;
+    const s = senalesDelDominio(figs, C.dominio);
+    if (!s.length) return null;
+    const lista = s.slice().sort((a, b) => (a.materialidad.rango - b.materialidad.rango) || (C.desempate && a[C.desempate] && b[C.desempate] ? a[C.desempate].rango - b[C.desempate].rango : 0))
+      .map((x) => ({ entidad: x.entidad, valor: [LENTES[C.dominio].materialidad.como(x.materialidad.fmt), C.desempate && x[C.desempate] ? LENTES[C.dominio][C.desempate].como(x[C.desempate].fmt) : null].filter(Boolean).join(", ") }));
+    return { criterio, lista };
+  }
+  /* ventas · crecimiento: cifras por cliente de la boleta (la venta del flujo cubre a todos los clientes; si no está, la de margen) */
+  const clientes = new Set((() => { try { return axisEntityNames("cliente"); } catch { return []; } })());
+  const fuente = criterio === "ventas" ? (_all(figs, /· Venta \(flujo\)$/i).length ? _all(figs, /· Venta \(flujo\)$/i) : _all(figs, /· Venta$/i)) : _all(figs, C.figs);
+  const vistos = new Set();
+  const filas = fuente.map((f) => ({ entidad: _entidadDe(_lab(f)), fmt: _val(f), n: _num(f) }))
+    .filter((x) => x.entidad && Number.isFinite(x.n) && (!clientes.size || clientes.has(x.entidad)) && (vistos.has(x.entidad) ? false : (vistos.add(x.entidad), true)))
+    .sort((a, b) => b.n - a.n);
+  if (!filas.length) return null;
+  return { criterio, lista: filas.map((x) => ({ entidad: x.entidad, valor: criterio === "ventas" ? `${x.fmt} de venta` : `${x.fmt} contra el año anterior` })) };
+}
+/** quién va primero bajo cada criterio disponible con esta boleta — para decir «con otra lente el orden cambia» */
+export function primerosPorCriterio(figs, dominios = []) {
+  const out = {};
+  for (const c of Object.keys(CRITERIOS)) { const o = ordenPorCriterio(figs, dominios, c); if (o && o.lista.length) out[c] = o.lista[0]; }
+  return out;
+}
+/* las lentes de clave cliente cuya primera es DISTINTA de la del criterio en uso, en palabras */
+const _otrasLentes = (figs, dominios, criterio) => {
+  const P1 = primerosPorCriterio(figs, dominios);
+  const base = P1[criterio];
+  if (!base) return "";
+  const otras = Object.keys(P1).filter((c) => c !== criterio && CRITERIOS[c].clave === "cliente" && P1[c].entidad !== base.entidad);
+  if (!otras.length) return "";
+  return `Con otra lente cambia quién va primero: ${otras.map((c) => `por ${CRITERIOS[c].nombre}, ${P1[c].entidad} primero${P1[c].valor ? ` (${P1[c].valor})` : ""}`).join("; ")}.`;
+};
+const _MODO_TXT = { explicito: "el criterio que pediste", implicito: "el criterio que se lee en tu pregunta" };
+
 /* ── EN PALABRAS: el cierre del ensamblador y la conclusión que viaja al cerebro ────────────────────────────────── */
 const _DOM_TXT = { comercial: "comercial", cobranza: "cobranza", inventario: "inventario" };
 const _lider = (x, dominio) => {
@@ -206,12 +308,29 @@ const _lineaIntegrada = (c, i, total) => {
   return `${i + 1}. ${c.entidad} — ${senales}${razon}`;
 };
 
-/** componerPrioridadIntegrada(figs, dominios) → el bloque de cierre, o null sin señales */
-export function componerPrioridadIntegrada(figs, dominios = []) {
+/** componerPrioridadIntegrada(figs, dominios, { criterio, modo }) → el bloque de cierre, o null sin señales.
+ *  Sin criterio: la prioridad ejecutiva de la casa (riesgo integrado), declarada como tal, con la nota de otras lentes. */
+export function componerPrioridadIntegrada(figs, dominios = [], { criterio = null, modo = null } = {}) {
+  const usa = criterio && CRITERIOS[criterio] ? criterio : "riesgo";
+  if (usa !== "riesgo") {
+    const O = ordenPorCriterio(figs, dominios, usa);
+    if (!O) return null;
+    const C = CRITERIOS[usa];
+    const L = [`Dónde pondría el foco primero — por ${C.nombre}, ${_MODO_TXT[modo] || "el criterio que pediste"} (${C.dicho}):`];
+    O.lista.slice(0, 3).forEach((x, i) => L.push(`${i + 1}. ${x.entidad}${x.valor ? ` — ${x.valor}` : ""}`));
+    if (O.lista.length > 3) L.push(`(y ${O.lista.length - 3} más)`);
+    const otras = _otrasLentes(figs, dominios, usa);
+    if (otras) L.push(`${otras} Los hechos no cambian con la lente; cambia quién va primero. Dime por cuál quieres que lo reordene.`);
+    L.push(`Criterio: ${C.nombre} (${C.dicho}); las cifras de dominios distintos no se suman ni se comparan entre sí.`);
+    return L.join("\n");
+  }
   const P = prioridadIntegrada(figs, dominios);
   if (!P) return null;
   const doms = Object.keys(P.porDominio);
-  const L = [`Dónde pondría el foco primero — por señales comparables dentro de cada dominio, sin sumar montos entre dominios:`];
+  const cabecera = modo
+    ? `Dónde pondría el foco primero — por riesgo integrado, ${_MODO_TXT[modo]} (materialidad + severidad + urgencia, señal por señal, sin sumar montos entre dominios):`
+    : `Dónde pondría el foco primero — criterio ejecutivo de ADI, porque no fijaste otro: riesgo integrado (materialidad + severidad + urgencia, señal por señal, sin sumar montos entre dominios):`;
+  const L = [cabecera];
   L.push(`Por dominio: ${doms.map((d) => `${_DOM_TXT[d]} → ${_lider(P.porDominio[d][0], d)}${_matiz(P.porDominio, d)}`).join(" · ")}.`);
   if (P.integrada.length >= 2) {
     L.push(`Integrada, entre las cuentas${doms.includes("comercial") && doms.includes("cobranza") ? " (la clave real entre comercial y cobranza es el cliente)" : ""}:`);
@@ -224,45 +343,80 @@ export function componerPrioridadIntegrada(figs, dominios = []) {
     L.push(`En inventario (clave SKU: no se compara con las cuentas): ${s.entidad} primero — ${_LENTES.filter((l) => s[l]).map((l) => LENTES.inventario[l].como(s[l].fmt)).join(", ")}.`);
   }
   if (!P.porDominio.comercial || !LENTES.comercial.urgencia) L.push(`El comercial no trae señal de tiempo en este dato: ahí la prioridad es por materialidad y distancia al benchmark.`);
+  const otras = _otrasLentes(figs, dominios, "riesgo");
+  if (otras) L.push(`${otras} Los hechos no cambian con la lente; cambia quién va primero. Dime por cuál quieres que lo reordene.`);
   L.push(`Criterio: ${P.criterio}`);
   return L.join("\n");
 }
 
-/** la conclusión del procedimiento sobre la prioridad, para el cerebro (se conserva, no se re-decide) */
-export function conclusionDePrioridad(figs, dominios = []) {
+/** la conclusión del procedimiento sobre la prioridad, para el cerebro: con el criterio del usuario si lo hay; si no, la
+ *  jerarquía (lectura ejecutiva con el criterio declarado; preguntar solo si es realmente ambiguo) */
+export function conclusionDePrioridad(figs, dominios = [], { criterio = null, modo = null } = {}) {
+  const usa = criterio && CRITERIOS[criterio] ? criterio : "riesgo";
+  const P1 = primerosPorCriterio(figs, dominios);
+  const otras = _otrasLentes(figs, dominios, usa);
+  if (usa !== "riesgo") {
+    const O = ordenPorCriterio(figs, dominios, usa);
+    if (!O) return "";
+    const C = CRITERIOS[usa];
+    return [
+      `[PRIORIDAD DEL PROCEDIMIENTO — no es el usuario] El usuario fijó el criterio${modo === "implicito" ? " (se lee en su pregunta)" : ""}: ${C.nombre} — ${C.dicho}. Se conserva; el cerebro lo explica, no lo cambia:`,
+      `- bajo ese criterio: ${O.lista.slice(0, 3).map((x, i) => `${i + 1}º ${x.entidad}${x.valor ? ` (${x.valor})` : ""}`).join(" · ")}.`,
+      otras ? `- ${otras} Dilo si es material, sin cambiar la prioridad pedida.` : null,
+      `- cada cifra tal cual está en la boleta; nada de sumar o comparar montos de dominios distintos.`,
+    ].filter(Boolean).join("\n");
+  }
   const P = prioridadIntegrada(figs, dominios);
   if (!P) return "";
   const doms = Object.keys(P.porDominio);
-  const L = [`[PRIORIDAD DEL PROCEDIMIENTO — no es el usuario] Se conserva; el cerebro la explica, no la cambia:`];
+  const L = [modo
+    ? `[PRIORIDAD DEL PROCEDIMIENTO — no es el usuario] El criterio se lee en la pregunta del usuario: riesgo integrado (materialidad + severidad + urgencia). Se conserva; el cerebro lo explica, no lo cambia:`
+    : `[PRIORIDAD DEL PROCEDIMIENTO — no es el usuario] El usuario NO fijó criterio. La jerarquía: (1) si lo fija, manda; (2) si se lee en su pregunta, se interpreta; (3) si el encargo es realmente ambiguo entre lentes que dan órdenes distintos, puedes preguntarle qué lente quiere; (4) en una lectura ejecutiva general no lo frenes: entrega una prioridad ejecutiva con el criterio DECLARADO. La de la casa es el riesgo integrado (materialidad + severidad + urgencia):`];
   L.push(`- por dominio: ${doms.map((d) => `${_DOM_TXT[d]} → ${_lider(P.porDominio[d][0], d)}`).join(" · ")}.`);
   if (P.integrada.length) {
     L.push(`- integrada (las cuentas, señal por señal): ${P.integrada.slice(0, 3).map((c, i) => `${i + 1}º ${c.entidad}`).join(" · ")}.${P.integrada[0].versus && P.integrada[0].versus.gana.length ? ` ${P.integrada[0].entidad} va antes que ${P.integrada[0].versus.contra} porque es más grave en ${P.integrada[0].versus.gana.map((it) => `${it.nombre} (${it.a} contra ${it.b})`).join(", ")}${P.integrada[0].versus.pierde.length ? `; ${P.integrada[0].versus.contra} solo la supera en ${P.integrada[0].versus.pierde.map((it) => `${it.nombre} (${it.b} contra ${it.a})`).join(", ")}` : ""}.` : ""}`);
   }
   if (P.porDominio.inventario) L.push(`- inventario (clave SKU, aparte de las cuentas): ${P.porDominio.inventario[0].entidad} primero.`);
-  L.push(`- el criterio se dice: ${P.criterio} Nada de sumar o comparar montos de dominios distintos; cada cifra tal cual está en la boleta.`);
+  if (otras) L.push(`- ${otras}${modo ? " Dilo si es material." : " Si eliges otra lente, decláralo; si preguntas, pregunta cuál lente quiere en vez de decidir sin decirlo."}`);
+  L.push(`- el criterio se dice siempre: ${P.criterio} Nada de sumar o comparar montos de dominios distintos; cada cifra tal cual está en la boleta.`);
   return L.join("\n");
 }
 
-/** la ley: en un encargo con prioridad pedida, la respuesta pone primero a quien puso el procedimiento */
-const _PRIORIDAD = /\bprimero\b|\bprioridad|\bfoco\b|\bantes que\b|\bentrar[ií]a\b|\bpartir[ií]a\b|\bempezar[ií]a\b|\barrancar[ií]a\b/i;
-export function prioridadIntegradaCambiada(texto, figs, dominios = []) {
-  const P = prioridadIntegrada(figs, dominios);
-  if (!P || !P.integrada.length) return null;
-  const primera = P.integrada[0].entidad;
+/** la ley: la prioridad que cierra la respuesta es la del criterio del usuario; sin criterio, es la de alguna lente y el
+ *  criterio está declarado (o la respuesta pregunta qué lente usar) */
+const _PRIORIDAD = /\bprimero\b|\bprioridad|\bprioritari|\bfoco\b|\bantes que\b|\bentrar[ií]a\b|\bpartir[ií]a\b|\bempezar[ií]a\b|\barrancar[ií]a\b|\bmayor riesgo\b/i;
+const _CRITERIO_DICHO = /\bcriterio\b|\blente\b|\bintegr|\briesgo\b|\bcontribuci[oó]n\b|\bmargen\b|\bcaja\b|\bcobranza\b|\bvencid|\bventas?\b|\bcrecimiento\b|\bcapital\b|\bmaterialidad\b|\bseveridad\b|\burgencia\b|\bseñal/i;
+export function prioridadIntegradaCambiada(texto, figs, dominios = [], { criterio = null, modo = null } = {}) {
   const t = String(texto || "");
-  /* «Líder» con tilde (corrida en vivo, 2026-09-14): el modelo acentuó el nombre las 13 veces y la ley no lo reconoció —
-   * un falso positivo propio que tumbó una respuesta correcta. El nombre se compara sin tildes, en los dos lados. */
   const _sinTildes = (s) => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const _re = (nombre) => new RegExp(`(?<![\\p{L}\\p{N}])${_sinTildes(nombre).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`, "iu");
+  const P1 = primerosPorCriterio(figs, dominios);
+  const usa = criterio && CRITERIOS[criterio] ? criterio : null;
+  if (usa && !P1[usa]) return null;
+  if (!usa && !P1.riesgo) return null;
+  /* las cuentas que compiten: las primeras de cada lente de clave cliente, más las de la lista integrada */
+  const cuentas = new Set(Object.keys(P1).filter((c) => CRITERIOS[c].clave === "cliente").map((c) => P1[c].entidad));
+  const Pint = prioridadIntegrada(figs, dominios);
+  for (const c of (Pint ? Pint.integrada : [])) cuentas.add(c.entidad);
   /* el CIERRE es el último párrafo con prioridad QUE HABLA DE LAS CUENTAS (owner 2026-09-14, segundo prompt de producción):
    * «Yo miraría primero Falabella —criterio mío—» al final de una lectura de tres dominios es una prioridad local servida
-   * como global. La primera del procedimiento tiene que estar nombrada en ese último párrafo, no en cualquiera. Un párrafo
-   * de inventario («LG-DRYER8KG primero») es otra clave y no compite con las cuentas: no cuenta como cierre de éstas. */
-  const cuentas = P.integrada.map((c) => c.entidad);
-  const parrafos = t.split(/\n\s*\n/).filter((p) => _PRIORIDAD.test(p) && cuentas.some((e) => _re(e).test(_sinTildes(p))));
+   * como global. Un párrafo de inventario («LG-DRYER8KG primero») es otra clave y no compite con las cuentas. */
+  const parrafos = t.split(/\n\s*\n/).filter((p) => _PRIORIDAD.test(p) && [...cuentas].some((e) => _re(e).test(_sinTildes(p))));
   if (!parrafos.length) return null;   // sin prioridad dicha sobre las cuentas, esto no juzga (la cobertura del encargo ya cobra que falte)
-  const cierre = parrafos[parrafos.length - 1];
-  if (_re(primera).test(_sinTildes(cierre))) return null;
-  const v = P.integrada[0].versus;
-  return `la prioridad integrada del procedimiento es ${primera}${v && v.gana.length ? ` (antes que ${v.contra}: más grave en ${v.gana.map((it) => `${it.nombre}, ${it.a} contra ${it.b}`).join("; ")})` : ""} y tu prioridad no la nombra. La conclusión es del procedimiento: explícala, no la cambies — puedes decir la prioridad de cada dominio, pero la integrada abre con ${primera}.`;
+  const cierre = _sinTildes(parrafos[parrafos.length - 1]);
+  if (usa) {
+    /* 1 y 2 · el criterio del usuario manda: la primera bajo ese criterio tiene que estar en el cierre */
+    const primera = P1[usa].entidad;
+    if (_re(primera).test(cierre)) return null;
+    const C = CRITERIOS[usa];
+    return `el usuario ${modo === "implicito" ? "pidió (con sus palabras)" : "fijó"} el criterio «${C.nombre}» y bajo ese criterio va primero ${primera}${P1[usa].valor ? ` (${P1[usa].valor})` : ""}; tu cierre no la nombra. El criterio del usuario manda: ordena bajo él y, si otra lente cambiaría quién va primero, dilo sin cambiar la prioridad pedida.`;
+  }
+  /* 4 · sin criterio: vale la primera de alguna lente, con el criterio declarado — o preguntar qué lente usar (3) */
+  if (/\?/.test(cierre) && /criterio|lente|ordenar|ordeno|priorizar/i.test(cierre)) return null;
+  const alguna = Object.keys(P1).filter((c) => CRITERIOS[c].clave === "cliente").find((c) => _re(P1[c].entidad).test(cierre));
+  if (alguna && _CRITERIO_DICHO.test(cierre)) return null;
+  const riesgo = P1.riesgo;
+  const v = Pint && Pint.integrada[0] && Pint.integrada[0].versus;
+  if (!alguna) return `el usuario no fijó criterio: tu cierre no pone primero a quien va primero bajo ninguna lente (por riesgo integrado, ${riesgo.entidad}${v && v.gana.length ? ` — antes que ${v.contra}: más grave en ${v.gana.map((it) => `${it.nombre}, ${it.a} contra ${it.b}`).join("; ")}` : ""}${Object.keys(P1).filter((c) => c !== "riesgo" && CRITERIOS[c].clave === "cliente" && P1[c].entidad !== riesgo.entidad).map((c) => `; por ${CRITERIOS[c].nombre}, ${P1[c].entidad}`).join("")}). Entrega una prioridad ejecutiva con el criterio declarado, o pregunta qué lente quiere usar.`;
+  return `el usuario no fijó criterio y tu cierre pone primero a ${P1[alguna].entidad} sin declarar bajo qué criterio (por ${CRITERIOS[alguna].nombre} va primero; por riesgo integrado, ${riesgo.entidad}). Declara el criterio en el cierre y, si es material, di que otra lente cambiaría quién va primero.`;
 }

@@ -100,7 +100,7 @@ H("3 · el cierre del respaldo, con cerebro mudo, sobre el prompt de producción
   /* lo que recibe el cerebro: la conclusión del procedimiento, antes de escribir */
   const contenidos = (MUDO.llamadas[0] ? MUDO.llamadas[0].mensajes : []).map((m) => String(m.content || ""));
   const de = contenidos.find((c) => c.startsWith("[ENCARGO COMPUESTO"));
-  ok(de && /\[PRIORIDAD DEL PROCEDIMIENTO — no es el usuario\] Se conserva; el cerebro la explica, no la cambia/.test(de) && /1º Lider · 2º Falabella · 3º Sodimac/.test(de) && /Lider va antes que Falabella porque es más grave en distancia al benchmark \(8\.6 pp contra 8\.1 pp\), vencido/.test(de), "★ el cerebro recibe la prioridad del procedimiento (por dominio e integrada) con sus razones, antes de escribir");
+  ok(de && /\[PRIORIDAD DEL PROCEDIMIENTO — no es el usuario\] El usuario NO fijó criterio\. La jerarquía: \(1\) si lo fija, manda; \(2\) si se lee en su pregunta, se interpreta; \(3\)/.test(de) && /1º Lider · 2º Falabella · 3º Sodimac/.test(de) && /Lider va antes que Falabella porque es más grave en distancia al benchmark \(8\.6 pp contra 8\.1 pp\), vencido/.test(de), "★ el cerebro recibe la prioridad del procedimiento (por dominio e integrada) con sus razones y la JERARQUÍA del criterio (el usuario no fijó ninguno: la ejecutiva de la casa, declarada)");
   ok(de && /materialidad \(cuánto está en juego\), severidad \(distancia a la referencia declarada\) y urgencia \(la señal de tiempo\)/.test(de) && !/primero la cuenta donde coinciden dos dominios/.test(de), "…y la doctrina del encargo pide la prioridad por dominio y la integrada con este criterio, ya no «coincide en dos dominios»");
   ok(doctrinaDelEncargo(partesDelEncargo("Dime cómo va el negocio, qué está explicando el resultado, qué clientes presionan más el margen, qué puedes demostrar y qué harías primero."), ["comercial"], FIGS).includes("[PRIORIDAD DEL PROCEDIMIENTO") === true, "en un encargo de un solo dominio la prioridad del procedimiento también viaja (la del comercial)");
 }
@@ -113,9 +113,14 @@ H("4 · «prioridad-integrada-cambiada»: el cerebro la explica, no la cambia �
   ok(!vetosDeRegistro(b2, { pregunta: Q, figs: FIGS, sitio: "cierre" }).some((x) => x.regla === "prioridad-integrada-cambiada"), "…también por vetosDeRegistro (sitio cierre)");
   const conFalabella = b2.replace(/es \*\*Lider\*\*: es la única cuenta[^.]*\./, "es **Falabella**: la mayor brecha comercial.").replace("Lider concentra el peor cruce", "Sodimac concentra el peor cruce");
   const m = prioridadIntegradaCambiada(conFalabella, FIGS, DOMS);
-  ok(m && /la prioridad integrada del procedimiento es Lider/.test(m) && /antes que Falabella: más grave en distancia al benchmark, 8\.6 pp contra 8\.1 pp; vencido, \$4\.6M contra \$2\.5M/.test(m), "★ el mismo borrador poniendo primero a Falabella arde, con las razones del procedimiento en la multa", String(m).slice(0, 200));
-  ok(vetosDeRegistro(conFalabella, { pregunta: Q, figs: FIGS, sitio: "cierre" }).some((x) => x.regla === "prioridad-integrada-cambiada"), "…y la cobra vetosDeRegistro al cerebro");
-  ok(!vetosDeRegistro(conFalabella, { pregunta: Q, figs: FIGS, sitio: "playbook:cruce-por-sku" }).some((x) => x.regla === "prioridad-integrada-cambiada"), "…no a los peldaños de abajo");
+  ok(!m, "★ sin criterio del usuario, el mismo borrador poniendo primero a Falabella «por contribución» (criterio declarado) YA NO arde: la prioridad no es universal — es la lectura ejecutiva con su criterio (jerarquía 4)", String(m).slice(0, 160));
+  const sinCriterioDicho = b2.slice(0, b2.indexOf("**Dónde pondría el foco primero**")) + "Dónde pondría el foco primero: Falabella — es la cuenta más grande.";
+  const m2 = prioridadIntegradaCambiada(sinCriterioDicho, FIGS, DOMS);
+  ok(m2 && /sin declarar bajo qué criterio/.test(m2) && /por riesgo integrado, Lider/.test(m2), "…pero poner primero a Falabella SIN declarar el criterio arde: «declara el criterio en el cierre»", String(m2).slice(0, 200));
+  const m3 = prioridadIntegradaCambiada(conFalabella, FIGS, DOMS, { criterio: "riesgo", modo: "explicito" });
+  ok(m3 && /fijó el criterio «riesgo integrado» y bajo ese criterio va primero Lider/.test(m3), "…y con el criterio explícito «prioriza riesgo», Falabella primero arde: el criterio del usuario manda", String(m3).slice(0, 200));
+  ok(vetosDeRegistro(conFalabella, { pregunta: Q + " Prioriza riesgo.", figs: FIGS, sitio: "cierre" }).some((x) => x.regla === "prioridad-integrada-cambiada"), "…y la cobra vetosDeRegistro al cerebro cuando la pregunta fija el criterio");
+  ok(!vetosDeRegistro(conFalabella, { pregunta: Q + " Prioriza riesgo.", figs: FIGS, sitio: "playbook:cruce-por-sku" }).some((x) => x.regla === "prioridad-integrada-cambiada"), "…no a los peldaños de abajo");
   ok(!prioridadIntegradaCambiada(FX.respuesta_observada.texto, FIGS, DOMS), "un texto que no dice ninguna prioridad no la «cambia» (eso lo cobra la cobertura del encargo)");
   ok(!vetosDeRegistro(conFalabella, { pregunta: "¿Qué harías primero con Falabella?", figs: FIGS, sitio: "cierre" }).some((x) => x.regla === "prioridad-integrada-cambiada"), "una pregunta simple no tiene esta ley");
   ok(!vetosDeRegistro("Primero Lider: es la cuenta más grave en cobranza y de las que más contribución dejan sin capturar.", { pregunta: Q, figs: FIGS, sitio: "cierre" }).some((x) => x.regla === "prioridad-integrada-cambiada"), "una prioridad dicha a la manera del modelo, con Lider primero, pasa");
@@ -219,8 +224,9 @@ H("8 · segundo prompt de producción: pide el mayor riesgo con sus palabras —
   /* la ley: el CIERRE con la prioridad local arde; con Lider en el cierre, pasa */
   const F2 = figsDe(DOMS);
   const conLocal = t.replace(/\n\nDónde pondría el foco primero[\s\S]*$/, "") + "\n\n" + FX2.cierre_observado;
-  const m = prioridadIntegradaCambiada(conLocal, F2, DOMS);
-  ok(m && /la prioridad integrada del procedimiento es Lider/.test(m), "★ la respuesta observada en producción (cierra con «Yo miraría primero Falabella —criterio mío—») arde: una prioridad local no se sirve como global", String(m).slice(0, 160));
+  const { criterioDeLaPregunta: _crit } = await import("./src/adi/agente/prioridadIntegrada.js");
+  const m = prioridadIntegradaCambiada(conLocal, F2, DOMS, _crit(Q2) || {});   // el criterio se lee en la pregunta: riesgo (implícito)
+  ok(m && /pidió \(con sus palabras\) el criterio «riesgo integrado» y bajo ese criterio va primero Lider/.test(m), "★ la respuesta observada en producción (cierra con «Yo miraría primero Falabella —criterio mío—») arde: el criterio se lee en la pregunta (mayor riesgo) y bajo él va primero Lider", String(m).slice(0, 160));
   ok(vetosDeRegistro(conLocal, { pregunta: Q2, figs: F2, sitio: "cierre" }).some((x) => x.regla === "prioridad-integrada-cambiada"), "…también por vetosDeRegistro, sin que el encargo diga «prioridad» (dos o más dominios bastan)");
   ok(!prioridadIntegradaCambiada(conLocal + "\n\nIntegrando las señales, Lider va primero: $4.6M vencidos a 269 días y 8.6 pp bajo el benchmark.", F2, DOMS), "…y si el cierre nombra a Lider, pasa aunque antes haya dicho la prioridad comercial de Falabella");
   ok(!prioridadIntegradaCambiada("Por dominio: en comercial partiría por Falabella. Integrando, pondría Lider primero.\n\nEn inventario, LG-DRYER8KG primero.", F2, DOMS), "un cierre de inventario después del integrado no cambia la conclusión (el último párrafo con prioridad global es el que nombra a Lider… o el de inventario, que no compite con las cuentas)");
@@ -240,6 +246,61 @@ H("9 · el segundo prompt en vivo (autorizado, 1 llamada): el modelo terminó en
   ok(!prioridadIntegradaCambiada(tv, F2, DOMS) && !vetosDeRegistro(tv, { pregunta: FX2.pregunta, figs: F2, sitio: "cierre" }).length, "★ el Notario verifica la misma prioridad: la ley pasa sobre el texto servido (agente y Notario avanzan juntos)");
   const r = await answerViaAgente({ text: FX2.pregunta, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: tv, stop: "end_turn" }) });
   ok(r.r.agente.estado === "verde" && r.r.text === tv, `…y con ese texto como cerebro el turno se sirve verde offline (${r.r.agente.estado})`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
+}
+
+/* ═══ 10 · EL CRITERIO DEL USUARIO MANDA: LA JERARQUÍA (owner 2026-09-14, corrección del estándar) ═══════════════════ */
+H("10 · la jerarquía del criterio: explícito manda · implícito se interpreta · ambiguo se puede preguntar · ejecutivo se entrega con el criterio declarado");
+{
+  const { criterioDeLaPregunta, ordenPorCriterio, primerosPorCriterio, CRITERIOS } = await import("./src/adi/agente/prioridadIntegrada.js");
+  const { playbookPara } = await import("./src/adi/agente/playbooks/registro.js");
+  const FX2 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-produccion2-2026-09-14.json", import.meta.url), "utf8"));
+  /* 1 · explícito */
+  const expl = [["Prioriza ventas y dime por dónde parto.", "ventas"], ["Ahora ordénamelo por caja.", "caja"], ["Quiero recuperar contribución: ¿qué cuenta primero?", "contribucion"], ["Prioriza riesgo.", "riesgo"], ["Con la lente de cobranza, ¿quién primero?", "caja"], ["ahora por contribución", "contribucion"], ["Prioriza margen.", "contribucion"], ["ordénamelo por crecimiento", "crecimiento"], ["quiero liberar capital: ¿qué SKU primero?", "capital"]];
+  for (const [q, c] of expl) { const r = criterioDeLaPregunta(q); ok(r && r.criterio === c && r.modo === "explicito", `explícito: «${q}» → ${c}`, JSON.stringify(r)); }
+  /* 2 · implícito: solo el riesgo (en un encargo, «riesgo de cobranza» o «dejo contribución sobre la mesa» son partes, no el criterio) */
+  ok(criterioDeLaPregunta(FX2.pregunta) && criterioDeLaPregunta(FX2.pregunta).criterio === "riesgo" && criterioDeLaPregunta(FX2.pregunta).modo === "implicito", "implícito: «el mayor riesgo económico… qué debería preocuparme» → riesgo integrado, sin preguntar");
+  ok(criterioDeLaPregunta(Q) === null, "★ el primer prompt de producción (menciona «riesgo de cobranza» como PARTE) no fija criterio: lectura ejecutiva general");
+  ok(criterioDeLaPregunta("Mira el negocio y dime qué harías primero.") === null && criterioDeLaPregunta("¿Cómo va el negocio?") === null, "sin objetivo dicho no hay criterio");
+  /* los órdenes bajo cada lente: los mismos hechos, otra prioridad */
+  const P1 = primerosPorCriterio(FIGS, DOMS);
+  ok(P1.riesgo.entidad === "Lider" && P1.caja.entidad === "Lider" && P1.crecimiento.entidad === "Lider", `por riesgo integrado, cobranza y crecimiento: Lider primero`);
+  ok(P1.contribucion.entidad === "Falabella" && P1.ventas.entidad === "Falabella" && P1.capital.entidad === "LG-DRYER8KG", `★ por contribución y por ventas: Falabella primero; por capital: LG-DRYER8KG — Lider no es una prioridad universal`);
+  ok(ordenPorCriterio(FIGS, DOMS, "caja").lista.slice(0, 3).map((x) => x.entidad).join(">") === "Lider>Falabella>Sodimac" && ordenPorCriterio(FIGS, DOMS, "contribucion").lista.slice(0, 3).map((x) => x.entidad).join(">") === "Falabella>Lider>Jumbo", "…con sus listas: cobranza Lider > Falabella > Sodimac · contribución Falabella > Lider > Jumbo");
+  ok(CRITERIOS.caja.nombre === "cobranza", "la lente de caja se NOMBRA «cobranza» en pantalla (la palabra «caja» junto a una contribución dispara la naturaleza económica del muro)");
+  /* el respaldo bajo cada modo, con cerebro mudo */
+  const corre = async (q) => { MUDO.llamadas = []; const r0 = await answerViaAgente({ text: q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO }); const r = r0.r; const t = r.text; return { r, t, cierre: t.slice(Math.max(0, t.indexOf("Dónde pondría el foco primero"))), doctrina: (MUDO.llamadas[0] ? MUDO.llamadas[0].mensajes : []).map((m) => String(m.content || "")).find((c) => c.startsWith("[ENCARGO COMPUESTO")) || "" }; };
+  const a = await corre(Q);
+  ok(a.r.agente.estado === "encargo-compuesto" && /criterio ejecutivo de ADI, porque no fijaste otro: riesgo integrado/.test(a.cierre) && /^1\. Lider — /m.test(a.cierre), "★ sin criterio (prompt 1): la prioridad ejecutiva de ADI —riesgo integrado— DECLARADA como tal, Lider primero", a.cierre.slice(0, 160));
+  ok(/Con otra lente cambia quién va primero: por contribución, Falabella primero \(\$1\.6M sin capturar\); por ventas, Falabella primero/.test(a.cierre) && /Dime por cuál quieres que lo reordene/.test(a.cierre), "…y dice que con otra lente cambia quién va primero (contribución → Falabella) y ofrece reordenar");
+  ok(/El usuario NO fijó criterio\. La jerarquía/.test(a.doctrina) && /puedes preguntarle qué lente quiere/.test(a.doctrina) && /Si eliges otra lente, decláralo/.test(a.doctrina), "…y el cerebro recibe la jerarquía entera: puede elegir otra lente declarándola, o preguntar si es realmente ambiguo");
+  const b = await corre(FX2.pregunta);
+  ok(b.r.agente.estado === "encargo-compuesto" && /por riesgo integrado, el criterio que se lee en tu pregunta/.test(b.cierre) && /^1\. Lider — /m.test(b.cierre), "★ implícito (prompt 2): «por riesgo integrado, el criterio que se lee en tu pregunta», Lider primero", b.cierre.slice(0, 160));
+  ok(/El criterio se lee en la pregunta del usuario: riesgo integrado/.test(b.doctrina), "…y el cerebro lo recibe como criterio leído, no como elección propia");
+  const c = await corre(Q + " Prioriza contribución.");
+  ok(c.r.agente.estado === "encargo-compuesto" && /por contribución, el criterio que pediste/.test(c.cierre) && /^1\. Falabella — \$1\.6M sin capturar/m.test(c.cierre) && /^2\. Lider — \$1\.5M sin capturar/m.test(c.cierre), "★ explícito («prioriza contribución») sobre el mismo encargo: Falabella primero — el criterio del usuario manda sobre el riesgo integrado", c.cierre.slice(0, 200));
+  ok(/por riesgo integrado, Lider primero/.test(c.cierre) && !/\bel orden\b/.test(c.cierre), "…y dice que por riesgo integrado sería Lider (sin la palabra «orden», que el muro lee como ranking)");
+  ok(/El usuario fijó el criterio: contribución/.test(c.doctrina) && /1º Falabella/.test(c.doctrina), "…y el cerebro recibe ese criterio como conclusión que conserva");
+  ok(a.r.agente.vetos.length === 0 && b.r.agente.vetos.length === 0 && c.r.agente.vetos.length === 0, "los tres pasan muro, contrato y notarial", [a, b, c].map((x) => JSON.stringify(x.r.agente.vetos).slice(0, 80)).join(" | "));
+  /* el cambio de criterio en un turno siguiente: los mismos hechos, otra prioridad (playbook prioridad-por-lente) */
+  ok((playbookPara("Ahora ordénamelo por caja.", {}) || {}).nombre === "prioridad-por-lente" && (playbookPara("Prioriza ventas: ¿qué cuenta va primero?", {}) || {}).nombre === "prioridad-por-lente", "«ahora ordénamelo por caja» y «prioriza ventas» los atiende el playbook prioridad-por-lente");
+  ok((playbookPara(Q, {}) || {}).nombre === "cruce-por-sku" && (playbookPara(Q + " Prioriza contribución.", {}) || {}).nombre === "cruce-por-sku", "…que se retira en un encargo compuesto (ahí el criterio va por el ensamblador)");
+  const d = await corre("Ahora ordénamelo por caja.");
+  ok(d.r.agente.estado === "playbook" && /Ordenado bajo el criterio que fijaste — cobranza/.test(d.t) && /por cobranza, el criterio que pediste/.test(d.t) && /^1\. Lider — \$4\.6M vencidos, 269d de atraso/m.test(d.t) && /^2\. Falabella — \$2\.5M vencidos, 8d de atraso/m.test(d.t), "★ «ahora ordénamelo por caja» → Lider > Falabella > Sodimac por cobranza, los mismos hechos", d.t.slice(0, 200));
+  ok(/Con otra lente cambia quién va primero: por contribución, Falabella primero/.test(d.t) && d.r.agente.vetos.length === 0, "…con la nota de la otra lente, y pasa el Notario");
+  const e = await corre("Prioriza ventas: ¿qué cuenta va primero?");
+  ok(e.r.agente.estado === "playbook" && /por ventas, el criterio que pediste/.test(e.t) && /^1\. Falabella — \$19\.4M de venta/m.test(e.t) && /por riesgo integrado, Lider primero/.test(e.t), "★ «prioriza ventas» → Falabella primero por venta, y dice que por riesgo integrado sería Lider");
+  /* la ley por criterio */
+  const { prioridadIntegradaCambiada: ley } = await import("./src/adi/agente/prioridadIntegrada.js");
+  const cierraCon = (ent, crit) => `Lectura.\n\nDónde pondría el foco primero: ${ent} — ${crit}.`;
+  ok(!ley(cierraCon("Falabella", "por contribución, la mayor brecha comercial"), FIGS, DOMS, {}), "sin criterio: Falabella primero «por contribución» (criterio declarado) pasa");
+  ok(/sin declarar bajo qué criterio/.test(ley(cierraCon("Falabella", "es la cuenta más grande"), FIGS, DOMS, {}) || ""), "sin criterio: Falabella primero sin declarar el criterio arde");
+  ok(/no pone primero a quien va primero bajo ninguna lente/.test(ley(cierraCon("Jumbo", "por criterio propio"), FIGS, DOMS, {}) || ""), "sin criterio: Jumbo primero (primero bajo ninguna lente) arde");
+  ok(!ley("Lectura.\n\nHay dos prioridades posibles: Lider por riesgo, Falabella por contribución. ¿Con qué criterio quieres que lo ordene?", FIGS, DOMS, {}), "sin criterio: preguntar qué lente usar (jerarquía 3) pasa");
+  ok(/fijó el criterio «contribución» y bajo ese criterio va primero Falabella/.test(ley(cierraCon("Lider", "por riesgo"), FIGS, DOMS, { criterio: "contribucion", modo: "explicito" }) || ""), "explícito contribución: Lider primero arde — el criterio del usuario manda");
+  ok(!ley(cierraCon("Falabella", "por contribución"), FIGS, DOMS, { criterio: "contribucion", modo: "explicito" }), "explícito contribución: Falabella primero pasa");
+  ok(/pidió \(con sus palabras\) el criterio «riesgo integrado» y bajo ese criterio va primero Lider/.test(ley(cierraCon("Falabella", "por contribución"), FIGS, DOMS, { criterio: "riesgo", modo: "implicito" }) || ""), "implícito riesgo: Falabella primero arde");
+  ok(vetosDeRegistro(cierraCon("Lider", "por riesgo"), { pregunta: Q + " Prioriza contribución.", figs: FIGS, sitio: "cierre" }).some((x) => x.regla === "prioridad-integrada-cambiada"), "…y vetosDeRegistro lee el criterio de la pregunta del encargo");
+  ok(!vetosDeRegistro(cierraCon("Lider", "por riesgo"), { pregunta: Q + " Prioriza contribución.", figs: FIGS, sitio: "playbook:cruce-por-sku" }).length, "…no a los peldaños de abajo");
 }
 
 console.log(`\n── _prioridad_integrada_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);

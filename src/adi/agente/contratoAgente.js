@@ -1,7 +1,7 @@
 import { catalogoAgente } from "./catalogoAgente.js";   // R8 · los identificadores internos jamás van a pantalla (lazy: nada se deriva al importarse)
 import { atributoMalAsociado, relacionEnPalabrasNoCierra } from "./atributosYRelaciones.js";   // el atributo (bodega/marca/familia/canal) y la relación dicha en palabras, contra el dato (owner 2026-09-14)
 import { esEncargoCompuesto, partesDelEncargo, coberturaDelEncargo, dominiosDelEncargo } from "./partesDelEncargo.js";
-import { prioridadIntegradaCambiada } from "./prioridadIntegrada.js";   // la prioridad integrada es del procedimiento (owner 2026-09-14)   // las partes de un encargo, por dominio: el ensamblador compone la misma lista que acá se cobra (owner 2026-09-14)
+import { prioridadIntegradaCambiada, criterioDeLaPregunta } from "./prioridadIntegrada.js";   // la prioridad: el criterio del usuario manda; sin criterio, la ejecutiva con el criterio declarado (owner 2026-09-14)   // las partes de un encargo, por dominio: el ensamblador compone la misma lista que acá se cobra (owner 2026-09-14)
 export { esEncargoCompuesto };   // re-exportado sin cambiar: registro.js y el ensamblador lo toman de acá
 /* === src/adi/agente/contratoAgente.js · LA LETRA DEL CONTRATO Y SU VETO MECÁNICO (F3 · owner 2026-08-30) =====
  *
@@ -568,7 +568,7 @@ export function vetosDeRegistro(texto, contexto = {}) {
       /* LA PRIORIDAD INTEGRADA ES DEL PROCEDIMIENTO (owner 2026-09-14): materialidad + severidad + urgencia, señal por señal —
        * el cerebro la explica, no la cambia. Solo cuando el encargo pidió la prioridad y la boleta trae las señales. */
       if ((_partes.some((p) => p.clave === "primero") || dominiosDelEncargo(_partes).length >= 2) && Array.isArray(contexto.figs) && contexto.figs.length) {   // con varios dominios, siempre (owner 2026-09-14)
-        const _pc = (() => { try { return prioridadIntegradaCambiada(texto, contexto.figs, dominiosDelEncargo(_partes)); } catch { return null; } })();
+        const _pc = (() => { try { return prioridadIntegradaCambiada(texto, contexto.figs, dominiosDelEncargo(_partes), criterioDeLaPregunta(contexto.pregunta) || {}); } catch { return null; } })();
         if (_pc) v.push({ regla: "prioridad-integrada-cambiada", multa: _pc });
       }
     }

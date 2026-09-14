@@ -41,6 +41,7 @@ import { entidadPorPeriodo } from "./entidadPorPeriodo.js";   // playbook de FOR
 import { proyeccionDeclarada } from "./proyeccionDeclarada.js";   // playbook de FORMA: «crezco 3%» · «proyecta +4%» · «reducir 2pp la carga» — con el MISMO detector que el juez P1
 import { cobranza } from "./cobranza.js";   // playbook del COBRO: «quién me debe» · «crédito vs contado» — la misma mesa que la pestaña
 import { crucePorSku } from "./crucePorSku.js";   // el cruce Comercial × Inventario por SKU, la única clave que el archivo demuestra (owner 2026-09-14)
+import { prioridadPorLente } from "./prioridadPorLente.js";   // «ahora ordénamelo por caja»: la misma realidad, otro criterio (owner 2026-09-14)
 import { dominiosDe } from "../contratoDeDominios.js";   // «la pregunta determina qué dominios participan»: con dos, los playbooks de un solo dominio se retiran
 /* el pulido del anclaje (owner 2026-09-05: «cada botón debe responder sobre el cuadro exacto que el usuario
  * está mirando»). Va TEMPRANO en el registro a propósito: sus formas son las frases de los botones —
@@ -71,7 +72,7 @@ import { resumenDelNegocio } from "./resumenDelNegocio.js";   // señal del owne
  * que responden la lectura de ese tema y no contrastan nada. El usuario proponía y recibía un ranking. Va
  * antes que todos porque su detector es el más estrecho de la casa: exige forma de hipótesis + un tema
  * identificable + una dirección afirmada; sin las tres se retira, y el turno sigue su camino de siempre. */
-export const PLAYBOOKS = [hipotesisDelUsuario, desafiarDecision, contradiccionDeMetricas, compararAlternativas, margenEnRiesgo, clientePerdiendoContribucion, askDeCuadro, cuadroExplicado, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada, cobranza, planDeAccion, crucePorSku, fichaDeEntidad, limiteHonesto, sintesisEjecutiva, resumenDelNegocio];
+export const PLAYBOOKS = [hipotesisDelUsuario, desafiarDecision, contradiccionDeMetricas, compararAlternativas, prioridadPorLente, margenEnRiesgo, clientePerdiendoContribucion, askDeCuadro, cuadroExplicado, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada, cobranza, planDeAccion, crucePorSku, fichaDeEntidad, limiteHonesto, sintesisEjecutiva, resumenDelNegocio];
 
 /** playbookPara(pregunta) → el playbook que aplica, o null. El PRIMERO que declare aplicar (orden del registro
  *  = precedencia declarada); jamás dos a la vez, para que el procedimiento del turno sea uno solo y auditable. */

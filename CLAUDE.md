@@ -138,6 +138,12 @@ Derivadas que se rompen seguido:
   «prioridad» («mayor riesgo», «qué debería preocuparme», «prioritario», «lo más grave», «merece atención primero» son la
   misma decisión); ninguna prioridad local («Yo miraría primero Falabella, criterio mío») sobrevive como global; el Notario
   verifica que el último párrafo con prioridad sobre las cuentas nombre a la primera. Dos casos permanentes.
+  **El criterio del usuario manda** (owner 2026-09-14): explícito («prioriza caja/ventas/riesgo», «quiero recuperar
+  contribución», «ahora ordénamelo por…») → manda; implícito claro («mayor riesgo económico») → se interpreta; realmente
+  ambiguo → el cerebro puede preguntar qué lente; lectura ejecutiva general → ADI entrega la suya (riesgo integrado) con el
+  criterio DECLARADO y la nota de que otra lente cambia quién va primero. Lider primero es del criterio de riesgo integrado,
+  no universal (por contribución/ventas, Falabella). Lentes en `CRITERIOS`; el cambio de criterio en un turno siguiente lo
+  atiende `prioridad-por-lente` con los mismos hechos.
 
 ---
 

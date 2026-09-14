@@ -52,7 +52,7 @@ import { pasosDe } from "./playbooks/registro.js";
 import { pasosDeDominios, unirPasosDeDominios } from "./contratoDeDominios.js";   // la realidad de inventario para sus partes (owner 2026-09-14)
 import { componerReformulacion, destinatarioDe } from "./reformular.js";
 import { partesDelEncargo as _partesDeLaHoja, dominiosDelEncargo, coberturaDelEncargo, esEncargoCompuesto } from "./partesDelEncargo.js";
-import { componerPrioridadIntegrada, conclusionDePrioridad } from "./prioridadIntegrada.js";   // materialidad + severidad + urgencia, señal por señal (owner 2026-09-14)
+import { componerPrioridadIntegrada, conclusionDePrioridad, criterioDeLaPregunta } from "./prioridadIntegrada.js";   // materialidad + severidad + urgencia, señal por señal; el criterio del usuario manda (owner 2026-09-14)
 export { esEncargoCompuesto, dominiosDelEncargo, coberturaDelEncargo };
 
 /* ── LOS PROCEDIMIENTOS DE CADA PARTE (la hoja los nombra; acá se resuelven) ─────────────────────────────────── */
@@ -184,7 +184,7 @@ export function pasosDelEncargo(partes, pasosBase, ctx) {
  * Viaja SOLO en un turno de encargo compuesto, después de las doctrinas de dominio: la lista de lo pedido, la ley de
  * cobertura («el foco ordena, no elimina»), las claves de unión válidas y el cierre integrado. El entregable del
  * procedimiento activo (por ejemplo, la ficha del cruce por SKU) es UNA parte; el entregable del turno es el encargo. */
-export function doctrinaDelEncargo(partes, dominios = [], figs = null) {
+export function doctrinaDelEncargo(partes, dominios = [], figs = null, pregunta = "") {
   if (!Array.isArray(partes) || partes.length < 2) return "";
   const doms = dominios && dominios.length ? dominios : dominiosDelEncargo(partes);
   const L = [`[ENCARGO COMPUESTO — no es el usuario] El usuario pidió ${partes.length} cosas${doms.length >= 2 ? ` en ${doms.length} dominios (${doms.join(" + ")})` : ""}, y LA RESPUESTA LAS CUBRE TODAS — el foco ordena y jerarquiza, no elimina una parte pedida:`];
@@ -196,7 +196,7 @@ export function doctrinaDelEncargo(partes, dominios = [], figs = null) {
   /* la conclusión del procedimiento sobre la prioridad viaja ANTES de escribir (ley de la casa: la conclusión es del
    * procedimiento, el cerebro la explica) — solo cuando el encargo pidió la prioridad y hay señales en la boleta */
   if (figs && (partes.some((p) => p.clave === "primero") || doms.length >= 2)) {   // con varios dominios, la prioridad del procedimiento viaja siempre
-    const c = (() => { try { return conclusionDePrioridad(figs, doms); } catch { return ""; } })();
+    const c = (() => { try { return conclusionDePrioridad(figs, doms, criterioDeLaPregunta(pregunta) || {}); } catch { return ""; } })();
     if (c) L.push(c);
   }
   L.push(`Lo que el dato no trae para una parte se dice en una línea; ninguna parte desaparece. El entregable del procedimiento activo es UNA de las partes; el entregable del turno es el encargo completo.`);
@@ -272,7 +272,7 @@ export function componerEncargo({ partes, leer, scenario, mem, semilla, pregunta
     /* dominio por dominio: `leer` corre con el tope de una ronda (8 llamadas) y los tres dominios juntos lo exceden — medido:
      * el cierre salía solo con el comercial y la cobranza y el inventario desaparecían de la prioridad */
     const figsDom = doms.flatMap((d) => { try { return leer(pasosDeDominios({ dominios: [d], eje: null }) || []) || []; } catch { return []; } });
-    const cierre = (() => { try { return componerPrioridadIntegrada(figsDom.length ? figsDom : [...lecturas.values()].flat(), doms); } catch { return null; } })();
+    const cierre = (() => { try { return componerPrioridadIntegrada(figsDom.length ? figsDom : [...lecturas.values()].flat(), doms, criterioDeLaPregunta(pregunta) || {}); } catch { return null; } })();
     if (cierre) { bloques.push(cierre); compuestas++; }
     else bloques.push(`Sobre qué haría primero no pude armar la lectura con lo leído en este turno.`);
   }

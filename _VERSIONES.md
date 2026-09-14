@@ -27,6 +27,13 @@ primero» son formas naturales de pedir la misma decisión.
   párrafo con prioridad sobre las cuentas nombre a la primera (`prioridad-integrada-cambiada`) — modelo, reparación y
   respaldo comparten la conclusión.
 - Falabella sigue siendo la prioridad comercial; el inventario va aparte; el cierre usa la integrada oficial: Lider.
+- **Y el criterio del usuario manda** (corrección del owner antes de desplegar): la prioridad depende del objetivo del
+  usuario. Explícito («prioriza caja», «prioriza ventas», «quiero recuperar contribución», «ahora ordénamelo por…») →
+  manda; implícito pero claro («mayor riesgo económico») → se interpreta sin preguntar; realmente ambiguo → ADI puede
+  preguntar qué lente; lectura ejecutiva general → ADI entrega la suya (riesgo integrado), declara el criterio y dice que
+  con otra lente cambia quién va primero. Lider primero pertenece al criterio de riesgo integrado, no es universal: por
+  contribución y por ventas va primero Falabella. Y el criterio se puede cambiar después («ahora ordénamelo por caja»)
+  sin que cambien los hechos: el playbook `prioridad-por-lente` reordena las mismas señales.
 
 **Resultado medido:** los dos prompts de producción como casos permanentes con cerebro mudo (respaldo: Lider primero en
 ambos); en vivo, el segundo prompt salió verde en una llamada: «El mayor riesgo hoy … es Lider», explicado por severidad y

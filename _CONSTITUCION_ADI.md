@@ -238,6 +238,21 @@ el cruce contra la carpeta real. Antes de pantalla:
      comparten la conclusión, y el Notario la verifica (`prioridad-integrada-cambiada`: el último párrafo con prioridad
      que hable de las cuentas nombra a la primera). Caso permanente: `fixtures/encargo-produccion2-2026-09-14.json`; en
      vivo, verde en una llamada (`fixtures/encargo2-vivo-2026-09-14.json`).
+   - **El criterio del usuario manda** (owner 2026-09-14, corrección del estándar: *«La prioridad no debe ser rígida ni
+     pertenecer siempre al procedimiento. Depende del objetivo del usuario»*). La jerarquía: (1) criterio EXPLÍCITO →
+     manda («prioriza ventas», «prioriza caja», «prioriza riesgo», «quiero recuperar contribución», «ahora ordénamelo por
+     caja»); (2) criterio IMPLÍCITO pero claro → ADI lo interpreta sin preguntar («mayor riesgo económico» → materialidad
+     + severidad + urgencia); (3) multidominio realmente ambiguo → ADI puede preguntar qué lente usar, sobre todo si
+     distintos criterios dan prioridades distintas; (4) lectura ejecutiva general → no frenar al usuario: ADI entrega
+     una prioridad ejecutiva propia (la de la casa: el riesgo integrado), declara el criterio y, si es material, dice que
+     otra lente cambiaría quién va primero. **Lider primero pertenece al criterio de riesgo integrado de estos fixtures,
+     no es una prioridad universal**: por contribución y por ventas va primero Falabella; por capital, LG-DRYER8KG. Las
+     lentes (`CRITERIOS` en `prioridadIntegrada.js`): riesgo integrado · contribución · cobranza (se pide como caja,
+     cobranza o liquidez) · ventas · crecimiento · capital. El usuario puede cambiar el criterio después («ahora
+     ordénamelo por caja») y el playbook `prioridad-por-lente` reordena los MISMOS hechos. El respaldo nunca pregunta:
+     entrega con el criterio declarado y ofrece reordenar; el cerebro recibe la jerarquía y puede preguntar solo en (3).
+     La ley (`prioridad-integrada-cambiada`): con criterio del usuario, el cierre nombra a la primera bajo ese criterio;
+     sin criterio, el cierre nombra a la primera de alguna lente y DECLARA el criterio (o pregunta qué lente usar).
 2. **¿Cada cálculo se puede recalcular?** La fórmula mostrada se recomputa. No cuadra o no muestra origen →
    bloqueado.
 3. **¿Cada clasificación existe?** «Frenado», «bajo benchmark», «crítico»: solo los estados que la carpeta
