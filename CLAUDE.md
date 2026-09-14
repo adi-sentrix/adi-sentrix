@@ -109,6 +109,15 @@ Derivadas que se rompen seguido:
   Clave única Comercial↔Inventario: el SKU. Cliente×inventario y `clientesPorSku` (afinidad estimada) APAGADOS hasta
   que las filas cliente×SKU entren al pack. Con dos dominios, los playbooks de uno solo se retiran (`multidominio`)
   y el cruce por SKU tiene piso propio (`cruce-por-sku`). Medido: dominios en la boleta 2/20 → 19/20 en tres datasets.
+- **El estándar de los cuatro puntos** (owner 2026-09-14, tras la corrida en vivo del cruce; ley en `_CONSTITUCION_ADI.md`,
+  fixtures reales en `fixtures/cruce-vivo-2026-09-14.json`, candado `_cuatro_garantias_del_cruce_gate`): (1) una cifra
+  correcta no queda asociada a un atributo incorrecto —bodega, marca, familia, canal, entidad— (`atributo-mal-asociado`);
+  (2) una relación dicha en palabras («el doble», «cuatro veces», «la mitad») cierra con las cifras o no se dice
+  (`relacion-en-palabras-no-cierra`, con el rango que fija el matiz); (3) en los cruces la conclusión sale del análisis,
+  no de la premisa del usuario: el piso abre «No: …» cuando lo medido lo contradice, la doctrina lo declara y
+  `premisa-adoptada` veta el «Sí» complaciente; (4) una respuesta buena del modelo no se degrada por falsos positivos:
+  el sujeto de la oración es el dueño por defecto, la coordinación «A y B … (x y y)» asigna por orden y «17 días» se lee
+  entero. Ambos jueces nuevos viven en `src/adi/agente/atributosYRelaciones.js` y se cobran en `vetosDeRegistro`.
 
 ---
 

@@ -175,7 +175,7 @@ export function doctrinaDelPlaybook(pb, pregunta, ctx, figs = null) {
    * el playbook declara lo que fijó —la prioridad oficial y su criterio, la definición de sus cifras de alcance— y el
    * cerebro las conserva; su criterio propio va después, como alternativa. Sin figs (gates viejos, doctrina
    * previa a los pasos) el bloque no existe y la doctrina es byte-idéntica a la de siempre. */
-  const _conclusiones = (figs && typeof pb.conclusiones === "function") ? (() => { try { return pb.conclusiones(figs) || ""; } catch { return ""; } })() : "";
+  const _conclusiones = (figs && typeof pb.conclusiones === "function") ? (() => { try { return pb.conclusiones(figs, pregunta) || ""; } catch { return ""; } })() : "";   // la pregunta viaja: un cruce juzga su premisa (owner 2026-09-14)
   return [
     `[PROCEDIMIENTO — no es el usuario] Este turno sigue el playbook «${pb.nombre}». Sus pasos YA se ejecutaron y sus resultados están arriba:`,
     ...pasosDe(pb, pregunta, ctx).map((p) => `- ${p.tool} → ${p.para}`),

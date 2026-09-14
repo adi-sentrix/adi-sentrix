@@ -12,6 +12,45 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.28 — lista para desplegar
+
+**Los dominios se componen, y el cruce responde con lo medido.** Hasta acá una pregunta que cruzaba dos dominios
+—«¿los SKU que más vendo son los que más capital me inmovilizan?»— la secuestraba el dominio que sonaba más fuerte:
+7 de 20 preguntas de venta × inventario recibían un ranking de capital frenado sin la venta al lado, y solo 2 de 20
+llegaban al cerebro con los dos dominios en la boleta. Esta versión es el contrato de dominios, el contrato comercial
+completo y el estándar de los cuatro puntos que el owner fijó tras probarlo en vivo.
+
+- **El contrato comercial** (owner 2026-09-13): toda pregunta comercial parte de la misma realidad —venta, margen
+  bajo benchmark, contribución, diagnóstico y roles de cartera corren siempre antes del cerebro— y la pregunta fija el
+  foco, no qué evidencia tiene ADI. Medido: 22 preguntas comerciales pasaron de 3 de 10 capítulos a 10 de 10. La brecha
+  se parte contra el BENCHMARK una sola vez (carga comercial alta + precio y costo), y la pestaña Comercial y ADI la
+  leen de la misma función. Universos consistentes: «de eso» solo dentro del mismo universo, cada subtotal con el suyo,
+  precio y costo no se separan.
+- **El contrato de dominios** (owner 2026-09-14): *la pregunta determina qué dominios participan; cada dominio aporta
+  su realidad suficiente; ADI solo relaciona aquello que el archivo demuestra que puede relacionarse.* Composición, no
+  exclusión: Comercial (con unidades vendidas), Inventario (la foto completa) y Cobranza entran según la pregunta; con
+  dos dominios los playbooks de uno solo se retiran y el cruce por SKU tiene su piso. La compatibilidad venta↔inventario
+  la declara cada archivo (la planilla mide «comparable»: se relaciona nombrando período cerrado y foto de inventario,
+  nunca se suma; el demo declara divergente) y la afinidad estimada cliente↔inventario queda apagada hasta que las filas
+  cliente×SKU entren al pack. Medido en 20 preguntas × 3 datasets: dominios en la boleta 2/20 → 19/20, secuestros 7 → 0,
+  unidades disponibles en toda pregunta comercial, todo turno bajo el techo de 28K.
+- **El estándar de los cuatro puntos** (owner 2026-09-14, tras tres preguntas en vivo cuyos borradores son ahora
+  fixtures): (1) una cifra correcta no queda asociada a un atributo incorrecto —bodega, marca, familia, canal, entidad—:
+  las bodegas invertidas de la corrida hoy arden; (2) una relación dicha en palabras cierra con las cifras o no se dice:
+  «cuatro veces» con 95 contra 15 días (6.3×) arde, «más del doble» con 1.09× arde, con el rango que fija cada matiz;
+  (3) en los cruces la conclusión sale del análisis, no de la premisa: el piso abre «No: los que más venden también
+  están entre los que más contribución dejan…» cuando el dato contradice la pregunta, la doctrina se lo declara al
+  cerebro y un «Sí, hay tres casos claros…» complaciente se veta; (4) una respuesta buena no se degrada por falsos
+  positivos: el sujeto de la oración es el dueño por defecto de sus cifras, «A y B … (17d y 21d)» se lee por orden y
+  «17 días» se lee entero — el primer borrador correcto de la corrida, que cayó dos veces, hoy pasa entero; y lo que no
+  afloja sigue ardiendo («Lider vende $19.4M» siendo de Falabella).
+
+**Resultado medido:** los tres turnos de la corrida en vivo juzgados offline con las mismas reglas del producto: el
+final reparado de Q1 arde por sus tres defectos reales, el primer borrador de Q2 pasa limpio (y su reparación, en un
+pack comparable, también), el verde de Q3 sigue verde. Suite completa en verde, sin tocar la red.
+
+---
+
 ## 2.27 — producción · tag `v2.27`
 
 **El prompt de gerente: una respuesta buena no se degrada por falsos positivos, y lo que no está demostrado no se

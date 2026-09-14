@@ -1,4 +1,5 @@
 import { catalogoAgente } from "./catalogoAgente.js";   // R8 · los identificadores internos jamás van a pantalla (lazy: nada se deriva al importarse)
+import { atributoMalAsociado, relacionEnPalabrasNoCierra } from "./atributosYRelaciones.js";   // el atributo (bodega/marca/familia/canal) y la relación dicha en palabras, contra el dato (owner 2026-09-14)
 /* === src/adi/agente/contratoAgente.js · LA LETRA DEL CONTRATO Y SU VETO MECÁNICO (F3 · owner 2026-08-30) =====
  *
  * DOS PIEZAS, deliberadamente juntas (la letra y su candado se leen en la misma página):
@@ -533,6 +534,13 @@ export function vetosDeRegistro(texto, contexto = {}) {
   if (_pyc) v.push({ regla: "precio-y-costo-no-se-separan", multa: _pyc });
   const _cta = _cuentaDerivada(texto, contexto.figs);
   if (_cta) v.push({ regla: "cuenta-derivada-no-cierra", multa: _cta });
+  /* ── EL ESTÁNDAR DEL 2026-09-14 (corrida en vivo del cruce): una cifra correcta no puede quedar asociada a un atributo
+   * incorrecto (bodega, marca, familia, canal), y una relación dicha en palabras («cuatro veces», «la mitad») tiene que
+   * cerrar con las cifras que la rodean. Viven en atributosYRelaciones.js; acá solo se cobran. */
+  const _atr = (() => { try { return atributoMalAsociado(texto); } catch { return null; } })();
+  if (_atr) v.push({ regla: "atributo-mal-asociado", multa: _atr });
+  const _rel = (() => { try { return relacionEnPalabrasNoCierra(texto); } catch { return null; } })();
+  if (_rel) v.push({ regla: "relacion-en-palabras-no-cierra", multa: _rel });
   return v;
 }
 

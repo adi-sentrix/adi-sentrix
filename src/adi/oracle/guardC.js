@@ -480,7 +480,7 @@ function _metricBindingViolations(narration, ledger) {
     // una copia con las cifras enmascaradas (misma longitud, sin puntos) y se LEE del texto original.
     const masked = _maskFigures(text);
     const [lo] = _localWindow(masked, idx, 60);
-    const end = idx + f.text.length;
+    const end = _finDeCifra(text, idx + f.text.length);   // «17 días» entero, no «17 d» + «ías»
     const hi0 = Math.min(masked.length, end + 60);
     const cut = masked.slice(end, hi0).search(_SENT_END);
     const hi = cut >= 0 ? end + cut : hi0;
@@ -586,6 +586,16 @@ function _tramosDeCifra(masked, lo, hi) {
   }
   return out;
 }
+/* «17 días» SE LEE ENTERO (owner 2026-09-14, corrida en vivo del cruce). El parser de la boleta captura «17 d» —la
+ * «d» de «días» como unidad— y deja «ías» colgando: el tramo entre esa cifra y la métrica que la sigue («ías de
+ * cobertura») ya no era un conector puro, la mención quedaba LIBRE y saltaba a la cifra de al lado: «$15K narrado
+ * como cobertura» sobre «SAM-REF500L ($19K, con 17 días de cobertura) y LG-WASH11KG ($15K, con 21 días)». Con «17d»
+ * el mismo texto pasaba. La cifra termina donde termina la palabra: el resto de «días»/«día» es parte del tramo de
+ * la cifra, no del conector. Solo esa terminación; nada más se extiende. */
+function _finDeCifra(text, fin) {
+  const m = /^[ií]as?(?![\p{L}\p{N}])/u.exec(String(text).slice(fin, fin + 4));
+  return m ? fin + m[0].length : fin;
+}
 /* el conector puro entre una cifra y la métrica que la describe hacia atrás («$17.3M de venta»). «y su», «pero
  * la», un verbo — cualquier cosa que abra afirmación nueva — NO conecta, y la mención queda libre. */
 const _CONECTOR_ATRAS = /^[\s,]*(?:de(?:l)?|de\s+(?:la|tu|su)|en)?\s*$/i;
@@ -622,7 +632,8 @@ function _mencionesLibres({ text, masked, lo, hi, unica, idxJuzgada, finJuzgada,
      * margen de los grandes salía «narrado como participación» por el «49% de la contribución» de al lado. */
     const propiaAtras = finJuzgada <= mIni && (mIni - finJuzgada) <= 15 && _CONECTOR_ATRAS.test(text.slice(finJuzgada, mIni));
     if (propiaAtras) { libres.push([mIni, mFin]); continue; }
-    for (const [gIni, gFin] of tramos) {
+    for (const [gIni, gFin0] of tramos) {
+      const gFin = _finDeCifra(text, gFin0);   // «17 días» entero (ver _finDeCifra)
       if (gIni === idxJuzgada && gFin >= finJuzgada) continue;   // la propia cifra juzgada no toma menciones
       const haciaAtras = gFin <= mIni && (mIni - gFin) <= 15 && _CONECTOR_ATRAS.test(text.slice(gFin, mIni));
       const haciaAdelante = mFin <= gIni && (gIni - mFin) <= 15 && !_SENT_END.test(masked.slice(mFin, gIni));
@@ -3284,11 +3295,49 @@ function _duenosDeBoleta(figs, entityNames, entidadesDelTenant) {
   const nombresRe = [...ref.keys()].map((nn) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${nn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u"));
   return { porCanon, porVerbatim, nombresRe };
 }
+/* ── LA COORDINACIÓN DISTRIBUTIVA (owner 2026-09-14, borrador 1 de la corrida en vivo del cruce) ──────────────
+ * «SAM-REF500L ($19K) y LG-WASH11KG ($15K) —esos sí cruzan con ventas altas y además rotan rápido (17d y 21d de
+ * cobertura…» y «PHI-SHAVER9 y PHI-HAIR-PRO son el mejor caso — lideran contribución ($3.4M y $2.8M) con capital
+ * bajo (11K y 6K) y cobertura corta (15d y 19d)»: dos entidades coordinadas y, más adelante, dos cifras coordinadas
+ * en el MISMO ORDEN. La k-ésima cifra es de la k-ésima entidad — castellano corriente, y el borrador era correcto:
+ * el muro lo tumbó dos veces («17d» y «15d» «pegadas a otra entidad») y la reparación terminó en respaldo. Se libera
+ * SOLO si el grupo de cifras y el de entidades que lo precede tienen el mismo tamaño y la entidad que le toca por
+ * orden es dueña legítima de la cifra; si no lo es, la aparición cuenta como ajena aunque el sujeto de la oración sea
+ * dueño (la lectura por orden manda sobre la del sujeto): invertir el orden («PHI-HAIR-PRO y PHI-SHAVER9 … (15d y
+ * 19d)») arde. Con menos entidades que cifras no se adivina nada y decide la regla del sujeto.
+ * _grupoCoordinado → {ini, k, n}: el grupo de cifras coordinadas («#, # y #» en el enmascarado) que contiene la
+ * aparición [idx, end), con la posición k de esa cifra; null si la cifra va sola. */
+const _SEP_COORD = "(?:,\\s*|\\s+[ye]\\s+)";
+/* «15 días y 19 días»: la boleta captura «15 d» y deja «ías» colgando (ver _finDeCifra) — el grupo tolera ese resto */
+function _grupoCoordinado(masked, idx, end, text) {
+  const antes = new RegExp("#+(?:[ií]as?)?" + _SEP_COORD + "$", "u"), despues = new RegExp("^" + _SEP_COORD + "#+", "u");
+  let ini = idx, k = 0, fin = _finDeCifra(text, end), n = 1;
+  for (;;) { const m = antes.exec(masked.slice(0, ini)); if (!m) break; ini -= m[0].length; k++; n++; }
+  for (;;) { const m = despues.exec(masked.slice(fin)); if (!m) break; fin = _finDeCifra(text, fin + m[0].length); n++; }
+  return n >= 2 ? { ini, k, n } : null;
+}
+/* las entidades reales que nombra un tramo, en el orden en que aparecen (última aparición de cada una) */
+function _entidadesEnOrden(tramoN, nombresRe) {
+  const vistas = new Map();
+  for (const re of nombresRe) {
+    const g = new RegExp(re.source, "gu");
+    let m;
+    while ((m = g.exec(tramoN))) {
+      const nombre = m[0].replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+      vistas.set(nombre, m.index + m[0].indexOf(nombre));
+      if (!m[0].length) g.lastIndex++;
+    }
+  }
+  const lista = [...vistas.entries()].sort((a, b) => a[1] - b[1]);
+  /* un nombre contenido en otro más largo en la misma posición no cuenta dos veces */
+  return lista.filter(([nombre, pos], i) => !lista.some(([o, p], j) => j !== i && o.length > nombre.length && p <= pos && pos < p + o.length)).map(([nombre]) => nombre);
+}
 // _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) → true SOLO en la mis-atribución activa: en
 // TODAS las apariciones de la cifra falta un dueño legítimo en la oración, Y al menos una de esas oraciones
 // nombra una entidad real (la atribución equivocada). Misma ventana de oración que _duenoEnVentana (F1).
 function _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) {
   let idx = -1, ajena = false;
+  const _reDueno = (d) => { const dn = _norm(d); return dn ? new RegExp(`(?:^|[^\\p{L}\\p{N}])${dn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u") : null; };
   while ((idx = text.indexOf(fig.text, idx + 1)) >= 0) {
     const [lo] = _localWindow(masked, idx, 90);
     const end = idx + fig.text.length;
@@ -3296,8 +3345,50 @@ function _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) {
     const cut = masked.slice(end, hi0).search(_SENT_END);
     const ventana = _norm(text.slice(lo, cut >= 0 ? end + cut : hi0));
     for (const d of duenos) {
-      const dn = _norm(d);
-      if (dn && new RegExp(`(?:^|[^\\p{L}\\p{N}])${dn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u").test(ventana)) return false;   // dueño legítimo a la vista → libre
+      const re = _reDueno(d);
+      if (re && re.test(ventana)) return false;   // dueño legítimo a la vista → libre
+    }
+    /* ── EL SUJETO DE LA ORACIÓN ES EL DUEÑO POR DEFECTO (owner 2026-09-14, corrida en vivo del cruce) ─────────────
+     * FALSO POSITIVO MEDIDO: «PHI-SHAVER9 es el mejor caso — lidera contribución ($3.4M) con capital bajo ($11K) y
+     * cobertura muy corta (15 días), igual que PHI-HAIR-PRO (contribución $2.8M, capital $6K, 19 días)». Los «15 días»
+     * son de PHI-SHAVER9, que abre la oración a más de 90 caracteres; la ventana no lo veía y sí veía a PHI-HAIR-PRO,
+     * que viene después — y el muro tumbó un borrador correcto («una respuesta buena del modelo no debe degradarse a un
+     * respaldo inferior por falsos positivos»). La lectura natural es la del sujeto: una cifra pertenece a la ÚLTIMA
+     * entidad nombrada ANTES de ella en su oración. Si esa entidad es un dueño legítimo, la atribución es correcta
+     * aunque la ventana corta no lo alcance. Y NO afloja el candado (medido con la boleta de cobranza del demo):
+     * «…durante todo el año cerrado, mientras que Lider vende $19.4M» sigue ardiendo —Falabella abre la oración a más
+     * de 90 caracteres, pero Lider se interpone entre ella y la cifra—, igual que «Lider vende $19.4M» a secas. Lo
+     * que pasaba antes y sigue pasando: la misma cifra repetida con su dueño a la vista en UNA aparición («Falabella
+     * vende $19.4M y Lider vende $19.4M») queda libre — este chequeo juzga la cifra, no cada aparición. */
+    const iniOracion = (() => { const back = masked.slice(0, idx); const k = Math.max(back.lastIndexOf("."), back.lastIndexOf("!"), back.lastIndexOf("?"), back.lastIndexOf("\n")); return k >= 0 ? k + 1 : 0; })();
+    /* la coordinación distributiva (ver _grupoCoordinado): «A y B … (x y y)» → la k-ésima cifra es de la k-ésima
+     * entidad. Cuando aplica, DECIDE: la lectura por orden manda sobre la del sujeto, así «PHI-HAIR-PRO y PHI-SHAVER9
+     * … (15d y 19d)» arde aunque PHI-SHAVER9 sea la última entidad nombrada antes de la cifra. */
+    const grupo = _grupoCoordinado(masked, idx, end, text);
+    if (grupo && grupo.ini > iniOracion) {
+      const ents = _entidadesEnOrden(_norm(text.slice(iniOracion, grupo.ini)), nombresRe);
+      if (ents.length >= grupo.n) {
+        const asignada = ents.slice(-grupo.n)[grupo.k];
+        if ([...duenos].some((d) => _norm(d) === asignada)) return false;
+        ajena = true;
+        continue;
+      }
+    }
+    const antesN = _norm(text.slice(iniOracion, idx));
+    let precedente = null, precPos = -1;
+    for (const d of duenos) {
+      const re = _reDueno(d);
+      if (!re) continue;
+      const m = re.exec(antesN);
+      if (!m) continue;
+      const pos = m.index + (m[0].length - _norm(d).length);   // el inicio del nombre, sin el separador capturado
+      if (pos > precPos) { precPos = pos; precedente = d; }
+    }
+    if (precedente !== null) {
+      /* ¿alguna OTRA entidad real aparece entre ese dueño y la cifra? si no, el dueño manda la oración hasta acá */
+      const tramo = antesN.slice(precPos + _norm(precedente).length);
+      const otra = nombresRe.some((re) => { const m2 = re.exec(tramo); if (!m2) return false; return !_reDueno(precedente).test(m2[0]); });
+      if (!otra) return false;
     }
     if (nombresRe.some((re) => re.test(ventana))) ajena = true;
   }

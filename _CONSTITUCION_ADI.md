@@ -153,6 +153,29 @@ el cruce contra la carpeta real. Antes de pantalla:
      cruce por SKU tiene su piso determinístico (`cruce-por-sku`: ficha enumerada, cada cifra con su marco).
    Medido (20 preguntas cruzadas × 3 datasets, `_contrato_dominios_gate`): dominios en la boleta 2/20 → 19/20; los
    secuestros de «capital frenado» a preguntas de venta × inventario, cerrados; todo turno bajo el techo de 28K.
+
+   **El estándar de los cuatro puntos** (owner 2026-09-14, tras la corrida en vivo del cruce; fixtures en
+   `fixtures/cruce-vivo-2026-09-14.json`, candado `_cuatro_garantias_del_cruce_gate`), textual:
+   - *«una cifra correcta no puede quedar asociada a un atributo incorrecto, como bodega, sucursal, marca o
+     entidad»* → `atributo-mal-asociado` (`atributosYRelaciones.js`, en `vetosDeRegistro`): la bodega, la marca, la
+     familia y el canal son atributos del dato y viajan con la entidad; un reparto ordinal invertido («Valparaíso el
+     primero, Antofagasta el segundo» con los SKU al revés) arde; la negación y el desglose por bodega, no.
+   - *«cualquier relación cuantitativa expresada en palabras ("el doble", "cuatro veces", "la mitad", etc.) debe ser
+     consistente con las cifras»* → `relacion-en-palabras-no-cierra`: la relación se contrasta con la cifra de
+     referencia de su oración (la más cercana antes) y las de su misma unidad en el párrafo; el matiz fija el rango
+     («el doble» ±15 %, «más del doble» de 1.9× a 3.2×, «casi» por debajo). «Cuatro veces» con 95 contra 15 días (6.3×)
+     arde; «más del doble» con 1.09× arde; «once veces» con 11× pasa.
+   - *«en los cruces de dominios, la conclusión debe venir del análisis, no de la premisa del usuario. Si el dato
+     demuestra lo contrario de lo que pregunta, ADI debe decirlo claramente»* → el playbook `cruce-por-sku` mide la
+     premisa de la pregunta contra la boleta (`_premisa`), el piso abre «No: …» / «Sí: …» con lo medido, la doctrina
+     `conclusiones(figs, pregunta)` se lo declara al cerebro antes de escribir («la premisa … es FALSA en este dato»)
+     y la regla notarial `premisa-adoptada` veta abrir con «Sí» cuando lo medido dice que no (y al revés).
+   - *«una respuesta buena del modelo no debe degradarse a un respaldo inferior por falsos positivos»* → en guardC el
+     sujeto de la oración es el dueño por defecto de sus cifras (`_atribucionAjenaEnBoleta`), la coordinación
+     distributiva asigna por orden («A y B … (x y y)»: la k-ésima cifra es de la k-ésima entidad; invertida, arde) y
+     «17 días» se lee entero (`_finDeCifra`). Medido: el primer borrador de «¿los SKU que más vendo son los que más
+     capital me inmovilizan?» era correcto y cayó dos veces por «17d»/«15d» «pegadas a otra entidad»; hoy pasa. Lo
+     que NO afloja: «Lider vende $19.4M» (de Falabella) sigue ardiendo, con el dueño cerca o lejos.
 2. **¿Cada cálculo se puede recalcular?** La fórmula mostrada se recomputa. No cuadra o no muestra origen →
    bloqueado.
 3. **¿Cada clasificación existe?** «Frenado», «bajo benchmark», «crítico»: solo los estados que la carpeta
