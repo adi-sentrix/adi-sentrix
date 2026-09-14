@@ -102,8 +102,14 @@ console.log("═".repeat(100));
  * es un texto que ya había salido a pantalla y que una versión anterior del chequeo mataba sin razón. */
 vive("Falabella y Lider, los dos mayores, tienen los márgenes más bajos de la cartera.", "superlativo-no-sostenido",
   "PLURAL · «los dos mayores» describe un grupo, no le atribuye el extremo a nadie");
-vive("Lider tiene $17.8M de venta y la segunda peor carga comercial sobre meta.", "superlativo-no-sostenido",
-  "ORDINAL · «la segunda peor» reclama el puesto 2, no el extremo");
+/* EL ORDINAL SE VERIFICA POR PUESTO (owner 2026-09-14): «primero», «segundo», «segunda mayor» se verifican igual que
+ * «mayor/peor» — una cifra correcta con posición incorrecta sigue siendo una conclusión falsa. El texto de la calibración
+ * («la segunda peor carga») era FALSO en el demo: por carga van Easy 5.5, Sodimac 5.4, Ripley 4.8, Falabella 4.5 y Lider
+ * 4.2 — Lider es el quinto. Sigue sin cobrársele el EXTREMO (no se le pide ser el peor), pero sí el puesto. */
+muere("Lider tiene $17.8M de venta y la segunda peor carga comercial sobre meta.", "superlativo-no-sostenido",
+  "ORDINAL · «la segunda peor» reclama el puesto 2, y se verifica: Lider va quinto en carga (Easy 5.5, Sodimac 5.4, Ripley 4.8, Falabella 4.5…)");
+vive("Lider tiene $17.8M de venta y la quinta peor carga comercial de la cartera.", "superlativo-no-sostenido",
+  "ORDINAL · el puesto correcto («la quinta peor») pasa: se verificó el orden, no el extremo");
 vive("Con 8.1pp de brecha, Falabella es donde una mejora de carga comercial produce el mayor efecto en dólares.",
   "superlativo-no-sostenido", "MÉTRICA SUELTA · «el mayor efecto» no es un superlativo de la carga, aunque la nombre cerca");
 vive("El máximo aplicable en ese caso es 1.8%.", "superlativo-no-sostenido",

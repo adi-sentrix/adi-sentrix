@@ -368,6 +368,16 @@ export function rolesCartera(_args = {}, ctx = {}) {
   for (const reg of REGLAS_DE_ROL) {
     const r = A.roles[reg.rol];
     if (r && r.n > 0) boleta.push(fig(reg.etiqueta, String(r.n), { unit: "count", raw: r.n, mandatory: false, context: `${_ctx} · regla: ${reg.regla}` }));
+    /* EL PESO DEL GRUPO, CON SU GRUPO (owner 2026-09-14, segunda corrida de la prueba 2): «Falabella, Lider, Jumbo, Sodimac y
+     * Paris (73.8% de la venta)» — el 73.8% era el peso de SEIS cuentas, no estaba en la boleta (el muro lo dejó pasar por una
+     * coincidencia aritmética) y los facts traían la lista recortada a 5. Ahora el peso es una cifra de la boleta que DECLARA su
+     * grupo (`grupo`), y el muro cobra que se narre con el grupo completo o como «N cuentas» (`cifra-de-grupo-mal-repartida`). */
+    if (r && r.n > 0 && Number.isFinite(r.pesoVenta) && r.pesoVenta > 0) {
+      const _ents = r.items.map((f) => f.entidad);
+      /* el rótulo no lleva «· margen…» ni «benchmark»: el muro lee «· margen» como una fig de margen y «benchmark» como la vara */
+      const _titulo = reg.titulo === "sobre el benchmark" ? "sobre la referencia" : reg.titulo;
+      boleta.push({ ...fig(`Peso en la venta · papel: ${_titulo} (${r.n} cuentas)`, `${r.pesoVenta}%`, { unit: "pct", raw: r.pesoVenta, mandatory: false, source: "computed", formula: "suma de la participación en la venta de las cuentas del papel", context: `${_ctx} · la cifra es del GRUPO de ${r.n} (${_ents.join(", ")}): se narra con las ${r.n} cuentas completas o como «${r.n} cuentas», nunca con una lista más corta` }), grupo: { n: r.n, entidades: _ents } });
+    }
   }
   const C = A.concurrencia || {};
   if (C.grandesQueCaen) boleta.push(fig("Clientes del tramo alto bajo el benchmark", String(C.grandesQueCaen), { unit: "count", raw: C.grandesQueCaen, mandatory: false, context: `${_ctx} · los que mueven la venta y además caen` }));
@@ -394,7 +404,7 @@ export function rolesCartera(_args = {}, ctx = {}) {
   return {
     facts: {
       vara: A.vara, target: A.target,
-      roles: Object.values(A.roles).map((r) => ({ rol: r.rol, titulo: r.titulo, regla: r.regla, lectura: r.lectura, n: r.n, pesoVenta: r.pesoVenta, entidades: r.items.slice(0, 5).map((f) => f.entidad) })),
+      roles: Object.values(A.roles).map((r) => ({ rol: r.rol, titulo: r.titulo, regla: r.regla, lectura: r.lectura, n: r.n, pesoVenta: r.pesoVenta, entidades: r.items.map((f) => f.entidad) })),   // la lista COMPLETA: un grupo recortado a 5 con n: 6 hizo narrar el peso de seis como de cinco (owner 2026-09-14)
       huellas: A.huellas.map((h) => ({ mecanismo: h.mecanismo, huella: h.huella, presente: h.presente, sello: h.sello, porque: h.porque, ...(h.falta ? { falta: h.falta } : {}), entidades: (h.items || []).map((f) => f.entidad) })),
       concurrencia: A.concurrencia,
       preguntaAlDueno: A.preguntaAlDueno,

@@ -378,13 +378,34 @@ export function conclusionDePrioridad(figs, dominios = [], { criterio = null, mo
   }
   if (P.porDominio.inventario) L.push(`- inventario (clave SKU, aparte de las cuentas): ${P.porDominio.inventario[0].entidad} primero.`);
   if (otras) L.push(`- ${otras}${modo ? " Dilo si es material." : " Si eliges otra lente, decláralo; si preguntas, pregunta cuál lente quiere en vez de decidir sin decirlo."}`);
-  L.push(`- el criterio se dice siempre: ${P.criterio} Nada de sumar o comparar montos de dominios distintos; cada cifra tal cual está en la boleta.`);
+  L.push(`- el criterio se dice siempre: ${P.criterio} Nada de sumar o comparar montos de dominios distintos; cada cifra tal cual está en la boleta. Nunca des «coincide en dos dominios» como LA razón de ir primero: la razón son las señales bajo el criterio (materialidad, severidad, urgencia) — la coincidencia agrava el caso, no lo decide.`);
   return L.join("\n");
 }
 
 /** la ley: la prioridad que cierra la respuesta es la del criterio del usuario; sin criterio, es la de alguna lente y el
  *  criterio está declarado (o la respuesta pregunta qué lente usar) */
 const _PRIORIDAD = /\bprimero\b|\bprioridad|\bprioritari|\bfoco\b|\bantes que\b|\bentrar[ií]a\b|\bpartir[ií]a\b|\bempezar[ií]a\b|\barrancar[ií]a\b|\bmayor riesgo\b/i;
+/* ══ LA COINCIDENCIA AGRAVA, NO DECIDE (owner 2026-09-14, segunda corrida de la prueba 2) ═════════════════════════════════
+ * Lo servido: «partir por Lider: coincide en dos dominios (…), y esa coincidencia agrava más que cualquier monto aislado».
+ * Es ley, no una función nueva: «Coincidir en varios dominios agrava el caso, pero la prioridad se decide por el criterio/
+ * lente correspondiente —materialidad, severidad, urgencia o el criterio explícito del usuario—. No debe reaparecer
+ * “coincide en dos dominios” como razón suficiente para quedar primero.» Se cobra cuando el párrafo de la prioridad presenta
+ * la coincidencia como LA razón: «porque coincide», «por coincidir», «X: coincide en dos dominios», «esa coincidencia agrava/
+ * pesa más que», «la coincidencia decide/manda». Decir que coincide y que eso agrava, con las señales al lado, sigue bien;
+ * «coincidir agrava, no decide» (la doctrina) también. */
+const _COINCIDE = /coincid(?:e|en|ir|encia)\s+en\s+(?:dos|tres|varios|ambos|los\s+dos|los\s+tres|m[aá]s\s+de\s+un)\s+(?:dominios|frentes|lentes)|(?:esa|esta|la|su)\s+coincidencia/i;
+const _COMO_RAZON = /\b(?:porque|ya\s+que|dado\s+que|por\s+eso\s+que|por)\s+coincid|:\s*coincide\s+en|coincidencia\s+(?:agrava|pesa|cuenta|vale|importa)\s+m[aá]s\s+que|coincidencia\s+(?:decide|manda|basta|es\s+lo\s+que\s+(?:decide|manda|pesa|la\s+pone)|es\s+la\s+raz[oó]n|es\s+el\s+motivo)|(?:va|queda|est[aá]|ir[ií]a|entra)\s+primero\s+porque\s+coincide|primero\s+por\s+coincidir/i;
+const _AGRAVA_NO_DECIDE = /agrava,?\s+(?:pero\s+)?no\s+decide|no\s+(?:es\s+lo\s+que\s+)?decide|no\s+basta|no\s+es\s+(?:la\s+)?raz[oó]n|no\s+por\s+coincidir/i;
+export function coincidenciaComoRazon(texto) {
+  const parrafos = String(texto || "").split(/\n\s*\n/).filter((p) => _PRIORIDAD.test(p) && _COINCIDE.test(p));
+  for (const p of parrafos) {
+    for (const oracion of p.split(/(?<=[.!?])\s+/)) {
+      if (!_COINCIDE.test(oracion) || !_COMO_RAZON.test(oracion) || _AGRAVA_NO_DECIDE.test(oracion)) continue;
+      return `pones primero a una cuenta «porque coincide en dos dominios»: coincidir agrava el caso, no lo decide. La prioridad se decide por el criterio —materialidad, severidad, urgencia, o el que fijó el usuario—: di qué señales la ponen primero (por ejemplo, la mayor brecha al benchmark y el atraso más largo) y deja la coincidencia como agravante, no como la razón: "${oracion.trim().slice(0, 140)}"`;
+    }
+  }
+  return null;
+}
 const _CRITERIO_DICHO = /\bcriterio\b|\blente\b|\bintegr|\briesgo\b|\bcontribuci[oó]n\b|\bmargen\b|\bcaja\b|\bcobranza\b|\bvencid|\bventas?\b|\bcrecimiento\b|\bcapital\b|\bmaterialidad\b|\bseveridad\b|\burgencia\b|\bseñal/i;
 export function prioridadIntegradaCambiada(texto, figs, dominios = [], { criterio = null, modo = null } = {}) {
   const t = String(texto || "");

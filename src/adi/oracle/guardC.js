@@ -772,6 +772,76 @@ function _totalMisattribution(narration, ledger, entityNames) {
   return viol;
 }
 
+/* ── LA CIFRA DE UN GRUPO ES DEL GRUPO COMPLETO (owner 2026-09-14, segunda corrida de la prueba 2) ───────────────
+ * «Falabella, Lider, Jumbo, Sodimac y Paris (73.8% de la venta)»: el 73.8% es el peso de SEIS cuentas (con Ripley) — la
+ * herramienta traía la lista recortada a 5 y el cerebro la copió. Regla de producto: «una cifra agregada de un grupo solo
+ * puede atribuirse al grupo completo que realmente representa». La fig lleva su grupo declarado (`grupo: { n, entidades }`,
+ * lo pone el emisor); acá se cobra la atribución: si la oración que cita la cifra le pega una lista de nombres, esa lista
+ * tiene que ser EXACTAMENTE el grupo; si dice «N cuentas», N tiene que ser el n del grupo. Sin lista ni conteo pegados
+ * («las cuentas con carga alta pesan 73.8%») no se juzga: describir el grupo con palabras no es repartirlo. */
+const _CONTEO_PEGADO = /\b(\d{1,3}|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece)\s+(?:cuentas?|clientes?|skus?|marcas?|productos?)\b/i;
+const _NUM_PALABRA = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13 };
+function _grupoMalRepartido(narration, ledger, entityNames) {
+  const grupos = ((ledger && ledger.figs) || []).filter((f) => f && f.grupo && Array.isArray(f.grupo.entidades) && f.grupo.entidades.length >= 2);
+  if (!grupos.length) return [];
+  const text = String(narration || "");
+  const out = [];
+  const nombres = [...new Set([...(entityNames || []), ...grupos.flatMap((g) => g.grupo.entidades)].map((n) => _norm(n)).filter(Boolean))];
+  const nombresRe = nombres.map((nn) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${nn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u"));
+  const vistos = new Set();
+  for (const g of grupos) {
+    const G = new Set(g.grupo.entidades.map((n) => _norm(n)));
+    const n = Number.isFinite(g.grupo.n) ? g.grupo.n : G.size;
+    for (const oracion of text.split(/(?<=[.!?])\s+|\n+/)) {
+      const fig = parseFigures(oracion).find((nf) => nf.canon === g.canon || _stripSpace(nf.text) === _stripSpace(String(g.value)));
+      if (!fig) continue;
+      const clave = g.canon + "|" + oracion.slice(0, 60);
+      if (vistos.has(clave)) continue;
+      vistos.add(clave);
+      const oN = _norm(oracion);
+      const idx = oN.indexOf(_norm(fig.text));
+      /* la lista coordinada pegada a la cifra: la corrida de nombres que termina justo antes («A, B y C (73.8%)», «A y B pesan
+       * 73.8%») o justo después («73.8% de la venta: A, B y C» · «73.8% entre A y B») */
+      const antesN = idx >= 0 ? oN.slice(0, idx) : oN;
+      const ents = _entidadesConPosicion(antesN, nombresRe);
+      let lista = [];
+      if (ents.length) {
+        const corrida = _coordinadasContiguas(antesN, nombresRe);
+        const ult = ents[ents.length - 1];
+        const puente = antesN.slice(ult.pos + ult.nombre.length);
+        if (puente.length <= 40 && !/[.;]/.test(puente)) lista = corrida;
+      }
+      if (!lista.length && idx >= 0) {
+        const despuesN = oN.slice(idx + fig.text.length);
+        const m = /^[^.;:]{0,30}?(?::|—|–|entre|en|de|son)\s+/.exec(despuesN);
+        if (m) {
+          const ents2 = _entidadesConPosicion(despuesN.slice(m[0].length), nombresRe);
+          if (ents2.length && ents2[0].pos <= 2) {
+            const tramo = despuesN.slice(m[0].length);
+            const primeros = [];
+            let fin = 0;
+            for (const e of ents2) { if (e.pos > fin + 12 && primeros.length) break; primeros.push(e.nombre); fin = e.pos + e.nombre.length; }
+            lista = primeros;
+          }
+        }
+      }
+      const dicho = _CONTEO_PEGADO.exec(oN);
+      const k = dicho ? (Number(dicho[1]) || _NUM_PALABRA[dicho[1].toLowerCase()] || 0) : 0;
+      const setLista = new Set(lista);
+      const iguales = setLista.size === G.size && [...G].every((x) => setLista.has(x));
+      if (lista.length && !iguales) {
+        const faltan = [...G].filter((x) => !setLista.has(x)), sobran = [...setLista].filter((x) => !G.has(x));
+        out.push(`«${fig.text}» es la cifra de un GRUPO de ${n} (${g.grupo.entidades.join(", ")}) y la narras como de ${lista.length} nombres${faltan.length ? ` — faltan: ${faltan.join(", ")}` : ""}${sobran.length ? ` — sobran: ${sobran.join(", ")}` : ""}: una cifra agregada solo es del grupo completo que representa — nombra a los ${n} o dilo como «${n} cuentas»`);
+        continue;
+      }
+      if (!lista.length && k && k !== n) {
+        out.push(`«${fig.text}» es la cifra de un GRUPO de ${n} (${g.grupo.entidades.join(", ")}) y la narras como de ${k}: el conteo tiene que ser el del grupo — «${n} cuentas»`);
+      }
+    }
+  }
+  return out;
+}
+
 // ══ PROPORCIONALIDAD SEMÁNTICA (owner 2026-08-07) ══════════════════════════════════════════════════════════════
 // "ADI nunca puede afirmar más de lo que la evidencia autorizada demuestra."
 // CÓMO DISPARAN estos cuatro chequeos, y por qué NO son reglas frase-por-frase: el gatillo es la AUSENCIA DE
@@ -4424,6 +4494,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // 5 · TOTAL del negocio atribuido a 1-2 entidades (owner, segunda vuelta: "guard determinístico que bloquee" —
   // a diferencia de la atribución general (aviso), ESTE caso puntual SÍ bloquea: cambia el tamaño real de la oportunidad.
   for (const v of _totalMisattribution(narration, ledger, entityNames)) violations.push({ kind: "total-mal-atribuido", detail: v });
+  for (const v of _grupoMalRepartido(narration, ledger, entityNames)) violations.push({ kind: "cifra-de-grupo-mal-repartida", detail: v });
   // 6 · orden SELLADO por la tool incumplido (requisito 4, pase quirúrgico 2026-07-29) — independiente de si la
   // narración prometió el orden EN TEXTO (eso ya lo cubre el chequeo 4 de arriba): si gridTable/tensionRead sellaron
   // un criterio real, la tabla/lista que lo muestra tiene que respetarlo, lo diga o no en palabras.
@@ -4748,6 +4819,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         [/\bpeor(?:es)?\b/i, "peor"],
         [/\bmejor(?:es)?\b/i, "mejor"],
         [/\bprincipal(?:es)?\b|\bm[áa]s\s+cr[íi]tic[oa]s?\b/i, "peor"],
+        [/\b(?:segund[oa]|tercer[oa]?|cuart[oa]|quint[oa]|sext[oa])\s+en\b/i, "max"],   // «el segundo en ventas»: el ordinal a secas ordena de mayor a menor (owner 2026-09-14)
       ];
       /* EL VOCABULARIO Y LA POLARIDAD LOS DECLARA LA CARPETA, NO EL MURO (owner 2026-08-16). Antes esta tabla
        * vivía acá: cuatro métricas escritas a mano, con su polaridad («la peor carga es la más ALTA») en un
@@ -4787,6 +4859,15 @@ export function guardC(narration, { ledger, results = [], trace = null, question
            * o tres devuelve siempre que no — un rojo garantizado sobre texto correcto. */
           if (/(?:es|as|os)$/i.test(mm[0].trim()) && /(?:mayores|menores|peores|mejores|principales|alt[ao]s|baj[ao]s|grandes|cr[íi]tic[ao]s|m[áa]xim[ao]s|m[íi]nim[ao]s)$/i.test(mm[0].trim())) continue;
           const iM = oracion.indexOf(mm[0]);
+          /* EL ORDINAL (owner 2026-09-14, segunda corrida de la prueba 2): «la SEGUNDA mayor brecha de margen, 8.6 pp» —la de
+           * Lider es la MAYOR de todas—. «primero», «segundo», «segunda mayor», «tercero» se verifican igual que «mayor/menor/
+           * peor»: una cifra correcta con posición incorrecta sigue siendo una conclusión falsa. El puesto k se mide sobre el
+           * UNIVERSO DECLARADO entero (un ordinal es una afirmación sobre el orden completo), y en empate de valor vale. Del
+           * séptimo en adelante no se verifica: nadie lo afirma. */
+          const _mOrd = /^(segund[oa]|tercer[oa]?|cuart[oa]|quint[oa]|sext[oa])\s+en$/i.exec(mm[0].trim())
+            || /\b(primer[oa]?|segund[oa]|tercer[oa]?|cuart[oa]|quint[oa]|sext[oa])\s+(?:(?:cliente|cuenta|sku|marca|producto)\s+)?$/i.exec(oracion.slice(Math.max(0, iM - 24), iM));
+          const kOrd = _mOrd ? (/^pr/i.test(_mOrd[1]) ? 1 : /^se/i.test(_mOrd[1]) ? 2 : /^te/i.test(_mOrd[1]) ? 3 : /^cu/i.test(_mOrd[1]) ? 4 : /^qu/i.test(_mOrd[1]) ? 5 : 6) : 0;
+          if (/\b(?:s[ée]ptim|octav|noven|d[ée]cim)[oa]s?\s+$/i.test(oracion.slice(Math.max(0, iM - 18), iM))) continue;
           /* EL SUPERLATIVO NEGADO NO RECLAMA NADA (prompt de gerente, corrida 4 · 2026-09-13): «Falabella: $1.6M — la mayor
            * de la cartera, aunque NO el margen más bajo (ese es Líder)» dice justo lo contrario de lo que esta regla cobra */
           if (/(?<![\wáéíóúñ])(?:no|ni|tampoco|sin ser|aunque no|pero no)\s+(?:[\wáéíóúñ]+\s+){0,3}$/i.test(oracion.slice(Math.max(0, iM - 30), iM))) continue;
@@ -4824,7 +4905,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
               if (prev.length === 1) sujetoPrevio = prev[0];
               break;
             }
-            const conjunto = _TODO_EL_CONJUNTO.test(oracion) ? lista.slice()
+            const conjunto = (kOrd >= 2 || _TODO_EL_CONJUNTO.test(oracion)) ? lista.slice()
               : [...nombradas, ...(sujetoPrevio && !nombradas.some((n) => n.entidad === sujetoPrevio.entidad) ? [sujetoPrevio] : [])];
             if (conjunto.length < 2) continue;
             /* QUIÉN RECLAMA EL EXTREMO: la entidad nombrada ANTES del marcador; si no hay ninguna, el sujeto de
@@ -4839,7 +4920,6 @@ export function guardC(narration, { ledger, results = [], trace = null, question
              *     preguntar «¿es X el máximo?» sobre una frase que habla de dos devuelve siempre que no.
              * El plural se busca SOLO delante del marcador: «el peor margen entre los tres grandes» lleva el
              * «los tres» detrás, y ahí es el CONJUNTO contra el que se compara, no el sujeto. */
-            if (/\b(?:segund|tercer|cuart|quint|sext|s[ée]ptim|octav|noven|d[ée]cim)[oa]s?\s+$/i.test(antes.slice(-18))) continue;
             if (/\b(?:los|las)\s+(?:dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b|\bambos\b|\bambas\b/i.test(antes)) continue;
             /* LA MÁS CERCANA AL MARCADOR, no «la única»: en español el sujeto va pegado al predicado («Sodimac
              * tiene la carga comercial más alta»), y exigir que no hubiera ningún otro nombre antes en la oración
@@ -4930,9 +5010,19 @@ export function guardC(narration, { ledger, results = [], trace = null, question
             if (_sujetoCoordinado) continue;
             const reclamante = sujetoDetras || (posesivo && posesivo.unica) || (delante.length ? delante[delante.length - 1] : sujetoPrevio);
             if (!reclamante || !conjunto.some((x) => x.entidad === reclamante.entidad)) continue;
+            const _v = (x) => (/brecha/.test(decl.clave) ? `${x.valor} pp` : decl.clave === "no_capturada" ? (Math.abs(x.valor) >= 1000 ? `$${(x.valor / 1000).toFixed(1)}M` : `$${x.valor}K`) : /margen|carga/.test(decl.clave) ? `${x.valor}%` : decl.clave === "rotacion" ? `${x.valor}x` : /dias/.test(decl.clave) ? `${x.valor}d` : String(x.valor));
+            if (kOrd >= 2) {
+              const orden = conjunto.slice().sort((a, b) => (alto ? b.valor - a.valor : a.valor - b.valor));
+              if (orden.length < kOrd) continue;
+              const enPuesto = orden[kOrd - 1];
+              const posReal = orden.findIndex((x) => x.entidad === reclamante.entidad) + 1;
+              if (!posReal || enPuesto.entidad === reclamante.entidad || enPuesto.valor === orden[posReal - 1].valor) continue;
+              violations.push({ kind: "superlativo-no-sostenido", detail: `dices que ${reclamante.entidad} es «${/^(?:segund|tercer|cuart|quint|sext)/i.test(mm[0].trim()) ? mm[0].trim() : `${_mOrd[1]} ${mm[0]}`}» en ${decl.clave.replace(/_/g, " ")} y no lo es: sobre ${decl.d.universo}, en el puesto ${kOrd} va ${enPuesto.entidad} (${_v(enPuesto)}) y ${reclamante.entidad} va en el puesto ${posReal} (${_v(reclamante)}) — un ordinal es una afirmación sobre el ORDEN, y se verifica contra el conjunto igual que un extremo` });
+              _vetadoSup = true;
+              break;
+            }
             const extremo = conjunto.reduce((a, b) => (alto ? (b.valor > a.valor ? b : a) : (b.valor < a.valor ? b : a)));
             if (extremo.entidad === reclamante.entidad) continue;
-            const _v = (x) => (/margen|carga/.test(decl.clave) ? `${x.valor}%` : decl.clave === "rotacion" ? `${x.valor}x` : /dias/.test(decl.clave) ? `${x.valor}d` : String(x.valor));
             violations.push({ kind: "superlativo-no-sostenido", detail: `dices que ${reclamante.entidad} es «${mm[0]}» en ${decl.clave.replace(/_/g, " ")} y no lo es: sobre ${decl.d.universo} el extremo es ${extremo.entidad} (${_v(extremo)} contra ${_v(reclamante)} de ${reclamante.entidad}) — un «${mm[0]}» es una afirmación sobre el ORDEN, y un orden se verifica contra el conjunto igual que un ranking` });
             _vetadoSup = true;
             break;

@@ -38,7 +38,7 @@ import { UNIVERSOS, DIVERGENCIAS, reconcilian } from "../../config/contract/figu
 import { METRICS } from "../../config/contract/metricRegistry.js";
 import { deriveKpis } from "../../engine/scenarios.js";
 import { getVentasKPI } from "../../engine/metrics.js";   // la venta del negocio que muestra la PANTALLA — decisión del owner 2026-09-01 (ver `_construir`)
-import { tenantPolicyDefault } from "../../config/businessPolicy.js";
+import { tenantPolicyDefault, benchmarkOf } from "../../config/businessPolicy.js";   // `benchmarkOf`: la misma vara por cliente que usa rolesCartera (brecha al benchmark)
 import { getTenantId, getTenantData, onTenantChange } from "../../data/tenantStore.js";
 import { parseFigures } from "../boleta.js";
 import { composeNoDataMessage } from "./narrationBlocks.js";   // el último recurso ABSOLUTO del suplente digno — la MISMA frase canónica que usa la escalera anti-null, nunca una copia
@@ -179,6 +179,13 @@ function _construir(scenario) {
       margen:       _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "menor", "clientesMargen.margen", ["m[áa]rgen(?:es)?"]),
       contribucion: _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "menor", "clientesMargen.contribucion", ["contribuci[óo]n"]),
       carga:        _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "mayor", "clientesMargen.pctRebate", ["carga\\s+comercial"]),
+      /* LA BRECHA AL BENCHMARK Y LA CONTRIBUCIÓN NO CAPTURADA (owner 2026-09-14, segunda corrida de la prueba 2): «la segunda
+       * mayor brecha de margen, 8.6 pp» —la de Lider es la MAYOR— no tenía ranking contra el cual medirse, y «la mayor
+       * contribución no capturada» se juzgaba contra la contribución a secas (otra métrica). Los ordinales y los extremos
+       * se verifican igual: una cifra correcta con posición incorrecta es una conclusión falsa. La brecha es la misma
+       * cuenta que rolesCartera (vara del cliente − margen); la no capturada, venta oficial × brecha, solo bajo la vara. */
+      brecha:       _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "mayor", "benchmarkOf(cliente) − clientesMargen.margen", ["brecha\\s+(?:al|contra\\s+el|frente\\s+al|respecto\\s+(?:al|del))\\s+benchmark", "brecha\\s+de\\s+margen", "distancia\\s+(?:al\\s+benchmark|a\\s+la\\s+referencia)", "brecha\\s+al\\s+margen"]),
+      no_capturada: _R("los clientes bajo el benchmark · venta comercial (año cerrado)", "mayor", "mayor", "clientesVentas.actual × (benchmarkOf(cliente) − clientesMargen.margen)", ["contribuci[óo]n\\s+(?:no\\s+capturada|sin\\s+capturar)", "brecha\\s+de\\s+contribuci[óo]n(?:\\s+(?:no\\s+capturada|sin\\s+capturar))?"]),
     },
     marca: {
       ventas:       _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "menor", "marcas.venta", ["ventas?", "factura(?:ci[óo]n)?"]),
@@ -323,6 +330,14 @@ function _construir(scenario) {
       if (Number.isFinite(m.margen)) rankings.cliente.margen.filas.push({ entidad: c.nombre, valor: m.margen });
       if (Number.isFinite(m.contribucion)) rankings.cliente.contribucion.filas.push({ entidad: c.nombre, valor: m.contribucion });
       if (Number.isFinite(m.pctRebate)) rankings.cliente.carga.filas.push({ entidad: c.nombre, valor: m.pctRebate });
+      if (Number.isFinite(m.margen)) {
+        const _vara = benchmarkOf(m);
+        if (Number.isFinite(_vara)) {
+          const _brecha = Math.round((_vara - m.margen) * 10) / 10;
+          rankings.cliente.brecha.filas.push({ entidad: c.nombre, valor: _brecha });
+          if (_brecha > 0 && Number.isFinite(c.actual)) rankings.cliente.no_capturada.filas.push({ entidad: c.nombre, valor: Math.round(c.actual * _brecha / 100) });
+        }
+      }
     }
     L.push(linea + ".");
   }

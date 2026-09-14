@@ -368,7 +368,7 @@ H("12 · las dos pruebas vivas de la v2.31 (autorizadas, 2 llamadas cada una): d
   ok(!M2.muro(b1).some((x) => x.kind === "superlativo-no-sostenido"), "★ ya no se le cobra a Lider «ser el máximo»: un sujeto «A, B y C» es un plural, sin reclamante único no se juzga");
   ok(ardeS("Después de Jumbo y Sodimac, Lider concentra la mayor contribución.") && ardeS("Falabella, Jumbo y Lider crecen; Lider concentra la mayor contribución.") && ardeS("Falabella y Jumbo crecen, y la mayor contribución es Lider."), "candados: «después de Jumbo y Sodimac, Lider…», la segunda cláusula y la cópula siguen cobrándole a Lider");
   ok(M2.muro(b1).some((x) => x.kind === "juicio-sin-marcar") && vetosDeRegistro(b1, { pregunta: LE.pregunta, figs: M2.rp.ledger.figs, sitio: "cierre" }).map((x) => x.regla).includes("intencion-inferida"), "los vetos legítimos del cierre se quedan: «no es apuesta de volumen» (la intención no se lee en el dato, ni negada) y priorizar sin marcar dato duro/criterio");
-  ok(/73\.8%/.test(b2) && !M2.rp.ledger.figs.some((f) => /73\.8/.test(String(f.value))) && M2.muro(b2).some((x) => x.kind === "cifra-no-autorizada" && /73\.8%/.test(String(x.detail))), "★ la reparación metió «73.8%», que no está en la boleta: el muro la cobra con razón (owner: «si no está autorizada por la boleta, mejor quitarla que inventar precisión»)");
+  ok(/6 cuentas con 73\.8% del peso de venta/.test(b2) && M2.rp.ledger.figs.some((f) => f.grupo && f.grupo.n === 6 && f.value === "73.8%") && !M2.muro(b2).some((x) => /73\.8%/.test(String(x.detail))), "★ la reparación dijo «6 cuentas con 73.8% del peso de venta»: entonces cayó (la cifra no estaba en la boleta); hoy la boleta trae el peso del grupo con su grupo y ese reparto —seis— es el correcto (§14)");
   const f2 = LE.final.texto;
   ok(!/73\.8%/.test(f2) && !/no es apuesta de volumen/.test(f2) && /el dato no distingue intención/.test(f2), "lo servido no lleva ni el 73.8% ni la intención negada");
   ok(coberturaDelEncargo(f2, partesDelEncargo(LE.pregunta)).length === 0 && /Criterio mío[^.]*yo entraría primero por Lider/.test(f2) && /severidad \(8\.6 pp/.test(f2) && /urgencia \(269 días/.test(f2) && /por contribución sin capturar, Falabella encabeza/.test(f2) && /En inventario trataría LG-DRYER8KG aparte/.test(f2), "★ lo servido: los tres dominios, Lider primero por severidad + urgencia + monto (criterio dicho), Falabella por contribución, inventario aparte");
@@ -415,8 +415,55 @@ H("13 · segundas corridas vivas (autorizadas, 2 llamadas cada una): la prueba 1
   const f2 = L2.final.texto;
   ok(/Falabella, Lider, Jumbo, Sodimac y Paris \(73\.8% de la venta\)/.test(f2) && JSON.stringify(M2.rp.results).includes('"n":6,"pesoVenta":73.8'), "lo servido dice «Falabella, Lider, Jumbo, Sodimac y Paris (73.8% de la venta)» — y el 73.8% es el peso de SEIS cuentas en los results (falta Ripley)");
   ok(/la segunda mayor brecha de margen, 8\.6 pp/.test(f2) && M2.rp.ledger.figs.filter((x) => /Brecha al benchmark/.test(x.label) && !/negocio/i.test(x.label)).every((x) => x.raw <= 8.6), "…y «la segunda mayor brecha de margen, 8.6 pp»: la de Lider es la MAYOR de todas");
-  ok(M2.muro(f2).length === 0, "el muro no ve ninguno de los dos hoy (la cifra de un grupo repartida a un grupo distinto; el ordinal): ESTÁNDAR PENDIENTE DEL OWNER", M2.muro(f2).map((x) => x.kind).join(","));
+  ok(M2.muro(f2).some((x) => x.kind === "cifra-de-grupo-mal-repartida") && M2.muro(f2).some((x) => x.kind === "superlativo-no-sostenido"), "★ el muro ya ve los dos (cerrados en §14): la cifra de un grupo repartida a un grupo distinto, y el ordinal falso", M2.muro(f2).map((x) => x.kind).join(","));
   ok(M2.muro(L2.borradores[0].texto).some((x) => x.kind === "total-mal-atribuido" && /\$33K/.test(String(x.detail))), "el cierre cayó además por «$33K frenados en total, concentrados en Valparaíso (75%)»: el total con su parte dicha — FALSO POSITIVO pendiente (decisión del owner), documentado como está hoy");
+}
+
+/* ═══ 14 · LOS DOS HUECOS DEL MURO, CERRADOS, Y LA LEY DE LA COINCIDENCIA (owner 2026-09-14) ════════════════════════ */
+H("14 · universo de grupos · ordinales y rankings · «coincide en dos dominios» no es razón: los tres, sobre las respuestas reales");
+{
+  const L2 = JSON.parse(fs.readFileSync(new URL("./fixtures/lectura-ejecutiva-vivo2-2026-09-14.json", import.meta.url), "utf8"));
+  const V6 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo6-2026-09-14.json", import.meta.url), "utf8"));
+  const { guardC } = await import("./src/adi/oracle/guardC.js");
+  const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
+  const { playbookPara, pasosDe } = await import("./src/adi/agente/playbooks/registro.js");
+  const { pasosDelEncargo } = await import("./src/adi/agente/encargoCompuesto.js");
+  const { axisEntityNames } = await import("./src/adi/oracle/entityIndex.js");
+  const { coincidenciaComoRazon } = await import("./src/adi/agente/prioridadIntegrada.js");
+  const _ejes = (lista) => { const o = []; for (const e of lista) { try { for (const n of axisEntityNames(e)) o.push(n); } catch { /* eje sin índice */ } } return o.length ? o : null; };
+  const muroDe = (pregunta) => {
+    const pb = playbookPara(pregunta, {});
+    const rp = runPlan({ intent: "answer", calls: pasosDelEncargo(partesDelEncargo(pregunta), pb ? pasosDe(pb, pregunta, {}) : [], {}).map((p) => ({ tool: p.tool, args: p.args || {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 18, preguntaUsuario: pregunta, registry: CAJA });
+    return { rp, muro: (t) => { const v = guardC(t, { ledger: { figs: rp.ledger.figs }, results: rp.results, trace: null, question: pregunta, datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), entidadesDelTenant: _ejes(["cliente", "sku", "marca"]), duenosDelTenant: _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]), contentScope: "full" }); return v.ok ? [] : (v.violations || []); } };
+  };
+  const M2 = muroDe(L2.pregunta);
+  const kinds = (t) => M2.muro(t).map((x) => x.kind);
+  const arde = (t, k) => kinds(t).includes(k);
+  /* 1 · universo de grupos: la herramienta publica el peso del grupo con su grupo, la lista va completa, y el muro cobra el reparto */
+  const G6 = M2.rp.ledger.figs.find((f) => f.grupo && f.grupo.n === 6);
+  ok(G6 && G6.value === "73.8%" && G6.grupo.entidades.join(",") === "Falabella,Lider,Jumbo,Sodimac,Paris,Ripley" && /^Peso en la venta · papel: .+ \(6 cuentas\)$/.test(G6.label), "★ la boleta trae el peso del grupo con su grupo declarado: «Peso en la venta · papel: … (6 cuentas) = 73.8%» (Falabella, Lider, Jumbo, Sodimac, Paris, Ripley)", G6 && G6.label);
+  const rolesF = (M2.rp.results.find((r) => r.tool === "rolesCartera") || {}).facts;
+  ok(rolesF && rolesF.roles.every((r) => r.entidades.length === r.n), "…y los facts traen la lista COMPLETA de cada papel (n = entidades): el cerebro ya no copia una lista recortada");
+  ok(arde(L2.final.texto, "cifra-de-grupo-mal-repartida"), "★ lo servido en la prueba 2 («Falabella, Lider, Jumbo, Sodimac y Paris (73.8% de la venta)») ahora arde: la cifra de un grupo de 6 narrada como de 5", kinds(L2.final.texto).join(","));
+  ok(arde("Falabella, Lider, Jumbo, Sodimac y Paris (73.8% de la venta) tienen margen bajo el benchmark.", "cifra-de-grupo-mal-repartida") && arde("Cinco cuentas con carga sobre el nivel pesan 73.8% de la venta.", "cifra-de-grupo-mal-repartida") && arde("Lider pesa 73.8% de la venta.", "cifra-de-grupo-mal-repartida"), "candados: la lista corta, el conteo equivocado («cinco cuentas») y una sola cuenta arden");
+  ok(!arde("Falabella, Lider, Jumbo, Sodimac, Paris y Ripley (73.8% de la venta) tienen margen bajo el benchmark.", "cifra-de-grupo-mal-repartida") && !arde("Seis cuentas con margen bajo el benchmark y carga sobre el nivel pesan 73.8% de la venta.", "cifra-de-grupo-mal-repartida") && kinds("Las cuentas con carga sobre el nivel declarado pesan 73.8% de la venta.").length === 0, "el grupo completo, «seis cuentas» y la descripción sin lista pasan (y el 73.8% ya está autorizado por la boleta)");
+  ok(!arde("LG-DRYER8KG ($14K) es el 41.0% de los $33K frenados.", "cifra-no-autorizada"), "la cuenta mostrada ($14K de $33K → 41.0%) sigue pasando (⚠️ el catálogo aún amnistía un % por una razón entre dos montos que el texto no dice — «68.4%» pasa—: frente aparte, 15 gates dependen de esas cuentas de corrido)");
+  /* 2 · ordinales y rankings: «segunda mayor brecha» se verifica igual que «mayor» */
+  const dp = cifrasDelDato(ESCENARIO_INICIAL);
+  ok(dp.rankings.cliente.brecha && dp.rankings.cliente.no_capturada && dp.rankings.cliente.brecha.filas.slice().sort((a, b) => b.valor - a.valor).slice(0, 2).map((x) => x.entidad + " " + x.valor).join(" · ") === "Lider 8.6 · Falabella 8.1", "la proyección declara los rankings de brecha al benchmark (Lider 8.6 · Falabella 8.1 · …) y de contribución no capturada");
+  ok(arde(L2.final.texto, "superlativo-no-sostenido") && M2.muro(L2.final.texto).some((x) => x.kind === "superlativo-no-sostenido" && /«segunda mayor» en brecha/.test(String(x.detail)) && /en el puesto 2 va Falabella \(8\.1 pp\) y Lider va en el puesto 1 \(8\.6 pp\)/.test(String(x.detail))), "★ «la segunda mayor brecha de margen, 8.6 pp» arde: en el puesto 2 va Falabella (8.1 pp) y Lider va en el puesto 1 (8.6 pp)");
+  ok(arde("Lider es la cuenta más grave en cobranza y la segunda en brecha de margen (8.6 pp).", "superlativo-no-sostenido") && arde("Jumbo es el segundo en ventas.", "superlativo-no-sostenido") && !arde("Lider es el segundo en ventas.", "superlativo-no-sostenido") && !arde("Falabella tiene la segunda mayor brecha de margen (8.1 pp).", "superlativo-no-sostenido"), "candados: «la segunda en brecha», «el segundo en ventas» se verifican por puesto — el puesto correcto pasa, el incorrecto arde");
+  ok(!arde("Falabella tiene la mayor contribución no capturada ($1.6M).", "superlativo-no-sostenido") && !arde("Lider tiene la segunda mayor contribución sin capturar ($1.5M).", "superlativo-no-sostenido") && arde("Jumbo tiene la segunda mayor contribución no capturada ($1.1M).", "superlativo-no-sostenido") && !arde("Jumbo tiene la tercera mayor contribución no capturada ($1.1M).", "superlativo-no-sostenido"), "«contribución no capturada» se juzga contra SU ranking, no contra la contribución a secas");
+  /* 3 · la coincidencia agrava, no decide: la ley del contrato y la doctrina al cerebro */
+  const cc = coincidenciaComoRazon(L2.final.texto);
+  ok(cc && /coincidir agrava el caso, no lo decide/.test(cc), "★ lo servido en la prueba 2 («partir por Lider: coincide en dos dominios… esa coincidencia agrava más que cualquier monto aislado») arde por «coincidencia-como-razon»", String(cc).slice(0, 120));
+  ok(vetosDeRegistro(L2.final.texto, { pregunta: L2.pregunta, figs: M2.rp.ledger.figs, sitio: "reparacion" }).map((x) => x.regla).includes("coincidencia-como-razon"), "…y el contrato la cobra en el sitio de la reparación");
+  ok(!!coincidenciaComoRazon("Lider va primero porque coincide en ambos dominios.") && !!coincidenciaComoRazon("Yo entraría primero por Lider, por coincidir en dos dominios."), "candados: «porque coincide», «por coincidir» arden");
+  ok(!coincidenciaComoRazon("Yo entraría primero por Lider: la mayor brecha al benchmark (8.6 pp) y el atraso más largo (269 días); coincide en dos dominios, lo que agrava el caso.") && !coincidenciaComoRazon("Criterio: coincidir en dos dominios agrava, no decide.") && !coincidenciaComoRazon("Criterio mío: yo entraría primero por Lider, porque ahí coinciden severidad (8.6 pp), urgencia (269 días vencidos) y monto."), "la coincidencia como agravante con las señales al lado, la doctrina y «coinciden severidad, urgencia y monto» pasan");
+  ok(/Nunca des «coincide en dos dominios» como LA razón de ir primero/.test(conclusionDePrioridad(FIGS, DOMS, {})), "la doctrina al cerebro lo dice con todas sus letras");
+  /* las lecturas correctas de la prueba 1 (segunda corrida) no pierden nada con los tres cierres */
+  const M1 = muroDe(Q);
+  for (const [i, b] of V6.borradores.entries()) ok(!M1.muro(b.texto).some((x) => x.kind === "cifra-de-grupo-mal-repartida" || x.kind === "superlativo-no-sostenido") && !vetosDeRegistro(b.texto, { pregunta: Q, figs: M1.rp.ledger.figs, sitio: i ? "reparacion" : "cierre" }).map((x) => x.regla).includes("coincidencia-como-razon"), `el borrador ${i + 1} de la prueba 1 no arde por ninguno de los tres`);
 }
 
 console.log(`\n── _prioridad_integrada_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
