@@ -24,6 +24,8 @@
  * PURO · determinístico · sin red. */
 import { esTemaComercial, pasosDelContratoComercial, doctrinaComercial } from "./contratoComercial.js";
 import { esReformular } from "./reformular.js";
+import { esLecturaEjecutiva } from "./partesDelEncargo.js";   // «lectura ejecutiva de estos datos»: todos los dominios que el dato trae (owner 2026-09-14)
+import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";      // ¿el dato trae cobranza? la misma mesa que la pestaña
 import { _sinNombresDeEntidad } from "./mapaDelDato.js";   // un cliente llamado «Depósito …» no es una bodega
 import { getTenantData } from "../../data/tenantStore.js";
 import { datasetCapability, transferenciaCapability } from "../sentrix/capability.js";
@@ -65,9 +67,10 @@ export function dominiosDe(pregunta) {
   if (esReformular(q)) return vacio;
   const sin = (() => { try { return _sinNombresDeEntidad(q); } catch { return q; } })();
   const dominios = [];
-  if (esTemaComercial(q, { conOtrosUniversos: true })) dominios.push("comercial");
-  if (_INVENTARIO.test(sin)) dominios.push("inventario");
-  if (_COBRANZA.test(sin)) dominios.push("cobranza");
+  const ejecutiva = esLecturaEjecutiva(q);
+  if (ejecutiva || esTemaComercial(q, { conOtrosUniversos: true })) dominios.push("comercial");
+  if (_INVENTARIO.test(sin) || (ejecutiva && _hayInventario())) dominios.push("inventario");
+  if (_COBRANZA.test(sin) || (ejecutiva && _hayCobranza())) dominios.push("cobranza");
   return { dominios, eje: ejeNombrado(q) };
 }
 
@@ -104,6 +107,7 @@ const _PASOS_COBRANZA = [
 ];
 
 const _hayInventario = () => { try { return ((getTenantData() || {}).skuInventario || []).length > 0; } catch { return false; } };
+const _hayCobranza = () => { try { const M = buildMesaFlujo(); return !!(M && Array.isArray(M.filas) && M.filas.length); } catch { return false; } };
 const _hayAnteriorConUnidades = () => { try { return ((getTenantData() || {}).clientesVentas || []).some((c) => typeof c.anterior === "number" && typeof c.unidadesAnt === "number"); } catch { return false; } };
 
 /** pasosDeDominios({ dominios, eje }) → los pasos de todos los dominios que participan, en orden fijo. */

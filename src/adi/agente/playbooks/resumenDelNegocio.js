@@ -18,6 +18,7 @@
 import { variante } from "../variacion.js";
 import { buildRolesCartera } from "../../sentrix/rolesCartera.js";
 import { nombraEntidad } from "./indiceEntidades.js";   // el guardia, compartido: la foto es del negocio entero
+import { esLecturaEjecutiva } from "../partesDelEncargo.js";
 import { esEncargoCompuesto } from "../contratoAgente.js";   // el encargo compuesto pide la lectura completa (owner 2026-09-11)
 /* ¿la pregunta nombra una entidad del tenant? — se pregunta por PRESENCIA, jamás se resuelve un parecido
  * (la ley del único buscador: acá no se ofrece ni se asume nada, solo se cede el turno a quien le toca).
@@ -92,6 +93,10 @@ export const resumenDelNegocio = {
      * paso — sus pasos traen la evidencia de todas las partes y el ensamblador compone con ella. Solo compuesto Y
      * sobre el negocio entero: una pregunta simple o ambigua no entra por acá (medido en el gate). */
     if (esEncargoCompuesto(q) && _NEGOCIO_ENTERO.test(q)) return true;
+    /* LA LECTURA EJECUTIVA DE LOS DATOS (owner 2026-09-14, prueba 2): «Hazme una lectura ejecutiva de estos datos… qué debería
+     * preocuparme más y dónde pondrías el foco primero» es el negocio entero con todos sus dominios — la foto es su paraguas
+     * y el ensamblador compone las partes (foto · inventario · cobranza · prioridad) con la conclusión del procedimiento */
+    if (esLecturaEjecutiva(q)) return true;
     if (_AJENO.test(q)) return false;
     /* (tanda 2 post-poda, 2026-09-05: el guardia ad-hoc de nombres —el que cerró el secuestro de «cómo viene
      * Falabella» y luego el de «cómo viene LG»— es hoy la PROPIEDAD `respondePorElNegocio`, aplicada UNA vez

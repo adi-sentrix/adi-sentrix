@@ -36,6 +36,13 @@ const _FIN = "(?![\\wáéíóúñ])";
 /* ⚠️ sin `\b` tras la tilde: «qué\b» no encuentra «qué » nunca (la trampa de siempre de esta casa) — los bordes
  * se escriben con las clases que sí conocen la tilde y la ñ */
 const _INTERROGATIVA = /(?<![\wáéíóúñ])por qu[eé](?![\wáéíóúñ])|(?<![\wáéíóúñ])(?:qué|cuál(?:es)?|cuánt[oa]s?|quién(?:es)?|cómo|dónde|cuándo)(?![\wáéíóúñ])|(?:^|[,;:¿]\s*|(?<![\wáéíóúñ])y\s+)(?:que|cual(?:es)?|cuant[oa]s?|quien(?:es)?|como|donde|cuando)(?![\wáéíóúñ])|(?<![\wáéíóúñ])si (?:es|era|fue|son|hay|viene|vienen|est[aá]n?|conviene|se debe)(?![\wáéíóúñ])/gi;
+/* LA LECTURA EJECUTIVA DE LOS DATOS (owner 2026-09-14, prueba 2): «Hazme una lectura ejecutiva de estos datos. Dime qué debería
+ * preocuparme más y dónde pondrías el foco primero» no enumera tres preguntas, pero pide el negocio ENTERO: es un encargo
+ * de todos los dominios que el dato trae, con la foto, el inventario, la cobranza y la prioridad. Léxico cerrado, y acotado
+ * a la lectura de LOS DATOS («lectura/resumen/síntesis ejecutiva», «estos datos», «mis datos»); «el negocio completo» sigue
+ * siendo la foto comercial de la 2.27. */
+export const _EJECUTIVA = /\b(?:lectura|resumen|s[ií]ntesis|visi[oó]n|panorama|foto)\s+(?:ejecutiv[oa]\s+)?(?:de|sobre)\s+(?:estos|mis|todos los|los|tus)\s+datos\b/i;   // «lectura ejecutiva de estos datos» — no «con los datos» de paso (el prompt de gerente lo dice) ni «resumen ejecutivo de negocio» (la foto de la 2.27)
+export function esLecturaEjecutiva(pregunta) { return _EJECUTIVA.test(String(pregunta || "")); }
 export function esEncargoCompuesto(pregunta) {
   const q = String(pregunta || "");
   if (q.trim().split(/\s+/).length < 12) return false;
@@ -108,8 +115,11 @@ export const PARTES = [
 /** las partes PEDIDAS, en el orden de la casa — [] si no es un encargo compuesto o pide menos de dos */
 export function partesDelEncargo(pregunta) {
   const q = sinPresentacionPosterior(String(pregunta || ""));
-  if (!esEncargoCompuesto(q)) return [];
-  const partes = PARTES.filter((p) => p.re.test(q) && (!p.y || p.y.test(q))).map((p) => ({ ...p, pregunta: p.pregunta || q }));
+  const ejecutiva = esLecturaEjecutiva(q);
+  if (!esEncargoCompuesto(q) && !ejecutiva) return [];
+  /* en la lectura ejecutiva de los datos entran la foto, el inventario y la cobranza aunque no se nombren: el negocio entero */
+  const pedidas = new Set(ejecutiva ? ["foto", "inventario", "cobranza"] : []);
+  const partes = PARTES.filter((p) => pedidas.has(p.clave) || (p.re.test(q) && (!p.y || p.y.test(q)))).map((p) => ({ ...p, pregunta: p.pregunta || q }));
   return partes.length >= 2 ? partes : [];
 }
 

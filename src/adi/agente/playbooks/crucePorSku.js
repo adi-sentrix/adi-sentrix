@@ -17,6 +17,7 @@
 import { dominiosDe } from "../contratoDeDominios.js";
 import { esPorQue } from "../porque.js";
 import { nombraEntidad } from "./indiceEntidades.js";
+import { esLecturaEjecutiva } from "../partesDelEncargo.js";   // la lectura ejecutiva de los datos es de la foto, no del cruce (owner 2026-09-14)
 import { reconcilian } from "../../../config/contract/figureType.js";
 import { axisEntityNames } from "../../oracle/entityIndex.js";   // las bodegas del dato: «capital frenado» también se publica por bodega y no es un SKU
 
@@ -38,6 +39,7 @@ const _FUERA = new RegExp(`\\bsimul|\\bproyect|\\bqu[eé] pasa si${_FIN}|\\bpon[
 function _caso(pregunta) {
   const q = String(pregunta || "");
   if (!q.trim() || _FUERA.test(q) || esPorQue(q)) return null;
+  if (esLecturaEjecutiva(q)) return null;   // «lectura ejecutiva de estos datos»: el encargo del negocio entero; el cruce entra como parte, no como procedimiento
   let d; try { d = dominiosDe(q); } catch { return null; }
   if (!d.dominios.includes("comercial") || !d.dominios.includes("inventario")) return null;
   if (d.eje) return null;                       // por marca/familia/canal/bodega: la lectura por eje es de otros

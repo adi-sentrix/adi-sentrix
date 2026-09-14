@@ -25,9 +25,9 @@ import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
 import { LENTES, senalesDelDominio, prioridadIntegrada, componerPrioridadIntegrada, conclusionDePrioridad, prioridadIntegradaCambiada, CRITERIO } from "./src/adi/agente/prioridadIntegrada.js";
-import { partesDelEncargo, doctrinaDelEncargo } from "./src/adi/agente/encargoCompuesto.js";
+import { partesDelEncargo, doctrinaDelEncargo, coberturaDelEncargo, esEncargoCompuesto } from "./src/adi/agente/encargoCompuesto.js";
 import { vetosDeRegistro } from "./src/adi/agente/contratoAgente.js";
-import { pasosDeDominios } from "./src/adi/agente/contratoDeDominios.js";
+import { pasosDeDominios, dominiosDe } from "./src/adi/agente/contratoDeDominios.js";
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
 import { cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";
@@ -301,6 +301,31 @@ H("10 · la jerarquía del criterio: explícito manda · implícito se interpret
   ok(/pidió \(con sus palabras\) el criterio «riesgo integrado» y bajo ese criterio va primero Lider/.test(ley(cierraCon("Falabella", "por contribución"), FIGS, DOMS, { criterio: "riesgo", modo: "implicito" }) || ""), "implícito riesgo: Falabella primero arde");
   ok(vetosDeRegistro(cierraCon("Lider", "por riesgo"), { pregunta: Q + " Prioriza contribución.", figs: FIGS, sitio: "cierre" }).some((x) => x.regla === "prioridad-integrada-cambiada"), "…y vetosDeRegistro lee el criterio de la pregunta del encargo");
   ok(!vetosDeRegistro(cierraCon("Lider", "por riesgo"), { pregunta: Q + " Prioriza contribución.", figs: FIGS, sitio: "playbook:cruce-por-sku" }).length, "…no a los peldaños de abajo");
+}
+
+/* ═══ 11 · LA LECTURA EJECUTIVA DE LOS DATOS (prueba 2 del owner): el negocio entero, con la prioridad que se lee en la pregunta ═ */
+H("11 · «Hazme una lectura ejecutiva de estos datos… qué debería preocuparme más y dónde pondrías el foco primero»: todos los dominios, Lider por riesgo (implícito), criterio declarado");
+{
+  const { esLecturaEjecutiva } = await import("./src/adi/agente/partesDelEncargo.js");
+  const { criterioDeLaPregunta } = await import("./src/adi/agente/prioridadIntegrada.js");
+  const { playbookPara } = await import("./src/adi/agente/playbooks/registro.js");
+  const Q3 = "Hazme una lectura ejecutiva de estos datos. Dime qué debería preocuparme más y dónde pondrías el foco primero.";
+  ok(esLecturaEjecutiva(Q3) && !esEncargoCompuesto(Q3), "es una lectura ejecutiva de los datos (no enumera tres preguntas, pide el negocio entero)");
+  ok(dominiosDe(Q3).dominios.join(",") === "comercial,inventario,cobranza", "★ participan todos los dominios que el dato trae, aunque no los nombre");
+  ok(partesDelEncargo(Q3).map((p) => p.clave).join(",") === "foto,inventario,cobranza,primero", "★ las partes: la foto, el inventario, la cobranza y la prioridad");
+  ok((playbookPara(Q3, {}) || {}).nombre === "resumen-del-negocio", "la foto del negocio es su paraguas (el cruce por SKU no la toma)");
+  ok(criterioDeLaPregunta(Q3) && criterioDeLaPregunta(Q3).criterio === "riesgo" && criterioDeLaPregunta(Q3).modo === "implicito", "«qué debería preocuparme más» → riesgo integrado, leído de la pregunta");
+  MUDO.llamadas = [];
+  const r0 = await answerViaAgente({ text: Q3, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
+  const t = r0.r.text, cierre = t.slice(Math.max(0, t.indexOf("Dónde pondría el foco primero")));
+  ok(r0.r.agente.estado === "encargo-compuesto" && /^Lectura conjunta de comercial, inventario y cobranza/.test(t), `★ el respaldo: una lectura conjunta de los tres dominios (${r0.r.agente.estado})`, t.slice(0, 100));
+  ok(/El negocio está creciendo/.test(t) && /capital inmovilizado/.test(t) && /Cobranza, al corte declarado por la mesa/.test(t), "…con la foto, el inventario y la cobranza cruzada por cliente");
+  ok(/por riesgo integrado, el criterio que se lee en tu pregunta/.test(cierre) && /^1\. Lider — /m.test(cierre) && /Por dominio: comercial → Falabella/.test(cierre) && /En inventario \(clave SKU/.test(cierre), "★ cierra con Lider primero por riesgo integrado —criterio declarado como leído de la pregunta—, Falabella comercial, inventario aparte");
+  ok(/Con otra lente cambia quién va primero: por contribución, Falabella primero/.test(cierre), "…y dice que con otra lente cambia quién va primero");
+  ok(!/criterio mío|Yo mirar[ií]a primero|entrar[ií]a por Falabella|Si fuera mi decisi[oó]n/.test(t) && coberturaDelEncargo(t, partesDelEncargo(Q3)).length === 0 && r0.r.agente.vetos.length === 0, "ninguna prioridad local sobrevive, cobertura completa, sin vetos", JSON.stringify(r0.r.agente.vetos).slice(0, 160));
+  const de = (MUDO.llamadas[0] ? MUDO.llamadas[0].mensajes : []).map((m) => String(m.content || "")).find((c) => c.startsWith("[ENCARGO COMPUESTO"));
+  ok(de && /El criterio se lee en la pregunta del usuario: riesgo integrado/.test(de) && /1º Lider · 2º Falabella/.test(de), "★ el cerebro recibe la misma conclusión y el mismo criterio: modelo, reparación y respaldo comparten hechos y lógica");
+  ok(/foto,porque,quienes,primero/.test(partesDelEncargo("Mira el negocio completo como si fueras mi asesor. Dime qué está bien, qué te preocupa, por qué, cuánto dinero está en juego y dónde actuarías primero.").map((p) => p.clave).join(",")), "«el negocio completo» de la batería 2.27 no cambia: sigue siendo la foto comercial (la lectura ejecutiva se acota a «estos datos»)");
 }
 
 console.log(`\n── _prioridad_integrada_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
