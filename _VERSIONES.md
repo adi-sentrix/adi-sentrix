@@ -12,7 +12,7 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 2.28 — lista para desplegar
+## 2.28 — producción · tag `v2.28`
 
 **Los dominios se componen, y el cruce responde con lo medido.** Hasta acá una pregunta que cruzaba dos dominios
 —«¿los SKU que más vendo son los que más capital me inmovilizan?»— la secuestraba el dominio que sonaba más fuerte:
