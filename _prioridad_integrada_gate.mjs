@@ -328,5 +328,52 @@ H("11 · «Hazme una lectura ejecutiva de estos datos… qué debería preocupar
   ok(/foto,porque,quienes,primero/.test(partesDelEncargo("Mira el negocio completo como si fueras mi asesor. Dime qué está bien, qué te preocupa, por qué, cuánto dinero está en juego y dónde actuarías primero.").map((p) => p.clave).join(",")), "«el negocio completo» de la batería 2.27 no cambia: sigue siendo la foto comercial (la lectura ejecutiva se acota a «estos datos»)");
 }
 
+/* ═══ 12 · LAS DOS PRUEBAS DEL OWNER EN VIVO (v2.31): AMBAS «PODADO» — EL CRITERIO DE ÉXITO ES LO QUE RECIBE EL USUARIO ═ */
+H("12 · las dos pruebas vivas de la v2.31 (autorizadas, 2 llamadas cada una): dos falsos positivos cerrados, los vetos legítimos se quedan, y lo servido cumple");
+{
+  const V5 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo5-2026-09-14.json", import.meta.url), "utf8"));
+  const LE = JSON.parse(fs.readFileSync(new URL("./fixtures/lectura-ejecutiva-vivo-2026-09-14.json", import.meta.url), "utf8"));
+  const { criterioDeLaPregunta } = await import("./src/adi/agente/prioridadIntegrada.js");
+  const { guardC } = await import("./src/adi/oracle/guardC.js");
+  const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
+  const { playbookPara, pasosDe } = await import("./src/adi/agente/playbooks/registro.js");
+  const { pasosDelEncargo } = await import("./src/adi/agente/encargoCompuesto.js");
+  ok(V5.pregunta === Q && V5.final.estado === "podado" && LE.final.estado === "podado" && V5.borradores.length === 2 && LE.borradores.length === 2, "las dos corridas: el prompt exacto, dos borradores, y el usuario recibió el texto del modelo con una parte quitada por el Notario (podado)");
+  const muroDe = (pregunta) => {
+    const pb = playbookPara(pregunta, {});
+    const rp = runPlan({ intent: "answer", calls: pasosDelEncargo(partesDelEncargo(pregunta), pb ? pasosDe(pb, pregunta, {}) : [], {}).map((p) => ({ tool: p.tool, args: p.args || {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 18, preguntaUsuario: pregunta, registry: CAJA });
+    return { rp, muro: (t) => { const v = guardC(t, { ledger: { figs: rp.ledger.figs }, results: rp.results, question: pregunta, datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), contentScope: "full" }); return v.ok ? [] : (v.violations || []); } };
+  };
+  /* ── prueba 1: la reparación era correcta y cayó por «(8.6 pp contra 8.1 pp de Falabella)» ── */
+  const M1 = muroDe(Q);
+  const rep = V5.borradores[1].texto;
+  ok(/Falabella es la mayor brecha de contribución sin capturar \(\$1\.6M\), y Lider es la cuenta con peores indicadores de cobranza \(269 días, 45% recuperado, \$4\.6M vencidos\) y la mayor distancia al benchmark de margen \(8\.6 pp contra 8\.1 pp de Falabella\)/.test(rep), "la frase: «Falabella es la mayor brecha… ($1.6M), y Lider es la cuenta con… (8.6 pp contra 8.1 pp de Falabella)» — dos cláusulas, cada cifra con su dueño");
+  ok(M1.muro(rep).length === 0 && !vetosDeRegistro(rep, { pregunta: Q, figs: M1.rp.ledger.figs, sitio: "reparacion" }).length, "★ ya no arde: la distributiva solo reparte entre entidades COORDINADAS entre sí; con dos sujetos manda el sujeto de la cláusula (8.6 pp es de Lider)", M1.muro(rep).map((x) => x.kind + ": " + String(x.detail).slice(0, 90)).join(" | "));
+  const r5 = await answerViaAgente({ text: Q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: rep, stop: "end_turn" }) });
+  ok(r5.r.agente.estado === "verde" && r5.r.text === rep, `★ con esa reparación como cerebro, el turno se sirve entero y verde (${r5.r.agente.estado}): el usuario recibe la lectura del modelo`, JSON.stringify(r5.r.agente.vetos).slice(0, 200));
+  const ardeD = (t) => M1.muro(t).some((x) => x.kind === "cifra-de-boleta-sin-dueno");
+  const largo = " —que son las dos cuentas más grandes del canal retail y las que más pesan en la contribución del año cerrado, con diferencia sobre el resto—";
+  ok(!ardeD("Entre Lider y Falabella" + largo + ", la distancia al benchmark es 8.6 pp contra 8.1 pp.") && ardeD("Entre Falabella y Lider" + largo + ", la distancia al benchmark es 8.6 pp contra 8.1 pp."), "candado: con dos entidades COORDINADAS («entre Falabella y Lider … 8.6 pp contra 8.1 pp») la lectura por orden sigue decidiendo, y la invertida arde");
+  ok(!ardeD("SAM-REF500L ($19K) y LG-WASH11KG ($15K) —esos sí cruzan con ventas altas y además rotan rápido, mucho más que el resto del catálogo frenado (17 días y 21 días de cobertura).") && ardeD("PHI-HAIR-PRO y PHI-SHAVER9 son el mejor caso de la lista — lideran contribución con diferencia sobre el resto del catálogo, sostienen margen sin pedir capital y tienen cobertura corta (15 días y 19 días)."), "candado: «A ($19K) y B ($15K) … (17 días y 21 días)» sigue libre y la coordinación invertida sigue ardiendo");
+  ok(ardeD("Sodimac vende $8.2M. Es más grave que Falabella en distancia al benchmark (8.6 pp contra 8.1 pp).") && ardeD("Falabella lidera la venta con diferencia y sostiene la mayor parte del canal retail durante todo el año cerrado, mientras que Lider vende $19.4M."), "candado: el sujeto elidido ajeno y «mientras que Lider vende $19.4M» siguen ardiendo");
+  /* lo que recibió el usuario en la prueba 1 */
+  const f1 = V5.final.texto;
+  ok(coberturaDelEncargo(f1, partesDelEncargo(Q)).length === 0 && /Criterio mío[^.]*yo pondría el foco en Lider primero/.test(f1) && /Falabella la supera solo en contribución sin capturar/.test(f1) && /En inventario, aparte: LG-DRYER8KG/.test(f1), "★ lo servido: los tres dominios, Lider primero con el criterio dicho, Falabella en contribución, inventario aparte");
+  ok(!prioridadIntegradaCambiada(f1, FIGS, DOMS, criterioDeLaPregunta(Q) || {}) && !vetosDeRegistro(f1, { pregunta: Q, figs: M1.rp.ledger.figs, sitio: "poda" }).length && M1.muro(f1).length === 0, "…y lo servido pasa la ley, el contrato y el muro", M1.muro(f1).map((x) => x.kind).join(","));
+  /* ── prueba 2: un falso positivo (el sujeto coordinado) y los vetos legítimos que se quedan ── */
+  const M2 = muroDe(LE.pregunta);
+  const b1 = LE.borradores[0].texto, b2 = LE.borradores[1].texto;
+  ok(/Falabella, Jumbo y Lider concentran la mayor contribución \(\$4\.3M, \$4\.2M y \$3\.8M respectivamente\)/.test(b1), "la frase: «Falabella, Jumbo y Lider concentran la mayor contribución ($4.3M, $4.2M y $3.8M)» — el extremo es del grupo, y es cierto");
+  const ardeS = (t) => M2.muro(t).some((x) => x.kind === "superlativo-no-sostenido");
+  ok(!M2.muro(b1).some((x) => x.kind === "superlativo-no-sostenido"), "★ ya no se le cobra a Lider «ser el máximo»: un sujeto «A, B y C» es un plural, sin reclamante único no se juzga");
+  ok(ardeS("Después de Jumbo y Sodimac, Lider concentra la mayor contribución.") && ardeS("Falabella, Jumbo y Lider crecen; Lider concentra la mayor contribución.") && ardeS("Falabella y Jumbo crecen, y la mayor contribución es Lider."), "candados: «después de Jumbo y Sodimac, Lider…», la segunda cláusula y la cópula siguen cobrándole a Lider");
+  ok(M2.muro(b1).some((x) => x.kind === "juicio-sin-marcar") && vetosDeRegistro(b1, { pregunta: LE.pregunta, figs: M2.rp.ledger.figs, sitio: "cierre" }).map((x) => x.regla).includes("intencion-inferida"), "los vetos legítimos del cierre se quedan: «no es apuesta de volumen» (la intención no se lee en el dato, ni negada) y priorizar sin marcar dato duro/criterio");
+  ok(/73\.8%/.test(b2) && !M2.rp.ledger.figs.some((f) => /73\.8/.test(String(f.value))) && M2.muro(b2).some((x) => x.kind === "cifra-no-autorizada" && /73\.8%/.test(String(x.detail))), "★ la reparación metió «73.8%», que no está en la boleta: el muro la cobra con razón (owner: «si no está autorizada por la boleta, mejor quitarla que inventar precisión»)");
+  const f2 = LE.final.texto;
+  ok(!/73\.8%/.test(f2) && !/no es apuesta de volumen/.test(f2) && /el dato no distingue intención/.test(f2), "lo servido no lleva ni el 73.8% ni la intención negada");
+  ok(coberturaDelEncargo(f2, partesDelEncargo(LE.pregunta)).length === 0 && /Criterio mío[^.]*yo entraría primero por Lider/.test(f2) && /severidad \(8\.6 pp/.test(f2) && /urgencia \(269 días/.test(f2) && /por contribución sin capturar, Falabella encabeza/.test(f2) && /En inventario trataría LG-DRYER8KG aparte/.test(f2), "★ lo servido: los tres dominios, Lider primero por severidad + urgencia + monto (criterio dicho), Falabella por contribución, inventario aparte");
+  ok(!prioridadIntegradaCambiada(f2, FIGS, DOMS, criterioDeLaPregunta(LE.pregunta) || {}) && !vetosDeRegistro(f2, { pregunta: LE.pregunta, figs: M2.rp.ledger.figs, sitio: "poda" }).length && M2.muro(f2).length === 0, "…y lo servido pasa la ley, el contrato y el muro", M2.muro(f2).map((x) => x.kind).join(","));
+}
+
 console.log(`\n── _prioridad_integrada_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
 process.exit(FAIL ? 1 : 0);

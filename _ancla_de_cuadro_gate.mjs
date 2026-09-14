@@ -846,8 +846,12 @@ H("10 · carnadas · cada garantía, probada ROJA sobre una copia mutada del có
       return v.ok === false && JSON.stringify(v.violations).includes("narrado como");
     });
   // (h) el posesivo del superlativo, quitado → «de Lider y Falabella» vuelve a cobrársele a la vecina
+  /* ⚠️ LAS DEFENSAS SON DOS desde el sujeto coordinado (prueba 2 de la v2.31, 2026-09-14): el posesivo del grupo y
+   * el sujeto «A y B» delante del marcador («La Polar y Ripley» también es una lista). Quitar una sola ya NO revive
+   * el falso positivo: se quitan las dos, y ahí el grupo vuelve a adivinarse. */
   await carnada("el posesivo del superlativo, quitado (el grupo vuelve a adivinarse)", "src/adi/oracle/guardC.js",
-    [[/if \(posesivo && posesivo\.grupo\) continue;/, "if (false) continue;   // CARNADA"]],
+    [[/if \(posesivo && posesivo\.grupo\) continue;/, "if (false) continue;   // CARNADA"],
+     [/if \(_sujetoCoordinado\) continue;/, "if (false) continue;   // CARNADA"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
       const figsM = cuadroSentrix({ componentId: "comercial/01/tabla-cartera", scenario: ESC }).boleta;

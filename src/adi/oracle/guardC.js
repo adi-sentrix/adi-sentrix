@@ -3335,8 +3335,8 @@ function _grupoCoordinado(masked, idx, end, text) {
   for (;;) { const m = despues.exec(masked.slice(fin)); if (!m) break; fin = _finDeCifra(text, fin + m[0].length); n++; }
   return n >= 2 ? { ini, k, n } : null;
 }
-/* las entidades reales que nombra un tramo, en el orden en que aparecen (última aparición de cada una) */
-function _entidadesEnOrden(tramoN, nombresRe) {
+/* las entidades reales que nombra un tramo, con la posición de su última aparición, en el orden en que aparecen */
+function _entidadesConPosicion(tramoN, nombresRe) {
   const vistas = new Map();
   for (const re of nombresRe) {
     const g = new RegExp(re.source, "gu");
@@ -3349,7 +3349,25 @@ function _entidadesEnOrden(tramoN, nombresRe) {
   }
   const lista = [...vistas.entries()].sort((a, b) => a[1] - b[1]);
   /* un nombre contenido en otro más largo en la misma posición no cuenta dos veces */
-  return lista.filter(([nombre, pos], i) => !lista.some(([o, p], j) => j !== i && o.length > nombre.length && p <= pos && pos < p + o.length)).map(([nombre]) => nombre);
+  return lista.filter(([nombre, pos], i) => !lista.some(([o, p], j) => j !== i && o.length > nombre.length && p <= pos && pos < p + o.length)).map(([nombre, pos]) => ({ nombre, pos }));
+}
+function _entidadesEnOrden(tramoN, nombresRe) { return _entidadesConPosicion(tramoN, nombresRe).map((e) => e.nombre); }
+/* ── SOLO LAS ENTIDADES COORDINADAS ENTRE SÍ (owner 2026-09-14, prueba 1 de la v2.31) ─────────────────────────
+ * FALSO POSITIVO MEDIDO: «Falabella es la mayor brecha de contribución sin capturar ($1.6M), y Lider es la cuenta
+ * con peores indicadores de cobranza (…) y la mayor distancia al benchmark de margen (8.6 pp contra 8.1 pp de
+ * Falabella)». Falabella y Lider son los sujetos de DOS cláusulas, no una lista coordinada; el par «8.6 pp contra
+ * 8.1 pp» no se reparte entre ellas por orden. La distributiva le asignaba 8.6 pp a Falabella (la primera de la
+ * oración) y tumbó una reparación correcta —«la comparación es válida y no debe caer por proximidad del nombre»—.
+ * La doctrina de arriba siempre dijo «dos entidades coordinadas»: acá se cobra. La distributiva solo ve la ÚLTIMA
+ * corrida de entidades unidas entre sí por coma, «y», «contra», «vs» o «frente a», admitiendo una cifra entre
+ * paréntesis pegada al nombre («SAM-REF500L ($19K) y LG-WASH11KG ($15K)»). Si no hay tal corrida, manda la regla
+ * del sujeto: 8.6 pp es de Lider, la última entidad nombrada antes de la cifra en su cláusula. */
+const _PUENTE_COORD = new RegExp("^(?:\\s*\\([^()]*\\))*\\s*" + _SEP_COORD + "(?:\\s*\\([^()]*\\))*\\s*$", "u");   // « ($19K) y » · «, » · « contra » — nada más entre dos nombres coordinados
+function _coordinadasContiguas(tramoN, nombresRe) {
+  const ents = _entidadesConPosicion(tramoN, nombresRe);
+  let i = ents.length - 1;
+  while (i > 0 && _PUENTE_COORD.test(tramoN.slice(ents[i - 1].pos + ents[i - 1].nombre.length, ents[i].pos))) i--;
+  return ents.slice(i).map((e) => e.nombre);
 }
 // _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) → true SOLO en la mis-atribución activa: en
 // TODAS las apariciones de la cifra falta un dueño legítimo en la oración, Y al menos una de esas oraciones
@@ -3382,9 +3400,10 @@ function _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) {
     const iniOracion = (() => { const back = masked.slice(0, idx); const k = Math.max(back.lastIndexOf("."), back.lastIndexOf("!"), back.lastIndexOf("?"), back.lastIndexOf("\n")); return k >= 0 ? k + 1 : 0; })();
     /* la coordinación distributiva (ver _grupoCoordinado): «A y B … (x y y)» → la k-ésima cifra es de la k-ésima
      * entidad. Cuando aplica, DECIDE: la lectura por orden manda sobre la del sujeto, así «PHI-HAIR-PRO y PHI-SHAVER9
-     * … (15d y 19d)» arde aunque PHI-SHAVER9 sea la última entidad nombrada antes de la cifra. */
+     * … (15d y 19d)» arde aunque PHI-SHAVER9 sea la última entidad nombrada antes de la cifra. Y solo aplica sobre
+     * entidades COORDINADAS ENTRE SÍ (ver _coordinadasContiguas): dos sujetos de dos cláusulas no forman lista. */
     const grupo = _grupoCoordinado(masked, idx, end, text);
-    const entsOracion = grupo && grupo.ini > iniOracion ? _entidadesEnOrden(_norm(text.slice(iniOracion, grupo.ini)), nombresRe) : [];
+    const entsOracion = grupo && grupo.ini > iniOracion ? _coordinadasContiguas(_norm(text.slice(iniOracion, grupo.ini)), nombresRe) : [];
     if (grupo && grupo.ini > iniOracion && entsOracion.length >= grupo.n) {
       const asignada = entsOracion.slice(-grupo.n)[grupo.k];
       if ([...duenos].some((d) => _norm(d) === asignada)) return false;
@@ -4878,6 +4897,26 @@ export function guardC(narration, { ledger, results = [], trace = null, question
              * es MAK-COMP-AIR (…); el que más capital libera si se actúa es LG-DRYER8KG» son DOS cláusulas en una
              * sola oración. Con MAK-COMP-AIR delante del segundo marcador, mirar hacia atrás vuelve a cobrarle la
              * frase de otro. Cuando el verbo nombra al sujeto, no hay nada que deducir: ese es. */
+            /* EL SUJETO COORDINADO (prueba 2 de la v2.31, 2026-09-14, borrador vivo): «Falabella, Jumbo y Lider concentran
+             * la mayor contribución ($4.3M, $4.2M y $3.8M respectivamente)» — el extremo es del GRUPO (los tres primeros),
+             * y la regla le cobraba a Lider, el último nombre delante del marcador, no ser el máximo: tumbó un borrador
+             * correcto. Un sujeto «A, B y C» es el mismo plural que «los tres» (candado de arriba): sin reclamante único,
+             * no se juzga. Solo cuenta la lista cerrada con «y»/«e» justo antes del último nombre —una cifra entre
+             * paréntesis pegada al nombre no la rompe—; «después de Jumbo y Sodimac, Falabella tiene la carga más alta»
+             * sigue juzgando a Falabella, y la cópula y el posesivo, que nombran al sujeto, siguen mandando. */
+            const _sujetoCoordinado = (() => {
+              if (sujetoDetras || (posesivo && posesivo.unica) || !delante.length) return false;
+              const _ult = delante[delante.length - 1];
+              let _pos = -1;
+              { const g = new RegExp(_reEnt(_ult.entidad).source, "giu"); let m; while ((m = g.exec(antes))) { _pos = m.index + (m[0].length - m[0].replace(/^[^\p{L}\p{N}]+/u, "").length); if (!m[0].length) g.lastIndex++; } }
+              if (_pos < 0) return false;
+              const _previo = antes.slice(0, _pos);
+              const _m = /(?:\s*\([^()]*\))?\s+[ye]\s+$/i.exec(_previo);
+              if (!_m) return false;
+              const _cabeza = _previo.slice(0, _m.index);
+              return nombradas.some((x) => x.entidad !== _ult.entidad && new RegExp(`${_tolerante(x.entidad)}(?:\\s*\\([^()]*\\))?\\s*$`, "iu").test(_cabeza));
+            })();
+            if (_sujetoCoordinado) continue;
             const reclamante = sujetoDetras || (posesivo && posesivo.unica) || (delante.length ? delante[delante.length - 1] : sujetoPrevio);
             if (!reclamante || !conjunto.some((x) => x.entidad === reclamante.entidad)) continue;
             const extremo = conjunto.reduce((a, b) => (alto ? (b.valor > a.valor ? b : a) : (b.valor < a.valor ? b : a)));
