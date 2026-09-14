@@ -533,6 +533,21 @@ export const TENANT_DEMO = {
   // la escala del universo comercial de ESTE dataset: se almacena en MILES (contrato figureType · «K»).
   // Declarada explícita desde 2026-08-30: un pack de planilla declara «raw»; el que no declara cae a «K».
   escalaComercial: "K",
+  /* LA COMPATIBILIDAD ENTRE UNIVERSOS, DECLARADA POR EL PACK (owner 2026-09-14): este dato de fábrica ES el caso
+   * divergente — venta en miles contra stock en dólares crudos, y las unidades del mismo SKU difieren 4x–35x entre
+   * skusMargen y skuInventario. Se declara a mano, con la misma verdad que `DIVERGENCIAS` (figureType.js), para
+   * que el demo no cambie de conducta un byte y quede dicho POR QUÉ. Un pack de planilla declara la suya desde la
+   * ingesta (motorKpi.js), medida sobre sus filas. */
+  compatibilidad: {
+    "inventario|venta_comercial": { escala: "distinta", valorizacion: "informada", unidades: "distintas", periodo: "distinto", estado: "divergent",
+      razon: "la venta comercial se almacena en MILES y el inventario en dólares CRUDOS (×1000 de diferencia de escala); además las unidades del mismo SKU difieren entre 4x y 35x entre skusMargen y skuInventario. Ninguna operación cruzada entre venta e inventario (cobertura, días, ratio, participación) cierra sobre este dato" },
+    "precio_unitario|venta_comercial": { escala: "distinta", periodo: "igual", estado: "divergent",
+      razon: "precioLista y costoMedio son $ por UNIDAD, crudos; la venta viene en miles — unidades × precio no cierra contra la venta declarada" },
+    "inventario|resultado_pnl": { escala: "distinta", periodo: "distinto", estado: "divergent",
+      razon: "el P&L es del año cerrado y en miles; el inventario es la foto de hoy en dólares crudos — no hay línea del resultado que se explique con el stock" },
+    "inventario|precio_unitario": { escala: "distinta", unidades: "distintas", periodo: "distinto", estado: "divergent",
+      razon: "el precio unitario es del mundo comercial (miles/unidad declarada) y el stock del de inventario (unidades propias): el mismo SKU no trae la misma cantidad en las dos fuentes" },
+  },
   id: "demo",
   nombre: "ADI Demo",
   perfil: PERFIL,

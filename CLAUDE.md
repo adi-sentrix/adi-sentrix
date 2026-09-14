@@ -98,6 +98,17 @@ Derivadas que se rompen seguido:
   cuentas sobre el nivel declarado (5 de ellas bajo el benchmark)»); la partición medida se usa («de los $4,9M, $588K
   carga y $4,4M precio y costo») y con ella «pesa más» en dinero cuenta como medido; «precio y costo» no se separa
   (`precio-y-costo-no-se-separan`).
+- **El contrato de dominios** (owner 2026-09-14, ley en `_CONSTITUCION_ADI.md`; `src/adi/agente/contratoDeDominios.js`):
+  «la pregunta determina qué dominios participan; cada dominio aporta su realidad suficiente; ADI solo relaciona
+  aquello que el archivo demuestra que puede relacionarse» — composición, no exclusión. Comercial (+ unidades vendidas,
+  métrica `unidades`), Inventario (la foto completa: `inventoryStatus{estado|frenado}`, capital/días/stock por SKU,
+  capital por bodega —y por marca/familia si la pregunta las nombra—, más el cruce por SKU `top_sellers` +
+  `tensionRead` cuando Comercial participa) y Cobranza (`cobranza{}`). La compatibilidad entre universos la declara
+  el PACK (`compatibilidad`, medida en `motorKpi`; el demo la declara divergente a mano) y `reconcilian` la lee:
+  «comparable» = se relaciona nombrando los dos marcos, jamás se suma (`marco-temporal-no-declarado` en guardC).
+  Clave única Comercial↔Inventario: el SKU. Cliente×inventario y `clientesPorSku` (afinidad estimada) APAGADOS hasta
+  que las filas cliente×SKU entren al pack. Con dos dominios, los playbooks de uno solo se retiran (`multidominio`)
+  y el cruce por SKU tiene piso propio (`cruce-por-sku`). Medido: dominios en la boleta 2/20 → 19/20 en tres datasets.
 
 ---
 
@@ -138,11 +149,17 @@ Derivadas que se rompen seguido:
 
 Saber esto evita inventar. Todo verificado.
 
-**Los dos universos que NO reconcilian.** `skusMargen` (venta comercial) y `skuInventario` no son el mismo
-negocio medido dos veces: la venta viene en **miles** ($100.0M anuales), `stockUSD` en **dólares crudos**
-($135.000 totales), y las unidades declaradas difieren **entre 4x y 35x** por SKU.
+**Los dos universos que NO reconcilian — EN EL DATO DE FÁBRICA.** `skusMargen` (venta comercial) y `skuInventario`
+no son el mismo negocio medido dos veces: la venta viene en **miles** ($100.0M anuales), `stockUSD` en **dólares
+crudos** ($135.000 totales), y las unidades declaradas difieren **entre 4x y 35x** por SKU.
 `src/adi/sentrix/mesaCapital.js` **NO importa `skusMargen`**, y ese es el sello: lo que no entra al módulo no
 se cuela a un texto. **Una cifra que haga cerrar esos dos universos es una alarma, no un logro.**
+⚠️ **Esa divergencia la declara el PACK, no el contrato** (owner 2026-09-14): el demo la declara a mano en su
+tenant (`compatibilidad`, byte-igual a `DIVERGENCIAS`); un pack de planilla la mide en la ingesta —las dos puntas
+en moneda cruda, el stock valorizado con el costo de Ventas, los días con sus unidades— y declara **comparable**:
+se relacionan por SKU nombrando los dos marcos (período cerrado / foto de inventario) y **nunca se suman**. Un pack
+sin la llave cae a `DIVERGENCIAS`. Lo que NO cambia en ningún archivo: venta y stock no se consolidan, y los días
+de inventario se citan del dato, no se recalculan.
 
 **«Cobertura» quedó resuelta POR ELIMINACIÓN, no por renombre.** El dato trae `doh` y `cobertura`, ambos
 declarados y **distintos** (difieren en 8 de 13 SKU, hasta 28 días). `cobertura` es un duplicado redondeado:

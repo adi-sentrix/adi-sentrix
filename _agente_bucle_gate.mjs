@@ -46,6 +46,7 @@ import { setNombreUsuario, olvidarNombreUsuario, getNombreUsuario } from "./src/
 import { PRINCIPIOS_RUTEO } from "./src/adi/agente/contratoAgente.js";   // P2(i) · la letra del ejemplo numérico
 import { sistemaDelAgente } from "./src/adi/agente/sistemaAgente.js";
 import { esTemaComercial } from "./src/adi/agente/contratoComercial.js";   // el dominio que le queda al empujón de R6 (2026-09-13)
+import { dominiosDe } from "./src/adi/agente/contratoDeDominios.js";   // …y desde el contrato de dominios (2026-09-14) inventario y cobranza también leen antes: el empujón queda para lo que no es de ningún dominio
 import { playbookPara } from "./src/adi/agente/playbooks/registro.js";   // 14b · el empujón se mide donde AÚN no hay camino
 
 let pass = 0, fail = 0;
@@ -461,8 +462,10 @@ H("12 · el empujón de R6: declinar sin haber leído recibe UNA chance de verif
   /* ⚠️ RE-APUNTADO POR EL CONTRATO COMERCIAL (2026-09-13): «compara mi venta contra el año pasado» ya no declina sin leer —
    * la realidad comercial se lee ANTES del cerebro en toda pregunta comercial, así que el empujón sobra ahí por construcción.
    * Su dominio son las lecturas sin procedimiento y fuera del contrato (inventario, proveedores…): se mide con una. */
-  const SIN_CONTRATO = "cuántos días de inventario tengo?";
-  ok(playbookPara(SIN_CONTRATO) === null && !esTemaComercial(SIN_CONTRATO), `la pregunta del empujón sigue sin procedimiento y fuera del contrato comercial («${SIN_CONTRATO}»)`);
+  /* ⚠️ RE-APUNTADO OTRA VEZ (contrato de dominios, 2026-09-14): «cuántos días de inventario tengo?» ya tiene contrato —
+   * Inventario lee su foto entera antes del cerebro—, así que el empujón queda para lo que no es de ningún dominio. */
+  const SIN_CONTRATO = "qué proveedores tengo cargados?";
+  ok(playbookPara(SIN_CONTRATO) === null && !esTemaComercial(SIN_CONTRATO) && dominiosDe(SIN_CONTRATO).dominios.length === 0, `la pregunta del empujón sigue sin procedimiento y fuera de todo contrato de dominio («${SIN_CONTRATO}»)`);
   const ra = await answerViaAgente({ text: SIN_CONTRATO, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guionT20 });
   ok(vioNudge, "★ R6: la declinación sin lectura recibió el empujón del motor");
   ok(ra.r.agente.estado === "verde" && ra.r.agente.figs === 2 && /22\.560/.test(ra.r.text),
@@ -582,7 +585,7 @@ H("14b · P2: reformular lo ya dicho NO dispara el empujón (43× medido)");
   ok(n1 === 1, `★ P2: la re-narración responde en UNA llamada (${n1}) — sin empujón`, rRe.r.agente.estado);
   let n2 = 0;
   const g2 = async (a) => { n2++; return _declina(a); };
-  await answerViaAgente({ text: "cuántos días de inventario tengo?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g2 });
+  await answerViaAgente({ text: "qué proveedores tengo cargados?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g2 });   // sin dominio ni procedimiento (contrato de dominios, 2026-09-14)
   ok(n2 === 2, `…y una pregunta de DATO sin procedimiento ni contrato sigue recibiendo el empujón de R6 (${n2} llamadas) — la mejora no se perdió`);
   let n3 = 0;
   const g3 = async (a) => { n3++; return _declina(a); };
@@ -599,7 +602,7 @@ H("14b · P2: reformular lo ya dicho NO dispara el empujón (43× medido)");
   /* ⚠️ TERCERA VEZ (contrato comercial, 2026-09-13): toda lectura COMERCIAL recibe la evidencia antes del cerebro, así que el
    * empujón ya no tiene dominio ahí — se mide con una lectura sin procedimiento Y fuera del contrato. */
   const CANDIDATAS = ["cuántos días de inventario tengo?", "qué proveedores tengo cargados?", "qué productos rotan menos?", "compara mi stock contra el año pasado"];
-  const sinCamino = CANDIDATAS.find((q) => playbookPara(q) === null && !esTemaComercial(q)) || null;
+  const sinCamino = CANDIDATAS.find((q) => playbookPara(q) === null && !esTemaComercial(q) && dominiosDe(q).dominios.length === 0) || null;
   if (!sinCamino) {
     ok(false, "…el empujón de R6 ya no tiene dominio: TODAS las lecturas candidatas tienen playbook — toca decidir si se retira");
   } else {
@@ -665,7 +668,10 @@ H("14e · P2: la letra del ejemplo numérico y la escalada de un veto reparable"
   const vistas = [];
   const guionT10 = async ({ attempt, figsEnBoleta, vetoConCifra }) => {
     vistas.push({ attempt, figsEnBoleta, vetoConCifra: !!vetoConCifra });
-    return { tipo: "texto", texto: "Necesito aclarar el alcance: ¿te refieres a bajar la carga 2 puntos (ej: si Depósito Riachuelo tiene 1% hoy, quedaría en −1%) o a reducirla un 2% relativo?" };
+    /* RE-APUNTADO 2026-09-14 (contrato de dominios): con las unidades y el efecto volumen/precio en la boleta, «1%», «−1%» y «2%»
+     * pasaron a ser derivables por la aritmética del muro (−1.3% de precio realizado, etc.) y el ejemplo inventado dejaba de
+     * arder. Mismo guion, cifras que ninguna fig autoriza: 7% · 5% · 9%. */
+    return { tipo: "texto", texto: "Necesito aclarar el alcance: ¿te refieres a bajar la carga dos puntos (ej: si Depósito Riachuelo tiene 7% hoy, quedaría en 5%) o a reducirla un 9% relativo?" };
   };
   /* «dos puntos» en letras a propósito (re-apuntado 2026-09-01): con «2 puntos» el playbook C toma el turno y
    * simula antes de que el cerebro hable — este bloque mide la SEÑAL DEL TIER en la reparación, así que la
@@ -989,7 +995,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       const vistas = [];
       const g = async ({ attempt, vetoConCifra }) => {
         vistas.push({ attempt, vetoConCifra: !!vetoConCifra });
-        return { tipo: "texto", texto: "¿Te refieres a bajar la carga 2 puntos (ej: si Depósito Riachuelo tiene 1% hoy, quedaría en −1%) o a un 2% relativo?" };
+        return { tipo: "texto", texto: "¿Te refieres a bajar la carga dos puntos (ej: si Depósito Riachuelo tiene 7% hoy, quedaría en 5%) o a un 9% relativo?" };   // cifras que ninguna fig autoriza (re-apuntado 2026-09-14)
       };
       await Mut.answerViaAgente({ text: "simula reducir 2 puntos la carga comercial", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g });
       const rep = vistas.find((v) => v.attempt > 0);
@@ -1016,7 +1022,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       initTenant(PACK);
       let llamadas = 0;
       const g = async () => { llamadas++; return { tipo: "texto", texto: "No tengo el dato de tu venta total consolidada, así que no puedo comparar." }; };
-      const r = await Mut.answerViaAgente({ text: "cuántos días de inventario tengo?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g });
+      const r = await Mut.answerViaAgente({ text: "qué proveedores tengo cargados?", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: g });
       return llamadas === 1 && r.r.agente.figs === 0;   // el defecto: la declinación sin boleta pasó sin verificar (fuera del contrato comercial, que sí lee antes)
     });
 

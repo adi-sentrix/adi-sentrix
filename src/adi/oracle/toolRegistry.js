@@ -420,6 +420,16 @@ function clientesPorSku({ entities, entity, entityScope, metric = "ventas", topN
   const rel = clientCapitalRelacion({ entity: pedidos[0], scenario });
   const observada = rel && rel.atomico === true;
   const verificabilidad = observada ? "lectura_directa" : "derivada_no_reconciliada";
+  /* ⛔ APAGADA MIENTRAS SEA UNA MATRIZ ESTIMADA (owner 2026-09-14), textual: «apaga también `clientesPorSku` mientras
+   * sea una matriz estimada. Si más adelante la ingesta trae cliente×SKU real, se vuelve a habilitar desde esa
+   * evidencia.» La transpuesta de la afinidad modelada afirmaba candidatos por cuenta que las filas del archivo no
+   * registran; con `crosses.atomic` (la clave real, que vive en `hechos.Ventas` y nadie agrega todavía) la relación
+   * pasa a observada y esta misma guarda deja pasar. Nada de abajo se borra: es el camino del día que exista. */
+  if (!observada) {
+    return { facts: null, boleta: [], coverage: { supported: false, relacion: "afinidad_apagada",
+      reason: "el dato no registra qué cliente compra cada SKU: la relación cliente×SKU sería una estimación de afinidad, y ADI no construye una relación que el archivo no demuestra — queda abierta hasta que las filas de venta por cliente y SKU entren al pack",
+      alternativas: ["la venta y la contribución de esos SKU", "los clientes por venta o por margen"], cobertura: { pedidos: pedidos.length, resueltos: [], faltantes: [] } } };
+  }
 
   const boleta = [];
   const resueltos = [], faltantes = [];

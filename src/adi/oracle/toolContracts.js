@@ -76,6 +76,10 @@ export const TOOL_CONTRACTS = {
     entidad: "single", aceptaEntidadPuntual: true, multiCardinality: null,
     inputsObligatorios: ["dimension", "entity"], supuestosRequeridos: null, operacionValida: ["answer"],
     entityScopeNativo: false, escribeEntityList: true,
+    /* la nota de negocio (owner 2026-09-14, contrato de dominios): el cerebro no puede pedir lo que no sabe que existe —
+     * esta es la fila ENTERA de una entidad, y para un SKU trae las dos realidades (venta, margen, contribución, unidades
+     * del período · stock, capital, días de inventario y rotación de la foto), cada cifra con su marco. */
+    notas: "la fila completa de UNA entidad con todas sus cifras: por SKU trae venta, margen, contribución y unidades del período JUNTO al stock, capital, días de inventario y rotación de la foto (dos marcos, declarados); por cliente/marca/familia, su realidad comercial completa.",
   },
   // entityComposicion · cómo se compone la compra de UN cliente por familia (venta/contribución/margen). Nunca
   // multi por el mismo motivo que entityProfile — es SOLO eje cliente (marca/familia/SKU no tienen "de qué se
@@ -120,7 +124,7 @@ export const TOOL_CONTRACTS = {
     entidad: "none", aceptaEntidadPuntual: true, multiCardinality: null,
     inputsObligatorios: ["dimension"], supuestosRequeridos: null, operacionValida: ["answer"],
     entityScopeNativo: true, escribeEntityList: true,
-    notas: "Etapa 2: entityScope generalizado (antes rankeaba SIEMPRE el eje entero, sin forma de acotar a una lista).",
+    notas: "la grilla de un eje: los top-N con TODAS sus columnas (por SKU: venta, contribución, margen, unidades, costo medio, precio de lista, y además stock, capital, días de inventario y rotación) — para una tabla multi-columna ordenada por la columna que pidas (sortBy). Etapa 2: entityScope generalizado.",
   },
   // tensionRead · cruce de 2 métricas del MISMO eje (top-N por cada una + intersección). Etapa 2: entityScope
   // generalizado (buildTension, entityRecord.js) — "de esos SKU, ¿quién sostiene contribución vs consume capital?"
@@ -130,7 +134,7 @@ export const TOOL_CONTRACTS = {
     entidad: "none", aceptaEntidadPuntual: true, multiCardinality: null,
     inputsObligatorios: ["dimension"], supuestosRequeridos: null, operacionValida: ["answer"],
     entityScopeNativo: true, escribeEntityList: true,
-    notas: "Etapa 2: entityScope generalizado (antes cruzaba SIEMPRE el eje entero).",
+    notas: "el CRUCE de dos métricas del mismo eje — por SKU: quién deja más contribución (del período) y quién tiene más capital en inventario (de la foto), con quién aparece en las dos listas y quién solo en una. Es la lectura «sostener vs consumir capital». Por cliente/marca/familia no hay capital en el dato y declina con la razón. Etapa 2: entityScope generalizado.",
   },
   // compareEntities · 2 entidades lado a lado. Cardinalidad FIJA {min:2,max:2} — composeSpecCompare (specRetrieval.js)
   // ya rechaza !=2 estructuralmente (destino: null → coverage.supported=false). Con 3+ en el scope, applyMultiEntity
@@ -171,6 +175,18 @@ export const TOOL_CONTRACTS = {
     entidad: "none", aceptaEntidadPuntual: true, multiCardinality: null,
     inputsObligatorios: [], supuestosRequeridos: null, operacionValida: ["answer"],
     entityScopeNativo: true, escribeEntityList: true,
+    /* los focos, nombrados con lo que responden (owner 2026-09-14): «top_sellers» existía desde 2026-07-09 y ningún
+     * catálogo lo decía — el cruce venta × stock por SKU era invisible para el cerebro. */
+    notas: "la foto del inventario a hoy, por foco: el estado completo, el capital frenado, el riesgo de quiebre, el sobrestock, los SKU sin venta, o el CRUCE con la venta por SKU.",
+    lecturasSoportadas: [
+      { clave: "estado", que: "la foto completa: capital total y cómo se reparte en rotando en rango · riesgo de quiebre · sobrestock · inmovilizado" },
+      { clave: "frenado", que: "el capital inmovilizado: qué SKU, cuánto, con sus días y rotación, por bodega y familia (la lectura por defecto)" },
+      { clave: "quiebre", que: "qué SKU están en riesgo de quiebre (rotan rápido y la cobertura no alcanza) — qué reponer" },
+      { clave: "sobrestock", que: "dónde sobra inventario: SKU con más cobertura de la necesaria" },
+      { clave: "stale", que: "SKU sin una sola venta en más de N días (staleDays)" },
+      { clave: "top_sellers", que: "el CRUCE por SKU: los que más venden (venta del período) con su stock y sus días de inventario (foto), lado a lado" },
+      { clave: "mas_vendidos_mes", que: "los más vendidos del último mes en unidades, con su stock" },
+    ],
   },
   // marginRead/salesRead/contributionRead · lectura por eje (bajo benchmark/vs anterior/no capturada), YA nativas
   // de fábrica (_scopeRows ya las trae generalizadas desde antes de este trabajo) — bodega queda fuera (gap

@@ -61,6 +61,7 @@ const _estadoPdv = (pregunta) => {
 
 export const limiteHonesto = {
   nombre: "limite-honesto",
+  multidominio: true,   // compone su parte aunque la pregunta haga participar a dos dominios (contrato de dominios, owner 2026-09-14)
 
   cuandoAplica(pregunta) {
     const q = String(pregunta || "");

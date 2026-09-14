@@ -183,6 +183,7 @@ const _NIEGA = (n) => new RegExp(
 
 export const planDeAccion = {
   nombre: "plan-de-accion",
+  multidominio: true,   // compone su parte aunque la pregunta haga participar a dos dominios (contrato de dominios, owner 2026-09-14)
 
   ejemplos: [
     "qué hago esta semana",

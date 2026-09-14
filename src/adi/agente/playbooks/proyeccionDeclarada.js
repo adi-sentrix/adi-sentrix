@@ -89,6 +89,7 @@ function _caso(pregunta) {
 
 export const proyeccionDeclarada = {
   nombre: "proyeccion-declarada",
+  multidominio: true,   // compone su parte aunque la pregunta haga participar a dos dominios (contrato de dominios, owner 2026-09-14)
   ejemplos: ["ponele que el año que viene crezco 3%: cuanto seria mi venta?", "Con ese total anual, proyecta 12 meses con +4% y dime cuánto genera adicional.",
     "Sobre esos clientes, simula reducir 2 puntos porcentuales las acciones comerciales y dime si alguno queda sobre el benchmark.",
     "Si crezco 3% los próximos 12 meses, ¿cuánto vendería?"],   // la forma del owner (orden textual 2026-09-02)

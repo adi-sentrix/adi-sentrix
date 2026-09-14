@@ -112,18 +112,56 @@ export const METRICS = {
       familia: { source: "sfamiliasMargen", field: "pctRebate" },
     },
   },
+  /* ── UNIDADES VENDIDAS (owner 2026-09-14): «unidades/volumen pertenece al contexto comercial y no debe quedar en
+   * 0 cifras». El dato SIEMPRE las trajo —por cliente, SKU, marca y familia, y el total del período en ventasKPI—
+   * y el sourceManifest las declara desde el primer día; lo que no existía era la MÉTRICA, así que `queryMetric`
+   * declinaba «no está declarada para el eje» sobre un campo presente en todas las filas. Es dato primario del
+   * archivo (una fila de Ventas trae sus unidades): sello PROBADO. El precio realizado (venta ÷ unidades) NO es
+   * ticket ni lista de precios — lo dice el composer de la descomposición volumen/precio, no esta métrica.
+   * ⚠️ En el dato de fábrica las unidades por SKU viven en otra escala que las de cliente (674 contra 5.520 en
+   * total): es la divergencia modelada de siempre entre skusMargen y el resto (CLAUDE.md §4), no un defecto de la
+   * métrica; en un pack de planilla los cuatro ejes suman lo mismo porque salen de las mismas filas. */
+  unidades: {
+    label: "Unidades vendidas", unit: "count", polarity: "higherIsBetter", formula: null,   // dato primario
+    axes: ["cliente", "sku", "marca", "familia"],
+    /* por cliente sigue al MISMO mundo que `ventas` (scenarioLoad de clientesVentas): venta y unidades de un mismo
+     * turno tienen que salir de la misma vista, o el precio realizado (venta ÷ unidades) cruzaría dos mundos. */
+    scenarioAware: { cliente: true, sku: false, marca: false, familia: false },
+    sourceByAxis: {
+      cliente: { source: "clientesVentas",  field: "unidades" },
+      sku:     { source: "skusMargen",      field: "unidades" },
+      marca:   { source: "marcasMargen",    field: "unidades" },
+      familia: { source: "sfamiliasMargen", field: "unidades" },
+    },
+  },
+  /* ── UNIDADES EN STOCK (owner 2026-09-14, capítulo 7 de la realidad de inventario): el stock físico que el
+   * archivo informa por SKU y bodega (`stockUnd`, la única columna numérica de la hoja Inventario). Es la foto,
+   * en conteo; el capital es esa misma foto valorizada. */
+  stock: {
+    label: "Unidades en stock", unit: "count", polarity: "higherIsBetter", formula: null, domain: "inventario",
+    axes: ["sku", "bodega"], scenarioAware: { sku: true, bodega: true },
+    sourceByAxis: {
+      sku:    { source: "skuInventario", field: "stockUnd" },
+      bodega: { source: "skuInventario", field: "stockUnd", agg: "sum" },
+    },
+  },
   capital: {  // capital inmovilizado = stockUSD (inventario)
-    label: "Capital", unit: "money", scale: { sku: "raw", bodega: "raw" },
+    label: "Capital", unit: "money", scale: { sku: "raw", bodega: "raw", marca: "raw", familia: "raw" },
     polarity: "lowerIsBetter", formula: null, domain: "inventario",
     /* La cuenta con que ADI lo produce cuando el origen NO trae el stock ya valorizado (owner 2026-08-26):
      * la plantilla pide stock FÍSICO, y el costo unitario sale de la hoja Ventas. Misma distinción que en
      * días y rotación: `formula` sigue en null porque el valor almacenado del demo no cierra con esta cuenta;
      * `formulaSiFalta` es la que se aplica cuando hay que producirlo. */
     formulaSiFalta: "stock_actual * (costo_del_periodo / unidades_vendidas_del_periodo)",
-    axes: ["sku", "bodega", "familia"], scenarioAware: { sku: true, bodega: true, familia: true },
+    axes: ["sku", "bodega", "familia", "marca"], scenarioAware: { sku: true, bodega: true, familia: true, marca: true },
     sourceByAxis: {
       sku:    { source: "skuInventario", field: "stockUSD" },
       bodega: { source: "skuInventario", field: "stockUSD", agg: "sum" },   // group-by bodega
+      /* marca (owner 2026-09-14, contrato de dominios): el inventario trae `marca` en cada fila —atributo del
+       * SKU, igual que `sfamilia`— en los tres datasets medidos, y «¿qué marca vende más y cuánto capital tiene
+       * en inventario?» declinaba por una línea que faltaba acá. Mismo source, mismo field, mismo group-by que
+       * familia: la clave de unión con el mundo comercial es el atributo del SKU, no una tabla puente nueva. */
+      marca:   { source: "skuInventario", field: "stockUSD", agg: "sum", groupByField: "marca" },
       /* familia (pulido del anclaje, owner 2026-09-05: «cada botón debe responder sobre el cuadro exacto que
        * el usuario está mirando»): el cuadro de Capital corta por familia y su ask «¿Cuánto capital tengo en
        * Línea Blanca?» no tenía lectura del motor — mismo source, mismo field, mismo group-by que bodega. El

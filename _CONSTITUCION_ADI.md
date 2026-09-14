@@ -132,6 +132,27 @@ el cruce contra la carpeta real. Antes de pantalla:
      componente CONJUNTO: separar cuánto es precio y cuánto costo cuando el dato no lo separa = bloqueado.
    Vive en `vetosDeRegistro` (`subtotal-de-otro-universo`, `precio-y-costo-no-se-separan`, y la jerarquía medida en
    dinero) para cualquier relación entre subtotales, no solo esta.
+   **El contrato de dominios** (ley del owner, 2026-09-14): *la pregunta determina qué dominios participan; cada dominio
+   aporta su realidad suficiente; ADI solo relaciona aquello que el archivo demuestra que puede relacionarse.*
+   «Composición, no exclusión»: una palabra de inventario o cobranza ya no retira la base comercial — suma la suya.
+   - Tres dominios: Comercial (contrato comercial + unidades vendidas), Inventario (la foto completa: capital total y
+     los cuatro estados · SKU con capital, días y rotación · unidades en stock · bodega · familia/marca · referencias
+     declaradas · límites dichos), Cobranza (la mesa del Flujo). Unidades no es un dominio: es Comercial.
+   - La compatibilidad entre universos LA DECLARA EL PACK (`compatibilidad`, medida por la ingesta; el dato de
+     fábrica la declara a mano como divergente), no una constante. Cuatro estados: reconciled · comparable (misma
+     moneda y valorización, período distinto: se relaciona nombrando los dos marcos, nunca se suma) · divergent
+     (solo enumerar) · unsupported. El muro cobra `cruce-de-universos` (divergente), la consolidación (divergente
+     y comparable) y `marco-temporal-no-declarado` (comparable sin nombrar «período cerrado» y «foto de inventario»).
+   - La única clave que une Comercial con Inventario es el SKU (marca y familia como atributos del SKU); por cliente y
+     por bodega no hay relación en el archivo y no se construye. La afinidad estimada cliente↔inventario y
+     `clientesPorSku` están APAGADAS mientras la relación sea estimada: se vuelven a encender desde las filas
+     cliente×SKU reales cuando la ingesta las agregue al pack.
+   - Tener dos dominios completos no es volcarlos: se responde el foco del usuario y el otro dominio entra solo
+     cuando cambia o explica la lectura (doctrina de cruce, `contratoDeDominios.js`).
+   - En un turno de dos dominios los playbooks de un solo dominio se retiran (`multidominio` en el registro); el
+     cruce por SKU tiene su piso determinístico (`cruce-por-sku`: ficha enumerada, cada cifra con su marco).
+   Medido (20 preguntas cruzadas × 3 datasets, `_contrato_dominios_gate`): dominios en la boleta 2/20 → 19/20; los
+   secuestros de «capital frenado» a preguntas de venta × inventario, cerrados; todo turno bajo el techo de 28K.
 2. **¿Cada cálculo se puede recalcular?** La fórmula mostrada se recomputa. No cuadra o no muestra origen →
    bloqueado.
 3. **¿Cada clasificación existe?** «Frenado», «bajo benchmark», «crítico»: solo los estados que la carpeta

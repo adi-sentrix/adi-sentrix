@@ -51,7 +51,7 @@ h("1 · C1 · el planificador PUEDE emitir `clientesPorSku` — antes le estaba 
   ok(/clientesPorSku/.test((SRC.match(/entityComposicion\{[^\n]*/) || [""])[0]),
     "…y `entityComposicion`, ahora alcanzable, se desambigua de `clientesPorSku` (son transpuestas)");
   ok(/multi-entidad|lista entera|UNA call/i.test(desc), "…y le dice que mande la lista de SKU en UNA sola call", desc.slice(0, 80));
-  ok(/indicad/i.test(desc), "…y le dice al narrador que la relación sale sellada `indicado`", desc.slice(0, 80));
+  ok(/APAGADA/.test(desc) && /DECLINA/.test(desc), "…y le dice que la tool está APAGADA mientras la relación sea estimada: declina con la puerta (owner 2026-09-14)", desc.slice(0, 80));
 
   /* LA CARA GENERAL SE MUDÓ (owner 2026-08-12), y se mudó porque acá se estaba volviendo el defecto que este repo
    * ya pagó tres veces: DOS gates vigilando la misma clase con DOS listas propias, que se contradicen el día que
@@ -64,11 +64,12 @@ h("1 · C1 · el planificador PUEDE emitir `clientesPorSku` — antes le estaba 
   ok(enEnum.has("clientesPorSku") && /clientesPorSku\{/.test(SRC),
     "la tool de esta corrida sigue alcanzable Y descrita (la clase completa la vigila _tools_alcanzables_gate)");
 
-  // y la conducta, no sólo el cableado: un plan que la nombra resuelve y sella `indicado`.
+  // y la conducta, no sólo el cableado: un plan que la nombra DECLINA con la puerta (owner 2026-09-14: la afinidad estimada está apagada).
   const r = runPlan({ intent: "answer", calls: [{ tool: "clientesPorSku", args: { entities: ["SAM-TV55", "LG-WASH11KG"], topN: 3 } }] }, { scenario: "actual", maxCalls: 4 });
   const figs = r.ledger.figs || [];
-  ok(figs.length > 0 && figs.every((f) => f.tipo && f.tipo.sello === "indicado"),
-    `un plan que la emite resuelve con ${figs.length} figs, todas selladas \`indicado\``);
+  const cov = (r.results[0] || {}).coverage || {};
+  ok(figs.length === 0 && cov.supported === false && cov.relacion === "afinidad_apagada" && /filas de venta por cliente y SKU/.test(String(cov.reason)),
+    `un plan que la emite resuelve con 0 figs: declina nombrando la puerta (${cov.relacion})`);
 }
 
 /* ═══ 2 · B2 · LA COBERTURA PARCIAL SE DECLARA SOLA ═══════════════════════════════════════════════════════════ */

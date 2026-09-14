@@ -517,7 +517,16 @@ function _lineaUniversos(campos) {
   for (let i = 0; i < campos.length; i++) for (let j = i + 1; j < campos.length; j++) {
     const a = campos[i], b = campos[j];
     if (!a.universo || !b.universo || a.universo === b.universo) continue;
-    if (reconcilian(a.universo, b.universo).estado !== "divergent") continue;
+    const _rc = reconcilian(a.universo, b.universo);
+    /* «comparable» (owner 2026-09-14): el pack declara que salen del mismo archivo en la misma moneda, pero en
+     * marcos distintos — se leen juntas nombrando cada marco, y no se suman. Sin cifras, igual que abajo. */
+    if (_rc.estado === "comparable") {
+      const A = UNIVERSOS[a.universo], B = UNIVERSOS[b.universo];
+      const m = _rc.marcos || {};
+      const marco = (u) => m[u] || (UNIVERSOS[u].periodo === "hoy" ? "la foto de inventario a hoy" : "el período cerrado");
+      return `Las dos cifras se leen con su marco: «${A.etiqueta}» es de ${marco(a.universo)} ${_Y(B.etiqueta)} «${B.etiqueta}» de ${marco(b.universo)} — se comparan así, y no se suman.`;
+    }
+    if (_rc.estado !== "divergent") continue;
     const A = UNIVERSOS[a.universo], B = UNIVERSOS[b.universo];
     const motivos = [];
     if (A.unidad !== B.unidad) motivos.push("miden unidades distintas");
@@ -558,7 +567,8 @@ export function ensureDeclinacionDeSuma(text, figs, question) {
   const universos = [...new Set((Array.isArray(figs) ? figs : []).map((f) => f && f.tipo && f.tipo.universo).filter(Boolean))];
   if (universos.length < 2) return t;
   for (let i = 0; i < universos.length; i++) for (let j = i + 1; j < universos.length; j++) {
-    if (reconcilian(universos[i], universos[j]).estado !== "divergent") continue;
+    const _e = reconcilian(universos[i], universos[j]).estado;
+    if (_e !== "divergent" && _e !== "comparable") continue;   // «comparable» (owner 2026-09-14): se relacionan con marcos, no se suman
     const A = UNIVERSOS[universos[i]], B = UNIVERSOS[universos[j]];
     const motivos = [];
     if (A.unidad !== B.unidad) motivos.push("miden unidades distintas");
@@ -1888,7 +1898,8 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     let divergentes = null;
     for (let i = 0; i < previos.length && !divergentes; i++) {
       for (let j = i + 1; j < previos.length && !divergentes; j++) {
-        if (reconcilian(previos[i], previos[j]).estado === "divergent") divergentes = [previos[i], previos[j]];
+        const _e = reconcilian(previos[i], previos[j]).estado;
+        if (_e === "divergent" || _e === "comparable") divergentes = [previos[i], previos[j]];   // «comparable» tampoco se suma (owner 2026-09-14)
       }
     }
     let textoBypass = null;

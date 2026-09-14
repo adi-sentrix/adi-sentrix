@@ -79,6 +79,7 @@ const _NEGOCIO_ENTERO = new RegExp([
 
 export const resumenDelNegocio = {
   nombre: "resumen-del-negocio",
+  multidominio: true,   // compone su parte aunque la pregunta haga participar a dos dominios (contrato de dominios, owner 2026-09-14)
   /* responde POR EL NEGOCIO ENTERO: si la pregunta nombra una entidad del índice, el registro lo retira
    * ANTES de consultarlo (propiedad aplicada una vez en playbookPara — tanda 2 post-poda, 2026-09-05). */
   respondePorElNegocio: true,

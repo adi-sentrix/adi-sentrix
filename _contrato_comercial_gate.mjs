@@ -138,8 +138,11 @@ H("4 · el tema comercial se reconoce por la pregunta; inventario, cobranza, otr
     ok(esTemaComercial(q), `comercial: «${q}»`);
   for (const q of ["¿Cuánto stock tengo en Valparaíso?", "¿Quién me debe plata vencida?", "¿Qué es el margen bruto?", "¿Qué marcas venden más?", "dámelo más corto", "¿Cuántos días de inventario tengo?", "hola"])
     ok(!esTemaComercial(q), `fuera del contrato: «${q}»`);
+  /* RE-APUNTADO 2026-09-14 (contrato de dominios): una pregunta de inventario ya no deja la boleta vacía — corre SU contrato
+   * (la foto del inventario), no el comercial. Lo que se mide acá es que el comercial no se cuela: cero cifras comerciales. */
   const inv = await turno("¿Cuántos días de inventario tengo?");
-  ok(inv.a.contrato === null && inv.labels.length === 0, "una pregunta de inventario sin procedimiento no corre el contrato (boleta vacía, como siempre)", `contrato=${inv.a.contrato} · ${inv.labels.length} cifras`);
+  ok(inv.a.contrato === null && !inv.labels.some((l) => /Contribución no capturada|Markup|Carga comercial|Benchmark de margen|Variación vs año anterior/i.test(l)),
+    "una pregunta de inventario sin procedimiento no corre el contrato COMERCIAL (corre el de inventario; ninguna cifra comercial en la boleta)", `contrato=${inv.a.contrato} · ${inv.labels.length} cifras`);
   const pasos = pasosDelContratoComercial();
   ok(pasos.map((p) => p.tool).join("+") === "salesRead+marginRead+contributionRead+diagnose+rolesCartera", `los pasos del contrato en este dato: ${pasos.map((p) => p.tool).join("+")} (la serie de margen entra solo con histórico real)`);
   const union = unirPasos([{ tool: "salesRead", args: { focus: "vs_presupuesto" } }, { tool: "marginRead", args: { focus: "bajo_benchmark", dimension: "cliente" } }], pasos);
@@ -171,7 +174,8 @@ H("5 · ★★★ la descomposición causal: contribución no capturada = carga 
 H("6 · carnadas: sin el contrato, la ventas vuelve a quedar subinformada (el chequeo se pone rojo)");
 {
   const src = readFileSync(new URL("./src/adi/agente/bucleAgente.js", import.meta.url), "utf8");
-  ok(/const _pasosContrato = _esComercial \? pasosDelContratoComercial\(\) : \[\];/.test(src) && /unirPasos\(_pasosPb, _pasosContrato\)/.test(src), "el bucle une los pasos del procedimiento con los del contrato (cableado presente)");
+  /* (re-apuntado 2026-09-14: los pasos del contrato salen de `pasosDeDominios` —comercial incluido— y la unión es `unirPasosDeDominios`) */
+  ok(/const _pasosContrato = \(\(\) => \{ try \{ return pasosDeDominios\(_dom\); \}/.test(src) && /unirPasosDeDominios\(_pasosPb, _pasosContrato\)/.test(src), "el bucle une los pasos del procedimiento con los del contrato (cableado presente)");
   ok(/contrato: _esComercial \? "comercial" : null/.test(src), "…y el expediente declara si el turno partió del contrato");
   /* la carnada de conducta: con el contrato quitado, «¿cómo van las ventas?» vuelve a 3/10 — se mide con un mudo que mira lo que llega */
   const antesLabels = T.find((t) => t.q === "¿Cómo van las ventas?").labels.length;

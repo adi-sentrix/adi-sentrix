@@ -168,11 +168,53 @@ export const DIVERGENCIAS = [
   },
 ];
 
-// reconcilian(a, b) → { estado: "reconciled" | "divergent" | "unsupported", razon } · NUNCA null (decisión 11).
-export function reconcilian(a, b) {
+/* ── LA COMPATIBILIDAD LA DECLARA EL PACK, NO EL CONTRATO (owner 2026-09-14) ──────────────────────────────────
+ * DECISIÓN TEXTUAL: «Venta ↔ inventario se valida contra el archivo real, no contra una constante del demo… Si hay
+ * una diferencia temporal —ventas del período cerrado e inventario como foto— debe declararla y limitar la
+ * interpretación, no fingir que son el mismo tipo de medida.»
+ *
+ * LO MEDIDO ANTES: `DIVERGENCIAS` (arriba) es la verdad del dato de fábrica —venta en miles contra stock en dólares
+ * crudos, unidades que difieren 4x–35x— y el muro la aplicaba a TODO pack. En un pack de planilla las dos puntas
+ * van en moneda cruda, el stock se valoriza con el costo de Ventas y los días salen de las unidades de Ventas: la
+ * frase «ELE-CAB25 vende $14K frente a $28K en stock» se bloqueaba «porque la venta va en miles», razón falsa para
+ * ese archivo. Es el mismo movimiento que ya hizo la escala comercial (`factorComercialDe`): un campo DECLARADO que
+ * viaja en el pack, con el fallback conservador de siempre para el que no lo trae.
+ *
+ * CUATRO ESTADOS, y lo que cada uno permite:
+ *   reconciled   · mismo universo, o misma escala, fuente y período → enumerar, relacionar y sumar.
+ *   comparable   · misma escala y valorización, PERÍODO DISTINTO (período cerrado contra foto) → enumerar y
+ *                  relacionar NOMBRANDO LOS DOS MARCOS; sumar, nunca.
+ *   divergent    · escala o valorización distintas (el demo) → solo enumerar; la relación se bloquea con la razón.
+ *   unsupported  · unidades de medida distintas (dinero contra conteo o días) → no hay operación declarada.
+ *
+ * QUIÉN DECLARA: la ingesta (`motorKpi`), que sabe con qué costo valorizó el stock y de dónde salieron los días;
+ * el tenant de fábrica, a mano, con la verdad de `DIVERGENCIAS`. Un pack sin la llave cae a `DIVERGENCIAS` — nunca
+ * se adivina por la pinta del dato. ESTE MÓDULO SIGUE SIN IMPORTS: la declaración activa la registra `initTenant`
+ * (tenantStore) con el setter de abajo, así ningún consumidor del muro necesita conocer al tenant. */
+export const ESTADOS_COMPATIBILIDAD = ["reconciled", "comparable", "divergent", "unsupported"];
+export const clavePar = (a, b) => [String(a), String(b)].sort().join("|");
+let _compatibilidadActiva = null;
+/** registra la declaración del pack activo (la llama `initTenant`); `null` = sin declaración → fallback. */
+export function declararCompatibilidadActiva(compatibilidad) {
+  _compatibilidadActiva = compatibilidad && typeof compatibilidad === "object" ? compatibilidad : null;
+}
+export function compatibilidadActiva() { return _compatibilidadActiva; }
+/** la declaración de un par en el pack (el pasado o el activo), o null si no la trae o no es válida. */
+export function compatibilidadDeclarada(a, b, pack = null) {
+  const c = pack && typeof pack === "object" ? pack.compatibilidad : _compatibilidadActiva;
+  if (!c || typeof c !== "object") return null;
+  const d = c[clavePar(a, b)] || c[`${a}|${b}`] || c[`${b}|${a}`];
+  return d && ESTADOS_COMPATIBILIDAD.includes(d.estado) && typeof d.razon === "string" ? d : null;
+}
+
+// reconcilian(a, b, pack?) → { estado: "reconciled" | "comparable" | "divergent" | "unsupported", razon, declarada?, marcos? }
+// NUNCA null (decisión 11). Primero la declaración del pack (owner 2026-09-14); sin ella, el contrato de siempre.
+export function reconcilian(a, b, pack = null) {
   const A = UNIVERSOS[a], B = UNIVERSOS[b];
   if (!A || !B) return { estado: "unsupported", razon: `universo no declarado: ${!A ? a : b}` };
   if (a === b) return { estado: "reconciled", razon: `mismo universo (${A.etiqueta}): misma moneda, escala y período` };
+  const decl = compatibilidadDeclarada(a, b, pack);
+  if (decl) return { estado: decl.estado, razon: decl.razon, declarada: true, ...(decl.marcos && typeof decl.marcos === "object" ? { marcos: decl.marcos } : {}) };
   const d = DIVERGENCIAS.find((x) => (x.entre[0] === a && x.entre[1] === b) || (x.entre[0] === b && x.entre[1] === a));
   if (d) return { estado: "divergent", razon: d.razon };
   if (A.unidad !== B.unidad) return { estado: "unsupported", razon: `unidades distintas (${A.unidad} vs ${B.unidad}): no hay operación declarada entre «${A.etiqueta}» y «${B.etiqueta}»` };
@@ -291,7 +333,7 @@ const _DEFAULT_INVENTARIO = { money: "inventario", pct: "tasa_inventario", ratio
 // se replica acá —cuatro strings— para que este módulo siga sin imports, y `_tipado_cifra_gate.mjs` verifica en
 // cada corrida que las dos listas coinciden: si alguien agrega una métrica de inventario allá y no acá, el gate
 // se pone rojo. Declarado y verificado, no duplicado a ciegas.
-export const DOMINIO_INVENTARIO = ["capital", "rotacion", "doh", "cobertura"];
+export const DOMINIO_INVENTARIO = ["capital", "rotacion", "doh", "cobertura", "stock"];   // `stock` (unidades en stock) · owner 2026-09-14
 
 // universoConOrigen(label, unit, dominio) → { universo, origen: "label" | "default" }
 export function universoConOrigen(label, unit, dominio = null) {

@@ -65,12 +65,18 @@ import { anclaDelCuadro } from "./playbooks/cuadroExplicado.js";   // el cuadro 
 import { serieRealDe } from "../sentrix/capability.js";
 import { buildRolesCartera } from "../sentrix/rolesCartera.js";
 import { partesDelEncargo, pasosDelEncargo, componerEncargo } from "./encargoCompuesto.js";
-import { esTemaComercial, pasosDelContratoComercial, unirPasos, doctrinaComercial } from "./contratoComercial.js";   // toda pregunta comercial parte de la misma realidad comercial (owner 2026-09-13)   // el peldaño del encargo compuesto (owner 2026-09-11): cobertura garantizada cuando el cerebro cae   // las huellas con sello del turno: el juez compartido las lee para no aceptar un mecanismo afirmado sin su sello (owner 2026-09-11)
+import { dominiosDe, pasosDeDominios, unirPasosDeDominios, doctrinaDeDominios } from "./contratoDeDominios.js";   // la pregunta determina qué dominios participan (owner 2026-09-14) — generaliza el contrato comercial   // toda pregunta comercial parte de la misma realidad comercial (owner 2026-09-13)   // el peldaño del encargo compuesto (owner 2026-09-11): cobertura garantizada cuando el cerebro cae   // las huellas con sello del turno: el juez compartido las lee para no aceptar un mecanismo afirmado sin su sello (owner 2026-09-11)
 import { getTenantId, getTenantData } from "../../data/tenantStore.js";   // getTenantData: el contexto que el negocio declaró — la ley del porqué lo cita en vez de repreguntar   // la semilla de variación: tenant + pregunta + largo del hilo
 
 const TOPE_RONDAS = 3;      // rondas que pueden pedir herramientas
 const TOPE_CALLS = 12;      // tool-calls por turno, sumadas todas las rondas
 const CALLS_POR_RONDA = 8;  // el cap vigente de runPlan
+/* LA RONDA PREVIA DEL CONTRATO NO ES UN PLAN DEL CEREBRO (owner 2026-09-14, contrato de dominios): sus pasos son los de
+ * la casa —determinísticos, sin costo de modelo— y con dos dominios suman más de ocho (comercial 5–7 · inventario 6 ·
+ * el cruce 2). Los topes de arriba existen contra un plan PATOLÓGICO del modelo; recortar la realidad de un dominio
+ * por un cap pensado para eso era justo lo que dejaba la boleta a medias (medido: los días por SKU no llegaban). La
+ * ronda previa tiene su propio techo, y el cerebro conserva su presupuesto de siempre después de ella. */
+const TOPE_PRE_RONDA = 18;   // pasos del contrato + del procedimiento en la ronda previa
 
 /* P1b DE LA CORRIDA 2 (2026-08-31): LA REPARACIÓN TIENE QUE SABER QUÉ CIFRA SE VETÓ. Medido en T2: el cierre
  * y su reparación cosecharon la multa IDÉNTICA («30.1% narrado como ventas, pero pertenece a margen») porque
@@ -189,7 +195,12 @@ function _factsCompactos(facts) {
   return out;
 }
 /** el resumen de una ronda de herramientas, para el cerebro — datos crudos, no prosa. */
-function _resumenDeRonda(rp) {
+/* `compactoDesde` (contrato de dominios, 2026-09-14): en una ronda previa de DOS dominios los resultados son 13–16 y sus
+ * `facts` pesan el doble que las cifras (medido: 20K de facts contra 11K de cifras, 33K en total, sobre el techo de 28K
+ * del cierre). Cada cifra citable ya viaja en `cifras`; los facts de las lecturas se compactan a sus escalares desde un
+ * umbral más bajo, salvo las herramientas que llevan su contrato en los facts (`conservar`). Sin las opciones, la
+ * conducta de siempre, byte a byte. */
+function _resumenDeRonda(rp, { compactoDesde = TOPE_RESULTADO_CHARS, conservar = null } = {}) {
   return rp.results.map((r) => {
     const base = {
       tool: r.tool,
@@ -198,10 +209,14 @@ function _resumenDeRonda(rp) {
       facts: r.facts,
       cifras: (r.boleta || []).map((f) => ({ label: f.label, valor: f.text || f.value })),
     };
-    if (JSON.stringify(base).length <= TOPE_RESULTADO_CHARS) return base;
+    const umbral = conservar && conservar.has(r.tool) ? TOPE_RESULTADO_CHARS : compactoDesde;
+    if (JSON.stringify(base).length <= umbral) return base;
     return { ...base, facts: _factsCompactos(r.facts) };
   });
 }
+/* las herramientas cuyos facts SON su contrato (huellas con sello, partición de la brecha, la mesa del cobro): no se compactan */
+const _FACTS_QUE_SE_CONSERVAN = new Set(["rolesCartera", "diagnose", "cobranza"]);
+const TOPE_RESULTADO_PRE_RONDA = 1500;
 
 /* ── LA ESCALERA INVERTIDA · peldaño 1: la línea honesta con lo VERIFICADO del turno ─────────────────────────── */
 /* R4b · métricas para emparejar un supuesto con su contraparte verificada (con y sin tilde). */
@@ -272,6 +287,13 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = nul
     if (preferir.alcance === "cartera") return !_esDeEntidad(f);
     return true;
   };
+  /* la MÉTRICA pedida ordena dentro de cada mitad (2026-09-14): la cifra del concepto que la pregunta nombra va primero */
+  const _deLaMetrica = (f) => !!(preferir && preferir.metrica instanceof RegExp && preferir.metrica.test(String(f.label || "")));
+  /* …pero NUNCA por delante del RESULTADO del turno (la proyección, el cálculo): eso es lo que el turno fue a buscar —
+   * la métrica pedida solo ordena entre las lecturas del dato */
+  const _conMetrica = (arr) => (preferir && preferir.metrica instanceof RegExp
+    ? [...arr.filter((f) => _esResultado(f) && _deLaMetrica(f)), ...arr.filter((f) => !_esResultado(f) && _deLaMetrica(f)), ...arr.filter((f) => _esResultado(f) && !_deLaMetrica(f)), ...arr.filter((f) => !_esResultado(f) && !_deLaMetrica(f))]
+    : arr);
   /* ── EL RÓTULO NO ES SUPERFICIE (owner 2026-09-11, batería compuesta · «natural») ──────────────────────────
    * Este peldaño sirvió «Lo que tengo verificado ahora: Medida · cerrar brecha al piso, $4.9M»: un rótulo interno
    * del motor, con su separador, en la pantalla del dueño. La regla ya existía para la ALTERNATIVA que se ofrece
@@ -296,7 +318,7 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = nul
     return dueno ? `${cMin} de ${dueno}` : cMin;
   };
   const _base = _ordenBase.filter(_decible);
-  const candidatas = preferir ? [..._base.filter(_preferida), ..._base.filter((f) => !_preferida(f))] : _base;
+  const candidatas = preferir ? [..._conMetrica(_base.filter(_preferida)), ..._conMetrica(_base.filter((f) => !_preferida(f)))] : _base;
 
   /* C3 DE LA CORRIDA 3 (2026-08-31) · EL RESCATE DEJA DE RENDIRSE CON LA PRIMERA CIFRA. Medido: «compara Q1 vs
    * Q2» con `trend` corrido llegaba acá con 46 cifras verificadas en la boleta; este peldaño elegía la primera
@@ -631,11 +653,44 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   const _doctrinaRef = doctrinaDeReferente(planSintetico.scope.level === "global" ? { kind: "resolved-scope", alcance: "cartera" } : referente, scopePrev.current);
   if (_doctrinaRef) mensajes.push({ role: "user", content: _doctrinaRef });
   /* lo que el resolutor decidió, para el rescate y para el expediente */
-  const preferirDelTurno = referente && referente.kind === "resolved" ? { entidades: referente.entities }
+  const _preferirDelTurno0 = referente && referente.kind === "resolved" ? { entidades: referente.entities }
     : (referente && referente.kind === "resolved-scope" && referente.alcance === "cartera") || planSintetico.scope.level === "global" ? { alcance: "cartera" }
     /* la cuenta NOMBRADA en la pregunta (contrato comercial, 2026-09-13): la boleta trae a las trece, y el rescate de
      * «¿qué hago con Ferretería Aurora?» tiene que citar a Ferretería Aurora, no la fila 1 de la primera herramienta */
     : planSintetico.scope.level === "entity" && planSintetico.scope.entities.length ? { entidades: planSintetico.scope.entities }
+    : null;
+  /* LA MÉTRICA QUE LA PREGUNTA NOMBRA (contrato de dominios, 2026-09-14): «¿cuántas unidades vendimos?» rescatado con
+   * «valor de Lider, $2.3M» era la fila 1 de la primera herramienta. Con dos dominios en la boleta, la cifra que se
+   * sirve primero es la del concepto pedido —unidades, stock, saldo— y el resto queda como alternativa. Léxico, y solo
+   * ORDENA: no cambia qué cifras existen ni cuáles están verificadas. */
+  /* los dominios que la pregunta hace participar (contrato de dominios, 2026-09-14) — se leen UNA vez; los usan el rescate y la ronda previa */
+  const _dom = (() => { try { return dominiosDe(q); } catch { return { dominios: [], eje: null }; } })();
+  const _metricaPedida = (() => {
+    const t = String(q || "");
+    const M = [
+      [/\bunidades\b|\bvolumen\b|\bcantidad(?:es)?\b/i, /Unidades vendidas|Efecto volumen/i],
+      [/\bstock\b|\binventario\b|\bcapital\b|\bd[ií]as de inventario\b/i, /Capital|Stock|Valor de inventario|Unidades en stock|Cobertura \(DOH\)/i],
+      [/\bcobr|\bdeb(?:e|en)\b|\bdeuda|\bvencid|\bsaldo\b|\bcr[eé]dito\b/i, /Saldo pendiente|Saldo vencido/i],
+      [/\bcontribuci/i, /Contribución/i],
+      [/\bm[aá]rgen/i, /Margen/i],
+      [/\bventas?\b|\bvend[a-zíó]*\b|\bfactur/i, /· Venta$|Ventas|Venta total|Variación vs año anterior/i],
+    ];
+    /* en un turno de UN dominio el orden de siempre manda (medido: C3 servía el año anterior y debe seguir) — salvo las
+     * unidades, que son nuevas y no tenían quién las sirviera («¿cuántas unidades vendimos?» rescatado con «valor de Lider») */
+    if (_dom.dominios.length < 2) return M[0][0].test(t) ? M[0][1] : null;
+    /* con dos dominios: la métrica que la pregunta nombra PRIMERO («¿qué marca vende más y cuánto capital…?» → la venta) */
+    const enOrden = M.map(([re, out]) => { const m = re.exec(t); return m ? { i: m.index, out } : null; }).filter(Boolean).sort((a, b) => a.i - b.i);
+    return enOrden.length ? enOrden[0].out : null;
+  })();
+  /* y EL EJE que la pregunta nombra en un turno de dos dominios («¿qué marca vende más y cuánto capital…?»): sin esto el
+   * alcance «cartera» prefería las cifras sin dueño y el rescate servía «sobrestock % del total» a una pregunta por marca.
+   * Con el eje nombrado, primero las cifras cuyo dueño es una entidad de ESE eje. Solo si ningún referente lo resolvió. */
+  const _entidadesDelEje = (() => {
+    if (_dom.dominios.length < 2 || !_dom.eje || (_preferirDelTurno0 && Array.isArray(_preferirDelTurno0.entidades))) return null;
+    try { const n = axisEntityNames(_dom.eje) || []; return n.length ? n : null; } catch { return null; }
+  })();
+  const preferirDelTurno = _preferirDelTurno0 || _metricaPedida || _entidadesDelEje
+    ? { ...(_preferirDelTurno0 || {}), ...(_entidadesDelEje ? { entidades: _entidadesDelEje, alcance: undefined } : {}), ...(_metricaPedida ? { metrica: _metricaPedida } : {}) }
     : null;
 
   // ── el bucle ──
@@ -650,8 +705,9 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   /* ejecuta UNA tanda de pedidos y deja el intercambio en `destino` (el hilo que verá la llamada siguiente).
    * Es EL cuerpo de la ronda — la ronda normal y la ronda extra de R1 comparten esta única implementación
    * para que jamás diverjan. false = sin cupo (el tope manda). */
-  const _rondaDeHerramientas = (pedidosCrudos, destino) => {
-    const cupo = Math.min(CALLS_POR_RONDA, TOPE_CALLS - calls);
+  let topeCalls = TOPE_CALLS;   // se re-fija tras la ronda previa: el cerebro conserva su presupuesto entero
+  const _rondaDeHerramientas = (pedidosCrudos, destino, { preRonda = false, compacta = false } = {}) => {
+    const cupo = preRonda ? Math.min(TOPE_PRE_RONDA, Math.max(CALLS_POR_RONDA, pedidosCrudos.length)) : Math.min(CALLS_POR_RONDA, topeCalls - calls);
     if (cupo <= 0) return false;
     /* EL REFERENTE RESUELTO MANDA SOBRE EL PEDIDO (2026-09-11): si el procedimiento resolvió «el primero» = Lider
      * y el cerebro pide la herramienta para Falabella —otra cuenta del MISMO conjunto—, el pedido se corrige
@@ -692,7 +748,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
      * el turno que no toca P&L no carga su arco. Bloques byte-estables y en orden fijo (la disciplina del mapa):
      * el prefijo del proveedor no distingue «mismo contenido en otro orden» de «contenido nuevo». */
     const doctrina = doctrinasParaRonda(rp.results.map((r) => r.tool));
-    destino.push({ role: "user", content: `[HERRAMIENTAS — no es el usuario] Resultados:\n${JSON.stringify(_resumenDeRonda(rp))}${doctrina ? `\n${doctrina}` : ""}\nResponde al usuario con esto, o pide más herramientas si de verdad faltan.` });
+    destino.push({ role: "user", content: `[HERRAMIENTAS — no es el usuario] Resultados:\n${JSON.stringify(_resumenDeRonda(rp, compacta ? { compactoDesde: TOPE_RESULTADO_PRE_RONDA, conservar: _FACTS_QUE_SE_CONSERVAN } : {}))}${doctrina ? `\n${doctrina}` : ""}\nResponde al usuario con esto, o pide más herramientas si de verdad faltan.` });
     return true;
   };
 
@@ -750,11 +806,17 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * contrato corren en la MISMA ronda que los del procedimiento —unidos, sin repetir una herramienta con los mismos
    * argumentos— también cuando ningún procedimiento aplica: el cerebro libre recibe la realidad comercial precargada
    * y elige extras, en vez de elegir desde cero. Los del procedimiento van primero (su orden es su lectura). */
-  const _esComercial = (() => { try { return esTemaComercial(q); } catch { return false; } })();
-  const _pasosContrato = _esComercial ? pasosDelContratoComercial() : [];
-  const _pasosTurno = unirPasos(_pasosPb, _pasosContrato);
+  /* EL CONTRATO DE DOMINIOS (owner 2026-09-14) generaliza el comercial: «la pregunta determina qué dominios participan;
+   * cada dominio aporta su realidad suficiente; ADI solo relaciona aquello que el archivo demuestra que puede
+   * relacionarse». Comercial · Inventario · Cobranza, cada uno con sus pasos; una palabra de inventario ya no retira la
+   * base comercial (composición, no exclusión), y en un turno de dos dominios viaja además la doctrina de CRUCE: claves
+   * de unión, compatibilidad declarada por el pack, los dos marcos, y qué relación no existe. */
+  const _esComercial = _dom.dominios.includes("comercial");
+  const _pasosContrato = (() => { try { return pasosDeDominios(_dom); } catch { return []; } })();
+  const _pasosTurno = unirPasosDeDominios(_pasosPb, _pasosContrato);
   if (_pasosTurno.length) {
-    if (_rondaDeHerramientas(_pasosTurno.map((p) => ({ tool: p.tool, args: p.args || {} })), mensajes)) {
+    if (_rondaDeHerramientas(_pasosTurno.map((p) => ({ tool: p.tool, args: p.args || {} })), mensajes, { preRonda: true, compacta: _dom.dominios.length >= 2 })) {
+      topeCalls = Math.max(TOPE_CALLS, calls + (TOPE_CALLS - CALLS_POR_RONDA));   // el cerebro conserva al menos el presupuesto que tenía tras una ronda previa llena
       /* el playbook solo PROMETE si sus figs obligatorias llegaron: en un dato que no las sostiene se retira
        * sin ruido y el turno sigue por el camino de siempre (nada de prometer lo que no se puede cumplir).
        * Con pasos por pregunta, las obligatorias también dependen de ella — si no, la promesa que se verifica
@@ -763,11 +825,12 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
         playbookActivo = playbook;
         mensajes.push({ role: "user", content: doctrinaDelPlaybook(playbook, q, ctxTurno, figsTotales) });   // con la boleta: las conclusiones del procedimiento viajan (owner 2026-09-13)
       }
-      /* y las conclusiones del procedimiento COMERCIAL viajan en todo turno comercial (margen-en-riesgo ya las manda con
-       * su doctrina: ahí no se duplican) — una lectura comercial, una conclusión, en cualquier ruta */
-      if (_pasosContrato.length && (!playbookActivo || playbookActivo.nombre !== "margen-en-riesgo")) {
-        const _dc = doctrinaComercial(figsTotales);
-        if (_dc) mensajes.push({ role: "user", content: _dc });
+      /* y las doctrinas de los dominios que participan (la comercial: las conclusiones del procedimiento — margen-en-
+       * riesgo ya las manda con la suya, ahí no se duplican; la de inventario; la de cobranza; y la de cruce) */
+      if (_pasosContrato.length) {
+        for (const _d of doctrinaDeDominios(_dom, figsTotales, { playbookActivo: playbookActivo ? playbookActivo.nombre : null })) {
+          if (_d) mensajes.push({ role: "user", content: _d });
+        }
       }
     }
   }
@@ -1170,7 +1233,10 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
         const pedidas = new Set([..._pasosPb.map((p) => p.tool), ...callsDelTurno.slice(_pasosTurno.length).map((c) => c.tool)]);
         const soloContrato = new Set(_pasosContrato.map((p) => p.tool).filter((t) => !pedidas.has(t)));
         const labels = new Set();
-        for (const r of resultsTotales) if (r && soloContrato.has(r.tool)) for (const f of r.boleta || []) labels.add(String(f.label));
+        /* en un turno de DOS dominios las cifras del CRUCE (venta × stock · contribución × capital por SKU) son lo que
+         * la pregunta pidió: no se relegan detrás del resto del contrato (owner 2026-09-14) */
+        const _esCruce = _dom.dominios.length >= 2 ? (f) => /· (?:Venta|Stock|Valor de inventario)$|^Resto de /i.test(String((f && f.label) || "")) : () => false;
+        for (const r of resultsTotales) if (r && soloContrato.has(r.tool)) for (const f of r.boleta || []) if (!_esCruce(f)) labels.add(String(f.label));
         return labels;
       } catch { return new Set(); }
     })();
@@ -1191,7 +1257,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * cuenta está y no cambió— y además pierde el hilo: la respuesta siguiente ya no sabe de qué se hablaba.
    * Se dice la verdad útil: sobre QUIÉN no se pudo armar la lectura y por dónde se puede entrar. Sin cifras,
    * juzgado como todo lo que sale. Es la misma lección de reformular: prohibir no es responder. */
-  if (final === null && preferirDelTurno) {
+  if (final === null && preferirDelTurno && (preferirDelTurno.entidades || preferirDelTurno.alcance)) {   // solo con referente o alcance: la métrica pedida no abre este peldaño
     const ents = Array.isArray(preferirDelTurno.entidades) ? preferirDelTurno.entidades : [];
     const _yLista = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}` : String(xs[0] || ""));
     const txt = ents.length
@@ -1322,11 +1388,13 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       sentrixAction: (() => { try { const f = detectFichaIntent(q, { escenario: scenario }); return (f && f.sentrixAction) || null; } catch { return null; } })(),
       agente: { estado, rondas, calls, figs: figsTotales.length, motivos: motivosNoSoportado.slice(0, 3),
         contrato: _esComercial ? "comercial" : null,   // el turno partió de la realidad comercial completa (owner 2026-09-13)
+        dominios: _dom.dominios.slice(),               // los dominios que la pregunta hizo participar (owner 2026-09-14); `eje` si nombró otro corte
+        eje: _dom.eje || null,
         vetos: vetosDelTurno,   // R7 · el expediente auditable: cada veto con su sitio y su multa (observación, no decisión)
         /* EL REFERENTE Y EL ALCANCE, en el expediente (2026-09-11): «nunca más evaluar una respuesta sin saber
          * qué mecanismo la produjo» — acá se lee a quién resolvió el procedimiento y qué pedido corrigió. */
         referente: referente && referente.kind !== "none" ? { kind: referente.kind, entities: referente.entities || null, alcance: referente.alcance || null } : null,
-        alcance: preferirDelTurno ? (preferirDelTurno.alcance || "entidades") : null,
+        alcance: preferirDelTurno && (preferirDelTurno.entidades || preferirDelTurno.alcance) ? (preferirDelTurno.alcance || "entidades") : null,
         coerciones: motivosCoercion.slice(0, 4),
         cortes: cortesDelTurno.slice(0, 6),   // el motivo de corte del proveedor, por llamada (la lección del natural, punta a punta)
         recitaCifras: recita && Array.isArray(recita.figs) ? recita.figs.length : 0,

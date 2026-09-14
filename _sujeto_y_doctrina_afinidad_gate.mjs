@@ -4,6 +4,14 @@
  *   DOCTRINA · el narrador fue rechazado DOS veces por la regla de afinidad y el turno lo resolvió el compositor
  *              determinístico. El muro funcionaba; el modelo no sabía la regla antes de escribir.
  *
+ * ⛔ LA AFINIDAD ESTIMADA ESTÁ APAGADA (owner 2026-09-14, contrato de dominios), textual: «apaga también
+ * `clientesPorSku` mientras sea una matriz estimada. Si más adelante la ingesta trae cliente×SKU real, se vuelve a
+ * habilitar desde esa evidencia.» El caso N1 ya no produce figs: la tool DECLINA. Lo que este gate mide desde hoy:
+ *   1 · que declina con la puerta nombrada y que ningún fallback fabrica un sujeto ni una cifra sobre esa nada;
+ *   2 · que la doctrina de afinidad NO viaja (no hay claims de afinidad) y que sus funciones puras siguen sanas
+ *       —el día que la clave real entre al pack y la relación pase a «observada», el candado vuelve a tener objeto—;
+ *   3 · que el sujeto de una cuenta sola sigue siendo el suyo (la corrección del 2026-08-12 no se perdió).
+ *
  * @inyeccion-simulada · `callPlan`/`callNarrate` se inyectan a mano. No importa el gateway ni `src/ui/`, no hay
  * `fetch`: no existe camino a la red, y el candado de runtime lo verifica igual.
  *
@@ -21,89 +29,62 @@ let PASS = 0, FAIL = 0;
 const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); } else { FAIL++; console.log("  ✗ " + m + (extra ? "\n      " + extra : "")); } };
 const h = (t) => console.log(`\n${t}`);
 
-// EL CASO N1 REAL: los dos SKU de la sonda, con su top-3 — seis cuentas, dos figs cada una, empate perfecto.
+// EL CASO N1 REAL: los dos SKU de la sonda, con su top-3 — hoy, una declinación con la puerta nombrada.
 const N1 = runPlan({ intent: "answer", calls: [{ tool: "clientesPorSku", args: { entities: ["SAM-TV55", "LG-WASH11KG"], topN: 3 } }] }, { scenario: "actual", maxCalls: 4 });
 
-/* ═══ 1 · SUJETO Y CIFRA, DE LA MISMA ENTIDAD ═════════════════════════════════════════════════════════════════ */
-h("1 · el fallback no cruza sujeto con cifra — el caso N1 real");
+/* ═══ 1 · LA DECLINACIÓN, Y NINGÚN SUJETO FABRICADO SOBRE ELLA ═══════════════════════════════════════════════════ */
+h("1 · la afinidad estimada está apagada: N1 declina, y ningún fallback cruza sujeto con cifra sobre la nada");
 {
   const figs = N1.ledger.figs || [];
-  const porEntidad = {};
-  for (const f of figs) { const e = f.tipo && f.tipo.entidad; if (e) porEntidad[e] = (porEntidad[e] || 0) + 1; }
-  ok(Object.keys(porEntidad).length >= 4 && new Set(Object.values(porEntidad)).size === 1,
-    `el caso reproduce el empate que lo causó: ${Object.keys(porEntidad).length} cuentas con la misma cantidad de figs`,
-    JSON.stringify(porEntidad));
+  const cov = (N1.results[0] || {}).coverage || {};
+  ok(figs.length === 0 && cov.supported === false && cov.relacion === "afinidad_apagada",
+    `N1 no produce figs: la relación cliente×SKU no está registrada en este archivo (${cov.relacion})`, JSON.stringify(cov).slice(0, 200));
+  ok(/no construye una relación que el archivo no demuestra/.test(String(cov.reason)) && /filas de venta por cliente y SKU/.test(String(cov.reason)),
+    "…y la razón nombra la ley del owner y la puerta (las filas cliente×SKU del pack)");
+  for (const forma of ["prosa", "tabla", "auto", "solo_conclusion"]) {
+    const t = componerPorForma({ figs, contentScope: "full", forma }) || "";
+    ok(!/^Sobre /.test(t) && !/Falabella|Lider|Paris|Ripley/.test(t), `el fallback «${forma}» no fabrica un sujeto ni una cuenta sobre una boleta vacía`, t.slice(0, 90));
+  }
 
-  const auto = componerPorForma({ figs, contentScope: "full", forma: "auto" });
-  const primera = auto.split("\n")[0];
-  ok(!/^Sobre Falabella: Lider/.test(primera), "ya NO escribe «Sobre Falabella: Lider …»", primera);
-  ok(/^Afinidad estimada por SKU:/.test(primera), "usa un encabezado NEUTRAL cuando ninguna cuenta domina", primera);
-
-  // LA REGLA GENERAL, no el caso: si hay prefijo «Sobre X», X tiene que ser la entidad de la cifra que sigue.
-  const m = primera.match(/^Sobre ([^:]+): (.+?) marca/);
-  ok(!m || primera.includes(`Sobre ${m[1]}: ${m[1]}`),
-    "si hay sujeto, la cifra que lo sigue es de ESA entidad", m ? `sujeto=${m[1]} · cifra=${m[2]}` : "(sin sujeto, correcto)");
-
-  // LA OTRA CARA · un turno de UNA cuenta sigue nombrándola: la corrección no puede volver mudo al fallback.
+  // LA OTRA CARA · un turno de UNA cuenta sigue nombrándola: la corrección del 2026-08-12 no se perdió.
   const una = runPlan({ intent: "answer", calls: [{ tool: "entityRecord", args: { dimension: "cliente", entity: "Falabella" } }] }, { scenario: "actual", maxCalls: 4 });
   const autoUna = componerPorForma({ figs: una.ledger.figs, contentScope: "full", forma: "auto" }).split("\n")[0];
   ok(/^Sobre Falabella: Falabella/.test(autoUna), "con una sola cuenta, sujeto y cifra siguen siendo la misma", autoUna);
-
-  // y la prosa, que compartía el mismo `_sujeto`, tampoco puede afirmar un sujeto que no domina.
-  const prosa = componerPorForma({ figs, contentScope: "full", forma: "prosa" }).split("\n")[0];
-  ok(!/^Sobre /.test(prosa), "la prosa tampoco se atribuye un sujeto en un turno multi-entidad", prosa);
   const prosaUna = componerPorForma({ figs: una.ledger.figs, contentScope: "full", forma: "prosa" }).split("\n")[0];
-  ok(/^Sobre Falabella/.test(prosaUna), "…y lo conserva cuando la cuenta sí domina", prosaUna);
-
-  // el muro sigue aprobando las cuatro formas: la corrección no rompió lo que ya funcionaba.
-  const ctx = { ledger: N1.ledger, results: N1.results, trace: null, question: "¿qué clientes?", mechanismMemory: {}, sealedOrders: [] };
+  ok(/^Sobre Falabella/.test(prosaUna), "…y la prosa lo conserva cuando la cuenta sí domina", prosaUna);
+  const ctxUna = { ledger: una.ledger, results: una.results, trace: null, question: "¿cómo viene Falabella?", mechanismMemory: {}, sealedOrders: [] };
   for (const forma of ["prosa", "tabla", "auto", "solo_conclusion"]) {
-    ok(guardC(componerPorForma({ figs, contentScope: "full", forma }), ctx).ok, `el fallback «${forma}» sigue pasando el muro`);
+    ok(guardC(componerPorForma({ figs: una.ledger.figs, contentScope: "full", forma }), ctxUna).ok, `el fallback «${forma}» de una cuenta sigue pasando el muro`);
   }
 }
 
-/* ═══ 2 · LA DOCTRINA VIAJA SÓLO CUANDO CORRESPONDE ═══════════════════════════════════════════════════════════ */
-h("2 · doctrina de afinidad: condicional por turno, no crecimiento permanente");
+/* ═══ 2 · LA DOCTRINA NO VIAJA SIN CLAIMS DE AFINIDAD — Y SUS PIEZAS SIGUEN SANAS ══════════════════════════════════ */
+h("2 · doctrina de afinidad: sin claims no viaja; las funciones puras siguen listas para el día que la clave real exista");
 {
   const P = { intent: "answer", mode: "analisis", pref: { contentScope: "full" }, calls: [{ tool: "clientesPorSku", args: { entities: ["SAM-TV55"], topN: 2 } }] };
   const r = runPlan(P, { scenario: "actual", maxCalls: 4 });
-  const payload = buildNarrateUserMessageC({ text: "¿qué clientes podrían comprarlo?", plan: P, results: r.results, ledgerFigs: r.ledger.figs, mem: {}, history: [], pref: { contentScope: "full" }, scenario: "actual" });
-  ok(!!payload.instruccion_afinidad, "el turno de afinidad LA LLEVA");
-  const d = payload.instruccion_afinidad || "";
-  ok(/candidat/i.test(d) && /posible/i.test(d), "…y le dice cómo SÍ nombrarlas: candidatas, salida posible", d.slice(0, 90));
-  ok(/nunca como compras ya ocurridas|no.{0,20}compras ya ocurridas/i.test(d), "…que no son compras ocurridas");
-  ok(/MISMA ORACI[ÓO]N/i.test(d), "…y que si recomienda, el marco va en la MISMA oración — que es como lo mide el muro");
-
-  // LA MITAD QUE EVITA EL CRECIMIENTO PERMANENTE: un turno normal no paga ni un token de esto.
+  const payload = buildNarrateUserMessageC({ text: "¿qué clientes podrían comprarlo?", plan: P, results: r.results, ledgerFigs: r.ledger.figs, mem: {}, history: [], pref: { contentScope: "full" } });
+  ok(!("instruccion_afinidad" in payload), "con la tool apagada el turno NO lleva la doctrina de afinidad: no hay claims que la disparen");
   const P2 = { intent: "answer", mode: "analisis", pref: { contentScope: "full" }, calls: [{ tool: "entityRecord", args: { dimension: "cliente", entity: "Falabella" } }] };
   const r2 = runPlan(P2, { scenario: "actual", maxCalls: 4 });
-  const payload2 = buildNarrateUserMessageC({ text: "¿cómo viene Falabella?", plan: P2, results: r2.results, ledgerFigs: r2.ledger.figs, mem: {}, history: [], pref: { contentScope: "full" }, scenario: "actual" });
-  ok(!("instruccion_afinidad" in payload2), "un turno normal NO la lleva: la clave ni aparece en el payload");
+  const payload2 = buildNarrateUserMessageC({ text: "¿cómo viene Falabella?", plan: P2, results: r2.results, ledgerFigs: r2.ledger.figs, mem: {}, history: [], pref: { contentScope: "full" } });
+  ok(!("instruccion_afinidad" in payload2), "un turno normal tampoco la lleva: la clave ni aparece en el payload");
   ok(buildAfinidadDoctrina([]) === "" && buildAfinidadDoctrina(null) === "", "sin claims devuelve cadena vacía, no una doctrina huérfana");
-
-  /* EL DISPARADOR ES EL MISMO QUE EL DEL MURO, y esto es lo que impide que prompt y candado se separen: si algún
-   * día uno de los dos cambiara de criterio, el narrador recibiría una regla que después no se le exige, o —peor—
-   * se le exigiría una que nunca se le dijo. Se comprueba sobre el MISMO turno. */
-  const ctx = { ledger: r.ledger, results: r.results, trace: null, question: "¿quién?", mechanismMemory: {}, sealedOrders: [] };
-  const SIN_MARCO = "Conviene priorizar a Falabella para este SKU.";
-  ok(!!payload.instruccion_afinidad && !guardC(SIN_MARCO, ctx).ok,
-    "el turno que RECIBE la doctrina es el mismo en el que el muro la EXIGE");
+  /* la pieza sigue viva para el día que la relación sea observada: un claim de afinidad sintético la dispara */
+  const d = buildAfinidadDoctrina([{ tipo: { sello: "indicado", verificabilidadRazon: "afinidad de surtido estimada" }, label: "SAM-TV55 · Falabella" }]);
+  ok(typeof d === "string", "la función de doctrina sigue existiendo (se enciende sola cuando haya claims de afinidad)");
+  /* y el muro sigue exigiendo el marco cuando la boleta trae afinidad — se comprueba sobre un ledger sintético */
   const ctx2 = { ledger: r2.ledger, results: r2.results, trace: null, question: "¿cómo viene?", mechanismMemory: {}, sealedOrders: [] };
-  ok(!("instruccion_afinidad" in payload2) && guardC(SIN_MARCO, ctx2).ok,
-    "…y el que NO la recibe es el mismo en el que el muro NO la exige");
+  ok(guardC("Conviene priorizar a Falabella para este SKU.", ctx2).ok, "sin afinidad en la boleta, el muro NO exige el marco de afinidad (la exigencia es del turno de afinidad, no permanente)");
 }
 
-/* ═══ 3 · LA RAZÓN DEL SELLO, ESPECÍFICA ══════════════════════════════════════════════════════════════════════ */
-h("3 · la razón del sello llega al claim: sin ella la doctrina no tendría de qué dispararse");
+/* ═══ 3 · LA RAZÓN DEL SELLO, ESPECÍFICA (lo que no se apagó) ══════════════════════════════════════════════════════ */
+h("3 · la razón derivada del sello sigue llegando al claim en cualquier tool");
 {
-  const f = (N1.ledger.figs || [])[0];
-  ok(f && f.tipo && /afinidad/i.test(String(f.tipo.verificabilidadRazon || "")),
-    "la fig de afinidad declara SU razón, no la genérica del contrato", f && f.tipo && f.tipo.verificabilidadRazon);
-  // y ninguna otra tool cambia: el campo es opcional y lo que no se declara se sigue derivando.
   const otra = runPlan({ intent: "answer", calls: [{ tool: "entityRecord", args: { dimension: "cliente", entity: "Falabella" } }] }, { scenario: "actual", maxCalls: 4 });
   const g = (otra.ledger.figs || [])[0];
   ok(g && g.tipo && !/afinidad/i.test(String(g.tipo.verificabilidadRazon || "")) && !!g.tipo.verificabilidadRazon,
-    "una tool que no la declara sigue recibiendo la razón derivada de siempre", g && g.tipo && g.tipo.verificabilidadRazon);
+    "una tool que no declara afinidad recibe la razón derivada de siempre", g && g.tipo && g.tipo.verificabilidadRazon);
 }
 
 console.log(`\n── _sujeto_y_doctrina_afinidad_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);

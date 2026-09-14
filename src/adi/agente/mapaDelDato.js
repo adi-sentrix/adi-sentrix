@@ -19,7 +19,7 @@
  * PURO · sin red · sin Date.now() · lee el tenant activo. */
 import { getTenantData } from "../../data/tenantStore.js";
 import { POLICY } from "../../config/businessPolicy.js";   // [9] · el fallback de la vara — la regla de precedencia: fila.benchmark ?? POLICY.benchmark
-import { factorComercialDe } from "../../config/contract/figureType.js";
+import { factorComercialDe, reconcilian } from "../../config/contract/figureType.js";   // `reconcilian` lee la compatibilidad declarada por el pack (owner 2026-09-14)
 import { getSelloDeCarga } from "../../ingesta/estadoCarga.js";
 import { rotuloMoneda, etiquetaSinDeclarar } from "../../config/moneda.js";
 import { datasetCapability, serieRealDe, esSerieDelArchivo } from "../sentrix/capability.js";
@@ -79,9 +79,11 @@ export function mapaDelDato(scenario = ESCENARIO_INICIAL) {
   if (sinEje.length) L.push(`- sin datos en: ${sinEje.join(", ")}`);
 
   /* ── métricas por eje · lo que de verdad se puede pedir ───────────────────────────────────────────────── */
-  L.push("MÉTRICAS: cliente → ventas · margen · contribución · carga comercial" +
-    ((d.skusMargen || []).length ? " | sku → venta · margen · contribución" : "") +
-    ((d.skuInventario || []).length ? " | inventario → capital · rotación · días (por SKU y bodega)" : ""));
+  /* unidades vendidas por cliente/SKU/marca/familia y unidades en stock por SKU/bodega (owner 2026-09-14): el dato
+   * siempre las trajo; desde hoy son métricas del contrato y el cerebro tiene que saber que puede pedirlas. */
+  L.push("MÉTRICAS: cliente → ventas · margen · contribución · carga comercial · unidades vendidas" +
+    ((d.skusMargen || []).length ? " | sku → venta · margen · contribución · unidades vendidas" : "") +
+    ((d.skuInventario || []).length ? " | inventario → capital · rotación · días · unidades en stock (por SKU y bodega; capital también por marca y familia)" : ""));
 
   /* ── [9] del examen 1 (2026-08-31) · BENCHMARK ≠ PROMEDIO. T3 respondió OTRA pregunta: usó el benchmark
    * (30.1%) donde el usuario pidió el margen medio de la cartera (25.1%) — la equivalencia está prohibida.
@@ -119,11 +121,24 @@ export function mapaDelDato(scenario = ESCENARIO_INICIAL) {
   if (!(typeof kv.totalPresupuesto === "number" && Number.isFinite(kv.totalPresupuesto) && kv.totalPresupuesto !== 0)) limites.push(etiquetaSinDeclarar("presupuesto"));
   if (!(typeof kv.totalAnterior === "number" && Number.isFinite(kv.totalAnterior) && kv.totalAnterior !== 0)) limites.push("sin período anterior");
   if (!moneda) limites.push(etiquetaSinDeclarar("moneda"));
-  if (!cap.crosses.atomic) limites.push("cruce cliente×SKU: solo afinidad modelada (indicado)");
+  /* la afinidad estimada está APAGADA (owner 2026-09-14): sin filas cliente×SKU agregadas al pack no hay relación
+   * cliente×producto ni cliente×inventario que ofrecer — se dice como límite, no como «indicado». */
+  if (!cap.crosses.atomic) limites.push("cruce cliente×SKU y cliente×inventario: NO registrados en este archivo (la afinidad estimada está apagada) — no se construyen");
   /* [9] del examen 1: T22 ofreció un «cruce cliente×bodega» que NO existe — una opción incumplible es una
    * promesa falsa. El límite es estructural (los universos comercial e inventario no reconcilian — la misma
-   * barrera de la decisión 7 de la Mesa) y se declara donde el cerebro elige qué ofrecer. */
-  if ((d.skuInventario || []).length) limites.push("bodega: SOLO inventario (capital · rotación · días) — sin venta ni margen comercial, y sin cruce cliente×bodega (los universos no reconcilian)");
+   * barrera de la decisión 7 de la Mesa) y se declara donde el cerebro elige qué ofrecer.
+   * LA COMPATIBILIDAD LA DECLARA EL PACK (owner 2026-09-14): en el dato de fábrica los dos universos no reconcilian
+   * (la frase de siempre); en un pack de planilla son comparables por SKU con los dos marcos nombrados — y jamás se
+   * suman. `reconcilian` lee la declaración registrada por `initTenant`. */
+  if ((d.skuInventario || []).length) {
+    const rc = (() => { try { return reconcilian("venta_comercial", "inventario"); } catch { return { estado: "divergent" }; } })();
+    if (rc.estado === "comparable") {
+      const m = rc.marcos || {};
+      limites.push(`bodega: SOLO inventario (capital · rotación · días · unidades en stock) — sin venta ni margen por bodega, y sin cruce cliente×bodega · venta e inventario se comparan por SKU (y por marca/familia) nombrando los dos marcos («${m.venta_comercial || "período cerrado"}» / «${m.inventario || "foto de inventario"}»), nunca se suman`);
+    } else {
+      limites.push("bodega: SOLO inventario (capital · rotación · días) — sin venta ni margen comercial, y sin cruce cliente×bodega (los universos no reconcilian)");
+    }
+  }
   if (!Object.keys(d.SCENARIO_TRANSFORMS || {}).length) limites.push("sin transforms de simulación declarados");
   const sello = getSelloDeCarga();
   if (sello && (sello.conAlarmas || (Array.isArray(sello.tipos) && sello.tipos.length))) {

@@ -289,6 +289,7 @@ function _lineaDeInversion(inv, dicho) {
 
 export const cuadroExplicado = {
   nombre: "cuadro-explicado",
+  multidominio: true,   // compone su parte aunque la pregunta haga participar a dos dominios (contrato de dominios, owner 2026-09-14)
 
   /* ── LA TABLA LA PONE SENTRIX (owner 2026-09-08) ────────────────────────────────────────────────────────
    * «La idea no es que ADI vuelva a hacer las tablas; si ese es el caso, las agregamos a Sentrix y que sea

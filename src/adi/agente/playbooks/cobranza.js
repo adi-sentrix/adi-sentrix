@@ -44,6 +44,7 @@ const _caso = (pregunta) => {
 
 export const cobranza = {
   nombre: "cobranza",
+  multidominio: true,   // compone su parte aunque la pregunta haga participar a dos dominios (contrato de dominios, owner 2026-09-14)
   ejemplos: ["quién me debe y qué está vencido", "cuánto vendí a crédito vs contado"],
   /* activa en la PLANTILLA (con hoja Abonos) — el demo también tiene flujo, pero la muestra canónica es la
    * forma de un cliente real, que es donde vive la regla del vencido en «—». */

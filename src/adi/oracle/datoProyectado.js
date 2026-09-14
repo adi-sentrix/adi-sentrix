@@ -34,7 +34,7 @@ import { SOURCES } from "../../config/contract/sourceManifest.js";
 import { referenciaEsDelNegocio } from "../../config/businessPolicy.js";
 import { getSelloDeCarga } from "../../ingesta/estadoCarga.js";
 import { enLaCarpeta } from "../../ingesta/selloEnRespuesta.js";
-import { UNIVERSOS, DIVERGENCIAS } from "../../config/contract/figureType.js";
+import { UNIVERSOS, DIVERGENCIAS, reconcilian } from "../../config/contract/figureType.js";   // `reconcilian` lee la declaración del pack (owner 2026-09-14)
 import { METRICS } from "../../config/contract/metricRegistry.js";
 import { deriveKpis } from "../../engine/scenarios.js";
 import { getVentasKPI } from "../../engine/metrics.js";   // la venta del negocio que muestra la PANTALLA — decisión del owner 2026-09-01 (ver `_construir`)
@@ -381,14 +381,27 @@ function _construir(scenario) {
   }
   L.push("");
 
-  // ── LOS DOS UNIVERSOS QUE NO RECONCILIAN (obligatoria · sale del contrato figureType.DIVERGENCIAS) ──
+  // ── LOS DOS UNIVERSOS: LO QUE ESTE PACK DECLARA (owner 2026-09-14: la compatibilidad la declara el archivo) ──
+  // Antes esto pegaba `DIVERGENCIAS` —la verdad del dato de fábrica— a toda carpeta. Ahora se pregunta al contrato,
+  // que lee la declaración del pack activo (`reconcilian`): el demo sigue diciendo lo de siempre, byte a byte; un
+  // pack de planilla dice que se comparan con sus dos marcos y que no se suman.
+  const rcVI = reconcilian("venta_comercial", "inventario");
   const divVI = DIVERGENCIAS.find((d) => d.entre.includes("venta_comercial") && d.entre.includes("inventario"));
-  L.push("LOS DOS UNIVERSOS QUE NO RECONCILIAN:");
-  L.push(`La venta comercial y el inventario NO son el mismo negocio medido dos veces. ${divVI ? divVI.razon : ""}`);
-  L.push("PROHIBIDO cruzarlos: nunca dividas, sumes ni relaciones una cifra de venta con una de inventario (cobertura, días, ratio o participación cruzada). Una cifra que haga «cerrar» esos dos universos es una alarma, no un hallazgo. Si el usuario pide ese cruce, decliná y explicá esta divergencia.");
+  if (rcVI.estado === "comparable") {
+    const m = rcVI.marcos || {};
+    L.push("LOS DOS UNIVERSOS, CADA UNO CON SU MARCO:");
+    L.push(`La venta comercial es de ${m.venta_comercial || "el período cerrado"} y el inventario es ${m.inventario || "una foto a hoy"}. ${rcVI.razon}`);
+    L.push("Se comparan por SKU nombrando los dos marcos en la misma respuesta; PROHIBIDO sumarlos o consolidarlos en un total, y los días de inventario se citan del dato, no se recalculan.");
+  } else {
+    L.push("LOS DOS UNIVERSOS QUE NO RECONCILIAN:");
+    L.push(`La venta comercial y el inventario NO son el mismo negocio medido dos veces. ${rcVI.estado === "divergent" ? rcVI.razon : (divVI ? divVI.razon : "")}`);
+    L.push("PROHIBIDO cruzarlos: nunca dividas, sumes ni relaciones una cifra de venta con una de inventario (cobertura, días, ratio o participación cruzada). Una cifra que haga «cerrar» esos dos universos es una alarma, no un hallazgo. Si el usuario pide ese cruce, decliná y explicá esta divergencia.");
+  }
   for (const d of DIVERGENCIAS) {
     if (d === divVI) continue;
-    L.push(`- Tampoco reconcilian ${UNIVERSOS[d.entre[0]].etiqueta} ↔ ${UNIVERSOS[d.entre[1]].etiqueta}: ${d.razon}`);
+    const rc = reconcilian(d.entre[0], d.entre[1]);
+    if (rc.estado === "comparable") L.push(`- ${UNIVERSOS[d.entre[0]].etiqueta} ↔ ${UNIVERSOS[d.entre[1]].etiqueta}: se comparan con sus marcos, no se suman — ${rc.razon}`);
+    else L.push(`- Tampoco reconcilian ${UNIVERSOS[d.entre[0]].etiqueta} ↔ ${UNIVERSOS[d.entre[1]].etiqueta}: ${rc.estado === "divergent" ? rc.razon : d.razon}`);
   }
   L.push("");
 

@@ -40,6 +40,8 @@ import { lecturaPorEje } from "./lecturaPorEje.js";   // playbook de FORMA: cana
 import { entidadPorPeriodo } from "./entidadPorPeriodo.js";   // playbook de FORMA: «cuánto me compró X el último mes» con serie REAL (la bloqueada es del puente)
 import { proyeccionDeclarada } from "./proyeccionDeclarada.js";   // playbook de FORMA: «crezco 3%» · «proyecta +4%» · «reducir 2pp la carga» — con el MISMO detector que el juez P1
 import { cobranza } from "./cobranza.js";   // playbook del COBRO: «quién me debe» · «crédito vs contado» — la misma mesa que la pestaña
+import { crucePorSku } from "./crucePorSku.js";   // el cruce Comercial × Inventario por SKU, la única clave que el archivo demuestra (owner 2026-09-14)
+import { dominiosDe } from "../contratoDeDominios.js";   // «la pregunta determina qué dominios participan»: con dos, los playbooks de un solo dominio se retiran
 /* el pulido del anclaje (owner 2026-09-05: «cada botón debe responder sobre el cuadro exacto que el usuario
  * está mirando»). Va TEMPRANO en el registro a propósito: sus formas son las frases de los botones —
  * inequívocas— y con la precedencia alta «¿Cómo libero el capital inmovilizado en Valparaíso?» se ancla a SU
@@ -69,7 +71,7 @@ import { resumenDelNegocio } from "./resumenDelNegocio.js";   // señal del owne
  * que responden la lectura de ese tema y no contrastan nada. El usuario proponía y recibía un ranking. Va
  * antes que todos porque su detector es el más estrecho de la casa: exige forma de hipótesis + un tema
  * identificable + una dirección afirmada; sin las tres se retira, y el turno sigue su camino de siempre. */
-export const PLAYBOOKS = [hipotesisDelUsuario, desafiarDecision, contradiccionDeMetricas, compararAlternativas, margenEnRiesgo, clientePerdiendoContribucion, askDeCuadro, cuadroExplicado, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada, cobranza, planDeAccion, fichaDeEntidad, limiteHonesto, sintesisEjecutiva, resumenDelNegocio];
+export const PLAYBOOKS = [hipotesisDelUsuario, desafiarDecision, contradiccionDeMetricas, compararAlternativas, margenEnRiesgo, clientePerdiendoContribucion, askDeCuadro, cuadroExplicado, inventarioInmovilizado, lecturaDeVentas, oportunidadDePrecio, lecturaPorEje, entidadPorPeriodo, proyeccionDeclarada, cobranza, planDeAccion, crucePorSku, fichaDeEntidad, limiteHonesto, sintesisEjecutiva, resumenDelNegocio];
 
 /** playbookPara(pregunta) → el playbook que aplica, o null. El PRIMERO que declare aplicar (orden del registro
  *  = precedencia declarada); jamás dos a la vez, para que el procedimiento del turno sea uno solo y auditable. */
@@ -93,10 +95,18 @@ export function playbookPara(pregunta, ctx) {
    * entidad del índice, ese playbook no compite y el turno le queda a quien responde por ESA entidad. La
    * mención se calcula UNA vez por turno, no una por playbook. */
   const _nombra = (() => { let v = null; return () => { if (v === null) { try { v = nombraEntidad(q); } catch { v = false; } } return v; }; })();
+  /* ── DOS DOMINIOS, NINGÚN SECUESTRO (owner 2026-09-14, contrato de dominios). Medido: «¿los SKU que más vendo son los
+   * que tienen más capital en inventario?» se la llevaba lectura-por-eje por la palabra «inventario» y respondía capital
+   * FRENADO; «¿cuánto me debe Falabella y cuánto le vendo?» se la llevaba entidad-por-período. Un playbook que responde
+   * por UN dominio no toma una pregunta que hace participar a dos: se retira, la boleta trae los dos dominios y el
+   * cerebro compone con la doctrina de cruce. Solo los que DECLARAN `multidominio: true` compiten — los que componen su
+   * parte sin responder otra pregunta (cobranza, plan-de-acción, el cruce por SKU, los de contraste, los del cuadro). */
+  const _multi = (() => { try { return dominiosDe(q).dominios.length >= 2; } catch { return false; } })();
   for (const pb of PLAYBOOKS) {
     try {
       if (!pb || typeof pb.cuandoAplica !== "function") continue;
       if (pb.respondePorElNegocio === true && _nombra()) continue;
+      if (_multi && pb.multidominio !== true) continue;
       if (pb.cuandoAplica(q, ctx)) return pb;
     } catch { /* un detector roto no secuestra el turno */ }
   }

@@ -365,6 +365,33 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
   });
   avisos.push(...serie.avisos);
 
+  /* ── LA COMPATIBILIDAD ENTRE UNIVERSOS, MEDIDA SOBRE ESTE ARCHIVO (owner 2026-09-14) ─────────────────────────
+   * «Venta ↔ inventario se valida contra el archivo real, no contra una constante del demo.» Este motor es quien
+   * sabe cómo se construyó cada punta, así que es quien declara: las dos van en la moneda cruda del archivo
+   * (`escalaComercial: "raw"`, stockUSD crudo); el stock se valorizó con el costo unitario de la MISMA hoja Ventas
+   * (`FORMULA_CAPITAL`); y los días y la rotación salen de las unidades de Ventas salvo que el archivo los haya
+   * informado. Lo único que NO cambia con ningún archivo es el marco temporal: la venta es del período cerrado y el
+   * stock una foto a una fecha — por eso el estado es «comparable» y nunca «reconciled»: se relacionan nombrando los
+   * dos marcos, jamás se suman. Viaja EN el pack (autosuficiente, como la escala): `initTenant` la registra y el
+   * muro la lee por `reconcilian`. Sin inventario no hay par que declarar. */
+  const compatibilidad = (() => {
+    if (!skuInventario.length) return null;
+    const informados = skuInventario.filter((r) => r.procedencia && (r.procedencia.doh === "informado" || r.procedencia.rotacion === "informado")).length;
+    const fotoDe = fechaCarga || (actual ? _finDeMes(actual).toISOString().slice(0, 10) : null);
+    const marcos = { venta_comercial: `período cerrado${actual ? ` (${actual})` : ""}`, inventario: `foto de inventario${fotoDe ? ` al ${fotoDe}` : " a hoy"}` };
+    const base = { escala: "misma", valorizacion: "costo del período", unidades: informados ? "informadas" : "misma fuente", periodo: "distinto", marcos };
+    return {
+      "inventario|venta_comercial": { ...base, estado: "comparable",
+        razon: `venta e inventario salen del mismo archivo en la misma moneda: el stock se valorizó con el costo unitario de Ventas${informados ? ` (días y rotación informados por el archivo en ${informados} SKU)` : " y los días con sus unidades"}; pero la venta es del período cerrado y el stock una foto${fotoDe ? ` al ${fotoDe}` : ""} — se comparan nombrando los dos marcos y no se suman` },
+      "inventario|resultado_pnl": { ...base, estado: "comparable",
+        razon: `el resultado es del período cerrado y el stock una foto${fotoDe ? ` al ${fotoDe}` : ""}: misma moneda, marcos distintos — ninguna línea del resultado se suma con el stock` },
+      "inventario|precio_unitario": { ...base, estado: "comparable",
+        razon: "el precio por unidad y el stock en unidades salen del mismo archivo: se relacionan por SKU nombrando el marco del stock (foto) y no se suman" },
+      "precio_unitario|venta_comercial": { escala: "misma", periodo: "igual", estado: "comparable",
+        razon: "el precio de lista es por unidad y la venta es del período: se relacionan por unidades vendidas; unidades × lista no tiene por qué cerrar con la venta (descuentos y acciones), así que no se suman ni se derivan una de otra" },
+    };
+  })();
+
   /* ── catálogos · la lista de lo que hay ───────────────────────────────────────────────────────────────── */
   const marcas = [...new Set([...dimSku.values()].map((p) => p.marca).filter(Boolean))];
   const familias = [...new Set([...dimSku.values()].map((p) => p.sfamilia).filter(Boolean))];
@@ -388,6 +415,8 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
      * así; sin esta declaración, todo lo que multiplica ×1000 aguas abajo infla las cifras del cliente por mil
      * (medido: $61.483 del archivo → «$61.5M» en la carpeta de ADI). Viaja EN el pack: autosuficiente. */
     escalaComercial: "raw",
+    /* la compatibilidad entre universos, medida arriba sobre este archivo (owner 2026-09-14); `null` sin inventario */
+    compatibilidad,
     perfil,
     clientesVentas, clientesMargen,
     marcasVentas: marcasMargen.map((m) => ({ nombre: m.nombre, marca: m.nombre, sfamilia: null, actual: m.actual, anterior: m.anterior, unidades: m.unidades, unidadesAnt: m.unidadesAnt, pctRebate: m.pctRebate })),

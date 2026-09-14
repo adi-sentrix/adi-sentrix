@@ -51,7 +51,10 @@ const turno = (text, pedidos = [], mem = {}) => answerViaAgente({ text, history:
 const FAMILIAS = [
   ["periodo", "compara marzo vs abril en ventas, margen y contribución", [{ tool: "trend", args: {} }]],
   ["directorio", "dame un resumen para el equipo con los 3 focos principales", [{ tool: "diagnose", args: {} }]],
-  ["inventario", "ranking de SKU por peor rotación cruzado con margen", [{ tool: "inventoryStatus", args: {} }]],
+  /* ⚠️ RE-APUNTADO 2026-09-14 (contrato de dominios): «…cruzado con margen» hace participar a Comercial e Inventario y
+   * hoy lo compone el playbook del cruce por SKU — ya no llega al peldaño que ESTE gate mide. Mismo vehículo sin el
+   * cruce: una lectura de inventario sin dueño, que sigue cayendo a la línea honesta con alternativa nombrada. */
+  ["inventario", "ranking de SKU por peor rotación", [{ tool: "inventoryStatus", args: {} }]],
   ["cartera", "qué clientes están bajo el benchmark de margen", [{ tool: "marginRead", args: { focus: "bajo_benchmark", dimension: "cliente" } }]],
 ];
 

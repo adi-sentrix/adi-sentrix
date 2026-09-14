@@ -183,6 +183,20 @@ export const CONCEPT_DEFS = {
     def: "Es el valor del inventario a hoy: lo que está invertido en stock. Es una foto del momento, no un acumulado del año, y por eso su período se declara «foto de inventario a hoy».",
     distingue: "No es el **capital inmovilizado**: eso es sólo la parte de este capital que el detector clasifica como inmovilizada.",
   },
+  /* unidades vendidas y unidades en stock (owner 2026-09-14, contrato de dominios): son métricas del contrato desde
+   * hoy, y el glosario exige identidad métrica↔concepto — la misma llave, carácter por carácter. */
+  unidades: {
+    aka: "unidades vendidas",
+    etiquetas: ["unidades vendidas", "unidades", "volumen vendido", "cantidad vendida"],
+    def: "Son las unidades físicas vendidas en el período, tal como las informa cada fila de venta. Es el volumen: junto con la venta en dinero permite ver si se vendió más cantidad o a mejor precio realizado (venta dividida por unidades).",
+    distingue: "No es el **ticket** ni el **precio de lista**: el precio realizado es venta ÷ unidades y sale de estas dos cifras. Tampoco son las **unidades en stock**, que son la foto del inventario a hoy.",
+  },
+  stock: {
+    aka: "unidades en stock",
+    etiquetas: ["unidades en stock", "stock en unidades", "stock físico", "existencias"],
+    def: "Son las unidades físicas que hay hoy en inventario, por SKU y por bodega, tal como las informa el archivo. Es una foto del momento; el capital en inventario es esa misma foto valorizada al costo.",
+    distingue: "No son las **unidades vendidas**, que son un flujo del período. Y no son el **capital**: el capital es el valor en dinero de estas unidades.",
+  },
   capital_inmovilizado: {
     aka: "capital inmovilizado",
     etiquetas: ["inmovilizado", "capital inmovilizado", "capital detenido", "capital frenado", "% del inmov. total"],

@@ -364,6 +364,19 @@ export function clientCapitalRelacion({ entity, scenario = ESCENARIO_INICIAL } =
       alternativas: ["el capital inmovilizado del negocio, por bodega y por antigüedad"],
     };
   }
+  /* ⛔ LA AFINIDAD ESTIMADA CLIENTE↔INVENTARIO ESTÁ APAGADA (owner 2026-09-14), textual: «Si el archivo no contiene
+   * una relación determinística entre ambos, ADI no debe construirla. Queda abierto hasta que exista una clave
+   * real.» Medido en la planilla completa del owner: la matriz de afinidad asociaba 6 de 18 SKU con inventario a
+   * una cuenta y esta rama servía ese capital como «indicado» — una atribución que las filas del archivo no
+   * registran. Se declina con la razón y con la puerta: la clave existe en `hechos.Ventas` (cliente × SKU por
+   * fila); el día que la ingesta la agregue al pack, `crosses.atomic` se enciende y la rama de arriba («observada»)
+   * responde sola. La rama modelada NO se borra: queda debajo, inalcanzable, con su historia. */
+  return {
+    ...medido, estado: "unsupported", relacion: "afinidad_apagada",
+    razon: `el dato no registra qué SKU le vendes a cada cliente: la relación cliente×SKU sería una estimación de afinidad, y ADI no construye una relación que el archivo no demuestra — queda abierta hasta que las filas de venta por cliente y SKU entren al pack`,
+    alternativas: ["el capital inmovilizado del negocio, por SKU, bodega y familia", `la venta y el margen de ${entity}`],
+  };
+  // eslint-disable-next-line no-unreachable
   return {
     ...medido, estado: "afinidad_modelada", relacion: "afinidad_modelada",
     razon: `el dato no registra qué SKU le vendes a cada cliente: la relación es una estimación de afinidad que asocia ${dentro.length} de los ${universo.size} SKU con inventario al surtido de ${entity}`,

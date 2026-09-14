@@ -238,6 +238,7 @@ const _NIEGA = (n) => new RegExp(
 
 export const compararAlternativas = {
   nombre: "comparar-alternativas",
+  multidominio: true,   // compone su parte aunque la pregunta haga participar a dos dominios (contrato de dominios, owner 2026-09-14)
 
   /* sin nombres de cuenta: son dato del pack y se publicarían en el bundle. El caso de dos cuentas lo prueba
    * su gate armando los nombres desde el tenant cargado. */

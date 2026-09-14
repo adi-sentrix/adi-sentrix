@@ -82,6 +82,10 @@ export const HEADLINES = {
     formula: "Σ venta oficial por cliente",
     valor: (scn) => _totalComercial(scn).ventas,
   },
+  /* unidades vendidas (owner 2026-09-14): NO hay cabecera declarada a propósito — un total de cabecera solo existe para el
+   * corte que el producto pinta en una card, y Sentrix no pinta el total de unidades del negocio. Las unidades viajan por
+   * cliente, SKU, marca y familia (métrica `unidades`) y como efecto volumen (salesRead); el total del período queda
+   * fuera hasta que exista su card — una cifra sin superficie sería una segunda verdad. */
   "contribucion@cliente": {
     label: "Contribución total", unidad: "money", escala: "K",
     universo: "venta_comercial", sujeto: "el negocio completo",

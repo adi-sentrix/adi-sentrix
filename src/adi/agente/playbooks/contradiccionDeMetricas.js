@@ -115,6 +115,7 @@ const _pasosDe = (c) => { const t = _TIPOS[c.tipo]; return typeof t.pasos === "f
 
 export const contradiccionDeMetricas = {
   nombre: "contradiccion-de-metricas",
+  multidominio: true,   // compone su parte aunque la pregunta haga participar a dos dominios (contrato de dominios, owner 2026-09-14)
 
   /* sin nombres de cuenta: son dato del pack y se publicarían en el bundle (lo cazó `_bundle_sin_datos_gate`
    * en la primera ruta). El caso de dos cuentas lo prueba su gate armando los nombres desde el tenant. */

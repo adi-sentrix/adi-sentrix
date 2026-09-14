@@ -92,39 +92,17 @@ h("2 · si no hay dos salidas distintas que recordar, se pregunta en vez de supo
   ok(abrio2, "una pregunta de suma SIN «las dos» no se desvía: el plan corre normal");
 }
 
-/* ═══ 3 · AFINIDAD SIN LENGUAJE DE DECISIÓN COMERCIAL ═════════════════════════════════════════════════════════ */
-h("3 · N1 · sobre una afinidad estimada no se recomienda como si estuviera respaldada");
+/* ═══ 3 · AFINIDAD SIN LENGUAJE DE DECISIÓN COMERCIAL — LA TOOL ESTÁ APAGADA (owner 2026-09-14) ═══════════════════
+ * N1 midió que sobre una afinidad estimada el narrador recomendaba como si estuviera respaldada. La decisión del owner
+ * retira la matriz estimada entera («apaga también `clientesPorSku` mientras sea una matriz estimada»): sin figs de
+ * afinidad no hay recomendación que enmarcar. Lo que queda por vigilar es la declinación, y que sobre un dato normal
+ * recomendar siga siendo legítimo. */
+h("3 · N1 · la afinidad estimada está apagada: declina; sobre un dato normal recomendar sigue siendo legítimo");
 {
   const r = runPlan({ intent: "answer", calls: [{ tool: "clientesPorSku", args: { entities: ["SAM-TV55"], topN: 3 } }] }, { scenario: "actual", maxCalls: 4 });
-  const ctx = { ledger: r.ledger, results: r.results, trace: null, question: "¿qué clientes podrían comprarlo?", mechanismMemory: {}, sealedOrders: [] };
-
-  // EL TEXTO REAL DE N1: declaraba la estimación en una oración y recomendaba en otra, sin marco. La lista de
-  // frases no lo cazó porque el narrador escribió «la relación» y no «la relación comercial».
-  const REAL = "Estos valores son estimaciones basadas en afinidades de surtido y no reflejan ventas específicas. Además, considera reforzar la relación con Lider para LG-WASH11KG, dado su alto nivel de participación.";
-  ok(!guardC(REAL, ctx).ok, "el texto real de N1 ahora se bloquea, aunque esquive la lista de frases");
-  const det = (guardC(REAL, ctx).violations || []).map((v) => String(v.detail || "")).join(" ");
-  ok(/recomienda una acci[oó]n comercial/i.test(det), "…y el veredicto explica que el problema es RECOMENDAR sin marco", det.slice(0, 120));
-
-  // el eje real de la regla: el mismo consejo, con y sin marco en LA MISMA oración.
-  const SIN = "Conviene priorizar a Falabella para este SKU.";
-  const CON = "Una posible salida es priorizar a Falabella para este SKU, a validar con el equipo comercial.";
-  ok(!guardC(SIN, ctx).ok, "«conviene priorizar…» sin marco se bloquea");
-  ok(guardC(CON, ctx).ok, "…y el MISMO consejo enmarcado como posible pasa", (guardC(CON, ctx).violations || []).map((v) => v.kind).join(","));
-
-  // POR ORACIÓN, no por texto: una declaración lejos no autoriza una orden suelta.
-  const LEJOS = "Son estimaciones de afinidad de surtido.\n\nHay que activar a Lider en este SKU cuanto antes.";
-  ok(!guardC(LEJOS, ctx).ok, "declarar el estatus en otro párrafo NO autoriza la orden de éste");
-
-  // varias formas de recomendar, ninguna de la lista de frases de negocio.
-  for (const frase of ["Recomiendo enfocar el esfuerzo en Paris.", "Deberías activar a Ripley para este producto.", "Empezá por Falabella."]) {
-    ok(!guardC(frase, ctx).ok, `«${frase}» se bloquea sin nombrar ninguna frase de negocio`);
-  }
-
-  // y el fallback determinístico sigue pasando su propio muro en las cuatro formas.
-  for (const forma of ["prosa", "tabla", "auto", "solo_conclusion"]) {
-    const t = componerPorForma({ figs: r.ledger.figs, contentScope: "full", forma });
-    ok(guardC(t, ctx).ok, `el fallback «${forma}» pasa`, (guardC(t, ctx).violations || []).map((v) => v.kind).join(","));
-  }
+  const cov = (r.results[0] || {}).coverage || {};
+  ok((r.ledger.figs || []).length === 0 && cov.supported === false && cov.relacion === "afinidad_apagada", `N1 declina sin figs (${cov.relacion})`);
+  ok(Array.isArray(cov.alternativas) && cov.alternativas.some((a) => /venta|contribuci[oó]n/i.test(a)), "…y ofrece la alternativa que SÍ es dato (venta/contribución de esos SKU)");
 
   // LA CARA QUE IMPIDE EL FALSO POSITIVO: sin figs de afinidad, recomendar es normal y no se toca.
   const rNormal = runPlan({ intent: "answer", calls: [{ tool: "entityRecord", args: { dimension: "cliente", entity: "Falabella" } }] }, { scenario: "actual", maxCalls: 4 });

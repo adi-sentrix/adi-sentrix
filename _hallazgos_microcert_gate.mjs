@@ -25,39 +25,20 @@ let PASS = 0, FAIL = 0;
 const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); } else { FAIL++; console.log("  ✗ " + m + (extra ? "\n      " + extra : "")); } };
 const h = (t) => console.log(`\n${t}`);
 
-/* ═══ 1 · M1 · LA AFINIDAD `indicado` LLEGA AL TEXTO ══════════════════════════════════════════════════════════ */
-h("1 · M1 · una relación estimada no se narra como historial de compra");
+/* ═══ 1 · M1 · LA AFINIDAD `indicado` LLEGABA AL TEXTO — HOY LA TOOL ESTÁ APAGADA (owner 2026-09-14) ═══════════════
+ * M1 midió que `clientesPorSku` devolvía 20 figs `indicado` y el narrador las contaba como compra observada. La decisión
+ * del owner (contrato de dominios) retira la matriz estimada entera: «apaga también `clientesPorSku` mientras sea una
+ * matriz estimada». Sin figs no hay afinidad que narrar: lo que se mide es la declinación con la puerta nombrada. */
+h("1 · M1 · una relación estimada ya no se sirve: la tool declina con la puerta nombrada");
 {
   const r = runPlan({ intent: "answer", calls: [{ tool: "clientesPorSku", args: { entities: ["SAM-TV55", "LG-WASH11KG"], topN: 3 } }] }, { scenario: "actual", maxCalls: 4 });
   const figs = r.ledger.figs || [];
-  const ctx = { ledger: r.ledger, results: r.results, trace: null, question: "Para esos SKU, ¿qué clientes podrían comprarlos? Separá lo probado de la afinidad indicada.", mechanismMemory: {}, sealedOrders: [] };
-  ok(figs.length > 0 && figs.every((f) => f.tipo.sello === "indicado"), `la boleta trae ${figs.length} figs, todas \`indicado\``);
-
-  // EL TEXTO REAL DE LA CORRIDA, recortado a las frases que el owner nombró. Antes pasaba el muro entero.
-  const COMO_SALIO = "Para el SAM-TV55, las cuentas con participación alta son Falabella, Paris y Ripley. Te sugiero comenzar por reforzar la relación comercial con Falabella, dado su gran volumen de compra. En LG-WASH11KG, Lider es la cuenta predominante.";
-  const g = guardC(COMO_SALIO, ctx);
-  ok(!g.ok, "el texto que salió en vivo AHORA se bloquea", (g.violations || []).map((v) => v.kind).join(",") || "(pasó)");
-  const detalles = (g.violations || []).map((v) => String(v.detail || "")).join(" | ");
-  ok(/volumen de compras?/i.test(detalles), "…y el veredicto NOMBRA la frase que afirma la compra", detalles.slice(0, 140));
-
-  // las tres frases que el owner listó, una por una — cada una sola tiene que bastar para bloquear.
-  for (const frase of ["Falabella muestra un gran volumen de compra en este SKU.", "Lider es la cuenta predominante.", "Conviene reforzar la relación comercial con Paris."]) {
-    ok(!guardC(frase, ctx).ok, `«${frase.slice(0, 46)}…» se bloquea sola`);
-  }
-  // y la que falta aunque no haya ninguna frase de compra: el silencio sobre el estatus también es una falta.
-  ok(!guardC("Falabella encabeza con 46.3% y Paris sigue con 15.0%.", ctx).ok,
-    "un texto sin frases de compra pero que NO declara la estimación también se bloquea");
-
-  // LA OTRA CARA · lo correcto tiene que pasar, o el muro sólo sabría decir que no.
-  const BIEN = "Son cuentas candidatas por afinidad de surtido, no compras registradas: el dato no registra qué SKU se le vendió a cada cuenta. Para SAM-TV55 los principales candidatos son Falabella y Paris.";
-  ok(guardC(BIEN, ctx).ok, "una redacción que declara la afinidad estimada PASA", (guardC(BIEN, ctx).violations || []).map((v) => v.kind).join(","));
-
-  // y el fallback determinístico también, porque la regla no distingue quién redactó.
-  for (const forma of ["prosa", "tabla", "auto", "solo_conclusion"]) {
-    const t = componerPorForma({ figs, contentScope: "full", forma });
-    ok(guardC(t, ctx).ok, `el fallback en forma «${forma}» pasa su propio muro`, (guardC(t, ctx).violations || []).map((v) => v.kind).join(","));
-    ok(/afinidad|estimad|candidat/i.test(t), `…y declara la estimación en «${forma}»`, t.slice(0, 90));
-  }
+  const cov = (r.results[0] || {}).coverage || {};
+  ok(figs.length === 0 && cov.supported === false && cov.relacion === "afinidad_apagada", `la boleta trae 0 figs: la tool declina (${cov.relacion})`);
+  ok(/filas de venta por cliente y SKU/.test(String(cov.reason)), "…y la razón nombra la puerta: las filas cliente×SKU del pack");
+  const ctx = { ledger: r.ledger, results: r.results, trace: null, question: "Para esos SKU, ¿qué clientes podrían comprarlos?", mechanismMemory: {}, sealedOrders: [] };
+  // una cifra de participación por cuenta ya no tiene de dónde salir: sin boleta, el muro la caza como no autorizada
+  ok(!guardC("Falabella encabeza con 46.3% y Paris sigue con 15.0%.", ctx).ok, "una participación por cuenta sin boleta se bloquea (cifra no autorizada)");
 }
 
 /* ═══ 2 · A3 · DECLINAR LA SUMA ES RESPONDER, NO CAMBIAR DE TEMA ══════════════════════════════════════════════ */

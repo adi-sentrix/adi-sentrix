@@ -26,6 +26,7 @@
 
 import { detectSerieIntent } from "../../oracle/serieIntent.js";   // UN detector de entidad×período para el puente, entidad-por-período y este playbook
 import { _sinNombresDeEntidad } from "../mapaDelDato.js";        // un nombre de entidad no es un eje — la función del mapa, compartida
+import { axisEntityNames } from "../../oracle/entityIndex.js";   // las entidades de CADA eje: el ranking se filtra a las del eje pedido (contrato de dominios, 2026-09-14)
 
 const _FIN = "(?![a-záéíóúüñ])";
 import { esPorQue } from "../porque.js";   // un porqué no es una lectura de eje (owner 2026-09-09)
@@ -110,6 +111,13 @@ const _NOMBRA_FRENADO = new RegExp(`\\bfrenad|\\binmoviliz|\\bsin rotaci[oó]n|\
  * larga, nombrar el tema al pasar no es pedirlo (la misma regla que cerró «y el margen?» en T1). */
 const _CORTA = (q) => String(q || "").trim().split(/\s+/).filter(Boolean).length <= 4;
 
+/* el catálogo de un eje del tenant, o null si el eje no es una entidad del índice (sku_frenado se filtra por pertenencia) */
+const _delEje = (eje) => {
+  if (!eje || eje === "sku_frenado") return null;
+  /* un catálogo VACÍO también es un filtro: sin bodegas en el índice no hay ranking por bodega, aunque la boleta traiga capital por SKU */
+  try { return new Set((axisEntityNames(eje) || []).map(String)); } catch { return null; }
+};
+
 const _ejeDe = (pregunta) => {
   const q = String(pregunta || "");
   if (_FUERA.test(q)) return null;
@@ -125,7 +133,28 @@ const _ejeDe = (pregunta) => {
    * Riachuelo»): el cliente se llama «Depósito…» y disparaba el eje bodega. El eje se busca en la pregunta SIN
    * los nombres del catálogo del tenant — con la función del mapa, compartida, no replicada. */
   const qSinNombres = (() => { try { return _sinNombresDeEntidad(q); } catch { return q; } })();
-  return EJES.find((e) => e.re.test(qSinNombres)) || null;
+  const e = EJES.find((e) => e.re.test(qSinNombres)) || null;
+  if (!e) return null;
+  /* ── LA MÉTRICA QUE LA PREGUNTA NOMBRA (contrato de dominios, owner 2026-09-14) ──────────────────────────────
+   * Medido: «¿cuántas unidades vendí de cada marca?» y «¿qué marca vende más?» respondían MARGEN por marca — el eje
+   * marca/familia tenía una sola lectura, la del margen, y la pregunta por unidades o por venta recibía otra métrica
+   * (un secuestro con cifras reales). Si la pregunta nombra unidades, la lectura es de unidades; si nombra la venta
+   * sin nombrar el margen, es de venta. Solo en los ejes con esas métricas declaradas (marca · familia · cliente);
+   * el resto conserva su lectura de siempre. */
+  if (e.eje === "marca" || e.eje === "familia" || e.eje === "cliente") {
+    const _UNIDADES = new RegExp(`\\bunidades${_FIN}|\\bcantidad(?:es)?${_FIN}|\\bvolumen${_FIN}`, "i");
+    const _VENTA = new RegExp(`\\bventas?${_FIN}|\\bvend(?:o|es|e|en|emos|[ií]|[ií]mos|iste|ieron|ido)${_FIN}|\\bfactur`, "i");
+    const _MARGEN = new RegExp(`\\bm[aá]rgen(?:es)?${_FIN}|\\bcontribuci|\\brentab`, "i");
+    if (_UNIDADES.test(q)) {
+      return { ...e, pasos: [{ tool: "queryMetric", args: { metric: "unidades", dimension: e.eje }, para: `las unidades vendidas por ${e.eje}, con el nombre de cada ${e.eje} y su cifra` }],
+        obligatorias: [/· Unidades vendidas$/i], metrica: /· Unidades vendidas$/i, unidad: "unidades vendidas" };
+    }
+    if (e.eje !== "cliente" && _VENTA.test(q) && !_MARGEN.test(q)) {
+      return { ...e, pasos: [{ tool: "queryMetric", args: { metric: "ventas", dimension: e.eje }, para: `la venta por ${e.eje}, con el nombre de cada ${e.eje} y su cifra` }],
+        obligatorias: [/· Ventas$/i], metrica: /· Ventas$/i, unidad: "venta" };
+    }
+  }
+  return e;
 };
 
 export const lecturaPorEje = {
@@ -156,9 +185,13 @@ export const lecturaPorEje = {
      * filtro — un hecho de la boleta, no un parser de nombres. */
     const esSku = e.eje !== "sku_frenado" ? null
       : new Set(_all(figs, /· (?:Rotaci[oó]n|D[ií]as de inventario)$/i).map((f) => _entidadDe(_lab(f))).filter(Boolean));
+    /* ⚠️ SOLO LAS ENTIDADES DEL EJE PEDIDO (contrato de dominios, 2026-09-14): con el contrato de inventario en la boleta,
+     * «ELE-CAB25 · Capital» (SKU) convivía con «Central · Capital» (bodega) bajo la MISMA métrica y el ranking por bodega
+     * salía con los SKU adentro. El catálogo del eje es el filtro — un hecho del índice, no un parser de nombres. */
+    const delEje = _delEje(e.eje);
     const filas = _all(figs, e.metrica)
       .map((f) => ({ entidad: _entidadDe(_lab(f)), raw: _num(f), fmt: _val(f) }))
-      .filter((x) => x.entidad && x.fmt && (!esSku || esSku.has(x.entidad)));
+      .filter((x) => x.entidad && x.fmt && (!esSku || esSku.has(x.entidad)) && (!delEje || delEje.has(x.entidad)));
     if (filas.length < 2) return null;
     const conRaw = filas.every((x) => Number.isFinite(x.raw));
     if (conRaw) filas.sort((a, b) => b.raw - a.raw);
@@ -171,7 +204,7 @@ export const lecturaPorEje = {
     if (e.eje === "sku_frenado" && !_NOMBRA_FRENADO.test(String(pregunta || ""))) {
       partes.push(`De tu inventario, lo que este dato publica es el capital que quedó frenado — no una foto del stock completo.`);
     }
-    partes.push(`Así viene tu ${e.unidad} por ${e.eje === "sku_frenado" ? "SKU" : e.eje}${conRaw ? ", de mayor a menor" : ""}:`);
+    partes.push(`${/^unidades/i.test(e.unidad) ? `Así vienen tus ${e.unidad}` : `Así viene tu ${e.unidad}`} por ${e.eje === "sku_frenado" ? "SKU" : e.eje}${conRaw ? ", de mayor a menor" : ""}:`);
     for (const x of filas.slice(0, 8)) partes.push(`- ${x.entidad}: ${x.fmt}`);
     if (filas.length > 8) partes.push(`(y ${filas.length - 8} más)`);
     if (bench) partes.push(`Tu benchmark de margen es ${_val(bench)}.`);
@@ -196,7 +229,8 @@ export const lecturaPorEje = {
     //     (mismo filtro de SKU que el composer: en «frenado» la boleta trae bodegas al lado de los SKU)
     const soloSku = e.eje !== "sku_frenado" ? null
       : new Set(_all(figs, /· (?:Rotaci[oó]n|D[ií]as de inventario)$/i).map((f) => _entidadDe(_lab(f))).filter(Boolean));
-    const entidades = _all(figs, e.metrica).map((f) => _entidadDe(_lab(f))).filter((n) => n && (!soloSku || soloSku.has(n)));
+    const delEjeN = _delEje(e.eje);
+    const entidades = _all(figs, e.metrica).map((f) => _entidadDe(_lab(f))).filter((n) => n && (!soloSku || soloSku.has(n)) && (!delEjeN || delEjeN.has(n)));
     if (entidades.length >= 2 && !entidades.some((n) => t.includes(n))) {
       v.push({ regla: "evidencia-sin-usar", multa: `la boleta trae ${entidades.length} ${e.eje === "sku_frenado" ? "SKU" : e.eje + "s"} con su ${e.unidad} y la respuesta no nombra ninguno: entrega la lectura que ya está en la mano.` });
     }

@@ -1100,9 +1100,11 @@ function _consolidacionDeUniversos(narration, ledger) {
   const universos = [...new Set([...owners.values()].flatMap((s) => [...s]))];
   for (let i = 0; i < universos.length; i++) for (let j = i + 1; j < universos.length; j++) {
     const v = reconcilian(universos[i], universos[j]);
-    if (v.estado !== "divergent") continue;
+    /* «comparable» (owner 2026-09-14: la compatibilidad la declara el pack) permite RELACIONAR nombrando los dos
+     * marcos, pero SUMAR jamás: un flujo del período y una foto a una fecha no se consolidan en ningún archivo. */
+    if (v.estado !== "divergent" && v.estado !== "comparable") continue;
     const A = UNIVERSOS[universos[i]], B = UNIVERSOS[universos[j]];
-    return [`la respuesta consolida cifras de «${A.etiqueta}» y «${B.etiqueta}», que NO reconcilian: ${v.razon}. Una venta es un flujo de un período y un inventario valorizado es un stock a una fecha: su suma no significa nada aunque las dos estén en dinero`];
+    return [`la respuesta consolida cifras de «${A.etiqueta}» y «${B.etiqueta}», que ${v.estado === "comparable" ? "no se suman" : "NO reconcilian"}: ${v.razon}. Una venta es un flujo de un período y un inventario valorizado es un stock a una fecha: su suma no significa nada aunque las dos estén en dinero`];
   }
   return [];
 }
@@ -1131,6 +1133,49 @@ function _cruceDeUniversos(narration, ledger) {
       vistos.add(clave);
       const A = UNIVERSOS[ua[0]], Bu = UNIVERSOS[ub[0]];
       out.push(`«${a.text}» (${A.etiqueta}) y «${b.text}» (${Bu.etiqueta}) se relacionan en la misma oración y NO reconcilian: ${veredictos[0].razon}`);
+    }
+  }
+  return out;
+}
+
+/* ══ 17b · RELACIONAR DOS MARCOS TEMPORALES EXIGE NOMBRARLOS (owner 2026-09-14) ═══════════════════════════════════
+ * LA DECISIÓN, textual: «Si hay una diferencia temporal —por ejemplo ventas del período cerrado e inventario como
+ * foto— debe declararla y limitar la interpretación, no fingir que son el mismo tipo de medida.»
+ * Cuando el pack declara un par «comparable» (misma moneda y valorización, período distinto — el caso de todo
+ * archivo de planilla), la relación entre las dos cifras YA NO se bloquea (chequeo 17): se permite, con una
+ * condición mecánica — que la respuesta nombre los dos marcos en algún lugar: el del período («del período», «del
+ * año», «período cerrado») y el de la foto («foto de inventario», «a hoy», «al 31-08», «stock actual»). Es la misma
+ * ventana relacional del 17: sin construcción que ate las dos cifras no hay nada que exigir; una ficha enumerada
+ * («vende $14K · stock $28K») sigue pasando sin marcos, como siempre. Solo pares donde TODAS las lecturas son
+ * «comparable»: si alguna es divergente, ya lo tomó el 17; si alguna reconcilia, no hay marcos que declarar. */
+const _MARCO_PERIODO = /\b(?:per[ií]odo|a[ñn]o|mes(?:es)?|semestre|trimestre)s?\b(?:\s+(?:cerrad[oa]s?|informad[oa]s?))?|\bacumulad[oa]s?\b|\bYoY\b|\binteranual\b|\ben el a[ñn]o\b|\bdel a[ñn]o\b/i;
+const _MARCO_FOTO = /\bfoto\b|\ba hoy\b|\bhoy\b|\bal (?:cierre|corte)\b|\bal \d{1,2}[-\/.]\d{1,2}(?:[-\/.]\d{2,4})?\b|\bal \d{4}-\d{2}-\d{2}\b|\bstock actual\b|\binventario actual\b|\bexistencias? actual(?:es)?\b|\ba la fecha\b/i;
+function _marcoTemporalNoDeclarado(narration, ledger) {
+  const owners = _universeOwners(ledger);
+  if (owners.size < 2) return [];
+  const text = String(narration || "");
+  const tienePeriodo = _MARCO_PERIODO.test(text), tieneFoto = _MARCO_FOTO.test(text);
+  if (tienePeriodo && tieneFoto) return [];   // los dos marcos están dichos: la relación es legítima
+  const out = [];
+  const vistos = new Set();
+  for (const [lo, hi] of _oraciones(text)) {
+    const oracion = text.slice(lo, hi);
+    if (!_CRUCE_RELACIONAL.test(oracion)) continue;
+    const figs = parseFigures(oracion).filter((f) => owners.has(f.canon));
+    for (let i = 0; i < figs.length; i++) for (let j = i + 1; j < figs.length; j++) {
+      const a = figs[i], b = figs[j];
+      if (a.canon === b.canon) continue;
+      const ua = [...owners.get(a.canon)], ub = [...owners.get(b.canon)];
+      const veredictos = [];
+      for (const x of ua) for (const y of ub) if (x !== y) veredictos.push(reconcilian(x, y));
+      if (!veredictos.length || !veredictos.every((v) => v.estado === "comparable")) continue;
+      const clave = `${a.canon}|${b.canon}`;
+      if (vistos.has(clave)) continue;
+      vistos.add(clave);
+      const A = UNIVERSOS[ua[0]], Bu = UNIVERSOS[ub[0]];
+      const m = veredictos[0].marcos || {};
+      const faltan = [!tienePeriodo ? `el del período («${m.venta_comercial || "período cerrado"}»)` : null, !tieneFoto ? `el de la foto («${m.inventario || "foto de inventario a hoy"}»)` : null].filter(Boolean).join(" y ");
+      out.push(`«${a.text}» (${A.etiqueta}) y «${b.text}» (${Bu.etiqueta}) se relacionan en la misma oración: en este archivo son comparables, pero viven en marcos distintos y la respuesta no nombra ${faltan}. Di de qué marco es cada cifra o no las relaciones — y nunca las sumes`);
     }
   }
   return out;
@@ -4291,6 +4336,9 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // es peor que un número inventado — suena a insight y no lo es. Ver _cruceDeUniversos arriba.
   for (const v of _cruceDeUniversos(narration, ledger)) violations.push({ kind: "cruce-de-universos", detail: v });
   for (const v of _consolidacionDeUniversos(narration, ledger)) violations.push({ kind: "cruce-de-universos", detail: v });
+  // 17b · DOS MARCOS, NOMBRADOS (owner 2026-09-14) — el par que el pack declara «comparable» se puede relacionar,
+  // pero la respuesta tiene que decir de qué marco es cada cifra (período cerrado / foto). Ver _marcoTemporalNoDeclarado.
+  for (const v of _marcoTemporalNoDeclarado(narration, ledger)) violations.push({ kind: "marco-temporal-no-declarado", detail: v });
   // 18 · TRANSFERENCIA NO EVALUABLE (owner 2026-08-09, decisión 13) — la tool declaró que mover stock entre bodegas
   // no se puede evaluar sobre este dato y la narración lo recomienda igual. BLOQUEA por la misma razón que el
   // chequeo 7: es una conclusión que el dato no respalda, dicha con cifras reales. Ver _transferenciaNoEvaluable.

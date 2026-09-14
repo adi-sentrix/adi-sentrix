@@ -255,6 +255,7 @@ const _CORRIGE = /\bno es lo que dice\b|\bno es (?:correcta|correcto|cierto)\b|\
 
 export const hipotesisDelUsuario = {
   nombre: "hipotesis-del-usuario",
+  multidominio: true,   // compone su parte aunque la pregunta haga participar a dos dominios (contrato de dominios, owner 2026-09-14)
 
   /* las formas del owner, para que el gate del registro verifique que el procedimiento resuelve pasos de
    * verdad y no solo que el archivo existe.

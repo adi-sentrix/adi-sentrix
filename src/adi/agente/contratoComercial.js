@@ -33,7 +33,7 @@ import { axisEntityNames } from "../oracle/entityIndex.js";   // una pregunta qu
 /* el léxico del tema, cerrado a propósito: lo que suena a resultado comercial. Un «capital»/«stock»/«cobranza» en
  * la misma pregunta la manda a su universo (esos procedimientos ya leen lo suyo), y una definición no lee cartera. */
 const _W = "[\\wáéíóúñ]";   // la letra de la casa: \w no incluye las vocales con tilde
-const _COMERCIAL = new RegExp(`(?<!${_W})(?:ventas?|vend[ií](?:[oó]|mos|endo|ste|eron|a|an|e|en)?|vendid[oa]s?|factur${_W}*|ingresos?|contribu${_W}*|m[aá]rgen(?:es)?|rentab${_W}*|benchmark|costos?|precios?|markup|acciones comerciales|carga comercial|rebates?|descuentos?|clientes?|cuentas?|cartera|negocio|resultado comercial|crec${_W}*|volumen|mix|ticket|comercial(?:es)?|ganamos|ganando|gano|mejorando|apuesta)(?!${_W})`, "i");
+const _COMERCIAL = new RegExp(`(?<!${_W})(?:ventas?|vend[ií](?:[oó]|mos|endo|ste|eron|a|an|e|en)?|vend(?:o|es|e|en|emos)|vendid[oa]s?|factur${_W}*|ingresos?|contribu${_W}*|m[aá]rgen(?:es)?|rentab${_W}*|benchmark|costos?|precios?|markup|acciones comerciales|carga comercial|rebates?|descuentos?|clientes?|cuentas?|cartera|negocio|resultado comercial|crec${_W}*|volumen|mix|ticket|comercial(?:es)?|ganamos|ganando|gano|mejorando|apuesta)(?!${_W})`, "i");
 const _OTRO_UNIVERSO = new RegExp(`(?<!${_W})(?:inventario|stock|rotaci[oó]n|bodegas?|sku|reposici[oó]n|quiebres?|sobrestock|inmoviliz${_W}*|capital|cobranza|cobros?|vencid[oa]s?|deuda|abonos?|pagos?|plazo|flujo de caja|efectivo)(?!${_W})`, "i");
 const _DEFINICION = /^\s*¿?\s*(?:qu[eé] (?:es|son|significa|quiere decir)|expl[ií]came (?:qu[eé] es|el concepto)|c[oó]mo se (?:calcula|define))\b/i;
 /* OTRO EJE, OTRA LECTURA (medido al cablear, 2026-09-13): el contrato es la realidad comercial POR CLIENTE. Una pregunta por
@@ -43,12 +43,15 @@ const _DEFINICION = /^\s*¿?\s*(?:qu[eé] (?:es|son|significa|quiere decir)|expl
 const _OTRO_EJE = new RegExp(`(?<!${_W})(?:marcas?|familias?|subfamilias?|canal(?:es)?|productos?|l[ií]neas? de producto|categor[ií]as?|sucursal(?:es)?|tiendas?|locales?|regi[oó]n(?:es)?|zonas?)(?!${_W})`, "i");
 const _SALUDO_O_META = /^\s*(?:hola|gracias|ok|dale|listo|buen[oa]s?\b)/i;
 
-/** ¿El tema del turno es comercial? Solo la pregunta: el foco (cuenta, porqué, lector) lo deciden el procedimiento y la ruta. */
-export function esTemaComercial(pregunta) {
+/** ¿El tema del turno es comercial? Solo la pregunta: el foco (cuenta, porqué, lector) lo deciden el procedimiento y la ruta.
+ *  `conOtrosUniversos` (contrato de dominios, owner 2026-09-14: «composición, no exclusión»): una palabra de inventario
+ *  o cobranza ya no retira el tema comercial — suma su propio dominio. Sin la opción, la conducta de siempre. */
+export function esTemaComercial(pregunta, { conOtrosUniversos = false } = {}) {
   const q = String(pregunta || "");
   if (!q.trim() || _SALUDO_O_META.test(q) || _DEFINICION.test(q)) return false;
   if (esReformular(q)) return false;
-  if (_OTRO_UNIVERSO.test(q) || _OTRO_EJE.test(q)) return false;
+  if (!conOtrosUniversos && _OTRO_UNIVERSO.test(q)) return false;
+  if (_OTRO_EJE.test(q)) return conOtrosUniversos ? _COMERCIAL.test(q) : false;   // por otro eje: es comercial, pero su realidad es la lectura de ESE eje (la decide el contrato de dominios)
   if (_COMERCIAL.test(q)) return true;
   /* «¿Cómo está Falabella?»: el nombre de una cuenta es tema comercial por definición (el eje cliente es comercial) */
   const _n = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");

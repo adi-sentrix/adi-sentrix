@@ -36,54 +36,36 @@ h("1 · E2.t2 · «compará estas cuatro cuentas» — la boleta ya NO llega vac
     "la cobertura declara pedidas/resueltas/faltantes", JSON.stringify(cb));
 }
 
-/* ═══ 2 · E4.t3 · QUÉ CUENTAS PODRÍAN COMPRAR ESTOS SKU ════════════════════════════════════════════════════════ */
-h("2 · E4.t3 · «para esos SKU, qué clientes» — la transpuesta de la matriz, sellada");
+/* ═══ 2 · E4.t3 · QUÉ CUENTAS PODRÍAN COMPRAR ESTOS SKU — APAGADA POR DECISIÓN DEL OWNER (2026-09-14) ═══════════════
+ * La transpuesta de la matriz existió del 2026-08-12 al 2026-09-14 con sello «indicado». La decisión que la retira,
+ * textual: «apaga también `clientesPorSku` mientras sea una matriz estimada. Si más adelante la ingesta trae
+ * cliente×SKU real, se vuelve a habilitar desde esa evidencia.» Lo que este gate mide desde hoy es la DECLINACIÓN
+ * honesta: sin filas cliente×SKU en el pack la tool no fabrica candidatos, dice por qué y nombra la puerta. */
+h("2 · E4.t3 · «para esos SKU, qué clientes» — la afinidad estimada está apagada: declina con la puerta nombrada");
 {
   const SKUS = ["SAM-TV55", "LG-WASH11KG"];
   const r = correr("clientesPorSku", { entities: SKUS, topN: 3 });
   const figs = r.ledger.figs || [];
-  const F = r.results[0].facts || {};
-  ok(figs.length > 0, `hay cifras antes de narrar (${figs.length} figs) — en la certificación fueron 0`);
-  ok(SKUS.every((s) => figs.some((f) => String(f.label || "").endsWith(s))),
-    "los DOS SKU traen sus cuentas asociadas", figs.map((f) => f.label).join(" · "));
-
-  // LA DECISIÓN DEL OWNER, VERIFICADA EN EL DATO Y NO EN UN COMENTARIO: «inferencia autorizada, estatus INDICADO».
-  ok(F.estatus === "indicado", `el turno se declara INDICADO, no probado`, String(F.estatus));
-  ok(figs.every((f) => f.tipo && f.tipo.sello === "indicado"),
-    "y CADA fig lleva el sello `indicado` — la gradación viaja con la cifra, no en una advertencia suelta",
-    [...new Set(figs.map((f) => f.tipo && f.tipo.sello))].join(","));
-  ok(SELLOS.includes("indicado"), "el sello es del vocabulario declarado del contrato, no una etiqueta inventada acá");
-
-  // LA SEPARACIÓN QUE LA PREGUNTA PIDIÓ LITERALMENTE («separa lo probado de la afinidad indicada»).
-  ok(typeof F.lo_probado === "string" && F.lo_probado.length > 0, "declara QUÉ está probado");
-  ok(typeof F.lo_indicado === "string" && /estimaci[oó]n de afinidad/i.test(F.lo_indicado),
-    "…y QUÉ es afinidad estimada, con esas palabras", String(F.lo_indicado));
-  ok(F.relacion === "afinidad_modelada",
-    "la relación se nombra por lo que es, nunca como compra observada", String(F.relacion));
-
-  // LA MITAD QUE IMPIDE REABRIR LA DECISIÓN 9: ni un peso de INVENTARIO colgado del nombre de una cuenta.
-  ok(/venta|contribuci[oó]n/i.test(F.metrica || ""), "la métrica es de FLUJO (venta/contribución)", String(F.metrica));
-  ok(figs.every((f) => /afinidad de surtido/i.test(String(f.context || ""))),
-    "cada cifra declara en su contexto que es asociación por afinidad");
+  const c = r.results[0].coverage || {};
+  ok(figs.length === 0 && c.supported === false, `no hay cifras: la relación cliente×SKU no está registrada en este archivo (${figs.length} figs)`);
+  ok(c.relacion === "afinidad_apagada", "la razón se declara por lo que es: afinidad estimada, apagada", String(c.relacion));
+  ok(/no construye una relación que el archivo no demuestra/.test(String(c.reason)) && /filas de venta por cliente y SKU/.test(String(c.reason)),
+    "…y nombra la ley y la puerta (las filas cliente×SKU del pack)", String(c.reason).slice(0, 160));
+  ok(Array.isArray(c.alternativas) && c.alternativas.length > 0, "…con alternativas que SÍ son dato (venta/contribución de esos SKU, clientes por venta o margen)");
   ok(!figs.some((f) => /inventario|stock|inmovilizado|capital/i.test(String(f.label) + String(f.context))),
-    "NINGUNA cifra atribuye inventario, stock ni capital inmovilizado a una cuenta");
+    "NINGUNA cifra atribuye inventario, stock ni capital inmovilizado a una cuenta (la decisión 9 sigue cerrada)");
 }
 
-/* ═══ 3 · LAS CARAS QUE IMPIDEN CAMBIAR UN DEFECTO POR OTRO ════════════════════════════════════════════════════ */
+/* ═══ 3 · LAS CARAS QUE IMPIDEN CAMBIAR UN DEFECTO POR OTRO ══════════════════════════════════════════════════════ */
 h("3 · lo que la tool NO puede hacer");
 {
   const vacio = correr("clientesPorSku", { entities: [] });
   ok(vacio.results[0].coverage.supported === false, "sin SKU declina, no inventa un universo");
-
   const fantasma = correr("clientesPorSku", { entities: ["NO-EXISTE-SKU"], topN: 3 });
-  const c = fantasma.results[0].coverage;
-  ok(c.supported === false && (c.cobertura.faltantes || []).includes("NO-EXISTE-SKU"),
-    "un SKU inexistente se declara FALTANTE — la matriz no le fabrica compradores", JSON.stringify(c.cobertura));
-
-  const mixto = correr("clientesPorSku", { entities: ["SAM-TV55", "NO-EXISTE-SKU"], topN: 2 });
-  const cm = mixto.results[0].coverage;
-  ok(cm.supported === true && cm.cobertura.resueltos.length === 1 && cm.cobertura.faltantes.length === 1,
-    "cobertura PARCIAL: responde por el que existe y declara el que no", JSON.stringify(cm.cobertura));
+  ok(fantasma.results[0].coverage.supported === false, "un SKU inexistente tampoco recibe compradores fabricados");
+  /* la puerta, medida en el dato: la relación se enciende solo con filas atómicas cliente×SKU en el pack */
+  const { datasetCapability } = await import("./src/adi/sentrix/capability.js");
+  ok(datasetCapability().crosses.atomic === false, "el contrato de dataset sigue declarando crosses.atomic === false: la clave real todavía no entra al pack");
 }
 
 console.log(`\n── _cruce_cliente_sku_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);

@@ -101,6 +101,7 @@ const _PASOS = {
 
 export const desafiarDecision = {
   nombre: "desafiar-decision",
+  multidominio: true,   // compone su parte aunque la pregunta haga participar a dos dominios (contrato de dominios, owner 2026-09-14)
 
   /* ⚠️ SIN NOMBRES DE CUENTA (lo cazó `_bundle_sin_datos_gate` en la ruta anterior): son dato del pack de
    * demostración y se publicarían en el bundle. El caso de una cuenta lo prueba su gate armando el nombre

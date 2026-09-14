@@ -212,6 +212,14 @@ export function ejecutarCalculo(operacion, insumos) {
       const eA = (UNIVERSOS[uA] && UNIVERSOS[uA].etiqueta) || uA, eB = (UNIVERSOS[uB] && UNIVERSOS[uB].etiqueta) || uB;
       return { ok: false, regla: "universos-no-reconcilian", razon: `no opero «${eA}» contra «${eB}»: los dos universos no reconcilian — ${r.razon}` };
     }
+    /* «comparable» (owner 2026-09-14): el pack declara que las dos puntas salen del mismo archivo, pero en marcos
+     * distintos (período cerrado contra foto). Se pueden NOMBRAR y RELACIONAR con los marcos dichos; una cuenta
+     * libre entre ellas no: la relación stock÷venta ya está medida por el motor como días de inventario, y una
+     * segunda cuenta sería una segunda verdad. Solo lo reconciliado entra al catálogo. */
+    if (r.estado === "comparable") {
+      const eA = (UNIVERSOS[uA] && UNIVERSOS[uA].etiqueta) || uA, eB = (UNIVERSOS[uB] && UNIVERSOS[uB].etiqueta) || uB;
+      return { ok: false, regla: "universos-no-reconcilian", razon: `no opero «${eA}» contra «${eB}»: son del mismo archivo pero de marcos distintos (${r.razon}). La relación entre stock y venta ya está medida como días de inventario — pídela, no la recalcules` };
+    }
   }
   // regla 2 · unidades verificadas: la operación declara qué acepta, y lo que no opera declina con la razón.
   const uViol = op.unidadesOk(ins);

@@ -89,6 +89,7 @@ function _caso(pregunta, ctx) {
 
 export const askDeCuadro = {
   nombre: "ask-de-cuadro",
+  multidominio: true,   // compone su parte aunque la pregunta haga participar a dos dominios (contrato de dominios, owner 2026-09-14)
 
   cuandoAplica(pregunta, ctx) { return _caso(pregunta, ctx) !== null; },
 

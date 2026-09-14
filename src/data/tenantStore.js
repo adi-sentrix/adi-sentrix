@@ -26,6 +26,10 @@
  * mostrar pantalla antes de `initTenant`: de eso se encarga `main.jsx`, que espera el dato para montar la app.
  */
 import { TENANT_VACIO, esTenantVacio } from "./tenantEmpty.js";
+/* la compatibilidad entre universos la declara el PACK (owner 2026-09-14) y el muro la lee del contrato, que no
+ * conoce al tenant: se registra acá, en la única puerta por la que entra un dataset. figureType es puro y sin
+ * imports, así que esta arista no abre ningún ciclo. */
+import { declararCompatibilidadActiva } from "../config/contract/figureType.js";
 
 let _data = TENANT_VACIO;
 const _rebuilds = [];
@@ -46,6 +50,7 @@ export const onTenantChange = (fn) => { _rebuilds.push(fn); };
 
 export function initTenant(tenant) {
   _data = tenant || TENANT_VACIO;
+  declararCompatibilidadActiva(_data && _data.compatibilidad);   // la declaración del pack, o null → el contrato de siempre
   for (const fn of _rebuilds) fn(_data);
   return _data;
 }

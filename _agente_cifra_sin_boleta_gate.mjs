@@ -29,6 +29,7 @@ import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { vetoCifraSinBoleta } from "./src/adi/agente/cifraSinBoleta.js";
 import { playbookPara } from "./src/adi/agente/playbooks/registro.js";
 import { esTemaComercial } from "./src/adi/agente/contratoComercial.js";
+import { dominiosDe } from "./src/adi/agente/contratoDeDominios.js";   // el contrato de dominios (2026-09-14): el e2e exige una pregunta sin dominio
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
 
 let pass = 0, fail = 0;
@@ -122,8 +123,10 @@ H("3 · una cuenta DECLARADA pasa; la misma cuenta en prosa, no");
    * «Si muevo…» conserva la forma y el «4%» del usuario, y ningún detector la reclama. El guion no cambia. */
   /* RE-APUNTADO 2026-09-13 (contrato comercial): «las ventas» ya llena la boleta ANTES del cerebro en toda pregunta comercial,
    * y este e2e necesita la boleta VACÍA. «El inventario» queda fuera del contrato y de todo procedimiento: misma forma, mismo 4%. */
-  const Q = "Si muevo 4% los días de inventario, ¿qué cambia?";
-  ok(playbookPara(Q, {}) === null && !esTemaComercial(Q), "la pregunta del e2e sigue sin procedimiento y fuera del contrato comercial (boleta vacía de verdad)");
+  /* RE-APUNTADO 2026-09-14 (contrato de dominios): «los días de inventario» ya llena la boleta antes del cerebro —Inventario lee
+   * su foto entera—, y este e2e necesita la boleta VACÍA. «El lead time de proveedores» no es de ningún dominio: misma forma, mismo 4%. */
+  const Q = "Si muevo 4% el lead time de proveedores, ¿qué cambia?";
+  ok(playbookPara(Q, {}) === null && !esTemaComercial(Q) && dominiosDe(Q).dominios.length === 0, "la pregunta del e2e sigue sin procedimiento y fuera de todo contrato de dominio (boleta vacía de verdad)");
   ok(!!juez({ texto: PROSA, figsEnBoleta: 0, pregunta: Q }),
     `★ la cuenta escrita SOLO en prosa, con boleta vacía, se multa (${BASE} × 1.04 = ${RES})`);
   ok(juez({ texto: DECL, figsEnBoleta: 0, pregunta: Q }) === null,

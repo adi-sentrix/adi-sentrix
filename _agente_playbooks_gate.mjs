@@ -1273,7 +1273,8 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   // (b) los pasos NO se ejecutan antes: el cerebro decide a ciegas (el corazón del encargo)
   await carnada("evidencia NO precargada (el cerebro decide a ciegas)", "src/adi/agente/bucleAgente.js",
     // (re-apuntada 2026-09-01: los pasos ahora se resuelven con `pasosDe` — el sitio cambió de nombre, la carnada mide lo mismo)
-    [[/    if \(_rondaDeHerramientas\(_pasosTurno\.map\(\(p\) => \(\{ tool: p\.tool, args: p\.args \|\| \{\} \}\)\), mensajes\)\) \{/,
+    // (re-apuntada 2026-09-14: la ronda previa del contrato de dominios lleva sus opciones — mide lo mismo)
+    [[/    if \(_rondaDeHerramientas\(_pasosTurno\.map\(\(p\) => \(\{ tool: p\.tool, args: p\.args \|\| \{\} \}\)\), mensajes, \{ preRonda: true, compacta: _dom\.dominios\.length >= 2 \}\)\) \{/,
       "    if (false) {"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
@@ -1362,7 +1363,8 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (B) el filtro de SKU retirado: las bodegas vuelven al ranking de «SKU frenado»
   await carnada("SKU frenado con las bodegas adentro", "src/adi/agente/playbooks/lecturaPorEje.js",
-    [[/      \.filter\(\(x\) => x\.entidad && x\.fmt && \(!esSku \|\| esSku\.has\(x\.entidad\)\)\);/, "      .filter((x) => x.entidad && x.fmt);"]],
+    // (re-apuntada 2026-09-14: el filtro suma el catálogo del eje —`delEje`— y la carnada quita SOLO la pertenencia por SKU, que es lo que mide)
+    [[/      \.filter\(\(x\) => x\.entidad && x\.fmt && \(!esSku \|\| esSku\.has\(x\.entidad\)\) && \(!delEje \|\| delEje\.has\(x\.entidad\)\)\);/, "      .filter((x) => x.entidad && x.fmt && (!delEje || delEje.has(x.entidad)));"]],
     async (Mut) => {
       const figs = boletaDelPlaybook(Mut.lecturaPorEje, "bonanza", "qué SKU tienen capital frenado");
       return /Valparaíso|Antofagasta/.test(String(Mut.lecturaPorEje.componer({ figs, pregunta: "qué SKU tienen capital frenado" }) || ""));

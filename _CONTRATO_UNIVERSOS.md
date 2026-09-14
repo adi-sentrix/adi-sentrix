@@ -103,3 +103,23 @@ controles negativos de arriba, que van al gate el mismo día.
 
 1. ¿El contrato de arriba es el correcto, o hay algún cruce que él quiera permitir/prohibir distinto?
 2. ¿Se implementa antes del examen ejecutivo, o el examen se corre con este hueco declarado y medido?
+
+---
+
+## Adenda 2026-09-14 · la divergencia la declara el archivo (owner)
+
+Decisión textual: «Venta ↔ inventario se valida contra el archivo real, no contra una constante del demo… Si hay una
+diferencia temporal —ventas del período cerrado e inventario como foto— debe declararla y limitar la interpretación,
+no fingir que son el mismo tipo de medida.»
+
+- La tabla de pares prohibidos de arriba sigue siendo la verdad **del dato de fábrica**, y ese tenant la declara a
+  mano (`compatibilidad` en `tenants/demo.js`, byte-igual a `DIVERGENCIAS`).
+- Un pack de planilla la **mide** en la ingesta (`motorKpi.js`): moneda cruda en las dos puntas, stock valorizado con el
+  costo de Ventas, días con las unidades de Ventas → estado `comparable`: se relaciona por SKU nombrando los dos marcos
+  («período cerrado» / «foto de inventario al …»), y **nunca se suma**. `reconcilian(a, b)` lee esa declaración; sin ella,
+  cae a `DIVERGENCIAS`.
+- El muro: chequeo 17 bloquea la relación solo en `divergent`; la consolidación se bloquea en `divergent` y `comparable`;
+  el chequeo 17b (`marco-temporal-no-declarado`) exige los dos marcos cuando se relacionan cifras comparables.
+- `calcular` sigue operando solo lo reconciliado: la relación stock ÷ venta ya está medida como días de inventario.
+- El control negativo del §5 se conserva íntegro; se suma: «ELE-CAB25 vendió $14K en el período cerrado y tiene $28K en
+  stock en la foto al 31-08» debe PASAR en un pack de planilla, y «sumando ambos, $42K» debe MORIR en todos.
