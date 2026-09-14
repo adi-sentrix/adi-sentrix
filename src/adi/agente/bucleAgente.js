@@ -64,7 +64,7 @@ import { playbookPara, pasosDe, promesasCumplidas, doctrinaDelPlaybook, vetosDel
 import { anclaDelCuadro } from "./playbooks/cuadroExplicado.js";   // el cuadro abierto persiste en la memoria del hilo (owner 2026-09-08: «profundiza en…»)   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
 import { serieRealDe } from "../sentrix/capability.js";
 import { buildRolesCartera } from "../sentrix/rolesCartera.js";
-import { partesDelEncargo, pasosDelEncargo, componerEncargo } from "./encargoCompuesto.js";
+import { partesDelEncargo, pasosDelEncargo, componerEncargo, doctrinaDelEncargo } from "./encargoCompuesto.js";
 import { dominiosDe, pasosDeDominios, unirPasosDeDominios, doctrinaDeDominios } from "./contratoDeDominios.js";   // la pregunta determina qué dominios participan (owner 2026-09-14) — generaliza el contrato comercial   // toda pregunta comercial parte de la misma realidad comercial (owner 2026-09-13)   // el peldaño del encargo compuesto (owner 2026-09-11): cobertura garantizada cuando el cerebro cae   // las huellas con sello del turno: el juez compartido las lee para no aceptar un mecanismo afirmado sin su sello (owner 2026-09-11)
 import { getTenantId, getTenantData } from "../../data/tenantStore.js";   // getTenantData: el contexto que el negocio declaró — la ley del porqué lo cita en vez de repreguntar   // la semilla de variación: tenant + pregunta + largo del hilo
 
@@ -828,9 +828,16 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       /* y las doctrinas de los dominios que participan (la comercial: las conclusiones del procedimiento — margen-en-
        * riesgo ya las manda con la suya, ahí no se duplican; la de inventario; la de cobranza; y la de cruce) */
       if (_pasosContrato.length) {
-        for (const _d of doctrinaDeDominios(_dom, figsTotales, { playbookActivo: playbookActivo ? playbookActivo.nombre : null })) {
+        for (const _d of doctrinaDeDominios(_dom, figsTotales, { playbookActivo: playbookActivo ? playbookActivo.nombre : null, encargo: _partesEncargo.length >= 2 })) {
           if (_d) mensajes.push({ role: "user", content: _d });
         }
+      }
+      /* LA DOCTRINA DEL ENCARGO (owner 2026-09-14): con dos o más partes pedidas, el cerebro recibe la lista completa de
+       * lo pedido, la ley de cobertura («el foco ordena, no elimina»), las claves de unión válidas y el cierre integrado.
+       * El contrato cobra la misma lista (`parte-del-encargo-omitida`), y el ensamblador la compone si el cerebro cae. */
+      if (_partesEncargo.length >= 2) {
+        const _de = (() => { try { return doctrinaDelEncargo(_partesEncargo, _dom.dominios); } catch { return ""; } })();
+        if (_de) mensajes.push({ role: "user", content: _de });
       }
     }
   }
@@ -996,7 +1003,22 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * corrió con «vetos: ninguno» en los 28 veredictos mientras 14 turnos reintentaban por guard, y el post-mortem
    * quedó a ciegas justo en los turnos degradados. El registro es OBSERVACIÓN pura: no decide nada. */
   const vetosDelTurno = [];
-  const _multaDe = (v) => (v && (v.multa || (v.violations || []).map((x) => x.detalle || x.detail || x.reason || x).join("\n"))) || "cifras no verificables";
+  /* «250 d» A SECAS NO SE PUEDE REPARAR (encargo en vivo, 2026-09-14): el muro vetó «el vencido de Lider y Sodimac con más
+   * de 250 días» (269d y 251d en la boleta: una cifra redondeada que no existe en el dato) y la multa llevaba solo «250 d»,
+   * sin decir qué estaba mal; el modelo reparó todo lo demás y repitió la frase — y un borrador completo cayó al respaldo.
+   * El veredicto no cambia y el expediente tampoco (el rastro sigue diciendo «cierre · 250 d»): cambia lo que se le
+   * dice AL MODELO. Una cifra no autorizada viaja con su regla: ni inventada ni redondeada, tal cual está en la boleta
+   * o fuera. */
+  const _detalleDe = (x) => (x && (x.detalle || x.detail || x.reason || x));
+  const _explicado = (x) => {
+    const d = _detalleDe(x);
+    if (x && x.kind === "cifra-no-autorizada" && typeof d === "string" && !/ — /.test(d)) {
+      return `«${d}» no está en tus resultados: ni inventada ni redondeada — un redondeo o un «más de» no vale; cita cada cifra tal cual está en la boleta, con su dueño, o quita la frase.`;
+    }
+    return d;
+  };
+  const _multaDe = (v) => (v && (v.multa || (v.violations || []).map(_detalleDe).join("\n"))) || "cifras no verificables";
+  const _multaParaElModelo = (v) => (v && (v.multa || (v.violations || []).map(_explicado).join("\n"))) || "cifras no verificables";
   /* LA PREVIA DEL HILO COMO BOLETA (owner 2026-09-10, su prueba de continuidad): el piso de reformular re-dice
    * un texto que ADI ya sirvió y el muro ya aprobó en su turno. Es el MISMO canal que usa el respaldo
    * (`boletaAnterior`, guardC §Paso 1b) y por la misma razón; lo que cambia es de dónde sale el texto: del
@@ -1028,7 +1050,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       if ((sitio === "cierre" || sitio === "reparacion") && v) {
         const vc = (() => { try { return _otrosJueces(t, sitio); } catch { return []; } })();
         if (vc.length) {
-          v.multaCompleta = `${_multaDe(v)}\n${vc.map((x) => x.multa).join("\n")}`;
+          v.multaCompleta = `${_multaParaElModelo(v)}\n${vc.map((x) => x.multa).join("\n")}`;
           v.reglasContrato = vc.map((x) => x.regla);
         }
       }
@@ -1115,7 +1137,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
        * y el reintento reformulaba a ciegas. Cazado al escribir el chequeo de P1b (corrida 2). */
       /* la multa COMPLETA al modelo (muro + contrato + notarial, ver `juzgar`): una sola reparación, con todo lo que
        * ardió. La escalada y la poda siguen leyendo la del muro, que es la que nombra cifras. */
-      const multa = (v1 && v1.multaCompleta) || _multaDe(v1);
+      const multa = (v1 && v1.multaCompleta) || _multaParaElModelo(v1);
       /* (ii) DE P2 (owner 2026-08-31, con medición previa): R-eco corta la escalada estéril —la de la corrida
        * 2, 66% del gasto y CERO verdes—, pero le quitaba la escalada a un veto que SÍ era reparable: T10 murió
        * porque el tier barato devolvió el mismo texto ante «1%». La condición vuelve a la regla que R-eco

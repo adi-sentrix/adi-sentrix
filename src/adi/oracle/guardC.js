@@ -485,6 +485,19 @@ function _metricBindingViolations(narration, ledger) {
     const cut = masked.slice(end, hi0).search(_SENT_END);
     const hi = cut >= 0 ? end + cut : hi0;
     const cercaTodas = _metricasEn(text.slice(lo, hi));
+    /* ── LA MÉTRICA DUEÑA NOMBRADA JUSTO DESPUÉS DE LA CIFRA LA DESCRIBE (encargo en vivo, 2026-09-14) ─────────────
+     * Falso positivo MEDIDO en el borrador del modelo —completo y correcto— que cayó al respaldo: «$588K corresponde
+     * al efecto de la carga comercial excedida y $4.4M al componente de precio y costo combinados» → «$4.4M narrado
+     * como carga, pero pertenece a costo». La mención de atrás («carga comercial», a 13 caracteres) atribuía; la de
+     * adelante («precio y costo», la dueña real) no, porque «al componente de» no es un conector puro. Cuando la métrica
+     * dueña está nombrada a continuación de la cifra, en su misma oración y sin otra cifra entre medio, la cifra está
+     * bien atribuida: esa es la forma distributiva del español («$X a A y $Y a B»). Solo exime con la métrica DUEÑA
+     * (una ajena a continuación no cambia nada), en el sentido de siempre de la casa: falso negativo antes que falso
+     * positivo. «tu carga comercial es $4.4M» sigue ardiendo — no hay dueña después. */
+    {
+      const _tramo = Math.min(hi, end + 45);
+      if (!/#/.test(masked.slice(end, _tramo)) && [..._metricasEn(text.slice(end, _tramo))].some((m) => ownerSet.has(m))) continue;
+    }
     /* ── LA MENCIÓN DE DESPUÉS ATRIBUYE SOLO SI ESTÁ PEGADA POR UN CONECTOR (prompt de gerente, 2026-09-13) ──
      * Tercer falso positivo de esta familia en dos días, y el que tumbó el cierre del modelo: «La venta creció
      * +7.5% contra el año anterior a $99.9M, pero el margen promedio de la cartera quedó en 25.1%» → «$99.9M
@@ -606,7 +619,10 @@ const _CONECTOR_ATRAS = /^[\s,]*(?:de(?:l)?|de\s+(?:la|tu|su)|en)?\s*$/i;
  * cifra en medio). Medido (2026-09-13): el conector puro solo tumbaba «El margen: $655K — es lo que se cede en
  * acciones comerciales» del composer de alternativas, que es descripción legítima. */
 const _ABRE_OTRA_AFIRMACION = /;|(?<![\wáéíóúñ])(?:pero|y|e|aunque|mientras|sin embargo|en cambio|adem[aá]s|tambi[eé]n|ni|o|u|con|contra|frente a|versus|vs\.?|salvo|excepto)(?![\wáéíóúñ])/i;
-const _tramoDescriptivo = (tramo, tramoMasked) => !tramoMasked.includes("#") && !_SENT_END.test(tramoMasked) && !_ABRE_OTRA_AFIRMACION.test(tramo);
+/* y la cifra que cierra un paréntesis —«Jumbo (24.0%) — tus tres motores de crecimiento —»— la describe lo que va DENTRO
+ * del paréntesis o lo que lo precede, nunca lo que sigue al cierre: medido 2026-09-14 (encargo en vivo), el margen de
+ * Jumbo salía «narrado como variación» por la aposición de los sujetos que venía después */
+const _tramoDescriptivo = (tramo, tramoMasked) => !/^\s*\)/.test(tramo) && !tramoMasked.includes("#") && !_SENT_END.test(tramoMasked) && !_ABRE_OTRA_AFIRMACION.test(tramo);
 function _todasLasMencionesTomadas(args) { return _mencionesLibres(args).length === 0; }
 /* las menciones de `unica` en la ventana que NO están tomadas por otra cifra — la distancia a la cifra juzgada se mide solo
  * sobre ellas (corrida 4 del prompt de gerente, 2026-09-13): «el negocio creció: la venta subió 7.5% contra el año anterior

@@ -176,6 +176,31 @@ el cruce contra la carpeta real. Antes de pantalla:
      «17 días» se lee entero (`_finDeCifra`). Medido: el primer borrador de «¿los SKU que más vendo son los que más
      capital me inmovilizan?» era correcto y cayó dos veces por «17d»/«15d» «pegadas a otra entidad»; hoy pasa. Lo
      que NO afloja: «Lider vende $19.4M» (de Falabella) sigue ardiendo, con el dueño cerca o lejos.
+
+   **La cobertura del encargo multidominio** (owner 2026-09-14, tras la prueba real en producción v2.28: pidió
+   Comercial + Inventario + Cobranza juntos y recibió solo margen; fixture `fixtures/encargo-produccion-2026-09-14.json`,
+   candado `_cobertura_del_encargo_gate`). Textual: *«si el usuario pide Comercial + Inventario + Cobranza, la respuesta
+   final debe cubrir Comercial + Inventario + Cobranza, tanto si responde el modelo como si termina en respaldo»* · *«en
+   una pregunta simple está bien responder selectivamente; en un encargo múltiple, "foco" significa ordenar y jerarquizar,
+   no eliminar dominios pedidos»* · *«una sola lectura: no quiero tres miniinformes pegados… relacionar los dominios cuando
+   existan claves válidas y terminar con una conclusión/prioridad común»* · *«si el modelo cae, el respaldo puede ser
+   menos elegante, pero nunca menos completo»*.
+   - Las partes de un encargo viven en UNA hoja (`partesDelEncargo.js`), cada una con su dominio, su pregunta canónica y
+     las marcas con las que se verifica su cobertura: las seis comerciales de la 2.27 más quién empuja el crecimiento,
+     las unidades, el cruce por SKU, el inventario y la cobranza. El ensamblador compone esa lista y el contrato cobra la
+     misma lista (`parte-del-encargo-omitida`): al cerebro y al ensamblador; a los peldaños de abajo no (último recurso).
+   - Una parte se cubre atendiéndola con el dato o declarándola en una línea; desaparecer, no. Una pregunta simple de
+     dos dominios no es un encargo: ahí la selectividad sigue permitida.
+   - El cerebro recibe la doctrina del encargo (la lista completa, «el foco ordena, no elimina», las claves válidas —SKU
+     entre venta e inventario, cliente entre venta y cobranza; cliente ↔ inventario no existe— y el cierre común), y en
+     un encargo el cruce ya no dice «usa el otro dominio SOLO cuando cambie la lectura». El entregable del procedimiento
+     activo es UNA parte; el entregable del turno es el encargo.
+   - El respaldo abre con la lectura conjunta, compone la cobranza CRUZADA por cliente con la venta (misma mesa, misma
+     cuenta), el cruce por SKU con sus dos marcos, y cierra con UNA prioridad integrada con su criterio dicho: primero la
+     cuenta donde coinciden dos dominios con clave real, después el mayor monto de cada dominio; las cifras de dominios
+     distintos no se suman ni se comparan.
+   Medido con cerebro mudo (prompt de producción + tres equivalentes de 2 y 3 dominios): dominios pedidos = dominios
+   cubiertos, ninguna parte desaparece, ningún cliente relacionado con inventario, una sola prioridad, cero vetos.
 2. **¿Cada cálculo se puede recalcular?** La fórmula mostrada se recomputa. No cuadra o no muestra origen →
    bloqueado.
 3. **¿Cada clasificación existe?** «Frenado», «bajo benchmark», «crítico»: solo los estados que la carpeta

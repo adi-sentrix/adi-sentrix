@@ -12,6 +12,41 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.29 — lista para desplegar
+
+**Si el usuario pide tres dominios, la respuesta no puede terminar siendo de uno solo.** La prueba real del owner en
+producción v2.28 —«mira ventas, contribución, margen, unidades, inventario y cobranza juntos… qué clientes o SKU empujan
+el crecimiento, cuáles deterioran el resultado, si estoy acumulando stock donde no corresponde, si alguno de mis
+principales clientes también es riesgo de cobranza y dónde pondrías el foco primero»— recibió solo margen y contribución.
+No era routing (los tres dominios entraron) ni evidencia (el modelo recibió todo): el modelo cayó y el respaldo del
+encargo compuesto solo conocía partes comerciales. Esta versión es la garantía transversal que el owner fijó.
+
+- **Cobertura del encargo, para los dos caminos.** Las partes de un encargo viven en una sola hoja con su dominio —las
+  seis comerciales de la 2.27 más quién empuja el crecimiento, las unidades, el cruce por SKU, el inventario y la
+  cobranza— y la misma lista la compone el respaldo y la cobra el contrato al modelo (`parte-del-encargo-omitida`):
+  una parte se cubre atendiéndola con el dato o declarándola en una línea; desaparecer, no. Una pregunta simple de dos
+  dominios sigue pudiendo responderse selectivamente: la ley existe solo para encargos múltiples.
+- **El foco ordena, no elimina.** El cerebro recibe la doctrina del encargo (la lista completa de lo pedido, las claves
+  de unión válidas —SKU entre venta e inventario, cliente entre venta y cobranza; cliente ↔ inventario no existe— y el
+  cierre común), y en un encargo el cruce ya no le dice «usa el otro dominio solo cuando cambie la lectura». El entregable
+  del procedimiento activo es una parte; el entregable del turno es el encargo entero.
+- **Una sola lectura, con prioridad común.** El respaldo abre con la lectura conjunta, compone la cobranza cruzada por
+  cliente con la venta, el cruce por SKU con sus dos marcos, y cierra con una sola lista de prioridad con su criterio
+  dicho: primero la cuenta donde coinciden dos dominios con clave real, después el mayor monto de cada dominio — sin
+  sumar ni comparar cifras de dominios distintos. Menos elegante que el modelo, nunca menos completo.
+- **Y el modelo, cuando responde bien, se sirve.** En la corrida en vivo del mismo prompt el modelo cubrió las nueve
+  partes en una sola lectura; lo tumbaron un redondeo que no está en la boleta («más de 250 días» por 269 y 251) —veto
+  legítimo, pero la multa decía «250 d» a secas y no se podía reparar— y dos falsos positivos del muro («$4.4M narrado
+  como carga» con «precio y costo» a continuación; «24.0%» dentro de un paréntesis leído con la aposición que sigue). Los
+  tres cierres quedaron con esa corrida como fixture: con la multa explicada, la reparación del modelo se sirve entera.
+
+**Resultado medido:** el prompt de producción y tres equivalentes de dos y tres dominios, con cerebro mudo: dominios
+pedidos = dominios cubiertos, ninguna parte desaparece, cruces solo por SKU y por cliente, una prioridad integrada, cero
+vetos; y el camino del modelo con los borradores vivos: cobertura completa y servido como reparación. Suite completa en
+verde, sin tocar la red.
+
+---
+
 ## 2.28 — producción · tag `v2.28`
 
 **Los dominios se componen, y el cruce responde con lo medido.** Hasta acá una pregunta que cruzaba dos dominios

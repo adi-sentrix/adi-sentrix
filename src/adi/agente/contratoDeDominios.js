@@ -182,9 +182,13 @@ export function doctrinaCobranza(figs) {
 }
 
 /** la doctrina de CRUCE: claves, compatibilidad declarada por el pack, marcos, y lo que no se relaciona. */
-export function doctrinaDeCruce({ dominios = [], eje = null } = {}) {
+export function doctrinaDeCruce({ dominios = [], eje = null } = {}, { encargo = false } = {}) {
   if (dominios.length < 2) return "";
-  const L = [`[CRUCE DE DOMINIOS — no es el usuario] Participan ${dominios.join(" + ")}. La pregunta define el foco: responde ese foco y usa el otro dominio SOLO cuando cambie o explique la lectura — no lo vuelques.`];
+  /* «el foco no puede borrar partes explícitas del encargo» (owner 2026-09-14): en una pregunta simple el otro dominio
+   * entra solo si cambia la lectura; en un encargo que pide los dominios, todos entran y el foco los ORDENA */
+  const L = [encargo
+    ? `[CRUCE DE DOMINIOS — no es el usuario] Participan ${dominios.join(" + ")}, pedidos explícitamente por el usuario: todos entran en la respuesta; el foco de la pregunta los ordena y jerarquiza, no elimina ninguno.`
+    : `[CRUCE DE DOMINIOS — no es el usuario] Participan ${dominios.join(" + ")}. La pregunta define el foco: responde ese foco y usa el otro dominio SOLO cuando cambie o explique la lectura — no lo vuelques.`];
   if (dominios.includes("comercial") && dominios.includes("inventario")) {
     const r = (() => { try { return reconcilian("venta_comercial", "inventario"); } catch { return { estado: "divergent", razon: "" }; } })();
     const m = r.marcos || {};
@@ -206,7 +210,7 @@ export function doctrinaDeCruce({ dominios = [], eje = null } = {}) {
 }
 
 /** doctrinaDeDominios({ dominios, eje }, figs, { playbookActivo }) → los bloques a empujar, en orden fijo. */
-export function doctrinaDeDominios({ dominios = [], eje = null } = {}, figs = [], { playbookActivo = null } = {}) {
+export function doctrinaDeDominios({ dominios = [], eje = null } = {}, figs = [], { playbookActivo = null, encargo = false } = {}) {
   const out = [];
   const multi = dominios.length >= 2;
   if (dominios.includes("comercial") && (!eje || multi) && (!playbookActivo || playbookActivo !== "margen-en-riesgo")) {
@@ -214,7 +218,7 @@ export function doctrinaDeDominios({ dominios = [], eje = null } = {}, figs = []
   }
   if (dominios.includes("inventario")) { const di = doctrinaInventario(figs); if (di) out.push(di); }
   if (dominios.includes("cobranza") && playbookActivo !== "cobranza") { const dco = doctrinaCobranza(figs); if (dco) out.push(dco); }
-  if (multi) out.push(doctrinaDeCruce({ dominios, eje }));
+  if (multi) out.push(doctrinaDeCruce({ dominios, eje }, { encargo }));
   return out;
 }
 

@@ -1,0 +1,30 @@
+{
+  "fecha": "2026-09-14",
+  "tenant": "demo",
+  "version": "2.28 (producción, commit 5ce81bd)",
+  "nota": "La prueba real del owner en producción v2.28: pidió Comercial + Inventario + Cobranza juntos y recibió solo margen/contribución. El texto es el que compuso el respaldo «encargo-compuesto» (reproducido offline con cerebro mudo, byte por byte igual a la captura): el modelo cayó y el ensamblador solo conocía partes comerciales.",
+  "pregunta": "Estoy vendiendo más, pero quiero saber si ese crecimiento realmente está siendo sano. Mira ventas, contribución, margen, unidades, inventario y cobranza juntos. Dime qué clientes o SKU están empujando el crecimiento, cuáles están deteriorando el resultado, si estoy acumulando stock donde no corresponde, si alguno de mis principales clientes también representa riesgo de cobranza y dónde pondrías el foco primero. Separa qué puedes demostrar, qué solo está indicado y qué todavía no sabes.",
+  "respuesta_observada": {
+    "estado": "encargo-compuesto",
+    "dominios_detectados": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "texto": "Tu margen promedio viene en 25.1% — 5.0 pp bajo el benchmark que declaraste (30.1%). 8 de tus clientes están bajo esa referencia.\n\nDonde más contribución dejas sin capturar — los 3 de los 8 que más pesan:\n- Falabella · deja $1.6M sin capturar · margen 22.0% · venta $19.4M\n- Lider · deja $1.5M sin capturar · margen 21.5% · venta $17.8M\n- Jumbo · deja $1.1M sin capturar · margen 24.0% · venta $17.3M\n\nEntre los que caen, la contribución no capturada suma $4.9M.\nDónde está: en carga comercial alta, $655K — la más pesada es la de Falabella ($194K).\n\n¿Lo abrimos por Falabella? Es donde hay más contribución en juego.\n\nLo que puedo demostrar y lo que no, mecanismo por mecanismo:\n- acciones comerciales sobre el nivel de referencia — esto está medido: 6 de los que caen la tienen sobre el 3.5%\n- volumen a margen bajo — esto el dato no lo prueba, queda abierto: ningún cliente del tramo alto cae sin carga excedida\n- precio de lista pegado al costo — el patrón apunta ahí, sin prueba todavía: los que caen tienen el precio más pegado al costo que los sanos (markup promedio 41.4% contra 57.3%)\n- mix de lo que cada cliente compra — esto el dato no lo prueba, queda abierto: tu dato no cruza cliente con familia. Para cerrarlo: agregar la familia (o la línea de producto) a cada fila de venta en la planilla — con eso el mix deja de ser hipótesis y pasa a cuenta.\nY lo que ninguna columna puede probar es la intención: ¿El volumen de Falabella y Jumbo a ese margen es una apuesta tuya —rotación y liquidez— o se te fue de las manos? Eso lo sabes tú, no el dato."
+  },
+  "dominios_pedidos": [
+    "comercial",
+    "inventario",
+    "cobranza"
+  ],
+  "partes_pedidas": [
+    "si el crecimiento es sano (foto)",
+    "qué clientes o SKU empujan el crecimiento",
+    "cuáles deterioran el resultado",
+    "stock acumulado donde no corresponde",
+    "principales clientes con riesgo de cobranza",
+    "dónde poner el foco primero",
+    "qué está demostrado, indicado y abierto"
+  ]
+}

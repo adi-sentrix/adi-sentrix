@@ -1,5 +1,7 @@
 import { catalogoAgente } from "./catalogoAgente.js";   // R8 · los identificadores internos jamás van a pantalla (lazy: nada se deriva al importarse)
 import { atributoMalAsociado, relacionEnPalabrasNoCierra } from "./atributosYRelaciones.js";   // el atributo (bodega/marca/familia/canal) y la relación dicha en palabras, contra el dato (owner 2026-09-14)
+import { esEncargoCompuesto, partesDelEncargo, coberturaDelEncargo } from "./partesDelEncargo.js";   // las partes de un encargo, por dominio: el ensamblador compone la misma lista que acá se cobra (owner 2026-09-14)
+export { esEncargoCompuesto };   // re-exportado sin cambiar: registro.js y el ensamblador lo toman de acá
 /* === src/adi/agente/contratoAgente.js · LA LETRA DEL CONTRATO Y SU VETO MECÁNICO (F3 · owner 2026-08-30) =====
  *
  * DOS PIEZAS, deliberadamente juntas (la letra y su candado se leen en la misma página):
@@ -541,6 +543,24 @@ export function vetosDeRegistro(texto, contexto = {}) {
   if (_atr) v.push({ regla: "atributo-mal-asociado", multa: _atr });
   const _rel = (() => { try { return relacionEnPalabrasNoCierra(texto); } catch { return null; } })();
   if (_rel) v.push({ regla: "relacion-en-palabras-no-cierra", multa: _rel });
+  /* ── LA COBERTURA DEL ENCARGO (owner 2026-09-14, la prueba real en producción v2.28) ───────────────────────────
+   * «si el usuario pide Comercial + Inventario + Cobranza, la respuesta final debe cubrir Comercial + Inventario +
+   * Cobranza, tanto si responde el modelo como si termina en respaldo» · «en un encargo múltiple, "foco" significa
+   * ordenar y jerarquizar, no eliminar dominios pedidos». Las partes son las de partesDelEncargo.js —las mismas que
+   * el ensamblador compone—; una parte se cubre atendiéndola con el dato o declarándola en una línea. Se cobra al
+   * cerebro y al ensamblador (los dos caminos, la misma cobertura); a los peldaños de abajo no, porque son el
+   * último recurso: quitarles la respuesta parcial dejaría al usuario sin nada. Una pregunta simple no es un
+   * encargo: sin dos partes pedidas esta regla no existe. */
+  const _sitioEc = contexto.sitio || "";
+  if (!_sitioEc || _sitioEc === "cierre" || _sitioEc === "reparacion" || _sitioEc === "poda" || _sitioEc === "encargo-compuesto") {
+    const _partes = (() => { try { return partesDelEncargo(contexto.pregunta); } catch { return []; } })();
+    if (_partes.length >= 2) {
+      const _faltan = coberturaDelEncargo(texto, _partes);
+      if (_faltan.length) {
+        v.push({ regla: "parte-del-encargo-omitida", multa: `el encargo pidió ${_partes.length} cosas y la respuesta deja fuera ${_faltan.length}: ${_faltan.map((p) => `«${p.nombre}»`).join(" · ")}. En un encargo múltiple el foco ordena y jerarquiza, no elimina una parte pedida: cubre cada una con lo que la boleta trae (o di en una línea que ese dato no está), en una sola lectura, y cierra con la prioridad común.` });
+      }
+    }
+  }
   return v;
 }
 
@@ -940,20 +960,8 @@ export function vetosDeContrato(texto, contexto = {}) {
  * responde el procedimiento determinístico, que ya habla bien—. Se juzga al cerebro, no a los peldaños. */
 const _PIDE_DETALLE = /\bdetalle|\bdetallad|\bdesgl[oó]s|\ba fondo\b|\bcomplet[oa]\b|\buno por uno\b|\bcuenta por cuenta\b|\bcliente por cliente\b|\bsku por sku\b|\bpara el analista\b|\bcon todo\b|\bpaso a paso\b|\bm[aá]s (?:largo|extenso)\b|\bexti[eé]ndete\b|\bexpl[aá]yate\b/i;
 const _PIDE_LISTA = /\bcu[aá]l(?:es)?\b|\bqui[eé]n(?:es)?\b|\bqu[eé] (?:clientes|cuentas|sku|productos|bodegas|familias|canales)\b|\branking\b|\btop\b|\blos (?:\d+|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b|\btod[oa]s\b|\bcada\b|\blista\b|\bl[ií]stame\b|\btabla\b|\ben vi[ñn]etas\b|\benum[eé]ra/i;
-/* ── EL ENCARGO COMPUESTO ES UNA SOLICITUD DE PROFUNDIDAD (owner 2026-09-11) ──────────────────────────────
- * «Dime cómo va, qué está explicando el resultado, qué clientes presionan, qué puedes demostrar y qué harías
- * primero» enumera lo que quiere saber: ya está pidiendo ese detalle. Con «el detalle se ofrece, no se
- * despliega» el modelo respondería de menos. Se cuenta la enumeración: tres o más preguntas parciales en un
- * mensaje largo. Las interrogativas con tilde valen en cualquier parte; sin tilde, solo al arranque de una
- * cláusula («, que…» «y que…» «¿que…»), para que un «que» conjunción no cuente. */
-/* ⚠️ sin `\b` tras la tilde: «qué\b» no encuentra «qué » nunca (la trampa de siempre de esta casa) — los bordes
- * se escriben con las clases que sí conocen la tilde y la ñ */
-const _INTERROGATIVA = /(?<![\wáéíóúñ])por qu[eé](?![\wáéíóúñ])|(?<![\wáéíóúñ])(?:qué|cuál(?:es)?|cuánt[oa]s?|quién(?:es)?|cómo|dónde|cuándo)(?![\wáéíóúñ])|(?:^|[,;:¿]\s*|(?<![\wáéíóúñ])y\s+)(?:que|cual(?:es)?|cuant[oa]s?|quien(?:es)?|como|donde|cuando)(?![\wáéíóúñ])|(?<![\wáéíóúñ])si (?:es|era|fue|son|hay|viene|vienen|est[aá]n?|conviene|se debe)(?![\wáéíóúñ])/gi;
-export function esEncargoCompuesto(pregunta) {
-  const q = String(pregunta || "");
-  if (q.trim().split(/\s+/).length < 12) return false;
-  return (q.match(_INTERROGATIVA) || []).length >= 3;
-}
+/* EL ENCARGO COMPUESTO ES UNA SOLICITUD DE PROFUNDIDAD (owner 2026-09-11): `esEncargoCompuesto` se movió SIN CAMBIAR UNA
+ * COMA a partesDelEncargo.js (la hoja que comparten el ensamblador y este contrato) y acá se re-exporta. */
 export const pideDetalle = (pregunta) => _PIDE_DETALLE.test(String(pregunta || "")) || esEncargoCompuesto(pregunta);
 export const pideLista = (pregunta) => _PIDE_LISTA.test(String(pregunta || ""));
 const _ES_ITEM = /^\s*(?:[-·•*]|\d{1,2}[.)])\s+/;

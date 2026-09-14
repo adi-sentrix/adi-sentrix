@@ -118,6 +118,16 @@ Derivadas que se rompen seguido:
   `premisa-adoptada` veta el «Sí» complaciente; (4) una respuesta buena del modelo no se degrada por falsos positivos:
   el sujeto de la oración es el dueño por defecto, la coordinación «A y B … (x y y)» asigna por orden y «17 días» se lee
   entero. Ambos jueces nuevos viven en `src/adi/agente/atributosYRelaciones.js` y se cobran en `vetosDeRegistro`.
+- **La cobertura del encargo multidominio** (owner 2026-09-14, tras la prueba real en producción v2.28; ley en
+  `_CONSTITUCION_ADI.md`, fixture `fixtures/encargo-produccion-2026-09-14.json`, candado `_cobertura_del_encargo_gate`):
+  «si el usuario pide Comercial + Inventario + Cobranza, la respuesta final debe cubrir los tres, responda el modelo o el
+  respaldo»; «en un encargo múltiple, foco significa ordenar y jerarquizar, no eliminar dominios pedidos»; «una sola
+  lectura… con una prioridad común»; «el respaldo puede ser menos elegante, nunca menos completo». Las partes del encargo
+  (con su dominio) viven en `src/adi/agente/partesDelEncargo.js` —la hoja que comparten el ensamblador
+  (`encargoCompuesto.js`) y el contrato (`parte-del-encargo-omitida` en `vetosDeRegistro`, cobrada al cerebro y al
+  ensamblador)—; el cerebro recibe la doctrina del encargo y el cruce ya no le dice «SOLO cuando cambie la lectura». Una
+  pregunta simple de dos dominios no es un encargo: la selectividad sigue permitida. ⚠️ El 20×3 no vio este caso porque
+  ninguna de las 20 es un encargo compuesto y medía dominios en la BOLETA, no en la RESPUESTA.
 
 ---
 

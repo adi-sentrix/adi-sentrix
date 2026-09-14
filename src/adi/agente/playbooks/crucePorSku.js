@@ -18,6 +18,7 @@ import { dominiosDe } from "../contratoDeDominios.js";
 import { esPorQue } from "../porque.js";
 import { nombraEntidad } from "./indiceEntidades.js";
 import { reconcilian } from "../../../config/contract/figureType.js";
+import { axisEntityNames } from "../../oracle/entityIndex.js";   // las bodegas del dato: «capital frenado» también se publica por bodega y no es un SKU
 
 const _FIN = "(?![a-záéíóúüñ])";
 const _lab = (f) => String((f && f.label) || "");
@@ -51,7 +52,11 @@ function _caso(pregunta) {
 function _lectura(figs) {
   const stock = new Map(_all(figs, /· Stock$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
   const dias = new Map(_all(figs, /· (?:Cobertura \(DOH\)|D[ií]as de inventario)$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
-  const frenados = new Map(_all(figs, /· Capital frenado$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
+  /* «Capital frenado» se publica por SKU Y por bodega (Valparaíso · Capital frenado): en el cruce por SKU solo cuentan los
+   * SKU — medido 2026-09-14 en el ensamblador del encargo, donde la boleta trae las bodegas antes que los SKU y el texto
+   * decía «el capital frenado está en Valparaíso, Antofagasta, LG-DRYER8KG» */
+  const bodegas = new Set((() => { try { return axisEntityNames("bodega"); } catch { return []; } })());
+  const frenados = new Map(_all(figs, /· Capital frenado$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]).filter(([e]) => e && !bodegas.has(e)));
   const capital = _all(figs, /· Valor de inventario$/i).map((f) => ({ sku: _entidadDe(_lab(f)), fmt: _val(f), n: _num(f) })).filter((x) => x.sku && Number.isFinite(x.n)).sort((a, b) => b.n - a.n);
   const esSku = new Set([...stock.keys(), ...dias.keys(), ...frenados.keys(), ...capital.map((x) => x.sku), ..._all(figs, /· (?:Capital|Unidades en stock)$/i).map((f) => _entidadDe(_lab(f)))].filter(Boolean));
   const ventas = _all(figs, /· Venta$/i).map((f) => ({ sku: _entidadDe(_lab(f)), fmt: _val(f), n: _num(f) })).filter((x) => x.sku && stock.has(x.sku)).sort((a, b) => b.n - a.n);
