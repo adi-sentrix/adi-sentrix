@@ -32,7 +32,7 @@ import { findCandidates } from "../oracle/entityIndex.js";
  * de carga comercial» llegaron a nombrar la MISMA cifra con dos palabras, y una de ellas prohibida en superficie. */
 import { REFERENCIA_CAMPO } from "../oracle/entityRecord.js";
 import { fig, parseFigures } from "../boleta.js";   // parseFigures se usa como FORMATEADOR (ver `_m` en proyectar): la técnica de la casa, jamás una copia
-import { parseCounts } from "../oracle/guardC.js";   // `cuadroSentrix` · el MISMO lector de conteos del muro: lo que el notario busca es lo que la frase del cuadro autoriza
+import { parseCounts, normalizarSignos } from "../oracle/guardC.js";   // `cuadroSentrix` · el MISMO lector de conteos del muro: lo que el notario busca es lo que la frase del cuadro autoriza · y el MISMO normalizador de signos: el raw viaja con su signo
 import { fmtMonto, simboloMoneda } from "../../config/moneda.js";
 import { nombreDePeriodo } from "../../ingesta/historico.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
@@ -453,8 +453,13 @@ export function cuadroSentrix(args = {}, ctx = {}) {
   const I = L.identidad;
   const boleta = [];
   const _ctx = `del cuadro «${I.cuadro}» de la cara ${I.cara}${I.periodo ? ` · ${I.periodo}` : ""} — la misma cifra que está en pantalla`;
-  /* la unidad y el crudo salen del parser del muro; un conteo entero no lleva símbolo y se declara `count`. */
-  const _emitir = (label, valor, extra = {}) => {
+  /* la unidad y el crudo salen del parser del muro; un conteo entero no lleva símbolo y se declara `count`.
+   * ⚠️ EL SIGNO SE NORMALIZA ANTES DE PARSEAR (owner 2026-09-14, fronteras del Notario): la pantalla escribe las caídas
+   * con el menos tipográfico («−8.2%», «−$422K») y `parseFigures` solo conoce el «-» ASCII — el raw salía POSITIVO (8.2)
+   * y el canon con el signo raro («pct:−8.2%»), así que «Ripley crece 8.2%» sobre una caída de 8.2% pasaba el muro. El
+   * valor se publica con el signo ASCII y el raw con su signo; la pantalla conserva su tipografía. */
+  const _emitir = (label, valor0, extra = {}) => {
+    const valor = normalizarSignos(valor0);
     const tok = (() => { try { return parseFigures(valor)[0] || null; } catch { return null; } })();
     const n = Number(String(valor).replace(",", "."));
     boleta.push(fig(label, valor, {
@@ -491,7 +496,8 @@ export function cuadroSentrix(args = {}, ctx = {}) {
    * «conteo-no-autorizado» — el muro vetando una frase que está impresa en la pantalla. */
   for (const t of L.textos) {
     let toks = [];
-    try { toks = [...(parseFigures(t.texto) || []), ...(parseCounts(t.texto) || [])]; } catch { toks = []; }
+    const _texto = normalizarSignos(t.texto);   // la frase del cuadro también puede traer «−8.2%»: mismo signo, misma regla
+    try { toks = [...(parseFigures(_texto) || []), ...(parseCounts(_texto) || [])]; } catch { toks = []; }
     for (const tk of toks) boleta.push(fig(`${I.cuadro} · lo que dice el cuadro`, tk.text, {
       unit: tk.unit, raw: tk.raw, source: "actual", entidad: null,
       context: `frase que el propio cuadro «${I.cuadro}» muestra en pantalla, citada textual`,

@@ -274,7 +274,17 @@ const _METRIC_VOCAB = [
   { clave: "capital",      re: /\bcapital\b|(?<!d[ií]as\s{1,3}(?:de\s{1,3})?|\dd\s{1,3}(?:de\s{1,3})?)\binventario\b|\bstocks?\b/i },
   { clave: "rotacion",     re: /\brotaci[oó]n\b/i },
   { clave: "cobertura",    re: /\bcobertura\b|\bDOH\b|\bd[ií]as\s+(?:de\s+)?inventario\b|\bd[ií]as\s+inv\b|(?<=\dd)\s+(?:de\s+)?inventario\b/i },
-  { clave: "unidades",     re: /\bunidades\b/i },
+  /* ── LA FIG SIN DUEÑO TAMBIÉN TIENE SIGNIFICADO (owner 2026-09-14, fronteras del Notario) ───────────────────────
+   * HUECO MEDIDO fuera del corpus: con la boleta de la descomposición («Efecto volumen = +5.4%», sin dueño), «La carga
+   * de Mercado Libre es 5.4%» pasaba el muro entero: el rótulo no caía en ningún vocabulario, la cifra no tenía métrica
+   * dueña y el binding no la juzgaba — una cifra sin dueño autorizaba su número bajo cualquier concepto. El binding ya
+   * corre sobre todas las figs, con o sin entidad; lo que faltaba era que el CONCEPTO del rótulo tuviera vocabulario.
+   * «Efecto volumen» es la variación de las UNIDADES («más unidades +5.4%», escribe el propio composer) y a la vez una
+   * VARIACIÓN: lleva las dos claves, así «más unidades +5.4%», «el volumen creció 5.4%» y «efecto volumen +5.4%» pasan,
+   * y «la carga es 5.4%» o «el margen es 5.4%» arden. Solo el giro «efecto volumen», NUNCA «volumen» a secas: en la prosa
+   * de la casa «el 17.9% del volumen de la cartera» es una participación en dinero, y la palabra suelta la vetaría. Los
+   * conceptos SIN vocabulario (umbral, headline, «precio realizado» a secas) siguen sin juzgarse, como siempre. */
+  { clave: "unidades",     re: /\bunidades\b|\befecto\s+volumen\b/i },
   { clave: "ticket",       re: /\bticket\b/i },
   /* ── EL SIGNIFICADO DE LA CIFRA (ley del owner 2026-09-12: «la verdad no es solo cifra + dueño; también es cifra +
    * dueño + significado») ─────────────────────────────────────────────────────────────────────────────────────
@@ -290,7 +300,9 @@ const _METRIC_VOCAB = [
   /* ⚠️ la frase arranca DESPUÉS del «%» (lookbehind), no en él: si la mención empezara dentro de la cifra («17.9% de la
    * venta»), no quedaría pegada a ella y no la tomaría — y el $ de al lado salía «narrado como participación» */
   { clave: "participacion", re: /\bparticipaci[oó]n\b|(?<=%)\s*del\s+total\b|\bdel\s+total\b|(?<=%)\s*de\s+(?:la\s+|las\s+|el\s+|los\s+|tu\s+|su\s+|mi\s+|nuestra\s+)?(?:venta|ventas|cartera|contribuci[oó]n|facturaci[oó]n)\b|\bpeso\s+(?:en|sobre|de)\s+(?:la\s+|el\s+)?(?:venta|ventas|cartera|total|contribuci[oó]n)\b|\bcuota\b|\bshare\b/i },
-  { clave: "variacion",     re: /\bcrec[eií][\wáéíóúñ]*(?![\wáéíóúñ])|\bcrecimiento\b|\bYoY\b|\bvariaci[oó]n\b|\binteranual\b|\b(?:contra|vs\.?|frente a|respecto (?:a|de|al|del))\s+(?:el\s+)?(?:a[ñn]o|per[ií]odo)\s+(?:anterior|pasado|comparable)\b/i },
+  /* «efecto volumen» y «efecto precio (realizado)» son los dos sumandos de la variación de la venta (descomposición): son
+   * variaciones, y el rótulo los declara así — ver la nota de `unidades` (owner 2026-09-14) */
+  { clave: "variacion",     re: /\bcrec[eií][\wáéíóúñ]*(?![\wáéíóúñ])|\bcrecimiento\b|\bYoY\b|\bvariaci[oó]n\b|\binteranual\b|\befecto\s+(?:volumen|precio)\b|\b(?:contra|vs\.?|frente a|respecto (?:a|de|al|del))\s+(?:el\s+)?(?:a[ñn]o|per[ií]odo)\s+(?:anterior|pasado|comparable)\b/i },
   // «resultado» · EL PELDAÑO DEL P&L, no la palabra suelta (certificación 2026-08-09, pregunta 14). Medido sobre el
   // ledger real de `pnlRead` —que autoriza «Resultado comercial $18.5M» Y «Contribución $25.0M» en la MISMA
   // boleta—: la frase «El resultado del negocio después de gastos es $25.0M» pasaba el muro con ok=true. La cifra
@@ -3444,7 +3456,13 @@ function _duenoEnVentana(text, masked, fig, duenos) {
  * tienen que seguir pasando — mis-atribución REAL o nada. F1 sí veta la cifra suelta, y la diferencia es de
  * fuente, no un descuido: las cifras del dato proyectado NUNCA estuvieron autorizadas sin condición; las de la
  * boleta llevan meses pasando sueltas y vetarlas rompería turnos legítimos existentes. */
-function _duenosDeBoleta(figs, entityNames, entidadesDelTenant) {
+/* ── EL EJE DE CADA ENTIDAD VIAJA DECLARADO, NO SE ADIVINA (owner 2026-09-14, fronteras del Notario) ──────────────
+ * `ejesDelTenant` es el catálogo POR EJE del tenant ({ cliente:[…], sku:[…], marca:[…], familia:[…], bodega:[…],
+ * canal:[…] }, los mismos nombres que `axisEntityNames` publica y que el bucle ya arma como `catalogoPorEje`). De ahí
+ * sale `ejeDe` (nombre normalizado → eje): la única forma de saber que «Retail» es un canal y «Santiago» una bodega
+ * sin mirar mayúsculas ni guiones. Sin el catálogo (callers viejos, gates que no lo pasan) `ejeDe` queda vacío y la
+ * lectura es byte-idéntica a la de antes. */
+function _duenosDeBoleta(figs, entityNames, entidadesDelTenant, ejesDelTenant = null) {
   if (!Array.isArray(figs) || !figs.length) return null;
   const ref = new Map();
   for (const n of [...(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : []), ...entityNames]) {
@@ -3453,6 +3471,13 @@ function _duenosDeBoleta(figs, entityNames, entidadesDelTenant) {
     if (nn.length >= 3 && !ref.has(nn)) ref.set(nn, disp);
   }
   if (!ref.size) return null;
+  const ejeDe = new Map();
+  if (ejesDelTenant && typeof ejesDelTenant === "object") {
+    for (const eje of Object.keys(ejesDelTenant)) for (const n of (Array.isArray(ejesDelTenant[eje]) ? ejesDelTenant[eje] : [])) {
+      const nn = _norm(String(n == null ? "" : n).trim());
+      if (nn && !ejeDe.has(nn)) ejeDe.set(nn, eje);   // un homónimo entre ejes conserva el primero (el orden de AXES)
+    }
+  }
   const porConcepto = new Map();   // concepto (label sin la entidad) → { duenos:Set, figs:[{canones, verbatim, dueno}] }
   const libres = new Set(), libresVerbatim = new Set();   // toda lectura SIN dueño libera ese valor (candado 2)
   for (const f of figs) {
@@ -3495,8 +3520,9 @@ function _duenosDeBoleta(figs, entityNames, entidadesDelTenant) {
   if (!porCanon.size && !porVerbatim.size) return null;
   // los nombres de referencia compilados UNA vez: el candado 3 (atribución activa) necesita saber si la oración
   // nombra ALGUNA entidad real — la misma lista que definió a los dueños, nunca una segunda.
-  const nombresRe = [...ref.keys()].map((nn) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${nn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u"));
-  return { porCanon, porVerbatim, nombresRe };
+  const nombresN = [...ref.keys()];   // paralelo a `nombresRe`, para saber de qué nombre (y de qué eje) es cada regex
+  const nombresRe = nombresN.map((nn) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${nn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u"));
+  return { porCanon, porVerbatim, nombresRe, nombresN, ejeDe };
 }
 /* ── LA COORDINACIÓN DISTRIBUTIVA (owner 2026-09-14, borrador 1 de la corrida en vivo del cruce) ──────────────
  * «SAM-REF500L ($19K) y LG-WASH11KG ($15K) —esos sí cruzan con ventas altas y además rotan rápido (17d y 21d de
@@ -3543,11 +3569,30 @@ function _grupoCoordinado(masked, idx, end, text) {
  * Lo que NO cambia (candados en los gates): «Lider vende $19.4M» arde con el dueño cerca o lejos; «mientras que Lider
  * vende $19.4M» arde (Lider se interpone); la coordinación invertida arde; «Sodimac vende $8.2M. Es más grave que
  * Falabella … (8.6 pp contra 8.1 pp)» arde (el referente no es dueño); la misma cifra con su dueño a la vista en UNA
- * aparición queda libre — este chequeo juzga la cifra, no cada aparición. */
-function _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) {
+ * aparición queda libre — este chequeo juzga la cifra, no cada aparición.
+ *
+ * ── UNA ENTIDAD DE OTRO EJE INTERPUESTA NO LE QUITA LA CIFRA A SU DUEÑO (owner 2026-09-14, fronteras del Notario) ──
+ * HUECO MEDIDO fuera del corpus, con el contexto COMPLETO del tenant (los seis ejes, como en la corrida en vivo): el
+ * demo declara el canal «Retail» y la bodega «Santiago», y «Falabella lidera la venta del canal retail y es la relación
+ * comercial más importante que sostiene la cartera, con una venta anual de $19.4M» ARDÍA — «retail» quedaba como última
+ * entidad nombrada antes de la cifra, el lector la tomaba por sujeto y Falabella, más lejos en la MISMA cláusula, dejaba
+ * de ser el dueño. Lo mismo con «SAM-TV55 … en la bodega Santiago, donde acumula una venta de $13.3M». Un canal o una
+ * bodega no pueden ser dueños de la venta de un cliente o de un SKU: la regla es que solo cuenta como interpuesta una
+ * entidad del MISMO EJE que los dueños legítimos de la cifra. Los ejes se leen de `ejeDe` (el catálogo por eje del
+ * tenant, `ejesDelTenant`), nunca se adivinan por la forma del nombre; una entidad sin eje conocido (las del turno,
+ * «total», «los que caen») sigue contando como siempre. Qué cambia y qué no: el SUJETO, la COORDINACIÓN y el REFERENTE
+ * se leen sobre las entidades del eje de los dueños (la de otro eje es transparente); la atribución ACTIVA de la regla 4
+ * sigue mirando a TODAS —«Santiago vende $19.4M», «En retail, la venta anual es $19.4M» siguen ardiendo: ahí no hay
+ * dueño en la oración, solo una entidad ajena reclamando—, y «Lider lidera la venta del canal retail … con una venta
+ * anual de $19.4M» sigue ardiendo porque Lider sí es del eje de Falabella. */
+function _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe, nombresN = null, ejeDe = null) {
   let idx = -1, ajena = false;
   const _reDueno = (d) => { const dn = _norm(d); return dn ? new RegExp(`(?:^|[^\\p{L}\\p{N}])${dn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u") : null; };
   const esDueno = (nombre) => nombre != null && [...duenos].some((d) => _norm(d) === nombre);
+  const ejesDuenos = new Set([...duenos].map((d) => (ejeDe ? ejeDe.get(_norm(d)) : null)).filter(Boolean));
+  const delEje = (ejesDuenos.size && Array.isArray(nombresN) && nombresN.length === nombresRe.length)
+    ? nombresRe.filter((re, i) => { const e = ejeDe.get(nombresN[i]); return !e || ejesDuenos.has(e); })
+    : nombresRe;
   while ((idx = text.indexOf(fig.text, idx + 1)) >= 0) {
     const [lo] = _localWindow(masked, idx, 90);
     const end = idx + fig.text.length;
@@ -3558,14 +3603,14 @@ function _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) {
       const re = _reDueno(d);
       if (re && re.test(ventana)) return false;   // dueño legítimo a la vista → libre
     }
-    const L = leerClausula(text, idx, { nombresRe });
+    const L = leerClausula(text, idx, { nombresRe: delEje });   // sujeto, coordinación y referente: solo el eje de los dueños
     /* 1 · la coordinación distributiva (ver _grupoCoordinado): «A y B … (x y y)» → la k-ésima cifra es de la k-ésima
      * entidad. Cuando aplica, DECIDE: la lectura por orden manda sobre la del sujeto, así «PHI-HAIR-PRO y PHI-SHAVER9
      * … (15d y 19d)» arde aunque PHI-SHAVER9 sea la última entidad nombrada antes de la cifra. Solo entre entidades
      * COORDINADAS ENTRE SÍ (coordinadasContiguas del lector): dos sujetos de dos cláusulas no forman lista. */
     const grupo = _grupoCoordinado(masked, idx, end, text);
     const enOracion = !!grupo && grupo.ini > L.oracion.ini;
-    const entsCoord = enOracion ? _coordinadasContiguas(L.plano.slice(L.oracion.ini, grupo.ini), nombresRe) : [];
+    const entsCoord = enOracion ? _coordinadasContiguas(L.plano.slice(L.oracion.ini, grupo.ini), delEje) : [];
     if (enOracion && entsCoord.length >= grupo.n) {
       if (esDueno(entsCoord.slice(-grupo.n)[grupo.k])) return false;
       ajena = true;
@@ -3642,7 +3687,22 @@ export function _expandirRangos(texto, extremos = null) {
     .replace(_RANGO_PCT, (m, a, b) => { _anota(`${a}%`, `${b}%`); return `${a}% y ${b}%`; });
 }
 
-export function guardC(narration, { ledger, results = [], trace = null, question = "", supuestoPendiente = null, alcanceHeredado = null, recitaAprobada = null, mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null, entidadesDelTenant = null, duenosDelTenant = null } = {}) {
+/* ── EL MENOS TIPOGRÁFICO ES EL MISMO SIGNO (owner 2026-09-14, fronteras del Notario) ─────────────────────────────
+ * HUECO MEDIDO: los formateadores de la pantalla escriben las caídas con el menos tipográfico («−8.2%», U+2212; mesa.js,
+ * resumenComercial.js) y el cuadro las publica así. `parseFigures` (boleta.js, que no se toca) solo conoce el «-» ASCII:
+ * leía «−8.2%» como 8.2 POSITIVO, y la fig de Ripley salía con raw 8.2 y canon «pct:−8.2%» — con lo que «Ripley crece
+ * 8.2%» sobre una caída de 8.2% pasaba el muro entero, y «Ripley cae -8.2%» (el signo bien puesto) ardía como cifra no
+ * autorizada. La regla: «−» (U+2212), «–» (raya corta) y «-» delante de una cifra son EL MISMO SIGNO, y se normalizan
+ * ANTES de leer — acá para la narración y para el valor publicado (ver el bloque del «+» en guardC), y en el emisor del
+ * cuadro (`cuadroSentrix`) para que el raw viaje con su signo. Solo el signo pegado a un dígito o al símbolo de moneda:
+ * una raya entre palabras («Lider — $4.6M», «—no una cifra del dato—») sigue siendo puntuación. Los rangos se expanden
+ * ANTES («37–40%» es un rango, no un negativo), por eso este paso corre después de `_expandirRangos`. */
+const _SIGNO_TIPOGRAFICO = /[−–](?=[\d\p{Sc}])/gu;   // \p{Sc}: cualquier símbolo de moneda, el declarado incluido
+export function normalizarSignos(texto) {
+  return String(texto == null ? "" : texto).replace(_SIGNO_TIPOGRAFICO, "-");
+}
+
+export function guardC(narration, { ledger, results = [], trace = null, question = "", supuestoPendiente = null, alcanceHeredado = null, recitaAprobada = null, mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null, entidadesDelTenant = null, duenosDelTenant = null, ejesDelTenant = null } = {}) {
   /* CHEQUEO 0 · UNA RESPUESTA VACÍA NO ES UNA RESPUESTA FIEL (ver esNarracionVacia arriba). Va PRIMERO y sale
    * antes que nada: no hay texto que enmascarar, ni cifra que atribuir, ni cuenta que recomputar. El veredicto
    * lleva kind propio para que el caller sepa QUÉ pasó — no es una cifra mal puesta, es que no hay respuesta —
@@ -3666,6 +3726,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   if (_rangoCG) narration = _enmascararRango(String(narration), _rangoCG);
   const _extremosDeRango = [];
   narration = _expandirRangos(narration, _extremosDeRango);   // «37-40%» → «37% y 40%»: los dos extremos entran a todos los chequeos (ver arriba)
+  narration = normalizarSignos(narration);   // «−8.2%» → «-8.2%»: el menos tipográfico es el mismo signo, y así lo lee parseFigures (ver normalizarSignos)
   // el canon de cada extremo: el chequeo 1 les niega la amnistía aritmética (un rango se cita, no se calcula)
   const _canonDeRango = new Set(_extremosDeRango.flatMap((s) => parseFigures(s).map((pf) => pf.canon)));
   const figs = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
@@ -3729,6 +3790,12 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   for (const f of figs) {
     const v = _stripSpace(String(f && f.value != null ? f.value : ""));
     if (v.startsWith("+")) { authVerbatim.add(v.slice(1)); if (f.canon && /^[a-z]+:\+/.test(f.canon)) authCanon.add(f.canon.replace(":+", ":")); }
+    /* y el MENOS TIPOGRÁFICO publicado («−$422K», «−3.7%») autoriza su forma ASCII, que es como la narración se lee tras
+     * `normalizarSignos` — mismo signo, misma cifra (owner 2026-09-14, fronteras del Notario). El canon se re-deriva del
+     * valor normalizado con el MISMO parser; jamás se autoriza la forma sin signo: una caída narrada como subida sigue
+     * siendo otra cifra. */
+    const vs = normalizarSignos(v);
+    if (vs !== v) { authVerbatim.add(vs); for (const pf of parseFigures(vs)) authCanon.add(pf.canon); }
   }
   /* ── LAS CUENTAS A LA VISTA (constitución 2026-08-14 · categoría «cálculo derivado») ─────────────────────────
    * Una derivada CON SU FÓRMULA EN EL TEXTO se verifica recomputando — y solo entonces se autoriza, con el
@@ -4386,7 +4453,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // La referencia de dueños son los SEIS ejes (`duenosDelTenant`, del caller) — con fallback al catálogo de 3
   // ejes del chequeo 26: sin bodegas/familias reconocidas, un subtotal de bodega liberaría por colisión la
   // cifra del SKU que lo compone (medido con la boleta real de inventoryStatus).
-  const _bolDuenos = _duenosDeBoleta(figs, entityNames, [...(Array.isArray(duenosDelTenant) ? duenosDelTenant : []), ...(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : [])]);
+  const _bolDuenos = _duenosDeBoleta(figs, entityNames, [...(Array.isArray(duenosDelTenant) ? duenosDelTenant : []), ...(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : [])], ejesDelTenant);
   const _maskedNarr = (_dato || _bolDuenos || _recita) ? _maskFigures(narration) : null;
   /* ── EL POOL DEL CATÁLOGO (AMPLITUD F2) — perezoso: solo se arma si alguna cifra llegó hasta esa vía ──────────
    * Una cifra narrada que no está en ninguna fuente se acepta SI Y SOLO SI es el resultado EXACTO (recomputado,
@@ -4454,7 +4521,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
      * este chequeo por construcción, exactamente sobre las boletas que más lo necesitan. */
     if (_bolDuenos && !_ecoCanon.has(f.canon) && !_ecoVerbatim.has(_stripSpace(f.text))) {
       const _dsetBol = _bolDuenos.porCanon.get(f.canon) || _bolDuenos.porVerbatim.get(_stripSpace(f.text));
-      if (_dsetBol && _dsetBol.size && _atribucionAjenaEnBoleta(narration, _maskedNarr, f, _dsetBol, _bolDuenos.nombresRe)
+      if (_dsetBol && _dsetBol.size && _atribucionAjenaEnBoleta(narration, _maskedNarr, f, _dsetBol, _bolDuenos.nombresRe, _bolDuenos.nombresN, _bolDuenos.ejeDe)
         && !_derivadaDeSupuesto(f, supFigs, figs)) {
         violations.push({ kind: "cifra-de-boleta-sin-dueno", detail: `«${f.text}» pertenece a ${[..._dsetBol].slice(0, 4).join("/")} en la boleta de este turno y está narrada pegada a otra entidad — nombra al dueño real al lado de la cifra, no la cambies` });
         continue;

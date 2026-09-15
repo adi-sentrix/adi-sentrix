@@ -982,6 +982,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     datoProyectado: cifrasDelDato(scenario),
     entidadesDelTenant: _ejes(["cliente", "sku", "marca"]),
     duenosDelTenant: duenosTenant,
+    ejesDelTenant: catalogoPorEje,   // el eje de cada dueño, declarado: una bodega o un canal interpuestos no le quitan la cifra a un cliente (owner 2026-09-14)
     contentScope: "full",
     /* ── LA TABLA LA PONE SENTRIX, NO ADI (owner 2026-09-08) ─────────────────────────────────────────────
      * «La idea no es que ADI vuelva a hacer las tablas… imagina, hace dos tablas diferentes repitiendo datos.
