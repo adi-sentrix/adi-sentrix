@@ -125,9 +125,26 @@ export function coordinadasContiguas(tramoN, nombresRe) {
  * coordinados—, esté o no al final: «Falabella, Lider, Jumbo y Sodimac están bajo el benchmark … Las acciones comerciales
  * se están comiendo contribución ahí. Ese mismo grupo tiene markup promedio 41.4%» → la lista es la de cuatro. Devuelve
  * cada corrida maximal, con su posición de inicio y de fin (relativa al tramo) y si cierra con «y»/«e». Un nombre
- * suelto es una corrida de largo 1: quien lea el referente decide si le alcanza (para un pronombre de grupo, no). */
+ * suelto es una corrida de largo 1: quien lea el referente decide si le alcanza (para un pronombre de grupo, no).
+ * …y se leen con TODAS las ocurrencias de cada nombre, no solo la última (el orden en todas sus formas, 2026-09-14): «Falabella, Lider y Jumbo
+ * empujan el crecimiento. De los tres, JUMBO tiene el margen más bajo» — con la última ocurrencia de Jumbo (la del sujeto) la lista de tres
+ * quedaba en dos y «de los tres» no resolvía a nadie. Lo demás del lector sigue usando la última (`entidadesConPosicion`). */
+function _entidadesTodas(tramoN, nombresRe) {
+  const out = [];
+  for (const re of nombresRe || []) {
+    const g = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
+    let m;
+    while ((m = g.exec(tramoN))) {
+      const nombre = m[0].replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+      out.push({ nombre, pos: m.index + m[0].indexOf(nombre) });
+      if (!m[0].length) g.lastIndex++;
+    }
+  }
+  const lista = out.sort((a, b) => a.pos - b.pos);
+  return lista.filter((e, i) => !lista.some((o, j) => j !== i && o.nombre.length > e.nombre.length && o.pos <= e.pos && e.pos < o.pos + o.nombre.length));
+}
 export function listasCoordinadas(tramoN, nombresRe) {
-  const ents = entidadesConPosicion(tramoN, nombresRe);
+  const ents = _entidadesTodas(tramoN, nombresRe);
   const out = [];
   let i = 0;
   while (i < ents.length) {

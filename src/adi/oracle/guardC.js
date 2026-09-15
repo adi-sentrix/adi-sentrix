@@ -3545,7 +3545,20 @@ function _extremoEnProsa(narration, entityNames, ledger) {
       const reMarca = esMaxMag ? _EXTREMO_MAX : esMinMag ? _EXTREMO_MIN : mejor ? _EXTREMO_MEJOR : _EXTREMO_PEOR;
       const sust = _sustantivoDelExtremo(o.slice(sm.index), reMarca) || "";
       if (sust && !_metricasEn(sust).size) continue;       // nombra otra magnitud (un problema, una cuenta) → no se juzga
-      const reclamada = figs.filter((f) => f.i >= lo + sm.index + sm[0].length && f.i < hi).sort((a, b) => a.i - b.i)[0];
+      let reclamada = figs.filter((f) => f.i >= lo + sm.index + sm[0].length && f.i < hi).sort((a, b) => a.i - b.i)[0];
+      /* LA CIFRA RECLAMADA ES LA DEL RECLAMANTE (owner 2026-09-14, el orden en todas sus formas · fp-comparaciones «cifra antes del marcador»):
+       * «Falabella ($4.3M) es el que más contribución deja, seguido de Jumbo ($4.2M) y Lider ($3.8M)» tomaba el $4.2M del SEGUIDOR y lo
+       * refutaba con el $4.3M del propio Falabella. Si entre el marcador y la cifra aparece OTRA entidad —sin la cópula que la haga sujeto
+       * («… es Jumbo ($4.2M)»)—, la cifra es de esa otra, y la del reclamante es la última pegada a él DELANTE del marcador; sin cifra
+       * delante, no hay qué contrastar. */
+      if (reclamada) {
+        const entreMarcadorYCifra = parr.slice(lo + sm.index + sm[0].length, reclamada.i);
+        const otraEntidad = nombradas.filter((n) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${_esc(n)}(?![\\p{L}\\p{N}]|-[\\p{L}\\p{N}])`, "iu").test(entreMarcadorYCifra));
+        const conCopula = otraEntidad.some((n) => new RegExp(`(?:^|[^\\p{L}])(?:es|son|fue|era|eran|fueron|sino|(?:lo|la|los|las)\\s+(?:tiene|tienen|lleva|llevan|concentra|concentran|acumula|acumulan|ostenta|ostentan)|corresponden?\\s+a|est[áa]n?\\s+en|recaen?\\s+en)\\s+(?:(?:el|la|los|las)\\s+de\\s+)?[*_«"']*${_esc(n)}`, "iu").test(entreMarcadorYCifra));
+        if (otraEntidad.length && !conCopula) {
+          reclamada = figs.filter((f) => f.i >= lo && f.i < lo + sm.index).sort((a, b) => b.i - a.i)[0] || null;
+        }
+      }
       if (!reclamada) continue;                            // el superlativo no lleva cifra pegada → nada que contrastar
       if (!atada(reclamada)) continue;                     // la cifra reclamada no le pertenece a ninguna entidad del turno
       const metClaim = new Set([..._metricasEn(sust), ..._metricasDeFigNarrada(reclamada, figsL)]);
@@ -3827,8 +3840,9 @@ const _DICE_SOBRE = /\bpor encima\b|\bsupera\b|\bsobre (?:el|tu) (?:benchmark|pi
  * tumbó la reparación del modelo (676 palabras, correctas) y el usuario recibió el respaldo.
  * Ahora la relación se resuelve POR ORACIÓN: manda la entidad nombrada en ella; sin entidad, el margen promedio
  * (la cifra de cartera); con un solo margen en la boleta, ese. Con varios y ninguno nombrado ni promedio, no
- * hay relación que verificar y no se juzga (falso negativo antes que bloquear una respuesta correcta). */
-const _RE_ENT = (n) => new RegExp(`(?<![\\wáéíóúñ])${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\wáéíóúñ])`, "i");
+ * hay relación que verificar y no se juzga (falso negativo antes que bloquear una respuesta correcta).
+ * …y desde el conjunto adversarial (2026-09-14) «la entidad nombrada en ella» es el SUJETO DE LA CLÁUSULA de la relación, leído por el
+ * lector — no la primera del ledger que aparezca en la oración (ver _contradiceLaReferencia). */
 /* el porcentaje de una fig «%»: su `raw` si lo trae, o el número de su valor publicado (el motor solo pone `raw` en
  * las filas destacadas — 5 de 13 márgenes—; el de Easy vive como «32.0%» y es tan cifra como los otros) */
 const _pctDeFig = (f) => {
@@ -3836,35 +3850,8 @@ const _pctDeFig = (f) => {
   const m = /^\s*(-?\d+(?:[.,]\d+)?)\s*%\s*$/.exec(String((f && (f.value ?? f.text)) || ""));
   return m ? parseFloat(m[1].replace(",", ".")) : NaN;
 };
-function _relacionConReferencia(ledger, oracion = null, previa = null) {
-  const figs = (ledger && Array.isArray(ledger.figs) ? ledger.figs : []).filter((f) => f && f.unit === "pct" && Number.isFinite(_pctDeFig(f)));
-  const bench = figs.find((f) => /benchmark|piso de margen/i.test(String(f.label || "")));
-  if (!bench) return null;
-  const margenes = figs.filter((f) => /·\s*margen\b/i.test(String(f.label || "")) && !/benchmark|brecha|promedio/i.test(String(f.label || "")));
-  const promedio = figs.find((f) => /^margen promedio$/i.test(String(f.label || "").trim())) || null;
-  const _porNombre = (t) => margenes.find((f) => { const ent = String(f.label || "").split("·")[0].trim(); return ent && _RE_ENT(ent).test(t); }) || null;
-  let margen = null;
-  if (oracion) margen = _porNombre(oracion);
-  /* «su margen cierra en 34%, sobre el benchmark» (contrato comercial, 2026-09-13): con la boleta comercial completa el
-   * promedio siempre está, y una oración sin nombre caía al promedio —que está bajo— contra una cuenta que está sobre.
-   * Antes del promedio: la cifra citada identifica la cuenta (34% es SU margen), y si no, la cuenta de la oración anterior
-   * (el «su» es anáfora). El promedio queda para la oración que de verdad habla del negocio entero. */
-  if (!margen && oracion) {
-    const citadas = [...String(oracion).matchAll(/(\d+(?:[.,]\d+)?)\s*%/g)].map((m) => Number(String(m[1]).replace(",", ".")));
-    const porCifra = margenes.filter((f) => citadas.some((c) => Math.abs(c - _pctDeFig(f)) < 0.05));
-    const entidadesCitadas = [...new Set(porCifra.map((f) => String(f.label || "").split("·")[0].trim().toLowerCase()))];   // la misma cuenta puede venir de dos herramientas
-    if (entidadesCitadas.length === 1) margen = porCifra[0];
-  }
-  if (!margen && oracion && previa) margen = _porNombre(previa);
-  /* el PROMEDIO solo cuando la oración habla del negocio entero («el margen promedio», «la cartera», «el negocio»): «quedan sobre
-   * el benchmark 6 de 13» habla de seis cuentas, y con la boleta comercial completa el promedio siempre está en la boleta —
-   * caer a él por defecto acusaba de contradicción a cualquier frase sin nombre (medido al cablear el contrato, 2026-09-13) */
-  const _hablaDelNegocio = !oracion || /(?<![\wáéíóúñ])(?:promedio|en conjunto|del negocio|de la cartera|la cartera|el negocio|global|agregad[oa]|consolidad[oa])(?![\wáéíóúñ])|(?<![\wáéíóúñ])(?:el|tu|nuestro|mi)\s+margen(?![\wáéíóúñ])/i.test(String(oracion));   // «el margen se mantiene…» es el del negocio; «su margen» es de una cuenta (anáfora)
-  if (!margen) margen = margenes.length === 1 ? margenes[0] : (_hablaDelNegocio ? promedio : null) || (oracion ? null : margenes[0] || null);
-  if (!margen) return null;
-  const d = _pctDeFig(margen) - _pctDeFig(bench);
-  return { relacion: Math.abs(d) <= _BANDA_EN_LINEA_PP ? "en_linea" : (d > 0 ? "sobre" : "bajo"), delta: d, margen, bench };
-}
+/* `_relacionConReferencia` (la cuenta por la PRIMERA nombrada en la oración, la cifra citada en la oración entera, la oración previa)
+ * quedó absorbida en `_contradiceLaReferencia`, que ahora lee la cláusula con el lector (owner 2026-09-14, el orden en todas sus formas). */
 /* el «por encima / supera / excede» que NO habla del margen: la oración ya dice que el margen está bajo la
  * referencia, o lo que supera es la carga comercial (su propio nivel de referencia) */
 const _NO_ES_EL_MARGEN = /\bbajo (?:el|la|tu|su|ese|esa|este|esta) (?:benchmark|referencia|vara|piso|objetivo|nivel)\b|\bbrecha\b|\bpor debajo\b|\b(?:carga|acciones comerciales|rebate)\b[^.;\n]{0,60}\b(?:por encima|supera|excede)\b|\b(?:por encima|supera|excede)\b[^.;\n]{0,50}\b(?:de carga|nivel de (?:carga|referencia)|carga comercial)\b/i;
@@ -3875,27 +3862,82 @@ function _contradiceLaReferencia(narration, ledger) {
   // quedaba acusada. Medido al cerrar: rompía tres casos legítimos de _forma_manda_sobre_el_alcance_gate y sus
   // rechazos se llevaban puesto el turno. Ahora se exige que la MISMA oración nombre la referencia — y desde el
   // prompt de gerente, cada oración se juzga contra el margen del que HABLA (ver _relacionConReferencia).
-  const _oraciones = String(narration || "").split(/(?<=[.!?])\s+|\n+/);
+  /* ── LA CUENTA ES EL SUJETO DE LA CLÁUSULA DONDE ESTÁ LA RELACIÓN, Y LA NEGACIÓN SE LEE (owner 2026-09-14, el orden en todas sus
+   * formas · fp-prosa F1/R, 18+ frases): «Easy … está sobre el benchmark (32%); Lider, con 4.2% de carga, es la que más lejos queda
+   * del benchmark» se cobraba a Lider —la primera cuenta del ledger nombrada en la oración—, «A diferencia de Falabella, La Polar está
+   * sobre el benchmark (34%)» a Falabella (la comparada), y «Falabella no está sobre el benchmark», «no supera», «lejos de estar sobre»,
+   * «ninguna de las tres grandes supera» se leían como afirmación. Ahora cada «sobre / supera / cumple» se lee con el lector de
+   * cláusula: la cuenta juzgada es el SUJETO de esa cláusula (una lista coordinada cerrada son varias, y todas se juzgan; la comparada
+   * y lo que está tras «no así», «a diferencia de» no lo son); sin sujeto propio, la cifra citada EN LA CLÁUSULA identifica la cuenta;
+   * sin cifra, el antecedente (el posesivo o el sujeto elidido: «Falabella margina 22%. Está sobre el benchmark»); el promedio queda
+   * para la oración que habla del negocio entero. Bajo negación («no está sobre», «ni», «ninguna», «lejos de estar sobre», «sin
+   * llegar a») no se afirma nada. */
+  const text = String(narration || "");
+  const figs = ((ledger && Array.isArray(ledger.figs)) ? ledger.figs : []).filter((f) => f && f.unit === "pct" && Number.isFinite(_pctDeFig(f)));
+  const bench = figs.find((f) => /benchmark|piso de margen/i.test(String(f.label || "")));
+  if (!bench) return [];
+  const margenes = figs.filter((f) => /·\s*margen\b/i.test(String(f.label || "")) && !/benchmark|brecha|promedio/i.test(String(f.label || "")));
+  const promedio = figs.find((f) => /^margen promedio$/i.test(String(f.label || "").trim())) || null;
+  const entidadDe = (f) => String(f.label || "").split("·")[0].trim();
+  const nombres = [...new Set(margenes.map(entidadDe).filter(Boolean))];
+  const nombresRe = compilarNombres(nombres);
+  const margenDe = (nombreN) => margenes.find((f) => _normalizar(entidadDe(f)) === nombreN) || null;
+  const _oraciones = text.split(/(?<=[.!?])\s+|\n+/);
+  const _ini = []; { let cur = 0; for (const o of _oraciones) { const k = text.indexOf(o, cur); const ini = k < 0 ? cur : k; _ini.push(ini); cur = ini + o.length; } }
   const _REFERENCIA_N = /\bbenchmark\b|\bpiso\b|\breferencia\b|\bmeta\b|\best[aá]ndar\b|\bobjetivo\b/i;
+  const _NEGACION_LARGA = /(?:^|[^\p{L}])(?:lejos\s+de\s+(?:estar|quedar|superar|cumplir)|sin\s+(?:llegar|alcanzar|superar)|ningun[oa]s?(?:\s+de)?|ning[uú]n|nadie|tampoco)(?![\p{L}])/u;
   const out = [];
   for (let _i = 0; _i < _oraciones.length; _i++) {
     const o = _oraciones[_i];
     if (!_REFERENCIA_N.test(o)) continue;
-    const r = _relacionConReferencia(ledger, o, _i > 0 ? _oraciones[_i - 1] : null);
-    if (!r || r.relacion !== "bajo") continue;
-    if (_DICE_CUMPLE.test(o) && !/\bno\s+(?:cumple|se mantiene|est[aá]\s+en l[ií]nea)\b/i.test(o)) {
-      out.push(`el ledger dice que ${r.margen.label} (${r.margen.value}) está BAJO ${r.bench.label} (${r.bench.value}) por ${Math.abs(r.delta).toFixed(1)} puntos, y la respuesta afirma que cumple o se mantiene en la referencia`);
-    }
-    const ms = _DICE_SOBRE.exec(o);
-    if (ms && !_NO_ES_EL_MARGEN.test(o)) {
-      // el SUJETO del «supera» tiene que ser la cuenta juzgada: «…Lider … muestran ese markup más ajustado que el resto de
-      // la cartera que sí supera el benchmark» habla del resto, no de Lider (corrida 3 del prompt de gerente, 2026-09-13)
-      const antesVerbo = o.slice(Math.max(0, ms.index - 45), ms.index);
-      if (/(?<![\wáéíóúñ])(?:que|quienes|resto(?:\s+de\s+la\s+cartera)?|sanos|dem[aá]s|otr[oa]s|cuales)\s+(?:s[ií]\s+)?$/i.test(antesVerbo)) continue;
-      /* «Falabella solo la supera en contribución no capturada» (corrida en vivo, 2026-09-14): con un pronombre de objeto
-       * delante —la/lo/le/las/los— o «a <Cuenta>» detrás, «supera» compara dos cuentas, no la cuenta con la referencia */
-      if (/(?<![\wáéíóúñ])(?:la|lo|le|las|los|les)\s+$/i.test(antesVerbo) || /^\s+a\s+[A-ZÁÉÍÓÚÑ]/.test(o.slice(ms.index + ms[0].length, ms.index + ms[0].length + 30))) continue;
-      out.push(`el ledger dice que ${r.margen.label} está BAJO la referencia y la respuesta afirma que la supera`);
+    const _hablaDelNegocio = /(?<![\wáéíóúñ])(?:promedio|en conjunto|del negocio|de la cartera|la cartera|el negocio|global|agregad[oa]|consolidad[oa])(?![\wáéíóúñ])|(?<![\wáéíóúñ])(?:el|tu|nuestro|mi)\s+margen(?![\wáéíóúñ])/i.test(o);
+    for (const [re, tipo] of [[new RegExp(_DICE_SOBRE.source, "gi"), "sobre"], [new RegExp(_DICE_CUMPLE.source, "gi"), "cumple"]]) {
+      let ms;
+      while ((ms = re.exec(o))) {
+        if (!ms[0].length) { re.lastIndex++; continue; }
+        if (tipo === "sobre" && _NO_ES_EL_MARGEN.test(o)) continue;
+        if (tipo === "cumple" && /\bno\s+(?:cumple|se mantiene|est[aá]\s+en l[ií]nea)\b/i.test(o)) continue;
+        const antesVerbo = o.slice(Math.max(0, ms.index - 45), ms.index);
+        // el SUJETO del «supera» tiene que ser la cuenta juzgada: «…Lider … muestran ese markup más ajustado que el resto de
+        // la cartera que sí supera el benchmark» habla del resto, no de Lider (corrida 3 del prompt de gerente, 2026-09-13)
+        if (tipo === "sobre" && /(?<![\wáéíóúñ])(?:que|quienes|resto(?:\s+de\s+la\s+cartera)?|sanos|dem[aá]s|otr[oa]s|cuales)\s+(?:s[ií]\s+)?$/i.test(antesVerbo)) continue;
+        /* «Falabella solo la supera en contribución no capturada» (corrida en vivo, 2026-09-14): con un pronombre de objeto
+         * delante —la/lo/le/las/los— o «a <Cuenta>» detrás, «supera» compara dos cuentas, no la cuenta con la referencia */
+        if (tipo === "sobre" && (/(?<![\wáéíóúñ])(?:la|lo|le|las|los|les)\s+$/i.test(antesVerbo) || /^\s+a\s+[A-ZÁÉÍÓÚÑ]/.test(o.slice(ms.index + ms[0].length, ms.index + ms[0].length + 30)))) continue;
+        const pos = _ini[_i] + ms.index;
+        const L = leerClausula(text, pos, { nombresRe });
+        const cabeza = L.plano.slice(L.clausula.ini, pos);
+        if (L.negada || _NEGACION_LARGA.test(cabeza)) continue;
+        /* las cuentas juzgadas */
+        let cuentas = [];
+        if (L.sujetoPropio && L.sujeto) cuentas = (L.listaCerrada && L.coordinadas.length >= 2) ? L.coordinadas.slice() : [L.sujeto.nombre];
+        else {
+          const clausulaOrig = text.slice(L.clausula.ini, L.clausula.fin);
+          const citadas = [...clausulaOrig.matchAll(/(\d+(?:[.,]\d+)?)\s*%/g)].map((m) => Number(String(m[1]).replace(",", ".")));
+          const porCifra = margenes.filter((f) => citadas.some((c) => Math.abs(c - _pctDeFig(f)) < 0.05));
+          const entidadesCitadas = [...new Set(porCifra.map((f) => _normalizar(entidadDe(f))))];
+          if (entidadesCitadas.length === 1) cuentas = entidadesCitadas;
+          else if (L.sujeto) cuentas = [L.sujeto.nombre];   // el sujeto de la cláusula anterior de la misma oración
+          else if (L.antecedente && !nombres.some((n) => compilarNombres([n])[0].test(_normalizar(o)))) cuentas = [L.antecedente.nombre];   // «Falabella margina 22%. Está sobre el benchmark»: la oración sin nadie nombrado habla de la anterior
+        }
+        let margen = null;
+        const juzgadas = cuentas.map(margenDe).filter(Boolean);
+        if (!juzgadas.length) {
+          /* el PROMEDIO solo cuando la oración habla del negocio entero («el margen promedio», «la cartera», «el negocio»): «quedan sobre
+           * el benchmark 6 de 13» habla de seis cuentas, y con la boleta comercial completa el promedio siempre está en la boleta —
+           * caer a él por defecto acusaba de contradicción a cualquier frase sin nombre (medido al cablear el contrato, 2026-09-13) */
+          margen = margenes.length === 1 ? margenes[0] : (_hablaDelNegocio ? promedio : null);
+          if (margen) juzgadas.push(margen);
+        }
+        for (const mg of juzgadas) {
+          const d = _pctDeFig(mg) - _pctDeFig(bench);
+          const relacion = Math.abs(d) <= _BANDA_EN_LINEA_PP ? "en_linea" : (d > 0 ? "sobre" : "bajo");
+          if (relacion !== "bajo") continue;
+          if (tipo === "cumple") out.push(`el ledger dice que ${mg.label} (${mg.value}) está BAJO ${bench.label} (${bench.value}) por ${Math.abs(d).toFixed(1)} puntos, y la respuesta afirma que cumple o se mantiene en la referencia`);
+          else out.push(`el ledger dice que ${mg.label} está BAJO la referencia y la respuesta afirma que la supera`);
+          break;
+        }
+      }
     }
   }
   return out;
@@ -6043,40 +6085,93 @@ export function guardC(narration, { ledger, results = [], trace = null, question
    *   (6) LA ETIQUETA DE LOS DÍAS · «más de 120 días sin rotar» sobre un criterio que es de días de INVENTARIO.
    *       Este dato tiene dos campos de días y no son el mismo; «sin rotar» no es ninguno de los dos. */
   {
-    // ── (4) SUPERLATIVOS Y COMPARATIVOS DE ORDEN ──────────────────────────────────────────────────────────────
+    // ── (4) SUPERLATIVOS, ORDINALES, GRUPOS, COMPARATIVOS Y RANKINGS ANUNCIADOS · el orden se verifica en todas sus formas ──
     /* SE VERIFICA LO QUE SE PUEDE VERIFICAR, y el límite queda escrito: los rankings que la carpeta declara son
-     * por CLIENTE y por MARCA (ventas · margen · contribución · carga). Un superlativo sobre un SKU («el caso más
-     * pesado») o sobre una magnitud DERIVADA («el mayor gasto excedente») no tiene conjunto declarado contra el
-     * cual medirse, así que no se juzga — vetar por sospecha sería inventar una vara. */
+     * por CLIENTE, por MARCA, por SKU y por BODEGA (los términos y la polaridad los declara ella). Un superlativo sobre
+     * una magnitud DERIVADA («el mayor gasto excedente») no tiene conjunto declarado contra el cual medirse, así que
+     * no se juzga — vetar por sospecha sería inventar una vara.
+     * ── EL ORDEN EN TODAS SUS FORMAS (owner 2026-09-14, conjunto adversarial: 158 de 249 afirmaciones de orden falsas pasaban) ──
+     * Un orden se dice de muchas maneras y el muro leía cinco: «mayor/menor/más alto/bajo/peor/mejor/con más» con «de la cartera».
+     * Faltaban (1) el LÉXICO de cada métrica —el verbo, el adjetivo, el agente: «la que más vende», «la más morosa», «el mayor
+     * deudor»—, que ahora declara la carpeta (`lexico` de cada ranking) y acá solo se lee; (2) los ORDINALES en todas sus formas
+     * («segundo cliente en», «ocupa el tercer lugar en», «está segundo», «n.º 1 en», «2.º en», «la segunda carga más alta»);
+     * (3) los GRUPOS top-k y la PERTENENCIA («las tres cuentas con más», «top 3», «está entre los tres de mayor», «una de las dos
+     * con más»); (4) los ENCADENADOS («y con más», «y la mayor», «además de … es el de más»: el universo declarado una vez vale
+     * para la cadena); (5) los COMPARATIVOS («vende más que», «supera a», «por encima de»), verificados con las dos cifras de la
+     * oración y, sin cifras, contra el ranking; (6) los RANKINGS ANUNCIADOS («el orden es», «ordenados por», «ranking de», «de
+     * peor a mejor»), comparados con el ranking en orden y dirección; (7) la ATADURA métrica↔marcador con la cópula y sus
+     * variantes («que es», «lo que la convierte en», «llega a», «alcanza el», «sigue siendo», «la cifra más alta»), y el
+     * reclamante detrás en todas sus formas («es el de X», «la tiene X», «corresponde a X», «está en X», «: X»); (8) los FALSOS
+     * POSITIVOS de orden: la EXCLUSIÓN excluye («Después de / Fuera de / Sacando a X, el mayor … es Y» se verifica sin X), la
+     * negación se lee por estructura (lector de cláusula: «Ni A ni B tienen…», «No es X, con 57.7%, la de peor…»), un adjetivo
+     * de juicio («urgente») sigue al eje que la oración declara («por monto», «$4.6M vencidos»), y las formas del universo
+     * («de tu cartera», «de los 13 clientes», «del portafolio», «a nivel cartera», «de las cinco marcas»). Lo que NO cambia: una
+     * sola entidad SIN universo («Lider tiene la carga más alta») sigue sin juzgarse — decisión de calibración, intacta. */
     const _rank = (datoProyectado && datoProyectado.rankings) ? datoProyectado.rankings : null;
     if (_rank) {
       // marcador → dirección sobre el VALOR. «peor» depende de la métrica: peor margen es el más BAJO, peor carga
       // comercial es la más ALTA. Por eso la polaridad vive en la métrica y no en la palabra.
+      /* ── EL LÉXICO DE LOS MARCADORES ─────────────────────────────────────────────────────────────────────────────────────────
+       * Son FORMAS de la lengua (no dependen del dato): el ordinal, el adjetivo de magnitud, el verbo de liderazgo, «que nadie».
+       * Los TÉRMINOS (qué métrica) y los adjetivos con polaridad (qué extremo) los declara la carpeta. */
+      const _ORD = "primer[oa]?s?|segund[oa]s?|tercer[oa]?s?|cuart[oa]s?|quint[oa]s?|sext[oa]s?|[1-6](?:\\.?\\s?[ºo°]|do|ro|er|to)|n(?:[uú]mero|\\.?\\s?[ºo°])\\s*[1-6]|n[uú]mero\\s+(?:uno|dos|tres|cuatro|cinco|seis)|#\\s*[1-6]";
+      const _ORD_INI = "(?<![\\p{L}\\p{N}])", _ORD_FIN = "(?![\\p{L}\\p{N}])";   // «2.º», «#3»: la frontera de palabra no cierra tras un símbolo
+      const _EJE_NOUN = "clientes?|cuentas?|sku|marcas?|productos?|art[íi]culos?|bodegas?|vendedor(?:es)?|deudor(?:es)?|pagador(?:es)?|motor(?:es)?";
+      /* adjetivos de TAMAÑO, no de juicio: «el deterioro es más profundo» (borrador real de la lectura ejecutiva) no ordena ninguna métrica */
+      const _MAG_MAX = "alt[oa]s?|grandes?|elevad[oa]s?|anch[oa]s?|abultad[oa]s?|larg[oa]s?|pesad[oa]s?|fuertes?|extens[oa]s?|ampli[oa]s?|grues[oa]s?|holgad[oa]s?|voluminos[oa]s?|importantes?|relevantes?";
+      const _MAG_MIN = "baj[oa]s?|chic[oa]s?|peque[ñn][oa]s?|reducid[oa]s?|flac[oa]s?|delgad[oa]s?|cort[oa]s?|estrech[oa]s?|angost[oa]s?|leves?|d[ée]biles?|livian[oa]s?|liger[oa]s?|breves?|ajustad[oa]s?|escas[oa]s?|exigu[oa]s?|fin[oa]s?|magr[oa]s?";
+      const _NADIE = "nadie|ning[uú]n(?:\\s+otr[oa])?(?:\\s+(?:cliente|cuenta|sku|marca|producto))?|ningun[oa](?:\\s+otr[oa])?(?:\\s+(?:cliente|cuenta|sku|marca|producto))?";
       const _MARCAS_SUP = [
         /* «el SKU CON MÁS días de inventario» — la forma que dejaba tres superlativos del eje SKU sin verificar
          * (medido en la mini-verificación dirigida, owner 2026-08-16). Va acotada a «con más / con menos» a
          * propósito: un «más» suelto convierte cualquier comparativo («produce más contribución en dólares») en
          * un superlativo que nadie afirmó, y eso es un rojo sobre texto correcto. En estas dos formas la métrica
          * va siempre DETRÁS («con más unidades», «el que más capital libera»): delante no se busca. */
-        [/\bcon\s+m[áa]s\b|\bel\s+que\s+m[áa]s\b/i, "max", { soloDetras: true }],
-        [/\bcon\s+menos\b|\bel\s+que\s+menos\b/i, "min", { soloDetras: true }],
-        [/\bmayor(?:es)?\b|\bm[áa]s\s+alt[oa]s?\b|\bm[áa]xim[oa]s?\b|\bm[áa]s\s+grandes?\b/i, "max"],
-        [/\bmenor(?:es)?\b|\bm[áa]s\s+baj[oa]s?\b|\bm[íi]nim[oa]s?\b/i, "min"],
-        [/\bpeor(?:es)?\b/i, "peor"],
+        [new RegExp(`\\bcon\\s+m[áa]s\\b|\\b(?:el|la|los|las|tu|su|quien(?:es)?)\\s+(?:(?:dos|tres|cuatro|cinco|seis|\\d{1,2})\\s+)?(?:(?:${_EJE_NOUN})\\s+)?que\\s+m[áa]s\\b|\\bdonde\\s+m[áa]s\\b`, "iu"), "max", { soloDetras: true }],
+        [new RegExp(`\\bcon\\s+menos\\b|\\b(?:el|la|los|las|tu|su|quien(?:es)?)\\s+(?:(?:dos|tres|cuatro|cinco|seis|\\d{1,2})\\s+)?(?:(?:${_EJE_NOUN})\\s+)?que\\s+menos\\b|\\bdonde\\s+menos\\b`, "iu"), "min", { soloDetras: true }],
+        [/\bmayor(?:es)?\b|\bm[áa]xim[oa]s?\b/i, "max"],
+        [new RegExp(`\\bm[áa]s\\s+(?:${_MAG_MAX})\\b|\\bmenos\\s+(?:${_MAG_MIN})\\b`, "i"), "max"],
+        [/\bmenor(?:es)?\b|\bm[íi]nim[oa]s?\b/i, "min"],
+        [new RegExp(`\\bm[áa]s\\s+(?:${_MAG_MIN})\\b|\\bmenos\\s+(?:${_MAG_MAX})\\b`, "i"), "min"],
+        [/\bpeor(?:es)?\b|\bm[áa]s\s+cr[íi]tic[oa]s?\b/i, "peor"],
         [/\bmejor(?:es)?\b/i, "mejor"],
-        [/\bprincipal(?:es)?\b|\bm[áa]s\s+cr[íi]tic[oa]s?\b/i, "peor"],
-        [/\b(?:segund[oa]|tercer[oa]?|cuart[oa]|quint[oa]|sext[oa])\s+en\b/i, "max"],   // «el segundo en ventas»: el ordinal a secas ordena de mayor a menor (owner 2026-09-14)
-        /* «#3 EN contribución» / «n.º 2 en ventas» (auditoría del Notario 2026-09-14, P1·3: «Es tu cliente #3 en contribución ($3.8M)» —cierto—):
-         * el ordinal escrito con número es el mismo ordinal, y se verifica por puesto igual que «segundo en». */
-        [/(?:#|n[°º]\s*|n[uú]mero\s+)(?:[1-9])\s+en\b/i, "max"],
+        /* «el principal cliente por venta» es el MAYOR (el orden en todas sus formas, 2026-09-14): iba con la polaridad de «peor», y
+         * sobre las ventas (peorEs menor) buscaba el MÍNIMO — «Falabella es la principal de la cartera» ardía y «Jumbo es el principal
+         * cliente por venta» pasaba. Un principal es un máximo. */
+        [/\bprincipal(?:es)?\b/i, "max"],
+        /* los VERBOS DE LIDERAZGO: la métrica va detrás («lidera la venta», «encabeza el ranking de venta», «lleva la delantera en
+         * contribución», «a la cabeza ($13.3M)»); liderar es serlo sobre el eje entero, así que el universo va implícito salvo que la
+         * oración lo acote («lidera entre los grandes»). «Cierra la lista» y «el último en» son el extremo opuesto. */
+        [/\blidera(?:n)?\b|\bencabeza(?:n)?\b|\blleva(?:n)?\s+la\s+delantera\b|\b(?:va|van|est[áa]n?)\s+a\s+la\s+cabeza\b|\ba\s+la\s+cabeza\b|\bdomina(?:n)?\b/i, "max", { soloDetras: true, verbo: true }],
+        [/\b(?:el|la)\s+[úu]ltim[oa]\s+(?:(?:cliente|cuenta|sku|marca|producto)\s+)?(?:en|por)\b|\bcierra(?:n)?\s+la\s+lista\b|\b(?:va|van|est[áa]n?|queda|quedan)\s+[úu]ltim[oa]s?\b/i, "min", { soloDetras: true, verbo: true }],
+        /* «más X que nadie / que ningún otro» · «por encima de todos»: el sujeto es el extremo sobre el eje ENTERO (la forma declara el
+         * universo); «Nadie / ninguna cuenta … más X que Y»: el extremo es Y, el que sigue al «que». */
+        [new RegExp(`\\bm[áa]s\\s+(?=[^.;:]{0,40}?\\bque\\s+(?:${_NADIE})\\b)`, "iu"), "max", { todos: true }],
+        [new RegExp(`\\bmenos\\s+(?=[^.;:]{0,40}?\\bque\\s+(?:${_NADIE})\\b)`, "iu"), "min", { todos: true }],
+        [new RegExp(`\\bpeor\\s+(?=[^.;:]{0,40}?\\bque\\s+(?:${_NADIE})\\b)`, "iu"), "peor", { todos: true }],
+        [new RegExp(`\\bmejor\\s+(?=[^.;:]{0,40}?\\bque\\s+(?:${_NADIE})\\b)`, "iu"), "mejor", { todos: true }],
+        [/\bpor\s+(?:encima|sobre)\s+de\s+tod[oa]s\b/i, "max", { todos: true }],
+        [/\bpor\s+debajo\s+de\s+tod[oa]s\b/i, "min", { todos: true }],
+        [new RegExp(`\\b(?:${_NADIE})\\s+(?:\\p{L}+\\s+){0,2}?(m[áa]s|menos)\\s+`, "iu"), null, { soloDetras: true, todos: true, reclamanteTrasQue: true }],
+        /* los ORDINALES: «segundo cliente en», «ocupa el tercer lugar en», «2.º en», «n.º 1 en», «segundo mayor cliente por», «los tres primeros
+         * de la cartera en» (plural → grupo top-k); «está segundo ($17.3M)» con la métrica DELANTE («En ventas, …»); «la segunda venta de la
+         * cartera» con la métrica pegada detrás. El ordinal a secas ordena de mayor a menor (owner 2026-09-14); con «peor/mejor/menor» en
+         * medio, con esa polaridad. «#3 EN contribución» (auditoría del Notario, P1·3) es la misma forma escrita con número. */
+        [new RegExp(`${_ORD_INI}(?:(?:los|las|tus|sus)\\s+(?:dos|tres|cuatro|cinco|seis)\\s+)?(?:${_ORD})${_ORD_FIN}(?:\\s+(?:lugar|puesto|posici[óo]n))?(?:\\s+(?:mayor(?:es)?|menor(?:es)?|peor(?:es)?|mejor(?:es)?|m[áa]s\\s+(?:${_MAG_MAX}|${_MAG_MIN})))?(?:\\s+(?:${_EJE_NOUN}))?(?:\\s+de\\s+(?:toda\\s+)?(?:la|tu)\\s+cartera)?\\s+(?:en|por)\\b`, "iu"), "max", { soloDetras: true, ordinal: true }],
+        [new RegExp(`\\b(?:est[áa]n?|es|son|va|van|queda|quedan|ocupa(?:n)?\\s+(?:el|la)|se\\s+ubica(?:n)?)\\s+(?:(?:el|la|los|las)\\s+)?(?:${_ORD})${_ORD_FIN}(?!\\s+(?:en|por|de|lugar|puesto|posici|mayor|menor|peor|mejor|m[áa]s|menos|${_EJE_NOUN}))`, "iu"), "max", { ordinal: true }],
+        [new RegExp(`\\b(?:el|la|los|las|tu|su)\\s+(?:${_ORD})${_ORD_FIN}\\s+(?=\\p{L})`, "iu"), "max", { soloDetras: true, ordinal: true, terminoPegadoDetras: true }],
         /* «LA MÁS URGENTE en cobranza» (auditoría del Notario 2026-09-14, P2·1: «la más urgente en cobranza (269 días vencidos, peor
          * recuperación)» pasó verde con Easy en 270 días). El ARTÍCULO es lo que hace el superlativo en español —«la más urgente», «el más
          * atrasado»—; un «más» sin artículo sigue siendo comparativo y sigue fuera. Este marcador solo vale con un TÉRMINO declarado
-         * pegado detrás (el adjetivo ES la métrica: «urgente» nombra los días vencidos); «la más alta / baja / grande» ya tienen su
-         * marcador con su dirección, y acá «alta» no es término, así que no se juzga dos veces ni con la dirección equivocada.
-         * Admite UN sustantivo entre el artículo y «más» («la CUENTA más urgente», «los TRES más urgentes»); «que» no («el que más»
-         * ya es un marcador propio y se juzgaría dos veces). Con «los/las» delante es un plural, y va por el camino del grupo. */
+         * pegado detrás (el adjetivo ES la métrica: «urgente» nombra los días vencidos; «cargada», la carga; «lento», la rotación o los
+         * días, con la polaridad que declara la carpeta). Admite UN sustantivo entre el artículo y «más» («la CUENTA más urgente», «los
+         * TRES más urgentes»); «que» no («el que más» ya es un marcador propio). Con «los/las» delante es un plural, y va por el grupo. */
         [/\b(?:el|la|los|las)\s+(?:(?!que\b)\p{L}+\s+)?m[áa]s\s+(?=\p{L})/iu, "max", { terminoPegadoDetras: true }],
+        [/\b(?:el|la|los|las)\s+(?:(?!que\b)\p{L}+\s+)?menos\s+(?=\p{L})/iu, "min", { terminoPegadoDetras: true, invierte: true }],
+        /* «los tres grandes de la cartera por venta son A, B y C»: el plural de magnitud es un grupo top-k */
+        [/\b(?:los|las)\s+(?:dos|tres|cuatro|cinco|seis|\d)\s+(?:grandes|principales|m[áa]s\s+grandes)\b/i, "max"],
+        /* «top 3 por contribución: A, B y C» (grupo) · «entra en el top 3 de contribución» (pertenencia) */
+        [/\btop\s*[1-9]\d?\b/i, "max", { soloDetras: true, topN: true }],
       ];
       /* EL VOCABULARIO Y LA POLARIDAD LOS DECLARA LA CARPETA, NO EL MURO (owner 2026-08-16). Antes esta tabla
        * vivía acá: cuatro métricas escritas a mano, con su polaridad («la peor carga es la más ALTA») en un
@@ -6085,9 +6180,27 @@ export function guardC(narration, { ledger, results = [], trace = null, question
        * Ahora cada ranking trae sus términos y su polaridad, y esto solo los recorre. Un ranking SIN lado malo
        * (peorEs null, como el capital de un SKU: más capital no es peor capital) acepta «mayor/menor» y NO
        * acepta «el peor» — no hay extremo malo que verificar. */
+      /* …y desde el conjunto adversarial (2026-09-14) también su LÉXICO: verbos (raíces), adjetivos con polaridad y agentes. Cada
+       * entrada lleva su tipo, y el adjetivo su polaridad; la del término y del verbo es la del marcador. */
+      const _lexCache = new Map();
+      const _SUFIJO_VERBO = "(?:a|as|an|amos|e|es|en|emos|o|[óo]|i[óo]|ye|yen|y[óo]|aba|abas|aban|[íi]a|[íi]as|[íi]an|ar|er|ir|ando|iendo|yendo|ad[oa]s?|id[oa]s?|ar[áa]n?|er[áa]n?|ir[áa]n?|ar[íi]an?|er[íi]an?|ir[íi]an?|aron|ieron|yeron|aste|iste)";
+      const _lexicoDe = (d) => {
+        if (_lexCache.has(d)) return _lexCache.get(d);
+        const out = [];
+        const lx = d.lexico || {};
+        const juicio = (p) => (lx.juicio || []).includes(p);
+        for (const t of d.terminos || []) out.push({ re: new RegExp(`\\b(?:${t})\\b`, "igu"), tipo: "termino", polaridad: null, juicio: juicio(t), patron: t });
+        /* la raíz del verbo solo con una TERMINACIÓN verbal: «cobr» es «cobra / cobran / cobrado», no «cobranza» (medido: «pesa más que Falabella
+         * en COBRANZA» se leía como el recuperado) */
+        for (const v of lx.verbos || []) out.push({ re: new RegExp(`\\b(?:${v})${_SUFIJO_VERBO}\\b`, "igu"), tipo: "verbo", polaridad: null, juicio: false, patron: v });
+        for (const [a, pol] of Object.entries(lx.adjetivos || {})) out.push({ re: new RegExp(`\\b(?:${a})\\b`, "igu"), tipo: "adjetivo", polaridad: pol, juicio: juicio(a), patron: a });
+        for (const g of lx.agentes || []) out.push({ re: new RegExp(`\\b(?:${g})\\b`, "igu"), tipo: "agente", polaridad: null, juicio: false, patron: g });
+        _lexCache.set(d, out);
+        return out;
+      };
       const _metricasDe = (eje) => Object.entries(_rank[eje] || {})
         .filter(([, d]) => d && Array.isArray(d.terminos) && Array.isArray(d.filas))
-        .map(([clave, d]) => [new RegExp(`\\b(?:${d.terminos.join("|")})\\b`, "ig"), clave, d]);
+        .map(([clave, d]) => [clave, d]);
       /* «EL CONJUNTO ENTERO», dicho como lo dice la prosa. Sin una de estas fórmulas el universo son las
        * entidades que la oración nombra, y con una sola nombrada no hay orden que verificar (por eso el eje SKU
        * quedaba mudo: «MAK-COMP-AIR es el de peor rotación del inventario» nombra UNA). Las formas del universo
@@ -6097,7 +6210,13 @@ export function guardC(narration, { ledger, results = [], trace = null, question
        * frase que diga «entre los 13 SKU». Con eso, cualquier oración que mencionara la métrica se comparaba
        * contra el inventario ENTERO, y un extremo verdadero dentro de su grupo moría contra un tercero que la
        * oración jamás nombró. El universo se declara con «DEL inventario» («el peor del inventario»). */
-      const _TODO_EL_CONJUNTO = /\bde\s+(?:toda\s+)?la\s+cartera\b|\bde\s+tod[oa]s?\b|\bdel\s+negocio\b|\bde\s+(?:toda\s+)?la\s+lista\b|\bdel\s+inventario\b|\bde\s+todo\s+el\s+inventario\b|\bde\s+los\s+\d{1,3}\s+SKU\b/i;
+      /* …y las formas que faltaban (conjunto adversarial 2026-09-14): «de tu cartera», «de tus clientes», «entre todos tus clientes»,
+       * «del portafolio», «en toda la cartera», «a nivel cartera», «de las marcas», «de los 13 clientes» (el conteo ENTERO del eje se
+       * resuelve abajo contra el ranking: 13 clientes son los 13, cinco marcas son las cinco). */
+      const _TODO_EL_CONJUNTO = /\bde\s+(?:toda\s+)?(?:la|tu|su|nuestra|mi)\s+cartera\b|\bde\s+tod[oa]s?\b(?!\s+(?:modos|formas|maneras))|\bdel\s+negocio\b|\bde\s+(?:toda\s+)?la\s+lista\b|\bdel\s+inventario\b|\bde\s+todo\s+el\s+inventario\b|\bde\s+los\s+\d{1,3}\s+SKU\b|\bdel\s+portafolio\b|\ben\s+(?:toda\s+)?(?:la|tu)\s+cartera\b|\ba\s+nivel\s+(?:de\s+)?(?:la\s+)?cartera\b|\bentre\s+tod[oa]s\b|\bde\s+(?:tus|sus|las|los)\s+(?:clientes|cuentas|marcas|sku|productos|bodegas)\s*(?:[,.;:)(—–]|$|\ben\b|\bpor\b)/iu;
+      const _N_PAL = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15 };
+      const _CONTEO_EJE = /\b(?:de|entre)\s+(?:los|las|tus|sus|estos|estas)\s+(\d{1,3}|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince)\s+(?:clientes|cuentas|marcas|sku|productos|bodegas)\b/giu;
+      const _conteoEntero = (texto, lista) => [...String(texto).matchAll(_CONTEO_EJE)].some((m) => (_N_PAL[m[1].toLowerCase()] ?? parseInt(m[1], 10)) === lista.length);
       /* ── DOS FORMAS MÁS DE DECLARAR EL UNIVERSO (auditoría del Notario, owner 2026-09-14) ─────────────────────────────────────
        * (a) LA TABLA NOMBRADA: cada ranking puede traer sus propias fórmulas (`formulas`, declaradas por la carpeta): «la más urgente
        *     EN COBRANZA» nombra la mesa de cobranza entera, que es el universo de sus rankings.
@@ -6105,11 +6224,21 @@ export function guardC(narration, { ledger, results = [], trace = null, question
        *     (P1·2 — Falabella tiene $4.3M) nombra una sola entidad y no dice «de la cartera», pero «el cliente con más X» es, por su
        *     artículo, el cliente entre todos los clientes: el eje es el universo. NO es el caso de calibración que sigue sin juzgarse
        *     («Lider tiene la carga más alta» — una sola entidad, sin universo, no se juzga: decisión de calibración, intacta). Y se
-       *     retira en cuanto la oración acota el conjunto: «entre los tres grandes», «después de Jumbo y Falabella», «de los que crecen»,
-       *     «del canal retail» o cualquier familia/bodega/canal nombrado — ahí el universo es otro y no se adivina. */
-      const _EJE_DEFINIDO = /\b(?:el|la)\s+(?:cliente|cuenta|sku|marca|producto)\s+(?:de\s+)?$/i;
-      const _SUBCONJUNTO = /\bentre\b|\bdespu[ée]s\s+de\b|\bde\s+(?:los|las|tus|sus|estos|estas|esos|esas|aquellos|aquellas)\s+(?:que|\d+|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b|\bdel\s+(?:canal|grupo|tramo|top|segmento|tercio|cuartil)\b|\bde\s+(?:la\s+|esa\s+|esta\s+)?(?:familia|marca|bodega|regi[óo]n|zona|sucursal)\b|\btop\s*\d/i;
-      const _subUniversos = (Array.isArray(duenosDelTenant) ? duenosDelTenant : []).filter((n) => !(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : []).some((e) => _norm(e) === _norm(n)));
+       *     retira en cuanto la oración acota el conjunto: «entre los tres grandes», «de los que crecen», «del canal retail» o
+       *     cualquier familia/bodega/canal nombrado — ahí el universo es otro y no se adivina.
+       * …y (c) sus variantes (2026-09-14): «la que más», «el de mayor», «tu cliente más grande en», «tu mayor cliente por», «el mayor
+       *     vendedor», «la cuenta con la carga más alta», «las tres cuentas con más»: el artículo (o el posesivo) sobre el eje. */
+      const _EJE_DEFINIDO = new RegExp(`\\b(?:el|la|los|las|tu|tus|su|sus|mi|mis|nuestr[oa]s?)\\s+(?:(?:dos|tres|cuatro|cinco|seis|\\d{1,2})\\s+)?(?:(?:${_EJE_NOUN})\\s+(?:(?:de|con|que|en|por)\\s+(?:(?:el|la|los|las)\\s+)?(?:\\p{L}+\\s+){0,3})?|(?:que|quien|donde)\\s+)$|\\b(?:los|las|tus|sus)\\s+(?:dos|tres|cuatro|cinco|seis|\\d{1,2})\\s+$`, "iu");   // «Los tres con más vencido son…»: el artículo con el número, sin el sustantivo, también nombra el eje
+      const _EJE_DEFINIDO_TRAS = new RegExp(`^\\s*(?:${_EJE_NOUN})\\b`, "iu");
+      /* …y el artículo puede vivir DENTRO del marcador («la cuenta que más», «la que más», «la cuenta más urgente»): el eje es el universo igual.
+       * «el/la DE mayor» a secas NO lo declara: suele hablar del conjunto del contexto («Concentralo en LG-DRYER8KG: es el de mayor capital» son los
+       * frenados — examen real; decisión de calibración, como la entidad sola sin universo) */
+      const _EJE_EN_MARCADOR = new RegExp(`^(?:el|la|los|las|tu|tus|su|sus)\\s+(?:(?:dos|tres|cuatro|cinco|seis|\\d{1,2})\\s+)?(?:(?:${_EJE_NOUN})\\s+(?:(?:que|de|con)\\s+)?|que\\s+)|^(?:donde|quien(?:es)?)\\s+`, "iu");
+      /* la EXCLUSIÓN («Después de / Fuera de / Sacando a / Detrás de X, el mayor … es Y») ya no acota el universo: lo deja entero SIN X
+       * (fp-prosa F5, 36 frases). Sigue acotando lo que no se puede resolver: «entre los que crecen», «del canal», «de las seis con vencido». */
+      const _SUBCONJUNTO = /\bentre\b(?!\s+tod[oa]s\b)|\bde\s+(?:los|las|tus|sus|estos|estas|esos|esas|aquellos|aquellas)\s+(?:que|\d+|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b|\bdel\s+(?:canal|grupo|tramo|top|segmento|tercio|cuartil)\b|\bde\s+(?:la\s+|esa\s+|esta\s+)?(?:familia|marca|bodega|regi[óo]n|zona|sucursal)\b/i;
+      const _EXCLUYE = /\b(?:despu[eé]s\s+de|fuera\s+de|sacando\s+a|detr[aá]s\s+de|por\s+detr[aá]s\s+de|excluyendo\s+a?|sin\s+contar(?:\s+(?:a|con))?|aparte\s+de|salvo|excepto|quitando\s+a?|descontando\s+a?|dejando\s+(?:fuera|afuera)\s+a?|si\s+(?:dejo|dejamos|saco|sacamos|quito|quitamos)\s+(?:fuera|afuera)\s+a?|al\s+margen\s+de|m[aá]s\s+all[aá]\s+de|con\s+(?:la\s+)?excepci[óo]n\s+de|tras)\s+/giu;
+      const _subUniversosTodos = (Array.isArray(duenosDelTenant) ? duenosDelTenant : []).filter((n) => !(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : []).some((e) => _norm(e) === _norm(n)));
       /* SIN TILDES, PORQUE EL MODELO LAS PONE (corrida 4 del prompt de gerente, 2026-09-13): «Líder tiene … el margen más bajo de
        * toda la cartera (21,5%)» es VERDAD, pero «Líder» no casaba con «Lider» y el reclamante caía en la Falabella de la oración
        * anterior → «Falabella es más bajo y no lo es». Cada vocal del nombre admite su versión acentuada. */
@@ -6130,46 +6259,101 @@ export function guardC(narration, { ledger, results = [], trace = null, question
        * artículos, una preposición corta, «solo/apenas/casi» delante de la cifra, la cópula («la carga ES la más alta») y el nombre
        * de la propia entidad del eje («la carga DE FALABELLA es la más alta»). Cualquier otra palabra rompe la atadura: «carga comercial
        * produce el mayor efecto» sigue fuera. Y cuando hay varias métricas, gana LA MÁS CERCANA al marcador (a igual distancia, el
-       * término más largo: «brecha de margen» antes que «margen»), buscando TODAS las apariciones del término y no la primera. */
+       * término más largo: «brecha de margen» antes que «margen»), buscando TODAS las apariciones del término y no la primera.
+       * …y las ataduras que faltaban (conjunto adversarial 2026-09-14, fn-orden Q e I): «que es», «lo que la convierte en», «llega a»,
+       * «alcanza el», «es decir», «queda / se ubica como», «sigue siendo», «se mantiene como», «resulta», «la cifra / el monto / el valor»,
+       * la negrita, el nombre del eje («cliente», «cuenta») y las formas del universo («de la cartera por»), y los verbos de la prosa
+       * que unen sujeto y métrica («el que más PESA en contribución», «con 1.042 unidades, ES el mayor volumen»). */
       const _CIFRA_SUELTA = /(?:[$€£]\s*)?[+\-−]?\d[\d.,]*\s*(?:%|pp\b|p\.p\.|[KM]\b|x\b|d\b|d[íi]as?\b|unidades\b|puntos?\b)?/u;
-      const _entreMetricaYMarcador = (gap, entidades) => {
+      /* lo que puede haber entre la métrica y el marcador: artículos, preposiciones cortas, la cópula y sus variantes («que es», «lo que la
+       * convierte en», «queda / se ubica como», «sigue siendo», «resulta», «llega a», «alcanza el», «es decir»), los sustantivos genéricos de la
+       * cifra («la cifra / el monto / el valor más alto»), el nombre del eje, el énfasis y los ordinales */
+      const _PALABRA_ENTRE = /^(?:\s|[,:;—–\-()*_«»"']|\b(?:el|la|los|las|un|una|en|de|del|solo|s[óo]lo|apenas|casi|es|son|era|fue|est[áa]n?|queda|quedan|resulta|resultan|sigue|siguen|siendo|se|mantiene|mantienen|ubica|ubican|convierte|convierten|posiciona|lo|le|decir|llega|llegan|alcanza|alcanzan|cifra|monto|valor|nivel|dato|n[úu]mero|importe|tasa|porcentaje|per[íi]odo|plazo|con|por|a|al|como|tambi[ée]n|hoy|ya|as[íi]|su|sus|tu|tus|mismo|misma|propio|propia|cliente|clientes|cuenta|cuentas|sku|marca|marcas|producto|productos|bodega|bodegas|cartera|negocio|portafolio|inventario|toda|todo|todos|todas|primer[oa]?|segund[oa]|tercer[oa]?|cuart[oa]|quint[oa]|sext[oa]|[úu]nic[oa]|cuanto|ranking|lista|tabla|orden)\b)*$/iu;
+      /* …y SOLO cuando la métrica va DETRÁS de un «que más / con más / lidera» («el que más PESA EN contribución», «encabeza EL RANKING DE venta»),
+       * los verbos de la prosa que unen el sujeto con su métrica. Con un marcador de magnitud a secas no: «los tres motores MÁS GRANDES son
+       * también los que tienen el MARGEN más bajo» no dice que sean los tres de mayor margen (medido en la suite, familia B). */
+      const _PUENTE_VERBAL = /\b(?:tiene|tienen|deja|dejan|aporta|aportan|genera|generan|acumula|acumulan|concentra|concentran|pesa|pesan|mueve|mueven|lleva|llevan|arrastra|arrastran|registra|registran|muestra|muestran|presenta|presentan|paga|pagan|soporta|soportan|suma|suman|representa|representan|ocupa|ocupan|carga|cargan|vende|venden|factura|facturan|contribuye|contribuyen|debe|deben|recupera|recuperan|rota|rotan|que)\b/giu;
+      const _entreMetricaYMarcador = (gap, entidades, puenteVerbal = false) => {
         let g = String(gap).replace(_CIFRA_SUELTA, " ");
         if (/\d/.test(g)) return false;   // una segunda cifra: ya no es «la cifra del término»
+        if (/^[^(]*\)/.test(g)) return false;   // el marcador dentro de un paréntesis no toma un término de afuera: «$1.6M sin capturar (la mayor de todas), 8.1 pp de BRECHA»
         for (const n of entidades || []) g = g.replace(new RegExp(_tolerante(n), "giu"), " ");
-        return /^(?:\s|[,:—–\-()]|\b(?:el|la|los|las|un|una|en|de|del|solo|s[óo]lo|apenas|casi|es|son|era|fue|tambi[ée]n|hoy|ya|primer[oa]?|segund[oa]|tercer[oa]?|cuart[oa]|quint[oa]|sext[oa])\b)*$/iu.test(g);
+        g = g.replace(/\bque\s+(?=(?:es|son|era|fue|resulta|resultan|sigue|siguen|queda|quedan)\b)/giu, " ");   // «carga del 4.5% QUE ES la más alta»: el «que» de la cópula
+        g = g.replace(/\blo\s+que\s+(?:la|lo|le|las|los)\s+(?:convierte|convierten|posiciona|posicionan|deja|dejan|ubica|ubican|hace|hacen)\s+(?:en|como)\b/giu, " ");   // «4.5%, LO QUE LA CONVIERTE EN la más alta»
+        if (puenteVerbal) g = g.replace(_PUENTE_VERBAL, " ");
+        return _PALABRA_ENTRE.test(g);
       };
       /* EL MARCADOR CON OBJETO PROPIO NO TOMA LA MÉTRICA DE ATRÁS (medido en la suite, corridas 3 y 2 de la prueba de prioridad, 2026-09-14):
        * «con solo 45% recuperado — el peor PERFIL de cobranza de la cartera» y «45% recuperado — la peor COBRANZA de la cartera» son juicios
        * sobre el perfil entero, no una afirmación sobre el % recuperado; atar el «peor» al «recuperado» de antes de la raya cobraba a Lider
        * no ser Sodimac. Un término delante solo vale cuando el marcador es ABSOLUTO: lo que sigue es el fin, puntuación o el complemento del
        * universo («la más alta DE la cartera», «el mayor DE todos», «la mayor,»). Si el marcador trae su propio sustantivo, esa es su métrica —
-       * y si no es un término declarado, no se juzga. */
-      const _marcadorAbsoluto = (tras) => /^\s*(?:$|[^\p{L}\s]|(?:de|del|en|entre|contra|que|y|e|o|a|con|sin|por|para|frente|respecto|hoy|ya|tambi[ée]n|incluso|a[úu]n|dentro|hasta|desde|seg[úu]n)\b)/iu.test(tras);
+       * y si no es un término declarado, no se juzga. Los sustantivos genéricos de la cifra («la cifra más alta», «el valor más alto») no son
+       * objeto: describen la cifra del término (2026-09-14). */
+      const _marcadorAbsoluto = (tras) => /^\s*(?:$|[^\p{L}\s]|(?:de|del|en|entre|contra|que|y|e|o|a|con|sin|por|para|frente|respecto|hoy|ya|tambi[ée]n|incluso|a[úu]n|dentro|hasta|desde|seg[úu]n|cifra|monto|valor|nivel|dato|n[úu]mero|importe|registro|marca|lugar|puesto|posici[óo]n|cliente|cuenta|sku|producto|vendedor|deudor|pagador|es|son|lo|la|los|las|le|le)\b)/iu.test(tras);
       /* «DE MAYOR A MENOR» ES UNA DIRECCIÓN DE ORDEN, NO UNA AFIRMACIÓN (medido en la suite, roce de universos): «Ranking de los 5 SKU
        * inmovilizados, de mayor a menor capital: …» no dice que nadie sea el mayor ni el menor. Los marcadores dentro de esa fórmula no se juzgan. */
-      const _DIRECCION_DE_ORDEN = /\b(?:de\s+)?(?:mayor|menor|m[áa]s|menos)\s+a\s+(?:mayor|menor|m[áa]s|menos)\b/giu;
+      const _DIRECCION_DE_ORDEN = /\b(?:de\s+)?(?:mayor|menor|m[áa]s|menos|peor|mejor)\s+a\s+(?:mayor|menor|m[áa]s|menos|peor|mejor)\b/giu;
+      /* el término: en `oracion`, el más cercano al marcador (delante o detrás según el marcador) con la atadura permitida */
       const _terminoDe = (eje, oracion, iM, lenM, opc) => {
         let mejor = null;
-        for (const [reMet, clave, d] of _metricasDe(eje)) {
-          reMet.lastIndex = 0;
-          let mt;
-          while ((mt = reMet.exec(oracion))) {
-            if (!mt[0].length) { reMet.lastIndex++; continue; }
-            const iMet = mt.index, fMet = mt.index + mt[0].length;
-            let gap = null, detras = false;
-            if (iMet >= iM + lenM) { gap = oracion.slice(iM + lenM, iMet); detras = true; }
-            else if (fMet <= iM) gap = oracion.slice(fMet, iM);
-            else continue;   // el término se solapa con el marcador: no es su métrica
-            if ((opc.soloDetras || opc.terminoPegadoDetras) && !detras) continue;
-            if (!detras && !_marcadorAbsoluto(oracion.slice(iM + lenM))) continue;
-            if (opc.terminoPegadoDetras && gap !== "") continue;   // «la más urgente»: el adjetivo pegado ES la métrica
-            if (!_entreMetricaYMarcador(gap, d.filas.map((x) => x.entidad))) continue;
-            const cand = { met: mt[0], iMet, clave, d, gap: gap.length };
-            if (!mejor || cand.gap < mejor.gap || (cand.gap === mejor.gap && cand.met.length > mejor.met.length)) mejor = cand;
+        for (const [clave, d] of _metricasDe(eje)) {
+          for (const lx of _lexicoDe(d)) {
+            lx.re.lastIndex = 0;
+            let mt;
+            while ((mt = lx.re.exec(oracion))) {
+              if (!mt[0].length) { lx.re.lastIndex++; continue; }
+              const iMet = mt.index, fMet = mt.index + mt[0].length;
+              let gap = null, detras = false;
+              if (iMet >= iM + lenM) { gap = oracion.slice(iM + lenM, iMet); detras = true; }
+              else if (fMet <= iM) gap = oracion.slice(fMet, iM);
+              else continue;   // el término se solapa con el marcador: no es su métrica
+              if ((opc.soloDetras || opc.terminoPegadoDetras) && !detras) continue;
+              if (!detras && !_marcadorAbsoluto(oracion.slice(iM + lenM))) continue;
+              if (opc.terminoPegadoDetras && gap !== "") continue;   // «la más urgente»: el adjetivo pegado ES la métrica
+              if (opc.ordinal && opc.terminoPegadoDetras && lx.tipo === "verbo") continue;   // «la primera VENDE más»: anáfora ordinal de una lista, no un puesto
+              if (lx.tipo === "adjetivo" && !opc.terminoPegadoDetras && !opc.comparativo && !detras) continue;   // un adjetivo describe lo que sigue, no lo de antes
+              /* la métrica DETRÁS del marcador viene pegada o con artículo: ni una cifra ni «:» / «;» entre medio («el deterioro es más profundo — 45%
+               * RECUPERADO» y «quién va primero: por CONTRIBUCIÓN» no atan la métrica de después; borradores reales de la lectura ejecutiva y del ensamblador) */
+              if (detras && /[\d:;]/.test(gap.replace(/[—–][^—–]*[—–]/g, " ").replace(/\([^)]*\)/g, " "))) continue;   // «la mayor —$4.2M— en contribución»: el inciso sí cabe
+              /* …y el verbo que sigue al término puede DESVIAR la métrica: «las que más margen CEDEN» (ceden margen = lo pierden), «el que más capital
+               * LIBERA» (el capital que se libera no es el capital): con esos verbos no se juzga */
+              if (/^\s*(?:\p{L}+\s+){0,2}?(?:liber|ced|pierd|perd|resign|sacrific|erosion|renunci|devuelv|recort|reduc|libr)\p{L}*(?![\p{L}])/iu.test(oracion.slice(fMet, fMet + 40))) continue;
+              /* …y el complemento que cambia la métrica: «los que más APORTAN SOBRE EL PLAN» es la desviación contra el presupuesto, «donde más CAPITAL hay
+               * SIN ROTAR» es el capital frenado (textos reales de los playbooks): con ese complemento no se juzga */
+              if (lx.tipo === "verbo" && /^\s*(?:\p{L}+\s+){0,2}?(?:sobre|contra|respecto\s+(?:a|de)|frente\s+a|vs\.?|versus)\s+(?:(?:el|la|su|tu|del)\s+)?(?:plan|presupuesto|benchmark|referencia|a[ñn]o|per[ií]odo|objetivo|piso|meta)(?![\p{L}])/iu.test(oracion.slice(fMet, fMet + 50))) continue;   // «la segunda peor CARGA sobre meta» (sustantivo) sigue siendo la carga
+              if (/^\s*(?:\p{L}+\s+){0,2}?sin\s+(?:rotar|vender|movimiento|mover)(?![\p{L}])/iu.test(oracion.slice(fMet, fMet + 50))) continue;
+              if (!_entreMetricaYMarcador(gap.replace(_TODO_EL_CONJUNTO, " "), d.filas.map((x) => x.entidad), !!(opc.soloDetras || opc.verbo))) continue;
+              const cand = { met: mt[0], iMet, fMet, clave, d, gap: gap.length, tipo: lx.tipo, polaridad: lx.polaridad, juicio: !!lx.juicio, detras };
+              if (!mejor || cand.gap < mejor.gap || (cand.gap === mejor.gap && cand.met.length > mejor.met.length)) mejor = cand;
+            }
           }
         }
         return mejor;
       };
+      /* LA CIFRA ELIGE LA MÉTRICA cuando el marcador no la nombra («a la cabeza ($13.3M)») o cuando un adjetivo de juicio cede al eje
+       * declarado («la más urgente por monto ($4.6M)»): el ranking del mismo eje donde el reclamante vale exactamente esa cifra (una
+       * sola coincidencia; con dos rankings candidatos no se adivina). */
+      const _cifraEnRanking = (clave, valor, cifra) => {
+        const m = /^\s*[+\-−]?\s*[$€£]?\s*(\d[\d.,]*)\s*([KM%x]|pp|d(?:[íi]as?)?)?/iu.exec(String(cifra));
+        if (!m) return false;
+        const num = parseFloat(m[1].replace(/\.(?=\d{3}\b)/g, "").replace(",", "."));
+        if (!Number.isFinite(num)) return false;
+        const u = (m[2] || "").toLowerCase();
+        const dinero = /no_capturada|saldo|^ventas$|^contribucion$|capital/.test(clave);
+        if (dinero) {
+          const enK = /capital/.test(clave) ? valor / 1000 : valor;   // el capital viaja en dólares crudos; la venta y la cobranza en miles
+          if (u === "m") return Math.abs(enK / 1000 - num) <= 0.05 + 1e-9;
+          if (u === "k") return Math.abs(enK - num) <= 0.5 + 1e-9;
+          return false;
+        }
+        if (/margen|carga|recuperado|brecha/.test(clave)) return (u === "%" || u === "pp" || u === "") && Math.abs(valor - num) <= 0.05 + 1e-9;
+        if (clave === "rotacion") return (u === "x" || u === "") && Math.abs(valor - num) <= 0.05 + 1e-9;
+        if (/dias/.test(clave)) return (u === "" || /^d/.test(u)) && Math.abs(valor - num) <= 0.5;
+        if (/unidades/.test(clave)) return u === "" && Math.abs(valor - num) <= 0.5;
+        return false;
+      };
+      const _cifrasTras = (texto) => [...String(texto).matchAll(/[+\-−]?\s?[$€£]?\d[\d.,]*\s?(?:%|pp|[KM]\b|x\b|d[íi]as?\b|d\b)?/gu)].map((m) => ({ text: m[0].trim(), i: m.index }));
       /* ── EL GRUPO SE VERIFICA COMO TOP-k (auditoría del Notario, owner 2026-09-14) ────────────────────────────────────────────
        * «los tres motores más grandes son también los que tienen el margen más bajo de la cartera — Lider 21.5%, Falabella 22.0%,
        * Jumbo 24.0%» pasó verde: los tres de margen más bajo son Lider, Falabella y SODIMAC (23.5%). El candado del plural («un
@@ -6182,70 +6366,200 @@ export function guardC(narration, { ledger, results = [], trace = null, question
        *   · plural sin k nombrable (ninguna o una sola entidad, más de seis, o «los N» con N distinto de las nombradas) → no se juzga;
        *   · «Falabella y Lider, los dos mayores, tienen los márgenes más bajos de la cartera» (calibración del Examen 4) → k = 2, y los
        *     dos de margen más bajo SON Lider (21.5) y Falabella (22.0): vive, ahora por verificación y no por saltarla.
-       * La casa prefiere el falso negativo al falso positivo: en la duda, el grupo no se juzga. */
+       * La casa prefiere el falso negativo al falso positivo: en la duda, el grupo no se juzga.
+       * …y la PERTENENCIA (2026-09-14): «está entre los tres de mayor X», «es uno de los tres … con más X», «entra en el top 3 de X»,
+       * «una de las dos cuentas con más X» — el reclamante tiene que estar dentro de los N primeros. */
       const _GRUPO_DELANTE = /\b(?:los|las|tus|sus|estos|estas|esos|esas)\s+(?:dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|\d{1,2})\b|\bambos\b|\bambas\b|\b(?:los|las)\s+que\b|\bquienes\b/i;
       const _N_DELANTE = /\b(?:los|las|tus|sus|estos|estas|esos|esas)\s+(dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|\d{1,2})\b|\b(ambos|ambas)\b/i;
+      const _PERTENENCIA = /(?:\b(?:est[áa]n?|entra(?:n)?|figura(?:n)?|aparece(?:n)?|queda(?:n)?|se\s+ubica(?:n)?|se\s+cuenta(?:n)?|se\s+encuentra(?:n)?|cae(?:n)?|forma(?:n)?\s+parte\s+de)\s+(?:entre|en|dentro\s+de)\s+(?:los|las|el)\s+(?:top\s*)?(dos|tres|cuatro|cinco|seis|\d{1,2})\b|\b(?:uno|una)\s+de\s+(?:los|las)\s+(?:top\s*)?(dos|tres|cuatro|cinco|seis|\d{1,2})\b)/iu;
       const _N_GRUPO = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
-      const _marcadorPlural = (m) => (/(?:es|as|os)$/i.test(m) && /(?:mayores|menores|peores|mejores|principales|alt[ao]s|baj[ao]s|grandes|cr[íi]tic[ao]s|m[áa]xim[ao]s|m[íi]nim[ao]s)$/i.test(m)) || /^(?:los|las)\s/i.test(m);
+      const _marcadorPlural = (m) => (/(?:es|as|os)$/i.test(m) && /(?:mayores|menores|peores|mejores|principales|alt[ao]s|baj[ao]s|grandes|cr[íi]tic[ao]s|m[áa]xim[ao]s|m[íi]nim[ao]s|primer[oa]s|segund[oa]s|urgentes|moros[oa]s|atrasad[oa]s|cargad[oa]s|lent[oa]s|anch[oa]s|abultad[oa]s|larg[oa]s|flac[oa]s|delgad[oa]s|cort[oa]s)$/i.test(m)) || /^(?:los|las)\s/i.test(m);
       /* ── EL «Y MÁS X» ENCADENADO (auditoría del Notario, owner 2026-09-14) ─────────────────────────────────────────────────────
        * «Jumbo además es el cliente con más unidades vendidas (1.194) y más contribución ($4.2M)»: la primera mitad es verdad y la
        * segunda no (Falabella $4.3M). Un «y más / y menos <métrica>» encadenado a un marcador «con más / con menos» COMPARTE el
-       * reclamante y el universo, y se verifica cada uno; el «más» suelto sin ese encadenamiento sigue siendo comparativo y sigue fuera. */
-      const _CADENA = /^con\s+(?:m[áa]s|menos)\s+[^.;:—–()]{0,40}?(?:\s*\([^)]*\))?\s*,?\s+(y\s+(?:m[áa]s|menos))\s+/i;
+       * reclamante y el universo, y se verifica cada uno; el «más» suelto sin ese encadenamiento sigue siendo comparativo y sigue fuera.
+       * …y en todas sus formas (2026-09-14): «y también con más», «y, además, más», «—y más», «y la mayor», «y el de más», y para los
+       * verbos de liderazgo «lidera en venta ($19.4M) y contribución ($4.3M)». La regla general vive abajo: el universo declarado una vez
+       * en la oración vale para los marcadores encadenados del mismo reclamante. */
+      const _CADENA = /^(?:con\s+(?:m[áa]s|menos)|lidera(?:n)?|encabeza(?:n)?)\s+[^.;:—–()]{0,40}?(?:\s*\([^)]*\))?[\s,—–]+((?:y|e)(?![\p{L}])\s*,?\s+(?:(?:tambi[ée]n|adem[áa]s)\s*,?\s+)?(?:(?:con\s+)?(?:m[áa]s|menos|(?:el|la)\s+(?:de\s+)?(?:mayor|menor)|(?:el|la)\s+de\s+m[áa]s)\s+|(?:en\s+|la\s+|el\s+)?(?=\p{L})))/iu;
       /* la cifra del veto, con la unidad de su ranking: dinero en miles (venta, contribución, no capturada, saldos), %, pp, días, x */
-      const _v = (clave, x) => (/brecha/.test(clave) ? `${x.valor} pp` : /no_capturada|saldo|^ventas$|^contribucion$/.test(clave) ? (Math.abs(x.valor) >= 1000 ? `$${(x.valor / 1000).toFixed(1)}M` : `$${Math.round(x.valor)}K`) : /margen|carga|recuperado/.test(clave) ? `${x.valor}%` : clave === "rotacion" ? `${x.valor}x` : /dias/.test(clave) ? `${x.valor}d` : /unidades/.test(clave) ? `${x.valor} unidades` : String(x.valor));
+      const _v = (clave, x) => (/brecha/.test(clave) ? `${x.valor} pp` : /capital/.test(clave) ? `$${Math.round(x.valor / 1000)}K` : /no_capturada|saldo|^ventas$|^contribucion$/.test(clave) ? (Math.abs(x.valor) >= 1000 ? `$${(x.valor / 1000).toFixed(1)}M` : `$${Math.round(x.valor)}K`) : /margen|carga|recuperado/.test(clave) ? `${x.valor}%` : clave === "rotacion" ? `${x.valor}x` : /dias/.test(clave) ? `${x.valor}d` : /unidades/.test(clave) ? `${x.valor} unidades` : String(x.valor));
+      const _kDe = (s) => { const t = _norm(String(s)); const m = /(primer|segund|tercer|cuart|quint|sext|\d|uno|dos|tres|cuatro|cinco|seis)/.exec(t.replace(/^(?:los|las|tus|sus)\s+(?:dos|tres|cuatro|cinco|seis)\s+/, "")); if (!m) return 0; const w = m[1]; return /^\d$/.test(w) ? parseInt(w, 10) : ({ primer: 1, uno: 1, segund: 2, dos: 2, tercer: 3, tres: 3, cuart: 4, cuatro: 4, quint: 5, cinco: 5, sext: 6, seis: 6 })[w] || 0; };
+      const _ORD_ATRAS = new RegExp(`\\b(${_ORD})\\s+(?:\\p{L}+\\s+){0,3}$`, "iu");
       /* UN VETO POR SUPERLATIVO, NO UNO POR RESPUESTA (auditoría del Notario 2026-09-14): el primer veto cortaba la revisión entera, así que
        * en P1·2 el grupo falso de la oración anterior tapaba «Jumbo … y más contribución» y la reparación llegaba sin verlo. Cada superlativo
-       * es una afirmación propia y se cobra por separado; dentro de una misma aparición, el primer eje que la refuta cierra. */
+       * es una afirmación propia y se cobra por separado; dentro de una misma aparición, el primer eje que la refuta cierra. Dos marcadores
+       * que afirman lo mismo («la segunda carga más alta»: el ordinal pegado y el de magnitud) se cobran una sola vez. */
+      const _cobrados = new Set();
+      const _reclamanteDetras = (oracion, iM, lenM, nombradas, permiteAposicion = false) => {
+        const _tras = oracion.slice(iM + lenM);
+        const _corte = _tras.search(/[;—–(]/);
+        const _zona = (_corte >= 0 ? _tras.slice(0, _corte) : _tras).toLowerCase();
+        /* el nombre suele venir en NEGRITA («es **LG-DRYER8KG**»): el énfasis es del formato, no del nombre */
+        const _COPULA = /(?:\b(?:es|son|fue|era|eran|fueron|sino)\s+(?:(?:el|la|los|las)\s+(?:de|caso\s+de)\s+)?|\b(?:lo|la|los|las)\s+(?:tiene|tienen|lleva|llevan|concentra|concentran|acumula|acumulan|ostenta|ostentan|registra|registran|muestra|muestran|presenta|presentan|sostiene|sostienen|encabeza|encabezan)\s+|\bcorresponden?\s+a\s+|\b(?:est[áa]n?|figura(?:n)?|aparece(?:n)?|queda(?:n)?)\s+(?:en\s+)?|\brecaen?\s+en\s+|\bpertenecen?\s+a\s+|\bes\s+de\s+)[*_«"']*\s*/giu;
+        let cand = [];
+        let mc;
+        while ((mc = _COPULA.exec(_zona))) {
+          /* «El mayor vencido NO es el de Falabella sino el de Lider»: la cópula negada no nombra al reclamante; el «sino» sí */
+          if (/(?:^|[^\p{L}])no\s+$/u.test(_zona.slice(Math.max(0, mc.index - 4), mc.index))) continue;
+          const resto = _zona.slice(mc.index + mc[0].length);
+          for (const x of nombradas) if (resto.startsWith(String(x.entidad).toLowerCase()) && !cand.includes(x)) cand.push(x);
+        }
+        if (!cand.length && _zona.includes(":")) {
+          /* el RÓTULO: «La mayor carga comercial de la cartera: Falabella (4.5%)» — tras los dos puntos, el nombre solo */
+          const resto = _zona.slice(_zona.indexOf(":") + 1).replace(/^[\s*_«"']+/, "").toLowerCase();
+          /* …el nombre SOLO (con su cifra, su paréntesis o el fin): «: Lider está en 21.5% y Jumbo en 24.0%» es la lista de los comparados, no el rótulo */
+          for (const x of nombradas) if (resto.startsWith(String(x.entidad).toLowerCase()) && /^\s*(?:$|[(,;.—–]|con\s|[$+\-−]?\d)/u.test(resto.slice(String(x.entidad).length))) cand.push(x);
+        }
+        if (!cand.length && permiteAposicion) {
+          /* la APOSICIÓN: «El mayor vendedor, Jumbo ($17.3M), tiene margen 24%» — el nombre pegado tras la coma que cierra al marcador y su término */
+          const mAp = /^[^,;:()]{0,30},\s*[*_«"']*/u.exec(_zona);
+          if (mAp) { const resto = _zona.slice(mAp[0].length); for (const x of nombradas) if (resto.startsWith(String(x.entidad).toLowerCase())) cand.push(x); }
+        }
+        return cand.length === 1 ? cand[0] : null;   // con dos no se adivina
+      };
+      /* las entidades EXCLUIDAS por la cláusula del marcador: la última exclusión antes del marcador y la lista coordinada que la sigue */
+      /* delante del marcador siempre («Después de Lider, el mayor vencido es el de Falabella»); detrás solo para un extremo, no para un
+       * ordinal («la segunda carga más alta, solo detrás de Easy» confirma el puesto, no excluye a Easy) */
+      /* …y solo DENTRO DE LA CLÁUSULA del marcador (los paréntesis y las otras cláusulas no la acotan): «Lider es la segunda en venta ($17.8M,
+       * detrás de Falabella) y la tercera en contribución» — el «detrás de Falabella» del paréntesis no le quita a Falabella al ordinal. Con un
+       * ordinal (k ≥ 2) no hay exclusión que aplicar: «Después de Lider viene Falabella, con el segundo mayor vencido» dice lo mismo dos veces. */
+      const _excluidasEn = (clausulaN, iMRel, lista) => {
+        const out = [];
+        _EXCLUYE.lastIndex = 0;
+        let m;
+        while ((m = _EXCLUYE.exec(clausulaN))) {
+          const hasta = m.index < iMRel ? iMRel : clausulaN.length;
+          const ventana = clausulaN.slice(m.index + m[0].length, hasta);
+          const runs = listasCoordinadas(ventana, lista.map((x) => _reLector(x.entidad)));
+          const primera = runs.find((r) => r.ini <= 2);
+          if (!primera) continue;
+          /* la lista cierra con «y»: «Después de Jumbo Y Sodimac, Lider concentra…» excluye a dos, y Lider es el sujeto */
+          let items = primera.items;
+          const iCierre = items.findIndex((it, i) => i > 0 && /\s(?:y|e|o)\s/u.test(ventana.slice(items[i - 1].fin, it.ini)));
+          if (iCierre > 0) items = items.slice(0, iCierre + 1);
+          for (const it of items) { const x = lista.find((y) => _norm(y.entidad) === it.nombre); if (x && !out.includes(x)) out.push(x); }
+        }
+        return out;
+      };
+      /* el SUBCONJUNTO que sí se puede resolver: «entre A, B y C», «de los tres» (la última lista del párrafo), «de los tres grandes» (los
+       * tres de mayor venta del eje); lo demás («entre los que crecen», «de las seis con vencido») no se adivina */
+      const _conjuntoNombrado = (oracionN, iM, lenM, lista, eje, L) => {
+        const cabezaN = oracionN.slice(0, iM);
+        const _GRANDES = /\b(?:de|entre)\s+(?:los|las|estos|estas|esos|esas)\s+(dos|tres|cuatro|cinco|seis|\d)\s+(?:grandes|mayores|m[áa]s\s+grandes|principales)\b/iu;
+        /* detrás del marcador solo pegado a él («el margen más bajo DE LOS TRES GRANDES»); «el cuarto cliente en venta ($8.2M), lejos de los tres
+         * grandes» no acota el ordinal */
+        const mgTras = _GRANDES.exec(oracionN.slice(iM + lenM));
+        const mg = _GRANDES.exec(cabezaN) || (mgTras && !/[,;:()]/.test(oracionN.slice(iM + lenM, iM + lenM + mgTras.index)) && mgTras.index <= 30 ? mgTras : null);
+        if (mg && _rank[eje] && _rank[eje].ventas && Array.isArray(_rank[eje].ventas.filas)) {
+          const N = _N_GRUPO[mg[1].toLowerCase()] ?? parseInt(mg[1], 10);
+          const top = _rank[eje].ventas.filas.slice().sort((a, b) => b.valor - a.valor).slice(0, N).map((x) => _norm(x.entidad));
+          const conj = lista.filter((x) => top.includes(_norm(x.entidad)));
+          return conj.length === N ? conj : null;
+        }
+        const mn = /\b(?:de|entre)\s+(?:los|las|estos|estas|esos|esas)\s+(dos|tres|cuatro|cinco|seis|\d)\b(?!\s+\p{L})/iu.exec(cabezaN);
+        if (mn && L.listaPrevia && L.listaPrevia.nombres.length === (_N_GRUPO[mn[1].toLowerCase()] ?? parseInt(mn[1], 10))) {
+          const conj = L.listaPrevia.nombres.map((n) => lista.find((x) => _norm(x.entidad) === n)).filter(Boolean);
+          return conj.length === L.listaPrevia.nombres.length ? conj : null;
+        }
+        const me = /\bentre\s+/iu.exec(cabezaN);
+        if (me) {
+          /* la lista se lee ocurrencia por ocurrencia («Entre Falabella, Lider y Jumbo, JUMBO tiene…»: el nombre repetido como sujeto no acorta la lista) */
+          const ventana = cabezaN.slice(me.index + me[0].length);
+          const ments = [];
+          for (const x of lista) { const g = new RegExp(_reLector(x.entidad).source, "gu"); let mm; while ((mm = g.exec(ventana))) { const ini = mm.index + mm[0].search(/[\p{L}\p{N}]/u); ments.push({ x, ini, fin: ini + _norm(x.entidad).length }); if (!mm[0].length) g.lastIndex++; } }
+          ments.sort((a, b) => a.ini - b.ini);
+          const conj = [];
+          for (let i = 0; i < ments.length; i++) {
+            if (i === 0 ? ments[i].ini > 2 : !new RegExp(`^${_SEP_COORD}$`, "u").test(ventana.slice(ments[i - 1].fin, ments[i].ini))) break;
+            if (conj.includes(ments[i].x)) break;
+            conj.push(ments[i].x);
+          }
+          if (conj.length >= 2) return conj;
+        }
+        return null;
+      };
       for (const [oi, oracion] of _oraciones.entries()) {
         /* TODAS las apariciones de cada marcador, no la primera de la oración: cada superlativo es una afirmación propia */
         const ocurrencias = [];
         for (const [reM, dir, opc] of _MARCAS_SUP) {
           const g = new RegExp(reM.source, reM.flags.includes("g") ? reM.flags : reM.flags + "g");
           let mm;
-          while ((mm = g.exec(oracion))) { if (!mm[0].length) { g.lastIndex++; continue; } ocurrencias.push({ iM: mm.index, texto: mm[0], dir, opc: opc || {}, iAncla: mm.index }); }
+          while ((mm = g.exec(oracion))) {
+            if (!mm[0].length) { g.lastIndex++; continue; }
+            const o = { iM: mm.index, texto: mm[0], dir, opc: opc || {}, iAncla: mm.index };
+            if (o.opc.reclamanteTrasQue) o.dir = /menos/i.test(mm[1]) ? "min" : "max";
+            ocurrencias.push(o);
+          }
         }
         for (const o of ocurrencias.slice()) {
-          if (!/^con\s+(?:m[áa]s|menos)$/i.test(o.texto.trim())) continue;
+          if (!/^(?:con\s+(?:m[áa]s|menos)|lidera(?:n)?|encabeza(?:n)?)$/i.test(o.texto.trim())) continue;
           const cad = _CADENA.exec(oracion.slice(o.iM));
-          if (cad) ocurrencias.push({ iM: o.iM + cad[0].lastIndexOf(cad[1]), texto: cad[1], dir: /menos/i.test(cad[1]) ? "min" : "max", opc: { soloDetras: true }, iAncla: o.iM, encadenado: true });
+          if (cad) {
+            const enl = cad[1];
+            const iEnl = o.iM + cad[0].length - enl.length;
+            const conMarcador = /m[áa]s|menos|mayor|menor/i.test(enl);
+            const dirEnl = conMarcador ? (/menos|menor/i.test(enl) ? "min" : "max") : o.dir;   // «lidera en venta y contribución»: la misma dirección
+            /* sin marcador propio («y contribución») el término tiene que venir PEGADO: «lidera en venta ($19.4M) y Lider en vencido» no encadena */
+            if (!ocurrencias.some((x) => x.iM === iEnl)) ocurrencias.push({ iM: iEnl, texto: enl, dir: dirEnl, opc: conMarcador ? { soloDetras: true } : { soloDetras: true, terminoPegadoDetras: true }, iAncla: o.iM, encadenado: true });
+          }
         }
         ocurrencias.sort((a, b) => a.iM - b.iM);
         const _tramosDireccion = [...oracion.matchAll(_DIRECCION_DE_ORDEN)].map((m) => [m.index, m.index + m[0].length]);
+        const oracionN = _norm(oracion);
+        let universoHeredable = null;   // {reclamante} del último marcador con universo declarado en esta oración (para la cadena)
         for (const o of ocurrencias) {
-          const { iM, dir, opc } = o;
+          const { iM, opc } = o;
+          let dir = o.dir;
           const mmTexto = o.texto;
           if (_tramosDireccion.some(([a, b]) => iM >= a && iM < b)) continue;   // «de mayor a menor»: dirección, no afirmación
-          const plural = _marcadorPlural(mmTexto.trim());
+          const plural = _marcadorPlural(mmTexto.trim()) || !!opc.topN;
           /* EL ORDINAL (owner 2026-09-14, segunda corrida de la prueba 2): «la SEGUNDA mayor brecha de margen, 8.6 pp» —la de
            * Lider es la MAYOR de todas—. «primero», «segundo», «segunda mayor», «tercero» se verifican igual que «mayor/menor/
            * peor»: una cifra correcta con posición incorrecta sigue siendo una conclusión falsa. El puesto k se mide sobre el
            * UNIVERSO DECLARADO entero (un ordinal es una afirmación sobre el orden completo), y en empate de valor vale. Del
-           * séptimo en adelante no se verifica: nadie lo afirma. */
-          const _mNum = /^(?:#|n[°º]\s*|n[uú]mero\s+)([1-9])\s+en$/i.exec(mmTexto.trim());
-          const _mOrd = _mNum ? null : (/^(segund[oa]|tercer[oa]?|cuart[oa]|quint[oa]|sext[oa])\s+en$/i.exec(mmTexto.trim())
-            || /\b(primer[oa]?|segund[oa]|tercer[oa]?|cuart[oa]|quint[oa]|sext[oa])\s+(?:(?:cliente|cuenta|sku|marca|producto)\s+)?$/i.exec(oracion.slice(Math.max(0, iM - 24), iM)));
-          const kOrd = _mNum ? parseInt(_mNum[1], 10) : _mOrd ? (/^pr/i.test(_mOrd[1]) ? 1 : /^se/i.test(_mOrd[1]) ? 2 : /^te/i.test(_mOrd[1]) ? 3 : /^cu/i.test(_mOrd[1]) ? 4 : /^qu/i.test(_mOrd[1]) ? 5 : 6) : 0;
+           * séptimo en adelante no se verifica: nadie lo afirma. …y el ordinal puede venir hasta tres palabras antes del marcador
+           * de magnitud («el segundo VENCIDO más alto», «la segunda CARGA más alta»: fp-prosa 7 lo leía como el máximo absoluto). */
+          const _mOrd = opc.ordinal ? null : (_ORD_ATRAS.exec(oracion.slice(Math.max(0, iM - 40), iM)) || new RegExp(`\\s(${_ORD})${_ORD_FIN}\\s`, "iu").exec(mmTexto));   // «el SEGUNDO más atrasado»: el ordinal dentro del marcador
+          let kOrd = opc.ordinal ? _kDe(mmTexto) : _mOrd ? _kDe(_mOrd[1]) : 0;
+          if (opc.ordinal && /\b(?:peor(?:es)?|menor(?:es)?)\b/i.test(mmTexto)) dir = /peor/i.test(mmTexto) ? "peor" : "min";
+          else if (opc.ordinal && /\bmejor(?:es)?\b/i.test(mmTexto)) dir = "mejor";
+          else if (opc.ordinal && new RegExp(`\\bm[áa]s\\s+(?:${_MAG_MIN})\\b`, "i").test(mmTexto)) dir = "min";
           if (kOrd > 6) continue;
           if (/\b(?:s[ée]ptim|octav|noven|d[ée]cim)[oa]s?\s+$/i.test(oracion.slice(Math.max(0, iM - 18), iM))) continue;
-          /* EL SUPERLATIVO NEGADO NO RECLAMA NADA (prompt de gerente, corrida 4 · 2026-09-13): «Falabella: $1.6M — la mayor
-           * de la cartera, aunque NO el margen más bajo (ese es Líder)» dice justo lo contrario de lo que esta regla cobra */
-          if (/(?<![\wáéíóúñ])(?:no|ni|tampoco|sin ser|aunque no|pero no)\s+(?:[\wáéíóúñ]+\s+){0,3}$/i.test(oracion.slice(Math.max(0, iM - 30), iM))) continue;
           /* EL COMPARATIVO NO ES UN SUPERLATIVO (prueba 2, tercera corrida viva · 2026-09-14): «su brecha al benchmark es mayor QUE la
-           * de Falabella (8.6 pp contra 8.1 pp)» compara dos cuentas; el posesivo «de Falabella» es la comparada, no la reclamante. */
-          if (/^\s+que(?![\wáéíóúñ])/i.test(oracion.slice(iM + mmTexto.length, iM + mmTexto.length + 6))) continue;
+           * de Falabella (8.6 pp contra 8.1 pp)» compara dos cuentas; el posesivo «de Falabella» es la comparada, no la reclamante. Los
+           * comparativos se verifican aparte, abajo. «que nadie» sí es superlativo. */
+          if (!opc.todos && /^\s+que(?![\wáéíóúñ])/i.test(oracion.slice(iM + mmTexto.length, iM + mmTexto.length + 6))) continue;
+          /* el verbo de liderazgo en PLURAL («PHI-SHAVER9 y PHI-HAIR-PRO … lideran contribución», borrador real del cruce) es un grupo dicho a
+           * grandes rasgos, no un top-k afirmado: no se juzga (la casa prefiere el falso negativo) */
+          if (opc.verbo && /^(?:lideran|encabezan|llevan|van|est[áa]n|dominan|cierran|quedan)\b/iu.test(mmTexto.trim())) continue;
+          const _posAncla = _iniOracion[oi] + o.iAncla;
+          const _posMarcador = _iniOracion[oi] + iM;
           // el eje: el que tenga en su ranking DECLARADO a las entidades que la oración nombra
           for (const eje of Object.keys(_rank)) {
-            const t = _terminoDe(eje, oracion, iM, mmTexto.length, opc);
+            let t = _terminoDe(eje, oracion, iM, mmTexto.length, opc);
+            /* un VERBO DE LIDERAZGO sin métrica nombrada («SAM-TV55 a la cabeza ($13.3M)»): la cifra pegada elige el ranking del eje donde el
+             * sujeto vale exactamente eso — uno solo; con dos candidatos o sin cifra, no se juzga */
+            if (!t && opc.verbo) {
+              const trasVerbo = oracion.slice(iM + mmTexto.length);
+              /* solo con la cifra PEGADA al verbo («a la cabeza ($13.3M)»): «Lider encabeza LA LECTURA, con Venta $17.9M» (respaldo real) tiene su propio objeto */
+              if (!/^\s*(?:\(|con\s+[$€£\d]|[$€£\d]|[,—–]\s*[$€£\d])/u.test(trasVerbo)) continue;
+              const cif = _cifrasTras(trasVerbo.split(/[;]/)[0])[0];
+              if (!cif || cif.i > 40) continue;
+              const cands = [];
+              for (const [clave2, d2] of _metricasDe(eje)) {
+                const Lx = leerClausula(String(narration), _posAncla, { nombresRe: d2.filas.map((x) => _reLector(x.entidad)) });
+                const suj = Lx.sujeto ? d2.filas.find((x) => _norm(x.entidad) === Lx.sujeto.nombre) : null;
+                if (suj && _cifraEnRanking(clave2, suj.valor, cif.text)) cands.push([clave2, d2]);
+              }
+              if (cands.length !== 1) continue;
+              t = { met: "", iMet: -1, fMet: -1, clave: cands[0][0], d: cands[0][1], gap: 0, tipo: "cifra", polaridad: null, juicio: false, detras: true };
+            }
             if (!t) continue;
-            const decl = { clave: t.clave, d: t.d };
-            if ((dir === "peor" || dir === "mejor") && !decl.d.peorEs) continue;   // sin lado malo no hay «peor»
-            const alto = dir === "max" || (dir === "peor" && decl.d.peorEs === "mayor") || (dir === "mejor" && decl.d.peorEs === "menor");
-            /* cómo se cita el marcador en el veto: cuando el marcador solo no dice la métrica («la más», «y más»), va con su término */
-            const rotuloM = (opc.terminoPegadoDetras || o.encadenado) ? `${mmTexto.trim()} ${t.met}` : mmTexto.trim();
+            let decl = { clave: t.clave, d: t.d };
             const lista = decl.d.filas;
             if (!Array.isArray(lista) || lista.length < 2) continue;
-            const nombradas = lista.filter((x) => _reEnt(x.entidad).test(oracion));
             /* ── EL RECLAMANTE SE LEE POR ESTRUCTURA (owner 2026-09-14, lector de cláusula) ──────────────────────────────
              * Las cuatro lecturas del reclamante —sujeto delante, cópula detrás, posesivo, sujeto de la oración anterior— se
              * habían escrito una por una, cada una con su ventana. El sujeto delante y el previo salen ahora del lector:
@@ -6254,20 +6568,59 @@ export function guardC(narration, { ledger, results = [], trace = null, question
              * misma oración) y el PREVIO es el referente de hasta dos oraciones atrás con antecedente único — la cópula y el
              * posesivo, que nombran al sujeto con todas sus letras, siguen mandando sobre los dos.
              * Para un «y más X» encadenado, el reclamante y el universo son los del marcador «con más» al que se encadena. */
-            const _posAncla = _iniOracion[oi] + o.iAncla;
             const _L = leerClausula(String(narration), _posAncla, { nombresRe: lista.map((x) => _reLector(x.entidad)) });
             const _delEje = (nombre) => (nombre == null ? null : lista.find((x) => _norm(x.entidad) === nombre) || null);
+            /* EL SUPERLATIVO NEGADO NO RECLAMA NADA (prompt de gerente, corrida 4 · 2026-09-13): «Falabella: $1.6M — la mayor
+             * de la cartera, aunque NO el margen más bajo (ese es Líder)» dice justo lo contrario de lo que esta regla cobra.
+             * …y la negación se lee por ESTRUCTURA (2026-09-14, fp-prosa F6/N3): «Ni Falabella ni Sodimac tienen el vencido más grande»,
+             * «No es Falabella, con 57.7%, la de peor recuperación», «Lider no es, ni de cerca, el que más carga» — el alcance lo da el
+             * lector (≤ 8 palabras en la cláusula, roto por «sino/pero/aunque»); «no solo … sino también» afirma, no niega. */
+            const _cabezaMarcador = _L.plano.slice(Math.max(_L.clausula.ini, _iniOracion[oi]), _posMarcador);
+            /* la negación en la cabeza de la cláusula (≤ 8 palabras hasta el marcador, rota por «sino/pero/aunque/mientras»): «no», «ni», «tampoco»,
+             * «nunca», «jamás», «nadie»; «sin» solo con un verbo («sin ser el mayor»), porque «94 días SIN VENTA, el período más largo» no niega nada */
+            const _negadoEnCabeza = (() => {
+              const g = /(?:^|[^\p{L}])(no|ni|tampoco|nunca|jamas|nadie|nada|sin(?=\s+(?:ser|estar|tener|llegar|alcanzar|superar|contar|haber)\b))(?=[^\p{L}]|$)/gu;
+              let ult = -1, m;
+              while ((m = g.exec(_cabezaMarcador))) ult = m.index + m[0].length - m[1].length;
+              if (ult < 0) return false;
+              const entre = _cabezaMarcador.slice(ult);
+              if (/(?:^|[^\p{L}])(?:sino|pero|aunque|mientras)(?=[^\p{L}]|$)/u.test(entre)) return false;
+              if (/^no\s+s[oó]lo\s/u.test(entre)) return false;
+              return entre.trim().split(/\s+/).filter(Boolean).length <= 9;
+            })();
+            const _negadoEstructura = _negadoEnCabeza
+              || /(?<![\wáéíóúñ])(?:no|ni|tampoco|sin ser|aunque no|pero no)\s+(?:[\wáéíóúñ]+\s+){0,3}$/i.test(oracion.slice(Math.max(0, iM - 30), iM))
+              || /(?:^|[^\p{L}])(?:lejos\s+de\s+(?:ser|estar|tener)|no\s+llega\s+a\s+ser|sin\s+llegar\s+a\s+ser|ningun[oa]s?|ning[uú]n|nadie)(?![\p{L}])(?:\s+\p{L}+){0,6}\s*$/u.test(_cabezaMarcador)
+              || /^\s*(?:\p{L}+\s+){0,3}?no\s*[,:;.—–]/u.test(oracion.slice(iM + mmTexto.length));   // «el tercer margen más bajo NO: el más bajo (21.5%)»: la negación pospuesta
+            if (_negadoEstructura && !opc.reclamanteTrasQue) continue;   // «Nadie aporta más que Jumbo» niega a todos menos a Jumbo: es superlativo
+            const _clausulaN = _L.plano.slice(_L.clausula.ini, _L.clausula.fin);
+            const excluidas = kOrd >= 2 ? [] : _excluidasEn(_clausulaN, _posMarcador - _L.clausula.ini, lista);
+            const _esExcluida = (x) => !!x && excluidas.some((e) => e.entidad === x.entidad);
             const sujetoPrevio = _L.referente && _L.referente.nombrados.length === 1 ? _delEje(_L.referente.nombre) : null;
             const sujetoLector = _delEje(_L.sujeto && _L.sujeto.nombre);
-            const universoDeclarado = _TODO_EL_CONJUNTO.test(oracion)
-              || (Array.isArray(decl.d.formulas) && decl.d.formulas.some((f) => new RegExp(f, "i").test(oracion)))
-              || (_EJE_DEFINIDO.test(oracion.slice(Math.max(0, o.iAncla - 20), o.iAncla)) && !_SUBCONJUNTO.test(oracion) && !_subUniversos.some((n) => _reEnt(n).test(oracion)));
+            const cabeza = _cabezaMarcador;
+            const claus = _L.plano.slice(_L.clausula.ini, _L.clausula.fin);
+            const _subUniversos = _subUniversosTodos.filter((n) => !lista.some((x) => _norm(x.entidad) === _norm(n)));
+            const conjuntoNombrado = _conjuntoNombrado(oracionN, iM, mmTexto.length, lista, eje, _L);
+            /* «Entre las tres cuentas que más venden está Sodimac»: el «entre» abre el top-N mismo (pertenencia), no un subconjunto ajeno */
+            const mEntreN = /\bentre\s+(?:los|las|el)\s+(?:top\s*)?(dos|tres|cuatro|cinco|seis|\d{1,2})\s+(?:(?:clientes|cuentas|sku|marcas|productos)\s+)?(?:que|con|de|mayores|primer|m[áa]s)/iu.exec(cabeza + " " + _norm(mmTexto));
+            const subconjuntoSinResolver = !conjuntoNombrado && ((!mEntreN && _SUBCONJUNTO.test(claus.replace(_CONTEO_EJE, " "))) || _subUniversos.some((n) => _reEnt(n).test(oracion)));
+            const nombradas = lista.filter((x) => _reEnt(x.entidad).test(oracion));
             /* EL CANDADO DEL PLURAL MIRA SU CLÁUSULA, NO LA ORACIÓN ENTERA (auditoría 2026-09-14, P2·2): «integrando severidad, materialidad
              * y urgencia entre LOS TRES dominios, empezaría por Lider — es la cuenta más grave en cobranza (…) y la segunda en brecha de
              * margen (8.6 pp, la mayor de todas)» — «los tres» está tres cláusulas antes y no habla del ordinal; con la oración entera
              * como ventana, el ordinal falso no se juzgaba. La cabeza es lo que el lector lee: la cláusula del marcador, hasta él. */
-            const cabeza = _L.plano.slice(Math.max(_L.clausula.ini, _iniOracion[oi]), _posAncla);
-            const grupoDelante = _GRUPO_DELANTE.test(cabeza);
+            /* «DE LOS TRES, Jumbo tiene el margen más bajo»: el «de los tres» resuelto como universo no es un grupo delante del marcador */
+            const cabezaSinUniverso = conjuntoNombrado ? cabeza.replace(/\b(?:de|entre)\s+(?:los|las|estos|estas|esos|esas)\s+(?:dos|tres|cuatro|cinco|seis|\d{1,2})\b(?:\s+(?:grandes|mayores|principales|m[áa]s\s+grandes))?/giu, " ") : cabeza;
+            const grupoDelante = _GRUPO_DELANTE.test(cabezaSinUniverso);
+            const mPert = _PERTENENCIA.exec(cabeza + " " + _norm(mmTexto)) || mEntreN;
+            const nPert = mPert ? (_N_GRUPO[(mPert[1] || mPert[2]).toLowerCase()] ?? parseInt(mPert[1] || mPert[2], 10)) : 0;
+            let universoDeclarado = !subconjuntoSinResolver && (_TODO_EL_CONJUNTO.test(oracion) || _conteoEntero(oracion, lista)
+              || (Array.isArray(decl.d.formulas) && decl.d.formulas.some((f) => new RegExp(f, "i").test(oracion)))
+              || _EJE_DEFINIDO.test(oracion.slice(Math.max(0, o.iAncla - 40), o.iAncla))
+              || _EJE_DEFINIDO_TRAS.test(oracion.slice(iM + mmTexto.length))
+              || _EJE_EN_MARCADOR.test(mmTexto)
+              || !!opc.todos || !!opc.verbo || !!opc.topN || !!opc.ordinal || !!mPert || !!conjuntoNombrado || excluidas.length > 0);
             /* QUIÉN RECLAMA EL EXTREMO: la entidad nombrada ANTES del marcador; si no hay ninguna, el sujeto de
              * la oración anterior. Y tiene que ser UNA: con dos nombres delante del superlativo no se sabe a
              * cuál se lo atribuye («la brecha es más ancha en Lider y Falabella, los dos con menor margen»), y
@@ -6281,21 +6634,16 @@ export function guardC(narration, { ledger, results = [], trace = null, question
              * también hay nombres («…el margen más bajo entre los tres grandes: Lider está en 21.5% y Jumbo en
              * 24.0%») pero son LOS COMPARADOS, no el sujeto. Es EL VERBO el que marca al sujeto: solo cuenta la
              * entidad que arranca JUSTO después de una cópula, y antes del corte donde empieza el detalle. Si no
-             * hay tal cosa, todo sigue exactamente como estaba. */
-            let sujetoDetras = null;
-            if (!o.encadenado) {
-              const _tras = oracion.slice(iM + mmTexto.length);
-              const _corte = _tras.search(/[:;—–(]/);
-              const _zona = (_corte >= 0 ? _tras.slice(0, _corte) : _tras).toLowerCase();
-              for (const cop of [" es ", " son ", " fue ", " fueron ", " era ", " eran "]) {
-                for (let k = _zona.indexOf(cop); k >= 0 && !sujetoDetras; k = _zona.indexOf(cop, k + 1)) {
-                  // el nombre suele venir en NEGRITA («es **LG-DRYER8KG**»): el énfasis es del formato, no del nombre
-                  const _resto = _zona.slice(k + cop.length).replace(/^[*_«"']+/, "");
-                  const _cand = nombradas.filter((x) => _resto.startsWith(String(x.entidad).toLowerCase()));
-                  if (_cand.length === 1) sujetoDetras = _cand[0];   // una sola: con dos no se adivina
-                }
-                if (sujetoDetras) break;
-              }
+             * hay tal cosa, todo sigue exactamente como estaba. …y ahora en todas sus formas: «es el de X», «la tiene X»,
+             * «corresponde a X», «está en X», «: X» (2026-09-14). */
+            let sujetoDetras = o.encadenado ? null : _reclamanteDetras(oracion, iM, mmTexto.length, nombradas, !sujetoLector && !_L.sujetoPropio);
+            /* «Nadie aporta más contribución que Jumbo»: el reclamante es el que sigue al «que» */
+            if (opc.reclamanteTrasQue) {
+              const mq = /\bque\s+(?:(?:el|la|los|las)\s+)?([*_«"']*)/iu.exec(oracion.slice(iM + mmTexto.length));
+              const resto = mq ? oracion.slice(iM + mmTexto.length + mq.index + mq[0].length).toLowerCase() : "";
+              const cand = nombradas.filter((x) => resto.startsWith(String(x.entidad).toLowerCase()));
+              sujetoDetras = cand.length === 1 ? cand[0] : null;
+              if (!sujetoDetras) continue;
             }
             /* EL POSESIVO PEGADO AL MARCADOR (calibración 2026-09-08, cazada con el texto que el owner escribió
              * a mano): «…revisaría qué está explicando el menor margen relativo DE LIDER Y FALABELLA». El
@@ -6335,48 +6683,443 @@ export function guardC(narration, { ledger, results = [], trace = null, question
              * no se juzga. Solo cuenta la lista cerrada con «y»/«e» justo antes del último nombre —una cifra entre
              * paréntesis pegada al nombre no la rompe—; «después de Jumbo y Sodimac, Falabella tiene la carga más alta»
              * sigue juzgando a Falabella, y la cópula y el posesivo, que nombran al sujeto, siguen mandando. */
-            const _sujetoCoordinado = !sujetoDetras && !(posesivo && posesivo.unica) && _L.sujetoPropio && _L.listaCerrada;
+            const _sujetoCoordinado = !sujetoDetras && !(posesivo && posesivo.unica) && _L.sujetoPropio && _L.listaCerrada && !_esExcluida(sujetoLector);
+            /* el encadenado hereda reclamante y universo del marcador al que se encadena */
+            if (o.encadenado && universoHeredable) universoDeclarado = universoDeclarado || universoHeredable.universo;
+            const conjuntoBase = conjuntoNombrado ? conjuntoNombrado.slice() : lista.slice();
+            const conjuntoSinExcluidas = conjuntoBase.filter((x) => !_esExcluida(x));
+            /* cómo se cita el marcador en el veto: cuando el marcador solo no dice la métrica («la más», «y más»), va con su término */
+            const rotuloM = (opc.terminoPegadoDetras || o.encadenado || opc.verbo || opc.todos) ? `${mmTexto.trim()} ${t.met}`.replace(/\s+/g, " ") : mmTexto.trim();
             /* ── EL GRUPO: plural del marcador · «los N / los que / ambos» en la cabeza de la cláusula · sujeto coordinado · posesivo de
              * varios. Antes, cualquiera de los cuatro saltaba la frase; ahora, con universo declarado y k nombrable, se verifica como
-             * top-k (ver el criterio arriba). Sin universo o sin k, se salta igual que antes. */
-            const esGrupo = plural || grupoDelante || _sujetoCoordinado || !!(posesivo && posesivo.grupo);
+             * top-k (ver el criterio arriba). Sin universo o sin k, se salta igual que antes. La pertenencia («está entre los tres de
+             * mayor») no es un grupo: es un reclamante y un puesto máximo. */
+            /* «Jumbo es el que más unidades vende, JUNTO CON Lider (1.194 y 894)»: el reclamante y los que van «junto con» son un grupo top-k (2026-09-14) */
+            const juntoCon = (() => {
+              const mj = /\bjunto\s+(?:con|a)\s+/iu.exec(oracionN.slice(iM));
+              if (!mj) return [];
+              const runs = listasCoordinadas(oracionN.slice(iM + mj.index + mj[0].length).split(/[.;:]/)[0], lista.map((x) => _reLector(x.entidad)));
+              const primera = runs.find((r) => r.ini <= 2);
+              return primera ? primera.nombres.map((n) => lista.find((x) => _norm(x.entidad) === n)).filter(Boolean) : [];
+            })();
+            const esGrupo = !mPert && (plural || grupoDelante || _sujetoCoordinado || !!(posesivo && posesivo.grupo) || juntoCon.length > 0);
+            const _alto = (dd, dr) => dr === "max" || (dr === "peor" && dd.peorEs === "mayor") || (dr === "mejor" && dd.peorEs === "menor");
+            const _dirEfectiva = () => {
+              let dr = dir;
+              if (t.tipo === "adjetivo" && t.polaridad) { dr = t.polaridad === "mayor" ? "max" : "min"; if (opc.invierte) dr = dr === "max" ? "min" : "max"; }
+              return dr;
+            };
             if (esGrupo) {
-              if (kOrd >= 2 || !universoDeclarado) continue;
-              const k = nombradas.length;
-              const mN = _N_DELANTE.exec(cabeza + " " + _norm(mmTexto));
-              const N = mN ? (mN[2] ? 2 : (_N_GRUPO[mN[1].toLowerCase()] ?? parseInt(mN[1], 10))) : null;
+              if ((kOrd >= 2 && !opc.ordinal) || !universoDeclarado) continue;
+              const dr = _dirEfectiva();
+              if ((dr === "peor" || dr === "mejor") && !decl.d.peorEs) continue;
+              const alto = _alto(decl.d, dr);
+              const orden = conjuntoSinExcluidas.slice().sort((a, b) => (alto ? b.valor - a.valor : a.valor - b.valor));
+              /* LOS ORDINALES REPARTIDOS sobre un sujeto coordinado («Tottus y Paris … van cuarta y quinta»): cada nombre con su puesto, en orden */
+              if (opc.ordinal && _sujetoCoordinado && _L.coordinadas.length >= 2) {
+                const ords = [...oracion.slice(iM).split(/[;.]/)[0].matchAll(new RegExp(`${_ORD_INI}(${_ORD})${_ORD_FIN}`, "giu"))].map((m) => _kDe(m[1])).filter((x) => x >= 1 && x <= 6);
+                const miembros = _L.coordinadas.map((n) => _delEje(n)).filter(Boolean);
+                if (ords.length !== miembros.length || orden.length < Math.max(...ords)) continue;
+                let falla = null;
+                for (let i = 0; i < miembros.length && !falla; i++) {
+                  const enPuesto = orden[ords[i] - 1], posReal = orden.findIndex((x) => x.entidad === miembros[i].entidad) + 1;
+                  if (!posReal || enPuesto.entidad === miembros[i].entidad || enPuesto.valor === orden[posReal - 1].valor) continue;
+                  falla = { m: miembros[i], k: ords[i], enPuesto, posReal };
+                }
+                if (!falla) continue;
+                const firma = `ordrep|${eje}|${decl.clave}|${falla.m.entidad}|${falla.k}`;
+                if (_cobrados.has(firma)) break;
+                _cobrados.add(firma);
+                violations.push({ kind: "superlativo-no-sostenido", detail: `dices que ${falla.m.entidad} va en el puesto ${falla.k} en ${decl.clave.replace(/_/g, " ")} y no es así: sobre ${decl.d.universo}, en el puesto ${falla.k} va ${falla.enPuesto.entidad} (${_v(decl.clave, falla.enPuesto)}) y ${falla.m.entidad} va en el puesto ${falla.posReal} (${_v(decl.clave, orden[falla.posReal - 1])}) — un ordinal repartido es una afirmación sobre el ORDEN, y se verifica contra el conjunto` });
+                break;
+              }
+              /* el grupo: los nombrados en la oración, o el reclamante con los que van «junto con» */
+              const miembros = juntoCon.length ? [...new Set([...(sujetoDetras ? [sujetoDetras] : sujetoLector ? [sujetoLector] : []), ...juntoCon])] : nombradas;
+              const k = miembros.length;
+              const mN = _N_DELANTE.exec(cabezaSinUniverso + " " + _norm(mmTexto));
+              const N = opc.topN ? parseInt(/\d+/.exec(mmTexto)[0], 10) : mN ? (mN[2] ? 2 : (_N_GRUPO[mN[1].toLowerCase()] ?? parseInt(mN[1], 10))) : null;
               if (k < 2 || k > 6 || (N != null && N !== k)) continue;
-              const orden = lista.slice().sort((a, b) => (alto ? b.valor - a.valor : a.valor - b.valor));
+              if (orden.length < k) continue;
               const umbral = orden[k - 1].valor;
-              const fuera = nombradas.filter((x) => (alto ? x.valor < umbral : x.valor > umbral));
+              const fuera = miembros.filter((x) => (alto ? x.valor < umbral : x.valor > umbral));
               if (!fuera.length) continue;
               const primeros = orden.slice(0, k);
-              const faltan = primeros.filter((x) => !nombradas.some((n) => n.entidad === x.entidad));
-              violations.push({ kind: "superlativo-no-sostenido", detail: `dices que ${nombradas.map((x) => x.entidad).join(", ")} son los ${k} de «${rotuloM}» en ${decl.clave.replace(/_/g, " ")} y no lo son: sobre ${decl.d.universo}, los ${k} primeros son ${primeros.map((x) => `${x.entidad} (${_v(decl.clave, x)})`).join(", ")} — ${fuera.map((x) => `${x.entidad} (${_v(decl.clave, x)})`).join(" y ")} queda${fuera.length > 1 ? "n" : ""} fuera${faltan.length ? ` y en su lugar va${faltan.length > 1 ? "n" : ""} ${faltan.map((x) => `${x.entidad} (${_v(decl.clave, x)})`).join(", ")}` : ""}; un grupo «los ${k} más…» es una afirmación sobre el ORDEN y se verifica contra el conjunto igual que un extremo` });
+              const faltan = primeros.filter((x) => !miembros.some((n) => n.entidad === x.entidad));
+              const firma = `grupo|${eje}|${decl.clave}|${miembros.map((x) => x.entidad).join(",")}`;
+              if (_cobrados.has(firma)) break;
+              _cobrados.add(firma);
+              violations.push({ kind: "superlativo-no-sostenido", detail: `dices que ${miembros.map((x) => x.entidad).join(", ")} son los ${k} de «${rotuloM}» en ${decl.clave.replace(/_/g, " ")} y no lo son: sobre ${decl.d.universo}, los ${k} primeros son ${primeros.map((x) => `${x.entidad} (${_v(decl.clave, x)})`).join(", ")} — ${fuera.map((x) => `${x.entidad} (${_v(decl.clave, x)})`).join(" y ")} queda${fuera.length > 1 ? "n" : ""} fuera${faltan.length ? ` y en su lugar va${faltan.length > 1 ? "n" : ""} ${faltan.map((x) => `${x.entidad} (${_v(decl.clave, x)})`).join(", ")}` : ""}; un grupo «los ${k} más…» es una afirmación sobre el ORDEN y se verifica contra el conjunto igual que un extremo` });
               break;
             }
-            const conjunto = (kOrd >= 2 || universoDeclarado) ? lista.slice()
-              : [...nombradas, ...(sujetoPrevio && !nombradas.some((n) => n.entidad === sujetoPrevio.entidad) ? [sujetoPrevio] : [])];
-            if (conjunto.length < 2) continue;
             /* Y LA CÓPULA MANDA SOBRE LO QUE HAYA DELANTE (intento 1 del mismo turno): «El más grave en severidad
              * es MAK-COMP-AIR (…); el que más capital libera si se actúa es LG-DRYER8KG» son DOS cláusulas en una
              * sola oración. Con MAK-COMP-AIR delante del segundo marcador, mirar hacia atrás vuelve a cobrarle la
              * frase de otro. Cuando el verbo nombra al sujeto, no hay nada que deducir: ese es. */
-            const reclamante = sujetoDetras || (posesivo && posesivo.unica) || sujetoLector || sujetoPrevio;
-            if (!reclamante || !conjunto.some((x) => x.entidad === reclamante.entidad)) continue;
-            if (kOrd >= 2) {
-              const orden = conjunto.slice().sort((a, b) => (alto ? b.valor - a.valor : a.valor - b.valor));
-              if (orden.length < kOrd) continue;
-              const enPuesto = orden[kOrd - 1];
-              const posReal = orden.findIndex((x) => x.entidad === reclamante.entidad) + 1;
-              if (!posReal || enPuesto.entidad === reclamante.entidad || enPuesto.valor === orden[posReal - 1].valor) continue;
-              violations.push({ kind: "superlativo-no-sostenido", detail: `dices que ${reclamante.entidad} es «${(_mNum || /^(?:segund|tercer|cuart|quint|sext)/i.test(mmTexto.trim())) ? mmTexto.trim() : `${_mOrd[1]} ${mmTexto}`}» en ${decl.clave.replace(/_/g, " ")} y no lo es: sobre ${decl.d.universo}, en el puesto ${kOrd} va ${enPuesto.entidad} (${_v(decl.clave, enPuesto)}) y ${reclamante.entidad} va en el puesto ${posReal} (${_v(decl.clave, reclamante)}) — un ordinal es una afirmación sobre el ORDEN, y se verifica contra el conjunto igual que un extremo` });
+            let reclamante = sujetoDetras || (posesivo && posesivo.unica) || (o.encadenado && universoHeredable ? universoHeredable.reclamante : null) || (_esExcluida(sujetoLector) ? null : sujetoLector) || (_esExcluida(sujetoPrevio) ? null : sujetoPrevio);
+            if (!reclamante) continue;
+            /* el ADJETIVO DE JUICIO cede al eje que la oración declara: el término de otra métrica de la misma mesa después del marcador
+             * («la más urgente: … el mayor VENCIDO»), o la cifra que identifica al reclamante en otro ranking («la más urgente por monto ($4.6M)») */
+            if (t.juicio) {
+              const tras = oracion.slice(iM + mmTexto.length).split(/;/)[0];   // hasta el «;»: «…es Lider ($4.6M); si es antigüedad, Easy» no habla de Lider
+              let otro = null;
+              for (const [clave2, d2] of _metricasDe(eje)) {
+                if (clave2 === decl.clave || d2.universo !== decl.d.universo) continue;
+                for (const lx of _lexicoDe(d2)) {
+                  if (lx.tipo === "adjetivo" || lx.tipo === "verbo") continue;
+                  lx.re.lastIndex = 0;
+                  const mt = lx.re.exec(tras);
+                  if (mt && (!otro || mt.index < otro.i)) otro = { i: mt.index, clave: clave2, d: d2 };
+                }
+              }
+              const mismo = (() => { let best = -1; for (const lx of _lexicoDe(decl.d)) { if (lx.tipo === "adjetivo" || lx.juicio) continue; lx.re.lastIndex = 0; const mt = lx.re.exec(tras); if (mt && (best < 0 || mt.index < best)) best = mt.index; } return best; })();
+              const cif = _cifrasTras(tras)[0];
+              const cands = cif ? _metricasDe(eje).filter(([clave2, d2]) => d2.universo === decl.d.universo && d2.filas.some((x) => x.entidad === reclamante.entidad && _cifraEnRanking(clave2, x.valor, cif.text))) : [];
+              /* manda lo primero que aparece tras el marcador: otro término, el término propio, o la cifra del reclamante en otro ranking */
+              const iCif = cif ? cif.i : -1;
+              const primero = [otro ? { i: otro.i, tipo: "otro" } : null, mismo >= 0 ? { i: mismo, tipo: "mismo" } : null, iCif >= 0 && cands.length === 1 ? { i: iCif, tipo: "cifra" } : null].filter(Boolean).sort((a, b) => a.i - b.i)[0];
+              if (primero && primero.tipo === "otro") decl = { clave: otro.clave, d: otro.d };
+              else if (primero && primero.tipo === "cifra" && cands[0][0] !== decl.clave) decl = { clave: cands[0][0], d: cands[0][1] };
+            }
+            /* un ADJETIVO declarado en dos rankings del eje («lento»: rotación y días de inventario) toma el que la cifra del reclamante confirma */
+            if (t.tipo === "adjetivo") {
+              const cif = _cifrasTras(oracion.slice(iM + mmTexto.length).split(/[;]/)[0])[0];
+              if (cif) {
+                const cands = _metricasDe(eje).filter(([clave2, d2]) => _lexicoDe(d2).some((lx) => lx.tipo === "adjetivo" && new RegExp(`^(?:${lx.patron})$`, "iu").test(t.met)) && d2.filas.some((x) => x.entidad === reclamante.entidad && _cifraEnRanking(clave2, x.valor, cif.text)));
+                if (cands.length === 1 && cands[0][0] !== decl.clave) {
+                  const lxAlt = _lexicoDe(cands[0][1]).find((lx) => lx.tipo === "adjetivo" && new RegExp(`^(?:${lx.patron})$`, "iu").test(t.met));
+                  decl = { clave: cands[0][0], d: cands[0][1] };
+                  if (lxAlt) t = { ...t, polaridad: lxAlt.polaridad };
+                }
+              }
+            }
+            const dr = _dirEfectiva();
+            if ((dr === "peor" || dr === "mejor") && !decl.d.peorEs) continue;   // sin lado malo no hay «peor»
+            const alto = _alto(decl.d, dr);
+            const listaDecl = decl.d.filas;
+            const enDecl = (x) => listaDecl.find((y) => y.entidad === x.entidad) || null;
+            const reclamanteDecl = enDecl(reclamante);
+            if (!reclamanteDecl) continue;
+            /* «Jumbo, además de ser EL CLIENTE con más unidades (1.194), es el de más contribución»: el universo declarado una vez en la oración vale
+             * para el siguiente marcador del MISMO reclamante (la cadena sin «y») */
+            if (!universoDeclarado && universoHeredable && universoHeredable.reclamante.entidad === reclamante.entidad && !subconjuntoSinResolver) universoDeclarado = true;
+            const conjunto = (kOrd >= 2 || universoDeclarado || mPert) ? listaDecl.filter((x) => !_esExcluida(x) && (!conjuntoNombrado || conjuntoNombrado.some((c) => c.entidad === x.entidad)))
+              : [...nombradas.map(enDecl).filter(Boolean), ...(sujetoPrevio && !nombradas.some((n) => n.entidad === sujetoPrevio.entidad) && enDecl(sujetoPrevio) ? [enDecl(sujetoPrevio)] : [])].filter((x) => !_esExcluida(x));
+            if (conjunto.length < 2) continue;
+            if (!conjunto.some((x) => x.entidad === reclamante.entidad)) continue;
+            if (universoDeclarado && !o.encadenado) universoHeredable = { reclamante, universo: true };
+            const orden = conjunto.slice().sort((a, b) => (alto ? b.valor - a.valor : a.valor - b.valor));
+            const posReal = orden.findIndex((x) => x.entidad === reclamante.entidad) + 1;
+            /* la PERTENENCIA: el reclamante dentro de los N primeros (los empates de valor con el N-ésimo valen) */
+            if (mPert) {
+              if (!universoDeclarado || nPert < 2 || orden.length < nPert) continue;
+              const umbral = orden[nPert - 1].valor;
+              if (alto ? reclamanteDecl.valor >= umbral : reclamanteDecl.valor <= umbral) continue;
+              const firma = `pert|${eje}|${decl.clave}|${reclamante.entidad}|${nPert}`;
+              if (_cobrados.has(firma)) break;
+              _cobrados.add(firma);
+              violations.push({ kind: "superlativo-no-sostenido", detail: `dices que ${reclamante.entidad} está entre los ${nPert} de «${rotuloM}» en ${decl.clave.replace(/_/g, " ")} y no lo está: sobre ${decl.d.universo}, los ${nPert} primeros son ${orden.slice(0, nPert).map((x) => `${x.entidad} (${_v(decl.clave, x)})`).join(", ")} y ${reclamante.entidad} va en el puesto ${posReal} (${_v(decl.clave, reclamanteDecl)}) — la pertenencia a un top-N es una afirmación sobre el ORDEN y se verifica contra el conjunto` });
               break;
             }
-            const extremo = conjunto.reduce((a, b) => (alto ? (b.valor > a.valor ? b : a) : (b.valor < a.valor ? b : a)));
-            if (extremo.entidad === reclamante.entidad || extremo.valor === reclamante.valor) continue;   // el empate de valor vale (EMPATE de la carpeta)
-            violations.push({ kind: "superlativo-no-sostenido", detail: `dices que ${reclamante.entidad} es «${rotuloM}» en ${decl.clave.replace(/_/g, " ")} y no lo es: sobre ${decl.d.universo} el extremo es ${extremo.entidad} (${_v(decl.clave, extremo)} contra ${_v(decl.clave, reclamante)} de ${reclamante.entidad}) — un «${rotuloM}» es una afirmación sobre el ORDEN, y un orden se verifica contra el conjunto igual que un ranking` });
+            if (kOrd >= 2) {
+              if (orden.length < kOrd) continue;
+              const enPuesto = orden[kOrd - 1];
+              if (!posReal || enPuesto.entidad === reclamante.entidad || enPuesto.valor === orden[posReal - 1].valor) continue;
+              const firma = `ord|${eje}|${decl.clave}|${reclamante.entidad}|${kOrd}`;
+              if (_cobrados.has(firma)) break;
+              _cobrados.add(firma);
+              violations.push({ kind: "superlativo-no-sostenido", detail: `dices que ${reclamante.entidad} es «${opc.ordinal ? mmTexto.trim() : `${_mOrd[1]} ${mmTexto.trim()}`}» en ${decl.clave.replace(/_/g, " ")} y no lo es: sobre ${decl.d.universo}, en el puesto ${kOrd} va ${enPuesto.entidad} (${_v(decl.clave, enPuesto)}) y ${reclamante.entidad} va en el puesto ${posReal} (${_v(decl.clave, reclamanteDecl)}) — un ordinal es una afirmación sobre el ORDEN, y se verifica contra el conjunto igual que un extremo` });
+              break;
+            }
+            const extremo = orden[0];
+            if (extremo.entidad === reclamante.entidad || extremo.valor === reclamanteDecl.valor) continue;   // el empate de valor vale (EMPATE de la carpeta)
+            const firma = `ext|${eje}|${decl.clave}|${reclamante.entidad}|${alto ? "max" : "min"}`;
+            if (_cobrados.has(firma)) break;
+            _cobrados.add(firma);
+            violations.push({ kind: "superlativo-no-sostenido", detail: `dices que ${reclamante.entidad} es «${rotuloM}» en ${decl.clave.replace(/_/g, " ")} y no lo es: sobre ${decl.d.universo}${excluidas.length ? ` (sin ${excluidas.map((x) => x.entidad).join(" ni ")})` : ""} el extremo es ${extremo.entidad} (${_v(decl.clave, extremo)} contra ${_v(decl.clave, reclamanteDecl)} de ${reclamante.entidad}) — un «${rotuloM}» es una afirmación sobre el ORDEN, y un orden se verifica contra el conjunto igual que un ranking` });
             break;
+          }
+        }
+        /* ── LA SECUENCIA ANUNCIADA: «X es el que más …, seguido de Y y Z» · «le siguen Y y Z» · «luego vienen Y y Z» (2026-09-14) ─────
+         * Los seguidores ocupan los puestos siguientes al del reclamante, en ese orden. Solo con universo entero (sin acotar) y con la
+         * métrica del marcador; un empate de valor vale. Se cobra como ranking-no-sostenido. */
+        {
+          const mSeg = /\b(?:seguid[oa]s?\s+(?:de|por)|le\s+siguen?|luego\s+(?:vienen?|van?|est[áa]n?)|despu[eé]s\s+(?:vienen?|van?|est[áa]n?)|detr[aá]s\s+(?:vienen?|van?)|y\s+luego|a\s+continuaci[óo]n)\s+/iu.exec(oracion);
+          if (mSeg && !_SUBCONJUNTO.test(oracion) && !_EXCLUYE.test(oracionN.slice(0, mSeg.index))) {
+            const sup = ocurrencias.filter((x) => x.iM < mSeg.index && !x.encadenado && !x.opc.reclamanteTrasQue && !_marcadorPlural(x.texto.trim()));
+            const oSup = sup.length ? sup[sup.length - 1] : null;
+            if (oSup) {
+              for (const eje of Object.keys(_rank)) {
+                const t = _terminoDe(eje, oracion, oSup.iM, oSup.texto.length, oSup.opc);
+                if (!t || (t.tipo === "adjetivo" && t.juicio)) continue;
+                const lista = t.d.filas;
+                if (!Array.isArray(lista) || lista.length < 3) continue;
+                const _L = leerClausula(String(narration), _iniOracion[oi] + oSup.iAncla, { nombresRe: lista.map((x) => _reLector(x.entidad)) });
+                const _delEje = (nombre) => (nombre == null ? null : lista.find((x) => _norm(x.entidad) === nombre) || null);
+                const nombradasAntes = lista.filter((x) => _reEnt(x.entidad).test(oracion.slice(0, mSeg.index)));
+                const reclamante = _reclamanteDetras(oracion.slice(0, mSeg.index), oSup.iM, oSup.texto.length, nombradasAntes) || _delEje(_L.sujeto && _L.sujeto.nombre);
+                if (!reclamante || _L.listaCerrada) continue;
+                let dr = oSup.dir;
+                if (t.tipo === "adjetivo" && t.polaridad) dr = t.polaridad === "mayor" ? "max" : "min";
+                if ((dr === "peor" || dr === "mejor") && !t.d.peorEs) continue;
+                const alto = dr === "max" || (dr === "peor" && t.d.peorEs === "mayor") || (dr === "mejor" && t.d.peorEs === "menor");
+                const orden = lista.slice().sort((a, b) => (alto ? b.valor - a.valor : a.valor - b.valor));
+                const k0 = _kDe(oSup.opc.ordinal ? oSup.texto : (_ORD_ATRAS.exec(oracion.slice(Math.max(0, oSup.iM - 40), oSup.iM)) || ["", ""])[1]) || 1;
+                const colaTexto = oracion.slice(mSeg.index + mSeg[0].length).split(/[;]/)[0];
+                const runs = listasCoordinadas(_norm(colaTexto), lista.map((x) => _reLector(x.entidad)));
+                const primera = runs.find((r) => r.ini <= 3);
+                const seguidores = primera ? primera.nombres.map((n) => _delEje(n)).filter(Boolean) : [];
+                if (!seguidores.length) continue;
+                const posDe = (x) => orden.findIndex((y) => y.entidad === x.entidad) + 1;
+                const cadena = [reclamante, ...seguidores];
+                let falla = null;
+                for (let i = 1; i < cadena.length && !falla; i++) {
+                  const esperado = orden[posDe(cadena[i - 1]) - 1 + 1];
+                  const real = cadena[i];
+                  if (!esperado) break;
+                  if (esperado.entidad !== real.entidad && esperado.valor !== orden[posDe(real) - 1].valor) falla = { esperado, real, tras: cadena[i - 1] };
+                }
+                if (falla) {
+                  const firma = `seq|${eje}|${t.clave}|${cadena.map((x) => x.entidad).join(",")}`;
+                  if (!_cobrados.has(firma)) {
+                    _cobrados.add(firma);
+                    violations.push({ kind: "ranking-no-sostenido", detail: `«${mSeg[0].trim()} ${seguidores.map((x) => x.entidad).join(", ")}» no es el orden del dato en ${t.clave.replace(/_/g, " ")}: después de ${falla.tras.entidad} (${_v(t.clave, orden[posDe(falla.tras) - 1])}) viene ${falla.esperado.entidad} (${_v(t.clave, falla.esperado)}), no ${falla.real.entidad} (${_v(t.clave, orden[posDe(falla.real) - 1])}) — una secuencia anunciada es una afirmación sobre el ORDEN y se verifica contra el ranking` });
+                  }
+                }
+                break;
+              }
+            }
+          }
+          /* «En vencido, DESPUÉS DE Lider VIENE Sodimac ($1.9M)»: la secuencia sin marcador — B ocupa el puesto siguiente al de A en la métrica que
+           * la oración nombra; la dirección la dan las cifras pegadas a los dos (sin cifras, de mayor a menor) */
+          const mDV = /(?:^|[^\p{L}])(?:despu[eé]s|detr[aá]s|tras)\s+de\s+/iu.exec(oracionN);
+          if (mDV && !_SUBCONJUNTO.test(oracion)) {
+            for (const eje of Object.keys(_rank)) {
+              const ejeLista = [...new Map(_metricasDe(eje).flatMap(([, d]) => d.filas.map((x) => [x.entidad, x]))).values()];
+              const restoA = oracionN.slice(mDV.index + mDV[0].length);
+              const A = ejeLista.find((x) => restoA.startsWith(_norm(x.entidad)) && !/[\p{L}\p{N}]/u.test(restoA.charAt(_norm(x.entidad).length)));
+              if (!A) continue;
+              const trasA = restoA.slice(_norm(A.entidad).length);
+              const mV = /^\s*(?:\([^)]*\)\s*)?,?\s*(?:viene|va|sigue|est[áa]|aparece|queda|se\s+ubica)\s+/iu.exec(trasA);
+              if (!mV) continue;
+              const restoB = trasA.slice(mV[0].length);
+              const B = ejeLista.find((x) => restoB.startsWith(_norm(x.entidad)) && !/[\p{L}\p{N}]/u.test(restoB.charAt(_norm(x.entidad).length)));
+              if (!B || B.entidad === A.entidad) continue;
+              /* la métrica: el término más cercano a la secuencia, en la oración */
+              let met = null;
+              for (const [clave, d] of _metricasDe(eje)) {
+                for (const lx of _lexicoDe(d)) {
+                  if (lx.tipo === "adjetivo" || lx.juicio) continue;
+                  lx.re.lastIndex = 0;
+                  let mt;
+                  while ((mt = lx.re.exec(oracion))) {
+                    if (!mt[0].length) { lx.re.lastIndex++; continue; }
+                    const dist = Math.min(Math.abs(mt.index - mDV.index), Math.abs(mt.index - (mDV.index + mDV[0].length)));
+                    if (dist > 60) continue;
+                    if (!met || dist < met.dist || (dist === met.dist && mt[0].length > met.met.length)) met = { clave, d, dist, met: mt[0] };
+                  }
+                }
+              }
+              if (!met) continue;
+              const fa = met.d.filas.find((x) => x.entidad === A.entidad), fb = met.d.filas.find((x) => x.entidad === B.entidad);
+              if (!fa || !fb) continue;
+              const pegA = /^\s*\(\s*([+\-−]?\s?[$€£]?\d[\d.,]*)/u.exec(trasA), pegB = /^\s*\(\s*([+\-−]?\s?[$€£]?\d[\d.,]*)/u.exec(restoB.slice(_norm(B.entidad).length));
+              let alto = true;
+              if (pegA && pegB) { const na = parseFloat(pegA[1].replace(/[^\d.,\-]/g, "").replace(",", ".")), nb = parseFloat(pegB[1].replace(/[^\d.,\-]/g, "").replace(",", ".")); if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) alto = nb < na; }
+              const orden = met.d.filas.slice().sort((x, y) => (alto ? y.valor - x.valor : x.valor - y.valor));
+              const posA = orden.findIndex((x) => x.entidad === A.entidad);
+              const esperado = orden[posA + 1];
+              if (!esperado || esperado.entidad === B.entidad || esperado.valor === fb.valor) break;
+              const firma = `seq|${eje}|${met.clave}|${A.entidad},${B.entidad}`;
+              if (_cobrados.has(firma)) break;
+              _cobrados.add(firma);
+              violations.push({ kind: "ranking-no-sostenido", detail: `«después de ${A.entidad} viene ${B.entidad}» no es el orden del dato en ${met.clave.replace(/_/g, " ")}: después de ${A.entidad} (${_v(met.clave, fa)}) viene ${esperado.entidad} (${_v(met.clave, esperado)}), no ${B.entidad} (${_v(met.clave, fb)}) — una secuencia anunciada es una afirmación sobre el ORDEN y se verifica contra el ranking` });
+              break;
+            }
+          }
+        }
+      }
+      /* ── LOS COMPARATIVOS ENTRE DOS ENTIDADES (owner 2026-09-14, el orden en todas sus formas) ──────────────────────────────────────
+       * «Lider vende más que Falabella ($17.8M contra $19.4M)», «Jumbo supera a Falabella en contribución ($4.2M contra $4.3M)», «La carga
+       * de Falabella (4.5%) supera a la de Sodimac (5.4%)», «En margen, Falabella (22.0%) está por encima de Jumbo (24.0%)»: la relación
+       * dicha entre dos cuentas se verifica con LAS DOS CIFRAS de la oración cuando están (el par «x contra y» es (sujeto, comparada), o la
+       * cifra pegada a cada nombre) y, sin cifras, contra el ranking de la métrica que la oración ata al comparativo (el verbo o el término
+       * pegado: «vende más que», «más días de atraso que», «supera a X en venta»). La métrica tiene que estar ATADA al comparativo: «Lider
+       * pesa más que Falabella en cobranza: $4.6M vencidos (contra $2.5M) y 45% recuperado (contra 57.7%)» no se juzga por el recuperado
+       * (el «más» es de «pesa», que no es una métrica). «peor/mejor» toman la polaridad de la métrica. Un pronombre («le gana») no nombra a
+       * la comparada y no se juzga. La ley del owner sigue: «una comparación ejecutiva lleva la cifra de cada lado»; acá se verifica lo que
+       * sí se puede verificar, con o sin cifras, y la regla del contrato (`comparacion-sin-cifras`) queda para lo que no tiene ranking. */
+      {
+        const _CIFRA_RE = /[+\-−]?\s?[$€£]?\d[\d.,]*\s?(?:%|pp|[KM](?![\p{L}])|x(?![\p{L}])|d[íi]as?(?![\p{L}])|d(?![\p{L}]))?/u;
+        const _numDe = (s) => { const m = /^([+\-−]?)\s?[$€£]?\s?(\d[\d.,]*)\s?(%|pp|[KM]|x|d[íi]as?|d)?/iu.exec(String(s).trim()); if (!m) return null; let n = parseFloat(m[2].replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", ".")); if (!Number.isFinite(n)) return null; const u = (m[3] || "").toUpperCase(); if (u === "M") n *= 1000; if (m[1] === "-" || m[1] === "−") n = -n; return { n, unit: u === "M" || u === "K" ? "money" : u }; };
+        const _PAR = new RegExp(`(?:\\(|:\\s*|,\\s*|—\\s*|–\\s*)?\\s*(${_CIFRA_RE.source})\\s*(?:contra|vs\\.?|versus|frente\\s+a|y|e|a)\\s+(${_CIFRA_RE.source})`, "iu");
+        const _VERBO_DIR = /\b(?:crece|crecen|cae|caen|sube|suben|baja|bajan|retrocede|retroceden|avanza|avanzan|creci[óo]|cay[óo]|subi[óo]|baj[óo])\b/i;
+        for (const [oi, oracion] of _oraciones.entries()) {
+          const oracionN = _norm(oracion);
+          /* las formas del comparativo, con la posición del MARCADOR y el texto entre el marcador y la comparada */
+          const formas = [];
+          const _F1 = /\b(m[áa]s|menos|mayor(?:es)?|menor(?:es)?|peor(?:es)?|mejor(?:es)?)\s+((?:(?!\bque\b)[\p{L}\s]){0,40}?)\bque\s+(?:(?:el|la|los|las|lo)\s+(?:de\s+)?)?(?=\p{L})/giu;
+          let m;
+          while ((m = _F1.exec(oracion))) formas.push({ iM: m.index, marcador: m[1], entre: m[2], iB: m.index + m[0].length, tipo: "que" });
+          const _F2 = /\b(supera(?:n)?|gana(?:n)?|aventaja(?:n)?|rebasa(?:n)?|adelanta(?:n)?|excede(?:n)?)\s+(?:al\s+(?:de\s+)?|a\s+(?:(?:el|la|los|las)\s+(?:de\s+)?)?|(?:el|la|los|las)\s+(?:de\s+)?)?(?=\p{L})/giu;
+          while ((m = _F2.exec(oracion))) formas.push({ iM: m.index, marcador: "supera", entre: "", iB: m.index + m[0].length, tipo: "supera" });
+          const _F3 = /\b(?:est[áa]n?|queda(?:n)?|va|van|se\s+ubica(?:n)?)\s+por\s+(encima|debajo)\s+de\s+(?:(?:el|la|los|las)\s+(?:de\s+)?)?(?=\p{L})/giu;
+          while ((m = _F3.exec(oracion))) formas.push({ iM: m.index, marcador: m[1] === "encima" ? "encima" : "debajo", entre: "", iB: m.index + m[0].length, tipo: "encima" });
+          for (const f of formas) {
+            if (/\b(?:nadie|ning[uú]n|ningun[oa])\b/iu.test(oracion.slice(f.iB, f.iB + 30))) continue;   // «que nadie» es superlativo, no comparativo
+            if (/\b(?:el\s+benchmark|la\s+referencia|el\s+objetivo|el\s+nivel|el\s+a[ñn]o|el\s+per[ií]odo|el\s+promedio|la\s+cartera|el\s+negocio|el\s+resto|los\s+dem[aá]s|el\s+total)\b/iu.test(oracion.slice(f.iB, f.iB + 20))) continue;
+            for (const eje of Object.keys(_rank)) {
+              const ejeLista = [...new Map(_metricasDe(eje).flatMap(([, d]) => d.filas.map((x) => [x.entidad, x]))).values()];
+              if (ejeLista.length < 2) continue;
+              const nombresRe = ejeLista.map((x) => _reLector(x.entidad));
+              /* B: la comparada, el nombre que arranca justo tras el conector; A: el sujeto de la cláusula (lector), leído en la posición del marcador */
+              const restoB = oracionN.slice(f.iB);
+              const B = ejeLista.filter((x) => restoB.startsWith(_norm(x.entidad)) && !/[\p{L}\p{N}]/u.test(restoB.charAt(_norm(x.entidad).length)));
+              if (B.length !== 1) continue;
+              const L = leerClausula(String(narration), _iniOracion[oi] + f.iM, { nombresRe });
+              if (L.negada) continue;
+              const A = L.sujeto ? ejeLista.find((x) => _norm(x.entidad) === L.sujeto.nombre) : null;
+              if (!A || A.entidad === B[0].entidad) continue;
+              if (L.listaCerrada && L.coordinadas.length >= 2) continue;   // «A y B venden más que C»: un grupo, no se adivina
+              /* la métrica ATADA al comparativo: el término entre el marcador y «que» · el verbo justo antes del marcador · «en <término>» tras
+               * la comparada · «<término> de A» delante · «En <término>,» al abrir la cláusula */
+              const clausulaTexto = L.plano.slice(L.clausula.ini, L.clausula.fin);
+              const iMc = _iniOracion[oi] + f.iM - L.clausula.ini;
+              let met = null;
+              for (const [clave, d] of _metricasDe(eje)) {
+                for (const lx of _lexicoDe(d)) {
+                  lx.re.lastIndex = 0;
+                  let mt;
+                  while ((mt = lx.re.exec(clausulaTexto))) {
+                    if (!mt[0].length) { lx.re.lastIndex++; continue; }
+                    const iMet = mt.index, fMet = mt.index + mt[0].length;
+                    let ok = false, dist = 0;
+                    if (f.tipo === "que" && iMet >= iMc && fMet <= iMc + f.marcador.length + f.entre.length + 1) { ok = true; dist = iMet - iMc; }                // «más DÍAS DE ATRASO que»
+                    else if (lx.tipo === "verbo" && fMet <= iMc && /^\s*(?:el\s+|la\s+)?$/u.test(clausulaTexto.slice(fMet, iMc))) { ok = true; dist = iMc - fMet; }     // «VENDE más que»
+                    else if (iMet >= f.iB - L.clausula.ini + _iniOracion[oi] && /^\s*(?:\([^)]*\)\s*)?en\s+(?:(?:el|la|los|las)\s+)?$/u.test(clausulaTexto.slice(f.iB - L.clausula.ini + _iniOracion[oi] + (B[0].entidad.length), iMet).replace(/^[^\s]*/, ""))) { ok = true; dist = 60 + (iMet - iMc); }   // «supera a X EN CONTRIBUCIÓN»
+                    else if (fMet <= iMc && /^\s*(?:de|del)\s+(?:(?:el|la)\s+)?\S+[^.;:]{0,20}?\s*(?:\([^)]*\)\s*)?(?:es|est[áa]|queda|va|resulta|sigue)?\s*$/u.test(clausulaTexto.slice(fMet, iMc)) && L.sujeto && L.sujeto.pos - L.clausula.ini > fMet) { ok = true; dist = 40 + (iMc - fMet); }   // «la CARGA de Falabella (4.5%) supera»
+                    else if (fMet <= iMc && /^[\s*_«"']*(?:en|por|seg[úu]n)\s+(?:(?:el|la|los|las)\s+)?$/u.test(clausulaTexto.slice(0, iMet)) && /^\s*,\s*/u.test(clausulaTexto.slice(fMet, fMet + 3))) { ok = true; dist = 80 + (iMc - fMet); }   // «En MARGEN, Falabella … por encima de»
+                    else if (lx.tipo === "adjetivo" && iMet >= iMc && fMet <= iMc + f.marcador.length + 1 + mt[0].length) { ok = true; dist = 0; }   // «más URGENTE que»
+                    if (!ok) continue;
+                    const cand = { clave, d, tipo: lx.tipo, polaridad: lx.polaridad, dist, met: mt[0] };
+                    if (!met || cand.dist < met.dist || (cand.dist === met.dist && cand.met.length > met.met.length)) met = cand;
+                  }
+                }
+              }
+              /* las DOS cifras: el par «x contra y» tras la comparada (misma cláusula), o la cifra pegada a cada nombre */
+              let xa = null, xb = null;
+              const trasB = oracion.slice(f.iB + B[0].entidad.length).split(/[;]/)[0];
+              const mp = _PAR.exec(trasB);
+              if (mp && mp.index <= 45 && !/\d/.test(trasB.slice(0, mp.index).replace(/\([^)]*\)/g, (s) => (/\d/.test(s) ? "#" : s))) && !/#/.test(trasB.slice(0, mp.index))) { xa = _numDe(mp[1]); xb = _numDe(mp[2]); }
+              if (!xa || !xb) {
+                const pegA = L.sujeto ? new RegExp(`^\\s*\\(\\s*(${_CIFRA_RE.source})\\s*\\)`, "u").exec(oracion.slice(L.sujeto.pos - _iniOracion[oi] + L.sujeto.nombre.length)) : null;
+                const pegB = new RegExp(`^\\s*\\(\\s*(${_CIFRA_RE.source})\\s*\\)`, "u").exec(oracion.slice(f.iB + B[0].entidad.length));
+                if (pegA && pegB) { xa = _numDe(pegA[1]); xb = _numDe(pegB[1]); } else { xa = null; xb = null; }
+              }
+              if (xa && xb && xa.unit !== xb.unit) { xa = null; xb = null; }
+              const direccionVerbo = _VERBO_DIR.test(oracion.slice(Math.max(0, f.iM - 25), f.iM));
+              if (xa && xb && direccionVerbo && (xa.n < 0 || xb.n < 0)) { xa = null; xb = null; }   // «cae más que» con signos: la magnitud de la caída no se lee acá
+              if (!xa && !met) continue;
+              const decl = met ? { clave: met.clave, d: met.d } : null;
+              let dr = /^(?:m[áa]s|mayor|supera|encima)/i.test(f.marcador) ? "max" : /^(?:menos|menor|debajo)/i.test(f.marcador) ? "min" : /^peor/i.test(f.marcador) ? "peor" : "mejor";
+              /* «más BAJO que», «menos ALTO que»: el adjetivo de magnitud fija el lado (medido: «el markup de Lider es más bajo que el de Falabella» se leía como «más») */
+              const mAdj = new RegExp(`^\\s*(?:(${_MAG_MAX})|(${_MAG_MIN}))(?![\\p{L}])`, "iu").exec(f.entre || "");
+              if (mAdj && /^(?:m[áa]s|menos)/i.test(f.marcador)) { dr = mAdj[1] ? "max" : "min"; if (/^menos/i.test(f.marcador)) dr = dr === "max" ? "min" : "max"; }
+              if (met && met.tipo === "adjetivo" && met.polaridad && /^(?:m[áa]s|menos)/i.test(f.marcador)) { dr = met.polaridad === "mayor" ? "max" : "min"; if (/^menos/i.test(f.marcador)) dr = dr === "max" ? "min" : "max"; }
+              if ((dr === "peor" || dr === "mejor") && (!decl || !decl.d.peorEs)) continue;
+              const alto = dr === "max" || (dr === "peor" && decl.d.peorEs === "mayor") || (dr === "mejor" && decl.d.peorEs === "menor");
+              let va, vb, fuente;
+              if (xa && xb) { va = xa.n; vb = xb.n; fuente = "las cifras de la oración"; }
+              else {
+                const a = decl.d.filas.find((x) => x.entidad === A.entidad), b = decl.d.filas.find((x) => x.entidad === B[0].entidad);
+                if (!a || !b) continue;
+                va = a.valor; vb = b.valor; fuente = `el ranking (${decl.d.universo})`;
+              }
+              if (va === vb) break;
+              const cierra = alto ? va > vb : va < vb;
+              if (cierra) break;
+              const firma = `cmp|${A.entidad}|${B[0].entidad}|${f.iM}`;
+              if (_cobrados.has(firma)) break;
+              _cobrados.add(firma);
+              const fmt = (v) => (xa && xb ? (xa.unit === "money" ? (Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(1)}M` : `$${Math.round(v)}K`) : `${v}${xa.unit === "%" ? "%" : xa.unit === "pp" ? " pp" : xa.unit === "x" ? "x" : /^d/i.test(xa.unit) ? " días" : ""}`) : _v(decl.clave, { valor: v }));
+              violations.push({ kind: "comparacion-no-sostenida", detail: `dices que ${A.entidad} ${oracion.slice(f.iM, Math.min(oracion.length, f.iB)).trim()} ${B[0].entidad}${met ? ` en ${decl.clave.replace(/_/g, " ")}` : ""} y ${fuente} dice${fuente.startsWith("las") ? "n" : ""} lo contrario: ${A.entidad} ${fmt(va)} contra ${B[0].entidad} ${fmt(vb)} — una comparación entre dos cuentas es una afirmación sobre el ORDEN y se verifica igual que un extremo` });
+              break;
+            }
+          }
+        }
+      }
+      /* ── EL RANKING ANUNCIADO SE COMPARA CON EL RANKING (owner 2026-09-14, el orden en todas sus formas) ─────────────────────────────
+       * «Por venta, el orden es Falabella, Jumbo y Lider», «Ordenados por venta de mayor a menor (3 de 13): Falabella $19.4M, Jumbo
+       * $17.3M, Lider $17.8M», «Ranking de saldo vencido (6 de 13): Lider, Sodimac, Falabella…», «De peor a mejor recuperación: Lider,
+       * Sodimac, Easy», «Los tres que más contribuyen, en este orden: Falabella, Lider y Jumbo»: hasta hoy `ranking-sin-cola` solo contaba
+       * cuántos; acá la lista se compara con el ranking en ORDEN y DIRECCIÓN («de mayor a menor» / por defecto, de mayor a menor; «de menor
+       * a mayor»; «de peor a mejor» con la polaridad de la métrica). La lista es la secuencia de entidades del eje que sigue al anuncio
+       * en su misma cláusula (hasta «;» o un giro: «en cambio», «se invierte»); dos pares en el orden equivocado bastan para cobrar; los
+       * empates de valor valen. Sin métrica atada al anuncio no se juzga («ordenados por riesgo»). */
+      {
+        const _ANUNCIO = /\branking\s+(?:de|por)\b|\bordenad[oa]s?\s+(?:por|de)\b|\bde\s+(?:peor|mejor|mayor|menor)\s+a\s+(?:peor|mejor|mayor|menor)\b|\bel\s+orden\s+(?:es|ser[ií]a|queda|va)\b|\ben\s+(?:este|ese)\s+orden\b|\bpor\s+orden\s+de\b|\btop\s*\d{1,2}\s+(?:de|por)\b/giu;
+        for (const [oi, oracion] of _oraciones.entries()) {
+          let ma;
+          _ANUNCIO.lastIndex = 0;
+          while ((ma = _ANUNCIO.exec(oracion))) {
+            const desde = ma.index;
+            const oracionN = _norm(oracion);
+            /* la dirección */
+            const mdir = /\bde\s+(peor|mejor|mayor|menor)\s+a\s+(?:peor|mejor|mayor|menor)\b/iu.exec(oracion)
+              || /\b(?:por|de|en)\s+(?:orden\s+de\s+)?(peor|mejor|mayor|menor|m[áa]s\s+alt[oa]|m[áa]s\s+baj[oa])\s+(?=\p{L})/iu.exec(oracion);   // «Ranking de SKU POR PEOR rotación»: el peor primero
+            const primero = mdir ? (/alt/i.test(mdir[1]) ? "mayor" : /baj/i.test(mdir[1]) ? "menor" : mdir[1].toLowerCase()) : "mayor";
+            for (const eje of Object.keys(_rank)) {
+              /* la métrica: el término más cercano al anuncio (delante o detrás), sin otra métrica entre medio */
+              let met = null;
+              for (const [clave, d] of _metricasDe(eje)) {
+                for (const lx of _lexicoDe(d)) {
+                  if (lx.tipo === "adjetivo") continue;
+                  lx.re.lastIndex = 0;
+                  let mt;
+                  while ((mt = lx.re.exec(oracion))) {
+                    if (!mt[0].length) { lx.re.lastIndex++; continue; }
+                    const dist = mt.index >= desde + ma[0].length ? mt.index - (desde + ma[0].length) : desde - (mt.index + mt[0].length);
+                    if (dist < 0 || dist > 45) continue;
+                    if (/[;]/.test(oracion.slice(Math.min(mt.index, desde), Math.max(mt.index, desde)))) continue;
+                    if (!met || dist < met.dist || (dist === met.dist && mt[0].length > met.met.length)) met = { clave, d, dist, met: mt[0] };
+                  }
+                }
+              }
+              if (!met) continue;
+              const lista = met.d.filas;
+              if (!Array.isArray(lista) || lista.length < 3) continue;
+              const peorEs = met.d.peorEs;
+              let alto;
+              if (primero === "mayor") alto = true; else if (primero === "menor") alto = false;
+              else if (!peorEs) { alto = null; } else alto = primero === "peor" ? peorEs === "mayor" : peorEs === "menor";
+              if (alto === null) continue;
+              /* la lista: las entidades del eje tras el anuncio, en su cláusula, en orden de aparición y sin repetir */
+              const colaN = oracionN.slice(desde + ma[0].length).split(/;|\ben\s+cambio\b|\bse\s+invierte\b|\bal\s+rev[eé]s\b|\bpor\s+el\s+contrario\b|\bmientras\s+que\b/u)[0];
+              const ents = _entidadesConPosicion(colaN, lista.map((x) => _reLector(x.entidad)));
+              const seq = [];
+              for (const e of ents) { const x = lista.find((y) => _norm(y.entidad) === e.nombre); if (x && !seq.includes(x)) seq.push(x); }
+              if (seq.length < 2) continue;
+              /* sin dirección dicha, las cifras pegadas a los dos primeros nombres la dan («Ranking de los 3 SKU frenados por rotación: MAK-COMP-AIR 0.8x,
+               * LG-DRYER8KG 1.0x…» va de menor a mayor); sin cifras, de mayor a menor */
+              if (!mdir) {
+                const cifraTras = (e) => { const m2 = /^\s*(?:\(|con\s+|:\s*|—\s*|–\s*)?\s*[+\-−]?\s?[$€£]?(\d[\d.,]*)/u.exec(colaN.slice(e.pos + e.nombre.length)); return m2 ? parseFloat(m2[1].replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", ".")) : NaN; };
+                const c0 = cifraTras(ents[0]), c1 = cifraTras(ents[1]);
+                if (Number.isFinite(c0) && Number.isFinite(c1) && c0 !== c1) alto = c0 > c1;
+              }
+              const orden = lista.slice().sort((a, b) => (alto ? b.valor - a.valor : a.valor - b.valor));
+              const posDe = (x) => orden.findIndex((y) => y.entidad === x.entidad);
+              let falla = null;
+              for (let i = 1; i < seq.length && !falla; i++) {
+                const a = seq[i - 1], b = seq[i];
+                if (a.valor === b.valor) continue;
+                if (posDe(a) > posDe(b)) falla = { a, b };
+              }
+              if (!falla) break;
+              const firma = `rank|${eje}|${met.clave}|${seq.map((x) => x.entidad).join(",")}`;
+              if (_cobrados.has(firma)) break;
+              _cobrados.add(firma);
+              violations.push({ kind: "ranking-no-sostenido", detail: `«${ma[0].trim()} …: ${seq.map((x) => x.entidad).join(", ")}» no es el orden del dato en ${met.clave.replace(/_/g, " ")} (${alto ? "de mayor a menor" : "de menor a mayor"}): ${falla.a.entidad} (${_v(met.clave, falla.a)}) va después de ${falla.b.entidad} (${_v(met.clave, falla.b)}), no antes — el orden real de los nombrados es ${seq.slice().sort((x, y) => posDe(x) - posDe(y)).map((x) => `${x.entidad} (${_v(met.clave, x)})`).join(", ")}` });
+              break;
+            }
           }
         }
       }

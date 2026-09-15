@@ -178,7 +178,20 @@ export function relacionEnPalabrasNoCierra(texto) {
       const antes = o.slice(0, m.index);
       let matiz = null;
       for (const x of _MATIZ) { const mm = x.re.exec(antes); if (mm) { matiz = { ...x, dicho: mm[0].trim() }; break; } }
-      const rango = matiz || _RANGO_PLANO;
+      /* LA RELACIÓN SE VERIFICA EN LAS DOS DIRECCIONES (owner 2026-09-14, el orden en todas sus formas · fp-comparaciones 8): «Lider debe casi
+       * el doble que Falabella ($4.6M contra $2.5M)» pasaba (1.84×) y «Falabella debe casi la mitad que Lider ($2.5M contra $4.6M)» ardía —
+       * la misma relación, dicha desde el otro lado. Una fracción (k < 1) admite DOS lecturas: la literal («casi la mitad» = un poco menos de
+       * la mitad: 47 % de $9.8M) y la del lado grande («casi la mitad» es «casi el doble» al revés: $2.5M contra $4.6M), con el matiz de
+       * más/menos invertido en esa segunda. Cierra con cualquiera de las dos. */
+      const inverso = Number.isFinite(k) && k > 0 && k < 1;
+      const lecturas = [{ rango: matiz || _RANGO_PLANO, q: (r) => r / k }];
+      if (inverso) {
+        let espejo = matiz;
+        if (matiz && /\bm[aá]s\b/i.test(matiz.dicho) && !/menos/i.test(matiz.dicho)) espejo = { ...matiz, ..._MATIZ.find((x) => x.re.test(matiz.dicho.replace(/m[aá]s/i, 'menos') + ' ')) };
+        else if (matiz && /\bmenos\b/i.test(matiz.dicho)) espejo = { ...matiz, ..._MATIZ.find((x) => x.re.test(matiz.dicho.replace(/menos/i, 'más') + ' ')) };
+        lecturas.push({ rango: espejo || _RANGO_PLANO, q: (r) => k / r });
+      }
+      const cierraCon = (r) => lecturas.some((l) => { const q = l.q(r); return q >= l.rango.lo && q <= l.rango.hi; });
       const dicho = (matiz ? matiz.dicho + " " : "") + m[0].trim();   // «más del doble», no «del doble»
       const relTxt = (r) => (r >= 1 ? `${(Math.round(r * 10) / 10).toFixed(1).replace(/\.0$/, "")} veces` : `${Math.round(r * 100)}%`);
       /* EL PAR QUE LA FRASE COMPARA (encargo en vivo, 2026-09-14): «vencido casi el doble ($4.6M vs $2.5M)» se juzgaba contra
@@ -191,7 +204,7 @@ export function relacionEnPalabrasNoCierra(texto) {
       const par = figsDe(trasFrase).map((f) => ({ ...f, pos: trasFrase.indexOf(f.text) })).filter((f) => f.pos >= 0).sort((a, b) => a.pos - b.pos).slice(0, 2);
       if (par.length === 2 && par[0].unit === par[1].unit && par[0].pos <= 20 && /^\s*(?:vs\.?|contra|frente a|y|e|a|–|—|-)\s*$/i.test(trasFrase.slice(par[0].pos + par[0].text.length, par[1].pos))) {
         const rs = [par[0].raw / par[1].raw, par[1].raw / par[0].raw];
-        if (rs.some((r) => { const q = r / k; return q >= rango.lo && q <= rango.hi; })) continue;
+        if (rs.some(cierraCon)) continue;
         return `«${dicho}» no cierra con las cifras que compara (${par[0].text} contra ${par[1].text} son ${relTxt(Math.max(...rs))}): una relación dicha en palabras vale lo mismo que una cifra — o es consistente con los números que compara, o no se dice. Di la relación exacta o quítala.`;
       }
       const pool = oraciones.slice(0, i + 1).flatMap(figsDe);   // el párrafo hasta esta oración
@@ -210,8 +223,7 @@ export function relacionEnPalabrasNoCierra(texto) {
       for (const otro of xs) {
         if (otro.raw === ref.raw && otro.text === ref.text) continue;
         for (const r of [ref.raw / otro.raw, otro.raw / ref.raw]) {
-          const q = r / k;
-          if (q >= rango.lo && q <= rango.hi) cierra = true;
+          if (cierraCon(r)) cierra = true;
           if (!mejor || Math.abs(Math.log(r / k)) < Math.abs(Math.log(mejor.r / k))) mejor = { r, a: r === ref.raw / otro.raw ? ref : otro, b: r === ref.raw / otro.raw ? otro : ref };
         }
       }

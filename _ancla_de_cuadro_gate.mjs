@@ -851,8 +851,10 @@ H("10 · carnadas · cada garantía, probada ROJA sobre una copia mutada del có
    * el falso positivo: se quitan las dos, y ahí el grupo vuelve a adivinarse. */
   /* (el orden verificado, 2026-09-14: las dos defensas viven en una sola línea —`esGrupo`— y el grupo ya no se salta: se verifica como top-k
    * cuando hay universo y k; quitarle el posesivo y el sujeto coordinado vuelve a adivinar un reclamante único) */
+  /* (el orden en todas sus formas, 2026-09-14: la línea suma la pertenencia y «junto con»; la carnada quita las mismas dos defensas —el posesivo del
+   * grupo y el sujeto coordinado— y el grupo vuelve a adivinarse igual) */
   await carnada("el posesivo del superlativo, quitado (el grupo vuelve a adivinarse)", "src/adi/oracle/guardC.js",
-    [[/const esGrupo = plural \|\| grupoDelante \|\| _sujetoCoordinado \|\| !!\(posesivo && posesivo\.grupo\);/, "const esGrupo = plural || grupoDelante;   // CARNADA"]],
+    [[/const esGrupo = !mPert && \(plural \|\| grupoDelante \|\| _sujetoCoordinado \|\| !!\(posesivo && posesivo\.grupo\) \|\| juntoCon\.length > 0\);/, "const esGrupo = !mPert && (plural || grupoDelante || juntoCon.length > 0);   // CARNADA"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
       const figsM = cuadroSentrix({ componentId: "comercial/01/tabla-cartera", scenario: ESC }).boleta;

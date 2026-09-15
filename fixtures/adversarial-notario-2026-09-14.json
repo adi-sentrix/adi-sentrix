@@ -5020,18 +5020,32 @@
    "lente": "fp-prosa",
    "frase": "Sodimac (35%, la peor recuperación) y Lider (45%) son las dos cuentas que menos recuperan.",
    "contexto": "P1",
-   "esperado": "pasa",
+   "esperado": "arde",
    "verdad": "",
-   "patron": "SP-superlativo-parentesis"
+   "patron": "SP-superlativo-parentesis",
+   "reetiquetado": {
+    "de": "pasa",
+    "a": "arde",
+    "fecha": "2026-09-14",
+    "quien": "el orden en todas sus formas (v2.31, 2026-09-14)",
+    "motivo": "«Sodimac (35%) y Lider (45%) son las dos cuentas que menos recuperan» es falsa: la mesa de cobranza (los 13 clientes) recupera Sodimac 35 %, Easy 40 %, Lider 45 % — las dos que menos recuperan son Sodimac y Easy; Lider es la tercera (el propio conjunto lo sabe: «Sodimac es la de peor recuperación…, seguida de Easy (40%) y Lider (45%)» es una frase verdadera del mismo cazador)"
+   }
   },
   {
    "id": "fp-prosa-0557",
    "lente": "fp-prosa",
    "frase": "Sodimac (35%, la peor recuperación) y Lider (45%) son las dos cuentas que menos recuperan.",
    "contexto": "P2",
-   "esperado": "pasa",
+   "esperado": "arde",
    "verdad": "",
-   "patron": "SP-superlativo-parentesis"
+   "patron": "SP-superlativo-parentesis",
+   "reetiquetado": {
+    "de": "pasa",
+    "a": "arde",
+    "fecha": "2026-09-14",
+    "quien": "el orden en todas sus formas (v2.31, 2026-09-14)",
+    "motivo": "ídem 0556 (contexto P2)"
+   }
   },
   {
    "id": "fp-prosa-0558",
@@ -24637,9 +24651,16 @@
    "lente": "fn-orden",
    "frase": "Valparaíso concentra la mayor parte del capital frenado ($25K, 75%).",
    "contexto": "ambos",
-   "esperado": "arde",
+   "esperado": "pasa",
    "verdad": "VERDADERO — no debe arder",
-   "patron": "J·bodega frenado «concentra la mayor parte» (verdadero: 75%) — control"
+   "patron": "J·bodega frenado «concentra la mayor parte» (verdadero: 75%) — control",
+   "reetiquetado": {
+    "de": "arde",
+    "a": "pasa",
+    "fecha": "2026-09-14",
+    "quien": "el orden en todas sus formas (v2.31, 2026-09-14)",
+    "motivo": "la verdad del propio cazador dice «VERDADERO — no debe arder»: Valparaíso concentra $25K de los $33K frenados (75 %), la mayor parte"
+   }
   },
   {
    "id": "fn-orden-2732",
@@ -24673,9 +24694,16 @@
    "lente": "fn-orden",
    "frase": "En contribución, Falabella es el principal de la cartera ($4.3M).",
    "contexto": "ambos",
-   "esperado": "arde",
+   "esperado": "pasa",
    "verdad": "VERDADERO: Falabella máx",
-   "patron": "L·control VERDADERO «principal … en contribución» (NO debe arder)"
+   "patron": "L·control VERDADERO «principal … en contribución» (NO debe arder)",
+   "reetiquetado": {
+    "de": "arde",
+    "a": "pasa",
+    "fecha": "2026-09-14",
+    "quien": "el orden en todas sus formas (v2.31, 2026-09-14)",
+    "motivo": "la verdad del propio cazador dice «VERDADERO: Falabella máx» y el patrón «control VERDADERO (NO debe arder)»: Falabella es la de mayor contribución ($4.3M)"
+   }
   },
   {
    "id": "fn-orden-2736",
@@ -25060,9 +25088,16 @@
    "lente": "fn-orden",
    "frase": "Lider es el segundo más atrasado de la cartera (269 días).",
    "contexto": "ambos",
-   "esperado": "arde",
+   "esperado": "pasa",
    "verdad": "VERDADERO: Lider 2.º",
-   "patron": "P·«el segundo más atrasado» (VERDADERO, control no-FP)"
+   "patron": "P·«el segundo más atrasado» (VERDADERO, control no-FP)",
+   "reetiquetado": {
+    "de": "arde",
+    "a": "pasa",
+    "fecha": "2026-09-14",
+    "quien": "el orden en todas sus formas (v2.31, 2026-09-14)",
+    "motivo": "la verdad del propio cazador dice «VERDADERO: Lider 2.º» (control no-FP): Easy 270 días, Lider 269 — Lider es el segundo más atrasado"
+   }
   },
   {
    "id": "fn-orden-2779",
@@ -25105,9 +25140,16 @@
    "lente": "fn-orden",
    "frase": "Sodimac tiene la menor recuperación de la cartera (35%).",
    "contexto": "ambos",
-   "esperado": "arde",
+   "esperado": "pasa",
    "verdad": "VERDADERO",
-   "patron": "P·control VERDADERO (NO debe arder)"
+   "patron": "P·control VERDADERO (NO debe arder)",
+   "reetiquetado": {
+    "de": "arde",
+    "a": "pasa",
+    "fecha": "2026-09-14",
+    "quien": "el orden en todas sus formas (v2.31, 2026-09-14)",
+    "motivo": "la verdad del propio cazador dice «VERDADERO … (NO debe arder)»: Sodimac recupera 35 %, la menor recuperación de la cartera"
+   }
   },
   {
    "id": "fn-orden-2784",
@@ -25222,36 +25264,64 @@
    "lente": "fn-orden",
    "frase": "En venta, Falabella es la principal de la cartera ($19.4M).",
    "contexto": "ambos",
-   "esperado": "arde",
+   "esperado": "pasa",
    "verdad": "VERDADERO",
-   "patron": "R·FP-control «principal» polaridad (VERDADERO)"
+   "patron": "R·FP-control «principal» polaridad (VERDADERO)",
+   "reetiquetado": {
+    "de": "arde",
+    "a": "pasa",
+    "fecha": "2026-09-14",
+    "quien": "el orden en todas sus formas (v2.31, 2026-09-14)",
+    "motivo": "la verdad del propio cazador dice «VERDADERO» (FP-control de la polaridad de «principal»): Falabella vende $19.4M, la principal por venta"
+   }
   },
   {
    "id": "fn-orden-2797",
    "lente": "fn-orden",
    "frase": "Lider es la segunda venta más grande de la cartera ($17.8M).",
    "contexto": "ambos",
-   "esperado": "arde",
+   "esperado": "pasa",
    "verdad": "VERDADERO",
-   "patron": "R·FP-control «la segunda venta más grande» (VERDADERO)"
+   "patron": "R·FP-control «la segunda venta más grande» (VERDADERO)",
+   "reetiquetado": {
+    "de": "arde",
+    "a": "pasa",
+    "fecha": "2026-09-14",
+    "quien": "el orden en todas sus formas (v2.31, 2026-09-14)",
+    "motivo": "la verdad del propio cazador dice «VERDADERO» (FP-control): Falabella $19.4M, Lider $17.8M — Lider es la segunda venta más grande"
+   }
   },
   {
    "id": "fn-orden-2798",
    "lente": "fn-orden",
    "frase": "Falabella es la segunda brecha más alta de la cartera (8.1 pp).",
    "contexto": "ambos",
-   "esperado": "arde",
+   "esperado": "pasa",
    "verdad": "VERDADERO",
-   "patron": "R·FP-control «la segunda brecha más alta» (VERDADERO)"
+   "patron": "R·FP-control «la segunda brecha más alta» (VERDADERO)",
+   "reetiquetado": {
+    "de": "arde",
+    "a": "pasa",
+    "fecha": "2026-09-14",
+    "quien": "el orden en todas sus formas (v2.31, 2026-09-14)",
+    "motivo": "la verdad del propio cazador dice «VERDADERO» (FP-control): Lider 8.6 pp, Falabella 8.1 pp — Falabella es la segunda brecha más alta"
+   }
   },
   {
    "id": "fn-orden-2799",
    "lente": "fn-orden",
    "frase": "Sodimac tiene mayor brecha al benchmark que Jumbo (6.6 pp contra 6.1 pp).",
    "contexto": "ambos",
-   "esperado": "arde",
+   "esperado": "pasa",
    "verdad": "VERDADERO",
-   "patron": "R·FP-control «mayor brecha que» verdadero (NO debe arder)"
+   "patron": "R·FP-control «mayor brecha que» verdadero (NO debe arder)",
+   "reetiquetado": {
+    "de": "arde",
+    "a": "pasa",
+    "fecha": "2026-09-14",
+    "quien": "el orden en todas sus formas (v2.31, 2026-09-14)",
+    "motivo": "la verdad del propio cazador dice «VERDADERO … (NO debe arder)»: Sodimac 6.6 pp contra Jumbo 6.1 pp — Sodimac tiene mayor brecha"
+   }
   },
   {
    "id": "fn-orden-2800",
@@ -25285,9 +25355,16 @@
    "lente": "fn-orden",
    "frase": "La Polar tiene el mejor margen de la cartera (34.0%).",
    "contexto": "ambos",
-   "esperado": "arde",
+   "esperado": "pasa",
    "verdad": "VERDADERO",
-   "patron": "S·control VERDADERO «el mejor margen» (NO debe arder)"
+   "patron": "S·control VERDADERO «el mejor margen» (NO debe arder)",
+   "reetiquetado": {
+    "de": "arde",
+    "a": "pasa",
+    "fecha": "2026-09-14",
+    "quien": "el orden en todas sus formas (v2.31, 2026-09-14)",
+    "motivo": "la verdad del propio cazador dice «VERDADERO … (NO debe arder)»: La Polar 34.0 % es el mejor margen de la cartera"
+   }
   },
   {
    "id": "fn-orden-2804",
@@ -28621,9 +28698,9 @@
   }
  ],
  "linea_base": {
-  "fp": 195,
-  "fn": 463,
-  "nota": "medida al consolidar (fase 3): FP 475/1886 = 25.2 % · FN 740/1287 = 57.5 %. Tras «atribución y significado» (v2.31, 2026-09-14; 4 rótulos corregidos: 1882 pasa · 1291 arde): FP 195/1882 = 10.4 % · FN 463/1291 = 35.9 % — por lente: fp-prosa 171→84, fp-listas 157→61, fp-comparaciones 128→44, fn-atribucion 430→162 (de los 162, 160 son de orden/grupos), fn-orden 157→158, fn-grupos 172→149"
+  "fp": 77,
+  "fn": 210,
+  "nota": "medida al consolidar (fase 3): FP 475/1886 = 25.2 % · FN 740/1287 = 57.5 %. Tras «atribución y significado» (v2.31, 2026-09-14; 4 rótulos corregidos: 1882 pasa · 1291 arde): FP 195/1882 = 10.4 % · FN 463/1291 = 35.9 % — por lente: fp-prosa 171→84, fp-listas 157→61, fp-comparaciones 128→44, fn-atribucion 430→162 (de los 162, 160 son de orden/grupos), fn-orden 157→158, fn-grupos 172→149 · Tras «el orden en todas sus formas» (v2.31, 2026-09-14; 11 rótulos corregidos: 1889 pasa · 1284 arde): FP 77/1889 = 4.1 % · FN 210/1284 = 16.4 % — por lente: fp-prosa 84→8 (los 8 son grupos/subtotales), fp-listas 61→55, fp-comparaciones 44→8 (los 8 son umbrales en palabras: «250 días»), fn-atribucion 162→64 (58 son grupos/universos/relaciones/signo; 6 son «la de mayor X» sin universo, decisión de calibración), fn-orden 158→3 (los 3 son decisiones de calibración: «la peor cobranza / el peor perfil» y la urgencia sin universo), fn-grupos 149→149 (familia de grupos)"
  },
  "exigir": false,
  "leyes_de_la_casa": [
