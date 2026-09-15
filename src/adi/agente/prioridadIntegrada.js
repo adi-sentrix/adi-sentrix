@@ -38,9 +38,14 @@ import { leerClausula } from "../oracle/lectorDeClausula.js";   // la negación 
  * procedimiento viaja al cerebro ANTES de escribir) y el contrato (`prioridad-integrada-cambiada`). */
 
 import { axisEntityNames } from "../oracle/entityIndex.js";   // los clientes del dato, para las lentes de ventas y crecimiento
+import { declaradorDe } from "../notario/declarar.js";   // el Notario semántico (fase 2): el cierre declara MIENTRAS escribe, con el mismo estándar que el cerebro
 
 const _lab = (f) => String((f && f.label) || "");
 const _val = (f) => String((f && (f.text || f.value)) || "");
+/* el concepto del rótulo («Lider · Saldo vencido» → «Saldo vencido»): la métrica con la que se declara cada señal, tal como la boleta la nombra */
+const _conceptoDe = (label) => { const p = String(label || "").split("·").map((s) => s.trim()); return p.length >= 2 ? p.slice(1).join(" · ") : String(label || ""); };
+/* los universos con los que se declaran los órdenes: el eje entero en palabras («los 13 clientes»), sin escribir el número a mano */
+const _ejeEntero = (eje, palabra) => { try { const n = axisEntityNames(eje).length; return n ? `los ${n} ${palabra}` : `los ${palabra}`; } catch { return `los ${palabra}`; } };
 const _num = (f) => {
   if (f && Number.isFinite(f.raw)) return f.raw;
   const s = _val(f).trim();
@@ -59,18 +64,21 @@ export const LENTES = {
     materialidad: { re: /· Contribución no capturada$/i, nombre: "contribución sin capturar", peor: "mayor", como: (v) => `${v} sin capturar` },
     severidad: { re: /· Brecha al benchmark$/i, nombre: "distancia al benchmark", peor: "mayor", como: (v) => `${v} bajo el benchmark` },
     urgencia: null,   // el comercial no trae señal de tiempo en este dato
+    universo: () => "los clientes bajo el benchmark",   // la contribución no capturada solo existe bajo el benchmark: ese es el conjunto que ordena la lente (y el de la proyección)
   },
   cobranza: {
     clave: "cliente",
     materialidad: { re: /· Saldo vencido$/i, nombre: "vencido", peor: "mayor", como: (v) => `${v} vencidos` },
     severidad: { re: /· Recuperado$/i, nombre: "recuperado", peor: "menor", como: (v) => `${v} recuperado` },
     urgencia: { re: /· Dias Vencido$/i, nombre: "atraso", peor: "mayor", como: (v) => `${v} de atraso` },
+    universo: () => _ejeEntero("cliente", "clientes"),
   },
   inventario: {
     clave: "sku",
     materialidad: { re: /· Capital frenado$/i, nombre: "capital frenado", peor: "mayor", como: (v) => `${v} frenados` },
     severidad: { re: /· Días de inventario$/i, nombre: "días de inventario", peor: "mayor", como: (v) => `${v} de inventario` },
     urgencia: { re: /· Días sin venta$/i, nombre: "días sin venta", peor: "mayor", como: (v) => `${v} sin venta` },
+    universo: () => "los SKU frenados",   // en la prioridad solo entran los SKU frenados (los que tienen días): el estado que la proyección declara
   },
 };
 const _LENTES = ["materialidad", "severidad", "urgencia"];
@@ -89,7 +97,8 @@ export function senalesDelDominio(figs, dominio) {
       const n = _num(f);
       if (!e || !Number.isFinite(n)) continue;
       if (!porEntidad.has(e)) porEntidad.set(e, { entidad: e, dominio });
-      if (!porEntidad.get(e)[lente]) porEntidad.get(e)[lente] = { fmt: _val(f), n };
+      /* `rotulo`: el concepto del rótulo de la fig, con el que se DECLARA la señal (sujeto = la entidad, métrica = el concepto) */
+      if (!porEntidad.get(e)[lente]) porEntidad.get(e)[lente] = { fmt: _val(f), n, rotulo: _conceptoDe(_lab(f)) };
     }
   }
   /* el inventario publica «capital frenado» también por bodega: en la prioridad solo entran los SKU (los que tienen días) */
@@ -116,7 +125,8 @@ function _comparar(a, b) {
       if (!spec || !sa[lente] || !sb[lente]) continue;
       const peorA = spec.peor === "mayor" ? sa[lente].n > sb[lente].n : sa[lente].n < sb[lente].n;
       const peorB = spec.peor === "mayor" ? sb[lente].n > sa[lente].n : sb[lente].n < sa[lente].n;
-      const item = { dominio: dom, lente, nombre: spec.nombre, a: sa[lente].fmt, b: sb[lente].fmt, como: spec.como };
+      /* `metrica` y `peor`: con qué rótulo y en qué sentido se declara el comparativo («más grave en vencido» = mayor Saldo vencido) */
+      const item = { dominio: dom, lente, nombre: spec.nombre, a: sa[lente].fmt, b: sb[lente].fmt, como: spec.como, metrica: sa[lente].rotulo, peor: spec.peor };
       if (peorA) gana.push(item); else if (peorB) pierde.push(item);
     }
   }
@@ -163,7 +173,7 @@ export function prioridadIntegrada(figs, dominios = []) {
   lista.sort((a, b) => (b.victorias - a.victorias) || (_mejorUrgencia(a) - _mejorUrgencia(b)) || (_mejorMaterialidad(a) - _mejorMaterialidad(b)) || a.entidad.localeCompare(b.entidad));
   const integrada = lista.map((c, i) => ({
     entidad: c.entidad, dominios: c.dominios, senales: c.senales,
-    versus: i + 1 < lista.length ? { contra: lista[i + 1].entidad, ...c.contra[lista[i + 1].entidad], tiempo: { a: _tiempoDe(c), b: _tiempoDe(lista[i + 1]) } } : null,
+    versus: i + 1 < lista.length ? { contra: lista[i + 1].entidad, ...c.contra[lista[i + 1].entidad], tiempo: { a: _tiempoDe(c), b: _tiempoDe(lista[i + 1]) }, contraSenales: lista[i + 1].senales } : null,   // `contraSenales`: para declarar «más en juego en su dominio» contra la cifra de la siguiente
   }));
   return { porDominio, integrada, criterio: CRITERIO };
 }
@@ -226,103 +236,208 @@ export function criterioDeLaPregunta(pregunta) {
   return null;
 }
 
-/* el orden bajo un criterio: la lista de entidades con el valor que las ordena (en palabras), de la más grave a la menos */
+/* el orden bajo un criterio: la lista de entidades con el valor que las ordena (en palabras), de la más grave a la menos.
+ * Junto a la lista viaja CON QUÉ SE DECLARA (Notario, fase 2): la métrica del rótulo que ordena, su dirección y su universo, y en cada
+ * línea las cifras que la componen (`cifras: [{metrica, valor}]`; `variacion` cuando la cifra es una variación contra el año anterior).
+ * Y el conteo con el que se declara la cola «(y N más)» solo cuando el predicado es de la casa y la lista lo cumple entera (cobranza:
+ * cuentas con saldo vencido; inventario: SKU frenados) — una lista de la boleta no es un conteo del negocio, y no se inventa uno. */
 export function ordenPorCriterio(figs, dominios = [], criterio = "riesgo") {
   const C = CRITERIOS[criterio];
   if (!C) return null;
   if (criterio === "riesgo") {
     const P = prioridadIntegrada(figs, dominios);
     if (!P || !P.integrada.length) return null;
-    return { criterio, lista: P.integrada.map((c) => ({ entidad: c.entidad, valor: null })), P };
+    return { criterio, lista: P.integrada.map((c) => ({ entidad: c.entidad, valor: null, cifras: [] })), P };
   }
   if (C.dominio) {
     if (dominios.length && !dominios.includes(C.dominio)) return null;
     const s = senalesDelDominio(figs, C.dominio);
     if (!s.length) return null;
+    const L = LENTES[C.dominio];
     const lista = s.slice().sort((a, b) => (a.materialidad.rango - b.materialidad.rango) || (C.desempate && a[C.desempate] && b[C.desempate] ? a[C.desempate].rango - b[C.desempate].rango : 0))
-      .map((x) => ({ entidad: x.entidad, valor: [LENTES[C.dominio].materialidad.como(x.materialidad.fmt), C.desempate && x[C.desempate] ? LENTES[C.dominio][C.desempate].como(x[C.desempate].fmt) : null].filter(Boolean).join(", ") }));
-    return { criterio, lista };
+      .map((x) => ({ entidad: x.entidad, valor: [L.materialidad.como(x.materialidad.fmt), C.desempate && x[C.desempate] ? L[C.desempate].como(x[C.desempate].fmt) : null].filter(Boolean).join(", "),
+        cifras: [{ metrica: x.materialidad.rotulo, valor: x.materialidad.fmt }, ...(C.desempate && x[C.desempate] ? [{ metrica: x[C.desempate].rotulo, valor: x[C.desempate].fmt }] : [])] }));
+    const conteo = C.dominio === "cobranza" && s.every((x) => x.materialidad.n > 0) ? { predicado: "con saldo vencido", universo: _ejeEntero("cliente", "clientes") }
+      : C.dominio === "inventario" ? { predicado: "frenados", universo: _ejeEntero("sku", "SKU") } : null;
+    return { criterio, lista, metrica: lista[0].cifras[0].metrica, direccion: L.materialidad.peor, universo: L.universo(), conteo };
   }
   /* ventas · crecimiento: cifras por cliente de la boleta (la venta del flujo cubre a todos los clientes; si no está, la de margen) */
   const clientes = new Set((() => { try { return axisEntityNames("cliente"); } catch { return []; } })());
   const fuente = criterio === "ventas" ? (_all(figs, /· Venta \(flujo\)$/i).length ? _all(figs, /· Venta \(flujo\)$/i) : _all(figs, /· Venta$/i)) : _all(figs, C.figs);
   const vistos = new Set();
-  const filas = fuente.map((f) => ({ entidad: _entidadDe(_lab(f)), fmt: _val(f), n: _num(f) }))
+  const filas = fuente.map((f) => ({ entidad: _entidadDe(_lab(f)), fmt: _val(f), n: _num(f), rotulo: _conceptoDe(_lab(f)) }))
     .filter((x) => x.entidad && Number.isFinite(x.n) && (!clientes.size || clientes.has(x.entidad)) && (vistos.has(x.entidad) ? false : (vistos.add(x.entidad), true)))
     .sort((a, b) => b.n - a.n);
   if (!filas.length) return null;
-  return { criterio, lista: filas.map((x) => ({ entidad: x.entidad, valor: criterio === "ventas" ? `${x.fmt} de venta` : `${x.fmt} contra el año anterior` })) };
+  const esVariacion = criterio !== "ventas";
+  return { criterio, lista: filas.map((x) => ({ entidad: x.entidad, valor: criterio === "ventas" ? `${x.fmt} de venta` : `${x.fmt} contra el año anterior`, cifras: [{ metrica: x.rotulo, valor: x.fmt, ...(esVariacion ? { variacion: x.n > 0 ? "sube" : x.n < 0 ? "baja" : "estable" } : {}) }] })),
+    metrica: filas[0].rotulo, direccion: "mayor", universo: _ejeEntero("cliente", "clientes"), conteo: null };
 }
+/* las cifras de una línea de lista, declaradas sobre su tramo: una variación se declara como tal (dirección y magnitud, contra el año anterior) */
+const _declararCifras = (D, entidad, cifras, texto) => {
+  for (const c of cifras || []) {
+    if (c.variacion) D.variacion({ sujeto: entidad, metrica: "Ventas", direccion: c.variacion, valor: c.valor, texto });
+    else D.cifra({ sujeto: entidad, metrica: c.metrica, valor: c.valor, texto });
+  }
+};
 /** quién va primero bajo cada criterio disponible con esta boleta — para decir «con otra lente el orden cambia» */
 export function primerosPorCriterio(figs, dominios = []) {
   const out = {};
-  for (const c of Object.keys(CRITERIOS)) { const o = ordenPorCriterio(figs, dominios, c); if (o && o.lista.length) out[c] = o.lista[0]; }
+  /* la primera de cada lente, con la métrica, la dirección y el universo del orden que la puso primero (para declararlo) */
+  for (const c of Object.keys(CRITERIOS)) { const o = ordenPorCriterio(figs, dominios, c); if (o && o.lista.length) out[c] = { ...o.lista[0], metrica: o.metrica || null, direccion: o.direccion || null, universo: o.universo || null }; }
   return out;
 }
-/* las lentes de clave cliente cuya primera es DISTINTA de la del criterio en uso, en palabras */
-const _otrasLentes = (figs, dominios, criterio) => {
+/* las lentes de clave cliente cuya primera es DISTINTA de la del criterio en uso, en palabras. Con colector, cada «por X, Y primero (cifra)»
+ * se declara sobre su propio tramo: el orden máximo de esa lente (con su métrica y su universo) y la cifra; «por riesgo integrado, Y primero»
+ * no ordena una métrica —es la conclusión del procedimiento— y va como lectura con sello. */
+const _otrasLentes = (figs, dominios, criterio, D = declaradorDe(null)) => {
   const P1 = primerosPorCriterio(figs, dominios);
   const base = P1[criterio];
   if (!base) return "";
   const otras = Object.keys(P1).filter((c) => c !== criterio && CRITERIOS[c].clave === "cliente" && P1[c].entidad !== base.entidad);
   if (!otras.length) return "";
-  return `Con otra lente cambia quién va primero: ${otras.map((c) => `por ${CRITERIOS[c].nombre}, ${P1[c].entidad} primero${P1[c].valor ? ` (${P1[c].valor})` : ""}`).join("; ")}.`;
+  const tramo = (c) => {
+    const t = `por ${CRITERIOS[c].nombre}, ${P1[c].entidad} primero${P1[c].valor ? ` (${P1[c].valor})` : ""}`;
+    if (P1[c].metrica) {
+      D.orden({ sujeto: P1[c].entidad, metrica: P1[c].metrica, forma: P1[c].direccion === "menor" ? "min" : "max", universo: P1[c].universo, texto: t });
+      _declararCifras(D, P1[c].entidad, P1[c].cifras, t);
+    } else D.lectura({ texto: t, sello: "criterio mío" });
+    return t;
+  };
+  return `Con otra lente cambia quién va primero: ${otras.map(tramo).join("; ")}.`;
 };
 const _MODO_TXT = { explicito: "el criterio que pediste", implicito: "el criterio que se lee en tu pregunta" };
 
 /* ── EN PALABRAS: el cierre del ensamblador y la conclusión que viaja al cerebro ────────────────────────────────── */
 const _DOM_TXT = { comercial: "comercial", cobranza: "cobranza", inventario: "inventario" };
-const _lider = (x, dominio) => {
+/* ── LO QUE DECLARA EL CIERRE (Notario semántico, fase 2 · owner 2026-09-15) ────────────────────────────────────────────
+ * El mismo estándar que el cerebro, sin camino privilegiado: cada cifra de una señal es una CIFRA (sujeto = la cuenta o el SKU,
+ * métrica = el concepto del rótulo de la fig); «comercial → Falabella (…)» es el ORDEN máximo de la lente de materialidad en su
+ * universo; «más lejos de la referencia», «más urgente», «más grave en…», «solo la supera en…» son órdenes COMPARATIVOS (con quién y
+ * en qué sentido); la cabecera «Dónde pondría el foco primero…» y la línea «Criterio: …» son LECTURA con sello «criterio mío» — la
+ * prioridad integrada es la conclusión del procedimiento, no un ranking de una métrica, y las listas «1. Lider … 2. Falabella …»
+ * declaran los hechos de cada línea, no el puesto. Cada declaración lleva como `texto` el TRAMO literal que la escribe (único en el
+ * bloque: el detector de presencia cubre por tramo, y un mismo tramo repetido se ubica una sola vez). Sin colector, todo es mudo. */
+const _senalesDe = (D, entidad, x, texto) => { for (const l of _LENTES) if (x[l]) D.cifra({ sujeto: entidad, metrica: x[l].rotulo, valor: x[l].fmt, texto }); };
+const _lider = (x, dominio, D = declaradorDe(null)) => {
   const L = LENTES[dominio];
   const partes = [L.materialidad.como(x.materialidad.fmt)];
   if (x.severidad) partes.push(L.severidad.como(x.severidad.fmt));
   if (x.urgencia) partes.push(L.urgencia.como(x.urgencia.fmt));
-  return `${x.entidad} (${partes.join(", ")})`;
+  const t = `${x.entidad} (${partes.join(", ")})`;
+  /* la líder del dominio: el extremo de la lente de materialidad en su universo, y sus tres señales como cifras */
+  D.orden({ sujeto: x.entidad, metrica: x.materialidad.rotulo, forma: L.materialidad.peor === "menor" ? "min" : "max", universo: L.universo(), texto: t });
+  _senalesDe(D, x.entidad, x, t);
+  return t;
 };
 /* por qué el segundo de un dominio no va primero en él, cuando le gana al líder en alguna otra lente */
-const _matiz = (porDominio, dominio) => {
+const _matiz = (porDominio, dominio, D = declaradorDe(null)) => {
   const s = porDominio[dominio];
   if (!s || s.length < 2) return "";
   const p = s[0];
   /* entre las materiales, las que son más graves que el líder en severidad o urgencia (la materialidad manda; esto matiza) */
   const matices = s.slice(1, MATERIALES).map((q) => ({ q, gana: _LENTES.filter((l) => l !== "materialidad" && q[l] && p[l] && q[l].rango < p[l].rango) })).filter((x) => x.gana.length);
   if (!matices.length) return "";
-  return "; " + matices.map(({ q, gana }) => `${q.entidad} ${LENTES[dominio].materialidad.como(q.materialidad.fmt)} y ${gana.map((l) => `${l === "severidad" ? "más lejos de la referencia" : "más urgente"} (${q[l].fmt} contra ${p[l].fmt})`).join(" y ")}`).join("; ");
+  const L = LENTES[dominio];
+  /* cada lente en que gana: un comparativo contra la líder sobre SU tramo («más urgente (112d contra 94d)»), con la cifra de la segunda */
+  const lente = (q, l) => {
+    const t = `${l === "severidad" ? "más lejos de la referencia" : "más urgente"} (${q[l].fmt} contra ${p[l].fmt})`;
+    D.orden({ sujeto: q.entidad, metrica: q[l].rotulo, forma: "comparativo", direccion: L[l].peor, vs: p.entidad, texto: t });
+    D.cifra({ sujeto: q.entidad, metrica: q[l].rotulo, valor: q[l].fmt, texto: t });
+    return t;
+  };
+  const matiz = (q, gana) => {
+    const cabeza = `${q.entidad} ${L.materialidad.como(q.materialidad.fmt)}`;
+    D.cifra({ sujeto: q.entidad, metrica: q.materialidad.rotulo, valor: q.materialidad.fmt, texto: cabeza });
+    return `${cabeza} y ${gana.map((l) => lente(q, l)).join(" y ")}`;
+  };
+  return "; " + matices.map(({ q, gana }) => matiz(q, gana)).join("; ");
 };
 /* la línea de una cuenta en la lista integrada: sus señales, y contra la siguiente, en qué gana y en qué pierde */
-const _lineaIntegrada = (c, i, total) => {
+const _lineaIntegrada = (c, i, total, D = declaradorDe(null), figs = []) => {
   const senales = Object.keys(c.senales).map((d) => `${_DOM_TXT[d]}: ${_LENTES.filter((l) => c.senales[d][l]).map((l) => LENTES[d][l].como(c.senales[d][l].fmt)).join(", ")}`).join(" · ");
+  const cabeza = `${i + 1}. ${c.entidad} — ${senales}`;
+  for (const d of Object.keys(c.senales)) _senalesDe(D, c.entidad, c.senales[d], cabeza);
   let razon = "";
   if (c.versus) {
     const { contra, gana, pierde } = c.versus;
     const porDom = (items) => { const m = new Map(); for (const it of items) { if (!m.has(it.dominio)) m.set(it.dominio, []); m.get(it.dominio).push(it); } return m; };
     const g = porDom(gana), p = porDom(pierde);
     const dice = (m, sujeto) => [...m.entries()].map(([d, items]) => `en ${_DOM_TXT[d]}, ${items.map((it) => `${it.nombre} (${sujeto === "a" ? it.a : it.b} contra ${sujeto === "a" ? it.b : it.a})`).join(", ")}`).join("; ");
+    /* las comparaciones, declaradas sobre el tramo que las escribe: cada «nombre (x contra y)» es un comparativo en su métrica —quien va
+     * delante en el tramo es el sujeto— y las dos cifras van declaradas con su dueño (la de la siguiente puede no tener línea propia) */
+    const comparativos = (items, sujeto, texto) => {
+      for (const it of items) {
+        const [quien, otro] = sujeto === "a" ? [c.entidad, contra] : [contra, c.entidad];
+        D.orden({ sujeto: quien, metrica: it.metrica, forma: "comparativo", direccion: it.peor, vs: otro, texto });
+        D.cifra({ sujeto: c.entidad, metrica: it.metrica, valor: it.a, texto });
+        D.cifra({ sujeto: contra, metrica: it.metrica, valor: it.b, texto });
+      }
+    };
+    const masGrave = () => { const t = `más grave ${dice(g, "a")}`; comparativos(gana, "a", t); return t; };
+    const supera = (solo) => { const t = `${contra} ${solo ? "solo la supera" : "la supera"} ${dice(p, "b")}`; comparativos(pierde, "b", t); return t; };
     const tiempo = c.versus.tiempo || {};
-    if (gana.length > pierde.length) razon = ` — antes que ${contra}: más grave ${dice(g, "a")}${pierde.length ? `; ${contra} solo la supera ${dice(p, "b")}` : ""}.`;
-    else if (tiempo.a && !tiempo.b) razon = ` — antes que ${contra} por la señal de tiempo (${tiempo.a}; ${contra} sin señal de tiempo)${gana.length ? `: más grave ${dice(g, "a")}` : ""}${pierde.length ? `; ${contra} la supera ${dice(p, "b")}` : ""}.`;
-    else if (tiempo.a && tiempo.b) razon = ` — antes que ${contra} por la señal de tiempo (${tiempo.a} contra ${tiempo.b})${gana.length ? `: más grave ${dice(g, "a")}` : ""}${pierde.length ? `; ${contra} la supera ${dice(p, "b")}` : ""}.`;
-    else razon = ` — antes que ${contra} por tener más en juego en su dominio${pierde.length ? `, aunque ${contra} la supera ${dice(p, "b")}` : ""}.`;
+    if (gana.length > pierde.length) razon = ` — antes que ${contra}: ${masGrave()}${pierde.length ? `; ${supera(true)}` : ""}.`;
+    else if (tiempo.a && !tiempo.b) {
+      /* la señal de tiempo de la cuenta es una cifra; «sin señal de tiempo» de la siguiente es su estado cuando su fila de cobranza
+       * está en la boleta sin saldo vencido (la misma lectura que hace la cobranza cruzada) — si no está, no se afirma nada de ella */
+      const t = `por la señal de tiempo (${tiempo.a}; ${contra} sin señal de tiempo)`;
+      const dt = Object.keys(c.senales).find((d) => c.senales[d].urgencia && LENTES[d].urgencia);   // la misma señal que imprime _tiempoDe: la primera con lente de tiempo
+      if (dt) D.cifra({ sujeto: c.entidad, metrica: c.senales[dt].urgencia.rotulo, valor: c.senales[dt].urgencia.fmt, texto: t });
+      const enCobranza = (figs || []).some((f) => _lab(f) === `${contra} · Saldo pendiente`), conVencido = (figs || []).some((f) => _lab(f) === `${contra} · Saldo vencido`);
+      if (enCobranza && !conVencido) D.estado({ sujeto: contra, estado: "sin vencido", texto: `${contra} sin señal de tiempo` });
+      razon = ` — antes que ${contra} ${t}${gana.length ? `: ${masGrave()}` : ""}${pierde.length ? `; ${supera(false)}` : ""}.`;
+    } else if (tiempo.a && tiempo.b) {
+      /* las dos señales de tiempo: un comparativo en la lente de urgencia del dominio que las trae (para las cuentas, la cobranza) */
+      const t = `por la señal de tiempo (${tiempo.a} contra ${tiempo.b})`;
+      for (const d of Object.keys(c.senales)) {
+        const u = c.senales[d].urgencia, v = c.versus.contraSenales && c.versus.contraSenales[d] && c.versus.contraSenales[d].urgencia;
+        if (!u || !v) continue;
+        D.orden({ sujeto: c.entidad, metrica: u.rotulo, forma: "comparativo", direccion: LENTES[d].urgencia.peor, vs: contra, texto: t });
+        D.cifra({ sujeto: c.entidad, metrica: u.rotulo, valor: u.fmt, texto: t });
+        D.cifra({ sujeto: contra, metrica: v.rotulo, valor: v.fmt, texto: t });
+        break;
+      }
+      razon = ` — antes que ${contra} ${t}${gana.length ? `: ${masGrave()}` : ""}${pierde.length ? `; ${supera(false)}` : ""}.`;
+    } else {
+      /* «más en juego en su dominio»: la materialidad de la cuenta contra la de la siguiente en el dominio donde la cuenta pesa más —
+       * un comparativo solo si la siguiente tiene esa señal; si no la tiene, no hay dos cifras que comparar y no se declara */
+      const t = `antes que ${contra} por tener más en juego en su dominio`;
+      const mejor = Object.keys(c.senales).filter((d) => c.senales[d].materialidad).sort((x, y) => c.senales[x].materialidad.rango - c.senales[y].materialidad.rango)[0];
+      const v = mejor && c.versus.contraSenales && c.versus.contraSenales[mejor] && c.versus.contraSenales[mejor].materialidad;
+      if (v) D.orden({ sujeto: c.entidad, metrica: c.senales[mejor].materialidad.rotulo, forma: "comparativo", direccion: LENTES[mejor].materialidad.peor, vs: contra, texto: t });
+      razon = ` — ${t}${pierde.length ? `, aunque ${supera(false)}` : ""}.`;
+    }
   } else if (i === total - 1 && total > 1) {
     razon = ".";
   }
-  return `${i + 1}. ${c.entidad} — ${senales}${razon}`;
+  return `${cabeza}${razon}`;
 };
 
-/** componerPrioridadIntegrada(figs, dominios, { criterio, modo }) → el bloque de cierre, o null sin señales.
- *  Sin criterio: la prioridad ejecutiva de la casa (riesgo integrado), declarada como tal, con la nota de otras lentes. */
-export function componerPrioridadIntegrada(figs, dominios = [], { criterio = null, modo = null } = {}) {
+/** componerPrioridadIntegrada(figs, dominios, { criterio, modo, declarar }) → el bloque de cierre, o null sin señales.
+ *  Sin criterio: la prioridad ejecutiva de la casa (riesgo integrado), declarada como tal, con la nota de otras lentes.
+ *  `declarar`: el colector del Notario (fase 2); sin él, el bloque se compone igual, byte a byte, sin declarar. */
+export function componerPrioridadIntegrada(figs, dominios = [], { criterio = null, modo = null, declarar = null } = {}) {
+  const D = declaradorDe(declarar);
   const usa = criterio && CRITERIOS[criterio] ? criterio : "riesgo";
   if (usa !== "riesgo") {
     const O = ordenPorCriterio(figs, dominios, usa);
     if (!O) return null;
     const C = CRITERIOS[usa];
-    const L = [`Dónde pondría el foco primero — por ${C.nombre}, ${_MODO_TXT[modo] || "el criterio que pediste"} (${C.dicho}):`];
-    O.lista.slice(0, 3).forEach((x, i) => L.push(`${i + 1}. ${x.entidad}${x.valor ? ` — ${x.valor}` : ""}`));
-    if (O.lista.length > 3) L.push(`(y ${O.lista.length - 3} más)`);
-    const otras = _otrasLentes(figs, dominios, usa);
+    const cabecera = `Dónde pondría el foco primero — por ${C.nombre}, ${_MODO_TXT[modo] || "el criterio que pediste"} (${C.dicho}):`;
+    const L = [cabecera];
+    /* bajo una lente, la lista ES un orden top-k sobre la métrica de la lente (el criterio del usuario eligió la lente, no el puesto):
+     * se declara con los nombres impresos sobre la cabecera; cada línea, con sus cifras */
+    const top = O.lista.slice(0, 3);
+    if (O.metrica) D.orden({ sujeto: top.map((x) => x.entidad), metrica: O.metrica, forma: "topk", k: top.length, direccion: O.direccion, universo: O.universo, texto: cabecera });
+    else D.lectura({ texto: cabecera, sello: "criterio mío" });
+    top.forEach((x, i) => { const l = `${i + 1}. ${x.entidad}${x.valor ? ` — ${x.valor}` : ""}`; L.push(l); _declararCifras(D, x.entidad, x.cifras, l); });
+    if (O.lista.length > 3) { const cola = `(y ${O.lista.length - 3} más)`; L.push(cola); if (O.conteo) D.conteo({ n: O.lista.length, predicado: O.conteo.predicado, universo: O.conteo.universo, texto: cola }); }
+    const otras = _otrasLentes(figs, dominios, usa, D);
     if (otras) L.push(`${otras} Los hechos no cambian con la lente; cambia quién va primero. Dime por cuál quieres que lo reordene.`);
-    L.push(`Criterio: ${C.nombre} (${C.dicho}); las cifras de dominios distintos no se suman ni se comparan entre sí.`);
+    const criterioTxt = `Criterio: ${C.nombre} (${C.dicho}); las cifras de dominios distintos no se suman ni se comparan entre sí.`;
+    L.push(criterioTxt);
+    D.lectura({ texto: criterioTxt, sello: "criterio mío" });
     return L.join("\n");
   }
   const P = prioridadIntegrada(figs, dominios);
@@ -332,21 +447,31 @@ export function componerPrioridadIntegrada(figs, dominios = [], { criterio = nul
     ? `Dónde pondría el foco primero — por riesgo integrado, ${_MODO_TXT[modo]} (materialidad + severidad + urgencia, señal por señal, sin sumar montos entre dominios):`
     : `Dónde pondría el foco primero — criterio ejecutivo de ADI, porque no fijaste otro: riesgo integrado (materialidad + severidad + urgencia, señal por señal, sin sumar montos entre dominios):`;
   const L = [cabecera];
-  L.push(`Por dominio: ${doms.map((d) => `${_DOM_TXT[d]} → ${_lider(P.porDominio[d][0], d)}${_matiz(P.porDominio, d)}`).join(" · ")}.`);
+  D.lectura({ texto: cabecera, sello: "criterio mío" });
+  L.push(`Por dominio: ${doms.map((d) => `${_DOM_TXT[d]} → ${_lider(P.porDominio[d][0], d, D)}${_matiz(P.porDominio, d, D)}`).join(" · ")}.`);
   if (P.integrada.length >= 2) {
     L.push(`Integrada, entre las cuentas${doms.includes("comercial") && doms.includes("cobranza") ? " (la clave real entre comercial y cobranza es el cliente)" : ""}:`);
-    P.integrada.slice(0, 3).forEach((c, i) => L.push(_lineaIntegrada(c, i, Math.min(3, P.integrada.length))));
+    P.integrada.slice(0, 3).forEach((c, i) => L.push(_lineaIntegrada(c, i, Math.min(3, P.integrada.length), D, figs)));
   } else if (P.integrada.length === 1) {
-    L.push(`Integrada: ${P.integrada[0].entidad} — ${Object.keys(P.integrada[0].senales).map((d) => `${_DOM_TXT[d]}: ${_LENTES.filter((l) => P.integrada[0].senales[d][l]).map((l) => LENTES[d][l].como(P.integrada[0].senales[d][l].fmt)).join(", ")}`).join(" · ")}.`);
+    const sola = P.integrada[0];
+    const l = `Integrada: ${sola.entidad} — ${Object.keys(sola.senales).map((d) => `${_DOM_TXT[d]}: ${_LENTES.filter((l) => sola.senales[d][l]).map((l) => LENTES[d][l].como(sola.senales[d][l].fmt)).join(", ")}`).join(" · ")}.`;
+    L.push(l);
+    for (const d of Object.keys(sola.senales)) _senalesDe(D, sola.entidad, sola.senales[d], l);
   }
   if (P.porDominio.inventario) {
     const s = P.porDominio.inventario[0];
-    L.push(`En inventario (clave SKU: no se compara con las cuentas): ${s.entidad} primero — ${_LENTES.filter((l) => s[l]).map((l) => LENTES.inventario[l].como(s[l].fmt)).join(", ")}.`);
+    const l = `En inventario (clave SKU: no se compara con las cuentas): ${s.entidad} primero — ${_LENTES.filter((l) => s[l]).map((l) => LENTES.inventario[l].como(s[l].fmt)).join(", ")}.`;
+    L.push(l);
+    /* el primero del inventario: el extremo de su lente de materialidad entre los SKU frenados, con sus señales como cifras */
+    D.orden({ sujeto: s.entidad, metrica: s.materialidad.rotulo, forma: LENTES.inventario.materialidad.peor === "menor" ? "min" : "max", universo: LENTES.inventario.universo(), texto: l });
+    _senalesDe(D, s.entidad, s, l);
   }
   if (!P.porDominio.comercial || !LENTES.comercial.urgencia) L.push(`El comercial no trae señal de tiempo en este dato: ahí la prioridad es por materialidad y distancia al benchmark.`);
-  const otras = _otrasLentes(figs, dominios, "riesgo");
+  const otras = _otrasLentes(figs, dominios, "riesgo", D);
   if (otras) L.push(`${otras} Los hechos no cambian con la lente; cambia quién va primero. Dime por cuál quieres que lo reordene.`);
-  L.push(`Criterio: ${P.criterio}`);
+  const criterioTxt = `Criterio: ${P.criterio}`;
+  L.push(criterioTxt);
+  D.lectura({ texto: criterioTxt, sello: "criterio mío" });
   return L.join("\n");
 }
 
