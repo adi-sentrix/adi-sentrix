@@ -1957,7 +1957,7 @@ const _presenteEnTexto = (v, unit, presentes, tol) => {
   for (const p of lista) if (Math.abs(p - v) <= Math.max(tol, Math.abs(v) * 0.02)) return true;
   return false;
 };
-function _isCalc(raw, unit, authFigs, entityNames = [], mentionedEntities = [], presentes = null) {
+function _isCalc(raw, unit, authFigs, entityNames = [], mentionedEntities = [], presentes = null, nombradas = null) {
   if (typeof process !== "undefined" && process.env && process.env.ADI_MEDICION_AMNISTIA === "off") return false;   // instrumento de calibración (solo Node: en el navegador no existe process)
   if (!Number.isFinite(raw)) return false;
   // pp (puntos porcentuales, ej. la brecha "8.1pp") se deriva de DOS cifras unit:"pct" (benchmark − margen) — no
@@ -1968,7 +1968,7 @@ function _isCalc(raw, unit, authFigs, entityNames = [], mentionedEntities = [], 
    * texto (el scope de arriba), y una cuenta entre dos figs de entidades nombradas es una cuenta con dueños
    * dichos («LG-DRYER8KG y LG-AIR9000 juntos representan $195K») — la segunda forma legítima de mostrarla. */
   const vals = pool.filter((f) => f.unit === srcUnit && Number.isFinite(f.raw))
-    .map((f) => ({ raw: f.raw, conDueno: _figEntityOwners(f.label, entityNames).length > 0 }));
+    .map((f) => ({ raw: f.raw, conDueno: _figEntityOwners(f.label, entityNames).length > 0, metrica: String(f.label || "").split("·").pop().trim().toLowerCase(), entidad: (f.tipo && typeof f.tipo.entidad === "string") ? f.tipo.entidad.trim() : null }));
   if (vals.length < 2) return false;
   const tol = unit === "money" ? Math.max(1000, Math.abs(raw) * 0.02) : (unit === "pct" || unit === "pp") ? 0.2 : unit === "ratio" ? 0.15 : unit === "days" ? 0.6 : 0.05;
   /* LA FRONTERA (2026-09-04): el par amnistía si sus insumos están DICHOS — como MONTOS en el texto («$100.0M
@@ -1979,10 +1979,45 @@ function _isCalc(raw, unit, authFigs, entityNames = [], mentionedEntities = [], 
   const _ok = (a, b) => !presentes
     || (_presenteEnTexto(a.raw, unit, presentes, tol) && _presenteEnTexto(b.raw, unit, presentes, tol))
     || (a.conDueno && b.conDueno);
+  /* LA CUENTA MOSTRADA SE VERIFICA SOBRE LOS NÚMEROS MOSTRADOS (2026-09-14, al cerrar la lotería del catálogo): «Del
+   * subtotal de $4.9M, Falabella explica $1.6M — los otros $3.3M» cierra en la página (4.9 − 1.6 = 3.3) y no cierra en
+   * los crudos (4.943.664 − 1.572.313 = 3.371.351 → «$3.4M», 2,1 % de diferencia). Pasaba solo porque el catálogo la
+   * recomputaba a ciegas con otro par. Con los dos operandos dichos, la cuenta también vale sobre los valores que el
+   * texto trae — es lo que el lector puede comprobar. */
+  const _dichoComo = (v) => {
+    const lista = (presentes && presentes.get(srcUnit)) || [];
+    for (const p of lista) if (Math.abs(p - v) <= Math.max(tol, Math.abs(v) * 0.02)) return p;
+    return null;
+  };
+  const _cierraMostrada = (a, b, op) => {
+    if (!presentes) return false;
+    const pa = _dichoComo(a.raw), pb = _dichoComo(b.raw);
+    return pa != null && pb != null && Math.abs((op === "+" ? pa + pb : pa - pb) - raw) <= tol;
+  };
   for (let i = 0; i < vals.length; i++) for (let j = 0; j < vals.length; j++) {
     if (i === j) continue;
     if (Math.abs((vals[i].raw - vals[j].raw) - raw) <= tol && _ok(vals[i], vals[j])) return true;                 // resta a−b
     if (i < j && Math.abs((vals[i].raw + vals[j].raw) - raw) <= tol && _ok(vals[i], vals[j])) return true;        // suma a+b
+    if (_cierraMostrada(vals[i], vals[j], "-")) return true;                                                       // resta con los números mostrados
+    if (i < j && _cierraMostrada(vals[i], vals[j], "+")) return true;                                              // suma con los números mostrados
+  }
+  /* TRES DUEÑOS DICHOS, LA MISMA MÉTRICA (owner 2026-09-14, al cerrar la lotería del catálogo): «Falabella, Lider y
+   * Jumbo representan 54.6% de las ventas» —el texto del owner sobre el cuadro— es la suma de tres participaciones
+   * de la boleta (19.4 + 17.9 + 17.3), la misma cuenta con dueños dichos que el par de arriba ya autoriza, con un
+   * sumando más. Pasaba solo porque el catálogo la recomputaba a ciegas como razón entre dos montos que el texto no
+   * decía. Acotado a propósito: solo con `presentes` (la frontera), solo figs de entidades NOMBRADAS —por los facts
+   * del turno (`entityNames`) o por el TIPO que la fig declara (`tipo.entidad`, «Entidad · Concepto») cuando el texto
+   * la nombra (`nombradas`, del llamador)— y solo de la MISMA métrica (el tramo final del rótulo): tres sumandos de
+   * métricas distintas o sin dueño no son una cuenta. */
+  if (presentes) {
+    const conDueno = vals.filter((v) => v.metrica && (v.conDueno || (nombradas && v.entidad && nombradas.has(v.entidad))));
+    for (let i = 0; i < conDueno.length; i++) for (let j = i + 1; j < conDueno.length; j++) {
+      if (conDueno[i].metrica !== conDueno[j].metrica) continue;
+      for (let k = j + 1; k < conDueno.length; k++) {
+        if (conDueno[k].metrica !== conDueno[i].metrica) continue;
+        if (Math.abs((conDueno[i].raw + conDueno[j].raw + conDueno[k].raw) - raw) <= tol) return true;             // suma a+b+c
+      }
+    }
   }
   return false;
 }
@@ -3287,6 +3322,12 @@ function _oracionEnTorno(text, masked, idx, len) {
  * `recentNarrations` ni el turno anterior — un antecedente que vivía en un texto vetado no existe para esto. */
 const _ANAFORA_SKU = /\b(?:ese|este|dicho|aquel|el\s+mismo)\s+(?:SKU|producto|art[íi]culo|[ií]tem)\b/i;
 const _ANAFORA_CLI = /\b(?:ese|este|dicho|aquel|el\s+mismo)\s+(?:cliente|cuenta)\b/i;
+/* EL POSESIVO ES LA MISMA ANÁFORA (2026-09-14, al cerrar la lotería del catálogo): «Falabella tiene margen 22.0% y
+ * carga 4.5%. Con la baja de 2 puntos SU margen proyectado sería 24.0%» — el dueño vive en la oración anterior y
+ * «su» lo trae. Pasaba solo porque el catálogo recomputaba el 24.0% a ciegas; con los operandos exigidos, el cálculo
+ * declarado (dueno=Falabella) caía por «dueño no nombrado en esa oración». Mismos cuatro candados del owner: el
+ * posesivo no declara eje, así que el antecedente tiene que ser la ÚNICA entidad nombrada en la oración previa. */
+const _ANAFORA_POS = /\b(?:su|sus)\s+\p{L}/iu;
 const _ES_SKU = (n) => /^[A-Z]{2,4}-/.test(String(n));
 function _duenoPorAnafora(narration, masked, fig, dueno, entidades) {
   if (!dueno || !Array.isArray(entidades) || !entidades.length) return false;
@@ -3296,8 +3337,8 @@ function _duenoPorAnafora(narration, masked, fig, dueno, entidades) {
     if (!oraciones[i].includes(fig.text)) continue;
     const aqui = oraciones[i];
     if (nombra(aqui, entidades).length) return false;      // hay entidad nombrada: no es un caso de anáfora
-    const esSku = _ANAFORA_SKU.test(aqui), esCli = _ANAFORA_CLI.test(aqui);
-    if (!esSku && !esCli) return false;                     // no hay referencia que resolver
+    const esSku = _ANAFORA_SKU.test(aqui), esCli = _ANAFORA_CLI.test(aqui), esPos = !esSku && !esCli && _ANAFORA_POS.test(aqui);
+    if (!esSku && !esCli && !esPos) return false;           // no hay referencia que resolver
     if (i === 0) return false;                              // (1) sin oración anterior no hay antecedente
     /* LA VENTANA SON DOS ORACIONES, y no es un aflojamiento del candado del owner («único e inmediato») sino su
      * lectura fiel sobre la prosa real (medido en el examen 2 · Q3): «concentralo en LG-DRYER8KG. ES EL de mayor
@@ -3310,8 +3351,8 @@ function _duenoPorAnafora(narration, masked, fig, dueno, entidades) {
       if (nombra(oraciones[k], entidades).length) { previa = oraciones[k]; break; }
     }
     if (previa == null) return false;
-    // (3) el eje lo manda el sustantivo de la anáfora
-    const candidatos = nombra(previa, entidades).filter((n) => (esSku ? _ES_SKU(n) : !_ES_SKU(n)));
+    // (3) el eje lo manda el sustantivo de la anáfora — el posesivo no lo declara: cuenta toda entidad nombrada
+    const candidatos = nombra(previa, entidades).filter((n) => (esPos ? true : esSku ? _ES_SKU(n) : !_ES_SKU(n)));
     if (candidatos.length !== 1) return false;              // (1)+(2) único, o no hereda
     if (_norm(candidatos[0]) !== _norm(dueno)) return false;
     // (4) dos mundos distintos declarados: la referencia no cruza universos
@@ -3678,6 +3719,17 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   }
   const authCanon = new Set([...figs.map((f) => f.canon), ...qFigs.map((f) => f.canon), ...supFigs.map((f) => f.canon), ...bolFigs.map((f) => f.canon)]);
   const authVerbatim = new Set([...figs.map((f) => _stripSpace(f.value)), ...qFigs.map((f) => _stripSpace(f.text)), ...supFigs.map((f) => _stripSpace(f.text)), ...bolFigs.map((f) => _stripSpace(f.text))]);
+  /* EL SIGNO «+» ES TIPOGRAFÍA, NO OTRA CIFRA (owner 2026-09-14, al cerrar la lotería del catálogo): los emisores
+   * publican las variaciones positivas con su signo («Ventas vs año anterior = +7.5%», «Lider · YoY = +$2.3M») y el
+   * canon de esa fig queda «pct:+7.5%», mientras el parser de la narración lee «+7.5%» y «7.5%» como «pct:7.5%» —
+   * la cifra publicada jamás casaba consigo misma. Medido: pasaba SOLO porque el catálogo la recomputaba a ciegas
+   * (variación entre dos montos del pool); con los operandos exigidos en el texto, la foto del negocio caía al
+   * límite por su propio YoY. La cifra publicada con «+» autoriza también su forma sin signo; el «−» no se toca
+   * (una caída narrada como subida sigue siendo otra cifra). */
+  for (const f of figs) {
+    const v = _stripSpace(String(f && f.value != null ? f.value : ""));
+    if (v.startsWith("+")) { authVerbatim.add(v.slice(1)); if (f.canon && /^[a-z]+:\+/.test(f.canon)) authCanon.add(f.canon.replace(":+", ":")); }
+  }
   /* ── LAS CUENTAS A LA VISTA (constitución 2026-08-14 · categoría «cálculo derivado») ─────────────────────────
    * Una derivada CON SU FÓRMULA EN EL TEXTO se verifica recomputando — y solo entonces se autoriza, con el
    * estatus del eco. Tres formas cerradas: suma de montos («$54.6M = $19.4M + $17.9M + $17.3M»), factor sobre
@@ -4380,6 +4432,10 @@ export function guardC(narration, { ledger, results = [], trace = null, question
    * acepta un par (a,b) si ambos operandos están acá. Es lo que separa una cuenta mostrada («$100.0M −3%:
    * $97.0M») de la lotería combinatoria que dejaba pasar montos inventados en boletas de 60+ figs. */
   const _narrFigsTodas = parseFigures(narration);
+  /* las entidades que las figs DECLARAN en su tipo («Falabella · Participación» → Falabella) y que el texto nombra:
+   * el dueño dicho de la suma de tres sumandos (ver _isCalc), independiente de si los facts del turno viajaron. */
+  const _entidadesDeBoletaNombradas = new Set(figs.map((f) => (f && f.tipo && typeof f.tipo.entidad === "string") ? f.tipo.entidad.trim() : "")
+    .filter((e) => e.length >= 3 && new RegExp(`(?:^|[^\\p{L}\\p{N}])${e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "iu").test(narration)));
   const _presentes = new Map();
   for (const nf of _narrFigsTodas) {
     const u = nf.unit === "pp" ? "pct" : nf.unit;
@@ -4413,7 +4469,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
      * queda para las cuentas mostradas; acá la lotería combinatoria autorizaba justo el rango inventado. */
     const _extremoDeRango = _canonDeRango.has(f.canon);
     if (authCanon.has(f.canon) || authVerbatim.has(_stripSpace(f.text))
-      || (!_extremoDeRango && (_isCalc(f.raw, f.unit, figs, entityNames, mentionedEntities, _presentes) || _isCalc2(f.raw, f.unit, figs, mentionedEntities)))
+      || (!_extremoDeRango && (_isCalc(f.raw, f.unit, figs, entityNames, mentionedEntities, _presentes, _entidadesDeBoletaNombradas) || _isCalc2(f.raw, f.unit, figs, mentionedEntities)))
       || _derivadaDeSupuesto(f, supFigs, figs)) continue;
     // AMPLITUD F2: ¿es el resultado exacto de una operación del CATÁLOGO sobre el pool acotado del turno?
     // Corre DESPUÉS de los niveles 1-2 (subset intacto) y ANTES de la quinta fuente: una cuenta legítima del

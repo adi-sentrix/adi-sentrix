@@ -270,22 +270,46 @@ function _vals(pool, unit) {
  * de 2 a 13), «$200M» —una cifra que solo existía en el contexto declarado por el usuario— quedó autorizada como
  * «$25.1M × 8 clientes» sin que el texto dijera ni el monto ni el conteo: un monto por CUALQUIER conteo de la boleta es la
  * lotería combinatoria. El escalar por conteo amnistía solo si el conteo está en la prosa (una cuenta mostrada). El resto
- * del catálogo —brecha en pp, participación, monto × pp— sigue como siempre: son las cuentas que la casa hace de corrido.
+ * del catálogo —brecha en pp, monto × pp— sigue como siempre: son las cuentas que la casa hace de corrido. La participación y
+ * la variación entraron a la misma frontera el 2026-09-14 (ver la rama pct: la lotería del catálogo).
  * Sin `presentes` (llamadores históricos, gates unitarios) la conducta es la de siempre. */
+/* EL OPERANDO DICHO ES EL IMPRESO (medido al cerrar la lotería, expediente de la certificación): la boleta guarda
+ * «La Polar · Ventas = $2.1M» con raw 2.055.159 y el texto repite «$2.1M» tal cual — el 2% no alcanza (2,2% de
+ * diferencia) y la cuenta mostrada «$2.1M, caída de 77% vs. año anterior ($9.0M)» quedaba como no dicha. La
+ * tolerancia incluye el grano del formateador canónico (medio decimal de M, medio K): un monto está dicho si el
+ * texto trae el número con el que la boleta lo imprime. */
+const _granoMoney = (v) => (Math.abs(v) >= 1e6 ? 5e4 : Math.abs(v) >= 1e3 ? 500 : 0.5);
 const _dicho = (v, unit, presentes) => {
   if (!presentes) return true;
   const lista = (presentes.get && presentes.get(unit === "pp" ? "pct" : unit)) || [];
-  const tol = Math.max(tolCalculo(v, unit), Math.abs(v) * 0.02);
+  const tol = Math.max(tolCalculo(v, unit), Math.abs(v) * 0.02, unit === "money" ? _granoMoney(v) : 0);
   return lista.some((x) => Number.isFinite(x) && Math.abs(x - v) <= tol);
 };
 export function esCalculoDelCatalogo(raw, unit, pool, presentes = null) {
   if (!Number.isFinite(raw) || !Array.isArray(pool) || !pool.length) return false;
   const tol = tolCalculo(raw, unit);
   if (unit === "pct") {
-    const montos = [..._vals(pool, "money"), ..._vals(pool, "count")];
+    /* LA LOTERÍA DEL CATÁLOGO (owner 2026-09-14, auditoría del Notario): con 50+ montos en el pool, casi cualquier
+     * porcentaje inventado coincide con la participación o la variación entre DOS montos cualesquiera que el texto
+     * jamás nombró («Seis cuentas pesan 68.4% de la venta» pasaba). La misma frontera del nivel 1 (_isCalc,
+     * 2026-09-04): una participación o una variación solo amnistía si sus dos operandos están DICHOS en el texto
+     * («$4.6M de $9.8M: el 47%»); los porcentajes que la casa calcula de corrido (YoY del negocio, pesos de una
+     * lista, % de una bodega) los publican los EMISORES en su boleta con rótulo y dueño — no se recomputan acá.
+     * Sin `presentes` (llamadores históricos, gates unitarios) la conducta es la de siempre. */
+    const montos = [..._vals(pool, "money").filter((v) => _dicho(v, "money", presentes)), ..._vals(pool, "count").filter((v) => _dicho(v, "count", presentes))];
+    /* LA DIRECCIÓN PUEDE IR EN LA PALABRA (medido en el expediente de la certificación al cerrar la lotería): «ventas
+     * $3.1M, caída de 78% vs. año anterior ($14.1M)» es una cuenta mostrada —los dos montos están— y el parser lee
+     * «78%» sin signo porque el signo lo lleva «caída». Con los operandos dichos, una variación negativa autoriza
+     * también su magnitud narrada en positivo; nunca al revés (un «-78%» narrado exige una caída de verdad). Sin
+     * `presentes` no aplica: la magnitud sola sobre un pool ciego sería el doble de lotería. */
+    const _conOperandos = !!presentes;
     for (let i = 0; i < montos.length; i++) for (let j = 0; j < montos.length; j++) {
       if (i === j) continue;
-      if (montos[i] !== 0 && Math.abs(((montos[j] - montos[i]) / Math.abs(montos[i])) * 100 - raw) <= tol) return true;   // variacion_pct
+      if (montos[i] !== 0) {
+        const variacion = ((montos[j] - montos[i]) / Math.abs(montos[i])) * 100;
+        if (Math.abs(variacion - raw) <= tol) return true;                                                                 // variacion_pct
+        if (_conOperandos && raw >= 0 && variacion < 0 && Math.abs(-variacion - raw) <= tol) return true;                  // variacion_pct · «caída de X%»
+      }
       if (montos[j] !== 0 && Math.abs((montos[i] / montos[j]) * 100 - raw) <= tol) return true;                            // participacion
     }
     return false;
@@ -298,10 +322,26 @@ export function esCalculoDelCatalogo(raw, unit, pool, presentes = null) {
     return false;
   }
   if (unit === "money") {
-    const montos = _vals(pool, "money");
+    /* LA MISMA FRONTERA EN DINERO (medido al cerrar la lotería del %, `_amnistia_con_insumos_gate`): publicar UNA cifra
+     * estructural más en la boleta —el umbral de materialidad, $50K— alcanzó para que «unos $123K» inventados pasaran como
+     * «subtotal × tasa − umbral»: el trío de margen_objetivo sobre montos que el texto no dice es la misma lotería con
+     * tres operandos. El monto base de cada cuenta (el que se escala, la venta del objetivo, la contribución que falta)
+     * tiene que estar dicho; la tasa puede ser la referencia (el benchmark se cita de corrido). Sin `presentes`, igual. */
+    const montos = _vals(pool, "money").filter((v) => _dicho(v, "money", presentes));
     const factores = [..._vals(pool, "pp"), ..._vals(pool, "count").filter((v) => _dicho(v, "count", presentes))];
     for (const m of montos) for (const f of factores) {
       if (Math.abs(m * f - raw) <= tol) return true;                                                                       // escalar
+    }
+    /* PUNTOS SOBRE UN MONTO, LOS DOS DICHOS (corpus congelado de la calibración, medido al cerrar la lotería): «8.1
+     * puntos de brecha sobre $19.4M equivale a cerca de $1.6M» es la brecha en dinero —monto × puntos / 100—, la misma
+     * identidad que margen_objetivo cierra por el otro lado (venta × objetivo% − contribución). Pasaba solo por el trío
+     * a ciegas. Los puntos salen del PROPIO texto (el 8.1 ya se juzgó como cifra: 30.1 − 22.0, cuenta mostrada del
+     * nivel 1) y el monto tiene que estar en el pool Y dicho: nunca sobre el pool sin `presentes`. */
+    if (presentes) {
+      const puntosDichos = (presentes.get && presentes.get("pct")) || [];
+      for (const m of montos) for (const p of puntosDichos) {
+        if (Number.isFinite(p) && p !== 0 && Math.abs(m * (p / 100) - raw) <= tol) return true;                          // brecha en dinero · monto × puntos/100
+      }
     }
     const tasas = _vals(pool, "pct");
     for (const venta of montos) for (const p of tasas) {

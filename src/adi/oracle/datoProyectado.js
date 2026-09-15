@@ -45,6 +45,7 @@ import { composeNoDataMessage } from "./narrationBlocks.js";   // el último rec
 import { simboloMoneda, rotuloMoneda, etiquetaSinDeclarar } from "../../config/moneda.js";
 import { factorComercialDe } from "../../config/contract/figureType.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
+import { figsUmbralFocos } from "../specRetrieval.js";   // el umbral de materialidad, los MISMOS dos números que interpola `declaracionUmbralFocos` (2026-09-14)
 
 // ── EL FORMATEADOR DE LA BOLETA, SIN UN SEGUNDO FORMATEADOR ────────────────────────────────────────────────────
 // parseFigures canoniza toda cifra con el _fmtC privado de boleta.js (canon = `unit:_fmtC(raw,unit)`). Darle el
@@ -289,6 +290,12 @@ function _construir(scenario) {
   counts.add(_fInmov.length); counts.add(_fFren.length);   // los conteos de cada categoría son cifras del dato: se autorizan como tales
   const CAP_INMOV = [...NEG, "inventario", "capital", "inmovilizado", "stock"];
   const CAP_FREN = [...NEG, "inventario", "capital", "frenado", "stock"];
+  /* EL TOTAL DE LA FOTO, CUANDO EL KPI NO LO TRAE (2026-09-14, al cerrar la lotería del catálogo): en el demo
+   * `deriveKpis().inventario` es null y la carpeta declaraba lo inmovilizado y lo frenado SIN el total del que son
+   * parte — «$33K de $135K en inventario frenados en 3 SKU» (corpus congelado de la calibración) pasaba solo porque
+   * el catálogo recomputaba el $135K a ciegas. Es la misma Σ de `stockUSD` que ya suma las dos categorías y la que
+   * pinta la card «Capital en inventario» de la Mesa: cero segunda verdad, con los dueños de la foto. */
+  if (!(ki && ki.totalUSD != null) && _inv.length) L.push(`- Inventario (foto de hoy): ${_L.capital.toLowerCase()} total ${F(_money(_sumaK(_inv)), INV, "inventario")} en ${_inv.length} SKU.`);
   if (_fInmov.length) {
     // el criterio se dice en palabras, NO enumerando los códigos de estado: «60d/90d/120d» son cifras que
     // pertenecen a SKU concretos y citarlas acá, sin su dueño al lado, las deja huérfanas (medido: tumbaba el suplente).
@@ -306,6 +313,17 @@ function _construir(scenario) {
    * resuelve el valor: una sola verdad sobre la misma cifra. */
   const _refPropia = referenciaEsDelNegocio();
   L.push(`- ${_refPropia ? "La referencia la declara el negocio" : "La referencia es la GENERAL DE ADI (el negocio no declaró una propia; NO es su meta, y así hay que decirlo si se nombra)"}: benchmark de margen ${F(_pct1(bench), REF, "venta")}. Meta de carga comercial ${F(_pct1(target), META_CARGA, "venta")} (mejor práctica interna ${F(_pct1(best), META_CARGA, "venta")}). Piso de rotación ${F(_ratio(rotMin), REF, "inventario")} · techo de días de inventario ${F(_dias(dohMax), [...REF, "techo"], "inventario")}.`);
+  /* EL UMBRAL DE MATERIALIDAD ES UNA REFERENCIA DEL NEGOCIO (owner 2026-09-14, al cerrar la lotería del catálogo): «0.05%
+   * de la venta: $50K» decide qué foco es material y qué queda en monitoreo, y ningún emisor lo publicaba — el cerebro lo
+   * decía («está bajo el 0.05% de tu venta») y el muro lo dejaba pasar solo por una participación recomputada a ciegas.
+   * Los dos números salen de la MISMA función que interpola la frase (`figsUmbralFocos`, specRetrieval) y llevan como
+   * dueño la palabra que lo nombra: «umbral», «material(es)», «materialidad» — nunca «venta» sola, que autorizaría
+   * cualquier $50K colgado de una cuenta. */
+  const _umbral = (() => { try { return figsUmbralFocos(); } catch { return []; } })();
+  if (_umbral.length === 2) {
+    const UMBRAL = ["umbral", "material", "materialidad"];
+    L.push(`- Umbral de materialidad de los focos: ${F(_umbral[0].value, UMBRAL, "venta")} de la venta real (${F(_umbral[1].value, UMBRAL, "venta")}) — lo que queda bajo el umbral se declara como monitoreo, no se calla.`);
+  }
   const kpisLineas = L.slice(_iKpi);   // el bloque de KPIs TAL CUAL viaja en la proyección — cada cifra ya registrada por F() con su dueño
   L.push("");
 

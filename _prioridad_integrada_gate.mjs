@@ -451,7 +451,29 @@ H("14 · universo de grupos · ordinales y rankings · «coincide en dos dominio
   ok(arde(L2.final.texto, "cifra-de-grupo-mal-repartida"), "★ lo servido en la prueba 2 («Falabella, Lider, Jumbo, Sodimac y Paris (73.8% de la venta)») ahora arde: la cifra de un grupo de 6 narrada como de 5", kinds(L2.final.texto).join(","));
   ok(arde("Falabella, Lider, Jumbo, Sodimac y Paris (73.8% de la venta) tienen margen bajo el benchmark.", "cifra-de-grupo-mal-repartida") && arde("Cinco cuentas con carga sobre el nivel pesan 73.8% de la venta.", "cifra-de-grupo-mal-repartida") && arde("Lider pesa 73.8% de la venta.", "cifra-de-grupo-mal-repartida"), "candados: la lista corta, el conteo equivocado («cinco cuentas») y una sola cuenta arden");
   ok(!arde("Falabella, Lider, Jumbo, Sodimac, Paris y Ripley (73.8% de la venta) tienen margen bajo el benchmark.", "cifra-de-grupo-mal-repartida") && !arde("Seis cuentas con margen bajo el benchmark y carga sobre el nivel pesan 73.8% de la venta.", "cifra-de-grupo-mal-repartida") && kinds("Las cuentas con carga sobre el nivel declarado pesan 73.8% de la venta.").length === 0, "el grupo completo, «seis cuentas» y la descripción sin lista pasan (y el 73.8% ya está autorizado por la boleta)");
-  ok(!arde("LG-DRYER8KG ($14K) es el 41.0% de los $33K frenados.", "cifra-no-autorizada"), "la cuenta mostrada ($14K de $33K → 41.0%) sigue pasando (⚠️ el catálogo aún amnistía un % por una razón entre dos montos que el texto no dice — «68.4%» pasa—: frente aparte, 15 gates dependen de esas cuentas de corrido)");
+  ok(!arde("LG-DRYER8KG ($14K) es el 41.0% de los $33K frenados.", "cifra-no-autorizada"), "la cuenta mostrada ($14K de $33K → 41.0%) sigue pasando: los dos operandos están en el texto");
+  /* LA LOTERÍA DEL CATÁLOGO, CERRADA (owner 2026-09-14): un % que no está en la boleta solo se autoriza como cuenta MOSTRADA
+   * (participación o variación entre dos montos dichos en el texto). Antes, con 50+ montos en el pool, «68.4%» pasaba
+   * por coincidir con la razón entre dos montos que el texto jamás nombró. Los porcentajes de corrido de la casa (el YoY
+   * del negocio, el umbral de materialidad) los publican ahora los emisores con rótulo, y el «+» del emisor no es otra cifra. */
+  ok(arde("Seis cuentas pesan 68.4% de la venta.", "cifra-no-autorizada") && arde("Falabella, Lider y Jumbo pesan 68.4% de la venta.", "cifra-no-autorizada"), "★ «Seis cuentas pesan 68.4% de la venta» ARDE como cifra no autorizada: ya no hay razón entre dos montos no dichos que la salve");
+  ok(!arde("La venta viene +7.5% contra el año anterior.", "cifra-no-autorizada") && !arde("La venta crece 7.5% contra el año anterior.", "cifra-no-autorizada") && M2.rp.ledger.figs.some((f) => f.label === "Ventas vs año anterior" && f.value === "+7.5%"), "el YoY del negocio que el emisor publica con signo («Ventas vs año anterior = +7.5%») autoriza «+7.5%» y «7.5%» por la boleta, no por el catálogo");
+  ok(!arde("Está bajo el 0.05% de tu venta: $50K — no es tu incendio de hoy.", "cifra-no-autorizada") && M2.rp.ledger.figs.some((f) => /^Umbral de materialidad · % de la venta$/.test(f.label)) && M2.rp.ledger.figs.some((f) => /^Umbral de materialidad · en dinero$/.test(f.label)), "el umbral de materialidad («bajo el 0.05% de tu venta: $50K») viaja en la boleta con rótulo, y la frase pasa por él");
+  {
+    /* los 12 borradores reales de la auditoría: ningún porcentaje correcto se veta ahora — todos siguen autorizados por la
+     * boleta, por una cuenta mostrada o por la proyección del dato con su dueño */
+    const { stripLanguageLeaks } = await import("./src/adi/llm/voiceGuard.js");
+    const AUD = JSON.parse(fs.readFileSync(new URL("./fixtures/auditoria-notario-2026-09-14.json", import.meta.url), "utf8"));
+    const jueces = new Map();
+    const pctVetados = [];
+    for (const c of AUD.corpus) {
+      const FX = JSON.parse(fs.readFileSync(new URL("./fixtures/" + c.fixture, import.meta.url), "utf8"));
+      if (!jueces.has(FX.pregunta)) jueces.set(FX.pregunta, muroDe(FX.pregunta));
+      const texto = stripLanguageLeaks(String(FX.borradores[c.borrador - 1].texto));
+      for (const x of jueces.get(FX.pregunta).muro(texto)) if (x.kind === "cifra-no-autorizada" && /%|pp\b/.test(String(x.detail))) pctVetados.push(`${c.id}·${c.sitio}: ${x.detail}`);
+    }
+    ok(AUD.corpus.length === 12 && pctVetados.length === 0, "★ en los 12 borradores reales de la auditoría ningún porcentaje se veta como cifra no autorizada (todos siguen autorizados por la boleta o por una cuenta mostrada)", pctVetados.join(" · "));
+  }
   /* 2 · ordinales y rankings: «segunda mayor brecha» se verifica igual que «mayor» */
   const dp = cifrasDelDato(ESCENARIO_INICIAL);
   ok(dp.rankings.cliente.brecha && dp.rankings.cliente.no_capturada && dp.rankings.cliente.brecha.filas.slice().sort((a, b) => b.valor - a.valor).slice(0, 2).map((x) => x.entidad + " " + x.valor).join(" · ") === "Lider 8.6 · Falabella 8.1", "la proyección declara los rankings de brecha al benchmark (Lider 8.6 · Falabella 8.1 · …) y de contribución no capturada");
