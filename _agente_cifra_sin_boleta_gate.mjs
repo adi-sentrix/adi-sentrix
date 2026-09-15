@@ -238,7 +238,11 @@ await carnada("el juez desconectado del bucle", "src/adi/agente/bucleAgente.js",
     const T7 = "Falabella es el foco porque es tu cliente más grande ($19.4M). Si recuperas 2-3 puntos ahí, son $800K anuales.";
     const r = await M.answerViaAgente({ text: "Dame una versión más dura.", history: [], mem: {}, scenario: ESCENARIO_INICIAL,
       callAgente: async () => ({ tipo: "texto", texto: T7 }) });
-    return /\$800K/.test(String(r.r.text || ""));   // el defecto: la cifra vuelve a pantalla
+    /* el defecto: la cifra vuelve a pantalla — o, desde que el muro cerró la lotería del catálogo (2026-09-14) y
+     * también veta el $800K por su cuenta, el expediente deja de llevar la regla del juez («cifra-sin-boleta»): un
+     * juez desconectado no firma ningún veto aunque el muro tape el hueco */
+    const vetos = (r.r.agente && r.r.agente.vetos || []).map((v) => String(v && (v.multa || v.detail) || v));
+    return /\$800K/.test(String(r.r.text || "")) || !vetos.some((v) => /cifra-sin-boleta/.test(v));
   });
 
 console.log(`\n── _agente_cifra_sin_boleta_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

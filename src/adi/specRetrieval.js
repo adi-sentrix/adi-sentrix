@@ -532,6 +532,25 @@ export function declaracionUmbralFocos() {
    * la misma pantalla con el «30.1%» del mismo turno. */
   return `bajo el ${String(pct)}% de tu venta: ${_money(_pisoFocosUSD(vSF.source, vSF.field))}`;
 }
+/* EL UMBRAL, COMO CIFRAS DE BOLETA (owner 2026-09-14, la lotería del catálogo): la frase de arriba interpola dos
+ * cifras —«0.05%» y «$50K»— que NINGÚN emisor publicaba; el muro las dejaba pasar solo porque el catálogo recomputaba
+ * el % a ciegas como participación entre dos montos cualesquiera del pool. Con los operandos exigidos en el texto, la
+ * lectura de inventario del agente («Está bajo el 0.05% de tu venta: $50K») caía al límite por su propio umbral. Los
+ * mismos dos números, de la misma función, con rótulo: los empujan a su boleta los composers cuya prosa —o la de los
+ * playbooks que leen su boleta— puede decir la frase (resumen ejecutivo · diagnose · inventario · ventas vs anterior
+ * y vs presupuesto). Vacío si el contrato no expone ventas@cliente, igual que la frase. */
+export function figsUmbralFocos() {
+  const vSF = _sf("ventas", "cliente");
+  if (!vSF) return [];
+  const pct = POLICY.materialidadFocoPctVenta ?? 0.05;
+  const umbralUSD = _pisoFocosUSD(vSF.source, vSF.field);   // (el nombre no es `piso`: la carnada de `_materialidad_relativa_gate` muta la línea del detector, no esta)
+  const _ctx = "la referencia declarada: qué es material para este negocio (lo que queda bajo el umbral se dice, no se calla)";
+  return [
+    fig("Umbral de materialidad · % de la venta", `${String(pct)}%`, { unit: "pct", raw: pct, mandatory: false, gancho: true, entidad: null, context: _ctx }),
+    // `source: "actual"` como el resto del diagnose (su gate exige la fuente uniforme): es la referencia declarada leída sobre la venta real, no una cuenta del narrador
+    fig("Umbral de materialidad · en dinero", _money(umbralUSD), { unit: "money", raw: umbralUSD, mandatory: false, gancho: true, entidad: null, context: `${_ctx} — ${String(pct)}% de la venta real del negocio` }),
+  ];
+}
 /* el MISMO piso, como número (playbooks de asesoría del agente, 2026-09-01): la materialidad que decide qué
  * entra a un entregable es LA del negocio — exportarla evita un segundo cálculo del umbral que diverge de éste.
  * Devuelve el piso en las unidades de los `raw` de la boleta; 0 si el contrato no expone ventas@cliente. */
@@ -792,6 +811,7 @@ export function composeSpecDiagnose({ filters = {}, scenario, focus, entityScope
   // rankings distintos comparten filas. Sellando solo el foco dominante (el mismo que encabeza el texto) cerramos el
   // caso más frecuente y más seguro sin ese riesgo.
   const orden = `descendente por ${focos[0].titulo}`;
+  bol.push(...figsUmbralFocos());   // al final: los focos se eligen con este umbral y la síntesis ejecutiva dice «N focos quedan bajo el 0.05%…» (2026-09-14); al final para no desplazar las cifras que abren la lectura
   return {
     opener: `${header}\n\n${blocks}`,
     suggestions: suggestions.length ? suggestions : null,
@@ -903,6 +923,7 @@ export function composeSpecResumenEjecutivo({ scenario } = {}) {
   bol.push(fig("Margen de los grandes", `${mGr}%`, { unit: "pct", raw: mGr, mandatory: false, context: "composición" }));
   bol.push(fig("Margen del resto", `${mRe}%`, { unit: "pct", raw: mRe, mandatory: false, context: "composición" }));
   if (diag && diag.evidence && Array.isArray(diag.evidence.boleta)) bol.push(...diag.evidence.boleta);
+  else bol.push(...figsUmbralFocos());   // sin focos, b1/b7 dicen «sin fugas materiales (bajo el 0.05%…: $50K)»: el umbral con rótulo (con focos ya viene en la boleta del diagnose) (2026-09-14)
   return {
     opener,
     suggestions: (diag && diag.suggestions) || null,
@@ -1221,6 +1242,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
     if (_skuMultiple) bol.push(fig(`${s.nombre} · % del total`, `${s.pct}%`, { unit: "pct", raw: s.pct, mandatory: false, source: "computed", formula: "capital del SKU (o del resto agrupado) / total del foco × 100 (reconciliado a 100%)", context: B.ctx }));
   }
   for (const e of estados) bol.push(fig(`Estado del inventario: ${e.label}`, _money(e.usd), { unit: "money", raw: e.usd, mandatory: false, context: "distribución de inventario" }));
+  bol.push(...figsUmbralFocos());   // el playbook de inventario declara si el total es material («Está bajo el 0.05% de tu venta: $50K») — con rótulo, al final (2026-09-14)
   if (lever2) bol.push(fig(`Medida · liberar ${lever2.skus.join(" y ")}`, _money(lever2.usd), { unit: "money", raw: lever2.usd, mandatory: true, source: "computed", formula: "Σ capital top 2", context: "cuánto vale la medida" }));
   return {
     opener: B.lines.filter(Boolean).join("\n\n"),
@@ -1677,6 +1699,9 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
   if (!rows.length) return null;
   const _m = (v) => _money(v * _fxe());   // ventas en MILES → $ real (escala del contrato · el total de cartera es ~$100M · consistente con el resumen ejecutivo)
   const bol = [];
+  /* los playbooks de asesoría leen estas comparaciones y declaran quién cae de forma MATERIAL («otros 2 caen bajo el
+   * 0.05% de tu venta: $50K»): el umbral viaja con rótulo en la boleta de las dos comparaciones (2026-09-14) */
+  if (focus === "vs_presupuesto" || focus === "vs_anterior" || focus === "explica_yoy") bol.push(...figsUmbralFocos());
 
   if (focus === "vs_presupuesto") {
     // el TOTAL viene de la KPI autoritativa (100K vs 97K = +3.1%); el desglose por eje = roll-up de clientesVentas.

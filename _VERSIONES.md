@@ -39,6 +39,22 @@ primero» son formas naturales de pedir la misma decisión.
 ambos); en vivo, el segundo prompt salió verde en una llamada: «El mayor riesgo hoy … es Lider», explicado por severidad y
 urgencia, «coincidir … agrava, no lo decide». Suite completa en verde, sin tocar la red.
 
+- **La lotería del catálogo, cerrada** (auditoría del Notario, familia D): un porcentaje que no está en la boleta solo se
+  autoriza por una cuenta MOSTRADA —participación o variación entre dos montos dichos en el texto, la dirección puede ir
+  en la palabra («caída de 78%»)—; antes «Seis cuentas pesan 68.4% de la venta» pasaba por coincidir con la razón entre
+  dos montos cualesquiera de la boleta. La misma frontera en dinero (el trío de margen objetivo sobre montos no dichos
+  autorizaba «unos $123K» inventados); lo que sí vale con los operandos dichos: «8.1 puntos sobre $19.4M ≈ $1.6M» y la
+  cuenta sobre los números mostrados («$4.9M − $1.6M = $3.3M», que en los crudos da $3.4M). Los porcentajes de corrido
+  que los emisores no publicaban, ahora con rótulo: el
+  umbral de materialidad («Umbral de materialidad · % de la venta = 0.05%» · «· en dinero = $50K», en resumen, diagnose,
+  inventario, ventas vs anterior/presupuesto y en la proyección del dato con dueño «umbral/material/materialidad») y el
+  total de la foto de inventario en la proyección cuando el KPI no lo trae («capital total $135K en 13 SKU»); el
+  «+» con que los emisores publican una variación positiva («Ventas vs año anterior = +7.5%») ya no es otra cifra para
+  el muro; el posesivo («SU margen proyectado») hereda el dueño de la oración anterior como «ese cliente»; y la suma de
+  tres cifras de la misma métrica con sus tres dueños nombrados («Falabella, Lider y Jumbo representan 54.6%») es la
+  misma cuenta con dueños dichos que el par. Documentado, no unificado: el YoY del negocio sigue en dos redondeos (7.5%
+  Σ de filas en el resumen ejecutivo · 7.6% KPI de la pantalla en salesRead y la proyección), decisión del owner 2026-09-01.
+
 ---
 
 ## 2.30 — producción · tag `v2.30`

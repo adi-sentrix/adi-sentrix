@@ -63,6 +63,13 @@ cláusula debajo de todos los chequeos de atribución.
   emisores publiquen los porcentajes de corrido que hoy no publican (YoY del negocio, participaciones) y que el
   catálogo exija los operandos dichos, como ya hace el nivel 1: **15 gates** dependen de esas cuentas de corrido — es
   un trabajo acotado y mecánico, no un parche.
+  **CERRADO (familia D, v2.31):** el catálogo exige los operandos dichos en % y en dinero; «68.4%» arde como cifra no
+  autorizada (candado en `_prioridad_integrada_gate` §14, con los 12 borradores verificados: ningún % correcto se veta).
+  Los 13 gates que se pusieron rojos no narraban inventos: eran (1) el «+» de las variaciones publicadas («+7.5%»), que
+  el muro nunca leía y solo el catálogo salvaba; (2) el umbral de materialidad («0.05% de tu venta: $50K»), que ningún
+  emisor publicaba; (3) la magnitud de una caída dicha en palabras («caída de 78%», operandos dichos); (4) el posesivo
+  como anáfora («su margen proyectado»); (5) la suma de tres cifras con sus tres dueños nombrados (54.6%). Ninguna
+  amnistía ciega volvió.
 
 ## Qué haría, en este orden (para dejar la auditoría limpia)
 

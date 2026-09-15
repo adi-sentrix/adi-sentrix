@@ -514,8 +514,12 @@ H("10 · los cinco cierres que ordenó el owner tras la certificación");
     const pre = (dv.boleta.find((f) => /Efecto precio/i.test(f.label)) || {}).value;
     ok(guardC(`La venta crece ${tot}: el efecto volumen aporta ${vol} y el precio realizado ${pre}.`, arnes).ok,
       "★★ las tres cifras JUNTAS pasan el muro — así es como se narra una descomposición");
-    ok(!guardC(`El efecto volumen es ${vol}.`, arnes).ok,
-      "…y suelta NO pasa: sin el total al lado la cifra no se puede atribuir (por eso la ley pide el paquete)");
+    /* (2026-09-14, al cerrar la lotería del catálogo): la cifra SUELTA se vetaba solo porque el emisor la publica con
+     * signo («Efecto volumen = +5.4%») y el muro no leía el «+» — la coincidencia con la cifra de otra cuenta era el
+     * síntoma, no la regla. Con el signo leído, la cifra del emisor con su concepto pasa suelta; una inventada con el
+     * mismo concepto sigue cayendo. La ley del PAQUETE sigue siendo doctrina para el cerebro (abajo), no un veto. */
+    ok(guardC(`El efecto volumen es ${vol}.`, arnes).ok && !guardC(`El efecto volumen es +9.9%.`, arnes).ok,
+      "…y suelta pasa (es la cifra del emisor, con su signo y su concepto) mientras un efecto inventado sigue cayendo — el paquete lo pide la ley al cerebro, no el muro");
     ok(/se citan JUNTAS/.test(doctrinaDelPorque()),
       "★ y la letra se lo dice al cerebro, para que no descubra la regla a golpes de veto");
   }
