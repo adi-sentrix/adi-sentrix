@@ -36,11 +36,18 @@
  *       serían tres). UNO solo, priorizado — y su clave: «abriría primero Falabella, porque concentra ambos
  *       focos», que es un HECHO de la boleta (la misma entidad encabezando dos focos), no una opinión.
  *
- * Su frase, que resume el encargo entero: «MISMO DATO, MEJOR FORMA DE PRESENTARLO». Ni una cifra cambió. */
+ * Su frase, que resume el encargo entero: «MISMO DATO, MEJOR FORMA DE PRESENTARLO». Ni una cifra cambió.
+ *
+ * Y DECLARA LO QUE ESCRIBE (Notario semántico, fase 2 · owner 2026-09-15): «el respaldo debe declarar y verificarse con el
+ * mismo estándar, no tener un camino privilegiado». Cada riesgo deja en el colector `declarar` su subtotal con el universo
+ * del rótulo, quién lo encabeza como orden (máximo entre las cuentas que la boleta trae para ese foco) y su cifra; la
+ * materialidad del titular se declara como lo que es —cada subtotal contra el umbral declarado—; la prioridad y el límite
+ * del porqué van como lectura con sello. El texto no cambia un byte: sin colector, el declarador es mudo. */
 
 import { pisoFocosUSD, declaracionUmbralFocos } from "../../specRetrieval.js";
 import { esPorQue } from "../porque.js";   // la ley del porqué es de la casa (owner 2026-09-09)
 import { variante } from "../variacion.js";   // el cierre varía por semilla («matar la repetición», 2026-09-03)
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): la síntesis declara mientras escribe
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 const _val = (f) => String((f && (f.text || f.value)) || "");
@@ -50,6 +57,19 @@ const _all = (figs, re) => (Array.isArray(figs) ? figs : []).filter((f) => re.te
 const _entidadDe = (label) => {
   const p = String(label || "").split("·").map((s) => s.trim());
   return p.length >= 2 ? p[0] : null;
+};
+/* el concepto del rótulo («Falabella · Contribución no capturada» → «Contribución no capturada»): la métrica que se declara */
+const _conceptoDe = (label) => {
+  const p = String(label || "").split("·").map((s) => s.trim());
+  return p.length >= 2 ? p.slice(1).join(" · ") : String(label || "");
+};
+/* el universo de un subtotal, con las palabras de SU rótulo («5 cuentas materiales», «6 cuentas sobre el nivel declarado» — sin el
+ * paréntesis, que nombra el conjunto que lo contiene) o, si el rótulo no lo cuenta, la lista del grupo que la fig declara: una cifra
+ * agregada sin universo es una afirmación que el Notario no puede verificar (y sin él, «alcance promovido») */
+const _universoDe = (f) => {
+  const seg = _lab(f).split(/\s+·\s+/).find((s) => /^\d+\s+cuentas\b/i.test(s));
+  if (seg) return seg.replace(/\s*\(.*\)\s*$/, "").trim();
+  return f && f.grupo && Array.isArray(f.grupo.entidades) && f.grupo.entidades.length ? f.grupo.entidades.slice() : "";
 };
 const _FIN = "(?![a-záéíóúüñ])";
 const _SIMULA = new RegExp(`\\bsimul|\\bproyect|\\bqu[eé] pasa si${_FIN}|\\bpon[eé]le que${_FIN}`, "i");
@@ -71,12 +91,17 @@ const _ENTREGA_A_COMITE = new RegExp([
   `\\bqu[eé]\\s+(?:le\\s+)?(?:digo|cuento|presento|muestro|llevo|reporto)\\b[^.\\n]{0,20}\\b(?:al|a la|para el|para la)\\s+(?:directorio|board|junta|comit[eé]|gerencia|gerente)\\b`,
 ].join("|"), "i");
 
-/* el locator de cada riesgo: el mayor «Entidad · <concepto>» de su familia, para el DÓNDE y el PRIMERO */
-const _topDe = (figs, re) => _all(figs, re)
-  .filter((f) => !/· subtotal$/i.test(_lab(f)))
-  .map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
-  .filter((x) => x.entidad && Number.isFinite(x.usd))
-  .sort((a, b) => b.usd - a.usd)[0] || null;
+/* el locator de cada riesgo: el mayor «Entidad · <concepto>» de su familia, para el DÓNDE y el PRIMERO.
+ * Lleva además lo que su declaración necesita: la fig, el concepto del rótulo y el UNIVERSO del máximo —las cuentas que la boleta
+ * trae con esa cifra—, porque «encabeza X» es un orden y un orden sin universo no se verifica (ni se dice sobre más de lo leído). */
+const _topDe = (figs, re) => {
+  const filas = _all(figs, re)
+    .filter((f) => !/· subtotal$/i.test(_lab(f)))
+    .map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f), f, metrica: _conceptoDe(_lab(f)) }))
+    .filter((x) => x.entidad && Number.isFinite(x.usd))
+    .sort((a, b) => b.usd - a.usd);
+  return filas.length ? { ...filas[0], universo: [...new Set(filas.map((x) => x.entidad))] } : null;
+};
 
 export const sintesisEjecutiva = {
   nombre: "sintesis-ejecutiva",
@@ -111,8 +136,12 @@ export const sintesisEjecutiva = {
 
   entregable: "exactamente 3 riesgos para el directorio, elegidos por materialidad (el piso relativo manda): cada uno con QUÉ (la cifra verbatim, con su dueño) · DÓNDE (localiza, sin causas que el dato no declara) · QUÉ HACER PRIMERO (una oferta, jamás una orden). Si el dato sostiene menos de 3 materiales, se dice el número verdadero.",
 
-  componer({ figs, semilla, pregunta } = {}) {
+  componer({ figs, semilla, pregunta, declarar } = {}) {
+    const D = declaradorDe(declarar);   // sin colector, mudo: el texto es el mismo con o sin Notario
     const piso = _piso();
+    /* el umbral, tal como la boleta lo trae: las dos cifras con las que el cierre lo declara en frase de negocio */
+    const umbralPct = _find(figs, /^Umbral de materialidad · % de la venta$/i);
+    const umbralUSD = _find(figs, /^Umbral de materialidad · en dinero$/i);
     /* los candidatos, cada uno con su cifra y su locator — SOLO familias que el diagnóstico declara */
     const candidatos = [];
     const mk = (re, nombre, reLoc, abrir) => {
@@ -141,21 +170,48 @@ export const sintesisEjecutiva = {
      * SALE DEL TITULAR: la proporcionalidad se mantiene entera (baja al final, en frase de negocio), pero un
      * directorio no abre con jerga de ingeniería. El conteo va en PALABRAS — el conteo-no-autorizado que el
      * muro le cazó al vigía el mismo día. */
-    partes.push(n >= 3
+    const titular = n >= 3
       ? "Los 3 riesgos, por materialidad:"
-      : `Veo ${_CUENTA[n] || n} ${n === 1 ? "riesgo material" : "riesgos materiales"} y dejaría el resto como monitoreo, no como tema de directorio:`);
+      : `Veo ${_CUENTA[n] || n} ${n === 1 ? "riesgo material" : "riesgos materiales"} y dejaría el resto como monitoreo, no como tema de directorio:`;
+    partes.push(titular);
+    /* LO QUE EL TITULAR AFIRMA, con el estándar del Notario: «materiales» es cada subtotal elegido SOBRE el umbral declarado, y «el
+     * resto como monitoreo» es cada foco que quedó DEBAJO — relaciones que la boleta verifica una por una (el conteo en palabras es
+     * su suma; la boleta no cuenta «riesgos materiales» y un conteo declarado así chocaría con «5 cuentas materiales»). Un subtotal
+     * IGUAL al umbral es material por regla (≥) y no lleva relación «mayor». Sin umbral declarado no hay corte que verificar: la
+     * palabra es criterio del asesor y así se sella. */
+    const umbral = umbralUSD ? { sujeto: "negocio", metrica: _lab(umbralUSD) } : null;
+    if (piso > 0 && umbral) {
+      for (const c of elegidos) if (c.usd > piso) D.relacion({ sujeto: "negocio", metrica: _lab(c.f), forma: "mayor", vs: umbral, texto: titular });
+      for (const c of candidatos) if (!materiales.includes(c)) D.relacion({ sujeto: "negocio", metrica: _lab(c.f), forma: "menor", vs: umbral, texto: titular });
+    } else D.lectura({ texto: titular, sello: "criterio mío" });
     // LA VOZ (2026-09-03): el telegrama «QUÉ. Dónde: X. Primero: Y.» se cuenta como lo contaría un asesor —
     // mismas cifras, mismos dueños, misma estructura de tres, y las ofertas siguen siendo ofertas.
     let i = 1;
     if (ventaCae) {
-      partes.push(`\n${i++} · La venta viene cayendo: ${_val(ventaCae)} contra el año anterior. Dónde se cae por cliente no está en esta síntesis.`);
+      const l = `\n${i++} · La venta viene cayendo: ${_val(ventaCae)} contra el año anterior. Dónde se cae por cliente no está en esta síntesis.`;
+      partes.push(l);
+      D.variacion({ sujeto: "negocio", metrica: "Ventas", direccion: "baja", valor: _val(ventaCae), texto: l });
     }
     for (const c of elegidos) {
       /* SIN OFERTA POR FOCO (owner 2026-09-03): «Si quieres, abrimos Falabella» salía una vez por riesgo —
        * con tres focos serían tres. El cierre es UNO, priorizado, y vive abajo. */
-      partes.push(`\n${i++} · ${c.nombre}: ${_val(c.f)}${c.top ? ` — encabeza ${c.top.entidad} con ${c.top.fmt}` : ""}.`);
+      const l = `\n${i++} · ${c.nombre}: ${_val(c.f)}${c.top ? ` — encabeza ${c.top.entidad} con ${c.top.fmt}` : ""}.`;
+      partes.push(l);
+      /* el QUÉ: el subtotal con el universo de su rótulo · el DÓNDE: quien encabeza es el máximo entre las cuentas que la boleta
+       * trae para ese foco (ese es el universo del locator, y se declara), con su cifra y su dueño */
+      D.deFig(c.f, l, { universo: _universoDe(c.f) });
+      if (c.top) {
+        D.orden({ sujeto: c.top.entidad, metrica: c.top.metrica, forma: "max", universo: c.top.universo, texto: l });
+        D.deFig(c.top.f, l);
+      }
     }
-    if (fuera > 0 && n >= 3) partes.push(`\n(${fuera} foco${fuera > 1 ? "s quedan" : " queda"} ${_umbral() || "bajo el umbral de materialidad"}.)`);
+    if (fuera > 0 && n >= 3) {
+      const l = `\n(${fuera} foco${fuera > 1 ? "s quedan" : " queda"} ${_umbral() || "bajo el umbral de materialidad"}.)`;
+      partes.push(l);
+      /* las cifras del umbral, solo si la frase de negocio las trae tal cual (vienen de specRetrieval, no de la fig) */
+      if (umbralPct && l.includes(_val(umbralPct))) D.deFig(umbralPct, l);
+      if (umbralUSD && l.includes(_val(umbralUSD))) D.deFig(umbralUSD, l);
+    }
 
     /* ── EL CIERRE ÚNICO Y PRIORIZADO (owner 2026-09-03) ──────────────────────────────────────────────────
      * La repetición que él marcó: «Si quieres, abrimos Falabella» una vez por foco. Ahora es UNO, y la
@@ -190,13 +246,38 @@ export const sintesisEjecutiva = {
       "¿Entramos por ahí?",
       "Si te parece, entro por ahí.",
     ]);
-    partes.push(`\n${prioridad ? `${prioridad} ` : ""}El porqué de cada riesgo no está en este dato: queda localizado, no explicado. ${_oferta}`);
+    const _PORQUE = "El porqué de cada riesgo no está en este dato: queda localizado, no explicado.";
+    partes.push(`\n${prioridad ? `${prioridad} ` : ""}${_PORQUE} ${_oferta}`);
+    /* la prioridad es criterio (así se sella); el HECHO que la sostiene se declara sobre la misma frase: «concentra los N focos» son
+     * los órdenes que el líder encabeza, y «el foco más pesado» es quién lo encabeza con su subtotal. El conteo de focos en palabras
+     * no se declara aparte: los focos no son entidades de la evidencia y la boleta no los cuenta. El límite del porqué queda
+     * abierto, y la oferta no afirma nada. */
+    if (prioridad) {
+      D.lectura({ texto: prioridad, sello: "criterio mío" });
+      if (lider && enCuantos >= 2) {
+        for (const c of conDueno) if (c.top.entidad === lider.top.entidad) D.orden({ sujeto: c.top.entidad, metrica: c.top.metrica, forma: "max", universo: c.top.universo, texto: prioridad });
+      } else if (lider) {
+        D.orden({ sujeto: lider.top.entidad, metrica: lider.top.metrica, forma: "max", universo: lider.top.universo, texto: prioridad });
+        D.deFig(lider.f, prioridad, { universo: _universoDe(lider.f) });
+      }
+    }
+    D.lectura({ texto: _PORQUE, sello: "abierto" });
     /* LA LEY DEL PORQUÉ (owner 2026-09-09): un directorio de riesgos que el usuario pidió EXPLICAR cierra
      * preguntándole por el contexto que el dato no tiene — no con una oferta de navegación. */
-    if (esPorQue(pregunta)) partes.push(`Para cerrar el porqué necesito tu lado: ¿hubo un cambio de precios, una campaña, un problema de stock o una negociación grande en el período?`);
+    if (esPorQue(pregunta)) {
+      const l = `Para cerrar el porqué necesito tu lado: ¿hubo un cambio de precios, una campaña, un problema de stock o una negociación grande en el período?`;
+      partes.push(l);
+      D.lectura({ texto: l, sello: "abierto" });
+    }
     /* EL UMBRAL, FUERA DEL TITULAR pero PRESENTE (regla 1 intacta): la proporcionalidad no se negocia, su
      * lugar sí. Va al final y en frase de negocio — auditable no significa que abra la respuesta. */
-    if (_umbral() && n < 3) partes.push(`Lo que dejo fuera del directorio queda ${_umbral()}.`);
+    if (_umbral() && n < 3) {
+      const l = `Lo que dejo fuera del directorio queda ${_umbral()}.`;
+      partes.push(l);
+      /* las cifras del umbral, solo si la frase de negocio las trae tal cual (vienen de specRetrieval, no de la fig) */
+      if (umbralPct && l.includes(_val(umbralPct))) D.deFig(umbralPct, l);
+      if (umbralUSD && l.includes(_val(umbralUSD))) D.deFig(umbralUSD, l);
+    }
     return partes.join("\n");
   },
 
