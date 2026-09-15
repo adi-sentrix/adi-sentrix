@@ -1,6 +1,6 @@
 {
   "fecha": "2026-09-14",
-  "nota": "AUDITORÍA FOCALIZADA DEL NOTARIO (owner 2026-09-14): el conjunto de referencia son los 12 borradores reales de las 6 corridas vivas de la v2.31 (3 por prueba, cierre + reparación), leídos a mano contra la boleta del turno. Por borrador: los errores reales que un Notario debe detener (con si el producto actual los detiene) y los vetos que el Notario emitió sobre afirmaciones correctas (falsos positivos, con si están cerrados). Las leyes de la casa (intención inferida, densidad, juicio sin marcar, vocabulario) se cuentan aparte: no son errores de hecho. Este archivo es la VERDAD DE REFERENCIA para medir cobertura y precisión mientras se cierran los huecos. Los deslices de redacción que no contradicen el dato («una quinta» por «una sexta») van en la lista redaccion y no cuentan.",
+  "nota": "AUDITORÍA FOCALIZADA DEL NOTARIO (owner 2026-09-14): el conjunto de referencia son los 12 borradores reales de las 6 corridas vivas de la v2.31 (3 por prueba, cierre + reparación), leídos a mano contra la boleta del turno. Por borrador: los errores reales que un Notario debe detener (con si el producto actual los detiene) y los vetos que el Notario emitió sobre afirmaciones correctas (falsos positivos, con si están cerrados). Las leyes de la casa (intención inferida, densidad, juicio sin marcar, vocabulario) se cuentan aparte: no son errores de hecho. Este archivo es la VERDAD DE REFERENCIA para medir cobertura y precisión mientras se cierran los huecos. Los deslices de redacción que no contradicen el dato («una quinta» por «una sexta») van en la lista redaccion y no cuentan. Claves endurecidas (fase 3, auditor de claves): cada clave exige el kind del veto Y el hecho, para que un veto por otra razón no cuente.",
   "corpus": [
     {
       "id": "P1·1",
@@ -14,14 +14,14 @@
           "texto": "La brecha total estimada si esas 5 cuentas materiales llegaran al benchmark es $4.9M",
           "motivo": "la palabra «total» dispara aunque el alcance (5 cuentas materiales) está dicho en la misma frase — CERRADO (lector de cláusula, 2026-09-14): el conteo del subtotal leído dentro de la MISMA cláusula declara el alcance; «total» no promueve",
           "cerrado": true,
-          "clave": "4\\.9M"
+          "clave": "alcance-promovido: «\\$?4\\.9M» es el subtotal de 5 cuentas"
         },
         {
           "kind": "cifra-de-boleta-sin-dueno",
           "texto": "(8.6 pp contra 8.1 pp de Falabella) — en la reparación",
           "motivo": "distributiva entre dos sujetos de dos cláusulas",
           "cerrado": true,
-          "clave": "8\\.6 pp"
+          "clave": "cifra-de-boleta-sin-dueno: «8\\.6 ?pp» pertenece a"
         }
       ],
       "leyes_de_la_casa": [
@@ -48,7 +48,7 @@
           "texto": "Lider es la cuenta con … la mayor distancia al benchmark de margen (8.6 pp contra 8.1 pp de Falabella)",
           "motivo": "distributiva entre dos sujetos de dos cláusulas",
           "cerrado": true,
-          "clave": "8\\.6 pp"
+          "clave": "cifra-de-boleta-sin-dueno: «8\\.6 ?pp» pertenece a"
         }
       ],
       "leyes_de_la_casa": [],
@@ -69,19 +69,19 @@
           "texto": "los tres motores más grandes son también los que tienen el margen más bajo de la cartera — Lider 21.5%, Falabella 22.0%, Jumbo 24.0%",
           "tipo": "ranking de grupo falso (Sodimac 23.5% está bajo Jumbo 24.0%)",
           "detectado_hoy": true,
-          "clave": "margen.*(?:Sodimac|grupo|los tres)|superlativo.*margen"
+          "clave": "superlativo-no-sostenido: dices que Falabella, Lider, Jumbo son los 3 de «más bajo» en margen y no lo son.*Sodimac \\(23\\.5%\\)"
         },
         {
           "texto": "Jumbo además es el cliente con más unidades vendidas (1.194) y más contribución ($4.2M)",
           "tipo": "superlativo falso (Falabella $4.3M)",
           "detectado_hoy": true,
-          "clave": "Jumbo.*contribuci"
+          "clave": "superlativo-no-sostenido: dices que Jumbo es «[^»]*más contribución» en contribucion y no lo es.*el extremo es Falabella \\(\\$4\\.3M"
         },
         {
           "texto": "ese mismo grupo tiene markup promedio 41.4%",
           "tipo": "cifra de grupo (8 bajo el benchmark) atribuida a un subgrupo de 4",
           "detectado_hoy": true,
-          "clave": "41\\.4%"
+          "clave": "cifra-de-grupo-mal-repartida: «41\\.4%» es la cifra de un GRUPO de 8 .* de 4 nombres"
         }
       ],
       "falsos_positivos": [
@@ -90,14 +90,14 @@
           "texto": "libéralo junto con MAK-COMP-AIR y recuperas $22K",
           "motivo": "la medida nombra a sus dos dueños en el rótulo; el verbo era «contribuye» de la cláusula anterior",
           "cerrado": true,
-          "clave": "22K"
+          "clave": "total-mal-atribuido: «\\$?22K» \\(cifra total/global"
         },
         {
           "kind": "ranking-sin-cola",
           "texto": "lo declaro porque cambia el orden",
           "motivo": "«el orden» dicho de pasada leído como anuncio de ranking",
           "cerrado": true,
-          "clave": "anuncias un orden"
+          "clave": "ranking-sin-cola: anuncias un orden y muestras"
         }
       ],
       "leyes_de_la_casa": []
@@ -112,25 +112,25 @@
           "texto": "los tres motores más grandes son también los que tienen el margen más bajo de la cartera",
           "tipo": "ranking de grupo falso",
           "detectado_hoy": true,
-          "clave": "margen.*(?:Sodimac|grupo|los tres)|superlativo.*margen"
+          "clave": "superlativo-no-sostenido: dices que Falabella, Lider, Jumbo son los 3 de «más bajo» en margen y no lo son.*Sodimac \\(23\\.5%\\)"
         },
         {
           "texto": "Jumbo … y más contribución ($4.2M)",
           "tipo": "superlativo falso",
           "detectado_hoy": true,
-          "clave": "Jumbo.*contribuci"
+          "clave": "superlativo-no-sostenido: dices que Jumbo es «[^»]*más contribución» en contribucion y no lo es.*el extremo es Falabella \\(\\$4\\.3M"
         },
         {
           "texto": "ese mismo grupo tiene markup promedio 41.4%",
           "tipo": "cifra de grupo atribuida a un subgrupo",
           "detectado_hoy": true,
-          "clave": "41\\.4%"
+          "clave": "cifra-de-grupo-mal-repartida: «41\\.4%» es la cifra de un GRUPO de 8 .* de 4 nombres"
         },
         {
           "texto": "Cayendo (2 de 13 cuentas): Ripley y La Polar",
           "tipo": "conteo falso (según la boleta caen CUATRO de 13: Easy -$177K y Unimarc -$94K también — la nota original decía «caen 3»)",
           "detectado_hoy": true,
-          "clave": "2 de 13|Easy"
+          "clave": "conteo-de-lista-falso: «2 de 13 cuentas» caen: según la boleta son 4 de 13"
         }
       ],
       "falsos_positivos": [
@@ -139,7 +139,7 @@
           "texto": "lo declaro porque cambia el orden",
           "motivo": "«el orden» dicho de pasada",
           "cerrado": true,
-          "clave": "anuncias un orden"
+          "clave": "ranking-sin-cola: anuncias un orden y muestras"
         }
       ],
       "leyes_de_la_casa": []
@@ -154,13 +154,13 @@
           "texto": "Falabella … carga 4.5% — la más alta de la cartera",
           "tipo": "superlativo falso (Easy 5.5%, Sodimac 5.4%, Ripley 4.8%)",
           "detectado_hoy": true,
-          "clave": "Falabella.*(?:carga|alta)|carga.*Falabella"
+          "clave": "superlativo-no-sostenido: dices que Falabella es «más alta» en carga y no lo es.*el extremo es Easy \\(5\\.5%"
         },
         {
           "texto": "el precio de lista de estos cuatro está más pegado al costo que el de los sanos (markup 41.4% contra 57.3%)",
           "tipo": "cifra de grupo (8) atribuida a un subgrupo de 4",
           "detectado_hoy": true,
-          "clave": "41\\.4%|57\\.3%"
+          "clave": "cifra-de-grupo-mal-repartida: «41\\.4%» es la cifra de un GRUPO de 8 .* de 4 nombres"
         }
       ],
       "falsos_positivos": [
@@ -169,14 +169,14 @@
           "texto": "sin relación con lo que más vende: LG-DRYER8KG ($14K frenados, 165 días de cobertura…)",
           "motivo": "el «vende:» antes de los dos puntos se lee como la métrica de $14K; «frenados» no cuenta como capital — CERRADO (lector de cláusula, 2026-09-14): la ventana hacia atrás empieza en la cláusula que contiene el paréntesis, del lado de acá de los dos puntos; «frenados» sigue fuera del vocabulario de capital",
           "cerrado": true,
-          "clave": "14K"
+          "clave": "metrica-mal-atribuida: «\\$?14K» narrado como"
         },
         {
           "kind": "metrica-mal-atribuida",
           "texto": "Mercado Libre crece 25.3% con carga de solo 1.8%",
           "motivo": "«carga» a secas no era vocabulario; 1.8% se ató a «crece»",
           "cerrado": true,
-          "clave": "1\\.8%"
+          "clave": "metrica-mal-atribuida: «1\\.8%» narrado como"
         }
       ],
       "leyes_de_la_casa": [
@@ -195,13 +195,13 @@
           "texto": "Falabella … carga 4.5% — la más alta de la cartera",
           "tipo": "superlativo falso",
           "detectado_hoy": true,
-          "clave": "Falabella.*(?:carga|alta)|carga.*Falabella"
+          "clave": "superlativo-no-sostenido: dices que Falabella es «más alta» en carga y no lo es.*el extremo es Easy \\(5\\.5%"
         },
         {
           "texto": "en esos mismos cuatro el precio de lista está más pegado al costo que en los sanos (markup 41.4% contra 57.3%)",
           "tipo": "cifra de grupo atribuida a un subgrupo",
           "detectado_hoy": true,
-          "clave": "41\\.4%|57\\.3%"
+          "clave": "cifra-de-grupo-mal-repartida: «41\\.4%» es la cifra de un GRUPO de 8 .* de 4 nombres"
         }
       ],
       "falsos_positivos": [
@@ -210,14 +210,14 @@
           "texto": "el patrón de carga baja está ahí",
           "motivo": "«baja» adjetivo leído como verbo",
           "cerrado": true,
-          "clave": "carga «baja»"
+          "clave": "variacion-no-medida: dices que [^«]*carga[^«]* «baja»"
         },
         {
           "kind": "subtotal-de-otro-universo",
           "texto": "Lider: $9.8M de saldo pendiente, de eso $4.6M vencidos",
           "motivo": "el «eso» buscado en el párrafo anterior ($135K del inventario)",
           "cerrado": true,
-          "clave": "4\\.6M.*135K|135K.*4\\.6M"
+          "clave": "subtotal-de-otro-universo: presentas(?=.*4\\.6M)(?=.*135K)"
         }
       ],
       "leyes_de_la_casa": []
@@ -232,13 +232,13 @@
           "texto": "markup 41.4% contra 57.3% en Easy, La Polar, Hites",
           "tipo": "cifra de grupo (5 sanos) atribuida a 3 nombres",
           "detectado_hoy": true,
-          "clave": "57\\.3%"
+          "clave": "cifra-de-grupo-mal-repartida: «57\\.3%» es la cifra de un GRUPO de 5 .* de 3 nombres \\(Easy, La Polar, Hites\\)"
         },
         {
           "texto": "la más urgente en cobranza (269 días vencidos, peor recuperación)",
           "tipo": "superlativos falsos en cobranza (Easy 270 días; Sodimac 35% recuperado)",
           "detectado_hoy": true,
-          "clave": "urgente|recuperaci|269"
+          "clave": "superlativo-no-sostenido: dices que Lider es «la más urgente» en dias vencido y no lo es.*el extremo es Easy \\(270d|superlativo-no-sostenido: dices que Lider es «peor» en recuperado y no lo es.*el extremo es Sodimac \\(35%"
         }
       ],
       "falsos_positivos": [
@@ -247,7 +247,7 @@
           "texto": "Falabella, Jumbo y Lider concentran la mayor contribución",
           "motivo": "sujeto coordinado leído como «Lider es el máximo»",
           "cerrado": true,
-          "clave": "Lider es «mayor» en contribucion"
+          "clave": "superlativo-no-sostenido: dices que Lider es «[^»]*mayor[^»]*» en contribucion y no lo es"
         }
       ],
       "leyes_de_la_casa": [
@@ -266,7 +266,7 @@
           "texto": "su precio de lista está más pegado al costo que el de los sanos (markup 41.4% contra 57.3%)",
           "tipo": "cifra de grupo (8) atribuida a «su» (los tres)",
           "detectado_hoy": true,
-          "clave": "41\\.4%|57\\.3%"
+          "clave": "cifra-de-grupo-mal-repartida: «41\\.4%» es la cifra de un GRUPO de 8 .* «su» remite .* de 3 nombres"
         }
       ],
       "falsos_positivos": [
@@ -275,7 +275,7 @@
           "texto": "6 cuentas con 73.8% del peso de venta",
           "motivo": "la cifra del grupo no estaba en la boleta (la herramienta no la publicaba); hoy sí, con su grupo",
           "cerrado": true,
-          "clave": "73\\.8%"
+          "clave": "cifra-no-autorizada: 73\\.8%"
         }
       ],
       "leyes_de_la_casa": [
@@ -292,13 +292,13 @@
           "texto": "Falabella, Lider, Jumbo, Sodimac y Paris (73.8% de la venta)",
           "tipo": "cifra de grupo (6) atribuida a 5 nombres",
           "detectado_hoy": true,
-          "clave": "73\\.8%"
+          "clave": "cifra-de-grupo-mal-repartida: «73\\.8%» es la cifra de un GRUPO de 6 .* de 5 nombres .* quedan fuera: Ripley"
         },
         {
           "texto": "la segunda en brecha de margen (8.6 pp, la mayor de todas)",
           "tipo": "ordinal falso y autocontradictorio (Lider es la mayor)",
           "detectado_hoy": true,
-          "clave": "segunda"
+          "clave": "superlativo-no-sostenido: dices que Lider es «segunda en» en brecha y no lo es.*en el puesto 2 va Falabella \\(8\\.1 pp\\) y Lider va en el puesto 1"
         }
       ],
       "falsos_positivos": [
@@ -307,7 +307,7 @@
           "texto": "$33K frenados en total (foto de hoy), concentrados en Valparaíso (75%)",
           "motivo": "el «(75%)» dice que es una parte; el total no se cuelga de Valparaíso — CERRADO (lector de cláusula, 2026-09-14): el verbo y la entidad se buscan en la MISMA cláusula, y una entidad con su propia cifra pegada («Valparaíso (75%)») no reclama el total",
           "cerrado": true,
-          "clave": "33K"
+          "clave": "total-mal-atribuido: «\\$?33K» \\(cifra total/global"
         }
       ],
       "leyes_de_la_casa": [
@@ -326,19 +326,19 @@
           "texto": "Falabella, Lider, Jumbo, Sodimac y Paris (73.8% de la venta)",
           "tipo": "cifra de grupo (6) atribuida a 5 nombres",
           "detectado_hoy": true,
-          "clave": "73\\.8%"
+          "clave": "cifra-de-grupo-mal-repartida: «73\\.8%» es la cifra de un GRUPO de 6 .* de 5 nombres .* quedan fuera: Ripley"
         },
         {
           "texto": "la segunda mayor brecha de margen, 8.6 pp",
           "tipo": "ordinal falso (Lider es la mayor; en el puesto 2 va Falabella)",
           "detectado_hoy": true,
-          "clave": "segunda mayor"
+          "clave": "superlativo-no-sostenido: dices que Lider es «segunda mayor» en brecha y no lo es.*en el puesto 2 va Falabella \\(8\\.1 pp\\) y Lider va en el puesto 1"
         },
         {
           "texto": "coincide en dos dominios (…), y esa coincidencia agrava más que cualquier monto aislado",
           "tipo": "la coincidencia como razón de la prioridad (ley del owner)",
           "detectado_hoy": true,
-          "clave": "coincid"
+          "clave": "coincidencia-como-razon: pones primero a una cuenta «porque coincide en dos dominios».*Lider\\*{0,2}: coincide en dos dominios"
         }
       ],
       "falsos_positivos": [],
@@ -356,14 +356,14 @@
           "texto": "Lider pesa más: 8.6 pp de brecha (peor que Falabella), $4.6M vencidos … y 269 días de atraso",
           "motivo": "el paréntesis «(peor que Falabella)» le quitó la oración a Lider",
           "cerrado": true,
-          "clave": "269 d"
+          "clave": "cifra-de-boleta-sin-dueno: «269 ?d[^»]*» pertenece a"
         },
         {
           "kind": "coincidencia-como-razon",
           "texto": "no porque coincidir en dos dominios lo decida solo, sino porque en cada uno pesa más",
           "motivo": "la negación leída como afirmación",
           "cerrado": true,
-          "clave": "coincid"
+          "clave": "coincidencia-como-razon: pones primero a una cuenta «porque coincide en dos dominios».*(?:no porque coincidir|lo decida solo|sino porque en cada uno)"
         }
       ],
       "leyes_de_la_casa": []
@@ -380,14 +380,14 @@
           "texto": "su brecha al benchmark es mayor que la de Falabella (8.6 pp contra 8.1 pp)",
           "motivo": "«mayor QUE» es comparativo; el posesivo «de Falabella» es la comparada",
           "cerrado": true,
-          "clave": "Falabella es «mayor» en brecha"
+          "clave": "superlativo-no-sostenido: dices que Falabella es «[^»]*mayor[^»]*» en brecha y no lo es"
         },
         {
           "kind": "cifra-de-boleta-sin-dueno",
           "texto": "Falabella solo la supera en un punto, la contribución sin capturar ($1.6M contra $1.5M)",
           "motivo": "el «la» (Lider) estaba dos oraciones atrás",
           "cerrado": true,
-          "clave": "1\\.5M"
+          "clave": "cifra-de-boleta-sin-dueno: «\\$?1\\.5M» pertenece a"
         }
       ],
       "leyes_de_la_casa": [
