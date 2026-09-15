@@ -174,36 +174,60 @@ function _construir(scenario) {
    *   · campo     : el campo del dato del que sale, textual — para poder auditarlo sin leer este archivo.
    *   · terminos  : cómo lo nombra la prosa. El muro no tiene vocabulario propio: usa el que declara la carpeta. */
   const EMPATE = "todos los que comparten el valor extremo son extremo válido; entre ellos el orden es alfabético";
-  const _R = (universo, direccion, peorEs, campo, terminos) => ({ universo, direccion, peorEs, empate: EMPATE, campo, terminos, filas: [] });
+  /* ── EL LÉXICO DE CADA MÉTRICA, DECLARADO (owner 2026-09-14, el orden se verifica en todas sus formas) ─────────────────────────
+   * El conjunto adversarial mostró 158 afirmaciones de orden falsas que el muro no juzgaba porque el vocabulario del ranking eran solo
+   * los SUSTANTIVOS («ventas», «contribución»): «la que más VENDE», «el que más contribución APORTA», «el mayor VENDEDOR», «el peor
+   * PAGADOR», «la cuenta más CARGADA», «la más MOROSA», «el SKU más LENTO» nombran la misma métrica con un verbo, un adjetivo o un
+   * sustantivo de agente. Ese vocabulario es de la métrica, y lo declara la carpeta —no el muro, que no sabe qué «lento» significa
+   * para una rotación (menos) y para unos días de inventario (más)—: `lexico.verbos` son raíces («vend» cubre vende/venden/vendió),
+   * `lexico.adjetivos` llevan su POLARIDAD (el extremo que nombra «la más morosa» es el de MÁS días), y `lexico.agentes` son los
+   * sustantivos de persona («vendedor», «deudor», «pagador»), que toman la dirección del marcador («el mayor deudor»). Un adjetivo
+   * de JUICIO («urgente», «crítica») nombra los días vencidos por defecto (así habla el cierre), pero cede cuando la oración
+   * declara otro eje («la más urgente por monto»): `juicio: true`. */
+  const _R = (universo, direccion, peorEs, campo, terminos, lexico = null) => ({ universo, direccion, peorEs, empate: EMPATE, campo, terminos, filas: [], ...(lexico ? { lexico } : {}) });
+  const _LEX = {
+    ventas:       { verbos: ["vend", "factur"], agentes: ["vendedor(?:es|a|as)?"] },
+    margen:       { verbos: ["margin"] },
+    contribucion: { verbos: ["contribu", "aport"] },
+    carga:        { verbos: ["carg"], adjetivos: { "cargad[oa]s?": "mayor" } },
+    unidades:     { },
+    saldo_vencido:{ verbos: ["deb", "adeud"], agentes: ["deudor(?:es|a|as)?"] },   // «la cuenta más morosa» son los DÍAS (adjetivo de dias_vencido), no el monto
+    recuperado:   { verbos: ["recuper", "cobr"], agentes: ["pagador(?:es|a|as)?"] },
+    dias_vencido: { verbos: ["atras", "demor", "tard"], adjetivos: { "moros[oa]s?": "mayor", "atrasad[oa]s?": "mayor", "urgentes?": "mayor", "cr[íi]tic[oa]s?": "mayor" }, juicio: ["urgentes?", "cr[íi]tic[oa]s?", "urgencia"] },
+    rotacion:     { verbos: ["rot"], adjetivos: { "lent[oa]s?": "menor", "r[áa]pid[oa]s?": "mayor" } },
+    dias_inventario: { adjetivos: { "lent[oa]s?": "mayor" } },
+  };
   const rankings = {
     cliente: {
-      ventas:       _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "menor", "clientesVentas.actual", ["ventas?", "factura(?:ci[óo]n)?"]),
-      margen:       _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "menor", "clientesMargen.margen", ["m[áa]rgen(?:es)?"]),
-      contribucion: _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "menor", "clientesMargen.contribucion", ["contribuci[óo]n"]),
+      ventas:       _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "menor", "clientesVentas.actual", ["ventas?", "factura(?:ci[óo]n)?"], _LEX.ventas),
+      margen:       _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "menor", "clientesMargen.margen", ["m[áa]rgen(?:es)?"], _LEX.margen),
+      contribucion: _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "menor", "clientesMargen.contribucion", ["contribuci[óo]n"], _LEX.contribucion),
       /* «carga» A SECAS es la carga comercial (auditoría del Notario 2026-09-14, P1·3: «Falabella … carga 4.5% — la más alta de la cartera»,
        * con Easy 5.5 y Sodimac 5.4): el borrador la nombra sin el apellido y el muro, con el término completo como único vocabulario, no la
        * juzgaba. El término más largo sigue ganando cuando el apellido está. */
-      carga:        _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "mayor", "clientesMargen.pctRebate", ["carga\\s+comercial", "carga"]),
+      carga:        _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "mayor", "clientesMargen.pctRebate", ["carga\\s+comercial", "carga"], _LEX.carga),
       /* LAS UNIDADES VENDIDAS (owner 2026-09-14, auditoría del Notario · familia «orden»): «Jumbo es el cliente con más unidades vendidas
        * (1.194) y más contribución ($4.2M)» — la primera mitad es verdad y la segunda no (Falabella $4.3M), y el muro no podía verificar
        * ninguna: las unidades son una métrica del contrato de dominios (Comercial + unidades) sin ranking declarado. Sin lado malo
        * (peorEs null): vender menos unidades no es «peor» por sí solo. «unidades en stock» es del inventario y no entra. */
-      unidades:     _R("los 13 clientes · venta comercial (año cerrado)", "mayor", null, "clientesVentas.unidades", ["unidades(?:\\s+vendidas)?(?!\\s+en\\s+stock)"]),
+      unidades:     _R("los 13 clientes · venta comercial (año cerrado)", "mayor", null, "clientesVentas.unidades", ["unidades(?:\\s+vendidas)?(?!\\s+en\\s+stock)", "volumen(?!\\s+(?:de|en)\\s+(?:venta|factura|negocio|d[óo]lares|\\$))"]),
       /* LA BRECHA AL BENCHMARK Y LA CONTRIBUCIÓN NO CAPTURADA (owner 2026-09-14, segunda corrida de la prueba 2): «la segunda
        * mayor brecha de margen, 8.6 pp» —la de Lider es la MAYOR— no tenía ranking contra el cual medirse, y «la mayor
        * contribución no capturada» se juzgaba contra la contribución a secas (otra métrica). Los ordinales y los extremos
        * se verifican igual: una cifra correcta con posición incorrecta es una conclusión falsa. La brecha es la misma
-       * cuenta que rolesCartera (vara del cliente − margen); la no capturada, venta oficial × brecha, solo bajo la vara. */
-      brecha:       _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "mayor", "benchmarkOf(cliente) − clientesMargen.margen", ["brecha\\s+(?:al|contra\\s+el|frente\\s+al|respecto\\s+(?:al|del))\\s+benchmark", "brecha\\s+de\\s+margen", "distancia\\s+(?:al\\s+benchmark|a\\s+la\\s+referencia)", "brecha\\s+al\\s+margen"]),
-      no_capturada: _R("los clientes bajo el benchmark · venta comercial (año cerrado)", "mayor", "mayor", "clientesVentas.actual × (benchmarkOf(cliente) − clientesMargen.margen)", ["contribuci[óo]n\\s+(?:no\\s+capturada|sin\\s+capturar)", "brecha\\s+de\\s+contribuci[óo]n(?:\\s+(?:no\\s+capturada|sin\\s+capturar))?"]),
+       * cuenta que rolesCartera (vara del cliente − margen); la no capturada, venta oficial × brecha, solo bajo la vara.
+       * «brecha» A SECAS (el orden en todas sus formas, 2026-09-14): «Falabella tiene mayor brecha que Lider» —8.1 contra 8.6— es la
+       * brecha de margen en la prosa de la casa; solo «brecha de contribución» es la otra (y su término, más largo, gana). */
+      brecha:       _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "mayor", "benchmarkOf(cliente) − clientesMargen.margen", ["brecha\\s+(?:al|contra\\s+el|frente\\s+al|respecto\\s+(?:al|del))\\s+benchmark", "brecha\\s+de\\s+margen", "distancia\\s+(?:al\\s+benchmark|a\\s+la\\s+referencia)", "brecha\\s+al\\s+margen", "brecha(?!\\s+(?:de|en|por)\\s+(?:contribuci[óo]n|precio|costo|carga|dinero|d[óo]lares|pesos|plata|monto|venta|volumen|\\$))"]),
+      no_capturada: _R("los clientes bajo el benchmark · venta comercial (año cerrado)", "mayor", "mayor", "clientesVentas.actual × (benchmarkOf(cliente) − clientesMargen.margen)", ["contribuci[óo]n\\s+(?:no\\s+capturada|sin\\s+capturar)", "contribuci[óo]n\\s+(?:que\\s+)?(?:se\\s+)?dej(?:a|an|as|amos)\\s+de\\s+capturar", "brecha\\s+de\\s+contribuci[óo]n(?:\\s+(?:no\\s+capturada|sin\\s+capturar))?", "brecha\\s+en\\s+(?:pesos|dinero|d[óo]lares|plata|\\$)", "sin\\s+capturar", "no\\s+capturad[oa]s?"]),
     },
     marca: {
-      ventas:       _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "menor", "marcas.venta", ["ventas?", "factura(?:ci[óo]n)?"]),
-      margen:       _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "menor", "marcas.margen", ["m[áa]rgen(?:es)?"]),
-      contribucion: _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "menor", "marcas.contribucion", ["contribuci[óo]n"]),
+      ventas:       _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "menor", "marcas.venta", ["ventas?", "factura(?:ci[óo]n)?"], _LEX.ventas),
+      margen:       _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "menor", "marcas.margen", ["m[áa]rgen(?:es)?"], _LEX.margen),
+      contribucion: _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "menor", "marcas.contribucion", ["contribuci[óo]n"], _LEX.contribucion),
       /* ⚠️ el término iba con UNA barra invertida («carga\\s+comercial» dentro de una cadena JS es «cargas+comercial»): el ranking de carga
        * por marca existía pero no casaba nunca — medido al declarar los de cobranza (2026-09-14). Mismos términos que el eje cliente. */
-      carga:        _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "mayor", "marcas.pctRebate", ["carga\\s+comercial", "carga"]),
+      carga:        _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "mayor", "marcas.pctRebate", ["carga\\s+comercial", "carga"], _LEX.carga),
     },
     /* EL EJE SKU · el hueco que dejó la corrida de adopción: el cerebro acertó sus tres superlativos de SKU, pero
      * por mérito suyo — el muro no tenía contra qué medirlos. Son los del universo INVENTARIO (foto de hoy).
@@ -214,16 +238,36 @@ function _construir(scenario) {
      * ⚠️ Y el margen del SKU es el de INVENTARIO, no el de venta: el mismo SKU tiene los dos y son cifras
      * distintas. Por eso el término declarado exige la etiqueta completa. */
     sku: {
+      /* LA VENTA Y LA CONTRIBUCIÓN DEL SKU (el orden en todas sus formas, 2026-09-14): «LG-WASH11KG es el SKU de mayor venta ($12.4M)»
+       * —SAM-TV55 vende $13.3M— y «SAM-TV55 es el SKU con más contribución ($2.5M)» —PHI-SHAVER9 $3.4M— no tenían ranking: el eje SKU
+       * solo declaraba los del universo INVENTARIO. Son del universo VENTA (año cerrado, `skusMargen`), como los del cliente; el margen del
+       * SKU NO se declara acá porque «margen» a secas para un SKU es ambiguo (venta o inventario) y la casa exige la etiqueta completa. */
+      ventas:           _R("los 13 SKU comerciales · venta comercial (año cerrado)", "mayor", "menor", "skusMargen.venta", ["ventas?", "factura(?:ci[óo]n)?", "vendid[oa]s?"], _LEX.ventas),
+      contribucion:     _R("los 13 SKU comerciales · venta comercial (año cerrado)", "mayor", "menor", "skusMargen.contribucion", ["contribuci[óo]n"], _LEX.contribucion),
       /* «más capital» NO es «peor capital»: SAM-REF500L es el SKU de más capital ($19K) y rota 9.8x — está sano.
        * Por eso este ranking va SIN polaridad (peorEs null) y el notario solo le verifica «mayor/menor», nunca
        * «el peor». El capital que sí tiene lado malo es el INMOVILIZADO, y ese es su propio ranking, sobre su
        * propio universo: los SKU cuyo estado no es Activo. Son dos conjuntos distintos y se declaran distintos. */
       capital:            _R("los 13 SKU en inventario · foto de hoy", "mayor", null, "skuInventario.stockUSD", ["capital"]),
-      capital_inmovilizado: _R("los SKU cuyo estado NO es Activo · foto de hoy", "mayor", "mayor", "skuInventario.stockUSD (estado ≠ Activo)", ["capital\\s+inmovilizado", "capital\\s+frenado"]),
-      rotacion:         _R("los 13 SKU en inventario · foto de hoy", "mayor", "menor", "skuInventario.rotacion", ["rotaci[óo]n"]),
-      dias_inventario:  _R("los 13 SKU en inventario · foto de hoy", "mayor", "mayor", "skuInventario.doh", ["d[íi]as\\s+de\\s+inventario"]),
+      /* «FRENADO» NO ES SINÓNIMO DE «INMOVILIZADO» (la propia proyección lo declara más abajo; medido en el conjunto adversarial, 2026-09-14):
+       * «BOS-SANDER es el segundo SKU en capital frenado ($11K)» es verdad sobre los 3 frenados (POLICY: rotación bajo el piso o días sobre
+       * el techo) y falsa sobre los 5 inmovilizados (estado ≠ Activo). Antes «capital frenado» era un término del ranking inmovilizado y
+       * ese ordinal verdadero ardía. Dos rankings, dos universos, cada término en el suyo. */
+      capital_inmovilizado: _R("los SKU cuyo estado NO es Activo · foto de hoy", "mayor", "mayor", "skuInventario.stockUSD (estado ≠ Activo)", ["capital\\s+inmovilizado"]),
+      capital_frenado:      _R("los SKU frenados (rotación bajo el piso o días sobre el techo) · foto de hoy", "mayor", "mayor", "skuInventario.stockUSD (frenado por POLICY)", ["capital\\s+frenado", "capital\\s+detenido"]),
+      rotacion:         _R("los 13 SKU en inventario · foto de hoy", "mayor", "menor", "skuInventario.rotacion", ["rotaci[óo]n"], _LEX.rotacion),
+      dias_inventario:  _R("los 13 SKU en inventario · foto de hoy", "mayor", "mayor", "skuInventario.doh", ["d[íi]as\\s+de\\s+inventario"], _LEX.dias_inventario),
       dias_sin_venta:   _R("los SKU con días sin venta registrados · foto de hoy", "mayor", "mayor", "skuInventario.diasSinVenta", ["d[íi]as\\s+sin\\s+venta"]),
       margen_inventario:_R("los 13 SKU en inventario · foto de hoy", "mayor", "menor", "skuInventario.margenPct", ["m[áa]rgen\\s+de\\s+inventario"]),
+    },
+    /* EL EJE BODEGA (el orden en todas sus formas, 2026-09-14): «Valparaíso es la bodega con más capital ($39K)» —Santiago tiene $64K—
+     * no tenía ranking. Es el capital de la foto sumado por bodega, con el MISMO predicado de frenado que `estados` (POLICY, una verdad)
+     * para el frenado; el capital total sin lado malo (más capital en una bodega no es peor). Las filas se llenan en el recorrido del
+     * inventario, sin recalcular nada fuera de él. */
+    bodega: {
+      capital:          _R("las bodegas del inventario · foto de hoy", "mayor", null, "Σ skuInventario.stockUSD por bodega", ["capital(?!\\s+(?:frenado|inmovilizado|detenido))", "inventario", "stock"]),
+      capital_frenado:  _R("las bodegas del inventario · foto de hoy", "mayor", "mayor", "Σ skuInventario.stockUSD por bodega (frenados por POLICY)", ["capital\\s+frenado", "capital\\s+detenido", "frenado"]),
+      capital_inmovilizado: _R("las bodegas del inventario · foto de hoy", "mayor", "mayor", "Σ skuInventario.stockUSD por bodega (estado ≠ Activo)", ["capital\\s+inmovilizado", "inmovilizado"]),
     },
   };
   /* LOS DOS CAMPOS DE DÍAS, POR SEPARADO (owner 2026-08-16, deriva medida en el Examen 4). El texto ya los
@@ -408,10 +452,12 @@ function _construir(scenario) {
     /* `formulas`: cómo la prosa nombra ESTA mesa entera («la más urgente EN COBRANZA»). El muro las lee como universo declarado,
      * igual que «de la cartera»; nombrar la tabla es nombrar el conjunto. */
     const _formulasCobro = ["\\ben\\s+(?:la\\s+)?cobranza\\b", "\\bde\\s+(?:toda\\s+)?la\\s+cobranza\\b", "\\b(?:en|del?)\\s+(?:el\\s+)?flujo\\s+comercial\\b", "\\bde\\s+(?:toda\\s+)?la\\s+mesa\\s+de\\s+cobranza\\b"];
-    const _RC = (peorEs, campo, terminos) => ({ ..._R(_uniCobro, "mayor", peorEs, campo, terminos), formulas: _formulasCobro });
-    rankings.cliente.saldo_vencido   = _RC("mayor", "mesaFlujo.filas.vencidoK", ["saldo\\s+vencido", "monto\\s+vencido", "deuda\\s+vencida", "vencid[oa]s?"]);
-    rankings.cliente.recuperado      = _RC("menor", "mesaFlujo.filas.recuperadoPct", ["(?:porcentaje|tasa|%)\\s+de\\s+recuperaci[óo]n", "recuperaci[óo]n(?!\\s+de\\s+(?:margen|contribuci|venta))", "recuperad[oa]"]);
-    rankings.cliente.dias_vencido    = _RC("mayor", "mesaFlujo.filas.diasVencido", ["d[íi]as\\s+(?:de\\s+)?(?:atraso|retraso|mora|vencid[oa]s?)", "d[íi]as\\s+de\\s+vencimiento", "atrasos?", "retrasos?", "mora", "urgentes?", "urgencia"]);
+    const _RC = (peorEs, campo, terminos, lexico = null) => ({ ..._R(_uniCobro, "mayor", peorEs, campo, terminos, lexico), formulas: _formulasCobro });
+    rankings.cliente.saldo_vencido   = _RC("mayor", "mesaFlujo.filas.vencidoK", ["saldos?\\s+vencidos?", "montos?\\s+vencidos?", "deudas?\\s+vencidas?", "vencid[oa]s?"], _LEX.saldo_vencido);
+    rankings.cliente.recuperado      = _RC("menor", "mesaFlujo.filas.recuperadoPct", ["(?:porcentaje|tasa|%)\\s+de\\s+recuperaci[óo]n", "recuperaci[óo]n(?!\\s+de\\s+(?:margen|contribuci|venta))", "recuperad[oa]"], _LEX.recuperado);
+    /* «mora / atraso / urgencia» a secas y «la más morosa / atrasada» (el orden en todas sus formas, 2026-09-14): la prosa nombra los días
+     * vencidos con el sustantivo suelto y con el adjetivo; «antigüedad» también, cuando la oración habla de cobranza. */
+    rankings.cliente.dias_vencido    = _RC("mayor", "mesaFlujo.filas.diasVencido", ["d[íi]as\\s+(?:de\\s+)?(?:atraso|retraso|mora|vencid[oa]s?)", "d[íi]as\\s+de\\s+vencimiento", "atrasos?", "retrasos?", "mora", "morosidad", "urgentes?", "urgencia", "antig[üu]edad"], _LEX.dias_vencido);
     rankings.cliente.saldo_pendiente = _RC(null, "mesaFlujo.filas.saldoK", ["saldo\\s+pendiente", "saldo\\s+por\\s+cobrar", "pendiente\\s+de\\s+cobro", "saldo(?!\\s+vencido)", "deuda(?!\\s+vencida)"]);
     for (const fc of _mesaCobro.filas) {
       if (Number.isFinite(fc.vencidoK)) rankings.cliente.saldo_vencido.filas.push({ entidad: fc.nombre, valor: fc.vencidoK });
@@ -454,6 +500,8 @@ function _construir(scenario) {
   for (const s of f.skusMargen) {
     const D = [s.nombre];
     U(s.unidades, D, "unidades", "unidades_vendidas");
+    if (Number.isFinite(s.venta)) rankings.sku.ventas.filas.push({ entidad: s.nombre, valor: s.venta });
+    if (Number.isFinite(s.contribucion)) rankings.sku.contribucion.filas.push({ entidad: s.nombre, valor: s.contribucion });
     L.push(`- ${s.nombre} — ${_L.ventas} ${F(_moneyK(s.venta), D, undefined, "ventas")} · ${_L.margen} ${F(_pct1(s.margen), D, undefined, "margen")} · ${_L.contribucion} ${F(_moneyK(s.contribucion), D, undefined, "contribucion")} · ${_L.costo} ${F(_moneyK(s.costo), D, undefined, "costo")} · ${_L.carga} ${F(_pct1(s.pctRebate), D, undefined, "carga")} · ${s.unidades} unidades · costo medio ${F(_money(s.costoMedio), D)} por unidad · precio de lista ${F(_money(s.precioLista), D)} por unidad · marca ${s.marca} · familia ${s.sfamilia}.`);
   }
   L.push("");
@@ -464,14 +512,22 @@ function _construir(scenario) {
   counts.add(bodegas.length);
   _uni = "inventario";   // …y desde acá, del universo INVENTARIO (foto de hoy)
   L.push(`UNIVERSO «${UNIVERSOS.inventario.etiqueta.toUpperCase()}» (foto de hoy · ${f.skuInventario.length} SKU en ${bodegas.length} bodegas: ${bodegas.join(", ")}):`);
+  const _capitalBodega = new Map(), _frenadoBodega = new Map(), _inmovBodega = new Map();   // el eje bodega: sumas por bodega en el mismo recorrido
   for (const s of f.skuInventario) {
     const D = [s.sku, s.bodega];
     U(s.stockUnd, [s.sku], "unidades", "unidades_stock");   // las unidades en stock son del SKU (la bodega las contiene, no las posee)
     // el MISMO predicado del detector de capital (specRetrieval:577 · POLICY, una verdad): frenado = rotación
     // bajo el piso o días sobre el techo — la clasificación se DECLARA como objeto para que el notario la verifique.
-    if ((typeof s.rotacion === "number" && s.rotacion < rotMin) || (typeof s.doh === "number" && s.doh > dohMax)) {
+    const _frenado = (typeof s.rotacion === "number" && s.rotacion < rotMin) || (typeof s.doh === "number" && s.doh > dohMax);
+    if (_frenado) {
       estados.push({ entidad: s.sku, estado: "frenado", bodega: s.bodega });
     }
+    if (Number.isFinite(s.stockUSD) && s.bodega) {
+      _capitalBodega.set(s.bodega, (_capitalBodega.get(s.bodega) || 0) + s.stockUSD);
+      if (_frenado) _frenadoBodega.set(s.bodega, (_frenadoBodega.get(s.bodega) || 0) + s.stockUSD);
+      if (s.estado !== "Activo") _inmovBodega.set(s.bodega, (_inmovBodega.get(s.bodega) || 0) + s.stockUSD);
+    }
+    if (Number.isFinite(s.stockUSD) && _frenado) rankings.sku.capital_frenado.filas.push({ entidad: s.sku, valor: s.stockUSD });
     // el eje SKU alimenta sus cinco rankings declarados (owner 2026-08-16) — mismo recorrido, cero recálculo
     if (Number.isFinite(s.stockUSD)) rankings.sku.capital.filas.push({ entidad: s.sku, valor: s.stockUSD });
     if (Number.isFinite(s.stockUSD) && s.estado !== "Activo") rankings.sku.capital_inmovilizado.filas.push({ entidad: s.sku, valor: s.stockUSD });
@@ -488,6 +544,9 @@ function _construir(scenario) {
     // devuelve el valor intacto: el TEXTO de la proyección no cambia un byte.
     L.push(`- ${s.sku} (bodega ${s.bodega}) — ${_L.capital} ${F(_money(s.stockUSD), D, undefined, "capital")} · ${s.stockUnd} unidades en stock · ${_L.rotacion} ${F(_ratio(s.rotacion), D, undefined, "rotacion")} · Días de inventario ${F(_dias(s.doh), D, undefined, "cobertura")} · ${s.diasSinVenta > 0 ? `${F(_dias(s.diasSinVenta), D, undefined, "sinventa")} sin venta` : "con venta al día"} · vendido en el mes ${s.vendidoMes} unidades · margen de inventario ${F(_pct1(s.margenPct), D, undefined, "margen")} · estado ${F(s.estado, D)} · marca ${s.marca} · familia ${s.sfamilia}.`);
   }
+  for (const [b, v] of _capitalBodega) rankings.bodega.capital.filas.push({ entidad: b, valor: v });
+  for (const [b, v] of _frenadoBodega) rankings.bodega.capital_frenado.filas.push({ entidad: b, valor: v });
+  for (const [b, v] of _inmovBodega) rankings.bodega.capital_inmovilizado.filas.push({ entidad: b, valor: v });
   L.push("");
 
   // ── LOS DOS UNIVERSOS: LO QUE ESTE PACK DECLARA (owner 2026-09-14: la compatibilidad la declara el archivo) ──

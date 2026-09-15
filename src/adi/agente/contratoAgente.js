@@ -531,7 +531,15 @@ export function vetosDeRegistro(texto, contexto = {}) {
         }
         continue;
       }
-      if (_COMPARA_LADOS.test(oracion) && !_CIFRA.test(oracion) && /(?<![\wáéíóúñ])(?:margen|carga|contribuci[oó]n|ventas?|rotaci[oó]n|markup|precio|costo|rentabilidad)(?![\wáéíóúñ])/i.test(oracion)) {
+      /* ── LA COMPARACIÓN ENTRE DOS CUENTAS SE VERIFICA, NO SE PROHÍBE (owner 2026-09-14, el orden en todas sus formas) ─────────────────
+       * Medido en el conjunto adversarial: esta regla vetaba «Falabella deja más contribución que Lider» (verdad) y dejaba pasar «Lider vende
+       * más que Falabella» (falso): prohibir no es responder. Cuando los dos lados son ENTIDADES nombradas y la métrica tiene ranking
+       * declarado (margen, carga, contribución, ventas, rotación), el muro la verifica contra el ranking (`comparacion-no-sostenida` en
+       * guardC), con o sin cifras. Acá queda lo que no tiene ranking contra el cual medirse: un lado que es un GRUPO («los sanos», «el resto»,
+       * «los grandes») o una métrica sin ranking (markup, precio, costo, rentabilidad). */
+      const _LADO_GRUPO = /(?:que|frente a|contra)\s+(?:(?:el|la|los|las|de)\s+){0,3}(?:sanos|resto|dem[aá]s|otr[oa]s|grandes|chic[oa]s|peque[ñn][oa]s|cartera)(?![\wáéíóúñ])/i;
+      const _SIN_RANKING = /(?<![\wáéíóúñ])(?:markup|precio|costo|rentabilidad)(?![\wáéíóúñ])/i;
+      if (_COMPARA_LADOS.test(oracion) && !_CIFRA.test(oracion) && (_LADO_GRUPO.test(oracion) || _SIN_RANKING.test(oracion)) && /(?<![\wáéíóúñ])(?:margen|carga|contribuci[oó]n|ventas?|rotaci[oó]n|markup|precio|costo|rentabilidad)(?![\wáéíóúñ])/i.test(oracion)) {
         v.push({ regla: "comparacion-sin-cifras", multa: `comparas dos lados sobre una métrica («${oracion.trim().slice(0, 90)}…») sin una sola cifra en la oración: una comparación ejecutiva lleva la cifra de cada lado, de la boleta — o no se hace.` });
         break;
       }

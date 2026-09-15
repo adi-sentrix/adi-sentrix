@@ -386,6 +386,12 @@ export function conclusionDePrioridad(figs, dominios = [], { criterio = null, mo
 /** la ley: la prioridad que cierra la respuesta es la del criterio del usuario; sin criterio, es la de alguna lente y el
  *  criterio está declarado (o la respuesta pregunta qué lente usar) */
 const _PRIORIDAD = /\bprimero\b|\bprioridad|\bprioritari|\bfoco\b|\bantes que\b|\bentrar[ií]a\b|\bpartir[ií]a\b|\bempezar[ií]a\b|\barrancar[ií]a\b|\bir[ií]a\s+por\b|\bmayor riesgo\b/i;   // «iría por Lider» también es una prioridad (2026-09-14)
+/* «Entre los que más venden, Falabella primero ($19.4M), después Lider» y «En vencido, Lider va primero» son un RANKING, no la prioridad del
+ * cierre (owner 2026-09-14, el orden en todas sus formas · fp-listas P9): el «primero» que va con una métrica de orden («por venta», «en
+ * contribución», «entre los que más X», «ordenados por», «ranking») no dispara esta ley; el de una lente («por riesgo integrado») sí. */
+const _METRICA_DE_ORDEN = "ventas?|factura\\p{L}*|contribuci[oó]n|m[aá]rgen(?:es)?|carga|unidades|vencid[oa]s?|saldo|mora|atraso|recuperaci[oó]n|brecha|capital|rotaci[oó]n|d[ií]as";
+const _PRIMERO_DE_RANKING = new RegExp(`(?:\\b(?:entre|de)\\s+(?:los|las)\\s+que\\s+m[aá]s\\s+\\p{L}+|\\b(?:por|en)\\s+(?:${_METRICA_DE_ORDEN})\\b|\\bordenad[oa]s\\s+por\\b|\\branking\\b)(?:[^.;\\n]|\\.(?=\\d)){0,60}?\\bprimero\\b|\\bprimero\\s+(?:en|por)\\s+(?:${_METRICA_DE_ORDEN})\\b`, "giu");
+const _sinPrimeroDeRanking = (p) => String(p).replace(_PRIMERO_DE_RANKING, (m) => m.replace(/\bprimero\b/giu, "…"));
 /* ══ LA COINCIDENCIA AGRAVA, NO DECIDE (owner 2026-09-14, segunda corrida de la prueba 2) ═════════════════════════════════
  * Lo servido: «partir por Lider: coincide en dos dominios (…), y esa coincidencia agrava más que cualquier monto aislado».
  * Es ley, no una función nueva: «Coincidir en varios dominios agrava el caso, pero la prioridad se decide por el criterio/
@@ -429,7 +435,7 @@ export function prioridadIntegradaCambiada(texto, figs, dominios = [], { criteri
   /* el CIERRE es el último párrafo con prioridad QUE HABLA DE LAS CUENTAS (owner 2026-09-14, segundo prompt de producción):
    * «Yo miraría primero Falabella —criterio mío—» al final de una lectura de tres dominios es una prioridad local servida
    * como global. Un párrafo de inventario («LG-DRYER8KG primero») es otra clave y no compite con las cuentas. */
-  const parrafos = t.split(/\n\s*\n/).filter((p) => _PRIORIDAD.test(p) && [...cuentas].some((e) => _re(e).test(_sinTildes(p))));
+  const parrafos = t.split(/\n\s*\n/).filter((p) => _PRIORIDAD.test(_sinPrimeroDeRanking(p)) && [...cuentas].some((e) => _re(e).test(_sinTildes(p))));
   if (!parrafos.length) return null;   // sin prioridad dicha sobre las cuentas, esto no juzga (la cobertura del encargo ya cobra que falte)
   const cierre = _sinTildes(parrafos[parrafos.length - 1]);
   if (usa) {
