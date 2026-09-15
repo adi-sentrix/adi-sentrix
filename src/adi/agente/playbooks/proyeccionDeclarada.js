@@ -25,6 +25,7 @@
 
 import { _PIDE_PROYECCION, _CIFRA_SUPUESTO, _OTRA_MEDIDA } from "../contratoAgente.js";
 import { axisEntityNames } from "../../oracle/entityIndex.js";
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): el composer declara mientras escribe, sin camino privilegiado
 
 const _FIN = "(?![a-záéíóúüñ])";
 const _lab = (f) => String((f && f.label) || "");
@@ -114,19 +115,32 @@ export const proyeccionDeclarada = {
   entregable: "para una proyección de venta: la base (dato) y la cifra proyectada (supuesto) en oraciones distintas, con la tasa y el horizonte que el usuario declaró, y el adicional. Para un movimiento de carga: qué clientes quedan sobre el benchmark con ese supuesto (o que ninguno), con su margen supuesto, y cuánto se libera en total. Ninguna de las dos es una cifra medida: se nombran como proyección o supuesto.",
 
   /* ── EL ENTREGABLE DETERMINÍSTICO ──────────────────────────────────────────────────────────────────────── */
-  componer({ figs, pregunta } = {}) {
+  componer({ figs, pregunta, declarar } = {}) {
+    const D = declaradorDe(declarar);   // sin colector, mudo: el texto es el mismo byte a byte
     const c = _caso(pregunta);
     if (!c) return null;
     if (c.forma === "venta") {
       const base = _find(figs, /^Venta del período · el negocio$/i);
       const proy = _find(figs, /^Proyección · el negocio /i);
       const adic = _find(figs, /^Proyección · adicional /i);
+      const supuesto = _find(figs, /^Supuesto del usuario · crecimiento/i);
       if (!base) return null;
-      if (!proy) return `Tu venta del período es ${_val(base)}. Para proyectarla necesito el supuesto de crecimiento: dime el porcentaje y te doy la cifra.`;
+      if (!proy) {
+        const l = `Tu venta del período es ${_val(base)}. Para proyectarla necesito el supuesto de crecimiento: dime el porcentaje y te doy la cifra.`;
+        D.cifra({ sujeto: "negocio", metrica: "Venta del período", valor: _val(base), texto: l });
+        return l;
+      }
       const hz = c.horizonte ? ` a ${c.horizonte}` : "";
-      return [`Sobre tu venta del período de ${_val(base)}, ${c.tasa < 0 ? `una caída de ${Math.abs(c.tasa)}%` : `un crecimiento de +${c.tasa}%`}${hz} te deja en ${_val(proy)}.`,
-        adic ? (c.tasa < 0 ? `La diferencia contra tu base: ${_val(adic)}.` : `Adicional generado: ${_val(adic)}.`) : null,
-        `Es una proyección sobre el supuesto que declaraste, no una cifra medida.`].filter(Boolean).join("\n");
+      const lectura = `Sobre tu venta del período de ${_val(base)}, ${c.tasa < 0 ? `una caída de ${Math.abs(c.tasa)}%` : `un crecimiento de +${c.tasa}%`}${hz} te deja en ${_val(proy)}.`;
+      const adicional = adic ? (c.tasa < 0 ? `La diferencia contra tu base: ${_val(adic)}.` : `Adicional generado: ${_val(adic)}.`) : null;
+      /* la base es dato; la tasa es el supuesto del usuario tal como la boleta lo registra (su concepto es «Supuesto del usuario»:
+       * el horizonte vive en el rótulo, no en la cifra); lo proyectado y el adicional son cifras con evidencia en las figs del
+       * cálculo (base × supuesto), nombradas por su propio rótulo — jamás medidas */
+      D.cifra({ sujeto: "negocio", metrica: "Venta del período", valor: _val(base), texto: lectura });
+      if (supuesto) D.cifra({ sujeto: "negocio", metrica: "Supuesto del usuario", valor: c.tasa < 0 ? `${Math.abs(c.tasa)}%` : `+${c.tasa}%`, texto: lectura, evidencia: [_lab(supuesto)] });
+      D.cifra({ sujeto: "negocio", metrica: _lab(proy), valor: _val(proy), texto: lectura, evidencia: [_lab(base), ...(supuesto ? [_lab(supuesto)] : [])] });
+      if (adicional) D.cifra({ sujeto: "negocio", metrica: _lab(adic), valor: _val(adic), texto: adicional, evidencia: [_lab(base), _lab(proy)] });
+      return [lectura, adicional, `Es una proyección sobre el supuesto que declaraste, no una cifra medida.`].filter(Boolean).join("\n");
     }
     // carga
     const mov = _find(figs, /^Supuesto · movimiento de carga$/i);
@@ -137,19 +151,46 @@ export const proyeccionDeclarada = {
     const vara = _pctDe(bench);
     if (!Number.isFinite(vara)) return null;
     const sobre = sup.filter((x) => x.pct >= vara).sort((a, b) => b.pct - a.pct);
-    const partes = [`Con la carga comercial ${c.delta}pp (tu supuesto: ${_val(mov)} de movimiento), el benchmark de margen sigue en ${_val(bench)}.`];
+    const apertura = `Con la carga comercial ${c.delta}pp (tu supuesto: ${_val(mov)} de movimiento), el benchmark de margen sigue en ${_val(bench)}.`;
+    const partes = [apertura];
+    /* el movimiento va dos veces: como lo pidió el usuario (con su signo) y como la boleta lo registra; el benchmark es dato */
+    D.cifra({ sujeto: "negocio", metrica: _lab(mov), valor: `${c.delta}pp`, texto: apertura });
+    D.cifra({ sujeto: "negocio", metrica: _lab(mov), valor: _val(mov), texto: apertura });
+    D.cifra({ sujeto: "negocio", metrica: "Benchmark de margen", valor: _val(bench), texto: apertura });
+    /* los conteos de quiénes quedan sobre y bajo el benchmark son sobre el MARGEN SUPUESTO (la simulación), y el universo son
+     * los clientes que la simulación cubre; cada cuenta listada lleva su cifra y su relación con el benchmark */
+    const universo = `los ${sup.length} clientes`;
     /* ⚠️ SE DICE TAMBIÉN QUIÉNES QUEDAN POR DEBAJO, y no es cosmética: es la respuesta completa a «¿alguno queda
      * sobre?». Medido: el chequeo de estados del muro toma el PRIMER «· Margen» del ledger (Falabella, que
      * queda bajo) y, si una oración con «benchmark» dice «sobre» sin nombrar la brecha o el «por debajo», veta
      * — heurística global, no por entidad. Nombrar a los dos lados es lo honesto y lo que el muro reconoce. */
-    if (!sobre.length) partes.push(`Ningún cliente queda sobre el benchmark con ese supuesto: los ${sup.length} siguen por debajo.`);
-    else {
-      partes.push(`Quedan sobre el benchmark ${sobre.length} de ${sup.length}:`);
-      for (const x of sobre.slice(0, 6)) partes.push(`- ${x.entidad}: margen supuesto ${x.fmt}`);
+    if (!sobre.length) {
+      const ninguno = `Ningún cliente queda sobre el benchmark con ese supuesto: los ${sup.length} siguen por debajo.`;
+      partes.push(ninguno);
+      D.conteo({ n: 0, m: sup.length, predicado: "sobre el benchmark con el margen supuesto", universo, texto: ninguno });
+      D.conteo({ n: sup.length, m: sup.length, predicado: "bajo el benchmark con el margen supuesto", universo, sujeto: sup.map((x) => x.entidad), texto: ninguno });
+    } else {
+      const quedan = `Quedan sobre el benchmark ${sobre.length} de ${sup.length}:`;
+      partes.push(quedan);
+      D.conteo({ n: sobre.length, m: sup.length, predicado: "sobre el benchmark con el margen supuesto", universo, sujeto: sobre.map((x) => x.entidad), texto: quedan });
+      for (const x of sobre.slice(0, 6)) {
+        const l = `- ${x.entidad}: margen supuesto ${x.fmt}`;
+        partes.push(l);
+        D.cifra({ sujeto: x.entidad, metrica: "Margen supuesto", valor: x.fmt, texto: l });
+        D.relacion({ sujeto: x.entidad, metrica: "Margen supuesto", forma: "mayor", vs: { sujeto: "negocio", metrica: "Benchmark de margen" }, texto: l });
+      }
       const bajo = sup.filter((x) => x.pct < vara);
-      if (bajo.length) partes.push(`Los otros ${bajo.length} quedan por debajo del benchmark aun con ese supuesto${bajo.length <= 4 ? ` (${bajo.map((x) => x.entidad).join(", ")})` : ""}.`);
+      if (bajo.length) {
+        const otros = `Los otros ${bajo.length} quedan por debajo del benchmark aun con ese supuesto${bajo.length <= 4 ? ` (${bajo.map((x) => x.entidad).join(", ")})` : ""}.`;
+        partes.push(otros);
+        D.conteo({ n: bajo.length, m: sup.length, predicado: "bajo el benchmark con el margen supuesto", universo, sujeto: bajo.map((x) => x.entidad), texto: otros });
+      }
     }
-    if (liberado) partes.push(`Se libera ${_val(liberado)} en total. Es una simulación sobre tu supuesto, no una cifra medida.`);
+    if (liberado) {
+      const l = `Se libera ${_val(liberado)} en total. Es una simulación sobre tu supuesto, no una cifra medida.`;
+      partes.push(l);
+      D.cifra({ sujeto: "negocio", metrica: "Liberado", valor: _val(liberado), universo: "total", texto: l });
+    }
     return partes.join("\n");
   },
 
