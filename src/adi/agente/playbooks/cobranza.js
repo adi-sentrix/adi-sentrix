@@ -18,6 +18,8 @@
  * PURO · determinístico · sin red. Cifras VERBATIM de la boleta. */
 
 import { esPorQue } from "../porque.js";   // la ley del porqué es de la casa (owner 2026-09-09)
+import { axisEntityNames } from "../../oracle/entityIndex.js";   // el tamaño del eje, para el universo de un orden («los 13 clientes») sin escribirlo a mano
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): el composer declara MIENTRAS escribe, sin tocar el texto
 
 const _FIN = "(?![a-záéíóúüñ])";
 const _lab = (f) => String((f && f.label) || "");
@@ -25,6 +27,9 @@ const _val = (f) => String((f && (f.text || f.value)) || "");
 const _find = (figs, re) => (Array.isArray(figs) ? figs : []).find((f) => re.test(_lab(f))) || null;
 const _all = (figs, re) => (Array.isArray(figs) ? figs : []).filter((f) => re.test(_lab(f)));
 const _entidadDe = (label) => { const p = String(label || "").split("·").map((s) => s.trim()); return p.length >= 2 ? p[0] : null; };
+/* el universo de un orden, con el tamaño del eje del tenant («los 13 clientes»); sin índice, el eje entero por su nombre («los clientes»),
+ * que el verificador también lee como el conjunto completo */
+const _universoClientes = () => { let n = 0; try { n = (axisEntityNames("cliente") || []).length; } catch { n = 0; } return n ? `los ${n} clientes` : "los clientes"; };
 
 /* ── EL DETECTOR · léxico y conservador: ante la duda, false ────────────────────────────────────────────────
  * Dos sub-formas. La DEUDA: quién debe, qué está vencido, la mora, el saldo por cobrar. El CRÉDITO: cuánto se
@@ -63,7 +68,7 @@ export const cobranza = {
   entregable: "para la deuda: el saldo pendiente total con su fecha de corte, quiénes deben (cada cliente con su saldo), y el vencido SOLO si la mesa lo calculó — sin plazo declarado se dice «no se puede saber qué parte está vencida» con el porqué, jamás $0. Para crédito vs contado: la venta a crédito declarada, cuánto entró (abonado) y el saldo, diciendo que las ventas de contado no generan deuda y no entran en este corte.",
 
   /* ── EL ENTREGABLE DETERMINÍSTICO ──────────────────────────────────────────────────────────────────────── */
-  componer({ figs, pregunta } = {}) {
+  componer({ figs, pregunta, declarar } = {}) {
     const c = _caso(pregunta);
     if (!c) return null;
     const venta = _find(figs, /^Venta (?:a crédito del período|del período \(flujo\))$/i);
@@ -72,10 +77,23 @@ export const cobranza = {
     if (!saldo || !venta) return null;
     const vencidoTotal = _find(figs, /^Saldo vencido · total$/i);
     const esCredito = /a crédito/i.test(_lab(venta));
+    /* EL NOTARIO SEMÁNTICO (fase 2): los totales son cifras del negocio (universo «total»); lo abonado y el saldo son PARTE de la venta
+     * («de eso ya entró…», «de una venta de…») y el vencido es parte del saldo; la venta viaja con el rótulo exacto del emisor (en la
+     * planilla dice «a crédito», en el demo «del período (flujo)»); cada saldo con su dueño; «el más pesado» es un orden máximo de
+     * Saldo vencido sobre el eje entero. */
+    const D = declaradorDe(declarar);
+    const declaraTotales = (texto) => {
+      D.deFig(venta, texto);
+      if (abonado) { D.cifra({ sujeto: "negocio", metrica: "Abonado", valor: _val(abonado), universo: "total", texto }); D.relacion({ sujeto: "negocio", metrica: "Abonado", forma: "parte", vs: { sujeto: "negocio", metrica: _lab(venta) }, texto }); }
+      D.cifra({ sujeto: "negocio", metrica: "Saldo pendiente", valor: _val(saldo), universo: "total", texto });
+      D.relacion({ sujeto: "negocio", metrica: "Saldo pendiente", forma: "parte", vs: { sujeto: "negocio", metrica: _lab(venta) }, texto });
+    };
 
     if (c.forma === "credito") {
+      const l0 = `Vendiste ${esCredito ? "a crédito " : ""}${_val(venta)} en el período. De eso ya entró ${_val(abonado)} (abonado) y queda un saldo pendiente de ${_val(saldo)}.`;
+      declaraTotales(l0);
       return [
-        `Vendiste ${esCredito ? "a crédito " : ""}${_val(venta)} en el período. De eso ya entró ${_val(abonado)} (abonado) y queda un saldo pendiente de ${_val(saldo)}.`,
+        l0,
         `Las ventas de contado no generan deuda y no entran en este corte: la cifra declarada de tu archivo es la venta a crédito (columna condición).`,
       ].join("\n");
     }
@@ -88,11 +106,21 @@ export const cobranza = {
     const vencidos = _all(figs, /· Saldo vencido$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), fmt: _val(f) })).filter((x) => x.entidad);
     // LA VOZ (2026-09-03): un asesor cuenta la deuda, no la lista un ledger — mismas cifras, mismos dueños.
     const partes = [`Tienes ${_val(saldo)} por cobrar, de una venta ${esCredito ? "a crédito " : ""}de ${_val(venta)} — ya te abonaron ${_val(abonado)}.`];
+    declaraTotales(partes[0]);
     partes.push(`Quién te debe:`);
-    for (const x of porCliente.slice(0, 6)) partes.push(`- ${x.entidad}: ${x.fmt}`);
+    for (const x of porCliente.slice(0, 6)) { const l = `- ${x.entidad}: ${x.fmt}`; partes.push(l); D.cifra({ sujeto: x.entidad, metrica: "Saldo pendiente", valor: x.fmt, texto: l }); }
+    /* la cola «(y N más)» no se declara: N es lo que la boleta trae y no cabe en la lista (el emisor publica 8 filas), no cuántos deben —
+     * la mesa del flujo tiene más deudores que la boleta; se anota como hallazgo, no se declara como conteo */
     if (porCliente.length > 6) partes.push(`(y ${porCliente.length - 6} más)`);
     if (vencidoTotal) {
-      partes.push(`De eso, ${_val(vencidoTotal)} ya está vencido${vencidos.length ? ` — el más pesado es ${vencidos[0].entidad} con ${vencidos[0].fmt}` : ""}.`);
+      const l = `De eso, ${_val(vencidoTotal)} ya está vencido${vencidos.length ? ` — el más pesado es ${vencidos[0].entidad} con ${vencidos[0].fmt}` : ""}.`;
+      partes.push(l);
+      D.cifra({ sujeto: "negocio", metrica: "Saldo vencido", valor: _val(vencidoTotal), universo: "total", texto: l });
+      D.relacion({ sujeto: "negocio", metrica: "Saldo vencido", forma: "parte", vs: { sujeto: "negocio", metrica: "Saldo pendiente" }, texto: l });
+      if (vencidos.length) {
+        D.orden({ sujeto: vencidos[0].entidad, metrica: "Saldo vencido", forma: "max", universo: _universoClientes(), texto: l });
+        D.cifra({ sujeto: vencidos[0].entidad, metrica: "Saldo vencido", valor: vencidos[0].fmt, texto: l });
+      }
     } else {
       /* la regla del owner, con palabras: sin plazo no hay vencido que mostrar — y se dice por qué */
       partes.push(`Qué parte está vencida no se puede saber: tu empresa no declaró plazo de pago. Cuando lo declares, el vencido se calcula solo — sin volver a subir el archivo.`);

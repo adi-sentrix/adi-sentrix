@@ -30,8 +30,10 @@
 import { detectSerieIntent } from "../../oracle/serieIntent.js";
 import { esPorQue } from "../porque.js";   // la ley del porqué es de la casa (owner 2026-09-09)
 import { nombraEntidad, pidePuntoDeVenta } from "./indiceEntidades.js";   // el guardia anti-secuestro, compartido con la foto
-import { pisoFocosUSD, declaracionUmbralFocos } from "../../specRetrieval.js";
+import { pisoFocosUSD, declaracionUmbralFocos, figsUmbralFocos } from "../../specRetrieval.js";
 import { variante } from "../variacion.js";   // los cierres varían por semilla («matar la repetición», 2026-09-03)
+import { axisEntityNames } from "../../oracle/entityIndex.js";   // el tamaño del eje, para el universo de un orden («los 13 clientes») sin escribirlo a mano
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): los composers declaran MIENTRAS escriben, sin tocar el texto
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 const _val = (f) => String((f && (f.text || f.value)) || "");
@@ -68,6 +70,19 @@ const _materiales = (items, piso) => (piso > 0 ? items.filter((x) => Math.abs(x.
 const _fraseUmbral = () => { try { return declaracionUmbralFocos(); } catch { return ""; } };
 const _piso = () => { try { return pisoFocosUSD() || 0; } catch { return 0; } };
 
+/* ── LO QUE SE DECLARA AL NOTARIO (fase 2) · utilería compartida por los cuatro composers ─────────────────────────
+ * El universo de un orden o un conteo lleva el tamaño del eje del tenant («los 13 clientes»), sin escribir el 13 a
+ * mano; sin índice, el eje entero por su nombre («los clientes»), que el verificador también lee como el conjunto
+ * completo. Y las dos cifras del umbral que `_fraseUmbral` interpola («0.05%» · «$50K») se declaran con el rótulo
+ * con que el motor las publica: las de la boleta si vienen, y si no las mismas dos figs de la misma función. */
+const _universo = (eje, plural) => { let n = 0; try { n = (axisEntityNames(eje) || []).length; } catch { n = 0; } return n ? `los ${n} ${plural}` : `los ${plural}`; };
+const _figsUmbral = (figs) => {
+  const pct = _find(figs, /^Umbral de materialidad · % de la venta$/i), usd = _find(figs, /^Umbral de materialidad · en dinero$/i);
+  if (pct && usd) return [pct, usd];
+  let propias = []; try { propias = figsUmbralFocos() || []; } catch { propias = []; }
+  return [pct || propias[0] || null, usd || propias[1] || null];
+};
+
 /* ═══ A · CLIENTE PERDIENDO CONTRIBUCIÓN ══════════════════════════════════════════════════════════════════════
  * La señal temporal que el dato SÍ declara por cliente es el YoY de venta (salesRead vs_anterior); la serie
  * mensual de contribución existe pero solo POR NOMBRE (serieEntidad) — por eso el 03 la OFRECE para el que más
@@ -89,7 +104,7 @@ export const clientePerdiendoContribucion = {
   ],
   obligatorias: [/· YoY$/i, /^Contribuci[oó]n total$/i],
   entregable: "qué clientes están cayendo contra el año anterior (cada uno con su cifra YoY), sobre cuánta contribución total, y a quién abrir primero — ofrecido, jamás ordenado. Localiza dónde se cae; el porqué no está en este dato.",
-  componer({ figs, semilla, pregunta } = {}) {
+  componer({ figs, semilla, pregunta, declarar } = {}) {
     const total = _find(figs, /^Contribuci[oó]n total$/i);
     const caen = _all(figs, /· YoY$/i)
       .map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
@@ -107,30 +122,66 @@ export const clientePerdiendoContribucion = {
     const nCaen = caenTodas.size;
     const _otras = (n) => (n === 1 ? "la otra cae" : `las otras ${n} caen`);
     const contrib = new Map(_all(figs, /· Contribuci[oó]n$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
+    /* EL NOTARIO SEMÁNTICO (fase 2): «se te están cayendo N clientes» es un conteo sobre el eje entero con el predicado que la boleta sí cuenta (la
+     * variación vs año anterior); la partición material / bajo el umbral es una cuenta del composer contra el piso —se declara tal cual, con el
+     * umbral como universo, aunque la boleta no la cuente—; «los N que más caen» es un orden top-k de YoY (dirección menor) y cada línea una
+     * variación en dinero; «el que más cae» es el mínimo de YoY. */
+    const D = declaradorDe(declarar);
+    const U_CLI = _universo("cliente", "clientes");
+    const U_CAEN = "los que caen vs año anterior";
+    const [uPct, uUsd] = _figsUmbral(figs);
+    const declaraUmbral = (texto) => { if (uPct) D.deFig(uPct, texto); if (uUsd) D.deFig(uUsd, texto); };
+    const declaraQueCaen = (texto) => D.conteo({ n: nCaen, predicado: "caen vs año anterior", universo: U_CLI, texto });
     const partes = [];
     // LA VOZ (2026-09-03): el asesor cuenta, no rotula — mismas cifras, mismos dueños. Y una precisión que
     // la voz obligó a hacer: `total` es la contribución DEL NEGOCIO (contexto para dimensionar), no «lo en
     // juego» — la frase vieja lo insinuaba de más.
     if (!materiales.length) {
-      partes.push(`Ningún cliente cae de forma material contra el año anterior${nCaen ? ` (${nCaen} caen, todos ${_fraseUmbral() || "bajo el umbral de materialidad del negocio"})` : ""}.`);
-      partes.push(`Para dimensionar: la contribución total del negocio es ${_val(total)}.`);
+      const l0 = `Ningún cliente cae de forma material contra el año anterior${nCaen ? ` (${nCaen} caen, todos ${_fraseUmbral() || "bajo el umbral de materialidad del negocio"})` : ""}.`;
+      partes.push(l0);
+      D.conteo({ n: 0, m: nCaen || undefined, predicado: "sobre el umbral del negocio", universo: nCaen ? U_CAEN : U_CLI, texto: l0 });
+      if (nCaen) { declaraQueCaen(l0); declaraUmbral(l0); }
+      const l1 = `Para dimensionar: la contribución total del negocio es ${_val(total)}.`;
+      partes.push(l1);
+      D.deFig(total, l1);
       return partes.join("\n");
     }
     const top = materiales.slice(0, 4);
-    partes.push(`Se te están cayendo ${nCaen} clientes contra el año anterior${nCaen > materiales.length ? `, ${materiales.length} de forma material (${_otras(nCaen - materiales.length)} ${_fraseUmbral() || "bajo el umbral de materialidad"})` : ""}. Para dimensionar: la contribución total del negocio es ${_val(total)}.`);
-    partes.push(`\nLos ${top.length} que más caen:`);
-    for (const c of top) partes.push(`- ${c.entidad} · ${c.fmt} contra el año anterior${contrib.has(c.entidad) ? ` · contribución actual ${contrib.get(c.entidad)}` : ""}`);
+    const l0 = `Se te están cayendo ${nCaen} clientes contra el año anterior${nCaen > materiales.length ? `, ${materiales.length} de forma material (${_otras(nCaen - materiales.length)} ${_fraseUmbral() || "bajo el umbral de materialidad"})` : ""}. Para dimensionar: la contribución total del negocio es ${_val(total)}.`;
+    partes.push(l0);
+    declaraQueCaen(l0);
+    if (nCaen > materiales.length) {
+      D.conteo({ n: materiales.length, m: nCaen, predicado: "sobre el umbral del negocio", universo: U_CAEN, texto: l0 });
+      D.conteo({ n: nCaen - materiales.length, m: nCaen, predicado: "bajo el umbral del negocio", universo: U_CAEN, texto: l0 });
+      declaraUmbral(l0);
+    }
+    D.deFig(total, l0);
+    const cab = `Los ${top.length} que más caen:`;
+    partes.push(`\n${cab}`);
+    D.orden({ sujeto: top.map((c) => c.entidad), metrica: "YoY", forma: "topk", k: top.length, direccion: "menor", universo: U_CLI, texto: cab });
+    D.variacion({ sujeto: top.map((c) => c.entidad), metrica: "Ventas", direccion: "baja", texto: cab });
+    for (const c of top) {
+      const l = `- ${c.entidad} · ${c.fmt} contra el año anterior${contrib.has(c.entidad) ? ` · contribución actual ${contrib.get(c.entidad)}` : ""}`;
+      partes.push(l);
+      D.variacion({ sujeto: c.entidad, metrica: "Ventas", direccion: "baja", valor: c.fmt, texto: l });
+      if (contrib.has(c.entidad)) D.cifra({ sujeto: c.entidad, metrica: "Contribución", valor: contrib.get(c.entidad), texto: l });
+    }
     /* ⚠️ SI PREGUNTÓ POR SUCURSAL, SE DICE QUE ESE CORTE NO EXISTE (owner 2026-09-09): esta lectura responde
      * por CLIENTE, y contestar por el eje vecino sin nombrar el que pidió es improvisar por omisión — el
      * usuario se queda creyendo que le respondieron su pregunta. El punto de venta viaja en su archivo y el
      * motor todavía no lo agrega: se declara acá, con la lectura que sí existe al lado. */
     if (pidePuntoDeVenta(pregunta)) partes.push(`\nTu pregunta era por punto de venta, y ese corte todavía no lo analizo: la columna viaja en tu archivo pero aún no la agrego. Lo de arriba es por cliente, que es lo que sí puedo darte hoy.`);
-    partes.push(`\nDónde se cae queda localizado; por qué se cae no está en este dato.`);
-    partes.push(variante(semilla, [
+    const lDonde = `Dónde se cae queda localizado; por qué se cae no está en este dato.`;
+    partes.push(`\n${lDonde}`);
+    D.variacion({ sujeto: [...caenTodas], metrica: "Ventas", direccion: "baja", texto: lDonde });   // «se cae»: los que caen, cada uno con su variación en la boleta
+    const oferta = variante(semilla, [
       `Si quieres, abrimos la serie mensual de ${top[0].entidad} —el que más cae— para ver desde cuándo. Dime y la traigo.`,
       `Vale la pena ver desde cuándo: ¿abrimos la serie mensual de ${top[0].entidad}, el que más cae?`,
       `Para ver desde cuándo se cae, te abro la serie mensual de ${top[0].entidad} —el que más cae— si quieres.`,
-    ]));
+    ]);
+    partes.push(oferta);
+    D.orden({ sujeto: top[0].entidad, metrica: "YoY", forma: "min", universo: U_CLI, texto: oferta });
+    D.variacion({ sujeto: top[0].entidad, metrica: "Ventas", direccion: "baja", texto: oferta });
     /* LA LEY DEL PORQUÉ (owner 2026-09-09): el paso 3 CIERRA el turno — la oferta de navegación va antes.
      * Medido sobre los ocho lugares que el owner nombró: con la oferta al final, la pregunta que de verdad
      * cierra la lectura quedaba sepultada en el medio y el turno terminaba ofreciendo otra pantalla. */
@@ -199,7 +250,7 @@ export const inventarioInmovilizado = {
   ],
   obligatorias: [/^Capital frenado · total$/i, /· Capital frenado$/i],
   entregable: "cuánto capital está inmovilizado (y si es material para este negocio, con el umbral declarado), en qué SKU está, y cuál abrir primero — ofrecido con su cifra, jamás ordenado. Se localiza dónde; el porqué de cada freno no está en este dato.",
-  componer({ figs, semilla, pregunta } = {}) {
+  componer({ figs, semilla, pregunta, declarar } = {}) {
     const total = _find(figs, /^Capital frenado · total$/i);
     if (!total) return null;
     const dias = new Map(_all(figs, /· D[ií]as de inventario$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
@@ -213,20 +264,49 @@ export const inventarioInmovilizado = {
     if (!skus.length) return null;
     const piso = _piso();
     const esMaterial = Number.isFinite(_num(total)) && piso > 0 ? _num(total) >= piso : true;
+    /* EL NOTARIO SEMÁNTICO (fase 2): el total es una cifra del negocio (universo «total»); «está bajo el umbral» es el total MENOR que la
+     * referencia declarada en dinero, con las dos cifras del umbral; la lista es el top-k de Capital frenado entre los SKU frenados, cada
+     * línea con sus tres cifras y su estado; «cada uno está frenado» es el estado de los listados; «el mayor» es el máximo entre los frenados
+     * y «$14K de $33K» una parte del total. */
+    const D = declaradorDe(declarar);
+    const U_SKU = _universo("sku", "SKU");
+    const U_FRENADOS = "los SKU frenados";
+    const [uPct, uUsd] = _figsUmbral(figs);
     const partes = [];
     // LA VOZ (2026-09-03): «Capital inmovilizado (frenado): $X.» rotulaba; el asesor lo dice.
-    partes.push(`Tienes ${_val(total)} de capital inmovilizado — stock que no está rotando.${esMaterial ? "" : ` Está ${_fraseUmbral() || "bajo el umbral de materialidad de tu negocio"} — no es tu incendio de hoy.`}`);
+    const l0 = `Tienes ${_val(total)} de capital inmovilizado — stock que no está rotando.${esMaterial ? "" : ` Está ${_fraseUmbral() || "bajo el umbral de materialidad de tu negocio"} — no es tu incendio de hoy.`}`;
+    partes.push(l0);
+    D.cifra({ sujeto: "negocio", metrica: "Capital frenado", valor: _val(total), universo: "total", texto: l0 });
+    if (!esMaterial) {
+      if (uUsd) D.relacion({ sujeto: "negocio", metrica: "Capital frenado", forma: "menor", vs: { sujeto: "negocio", metrica: _lab(uUsd) }, texto: l0 });
+      if (uPct) D.deFig(uPct, l0);
+      if (uUsd) D.deFig(uUsd, l0);
+    }
     const top = skus.slice(0, 4);
-    partes.push(`\nDónde está:`);
+    const cab = `Dónde está:`;
+    partes.push(`\n${cab}`);
+    D.orden({ sujeto: top.map((s) => s.entidad), metrica: "Capital frenado", forma: "topk", k: top.length, direccion: "mayor", universo: U_FRENADOS, texto: cab });
+    if (skus.length <= top.length) D.conteo({ n: skus.length, predicado: "frenados", universo: U_SKU, sujeto: top.map((s) => s.entidad), texto: cab });   // la lista es completa: dónde está el capital frenado son estos
     for (const s of top) {
       /* cada cifra pegada a su concepto: «$14K (165d · rotación 1.0x)» dejaba el monto huérfano y el muro lo
        * leía atribuido a la rotación — el dueño de cada número se nombra al lado del número. */
       const extra = [dias.get(s.entidad) ? `${dias.get(s.entidad)} de inventario` : null, rota.get(s.entidad) ? `rotación ${rota.get(s.entidad)}` : null].filter(Boolean).join(" · ");
-      partes.push(`- ${s.entidad} · capital frenado ${s.fmt}${extra ? ` · ${extra}` : ""}`);
+      const l = `- ${s.entidad} · capital frenado ${s.fmt}${extra ? ` · ${extra}` : ""}`;
+      partes.push(l);
+      D.cifra({ sujeto: s.entidad, metrica: "Capital frenado", valor: s.fmt, texto: l });
+      D.estado({ sujeto: s.entidad, estado: "frenado", texto: l });
+      if (dias.get(s.entidad)) D.cifra({ sujeto: s.entidad, metrica: "Días de inventario", valor: dias.get(s.entidad), texto: l });
+      if (rota.get(s.entidad)) D.cifra({ sujeto: s.entidad, metrica: "Rotación", valor: rota.get(s.entidad), texto: l });
     }
-    if (skus.length > top.length) partes.push(`(${top.length} de ${skus.length} SKU con capital frenado.)`);
-    partes.push(`\nPor qué cada uno está frenado no está en este dato: queda localizado, no explicado.`);
-    partes.push(esMaterial
+    if (skus.length > top.length) {
+      const l = `(${top.length} de ${skus.length} SKU con capital frenado.)`;
+      partes.push(l);
+      D.conteo({ n: skus.length, predicado: "frenados", universo: U_SKU, sujeto: top.map((s) => s.entidad), texto: l });   // los listados son parte de los N frenados; el «4» es el corte de la lista, no un hecho del dato
+    }
+    const lPorQue = `Por qué cada uno está frenado no está en este dato: queda localizado, no explicado.`;
+    partes.push(`\n${lPorQue}`);
+    D.estado({ sujeto: top.map((s) => s.entidad), estado: "frenado", texto: lPorQue });
+    const cierre = esMaterial
       ? (skus.length === 1
         ? `Si quieres, empiezo por ${top[0].entidad}: es el único con capital frenado. Dime y lo abrimos.`
         : variante(semilla, [
@@ -234,7 +314,17 @@ export const inventarioInmovilizado = {
           `El mayor es ${top[0].entidad} (${top[0].fmt} de ${_val(total)}) — ¿lo abrimos?`,
           `Si te parece, arranco por ${top[0].entidad}: es el mayor (${top[0].fmt} de ${_val(total)}).`,
         ]))
-      : `Si igual quieres verlo, empiezo por ${top[0].entidad}, que es el mayor. Dime y lo abrimos.`);
+      : `Si igual quieres verlo, empiezo por ${top[0].entidad}, que es el mayor. Dime y lo abrimos.`;
+    partes.push(cierre);
+    if (skus.length === 1) D.conteo({ n: 1, predicado: "frenados", universo: U_SKU, sujeto: [top[0].entidad], texto: cierre });
+    else {
+      D.orden({ sujeto: top[0].entidad, metrica: "Capital frenado", forma: "max", universo: U_FRENADOS, texto: cierre });
+      if (esMaterial) {
+        D.cifra({ sujeto: top[0].entidad, metrica: "Capital frenado", valor: top[0].fmt, texto: cierre });
+        D.cifra({ sujeto: "negocio", metrica: "Capital frenado", valor: _val(total), universo: "total", texto: cierre });
+        D.relacion({ sujeto: top[0].entidad, metrica: "Capital frenado", forma: "parte", vs: "negocio", texto: cierre });
+      }
+    }
     /* LA LEY DEL PORQUÉ (owner 2026-09-09): el inventario NO trae la causa de un freno —está declarado en la
      * casa: sin entradas, sin lead time, sin órdenes de compra— así que el paso 1 no se puede cumplir acá y no
      * se finge. Lo que sí corresponde es la parte que el dato no puede dar y el dueño sí: preguntársela. */
@@ -338,7 +428,7 @@ export const lecturaDeVentas = {
     return [/^headline$/i, /· YoY$/i];
   },
   entregable: "si la venta cae o no contra el año anterior (la lectura del período, verbatim), quiénes explican el movimiento (YoY por cliente, materialidad mediante) y a quién abrir primero — ofrecido. Localiza; el porqué no está en este dato.",
-  componer({ figs, pregunta, semilla } = {}) {
+  componer({ figs, pregunta, semilla, declarar } = {}) {
     const caso = _casoVentas(pregunta) || "caida";
     const head = _find(figs, /^headline$/i);
     if (!head || !Number.isFinite(_pct(head))) return null;
@@ -354,6 +444,24 @@ export const lecturaDeVentas = {
     const piso = _piso();
     const caen = _materiales(yoy.filter((x) => x.usd < 0), piso).sort((a, b) => a.usd - b.usd);
     const suben = _materiales(yoy.filter((x) => x.usd > 0), piso).sort((a, b) => b.usd - a.usd);
+    /* EL NOTARIO SEMÁNTICO (fase 2): la lectura del período se declara con los rótulos con que salesRead la publica («headline» es la variación
+     * del negocio; «headlineSub», el total y su referencia) y, además, con su significado: la variación de Ventas del negocio contra el año
+     * anterior, o la relación con el presupuesto. Por cliente: cada «vs año anterior» es una variación en dinero y cada «vs ppto» una cifra;
+     * «los que más suben / aportan sobre el plan» es un orden top-k y «el que más cae / se aleja del plan» el mínimo. */
+    const D = declaradorDe(declarar);
+    const U_CLI = _universo("cliente", "clientes");
+    const M_CLI = contraPpto ? "vs ppto" : "YoY";   // el rótulo por cliente del foco pedido, para los órdenes
+    const [uPct, uUsd] = _figsUmbral(figs);
+    const ppto = _find(figs, /^Presupuesto total$/i);
+    const declaraLectura = (texto, conPar = !!par) => {
+      D.deFig(head, texto);
+      if (par && conPar) { D.deFig(subs[0], texto); D.deFig(subs[1], texto); }   // el par solo donde la línea lo imprime (la lectura de «caída» no lo cita)
+      if (!contraPpto) D.variacion({ sujeto: "negocio", metrica: "Ventas", direccion: cae ? "baja" : "sube", valor: _val(head), texto });
+      else if (ppto) D.relacion({ sujeto: "negocio", metrica: "Venta", forma: /^-?0([.,]0+)?\s*%$/.test(_val(head).trim()) ? "igual" : cae ? "menor" : "mayor", vs: { sujeto: "negocio", metrica: _lab(ppto) }, texto });
+    };
+    const declaraCliente = (x, texto) => (contraPpto
+      ? D.cifra({ sujeto: x.entidad, metrica: "vs ppto", valor: x.fmt, texto })
+      : D.variacion({ sujeto: x.entidad, metrica: "Ventas", direccion: x.usd < 0 ? "baja" : "sube", valor: x.fmt, texto }));
     const partes = [];
     // LA VOZ (2026-09-03): el asesor abre con el veredicto y lo respalda — sin endulzar el que viene mal.
     if (contraPpto) {
@@ -362,50 +470,72 @@ export const lecturaDeVentas = {
        * Y el EMPATE PUBLICADO no toma partido: con «0.0%» en pantalla (el pack de plantilla lo produce), decir
        * «por encima» es afirmar una dirección que la cifra que el usuario ve no muestra. */
       const empate = /^-?0([.,]0+)?\s*%$/.test(_val(head).trim());
-      partes.push(empate
+      const l0 = empate
         ? `Tu venta viene en línea con el presupuesto comprometido${par ? `: ${par.total} contra ${par.ref}` : ""} — ${_val(head)} en la lectura del período.`
         : cae
           ? `Tu venta quedó bajo el presupuesto comprometido${par ? `: ${par.total} contra ${par.ref}` : ""} — ${_val(head)} en la lectura del período.`
-          : `Tu venta va por encima del presupuesto comprometido${par ? `: ${par.total} contra ${par.ref}` : ""} — ${_val(head)} en la lectura del período.`);
+          : `Tu venta va por encima del presupuesto comprometido${par ? `: ${par.total} contra ${par.ref}` : ""} — ${_val(head)} en la lectura del período.`;
+      partes.push(l0);
+      declaraLectura(l0);
     } else if (caso === "neutra" || caso === "serie") {
       /* la pregunta NO afirmó que la venta cae: se abre con la lectura, no con un desmentido. */
       /* el guion largo antes de un porcentaje se lee como signo menos: «$100.0M — 7.6%» parecía una caída
        * cuando el dato dice que crece. La dirección se nombra con la palabra —que la autoriza el signo del raw
        * publicado, comparar contra cero es selección, no cuenta— y la cifra queda pegada a su referencia. */
-      partes.push(par
+      const l0 = par
         ? `Tu venta del período viene en ${par.total} y ${cae ? "viene cayendo" : "viene creciendo"} contra el año anterior: ${_val(head)} sobre los ${par.ref} del año pasado.`
-        : `Tu venta ${cae ? "viene cayendo" : "viene creciendo"} contra el año anterior: ${_val(head)} en la lectura del período.`);
+        : `Tu venta ${cae ? "viene cayendo" : "viene creciendo"} contra el año anterior: ${_val(head)} en la lectura del período.`;
+      partes.push(l0);
+      declaraLectura(l0);
       if (caso === "serie") {
         partes.push(`\nEl mes a mes no te lo puedo dictar acá: este dato publica el total del período y el detalle mensual se ve en el cuadro de la Mesa. Lo que sí te doy es quién mueve ese total.`);
       }
     } else {
-      partes.push(cae
+      const l0 = cae
         ? `Sí: tu venta viene por debajo del año anterior — ${_val(head)} en la lectura del período.`
-        : `Tu venta NO viene cayendo: la lectura del período contra el año anterior es ${_val(head)}.`);
+        : `Tu venta NO viene cayendo: la lectura del período contra el año anterior es ${_val(head)}.`;
+      partes.push(l0);
+      declaraLectura(l0, false);
     }
     /* la referencia se nombra UNA vez y es la del foco que se pidió: mezclar «año anterior» con cifras que
      * salieron del presupuesto es el defecto de los dos universos, en chico. */
     const REF = contraPpto ? "contra su presupuesto" : "contra el año anterior";
     if (caen.length) {
-      partes.push(`\n${contraPpto ? "Quiénes quedan debajo del plan" : `Dónde ${cae ? "se cae" : "sí hay caída, aunque el total suba"}`}:`);
-      for (const c of caen.slice(0, 4)) partes.push(`- ${c.entidad} · ${c.fmt} ${REF}`);
+      const cab = `${contraPpto ? "Quiénes quedan debajo del plan" : `Dónde ${cae ? "se cae" : "sí hay caída, aunque el total suba"}`}:`;
+      partes.push(`\n${cab}`);
+      if (!contraPpto) D.variacion({ sujeto: caen.slice(0, 4).map((c) => c.entidad), metrica: "Ventas", direccion: "baja", texto: cab });   // «se cae / hay caída»: los listados, cada uno con su variación
+      for (const c of caen.slice(0, 4)) { const l = `- ${c.entidad} · ${c.fmt} ${REF}`; partes.push(l); declaraCliente(c, l); }
     } else {
-      partes.push(`\nNingún cliente ${contraPpto ? "queda debajo de su presupuesto" : "cae"} de forma material ${contraPpto ? "" : REF}${_fraseUmbral() ? ` (${_fraseUmbral()})` : ""}.`.replace(/\s+/g, " "));
+      const l = `\nNingún cliente ${contraPpto ? "queda debajo de su presupuesto" : "cae"} de forma material ${contraPpto ? "" : REF}${_fraseUmbral() ? ` (${_fraseUmbral()})` : ""}.`.replace(/\s+/g, " ");
+      partes.push(l);
+      /* la materialidad es una cuenta del composer contra el piso: se declara tal cual aunque la boleta no la cuente */
+      D.conteo({ n: 0, predicado: contraPpto ? "bajo el presupuesto sobre el umbral del negocio" : "caída contra el año anterior sobre el umbral del negocio", universo: U_CLI, texto: l });
+      if (_fraseUmbral()) { if (uPct) D.deFig(uPct, l); if (uUsd) D.deFig(uUsd, l); }
     }
-    if (suben.length) partes.push(`${caen.length ? "\n" : ""}Los que más ${contraPpto ? "aportan sobre el plan" : "suben"}: ${suben.slice(0, 2).map((s) => `${s.entidad} ${s.fmt}`).join(" · ")}.`);
+    if (suben.length) {
+      const l = `${caen.length ? "\n" : ""}Los que más ${contraPpto ? "aportan sobre el plan" : "suben"}: ${suben.slice(0, 2).map((s) => `${s.entidad} ${s.fmt}`).join(" · ")}.`;
+      partes.push(l);
+      D.orden({ sujeto: suben.slice(0, 2).map((s) => s.entidad), metrica: M_CLI, forma: "topk", k: Math.min(2, suben.length), direccion: "mayor", universo: U_CLI, texto: l });
+      for (const s of suben.slice(0, 2)) declaraCliente(s, l);
+    }
     /* el mismo criterio que en la lectura de arriba: si preguntó por sucursal, se dice que ese corte no existe
      * todavía en vez de contestar por cliente como si nada (owner 2026-09-09). */
     if (pidePuntoDeVenta(pregunta)) partes.push(`\nTu pregunta era por punto de venta, y ese corte todavía no lo analizo: la columna viaja en tu archivo pero aún no la agrego. Lo de arriba es por cliente, que es lo que sí puedo darte hoy.`);
-    partes.push(`\nPor qué ${cae ? "cae" : "se mueve así"} no está en este dato: queda localizado quién y cuánto.`);
+    const lPorQue = `Por qué ${cae ? "cae" : "se mueve así"} no está en este dato: queda localizado quién y cuánto.`;
+    partes.push(`\n${lPorQue}`);
+    if (cae && !contraPpto) D.variacion({ sujeto: "negocio", metrica: "Ventas", direccion: "baja", texto: lPorQue });   // «cae»: la venta del negocio, la misma lectura de arriba
     /* el ofrecimiento cambia con lo que el turno dejó sin abrir: si hubo caídas, la cuenta que más pesa; si no,
      * la otra comparación —que existe en el dato y el usuario no pidió— o nada. Jamás se ofrece la serie
      * mensual POR CLIENTE, que este dato no trae (medido). */
     if (caen.length) {
-      partes.push(variante(semilla, [
+      const oferta = variante(semilla, [
         `Si quieres, abrimos ${caen[0].entidad} —${contraPpto ? "el que más se aleja del plan" : "el que más cae"}— para ver qué le pasa a su margen. Dime y la traigo.`,
         `Vale la pena mirar a ${caen[0].entidad}, ${contraPpto ? "el más lejos del plan" : "el que más cae"}: ¿lo abrimos?`,
         `Te abro ${caen[0].entidad} —${contraPpto ? "el que más se aleja del plan" : "el que más cae"}— si quieres verlo por dentro.`,
-      ]));
+      ]);
+      partes.push(oferta);
+      D.orden({ sujeto: caen[0].entidad, metrica: M_CLI, forma: "min", universo: U_CLI, texto: oferta });
+      if (!contraPpto) D.variacion({ sujeto: caen[0].entidad, metrica: "Ventas", direccion: "baja", texto: oferta });
     } else if (!contraPpto && (caso === "neutra" || caso === "serie")) {
       partes.push(variante(semilla, [
         `Si quieres, te la abro también contra el presupuesto comprometido.`,
@@ -468,7 +598,7 @@ export const oportunidadDePrecio = {
   ],
   obligatorias: [/^Benchmark de margen$/i, /^SKU bajo el benchmark$/i],
   entregable: "el benchmark declarado, cuántos SKU están bajo él, cuáles son (margen y venta de cada uno) y cuál abrir primero — ofrecido como revisión, jamás como orden de subir precios. Si el driver es costo o precio no está en esta lectura: se ofrece abrirlo, no se afirma.",
-  componer({ figs, semilla, pregunta } = {}) {
+  componer({ figs, semilla, pregunta, declarar } = {}) {
     const bench = _find(figs, /^Benchmark de margen$/i);
     const conteo = _find(figs, /^SKU bajo el benchmark$/i);
     if (!bench || !conteo || !Number.isFinite(_pct(bench))) return null;
@@ -484,10 +614,26 @@ export const oportunidadDePrecio = {
     const venta = new Map(_all(figs, /· Venta$/i).map((f) => [_entidadDe(_lab(f)), f]));
     const medida = new Map(_all(figs, /· Medida cerrar brecha$/i).map((f) => [_entidadDe(_lab(f)), f]));
     const top = bajo.slice(0, 3);
+    /* EL NOTARIO SEMÁNTICO (fase 2): el benchmark es una cifra del negocio; «N SKU venden por debajo» es el conteo que publica el motor,
+     * y «por debajo de esa referencia» la relación menor de cada margen publicado contra el benchmark; el orden «de menor margen» se
+     * declara sobre el universo REAL del composer —la lista de los SKU cuyo margen publica esta lectura— porque el eje entero no está en
+     * la boleta (lo dice el propio texto); cada línea trae su margen de venta y su venta. */
+    const D = declaradorDe(declarar);
+    const U_SKU = _universo("sku", "SKU");
+    const U_PUBLICADOS = bajo.map((x) => x.entidad);
     const partes = [];
     // LA VOZ (2026-09-03): rotular era «Benchmark: X. SKU bajo: N.» — el asesor lo dice en una frase.
-    partes.push(`Tu benchmark de margen es ${_val(bench)}, y ${_val(conteo)} SKU venden por debajo de esa referencia.`);
-    partes.push(`\nDónde está la oportunidad (los ${top.length} de menor margen${Number.isFinite(n) && bajo.length < n ? ` — esta lectura publica el margen de ${bajo.length} de los ${_val(conteo)}` : `, de los ${_val(conteo)} bajo el benchmark`}):`);
+    const l0 = `Tu benchmark de margen es ${_val(bench)}, y ${_val(conteo)} SKU venden por debajo de esa referencia.`;
+    partes.push(l0);
+    D.deFig(bench, l0);
+    if (Number.isFinite(n)) D.conteo({ n, predicado: "bajo el benchmark", universo: U_SKU, texto: l0 });
+    D.relacion({ sujeto: U_PUBLICADOS, metrica: "Margen", forma: "menor", vs: { sujeto: "negocio", metrica: _lab(bench) }, texto: l0 });
+    const cab = `Dónde está la oportunidad (los ${top.length} de menor margen${Number.isFinite(n) && bajo.length < n ? ` — esta lectura publica el margen de ${bajo.length} de los ${_val(conteo)}` : `, de los ${_val(conteo)} bajo el benchmark`}):`;
+    partes.push(`\n${cab}`);
+    D.orden({ sujeto: top.map((s) => s.entidad), metrica: "Margen", forma: "topk", k: top.length, direccion: "menor", universo: U_PUBLICADOS, texto: cab });
+    /* «publica el margen de N de los M» es una cuenta del composer sobre la boleta (cuántos márgenes trae de los M bajo el benchmark):
+     * se declara tal cual, aunque la boleta no la cuente */
+    if (Number.isFinite(n) && bajo.length < n) D.conteo({ n: bajo.length, m: n, predicado: "con margen publicado en esta lectura", universo: `los ${_val(conteo)} SKU bajo el benchmark`, texto: cab });
     for (const s of top) {
       const vf = venta.get(s.entidad);
       const mf = medida.get(s.entidad);
@@ -495,14 +641,20 @@ export const oportunidadDePrecio = {
       const medidaOk = mf && vf && Number.isFinite(_num(mf)) && Number.isFinite(_num(vf)) && _num(mf) <= _num(vf);
       /* «margen de venta», nunca «margen» a secas: a un SKU el muro le exige decir de CUÁL margen se habla
        * (venta vs inventario) — y el de marginRead es el de venta (las filas de margen del año, no el stock). */
-      partes.push(`- ${s.entidad} · margen de venta ${s.fmt}${vf ? ` · venta ${_val(vf)}` : ""}${medidaOk ? ` · cerrar su brecha al benchmark vale ${_val(mf)}` : ""}`);
+      const l = `- ${s.entidad} · margen de venta ${s.fmt}${vf ? ` · venta ${_val(vf)}` : ""}${medidaOk ? ` · cerrar su brecha al benchmark vale ${_val(mf)}` : ""}`;
+      partes.push(l);
+      D.cifra({ sujeto: s.entidad, metrica: "Margen", valor: s.fmt, texto: l });
+      if (vf) D.cifra({ sujeto: s.entidad, metrica: "Venta", valor: _val(vf), texto: l });
+      if (medidaOk) D.cifra({ sujeto: s.entidad, metrica: "Medida cerrar brecha", valor: _val(mf), texto: l });
     }
     partes.push(`\nSi el problema de cada uno es precio o costo no está en esta lectura: no lo afirmo.`);
-    partes.push(variante(semilla, [
+    const oferta = variante(semilla, [
       `Si quieres, abrimos ${top[0].entidad} —el de menor margen— y vemos su estructura antes de tocar ningún precio. Dime y lo abrimos.`,
       `Antes de tocar ningún precio, ¿abrimos ${top[0].entidad}? Es el de menor margen.`,
       `Te propongo abrir ${top[0].entidad} —el de menor margen— y ver su estructura antes de tocar ningún precio.`,
-    ]));
+    ]);
+    partes.push(oferta);
+    D.orden({ sujeto: top[0].entidad, metrica: "Margen", forma: "min", universo: U_PUBLICADOS, texto: oferta });
     /* LA LEY DEL PORQUÉ: esta lectura no separa costo de precio (lo dice arriba). La otra mitad la tiene él. */
     if (esPorQue(pregunta)) partes.push(`¿Sabes qué mueve ese margen: te subió el costo, cediste precio en una negociación, o cambió la mezcla de lo que se vende?`);
     return partes.join("\n");
