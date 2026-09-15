@@ -31,6 +31,7 @@ import { reDeReferencia } from "../../oracle/entityRecord.js";   // el rótulo d
 import { variante } from "../variacion.js";
 import { esPorQue, MARCA_HIPOTESIS } from "../porque.js";
 import { esConversacional, pideLaFicha } from "../formaConversacional.js";   // la ficha gana solo si la piden (owner 2026-09-09)
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): la ficha declara mientras escribe
 
 const _val = (f) => String((f && (f.text || f.value)) || "");
 const _lab = (f) => String((f && f.label) || "");
@@ -160,7 +161,8 @@ export const fichaDeEntidad = {
 
   entregable: "la ficha de esa entidad en una lectura: cuánto vende y qué lugar ocupa, con qué margen contra el benchmark declarado, cuánta contribución deja, qué le cuesta en acciones comerciales — y, si es un SKU, su capital, su rotación y sus días de inventario. Localiza; el porqué de su rendimiento no está en este dato.",
 
-  componer({ figs, pregunta, semilla, ctx } = {}) {
+  componer({ figs, pregunta, semilla, ctx, declarar } = {}) {
+    const D = declaradorDe(declarar);   // sin colector, mudo: el texto no cambia
     const ent = _caso(pregunta, ctx);
     if (!ent) return null;
     const de = (concepto) => _find(figs, new RegExp(`^${_esc(ent.nombre)} · ${concepto}$`, "i"));
@@ -178,11 +180,17 @@ export const fichaDeEntidad = {
     const doh = de("Cobertura \\(DOH\\)");
 
     const QUE_ES = { cliente: "cliente", sku: "SKU", marca: "marca", familia: "familia", bodega: "bodega", canal: "canal" }[ent.eje] || ent.eje;
+    /* el conjunto del ranking, para el Notario: «los 13 clientes» sale del propio texto de la fig («1º de 13»), nunca escrito a mano;
+     * sin ese número, el eje entero por su nombre */
+    const PLURAL = { cliente: "los clientes", sku: "los SKU", marca: "las marcas", familia: "las familias", bodega: "las bodegas", canal: "los canales" }[ent.eje] || `los ${ent.eje}`;
+    const universoDelRanking = (f) => { const m = /\bde\s+(\d+)\b/.exec(_val(f)); return m ? PLURAL.replace(" ", ` ${m[1]} `) : PLURAL; };
     const p = [];
 
     /* la colisión de ejes sin viewContext que la resuelva: se DECLARA, jamás se elige en silencio */
     if (Array.isArray(ent.colision) && ent.colision.length > 1) {
-      p.push(`«${ent.nombre}» existe en tu catálogo como ${ent.colision.join(" y como ")} — respondo por ${QUE_ES}; si buscabas la otra cara, dímelo.`);
+      const l = `«${ent.nombre}» existe en tu catálogo como ${ent.colision.join(" y como ")} — respondo por ${QUE_ES}; si buscabas la otra cara, dímelo.`;
+      p.push(l);
+      D.lectura({ texto: l, sello: "abierto" });   // la ambigüedad del nombre, declarada: no es un hecho sobre una métrica
     }
     /* ⚠️ EL PEDIDO DE INVENTARIO DE UN EJE QUE NO LO TIENE (owner en producción, 2026-09-05): «el stock de
      * Samsung» respondía el lado comercial entero SIN decir que el inventario por marca no está en el dato —
@@ -190,7 +198,9 @@ export const fichaDeEntidad = {
      * SKU; para marca/familia/cliente se DECLARA el corte ausente y se ofrece lo que hay. El SKU no pasa por
      * acá: su ficha ya trae el lado de inventario. */
     if (ent.eje !== "sku" && new RegExp(`\\bstock${_FIN}|\\binventario${_FIN}|\\brotaci[oó]n${_FIN}|d[ií]as de inventario`, "i").test(String(pregunta || ""))) {
-      p.push(`El inventario de ${ent.nombre} no está en tu dato con ese corte: el inventario vive por SKU, no por ${QUE_ES}. Lo que sí tengo es su lado comercial — y si me nombras un SKU, te doy su stock.`);
+      const l = `El inventario de ${ent.nombre} no está en tu dato con ese corte: el inventario vive por SKU, no por ${QUE_ES}. Lo que sí tengo es su lado comercial — y si me nombras un SKU, te doy su stock.`;
+      p.push(l);
+      D.lectura({ texto: l, sello: "abierto" });   // el corte ausente, dicho: un límite del dato, no una cifra
     }
     /* 1 · QUÉ ESTÁ PASANDO — cuánto pesa y cómo rinde, con la vara al lado (la ley de la vara única).
      * ⚠️ EN UN SKU, LA PROCEDENCIA SE DICE (tanda 3 post-poda): su ficha junta DOS universos que no
@@ -200,10 +210,26 @@ export const fichaDeEntidad = {
      * de inventario. Pegarlos sin decirlo es la clase-alarma de CLAUDE.md. */
     const esSku = ent.eje === "sku";
     const bajoLaVara = bench && Number.isFinite(_pct(margen)) && Number.isFinite(_pct(bench)) && _pct(margen) < _pct(bench);
-    p.push(`${ent.nombre} · ${QUE_ES}. ${esSku ? "Su lado comercial (la venta): venta" : "Venta"} del período: ${_val(venta)}${ranking && _val(ranking) ? ` — ${_val(ranking)} por venta` : ""}.`);
-    p.push(bench
+    const l1 = `${ent.nombre} · ${QUE_ES}. ${esSku ? "Su lado comercial (la venta): venta" : "Venta"} del período: ${_val(venta)}${ranking && _val(ranking) ? ` — ${_val(ranking)} por venta` : ""}.`;
+    p.push(l1);
+    D.deFig(venta, l1);
+    /* «1º de 13 por venta» es un PUESTO en el ranking por venta del eje entero (el conjunto sale de la misma fig) — y el puesto es,
+     * además, la cifra de la fig «ranking por venta» tal como la publica el motor: con su unidad `rank`, no un conteo */
+    if (ranking && _val(ranking)) {
+      const puesto = _num(ranking);
+      D.orden({ sujeto: ent.nombre, metrica: "Ventas", forma: "puesto", k: puesto, direccion: "mayor", universo: universoDelRanking(ranking), texto: l1 });
+      if (Number.isFinite(puesto)) D.cifra({ sujeto: ent.nombre, metrica: "ranking por venta", valor: { texto: String(puesto), raw: puesto, unidad: ranking.unit || "rank" }, texto: l1 });
+    }
+    const l2 = bench
       ? `Su margen ${esSku ? "comercial " : ""}es ${_val(margen)}, ${bajoLaVara ? "bajo" : "sobre"} el benchmark declarado (${_val(bench)}).`
-      : `Su margen ${esSku ? "comercial " : ""}es ${_val(margen)}.`);
+      : `Su margen ${esSku ? "comercial " : ""}es ${_val(margen)}.`;
+    p.push(l2);
+    D.deFig(margen, l2);
+    if (bench) {
+      D.deFig(bench, l2);
+      /* «bajo / sobre el benchmark» es una relación entre dos tasas de la boleta: el margen de la cuenta contra el benchmark del negocio */
+      D.relacion({ sujeto: ent.nombre, metrica: "Margen", forma: bajoLaVara ? "menor" : "mayor", vs: { sujeto: "negocio", metrica: "Benchmark de margen" }, texto: l2 });
+    }
 
     /* 2 · DÓNDE — lo que deja y lo que cuesta, sin decir por qué (el dato no lo trae) */
     /* ⚠️ CADA CIFRA PEGADA A SU CONCEPTO, en oraciones cortas. La versión larga —«…una carga de 3.2% sobre su
@@ -212,9 +238,17 @@ export const fichaDeEntidad = {
     const dos = [];
     if (contrib) dos.push(`deja ${_val(contrib)} de contribución`);
     if (acciones) dos.push(`lleva ${_val(acciones)} en acciones comerciales`);
-    if (dos.length) p.push(`\nEn el período ${dos.join(" y ")}.`);
+    if (dos.length) {
+      const l = `\nEn el período ${dos.join(" y ")}.`;
+      p.push(l);
+      if (contrib) D.deFig(contrib, l);
+      if (acciones) D.deFig(acciones, l);
+    }
     if (carga) {
-      p.push(`Su carga comercial es ${_val(carga)} de su venta${metaCarga ? `, contra ${etiquetaDeLaCarga()} de ${_val(metaCarga)}` : ""}.`);
+      const l = `Su carga comercial es ${_val(carga)} de su venta${metaCarga ? `, contra ${etiquetaDeLaCarga()} de ${_val(metaCarga)}` : ""}.`;
+      p.push(l);
+      D.deFig(carga, l);
+      if (metaCarga) D.deFig(metaCarga, l);
     }
     /* el SKU trae además su lado de inventario: se dice «días de inventario», que es el término de pantalla */
     if (capital || rotacion || doh) {
@@ -222,25 +256,39 @@ export const fichaDeEntidad = {
       if (capital) inv.push(`${_val(capital)} de capital en inventario`);
       if (rotacion) inv.push(`rotación ${_val(rotacion)}`);
       if (doh) inv.push(`${_val(doh)} de días de inventario`);
-      p.push(`\nSu lado de inventario (otro universo del dato, que no reconcilia con la venta): ${inv.join(" · ")}. El cuadro de Capital muestra además su margen de inventario — es otro campo con el mismo nombre, no este.`);
+      const l = `\nSu lado de inventario (otro universo del dato, que no reconcilia con la venta): ${inv.join(" · ")}. El cuadro de Capital muestra además su margen de inventario — es otro campo con el mismo nombre, no este.`;
+      p.push(l);
+      if (capital) D.deFig(capital, l);
+      if (rotacion) D.deFig(rotacion, l);
+      if (doh) D.deFig(doh, l, { metrica: "Días de inventario" });   // el término de pantalla, no «Cobertura (DOH)»: el sinónimo del índice los junta
     }
 
     /* 3 · QUÉ HACER PRIMERO — ofrecido, y el límite dicho */
-    p.push(`\nPor qué rinde así no está en este dato: la ficha localiza, no explica.`);
+    {
+      const l = `\nPor qué rinde así no está en este dato: la ficha localiza, no explica.`;
+      p.push(l);
+      D.lectura({ texto: l, sello: "abierto" });   // la causa no está medida: es el límite, dicho
+    }
     /* ⚠️ Y SI EL USUARIO PREGUNTÓ UNA CAUSA, EL TURNO CIERRA PREGUNTÁNDOLE A ÉL (ley del porqué, owner
      * 2026-09-09): «ADI no necesita saber todo; si falta contexto debe consultar bien al usuario para cerrar
      * la lectura». Antes esto cerraba con una OFERTA («¿la comparo contra la cartera?») — útil, y se conserva,
      * pero una oferta de navegación no es preguntar por lo que falta. El detonante lo sabe el dueño. */
-    p.push(variante(semilla, [
-      `Si quieres, la comparo contra el resto de la cartera para ver si es un caso o un patrón.`,
-      `¿La ponemos contra el resto de la cartera? Ahí se ve si es un caso aislado o un patrón.`,
-      `Te la puedo contrastar con el resto de la cartera para ver si es la excepción o la regla.`,
-    ]));
+    {
+      const l = variante(semilla, [
+        `Si quieres, la comparo contra el resto de la cartera para ver si es un caso o un patrón.`,
+        `¿La ponemos contra el resto de la cartera? Ahí se ve si es un caso aislado o un patrón.`,
+        `Te la puedo contrastar con el resto de la cartera para ver si es la excepción o la regla.`,
+      ]);
+      p.push(l);
+      D.lectura({ texto: l, sello: "criterio mío" });   // la oferta de navegación: recomendación, no hecho
+    }
     /* ⚠️ Y LA PREGUNTA AL DUEÑO CIERRA EL TURNO — va DESPUÉS de la oferta, no antes: el paso 3 de la ley es el
      * cierre, y una oferta de navegación puesta al final le roba el lugar. Medido: con la oferta al final, el
      * turno terminaba en «…si es la excepción o la regla.» y la pregunta quedaba sepultada en el medio. */
     if (esPorQue(pregunta)) {
-      p.push(`¿Qué pasó con ${ent.nombre}: te compró menos por precio, cambió su mezcla de productos, hubo un quiebre de stock, o entró un competidor?`);
+      const l = `¿Qué pasó con ${ent.nombre}: te compró menos por precio, cambió su mezcla de productos, hubo un quiebre de stock, o entró un competidor?`;
+      p.push(l);
+      D.lectura({ texto: l, sello: "abierto" });   // las causas posibles, preguntadas al dueño: ninguna afirmada
     }
     return p.join("\n");
   },

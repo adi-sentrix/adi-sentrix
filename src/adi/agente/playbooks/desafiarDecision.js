@@ -31,6 +31,7 @@ import { formaConversacional } from "../formaConversacional.js";
 import { entidadNombrada } from "./indiceEntidades.js";
 import { reDeReferencia } from "../../oracle/entityRecord.js";   // el rótulo de la referencia se busca por el MISMO label que se publica
 import { variante } from "../variacion.js";
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): el tradeoff declara mientras escribe
 
 const _val = (f) => String((f && (f.text || f.value)) || "");
 const _lab = (f) => String((f && f.label) || "");
@@ -134,10 +135,13 @@ export const desafiarDecision = {
 
   entregable: "PESA LA DECISIÓN con los dos lados medidos, en este orden: (1) di en una línea qué se está pesando, para que él vea si lo entendiste; (2) LO QUE PONE EN JUEGO, con su cifra — lo que la decisión sacrifica; (3) LO QUE HAY DEL OTRO LADO, con su cifra — lo que recupera; si los dos montos son de tamaños distintos, dilo, porque ES el punto; (4) la pieza que él tiene y el dato no, preguntada concreta. ⚠️ NUNCA apruebes ni desapruebes sin las dos cifras: «buena decisión» es complacencia y «deberías cuidar tu margen» es un sermón que vale para cualquier negocio, así que no vale para el suyo. Toma posición —el dueño la pide— pero tómala SOBRE los dos montos. Si el dato no alcanza para pesarla, eso se dice y no se adivina. ⚠️ Y CADA COSA UNA SOLA VEZ: los cuatro puntos de arriba son el ancho completo de la respuesta —seis líneas alcanzan—. No cuentes en prosa lo que después vas a repetir en una lista, ni vuelvas a dar una cifra que ya diste: decir dos veces lo mismo con otro formato no agrega nada y hace que el dueño busque la diferencia entre los dos bloques.",
 
-  componer({ figs, pregunta, semilla } = {}) {
+  componer({ figs, pregunta, semilla, declarar } = {}) {
+    const D = declaradorDe(declarar);   // sin colector, mudo: el texto no cambia
     const c = _caso(pregunta);
     if (!c) return null;
     const p = [];
+    /* el cierre de cada arco es la pieza que tiene el dueño y el dato no: una pregunta abierta, no un hecho */
+    const cierraAbierto = (opciones) => { const l = variante(semilla, opciones); p.push(l); D.lectura({ texto: l, sello: "abierto" }); };
 
     /* ── (a) LA DECISIÓN SOBRE UNA CUENTA · el tradeoff más nítido que da el dato ──────────────────────────── */
     if (c.tipo === "cuenta") {
@@ -149,22 +153,57 @@ export const desafiarDecision = {
       if (!venta || !contrib) return null;        // sin lo que pone en juego no hay tradeoff que mostrar
 
       p.push(`Estás pesando ${c.sentido === "soltar" ? `si soltar a ${c.entidad}` : c.sentido === "ceder" ? `si cederle más a ${c.entidad}` : `si seguir con ${c.entidad}` }. Te pongo los dos lados con cifra.`);
-      p.push(`Lo que pones en juego: ${_val(venta)} de venta y ${_val(contrib)} de contribución${ranking ? ` — va ${_val(ranking)} de tu cartera por venta` : ""}.`);
+      {
+        const l = `Lo que pones en juego: ${_val(venta)} de venta y ${_val(contrib)} de contribución${ranking ? ` — va ${_val(ranking)} de tu cartera por venta` : ""}.`;
+        p.push(l);
+        D.deFig(venta, l);
+        D.deFig(contrib, l);
+        /* «va 10º de 13 de tu cartera por venta»: un PUESTO en el ranking por venta de los clientes (el conjunto sale de la fig, «de 13»),
+         * y el puesto es la cifra de la fig «ranking por venta» con su unidad `rank` */
+        if (ranking) {
+          const puesto = _num(ranking), m = /\bde\s+(\d+)\b/.exec(_val(ranking));
+          D.orden({ sujeto: c.entidad, metrica: "Ventas", forma: "puesto", k: puesto, direccion: "mayor", universo: m ? `los ${m[1]} clientes` : "los clientes", texto: l });
+          if (Number.isFinite(puesto)) D.cifra({ sujeto: c.entidad, metrica: "ranking por venta", valor: { texto: String(puesto), raw: puesto, unidad: ranking.unit || "rank" }, texto: l });
+        }
+      }
 
       /* EL OTRO LADO. El dato distingue tres situaciones distintas, y cada una cambia la decisión: */
       const sobreBenchmark = margen && bench && Number.isFinite(_ord(margen)) && Number.isFinite(_ord(bench)) && _ord(margen) >= _ord(bench);
       if (sobreBenchmark) {
         /* la cuenta está SANA: acá ADI desafía la decisión de frente, que es lo que el owner pidió */
-        p.push(`Del otro lado no hay casi nada que recuperar: su margen cierra en ${_val(margen)}, sobre el benchmark declarado de ${_val(bench)}. Esta cuenta no es tu problema de margen.`);
-        p.push(`Con esas dos cifras al lado, el dato no sostiene la decisión${c.sentido === "soltar" ? ": soltarla te cuesta contribución y no te devuelve margen" : ""}.`);
+        const l = `Del otro lado no hay casi nada que recuperar: su margen cierra en ${_val(margen)}, sobre el benchmark declarado de ${_val(bench)}. Esta cuenta no es tu problema de margen.`;
+        p.push(l);
+        D.deFig(margen, l);
+        D.deFig(bench, l);
+        D.relacion({ sujeto: c.entidad, metrica: "Margen", forma: "mayor", vs: { sujeto: "negocio", metrica: "Benchmark de margen" }, texto: l });   // «sobre el benchmark»
+        const l2 = `Con esas dos cifras al lado, el dato no sostiene la decisión${c.sentido === "soltar" ? ": soltarla te cuesta contribución y no te devuelve margen" : ""}.`;
+        p.push(l2);
+        D.lectura({ texto: l2, sello: "indicado" });   // el juicio, derivado de las dos cifras de arriba
       } else if (exceso && Number.isFinite(_ord(exceso)) && _ord(exceso) > 0) {
         /* el margen delgado viene de la CONDICIÓN, no de la cuenta: es negociable, y eso cambia la decisión */
-        p.push(`Del otro lado: sus acciones comerciales van ${acciones ? _val(acciones) : "por sobre el nivel declarado"}, y ${_val(exceso)} de eso es exceso sobre el nivel de carga que tienes declarado${margen && bench ? `; su margen cierra en ${_val(margen)} contra un benchmark de ${_val(bench)}` : ""}.`);
+        const l = `Del otro lado: sus acciones comerciales van ${acciones ? _val(acciones) : "por sobre el nivel declarado"}, y ${_val(exceso)} de eso es exceso sobre el nivel de carga que tienes declarado${margen && bench ? `; su margen cierra en ${_val(margen)} contra un benchmark de ${_val(bench)}` : ""}.`;
+        p.push(l);
+        if (acciones) D.deFig(acciones, l);
+        D.deFig(exceso, l);
+        /* «$194K de eso»: el exceso es PARTE de las acciones comerciales de la misma cuenta */
+        if (acciones) D.relacion({ sujeto: c.entidad, metrica: "exceso de acciones comerciales", forma: "parte", vs: { sujeto: c.entidad, metrica: "Acciones comerciales" }, texto: l });
+        if (margen && bench) { D.deFig(margen, l); D.deFig(bench, l); }
         const desproporcion = Number.isFinite(_ord(contrib)) && _ord(exceso) * 3 < _ord(contrib);
-        p.push(`Y ahí está el punto: lo que entregas${desproporcion ? " es de otro tamaño que" : " no es lo mismo que"} lo que recuperas. Lo que tiene delgado el margen es la CONDICIÓN, no la cuenta — y una condición se renegocia sin perder la venta.`);
+        const l2 = `Y ahí está el punto: lo que entregas${desproporcion ? " es de otro tamaño que" : " no es lo mismo que"} lo que recuperas. Lo que tiene delgado el margen es la CONDICIÓN, no la cuenta — y una condición se renegocia sin perder la venta.`;
+        p.push(l2);
+        /* la lectura de los dos montos ya declarados (la contribución arriba, el exceso acá): «de otro tamaño» no cita cifra ni múltiplo.
+         * ⚠️ No va como relación: el vocabulario del muro lee «lo que recuperas» como la métrica «recuperado» (cobranza) y la declaración
+         * de contribución le sale inconsistente — un falso positivo del léxico, no una relación que el texto afirme con cifras. */
+        D.lectura({ texto: l2, sello: "indicado" });
       } else {
-        p.push(`Del otro lado: su margen cierra en ${margen ? _val(margen) : "por debajo"}${bench ? ` contra un benchmark declarado de ${_val(bench)}` : ""}, y sus acciones comerciales están dentro del nivel que tienes declarado.`);
-        p.push(`O sea el margen delgado no viene de lo que le cedes: viene del precio de lista o del mix de lo que te compra, y esta lectura no los separa.`);
+        const l = `Del otro lado: su margen cierra en ${margen ? _val(margen) : "por debajo"}${bench ? ` contra un benchmark declarado de ${_val(bench)}` : ""}, y sus acciones comerciales están dentro del nivel que tienes declarado.`;
+        p.push(l);
+        if (margen) D.deFig(margen, l);
+        if (bench) D.deFig(bench, l);
+        D.lectura({ texto: `sus acciones comerciales están dentro del nivel que tienes declarado`, sello: "indicado" });   // sin exceso publicado: derivado de su ausencia
+        const l2 = `O sea el margen delgado no viene de lo que le cedes: viene del precio de lista o del mix de lo que te compra, y esta lectura no los separa.`;
+        p.push(l2);
+        D.lectura({ texto: l2, sello: "indicado" });
       }
       /* ⚠️ CEDER ES OTRA DECISIÓN QUE SOLTAR, y merece su propia cifra: lo que se cede sale de una
        * contribución concreta, y el margen que queda antes del nivel declarado se puede nombrar sin
@@ -179,13 +218,17 @@ export const desafiarDecision = {
        * cerrar: el nombre vive en un lugar y todos lo siguen. */
       const nivel = _find(figs, reDeReferencia("pctRebate"));
       if (c.sentido === "ceder" && carga) {
-        p.push(`Y como lo que pesas es cederle MÁS: eso sale de esos ${_val(contrib)} de contribución. Su carga comercial hoy va ${_val(carga)}${nivel ? ` contra un nivel declarado de ${_val(nivel)}` : ""} — el espacio lo ves ahí; la pregunta es contra qué lo cedes.`);
+        const l = `Y como lo que pesas es cederle MÁS: eso sale de esos ${_val(contrib)} de contribución. Su carga comercial hoy va ${_val(carga)}${nivel ? ` contra un nivel declarado de ${_val(nivel)}` : ""} — el espacio lo ves ahí; la pregunta es contra qué lo cedes.`;
+        p.push(l);
+        D.deFig(contrib, l);
+        D.deFig(carga, l);
+        if (nivel) D.deFig(nivel, l);
       }
-      p.push(variante(semilla, [
+      cierraAbierto([
         `Lo que el dato no tiene y decides tú: qué te da esa cuenta además del margen. Dime eso y cierro la recomendación.`,
         `La pieza que falta es tuya: si esa condición compró algo —volumen, posición, plazo—. Dímelo y cierro la lectura.`,
         `Falta tu lado: si esas condiciones se negociaron a cambio de algo. Con eso cierro la recomendación.`,
-      ]));
+      ]);
       return p.join("\n");
     }
 
@@ -198,14 +241,32 @@ export const desafiarDecision = {
       const erosion = _find(figs, /erosión por acciones comerciales/i);
       if (!cerrar) return null;
       p.push(`Estás pesando si priorizar volumen. Te pongo los dos lados con cifra.`);
-      p.push(`Lo que el volumen te cobra hoy: ${conteo ? `${_val(conteo)} clientes` : "buena parte de la cartera"} cierran bajo el benchmark declarado${bench ? ` de ${_val(bench)}` : ""}${brecha ? `, y el negocio cierra ${_val(brecha)} por debajo` : ""}. Cerrar esa brecha vale ${_val(cerrar)}.`);
-      if (erosion) p.push(`Y de esos, ${_val(erosion)} ceden margen por acciones comerciales — o sea buena parte de lo que el volumen cuesta no es precio de lista, es condición negociada.`);
-      p.push(`Mi lectura, y es lectura: con esa concentración, crecer en volumen sin tocar las condiciones te sale caro dos veces — el margen delgado se te multiplica por la venta nueva.`);
-      p.push(variante(semilla, [
+      {
+        const l = `Lo que el volumen te cobra hoy: ${conteo ? `${_val(conteo)} clientes` : "buena parte de la cartera"} cierran bajo el benchmark declarado${bench ? ` de ${_val(bench)}` : ""}${brecha ? `, y el negocio cierra ${_val(brecha)} por debajo` : ""}. Cerrar esa brecha vale ${_val(cerrar)}.`;
+        p.push(l);
+        /* «8 clientes cierran bajo el benchmark» es un conteo sobre la cartera entera; el predicado con las palabras de su rótulo */
+        if (conteo) D.conteo({ n: _num(conteo), predicado: "bajo el benchmark", universo: "los clientes de la cartera", texto: l });
+        if (bench) D.deFig(bench, l);
+        if (brecha) D.deFig(brecha, l);
+        D.deFig(cerrar, l);
+      }
+      if (erosion) {
+        const l = `Y de esos, ${_val(erosion)} ceden margen por acciones comerciales — o sea buena parte de lo que el volumen cuesta no es precio de lista, es condición negociada.`;
+        p.push(l);
+        /* «de esos»: los que ceden por acciones comerciales se cuentan DENTRO de los que cierran bajo el benchmark (el universo de la línea anterior) */
+        D.conteo({ n: _num(erosion), predicado: "erosión por acciones comerciales", universo: conteo ? `los ${_val(conteo)} clientes bajo el benchmark` : "bajo el benchmark", texto: l });
+        D.lectura({ texto: `buena parte de lo que el volumen cuesta no es precio de lista, es condición negociada`, sello: "indicado" });
+      }
+      {
+        const l = `Mi lectura, y es lectura: con esa concentración, crecer en volumen sin tocar las condiciones te sale caro dos veces — el margen delgado se te multiplica por la venta nueva.`;
+        p.push(l);
+        D.lectura({ texto: l, sello: "criterio mío" });
+      }
+      cierraAbierto([
         `Lo que el dato no dice y sabes tú: si ese volumen compra posición o si se está comprando solo. Dímelo y cierro la lectura.`,
         `Falta tu lado: qué te da el volumen además de la venta. Con eso cierro la recomendación.`,
         `La pieza tuya: si el crecimiento tiene un destino —una categoría, un canal— o es parejo. Dímelo y lo aterrizo.`,
-      ]));
+      ]);
       return p.join("\n");
     }
 
@@ -217,12 +278,19 @@ export const desafiarDecision = {
       if (!bench) return null;
       p.push(`Estás pesando una decisión, pero no me dijiste cuál — y sin saberlo te daría una opinión que sirve para cualquier negocio.`);
       p.push(`Con tu dato puedo pesar tres: seguir o soltar una cuenta · priorizar volumen · mover precios o descuentos. En las tres te pongo lo que pones en juego y lo que recuperas, cada uno con su cifra.`);
-      if (erosion) p.push(`Y si sirve de pista: hoy ${_val(erosion)} de tus clientes ceden margen por acciones comerciales${sanos ? ` y ${_val(sanos)} cierran sobre el benchmark declarado de ${_val(bench)}` : ` contra un benchmark declarado de ${_val(bench)}`}. Ahí es donde una decisión tuya movería más.`);
-      p.push(variante(semilla, [
+      if (erosion) {
+        const l = `Y si sirve de pista: hoy ${_val(erosion)} de tus clientes ceden margen por acciones comerciales${sanos ? ` y ${_val(sanos)} cierran sobre el benchmark declarado de ${_val(bench)}` : ` contra un benchmark declarado de ${_val(bench)}`}. Ahí es donde una decisión tuya movería más.`;
+        p.push(l);
+        D.conteo({ n: _num(erosion), predicado: "erosión por acciones comerciales", universo: "los clientes de la cartera", texto: l });
+        if (sanos) D.conteo({ n: _num(sanos), predicado: "sobre el benchmark", universo: "los clientes de la cartera", texto: l });
+        D.deFig(bench, l);
+        D.lectura({ texto: `Ahí es donde una decisión tuya movería más`, sello: "criterio mío" });
+      }
+      cierraAbierto([
         `Dime cuál de las tres es y la peso.`,
         `Nómbrame la decisión y te pongo los dos lados.`,
         `Dime sobre qué estás decidiendo y arranco por ahí.`,
-      ]));
+      ]);
       return p.join("\n");
     }
 
@@ -233,14 +301,27 @@ export const desafiarDecision = {
     const bench = _find(figs, /^Benchmark de margen$/i);
     const conteo = _find(figs, /clientes bajo el benchmark/i);
     p.push(`Estás pesando ${c.sentido === "ceder" ? "ceder más en precio o descuentos" : "mover precios o descuentos"}. Te pongo la unidad de la decisión.`);
-    p.push(`Un punto de margen en ${cuenta} vale ${_val(unpunto)}. Esa es la medida: cada punto que cedes o recuperas ahí pesa eso.`);
-    if (conteo && bench) p.push(`Y el contexto: ${_val(conteo)} clientes ya cierran bajo el benchmark declarado de ${_val(bench)}, así que el margen que ibas a ceder ya está cedido en buena parte de la cartera.`);
-    p.push(`Mi lectura, y es lectura: mover el precio parejo cobra donde ya estás delgado. Si hay que ceder, el dato dice dónde puedes y dónde no.`);
-    p.push(variante(semilla, [
+    {
+      const l = `Un punto de margen en ${cuenta} vale ${_val(unpunto)}. Esa es la medida: cada punto que cedes o recuperas ahí pesa eso.`;
+      p.push(l);
+      D.deFig(unpunto, l);
+    }
+    if (conteo && bench) {
+      const l = `Y el contexto: ${_val(conteo)} clientes ya cierran bajo el benchmark declarado de ${_val(bench)}, así que el margen que ibas a ceder ya está cedido en buena parte de la cartera.`;
+      p.push(l);
+      D.conteo({ n: _num(conteo), predicado: "bajo el benchmark", universo: "los clientes de la cartera", texto: l });
+      D.deFig(bench, l);
+    }
+    {
+      const l = `Mi lectura, y es lectura: mover el precio parejo cobra donde ya estás delgado. Si hay que ceder, el dato dice dónde puedes y dónde no.`;
+      p.push(l);
+      D.lectura({ texto: l, sello: "criterio mío" });
+    }
+    cierraAbierto([
       `Lo que decides tú: contra qué estás cediendo — volumen, plazo, exclusividad. Dímelo y lo peso.`,
       `Falta tu lado: si el movimiento es defensivo o para ganar cuentas. Con eso cierro la recomendación.`,
       `La pieza tuya: en qué cuentas te lo están pidiendo. Dímelo y miro esas.`,
-    ]));
+    ]);
     return p.join("\n");
   },
 
