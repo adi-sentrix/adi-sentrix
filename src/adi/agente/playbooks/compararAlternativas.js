@@ -33,12 +33,21 @@ import { formaConversacional } from "../formaConversacional.js";
 import { entidadesNombradas } from "./indiceEntidades.js";
 import { reDeReferencia } from "../../oracle/entityRecord.js";
 import { variante } from "../variacion.js";
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): el composer declara mientras escribe
 
 const _val = (f) => String((f && (f.text || f.value)) || "");
 const _lab = (f) => String((f && f.label) || "");
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 const _find = (figs, re) => (Array.isArray(figs) ? figs : []).find((f) => re.test(_lab(f))) || null;
 const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/* el universo de un subtotal, para declararlo: el tramo del rótulo que lo nombra («6 cuentas sobre el nivel declarado (…)»), o la
+ * lista de entidades del grupo que la fig trae, o «total» — un subtotal declarado sin su conjunto no es verificable */
+const _universoDe = (f) => {
+  const m = /· subtotal · (.+)$/i.exec(_lab(f));
+  if (m) return m[1];
+  if (f && f.grupo && Array.isArray(f.grupo.entidades) && f.grupo.entidades.length) return f.grupo.entidades.map(String);
+  return /· total$/i.test(_lab(f)) ? "total" : undefined;
+};
 
 /* el número para COMPARAR cuando la cifra no trae `raw`, con su escala. Nunca para mostrar. */
 const _ESCALA = { k: 1e3, m: 1e6, b: 1e9 };
@@ -150,7 +159,9 @@ const _PRECIO_FRENTE = {
  * el otro camino, dar por resuelto el elegido, ni inventar una elección donde el dato no eligió. La falla se
  * vio en la pantalla del owner el mismo día: el camino de respaldo recomendó renegociar la cuenta descartada
  * y dio por sana justo la que el procedimiento había elegido — misma boleta, conclusión opuesta. */
-function _ladosDeCuentas(opciones, figs) {
+/* `D` es el colector del Notario (fase 2): `componer` lo pasa y cada lado declara lo que su línea afirma; `conclusionDe` no lo pasa
+ * y el colector mudo deja la derivación exactamente como estaba. */
+function _ladosDeCuentas(opciones, figs, D = declaradorDe(null)) {
   const [A, B] = opciones;
   const g = (e, re) => _find(figs, new RegExp(`^${_esc(e)} · ${re}$`, "i"));
   const nivel = _find(figs, reDeReferencia("pctRebate"));
@@ -169,7 +180,23 @@ function _ladosDeCuentas(opciones, figs) {
       : (carga && nivel) ? `no cae, y su carga va ${_val(carga)} dentro del nivel declarado de ${_val(nivel)}${margen ? `, con el margen en ${_val(margen)}` : ""}: no hay un monto suelto que recuperar`
       : carga ? `no cae, y cede ${_val(carga)} de carga comercial — pero esta lectura no trae el nivel contra el que se mide, así que no te puedo decir si eso es mucho o poco`
       : `no cae contra el período comparable${margen ? `, y su margen cierra en ${_val(margen)}` : ""}`;
-    return { e, contrib, texto: `${e} aporta ${_val(contrib)} hoy, y ${precio}.`, urgencia: cae ? Math.abs(_ord(yoy)) : cede ? _ord(carga) - _ord(nivel) : 0, cae, cede };
+    const texto = `${e} aporta ${_val(contrib)} hoy, y ${precio}.`;
+    /* lo que ESTA variante del precio escribe, hecho por hecho: la contribución siempre; «viene -$420K» = la venta baja, con su
+     * magnitud; «no cae» (las tres variantes que lo dicen) = la variación que el YoY sostiene, declarada sobre ese tramo —sin las
+     * palabras de carga o margen que siguen, que el juez leería como la métrica de la frase—; la carga contra el nivel declarado
+     * (cede = mayor; «dentro del nivel» = menor o igual); el margen solo cuando la variante lo imprime */
+    D.deFig(contrib, texto);
+    if (cae) D.variacion({ sujeto: e, metrica: "Ventas", direccion: "baja", valor: _val(yoy), texto });
+    else if (!cede && yoy && Number.isFinite(_ord(yoy))) D.variacion({ sujeto: e, metrica: "Ventas", direccion: _ord(yoy) > 0 ? "sube" : "estable", texto: `${e} aporta ${_val(contrib)} hoy, y no cae` });
+    if (!cae && carga) {
+      D.deFig(carga, texto);
+      if (nivel) {
+        D.deFig(nivel, texto);
+        D.relacion({ sujeto: e, metrica: "Carga comercial", forma: cede ? "mayor" : _ord(carga) < _ord(nivel) ? "menor" : "igual", vs: { sujeto: "negocio", metrica: _lab(nivel) }, texto });
+      }
+    }
+    if (!cae && !cede && margen && (!carga || nivel)) D.deFig(margen, texto);   // el margen se imprime «dentro del nivel» y en la variante sin carga
+    return { e, contrib, texto, urgencia: cae ? Math.abs(_ord(yoy)) : cede ? _ord(carga) - _ord(nivel) : 0, cae, cede };
   };
   const la = lado(A), lb = lado(B);
   return la && lb ? { la, lb } : null;
@@ -264,7 +291,12 @@ export const compararAlternativas = {
 
   entregable: "COMPARA LOS DOS CAMINOS, sin esconder ninguno: (1) nómbralos, para que el dueño vea si entendiste cuáles son; (2) PONLE PRECIO A CADA UNO, con su cifra y SU REFERENCIA —un monto solo no permite elegir—; (3) ELIGE o MARCA EL TRADEOFF: si un precio es de otro tamaño, elige y di por qué; si los dos miden cosas distintas o salen de universos distintos, dilo y no finjas una comparación; (4) cierra pidiendo la pieza que él tiene. ⚠️ RESPONDER UNA SOLA ALTERNATIVA ES LA FALLA: él no pidió ver A, pidió saber cuál. Y esconder la otra es peor que no contestar, porque parece una recomendación. ⚠️ Si los dos montos vienen de universos distintos, di de cuál sale cada uno.",
 
-  componer({ figs, pregunta, semilla, ctx } = {}) {
+  /* Con el colector `declarar` (Notario semántico, fase 2) el composer DECLARA cada hecho mientras lo escribe: el precio de cada
+   * camino cifra por cifra (con su referencia), la elección como el comparativo que la decidió, y sella como lectura lo que es
+   * juicio de asesor. Sin colector, `D` es mudo y el texto es el mismo byte a byte. Cada línea (o el tramo que afirma) se guarda
+   * en una variable para que el `texto` declarado sea literal. */
+  componer({ figs, pregunta, semilla, ctx, declarar } = {}) {
+    const D = declaradorDe(declarar);
     const c = _caso(pregunta, ctx);
     if (!c) return null;
     const p = [];
@@ -273,7 +305,7 @@ export const compararAlternativas = {
      * la lectura de cada lado y LA ELECCIÓN salen de las mismas funciones que alimentan a `conclusionDe`: el
      * notario de abajo defiende exactamente lo que acá se escribe, no una copia (ley del 2026-09-10). */
     if (c.tipo === "cuentas") {
-      const d = _ladosDeCuentas(c.opciones, figs);
+      const d = _ladosDeCuentas(c.opciones, figs, D);
       if (!d) return null;
       const { la, lb } = d;
       p.push(`Los dos caminos, con precio.`);
@@ -283,12 +315,26 @@ export const compararAlternativas = {
       const con = _eleccionDeCuentas(la, lb);
       if (con.regla === "se-esta-yendo") {
         const { cayendo, otro } = con;
-        p.push(`No son la misma decisión: ${cayendo.e} se está yendo y ${otro.e} está entregando margen. Lo que se va no vuelve solo; lo que se entrega lo entregas tú cada vez que renuevas la condición.`);
-        p.push(`Yo entraría por ${cayendo.e}: una cuenta que cae tiene una ventana, una condición cara sigue ahí la semana que viene.`);
+        const l1 = `No son la misma decisión: ${cayendo.e} se está yendo y ${otro.e} está entregando margen.`;
+        const l1b = `Lo que se va no vuelve solo; lo que se entrega lo entregas tú cada vez que renuevas la condición.`;
+        p.push(`${l1} ${l1b}`);
+        D.lectura({ texto: l1, sello: "indicado" });
+        D.lectura({ texto: l1b, sello: "criterio mío" });
+        const l2 = `Yo entraría por ${cayendo.e}: una cuenta que cae tiene una ventana, una condición cara sigue ahí la semana que viene.`;
+        p.push(l2);
+        /* «una cuenta que cae» es la elegida: la misma variación que ya sostuvo su precio, declarada donde se vuelve a afirmar */
+        D.variacion({ sujeto: cayendo.e, metrica: "Ventas", direccion: "baja", texto: l2 });
+        D.lectura({ texto: l2, sello: "criterio mío" });
       } else if (con.regla === "cede-mas") {
-        p.push(`Los dos son el mismo tipo de decisión —condición cara— así que se ordenan por tamaño: ${con.mayor.e} primero.`);
+        const l1 = `Los dos son el mismo tipo de decisión —condición cara— así que se ordenan por tamaño: ${con.mayor.e} primero.`;
+        p.push(l1);
+        /* el «tamaño» que ordena es el exceso de carga sobre el MISMO nivel declarado: la que cede más carga va primero */
+        const menor = con.mayor === la ? lb : la;
+        D.orden({ sujeto: con.mayor.e, metrica: "Carga comercial", forma: "comparativo", direccion: "mayor", vs: menor.e, texto: l1 });
       } else {
-        p.push(`Con estas cifras los dos caminos pesan parecido, así que la elección no la decide el dato: la decide qué relación quieres sostener.`);
+        const l1 = `Con estas cifras los dos caminos pesan parecido, así que la elección no la decide el dato: la decide qué relación quieres sostener.`;
+        p.push(l1);
+        D.lectura({ texto: l1, sello: "abierto" });
       }
       p.push(variante(semilla, [
         `Lo que el dato no tiene y decides tú: con cuál tienes conversación abierta. Dímelo y aterrizo el movimiento.`,
@@ -304,18 +350,26 @@ export const compararAlternativas = {
       if (!lados) return null;
       const [x, y] = lados;
       p.push(`Los dos frentes, con precio.`);
-      p.push(`· ${x.d.nombre[0].toUpperCase()}${x.d.nombre.slice(1)}: ${_val(x.f)} — ${x.d.que}.`);
-      p.push(`· ${y.d.nombre[0].toUpperCase()}${y.d.nombre.slice(1)}: ${_val(y.f)} — ${y.d.que}.`);
+      /* el precio de cada frente: la fig con su universo (el subtotal con su conjunto, el total como total) */
+      for (const z of [x, y]) { const l = `· ${z.d.nombre[0].toUpperCase()}${z.d.nombre.slice(1)}: ${_val(z.f)} — ${z.d.que}.`; p.push(l); D.deFig(z.f, l, { universo: _universoDe(z.f) }); }
       /* ⚠️ DOS MONTOS DE UNIVERSOS DISTINTOS NO VAN JUNTOS SIN DECLARARLO (CLAUDE.md §2) */
       const cruzaUniverso = c.opciones.includes("capital") && c.opciones.some((k) => k !== "capital");
       if (cruzaUniverso) {
-        p.push(`⚠️ Y no son el mismo dinero: uno sale de tu venta comercial y el otro del inventario en bodega, que en este dato son dos mundos que no cierran entre sí. Se pueden ordenar por urgencia, no sumar.`);
+        const l = `⚠️ Y no son el mismo dinero: uno sale de tu venta comercial y el otro del inventario en bodega, que en este dato son dos mundos que no cierran entre sí. Se pueden ordenar por urgencia, no sumar.`;
+        p.push(l);
+        D.lectura({ texto: l, sello: "probado" });   // la divergencia de universos la declara el pack (CLAUDE.md §4)
       }
       const con = _eleccionDeDominios(x, y);
       if (con.regla === "tamano") {
-        p.push(`Por tamaño no hay empate: ${con.mayor.d.nombre} pesa varias veces lo otro, así que ahí es donde una hora tuya rinde más.`);
+        const l = `Por tamaño no hay empate: ${con.mayor.d.nombre} pesa varias veces lo otro, así que ahí es donde una hora tuya rinde más.`;
+        p.push(l);
+        /* «pesa varias veces lo otro» (el doble o más, sin múltiplo dicho): se declara como la relación mayor entre las dos figs del precio */
+        const menor = con.mayor === x ? y : x;
+        D.relacion({ sujeto: "negocio", metrica: _lab(con.mayor.f), forma: "mayor", vs: { sujeto: "negocio", metrica: _lab(menor.f) }, texto: l });
       } else {
-        p.push(`Los dos pesan parecido, así que el tamaño no elige: elige el que puedas mover más rápido, y eso lo sabes tú mejor que el dato.`);
+        const l = `Los dos pesan parecido, así que el tamaño no elige: elige el que puedas mover más rápido, y eso lo sabes tú mejor que el dato.`;
+        p.push(l);
+        D.lectura({ texto: l, sello: "abierto" });
       }
       p.push(variante(semilla, [
         `¿Te abro el que elijas por dentro, para ver dónde se concentra?`,
@@ -332,9 +386,22 @@ export const compararAlternativas = {
     const excedenNivel = _find(figs, /exceden el .*carga|erosión por acciones comerciales/i);
     if (!cargaAlta) return null;
     p.push(`Los dos caminos, con precio.`);
-    p.push(`· Vender más: la venta ${crecio ? `ya viene ${_val(crecio)} contra el período comparable` : "viene creciendo"}, así que el camino está abierto — pero cada peso nuevo entra a la condición que tengas puesta hoy.`);
-    p.push(`· Proteger margen: hay ${_val(cargaAlta)} cediéndose en acciones comerciales por sobre ${nivel ? `el nivel de ${_val(nivel)} que tienes declarado` : "el nivel que tienes declarado"}${excedenNivel ? `, repartidos en ${_val(excedenNivel)} cuentas` : ""}. Eso se recupera sin vender un peso más.`);
-    p.push(`No es un empate y por eso elijo: crecer sobre una condición cara multiplica la fuga, porque la venta nueva entra al mismo margen delgado. Primero la condición, después el volumen — en ese orden el crecimiento sí llega abajo.`);
+    const l1 = `· Vender más: la venta ${crecio ? `ya viene ${_val(crecio)} contra el período comparable` : "viene creciendo"}, así que el camino está abierto — pero cada peso nuevo entra a la condición que tengas puesta hoy.`;
+    p.push(l1);
+    /* la venta del negocio contra el año anterior: con el `headline` de salesRead, la cifra tal como la publica; sin él, la frase
+     * afirma que crece y la declaración lo dice así — el Notario juzga con lo que la boleta trae */
+    if (crecio) D.deFig(crecio, l1); else D.variacion({ sujeto: "negocio", metrica: "Ventas", direccion: "sube", texto: l1 });
+    const l2 = `· Proteger margen: hay ${_val(cargaAlta)} cediéndose en acciones comerciales por sobre ${nivel ? `el nivel de ${_val(nivel)} que tienes declarado` : "el nivel que tienes declarado"}${excedenNivel ? `, repartidos en ${_val(excedenNivel)} cuentas` : ""}. Eso se recupera sin vender un peso más.`;
+    p.push(l2);
+    D.deFig(cargaAlta, l2, { universo: _universoDe(cargaAlta) });
+    if (nivel) D.deFig(nivel, l2);
+    /* «repartidos en N cuentas»: el conteo de las que ceden por sobre el nivel declarado, sobre la cartera entera */
+    if (excedenNivel) D.conteo({ n: _num(excedenNivel), predicado: "sobre el nivel declarado", universo: "los clientes de la cartera", texto: l2 });
+    const l3 = `No es un empate y por eso elijo: crecer sobre una condición cara multiplica la fuga, porque la venta nueva entra al mismo margen delgado.`;
+    const l3b = `Primero la condición, después el volumen — en ese orden el crecimiento sí llega abajo.`;
+    p.push(`${l3} ${l3b}`);
+    D.lectura({ texto: l3, sello: "criterio mío" });
+    D.lectura({ texto: l3b, sello: "criterio mío" });
     p.push(variante(semilla, [
       `Lo que decides tú: si hay un compromiso de crecimiento que no se puede mover este año. Dímelo y lo peso.`,
       `Falta tu lado: si el volumen tiene un plazo comprometido. Con eso ajusto el orden.`,

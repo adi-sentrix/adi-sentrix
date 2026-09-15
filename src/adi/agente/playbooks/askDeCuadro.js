@@ -30,6 +30,7 @@
 
 import { entidadNombrada } from "./indiceEntidades.js";
 import { variante } from "../variacion.js";
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): el composer declara mientras escribe
 
 const _val = (f) => String((f && (f.text || f.value)) || "");
 const _lab = (f) => String((f && f.label) || "");
@@ -137,18 +138,33 @@ export const askDeCuadro = {
 
   entregable: "la respuesta del cuadro que el usuario está mirando: SU fila, con la cifra del mismo módulo que la pinta — el corte por bodega o familia, la fila de inventario del SKU, el frenado a liberar, o el cobro de esa cuenta. Si el corte no existe como lectura del motor (los tramos de edad), se declara. Jamás el total del negocio ni otro eje en su lugar.",
 
-  componer({ figs, pregunta, semilla, ctx } = {}) {
+  /* Con el colector `declarar` (Notario semántico, fase 2) el composer DECLARA cada hecho mientras lo escribe: la fila pedida con
+   * su cifra, su puesto y la lista del corte como orden sobre su eje, los frenados con su estado y su cola, el cobro cifra por
+   * cifra; y sella como lectura lo que es límite declarado. Sin colector, `D` es mudo y el texto es el mismo byte a byte. Cada
+   * línea (o el tramo que afirma) se guarda en una variable para que el `texto` declarado sea literal. */
+  componer({ figs, pregunta, semilla, ctx, declarar } = {}) {
+    const D = declaradorDe(declarar);
     const c = _caso(pregunta, ctx);
     if (!c) return null;
     const p = [];
+    /* la lista de un corte se declara como orden top-k sobre SU eje (la boleta trae también otros cortes de capital: el orden se
+     * juzga contra el eje que la frase nombra), y cada fila con su cifra */
+    const declaraCorte = (todas, eje, texto) => {
+      D.orden({ sujeto: todas.map((x) => x.nombre), metrica: "Capital", forma: "topk", k: todas.length, direccion: "mayor", universo: `las ${eje}s del inventario`, texto });
+      for (const x of todas) D.deFig(x.f, texto);
+    };
 
     if (c.forma === "capital_en" && c.eje === "edad") {
       /* el corte que el cuadro pinta y el motor no publica: la regla 2 — declarar, no aproximar. La
        * alternativa va CON cifra (el corte por bodega vino en los pasos). */
-      const todas = _all(figs, /· Capital$/i).map((f) => ({ nombre: _lab(f).split("·")[0].trim(), raw: _num(f), fmt: _val(f) }))
+      const todas = _all(figs, /· Capital$/i).map((f) => ({ nombre: _lab(f).split("·")[0].trim(), raw: _num(f), fmt: _val(f), f }))
         .filter((x) => Number.isFinite(x.raw)).sort((a, b) => b.raw - a.raw);
       p.push(`El corte «${c.nombre}» lo arma el cuadro de Capital tramando los días sin venta, y ese tramado no está publicado como una lectura verificada: no tengo una cifra verificada para dictarte por ese corte.`);
-      if (todas.length) p.push(`Lo que sí tengo con cifra verificada es el corte por bodega: ${todas.map((x) => `${x.nombre} ${x.fmt}`).join(" · ")}. También puedo abrirte una familia o un SKU puntual.`);
+      if (todas.length) {
+        const l = `Lo que sí tengo con cifra verificada es el corte por bodega: ${todas.map((x) => `${x.nombre} ${x.fmt}`).join(" · ")}.`;
+        p.push(`${l} También puedo abrirte una familia o un SKU puntual.`);
+        declaraCorte(todas, "bodega", l);
+      }
       return p.join("\n");
     }
 
@@ -159,11 +175,18 @@ export const askDeCuadro = {
       if (Array.isArray(c.colision) && c.colision.length > 1) {
         p.push(`«${c.nombre}» existe en tu catálogo como ${c.colision.join(" y como ")} — respondo por ${c.eje}; si buscabas la otra cara, dímelo o tócala desde su cuadro.`);
       }
-      const todas = _all(figs, /· Capital$/i).map((f) => ({ nombre: _lab(f).split("·")[0].trim(), raw: _num(f), fmt: _val(f) }))
+      const todas = _all(figs, /· Capital$/i).map((f) => ({ nombre: _lab(f).split("·")[0].trim(), raw: _num(f), fmt: _val(f), f }))
         .filter((x) => Number.isFinite(x.raw)).sort((a, b) => b.raw - a.raw);
       const lugar = todas.findIndex((x) => x.nombre.toLowerCase() === c.nombre.toLowerCase());
-      p.push(`En ${c.nombre} tienes ${_val(mia)} de capital en inventario${lugar >= 0 && todas.length > 1 ? ` — la ${lugar + 1}ª ${c.eje} de ${todas.length} por capital` : ""}.`);
-      if (todas.length > 1) p.push(`El corte completo, de mayor a menor: ${todas.map((x) => `${x.nombre} ${x.fmt}`).join(" · ")}.`);
+      const l1 = `En ${c.nombre} tienes ${_val(mia)} de capital en inventario${lugar >= 0 && todas.length > 1 ? ` — la ${lugar + 1}ª ${c.eje} de ${todas.length} por capital` : ""}.`;
+      p.push(l1);
+      D.deFig(mia, l1);
+      /* «la Nª <eje> de M por capital»: el puesto se declara sobre el eje que la frase nombra, y el «de M» como el conteo que afirma */
+      if (lugar >= 0 && todas.length > 1) {
+        D.orden({ sujeto: c.nombre, metrica: "Capital", forma: "puesto", k: lugar + 1, direccion: "mayor", universo: `las ${c.eje}s del inventario`, texto: l1 });
+        D.conteo({ n: todas.length, predicado: "con capital en inventario", universo: `las ${c.eje}s del inventario`, texto: l1 });
+      }
+      if (todas.length > 1) { const l2 = `El corte completo, de mayor a menor: ${todas.map((x) => `${x.nombre} ${x.fmt}`).join(" · ")}.`; p.push(l2); declaraCorte(todas, c.eje, l2); }
       p.push(variante(semilla, [
         `\nSi quieres, te abro qué parte de ese capital está frenada y en qué SKU.`,
         `\n¿Te abro lo frenado de ${c.nombre}, SKU por SKU?`,
@@ -180,7 +203,9 @@ export const askDeCuadro = {
       const partes = [`${_val(cap)} de capital en inventario`];
       if (rot) partes.push(`rotación ${_val(rot)}`);
       if (doh) partes.push(`${_val(doh)} de días de inventario`);
-      p.push(`${c.nombre}, en el cuadro de Capital: ${partes.join(" · ")}.`);
+      const l1 = `${c.nombre}, en el cuadro de Capital: ${partes.join(" · ")}.`;
+      p.push(l1);
+      for (const f of [cap, rot, doh]) if (f) D.deFig(f, l1);   // la fila del SKU, cifra por cifra, con el rótulo de cada una
       /* la frontera: el lado comercial de ese SKU existe pero NO se cita acá — es otro universo y otra vista */
       p.push(`Su lado comercial vive en su ficha — este cuadro mira el inventario.`);
       p.push(variante(semilla, [
@@ -197,7 +222,7 @@ export const askDeCuadro = {
       /* los SKU del corte frenado: los que traen además rotación/días (la pertenencia medida en lecturaPorEje) */
       const esSku = new Set(_all(figs, /· (?:Rotaci[oó]n|D[ií]as de inventario)$/i).map((f) => _lab(f).split("·")[0].trim()));
       const frenados = _all(figs, /· Capital frenado$/i)
-        .map((f) => ({ nombre: _lab(f).split("·")[0].trim(), raw: _num(f), fmt: _val(f) }))
+        .map((f) => ({ nombre: _lab(f).split("·")[0].trim(), raw: _num(f), fmt: _val(f), f }))
         .filter((x) => esSku.has(x.nombre) && Number.isFinite(x.raw)).sort((a, b) => b.raw - a.raw);
       /* LA COLA DEL TOP-4 (punto 15 de la revisión, confirmado en el emisor): `inventoryStatus` publica los 4
        * SKU que más pesan + una fila «Resto (N de M) · Capital frenado». Con 5+ frenados, una lista sin la
@@ -206,13 +231,25 @@ export const askDeCuadro = {
       const resto = _find(figs, /^Resto \(\d+ de \d+\) · Capital frenado$/i);
       const _colaTxt = resto ? ` — y ${_lab(resto).split("·")[0].trim().toLowerCase()} suma ${_val(resto)}` : "";
       const deBodega = c.eje === "bodega" ? _find(figs, new RegExp(`^${_esc(c.nombre)} · Capital frenado$`, "i")) : null;
+      /* la lista de frenados publicada por nombre es un orden top-k sobre los SKU frenados (con cola, los k que más pesan; sin
+       * cola, todos), cada uno con su cifra cuando la línea la imprime, y la cola con su universo «Resto (N de M)» */
+      const declaraFrenados = (texto, conCifra) => {
+        if (!frenados.length) return;
+        D.orden({ sujeto: frenados.map((x) => x.nombre), metrica: "Capital frenado", forma: "topk", k: frenados.length, direccion: "mayor", universo: "los SKU frenados", texto });
+        if (conCifra) for (const x of frenados) D.deFig(x.f, texto);
+        if (resto) D.deFig(resto, texto, { universo: _lab(resto).split("·")[0].trim() });
+      };
 
       if (c.nombre && c.eje === "sku") {
         const mio = frenados.find((x) => x.nombre.toLowerCase() === c.nombre.toLowerCase());
         if (!mio && resto) {
           /* hay cola no publicada por nombre: negar sería afirmar sobre filas que este corte no muestra */
           p.push(`${c.nombre} no aparece entre los SKU que este corte publica por nombre (los ${frenados.length} que más pesan de un total mayor).`);
-          p.push(`Los publicados son ${frenados.map((x) => x.nombre).join(" · ")}${_colaTxt}. El capital frenado suma ${_val(total)}.`);
+          const l = `Los publicados son ${frenados.map((x) => x.nombre).join(" · ")}${_colaTxt}.`;
+          const lTotal = `El capital frenado suma ${_val(total)}.`;
+          p.push(`${l} ${lTotal}`);
+          declaraFrenados(l, false);
+          D.deFig(total, lTotal, { universo: "total" });
           p.push(`Si lo que buscas es la fila de ${c.nombre} en el inventario, te la abro.`);
           return p.join("\n");
         }
@@ -221,14 +258,23 @@ export const askDeCuadro = {
            * negación solo pegada a la palabra Y evalúa oración por oración: si el no-frenado y la lista de
            * frenados comparten oración, la segunda mención (no negada) vuelve a atribuir. Medido dos veces. */
           p.push(`${c.nombre} no está frenado en el corte de este turno.`);
-          p.push(`Los SKU frenados declarados son ${frenados.length ? frenados.map((x) => x.nombre).join(" · ") : "ninguno"}, y el capital frenado suma ${_val(total)}.`);
+          const l = `Los SKU frenados declarados son ${frenados.length ? frenados.map((x) => x.nombre).join(" · ") : "ninguno"}, y el capital frenado suma ${_val(total)}.`;
+          p.push(l);
+          /* «los frenados declarados son A · B · C» es un conteo con su enumeración completa: cuántos y quiénes */
+          D.conteo({ n: frenados.length, predicado: "frenados", universo: "los SKU del inventario", ...(frenados.length ? { sujeto: frenados.map((x) => x.nombre) } : {}), texto: l });
+          D.deFig(total, l, { universo: "total" });
           p.push(`Si lo que buscas es la fila de ${c.nombre} en el inventario, te la abro.`);
           return p.join("\n");
         }
         const rot = _find(figs, new RegExp(`^${_esc(c.nombre)} · Rotaci[oó]n$`, "i"));
         const doh = _find(figs, new RegExp(`^${_esc(c.nombre)} · D[ií]as de inventario$`, "i"));
-        p.push(`${c.nombre} tiene ${mio.fmt} frenados${doh ? ` — ${_val(doh)} de días de inventario` : ""}${rot ? `, rotación ${_val(rot)}` : ""}.`);
-        p.push(`Por qué se frenó no está en este dato: el cuadro localiza el capital, no la causa.`);
+        const l1 = `${c.nombre} tiene ${mio.fmt} frenados${doh ? ` — ${_val(doh)} de días de inventario` : ""}${rot ? `, rotación ${_val(rot)}` : ""}.`;
+        p.push(l1);
+        D.estado({ sujeto: c.nombre, estado: "frenado", texto: l1 });
+        for (const f of [mio.f, doh, rot]) if (f) D.deFig(f, l1);
+        const l2 = `Por qué se frenó no está en este dato: el cuadro localiza el capital, no la causa.`;
+        p.push(l2);
+        D.lectura({ texto: l2, sello: "abierto" });
         p.push(variante(semilla, [
           `Para moverlo, lo que se puede evaluar con este dato: revisar su precio o su exhibición, o simular qué libera bajarle el stock. ¿Te abro la simulación?`,
           `Con este dato se puede simular cuánto capital libera bajarle el stock, o revisar su precio. Dime por cuál seguimos.`,
@@ -239,19 +285,35 @@ export const askDeCuadro = {
       if (c.nombre && c.eje === "bodega") {
         if (!deBodega) {
           p.push(`${c.nombre} no aparece en el corte frenado del cuadro.`);
-          p.push(`El capital frenado del negocio suma ${_val(total)}.`);
+          const l = `El capital frenado del negocio suma ${_val(total)}.`;
+          p.push(l);
+          D.deFig(total, l, { universo: "total" });
           return p.join("\n");
         }
-        const mios = frenados.length ? ` Los SKU frenados del negocio, de mayor a menor: ${frenados.map((x) => `${x.nombre} ${x.fmt}`).join(" · ")}${_colaTxt}.` : "";
-        p.push(`En ${c.nombre} hay ${_val(deBodega)} de capital frenado.${mios}`);
-        p.push(`Por qué se frenó no está en este dato: el cuadro localiza el capital, no la causa.`);
+        const tLista = frenados.length ? `Los SKU frenados del negocio, de mayor a menor: ${frenados.map((x) => `${x.nombre} ${x.fmt}`).join(" · ")}${_colaTxt}.` : "";
+        const mios = frenados.length ? ` ${tLista}` : "";
+        const l1 = `En ${c.nombre} hay ${_val(deBodega)} de capital frenado.`;
+        p.push(`${l1}${mios}`);
+        D.deFig(deBodega, l1);
+        if (frenados.length) declaraFrenados(tLista, true);
+        const l2 = `Por qué se frenó no está en este dato: el cuadro localiza el capital, no la causa.`;
+        p.push(l2);
+        D.lectura({ texto: l2, sello: "abierto" });
         return p.join("\n");
       }
       /* sin nombre: «¿Qué SKU libero primero?» — el primero del corte, con el criterio dicho */
       if (!frenados.length) return null;
-      p.push(`El capital frenado suma ${_val(total)}. De mayor a menor: ${frenados.map((x) => `${x.nombre} ${x.fmt}`).join(" · ")}${_colaTxt}.`);
-      p.push(`Si el criterio es capital frenado —criterio mío, el del cuadro—, el primero es ${frenados[0].nombre}: es donde más capital hay sin rotar.`);
-      p.push(`Por qué se frenó cada uno no está en este dato.`);
+      const lTotal = `El capital frenado suma ${_val(total)}.`;
+      const tLista = `De mayor a menor: ${frenados.map((x) => `${x.nombre} ${x.fmt}`).join(" · ")}${_colaTxt}.`;
+      p.push(`${lTotal} ${tLista}`);
+      D.deFig(total, lTotal, { universo: "total" });
+      declaraFrenados(tLista, true);
+      const l2 = `Si el criterio es capital frenado —criterio mío, el del cuadro—, el primero es ${frenados[0].nombre}: es donde más capital hay sin rotar.`;
+      p.push(l2);
+      D.orden({ sujeto: frenados[0].nombre, metrica: "Capital frenado", forma: "max", universo: "los SKU frenados", texto: l2 });   // «el primero»: el máximo del corte frenado
+      const l3 = `Por qué se frenó cada uno no está en este dato.`;
+      p.push(l3);
+      D.lectura({ texto: l3, sello: "abierto" });
       return p.join("\n");
     }
 
@@ -262,7 +324,11 @@ export const askDeCuadro = {
         const conFila = [...new Set(_all(figs, /· Saldo vencido$/i).map((f) => _lab(f).split("·")[0].trim()))];
         const total = _find(figs, /^Saldo vencido · total$/i);
         p.push(`La mesa del cobro de este turno no publica la fila de ${c.nombre}.`);
-        if (conFila.length) p.push(`Los clientes con fila publicada son ${conFila.join(" · ")}${total ? `, y el vencido total del negocio es ${_val(total)}` : ""}. Si quieres, seguimos por alguno de ellos.`);
+        if (conFila.length) {
+          const l = `Los clientes con fila publicada son ${conFila.join(" · ")}${total ? `, y el vencido total del negocio es ${_val(total)}` : ""}.`;
+          p.push(`${l} Si quieres, seguimos por alguno de ellos.`);
+          if (total) D.deFig(total, l, { universo: "total" });   // la enumeración de filas publicadas no es un predicado de la boleta: solo la cifra se declara
+        }
         return p.join("\n");
       }
       const venta = _find(figs, new RegExp(`^${_esc(c.nombre)} · Venta \\(flujo\\)$`, "i"));
@@ -273,7 +339,9 @@ export const askDeCuadro = {
       if (abon) partes.push(`abonado ${_val(abon)}`);
       if (pend) partes.push(`saldo pendiente ${_val(pend)}`);
       partes.push(`vencido ${_val(venc)}`);
-      p.push(`El cobro de ${c.nombre}: ${partes.join(" · ")}.`);
+      const l1 = `El cobro de ${c.nombre}: ${partes.join(" · ")}.`;
+      p.push(l1);
+      for (const f of [venta, abon, pend, venc]) if (f) D.deFig(f, l1);   // la fila del cobro, cifra por cifra
       p.push(variante(semilla, [
         `¿Quieres que lo ponga contra el resto de la cartera de cobro?`,
         `Te lo comparo contra el resto de la cartera de cobro si quieres.`,
