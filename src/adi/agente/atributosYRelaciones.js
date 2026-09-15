@@ -243,6 +243,8 @@ export function relacionEnPalabrasNoCierra(texto, figs = null) {
         lecturas.push({ rango: espejo || _RANGO_PLANO, q: (r) => k / r });
       }
       const cierraCon = (r) => lecturas.some((l) => { const q = l.q(r); return q >= l.rango.lo && q <= l.rango.hi; });
+      /* la fracción de un TODO (a/total) se lee solo en su sentido literal: su rango es el del matiz dicho (fusión orden + grupos, 2026-09-15) */
+      const rango = matiz || _RANGO_PLANO;
       const dicho = (matiz ? matiz.dicho + " " : "") + m[0].trim();   // «más del doble», no «del doble»
       const relTxt = (r) => (r >= 1 ? `${(Math.round(r * 10) / 10).toFixed(1).replace(/\.0$/, "")} veces` : `${Math.round(r * 100)}%`);
       /* EL PAR QUE LA FRASE COMPARA (encargo en vivo, 2026-09-14): «vencido casi el doble ($4.6M vs $2.5M)» se juzgaba contra
@@ -264,7 +266,7 @@ export function relacionEnPalabrasNoCierra(texto, figs = null) {
         const ent = enterosDe(trasFrase).sort((a, b) => a.pos - b.pos).slice(0, 2);
         if (ent.length === 2 && (ent[0].pos <= 20 || /\(\s*$/.test(trasFrase.slice(0, ent[0].pos))) && /^\s*(?:vs\.?|contra|frente a|y|e|a|–|—|-)\s*$/i.test(trasFrase.slice(ent[0].pos + ent[0].text.length, ent[1].pos))) {
           const rs = [ent[0].raw / ent[1].raw, ent[1].raw / ent[0].raw];
-          if (rs.some((r) => { const q = r / k; return q >= rango.lo && q <= rango.hi; })) continue;
+          if (rs.some(cierraCon)) continue;
           return `«${dicho}» no cierra con las cifras que compara (${ent[0].text} contra ${ent[1].text} son ${relTxt(Math.max(...rs))}): una relación dicha en palabras vale lo mismo que una cifra — o es consistente con los números que compara, o no se dice. Di la relación exacta o quítala.`;
         }
       }
