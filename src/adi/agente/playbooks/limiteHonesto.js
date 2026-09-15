@@ -125,7 +125,7 @@ export const limiteHonesto = {
     /* lo que esa línea afirma: la cifra del período (el rótulo «headline» de salesRead, tal cual lo publica), y por cada extremo
      * un orden —el máximo y el mínimo de la variación en dinero contra el año anterior, sobre la cartera entera— y su variación */
     D.deFig(head, lectura);
-    const universo = (() => { try { const n = (axisEntityNames("cliente") || []).length; return n ? `los ${n} clientes` : "los clientes de la cartera"; } catch { return "los clientes de la cartera"; } })();
+    const universo = (() => { try { const n = (axisEntityNames("cliente") || []).length; const conVar = new Set(_all(figs, /· (?:YoY|Variación vs año anterior en \$)$/i).map((g) => _entidadDe(_lab(g))).filter(Boolean)); if (n && conVar.size && conVar.size < n) return `los ${conVar.size} clientes con variación vs año anterior en la boleta`; return n ? `los ${n} clientes` : "los clientes de la cartera"; } catch { return "los clientes de la cartera"; } })();   // si no todos tienen año anterior, el universo es el de los comparables
     if (sube) {
       D.orden({ sujeto: sube.entidad, metrica: "YoY", forma: "max", direccion: "mayor", universo, texto: lectura });
       D.variacion({ sujeto: sube.entidad, metrica: "Ventas", direccion: "sube", valor: sube.fmt, texto: lectura });

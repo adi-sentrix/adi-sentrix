@@ -6,15 +6,17 @@
   "P1·1·reparacion: rango «entre $6K y $19K» → dos cifras (mínimo PHI-HAIR-PRO $6K, máximo SAM-REF500L $19K)",
   "P2·2·reparacion: lectura «coincide en dos dominios…»: esperado sellada (la ley de la casa queda en el Notario viejo)",
   "P2·3·cierre: fuera: «corte 31 ago 2026» es una fecha, no una cifra del esquema",
-  "P2·3·reparacion: fuera: «corte 31 ago 2026» es una fecha, no una cifra del esquema"
+  "P2·3·reparacion: fuera: «corte 31 ago 2026» es una fecha, no una cifra del esquema",
+  "P1·2 (cierre y reparación): «Jumbo … (sin vencido)» pasa de cifra $0 a estado «sin vencido» (el esquema lo verifica contra la proyección)",
+  "P2·1·cierre: «con Lider, Jumbo y Falabella liderando el crecimiento» pasa de no-verificable a falsa (la variación por cliente ya tiene rótulo; por % Falabella va 5.º)"
  ],
  "linea_base": {
-  "acuerdo": 1093,
+  "acuerdo": 1096,
   "fp": 0,
   "fn": 0,
   "errores_atrapados": 18,
   "quitadas_detectadas": 595,
-  "nota": "medido el 2026-09-15 al cerrar la fase 1: exactitud 1093/1099 (99.5 %), 0 FP, 0 FN, 6 no-verificables donde se esperaba verdadera (4 × la venta del año anterior sin rótulo propio en la boleta, 1 referente ambiguo, 1 conteo de métricas comparadas), 18/18 errores reales atrapados, 17/17 falsos positivos servidos, 595/665 afirmaciones quitadas detectadas (+258 redundantes)"
+  "nota": "medido el 2026-09-15 al cerrar la fase 1: exactitud 1093/1099 (99.5 %), 0 FP, 0 FN, 6 no-verificables donde se esperaba verdadera (4 × la venta del año anterior sin rótulo propio en la boleta, 1 referente ambiguo, 1 conteo de métricas comparadas), 18/18 errores reales atrapados, 17/17 falsos positivos servidos, 595/665 afirmaciones quitadas detectadas (+258 redundantes) · fase 2 (2026-09-15): 1096/1099 (99.7 %) — 3 de los 6 no-verificables pasaron a verdaderas al saldar las deudas de evidencia (la venta del año anterior con rótulo propio, el techo de días como KPI)"
  },
  "corpus": [
   {
@@ -4708,10 +4710,8 @@
     },
     {
      "n": 94,
-     "tipo": "cifra",
+     "tipo": "estado",
      "sujeto": "Jumbo",
-     "metrica": "Saldo vencido",
-     "valor": "$0 (sin vencido)",
      "periodo": "al corte (31 ago 2026)",
      "texto": "Jumbo, en cambio, está \"por vencer\" (sin vencido)",
      "evidencia": [
@@ -4719,7 +4719,10 @@
       "Saldo vencido · total (grupo n=6, sin Jumbo)"
      ],
      "veredicto_esperado": "verdadera",
-     "nota": "No hay fig «Jumbo · Saldo vencido» en la boleta (Jumbo solo trae Venta (flujo), Abonado, Saldo pendiente y Recuperado); la verdad sale del ranking (0) y del grupo del total. Si el verificador exige la fig, caerá en no-verificable."
+     "nota": "No hay fig «Jumbo · Saldo vencido» en la boleta (Jumbo solo trae Venta (flujo), Abonado, Saldo pendiente y Recuperado); la verdad sale del ranking (0) y del grupo del total. Si el verificador exige la fig, caerá en no-verificable. · revisión fase 2: «sin vencido» es un estado de la cobranza (saldo vencido 0 en la proyección), no una cifra de $0 que la frase no trae",
+     "estado": {
+      "estado": "sin vencido"
+     }
     },
     {
      "n": 95,
@@ -6453,10 +6456,8 @@
     },
     {
      "n": 94,
-     "tipo": "cifra",
+     "tipo": "estado",
      "sujeto": "Jumbo",
-     "metrica": "Saldo vencido",
-     "valor": "$0 (sin vencido)",
      "periodo": "al corte (31 ago 2026)",
      "texto": "Jumbo, en cambio, está \"por vencer\" (sin vencido)",
      "evidencia": [
@@ -6464,7 +6465,10 @@
       "Saldo vencido · total (grupo n=6, sin Jumbo)"
      ],
      "veredicto_esperado": "verdadera",
-     "nota": "No hay fig «Jumbo · Saldo vencido» en la boleta (Jumbo solo trae Venta (flujo), Abonado, Saldo pendiente y Recuperado); la verdad sale del ranking (0) y del grupo del total. Si el verificador exige la fig, caerá en no-verificable."
+     "nota": "No hay fig «Jumbo · Saldo vencido» en la boleta (Jumbo solo trae Venta (flujo), Abonado, Saldo pendiente y Recuperado); la verdad sale del ranking (0) y del grupo del total. Si el verificador exige la fig, caerá en no-verificable. · revisión fase 2: «sin vencido» es un estado de la cobranza (saldo vencido 0 en la proyección), no una cifra de $0 que la frase no trae",
+     "estado": {
+      "estado": "sin vencido"
+     }
     },
     {
      "n": 95,
@@ -9819,8 +9823,9 @@
      },
      "universo": "los 13 clientes",
      "texto": "con Lider, Jumbo y Falabella liderando el crecimiento",
-     "veredicto_esperado": "no-verificable",
-     "nota": "La boleta de la P2 no trae la variación por cliente (solo «Mercado Libre · crecimiento = 25.3%») y la hoja de rankings no tiene eje de crecimiento. Con la hoja de referencia: por variación en dinero (YoY) sí son los tres primeros (Lider +$2.3M, Jumbo +$1.9M, Falabella +$1.5M); por variación en % NO (Mercado Libre 25.3% lidera; Lider 14.9%, Jumbo 12.2%, Tottus 9.2%, Falabella 8.2% va quinto). El borrador no dice en qué medida «lideran»; si se juzga en %, es falsa."
+     "veredicto_esperado": "falsa",
+     "nota": "La boleta de la P2 no trae la variación por cliente (solo «Mercado Libre · crecimiento = 25.3%») y la hoja de rankings no tiene eje de crecimiento. Con la hoja de referencia: por variación en dinero (YoY) sí son los tres primeros (Lider +$2.3M, Jumbo +$1.9M, Falabella +$1.5M); por variación en % NO (Mercado Libre 25.3% lidera; Lider 14.9%, Jumbo 12.2%, Tottus 9.2%, Falabella 8.2% va quinto). El borrador no dice en qué medida «lideran»; si se juzga en %, es falsa. · revisión fase 2: con la variación en $ y en % rotuladas para los 13 clientes (deuda de evidencia cerrada), la afirmación pasa de no-verificable a falsa por la métrica declarada (%)",
+     "verdad": "por variación en %: Mercado Libre 25.3 %, Lider 14.9 %, Jumbo 12.2 % — Falabella (8.2 %) va 5.º; en $ sí serían los tres (Lider +$2.3M, Jumbo +$1.9M, Falabella +$1.5M)"
     },
     {
      "tipo": "lectura",
@@ -13425,9 +13430,11 @@
      "metrica": "Techo de días de inventario (referencia de la POLICY)",
      "valor": "120 días",
      "texto": "contra la referencia de 120",
-     "evidencia": [],
-     "veredicto_esperado": "no-verificable",
-     "nota": "La boleta no trae el techo de días como fig (la hoja de rankings solo dice «días sobre el techo», sin el valor). No hay evidencia para 120."
+     "evidencia": [
+      "Techo de días de inventario"
+     ],
+     "veredicto_esperado": "verdadera",
+     "nota": "Fase 1: la boleta no traía el techo de días como fig y quedaba no-verificable. Fase 2 (deuda de evidencia saldada): el techo entra como KPI del negocio con rótulo («Techo de días de inventario» = 120d) y la cifra se verifica."
     },
     {
      "tipo": "estado",
@@ -14481,9 +14488,11 @@
      "metrica": "Techo de días de inventario (referencia de la POLICY)",
      "valor": "120 días",
      "texto": "contra la referencia de 120",
-     "evidencia": [],
-     "veredicto_esperado": "no-verificable",
-     "nota": "La boleta no trae el techo de días como fig (la hoja de rankings solo dice «días sobre el techo», sin el valor). No hay evidencia para 120."
+     "evidencia": [
+      "Techo de días de inventario"
+     ],
+     "veredicto_esperado": "verdadera",
+     "nota": "Fase 1: la boleta no traía el techo de días como fig y quedaba no-verificable. Fase 2 (deuda de evidencia saldada): el techo entra como KPI del negocio con rótulo («Techo de días de inventario» = 120d) y la cifra se verifica."
     },
     {
      "tipo": "estado",
@@ -14965,5 +14974,10 @@
     }
    ]
   }
- ]
+ ],
+ "linea_base_flujo": {
+  "omitidos": 28,
+  "correctas": 1050,
+  "nota": "medido el 2026-09-15 al cerrar la fase 2 (offline, 12 borradores con declaración manual dentro del flujo): declaradas 1099 (923 de hecho) · 874 verdaderas + 176 selladas = 1050 correctas (95.5 %) · 31 falsas · 18 no-verificables · 0 inconsistentes · 28/950 puntos de la prosa sin declarar (2.9 %) · 0 FP · 0 FN · 6/6 reparaciones por declaraciones falsas/incompletas · 0/6 servido sin pasar por el Notario semántico"
+ }
 }

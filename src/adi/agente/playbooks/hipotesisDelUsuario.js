@@ -118,7 +118,7 @@ function _movimientos(figs) {
     if (Number.isFinite(v)) m.set(n, { n, v, fmt: _val(f) });
   });
   cargar(/· YoY$/i);
-  cargar(/· Valor$/i);
+  cargar(/· (?:Valor|Variación vs año anterior en \$)$/i);   // el ledger rotula «Variación vs año anterior en $» (Notario semántico, fase 2); «Valor» es la forma anterior
   return [...m.values()].sort((a, b) => b.v - a.v);
 }
 
@@ -143,9 +143,9 @@ function _contraste(c, figs, D = declaradorDe(null)) {
   const lista = (xs, n = 3) => xs.slice(0, n).map((x) => `${x.n} ${x.fmt}`).join(" · ") + (xs.length > n ? ", y siguen otras" : "");
   /* la lista impresa es un orden top-k sobre la cartera (k = los que se imprimen), y cada nombre viaja con su cifra */
   const CARTERA = "los clientes de la cartera";
-  const declaraLista = (xs, l, metrica, direccion, n = 3) => {
+  const declaraLista = (xs, l, metrica, direccion, n = 3, universo = CARTERA) => {
     const top = xs.slice(0, n);
-    D.orden({ sujeto: top.map((x) => x.n), metrica, forma: "topk", k: top.length, direccion, universo: CARTERA, texto: l });
+    D.orden({ sujeto: top.map((x) => x.n), metrica, forma: "topk", k: top.length, direccion, universo, texto: l });
     for (const x of top) D.deFig(x.f, l);
   };
   const bench = _find(figs, /^Benchmark de margen$/i);
@@ -162,9 +162,13 @@ function _contraste(c, figs, D = declaradorDe(null)) {
     L.push(l1);
     if (erosion) D.conteo({ n: _num(erosion), predicado: "erosión por acciones comerciales", universo: CARTERA, texto: l1 });
     if (ref) D.deFig(ref, l1);
-    const l2 = `Donde más pesa: ${lista(cargas)}.`;
+    /* LA CARGA SE PUBLICA SOLO PARA LAS CUENTAS BAJO EL BENCHMARK (rolesCartera): el orden vale para ese universo y se dice —«Donde más
+     * pesa» a secas se leía como la cartera entera, y por carga el top-3 real de la cartera es otro (Notario semántico, fase 2, 2026-09-15) */
+    const _margenes = orden(/· Margen$/i, false);
+    const _bajo = bench && Number.isFinite(_num(bench)) && cargas.length && cargas.every((x) => { const m = _margenes.find((y) => y.n === x.n); return m && m.v < _num(bench); });
+    const l2 = _bajo ? `Donde más pesa, entre las ${cargas.length} cuentas bajo el benchmark: ${lista(cargas)}.` : `Donde más pesa: ${lista(cargas)}.`;
     L.push(l2);
-    declaraLista(cargas, l2, "Carga comercial", "mayor");
+    declaraLista(cargas, l2, "Carga comercial", "mayor", 3, _bajo ? `las ${cargas.length} cuentas bajo el benchmark` : CARTERA);
     /* ⚠️ CONFIRMAR EL MECANISMO NO ES CONFIRMAR LA CAUSA. Que la carga exista y se concentre ahí es un hecho
      * medido; que sea LA razón de lo que el dueño está viendo es una atribución que el dato no autoriza. */
     const l3 = `Eso te dice dónde está la huella, no si fue la razón: el dato mide cuánto se cede, no qué se negoció a cambio. Si esas acciones compraron volumen, dímelo y cierro la lectura por ese lado.`;

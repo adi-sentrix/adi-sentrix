@@ -47,7 +47,8 @@ import { variante } from "../variacion.js";
 import { esPorQue } from "../porque.js";
 import { esConversacional } from "../formaConversacional.js";   // la memoria del cuadro no secuestra una conversación   // la ley del porqué, transversal
 import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): el composer declara mientras escribe
-import { entidadNombrada } from "./indiceEntidades.js";     // para declarar una fila con su dueño solo si el dueño es una entidad del tenant
+import { entidadNombrada } from "./indiceEntidades.js";
+import { axisEntityNames } from "../../oracle/entityIndex.js";   // el tamaño del eje: un cuadro que muestra un recorte no habla por la cartera entera     // para declarar una fila con su dueño solo si el dueño es una entidad del tenant
 
 const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /* una fila del cuadro es una ENTIDAD del tenant (Falabella, SAM-REF500L) o un rótulo del propio cuadro («Este año», «Cola (6)»,
@@ -243,8 +244,11 @@ function _gruposDeSenal(filas) {
   const por = new Map();
   for (const f of filas) for (const s of (f.senales || [])) {
     if (!s.alerta) continue;
-    if (!por.has(s.clave)) por.set(s.clave, { clave: s.clave, dice: s.dice, dicen: s.dicen || s.dice, filas: [] });
-    por.get(s.clave).filas.push({ fila: f, valor: s.valor || null, clave: s.clave });   // `clave`: para declarar la cifra de la señal con SU columna, no con otra del mismo valor
+    /* por clave Y veredicto: «concentra su capital en quiebre próximo» y «… en frenado» comparten la clave «estado» y son dos grupos (medido:
+     * «4 de 4 bodegas concentran su capital en quiebre próximo» cuando la boleta contaba 1 — el Notario semántico lo dio por falso) */
+    const k = `${s.clave}|${s.dice}`;
+    if (!por.has(k)) por.set(k, { clave: s.clave, dice: s.dice, dicen: s.dicen || s.dice, filas: [] });
+    por.get(k).filas.push({ fila: f, valor: s.valor || null, clave: s.clave });   // `clave`: para declarar la cifra de la señal con SU columna, no con otra del mismo valor
   }
   /* de menos a más filas: la señal que toca 4 de 13 es un hallazgo; la que toca 11 es una condición */
   return [...por.values()].sort((a, b) => a.filas.length - b.filas.length);
@@ -411,6 +415,10 @@ export const cuadroExplicado = {
     const nEje = _plural(I.eje);
     const uni = _cab(L, "n") || _cab(L, "entidadesReales");
     const universo = uni && Number.isFinite(Number(uni.valor)) ? Number(uni.valor) : L.filas.length;
+    /* ¿el cuadro muestra un RECORTE del eje (Qué liquidar: 3 SKU de 13) o el eje entero (el corte por bodega: las 4)? Un «N de M» sobre el
+     * recorte no puede sonar a la cartera entera */
+    const _tamEje = (() => { try { return (axisEntityNames(I.eje) || []).length; } catch { return 0; } })();
+    const recorte = _tamEje > 0 && universo < _tamEje;
     const grupos = _gruposDeSenal(L.filas);
     /* ── los declaradores de este cuadro ──
      * `cab`: una cifra de cabecera, con el rótulo «<cuadro> · <label>» y dueño «negocio» (así la publica cuadroSentrix, sin entidad);
@@ -528,20 +536,21 @@ export const cuadroExplicado = {
          * variación mes contra año: se declara como tal, aunque la boleta no traiga esa serie para verificarla. */
         const declaraMecanismo = (texto) => {
           if (!mecanismo || !pd || !pd0) return;
-          const rM = (campo) => `${I.cuadro} · ${pd.mes} · ${campo}`, rA = (campo) => `${I.cuadro} · ${campo}`;
-          const cifraM = (campo, valor) => D.cifra({ sujeto: "negocio", metrica: rM(campo), valor, texto });
+          /* el MES es el sujeto («Nov», como lo rotula la boleta: «<cuadro> · Nov · margen» = el margen de Nov); lo del año, del negocio */
+          const rA = (campo) => `${I.cuadro} · ${campo}`;
+          const cifraM = (campo, valor) => D.cifra({ sujeto: pd.mes, metrica: rA(campo), valor, texto });
           const cifraA = (campo, valor) => D.cifra({ sujeto: "negocio", metrica: rA(campo), valor, texto });
-          const rel = (campoMes, campoAnio, forma) => D.relacion({ sujeto: "negocio", metrica: rM(campoMes), forma, vs: { sujeto: "negocio", metrica: rA(campoAnio) }, texto });
+          const rel = (campoMes, campoAnio, forma) => D.relacion({ sujeto: pd.mes, metrica: rA(campoMes), forma, vs: { sujeto: "negocio", metrica: rA(campoAnio) }, texto });
           const conUds = /\d+ unidades/.test(texto), conMg = !!(_mgVs && texto.includes(_mgVs)), conCg = !!(_cgVs && texto.includes(_cgVs));
           if (conUds) { cifraM("unidades", `${pd.unidades} unidades`); if (_prom) { cifraA("unidades promedio del año", String(_prom)); if (pd.unidades < _prom) rel("unidades", "unidades promedio del año", "menor"); } }
           if (conMg) { cifraM("margen", pd.margenFmt); cifraA("margen del año", pd0.margenAnioFmt); if (mgBajo) rel("margen", "margen del año", "menor"); else if (mgAlto) rel("margen", "margen del año", "mayor"); }
-          if (conCg) { cifraM("carga", pd.cargaFmt); cifraA("carga del año", pd0.cargaAnioFmt); if (cgAlta) { rel("carga", "carga del año", "mayor"); if (/subieron/.test(texto)) D.variacion({ sujeto: "negocio", metrica: rM("carga"), direccion: "sube", periodo: "el mes contra el año", texto }); } else if (pd.esCargaMin && cgMes != null && cgAnio != null && cgMes < cgAnio) rel("carga", "carga del año", "menor"); }
+          if (conCg) { cifraM("carga", pd.cargaFmt); cifraA("carga del año", pd0.cargaAnioFmt); if (cgAlta) { rel("carga", "carga del año", "mayor"); } else if (pd.esCargaMin && cgMes != null && cgAnio != null && cgMes < cgAnio) rel("carga", "carga del año", "menor"); }
           if (pd.accionesFmt && texto.includes(pd.accionesFmt)) cifraM("acciones comerciales", pd.accionesFmt);
           if (pd.contribucionFmt && texto.includes(pd.contribucionFmt)) cifraM("contribución", pd.contribucionFmt);
           /* «el mejor del año» / «la carga más baja del año»: un orden entre los meses — se declara como tal (el Notario verifica órdenes
            * entre entidades del tenant; un mes no lo es, y eso queda dicho en el veredicto) */
-          if (/—el mejor del año—/.test(texto)) D.orden({ sujeto: pd.mes, metrica: rM("margen"), forma: "max", universo: "los meses del año", texto });
-          if (/la carga más baja del año/.test(texto)) D.orden({ sujeto: pd.mes, metrica: rM("carga"), forma: "min", universo: "los meses del año", texto });
+          if (/—el mejor del año—/.test(texto)) D.orden({ sujeto: pd.mes, metrica: rA("margen"), forma: "max", universo: "los meses del año", texto });
+          if (/la carga más baja del año/.test(texto)) D.orden({ sujeto: pd.mes, metrica: rA("carga"), forma: "min", universo: "los meses del año", texto });
         };
         /* PASO 2 · la hipótesis del asesor, SIEMPRE marcada — y solo sobre el negocio del usuario, jamás una
          * afirmación sobre «el sector» (el owner la vetó: sin fuente declarada, esa frase no se dice) */
@@ -852,7 +861,9 @@ export const cuadroExplicado = {
           for (const x of top3) fila(x.f, x.c, tEmpuja);
         }
       } else {
-        const l = `Tus ${universo} ${nEje} suman ${totalFila.valor}${deQue ? ` de ${deQue}` : ""}.`;
+        const l = recorte
+          ? `Las ${universo} ${nEje} que muestra el cuadro suman ${totalFila.valor}${deQue ? ` de ${deQue}` : ""}.`   // un recorte del eje no es «tus SKU»
+          : `Tus ${universo} ${nEje} suman ${totalFila.valor}${deQue ? ` de ${deQue}` : ""}.`;
         p.push(l);
         cab(totalFila, l);
         if (uni) D.conteo({ n: universo, predicado: uni.label, universo: uniEje, texto: l });
@@ -911,8 +922,9 @@ export const cuadroExplicado = {
         p.push(`${l1} ${l2}`);
         cab(margenMedio, l1);
         for (const x of bajoMedia) { fila(x.f, x.m, l1); D.relacion({ sujeto: x.f.nombre, metrica: "Margen", forma: "menor", vs: { sujeto: "negocio", metrica: rotCab(margenMedio) }, texto: l1 }); }
-        /* l2 («…más rápido de lo que mejora la calidad del mix») es interpretación sin forma cerrada: no se sella como lectura, porque el
-         * detector lee «más rápido» y «mejora» como hechos y una lectura no los cubre — queda anotado como residuo, no disfrazado */
+        /* l2 («…más rápido de lo que mejora la calidad del mix») es interpretación; el hecho que lleva adentro es que la venta se expande —la
+         * variación del total contra el año anterior— y eso es lo que se declara; «mejora la calidad del mix» no es una métrica de la boleta */
+        if (crece) D.variacion({ sujeto: "negocio", metrica: metricaDelCuadro, direccion: "sube", texto: l2 });
       }
     }
 
@@ -959,9 +971,11 @@ export const cuadroExplicado = {
       const mayoria0 = universo > 0 && cuantas0 / universo >= 0.66;
       const dicho0 = cuantas0 === 1 ? g0.dice : g0.dicen;
       if (mayoria0) {
-        const l = `Este cuadro marca que ${cuantas0} de ${universo} ${nEje} ${dicho0} — no es un caso puntual: pasa en ${cuantas0 === universo ? "todas" : "casi todas"} tus ${nEje}.`;
+        const l = recorte
+          ? `Este cuadro marca que ${cuantas0} de las ${universo} ${nEje} que muestra ${dicho0} — no es un caso puntual: pasa en ${cuantas0 === universo ? "todas" : "casi todas"} las que muestra.`
+          : `Este cuadro marca que ${cuantas0} de ${universo} ${nEje} ${dicho0} — no es un caso puntual: pasa en ${cuantas0 === universo ? "todas" : "casi todas"} tus ${nEje}.`;
         p.push(l);
-        D.conteo({ n: cuantas0, m: universo, predicado: g0.dice, universo: uniEje, texto: l });
+        D.conteo({ n: cuantas0, m: universo, predicado: g0.dice, universo: recorte ? `las ${universo} ${nEje} del cuadro` : uniEje, texto: l });
       } else {
         const l = `Este cuadro marca ${cuantas0} que ${dicho0} — ${_conCifra(g0.filas, 3)}${cuantas0 > 3 ? ", entre otras" : ""}.`;
         p.push(l);

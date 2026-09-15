@@ -398,7 +398,12 @@ function componerLaPrioridad({ figs, semilla, declarar }) {
   const accion = `La acción: separar en ${top.entidad} la carga comercial deliberada de la que no lo fue${cargaTop ? ` — su carga excedida es ${_val(cargaTop)}` : ""}, y decidir esa parte cuenta por cuenta.`;
   p.push(accion);
   if (cargaTop) D.cifra({ sujeto: top.entidad, metrica: "Carga comercial alta", valor: _val(cargaTop), texto: accion });
-  const porque = `Por qué primero — criterio mío: es donde hay más contribución en juego. ${top.entidad} deja ${top.fmt} sin capturar${total ? `, de ${_val(total)} no capturados en toda la cartera` : ""}.`;
+  /* EL UNIVERSO DEL SUBTOTAL SE DICE (Notario semántico, fase 2, 2026-09-15): «de $4.9M no capturados en toda la cartera» era FALSO —los $4.9M
+   * son el subtotal de las 5 cuentas materiales (de 8 bajo el benchmark)— y la ley de universos consistentes (owner 2026-09-13) exige que
+   * cada subtotal lleve su universo. Se lee del rótulo, nunca a mano. */
+  const _figUni = total ? _find(figs, /^Contribuci[oó]n no capturada · subtotal · \d+ cuentas materiales/i) : null;   // el rótulo con el universo (la boleta trae el subtotal con y sin él)
+  const _uniTotal = _figUni ? ((/subtotal · (\d+ cuentas materiales)/i.exec(_lab(_figUni)) || [])[1] || null) : null;
+  const porque = `Por qué primero — criterio mío: es donde hay más contribución en juego. ${top.entidad} deja ${top.fmt} sin capturar${total ? `, de ${_val(total)} no capturados en ${_uniTotal ? `las ${_uniTotal}` : "el subtotal"}` : ""}.`;
   p.push(porque);
   /* la prioridad es un orden (el máximo de contribución no capturada entre los que caen) y su cifra; el subtotal se declara
    * con el universo que la PROSA le pone —«toda la cartera»— para que el juez lo cobre si el rótulo dice otro: el composer
@@ -406,7 +411,7 @@ function componerLaPrioridad({ figs, semilla, declarar }) {
   D.orden({ sujeto: top.entidad, metrica: "Contribución no capturada", forma: "max", direccion: "mayor", universo: _U_BAJO, texto: porque });
   D.cifra({ sujeto: top.entidad, metrica: "Contribución no capturada", valor: top.fmt, texto: porque });
   if (total) {
-    D.cifra({ sujeto: "negocio", metrica: "Contribución no capturada", valor: _val(total), universo: "toda la cartera", texto: porque });
+    D.cifra({ sujeto: "negocio", metrica: "Contribución no capturada", valor: _val(total), universo: _uniTotal ? `las ${_uniTotal}` : "el subtotal", texto: porque });
     D.relacion({ sujeto: top.entidad, metrica: "Contribución no capturada", forma: "parte", vs: { sujeto: "negocio", metrica: "Contribución no capturada" }, texto: porque });
   }
   p.push(variante(semilla, [
@@ -908,10 +913,18 @@ export const margenEnRiesgo = {
     D.conteo({ n: nDeclarado, predicado: "bajo el benchmark", universo: _U_CARTERA, texto: apertura });
 
     if (top.length) {
-      const cabecera = `Donde más contribución dejas sin capturar — los ${top.length} de los ${_val(L.conteo)} que más pesan:`;
+      /* EL UNIVERSO DE LA LISTA ES EL DE LAS CUENTAS MATERIALES (Notario semántico, fase 2, 2026-09-15): «los 3 de los 8 que más pesan» afirmaba los
+       * tres mayores gaps entre los 8 bajo el benchmark; la lista es la de las materiales (gap ≥ pp mínimos y ≥ piso) —en el demo coincide, en un
+       * pack no (una cuenta no material por pp puede dejar más)—. Se dice el universo del rótulo del subtotal, nunca a mano. */
+      const _mat = /·\s*(\d+)\s+(?:cuentas?|clientes?)\s+materiales/i.exec(_lab(L.totalJuego)) ? +(/·\s*(\d+)\s+(?:cuentas?|clientes?)\s+materiales/i.exec(_lab(L.totalJuego))[1]) : null;
+      const cabecera = _mat
+        ? `Donde más contribución dejas sin capturar — los ${top.length} que más pesan de las ${_mat} cuentas materiales (de ${_val(L.conteo)} bajo el benchmark):`
+        : `Donde más contribución dejas sin capturar — los ${top.length} de los ${_val(L.conteo)} que más pesan:`;
       partes.push(`\n${cabecera}`);
-      /* la cabecera es un orden top-k de contribución no capturada entre los que caen (el «8» ya lo cubre el conteo de arriba) */
-      _ordenTopK(D, { sujeto: top.map((t) => t.entidad), metrica: "Contribución no capturada", k: top.length, universo: _U_BAJO, texto: cabecera });
+      /* la cabecera es un orden top-k de contribución no capturada entre los que caen; el «8» es el conteo de la boleta, y se declara acá también
+       * porque el ensamblador del encargo no lleva la línea de arriba que lo declara */
+      if (_mat && L.conteo) D.deFig(L.conteo, cabecera);
+      _ordenTopK(D, { sujeto: top.map((t) => t.entidad), metrica: "Contribución no capturada", k: top.length, universo: _mat ? `las ${_mat} cuentas materiales` : `los ${_val(L.conteo)} clientes bajo el benchmark`, texto: cabecera });   // el universo con su tamaño (el «8» de la cabecera es el del orden o del subtotal)
       for (const t of top) {
         const m = L.bajo.find((b) => b.entidad === t.entidad);
         const venta = L.ventas.get(t.entidad);

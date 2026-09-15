@@ -483,7 +483,7 @@ export function composeSpecCompare({ dimension, entities, scenario }) {
     const _sc = m.scale && m.scale[dimension];
     const aFmt = va == null ? "—" : _fmt(va, m.unit, _sc), bFmt = vb == null ? "—" : _fmt(vb, m.unit, _sc);
     lines.push(`${m.label}: ${a} ${aFmt} vs ${b} ${bFmt}`);
-    pairs.push({ label: m.label, aFmt, bFmt, aVal: va, bVal: vb, unit: m.unit, polarity: m.polarity });   // Fase 2b · para leer la DIFERENCIA PRINCIPAL
+    pairs.push({ label: m.label, aFmt, bFmt, aVal: va, bVal: vb, aRaw: va == null ? null : _rawC(va, m.unit, _sc), bRaw: vb == null ? null : _rawC(vb, m.unit, _sc), unit: m.unit, polarity: m.polarity });   // Fase 2b · para leer la DIFERENCIA PRINCIPAL · aRaw/bRaw: la escala de la boleta (el `raw` en dólares, como el resto del motor)
   }
   if (!lines.length) return null;                          // ninguna de las dos entidades encontrada → el seam degrada honesto
   const opener = `${a} vs ${b} (${ent.label.sing}) · base real.\n\n${lines.join("\n")}`;   // (ídem: colapso del eje)
@@ -491,8 +491,8 @@ export function composeSpecCompare({ dimension, entities, scenario }) {
   const _ctx = `${a} vs ${b}`;
   const bol = [];
   for (const p of pairs) {
-    if (p.aFmt !== "—") bol.push(fig(`${a} · ${p.label}`, p.aFmt, { unit: p.unit, raw: p.aVal, mandatory: true, context: _ctx }));
-    if (p.bFmt !== "—") bol.push(fig(`${b} · ${p.label}`, p.bFmt, { unit: p.unit, raw: p.bVal, mandatory: true, context: _ctx }));
+    if (p.aFmt !== "—") bol.push(fig(`${a} · ${p.label}`, p.aFmt, { unit: p.unit, raw: p.aRaw, mandatory: true, context: _ctx }));   // raw en la escala de la boleta (_rawC): «$999K» viajaba con raw 999 y el Notario semántico la daba por falsa
+    if (p.bFmt !== "—") bol.push(fig(`${b} · ${p.label}`, p.bFmt, { unit: p.unit, raw: p.bRaw, mandatory: true, context: _ctx }));
   }
   return { opener, suggestions: null, sentrixAction: null, evidence: { entidad: a, entityB: b, entityType: dimension, dimension, lens: "cuadro", pairs, boleta: bol } };
 }
@@ -1772,6 +1772,9 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
       `**Qué hacer:** el neto es positivo, pero los que restan son la fuga a mirar — recuperarlos suma directo.`,
     ];
     for (const r of [...up.slice(0, 3), ...down.slice(0, 2)]) bol.push(fig(`${r.nombre} · YoY`, `${_sgnp(r.d)}${_m(r.d)}`, { unit: "money", raw: r.d * _fxe(), mandatory: false, context: "vs año anterior" }));
+    /* LA VENTA DEL AÑO ANTERIOR CON RÓTULO PROPIO (Notario semántico, fase 2 — deuda de la fase 1): «$100,0M vs $92,9M» viajaba solo en
+     * `headlineSub`, sin significado, y una afirmación verdadera quedaba no-verificable. La base del crecimiento es una cifra del negocio. */
+    bol.push(fig("Ventas del año anterior", _m(totAnt), { unit: "money", raw: totAnt * _fxe(), mandatory: false, context: "la venta del año anterior: la base contra la que se mide el crecimiento" }));
     const panel = { kind: "movers", title: "Vs año anterior", headline: `${_sgnp(tp)}${_p1(tp)}%`, headlineSub: `${_m(tot)} vs ${_m(totAnt)}`, rows: mov.map((r) => ({ nombre: r.nombre, val: r.d, valFmt: `${_sgnp(r.d)}${_m(r.d)}`, pct: +r.p.toFixed(1), pos: r.d >= 0 })).sort((a, b) => b.val - a.val) };
     return { lines, suggestions: ["Es por volumen o por precio", "Quiénes redujeron su compra"], bol, panel };
   }

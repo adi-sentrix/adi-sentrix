@@ -21,12 +21,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { initTenant } from "./src/data/tenantStore.js";
+import { initTenant, getTenantData } from "./src/data/tenantStore.js";
+import { factorComercialDe } from "./src/config/contract/figureType.js";   // el `raw` de proyectar va en moneda cruda: la venta oficial se compara con su factor
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { proyectar, cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";
 import { catalogoAgente } from "./src/adi/agente/catalogoAgente.js";
 import { DOCTRINAS } from "./src/adi/agente/doctrinaAgente.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { declarando } from "./_guion_declara.mjs";   // Notario semántico (fase 2): los guiones declaran desde la boleta
 import { ventaOficialDelPeriodo } from "./src/adi/sentrix/temporal.js";
 
 let pass = 0, fail = 0;
@@ -61,11 +63,14 @@ H("2 · sin entidad, proyecta sobre el negocio entero (lo que `simulate` no pod�
   ok(r.coverage.supported, "★ sin `entity`, la herramienta responde — antes no había forma de pedir el total", r.coverage.reason);
   const of = ventaOficialDelPeriodo("bonanza");
   const base = r.boleta.find((b) => b.source === "dato");
-  ok(!!base && Math.abs(Number(base.raw) - Number(of.actual)) < 1,
+  /* el `raw` viaja en la MONEDA CRUDA (Notario semántico, fase 2: el mismo `raw` que el resto del motor, «$100.0M» = 99 999 000): la venta
+   * oficial se almacena en miles, así que se compara con su factor */
+  const _fxP = factorComercialDe(getTenantData());
+  ok(!!base && Math.abs(Number(base.raw) - Number(of.actual) * _fxP) < 1,
     "★ y la base es LA VENTA OFICIAL del período, no una suma propia — la sola verdad que el owner declaró",
-    `base=${base && base.raw} · oficial=${of.actual}`);
+    `base=${base && base.raw} · oficial=${of.actual} × ${_fxP}`);
   const proy = r.boleta.find((b) => b.source === "proyeccion" && /Proyección · el negocio/.test(b.label));
-  ok(!!proy && Math.abs(Number(proy.raw) - Number(of.actual) * 1.04) < 1,
+  ok(!!proy && Math.abs(Number(proy.raw) - Number(of.actual) * _fxP * 1.04) < 1,
     "…y el resultado es la base con la tasa aplicada, sin recalcular nada del motor", proy && String(proy.raw));
 }
 
@@ -136,7 +141,7 @@ H("6 · el T2 de la certificación, con la tool disponible → verde y con la ci
    * el cerebro nunca hablaba. Este bloque mide que el TEXTO DEL CEREBRO pase el muro con la proyección sellada:
    * sin supuesto en la pregunta C se retira, el guion sigue trayendo la proyección, y el juicio es sobre el texto. */
   const r = await answerViaAgente({ text: "cuanto seria mi venta si crece el año que viene?",
-    history: [], mem: {}, scenario: "bonanza", callAgente: guion(BUENA) });
+    history: [], mem: {}, scenario: "bonanza", callAgente: declarando(guion(BUENA)) });
   ok(r.r.agente.estado === "verde" && !r.r.agente.vetos.length,
     `★ el turno sale VERDE sin vetos (${r.r.agente.estado}) — antes el muro vetaba la proyección con razón`,
     JSON.stringify(r.r.agente.vetos));
@@ -179,8 +184,8 @@ await carnada("`tasa: null` leída como 0% (una proyección sin supuesto)", "src
 // (b) la proyección disfrazada de dato: si el resultado entra como `source: "dato"`, el muro lo trata como
 // cifra medida y el usuario lee un futuro con el tono de un hecho. Es la condición 1 del supervisor.
 await carnada("la proyección entrando a la boleta como dato", "src/adi/agente/herramientasAgente.js",
-  [[/\{ unit: "money", raw: resultado, source: "proyeccion", mandatory: false,/,
-    '{ unit: "money", raw: resultado, source: "dato", mandatory: true,   // CARNADA']],
+  [[/\{ unit: "money", raw: Math\.round\(resultado \* fx\), source: "proyeccion", mandatory: false,/,
+    '{ unit: "money", raw: Math.round(resultado * fx), source: "dato", mandatory: true,   // CARNADA']],
   async (M) => {
     const b = M.proyectar({ tasa: 4 }).boleta.filter((x) => x.source === "proyeccion");
     return b.length !== 2;

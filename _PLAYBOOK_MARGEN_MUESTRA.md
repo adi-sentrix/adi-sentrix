@@ -28,7 +28,7 @@ Una disculpa, una cifra suelta y una pregunta de vuelta — **teniendo la carter
 ```
 jc: Tu margen promedio viene en 25.1% — 5.0 pp bajo el benchmark que declaraste (30.1%). 8 de tus clientes están bajo esa referencia.
 
-Donde más contribución dejas sin capturar — los 3 de los 8 que más pesan:
+Donde más contribución dejas sin capturar — los 3 que más pesan de las 5 cuentas materiales (de 8 bajo el benchmark):
 - Falabella · deja $1.6M sin capturar · margen 22.0% · venta $19.4M
 - Lider · deja $1.5M sin capturar · margen 21.5% · venta $17.8M
 - Jumbo · deja $1.1M sin capturar · margen 24.0% · venta $17.3M
@@ -43,6 +43,10 @@ Dónde está: en carga comercial alta, $655K — la más pesada es la de Falabel
 2026-09-03 el entregable habla con LA VOZ del asesor (encargo de la voz humana del owner): las mismas cifras
 con los mismos dueños — la brecha «5.0 pp» sale SELLADA de la boleta, la misma cifra de la card de la Mesa —
 pero escritas como escribe una persona.
+
+**Notario semántico (fase 2, 2026-09-15):** la cabecera del corte decía «los 3 de los 8 que más pesan» y el subtotal
+«$4.9M» es la suma de las **5 cuentas materiales** (las que pasan el umbral), no de las 8: el Notario lo dio por falso
+al verificar la declaración del composer contra la boleta. La cabecera nombra ahora el universo real de cada cifra.
 
 ---
 
@@ -60,7 +64,7 @@ trajo la evidencia de este turno y tu respuesta no la usa»— y, como el cerebr
 ```
 Tu margen promedio viene en 25.1% — 5.0 pp bajo el benchmark que declaraste (30.1%). 8 de tus clientes están bajo esa referencia.
 
-Donde más contribución dejas sin capturar — los 3 de los 8 que más pesan:
+Donde más contribución dejas sin capturar — los 3 que más pesan de las 5 cuentas materiales (de 8 bajo el benchmark):
 - Falabella · deja $1.6M sin capturar · margen 22.0% · venta $19.4M
 - Lider · deja $1.5M sin capturar · margen 21.5% · venta $17.8M
 - Jumbo · deja $1.1M sin capturar · margen 24.0% · venta $17.3M

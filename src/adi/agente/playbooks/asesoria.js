@@ -33,9 +33,12 @@ import { nombraEntidad, pidePuntoDeVenta } from "./indiceEntidades.js";   // el 
 import { pisoFocosUSD, declaracionUmbralFocos, figsUmbralFocos } from "../../specRetrieval.js";
 import { variante } from "../variacion.js";   // los cierres varían por semilla («matar la repetición», 2026-09-03)
 import { axisEntityNames } from "../../oracle/entityIndex.js";   // el tamaño del eje, para el universo de un orden («los 13 clientes») sin escribirlo a mano
-import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): los composers declaran MIENTRAS escriben, sin tocar el texto
+import { declaradorDe } from "../../notario/declarar.js";
+import { parseFigures } from "../../boleta.js";   // el parser de la casa, para el número de una fig sin raw   // el Notario semántico (fase 2): los composers declaran MIENTRAS escriben, sin tocar el texto
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
+/* el número de una fig SIN raw (el ledger emite «Variación vs año anterior en $» desde el texto, sin crudo): del valor, con el parser de la casa */
+const _numOValor = (f) => { const r = _num(f); if (Number.isFinite(r)) return r; const p = parseFigures(String((f && (f.text || f.value)) || "").replace(/[\u2212\u2013]/g, "-")); return p.length ? p[0].raw : NaN; };
 const _val = (f) => String((f && (f.text || f.value)) || "");
 /* el motor solo pone `raw` en las filas DESTACADAS (la lección medida de margen-en-riesgo): para seleccionar y
  * ordenar hace falta el número de todas, así que cuando falta el raw se lee la cifra que el motor YA publicó —
@@ -106,9 +109,13 @@ export const clientePerdiendoContribucion = {
   entregable: "qué clientes están cayendo contra el año anterior (cada uno con su cifra YoY), sobre cuánta contribución total, y a quién abrir primero — ofrecido, jamás ordenado. Localiza dónde se cae; el porqué no está en este dato.",
   componer({ figs, semilla, pregunta, declarar } = {}) {
     const total = _find(figs, /^Contribuci[oó]n total$/i);
-    const caen = _all(figs, /· YoY$/i)
-      .map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
-      .filter((x) => x.entidad && Number.isFinite(x.usd) && x.usd < 0)
+    /* LA VARIACIÓN EN $ DE TODAS LAS CUENTAS (Notario semántico, fase 2, 2026-09-15): salesRead publica «YoY» solo de los cinco que más se mueven y
+     * «Variación vs año anterior en $» de todas; medir la materialidad solo en los cinco decía «las otras 2 caen bajo el umbral» con Easy (−$177K)
+     * y Unimarc (−$94K) por encima del piso — el Notario lo dio por falso. Se toma la primera fig de cada cuenta, YoY primero. */
+    const _vistas = new Set();
+    const caen = [..._all(figs, /· YoY$/i), ..._all(figs, /· Variaci[oó]n vs a[ñn]o anterior en \$$/i)]
+      .map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _numOValor(f), fmt: _val(f) }))
+      .filter((x) => x.entidad && Number.isFinite(x.usd) && x.usd < 0 && !_vistas.has(x.entidad) && _vistas.add(x.entidad))
       .sort((a, b) => a.usd - b.usd);
     if (!total) return null;
     const piso = _piso();
@@ -437,8 +444,15 @@ export const lecturaDeVentas = {
      * presupuesto, según el foco pedido). Si no vienen los dos no se cita ninguno — media comparación es una
      * cifra suelta, y una cifra suelta sin su contra es exactamente lo que el muro castiga. */
     const subs = _all(figs, /^headlineSub$/i);
-    const par = subs.length === 2 ? { total: _val(subs[0]), ref: _val(subs[1]) } : null;
     const contraPpto = caso === "presupuesto";
+    /* la referencia viaja con rótulo propio («Ventas del año anterior», Notario semántico fase 2) y la boleta no repite la cifra en la segunda
+     * `headlineSub`: el par es el total de la cabecera y esa fila; contra el plan, solo si la cabecera trae los dos */
+    const refAnt = !contraPpto ? _find(figs, /^Ventas del a[ñn]o anterior$/i) : null;
+    const totalPpto = contraPpto ? _find(figs, /^Venta total$/i) : null;
+    const pptoFig = contraPpto ? _find(figs, /^Presupuesto total$/i) : null;
+    const par = subs.length === 2 ? { total: _val(subs[0]), ref: _val(subs[1]), figs: [subs[0], subs[1]] }
+      : subs.length === 1 && refAnt ? { total: _val(subs[0]), ref: _val(refAnt), figs: [subs[0], refAnt] }
+      : totalPpto && pptoFig ? { total: _val(totalPpto), ref: _val(pptoFig), figs: [totalPpto, pptoFig] } : null;
     const yoy = _all(figs, contraPpto ? /· vs ppto$/i : /· YoY$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
       .filter((x) => x.entidad && Number.isFinite(x.usd));
     const piso = _piso();
@@ -455,7 +469,7 @@ export const lecturaDeVentas = {
     const ppto = _find(figs, /^Presupuesto total$/i);
     const declaraLectura = (texto, conPar = !!par) => {
       D.deFig(head, texto);
-      if (par && conPar) { D.deFig(subs[0], texto); D.deFig(subs[1], texto); }   // el par solo donde la línea lo imprime (la lectura de «caída» no lo cita)
+      if (par && conPar) { D.deFig(par.figs[0], texto); D.deFig(par.figs[1], texto); }   // el par solo donde la línea lo imprime (la lectura de «caída» no lo cita)
       if (!contraPpto) D.variacion({ sujeto: "negocio", metrica: "Ventas", direccion: cae ? "baja" : "sube", valor: _val(head), texto });
       else if (ppto) D.relacion({ sujeto: "negocio", metrica: "Venta", forma: /^-?0([.,]0+)?\s*%$/.test(_val(head).trim()) ? "igual" : cae ? "menor" : "mayor", vs: { sujeto: "negocio", metrica: _lab(ppto) }, texto });
     };
@@ -534,8 +548,10 @@ export const lecturaDeVentas = {
         `Te abro ${caen[0].entidad} —${contraPpto ? "el que más se aleja del plan" : "el que más cae"}— si quieres verlo por dentro.`,
       ]);
       partes.push(oferta);
-      D.orden({ sujeto: caen[0].entidad, metrica: M_CLI, forma: "min", universo: U_CLI, texto: oferta });
-      if (!contraPpto) D.variacion({ sujeto: caen[0].entidad, metrica: "Ventas", direccion: "baja", texto: oferta });
+      /* se declara la CLÁUSULA del puesto (la entidad y su superlativo), no la oración entera: el «para ver qué le pasa a su margen» es la oferta */
+      const fragOferta = oferta.includes("—") ? `${caen[0].entidad} —${contraPpto ? "el que más se aleja del plan" : "el que más cae"}—` : `${caen[0].entidad}, ${contraPpto ? "el más lejos del plan" : "el que más cae"}`;
+      D.orden({ sujeto: caen[0].entidad, metrica: M_CLI, forma: "min", universo: U_CLI, texto: fragOferta });
+      if (!contraPpto) D.variacion({ sujeto: caen[0].entidad, metrica: "Ventas", direccion: "baja", texto: fragOferta });
     } else if (!contraPpto && (caso === "neutra" || caso === "serie")) {
       partes.push(variante(semilla, [
         `Si quieres, te la abro también contra el presupuesto comprometido.`,

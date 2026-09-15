@@ -105,7 +105,7 @@ const _crecimiento = {
       /* los que se listan son los que MÁS suben: un orden top-k sobre la variación en dinero de los clientes leídos */
       D.orden({ sujeto: suben.slice(0, 3).map((x) => x.entidad), metrica: "YoY", forma: "topk", k: Math.min(3, suben.length), direccion: "mayor", universo: "los 13 clientes", texto: cab });
       suben.slice(0, 3).forEach((x) => L.push(declaraLinea(x, "sube")));
-      if (suben.length > 3) { const cola = `(y ${suben.length - 3} más que suben)`; L.push(cola); D.conteo({ n: suben.length, predicado: "crecen vs año anterior", universo: "los 13 clientes", texto: cola }); }
+      if (suben.length > 3) { const cola = `(y ${suben.length - 3} más que suben)`; L.push(cola); D.conteo({ n: suben.length, sujeto: suben.slice(0, 3).map((x) => x.entidad), predicado: "crecen vs año anterior", universo: "los 13 clientes", texto: cola }); /* los enumerados arriba: la cola es n − 3 */ }
     }
     if (caen.length) {
       const cab = `Quién cae:`;

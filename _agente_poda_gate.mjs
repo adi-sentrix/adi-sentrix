@@ -22,6 +22,7 @@ import { pathToFileURL } from "node:url";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { answerViaAgente, _podarOracionVetada } from "./src/adi/agente/bucleAgente.js";
+import { declarando } from "./_guion_declara.mjs";   // Notario semántico (fase 2): los guiones declaran desde la boleta, como un cerebro que declara
 import { recortarMunonDeOracion } from "./src/adi/oracle/guardC.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 
@@ -65,7 +66,7 @@ H("2 · el turno completo, por el bucle: de «no pude completar» a la respuesta
    * ANTES de que el cerebro hable y la poda nunca corre. Este bloque mide LA PODA sobre el texto del cerebro,
    * así que la pregunta se queda sin supuesto (C se retira) y el guion sigue trayendo la proyección a la boleta. */
   const r = await answerViaAgente({ text: "cuanto seria mi venta si crece el año que viene?",
-    history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
+    history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: declarando(guion) });
   ok(r.r.agente.estado === "podado", `★ el turno termina en «podado» (${r.r.agente.estado}) — antes: «limite»`);
   ok(/\$103\.0M/.test(r.r.text), "★ y la cifra que el usuario pidió LLEGA A PANTALLA", r.r.text.slice(0, 120));
   ok(!/No pude completar la lectura/.test(r.r.text), "…y ya no recibe «No pude completar la lectura»");
@@ -171,7 +172,7 @@ await carnada("la poda desconectada (el todo-o-nada de vuelta)",
       : { tipo: "texto", texto: T2 });
     // sin «%», como el bloque 2: con supuesto el playbook C compone y la poda nunca corre
     const r = await M.answerViaAgente({ text: "cuanto seria mi venta si crece el año que viene?",
-      history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
+      history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: declarando(guion) });
     /* ⚠️ ESTA COMPROBACIÓN EXIGÍA que sin poda la cifra NO llegara a pantalla, y dejó de distinguir en cuanto
      * se arregló el peldaño: ahora el rescate TAMBIÉN sirve «$103.0M», porque aprendió a servir el resultado
      * del turno en vez de la base. La carnada seguía roja por casualidad y habría quedado verde sin medir.

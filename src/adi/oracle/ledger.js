@@ -18,6 +18,7 @@ import { fig } from "../boleta.js";
 // —el escenario del turno, la tool de origen, y el DOMINIO cuando la etiqueta sola no alcanza a decirlo.
 import { conDominioDelTurno, dominioDeFacts } from "../../config/contract/figureType.js";
 import { simboloMoneda } from "../../config/moneda.js";
+import { resolveCanonical, AXES } from "./entityIndex.js";   // la entidad de una fig es la del catálogo del tenant (dedup entidad + cifra)
 
 // createLedger() → ledger vacío. figs: la boleta plana acumulada (cada fig con .origin). calls: el trace por call.
 export function createLedger() {
@@ -67,6 +68,9 @@ const _KEYLABEL = {
   vendidoMes: "Vendido en el mes", ventaDiaria: "Venta diaria", markup: "Markup", costShare: "Peso del costo",
   benchmark: "Benchmark", brecha: "Brecha", pctRebate: "Carga comercial", rebates: "Acciones comerciales",
 };
+/* claves de los facts que repiten una referencia del negocio por entidad («targetCarga» = el nivel de carga declarado, que la boleta ya trae con
+ * su rótulo): no se caminan — su rótulo humanizado («Target Carga») ni siquiera es vocabulario de la casa */
+const _CLAVES_ECO = new Set(["targetCarga"]);
 const _humanizeKey = (k) => _KEYLABEL[k] || k.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
 /* ── EL SIGNIFICADO DEPENDE DEL PANEL (ley del owner 2026-09-12: cifra + dueño + SIGNIFICADO) ─────────────────
  * Medido en su batería compuesta: el panel «movers» (ventas vs año anterior, specRetrieval) trae `pct` = variación
@@ -75,8 +79,21 @@ const _humanizeKey = (k) => _KEYLABEL[k] || k.replace(/([a-z])([A-Z])/g, "$1 $2"
  * el rótulo mentía sobre el significado, y el muro solo podía juzgar contra el rótulo. La UI de ese mismo panel ya
  * lo titula «YOY %». El walk lleva el `kind` del panel y el rótulo dice lo que la cifra ES. */
 /* solo el %: el «Valor» en $ de ese panel lo leen los composers por su etiqueta de hoy (hipótesis, contradicción) y no se toca */
-const _KEYLABEL_POR_KIND = { movers: { pct: "Variación vs año anterior", porcentaje: "Variación vs año anterior" } };
-const _humanizeKeyEn = (k, kind) => (kind && _KEYLABEL_POR_KIND[kind] && _KEYLABEL_POR_KIND[kind][k]) || _humanizeKey(k);
+/* …y el «Valor» en $ del mismo panel (Notario semántico, fase 2 — deuda de la fase 1): «Lider · Valor = $2.3M» era la variación de la venta
+ * en dinero sin decirlo; el rótulo lo dice. Los composers que lo leían por «Valor» leen las dos formas (hipotesisDelUsuario). */
+const _KEYLABEL_POR_KIND = {
+  movers: { pct: "Variación vs año anterior", porcentaje: "Variación vs año anterior", val: "Variación vs año anterior en $", valFmt: "Variación vs año anterior en $" },
+  "movers:presupuesto": { pct: "Variación vs presupuesto", porcentaje: "Variación vs presupuesto", val: "Variación vs presupuesto en $", valFmt: "Variación vs presupuesto en $" },
+};
+/* el panel «Vs presupuesto» es de la misma clase (movers) que «Vs año anterior»: el TÍTULO dice contra qué se mide */
+const _claseDe = (kind, titulo) => (kind === "movers" && /presupuesto|ppto/i.test(String(titulo || "")) ? "movers:presupuesto" : kind);
+const _humanizeKeyEn = (k, kind, titulo = null) => { const c = _claseDe(kind, titulo); return (c && _KEYLABEL_POR_KIND[c] && _KEYLABEL_POR_KIND[c][k]) || _humanizeKey(k); };
+/* `headline`/`headlineSub` conservan su nombre (los composers los leen así) pero viajan con su significado, para el Notario semántico */
+const _SIGNIFICADO_CABECERA = (k, kind, titulo) => {
+  if (kind !== "movers" || !/^headline(?:Sub)?$/.test(String(k || ""))) return null;
+  const vs = /presupuesto|ppto/i.test(String(titulo || "")) ? "presupuesto" : "año anterior";
+  return k === "headline" ? `la variación de la venta del negocio vs ${vs}` : `la venta del período (y la de ${vs}, al lado)`;
+};
 // _labelDe(entidad, clave) → la etiqueta CANÓNICA "Entidad · Concepto" (owner 2026-08-09, hallazgo G).
 // EL DEFECTO QUE CIERRA: acá se etiquetaba con el nombre PELADO de la entidad ("Falabella") cuando el nodo la
 // traía. Río abajo, `narrationContract._splitLabel` parte en el PRIMER " · " y define —correctamente— que un label
@@ -87,12 +104,12 @@ const _humanizeKeyEn = (k, kind) => (kind && _KEYLABEL_POR_KIND[kind] && _KEYLAB
 // Sin entidad reconocible se conserva la clave sola: hay valores genuinamente globales que llegan así
 // ("headlineSub", "comparacion.vs_anio_anterior") y NO deben inventarse un dueño.
 const _normL = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-function _labelDe(entidad, clave, kind = null) {
+function _labelDe(entidad, clave, kind = null, titulo = null) {
   const e = entidad == null ? "" : String(entidad).trim();
   const k = clave == null ? "" : String(clave).trim();
   if (!e) return k;
   if (!k || _normL(k) === _normL(e)) return e;   // la clave ES el nombre (no agrega concepto) → no se duplica
-  return `${e} · ${_humanizeKeyEn(k, kind)}`;
+  return `${e} · ${_humanizeKeyEn(k, kind, titulo)}`;
 }
 /* ── LA NATURALEZA DE LA CIFRA MANDA SOBRE LA PALABRA DE LA MÉTRICA (owner 2026-09-10) ───────────────────────
  * MEDIDO en el pack de demostración: `entityProfile` publicaba «Falabella · Ranking Margen Desde Abajo = 2.0%» y
@@ -122,13 +139,26 @@ export function esOrdenOConteo(clave) {
   return w.some((x) => _PALABRAS_DE_ORDEN.has(x)) || (_PALABRAS_DE_CONTEO.has(w[0]) && w.length > 1);
 }
 
+const normalizarLabel = (l) => String(l || "").toLowerCase().replace(/\s+/g, " ").trim();
 export function enrichFromFacts(boleta, facts) {
   if (!facts || typeof facts !== "object") return boleta;
-  const seen = new Set(boleta.map((f) => f.canon));
-  const add = (label, tok) => {
+  /* la identidad de una fig es su ENTIDAD y su cifra: dos cuentas con la misma variación («Ripley · -$1.0M», «Obras del Sur · -$1.0M») son dos
+   * hechos (Notario semántico, fase 2 — antes el segundo se perdía por repetir el canon y un hecho verificable quedaba no verificable); la misma
+   * cifra de la misma entidad bajo otra clave («· Fmt») es el eco de un hecho y se descarta; sin entidad, una cifra es una. El muro autoriza
+   * por canon, igual que siempre. */
+  /* la entidad de una fig es la del CATÁLOGO del tenant: «Ventas · Fmt» o «Carga comercial · Fmt» no tienen dueño (el prefijo es un concepto) */
+  const _esEntidad = (n) => AXES.some((d) => { try { return !!resolveCanonical(d, n); } catch { return false; } });
+  const _entidadDe = (label) => { const l = String(label || ""); const i = l.indexOf(" · "); const p = i > 0 ? l.slice(0, i).trim() : ""; return p && _esEntidad(p) ? normalizarLabel(p) : ""; };
+  const seenCanon = new Set(boleta.map((f) => f.canon));                                   // toda cifra ya en la boleta
+  const seen = new Set(boleta.map((f) => _entidadDe(f.label) + "|" + f.canon));              // entidad + cifra
+  const add = (label, tok, extra = null) => {
     const v = String(tok).trim().replace(/\s+/g, " "); if (!v || v === "—") return;
-    const f = fig(String(label || v), v, { unit: _unitOf(v) });
-    if (seen.has(f.canon)) return; seen.add(f.canon); boleta.push(f);
+    const f = fig(String(label || v), v, { unit: _unitOf(v), ...(extra || {}) });
+    const ent = _entidadDe(f.label);
+    /* sin dueño, una cifra que ya está en la boleta no agrega nada (y le daría al muro una cifra ajena como del negocio) */
+    if (!ent && seenCanon.has(f.canon)) return;
+    const k = ent + "|" + f.canon;
+    if (seen.has(k)) return; seen.add(k); seenCanon.add(f.canon); boleta.push(f);
   };
   /* ── UNA MATRIZ NO SE APLANA A FILAS INDISTINGUIBLES (owner 2026-08-11, punto 4) ─────────────────────────────
    * MEDIDO en E3.t3: la respuesta mostró CINCO filas «Ene» con valores distintos ($277K, $269K, $249K, $125K,
@@ -154,7 +184,7 @@ export function enrichFromFacts(boleta, facts) {
   const _tablaM = facts && facts.tablaM;
   const _yaCruzada = _matriz(_tablaM);
 
-  const walk = (node, entity, key = null, kind = null) => {
+  const walk = (node, entity, key = null, kind = null, titulo = null) => {
     // la matriz ya se emitió con su columna: volver a caminarla la aplanaría de nuevo y reintroduciría el defecto.
     if (_yaCruzada && node === _tablaM) return;
     if (node == null) return;
@@ -162,15 +192,17 @@ export function enrichFromFacts(boleta, facts) {
     // ["$6.8M","$6.3M",…] (la serie mes a mes de `trend`). Sin esta rama se descartaban y el guard bloqueaba TODA la
     // tabla temporal (cifras REALES del motor, no autorizadas). Mismo criterio que un string en un campo con nombre.
     if (typeof node === "string") { const mm = node.match(_FIGRE); if (mm) mm.forEach((g) => add(entity || key, g)); return; }
-    if (Array.isArray(node)) { node.forEach((x) => walk(x, entity, key, kind)); return; }
+    if (Array.isArray(node)) { node.forEach((x) => walk(x, entity, key, kind, titulo)); return; }
     if (typeof node === "object") {
       const ent = _entityOf(node) || entity || null;
       const kindAqui = typeof node.kind === "string" ? node.kind : kind;   // el panel declara qué es (movers · rank · …) y sus filas lo heredan
+      const tituloAqui = typeof node.title === "string" ? node.title : titulo;   // …y contra qué («Vs año anterior» · «Vs presupuesto»)
       // findings (diagnose): usd crudo. El concepto sale del propio finding (`tipo`/`concepto`/`label`) y si no
       // trae ninguno queda "Monto" — nunca el nombre pelado (hallazgo G).
       if (typeof node.usd === "number" && node.entidad) add(_labelDe(node.entidad, node.concepto || node.metrica || node.tipo || node.label || "monto"), _moneyE(node.usd));
       for (const [k, v] of Object.entries(node)) {
-        if (typeof v === "string") { const mm = v.match(_FIGRE); if (mm) mm.forEach((g) => add(_labelDe(ent, k, kindAqui), g)); }
+        if (_CLAVES_ECO.has(k)) continue;   // el eco de una referencia del negocio que ya viaja con su rótulo («Nivel de carga comercial declarado»)
+        if (typeof v === "string") { const mm = v.match(_FIGRE); if (mm) { const sig = _SIGNIFICADO_CABECERA(k, kindAqui, tituloAqui); mm.forEach((g) => add(_labelDe(ent, k, kindAqui, tituloAqui), g, sig ? { context: sig } : null)); } }
         else if (typeof v === "number" && Number.isFinite(v)) {
           // crudos por unidad-según-clave · SOLO días/%/x (el $ se omite por la ambigüedad de escala K/crudo)
           // …y ANTES que eso, la NATURALEZA: un puesto o un conteo no son una tasa aunque su clave nombre la
@@ -192,8 +224,8 @@ export function enrichFromFacts(boleta, facts) {
           // redondeo que ya usan los demás campos de esta rama, no una regla nueva — nunca citado en la práctica
           // con el float completo (0/26 en la muestra de auditoría), así que esto es consistencia pura, no un
           // cambio de comportamiento observable.
-          add(_labelDe(ent, k, kindAqui), ku[1] === "days" ? `${Math.round(v)}d` : ku[1] === "ratio" ? `${v.toFixed(1)}x` : `${v.toFixed(1)}%`);
-        } else walk(v, ent, k, kindAqui);
+          add(_labelDe(ent, k, kindAqui, tituloAqui), ku[1] === "days" ? `${Math.round(v)}d` : ku[1] === "ratio" ? `${v.toFixed(1)}x` : `${v.toFixed(1)}%`);
+        } else walk(v, ent, k, kindAqui, tituloAqui);
       }
       return;
     }

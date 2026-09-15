@@ -5429,6 +5429,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   const _calculosDeclarados = _decl.calculos;
   if (_calculosDeclarados.length) narration = _decl.limpio;
   const _vetosCalculo = [];   // se llenan en el bloque de adopción (antes de que exista `violations`) y se vuelcan abajo
+  const _calculosAutorizados = [];   // los cálculos declarados que cerraron con insumos autorizados (Notario semántico, fase 2): se exponen, no deciden
   const _rangoCG = contentScope === "full" ? rangoContextoGeneral(narration) : null;
   const _textoCG = _rangoCG ? String(narration).slice(_rangoCG[0], _rangoCG[1]) : null;
   if (_rangoCG) narration = _enmascararRango(String(narration), _rangoCG);
@@ -5882,6 +5883,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
             _vetosCalculo.push(_multa(c, "dueño", `la declaraste de «${_duenoEfectivo}», pero sus insumos son de ${[..._duenosDeInsumos].slice(0, 3).join("/")} — una cuenta hecha con cifras de otro no da una cifra tuya: revisa de quién es el número`));
           } else {
             if (c.id) _porId.set(String(c.id).trim(), R);
+            _calculosAutorizados.push({ id: c.id ? String(c.id).trim() : "", dueno: _duenoEfectivo, resultado: String(c.resultado), canon: _pfR ? _pfR.canon : null, verbatim: _pfR ? _stripSpace(_pfR.text) : null, unidad: uni, raw: R, formula: String(c.formula || c.op || "") });
             /* ADOPCIÓN CON DUEÑO: al índice propio (lo verifica el `_duenoEnVentana` de siempre) y a `calcBase`,
              * que solo sirve para que OTRA cuenta pueda apoyarse en esta. Ya NO va a `authCanon`: ahí adentro una
              * cifra queda autorizada como valor pelado y el chequeo de atribución deja de mirarla. */
@@ -8028,5 +8030,5 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // reciente, (b) una tabla que abre la respuesta en mode=decision, (c) CUALQUIER tabla en mode=clarify, o (d) una
   // serie temporal sin ningún % de variación citado (ver los 4 detectores arriba).
   const degraded = ok && (verbatimRepeats.length > 0 || decisionTableFirst || clarifyHasTable || temporalMissingVariation);
-  return { ok, verdict: ok ? "fiel" : violations[0].kind, violations, advisories, degraded };
+  return { ok, verdict: ok ? "fiel" : violations[0].kind, violations, advisories, degraded, calculos: _calculosAutorizados };
 }

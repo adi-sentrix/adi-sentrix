@@ -31,6 +31,10 @@
 import { entidadNombrada } from "./indiceEntidades.js";
 import { variante } from "../variacion.js";
 import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): el composer declara mientras escribe
+import { axisEntityNames } from "../../oracle/entityIndex.js";   // las entidades de un eje, para no mezclar bodegas con SKU
+/* las entidades de UN eje (bodega, familia): el contrato de dominios une a la boleta el capital por SKU y por bodega —y por familia si la pregunta la
+ * nombra—; un corte «por bodega» que tome toda fig «· Capital» mezcla ejes («la 1ª bodega de 17»: 4 bodegas + 13 SKU) */
+const _delEje = (eje) => { try { const n = new Set((axisEntityNames(eje) || []).map((x) => String(x).toLowerCase())); return n.size ? (x) => n.has(String(x.nombre).toLowerCase()) : () => true; } catch { return () => true; } };
 
 const _val = (f) => String((f && (f.text || f.value)) || "");
 const _lab = (f) => String((f && f.label) || "");
@@ -158,7 +162,7 @@ export const askDeCuadro = {
       /* el corte que el cuadro pinta y el motor no publica: la regla 2 — declarar, no aproximar. La
        * alternativa va CON cifra (el corte por bodega vino en los pasos). */
       const todas = _all(figs, /· Capital$/i).map((f) => ({ nombre: _lab(f).split("·")[0].trim(), raw: _num(f), fmt: _val(f), f }))
-        .filter((x) => Number.isFinite(x.raw)).sort((a, b) => b.raw - a.raw);
+        .filter((x) => Number.isFinite(x.raw)).filter(_delEje("bodega")).sort((a, b) => b.raw - a.raw);
       p.push(`El corte «${c.nombre}» lo arma el cuadro de Capital tramando los días sin venta, y ese tramado no está publicado como una lectura verificada: no tengo una cifra verificada para dictarte por ese corte.`);
       if (todas.length) {
         const l = `Lo que sí tengo con cifra verificada es el corte por bodega: ${todas.map((x) => `${x.nombre} ${x.fmt}`).join(" · ")}.`;
@@ -176,7 +180,7 @@ export const askDeCuadro = {
         p.push(`«${c.nombre}» existe en tu catálogo como ${c.colision.join(" y como ")} — respondo por ${c.eje}; si buscabas la otra cara, dímelo o tócala desde su cuadro.`);
       }
       const todas = _all(figs, /· Capital$/i).map((f) => ({ nombre: _lab(f).split("·")[0].trim(), raw: _num(f), fmt: _val(f), f }))
-        .filter((x) => Number.isFinite(x.raw)).sort((a, b) => b.raw - a.raw);
+        .filter((x) => Number.isFinite(x.raw)).filter(_delEje(c.eje)).sort((a, b) => b.raw - a.raw);
       const lugar = todas.findIndex((x) => x.nombre.toLowerCase() === c.nombre.toLowerCase());
       const l1 = `En ${c.nombre} tienes ${_val(mia)} de capital en inventario${lugar >= 0 && todas.length > 1 ? ` — la ${lugar + 1}ª ${c.eje} de ${todas.length} por capital` : ""}.`;
       p.push(l1);
@@ -184,7 +188,7 @@ export const askDeCuadro = {
       /* «la Nª <eje> de M por capital»: el puesto se declara sobre el eje que la frase nombra, y el «de M» como el conteo que afirma */
       if (lugar >= 0 && todas.length > 1) {
         D.orden({ sujeto: c.nombre, metrica: "Capital", forma: "puesto", k: lugar + 1, direccion: "mayor", universo: `las ${c.eje}s del inventario`, texto: l1 });
-        D.conteo({ n: todas.length, predicado: "con capital en inventario", universo: `las ${c.eje}s del inventario`, texto: l1 });
+        D.conteo({ n: todas.length, predicado: "con capital en la boleta", universo: `las ${c.eje}s del inventario`, texto: l1 });   // el «de M»: las que traen capital en la boleta
       }
       if (todas.length > 1) { const l2 = `El corte completo, de mayor a menor: ${todas.map((x) => `${x.nombre} ${x.fmt}`).join(" · ")}.`; p.push(l2); declaraCorte(todas, c.eje, l2); }
       p.push(variante(semilla, [

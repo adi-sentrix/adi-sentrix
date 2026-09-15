@@ -28,6 +28,7 @@ import { sistemaDelAgente } from "./src/adi/agente/sistemaAgente.js";
 import { cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { declarando } from "./_guion_declara.mjs";   // Notario semántico (fase 2): los guiones declaran desde la boleta, como un cerebro que declara
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -85,7 +86,7 @@ H("3 · el bucle multa el cierre que ordena y acepta la reparación que ofrece")
     }
     return { tipo: "texto", texto: "Depósito Riachuelo te compró $22.560 en agosto 2026.\n\nProcede con la renegociación de su carga." };
   };
-  const r = await answerViaAgente({ text: "cuanto me compro riachuelo el ultimo mes", history: [], mem: {}, scenario: "actual", callAgente: guion });
+  const r = await answerViaAgente({ text: "cuanto me compro riachuelo el ultimo mes", history: [], mem: {}, scenario: "actual", callAgente: declarando(guion) });
   ok(r.r.agente.estado === "reparado", "★ el cierre que ordenaba fue multado y la reparación que OFRECE pasó", r.r.agente.estado);
   ok(!!multaVista && /decisiones son del usuario/.test(multaVista), "la multa lleva la regla del owner, no un genérico", (multaVista || "").slice(0, 160));
   ok(!/Procede con/.test(r.r.text), "a pantalla jamás llegó la orden");
@@ -95,7 +96,7 @@ H("3 · el bucle multa el cierre que ordena y acepta la reparación que ofrece")
     if (ronda === 1 && !attempt) return { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] };
     return { tipo: "texto", texto: "Depósito Riachuelo te compró $22.560 en agosto 2026.\n\nProcede con la renegociación de su carga." };
   };
-  const r2 = await answerViaAgente({ text: "cuanto me compro riachuelo el ultimo mes", history: [], mem: {}, scenario: "actual", callAgente: guion2 });
+  const r2 = await answerViaAgente({ text: "cuanto me compro riachuelo el ultimo mes", history: [], mem: {}, scenario: "actual", callAgente: declarando(guion2) });
   ok(r2.r.agente.estado !== "verde" && r2.r.agente.estado !== "reparado" && !/Procede con/.test(r2.r.text),
     "reparación que insiste en ordenar → escalera, y la orden NUNCA sale", r2.r.agente.estado);
 }
@@ -544,16 +545,16 @@ H("5e · el trato viaja en `mem`: sobrevive al turno siguiente aunque el proceso
   const guionRegistra = async ({ ronda }) => (ronda === 1
     ? { tipo: "herramientas", pedidos: [{ tool: "preferenciaNombre", args: { nombre: "wachin" } }, { tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] }
     : { tipo: "texto", texto: "" });
-  const t1 = await answerViaAgente({ text: "mejor decime wachin. y el inventario como esta?", history: [], mem: {}, scenario: "actual", callAgente: guionRegistra });
+  const t1 = await answerViaAgente({ text: "mejor decime wachin. y el inventario como esta?", history: [], mem: {}, scenario: "actual", callAgente: declarando(guionRegistra) });
   ok(/^wachin: /.test(t1.r.text), "el turno que registra el apodo ya lo usa en su rescate", t1.r.text.slice(0, 60));
   ok(t1.mem.nombreUsuario === "wachin", "★ y el trato queda en la memoria del turno, no solo en el módulo");
 
   olvidarNombreUsuario();   // simula el PROCESO NUEVO del turno siguiente en la consola (sin localStorage)
-  const t2 = await answerViaAgente({ text: "y el margen?", history: [], mem: t1.mem, scenario: "actual", callAgente: mudo });
+  const t2 = await answerViaAgente({ text: "y el margen?", history: [], mem: t1.mem, scenario: "actual", callAgente: declarando(mudo) });
   ok(/^wachin: /.test(t2.r.text),
     "★ el turno siguiente —proceso nuevo, módulo vacío— recupera el trato desde `mem`", t2.r.text.slice(0, 60));
   olvidarNombreUsuario();
-  const t3 = await answerViaAgente({ text: "y el margen?", history: [], mem: {}, scenario: "actual", callAgente: mudo });
+  const t3 = await answerViaAgente({ text: "y el margen?", history: [], mem: {}, scenario: "actual", callAgente: declarando(mudo) });
   ok(!/^wachin: /.test(t3.r.text), "…y sin memoria no se inventa un trato que el usuario no pidió");
 }
 
@@ -614,7 +615,7 @@ H("6 · CARNADA · cada palabra del owner, probada ROJA con el defecto adentro")
       const guion = async ({ ronda }) => ronda === 1
         ? { tipo: "herramientas", pedidos: [{ tool: "serieEntidad", args: { entity: "Depósito Riachuelo", metrica: "venta" } }] }
         : { tipo: "texto", texto: "Depósito Riachuelo te compró $22.560 en agosto 2026.\n\nProcede con la renegociación de su carga." };
-      const r = await Mut.answerViaAgente({ text: "cuanto me compro riachuelo el ultimo mes", history: [], mem: {}, scenario: "actual", callAgente: guion });
+      const r = await Mut.answerViaAgente({ text: "cuanto me compro riachuelo el ultimo mes", history: [], mem: {}, scenario: "actual", callAgente: declarando(guion) });
       return /Procede con/.test(r.r.text);   // el defecto: la orden LLEGÓ a pantalla
     });
 

@@ -432,7 +432,8 @@ export function componerPrioridadIntegrada(figs, dominios = [], { criterio = nul
     if (O.metrica) D.orden({ sujeto: top.map((x) => x.entidad), metrica: O.metrica, forma: "topk", k: top.length, direccion: O.direccion, universo: O.universo, texto: cabecera });
     else D.lectura({ texto: cabecera, sello: "criterio mío" });
     top.forEach((x, i) => { const l = `${i + 1}. ${x.entidad}${x.valor ? ` — ${x.valor}` : ""}`; L.push(l); _declararCifras(D, x.entidad, x.cifras, l); });
-    if (O.lista.length > 3) { const cola = `(y ${O.lista.length - 3} más)`; L.push(cola); if (O.conteo) D.conteo({ n: O.lista.length, predicado: O.conteo.predicado, universo: O.conteo.universo, texto: cola }); }
+    /* la cola lleva número solo cuando es un conteo del negocio (predicado de la casa); el resto de una lista de la boleta se dice sin contarlo */
+    if (O.lista.length > 3) { const cola = O.conteo ? `(y ${O.lista.length - 3} más)` : `(y otras cuentas más)`; L.push(cola); if (O.conteo) D.conteo({ n: O.lista.length, predicado: O.conteo.predicado, universo: O.conteo.universo, texto: cola }); }
     const otras = _otrasLentes(figs, dominios, usa, D);
     if (otras) L.push(`${otras} Los hechos no cambian con la lente; cambia quién va primero. Dime por cuál quieres que lo reordene.`);
     const criterioTxt = `Criterio: ${C.nombre} (${C.dicho}); las cifras de dominios distintos no se suman ni se comparan entre sí.`;

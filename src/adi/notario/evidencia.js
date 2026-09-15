@@ -11,12 +11,13 @@
  * Puro: sin I/O. */
 import { parseFigures } from "../boleta.js";
 import { metricasEn } from "../oracle/guardC.js";
-import { normalizar } from "./afirmacion.js";
+import { normalizar, menosAscii } from "./afirmacion.js";
 
 /* SINÓNIMOS · lo que el modelo (o quien etiqueta) puede escribir como métrica → los conceptos del rótulo que la nombran, en orden de
  * preferencia. Se casan por igualdad normalizada; el resto de la casación es genérica (ver conceptosDe). */
 export const SINONIMOS = [
-  [/^(?:ventas?|facturaci[oó]n|venta\s+comercial|venta\s+del\s+per[ií]odo|ventas\s+del\s+per[ií]odo)$/i, ["venta", "ventas", "ventas del periodo", "venta (flujo)", "venta del periodo (flujo)"]],
+  [/^(?:ventas?|facturaci[oó]n|venta\s+comercial|venta\s+del\s+per[ií]odo|ventas\s+del\s+per[ií]odo)$/i, ["venta", "ventas", "ventas del periodo", "ventas totales", "venta (flujo)", "venta del periodo (flujo)"]],
+  [/^ventas?\s+del\s+a[ñn]o\s+(?:anterior|pasado)$|^venta\s+(?:del\s+)?a[ñn]o\s+(?:anterior|pasado)$|^base\s+del\s+a[ñn]o\s+anterior$/i, ["ventas del ano anterior"]],   // la base del crecimiento, con fila propia
   [/^(?:saldo\s+)?vencidos?$|^(?:deuda\s+)?(?:en\s+)?mora$|^saldo\s+en\s+mora$|^deuda\s+vencida$/i, ["saldo vencido"]],
   [/^(?:saldo\s+)?pendientes?$|^por\s+cobrar$|^deuda$|^saldo$/i, ["saldo pendiente"]],
   [/^d[ií]as?\s+(?:de\s+)?(?:atraso|mora|retraso|vencid[oa]s?)$|^atraso$|^dias?\s+vencido$/i, ["dias vencido"]],
@@ -41,7 +42,11 @@ export const SINONIMOS = [
   [/^d[ií]as\s+(?:de\s+)?inventario$|^cobertura(?:\s+\(doh\))?$|^doh$/i, ["dias de inventario", "cobertura (doh)"]],
   [/^d[ií]as\s+sin\s+venta$/i, ["dias sin venta"]],
   [/^(?:variaci[oó]n|crecimiento|yoy|variaci[oó]n\s+vs\s+a[ñn]o\s+anterior|variaci[oó]n\s+de\s+(?:la\s+)?ventas?|crecimiento\s+de\s+(?:la\s+)?ventas?)$/i, ["variacion vs ano anterior", "crecimiento", "ventas vs ano anterior"]],
-  [/^(?:yoy\s+en\s+dinero|variaci[oó]n\s+en\s+dinero|variaci[oó]n\s+en\s+\$|d[oó]lares\s+nuevos)$/i, ["yoy"]],
+  [/^(?:yoy|yoy\s+en\s+dinero|variaci[oó]n\s+en\s+dinero|variaci[oó]n\s+en\s+\$|variaci[oó]n\s+vs\s+a[ñn]o\s+anterior\s+en\s+\$|d[oó]lares\s+nuevos)$/i, ["yoy", "variacion vs ano anterior en $"]],
+  /* contra el PLAN, con el mismo estándar que contra el año anterior: la brecha en dinero por cliente («vs ppto» es la destacada y «Variación vs
+   * presupuesto en $» la fila del panel: la misma cifra) y la variación de la venta del negocio contra el plan (la cabecera) */
+  [/^(?:vs\s+ppto|vs\s+presupuesto|variaci[oó]n\s+vs\s+presupuesto\s+en\s+\$|brecha\s+(?:al|contra\s+el)\s+presupuesto(?:\s+en\s+\$)?|(?:sobre|contra|bajo)\s+el\s+plan(?:\s+en\s+\$)?)$/i, ["vs ppto", "variacion vs presupuesto en $"]],
+  [/^(?:variaci[oó]n\s+vs\s+presupuesto|variaci[oó]n\s+contra\s+el\s+presupuesto|ventas?\s+vs\s+presupuesto|crecimiento\s+vs\s+presupuesto)$/i, ["variacion vs presupuesto", "ventas vs presupuesto"]],
   [/^(?:participaci[oó]n|%\s+del\s+total|peso|porcentaje\s+del\s+total|participaci[oó]n\s+en\s+el\s+total)$/i, ["% del total"]],
   [/^(?:benchmark|benchmark\s+de\s+margen|referencia|referencia\s+de\s+margen|objetivo\s+de\s+margen)$/i, ["benchmark de margen", "piso de margen"]],
   [/^(?:nivel\s+de\s+carga(?:\s+comercial)?(?:\s+declarado)?|carga\s+declarada|referencia\s+de\s+carga)$/i, ["nivel de carga comercial declarado"]],
@@ -67,6 +72,8 @@ export const ESTADOS = [
 export const estadoCanon = (t) => { const s = normalizar(t); for (const [re, e] of ESTADOS) if (re.test(s)) return e; return s; };
 
 const _NEGOCIO_FIG = /^(?:el\s+negocio|negocio|total|cartera|global)$/i;
+/* un mes, como lo rotula el cuadro «el año mes a mes» (abreviado o entero) */
+const _MES_RE = /^(?:ene(?:ro)?|feb(?:rero)?|mar(?:zo)?|abr(?:il)?|may(?:o)?|jun(?:io)?|jul(?:io)?|ago(?:sto)?|sep(?:t(?:iembre)?)?|oct(?:ubre)?|nov(?:iembre)?|dic(?:iembre)?)(?:\s+\d{4})?$/i;
 /* qué palabras de un universo/descripción NO distinguen nada (se descartan al casar con el rótulo) */
 const _VACIAS = new Set(["de", "del", "la", "las", "el", "los", "un", "una", "y", "o", "en", "con", "que", "a", "al", "por", "para", "su", "sus", "es", "son", "ese", "esa", "esos", "esas", "este", "esta", "estos", "estas", "cuentas", "clientes", "cuenta", "cliente", "sku", "skus", "bodegas", "bodega", "marcas", "marca", "entre", "solo", "sólo", "todas", "todos", "toda", "todo", "grupo", "conjunto"]);
 export const tokens = (t) => normalizar(t).replace(/[()·,;:%$]/g, " ").split(/\s+/).filter((w) => w && !_VACIAS.has(w) && !/^\d+$/.test(w));
@@ -106,7 +113,12 @@ export function indiceDeEvidencia({ figs = [], datoProyectado = null, ejesDelTen
 
   /* ── las figs, leídas por significado ── */
   const F = [];
-  for (const fig of figs) {
+  /* LA QUINTA FUENTE CON SIGNIFICADO: los KPIs del negocio de la proyección (lo que el cerebro lee en su mapa) entran como figs del negocio
+   * cuando la boleta no trae ese concepto — «Ventas totales $100.0M» vale por lo que es, no por el valor y un dueño vago */
+  const _kpis = datoProyectado && Array.isArray(datoProyectado.kpis) ? datoProyectado.kpis : [];
+  const _conceptosBoleta = new Set(figs.filter((g) => g && g.label && !/\s·\s/.test(String(g.label))).map((g) => normalizar(String(g.label))));
+  const figsConKpis = [...figs, ..._kpis.filter((k) => k && k.label && !_conceptosBoleta.has(normalizar(k.label)))];
+  for (const fig of figsConKpis) {
     if (!fig || !fig.label) continue;
     const label = String(fig.label);
     const partes = label.split(/\s+·\s+/);
@@ -114,16 +126,22 @@ export function indiceDeEvidencia({ figs = [], datoProyectado = null, ejesDelTen
     const t = fig.tipo || {};
     const ent0 = partes.length > 1 ? resolverEntidad(partes[0]) : null;
     if (ent0) { entidad = ent0.nombre; eje = ent0.eje; concepto = partes.slice(1).join(" · "); }
-    else if (partes.length > 1 && t.entidad && t.dimension && porEje[t.dimension] && normalizar(t.entidad) === normalizar(partes[0])) {
-      /* una entidad que el índice de ejes no trae (familia, bodega) pero el clasificador de la fig sí */
+    else if (partes.length > 1 && t.entidad && t.dimension && !(porEje[t.dimension] && porEje[t.dimension].length) && normalizar(t.entidad) === normalizar(partes[0])) {
+      /* una entidad de un eje SIN catálogo (familia, bodega) que el clasificador de la fig sí trae; con catálogo, lo que no está en él no es una
+       * entidad («Supuesto · movimiento de carga», «Liberado · total», «Medida · cerrar brecha» vienen con dimension=cliente y no son clientes) */
       entidad = String(t.entidad); eje = t.dimension || null; concepto = partes.slice(1).join(" · "); _agregarDeRotulo(entidad, eje);
     }
     else if (partes.length > 1 && /^(?:el\s+)?negocio$/i.test(partes[0])) { entidad = null; concepto = partes.slice(1).join(" · "); }
+    /* las cabeceras del panel de ventas viajan con nombre de campo («headline», «headlineSub») y su significado en `context` */
+    else if (/^headline(?:Sub)?$/.test(label) && fig.context) { entidad = null; concepto = label === "headline" ? (/presupuesto/i.test(fig.context) ? "Variación vs presupuesto" : "Variación vs año anterior") : "Ventas del período"; }
+    /* «El año mes a mes · Nov · margen» → el MES es la entidad (eje «mes») y el concepto es «<cuadro> · margen»: doce filas por campo, y un
+     * orden entre meses («el mejor del año») se verifica como cualquier ranking ad hoc */
+    if (!entidad && partes.length === 3 && _MES_RE.test(partes[1])) { entidad = partes[1]; eje = "mes"; concepto = partes[0] + " · " + partes[2]; _agregarDeRotulo(entidad, "mes"); }
     /* «Materiales de Construcción · Familia» → la familia es la entidad y el concepto es el capital de la familia */
     if (!entidad && partes.length === 2 && /^familia$/i.test(partes[1])) { entidad = partes[0]; eje = "familia"; concepto = "capital"; _agregarDeRotulo(entidad, "familia"); }
     let raw = Number.isFinite(+fig.raw) && fig.raw !== "" && fig.raw != null ? +fig.raw : NaN;
     let unidad = fig.unit || null;
-    if (!Number.isFinite(raw)) { const p = parseFigures(String(fig.value || "")); if (p.length) { raw = p[0].raw; unidad = unidad || p[0].unit; } else if (/^-?\d+$/.test(String(fig.value || "").trim())) { raw = parseInt(fig.value, 10); unidad = unidad || "count"; } }
+    if (!Number.isFinite(raw)) { const p = parseFigures(menosAscii(String(fig.value || ""))); if (p.length) { raw = p[0].raw; unidad = unidad || p[0].unit; } else if (/^-?\d+$/.test(String(fig.value || "").trim())) { raw = parseInt(fig.value, 10); unidad = unidad || "count"; } }
     /* «5.0 pp» viene con unit «pct» en alguna fig: la unidad del canon manda */
     if (unidad === "pct" && /\bpp\b/.test(String(fig.value || ""))) unidad = "pp";
     const conceptoNorm = normalizar(concepto);
@@ -139,7 +157,7 @@ export function indiceDeEvidencia({ figs = [], datoProyectado = null, ejesDelTen
     const entidadesDelGrupo = grupo ? grupo.entidades : [];
     const n = grupo && grupo.n != null ? grupo.n : cobertura && Number.isFinite(+cobertura.n) ? +cobertura.n : (() => { const m = /(\d+)\s+(?:cuentas|clientes|sku|skus)/i.exec(concepto) || /\((\d+)\s+de\s+\d+\)/.exec(concepto); return m ? +m[1] : null; })();
     const m = cobertura && Number.isFinite(+cobertura.m) ? +cobertura.m : (() => { const mm = /\(\s*de\s+(\d+)\b/i.exec(concepto) || /\(\d+\s+de\s+(\d+)\)/.exec(concepto); return mm ? +mm[1] : null; })();
-    F.push({ fig, label, entidad, eje, concepto, conceptoNorm, base, calificador, universoTexto, raw, unidad, canon: String(fig.canon || "").replace(/\$/g, ""), agregado, grupo, cobertura, n, m, entidadesDelGrupo, periodo: t.periodo || "", universo: t.universoEtiqueta || t.universo || "", claves: metricasEn(concepto), source: fig.source || "", formula: fig.formula || "", context: fig.context || "" });
+    F.push({ fig, label, entidad, eje, concepto, conceptoNorm, base, calificador, universoTexto, raw, unidad, canon: String(fig.canon || "").replace(/\$/g, ""), texto: menosAscii(String(fig.value ?? fig.text ?? "")).trim(), agregado, grupo, cobertura, n, m, entidadesDelGrupo, periodo: t.periodo || "", universo: t.universoEtiqueta || t.universo || "", claves: metricasEn(concepto), source: fig.source || "", formula: fig.formula || "", context: fig.context || "" });
   }
 
   /* ── la casación de la métrica declarada con el concepto de la fig ── */

@@ -28,6 +28,7 @@ import { readFileSync } from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { declarando } from "./_guion_declara.mjs";   // los guiones que hacen de cerebro declaran como un cerebro (Notario semántico, fase 2)
 import { resolveConversationReference, resolveOrdinalReference, updateConversationScope, emptyConversationScope, esAlcanceGlobal, vetoReferente, ordenPresentadoEn, DEICTIC_SINGULAR_RE } from "./src/adi/oracle/conversationScope.js";
 import { vetosDeContrato } from "./src/adi/agente/contratoAgente.js";
 import { buildRequestContext } from "./src/adi/oracle/requestContext.js";
@@ -66,7 +67,12 @@ if (CUATRO.length < 4) { console.log("\n── sin cuatro cuentas no se puede me
 /* la tabla que el cerebro narra, con las cifras REALES de la boleta (así pasa el muro y es lo que el usuario ve) */
 const TABLA = ["Ocho clientes están bajo el benchmark, pero el peso real lo cargan cuatro.", "| Cliente | Margen |",
   ...CUATRO.map((n) => { const m = FIGS_MARGEN.find((f) => f.label === `${n} · Margen`); return `| ${n} | ${valDe(m)} |`; })].join("\n");
-const cerebroTabla = () => { let k = 0; return async () => { k++; return k === 1 ? { tipo: "herramientas", pedidos: [{ tool: "marginRead", args: { focus: "bajo_benchmark", dimension: "cliente" } }] } : { tipo: "texto", texto: TABLA }; }; };
+/* el cerebro DECLARA (contrato del bucle): las cifras de la tabla se derivan de la boleta; el conteo y el top-4 por brecha van a mano */
+const DECLARA_TABLA = [
+  { tipo: "conteo", conteo: { n: 8, predicado: "bajo el benchmark" }, universo: "los 13 clientes", texto: "Ocho clientes están bajo el benchmark" },
+  { tipo: "orden", sujeto: CUATRO, metrica: "Brecha al benchmark", orden: { forma: "topk", k: 4, direccion: "mayor" }, universo: "los 8 clientes bajo el benchmark", texto: "el peso real lo cargan cuatro" },
+];
+const cerebroTabla = () => { let k = 0; return declarando(async () => { k++; return k === 1 ? { tipo: "herramientas", pedidos: [{ tool: "marginRead", args: { focus: "bajo_benchmark", dimension: "cliente" } }] } : { tipo: "texto", texto: TABLA, declarar: DECLARA_TABLA }; }, ESC); };
 
 /* ═══ 1 · EL RESOLUTOR CANÓNICO, EXTENDIDO — las ocho formas y sus contrapesos ═══════════════════════════════ */
 H("1 · el resolutor canónico resuelve las ocho formas sobre el conjunto presentado — y no adivina");

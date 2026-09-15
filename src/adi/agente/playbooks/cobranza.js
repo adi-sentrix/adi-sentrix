@@ -111,7 +111,8 @@ export const cobranza = {
     for (const x of porCliente.slice(0, 6)) { const l = `- ${x.entidad}: ${x.fmt}`; partes.push(l); D.cifra({ sujeto: x.entidad, metrica: "Saldo pendiente", valor: x.fmt, texto: l }); }
     /* la cola «(y N más)» no se declara: N es lo que la boleta trae y no cabe en la lista (el emisor publica 8 filas), no cuántos deben —
      * la mesa del flujo tiene más deudores que la boleta; se anota como hallazgo, no se declara como conteo */
-    if (porCliente.length > 6) partes.push(`(y ${porCliente.length - 6} más)`);
+    /* …y por eso la cola NO trae número (Notario semántico, fase 2, 2026-09-15): «(y 2 más)» contaba filas de la boleta, no deudores — era falso */
+    if (porCliente.length > 6) partes.push(`(y otras cuentas más)`);
     if (vencidoTotal) {
       const l = `De eso, ${_val(vencidoTotal)} ya está vencido${vencidos.length ? ` — el más pesado es ${vencidos[0].entidad} con ${vencidos[0].fmt}` : ""}.`;
       partes.push(l);

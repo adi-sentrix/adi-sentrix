@@ -24,6 +24,7 @@ import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { declarando, bloqueDe, afirmacionesDelFixture, falsasEsperadas } from "./_guion_declara.mjs";   // Notario semántico (fase 2)
 import { LENTES, senalesDelDominio, prioridadIntegrada, componerPrioridadIntegrada, conclusionDePrioridad, prioridadIntegradaCambiada, CRITERIO } from "./src/adi/agente/prioridadIntegrada.js";
 import { partesDelEncargo, doctrinaDelEncargo, coberturaDelEncargo, esEncargoCompuesto } from "./src/adi/agente/encargoCompuesto.js";
 import { vetosDeRegistro } from "./src/adi/agente/contratoAgente.js";
@@ -41,6 +42,8 @@ MUDO.llamadas = [];
 initTenant(TENANT_DEMO);
 const FX = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-produccion-2026-09-14.json", import.meta.url), "utf8"));
 const VIVO = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo-2026-09-14.json", import.meta.url), "utf8"));
+const _pasoDe = (r, sitio) => (((r.r.agente || {}).notario || {}).pasos || []).find((p) => p.sitio === sitio) || null;
+const _detectoresDe = (r) => (((r.r.agente || {}).notario || {}).pasos || []).flatMap((p) => p.detectores || []);
 const Q = FX.pregunta;
 const DOMS = ["comercial", "inventario", "cobranza"];
 const figsDe = (doms) => runPlan({ intent: "answer", calls: pasosDeDominios({ dominios: doms, eje: null }).map((p) => ({ tool: p.tool, args: p.args || {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 18, preguntaUsuario: Q, registry: CAJA }).ledger.figs || [];
@@ -157,7 +160,8 @@ H("6 · la corrida viva (autorizada, 2 llamadas): el modelo puso a Lider primero
   ok(v.ok, "…y el muro entero", (v.violations || []).map((x) => x.kind).join(","));
   /* el camino del modelo, offline, con ese borrador como cerebro: se sirve VERDE a la primera */
   const r = await answerViaAgente({ text: Q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: b2, stop: "end_turn" }) });
-  ok(r.r.agente.estado === "verde" && r.r.text === b2, `★ con el borrador vivo como cerebro, el turno se sirve entero y verde (${r.r.agente.estado}): el usuario recibe la lectura del modelo`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
+  /* Notario semántico (fase 2): el borrador vivo no trae declaración —es anterior al protocolo— y no se sirve; lo que llega es el ensamblador completo */
+  ok(_pasoDe(r, "cierre") && r.r.agente.estado === "encargo-compuesto" && r.r.text.split(/\s+/).length >= 400, `★ con el borrador vivo como cerebro (sin declaración: anterior al protocolo), el turno se juzga entero y lo que llega es el ensamblador completo (${r.r.agente.estado})`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
   /* los dos cierres, con sus candados */
   const reg = (t) => vetosDeRegistro(t, { pregunta: "x", figs: [] }).map((x) => x.regla);
   ok(!reg("El motor de ventas está sano y los tres motores del crecimiento son Lider, Jumbo y Falabella.").includes("lexico-voz-de-motor") && !reg("Lo que el motor de crecimiento muestra es sano.").includes("lexico-voz-de-motor"), "«motor de ventas» / «motores del crecimiento» / «motor de crecimiento»: metáfora de negocio, no voz de sistema");
@@ -195,8 +199,8 @@ H("7 · la tercera corrida viva (autorizada, 2 llamadas): la reparación cumpli�
    * «estos cuatro» (P1·3) y «su» (P2·1). Los dos vetos son del mismo chequeo; ningún falso positivo vuelve. */
   ok(muro(b3).every((x) => x.kind === "cifra-de-grupo-mal-repartida") && muro(b3).some((x) => /«57\.3%».*3 nombres \(Easy, La Polar, Hites\) — quedan fuera: ABC, Unimarc/.test(String(x.detail))), "…y del muro solo quedan los errores reales de grupo: «57.3% en Easy, La Polar, Hites» reparte a tres el promedio de cinco sanos (y «estos clientes» reparte a tres el 41.4% de ocho)", muro(b3).map((x) => x.kind + ": " + String(x.detail).slice(0, 90)).join(" | "));
   ok(!vetosDeRegistro(b3, { pregunta: Q, figs: rp.ledger.figs, sitio: "cierre" }).length, "…y el contrato entero");
-  const r = await answerViaAgente({ text: Q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: b3, stop: "end_turn" }) });
-  ok(r.r.agente.estado !== "verde" && r.r.agente.vetos.some((v) => /«57\.3%»|«41\.4%»/.test(String(v))) && r.r.text.split(/\s+/).length >= 400, `★ con esa reparación como cerebro, el turno ya NO se sirve verde: el 57.3% repartido se detiene y el usuario recibe una respuesta completa (${r.r.agente.estado}, ${r.r.text.split(/\s+/).length} palabras)`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
+  const r = await answerViaAgente({ text: Q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: declarando(async () => ({ tipo: "texto", texto: b3, stop: "end_turn" })) });
+  ok(r.r.agente.estado !== "verde" && (r.r.agente.vetos.some((v) => /«57\.3%»|«41\.4%»/.test(String(v))) || _detectoresDe(r).includes("cifra-de-grupo-mal-repartida")) && r.r.text.split(/\s+/).length >= 400, `★ con esa reparación como cerebro, el turno ya NO se sirve verde: el 57.3% repartido se detiene y el usuario recibe una respuesta completa (${r.r.agente.estado}, ${r.r.text.split(/\s+/).length} palabras)`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
   /* los candados que no aflojan */
   const ardeM = (t, kind) => muro(t).some((x) => x.kind === kind);
   ok(ardeM("Lider vende $19.4M.", "cifra-de-boleta-sin-dueno") && ardeM("Falabella lidera la venta con diferencia y sostiene la mayor parte del canal retail durante todo el año cerrado, mientras que Lider vende $19.4M.", "cifra-de-boleta-sin-dueno"), "candados: «Lider vende $19.4M» (de Falabella) sigue ardiendo, con el dueño cerca o lejos");
@@ -255,8 +259,8 @@ H("9 · el segundo prompt en vivo (autorizado, 1 llamada): el modelo terminó en
   /* AUDITORÍA DEL NOTARIO (owner 2026-09-14): lo servido dice «269 días y 45% de recuperación es la señal más urgente de la cartera» — el
    * mismo superlativo que la auditoría declaró FALSO en la prueba 2 («la más urgente en cobranza (269 días vencidos)»: Easy tiene 270). Con los
    * rankings de cobranza declarados, el muro lo verifica y el turno ya no se sirve verde; la ley de prioridad y el contrato siguen pasando. */
-  const r = await answerViaAgente({ text: FX2.pregunta, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: tv, stop: "end_turn" }) });
-  ok(r.r.agente.estado !== "verde" && JSON.stringify(r.r.agente.vetos).includes("«la señal más urgente» en dias vencido") && JSON.stringify(r.r.agente.vetos).includes("Easy (270d"), `…y con ese texto como cerebro el turno ya NO se sirve verde (${r.r.agente.estado}): «la señal más urgente de la cartera» con 269 días es falsa — Easy tiene 270 (error de orden real, auditoría 2026-09-14)`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
+  const r = await answerViaAgente({ text: FX2.pregunta, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: declarando(async () => ({ tipo: "texto", texto: tv, stop: "end_turn" })) });
+  ok(r.r.agente.estado !== "verde" && ((JSON.stringify(r.r.agente.vetos).includes("«la señal más urgente» en dias vencido") && JSON.stringify(r.r.agente.vetos).includes("Easy (270d")) || _detectoresDe(r).includes("superlativo-no-sostenido")), `…y con ese texto como cerebro el turno ya NO se sirve verde (${r.r.agente.estado}): «la señal más urgente de la cartera» con 269 días es falsa — Easy tiene 270 (error de orden real, auditoría 2026-09-14)`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
 }
 
 /* ═══ 10 · EL CRITERIO DEL USUARIO MANDA: LA JERARQUÍA (owner 2026-09-14, corrección del estándar) ═══════════════════ */
@@ -360,8 +364,11 @@ H("12 · las dos pruebas vivas de la v2.31 (autorizadas, 2 llamadas cada una): d
   const rep = V5.borradores[1].texto;
   ok(/Falabella es la mayor brecha de contribución sin capturar \(\$1\.6M\), y Lider es la cuenta con peores indicadores de cobranza \(269 días, 45% recuperado, \$4\.6M vencidos\) y la mayor distancia al benchmark de margen \(8\.6 pp contra 8\.1 pp de Falabella\)/.test(rep), "la frase: «Falabella es la mayor brecha… ($1.6M), y Lider es la cuenta con… (8.6 pp contra 8.1 pp de Falabella)» — dos cláusulas, cada cifra con su dueño");
   ok(M1.muro(rep).length === 0 && !vetosDeRegistro(rep, { pregunta: Q, figs: M1.rp.ledger.figs, sitio: "reparacion" }).length, "★ ya no arde: la distributiva solo reparte entre entidades COORDINADAS entre sí; con dos sujetos manda el sujeto de la cláusula (8.6 pp es de Lider)", M1.muro(rep).map((x) => x.kind + ": " + String(x.detail).slice(0, 90)).join(" | "));
-  const r5 = await answerViaAgente({ text: Q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: rep, stop: "end_turn" }) });
-  ok(r5.r.agente.estado === "verde" && r5.r.text === rep, `★ con esa reparación como cerebro, el turno se sirve entero y verde (${r5.r.agente.estado}): el usuario recibe la lectura del modelo`, JSON.stringify(r5.r.agente.vetos).slice(0, 200));
+  /* Notario semántico (fase 2): esa reparación, declarada A MANO en la fase 1, trae 2 afirmaciones FALSAS etiquetadas (salió a producción con ellas):
+   * el juez las encuentra y el turno no se sirve verde; lo que llega es el ensamblador completo */
+  const _afRep5 = afirmacionesDelFixture("encargo-vivo5-2026-09-14.json", 2);
+  const r5 = await answerViaAgente({ text: Q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: rep + "\n\n" + bloqueDe(_afRep5 || []), stop: "end_turn" }) });
+  ok(!!_afRep5 && _pasoDe(r5, "cierre") && _pasoDe(r5, "cierre").medidas.falsas === falsasEsperadas("encargo-vivo5-2026-09-14.json", 2) && r5.r.agente.estado === "encargo-compuesto", `★ con esa reparación como cerebro, declarada: el Notario semántico encuentra sus ${falsasEsperadas("encargo-vivo5-2026-09-14.json", 2)} falsas etiquetadas y el turno no se sirve verde; llega el ensamblador completo (${r5.r.agente.estado})`, JSON.stringify((_pasoDe(r5, "cierre") || {}).medidas));
   const ardeD = (t) => M1.muro(t).some((x) => x.kind === "cifra-de-boleta-sin-dueno");
   const largo = " —que son las dos cuentas más grandes del canal retail y las que más pesan en la contribución del año cerrado, con diferencia sobre el resto—";
   ok(!ardeD("Entre Lider y Falabella" + largo + ", la distancia al benchmark es 8.6 pp contra 8.1 pp.") && ardeD("Entre Falabella y Lider" + largo + ", la distancia al benchmark es 8.6 pp contra 8.1 pp."), "candado: con dos entidades COORDINADAS («entre Falabella y Lider … 8.6 pp contra 8.1 pp») la lectura por orden sigue decidiendo, y la invertida arde");
@@ -596,8 +603,11 @@ H("16 · tercera corrida viva de la prueba 2 (autorizada, 2 llamadas): el parén
   ok(/Lider pesa más: 8,6 pp de brecha \(peor que Falabella\), \$4,6M vencidos con apenas 45% recuperado y 269 días de atraso/.test(c1) && !arde(c1, "cifra-de-boleta-sin-dueno"), "★ «Lider pesa más: 8.6 pp (peor que Falabella), … y 269 días de atraso»: la comparación entre paréntesis no le quita la oración a Lider — ya no arde");
   ok(/no porque coincidir en dos dominios lo decida solo, sino porque en cada uno pesa más/.test(c1) && !coincidenciaComoRazon(c1), "★ «no porque coincidir en dos dominios lo decida solo, sino porque en cada uno pesa más»: la coincidencia NEGADA como razón es lo que la ley pide — ya no arde");
   ok(muro(c1).length === 0, "★ el cierre pasa el muro entero", muro(c1).map((x) => x.kind).join(","));
-  const r = await answerViaAgente({ text: Q3, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: c1, stop: "end_turn" }) });
-  ok(r.r.agente.estado === "verde" && r.r.text.split(/\s+/).length >= 450, `★ con ese cierre como cerebro, el turno se sirve entero y verde (${r.r.agente.estado}): el usuario recibe la lectura del modelo`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
+  /* Notario semántico (fase 2): ese cierre, declarado A MANO en la fase 1, no trae falsas pero sí afirmaciones no verificables y puntos sin declarar:
+   * una declaración incompleta no se sirve como verdadera; lo que llega es el ensamblador completo */
+  const _afC3 = afirmacionesDelFixture("lectura-ejecutiva-vivo3-2026-09-14.json", 1);
+  const r = await answerViaAgente({ text: Q3, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: c1 + "\n\n" + bloqueDe(_afC3 || []), stop: "end_turn" }) });
+  ok(!!_afC3 && _pasoDe(r, "cierre") && _pasoDe(r, "cierre").medidas.falsas === 0 && (_pasoDe(r, "cierre").medidas.noVerificables + _pasoDe(r, "cierre").medidas.omitidos) > 0 && r.r.agente.estado === "encargo-compuesto" && r.r.text.split(/\s+/).length >= 450, `★ con ese cierre como cerebro, declarado: 0 falsas, pero no verificables y omisiones — no se sirve como verdadero; llega el ensamblador completo (${r.r.agente.estado})`, JSON.stringify((_pasoDe(r, "cierre") || {}).medidas));
   ok(/su brecha al benchmark es mayor que la de Falabella \(8\.6 pp contra 8\.1 pp\)/.test(r1) && !arde(r1, "superlativo-no-sostenido") && !arde(r1, "cifra-de-boleta-sin-dueno"), "★ la reparación: «su brecha es mayor QUE la de Falabella» es un comparativo, y «Falabella solo la supera ($1.6M contra $1.5M)» tiene el «la» dos oraciones atrás — ya no arden");
   ok(vetosDeRegistro(r1, { pregunta: Q3, figs: rp.ledger.figs, sitio: "reparacion" }).map((x) => x.regla).includes("deterioro-no-medido"), "…y la reparación sigue cayendo por lo de la casa: «el deterioro es más profundo» sin una variación medida (y tres subtítulos)");
   /* candados */

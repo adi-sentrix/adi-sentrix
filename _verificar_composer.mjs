@@ -31,7 +31,7 @@ const [que, arg] = process.argv.slice(2);
 if (!que) { console.log("uso: node _verificar_composer.mjs <playbook|encargo> [pregunta|P1|P2]"); process.exit(2); }
 let texto1, texto2, decl, figs, pregunta;
 if (que === "encargo") {
-  pregunta = PREG[arg || "P1"];
+  pregunta = PREG[arg || "P1"] || arg;   // P1/P2 del fixture, o una pregunta libre
   const partes = partesDelEncargo(pregunta);
   const leer = (pasos) => leerCon(pasos, pregunta);
   figs = leerCon(unirPasosDeDominios(pasosDelEncargo(partes, [], {}), pasosDeDominios(dominiosDe(pregunta))), pregunta);

@@ -120,7 +120,8 @@ export function buildAgenteBody({ mensajes, system, tools, model }) {
     tools: (Array.isArray(tools) ? tools : []).map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } })),
     // SIN tool_choice: forzarla convertiría el modo libre en el modo parse.
   };
-  body[reasoning ? "max_completion_tokens" : "max_tokens"] = 3072;
+  /* el bloque de afirmaciones del Notario semántico (fase 2) viaja en la misma salida: +1.536 tokens de tope (no de gasto) */
+  body[reasoning ? "max_completion_tokens" : "max_tokens"] = 3072 + 1536;
   return body;
 }
 

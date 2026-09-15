@@ -38,7 +38,7 @@ import { UNIVERSOS, DIVERGENCIAS, reconcilian } from "../../config/contract/figu
 import { METRICS } from "../../config/contract/metricRegistry.js";
 import { deriveKpis } from "../../engine/scenarios.js";
 import { getVentasKPI } from "../../engine/metrics.js";   // la venta del negocio que muestra la PANTALLA — decisión del owner 2026-09-01 (ver `_construir`)
-import { tenantPolicyDefault, benchmarkOf } from "../../config/businessPolicy.js";   // `benchmarkOf`: la misma vara por cliente que usa rolesCartera (brecha al benchmark)
+import { tenantPolicyDefault, benchmarkOf, getBenchmarkOverride, POLICY } from "../../config/businessPolicy.js";   // `benchmarkOf`: la misma vara por cliente que usa rolesCartera (brecha al benchmark)
 import { getTenantId, getTenantData, onTenantChange } from "../../data/tenantStore.js";
 import { parseFigures } from "../boleta.js";
 import { composeNoDataMessage } from "./narrationBlocks.js";   // el último recurso ABSOLUTO del suplente digno — la MISMA frase canónica que usa la escalera anti-null, nunca una copia
@@ -331,10 +331,22 @@ function _construir(scenario) {
   ];
   L.push(`- ${_L.ventas} totales: ${F(_moneyK(kv.totalActual), NEG)} (${_kvPartes.join(" · ")}).`);
   L.push(`- ${_L.margen} de la cartera: ${F(_pct1(km.pct), NEG)} · ${_L.contribucion} total ${F(_moneyK(km.totalUSD), NEG)}.`);
+  /* LOS MISMOS KPIs CON SU SIGNIFICADO (Notario semántico, fase 2): figs rotuladas para el índice de la evidencia — `figs` de arriba
+   * solo lleva valor y dueños («$97.0M · negocio/total» no dice si es la venta o el presupuesto); estas dicen qué es cada cifra. Mismo
+   * recorrido, mismos formateadores: cero segunda verdad. */
+  const kpisFigs = [];
+  const K = (label, value, unit, raw) => { if (value != null && Number.isFinite(raw)) kpisFigs.push({ label, value: String(value), unit, raw, source: "dato", mandatory: false, context: "KPI del negocio (proyección del dato)" }); };
+  const _fxK = factorComercialDe(getTenantData());
+  K("Ventas totales", _moneyK(kv.totalActual), "money", kv.totalActual * _fxK);
+  if (_hay(kv.totalAnterior)) { K("Ventas del año anterior", _moneyK(kv.totalAnterior), "money", kv.totalAnterior * _fxK); K("Variación vs año anterior", _pct1(kv.vsAnterior || 0), "pct", +(kv.vsAnterior || 0)); }
+  if (_hay(kv.totalPresupuesto)) { K("Presupuesto total", _moneyK(kv.totalPresupuesto), "money", kv.totalPresupuesto * _fxK); K("Variación vs presupuesto", _pct1(kv.vsPresupuesto || 0), "pct", +(kv.vsPresupuesto || 0)); }
+  K("Margen promedio", _pct1(km.pct), "pct", +km.pct);
+  K("Contribución total", _moneyK(km.totalUSD), "money", km.totalUSD * _fxK);
   // los KPI de INVENTARIO llevan además su palabra propia como dueño (medido 2026-08-14, falso positivo de la
   // defensa del examen): «la foto de inventario suma $135K de capital» nombra al dueño con «inventario», no con
   // «negocio» — sin esto, la frase LEGÍTIMA que separa los dos universos moría por falta de dueño.
   const INV = [...NEG, "inventario", "capital", "stock", "foto"];
+  if (ki && ki.totalUSD != null) { K("Capital total", _money(ki.totalUSD), "money", +ki.totalUSD); if (Number.isFinite(+ki.doh)) K("Días de inventario promedio", _dias(ki.doh), "days", Math.round(+ki.doh)); }
   if (ki && ki.totalUSD != null) L.push(`- Inventario (foto de hoy): ${_L.capital.toLowerCase()} total ${F(_money(ki.totalUSD), INV, "inventario")} · ${F(_dias(ki.doh), INV)} de inventario promedio · inmovilizado ${F(_pct1(ki.inmovilizadoPct), INV)} (${F(_money(ki.inmovilizadoUSD), INV)}).`);
   const bench = tenantPolicyDefault("benchmark"), target = tenantPolicyDefault("targetCarga"), best = tenantPolicyDefault("bestPracticeCarga");
   const dohMax = tenantPolicyDefault("dohMax"), rotMin = tenantPolicyDefault("rotacionMin");
@@ -359,8 +371,11 @@ function _construir(scenario) {
    * parte — «$33K de $135K en inventario frenados en 3 SKU» (corpus congelado de la calibración) pasaba solo porque
    * el catálogo recomputaba el $135K a ciegas. Es la misma Σ de `stockUSD` que ya suma las dos categorías y la que
    * pinta la card «Capital en inventario» de la Mesa: cero segunda verdad, con los dueños de la foto. */
+  if (!(ki && ki.totalUSD != null) && _inv.length) K("Capital total", _money(_sumaK(_inv)), "money", _sumaK(_inv));
   if (!(ki && ki.totalUSD != null) && _inv.length) L.push(`- Inventario (foto de hoy): ${_L.capital.toLowerCase()} total ${F(_money(_sumaK(_inv)), INV, "inventario")} en ${_inv.length} SKU.`);
   if (_fInmov.length) {
+    K(`Capital inmovilizado · subtotal · ${_fInmov.length} SKU`, _money(_sumaK(_fInmov)), "money", _sumaK(_fInmov));
+    K(`Capital frenado · subtotal · ${_fFren.length} SKU`, _money(_sumaK(_fFren)), "money", _sumaK(_fFren));
     // el criterio se dice en palabras, NO enumerando los códigos de estado: «60d/90d/120d» son cifras que
     // pertenecen a SKU concretos y citarlas acá, sin su dueño al lado, las deja huérfanas (medido: tumbaba el suplente).
     L.push(`- Capital inmovilizado (categoría AMPLIA): ${F(_money(_sumaK(_fInmov)), CAP_INMOV, "inventario")} en ${_fInmov.length} SKU — todo el stock cuyo estado NO es Activo.`);
@@ -376,6 +391,8 @@ function _construir(scenario) {
    * atribuirle al usuario un objetivo que nunca fijó. La procedencia sale de `businessPolicy`, que es quien
    * resuelve el valor: una sola verdad sobre la misma cifra. */
   const _refPropia = referenciaEsDelNegocio();
+  K("Benchmark de margen", _pct1(bench), "pct", +bench); K("Nivel de carga declarado", _pct1(target), "pct", +target);
+  if (Number.isFinite(+dohMax)) K("Techo de días de inventario", _dias(dohMax), "days", Math.round(+dohMax)); if (Number.isFinite(+rotMin)) K("Piso de rotación", _ratio(rotMin), "ratio", +rotMin);
   L.push(`- ${_refPropia ? "La referencia la declara el negocio" : "La referencia es la GENERAL DE ADI (el negocio no declaró una propia; NO es su meta, y así hay que decirlo si se nombra)"}: benchmark de margen ${F(_pct1(bench), REF, "venta")}. Meta de carga comercial ${F(_pct1(target), META_CARGA, "venta")} (mejor práctica interna ${F(_pct1(best), META_CARGA, "venta")}). Piso de rotación ${F(_ratio(rotMin), REF, "inventario")} · techo de días de inventario ${F(_dias(dohMax), [...REF, "techo"], "inventario")}.`);
   /* EL UMBRAL DE MATERIALIDAD ES UNA REFERENCIA DEL NEGOCIO (owner 2026-09-14, al cerrar la lotería del catálogo): «0.05%
    * de la venta: $50K» decide qué foco es material y qué queda en monitoreo, y ningún emisor lo publicaba — el cerebro lo
@@ -387,6 +404,7 @@ function _construir(scenario) {
   if (_umbral.length === 2) {
     const UMBRAL = ["umbral", "material", "materialidad"];
     L.push(`- Umbral de materialidad de los focos: ${F(_umbral[0].value, UMBRAL, "venta")} de la venta real (${F(_umbral[1].value, UMBRAL, "venta")}) — lo que queda bajo el umbral se declara como monitoreo, no se calla.`);
+    for (const u of _umbral) if (u && u.label) K(String(u.label), u.value, u.unit || null, Number.isFinite(+u.raw) ? +u.raw : NaN);
   }
   const kpisLineas = L.slice(_iKpi);   // el bloque de KPIs TAL CUAL viaja en la proyección — cada cifra ya registrada por F() con su dueño
   L.push("");
@@ -577,11 +595,14 @@ function _construir(scenario) {
   L.push("LO QUE ESTE DATO NO TIENE (verificado — quien prometa responder esto, inventa):");
   for (const h of _HUECOS) L.push(`- ${h}`);
 
-  return { texto: L.join("\n"), figs, counts: [...counts], estados, rankings, dias, kpisLineas };
+  return { texto: L.join("\n"), figs, counts: [...counts], estados, rankings, dias, kpisLineas, kpisFigs };
 }
 
+/* LA VARA ES PARTE DE LA CLAVE (Notario semántico, fase 2): el criterio del usuario («mi margen mínimo es 25%») muta el benchmark en runtime y
+ * con él los conjuntos de la proyección (quiénes están bajo el benchmark, la contribución no capturada). Un memo solo por tenant+escenario
+ * servía la proyección de la vara ANTERIOR después de «olvida mi margen mínimo» (medido: el verificador daba «universo-incompleto»). */
 function _cacheado(scenario) {
-  const key = `${getTenantId()}::${scenario}`;
+  const key = `${getTenantId()}::${scenario}::b${getBenchmarkOverride() != null ? getBenchmarkOverride() : POLICY.benchmark}`;
   if (!_memo.has(key)) _memo.set(key, _construir(scenario));
   return _memo.get(key);
 }
@@ -601,7 +622,7 @@ export function proyectarDatoNegocio(scenario = ESCENARIO_INICIAL) {
  * cada cifra de la proyección con los tokens dueños que la validan por cercanía. MISMO recorrido que el texto. */
 export function cifrasDelDato(scenario = ESCENARIO_INICIAL) {
   const c = _cacheado(String(scenario || ESCENARIO_INICIAL));
-  return { figs: c.figs, counts: c.counts, estados: c.estados, rankings: c.rankings, dias: c.dias };
+  return { figs: c.figs, counts: c.counts, estados: c.estados, rankings: c.rankings, dias: c.dias, kpis: c.kpisFigs };   // `kpis`: los KPIs del negocio con su rótulo (Notario semántico)
 }
 
 /** kpisDelNegocio(scenario) → las líneas de KPI de la proyección, VERBATIM (header + 3-4 líneas).

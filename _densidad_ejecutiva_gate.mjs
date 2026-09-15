@@ -28,6 +28,7 @@ import { readFileSync } from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { declarando } from "./_guion_declara.mjs";   // Notario semántico (fase 2): los guiones declaran desde la boleta, como un cerebro que declara
 import { vetosDeFormato, vetosDeContrato, pideDetalle, pideLista, TOPE_ITEMS_SIN_PEDIR, TOPE_PALABRAS_BLOQUE } from "./src/adi/agente/contratoAgente.js";
 import { doctrinaDelPlaybook, formaDelTurno, entregableDe } from "./src/adi/agente/playbooks/registro.js";
 import { margenEnRiesgo } from "./src/adi/agente/playbooks/margenEnRiesgo.js";
@@ -146,7 +147,7 @@ H("2 · los pisos, juzgados como si fueran el cerebro, pasan limpios — el proc
 {
   let h = [], mem = {};
   const paso = async (q, encadena = true) => {
-    const r = await answerViaAgente({ text: q, history: h, mem, scenario: ESC, callAgente: MUDO });
+    const r = await answerViaAgente({ text: q, history: h, mem, scenario: ESC, callAgente: declarando(MUDO) });
     const t = String(r.r.text || "");
     if (encadena) { h = [...h, { role: "user", text: q }, { role: "assistant", text: t }]; mem = r.mem || mem; }
     return { q, t, a: r.r.agente };
@@ -189,7 +190,7 @@ H("4 · ★★ de punta a punta: el cerebro entrega el informe, se le pide reesc
 {
   let llamadas = 0, segunda = null;
   const insiste = async ({ mensajes }) => { llamadas++; if (llamadas === 2) segunda = mensajes; return { tipo: "texto", texto: PANTALLAS.T1 }; };
-  const r = await answerViaAgente({ text: "¿Cómo va el negocio?", history: [], mem: {}, scenario: ESC, callAgente: insiste });
+  const r = await answerViaAgente({ text: "¿Cómo va el negocio?", history: [], mem: {}, scenario: ESC, callAgente: declarando(insiste) });
   const t = String(r.r.text || "");
   ok(llamadas === 2, `dos llamadas al cerebro: el cierre y UNA reparación (${llamadas})`);
   ok(r.r.agente.estado === "playbook", `★★ el cerebro insistió con el informe → responde el procedimiento (${r.r.agente.estado})`);
@@ -199,13 +200,18 @@ H("4 · ★★ de punta a punta: el cerebro entrega el informe, se le pide reesc
   ok(/forma de informe/.test(ultimo) && /tesis en una frase/.test(ultimo), "…y la reparación le llevó la multa con la forma que sirve (tesis → evidencia → criterio)", ultimo.slice(0, 200));
   /* el cerebro que SÍ corrige al primer aviso: se acepta como reparado — la oportunidad es real */
   let k = 0;
-  const corrige = async () => { k++; return { tipo: "texto", texto: k === 1 ? PANTALLAS.T1 : "El negocio crece, pero deja menos margen del que debería: la venta viene +7.5% contra el año anterior y el margen queda en 25.1% contra un benchmark de 30.1%, con $4.9M de contribución no capturada. Si fuera mi decisión —criterio mío—, entraría por Falabella: ahí coinciden el volumen y la carga excedida. Cuando digas, la abro." }; };
-  const r2 = await answerViaAgente({ text: "¿Cómo va el negocio?", history: [], mem: {}, scenario: ESC, callAgente: corrige });
+  const corrige = async () => { k++; return { tipo: "texto", texto: k === 1 ? PANTALLAS.T1 : "El negocio crece, pero deja menos margen del que debería: la venta viene +7.5% contra el año anterior y el margen queda en 25.1% contra un benchmark de 30.1%, con $4.9M de contribución no capturada. Si fuera mi decisión —criterio mío—, entraría por Falabella: ahí coinciden el volumen y la carga excedida. Cuando digas, la abro.",
+    /* lo que la derivación desde la boleta no alcanza, el guion lo declara a mano como lo haría el modelo (Notario semántico, fase 2) */
+    declarar: k === 1 ? [] : [
+      { tipo: "relacion", sujeto: "negocio", metrica: "Margen promedio", relacion: { forma: "menor", vs: { sujeto: "negocio", metrica: "Benchmark de margen" } }, texto: "deja menos margen del que debería" },
+      { tipo: "lectura", sello: "criterio mío", texto: "entraría por Falabella: ahí coinciden el volumen y la carga excedida" },
+    ] }; };
+  const r2 = await answerViaAgente({ text: "¿Cómo va el negocio?", history: [], mem: {}, scenario: ESC, callAgente: declarando(corrige) });
   ok(r2.r.agente.estado === "reparado" && /entraría por Falabella/.test(String(r2.r.text || "")), `★ el cerebro que reescribe bien al primer aviso queda como reparado (${r2.r.agente.estado}) — la oportunidad es real`);
   /* con detalle pedido, el mismo informe NO se veta: el cerebro entrega y el turno sale por él */
   let k3 = 0;
   const conDetalle = async () => { k3++; return { tipo: "texto", texto: PANTALLAS.T2 }; };
-  const r3 = await answerViaAgente({ text: "dame el detalle de por qué está pasando", history: [], mem: {}, scenario: ESC, callAgente: conDetalle });
+  const r3 = await answerViaAgente({ text: "dame el detalle de por qué está pasando", history: [], mem: {}, scenario: ESC, callAgente: declarando(conDetalle) });
   ok(!(r3.r.agente.vetos || []).some((v) => /formato-de-informe/.test(String(v))), `…y con detalle pedido el mismo porqué de cinco subtítulos no recibe el veto de formato (${r3.r.agente.estado})`);
 }
 
@@ -278,7 +284,7 @@ H("7 · el encargo compuesto cuenta como detalle: sin veto de formato, con la fo
   /* el natural sin procedimiento: la forma viaja igual, desde el bucle */
   let capt = null;
   const MUDO7 = async ({ mensajes }) => { if (!capt) capt = mensajes; return { tipo: "texto", texto: "" }; };
-  const r = await answerViaAgente({ text: BATERIA.natural, history: [], mem: {}, scenario: ESC, callAgente: MUDO7 });
+  const r = await answerViaAgente({ text: BATERIA.natural, history: [], mem: {}, scenario: ESC, callAgente: declarando(MUDO7) });
   const docs = (capt || []).filter((m) => m.role === "user").map((m) => String(m.content || ""));
   /* desde el ensamblador (2026-09-11) el encargo compuesto sobre el negocio entero lo toma la foto como paraguas y la
    * forma viaja con su doctrina; lo que se mide es que VIAJA, con o sin procedimiento */

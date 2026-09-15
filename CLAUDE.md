@@ -145,6 +145,19 @@ Derivadas que se rompen seguido:
   no universal (por contribución/ventas, Falabella). Lentes en `CRITERIOS`; el cambio de criterio en un turno siguiente lo
   atiende `prioridad-por-lente` con los mismos hechos.
 
+- **El Notario semántico (owner 2026-09-15, fases 1 y 2, offline).** Decisión del owner tras la ronda fuera de muestra (38 % FP · 44 % FN
+  con patrones de palabras): «Notario verifica la afirmación y su evidencia, no la redacción». *El modelo redacta; el modelo declara qué
+  está afirmando (bloque `<<AFIRMACIONES>> … <<FIN>>`, una afirmación JSON por línea: cifra · orden · relacion · grupo · conteo ·
+  variacion · estado · lectura, con su `texto` literal); el Notario verifica la afirmación contra la evidencia estructurada; la redacción
+  no determina la verdad.* Reglas duras: sin bloque → `sin-declaracion` y nunca verde; lo incompleto o sin evidencia es
+  `no-verificable`, nunca verdadera; `lectura` no es refugio para hechos; la multa nombra la afirmación que falló y la verdad de la
+  boleta; el respaldo y los composers determinísticos declaran con el mismo estándar (colector `declarar.js`, texto byte-idéntico);
+  guardC conserva las LEYES DE LA CASA (vetan) y sus chequeos de hecho quedan como detectores. Un hecho verificable no puede quedar
+  no-verificable por una limitación de la boleta: la venta del año anterior, los KPIs del negocio y las cifras repetidas en otra entidad
+  viajan con rótulo. Medidas (`_notario_semantico_flujo_gate`): 95.5 % declaraciones correctas, 2.9 % omitidas, 0 FP · 0 FN, 0/6
+  servido sin Notario. La tasa del MODELO real se mide en vivo (fase 3, gasto nombrado). Documentos: `_NOTARIO_SEMANTICO_FASE1.md`,
+  `_NOTARIO_SEMANTICO_FASE2.md`. Los guiones de los gates declaran con `_guion_declara.mjs` (fuera de `src/`, no es producto).
+
 ---
 
 ## 3. Guardrails duros — no son consejos

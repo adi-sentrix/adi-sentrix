@@ -8,12 +8,12 @@
  *     y el mismo detector que la del cerebro — el mismo estándar, sin camino privilegiado.
  * Puro: sin I/O, sin red. */
 import { parseFigures } from "../boleta.js";
-import { normalizar, TIPOS } from "./afirmacion.js";
+import { normalizar, TIPOS, menosAscii } from "./afirmacion.js";
 import { indiceDeEvidencia, estadoCanon } from "./evidencia.js";
 import { posicionDeCifra } from "./presencia.js";
 import { tolCalculo } from "../oracle/calculoCatalogo.js";
 const _U = { pct: "tasa", pp: "tasa", money: "money", days: "days", ratio: "ratio", count: "count" };
-const _mismo = (f, g) => (_U[f.unit] || f.unit) === (_U[g.unidad] || g.unidad) && Number.isFinite(g.raw) && (Math.abs(g.raw - f.raw) <= (g.unidad === "count" ? 0 : tolCalculo(g.raw, g.unidad)) || (g.canon && g.canon.replace(/\$/g, "") === f.canon.replace(/\$/g, "")));
+const _mismo = (f, g) => (g.texto && g.texto === menosAscii(String(f.text || "")).trim()) || (_U[f.unit] || f.unit) === (_U[g.unidad] || g.unidad) && Number.isFinite(g.raw) && (Math.abs(g.raw - f.raw) <= (g.unidad === "count" ? 0 : tolCalculo(g.raw, g.unidad)) || (g.canon && g.canon.replace(/\$/g, "") === f.canon.replace(/\$/g, "")));
 
 export const MARCA_INICIO = "<<AFIRMACIONES>>";
 export const MARCA_FIN = "<<FIN>>";
@@ -27,7 +27,7 @@ export function instruccionDeDeclaracion() {
     "- Tipos y campos: cifra{sujeto, metrica, valor} · orden{sujeto, metrica, orden:{forma: max|min|puesto|topk|comparativo, k, direccion: mayor|menor|peor|mejor, vs}, universo} · relacion{sujeto, metrica, relacion:{forma: veces|fraccion|parte|mayor|menor|diferencia, k, matiz, vs}, valor} · grupo{sujeto: la lista completa, metrica, valor} · conteo{conteo:{n, m, predicado}, universo} · variacion{sujeto, metrica, variacion:{direccion: sube|baja|estable, valor}, periodo} · estado{sujeto, estado:{estado, bodega}} · lectura{sello: probado|indicado|abierto|criterio mío}.",
     "- sujeto: el nombre exacto de la entidad tal como está en tus resultados; \"negocio\" para los totales; una lista para grupos y top-k. metrica: el concepto tal como está en el rótulo del resultado (lo que sigue a «Entidad · »): \"Saldo vencido\", \"Contribución no capturada\", \"Brecha al benchmark\", \"Capital frenado\"… valor: la cifra tal como la escribiste. universo: de qué conjunto es un orden, un conteo o un subtotal (\"los 13 clientes\", \"las 5 cuentas materiales\"). periodo: \"vs año anterior\" en toda variación. texto: el fragmento literal de tu respuesta (hasta 80 caracteres) donde está esa afirmación.",
     "- lectura es SOLO para interpretaciones y recomendaciones sin cifra ni orden sobre una métrica; una frase con una cifra, un orden o una variación NO es lectura: declárala como el hecho que es.",
-    `Ejemplo:\n${MARCA_INICIO}\n{"tipo":"cifra","sujeto":"Lider","metrica":"Saldo vencido","valor":"$4,6M","texto":"acumula $4,6M vencidos"}\n{"tipo":"orden","sujeto":"Falabella","metrica":"Contribución","orden":{"forma":"max"},"universo":"los 13 clientes","texto":"la que más contribución aporta"}\n{"tipo":"conteo","conteo":{"n":8,"m":13,"predicado":"bajo el benchmark"},"universo":"los 13 clientes","texto":"8 de 13 bajo el benchmark"}\n{"tipo":"lectura","sello":"criterio mío","texto":"Yo miraría primero a Lider"}\n${MARCA_FIN}`,
+    `Ejemplo:\n${MARCA_INICIO}\n{"tipo":"cifra","sujeto":"Distribuidora Norte","metrica":"Saldo vencido","valor":"$4,6M","texto":"acumula $4,6M vencidos"}\n{"tipo":"orden","sujeto":"Comercial Sur","metrica":"Contribución","orden":{"forma":"max"},"universo":"los 13 clientes","texto":"la que más contribución aporta"}\n{"tipo":"conteo","conteo":{"n":8,"m":13,"predicado":"bajo el benchmark"},"universo":"los 13 clientes","texto":"8 de 13 bajo el benchmark"}\n{"tipo":"lectura","sello":"criterio mío","texto":"Yo miraría primero a Distribuidora Norte"}\n${MARCA_FIN}`,
   ].join("\n");
 }
 
@@ -96,7 +96,10 @@ export function declaracionDeRespaldo(texto, figs, { ejesDelTenant = null, datoP
     const finRel = cortes.length ? Math.min(...cortes) : despues.length;
     return s.slice(o.pos + iniRel + 1, pos + largo + finRel).replace(/^[\s·—;:,)]+|[\s·—;:,(]+$/g, "").trim() || s.slice(pos, pos + largo);
   };
-  for (const f of parseFigures(s)) {
+  /* la moneda sin símbolo («330K», «-2.1M»): dinero con su escala, como cifra más de la prosa */
+  const _figsSinSimbolo = [];
+  { const rx = /(?<![\d.,$%\w-])([+-]?\d+(?:[.,]\d+)?)\s?([KMB])(?![a-záéíóúñ0-9])/g; let mk; const sN = menosAscii(s); while ((mk = rx.exec(sN))) { if (parseFigures(sN).some((f) => sN.indexOf(f.text) >= 0 && mk.index >= sN.indexOf(f.text) && mk.index < sN.indexOf(f.text) + f.text.length)) continue; const raw = parseFloat(mk[1].replace(",", ".")) * ({ K: 1e3, M: 1e6, B: 1e9 })[mk[2].toUpperCase()]; _figsSinSimbolo.push({ text: mk[0], unit: "money", raw, canon: `money:${mk[1].replace("+", "")}${mk[2].toUpperCase()}` }); } }
+  for (const f of [...parseFigures(menosAscii(s)), ..._figsSinSimbolo]) {
     const desde = usados.has(f.text) ? usados.get(f.text) + 1 : 0;
     let pos = posicionDeCifra(s, f.text, desde); if (pos < 0) pos = posicionDeCifra(s, f.text, 0); if (pos < 0) continue;
     usados.set(f.text, pos);
@@ -104,14 +107,16 @@ export function declaracionDeRespaldo(texto, figs, { ejesDelTenant = null, datoP
     if (!cands.length) continue;
     const o = oracionEn(pos);
     const nombres = nombresEn(o.texto);
-    let elegida = cands.length === 1 ? cands[0] : (cands.find((g) => g.entidad && nombres.some((n) => normalizar(n) === normalizar(g.entidad))) || cands.find((g) => !g.entidad && !nombres.length) || null);
+    /* la única candidata también tiene que ser coherente con la oración: una fig de Ripley no explica un «$4.7M … en Falabella, Lider y Jumbo» */
+    const coherente = (g) => !g.entidad || !nombres.length || nombres.some((n) => normalizar(n) === normalizar(g.entidad));
+    let elegida = cands.length === 1 ? (coherente(cands[0]) ? cands[0] : null) : (cands.find((g) => g.entidad && nombres.some((n) => normalizar(n) === normalizar(g.entidad))) || cands.find((g) => !g.entidad && !nombres.length) || null);
     if (!elegida && cands.every((g) => g.unidad === cands[0].unidad && Math.abs(g.raw - cands[0].raw) < 1e-9) && !cands.some((g) => g.entidad && nombres.length && !nombres.some((n) => normalizar(n) === normalizar(g.entidad)))) elegida = cands[0];
     if (!elegida) continue;
     const texto = fragmento(o, pos, f.text.length);
     const base = { texto, valor: f.text, evidencia: [elegida.label], derivada: true };
     if (elegida.agregado && elegida.entidadesDelGrupo.length) out.push({ tipo: "grupo", sujeto: elegida.entidadesDelGrupo.slice(), metrica: elegida.base, universo: elegida.calificador || elegida.concepto, ...base });
     else if (elegida.agregado) out.push({ tipo: "cifra", sujeto: elegida.entidad || "negocio", metrica: elegida.base, universo: elegida.calificador || elegida.concepto, ...base });
-    else if (/variacion vs ano anterior|^crecimiento$|^yoy$|vs ano anterior/.test(elegida.conceptoNorm)) out.push({ tipo: "variacion", sujeto: elegida.entidad || "negocio", metrica: "Ventas", variacion: { direccion: elegida.raw > 0 ? "sube" : elegida.raw < 0 ? "baja" : "estable", valor: f.text }, periodo: "vs año anterior", ...base });
+    else if (/^variacion vs ano anterior|^crecimiento$|^yoy$|^ventas vs ano anterior$/.test(elegida.conceptoNorm)) out.push({ tipo: "variacion", sujeto: elegida.entidad || "negocio", metrica: "Ventas", variacion: { direccion: elegida.raw > 0 ? "sube" : elegida.raw < 0 ? "baja" : "estable", valor: f.text }, periodo: "vs año anterior", ...base });
     else out.push({ tipo: "cifra", sujeto: elegida.entidad || "negocio", metrica: elegida.concepto, ...base });
   }
   /* conteos: «N de M», «N cuentas/clientes/SKU» → una fig de conteo o un agregado de ese tamaño */
@@ -120,10 +125,15 @@ export function declaracionDeRespaldo(texto, figs, { ejesDelTenant = null, datoP
   while ((m = reConteo.exec(s))) {
     const n = +(m[1] || m[4]), mm = m[2] || m[5] ? +(m[2] || m[5]) : null;
     const o = oracionEn(m.index);
-    const cont = I.figs.find((g) => (g.unidad === "count" && g.raw === n && !g.agregado)) || I.figs.find((g) => g.agregado && g.n === n && (mm == null || g.m == null || g.m === mm));
+    /* las candidatas por valor; si hay más de una, gana la que comparte palabras con lo que sigue al número («5 cuentas materiales» →
+     * «· 5 cuentas materiales (de 8 bajo el benchmark)», no «Clientes · sobre el benchmark = 5»); sin palabra en común y con varias, no se deriva */
+    const candsC = [...I.figs.filter((g) => g.unidad === "count" && g.raw === n && !g.agregado), ...I.figs.filter((g) => g.agregado && g.n === n && (mm == null || g.m == null || g.m === mm))];
+    const tras = new Set(normalizar(s.slice(m.index + m[0].length, m.index + m[0].length + 48)).split(/[^a-z0-9]+/).filter((w) => w.length >= 4));
+    const puntaje = (g) => normalizar(g.conceptoNorm + " " + (g.calificador || "")).split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && tras.has(w)).length;
+    const cont = candsC.length === 1 ? candsC[0] : (candsC.length ? ([...candsC].sort((x, y) => puntaje(y) - puntaje(x)).filter((g) => puntaje(g) > 0)[0] || null) : null);
     if (!cont) continue;
     const pred = cont.agregado ? (cont.calificador.replace(/^·\s*subtotal\s*·\s*/, "").replace(/^\d+\s+\w+\s+/, "").replace(/\(.*?\)/g, "").trim() || cont.base) : (cont.concepto.replace(/^clientes?\s*·\s*/i, "").trim());
-    out.push({ tipo: "conteo", conteo: { n, m: mm, predicado: pred }, universo: mm != null ? `de ${mm}` : "los 13 clientes", texto: fragmento(o, m.index, m[0].length), evidencia: [cont.label], derivada: true });
+    out.push({ tipo: "conteo", conteo: { n, m: mm, predicado: pred }, universo: mm != null ? `de ${mm}` : (cont.m != null ? `de ${cont.m}` : `los ${I.tamanoDelEje(/sku/.test(String(m[3] || "").toLowerCase()) ? "sku" : "cliente") || ""} ${/sku/.test(String(m[3] || "").toLowerCase()) ? "SKU" : "clientes"}`.replace(/\s+/g, " ")), /* el universo: el «de M» de la fig, o el eje entero del tenant (nunca un 13 a mano) */ texto: fragmento(o, m.index, m[0].length), evidencia: [cont.label], derivada: true });
   }
   /* estados: un SKU con estado declarado, nombrado junto a la palabra del estado en la misma oración */
   for (const o of oraciones) {

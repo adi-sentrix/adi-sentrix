@@ -30,6 +30,7 @@ import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { plantillaEjemplo } from "./src/ingesta/plantilla/generarPlantilla.js";
 import { ingestarPlantilla } from "./src/ingesta/plantilla/ingestarPlantilla.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { declarando } from "./_guion_declara.mjs";   // los guiones que hacen de cerebro declaran como un cerebro (Notario semántico, fase 2)
 import { PLAYBOOKS, playbookPara, pasosDe, obligatoriasDe, promesasCumplidas, doctrinaDelPlaybook, vetosDelPlaybook } from "./src/adi/agente/playbooks/registro.js";
 import { margenEnRiesgo, lecturaDeMargen } from "./src/adi/agente/playbooks/margenEnRiesgo.js";
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
@@ -398,8 +399,10 @@ H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materi
   const rd2 = await T("dónde tengo oportunidad de precio");
   ok(rd2.r.agente.estado === "playbook" && /12 SKU venden por debajo/.test(rd2.r.text) && /MAK-COMP-AIR · margen de venta 7\.9%/.test(rd2.r.text),
     `★ D · los peores por margen DE VENTA (el muro exige decir cuál margen) (${rd2.r.agente.estado})`, rd2.r.text.slice(0, 120));
-  ok(/esta lectura publica el margen de 10 de los 12/.test(rd2.r.text),
-    "★ D · el CORTE declarado contra lo publicado: el panel trae 10 de los 12 — se dice, no se finge completitud");
+  /* la boleta ya no pierde una fig por repetir la cifra (Notario semántico, fase 2): el panel trae el margen de los 12 y el corte se dice
+   * completo; si volviera a traer menos, el composer lo declara («publica el margen de N de los M») — se exige una de las dos verdades */
+  ok(/de los 12 bajo el benchmark\)/.test(rd2.r.text) || /esta lectura publica el margen de \d+ de los 12/.test(rd2.r.text),
+    "★ D · el CORTE declarado contra lo publicado: los 12 de 12 (o «publica N de los 12» si faltaran) — se dice, no se finge completitud", rd2.r.text.slice(0, 160));
   // (ancla común de TODAS las variantes del cierre — la oferta varía por semilla desde 2026-09-03)
   ok(/no está en esta lectura: no lo afirmo/.test(rd2.r.text) && /antes de tocar ningún precio/i.test(rd2.r.text),
     "…y no culpa al precio sin driver: ofrece abrir la estructura");
@@ -640,8 +643,10 @@ H("3 · pedir aclaración teniendo la evidencia: multa, y el entregable responde
 H("4 · el muro, el contrato y el cerebro bueno: todo sigue mandando");
 {
   initTenant(TENANT_DEMO);
-  const bueno = async () => ({ tipo: "texto", texto: "Tu margen promedio de cartera es 25.1% contra un benchmark de 30.1%. Hay 8 clientes bajo el benchmark.\n\nFalabella es el de mayor contribución no capturada: $1.6M. Si quieres, lo abrimos primero." });
-  const rB = await answerViaAgente({ text: "como viene mi margen?", history: [], mem: {}, scenario: "bonanza", callAgente: bueno });
+  /* el cerebro bueno DECLARA (el contrato del bucle): las cifras y el conteo salen derivados de la boleta; el orden lo declara a mano */
+  const bueno = async () => ({ tipo: "texto", texto: "Tu margen promedio de cartera es 25.1% contra un benchmark de 30.1%. Hay 8 clientes bajo el benchmark.\n\nFalabella es el de mayor contribución no capturada: $1.6M. Si quieres, lo abrimos primero.",
+    declarar: [{ tipo: "orden", sujeto: "Falabella", metrica: "Contribución no capturada", orden: { forma: "max" }, universo: "los 13 clientes", texto: "Falabella es el de mayor contribución no capturada" }] });
+  const rB = await answerViaAgente({ text: "como viene mi margen?", history: [], mem: {}, scenario: "bonanza", callAgente: declarando(bueno, "bonanza") });
   ok(rB.r.agente.estado === "verde" && rB.r.text.startsWith("Tu margen promedio"),
     "el cerebro que responde bien MANDA — el determinístico no lo pisa", rB.r.agente.estado);
 
@@ -792,8 +797,9 @@ H("1h · T3 · ventas neutra, contra el plan, la serie y el inventario en fraseo
   const tP = await texto("¿Cómo van las ventas contra el presupuesto?");
   ok((playbookPara("¿Cómo van las ventas contra el presupuesto?") || {}).nombre === "lectura-de-ventas",
     "el ask «contra el presupuesto» tiene camino (era 🔴 del censo: un botón sin respuesta)");
-  ok(/por encima del presupuesto comprometido — 3\.1% en la lectura del per[ií]odo\./.test(tP),
-    "★ y responde contra el PLAN, con la cifra del plan", tP.slice(0, 120));
+  /* el par (total contra presupuesto) llega desde que la boleta no pierde `headlineSub` por repetir la cifra (Notario semántico, fase 2) */
+  ok(/por encima del presupuesto comprometido: \$100\.0M contra \$97\.0M — 3\.1% en la lectura del per[ií]odo\./.test(tP),
+    "★ y responde contra el PLAN, con la cifra del plan (y el par: total contra presupuesto)", tP.slice(0, 120));
   ok(/contra su presupuesto/.test(tP) && !/contra el a[ñn]o anterior/.test(tP),
     "…sin mezclar universos: si la lectura es contra el plan, ninguna línea dice «año anterior»");
 
@@ -1205,7 +1211,7 @@ H("1n · tanda 3: la cola del top-4, la colisión declarada, la procedencia del 
   const REG = fs.readFileSync(path.join(process.cwd(), "src", "adi", "agente", "playbooks", "registro.js"), "utf8").replace(/\r\n/g, "\n");
   ok(/const r = campo\(String\(pregunta \|\| ""\), ctx\)/.test(REG), "el resolvedor pasa el ctx a pasos/obligatorias que lo pidan");
   const BUC = fs.readFileSync(path.join(process.cwd(), "src", "adi", "agente", "bucleAgente.js"), "utf8").replace(/\r\n/g, "\n");
-  ok(/componer\(\{ figs: figsTotales, pregunta: q, semilla: _semilla, scenario, mem: memIn, ctx: ctxTurno \}\)/.test(BUC)
+  ok(/componer\(\{ figs: figsTotales, pregunta: q, semilla: _semilla, scenario, mem: memIn, ctx: ctxTurno(?:, declarar: \w+)? \}\)/.test(BUC)
     && /vetosDelPlaybook\(playbookActivo, t, \{ figs: figsTotales, pregunta: q, ctx: ctxTurno \}\)/.test(BUC),
     "…y el bucle lo pasa a componer y a la lista notarial: la desambiguación prometida tiene con qué");
 }
@@ -1453,7 +1459,7 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   //     un falso positivo que la calibración del 2026-09-13 (relación por la entidad de la oración) retiró. La promesa
   //     del composer se cuida donde vive: en su propio texto.
   await carnada("el entregable de carga sin decir quiénes quedan por debajo", "src/adi/agente/playbooks/proyeccionDeclarada.js",
-    [[/      const bajo = sup\.filter\(\(x\) => x\.pct < vara\);\n      if \(bajo\.length\) partes\.push\(/, "      const bajo = [];   // CARNADA\n      if (bajo.length) partes.push("]],
+    [[/      const bajo = sup\.filter\(\(x\) => x\.pct < vara\);\n      if \(bajo\.length\) \{/, "      const bajo = [];   // CARNADA\n      if (bajo.length) {"]],
     async (Mut) => { const { figs } = _juzgaC(""); return !/quedan por debajo/.test(String(Mut.proyeccionDeclarada.componer({ figs, pregunta: T5C }) || "")); });
   // (L) sin «esa manda»: una proyección sobre UNA entidad queda secuestrada como si fuera sobre el total
   await carnada("proyección sobre una entidad tomada como si fuera sobre el total", "src/adi/agente/playbooks/proyeccionDeclarada.js",
@@ -1578,8 +1584,8 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (W) el recorte del inventario deja de declararse: un ranking de lo frenado se lee como si fuera todo el stock
   await carnada("el inventario recortado se sirve como si fuera el stock entero", "src/adi/agente/playbooks/lecturaPorEje.js",
-    [[/      partes\.push\(`De tu inventario, lo que este dato publica es el capital que quedó frenado — no una foto del stock completo\.`\);/,
-      "      /* CARNADA: el recorte se calla */"]],
+    [[/      const recorte = `De tu inventario, lo que este dato publica es el capital que quedó frenado — no una foto del stock completo\.`;\n      partes\.push\(recorte\);/,
+      "      const recorte = \"\";   /* CARNADA: el recorte se calla */"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
       const FIGS = [
@@ -1656,8 +1662,8 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   /* ── LAS DEL PULIDO DEL ANCLAJE (2026-09-05) ────────────────────────────────────────────────────────────── */
   // (CC) el anclaje suelto: la respuesta deja de nombrar la fila pedida y su propia lista notarial debe multar
   await carnada("el cuadro responde sin nombrar la fila pedida (anclaje suelto)", "src/adi/agente/playbooks/askDeCuadro.js",
-    [[/      p\.push\(`En \$\{c\.nombre\} tienes \$\{_val\(mia\)\} de capital en inventario\$\{lugar >= 0 && todas\.length > 1 \? ` — la \$\{lugar \+ 1\}ª \$\{c\.eje\} de \$\{todas\.length\} por capital` : ""\}\.`\);/,
-      "      p.push(`El capital del negocio suma sus bodegas.`);   // CARNADA: la fila pedida desaparece"]],
+    [[/      const l1 = `En \$\{c\.nombre\} tienes \$\{_val\(mia\)\} de capital en inventario\$\{lugar >= 0 && todas\.length > 1 \? ` — la \$\{lugar \+ 1\}ª \$\{c\.eje\} de \$\{todas\.length\} por capital` : ""\}\.`;/,
+      "      const l1 = `El capital del negocio suma sus bodegas.`;   // CARNADA: la fila pedida desaparece"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
       const v = Mut.askDeCuadro.listaNotarial("El capital del negocio suma sus bodegas.\nEl corte completo, de mayor a menor: Santiago $64K.",

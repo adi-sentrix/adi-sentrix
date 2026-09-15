@@ -226,7 +226,7 @@ export function proyectar(args = {}, ctx = {}) {
   const t = (tasa === null || tasa === undefined || tasa === "") ? NaN : Number(tasa);
   const hz = horizonte == null ? null : String(horizonte).slice(0, 40);
   const baseFig = fig(`Venta del período · ${deQuien}`, _m(base),
-    { unit: "money", raw: base, source: "dato", mandatory: true, context: "la venta oficial del período — es la base, no la proyección" });
+    { unit: "money", raw: Math.round(base * fx), source: "dato", mandatory: true, context: "la venta oficial del período — es la base, no la proyección" });   // raw en la moneda cruda, como todo emisor (Notario semántico: el `raw` se compara entre figs)
   if (!Number.isFinite(t)) {
     return {
       facts: { lens: "proyeccion", base: _m(base), sobre: deQuien, falta: "el supuesto de crecimiento",
@@ -250,10 +250,10 @@ export function proyectar(args = {}, ctx = {}) {
       fig(`Supuesto del usuario · crecimiento${hz ? ` a ${hz}` : ""}`, `${(+t).toFixed(1)}%`,
         { unit: "pct", raw: t, source: "user_supuesto", mandatory: false, context: "la tasa la puso el usuario — no sale del dato" }),
       fig(`Proyección · ${deQuien} ${etq}`, _m(resultado),
-        { unit: "money", raw: resultado, source: "proyeccion", mandatory: false,
+        { unit: "money", raw: Math.round(resultado * fx), source: "proyeccion", mandatory: false,
           context: "PROYECCIÓN sobre el supuesto del usuario — se nombra como tal, jamás como cifra medida" }),
       fig(`Proyección · adicional ${etq}`, _m(delta),
-        { unit: "money", raw: delta, source: "proyeccion", mandatory: false,
+        { unit: "money", raw: Math.round(delta * fx), source: "proyeccion", mandatory: false,
           context: "la diferencia contra la base, bajo el mismo supuesto" }),
     ],
     coverage: { supported: true, reason: null },

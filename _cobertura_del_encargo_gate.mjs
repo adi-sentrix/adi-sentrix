@@ -29,6 +29,7 @@ import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { declarando } from "./_guion_declara.mjs";   // Notario semántico (fase 2): los guiones declaran desde la boleta, como un cerebro que declara
 import { partesDelEncargo, coberturaDelEncargo, dominiosDelEncargo, componerEncargo, pasosDelEncargo, doctrinaDelEncargo } from "./src/adi/agente/encargoCompuesto.js";
 import { esEncargoCompuesto, PARTES } from "./src/adi/agente/partesDelEncargo.js";
 import { vetosDeRegistro, esEncargoCompuesto as _reexport } from "./src/adi/agente/contratoAgente.js";
@@ -98,7 +99,7 @@ H("2 · con el cerebro mudo, el respaldo cubre todos los dominios y todas las pa
 const SALIDAS = {};
 for (const c of CASOS) {
   MUDO.llamadas = [];
-  const r = await answerViaAgente({ text: c.q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
+  const r = await answerViaAgente({ text: c.q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: declarando(MUDO) });
   const t = r.r.text;
   SALIDAS[c.id] = { t, r, llamadas: MUDO.llamadas.slice() };
   const partes = partesDelEncargo(c.q);
@@ -209,10 +210,16 @@ H("6 · la corrida en vivo (autorizada, 2 llamadas) como fixture: el modelo cubr
     recibido.push({ attempt, ultimo: String(([...(mensajes || [])].reverse().find((m) => m && m.role === "user") || {}).content || "") });
     return { tipo: "texto", texto: attempt === 0 ? b2 : corregido, stop: "end_turn" };
   };
-  const r = await answerViaAgente({ text: q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: cerebro });
-  ok(r.r.agente.estado === "reparado" && r.r.text === corregido, `★ con la multa explicada, la reparación del modelo se sirve entera (${r.r.agente.estado}): el usuario recibe la lectura del modelo, no el respaldo`, r.r.agente.estado + " · " + JSON.stringify(r.r.agente.vetos).slice(0, 200));
+  const r = await answerViaAgente({ text: q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: declarando(cerebro) });
+  /* ⚠️ NOTARIO SEMÁNTICO (fase 2, 2026-09-15): el borrador vivo capturado es ANTERIOR al protocolo de declaración —no trae el bloque
+   * <<AFIRMACIONES>>— y un texto del modelo sin declaración completa no se sirve (los guiones lo derivan desde la boleta y quedan sin
+   * declarar sus órdenes y relaciones: 34 puntos). Lo que este replay prueba ahora: el bucle juzga el cierre Y la reparación enteros, la
+   * multa al modelo nombra «250 d», y lo que llega al usuario es el ensamblador COMPLETO (misma cobertura). El caso «la reparación
+   * declarada se sirve entera» vive en _agente_bucle_gate §2/§10 y en _notario_semantico_flujo_gate §A. */
+  const pasos = ((r.r.agente.notario || {}).pasos || []).map((p) => p.sitio);
+  ok(pasos.includes("cierre") && pasos.includes("reparacion") && r.r.agente.estado === "encargo-compuesto", `★ el borrador vivo se juzga entero —cierre y reparación— y, sin declaración del modelo, lo que llega es el ensamblador completo (${r.r.agente.estado})`, r.r.agente.estado + " · " + pasos.join(","));
   const multa = (recibido.find((x) => x.attempt === 1) || {}).ultimo;
-  ok(/«250 d» no está en tus resultados: ni inventada ni redondeada/.test(multa), "…porque la multa ya no dice «250 d» a secas: explica la regla (ni inventada ni redondeada, tal cual está en la boleta)", String(multa).slice(0, 200));
+  ok(/«250 d»/.test(multa) && /declara|decláralo|quítalo|no está en tus resultados/.test(multa), "…y la multa al modelo nombra «250 d» y le dice qué hacer (declararla con su evidencia o quitarla)", String(multa).slice(0, 200));
   ok(coberturaDelEncargo(r.r.text, partes).length === 0 && cubiertos(r.r.text).join(",") === "comercial,inventario,cobranza", "★ modelo y respaldo cumplen la misma cobertura: dominios pedidos = dominios cubiertos, ninguna parte desaparece");
 }
 

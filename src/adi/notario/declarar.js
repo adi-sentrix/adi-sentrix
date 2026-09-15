@@ -26,7 +26,9 @@ export function crearDeclarador() {
     /** cifra de una fig de la boleta, en la línea `texto` (sujeto/métrica del rótulo salvo que se pasen) */
     deFig(f, texto, extra = {}) {
       if (!f || !texto) return null;
-      const { sujeto, metrica } = _sujetoYMetrica(f.label);
+      const { sujeto, metrica: m0 } = _sujetoYMetrica(f.label);
+      /* las cabeceras del panel de ventas viajan con nombre de campo («headline» · «headlineSub») y su significado en `context`: se declara el significado */
+      const metrica = /^headline(?:Sub)?$/.test(String(f.label || "")) && f.context ? (f.label === "headline" ? (/presupuesto/i.test(f.context) ? "Variación vs presupuesto" : "Variación vs año anterior") : "Ventas del período") : m0;
       return agregar({ tipo: "cifra", sujeto: extra.sujeto || sujeto, metrica: extra.metrica || metrica, valor: extra.valor || _valorDe(f), texto, evidencia: [String(f.label || "")], ...(extra.universo ? { universo: extra.universo } : {}), ...(extra.periodo ? { periodo: extra.periodo } : {}) });
     },
     cifra({ sujeto, metrica, valor, texto, universo, periodo, evidencia }) { return agregar({ tipo: "cifra", sujeto, metrica, valor, texto, ...(universo ? { universo } : {}), ...(periodo ? { periodo } : {}), ...(evidencia ? { evidencia } : {}) }); },

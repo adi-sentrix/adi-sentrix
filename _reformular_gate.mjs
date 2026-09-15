@@ -19,6 +19,7 @@ import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { esReformular, destinatarioDe, doctrinaDeReformular, vetosDeReformular, componerReformulacion } from "./src/adi/agente/reformular.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { declarando } from "./_guion_declara.mjs";   // Notario semántico (fase 2): los guiones declaran desde la boleta, como un cerebro que declara
 import { playbookPara } from "./src/adi/agente/playbooks/registro.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { readFileSync } from "node:fs";
@@ -155,7 +156,7 @@ H("5 · las cinco rutas del owner siguen respondiendo lo suyo");
 H("6 · sin respuesta previa en el hilo: se dice qué falta de verdad, sin gastar una llamada");
 {
   const MUDO = async () => ({ tipo: "texto", texto: "" });
-  const sinNada = await answerViaAgente({ text: Q, history: [], mem: {}, scenario: ESC, callAgente: MUDO });
+  const sinNada = await answerViaAgente({ text: Q, history: [], mem: {}, scenario: ESC, callAgente: declarando(MUDO) });
   const t = String((sinNada.r && sinNada.r.text) || "");
   ok(sinNada.r.agente.estado === "sin-que-reformular", `el turno se resuelve solo (estado ${sinNada.r.agente.estado})`);
   ok(sinNada.r.agente.calls === 0, "★ sin una sola llamada al cerebro: no hay nada que reescribir, no hay qué pedirle");
@@ -163,7 +164,7 @@ H("6 · sin respuesta previa en el hilo: se dice qué falta de verdad, sin gasta
   ok(/no hay una respuesta que reescribir/i.test(t) && /Dime qué quieres mirar/i.test(t),
     "…dice qué falta de verdad y ofrece hacerlo", t.slice(0, 140));
 
-  const conPrevia = await answerViaAgente({ text: Q, history: HILO, mem: { ultimaAprobada: PREVIA }, scenario: ESC, callAgente: MUDO });
+  const conPrevia = await answerViaAgente({ text: Q, history: HILO, mem: { ultimaAprobada: PREVIA }, scenario: ESC, callAgente: declarando(MUDO) });
   ok(conPrevia.r.agente.estado !== "sin-que-reformular",
     "★ y CON respuesta previa el atajo no se aplica: ahí sí hay material y el turno sigue su camino");
   /* ⚠️ EL PISO CAMBIÓ Y ES MEJOR (2026-09-10): antes ganaba el respaldo genérico, que re-servía la respuesta
@@ -188,7 +189,7 @@ H("6 · sin respuesta previa en el hilo: se dice qué falta de verdad, sin gasta
 H("7 · ★★ encadenado de verdad: una ruta real, y después la reformulación con SU memoria");
 {
   const MUDO2 = async () => ({ tipo: "texto", texto: "" });
-  const t1 = await answerViaAgente({ text: "¿por qué vendo más pero gano menos?", history: [], mem: {}, scenario: ESC, callAgente: MUDO2 });
+  const t1 = await answerViaAgente({ text: "¿por qué vendo más pero gano menos?", history: [], mem: {}, scenario: ESC, callAgente: declarando(MUDO2) });
   ok(t1.r.agente.estado === "playbook", `el turno 1 lo resuelve un playbook (${t1.r.agente.estado}) — como las cinco rutas del owner`);
   ok(!!(t1.mem && t1.mem.ultimaAprobada), "★★ …y DEJA memoria del hilo: un entregable de playbook es una respuesta verificada");
   ok(!!(t1.mem && t1.mem.recitaAprobada && t1.mem.recitaAprobada.figs.length),
@@ -196,8 +197,13 @@ H("7 · ★★ encadenado de verdad: una ruta real, y después la reformulación
 
   const hist = [{ role: "user", text: "¿por qué vendo más pero gano menos?" }, { role: "adi", text: t1.r.text }];
   /* un cerebro que hace lo que la doctrina pide: re-dice lo anterior con SUS cifras y sus dueños */
-  const REFORMULA = async () => ({ tipo: "texto", texto: "Para el equipo, en corto: la venta creció 7.6% contra el período comparable, pero el margen viene cediendo mes a mes. Se están cediendo $655K de carga comercial por sobre el nivel declarado. El foco de la semana es la condición, no el volumen." });
-  const t2 = await answerViaAgente({ text: Q, history: hist, mem: t1.mem || {}, scenario: ESC, callAgente: REFORMULA });
+  const REFORMULA = async () => ({ tipo: "texto", texto: "Para el equipo, en corto: la venta creció 7.6% contra el período comparable, pero el margen viene cediendo mes a mes. Se están cediendo $655K de carga comercial por sobre el nivel declarado. El foco de la semana es la condición, no el volumen.",
+    /* lo que la derivación desde la memoria no alcanza, el guion lo declara a mano como lo haría el modelo (Notario semántico, fase 2) */
+    declarar: [
+      { tipo: "variacion", sujeto: "negocio", metrica: "Ventas", variacion: { direccion: "sube", valor: "7.6%" }, periodo: "vs año anterior", texto: "la venta creció 7.6% contra el período comparable" },
+      { tipo: "lectura", sello: "indicado", texto: "el margen viene cediendo mes a mes" },
+    ] });
+  const t2 = await answerViaAgente({ text: Q, history: hist, mem: t1.mem || {}, scenario: ESC, callAgente: declarando(REFORMULA) });
   ok((t2.r.agente.vetos || []).length === 0, "★★ la reformulación pasa el muro con las cifras del turno anterior", (t2.r.agente.vetos || [])[0]);
   ok(t2.r.agente.estado !== "vacio", `…y NO cae al genérico (estado ${t2.r.agente.estado})`);
   ok(!/no tengo informaci[oó]n autorizada/i.test(String(t2.r.text || "")),
@@ -212,7 +218,7 @@ H("7 · ★★ encadenado de verdad: una ruta real, y después la reformulación
    * siempre— y no de una memoria que algún peldaño puede no haber escrito. Un piso que se apoya en lo que
    * puede faltar no es un piso. */
   const memSin = { ...(t1.mem || {}) }; delete memSin.recitaAprobada; delete memSin.ultimaAprobada;
-  const t2malo = await answerViaAgente({ text: Q, history: hist, mem: memSin, scenario: ESC, callAgente: REFORMULA });
+  const t2malo = await answerViaAgente({ text: Q, history: hist, mem: memSin, scenario: ESC, callAgente: declarando(REFORMULA) });
   ok(t2malo.r.agente.estado !== "vacio",
     "★★ sin la memoria del turno anterior el turno SIGUE respondiendo: el material se lee del hilo", t2malo.r.agente.estado);
   ok(!/no tengo informaci[oó]n autorizada/i.test(String(t2malo.r.text || "")),
@@ -244,7 +250,7 @@ H("8 · ★★ el piso: con la respuesta en el hilo, el turno responde aunque el
   const INSISTE = async () => ({ tipo: "texto", texto: FRASE_DE_PRODUCCION });
 
   for (const [comoEsta, cerebro] of [["mudo", MUDO], ["insistiendo con la frase de producción", INSISTE]]) {
-    const r = await answerViaAgente({ text: Q, history: HILO_REAL, mem: {}, scenario: ESC, callAgente: cerebro });
+    const r = await answerViaAgente({ text: Q, history: HILO_REAL, mem: {}, scenario: ESC, callAgente: declarando(cerebro) });
     const t = String((r.r && r.r.text) || "");
     ok(r.r.agente.estado === "reformular-piso", `★★ con el cerebro ${comoEsta}, el turno lo resuelve el piso (${r.r.agente.estado})`);
     ok(!/no tengo informaci[oó]n autorizada/i.test(t), "★★ …y la frase que el owner vio NO sale");
@@ -286,10 +292,10 @@ H("9 · ★ el piso por audiencia: misma conclusión, distinta forma — y «má
     "…comercial sin órdenes, directorio sin operativa: las diferencias reales que el owner pidió");
 
   const MUDO2 = async () => ({ tipo: "texto", texto: "" });
-  const t1 = await answerViaAgente({ text: "¿Cómo va el negocio?", history: [], mem: {}, scenario: ESC, callAgente: MUDO2 });
+  const t1 = await answerViaAgente({ text: "¿Cómo va el negocio?", history: [], mem: {}, scenario: ESC, callAgente: declarando(MUDO2) });
   const FOTO = String(t1.r.text || "");
   const H2 = [{ role: "user", text: "¿Cómo va el negocio?" }, { role: "assistant", text: FOTO }];
-  const pide = async (q) => { const r = await answerViaAgente({ text: q, history: H2, mem: t1.mem, scenario: ESC, callAgente: MUDO2 }); return { t: String(r.r.text || ""), a: r.r.agente }; };
+  const pide = async (q) => { const r = await answerViaAgente({ text: q, history: H2, mem: t1.mem, scenario: ESC, callAgente: declarando(MUDO2) }); return { t: String(r.r.text || ""), a: r.r.agente }; };
   const tesis = FOTO.split("\n")[0].trim();
   /* la ORACIÓN del criterio, no la línea entera: el piso parte por oraciones y deja fuera la oferta que la sigue («Cuando digas, la abro.») */
   const criterio = ((FOTO.split("\n").find((l) => /entrar[ií]a por|mirar[ií]a primero|empezar[ií]a por/i.test(l)) || "").split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¿«])/)[0] || "").trim();
@@ -344,7 +350,7 @@ H("10 · ★★ la batería en vivo: «dámelo», «ahora para directorio» y la
    * El material de T4 y T5 es la FOTO (no la reformulación previa): la conclusión llega verbatim a los tres. */
   const MUDO3 = async () => ({ tipo: "texto", texto: "" });
   let h = [], mem = {};
-  const paso = async (q) => { const r = await answerViaAgente({ text: q, history: h, mem, scenario: ESC, callAgente: MUDO3 }); h = [...h, { role: "user", text: q }, { role: "assistant", text: String(r.r.text || "") }]; mem = r.mem || mem; return { t: String(r.r.text || ""), a: r.r.agente }; };
+  const paso = async (q) => { const r = await answerViaAgente({ text: q, history: h, mem, scenario: ESC, callAgente: declarando(MUDO3) }); h = [...h, { role: "user", text: q }, { role: "assistant", text: String(r.r.text || "") }]; mem = r.mem || mem; return { t: String(r.r.text || ""), a: r.r.agente }; };
   const t1 = await paso("¿Cómo va el negocio?");
   const t3 = await paso("Dámelo más corto.");
   const t4 = await paso("Explícamelo para el equipo comercial.");
@@ -413,7 +419,7 @@ H("11 · ★★ el encargo compuesto: reformular no eclipsa el turno, y la audie
    * procedimiento con la forma del encargo y el molde del lector, pero NO la doctrina de «no salgas a leer» */
   let capt = null;
   const MUDO4 = async ({ mensajes }) => { if (!capt) capt = mensajes; return { tipo: "texto", texto: "" }; };
-  const r = await answerViaAgente({ text: OWNER, history: [], mem: {}, scenario: ESC, callAgente: MUDO4 });
+  const r = await answerViaAgente({ text: OWNER, history: [], mem: {}, scenario: ESC, callAgente: declarando(MUDO4) });
   ok(r.r.agente.estado !== "sin-que-reformular" && r.r.agente.calls >= 3, `★★ la pantalla del owner ya no se corta en el atajo: el turno lee (${r.r.agente.calls} herramientas, ${r.r.agente.estado})`);
   ok(!/Todavía no te he respondido nada/.test(String(r.r.text || "")), "…y la frase que vio el owner no sale");
   const docs = (capt || []).filter((m) => m.role === "user").map((m) => String(m.content || ""));

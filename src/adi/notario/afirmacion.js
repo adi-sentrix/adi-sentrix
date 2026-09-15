@@ -38,6 +38,8 @@ export const normalizar = (s) => String(s == null ? "" : s).normalize("NFD").rep
 
 /* _valor(v) → {texto, raw, unidad} desde «$4.6M», «47%», «8.6 pp», «269 días», «1.0x», «1.194 unidades», 5, «5» o un objeto ya armado.
  * Las cifras con unidad las canoniza parseFigures (el MISMO canon de la boleta); los enteros pelados son conteos/unidades. */
+/** menosAscii(s) → el menos tipográfico («−», «–») como «-»: parseFigures lee «−3.7%» como +3.7 y el Notario no puede heredar ese signo */
+export const menosAscii = (s) => String(s == null ? "" : s).replace(/[\u2212\u2013]/g, "-");
 export function leerValor(v) {
   if (v == null || v === "") return null;
   if (typeof v === "object") {
@@ -47,15 +49,18 @@ export function leerValor(v) {
   }
   if (typeof v === "number") return { texto: String(v), raw: v, unidad: "count", canon: `count:${v}` };
   const s = String(v).trim();
-  const p = parseFigures(s);
+  const p = parseFigures(menosAscii(s));
   if (p.length) return { texto: s, raw: p[0].raw, unidad: p[0].unit, canon: p[0].canon };
+  /* la moneda sin símbolo («330K», «34.5M»: un pack que declara su moneda sin signo): dinero con su escala */
+  const mk = /^([+-]?)(\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d+)?)\s?([KMB])$/i.exec(menosAscii(s).trim());
+  if (mk) { const base = /^\d{1,3}(?:[.,]\d{3})+$/.test(mk[2]) ? parseInt(mk[2].replace(/[.,]/g, ""), 10) : parseFloat(mk[2].replace(",", ".")); const esc = { K: 1e3, M: 1e6, B: 1e9 }[mk[3].toUpperCase()]; const raw = (mk[1] === "-" ? -1 : 1) * base * esc; return { texto: s, raw, unidad: "money", canon: `money:${mk[1] === "-" ? "-" : ""}${mk[2]}${mk[3].toUpperCase()}` }; }
   const m = /^([+-]?)(\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d+)?)\s*(unidades|cuentas|clientes|sku|skus|bodegas|marcas|d[ií]as?|veces|x|puntos(?:\s+porcentuales)?|pp)?$/i.exec(s);
   if (m) {
     const entero = /^\d{1,3}(?:[.,]\d{3})+$/.test(m[2]);
     const raw = entero ? parseInt(m[2].replace(/[.,]/g, ""), 10) : parseFloat(m[2].replace(",", "."));
     const u = /^d/i.test(m[3] || "") ? "days" : /^(?:veces|x)$/i.test(m[3] || "") ? "ratio" : /^(?:puntos|pp)/i.test(m[3] || "") ? "pp" : "count";
     const val = m[1] === "-" ? -raw : raw;
-    return { texto: s, raw: val, unidad: u, canon: `${u}:${val}` };
+    return { texto: s, raw: val, unidad: u, canon: u === "pp" ? `pp:${val}pp` : `${u}:${val}` };   // «1 puntos» con el canon de «1 pp» (el de parseFigures)
   }
   return { texto: s, raw: NaN, unidad: null, canon: null };
 }
@@ -156,7 +161,7 @@ export function normalizarAfirmacion(a, i = 0) {
     }
     case "conteo": {
       const c = src.conteo && typeof src.conteo === "object" ? src.conteo : {};
-      out.conteo = { n: Number.isFinite(+c.n) ? +c.n : NaN, m: Number.isFinite(+c.m) ? +c.m : null, predicado: c.predicado != null ? String(c.predicado).trim() : "" };
+      out.conteo = { n: c.n != null && c.n !== "" && Number.isFinite(+c.n) ? +c.n : NaN, m: c.m != null && c.m !== "" && Number.isFinite(+c.m) ? +c.m : null, predicado: c.predicado != null ? String(c.predicado).trim() : "" };   // `+null === 0`: un M ausente no es «de 0»
       exige(Number.isFinite(out.conteo.n), "conteo.n");
       exige(out.conteo.predicado || out.metrica, "conteo.predicado (qué cumplen las contadas)");
       exige(out.conteo.m != null || out.universo, "universo (de cuántas / de qué conjunto)");

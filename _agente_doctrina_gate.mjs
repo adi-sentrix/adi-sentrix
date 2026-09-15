@@ -23,6 +23,7 @@ import { DOCTRINAS, doctrinasParaRonda, TOPE_BLOQUE_CHARS } from "./src/adi/agen
 import { cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { declarando } from "./_guion_declara.mjs";   // Notario semántico (fase 2): los guiones declaran desde la boleta, como un cerebro que declara
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -69,7 +70,7 @@ H("3 · la ronda del bucle lleva la doctrina pegada al resultado");
     mensajeRonda = mensajes.filter((m) => /\[HERRAMIENTAS/.test(m.content)).pop();
     return { tipo: "texto", texto: "Depósito Riachuelo te compró $22.560 en agosto 2026; en julio 2026 habían sido $24.029." };
   };
-  const r = await answerViaAgente({ text: "cuanto me compro riachuelo el ultimo mes", history: [], mem: {}, scenario: "actual", callAgente: guion });
+  const r = await answerViaAgente({ text: "cuanto me compro riachuelo el ultimo mes", history: [], mem: {}, scenario: "actual", callAgente: declarando(guion) });
   ok(r.r.agente.estado === "verde", "el turno salió verde");
   ok(!!mensajeRonda && mensajeRonda.content.includes(DOCTRINAS.serieEntidad),
     "★ el mensaje de la ronda trae la doctrina de serieEntidad, byte-igual");
@@ -85,7 +86,7 @@ H("3 · la ronda del bucle lleva la doctrina pegada al resultado");
   /* RE-APUNTADO 2026-09-13 (contrato comercial): «como vienen las ventas» corre el contrato antes del cerebro y rolesCartera
    * trae SU doctrina, pertinente; la ronda limpia se mide con una pregunta fuera del contrato, donde la herramienta pedida
    * (salesRead) sigue sin doctrina propia. */
-  await answerViaAgente({ text: "cuántos días de inventario tengo?", history: [], mem: {}, scenario: "actual", callAgente: guion2 });
+  await answerViaAgente({ text: "cuántos días de inventario tengo?", history: [], mem: {}, scenario: "actual", callAgente: declarando(guion2) });
   ok(!!mensajeRonda2 && !mensajeRonda2.content.includes("DOCTRINA ·"),
     "una ronda de herramientas sin doctrina viaja limpia — cero tokens de instrucción impertinente");
 }
@@ -144,7 +145,7 @@ H("4 · CARNADA · cada ley, probada ROJA con el defecto adentro");
         msg = mensajes.filter((m) => /\[HERRAMIENTAS/.test(m.content)).pop();
         return { tipo: "texto", texto: "Depósito Riachuelo te compró $22.560 en agosto 2026." };
       };
-      await Mut.answerViaAgente({ text: "cuanto me compro riachuelo el ultimo mes", history: [], mem: {}, scenario: "actual", callAgente: guion });
+      await Mut.answerViaAgente({ text: "cuanto me compro riachuelo el ultimo mes", history: [], mem: {}, scenario: "actual", callAgente: declarando(guion) });
       return !!msg && !msg.content.includes("DOCTRINA ·");   // el defecto: la herramienta corrió y su regla no llegó
     });
 

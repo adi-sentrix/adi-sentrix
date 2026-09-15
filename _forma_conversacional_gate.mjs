@@ -25,6 +25,7 @@ import { initTenant, getTenantId } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { formaConversacional, esConversacional, pideLaFicha } from "./src/adi/agente/formaConversacional.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { declarando } from "./_guion_declara.mjs";   // Notario semántico (fase 2): los guiones declaran desde la boleta, como un cerebro que declara
 import { builderOutFor } from "./src/adi/sentrix/viewBuilderRun.js";
 import { deriveViewContext } from "./src/adi/sentrix/viewContextFrom.js";
 import { tituloDeExplicacion } from "./src/adi/sentrix/viewManifest.js";
@@ -81,7 +82,7 @@ H("3 · tras un click en la Mesa, una conversación natural ya no recibe la fich
 {
   const CID = "comercial/01/tabla-cartera";
   const vc = deriveViewContext(CID, builderOutFor(CID, ESC, { todos: "0" }), { scenario: ESC, controles: { todos: "0" }, tenantId: getTenantId() });
-  const r0 = await answerViaAgente({ text: tituloDeExplicacion(CID), history: [], mem: {}, scenario: ESC, callAgente: MUDO, viewContext: vc, cuadro: vc });
+  const r0 = await answerViaAgente({ text: tituloDeExplicacion(CID), history: [], mem: {}, scenario: ESC, callAgente: declarando(MUDO), viewContext: vc, cuadro: vc });
   ok(r0.r.agente.estado === "playbook" && /Falabella|cartera|venta/i.test(String(r0.r.text || "")),
     "el click sigue funcionando: la lectura del cuadro no se tocó", r0.r.agente.estado);
   const hist = [{ role: "user", text: "x" }, { role: "adi", text: r0.r.text }];
@@ -90,7 +91,7 @@ H("3 · tras un click en la Mesa, una conversación natural ya no recibe la fich
   const ANTES = ["¿miro La Polar o Falabella?", "¿es cierto que Falabella me está dejando menos?", "recuerda que Falabella es apuesta mía"];
   const respuestas = [];
   for (const q of ANTES) {
-    const r = await answerViaAgente({ text: q, history: hist, mem: r0.mem, scenario: ESC, callAgente: MUDO });
+    const r = await answerViaAgente({ text: q, history: hist, mem: r0.mem, scenario: ESC, callAgente: declarando(MUDO) });
     const T = String(r.r.text || "");
     respuestas.push(T);
     ok(!/^Falabella: venta/m.test(T) && !/quiebre de stock/.test(T),
@@ -101,7 +102,7 @@ H("3 · tras un click en la Mesa, una conversación natural ya no recibe la fich
 
   /* LAS DOS DEL INCIDENTE ORIGINAL */
   for (const q of ["¿Por qué mirarías La Polar si solo pesa 2.9% de la venta?", "¿Por qué dices que Jumbo convierte mejor cada peso vendido?"]) {
-    const r = await answerViaAgente({ text: q, history: hist, mem: r0.mem, scenario: ESC, callAgente: MUDO });
+    const r = await answerViaAgente({ text: q, history: hist, mem: r0.mem, scenario: ESC, callAgente: declarando(MUDO) });
     const T = String(r.r.text || "");
     ok(!/es participación de|No es una cuenta mía/.test(T) && !/quiebre de stock/.test(T),
       `★★ «${q.slice(0, 46)}…» ya no recibe la procedencia de la cifra ni la ficha de la fila`, T.split("\n")[0]);
@@ -115,17 +116,17 @@ H("4 · la ficha gana si la piden · el margen general sigue siendo suyo · su c
     "★ pedir la ficha se reconoce como tal");
   ok(!pideLaFicha("¿miro La Polar o Falabella?") && !pideLaFicha("recuerda que Falabella es apuesta mía"),
     "…y nombrar a alguien dentro de otra conversación NO es pedir su ficha");
-  const rF = await answerViaAgente({ text: "dame la ficha de Falabella", history: [], mem: {}, scenario: ESC, callAgente: MUDO });
+  const rF = await answerViaAgente({ text: "dame la ficha de Falabella", history: [], mem: {}, scenario: ESC, callAgente: declarando(MUDO) });
   ok(rF.r.agente.estado === "playbook" && /Falabella/.test(String(rF.r.text || "")),
     "★★ y la ficha PEDIDA sigue respondiendo: se cerró el secuestro, no la ruta", rF.r.agente.estado);
-  const rM = await answerViaAgente({ text: "cómo viene mi margen?", history: [], mem: {}, scenario: ESC, callAgente: MUDO });
+  const rM = await answerViaAgente({ text: "cómo viene mi margen?", history: [], mem: {}, scenario: ESC, callAgente: declarando(MUDO) });
   ok(rM.r.agente.estado === "playbook" && /margen/i.test(String(rM.r.text || "")),
     "★★ el margen GENERAL sigue siendo del margen — la regla es que no gane una conversación ajena", rM.r.agente.estado);
   /* ⚠️ SU PROPIA CONTINUACIÓN TAMBIÉN, y esto lo cazó el gate de playbooks cuando la guarda quedó antes de las
    * puertas de seguimiento: «¿y qué harías primero?» tras una lectura de margen tiene forma de ACCIÓN, pero es
    * el seguimiento legítimo de este mismo playbook. El orden importa. */
   const hM = [{ role: "user", text: "cómo viene mi margen?" }, { role: "adi", text: rM.r.text }];
-  const rSeg = await answerViaAgente({ text: "¿y qué harías primero?", history: hM, mem: rM.mem, scenario: ESC, callAgente: MUDO });
+  const rSeg = await answerViaAgente({ text: "¿y qué harías primero?", history: hM, mem: rM.mem, scenario: ESC, callAgente: declarando(MUDO) });
   ok(rSeg.r.agente.estado === "playbook",
     "★★ …y «¿y qué harías primero?» tras una lectura de margen SIGUE abriendo: su continuación es suya", rSeg.r.agente.estado);
 }
@@ -135,12 +136,12 @@ H("5 · el cierre por la causa solo sale si pidieron un porqué");
 {
   const CID = "comercial/01/tabla-cartera";
   const vc = deriveViewContext(CID, builderOutFor(CID, ESC, { todos: "0" }), { scenario: ESC, controles: { todos: "0" }, tenantId: getTenantId() });
-  const r0 = await answerViaAgente({ text: tituloDeExplicacion(CID), history: [], mem: {}, scenario: ESC, callAgente: MUDO, viewContext: vc, cuadro: vc });
+  const r0 = await answerViaAgente({ text: tituloDeExplicacion(CID), history: [], mem: {}, scenario: ESC, callAgente: declarando(MUDO), viewContext: vc, cuadro: vc });
   const hist = [{ role: "user", text: "x" }, { role: "adi", text: r0.r.text }];
-  const rPorQue = await answerViaAgente({ text: "y ripley por que cae?", history: hist, mem: r0.mem, scenario: ESC, callAgente: MUDO });
+  const rPorQue = await answerViaAgente({ text: "y ripley por que cae?", history: hist, mem: r0.mem, scenario: ESC, callAgente: declarando(MUDO) });
   ok(/quiebre de stock/.test(String(rPorQue.r.text || "")),
     "★ con un PORQUÉ, la pregunta por la causa sí sale — es el paso 3 de la ley del porqué");
-  const rSin = await answerViaAgente({ text: "y ripley?", history: hist, mem: r0.mem, scenario: ESC, callAgente: MUDO });
+  const rSin = await answerViaAgente({ text: "y ripley?", history: hist, mem: r0.mem, scenario: ESC, callAgente: declarando(MUDO) });
   const T = String(rSin.r.text || "");
   ok(!/quiebre de stock/.test(T),
     "★★ …y SIN porqué no sale: preguntarle al dueño qué le pasó a una cuenta que nadie cuestionó es no haber leído el turno", T.split("\n").pop());
@@ -177,7 +178,7 @@ H("7 · ★★ la contradicción explícita prevalece sobre la hipótesis — y 
     "★ el turno congelado de la lista sigue sin ser contradicción: la lista y el «pero» van en la MISMA oración");
   /* de punta a punta con el cerebro mudo: el piso de la contradicción responde, con sus tres lecturas */
   const MUDO7 = async () => ({ tipo: "texto", texto: "" });
-  const r = await answerViaAgente({ text: CAUSAL, history: [], mem: {}, scenario: ESC, callAgente: MUDO7 });
+  const r = await answerViaAgente({ text: CAUSAL, history: [], mem: {}, scenario: ESC, callAgente: declarando(MUDO7) });
   /* con el ensamblador (2026-09-11) el causal —un encargo compuesto— sale por «encargo-compuesto», y sigue abriendo con el veredicto de la contradicción */
   ok((r.r.agente.estado === "playbook" || r.r.agente.estado === "encargo-compuesto") && r.r.agente.calls >= 3 && /^Las dos son ciertas/.test(String(r.r.text || "")),
     `★ el turno lo resuelve el procedimiento de la contradicción (${r.r.agente.estado}, ${r.r.agente.calls} herramientas): «las dos son ciertas…»`, String(r.r.text || "").slice(0, 100));

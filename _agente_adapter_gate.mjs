@@ -129,7 +129,8 @@ H("6 · el system del agente es un prefijo estable");
   const s1 = sistemaDelAgente("actual").fijo, s2 = sistemaDelAgente("actual").fijo;
   ok(s1 === s2, "dos generaciones → byte a byte idénticas (el caché del proveedor depende de esto)");
   ok(/INVARIANTES/.test(s1) && /MAPA DEL DATO/.test(s1), "trae las invariantes y el mapa");
-  ok(s1.length / 3.7 < 4000, `y es chico (${Math.round(s1.length / 3.7)} tok — el fijo del natural mide ~6.6K)`);
+  /* el Notario semántico (fase 2, 2026-09-15) suma el protocolo de declaración al fijo (~730 tok): el techo sube de 4.000 a 4.700 y sigue bajo el fijo del natural */
+  ok(s1.length / 3.7 < 4700, `y es chico (${Math.round(s1.length / 3.7)} tok — el fijo del natural mide ~6.6K)`);
 }
 
 /* ═══ 7 · CARNADAS ════════════════════════════════════════════════════════════════════════════════════════════ */

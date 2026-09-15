@@ -169,12 +169,17 @@ async function _call(body) {
  * como turnos de usuario rotulados [HERRAMIENTAS] — decisión de F2: sin pareo tool_use/tool_result nativo en la
  * v1, el bucle es dueño del protocolo y este adapter solo traduce). El system y el catálogo son prefijo FIJO —
  * cacheable, la misma disciplina del parse. */
+/* EL PRESUPUESTO DEL AGENTE (Notario semántico, fase 2 · owner 2026-09-15): la respuesta viaja con su bloque de afirmaciones al final
+ * (30-50 líneas JSON ≈ 1.500 tokens), así que el tope de texto del modo libre sube esa cuota sobre el de NARRAR — y el razonamiento,
+ * cuando está encendido, conserva su presupuesto entero (se construye SOBRE narrateBudget, no aparte). Es un tope, no un gasto. */
+const _DECLARACION_TOKENS = 1536;
+export function agenteBudget() { const b = narrateBudget(); return { ...b, max_tokens: b.max_tokens + _DECLARACION_TOKENS }; }
 export function buildAgenteBody({ mensajes, system, tools, model }) {
   const msgs = (Array.isArray(mensajes) ? mensajes : [])
     .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
     .map((m) => ({ role: m.role, content: m.content }));
   return {
-    model, ...narrateBudget(),
+    model, ...agenteBudget(),
     system: _systemBlocks(system),
     tools: (Array.isArray(tools) ? tools : []).map((t) => ({ name: t.name, description: t.description, input_schema: t.input_schema })),
     // SIN tool_choice: forzarla convertiría el modo libre en el modo parse — el modelo elige, ese es el punto.

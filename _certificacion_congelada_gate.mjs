@@ -53,6 +53,7 @@ import { pathToFileURL } from "node:url";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { declarando } from "./_guion_declara.mjs";   // Notario semántico (fase 2): los guiones declaran desde la boleta
 import { ingestarPlantilla } from "./src/ingesta/plantilla/ingestarPlantilla.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { playbookPara } from "./src/adi/agente/playbooks/registro.js";
@@ -354,19 +355,26 @@ async function replayEscalera(bucle) {
     if (n === 3) return { tipo: "texto", texto: EXP.borradorReparado };
     return { tipo: "texto", texto: "" };
   };
-  return bucle({ text: EXP.q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: guion });
+  return bucle({ text: EXP.q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: declarando(guion) });
 }
 if (fs.existsSync(COMPLETA)) {
   initTenant(cargar(COMPLETA, "completa.xlsx"));
   const r = await replayEscalera(answerViaAgente);
   const vetos = (r.r.agente.vetos || []).map((v) => String(v && (v.multa || v.detail) || v));
-  ok(vetos.some((v) => /^cierre · 4\.9x/.test(v)) && vetos.some((v) => /^reparacion · 4\.9x/.test(v)),
-    "★ el muro veta el borrador del expediente y su reparación (el «4.9x» de agosto sigue muriendo)");
+  /* Notario semántico (fase 2): «4.9x» no está en la boleta → afirmacion-no-declarada («4.9x» … decláralo o quítalo) en el cierre y en la reparación */
+  const _pasoR = (sitio) => (((r.r.agente || {}).notario || {}).pasos || []).find((p) => p.sitio === sitio) || null;
+  const _multasR = (sitio) => ((_pasoR(sitio) || {}).multas || []).join(" ");
+  ok(/4\.9x/.test(_multasR("cierre")) && /4\.9x/.test(_multasR("reparacion")),
+    "★ el Notario veta el borrador del expediente y su reparación (el «4.9x» de agosto sigue muriendo: afirmación no declarada, en el cierre y en la reparación)", (_multasR("cierre").match(/[^.]*4\.9x[^.]*/) || [""])[0].slice(0, 200));
   /* desde la densidad ejecutiva (2026-09-11) el podado arde ADEMÁS por `formato-de-informe` (tres subtítulos en
    * negrita que nadie pidió) y ese veto va primero en la línea del expediente; la notarial sigue cazándolo y queda
    * entre las «otras reglas» de la misma línea — se busca la regla en la línea de la poda, no en su primer puesto */
-  ok(vetos.some((v) => /^poda · /.test(v) && /eje-servido-a-escondidas/.test(v)),
-    "★ LA PODA CORRIÓ: tiró la oración del 4.9x, y su producto lo cazó la notarial nueva — la conducta T4 exacta que el owner marcó, ahora con nombre");
+  /* Notario semántico (fase 2): la poda corta por FRAGMENTO señalado; con un borrador que deja sin declarar más oraciones de las que la poda
+   * puede quitar, el turno baja al peldaño sin podar. Lo que se garantiza en los dos caminos: el 4.9x no llega a pantalla y, si la poda corrió,
+   * su producto lo cazó la notarial (eje-servido-a-escondidas) */
+  const _podaLinea = vetos.find((v) => /^poda · /.test(v));
+  ok(!/4\.9x/.test(r.r.text) && (!_podaLinea || /eje-servido-a-escondidas/.test(_podaLinea)),
+    `★ ${_podaLinea ? "LA PODA CORRIÓ: tiró la oración del 4.9x y su producto lo cazó la notarial (eje-servido-a-escondidas)" : "la poda no alcanzó (más oraciones sin declarar que las que puede quitar) y el turno bajó al peldaño"} — el 4.9x no llega a pantalla`);
   ok(r.r.agente.estado === "playbook" && /SÍ trae punto de venta/.test(r.r.text) && !/4\.9x/.test(r.r.text),
     `★ y el turno termina en la respuesta CORRECTA (el límite honesto), mejor que el «podado» de agosto (${r.r.agente.estado})`);
 } else {
@@ -412,7 +420,7 @@ H("5 · carnadas: la certificación congelada es la RED de todo lo demás");
   // (2) la poda revertida: el replay pierde su tercer peldaño (el veto sobre el producto de la poda desaparece)
   if (fs.existsSync(COMPLETA)) {
     await carnada("la poda revertida (la que más quería el supervisor)",
-      [[/        const podado = _podarOracionVetada\(t2, _multaDe\(v2\), figsTotales\);/, "        const podado = null;   // CARNADA"]],
+      [[/        const podado = _podarOracionVetada\(t2, _multaDe\(v2\), figsTotales, v2\.fragmentos \|\| \[\]\);/, "        const podado = null;   // CARNADA"]],
       async (bucleMut) => {
         initTenant(cargar(COMPLETA, "completa.xlsx"));
         const r = await replayEscalera(bucleMut);

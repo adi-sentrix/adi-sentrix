@@ -20,8 +20,12 @@
  *
  * EL CEREBRO SE INYECTA (`callAgente`) — ChatADI pondrá el fetch real cuando el adapter hable el modo libre;
  * los gates ponen GUIONES, incluidos los maliciosos. Contrato de `callAgente({ mensajes, mapa, herramientas,
- * ronda, attempt, motivoReintento, figsEnBoleta })` → Promise<{ tipo:"herramientas", pedidos:[{tool,args}] } |
+ * ronda, attempt, motivoReintento, figsEnBoleta, figs })` → Promise<{ tipo:"herramientas", pedidos:[{tool,args}] } |
  * { tipo:"texto", texto }>. Este módulo no conoce el cable (tool_use nativo vs texto): eso es del adapter.
+ * `figs` (Notario semántico, fase 2) es la boleta verificada del turno tal cual: el adapter real NO la usa —el modelo
+ * declara sus afirmaciones solo, con lo que leyó en los mensajes—; la reciben los GUIONES de los gates, que declaran
+ * desde la evidencia igual que el respaldo (`_guion_declara.mjs`). Sin ella, un guion sin bloque cae por
+ * `sin-declaracion`, como caería un modelo que no declara.
  * `figsEnBoleta` (R-eco del examen 1 del agente): cuántas cifras verificadas acumula el turno — el adapter
  * decide el tier con eso (escalar el cierre a un modelo mejor SOLO cuando hay material que reescribir; con
  * boleta vacía la escalada fue 66% del gasto y CERO verdes).
@@ -137,7 +141,11 @@ export function _podarOracionVetada(texto, multa, figs, fragmentos = []) {   // 
   if (tramos.length < 2) return null;                                // una sola oración: podarla es tirar el turno
   const _norm = (s) => String(s).replace(/\s+/g, "");
   const _normF = (s) => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, "");
-  const ofensoras = tramos.filter(([lo, hi]) => cifras.some((c) => _norm(t.slice(lo, hi)).includes(_norm(c))) || frags.some((f) => _normF(t.slice(lo, hi)).includes(_normF(f))));
+  /* con fragmentos del juez semántico la poda es EXACTA: corta la oración de la afirmación señalada, no toda oración que repita su cifra
+   * («$3.0M adicionales» verdadera en el primer párrafo y «Los $3.0M extra no te recuperan…» inconsistente en el segundo) */
+  const ofensoras = frags.length
+    ? tramos.filter(([lo, hi]) => frags.some((f) => _normF(t.slice(lo, hi)).includes(_normF(f))))
+    : tramos.filter(([lo, hi]) => cifras.some((c) => _norm(t.slice(lo, hi)).includes(_norm(c))));
   if (!ofensoras.length || ofensoras.length > TOPE_PODA) return null;   // (b)
   /* (b2) NO PODAR SI LA ORACIÓN SIGUIENTE LA REFERENCIA. Medido sobre el corpus: en el T4 la multa señala
    * «$1.0M» en «si entran a margen actual, sumas $1.0M», y la oración de después dice «…sumas $1.2M — una
@@ -621,6 +629,20 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * unidad, solo textos que el muro aprobó). */
   const recita = (memIn.recitaAprobada && Array.isArray(memIn.recitaAprobada.figs) && memIn.recitaAprobada.figs.length)
     ? memIn.recitaAprobada : null;
+  /* LA RE-CITA TAMBIÉN ES EVIDENCIA (R2): una cifra que ya salió a pantalla con su dueño en un turno previo se puede volver a decir del mismo
+   * dueño. Entra al índice como fig rotulada «dueño · conceptos (re-cita)», con la misma memoria y los mismos candados que usa el muro. */
+  const _figsDeRecita = (() => {
+    if (!recita || !Array.isArray(recita.figs)) return [];
+    const nombres = new Set((_ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]) || []).map((n) => String(n).toLowerCase()));   // (los dueños del tenant, calculados acá porque `duenosTenant` se declara después)
+    return recita.figs.map((x) => {
+      const duenos = Array.isArray(x.duenos) ? x.duenos.map(String) : [];
+      const ent = duenos.find((d) => nombres.has(d.toLowerCase()));
+      const conceptos = duenos.filter((d) => d !== ent && !/^(?:negocio|total|totales|cartera|global)$/i.test(d));
+      const pf = parseFigures(String(x.value || ""))[0] || null;
+      return { label: `${ent || "negocio"} · ${conceptos.length ? conceptos.join(" ") : "cifra"} (re-cita)`, value: String(x.value || ""), unit: pf ? pf.unit : null, raw: pf ? pf.raw : NaN, canon: x.canon, source: "recita", mandatory: false, context: "cifra aprobada a pantalla en un turno previo, con su dueño" };
+    }).filter((g) => g.unit);
+  })();
+
 
   // ── el hilo que ve el cerebro (la misma disciplina del camino natural: el turno una sola vez) ──
   const mensajes = [];
@@ -891,7 +913,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * un turno vacío que solo dice «vacio» es indiagnosticable. Observación pura: no decide nada. */
   const cortesDelTurno = [];
   const _llamarCerebro = async (args) => {
-    const res = await callAgente(args);
+    const res = await callAgente({ ...args, figs: [...figsTotales, ..._figsDeRecita] });   // la boleta del turno y la re-cita: la misma evidencia con la que se juzga
     if (res && typeof res === "object" && "stop" in res) cortesDelTurno.push(String(res.stop || "(no declarado)"));
     return res;
   };
@@ -1053,29 +1075,54 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * con las que compusieron (`declaracionDeRespaldo`) y se juzga igual. Los dos sitios que RE-CITAN un texto aprobado en un
    * turno anterior (`respaldo` · `reformular-piso`) no tienen evidencia estructurada de este turno: conservan el juicio de
    * siempre (el muro con `boletaAnterior`), porque ese texto ya pasó el Notario cuando se produjo. */
-  const _indiceDelTurno = (() => { try { return indiceDeEvidencia({ figs: figsTotales, datoProyectado: cifrasDelDato(scenario), ejesDelTenant: catalogoPorEje }); } catch { return null; } })();
+  /* …y se rearma si la boleta creció después (la reparación que pide una herramienta suma figs en la ronda extra: el re-cierre y los
+   * peldaños se juzgan contra la boleta completa, no contra la de antes) */
+  /* lo que el pack declara de sí mismo (`guardadoSinAnalizar`: campos guardados sin analizar, con sus filas y valores distintos) son cifras de la
+   * ingesta que el límite honesto cita: entran al índice como figs del negocio */
+  const _figsDelPack = (() => {
+    try {
+      const d = getTenantData() || {};
+      return (Array.isArray(d.guardadoSinAnalizar) ? d.guardadoSinAnalizar : []).flatMap((g) => {
+        const campo = String((g && g.campo) || "").trim(); if (!campo) return [];
+        const out = [];
+        if (Number.isFinite(+g.filas)) out.push({ label: `${campo} · filas guardadas sin analizar`, value: String(g.filas), unit: "count", raw: +g.filas, source: "pack", mandatory: false, context: "lo declara el pack: columna guardada y aún no analizada" });
+        if (Number.isFinite(+g.distintos)) out.push({ label: `${campo} · valores distintos`, value: String(g.distintos), unit: "count", raw: +g.distintos, source: "pack", mandatory: false, context: "lo declara el pack: valores distintos de la columna guardada" });
+        return out;
+      });
+    } catch { return []; }
+  })();
+  let _indiceCache = null, _indiceCon = -1;
+  const _indiceDelTurno = () => {
+    if (_indiceCache && _indiceCon === figsTotales.length) return _indiceCache;
+    try { _indiceCache = indiceDeEvidencia({ figs: [...figsTotales, ..._figsDeRecita, ..._figsDelPack], datoProyectado: cifrasDelDato(scenario), ejesDelTenant: catalogoPorEje }); } catch { _indiceCache = null; }
+    _indiceCon = figsTotales.length;
+    return _indiceCache;
+  };
   const notarioDelTurno = [];   // el expediente del Notario semántico: por sitio, medidas y vetos
   const _SITIOS_SIN_DECLARACION = new Set(["respaldo", "reformular-piso"]);
-  const _juezSemantico = (t, sitio, afirmaciones) => {
-    if (!_indiceDelTurno || _SITIOS_SIN_DECLARACION.has(sitio)) return null;
+  const _juezSemantico = (t, sitio, afirmaciones, calculos = []) => {
+    const _I = _indiceDelTurno();
+    if (!_I || _SITIOS_SIN_DECLARACION.has(sitio)) return null;
     const derivada = afirmaciones === undefined;
     const decl = derivada ? (() => { try { return declaracionDeRespaldo(t, figsTotales, { ejesDelTenant: catalogoPorEje, datoProyectado: cifrasDelDato(scenario) }); } catch { return []; } })() : afirmaciones;
     let sem;
-    try { sem = juzgarDeclaracion(t, decl, { indice: _indiceDelTurno, nombres: duenosTenant || [], sitio, derivada }); }
+    try { sem = juzgarDeclaracion(t, decl, { indice: _I, nombres: duenosTenant || [], sitio, derivada, calculos }); }
     catch (e) { sem = { ok: false, violations: [{ kind: "notario-semantico-error", detail: `el juez semántico falló: ${(e && e.message) || e}`, texto: "" }], medidas: { error: true } }; }
-    notarioDelTurno.push({ sitio, derivada, medidas: sem.medidas, vetos: sem.violations.map((x) => x.kind) });
+    notarioDelTurno.push({ sitio, derivada, medidas: sem.medidas, vetos: sem.violations.map((x) => x.kind), multas: sem.violations.slice(0, 24).map((x) => String(x.detail || "").slice(0, 400)) });
     return sem;
   };
   const juzgar = (t, sitio = "cierre", afirmaciones = undefined) => {
     /* el canal de lo ya aprobado se enciende SOLO acá: en cualquier otro sitio la llamada es la de siempre */
     const v0 = _guard(t, sitio === "respaldo" ? _boletaAprobadaPrevia : sitio === "reformular-piso" ? _boletaDelHilo : null);
-    const sem = _juezSemantico(t, sitio, afirmaciones);
+    const sem = _juezSemantico(t, sitio, afirmaciones, (v0 && Array.isArray(v0.calculos)) ? v0.calculos : []);   // los [[CALCULO]] que el muro autorizó en este texto son evidencia
     let v = v0;
+    let _leyesDelMuro = [];   // las leyes de la casa del muro que ardieron junto al juez semántico (van al rastro con su multa)
     if (sem) {
       /* los chequeos DE HECHO del muro y del contrato ya no dictan veredicto: quedan en el expediente como detectores */
       const detectores = ((v0 && v0.violations) || []).filter((x) => CHEQUEOS_DE_HECHO.has(x.kind));
       const restantes = ((v0 && v0.violations) || []).filter((x) => !CHEQUEOS_DE_HECHO.has(x.kind));
       if (detectores.length) notarioDelTurno[notarioDelTurno.length - 1].detectores = detectores.map((x) => x.kind);
+      if (restantes.length && sem.violations.length) { _leyesDelMuro = restantes; notarioDelTurno[notarioDelTurno.length - 1].leyes = restantes.map((x) => ({ regla: x.kind, multa: String(_detalleDe(x) || "").split("\n")[0].slice(0, 200) })); }
       const todas = [...sem.violations, ...restantes];
       v = todas.length ? { ...(v0 || {}), ok: false, violations: todas, multa: undefined } : { ...(v0 || {}), ok: true, violations: [] };
       if (v.ok === false && sem.violations.length) v.fragmentos = sem.violations.map((x) => x.texto).filter(Boolean);   // la poda los usa
@@ -1096,9 +1143,12 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
         if (vc.length) {
           v.multaCompleta = `${_multaParaElModelo(v)}\n${vc.map((x) => x.multa).join("\n")}`;
           v.reglasContrato = vc.map((x) => x.regla);
+          v.leyesDelContrato = vc.map((x) => ({ regla: x.regla, multa: String(x.multa || "").split("\n")[0].slice(0, 160) }));
         }
       }
-      vetosDelTurno.push(`${sitio} · ${String(_multaDe(v)).split("\n")[0].slice(0, 180)}${v && v.reglasContrato && v.reglasContrato.length ? ` (+ ${v.reglasContrato.join(", ")})` : ""}`);
+      /* las leyes de la casa que ardieron detrás del veto semántico van con su multa: el rastro tiene que decir TODO lo que rechazó */
+      const _leyes = [..._leyesDelMuro.map((x) => `${x.kind}: ${String(_detalleDe(x) || "").split("\n")[0].slice(0, 160)}`), ...((v && Array.isArray(v.leyesDelContrato) && sem) ? v.leyesDelContrato.map((x) => `${x.regla}: ${x.multa}`) : [])];
+      vetosDelTurno.push(`${sitio} · ${String(_multaDe(v)).split("\n")[0].slice(0, 180)}${v && v.reglasContrato && v.reglasContrato.length ? ` (+ ${v.reglasContrato.join(", ")})` : ""}${_leyes.length ? ` · leyes: ${_leyes.join(" · ")}` : ""}`);
       return v;
     }
     const vc = _otrosJueces(t, sitio);
@@ -1163,7 +1213,11 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       ...vRef2,
       ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales, pregunta: q, ctx: ctxTurno }) : [])];
     /* con el juez semántico en el sitio, los chequeos de hecho del contrato (atribución, relación en palabras, universos, variación) son detectores */
-    return (_indiceDelTurno && !_SITIOS_SIN_DECLARACION.has(sitio)) ? vc.filter((x) => !CHEQUEOS_DE_HECHO.has(x.regla)) : vc;
+    if (!(_indiceDelTurno() && !_SITIOS_SIN_DECLARACION.has(sitio))) return vc;
+    /* las reglas DE HECHO del contrato ya no dictan veredicto (el juez semántico las reemplaza): quedan como detectores en el expediente del sitio */
+    const deHecho = vc.filter((x) => CHEQUEOS_DE_HECHO.has(x.regla));
+    if (deHecho.length) { const paso = [...notarioDelTurno].reverse().find((p) => p.sitio === sitio); if (paso) paso.detectores = [...(paso.detectores || []), ...deHecho.map((x) => x.regla)]; }
+    return vc.filter((x) => !CHEQUEOS_DE_HECHO.has(x.regla));
   }
 
   let estado = "vacio";
@@ -1206,7 +1260,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       const extra2 = _pedidosValidos(res2);
       if (extra2 && _rondaDeHerramientas(extra2, hiloReparacion)) {
         rondaExtraUsada = true;
-        res2 = await callAgente({
+        res2 = await _llamarCerebro({
           mensajes: [...hiloReparacion, { role: "user", content: "[MOTOR — no es el usuario] Las herramientas que pediste ya corrieron: sus cifras están arriba. Reescribe AHORA tu respuesta completa con esas cifras verificadas, corrigiendo lo que observó la verificación." }],
           mapa, herramientas, ronda: rondas, attempt: 1, motivoReintento: "guard", figsEnBoleta: figsTotales.length, vetoConCifra,
         });

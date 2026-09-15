@@ -31,6 +31,7 @@ import { playbookPara } from "./src/adi/agente/playbooks/registro.js";
 import { esTemaComercial } from "./src/adi/agente/contratoComercial.js";
 import { dominiosDe } from "./src/adi/agente/contratoDeDominios.js";   // el contrato de dominios (2026-09-14): el e2e exige una pregunta sin dominio
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { bloqueDe } from "./_guion_declara.mjs";   // Notario semántico (fase 2): el guion declara lo que afirma
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -109,15 +110,21 @@ H("3 · una cuenta DECLARADA pasa; la misma cuenta en prosa, no");
    * se ponía rojo con razón. La regla vale también para un gate: si la cifra no sale del dato, el gate mide un
    * negocio que el producto no sirve. Se toma el total del negocio TAL COMO el dato lo publica y se arma la
    * cuenta con él, así el bloque sigue siendo cierto en cualquier escenario. */
-  const _totalDelNegocio = (dp.figs || []).find((f) => /^money:/.test(String(f.canon))
-    && Array.isArray(f.duenos) && f.duenos.includes("negocio") && f.duenos.includes("total")
-    && !f.duenos.includes("anterior"));   // la del PERÍODO, no la del año anterior
-  ok(!!_totalDelNegocio, "el dato publica un total del negocio con el que armar la prueba", JSON.stringify(_totalDelNegocio));
+  /* ⚠️ HALLAZGO DEL NOTARIO SEMÁNTICO (fase 2): «el primer total del negocio» de `figs` era el PRESUPUESTO ($97.0M — los dueños
+   * «negocio/total» no distinguen la venta del presupuesto) y el muro viejo lo dejaba pasar como «Ventas totales». La base es el KPI
+   * rotulado «Ventas totales» de la misma proyección: la cifra vale con su significado. */
+  const _totalDelNegocio = (dp.kpis || []).find((k) => k.label === "Ventas totales");
+  ok(!!_totalDelNegocio, "el dato publica la venta total del negocio, con rótulo, con la que armar la prueba", JSON.stringify(_totalDelNegocio));
   const BASE = String(_totalDelNegocio.value);                                  // p.ej. «$99.9M» en bonanza
   const _raw = Number(String(BASE).replace(/[^\d.]/g, "")) * 1e6;
   const RES = `$${((_raw * 1.04) / 1e6).toFixed(1)}M`;                          // la cuenta, con la misma escala
   const PROSA = `Ventas totales del negocio: ${BASE} proyectados × 1.04 = ${RES}. Es una proyección con tu supuesto.`;
-  const DECL = PROSA + `\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=${BASE}; 4% · formula=${BASE} + 4% · resultado=${RES} · unidad=money\n`;
+  const DECL = PROSA + `\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=${BASE}; 4% · formula=${BASE} + 4% · resultado=${RES} · unidad=money · dueno=negocio\n`;
+  /* y lo que un cerebro que declara diría de ese texto: la base (del mapa del dato) y la cuenta (verificada por el [[CALCULO]] que el muro recomputa) */
+  const DECL_CON_AFIRMACIONES = DECL + "\n" + bloqueDe([
+    { tipo: "cifra", sujeto: "negocio", metrica: "Ventas totales", valor: BASE, texto: `Ventas totales del negocio: ${BASE}` },
+    { tipo: "cifra", sujeto: "negocio", metrica: "Ventas proyectadas con el supuesto", valor: RES, evidencia: ["c1"], texto: `× 1.04 = ${RES}` },
+  ]);
   /* RE-APUNTADO 2026-09-02: «Si subo ventas 4%…» ganó camino garantizado (el detector de proyección ampliado
    * por orden del owner cubre «si subo») y el playbook precargaba boleta — este e2e necesita la boleta VACÍA.
    * «Si muevo…» conserva la forma y el «4%» del usuario, y ningún detector la reclama. El guion no cambia. */
@@ -135,7 +142,7 @@ H("3 · una cuenta DECLARADA pasa; la misma cuenta en prosa, no");
   // end-to-end, por el bucle real: es lo único que prueba que el canal está conectado de verdad
   const turno = (texto) => answerViaAgente({ text: Q, history: [], mem: {},
     scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto }) });
-  const rP = await turno(PROSA), rD = await turno(DECL);
+  const rP = await turno(PROSA), rD = await turno(DECL_CON_AFIRMACIONES);
   ok(rP.r.agente.estado !== "verde", `★ end-to-end · en prosa el turno NO sale verde (${rP.r.agente.estado})`);
   ok(rD.r.agente.estado === "verde", `★ end-to-end · declarado SÍ (${rD.r.agente.estado}) — el camino está abierto, no cerrado`);
 }

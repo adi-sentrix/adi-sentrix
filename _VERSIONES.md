@@ -130,6 +130,28 @@ afirmando; Notario verifica la afirmación contra la evidencia estructurada; la 
   `_notario_semantico_gate.mjs` con líneas base; los tres corpus anteriores siguen como regresión. Fase 2 (el flujo) espera la
   aprobación del owner.
 
+**El Notario semántico — fase 2 (2026-09-15, offline; sin corridas ni deploy).** El principio entra al flujo: el cerebro
+devuelve la respuesta con su bloque `<<AFIRMACIONES>> … <<FIN>>` (la instrucción viaja en el system; sin bloque, `sin-declaracion`
+y nunca verde), el juez semántico juzga cada sitio del bucle después de guardC (que conserva las leyes de la casa y deja sus 28
+chequeos de hecho como detectores), la multa al modelo nombra la afirmación que falló y la verdad de la boleta, la poda corta por
+fragmento y los 22 playbooks, el ensamblador del encargo y la prioridad integrada declaran mientras escriben (texto byte-idéntico).
+Criterios del owner: la respuesta y sus declaraciones representan la misma realidad; ninguna afirmación relevante queda sin
+declarar; lo incompleto es no-verificable, nunca verdadera; el respaldo declara y se verifica igual; `lectura` no es refugio
+(`_NOTARIO_SEMANTICO_FASE2.md`).
+
+- Medido dentro del flujo (`_notario_semantico_flujo_gate.mjs`, 12 borradores reales con declaración manual como cerebro):
+  declaraciones correctas 95.5 %, afirmaciones relevantes omitidas 2.9 % (28/950), 0 FP · 0 FN, 6/6 reparaciones provocadas por
+  declaraciones falsas o incompletas, 0/6 servido sin pasar por el Notario semántico. Exactitud del verificador 99.7 % (1.096/1.099).
+  Líneas base fijadas en el fixture. Suite: 266/266 offline, 0 tocaron la red.
+- Las deudas de evidencia, saldadas: la venta del año anterior con rótulo propio; los KPIs del negocio (ventas totales, presupuesto,
+  techo de días, piso de rotación, umbrales) como figs con significado; y la boleta ya no pierde una cifra repetida en OTRA entidad
+  (dos cuentas con la misma variación son dos hechos — en la plantilla real de 25 clientes se perdían dos cuentas y el texto decía
+  «la otra cae bajo el umbral»).
+- Hallazgos reales corregidos en composers (anotados en el documento): «de $4.9M en toda la cartera», «los 3 de los 8», «(y 2 más)»,
+  «la 1ª bodega de 17», «4 de 4 bodegas … en quiebre», «2 de 3 SKU … casi todas tus SKU», «10 de los 12». Quedan anotados sin
+  corregir: «capital inmovilizado» en plan-de-accion, «no está creciendo» hipotético, el orden «vencido primero» que omite a Jumbo.
+- Lo que no se midió: cuánto declara el MODELO real — es la fase 3, en vivo, con gasto autorizado que lo nombre.
+
 ---
 
 ## 2.30 — producción · tag `v2.30`
