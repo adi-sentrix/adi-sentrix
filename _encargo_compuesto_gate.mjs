@@ -361,8 +361,11 @@ H("3h · ★★★ las tres corridas vivas: ventas y Falabella se sirven; el ger
   const cerebroDe = (textos) => { let i = 0; return async () => { const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
   const [V, F, G] = FX.corridas;
   const rv = await answerViaAgente({ text: V.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe(V.borradores.map((b) => b.texto)) });
-  ok(rv.r.agente.estado === "reparado" && rv.r.agente.contrato === "comercial" && /\+7\.6%/.test(rv.r.text) && /si ganas más no se puede saber/.test(rv.r.text),
-    `«¿Cómo van las ventas?» · la reparación del modelo se sirve (${rv.r.agente.estado}, ${palabras(rv.r.text)} palabras) con la lectura honesta de la ganancia`, (rv.r.agente.vetos || []).join(" | ").slice(0, 300));
+  /* el cierre y la reparación de esta corrida dicen lo mismo (la reparación solo cambió la coma decimal por el punto): el cierre caía por
+   * «-5%» en «Easy (-$177K, -5%)» colgado de Easy con el «suman» de otra cláusula — un falso positivo de «dueño por cercanía», cerrado
+   * con el lector de cláusula (owner 2026-09-14). Hoy el cierre se sirve verde, lavado al punto decimal; la lectura honesta es la misma. */
+  ok(["verde", "reparado"].includes(rv.r.agente.estado) && rv.r.agente.contrato === "comercial" && /\+7\.6%/.test(rv.r.text) && /si ganas más no se puede saber/.test(rv.r.text),
+    `«¿Cómo van las ventas?» · el texto del modelo se sirve (${rv.r.agente.estado}, ${palabras(rv.r.text)} palabras) con la lectura honesta de la ganancia`, (rv.r.agente.vetos || []).join(" | ").slice(0, 300));
   const rf = await answerViaAgente({ text: F.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe(F.borradores.map((b) => b.texto)) });
   ok(rf.r.agente.estado === "reparado" && /probado/.test(rf.r.text) && /indicado, no probado/.test(rf.r.text) && /\$194K/.test(rf.r.text) && /39\.1%/.test(rf.r.text),
     `«¿Por qué Falabella…?» · la reparación del modelo se sirve (${rf.r.agente.estado}, ${palabras(rf.r.text)} palabras): probado e indicado separados, con sus cifras`, (rf.r.agente.vetos || []).join(" | ").slice(0, 300));

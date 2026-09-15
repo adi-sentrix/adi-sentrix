@@ -1,3 +1,4 @@
+import { leerClausula } from "../oracle/lectorDeClausula.js";   // la negación se lee dentro de la cláusula (owner 2026-09-14)
 /* === src/adi/agente/prioridadIntegrada.js · LA PRIORIDAD INTEGRADA POR SEÑALES (owner 2026-09-14) ==============
  *
  * EL CASO (el prompt de producción, permanente): la primera versión del cierre integrado ponía primero a Falabella
@@ -396,13 +397,17 @@ const _PRIORIDAD = /\bprimero\b|\bprioridad|\bprioritari|\bfoco\b|\bantes que\b|
 const _COINCIDE = /coincid(?:e|en|ir|encia)\s+en\s+(?:dos|tres|varios|ambos|los\s+dos|los\s+tres|m[aá]s\s+de\s+un)\s+(?:dominios|frentes|lentes)|(?:esa|esta|la|su)\s+coincidencia/i;
 const _COMO_RAZON = /\b(?:porque|ya\s+que|dado\s+que|por\s+eso\s+que|por)\s+coincid|:\s*coincide\s+en|coincidencia\s+(?:agrava|pesa|cuenta|vale|importa)\s+m[aá]s\s+que|coincidencia\s+(?:decide|manda|basta|es\s+lo\s+que\s+(?:decide|manda|pesa|la\s+pone)|es\s+la\s+raz[oó]n|es\s+el\s+motivo)|(?:va|queda|est[aá]|ir[ií]a|entra)\s+primero\s+porque\s+coincide|primero\s+por\s+coincidir/i;
 /* «no porque coincidir en dos dominios lo decida solo, sino porque en cada uno pesa más» (prueba 2, tercera corrida viva · 2026-09-14):
- * la coincidencia NEGADA como razón es justo lo que la ley pide. */
-const _AGRAVA_NO_DECIDE = /agrava,?\s+(?:pero\s+)?no\s+decide|no\s+(?:es\s+lo\s+que\s+)?decide|no\s+basta|no\s+es\s+(?:la\s+)?raz[oó]n|no\s+por(?:que)?\s+coincidir|no\s+porque\s+coincid|decid[ae]\s+(?:solo|sola|por\s+s[ií])|sino\s+porque|no\s+(?:lo|la)\s+decid/i;
+ * la coincidencia NEGADA como razón es justo lo que la ley pide. LA NEGACIÓN LA LEE EL LECTOR DE CLÁUSULA (owner 2026-09-14), no
+ * una lista de frases: la mención de la coincidencia está negada si en SU cláusula hay un «no / ni / tampoco / sin» antes, sin
+ * un «sino / pero / aunque» entre medio. Así «no porque pese más, sino porque coincide en dos dominios» sí arde (lo que sigue a
+ * «sino» se afirma), y «mi criterio —no una cifra del dato— es partir por Lider: coincide en dos dominios…» también (el «no» del
+ * inciso es de otra cláusula). */
 export function coincidenciaComoRazon(texto) {
   const parrafos = String(texto || "").split(/\n\s*\n/).filter((p) => _PRIORIDAD.test(p) && _COINCIDE.test(p));
   for (const p of parrafos) {
     for (const oracion of p.split(/(?<=[.!?])\s+/)) {
-      if (!_COINCIDE.test(oracion) || !_COMO_RAZON.test(oracion) || _AGRAVA_NO_DECIDE.test(oracion)) continue;
+      const _mc = _COINCIDE.exec(oracion);
+      if (!_mc || !_COMO_RAZON.test(oracion) || leerClausula(oracion, _mc.index).negada) continue;
       return `pones primero a una cuenta «porque coincide en dos dominios»: coincidir agrava el caso, no lo decide. La prioridad se decide por el criterio —materialidad, severidad, urgencia, o el que fijó el usuario—: di qué señales la ponen primero (por ejemplo, la mayor brecha al benchmark y el atraso más largo) y deja la coincidencia como agravante, no como la razón: "${oracion.trim().slice(0, 140)}"`;
     }
   }

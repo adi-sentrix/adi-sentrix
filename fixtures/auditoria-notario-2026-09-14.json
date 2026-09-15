@@ -12,8 +12,8 @@
         {
           "kind": "alcance-promovido",
           "texto": "La brecha total estimada si esas 5 cuentas materiales llegaran al benchmark es $4.9M",
-          "motivo": "la palabra «total» dispara aunque el alcance (5 cuentas materiales) está dicho en la misma frase",
-          "cerrado": false,
+          "motivo": "la palabra «total» dispara aunque el alcance (5 cuentas materiales) está dicho en la misma frase — CERRADO (lector de cláusula, 2026-09-14): el conteo del subtotal leído dentro de la MISMA cláusula declara el alcance; «total» no promueve",
+          "cerrado": true,
           "clave": "4\\.9M"
         },
         {
@@ -167,8 +167,8 @@
         {
           "kind": "metrica-mal-atribuida",
           "texto": "sin relación con lo que más vende: LG-DRYER8KG ($14K frenados, 165 días de cobertura…)",
-          "motivo": "el «vende:» antes de los dos puntos se lee como la métrica de $14K; «frenados» no cuenta como capital",
-          "cerrado": false,
+          "motivo": "el «vende:» antes de los dos puntos se lee como la métrica de $14K; «frenados» no cuenta como capital — CERRADO (lector de cláusula, 2026-09-14): la ventana hacia atrás empieza en la cláusula que contiene el paréntesis, del lado de acá de los dos puntos; «frenados» sigue fuera del vocabulario de capital",
+          "cerrado": true,
           "clave": "14K"
         },
         {
@@ -305,8 +305,8 @@
         {
           "kind": "total-mal-atribuido",
           "texto": "$33K frenados en total (foto de hoy), concentrados en Valparaíso (75%)",
-          "motivo": "el «(75%)» dice que es una parte; el total no se cuelga de Valparaíso",
-          "cerrado": false,
+          "motivo": "el «(75%)» dice que es una parte; el total no se cuelga de Valparaíso — CERRADO (lector de cláusula, 2026-09-14): el verbo y la entidad se buscan en la MISMA cláusula, y una entidad con su propia cifra pegada («Valparaíso (75%)») no reclama el total",
+          "cerrado": true,
           "clave": "33K"
         }
       ],

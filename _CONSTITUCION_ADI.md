@@ -176,6 +176,27 @@ el cruce contra la carpeta real. Antes de pantalla:
      «17 días» se lee entero (`_finDeCifra`). Medido: el primer borrador de «¿los SKU que más vendo son los que más
      capital me inmovilizan?» era correcto y cayó dos veces por «17d»/«15d» «pegadas a otra entidad»; hoy pasa. Lo
      que NO afloja: «Lider vende $19.4M» (de Falabella) sigue ardiendo, con el dueño cerca o lejos.
+   - **El lector de cláusula** (owner 2026-09-14, auditoría del Notario sobre los 12 borradores reales de las seis corridas
+     vivas: 17 falsos positivos medidos, 9 de ellos «dueño por cercanía» — `_AUDITORIA_NOTARIO_2026-09-14.md`, fixture
+     `fixtures/auditoria-notario-2026-09-14.json`, candado `_auditoria_notario_gate`). Textual: *«no quiero más parches
+     frase por frase; cada cierre ataca la familia de error completa»*. La familia es UNA —decidir de quién es una cifra,
+     quién reclama un extremo o a qué se refiere una palabra por CERCANÍA (ventanas de ±90 caracteres, el nombre más
+     cercano, listas de palabras) en vez de por ESTRUCTURA— y se cierra con un solo módulo puro, sin dependencias del
+     muro: `src/adi/oracle/lectorDeClausula.js`. Para una posición del texto devuelve la CLÁUSULA (cortada por «. ; :»,
+     rayas y saltos de línea; un paréntesis o un inciso entre rayas es otra cláusula, y la que lo contiene se lee sin él),
+     el SUJETO (la última entidad antes de la posición en su cláusula, sin los paréntesis, sin el otro lado de los dos
+     puntos, saltando la comparada «peor que Falabella»; si la cláusula no tiene, el de la anterior en la misma oración),
+     el REFERENTE de un pronombre o sujeto elidido (hasta dos oraciones atrás), las LISTAS coordinadas contiguas (y si
+     están cerradas con «y»: un sujeto plural es un grupo, no un reclamante), la NEGACIÓN dentro de la cláusula («no
+     porque coincidir…» está negado; lo que sigue a «sino» se afirma) y el RÓTULO («El margen: $655K»). Lo consumen los
+     ocho chequeos de atribución —cifra de boleta sin dueño, total mal atribuido, métrica mal atribuida, alcance
+     promovido, reclamante del superlativo, «de eso», variación no medida, coincidencia como razón— sin cambiar lo que
+     cobraban bien (los candados de los gates siguen en pie). Medido: los tres falsos positivos vigentes cerrados
+     («La brecha total estimada si esas 5 cuentas materiales llegaran al benchmark es $4.9M»: el alcance dicho en la misma
+     cláusula no se promueve · «lo que más vende: LG-DRYER8KG ($14K frenados…)»: «vende» es de otra cláusula y «frenados»
+     sigue fuera del vocabulario de capital · «$33K frenados en total, concentrados en Valparaíso (75%)»: una entidad con
+     su propia cifra pegada no reclama el total); 17/17 falsos positivos cerrados, precisión 100 % sin regresiones sobre
+     los 12 borradores. La regla de la casa desde hoy: un chequeo de atribución no adivina el sujeto — le pregunta al lector.
 
    **La cobertura del encargo multidominio** (owner 2026-09-14, tras la prueba real en producción v2.28: pidió
    Comercial + Inventario + Cobranza juntos y recibió solo margen; fixture `fixtures/encargo-produccion-2026-09-14.json`,
