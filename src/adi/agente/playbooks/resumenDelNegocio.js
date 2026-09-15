@@ -13,13 +13,19 @@
  * presiona, POR PAPEL (reusa `rolesCartera`, la pieza central del razonamiento: no todo margen bajo es un
  * problema) · el cobro si el dato lo trae · qué mirar primero, con el criterio marcado · UN cierre.
  *
- * PURO · determinístico · sin red. Cifras VERBATIM de la boleta: selecciona y ordena, jamás calcula. */
+ * PURO · determinístico · sin red. Cifras VERBATIM de la boleta: selecciona y ordena, jamás calcula.
+ *
+ * Y DECLARA LO QUE ESCRIBE (Notario semántico, fase 2 · owner 2026-09-15): «el respaldo debe declarar y verificarse con el
+ * mismo estándar, no tener un camino privilegiado». Cada línea deja en el colector `declarar` la afirmación de hecho que
+ * lleva —la variación, cada cifra con su dueño y su universo, el conteo por papel, el grupo de los grandes— y las frases
+ * sin hecho van como lectura con sello. El texto no cambia un byte: sin colector, el declarador es mudo. */
 
 import { variante } from "../variacion.js";
 import { buildRolesCartera } from "../../sentrix/rolesCartera.js";
 import { nombraEntidad } from "./indiceEntidades.js";   // el guardia, compartido: la foto es del negocio entero
 import { esLecturaEjecutiva } from "../partesDelEncargo.js";
 import { esEncargoCompuesto } from "../contratoAgente.js";   // el encargo compuesto pide la lectura completa (owner 2026-09-11)
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): la foto declara mientras escribe
 /* ¿la pregunta nombra una entidad del tenant? — se pregunta por PRESENCIA, jamás se resuelve un parecido
  * (la ley del único buscador: acá no se ofrece ni se asume nada, solo se cede el turno a quien le toca).
  * El guardia se COMPARTE con la lectura de ventas y con la ficha (T3/T4, 2026-09-05): esta copia local se
@@ -33,6 +39,14 @@ const _lab = (f) => String((f && f.label) || "");
 const _find = (figs, re) => (Array.isArray(figs) ? figs : []).find((f) => re.test(_lab(f))) || null;
 const _all = (figs, re) => (Array.isArray(figs) ? figs : []).filter((f) => re.test(_lab(f)));
 const _entidadDe = (label) => { const p = String(label || "").split("·").map((s) => s.trim()); return p.length >= 2 ? p[0] : null; };
+/* el universo de un subtotal, dicho con las palabras de SU rótulo («5 cuentas materiales», «6 cuentas sobre el nivel declarado»
+ * — sin el paréntesis, que nombra el conjunto que lo contiene) o, si el rótulo no lo cuenta, la lista del grupo que la fig declara:
+ * una cifra agregada sin universo es una afirmación que el Notario no puede verificar (y sin él, «alcance promovido») */
+const _universoDe = (f) => {
+  const seg = _lab(f).split(/\s+·\s+/).find((s) => /^\d+\s+cuentas\b/i.test(s));
+  if (seg) return seg.replace(/\s*\(.*\)\s*$/, "").trim();
+  return f && f.grupo && Array.isArray(f.grupo.entidades) && f.grupo.entidades.length ? f.grupo.entidades.slice() : "";
+};
 const _FIN = "(?![a-záéíóúüñ])";
 
 /* ── EL DETECTOR · léxico de PANORAMA, conservador ─────────────────────────────────────────────────────────
@@ -123,7 +137,8 @@ export const resumenDelNegocio = {
     return "la foto del negocio en una lectura corta: la tesis en una frase (crece o no, y qué le pasa al margen), dos o tres cifras que la sostienen, quiénes lo sostienen y quiénes lo presionan (por papel, no por lista), y qué mira primero un asesor y por qué — el criterio marcado como criterio. El porqué y el detalle por cliente se ofrecen, no se despliegan.";
   },
 
-  componer({ figs, semilla, scenario } = {}) {
+  componer({ figs, semilla, scenario, declarar } = {}) {
+    const D = declaradorDe(declarar);   // sin colector, mudo: el texto es el mismo con o sin Notario
     const ventas = _find(figs, /^Ventas del período$/i);
     const margen = _find(figs, /^Margen promedio$/i);
     if (!ventas || !margen) return null;                       // sin la foto base no hay foto
@@ -145,9 +160,22 @@ export const resumenDelNegocio = {
      * volvía a citar en «lo que sostiene»: el +7.5% salía dos veces en 120 palabras. Una cifra reaparece cuando
      * cambia su significado, no porque siga disponible. */
     const sube = yoy && Number.isFinite(_num(yoy)) && _num(yoy) > 0;
-    p.push(sube
+    /* la dirección que se DECLARA sale de la misma cifra que decide la tesis: sin variación en la boleta no hay hecho temporal
+     * que declarar (y la tesis negativa queda sin evidencia — se anota, no se tapa con una lectura) */
+    const dirYoy = yoy && Number.isFinite(_num(yoy)) ? (_num(yoy) > 0 ? "sube" : _num(yoy) < 0 ? "baja" : "estable") : null;
+    const tesis = sube
       ? `El negocio está creciendo, pero el crecimiento está dejando menos margen del que debería.`
-      : `El negocio no está creciendo y el margen viene por debajo de lo que debería.`);
+      : `El negocio no está creciendo y el margen viene por debajo de lo que debería.`;
+    p.push(tesis);
+    /* la tesis lleva dos hechos: la variación de la venta (en su tramo, antes de la coma: la frase entera nombra el margen y la
+     * declaración es de la venta) y el margen contra su referencia —«menos margen del que debería» / «por debajo de lo que
+     * debería» es la relación margen < benchmark—; el sello de la lectura no alcanza para ninguno de los dos */
+    if (dirYoy) D.variacion({ sujeto: "negocio", metrica: "Ventas", direccion: dirYoy, texto: tesis.slice(0, tesis.indexOf(sube ? "," : " y ")) });
+    /* el otro lado es el rótulo del benchmark, que el resumen ejecutivo emite siempre junto al margen; si faltara, la frase se escribió
+     * sin su referencia y queda como lectura abierta —un nombre aproximado («benchmark») haría que el verificador la casara con otra
+     * fig por contención («Brecha al benchmark») y dictara «falsa» sobre una comparación que no se hizo */
+    if (bench) D.relacion({ sujeto: "negocio", metrica: _lab(margen), forma: "menor", vs: { sujeto: "negocio", metrica: _lab(bench) }, texto: tesis });
+    else D.lectura({ texto: tesis, sello: "abierto" });
 
     /* 2 · LO QUE SOSTIENE · la evidencia, una vez — sin subtítulo: es una conversación, no un informe */
     const altos = [];
@@ -165,7 +193,13 @@ export const resumenDelNegocio = {
      * su lugar natural: el papel de cada cliente, que ya vive abajo. Si no puedo decirlo sin ambigüedad, no lo
      * digo — la foto no pierde nada y el muro no se afloja por una frase de adorno. */
     void sanos;
-    if (altos.length) p.push(`${sube ? "Crece" : "La venta"}: ${altos.join(" y ")}.`);
+    if (altos.length) {
+      const l = `${sube ? "Crece" : "La venta"}: ${altos.join(" y ")}.`;
+      p.push(l);
+      /* la variación con su magnitud, tal como se imprimió, y la contribución del período con su rótulo */
+      if (yoy && dirYoy) D.variacion({ sujeto: "negocio", metrica: "Ventas", direccion: dirYoy, valor: _val(yoy), texto: l });
+      if (contrib) D.deFig(contrib, l);
+    }
 
     /* 3 · LO QUE PRESIONA, POR PAPEL — la distinción que separa la estrategia de la fuga */
     const bajos = [];
@@ -181,26 +215,54 @@ export const resumenDelNegocio = {
      * que se puede confundir con el margen: cada afirmación con su métrica clara. */
     if (cargaAlta) bajos.push(`${_val(cargaAlta)} de acciones comerciales en exceso`);
     /* el margen contra su referencia ES la presión — va con ella, no con lo que sostiene */
-    p.push(`Pero el margen promedio queda en ${_val(margen)}${bench ? `, contra un benchmark de ${_val(bench)}` : ""}${bajos.length ? `: ${bajos.join(" y ")}` : ""}.`);
+    {
+      const l = `Pero el margen promedio queda en ${_val(margen)}${bench ? `, contra un benchmark de ${_val(bench)}` : ""}${bajos.length ? `: ${bajos.join(" y ")}` : ""}.`;
+      p.push(l);
+      /* cuatro cifras, cuatro declaraciones; los dos subtotales con el universo de su rótulo (son agregados, no el total) */
+      D.deFig(margen, l);
+      if (bench) D.deFig(bench, l);
+      if (noCapturada) D.deFig(noCapturada, l, { universo: _universoDe(noCapturada) });
+      if (cargaAlta) D.deFig(cargaAlta, l, { universo: _universoDe(cargaAlta) });
+    }
     if (A && A.roles) {
       const ero = A.roles.erosion_por_acciones, vol = A.roles.apuesta_de_volumen;
       const linea = [];
-      if (ero && ero.n) linea.push(`${ero.n} pagan margen en acciones comerciales (${ero.items.slice(0, 2).map((f) => f.entidad).join(" · ")})`);
-      if (vol && vol.n) linea.push(`${vol.n} venden volumen a margen bajo sin exceso de carga —eso puede ser una decisión tuya, no una fuga—`);
+      /* el conteo por papel se declara con el título del rol —las palabras del rótulo «Clientes · erosión por acciones
+       * comerciales»— sobre la cartera que rolesCartera clasificó (sus filas); los dos nombrados son parte de los contados */
+      const cartera = `los ${A.filas.length} clientes`;
+      if (ero && ero.n) {
+        const nombrados = ero.items.slice(0, 2).map((f) => f.entidad);
+        const t = `${ero.n} pagan margen en acciones comerciales (${nombrados.join(" · ")})`;
+        linea.push(t);
+        D.conteo({ n: ero.n, predicado: ero.titulo, universo: cartera, sujeto: nombrados, texto: t });
+      }
+      if (vol && vol.n) {
+        const t = `${vol.n} venden volumen a margen bajo sin exceso de carga —eso puede ser una decisión tuya, no una fuga—`;
+        linea.push(t);
+        D.conteo({ n: vol.n, predicado: vol.titulo, universo: cartera, texto: t });
+      }
       if (linea.length) p.push(`Y no todos presionan por lo mismo: ${linea.join("; ")}.`);
     }
-    if (grandesPct) p.push(`Tus cuentas grandes concentran ${_val(grandesPct)} de la contribución: ahí se decide el resultado.`);
+    if (grandesPct) {
+      const l = `Tus cuentas grandes concentran ${_val(grandesPct)} de la contribución: ahí se decide el resultado.`;
+      p.push(l);
+      /* la participación es del GRUPO entero: se declara con la lista que la fig trae (los tres grandes), no con «el negocio» */
+      const grandes = grandesPct.grupo && Array.isArray(grandesPct.grupo.entidades) ? grandesPct.grupo.entidades.slice() : [];
+      D.grupo({ sujeto: grandes.length ? grandes : { descripcion: "los grandes" }, metrica: "Contribución", valor: _val(grandesPct), universo: grandes.length ? "participación en la contribución del negocio" : "participación en la contribución", texto: l });
+    }
 
     /* 4 · QUÉ MIRARÍA PRIMERO — criterio marcado (la regla `juicio-sin-marcar` del muro, hecha voz) */
     const foco = A && A.roles && A.roles.erosion_por_acciones && A.roles.erosion_por_acciones.items[0];
     /* el siguiente paso se DERIVA del análisis y se ofrece como criterio (Etapa 3: «si quieres seguir, yo abriría
      * X: ahí está la mayor recuperación» — nunca «¿deseas profundizar?») */
     if (foco) {
-      p.push(variante(semilla, [
+      const l = variante(semilla, [
         `\nYo miraría primero ${foco.entidad} —criterio mío, no una cifra del dato—: ahí coinciden el volumen y la carga excedida. Si quieres seguir, la abro por ahí.`,
         `\nCriterio mío, no una cifra del dato: empezaría por ${foco.entidad}, que junta volumen y carga excedida. Si quieres, sigo por ahí.`,
         `\nSi fuera mi decisión —criterio mío—, entraría por ${foco.entidad}: ahí coinciden el volumen y la carga excedida. Cuando digas, la abro.`,
-      ]));
+      ]);
+      p.push(l);
+      D.lectura({ texto: l, sello: "criterio mío" });   // por dónde entraría: recomendación, no un orden sobre una métrica
     }
     return p.join("\n");
   },
