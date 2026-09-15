@@ -309,13 +309,20 @@ H("3f · ★★★ la corrida 5: «de los ocho …, cinco concentran $4.9M» no 
    * absuelve esa palabra). Las tres arden en el cierre y en la reparación tal cual; corregidas, la reparación se sirve entera. */
   const r0 = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2]) });
   const a0 = r0.r.agente || {}, v0 = a0.vetos || [];
-  ok(v0.length >= 1 && /^cierre · (?:ganancia-no-comparada|mecanismo-sin-sello|deterioro-no-medido)/.test(v0[0]) && /ganancia-no-comparada/.test(v0[0]) && /deterioro-no-medido/.test(v0[0]) && /mecanismo-sin-sello/.test(v0[0]), `★★★ el cierre cae por las tres cuestiones a la vez (ganancia sin comparación · descarte de precio/mix · «se deterioró»): ${String(v0[0]).slice(0, 70)}…`, v0.join(" | ").slice(0, 400));
-  ok(a0.estado === "encargo-compuesto" && /reparacion · ganancia-no-comparada: dices «no ganando más»/.test(v0.join(" ")), `★ la reparación con las tres cuestiones NO se sirve (${a0.estado})`, v0.join(" | ").slice(0, 300));
+  /* v2.31 (owner 2026-09-14, grupos, conteos, universos e inventos): la misma respuesta traía un defecto REAL que ningún juez veía — «los clientes
+   * grandes (Falabella, Lider, Jumbo, Sodimac) pesan 49% de la contribución total»: 49 % es de los TRES grandes, Sodimac sobra. Hoy
+   * «cifra-de-grupo-mal-repartida» lo cobra y va primero en la lista; las tres cuestiones del owner siguen ahí, detrás. */
+  ok(v0.length >= 1 && /^cierre · /.test(v0[0]) && /ganancia-no-comparada/.test(v0[0]) && /deterioro-no-medido/.test(v0[0]) && /mecanismo-sin-sello/.test(v0[0]), `★★★ el cierre cae por las tres cuestiones a la vez (ganancia sin comparación · descarte de precio/mix · «se deterioró»): ${String(v0[0]).slice(0, 70)}…`, v0.join(" | ").slice(0, 400));
+  ok(/cifra-de-grupo-mal-repartida|«49%» es la cifra de un GRUPO de 3/.test(v0.join(" ")), "★ …y además por el 49 % de los tres grandes colgado de cuatro nombres (defecto real de la corrida, visto desde v2.31)", v0.join(" | ").slice(0, 300));
+  ok(a0.estado === "encargo-compuesto" && /reparacion · /.test(v0.join(" ")) && /ganancia-no-comparada/.test(v0.join(" ")), `★ la reparación con las tres cuestiones NO se sirve (${a0.estado})`, v0.join(" | ").slice(0, 300));
   const b2ok = b2
     .replace("**El negocio está vendiendo más, no ganando más — y son cosas distintas.**", "**El negocio está vendiendo más; si gana más no se puede saber con este dato — y son cosas distintas.**")
     .replace("el patrón apunta a carga comercial, no a precio de lista ni a mix.", "el patrón apunta a carga comercial; el precio de lista queda indicado y el mix, abierto.")
-    .replace("estrategia deliberada o negociación que se deterioró.", "estrategia deliberada o negociación que quedó bajo la referencia.");
-  ok(b2ok !== b2 && !/no ganando más|no a precio de lista|se deterioró/.test(b2ok), "la reparación corregida conserva la diferencia entre lo probado, lo indicado, lo abierto y lo que cambió en el tiempo");
+    .replace("estrategia deliberada o negociación que se deterioró.", "estrategia deliberada o negociación que quedó bajo la referencia.")
+    /* v2.31: el 49 % es de los tres grandes — la corrección nombra al grupo completo y a nadie más */
+    .replace("los clientes grandes (Falabella, Lider, Jumbo, Sodimac) pesan 49% de la contribución total", "los clientes grandes (Falabella, Lider, Jumbo) pesan 49% de la contribución total")
+    .replace("Los cuatro clientes grandes pesan 49% de la contribución", "Los tres clientes grandes pesan 49% de la contribución");
+  ok(b2ok !== b2 && !/no ganando más|no a precio de lista|se deterioró|Jumbo, Sodimac\) pesan 49%|cuatro clientes grandes pesan 49%/.test(b2ok), "la reparación corregida conserva la diferencia entre lo probado, lo indicado, lo abierto y lo que cambió en el tiempo (y el 49 % es de los tres grandes)");
   const r = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([b1, b2ok]) });
   const a = r.r.agente || {}, vetos = a.vetos || [], t = String(r.r.text);
   ok(a.estado === "reparado", `★★★ la reparación corregida SE SIRVE entera, sin poda (${a.estado}): ${palabras(t)} palabras`, vetos.join(" | ").slice(0, 400));
@@ -360,7 +367,13 @@ H("3h · ★★★ las tres corridas vivas: ventas y Falabella se sirven; el ger
   const FX = JSON.parse(readFileSync(new URL("./fixtures/tres-vivas-contrato-comercial-2026-09-13.json", import.meta.url), "utf8"));
   const cerebroDe = (textos) => { let i = 0; return async () => { const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
   const [V, F, G] = FX.corridas;
-  const rv = await answerViaAgente({ text: V.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe(V.borradores.map((b) => b.texto)) });
+  /* v2.31 (owner 2026-09-14): «En contra, tres cuentas caen: La Polar, Ripley y Easy» — en la boleta caen CUATRO (Unimarc, -3.9 %, también). Un
+   * defecto real del modelo que ningún juez veía; hoy «conteo-de-lista-falso» lo cobra en los dos borradores (dicen lo mismo) y el turno cae al
+   * piso. Con el conteo corregido —cuatro caen, y se nombran las tres de más peso— el texto del modelo se sirve como antes. */
+  const rv0 = await answerViaAgente({ text: V.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe(V.borradores.map((b) => b.texto)) });
+  ok(rv0.r.agente.estado !== "verde" && rv0.r.agente.estado !== "reparado" && /«tres cuentas» caen: según la boleta son 4 de 13/.test((rv0.r.agente.vetos || []).join(" ")),
+    `«¿Cómo van las ventas?» · «tres cuentas caen» con cuatro cayendo en la boleta NO se sirve (${rv0.r.agente.estado}): el conteo se compara con lo que la boleta permite contar`, (rv0.r.agente.vetos || []).join(" | ").slice(0, 300));
+  const rv = await answerViaAgente({ text: V.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe(V.borradores.map((b) => b.texto.replace("tres cuentas caen: La ", "cuatro cuentas caen, y las tres de más peso son La "))) });
   /* el cierre y la reparación de esta corrida dicen lo mismo (la reparación solo cambió la coma decimal por el punto): el cierre caía por
    * «-5%» en «Easy (-$177K, -5%)» colgado de Easy con el «suman» de otra cláusula — un falso positivo de «dueño por cercanía», cerrado
    * con el lector de cláusula (owner 2026-09-14). Hoy el cierre se sirve verde, lavado al punto decimal; la lectura honesta es la misma. */
@@ -386,7 +399,10 @@ H("3h · ★★★ las tres corridas vivas: ventas y Falabella se sirven; el ger
     /* LA CIFRA DE UN GRUPO ES DEL GRUPO COMPLETO (auditoría del Notario, owner 2026-09-14, familia C): «Falabella, Lider, Jumbo y Sodimac cargan … **y**
      * además su precio de lista está más pegado al costo … (markup promedio 41.4% …)» — el «su» remite a esos cuatro, y el 41.4% es el promedio
      * de las OCHO bajo el benchmark. La reparación viva llevaba ese error y hoy el muro lo cobra; la corrección lo dice como es: de los que caen. */
-    .replace("**y** además su precio de lista está más pegado al costo que el de los sanos", "**y** además el precio de lista de los que caen está más pegado al costo que el de los sanos");
+    .replace("**y** además su precio de lista está más pegado al costo que el de los sanos", "**y** además el precio de lista de los que caen está más pegado al costo que el de los sanos")
+    /* UNA SUMA SOLO VALE MOSTRADA (v2.31, owner 2026-09-14): «concentran el 86.1% de la venta» es 73.8 % (las seis que erosionan) + 12.3 % (las dos
+     * de margen delgado), dos cifras de grupo que la boleta trae y cuya suma no — se muestra la cuenta y la cifra queda autorizada */
+    .replace("concentran el 86.1% de la venta", "concentran el 86.1% de la venta (73.8% + 12.3%)");
   ok(g2 !== G.borradores[1].texto && !/De eso, \*\*\$655K|de los cuales \$655K/.test(g2) && !/su precio de lista/.test(g2), "la reparación corregida usa la partición medida, deja los $655K aparte con su universo, y el markup promedio es de los que caen, no «su» (los cuatro)");
   {
     const { guardC } = await import("./src/adi/oracle/guardC.js");

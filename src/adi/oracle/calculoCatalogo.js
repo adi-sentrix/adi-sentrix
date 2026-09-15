@@ -285,6 +285,19 @@ const _dicho = (v, unit, presentes) => {
   const tol = Math.max(tolCalculo(v, unit), Math.abs(v) * 0.02, unit === "money" ? _granoMoney(v) : 0);
   return lista.some((x) => Number.isFinite(x) && Math.abs(x - v) <= tol);
 };
+/* la tasa de REFERENCIA del turno: el benchmark, el piso o el nivel declarado — lo que la casa cita de corrido sin repetir el número */
+const _ES_REFERENCIA = /benchmark|piso\s+de\s+margen|nivel\s+de\s+carga|referencia|objetivo\s+declarad/i;
+function _valsConReferencia(pool, unit) {
+  const out = [], vistos = new Set();
+  for (const f of pool) {
+    if (!f || f.unit !== unit || !Number.isFinite(f.raw)) continue;
+    if (vistos.has(f.raw)) continue;
+    vistos.add(f.raw);
+    out.push({ raw: f.raw, referencia: _ES_REFERENCIA.test(String(f.label || "")), dicha: false, claves: f.claves instanceof Set ? f.claves : null });
+    if (out.length >= _CAP) break;
+  }
+  return out;
+}
 export function esCalculoDelCatalogo(raw, unit, pool, presentes = null) {
   if (!Number.isFinite(raw) || !Array.isArray(pool) || !pool.length) return false;
   const tol = tolCalculo(raw, unit);
@@ -315,9 +328,20 @@ export function esCalculoDelCatalogo(raw, unit, pool, presentes = null) {
     return false;
   }
   if (unit === "pp") {
-    const tasas = _vals(pool, "pct");
+    /* LA MISMA FRONTERA EN PUNTOS (owner 2026-09-14, grupos, conteos, universos e inventos): «Lider recuperó 45 pp de su saldo»
+     * (su 45 % recuperado narrado en puntos) pasaba como 57.3 − 12.3 —el markup de los sanos menos el peso del margen delgado—,
+     * dos tasas que el texto no dice. Una brecha en puntos es una resta entre una tasa DICHA y otra tasa dicha o de REFERENCIA
+     * (el benchmark, el piso, el nivel declarado: se citan de corrido — «Falabella margina 22%, 8.1 pp bajo el benchmark»). Las
+     * brechas por cuenta ya viajan publicadas con su dueño. Sin `presentes` (gates unitarios), igual que siempre. */
+    /* …y la brecha contra la referencia de la MISMA métrica se cita de corrido aunque el nivel no se repita («Falabella tiene una brecha de 8.1 pp
+     * frente al benchmark de 30.1%»: el 22 % es su margen, en el pool porque Falabella está nombrada): la referencia dicha o publicada más un nivel
+     * de la misma métrica (las claves del rótulo viajan en el pool, `claves`, del muro). Nunca dos niveles que el texto no dice. */
+    const tasas = presentes ? _valsConReferencia(pool, "pct").map((t) => ({ ...t, dicha: _dicho(t.raw, "pct", presentes) })) : _vals(pool, "pct").map((v) => ({ raw: v, dicha: true, referencia: false, claves: null }));
+    const _mismaMetrica = (a, b) => !!(a.claves && b.claves && a.claves.size && [...a.claves].some((k) => b.claves.has(k)));
+    const _parValido = (a, b) => (a.dicha && (b.dicha || b.referencia)) || (b.dicha && (a.dicha || a.referencia)) || (a.referencia && _mismaMetrica(a, b)) || (b.referencia && _mismaMetrica(a, b));
     for (let i = 0; i < tasas.length; i++) for (let j = 0; j < tasas.length; j++) {
-      if (i !== j && Math.abs((tasas[i] - tasas[j]) - raw) <= tol) return true;                                            // brecha_pp
+      if (i === j || !_parValido(tasas[i], tasas[j])) continue;
+      if (Math.abs((tasas[i].raw - tasas[j].raw) - raw) <= tol) return true;                                                // brecha_pp
     }
     return false;
   }

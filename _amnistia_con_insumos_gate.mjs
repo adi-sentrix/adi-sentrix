@@ -102,8 +102,10 @@ H("3 · carnada: si alguien quita la condición de insumos, el monto-lotería vu
   ok(!!TRAMPA, `★ HOY: ${fmt} (= ${parLabel}, jamás dichos) CAE — la coincidencia sin insumos no es una cuenta`);
   const abs = path.join(process.cwd(), "src", "adi", "oracle", "guardC.js");
   const txt = fs.readFileSync(abs, "utf8").replace(/\r\n/g, "\n");
+  /* la condición vive hoy en una línea (v2.31, grupos, conteos, universos e inventos): «!presentes || _ambosDichos || _duenosDichos» —
+   * los dos operandos dichos, o los dos con dueño dicho y de la MISMA métrica. La carnada la suelta entera, igual que antes. */
   const m = txt.replace(
-    /const _ok = \(a, b\) => !presentes\n\s+\|\| \(_presenteEnTexto\(a\.raw, unit, presentes, tol\) && _presenteEnTexto\(b\.raw, unit, presentes, tol\)\)\n\s+\|\| \(a\.conDueno && b\.conDueno\);/,
+    /const _ok = \(a, b\) => !presentes \|\| _ambosDichos\(a, b\) \|\| _duenosDichos\(a, b\);/,
     "const _ok = () => true;   // CARNADA: la amnistía ciega, re-suelta");
   if (m === txt) { ok(false, "carnada: no encontró la condición a mutar"); }
   else {

@@ -2,6 +2,8 @@ import { catalogoAgente } from "./catalogoAgente.js";   // R8 · los identificad
 import { atributoMalAsociado, relacionEnPalabrasNoCierra } from "./atributosYRelaciones.js";   // el atributo (bodega/marca/familia/canal) y la relación dicha en palabras, contra el dato (owner 2026-09-14)
 import { esEncargoCompuesto, partesDelEncargo, coberturaDelEncargo, dominiosDelEncargo } from "./partesDelEncargo.js";
 import { leerClausula, compilarNombres } from "../oracle/lectorDeClausula.js";   // el sujeto, la cláusula y el referente se leen por estructura, no por cercanía (owner 2026-09-14)
+import { metricasEn } from "../oracle/guardC.js";   // el vocabulario de métricas del muro: el continente dicho en palabras («Del vencido total, …») se resuelve con las mismas claves (owner 2026-09-14, universos)
+import { reconcilian } from "../../config/contract/figureType.js";   // dos totales de universos que no reconcilian no se contienen (owner 2026-09-14, universos)
 import { prioridadIntegradaCambiada, criterioDeLaPregunta, coincidenciaComoRazon } from "./prioridadIntegrada.js";   // la prioridad: el criterio del usuario manda; sin criterio, la ejecutiva con el criterio declarado (owner 2026-09-14)   // las partes de un encargo, por dominio: el ensamblador compone la misma lista que acá se cobra (owner 2026-09-14)
 export { esEncargoCompuesto };   // re-exportado sin cambiar: registro.js y el ensamblador lo toman de acá
 /* === src/adi/agente/contratoAgente.js · LA LETRA DEL CONTRATO Y SU VETO MECÁNICO (F3 · owner 2026-08-30) =====
@@ -552,7 +554,7 @@ export function vetosDeRegistro(texto, contexto = {}) {
    * cerrar con las cifras que la rodean. Viven en atributosYRelaciones.js; acá solo se cobran. */
   const _atr = (() => { try { return atributoMalAsociado(texto); } catch { return null; } })();
   if (_atr) v.push({ regla: "atributo-mal-asociado", multa: _atr });
-  const _rel = (() => { try { return relacionEnPalabrasNoCierra(texto); } catch { return null; } })();
+  const _rel = (() => { try { return relacionEnPalabrasNoCierra(texto, contexto.figs); } catch { return null; } })();   // con la boleta: la fracción de un todo y el par sin cifras se verifican contra el dato (owner 2026-09-14)
   if (_rel) v.push({ regla: "relacion-en-palabras-no-cierra", multa: _rel });
   /* ── LA COBERTURA DEL ENCARGO (owner 2026-09-14, la prueba real en producción v2.28) ───────────────────────────
    * «si el usuario pide Comercial + Inventario + Cobranza, la respuesta final debe cubrir Comercial + Inventario +
@@ -768,13 +770,32 @@ const _MARCA_CONTIENE = /(?<![\wáéíóúñ])(?:de es[oa]s?|de ell[oa]s|de los 
 const _MONTO_RE = /\$\s?\d+(?:[.,]\d+)?\s?[KMB]?(?![\wáéíóúñ%])/g;
 const _partesDe = (label) => String(label || "").split("·").map((x) => x.trim()).filter(Boolean);
 /* la ficha de una fig: subtotal (concepto + universo), total del negocio (concepto), o cuenta (entidad + concepto) */
+/* ── LA FICHA LLEVA SU GRUPO Y SU UNIVERSO DE TIPO, Y UN CONCEPTO SOLO ES UN TOTAL (owner 2026-09-14, grupos, conteos, universos e
+ * inventos — el conjunto adversarial): «De los $25.0M de contribución, $19.4M son de Falabella» pasaba porque «Contribución = $25.0M» no
+ * lleva «· total» y no tenía ficha (y sin ficha no se juzgaba); «Del capital de $135K, $12.6M ya están vencidos» pasaba porque dos totales
+ * «siempre se contienen». Ahora: un rótulo de UN segmento que no es el nombre de una cuenta es el total de ese concepto; la ficha trae
+ * el grupo declarado por el emisor (`grupo.entidades`) —para que un subtotal quepa en el subtotal del mismo concepto que lo contiene
+ * («$588K de las cinco materiales dentro de los $655K de las seis»)— y el universo del tipo (`tipo.universo`), para que un total de
+ * inventario no contenga uno de cobranza. */
+const _entMemo = new WeakMap();   // las entidades de la boleta, una vez por boleta
+const _entidadesDeFigs = (figs) => {
+  if (!Array.isArray(figs)) return new Set();
+  if (!_entMemo.has(figs)) _entMemo.set(figs, new Set(figs.map((g) => _partesDe(String((g && g.label) || ""))).filter((p) => p.length === 2 && !/^(?:total|subtotal)$/i.test(p[1])).map((p) => p[0].toLowerCase())));
+  return _entMemo.get(figs);
+};
+const _normE = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 function _fichaDeFig(f, figs) {
   const L = String((f && f.label) || "");
   const p = _partesDe(L);
-  if (p.length >= 2 && /^subtotal$/i.test(p[1])) return { tipo: "subtotal", concepto: p[0].toLowerCase(), universo: p.slice(2).join(" · ").toLowerCase() || "", label: L };
-  if (p.length === 1 && /\btotal\b/i.test(p[0])) return { tipo: "total", concepto: p[0].replace(/\s*total\s*/i, " ").trim().toLowerCase(), universo: "negocio", label: L };
-  if (p.length === 2 && /^(?:total|subtotal)$/i.test(p[1])) return { tipo: "total", concepto: p[0].toLowerCase(), universo: "negocio", label: L };
-  if (p.length === 2) return { tipo: "cuenta", entidad: p[0].toLowerCase(), concepto: p[1].toLowerCase(), label: L };
+  const grupo = f && f.grupo && Array.isArray(f.grupo.entidades) && f.grupo.entidades.length ? new Set(f.grupo.entidades.map(_normE)) : null;
+  const universoTipo = f && f.tipo && typeof f.tipo.universo === "string" ? f.tipo.universo : null;
+  if (p.length >= 2 && /^subtotal$/i.test(p[1])) return { tipo: "subtotal", concepto: p[0].toLowerCase(), universo: p.slice(2).join(" · ").toLowerCase() || "", label: L, grupo, universoTipo };
+  if (p.length === 1 && /\btotal\b/i.test(p[0])) return { tipo: "total", concepto: p[0].replace(/\s*total\s*/i, " ").trim().toLowerCase(), universo: "negocio", label: L, grupo, universoTipo };
+  if (p.length === 2 && /^(?:total|subtotal)$/i.test(p[1])) return { tipo: "total", concepto: p[0].toLowerCase(), universo: "negocio", label: L, grupo, universoTipo };
+  if (p.length === 2) return { tipo: "cuenta", entidad: p[0].toLowerCase(), concepto: p[1].toLowerCase(), label: L, grupo, universoTipo };
+  /* un solo segmento con métrica reconocible que no es una cuenta («Contribución», «Ventas del período», «Estado del inventario: capital frenado») */
+  /* …sin dígitos ni recortes en el rótulo: «Resto de Contribución (3 de 13)», «Medida · …», «headline» no son el total de nada */
+  if (p.length === 1 && metricasEn(p[0]).size && !/\d|^(?:resto|medida|umbral|headline)/i.test(p[0]) && !_entidadesDeFigs(figs).has(p[0].toLowerCase())) return { tipo: "total", concepto: p[0].toLowerCase(), universo: "negocio", label: L, grupo, universoTipo };
   return null;
 }
 function _figsDelMonto(texto, figs) {
@@ -789,20 +810,40 @@ function _figsDelMonto(texto, figs) {
   }
   return out;
 }
+/* un concepto OPACO del rótulo («Valor», «Monto», «Cifra»): no dice qué es la cifra, así que no puede contradecir a nadie */
+const _CONCEPTO_OPACO = /^(?:valor|monto|cifra|importe|total|dato)$/i;
+/* el prefijo común vale cuando lo que sobra es un marco («ventas del período» ⊃ «venta», «venta (flujo)»), no un calificador que cambia el concepto
+ * («contribución no capturada» NO es parte de «contribución»: la brecha es una estimación; «carga comercial alta» no es «carga comercial») */
+const _extraDeMarco = (largo, corto) => !/\b(?:no|sin|brecha|alta|excedid|frenad|san[oa]|riesgo|sobrestock|inmoviliz)\b/i.test(largo.slice(corto.length));
+const _mismoConcepto = (a, b) => a === b || (a.startsWith(b) && _extraDeMarco(a, b)) || (b.startsWith(a) && _extraDeMarco(b, a)) || _CONCEPTO_OPACO.test(a) || _CONCEPTO_OPACO.test(b);
+/* el subconjunto declarado: el grupo de Y dentro del grupo de X (los emisores publican `grupo.entidades`) */
+const _grupoDentro = (fy, fx) => !!(fy.grupo && fx.grupo && fy.grupo.size <= fx.grupo.size && [...fy.grupo].every((e) => fx.grupo.has(e)));
+/* dos universos de TIPO que no reconcilian (inventario contra venta/cobranza): ninguna cifra de uno es parte de una del otro */
+const _universosDivergen = (fy, fx) => !!(fy.universoTipo && fx.universoTipo && fy.universoTipo !== fx.universoTipo && reconcilian(fy.universoTipo, fx.universoTipo).estado === "divergent");
 function _cabeEn(fy, fx, figs) {
   if (!fy || !fx) return true;   // sin ficha no se juzga (criterio nítido: falso negativo antes que falso positivo)
   const hay = (ent, concepto) => figs.some((g) => { const c = _fichaDeFig(g, figs); return c && c.tipo === "cuenta" && c.entidad === ent && c.concepto === concepto; });
   const haySubtotal = (concepto, universo) => figs.some((g) => { const c = _fichaDeFig(g, figs); return c && c.tipo === "subtotal" && c.concepto === concepto && c.universo === universo; });
   if (fx.tipo === "subtotal") {
-    if (fy.tipo === "subtotal") return fy.universo === fx.universo && fy.universo !== "";                 // (a)
-    if (fy.tipo === "cuenta") return fy.concepto === fx.concepto ? hay(fy.entidad, fx.concepto)          // (b)
-      : (hay(fy.entidad, fx.concepto) && haySubtotal(fy.concepto, fx.universo));                         // (c)
+    /* (a) el mismo universo, o el MISMO CONCEPTO con el grupo de Y dentro del grupo de X («$588K de las cinco materiales» dentro de
+     * «$655K de las seis sobre el nivel»: el emisor declara los dos grupos y uno contiene al otro — owner 2026-09-14) */
+    if (fy.tipo === "subtotal") return (fy.universo === fx.universo && fy.universo !== "") || (fy.concepto === fx.concepto && _grupoDentro(fy, fx));   // (a)
+    /* (b) la cuenta con la misma métrica dentro del subtotal; (c) con otra métrica, solo si esa cuenta tiene el concepto del subtotal y su
+     * métrica tiene subtotal en el mismo universo; …y la cuenta que el GRUPO del subtotal declara como miembro, con concepto igual u opaco
+     * («$67K a Easy» dentro de los $655K de las seis, con «Easy · Monto»: el rótulo no dice qué es, el grupo dice que Easy está adentro) */
+    if (fy.tipo === "cuenta") {
+      if (fx.grupo && fx.grupo.has(_normE(fy.entidad)) && _mismoConcepto(fy.concepto, fx.concepto)) return true;
+      return fy.concepto === fx.concepto ? hay(fy.entidad, fx.concepto)                                  // (b)
+        : (hay(fy.entidad, fx.concepto) && haySubtotal(fy.concepto, fx.universo));                       // (c)
+    }
     return false;   // un total del negocio no cabe en un recorte
   }
   if (fx.tipo === "total") {
-    if (fy.tipo === "cuenta") return fy.concepto === fx.concepto || fx.concepto.startsWith(fy.concepto) || fy.concepto.startsWith(fx.concepto);
-    if (fy.tipo === "subtotal") return fy.concepto === fx.concepto;
-    return true;   // un total dentro de otro total («de lo pendiente, lo vencido»): la jerarquía entre conceptos es del dominio, no del rótulo
+    if (fy.tipo === "cuenta") return _mismoConcepto(fy.concepto, fx.concepto);
+    if (fy.tipo === "subtotal") return fy.concepto === fx.concepto || _CONCEPTO_OPACO.test(fy.concepto);   // «$4.9M no capturados» NO son parte de la «Contribución» ($25.0M): la brecha es una estimación, otro universo (candado del contrato)
+    /* un total dentro de otro total («de lo pendiente, lo vencido»): la jerarquía entre conceptos es del dominio, no del rótulo — salvo que
+     * los TIPOS declaren universos que no reconcilian («Del capital de $135K, $12.6M ya están vencidos»: inventario contra cobranza) */
+    return !_universosDivergen(fy, fx);
   }
   if (fx.tipo === "cuenta") return fy.tipo === "cuenta" && fy.entidad === fx.entidad;                    // (d)
   return true;
@@ -811,8 +852,13 @@ function _subtotalDeOtroUniverso(texto, figs) {
   if (!Array.isArray(figs) || !figs.length) return null;
   const t = String(texto || "");
   const montos = _figsDelMonto(t, figs);
-  if (montos.length < 2) return null;
+  if (!montos.length) return null;
   const pares = [];
+  /* LA CONTENIDA VA PEGADA A LA MARCA (owner 2026-09-14, grupos, conteos, universos e inventos — fp-listas P8): «Dos frenados están en
+   * Valparaíso ($25K de esa bodega) y uno en Antofagasta ($8K)» leía «de esa» como continente de los $8K de la cláusula siguiente: el «de
+   * esa» de «$25K de esa bodega» va seguido de un sustantivo, no de una cifra. La parte tiene que seguir a la marca (con una coma, un
+   * artículo, un matiz —«solo», «casi la mitad»— o un paréntesis entre medio), nunca un sustantivo ni otra cláusula. */
+  const _PUENTE_A_LA_PARTE = /^[\s,]*(?:(?:solo|s[oó]lo|apenas|unos|unas|casi|cerca de|alrededor de|m[aá]s de|menos de|el|la|los|las|un|una|otros|otras|hay|son|est[aá]n|ya|la mitad|un tercio|dos tercios|tres cuartos|la mayor parte|el grueso|la mitad de|poco m[aá]s de|poco menos de)\s*){0,4}\(?\s*$/i;
   /* forma 1: «$X … de eso / de los cuales … $Y» (el continente antes de la marca, la contenida después) */
   let m;
   _MARCA_CONTIENE.lastIndex = 0;
@@ -831,7 +877,10 @@ function _subtotalDeOtroUniverso(texto, figs) {
     const _L = leerClausula(t, m.index);
     const pegada = previos.find((x) => x.idx >= _L.clausula.ini && x.fin <= m.index) || null;
     const antes = pegada || agregado || cuentaMisma || null;
-    const despues = montos.find((x) => x.idx >= m.index + m[0].length && x.idx - (m.index + m[0].length) <= 60);
+    const finMarca = m.index + m[0].length;
+    /* «$25K de esos $33K», «$588K dentro de los $655K»: la marca plural seguida de la cifra es la forma 2 (el continente va DESPUÉS) */
+    if (/(?:de es[oa]s|dentro de l[oa]s)$/i.test(m[0]) && /^\s*\$/.test(t.slice(finMarca, finMarca + 4))) continue;
+    const despues = montos.find((x) => x.idx >= finMarca && x.idx - finMarca <= 60 && _PUENTE_A_LA_PARTE.test(t.slice(finMarca, x.idx)));
     if (antes && despues) pares.push({ x: antes, y: despues, marca: m[0] });
   }
   /* forma 2: «$Y de los $X» / «$Y dentro de los $X» / «$Y sobre los $X» */
@@ -841,6 +890,23 @@ function _subtotalDeOtroUniverso(texto, figs) {
     if (entre.length <= 45 && /^\s*(?:[^.;\n$]{0,25}?)\b(?:de los|de las|del|dentro de los|dentro de las|sobre los|sobre las|de un total de|de esos|de esas)\s*$/i.test(entre)) pares.push({ x, y, marca: entre.trim() });
   }
   /* forma 3: la oración abre con el continente — «De la contribución total de $X, $Y no se capturan» · «De los $X de Falabella, $Y es carga» */
+  const _nombresCuenta = compilarNombres([...new Set(figs.map((g) => _fichaDeFig(g, figs)).filter((c) => c && c.tipo === "cuenta" && c.entidad).map((c) => c.entidad))]);
+  const _nombrada = (z) => { const L = leerClausula(t, z.idx, { nombresRe: _nombresCuenta }); return !!(L.sujetoPropio && L.sujeto && z.figs.some((g) => { const c = _fichaDeFig(g, figs); return c && c.tipo === "cuenta" && String(c.entidad).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase() === L.sujeto.nombre; })); };   // el sujeto propio de la cifra, en su cláusula, es su propia cuenta (lector de cláusula)
+  /* la ENUMERACIÓN de partes («De los $12.6M vencidos, $4.6M son de Lider y $5.1M de Jumbo»): cada cifra que sigue a la primera parte
+   * unida por coma o «y» —sin «que», «con», «contra», un paréntesis ni otra cláusula entre medio— es otra parte del mismo continente
+   * (owner 2026-09-14, universos: el $5.1M es el PENDIENTE de Jumbo, no un vencido, y antes no se juzgaba) */
+  const _partesSiguientes = (y, finOracion) => {
+    const out = [];
+    let ultimo = y;
+    for (const z of montos) {
+      if (z.idx <= ultimo.idx || z.idx >= finOracion) continue;
+      const entre = t.slice(ultimo.fin, z.idx);
+      if (!/^[^.;:()—–$\n]{0,45}$/.test(entre) || /(?<![\wáéíóúñ])(?:que|con|contra|frente|vs|versus|sobre|entre|hasta|desde|por|menos|salvo|excepto)(?![\wáéíóúñ])/i.test(entre) || !/(?:,|\s(?:y|e))\s*(?:\S+\s+){0,3}$/i.test(entre)) break;
+      out.push(z);
+      ultimo = z;
+    }
+    return out;
+  };
   for (const o of t.split(/(?<=[.!?])\s+|\n+/)) {
     const m3 = /^\s*(?:De|Del|De la|De los|De las)\b[^$.;\n]{0,50}?(\$\s?\d+(?:[.,]\d+)?\s?[KMB]?)[^$.;\n]{0,40}?,\s*[^$.;\n]{0,25}?(\$\s?\d+(?:[.,]\d+)?\s?[KMB]?)/.exec(o);
     if (!m3) continue;
@@ -850,27 +916,80 @@ function _subtotalDeOtroUniverso(texto, figs) {
     /* «De los 5 SKU que más venden (SAM-TV55 $13.3M, LG-WASH11KG $12.4M, …)» (prueba 1, tercera corrida viva · 2026-09-14): la
      * oración abre con «De los», pero las dos cifras son una ENUMERACIÓN, cada una con su dueño pegado delante — nadie dijo que
      * $12.4M sea parte de $13.3M. Una cifra precedida por el nombre de su propia cuenta no es un continente ni una contenida. */
-    const _nombresCuenta = compilarNombres([...new Set(figs.map((g) => _fichaDeFig(g, figs)).filter((c) => c && c.tipo === "cuenta" && c.entidad).map((c) => c.entidad))]);
-    const _nombrada = (z) => { const L = leerClausula(t, z.idx, { nombresRe: _nombresCuenta }); return !!(L.sujetoPropio && L.sujeto && z.figs.some((g) => { const c = _fichaDeFig(g, figs); return c && c.tipo === "cuenta" && String(c.entidad).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === L.sujeto.nombre; })); };   // el sujeto propio de la cifra, en su cláusula, es su propia cuenta (lector de cláusula)
     if (_nombrada(x) && _nombrada(y)) continue;
     pares.push({ x, y, marca: o.trim().slice(0, 20) + "…" });
+    for (const z of _partesSiguientes(y, base + o.length)) pares.push({ x, y: z, marca: o.trim().slice(0, 20) + "…" });
+  }
+  /* forma 4: el continente dicho EN PALABRAS, sin cifra — «Del vencido total, $33K corresponden a inventario sin rotar», «Del saldo
+   * vencido, $4.6M están en Lider» (owner 2026-09-14, universos): el concepto del continente se lee con el vocabulario del muro y la
+   * parte tiene que ser de ese concepto (o de un rótulo opaco). Solo cuando el concepto es reconocible y la parte tiene ficha. */
+  const _partesEnPalabras = [];
+  for (const o of t.split(/(?<=[.!?])\s+|\n+/)) {
+    const m4 = /^\s*(?:De|Del|De la|De los|De las)\s+((?:[^$.;,\n\d]){3,60}?),\s*(?:[^$.;\n]{0,25}?)(\$\s?\d+(?:[.,]\d+)?\s?[KMB]?)/.exec(o);
+    if (!m4) continue;
+    /* «De esa brecha, $588K corresponde a carga excedida»: el demostrativo remite a una cifra dicha antes — eso lo juzga la forma 1 con esa cifra;
+     * acá solo el continente nombrado por su concepto («Del vencido total», «De la contribución») */
+    if (/^\s*(?:es[aeo]s?|est[aeo]s?|aquel(?:la|los|las)?|dich[oa]s?|ell[oa]s|mism[oa]s?)\b/i.test(m4[1]) || /\b(?:es[aeo]s?|est[aeo]s?|dich[oa]s?)\s+\p{L}+\s*$/iu.test(m4[1])) continue;
+    const claves = metricasEn(m4[1]);
+    if (!claves.size) continue;
+    const base = t.indexOf(o);
+    const y = montos.find((z) => z.idx === base + m4.index + m4[0].lastIndexOf(m4[2]));
+    if (!y || !y.figs.length) continue;
+    _partesEnPalabras.push({ y, continente: m4[1].trim(), claves, finOracion: base + o.length });
+  }
+  /* forma 5: la SUMA EN PALABRAS de dos universos — «Entre el vencido de Lider ($4.6M) y el capital frenado ($33K), hay $4.6M inmovilizados»,
+   * «el vencido ($4.6M) y el frenado ($33K) suman $4.6M» (owner 2026-09-14, universos): dos montos de universos que no reconcilian nunca van
+   * juntos; la suma dicha entre los dos es la relación prohibida aunque la cifra resultante coincida con una real */
+  {
+    const M = "(\\$\\s?\\d+(?:[.,]\\d+)?\\s?[KMB]?)";
+    const re5 = new RegExp(`(?:entre\\s+[^$.;\\n]{0,50}?${M}\\)?[^$.;\\n]{0,30}?\\s+y\\s+[^$.;\\n]{0,50}?${M}\\)?[^$.;\\n]{0,10}?,?\\s*(?:hay|suman|son|totalizan|dan|acumulan|juntan|llegan a|hacen)\\s+[^$.;\\n]{0,20}?${M}|${M}\\)?[^$.;\\n]{0,40}?\\s+(?:y|m[aá]s)\\s+[^$.;\\n]{0,50}?${M}\\)?[^$.;\\n]{0,10}?\\s+(?:suman|totalizan|dan|acumulan|juntan|hacen)\\s+[^$.;\\n]{0,20}?${M})`, "giu");
+    let m5;
+    while ((m5 = re5.exec(t))) {
+      const [a, b, c] = m5[1] ? [m5[1], m5[2], m5[3]] : [m5[4], m5[5], m5[6]];
+      const enTramo = montos.filter((z) => z.idx >= m5.index && z.idx < m5.index + m5[0].length);
+      const fa = enTramo.find((z) => z.valor === a), fb = enTramo.find((z) => z.valor === b);
+      if (!fa || !fb || !fa.figs.length || !fb.figs.length) continue;
+      const fichasA = fa.figs.map((g) => _fichaDeFig(g, figs)).filter(Boolean), fichasB = fb.figs.map((g) => _fichaDeFig(g, figs)).filter(Boolean);
+      if (!fichasA.length || !fichasB.length) continue;
+      if (fichasA.some((x) => fichasB.some((y) => !_universosDivergen(x, y)))) continue;   // alguna combinación es del mismo universo (o sin universo declarado): no se juzga acá
+      const ux = fichasA[0], uy = fichasB[0];
+      return `sumas «${a}» (${ux.label}) con «${b}» (${uy.label}) para llegar a «${c}»: son dos universos que no reconcilian (${ux.universoTipo} y ${uy.universoTipo}) y dos montos de universos distintos nunca van juntos — di cada uno con su universo y no los sumes.`;
+    }
   }
   const _NEGADA = /(?<![\wáéíóúñ])no\s+(?:es|son|est[aá]n?|forma[n]?\s+parte|vive[n]?|cabe[n]?|pertenece[n]?|entra[n]?)(?![\wáéíóúñ])/i;
   for (const par of pares) {
     if (!par.x.figs.length || !par.y.figs.length) continue;   // una cifra no autorizada la cobra el muro; acá se juzga la relación entre autorizadas
     const lo = Math.min(par.x.fin, par.y.fin), hi = Math.max(par.x.idx, par.y.idx);
     if (_NEGADA.test(t.slice(lo, hi))) continue;   // «no es parte de los $4.9M»: negar la relación es justo lo que se pide
-    /* con varias figs por valor, la relación vale si ALGUNA combinación cabe (el mismo $194K es «Falabella · Carga comercial alta» en dos rótulos) */
-    const cabe = par.x.figs.some((fxg) => par.y.figs.some((fyg) => _cabeEn(_fichaDeFig(fyg, figs), _fichaDeFig(fxg, figs), figs)));
+    /* con varias figs por valor, la relación vale si ALGUNA combinación cabe (el mismo $194K es «Falabella · Carga comercial alta» en dos rótulos).
+     * Se juzgan las fichas que EXISTEN: una fig sin ficha no absuelve a las demás («Estado del inventario: capital frenado = $33K» dejaba pasar
+     * «De los $33K frenados, $4.6M están vencidos en Lider» — owner 2026-09-14); sin ninguna ficha de un lado, no se juzga. */
+    const fichasX = par.x.figs.map((g) => _fichaDeFig(g, figs)).filter(Boolean), fichasY = par.y.figs.map((g) => _fichaDeFig(g, figs)).filter(Boolean);
+    if (!fichasX.length || !fichasY.length) continue;
+    const cabe = fichasX.some((fx) => fichasY.some((fy) => _cabeEn(fy, fx, figs)));
     if (cabe) continue;
-    const _prefiere = (lista) => { const fichas = lista.map((g) => _fichaDeFig(g, figs)).filter(Boolean); return fichas.find((c) => c.tipo === "subtotal") || fichas.find((c) => c.tipo === "total") || fichas[0] || null; };
-    const fx = _prefiere(par.x.figs), fy = _prefiere(par.y.figs);
+    const _prefiere = (fichas) => fichas.find((c) => c.tipo === "subtotal") || fichas.find((c) => c.tipo === "total") || fichas[0] || null;
+    const fx = _prefiere(fichasX), fy = _prefiere(fichasY);
     if (!fx || !fy) continue;
     const universoDe = (f) => (f.tipo === "subtotal" ? `de ${f.universo || "un universo sin declarar"}` : f.tipo === "total" ? "del negocio entero" : `de la cuenta ${f.entidad}`);
     /* la cifra que SÍ cabe, si existe: el subtotal del concepto de Y en el universo de X */
     const alternativa = fx.tipo === "subtotal" && fy.tipo === "subtotal"
       ? figs.find((g) => { const c = _fichaDeFig(g, figs); return c && c.tipo === "subtotal" && c.concepto === fy.concepto && c.universo === fx.universo; }) : null;
     return `presentas «${par.y.valor}» (${fy.label}) como parte de «${par.x.valor}» (${fx.label}) —«${par.marca.trim()}»— y no pertenece a ese universo: ${par.x.valor} es ${universoDe(fx)} y ${par.y.valor} es ${universoDe(fy)}. ${alternativa ? `La parte que sí cabe es «${alternativa.label} = ${alternativa.text || alternativa.value}».` : "Preséntalas aparte, cada una con su universo."} Una cifra solo es parte de otra si pertenece a su mismo universo.`;
+  }
+  for (const p of _partesEnPalabras) {
+    const partes = [p.y, ..._partesSiguientes(p.y, p.finOracion)];
+    for (const y of partes) {
+      if (!y.figs.length) continue;
+      const fichas = y.figs.map((g) => _fichaDeFig(g, figs)).filter(Boolean);
+      if (!fichas.length) continue;
+      if (_NEGADA.test(t.slice(p.y.idx - 40 > 0 ? p.y.idx - 40 : 0, y.idx))) continue;
+      /* cabe si alguna ficha de la parte comparte una clave con el continente, o su concepto es opaco */
+      const cabe = fichas.some((c) => _CONCEPTO_OPACO.test(c.concepto) || [...metricasEn(c.concepto)].some((k) => p.claves.has(k)));
+      if (cabe) continue;
+      const fy = fichas.find((c) => c.tipo === "cuenta") || fichas[0];
+      return `presentas «${y.valor}» (${fy.label}) como parte de «${p.continente}» y no es de ese concepto: ${y.valor} es ${fy.tipo === "cuenta" ? `${fy.concepto} de la cuenta ${fy.entidad}` : fy.concepto}. Una cifra solo es parte de otra si pertenece a su mismo universo — nombra la parte que sí lo es o preséntalas aparte.`;
+    }
   }
   return null;
 }

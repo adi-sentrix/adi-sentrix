@@ -16,6 +16,8 @@
 import { getTenantData } from "../../data/tenantStore.js";
 import { axisEntityNames } from "../oracle/entityIndex.js";
 import { parseFigures } from "../boleta.js";
+import { leerClausula, compilarNombres, entidadesConPosicion, normalizar as _normalizarL } from "../oracle/lectorDeClausula.js";   // el sujeto y la comparada de la relación, por estructura (owner 2026-09-14)
+import { metricasEn } from "../oracle/guardC.js";   // el vocabulario de métricas del muro: qué métrica compara la frase (una sola tabla, nunca una segunda)
 
 const _norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -135,7 +137,7 @@ const _NUM = { un: 1, una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis
 /* «más DEL doble», «menos DE LA mitad», «cerca DEL triple»: la contracción va con el multiplicador (medido: «más del doble
  * que Lider ($17.8M)» con 1.09× pasaba porque «del doble» no se leía como «el doble») */
 const _MULT = [
-  { re: /\b(?:el|al|del)\s+doble\b/i, k: 2 }, { re: /\b(?:el|al|del)\s+triple\b/i, k: 3 }, { re: /\b(?:el|al|del)\s+cu[aá]druple\b/i, k: 4 },
+  { re: /\b(?:el|al|del)\s+doble\b|\bduplic(?:a|an|ando|ó|o)\b|\bdobl(?:a|an|ando|ó)\b/i, k: 2 }, { re: /\b(?:el|al|del)\s+triple\b|\btriplic(?:a|an|ando|ó)\b/i, k: 3 }, { re: /\b(?:el|al|del)\s+cu[aá]druple\b|\bcuadruplic(?:a|an|ando|ó)\b/i, k: 4 },   // «duplica los días de…» es «el doble» con verbo (owner 2026-09-14)
   { re: /\b(?:la|a la|de la)\s+mitad\b/i, k: 0.5 }, { re: /\b(?:la|a la|de la)\s+tercera\s+parte\b|\bun\s+tercio\b/i, k: 1 / 3 }, { re: /\bdos\s+tercios\b/i, k: 2 / 3 },
   { re: /\b(?:la|a la|de la)\s+cuarta\s+parte\b|\bun\s+cuarto\b/i, k: 0.25 }, { re: /\btres\s+cuartos\b/i, k: 0.75 },
   { re: /\b(un|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|veinte|treinta|cuarenta|cincuenta|cien|\d+(?:[.,]\d+)?)\s+veces\b/i, k: null },
@@ -148,7 +150,10 @@ const _MATIZ = [   // el «de» es opcional porque «del»/«de la» ya quedaron
   { re: /\b(?:poco|algo)\s+menos(?:\s+de)?\s*$/i, lo: 0.65, hi: 1.05 },
   { re: /\bm[aá]s(?:\s+de)?\s*$/i, lo: 0.95, hi: 1.6 },
   { re: /\bmenos(?:\s+de)?\s*$/i, lo: 0.5, hi: 1.05 },
-  { re: /\b(?:casi|apenas|pr[aá]cticamente)\s*$/i, lo: 0.65, hi: 1.05 },
+  /* «casi» CALIBRADO con el conjunto adversarial (owner 2026-09-14, grupos, conteos, universos e inventos): «casi la mitad» con 0.54 (2.5/4.6) es verdadera y
+   * «casi el doble» con 1.41 (8.6/6.1) es falsa — el rango de 0.65 a 1.05 absolvía la segunda y condenaba la primera; 0.8 a 1.1 separa las dos y conserva
+   * «casi el doble» = 1.83 (4.6/2.5) y «casi la mitad» = 0.496 (35/70.5) */
+  { re: /\b(?:casi|apenas|pr[aá]cticamente)\s*$/i, lo: 0.8, hi: 1.1 },
   { re: /\b(?:cerca|alrededor)(?:\s+de)?\s*$|\b(?:aproximadamente|unas?|como)\s*$/i, lo: 0.7, hi: 1.3 },
 ];
 const _RANGO_PLANO = { lo: 0.85, hi: 1.15 };
@@ -159,10 +164,56 @@ const _NO_NUMERICO = /\b(?:a|muchas|varias|pocas|algunas|tantas|otras|repetidas)
  *  cuatro veces más lenta que el Shaver9», con el Shaver9 en 15 días al abrir el párrafo). Si algún par de cifras cierra con
  *  la relación (±15 %; el matiz que la precede —«casi», «más de», «cerca de»— fija su propio rango, ver _MATIZ), pasa; sin
  *  dos cifras comparables, calla. */
-export function relacionEnPalabrasNoCierra(texto) {
+/* ── LA RELACIÓN VERIFICADA CONTRA EL DATO (owner 2026-09-14, grupos, conteos, universos e inventos) ─────────────────────────────
+ * «Falabella aporta un tercio de la contribución del negocio» (4.3 de 25.0: 17 %), «Lider y Falabella explican dos tercios del vencido» (7.1 de
+ * 12.6: 56 %), «Lider concentra más de la mitad del vencido total» (36 %), «Falabella vende casi el doble que Jumbo» (1.12×), «Lider debe el doble
+ * que Falabella»: sin cifras en el texto, la relación se verificaba contra nada. Y con las cifras de una LISTA («Falabella, Lider y Jumbo —$19.4M,
+ * $17.8M y $17.3M— son más de la mitad de la venta») se comparaba par contra par, no la suma contra el total (fp-listas P11). Dos lecturas más,
+ * ambas contra la boleta del turno (`figs`): (a) la FRACCIÓN DE UN TODO —la relación seguida de «de/del <métrica>»: el numerador son las
+ * cifras del sujeto (una cuenta o la lista coordinada; si la prosa trae las cifras pegadas a los nombres, esas) en esa métrica, el denominador
+ * el total de la métrica (el dicho tras «de los $X» o el total de la boleta)—; (b) el PAR SIN CIFRAS —sujeto y comparada, cada uno con su cifra
+ * de la boleta en la métrica que la cláusula nombra—. Sin sujeto, sin métrica o sin las dos cifras, calla (falso negativo antes que positivo). */
+const _partesDe = (label) => String(label || "").split("·").map((x) => x.trim()).filter(Boolean);
+/* el crudo de una fig, o el número de su valor impreso cuando el emisor no lo trae (la cobranza publica «Saldo vencido · total» sin raw) */
+const _rawDe = (f) => { if (Number.isFinite(f.raw) && f.raw !== 0) return f.raw; const p = parseFigures(String(f.value || f.text || ""))[0]; return p && Number.isFinite(p.raw) && p.raw !== 0 ? p.raw : NaN; };
+const _conRaw = (f) => { const r = _rawDe(f); return Number.isFinite(r) ? { ...f, raw: r, unit: f.unit === "pp" ? "pct" : f.unit } : null; };
+function _cifraDe(figs, entidad, claves, unidad) {
+  const e = _normalizarL(entidad).trim();
+  for (const f0 of figs) {
+    if (!f0) continue;
+    const p = _partesDe(f0.label);
+    if (p.length !== 2 || _normalizarL(p[0]).trim() !== e) continue;
+    const f = _conRaw(f0);
+    if (!f) continue;
+    if (unidad && f.unit !== unidad) continue;
+    const ms = metricasEn(p[1]);
+    if ([...ms].some((k) => claves.has(k))) return f;
+  }
+  return null;
+}
+function _totalDe(figs, claves, unidad) {
+  for (const f0 of figs) {
+    if (!f0) continue;
+    const p = _partesDe(f0.label);
+    const esTotal = (p.length === 1 && !/^\d/.test(p[0])) || (p.length === 2 && /^total$/i.test(p[1]));
+    if (!esTotal) continue;
+    const f = _conRaw(f0);
+    if (!f) continue;
+    if (unidad && f.unit !== unidad) continue;
+    const ms = metricasEn(p[0]);
+    if (ms.size && [...ms].some((k) => claves.has(k)) && !ms.has("participacion")) return f;
+  }
+  return null;
+}
+export function relacionEnPalabrasNoCierra(texto, figs = null) {
   const t = _limpio(texto);
   if (!t.trim()) return null;
   const figsDe = (o) => parseFigures(o).map((f) => ({ ...f, unit: f.unit === "pp" ? "pct" : f.unit })).filter((f) => Number.isFinite(f.raw) && f.raw !== 0);
+  /* los ENTEROS sin unidad («1.194 contra 894» unidades, «190 contra 165» días sin la «d») entran al par cuando van los dos pelados */
+  const enterosDe = (o) => [...String(o).matchAll(/(?<![\d.,$%])(\d{1,3}(?:\.\d{3})+|\d{2,4})(?![\d.,]*\s?(?:%|[KMB]\b|pp\b|d\b|d[ií]as?\b|x\b))/g)].map((m) => ({ unit: "count", raw: parseInt(m[1].replace(/\./g, ""), 10), text: m[1], pos: m.index })).filter((f) => Number.isFinite(f.raw) && f.raw > 0);
+  const F = Array.isArray(figs) ? figs : [];
+  const nombresF = [...new Set(F.map((f) => _partesDe(f && f.label)).filter((p) => p.length === 2 && !/^(?:total|subtotal)$/i.test(p[1])).map((p) => p[0]))];
+  const nombresRe = nombresF.length ? compilarNombres(nombresF) : null;
   const parrafos = t.split(/\n{2,}/).map((x) => x.trim()).filter(Boolean);
   for (const parrafo of parrafos) {
   const oraciones = _oraciones(parrafo);
@@ -189,10 +240,106 @@ export function relacionEnPalabrasNoCierra(texto) {
       const finFrase = m.index + m[0].length;
       const trasFrase = o.slice(finFrase, finFrase + 70).split(/[.;](?!\d)/)[0];   // el punto DECIMAL («$4.6M») no cierra la oración
       const par = figsDe(trasFrase).map((f) => ({ ...f, pos: trasFrase.indexOf(f.text) })).filter((f) => f.pos >= 0).sort((a, b) => a.pos - b.pos).slice(0, 2);
-      if (par.length === 2 && par[0].unit === par[1].unit && par[0].pos <= 20 && /^\s*(?:vs\.?|contra|frente a|y|e|a|–|—|-)\s*$/i.test(trasFrase.slice(par[0].pos + par[0].text.length, par[1].pos))) {
+      /* …el par también puede venir entre paréntesis tras la comparada («un tercio del frenado de Valparaíso ($8K contra $25K)») — owner 2026-09-14 */
+      if (par.length === 2 && par[0].unit === par[1].unit && (par[0].pos <= 20 || /\(\s*$/.test(trasFrase.slice(0, par[0].pos))) && /^\s*(?:vs\.?|contra|frente a|y|e|a|–|—|-)\s*$/i.test(trasFrase.slice(par[0].pos + par[0].text.length, par[1].pos))) {
         const rs = [par[0].raw / par[1].raw, par[1].raw / par[0].raw];
         if (rs.some((r) => { const q = r / k; return q >= rango.lo && q <= rango.hi; })) continue;
         return `«${dicho}» no cierra con las cifras que compara (${par[0].text} contra ${par[1].text} son ${relTxt(Math.max(...rs))}): una relación dicha en palabras vale lo mismo que una cifra — o es consistente con los números que compara, o no se dice. Di la relación exacta o quítala.`;
+      }
+      /* el par de ENTEROS pelados («1.194 contra 894», «190 contra 165»): la misma lectura del par inmediato */
+      {
+        const ent = enterosDe(trasFrase).sort((a, b) => a.pos - b.pos).slice(0, 2);
+        if (ent.length === 2 && (ent[0].pos <= 20 || /\(\s*$/.test(trasFrase.slice(0, ent[0].pos))) && /^\s*(?:vs\.?|contra|frente a|y|e|a|–|—|-)\s*$/i.test(trasFrase.slice(ent[0].pos + ent[0].text.length, ent[1].pos))) {
+          const rs = [ent[0].raw / ent[1].raw, ent[1].raw / ent[0].raw];
+          if (rs.some((r) => { const q = r / k; return q >= rango.lo && q <= rango.hi; })) continue;
+          return `«${dicho}» no cierra con las cifras que compara (${ent[0].text} contra ${ent[1].text} son ${relTxt(Math.max(...rs))}): una relación dicha en palabras vale lo mismo que una cifra — o es consistente con los números que compara, o no se dice. Di la relación exacta o quítala.`;
+        }
+      }
+      /* CONTRA EL DATO (ver la cabecera): la fracción de un todo y el par sin cifras */
+      if (nombresRe && F.length) {
+        const posO = t.indexOf(o);
+        const L = posO >= 0 ? leerClausula(t, posO + m.index, { nombresRe }) : null;
+        const tras = o.slice(finFrase, finFrase + 90);
+        const mDe = /^\s*(?:de\s+(?:l[oa]s\s+|la\s+|el\s+|su\s+|tu\s+)?|del\s+)((?:[^.;,()]|\.(?=\d)|\([^)]*\)){1,60}?)(?=[;,]|\.(?!\d)|\s+(?:que|con|y|e|en|sobre|contra|frente)\b|$)/iu.exec(tras);   // el punto decimal («$99.9M») no cierra el complemento
+        const clavesTras = mDe ? metricasEn(mDe[1]) : new Set();
+        const esFraccion = k <= 1 || (matiz && /m[aá]s|menos/.test(matiz.dicho) && k <= 1);
+        /* «del frenado DE VALPARAÍSO»: con una entidad en el complemento no es la fracción de un todo, es la comparación con ella (el par) */
+        const compConEntidad = mDe ? entidadesConPosicion(_normalizarL(mDe[1]), nombresRe).length > 0 : false;
+        if (L && mDe && clavesTras.size && esFraccion && !compConEntidad && !/(?:que|de\s+l[oa]s?\s+de|del\s+de)\b/i.test(mDe[1])) {
+          /* (a) la fracción de un todo: numerador = sujeto (cuenta o lista), denominador = el total de la métrica */
+          const sujetos = L.sujetoPropio && Array.isArray(L.coordinadas) && L.coordinadas.length >= 2 && L.listaCerrada ? L.coordinadas : (L.sujeto ? [L.sujeto.nombre] : []);
+          const unidad = /\$/.test(mDe[1]) ? "money" : null;
+          const enDe = figsDe(mDe[1]).filter((f) => f.unit === "money");
+          /* «($4.6M de $12.6M)»: las dos cifras dichas — la parte y el todo; con una sola, es el todo */
+          if (enDe.length >= 2 && /\bde\s+(?:l[oa]s\s+)?\$/i.test(mDe[1])) {
+            const r = enDe[0].raw / enDe[enDe.length - 1].raw;
+            const q = r / k;
+            if (q >= rango.lo && q <= rango.hi) continue;
+            return `«${dicho}» no cierra con las cifras que trae (${enDe[0].text} sobre ${enDe[enDe.length - 1].text} es ${Math.round(r * 100)} %): una relación dicha en palabras vale lo mismo que una cifra — o es consistente con los números que la rodean, o no se dice. Di la proporción exacta o quítala.`;
+          }
+          const dichoTotal = enDe[0] || null;
+          const totalFig = dichoTotal ? { raw: dichoTotal.raw, text: dichoTotal.text, unit: "money" } : _totalDe(F, clavesTras, unidad);
+          /* (a0) el NUMERADOR DICHO junto a la fracción (corrida en vivo Q2, 2026-09-14): «liberar esos dos suma $22K, casi dos tercios del capital
+           * frenado total ($33K)» — la cifra de la misma unidad que precede a la fracción, separada solo por una coma, un guion o «es decir / o sea /
+           * esto es / equivale a», ES la parte; juzgarla contra la cifra del sujeto ($8K de MAK-COMP-AIR, 24 %) era leer otra relación y tumbar un
+           * borrador correcto. Regla (owner 2026-09-14): una cifra que no está en la boleta solo vale por una cuenta MOSTRADA — y acá la cuenta está */
+          if (totalFig) {
+            const cola = matiz ? antes.replace(matiz.re, "") : antes;
+            const previa = figsDe(cola).map((f) => ({ ...f, pos: cola.lastIndexOf(f.text) })).filter((f) => f.pos >= 0 && f.unit === totalFig.unit).sort((a, b) => b.pos - a.pos)[0] || null;
+            const numDicho = previa && /^\s*(?:[,—–-]|es decir|o sea|esto es|equival(?:e|ente)\s+a|lo que es|que es)?\s*(?:es decir|o sea|esto es|equival(?:e|ente)\s+a)?\s*,?\s*$/i.test(cola.slice(previa.pos + previa.text.length)) ? previa : null;
+            if (numDicho && numDicho.raw !== totalFig.raw) {
+              const r = numDicho.raw / totalFig.raw;
+              const q = r / k;
+              if (q >= rango.lo && q <= rango.hi) continue;
+              return `«${dicho}» no cierra con las cifras que trae (${numDicho.text} sobre ${totalFig.text || totalFig.value} es ${Math.round(r * 100)} %): una relación dicha en palabras vale lo mismo que una cifra — o es consistente con los números que la rodean, o no se dice. Di la proporción exacta o quítala.`;
+            }
+          }
+          if (sujetos.length && totalFig) {
+            const cifras = sujetos.map((n) => _cifraDe(F, n, clavesTras, totalFig.unit === "pp" ? "pct" : totalFig.unit));
+            if (cifras.every(Boolean)) {
+              const num = cifras.reduce((a, f) => a + f.raw, 0);
+              const r = num / totalFig.raw;
+              const q = r / k;
+              if (q >= rango.lo && q <= rango.hi) continue;
+              return `«${dicho}» no cierra con el dato: ${sujetos.length > 1 ? "la suma de " : ""}${cifras.map((f) => `${_partesDe(f.label)[0]} ${f.text || f.value}`).join(" + ")} sobre ${totalFig.text || totalFig.value} es ${Math.round(r * 100)} %: una relación dicha en palabras vale lo mismo que una cifra — o es consistente con las cifras de la boleta, o no se dice. Di la proporción exacta o quítala.`;
+            }
+          }
+        }
+        /* (a') el total DICHO sin métrica («concentran más de la mitad de los $99.9M», «…y Jumbo $17.3M sobre $99.9M»): el numerador son las cifras de la
+         * misma unidad pegadas a la lista del sujeto (o las de su lista tras los dos puntos), la suma contra ese total */
+        const mTotalDicho = mDe && !clavesTras.size ? figsDe(mDe[1]).filter((f) => f.unit === "money")[0] || null : (/\b(?:sobre|de un total de)\s+\$/i.test(o) ? figsDe(o.slice(o.search(/\b(?:sobre|de un total de)\s+\$/i))).filter((f) => f.unit === "money")[0] || null : null);
+        if (L && esFraccion && mTotalDicho) {
+          const todas = figsDe(o).filter((f) => f.unit === "money" && !(f.raw === mTotalDicho.raw && f.text === mTotalDicho.text));
+          if (todas.length >= 2) {
+            /* «Falabella ($19.4M), Lider ($17.8M) y Jumbo ($17.3M) suman $54.5M, más de la mitad de los $99.9M»: si una cifra es la suma de las demás, ella es el numerador */
+            const sumaDicha = todas.find((f) => { const otras = todas.filter((g) => g !== f); return otras.length >= 2 && Math.abs(otras.reduce((a, g) => a + g.raw, 0) - f.raw) <= Math.max(1000, Math.abs(f.raw) * 0.02); });
+            const numerador = sumaDicha ? sumaDicha.raw : todas.reduce((a, f) => a + f.raw, 0);
+            const r = numerador / mTotalDicho.raw;
+            const q = r / k;
+            if (q >= rango.lo && q <= rango.hi) continue;
+            return `«${dicho}» no cierra con las cifras que trae (${sumaDicha ? sumaDicha.text : todas.map((f) => f.text).join(" + ")} sobre ${mTotalDicho.text} es ${Math.round(r * 100)} %): una relación dicha en palabras vale lo mismo que una cifra — o es consistente con los números que la rodean, o no se dice. Di la proporción exacta o quítala.`;
+          }
+        }
+        /* (b) el par sin cifras: «Falabella vende casi el doble que Jumbo», «Lider debe el doble que Falabella» */
+        const mQue = /^\s*(?:de\s+\p{L}+\s+)?(?:que|de|a|al)\s+(?:l[oa]s?\s+(?:de\s+)?|el\s+de\s+|la\s+de\s+|lo\s+(?:de|que)\s+)?/iu.exec(tras);
+        if (L && L.sujeto && mQue && !figsDe(o).length && !enterosDe(o).length) {
+          /* la comparada es la primera entidad tras el «que/de/a» de la relación, en la misma cláusula */
+          const tramoComp = _normalizarL(tras.slice(mQue[0].length)).split(/[.;:,()]/)[0];
+          const primera = entidadesConPosicion(tramoComp, nombresRe)[0] || null;
+          const comparada = primera && primera.nombre !== L.sujeto.nombre ? primera : (L.comparada || null);
+          const claves = metricasEn(o);
+          if (comparada && claves.size) {
+            /* «vende» es la venta en dinero salvo que la frase hable de unidades: las figs de conteo («Unidades vendidas») solo entran con esa palabra */
+            const unidadA = /\bunidades\b/i.test(o) ? "count" : (claves.has("recuperado") || claves.has("margen") || claves.has("carga") || claves.has("brecha") ? "pct" : "money");
+            const a = _cifraDe(F, L.sujeto.nombre, claves, unidadA) || (unidadA === "money" ? _cifraDe(F, L.sujeto.nombre, claves, "pct") : null), b = a ? _cifraDe(F, comparada.nombre, claves, a.unit === "pp" ? "pct" : a.unit) : null;
+            if (a && b) {
+              const r = a.raw / b.raw;
+              const q = r / k;
+              if (q >= rango.lo && q <= rango.hi) continue;
+              return `«${dicho}» no cierra con el dato: ${_partesDe(a.label)[0]} ${a.text || a.value} contra ${_partesDe(b.label)[0]} ${b.text || b.value} son ${relTxt(r)}: una relación dicha en palabras vale lo mismo que una cifra — o es consistente con las cifras de la boleta, o no se dice. Di la relación exacta o quítala.`;
+            }
+          }
+        }
       }
       const pool = oraciones.slice(0, i + 1).flatMap(figsDe);   // el párrafo hasta esta oración
       /* LA CIFRA DE REFERENCIA es la más cercana ANTES de la relación en su oración («…de 95 días — cuatro veces más

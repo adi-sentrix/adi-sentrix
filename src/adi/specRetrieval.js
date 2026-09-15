@@ -925,10 +925,16 @@ export function composeSpecResumenEjecutivo({ scenario } = {}) {
   for (const r of sanos) bol.push(fig(`${r.nombre} · Margen`, `${r.margen}%`, { unit: "pct", raw: r.margen, mandatory: false, context: "margen sano" }));
   if (cgTopRow) bol.push(fig(`${cgTopRow.nombre} · Carga`, `${cgTopRow.pctRebate}%`, { unit: "pct", raw: cgTopRow.pctRebate, mandatory: false, context: "causa de carga" }));
   // la COMPOSICIÓN (cómo ganamos): los bloques volumen vs calidad, autorizados
-  bol.push(fig("Contribución de los grandes", `${pctGr}%`, { unit: "pct", raw: pctGr, mandatory: false, context: "composición" }));
-  bol.push(fig("Contribución del resto", `${pctRe}%`, { unit: "pct", raw: pctRe, mandatory: false, context: "composición" }));
-  bol.push(fig("Margen de los grandes", `${mGr}%`, { unit: "pct", raw: mGr, mandatory: false, context: "composición" }));
-  bol.push(fig("Margen del resto", `${mRe}%`, { unit: "pct", raw: mRe, mandatory: false, context: "composición" }));
+  /* LOS DOS BLOQUES DECLARAN SU GRUPO (owner 2026-09-14, grupos, conteos, universos e inventos): «Los tres grandes aportan el 51% de la
+   * contribución» (51% es del resto) y «El resto de la cartera opera con margen 22.5%» (el de los grandes) pasaban porque el agregado no
+   * decía de quiénes es. La convención de la casa: `grupo: { n, entidades }` después de `fig()`; el muro compara la cifra con la
+   * descripción del rótulo («los grandes», «el resto») y con la lista o el conteo que la prosa le cuelgue. */
+  const _gGr = grandes.length >= 2 ? { grupo: { n: grandes.length, entidades: grandes.map((r) => r.nombre) } } : {};
+  const _gRe = resto.length >= 2 ? { grupo: { n: resto.length, entidades: resto.map((r) => r.nombre) } } : {};
+  bol.push({ ...fig("Contribución de los grandes", `${pctGr}%`, { unit: "pct", raw: pctGr, mandatory: false, context: "composición" }), ..._gGr });
+  bol.push({ ...fig("Contribución del resto", `${pctRe}%`, { unit: "pct", raw: pctRe, mandatory: false, context: "composición" }), ..._gRe });
+  bol.push({ ...fig("Margen de los grandes", `${mGr}%`, { unit: "pct", raw: mGr, mandatory: false, context: "composición" }), ..._gGr });
+  bol.push({ ...fig("Margen del resto", `${mRe}%`, { unit: "pct", raw: mRe, mandatory: false, context: "composición" }), ..._gRe });
   if (diag && diag.evidence && Array.isArray(diag.evidence.boleta)) bol.push(...diag.evidence.boleta);
   else bol.push(...figsUmbralFocos());   // sin focos, b1/b7 dicen «sin fugas materiales (bajo el 0.05%…: $50K)»: el umbral con rótulo (con focos ya viene en la boleta del diagnose) (2026-09-14)
   return {

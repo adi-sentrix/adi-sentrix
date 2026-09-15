@@ -303,7 +303,14 @@ export function cobranza(_args = {}, ctx = {}) {
   if (kA) _fig("Abonado · total", T ? T.abonadoFmt : kA.valor, T ? T.abonadoK : NaN, { mandatory: true });
   if (kS) _fig("Saldo pendiente · total", T ? T.saldoFmt : kS.valor, T ? T.saldoK : NaN, { mandatory: true });
   const vencidoCalculable = !!(kX && kX.valor && kX.valor !== "—");
+  /* EL TOTAL VENCIDO DECLARA SU GRUPO (owner 2026-09-14, grupos, conteos, universos e inventos): «Las cinco cuentas con vencido —Lider,
+   * Falabella, Sodimac, Tottus y Paris— suman $12.6M» (son seis: falta Easy) y «Son $12.6M vencidos entre Lider, Falabella, Sodimac y
+   * Tottus» pasaban porque el total no decía de quiénes es. La convención de la casa: quien publica un agregado de un conjunto conocido
+   * declara el conjunto (`grupo: { n, entidades }`, después de `fig()`). El grupo son TODAS las filas del módulo con vencido, no las 8
+   * que caben en la boleta. */
+  const _conVencido = M.filas.filter((f) => f.vencidoFmt != null && Number.isFinite(f.vencidoK) && f.vencidoK > 0).map((f) => f.nombre);
   if (vencidoCalculable) _fig("Saldo vencido · total", kX.valor, T && T.vencidoK != null ? T.vencidoK : NaN);
+  if (vencidoCalculable && _conVencido.length >= 2) boleta[boleta.length - 1] = { ...boleta[boleta.length - 1], grupo: { n: _conVencido.length, entidades: _conVencido } };
 
   /* las FILAS · cap 8, en el orden del módulo (vencido primero, después saldo) — cada cifra con su dueño */
   const filas = M.filas.slice(0, 8);
