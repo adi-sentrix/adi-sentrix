@@ -725,6 +725,13 @@ function _estado(a, I) {
   const quiere = estadoCanon(e.estado);
   const verdad = propios.length ? propios.map((x) => `${x.estado}${x.bodega ? " (" + x.bodega + ")" : ""}`).join(" · ") : "sin estado declarado";
   const ev = ["estados del inventario"];
+  /* «sin vencido» / «sin mora» es un estado de la cobranza: saldo vencido cero en el ranking de la proyección */
+  if (/^sin (?:saldo )?vencido|^sin mora|^por vencer|^al dia$/.test(quiere)) {
+    const rk = I.rankings.cliente && I.rankings.cliente.saldo_vencido;
+    const fila = rk ? rk.filas.find((x) => normalizar(x.entidad) === normalizar(ent.nombre)) : null;
+    if (!fila) return _nv(`sin-evidencia: la proyección no trae el saldo vencido de ${ent.nombre}`, ["ranking saldo_vencido"]);
+    return +fila.valor === 0 ? _ok(`${ent.nombre}: saldo vencido 0`, ["ranking saldo_vencido"], "saldo vencido 0") : _falsa(`estado-falso: ${ent.nombre} sí tiene saldo vencido (${fila.valor})`, `saldo vencido ${fila.valor}`, ["ranking saldo_vencido"]);
+  }
   /* «sin venta (reciente)» es un estado que la proyección declara en días: hay días sin venta > 0 */
   if (/^sin venta/.test(quiere)) { const d = I.dias[ent.nombre]; if (d && Number.isFinite(d.sinVenta)) return d.sinVenta > 0 ? _ok(`${ent.nombre}: ${d.sinVenta} días sin venta`, ["días de la proyección"], `${d.sinVenta}d sin venta`) : _falsa(`estado-falso: ${ent.nombre} no acumula días sin venta`, "0 días sin venta", ["días de la proyección"]); return _nv(`sin-evidencia: la proyección no trae días sin venta de ${ent.nombre}`, ev, verdad); }
   /* «crítico», «urgente», «delicado» no son estados de la evidencia: no se verifican (ni se sirven como verdaderos) */

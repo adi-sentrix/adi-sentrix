@@ -51,6 +51,7 @@ import { crucePorSku } from "./playbooks/crucePorSku.js";
 import { pasosDe } from "./playbooks/registro.js";
 import { pasosDeDominios, unirPasosDeDominios } from "./contratoDeDominios.js";   // la realidad de inventario para sus partes (owner 2026-09-14)
 import { componerReformulacion, destinatarioDe } from "./reformular.js";
+import { declaradorDe } from "../notario/declarar.js";   // el Notario semántico (fase 2): los peldaños declaran mientras escriben
 import { partesDelEncargo as _partesDeLaHoja, dominiosDelEncargo, coberturaDelEncargo, esEncargoCompuesto } from "./partesDelEncargo.js";
 import { componerPrioridadIntegrada, conclusionDePrioridad, criterioDeLaPregunta } from "./prioridadIntegrada.js";   // materialidad + severidad + urgencia, señal por señal; el criterio del usuario manda (owner 2026-09-14)
 export { esEncargoCompuesto, dominiosDelEncargo, coberturaDelEncargo };
@@ -87,16 +88,31 @@ const _entidadDe = (label) => { const p = String(label || "").split("·").map((s
 const _crecimiento = {
   nombre: "crecimiento",
   pasos: [{ tool: "salesRead", args: {}, para: "la venta de cada cliente contra el año anterior: quiénes suben y quiénes caen, con su variación" }],
-  componer({ figs } = {}) {
+  componer({ figs, declarar } = {}) {
+    const D = declaradorDe(declarar);
     const filas = _all(figs, /· YoY$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), fmt: _val(f), n: _num(f) })).filter((x) => x.entidad && Number.isFinite(x.n));
     if (filas.length < 2) return null;
     const pct = new Map(_all(figs, /· Variación vs año anterior$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
     const suben = filas.filter((x) => x.n > 0).sort((a, b) => b.n - a.n);
     const caen = filas.filter((x) => x.n < 0).sort((a, b) => a.n - b.n);
     const linea = (x) => `- ${x.entidad} · ${x.fmt} contra el año anterior${pct.get(x.entidad) ? ` (${pct.get(x.entidad)})` : ""}`;
+    /* la declaración de cada línea: la variación en $ (YoY) y, si va, la variación en % — ambas contra el año anterior */
+    const declaraLinea = (x, dir) => { const l = linea(x); D.variacion({ sujeto: x.entidad, metrica: "Ventas", direccion: dir, valor: x.fmt, texto: l }); if (pct.get(x.entidad)) D.variacion({ sujeto: x.entidad, metrica: "Ventas", direccion: dir, valor: pct.get(x.entidad), texto: l }); return l; };
     const L = [];
-    if (suben.length) { L.push(`Quién empuja el crecimiento — venta contra el año anterior, por cliente:`); suben.slice(0, 3).forEach((x) => L.push(linea(x))); if (suben.length > 3) L.push(`(y ${suben.length - 3} más que suben)`); }
-    if (caen.length) { L.push(`Quién cae:`); caen.slice(0, 3).forEach((x) => L.push(linea(x))); }
+    if (suben.length) {
+      const cab = `Quién empuja el crecimiento — venta contra el año anterior, por cliente:`;
+      L.push(cab);
+      /* los que se listan son los que MÁS suben: un orden top-k sobre la variación en dinero de los clientes leídos */
+      D.orden({ sujeto: suben.slice(0, 3).map((x) => x.entidad), metrica: "YoY", forma: "topk", k: Math.min(3, suben.length), direccion: "mayor", universo: "los 13 clientes", texto: cab });
+      suben.slice(0, 3).forEach((x) => L.push(declaraLinea(x, "sube")));
+      if (suben.length > 3) { const cola = `(y ${suben.length - 3} más que suben)`; L.push(cola); D.conteo({ n: suben.length, predicado: "crecen vs año anterior", universo: "los 13 clientes", texto: cola }); }
+    }
+    if (caen.length) {
+      const cab = `Quién cae:`;
+      L.push(cab);
+      D.orden({ sujeto: caen.slice(0, 3).map((x) => x.entidad), metrica: "YoY", forma: "topk", k: Math.min(3, caen.length), direccion: "menor", universo: "los 13 clientes", texto: cab });
+      caen.slice(0, 3).forEach((x) => L.push(declaraLinea(x, "baja")));
+    }
     L.push(`Empujar la venta no es dejar contribución: eso va abajo, cuenta por cuenta.`);
     return L.join("\n");
   },
@@ -106,11 +122,14 @@ const _crecimiento = {
 const _unidades = {
   nombre: "unidades",
   pasos: [{ tool: "queryMetric", args: { metric: "unidades", dimension: "cliente" }, para: "las unidades vendidas del período por cliente" }],
-  componer({ figs } = {}) {
+  componer({ figs, declarar } = {}) {
+    const D = declaradorDe(declarar);
     const filas = _all(figs, /· Unidades vendidas$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), fmt: _val(f), n: _num(f) })).filter((x) => x.entidad && Number.isFinite(x.n)).sort((a, b) => b.n - a.n);
     if (filas.length < 2) return null;
-    const L = [`Unidades vendidas en el período, por cliente — los que más mueven:`];
-    filas.slice(0, 3).forEach((x) => L.push(`- ${x.entidad} · ${x.fmt} unidades`));
+    const cab = `Unidades vendidas en el período, por cliente — los que más mueven:`;
+    const L = [cab];
+    D.orden({ sujeto: filas.slice(0, 3).map((x) => x.entidad), metrica: "Unidades vendidas", forma: "topk", k: Math.min(3, filas.length), direccion: "mayor", universo: "los 13 clientes", texto: cab });
+    filas.slice(0, 3).forEach((x) => { const l = `- ${x.entidad} · ${x.fmt} unidades`; L.push(l); D.cifra({ sujeto: x.entidad, metrica: "Unidades vendidas", valor: `${x.fmt} unidades`, texto: l }); });
     if (filas.length > 3) L.push(`(y ${filas.length - 3} clientes más)`);
     L.push(`Mover unidades no es dejar contribución: el margen de cada cuenta va aparte.`);
     return L.join("\n");
@@ -121,7 +140,8 @@ const _unidades = {
  * La clave real entre venta y cobranza es el cliente, y las dos cifras salen de la MISMA mesa (el flujo): la venta
  * del período y el saldo al corte «se leen juntas por cuenta, no se restan entre sí» (doctrina de cruce). Los
  * principales clientes por venta, con su saldo y su vencido al lado; el vencido más pesado, con nombre. */
-function _cobranzaCruzada({ figs } = {}) {
+function _cobranzaCruzada({ figs, declarar } = {}) {
+  const D = declaradorDe(declarar);
   const saldo = _find(figs, /^Saldo pendiente · total$/i);
   const vencidoTotal = _find(figs, /^Saldo vencido · total$/i);
   const ventas = _all(figs, /· Venta \(flujo\)$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), venta: _val(f), n: _num(f) })).filter((x) => x.entidad && Number.isFinite(x.n)).sort((a, b) => b.n - a.n);
@@ -131,15 +151,29 @@ function _cobranzaCruzada({ figs } = {}) {
   const vencidoDe = new Map(vencidos.map((x) => [x.entidad, x.fmt]));
   const dias = new Map(_all(figs, /· Dias Vencido$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
   const L = [`Cobranza, al corte declarado por la mesa: tienes ${_val(saldo)} por cobrar${vencidoTotal ? ` y ${_val(vencidoTotal)} ya vencidos` : ""}.`];
-  L.push(`Tus principales clientes por venta, con su saldo y su vencido al lado:`);
+  D.cifra({ sujeto: "negocio", metrica: "Saldo pendiente", valor: _val(saldo), universo: "total", texto: L[0] });
+  if (vencidoTotal) D.cifra({ sujeto: "negocio", metrica: "Saldo vencido", valor: _val(vencidoTotal), universo: "total", texto: L[0] });
+  const cab = `Tus principales clientes por venta, con su saldo y su vencido al lado:`;
+  L.push(cab);
+  D.orden({ sujeto: ventas.slice(0, 5).map((x) => x.entidad), metrica: "Venta", forma: "topk", k: Math.min(5, ventas.length), direccion: "mayor", universo: "los 13 clientes", texto: cab });
   for (const x of ventas.slice(0, 5)) {
     const v = vencidoDe.get(x.entidad);
-    L.push(`- ${x.entidad} · venta ${x.venta} · saldo ${saldos.get(x.entidad) || "—"} · ${v ? `vencido ${v}${dias.get(x.entidad) ? ` (${dias.get(x.entidad)})` : ""}` : "sin vencido"}`);
+    const l = `- ${x.entidad} · venta ${x.venta} · saldo ${saldos.get(x.entidad) || "—"} · ${v ? `vencido ${v}${dias.get(x.entidad) ? ` (${dias.get(x.entidad)})` : ""}` : "sin vencido"}`;
+    L.push(l);
+    D.cifra({ sujeto: x.entidad, metrica: "Venta (flujo)", valor: x.venta, texto: l });
+    if (saldos.get(x.entidad)) D.cifra({ sujeto: x.entidad, metrica: "Saldo pendiente", valor: saldos.get(x.entidad), texto: l });
+    if (v) { D.cifra({ sujeto: x.entidad, metrica: "Saldo vencido", valor: v, texto: l }); if (dias.get(x.entidad)) D.cifra({ sujeto: x.entidad, metrica: "Dias Vencido", valor: dias.get(x.entidad), texto: l }); }
+    else D.estado({ sujeto: x.entidad, estado: "sin vencido", texto: l });
   }
   if (vencidos.length) {
     const top = vencidos[0];
     const enTop = ventas.slice(0, 5).some((x) => x.entidad === top.entidad);
-    L.push(`El vencido más pesado es ${top.entidad}: ${top.fmt}${dias.get(top.entidad) ? ` a ${dias.get(top.entidad)}` : ""}${enTop ? " — y está entre tus principales clientes por venta: el riesgo de cobranza y el peso comercial coinciden en la misma cuenta" : ""}.`);
+    const l = `El vencido más pesado es ${top.entidad}: ${top.fmt}${dias.get(top.entidad) ? ` a ${dias.get(top.entidad)}` : ""}${enTop ? " — y está entre tus principales clientes por venta: el riesgo de cobranza y el peso comercial coinciden en la misma cuenta" : ""}.`;
+    L.push(l);
+    D.orden({ sujeto: top.entidad, metrica: "Saldo vencido", forma: "max", universo: "los 13 clientes", texto: l });
+    D.cifra({ sujeto: top.entidad, metrica: "Saldo vencido", valor: top.fmt, texto: l });
+    if (dias.get(top.entidad)) D.cifra({ sujeto: top.entidad, metrica: "Dias Vencido", valor: dias.get(top.entidad), texto: l });
+    if (enTop) D.orden({ sujeto: top.entidad, metrica: "Venta", forma: "topk", k: Math.min(5, ventas.length), direccion: "mayor", universo: "los 13 clientes", texto: l });
   } else if (!vencidoTotal) {
     L.push(`Qué parte está vencida no se puede saber: tu empresa no declaró plazo de pago.`);
   }
@@ -216,7 +250,7 @@ const _cifrasDe = (l) => (String(l).match(_CIFRA_FUERTE) || []).map((c) => c.rep
  * componerEncargo({ partes, leer, scenario, mem, semilla, pregunta }) → texto | null
  *   `leer(pasos)` → figs: la boleta de ESA parte, con los resultados de sus pasos (ya ejecutados en el turno).
  */
-export function componerEncargo({ partes, leer, scenario, mem, semilla, pregunta } = {}) {
+export function componerEncargo({ partes, leer, scenario, mem, semilla, pregunta, declarar = null } = {}) {
   if (!Array.isArray(partes) || partes.length < 2 || typeof leer !== "function") return null;
   /* el porqué ya contiene el sello (sus huellas con su sello): si piden los dos, va uno */
   const activas = partes.some((p) => p.clave === "porque") ? partes.filter((p) => p.clave !== "sello") : partes;
@@ -238,8 +272,8 @@ export function componerEncargo({ partes, leer, scenario, mem, semilla, pregunta
     try {
       figs = leer(_pasosDeParte(parte, {}) || []) || [];
       if (multi && parte.clave === "primero") texto = null;   // en varios dominios el cierre es integrado (abajo), no el «primero» comercial
-      else if (multi && parte.clave === "cobranza" && doms.includes("comercial")) texto = _cobranzaCruzada({ figs });
-      else texto = parte.playbook ? parte.playbook.componer({ figs, pregunta: parte.pregunta, semilla, scenario, mem }) : parte.local.componer({ figs, pregunta: parte.pregunta, semilla, scenario, mem });
+      else if (multi && parte.clave === "cobranza" && doms.includes("comercial")) texto = _cobranzaCruzada({ figs, declarar });
+      else texto = parte.playbook ? parte.playbook.componer({ figs, pregunta: parte.pregunta, semilla, scenario, mem, declarar }) : parte.local.componer({ figs, pregunta: parte.pregunta, semilla, scenario, mem, declarar });
     } catch { texto = null; }
     if (figs.length) lecturas.set(parte.dominio, [...(lecturas.get(parte.dominio) || []), ...figs]);
     if (multi && parte.clave === "primero") continue;
@@ -272,7 +306,7 @@ export function componerEncargo({ partes, leer, scenario, mem, semilla, pregunta
     /* dominio por dominio: `leer` corre con el tope de una ronda (8 llamadas) y los tres dominios juntos lo exceden — medido:
      * el cierre salía solo con el comercial y la cobranza y el inventario desaparecían de la prioridad */
     const figsDom = doms.flatMap((d) => { try { return leer(pasosDeDominios({ dominios: [d], eje: null }) || []) || []; } catch { return []; } });
-    const cierre = (() => { try { return componerPrioridadIntegrada(figsDom.length ? figsDom : [...lecturas.values()].flat(), doms, criterioDeLaPregunta(pregunta) || {}); } catch { return null; } })();
+    const cierre = (() => { try { return componerPrioridadIntegrada(figsDom.length ? figsDom : [...lecturas.values()].flat(), doms, { ...(criterioDeLaPregunta(pregunta) || {}), declarar }); } catch { return null; } })();
     if (cierre) { bloques.push(cierre); compuestas++; }
     else bloques.push(`Sobre qué haría primero no pude armar la lectura con lo leído en este turno.`);
   }

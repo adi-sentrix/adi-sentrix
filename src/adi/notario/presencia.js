@@ -54,6 +54,13 @@ const _PALABRA_NUM_RE = /\b(?:son|suman|llegan\s+a|de\s+cada|hay|quedan|totaliza
 const _PUNTOS_PP_RE = /(\d+(?:[.,]\d+)?)\s+puntos?\b/gi;
 const _ATA_CIFRA = /\b(?:d[ií]as|unidades|cuentas?|clientes?|skus?|bodegas?|marcas?|de\s+\d+|de\s+(?:ocho|trece|diez|cinco)|llegan\s+a|son\b|suman|rota|rotaci[oó]n|cobertura|inventario|vencid|margen|venta|contribuci|carga|brecha|markup|capital|saldo|frenad|puestos?|lugar|posici[oó]n)/i;
 
+/** posicionDeCifra(s, texto, desde) → la posición de la cifra como TOKEN (no dentro de otra: «8d» no está en «58d»), o -1 */
+export function posicionDeCifra(s, texto, desde = 0) {
+  const re = new RegExp("(?<![\\d.,$%])" + String(texto).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\d.,]|\\d)", "g");
+  re.lastIndex = Math.max(0, desde);
+  const m = re.exec(s);
+  return m ? m.index : -1;
+}
 /** puntosDeAfirmacion(texto) → [{clase, pos, fin, span, negado}] · los lugares de la prosa donde hay algo que afirmar */
 export function puntosDeAfirmacion(texto) {
   const s = String(texto || "");
@@ -61,8 +68,8 @@ export function puntosDeAfirmacion(texto) {
   const usados = new Map();   // texto de la cifra → última posición usada (cifras repetidas)
   for (const f of parseFigures(s)) {
     const desde = usados.has(f.text) ? usados.get(f.text) + 1 : 0;
-    let pos = s.indexOf(f.text, desde);
-    if (pos < 0) pos = s.indexOf(f.text);
+    let pos = posicionDeCifra(s, f.text, desde);
+    if (pos < 0) pos = posicionDeCifra(s, f.text, 0);
     if (pos < 0) continue;
     usados.set(f.text, pos);
     out.push({ clase: "cifra", pos, fin: pos + f.text.length, span: f.text, negado: _negado(s, pos), unit: f.unit, raw: f.raw, canon: f.canon.replace(/\$/g, "") });

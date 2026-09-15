@@ -66,7 +66,17 @@ import { serieRealDe } from "../sentrix/capability.js";
 import { buildRolesCartera } from "../sentrix/rolesCartera.js";
 import { partesDelEncargo, pasosDelEncargo, componerEncargo, doctrinaDelEncargo } from "./encargoCompuesto.js";
 import { dominiosDe, pasosDeDominios, unirPasosDeDominios, doctrinaDeDominios } from "./contratoDeDominios.js";   // la pregunta determina qué dominios participan (owner 2026-09-14) — generaliza el contrato comercial   // toda pregunta comercial parte de la misma realidad comercial (owner 2026-09-13)   // el peldaño del encargo compuesto (owner 2026-09-11): cobertura garantizada cuando el cerebro cae   // las huellas con sello del turno: el juez compartido las lee para no aceptar un mecanismo afirmado sin su sello (owner 2026-09-11)
-import { getTenantId, getTenantData } from "../../data/tenantStore.js";   // getTenantData: el contexto que el negocio declaró — la ley del porqué lo cita en vez de repreguntar   // la semilla de variación: tenant + pregunta + largo del hilo
+import { getTenantId, getTenantData } from "../../data/tenantStore.js";
+/* ── EL NOTARIO SEMÁNTICO (owner 2026-09-15, fase 2) ─────────────────────────────────────────────────────────────────
+ * «El modelo redacta; el modelo declara qué está afirmando; Notario verifica la afirmación contra la evidencia estructurada; la
+ * redacción no determina la verdad.» El cerebro entrega la respuesta y, al final, su bloque de afirmaciones; el juez semántico
+ * (verificador + detector de presencia + consistencia prosa/declaración) dicta el veredicto DE HECHO; los chequeos de hecho del
+ * muro dejan de vetar y quedan en el expediente como detectores; las leyes de la casa siguen juzgando la respuesta entera. Los
+ * peldaños determinísticos declaran desde sus propias figs (declaración derivada) y se juzgan con el mismo estándar. */
+import { extraerDeclaracion, declaracionDeRespaldo } from "../notario/declaracion.js";
+import { crearDeclarador, filtrarPorTexto } from "../notario/declarar.js";
+import { juzgarDeclaracion, CHEQUEOS_DE_HECHO } from "../notario/juez.js";
+import { indiceDeEvidencia } from "../notario/evidencia.js";   // getTenantData: el contexto que el negocio declaró — la ley del porqué lo cita en vez de repreguntar   // la semilla de variación: tenant + pregunta + largo del hilo
 
 const TOPE_RONDAS = 3;      // rondas que pueden pedir herramientas
 const TOPE_CALLS = 12;      // tool-calls por turno, sumadas todas las rondas
@@ -101,7 +111,7 @@ const _MENSAJE_NOTARIO = (multa) => {
   const foco = cifras.length
     ? `\nLo rechazado es ${cifras.length === 1 ? "esta cifra" : "estas cifras"}: ${cifras.join(" · ")}. Reescribe SOLO la oración que ${cifras.length === 1 ? "la" : "las"} contiene: dale el dueño y el concepto que de verdad le corresponden según tus resultados, o quítala. Repetir la misma frase recibe el mismo rechazo.`
     : "";
-  return `[NOTARIO — no es el usuario] Tu respuesta no pasó la verificación:\n${multa}${foco}\nDevuelve tu respuesta COMPLETA con esa corrección, manteniendo tu calidad de asesor. No menciones esta corrección.`;
+  return `[NOTARIO — no es el usuario] Tu respuesta no pasó la verificación:\n${multa}${foco}\nDevuelve tu respuesta COMPLETA con esa corrección, manteniendo tu calidad de asesor, y vuelve a declarar TODAS tus afirmaciones en el bloque <<AFIRMACIONES>> … <<FIN>> (actualizado: lo corregido con su nueva declaración, lo quitado sin ella). No menciones esta corrección.`;
 };
 
 /* ── _podarOracionVetada · quitar la oración que el muro rechazó, cuando la respuesta NO depende de ella ─────
@@ -116,15 +126,18 @@ const _MENSAJE_NOTARIO = (multa) => {
  * El corte usa `_oracionesDe` de `narratePromptC` —el mismo criterio de bordes que guardC, con las cifras
  * enmascaradas para que el punto de «$13.3M» no parta una oración—: no se escribe un tercer cortador. */
 const TOPE_PODA = 2;
-export function _podarOracionVetada(texto, multa, figs) {   // exportada para que el gate y la medición usen LA función, no una copia
+export function _podarOracionVetada(texto, multa, figs, fragmentos = []) {   // exportada para que el gate y la medición usen LA función, no una copia
   const cifras = _cifrasDeMulta(multa);
-  if (!cifras.length) return null;                                   // (a)
+  /* los FRAGMENTOS que el juez semántico señaló (la afirmación falsa, no verificable o no declarada) localizan la oración igual que una cifra */
+  const frags = (Array.isArray(fragmentos) ? fragmentos : []).map((x) => String(x || "").trim()).filter((x) => x.length >= 3);
+  if (!cifras.length && !frags.length) return null;                  // (a)
   const t = String(texto || "");
   let tramos = [];
   try { tramos = _oracionesDe(t) || []; } catch { return null; }
   if (tramos.length < 2) return null;                                // una sola oración: podarla es tirar el turno
   const _norm = (s) => String(s).replace(/\s+/g, "");
-  const ofensoras = tramos.filter(([lo, hi]) => cifras.some((c) => _norm(t.slice(lo, hi)).includes(_norm(c))));
+  const _normF = (s) => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, "");
+  const ofensoras = tramos.filter(([lo, hi]) => cifras.some((c) => _norm(t.slice(lo, hi)).includes(_norm(c))) || frags.some((f) => _normF(t.slice(lo, hi)).includes(_normF(f))));
   if (!ofensoras.length || ofensoras.length > TOPE_PODA) return null;   // (b)
   /* (b2) NO PODAR SI LA ORACIÓN SIGUIENTE LA REFERENCIA. Medido sobre el corpus: en el T4 la multa señala
    * «$1.0M» en «si entran a margen actual, sumas $1.0M», y la oración de después dice «…sumas $1.2M — una
@@ -1034,9 +1047,39 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   /* las huellas del motor de papeles (probado · indicado · abierto), una vez por turno: el juez compartido las usa
    * para cobrar «el mecanismo es costo» cuando ese mecanismo está solo indicado o abierto (owner 2026-09-11, B) */
   const _huellasDelTurno = (() => { try { const A = buildRolesCartera(scenario); return A && A.hay && Array.isArray(A.huellas) ? A.huellas : []; } catch { return []; } })();
-  const juzgar = (t, sitio = "cierre") => {
+  /* ── EL JUEZ SEMÁNTICO, POR SITIO (fase 2) ──────────────────────────────────────────────────────────────────────
+   * El índice de la evidencia del turno se arma una vez (la boleta acumulada + la proyección + los ejes). En los sitios del
+   * CEREBRO (cierre · reparación · poda) la declaración es la suya; en los peldaños determinísticos se DERIVA de las mismas figs
+   * con las que compusieron (`declaracionDeRespaldo`) y se juzga igual. Los dos sitios que RE-CITAN un texto aprobado en un
+   * turno anterior (`respaldo` · `reformular-piso`) no tienen evidencia estructurada de este turno: conservan el juicio de
+   * siempre (el muro con `boletaAnterior`), porque ese texto ya pasó el Notario cuando se produjo. */
+  const _indiceDelTurno = (() => { try { return indiceDeEvidencia({ figs: figsTotales, datoProyectado: cifrasDelDato(scenario), ejesDelTenant: catalogoPorEje }); } catch { return null; } })();
+  const notarioDelTurno = [];   // el expediente del Notario semántico: por sitio, medidas y vetos
+  const _SITIOS_SIN_DECLARACION = new Set(["respaldo", "reformular-piso"]);
+  const _juezSemantico = (t, sitio, afirmaciones) => {
+    if (!_indiceDelTurno || _SITIOS_SIN_DECLARACION.has(sitio)) return null;
+    const derivada = afirmaciones === undefined;
+    const decl = derivada ? (() => { try { return declaracionDeRespaldo(t, figsTotales, { ejesDelTenant: catalogoPorEje, datoProyectado: cifrasDelDato(scenario) }); } catch { return []; } })() : afirmaciones;
+    let sem;
+    try { sem = juzgarDeclaracion(t, decl, { indice: _indiceDelTurno, nombres: duenosTenant || [], sitio, derivada }); }
+    catch (e) { sem = { ok: false, violations: [{ kind: "notario-semantico-error", detail: `el juez semántico falló: ${(e && e.message) || e}`, texto: "" }], medidas: { error: true } }; }
+    notarioDelTurno.push({ sitio, derivada, medidas: sem.medidas, vetos: sem.violations.map((x) => x.kind) });
+    return sem;
+  };
+  const juzgar = (t, sitio = "cierre", afirmaciones = undefined) => {
     /* el canal de lo ya aprobado se enciende SOLO acá: en cualquier otro sitio la llamada es la de siempre */
-    const v = _guard(t, sitio === "respaldo" ? _boletaAprobadaPrevia : sitio === "reformular-piso" ? _boletaDelHilo : null);
+    const v0 = _guard(t, sitio === "respaldo" ? _boletaAprobadaPrevia : sitio === "reformular-piso" ? _boletaDelHilo : null);
+    const sem = _juezSemantico(t, sitio, afirmaciones);
+    let v = v0;
+    if (sem) {
+      /* los chequeos DE HECHO del muro y del contrato ya no dictan veredicto: quedan en el expediente como detectores */
+      const detectores = ((v0 && v0.violations) || []).filter((x) => CHEQUEOS_DE_HECHO.has(x.kind));
+      const restantes = ((v0 && v0.violations) || []).filter((x) => !CHEQUEOS_DE_HECHO.has(x.kind));
+      if (detectores.length) notarioDelTurno[notarioDelTurno.length - 1].detectores = detectores.map((x) => x.kind);
+      const todas = [...sem.violations, ...restantes];
+      v = todas.length ? { ...(v0 || {}), ok: false, violations: todas, multa: undefined } : { ...(v0 || {}), ok: true, violations: [] };
+      if (v.ok === false && sem.violations.length) v.fragmentos = sem.violations.map((x) => x.texto).filter(Boolean);   // la poda los usa
+    }
     if (!v || !v.ok) {
       /* ── LA MULTA COMPLETA (prompt de gerente, 2026-09-13) ──────────────────────────────────────────────────
        * Medido con los dos borradores capturados: el muro tumbó el cierre y la multa llevó SOLO lo del muro; el
@@ -1119,16 +1162,22 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       ...vRef,
       ...vRef2,
       ...(playbookActivo ? vetosDelPlaybook(playbookActivo, t, { figs: figsTotales, pregunta: q, ctx: ctxTurno }) : [])];
-    return vc;
+    /* con el juez semántico en el sitio, los chequeos de hecho del contrato (atribución, relación en palabras, universos, variación) son detectores */
+    return (_indiceDelTurno && !_SITIOS_SIN_DECLARACION.has(sitio)) ? vc.filter((x) => !CHEQUEOS_DE_HECHO.has(x.regla)) : vc;
   }
 
   let estado = "vacio";
   let aprobado = false;
   let final = null;
 
+  /* la declaración del cerebro se separa de la prosa ANTES de lavar; los fragmentos declarados se lavan igual que la prosa */
+  const _lavarDeclaracion = (afs) => (Array.isArray(afs) ? afs.map((a) => (a && typeof a === "object" && typeof a.texto === "string") ? { ...a, texto: stripLanguageLeaks(a.texto) } : a) : afs);
+  const _declCierre = (typeof texto === "string" && texto.trim()) ? extraerDeclaracion(texto) : null;
+  if (_declCierre) texto = _declCierre.respuesta;
+  const afirmacionesCierre = _declCierre ? _lavarDeclaracion(_declCierre.afirmaciones) : null;
   if (typeof texto === "string" && texto.trim()) {
     const lavado = stripLanguageLeaks(String(texto));
-    const v1 = juzgar(lavado);
+    const v1 = juzgar(lavado, "cierre", afirmacionesCierre);
     if (v1 && v1.ok) { final = lavado; estado = "verde"; aprobado = true; }
     else {
       /* UNA reparación con la multa — la mecánica del ciclo notarial, con el contexto del agente.
@@ -1162,8 +1211,10 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
           mapa, herramientas, ronda: rondas, attempt: 1, motivoReintento: "guard", figsEnBoleta: figsTotales.length, vetoConCifra,
         });
       }
-      const t2 = res2 && res2.tipo === "texto" ? stripLanguageLeaks(String(res2.texto || "")) : "";
-      const v2 = t2.trim() ? juzgar(t2, "reparacion") : null;
+      const _declRep = res2 && res2.tipo === "texto" ? extraerDeclaracion(String(res2.texto || "")) : null;
+      const t2 = _declRep ? stripLanguageLeaks(_declRep.respuesta) : "";
+      const afirmacionesRep = _declRep ? _lavarDeclaracion(_declRep.afirmaciones) : null;
+      const v2 = t2.trim() ? juzgar(t2, "reparacion", afirmacionesRep) : null;
       if (v2 && v2.ok) { final = t2; estado = "reparado"; aprobado = true; }
       /* ── LA PODA · TIRAR LA ORACIÓN, NO EL TURNO (certificación 2026-09-01) ────────────────────────────────
        * EL DEFECTO MEDIDO, T2: el turno tenía la respuesta pedida, completa y correcta —«tu venta del período
@@ -1177,9 +1228,12 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
        * una respuesta que existe. Y el texto podado VUELVE A PASAR EL MURO COMPLETO — no se sirve por confiar
        * en el corte. */
       if (!aprobado && t2.trim() && v2 && !v2.ok) {
-        const podado = _podarOracionVetada(t2, _multaDe(v2), figsTotales);
+        const podado = _podarOracionVetada(t2, _multaDe(v2), figsTotales, v2.fragmentos || []);
         if (podado) {
-          const v3 = juzgar(podado, "poda");
+          /* la declaración de lo podado: solo las afirmaciones cuyo fragmento sigue en el texto */
+          const _norm = (x) => String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ");
+          const afirmacionesPoda = Array.isArray(afirmacionesRep) ? afirmacionesRep.filter((a) => a && typeof a.texto === "string" && _norm(podado).includes(_norm(a.texto))) : afirmacionesRep;
+          const v3 = juzgar(podado, "poda", afirmacionesPoda);
           if (v3 && v3.ok) { final = podado; estado = "podado"; aprobado = true; }
         }
       }
@@ -1211,9 +1265,11 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   if (final === null && playbookActivo && _partesEncargo.length >= 2) {
     const _semillaEc = `${(() => { try { return getTenantId() || "demo"; } catch { return "demo"; } })()}::${q}::${Array.isArray(history) ? history.length : 0}`;
     const _leer = (pasos) => { try { return (runPlan({ intent: "answer", calls: (pasos || []).map((s) => ({ tool: s.tool, args: s.args || {} })) }, { scenario, maxCalls: CALLS_POR_RONDA, preguntaUsuario: q, registry: caja }).ledger || {}).figs || []; } catch { return []; } };
-    const _ec = (() => { try { return componerEncargo({ partes: _partesEncargo, leer: _leer, scenario, mem: memIn, semilla: _semillaEc, pregunta: q }); } catch { return null; } })();
+    const _Dec = crearDeclarador();
+    const _ec = (() => { try { return componerEncargo({ partes: _partesEncargo, leer: _leer, scenario, mem: memIn, semilla: _semillaEc, pregunta: q, declarar: _Dec }); } catch { return null; } })();
     if (_ec && _ec.trim()) {
-      const vEc = juzgar(_ec, "encargo-compuesto");
+      const _declEc = filtrarPorTexto(_Dec.lista(), _ec);
+      const vEc = juzgar(_ec, "encargo-compuesto", _declEc.length ? _declEc : undefined);
       if (vEc && vEc.ok) { final = _ec; estado = "encargo-compuesto"; suplente = true; }
     }
   }
@@ -1226,9 +1282,11 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     /* `scenario` viaja desde 2026-09-04: el composer del porqué necesita LEER el motor de papeles (qué rol
      * tiene cada cliente, qué huella está sellada) — leer el motor no es calcular, es la misma técnica que
      * `pisoFocosUSD()` en los playbooks de asesoría. Las CIFRAS siguen saliendo verbatim de la boleta. */
-    const _pb = (() => { try { return playbookActivo.componer({ figs: figsTotales, pregunta: q, semilla: _semilla, scenario, mem: memIn, ctx: ctxTurno }); } catch { return null; } })();
+    const _Dpb = crearDeclarador();
+    const _pb = (() => { try { return playbookActivo.componer({ figs: figsTotales, pregunta: q, semilla: _semilla, scenario, mem: memIn, ctx: ctxTurno, declarar: _Dpb }); } catch { return null; } })();
     if (_pb && _pb.trim()) {
-      const vPb = juzgar(_pb, `playbook:${playbookActivo.nombre}`);
+      const _declPb = filtrarPorTexto(_Dpb.lista(), _pb);
+      const vPb = juzgar(_pb, `playbook:${playbookActivo.nombre}`, _declPb.length ? _declPb : undefined);
       if (vPb && vPb.ok) { final = _pb; estado = "playbook"; suplente = true; }
     }
   }
@@ -1420,6 +1478,9 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
         alcance: preferirDelTurno && (preferirDelTurno.entidades || preferirDelTurno.alcance) ? (preferirDelTurno.alcance || "entidades") : null,
         coerciones: motivosCoercion.slice(0, 4),
         cortes: cortesDelTurno.slice(0, 6),   // el motivo de corte del proveedor, por llamada (la lección del natural, punta a punta)
+        /* EL NOTARIO SEMÁNTICO (fase 2): por sitio, cuánto se declaró, cuánto quedó sin declarar, qué se vetó y qué detectaron los
+         * chequeos viejos; y el sitio que se sirvió, con sus medidas — nada se sirve sin este registro */
+        notario: { modo: "semantico", pasos: notarioDelTurno, servido: (() => { const ultimo = [...notarioDelTurno].reverse().find((x) => x.sitio === (estado === "verde" ? "cierre" : estado === "reparado" ? "reparacion" : estado === "podado" ? "poda" : estado === "playbook" ? `playbook:${playbookActivo ? playbookActivo.nombre : ""}` : estado === "limite" ? "limite" : estado) || (estado === "limite" && (x.sitio === "linea-honesta" || x.sitio === "limite-referente"))); return ultimo ? { sitio: ultimo.sitio, derivada: ultimo.derivada, medidas: ultimo.medidas, vetos: ultimo.vetos } : { sitio: estado, sinJuicioSemantico: true }; })() },
         recitaCifras: recita && Array.isArray(recita.figs) ? recita.figs.length : 0,
         /* la SIEMBRA: el cuadro desde el que se preguntó queda en el expediente — hoy solo se registra, y esa
          * es toda la promesa (ver la nota de `viewContext` arriba y `_CONTRATO_ASK_DE_CUADRO.md`). */
