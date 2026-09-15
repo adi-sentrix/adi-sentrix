@@ -9,6 +9,7 @@
 import { criterioDeLaPregunta, componerPrioridadIntegrada, conclusionDePrioridad, prioridadIntegradaCambiada, CRITERIOS } from "../prioridadIntegrada.js";
 import { pasosDeDominios } from "../contratoDeDominios.js";
 import { esEncargoCompuesto } from "../partesDelEncargo.js";
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): el composer declara mientras escribe, sin camino privilegiado
 
 const _DOMS = ["comercial", "inventario", "cobranza"];
 const _DECISION = /\bhago bien\b|\bhacemos bien\b|\bdeber[ií]a(?:mos)? (?:priorizar|seguir|apostar)\b|\bconviene\b|\bes buena idea\b|\bme equivoco\b|\btiene sentido\b/i;
@@ -44,11 +45,17 @@ export const prioridadPorLente = {
 
   entregable: "la prioridad ordenada bajo el criterio que fijó el usuario —las mismas cifras de siempre, otra prioridad—, con el criterio dicho y, si es material, la nota de que otra lente cambiaría el orden",
 
-  componer({ figs, pregunta } = {}) {
+  componer({ figs, pregunta, declarar } = {}) {
+    const D = declaradorDe(declarar);   // sin colector, mudo: el texto es el mismo byte a byte
     const c = _criterio(pregunta);
     if (!c) return null;
-    const texto = componerPrioridadIntegrada(figs, _DOMS, c);
-    return texto ? `Ordenado bajo el criterio que fijaste — ${CRITERIOS[c.criterio].nombre}. Los hechos son los mismos; cambia quién va primero.\n${texto}` : null;
+    /* el cuerpo lo escribe —y lo declara— la prioridad integrada con el MISMO colector (la convención del ensamblador del encargo):
+     * cifras, órdenes y conteos del cierre son suyos; este playbook solo pone el marco, que no es un hecho sobre una métrica */
+    const texto = componerPrioridadIntegrada(figs, _DOMS, { ...c, declarar });
+    if (!texto) return null;
+    const marco = `Ordenado bajo el criterio que fijaste — ${CRITERIOS[c.criterio].nombre}. Los hechos son los mismos; cambia quién va primero.`;
+    D.lectura({ texto: marco, sello: "probado" });
+    return `${marco}\n${texto}`;
   },
 
   conclusiones(figs, pregunta = "") {

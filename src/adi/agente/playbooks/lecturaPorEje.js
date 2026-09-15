@@ -27,6 +27,7 @@
 import { detectSerieIntent } from "../../oracle/serieIntent.js";   // UN detector de entidad×período para el puente, entidad-por-período y este playbook
 import { _sinNombresDeEntidad } from "../mapaDelDato.js";        // un nombre de entidad no es un eje — la función del mapa, compartida
 import { axisEntityNames } from "../../oracle/entityIndex.js";   // las entidades de CADA eje: el ranking se filtra a las del eje pedido (contrato de dominios, 2026-09-14)
+import { declaradorDe } from "../../notario/declarar.js";       // el Notario semántico (fase 2): el composer declara mientras escribe, sin camino privilegiado
 
 const _FIN = "(?![a-záéíóúüñ])";
 import { esPorQue } from "../porque.js";   // un porqué no es una lectura de eje (owner 2026-09-09)
@@ -118,6 +119,19 @@ const _delEje = (eje) => {
   try { return new Set((axisEntityNames(eje) || []).map(String)); } catch { return null; }
 };
 
+/* ── LO QUE SE DECLARA AL NOTARIO (fase 2) ──────────────────────────────────────────────────────────────────
+ * El universo del orden, en las palabras que el verificador resuelve como el eje entero («los 13 clientes», «las 5
+ * marcas») — el tamaño sale del catálogo del tenant, jamás se escribe a mano; en «frenado» el universo es el grupo
+ * que la boleta declara («los SKU frenados»). La cola del top-8 —«(y N más)»— nombra a los N que MENOS tienen en la
+ * métrica (la lista va de mayor a menor): se declara como conteo con sus nombres y con el predicado que el verificador
+ * lee como top-k invertido («los 5 clientes que menos venden»). El verbo va por métrica porque «unidades vendidas»
+ * dicho literal casa primero con la venta, no con las unidades. */
+const _UNIVERSO = { cliente: ["los", "clientes"], marca: ["las", "marcas"], familia: ["las", "familias"], bodega: ["las", "bodegas"], canal: ["los", "canales"] };
+const _universoDe = (eje, delEje) => (eje === "sku_frenado" || !_UNIVERSO[eje]) ? "los SKU frenados" : `${_UNIVERSO[eje][0]} ${delEje && delEje.size ? `${delEje.size} ` : ""}${_UNIVERSO[eje][1]}`;
+const _QUE_MENOS = { venta: "venden", margen: "margen dejan", capital: "capital tienen", "capital frenado": "capital frenado tienen", "unidades vendidas": "unidades mueven" };
+/* el concepto del rótulo —lo que sigue a «Entidad · »—: la métrica con la que se declara cada cifra */
+const _metricaDe = (label) => String(label || "").split("·").slice(1).join("·").trim();
+
 const _ejeDe = (pregunta) => {
   const q = String(pregunta || "");
   if (_FUERA.test(q)) return null;
@@ -176,7 +190,8 @@ export const lecturaPorEje = {
   /* ── EL ENTREGABLE DETERMINÍSTICO ─────────────────────────────────────────────────────────────────────────
    * Una entidad por línea, cifras verbatim. Se AUTO-VERIFICA: si la boleta no trae al menos dos entidades del
    * eje con su métrica, no hay ranking que servir y cede al peldaño siguiente. */
-  componer({ figs, pregunta } = {}) {
+  componer({ figs, pregunta, declarar } = {}) {
+    const D = declaradorDe(declarar);   // sin colector, mudo: el texto es el mismo byte a byte
     const e = _ejeDe(pregunta);
     if (!e) return null;
     /* ⚠️ EN «SKU FRENADO» LA BOLETA MEZCLA EJES (medido en la sonda): `inventoryStatus` publica «Valparaíso ·
@@ -190,24 +205,48 @@ export const lecturaPorEje = {
      * salía con los SKU adentro. El catálogo del eje es el filtro — un hecho del índice, no un parser de nombres. */
     const delEje = _delEje(e.eje);
     const filas = _all(figs, e.metrica)
-      .map((f) => ({ entidad: _entidadDe(_lab(f)), raw: _num(f), fmt: _val(f) }))
+      .map((f) => ({ entidad: _entidadDe(_lab(f)), raw: _num(f), fmt: _val(f), metrica: _metricaDe(_lab(f)) }))
       .filter((x) => x.entidad && x.fmt && (!esSku || esSku.has(x.entidad)) && (!delEje || delEje.has(x.entidad)));
     if (filas.length < 2) return null;
     const conRaw = filas.every((x) => Number.isFinite(x.raw));
     if (conRaw) filas.sort((a, b) => b.raw - a.raw);
     const bench = _all(figs, /^Benchmark de margen$/i)[0] || null;
+    /* lo declarado habla con el rótulo de la boleta (la métrica es el concepto de la fig) y con el universo del eje */
+    const metrica = filas[0].metrica;
+    const universo = _universoDe(e.eje, delEje);
+    const listadas = filas.slice(0, 8);
     // LA VOZ (2026-09-03): la apertura habla, el ranking sigue siendo un ranking — y «de mayor a menor»
     // se conserva textual: es la promesa de ORDEN que el muro verifica contra la tabla.
     /* EL RECORTE, DECLARADO: si preguntó por el inventario en general y lo que existe es la lectura de lo
      * frenado, se dice en la primera línea. Callarlo dejaría creer que ese ranking es todo su stock. */
     const partes = [];
     if (e.eje === "sku_frenado" && !_NOMBRA_FRENADO.test(String(pregunta || ""))) {
-      partes.push(`De tu inventario, lo que este dato publica es el capital que quedó frenado — no una foto del stock completo.`);
+      const recorte = `De tu inventario, lo que este dato publica es el capital que quedó frenado — no una foto del stock completo.`;
+      partes.push(recorte);
+      /* «lo que quedó frenado» nombra un ESTADO: el de los SKU que siguen en la lista, que la proyección declara frenados */
+      D.estado({ sujeto: filas.map((x) => x.entidad), estado: "frenado", texto: recorte });
     }
-    partes.push(`${/^unidades/i.test(e.unidad) ? `Así vienen tus ${e.unidad}` : `Así viene tu ${e.unidad}`} por ${e.eje === "sku_frenado" ? "SKU" : e.eje}${conRaw ? ", de mayor a menor" : ""}:`);
-    for (const x of filas.slice(0, 8)) partes.push(`- ${x.entidad}: ${x.fmt}`);
-    if (filas.length > 8) partes.push(`(y ${filas.length - 8} más)`);
-    if (bench) partes.push(`Tu benchmark de margen es ${_val(bench)}.`);
+    const cabecera = `${/^unidades/i.test(e.unidad) ? `Así vienen tus ${e.unidad}` : `Así viene tu ${e.unidad}`} por ${e.eje === "sku_frenado" ? "SKU" : e.eje}${conRaw ? ", de mayor a menor" : ""}:`;
+    partes.push(cabecera);
+    /* «de mayor a menor» es un orden: los listados son los primeros del eje en esa métrica (top-k sobre el universo entero);
+     * sin `raw` en todas las filas la lista no se ordenó y no se declara orden alguno */
+    if (conRaw) D.orden({ sujeto: listadas.map((x) => x.entidad), metrica, forma: "topk", k: listadas.length, direccion: "mayor", universo, texto: cabecera });
+    for (const x of listadas) {
+      const l = `- ${x.entidad}: ${x.fmt}`;
+      partes.push(l);
+      D.cifra({ sujeto: x.entidad, metrica: x.metrica, valor: x.fmt, texto: l });
+    }
+    if (filas.length > 8) {
+      const cola = `(y ${filas.length - 8} más)`;
+      partes.push(cola);
+      /* la cola de una lista de mayor a menor son los que MENOS tienen: N de los M del eje, con sus nombres */
+      if (conRaw) D.conteo({ n: filas.length - 8, m: filas.length, predicado: `los ${filas.length - 8} ${e.eje === "sku_frenado" ? "SKU" : _UNIVERSO[e.eje][1]} que menos ${_QUE_MENOS[e.unidad] || `${e.unidad} tienen`}`, universo, sujeto: filas.slice(8).map((x) => x.entidad), texto: cola });
+    }
+    if (bench) {
+      const l = `Tu benchmark de margen es ${_val(bench)}.`;
+      partes.push(l);
+      D.cifra({ sujeto: "negocio", metrica: "Benchmark de margen", valor: _val(bench), texto: l });
+    }
     return partes.join("\n");
   },
 

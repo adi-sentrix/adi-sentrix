@@ -31,6 +31,8 @@
 import { getTenantData } from "../../../data/tenantStore.js";
 import { faltanteQueToca } from "../mapaDelDato.js";
 import { variante } from "../variacion.js";   // la oferta varía por semilla («matar la repetición», 2026-09-03)
+import { axisEntityNames } from "../../oracle/entityIndex.js";   // el universo del orden («los 13 clientes»): el tamaño sale del catálogo, no se escribe a mano
+import { declaradorDe } from "../../notario/declarar.js";       // el Notario semántico (fase 2): el composer declara mientras escribe, sin camino privilegiado
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 const _val = (f) => String((f && (f.text || f.value)) || "");
@@ -80,13 +82,15 @@ export const limiteHonesto = {
 
   entregable: "el corte pedido no está disponible y POR QUÉ, con la razón exacta que el dataset declara (guardado sin analizar · columna vacía · sin corte trimestral); qué lectura SÍ hay, nombrada con su eje (cliente, contra el año anterior); y una oferta de una línea. Jamás responder por otro eje sin declarar el límite, jamás un menú de labels internos.",
 
-  componer({ figs, pregunta, semilla } = {}) {
+  componer({ figs, pregunta, semilla, declarar } = {}) {
+    const D = declaradorDe(declarar);   // sin colector, mudo: el texto es el mismo byte a byte
     const q = String(pregunta || "");
     const head = _find(figs, /^headline$/i);
     if (!head) return null;
 
     /* 1 · QUÉ: la razón del dataset activo, cableada de donde ya vive */
     let razon = null;
+    let guardado = null;   // el estado «guardado sin analizar», cuando la razón trae sus dos conteos (filas · valores distintos)
     if (_TRIM.test(q)) {
       razon = "Tu dato no trae un corte por trimestre: la serie autorizada es mensual, y la comparación declarada del período es contra el año anterior. Armar Q1 y Q2 sumando meses sería una cifra que tu dato no declara, y no la invento.";
     } else if (_PDV.test(q)) {
@@ -95,8 +99,17 @@ export const limiteHonesto = {
       razon = e.tipo === "guardado"
         ? `Tu archivo SÍ trae punto de venta (${e.g.filas} filas con ${e.g.distintos} valores distintos) y está guardado, pero ADI todavía no analiza por ese eje — la lectura que pides no existe aún.`
         : `Tu archivo no trae ${e.f.pieza}: con eso se abre ${e.f.abre}. Sin esa columna, la lectura que pides no se puede armar.`;
+      if (e.tipo === "guardado") guardado = e.g;
     }
     if (!razon) return null;
+    /* la razón es el límite declarado por el dato: una lectura probada (no una opinión), salvo cuando trae los dos conteos de
+     * la ingesta —esos son cifras, y su evidencia es la declaración del pack (`guardadoSinAnalizar`), no un rótulo de la boleta */
+    if (guardado) {
+      D.cifra({ sujeto: "negocio", metrica: "punto de venta · filas guardadas sin analizar", valor: String(guardado.filas), texto: razon, evidencia: ["guardadoSinAnalizar · punto de venta"] });
+      D.cifra({ sujeto: "negocio", metrica: "punto de venta · valores distintos", valor: String(guardado.distintos), texto: razon, evidencia: ["guardadoSinAnalizar · punto de venta"] });
+    } else {
+      D.lectura({ texto: razon, sello: "probado" });
+    }
 
     /* 2 · QUÉ SÍ HAY: la alternativa con su eje nombrado, cifras verbatim y con dueño */
     const yoy = _all(figs, /· YoY$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
@@ -107,7 +120,20 @@ export const limiteHonesto = {
     const piezas = [];
     if (sube) piezas.push(`el que más sube es ${sube.entidad} (${sube.fmt})`);
     if (cae) piezas.push(`el que más cae es ${cae.entidad} (${cae.fmt})`);
-    partes.push(`\nLo que sí tengo es la lectura por CLIENTE contra el año anterior: el período viene en ${_val(head)}${piezas.length ? ` — ${piezas.join(" y ")}` : ""}.`);
+    const lectura = `\nLo que sí tengo es la lectura por CLIENTE contra el año anterior: el período viene en ${_val(head)}${piezas.length ? ` — ${piezas.join(" y ")}` : ""}.`;
+    partes.push(lectura);
+    /* lo que esa línea afirma: la cifra del período (el rótulo «headline» de salesRead, tal cual lo publica), y por cada extremo
+     * un orden —el máximo y el mínimo de la variación en dinero contra el año anterior, sobre la cartera entera— y su variación */
+    D.deFig(head, lectura);
+    const universo = (() => { try { const n = (axisEntityNames("cliente") || []).length; return n ? `los ${n} clientes` : "los clientes de la cartera"; } catch { return "los clientes de la cartera"; } })();
+    if (sube) {
+      D.orden({ sujeto: sube.entidad, metrica: "YoY", forma: "max", direccion: "mayor", universo, texto: lectura });
+      D.variacion({ sujeto: sube.entidad, metrica: "Ventas", direccion: "sube", valor: sube.fmt, texto: lectura });
+    }
+    if (cae) {
+      D.orden({ sujeto: cae.entidad, metrica: "YoY", forma: "min", direccion: "menor", universo, texto: lectura });
+      D.variacion({ sujeto: cae.entidad, metrica: "Ventas", direccion: "baja", valor: cae.fmt, texto: lectura });
+    }
 
     /* 3 · LA OFERTA, una línea — varía por semilla; toda variante nombra «ese eje» (el ancla verificable) */
     partes.push(variante(semilla, [

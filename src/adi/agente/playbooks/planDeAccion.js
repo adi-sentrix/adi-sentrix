@@ -25,6 +25,7 @@ import { formaConversacional } from "../formaConversacional.js";
 import { entidadNombrada, entidadesNombradas } from "./indiceEntidades.js";
 import { reDeReferencia } from "../../oracle/entityRecord.js";
 import { variante } from "../variacion.js";
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): el composer declara mientras escribe, sin camino privilegiado
 
 const _val = (f) => String((f && (f.text || f.value)) || "");
 const _lab = (f) => String((f && f.label) || "");
@@ -33,6 +34,14 @@ const _find = (figs, re) => (Array.isArray(figs) ? figs : []).find((f) => re.tes
 const _all = (figs, re) => (Array.isArray(figs) ? figs : []).filter((f) => re.test(_lab(f)));
 const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const _entidadDe = (l) => { const p = String(l || "").split("·").map((s) => s.trim()); return p.length >= 2 ? p[0] : null; };
+/* ── LO QUE SE DECLARA AL NOTARIO (fase 2): todo sale del rótulo, nada se escribe a mano ─────────────────────
+ * La métrica de un total es su primer concepto («Saldo vencido · total» → «Saldo vencido»); la de una fig por entidad,
+ * lo que sigue al nombre («Lider · Saldo vencido» → «Saldo vencido»). El universo de un subtotal es el grupo que la
+ * propia fig declara (la lista de sus cuentas o SKU) —la forma que el verificador compara— y «total» cuando el
+ * rótulo lo dice; sin lo uno ni lo otro no se inventa. */
+const _conceptoDe = (f) => _lab(f).split("·")[0].trim();
+const _metricaDe = (f) => _lab(f).split("·").slice(1).join("·").trim();
+const _universoDe = (f) => (f && f.grupo && Array.isArray(f.grupo.entidades) && f.grupo.entidades.length) ? f.grupo.entidades.map(String) : (/· total$/i.test(_lab(f)) ? "total" : undefined);
 
 const _ESCALA = { k: 1e3, m: 1e6, b: 1e9 };
 const _ord = (f) => {
@@ -152,7 +161,7 @@ function _cuentasDelHilo(ctx) {
 /** quién concentra un frente: el primero de su lista por entidad, con su cifra y la del que le sigue. */
 function _quienLoConcentra(figs, frente) {
   const xs = _all(figs, frente.porEntidad)
-    .map((f) => ({ n: _entidadDe(_lab(f)), v: _ord(f), fmt: _val(f) }))
+    .map((f) => ({ n: _entidadDe(_lab(f)), v: _ord(f), fmt: _val(f), fig: f }))   // la fig viaja con la fila: lo declarado sale de su rótulo
     .filter((x) => x.n && Number.isFinite(x.v))
     .sort((a, b) => b.v - a.v);
   return xs.length ? { primero: xs[0], segundo: xs[1] || null, cola: xs.length > 2 } : null;
@@ -204,7 +213,8 @@ export const planDeAccion = {
 
   entregable: "CONVIERTE LA LECTURA EN UNA SECUENCIA, sin gestionar por él. Las cinco piezas, en este orden: (1) LA PRIMERA ACCIÓN, una sola, nombrando por dónde entrar; (2) POR QUÉ ESA PRIMERO, con su cifra y contra qué se compara, y si es criterio tuyo, dilo; (3) QUÉ MIRAR PARA CONFIRMAR — la pieza que él tiene y el dato no; (4) LA SEGUNDA ACCIÓN si eso se confirma, y la alternativa si no; (5) QUÉ NO HARÍAS TODAVÍA, y por qué el dato no lo sostiene. ⚠️ OFRECE, NO ORDENES: todo en primera persona condicional —«haría», «miraría», «entraría»—, jamás en imperativo. ADI asesora, no gestiona: un «llama a Falabella» convierte al asesor en un sistema de tareas. ⚠️ Y no apoyes la primera acción en una cifra que el dato declare no reconciliada.",
 
-  componer({ figs, pregunta, semilla, ctx } = {}) {
+  componer({ figs, pregunta, semilla, ctx, declarar } = {}) {
+    const D = declaradorDe(declarar);   // sin colector, mudo: el texto es el mismo byte a byte
     const c = _caso(pregunta);
     if (!c) return null;
     /* la primera acción sale de la MISMA función que defiende el notario (ley del 2026-09-10) */
@@ -213,6 +223,11 @@ export const planDeAccion = {
     if (!frentes.length) return null;
     const nivel = _find(figs, reDeReferencia("pctRebate"));
     const p = [];
+    /* lo que se dice de un frente y lo que se declara de él salen del MISMO rótulo: la cifra de la cuenta, con su
+     * métrica; la del total, con su universo; y «X de Y» es una relación de parte, no una resta ni un porcentaje */
+    const cifraDe = (fig, texto) => D.cifra({ sujeto: _entidadDe(_lab(fig)), metrica: _metricaDe(fig), valor: _val(fig), texto });
+    const totalDe = (frente, texto) => D.cifra({ sujeto: "negocio", metrica: _conceptoDe(frente.tot), valor: _val(frente.tot), universo: _universoDe(frente.tot), texto });
+    const parteDe = (fig, texto) => D.relacion({ sujeto: _entidadDe(_lab(fig)), metrica: _metricaDe(fig), forma: "parte", vs: "negocio", texto });
 
     /* ── (a) EL PLAN SOBRE UNA CUENTA NOMBRADA ─────────────────────────────────────────────────────────────
      * Si el dueño ya eligió por dónde, la secuencia es sobre ESA cuenta: elegirle otra sería no escucharlo. */
@@ -223,13 +238,33 @@ export const planDeAccion = {
       }).filter(Boolean).sort((a, b) => b.v - a.v);
       if (!suyo.length) return null;
       const [primero, ...resto] = suyo;
-      p.push(`Esta semana haría una cosa con ${c.entidad}: ${primero.f.accion(c.entidad)}.`);
-      p.push(`Por qué esa primero: es donde esa cuenta pesa —${_val(primero.propio)}${resto.length ? ` contra ${_val(resto[0].propio)} del otro frente` : ` de ${_val(primero.f.tot)} que suma ese frente en toda la cartera`}—. Y es criterio mío: prefiero entrar por lo que ya está medido antes que por lo que habría que salir a averiguar.`);
-      p.push(`Qué miraría para confirmar: ${primero.f.mirar}. Eso no está en el dato — ${primero.f.noSostiene}.`);
-      p.push(resto.length
+      const accion = `Esta semana haría una cosa con ${c.entidad}: ${primero.f.accion(c.entidad)}.`;
+      p.push(accion);
+      D.lectura({ texto: accion, sello: "criterio mío" });
+      const porque = `Por qué esa primero: es donde esa cuenta pesa —${_val(primero.propio)}${resto.length ? ` contra ${_val(resto[0].propio)} del otro frente` : ` de ${_val(primero.f.tot)} que suma ese frente en toda la cartera`}—. Y es criterio mío: prefiero entrar por lo que ya está medido antes que por lo que habría que salir a averiguar.`;
+      p.push(porque);
+      /* la cifra de la cuenta en su frente mayor y, al lado, la del otro frente (una relación «mayor», ordenada por tamaño) o el
+       * total del frente (la cuenta es parte de él); el «criterio mío» es el tramo que lo dice */
+      cifraDe(primero.propio, porque);
+      if (resto.length) {
+        cifraDe(resto[0].propio, porque);
+        D.relacion({ sujeto: c.entidad, metrica: _metricaDe(primero.propio), forma: "mayor", vs: { sujeto: c.entidad, metrica: _metricaDe(resto[0].propio) }, texto: porque });
+      } else {
+        totalDe(primero.f, porque);
+        parteDe(primero.propio, porque);
+      }
+      D.lectura({ texto: `Y es criterio mío: prefiero entrar por lo que ya está medido antes que por lo que habría que salir a averiguar.`, sello: "criterio mío" });
+      const mirar = `Qué miraría para confirmar: ${primero.f.mirar}. Eso no está en el dato — ${primero.f.noSostiene}.`;
+      p.push(mirar);
+      D.lectura({ texto: mirar, sello: "abierto" });
+      const segunda = resto.length
         ? `Si se confirma, ${primero.f.siConfirma}; si resulta que no, pasaría al otro frente de esa cuenta (${_val(resto[0].propio)}) en vez de insistir ahí.`
-        : `Si se confirma, ${primero.f.siConfirma}; si no, no insistiría por ese lado y lo miraría desde la cartera completa.`);
-      p.push(`Lo que NO haría todavía: darle un objetivo al equipo sobre esta cuenta. ${primero.f.noSostiene[0].toUpperCase()}${primero.f.noSostiene.slice(1)}, así que un objetivo fijado hoy se apoyaría en la mitad de la historia.`);
+        : `Si se confirma, ${primero.f.siConfirma}; si no, no insistiría por ese lado y lo miraría desde la cartera completa.`;
+      p.push(segunda);
+      if (resto.length) cifraDe(resto[0].propio, segunda); else D.lectura({ texto: segunda, sello: "criterio mío" });
+      const todavia = `Lo que NO haría todavía: darle un objetivo al equipo sobre esta cuenta. ${primero.f.noSostiene[0].toUpperCase()}${primero.f.noSostiene.slice(1)}, así que un objetivo fijado hoy se apoyaría en la mitad de la historia.`;
+      p.push(todavia);
+      D.lectura({ texto: todavia, sello: "criterio mío" });
       p.push(variante(semilla, [
         `¿Te preparo el detalle de ${c.entidad} para esa conversación?`,
         `Si quieres armo la ficha de ${c.entidad} para que entres con las cifras.`,
@@ -249,30 +284,62 @@ export const planDeAccion = {
      * nombró justo la que sale elegida, no hay puente que tender y no se dice nada. */
     const delHilo = _cuentasDelHilo(ctx).filter((n) => n !== entrada);
     if (delHilo.length) {
-      p.push(`Veníamos mirando ${delHilo.join(" y ")}. Mirando el negocio entero la semana no arranca ahí, y te digo por qué.`);
+      const puente = `Veníamos mirando ${delHilo.join(" y ")}. Mirando el negocio entero la semana no arranca ahí, y te digo por qué.`;
+      p.push(puente);
+      D.lectura({ texto: puente, sello: "criterio mío" });
     }
-    p.push(`Esta semana haría una cosa: ${uno.accion(entrada)}.`);
+    const accion = `Esta semana haría una cosa: ${uno.accion(entrada)}.`;
+    p.push(accion);
+    D.lectura({ texto: accion, sello: "criterio mío" });
     /* 2 · POR QUÉ ESA PRIMERO — la cifra CON su referencia, y el criterio marcado como criterio */
     /* ⚠️ CADA CIFRA CON EL NOMBRE DE SU DUEÑO AL LADO, y lo cazó el guardia de entidades en la primera
      * corrida: la frase decía «ahí se concentra $4.6M de $12.6M» con la entidad nombrada una línea antes, y
      * esa cifra es de una cuenta puntual. Una cifra huérfana en una frase donde hay otro monto se lee como si
      * fuera del otro — es el defecto de atribución que el muro existe para impedir. */
-    p.push(`Por qué esa primero: ${quien.primero.n} concentra ${quien.primero.fmt} de ${_val(uno.tot)} que suma ${uno.nombre} en toda la cartera${quien.segundo ? `, y le sigue ${quien.segundo.n} con ${quien.segundo.fmt}` : ""}${nivel && uno.clave === "condiciones" ? ` — todo eso medido por sobre el nivel de carga de ${_val(nivel)} que tienes declarado` : ""}. Y es criterio mío, no del dato: entro por la que concentra, porque una conversación bien preparada rinde más que tres apuradas.`);
+    const porque = `Por qué esa primero: ${quien.primero.n} concentra ${quien.primero.fmt} de ${_val(uno.tot)} que suma ${uno.nombre} en toda la cartera${quien.segundo ? `, y le sigue ${quien.segundo.n} con ${quien.segundo.fmt}` : ""}${nivel && uno.clave === "condiciones" ? ` — todo eso medido por sobre el nivel de carga de ${_val(nivel)} que tienes declarado` : ""}. Y es criterio mío, no del dato: entro por la que concentra, porque una conversación bien preparada rinde más que tres apuradas.`;
+    p.push(porque);
+    /* «concentra X de Y» son dos cifras y una parte; «concentra … y le sigue» es un orden: la primera y la segunda de ese
+     * frente en su universo (el grupo del subtotal, o la cartera entera cuando el rótulo dice «total») */
+    const metricaUno = _metricaDe(quien.primero.fig);
+    const universoUno = _universoDe(uno.tot);
+    cifraDe(quien.primero.fig, porque);
+    totalDe(uno, porque);
+    parteDe(quien.primero.fig, porque);
+    D.orden({ sujeto: quien.primero.n, metrica: metricaUno, forma: "max", direccion: "mayor", universo: universoUno, texto: porque });
+    if (quien.segundo) {
+      cifraDe(quien.segundo.fig, porque);
+      D.orden({ sujeto: quien.segundo.n, metrica: metricaUno, forma: "puesto", k: 2, direccion: "mayor", universo: universoUno, texto: porque });
+    }
+    if (nivel && uno.clave === "condiciones") D.deFig(nivel, porque);
+    D.lectura({ texto: `Y es criterio mío, no del dato: entro por la que concentra, porque una conversación bien preparada rinde más que tres apuradas.`, sello: "criterio mío" });
     /* 3 · QUÉ MIRAR PARA CONFIRMAR — la pieza que él tiene */
-    p.push(`Qué miraría para confirmar: ${uno.mirar}. Eso no lo tengo — ${uno.noSostiene}, y lo sabes tú o tu equipo comercial.`);
+    const mirar = `Qué miraría para confirmar: ${uno.mirar}. Eso no lo tengo — ${uno.noSostiene}, y lo sabes tú o tu equipo comercial.`;
+    p.push(mirar);
+    D.lectura({ texto: mirar, sello: "abierto" });
     /* 4 · LA SEGUNDA ACCIÓN, condicionada a lo anterior */
-    p.push(quien.segundo
+    const segunda = quien.segundo
       ? `Si se confirma que no hubo nada a cambio, seguiría por ${quien.segundo.n} con la misma conversación. Si resulta que no, no insistiría por ahí: pasaría a ${dos ? dos.nombre : "el frente que siga por tamaño"}${dos ? ` (${_val(dos.tot)})` : ""}.`
-      : `Si se confirma, repetiría la conversación con las que siguen en esa lista. Si no, pasaría a ${dos ? `${dos.nombre} (${_val(dos.tot)})` : "el frente que siga por tamaño"}.`);
+      : `Si se confirma, repetiría la conversación con las que siguen en esa lista. Si no, pasaría a ${dos ? `${dos.nombre} (${_val(dos.tot)})` : "el frente que siga por tamaño"}.`;
+    p.push(segunda);
+    /* con el frente que sigue va su total (una cifra); sin él, la línea es solo la recomendación */
+    if (dos) totalDe(dos, segunda); else D.lectura({ texto: segunda, sello: "criterio mío" });
     /* 5 · QUÉ NO HARÍA TODAVÍA — y la razón sale del dato, no de una opinión */
     const ultimo = frentes[frentes.length - 1];
     if (ultimo && ultimo.clave !== uno.clave) {
       const otroMundo = ultimo.universo !== uno.universo;
       /* la referencia se nombra por lo que ES —«contra los $12.6M del cobro vencido»—, no por su lugar en el
        * texto: «el frente de arriba» le pide al dueño que cuente párrafos para entender contra qué se compara. */
-      p.push(`Lo que NO haría todavía: mover ${ultimo.nombre}. Pesa ${_val(ultimo.tot)} contra los ${_val(uno.tot)} de${/^(?:el|la|las|los) /.test(uno.nombre) ? uno.nombre.replace(/^el /, "l ").replace(/^(la|las|los) /, " $1 ") : ` ${uno.nombre}`}${otroMundo ? `, y encima es otro dinero —ese sale del inventario y el primero de la venta comercial, que en este dato no cierran entre sí, así que se ordenan por urgencia y no se suman—` : ""}. Gastar la semana ahí es gastarla en lo chico.`);
+      const todavia = `Lo que NO haría todavía: mover ${ultimo.nombre}. Pesa ${_val(ultimo.tot)} contra los ${_val(uno.tot)} de${/^(?:el|la|las|los) /.test(uno.nombre) ? uno.nombre.replace(/^el /, "l ").replace(/^(la|las|los) /, " $1 ") : ` ${uno.nombre}`}${otroMundo ? `, y encima es otro dinero —ese sale del inventario y el primero de la venta comercial, que en este dato no cierran entre sí, así que se ordenan por urgencia y no se suman—` : ""}. Gastar la semana ahí es gastarla en lo chico.`;
+      p.push(todavia);
+      /* «pesa X contra los Y»: las dos cifras (cada total con su universo) y la relación de tamaño que ordena los frentes —
+       * «menor», dicha por urgencia y jamás como suma: los dos universos se comparan por tamaño, no se consolidan */
+      totalDe(ultimo, todavia);
+      totalDe(uno, todavia);
+      D.relacion({ sujeto: "negocio", metrica: _conceptoDe(ultimo.tot), forma: "menor", vs: { sujeto: "negocio", metrica: _conceptoDe(uno.tot) }, texto: todavia });
     } else {
-      p.push(`Lo que NO haría todavía: repartir la semana en varios frentes. Con una sola cifra medida por delante, abrir tres conversaciones a la vez es quedarse sin ninguna cerrada.`);
+      const todavia = `Lo que NO haría todavía: repartir la semana en varios frentes. Con una sola cifra medida por delante, abrir tres conversaciones a la vez es quedarse sin ninguna cerrada.`;
+      p.push(todavia);
+      D.lectura({ texto: todavia, sello: "criterio mío" });
     }
     p.push(variante(semilla, [
       `¿Te preparo el detalle de ${entrada} para esa conversación?`,
