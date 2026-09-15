@@ -398,8 +398,16 @@ export function rolesCartera(_args = {}, ctx = {}) {
   const _hMk = A.huellas.find((h) => h.mecanismo === "precio de lista pegado al costo");
   if (_hMk && _hMk.markupCaen !== null && _hMk.markupSanos !== null) {
     for (const f of (_hMk.sanos || [])) boleta.push(fig(`${f.entidad} · Markup sobre costo`, `${f.markup}%`, { unit: "pct", raw: f.markup, mandatory: false, source: "computed", formula: "(precio de lista − costo medio) ÷ costo medio × 100", context: `${_ctx} · cliente sano: el precio contra lo que cuesta` }));
-    boleta.push(fig("Markup promedio · los que caen", `${_hMk.markupCaen}%`, { unit: "pct", raw: _hMk.markupCaen, mandatory: false, source: "computed", formula: "promedio simple del markup de los clientes bajo el benchmark", context: `${_ctx} · el lado de los que caen en la huella del precio` }));
-    boleta.push(fig("Markup promedio · sanos", `${_hMk.markupSanos}%`, { unit: "pct", raw: _hMk.markupSanos, mandatory: false, source: "computed", formula: "promedio simple del markup de los clientes sobre el benchmark", context: `${_ctx} · el lado de los sanos en la huella del precio` }));
+    /* LA CONVENCIÓN DE LA CASA PARA LOS AGREGADOS (owner 2026-09-14, auditoría del Notario): QUIEN PUBLICA UN AGREGADO DE UN
+     * CONJUNTO CONOCIDO DECLARA EL CONJUNTO — `grupo: { n, entidades }`, agregado después de `fig()` (boleta.js no lo conoce).
+     * Medido en cinco de los doce borradores reales: «ese mismo grupo tiene markup promedio 41.4%» (el grupo eran cuatro; el
+     * 41.4% es de los ocho bajo el benchmark), «el precio de lista de estos cuatro… (markup 41.4% contra 57.3%)», «57.3% en
+     * Easy, La Polar, Hites» (son cinco sanos). Sin el grupo en la fig, el muro no podía saber de quién era el promedio.
+     * Con él, `cifra-de-grupo-mal-repartida` cobra la lista corta, el conteo distinto y el pronombre que remite a otra lista.
+     * Los conteos (unit «count») NO llevan grupo: `parseFigures` no lee enteros sueltos, así que nada los ataría al texto. */
+    const _grupoDe = (lista) => ({ n: lista.length, entidades: lista.map((f) => f.entidad) });
+    boleta.push({ ...fig("Markup promedio · los que caen", `${_hMk.markupCaen}%`, { unit: "pct", raw: _hMk.markupCaen, mandatory: false, source: "computed", formula: "promedio simple del markup de los clientes bajo el benchmark", context: `${_ctx} · el lado de los que caen en la huella del precio · la cifra es del GRUPO de ${(_hMk.caen || []).length} bajo el benchmark (${(_hMk.caen || []).map((f) => f.entidad).join(", ")}): se narra como «los que caen» o con los ${(_hMk.caen || []).length} completos, nunca con una lista más corta` }), ...((_hMk.caen || []).length >= 2 ? { grupo: _grupoDe(_hMk.caen) } : {}) });
+    boleta.push({ ...fig("Markup promedio · sanos", `${_hMk.markupSanos}%`, { unit: "pct", raw: _hMk.markupSanos, mandatory: false, source: "computed", formula: "promedio simple del markup de los clientes sobre el benchmark", context: `${_ctx} · el lado de los sanos en la huella del precio · la cifra es del GRUPO de ${(_hMk.sanos || []).length} sanos (${(_hMk.sanos || []).map((f) => f.entidad).join(", ")}): se narra como «los sanos» o con los ${(_hMk.sanos || []).length} completos, nunca con una lista más corta` }), ...((_hMk.sanos || []).length >= 2 ? { grupo: _grupoDe(_hMk.sanos) } : {}) });
   }
   return {
     facts: {
