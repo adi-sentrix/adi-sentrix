@@ -239,10 +239,19 @@ function _construir(scenario) {
    * el tercer argumento de F() lo pisa cuando una línea mezcla varas de los dos (la de la referencia). */
   let _uni = "negocio";
   // F(valor, duenos[, universo]) → registra la autorización y devuelve el valor para interpolarlo en el texto.
-  const F = (value, duenos, uni) => {
+  const F = (value, duenos, uni, concepto = null) => {
     const universo = uni || _uni;
-    for (const pf of parseFigures(String(value))) figs.push({ canon: pf.canon, value: String(value), duenos, universo });
+    for (const pf of parseFigures(String(value))) figs.push({ canon: pf.canon, value: String(value), duenos, universo, ...(concepto ? { concepto } : {}) });
     return value;
+  };
+  /* ── LAS UNIDADES, CON DUEÑO Y CONCEPTO (owner 2026-09-14, atribución y significado) ─────────────────────────────────────
+   * parseFigures no ve enteros sin unidad, así que F() nunca registró «1.194 unidades» ni «140 unidades en stock», y sin salesRead en
+   * el turno «Falabella tiene 1.042 unidades en stock» (son sus VENDIDAS) no tenía con qué juzgarse. U() registra el conteo con el
+   * mismo canon que la boleta («count:1194»), su dueño y el concepto (unidades_vendidas · unidades_stock) — SIN tocar el texto de la
+   * proyección ni los conteos declarados (`counts`): solo alimenta el dueño y el significado en el muro. Nunca un cero. */
+  const U = (n, duenos, uni, concepto) => {
+    const v = Number(n);
+    if (Number.isFinite(v) && v > 0) figs.push({ canon: `count:${Math.round(v)}`, value: String(Math.round(v)), duenos, universo: uni, concepto });
   };
   const NEG = ["negocio", "total", "cartera", "global"];            // dueños de un agregado del negocio
   const REF = ["benchmark", "referencia", "piso"];                  // dueños de la vara declarada
@@ -352,8 +361,20 @@ function _construir(scenario) {
       _hay(c.anterior) ? `año anterior ${F(_moneyK(c.anterior), D)}` : "sin período anterior",
       _hay(c.presupuesto) ? `presupuesto ${F(_moneyK(c.presupuesto), D)}` : etiquetaSinDeclarar("presupuesto"),
     ].join(" · ");
-    let linea = `- ${c.nombre} — ${_L.ventas} ${F(_moneyK(c.actual), D)} (${_cCola}) · ${c.unidades} unidades · canal ${c.canal} · marca ${c.marca} · familia ${c.sfamilia}`;
-    if (m) linea += ` · ${_L.margen} ${F(_pct1(m.margen), D)} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D)} · ${_L.costo} ${F(_moneyK(m.costo), D)} · ${_L.carga} ${F(_pct1(m.pctRebate), D)} (${_L.acciones.toLowerCase()} ${F(_moneyK(m.rebates), D)})`;
+    U(c.unidades, D, "unidades", "unidades_vendidas");
+    let linea = `- ${c.nombre} — ${_L.ventas} ${F(_moneyK(c.actual), D, undefined, "ventas")} (${_cCola}) · ${c.unidades} unidades · canal ${c.canal} · marca ${c.marca} · familia ${c.sfamilia}`;
+    /* ── LA VARIACIÓN DE CADA CUENTA, CON SU SIGNO (owner 2026-09-14, atribución y significado) ─────────────────────────────
+     * La venta actual y la del año anterior ya viajan por cuenta; la VARIACIÓN entre ambas (la que publica salesRead como «X · YoY»
+     * y «X · Variación vs año anterior») no, y sin salesRead en el turno «Ripley cae en venta (-8.2%)» —verdad— ardía como cifra
+     * no autorizada y «Ripley suma $422K más que el año pasado» —falsa— pasaba sin signo que verificar. Se registra con el
+     * concepto «variacion» para que el muro la lea como movimiento (dirección y signo), SIN tocar el texto de la proyección. La
+     * cuenta es la misma de salesRead (actual − anterior, y su razón): dos cifras publicadas y su diferencia, nunca un tercer dato. */
+    if (_hay(c.anterior) && Number.isFinite(c.actual)) {
+      const dif = c.actual - c.anterior, pct = (dif / c.anterior) * 100;
+      F(`${dif < 0 ? "-" : "+"}${_moneyK(Math.abs(dif))}`, D, "venta", "variacion");
+      F(`${pct < 0 ? "-" : "+"}${_pct1(Math.abs(pct))}`, D, "venta", "variacion");
+    }
+    if (m) linea += ` · ${_L.margen} ${F(_pct1(m.margen), D, undefined, "margen")} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D, undefined, "contribucion")} · ${_L.costo} ${F(_moneyK(m.costo), D, undefined, "costo")} · ${_L.carga} ${F(_pct1(m.pctRebate), D, undefined, "carga")} (${_L.acciones.toLowerCase()} ${F(_moneyK(m.rebates), D, undefined, "carga")})`;
     if (Number.isFinite(c.actual)) rankings.cliente.ventas.filas.push({ entidad: c.nombre, valor: c.actual });
     if (Number.isFinite(+c.unidades)) rankings.cliente.unidades.filas.push({ entidad: c.nombre, valor: +c.unidades });
     if (m) {
@@ -397,29 +418,43 @@ function _construir(scenario) {
       if (Number.isFinite(fc.recuperadoPct)) rankings.cliente.recuperado.filas.push({ entidad: fc.nombre, valor: fc.recuperadoPct });
       if (Number.isFinite(fc.diasVencido)) rankings.cliente.dias_vencido.filas.push({ entidad: fc.nombre, valor: fc.diasVencido });
       if (Number.isFinite(fc.saldoK)) rankings.cliente.saldo_pendiente.filas.push({ entidad: fc.nombre, valor: fc.saldoK });
+      /* ── Y CADA CIFRA DE COBRANZA CON SU DUEÑO (owner 2026-09-14, atribución y significado) ──────────────────────────────
+       * La herramienta `cobranza` recorta 8 filas; la mesa tiene 13. «Falabella, Tottus y Paris tienen 8 días de atraso» es
+       * verdad y el muro no podía saberlo: solo Falabella viajaba con sus días. Se registran las cifras YA FORMATEADAS por la
+       * mesa (una sola verdad, cero recálculo) con su dueño y el universo «cobranza» — SIN tocar el texto de la proyección
+       * (F() registra; el valor devuelto no se interpola). El vencido y los días nulos (sin plazo) no entran: nunca un cero. */
+      if (fc.ventaFmt) F(fc.ventaFmt, [fc.nombre], "cobranza", "ventas");
+      if (fc.abonadoFmt) F(fc.abonadoFmt, [fc.nombre], "cobranza", "abonado");
+      if (fc.saldoFmt) F(fc.saldoFmt, [fc.nombre], "cobranza", "pendiente");
+      if (fc.vencidoFmt) F(fc.vencidoFmt, [fc.nombre], "cobranza", "vencido");
+      if (fc.recuperadoFmt) F(fc.recuperadoFmt, [fc.nombre], "cobranza", "recuperado");
+      if (fc.diasVencidoFmt && fc.diasVencidoFmt !== "—") F(fc.diasVencidoFmt, [fc.nombre], "cobranza", "diasvencido");
     }
   }
   counts.add(f.marcasMargen.length);
   L.push(`MARCAS (${f.marcasMargen.length}):`);
   for (const m of f.marcasMargen) {
     const D = [m.nombre];
+    U(m.unidades, D, "unidades", "unidades_vendidas");
     if (Number.isFinite(m.venta)) rankings.marca.ventas.filas.push({ entidad: m.nombre, valor: m.venta });
     if (Number.isFinite(m.margen)) rankings.marca.margen.filas.push({ entidad: m.nombre, valor: m.margen });
     if (Number.isFinite(m.contribucion)) rankings.marca.contribucion.filas.push({ entidad: m.nombre, valor: m.contribucion });
     if (Number.isFinite(m.pctRebate)) rankings.marca.carga.filas.push({ entidad: m.nombre, valor: m.pctRebate });
-    L.push(`- ${m.nombre} — ${_L.ventas} ${F(_moneyK(m.venta), D)} · ${_L.margen} ${F(_pct1(m.margen), D)} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D)} · ${_L.costo} ${F(_moneyK(m.costo), D)} · ${_L.carga} ${F(_pct1(m.pctRebate), D)} · ${m.unidades} unidades · familia ${m.sfamilia}.`);
+    L.push(`- ${m.nombre} — ${_L.ventas} ${F(_moneyK(m.venta), D, undefined, "ventas")} · ${_L.margen} ${F(_pct1(m.margen), D, undefined, "margen")} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D, undefined, "contribucion")} · ${_L.costo} ${F(_moneyK(m.costo), D, undefined, "costo")} · ${_L.carga} ${F(_pct1(m.pctRebate), D, undefined, "carga")} · ${m.unidades} unidades · familia ${m.sfamilia}.`);
   }
   counts.add(f.sfamiliasMargen.length);
   L.push(`FAMILIAS (${f.sfamiliasMargen.length}):`);
   for (const s of f.sfamiliasMargen) {
     const D = [s.nombre];
-    L.push(`- ${s.nombre} — ${_L.ventas} ${F(_moneyK(s.venta), D)} · ${_L.margen} ${F(_pct1(s.margen), D)} · ${_L.contribucion} ${F(_moneyK(s.contribucion), D)} · ${_L.carga} ${F(_pct1(s.pctRebate), D)} · ${s.unidades} unidades.`);
+    U(s.unidades, D, "unidades", "unidades_vendidas");
+    L.push(`- ${s.nombre} — ${_L.ventas} ${F(_moneyK(s.venta), D, undefined, "ventas")} · ${_L.margen} ${F(_pct1(s.margen), D, undefined, "margen")} · ${_L.contribucion} ${F(_moneyK(s.contribucion), D, undefined, "contribucion")} · ${_L.carga} ${F(_pct1(s.pctRebate), D, undefined, "carga")} · ${s.unidades} unidades.`);
   }
   counts.add(f.skusMargen.length);
   L.push(`SKU COMERCIALES (${f.skusMargen.length} · venta del año cerrado — NO confundir con la foto de inventario de abajo):`);
   for (const s of f.skusMargen) {
     const D = [s.nombre];
-    L.push(`- ${s.nombre} — ${_L.ventas} ${F(_moneyK(s.venta), D)} · ${_L.margen} ${F(_pct1(s.margen), D)} · ${_L.contribucion} ${F(_moneyK(s.contribucion), D)} · ${_L.costo} ${F(_moneyK(s.costo), D)} · ${_L.carga} ${F(_pct1(s.pctRebate), D)} · ${s.unidades} unidades · costo medio ${F(_money(s.costoMedio), D)} por unidad · precio de lista ${F(_money(s.precioLista), D)} por unidad · marca ${s.marca} · familia ${s.sfamilia}.`);
+    U(s.unidades, D, "unidades", "unidades_vendidas");
+    L.push(`- ${s.nombre} — ${_L.ventas} ${F(_moneyK(s.venta), D, undefined, "ventas")} · ${_L.margen} ${F(_pct1(s.margen), D, undefined, "margen")} · ${_L.contribucion} ${F(_moneyK(s.contribucion), D, undefined, "contribucion")} · ${_L.costo} ${F(_moneyK(s.costo), D, undefined, "costo")} · ${_L.carga} ${F(_pct1(s.pctRebate), D, undefined, "carga")} · ${s.unidades} unidades · costo medio ${F(_money(s.costoMedio), D)} por unidad · precio de lista ${F(_money(s.precioLista), D)} por unidad · marca ${s.marca} · familia ${s.sfamilia}.`);
   }
   L.push("");
 
@@ -431,6 +466,7 @@ function _construir(scenario) {
   L.push(`UNIVERSO «${UNIVERSOS.inventario.etiqueta.toUpperCase()}» (foto de hoy · ${f.skuInventario.length} SKU en ${bodegas.length} bodegas: ${bodegas.join(", ")}):`);
   for (const s of f.skuInventario) {
     const D = [s.sku, s.bodega];
+    U(s.stockUnd, [s.sku], "unidades", "unidades_stock");   // las unidades en stock son del SKU (la bodega las contiene, no las posee)
     // el MISMO predicado del detector de capital (specRetrieval:577 · POLICY, una verdad): frenado = rotación
     // bajo el piso o días sobre el techo — la clasificación se DECLARA como objeto para que el notario la verifique.
     if ((typeof s.rotacion === "number" && s.rotacion < rotMin) || (typeof s.doh === "number" && s.doh > dohMax)) {
@@ -450,7 +486,7 @@ function _construir(scenario) {
     // `estado ${F(s.estado, D)}`: el estado crudo («90d», «120d») ES texto de la carpeta — si el narrador lo cita
     // fiel («estado 90d»), la cita tiene que estar registrada con su dueño (medido en la matriz: FP de P2). F()
     // devuelve el valor intacto: el TEXTO de la proyección no cambia un byte.
-    L.push(`- ${s.sku} (bodega ${s.bodega}) — ${_L.capital} ${F(_money(s.stockUSD), D)} · ${s.stockUnd} unidades en stock · ${_L.rotacion} ${F(_ratio(s.rotacion), D)} · Días de inventario ${F(_dias(s.doh), D)} · ${s.diasSinVenta > 0 ? `${F(_dias(s.diasSinVenta), D)} sin venta` : "con venta al día"} · vendido en el mes ${s.vendidoMes} unidades · margen de inventario ${F(_pct1(s.margenPct), D)} · estado ${F(s.estado, D)} · marca ${s.marca} · familia ${s.sfamilia}.`);
+    L.push(`- ${s.sku} (bodega ${s.bodega}) — ${_L.capital} ${F(_money(s.stockUSD), D, undefined, "capital")} · ${s.stockUnd} unidades en stock · ${_L.rotacion} ${F(_ratio(s.rotacion), D, undefined, "rotacion")} · Días de inventario ${F(_dias(s.doh), D, undefined, "cobertura")} · ${s.diasSinVenta > 0 ? `${F(_dias(s.diasSinVenta), D, undefined, "sinventa")} sin venta` : "con venta al día"} · vendido en el mes ${s.vendidoMes} unidades · margen de inventario ${F(_pct1(s.margenPct), D, undefined, "margen")} · estado ${F(s.estado, D)} · marca ${s.marca} · familia ${s.sfamilia}.`);
   }
   L.push("");
 

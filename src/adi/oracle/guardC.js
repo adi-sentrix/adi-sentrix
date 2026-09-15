@@ -23,7 +23,7 @@ import { rangoContextoGeneral, extraerCalculos } from "./narrationBlocks.js";
  * decidir «de quién es esta cifra / quién reclama este extremo» por cercanía (±90 caracteres, el nombre más cercano) en vez
  * de por estructura (cláusula, paréntesis, dos puntos, coordinación, negación). Todos los chequeos de atribución de este
  * muro leen la estructura de UN solo lector; acá no se adivina el sujeto dos veces. */
-import { leerClausula, entidadesConPosicion as _entidadesConPosicion, coordinadasContiguas as _coordinadasContiguas, compilarNombres, SEP_COORD as _SEP_COORD, normalizar as _normalizar, listasCoordinadas, esComparada } from "./lectorDeClausula.js";
+import { leerClausula, entidadesConPosicion as _entidadesConPosicion, coordinadasContiguas as _coordinadasContiguas, compilarNombres, SEP_COORD_CIFRAS as _SEP_COORD, normalizar as _normalizar, listasCoordinadas, esComparada } from "./lectorDeClausula.js";
 
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const _stripSpace = (s) => String(s).replace(/\s/g, "");
@@ -169,9 +169,19 @@ function _entityNames(results) {
 // CLAVE = canon (unit:valor normalizado), NO el string crudo: el mismo valor puede llegar narrado en prosa distinta
 // a como lo guardó el ledger (ej. unit "days" → ledger "94d" vs narración "94 días") — canon ya normaliza ambos al
 // mismo formateador (_fmtC), es la MISMA técnica que usa el chequeo 1 (cifra-no-autorizada) para no fallar por forma.
-function _valueOwners(ledger, entityNames) {
+function _valueOwners(ledger, entityNames, datoProyectado = null) {
   const entNorm = new Map(entityNames.map((n) => [_norm(n), n]));
   const owners = new Map();   // canon → Set(entidadDisplay)
+  /* la cifra que la boleta publica SIN entidad (un subtotal, un total del turno) es la que se cita: la proyección no le pone dueño por
+   * coincidir en valor con otra cuenta («…y Paris son las 5 cuentas materiales, y entre ellas explican $4.9M» — el subtotal, no la venta de
+   * Tottus). Con entidad en la boleta, la proyección suma dueños como siempre («PHI-SHAVER9 ($3.4M)» junto a «Easy · Venta = $3.4M») */
+  const _sinEntidadEnBoleta = new Set((ledger.figs || []).filter((f) => f && f.canon && !String(f.label || "").split("·").some((seg) => entNorm.has(_norm(seg.trim())))).map((f) => f.canon));
+  if (datoProyectado && Array.isArray(datoProyectado.figs)) {   // la proyección también sabe de quién es (owner 2026-09-14) — salvo sobre lo que la boleta publica sin entidad
+    for (const df of datoProyectado.figs) {
+      if (!df || !df.canon || _sinEntidadEnBoleta.has(df.canon)) continue;
+      for (const d of (df.duenos || [])) { const disp = entNorm.get(_norm(d)); if (!disp) continue; if (!owners.has(df.canon)) owners.set(df.canon, new Set()); owners.get(df.canon).add(disp); }
+    }
+  }
   for (const f of (ledger.figs || [])) {
     // la entidad puede estar en CUALQUIER segmento del label (retrieval/dive: "Falabella · Margen" ·
     // diagnose: "Contribución no capturada · Falabella") → escaneamos todos los segmentos.
@@ -186,34 +196,36 @@ function _valueOwners(ledger, entityNames) {
   return owners;
 }
 // una cifra escrita PEGADA a una entidad E, cuyo value pertenece SOLO a otras entidades (no a E) → atribución falsa.
-function _attributionViolations(narration, ledger, entityNames) {
-  const owners = _valueOwners(ledger, entityNames);
+function _attributionViolations(narration, ledger, entityNames, datoProyectado = null) {
+  const owners = _valueOwners(ledger, entityNames, datoProyectado);
   if (!owners.size || !entityNames.length) return [];
   const text = String(narration || "");
   const viol = [];
   const figs = parseFigures(text);
-  // posición de cada mención de entidad
-  const ents = entityNames.map((n) => ({ n, re: new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "gi") }));
+  // posición de cada mención de entidad — sobre el texto NORMALIZADO (misma longitud, sin acentos): «Líder» es «Lider» (owner 2026-09-14)
+  const textN = _normalizar(text);
+  const ents = entityNames.map((n) => ({ n, re: new RegExp(`\\b${_norm(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "g") }));
   const WIN = 60;
   for (const f of figs) {
     const ownerSet = owners.get(f.canon) || null;
     if (!ownerSet || ownerSet.size === 0) continue;         // value sin dueño-entidad → no aplica atribución
     const idx = text.indexOf(f.text);
     if (idx < 0) continue;
+    if (_COTA_ANTES.test(_normalizar(text.slice(Math.max(0, idx - 40), idx)))) continue;   // «cuatro los que están por debajo de 25%»: un umbral, no la cifra de nadie (owner 2026-09-14)
     // entidades DISTINTAS dentro de la ventana de la cifra (acotada a la MISMA oración — ver _localWindow). Si hay
     // MÁS de una → es una enumeración pareada ("Falabella y Lider, con $1.8M y $1.7M") → ambiguo y la cifra está
     // autorizada → NO marcamos (evita el falso positivo del "respectivamente"). Solo marcamos el caso NÍTIDO: una
     // única entidad cerca, y no es la dueña.
     const [lo, hi] = _localWindow(text, idx, WIN);
     const near = new Set();
-    for (const e of ents) { e.re.lastIndex = 0; let mm; while ((mm = e.re.exec(text))) if (mm.index >= lo && mm.index <= hi) near.add(e.n); }
+    for (const e of ents) { e.re.lastIndex = 0; let mm; while ((mm = e.re.exec(textN))) if (mm.index >= lo && mm.index <= hi) near.add(e.n); }
     if (near.size === 1) {
       const only = [...near][0];
       if (!ownerSet.has(only)) {
         // ¿el dueño verdadero aparece EN CUALQUIER PARTE de la narración? entonces es contexto/yuxtaposición (párrafo
         // largo, comparación, lista), no una mala atribución → NO marcar. Solo marcamos el caso NÍTIDO: la cifra pegada
         // a UNA entidad equivocada Y el dueño verdadero NO aparece en toda la respuesta (ej. "Ripley aporta $4.3M" de Falabella).
-        const ownerAnywhere = [...ownerSet].some((ow) => { const e = ents.find((x) => x.n === ow); if (!e) return false; e.re.lastIndex = 0; return e.re.test(text); });
+        const ownerAnywhere = [...ownerSet].some((ow) => { const e = ents.find((x) => x.n === ow); if (!e) return false; e.re.lastIndex = 0; return e.re.test(textN); });
         if (!ownerAnywhere) viol.push(`«${f.text}» atribuido a ${only}, pero pertenece a ${[...ownerSet].join("/")}`);
       }
     }
@@ -261,9 +273,41 @@ const _METRIC_VOCAB = [
    * la venta — con la cifra ya juzgable (2026-09-12), «rota 1.0x y acumula 94d sin venta» salía «narrado como ventas» */
   { clave: "ventas",       re: /(?<!\bsin\s)\bventas?\b|\bvend[eióa][\wáéíóúñ]*(?![\wáéíóúñ])|\bfactur[\wáéíóúñ]+(?![\wáéíóúñ])/i },
   { clave: "sinventa",     re: /\bd[ií]as\s+sin\s+venta\b|(?<=\dd)\s+sin\s+venta\b|\bsin\s+venta\b/i },
-  { clave: "margen",       re: /\bm[aá]rgen(?:es)?\b/i },
+  /* «margina 21.5%» es el verbo del margen en la prosa del modelo (conjunto adversarial 2026-09-14) */
+  { clave: "margen",       re: /\bm[aá]rgen(?:es)?\b|\bmargin(?:a|an|[oó])(?![\wáéíóúñ])/i },
+  /* ── EL VOCABULARIO DE COBRANZA (owner 2026-09-14, atribución y significado) ──────────────────────────────────
+   * MEDIDO en el conjunto adversarial (84 frases falsas de «significado» sin veto): la herramienta `cobranza` publica
+   * «Saldo vencido», «Saldo pendiente», «Abonado», «Recuperado» y «Dias Vencido» por cliente, y ninguno de esos rótulos
+   * caía en vocabulario alguno — la cifra quedaba sin métrica dueña y el binding no la juzgaba: «Lider vendió $4.6M»
+   * (su vencido), «Lider tiene un margen de 45%» (su recuperado), «Lider tiene 269 días de inventario» (su atraso) y
+   * «Falabella tiene $19.4M vencidos» (su venta) pasaban el muro entero. Cinco claves, con la fuente de verdad en los
+   * rótulos de la boleta de `cobranza` y las formas verbales del modelo (debe, cobró, pagó, por cobrar, en mora).
+   * «días de atraso / de mora / vencido» es SU propia métrica: dentro de la ventana de la narración, la mención larga
+   * se lleva a la corta (ver _mencionesConSpan), así «269 días de atraso» no lee «vencido» como el saldo. */
+  /* «sin vencido», «sin saldo vencido» niegan el estado, no describen la cifra de al lado («Jumbo · saldo $5.1M · sin vencido» es del
+   * ensamblador); «saldo» a secas es el pendiente (el mismo término de los rankings de la proyección) */
+  { clave: "vencido",      re: /(?<!\bsin\s)(?<!\bsin\s(?:saldo|monto)\s)\bvencid[oa]s?\b|\ben\s+mora\b|(?<!\bsin\s)\bmora\b|\bmoros[oa]s?\b|\bimpag[oa]s?\b/i },
+  { clave: "pendiente",    re: /\bsaldo\s+pendiente\b|\bsaldos?\b(?!\s+vencid)|\bpendientes?\b|\bpor\s+cobrar\b|\bpor\s+pagar\b|\bdeudas?\b|(?<!\bse\s)\bdeben?\b|\badeud[\wáéíóúñ]+(?![\wáéíóúñ])|(?<=[\dKMB%]\s{0,3})en\s+cobranza\b/i },
+  { clave: "abonado",      re: /\babonad[oa]s?\b|\babonos?\b|\babon[oó](?![\wáéíóúñ])|\bcobrad[oa]s?\b|\bcobró(?![\wáéíóúñ])|\bcobran?(?![\wáéíóúñ])|\bpagad[oa]s?\b|\bpag[oó](?![\wáéíóúñ])|\bpagan?(?![\wáéíóúñ])/i },
+  /* el CAPITAL FRENADO es un estado del capital, no el capital: un rótulo con «frenado» exige que la prosa lo diga (ver _metricOwners,
+   * `requiere`) — «El capital en inventario del negocio es $33K» (los $33K son el frenado; el total es $135K) pasaba con «capital» */
+  { clave: "frenado",      re: /\bcapital\s+(?:frenado|detenido|inmovilizado|parado|bloqueado|estancado)\b|\bfrenad[oa]s?\b|\bdetenid[oa]s?\b|\binmovilizad[oa]s?\b|\bbloquead[oa]s?\b|\bestancad[oa]s?\b/i },
+  /* «la de peor recuperación (35%)» es la cobranza; «Toma $210K como recuperación estimada», «permite recuperar $194K» son la mejora de
+   * contribución de la prosa comercial (certificación congelada E1.t4, caso de aceptación de Falabella): el sustantivo se separa por la UNIDAD
+   * de la cifra en el binding (ver _metricBindingViolations) — en % es la cobranza, en dinero es el idioma comercial. */
+  { clave: "recuperado",   re: /\brecuperad[oa]s?\b|\brecuperaci[oó]n\b|\brecupera(?:n|s)?\b|\brecuper[oó](?![\wáéíóúñ])|\brecuperaron\b/i },   // «Lider recuperó $4.6M» (su vencido): el pretérito también es la recuperación (owner 2026-09-14)
+  { clave: "diasvencido",  re: /\bd[ií]as\s+(?:de\s+)?(?:atraso|mora|retraso|vencid[oa]s?)\b|\bd[ií]as\s+vencid[oa]s?\b|\batrasos?\b|\bretrasos?\b|(?<=\dd)\s+(?:de\s+)?(?:atraso|mora|vencid[oa]s?)\b/i },
+  /* la BRECHA es su propia métrica: «Brecha al benchmark» (pp), «Contribución no capturada» y «Brecha por precio y costo»
+   * ($) la nombran en el rótulo; «8.6 pp de brecha», «queda 8.6 pp bajo el benchmark» en la prosa. «No capturada» / «sin capturar»
+   * NO son una mención de brecha por sí solas: «Contribución no capturada» sigue siendo la contribución (con las dos claves, el
+   * subtotal de $4.9M colisionaba con «Medida · cerrar brecha al piso» y el alcance promovido dejaba de juzgarse).
+   * Sin la clave, «El negocio crece 5.0 pp contra el año anterior» (la brecha del negocio narrada como variación) y
+   * «Falabella creció 8.1 pp este año» pasaban: la cifra no tenía métrica dueña. */
+  { clave: "brecha",       re: /\b(?:brechas?|gaps?)(?:\s+(?:al\s+benchmark|a\s+la\s+referencia))?(?:\s+de\s+(?:margen|contribuci[oó]n(?:\s+(?:no\s+capturada|sin\s+capturar))?))?(?![\wáéíóúñ])|\bdistancia\s+(?:al|a la|del)\s+(?:benchmark|referencia)(?:\s+de\s+margen)?\b|(?<=\bpp\s{0,2})(?:bajo|sobre|por debajo del|por encima del)\s*(?:el|la)?\s*(?:benchmark|referencia)\b|\blejos\s+(?:[a-záéíóúñ]+\s+){0,2}del\s+(?:benchmark|referencia)\b/i },
   { clave: "markup",       re: /\bmark-?up\b/i },   // «Markup sobre costo»: el precio contra lo que cuesta — NO es el margen (owner 2026-09-13: métricas comparables)
-  { clave: "contribucion", re: /\bcontribuci[oó]n\b|\bcontribuy\w+\b/i },
+  /* «contribución NO CAPTURADA» / «SIN CAPTURAR» es el término entero del rótulo de la boleta: la mención llega hasta ahí, así «La contribución no
+   * capturada de Lider es $4.6M» (su vencido) queda a la distancia de una mención pegada y se juzga (owner 2026-09-14, atribución y significado) */
+  { clave: "contribucion", re: /\bcontribuci[oó]n(?:\s+(?:no\s+capturada|sin\s+capturar))?\b|\bcontribuy\w+\b/i },
   { clave: "costo",        re: /\bcostos?\b/i },
   /* «carga de solo 1.8%» (prueba 1, tercera corrida viva · 2026-09-14): «carga» a secas es la carga comercial en este producto (no
    * hay otra) — sin la palabra, 1.8% se leía como variación por el «crece» de antes: falso positivo sobre un texto correcto.
@@ -271,7 +315,9 @@ const _METRIC_VOCAB = [
   { clave: "carga",        re: /\bcarga comercial\b|\bcarga\b|\bacciones comerciales\b|\brebates?\b|\bdescuentos?\b/i },
   /* «165d de inventario» es COBERTURA, no capital: el «d» de días pegado a la cifra cuenta como «días» (cazado al cerrar «cifra +
    * dueño + significado», 2026-09-12 — con la cifra ya juzgable, «inventario» se leía como capital y el piso del inventario ardía) */
-  { clave: "capital",      re: /\bcapital\b|(?<!d[ií]as\s{1,3}(?:de\s{1,3})?|\dd\s{1,3}(?:de\s{1,3})?)\binventario\b|\bstocks?\b/i },
+  /* «Lider inmoviliza $4.6M» (su VENCIDO narrado como capital, conjunto adversarial 2026-09-14): «inmovilizar» es el verbo del
+   * capital en inventario en la prosa de la casa («inmovilizado», no «detenido» — CLAUDE.md §4) */
+  { clave: "capital",      re: /\bcapital\b|(?<!d[ií]as\s{1,3}(?:de\s{1,3})?|\dd\s{1,3}(?:de\s{1,3})?)\binventario\b|\bstocks?\b|\binmoviliz[a-záéíóúñ]+\b/i },
   { clave: "rotacion",     re: /\brotaci[oó]n\b/i },
   { clave: "cobertura",    re: /\bcobertura\b|\bDOH\b|\bd[ií]as\s+(?:de\s+)?inventario\b|\bd[ií]as\s+inv\b|(?<=\dd)\s+(?:de\s+)?inventario\b/i },
   /* ── LA FIG SIN DUEÑO TAMBIÉN TIENE SIGNIFICADO (owner 2026-09-14, fronteras del Notario) ───────────────────────
@@ -284,6 +330,15 @@ const _METRIC_VOCAB = [
    * y «la carga es 5.4%» o «el margen es 5.4%» arden. Solo el giro «efecto volumen», NUNCA «volumen» a secas: en la prosa
    * de la casa «el 17.9% del volumen de la cartera» es una participación en dinero, y la palabra suelta la vetaría. Los
    * conceptos SIN vocabulario (umbral, headline, «precio realizado» a secas) siguen sin juzgarse, como siempre. */
+  /* ── UNIDADES VENDIDAS vs UNIDADES EN STOCK (owner 2026-09-14, atribución y significado) ─────────────────────────────────
+   * La boleta publica «Jumbo · Unidades vendidas = 1194» (venta del año) y «PHI-SHAVER9 · Unidades en stock = 140» (la foto del
+   * inventario): dos universos que no reconcilian (CLAUDE.md §4). Con una sola clave «unidades», «Jumbo vendió 140 unidades» (son
+   * las del stock de PHI-SHAVER9) y «Falabella tiene 1.042 unidades en stock» (son sus vendidas) pasaban. Dos claves largas, con la
+   * cifra ADENTRO del span («vendió 140 unidades», «1.042 unidades en stock»): la larga se lleva a la corta (ver _mencionesConSpan) y la
+   * mención no arranca en un conteo pelado que la tome. El rótulo «Unidades vendidas» autoriza las dos primeras; «Unidades en stock», la
+   * tercera. Las cifras de unidades las lee _parseUnidades (parseFigures no ve enteros sin unidad). */
+  { clave: "unidades_vendidas", re: /\b(?:vend[a-záéíóúñ]*|coloc[a-záéíóúñ]*|despach[a-záéíóúñ]*|factur[a-záéíóúñ]*)\s+(?:\d[\d.,]*\s+)?unidades\b|(?:\d[\d.,]*\s+)?unidades\s+(?:vendidas|colocadas|despachadas|facturadas|de\s+venta)\b/i },
+  { clave: "unidades_stock",    re: /(?:\d[\d.,]*\s+)?unidades\s+(?:en\s+)?(?:stock|inventario|bodega|existencia)\b|\b(?:stock|inventario|existencia)\s+de\s+\d[\d.,]*\s+unidades\b|\b(?:almacen|guard|inmoviliz|reten)[a-záéíóúñ]*\s+(?:\d[\d.,]*\s+)?unidades\b/i },
   { clave: "unidades",     re: /\bunidades\b|\befecto\s+volumen\b/i },
   { clave: "ticket",       re: /\bticket\b/i },
   /* ── EL SIGNIFICADO DE LA CIFRA (ley del owner 2026-09-12: «la verdad no es solo cifra + dueño; también es cifra +
@@ -299,10 +354,23 @@ const _METRIC_VOCAB = [
    * participación — calibrado contra los pisos determinísticos: con los verbos, 18 gates en rojo */
   /* ⚠️ la frase arranca DESPUÉS del «%» (lookbehind), no en él: si la mención empezara dentro de la cifra («17.9% de la
    * venta»), no quedaría pegada a ella y no la tomaría — y el $ de al lado salía «narrado como participación» */
-  { clave: "participacion", re: /\bparticipaci[oó]n\b|(?<=%)\s*del\s+total\b|\bdel\s+total\b|(?<=%)\s*de\s+(?:la\s+|las\s+|el\s+|los\s+|tu\s+|su\s+|mi\s+|nuestra\s+)?(?:venta|ventas|cartera|contribuci[oó]n|facturaci[oó]n)\b|\bpeso\s+(?:en|sobre|de)\s+(?:la\s+|el\s+)?(?:venta|ventas|cartera|total|contribuci[oó]n)\b|\bcuota\b|\bshare\b/i },
+  /* «el 75% DEL CAPITAL FRENADO», «el 7% del capital en inventario», «el 45% del saldo vencido» son PARTICIPACIONES (conjunto
+   * adversarial 2026-09-14, fp-listas P6 y fp-prosa 8: 30+ frases correctas vetadas «narrado como capital»): «% del X» y
+   * «% de la/el X» dicen la parte de una base, y la base no es la métrica de la cifra. La mención de la base queda DENTRO
+   * de esta (ver _mencionesConSpan: la larga se lleva a la corta), así «capital» no compite. Solo con el «%» pegado delante:
+   * «la carga de la cartera» sin cifra no es participación. */
+  /* …y el PARTITIVO DELANTE («Del capital frenado, el 75% está en Valparaíso», «De la venta, el 73.8% está en seis cuentas») es la
+   * misma participación con la base dicha antes: el span termina justo antes de la cifra (lookahead), así la base queda adentro
+   * (la larga se lleva a la corta) y la mención no arranca en la cifra (owner 2026-09-14, atribución y significado — fp-prosa PC). */
+  { clave: "participacion", re: /\bde(?:l|\s+(?:la|los|las|el|su|tu|es[aeo]s?|est[aeo]s?))\s+(?:\$[\d.,]+[KMB]?\s+)?(?:capital|inventario|stock|frenado|vencido|pendiente|abonado|saldo|volumen|total|cobro|mora|cobranza|costo|ventas?|contribuci[oó]n|cartera)(?:\s+[a-záéíóúñ]+){0,2},\s*(?:solo\s+|apenas\s+)?(?:el|la|un|una)\s+(?=\d[\d.,]*\s?%)|\bparticipaci[oó]n\b|(?<=%)\s*del\s+total\b|(?<!\$\s?[\d.,]+\s?[KMB]?\s{0,3})\bdel\s+total\b|(?<=%)\s*de\s+(?:la\s+|las\s+|el\s+|los\s+|tu\s+|su\s+|mi\s+|nuestra\s+)?(?:venta|ventas|cartera|contribuci[oó]n|facturaci[oó]n)\b|(?<=%)\s*(?:del|de\s+(?:la|el|los|las|tu|su|mi|nuestr[oa]|ese|esa|este|esta))\s+(?:capital|inventario|stock|frenado|vencido|pendiente|abonado|saldo|volumen|total|cobro|mora|cobranza|costo)\b|\bpeso\s+(?:en|sobre|de)\s+(?:la\s+|el\s+)?(?:venta|ventas|cartera|total|contribuci[oó]n)\b|\bcuota\b|\bshare\b/i },
   /* «efecto volumen» y «efecto precio (realizado)» son los dos sumandos de la variación de la venta (descomposición): son
    * variaciones, y el rótulo los declara así — ver la nota de `unidades` (owner 2026-09-14) */
-  { clave: "variacion",     re: /\bcrec[eií][\wáéíóúñ]*(?![\wáéíóúñ])|\bcrecimiento\b|\bYoY\b|\bvariaci[oó]n\b|\binteranual\b|\befecto\s+(?:volumen|precio)\b|\b(?:contra|vs\.?|frente a|respecto (?:a|de|al|del))\s+(?:el\s+)?(?:a[ñn]o|per[ií]odo)\s+(?:anterior|pasado|comparable)\b/i },
+  /* «cae EN VENTA (-8.2%)», «la que más cae en dólares (-$422K)», «sube en unidades»: un verbo de dirección seguido de «en/de
+   * <métrica>» es la VARIACIÓN de esa métrica, no su nivel (conjunto adversarial 2026-09-14, fp-comparaciones 6 y fp-listas 12:
+   * «-8.2% narrado como ventas»). La mención de la métrica queda dentro de esta (ver _mencionesConSpan). «más/menos que el
+   * año pasado» y «dólares nuevos» son la misma variación en palabras. Los verbos SUELTOS («cae», «sube») siguen fuera a
+   * propósito: «los que caen» es un grupo, no una métrica; el signo y la dirección los juzga _direccionYSigno. */
+  { clave: "variacion",     re: /\bcrec[eií][\wáéíóúñ]*(?![\wáéíóúñ])|\bcrecimiento\b|\bYoY\b|\bvariaci[oó]n\b|\binteranual\b|\befecto\s+(?:volumen|precio)\b|\b(?:contra|vs\.?|frente a|respecto (?:a|de|al|del))\s+(?:el\s+)?(?:a[ñn]o|per[ií]odo)\s+(?:anterior|pasado|comparable)\b|\b(?:m[aá]s|menos)\s+que\s+el\s+a[ñn]o\s+(?:anterior|pasado)\b|\bd[oó]lares\s+nuevos\b|\b(?:pierde|pierden|perdi[oó])\s+(?:venta|ventas|volumen|facturaci[oó]n)\b|\b(?:cae|caen|cay[oó]|cayendo|sube|suben|subi[oó]|subiendo|baja|bajan|baj[oó]|bajando|retrocede|retroceden|avanza|avanzan|disminuye|aumenta|se\s+contrae)\s+(?:en|de)\s+(?:la\s+|las\s+|el\s+|los\s+|su\s+|sus\s+)?(?:venta|ventas|unidades|volumen|contribuci[oó]n|d[oó]lares|facturaci[oó]n|monto)\b/i },
   // «resultado» · EL PELDAÑO DEL P&L, no la palabra suelta (certificación 2026-08-09, pregunta 14). Medido sobre el
   // ledger real de `pnlRead` —que autoriza «Resultado comercial $18.5M» Y «Contribución $25.0M» en la MISMA
   // boleta—: la frase «El resultado del negocio después de gastos es $25.0M» pasaba el muro con ok=true. La cifra
@@ -316,11 +384,67 @@ const _METRIC_VOCAB = [
   // del usuario, el catálogo de `pnlRead` y la etiqueta de la boleta («Resultado comercial»).
   { clave: "resultado",    re: /\bresultado\s+(?:del negocio|comercial|final|neto|operacional|del ejercicio)\b|\bestado de resultados\b|\bganancia neta\b|\butilidad(?:es)?\s+(?:neta|del negocio|del ejercicio|operacional)\b|\bdespu[eé]s de (?:los )?gastos\b/i },
 ];
+/* las claves que nombran DINERO (un % bajo ellas es una participación — ver _metricOwners); «brecha» queda fuera porque
+ * también es la brecha en pp al benchmark */
+const _METRICAS_DE_DINERO = new Set(["ventas", "contribucion", "costo", "capital", "vencido", "pendiente", "abonado", "unidades", "unidades_vendidas", "unidades_stock"]);
+/* lo que un CONCEPTO de la proyección implica en la prosa: las unidades vendidas de una cuenta son también «unidades» y «venta» a secas
+ * («Falabella mueve 1.042 unidades»); las del stock, «unidades» y capital (owner 2026-09-14) */
+const _CONCEPTO_IMPLICA = { unidades_vendidas: ["unidades", "ventas"], unidades_stock: ["unidades", "capital"] };
+/* las claves que se miden en PUNTOS (una diferencia entre dos tasas): la brecha y la variación; todo lo demás es un nivel en % */
+const _DELTAS = new Set(["brecha", "variacion"]);
+/* _parseUnidades(text) → las cifras de UNIDADES de la prosa («1.194 unidades», «140 unidades en stock»), como figs de conteo con el mismo
+ * canon que la boleta («count:1194»): parseFigures no ve enteros sin unidad, y sin esto ni el dueño ni el significado de las unidades
+ * se juzgaban. Solo alimenta la atribución y el binding (una unidad que la boleta no publica no se juzga: nunca un veto de más). */
+const _NUM_UNIDADES = /(\d{1,3}(?:[.,]\d{3})+|\d+)\s+unidades\b/gi;
+function _parseUnidades(text) {
+  const s = String(text == null ? "" : text), out = [];
+  let m;
+  while ((m = _NUM_UNIDADES.exec(s))) {
+    const raw = parseInt(m[1].replace(/[.,](?=\d{3}(?:\D|$))/g, ""), 10);
+    if (Number.isFinite(raw)) out.push({ unit: "count", raw, text: m[0], canon: `count:${raw}` });
+  }
+  return out;
+}
+/* las claves que CALIFICAN a otra (un estado del capital): el rótulo que las lleva en todas sus figs las exige en la prosa */
+const _CALIFICADORES = new Set(["frenado"]);
 function _metricasEn(texto) {
   const s = String(texto || "");
   const out = new Set();
   for (const m of _METRIC_VOCAB) if (m.re.test(s)) out.add(m.clave);
   return out;
+}
+/* ── LAS MENCIONES DE LA NARRACIÓN, CON POSICIÓN: LA LARGA SE LLEVA A LA CORTA (owner 2026-09-14, atribución y significado) ──
+ * `_metricasEn` dice QUÉ claves aparecen en un texto; para el binding hace falta DÓNDE, y una regla de estructura: cuando una
+ * mención de una clave contiene entera a una mención de otra («el 75% DEL CAPITAL frenado» es participación y contiene
+ * «capital»; «269 DÍAS DE ATRASO» contiene «atraso»… ; «cae EN VENTA» es variación y contiene «venta»), la corta no es una
+ * métrica aparte: es la base o el complemento de la larga. Medido en el conjunto adversarial: sin esto, «Valparaíso concentra
+ * el 75% del capital frenado» salía «narrado como capital» (30+ frases correctas) y «Los grandes son el 22.5% de la
+ * contribución» (su margen dicho como peso) quedaba en «ambiguo → no se juzga». Solo para la NARRACIÓN: el rótulo de la
+ * boleta se sigue leyendo con `_metricasEn` (cuantas más claves autorice, más seguro — falso negativo antes que positivo). */
+function _mencionesConSpan(texto, rotulos = null) {
+  const s = String(texto || "");
+  const out = [];
+  /* un rótulo de la boleta de 4+ palabras citado tal cual en la prosa («margen delgado sin volumen ni carga», «erosión por acciones
+   * comerciales») es un nombre, no una lista de métricas: sus palabras no son menciones (owner 2026-09-14) */
+  if (Array.isArray(rotulos) && rotulos.length) {
+    const sN = _normalizar(s);
+    for (const r of rotulos) { let i = -1; while ((i = sN.indexOf(r, i + 1)) >= 0) out.push({ clave: "\u0000rotulo", a: i, b: i + r.length }); }
+  }
+  for (const m of _METRIC_VOCAB) {
+    const re = new RegExp(m.re.source, m.re.flags.includes("g") ? m.re.flags : m.re.flags + "g");
+    let mm;
+    while ((mm = re.exec(s))) { if (mm[0].length) out.push({ clave: m.clave, a: mm.index, b: mm.index + mm[0].length }); else re.lastIndex++; }
+  }
+  return out.filter((x) => x.clave !== "\u0000rotulo" && !out.some((y) => y.clave !== x.clave && y.a <= x.a && x.b <= y.b && (y.b - y.a) > (x.b - x.a)));
+}
+/* los rótulos citables de la boleta: cada segmento de label de 4+ palabras con alguna métrica adentro, normalizado */
+function _rotulosCitables(ledger) {
+  const out = new Set();
+  for (const f of ((ledger && ledger.figs) || [])) for (const seg of String(f.label || "").split(/[·:]/)) {
+    const t = _normalizar(seg).replace(/\(.*?\)/g, " ").replace(/\s+/g, " ").trim();
+    if (t.split(" ").filter((w) => /\p{L}{2,}/u.test(w)).length >= 4 && _metricasEn(t).size >= 2) out.add(t);   // cuatro PALABRAS («% de la venta» no es un nombre, es una participación) y DOS métricas adentro: el rótulo de una sola («exceso de acciones comerciales») es el nombre de esa métrica, y su mención vale (owner 2026-09-14)
+  }
+  return [...out];
 }
 // _maskFigures(text) → copia de la MISMA longitud con cada cifra reemplazada por "#" (sin puntos ni signos), para
 // que el cálculo de límites de oración no confunda un punto decimal con un fin de oración. Solo se usa para medir
@@ -337,24 +461,111 @@ function _maskFigures(text) {
   }
   return out;
 }
+/* _conCanonDelParser(figs) → las mismas figs con el canon que `parseFigures` le da a su VALOR (ver el bloque «UN SOLO
+ * CANON» en guardC). Solo cuando el valor parsea a exactamente una cifra; una fig sin cifra parseable (un conteo pelado,
+ * un texto) conserva su canon. Nunca muta las figs del ledger: devuelve copias. */
+function _conCanonDelParser(figs) {
+  return (Array.isArray(figs) ? figs : []).map((f) => {
+    if (!f || typeof f !== "object") return f;
+    let pf = [];
+    try { pf = parseFigures(String(f.value == null ? "" : f.value)); } catch { pf = []; }
+    if (pf.length !== 1 || !pf[0].canon || pf[0].canon === f.canon) return f;
+    return { ...f, canon: pf[0].canon, canonBoleta: f.canon };
+  });
+}
 // canon → Set(métrica) que lo autoriza, leído del LABEL de cada fig (la etiqueta es el dueño semántico del valor).
-function _metricOwners(ledger) {
+/* ── …Y POR ENTIDAD (owner 2026-09-14, atribución y significado: «la verdad de una cifra es dueño + significado + signo») ──
+ * El mapa por canon une las métricas de TODAS las figs con ese valor: «$2.5M» es el vencido de Falabella, la venta de ABC y la
+ * contribución de SAM-TV55, así que «Falabella deja $2.5M de contribución» pasaba —contribución estaba en la unión— aunque
+ * para Falabella esa cifra es su saldo vencido (la «lotería» del conjunto adversarial). `owners.porEntidad` guarda, por canon,
+ * las métricas del rótulo DE CADA ENTIDAD (la que el tipo declara), y el binding las usa cuando el lector de cláusula lee
+ * quién es el sujeto de la cifra. `owners.opacos` guarda las entidades cuyo rótulo no dice qué es la cifra («Lider · Valor»,
+ * «Easy · Monto»): para ellas la cifra no se juzga por métrica — falso negativo antes que falso positivo. */
+const _entidadDeFig = (f) => { const e = f && f.tipo && typeof f.tipo.entidad === "string" && f.tipo.entidad.trim() ? f.tipo.entidad : String((f && f.label) || "").split("·")[0]; return _norm(String(e).trim()); };
+function _metricOwners(ledger, datoProyectado = null) {
   const owners = new Map();
+  const porEntidad = new Map(), opacos = new Map();
+  /* ── LA PROYECCIÓN TAMBIÉN DICE QUÉ ES CADA CIFRA (owner 2026-09-14, atribución y significado): sus figs por entidad viajan con el
+   * CONCEPTO declarado por el emisor (la clave del vocabulario). Entran al mapa POR ENTIDAD —el rótulo de esa entidad manda— y a la unión
+   * solo cuando la boleta del turno no tiene ese canon (un turno sin salesRead sigue pudiendo juzgar «Jumbo tiene 12.2% de carga»). */
+  const _dpPorCanon = new Map();
+  if (datoProyectado && Array.isArray(datoProyectado.figs)) {
+    for (const df of datoProyectado.figs) {
+      if (!df || !df.concepto || !df.canon) continue;
+      const claves = new Set([df.canon]);
+      try { const tok = parseFigures(String(df.value || ""))[0]; if (tok && tok.canon) claves.add(tok.canon); } catch { /* sin canon parseable */ }
+      for (const c of claves) {
+        if (!_dpPorCanon.has(c)) _dpPorCanon.set(c, []);
+        for (const d of (df.duenos || [])) _dpPorCanon.get(c).push({ ent: _norm(d), concepto: df.concepto });
+      }
+    }
+  }
   for (const f of (ledger.figs || [])) {
     const ms = _metricasEn(f.label);
-    if (!ms.size) continue;
+    if (!ms.size) {
+      const ent = _entidadDeFig(f);
+      if (ent && String(f.label || "").includes("·")) {
+        const claves = new Set([f.canon]);
+        try { const tok = parseFigures(String(f.text || f.value || ""))[0]; if (tok && tok.canon) claves.add(tok.canon); } catch { /* sin canon parseable */ }
+        for (const c of claves) { if (!c) continue; if (!opacos.has(c)) opacos.set(c, new Set()); opacos.get(c).add(ent); }
+      }
+      continue;
+    }
+    /* UN PORCENTAJE ROTULADO CON UNA MÉTRICA DE DINERO ES UNA PARTICIPACIÓN de esa métrica (owner 2026-09-14, atribución y
+     * significado): «Contribución de los grandes = 49%», «Peso del costo = 72.9%» no son la contribución ni el costo —son su
+     * parte—, y el rótulo no dice «participación». Sin esto, «los grandes son el 49% de la contribución» ardía en cuanto
+     * la mención «% de la contribución» se leyó como participación (ver _mencionesConSpan). Solo cuando TODAS las claves
+     * del rótulo son de dinero: «Ventas vs año anterior = +7.5%» sigue siendo variación. */
+    const _unidadPct = String(f.unit || "") === "pct" || /%\s*$/.test(String(f.value || ""));
+    if (_unidadPct && [...ms].every((m) => _METRICAS_DE_DINERO.has(m))) ms.add("participacion");
+    /* la CONTRIBUCIÓN NO CAPTURADA es la brecha en dinero (owner 2026-09-14, atribución y significado): el propio emisor la llama «cerrar
+     * brecha al piso» en su subtotal, y «La brecha está en Lider ($1.5M sin capturar)» es prosa correcta (fp-prosa F8, 4 frases): el
+     * rótulo que dice «no capturada» / «sin capturar» autoriza también «brecha» */
+    if (ms.has("contribucion") && /no\s+capturad|sin\s+capturar/i.test(String(f.label || ""))) ms.add("brecha");
     /* ⚠️ DOS CANONES PARA LA MISMA CIFRA (cazado al cerrar «cifra + dueño + significado», 2026-09-12): la boleta
      * guarda «22.0%» como `pct:22.0%` y `parseFigures` —el que lee la prosa— canoniza «22.0%» como `pct:22%`. La
      * llave no coincidía y toda cifra con decimal cero quedaba sin dueño de métrica: «margen 22.0%» no tomaba su
      * mención y ni siquiera se juzgaba. El mapa se indexa por LOS DOS canones; boleta.js no se toca. */
     const claves = new Set([f.canon]);
     try { const tok = parseFigures(String(f.text || f.value || ""))[0]; if (tok && tok.canon) claves.add(tok.canon); } catch { /* sin canon parseable: queda el de la boleta */ }
+    const ent = String(f.label || "").includes("·") ? _entidadDeFig(f) : "";
     for (const c of claves) {
       if (!c) continue;
       if (!owners.has(c)) owners.set(c, new Set());
       for (const m of ms) owners.get(c).add(m);
+      if (ent) {
+        if (!porEntidad.has(c)) porEntidad.set(c, new Map());
+        if (!porEntidad.get(c).has(ent)) porEntidad.get(c).set(ent, new Set());
+        for (const m of ms) porEntidad.get(c).get(ent).add(m);
+      }
     }
   }
+  /* los calificadores EXIGIDOS por canon y por entidad: los que llevan TODAS las figs de ese valor (el subtotal «Capital frenado» $33K
+   * exige «frenado»; los $14K de LG-DRYER8KG no, porque también son su capital a secas) */
+  const requiere = new Map(), requierePorEntidad = new Map();
+  for (const f of (ledger.figs || [])) {
+    const ms = _metricasEn(f.label);
+    if (!ms.size) continue;
+    const q = new Set([...ms].filter((m) => _CALIFICADORES.has(m)));
+    const claves = new Set([f.canon]);
+    try { const tok = parseFigures(String(f.text || f.value || ""))[0]; if (tok && tok.canon) claves.add(tok.canon); } catch { /* sin canon parseable */ }
+    /* solo las figs SIN entidad declarada exigen el calificador («Capital frenado · subtotal», «Estado del inventario: capital frenado»);
+     * «LG-DRYER8KG · Capital frenado = $13.6K» no: el capital frenado de un SKU es también su capital */
+    if (f && f.tipo && typeof f.tipo.entidad === "string" && f.tipo.entidad.trim()) continue;
+    for (const c of claves) {
+      if (!c) continue;
+      requiere.set(c, requiere.has(c) ? new Set([...requiere.get(c)].filter((x) => q.has(x))) : q);
+    }
+  }
+  for (const [c, lista] of _dpPorCanon) {
+    if (!porEntidad.has(c)) porEntidad.set(c, new Map());
+    const m = porEntidad.get(c);
+    for (const { ent, concepto } of lista) { if (!m.has(ent)) m.set(ent, new Set()); m.get(ent).add(concepto); for (const x of (_CONCEPTO_IMPLICA[concepto] || [])) m.get(ent).add(x); if (opacos.has(c)) opacos.get(c).delete(ent); }
+  }
+  owners.porEntidad = porEntidad;
+  owners.opacos = opacos;
+  owners.requiere = requiere;
+  owners.requierePorEntidad = requierePorEntidad;
   return owners;
 }
 /* La posición de una cifra EN SU PROPIA APARICIÓN: la primera que no viene pegada a otro número. Sin esto,
@@ -367,6 +578,195 @@ function _indiceConFrontera(text, cifra, desde = 0) {   // `desde`: buscar la SI
   re.lastIndex = Math.max(0, desde | 0);
   const m = re.exec(String(text || ""));
   return m ? m.index : -1;
+}
+/* ── LA DIRECCIÓN Y EL SIGNO SE VERIFICAN CONTRA LA VARIACIÓN PUBLICADA (owner 2026-09-14, atribución y significado) ─────────
+ * MEDIDO en el conjunto adversarial (28 falsas «signo» y 30 «variación sin serie» sin veto): «Lider cae 14.9%» (Lider crece +14.9%),
+ * «Jumbo retrocede $1.9M» (+$1.9M), «Ripley suma $422K más que el año pasado» (-$422K), «Cayendo: Lider (-$2.3M)» (+$2.3M),
+ * «Ripley: $422K» (la copia sin signo de una caída) pasaban: la cifra existía y tenía dueño, y nadie leía la PALABRA ni el SIGNO. Y
+ * «Falabella sube 22%», «El margen de Lider cayó a 21.5%», «La carga de Sodimac subió a 5.4%», «El vencido de Lider se disparó a
+ * $4.6M» narraban un NIVEL como movimiento — el margen, la carga, el vencido, el markup, la brecha y la recuperación no tienen serie
+ * en la boleta (solo la venta la tiene: el YoY por cuenta y «Ventas vs año anterior»). Cuatro garantías (CLAUDE.md §2: evolución
+ * temporal solo con evidencia temporal), verificadas acá contra la boleta, cifra por cifra:
+ *   1 · la cifra narrada con un verbo de dirección o con un signo explícito, cuando el sujeto tiene una VARIACIÓN publicada de
+ *       ese valor: la dirección de la palabra y el signo escrito tienen que coincidir con el signo publicado;
+ *   2 · la copia SIN signo de una variación negativa («Ripley: $422K») es una cifra distinta, salvo con un verbo neutro («movió»);
+ *   3 · la cifra narrada con un verbo de dirección cuando el sujeto NO tiene una variación de ese valor pero SÍ un nivel («Falabella
+ *       sube 22%»: su margen): un nivel no se mueve — es una variación sin serie;
+ *   4 · un verbo de dirección que gobierna una MÉTRICA sin serie en la boleta, con o sin cifra («El margen de Lider viene cayendo»,
+ *       «La contribución de Sodimac creció»): la evolución no está medida.
+ * El verbo gobierna la cifra o la métrica que le sigue sin otra cifra en medio, dentro de su cláusula; «los que caen» / «las que
+ * crecen» son un grupo (relativo con «que»), nunca un movimiento. Las series con evidencia se leen de la boleta: las figs cuyo
+ * rótulo es una variación autorizan la métrica que nombran, y las del universo de venta (el YoY por cuenta, declarado por su tipo)
+ * autorizan la venta. Nunca un vocabulario de series escrito a mano. */
+/* ⚠️ solo formas que no sean otra cosa: «bajo» es preposición («bajo el benchmark»), «baja» adjetivo («la más baja»), «suma/suman» es la suma,
+ * «gana a» es superar, «resto» es el resto — ninguna nombra un movimiento en el tiempo. Quedan las conjugadas inequívocas y «baja a». */
+/* …y el SUSTANTIVO de dirección también gobierna («tu caída más severa ($11M perdidos)», «una baja de $422K», «el descenso de 8.2%»): sin él, la
+ * copia de la caída se cobraba «sin signo» aunque la palabra la dijera (expediente de la certificación congelada, medido 2026-09-14) */
+const _DIR_ABAJO = /(?<![\p{L}])(?:cae|caen|cay[oó]|cayendo|bajan|bajó|bajando|bajas+a|retrocede|retroceden|retrocedi[oó]|retrocediendo|pierde|pierden|perdi[oó]|perdiendo|disminuye|disminuyen|disminuy[oó]|se contrae|se contrajo|se desploma|se desplom[oó]|empeora|empeoran|empeor[oó]|empeorando|decrece|decrecen|a la baja|en ca[ií]da|ca[ií]das?|bajadas?|descensos?|retrocesos?|desplomes?|p[eé]rdidas?)(?![\p{L}])/iu;
+const _DIR_ARRIBA = /(?<![\p{L}])(?:sube|suben|subi[oó]|subiendo|crece|crecen|creci[oó]|creciendo|avanza|avanzan|avanz[oó]|aumenta|aumentan|aumentó|se dispara|se dispar[oó]|mejora|mejoran|mejor[oó]|mejorando|al alza|tracciona|traccionan|repunta|repunt[oó]|subidas?|alzas?|aumentos?|repuntes?|avances?)(?![\p{L}])/iu;
+/* la evolución DICHA (regla 4): un verbo de dirección en pasado, o con «a» («cayó a», «subió a», «se disparó a», «retrocede a»), o con
+ * un ancla temporal («viene cayendo», «sigue subiendo», «año a año», «hoy», «este año», «contra el año anterior»). El presente sin ancla
+ * («los que caen», «Tottus y Mercado Libre caen sin que la carga lo explique») es la prosa de la casa para «bajo el benchmark»: no se juzga. */
+const _ANCLA_TEMPORAL = /(?:^|[^\p{L}])(?:viene|vienen|sigue|siguen|ya\s+esta|hoy|este\s+a[ñn]o|a[ñn]o\s+a\s+a[ñn]o|en\s+el\s+(?:a[ñn]o|per[ií]odo)|ultimamente|desde|(?:el\s+)?a[ñn]o\s+(?:anterior|pasado)|respecto|interanual|en\s+el\s+tiempo|mes\s+a\s+mes|trimestre)(?![\p{L}])/u;
+const _DIR_PASADO_O_A = /(?:^|[^\p{L}])(?:cay[oó]|baj[oó]|subi[oó]|creci[oó]|retrocedi[oó]|perdi[oó]|gan[oó]|empeor[oó]|mejor[oó]|aument[oó]|disminuy[oó]|se\s+dispar[oó]|se\s+desplom[oó]|se\s+contrajo|repunt[oó]|avanz[oó]|(?:cae|sube|baja|crece|retrocede|avanza|se\s+dispara|empeora|mejora|llega|queda)\s+(?:\p{L}+\s+){0,2}a(?:l)?\s)(?![\p{L}])/u;
+/* «caen bajo el benchmark (22%)», «suben sobre el nivel»: el verbo con la posición contra la vara es un estado, no un movimiento */
+const _POSICION_CONTRA_VARA = /(?:bajo|sobre|debajo|encima|arriba|abajo)\s+(?:de(?:l)?\s+)?(?:el\s+|la\s+)?(?:benchmark|referencia|nivel|piso|vara|umbral)/u;
+/* la frase CONDICIONAL o el escenario («si le subís el precio…», «con -2pp», «sería», «llegaría», «escenario», «supuesto»): un movimiento
+ * hipotético no se cobra como evolución medida */
+/* …y el «si» de la hipótesis abierta («si tu lista quedó baja o si el costo subió»: lo que NO se puede separar, del playbook de la hipótesis del
+ * usuario) — «si» + determinante abre una alternativa, no afirma un movimiento (medido 2026-09-14) */
+const _CONDICIONAL = /(?:^|[^\p{L}])(?:si\s+(?:le|les|lo|la|se|bajas|bajan|subes|suben|baja|sube|aplicas|reduces|cierras|llevas|pones|dejas|el|los|las|tu|tus|su|sus|mi|mis|un|una|es[aeo]s?|est[aeo]s?)(?![\p{L}])|\p{L}+r[ií]an?(?![\p{L}])|escenario|supuesto|simula\p{L}*|hipot\p{L}*|proyectad\p{L}*|con\s+[+\-]?\d[\d.,]*\s*pp)(?![\p{L}])/u;
+const _DIR_NEUTRA = /(?<![\p{L}])(?:movi[oó]|mueve|mueven|vari[oó]|var[ií]a|cambi[oó]|cambia|diferencia|delta|distancia)(?![\p{L}])/iu;
+/* la dirección DETRÁS de la cifra: «$11M perdidos», «$422K de caída», «$2.3M ganados», «más/menos que el año pasado» — grupo 1 baja, grupo 2 sube */
+const _TRAS_DIRECCION = /^\s*(?:(perdid[oa]s?|de\s+(?:ca[ií]da|baja|p[eé]rdida|retroceso|descenso)|menos\s+que\s+el\s+a[ñn]o\s+(?:pasado|anterior))|(ganad[oa]s?|de\s+(?:subida|alza|aumento|crecimiento|repunte)|m[aá]s\s+que\s+el\s+a[ñn]o\s+(?:pasado|anterior)))(?![\p{L}])/iu;
+const _RELATIVO = /(?:^|[^\p{L}])(?:que|quienes|cuales)\s+(?:no\s+|ni\s+|tampoco\s+|m[aá]s\s+|menos\s+|ya\s+)?$/u;   // «los que caen», «SKU que no traccionan»: un grupo, no un movimiento
+const _SUJETO_DEL_NEGOCIO = /(?:^|[^\p{L}])(?:el\s+)?(?:negocio|cartera|total|empresa|compa[ñn][ií]a|venta\s+total|ventas?\s+del\s+(?:negocio|per[ií]odo|a[ñn]o))(?![\p{L}])/u;
+function _direccionYSigno(narration, ledger, entityNames, datoProyectado = null) {
+  const text = String(narration || "");
+  const figsL = (ledger && ledger.figs) || [];
+  if (!text || !figsL.length) return [];
+  const out = [];
+  const _signoDe = (v) => { const t = String(v == null ? "" : v).trim(); return t.startsWith("-") ? -1 : 1; };
+  const _absCanon = (t) => { const p = parseFigures(String(t || "").replace(/^[+\-]\s*/, ""))[0]; return p ? p.canon : null; };
+  /* las variaciones publicadas: por entidad (el rótulo lleva «·»), o del negocio (sin entidad) */
+  const variaciones = new Map();   // entidadNorm ("" = negocio) → [{ canonAbs, signo, unit, label }]
+  const niveles = new Map();       // entidadNorm → Set(canonAbs)
+  const seriesDe = new Set();      // claves con evolución medida
+  for (const f of figsL) {
+    const ms = _metricasEn(f.label);
+    const esVar = ms.has("variacion") || /\bYoY\b|vs\s+a[ñn]o\s+anterior|variaci[oó]n/i.test(String(f.label || ""));
+    const ent = String(f.label || "").includes("·") ? _entidadDeFig(f) : "";
+    const ca = _absCanon(f.value);
+    if (!ca) continue;
+    if (esVar) {
+      if (!variaciones.has(ent)) variaciones.set(ent, []);
+      variaciones.get(ent).push({ canonAbs: ca, signo: _signoDe(f.value), label: f.label, value: f.value });
+      for (const m of ms) if (m !== "variacion") seriesDe.add(m);
+      const uni = f && f.tipo && typeof f.tipo.universo === "string" ? f.tipo.universo : "";
+      if (/venta|tasa_comercial/.test(uni)) seriesDe.add("ventas");
+    } else if (ent && !ms.has("variacion")) {
+      if (!niveles.has(ent)) niveles.set(ent, new Set());
+      niveles.get(ent).add(ca);
+    }
+  }
+  /* …y las variaciones de la PROYECCIÓN (por cuenta, con el concepto «variacion» declarado por el emisor): un turno sin salesRead
+   * también puede verificar «Ripley suma $422K más que el año pasado» */
+  if (datoProyectado && Array.isArray(datoProyectado.figs)) {
+    for (const df of datoProyectado.figs) {
+      if (!df || df.concepto !== "variacion") continue;
+      const ca = _absCanon(df.value);
+      if (!ca) continue;
+      for (const d of (df.duenos || [])) {
+        const ent = _norm(d);
+        if (!variaciones.has(ent)) variaciones.set(ent, []);
+        if (!variaciones.get(ent).some((x) => x.canonAbs === ca)) variaciones.get(ent).push({ canonAbs: ca, signo: _signoDe(df.value), label: `${d} · variación vs año anterior (proyección)`, value: df.value });
+      }
+      seriesDe.add("ventas");
+    }
+  }
+  if (!variaciones.size && !niveles.size) return [];
+  const nombresRe = compilarNombres(Array.isArray(entityNames) ? entityNames : []);
+  const masked = _maskFigures(text);
+  const _sujetoDe = (L) => {
+    if (L.sujeto) return _norm(L.sujeto.nombre);
+    if (L.antecedente && (L.anafora || !L.sujeto)) return _norm(L.antecedente.nombre);
+    return null;
+  };
+  const _esNegocio = (cabeza) => _SUJETO_DEL_NEGOCIO.test(_normalizar(cabeza));
+  /* el verbo de dirección que GOBIERNA una posición: el último verbo de la cláusula antes de ella sin otra cifra entre medio (y no un
+   * relativo «que caen»), o «más/menos que el año pasado» justo detrás */
+  const _direccionQueGobierna = (L, idx, fin) => {
+    const cab = text.slice(L.clausula.ini, idx);
+    const cabM = masked.slice(L.clausula.ini, idx);
+    let dir = 0, pos = -1;
+    for (const [re, d] of [[_DIR_ABAJO, -1], [_DIR_ARRIBA, 1], [_DIR_NEUTRA, 0]]) {
+      const g = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
+      let m;
+      while ((m = g.exec(cab))) {
+        if (m.index < pos) continue;
+        if (_RELATIVO.test(cab.slice(Math.max(0, m.index - 12), m.index))) continue;   // «los que caen»
+        if (/#/.test(cabM.slice(m.index + m[0].length))) continue;                       // otra cifra entre el verbo y la posición: no la gobierna
+        if (idx - (m.index + m[0].length) > 60) continue;
+        pos = m.index; dir = d;
+      }
+    }
+    if (pos >= 0) return { dir, neutro: dir === 0 };
+    const tras = text.slice(fin, Math.min(text.length, fin + 40));
+    const mt = _TRAS_DIRECCION.exec(tras);
+    if (mt) return { dir: mt[1] ? -1 : 1, neutro: false };
+    return null;
+  };
+  /* 1-3 · cada cifra con dirección o signo */
+  const vistas = new Set();
+  for (const f of parseFigures(text)) {
+    if (f.unit !== "pct" && f.unit !== "money" && f.unit !== "pp") continue;
+    const idx = _indiceConFrontera(text, f.text);
+    if (idx < 0 || vistas.has(idx)) continue;
+    vistas.add(idx);
+    const fin = idx + f.text.length;
+    const L = leerClausula(text, idx, { nombresRe });
+    const ca = _absCanon(f.text);
+    const signoTexto = f.text.trim().startsWith("-") ? -1 : (text[idx - 1] === "+" ? 1 : 0);
+    const gob = _direccionQueGobierna(L, idx, fin);
+    const suj = _sujetoDe(L);
+    const entVar = suj && variaciones.has(suj) ? suj : (!suj && _esNegocio(text.slice(L.oracion.ini, idx)) && variaciones.has("") ? "" : null);
+    const v = entVar != null ? (variaciones.get(entVar) || []).find((x) => x.canonAbs === ca) : null;
+    if (!gob && !signoTexto && !(v && v.signo < 0)) continue;
+    if (v) {
+      const quien = entVar === "" ? "el negocio" : entVar;
+      if (gob && !gob.neutro && gob.dir !== v.signo) { out.push(`«${f.text}» narrada como ${gob.dir < 0 ? "caída" : "subida"} de ${quien}, pero la variación publicada (${v.label} = ${v.value}) va en la otra dirección — la palabra y el signo se verifican contra la boleta`); continue; }
+      if (signoTexto && signoTexto !== v.signo) { out.push(`«${f.text}» lleva el signo invertido: la variación publicada (${v.label} = ${v.value}) es ${v.signo < 0 ? "negativa" : "positiva"}`); continue; }
+      if (!signoTexto && v.signo < 0 && !(gob && (gob.neutro || gob.dir < 0))) { out.push(`«${f.text}» es la copia sin signo de una caída (${v.label} = ${v.value}): escribe la variación con su signo`); continue; }
+      /* la variación es de la VENTA: narrada como variación de otra métrica sin serie («El vencido de Lider creció 14.9%», «Sodimac creció
+       * 5.4% en carga comercial», «Las unidades de Jumbo crecen 12.2%») es una evolución no medida */
+      if (gob && !gob.neutro) {
+        const cl = text.slice(L.clausula.ini, L.clausula.fin);
+        const spans = _mencionesConSpan(cl).map((sp) => ({ ...sp, a: L.clausula.ini + sp.a, b: L.clausula.ini + sp.b })).filter((sp) => sp.clave !== "variacion" && sp.clave !== "participacion");
+        const antesDelVerbo = spans.filter((sp) => sp.b <= idx && !/#/.test(masked.slice(sp.b, idx)));
+        const pegadaTras = spans.filter((sp) => sp.a >= fin && sp.a - fin <= 30 && /^\s*(?:de|del|en|como)?\s*$/i.test(text.slice(fin, sp.a)));
+        const metrica = [...antesDelVerbo.slice(-1), ...pegadaTras].map((sp) => sp.clave).filter((c) => !seriesDe.has(c));
+        if (metrica.length) { out.push(`«${f.text}» es la variación de la venta de ${quien} (${v.label} = ${v.value}) y la narras como variación de ${metrica.join("/")}: la boleta no trae una serie de esa métrica — la evolución no está medida`); continue; }
+      }
+      continue;
+    }
+    /* 3 · sin variación de ese valor: si es un NIVEL del sujeto, el verbo de dirección lo narra como movimiento sin serie */
+    const _origenOCondicional = /(?:^|[^\p{L}])de\s*$/u.test(_normalizar(text.slice(Math.max(L.clausula.ini, idx - 6), idx))) || _CONDICIONAL.test(_normalizar(text.slice(L.oracion.ini, L.oracion.fin)));
+    if (gob && !gob.neutro && !signoTexto && !_origenOCondicional && suj && niveles.has(suj) && niveles.get(suj).has(ca) && !_POSICION_CONTRA_VARA.test(_normalizar(text.slice(Math.max(L.clausula.ini, idx - 60), idx)))) {
+      out.push(`«${f.text}» es un nivel de ${suj} (no una variación) y lo narras como ${gob.dir < 0 ? "caída" : "subida"}: la boleta no trae una serie de esa métrica — di el nivel, no un movimiento`);
+    }
+  }
+  /* 4 · el verbo de dirección que gobierna una métrica sin serie (con o sin cifra) */
+  {
+    const Nn = _normalizar(text);
+    for (const [re, d] of [[_DIR_ABAJO, -1], [_DIR_ARRIBA, 1]]) {
+      const g = new RegExp(re.source, "giu");
+      let m;
+      while ((m = g.exec(text))) {
+        const a = m.index, b = a + m[0].length;
+        if (_RELATIVO.test(text.slice(Math.max(0, a - 12), a))) continue;
+        const L = leerClausula(text, a, { nombresRe });
+        const cl = text.slice(L.clausula.ini, L.clausula.fin);
+        const clN = _normalizar(cl);
+        if (!_DIR_PASADO_O_A.test(_normalizar(text.slice(Math.max(L.clausula.ini, a - 20), Math.min(L.clausula.fin, b + 12)))) && !_ANCLA_TEMPORAL.test(clN)) continue;   // el presente sin ancla no dice evolución
+        if (_CONDICIONAL.test(_normalizar(text.slice(L.oracion.ini, L.oracion.fin))) || /(?:^|[^\p{L}])(?:hipotesis|pregunta|preguntas|crees|cree|supon|suponer|plantea|planteas|dices|decis)(?![\p{L}])/u.test(_normalizar(text.slice(Math.max(0, L.oracion.ini - 120), L.oracion.fin)))) continue;   // la hipótesis del usuario o la frase condicional: no es evolución medida
+        const clM = masked.slice(L.clausula.ini, L.clausula.fin);
+        /* la métrica que el verbo gobierna: la mención de métrica de la cláusula (antes del verbo, como sujeto: «El margen de Lider viene
+         * cayendo»; o después, sin cifra entre medio: «cae en venta», «pierde margen»). «cae en venta (-8.2%)» la venta sí tiene serie. */
+        const spans = _mencionesConSpan(cl).map((sp) => ({ ...sp, a: L.clausula.ini + sp.a, b: L.clausula.ini + sp.b }));
+        const antes = spans.filter((sp) => sp.b <= a && !/#/.test(masked.slice(sp.b, a)));
+        const despues = spans.filter((sp) => sp.a >= b && !/#/.test(masked.slice(b, sp.a)) && sp.a - b <= 40 && !_ABRE_OTRA_AFIRMACION.test(text.slice(b, sp.a)) && !/[,;:—–]/.test(text.slice(b, sp.a)));
+        const cand = [...despues, ...antes.slice(-1)];
+        const met = [...new Set(cand.map((sp) => sp.clave).filter((c) => c !== "variacion" && c !== "participacion"))];
+        if (!met.length) continue;
+        const sinSerie = met.filter((c) => !seriesDe.has(c) && c !== "variacion");
+        if (!sinSerie.length || sinSerie.length !== met.length) continue;
+        /* con cifra gobernada, la regla 1-3 ya la juzgó (nivel o variación); acá solo el movimiento dicho sin cifra o con la cifra del nivel */
+        out.push(`«${m[0]}» dice que ${sinSerie.join("/")} cambió en el tiempo y la boleta no trae una serie ni una variación de esa métrica (solo de ${[...seriesDe].filter((x) => x !== "variacion").join("/") || "nada"}): la evolución no está medida — di el nivel de hoy sin narrarlo como movimiento`);
+        break;
+      }
+    }
+  }
+  return out;
 }
 /* ── UNA COMPARACIÓN EJECUTIVA SOLO VALE ENTRE MÉTRICAS EQUIVALENTES (owner 2026-09-13) ──────────────────────
  * Medido en vivo, prompt de gerente: «Falabella con markup de 39.1%, frente a clientes sanos como Hites o La
@@ -463,14 +863,38 @@ function _naturalezaCambiada(narration, ledger) {
 // en la ventana local de la cifra hay UNA sola métrica reconocida y NO es de las que autorizan ese valor. Si hay
 // dos o más (una lectura que cruza métricas en la misma oración) es ambiguo → no se marca. Falso negativo antes
 // que falso positivo: un bloqueo de más degrada respuestas correctas, que es exactamente lo que este muro evita.
-function _metricBindingViolations(narration, ledger) {
-  const owners = _metricOwners(ledger);
+function _metricBindingViolations(narration, ledger, entityNames = null, datoProyectado = null) {
+  const owners = _metricOwners(ledger, datoProyectado);
   if (!owners.size) return [];
   const text = String(narration || "");
   const viol = [];
-  for (const f of parseFigures(text)) {
-    const ownerSet = owners.get(f.canon);
-    if (!ownerSet || !ownerSet.size) continue;      // valor sin métrica dueña → no se juzga
+  const _spans = _mencionesConSpan(text, _rotulosCitables(ledger));   // las menciones de toda la narración, con posición (la larga se lleva a la corta; el rótulo citado no suelta las suyas)
+  /* las métricas CON SERIE en la boleta: las que un rótulo de variación o de período anterior nombra («Ventas vs año anterior», «venta mes a
+   * mes», «año anterior (mes a mes)», el YoY por cuenta con universo de venta) — la misma lectura que _direccionYSigno hace de sus series */
+  const _seriesEnBoleta = new Set();
+  for (const f of ((ledger && ledger.figs) || [])) {
+    const lb = String(f.label || "");
+    if (!/\bYoY\b|a[ñn]o\s+anterior|mes\s+a\s+mes|variaci[oó]n/i.test(lb) && !_metricasEn(lb).has("variacion")) continue;
+    for (const m of _metricasEn(lb)) if (m !== "variacion") _seriesEnBoleta.add(m);
+    if (f.tipo && /venta|tasa_comercial/.test(String(f.tipo.universo || ""))) _seriesEnBoleta.add("ventas");
+  }
+  const _nombresRe = compilarNombres(Array.isArray(entityNames) ? entityNames : []);   // para leer el SUJETO de la cifra (dueño por entidad)
+  for (const f of [...parseFigures(text), ..._parseUnidades(text)]) {   // …y las unidades («140 unidades»), con dueño y significado (owner 2026-09-14)
+    let ownerSet = owners.get(f.canon);
+    let _porEntidadDelCanon = owners.porEntidad.get(f.canon);
+    /* ── UN NIVEL NARRADO COMO PUNTOS PORCENTUALES (owner 2026-09-14, atribución y significado) ─────────────────────────────
+     * El canon acepta «4.5 pp» por «4.5%» (una tasa es la misma cifra como nivel o como delta: _otraFormaDeTasa, la quinta fuente)
+     * y «La carga de Falabella es 4.5 pp», «El margen de Lider es 21.5 pp» pasaban: un nivel no se mide en puntos. Cuando la
+     * boleta no publica ese pp pero sí ese % , la cifra se juzga con los dueños del %: si la mención que la describe es el propio
+     * nivel (carga, margen, markup, recuperado…), arde como nivel narrado en pp; si es otra métrica, arde como siempre. Lo que no
+     * describe un nivel no se toca («el máximo aplicable es 1.8pp» sigue pasando: no hay mención que lo describa). */
+    let _nivelComoPP = false, _canonJuzgado = f.canon;
+    if (f.unit === "pp" && !(ownerSet && ownerSet.size) && !(_porEntidadDelCanon && _porEntidadDelCanon.size) && !_esCota(text, f)) {   // «más de 4 pp»: una cota no cita a nadie
+      const _alt = _otraFormaDeTasa(f.text);
+      const _pfa = _alt ? parseFigures(_alt)[0] : null;
+      if (_pfa && ((owners.get(_pfa.canon) || new Set()).size || (owners.porEntidad.get(_pfa.canon) || new Map()).size)) { _nivelComoPP = true; _canonJuzgado = _pfa.canon; ownerSet = owners.get(_pfa.canon); _porEntidadDelCanon = owners.porEntidad.get(_pfa.canon); }
+    }
+    if ((!ownerSet || !ownerSet.size) && !(_porEntidadDelCanon && _porEntidadDelCanon.size)) continue;      // valor sin métrica dueña → no se juzga
     // ⚠️ LA CIFRA SE LOCALIZA CON FRONTERA, no con `indexOf` desnudo: «3.5%» aparece DENTRO de «23.5%», y el
     // índice de esa subcadena arrastraba la ventana a la oración equivocada. Repro medido (ficha de Sodimac,
     // 2026-09-05): «Su margen es 23.5%… Su carga comercial es 5.4% de su venta, contra tu nivel de carga
@@ -498,12 +922,14 @@ function _metricBindingViolations(narration, ledger) {
     // hacia atrás dejaba afuera el verbo de la cifra anterior ("A vende $19.4M y B $17.8M" perdía "vende" y
     // marcaba $17.8M como "margen"). Dos falsos cazados por el gate de aceptación. Se calculan los límites sobre
     // una copia con las cifras enmascaradas (misma longitud, sin puntos) y se LEE del texto original.
-    const masked = _maskFigures(text);
+    /* «+7.5% vs. año anterior ($99.9M)»: la abreviatura no cierra la oración — con el punto de «vs.» cortando la ventana, «vs. año anterior»
+     * asomaba a medias y el $99.9M salía «narrado como variación» (borrador real del prompt de gerente; la misma regla del lector de cláusula) */
+    const masked = _maskFigures(text).replace(/(?<![\p{L}])vs\.(?=\s)/gu, "vs ");
     const [lo0] = _localWindow(masked, idx, 60);
     const end = _finDeCifra(text, idx + f.text.length);   // «17 días» entero, no «17 d» + «ías»
     const hi0 = Math.min(masked.length, end + 60);
     const cut = masked.slice(end, hi0).search(_SENT_END);
-    const hi = cut >= 0 ? end + cut : hi0;
+    const hiOracion = cut >= 0 ? end + cut : hi0;
     /* ── LA MÉTRICA DEL OTRO LADO DE UNOS DOS PUNTOS NO SE ATA A LA CIFRA (owner 2026-09-14, lector de cláusula) ─────────
      * FALSO POSITIVO MEDIDO (prueba 1, tercera corrida viva; vigente hasta hoy): «sin relación con lo que más vende:
      * LG-DRYER8KG ($14K frenados, 165 días de cobertura, en Valparaíso)» → «$14K narrado como ventas». «vende» estaba a menos
@@ -513,9 +939,50 @@ function _metricBindingViolations(narration, ledger) {
      * cláusula de la cifra — para una cifra entre paréntesis, donde empieza la cláusula que lo contiene («carga de Jumbo
      * (3.8%)» sigue atribuyendo); para una cifra que abre su cláusula tras «:» o una raya, en el rótulo que la precede («El
      * margen: $655K», «vende: $14K» siguen atribuyendo). Hacia adelante no cambia nada: _tramoDescriptivo ya decide. */
-    const _L = leerClausula(text, idx);
+    const _L = leerClausula(text, idx, { nombresRe: _nombresRe });
     const lo = Math.max(lo0, _L.enParentesis ? (_L.contenedor ? _L.contenedor.ini : _L.clausula.ini) : (_L.rotulo ? _L.rotulo.ini : _L.clausula.ini));
-    const cercaTodas = _metricasEn(text.slice(lo, hi));
+    /* …Y HACIA ADELANTE TERMINA DONDE TERMINA LA CLÁUSULA (owner 2026-09-14, atribución y significado): «tienen margen 22.5% y
+     * el resto 28.2%: la BRECHA está en los grandes» — la métrica del otro lado de los dos puntos (o del punto y coma, o de la
+     * raya) abre otra afirmación y no describe a la cifra. `_SENT_END` no corta ahí; el lector de cláusula sí. */
+    const _corteFwd = masked.slice(end, hiOracion).search(/[;:\n]/);
+    const hi = _corteFwd >= 0 ? end + _corteFwd : hiOracion;   // «El margen: $655K — es lo que se cede en acciones comerciales»: la raya que sigue a la cifra la describe; «;» y «:» abren otra afirmación
+    /* ── CIFRA + DUEÑO + SIGNIFICADO, CON EL DUEÑO LEÍDO (owner 2026-09-14, atribución y significado; ver _metricOwners) ──
+     * Si el lector de cláusula lee el SUJETO de la cifra y la boleta publica esa cifra para esa entidad, el significado que
+     * cuenta es el del rótulo de ESA entidad: «Falabella deja $2.5M de contribución» se juzga contra «Falabella · Saldo vencido»
+     * y no contra la unión (vencido/venta de ABC/contribución de SAM-TV55). Si el rótulo de esa entidad es opaco («Lider ·
+     * Valor»), la cifra no se juzga por métrica. Sin sujeto legible, la unión de siempre. */
+    let _requiere = owners.requiere.get(_canonJuzgado) || new Set();
+    {
+      let suj = _L.sujeto ? _norm(_L.sujeto.nombre) : null;
+      /* la anáfora ordinal / «este último» sobre la lista que precede re-designa al sujeto («Jumbo y Sodimac, de los cuales el primero
+       * arrastra $1.9M vencidos» → Jumbo, cuyos $1.9M son su YoY, no un vencido) */
+      if (_L.anafora && _L.listaPrevia && _L.listaPrevia.nombres.length >= 2 && _L.listaPrevia.fin <= idx && (!_L.sujeto || _L.listaPrevia.fin >= _L.sujeto.pos)) {
+        if (_L.anafora.tipo === "ordinal" && _L.listaPrevia.nombres[_L.anafora.indice]) suj = _norm(_L.listaPrevia.nombres[_L.anafora.indice]);
+        else if (_L.anafora.tipo === "ultimo") suj = _norm(_L.listaPrevia.nombres[_L.listaPrevia.nombres.length - 1]);
+      }
+      /* la coordinación distributiva manda sobre el sujeto: «Lider (8.6 pp) y Falabella (8.1 pp) … ($1.5M y $1.6M)» — la k-ésima
+       * cifra es de la k-ésima entidad coordinada (la misma lectura de _atribucionAjenaEnBoleta) */
+      const _grupo = _grupoCoordinado(masked, idx, end, text);
+      if (_grupo && _grupo.ini > _L.oracion.ini) {
+        const _coord = _coordinadasContiguas(_L.plano.slice(_L.oracion.ini, _grupo.ini), _nombresRe);
+        if (_coord.length >= _grupo.n) suj = _norm(_coord.slice(-_grupo.n)[_grupo.k]);
+        /* …y el par «x contra y» (también «vs», «frente a») es (SUJETO, COMPARADA): la segunda cifra es de la comparada que el lector lee —
+         * «Mercado Libre crece más rápido que Lider (+25.3% contra +14.9%), pero aporta menos dólares nuevos (+$1.1M contra +$2.3M)»: el
+         * +$2.3M es la variación de Lider, no la venta de Unimarc (fp-comparaciones, owner 2026-09-14). La misma lectura de _atribucionAjenaEnBoleta. */
+        else if (_grupo.n === 2 && _grupo.k === 1 && _L.comparada && _PAR_CONTRA.test(masked.slice(_grupo.ini, _grupo.ini + 60))) suj = _norm(_L.comparada.nombre);
+      }
+      if (suj) {
+        const deEnt = owners.porEntidad.get(_canonJuzgado);
+        const opacos = owners.opacos.get(_canonJuzgado);
+        if (deEnt && deEnt.has(suj) && deEnt.get(suj).size) { ownerSet = deEnt.get(suj); _requiere = new Set(); }
+        else if (opacos && opacos.has(suj)) continue;
+      }
+    }
+    if (!ownerSet || !ownerSet.size) continue;      // sin dueño de métrica ni en la boleta ni en la proyección para ese sujeto
+    /* las menciones de la ventana, con posición y con la larga llevándose a la corta (ver _mencionesConSpan); la brecha es una
+     * métrica en pp (o en dinero: «sin capturar»): una tasa en % no se lee como brecha («queda lejos del benchmark (22% contra
+     * 30.1%)» son niveles, no la distancia) */
+    const cercaSpans = _spans.filter((s) => s.b > lo && s.a < hi && !(s.clave === "brecha" && f.unit === "pct"));   // la que asoma a la ventana cuenta entera (owner 2026-09-14)
     /* ── LA MÉTRICA DUEÑA NOMBRADA JUSTO DESPUÉS DE LA CIFRA LA DESCRIBE (encargo en vivo, 2026-09-14) ─────────────
      * Falso positivo MEDIDO en el borrador del modelo —completo y correcto— que cayó al respaldo: «$588K corresponde
      * al efecto de la carga comercial excedida y $4.4M al componente de precio y costo combinados» → «$4.4M narrado
@@ -527,7 +994,7 @@ function _metricBindingViolations(narration, ledger) {
      * positivo. «tu carga comercial es $4.4M» sigue ardiendo — no hay dueña después. */
     {
       const _tramo = Math.min(hi, end + 45);
-      if (!/#/.test(masked.slice(end, _tramo)) && [..._metricasEn(text.slice(end, _tramo))].some((m) => ownerSet.has(m))) continue;
+      if (!_nivelComoPP && !/#/.test(masked.slice(end, _tramo)) && cercaSpans.some((s) => s.a >= end && s.b <= _tramo && ownerSet.has(s.clave))) continue;
     }
     /* ── LA MENCIÓN DE DESPUÉS ATRIBUYE SOLO SI ESTÁ PEGADA POR UN CONECTOR (prompt de gerente, 2026-09-13) ──
      * Tercer falso positivo de esta familia en dos días, y el que tumbó el cierre del modelo: «La venta creció
@@ -539,24 +1006,60 @@ function _metricBindingViolations(narration, ledger) {
      * carga…» abren otra afirmación. La mención que sigue a la cifra solo cuenta si el tramo entre ambas es un
      * conector (el mismo `_CONECTOR_ATRAS` que ya decide cuándo una cifra se lleva la mención de atrás, más
      * «como»). Una mención ANTES de la cifra atribuye como siempre («el margen es $X», «vende $X»). */
-    const _atribuyen = new Map();   // clave → [[a, b]] de las menciones que sí atribuyen a esta cifra
-    for (const clave of cercaTodas) {
-      const vocab = _METRIC_VOCAB.find((m) => m.clave === clave);
-      if (!vocab) continue;
-      const re = new RegExp(vocab.re.source, vocab.re.flags.includes("g") ? vocab.re.flags : vocab.re.flags + "g");
-      const ventana = text.slice(lo, hi);
+    /* ── LA MENCIÓN DE ANTES ATRIBUYE SALVO POR ESTRUCTURA (owner 2026-09-14, atribución y significado) ──────────────
+     * Dos formas medidas en el conjunto adversarial donde una mención ANTERIOR a la cifra no la describe:
+     *   · el lado NEGADO de un «sino»: «El capital frenado no está donde más se VENDE sino en LG-DRYER8KG ($14K)» —
+     *     «vende» vive en lo que la frase niega; lo afirmado empieza en «sino» (fp-prosa F7/H, 20 frases correctas);
+     *   · OTRO ÍTEM de una lista coordinada que ya trae su propia cifra: «12.3% en las dos de MARGEN delgado y 13.8% en
+     *     las cinco sanas» — «margen» es del ítem del 12.3%; la coma o la «y» que separa ítems con cifra cierra el ítem
+     *     (fp-listas P4, 24 frases). El rótulo de antes de los dos puntos no es un ítem: «El margen: Lider 21.5%,
+     *     Falabella 4.5%» sigue leyendo «margen» para las dos cifras. */
+    const _itemDe = (pos) => { let k = 0; for (const b of _fronterasDeItem) { if (b <= pos) k++; else break; } return k; };
+    const _fronterasDeItem = (() => {   // posiciones (fin del separador) de «, » / « y » / « e » / « ni » dentro de la cláusula de la cifra
+      const ini = _L.enParentesis && _L.contenedor ? _L.contenedor.ini : _L.clausula.ini, fin = Math.max(ini, hi);
+      const out = [];
+      const re = /,\s+|\s(?:y|e|ni)\s+/g;
+      const tramo = masked.slice(ini, fin);
       let mm;
-      while ((mm = re.exec(ventana))) {
-        const a = lo + mm.index, b = a + mm[0].length;
-        const atribuye = a < end                                                   // antes de la cifra (o dentro de su tramo): atribuye
-          || _tramoDescriptivo(text.slice(end, a), masked.slice(end, a));         // después, sin abrir otra afirmación: atribuye
-        if (!atribuye) continue;
-        if (!_atribuyen.has(clave)) _atribuyen.set(clave, []);
-        _atribuyen.get(clave).push([a, b]);
-      }
+      while ((mm = re.exec(tramo))) out.push(ini + mm.index + mm[0].length);
+      return out;
+    })();
+    const _iniItems = _L.enParentesis && _L.contenedor ? _L.contenedor.ini : _L.clausula.ini;
+    const _itemTieneCifra = (k) => { const a = k === 0 ? _iniItems : _fronterasDeItem[k - 1], b = k < _fronterasDeItem.length ? _fronterasDeItem[k] : hi; return /#/.test(masked.slice(Math.max(a, lo), Math.min(b, hi))); };
+    const _itemJuzgado = _itemDe(idx);
+    const _atribuyen = new Map();   // clave → [[a, b]] de las menciones que sí atribuyen a esta cifra
+    for (const { clave, a, b } of cercaSpans) {
+      let atribuye;
+      /* la mención NEGADA no describe a nadie («SAM-REF500L queda fuera de los frenados: rota en 17 días» — «frenados» está negado por
+       * «fuera de»; «no está frenado, rota en 17 días» — por «no»): la negación es la del lector de cláusula más «fuera de / lejos de /
+       * salvo / excepto» (owner 2026-09-14, atribución y significado — fp-comparaciones «negación de estado») */
+      if (leerClausula(text, a).negada || _NEGA_ESTRUCTURA.test(_normalizar(text.slice(Math.max(0, a - 60), a)))) continue;
+      /* el sustantivo «recuperación» con una cifra en DINERO es el idioma comercial («$210K como recuperación estimada», «recuperar $194K»: la
+       * contribución que la simulación devuelve), no la recuperación de la cobranza (un %): no describe a la cifra (owner 2026-09-14) */
+      if (clave === "recuperado" && f.unit === "money" && /^recuperaci/i.test(_normalizar(text.slice(a, b)))) continue;
+      if (a < end) {
+        const ladoNegado = /(?:^|[^\p{L}])sino(?=[^\p{L}]|$)/u.test(text.slice(b, idx));
+        const k = _itemDe(a);
+        const otroItem = a >= _iniItems && k !== _itemJuzgado && _itemTieneCifra(k);
+        atribuye = !ladoNegado && !otroItem;                                       // antes de la cifra (o dentro de su tramo): atribuye
+      } else atribuye = _tramoDescriptivo(text.slice(end, a), masked.slice(end, a));   // después, sin abrir otra afirmación: atribuye
+      if (!atribuye) continue;
+      if (!_atribuyen.has(clave)) _atribuyen.set(clave, []);
+      _atribuyen.get(clave).push([a, b]);
     }
+    if (!_atribuyen.has("variacion") && (/[+\-]$/.test(text.slice(Math.max(0, idx - 1), idx)) || /^[+\-]/.test(f.text) || /(?:cae|caen|cay[oó]|sube|suben|subi[oó]|crece|crecen|creci[oó]|baj[oó]|retrocede|pierde|gana|avanza)\s+(?:en\s+\p{L}+\s+)?$/iu.test(text.slice(Math.max(0, idx - 30), idx)))) _atribuyen.set("variacion", [[idx, idx]]);   // «cae -8.2%», «pierde venta (-$422K)»: el signo y el verbo dicen variación (owner 2026-09-14)
     const cerca = new Set(_atribuyen.keys());
+    /* el CALIFICADOR exigido por el rótulo («Capital frenado · subtotal = $33K») tiene que estar dicho: «El capital en inventario del negocio
+     * es $33K» narra el frenado como el capital entero (owner 2026-09-14, atribución y significado). Solo cuando la prosa dice la PALABRA
+     * «capital»: «el inventario va tercero porque son $33K» nombra el dominio, no la métrica, y no se juzga. */
+    const _diceCapital = (_atribuyen.get("capital") || []).some(([a, b]) => /capital/i.test(text.slice(a, b)));
+    if (_requiere.size && _diceCapital && ![..._requiere].every((q) => cercaSpans.some((sp) => sp.clave === q))) {
+      viol.push(`«${f.text}» narrado como ${[...cerca].join("/")} a secas, pero pertenece a ${[..._requiere].join("/")} (${[...ownerSet].join("/")}): "${text.slice(lo, hi).trim().replace(/\s+/g, " ").slice(0, 120)}"`);
+      continue;
+    }
+    if (globalThis.__ADI_TRAZA_BIND) globalThis.__ADI_TRAZA_BIND.push({ fig: f.text, owner: [...ownerSet], suj: _L.sujeto && _L.sujeto.nombre, lo, hi, cercaSpans: cercaSpans.map((s) => s.clave + "@" + s.a), atribuyen: [..._atribuyen.keys()] });
     if (!cerca.size) continue;                      // 0 → sin señal, no se juzga
+    const _spansDe = (c) => (_atribuyen.get(c) || []);
     let unica;
     if (cerca.size === 1) unica = [...cerca][0];
     else {
@@ -566,12 +1069,26 @@ function _metricBindingViolations(narration, ledger) {
        * correcta) y la única mención LIBRE alrededor de 25.3% es «crece». Antes esa ventana caía en «ambiguo → no se
        * juzga» y una participación salía narrada como crecimiento: cifra real, dueño real, significado falso. Con
        * dos métricas libres sigue siendo ambiguo y no se juzga — el criterio de la casa no cambia, se aplica a las
-       * menciones que de verdad están libres (la misma regla de «mención tomada» de más abajo). */
-      const libres = [...cerca].filter((c) => !_todasLasMencionesTomadas({ text, masked, lo, hi, unica: c, idxJuzgada: idx, finJuzgada: end, owners }));
-      if (libres.length !== 1) continue;
-      unica = libres[0];
+       * menciones que de verdad están libres (la misma regla de «mención tomada» de más abajo).
+       * …Y ES AMBIGUO SOLO SI UNA DE LAS LIBRES ES LA DUEÑA (owner 2026-09-14, atribución y significado): «La cartera
+       * perdió 5.0 pp de MARGEN contra el AÑO ANTERIOR» tiene dos menciones libres (margen, variación) y la cifra es la
+       * brecha al benchmark — ninguna la describe. Cuando ninguna libre es dueña, la cifra está mal narrada la lea uno
+       * por donde la lea: se cobra con la más cercana. */
+      const libres = [...cerca].filter((c) => !_todasLasMencionesTomadas({ text, masked, lo, hi, unica: c, idxJuzgada: idx, finJuzgada: end, owners, spans: _spansDe(c), ownerSetJuzgada: ownerSet }));
+      if (!libres.length) continue;
+      if (libres.length > 1 && libres.some((c) => ownerSet.has(c))) continue;
+      /* …y «la venta creció 8.3%» (ventas + variación, con la venta CON SERIE en la boleta: «venta mes a mes», «año anterior») describe la
+       * variación de una métrica medida en el tiempo — un compuesto que este binding no juzga (es el terreno de _direccionYSigno);
+       * «perdió 5.0 pp de margen contra el año anterior» (margen SIN serie) sigue cobrándose (caso de aceptación de Falabella, owner) */
+      if (libres.length > 1 && libres.includes("variacion") && libres.some((c) => c !== "variacion" && _seriesEnBoleta.has(c))) continue;
+      if (libres.length > 1 && (() => { const sp = libres.flatMap((c) => _spansDe(c)).sort((x, y) => x[0] - y[0]); for (let i = 1; i < sp.length; i++) if (/\b(?:sobre|entre|dividid[oa]\s+por|respecto\s+de)\b|\//i.test(text.slice(sp[i - 1][1], sp[i][0]))) return true; return false; })()) continue;   // «lo abonado sobre lo facturado (57.7%)»: una razón entre dos métricas
+      /* …y dos libres separadas por una coordinación («en saldo vencido, en días de atraso y en porcentaje recuperado (8.6 pp contra 8.1 pp, …)»)
+       * son una lista de métricas repartida entre las cifras, no dos lecturas de la misma: sigue siendo ambiguo y no se juzga */
+      if (libres.length > 1 && (() => { const sp = libres.flatMap((c) => _spansDe(c)).sort((x, y) => x[0] - y[0]); for (let i = 1; i < sp.length; i++) if (/,\s|\s(?:y|e|ni|o)\s/.test(text.slice(sp[i - 1][1], sp[i][0]))) return true; return false; })()) continue;
+      unica = libres.length === 1 ? libres[0] : libres.map((c) => [c, Math.min(...(_spansDe(c).map(([a, b]) => b <= idx ? idx - b : a >= end ? a - end : 0)))]).sort((x, y) => x[1] - y[1])[0][0];
     }
-    if (ownerSet.has(unica)) continue;
+    const _esNivelEnPP = _nivelComoPP && ownerSet.has(unica) && !_DELTAS.has(unica);   // «la carga … 4.5 pp»: el propio nivel, dicho en puntos
+    if (ownerSet.has(unica) && !_esNivelEnPP) continue;
     /* ── LA MÉTRICA TIENE QUE ESTAR ATRIBUYENDO, NO SOLO ESTAR CERCA (owner 2026-09-08) ────────────────────
      * Falso positivo MEDIDO sobre prosa de asesor perfectamente correcta: «Los 13 clientes cierran el año en
      * $100.0M, y los más grandes son los que más presionan el margen» → «$100.0M narrado como margen». La
@@ -582,7 +1099,7 @@ function _metricBindingViolations(narration, ledger) {
      * para todas; más allá, la métrica vive en otra parte de la frase. Sigue rigiendo el principio de la casa:
      * antes un falso negativo que bloquear una respuesta correcta. */
     const _dist = (() => {   // solo sobre las menciones que atribuyen Y están libres (una tomada por otra cifra no acerca nada)
-      const libres = _mencionesLibres({ text, masked, lo, hi, unica, idxJuzgada: idx, finJuzgada: end, owners });
+      const libres = _mencionesLibres({ text, masked, lo, hi, unica, idxJuzgada: idx, finJuzgada: end, owners, spans: _spansDe(unica), ownerSetJuzgada: ownerSet });
       const atribuyen = (_atribuyen.get(unica) || []).filter(([a]) => libres.some(([la]) => la === a));
       let best = Infinity;
       for (const [a, b] of atribuyen) best = Math.min(best, b <= idx ? idx - b : a >= end ? a - end : 0);
@@ -611,9 +1128,10 @@ function _metricBindingViolations(narration, ledger) {
      * mención no tiene otra cifra que la tome), y en «Falabella vende $19.4M, mientras Jumbo vende $4.2M» el
      * segundo «vende» solo tiene delante a la cifra juzgada — libre, veto en pie. Calibrado con corpus
      * legítimo (el texto del owner incluido) + veneno en `_binding_guard_gate`. */
-    if (_todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada: idx, finJuzgada: end, owners })) continue;
+    if (_todasLasMencionesTomadas({ text, masked, lo, hi, unica, idxJuzgada: idx, finJuzgada: end, owners, spans: _spansDe(unica), ownerSetJuzgada: ownerSet })) continue;
     /* la VENTANA viaja en el detalle (owner 2026-09-12): un veto de significado sin la frase que lo disparó no se puede
      * adjudicar después —falso positivo o error real— y el expediente guarda la multa, no el borrador */
+    if (_esNivelEnPP) { viol.push(`«${f.text}» es un nivel (${unica}) narrado en puntos porcentuales: un nivel se dice en % — los puntos son para una brecha o una variación: "${text.slice(lo, hi).trim().replace(/\s+/g, " ").slice(0, 120)}"`); continue; }
     viol.push(`«${f.text}» narrado como ${unica}, pero pertenece a ${[...ownerSet].join("/")}: "${text.slice(lo, hi).trim().replace(/\s+/g, " ").slice(0, 120)}"`);
   }
   return viol;
@@ -636,6 +1154,9 @@ function _tramosDeCifra(masked, lo, hi) {
  * como cobertura» sobre «SAM-REF500L ($19K, con 17 días de cobertura) y LG-WASH11KG ($15K, con 21 días)». Con «17d»
  * el mismo texto pasaba. La cifra termina donde termina la palabra: el resto de «días»/«día» es parte del tramo de
  * la cifra, no del conector. Solo esa terminación; nada más se extiende. */
+/* la negación de ESTRUCTURA que deja afuera sin un «no»: «fuera de los frenados», «lejos del benchmark», «salvo Lider», «excepto…» — la usan
+ * el chequeo de estado (estado-no-declarado) y el binding de métrica (una mención negada no describe a la cifra), owner 2026-09-14 */
+const _NEGA_ESTRUCTURA = /(?:^|[^\p{L}])(?:fuera\s+de(?:l)?|lejos\s+de(?:l)?|salvo|excepto|excluid[oa]s?\s+de)\s+(?:(?:el|la|los|las|un|una)\s+)?(?:\p{L}+\s+){0,3}$/iu;
 function _finDeCifra(text, fin) {
   const m = /^[ií]as?(?![\p{L}\p{N}])/u.exec(String(text).slice(fin, fin + 4));
   return m ? fin + m[0].length : fin;
@@ -653,22 +1174,29 @@ const _ABRE_OTRA_AFIRMACION = /;|(?<![\wáéíóúñ])(?:pero|y|e|aunque|mientra
 /* y la cifra que cierra un paréntesis —«Jumbo (24.0%) — tus tres motores de crecimiento —»— la describe lo que va DENTRO
  * del paréntesis o lo que lo precede, nunca lo que sigue al cierre: medido 2026-09-14 (encargo en vivo), el margen de
  * Jumbo salía «narrado como variación» por la aposición de los sujetos que venía después */
-const _tramoDescriptivo = (tramo, tramoMasked) => !/^\s*\)/.test(tramo) && !tramoMasked.includes("#") && !_SENT_END.test(tramoMasked) && !_ABRE_OTRA_AFIRMACION.test(tramo);
+const _tramoDescriptivo = (tramo, tramoMasked) => !/\)/.test(tramo) && !tramoMasked.includes("#") && !_SENT_END.test(tramoMasked) && !_ABRE_OTRA_AFIRMACION.test(tramo);
 function _todasLasMencionesTomadas(args) { return _mencionesLibres(args).length === 0; }
 /* las menciones de `unica` en la ventana que NO están tomadas por otra cifra — la distancia a la cifra juzgada se mide solo
  * sobre ellas (corrida 4 del prompt de gerente, 2026-09-13): «el negocio creció: la venta subió 7.5% contra el año anterior
  * ($99.9M)» tenía «creció» libre a 50 caracteres y «contra el año anterior» tomada por el 7.5% a 2 — la libre daba el
  * veredicto y la tomada la distancia, y el $99.9M salía «narrado como variación». Una mención tomada no acerca nada. */
-function _mencionesLibres({ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners }) {
+function _mencionesLibres({ text, masked, lo, hi, unica, idxJuzgada, finJuzgada, owners, spans = null, ownerSetJuzgada = null }) {
   const libres = [];
   const vocab = _METRIC_VOCAB.find((m) => m.clave === unica);
   if (!vocab) return [[lo, lo]];   // sin vocabulario no hay cómo saber: se juzga como antes (una «libre» vacía)
-  const re = new RegExp(vocab.re.source, vocab.re.flags.includes("g") ? vocab.re.flags : vocab.re.flags + "g");
-  const ventana = text.slice(lo, hi);
   const tramos = _tramosDeCifra(masked, lo, hi);
-  let m;
-  while ((m = re.exec(ventana))) {
-    const mIni = lo + m.index, mFin = mIni + m[0].length;
+  /* con `spans` (las menciones que ATRIBUYEN a la cifra, ya leídas con la larga llevándose a la corta — owner 2026-09-14) se
+   * recorren esas; sin ellos (callers viejos) se re-corre la regex sobre la ventana, como siempre */
+  const menciones = [];
+  if (Array.isArray(spans)) { for (const [a, b] of spans) menciones.push([a, b]); }
+  else {
+    const re = new RegExp(vocab.re.source, vocab.re.flags.includes("g") ? vocab.re.flags : vocab.re.flags + "g");
+    const ventana = text.slice(lo, hi);
+    let m;
+    while ((m = re.exec(ventana))) menciones.push([lo + m.index, lo + m.index + m[0].length]);
+  }
+  for (const [mIni, mFin] of menciones) {
+    const m = [text.slice(mIni, mFin)];
     /* EL INFINITIVO SUELTO NO AFIRMA («hay una diferencia entre vender más y aportar más:») — es discurso, no
      * una atribución. Se ignora SOLO cuando no tiene ninguna cifra pegada: «espera facturar $4.2M» conserva la
      * mención (la cifra está al lado) y sigue el camino normal — donde la juzgada no se toma a sí misma. */
@@ -677,13 +1205,17 @@ function _mencionesLibres({ text, masked, lo, hi, unica, idxJuzgada, finJuzgada,
     /* LA MENCIÓN PEGADA DETRÁS DE LA CIFRA JUZGADA ES SUYA («22.5% de margen contra 28.2%»): nadie más se la lleva —
      * queda libre para juzgarla a ella. Calibrado en vivo (2026-09-12): «28.2%» se la llevaba hacia adelante y el
      * margen de los grandes salía «narrado como participación» por el «49% de la contribución» de al lado. */
-    const propiaAtras = finJuzgada <= mIni && (mIni - finJuzgada) <= 15 && _CONECTOR_ATRAS.test(text.slice(finJuzgada, mIni));
+    const propiaAtras = finJuzgada <= mIni && (mIni - finJuzgada) <= 15 && _CONECTOR_ATRAS.test(text.slice(finJuzgada, mIni)) && !tramos.some(([gIni]) => gIni >= mFin && gIni - mFin <= 15 && /^\s*(?:de|del|en|:|\()?\s*$/.test(text.slice(mFin, gIni)));
     if (propiaAtras) { libres.push([mIni, mFin]); continue; }
     for (const [gIni, gFin0] of tramos) {
       const gFin = _finDeCifra(text, gFin0);   // «17 días» entero (ver _finDeCifra)
       if (gIni === idxJuzgada && gFin >= finJuzgada) continue;   // la propia cifra juzgada no toma menciones
       const haciaAtras = gFin <= mIni && (mIni - gFin) <= 15 && _CONECTOR_ATRAS.test(text.slice(gFin, mIni));
-      const haciaAdelante = mFin <= gIni && (gIni - mFin) <= 15 && !_SENT_END.test(masked.slice(mFin, gIni));
+      /* sin otra cifra entre medio — salvo la JUZGADA, y solo si la mención no la describe: «deben vencido $4.6M, $2.5M» (vencido es del $4.6M,
+       * no salta); «crece —$99.9M, +7.5%—» (crece no describe al $99.9M: salta al +7.5%, que es su variación) */
+      const entreM = masked.slice(mFin, gIni);
+      const soloLaJuzgada = entreM.includes("#") && mFin <= idxJuzgada && finJuzgada <= gIni && !masked.slice(mFin, idxJuzgada).includes("#") && !masked.slice(finJuzgada, gIni).includes("#") && !(ownerSetJuzgada && ownerSetJuzgada.has(unica));
+      const haciaAdelante = mFin <= gIni && (gIni - mFin) <= 15 + (soloLaJuzgada ? (finJuzgada - idxJuzgada) : 0) && !_SENT_END.test(entreM) && (!entreM.includes("#") || soloLaJuzgada);
       if (!haciaAtras && !haciaAdelante) continue;
       const tok = parseFigures(text.slice(gIni, gFin))[0];
       const duenos = tok && owners.get(tok.canon);
@@ -708,7 +1240,7 @@ function _mencionesLibres({ text, masked, lo, hi, unica, idxJuzgada, finJuzgada,
     if (!tomada) {
       const antes = text.slice(Math.max(lo, mIni - 16), mIni), despues = text.slice(mFin, Math.min(hi, mFin + 16));
       const antesM = masked.slice(Math.max(lo, mIni - 16), mIni), despuesM = masked.slice(mFin, Math.min(hi, mFin + 16));
-      const conteoAtras = /\d[\d.,]*\s*(?:de\s+)?$/.test(antes) && !/#\s*(?:de\s+)?$/.test(antesM);
+      const conteoAtras = /(?<![\p{L}\-])\d[\d.,]*\s*(?:de\s+)?$/u.test(antes) && !/#\s*(?:de\s+)?$/.test(antesM);   // «PHI-SHAVER9 vende»: el 9 del nombre no es un conteo
       const conteoAdelante = /^\s*(?:de|del|en|:)?\s*\d/.test(despues) && !/^\s*(?:de|del|en|:)?\s*#/.test(despuesM);
       if (conteoAtras || conteoAdelante) tomada = true;
     }
@@ -2974,11 +3506,22 @@ function _figsConPosicion(parr) {
 //     dos oraciones («El mejor margen lo tiene Falabella con 22%. Detrás vienen Lider con 21.5% y Jumbo con 24%»)
 //     evadía el chequeo entero con sólo poner un punto en el medio.
 const _SUPERLATIVO_PROSA = /\b(?:el|la|los|las)\s+(?:m[aá]s\s+\w+|mayor(?:es)?|menor(?:es)?|mejor(?:es)?|peor(?:es)?)\b|\bel\s+que\s+m[aá]s\b|\bel\s+que\s+menos\b|\bm[aá]xim[oa]\b|\bm[ií]nim[oa]\b/i;
+/* cada VIÑETA es su propio párrafo (owner 2026-09-14, atribución y significado): «- **Comercial** — Falabella es la mayor brecha individual ($1.6M…)
+ * / - **Cobranza** — … le sigue Falabella ($2.5M…)» son tres frentes en tres líneas seguidas, y leídos como un solo párrafo el $2.5M del vencido
+ * competía con la brecha de $1.6M (cierre real de la lectura ejecutiva, vivo3). Una línea que abre con viñeta corta; las líneas sin viñeta se
+ * pegan a la anterior. */
+function _porVinetas(parr) {
+  const out = [];
+  for (const l of String(parr || "").split("\n")) {
+    if (/^\s*(?:[-•·*]|\d+[.)])\s+/.test(l) || !out.length) out.push(l); else out[out.length - 1] += "\n" + l;
+  }
+  return out;
+}
 function _extremoEnProsa(narration, entityNames, ledger) {
   if (!Array.isArray(entityNames) || entityNames.length < 3) return [];
   const figsL = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
   const out = [];
-  for (const parr of _parrafos(narration)) {
+  for (const parr of _parrafos(narration).flatMap(_porVinetas)) {
     const nombradas = entityNames.filter((n) => new RegExp(`\\b${_esc(n)}\\b`, "i").test(parr));
     if (nombradas.length < 3) continue;                   // sin 3 pares comparados no es una comparación entre pares
     const figs = _figsConPosicion(parr);
@@ -3015,8 +3558,22 @@ function _extremoEnProsa(narration, entityNames, ledger) {
         if (!dir) continue;                                // «mejor»/«peor» sin dirección cierta → NO se juzga
         esMax = mejor ? dir > 0 : dir < 0;
       }
+      /* el rival tiene que ser de la MISMA métrica EN EL TEXTO, no solo por colisión de canon en la boleta (owner 2026-09-14, atribución y
+       * significado): «Falabella es la mayor brecha individual ($1.6M sin capturar…) … $2.5M vencidos» — el $2.5M es también la contribución
+       * de SAM-TV55 en la boleta, y por esa colisión entraba como rival de la brecha. La mención de métrica PEGADA a la cifra («$2.5M vencidos»,
+       * «margen 22%») dice lo que la cifra es en la prosa; si esa mención no es de la métrica reclamada, no compite. Sin mención pegada, la
+       * boleta manda como siempre. */
+      const _spansParr = _mencionesConSpan(parr);
+      const _maskedParr = _maskFigures(parr);
+      const _metricaPegada = (f) => {
+        const a = f.i, b = f.i + f.text.length;
+        const pegadas = _spansParr.filter((s) => (s.b <= a && a - s.b <= 25 && !/#/.test(_maskedParr.slice(s.b, a)) && !/[.;:]/.test(parr.slice(s.b, a)))
+          || (s.a >= b && s.a - b <= 25 && !/#/.test(_maskedParr.slice(b, s.a)) && /^[\s,]*(?:de|del|en|como|\()?\s*$/i.test(parr.slice(b, s.a))));
+        return new Set(pegadas.map((s) => s.clave).filter((c) => c !== "participacion" && c !== "variacion"));
+      };
       const rivales = figs.filter((f) => f !== reclamada && f.unit === reclamada.unit && atada(f)
-        && [..._metricasDeFigNarrada(f, figsL)].some((m) => metClaim.has(m)));
+        && [..._metricasDeFigNarrada(f, figsL)].some((m) => metClaim.has(m))
+        && (() => { const mp = _metricaPegada(f); return !mp.size || [...mp].some((m) => metClaim.has(m)); })());
       if (rivales.length + 1 < 3) continue;                // sin 3 cifras comparables no hay evidencia estructural
       const tol = _semiUlp(reclamada.text);
       const gana = rivales.find((f) => (esMax ? f.raw > reclamada.raw + tol : f.raw < reclamada.raw - tol));
@@ -3684,15 +4241,15 @@ function _duenoEnVentana(text, masked, fig, duenos) {
  * sale `ejeDe` (nombre normalizado → eje): la única forma de saber que «Retail» es un canal y «Santiago» una bodega
  * sin mirar mayúsculas ni guiones. Sin el catálogo (callers viejos, gates que no lo pasan) `ejeDe` queda vacío y la
  * lectura es byte-idéntica a la de antes. */
-function _duenosDeBoleta(figs, entityNames, entidadesDelTenant, ejesDelTenant = null) {
-  if (!Array.isArray(figs) || !figs.length) return null;
+/* los NOMBRES REALES del tenant (los seis ejes + las entidades del turno) con su eje declarado, compilados UNA vez: los usan el índice de
+ * dueños de la boleta (_duenosDeBoleta) y la verificación por estructura de la quinta fuente (owner 2026-09-14) — una construcción, dos lectores */
+function _indiceDeNombres(entityNames, entidadesDelTenant, ejesDelTenant = null) {
   const ref = new Map();
-  for (const n of [...(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : []), ...entityNames]) {
+  for (const n of [...(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : []), ...(Array.isArray(entityNames) ? entityNames : [])]) {
     const disp = String(n == null ? "" : n).trim();
     const nn = _norm(disp);
     if (nn.length >= 3 && !ref.has(nn)) ref.set(nn, disp);
   }
-  if (!ref.size) return null;
   const ejeDe = new Map();
   if (ejesDelTenant && typeof ejesDelTenant === "object") {
     for (const eje of Object.keys(ejesDelTenant)) for (const n of (Array.isArray(ejesDelTenant[eje]) ? ejesDelTenant[eje] : [])) {
@@ -3700,6 +4257,16 @@ function _duenosDeBoleta(figs, entityNames, entidadesDelTenant, ejesDelTenant = 
       if (nn && !ejeDe.has(nn)) ejeDe.set(nn, eje);   // un homónimo entre ejes conserva el primero (el orden de AXES)
     }
   }
+  // los nombres de referencia compilados UNA vez: el candado 3 (atribución activa) necesita saber si la oración
+  // nombra ALGUNA entidad real — la misma lista que definió a los dueños, nunca una segunda.
+  const nombresN = [...ref.keys()];   // paralelo a `nombresRe`, para saber de qué nombre (y de qué eje) es cada regex
+  const nombresRe = nombresN.map((nn) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${nn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u"));
+  return { ref, ejeDe, nombresN, nombresRe };
+}
+function _duenosDeBoleta(figs, entityNames, entidadesDelTenant, ejesDelTenant = null) {
+  if (!Array.isArray(figs) || !figs.length) return null;
+  const { ref, ejeDe, nombresN, nombresRe } = _indiceDeNombres(entityNames, entidadesDelTenant, ejesDelTenant);
+  if (!ref.size) return null;
   const porConcepto = new Map();   // concepto (label sin la entidad) → { duenos:Set, figs:[{canones, verbatim, dueno}] }
   const libres = new Set(), libresVerbatim = new Set();   // toda lectura SIN dueño libera ese valor (candado 2)
   for (const f of figs) {
@@ -3715,6 +4282,7 @@ function _duenosDeBoleta(figs, entityNames, entidadesDelTenant, ejesDelTenant = 
     // canoniza «pct:25%», y con dos espacios de canon el dueño real (Ripley · Margen 25.0%) quedaba invisible
     // mientras la colisión (% del total = 25%) sí indexaba — el veto caía sobre una narración correcta.
     const canones = parseFigures(String(f.value == null ? "" : f.value)).map((x) => x.canon);
+    if (!canones.length && f.unit === "count" && Number.isFinite(f.raw)) canones.push(`count:${f.raw}`);   // «Jumbo · Unidades vendidas = 1194»: el conteo con dueño también se indexa (owner 2026-09-14)
     const verbatim = _stripSpace(String(f.value == null ? "" : f.value));
     const concepto = _norm(resto.join(" "));
     if (!dueno || !concepto) { for (const c of canones) libres.add(c); if (verbatim) libresVerbatim.add(verbatim); continue; }
@@ -3740,10 +4308,6 @@ function _duenosDeBoleta(figs, entityNames, entidadesDelTenant, ejesDelTenant = 
   for (const c of libres) porCanon.delete(c);
   for (const v of libresVerbatim) porVerbatim.delete(v);
   if (!porCanon.size && !porVerbatim.size) return null;
-  // los nombres de referencia compilados UNA vez: el candado 3 (atribución activa) necesita saber si la oración
-  // nombra ALGUNA entidad real — la misma lista que definió a los dueños, nunca una segunda.
-  const nombresN = [...ref.keys()];   // paralelo a `nombresRe`, para saber de qué nombre (y de qué eje) es cada regex
-  const nombresRe = nombresN.map((nn) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${nn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u"));
   return { porCanon, porVerbatim, nombresRe, nombresN, ejeDe };
 }
 /* ── LA COORDINACIÓN DISTRIBUTIVA (owner 2026-09-14, borrador 1 de la corrida en vivo del cruce) ──────────────
@@ -3760,11 +4324,38 @@ function _duenosDeBoleta(figs, entityNames, entidadesDelTenant, ejesDelTenant = 
  * aparición [idx, end), con la posición k de esa cifra; null si la cifra va sola. */
 /* _SEP_COORD («x y y» · «x contra y» · «x vs y», corrida en vivo 2026-09-14) vive en el lector de cláusula: es la misma coordinación */
 /* «15 días y 19 días»: la boleta captura «15 d» y deja «ías» colgando (ver _finDeCifra) — el grupo tolera ese resto */
-function _grupoCoordinado(masked, idx, end, text) {
-  const antes = new RegExp("#+(?:[ií]as?)?" + _SEP_COORD + "$", "u"), despues = new RegExp("^" + _SEP_COORD + "#+", "u");
+/* …con el signo tipográfico opcional («+$1.5M y +$1.9M», conjunto adversarial 2026-09-14) y SOLO entre cifras de la MISMA unidad:
+ * «($25K y $8K, 75% y 25% del total)» son dos grupos —los montos y las participaciones—, no uno de cuatro (owner 2026-09-14) */
+/* el rango «X a Y» de la misma unidad («15d a 21d», «de $6K a $19K»): ¿la cifra es uno de sus dos extremos? (owner 2026-09-14) */
+function _rangoA(masked, idx, end, text, unidad = null) {
+  const _u = (a, b) => { const p = parseFigures(text.slice(a, b))[0]; return p ? (p.unit === "pp" ? "pct" : p.unit) : null; };
+  const uni = unidad ? (unidad === "pp" ? "pct" : unidad) : _u(idx, _finDeCifra(text, end));
+  const fin = _finDeCifra(text, end);
+  const d = /^\s+a\s+([+\-]?#+(?:[ií]as?)?)/u.exec(masked.slice(fin));
+  if (d) { const a = fin + d[0].length - d[1].length; if (_u(a, a + d[1].length) === uni) return true; }
+  const a = /([+\-]?#+(?:[ií]as?)?)\s+a\s+$/u.exec(masked.slice(Math.max(0, idx - 24), idx));
+  if (a) { const ini = idx - a[0].length; if (_u(ini, ini + a[1].length) === uni) return true; }
+  return false;
+}
+function _grupoCoordinado(masked, idx, end, text, unidad = null) {
+  const antes = new RegExp("([+\\-]?#+(?:[ií]as?)?)" + _SEP_COORD + "[+\\-]?$", "u"), despues = new RegExp("^" + _SEP_COORD + "([+\\-]?#+(?:[ií]as?)?)", "u");
+  const _u = (a, b) => { const p = parseFigures(text.slice(a, b))[0]; return p ? (p.unit === "pp" ? "pct" : p.unit) : null; };
+  const uni = unidad ? (unidad === "pp" ? "pct" : unidad) : _u(idx, _finDeCifra(text, end));
   let ini = idx, k = 0, fin = _finDeCifra(text, end), n = 1;
-  for (;;) { const m = antes.exec(masked.slice(0, ini)); if (!m) break; ini -= m[0].length; k++; n++; }
-  for (;;) { const m = despues.exec(masked.slice(fin)); if (!m) break; fin = _finDeCifra(text, fin + m[0].length); n++; }
+  for (;;) {
+    const m = antes.exec(masked.slice(0, ini));
+    if (!m) break;
+    const a = ini - m[0].length;
+    if (uni && _u(a, a + m[1].length) !== uni) break;
+    ini = a; k++; n++;
+  }
+  for (;;) {
+    const m = despues.exec(masked.slice(fin));
+    if (!m) break;
+    const a = fin + m[0].length - m[1].length;
+    if (uni && _u(a, a + m[1].length) !== uni) break;
+    fin = _finDeCifra(text, fin + m[0].length); n++;
+  }
   return n >= 2 ? { ini, k, n } : null;
 }
 /* _entidadesConPosicion (las entidades reales que nombra un tramo, con posición) y _coordinadasContiguas (SOLO las
@@ -3807,47 +4398,283 @@ function _grupoCoordinado(masked, idx, end, text) {
  * sigue mirando a TODAS —«Santiago vende $19.4M», «En retail, la venta anual es $19.4M» siguen ardiendo: ahí no hay
  * dueño en la oración, solo una entidad ajena reclamando—, y «Lider lidera la venta del canal retail … con una venta
  * anual de $19.4M» sigue ardiendo porque Lider sí es del eje de Falabella. */
-function _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe, nombresN = null, ejeDe = null) {
+/* ── …Y SE VERIFICA, NUNCA SE ABSUELVE POR CERCANÍA (owner 2026-09-14, atribución y significado) ─────────────────────
+ * MEDIDO en el conjunto adversarial (fn-atribucion, 56 falsas «atribución» sin veto + 127 verdaderas vetadas por «cifra de boleta
+ * sin dueño»): la versión anterior LIBERABA la cifra si el dueño real aparecía a ≤ 90 caracteres, en cualquier papel —«Lider y
+ * Sodimac arrastran $1.9M y $4.6M vencidos» (invertido) pasaba porque Sodimac estaba a la vista; «Falabella vende $19.4M y Lider
+ * apenas menos; su saldo vencido llega a $2.5M» (el «su» es Lider; $2.5M es Falabella) pasaba por lo mismo—, y a la vez
+ * CONDENABA lo que no sabía leer: el pronombre de objeto en la misma oración («Falabella lo supera ($4.3M contra $4.2M)»), el
+ * sujeto elidido sostenido tres o cuatro oraciones, «la primera / la segunda», la comparación larga cuyo dueño quedaba a más de
+ * 90 caracteres. La ventana se retira. El dueño de cada aparición se LEE por estructura y se VERIFICA contra la boleta:
+ *   0 · la APOSICIÓN — «Nombre (cifra)», «Nombre: cifra», «Nombre cifra», «Nombre, con cifra»: el nombre pegado delante es el
+ *       dueño, aunque sea la comparada («seguido de Jumbo ($4.2M)», «por encima de Lider ($17.8M)»);
+ *   1 · el PAR «x contra y» (también «vs», «frente a») es (SUJETO, COMPARADA): la primera cifra es del sujeto de la cláusula, la
+ *       segunda de la comparada —explícita («supera a Falabella», «peor que Falabella», «frente a Lider», «el caso opuesto a
+ *       Lider»), o el pronombre de objeto («Falabella lo supera» → la otra entidad de la oración), o el otro de la lista previa
+ *       («Falabella y Lider: la segunda debe más vencido ($4.6M contra $2.5M)»), o el referente de las oraciones previas—;
+ *   2 · la DISTRIBUTIVA «A y B … (x y y)»: la k-ésima cifra es de la k-ésima entidad coordinada; invertida, arde;
+ *   3 · el SUJETO PLURAL coordinado con UNA sola cifra («Falabella y Jumbo tienen 8 días», «Lider y Jumbo venden $17.8M cada
+ *       uno»): la cifra tiene que ser de TODOS, o arde;
+ *   4 · la ANÁFORA del sujeto, cuando la cláusula no nombra a nadie: el posesivo («su carga») y el elidido («Margina 21.5%»)
+ *       toman el antecedente (la cláusula anterior, o las oraciones previas del párrafo saltando las que tampoco nombran a
+ *       nadie — hasta seis); «la primera / la segunda» y «ambas / los dos», la última lista coordinada; «este último», la última
+ *       entidad nombrada. Resuelta, se VERIFICA («Jumbo creció fuerte. Su carga comercial es 5.4%» arde: la carga es de
+ *       Sodimac); sin antecedente, la cifra con posesivo es una cifra SIN DUEÑO y arde («Su carga comercial es 5.4%»);
+ *   5 · el SUJETO de la cláusula (propio, o el de la anterior en la misma oración) es el dueño por defecto;
+ *   6 · sin sujeto ni anáfora, la cifra suelta pasa como siempre («El saldo vencido llega a $4.6M»), salvo que la oración
+ *       nombre a otra entidad que la reclame («En retail, la venta anual es $19.4M»).
+ * Como siempre, este chequeo juzga la CIFRA: una sola aparición con su dueño leído la libera entera. */
+const _PAR_CONTRA = /^[+\-]?#+(?:[ií]as?)?\s+(?:contra|vs\.?|versus|frente\s+a)\s+[+\-]?#/iu;
+/* la COTA dicha en palabras («por debajo de 25%», «más de 250 días», «superan los 150 días», «menos de 2x»): un umbral, no la cifra de nadie */
+const _COTA_ANTES = /(?:^|[^\p{L}])(?:por\s+(?:debajo|encima|sobre)\s+de(?:l)?|m[aá]s\s+de|menos\s+de|superan?|pasan?\s+de|sobre|bajo|hasta|desde|arriba\s+de|debajo\s+de|a\s+partir\s+de|al\s+menos|como\s+m[ií]nimo|como\s+m[aá]ximo)\s+(?:l[oa]s?\s+|el\s+|un[oa]?\s+)?$/u;
+/* la marca de TOTAL en una cláusula sin entidad: la cifra de una cuenta narrada como la del negocio entero */
+const _MARCA_TOTAL = /(?:^|[^\p{L}])(?:total(?:es)?|del\s+negocio|de\s+(?:toda\s+)?la\s+cartera|consolidad[oa]|tod[oa]s\s+l[oa]s\s+(?:clientes|cuentas|sku|bodegas)|a\s+nivel\s+(?:cartera|negocio|global|consolidado)|en\s+el\s+consolidado|de\s+la\s+empresa|del\s+negocio\s+completo)(?![\p{L}])/u;
+/* «Nombre (cifra)» · «Nombre: cifra» · «Nombre — cifra» · «Nombre cifra» · «Nombre, con cifra» · «Nombre con cifra»: solo puntuación,
+ * paréntesis o «con/en/a» entre el nombre y la cifra — la aposición no admite un verbo ni otro sustantivo en medio */
+const _PUENTE_APOSICION = /^[\s(:—–,]*(?:con\s+)?[\s(:—–]*[+\-]?\s*$/u;   // «Mercado Libre +$1.1M»: el signo de la variación va pegado a la cifra (owner 2026-09-14)
+/* …y la aposición DESPUÉS de la cifra: «8.1 pp de Falabella», «$2.5M (Falabella)», «$4.6M vencidos de Lider» */
+/* «cae -8.2% Y la de La Polar -12.5%»: una conjunción entre la cifra y el nombre abre otro ítem — el nombre de después no es aposición de la
+ * cifra de antes (fp-comparaciones «variación con en venta», owner 2026-09-14) */
+const _PUENTE_APOSICION_TRAS = /^[\s,]*(?:(?!(?:y|e|ni|o|u|pero|sino|mientras|aunque)\s)\p{L}+\s+){0,2}(?:de|del|en|es|son|\()\s*$/u;
+/** ¿la cifra va precedida de una cota en palabras («más de», «por debajo de», «superan los»)? — en alguna de sus apariciones */
+function _esCota(text, fig) {
+  const NT = _normalizar(text);
+  let i = -1;
+  while ((i = text.indexOf(fig.text, i + 1)) >= 0) if (_COTA_ANTES.test(NT.slice(Math.max(0, i - 40), i))) return true;
+  return false;
+}
+function _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe, nombresN = null, ejeDe = null, question = "") {
   let idx = -1, ajena = false;
-  const _reDueno = (d) => { const dn = _norm(d); return dn ? new RegExp(`(?:^|[^\\p{L}\\p{N}])${dn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u") : null; };
-  const esDueno = (nombre) => nombre != null && [...duenos].some((d) => _norm(d) === nombre);
+  const esDueno = (nombre) => nombre != null && [...duenos].some((d) => _norm(d) === _norm(nombre));
   const ejesDuenos = new Set([...duenos].map((d) => (ejeDe ? ejeDe.get(_norm(d)) : null)).filter(Boolean));
   const delEje = (ejesDuenos.size && Array.isArray(nombresN) && nombresN.length === nombresRe.length)
     ? nombresRe.filter((re, i) => { const e = ejeDe.get(nombresN[i]); return !e || ejesDuenos.has(e); })
     : nombresRe;
-  while ((idx = text.indexOf(fig.text, idx + 1)) >= 0) {
-    const [lo] = _localWindow(masked, idx, 90);
-    const end = idx + fig.text.length;
-    const hi0 = Math.min(masked.length, end + 90);
-    const cut = masked.slice(end, hi0).search(_SENT_END);
-    const ventana = _norm(text.slice(lo, cut >= 0 ? end + cut : hi0));
-    for (const d of duenos) {
-      const re = _reDueno(d);
-      if (re && re.test(ventana)) return false;   // dueño legítimo a la vista → libre
+  /* las entidades del eje de los dueños nombradas en un tramo del plano (paréntesis en blanco), con posición absoluta */
+  const entsEn = (L, a, b) => _entidadesConPosicion(L.plano.slice(a, Math.max(a, b)), delEje).map((e) => ({ nombre: e.nombre, pos: a + e.pos }));
+  /* el texto normalizado ENTERO (paréntesis e incisos incluidos): la aposición («—más que Lider (4.2%)—», «$4.6M (Lider)», «(menos que
+   * Lider, con 45%)»), la lista coordinada del sujeto («—Falabella, Lider y Jumbo— … (22%, 21.5% y 24%)», «(Falabella, Lider, Jumbo) dejan
+   * $4.3M, $3.8M y $4.2M») y «el otro de la oración» se leen sobre él; el plano del lector (paréntesis en blanco) queda para el sujeto */
+  const NTraw = _normalizar(text).replace(/\*/g, " ");
+  const entsEnNT = (a, b) => _entidadesConPosicion(NTraw.slice(a, Math.max(a, b)), delEje).map((e) => ({ nombre: e.nombre, pos: a + e.pos }));
+  /* ¿es la comparada? — en las dos vistas: el plano del lector (paréntesis en blanco, para que un «($19.4M contra $17.8M)» interpuesto no
+   * tape el «más … que») y el texto entero (para un nombre dentro de un paréntesis) */
+  const esComp = (L, pos) => esComparada(L.plano, pos) || esComparada(NTraw, pos);
+  /* 0 · la aposición: la última entidad del eje que termina justo antes de la cifra (o del «(» que la abre) */
+  const pegado = (L, pos) => {
+    /* dentro del paréntesis primero («(menos que Lider, con 45%)»: el nombre pegado a la cifra está adentro), después delante del «(» */
+    if (L.enParentesis) {
+      const dentro = _entidadesConPosicion(NTraw.slice(L.apertura + 1, pos), delEje).map((e) => ({ nombre: e.nombre, pos: L.apertura + 1 + e.pos }));
+      if (dentro.length) { const u = dentro[dentro.length - 1]; return _PUENTE_APOSICION.test(NTraw.slice(u.pos + u.nombre.length, pos)) ? u.nombre : null; }
+      /* el paréntesis pegado a un nombre es su ficha entera: «PHI-HAIR-PRO (contribución $2.8M, capital $6K, 19 días)» (borrador real del cruce) —
+       * todas sus cifras son del nombre de afuera, sea o no la comparada de la oración. «Lider (los de mayor peso y menor margen, 22.0% y
+       * 21.5%)» no llega acá: la distributiva («Falabella o Lider … 22.0% y 21.5%») se lee antes (candado de la constitución P4, 2026-09-14) */
     }
-    const L = leerClausula(text, idx, { nombresRe: delEje });   // sujeto, coordinación y referente: solo el eje de los dueños
-    /* 1 · la coordinación distributiva (ver _grupoCoordinado): «A y B … (x y y)» → la k-ésima cifra es de la k-ésima
-     * entidad. Cuando aplica, DECIDE: la lectura por orden manda sobre la del sujeto, así «PHI-HAIR-PRO y PHI-SHAVER9
-     * … (15d y 19d)» arde aunque PHI-SHAVER9 sea la última entidad nombrada antes de la cifra. Solo entre entidades
-     * COORDINADAS ENTRE SÍ (coordinadasContiguas del lector): dos sujetos de dos cláusulas no forman lista. */
-    const grupo = _grupoCoordinado(masked, idx, end, text);
+    const hasta = L.enParentesis ? L.apertura : pos;
+    const desde = Math.max(L.oracion.ini, hasta - 60);
+    const ents = entsEnNT(desde, hasta);
+    if (!ents.length) return null;
+    const u = ents[ents.length - 1];
+    const puente = NTraw.slice(u.pos + u.nombre.length, hasta);
+    if (esComp(L, u.pos) && /[:—–]/.test(puente)) return null;        // «más que Falabella: $4.6M vencidos»: la comparada no abre rótulo
+    return _PUENTE_APOSICION.test(puente) ? u.nombre : null;
+  };
+  const pegadoTras = (L, fin) => {
+    const hasta = Math.min(L.oracion.fin, fin + 45);
+    const ents = entsEnNT(fin, hasta);
+    if (!ents.length) return null;
+    const u = ents[0];
+    const puente = NTraw.slice(fin, u.pos);
+    if (/^[\s,]*(?:de|del)\s*$/u.test(puente)) return u.nombre;   // «$17.8M contra $19.4M DE FALABELLA»: la aposición pura manda aunque Falabella sea la comparada del par (owner 2026-09-14)
+    if (esComp(L, u.pos)) return null;                               // «$3.8M, detrás de Falabella»: la comparada no es la dueña
+    if (_PUENTE_APOSICION_TRAS.test(puente)) return u.nombre;
+    /* «con 22%, Falabella está 8.1 pp bajo»: la coma sola, si la entidad no trae su propia cifra pegada («Lider segundo ($17.8M)») —
+     * con CUALQUIER puente de aposición, «con» incluido: «Lider con 21.5%, Falabella con 22.0% y Sodimac con 23.5%» son tres ítems
+     * (candado de la constitución P6, medido 2026-09-14) */
+    const trasNombre = masked.slice(u.pos + u.nombre.length, u.pos + u.nombre.length + 24);
+    if (/^[\s,]+$/.test(puente) && !/^\s*(?:\p{L}+\s+)?[:(—–]\s*[+\-]?#|^\s+[+\-]?#|^[\s(:—–,]*con\s+[\s(:—–]*[+\-]?#/u.test(trasNombre)) return u.nombre;
+    return null;
+  };
+  /* «Con $4.6M vencidos, Lider es la cuenta más expuesta», «El 75% del capital frenado está en Valparaíso»: sin nadie delante, la
+   * primera entidad DESPUÉS de la cifra en su cláusula (que no sea la comparada) es el sujeto */
+  const sujetoTras = (L, fin) => {
+    const hasta = L.enParentesis ? L.oracion.fin : L.clausula.fin;
+    const ents = entsEnNT(fin, hasta).filter((e) => !esComp(L, e.pos));
+    return ents.length ? ents[0].nombre : null;
+  };
+  const iniPropio = (L) => (L.enParentesis && L.contenedor ? L.contenedor.ini : L.clausula.ini);
+  const propioAqui = (L) => !!(L.sujeto && L.sujeto.pos >= iniPropio(L));
+  /* 4 · la anáfora del sujeto, resuelta: un nombre, una lista (grupo) o null (sin antecedente) */
+  /* la entidad que nombra la PREGUNTA es antecedente válido de un posesivo sin nadie delante: en la ficha («¿Cómo está Falabella?») «Su
+   * margen es 22%» habla de Falabella; en una lectura ejecutiva sin nadie nombrado, «Su carga comercial es 5.4%» no tiene dueño */
+  const _delaPregunta = (() => { const q = _normalizar(String(question || "")); const e = _entidadesConPosicion(q, delEje); return e.length ? e[e.length - 1].nombre : null; })();
+  const resolverAnafora = (L) => {
+    const a = L.anafora;
+    if (!a) return null;
+    if (a.tipo === "posesivo" || a.tipo === "elidido") {
+      if (L.sujeto) return L.sujeto.nombre;
+      if (L.antecedente) return L.antecedente.nombre;
+      return _delaPregunta;
+    }
+    if (a.tipo === "resto") { if (!L.listaPrevia) return null; const enLista = new Set(L.listaPrevia.nombres.map(_norm)); const fuera = [...duenos].filter((d) => !enLista.has(_norm(d))); return fuera.length ? fuera[0] : "∅"; }
+    if (a.tipo === "ordinal") return L.listaPrevia && L.listaPrevia.nombres[a.indice] ? L.listaPrevia.nombres[a.indice] : null;
+    if (a.tipo === "grupo") return L.listaPrevia ? L.listaPrevia.nombres : null;
+    if (a.tipo === "ultimo") { const prev = entsEn(L, Math.max(0, L.oracion.ini - 600), L.enParentesis ? L.apertura : L.clausula.ini); return prev.length ? prev[prev.length - 1].nombre : (L.antecedente ? L.antecedente.nombre : null); }
+    return L.sujeto ? L.sujeto.nombre : (L.antecedente ? L.antecedente.nombre : null);
+  };
+  const sujetoResuelto = (L) => {
+    if (L.anafora && (L.anafora.tipo === "ordinal" || L.anafora.tipo === "grupo") && L.listaPrevia && L.listaPrevia.nombres.length >= 2) {
+      const r = resolverAnafora(L);
+      if (r != null) return r;
+    }
+    if (propioAqui(L)) return L.sujeto.nombre;
+    if (L.anafora) return resolverAnafora(L);
+    return L.sujeto ? L.sujeto.nombre : (L.antecedente ? L.antecedente.nombre : null);
+  };
+  /* 1 · la comparada del par «x contra y»: explícita en la cláusula (o en la oración, si el sujeto es heredado) · el objeto del
+   * pronombre («lo supera») · el otro de la oración · el otro de la lista previa · el referente de las oraciones previas */
+  const otrosResueltos = (L, sujeto, n = 2) => {
+    const esSuj = (n_) => _norm(n_) === _norm(Array.isArray(sujeto) ? "" : (sujeto || ""));
+    const desde = propioAqui(L) ? iniPropio(L) : L.oracion.ini, hasta = L.enParentesis ? L.apertura : L.posicion;
+    /* con un pronombre de objeto o con tres cifras o más («mejor que Lider y Sodimac (57.7% contra 45% y 35%)»), los otros son TODAS
+     * las demás entidades de la oración, en orden — la explícita sola no alcanza */
+    const comps = (L.pronombreObjeto || n > 2) ? [] : entsEnNT(desde, hasta).filter((e) => esComp(L, e.pos) && !esSuj(e.nombre));
+    if (comps.length) return [...new Set(comps.map((e) => e.nombre))];
+    const otras = entsEnNT(L.oracion.ini, hasta).filter((e) => !esSuj(e.nombre));
+    if (otras.length) return [...new Set(otras.map((e) => e.nombre))];
+    if (L.listaPrevia) { const o = L.listaPrevia.nombres.filter((n) => !esSuj(n)); if (o.length) return o; }
+    return L.referente ? [L.referente.nombre] : [];
+  };
+  /* el par «x contra y» con n cifras: la primera es del sujeto; la k-ésima siguiente, del k-ésimo «otro» (con dos cifras, el último
+   * otro nombrado, que es el más cercano) */
+  const comparadaResuelta = (L, sujeto, k = 1, n = 2) => { const o = otrosResueltos(L, sujeto, n); if (!o.length) return null; return n <= 2 ? o[o.length - 1] : (o[k - 1] != null ? o[k - 1] : o[o.length - 1]); };
+  while ((idx = text.indexOf(fig.text, idx + 1)) >= 0) {
+    const end = idx + fig.text.length;
+    const L = leerClausula(text, idx, { nombresRe: delEje });
+    L.posicion = idx;
+    const grupo = _grupoCoordinado(masked, idx, end, text, fig.unit);
     const enOracion = !!grupo && grupo.ini > L.oracion.ini;
-    const entsCoord = enOracion ? _coordinadasContiguas(L.plano.slice(L.oracion.ini, grupo.ini), delEje) : [];
-    if (enOracion && entsCoord.length >= grupo.n) {
+    const T = (regla, dueno, extra = {}) => { if (globalThis.__ADI_TRAZA_ATRIB) globalThis.__ADI_TRAZA_ATRIB.push({ fig: fig.text, idx, regla, dueno, ok: dueno != null && (Array.isArray(dueno) ? dueno.every(esDueno) : esDueno(dueno)), duenos: [...duenos], sujeto: L.sujeto && L.sujeto.nombre, propio: propioAqui(L), anafora: L.anafora, comparada: L.comparada && L.comparada.nombre, pron: L.pronombreObjeto, grupo, enParentesis: L.enParentesis, ...extra }); };
+    if (enOracion && L.anafora && L.anafora.tipo === "posesivo" && L.anafora.plural && !propioAqui(L)) {
+      const ents = [...new Set(entsEnNT(L.oracion.ini, L.enParentesis ? L.apertura : L.clausula.ini).filter((e) => !esComp(L, e.pos)).map((e) => e.nombre))];
+      if (ents.length >= grupo.n) { const d = ents.slice(-grupo.n)[grupo.k]; T("posesivoPlural", d); if (esDueno(d)) return false; ajena = true; continue; }
+    }
+    /* 0a · la aposición DESPUÉS de la cifra («$2.5M de Falabella», «$4.6M (Lider)», «$14K frenados en LG-DRYER8KG», «con 22%, Falabella
+     * está…»): el nombre pegado detrás es el dueño, delante de cualquier otra lectura */
+    const apTras = pegadoTras(L, _finDeCifra(text, end));
+    if (apTras) { T("aposicionTras", apTras); if (esDueno(apTras)) return false; ajena = true; continue; }
+    if (enOracion && grupo.n === 2 && /(?:^|[^\p{L}])entre\s*$/u.test(NTraw.slice(Math.max(0, grupo.ini - 12), grupo.ini))) { T("rango", null); continue; }   // «entre $6K y $19K»: un rango del grupo, no dos cifras repartidas
+    if (!grupo && _rangoA(masked, idx, end, text, fig.unit) && !(/(?:^|[^\p{L}])de\s*$/u.test(NTraw.slice(Math.max(0, idx - 6), idx)) && propioAqui(L))) { T("rangoA", null); continue; }   // «15d a 21d», «$6K a $19K»: un rango del grupo
+    /* 1 · el par «x contra y» = (sujeto, comparada/objeto/los otros) — antes que la aposición de delante: en «que Lider ($17.3M contra
+     * $17.8M)» el nombre pegado al paréntesis es la comparada, y la primera cifra es del sujeto. Con el rótulo «Lider y Falabella:
+     * 8.6 pp contra 8.1 pp» la lista manda por orden. «Falabella la sigue (x contra y)» admite los dos órdenes (los cazadores usan ambos). */
+    const entsCoord = enOracion ? _coordinadasContiguas(NTraw.slice(L.oracion.ini, grupo.ini), delEje) : [];
+    const coordCerrada = entsCoord.length >= 2 && (() => { const r = entsEnNT(L.oracion.ini, grupo.ini); const u = r[r.length - 1], v = r[r.length - 2]; return !!(u && v) && /^(?:\s*\([^()]*\))*\s+[ye]\s+(?:\s*\([^()]*\))*\s*$/u.test(NTraw.slice(v.pos + v.nombre.length, u.pos)); })();
+    const anaforaDeLista = !!(L.anafora && (L.anafora.tipo === "ordinal" || L.anafora.tipo === "ultimo"));
+    if (enOracion && entsCoord.length >= grupo.n && ((coordCerrada && !anaforaDeLista) || !_PAR_CONTRA.test(masked.slice(grupo.ini, grupo.ini + 60)))) {
+      T("distributiva", entsCoord.slice(-grupo.n)[grupo.k], { entsCoord });
       if (esDueno(entsCoord.slice(-grupo.n)[grupo.k])) return false;
       ajena = true;
       continue;
     }
-    /* 2 · el sujeto de la cláusula es el dueño por defecto */
-    if (L.sujeto && esDueno(L.sujeto.nombre)) return false;
-    /* 3 · el elidido / el objeto, cuando al grupo le falta UNA entidad: el referente entra primero si es el sujeto («Lider
-     * primero. Es más grave que Falabella … (8.6 pp contra 8.1 pp)») y después si es el objeto («Falabella solo LA supera
-     * … ($1.6M contra $1.5M)»): las dos lecturas se prueban, y cualquiera libera */
-    if (enOracion && entsCoord.length === grupo.n - 1 && L.referente) {
-      for (const orden of [[L.referente.nombre, ...entsCoord], [...entsCoord, L.referente.nombre]]) if (esDueno(orden[grupo.k])) return false;
+    if (enOracion && _PAR_CONTRA.test(masked.slice(grupo.ini, grupo.ini + 60))) {
+      const suj = sujetoResuelto(L);
+      const listaRotulo = !propioAqui(L) && !(L.anafora && L.anafora.tipo === "ordinal") && L.listaPrevia && L.listaPrevia.cerrada && L.listaPrevia.fin >= L.oracion.ini && L.listaPrevia.fin <= idx && L.listaPrevia.nombres.length === grupo.n ? L.listaPrevia.nombres : null;
+      const candidatos = listaRotulo ? [listaRotulo[grupo.k]] : (grupo.k === 0 ? [suj] : [comparadaResuelta(L, suj, grupo.k, grupo.n)]);
+      if (L.objetoPrimero && grupo.n === 2) candidatos.push(grupo.k === 0 ? comparadaResuelta(L, suj) : suj);
+      /* el par SIN sujeto en su oración («…Lider deja $3.8M, mientras Jumbo deja $4.2M. La razón está en el margen: 24.0% contra 21.5%»,
+       * del cuadro explicado): el orden del par no lo fija nadie a la vista, así que las dos cifras se verifican contra el CONJUNTO de las
+       * entidades de la oración anterior — una lectura, no una condena; con un sujeto o una anáfora, el orden manda como siempre */
+      if (!L.sujeto && !L.anafora && L.antecedente && Array.isArray(L.antecedente.nombrados)) candidatos.push(...L.antecedente.nombrados);
+      T("parContra", candidatos, { suj, k: grupo.k });
+      if (candidatos.some((d) => d && esDueno(d))) return false;
+      ajena = true;
+      continue;
     }
-    /* 4 · la atribución ACTIVA: el sujeto leído es otra entidad, o la oración nombra a alguna a la vista */
-    if (L.sujeto || nombresRe.some((re) => re.test(ventana))) ajena = true;
+    /* 2 · la distributiva «A y B … (x y y)»: solo entre entidades COORDINADAS ENTRE SÍ; decide, y la invertida arde (ya juzgada arriba) */
+    /* 0b · la aposición DELANTE: «Nombre (cifra)», «Nombre: cifra», «Nombre, con cifra», «(menos que Nombre, con cifra)» */
+    if (_COTA_ANTES.test(NTraw.slice(Math.max(0, idx - 40), idx))) { T("cota", null); continue; }
+    /* 0c · el LOCATIVO ANAFÓRICO detrás de la cifra: «junto con BOS-SANDER (75% del frenado total EN ESA BODEGA)» (reparación real de la
+     * prueba 1, owner) — la cifra no es de BOS-SANDER sino de la bodega que la oración ya nombró (Valparaíso): «en esa/esta/dicha bodega
+     * (cuenta, cliente, SKU, marca, familia, canal)» remite a la última entidad de ESE EJE nombrada antes, y el eje viaja declarado
+     * (ejeDe), nunca se adivina. Sin una entidad de ese eje a la vista, la lectura no aplica y siguen las demás. */
+    {
+      const _tramoTras = NTraw.slice(_finDeCifra(text, end), L.enParentesis ? Math.min(L.oracion.fin, text.indexOf(")", idx) < 0 ? L.oracion.fin : text.indexOf(")", idx)) : L.clausula.fin);
+      const _ml = /(?:^|[^\p{L}])(?:en|de|para)\s+(?:es[aeo]|est[aeo]|dich[ao]|la\s+misma|el\s+mismo)\s+(bodega|cuenta|cliente|sku|producto|marca|familia|canal)(?![\p{L}])/u.exec(_tramoTras);
+      if (_ml) {
+        const eje = ({ bodega: "bodega", cuenta: "cliente", cliente: "cliente", sku: "sku", producto: "sku", marca: "marca", familia: "familia", canal: "canal" })[_ml[1]];
+        const antes = entsEnNT(L.oracion.ini, L.enParentesis ? L.apertura : idx);
+        const delEjeDicho = (ejeDe && ejeDe.size) ? antes.filter((e) => ejeDe.get(_norm(e.nombre)) === eje) : [];
+        /* con el eje declarado, la última entidad de ese eje; sin catálogo por eje (callers viejos), cualquiera de las nombradas antes que no sea
+         * la del paréntesis libera — una lectura, no una condena */
+        const cands = delEjeDicho.length ? [delEjeDicho[delEjeDicho.length - 1].nombre] : antes.map((e) => e.nombre);
+        if (cands.length) { T("locativoAnaforico", cands); if (cands.some(esDueno)) return false; ajena = true; continue; }
+      }
+    }
+    const ap = pegado(L, idx);
+    if (ap) { T("aposicion", ap); if (esDueno(ap)) return false; ajena = true; continue; }
+    /* 1b · «$4.6M vencidos (contra $2.5M)», «45% recuperado (contra 57.7%)»: el paréntesis que abre con el conector es la cifra de la comparada */
+    const parenContra = L.enParentesis && /^\s*(?:contra|vs\.?|versus|frente\s+a)\s+[+\-]?#/u.test(masked.slice(L.apertura + 1, idx + 1) + "#");
+    if (parenContra && !grupo) {
+      const dueno = comparadaResuelta(L, sujetoResuelto(L));
+      T("parenContra", dueno);
+      if (dueno && esDueno(dueno)) return false;
+      ajena = true;
+      continue;
+    }
+    /* 2b · al grupo le falta UNA entidad: el referente (sujeto elidido u objeto) la completa por orden — es una lectura, no una condena */
+    if (enOracion && entsCoord.length === grupo.n - 1 && L.referente) {
+      T("distributiva+referente", L.referente.nombre, { entsCoord });
+      for (const orden of [[L.referente.nombre, ...entsCoord], [...entsCoord, L.referente.nombre]]) if (esDueno(orden[grupo.k])) return false;
+      ajena = true;
+      continue;
+    }
+    /* 3 · el sujeto plural coordinado con UNA sola cifra: todos tienen que ser dueños — salvo que una anáfora recorra la lista
+     * («Jumbo y Sodimac, de los cuales el primero arrastra $1.9M vencidos»: el sujeto es Jumbo, ver la regla 4) */
+    const anaforaSobreLista = !!(L.anafora && (L.anafora.tipo === "ordinal" || L.anafora.tipo === "grupo" || L.anafora.tipo === "ultimo") && L.listaPrevia && L.listaPrevia.nombres.length >= 2 && L.listaPrevia.fin <= idx && (!L.sujeto || L.listaPrevia.fin >= L.sujeto.pos));
+    if (!grupo && !anaforaSobreLista && propioAqui(L) && L.listaCerrada && L.coordinadas.length >= 2 && L.coordinadas.some((n) => _norm(n) === _norm(L.sujeto.nombre))) {
+      T("plural", L.coordinadas);
+      if (L.coordinadas.every(esDueno)) return false;
+      ajena = true;
+      continue;
+    }
+    if (!grupo && !L.sujeto && L.listaPrevia && L.listaPrevia.cerrada && L.listaPrevia.fin >= L.clausula.ini && L.listaPrevia.fin <= idx) {
+      T("pluralParentesis", L.listaPrevia.nombres);
+      if (L.listaPrevia.nombres.every(esDueno)) return false;
+      ajena = true;
+      continue;
+    }
+    /* 4 · la anáfora del sujeto, cuando la cláusula no nombra a nadie — o cuando la nombra en una LISTA y la anáfora la recorre
+     * («Jumbo y Sodimac, de los cuales el primero arrastra $1.9M vencidos», «Entre Falabella y Lider, esta última…») */
+    if (L.anafora && (!propioAqui(L) || anaforaSobreLista)) {
+      const r = resolverAnafora(L);
+      T("anafora", r);
+      if (Array.isArray(r)) { if (r.length && r.every(esDueno)) return false; ajena = true; continue; }
+      if (r != null) { if (esDueno(r)) return false; ajena = true; continue; }
+      /* sin referente: el POSESIVO y el ELIDIDO son cifra sin dueño («Su carga comercial es 5.4%» sin nadie nombrado); un ordinal, un
+       * «este último», un grupo o «el resto» sin lista a la vista NO son anáfora de nadie («El resto de las cuentas con vencido está en 8
+       * días», «Sodimac … la segunda carga más alta (5.4%)») y la cifra se sigue leyendo por su sujeto (owner 2026-09-14) */
+      if (L.anafora.tipo === "posesivo" || L.anafora.tipo === "elidido") { ajena = true; continue; }
+    }
+    /* 4b · el PRONOMBRE DE OBJETO con una cifra sola detrás del verbo («Jumbo … pero en contribución Falabella ($4.3M) lo supera ($4.2M)»):
+     * la cifra puede ser del sujeto o del objeto — las dos lecturas se verifican y cualquiera libera (fp-listas P7, owner 2026-09-14) */
+    if (!grupo && L.pronombreObjeto && L.sujeto) {
+      const cands = [L.sujeto.nombre, ...otrosResueltos(L, L.sujeto.nombre)];
+      T("pronombreObjeto", cands);
+      if (cands.some((d) => d && esDueno(d))) return false;
+      ajena = true;
+      continue;
+    }
+    /* 5 · el sujeto de la cláusula (propio o heredado) es el dueño por defecto; sin nadie delante, el sujeto que viene detrás */
+    if (L.sujeto) { T("sujeto", L.sujeto.nombre); if (esDueno(L.sujeto.nombre)) return false; ajena = true; continue; }
+    const sTras = sujetoTras(L, _finDeCifra(text, end));
+    if (sTras) { T("sujetoTras", sTras); if (esDueno(sTras)) return false; ajena = true; continue; }
+    /* 6 · la cifra suelta pasa, salvo que la oración nombre a otra entidad que la reclame — o que la reclame el NEGOCIO ENTERO: «El saldo
+     * vencido total es $4.6M» (es el de Lider), «El inventario del negocio vale $64K» (Santiago), «El capital frenado del negocio es $25K»
+     * (Valparaíso): la marca de total en la cláusula le da a la cartera la cifra de una cuenta */
+    T("suelta", null);
+    if (nombresRe.some((re) => re.test(_norm(text.slice(L.oracion.ini, L.oracion.fin))))) { ajena = true; continue; }
+    if (_MARCA_TOTAL.test(L.plano.slice(L.clausula.ini, idx))) ajena = true;
   }
   return ajena;
 }
@@ -3951,7 +4778,18 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   narration = normalizarSignos(narration);   // «−8.2%» → «-8.2%»: el menos tipográfico es el mismo signo, y así lo lee parseFigures (ver normalizarSignos)
   // el canon de cada extremo: el chequeo 1 les niega la amnistía aritmética (un rango se cita, no se calcula)
   const _canonDeRango = new Set(_extremosDeRango.flatMap((s) => parseFigures(s).map((pf) => pf.canon)));
-  const figs = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
+  /* ── UN SOLO CANON PARA LA MISMA CIFRA (owner 2026-09-14, atribución y significado) ───────────────────────────
+   * MEDIDO en el conjunto adversarial (fp-listas P1, fp-prosa D0, 40+ frases correctas vetadas): la boleta publica
+   * «25.0%», «7.0%», «41.0%» y `fig()` guarda su canon VERBATIM («pct:25.0%», «money:$4.6M», «pct:8.6pp»), mientras
+   * `parseFigures` —el que lee la narración— canoniza por VALOR («pct:25%», «money:4.6M», «pp:8.6pp»). Dos canones
+   * para la misma cifra: «Ripley 25%» ardía como cifra de Antofagasta (el único dueño de «pct:25%» en la boleta) y
+   * «el 7% del capital en inventario» (publicado «7.0%») como inventada. Cada chequeo lo parchaba a su manera
+   * (`_metricOwners` con dos llaves, `_duenosDeBoleta` re-derivando) o no lo parchaba (`_valueOwners`, `authCanon`).
+   * Acá se normaliza UNA vez, a la entrada: toda fig del turno lleva el canon que el parser le da a su propio valor
+   * (el de la boleta se conserva en `canonBoleta`), y todos los índices y comparaciones de abajo hablan el mismo
+   * canon que la narración. Misma cifra = mismo canon, en un solo lugar; boleta.js no se toca. */
+  const figs = _conCanonDelParser(ledger && Array.isArray(ledger.figs) ? ledger.figs : []);
+  if (ledger && Array.isArray(ledger.figs)) ledger = { ...ledger, figs };
   // ECO DEL USUARIO: repetir una cifra que la PERSONA nombró en su pregunta NO es inventar ("qué es eso de 2x" → ADI
   // dice "2x"). Autorizamos las cifras/conteos del texto de la pregunta además de las de la boleta.
   const qFigs = parseFigures(question || "");
@@ -4452,13 +5290,22 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     // «ni» arrastra la negación por coordinación: en «no está frenado NI inmovilizado», la segunda palabra
     // también está negada aunque el «no» quede lejos. Sin esto, la mitad de una negación se leía como afirmación.
     const _NEGA = /\b(?:no|sin|tampoco|nunca|a[uú]n\s+no|todav[ií]a\s+no)\s+(?:est[aá]\w*\s+|es\s+|son\s+|de\s+)?$|\bni\s+$/i;
+    /* ── LA NEGACIÓN DE ESTADO SE LEE POR ESTRUCTURA (owner 2026-09-14, atribución y significado — fp-comparaciones 2, 30 frases
+     * correctas vetadas): «SAM-TV55 no está entre los frenados», «Ni SAM-REF500L ni LG-WASH11KG están frenados», «PHI-SHAVER9 no tiene
+     * capital frenado», «queda fuera de los frenados», «no figura entre los frenados», «Nada del capital de SAM-REF500L está frenado»
+     * niegan el estado, y la ventana de 22 caracteres solo veía «no está frenado». La negación es la del lector de cláusula (no / ni /
+     * nada / nadie / sin / tampoco / nunca, en la misma cláusula, a ≤ 8 palabras, sin «sino / pero» entre medio) más «fuera de(l)»,
+     * «lejos de(l)», «salvo» y «excepto», que también dejan afuera. */
     const _atribuye = (txt, re) => {
       const m = txt.match(new RegExp(re.source, "gi"));
       if (!m) return false;
       let idx = -1;
       for (const w of m) {
         idx = txt.indexOf(w, idx + 1);
-        if (!_NEGA.test(txt.slice(Math.max(0, idx - 22), idx))) return true;   // hay al menos UNA mención no negada
+        if (_NEGA.test(txt.slice(Math.max(0, idx - 22), idx))) continue;
+        if (leerClausula(txt, idx).negada) continue;
+        if (_NEGA_ESTRUCTURA.test(txt.slice(Math.max(0, idx - 60), idx))) continue;
+        return true;   // hay al menos UNA mención no negada
       }
       return false;
     };
@@ -4676,6 +5523,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // ejes del chequeo 26: sin bodegas/familias reconocidas, un subtotal de bodega liberaría por colisión la
   // cifra del SKU que lo compone (medido con la boleta real de inventoryStatus).
   const _bolDuenos = _duenosDeBoleta(figs, entityNames, [...(Array.isArray(duenosDelTenant) ? duenosDelTenant : []), ...(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : [])], ejesDelTenant);
+  const _nombresTenant = _indiceDeNombres(entityNames, [...(Array.isArray(duenosDelTenant) ? duenosDelTenant : []), ...(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : [])], ejesDelTenant);   // para la quinta fuente (ver abajo)
   const _maskedNarr = (_dato || _bolDuenos || _recita) ? _maskFigures(narration) : null;
   /* ── EL POOL DEL CATÁLOGO (AMPLITUD F2) — perezoso: solo se arma si alguna cifra llegó hasta esa vía ──────────
    * Una cifra narrada que no está en ninguna fuente se acepta SI Y SOLO SI es el resultado EXACTO (recomputado,
@@ -4731,6 +5579,19 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     if (!_presentes.has(u)) _presentes.set(u, []);
     if (Number.isFinite(nf.raw)) _presentes.get(u).push(nf.raw);
   }
+  /* ── LAS UNIDADES TIENEN DUEÑO (owner 2026-09-14, atribución y significado) ──────────────────────────────────────────────
+   * «Jumbo vendió 140 unidades» (son las unidades en stock de PHI-SHAVER9), «Lider y Jumbo mueven 1.194 unidades» (solo Jumbo):
+   * parseFigures no ve enteros sin unidad y estas cifras no pasaban por ningún chequeo de dueño. Se leen con _parseUnidades y se
+   * juzgan con la MISMA lectura por estructura de las demás cifras (_atribucionAjenaEnBoleta), solo cuando la boleta publica ese
+   * conteo con dueño («Jumbo · Unidades vendidas = 1194», «PHI-SHAVER9 · Unidades en stock = 140»): lo que la boleta no publica
+   * no se juzga — nunca un veto de más. El significado (vendidas / en stock) lo juzga el binding (_metricBindingViolations). */
+  if (_bolDuenos) for (const f of _parseUnidades(narration)) {
+    const _dsetBol = _bolDuenos.porCanon.get(f.canon);
+    if (!_dsetBol || !_dsetBol.size || _ecoCanon.has(f.canon)) continue;
+    if (_atribucionAjenaEnBoleta(narration, _maskedNarr, f, _dsetBol, _bolDuenos.nombresRe, _bolDuenos.nombresN, _bolDuenos.ejeDe, question)) {
+      violations.push({ kind: "cifra-de-boleta-sin-dueno", detail: `«${f.text}» pertenece a ${[..._dsetBol].slice(0, 4).join("/")} en la boleta de este turno y está narrada pegada a otra entidad — nombra al dueño real al lado de la cifra, no la cambies` });
+    }
+  }
   for (const f of _narrFigsTodas) {
     /* DUEÑO POR FILA EN LA BOLETA (encargo 2026-08-13, ver _duenosDeBoleta): una cifra de una fig con dueño, de
      * una métrica con 2+ dueños este turno, narrada en una oración que nombra OTRA entidad y no a ningún dueño
@@ -4741,9 +5602,11 @@ export function guardC(narration, { ledger, results = [], trace = null, question
      * PARTICIONADA toda parte ES «total menos el resto» ($33.2K − $24.8K de Valparaíso = los $8.4K de
      * MAK-COMP-AIR) y todo % de composición ES una participación recomputable — liberar por cálculo anularía
      * este chequeo por construcción, exactamente sobre las boletas que más lo necesitan. */
-    if (_bolDuenos && !_ecoCanon.has(f.canon) && !_ecoVerbatim.has(_stripSpace(f.text))) {
+    if (_bolDuenos && !_ecoCanon.has(f.canon) && !_ecoVerbatim.has(_stripSpace(f.text)) && !_canonDeRango.has(f.canon)) {
       const _dsetBol = _bolDuenos.porCanon.get(f.canon) || _bolDuenos.porVerbatim.get(_stripSpace(f.text));
-      if (_dsetBol && _dsetBol.size && _atribucionAjenaEnBoleta(narration, _maskedNarr, f, _dsetBol, _bolDuenos.nombresRe, _bolDuenos.nombresN, _bolDuenos.ejeDe)
+      const _dsetDato = _dato ? (_dato.porCanon.get(f.canon) || _dato.porVerbatim.get(_stripSpace(f.text)) || null) : null;
+      const _dsetTodos = _dsetDato && _dsetDato.size ? new Set([..._dsetBol || [], ..._dsetDato]) : _dsetBol;   // la proyección también sabe de quién es
+      if (_dsetBol && _dsetBol.size && _atribucionAjenaEnBoleta(narration, _maskedNarr, f, _dsetTodos, _bolDuenos.nombresRe, _bolDuenos.nombresN, _bolDuenos.ejeDe, question)
         && !_derivadaDeSupuesto(f, supFigs, figs)) {
         violations.push({ kind: "cifra-de-boleta-sin-dueno", detail: `«${f.text}» pertenece a ${[..._dsetBol].slice(0, 4).join("/")} en la boleta de este turno y está narrada pegada a otra entidad — nombra al dueño real al lado de la cifra, no la cambies` });
         continue;
@@ -4801,10 +5664,27 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     }
     if (_duenos && _duenos.size) {
       // la ORACIÓN entera, no 150 caracteres: es la regla que la doctrina le pide al cerebro («en la misma oración»)
-      if (_duenoEnVentana(narration, _maskedNarr, f, _duenos) || _tokenEnOracion(narration, _maskedNarr, f, _duenos)) continue;
+      if (_duenoEnVentana(narration, _maskedNarr, f, _duenos) || _tokenEnOracion(narration, _maskedNarr, f, _duenos)) {
+        /* ── NOMBRADO EN LA ORACIÓN NO ES LO MISMO QUE DUEÑO (owner 2026-09-14, atribución y significado) ─────────────────
+         * «La venta de Ripley cae -12.5% y la de La Polar -8.2%» (invertido) pasaba en un turno sin salesRead: los dos dueños
+         * están en la oración y la quinta fuente solo pedía eso. Cuando TODOS los dueños de la proyección son entidades reales
+         * del tenant (no «negocio», «benchmark» ni «meta»), la cifra se lee con la MISMA estructura que las de la boleta
+         * (_atribucionAjenaEnBoleta: aposición, par «contra», distributiva, anáfora, sujeto) y se verifica; la aposición
+         * correcta y el sujeto dueño liberan como siempre. Los agregados siguen con la regla de la oración. */
+        const _reales = _nombresTenant.ref.size > 0 && [..._duenos].every((d) => _nombresTenant.ref.has(_norm(d)));
+        if (_reales && _maskedNarr && _atribucionAjenaEnBoleta(narration, _maskedNarr, f, _duenos, _nombresTenant.nombresRe, _nombresTenant.nombresN, _nombresTenant.ejeDe, question) && !_derivadaDeSupuesto(f, supFigs, figs)) {
+          violations.push({ kind: "cifra-de-dato-sin-dueno", detail: `«${f.text}» es de ${[..._duenos].slice(0, 4).join("/")} en el dato del negocio y está narrada pegada a otra entidad — nombra al dueño real al lado de la cifra, no la cambies` });
+        }
+        continue;
+      }
       // la MISMA regla de anáfora que las cifras calculadas: sería arbitrario que «ese SKU» sostuviera un
       // resultado declarado y no una cifra de la carpeta. Mismos cuatro candados (ver _duenoPorAnafora).
       if ([..._duenos].some((d) => _duenoPorAnafora(narration, _maskedNarr, f, d, entidadesDelTenant))) continue;
+      if (_esCota(narration, f)) continue;   // «rotan menos de 2x», «vende más de $3.5M»: una cota dicha en palabras no reclama dueño (owner 2026-09-14)
+      /* el EXTREMO DE UN RANGO sin su dueño en la oración es una cifra no autorizada con la multa del rango (owner 2026-09-12): que la proyección
+       * conozca ese valor en otra cuenta («35-38% en los sanos» — 35% es lo recuperado por Sodimac en la cobranza de la proyección) no cambia
+       * lo que se le pide a la reparación: citar cifras reales con sus dueños, no otro rango (medido 2026-09-14 al publicar la cobranza) */
+      if (_extremoDeRango) { violations.push({ kind: "cifra-no-autorizada", detail: `${f.text} — es el extremo de un rango que narraste y no existe en el dato de este turno: un rango solo puede resumir cifras reales, cita las de sus dueños tal cual están en la boleta` }); continue; }
       violations.push({ kind: "cifra-de-dato-sin-dueno", detail: `«${f.text}» existe en el dato del negocio pero su dueño (${[..._duenos].slice(0, 4).join("/")}) no está nombrado en esa oración — con nombrarlo UNA vez en la oración alcanza (no hace falta repetirlo en cada cifra); no cambies la cifra` });
       continue;
     }
@@ -4877,7 +5757,9 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // 9 · BINDING DE MÉTRICA (CONTRATO v2 · Fase 2, owner 2026-08-07) — cifra REAL narrada bajo la métrica
   // equivocada. Hasta acá el canon `unit:value` no ataba la etiqueta, así que este error pasaba entero. BLOQUEA:
   // el valor es verdad pero la afirmación es falsa, que para un asesor es igual de grave que inventar el número.
-  for (const v of _metricBindingViolations(narration, ledger)) violations.push({ kind: "metrica-mal-atribuida", detail: v });
+  for (const v of _metricBindingViolations(narration, ledger, [...(Array.isArray(duenosDelTenant) ? duenosDelTenant : []), ...(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : []), ...entityNames], datoProyectado)) violations.push({ kind: "metrica-mal-atribuida", detail: v });
+  // 9a · LA DIRECCIÓN Y EL SIGNO (owner 2026-09-14): la palabra y el signo se verifican contra la variación publicada; un nivel no se mueve
+  for (const v of _direccionYSigno(narration, ledger, [...(Array.isArray(duenosDelTenant) ? duenosDelTenant : []), ...(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : []), ...entityNames], datoProyectado)) violations.push({ kind: /sin serie|no está medida/.test(v) ? "variacion-sin-serie" : "direccion-contradicha", detail: v });
   // 9b · COMPARACIÓN ENTRE MÉTRICAS DISTINTAS (owner 2026-09-13): dos tasas correctas, comparadas como si fueran la misma cosa
   for (const v of _comparacionCruzada(narration, ledger)) violations.push({ kind: "comparacion-de-metricas-distintas", detail: v });
   // 9c · LA NATURALEZA ECONÓMICA SE CONSERVA (owner 2026-09-13): una brecha estimada no es pérdida realizada; la contribución no es caja
@@ -4886,7 +5768,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // existía como advisory desde 2026-07-28 (criterio nítido: una sola entidad cerca, no es la dueña, y la dueña
   // real no aparece en NINGUNA parte del texto) — no se amplía el criterio, solo se cambia la consecuencia. Ese
   // criterio ya venía calibrado en producción justamente para no marcar prosa legítima.
-  for (const v of _attributionViolations(narration, ledger, entityNames)) violations.push({ kind: "entidad-mal-atribuida", detail: v });
+  for (const v of _attributionViolations(narration, ledger, entityNames, datoProyectado)) violations.push({ kind: "entidad-mal-atribuida", detail: v });
   // 11 · PERÍODO CONTRADICTORIO (CONTRATO v2 · Fase 2) — ensurePeriodoDeclared solo AGREGA la cláusula si falta;
   // nunca validó. Una narración que afirma otro alcance temporal quedaba con dos períodos contradictorios. Acá
   // BLOQUEA. Sigue SIN exigir que el narrador declare el período (eso disparaba ~33% de fallbacks, ver arriba):
@@ -5599,6 +6481,10 @@ export function guardC(narration, { ledger, results = [], trace = null, question
           const _due = _dato.porCanon.get(f.canon) || _dato.porVerbatim.get(_stripSpace(f.text)) || null;
           if (!_due || !_due.size) continue;                     // no es del dato: otros chequeos ya la juzgan
           if ([..._due].some((d) => !_esEntidadDelTenant(d))) continue;   // la carpeta le da un dueño COLECTIVO
+          /* …o la BOLETA del turno la publica SIN entidad («Liberado total = $2.0M» del simulador): sale de la herramienta como cifra del
+           * conjunto, y que la proyección conozca ese mismo valor en una cuenta (el pendiente de Easy) no la vuelve una suma sin declarar
+           * (medido 2026-09-14, al publicar la cobranza de las 13 cuentas en la proyección) */
+          if (figs.some((g) => g && g.canon === f.canon && !g.grupo && !/subtotal/i.test(String(g.label || "")) && /\btotal(?:es)?\b|\bnegocio\b|\bcartera\b/i.test(String(g.label || "")) && !_esEntidadDelTenant(String((g.tipo && g.tipo.entidad) || "").trim()) && !String(g.label || "").split("·").some((seg) => _esEntidadDelTenant(seg.trim())))) continue;   // solo un TOTAL declarado por la herramienta («Liberado · total»); un subtotal de grupo o una medida derivada («Medida · cerrar brecha al piso») no es el total del negocio
           violations.push({ kind: "total-sin-declarar", detail: `presentas «${f.text}» como cifra del conjunto y no lo es: en la carpeta pertenece a ${[..._due].slice(0, 3).join("/")}, y no la declaraste como cálculo. Un total del conjunto o sale de la carpeta con ese dueño, o va en el bloque de cálculo con sus insumos — si lo sumaste tú, dilo, y di sobre CUÁNTOS lo sumaste` });
           _vetado = true;
         }
