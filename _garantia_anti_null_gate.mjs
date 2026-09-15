@@ -96,8 +96,12 @@ H("[1] EL CASO E4 DEL ESPEJO TERMINA EN TEXTO DIGNO (el dato del turno, no la au
   const a = await turno({ texto, plan, narrar: NARR_VETADA });
   const txt = String((a.r && a.r.text) || "");
   ok(!!a.r && txt.trim().length > 0, "el turno que en vivo fue NULL ahora responde", txt.slice(0, 120));
-  ok(/\|\s*Concepto\s*\|\s*Valor\s*\|/.test(txt) && /Contribución no capturada/.test(txt),
-    "…y responde DIGNO: la tabla con la boleta del turno (contribución, carga, capital)", txt.slice(0, 200));
+  /* la tabla era el SEGUNDO peldaño de la escalera: se servía porque el primero (la forma pedida, en prosa) caía por un falso positivo —
+   * «Medida · cerrar brecha al piso marca $4.9M (venta comercial, anual)» leía el universo entre paréntesis como la métrica «ventas»—. Con el
+   * muro leyendo «brecha» como lo que es la contribución no capturada (owner 2026-09-14, atribución y significado), el primer peldaño pasa y
+   * se sirve: la respuesta digna es la que cita la boleta del turno con sus dueños, en prosa o en tabla. */
+  ok((/\|\s*Concepto\s*\|\s*Valor\s*\|/.test(txt) || /\$4\.9M/.test(txt)) && /Contribución no capturada/.test(txt),
+    "…y responde DIGNO: la boleta del turno con sus dueños (contribución no capturada, carga), en la forma pedida o en tabla", txt.slice(0, 200));
   ok(!/No tengo información autorizada suficiente/.test(txt),
     "…no el mensaje de ausencia teniendo el dato sellado en la mano", txt.slice(0, 200));
   ok(a.r.narrationRepaired === true, "la marca de reparación viaja (debug/telemetría)");

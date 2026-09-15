@@ -1622,8 +1622,10 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
   // rota, la mención «margen» de la ventana equivocada está TOMADA por su propio «23.5%» y el falso veto no
   // renace. Eso es el sistema siendo MÁS robusto, no la carnada rota — pero para probar que las dos capas
   // cargan peso, la carnada ahora quita AMBAS: ventana rota + calibración apagada → el falso positivo revive.
+  // (re-apuntada 2026-09-14, atribución y significado: la dirección y el signo (_direccionYSigno) localizan sus cifras con la MISMA frontera y
+  //  viven ARRIBA del binding — la carnada apunta a la línea del binding por su comentario de al lado, no a la primera que encuentre)
   await carnada("el muro vuelve a leer «3.5%» adentro de «23.5%» (indexOf desnudo + mención tomada apagada)", "src/adi/oracle/guardC.js",
-    [[/    const idx = _indiceConFrontera\(text, f\.text\);/, "    const idx = text.indexOf(f.text);   // CARNADA"],
+    [[/(que es lo que este muro evita\.\n)    const idx = _indiceConFrontera\(text, f\.text\);/, "$1    const idx = text.indexOf(f.text);   // CARNADA"],
      [/    if \(!tomada\) libres\.push\(\[mIni, mFin\]\);/,
       "    libres.push([mIni, mFin]);   // CARNADA: toda mención queda libre — la «tomada» apagada (re-anclada tras _mencionesLibres, 2026-09-13)"]],
     async (Mut) => {

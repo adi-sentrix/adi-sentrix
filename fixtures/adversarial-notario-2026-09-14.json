@@ -4340,18 +4340,32 @@
    "lente": "fp-prosa",
    "frase": "Falabella y Lider: la segunda debe más vencido ($4.6M y $2.5M, respectivamente).",
    "contexto": "P1",
-   "esperado": "pasa",
+   "esperado": "arde",
    "verdad": "",
-   "patron": "O-anafora-ordinal"
+   "patron": "O-anafora-ordinal",
+   "reetiquetado": {
+    "de": "pasa",
+    "a": "arde",
+    "fecha": "2026-09-14",
+    "quien": "atribución y significado (v2.31)",
+    "motivo": "«Falabella y Lider: la segunda debe más vencido ($4.6M y $2.5M, respectivamente)» — «respectivamente» reparte por el orden de la lista nombrada (Falabella $4.6M, Lider $2.5M), y es al revés: $4.6M es el vencido de Lider y $2.5M el de Falabella. La frase es falsa por su propia forma distributiva"
+   }
   },
   {
    "id": "fp-prosa-0483",
    "lente": "fp-prosa",
    "frase": "Falabella y Lider: la segunda debe más vencido ($4.6M y $2.5M, respectivamente).",
    "contexto": "P2",
-   "esperado": "pasa",
+   "esperado": "arde",
    "verdad": "",
-   "patron": "O-anafora-ordinal"
+   "patron": "O-anafora-ordinal",
+   "reetiquetado": {
+    "de": "pasa",
+    "a": "arde",
+    "fecha": "2026-09-14",
+    "quien": "atribución y significado (v2.31)",
+    "motivo": "ídem 0482 (contexto P2)"
+   }
   },
   {
    "id": "fp-prosa-0484",
@@ -21953,18 +21967,32 @@
    "lente": "fn-atribucion",
    "frase": "Jumbo tiene 12.2% de carga comercial.",
    "contexto": "P1",
-   "esperado": "pasa",
+   "esperado": "arde",
    "verdad": "12.2% es la variación de venta; carga 3.8%.",
-   "patron": "CONTROL · YoY como carga (debe arder)"
+   "patron": "CONTROL · YoY como carga (debe arder)",
+   "reetiquetado": {
+    "de": "pasa",
+    "a": "arde",
+    "fecha": "2026-09-14",
+    "quien": "atribución y significado (v2.31)",
+    "motivo": "el propio patrón dice «CONTROL · YoY como carga (debe arder)» y la verdad «12.2% es la variación de venta; carga 3.8%»: «Jumbo tiene 12.2% de carga comercial» es falsa"
+   }
   },
   {
    "id": "fn-atribucion-2440",
    "lente": "fn-atribucion",
    "frase": "Jumbo tiene 12.2% de carga comercial.",
    "contexto": "P2",
-   "esperado": "pasa",
+   "esperado": "arde",
    "verdad": "12.2% es la variación de venta; carga 3.8%.",
-   "patron": "CONTROL · YoY como carga (debe arder)"
+   "patron": "CONTROL · YoY como carga (debe arder)",
+   "reetiquetado": {
+    "de": "pasa",
+    "a": "arde",
+    "fecha": "2026-09-14",
+    "quien": "atribución y significado (v2.31)",
+    "motivo": "ídem 2439 (contexto P2)"
+   }
   },
   {
    "id": "fn-atribucion-2441",
@@ -22061,18 +22089,32 @@
    "lente": "fn-atribucion",
    "frase": "El negocio inmoviliza $25.0M.",
    "contexto": "P1",
-   "esperado": "pasa",
+   "esperado": "arde",
    "verdad": "$25.0M es contribución.",
-   "patron": "CONTROL · contribución como capital (debe arder)"
+   "patron": "CONTROL · contribución como capital (debe arder)",
+   "reetiquetado": {
+    "de": "pasa",
+    "a": "arde",
+    "fecha": "2026-09-14",
+    "quien": "atribución y significado (v2.31)",
+    "motivo": "el propio patrón del cazador dice «CONTROL · contribución como capital (debe arder)» y la verdad «$25.0M es contribución»: «El negocio inmoviliza $25.0M» narra la contribución como capital — es falsa, el rótulo «pasa» contradecía su propia verdad"
+   }
   },
   {
    "id": "fn-atribucion-2452",
    "lente": "fn-atribucion",
    "frase": "El negocio inmoviliza $25.0M.",
    "contexto": "P2",
-   "esperado": "pasa",
+   "esperado": "arde",
    "verdad": "$25.0M es contribución.",
-   "patron": "CONTROL · contribución como capital (debe arder)"
+   "patron": "CONTROL · contribución como capital (debe arder)",
+   "reetiquetado": {
+    "de": "pasa",
+    "a": "arde",
+    "fecha": "2026-09-14",
+    "quien": "atribución y significado (v2.31)",
+    "motivo": "ídem 2451 (contexto P2)"
+   }
   },
   {
    "id": "fn-atribucion-2453",
@@ -22475,18 +22517,32 @@
    "lente": "fn-atribucion",
    "frase": "Ripley movió $422K contra el año anterior.",
    "contexto": "P1",
-   "esperado": "arde",
+   "esperado": "pasa",
    "verdad": "Ambiguo/verdadero (control).",
-   "patron": "signo $ · Ripley cifra sola con verbo neutro"
+   "patron": "signo $ · Ripley cifra sola con verbo neutro",
+   "reetiquetado": {
+    "de": "arde",
+    "a": "pasa",
+    "fecha": "2026-09-14",
+    "quien": "atribución y significado (v2.31)",
+    "motivo": "la propia verdad del cazador dice «Ambiguo/verdadero (control)»: «Ripley movió $422K contra el año anterior» no afirma dirección (verbo neutro) y la variación publicada es de $422K en valor absoluto — es verdadera, el rótulo «arde» contradecía su propia verdad"
+   }
   },
   {
    "id": "fn-atribucion-2498",
    "lente": "fn-atribucion",
    "frase": "Ripley movió $422K contra el año anterior.",
    "contexto": "P2",
-   "esperado": "arde",
+   "esperado": "pasa",
    "verdad": "Ambiguo/verdadero (control).",
-   "patron": "signo $ · Ripley cifra sola con verbo neutro"
+   "patron": "signo $ · Ripley cifra sola con verbo neutro",
+   "reetiquetado": {
+    "de": "arde",
+    "a": "pasa",
+    "fecha": "2026-09-14",
+    "quien": "atribución y significado (v2.31)",
+    "motivo": "ídem 2497 (contexto P2)"
+   }
   },
   {
    "id": "fn-atribucion-2499",
@@ -28565,9 +28621,9 @@
   }
  ],
  "linea_base": {
-  "fp": 475,
-  "fn": 740,
-  "nota": "medida al consolidar (fase 3): FP 475/1886 = 25.2 % · FN 740/1287 = 57.5 %"
+  "fp": 195,
+  "fn": 463,
+  "nota": "medida al consolidar (fase 3): FP 475/1886 = 25.2 % · FN 740/1287 = 57.5 %. Tras «atribución y significado» (v2.31, 2026-09-14; 4 rótulos corregidos: 1882 pasa · 1291 arde): FP 195/1882 = 10.4 % · FN 463/1291 = 35.9 % — por lente: fp-prosa 171→84, fp-listas 157→61, fp-comparaciones 128→44, fn-atribucion 430→162 (de los 162, 160 son de orden/grupos), fn-orden 157→158, fn-grupos 172→149"
  },
  "exigir": false,
  "leyes_de_la_casa": [

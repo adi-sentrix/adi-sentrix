@@ -33,7 +33,9 @@ const corre = (plan) => {
   const claims = buildClaims(ledger.figs, { eje: scope.eje, periodo: scope.periodo });
   return { plan, results, ledger, scope, claims, rel: buildRelations(claims) };
 };
-const g = (texto, t) => guardC(texto, { ledger: t.ledger, results: t.results, trace: null, question: "" });
+/* la PREGUNTA del turno viaja al muro (owner 2026-09-14, atribución y significado): el fixture RICO es «el turno real de perfil de Falabella»
+ * y «Su margen es 22%» habla de la cuenta que el usuario nombró; sin nadie nombrado —ni en el texto ni en la pregunta— el posesivo no tiene dueño */
+const g = (texto, t) => guardC(texto, { ledger: t.ledger, results: t.results, trace: null, question: t === T_RICO ? "¿Cómo está Falabella?" : "" });
 const kinds = (v) => (v.violations || []).map((x) => x.kind);
 
 const PLAN_PERFIL = { intent: "answer", mode: "default", scope: { level: "entity", entities: ["Falabella"] }, calls: [{ tool: "entityProfile", args: { dimension: "cliente", entity: "Falabella" } }] };
