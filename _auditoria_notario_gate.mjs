@@ -29,6 +29,9 @@ const H = (t) => console.log(`\n${t}`);
 initTenant(TENANT_DEMO);
 const CAJA = cajaDelAgente(TOOLS);
 const _ejes = (lista) => { const o = []; for (const e of lista) { try { for (const n of axisEntityNames(e)) o.push(n); } catch { /* eje sin índice */ } } return o.length ? o : null; };
+/* y el catálogo POR EJE (`ejesDelTenant`, fronteras del Notario 2026-09-14): el mismo contexto que el bucle le pasa al muro en
+ * la corrida en vivo — la medida se toma en la condición real, no en una más blanda */
+const _porEje = () => { const o = {}; for (const e of ["cliente", "sku", "marca", "familia", "bodega", "canal"]) { try { const n = axisEntityNames(e); if (n && n.length) o[e] = n; } catch { /* eje sin índice */ } } return o; };
 const A = JSON.parse(fs.readFileSync(new URL("./fixtures/auditoria-notario-2026-09-14.json", import.meta.url), "utf8"));
 const jueces = new Map();
 const juezDe = (pregunta) => {
@@ -36,7 +39,7 @@ const juezDe = (pregunta) => {
   const pb = playbookPara(pregunta, {});
   const rp = runPlan({ intent: "answer", calls: pasosDelEncargo(partesDelEncargo(pregunta), pb ? pasosDe(pb, pregunta, {}) : [], {}).map((p) => ({ tool: p.tool, args: p.args || {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 18, preguntaUsuario: pregunta, registry: CAJA });
   const j = {
-    muro: (t) => { const v = guardC(t, { ledger: { figs: rp.ledger.figs }, results: rp.results, trace: null, question: pregunta, datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), entidadesDelTenant: _ejes(["cliente", "sku", "marca"]), duenosDelTenant: _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]), contentScope: "full" }); return v.ok ? [] : (v.violations || []); },
+    muro: (t) => { const v = guardC(t, { ledger: { figs: rp.ledger.figs }, results: rp.results, trace: null, question: pregunta, datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), entidadesDelTenant: _ejes(["cliente", "sku", "marca"]), duenosDelTenant: _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]), ejesDelTenant: _porEje(), contentScope: "full" }); return v.ok ? [] : (v.violations || []); },
     contrato: (t, sitio) => vetosDeRegistro(t, { pregunta, figs: rp.ledger.figs, sitio }),
   };
   jueces.set(pregunta, j);

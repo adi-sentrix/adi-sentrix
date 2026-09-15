@@ -91,6 +91,21 @@ debajo de los ocho chequeos de atribución del muro y del contrato.
   cartera» con 269 días también es falsa: Easy 270—, la carnada (h) del ancla).
   Destapado de paso: el término de carga por MARCA iba con una barra invertida de menos y nunca casó.
 
+- **Las fronteras del Notario** (auditoría del Notario, familia E; candado `_fronteras_del_notario_gate`): tres huecos que
+  la fase 1 encontró fuera del corpus juzgando con el contexto COMPLETO del tenant —la condición real de la corrida—.
+  (1) Una entidad de OTRO EJE interpuesta no le quita la cifra a su dueño: «Falabella lidera la venta del canal retail y es
+  la relación comercial más importante que sostiene la cartera, con una venta anual de $19.4M» ardía porque «retail» (el
+  demo lo declara como canal) quedaba como última entidad antes de la cifra; ahora el eje de cada dueño viaja declarado al
+  muro (`ejesDelTenant`, de `axisEntityNames`, en el bucle, el oráculo y el vigía) y solo cuenta como interpuesta una
+  entidad del mismo eje que los dueños legítimos — «Lider … $19.4M», «Santiago vende $19.4M» siguen ardiendo. (2) El menos
+  tipográfico es el mismo signo: el cuadro publicaba «−8.2%» (U+2212) con raw POSITIVO, y «Ripley crece 8.2%» sobre una
+  caída pasaba; el emisor del cuadro publica el signo ASCII y el raw con signo, y el muro lee «−», «–» y «-» como el mismo
+  signo antes de todo chequeo (`normalizarSignos`; `parseFigures` no se toca). (3) Una fig sin dueño no autoriza su número
+  bajo cualquier concepto: «La carga de Mercado Libre es 5.4%» pasaba con la boleta de la descomposición («Efecto volumen
+  = +5.4%»); el concepto tiene vocabulario (`efecto volumen` → unidades y variación, `efecto precio` → variación) y arde
+  como «metrica-mal-atribuida». Sobre los 12 borradores y los 6 textos finales, el contexto completo no agrega ni un veto;
+  la medida de la auditoría no se mueve (4/19 · precisión 100 % · 0 regresiones).
+
 ---
 
 ## 2.30 — producción · tag `v2.30`

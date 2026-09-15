@@ -71,6 +71,25 @@ cláusula debajo de todos los chequeos de atribución.
   como anáfora («su margen proyectado»); (5) la suma de tres cifras con sus tres dueños nombrados (54.6%). Ninguna
   amnistía ciega volvió.
 
+## Las fronteras (familia E, v2.31) — huecos fuera del corpus, con el contexto completo del tenant
+
+Juzgar los borradores con los SEIS ejes del tenant (la condición real de la corrida en vivo) destapó tres huecos que
+ninguno de los 12 borradores pisaba. Cerrados con candado en `_fronteras_del_notario_gate`:
+
+- **La entidad de otro eje interpuesta.** «Falabella lidera la venta del canal retail y es la relación comercial más
+  importante que sostiene la cartera, con una venta anual de $19.4M» ardía: «retail» es un canal declarado y quedaba
+  como última entidad antes de la cifra. Regla: solo cuenta como interpuesta una entidad del MISMO eje que los dueños
+  legítimos; el eje viaja declarado (`ejesDelTenant`, de `axisEntityNames`), nunca se adivina. Sigue ardiendo lo que
+  debe: «Lider … $19.4M», «Santiago vende $19.4M», «En retail, la venta anual es $19.4M».
+- **El menos tipográfico.** El cuadro publicaba «−8.2%» (U+2212) con raw positivo; «Ripley crece 8.2%» sobre una caída
+  pasaba. El emisor publica el signo ASCII con el raw firmado y el muro normaliza «−»/«–»/«-» antes de leer.
+- **La fig sin dueño bajo otro concepto.** «La carga de Mercado Libre es 5.4%» pasaba con «Efecto volumen = +5.4%»: el
+  concepto no tenía vocabulario. Ahora «efecto volumen» es unidades y variación, «efecto precio» es variación.
+
+Sin costo en precisión: los 12 borradores y los 6 textos finales servidos dan los mismos vetos con y sin el catálogo por
+eje. Visto de paso y NO cerrado (es otra familia): una caída narrada sin signo («La Polar cae 12.5%» con «-12.5%» en la
+boleta) arde como cifra no autorizada — es la ley del «−» de la familia D, y ahora alcanza también al cuadro.
+
 ## Qué haría, en este orden (para dejar la auditoría limpia)
 
 1. **Lector de cláusula compartido** en el muro: para cualquier cifra o marcador devuelve su cláusula (cortada por

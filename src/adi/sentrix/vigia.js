@@ -43,6 +43,11 @@ const _ejes = (lista) => {
   for (const e of lista) { try { for (const n of axisEntityNames(e)) o.push(n); } catch { /* sin índice: ese eje no participa */ } }
   return o.length ? o : null;
 };
+const _porEje = () => {   // el catálogo POR EJE, para que el muro sepa de qué eje es cada dueño (ver guardC `ejesDelTenant`)
+  const o = {};
+  for (const e of ["cliente", "sku", "marca", "familia", "bodega", "canal"]) { try { const n = axisEntityNames(e); if (n && n.length) o[e] = n; } catch { /* sin índice */ } }
+  return Object.keys(o).length ? o : null;
+};
 function _muro(texto, { boleta, scenario }) {
   if (!texto) return null;
   try {
@@ -51,6 +56,7 @@ function _muro(texto, { boleta, scenario }) {
       datoProyectado: cifrasDelDato(scenario),
       entidadesDelTenant: _ejes(["cliente", "sku", "marca"]),
       duenosDelTenant: _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]),
+      ejesDelTenant: _porEje(),   // el eje de cada dueño, declarado (owner 2026-09-14): el mismo contexto que el bucle
       contentScope: "full", tablePolicy: "auto",
     });
     if (v && v.ok) return null;
