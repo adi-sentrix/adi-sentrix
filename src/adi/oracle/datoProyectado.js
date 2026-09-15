@@ -45,7 +45,8 @@ import { composeNoDataMessage } from "./narrationBlocks.js";   // el último rec
 import { simboloMoneda, rotuloMoneda, etiquetaSinDeclarar } from "../../config/moneda.js";
 import { factorComercialDe } from "../../config/contract/figureType.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
-import { figsUmbralFocos } from "../specRetrieval.js";   // el umbral de materialidad, los MISMOS dos números que interpola `declaracionUmbralFocos` (2026-09-14)
+import { figsUmbralFocos } from "../specRetrieval.js";
+import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";   // los rankings de COBRANZA salen de la MISMA mesa que la herramienta `cobranza` y la pestaña Flujo (owner 2026-09-14)   // el umbral de materialidad, los MISMOS dos números que interpola `declaracionUmbralFocos` (2026-09-14)
 
 // ── EL FORMATEADOR DE LA BOLETA, SIN UN SEGUNDO FORMATEADOR ────────────────────────────────────────────────────
 // parseFigures canoniza toda cifra con el _fmtC privado de boleta.js (canon = `unit:_fmtC(raw,unit)`). Darle el
@@ -179,7 +180,15 @@ function _construir(scenario) {
       ventas:       _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "menor", "clientesVentas.actual", ["ventas?", "factura(?:ci[óo]n)?"]),
       margen:       _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "menor", "clientesMargen.margen", ["m[áa]rgen(?:es)?"]),
       contribucion: _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "menor", "clientesMargen.contribucion", ["contribuci[óo]n"]),
-      carga:        _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "mayor", "clientesMargen.pctRebate", ["carga\\s+comercial"]),
+      /* «carga» A SECAS es la carga comercial (auditoría del Notario 2026-09-14, P1·3: «Falabella … carga 4.5% — la más alta de la cartera»,
+       * con Easy 5.5 y Sodimac 5.4): el borrador la nombra sin el apellido y el muro, con el término completo como único vocabulario, no la
+       * juzgaba. El término más largo sigue ganando cuando el apellido está. */
+      carga:        _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "mayor", "clientesMargen.pctRebate", ["carga\\s+comercial", "carga"]),
+      /* LAS UNIDADES VENDIDAS (owner 2026-09-14, auditoría del Notario · familia «orden»): «Jumbo es el cliente con más unidades vendidas
+       * (1.194) y más contribución ($4.2M)» — la primera mitad es verdad y la segunda no (Falabella $4.3M), y el muro no podía verificar
+       * ninguna: las unidades son una métrica del contrato de dominios (Comercial + unidades) sin ranking declarado. Sin lado malo
+       * (peorEs null): vender menos unidades no es «peor» por sí solo. «unidades en stock» es del inventario y no entra. */
+      unidades:     _R("los 13 clientes · venta comercial (año cerrado)", "mayor", null, "clientesVentas.unidades", ["unidades(?:\\s+vendidas)?(?!\\s+en\\s+stock)"]),
       /* LA BRECHA AL BENCHMARK Y LA CONTRIBUCIÓN NO CAPTURADA (owner 2026-09-14, segunda corrida de la prueba 2): «la segunda
        * mayor brecha de margen, 8.6 pp» —la de Lider es la MAYOR— no tenía ranking contra el cual medirse, y «la mayor
        * contribución no capturada» se juzgaba contra la contribución a secas (otra métrica). Los ordinales y los extremos
@@ -192,7 +201,9 @@ function _construir(scenario) {
       ventas:       _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "menor", "marcas.venta", ["ventas?", "factura(?:ci[óo]n)?"]),
       margen:       _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "menor", "marcas.margen", ["m[áa]rgen(?:es)?"]),
       contribucion: _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "menor", "marcas.contribucion", ["contribuci[óo]n"]),
-      carga:        _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "mayor", "marcas.pctRebate", ["carga\s+comercial"]),
+      /* ⚠️ el término iba con UNA barra invertida («carga\\s+comercial» dentro de una cadena JS es «cargas+comercial»): el ranking de carga
+       * por marca existía pero no casaba nunca — medido al declarar los de cobranza (2026-09-14). Mismos términos que el eje cliente. */
+      carga:        _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "mayor", "marcas.pctRebate", ["carga\\s+comercial", "carga"]),
     },
     /* EL EJE SKU · el hueco que dejó la corrida de adopción: el cerebro acertó sus tres superlativos de SKU, pero
      * por mérito suyo — el muro no tenía contra qué medirlos. Son los del universo INVENTARIO (foto de hoy).
@@ -344,6 +355,7 @@ function _construir(scenario) {
     let linea = `- ${c.nombre} — ${_L.ventas} ${F(_moneyK(c.actual), D)} (${_cCola}) · ${c.unidades} unidades · canal ${c.canal} · marca ${c.marca} · familia ${c.sfamilia}`;
     if (m) linea += ` · ${_L.margen} ${F(_pct1(m.margen), D)} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D)} · ${_L.costo} ${F(_moneyK(m.costo), D)} · ${_L.carga} ${F(_pct1(m.pctRebate), D)} (${_L.acciones.toLowerCase()} ${F(_moneyK(m.rebates), D)})`;
     if (Number.isFinite(c.actual)) rankings.cliente.ventas.filas.push({ entidad: c.nombre, valor: c.actual });
+    if (Number.isFinite(+c.unidades)) rankings.cliente.unidades.filas.push({ entidad: c.nombre, valor: +c.unidades });
     if (m) {
       if (Number.isFinite(m.margen)) rankings.cliente.margen.filas.push({ entidad: c.nombre, valor: m.margen });
       if (Number.isFinite(m.contribucion)) rankings.cliente.contribucion.filas.push({ entidad: c.nombre, valor: m.contribucion });
@@ -358,6 +370,34 @@ function _construir(scenario) {
       }
     }
     L.push(linea + ".");
+  }
+  /* ── LOS RANKINGS DE COBRANZA (owner 2026-09-14, auditoría del Notario · familia «orden») ─────────────────────────────────
+   * «Lider … la más urgente en cobranza (269 días vencidos, peor recuperación)» pasó verde con Easy en 270 días y Sodimac en 35 %
+   * recuperado: la proyección no declaraba ningún orden de cobranza, así que el muro no tenía contra qué medir un superlativo de
+   * mora. Salen de la MISMA mesa que la herramienta `cobranza` y la pestaña Flujo Comercial (`buildMesaFlujo`, una sola verdad,
+   * cero recalculo), sobre TODAS sus filas —no las 8 que la boleta recorta—, porque un orden se afirma sobre el conjunto. Cada
+   * ranking con su lado malo: más saldo vencido, más días y menos recuperado son el problema; el saldo pendiente no tiene lado
+   * malo por sí solo (deber no es estar atrasado). Sin plazo declarado (planilla sin política) el vencido y los días son `null`
+   * en la mesa y esas filas simplemente no entran: nunca un cero. «urgente / urgencia / mora / atraso» nombran los días vencidos
+   * porque así los nombra la prosa del cierre («la más urgente en cobranza (269 días vencidos)»). El TEXTO no cambia un byte. */
+  let _mesaCobro = null;
+  try { _mesaCobro = buildMesaFlujo(scenario); } catch { _mesaCobro = null; }
+  if (_mesaCobro && Array.isArray(_mesaCobro.filas) && _mesaCobro.filas.length) {
+    const _uniCobro = `los ${_mesaCobro.filas.length} clientes de la cobranza · al corte (${_mesaCobro.fechaCorteFmt || "cierre del período"})`;
+    /* `formulas`: cómo la prosa nombra ESTA mesa entera («la más urgente EN COBRANZA»). El muro las lee como universo declarado,
+     * igual que «de la cartera»; nombrar la tabla es nombrar el conjunto. */
+    const _formulasCobro = ["\\ben\\s+(?:la\\s+)?cobranza\\b", "\\bde\\s+(?:toda\\s+)?la\\s+cobranza\\b", "\\b(?:en|del?)\\s+(?:el\\s+)?flujo\\s+comercial\\b", "\\bde\\s+(?:toda\\s+)?la\\s+mesa\\s+de\\s+cobranza\\b"];
+    const _RC = (peorEs, campo, terminos) => ({ ..._R(_uniCobro, "mayor", peorEs, campo, terminos), formulas: _formulasCobro });
+    rankings.cliente.saldo_vencido   = _RC("mayor", "mesaFlujo.filas.vencidoK", ["saldo\\s+vencido", "monto\\s+vencido", "deuda\\s+vencida", "vencid[oa]s?"]);
+    rankings.cliente.recuperado      = _RC("menor", "mesaFlujo.filas.recuperadoPct", ["(?:porcentaje|tasa|%)\\s+de\\s+recuperaci[óo]n", "recuperaci[óo]n(?!\\s+de\\s+(?:margen|contribuci|venta))", "recuperad[oa]"]);
+    rankings.cliente.dias_vencido    = _RC("mayor", "mesaFlujo.filas.diasVencido", ["d[íi]as\\s+(?:de\\s+)?(?:atraso|retraso|mora|vencid[oa]s?)", "d[íi]as\\s+de\\s+vencimiento", "atrasos?", "retrasos?", "mora", "urgentes?", "urgencia"]);
+    rankings.cliente.saldo_pendiente = _RC(null, "mesaFlujo.filas.saldoK", ["saldo\\s+pendiente", "saldo\\s+por\\s+cobrar", "pendiente\\s+de\\s+cobro", "saldo(?!\\s+vencido)", "deuda(?!\\s+vencida)"]);
+    for (const fc of _mesaCobro.filas) {
+      if (Number.isFinite(fc.vencidoK)) rankings.cliente.saldo_vencido.filas.push({ entidad: fc.nombre, valor: fc.vencidoK });
+      if (Number.isFinite(fc.recuperadoPct)) rankings.cliente.recuperado.filas.push({ entidad: fc.nombre, valor: fc.recuperadoPct });
+      if (Number.isFinite(fc.diasVencido)) rankings.cliente.dias_vencido.filas.push({ entidad: fc.nombre, valor: fc.diasVencido });
+      if (Number.isFinite(fc.saldoK)) rankings.cliente.saldo_pendiente.filas.push({ entidad: fc.nombre, valor: fc.saldoK });
+    }
   }
   counts.add(f.marcasMargen.length);
   L.push(`MARCAS (${f.marcasMargen.length}):`);

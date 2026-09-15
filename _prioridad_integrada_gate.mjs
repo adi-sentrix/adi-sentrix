@@ -244,8 +244,11 @@ H("9 · el segundo prompt en vivo (autorizado, 1 llamada): el modelo terminó en
   ok(/Comercial: Falabella encabeza por monto/.test(tv) && /Inventario: LG-DRYER8KG/.test(tv), "…Falabella sigue como prioridad comercial y el inventario va aparte");
   const F2 = figsDe(DOMS);
   ok(!prioridadIntegradaCambiada(tv, F2, DOMS) && !vetosDeRegistro(tv, { pregunta: FX2.pregunta, figs: F2, sitio: "cierre" }).length, "★ el Notario verifica la misma prioridad: la ley pasa sobre el texto servido (agente y Notario avanzan juntos)");
+  /* AUDITORÍA DEL NOTARIO (owner 2026-09-14): lo servido dice «269 días y 45% de recuperación es la señal más urgente de la cartera» — el
+   * mismo superlativo que la auditoría declaró FALSO en la prueba 2 («la más urgente en cobranza (269 días vencidos)»: Easy tiene 270). Con los
+   * rankings de cobranza declarados, el muro lo verifica y el turno ya no se sirve verde; la ley de prioridad y el contrato siguen pasando. */
   const r = await answerViaAgente({ text: FX2.pregunta, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: tv, stop: "end_turn" }) });
-  ok(r.r.agente.estado === "verde" && r.r.text === tv, `…y con ese texto como cerebro el turno se sirve verde offline (${r.r.agente.estado})`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
+  ok(r.r.agente.estado !== "verde" && JSON.stringify(r.r.agente.vetos).includes("«la señal más urgente» en dias vencido") && JSON.stringify(r.r.agente.vetos).includes("Easy (270d"), `…y con ese texto como cerebro el turno ya NO se sirve verde (${r.r.agente.estado}): «la señal más urgente de la cartera» con 269 días es falsa — Easy tiene 270 (error de orden real, auditoría 2026-09-14)`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
 }
 
 /* ═══ 10 · EL CRITERIO DEL USUARIO MANDA: LA JERARQUÍA (owner 2026-09-14, corrección del estándar) ═══════════════════ */
@@ -365,7 +368,10 @@ H("12 · las dos pruebas vivas de la v2.31 (autorizadas, 2 llamadas cada una): d
   const b1 = LE.borradores[0].texto, b2 = LE.borradores[1].texto;
   ok(/Falabella, Jumbo y Lider concentran la mayor contribución \(\$4\.3M, \$4\.2M y \$3\.8M respectivamente\)/.test(b1), "la frase: «Falabella, Jumbo y Lider concentran la mayor contribución ($4.3M, $4.2M y $3.8M)» — el extremo es del grupo, y es cierto");
   const ardeS = (t) => M2.muro(t).some((x) => x.kind === "superlativo-no-sostenido");
-  ok(!M2.muro(b1).some((x) => x.kind === "superlativo-no-sostenido"), "★ ya no se le cobra a Lider «ser el máximo»: un sujeto «A, B y C» es un plural, sin reclamante único no se juzga");
+  ok(!M2.muro(b1).some((x) => x.kind === "superlativo-no-sostenido" && /Lider es «mayor» en contribucion/.test(String(x.detail))), "★ ya no se le cobra a Lider «ser el máximo»: un sujeto «A, B y C» es un plural, sin reclamante único no se juzga");
+  /* (auditoría del Notario 2026-09-14: ese mismo cierre SÍ arde por «la más urgente en cobranza (269 días vencidos, peor recuperación)» — Easy tiene
+   * 270 días y Sodimac 35 % recuperado; error real, verificado contra los rankings de cobranza de la proyección) */
+  ok(M2.muro(b1).some((x) => x.kind === "superlativo-no-sostenido" && /«la más urgente» en dias vencido.*Easy \(270d/.test(String(x.detail))), "★ …y el error de orden real del mismo cierre arde: «la más urgente en cobranza (269 días)» con Easy en 270 (rankings de cobranza)");
   ok(ardeS("Después de Jumbo y Sodimac, Lider concentra la mayor contribución.") && ardeS("Falabella, Jumbo y Lider crecen; Lider concentra la mayor contribución.") && ardeS("Falabella y Jumbo crecen, y la mayor contribución es Lider."), "candados: «después de Jumbo y Sodimac, Lider…», la segunda cláusula y la cópula siguen cobrándole a Lider");
   ok(M2.muro(b1).some((x) => x.kind === "juicio-sin-marcar") && vetosDeRegistro(b1, { pregunta: LE.pregunta, figs: M2.rp.ledger.figs, sitio: "cierre" }).map((x) => x.regla).includes("intencion-inferida"), "los vetos legítimos del cierre se quedan: «no es apuesta de volumen» (la intención no se lee en el dato, ni negada) y priorizar sin marcar dato duro/criterio");
   ok(/6 cuentas con 73\.8% del peso de venta/.test(b2) && M2.rp.ledger.figs.some((f) => f.grupo && f.grupo.n === 6 && f.value === "73.8%") && !M2.muro(b2).some((x) => /73\.8%/.test(String(x.detail))), "★ la reparación dijo «6 cuentas con 73.8% del peso de venta»: entonces cayó (la cifra no estaba en la boleta); hoy la boleta trae el peso del grupo con su grupo y ese reparto —seis— es el correcto (§14)");
@@ -399,10 +405,16 @@ H("13 · segundas corridas vivas (autorizadas, 2 llamadas cada una): la prueba 1
   ok(/libéralo junto con MAK-COMP-AIR y recuperas \$22K/.test(c1) && M1.rp.ledger.figs.some((f) => /liberar LG-DRYER8KG y MAK-COMP-AIR/.test(f.label) && f.value === "$22K"), "«libéralo junto con MAK-COMP-AIR y recuperas $22K»: el rótulo de la medida nombra a los dos SKU — no es un total huérfano");
   ok(!M1.muro(c1).some((x) => x.kind === "total-mal-atribuido" && /\$22K/.test(String(x.detail))), "★ ya no arde: la medida que nombra a sus dueños en el rótulo se cuelga de uno de ellos con razón (el verbo era «contribuye», de la cláusula anterior)");
   ok(/lo declaro porque cambia el orden/.test(r1) && !M1.muro(r1).some((x) => x.kind === "ranking-sin-cola"), "★ «lo declaro porque cambia el orden» ya no anuncia un ranking: la reparación pasa el muro");
-  ok(M1.muro(r1).length === 0 && !vetosDeRegistro(r1, { pregunta: Q, figs: M1.rp.ledger.figs, sitio: "reparacion" }).length, "…y pasa entera: muro y contrato", M1.muro(r1).map((x) => x.kind).join(","));
+  /* AUDITORÍA DEL NOTARIO (owner 2026-09-14): los dos borradores de esta corrida traen DOS ERRORES DE ORDEN REALES que entonces nadie vio —
+   * «los tres motores más grandes son también los que tienen el margen más bajo de la cartera — Lider, Falabella, Jumbo» (los tres de margen
+   * más bajo son Lider, Falabella y Sodimac) y «Jumbo … con más unidades vendidas (1.194) y más contribución ($4.2M)» (Falabella $4.3M).
+   * «Pasa entera» ya no es la verdad: el muro los cobra por verificación contra los rankings, el contrato sigue limpio, y con ese cerebro el
+   * turno NO se sirve verde. Lo que este candado protegía —los dos falsos positivos de arriba— sigue protegido. */
+  const _supR1 = M1.muro(r1).filter((x) => x.kind === "superlativo-no-sostenido").map((x) => String(x.detail));
+  ok(M1.muro(r1).every((x) => x.kind === "superlativo-no-sostenido" || x.kind === "cifra-de-grupo-mal-repartida") && _supR1.some((d) => /son los 3 de «más bajo» en margen.*Sodimac/.test(d)) && _supR1.some((d) => /Jumbo es «y más contribución» en contribucion.*Falabella/.test(d)) && !vetosDeRegistro(r1, { pregunta: Q, figs: M1.rp.ledger.figs, sitio: "reparacion" }).length, "…y del muro solo quedan los errores de orden REALES de la auditoría (el grupo de margen sin Sodimac · Jumbo y la contribución); el contrato pasa", M1.muro(r1).map((x) => x.kind).join(","));
   for (const [i, b] of [c1, r1].entries()) {
     const r = await answerViaAgente({ text: Q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: b, stop: "end_turn" }) });
-    ok(r.r.agente.estado === "verde" && r.r.text.split(/\s+/).length >= 700, `★ con el ${i ? "segundo" : "primer"} borrador vivo como cerebro, el turno se sirve entero y verde (${r.r.agente.estado}, ${r.r.text.split(/\s+/).length} palabras): el usuario recibe la lectura del modelo`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
+    ok(r.r.agente.estado !== "verde" && JSON.stringify(r.r.agente.vetos).includes("«más bajo» en margen"), `★ con el ${i ? "segundo" : "primer"} borrador vivo como cerebro, el turno ya NO se sirve verde (${r.r.agente.estado}): el Notario detiene el grupo de margen falso`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
   }
   ok(/\*\*Lider primero\*\*/.test(c1) && /Con criterio de riesgo integrado \(materialidad \+ severidad \+ urgencia, señal por señal, sin sumar dominios\)/.test(c1) && /Falabella solo le gana en contribución no capturada/.test(c1) && /En inventario, el foco es LG-DRYER8KG/.test(c1) && coberturaDelEncargo(c1, partesDelEncargo(Q)).length === 0, "el modelo cumplió: tres dominios, Lider primero por riesgo integrado con el criterio dicho, Falabella por contribución, inventario aparte");
   /* candados: lo que sí anuncia un ranking y lo que sí es un total huérfano siguen ardiendo */
@@ -489,7 +501,12 @@ H("14 · universo de grupos · ordinales y rankings · «coincide en dos dominio
   ok(/Nunca des «coincide en dos dominios» como LA razón de ir primero/.test(conclusionDePrioridad(FIGS, DOMS, {})), "la doctrina al cerebro lo dice con todas sus letras");
   /* las lecturas correctas de la prueba 1 (segunda corrida) no pierden nada con los tres cierres */
   const M1 = muroDe(Q);
-  for (const [i, b] of V6.borradores.entries()) ok(!M1.muro(b.texto).some((x) => x.kind === "cifra-de-grupo-mal-repartida" || x.kind === "superlativo-no-sostenido") && !vetosDeRegistro(b.texto, { pregunta: Q, figs: M1.rp.ledger.figs, sitio: i ? "reparacion" : "cierre" }).map((x) => x.regla).includes("coincidencia-como-razon"), `el borrador ${i + 1} de la prueba 1 no arde por ninguno de los tres`);
+  /* (auditoría del Notario 2026-09-14: los dos borradores de la prueba 1 SÍ traen dos errores de orden reales —el grupo de margen sin Sodimac y
+   * «Jumbo … y más contribución»—; por superlativo arden exactamente por esos dos, y por la coincidencia siguen sin arder) */
+  for (const [i, b] of V6.borradores.entries()) {
+    const _sup = M1.muro(b.texto).filter((x) => x.kind === "superlativo-no-sostenido").map((x) => String(x.detail));
+    ok(_sup.length === 2 && _sup.some((d) => /«más bajo» en margen.*Sodimac/.test(d)) && _sup.some((d) => /Jumbo es «y más contribución»/.test(d)) && !vetosDeRegistro(b.texto, { pregunta: Q, figs: M1.rp.ledger.figs, sitio: i ? "reparacion" : "cierre" }).map((x) => x.regla).includes("coincidencia-como-razon"), `el borrador ${i + 1} de la prueba 1 arde por superlativo SOLO por sus dos errores reales, y no por la coincidencia`, _sup.map((d) => d.slice(0, 80)).join(" | "));
+  }
 }
 
 /* ═══ 15 · LA TERCERA CORRIDA DE LA PRUEBA 1: LA REPARACIÓN ERA LA RESPUESTA Y CAYÓ POR CUATRO FALSOS POSITIVOS — CERRADOS ═══ */
@@ -518,9 +535,12 @@ H("15 · tercera corrida viva de la prueba 1 (autorizada, 2 llamadas): «carga b
    * el rótulo «vende: $14K» sí describe la cifra, y arde. */
   ok(!muro(c1).some((x) => x.kind === "metrica-mal-atribuida" && /\$14K/.test(String(x.detail))), "★ «($14K frenados…)» tras «lo que más vende:» ya no arde: «vende» es de otra cláusula (lector de cláusula)", muro(c1).filter((x) => x.kind === "metrica-mal-atribuida").map((x) => String(x.detail).slice(0, 100)).join(" | "));
   ok(muro("Lo que más vende: $14K en LG-DRYER8KG.").some((x) => x.kind === "metrica-mal-atribuida" && /\$14K/.test(String(x.detail))), "candado: el rótulo «vende: $14K» sí describe la cifra y arde");
-  ok(muro(r1).length === 0 && reglas(r1, "reparacion").length === 0, "★ la reparación pasa entera: muro y contrato", [...muro(r1).map((x) => x.kind), ...reglas(r1, "reparacion")].join(","));
+  /* AUDITORÍA DEL NOTARIO (owner 2026-09-14): esta reparación trae un error de orden REAL que entonces nadie vio — «Falabella … carga 4.5% — la
+   * más alta de la cartera» (Easy 5.5 %, Sodimac 5.4 %, Ripley 4.8 %). Los cuatro falsos positivos siguen cerrados (arriba); del muro queda SOLO
+   * ese veto, verificado contra el ranking de carga, y con ese cerebro el turno ya no se sirve verde. */
+  ok(muro(r1).every((x) => x.kind === "superlativo-no-sostenido" && /Falabella es «más alta» en carga.*Easy \(5\.5%/.test(String(x.detail))) && muro(r1).length >= 1 && reglas(r1, "reparacion").length === 0, "★ la reparación pasa el contrato, y del muro queda SOLO el error de orden real de la auditoría: «carga 4.5% — la más alta de la cartera» (Easy 5.5)", [...muro(r1).map((x) => x.kind + ": " + String(x.detail).slice(0, 80)), ...reglas(r1, "reparacion")].join(","));
   const r = await answerViaAgente({ text: Q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: r1, stop: "end_turn" }) });
-  ok(r.r.agente.estado === "verde" && r.r.text === r1, `★ con esa reparación como cerebro, el turno se sirve entero y verde (${r.r.agente.estado}): el usuario recibe la lectura del modelo`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
+  ok(r.r.agente.estado !== "verde" && JSON.stringify(r.r.agente.vetos).includes("«más alta» en carga"), `★ con esa reparación como cerebro, el turno ya NO se sirve verde (${r.r.agente.estado}): el Notario detiene el superlativo falso de carga`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
   ok(/Lider va primero: peor brecha al benchmark \(8\.6 pp\)/.test(r1) && /la razón de ir primero es la severidad de cada señal, no la coincidencia/.test(r1) && /Falabella es la prioridad si miras solo contribución no capturada/.test(r1) && /En inventario, resolvería LG-DRYER8KG primero/.test(r1) && coberturaDelEncargo(r1, partesDelEncargo(Q)).length === 0, "el modelo cumplió: Lider primero por severidad, la coincidencia como agravante (la doctrina llegó), Falabella por contribución/ventas, inventario aparte, nueve partes cubiertas");
   /* los vetos legítimos del cierre se quedan */
   ok(muro(c1).some((x) => x.kind === "dias-etiqueta-incorrecta") && reglas(c1, "cierre").includes("intencion-inferida") && reglas(c1, "cierre").includes("parte-del-encargo-omitida"), "el cierre sigue cayendo por lo legítimo: «165 días sin rotar», la intención negada, las unidades omitidas");
