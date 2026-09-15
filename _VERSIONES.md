@@ -39,6 +39,19 @@ primero» son formas naturales de pedir la misma decisión.
 ambos); en vivo, el segundo prompt salió verde en una llamada: «El mayor riesgo hoy … es Lider», explicado por severidad y
 urgencia, «coincidir … agrava, no lo decide». Suite completa en verde, sin tocar la red.
 
+**El lector de cláusula — el dueño y el reclamante se leen por estructura, no por cercanía.** La auditoría del Notario
+sobre los 12 borradores reales de las seis corridas vivas midió 17 falsos positivos, 9 de la misma familia: cada chequeo de
+atribución decidía «de quién es esta cifra / quién reclama este extremo» con ventanas de ±90 caracteres y el nombre más
+cercano, cruzando cláusulas, paréntesis, dos puntos y párrafos. Palabra del owner: «no quiero más parches frase por frase».
+Un solo lector (`src/adi/oracle/lectorDeClausula.js`: cláusula, sujeto, referente, listas coordinadas, negación, rótulo)
+debajo de los ocho chequeos de atribución del muro y del contrato.
+
+- Cerrados los tres falsos positivos vigentes: «La brecha total … si esas 5 cuentas materiales … es $4.9M» (el alcance
+  dicho en la misma cláusula), «lo que más vende: LG-DRYER8KG ($14K frenados…)» («vende» es de otra cláusula; «frenados»
+  sigue fuera del vocabulario de capital) y «$33K frenados en total, concentrados en Valparaíso (75%)» (una entidad con su
+  propia cifra pegada no reclama el total). 17/17 cerrados, precisión 100 % sin regresiones sobre los 12 borradores; todos
+  los candados de los gates en pie. Quedan los huecos de cobertura (orden, grupos, conteos): otra familia.
+
 ---
 
 ## 2.30 — producción · tag `v2.30`

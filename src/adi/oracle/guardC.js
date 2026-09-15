@@ -19,6 +19,11 @@ import { esCalculoDelCatalogo } from "./calculoCatalogo.js";
 // AMPLITUD F3 (owner 2026-08-13, D2): EL CONTRATO DE CONTEXTO GENERAL. El rango del bloque lo declara el MISMO
 // módulo que lo renderea — el muro y el renderer no pueden discrepar sobre dónde empieza y termina el contenedor.
 import { rangoContextoGeneral, extraerCalculos } from "./narrationBlocks.js";
+/* EL LECTOR DE CLÁUSULA (owner 2026-09-14): la raíz común de los 17 falsos positivos medidos en la auditoría del Notario era
+ * decidir «de quién es esta cifra / quién reclama este extremo» por cercanía (±90 caracteres, el nombre más cercano) en vez
+ * de por estructura (cláusula, paréntesis, dos puntos, coordinación, negación). Todos los chequeos de atribución de este
+ * muro leen la estructura de UN solo lector; acá no se adivina el sujeto dos veces. */
+import { leerClausula, entidadesConPosicion as _entidadesConPosicion, coordinadasContiguas as _coordinadasContiguas, compilarNombres, SEP_COORD as _SEP_COORD } from "./lectorDeClausula.js";
 
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const _stripSpace = (s) => String(s).replace(/\s/g, "");
@@ -482,11 +487,22 @@ function _metricBindingViolations(narration, ledger) {
     // marcaba $17.8M como "margen"). Dos falsos cazados por el gate de aceptación. Se calculan los límites sobre
     // una copia con las cifras enmascaradas (misma longitud, sin puntos) y se LEE del texto original.
     const masked = _maskFigures(text);
-    const [lo] = _localWindow(masked, idx, 60);
+    const [lo0] = _localWindow(masked, idx, 60);
     const end = _finDeCifra(text, idx + f.text.length);   // «17 días» entero, no «17 d» + «ías»
     const hi0 = Math.min(masked.length, end + 60);
     const cut = masked.slice(end, hi0).search(_SENT_END);
     const hi = cut >= 0 ? end + cut : hi0;
+    /* ── LA MÉTRICA DEL OTRO LADO DE UNOS DOS PUNTOS NO SE ATA A LA CIFRA (owner 2026-09-14, lector de cláusula) ─────────
+     * FALSO POSITIVO MEDIDO (prueba 1, tercera corrida viva; vigente hasta hoy): «sin relación con lo que más vende:
+     * LG-DRYER8KG ($14K frenados, 165 días de cobertura, en Valparaíso)» → «$14K narrado como ventas». «vende» estaba a menos
+     * de 25 caracteres, pero del otro lado de los dos puntos Y fuera del paréntesis: no describe al $14K — el descriptor pegado
+     * a la cifra («frenados») manda. Y NO se resuelve metiendo «frenados» al vocabulario de capital: «75% del frenado total en
+     * esa bodega» es una participación y ardería. Se resuelve por ESTRUCTURA: la ventana hacia atrás empieza donde empieza la
+     * cláusula de la cifra — para una cifra entre paréntesis, donde empieza la cláusula que lo contiene («carga de Jumbo
+     * (3.8%)» sigue atribuyendo); para una cifra que abre su cláusula tras «:» o una raya, en el rótulo que la precede («El
+     * margen: $655K», «vende: $14K» siguen atribuyendo). Hacia adelante no cambia nada: _tramoDescriptivo ya decide. */
+    const _L = leerClausula(text, idx);
+    const lo = Math.max(lo0, _L.enParentesis ? (_L.contenedor ? _L.contenedor.ini : _L.clausula.ini) : (_L.rotulo ? _L.rotulo.ini : _L.clausula.ini));
     const cercaTodas = _metricasEn(text.slice(lo, hi));
     /* ── LA MÉTRICA DUEÑA NOMBRADA JUSTO DESPUÉS DE LA CIFRA LA DESCRIBE (encargo en vivo, 2026-09-14) ─────────────
      * Falso positivo MEDIDO en el borrador del modelo —completo y correcto— que cayó al respaldo: «$588K corresponde
@@ -747,7 +763,8 @@ function _totalMisattribution(narration, ledger, entityNames) {
   const text = String(narration || "");
   const viol = [];
   const figs = parseFigures(text);
-  const ents = entityNames.map((n) => ({ n, re: new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "gi") }));
+  const nombresRe = compilarNombres(entityNames);
+  const porNorm = new Map(entityNames.map((n) => [_norm(n), n]));
   const WIN = 60;
   const seen = new Set();
   for (const f of figs) {
@@ -758,18 +775,32 @@ function _totalMisattribution(narration, ledger, entityNames) {
     const [lo, hi] = _localWindow(text, idx, WIN);   // acotado a la MISMA oración, no solo a ±WIN caracteres lineales
     const windowText = text.slice(lo, hi);
     if (_PART_OF_EXCEPTION.test(windowText)) continue;   // el texto ya escala explícitamente al total/grupo → correcto
-    if (!_CLAIM_VERB.test(windowText)) continue;   // sin verbo de equivalencia cerca → no es una atribución clara
-    const near = new Set();
-    for (const e of ents) { e.re.lastIndex = 0; let mm; while ((mm = e.re.exec(text))) if (mm.index >= lo && mm.index <= hi) near.add(e.n); }
+    /* ── EL VERBO Y LA ENTIDAD, EN LA MISMA CLÁUSULA QUE LA CIFRA (owner 2026-09-14, lector de cláusula) ───────────────
+     * FALSO POSITIVO MEDIDO (prueba 2, segunda corrida viva): «Capital: $33K frenados en total (foto de hoy), concentrados en
+     * Valparaíso (75%)» → «$33K atribuida a Valparaíso». La ventana veía «concentrados en» y «Valparaíso» y colgaba el total
+     * de la bodega; pero el «(75%)» pegado al nombre dice que Valparaíso tiene una PARTE — una entidad que trae su propia
+     * cifra pegada («Valparaíso (75%)», «Valparaíso con $25K») no reclama el total. Y la ventana se recorta a LA CLÁUSULA
+     * de la cifra: un verbo o un nombre del otro lado de unos dos puntos, un punto y coma o una raya no atribuyen nada
+     * («Lider concentra la mora: $4.6M vencidos de $12.6M» ya no cuelga el total del otro lado de los dos puntos). Si la
+     * cláusula no nombra a nadie, reclama su sujeto heredado («Lider: recuperar $5.7M» sigue ardiendo). */
+    const L = leerClausula(text, idx, { nombresRe });
+    const lo2 = Math.max(lo, L.clausula.ini), hi2 = Math.min(hi, L.clausula.fin);
+    const tramo = L.enParentesis ? L.clausula.texto.slice(lo2 - L.clausula.ini, hi2 - L.clausula.ini) : L.plano.slice(lo2, hi2);
+    if (!_CLAIM_VERB.test(tramo)) continue;   // sin verbo de equivalencia en la cláusula → no es una atribución clara
+    const enTramo = _entidadesConPosicion(tramo, nombresRe).map((e) => e.nombre);
+    const near = new Set(enTramo.length ? enTramo : (L.sujeto ? [L.sujeto.nombre] : []));
+    const conParentesis = _norm(text.slice(L.clausula.ini, L.clausula.fin));   // la cláusula con sus paréntesis, para ver la cifra pegada al nombre
+    for (const n of [...near]) if (new RegExp(`${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*(?:\\([^()]*\\d|con\\s+[$+\\-]?\\d)`, "u").test(conParentesis)) near.delete(n);
     if (near.size >= 1 && near.size <= 2) {
       /* LA MEDIDA QUE NOMBRA A SUS DUEÑOS EN EL RÓTULO (prueba 1 de la v2.31, 2026-09-14, corrida viva): «Medida ·
        * liberar LG-DRYER8KG y MAK-COMP-AIR = $22K» no es un total huérfano —el rótulo dice de quiénes es, aunque ningún
        * segmento sea un nombre a secas—, y «libéralo junto con MAK-COMP-AIR y recuperas $22K» se la cuelga a uno de
        * ellos: correcto. El verbo que disparó era «contribuye», de la cláusula anterior. Si el texto la cuelga de
        * alguien que el rótulo NO nombra, sigue ardiendo. */
+      const nombrados = [...near].map((n) => porNorm.get(n) || n);
       const nombradosEnRotulo = new Set((ledger.figs || []).filter((x) => x.canon === f.canon).flatMap((x) => _figEntityOwners(String(x.label || ""), entityNames)));
-      if (nombradosEnRotulo.size && [...near].every((n) => nombradosEnRotulo.has(n))) continue;
-      viol.push(`«${f.text}» (cifra total/global, sin dueño único) aparece atribuida a ${[...near].join(" y ")} con un verbo de equivalencia — el dato tiene ${entityNames.length} entidades en juego, no solo esa(s)`);
+      if (nombradosEnRotulo.size && nombrados.every((n) => nombradosEnRotulo.has(n))) continue;
+      viol.push(`«${f.text}» (cifra total/global, sin dueño único) aparece atribuida a ${nombrados.join(" y ")} con un verbo de equivalencia — el dato tiene ${entityNames.length} entidades en juego, no solo esa(s)`);
     }
   }
   return viol;
@@ -3115,6 +3146,34 @@ function _alcancePromovido(narration, ledger) {
     }
     if (!_ALCANCE_TOTALIZADOR.test(ventana)) continue;
     if (_PART_OF_EXCEPTION.test(ventana) || _TOTAL_DEL_GRUPO.test(ventana) || _DECLARA_PARCIAL.test(ventana)) continue;
+    /* ── EL ALCANCE DICHO EN LA MISMA CLÁUSULA NO SE PROMUEVE (owner 2026-09-14, lector de cláusula) ───────────────────
+     * FALSO POSITIVO MEDIDO (prueba 1, primera corrida viva; vigente hasta hoy): «La brecha total estimada si esas 5 cuentas
+     * materiales llegaran al benchmark es $4.9M» → «se narra como el total del universo». La palabra «total» pesaba más que
+     * el alcance dicho en la misma frase. Si la cláusula de la cifra trae el conteo del subtotal («5 cuentas», «cinco son
+     * materiales») —el mismo conteo más cercano que juzga «otro conteo» arriba, leído dentro de la cláusula—, el alcance
+     * está declarado y «total» es un adjetivo de esa brecha, no una promoción. «La brecha total de la cartera es $4.9M»
+     * (sin conteo) y «en los ocho clientes … $4.9M» (otro conteo) siguen ardiendo. */
+    if (_nm) {
+      const _L = leerClausula(text, idx);
+      const _claus = _L.clausula.texto;   // la cláusula de la cifra (el interior, si va entre paréntesis), normalizada
+      const _NUM2 = "(\\d{1,2}|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince)";
+      const _PAL2 = { uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15 };
+      const _re2 = new RegExp(`(?<![\\w])(?:l[oa]s\\s+|es[oa]s\\s+|est[oa]s\\s+)?${_NUM2}(?=\\s+(?:cuentas?|clientes?|son\\b|concentran|suman|representan|explican|dejan|acumulan|materiales|est[aá]n))`, "gi");
+      const _par2 = new RegExp(`(?<![\\w])${_NUM2}\\s+de\\s+${_NUM2}(?![\\w])`, "gi");
+      const _enPar2 = new Set();
+      let _mp; while ((_mp = _par2.exec(_claus))) { _enPar2.add(_mp.index); _enPar2.add(_mp.index + _mp[0].length - _mp[2].length); }
+      const _posCifra2 = idx - _L.clausula.ini;
+      let _mc, _cerca = null;
+      while ((_mc = _re2.exec(_claus))) {
+        const iNum = _mc.index + _mc[0].length - _mc[1].length;
+        if (_enPar2.has(iNum)) continue;
+        const k = _PAL2[_mc[1].toLowerCase()] ?? Number(_mc[1]);
+        if (!Number.isFinite(k)) continue;
+        const d = Math.abs(iNum - _posCifra2);
+        if (!_cerca || d < _cerca.d) _cerca = { k, d };
+      }
+      if (_cerca && _cerca.k === Number(_nm[1])) continue;
+    }
     if (![..._metricasEn(ventana)].some((m) => metricas.has(m))) continue;   // la frase habla de otra métrica
     out.push(`«${nf.text}» está autorizada como SUBTOTAL («${subs[0].f.label}») y se narra como el total del universo: "${ventana.trim().slice(0, 110)}"`);
   }
@@ -3410,7 +3469,7 @@ function _duenosDeBoleta(figs, entityNames, entidadesDelTenant) {
  * 19d)») arde. Con menos entidades que cifras no se adivina nada y decide la regla del sujeto.
  * _grupoCoordinado → {ini, k, n}: el grupo de cifras coordinadas («#, # y #» en el enmascarado) que contiene la
  * aparición [idx, end), con la posición k de esa cifra; null si la cifra va sola. */
-const _SEP_COORD = "(?:,\\s*|\\s+(?:[ye]|contra|vs\\.?|frente a)\\s+)";   // «x y y» · «x contra y» · «x vs y» (corrida en vivo, 2026-09-14)
+/* _SEP_COORD («x y y» · «x contra y» · «x vs y», corrida en vivo 2026-09-14) vive en el lector de cláusula: es la misma coordinación */
 /* «15 días y 19 días»: la boleta captura «15 d» y deja «ías» colgando (ver _finDeCifra) — el grupo tolera ese resto */
 function _grupoCoordinado(masked, idx, end, text) {
   const antes = new RegExp("#+(?:[ií]as?)?" + _SEP_COORD + "$", "u"), despues = new RegExp("^" + _SEP_COORD + "#+", "u");
@@ -3419,46 +3478,35 @@ function _grupoCoordinado(masked, idx, end, text) {
   for (;;) { const m = despues.exec(masked.slice(fin)); if (!m) break; fin = _finDeCifra(text, fin + m[0].length); n++; }
   return n >= 2 ? { ini, k, n } : null;
 }
-/* las entidades reales que nombra un tramo, con la posición de su última aparición, en el orden en que aparecen */
-function _entidadesConPosicion(tramoN, nombresRe) {
-  const vistas = new Map();
-  for (const re of nombresRe) {
-    const g = new RegExp(re.source, "gu");
-    let m;
-    while ((m = g.exec(tramoN))) {
-      const nombre = m[0].replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
-      vistas.set(nombre, m.index + m[0].indexOf(nombre));
-      if (!m[0].length) g.lastIndex++;
-    }
-  }
-  const lista = [...vistas.entries()].sort((a, b) => a[1] - b[1]);
-  /* un nombre contenido en otro más largo en la misma posición no cuenta dos veces */
-  return lista.filter(([nombre, pos], i) => !lista.some(([o, p], j) => j !== i && o.length > nombre.length && p <= pos && pos < p + o.length)).map(([nombre, pos]) => ({ nombre, pos }));
-}
-function _entidadesEnOrden(tramoN, nombresRe) { return _entidadesConPosicion(tramoN, nombresRe).map((e) => e.nombre); }
-/* ── SOLO LAS ENTIDADES COORDINADAS ENTRE SÍ (owner 2026-09-14, prueba 1 de la v2.31) ─────────────────────────
- * FALSO POSITIVO MEDIDO: «Falabella es la mayor brecha de contribución sin capturar ($1.6M), y Lider es la cuenta
- * con peores indicadores de cobranza (…) y la mayor distancia al benchmark de margen (8.6 pp contra 8.1 pp de
- * Falabella)». Falabella y Lider son los sujetos de DOS cláusulas, no una lista coordinada; el par «8.6 pp contra
- * 8.1 pp» no se reparte entre ellas por orden. La distributiva le asignaba 8.6 pp a Falabella (la primera de la
- * oración) y tumbó una reparación correcta —«la comparación es válida y no debe caer por proximidad del nombre»—.
- * La doctrina de arriba siempre dijo «dos entidades coordinadas»: acá se cobra. La distributiva solo ve la ÚLTIMA
- * corrida de entidades unidas entre sí por coma, «y», «contra», «vs» o «frente a», admitiendo una cifra entre
- * paréntesis pegada al nombre («SAM-REF500L ($19K) y LG-WASH11KG ($15K)»). Si no hay tal corrida, manda la regla
- * del sujeto: 8.6 pp es de Lider, la última entidad nombrada antes de la cifra en su cláusula. */
-const _PUENTE_COORD = new RegExp("^(?:\\s*\\([^()]*\\))*\\s*" + _SEP_COORD + "(?:\\s*\\([^()]*\\))*\\s*$", "u");   // « ($19K) y » · «, » · « contra » — nada más entre dos nombres coordinados
-function _coordinadasContiguas(tramoN, nombresRe) {
-  const ents = _entidadesConPosicion(tramoN, nombresRe);
-  let i = ents.length - 1;
-  while (i > 0 && _PUENTE_COORD.test(tramoN.slice(ents[i - 1].pos + ents[i - 1].nombre.length, ents[i].pos))) i--;
-  return ents.slice(i).map((e) => e.nombre);
-}
+/* _entidadesConPosicion (las entidades reales que nombra un tramo, con posición) y _coordinadasContiguas (SOLO las
+ * coordinadas entre sí — owner 2026-09-14, prueba 1 de la v2.31: «Falabella es la mayor brecha…, y Lider es la cuenta con…
+ * (8.6 pp contra 8.1 pp de Falabella)» son dos sujetos de dos cláusulas, no una lista) viven en el lector de cláusula y se
+ * importan arriba: la coordinación es estructura de la frase, y la lee un solo módulo. */
 // _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) → true SOLO en la mis-atribución activa: en
-// TODAS las apariciones de la cifra falta un dueño legítimo en la oración, Y al menos una de esas oraciones
-// nombra una entidad real (la atribución equivocada). Misma ventana de oración que _duenoEnVentana (F1).
+// TODAS las apariciones de la cifra falta un dueño legítimo, Y al menos una de esas oraciones nombra una entidad
+// real como sujeto (la atribución equivocada). Misma ventana de oración que _duenoEnVentana (F1) para LIBERAR.
+/* ── EL DUEÑO SE LEE POR ESTRUCTURA, NO POR CERCANÍA (owner 2026-09-14, auditoría del Notario) ───────────────────
+ * Nueve de los 17 falsos positivos medidos en las seis corridas vivas eran de esta familia: «Falabella es…, y Lider es…
+ * (8.6 pp contra 8.1 pp de Falabella)», «Lider pesa más: 8.6 pp (peor que Falabella), … 269 días», «Falabella solo LA
+ * supera ($1.6M contra $1.5M)», «(SAM-TV55 $13.3M, LG-WASH11KG $12.4M)». Cada uno se había cerrado con una excepción
+ * local (la corrida coordinada, el paréntesis, el elidido a dos oraciones). Ahora las cuatro lecturas salen de UN lector
+ * (`lectorDeClausula.js`):
+ *   1 · la DISTRIBUTIVA solo reparte entre entidades COORDINADAS ENTRE SÍ («A y B … (x y y)»: la k-ésima cifra es de la
+ *       k-ésima entidad; decide, y la invertida arde);
+ *   2 · el SUJETO DE LA CLÁUSULA es el dueño por defecto — la última entidad antes de la cifra en su cláusula, sin los
+ *       paréntesis, sin el otro lado de los dos puntos, saltando la comparada («peor que Falabella»); si la cláusula no
+ *       tiene sujeto, el de la anterior en la misma oración;
+ *   3 · el ELIDIDO y el OBJETO («Es más grave que Falabella…», «Falabella solo la supera…») se leen por el REFERENTE
+ *       (hasta dos oraciones atrás), y solo LIBERAN si por orden le toca a un dueño: es una lectura, no una condena;
+ *   4 · la atribución ACTIVA se cobra cuando el sujeto leído es otra entidad, o la ventana nombra a alguna.
+ * Lo que NO cambia (candados en los gates): «Lider vende $19.4M» arde con el dueño cerca o lejos; «mientras que Lider
+ * vende $19.4M» arde (Lider se interpone); la coordinación invertida arde; «Sodimac vende $8.2M. Es más grave que
+ * Falabella … (8.6 pp contra 8.1 pp)» arde (el referente no es dueño); la misma cifra con su dueño a la vista en UNA
+ * aparición queda libre — este chequeo juzga la cifra, no cada aparición. */
 function _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) {
   let idx = -1, ajena = false;
   const _reDueno = (d) => { const dn = _norm(d); return dn ? new RegExp(`(?:^|[^\\p{L}\\p{N}])${dn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u") : null; };
+  const esDueno = (nombre) => nombre != null && [...duenos].some((d) => _norm(d) === nombre);
   while ((idx = text.indexOf(fig.text, idx + 1)) >= 0) {
     const [lo] = _localWindow(masked, idx, 90);
     const end = idx + fig.text.length;
@@ -3469,74 +3517,29 @@ function _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) {
       const re = _reDueno(d);
       if (re && re.test(ventana)) return false;   // dueño legítimo a la vista → libre
     }
-    /* ── EL SUJETO DE LA ORACIÓN ES EL DUEÑO POR DEFECTO (owner 2026-09-14, corrida en vivo del cruce) ─────────────
-     * FALSO POSITIVO MEDIDO: «PHI-SHAVER9 es el mejor caso — lidera contribución ($3.4M) con capital bajo ($11K) y
-     * cobertura muy corta (15 días), igual que PHI-HAIR-PRO (contribución $2.8M, capital $6K, 19 días)». Los «15 días»
-     * son de PHI-SHAVER9, que abre la oración a más de 90 caracteres; la ventana no lo veía y sí veía a PHI-HAIR-PRO,
-     * que viene después — y el muro tumbó un borrador correcto («una respuesta buena del modelo no debe degradarse a un
-     * respaldo inferior por falsos positivos»). La lectura natural es la del sujeto: una cifra pertenece a la ÚLTIMA
-     * entidad nombrada ANTES de ella en su oración. Si esa entidad es un dueño legítimo, la atribución es correcta
-     * aunque la ventana corta no lo alcance. Y NO afloja el candado (medido con la boleta de cobranza del demo):
-     * «…durante todo el año cerrado, mientras que Lider vende $19.4M» sigue ardiendo —Falabella abre la oración a más
-     * de 90 caracteres, pero Lider se interpone entre ella y la cifra—, igual que «Lider vende $19.4M» a secas. Lo
-     * que pasaba antes y sigue pasando: la misma cifra repetida con su dueño a la vista en UNA aparición («Falabella
-     * vende $19.4M y Lider vende $19.4M») queda libre — este chequeo juzga la cifra, no cada aparición. */
-    const iniOracion = (() => { const back = masked.slice(0, idx); const k = Math.max(back.lastIndexOf("."), back.lastIndexOf("!"), back.lastIndexOf("?"), back.lastIndexOf("\n")); return k >= 0 ? k + 1 : 0; })();
-    /* la coordinación distributiva (ver _grupoCoordinado): «A y B … (x y y)» → la k-ésima cifra es de la k-ésima
+    const L = leerClausula(text, idx, { nombresRe });
+    /* 1 · la coordinación distributiva (ver _grupoCoordinado): «A y B … (x y y)» → la k-ésima cifra es de la k-ésima
      * entidad. Cuando aplica, DECIDE: la lectura por orden manda sobre la del sujeto, así «PHI-HAIR-PRO y PHI-SHAVER9
-     * … (15d y 19d)» arde aunque PHI-SHAVER9 sea la última entidad nombrada antes de la cifra. Y solo aplica sobre
-     * entidades COORDINADAS ENTRE SÍ (ver _coordinadasContiguas): dos sujetos de dos cláusulas no forman lista. */
+     * … (15d y 19d)» arde aunque PHI-SHAVER9 sea la última entidad nombrada antes de la cifra. Solo entre entidades
+     * COORDINADAS ENTRE SÍ (coordinadasContiguas del lector): dos sujetos de dos cláusulas no forman lista. */
     const grupo = _grupoCoordinado(masked, idx, end, text);
-    const entsOracion = grupo && grupo.ini > iniOracion ? _coordinadasContiguas(_norm(text.slice(iniOracion, grupo.ini)), nombresRe) : [];
-    if (grupo && grupo.ini > iniOracion && entsOracion.length >= grupo.n) {
-      const asignada = entsOracion.slice(-grupo.n)[grupo.k];
-      if ([...duenos].some((d) => _norm(d) === asignada)) return false;
+    const enOracion = !!grupo && grupo.ini > L.oracion.ini;
+    const entsCoord = enOracion ? _coordinadasContiguas(L.plano.slice(L.oracion.ini, grupo.ini), nombresRe) : [];
+    if (enOracion && entsCoord.length >= grupo.n) {
+      if (esDueno(entsCoord.slice(-grupo.n)[grupo.k])) return false;
       ajena = true;
       continue;
     }
-    const antesN = _norm(text.slice(iniOracion, idx));
-    let precedente = null, precPos = -1;
-    for (const d of duenos) {
-      const re = _reDueno(d);
-      if (!re) continue;
-      const m = re.exec(antesN);
-      if (!m) continue;
-      const pos = m.index + (m[0].length - _norm(d).length);   // el inicio del nombre, sin el separador capturado
-      if (pos > precPos) { precPos = pos; precedente = d; }
+    /* 2 · el sujeto de la cláusula es el dueño por defecto */
+    if (L.sujeto && esDueno(L.sujeto.nombre)) return false;
+    /* 3 · el elidido / el objeto, cuando al grupo le falta UNA entidad: el referente entra primero si es el sujeto («Lider
+     * primero. Es más grave que Falabella … (8.6 pp contra 8.1 pp)») y después si es el objeto («Falabella solo LA supera
+     * … ($1.6M contra $1.5M)»): las dos lecturas se prueban, y cualquiera libera */
+    if (enOracion && entsCoord.length === grupo.n - 1 && L.referente) {
+      for (const orden of [[L.referente.nombre, ...entsCoord], [...entsCoord, L.referente.nombre]]) if (esDueno(orden[grupo.k])) return false;
     }
-    if (precedente !== null) {
-      /* ¿alguna OTRA entidad real aparece entre ese dueño y la cifra? si no, el dueño manda la oración hasta acá */
-      /* «Lider pesa más: 8.6 pp de brecha (peor que Falabella), $4.6M vencidos … y 269 días de atraso» (prueba 2, tercera corrida
-       * viva · 2026-09-14): la comparación ENTRE PARÉNTESIS no cambia el sujeto — el tramo se mira sin sus paréntesis. */
-      const tramo = antesN.slice(precPos + _norm(precedente).length).replace(/\([^()]*\)/g, " ");
-      const otra = nombresRe.some((re) => { const m2 = re.exec(tramo); if (!m2) return false; return !_reDueno(precedente).test(m2[0]); });
-      if (!otra) return false;
-    }
-    /* EL SUJETO ELIDIDO (corrida en vivo, 2026-09-14): «**Lider primero**. Es más grave que Falabella en distancia al
-     * benchmark (8.6 pp contra 8.1 pp)…» — el sujeto de la segunda oración es Lider, dicho en la anterior; con solo
-     * Falabella en la oración, el par «8.6 pp contra 8.1 pp» no tenía dos entidades y «8.6 pp» salía «pegada a otra
-     * entidad». Cuando al grupo le falta UNA entidad, la ÚLTIMA de la oración anterior del mismo párrafo entra primera,
-     * como sujeto que continúa — y solo LIBERA si por orden le toca a un dueño: es una lectura, no una condena. Va
-     * después de la regla del sujeto para no quitarle nada a lo que ya se leía bien. */
-    if (grupo && grupo.ini > iniOracion && entsOracion.length === grupo.n - 1) {
-      const parrafoIni = Math.max(0, text.lastIndexOf("\n\n", iniOracion));
-      const atras = masked.slice(parrafoIni, Math.max(parrafoIni, iniOracion - 1));
-      /* …y hasta DOS oraciones atrás (prueba 2, tercera corrida viva · 2026-09-14): «iría por Lider. La razón es la severidad: su
-       * brecha … que la de Falabella (…). Falabella solo la supera en un punto ($1.6M contra $1.5M)» — el «la» es Lider, dos
-       * oraciones antes. Cada candidata solo LIBERA si por orden le toca a un dueño: es una lectura, no una condena. */
-      const oracionesPrev = _norm(text.slice(parrafoIni, iniOracion)).split(/(?<=[.!?])\s+|\n+/).filter((o) => o.trim()).slice(-2).reverse();
-      for (const previa of oracionesPrev) {
-        const entsPrev = _entidadesEnOrden(previa, nombresRe).filter((e) => !entsOracion.includes(e));
-        if (!entsPrev.length) continue;
-        /* el elidido va PRIMERO si es el sujeto («Lider primero. Es más grave que Falabella … (8.6 pp contra 8.1 pp)») y va DESPUÉS si es
-         * el objeto («Falabella solo LA supera … ($1.6M contra $1.5M)»): las dos lecturas se prueban, y cualquiera libera */
-        const elidida = entsPrev[entsPrev.length - 1];
-        for (const orden of [[elidida, ...entsOracion], [...entsOracion, elidida]]) {
-          if ([...duenos].some((d) => _norm(d) === orden[grupo.k])) return false;
-        }
-      }
-    }
-    if (nombresRe.some((re) => re.test(ventana))) ajena = true;
+    /* 4 · la atribución ACTIVA: el sujeto leído es otra entidad, o la oración nombra a alguna a la vista */
+    if (L.sujeto || nombresRe.some((re) => re.test(ventana))) ajena = true;
   }
   return ajena;
 }
@@ -4859,6 +4862,8 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       const _tolerante = (n) => String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/[aá]/gi, "[aá]").replace(/[eé]/gi, "[eé]").replace(/[ií]/gi, "[ií]").replace(/[oó]/gi, "[oó]").replace(/[uú]/gi, "[uú]");
       const _reEnt = (n) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${_tolerante(n)}(?:[^\\p{L}\\p{N}]|$)`, "iu");
       const _oraciones = String(narration).split(/(?<=[.!?])\s+|\n+/);
+      /* el inicio absoluto de cada oración: el lector de cláusula lee el texto ENTERO (referente a dos oraciones atrás) */
+      const _iniOracion = []; { let cur = 0; for (const o of _oraciones) { const k = String(narration).indexOf(o, cur); const ini = k < 0 ? cur : k; _iniOracion.push(ini); cur = ini + o.length; } }
       let _vetadoSup = false;
       for (const [oi, oracion] of _oraciones.entries()) {
         if (_vetadoSup) break;
@@ -4913,13 +4918,17 @@ export function guardC(narration, { ledger, results = [], trace = null, question
              * primera que nombre alguna entidad del eje: si nombra UNA, es el sujeto; si nombra dos o más, no
              * hay a quién atribuirle el extremo y no se juzga. Mismo criterio que la anáfora del dueño —
              * antecedente único—, con la ventana de dos que el Examen 4 mostró que hace falta. */
-            let sujetoPrevio = null;
-            for (let k = oi - 1; k >= 0 && k >= oi - 2; k--) {
-              const prev = lista.filter((x) => _reEnt(x.entidad).test(_oraciones[k]));
-              if (!prev.length) continue;
-              if (prev.length === 1) sujetoPrevio = prev[0];
-              break;
-            }
+            /* ── EL RECLAMANTE SE LEE POR ESTRUCTURA (owner 2026-09-14, lector de cláusula) ──────────────────────────────
+             * Las cuatro lecturas del reclamante —sujeto delante, cópula detrás, posesivo, sujeto de la oración anterior— se
+             * habían escrito una por una, cada una con su ventana. El sujeto delante y el previo salen ahora del lector:
+             * el SUJETO es la última entidad del eje antes del marcador en su cláusula (sin paréntesis, sin el otro lado de
+             * los dos puntos, saltando la comparada «peor que Falabella»; si la cláusula no tiene, el de la anterior en la
+             * misma oración) y el PREVIO es el referente de hasta dos oraciones atrás con antecedente único — la cópula y el
+             * posesivo, que nombran al sujeto con todas sus letras, siguen mandando sobre los dos. */
+            const _L = leerClausula(String(narration), _iniOracion[oi] + iM, { nombres: lista.map((x) => x.entidad) });
+            const _delEje = (nombre) => (nombre == null ? null : lista.find((x) => _norm(x.entidad) === nombre) || null);
+            const sujetoPrevio = _L.referente && _L.referente.nombrados.length === 1 ? _delEje(_L.referente.nombre) : null;
+            const sujetoLector = _delEje(_L.sujeto && _L.sujeto.nombre);
             const conjunto = (kOrd >= 2 || _TODO_EL_CONJUNTO.test(oracion)) ? lista.slice()
               : [...nombradas, ...(sujetoPrevio && !nombradas.some((n) => n.entidad === sujetoPrevio.entidad) ? [sujetoPrevio] : [])];
             if (conjunto.length < 2) continue;
@@ -4940,8 +4949,8 @@ export function guardC(narration, { ledger, results = [], trace = null, question
              * tiene la carga comercial más alta»), y exigir que no hubiera ningún otro nombre antes en la oración
              * dejaba pasar defectos reales por tener un «Prioridad 2 — Jumbo y Sodimac» delante. Las frases donde
              * el extremo es de un GRUPO ya quedaron afuera por el candado del plural, unas líneas más arriba. */
-            const delante = nombradas.filter((x) => _reEnt(x.entidad).test(antes))
-              .sort((a, b) => antes.toLowerCase().lastIndexOf(_norm(a.entidad)) - antes.toLowerCase().lastIndexOf(_norm(b.entidad)));
+            /* «delante» es el sujeto que leyó el lector (ver arriba): en español el sujeto va pegado al predicado («Sodimac tiene la
+             * carga comercial más alta»), y la cláusula —no la oración entera— es donde vive */
             /* EL SUJETO DETRÁS DEL VERBO · la construcción hendida (Examen 5, turno 5 · falso positivo MEDIDO:
              * costó 3 llamadas y mandó al suplente una respuesta que era correcta). El borrador decía «El que más
              * capital inmovilizado tiene entre los tres frenados ES LG-DRYER8KG» —y LG-DRYER8KG lo es—, pero el
@@ -5010,20 +5019,9 @@ export function guardC(narration, { ledger, results = [], trace = null, question
              * no se juzga. Solo cuenta la lista cerrada con «y»/«e» justo antes del último nombre —una cifra entre
              * paréntesis pegada al nombre no la rompe—; «después de Jumbo y Sodimac, Falabella tiene la carga más alta»
              * sigue juzgando a Falabella, y la cópula y el posesivo, que nombran al sujeto, siguen mandando. */
-            const _sujetoCoordinado = (() => {
-              if (sujetoDetras || (posesivo && posesivo.unica) || !delante.length) return false;
-              const _ult = delante[delante.length - 1];
-              let _pos = -1;
-              { const g = new RegExp(_reEnt(_ult.entidad).source, "giu"); let m; while ((m = g.exec(antes))) { _pos = m.index + (m[0].length - m[0].replace(/^[^\p{L}\p{N}]+/u, "").length); if (!m[0].length) g.lastIndex++; } }
-              if (_pos < 0) return false;
-              const _previo = antes.slice(0, _pos);
-              const _m = /(?:\s*\([^()]*\))?\s+[ye]\s+$/i.exec(_previo);
-              if (!_m) return false;
-              const _cabeza = _previo.slice(0, _m.index);
-              return nombradas.some((x) => x.entidad !== _ult.entidad && new RegExp(`${_tolerante(x.entidad)}(?:\\s*\\([^()]*\\))?\\s*$`, "iu").test(_cabeza));
-            })();
+            const _sujetoCoordinado = !sujetoDetras && !(posesivo && posesivo.unica) && _L.sujetoPropio && _L.listaCerrada;   // «A, B y C» cerrada con «y»/«e» justo antes del sujeto (lector: listaCerrada); «después de Jumbo y Sodimac, Lider…» no lo es
             if (_sujetoCoordinado) continue;
-            const reclamante = sujetoDetras || (posesivo && posesivo.unica) || (delante.length ? delante[delante.length - 1] : sujetoPrevio);
+            const reclamante = sujetoDetras || (posesivo && posesivo.unica) || sujetoLector || sujetoPrevio;
             if (!reclamante || !conjunto.some((x) => x.entidad === reclamante.entidad)) continue;
             const _v = (x) => (/brecha/.test(decl.clave) ? `${x.valor} pp` : decl.clave === "no_capturada" ? (Math.abs(x.valor) >= 1000 ? `$${(x.valor / 1000).toFixed(1)}M` : `$${x.valor}K`) : /margen|carga/.test(decl.clave) ? `${x.valor}%` : decl.clave === "rotacion" ? `${x.valor}x` : /dias/.test(decl.clave) ? `${x.valor}d` : String(x.valor));
             if (kOrd >= 2) {

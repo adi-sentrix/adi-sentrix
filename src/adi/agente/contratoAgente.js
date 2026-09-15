@@ -1,6 +1,7 @@
 import { catalogoAgente } from "./catalogoAgente.js";   // R8 · los identificadores internos jamás van a pantalla (lazy: nada se deriva al importarse)
 import { atributoMalAsociado, relacionEnPalabrasNoCierra } from "./atributosYRelaciones.js";   // el atributo (bodega/marca/familia/canal) y la relación dicha en palabras, contra el dato (owner 2026-09-14)
 import { esEncargoCompuesto, partesDelEncargo, coberturaDelEncargo, dominiosDelEncargo } from "./partesDelEncargo.js";
+import { leerClausula, compilarNombres } from "../oracle/lectorDeClausula.js";   // el sujeto, la cláusula y el referente se leen por estructura, no por cercanía (owner 2026-09-14)
 import { prioridadIntegradaCambiada, criterioDeLaPregunta, coincidenciaComoRazon } from "./prioridadIntegrada.js";   // la prioridad: el criterio del usuario manda; sin criterio, la ejecutiva con el criterio declarado (owner 2026-09-14)   // las partes de un encargo, por dominio: el ensamblador compone la misma lista que acá se cobra (owner 2026-09-14)
 export { esEncargoCompuesto };   // re-exportado sin cambiar: registro.js y el ensamblador lo toman de acá
 /* === src/adi/agente/contratoAgente.js · LA LETRA DEL CONTRATO Y SU VETO MECÁNICO (F3 · owner 2026-08-30) =====
@@ -442,7 +443,7 @@ export function vetosDeRegistro(texto, contexto = {}) {
       /* «el patrón de carga baja está ahí» (prueba 1, tercera corrida viva · 2026-09-14): «baja» es ADJETIVO —carga baja, no la
        * carga baja—. El verbo lleva el sujeto con artículo o posesivo delante («la carga baja», «su margen baja»); sin él, es
        * el nivel («de carga baja», «con carga baja»). Solo para «baja», la única forma ambigua de la lista. */
-      if (/^baja$/i.test(m[2]) && !/(?:^|[^\wáéíóúñ])(?:el|la|los|las|su|tu|mi|es[aet]|est[aet]|nuestr[ao])\s+(?:[\wáéíóúñ]+\s+)?$/i.test(texto.slice(Math.max(0, m.index - 24), m.index))) continue;
+      if (/^baja$/i.test(m[2]) && !leerClausula(texto, m.index).determinante) continue;   // el determinante se lee dentro de la cláusula (lector de cláusula, owner 2026-09-14)
       const oracion = _oracionDe(m.index);
       if (_CONDICIONAL.test(antes) || /[¿?]/.test(oracion) || /\bno (?:puedo|s[eé]|podr[ií]a) (?:saber|separar|decir|distinguir|afirmar)\b|\bhip[oó]tesis\b|\bpodr[ií]a (?:haber|estar|ser)\b/i.test(oracion)) continue;
       v.push({ regla: "variacion-no-medida", multa: `dices que ${m[1].toLowerCase()} «${m[2]}» y este turno no midió ninguna variación de esa métrica (no hay «${m[1].toLowerCase()} vs año anterior» ni su serie en la boleta): lo medido es su nivel contra la referencia. Di «está en X, bajo el benchmark», no que cae o sube.` });
@@ -820,13 +821,15 @@ function _subtotalDeOtroUniverso(texto, figs) {
     const esAgregado = (x) => x.figs.some((g) => { const c = _fichaDeFig(g, figs); return c && (c.tipo === "subtotal" || c.tipo === "total"); });
     /* «…Easy $2.0M. De eso, $12.6M…»: el «eso» es el total dicho antes, no el último ítem de la lista. El continente es el
      * agregado más cercano hacia atrás; una cifra de cuenta solo cuenta si no hay agregado y está en la MISMA oración. */
-    /* …salvo la cifra PEGADA a la marca (prueba 1, tercera corrida viva · 2026-09-14): «Lider: $9.8M de saldo pendiente, de eso
+    /* …salvo la cifra de SU CLÁUSULA (prueba 1, tercera corrida viva · 2026-09-14): «Lider: $9.8M de saldo pendiente, de eso
      * $4.6M vencidos» — el continente era el $135K del inventario, a 200 caracteres y un párrafo de distancia, y no el $9.8M de al
-     * lado. El «eso» a ≤ 40 caracteres de una cifra, en la MISMA LÍNEA y la misma oración, es esa cifra. La lista del composer
-     * («Easy $2.0M⏎De eso, $12.6M…») cambia de línea: ahí sigue mandando el agregado dicho antes. */
+     * lado. El «eso» apunta a la última cifra dicha en la MISMA CLÁUSULA (lector de cláusula, owner 2026-09-14: cortada por
+     * punto, punto y coma, dos puntos, raya y salto de línea; un paréntesis es otra cláusula). La lista del composer
+     * («Easy $2.0M⏎De eso, $12.6M…») cambia de línea y «De eso, $588K…» abre oración: ahí sigue mandando el agregado dicho antes. */
     const agregado = previos.find(esAgregado);
     const cuentaMisma = previos[0] && !/[.!?]\s/.test(t.slice(previos[0].fin, m.index)) ? previos[0] : null;
-    const pegada = cuentaMisma && m.index - cuentaMisma.fin <= 40 && !/\n/.test(t.slice(cuentaMisma.fin, m.index)) ? cuentaMisma : null;
+    const _L = leerClausula(t, m.index);
+    const pegada = previos.find((x) => x.idx >= _L.clausula.ini && x.fin <= m.index) || null;
     const antes = pegada || agregado || cuentaMisma || null;
     const despues = montos.find((x) => x.idx >= m.index + m[0].length && x.idx - (m.index + m[0].length) <= 60);
     if (antes && despues) pares.push({ x: antes, y: despues, marca: m[0] });
@@ -847,7 +850,8 @@ function _subtotalDeOtroUniverso(texto, figs) {
     /* «De los 5 SKU que más venden (SAM-TV55 $13.3M, LG-WASH11KG $12.4M, …)» (prueba 1, tercera corrida viva · 2026-09-14): la
      * oración abre con «De los», pero las dos cifras son una ENUMERACIÓN, cada una con su dueño pegado delante — nadie dijo que
      * $12.4M sea parte de $13.3M. Una cifra precedida por el nombre de su propia cuenta no es un continente ni una contenida. */
-    const _nombrada = (z) => z.figs.some((g) => { const c = _fichaDeFig(g, figs); return c && c.tipo === "cuenta" && c.entidad && new RegExp(String(c.entidad).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*[:(]?\\s*$", "i").test(t.slice(Math.max(0, z.idx - 30), z.idx)); });
+    const _nombresCuenta = compilarNombres([...new Set(figs.map((g) => _fichaDeFig(g, figs)).filter((c) => c && c.tipo === "cuenta" && c.entidad).map((c) => c.entidad))]);
+    const _nombrada = (z) => { const L = leerClausula(t, z.idx, { nombresRe: _nombresCuenta }); return !!(L.sujetoPropio && L.sujeto && z.figs.some((g) => { const c = _fichaDeFig(g, figs); return c && c.tipo === "cuenta" && String(c.entidad).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === L.sujeto.nombre; })); };   // el sujeto propio de la cifra, en su cláusula, es su propia cuenta (lector de cláusula)
     if (_nombrada(x) && _nombrada(y)) continue;
     pares.push({ x, y, marca: o.trim().slice(0, 20) + "…" });
   }

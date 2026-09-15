@@ -115,7 +115,8 @@ H("4 · la carnada: con la regla apagada, el defecto pasaría");
    * ⚠️ `/(?!)/` y no `/$^/`: con bandera `m`, `$^` matchea en cada salto de línea — la trampa de la casa. */
   const mutado = src.replace(/const _RE_DICTAMEN = new RegExp\([^;]+;/, "const _RE_DICTAMEN = /(?!)/;");
   ok(mutado !== src, "…y la carnada de verdad muta el fuente (si no, este bloque no probaría nada)");
-  const url = "data:text/javascript;base64," + Buffer.from(mutado.replace(/from "\.\.\/\.\.\//g, `from "${new URL("./src/", import.meta.url).href}`).replace(/from "\.\//g, `from "${new URL("./src/adi/agente/", import.meta.url).href}`), "utf8").toString("base64");
+  /* los tres niveles de import de contratoAgente: «../../» (config/data), «../» (oracle: el lector de cláusula, 2026-09-14) y «./» (agente) */
+  const url = "data:text/javascript;base64," + Buffer.from(mutado.replace(/from "\.\.\/\.\.\//g, `from "${new URL("./src/", import.meta.url).href}`).replace(/from "\.\.\//g, `from "${new URL("./src/adi/", import.meta.url).href}`).replace(/from "\.\//g, `from "${new URL("./src/adi/agente/", import.meta.url).href}`), "utf8").toString("base64");
   let ardeMutado = null;
   try {
     const m = await import(url);

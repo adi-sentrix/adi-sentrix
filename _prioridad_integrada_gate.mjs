@@ -416,7 +416,11 @@ H("13 · segundas corridas vivas (autorizadas, 2 llamadas cada una): la prueba 1
   ok(/Falabella, Lider, Jumbo, Sodimac y Paris \(73\.8% de la venta\)/.test(f2) && JSON.stringify(M2.rp.results).includes('"n":6,"pesoVenta":73.8'), "lo servido dice «Falabella, Lider, Jumbo, Sodimac y Paris (73.8% de la venta)» — y el 73.8% es el peso de SEIS cuentas en los results (falta Ripley)");
   ok(/la segunda mayor brecha de margen, 8\.6 pp/.test(f2) && M2.rp.ledger.figs.filter((x) => /Brecha al benchmark/.test(x.label) && !/negocio/i.test(x.label)).every((x) => x.raw <= 8.6), "…y «la segunda mayor brecha de margen, 8.6 pp»: la de Lider es la MAYOR de todas");
   ok(M2.muro(f2).some((x) => x.kind === "cifra-de-grupo-mal-repartida") && M2.muro(f2).some((x) => x.kind === "superlativo-no-sostenido"), "★ el muro ya ve los dos (cerrados en §14): la cifra de un grupo repartida a un grupo distinto, y el ordinal falso", M2.muro(f2).map((x) => x.kind).join(","));
-  ok(M2.muro(L2.borradores[0].texto).some((x) => x.kind === "total-mal-atribuido" && /\$33K/.test(String(x.detail))), "el cierre cayó además por «$33K frenados en total, concentrados en Valparaíso (75%)»: el total con su parte dicha — FALSO POSITIVO pendiente (decisión del owner), documentado como está hoy");
+  /* el falso positivo del cierre, CERRADO con el lector de cláusula (owner 2026-09-14): «$33K frenados en total (foto de hoy), concentrados en
+   * Valparaíso (75%)» — el «(75%)» pegado a Valparaíso dice que tiene una PARTE; una entidad con su propia cifra pegada no reclama el total.
+   * El candado: sin la parte dicha, colgar el total de la bodega sigue ardiendo. */
+  ok(!M2.muro(L2.borradores[0].texto).some((x) => x.kind === "total-mal-atribuido" && /\$33K/.test(String(x.detail))), "★ el cierre ya no cae por «$33K frenados en total, concentrados en Valparaíso (75%)»: el 75% dice que es una parte (lector de cláusula)", M2.muro(L2.borradores[0].texto).map((x) => x.kind).join(","));
+  ok(M2.muro("Capital: $33K frenados en total, concentrados en Valparaíso.").some((x) => x.kind === "total-mal-atribuido" && /\$33K/.test(String(x.detail))), "candado: «$33K frenados en total, concentrados en Valparaíso» (sin la parte dicha) sigue ardiendo");
 }
 
 /* ═══ 14 · LOS DOS HUECOS DEL MURO, CERRADOS, Y LA LEY DE LA COINCIDENCIA (owner 2026-09-14) ════════════════════════ */
@@ -485,7 +489,13 @@ H("15 · tercera corrida viva de la prueba 1 (autorizada, 2 llamadas): «carga b
   /* los falsos positivos, cerrados */
   ok(/el patrón de carga baja está ahí/.test(r1) && !reglas(r1, "reparacion").includes("variacion-no-medida"), "★ «el patrón de carga baja está ahí»: adjetivo, no verbo — ya no arde");
   ok(/\$9\.8M de saldo pendiente, de eso \$4\.6M vencidos/.test(r1) && !reglas(r1, "reparacion").includes("subtotal-de-otro-universo"), "★ «$9.8M de saldo pendiente, de eso $4.6M vencidos»: el «eso» es la cifra pegada, no el $135K del párrafo anterior — ya no arde");
-  ok(/carga de solo 1\.8%/.test(c1) && !muro(c1).some((x) => x.kind === "metrica-mal-atribuida" && /1\.8%/.test(String(x.detail))) && muro(c1).some((x) => x.kind === "metrica-mal-atribuida" && /\$14K/.test(String(x.detail))), "★ «carga de solo 1.8%» tras «crece»: «carga» a secas es la carga comercial — ya no arde (⚠️ «($14K frenados…)» tras «lo que más vende:» sigue ardiendo: «frenados» no puede entrar como capital porque «75% del frenado total» es una participación — falso positivo del cierre, pendiente)");
+  ok(/carga de solo 1\.8%/.test(c1) && !muro(c1).some((x) => x.kind === "metrica-mal-atribuida" && /1\.8%/.test(String(x.detail))), "★ «carga de solo 1.8%» tras «crece»: «carga» a secas es la carga comercial — ya no arde");
+  /* el falso positivo del cierre, CERRADO con el lector de cláusula (owner 2026-09-14): «sin relación con lo que más vende: LG-DRYER8KG ($14K
+   * frenados, …)» — «vende» queda del otro lado de los dos puntos y fuera del paréntesis: la ventana hacia atrás empieza en la cláusula que
+   * contiene el paréntesis. «frenados» sigue SIN entrar al vocabulario de capital («75% del frenado total» es una participación). El candado:
+   * el rótulo «vende: $14K» sí describe la cifra, y arde. */
+  ok(!muro(c1).some((x) => x.kind === "metrica-mal-atribuida" && /\$14K/.test(String(x.detail))), "★ «($14K frenados…)» tras «lo que más vende:» ya no arde: «vende» es de otra cláusula (lector de cláusula)", muro(c1).filter((x) => x.kind === "metrica-mal-atribuida").map((x) => String(x.detail).slice(0, 100)).join(" | "));
+  ok(muro("Lo que más vende: $14K en LG-DRYER8KG.").some((x) => x.kind === "metrica-mal-atribuida" && /\$14K/.test(String(x.detail))), "candado: el rótulo «vende: $14K» sí describe la cifra y arde");
   ok(muro(r1).length === 0 && reglas(r1, "reparacion").length === 0, "★ la reparación pasa entera: muro y contrato", [...muro(r1).map((x) => x.kind), ...reglas(r1, "reparacion")].join(","));
   const r = await answerViaAgente({ text: Q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async () => ({ tipo: "texto", texto: r1, stop: "end_turn" }) });
   ok(r.r.agente.estado === "verde" && r.r.text === r1, `★ con esa reparación como cerebro, el turno se sirve entero y verde (${r.r.agente.estado}): el usuario recibe la lectura del modelo`, JSON.stringify(r.r.agente.vetos).slice(0, 200));
