@@ -46,8 +46,13 @@ import { VIEW_MANIFEST } from "../../sentrix/viewManifest.js";
 import { variante } from "../variacion.js";
 import { esPorQue } from "../porque.js";
 import { esConversacional } from "../formaConversacional.js";   // la memoria del cuadro no secuestra una conversación   // la ley del porqué, transversal
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): el composer declara mientras escribe
+import { entidadNombrada } from "./indiceEntidades.js";     // para declarar una fila con su dueño solo si el dueño es una entidad del tenant
 
 const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/* una fila del cuadro es una ENTIDAD del tenant (Falabella, SAM-REF500L) o un rótulo del propio cuadro («Este año», «Cola (6)»,
+ * un mes): la primera se declara con su dueño; la segunda, con el rótulo completo con que la publica `cuadroSentrix` */
+const _esEntidad = (nombre) => { try { const e = entidadNombrada(String(nombre || "")); return !!(e && String(e.nombre).toLowerCase() === String(nombre || "").trim().toLowerCase()); } catch { return false; } };
 
 /* ── LA PROFUNDIZACIÓN · qué columna pide el usuario ───────────────────────────────────────────────────────
  * LÉXICO y cerrado, como todo detector de playbook: un verbo de profundizar + el nombre de una columna del
@@ -239,7 +244,7 @@ function _gruposDeSenal(filas) {
   for (const f of filas) for (const s of (f.senales || [])) {
     if (!s.alerta) continue;
     if (!por.has(s.clave)) por.set(s.clave, { clave: s.clave, dice: s.dice, dicen: s.dicen || s.dice, filas: [] });
-    por.get(s.clave).filas.push({ fila: f, valor: s.valor || null });
+    por.get(s.clave).filas.push({ fila: f, valor: s.valor || null, clave: s.clave });   // `clave`: para declarar la cifra de la señal con SU columna, no con otra del mismo valor
   }
   /* de menos a más filas: la señal que toca 4 de 13 es un hallazgo; la que toca 11 es una condición */
   return [...por.values()].sort((a, b) => a.filas.length - b.filas.length);
@@ -257,6 +262,13 @@ const _cifraDeSenal = (x) => {
 };
 const _grupoDe = (grupos, claves) => grupos.find((g) => claves.includes(g.clave)) || null;
 const _conCifra = (items, n) => items.slice(0, n).map((x) => { const v = _cifraDeSenal(x); return `${x.fila.nombre}${v ? ` ${v}` : ""}`; }).join(", ");
+/** la CIFRA (objeto, con su rótulo) que `_cifraDeSenal` eligió para nombrar a una señalada — para declararla con el rótulo que la publica */
+const _cifraObjDeSenal = (x) => {
+  const v = _cifraDeSenal(x);
+  if (!v) return null;
+  const mismas = x.fila.cifras.filter((c) => c.valor === v);
+  return mismas.find((c) => x.clave && c.clave === x.clave) || mismas.find((c) => x.clave && new RegExp(_esc(x.clave), "i").test(c.clave)) || mismas[0] || null;
+};
 
 /* ── ORDENAR POR EL CRUDO DEL BUILDER · posiciones, no aritmética ───────────────────────────────────────── */
 function _ordenadasPor(filas, clave) {
@@ -374,7 +386,13 @@ export const cuadroExplicado = {
   },
 
   /* ── EL ENTREGABLE DETERMINÍSTICO · resumen ejecutivo por dimensión, o la dimensión por dentro ──────────── */
-  componer({ pregunta, semilla, ctx, scenario } = {}) {
+  /* Con el colector `declarar` (Notario semántico, fase 2) el composer DECLARA cada hecho mientras lo escribe, con los rótulos con que
+   * `cuadroSentrix` publica el cuadro: las cifras de cabecera como «<cuadro> · <rótulo>» del negocio, las de una fila con su dueño
+   * (o con el rótulo completo si la fila no es una entidad del tenant), los órdenes sobre el eje del cuadro, los grupos de señal como
+   * conteos, las variaciones con su dirección; y sella como lectura la interpretación. Sin colector, `D` es mudo y el texto es el
+   * mismo byte a byte. Cada línea (o el tramo que afirma) se guarda en una variable para que el `texto` declarado sea literal. */
+  componer({ pregunta, semilla, ctx, scenario, declarar } = {}) {
+    const D = declaradorDe(declarar);
     const c = _caso(pregunta, ctx, scenario);
     if (!c) return null;
     const L = c.L;
@@ -382,7 +400,9 @@ export const cuadroExplicado = {
     /* el declive honesto: el cuadro está en pantalla y el dato no lo sostiene */
     if (!L.ok) {
       const I = L.identidad || {};
-      const p = [`Ese cuadro no tiene con qué responderse en esta carga: ${L.falta}`];
+      const l = `Ese cuadro no tiene con qué responderse en esta carga: ${L.falta}`;
+      const p = [l];
+      D.lectura({ texto: l, sello: "abierto" });
       if (I.cara) p.push(`Puedo abrirte lo que la cara ${I.cara} sí tiene medido, o el cuadro que quieras señalarme.`);
       return p.join("\n");
     }
@@ -392,6 +412,39 @@ export const cuadroExplicado = {
     const uni = _cab(L, "n") || _cab(L, "entidadesReales");
     const universo = uni && Number.isFinite(Number(uni.valor)) ? Number(uni.valor) : L.filas.length;
     const grupos = _gruposDeSenal(L.filas);
+    /* ── los declaradores de este cuadro ──
+     * `cab`: una cifra de cabecera, con el rótulo «<cuadro> · <label>» y dueño «negocio» (así la publica cuadroSentrix, sin entidad);
+     * `fila`: una cifra de una fila — con su dueño si es una entidad del tenant, con el rótulo completo si no lo es;
+     * `uniEje`: el universo de un orden o un conteo sobre las filas del cuadro (el eje entero de la cartera). */
+    const rotCab = (x) => `${I.cuadro} · ${x.label}`;
+    const metricaDelCuadro = I.metricaLabel || "Ventas";
+    /* una cifra «vs año anterior» ES una VARIACIÓN de la métrica del cuadro, con su dirección y su magnitud: se declara como tal (el
+     * significado de la cifra), no como una cifra de rótulo — el juez leería «venta» en la frase y «vs año anterior» en el rótulo
+     * como dos métricas distintas */
+    const _dirDe = (x) => { const n = Number.isFinite(x.raw) ? x.raw : parseFloat(String(x.valor).replace(/−/g, "-").replace(/[^\d.,-]/g, "").replace(",", ".")); return n > 0 ? "sube" : n < 0 ? "baja" : "estable"; };
+    const cab = (x, texto) => {
+      if (!x) return null;
+      if (/vs a[ñn]o anterior/i.test(x.label)) return D.variacion({ sujeto: "negocio", metrica: metricaDelCuadro, direccion: _dirDe(x), valor: x.valor, texto });
+      return D.cifra({ sujeto: "negocio", metrica: rotCab(x), valor: x.valor, texto });
+    };
+    const fila = (f, x, texto) => {
+      if (!f || !x) return null;
+      const propia = _esEntidad(f.nombre);
+      if (propia && /vs a[ñn]o anterior/i.test(x.label)) return D.variacion({ sujeto: f.nombre, metrica: metricaDelCuadro, direccion: _dirDe(x), valor: x.valor, texto });
+      return propia ? D.cifra({ sujeto: f.nombre, metrica: x.label, valor: x.valor, texto }) : D.cifra({ sujeto: "negocio", metrica: `${f.nombre} · ${x.label}`, valor: x.valor, texto });
+    };
+    const uniEje = `${/^(?:cuentas|familias|marcas|bodegas)$/.test(nEje) ? "las" : "los"} ${nEje} de la cartera`;
+    /* la señal del módulo dicha de una fila («cae vs año anterior», «sube vs presupuesto») es una variación: contra el año anterior se
+     * verifica con la variación de la boleta; contra el presupuesto se declara con esa métrica (la boleta no trae esa serie: el
+     * Notario lo dirá, no se disfraza de otra cosa) */
+    const declaraSenales = (f, dichos, texto) => {
+      for (const d of dichos) {
+        const dir = /\bca(?:e|en)\b|\bbaj(?:a|an)\b/.test(d) ? "baja" : /\bsub(?:e|en)\b|\bcrec(?:e|en)\b/.test(d) ? "sube" : null;
+        if (!dir) continue;
+        if (/presupuesto/i.test(d)) D.variacion({ sujeto: f.nombre, metrica: "vs presupuesto", direccion: dir, periodo: "vs presupuesto", texto });
+        else D.variacion({ sujeto: f.nombre, metrica: metricaDelCuadro, direccion: dir, texto });
+      }
+    };
 
     /* ═══ LA PROCEDENCIA · «¿de dónde sale ese 103%?» ════════════════════════════════════════════════════
      * La respuesta correcta es la más simple: esa cifra la publica el cuadro, no la calculó ADI. Y se ofrecen
@@ -400,11 +453,12 @@ export const cuadroExplicado = {
     if (c.citada) {
       const q = c.citada;
       const otras = (L.cabecera || []).filter((x) => x.valor !== q.valor).slice(0, 3);
-      const p = [
-        `${q.valor} es ${q.fila ? `${q.label.toLowerCase()} de ${q.fila}` : q.label.toLowerCase()}, del cuadro «${I.cuadro}» de la cara ${I.cara}${I.periodo ? ` (${I.periodo})` : ""}.`,
-        `No es una cuenta mía: la publica el mismo módulo que pinta ese cuadro, y es la cifra que estás viendo en pantalla.`,
-      ];
-      if (otras.length) p.push(`En ese mismo cuadro conviven ${otras.map((x) => `${x.label.toLowerCase()} ${x.valor}`).join(" · ")}.`);
+      const l1 = `${q.valor} es ${q.fila ? `${q.label.toLowerCase()} de ${q.fila}` : q.label.toLowerCase()}, del cuadro «${I.cuadro}» de la cara ${I.cara}${I.periodo ? ` (${I.periodo})` : ""}.`;
+      const l2 = `No es una cuenta mía: la publica el mismo módulo que pinta ese cuadro, y es la cifra que estás viendo en pantalla.`;
+      const p = [l1, l2];
+      if (q.fila) fila(L.filas.find((f) => f.nombre === q.fila) || { nombre: q.fila }, q, l1); else cab(q, l1);
+      D.lectura({ texto: l2, sello: "probado" });
+      if (otras.length) { const l3 = `En ese mismo cuadro conviven ${otras.map((x) => `${x.label.toLowerCase()} ${x.valor}`).join(" · ")}.`; p.push(l3); for (const x of otras) cab(x, l3); }
       p.push(variante(semilla, [
         `¿Quieres que abra esa dimensión por dentro?`,
         `Dime si profundizo en esa columna del cuadro.`,
@@ -468,6 +522,27 @@ export const cuadroExplicado = {
           if (volBajo) return `Fue por volumen: ${_uds}. El margen se mantuvo en línea (${_mgVs}) y las acciones comerciales no saltaron (${_cgVs}), así que no es margen cedido ni una entrega comercial puntual.`;
           return `Por dentro: ${_uds}, contribución ${pd.contribucionFmt} (margen ${_mgVs}) y ${pd.accionesFmt} en acciones comerciales (${_cgVs}).`;
         })();
+        /* LO QUE EL MECANISMO DECLARA, con los rótulos con que cuadroSentrix publica el mes por dentro («<cuadro> · Feb · unidades»,
+         * «<cuadro> · margen del año»…): cada cifra del mes y del año que la frase imprime, y la relación mes-contra-año que la
+         * sostiene (margen cedido = menor; acciones subieron = mayor; volumen bajo = menor que el promedio). «Subieron» es además una
+         * variación mes contra año: se declara como tal, aunque la boleta no traiga esa serie para verificarla. */
+        const declaraMecanismo = (texto) => {
+          if (!mecanismo || !pd || !pd0) return;
+          const rM = (campo) => `${I.cuadro} · ${pd.mes} · ${campo}`, rA = (campo) => `${I.cuadro} · ${campo}`;
+          const cifraM = (campo, valor) => D.cifra({ sujeto: "negocio", metrica: rM(campo), valor, texto });
+          const cifraA = (campo, valor) => D.cifra({ sujeto: "negocio", metrica: rA(campo), valor, texto });
+          const rel = (campoMes, campoAnio, forma) => D.relacion({ sujeto: "negocio", metrica: rM(campoMes), forma, vs: { sujeto: "negocio", metrica: rA(campoAnio) }, texto });
+          const conUds = /\d+ unidades/.test(texto), conMg = !!(_mgVs && texto.includes(_mgVs)), conCg = !!(_cgVs && texto.includes(_cgVs));
+          if (conUds) { cifraM("unidades", `${pd.unidades} unidades`); if (_prom) { cifraA("unidades promedio del año", String(_prom)); if (pd.unidades < _prom) rel("unidades", "unidades promedio del año", "menor"); } }
+          if (conMg) { cifraM("margen", pd.margenFmt); cifraA("margen del año", pd0.margenAnioFmt); if (mgBajo) rel("margen", "margen del año", "menor"); else if (mgAlto) rel("margen", "margen del año", "mayor"); }
+          if (conCg) { cifraM("carga", pd.cargaFmt); cifraA("carga del año", pd0.cargaAnioFmt); if (cgAlta) { rel("carga", "carga del año", "mayor"); if (/subieron/.test(texto)) D.variacion({ sujeto: "negocio", metrica: rM("carga"), direccion: "sube", periodo: "el mes contra el año", texto }); } else if (pd.esCargaMin && cgMes != null && cgAnio != null && cgMes < cgAnio) rel("carga", "carga del año", "menor"); }
+          if (pd.accionesFmt && texto.includes(pd.accionesFmt)) cifraM("acciones comerciales", pd.accionesFmt);
+          if (pd.contribucionFmt && texto.includes(pd.contribucionFmt)) cifraM("contribución", pd.contribucionFmt);
+          /* «el mejor del año» / «la carga más baja del año»: un orden entre los meses — se declara como tal (el Notario verifica órdenes
+           * entre entidades del tenant; un mes no lo es, y eso queda dicho en el veredicto) */
+          if (/—el mejor del año—/.test(texto)) D.orden({ sujeto: pd.mes, metrica: rM("margen"), forma: "max", universo: "los meses del año", texto });
+          if (/la carga más baja del año/.test(texto)) D.orden({ sujeto: pd.mes, metrica: rM("carga"), forma: "min", universo: "los meses del año", texto });
+        };
         /* PASO 2 · la hipótesis del asesor, SIEMPRE marcada — y solo sobre el negocio del usuario, jamás una
          * afirmación sobre «el sector» (el owner la vetó: sin fuente declarada, esa frase no se dice) */
         const _comparable = pa ? (/anterior/i.test(pa.serieComparable) ? "el año anterior" : pa.serieComparable) : null;
@@ -487,10 +562,12 @@ export const cuadroExplicado = {
           return `¿Qué cambió en ${M}: un cliente grande que no compró, un quiebre de stock, o una campaña que no salió?`;
         })();
         if (esMin || esMax) {
-          p.push(`${el.nombre[0].toUpperCase()}${el.nombre.slice(1)} es el ${esMin ? "piso" : "pico"} del año${cifra ? ` (${cifra.valor})` : ""}.`);
-          if (mecanismo) p.push(mecanismo);
-          else if (c.porQue) p.push(`El porqué exacto no está en este dato: la serie muestra cuánto se vendió cada mes, no qué lo causó.`);
-          if (hipotesis) p.push(hipotesis);
+          const l1 = `${el.nombre[0].toUpperCase()}${el.nombre.slice(1)} es el ${esMin ? "piso" : "pico"} del año${cifra ? ` (${cifra.valor})` : ""}.`;
+          p.push(l1);
+          cab(cifra, l1);   // el extremo del año, con la cifra de cabecera que lo publica
+          if (mecanismo) { p.push(mecanismo); declaraMecanismo(mecanismo); }
+          else if (c.porQue) { const l = `El porqué exacto no está en este dato: la serie muestra cuánto se vendió cada mes, no qué lo causó.`; p.push(l); D.lectura({ texto: l, sello: "abierto" }); }
+          if (hipotesis) { p.push(hipotesis); D.lectura({ texto: hipotesis, sello: "abierto" }); }
           p.push(pregunta);
           return p.join("\n");
         }
@@ -500,9 +577,11 @@ export const cuadroExplicado = {
          * El método de tres pasos es el mismo: mecanismo medido → hipótesis marcada → pregunta concreta. */
         const cMax = _cab(L, "max"), cMin = _cab(L, "min");
         const extremos = pa ? ` — esos son ${pa.mesMax || "?"}${cMax ? ` (${cMax.valor})` : ""} y ${pa.mesMin || "?"}${cMin ? ` (${cMin.valor})` : ""}` : "";
-        p.push(`${el.nombre[0].toUpperCase()}${el.nombre.slice(1)} no es ni el pico ni el piso de tu año${extremos}.`);
-        if (mecanismo) p.push(pd && (pd.esMargenMin || pd.esCargaMax || pd.esUnidadesMax) ? `Pero por dentro sí tiene historia. ${mecanismo}` : mecanismo);
-        if (c.porQue) p.push(`${pd ? "El detonante de fondo" : "Y el porqué de cada mes"} no está en este dato: ${pd ? "eso lo sabes tú, y con eso cierro la lectura" : "la serie trae el cuánto, no la causa"}.`);
+        const l1 = `${el.nombre[0].toUpperCase()}${el.nombre.slice(1)} no es ni el pico ni el piso de tu año${extremos}.`;
+        p.push(l1);
+        if (pa) { cab(cMax, l1); cab(cMin, l1); }
+        if (mecanismo) { p.push(pd && (pd.esMargenMin || pd.esCargaMax || pd.esUnidadesMax) ? `Pero por dentro sí tiene historia. ${mecanismo}` : mecanismo); declaraMecanismo(mecanismo); }
+        if (c.porQue) { const l = `${pd ? "El detonante de fondo" : "Y el porqué de cada mes"} no está en este dato: ${pd ? "eso lo sabes tú, y con eso cierro la lectura" : "la serie trae el cuánto, no la causa"}.`; p.push(l); D.lectura({ texto: l, sello: "abierto" }); }
         p.push(pregunta);
         return p.join("\n");
       }
@@ -514,15 +593,20 @@ export const cuadroExplicado = {
         const pr = _principal(el.fila);
         const otras = (el.fila.cifras || []).filter((x) => x !== pr && x.valor && /\d/.test(x.valor)).slice(0, 2);
         const dichos = (el.fila.senales || []).filter((s) => s.alerta).map((s) => s.dice);
-        p.push(`${el.nombre}${pr ? `: ${pr.label.toLowerCase()} ${pr.valor}` : ""}${dichos.length ? ` — ${dichos.slice(0, 2).join(", y ")}` : ""}.`);
-        if (otras.length) p.push(`Lo que el cuadro mide de esa cuenta: ${otras.map((x) => `${x.label.toLowerCase()} ${x.valor}`).join(" · ")}.`);
+        const l1 = `${el.nombre}${pr ? `: ${pr.label.toLowerCase()} ${pr.valor}` : ""}${dichos.length ? ` — ${dichos.slice(0, 2).join(", y ")}` : ""}.`;
+        p.push(l1);
+        fila(el.fila, pr, l1);
+        declaraSenales(el.fila, dichos.slice(0, 2), l1);   // «cae vs año anterior», «cae vs presupuesto»: la variación que la señal del módulo dice
+        if (otras.length) { const l2 = `Lo que el cuadro mide de esa cuenta: ${otras.map((x) => `${x.label.toLowerCase()} ${x.valor}`).join(" · ")}.`; p.push(l2); for (const x of otras) fila(el.fila, x, l2); }
         /* ⚠️ LA PREGUNTA POR LA CAUSA SOLO SALE SI PIDIERON UN PORQUÉ (owner 2026-09-09, textual): «La pregunta
          * de quiebre de stock solo debe salir cuando se pidió un porqué, no como cierre automático de cualquier
          * ficha.» Estaba FUERA de esta condición y se disparaba siempre: el owner la recibió preguntando por
          * Jumbo —la cuenta que él mismo había puesto de ejemplo BUENO, que no cae— y también ante una simple
          * comparación. Preguntarle a alguien qué le pasó a una cuenta que crece es no haber leído el turno. */
         if (c.porQue) {
-          p.push(`Por qué se mueve así no está en este cuadro: localiza dónde pasa, no la causa. Eso lo sabes tú.`);
+          const l3 = `Por qué se mueve así no está en este cuadro: localiza dónde pasa, no la causa. Eso lo sabes tú.`;
+          p.push(l3);
+          D.lectura({ texto: l3, sello: "abierto" });
           p.push(`¿Qué pasó con ${el.nombre}: te compró menos por precio, cambió su mezcla de productos, hubo un quiebre de stock, o entró un competidor?`);
         } else {
           p.push(variante(semilla, [`¿Te abro esa fila por dentro?`, `Puedo profundizar en ella o en otra dimensión del cuadro.`, `Dime si la abrimos.`]));
@@ -534,12 +618,18 @@ export const cuadroExplicado = {
     /* ═══ LA PROFUNDIZACIÓN · una dimensión por dentro ═══════════════════════════════════════════════════ */
     if (c.columna) {
       const p = [];
+      /* un grupo de señal nombrado con sus filas es un CONTEO con enumeración («las que caen vs año anterior: A, B, C») — se declara con
+       * las nombradas, y cada una con la cifra con que se la nombra (la de la señal o la columna), con su rótulo */
+      const declaraGrupo = (g, items, texto) => {
+        D.conteo({ n: g.filas.length, predicado: g.dice, universo: uniEje, sujeto: items.map((x) => x.fila.nombre), texto });
+        for (const x of items) { const v = _cifraDeSenal(x); fila(x.fila, _cifraObjDeSenal(x), v ? `${x.fila.nombre} ${v}` : texto); }   // cada cifra sobre su tramo «Nombre cifra»
+      };
       if (c.columna.clave === "_caidas") {
         const caen = grupos.filter((g) => /^vs/.test(g.clave));
         if (!caen.length) return `Este cuadro no marca ninguna caída: no trae comparación contra otro período, o ninguna fila cae.`;
-        for (const g of caen) p.push(`Las que ${g.dicen}: ${_conCifra(g.filas, 5)}.`);
+        for (const g of caen) { const l = `Las que ${g.dicen}: ${_conCifra(g.filas, 5)}.`; p.push(l); declaraGrupo(g, g.filas.slice(0, 5), l); }
         const total = (L.cabecera || []).find((x) => /^total\.vs.*Pct$/.test(x.clave));
-        if (total) p.push(`El total del cuadro, mientras tanto, va ${total.valor} — por eso estas caídas no se ven en el número grande.`);
+        if (total) { const l = `El total del cuadro, mientras tanto, va ${total.valor} — por eso estas caídas no se ven en el número grande.`; p.push(l); cab(total, l); }
         p.push(variante(semilla, [`¿Abrimos la primera?`, `Dime cuál te abro por dentro.`, `¿Seguimos por alguna de ellas?`]));
         return p.join("\n");
       }
@@ -551,8 +641,10 @@ export const cuadroExplicado = {
         const enCabecera = (L.cabecera || []).find((x) => x.clave === c.columna.clave);
         if (enCabecera) {
           const otras = (L.cabecera || []).filter((x) => x.clave !== enCabecera.clave).slice(0, 3);
-          const p2 = [`${c.columna.dicho[0].toUpperCase()}${c.columna.dicho.slice(1)} de este cuadro: ${enCabecera.valor}.`];
-          if (otras.length) p2.push(`Con el marco al lado — ${otras.map((x) => `${x.label.toLowerCase()} ${x.valor}`).join(" · ")}.`);
+          const l1 = `${c.columna.dicho[0].toUpperCase()}${c.columna.dicho.slice(1)} de este cuadro: ${enCabecera.valor}.`;
+          const p2 = [l1];
+          cab(enCabecera, l1);
+          if (otras.length) { const l2 = `Con el marco al lado — ${otras.map((x) => `${x.label.toLowerCase()} ${x.valor}`).join(" · ")}.`; p2.push(l2); for (const x of otras) cab(x, l2); }
           p2.push(variante(semilla, [`¿Seguimos por alguna de esas?`, `Dime cuál abro.`, `Puedo abrirte cualquiera de ellas.`]));
           return p2.join("\n");
         }
@@ -561,19 +653,38 @@ export const cuadroExplicado = {
       }
       const arriba = orden.slice(0, 3), abajo = orden.slice(-2);
       p.push(`Así viene ${c.columna.dicho} de este cuadro por dentro.`);
-      p.push(`Arriba están ${arriba.map((x) => `${x.f.nombre} con ${x.c.valor}`).join(", ")}.`);
-      if (orden.length > 4) p.push(`Abajo quedan ${abajo.map((x) => `${x.f.nombre} con ${x.c.valor}`).join(", ")}.`);
+      /* «arriba» y «abajo» son los extremos del orden por esta columna sobre las filas del cuadro: top-k por mayor y por menor, con cada cifra */
+      const lArriba = `Arriba están ${arriba.map((x) => `${x.f.nombre} con ${x.c.valor}`).join(", ")}.`;
+      p.push(lArriba);
+      D.orden({ sujeto: arriba.map((x) => x.f.nombre), metrica: arriba[0].c.label, forma: "topk", k: arriba.length, direccion: "mayor", universo: uniEje, texto: lArriba });
+      for (const x of arriba) fila(x.f, x.c, lArriba);
+      if (orden.length > 4) {
+        const lAbajo = `Abajo quedan ${abajo.map((x) => `${x.f.nombre} con ${x.c.valor}`).join(", ")}.`;
+        p.push(lAbajo);
+        D.orden({ sujeto: abajo.map((x) => x.f.nombre), metrica: abajo[0].c.label, forma: "topk", k: abajo.length, direccion: "menor", universo: uniEje, texto: lAbajo });
+        for (const x of abajo) fila(x.f, x.c, lAbajo);
+      }
       /* las señaladas de ESTA dimensión, si el módulo marcó alguna */
       const marcadas = grupos[0] && grupos[0].filas.filter((x) => _cifra(x.fila, c.columna.clave));
       if (marcadas && marcadas.length && grupos[0].filas.length < L.filas.length) {
-        p.push(`Y de las que el cuadro marca (${grupos[0].dicen}): ${marcadas.slice(0, 3).map((x) => `${x.fila.nombre} ${(_cifra(x.fila, c.columna.clave) || {}).valor || ""}`.trim()).join(" · ")}.`);
+        const l = `Y de las que el cuadro marca (${grupos[0].dicen}): ${marcadas.slice(0, 3).map((x) => `${x.fila.nombre} ${(_cifra(x.fila, c.columna.clave) || {}).valor || ""}`.trim()).join(" · ")}.`;
+        p.push(l);
+        D.conteo({ n: grupos[0].filas.length, predicado: grupos[0].dice, universo: uniEje, sujeto: marcadas.slice(0, 3).map((x) => x.fila.nombre), texto: l });
+        for (const x of marcadas.slice(0, 3)) fila(x.fila, _cifra(x.fila, c.columna.clave), l);
       }
       /* ⚠️ CADA CIFRA AL LADO DE SU MÉTRICA — medido: «Jumbo deja $4.2M … vendiendo menos» hizo que el notario
        * leyera el $4.2M como VENTA (la palabra manda en la ventana) y vetara el turno. La inversión se dice con
        * las cuatro cifras, cada una pegada a su concepto; sin las ventas de ambas filas, no se dice. */
       const inv = c.columna.clave !== "venta" ? _inversion(L.filas, "venta", c.columna.clave) : null;
       const invLinea = inv && _lineaDeInversion(inv, c.columna.dicho);
-      if (invLinea) p.push(`Lo que no se ve a simple vista: ${invLinea}`);
+      if (invLinea) {
+        const l = `Lo que no se ve a simple vista: ${invLinea}`;
+        p.push(l);
+        /* la inversión: cuatro cifras y las dos relaciones que la hacen inversión (menos venta, más de esta columna) */
+        for (const x of [inv.gana, inv.pierde]) { fila(x.fila, _cifra(x.fila, "venta"), l); fila(x.fila, x.v, l); }
+        D.relacion({ sujeto: inv.gana.fila.nombre, metrica: "Venta", forma: "menor", vs: inv.pierde.fila.nombre, texto: l });
+        D.relacion({ sujeto: inv.gana.fila.nombre, metrica: inv.gana.v.label, forma: "mayor", vs: inv.pierde.fila.nombre, texto: l });
+      }
       p.push(variante(semilla, [
         `¿Sigo por alguna de estas, o te abro otra dimensión del cuadro?`,
         `Puedo abrirte una de estas cuentas, u otra dimensión del cuadro.`,
@@ -592,9 +703,24 @@ export const cuadroExplicado = {
       const cola = L.filas.find((f) => /^cola\b/i.test(f.nombre));
       const primera = L.filas.find((f) => !/^cola\b/i.test(f.nombre));
       const met = I.metricaDicha || "lectura";
-      if (uni && cruce) p.push(`El 80% de tu ${met} se completa en ${cruce.texto}${acum ? ` (acumulado ${acum.valor})` : ""}, de ${uni.valor} ${nEje} en total.`);
-      if (primera && _principal(primera)) p.push(`${primera.nombre} sola pone ${_principal(primera).valor}${cola && _principal(cola) ? `; toda la cola junta, ${_principal(cola).valor}` : ""}.`);
-      p.push(`Lo que implica: tu ${met} depende de muy pocas ${nEje}. Un movimiento arriba mueve el año; uno abajo casi no se nota.`);
+      if (uni && cruce) {
+        const l = `El 80% de tu ${met} se completa en ${cruce.texto}${acum ? ` (acumulado ${acum.valor})` : ""}, de ${uni.valor} ${nEje} en total.`;
+        p.push(l);
+        /* el acumulado de la fila donde se cruza el 80 % y el universo del cuadro; el «80 %» es el umbral de la curva, y la boleta lo
+         * autoriza como frase del propio cuadro («El 80% se alcanza en…») cuando el módulo la escribe */
+        if (filaCruce && acum) fila(filaCruce, acum, l);
+        cab(uni, l);
+        if ((L.textos || []).some((t) => /\b80\s?%/.test(String(t.texto)))) D.cifra({ sujeto: "negocio", metrica: `${I.cuadro} · lo que dice el cuadro`, valor: "80%", texto: l });
+      }
+      if (primera && _principal(primera)) {
+        const l = `${primera.nombre} sola pone ${_principal(primera).valor}${cola && _principal(cola) ? `; toda la cola junta, ${_principal(cola).valor}` : ""}.`;
+        p.push(l);
+        fila(primera, _principal(primera), l);
+        if (cola && _principal(cola)) fila(cola, _principal(cola), l);
+      }
+      const lImplica = `Lo que implica: tu ${met} depende de muy pocas ${nEje}. Un movimiento arriba mueve el año; uno abajo casi no se nota.`;
+      p.push(lImplica);
+      D.lectura({ texto: lImplica, sello: "indicado" });
       p.push(variante(semilla, [
         `Si quieres profundizar, dime en cuál — o en la concentración misma.`,
         `Puedo profundizar en cualquiera de ellas cuando digas.`,
@@ -616,11 +742,25 @@ export const cuadroExplicado = {
         tot ? `El período cierra en ${tot.valor}` : null,
         gapPre ? `${gapPre.valor} sobre tu presupuesto` : (cum ? `${cum.valor} del plan` : null),
       ].filter(Boolean);
-      if (linea.length) p.push(`${linea.join(", ")}.`);
+      if (linea.length) { const l = `${linea.join(", ")}.`; p.push(l); cab(tot, l); cab(gapPre || cum, l); }
       const _filaDe = (cifra) => cifra && L.filas.find((f) => { const pr = _principal(f); return pr && pr.valor === cifra.valor; });
       const fAlto = _filaDe(alto), fBajo = _filaDe(bajo);
-      if (alto && bajo) p.push(`Entre el mes más alto (${fAlto ? `${fAlto.nombre}, ` : ""}${alto.valor}) y el más bajo (${fBajo ? `${fBajo.nombre}, ` : ""}${bajo.valor}) la distancia es grande: tu año no es parejo, así que planificar con el promedio te va a fallar en los dos extremos.`);
-      if (L.filasLlave === "series" && L.filas.length > 1) p.push(`Las tres series cierran en ${L.filas.slice(0, 3).map((f) => `${f.nombre} ${(_principal(f) || {}).valor || ""}`.trim()).join(" · ")}.`);
+      if (alto && bajo) {
+        const l = `Entre el mes más alto (${fAlto ? `${fAlto.nombre}, ` : ""}${alto.valor}) y el más bajo (${fBajo ? `${fBajo.nombre}, ` : ""}${bajo.valor}) la distancia es grande: tu año no es parejo, así que planificar con el promedio te va a fallar en los dos extremos.`;
+        p.push(l);
+        cab(alto, l); cab(bajo, l);   // los extremos, con la cifra de cabecera que los publica
+        /* «el más alto» y «el más bajo» son un orden entre meses (que el Notario no verifica: un mes no es una entidad); lo que sí verifica
+         * es la relación entre las dos cifras publicadas, que es la distancia de la que habla la frase */
+        D.relacion({ sujeto: "negocio", metrica: rotCab(alto), forma: "mayor", vs: { sujeto: "negocio", metrica: rotCab(bajo) }, texto: l });
+      }
+      if (L.filasLlave === "series" && L.filas.length > 1) {
+        const l = `Las tres series cierran en ${L.filas.slice(0, 3).map((f) => `${f.nombre} ${(_principal(f) || {}).valor || ""}`.trim()).join(" · ")}.`;
+        p.push(l);
+        for (const f of L.filas.slice(0, 3)) fila(f, _principal(f), l);   // «Este año», «Año anterior», «Presupuesto»: rótulos del cuadro, no entidades
+        /* «Este año» contra «Año anterior» es la variación del total, con la dirección que la cabecera publica */
+        const dAnt = (L.cabecera || []).find((x) => /vs a[ñn]o anterior/i.test(x.label));
+        if (dAnt && L.filas.some((f) => /a[ñn]o anterior/i.test(f.nombre))) D.variacion({ sujeto: "negocio", metrica: metricaDelCuadro, direccion: _dirDe(dAnt), texto: l });
+      }
       p.push(variante(semilla, [
         `¿Te abro algún mes, o la serie contra el presupuesto?`,
         `Puedo profundizar en un mes puntual si quieres.`,
@@ -632,7 +772,18 @@ export const cuadroExplicado = {
     if (I.tipo === "kpi") {
       const v = _cab(L, "principal");
       const pie = _texto(L, "pie") || _texto(L, "linea");
-      if (v) p.push(`${I.cuadro}: ${v.valor}${pie ? ` — ${pie.texto}` : ""}.`);
+      if (v) {
+        const l = `${I.cuadro}: ${v.valor}${pie ? ` — ${pie.texto}` : ""}.`;
+        p.push(l);
+        cab(v, l);
+        /* el pie del KPI («+7.5% vs año anterior») es una frase del propio cuadro: su cifra viaja en la boleta como «lo que dice el cuadro»,
+         * y contra el año anterior es además la variación de la métrica del KPI */
+        const tok = pie ? (String(pie.texto).match(/[+\-−]?\$?\d[\d.,]*\s?(?:%|[KMB])?/) || [null])[0] : null;
+        if (tok) {
+          D.cifra({ sujeto: "negocio", metrica: `${I.cuadro} · lo que dice el cuadro`, valor: tok, texto: l });
+          if (/vs a[ñn]o anterior/i.test(pie.texto)) D.variacion({ sujeto: "negocio", metrica: metricaDelCuadro, direccion: /^[-−]/.test(tok) ? "baja" : "sube", valor: tok, texto: l });
+        }
+      }
       p.push(variante(semilla, [`¿Lo abrimos por dentro?`, `¿Te muestro qué hay detrás de esa cifra?`, `Puedo abrirte su detalle.`]));
       return p.join("\n");
     }
@@ -678,25 +829,48 @@ export const cuadroExplicado = {
         ? `, pero el ${crece ? "crecimiento" : "movimiento"} está concentrado y no todas las ventas te están dejando la misma calidad de resultado.`
         : hayConcentracion ? `, pero el ${crece ? "crecimiento" : "movimiento"} está concentrado en muy pocas cuentas.`
         : hayCalidad ? `, pero no todas las ventas te están dejando la misma calidad de resultado.` : ".";
-      p.push(`${cabezaTesis}${colaTesis}`);
+      const lTesis = `${cabezaTesis}${colaTesis}`;
+      p.push(lTesis);
+      /* «creciendo» / «cayendo» es la variación del total contra el año anterior (la cabecera la publica); el resto es la tesis */
+      D.variacion({ sujeto: "negocio", metrica: metricaDelCuadro, direccion: crece ? "sube" : "baja", texto: lTesis });
+      D.lectura({ texto: lTesis, sello: "indicado" });
     }
 
     /* ── 2 · EL DESEMPEÑO · el total, y quién lo empuja ──────────────────────────────────────────────────── */
     if (totalFila) {
       const deQue = (totalFila.label || "").replace(/\s*·\s*total/i, "").replace(/\s*total\s*/i, " ").trim().toLowerCase() || met;
       const deltas = [deltaAnt ? `${deltaAnt.valor} vs año anterior` : null, deltaPre ? `${deltaPre.valor} vs presupuesto` : null].filter(Boolean);
-      p.push(deltas.length
-        ? `La ${deQue} llega a ${totalFila.valor} (${deltas.join(" · ")})${impulsan.length ? `, empujada sobre todo por ${impulsan.slice(0, 3).map((x) => `${x.f.nombre} ${x.c.valor}`).join(", ")}` : ""}.`
-        : `Tus ${universo} ${nEje} suman ${totalFila.valor}${deQue ? ` de ${deQue}` : ""}.`);
+      if (deltas.length) {
+        /* el total con sus deltas en un tramo, y «quién lo empuja» en otro: las tres que más suman contra el año anterior (top-k), cada una con su cifra */
+        const tTotal = `La ${deQue} llega a ${totalFila.valor} (${deltas.join(" · ")})`;
+        const top3 = impulsan.slice(0, 3);
+        const tEmpuja = top3.length ? `empujada sobre todo por ${top3.map((x) => `${x.f.nombre} ${x.c.valor}`).join(", ")}` : "";
+        p.push(`${tTotal}${tEmpuja ? `, ${tEmpuja}` : ""}.`);
+        cab(totalFila, tTotal); cab(deltaAnt, tTotal); cab(deltaPre, tTotal);
+        if (top3.length) {
+          D.orden({ sujeto: top3.map((x) => x.f.nombre), metrica: top3[0].c.label, forma: "topk", k: top3.length, direccion: "mayor", universo: uniEje, texto: tEmpuja });
+          for (const x of top3) fila(x.f, x.c, tEmpuja);
+        }
+      } else {
+        const l = `Tus ${universo} ${nEje} suman ${totalFila.valor}${deQue ? ` de ${deQue}` : ""}.`;
+        p.push(l);
+        cab(totalFila, l);
+        if (uni) D.conteo({ n: universo, predicado: uni.label, universo: uniEje, texto: l });
+      }
     }
 
     /* ── 3 · LA CONCENTRACIÓN · el acumulado que publica la curva de la misma cara ───────────────────────── */
     if (L.concentracion && L.concentracion.length >= 3) {
       const tres = L.concentracion.slice(0, 3);
-      p.push(`La primera señal es la concentración: ${tres.map((x) => x.nombre).join(", ")} acumulan el ${tres[2].acumulado} de la ${met}. Eso sostiene el crecimiento, y también hace que buena parte de tu resultado dependa de muy pocas cuentas.`);
+      const l1 = `La primera señal es la concentración: ${tres.map((x) => x.nombre).join(", ")} acumulan el ${tres[2].acumulado} de la ${met}.`;
+      const l2 = `Eso sostiene el crecimiento, y también hace que buena parte de tu resultado dependa de muy pocas cuentas.`;
+      p.push(`${l1} ${l2}`);
+      /* el acumulado de las tres es una cifra de GRUPO (la curva de concentración de la misma cara lo publica; la boleta del cuadro no) */
+      D.grupo({ sujeto: tres.map((x) => x.nombre), metrica: "Participación", valor: tres[2].acumulado, texto: l1 });
+      D.lectura({ texto: l2, sello: "indicado" });
     } else {
       const grupoN = _cab(L, "grupoN"), grupoPct = _cab(L, "grupoPct");
-      if (grupoN && grupoPct) p.push(`La primera señal es la concentración: ${grupoN.valor} ${nEje} explican el ${grupoPct.valor} — lo que pase ahí es lo que le pasa a tu negocio.`);
+      if (grupoN && grupoPct) { const l = `La primera señal es la concentración: ${grupoN.valor} ${nEje} explican el ${grupoPct.valor} — lo que pase ahí es lo que le pasa a tu negocio.`; p.push(l); cab(grupoN, l); cab(grupoPct, l); }
     }
 
     /* ── 4 · VENDER ≠ APORTAR · la inversión, con SU RAZÓN ───────────────────────────────────────────────── */
@@ -705,8 +879,24 @@ export const cuadroExplicado = {
       const vG = _fmtDe(inv.gana.fila, "venta"), vP = _fmtDe(inv.pierde.fila, "venta");
       const mG = _fmtDe(inv.gana.fila, "margen"), mP = _fmtDe(inv.pierde.fila, "margen");
       if (vG && vP) {
-        p.push(`Hay una diferencia entre vender más y aportar más: ${inv.pierde.fila.nombre} vende ${vP} y deja ${inv.pierde.v.valor} de contribución, mientras ${inv.gana.fila.nombre}, con ${vG} de venta, deja ${inv.gana.v.valor}.${mG && mP ? ` La razón está en el margen: ${mG} contra ${mP}.` : ""}`);
-        if (mG && mP) p.push(`Yo no miraría solo quién vende más: ${inv.gana.fila.nombre} convierte mejor cada peso vendido en resultado.`);
+        const l1 = `Hay una diferencia entre vender más y aportar más: ${inv.pierde.fila.nombre} vende ${vP} y deja ${inv.pierde.v.valor} de contribución, mientras ${inv.gana.fila.nombre}, con ${vG} de venta, deja ${inv.gana.v.valor}.`;
+        const l1b = mG && mP ? `La razón está en el margen: ${mG} contra ${mP}.` : "";
+        p.push(`${l1}${l1b ? ` ${l1b}` : ""}`);
+        /* la inversión: cuatro cifras y las dos relaciones que la hacen inversión; la razón: los dos márgenes y su relación */
+        for (const x of [inv.gana, inv.pierde]) { fila(x.fila, _cifra(x.fila, "venta"), l1); fila(x.fila, x.v, l1); }
+        D.relacion({ sujeto: inv.gana.fila.nombre, metrica: "Venta", forma: "menor", vs: inv.pierde.fila.nombre, texto: l1 });
+        D.relacion({ sujeto: inv.gana.fila.nombre, metrica: "Contribución", forma: "mayor", vs: inv.pierde.fila.nombre, texto: l1 });
+        if (l1b) {
+          fila(inv.gana.fila, _cifra(inv.gana.fila, "margen"), l1b); fila(inv.pierde.fila, _cifra(inv.pierde.fila, "margen"), l1b);
+          D.relacion({ sujeto: inv.gana.fila.nombre, metrica: "Margen", forma: "mayor", vs: inv.pierde.fila.nombre, texto: l1b });
+        }
+        if (mG && mP) {
+          const l2 = `Yo no miraría solo quién vende más: ${inv.gana.fila.nombre} convierte mejor cada peso vendido en resultado.`;
+          p.push(l2);
+          /* «convierte mejor» = su margen es mayor; el tramo se declara sin «vendido», que el juez leería como la métrica de la frase */
+          D.relacion({ sujeto: inv.gana.fila.nombre, metrica: "Margen", forma: "mayor", vs: inv.pierde.fila.nombre, texto: `${inv.gana.fila.nombre} convierte mejor` });
+          D.lectura({ texto: l2, sello: "criterio mío" });
+        }
       }
     }
 
@@ -716,7 +906,13 @@ export const cuadroExplicado = {
       const bajoMedia = impulsan.slice(0, 3).map((x) => ({ f: x.f, m: _cifra(x.f, "margen") }))
         .filter((x) => x.m && typeof x.m.raw === "number" && Number.isFinite(mediaRaw) && x.m.raw < mediaRaw);
       if (bajoMedia.length >= 2) {
-        p.push(`Y ese crecimiento está viniendo sobre todo de cuentas con margen bajo el promedio de tu cartera (${margenMedio.valor}): ${bajoMedia.map((x) => `${x.f.nombre} ${x.m.valor}`).join(", ")}. Estás expandiendo venta más rápido de lo que mejora la calidad del mix.`);
+        const l1 = `Y ese crecimiento está viniendo sobre todo de cuentas con margen bajo el promedio de tu cartera (${margenMedio.valor}): ${bajoMedia.map((x) => `${x.f.nombre} ${x.m.valor}`).join(", ")}.`;
+        const l2 = `Estás expandiendo venta más rápido de lo que mejora la calidad del mix.`;
+        p.push(`${l1} ${l2}`);
+        cab(margenMedio, l1);
+        for (const x of bajoMedia) { fila(x.f, x.m, l1); D.relacion({ sujeto: x.f.nombre, metrica: "Margen", forma: "menor", vs: { sujeto: "negocio", metrica: rotCab(margenMedio) }, texto: l1 }); }
+        /* l2 («…más rápido de lo que mejora la calidad del mix») es interpretación sin forma cerrada: no se sella como lectura, porque el
+         * detector lee «más rápido» y «mejora» como hechos y una lectura no los cubre — queda anotado como residuo, no disfrazado */
       }
     }
 
@@ -724,13 +920,32 @@ export const cuadroExplicado = {
     if (caenPorMargen && caenPorMargen.length) {
       const nombresCaen = caen.map((f) => f.nombre);
       const soloUnLado = nombresCaen.filter((n) => !dobles.includes(n));
-      p.push(dobles.length >= 2
-        ? `El foco de deterioro está en ${dobles.slice(0, 4).join(", ")}, que caen a la vez contra el año anterior y contra tu presupuesto${soloUnLado.length === 1 ? ` — y se suma ${soloUnLado[0]}, que cae solo contra el año` : soloUnLado.length > 1 ? ` — y se suman ${soloUnLado.slice(0, 3).join(", ")}` : ""}.`
-        : `El foco de deterioro está en ${nombresCaen.slice(0, 4).join(", ")}.`);
+      if (dobles.length >= 2) {
+        const l = `El foco de deterioro está en ${dobles.slice(0, 4).join(", ")}, que caen a la vez contra el año anterior y contra tu presupuesto${soloUnLado.length === 1 ? ` — y se suma ${soloUnLado[0]}, que cae solo contra el año` : soloUnLado.length > 1 ? ` — y se suman ${soloUnLado.slice(0, 3).join(", ")}` : ""}.`;
+        p.push(l);
+        /* «caen a la vez contra el año anterior y contra tu presupuesto»: dos variaciones por cuenta (la del presupuesto, con esa métrica) */
+        D.variacion({ sujeto: dobles.slice(0, 4), metrica: metricaDelCuadro, direccion: "baja", texto: l });
+        D.variacion({ sujeto: dobles.slice(0, 4), metrica: "vs presupuesto", direccion: "baja", periodo: "vs presupuesto", texto: l });
+        if (soloUnLado.length === 1) D.variacion({ sujeto: soloUnLado[0], metrica: metricaDelCuadro, direccion: "baja", texto: l });
+        else if (soloUnLado.length > 1) D.conteo({ n: caen.length, predicado: gCaen.dice, universo: uniEje, sujeto: [...dobles.slice(0, 4), ...soloUnLado.slice(0, 3)], texto: l });
+      } else {
+        const l = `El foco de deterioro está en ${nombresCaen.slice(0, 4).join(", ")}.`;
+        p.push(l);
+        D.conteo({ n: caen.length, predicado: gCaen.dice, universo: uniEje, sujeto: nombresCaen.slice(0, 4), texto: l });
+      }
       const cara = caenPorMargen[0];
       const mCara = _cifra(cara.f, "margen"), pCara = _cifra(cara.f, "peso");
       if (mCara && (!margenMedio || typeof margenMedio.raw !== "number" || mCara.raw > margenMedio.raw)) {
-        p.push(`Pero no todas pesan igual: ${cara.f.nombre} merece atención especial porque${pCara ? `, aunque es solo el ${pCara.valor} de tu venta,` : ""} tiene el margen más alto entre las que caen (${mCara.valor}). Perder venta ahí te cuesta más rentabilidad de lo que su tamaño sugiere.`);
+        const l1 = `Pero no todas pesan igual: ${cara.f.nombre} merece atención especial porque${pCara ? `, aunque es solo el ${pCara.valor} de tu venta,` : ""} tiene el margen más alto entre las que caen (${mCara.valor}).`;
+        const l2 = `Perder venta ahí te cuesta más rentabilidad de lo que su tamaño sugiere.`;
+        p.push(`${l1} ${l2}`);
+        if (pCara) fila(cara.f, pCara, l1);
+        fila(cara.f, mCara, l1);
+        /* «el margen más alto entre las que caen»: el máximo dentro del grupo que cae (dicho con su comparación, para que el universo sea el
+         * de la variación y no el agregado «Markup promedio · los que caen» del diagnóstico), y ese grupo como conteo */
+        D.orden({ sujeto: cara.f.nombre, metrica: "Margen", forma: "max", universo: `las que ${gCaen.dicen}`, texto: l1 });
+        D.conteo({ n: caen.length, predicado: gCaen.dice, universo: uniEje, texto: l1 });
+        D.lectura({ texto: l2, sello: "indicado" });
       }
     }
 
@@ -743,36 +958,56 @@ export const cuadroExplicado = {
       const cuantas0 = g0.filas.length;
       const mayoria0 = universo > 0 && cuantas0 / universo >= 0.66;
       const dicho0 = cuantas0 === 1 ? g0.dice : g0.dicen;
-      p.push(mayoria0
-        ? `Este cuadro marca que ${cuantas0} de ${universo} ${nEje} ${dicho0} — no es un caso puntual: pasa en ${cuantas0 === universo ? "todas" : "casi todas"} tus ${nEje}.`
-        : `Este cuadro marca ${cuantas0} que ${dicho0} — ${_conCifra(g0.filas, 3)}${cuantas0 > 3 ? ", entre otras" : ""}.`);
+      if (mayoria0) {
+        const l = `Este cuadro marca que ${cuantas0} de ${universo} ${nEje} ${dicho0} — no es un caso puntual: pasa en ${cuantas0 === universo ? "todas" : "casi todas"} tus ${nEje}.`;
+        p.push(l);
+        D.conteo({ n: cuantas0, m: universo, predicado: g0.dice, universo: uniEje, texto: l });
+      } else {
+        const l = `Este cuadro marca ${cuantas0} que ${dicho0} — ${_conCifra(g0.filas, 3)}${cuantas0 > 3 ? ", entre otras" : ""}.`;
+        p.push(l);
+        D.conteo({ n: cuantas0, predicado: g0.dice, universo: uniEje, sujeto: g0.filas.slice(0, 3).map((x) => x.fila.nombre), texto: l });
+        for (const x of g0.filas.slice(0, 3)) { const v = _cifraDeSenal(x); fila(x.fila, _cifraObjDeSenal(x), v ? `${x.fila.nombre} ${v}` : l); }   // cada cifra sobre su tramo «Nombre cifra»
+      }
     }
 
     /* ── 7 · LA SÍNTESIS Y LA PRIORIDAD ─────────────────────────────────────────────────────────────────── */
     if (hayConcentracion && hayCalidad && caenPorMargen && caenPorMargen.length) {
-      p.push(`En síntesis: el negocio está sano en crecimiento, pero hay dos tensiones debajo del total — dependencia de pocas cuentas grandes, y deterioro justo en las de mejor margen. La prioridad no es vender más: es proteger las que hoy sostienen el volumen y recuperar donde cada peso vendido deja más.`);
+      const l = `En síntesis: el negocio está sano en crecimiento, pero hay dos tensiones debajo del total — dependencia de pocas cuentas grandes, y deterioro justo en las de mejor margen. La prioridad no es vender más: es proteger las que hoy sostienen el volumen y recuperar donde cada peso vendido deja más.`;
+      p.push(l);
+      D.orden({ sujeto: caenPorMargen[0].f.nombre, metrica: "Margen", forma: "max", universo: `las que ${gCaen.dicen}`, texto: l });   // «las de mejor margen» entre las que caen: la misma de arriba
+      D.lectura({ texto: l, sello: "indicado" });
     } else if (totalFila && caenPorMargen && caenPorMargen.length) {
-      p.push(`En síntesis: el total no te avisa de lo que está pasando debajo — lo que crece arriba tapa lo que cae abajo.`);
+      const l = `En síntesis: el total no te avisa de lo que está pasando debajo — lo que crece arriba tapa lo que cae abajo.`;
+      p.push(l);
+      D.lectura({ texto: l, sello: "indicado" });
     }
 
     /* ── 8 · POR DÓNDE PROFUNDIZAR · las dos varas, cada una con su nombre ───────────────────────────────── */
     if ((!caenPorMargen || !caenPorMargen.length) && grupos[0] && grupos[0].filas.length) {
       const primero0 = grupos[0].filas[0];
       const cifra0 = _cifraDeSenal(primero0);
-      p.push(variante(semilla, [
+      const formas = [
         `Por dónde empezaría yo: ${primero0.fila.nombre}${cifra0 ? ` (${cifra0})` : ""}, la de más peso entre las marcadas. ¿La abro?`,
         `Yo partiría por ${primero0.fila.nombre}${cifra0 ? ` (${cifra0})` : ""} — es la mayor de las que este cuadro marca. Dime y la abrimos.`,
         `Si vas a mirar una sola, miraría ${primero0.fila.nombre}${cifra0 ? ` (${cifra0})` : ""}. Y puedo profundizar en cualquier columna del cuadro.`,
-      ]));
+      ];
+      const elegida = variante(semilla, formas);
+      p.push(elegida);
+      /* la recomendación lleva la cifra con que se nombra a la primera marcada; «la mayor de las que marca» es un máximo dentro del grupo */
+      if (cifra0) fila(primero0.fila, _cifraObjDeSenal(primero0), `${primero0.fila.nombre} (${cifra0})`);   // la cifra sobre su tramo «Nombre (cifra)»
+      if (elegida === formas[1]) { const c0 = _cifraObjDeSenal(primero0); if (c0) D.orden({ sujeto: primero0.fila.nombre, metrica: c0.label, forma: "max", universo: grupos[0].dicen, texto: elegida }); }
+      D.lectura({ texto: elegida, sello: "criterio mío" });
     } else if (caenPorMargen && caenPorMargen.length) {
       const porMargen = caenPorMargen[0].f.nombre;
       const porTamano = (_ordenadasPor(caen, "venta") || [])[0];
       const segundo = porTamano && porTamano.f.nombre !== porMargen ? porTamano.f.nombre : null;
-      p.push(variante(semilla, [
+      const elegida = variante(semilla, [
         `Yo profundizaría primero en ${porMargen}${segundo ? ` y ${segundo}` : ""}: la primera por lo que cuesta su margen, ${segundo ? "la segunda por lo que pesa su venta" : ""}. Y puedo abrirte cualquier columna del cuadro cuando digas.`,
         `Por dónde empezaría: ${porMargen}${segundo ? `, y después ${segundo}` : ""} — una por margen, ${segundo ? "otra por tamaño" : ""}. Dime si prefieres que profundice en una dimensión (contribución, participación, margen).`,
         `Si vas a mirar dos, miraría ${porMargen}${segundo ? ` y ${segundo}` : ""}. También puedo profundizar en una columna entera del cuadro.`,
-      ]));
+      ]);
+      p.push(elegida);
+      D.lectura({ texto: elegida, sello: "criterio mío" });
     } else {
       p.push(variante(semilla, [
         `Puedo profundizar en cualquier dimensión del cuadro — contribución, participación, margen — cuando digas.`,
