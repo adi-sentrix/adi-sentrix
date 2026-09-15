@@ -81,6 +81,12 @@ cláusula debajo de todos los chequeos de atribución.
 2. **Cobertura de orden:** rankings declarados de cobranza (vencido, recuperado, días) en la proyección; el
    superlativo con la cifra entre la métrica y el marcador; «y más X» encadenado; el grupo plural verificado como
    top-N; el candado del plural solo pegado al marcador.
+   **CERRADO (familia B, v2.31):** los 8 errores de orden de los 12 borradores se detectan por verificación contra los
+   rankings de la proyección (cobertura 4/19 → 12/19, precisión 100 %, 0 regresiones; candados en
+   `_orden_verificado_gate`). Además del plan: «EL cliente con más X» y «en cobranza» declaran el universo; un veto por
+   superlativo (el primero tapaba al segundo); «de mayor a menor» y el marcador con objeto propio («el peor perfil de
+   cobranza») no se juzgan; el prefijo de un código («LG-WASH11KG») no nombra a la marca. Cuatro candados se actualizaron
+   porque su carnada eran estos mismos borradores «correctos»: hoy caen por sus errores reales y no se sirven verdes.
 3. **Cobertura de grupos:** `grupo` en todo agregado de la boleta (promedios de markup, subtotales «5 materiales»,
    «6 sobre el nivel», top-N); las referencias por pronombre juzgadas cuando la lista está en el mismo párrafo;
    «N de M» contra el conteo declarado.

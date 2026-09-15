@@ -68,6 +68,29 @@ debajo de los ocho chequeos de atribución del muro y del contrato.
   misma cuenta con dueños dichos que el par. Documentado, no unificado: el YoY del negocio sigue en dos redondeos (7.5%
   Σ de filas en el resumen ejecutivo · 7.6% KPI de la pantalla en salesRead y la proyección), decisión del owner 2026-09-01.
 
+- **El orden se verifica** (auditoría del Notario, familia B): de los 21 errores reales de los 12 borradores, siete eran
+  palabras de ORDEN alrededor de cifras correctas y el Notario no veía ninguno — «carga 4.5% — la más alta de la cartera»
+  (Easy 5.5), «el cliente con más unidades vendidas (1.194) y más contribución ($4.2M)» (Falabella $4.3M), «los tres … el
+  margen más bajo de la cartera — Lider, Falabella, Jumbo» (Sodimac 23.5 queda fuera), «la más urgente en cobranza (269
+  días vencidos, peor recuperación)» (Easy 270 · Sodimac 35 %), «la segunda en brecha» tapada por «entre los tres dominios».
+  Cinco cierres de una sola familia, en el bloque del superlativo de guardC y en los rankings que declara la carpeta:
+  entre la métrica y el marcador cabe solo la cifra del término (con unidad, puntuación, artículos, la cópula, el nombre de
+  la propia entidad) y gana la métrica más cercana; el «y más / y menos X» encadenado a «con más» comparte reclamante y se
+  verifica cada uno; un GRUPO con universo declarado y k entidades nombradas se verifica como top-k (empates valen; sin
+  universo o sin k no se juzga — la casa prefiere el falso negativo); la proyección declara los rankings de COBRANZA desde la
+  misma mesa que la herramienta `cobranza` (saldo vencido · recuperado · días vencido · saldo pendiente, con «urgente /
+  atraso / mora» como términos y «en cobranza» como universo) y las UNIDADES vendidas; el candado del plural mira la
+  cláusula del marcador, no la oración entera. Dos formas más de decir el universo: «EL cliente con más X» (el artículo
+  definido sobre el eje, salvo acotación: «entre», «después de», «del canal») y la tabla nombrada. Un veto por superlativo,
+  no uno por respuesta. Lo que no cambia: una sola entidad sin universo («Lider tiene la carga más alta») sigue sin juzgarse
+  (calibración), «mayor QUE» es comparativo, el negado no reclama, «de mayor a menor» es dirección y no afirmación, y un
+  marcador con objeto propio («el peor PERFIL de cobranza») no toma la métrica de atrás. Medido: cobertura de la
+  auditoría 4/19 → 12/19 (los 8 de orden), precisión 100 % (ningún veto nuevo sobre una afirmación correcta de los 12
+  borradores), 0 regresiones; candados en `_orden_verificado_gate`; cinco candados actualizados porque su carnada eran
+  borradores que la auditoría declaró con errores reales (§9 y §12–§15 del gate de prioridad —«la señal más urgente de la
+  cartera» con 269 días también es falsa: Easy 270—, la carnada (h) del ancla).
+  Destapado de paso: el término de carga por MARCA iba con una barra invertida de menos y nunca casó.
+
 ---
 
 ## 2.30 — producción · tag `v2.30`

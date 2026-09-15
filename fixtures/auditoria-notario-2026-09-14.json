@@ -68,13 +68,13 @@
         {
           "texto": "los tres motores más grandes son también los que tienen el margen más bajo de la cartera — Lider 21.5%, Falabella 22.0%, Jumbo 24.0%",
           "tipo": "ranking de grupo falso (Sodimac 23.5% está bajo Jumbo 24.0%)",
-          "detectado_hoy": false,
+          "detectado_hoy": true,
           "clave": "margen.*(?:Sodimac|grupo|los tres)|superlativo.*margen"
         },
         {
           "texto": "Jumbo además es el cliente con más unidades vendidas (1.194) y más contribución ($4.2M)",
           "tipo": "superlativo falso (Falabella $4.3M)",
-          "detectado_hoy": false,
+          "detectado_hoy": true,
           "clave": "Jumbo.*contribuci"
         },
         {
@@ -111,13 +111,13 @@
         {
           "texto": "los tres motores más grandes son también los que tienen el margen más bajo de la cartera",
           "tipo": "ranking de grupo falso",
-          "detectado_hoy": false,
+          "detectado_hoy": true,
           "clave": "margen.*(?:Sodimac|grupo|los tres)|superlativo.*margen"
         },
         {
           "texto": "Jumbo … y más contribución ($4.2M)",
           "tipo": "superlativo falso",
-          "detectado_hoy": false,
+          "detectado_hoy": true,
           "clave": "Jumbo.*contribuci"
         },
         {
@@ -153,7 +153,7 @@
         {
           "texto": "Falabella … carga 4.5% — la más alta de la cartera",
           "tipo": "superlativo falso (Easy 5.5%, Sodimac 5.4%, Ripley 4.8%)",
-          "detectado_hoy": false,
+          "detectado_hoy": true,
           "clave": "Falabella.*(?:carga|alta)|carga.*Falabella"
         },
         {
@@ -194,7 +194,7 @@
         {
           "texto": "Falabella … carga 4.5% — la más alta de la cartera",
           "tipo": "superlativo falso",
-          "detectado_hoy": false,
+          "detectado_hoy": true,
           "clave": "Falabella.*(?:carga|alta)|carga.*Falabella"
         },
         {
@@ -237,7 +237,7 @@
         {
           "texto": "la más urgente en cobranza (269 días vencidos, peor recuperación)",
           "tipo": "superlativos falsos en cobranza (Easy 270 días; Sodimac 35% recuperado)",
-          "detectado_hoy": false,
+          "detectado_hoy": true,
           "clave": "urgente|recuperaci|269"
         }
       ],
@@ -297,7 +297,7 @@
         {
           "texto": "la segunda en brecha de margen (8.6 pp, la mayor de todas)",
           "tipo": "ordinal falso y autocontradictorio (Lider es la mayor)",
-          "detectado_hoy": false,
+          "detectado_hoy": true,
           "clave": "segunda"
         }
       ],
