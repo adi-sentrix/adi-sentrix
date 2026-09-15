@@ -20,6 +20,7 @@ import { nombraEntidad } from "./indiceEntidades.js";
 import { esLecturaEjecutiva } from "../partesDelEncargo.js";   // la lectura ejecutiva de los datos es de la foto, no del cruce (owner 2026-09-14)
 import { reconcilian } from "../../../config/contract/figureType.js";
 import { axisEntityNames } from "../../oracle/entityIndex.js";   // las bodegas del dato: «capital frenado» también se publica por bodega y no es un SKU
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): el composer declara MIENTRAS escribe, sin tocar el texto
 
 const _FIN = "(?![a-záéíóúüñ])";
 const _lab = (f) => String((f && f.label) || "");
@@ -34,6 +35,9 @@ const _num = (f) => {
 };
 const _all = (figs, re) => (Array.isArray(figs) ? figs : []).filter((f) => re.test(_lab(f)));
 const _entidadDe = (label) => { const p = String(label || "").split("·").map((s) => s.trim()); return p.length >= 2 ? p[0] : null; };
+/* el universo de un orden o un conteo, con el tamaño del eje del tenant («los 13 SKU») y sin escribir el 13 a mano; si el índice no
+ * está, el eje entero por su nombre («los SKU»), que el verificador también lee como el conjunto completo */
+const _universoSku = () => { let n = 0; try { n = (axisEntityNames("sku") || []).length; } catch { n = 0; } return n ? `los ${n} SKU` : "los SKU"; };
 const _FUERA = new RegExp(`\\bsimul|\\bproyect|\\bqu[eé] pasa si${_FIN}|\\bpon[eé]le que${_FIN}|\\bllamame|\\bll[aá]mame|\\bqu[eé] hago${_FIN}|\\bpor d[oó]nde empiezo${_FIN}`, "i");
 
 function _caso(pregunta) {
@@ -119,35 +123,88 @@ export const crucePorSku = {
 
   entregable: "la lectura del cruce por SKU en forma de ficha: los SKU que más venden con su stock y sus días de inventario (cada cifra con su marco: venta del período · stock de la foto), quiénes de ellos tienen capital frenado, y quiénes dejan contribución sin capital grande detrás (o al revés). Sin sumar venta con stock ni derivar cobertura: los días se citan del dato.",
 
-  componer({ figs, pregunta } = {}) {
+  componer({ figs, pregunta, declarar } = {}) {
     if (!_caso(pregunta)) return null;
     /* SOLO SKU: la boleta unida trae «Falabella · Venta» (rolesCartera) y «Lider · Contribución» (contributionRead) — las
      * cifras del cruce son las que tienen una fig de INVENTARIO con el mismo dueño (stock, días, capital): esa es la clave */
     const L = _lectura(figs);
     if (!L) return null;
-    const { stock, dias, frenados, capital, ventas, contrib, topVenta, enAmbas, soloCapital, frenadosTop } = L;
+    const { stock, dias, frenados, capital, ventas, contrib, topVenta, enAmbas, soloCapital, frenadosTop, topC, ventaEnContrib } = L;
     const marcos = (() => { try { return reconcilian("venta_comercial", "inventario").marcos || {}; } catch { return {}; } })();
     const mVenta = marcos.venta_comercial || "período cerrado", mFoto = marcos.inventario || "foto de inventario a hoy";
+
+    /* EL NOTARIO SEMÁNTICO (fase 2): cada línea se declara al escribirse, con el mismo estándar que el cerebro. Lo que la ficha afirma:
+     * «los que más venden» es un orden top-k de Venta sobre el eje entero (los k que publica el cruce); cada línea trae tres cifras
+     * (Venta · Stock · Días de inventario) y, si lo dice, el capital frenado con su estado; «no aparece capital frenado» entre ellos
+     * es un conteo n=0 con predicado «frenados» sobre los k que más venden; los que dejan contribución y concentran capital son dos
+     * top-k (Contribución · Valor de inventario) con el corte de `_lectura` (los 5 de cada lista); «cada uno está frenado» es el estado. */
+    const D = declaradorDe(declarar);
+    const U_SKU = _universoSku();
+    const U_TOP = `los ${ventas.length} SKU que más venden`;
+    const kContrib = topC.size, kCapital = Math.min(5, capital.length);   // los mismos cortes de `_lectura` (contrib.slice(0, 5) · capital.slice(0, 5))
+    const declaraTopVenta = (texto) => D.orden({ sujeto: ventas.map((v) => v.sku), metrica: "Venta", forma: "topk", k: ventas.length, direccion: "mayor", universo: U_SKU, texto });
+    /* los frenados entre los que más venden: el conteo (0 o los que hay, con su estado) y, si la línea nombra dónde está el capital
+     * frenado, la enumeración de los frenados del eje (los tres primeros con nombre; los demás, contados) */
+    const declaraFrenadosTop = (texto) => {
+      if (frenadosTop.length) { D.estado({ sujeto: frenadosTop, estado: "frenado", texto }); D.conteo({ n: frenadosTop.length, predicado: "frenados", universo: U_TOP, texto }); }
+      else { D.conteo({ n: 0, predicado: "frenados", universo: U_TOP, texto }); if (frenados.size) D.conteo({ n: frenados.size, predicado: "frenados", universo: U_SKU, sujeto: [...frenados.keys()].slice(0, 3), texto }); }
+    };
+    const declaraTopContrib = (sujeto, texto) => D.orden({ sujeto, metrica: "Contribución", forma: "topk", k: kContrib, direccion: "mayor", universo: U_SKU, texto });
 
     const partes = [];
     /* LA CONCLUSIÓN ANTES QUE LA PREMISA (owner 2026-09-14): si la pregunta trae una premisa y el dato la contradice, la
      * primera frase lo dice. Sin premisa reconocible, la ficha abre como siempre. */
     const P = _premisa(pregunta, L);
-    if (P) partes.push(`${P.cierta ? "Sí" : "No"}: ${P.medido}.`);
+    if (P) {
+      const l = `${P.cierta ? "Sí" : "No"}: ${P.medido}.`;
+      partes.push(l);
+      declaraTopVenta(l);   // las dos premisas hablan de «los que más venden»: la lista de arriba
+      if (/capital/.test(P.texto)) declaraFrenadosTop(l);
+      else if (ventaEnContrib.length) declaraTopContrib(ventaEnContrib, l);
+      else D.conteo({ n: 0, predicado: `los ${kContrib} SKU que más contribución dejan`, universo: U_TOP, texto: l });
+    }
     /* sin conteo en la apertura: «tus 5 SKU» es un conteo que la boleta no autoriza (el muro lo cobra: conteo-no-autorizado) */
-    partes.push(`Los SKU que más venden, con su inventario (venta: ${mVenta} · stock y días: ${mFoto}):`);
+    const cab = `Los SKU que más venden, con su inventario (venta: ${mVenta} · stock y días: ${mFoto}):`;
+    partes.push(cab);
+    declaraTopVenta(cab);
     for (const v of ventas) {
       const extra = [stock.has(v.sku) ? `stock ${stock.get(v.sku)}` : "sin registro de inventario", dias.has(v.sku) ? `${dias.get(v.sku)} de inventario` : null, frenados.has(v.sku) ? `capital frenado ${frenados.get(v.sku)}` : null].filter(Boolean).join(" · ");
-      partes.push(`- ${v.sku} · vende ${v.fmt} · ${extra}`);
+      const l = `- ${v.sku} · vende ${v.fmt} · ${extra}`;
+      partes.push(l);
+      D.cifra({ sujeto: v.sku, metrica: "Venta", valor: v.fmt, texto: l });
+      if (stock.has(v.sku)) D.cifra({ sujeto: v.sku, metrica: "Stock", valor: stock.get(v.sku), texto: l });
+      if (dias.has(v.sku)) D.cifra({ sujeto: v.sku, metrica: "Días de inventario", valor: dias.get(v.sku), texto: l });
+      if (frenados.has(v.sku)) { D.cifra({ sujeto: v.sku, metrica: "Capital frenado", valor: frenados.get(v.sku), texto: l }); D.estado({ sujeto: v.sku, estado: "frenado", texto: l }); }
     }
-    partes.push(frenadosTop.length
+    const lFrenados = frenadosTop.length
       ? `De los que más venden, ${frenadosTop.join(" y ")} ${frenadosTop.length === 1 ? "tiene" : "tienen"} capital frenado según la referencia de inventario declarada.`
-      : `Entre los que más venden no aparece capital frenado${frenados.size ? `: el capital frenado está en ${[...frenados.keys()].slice(0, 3).join(", ")}${frenados.size > 3 ? ` y ${frenados.size - 3} más` : ""}, fuera de los que más venden` : ""}.`);
+      : `Entre los que más venden no aparece capital frenado${frenados.size ? `: el capital frenado está en ${[...frenados.keys()].slice(0, 3).join(", ")}${frenados.size > 3 ? ` y ${frenados.size - 3} más` : ""}, fuera de los que más venden` : ""}.`;
+    partes.push(lFrenados);
+    declaraTopVenta(lFrenados);
+    declaraFrenadosTop(lFrenados);
     if (contrib.length && capital.length) {
-      if (enAmbas.length) partes.push(`Dejan contribución y también concentran capital en inventario: ${enAmbas.map((x) => `${x.sku} (contribución ${contrib.find((c) => c.sku === x.sku).fmt} · inventario ${x.fmt})`).join(" · ")}.`);
-      if (soloCapital.length) partes.push(`Concentran capital sin estar entre los que más contribuyen ni más venden: ${soloCapital.map((x) => `${x.sku} (${x.fmt} en inventario)`).join(" · ")}.`);
+      if (enAmbas.length) {
+        const tramoDe = (x) => `${x.sku} (contribución ${contrib.find((c) => c.sku === x.sku).fmt} · inventario ${x.fmt})`;
+        const l = `Dejan contribución y también concentran capital en inventario: ${enAmbas.map(tramoDe).join(" · ")}.`;
+        partes.push(l);
+        declaraTopContrib(enAmbas.map((x) => x.sku), l);
+        D.orden({ sujeto: enAmbas.map((x) => x.sku), metrica: "Valor de inventario", forma: "topk", k: kCapital, direccion: "mayor", universo: U_SKU, texto: l });
+        for (const x of enAmbas) {
+          const tramo = tramoDe(x);
+          D.cifra({ sujeto: x.sku, metrica: "Contribución", valor: contrib.find((c) => c.sku === x.sku).fmt, texto: tramo });
+          D.cifra({ sujeto: x.sku, metrica: "Valor de inventario", valor: x.fmt, texto: tramo });
+        }
+      }
+      if (soloCapital.length) {
+        const l = `Concentran capital sin estar entre los que más contribuyen ni más venden: ${soloCapital.map((x) => `${x.sku} (${x.fmt} en inventario)`).join(" · ")}.`;
+        partes.push(l);
+        D.orden({ sujeto: soloCapital.map((x) => x.sku), metrica: "Valor de inventario", forma: "topk", k: kCapital, direccion: "mayor", universo: U_SKU, texto: l });
+        for (const x of soloCapital) D.cifra({ sujeto: x.sku, metrica: "Valor de inventario", valor: x.fmt, texto: `${x.sku} (${x.fmt} en inventario)` });
+      }
     }
-    partes.push(`Venta y contribución son del ${mVenta}; el stock, los días y el capital son la ${mFoto} — se leen lado a lado y no se suman.${frenados.size ? " Por qué cada uno está frenado no está en este dato: queda localizado, no explicado." : ""}`);
+    const lFreno = "Por qué cada uno está frenado no está en este dato: queda localizado, no explicado.";
+    partes.push(`Venta y contribución son del ${mVenta}; el stock, los días y el capital son la ${mFoto} — se leen lado a lado y no se suman.${frenados.size ? ` ${lFreno}` : ""}`);
+    if (frenados.size) D.estado({ sujeto: [...frenados.keys()], estado: "frenado", texto: lFreno });
     return partes.join("\n");
   },
 
