@@ -283,7 +283,7 @@ H("1e · cobranza: quién debe con nombre, y el vencido en raya cuando no hay pl
   // la PLANTILLA (sin plazo declarado — el caso REAL del owner)
   initTenant(PACK);
   const rd = await T("quién me debe y qué está vencido");
-  ok(rd.r.agente.estado === "playbook" && /Quién te debe:/.test(rd.r.text) && /Obras del Sur: \$31K/.test(rd.r.text),
+  ok(rd.r.agente.estado === "playbook" && /Quién te debe/.test(rd.r.text) && /Obras del Sur: \$31K/.test(rd.r.text),
     `★ la deuda con nombre y saldo (${rd.r.agente.estado})`, rd.r.text.slice(0, 110));
   ok(/no se puede saber/.test(rd.r.text) && /no declaró plazo/.test(rd.r.text) && !/vencid[oa][^.\n]*\$\s?\d|\$\s?0/.test(rd.r.text),
     "★ LA REGLA DEL OWNER: el vencido se dice con palabras («no se puede saber… sin plazo») — ni $0 ni ninguna cifra");
@@ -385,7 +385,7 @@ H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materi
   ok(/por qué se cae no está en este dato/.test(ra.r.text) && /la serie mensual de La Polar/.test(ra.r.text),
     "…02 LOCALIZA sin causas y 03 OFRECE abrir al que más cae");
   const rb = await T("qué hago con el inventario inmovilizado");
-  ok(rb.r.agente.estado === "playbook" && /\$33K de capital inmovilizado/.test(rb.r.text) && /capital frenado \$14K/.test(rb.r.text),
+  ok(rb.r.agente.estado === "playbook" && /\$33K de capital frenado/.test(rb.r.text) && /capital frenado \$14K/.test(rb.r.text),
     `★ B · el total y cada SKU con el monto pegado a su concepto (${rb.r.agente.estado})`, rb.r.text.slice(0, 120));
   ok(/bajo el 0.05% de tu venta: \$50K/.test(rb.r.text) && /no es tu incendio de hoy/.test(rb.r.text),
     "★ B · MATERIALIDAD: $33K está bajo el piso relativo y el entregable LO DICE con el umbral declarado");

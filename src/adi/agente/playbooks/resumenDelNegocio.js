@@ -163,9 +163,12 @@ export const resumenDelNegocio = {
     /* la dirección que se DECLARA sale de la misma cifra que decide la tesis: sin variación en la boleta no hay hecho temporal
      * que declarar (y la tesis negativa queda sin evidencia — se anota, no se tapa con una lectura) */
     const dirYoy = yoy && Number.isFinite(_num(yoy)) ? (_num(yoy) > 0 ? "sube" : _num(yoy) < 0 ? "baja" : "estable") : null;
+    /* sin variación de la venta en la boleta no se afirma «no está creciendo» (owner 2026-09-15): la tesis dice lo que sí sostiene */
     const tesis = sube
       ? `El negocio está creciendo, pero el crecimiento está dejando menos margen del que debería.`
-      : `El negocio no está creciendo y el margen viene por debajo de lo que debería.`;
+      : dirYoy
+        ? `El negocio no está creciendo y el margen viene por debajo de lo que debería.`
+        : `El margen viene por debajo de lo que debería; si el negocio está creciendo o no, no lo dice este dato.`;
     p.push(tesis);
     /* la tesis lleva dos hechos: la variación de la venta (en su tramo, antes de la coma: la frase entera nombra el margen y la
      * declaración es de la venta) y el margen contra su referencia —«menos margen del que debería» / «por debajo de lo que

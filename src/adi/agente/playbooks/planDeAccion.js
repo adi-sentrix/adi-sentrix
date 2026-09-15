@@ -72,7 +72,7 @@ const _FRENTES = [
     mirar: "si ese vencido es de una factura en disputa o de plazo simplemente pasado",
     noSostiene: "el dato trae el saldo, no el motivo del atraso", siConfirma: "pondría esa cobranza primera en la semana" },
   { clave: "capital", re: /^Capital frenado · subtotal$/i, porEntidad: /· Capital frenado$/i,
-    universo: "inventario", nombre: "el capital inmovilizado", senal: /reposici[oó]n|inventario|bodega|stock/i,
+    universo: "inventario", nombre: "el capital frenado", senal: /reposici[oó]n|inventario|bodega|stock/i,   // la cifra es el subtotal FRENADO (estado crítico), no el inmovilizado amplio (owner 2026-09-15)
     accion: (n) => `frenar la reposición de ${n}`,
     mirar: "si ese artículo tiene una compra ya comprometida",
     noSostiene: "el dato no trae órdenes de compra ni plazos de proveedor", siConfirma: "frenaría el próximo pedido de ese artículo" },

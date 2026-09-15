@@ -82,13 +82,19 @@ Regla aplicada: el texto de un composer solo se toca para corregir una FALSEDAD 
   perdían): ahora publica los 12; contra el plan, la lectura trae el par «$100.0M contra $97.0M».
 - `limite-honesto`: el universo de los comparables, dicho.
 
-**Anotadas, sin corregir (decisión del owner):**
+**Cerradas por decisión del owner antes de la fase 3 (2026-09-15):**
 
-- `plan-de-accion`: llama «capital inmovilizado» a la cifra de «Capital frenado · subtotal» ($33K, 3 SKU); inmovilizado en la
-  proyección son 5 SKU, $55.8K.
-- `resumen-del-negocio` (rama sin «Ventas vs año anterior», hoy hipotética): «El negocio no está creciendo» sin evidencia temporal.
-- `cobranza`: ante «¿quiénes me deben más?» la lista «vencido primero» omite a Jumbo ($5.1M, tercer saldo).
-- `contradiccion-de-metricas`: la inversión (deja más contribución vendiendo menos) se afirma sin que el verificador la cierre.
+- `plan-de-accion` e `inventario-inmovilizado`: la cifra de «Capital frenado · subtotal/total» ($33K, 3 SKU) se llama **capital frenado**
+  —estado crítico, subconjunto del inmovilizado amplio ($55.8K, 5 SKU)—; «capital inmovilizado» ya no nombra esa cifra en ningún composer.
+- `resumen-del-negocio`: sin variación de la venta en la boleta la tesis no afirma «no está creciendo»: «El margen viene por debajo de lo
+  que debería; si el negocio está creciendo o no, no lo dice este dato».
+- `cobranza`: la lista dice su universo —«Quién te debe con saldo vencido, de mayor a menor vencido» (orden declarado sobre los clientes
+  con saldo vencido, cada línea con su pendiente y su vencido)— y las cuentas que deben sin vencido van aparte con su saldo («Con saldo
+  pendiente y sin vencido: Jumbo $5.1M · Mercado Libre $1.2M»): Jumbo queda fuera del ranking de vencido y dentro de la deuda. Sin plazo
+  declarado, la lista es «de mayor a menor saldo» y el orden también se declara.
+
+**Anotada, sin corregir:** `contradiccion-de-metricas`: la inversión (deja más contribución vendiendo menos) se afirma sin que el
+verificador la cierre.
 
 Deudas de emisores que el Notario destapó (mitigadas en el índice, no en el emisor): `serieEntidad` imprime «$22.560» (miles con punto)
 contra el canon decimal; `proyectar` publicaba `raw` en miles (corregido: moneda cruda); `simulateCarga`/`diagnose` rotulan «Supuesto»,

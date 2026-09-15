@@ -256,7 +256,7 @@ export const inventarioInmovilizado = {
     { tool: "inventoryStatus", args: { focus: "frenado" }, para: "cuánto capital está frenado y en qué SKU, con los días de inventario y la rotación de cada uno" },
   ],
   obligatorias: [/^Capital frenado · total$/i, /· Capital frenado$/i],
-  entregable: "cuánto capital está inmovilizado (y si es material para este negocio, con el umbral declarado), en qué SKU está, y cuál abrir primero — ofrecido con su cifra, jamás ordenado. Se localiza dónde; el porqué de cada freno no está en este dato.",
+  entregable: "cuánto capital está frenado (y si es material para este negocio, con el umbral declarado), en qué SKU está, y cuál abrir primero — ofrecido con su cifra, jamás ordenado. Se localiza dónde; el porqué de cada freno no está en este dato.",
   componer({ figs, semilla, pregunta, declarar } = {}) {
     const total = _find(figs, /^Capital frenado · total$/i);
     if (!total) return null;
@@ -281,7 +281,8 @@ export const inventarioInmovilizado = {
     const [uPct, uUsd] = _figsUmbral(figs);
     const partes = [];
     // LA VOZ (2026-09-03): «Capital inmovilizado (frenado): $X.» rotulaba; el asesor lo dice.
-    const l0 = `Tienes ${_val(total)} de capital inmovilizado — stock que no está rotando.${esMaterial ? "" : ` Está ${_fraseUmbral() || "bajo el umbral de materialidad de tu negocio"} — no es tu incendio de hoy.`}`;
+    /* la cifra es el capital FRENADO (rotación bajo el piso / días sobre el techo), subconjunto del inmovilizado amplio: se nombra por lo que es (owner 2026-09-15) */
+    const l0 = `Tienes ${_val(total)} de capital frenado — stock que no está rotando.${esMaterial ? "" : ` Está ${_fraseUmbral() || "bajo el umbral de materialidad de tu negocio"} — no es tu incendio de hoy.`}`;
     partes.push(l0);
     D.cifra({ sujeto: "negocio", metrica: "Capital frenado", valor: _val(total), universo: "total", texto: l0 });
     if (!esMaterial) {

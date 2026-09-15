@@ -334,7 +334,7 @@ H("11 · «Hazme una lectura ejecutiva de estos datos… qué debería preocupar
   const r0 = await answerViaAgente({ text: Q3, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
   const t = r0.r.text, cierre = t.slice(Math.max(0, t.indexOf("Dónde pondría el foco primero")));
   ok(r0.r.agente.estado === "encargo-compuesto" && /^Lectura conjunta de comercial, inventario y cobranza/.test(t), `★ el respaldo: una lectura conjunta de los tres dominios (${r0.r.agente.estado})`, t.slice(0, 100));
-  ok(/El negocio está creciendo/.test(t) && /capital inmovilizado/.test(t) && /Cobranza, al corte declarado por la mesa/.test(t), "…con la foto, el inventario y la cobranza cruzada por cliente");
+  ok(/El negocio está creciendo/.test(t) && /capital frenado/.test(t) && /Cobranza, al corte declarado por la mesa/.test(t), "…con la foto, el inventario (capital FRENADO: la cifra es ese subtotal) y la cobranza cruzada por cliente");
   ok(/por riesgo integrado, el criterio que se lee en tu pregunta/.test(cierre) && /^1\. Lider — /m.test(cierre) && /Por dominio: comercial → Falabella/.test(cierre) && /En inventario \(clave SKU/.test(cierre), "★ cierra con Lider primero por riesgo integrado —criterio declarado como leído de la pregunta—, Falabella comercial, inventario aparte");
   ok(/Con otra lente cambia quién va primero: por contribución, Falabella primero/.test(cierre), "…y dice que con otra lente cambia quién va primero");
   ok(!/criterio mío|Yo mirar[ií]a primero|entrar[ií]a por Falabella|Si fuera mi decisi[oó]n/.test(t) && coberturaDelEncargo(t, partesDelEncargo(Q3)).length === 0 && r0.r.agente.vetos.length === 0, "ninguna prioridad local sobrevive, cobertura completa, sin vetos", JSON.stringify(r0.r.agente.vetos).slice(0, 160));

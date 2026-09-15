@@ -107,12 +107,33 @@ export const cobranza = {
     // LA VOZ (2026-09-03): un asesor cuenta la deuda, no la lista un ledger — mismas cifras, mismos dueños.
     const partes = [`Tienes ${_val(saldo)} por cobrar, de una venta ${esCredito ? "a crédito " : ""}de ${_val(venta)} — ya te abonaron ${_val(abonado)}.`];
     declaraTotales(partes[0]);
-    partes.push(`Quién te debe:`);
-    for (const x of porCliente.slice(0, 6)) { const l = `- ${x.entidad}: ${x.fmt}`; partes.push(l); D.cifra({ sujeto: x.entidad, metrica: "Saldo pendiente", valor: x.fmt, texto: l }); }
+    /* EL UNIVERSO DE LA LISTA, EXPLÍCITO (owner 2026-09-15): la mesa del cobro ordena «vencido primero» — la lista de arriba son las cuentas
+     * CON saldo vencido, de mayor a menor vencido; las que deben sin vencido van aparte con su saldo (Jumbo queda fuera del ranking de
+     * vencido y dentro de la deuda). Sin vencido calculado, la lista es por saldo pendiente. */
+    const vencidoDe = new Map(vencidos.map((x) => [x.entidad, x.fmt]));
+    const conVencido = porCliente.filter((x) => vencidoDe.has(x.entidad));
+    const sinVencido = porCliente.filter((x) => !vencidoDe.has(x.entidad));
+    if (vencidoTotal && conVencido.length) {
+      const cab = `Quién te debe con saldo vencido, de mayor a menor vencido:`;
+      partes.push(cab);
+      const listados = conVencido.slice(0, 6);
+      D.orden({ sujeto: listados.map((x) => x.entidad), metrica: "Saldo vencido", forma: "topk", k: listados.length, direccion: "mayor", universo: "los clientes con saldo vencido", texto: cab });
+      for (const x of listados) { const l = `- ${x.entidad}: ${x.fmt} pendiente · ${vencidoDe.get(x.entidad)} vencido`; partes.push(l); D.cifra({ sujeto: x.entidad, metrica: "Saldo pendiente", valor: x.fmt, texto: l }); D.cifra({ sujeto: x.entidad, metrica: "Saldo vencido", valor: vencidoDe.get(x.entidad), texto: l }); }
+      if (sinVencido.length) {
+        const l = `Con saldo pendiente y sin vencido: ${sinVencido.slice(0, 4).map((x) => `${x.entidad} ${x.fmt}`).join(" · ")}.`;
+        partes.push(l);
+        for (const x of sinVencido.slice(0, 4)) { D.cifra({ sujeto: x.entidad, metrica: "Saldo pendiente", valor: x.fmt, texto: l }); D.estado({ sujeto: x.entidad, estado: "sin vencido", texto: l }); }
+      }
+    } else {
+      const cab = `Quién te debe, de mayor a menor saldo:`;
+      partes.push(cab);
+      D.orden({ sujeto: porCliente.slice(0, 6).map((x) => x.entidad), metrica: "Saldo pendiente", forma: "topk", k: Math.min(6, porCliente.length), direccion: "mayor", universo: _universoClientes(), texto: cab });
+      for (const x of porCliente.slice(0, 6)) { const l = `- ${x.entidad}: ${x.fmt}`; partes.push(l); D.cifra({ sujeto: x.entidad, metrica: "Saldo pendiente", valor: x.fmt, texto: l }); }
+    }
     /* la cola «(y N más)» no se declara: N es lo que la boleta trae y no cabe en la lista (el emisor publica 8 filas), no cuántos deben —
      * la mesa del flujo tiene más deudores que la boleta; se anota como hallazgo, no se declara como conteo */
     /* …y por eso la cola NO trae número (Notario semántico, fase 2, 2026-09-15): «(y 2 más)» contaba filas de la boleta, no deudores — era falso */
-    if (porCliente.length > 6) partes.push(`(y otras cuentas más)`);
+    if (porCliente.length >= 8) partes.push(`(y otras cuentas más)`);   // la mesa publica hasta 8 filas: con 8, hay más deudores que los listados
     if (vencidoTotal) {
       const l = `De eso, ${_val(vencidoTotal)} ya está vencido${vencidos.length ? ` — el más pesado es ${vencidos[0].entidad} con ${vencidos[0].fmt}` : ""}.`;
       partes.push(l);
