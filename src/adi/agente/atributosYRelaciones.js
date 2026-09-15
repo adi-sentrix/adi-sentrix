@@ -157,6 +157,15 @@ const _MATIZ = [   // el «de» es opcional porque «del»/«de la» ya quedaron
   { re: /\b(?:cerca|alrededor)(?:\s+de)?\s*$|\b(?:aproximadamente|unas?|como)\s*$/i, lo: 0.7, hi: 1.3 },
 ];
 const _RANGO_PLANO = { lo: 0.85, hi: 1.15 };
+/** rangoDeMatiz(matiz) → el rango admitido de r/k para un matiz dicho («más de», «casi», «cerca de», «poco más de»…; vacío = plano ±15 %).
+ *  La MISMA tabla que usa el juez de la prosa, expuesta para el Notario semántico (verificar.js): una relación declarada por su
+ *  significado {veces, k, matiz} se juzga con el rango que fija el matiz, sin una segunda tabla (owner 2026-09-15). */
+export function rangoDeMatiz(matiz) {
+  const t = String(matiz || "").trim();
+  if (!t) return { ..._RANGO_PLANO, dicho: "" };
+  for (const x of _MATIZ) if (x.re.test(t)) return { lo: x.lo, hi: x.hi, dicho: t };
+  return { ..._RANGO_PLANO, dicho: t };
+}
 const _NO_NUMERICO = /\b(?:a|muchas|varias|pocas|algunas|tantas|otras|repetidas)\s+veces\b/i;
 
 /** relacionEnPalabrasNoCierra(texto) → multa | null. Toma la relación dicha con palabras y la contrasta con las cifras de la

@@ -106,6 +106,30 @@ debajo de los ocho chequeos de atribución del muro y del contrato.
   como «metrica-mal-atribuida». Sobre los 12 borradores y los 6 textos finales, el contexto completo no agrega ni un veto;
   la medida de la auditoría no se mueve (4/19 · precisión 100 % · 0 regresiones).
 
+**El Notario semántico — fase 1 (2026-09-15, offline; sin corridas ni deploy).** La ronda fuera de muestra (1.159 frases y
+párrafos nuevos) midió 38 % de falsos positivos y 44 % de falsos negativos pese al 0.1 % · 2.6 % sobre el conjunto con el que se
+trabajó: la verificación por patrones de palabras tiene techo. Decisión del owner: «paramos los ciclos de parches sobre lenguaje…
+Notario verifica la afirmación y su evidencia, no la redacción». Principio: el modelo redacta; el modelo declara qué está
+afirmando; Notario verifica la afirmación contra la evidencia estructurada; la redacción no determina la verdad
+(`_DISENO_NOTARIO_SEMANTICO.md`, `_NOTARIO_SEMANTICO_ESQUEMA.md`, `_NOTARIO_SEMANTICO_FASE1.md`).
+
+- Lo nuevo, en `src/adi/notario/`: el esquema de la afirmación con campos obligatorios por tipo (cifra · orden · relacion ·
+  grupo · conteo · variacion · estado · lectura; lo que falta la vuelve no-verificable), el índice de la evidencia (la boleta y la
+  proyección leídas por significado: rótulo, entidad, unidad, grupo, cobertura, rankings, estados), el verificador (verdadera ·
+  falsa con la verdad al lado · no-verificable · sellada; la tolerancia del muro y la tabla de matices, sin segunda tabla) y el
+  detector de presencia (lo que la prosa afirma y no fue declarado: cifras, órdenes, relaciones, grupos, variaciones, estados;
+  una lectura nunca cubre un hecho).
+- Medido sobre 1.099 afirmaciones de los 12 borradores reales, declaradas a mano por seis etiquetadores: veredicto igual al
+  esperado 99.5 %, 0 falsos positivos, 0 falsos negativos, 18/18 errores reales atrapados con la verdad, 17/17 falsos positivos
+  de la auditoría servidos; 6 no-verificables donde se esperaba verdadera, todos deudas de la evidencia (la venta del año
+  anterior viaja como `headlineSub`; la variación en $ por cliente como «Valor»). Omisiones: la declaración manual cubre 96 %
+  de los puntos de la prosa; una afirmación quitada se extraña en 89.5 % (el resto, implícitas sin marca léxica). Tres
+  redacciones, un veredicto: 96/96 con el veredicto esperado y detectables; el Notario viejo cambia de veredicto entre
+  redacciones equivalentes en 37.5 %. Del Notario viejo siguen las leyes de la casa (juicio, intención, deterioro, encargo,
+  jerarquía causal, prioridad), el lavado y la escalera; los chequeos de hecho pasan a detectores. Gate
+  `_notario_semantico_gate.mjs` con líneas base; los tres corpus anteriores siguen como regresión. Fase 2 (el flujo) espera la
+  aprobación del owner.
+
 ---
 
 ## 2.30 — producción · tag `v2.30`

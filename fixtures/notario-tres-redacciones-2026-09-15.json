@@ -1,0 +1,2251 @@
+{
+ "fecha": "2026-09-15",
+ "nota": "TRES REDACCIONES, UN VEREDICTO (owner 2026-09-15, fase 1 del Notario semántico): la misma afirmación declarada —según _NOTARIO_SEMANTICO_ESQUEMA.md— en tres prosas sintácticamente distintas, con el veredicto que le corresponde según la evidencia (la boleta y los rankings). El gate exige el mismo veredicto del verificador en las tres (por construcción: el veredicto es función de la afirmación) y que el detector de presencia vea un punto de afirmación en cada redacción; e informa cuántas veces el Notario viejo cambia de veredicto entre redacciones equivalentes. Un rótulo que resulte equivocado se corrige acá con su motivo, nunca se ajusta el verificador a un rótulo falso.",
+ "preguntas": {
+  "P1": "Estoy vendiendo más, pero quiero saber si ese crecimiento realmente está siendo sano. Mira ventas, contribución, margen, unidades, inventario y cobranza juntos. Dime qué clientes o SKU están empujando el crecimiento, cuáles están deteriorando el resultado, si estoy acumulando stock donde no corresponde, si alguno de mis principales clientes también representa riesgo de cobranza y dónde pondrías el foco primero. Separa qué puedes demostrar, qué solo está indicado y qué todavía no sabes.",
+  "P2": "Hazme una lectura ejecutiva de estos datos. Dime qué debería preocuparme más y dónde pondrías el foco primero."
+ },
+ "leyes_de_la_casa": [
+  "intencion-inferida",
+  "formato-de-informe",
+  "juicio-sin-marcar",
+  "deterioro-no-medido",
+  "jerarquia-causal-sin-medida",
+  "dias-etiqueta-incorrecta",
+  "parte-del-encargo-omitida",
+  "prioridad-integrada-cambiada",
+  "mecanismo-sin-sello",
+  "ganancia-no-comparada",
+  "markup-sin-el-otro-lado",
+  "lexico-voz-de-motor",
+  "premisa-adoptada",
+  "referente-cambiado",
+  "dos-ordenes"
+ ],
+ "linea_base": {
+  "esperado": 96,
+  "detectable": 96,
+  "nota": "medido el 2026-09-15: 96/96 mismo veredicto y el esperado; 96/96 con punto detectable en las tres redacciones; el Notario viejo cambia de veredicto en 36/96"
+ },
+ "items": [
+  {
+   "id": "tr-001",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "Falabella",
+    "metrica": "Venta",
+    "valor": "$19.4M",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Falabella · Venta"
+    ]
+   },
+   "redacciones": [
+    "Falabella vendió $19,4M en el año cerrado.",
+    "La venta de Falabella asciende a $19.4M en el ejercicio cerrado.",
+    "$19,4M es lo que vendió Falabella en el año cerrado."
+   ]
+  },
+  {
+   "id": "tr-002",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Jumbo vendió $17.3M; $19.4M es la venta de Falabella",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "Jumbo",
+    "metrica": "Venta",
+    "valor": "$19.4M",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Jumbo · Venta"
+    ]
+   },
+   "redacciones": [
+    "Jumbo vendió $19,4M en el año cerrado.",
+    "La venta de Jumbo llega a $19.4M en el ejercicio cerrado.",
+    "$19,4M: eso vendió Jumbo en el año cerrado."
+   ]
+  },
+  {
+   "id": "tr-003",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "Lider",
+    "metrica": "Saldo vencido",
+    "valor": "$4.6M",
+    "periodo": "al corte (31 ago 2026)",
+    "evidencia": [
+     "Lider · Saldo vencido"
+    ]
+   },
+   "redacciones": [
+    "Lider acumula $4,6M vencidos al corte.",
+    "El saldo vencido de Lider es de $4.6M al 31 de agosto.",
+    "Al corte, hay $4,6M vencidos en la cuenta de Lider."
+   ]
+  },
+  {
+   "id": "tr-004",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Lider tiene $4.6M vencidos; $9.8M es su saldo pendiente",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "Lider",
+    "metrica": "Saldo vencido",
+    "valor": "$9.8M",
+    "periodo": "al corte (31 ago 2026)",
+    "evidencia": [
+     "Lider · Saldo vencido"
+    ]
+   },
+   "redacciones": [
+    "Lider acumula $9,8M vencidos al corte.",
+    "El saldo vencido de Lider asciende a $9.8M al 31 de agosto.",
+    "Al corte, la cuenta de Lider muestra $9,8M en mora."
+   ]
+  },
+  {
+   "id": "tr-005",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "Sodimac",
+    "metrica": "Carga comercial",
+    "valor": "5.4%",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Sodimac · Carga comercial"
+    ]
+   },
+   "redacciones": [
+    "Sodimac lleva una carga comercial de 5,4%.",
+    "La carga comercial de Sodimac se ubica en 5.4% en el año cerrado.",
+    "Un 5,4% de carga comercial: ese es el nivel de Sodimac."
+   ]
+  },
+  {
+   "id": "tr-006",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Sodimac margina 23.5%; 25.0% es el margen de Ripley",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "Sodimac",
+    "metrica": "Margen",
+    "valor": "25.0%",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Sodimac · Margen"
+    ]
+   },
+   "redacciones": [
+    "Sodimac margina 25,0% en el año cerrado.",
+    "El margen de Sodimac fue de 25.0%.",
+    "Con un margen de 25,0%, Sodimac cierra el ejercicio."
+   ]
+  },
+  {
+   "id": "tr-007",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "MAK-COMP-AIR",
+    "metrica": "Días de inventario",
+    "valor": "190d",
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "MAK-COMP-AIR · Días de inventario"
+    ]
+   },
+   "redacciones": [
+    "MAK-COMP-AIR carga 190 días de inventario.",
+    "Los días de inventario de MAK-COMP-AIR llegan a 190 (foto de hoy).",
+    "Hoy, 190 días: esa es la cobertura de inventario de MAK-COMP-AIR."
+   ]
+  },
+  {
+   "id": "tr-008",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "LG-DRYER8KG tiene 165 días de inventario; los 190 días son de MAK-COMP-AIR",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "LG-DRYER8KG",
+    "metrica": "Días de inventario",
+    "valor": "190d",
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "LG-DRYER8KG · Días de inventario"
+    ]
+   },
+   "redacciones": [
+    "LG-DRYER8KG acumula 190 días de inventario.",
+    "Los días de inventario de LG-DRYER8KG llegan hoy a 190.",
+    "A la fecha, LG-DRYER8KG registra 190 días en inventario."
+   ]
+  },
+  {
+   "id": "tr-009",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "negocio",
+    "metrica": "Contribución",
+    "valor": "$25.0M",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Contribución"
+    ]
+   },
+   "redacciones": [
+    "El negocio generó $25,0M de contribución en el año cerrado.",
+    "La contribución total del ejercicio cerrado asciende a $25.0M.",
+    "$25,0M: esa es la contribución que dejó el año cerrado."
+   ]
+  },
+  {
+   "id": "tr-010",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "El margen promedio del negocio es 25.1%; 30.1% es el benchmark (piso) de margen",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "negocio",
+    "metrica": "Margen promedio",
+    "valor": "30.1%",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Margen promedio"
+    ]
+   },
+   "redacciones": [
+    "El margen promedio del negocio es de 30,1%.",
+    "La cartera margina, en promedio, 30.1%.",
+    "Un 30,1% de margen promedio: así cierra el negocio el ejercicio."
+   ]
+  },
+  {
+   "id": "tr-011",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "Valparaíso",
+    "metrica": "Capital frenado",
+    "valor": "$25K",
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "Valparaíso · Capital frenado"
+    ]
+   },
+   "redacciones": [
+    "Valparaíso tiene $25K de capital frenado.",
+    "El capital frenado en la bodega de Valparaíso suma $25K.",
+    "En Valparaíso hay hoy $25K frenados."
+   ]
+  },
+  {
+   "id": "tr-012",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "El capital de la bodega de Valparaíso es $39K; $25K es su capital frenado",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "Valparaíso",
+    "metrica": "Capital",
+    "valor": "$25K",
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "Valparaíso · Capital"
+    ]
+   },
+   "redacciones": [
+    "Valparaíso concentra $25K de capital en inventario.",
+    "El capital total de la bodega de Valparaíso asciende a $25K.",
+    "En inventario, Valparaíso suma $25K hoy."
+   ]
+  },
+  {
+   "id": "tr-013",
+   "contexto": "P1",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "Jumbo",
+    "metrica": "Unidades vendidas",
+    "valor": "1.194 unidades",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Jumbo · Unidades vendidas"
+    ]
+   },
+   "redacciones": [
+    "Jumbo vendió 1.194 unidades en el año cerrado.",
+    "Las unidades vendidas a Jumbo llegan a 1.194 en el ejercicio.",
+    "1.194 unidades: ese fue el volumen de Jumbo en el año cerrado."
+   ]
+  },
+  {
+   "id": "tr-014",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Mercado Libre recuperó 77.8%; 70.5% es el recuperado de Jumbo",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "Mercado Libre",
+    "metrica": "Recuperado",
+    "valor": "70.5%",
+    "periodo": "al corte (31 ago 2026)",
+    "evidencia": [
+     "Mercado Libre · Recuperado"
+    ]
+   },
+   "redacciones": [
+    "Mercado Libre ha recuperado el 70,5% de lo facturado al corte.",
+    "El recuperado de Mercado Libre es de 70.5%.",
+    "Al 31 de agosto, un 70,5% recuperado en Mercado Libre."
+   ]
+  },
+  {
+   "id": "tr-015",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "Falabella",
+    "metrica": "Contribución no capturada",
+    "valor": "$1.6M",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Falabella · Contribución no capturada"
+    ]
+   },
+   "redacciones": [
+    "Falabella deja $1,6M de contribución sin capturar.",
+    "La contribución no capturada en Falabella asciende a $1.6M.",
+    "$1,6M: eso es lo que Falabella no captura frente al benchmark."
+   ]
+  },
+  {
+   "id": "tr-016",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Falabella está 8.1 pp bajo el benchmark; 8.6 pp es la brecha de Lider",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "Falabella",
+    "metrica": "Brecha al benchmark",
+    "valor": "8.6 pp",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Falabella · Brecha al benchmark"
+    ]
+   },
+   "redacciones": [
+    "Falabella está 8,6 pp por debajo del benchmark de margen.",
+    "La brecha de Falabella frente al benchmark es de 8.6 pp.",
+    "Frente al benchmark, a Falabella le faltan 8,6 pp."
+   ]
+  },
+  {
+   "id": "tr-017",
+   "contexto": "ambos",
+   "esperado": "no-verificable",
+   "motivo": "sin-evidencia: la boleta no trae capital frenado para Concepción (solo Valparaíso y Antofagasta tienen la cifra)",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "Concepción",
+    "metrica": "Capital frenado",
+    "valor": "$10K",
+    "periodo": "foto de hoy"
+   },
+   "redacciones": [
+    "Concepción tiene $10K de capital frenado.",
+    "El capital frenado en la bodega de Concepción suma $10K.",
+    "En Concepción hay hoy $10K frenados."
+   ]
+  },
+  {
+   "id": "tr-018",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "negocio",
+    "metrica": "Saldo vencido",
+    "valor": "$12.6M",
+    "periodo": "al corte (31 ago 2026)",
+    "evidencia": [
+     "Saldo vencido · total"
+    ]
+   },
+   "redacciones": [
+    "El negocio acumula $12,6M vencidos al corte.",
+    "El saldo vencido total llega a $12.6M al 31 de agosto.",
+    "Al corte, $12,6M de la cartera están vencidos."
+   ]
+  },
+  {
+   "id": "tr-019",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Lo abonado suma $58.7M; $41.2M es el saldo pendiente",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "negocio",
+    "metrica": "Abonado",
+    "valor": "$41.2M",
+    "periodo": "al corte (31 ago 2026)",
+    "evidencia": [
+     "Abonado · total"
+    ]
+   },
+   "redacciones": [
+    "Los clientes han abonado $41,2M al corte.",
+    "El total abonado por la cartera asciende a $41.2M.",
+    "Al 31 de agosto, $41,2M ya fueron abonados."
+   ]
+  },
+  {
+   "id": "tr-020",
+   "contexto": "P1",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "cifra",
+    "sujeto": "SAM-TV55",
+    "metrica": "Venta",
+    "valor": "$13.3M",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "SAM-TV55 · Venta"
+    ]
+   },
+   "redacciones": [
+    "SAM-TV55 vendió $13,3M en el año cerrado.",
+    "La venta de SAM-TV55 asciende a $13.3M.",
+    "$13,3M: esa es la venta anual de SAM-TV55."
+   ]
+  },
+  {
+   "id": "tr-021",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "Falabella",
+    "metrica": "Contribución",
+    "orden": {
+     "forma": "max"
+    },
+    "universo": "los 13 clientes",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Falabella · Contribución",
+     "Jumbo · Contribución",
+     "Lider · Contribución"
+    ]
+   },
+   "redacciones": [
+    "Falabella es la cuenta que más contribución aporta a la cartera.",
+    "En contribución, nadie supera a Falabella entre los 13 clientes.",
+    "La mayor contribución de las 13 cuentas la pone Falabella ($4,3M)."
+   ]
+  },
+  {
+   "id": "tr-022",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Lider encabeza el saldo vencido con $4.6M; Falabella ($2.5M) va segunda",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "Falabella",
+    "metrica": "Saldo vencido",
+    "orden": {
+     "forma": "max"
+    },
+    "universo": "los 13 clientes de la cobranza",
+    "periodo": "al corte (31 ago 2026)",
+    "evidencia": [
+     "Falabella · Saldo vencido",
+     "Lider · Saldo vencido"
+    ]
+   },
+   "redacciones": [
+    "Falabella es el cliente con más saldo vencido de la cartera.",
+    "En saldo vencido, Falabella encabeza a los 13 clientes de la cobranza.",
+    "Ningún cliente acumula más vencido que Falabella ($2,5M al corte)."
+   ]
+  },
+  {
+   "id": "tr-023",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "Lider",
+    "metrica": "Saldo vencido",
+    "orden": {
+     "forma": "max"
+    },
+    "universo": "los 13 clientes de la cobranza",
+    "periodo": "al corte (31 ago 2026)",
+    "evidencia": [
+     "Lider · Saldo vencido"
+    ]
+   },
+   "redacciones": [
+    "Lider es el cliente con más saldo vencido al corte.",
+    "En vencido, Lider encabeza la cartera: $4,6M al 31 de agosto.",
+    "El mayor saldo vencido de los 13 clientes lo tiene Lider."
+   ]
+  },
+  {
+   "id": "tr-024",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "Lider",
+    "metrica": "Margen",
+    "orden": {
+     "forma": "min"
+    },
+    "universo": "los 13 clientes",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Lider · Margen",
+     "Falabella · Margen"
+    ]
+   },
+   "redacciones": [
+    "Lider es la cuenta con el margen más bajo de la cartera.",
+    "Ningún cliente margina menos que Lider: 21,5%.",
+    "El margen más delgado de los 13 clientes es el de Lider (21.5%)."
+   ]
+  },
+  {
+   "id": "tr-025",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Lider tiene el margen más bajo (21.5%); Falabella (22.0%) es el segundo más bajo",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "Falabella",
+    "metrica": "Margen",
+    "orden": {
+     "forma": "min"
+    },
+    "universo": "los 13 clientes",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Falabella · Margen",
+     "Lider · Margen"
+    ]
+   },
+   "redacciones": [
+    "Falabella es la cuenta con el margen más bajo de la cartera.",
+    "Ningún cliente margina menos que Falabella (22%).",
+    "El margen más delgado de los 13 clientes lo tiene Falabella."
+   ]
+  },
+  {
+   "id": "tr-026",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "MAK-COMP-AIR",
+    "metrica": "Días de inventario",
+    "orden": {
+     "forma": "max"
+    },
+    "universo": "los 13 SKU en inventario",
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "MAK-COMP-AIR · Días de inventario",
+     "LG-DRYER8KG · Días de inventario"
+    ]
+   },
+   "redacciones": [
+    "MAK-COMP-AIR es el SKU con más días de inventario.",
+    "En días de inventario, ningún SKU supera a MAK-COMP-AIR: 190 días.",
+    "El que más días de inventario acumula de los 13 SKU es MAK-COMP-AIR."
+   ]
+  },
+  {
+   "id": "tr-027",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "MAK-COMP-AIR encabeza con 190 días; LG-DRYER8KG (165 días) es el segundo",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "LG-DRYER8KG",
+    "metrica": "Días de inventario",
+    "orden": {
+     "forma": "max"
+    },
+    "universo": "los 13 SKU en inventario",
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "LG-DRYER8KG · Días de inventario",
+     "MAK-COMP-AIR · Días de inventario"
+    ]
+   },
+   "redacciones": [
+    "LG-DRYER8KG es el SKU con más días de inventario.",
+    "Ningún SKU acumula más días de inventario que LG-DRYER8KG (165 días).",
+    "De los 13 SKU, el que más días de inventario carga es LG-DRYER8KG."
+   ]
+  },
+  {
+   "id": "tr-028",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": [
+     "Falabella",
+     "Lider",
+     "Jumbo"
+    ],
+    "metrica": "Venta",
+    "orden": {
+     "forma": "topk",
+     "k": 3,
+     "direccion": "mayor"
+    },
+    "universo": "los 13 clientes",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Falabella · Venta",
+     "Lider · Venta",
+     "Jumbo · Venta"
+    ]
+   },
+   "redacciones": [
+    "Falabella, Lider y Jumbo son los tres clientes que más venden.",
+    "Los tres motores más grandes de la cartera: Falabella, Lider y Jumbo.",
+    "Por venta, las tres primeras cuentas de los 13 clientes son Falabella, Lider y Jumbo."
+   ]
+  },
+  {
+   "id": "tr-029",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Los tres que más venden son Falabella, Lider y Jumbo; Sodimac ($8.2M) es el cuarto",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": [
+     "Falabella",
+     "Jumbo",
+     "Sodimac"
+    ],
+    "metrica": "Venta",
+    "orden": {
+     "forma": "topk",
+     "k": 3,
+     "direccion": "mayor"
+    },
+    "universo": "los 13 clientes",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Falabella · Venta",
+     "Jumbo · Venta",
+     "Sodimac · Venta",
+     "Lider · Venta"
+    ]
+   },
+   "redacciones": [
+    "Falabella, Jumbo y Sodimac son los tres clientes que más venden.",
+    "Los tres motores más grandes de la cartera: Falabella, Jumbo y Sodimac.",
+    "Por venta, las tres primeras cuentas de los 13 clientes son Falabella, Jumbo y Sodimac."
+   ]
+  },
+  {
+   "id": "tr-030",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "Lider",
+    "metrica": "Brecha al benchmark",
+    "orden": {
+     "forma": "comparativo",
+     "direccion": "peor",
+     "vs": "Falabella"
+    },
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Lider · Brecha al benchmark",
+     "Falabella · Brecha al benchmark"
+    ]
+   },
+   "redacciones": [
+    "Lider está peor que Falabella frente al benchmark: 8,6 pp contra 8,1 pp.",
+    "La brecha al benchmark de Lider (8.6 pp) supera a la de Falabella (8.1 pp).",
+    "Frente al benchmark, Lider queda más lejos que Falabella."
+   ]
+  },
+  {
+   "id": "tr-031",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "SAM-REF500L ($19K) es el SKU con más capital de los 13; LG-DRYER8KG ($14K) va tercero y lidera solo entre los frenados",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "LG-DRYER8KG",
+    "metrica": "Capital",
+    "orden": {
+     "forma": "max"
+    },
+    "universo": "los 13 SKU en inventario",
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "LG-DRYER8KG · Capital",
+     "SAM-REF500L · Capital"
+    ]
+   },
+   "redacciones": [
+    "LG-DRYER8KG es el SKU que más capital concentra en el inventario.",
+    "De los 13 SKU en inventario, ninguno concentra más capital que LG-DRYER8KG ($14K).",
+    "El mayor capital del inventario completo está en LG-DRYER8KG."
+   ]
+  },
+  {
+   "id": "tr-032",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "Easy",
+    "metrica": "Carga comercial",
+    "orden": {
+     "forma": "max"
+    },
+    "universo": "los 13 clientes",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Easy · Carga comercial",
+     "Sodimac · Carga comercial"
+    ]
+   },
+   "redacciones": [
+    "Easy es el cliente con la carga comercial más alta de la cartera.",
+    "En carga comercial, nadie supera a Easy: 5,5%.",
+    "La carga comercial más alta de los 13 clientes la tiene Easy (5.5%)."
+   ]
+  },
+  {
+   "id": "tr-033",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Easy tiene la carga más alta (5.5%); Sodimac (5.4%) es el segundo",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "Sodimac",
+    "metrica": "Carga comercial",
+    "orden": {
+     "forma": "max"
+    },
+    "universo": "los 13 clientes",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Sodimac · Carga comercial",
+     "Easy · Carga comercial"
+    ]
+   },
+   "redacciones": [
+    "Sodimac es el cliente con la carga comercial más alta de la cartera.",
+    "En carga comercial, ninguna cuenta supera a Sodimac (5,4%).",
+    "La carga comercial más alta de los 13 clientes es la de Sodimac."
+   ]
+  },
+  {
+   "id": "tr-034",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "Valparaíso",
+    "metrica": "Capital frenado",
+    "orden": {
+     "forma": "max"
+    },
+    "universo": "las bodegas del inventario",
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "Valparaíso · Capital frenado",
+     "Antofagasta · Capital frenado"
+    ]
+   },
+   "redacciones": [
+    "Valparaíso es la bodega con más capital frenado.",
+    "En capital frenado, ninguna bodega supera a Valparaíso ($25K).",
+    "El mayor capital frenado por bodega está en Valparaíso."
+   ]
+  },
+  {
+   "id": "tr-035",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Santiago ($64K) es la bodega con más capital; Valparaíso ($39K) es la segunda y lidera solo en capital frenado",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "Valparaíso",
+    "metrica": "Capital",
+    "orden": {
+     "forma": "max"
+    },
+    "universo": "las bodegas del inventario",
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "Valparaíso · Capital",
+     "Santiago · Capital"
+    ]
+   },
+   "redacciones": [
+    "Valparaíso es la bodega con más capital en inventario.",
+    "En capital total, ninguna bodega supera a Valparaíso ($39K).",
+    "El mayor capital por bodega está en Valparaíso."
+   ]
+  },
+  {
+   "id": "tr-036",
+   "contexto": "P1",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "Jumbo",
+    "metrica": "Unidades vendidas",
+    "orden": {
+     "forma": "max"
+    },
+    "universo": "los 13 clientes",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Jumbo · Unidades vendidas",
+     "Falabella · Unidades vendidas"
+    ]
+   },
+   "redacciones": [
+    "Jumbo es el cliente que más unidades compra.",
+    "En unidades, ninguna cuenta supera a Jumbo: 1.194.",
+    "El mayor volumen en unidades de los 13 clientes lo mueve Jumbo."
+   ]
+  },
+  {
+   "id": "tr-037",
+   "contexto": "ambos",
+   "esperado": "no-verificable",
+   "motivo": "sin-evidencia: ranking de una métrica sin cifras (la boleta no trae unidades vendidas por SKU)",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "SAM-TV55",
+    "metrica": "Unidades vendidas",
+    "orden": {
+     "forma": "max"
+    },
+    "universo": "los 13 SKU comerciales",
+    "periodo": "año cerrado"
+   },
+   "redacciones": [
+    "SAM-TV55 es el SKU que más unidades vendió.",
+    "En unidades vendidas, ningún SKU supera a SAM-TV55.",
+    "El mayor volumen en unidades de los 13 SKU lo mueve SAM-TV55."
+   ]
+  },
+  {
+   "id": "tr-038",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Lider es el segundo por venta ($17.8M); Jumbo ($17.3M) es el tercero",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "Jumbo",
+    "metrica": "Venta",
+    "orden": {
+     "forma": "puesto",
+     "k": 2,
+     "direccion": "mayor"
+    },
+    "universo": "los 13 clientes",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Jumbo · Venta",
+     "Lider · Venta",
+     "Falabella · Venta"
+    ]
+   },
+   "redacciones": [
+    "Jumbo es el segundo cliente por venta de la cartera.",
+    "En venta, Jumbo ocupa el segundo lugar entre los 13 clientes.",
+    "Solo Falabella vende más que Jumbo."
+   ]
+  },
+  {
+   "id": "tr-039",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Easy tiene los días vencidos más altos (270d); Lider (269d) es el segundo",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "Lider",
+    "metrica": "Dias Vencido",
+    "orden": {
+     "forma": "max"
+    },
+    "universo": "los 13 clientes de la cobranza",
+    "periodo": "al corte (31 ago 2026)",
+    "evidencia": [
+     "Lider · Dias Vencido",
+     "Easy · Dias Vencido"
+    ]
+   },
+   "redacciones": [
+    "Lider es el cliente con más días vencidos de la cartera.",
+    "En días vencidos, ningún cliente supera a Lider (269 días).",
+    "La mora más larga de los 13 clientes es la de Lider."
+   ]
+  },
+  {
+   "id": "tr-040",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "orden",
+    "sujeto": "Sodimac",
+    "metrica": "Recuperado",
+    "orden": {
+     "forma": "min"
+    },
+    "universo": "los 13 clientes de la cobranza",
+    "periodo": "al corte (31 ago 2026)",
+    "evidencia": [
+     "Sodimac · Recuperado",
+     "Easy · Recuperado",
+     "Lider · Recuperado"
+    ]
+   },
+   "redacciones": [
+    "Sodimac es el cliente con el recuperado más bajo de la cartera.",
+    "En recuperado, ninguna cuenta está más abajo que Sodimac: 35%.",
+    "El recuperado más bajo de los 13 clientes es el de Sodimac (35%)."
+   ]
+  },
+  {
+   "id": "tr-041",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "relacion",
+    "sujeto": "Falabella",
+    "metrica": "Venta",
+    "relacion": {
+     "forma": "veces",
+     "k": 2,
+     "matiz": "más de",
+     "vs": "Sodimac"
+    },
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Falabella · Venta",
+     "Sodimac · Venta"
+    ]
+   },
+   "redacciones": [
+    "Falabella vende más del doble que Sodimac.",
+    "La venta de Falabella ($19,4M) supera el doble de la de Sodimac ($8,2M).",
+    "Sodimac no llega ni a la mitad de lo que vende Falabella."
+   ]
+  },
+  {
+   "id": "tr-042",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Lider $1.4M vs Jumbo $1.0M: 1.4 veces, no el doble",
+   "afirmacion": {
+    "tipo": "relacion",
+    "sujeto": "Lider",
+    "metrica": "Brecha por precio y costo",
+    "relacion": {
+     "forma": "veces",
+     "k": 2,
+     "vs": "Jumbo"
+    },
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Lider · Brecha por precio y costo",
+     "Jumbo · Brecha por precio y costo"
+    ]
+   },
+   "redacciones": [
+    "Lider tiene el doble de brecha por precio y costo que Jumbo.",
+    "La brecha por precio y costo de Lider duplica la de Jumbo.",
+    "En brecha por precio y costo, Jumbo está a la mitad de Lider."
+   ]
+  },
+  {
+   "id": "tr-043",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "relacion",
+    "sujeto": "Valparaíso",
+    "metrica": "Capital frenado",
+    "relacion": {
+     "forma": "fraccion",
+     "vs": {
+      "sujeto": "negocio",
+      "metrica": "Capital frenado"
+     }
+    },
+    "valor": "75%",
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "Valparaíso · % del total",
+     "Valparaíso · Capital frenado",
+     "Capital frenado · total"
+    ]
+   },
+   "redacciones": [
+    "Valparaíso concentra el 75% del capital frenado.",
+    "Tres de cada cuatro pesos frenados están en Valparaíso: 75%.",
+    "Del capital frenado total, un 75% corresponde a la bodega de Valparaíso."
+   ]
+  },
+  {
+   "id": "tr-044",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Lider concentra el 36% del vencido ($4.6M de $12.6M): poco más de un tercio, no casi la mitad",
+   "afirmacion": {
+    "tipo": "relacion",
+    "sujeto": "Lider",
+    "metrica": "Saldo vencido",
+    "relacion": {
+     "forma": "fraccion",
+     "k": 0.5,
+     "matiz": "casi",
+     "vs": {
+      "sujeto": "negocio",
+      "metrica": "Saldo vencido"
+     }
+    },
+    "periodo": "al corte (31 ago 2026)",
+    "evidencia": [
+     "Lider · Saldo vencido",
+     "Saldo vencido · total"
+    ]
+   },
+   "redacciones": [
+    "Lider concentra casi la mitad del saldo vencido de la cartera.",
+    "Casi la mitad de lo vencido está en Lider.",
+    "Del saldo vencido total, casi la mitad corresponde a Lider."
+   ]
+  },
+  {
+   "id": "tr-045",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "relacion",
+    "sujeto": "Lider",
+    "metrica": "Saldo vencido",
+    "relacion": {
+     "forma": "veces",
+     "k": 2,
+     "matiz": "casi",
+     "vs": "Falabella"
+    },
+    "periodo": "al corte (31 ago 2026)",
+    "evidencia": [
+     "Lider · Saldo vencido",
+     "Falabella · Saldo vencido"
+    ]
+   },
+   "redacciones": [
+    "Lider tiene casi el doble de saldo vencido que Falabella.",
+    "El vencido de Lider ($4,6M) casi duplica el de Falabella ($2,5M).",
+    "En saldo vencido, Lider está en casi el doble de Falabella."
+   ]
+  },
+  {
+   "id": "tr-046",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "verdad": "1.8 veces ($4.6M vs $2.5M): casi el doble, no el doble",
+   "afirmacion": {
+    "tipo": "relacion",
+    "sujeto": "Lider",
+    "metrica": "Saldo vencido",
+    "relacion": {
+     "forma": "veces",
+     "k": 2,
+     "vs": "Falabella"
+    },
+    "periodo": "al corte (31 ago 2026)",
+    "evidencia": [
+     "Lider · Saldo vencido",
+     "Falabella · Saldo vencido"
+    ]
+   },
+   "redacciones": [
+    "Lider tiene el doble de saldo vencido que Falabella.",
+    "El vencido de Lider duplica el de Falabella.",
+    "En saldo vencido, Falabella está en la mitad de Lider."
+   ],
+   "reetiquetado": "el cazador esperaba falsa («1.8 veces: casi el doble»); «el doble» a secas cierra de 1.7× a 2.3× (±15 %, la tabla del juez de relaciones del muro): 1.83× es verdadera"
+  },
+  {
+   "id": "tr-047",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "relacion",
+    "sujeto": "Jumbo",
+    "metrica": "Margen",
+    "relacion": {
+     "forma": "diferencia",
+     "vs": "Lider"
+    },
+    "valor": "2.5 pp",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Jumbo · Margen",
+     "Lider · Margen"
+    ]
+   },
+   "redacciones": [
+    "Jumbo margina 2,5 pp más que Lider.",
+    "Entre el margen de Jumbo (24%) y el de Lider (21,5%) hay 2.5 pp.",
+    "La ventaja de margen de Jumbo sobre Lider es de 2,5 puntos."
+   ]
+  },
+  {
+   "id": "tr-048",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Falabella margina 22.0% y Jumbo 24.0%: Falabella está por debajo",
+   "afirmacion": {
+    "tipo": "relacion",
+    "sujeto": "Falabella",
+    "metrica": "Margen",
+    "relacion": {
+     "forma": "mayor",
+     "vs": "Jumbo"
+    },
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Falabella · Margen",
+     "Jumbo · Margen"
+    ]
+   },
+   "redacciones": [
+    "Falabella margina más que Jumbo.",
+    "El margen de Falabella supera al de Jumbo.",
+    "Entre las dos, Jumbo es la que margina menos; Falabella queda arriba."
+   ]
+  },
+  {
+   "id": "tr-049",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "relacion",
+    "sujeto": "Santiago",
+    "metrica": "Capital",
+    "relacion": {
+     "forma": "fraccion",
+     "k": 0.5,
+     "matiz": "casi",
+     "vs": {
+      "sujeto": "negocio",
+      "metrica": "Capital en inventario"
+     }
+    },
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "Santiago · Capital",
+     "Capital en inventario · total"
+    ]
+   },
+   "redacciones": [
+    "Santiago concentra casi la mitad del capital en inventario.",
+    "Casi la mitad de los $135K en inventario está en la bodega de Santiago.",
+    "Del capital total en inventario, casi la mitad corresponde a Santiago ($64K)."
+   ]
+  },
+  {
+   "id": "tr-050",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "$33K frenados de $135K en inventario = 25%: un cuarto, no un tercio",
+   "afirmacion": {
+    "tipo": "relacion",
+    "sujeto": "negocio",
+    "metrica": "Capital frenado",
+    "relacion": {
+     "forma": "fraccion",
+     "k": 0.333,
+     "vs": {
+      "sujeto": "negocio",
+      "metrica": "Capital en inventario"
+     }
+    },
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "Capital frenado · total",
+     "Capital en inventario · total"
+    ]
+   },
+   "redacciones": [
+    "Un tercio del capital en inventario está frenado.",
+    "El capital frenado equivale a la tercera parte del inventario.",
+    "De cada tres pesos en inventario, uno está frenado."
+   ]
+  },
+  {
+   "id": "tr-051",
+   "contexto": "P1",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "relacion",
+    "sujeto": "Jumbo",
+    "metrica": "Unidades vendidas",
+    "relacion": {
+     "forma": "mayor",
+     "vs": "Falabella"
+    },
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Jumbo · Unidades vendidas",
+     "Falabella · Unidades vendidas"
+    ]
+   },
+   "redacciones": [
+    "Jumbo compra más unidades que Falabella.",
+    "En unidades, Jumbo (1.194) supera a Falabella (1.042).",
+    "Las unidades vendidas a Jumbo son más que las vendidas a Falabella."
+   ]
+  },
+  {
+   "id": "tr-052",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Sodimac 5.4% frente al nivel declarado 3.5%: 1.9 pp por encima, no 1.0 pp",
+   "afirmacion": {
+    "tipo": "relacion",
+    "sujeto": "Sodimac",
+    "metrica": "Carga comercial",
+    "relacion": {
+     "forma": "diferencia",
+     "vs": {
+      "sujeto": "negocio",
+      "metrica": "Nivel de carga comercial declarado"
+     }
+    },
+    "valor": "1.0 pp",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Sodimac · Carga comercial",
+     "Nivel de carga comercial declarado"
+    ]
+   },
+   "redacciones": [
+    "Sodimac está 1,0 pp por encima del nivel de carga declarado.",
+    "La carga comercial de Sodimac excede en 1.0 pp el nivel declarado.",
+    "Entre la carga de Sodimac y el nivel declarado hay 1,0 pp de diferencia."
+   ]
+  },
+  {
+   "id": "tr-053",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "relacion",
+    "sujeto": "Valparaíso",
+    "metrica": "Capital frenado",
+    "relacion": {
+     "forma": "veces",
+     "k": 3,
+     "matiz": "casi",
+     "vs": "Antofagasta"
+    },
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "Valparaíso · Capital frenado",
+     "Antofagasta · Capital frenado"
+    ]
+   },
+   "redacciones": [
+    "Valparaíso tiene casi el triple de capital frenado que Antofagasta.",
+    "El capital frenado de Valparaíso ($25K) casi triplica el de Antofagasta ($8K).",
+    "Frente a Antofagasta, Valparaíso acumula casi tres veces el capital frenado."
+   ]
+  },
+  {
+   "id": "tr-054",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "grupo",
+    "sujeto": [
+     "Falabella",
+     "Lider",
+     "Jumbo"
+    ],
+    "metrica": "Contribución",
+    "valor": "49%",
+    "universo": "participación en la contribución del negocio",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Contribución de los grandes"
+    ]
+   },
+   "redacciones": [
+    "Falabella, Lider y Jumbo concentran el 49% de la contribución.",
+    "Los tres grandes —Falabella, Lider y Jumbo— explican el 49% de la contribución del negocio.",
+    "Un 49% de la contribución del negocio sale de tres cuentas: Falabella, Lider y Jumbo."
+   ]
+  },
+  {
+   "id": "tr-055",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "El 49% corresponde a los tres grandes (Falabella, Lider y Jumbo); dos nombres son un subconjunto del grupo del agregado",
+   "afirmacion": {
+    "tipo": "grupo",
+    "sujeto": [
+     "Falabella",
+     "Lider"
+    ],
+    "metrica": "Contribución",
+    "valor": "49%",
+    "universo": "participación en la contribución del negocio",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Contribución de los grandes"
+    ]
+   },
+   "redacciones": [
+    "Falabella y Lider concentran el 49% de la contribución.",
+    "Entre Falabella y Lider explican el 49% de la contribución del negocio.",
+    "Un 49% de la contribución del negocio sale de dos cuentas: Falabella y Lider."
+   ]
+  },
+  {
+   "id": "tr-056",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "grupo",
+    "sujeto": {
+     "descripcion": "las 5 cuentas materiales"
+    },
+    "metrica": "Contribución no capturada",
+    "valor": "$4.9M",
+    "universo": "las 8 bajo el benchmark",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Contribución no capturada · subtotal · 5 cuentas materiales (de 8 bajo el benchmark)"
+    ]
+   },
+   "redacciones": [
+    "Las 5 cuentas materiales bajo el benchmark dejan $4,9M de contribución sin capturar.",
+    "La contribución no capturada de las cinco cuentas materiales (de las 8 bajo el benchmark) suma $4.9M.",
+    "$4,9M: ese es el subtotal de contribución no capturada de las 5 cuentas materiales entre las 8 bajo el benchmark."
+   ]
+  },
+  {
+   "id": "tr-057",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "$4.9M es el subtotal de las 5 cuentas materiales; las 8 bajo el benchmark suman $5.4M",
+   "afirmacion": {
+    "tipo": "grupo",
+    "sujeto": {
+     "descripcion": "las 8 cuentas bajo el benchmark"
+    },
+    "metrica": "Contribución no capturada",
+    "valor": "$4.9M",
+    "universo": "los 13 clientes",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Contribución no capturada · subtotal · 5 cuentas materiales (de 8 bajo el benchmark)"
+    ]
+   },
+   "redacciones": [
+    "Las 8 cuentas bajo el benchmark dejan $4,9M de contribución sin capturar.",
+    "La contribución no capturada de las ocho cuentas bajo el benchmark suma $4.9M.",
+    "$4,9M: eso es lo que las 8 cuentas bajo el benchmark no capturan en total."
+   ]
+  },
+  {
+   "id": "tr-058",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "grupo",
+    "sujeto": [
+     "LG-DRYER8KG",
+     "BOS-SANDER",
+     "MAK-COMP-AIR"
+    ],
+    "metrica": "Capital frenado",
+    "valor": "$33K",
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "Capital frenado · subtotal"
+    ]
+   },
+   "redacciones": [
+    "LG-DRYER8KG, BOS-SANDER y MAK-COMP-AIR suman $33K de capital frenado.",
+    "El capital frenado —LG-DRYER8KG, BOS-SANDER y MAK-COMP-AIR— asciende a $33K.",
+    "Entre los tres SKU frenados (LG-DRYER8KG, BOS-SANDER y MAK-COMP-AIR) hay $33K."
+   ]
+  },
+  {
+   "id": "tr-059",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "LG-DRYER8KG y MAK-COMP-AIR suman $22K; los $33K incluyen a BOS-SANDER ($11K)",
+   "afirmacion": {
+    "tipo": "grupo",
+    "sujeto": [
+     "LG-DRYER8KG",
+     "MAK-COMP-AIR"
+    ],
+    "metrica": "Capital frenado",
+    "valor": "$33K",
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "Capital frenado · subtotal",
+     "Medida · liberar LG-DRYER8KG y MAK-COMP-AIR"
+    ]
+   },
+   "redacciones": [
+    "LG-DRYER8KG y MAK-COMP-AIR suman $33K de capital frenado.",
+    "El capital frenado en LG-DRYER8KG y MAK-COMP-AIR asciende a $33K.",
+    "Entre los dos SKU (LG-DRYER8KG y MAK-COMP-AIR) hay $33K frenados."
+   ]
+  },
+  {
+   "id": "tr-060",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "41.4% es el promedio de las 8 cuentas bajo el benchmark (incluye además a Tottus, Paris, Mercado Libre y Ripley), no de cuatro",
+   "afirmacion": {
+    "tipo": "grupo",
+    "sujeto": [
+     "Falabella",
+     "Jumbo",
+     "Lider",
+     "Sodimac"
+    ],
+    "metrica": "Markup promedio",
+    "valor": "41.4%",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Markup promedio · los que caen"
+    ]
+   },
+   "redacciones": [
+    "Falabella, Jumbo, Lider y Sodimac promedian un markup de 41,4%.",
+    "El markup promedio de Falabella, Jumbo, Lider y Sodimac es 41.4%.",
+    "Un 41,4% de markup promedio: eso muestran las cuatro cuentas (Falabella, Jumbo, Lider y Sodimac)."
+   ]
+  },
+  {
+   "id": "tr-061",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "grupo",
+    "sujeto": {
+     "descripcion": "las 10 cuentas del resto (fuera de los tres grandes)"
+    },
+    "metrica": "Margen",
+    "valor": "28.2%",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Margen del resto"
+    ]
+   },
+   "redacciones": [
+    "Las diez cuentas fuera de los tres grandes marginan 28,2%.",
+    "El margen del resto —las 10 cuentas que no son Falabella, Lider ni Jumbo— es de 28.2%.",
+    "Un 28,2% de margen: así cierra el resto de la cartera (10 cuentas)."
+   ]
+  },
+  {
+   "id": "tr-062",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Las 6 cuentas sobre el nivel declarado suman $655K; $588K es el subtotal de las 5 materiales",
+   "afirmacion": {
+    "tipo": "grupo",
+    "sujeto": {
+     "descripcion": "las 6 cuentas sobre el nivel de carga declarado"
+    },
+    "metrica": "Carga comercial alta",
+    "valor": "$588K",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Carga comercial alta · subtotal · 6 cuentas sobre el nivel declarado (5 de ellas bajo el benchmark)"
+    ]
+   },
+   "redacciones": [
+    "Las 6 cuentas sobre el nivel de carga declarado suman $588K de carga comercial alta.",
+    "La carga comercial alta de las seis cuentas que exceden el nivel declarado asciende a $588K.",
+    "$588K: eso acumulan en carga comercial alta las 6 cuentas sobre el nivel declarado."
+   ]
+  },
+  {
+   "id": "tr-063",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "grupo",
+    "sujeto": [
+     "Lider",
+     "Falabella",
+     "Sodimac",
+     "Tottus",
+     "Paris",
+     "Easy"
+    ],
+    "metrica": "Saldo vencido",
+    "valor": "$12.6M",
+    "periodo": "al corte (31 ago 2026)",
+    "evidencia": [
+     "Saldo vencido · total"
+    ]
+   },
+   "redacciones": [
+    "Lider, Falabella, Sodimac, Tottus, Paris y Easy suman $12,6M vencidos.",
+    "El saldo vencido —Lider, Falabella, Sodimac, Tottus, Paris y Easy— asciende a $12.6M.",
+    "Entre las seis cuentas con mora (Lider, Falabella, Sodimac, Tottus, Paris y Easy) hay $12,6M vencidos."
+   ]
+  },
+  {
+   "id": "tr-064",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "grupo",
+    "sujeto": [
+     "Easy",
+     "La Polar",
+     "Hites",
+     "ABC",
+     "Unimarc"
+    ],
+    "metrica": "Peso en la venta",
+    "valor": "13.8%",
+    "periodo": "año cerrado",
+    "evidencia": [
+     "Peso en la venta · papel: sobre la referencia (5 cuentas)"
+    ]
+   },
+   "redacciones": [
+    "Easy, La Polar, Hites, ABC y Unimarc pesan el 13,8% de la venta.",
+    "Las cinco cuentas sobre la referencia —Easy, La Polar, Hites, ABC y Unimarc— representan el 13.8% de la venta.",
+    "Un 13,8% de la venta: ese es el peso conjunto de Easy, La Polar, Hites, ABC y Unimarc."
+   ]
+  },
+  {
+   "id": "tr-065",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "conteo",
+    "conteo": {
+     "n": 8,
+     "m": 13,
+     "predicado": "clientes bajo el benchmark"
+    },
+    "universo": "los 13 clientes",
+    "evidencia": [
+     "clientes bajo el benchmark"
+    ]
+   },
+   "redacciones": [
+    "Ocho de los 13 clientes están bajo el benchmark de margen.",
+    "Bajo el benchmark hay 8 clientes.",
+    "Los clientes que no llegan al benchmark son 8 de 13."
+   ]
+  },
+  {
+   "id": "tr-066",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Son 8 los clientes bajo el benchmark, no 6",
+   "afirmacion": {
+    "tipo": "conteo",
+    "conteo": {
+     "n": 6,
+     "m": 13,
+     "predicado": "clientes bajo el benchmark"
+    },
+    "universo": "los 13 clientes",
+    "evidencia": [
+     "clientes bajo el benchmark"
+    ]
+   },
+   "redacciones": [
+    "Seis de los 13 clientes están bajo el benchmark de margen.",
+    "Bajo el benchmark hay 6 clientes.",
+    "Los clientes que no llegan al benchmark son 6 de 13."
+   ]
+  },
+  {
+   "id": "tr-067",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "conteo",
+    "conteo": {
+     "n": 5,
+     "m": 8,
+     "predicado": "cuentas materiales"
+    },
+    "universo": "las 8 bajo el benchmark",
+    "evidencia": [
+     "Contribución no capturada · subtotal · 5 cuentas materiales (de 8 bajo el benchmark)"
+    ]
+   },
+   "redacciones": [
+    "De las 8 cuentas bajo el benchmark, 5 son materiales.",
+    "Son 5 (de 8 bajo el benchmark) las cuentas materiales.",
+    "Las cuentas materiales bajo el benchmark son cinco de ocho."
+   ]
+  },
+  {
+   "id": "tr-068",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Son 6 las cuentas sobre el nivel de carga declarado (5 de ellas bajo el benchmark), no 8",
+   "afirmacion": {
+    "tipo": "conteo",
+    "conteo": {
+     "n": 8,
+     "predicado": "cuentas sobre el nivel de carga comercial declarado"
+    },
+    "universo": "los 13 clientes",
+    "evidencia": [
+     "Carga comercial alta · subtotal · 6 cuentas sobre el nivel declarado (5 de ellas bajo el benchmark)"
+    ]
+   },
+   "redacciones": [
+    "Ocho cuentas exceden el nivel de carga comercial declarado.",
+    "Sobre el nivel de carga declarado hay 8 clientes.",
+    "Los clientes que superan el nivel de carga declarado son 8."
+   ]
+  },
+  {
+   "id": "tr-069",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "conteo",
+    "conteo": {
+     "n": 3,
+     "m": 13,
+     "predicado": "SKU frenados"
+    },
+    "universo": "los 13 SKU en inventario",
+    "evidencia": [
+     "Capital frenado · subtotal"
+    ]
+   },
+   "redacciones": [
+    "Tres de los 13 SKU están frenados.",
+    "Frenados hay 3 SKU en el inventario.",
+    "Los SKU frenados son tres."
+   ]
+  },
+  {
+   "id": "tr-070",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Son 3 los SKU frenados (LG-DRYER8KG, BOS-SANDER y MAK-COMP-AIR), no 4",
+   "afirmacion": {
+    "tipo": "conteo",
+    "conteo": {
+     "n": 4,
+     "m": 13,
+     "predicado": "SKU frenados"
+    },
+    "universo": "los 13 SKU en inventario",
+    "evidencia": [
+     "Capital frenado · subtotal"
+    ]
+   },
+   "redacciones": [
+    "Cuatro de los 13 SKU están frenados.",
+    "Frenados hay 4 SKU en el inventario.",
+    "Los SKU frenados son cuatro."
+   ]
+  },
+  {
+   "id": "tr-071",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "conteo",
+    "conteo": {
+     "n": 6,
+     "m": 13,
+     "predicado": "clientes con saldo vencido"
+    },
+    "universo": "los 13 clientes de la cobranza",
+    "periodo": "al corte (31 ago 2026)",
+    "evidencia": [
+     "Saldo vencido · total"
+    ]
+   },
+   "redacciones": [
+    "Seis de los 13 clientes tienen saldo vencido.",
+    "Con vencido hay 6 clientes al corte.",
+    "Los clientes en mora son seis de trece."
+   ]
+  },
+  {
+   "id": "tr-072",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Los 3 del tramo alto bajo el benchmark exceden además el nivel de carga declarado (3 de 3), no 2",
+   "afirmacion": {
+    "tipo": "conteo",
+    "conteo": {
+     "n": 2,
+     "m": 3,
+     "predicado": "clientes del tramo alto bajo el benchmark que además exceden el nivel de carga declarado"
+    },
+    "universo": "los 3 clientes del tramo alto bajo el benchmark",
+    "evidencia": [
+     "Clientes del tramo alto bajo el benchmark",
+     "De esos, los que además exceden el nivel de carga declarado"
+    ]
+   },
+   "redacciones": [
+    "De los 3 clientes del tramo alto bajo el benchmark, 2 además exceden el nivel de carga declarado.",
+    "Son 2 (de 3 del tramo alto bajo el benchmark) los que además exceden el nivel de carga.",
+    "Del tramo alto bajo el benchmark (3 cuentas), las que también superan la carga declarada son dos."
+   ]
+  },
+  {
+   "id": "tr-073",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "conteo",
+    "conteo": {
+     "n": 5,
+     "m": 13,
+     "predicado": "clientes sobre el benchmark"
+    },
+    "universo": "los 13 clientes",
+    "evidencia": [
+     "Clientes · sobre el benchmark"
+    ]
+   },
+   "redacciones": [
+    "Cinco de los 13 clientes están sobre el benchmark.",
+    "Sobre el benchmark hay 5 clientes.",
+    "Los clientes que superan el benchmark son cinco."
+   ]
+  },
+  {
+   "id": "tr-074",
+   "contexto": "ambos",
+   "esperado": "no-verificable",
+   "motivo": "sin-evidencia: la boleta trae el capital en sobrestock ($10K) pero no qué SKU lo componen",
+   "afirmacion": {
+    "tipo": "conteo",
+    "conteo": {
+     "n": 4,
+     "m": 13,
+     "predicado": "SKU en sobrestock"
+    },
+    "universo": "los 13 SKU en inventario"
+   },
+   "redacciones": [
+    "Cuatro de los 13 SKU están en sobrestock.",
+    "En sobrestock hay 4 SKU.",
+    "Los SKU en sobrestock son cuatro."
+   ]
+  },
+  {
+   "id": "tr-075",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "Solo 2 bodegas tienen capital frenado: Valparaíso ($25K) y Antofagasta ($8K)",
+   "afirmacion": {
+    "tipo": "conteo",
+    "conteo": {
+     "n": 4,
+     "m": 4,
+     "predicado": "bodegas con capital frenado"
+    },
+    "universo": "las 4 bodegas del inventario",
+    "evidencia": [
+     "Valparaíso · Capital frenado",
+     "Antofagasta · Capital frenado"
+    ]
+   },
+   "redacciones": [
+    "Las cuatro bodegas tienen capital frenado.",
+    "Con capital frenado hay 4 bodegas.",
+    "Las bodegas con capital frenado son las cuatro del inventario."
+   ]
+  },
+  {
+   "id": "tr-076",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "variacion",
+    "sujeto": "Mercado Libre",
+    "metrica": "Venta",
+    "variacion": {
+     "direccion": "sube",
+     "valor": "25.3%"
+    },
+    "periodo": "vs año anterior",
+    "evidencia": [
+     "Mercado Libre · crecimiento"
+    ]
+   },
+   "redacciones": [
+    "Mercado Libre crece 25,3% frente al año anterior.",
+    "La venta de Mercado Libre subió un 25.3% respecto del año anterior.",
+    "Un 25,3% de crecimiento anual: ese es el salto de Mercado Libre."
+   ]
+  },
+  {
+   "id": "tr-077",
+   "contexto": "P1",
+   "esperado": "falsa",
+   "verdad": "Tottus sube 9.2% vs año anterior, no cae",
+   "afirmacion": {
+    "tipo": "variacion",
+    "sujeto": "Tottus",
+    "metrica": "Venta",
+    "variacion": {
+     "direccion": "baja",
+     "valor": "9.2%"
+    },
+    "periodo": "vs año anterior",
+    "evidencia": [
+     "Tottus · Variación vs año anterior"
+    ]
+   },
+   "redacciones": [
+    "Tottus cae 9,2% frente al año anterior.",
+    "La venta de Tottus retrocedió un 9.2% respecto del año anterior.",
+    "Una caída de 9,2% interanual: así cierra Tottus."
+   ]
+  },
+  {
+   "id": "tr-078",
+   "contexto": "P1",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "variacion",
+    "sujeto": "La Polar",
+    "metrica": "Venta",
+    "variacion": {
+     "direccion": "baja",
+     "valor": "12.5%"
+    },
+    "periodo": "vs año anterior",
+    "evidencia": [
+     "La Polar · Variación vs año anterior"
+    ]
+   },
+   "redacciones": [
+    "La Polar cae 12,5% frente al año anterior.",
+    "La venta de La Polar retrocedió un 12.5% respecto del año anterior.",
+    "Una caída interanual de 12,5%: así cierra La Polar."
+   ]
+  },
+  {
+   "id": "tr-079",
+   "contexto": "P1",
+   "esperado": "falsa",
+   "verdad": "Ripley cae 8.2% (−$422K) vs año anterior; el +8.2% es el crecimiento de Falabella",
+   "afirmacion": {
+    "tipo": "variacion",
+    "sujeto": "Ripley",
+    "metrica": "Venta",
+    "variacion": {
+     "direccion": "sube",
+     "valor": "8.2%"
+    },
+    "periodo": "vs año anterior",
+    "evidencia": [
+     "Ripley · Variación vs año anterior"
+    ]
+   },
+   "redacciones": [
+    "Ripley crece 8,2% frente al año anterior.",
+    "La venta de Ripley subió un 8.2% respecto del año anterior.",
+    "Un 8,2% de crecimiento interanual: eso muestra Ripley."
+   ]
+  },
+  {
+   "id": "tr-080",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "variacion",
+    "sujeto": "negocio",
+    "metrica": "Ventas",
+    "variacion": {
+     "direccion": "sube",
+     "valor": "7.5%"
+    },
+    "periodo": "vs año anterior",
+    "evidencia": [
+     "Ventas vs año anterior"
+    ]
+   },
+   "redacciones": [
+    "El negocio crece 7,5% frente al año anterior.",
+    "Las ventas del período subieron un 7.5% respecto del año anterior.",
+    "Un 7,5% de crecimiento interanual: así cierra la cartera completa."
+   ]
+  },
+  {
+   "id": "tr-081",
+   "contexto": "P1",
+   "esperado": "falsa",
+   "verdad": "Lider crece 14.9% vs año anterior; 12.2% es el crecimiento de Jumbo",
+   "afirmacion": {
+    "tipo": "variacion",
+    "sujeto": "Lider",
+    "metrica": "Venta",
+    "variacion": {
+     "direccion": "sube",
+     "valor": "12.2%"
+    },
+    "periodo": "vs año anterior",
+    "evidencia": [
+     "Lider · Variación vs año anterior"
+    ]
+   },
+   "redacciones": [
+    "Lider crece 12,2% frente al año anterior.",
+    "La venta de Lider subió un 12.2% respecto del año anterior.",
+    "Un 12,2% de crecimiento interanual: eso muestra Lider."
+   ]
+  },
+  {
+   "id": "tr-082",
+   "contexto": "ambos",
+   "esperado": "no-verificable",
+   "motivo": "sin-evidencia: la boleta no trae la variación del margen (solo la de la venta)",
+   "afirmacion": {
+    "tipo": "variacion",
+    "sujeto": "Falabella",
+    "metrica": "Margen",
+    "variacion": {
+     "direccion": "baja"
+    },
+    "periodo": "vs año anterior"
+   },
+   "redacciones": [
+    "El margen de Falabella cayó frente al año anterior.",
+    "Falabella margina menos que el año pasado.",
+    "Respecto del año anterior, el margen de Falabella retrocede."
+   ]
+  },
+  {
+   "id": "tr-083",
+   "contexto": "P1",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "variacion",
+    "sujeto": "Lider",
+    "metrica": "Venta",
+    "variacion": {
+     "direccion": "sube",
+     "valor": "+$2.3M"
+    },
+    "periodo": "vs año anterior",
+    "evidencia": [
+     "Lider · YoY"
+    ]
+   },
+   "redacciones": [
+    "Lider suma $2,3M más de venta que el año anterior.",
+    "La venta de Lider creció en $2.3M respecto del año anterior.",
+    "Frente al año anterior, +$2,3M: ese es el avance de Lider."
+   ]
+  },
+  {
+   "id": "tr-084",
+   "contexto": "P1",
+   "esperado": "falsa",
+   "verdad": "Hites sube 4.0% vs año anterior, no cae",
+   "afirmacion": {
+    "tipo": "variacion",
+    "sujeto": "Hites",
+    "metrica": "Venta",
+    "variacion": {
+     "direccion": "baja",
+     "valor": "4.0%"
+    },
+    "periodo": "vs año anterior",
+    "evidencia": [
+     "Hites · Variación vs año anterior"
+    ]
+   },
+   "redacciones": [
+    "Hites cae 4,0% frente al año anterior.",
+    "La venta de Hites retrocedió un 4.0% respecto del año anterior.",
+    "Una caída interanual de 4,0%: así cierra Hites."
+   ]
+  },
+  {
+   "id": "tr-085",
+   "contexto": "ambos",
+   "esperado": "no-verificable",
+   "motivo": "sin-evidencia: la boleta trae la rotación de hoy (1.0x) pero ninguna serie para compararla con el año anterior",
+   "afirmacion": {
+    "tipo": "variacion",
+    "sujeto": "LG-DRYER8KG",
+    "metrica": "Rotación",
+    "variacion": {
+     "direccion": "baja"
+    },
+    "periodo": "vs año anterior"
+   },
+   "redacciones": [
+    "La rotación de LG-DRYER8KG bajó frente al año anterior.",
+    "LG-DRYER8KG rota menos que el año pasado.",
+    "Respecto del año anterior, la rotación de LG-DRYER8KG retrocede."
+   ]
+  },
+  {
+   "id": "tr-086",
+   "contexto": "P1",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "variacion",
+    "sujeto": "Easy",
+    "metrica": "Venta",
+    "variacion": {
+     "direccion": "baja",
+     "valor": "5.0%"
+    },
+    "periodo": "vs año anterior",
+    "evidencia": [
+     "Easy · Variación vs año anterior"
+    ]
+   },
+   "redacciones": [
+    "Easy cae 5,0% frente al año anterior.",
+    "La venta de Easy retrocedió un 5.0% respecto del año anterior.",
+    "Una caída interanual de 5,0%: así cierra Easy."
+   ]
+  },
+  {
+   "id": "tr-087",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "estado",
+    "sujeto": "LG-DRYER8KG",
+    "estado": {
+     "estado": "frenado",
+     "bodega": "Valparaíso"
+    },
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "LG-DRYER8KG · Capital frenado"
+    ]
+   },
+   "redacciones": [
+    "LG-DRYER8KG está frenado en Valparaíso.",
+    "En la bodega de Valparaíso, LG-DRYER8KG figura como frenado.",
+    "Frenado en Valparaíso: esa es la condición de LG-DRYER8KG."
+   ]
+  },
+  {
+   "id": "tr-088",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "LG-DRYER8KG está frenado en Valparaíso, no en Santiago",
+   "afirmacion": {
+    "tipo": "estado",
+    "sujeto": "LG-DRYER8KG",
+    "estado": {
+     "estado": "frenado",
+     "bodega": "Santiago"
+    },
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "LG-DRYER8KG · Capital frenado"
+    ]
+   },
+   "redacciones": [
+    "LG-DRYER8KG está frenado en Santiago.",
+    "En la bodega de Santiago, LG-DRYER8KG figura como frenado.",
+    "Frenado en Santiago: esa es la condición de LG-DRYER8KG."
+   ]
+  },
+  {
+   "id": "tr-089",
+   "contexto": "ambos",
+   "esperado": "verdadera",
+   "afirmacion": {
+    "tipo": "estado",
+    "sujeto": "SAM-TV55",
+    "estado": {
+     "estado": "inmovilizado",
+     "bodega": "Santiago"
+    },
+    "periodo": "foto de hoy"
+   },
+   "redacciones": [
+    "SAM-TV55 está inmovilizado en Santiago.",
+    "En la bodega de Santiago, SAM-TV55 figura como inmovilizado.",
+    "Inmovilizado en Santiago: así está SAM-TV55."
+   ]
+  },
+  {
+   "id": "tr-090",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "MAK-COMP-AIR está frenado en Antofagasta, no en Valparaíso",
+   "afirmacion": {
+    "tipo": "estado",
+    "sujeto": "MAK-COMP-AIR",
+    "estado": {
+     "estado": "frenado",
+     "bodega": "Valparaíso"
+    },
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "MAK-COMP-AIR · Capital frenado"
+    ]
+   },
+   "redacciones": [
+    "MAK-COMP-AIR está frenado en Valparaíso.",
+    "En la bodega de Valparaíso, MAK-COMP-AIR figura como frenado.",
+    "Frenado en Valparaíso: esa es la condición de MAK-COMP-AIR."
+   ]
+  },
+  {
+   "id": "tr-091",
+   "contexto": "ambos",
+   "esperado": "falsa",
+   "verdad": "PHI-IRON-PRO está inmovilizado en Concepción, no frenado; los frenados son LG-DRYER8KG, BOS-SANDER y MAK-COMP-AIR",
+   "afirmacion": {
+    "tipo": "estado",
+    "sujeto": "PHI-IRON-PRO",
+    "estado": {
+     "estado": "frenado",
+     "bodega": "Concepción"
+    },
+    "periodo": "foto de hoy",
+    "evidencia": [
+     "Capital frenado · subtotal"
+    ]
+   },
+   "redacciones": [
+    "PHI-IRON-PRO está frenado en Concepción.",
+    "En la bodega de Concepción, PHI-IRON-PRO figura como frenado.",
+    "Frenado en Concepción: esa es la condición de PHI-IRON-PRO."
+   ]
+  },
+  {
+   "id": "tr-092",
+   "contexto": "ambos",
+   "esperado": "no-verificable",
+   "motivo": "sin-evidencia: la boleta trae el capital en riesgo de quiebre ($36K) pero no declara qué SKU están en ese estado",
+   "afirmacion": {
+    "tipo": "estado",
+    "sujeto": "SAM-REF500L",
+    "estado": {
+     "estado": "riesgo de quiebre"
+    },
+    "periodo": "foto de hoy"
+   },
+   "redacciones": [
+    "SAM-REF500L está en riesgo de quiebre.",
+    "Riesgo de quiebre: esa es la condición de SAM-REF500L.",
+    "SAM-REF500L figura hoy en riesgo de quiebre de stock."
+   ]
+  },
+  {
+   "id": "tr-093",
+   "contexto": "ambos",
+   "esperado": "sellada",
+   "afirmacion": {
+    "tipo": "lectura",
+    "sello": "criterio mío"
+   },
+   "redacciones": [
+    "Yo miraría primero a Lider.",
+    "Mi primera conversación sería con Lider.",
+    "Si tuviera que elegir por dónde empezar, empezaría por Lider."
+   ]
+  },
+  {
+   "id": "tr-094",
+   "contexto": "ambos",
+   "esperado": "sellada",
+   "afirmacion": {
+    "tipo": "lectura",
+    "sello": "indicado"
+   },
+   "redacciones": [
+    "Todo indica que la carga comercial explica parte del margen delgado.",
+    "Parte del margen delgado, según lo que se ve, viene de la carga comercial.",
+    "La carga comercial parece explicar una parte del margen delgado."
+   ]
+  },
+  {
+   "id": "tr-095",
+   "contexto": "ambos",
+   "esperado": "no-verificable",
+   "motivo": "lectura-encubre-hecho: la cifra ($4.6M de Saldo vencido de Lider) es un hecho verificable y debe declararse como cifra",
+   "afirmacion": {
+    "tipo": "lectura",
+    "sello": "probado"
+   },
+   "redacciones": [
+    "Yo empezaría por Lider, que acumula $4,6M vencidos.",
+    "Mi primera conversación sería con Lider: tiene $4.6M vencidos.",
+    "Con $4,6M vencidos, Lider es por donde yo empezaría."
+   ]
+  },
+  {
+   "id": "tr-096",
+   "contexto": "ambos",
+   "esperado": "no-verificable",
+   "motivo": "lectura-encubre-hecho: «la cuenta que más vende» es un orden (Falabella · Venta · max · los 13 clientes) y debe declararse como orden",
+   "afirmacion": {
+    "tipo": "lectura",
+    "sello": "criterio mío"
+   },
+   "redacciones": [
+    "Falabella, la cuenta que más vende, merece la primera conversación.",
+    "Yo abriría la agenda con Falabella: es la que más vende.",
+    "La primera conversación debería ser con Falabella, que encabeza la venta."
+   ]
+  }
+ ]
+}
