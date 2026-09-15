@@ -25,6 +25,7 @@ import { etiquetaDeLaCarga } from "../../../config/businessPolicy.js";
 import { reDeReferencia } from "../../oracle/entityRecord.js";   // el rótulo de la referencia se busca por el MISMO label que se publica   // DE QUIÉN es el nivel de carga: jamás «tu target declarado» si el cliente no lo declaró
 import { idDeCargaActiva } from "../../../ingesta/estadoCarga.js";   // DIARIO ETAPA 2: la tesis se compara contra la carga con la que se lee — una sola función, jamás dos derivaciones
 import { resolveCanonical } from "../../oracle/entityIndex.js";   // la identidad canónica del cliente: una entidad se cuenta UNA vez aunque dos herramientas la citen (owner 2026-09-13)
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2, owner 2026-09-15): el playbook DECLARA cada hecho mientras lo escribe
 
 const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
 /* ⚠️ EL MOTOR SOLO PONE `raw` EN LAS FILAS DESTACADAS (medido: de los 13 clientes con margen, 5 traen `raw` y
@@ -51,6 +52,45 @@ const _entidadDe = (label) => {
   const p = String(label || "").split("·").map((s) => s.trim());
   return p.length >= 2 ? p[0] : null;
 };
+
+/* ── LO QUE SE ESCRIBE SE DECLARA (Notario semántico, fase 2 · owner 2026-09-15) ──────────────────────────────
+ * «El respaldo debe declarar y verificarse con el mismo estándar, no tener un camino privilegiado.» Cada línea con
+ * una cifra, un orden, un conteo o una relación se guarda en una variable, se escribe y se declara con ESA línea
+ * como `texto`; el juez la verifica después contra la boleta. Sin colector (`declarar` ausente) el declarador es
+ * mudo y el texto queda byte-idéntico. Los universos se nombran con el vocabulario que la evidencia resuelve:
+ * «los clientes de la cartera» es el eje entero; «los clientes bajo el benchmark» es el umbral del ranking de
+ * margen contra la referencia — ningún número escrito a mano. */
+const _U_CARTERA = "los clientes de la cartera";
+const _U_BAJO = "los clientes bajo el benchmark";
+const _entero = (f) => (Number.isFinite(_num(f)) ? _num(f) : parseInt(_val(f), 10));
+/* el universo de un subtotal es el que su propio rótulo declara («5 cuentas materiales (de 8 bajo el benchmark)») */
+const _universoDeSubtotal = (f) => { const m = /· subtotal · (.+)$/.exec(_lab(f)); return m ? m[1] : "subtotal"; };
+/* un subtotal se declara como GRUPO con las entidades que su fig trae (el verificador cobra el conjunto entero);
+ * si la fig no las trae, como cifra del negocio con el universo del rótulo — jamás como el total de la cartera. */
+function _declararSubtotal(D, f, metrica, texto) {
+  if (!f) return;
+  const ents = f.grupo && Array.isArray(f.grupo.entidades) ? f.grupo.entidades.map(String) : [];
+  const universo = _universoDeSubtotal(f);
+  if (ents.length) D.grupo({ sujeto: ents, metrica, valor: _val(f), universo, texto });
+  else D.cifra({ sujeto: "negocio", metrica, valor: _val(f), universo, texto });
+}
+/* «los N que más …» ES un orden top-k, y el N impreso es su k: el detector de presencia lee ese dígito como una cifra
+ * suelta y ningún tipo lleva el k al canon de cifras — por eso el orden viaja con `valor` = k (el objeto entero por
+ * `agregar`, porque `D.orden` no admite valor). El juez verifica el top-k con los k nombres; el valor solo cubre el dígito. */
+const _ordenTopK = (D, { sujeto, metrica, k, universo, texto }) =>
+  D.agregar({ tipo: "orden", sujeto, metrica, orden: { forma: "topk", k, direccion: "mayor" }, universo, valor: String(k), texto });
+/* el exceso de carga de una cuenta grande («1 puntos sobre ese nivel») es una cuenta del composer sin fig: carga de la
+ * cuenta menos el nivel declarado, y se declara con esa evidencia. Solo el máximo: va pegado a «puntos» y el juez lo
+ * lee; el mínimo («0.3 y…») queda sin unidad en la prosa y ningún lector de cifras lo ve — declararlo sería inconsistente. */
+function _declararExcesoMaximo(D, ero, C, figs, texto) {
+  const grandes = ero && Array.isArray(ero.items) ? ero.items.filter((f) => f.grande && Number.isFinite(f.cargaSobre)) : [];
+  const eMax = Number.isFinite(C.excesoMax) ? grandes.find((f) => f.cargaSobre === C.excesoMax) : null;
+  if (!eMax) return;
+  const carga = _find(figs, new RegExp(`^${_esc(eMax.entidad)} · Carga comercial$`, "i"));
+  const nivel = _find(figs, reDeReferencia("pctRebate"));
+  if (!carga || !nivel) return;   // sin los dos rótulos en la boleta no hay cuenta que declarar
+  D.cifra({ sujeto: eMax.entidad, metrica: "exceso de carga sobre el nivel declarado", valor: `${C.excesoMax} pp`, evidencia: [_lab(carga), _lab(nivel)], texto });
+}
 
 /* ── UNA ENTIDAD, UNA FILA (owner 2026-09-13) ─────────────────────────────────────────────────────────────────
  * El encargo compuesto lee con la boleta UNIDA de varias herramientas, y dos de ellas pueden citar la misma
@@ -274,7 +314,8 @@ export function diarioDeTesis(scenario) {
  * tesis · la RE-MEDICIÓN nombrada (se vuelve a medir de verdad, no se recuerda una frase) · y «lo nuevo es»
  * — porque un seguimiento sin novedad declarada suena a eco. Sin tesis en el hilo, se dice y se arma la
  * lectura completa: fingir que se recuerda sería la peor versión de un diario. */
-function componerElSeguimiento({ figs, semilla, scenario, mem }) {
+function componerElSeguimiento({ figs, semilla, scenario, mem, declarar }) {
+  const D = declaradorDe(declarar);
   const tesis = mem && mem.diarioTesis && mem.diarioTesis.clave === "margen-roles" ? mem.diarioTesis : null;
   if (!tesis || !tesis.huella) return null;                    // sin tesis: el caller arma la lectura completa
   let A = null;
@@ -292,12 +333,22 @@ function componerElSeguimiento({ figs, semilla, scenario, mem }) {
     ? `No cambia la lectura: el margen sigue presionado por las mismas cuentas grandes que sostienen tu facturación.`
     : `Sí cambia, y por eso vale la pena que preguntes: la medición de hoy ya no dice lo mismo que la de antes en este hilo.`);
   /* 2 · QUÉ ERA la tesis — el diario habla de lo suyo, con la frase que se guardó */
-  p.push(`La tesis que dejamos era esta: ${tesis.resumen}.`);
+  const era = `La tesis que dejamos era esta: ${tesis.resumen}.`;
+  p.push(era);
+  /* la tesis citada nombra a «los que caen»: hoy son los N bajo el benchmark (re-medidos); «los mismos que sostienen la
+   * facturación» solo se sostiene si la huella no se movió — lo corregido se cita, no se afirma */
+  if (C.caen) D.conteo({ n: C.caen, predicado: "bajo el benchmark", universo: _U_CARTERA, texto: era });
+  if (igual && C.mismaGente && C.grandesQueCaen) D.conteo({ n: C.grandesQueCaen, predicado: "del tramo alto bajo el benchmark", universo: _U_CARTERA, texto: era });
   /* 3 · LA RE-MEDICIÓN, NOMBRADA — se volvió a medir, no se recordó */
   const _CUENTA = ["", "una", "dos", "tres"];
-  p.push(nombres.length
+  const reMedida = nombres.length
     ? `Al volver a medir: ${nombres.join(" · ")} siguen concentrando la brecha, y ${igual ? "el reparto de papeles no se movió" : "el reparto de papeles cambió"} — ${C.caen} clientes bajo el benchmark, ${C.grandesQueCaen} de ellos entre los que mueven la facturación.`
-    : `Al volver a medir: ${C.caen} clientes quedan bajo el benchmark y ${C.grandesQueCaen} de ellos están entre los que mueven la facturación.`);
+    : `Al volver a medir: ${C.caen} clientes quedan bajo el benchmark y ${C.grandesQueCaen} de ellos están entre los que mueven la facturación.`;
+  p.push(reMedida);
+  /* lo re-medido se declara: cuántos caen, cuántos de ellos son del tramo alto, y quiénes concentran la brecha (en dinero) */
+  if (C.caen) D.conteo({ n: C.caen, predicado: "bajo el benchmark", universo: _U_CARTERA, texto: reMedida });
+  if (C.grandesQueCaen) D.conteo({ n: C.grandesQueCaen, predicado: "del tramo alto bajo el benchmark", universo: _U_CARTERA, texto: reMedida });
+  if (nombres.length) _ordenTopK(D, { sujeto: nombres, metrica: "Contribución no capturada", k: nombres.length, universo: _U_BAJO, texto: reMedida });
   /* 4 · LO NUEVO — qué aporta este turno aunque la tesis se sostenga (sin esto es un eco) */
   const preg = A.preguntaAlDueno;
   /* ⚠️ LAS TRES VARIANTES LLEVAN LA MARCA DE CRITERIO, y esto lo enseñó una corrida del supervisor (2026-09-05):
@@ -306,11 +357,13 @@ function componerElSeguimiento({ figs, semilla, scenario, mem }) {
    * que la variante rota vivía escondida hasta que otro largo de hilo la sacaba. Las tres proponen un curso de
    * acción: las tres se marcan. La lección quedó en el gate de variación, que ahora corre TODAS × varios
    * largos por el turno completo. */
-  p.push(variante(semilla, [
+  const nuevo = variante(semilla, [
     `Lo nuevo —criterio mío, no una cifra del dato— es que la decisión ya no es tocarle el precio a todos: es separar en ${_CUENTA[Math.min(3, nombres.length)] || "esas"} cuentas qué parte de la carga comercial fue deliberada y qué parte se descontroló.${preg ? ` Sigue en pie mi pregunta: ${preg.texto}` : ""}`,
     `Lo nuevo es el foco, y es criterio mío, no una cifra del dato: no un ajuste parejo de precio, sino distinguir en esas cuentas la carga deliberada de la que se escapó.${preg ? ` Y sigue abierta mi pregunta: ${preg.texto}` : ""}`,
     `Lo nuevo está en qué haría yo —criterio mío, no una cifra del dato—: en vez de mover el precio de toda la cartera, separar en esas cuentas la carga deliberada de la que no lo fue.${preg ? ` Mi pregunta sigue esperando: ${preg.texto}` : ""}`,
-  ]));
+  ]);
+  p.push(nuevo);
+  D.lectura({ texto: nuevo, sello: "criterio mío" });
   return p.join("\n\n");
 }
 
@@ -330,7 +383,8 @@ export function prioridadDe(figs) {
     .sort((a, b) => b.usd - a.usd);
   return juego.length ? { top: juego[0], juego } : null;
 }
-function componerLaPrioridad({ figs, semilla }) {
+function componerLaPrioridad({ figs, semilla, declarar }) {
+  const D = declaradorDe(declarar);
   /* una sola derivación: la misma que defiende la notarial (`prioridadDe`) — una verdad, no una copia */
   const pr = prioridadDe(figs);
   if (!pr) return null;
@@ -338,9 +392,23 @@ function componerLaPrioridad({ figs, semilla }) {
   const total = _find(figs, /^Contribuci[oó]n no capturada · subtotal(?: · \d+ cuentas materiales [^·]*)?$/i);
   const cargaTop = _find(figs, new RegExp(`^${_esc(top.entidad)} · Carga comercial alta$`, "i"));
   const p = [];
-  p.push(`Entraría por ${top.entidad}. Una sola cosa.`);
-  p.push(`La acción: separar en ${top.entidad} la carga comercial deliberada de la que no lo fue${cargaTop ? ` — su carga excedida es ${_val(cargaTop)}` : ""}, y decidir esa parte cuenta por cuenta.`);
-  p.push(`Por qué primero — criterio mío: es donde hay más contribución en juego. ${top.entidad} deja ${top.fmt} sin capturar${total ? `, de ${_val(total)} no capturados en toda la cartera` : ""}.`);
+  const entrada = `Entraría por ${top.entidad}. Una sola cosa.`;
+  p.push(entrada);
+  D.lectura({ texto: entrada, sello: "criterio mío" });
+  const accion = `La acción: separar en ${top.entidad} la carga comercial deliberada de la que no lo fue${cargaTop ? ` — su carga excedida es ${_val(cargaTop)}` : ""}, y decidir esa parte cuenta por cuenta.`;
+  p.push(accion);
+  if (cargaTop) D.cifra({ sujeto: top.entidad, metrica: "Carga comercial alta", valor: _val(cargaTop), texto: accion });
+  const porque = `Por qué primero — criterio mío: es donde hay más contribución en juego. ${top.entidad} deja ${top.fmt} sin capturar${total ? `, de ${_val(total)} no capturados en toda la cartera` : ""}.`;
+  p.push(porque);
+  /* la prioridad es un orden (el máximo de contribución no capturada entre los que caen) y su cifra; el subtotal se declara
+   * con el universo que la PROSA le pone —«toda la cartera»— para que el juez lo cobre si el rótulo dice otro: el composer
+   * no se tapa a sí mismo. */
+  D.orden({ sujeto: top.entidad, metrica: "Contribución no capturada", forma: "max", direccion: "mayor", universo: _U_BAJO, texto: porque });
+  D.cifra({ sujeto: top.entidad, metrica: "Contribución no capturada", valor: top.fmt, texto: porque });
+  if (total) {
+    D.cifra({ sujeto: "negocio", metrica: "Contribución no capturada", valor: _val(total), universo: "toda la cartera", texto: porque });
+    D.relacion({ sujeto: top.entidad, metrica: "Contribución no capturada", forma: "parte", vs: { sujeto: "negocio", metrica: "Contribución no capturada" }, texto: porque });
+  }
   p.push(variante(semilla, [
     `Cuando lo trabajes, seguimos con el siguiente de la lista.`,
     `Si quieres, te dejo armado el siguiente de la lista para después.`,
@@ -371,7 +439,46 @@ function _lineaDeHuella(h) {
   const conPunto = /[.!?…]$/.test(dicho) ? dicho : `${dicho}.`;
   return `- ${h.mecanismo} — ${h.falta ? `${conPunto} Para cerrarlo: ${h.falta}.` : dicho}`;
 }
-function componerElSello({ figs, semilla, scenario, mem }) {
+/* cada huella declara SU hecho, con la línea escrita como texto — la misma función para el porqué y para el sello:
+ *   · acciones comerciales: «N de los que caen la tienen sobre el X%» es un CONTEO (bajo el benchmark Y sobre el nivel
+ *     declarado, de los que caen) más la cifra del nivel;
+ *   · volumen a margen bajo: presente, el conteo del papel; ausente («ningún cliente del tramo alto cae sin carga
+ *     excedida»), los dos conteos que lo dicen en positivo — cuántos del tramo alto caen y cuántos de esos exceden;
+ *   · precio de lista: los dos promedios de markup son GRUPOS enteros (los que caen · los sanos) y la comparación
+ *     entre ellos es una relación «menor»;
+ *   · mix: no hay cifra ni orden — es una lectura con el sello de la huella.
+ * Lo que la huella dice en negativo sin cifra («ningún cliente bajo el benchmark supera…») no tiene conteo que declarar. */
+function _declararHuella(D, h, texto, A, figs) {
+  const C = (A && A.concurrencia) || {};
+  const roles = (A && A.roles) || {};
+  if (/acciones comerciales/i.test(h.mecanismo)) {
+    const nivel = _find(figs, reDeReferencia("pctRebate"));
+    if (nivel) D.deFig(nivel, texto);
+    const ero = roles.erosion_por_acciones;
+    if (h.presente && ero && ero.n) D.conteo({ n: ero.n, m: C.caen || undefined, predicado: "bajo el benchmark y sobre el nivel de carga declarado", universo: _U_BAJO, texto });
+    return;
+  }
+  if (/volumen a margen bajo/i.test(h.mecanismo)) {
+    const vol = roles.apuesta_de_volumen;
+    if (h.presente && vol && vol.n) { D.conteo({ n: vol.n, predicado: vol.titulo, universo: _U_BAJO, texto }); return; }
+    if (!h.presente && C.grandesQueCaen) {
+      D.conteo({ n: C.grandesQueCaen, predicado: "del tramo alto bajo el benchmark", universo: _U_CARTERA, texto });
+      if (C.grandesQueCaenYExcedenCarga) D.conteo({ n: C.grandesQueCaenYExcedenCarga, predicado: "del tramo alto bajo el benchmark que además exceden el nivel de carga declarado", universo: _U_CARTERA, texto });
+    }
+    return;
+  }
+  if (/precio de lista/i.test(h.mecanismo)) {
+    if (!h.presente) return;   // sin la huella no hay promedio citado ni comparación que declarar
+    const caen = (Array.isArray(h.caen) ? h.caen : []).map((f) => f.entidad), sanos = (Array.isArray(h.sanos) ? h.sanos : []).map((f) => f.entidad);
+    if (caen.length && Number.isFinite(h.markupCaen)) D.grupo({ sujeto: caen, metrica: "Markup promedio", valor: `${h.markupCaen}%`, universo: "los que caen", texto });
+    if (sanos.length && Number.isFinite(h.markupSanos)) D.grupo({ sujeto: sanos, metrica: "Markup promedio", valor: `${h.markupSanos}%`, universo: "sanos", texto });
+    if (caen.length && sanos.length) D.relacion({ sujeto: { descripcion: "los que caen" }, metrica: "Markup promedio", forma: "menor", vs: { sujeto: { descripcion: "sanos" }, metrica: "Markup promedio" }, texto });
+    return;
+  }
+  if (/mix/i.test(h.mecanismo)) D.lectura({ texto, sello: h.sello });
+}
+function componerElSello({ figs, semilla, scenario, mem, declarar }) {
+  const D = declaradorDe(declarar);
   let A = null;
   try { A = buildRolesCartera(scenario); } catch { A = null; }
   if (!A || !A.hay || !Array.isArray(A.huellas) || !A.huellas.length) return null;
@@ -382,7 +489,7 @@ function componerElSello({ figs, semilla, scenario, mem }) {
   p.push(probadas
     ? `Lo que puedo demostrar y lo que no, mecanismo por mecanismo:`
     : `Lo que el dato permite afirmar y lo que no, mecanismo por mecanismo:`);
-  for (const h of A.huellas) p.push(_lineaDeHuella(h));
+  for (const h of A.huellas) { const l = _lineaDeHuella(h); p.push(l); _declararHuella(D, h, l, A, figs); }
   /* la intención NUNCA es demostrable: se dice, y se le pregunta al dueño — el sello de esa pregunta es suyo */
   if (A.preguntaAlDueno) {
     const _intenciones = (Array.isArray(mem && mem.intenciones) ? mem.intenciones : []).filter((x) => x && x.pregunta === "volumen_deliberado");
@@ -394,7 +501,8 @@ function componerElSello({ figs, semilla, scenario, mem }) {
   return p.join("\n");
 }
 
-function componerElPorque({ figs, semilla, scenario, mem }) {
+function componerElPorque({ figs, semilla, scenario, mem, declarar }) {
+  const D = declaradorDe(declarar);
   /* 00 · ¿HAY CASO? (residual del criterio, tanda 2 post-poda 2026-09-05). Con una vara DECLARADA por el
    * usuario («mi margen mínimo es 25%») el promedio puede quedar ENCIMA — y el porqué de una pérdida que no
    * existe no se cuenta: los papeles de la cartera describen la erosión contra la vara vieja y su partición
@@ -406,14 +514,23 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
     const bench0 = _find(figs, /^Benchmark de margen$/i);
     if (promedio0 && bench0 && Number.isFinite(_pct(promedio0)) && Number.isFinite(_pct(bench0)) && _pct(promedio0) >= _pct(bench0)) {
       const p0 = [];
-      p0.push(`Contra el benchmark de ${_val(bench0)} que declaraste, tu margen promedio (${_val(promedio0)}) está encima: a nivel negocio no hay una pérdida de margen que explicar.`);
+      const encima = `Contra el benchmark de ${_val(bench0)} que declaraste, tu margen promedio (${_val(promedio0)}) está encima: a nivel negocio no hay una pérdida de margen que explicar.`;
+      p0.push(encima);
+      D.deFig(bench0, encima);
+      D.deFig(promedio0, encima);
+      D.relacion({ sujeto: "negocio", metrica: "Margen promedio", forma: _pct(promedio0) > _pct(bench0) ? "mayor" : "igual", vs: { sujeto: "negocio", metrica: "Benchmark de margen" }, texto: encima });
       const cuenta0 = _find(figs, /clientes bajo el benchmark/i);
       const juego0 = _find(figs, /^Contribuci[oó]n no capturada · subtotal(?: · \d+ cuentas materiales [^·]*)?$/i);
       const carga0 = _find(figs, /^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i);
       const abiertos = [];
       if (cuenta0 && juego0) abiertos.push(`${_val(cuenta0)} clientes siguen bajo esa referencia y dejan ${_val(juego0)} de contribución sin capturar`);
       if (carga0) abiertos.push(`la carga comercial alta suma ${_val(carga0)}`);
-      if (abiertos.length) p0.push(`Lo que sigue abierto, cuenta por cuenta: ${abiertos.join(" · ")}.`);
+      if (abiertos.length) {
+        const abierto = `Lo que sigue abierto, cuenta por cuenta: ${abiertos.join(" · ")}.`;
+        p0.push(abierto);
+        if (cuenta0 && juego0) { D.conteo({ n: _entero(cuenta0), predicado: "bajo el benchmark", universo: _U_CARTERA, texto: abierto }); _declararSubtotal(D, juego0, "Contribución no capturada", abierto); }
+        if (carga0) _declararSubtotal(D, carga0, "Carga comercial alta", abierto);
+      }
       p0.push(variante(semilla, [
         `Si quieres, te abro esa parte cliente por cliente.`,
         `¿Te abro esa parte, cliente por cliente?`,
@@ -450,16 +567,26 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
     const otraCarga = (tesisPrevia.carga || null) !== (cargaActual || null);
     const dias = tesisPrevia.fecha ? Math.floor((Date.now() - Date.parse(tesisPrevia.fecha)) / 86400000) : null;
     const vieja = Number.isFinite(dias) && dias > 30;
+    /* la tesis citada nombra a «los que caen»: es el conteo de hoy bajo el benchmark (se re-midió), y si se CONFIRMA la
+     * de «los mismos que sostienen la facturación», también cuántos del tramo alto caen hoy. Lo corregido no se afirma. */
+    const declararDiario = (l) => {
+      if (C.caen) D.conteo({ n: C.caen, predicado: "bajo el benchmark", universo: _U_CARTERA, texto: l });
+      if (igual && C.mismaGente && C.grandesQueCaen) D.conteo({ n: C.grandesQueCaen, predicado: "del tramo alto bajo el benchmark", universo: _U_CARTERA, texto: l });
+    };
     if (vieja) {
       p.push(`Tengo guardada una lectura del margen del ${tesisPrevia.fecha}, pero pasó más de un mes: no la doy por vigente. ¿La retomamos después de esta? Va la lectura de hoy:`);
     } else if (otraCarga) {
-      p.push(igual
+      const l = igual
         ? `La lectura que guardamos${tesisPrevia.fecha ? ` el ${tesisPrevia.fecha}` : ""} era de tu carga anterior — re-medida contra la de hoy, se confirma: ${tesisPrevia.resumen}.`
-        : `La lectura que guardamos${tesisPrevia.fecha ? ` el ${tesisPrevia.fecha}` : ""} era de tu carga anterior y con el dato de hoy cambió (antes: ${tesisPrevia.resumen}) — lo corrijo acá.`);
+        : `La lectura que guardamos${tesisPrevia.fecha ? ` el ${tesisPrevia.fecha}` : ""} era de tu carga anterior y con el dato de hoy cambió (antes: ${tesisPrevia.resumen}) — lo corrijo acá.`;
+      p.push(l);
+      declararDiario(l);
     } else {
-      p.push(igual
+      const l = igual
         ? `Esto confirma la lectura que ya teníamos${tesisPrevia.fecha ? ` (guardada el ${tesisPrevia.fecha})` : " en este hilo"}: ${tesisPrevia.resumen}.`
-        : `La lectura cambió respecto de lo que vimos${tesisPrevia.fecha ? ` (guardado el ${tesisPrevia.fecha})` : " en este hilo"} (antes: ${tesisPrevia.resumen}) — lo corrijo con el dato de hoy.`);
+        : `La lectura cambió respecto de lo que vimos${tesisPrevia.fecha ? ` (guardado el ${tesisPrevia.fecha})` : " en este hilo"} (antes: ${tesisPrevia.resumen}) — lo corrijo con el dato de hoy.`;
+      p.push(l);
+      declararDiario(l);
     }
   }
 
@@ -467,9 +594,15 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
   /* ⚠️ EL BENCHMARK NO COMPARTE ORACIÓN CON «la venta» (multa del muro al estrenar esto, y era CORRECTA: con
    * «bajo tu benchmark (30.1%) … sostienen la venta» el binding leía ese % como cifra de ventas). Cada cifra
    * en su oración, con su dueño — la misma lección que el vigía aprendió el día anterior. */
-  p.push(C.mismaGente && C.grandesQueCaen > 1
+  const mismaGente = C.mismaGente && C.grandesQueCaen > 1;
+  const tesis = mismaGente
     ? `Lo primero, y cambia la decisión: los que caen bajo tu benchmark de margen son los mismos que sostienen tu facturación. No son dos problemas —uno de margen y otro de concentración—: es uno solo con dos caras.`
-    : `Lo primero: no todos los que caen bajo tu benchmark de margen caen por la misma razón, y por eso no se tratan igual.`);
+    : `Lo primero: no todos los que caen bajo tu benchmark de margen caen por la misma razón, y por eso no se tratan igual.`;
+  p.push(tesis);
+  /* «los que caen» es un conjunto medido (los N bajo el benchmark); «los mismos que sostienen tu facturación» es el
+   * conteo del tramo alto que cae — los dos se declaran como conteos, que es lo que la tesis afirma */
+  if (C.caen) D.conteo({ n: C.caen, predicado: "bajo el benchmark", universo: _U_CARTERA, texto: tesis });
+  if (mismaGente) D.conteo({ n: C.grandesQueCaen, predicado: "del tramo alto bajo el benchmark", universo: _U_CARTERA, texto: tesis });
 
   /* 2 · LOS PAPELES — la distinción que el owner pidió: estrategia vs fuga.
    * La PARTICIÓN se declara entera contra el conteo del motor antes de nombrar a nadie: así el lector ve que
@@ -479,12 +612,20 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
   const conteoTotal = _find(figs, /clientes bajo el benchmark/i);
   const partes = [ero, vol, del].filter((r) => r && r.n).map((r) => `${r.n} ${r.titulo}`);
   if (conteoTotal && partes.length > 1) {
-    p.push(`\nDe los ${_val(conteoTotal)} que están bajo el benchmark: ${partes.join(" · ")}. No son el mismo problema y no se tratan igual.`);
+    const particion = `De los ${_val(conteoTotal)} que están bajo el benchmark: ${partes.join(" · ")}. No son el mismo problema y no se tratan igual.`;
+    p.push(`\n${particion}`);
+    /* la partición son conteos: el total bajo el benchmark y cada papel «N de los que caen» */
+    D.conteo({ n: _entero(conteoTotal), predicado: "bajo el benchmark", universo: _U_CARTERA, texto: particion });
+    for (const r of [ero, vol, del]) if (r && r.n) D.conteo({ n: r.n, m: _entero(conteoTotal), predicado: r.titulo, universo: _U_BAJO, texto: particion });
   }
   if (ero && ero.n) {
     const nombres = ero.items.slice(0, 3).map((f) => {
       const b = brechaDe(f.entidad), c = cargaDe(f.entidad);
-      return `${f.entidad}${b ? ` (${_val(b)} bajo el benchmark${c ? `, carga ${_val(c)}` : ""})` : ""}`;
+      const frag = `${f.entidad}${b ? ` (${_val(b)} bajo el benchmark${c ? `, carga ${_val(c)}` : ""})` : ""}`;
+      /* cada cuenta nombrada declara sus dos cifras en su propio tramo: la brecha y la carga, con su dueño */
+      if (b) D.deFig(b, frag);
+      if (b && c) D.deFig(c, frag);
+      return frag;
     });
     /* el CORTE se declara en cada grupo («los 3 que más pesan de los N»): nombrar algunos sin decir cuántos
      * son es la lista-sin-corte que este mismo playbook multa — y me la multó al estrenar el porqué. */
@@ -492,15 +633,35 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
      * un reporte de consultoría»): la línea anterior ya dijo cuántos pagan el margen en acciones; acá va quiénes
      * y contra qué referencia. El corte sigue declarado —«los 3 que más pesan de esos 6»— que es lo que la
      * notarial cobra. */
-    p.push(`\nLos que lo pagan en acciones comerciales cargan más que ${etiquetaDeLaCarga()}${target ? ` (${_val(target)})` : ""}. Los ${nombres.length} que más pesan de esos ${_val(cuenta)}: ${nombres.join(" · ")}. Ahí el margen no se pierde en el precio: se entrega en la negociación.`);
+    const cargan = `Los que lo pagan en acciones comerciales cargan más que ${etiquetaDeLaCarga()}${target ? ` (${_val(target)})` : ""}.`;
+    const corte = `Los ${nombres.length} que más pesan de esos ${_val(cuenta)}:`;
+    p.push(`\n${cargan} ${corte} ${nombres.join(" · ")}. Ahí el margen no se pierde en el precio: se entrega en la negociación.`);
+    /* «cargan más que el nivel» es una relación de cada cuenta del papel contra la referencia declarada, con la cifra del
+     * nivel; «los 3 que más pesan de esos 6» es el top-k por venta dentro del papel (así ordena el motor de papeles) y el
+     * conteo del papel. El orden se declara sobre la cabecera sola: el tramo con los nombres habla de brecha y carga. */
+    if (target) {
+      D.deFig(target, cargan);
+      D.relacion({ sujeto: ero.items.map((f) => f.entidad), metrica: "Carga comercial", forma: "mayor", vs: { sujeto: "negocio", metrica: _lab(target) }, texto: cargan });
+    }
+    D.conteo({ n: ero.n, predicado: ero.titulo, universo: _U_BAJO, texto: corte });
+    _ordenTopK(D, { sujeto: ero.items.slice(0, 3).map((f) => f.entidad), metrica: "Venta", k: nombres.length, universo: ero.items.map((f) => f.entidad), texto: corte });
   }
   if (vol && vol.n) {
-    p.push(`${vol.items.slice(0, 3).map((f) => f.entidad).join(" · ")} compran volumen a margen bajo con la carga dentro del nivel de referencia: eso no es fuga por carga, es precio — y puede ser una decisión tuya, volumen a cambio de rotación y liquidez.`);
+    const volumen = `${vol.items.slice(0, 3).map((f) => f.entidad).join(" · ")} compran volumen a margen bajo con la carga dentro del nivel de referencia: eso no es fuga por carga, es precio — y puede ser una decisión tuya, volumen a cambio de rotación y liquidez.`;
+    p.push(volumen);
+    D.conteo({ n: vol.n, predicado: vol.titulo, universo: _U_BAJO, sujeto: vol.items.slice(0, 3).map((f) => f.entidad), texto: volumen });
   } else if (C.grandesQueCaen) {
-    p.push(`Y volumen y fuga van en la misma cuenta: los ${C.grandesQueCaen} grandes que caen cargan todos de más (entre ${C.excesoMin} y ${C.excesoMax} puntos sobre ese nivel). Por eso no se recorta la carga sin tocar a los que sostienen la facturación — ahí está la decisión difícil.`);
+    const grandes = `Y volumen y fuga van en la misma cuenta: los ${C.grandesQueCaen} grandes que caen cargan todos de más (entre ${C.excesoMin} y ${C.excesoMax} puntos sobre ese nivel). Por eso no se recorta la carga sin tocar a los que sostienen la facturación — ahí está la decisión difícil.`;
+    p.push(grandes);
+    /* «los N grandes que caen» y «cargan todos de más» son los dos conteos del tramo alto; el exceso máximo es la cuenta del composer */
+    D.conteo({ n: C.grandesQueCaen, predicado: "del tramo alto bajo el benchmark", universo: _U_CARTERA, texto: grandes });
+    if (C.grandesQueCaenYExcedenCarga) D.conteo({ n: C.grandesQueCaenYExcedenCarga, predicado: "del tramo alto bajo el benchmark que además exceden el nivel de carga declarado", universo: _U_CARTERA, texto: grandes });
+    _declararExcesoMaximo(D, ero, C, figs, grandes);
   }
   if (del && del.n) {
-    p.push(`${del.items.slice(0, 3).map((f) => f.entidad).join(" · ")} tienen margen delgado sin carga alta ni volumen: ahí es precio de lista o mix de lo que compran.`);
+    const delgado = `${del.items.slice(0, 3).map((f) => f.entidad).join(" · ")} tienen margen delgado sin carga alta ni volumen: ahí es precio de lista o mix de lo que compran.`;
+    p.push(delgado);
+    D.conteo({ n: del.n, predicado: del.titulo, universo: _U_BAJO, sujeto: del.items.slice(0, 3).map((f) => f.entidad), texto: delgado });
   }
 
   /* 3 · LAS HIPÓTESIS CON SU HUELLA — cada mecanismo, qué marca deja y cuál está en ESTE dato */
@@ -515,10 +676,12 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
   const yaContada = new Set();
   if (!(vol && vol.n) && C.grandesQueCaen) yaContada.add("volumen a margen bajo");
   p.push(`\nPor qué pasa — lo que el dato permite afirmar y lo que no:`);
-  for (const h of A.huellas) { if (!yaContada.has(h.mecanismo)) p.push(linea(h)); }
+  for (const h of A.huellas) { if (!yaContada.has(h.mecanismo)) { const l = linea(h); p.push(l); _declararHuella(D, h, l, A, figs); } }
 
   /* 4 · LA REGLA DE DECISIÓN — convierte la duda en un experimento, no en una opinión */
-  p.push(`\nLa duda se resuelve así: si el exceso de carga se repite parejo en toda la cartera, es política comercial y se corrige con una regla; si cambia cliente por cliente, es negociación. Tu dato dice que va de ${C.excesoMin} a ${C.excesoMax} puntos: no es parejo.`);
+  const regla = `La duda se resuelve así: si el exceso de carga se repite parejo en toda la cartera, es política comercial y se corrige con una regla; si cambia cliente por cliente, es negociación. Tu dato dice que va de ${C.excesoMin} a ${C.excesoMax} puntos: no es parejo.`;
+  p.push(`\n${regla}`);
+  _declararExcesoMaximo(D, ero, C, figs, regla);
 
   /* 5 · LA PREGUNTA AL DUEÑO — solo lo que ninguna columna puede saber */
   if (A.preguntaAlDueno) {
@@ -542,11 +705,13 @@ function componerElPorque({ figs, semilla, scenario, mem }) {
   /* 6 · EL PASO SIGUIENTE, DENTRO DE ADI — jamás «convendría reunirse» si se puede avanzar acá */
   const primero = (ero && ero.items[0]) || (vol && vol.items[0]) || null;
   if (primero) {
-    p.push(variante(semilla, [
+    const paso = variante(semilla, [
       `Yo partiría por ${primero.entidad} —criterio mío, no una cifra del dato—: es donde la carga excedida y el volumen coinciden. Pídeme su serie mes a mes y vemos desde cuándo se abrió la brecha.`,
       `Criterio mío, no una cifra del dato: empezaría por ${primero.entidad}, donde la carga excedida y el volumen coinciden. Si quieres, abro su serie mes a mes y vemos desde cuándo.`,
       `Si fuera mi decisión, entraría por ${primero.entidad} —criterio mío— porque ahí coinciden la carga excedida y el volumen. Te abro su serie mes a mes cuando digas.`,
-    ]));
+    ]);
+    p.push(paso);
+    D.lectura({ texto: paso, sello: "criterio mío" });
   }
   return p.join("\n");
 }
@@ -693,7 +858,9 @@ export const margenEnRiesgo = {
    * Brecha al benchmark» — la cifra de la card) y solo si la boleta la trae; «margen promedio» y «benchmark»
    * se nombran con su palabra al lado de su % (las anclas léxicas del humo); el recorte se declara («3 de los
    * 8»); la prioridad nombra su criterio. Cercanía sí, adulación no: si el margen viene mal, se dice derecho. */
-  componer({ figs, semilla, pregunta, scenario, mem } = {}) {
+  componer({ figs, semilla, pregunta, scenario, mem, declarar } = {}) {
+    /* EL COLECTOR DEL NOTARIO viaja a cada ruta: lo que cada una escribe, lo declara ella misma (sin colector, mudo) */
+    const D = declaradorDe(declarar);
     /* EL PORQUÉ TIENE SU PROPIO ENTREGABLE (owner 2026-09-04). Cuando la pregunta pide la causa y los pasos
      * trajeron los papeles, el peldaño determinístico RAZONA en vez de repetir dónde y cuánto — que es
      * exactamente el defecto que el owner encontró en producción. Si los papeles no están (la tool no corrió),
@@ -702,22 +869,22 @@ export const margenEnRiesgo = {
      * nueva. Con tesis → confirma o corrige RE-MIDIENDO; sin tesis → lo dice y arma el porqué completo, que es
      * lo honesto: un diario que finge recordar es peor que no tenerlo. */
     if (_rutaDe(pregunta) === "seguimiento") {
-      const seg = componerElSeguimiento({ figs, semilla, scenario, mem });
+      const seg = componerElSeguimiento({ figs, semilla, scenario, mem, declarar: D });
       if (seg) return seg;
-      const nuevo = componerElPorque({ figs, semilla, scenario, mem });
+      const nuevo = componerElPorque({ figs, semilla, scenario, mem, declarar: D });
       if (nuevo) return `No tenemos una lectura previa en este hilo, así que te la armo ahora.\n\n${nuevo}`;
     }
     if (_rutaDe(pregunta) === "primero") {
-      const prioridad = componerLaPrioridad({ figs, semilla });
+      const prioridad = componerLaPrioridad({ figs, semilla, declarar: D });
       if (prioridad) return prioridad;
       /* sin la evidencia de la prioridad (diagnose no corrió), la lectura completa sigue siendo respuesta */
     }
     if (_rutaDe(pregunta) === "sello") {
-      const sello = componerElSello({ figs, semilla, scenario, mem });
+      const sello = componerElSello({ figs, semilla, scenario, mem, declarar: D });
       if (sello) return sello;
     }
     if (_rutaDe(pregunta) === "porque") {
-      const porque = componerElPorque({ figs, semilla, scenario, mem });
+      const porque = componerElPorque({ figs, semilla, scenario, mem, declarar: D });
       if (porque) return porque;
     }
     const L = lecturaDeMargen(figs);
@@ -732,14 +899,28 @@ export const margenEnRiesgo = {
         ? `Tu margen promedio viene en ${_val(L.promedio)} — ${_val(L.brechaNegocio)} bajo el benchmark que declaraste (${_val(L.bench)}).`
         : `Tu margen promedio viene en ${_val(L.promedio)}, contra el benchmark de ${_val(L.bench)} que declaraste.`)
       : `Tu benchmark declarado es ${_val(L.bench)}.`;
-    partes.push(`${abre} ${_val(L.conteo)} de tus clientes están bajo esa referencia.`);
+    const apertura = `${abre} ${_val(L.conteo)} de tus clientes están bajo esa referencia.`;
+    partes.push(apertura);
+    /* la apertura declara sus cifras del negocio (promedio, brecha sellada, benchmark) y el conteo bajo el benchmark */
+    if (L.promedio) D.deFig(L.promedio, apertura);
+    if (L.promedio && L.brechaNegocio) D.deFig(L.brechaNegocio, apertura);
+    D.deFig(L.bench, apertura);
+    D.conteo({ n: nDeclarado, predicado: "bajo el benchmark", universo: _U_CARTERA, texto: apertura });
 
     if (top.length) {
-      partes.push(`\nDonde más contribución dejas sin capturar — los ${top.length} de los ${_val(L.conteo)} que más pesan:`);
+      const cabecera = `Donde más contribución dejas sin capturar — los ${top.length} de los ${_val(L.conteo)} que más pesan:`;
+      partes.push(`\n${cabecera}`);
+      /* la cabecera es un orden top-k de contribución no capturada entre los que caen (el «8» ya lo cubre el conteo de arriba) */
+      _ordenTopK(D, { sujeto: top.map((t) => t.entidad), metrica: "Contribución no capturada", k: top.length, universo: _U_BAJO, texto: cabecera });
       for (const t of top) {
         const m = L.bajo.find((b) => b.entidad === t.entidad);
         const venta = L.ventas.get(t.entidad);
-        partes.push(`- ${t.entidad} · deja ${t.fmt} sin capturar${m ? ` · margen ${m.fmt}` : ""}${venta ? ` · venta ${venta}` : ""}`);
+        const fila = `- ${t.entidad} · deja ${t.fmt} sin capturar${m ? ` · margen ${m.fmt}` : ""}${venta ? ` · venta ${venta}` : ""}`;
+        partes.push(fila);
+        /* una línea por cliente, y cada cifra de la línea con su dueño: contribución no capturada, margen y venta */
+        D.cifra({ sujeto: t.entidad, metrica: "Contribución no capturada", valor: t.fmt, texto: fila });
+        if (m) D.cifra({ sujeto: t.entidad, metrica: "Margen", valor: m.fmt, texto: fila });
+        if (venta) D.cifra({ sujeto: t.entidad, metrica: "Venta", valor: venta, texto: fila });
       }
     }
     // «En total: …» moría en el muro, Y CON RAZÓN: la fig es el SUBTOTAL de los focos del detector, no el
@@ -749,18 +930,37 @@ export const margenEnRiesgo = {
      * quién la calculó. */
     /* ⚠️ «no capturada» y no «sin capturar»: el muro lee «capturar» como verbo de CIERRE y, con «carga comercial»
      * en la línea siguiente, vetaba el subtotal como brecha adjudicada a una palanca (medido al reescribir). */
-    if (L.totalJuego) partes.push(`\nEntre los que caen, la contribución no capturada suma ${_val(L.totalJuego)}.`);
+    /* el subtotal se declara con el conjunto que su rótulo trae (las cuentas materiales de las que caen): es lo que
+     * la cifra ES, y el juez lo cobraría si se declarara como el total de los que caen o de la cartera */
+    if (L.totalJuego) {
+      const suma = `Entre los que caen, la contribución no capturada suma ${_val(L.totalJuego)}.`;
+      partes.push(`\n${suma}`);
+      _declararSubtotal(D, L.totalJuego, "Contribución no capturada", suma);
+    }
     if (L.cargaTotal) {
       const c0 = L.carga[0];
-      partes.push(`Dónde está: en carga comercial alta, ${_val(L.cargaTotal)}${c0 ? ` — la más pesada es la de ${c0.entidad} (${c0.fmt})` : ""}.`);
+      const donde = `Dónde está: en carga comercial alta, ${_val(L.cargaTotal)}${c0 ? ` — la más pesada es la de ${c0.entidad} (${c0.fmt})` : ""}.`;
+      partes.push(donde);
+      _declararSubtotal(D, L.cargaTotal, "Carga comercial alta", donde);
+      /* «la más pesada» es el máximo entre las cuentas cuya carga alta la boleta trae como cifra — ese es el universo que
+       * el composer ordenó (la lista, no un número): si la boleta trajera la de otra cuenta con otro rótulo, no la vería */
+      if (c0) {
+        D.orden({ sujeto: c0.entidad, metrica: "Carga comercial alta", forma: "max", direccion: "mayor", universo: L.carga.map((x) => x.entidad), texto: donde });
+        D.cifra({ sujeto: c0.entidad, metrica: "Carga comercial alta", valor: c0.fmt, texto: donde });
+      }
     }
     /* el cierre VARÍA (owner 2026-09-03, «matar la repetición») — determinístico por semilla, y toda variante
      * conserva las anclas: nombra la entidad, declara el criterio («contribución en juego») y OFRECE. */
-    if (top.length) partes.push(variante(semilla, [
-      `\n¿Lo abrimos por ${top[0].entidad}? Es donde hay más contribución en juego.`,
-      `\nSi te parece, empiezo por ${top[0].entidad}: es donde hay más contribución en juego.`,
-      `\nDonde hay más contribución en juego es ${top[0].entidad} — ¿lo abrimos?`,
-    ]));
+    if (top.length) {
+      const cierre = variante(semilla, [
+        `\n¿Lo abrimos por ${top[0].entidad}? Es donde hay más contribución en juego.`,
+        `\nSi te parece, empiezo por ${top[0].entidad}: es donde hay más contribución en juego.`,
+        `\nDonde hay más contribución en juego es ${top[0].entidad} — ¿lo abrimos?`,
+      ]);
+      partes.push(cierre);
+      /* «donde hay más contribución en juego» es el máximo de contribución no capturada entre los que caen — un orden, no una opinión */
+      D.orden({ sujeto: top[0].entidad, metrica: "Contribución no capturada", forma: "max", direccion: "mayor", universo: _U_BAJO, texto: cierre.trim() });
+    }
     return partes.join("\n");
   },
 
