@@ -27,6 +27,7 @@
 import { detectSerieIntent } from "../../oracle/serieIntent.js";
 import { serieRealDe } from "../../sentrix/capability.js";
 import { entidadNombrada } from "./indiceEntidades.js";   // el guardia ÚNICO (ley del único buscador): la entidad sin período, nombre exacto del índice
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): la serie declara mientras escribe
 
 const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const _lab = (f) => String((f && f.label) || "");
@@ -73,11 +74,12 @@ function _caso(pregunta) {
   return null;
 }
 
-/** los puntos de la serie de ESA entidad y ESA métrica, en el orden de la boleta (el motor los emite por mes). */
+/** los puntos de la serie de ESA entidad y ESA métrica, en el orden de la boleta (el motor los emite por mes). Cada punto conserva
+ *  su fig: es la evidencia con la que se declara cada mes al Notario. */
 function _puntos(figs, det) {
   const re = new RegExp(`^${_esc(det.entidad)} · ${_esc(det.metrica)} · (.+)$`, "i");
   return (Array.isArray(figs) ? figs : [])
-    .map((f) => { const m = re.exec(_lab(f)); return m ? { mes: m[1].trim(), fmt: _val(f), raw: _num(f) } : null; })
+    .map((f) => { const m = re.exec(_lab(f)); return m ? { mes: m[1].trim(), fmt: _val(f), raw: _num(f), fig: f } : null; })
     .filter(Boolean);
 }
 const _METRICA_TXT = { venta: "venta", margen: "margen", contribucion: "contribución", unidades: "unidades", acciones: "acciones comerciales" };
@@ -118,7 +120,8 @@ export const entidadPorPeriodo = {
    * Cifras verbatim. Con menos de un punto no hay nada que servir; con «último» y un solo punto, se sirve el
    * punto sin delta (no se inventa un anterior). El % del delta es un CÁLCULO sobre dos cifras verbatim y se
    * declara como tal, en su bloque, para que el muro lo recompute. */
-  componer({ figs, pregunta } = {}) {
+  componer({ figs, pregunta, declarar } = {}) {
+    const D = declaradorDe(declarar);   // sin colector, mudo: el texto no cambia
     const d = _caso(pregunta);
     if (!d) return null;
     if (d.sinSerie) {
@@ -129,26 +132,38 @@ export const entidadPorPeriodo = {
       const razon = d.motivoSerie === "no-reconcilia"
         ? `La serie mensual de ${d.entidad} no cierra contra su cifra oficial del período, así que no te la sirvo`
         : `Este dato no trae la serie mensual por ${_EJE_TXT[d.eje] || "cliente"}`;
-      return anual
+      const l = anual
         ? `${razon}. Lo que sí tengo es su año cerrado: ${d.entidad} suma ${_val(anual)} en el período. Si tu archivo trae el detalle mes a mes, con eso te abro la evolución.`
         : `${razon}, y por eso no te doy un mes que no puedo verificar. Si tu archivo trae el detalle mensual, con eso te abro la evolución.`;
+      D.lectura({ texto: razon, sello: "abierto" });   // la razón del declive es un límite del dato, no un hecho sobre una métrica
+      if (anual) D.deFig(anual, l);                     // el año cerrado que sí se sirve, con su rótulo («X · Venta» / «X · Ventas»)
+      return l;
     }
     const p = _puntos(figs, d);
     if (!p.length) return null;
     const txt = _METRICA_TXT[d.metrica] || d.metrica;
+    /* cada mes se declara con SU fig («Entidad · métrica · mes»): el rótulo entero es la métrica, así el Notario exige el mes exacto.
+     * ⚠️ EL VALOR VIAJA CON EL `raw` DE LA FIG, no solo con el texto: la serie mensual imprime «$22.560» (miles con punto) y el canon
+     * de la casa lee ese punto como decimal — sin el crudo, el Notario compara 22.56 contra 22560 y la cifra verdadera sale falsa. */
+    const declaraMes = (x, l) => D.deFig(x.fig, l, { periodo: x.mes, valor: { texto: x.fmt, raw: x.raw, unidad: x.fig.unit } });
     if (d.corte && d.corte.tipo === "pelicula") {
-      return [`${txt.charAt(0).toUpperCase() + txt.slice(1)} de ${d.entidad}, mes a mes:`, ...p.map((x) => `- ${x.mes}: ${x.fmt}`)].join("\n");
+      return [`${txt.charAt(0).toUpperCase() + txt.slice(1)} de ${d.entidad}, mes a mes:`, ...p.map((x) => { const l = `- ${x.mes}: ${x.fmt}`; declaraMes(x, l); return l; })].join("\n");
     }
     if (d.corte && d.corte.tipo === "punto") {
       const mesNum = d.corte.mes;
       const nombres = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
       const x = p.find((q) => new RegExp(`^${nombres[mesNum - 1]}\\b`, "i").test(q.mes));
-      return x ? `${d.entidad} en ${x.mes}: ${txt} de ${x.fmt}.` : null;
+      if (!x) return null;
+      const l = `${d.entidad} en ${x.mes}: ${txt} de ${x.fmt}.`;
+      declaraMes(x, l);
+      return l;
     }
     // ultimo
     const u = p[p.length - 1], a = p.length >= 2 ? p[p.length - 2] : null;
-    if (!a) return `${d.entidad} en ${u.mes}: ${txt} de ${u.fmt}. Es el único mes con serie en tu archivo.`;
+    if (!a) { const l = `${d.entidad} en ${u.mes}: ${txt} de ${u.fmt}. Es el único mes con serie en tu archivo.`; declaraMes(u, l); return l; }
     const lineas = [`${d.entidad} te compró ${u.fmt} en ${u.mes}; en ${a.mes} habían sido ${a.fmt}.`];
+    declaraMes(u, lineas[0]);
+    declaraMes(a, lineas[0]);
     if (Number.isFinite(u.raw) && Number.isFinite(a.raw) && a.raw !== 0) {
       const pct = ((u.raw - a.raw) / Math.abs(a.raw)) * 100;
       /* ⚠️ EL SIGNO ES EL GUION ASCII, no el «−» tipográfico (U+2212). La primera versión escribía «−6.1%» y el
@@ -160,9 +175,13 @@ export const entidadPorPeriodo = {
        * negativo del demo (−6.1%) jamás lo mostró: media suerte, no cobertura. El positivo va SIN signo en el
        * resultado y con el alza dicha en palabras; el negativo queda como estaba (verificado). */
       const signo = pct >= 0 ? "" : "-";
-      lineas.push(pct >= 0
+      const lDelta = pct >= 0
         ? `Eso es ${Math.abs(pct).toFixed(1)}% más contra el mes anterior.`
-        : `Eso es -${Math.abs(pct).toFixed(1)}% contra el mes anterior.`);
+        : `Eso es -${Math.abs(pct).toFixed(1)}% contra el mes anterior.`;
+      lineas.push(lDelta);
+      /* el delta es una CUENTA del composer sobre dos cifras verbatim, no una fig: se declara como cifra con su evidencia (los dos
+       * rótulos, anterior y último), que es lo que el Notario recompone; la serie mensual no trae una variación publicada */
+      D.cifra({ sujeto: d.entidad, metrica: `${txt} vs mes anterior`, valor: `${signo}${Math.abs(pct).toFixed(1)}%`, periodo: "vs mes anterior", evidencia: [_lab(a.fig), _lab(u.fig)], texto: lDelta });
       /* ⚠️ EL ORDEN DE LOS INPUTS ES (NUEVO; VIEJO): guardC recompone `variacion_pct` como (v[0] − v[1]) / v[1].
        * Escribí (viejo; nuevo) y el muro obtuvo +6.5% contra mi −6.1%: veto, y el turno a la escalera. No es
        * un formato que se adivina: se lee del recompute (guardC:3056). */

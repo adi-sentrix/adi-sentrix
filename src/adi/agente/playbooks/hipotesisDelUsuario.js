@@ -28,6 +28,7 @@ import { formaConversacional } from "../formaConversacional.js";
 import { entidadNombrada } from "./indiceEntidades.js";
 import { reDeReferencia } from "../../oracle/entityRecord.js";   // el rótulo de la referencia se busca por el MISMO label que se publica
 import { variante } from "../variacion.js";
+import { declaradorDe } from "../../notario/declarar.js";   // el Notario semántico (fase 2): el contraste declara mientras escribe
 
 const _val = (f) => String((f && (f.text || f.value)) || "");
 const _lab = (f) => String((f && f.label) || "");
@@ -128,16 +129,25 @@ function _movimientos(figs) {
  * `lexico-meta` multa con razón (benchmark ≠ meta: las metas las fija el cliente). La lección es la de la
  * casa: una etiqueta es un nombre de columna, no una frase. Cada tema elige SUS cifras y las dice en voz de
  * negocio; la cifra viaja VERBATIM de la boleta, la palabra la ponemos nosotros.
- * Devuelve las líneas del veredicto, o null si el dato no alcanza para juzgar la hipótesis. */
-function _contraste(c, figs) {
+ * Devuelve las líneas del veredicto, o null si el dato no alcanza para juzgar la hipótesis.
+ * `D` es el colector del Notario: cada línea se declara al escribirse (cifras con su fig, listas «los que más» como orden top-k
+ * sobre la cartera, conteos con el predicado de su rótulo, y lecturas selladas para lo que no es hecho). */
+function _contraste(c, figs, D = declaradorDe(null)) {
   const orden = (re, desc = true) => _all(figs, re)
-    .map((f) => ({ n: _entidadDe(_lab(f)), v: _ord(f), fmt: _val(f) }))
+    .map((f) => ({ n: _entidadDe(_lab(f)), v: _ord(f), fmt: _val(f), f }))
     .filter((x) => x.n && Number.isFinite(x.v))
     .sort((a, b) => (desc ? b.v - a.v : a.v - b.v));
   /* la cola SE DECLARA (CLAUDE.md §5: un top-N que no la declara miente por omisión aunque cada cifra sea
    * correcta) — y se declara SIN contarla: el conteo sería un número escrito a mano, y encima uno falso,
    * porque la lectura ya recortó su propio top antes de llegar acá. */
   const lista = (xs, n = 3) => xs.slice(0, n).map((x) => `${x.n} ${x.fmt}`).join(" · ") + (xs.length > n ? ", y siguen otras" : "");
+  /* la lista impresa es un orden top-k sobre la cartera (k = los que se imprimen), y cada nombre viaja con su cifra */
+  const CARTERA = "los clientes de la cartera";
+  const declaraLista = (xs, l, metrica, direccion, n = 3) => {
+    const top = xs.slice(0, n);
+    D.orden({ sujeto: top.map((x) => x.n), metrica, forma: "topk", k: top.length, direccion, universo: CARTERA, texto: l });
+    for (const x of top) D.deFig(x.f, l);
+  };
   const bench = _find(figs, /^Benchmark de margen$/i);
   const L = [];
 
@@ -148,11 +158,18 @@ function _contraste(c, figs) {
      * pantalla: el nivel de carga lo declara el cliente, y decirle «tu meta» le atribuye una que no fijó. */
     const ref = _find(figs, reDeReferencia("pctRebate"));
     const erosion = _find(figs, /erosi[oó]n por acciones comerciales/i);
-    L.push(`El mecanismo existe y está medido: ${erosion ? `${_val(erosion)} clientes ceden margen por acciones comerciales` : `la carga comercial se mide cuenta por cuenta`}${ref ? `, contra un nivel de carga declarado de ${_val(ref)}` : ""}.`);
-    L.push(`Donde más pesa: ${lista(cargas)}.`);
+    const l1 = `El mecanismo existe y está medido: ${erosion ? `${_val(erosion)} clientes ceden margen por acciones comerciales` : `la carga comercial se mide cuenta por cuenta`}${ref ? `, contra un nivel de carga declarado de ${_val(ref)}` : ""}.`;
+    L.push(l1);
+    if (erosion) D.conteo({ n: _num(erosion), predicado: "erosión por acciones comerciales", universo: CARTERA, texto: l1 });
+    if (ref) D.deFig(ref, l1);
+    const l2 = `Donde más pesa: ${lista(cargas)}.`;
+    L.push(l2);
+    declaraLista(cargas, l2, "Carga comercial", "mayor");
     /* ⚠️ CONFIRMAR EL MECANISMO NO ES CONFIRMAR LA CAUSA. Que la carga exista y se concentre ahí es un hecho
      * medido; que sea LA razón de lo que el dueño está viendo es una atribución que el dato no autoriza. */
-    L.push(`Eso te dice dónde está la huella, no si fue la razón: el dato mide cuánto se cede, no qué se negoció a cambio. Si esas acciones compraron volumen, dímelo y cierro la lectura por ese lado.`);
+    const l3 = `Eso te dice dónde está la huella, no si fue la razón: el dato mide cuánto se cede, no qué se negoció a cambio. Si esas acciones compraron volumen, dímelo y cierro la lectura por ese lado.`;
+    L.push(l3);
+    D.lectura({ texto: l3, sello: "abierto" });
     return L;
   }
 
@@ -162,23 +179,44 @@ function _contraste(c, figs) {
     const margenes = orden(/· Margen$/i, false);
     const top = pesos[0];
     const suMargen = margenes.find((m) => m.n === top.n);
-    L.push(`El dato la sostiene donde más duele: en ${top.n} el costo se lleva ${top.fmt} de la venta${suMargen ? `, y su margen queda en ${suMargen.fmt}` : ""}${bench ? ` contra un benchmark declarado de ${_val(bench)}` : ""}.`);
-    if (pesos.length > 1) L.push(`Y no es solo esa cuenta: ${lista(pesos.slice(1), 2)} cargan un peso parecido.`);
-    L.push(`Lo que el dato mide es cuánto pesa el costo, no por qué pesa así. Para cerrarla necesito saber de tu lado si cambió el costo de compra o el mix de lo que se vendió.`);
+    const l1 = `El dato la sostiene donde más duele: en ${top.n} el costo se lleva ${top.fmt} de la venta${suMargen ? `, y su margen queda en ${suMargen.fmt}` : ""}${bench ? ` contra un benchmark declarado de ${_val(bench)}` : ""}.`;
+    L.push(l1);
+    /* «donde más duele» es el máximo del peso del costo entre las cuentas leídas; el universo es la cartera y el Notario exige que la
+     * lectura la cubra entera (si la boleta trae menos cuentas, lo dice él) */
+    D.orden({ sujeto: top.n, metrica: "Peso del costo", forma: "max", direccion: "mayor", universo: CARTERA, texto: l1 });
+    D.deFig(top.f, l1);
+    if (suMargen) D.deFig(suMargen.f, l1);
+    if (bench) D.deFig(bench, l1);
+    if (pesos.length > 1) {
+      const l2 = `Y no es solo esa cuenta: ${lista(pesos.slice(1), 2)} cargan un peso parecido.`;
+      L.push(l2);
+      /* las dos que siguen completan el top 3 del peso del costo; «parecido» no afirma igualdad: cada cifra va con su dueño */
+      D.orden({ sujeto: pesos.slice(0, 3).map((x) => x.n), metrica: "Peso del costo", forma: "topk", k: Math.min(3, pesos.length), direccion: "mayor", universo: CARTERA, texto: l2 });
+      for (const x of pesos.slice(1, 3)) D.deFig(x.f, l2);
+    }
+    const l3 = `Lo que el dato mide es cuánto pesa el costo, no por qué pesa así. Para cerrarla necesito saber de tu lado si cambió el costo de compra o el mix de lo que se vendió.`;
+    L.push(l3);
+    D.lectura({ texto: l3, sello: "abierto" });
     return L;
   }
 
   if (c.tema.clave === "precio") {
     const netos = _all(figs, /· Precio neto después de acciones$/i);
     if (!netos.length) return null;
-    const par = netos.slice(0, 3).map((f) => {
+    const pares = netos.slice(0, 3).map((f) => {
       const n = _entidadDe(_lab(f));
       const real = _find(figs, new RegExp(`^${_esc(n)} · Precio realizado$`, "i"));
-      return `${n} ${_val(f)}${real ? ` (lista realizada ${_val(real)})` : ""}`;
+      return { f, real, txt: `${n} ${_val(f)}${real ? ` (lista realizada ${_val(real)})` : ""}` };
     });
-    L.push(`Lo que el dato mide del precio: ${par.join(" · ")}${netos.length > 3 ? ", y siguen otras" : ""}.`);
-    L.push(`La diferencia entre los dos números de cada cuenta es lo que se va en acciones comerciales — esa es la parte del precio sobre la que puedes decidir.`);
-    L.push(`Lo que no puedo separar con esto es si tu lista quedó baja o si el costo subió: son dos caras de la misma fila. Dime cuál quieres mirar y abro esa.`);
+    const l1 = `Lo que el dato mide del precio: ${pares.map((x) => x.txt).join(" · ")}${netos.length > 3 ? ", y siguen otras" : ""}.`;
+    L.push(l1);
+    for (const x of pares) { D.deFig(x.f, l1); if (x.real) D.deFig(x.real, l1); }   // en el orden de la boleta: no es un ranking
+    const l2 = `La diferencia entre los dos números de cada cuenta es lo que se va en acciones comerciales — esa es la parte del precio sobre la que puedes decidir.`;
+    L.push(l2);
+    D.lectura({ texto: l2, sello: "indicado" });   // qué significa la diferencia: interpretación del rótulo, sin cifra
+    const l3 = `Lo que no puedo separar con esto es si tu lista quedó baja o si el costo subió: son dos caras de la misma fila. Dime cuál quieres mirar y abro esa.`;
+    L.push(l3);
+    D.lectura({ texto: l3, sello: "abierto" });
     return L;
   }
 
@@ -187,9 +225,17 @@ function _contraste(c, figs) {
     if (!margenes.length || !bench) return null;
     const conteo = _find(figs, /clientes bajo el benchmark/i);
     const brecha = _find(figs, /^El negocio · Brecha al benchmark$/i);
-    L.push(`El dato la sostiene: ${conteo ? `${_val(conteo)} clientes` : `varias cuentas`} están bajo el benchmark declarado de ${_val(bench)}${brecha ? `, y el negocio cierra ${_val(brecha)} por debajo` : ""}.`);
-    L.push(`Los más delgados: ${lista(margenes)}.`);
-    L.push(`Esa es la lectura, no la causa. El margen delgado puede venir del precio o del costo, y el dato de esta lectura no los separa — dime por dónde empiezo y lo abro.`);
+    const l1 = `El dato la sostiene: ${conteo ? `${_val(conteo)} clientes` : `varias cuentas`} están bajo el benchmark declarado de ${_val(bench)}${brecha ? `, y el negocio cierra ${_val(brecha)} por debajo` : ""}.`;
+    L.push(l1);
+    if (conteo) D.conteo({ n: _num(conteo), predicado: "bajo el benchmark", universo: CARTERA, texto: l1 });
+    D.deFig(bench, l1);
+    if (brecha) D.deFig(brecha, l1);
+    const l2 = `Los más delgados: ${lista(margenes)}.`;
+    L.push(l2);
+    declaraLista(margenes, l2, "Margen", "menor");
+    const l3 = `Esa es la lectura, no la causa. El margen delgado puede venir del precio o del costo, y el dato de esta lectura no los separa — dime por dónde empiezo y lo abro.`;
+    L.push(l3);
+    D.lectura({ texto: l3, sello: "abierto" });
     return L;
   }
 
@@ -202,10 +248,27 @@ function _contraste(c, figs) {
   if (!mov.length) return null;
   const bajan = mov.filter((x) => x.v < 0).reverse();
   const suben = mov.filter((x) => x.v > 0);
-  if (!bajan.length) { L.push(`No es lo que dice tu dato: contra el período comparable no hay cuentas a la baja en esta lectura. Las que más se mueven, y hacia arriba: ${lista(suben)}.`); return L; }
-  L.push(`No es parejo, y esa es la parte que el total esconde. Las que bajan contra el período comparable: ${lista(bajan)}.`);
-  if (suben.length) L.push(`Y al mismo tiempo suben: ${lista(suben)}.`);
-  L.push(`O sea la caída está concentrada, no repartida: si vas a hacer algo, es en esas cuentas y no en el promedio.`);
+  /* cada movimiento es una variación de la venta contra el año anterior, con su cifra; la lista impresa es el top-k de ese lado
+   * (los que más caen · los que más suben) sobre los que caen / los que crecen */
+  const declaraMovimientos = (xs, l, direccion, n = 3) => {
+    const top = xs.slice(0, n);
+    D.orden({ sujeto: top.map((x) => x.n), metrica: "YoY", forma: "topk", k: top.length, direccion: direccion === "baja" ? "menor" : "mayor", universo: direccion === "baja" ? "los que bajan contra el año anterior" : "los que suben contra el año anterior", texto: l });
+    for (const x of top) D.variacion({ sujeto: x.n, metrica: "Ventas", direccion, valor: x.fmt, texto: l });
+  };
+  if (!bajan.length) {
+    const l = `No es lo que dice tu dato: contra el período comparable no hay cuentas a la baja en esta lectura. Las que más se mueven, y hacia arriba: ${lista(suben)}.`;
+    L.push(l);
+    D.conteo({ n: 0, predicado: "caen vs año anterior", universo: CARTERA, texto: l });   // «no hay cuentas a la baja»: un conteo de cero
+    declaraMovimientos(suben, l, "sube");
+    return L;
+  }
+  const l1 = `No es parejo, y esa es la parte que el total esconde. Las que bajan contra el período comparable: ${lista(bajan)}.`;
+  L.push(l1);
+  declaraMovimientos(bajan, l1, "baja");
+  if (suben.length) { const l2 = `Y al mismo tiempo suben: ${lista(suben)}.`; L.push(l2); declaraMovimientos(suben, l2, "sube"); }
+  const l3 = `O sea la caída está concentrada, no repartida: si vas a hacer algo, es en esas cuentas y no en el promedio.`;
+  L.push(l3);
+  D.lectura({ texto: l3, sello: "indicado" });
   return L;
 }
 
@@ -299,10 +362,13 @@ export const hipotesisDelUsuario = {
 
   entregable: "CONTRASTA la hipótesis del usuario contra el dato, en este orden: (1) repite qué estás contrastando, en una línea, para que él vea si lo entendiste bien; (2) el VEREDICTO con su cifra —la confirmas, la corriges, o queda abierta—, jamás un «sí» o un «no» pelado; (3) si la corriges, di qué SÍ dice el dato y con qué cifra; (4) si queda abierta, di exactamente qué falta para cerrarla, en términos de su negocio. ⚠️ NUNCA confirmes ni niegues sin haber leído: una confirmación sin cifra es la peor respuesta posible — el dueño se va con una creencia equivocada respaldada por ti. Si el dato no alcanza para juzgarla, eso se dice y no se adivina.",
 
-  componer({ figs, pregunta, semilla } = {}) {
+  componer({ figs, pregunta, semilla, declarar } = {}) {
+    const D = declaradorDe(declarar);   // sin colector, mudo: el texto no cambia
     const c = _caso(pregunta);
     if (!c) return null;
     const p = [];
+    /* la oferta de cierre: navegación ofrecida, no un hecho */
+    const cierraOferta = (opciones) => { const l = variante(semilla, opciones); p.push(l); D.lectura({ texto: l, sello: "criterio mío" }); };
 
     /* ── (a) LA HIPÓTESIS SOBRE UNA CUENTA Y SU COMPRA · el caso con veredicto más limpio ───────────────────
      * el veredicto sale de la MISMA función que defiende el notario (ley del 2026-09-10) */
@@ -312,26 +378,39 @@ export const hipotesisDelUsuario = {
       const { mov, suyo, sube } = vd;
       const acierta = vd.veredicto === "confirma";
       p.push(`Tu hipótesis: ${c.entidad} está comprando ${c.direccion === "baja" ? "menos" : "más"}. La contrasto contra el dato.`);
+      /* «va +$2.3M contra el período comparable» es la variación de su venta contra el año anterior, con su cifra */
+      const declaraMov = (x, l) => D.variacion({ sujeto: x.n, metrica: "Ventas", direccion: x.v > 0 ? "sube" : "baja", valor: x.fmt, texto: l });
       if (acierta) {
-        p.push(`Es correcta: ${c.entidad} va ${suyo.fmt} contra el período comparable.`);
+        const l = `Es correcta: ${c.entidad} va ${suyo.fmt} contra el período comparable.`;
+        p.push(l);
+        declaraMov(suyo, l);
       } else {
         /* CORREGIR AL DUEÑO CON SU PROPIO DATO — el momento en que esto deja de ser un respondedor de tablas */
-        p.push(`No es lo que dice tu dato: ${c.entidad} va ${suyo.fmt} contra el período comparable, o sea ${sube ? "te está comprando MÁS" : "te está comprando MENOS"}, al revés de lo que suponías.`);
+        const l = `No es lo que dice tu dato: ${c.entidad} va ${suyo.fmt} contra el período comparable, o sea ${sube ? "te está comprando MÁS" : "te está comprando MENOS"}, al revés de lo que suponías.`;
+        p.push(l);
+        declaraMov(suyo, l);
         const otros = mov.filter((x) => x.n !== c.entidad && (sube ? x.v < 0 : x.v > 0));
         /* `mov` viene de mayor a menor. Si buscamos las que BAJAN, las negativas quedan al final y de menor a
          * mayor caída: hay que darlas vuelta para abrir por la caída más grande, que es la que él quería ver. */
         if (sube) otros.reverse();
-        if (otros.length) p.push(`Donde sí pasa lo que describes: ${otros.slice(0, 3).map((x) => `${x.n} ${x.fmt}`).join(" · ")}.`);
+        if (otros.length) {
+          const top = otros.slice(0, 3);
+          const l2 = `Donde sí pasa lo que describes: ${top.map((x) => `${x.n} ${x.fmt}`).join(" · ")}.`;
+          p.push(l2);
+          /* la lista abre por el movimiento más grande de ese lado: un top-k sobre los que caen (o los que crecen), cada uno con su variación */
+          D.orden({ sujeto: top.map((x) => x.n), metrica: "YoY", forma: "topk", k: top.length, direccion: sube ? "menor" : "mayor", universo: sube ? "los que bajan contra el año anterior" : "los que suben contra el año anterior", texto: l2 });
+          for (const x of top) declaraMov(x, l2);
+        }
       }
       /* ⚠️ EL CIERRE NOMBRA LA CUENTA, y lo pidió el owner mirando la pantalla de producción: la corrección
        * lista OTRAS tres cuentas —«donde sí pasa: Ripley · La Polar · Easy»— y después cerraba con «si quieres
        * LA abro por dentro». El pronombre apunta a la cuenta de la hipótesis, pero el que lee acaba de ver
        * tres nombres más. Un deíctico a tres líneas de su antecedente no es economía: es una adivinanza. */
-      p.push(variante(semilla, [
+      cierraOferta([
         `¿Quieres que abra ${c.entidad} por dentro para ver de dónde viene el movimiento?`,
         `Si quieres abro ${c.entidad} por dentro y vemos qué la mueve.`,
         `Dime si abrimos ${c.entidad} para ver el detalle.`,
-      ]));
+      ]);
       return p.join("\n");
     }
 
@@ -339,15 +418,15 @@ export const hipotesisDelUsuario = {
     if (c.direccion === "atribucion" || !c.entidad) {
       /* el verbo concuerda con el sujeto: «las acciones comerciales EXPLICAN» (lo cazó la primera corrida) */
       const T = { acciones: ["las acciones comerciales", "explican"], costo: ["el costo", "explica"], precio: ["el precio", "explica"], margen: ["el margen", "explica"], compra: ["la venta", "explica"] }[c.tema.clave];
-      const cuerpo = _contraste(c, figs);
+      const cuerpo = _contraste(c, figs, D);
       if (!cuerpo) return null;                 // sin la medida del mecanismo no hay contraste: se retira
       p.push(`Tu hipótesis: ${T[0]} ${T[1]} lo que estás viendo. La contrasto contra el dato.`);
       p.push(...cuerpo);
-      p.push(variante(semilla, [
+      cierraOferta([
         `¿Te abro el detalle por cuenta para ver dónde pesa más?`,
         `Si quieres lo miramos cuenta por cuenta.`,
         `Dime si vamos al detalle por cuenta.`,
-      ]));
+      ]);
       return p.join("\n");
     }
 
@@ -366,25 +445,47 @@ export const hipotesisDelUsuario = {
       const suyas = _all(figs, new RegExp(`^${_esc(c.entidad)} · `, "i")).slice(0, 3);
       if (!suyas.length) return null;
       p.push(`Tu hipótesis: ${c.entidad} está ${c.direccion === "baja" ? "dejando menos" : "mejorando"}. La contrasto contra el dato.`);
-      p.push(`Lo que el dato dice de esa cuenta: ${suyas.map((f) => `${_lab(f).split("·").pop().trim().toLowerCase()} ${_val(f)}`).join(" · ")}.`);
-      p.push(`Con esta lectura no puedo darte el veredicto: no trae contra qué compararla. Dime contra qué la mides y la cierro.`);
+      const l = `Lo que el dato dice de esa cuenta: ${suyas.map((f) => `${_lab(f).split("·").pop().trim().toLowerCase()} ${_val(f)}`).join(" · ")}.`;
+      p.push(l);
+      for (const f of suyas) D.deFig(f, l);
+      const l2 = `Con esta lectura no puedo darte el veredicto: no trae contra qué compararla. Dime contra qué la mides y la cierro.`;
+      p.push(l2);
+      D.lectura({ texto: l2, sello: "abierto" });
       return p.join("\n");
     }
     const enJuego = _find(figs, new RegExp(`^${_esc(c.entidad)} · Valor en juego$`, "i"));
     p.push(`Tu hipótesis: ${c.entidad} está ${c.direccion === "baja" ? "dejando menos" : "mejorando"}. La contrasto contra el dato.`);
+    /* el veredicto va con sus dos tasas (la cuenta y el benchmark del negocio), la relación entre ellas, y —si está— lo que vale la diferencia */
+    const declaraVeredicto = (l) => {
+      D.deFig(bench, l);
+      D.deFig(suMargen, l);
+      if (vd.debajo !== null) D.relacion({ sujeto: c.entidad, metrica: "Margen", forma: vd.debajo ? "menor" : "mayor", vs: { sujeto: "negocio", metrica: "Benchmark de margen" }, texto: l });
+      if (enJuego && l.includes(_val(enJuego))) D.deFig(enJuego, l);
+    };
     if (vd.veredicto === "confirma") {
-      p.push(vd.debajo
+      const l = vd.debajo
         ? `Contra el benchmark declarado de ${_val(bench)}, sí: ${c.entidad} cierra en ${_val(suMargen)}${enJuego ? `, y esa diferencia vale ${_val(enJuego)}` : ""}.`
-        : `Contra el benchmark declarado de ${_val(bench)}, sí: ${c.entidad} cierra en ${_val(suMargen)}, por encima de la referencia del negocio.`);
+        : `Contra el benchmark declarado de ${_val(bench)}, sí: ${c.entidad} cierra en ${_val(suMargen)}, por encima de la referencia del negocio.`;
+      p.push(l);
+      declaraVeredicto(l);
     } else if (vd.veredicto === "corrige") {
-      p.push(vd.debajo
+      const l = vd.debajo
         ? `Contra el benchmark declarado de ${_val(bench)}, no: ${c.entidad} cierra en ${_val(suMargen)}, por debajo de la referencia${enJuego ? ` — y esa diferencia vale ${_val(enJuego)}` : ""}.`
-        : `Contra el benchmark declarado de ${_val(bench)}, no: ${c.entidad} cierra en ${_val(suMargen)}, o sea está por encima de la referencia del negocio.`);
+        : `Contra el benchmark declarado de ${_val(bench)}, no: ${c.entidad} cierra en ${_val(suMargen)}, o sea está por encima de la referencia del negocio.`;
+      p.push(l);
+      declaraVeredicto(l);
     } else {
-      p.push(`Lo que el dato dice de esa cuenta: margen ${_val(suMargen)}, contra un benchmark declarado de ${_val(bench)}.`);
+      const l = `Lo que el dato dice de esa cuenta: margen ${_val(suMargen)}, contra un benchmark declarado de ${_val(bench)}.`;
+      p.push(l);
+      D.deFig(suMargen, l);
+      D.deFig(bench, l);
     }
     /* EL LÍMITE, DICHO: la comparación contra su propio pasado no está en esta lectura y no se finge. */
-    p.push(`Contra su propio pasado no te lo puedo afirmar con esta lectura: mide el margen de hoy, no su historia. Si a eso te referías, dímelo y lo busco por ahí.`);
+    {
+      const l = `Contra su propio pasado no te lo puedo afirmar con esta lectura: mide el margen de hoy, no su historia. Si a eso te referías, dímelo y lo busco por ahí.`;
+      p.push(l);
+      D.lectura({ texto: l, sello: "abierto" });
+    }
     return p.join("\n");
   },
 
