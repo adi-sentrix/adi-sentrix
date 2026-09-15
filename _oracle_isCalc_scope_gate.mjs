@@ -41,12 +41,19 @@ if (oneppLGD && brechaLGA) {
   const gMalo = guardC(textoMalo, { ledger, results, trace, question: "¿qué SKU ceden más margen?" });
   ok(!gMalo.ok, `MALO — el número (suma de 2 SKU no mencionados) atribuido a MAK-COMP-AIR debe BLOQUEAR (antes pasaba en falso) → ${gMalo.ok ? "PASÓ (bug)" : "bloqueado: " + JSON.stringify(gMalo.violations)}`);
 
-  // control: la MISMA suma, pero mencionando las 2 entidades reales dueñas de cada operando → debe AUTORIZARSE
-  // (no rompemos el caso legítimo de "juntos, LG-DRYER8KG y LG-AIR9000 suman $X")
-  const textoBueno = `LG-DRYER8KG y LG-AIR9000 juntos representan $${Math.round(suma / 1000)}K en oportunidad de margen.`;
+  // control: la MISMA suma, mencionando las 2 entidades reales dueñas de cada operando Y mostrando los operandos → debe AUTORIZARSE
+  // (no rompemos el caso legítimo de "LG-DRYER8KG ($56K) y LG-AIR9000 ($139K) juntos suman $X").
+  // v2.31 (owner 2026-09-14, grupos, conteos, universos e inventos): los dos operandos son de MÉTRICAS DISTINTAS («Medida 1pp» de uno,
+  // «Medida cerrar brecha» del otro) — nombrar a los dueños ya no basta: una suma de cifras de distinta métrica solo vale MOSTRADA.
+  // El control viejo (sin los operandos) pasó a ser carnada, abajo.
+  const _fmtK = (v) => `$${Math.round(v / 1000)}K`;
+  const textoBueno = `LG-DRYER8KG (${_fmtK(oneppLGD.raw)}) y LG-AIR9000 (${_fmtK(brechaLGA.raw)}) juntos representan ${_fmtK(suma)} en oportunidad de margen.`;
   const gBueno = guardC(textoBueno, { ledger, results, trace, question: "¿qué SKU ceden más margen?" });
   const relevantViol = (gBueno.violations || []).filter((v) => v.kind === "cifra-no-autorizada");
-  ok(relevantViol.length === 0, `BUENO (control) — la MISMA suma, mencionando las 2 entidades REALES dueñas → NO debe bloquear por cifra-no-autorizada (obtuvo: ${JSON.stringify(relevantViol)})`);
+  ok(relevantViol.length === 0, `BUENO (control) — la MISMA suma, con las 2 entidades REALES dueñas y los operandos a la vista → NO debe bloquear por cifra-no-autorizada (obtuvo: ${JSON.stringify(relevantViol)})`);
+  const textoLoteria = `LG-DRYER8KG y LG-AIR9000 juntos representan ${_fmtK(suma)} en oportunidad de margen.`;
+  const gLoteria = guardC(textoLoteria, { ledger, results, trace, question: "¿qué SKU ceden más margen?" });
+  ok((gLoteria.violations || []).some((v) => v.kind === "cifra-no-autorizada"), `LOTERÍA CON NOMBRES (v2.31) — la suma de dos métricas distintas sin mostrar los operandos BLOQUEA aunque nombre a los dos dueños (obtuvo: ${gLoteria.ok ? "PASÓ (bug)" : "bloqueado"})`);
 }
 
 // control de regresión: el caso YA establecido de brecha de una sola entidad (benchmark − margen) sigue autorizado

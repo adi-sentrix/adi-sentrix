@@ -98,18 +98,26 @@ export const clientePerdiendoContribucion = {
     if (!total) return null;
     const piso = _piso();
     const materiales = _materiales(caen, piso);
+    /* TODAS LAS CAÍDAS QUE LA BOLETA MUESTRA (owner 2026-09-14, grupos, conteos, universos e inventos): la venta publica el YoY en dinero solo de
+     * los cinco que más se mueven, pero la variación porcentual de las 13 cuentas — y ahí caen cuatro, dos bajo el umbral. «Se te están cayendo 2
+     * clientes» era un conteo que la propia boleta desmentía: el conteo en palabras se compara con lo que la boleta permite contar, así que se
+     * cuenta con la variación completa y se dice cuántas son materiales. La cifra en % viene formateada (sin raw): el signo se lee del valor. */
+    const caenTodas = new Set(_all(figs, /· Variación vs año anterior$/i).filter((f) => /^\s*[-−]/.test(_val(f)) || _num(f) < 0).map((f) => _entidadDe(_lab(f))).filter(Boolean));
+    for (const c of caen) caenTodas.add(c.entidad);
+    const nCaen = caenTodas.size;
+    const _otras = (n) => (n === 1 ? "la otra cae" : `las otras ${n} caen`);
     const contrib = new Map(_all(figs, /· Contribuci[oó]n$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
     const partes = [];
     // LA VOZ (2026-09-03): el asesor cuenta, no rotula — mismas cifras, mismos dueños. Y una precisión que
     // la voz obligó a hacer: `total` es la contribución DEL NEGOCIO (contexto para dimensionar), no «lo en
     // juego» — la frase vieja lo insinuaba de más.
     if (!materiales.length) {
-      partes.push(`Ningún cliente cae de forma material contra el año anterior${caen.length ? ` (${caen.length} caen, todos ${_fraseUmbral() || "bajo el umbral de materialidad del negocio"})` : ""}.`);
+      partes.push(`Ningún cliente cae de forma material contra el año anterior${nCaen ? ` (${nCaen} caen, todos ${_fraseUmbral() || "bajo el umbral de materialidad del negocio"})` : ""}.`);
       partes.push(`Para dimensionar: la contribución total del negocio es ${_val(total)}.`);
       return partes.join("\n");
     }
     const top = materiales.slice(0, 4);
-    partes.push(`Se te están cayendo ${materiales.length} clientes contra el año anterior${caen.length > materiales.length ? ` (otros ${caen.length - materiales.length} caen ${_fraseUmbral() || "bajo el umbral de materialidad"})` : ""}. Para dimensionar: la contribución total del negocio es ${_val(total)}.`);
+    partes.push(`Se te están cayendo ${nCaen} clientes contra el año anterior${nCaen > materiales.length ? `, ${materiales.length} de forma material (${_otras(nCaen - materiales.length)} ${_fraseUmbral() || "bajo el umbral de materialidad"})` : ""}. Para dimensionar: la contribución total del negocio es ${_val(total)}.`);
     partes.push(`\nLos ${top.length} que más caen:`);
     for (const c of top) partes.push(`- ${c.entidad} · ${c.fmt} contra el año anterior${contrib.has(c.entidad) ? ` · contribución actual ${contrib.get(c.entidad)}` : ""}`);
     /* ⚠️ SI PREGUNTÓ POR SUCURSAL, SE DICE QUE ESE CORTE NO EXISTE (owner 2026-09-09): esta lectura responde

@@ -16077,18 +16077,32 @@
    "lente": "fp-comparaciones",
    "frase": "Ni PHI-SHAVER9 ni PHI-HAIR-PRO tienen capital frenado; los dos rotan en menos de 20 días.",
    "contexto": "P1",
-   "esperado": "pasa",
+   "esperado": "arde",
    "verdad": "15 y 19 días",
-   "patron": "negación de estado"
+   "patron": "negación de estado",
+   "reetiquetado": {
+    "de": "pasa",
+    "a": "arde",
+    "fecha": "2026-09-14",
+    "quien": "grupos, conteos, universos e inventos (v2.31)",
+    "motivo": "«los dos rotan en menos de 20 días» — PHI-SHAVER9 rota en 15 y PHI-HAIR-PRO en 19: la cota redondeada reemplaza las cifras reales de dos entidades nombradas. Es el caso que el owner ya juzgó en la corrida viva de v2.29 («más de 250 días» por 269 y 251: «ni inventada ni redondeada, tal cual está en la boleta», candado en _cobertura_del_encargo_gate). Una cota solo vale como umbral de un conteo verificable («tres cuentas superan los 250 días»), no en lugar de la cifra de una cuenta"
+   }
   },
   {
    "id": "fp-comparaciones-1784",
    "lente": "fp-comparaciones",
    "frase": "Ni PHI-SHAVER9 ni PHI-HAIR-PRO tienen capital frenado; los dos rotan en menos de 20 días.",
    "contexto": "P2",
-   "esperado": "pasa",
+   "esperado": "arde",
    "verdad": "15 y 19 días",
-   "patron": "negación de estado"
+   "patron": "negación de estado",
+   "reetiquetado": {
+    "de": "pasa",
+    "a": "arde",
+    "fecha": "2026-09-14",
+    "quien": "grupos, conteos, universos e inventos (v2.31)",
+    "motivo": "ídem 1783 (contexto P2)"
+   }
   },
   {
    "id": "fp-comparaciones-1785",
@@ -20217,18 +20231,32 @@
    "lente": "fn-atribucion",
    "frase": "Del saldo vencido de $12.6M, $4.6M están en Lider.",
    "contexto": "P1",
-   "esperado": "arde",
+   "esperado": "pasa",
    "verdad": "VERDADERO — control de falso positivo.",
-   "patron": "universos · control (verdadero, no debe arder)"
+   "patron": "universos · control (verdadero, no debe arder)",
+   "reetiquetado": {
+    "de": "arde",
+    "a": "pasa",
+    "fecha": "2026-09-14",
+    "quien": "grupos, conteos, universos e inventos (v2.31)",
+    "motivo": "«Del saldo vencido de $12.6M, $4.6M están en Lider» — el propio cazador la marca «VERDADERO — control de falso positivo»: $4.6M es el saldo vencido de Lider y $12.6M el vencido total, parte y todo del mismo universo (cobranza). Un control verdadero se espera «pasa», no «arde»; el rótulo estaba invertido"
+   }
   },
   {
    "id": "fn-atribucion-2244",
    "lente": "fn-atribucion",
    "frase": "Del saldo vencido de $12.6M, $4.6M están en Lider.",
    "contexto": "P2",
-   "esperado": "arde",
+   "esperado": "pasa",
    "verdad": "VERDADERO — control de falso positivo.",
-   "patron": "universos · control (verdadero, no debe arder)"
+   "patron": "universos · control (verdadero, no debe arder)",
+   "reetiquetado": {
+    "de": "arde",
+    "a": "pasa",
+    "fecha": "2026-09-14",
+    "quien": "grupos, conteos, universos e inventos (v2.31)",
+    "motivo": "ídem 2243 (contexto P2)"
+   }
   },
   {
    "id": "fn-atribucion-2245",
@@ -28698,11 +28726,11 @@
   }
  ],
  "linea_base": {
-  "fp": 77,
-  "fn": 210,
-  "nota": "medida al consolidar (fase 3): FP 475/1886 = 25.2 % · FN 740/1287 = 57.5 %. Tras «atribución y significado» (v2.31, 2026-09-14; 4 rótulos corregidos: 1882 pasa · 1291 arde): FP 195/1882 = 10.4 % · FN 463/1291 = 35.9 % — por lente: fp-prosa 171→84, fp-listas 157→61, fp-comparaciones 128→44, fn-atribucion 430→162 (de los 162, 160 son de orden/grupos), fn-orden 157→158, fn-grupos 172→149 · Tras «el orden en todas sus formas» (v2.31, 2026-09-14; 11 rótulos corregidos: 1889 pasa · 1284 arde): FP 77/1889 = 4.1 % · FN 210/1284 = 16.4 % — por lente: fp-prosa 84→8 (los 8 son grupos/subtotales), fp-listas 61→55, fp-comparaciones 44→8 (los 8 son umbrales en palabras: «250 días»), fn-atribucion 162→64 (58 son grupos/universos/relaciones/signo; 6 son «la de mayor X» sin universo, decisión de calibración), fn-orden 158→3 (los 3 son decisiones de calibración: «la peor cobranza / el peor perfil» y la urgencia sin universo), fn-grupos 149→149 (familia de grupos)"
+  "fp": 1,
+  "fn": 49,
+  "nota": "medida al consolidar (fase 3): FP 475/1886 = 25.2 % · FN 740/1287 = 57.5 %. Tras «atribución y significado» (v2.31, 2026-09-14; 4 rótulos corregidos: 1882 pasa · 1291 arde): FP 195/1882 = 10.4 % · FN 463/1291 = 35.9 % — por lente: fp-prosa 171→84, fp-listas 157→61, fp-comparaciones 128→44, fn-atribucion 430→162 (de los 162, 160 son de orden/grupos), fn-orden 157→158, fn-grupos 172→149 · Tras «el orden en todas sus formas» (v2.31, 2026-09-14; 11 rótulos corregidos: 1889 pasa · 1284 arde): FP 77/1889 = 4.1 % · FN 210/1284 = 16.4 % — por lente: fp-prosa 84→8 (los 8 son grupos/subtotales), fp-listas 61→55, fp-comparaciones 44→8 (los 8 son umbrales en palabras: «250 días»), fn-atribucion 162→64 (58 son grupos/universos/relaciones/signo; 6 son «la de mayor X» sin universo, decisión de calibración), fn-orden 158→3 (los 3 son decisiones de calibración: «la peor cobranza / el peor perfil» y la urgencia sin universo), fn-grupos 149→149 (familia de grupos) Con las tres familias integradas en dev (orden + grupos sobre atribución, 2026-09-15): FP 1/1889 = 0.1 % · FN 49/1284 = 3.8 % — fp-listas 1 · fn-atribucion 34 · fn-orden 3 · fn-grupos 12 (decisiones de calibración documentadas en los gates de cada familia)."
  },
- "exigir": false,
+ "exigir": true,
  "leyes_de_la_casa": [
   "intencion-inferida",
   "formato-de-informe",
