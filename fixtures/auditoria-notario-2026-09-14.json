@@ -80,7 +80,7 @@
         {
           "texto": "ese mismo grupo tiene markup promedio 41.4%",
           "tipo": "cifra de grupo (8 bajo el benchmark) atribuida a un subgrupo de 4",
-          "detectado_hoy": false,
+          "detectado_hoy": true,
           "clave": "41\\.4%"
         }
       ],
@@ -123,13 +123,13 @@
         {
           "texto": "ese mismo grupo tiene markup promedio 41.4%",
           "tipo": "cifra de grupo atribuida a un subgrupo",
-          "detectado_hoy": false,
+          "detectado_hoy": true,
           "clave": "41\\.4%"
         },
         {
           "texto": "Cayendo (2 de 13 cuentas): Ripley y La Polar",
-          "tipo": "conteo falso (Easy también cae, -$177K)",
-          "detectado_hoy": false,
+          "tipo": "conteo falso (según la boleta caen CUATRO de 13: Easy -$177K y Unimarc -$94K también — la nota original decía «caen 3»)",
+          "detectado_hoy": true,
           "clave": "2 de 13|Easy"
         }
       ],
@@ -159,7 +159,7 @@
         {
           "texto": "el precio de lista de estos cuatro está más pegado al costo que el de los sanos (markup 41.4% contra 57.3%)",
           "tipo": "cifra de grupo (8) atribuida a un subgrupo de 4",
-          "detectado_hoy": false,
+          "detectado_hoy": true,
           "clave": "41\\.4%|57\\.3%"
         }
       ],
@@ -200,7 +200,7 @@
         {
           "texto": "en esos mismos cuatro el precio de lista está más pegado al costo que en los sanos (markup 41.4% contra 57.3%)",
           "tipo": "cifra de grupo atribuida a un subgrupo",
-          "detectado_hoy": false,
+          "detectado_hoy": true,
           "clave": "41\\.4%|57\\.3%"
         }
       ],
@@ -231,7 +231,7 @@
         {
           "texto": "markup 41.4% contra 57.3% en Easy, La Polar, Hites",
           "tipo": "cifra de grupo (5 sanos) atribuida a 3 nombres",
-          "detectado_hoy": false,
+          "detectado_hoy": true,
           "clave": "57\\.3%"
         },
         {
@@ -265,7 +265,7 @@
         {
           "texto": "su precio de lista está más pegado al costo que el de los sanos (markup 41.4% contra 57.3%)",
           "tipo": "cifra de grupo (8) atribuida a «su» (los tres)",
-          "detectado_hoy": false,
+          "detectado_hoy": true,
           "clave": "41\\.4%|57\\.3%"
         }
       ],

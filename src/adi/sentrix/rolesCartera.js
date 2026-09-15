@@ -136,7 +136,11 @@ export function buildRolesCartera(scenario) {
         ? `los que caen tienen el precio más pegado al costo que los sanos (markup promedio ${mkCaen}% contra ${mkSanos}%)`
         : "el markup de los que caen no es menor que el de los sanos: por acá el patrón no aparece"),
     items: conMarkup.slice(0, 4),
-    markupCaen: mkCaen, markupSanos: mkSanos, sanos: sanosMk,
+    /* LOS DOS CONJUNTOS COMPLETOS VIAJAN CON SUS PROMEDIOS (owner 2026-09-14): «ese mismo grupo (4 cuentas) tiene markup
+     * promedio 41.4%» — el 41.4% es el promedio de los OCHO bajo el benchmark con markup, no de los cuatro con carga alta.
+     * `items` va recortado a 4 para el porqué; `caen` y `sanos` son los conjuntos enteros, para que el emisor publique cada
+     * promedio con su grupo declarado y el muro cobre el reparto. */
+    markupCaen: mkCaen, markupSanos: mkSanos, caen: conMarkup, sanos: sanosMk,
   });
   huellas.push({
     mecanismo: "mix de lo que cada cliente compra",

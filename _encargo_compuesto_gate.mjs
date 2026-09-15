@@ -382,8 +382,20 @@ H("3h · ★★★ las tres corridas vivas: ventas y Falabella se sirven; el ger
   const g2 = G.borradores[1].texto
     .replace("De eso, **$655K** es contribución cedida en acciones comerciales por sobre el nivel de referencia — no es caja, es margen que se negoció.",
       "De eso, **$588K** es el efecto de la carga sobre el nivel declarado y el resto, **$4.4M**, el componente precio y costo — que el dato no separa. Aparte, la carga sobre el nivel suma $655K en las 6 cuentas que lo exceden (una de ellas sobre el benchmark); no es caja, es margen que se negoció.")
-    .replace("de los cuales $655K corresponden a acciones comerciales por sobre la referencia.", "de los cuales $588K corresponden a la carga sobre el nivel declarado y $4.4M al componente precio y costo.");
-  ok(g2 !== G.borradores[1].texto && !/De eso, \*\*\$655K|de los cuales \$655K/.test(g2), "la reparación corregida usa la partición medida y deja los $655K aparte, con su universo");
+    .replace("de los cuales $655K corresponden a acciones comerciales por sobre la referencia.", "de los cuales $588K corresponden a la carga sobre el nivel declarado y $4.4M al componente precio y costo.")
+    /* LA CIFRA DE UN GRUPO ES DEL GRUPO COMPLETO (auditoría del Notario, owner 2026-09-14, familia C): «Falabella, Lider, Jumbo y Sodimac cargan … **y**
+     * además su precio de lista está más pegado al costo … (markup promedio 41.4% …)» — el «su» remite a esos cuatro, y el 41.4% es el promedio
+     * de las OCHO bajo el benchmark. La reparación viva llevaba ese error y hoy el muro lo cobra; la corrección lo dice como es: de los que caen. */
+    .replace("**y** además su precio de lista está más pegado al costo que el de los sanos", "**y** además el precio de lista de los que caen está más pegado al costo que el de los sanos");
+  ok(g2 !== G.borradores[1].texto && !/De eso, \*\*\$655K|de los cuales \$655K/.test(g2) && !/su precio de lista/.test(g2), "la reparación corregida usa la partición medida, deja los $655K aparte con su universo, y el markup promedio es de los que caen, no «su» (los cuatro)");
+  {
+    const { guardC } = await import("./src/adi/oracle/guardC.js");
+    const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
+    const rpG = runPlan({ intent: "answer", calls: pasosDelEncargo(partesDelEncargo(G.pregunta), pasosDe(playbookPara(G.pregunta, {}), G.pregunta, {}), {}).map((p) => ({ tool: p.tool, args: p.args || {} })) }, { scenario: ESC, maxCalls: 18, preguntaUsuario: G.pregunta, registry: CAJA });
+    const muroG = (t) => { const v = guardC(t, { ledger: { figs: rpG.ledger.figs }, results: rpG.results, question: G.pregunta, datoProyectado: cifrasDelDato(ESC), contentScope: "full" }); return v.ok ? [] : (v.violations || []); };
+    ok(muroG(G.borradores[1].texto).some((x) => x.kind === "cifra-de-grupo-mal-repartida" && /«41\.4%».*«su» remite a la última lista del párrafo, de 4 nombres \(Falabella, Lider, Jumbo, Sodimac\)/.test(String(x.detail))) && !muroG(g2).some((x) => x.kind === "cifra-de-grupo-mal-repartida"),
+      "★ la reparación viva también repartía el 41.4% («su» = Falabella, Lider, Jumbo y Sodimac; son ocho) — arde; corregida como «de los que caen», no", muroG(g2).map((x) => x.kind).join(","));
+  }
   const rg = await answerViaAgente({ text: G.pregunta, history: [], mem: {}, scenario: ESC, callAgente: cerebroDe([G.borradores[0].texto, g2]) });
   ok(rg.r.agente.estado === "reparado" && /\$588K/.test(rg.r.text) && /\$4\.4M/.test(rg.r.text) && /precio y costo/.test(rg.r.text),
     `★★★ …y corregida SE SIRVE entera (${rg.r.agente.estado}, ${palabras(rg.r.text)} palabras) con la partición medida y sin separar precio de costo`, (rg.r.agente.vetos || []).join(" | ").slice(0, 400));

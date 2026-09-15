@@ -23,7 +23,7 @@ import { rangoContextoGeneral, extraerCalculos } from "./narrationBlocks.js";
  * decidir «de quién es esta cifra / quién reclama este extremo» por cercanía (±90 caracteres, el nombre más cercano) en vez
  * de por estructura (cláusula, paréntesis, dos puntos, coordinación, negación). Todos los chequeos de atribución de este
  * muro leen la estructura de UN solo lector; acá no se adivina el sujeto dos veces. */
-import { leerClausula, entidadesConPosicion as _entidadesConPosicion, coordinadasContiguas as _coordinadasContiguas, compilarNombres, SEP_COORD as _SEP_COORD } from "./lectorDeClausula.js";
+import { leerClausula, entidadesConPosicion as _entidadesConPosicion, coordinadasContiguas as _coordinadasContiguas, compilarNombres, SEP_COORD as _SEP_COORD, normalizar as _normalizar, listasCoordinadas, esComparada } from "./lectorDeClausula.js";
 
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const _stripSpace = (s) => String(s).replace(/\s/g, "");
@@ -806,72 +806,294 @@ function _totalMisattribution(narration, ledger, entityNames) {
   return viol;
 }
 
-/* ── LA CIFRA DE UN GRUPO ES DEL GRUPO COMPLETO (owner 2026-09-14, segunda corrida de la prueba 2) ───────────────
+/* ── LA CIFRA DE UN GRUPO ES DEL GRUPO COMPLETO (owner 2026-09-14, segunda corrida de la prueba 2 · la familia entera en la
+ * auditoría del Notario, `_AUDITORIA_NOTARIO_2026-09-14.md`) ─────────────────────────────────────────────────────────────
  * «Falabella, Lider, Jumbo, Sodimac y Paris (73.8% de la venta)»: el 73.8% es el peso de SEIS cuentas (con Ripley) — la
  * herramienta traía la lista recortada a 5 y el cerebro la copió. Regla de producto: «una cifra agregada de un grupo solo
  * puede atribuirse al grupo completo que realmente representa». La fig lleva su grupo declarado (`grupo: { n, entidades }`,
- * lo pone el emisor); acá se cobra la atribución: si la oración que cita la cifra le pega una lista de nombres, esa lista
- * tiene que ser EXACTAMENTE el grupo; si dice «N cuentas», N tiene que ser el n del grupo. Sin lista ni conteo pegados
- * («las cuentas con carga alta pesan 73.8%») no se juzga: describir el grupo con palabras no es repartirlo. */
-const _CONTEO_PEGADO = /\b(\d{1,3}|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece)\s+(?:cuentas?|clientes?|skus?|marcas?|productos?)\b/i;
-const _NUM_PALABRA = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13 };
+ * lo pone el emisor — la convención de la casa: quien publica un agregado de un conjunto conocido declara el conjunto).
+ *
+ * LO QUE LA AUDITORÍA MIDIÓ (7 de los 21 errores reales de los 12 borradores, ninguno detectado): la cifra del grupo se
+ * repartía por tres caminos y el muro solo veía el primero, y a medias:
+ *   (1) la LISTA pegada a la cifra, antes («A, B y C (73.8%)») o después («57.3% en Easy, La Polar, Hites» — son cinco sanos);
+ *   (2) el CONTEO pegado («Cinco cuentas pesan 73.8%», «estos cuatro … (markup 41.4%)» — el 41.4% es de ocho);
+ *   (3) el PRONOMBRE o demostrativo que remite a una lista anterior del párrafo («ese mismo grupo tiene markup promedio 41.4%»
+ *       tras «Falabella, Lider, Jumbo y Sodimac están bajo el benchmark…»; «su precio de lista … (markup 41.4%)» tras
+ *       «Falabella, Jumbo y Lider…»): el referente es la ÚLTIMA lista coordinada del párrafo (dos o más nombres); sin lista
+ *       en el párrafo no se juzga.
+ * Todo se lee por ESTRUCTURA, con el lector de cláusula: la referencia que ata la cifra es la MÁS CERCANA de las tres, sin
+ * otra cifra ni número entre medio («los tres tienen carga…, patrón que se repite en 6 cuentas con 73.8%» ata «6 cuentas»,
+ * no «los tres»), y del MISMO lado de la comparación («… de estos cuatro … que el de los sanos (markup 41.4% contra 57.3%)»:
+ * «estos cuatro» ata el 41.4%, no el 57.3% que va tras «contra»). Lo que NO se juzga, a propósito: la descripción del grupo
+ * («las que caen (markup promedio 41.4%)», «los sanos (57.3%)»), una lista abierta («A, B, C y una quinta», «entre otros»), y
+ * una cifra cuyo canon también es de una entidad de la boleta (un «$1.5M» puede ser el de Lider: no se le cuelga un grupo).
+ * El veto dice cuál es el grupo y cuál la lista o el conteo dicho. */
+const _NUM_PALABRA = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15, veinte: 20 };
+const _NUMERAL_SRC = "(\\d{1,3}|" + Object.keys(_NUM_PALABRA).join("|") + ")";
+const _NOMBRE_CONTABLE_SRC = "(?:cuentas?|clientes?|skus?|marcas?|productos?|nombres?|bodegas?|familias?)";
+const _DEMOSTRATIVO_SRC = "(?:est[eao]s?|es[eao]s|es[ea]|aquel|aquell[oa]s?|dich[oa]s?)";
+/* el CONTEO pegado: «6 cuentas», «esas 5 cuentas», «cinco cuentas», el numeral sustantivado «estos cuatro», «esos mismos cuatro», «los cuatro», y
+ * «ocho de trece clientes» (el conteo es el ocho: «Ocho de trece clientes están bajo la referencia» no dice trece) */
+const _REF_CONTEO = new RegExp(`(?<=^|[^\\p{L}\\p{N}])${_NUMERAL_SRC}\\s+de\\s+(?:l[oa]s\\s+)?(?:${_NUMERAL_SRC.replace(/^\(/, "(?:")})\\s+${_NOMBRE_CONTABLE_SRC}(?=[^\\p{L}]|$)|(?<=^|[^\\p{L}\\p{N}])(?:(?:${_DEMOSTRATIVO_SRC}|l[oa]s)\\s+)?(?:mism[oa]s\\s+)?${_NUMERAL_SRC}\\s+${_NOMBRE_CONTABLE_SRC}(?=[^\\p{L}]|$)|(?<=^|[^\\p{L}\\p{N}])(?:${_DEMOSTRATIVO_SRC}|l[oa]s)\\s+(?:mism[oa]s\\s+)?${_NUMERAL_SRC}(?=[^\\p{L}\\p{N}]|$)`, "giu");
+/* la cifra que DICE de quién es apenas termina («41.4% en los que caen», «57.3% en las cuentas sanas», «$4.9M en las 5 cuentas materiales»):
+ * un plural con artículo o demostrativo tras «en/de/entre» — no un complemento de la métrica («73.8% de la venta», «$4.9M de contribución») */
+const _AUTOATRIBUIDA = /^\s*(?:en|de|entre)\s+(?:l[oa]s|est[oa]s|es[oa]s|aquell[oa]s|dich[oa]s|quienes)(?=\s|$)/u;
+/* el PRONOMBRE de grupo: «ese mismo grupo», «esas cuentas», «estos clientes», «dichas cuentas», «los mismos», «su», «sus» */
+const _REF_PRONOMBRE = new RegExp(`(?<=^|[^\\p{L}\\p{N}])(?:${_DEMOSTRATIVO_SRC}\\s+(?:mism[oa]s?\\s+)?(?:grupo|conjunto|bloque|cuentas|clientes|skus?|marcas|productos|nombres)|l[oa]s\\s+mism[oa]s|sus?)(?=[^\\p{L}\\p{N}]|$)`, "giu");
+/* la lista ABIERTA: lo que sigue a la última entidad dice que faltan nombres («y una quinta», «y otras dos», «entre otros», «etc.») */
+const _LISTA_ABIERTA = /^\s*,?\s*(?:(?:[yeo]|ni)\s+(?:una?|otr[oa]s?|mas|el resto|l[oa]s demas|algun[oa]?s?|varios|varias|muchos|muchas)|entre otr[oa]s|etc\b|…)/u;
+/* un número cualquiera del texto (cifra con o sin unidad, un entero suelto o un numeral en palabras — «cinco concentran»): lo que NO puede
+ * haber entre la referencia y su cifra */
+const _CIFRA_CUALQUIERA = new RegExp(`[+\\-−]?\\$?\\d[\\d.,]*\\s?(?:%|pp\\b|[kmb]\\b|d\\b|x\\b)?|(?<=^|[^\\p{L}])(?:${Object.keys(_NUM_PALABRA).join("|")})(?=[^\\p{L}]|$)`, "gu");
+const _CONECTOR_DESPUES = /:|—|–|\(|(?<=^|[^\p{L}])(?:entre|en|de|son)(?=\s)/gu;
+const _kDe = (s) => Number(s) || _NUM_PALABRA[String(s || "").toLowerCase()] || 0;
+/** todas las apariciones de todos los nombres, como tramos [ini, fin] — para que una cifra dentro de un nombre («LG-DRYER8KG») no cuente como cifra */
+function _spansDeNombres(textoN, nombresRe) {
+  const out = [];
+  for (const re of nombresRe || []) {
+    const g = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
+    let m;
+    while ((m = g.exec(textoN))) { const nombre = m[0].replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ""); const ini = m.index + m[0].indexOf(nombre); out.push([ini, ini + nombre.length]); if (!m[0].length) g.lastIndex++; }
+  }
+  return out;
+}
+function _spansDeCifras(textoN, nombresRe) {
+  const nombres = _spansDeNombres(textoN, nombresRe);
+  const out = [];
+  _CIFRA_CUALQUIERA.lastIndex = 0;
+  let m;
+  while ((m = _CIFRA_CUALQUIERA.exec(textoN))) {
+    const a = m.index, b = m.index + m[0].length;
+    if (!nombres.some(([x, y]) => a < y && b > x)) out.push([a, b]);
+    if (!m[0].length) _CIFRA_CUALQUIERA.lastIndex++;
+  }
+  return out;
+}
+/** el referente de un pronombre de grupo: la ÚLTIMA lista coordinada (dos o más nombres) del párrafo antes de `pos`, leída en
+ *  el plano SIN paréntesis ni incisos (una lista entre paréntesis es un aparte, no el sujeto del párrafo); si el último nombre
+ *  del párrafo va suelto, el referente es ambiguo y no se juzga. */
+function _referenteDeGrupo(plano, text, pos, nombresRe) {
+  const parIni = Math.max(0, text.lastIndexOf("\n\n", Math.max(0, pos - 1)));
+  const runs = listasCoordinadas(plano.slice(parIni, pos), nombresRe);
+  const ultima = runs[runs.length - 1];
+  return ultima && ultima.nombres.length >= 2 ? ultima.nombres : null;
+}
 function _grupoMalRepartido(narration, ledger, entityNames) {
   const grupos = ((ledger && ledger.figs) || []).filter((f) => f && f.grupo && Array.isArray(f.grupo.entidades) && f.grupo.entidades.length >= 2);
   if (!grupos.length) return [];
   const text = String(narration || "");
   const out = [];
-  const nombres = [...new Set([...(entityNames || []), ...grupos.flatMap((g) => g.grupo.entidades)].map((n) => _norm(n)).filter(Boolean))];
-  const nombresRe = nombres.map((nn) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${nn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u"));
+  const nombresDisplay = [...new Set([...(entityNames || []), ...grupos.flatMap((g) => g.grupo.entidades)].filter(Boolean))];
+  const nombresRe = compilarNombres(nombresDisplay);
+  const pantalla = new Map(nombresDisplay.map((x) => [_norm(x), x]));
+  const _ver = (lista) => lista.map((x) => pantalla.get(x) || x);
+  /* el canon de un grupo que también es de una ENTIDAD de la boleta («$1.5M»: Lider · Contribución no capturada) no se juzga:
+   * el texto puede estar hablando de la entidad */
+  const owners = _valueOwners(ledger, nombresDisplay);
+  const Nn = _normalizar(text).replace(/\*/g, " ");                   // normalizado, misma longitud, sin énfasis
+  const spans = _spansDeCifras(Nn, nombresRe);
+  /* el PLANO DE LISTAS: las cifras pegadas a un nombre («Falabella $1.6M, Lider $1.5M») y las barras («Easy/La Polar/Hites») no
+   * rompen la coordinación — cifras a espacios, barras a comas, misma longitud */
+  let planoListas = Nn;
+  for (const [x, y] of spans) planoListas = planoListas.slice(0, x) + " ".repeat(y - x) + planoListas.slice(y);
+  planoListas = planoListas.replace(/\//g, ",");
+  const figsTexto = parseFigures(text);
   const vistos = new Set();
   for (const g of grupos) {
+    if ((owners.get(g.canon) || new Set()).size) continue;
     const G = new Set(g.grupo.entidades.map((n) => _norm(n)));
     const n = Number.isFinite(g.grupo.n) ? g.grupo.n : G.size;
-    for (const oracion of text.split(/(?<=[.!?])\s+|\n+/)) {
-      const fig = parseFigures(oracion).find((nf) => nf.canon === g.canon || _stripSpace(nf.text) === _stripSpace(String(g.value)));
-      if (!fig) continue;
-      const clave = g.canon + "|" + oracion.slice(0, 60);
+    const textos = [...new Set(figsTexto.filter((nf) => nf.canon === g.canon || _stripSpace(nf.text) === _stripSpace(String(g.value))).map((nf) => nf.text))];
+    const posiciones = [];
+    for (const ft of textos) { let i = -1; while ((i = text.indexOf(ft, i + 1)) >= 0) posiciones.push([i, i + ft.length, ft]); }
+    for (const [idx, fin, ft] of posiciones.sort((a, b) => a[0] - b[0])) {
+      const clave = g.canon + "|" + idx;
       if (vistos.has(clave)) continue;
       vistos.add(clave);
-      const oN = _norm(oracion);
-      const idx = oN.indexOf(_norm(fig.text));
-      /* la lista coordinada pegada a la cifra: la corrida de nombres que termina justo antes («A, B y C (73.8%)», «A y B pesan
-       * 73.8%») o justo después («73.8% de la venta: A, B y C» · «73.8% entre A y B») */
-      const antesN = idx >= 0 ? oN.slice(0, idx) : oN;
-      const ents = _entidadesConPosicion(antesN, nombresRe);
-      let lista = [];
-      if (ents.length) {
-        const corrida = _coordinadasContiguas(antesN, nombresRe);
-        const ult = ents[ents.length - 1];
-        const puente = antesN.slice(ult.pos + ult.nombre.length);
-        if (puente.length <= 40 && !/[.;]/.test(puente)) lista = corrida;
-      }
-      if (!lista.length && idx >= 0) {
-        const despuesN = oN.slice(idx + fig.text.length);
-        const m = /^[^.;:]{0,30}?(?::|—|–|entre|en|de|son)\s+/.exec(despuesN);
-        if (m) {
-          const ents2 = _entidadesConPosicion(despuesN.slice(m[0].length), nombresRe);
-          if (ents2.length && ents2[0].pos <= 2) {
-            const tramo = despuesN.slice(m[0].length);
-            const primeros = [];
-            let fin = 0;
-            for (const e of ents2) { if (e.pos > fin + 12 && primeros.length) break; primeros.push(e.nombre); fin = e.pos + e.nombre.length; }
-            lista = primeros;
-          }
+      const L = leerClausula(text, idx, { nombresRe });
+      const oIni = L.oracion.ini, oFin = L.oracion.fin;
+      const figComparada = esComparada(Nn, idx);
+      /* ── ANTES de la cifra: lista, conteo o pronombre — la referencia más cercana, del mismo lado de la comparación ── */
+      const candidatos = [];
+      /* una lista donde CADA nombre trae su propia cifra pegada («Falabella $1.6M, Lider $1.5M», «(Falabella 4.5%, Sodimac 5.4%)») es
+       * un DESGLOSE, no un reparto de la cifra agregada: no reclama nada (el mismo principio de «Valparaíso (75%)» en el total) */
+      const _conCifraPropia = (it) => spans.some(([x]) => x >= it.fin && x <= it.fin + 4 && /^[\s(]*$/.test(Nn.slice(it.fin, x)));
+      const _desglose = (base, r) => r.items.length >= 1 && r.items.every((it) => _conCifraPropia({ fin: base + it.fin }));
+      /* la lista se busca en toda la oración (el puente hasta la cifra se acota abajo: ≤ 40 caracteres, sin «.» ni «;») */
+      const antesIni = L.enParentesis && L.contenedor ? L.contenedor.ini : oIni;
+      for (const r of listasCoordinadas(planoListas.slice(antesIni, idx), nombresRe)) if (!_desglose(antesIni, r)) candidatos.push({ tipo: "lista", ini: antesIni + r.ini, fin: antesIni + r.fin, nombres: r.nombres });
+      /* el conteo y el pronombre solo atan desde la MISMA cláusula de la cifra (o su rótulo, o la cláusula que contiene el paréntesis):
+       * «Ocho de trece clientes están bajo la referencia; cinco concentran $4.9M» — el «;» abre otra cláusula con su propio sujeto; y una cifra
+       * que dice de quién es apenas termina («— markup promedio 41.4% en los que caen») no la ata un pronombre de la cláusula anterior */
+      const autoatribuida = _AUTOATRIBUIDA.test(planoListas.slice(fin, L.enParentesis ? L.clausula.fin : oFin));
+      const refIni = L.enParentesis && L.contenedor ? L.contenedor.ini : (L.rotulo ? L.rotulo.ini : L.clausula.ini);
+      /* para una cifra entre paréntesis, el interior del propio paréntesis (su cláusula) queda a la vista */
+      const planoRef = L.enParentesis ? L.plano.slice(0, L.apertura + 1) + Nn.slice(L.apertura + 1, L.clausula.fin) + L.plano.slice(L.clausula.fin) : L.plano;
+      const espacio = autoatribuida ? "" : planoRef.slice(refIni, idx);
+      for (const re of [_REF_CONTEO, _REF_PRONOMBRE]) {
+        re.lastIndex = 0;
+        let m;
+        while ((m = re.exec(espacio))) {
+          candidatos.push({ tipo: re === _REF_CONTEO ? "conteo" : "pronombre", ini: refIni + m.index, fin: refIni + m.index + m[0].length, k: re === _REF_CONTEO ? _kDe(m[1] || m[2] || m[3]) : 0, texto: m[0].trim() });
+          if (!m[0].length) re.lastIndex++;
         }
       }
-      const dicho = _CONTEO_PEGADO.exec(oN);
-      const k = dicho ? (Number(dicho[1]) || _NUM_PALABRA[dicho[1].toLowerCase()] || 0) : 0;
-      const setLista = new Set(lista);
-      const iguales = setLista.size === G.size && [...G].every((x) => setLista.has(x));
-      if (lista.length && !iguales) {
-        const faltan = [...G].filter((x) => !setLista.has(x)), sobran = [...setLista].filter((x) => !G.has(x));
-        out.push(`«${fig.text}» es la cifra de un GRUPO de ${n} (${g.grupo.entidades.join(", ")}) y la narras como de ${lista.length} nombres${faltan.length ? ` — faltan: ${faltan.join(", ")}` : ""}${sobran.length ? ` — sobran: ${sobran.join(", ")}` : ""}: una cifra agregada solo es del grupo completo que representa — nombra a los ${n} o dilo como «${n} cuentas»`);
-        continue;
+      let ref = null;
+      for (const c of candidatos.sort((a, b) => b.fin - a.fin)) {
+        if (c.fin > idx) continue;
+        if (esComparada(Nn, c.ini) !== figComparada) continue;                        // el otro lado de la comparación no ata esta cifra
+        if (spans.some(([x, y]) => x >= c.fin && y <= idx && esComparada(Nn, x) === figComparada)) continue;   // otra cifra entre medio: no está pegada
+        if (c.tipo === "lista" && (idx - c.fin > 40 || /[.;]/.test(L.plano.slice(c.fin, idx)))) continue;
+        ref = c;
+        break;
       }
-      if (!lista.length && k && k !== n) {
-        out.push(`«${fig.text}» es la cifra de un GRUPO de ${n} (${g.grupo.entidades.join(", ")}) y la narras como de ${k}: el conteo tiene que ser el del grupo — «${n} cuentas»`);
+      /* ── DESPUÉS de la cifra: «57.3% en Easy, La Polar, Hites» · «73.8% de la venta: A, B y C» · «$4.9M en las 5 cuentas» ── */
+      if (!ref) {
+        const tailFin = L.enParentesis ? L.clausula.fin : oFin;
+        let corte = tailFin;
+        for (const [x] of spans) if (x >= fin && x < corte) { corte = x; break; }   // la siguiente cifra cierra la cola
+        const mPunto = /[.;]/.exec(planoListas.slice(fin, corte));
+        if (mPunto) corte = fin + mPunto.index;
+        const tail = planoListas.slice(fin, corte);
+        _CONECTOR_DESPUES.lastIndex = 0;
+        let mc;
+        while ((mc = _CONECTOR_DESPUES.exec(tail)) && mc.index <= 30) {
+          if (/[.;:—–()]/.test(tail.slice(0, mc.index))) break;                       // el conector tiene que estar en la misma cláusula que la cifra («$655K — la más pesada es la de Falabella» no reparte)
+          const desde = mc.index + mc[0].length;
+          const run = listasCoordinadas(tail.slice(desde), nombresRe).find((r) => r.ini <= 2);
+          if (run) { if (!_desglose(fin + desde, run)) ref = { tipo: "lista", ini: fin + desde + run.ini, fin: fin + desde + run.fin, nombres: run.nombres }; break; }
+          if (!mc[0].length) _CONECTOR_DESPUES.lastIndex++;
+        }
+        if (!ref) {
+          /* el conteo se lee con los números a la vista («$4.9M en las 5 cuentas materiales»): su propio número no es «otra cifra», pero una
+           * cifra distinta entre medio, un punto o un punto y coma sí lo separan de la cifra */
+          _REF_CONTEO.lastIndex = 0;
+          const tailRef = planoRef.slice(fin, tailFin);
+          const mk = _REF_CONTEO.exec(tailRef);
+          if (mk && mk.index <= 40 && !/[.;]/.test(tailRef.slice(0, mk.index)) && !spans.some(([x, y]) => x >= fin && y <= fin + mk.index)) ref = { tipo: "conteo", ini: fin + mk.index, fin: fin + mk.index + mk[0].length, k: _kDe(mk[1] || mk[2] || mk[3]), texto: mk[0].trim() };
+        }
+      }
+      if (!ref) continue;
+      const grupoDicho = `«${ft}» es la cifra de un GRUPO de ${n} (${g.grupo.entidades.join(", ")})`;
+      const compara = (lista, como) => {
+        const S = new Set(lista);
+        if (S.size === G.size && [...G].every((x) => S.has(x))) return null;
+        const faltan = [...G].filter((x) => !S.has(x)), sobran = [...S].filter((x) => !G.has(x));
+        return `${grupoDicho} y ${como} ${lista.length} nombre${lista.length === 1 ? "" : "s"} (${_ver(lista).join(", ")})${faltan.length ? ` — quedan fuera: ${_ver(faltan).join(", ")}` : ""}${sobran.length ? ` — sobran: ${_ver(sobran).join(", ")}` : ""}: una cifra agregada solo es del grupo completo que representa — nombra a los ${n} o dilo como «${n} cuentas»`;
+      };
+      const porConteo = (k) => `${grupoDicho} y la narras como de ${k}: el conteo tiene que ser el del grupo — «${n} cuentas»`;
+      if (ref.tipo === "lista") {
+        if (_LISTA_ABIERTA.test(planoListas.slice(ref.fin, ref.fin + 40))) continue;   // «A, B, C y una quinta»: la lista dice que faltan nombres
+        const v = compara(ref.nombres, "la narras como de");
+        if (v) out.push(v);
+      } else if (ref.tipo === "conteo") {
+        if (!ref.k) continue;
+        /* «estos cuatro», «esas seis cuentas»: el numeral con demostrativo remite a una lista — si el párrafo la tiene se juzga la lista
+         * (aunque el conteo coincida: «esas seis cuentas» tras una lista con Tottus en vez de Ripley), y el veto dice cuál */
+        const lista = /^(?:est|es|aquel|dich)/u.test(ref.texto) ? _referenteDeGrupo(L.plano, text, ref.ini, nombresRe) : null;
+        const v = lista ? compara(lista, `«${ref.texto}» remite a la última lista del párrafo, de`) : null;
+        if (v) out.push(v);
+        else if (ref.k !== n) out.push(porConteo(ref.k));
+      } else {
+        const lista = _referenteDeGrupo(L.plano, text, ref.ini, nombresRe);
+        if (!lista) continue;                                                          // sin lista en el párrafo no se juzga
+        const v = compara(lista, `«${ref.texto}» remite a la última lista del párrafo, de`);
+        if (v) out.push(v);
       }
     }
+  }
+  return out;
+}
+
+/* ── «N DE M CUENTAS» CON PREDICADO: EL CONTEO SE VERIFICA CONTRA LA BOLETA (owner 2026-09-14, auditoría del Notario) ─────
+ * «Cayendo (2 de 13 cuentas): Ripley (-$422K) y La Polar (-$420K)» — según la boleta caen CUATRO (Easy -$177K y Unimarc -$94K
+ * también); el 2 era un conteo autorizado por coincidencia (hay un «2» en la boleta) y nadie lo comparaba con lo que dice.
+ * Regla: un «N de M <cuentas|clientes|SKU|…>» con un predicado reconocible en su cláusula (o en el rótulo/la cláusula que
+ * contiene el paréntesis) se compara con el conteo que la boleta o la proyección permiten DERIVAR: las variaciones YoY por
+ * cliente viajan con signo («X · Variación vs año anterior»); bajo/sobre el benchmark y la carga sobre el nivel salen de los
+ * rankings declarados de la proyección (brecha, carga) o de las figs por cuenta; el vencido, de «X · Saldo vencido». Dos
+ * predicados en la misma cláusula se INTERSECAN («bajo el benchmark y con carga sobre el nivel»). Solo se juzga cuando M es
+ * el universo completo del sustantivo (las 13 cuentas): con «2 de las 8 bajo el benchmark» N es un subconjunto por otro
+ * criterio y no hay con qué compararlo. Un universo parcial (la cobranza publica hasta 8 filas) solo puede probar que N es
+ * CHICO. Si el predicado no es derivable, no se juzga. El veto dice el conteo real y quién falta. */
+const _N_DE_M = new RegExp(`(?<=^|[^\\p{L}\\p{N}])${_NUMERAL_SRC}\\s+de\\s+(?:l[oa]s\\s+)?${_NUMERAL_SRC}\\s+${_NOMBRE_CONTABLE_SRC}(?=[^\\p{L}]|$)`, "giu");
+const _PREDICADOS_DE_CONTEO = [
+  { clave: "caen", re: /(?<=^|[^\p{L}])(?:caen|cayendo|caida|caidas|en caida|bajan|bajando|a la baja|retroceden|decrecen|pierden venta|venden menos)(?=[^\p{L}]|$)/u, fuente: "variacion", pred: (v) => v < 0 },
+  { clave: "crecen", re: /(?<=^|[^\p{L}])(?:crecen|creciendo|crecientes|suben|subiendo|al alza|en expansion|venden mas|ganan venta)(?=[^\p{L}]|$)/u, fuente: "variacion", pred: (v) => v > 0 },
+  { clave: "bajo el benchmark", re: /(?<=^|[^\p{L}])bajo (?:el |la )?(?:benchmark|referencia|piso|vara)(?=[^\p{L}]|$)/u, fuente: "brecha", pred: (v) => v > 0 },
+  { clave: "sobre el benchmark", re: /(?<=^|[^\p{L}])(?:(?:sobre|por sobre|por encima de|igual o sobre) (?:el |la )?(?:benchmark|referencia|piso|vara)|san[oa]s)(?=[^\p{L}]|$)/u, fuente: "brecha", pred: (v) => v <= 0 },
+  { clave: "con carga sobre el nivel", re: /(?<=^|[^\p{L}])(?:carga[^.;:()]{0,40}?(?:sobre|por sobre|por encima|excede|exceden|excedida|alta)|(?:sobre|por sobre|por encima de|exceden) (?:el |del )?nivel)(?=[^\p{L}]|$)/u, fuente: "carga", pred: (v, F) => v > F.nivel },
+  { clave: "con vencido", re: /(?<=^|[^\p{L}])(?:vencid[oa]s?|en mora|con mora|con atraso|morosos)(?=[^\p{L}]|$)/u, fuente: "vencido", pred: (v) => v > 0, parcial: true },
+];
+/* los conjuntos derivables del turno por eje (hoy: cliente; el eje sku no publica estos predicados), cada uno con el universo que cubre */
+function _conjuntosDerivables(ledger, datoProyectado) {
+  const figs = (ledger && ledger.figs) || [];
+  const rk = (datoProyectado && datoProyectado.rankings) || {};
+  const _mapa = (filas, valorDe) => { const m = new Map(); for (const f of filas || []) { const e = _norm(f.entidad || ""); const v = valorDe(f); if (e && Number.isFinite(v)) m.set(e, v); } return m; };
+  const _conj = (mapa, extra = {}) => (mapa && mapa.size ? { universo: mapa.size, filtra: (pred) => [...mapa.entries()].filter(([, v]) => pred(v)).map(([e]) => e), ...extra } : null);
+  const _rawDe = (f) => { if (Number.isFinite(f.raw)) return f.raw; const p = parseFigures(String(f.value || ""))[0]; return p ? p.raw : NaN; };
+  const _deFigs = (re) => _mapa(figs.filter((f) => re.test(String(f.label || ""))).map((f) => ({ entidad: String(f.label).split("·")[0].trim(), raw: _rawDe(f) })), (f) => f.raw);
+  const nivelFig = figs.find((f) => /nivel de carga comercial declarado/i.test(String(f.label || "")) && Number.isFinite(f.raw));
+  const cliente = rk.cliente || {};
+  const _universo = (ejeRk) => Math.max(0, ...Object.values(ejeRk || {}).map((r) => (r && Array.isArray(r.filas) ? r.filas.length : 0)));
+  return {
+    cliente: {
+      universo: _universo(cliente),
+      variacion: _conj(_deFigs(/^[^·]+ · (?:Variación vs año anterior|YoY)$/i)),
+      brecha: _conj(cliente.brecha && cliente.brecha.filas ? _mapa(cliente.brecha.filas, (f) => f.valor) : _deFigs(/^[^·]+ · Brecha al benchmark$/i)),
+      carga: nivelFig ? _conj(cliente.carga && cliente.carga.filas ? _mapa(cliente.carga.filas, (f) => f.valor) : _deFigs(/^[^·]+ · Carga comercial$/i), { nivel: nivelFig.raw }) : null,
+      vencido: _conj(_deFigs(/^[^·]+ · Saldo vencido$/i)),
+    },
+    sku: { universo: _universo(rk.sku), variacion: null, brecha: null, carga: null, vencido: null },
+  };
+}
+function _conteoDeListaFalso(narration, ledger, datoProyectado, entityNames) {
+  const text = String(narration || "");
+  if (!text) return [];
+  const Nn = _normalizar(text).replace(/\*/g, " ");
+  const nombresDisplay = [...new Set(entityNames || [])];
+  const nombresRe = compilarNombres(nombresDisplay);
+  const pantalla = new Map(nombresDisplay.map((x) => [_norm(x), x]));
+  const _ver = (lista) => lista.map((x) => pantalla.get(x) || x);
+  const D = _conjuntosDerivables(ledger, datoProyectado);
+  const out = [];
+  _N_DE_M.lastIndex = 0;
+  let m;
+  while ((m = _N_DE_M.exec(Nn))) {
+    const N = _kDe(m[1]), M = _kDe(m[2]);
+    const sustantivo = m[0].trim().split(/\s+/).pop();
+    const eje = /^sku/i.test(sustantivo) ? "sku" : /^(?:cuenta|cliente)/i.test(sustantivo) ? "cliente" : null;
+    if (!eje || !N || !M) continue;
+    const L = leerClausula(text, m.index, { nombresRe });
+    /* el predicado vive en la cláusula del conteo, en el rótulo que lo abre o en la cláusula que contiene su paréntesis */
+    const ambito = [L.clausula.texto, L.rotulo && L.rotulo.texto, L.contenedor && L.contenedor.texto].filter(Boolean).join(" ");
+    const preds = _PREDICADOS_DE_CONTEO.filter((p) => p.re.test(ambito));
+    if (!preds.length) continue;
+    /* un predicado con UMBRAL («caen más de 8%», «vencidos a más de 250 días») es otro conjunto, que el dato no declara: no se juzga */
+    if (_spansDeCifras(ambito.replace(m[0].trim(), " ".repeat(m[0].trim().length)), nombresRe).length) continue;
+    const fuentes = preds.map((p) => D[eje][p.fuente]);
+    if (fuentes.some((F) => !F)) continue;                                            // algún predicado no es derivable: no se juzga
+    const universoFigs = Math.min(...fuentes.map((F) => F.universo));
+    const universo = D[eje].universo || universoFigs;
+    if (!universo || M !== universo) continue;                                        // «N de M» solo se juzga cuando M es el universo completo
+    let C = null;
+    for (const [i, p] of preds.entries()) { const S = fuentes[i].filtra((v) => p.pred(v, fuentes[i])); C = C === null ? S : C.filter((e) => S.includes(e)); }
+    const parcial = preds.some((p) => p.parcial) || universoFigs < universo;
+    const c = C.length;
+    /* la boleta puede declarar SU conteo del mismo predicado con otro criterio encima (materialidad: «6 cuentas sobre el nivel
+     * declarado» son las materiales; sobre el nivel a secas hay 7): el n de un grupo o de un conteo cuyo rótulo dice el predicado
+     * también vale. Lo que arde es un N que no es de nadie. */
+    const aceptables = new Set([c]);
+    for (const f of (ledger && ledger.figs) || []) {
+      const lab = _norm(String(f.label || ""));
+      if (!preds.every((p) => p.re.test(lab))) continue;
+      if (f.grupo && Number.isFinite(f.grupo.n)) aceptables.add(f.grupo.n);
+      if (f.unit === "count" && Number.isFinite(f.raw)) aceptables.add(f.raw);
+    }
+    if (aceptables.has(N) || (parcial && N > c)) continue;                            // con universo parcial solo se prueba que N es chico
+    const nombrados = new Set(_entidadesConPosicion(L.plano.slice(L.oracion.ini, L.oracion.fin), nombresRe).map((e) => e.nombre));
+    const faltan = C.filter((e) => !nombrados.has(e));
+    out.push(`«${m[0].trim()}» ${preds.map((p) => p.clave).join(" y ")}: según ${parcial ? "las cuentas que la boleta muestra" : "la boleta"} son ${c} de ${universo} (${_ver(C).join(", ")})${N < c && faltan.length ? ` — sin nombrar: ${_ver(faltan).join(", ")}` : ` — dices ${N}`}: el conteo tiene que ser el que el dato permite contar`);
   }
   return out;
 }
@@ -4566,6 +4788,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // a diferencia de la atribución general (aviso), ESTE caso puntual SÍ bloquea: cambia el tamaño real de la oportunidad.
   for (const v of _totalMisattribution(narration, ledger, entityNames)) violations.push({ kind: "total-mal-atribuido", detail: v });
   for (const v of _grupoMalRepartido(narration, ledger, entityNames)) violations.push({ kind: "cifra-de-grupo-mal-repartida", detail: v });
+  for (const v of _conteoDeListaFalso(narration, ledger, datoProyectado, [...new Set([...(entityNames || []), ...(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : [])])])) violations.push({ kind: "conteo-de-lista-falso", detail: v });
   // 6 · orden SELLADO por la tool incumplido (requisito 4, pase quirúrgico 2026-07-29) — independiente de si la
   // narración prometió el orden EN TEXTO (eso ya lo cubre el chequeo 4 de arriba): si gridTable/tensionRead sellaron
   // un criterio real, la tabla/lista que lo muestra tiene que respetarlo, lo diga o no en palabras.

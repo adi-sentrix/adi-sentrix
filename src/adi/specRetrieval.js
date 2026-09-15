@@ -758,11 +758,16 @@ export function composeSpecDiagnose({ filters = {}, scenario, focus, entityScope
     /* ⚠️ el universo va en el RÓTULO y no en `cobertura`: `cobertura` enciende el chequeo de estimación-como-hecho
      * (guardC, `_estimacionComoHecho`), que para este agregado estuvo siempre apagado y contra el que ningún
      * composer está calibrado. El muro lee «n de m» del rótulo (chequeo de alcance), que es texto nuestro. */
-    bol.push(fig(`${f.titulo} · subtotal${_u ? ` · ${_u.n} cuentas materiales (de ${_u.m} bajo el benchmark)` : f.alcance ? ` · ${f.alcance}` : ""}`, _money(f.subtotal), {
+    /* Y EL CONJUNTO VA EN LA FIG (owner 2026-09-14, auditoría del Notario — la convención de la casa: quien publica un
+     * agregado de un conjunto conocido declara el conjunto, `grupo: { n, entidades }`, agregado después de `fig()`). Un
+     * subtotal es la cifra de SUS cuentas: «$4.9M en Falabella, Lider y Jumbo» reparte a tres lo que es de cinco, y el muro
+     * (`cifra-de-grupo-mal-repartida`) solo puede cobrarlo si la fig dice quiénes son. `items` es la lista completa del foco. */
+    const _grupoDe = (items) => (items && items.length >= 2 ? { grupo: { n: items.length, entidades: items.map((it) => it.entidad) } } : {});
+    bol.push({ ...fig(`${f.titulo} · subtotal${_u ? ` · ${_u.n} cuentas materiales (de ${_u.m} bajo el benchmark)` : f.alcance ? ` · ${f.alcance}` : ""}`, _money(f.subtotal), {
       unit: "money", raw: f.subtotal, mandatory: true,
       context: _u ? `${_ctx} · subtotal de las ${_u.n} cuentas con ${_u.criterio}; las ${_u.m} bajo el benchmark no tienen total en esta boleta`
         : f.alcance ? `${_ctx} · el total de la carga sobre el nivel declarado en las cuentas que lo exceden con monto material, estén o no bajo el benchmark — NO es parte de la contribución no capturada de las cuentas materiales (esa parte es su propio subtotal)` : _ctx,
-    }));
+    }), ..._grupoDe(f.items) });
     for (const it of f.top.slice(0, 3)) bol.push(fig(`${it.entidad} · ${f.titulo}`, _money(it.usd), { unit: "money", raw: it.usd, mandatory: false, context: _ctx }));
   }
   for (const f of focos) {
@@ -782,10 +787,12 @@ export function composeSpecDiagnose({ filters = {}, scenario, focus, entityScope
         bol.push(fig(`${x.entidad} · Brecha por precio y costo`, _money(x.restoUsd), { unit: "money", raw: x.restoUsd, mandatory: false, gancho: true,
           context: `${_ctx} · el resto de su contribución no capturada que no explica la carga sobre el nivel declarado: precio de lista y costo, que este dato no separa · cierra exacto: contribución no capturada = carga comercial alta + esto` }));
       }
-      bol.push(fig(`Carga comercial alta · subtotal${suf}`, _money(D.subtotal.carga), { unit: "money", raw: D.subtotal.carga, mandatory: false, gancho: true,
-        context: `${_ctx} · la parte de la contribución no capturada de las ${_u.n} cuentas materiales que se lleva la carga sobre el nivel declarado (${D.nivelCarga}%)` }));
-      bol.push(fig(`Brecha por precio y costo · subtotal${suf}`, _money(D.subtotal.resto), { unit: "money", raw: D.subtotal.resto, mandatory: false, gancho: true,
-        context: `${_ctx} · el resto: precio de lista y costo, que este dato no separa · cierra exacto con el subtotal de contribución no capturada de las mismas ${_u.n} cuentas` }));
+      /* los dos términos de la partición son del MISMO grupo que el subtotal oficial: las cuentas materiales (owner 2026-09-14) */
+      const _grupoMat = D.filas.filter((x) => x.material).length >= 2 ? { grupo: { n: D.filas.filter((x) => x.material).length, entidades: D.filas.filter((x) => x.material).map((x) => x.entidad) } } : {};
+      bol.push({ ...fig(`Carga comercial alta · subtotal${suf}`, _money(D.subtotal.carga), { unit: "money", raw: D.subtotal.carga, mandatory: false, gancho: true,
+        context: `${_ctx} · la parte de la contribución no capturada de las ${_u.n} cuentas materiales que se lleva la carga sobre el nivel declarado (${D.nivelCarga}%)` }), ..._grupoMat });
+      bol.push({ ...fig(`Brecha por precio y costo · subtotal${suf}`, _money(D.subtotal.resto), { unit: "money", raw: D.subtotal.resto, mandatory: false, gancho: true,
+        context: `${_ctx} · el resto: precio de lista y costo, que este dato no separa · cierra exacto con el subtotal de contribución no capturada de las mismas ${_u.n} cuentas` }), ..._grupoMat });
     }
   }
   // GANCHO OPCIONAL (owner 2026-07-09: fuera la muletilla — "si el LLM interpreta el dato, debe decir la realidad"):

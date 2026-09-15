@@ -115,6 +115,28 @@ export function coordinadasContiguas(tramoN, nombresRe) {
   while (i > 0 && _PUENTE_COORD.test(tramoN.slice(ents[i - 1].pos + ents[i - 1].nombre.length, ents[i].pos))) i--;
   return ents.slice(i).map((e) => e.nombre);
 }
+/* ── TODAS LAS CORRIDAS COORDINADAS DE UN TRAMO (owner 2026-09-14, la cifra de un grupo es del grupo completo) ────
+ * `coordinadasContiguas` devuelve SOLO la corrida que termina en el último nombre. Para leer el REFERENTE de un pronombre
+ * de grupo («ese mismo grupo», «estos cuatro», «su») hace falta la última LISTA del párrafo —dos o más nombres
+ * coordinados—, esté o no al final: «Falabella, Lider, Jumbo y Sodimac están bajo el benchmark … Las acciones comerciales
+ * se están comiendo contribución ahí. Ese mismo grupo tiene markup promedio 41.4%» → la lista es la de cuatro. Devuelve
+ * cada corrida maximal, con su posición de inicio y de fin (relativa al tramo) y si cierra con «y»/«e». Un nombre
+ * suelto es una corrida de largo 1: quien lea el referente decide si le alcanza (para un pronombre de grupo, no). */
+export function listasCoordinadas(tramoN, nombresRe) {
+  const ents = entidadesConPosicion(tramoN, nombresRe);
+  const out = [];
+  let i = 0;
+  while (i < ents.length) {
+    let j = i;
+    while (j + 1 < ents.length && _PUENTE_COORD.test(tramoN.slice(ents[j].pos + ents[j].nombre.length, ents[j + 1].pos))) j++;
+    const u = ents[j], v = j > i ? ents[j - 1] : null;
+    out.push({ nombres: ents.slice(i, j + 1).map((e) => e.nombre), ini: ents[i].pos, fin: u.pos + u.nombre.length,
+      items: ents.slice(i, j + 1).map((e) => ({ nombre: e.nombre, ini: e.pos, fin: e.pos + e.nombre.length })),
+      cerrada: !!v && _PUENTE_CIERRA.test(tramoN.slice(v.pos + v.nombre.length, u.pos)) });
+    i = j + 1;
+  }
+  return out;
+}
 
 /* ── LA ESTRUCTURA ─────────────────────────────────────────────────────────────────────────────────────────────── */
 const _FIN_ORACION = /[.!?…\n]/g;
@@ -186,6 +208,10 @@ function _segmento(plano, ini, fin, pos, re) {
  * Lider…», «porque Lider…» son conjunciones y Lider es el sujeto (candado medido: «mientras que Lider vende $19.4M» tiene que arder). */
 const _COMPARADA = /(?:^|[^\p{L}])(?:(?:mas|menos|mayor(?:es)?|menor(?:es)?|peor(?:es)?|mejor(?:es)?|igual|distint[oa]s?|diferentes?|antes|despues)(?:[^.;:—–]{0,30}?)\s+que|contra|frente a|versus|vs\.?|respecto (?:a|de)|comparad[oa]s? con|a diferencia de)\s+(?:(?:el|la|los|las|un|una|su|sus)\s+(?:de\s+)?)?$/iu;
 const _esComparada = (texto, pos) => _COMPARADA.test(texto.slice(Math.max(0, pos - 40), pos));
+/** ¿la posición es la COMPARADA de su cláusula? («… que el de los sanos (markup 41.4% contra 57.3%)»: el 57.3% va tras «contra»,
+ *  y «los sanos» tras «que el de» — los dos son el otro lado de la comparación). Sobre texto NORMALIZADO (`normalizar`). Lo
+ *  usa el chequeo de grupos para emparejar cada referencia con SU cifra: la que no es comparada con la que no es comparada. */
+export function esComparada(textoN, pos) { return _esComparada(String(textoN == null ? "" : textoN), Math.max(0, Number(pos) || 0)); }
 /* la NEGACIÓN y lo que la rompe (ver (e) arriba) */
 const _NEGACION = /(?:^|[^\p{L}])(no|ni|tampoco|nunca|jamas|sin|nadie|nada)(?=[^\p{L}]|$)/gu;
 const _ROMPE_NEGACION = /(?:^|[^\p{L}])(?:sino|pero|aunque|mientras)(?=[^\p{L}]|$)/u;
