@@ -1,0 +1,42 @@
+{
+ "fecha": "2026-09-15",
+ "nota": "NOTARIO SEMÁNTICO · FASE 3 · el etiquetado MANUAL (supervisor) de la corrida en vivo (fixtures/notario-fase3-vivo-2026-09-15.json): cada veredicto del verificador sobre las 335 declaraciones de hecho del modelo, y cada afirmación que el extractor independiente (Opus 5) encontró sin declaración. Los ids son [turno.sitio.k] como los imprime `node _fase3_medir.mjs --veredictos`.",
+ "veredictos": {
+  "revisados": 335,
+  "nota": "FP = una afirmación verdadera con evidencia en la boleta dictada falsa o no-verificable por un DEFECTO del verificador (la declaración estaba bien formada). Aparte se cuenta la RIGIDEZ: hechos verdaderos y verificables bloqueados porque la declaración no siguió el esquema (el sujeto era un concepto, no una entidad; el universo iba dentro de la métrica; un grupo con lista de valores; una cifra sin unidad) — el modelo no siguió el protocolo, pero el verificador podría tolerarlo. FN = una afirmación falsa dictada verdadera.",
+  "fn": 0,
+  "fp": 9,
+  "fpEstricto": ["0.reparacion.7", "2.cierre.10", "3.reparacion.7", "9.cierre.11", "10.cierre.19", "10.cierre.20", "4.reparacion.9", "9.cierre.2", "10.cierre.3"],
+  "rigidez": 29,
+  "rigidezIds": ["2.cierre.7", "4.cierre.4", "8.cierre.0", "5.cierre.5", "0.reparacion.3", "9.reparacion.2", "10.cierre.2", "11.cierre.3", "0.reparacion.6", "9.reparacion.14", "11.cierre.5", "0.cierre.15", "0.cierre.17", "0.cierre.18", "2.reparacion.5", "9.cierre.12", "9.cierre.13", "9.cierre.14", "9.reparacion.10", "9.reparacion.15", "9.reparacion.16", "4.cierre.7", "4.cierre.8", "5.cierre.7", "5.cierre.9", "5.cierre.24", "5.reparacion.9", "5.reparacion.13", "5.reparacion.17"],
+  "falsasConfirmadas": 7,
+  "falsasConfirmadasIds": ["1.reparacion.8", "1.reparacion.10", "2.cierre.6", "3.reparacion.3", "8.reparacion.16", "9.cierre.9", "6.reparacion.15"],
+  "nvLegitimos": 28,
+  "defectosSinVeredictoErrado": ["2.cierre.3 (el universo «la cartera de clientes» no se resolvió: la afirmación era FALSA —Easy 5.5 % > Sodimac 5.4 %— y quedó no-verificable en vez de falsa)", "9.reparacion.12 («6 de las 8 bajo el benchmark pagan carga alta»: verdadera con el umbral crudo (>3.5 %), 5 según el subtotal de diagnose — dos definiciones de «carga alta» conviven)", "7.reparacion.10 (verdadera por la razón equivocada: la relación era de días vencidos y se verificó como «parte» del saldo)"],
+  "ejemplos": [
+   "FALSA real (cazada): «Cuidado Personal: venta $29.4M — la más alta de las cuatro» → Electrodomésticos vende $33.2M (turno 1, reparación)",
+   "FALSA real (cazada): «Falabella es una de las 6 cuentas donde el margen está bajo el benchmark» → son 8 (turno 3)",
+   "FALSA real (cazada): «LG-DRYER8KG … su cobertura de 165 días es la más lejana a la referencia» → MAK-COMP-AIR tiene 190d (turno 8)",
+   "FALSA real (cazada): «$655K en total sobre esas seis cuentas» con Paris en la lista → el subtotal es de Falabella, Sodimac, Lider, Easy, Ripley y Jumbo (turno 9)",
+   "FP del verificador: «el markup promedio de las cuentas que caen es 41.4 %, contra 57.3 % de las sanas» → la boleta trae «Markup promedio · los que caen = 41.4 %» y «· sanos = 57.3 %», el verificador buscó «Markup sobre costo» (4 veces)",
+   "FP del verificador: «el costo se lleva 72,4 %» declarado como «Cost share» → la boleta lo llama «Peso del costo» (sinónimo ausente)",
+   "FP del verificador: «Falabella, la que más carga comercial declarada tiene entre las cuentas revisadas» → el ranking mezcló «Carga comercial» (%) con «Carga comercial alta» ($): «Easy (5.5) · Sodimac ($155K)»",
+   "RIGIDEZ: «benchmark de 30.1 %» declarado con sujeto «Benchmark de margen» → «entidad-desconocida» (7 veces; la cifra está en la boleta como KPI del negocio)",
+   "RIGIDEZ: «Falabella $1.6M, Lider $1.5M, Jumbo $1.1M, Sodimac $540K, Ripley $240K» declarado como UN grupo con cinco valores → el verificador comparó $1.6M con el subtotal $4.9M (3 veces)",
+   "RIGIDEZ: «$4,9M que suman las 5 cuentas materiales» con el universo escrito dentro de la métrica y no en `universo` → «universo-no-declarado» (10 veces)"
+  ]
+ },
+ "omisiones": {
+  "total": 65,
+  "reales": 47,
+  "ruidoDelExtractor": 18,
+  "nota": "de las 317 afirmaciones de hecho extraídas por Opus 5 (aparte 34 «estados» que no son hechos del negocio: huella, mecanismo, fecha de corte), 65 quedaron sin cubrir por el cruce automático; revisadas una por una: 47 omisiones REALES del modelo (sobre todo relaciones en palabras —«bajo el benchmark», «por encima del nivel», «supera el máximo de 120 días»— y superlativos —«la mayor», «los que más»—, y las brechas por familia derivadas sin evidencia) y 18 cubiertas por otra forma (la cifra estaba declarada con otro sujeto, la relación como cifra) o no eran hechos (una fecha, una regla general, una opinión).",
+  "ejemplos": [
+   "OMISIÓN: «Lider paga una carga comercial de 4,2%, por encima del nivel de referencia (3,5%)» → declaró la cifra 4.2 % y no la relación ni el 3.5 % (turno 0)",
+   "OMISIÓN: «Cuidado Personal (la más cercana, brecha de 3,5 pp) … Línea Blanca (la peor, brecha 6,1 pp)» → cuatro brechas por familia sin declarar (turno 1)",
+   "OMISIÓN: «Los tres superan el máximo de 120 días declarado por el negocio … ninguno llega a la rotación mínima de 2x» → dos relaciones contra las referencias, sin declarar (turno 5)",
+   "OMISIÓN: «liderado por Lider (+$2,3M), Jumbo (+$1,9M) y Falabella (+$1,5M)» → las tres cifras declaradas, el orden no (turno 9)",
+   "OMISIÓN: «Falabella es la que más contribución deja sobre la mesa» declarada como lectura → `lectura-encubre-hecho` (turno 6)"
+  ]
+ }
+}

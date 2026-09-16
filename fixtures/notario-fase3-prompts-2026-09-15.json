@@ -1,0 +1,18 @@
+{
+ "fecha": "2026-09-15",
+ "nota": "NOTARIO SEMÁNTICO · FASE 3 · los prompts NUEVOS de la certificación en vivo (owner 2026-09-15: «la evaluación importante de Fase 3 debe incluir prompts/redacciones nuevas»). Ninguno está en los corpus anteriores (adversarial P1/P2, cruce vivo, encargo de producción, tres redacciones, guiones de los gates). Registro coloquial a propósito («plata», «me exprime»): así habla el dueño; el registro ejecutivo se exige a ADI, no al usuario.",
+ "prompts": [
+  { "texto": "Necesito entender si estoy ganando plata con Lider o solo vendiendo volumen.", "tags": ["cliente", "margen-vs-venta", "porque"] },
+  { "texto": "¿Qué familia de productos me deja mejor margen y cuál me está costando?", "tags": ["familia", "ranking", "extremos"] },
+  { "texto": "Tengo la sensación de que Sodimac me exprime con descuentos. ¿Es así?", "tags": ["cliente", "carga-comercial", "premisa"] },
+  { "texto": "Si le subo 2 puntos el margen a Falabella, ¿cuánto cambia el resultado?", "tags": ["simulacion", "cliente", "margen"] },
+  { "texto": "Resúmeme en tres líneas cómo cerró el año y qué me debería quitar el sueño.", "tags": ["ejecutivo", "sintesis", "prioridad"] },
+  { "texto": "¿Cuánta plata tengo parada en bodega y en qué productos?", "tags": ["inventario", "frenado", "bodega"] },
+  { "texto": "Compárame Jumbo y Falabella: quién me conviene más como cliente.", "tags": ["comparacion", "clientes", "juicio"] },
+  { "texto": "¿Quién me debe más plata y desde cuándo?", "tags": ["cobranza", "vencido", "dias"] },
+  { "texto": "Dame el top 5 de SKU por venta y dime cuáles de esos tienen stock de sobra.", "tags": ["cruce", "sku", "inventario", "topk"] },
+  { "texto": "¿Por qué mi margen promedio está bajo el benchmark si mis ventas crecieron?", "tags": ["porque", "margen", "benchmark", "variacion"] },
+  { "texto": "¿Qué marca me está destruyendo margen?", "tags": ["marca", "ranking", "min"] },
+  { "texto": "Voy a reunirme con el gerente de Ripley mañana, ¿qué le digo?", "tags": ["cliente", "accion", "ficha", "multidominio"] }
+ ]
+}

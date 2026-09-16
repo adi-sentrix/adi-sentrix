@@ -152,6 +152,21 @@ declarar; lo incompleto es no-verificable, nunca verdadera; el respaldo declara 
   corregir: «capital inmovilizado» en plan-de-accion, «no está creciendo» hipotético, el orden «vencido primero» que omite a Jumbo.
 - Lo que no se midió: cuánto declara el MODELO real — es la fase 3, en vivo, con gasto autorizado que lo nombre.
 
+**El Notario semántico — fase 3 (2026-09-15, EN VIVO con gasto autorizado: 30 llamadas · US$2,38 de US$3; sin deploy).** Antes de la
+corrida, las tres afirmaciones que el owner cerró: «capital frenado» (no «inmovilizado») en plan-de-acción e inventario, la tesis del
+resumen sin «no está creciendo» cuando no hay variación, y la lista del cobro con su universo («con saldo vencido, de mayor a menor
+vencido»; las cuentas sin vencido aparte). Después, 12 prompts nuevos por el bucle real con Sonnet 5 y el extractor independiente
+(Opus 5, solo ve la prosa) para medir la omisión (`_fase3_vivo.mjs` con cerrojos, `_fase3_medir.mjs` offline, corpus y etiquetas
+en `fixtures/notario-fase3-*.json`, `_NOTARIO_SEMANTICO_FASE3.md`).
+
+- Medido con el modelo real: omisión real 14,8 % (el criterio era ≤ 5 %: no cumple — omite relaciones en palabras, superlativos y
+  cifras derivadas); FN del Notario 0 %; FP estricto 2,7 % (cumple) y 8,7 % más de rigidez (hechos verdaderos bloqueados por la forma
+  de la declaración: sujeto = concepto, universo dentro de la métrica, grupo con lista de valores); 7 falsedades reales del modelo,
+  las 7 cazadas, 0 servidas; 0 hechos servidos sin declaración válida; 11 de 11 cierres vetados y la respuesta premium servida 0 veces
+  (7 respaldo · 3 línea honesta · 1 poda); US$0,128 y 32 s por turno.
+- Sin cambios de producto tras la corrida: los fallos se traen para decidir (instrucción de declaración, tolerancia del verificador,
+  deudas de evidencia de la Mesa Capital).
+
 ---
 
 ## 2.30 — producción · tag `v2.30`
