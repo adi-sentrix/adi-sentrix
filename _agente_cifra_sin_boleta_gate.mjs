@@ -238,7 +238,7 @@ await carnada("el supuesto del usuario deja de contar como suyo", "src/adi/agent
 
 // (d) EL DEFECTO MISMO: el juez desconectado del bucle. Sin esto, el $800K del t7 vuelve a pantalla.
 await carnada("el juez desconectado del bucle", "src/adi/agente/bucleAgente.js",
-  [[/    const vSinBoleta = \(sitio === "cierre" \|\| sitio === "reparacion"\) \? vetoCifraSinBoleta\(\{/,
+  [[/    const vSinBoleta = \(sitio === "cierre" \|\| sitio === "reparacion" \|\| sitio === "declaracion"\) \? vetoCifraSinBoleta\(\{/,
     "    const vSinBoleta = false ? vetoCifraSinBoleta({"]],
   async (M) => {
     initTenant(TENANT_DEMO);

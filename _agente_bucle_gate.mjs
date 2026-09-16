@@ -792,7 +792,7 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (a) sin muro: la cifra inventada llega a pantalla
   await carnada("adoptar el texto sin juzgar",
-    [[/    const v1 = juzgar\(lavado, "cierre", afirmacionesCierre\);\n    if \(v1 && v1\.ok\)/, "    const v1 = { ok: true };\n    if (v1 && v1.ok)"]],
+    [[/    let v1 = juzgar\(lavado, "cierre", afirmacionesCierre\);\n    if \(v1 && v1\.ok\)/, "    let v1 = { ok: true };\n    if (v1 && v1.ok)"]],
     async (Mut) => {
       initTenant(PACK);
       const r = await Mut.answerViaAgente({ text: PREGUNTA, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: declarando(guionTerco, ESCENARIO_INICIAL) });

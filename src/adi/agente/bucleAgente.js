@@ -78,6 +78,7 @@ import { getTenantId, getTenantData } from "../../data/tenantStore.js";
  * muro dejan de vetar y quedan en el expediente como detectores; las leyes de la casa siguen juzgando la respuesta entera. Los
  * peldaños determinísticos declaran desde sus propias figs (declaración derivada) y se juzgan con el mismo estándar. */
 import { extraerDeclaracion, declaracionDeRespaldo } from "../notario/declaracion.js";
+import { cartaDeHechos } from "../notario/carta.js";   // fase 4, etapa B: la carta de hechos del turno viaja con los resultados (nombres de referencias, conjuntos y rankings)
 import { crearDeclarador, filtrarPorTexto } from "../notario/declarar.js";
 import { juzgarDeclaracion, CHEQUEOS_DE_HECHO } from "../notario/juez.js";
 import { indiceDeEvidencia } from "../notario/evidencia.js";   // getTenantData: el contexto que el negocio declaró — la ley del porqué lo cita en vez de repreguntar   // la semilla de variación: tenant + pregunta + largo del hilo
@@ -116,6 +117,20 @@ const _MENSAJE_NOTARIO = (multa) => {
     ? `\nLo rechazado es ${cifras.length === 1 ? "esta cifra" : "estas cifras"}: ${cifras.join(" · ")}. Reescribe SOLO la oración que ${cifras.length === 1 ? "la" : "las"} contiene: dale el dueño y el concepto que de verdad le corresponden según tus resultados, o quítala. Repetir la misma frase recibe el mismo rechazo.`
     : "";
   return `[NOTARIO — no es el usuario] Tu respuesta no pasó la verificación:\n${multa}${foco}\nDevuelve tu respuesta COMPLETA con esa corrección, manteniendo tu calidad de asesor, y vuelve a declarar TODAS tus afirmaciones en el bloque <<AFIRMACIONES>> … <<FIN>> (actualizado: lo corregido con su nueva declaración, lo quitado sin ella). No menciones esta corrección.`;
+};
+
+/* ── LA REPARACIÓN DE LA DECLARACIÓN CON LA PROSA CONGELADA (Notario semántico, fase 4 · etapa B · owner 2026-09-16) ─────────
+ * «Que una respuesta correcta no caiga a respaldo por problemas internos de declaración.» Cuando el cierre falla SOLO por la
+ * declaración (lo escrito no se declaró, se declaró de una forma que no se pudo verificar, se escondió como lectura, o no trajo bloque)
+ * la prosa no se toca: se le pide al modelo únicamente el bloque, con la lista exacta de lo que falta, y se re-juzga la MISMA prosa.
+ * Nada falso ni ninguna ley de la casa entra por acá: eso sigue siendo la reparación completa. */
+const _KINDS_DE_DECLARACION = /^(?:afirmacion-no-declarada|afirmacion-no-verificable|lectura-encubre-hecho|sin-declaracion|declaracion-inconsistente|declaracion-ajena)$/;
+const _soloDeclaracion = (v) => !!(v && v.ok === false && Array.isArray(v.violations) && v.violations.length && v.violations.every((x) => _KINDS_DE_DECLARACION.test(String(x && x.kind))));
+const _MENSAJE_DECLARACION = (v) => {
+  const puntos = (v && Array.isArray(v.violations) ? v.violations : []).map((x) => String(x.detail || x.kind || "").split("\n")[0].slice(0, 320)).filter(Boolean).slice(0, 16);
+  return `[NOTARIO — solo la declaración; no es el usuario] Tu respuesta queda EXACTAMENTE como está: no la reescribas, no la resumas, no agregues ni quites frases. Lo único que falta es tu declaración. Devuelve SOLO el bloque <<AFIRMACIONES>> … <<FIN>>, COMPLETO (todas tus afirmaciones de hecho: las que ya declaraste bien, las que faltan y las corregidas), atendiendo esto:
+${puntos.map((p) => "- " + p).join("\n")}
+Recuerda: sujeto = la entidad tal como está en tus resultados, o «negocio»; universo en todo orden, conteo y subtotal («los 13 clientes», «las 5 cuentas materiales»); una comparación en palabras (más que, por encima de, lejos de, el doble, casi la mitad) es una relación con forma mayor/menor/veces/fraccion y valor «A vs B»; un superlativo (la más alta, el que menos, encabeza) es un orden con universo; una cifra derivada (brecha en puntos, diferencia, variación en $) es una cifra con su evidencia; texto = el fragmento literal de tu respuesta.`;
 };
 
 /* ── _podarOracionVetada · quitar la oración que el muro rechazó, cuando la respuesta NO depende de ella ─────
@@ -741,6 +756,19 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * Es EL cuerpo de la ronda — la ronda normal y la ronda extra de R1 comparten esta única implementación
    * para que jamás diverjan. false = sin cupo (el tope manda). */
   let topeCalls = TOPE_CALLS;   // se re-fija tras la ronda previa: el cerebro conserva su presupuesto entero
+  /* ── LA CARTA DE HECHOS (fase 4, etapa B · owner 2026-09-16): con los resultados de cada ronda viaja lo que la evidencia permite declarar y
+   * cómo se llama —referencias, conjuntos con su tamaño y única definición, rankings por eje, cuentas permitidas—. Entera una vez por turno,
+   * después solo los subtotales nuevos. Junto a la boleta, no en el system: el caché no se toca. Sin evidencia no hay carta. */
+  let _cartaVistos = null;
+  const _cartaDelTurno = () => {
+    try {
+      const ejesCarta = {}; for (const eje of ["cliente", "sku", "marca", "familia", "bodega", "canal"]) { try { const n = axisEntityNames(eje); if (n && n.length) ejesCarta[eje] = n; } catch { /* sin índice */ } }
+      const I = indiceDeEvidencia({ figs: [...figsTotales, ..._figsDeRecita], datoProyectado: cifrasDelDato(scenario), ejesDelTenant: ejesCarta });
+      const r = cartaDeHechos(I, { vistos: _cartaVistos });
+      _cartaVistos = r.vistos;
+      return r.texto || "";
+    } catch { return ""; }
+  };
   const _rondaDeHerramientas = (pedidosCrudos, destino, { preRonda = false, compacta = false } = {}) => {
     const cupo = preRonda ? Math.min(TOPE_PRE_RONDA, Math.max(CALLS_POR_RONDA, pedidosCrudos.length)) : Math.min(CALLS_POR_RONDA, topeCalls - calls);
     if (cupo <= 0) return false;
@@ -783,7 +811,8 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
      * el turno que no toca P&L no carga su arco. Bloques byte-estables y en orden fijo (la disciplina del mapa):
      * el prefijo del proveedor no distingue «mismo contenido en otro orden» de «contenido nuevo». */
     const doctrina = doctrinasParaRonda(rp.results.map((r) => r.tool));
-    destino.push({ role: "user", content: `[HERRAMIENTAS — no es el usuario] Resultados:\n${JSON.stringify(_resumenDeRonda(rp, compacta ? { compactoDesde: TOPE_RESULTADO_PRE_RONDA, conservar: _FACTS_QUE_SE_CONSERVAN } : {}))}${doctrina ? `\n${doctrina}` : ""}\nResponde al usuario con esto, o pide más herramientas si de verdad faltan.` });
+    const carta = _cartaDelTurno();
+    destino.push({ role: "user", content: `[HERRAMIENTAS — no es el usuario] Resultados:\n${JSON.stringify(_resumenDeRonda(rp, compacta ? { compactoDesde: TOPE_RESULTADO_PRE_RONDA, conservar: _FACTS_QUE_SE_CONSERVAN } : {}))}${doctrina ? `\n${doctrina}` : ""}${carta ? `\n${carta}` : ""}\nResponde al usuario con esto, o pide más herramientas si de verdad faltan.` });
     return true;
   };
 
@@ -1106,9 +1135,10 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     const derivada = afirmaciones === undefined;
     const decl = derivada ? (() => { try { return declaracionDeRespaldo(t, figsTotales, { ejesDelTenant: catalogoPorEje, datoProyectado: cifrasDelDato(scenario) }); } catch { return []; } })() : afirmaciones;
     let sem;
-    try { sem = juzgarDeclaracion(t, decl, { indice: _I, nombres: duenosTenant || [], sitio, derivada, calculos }); }
+    const asistir = !derivada && (sitio === "cierre" || sitio === "reparacion" || sitio === "declaracion" || sitio === "poda");   // la identidad mecánica se asiste solo al modelo
+    try { sem = juzgarDeclaracion(t, decl, { indice: _I, nombres: duenosTenant || [], sitio, derivada, calculos, asistir }); }
     catch (e) { sem = { ok: false, violations: [{ kind: "notario-semantico-error", detail: `el juez semántico falló: ${(e && e.message) || e}`, texto: "" }], medidas: { error: true } }; }
-    notarioDelTurno.push({ sitio, derivada, medidas: sem.medidas, vetos: sem.violations.map((x) => x.kind), multas: sem.violations.slice(0, 24).map((x) => String(x.detail || "").slice(0, 400)) });
+    notarioDelTurno.push({ sitio, derivada, medidas: sem.medidas, vetos: sem.violations.map((x) => x.kind), multas: sem.violations.slice(0, 24).map((x) => String(x.detail || "").slice(0, 400)), ...(Array.isArray(sem.asistidas) && sem.asistidas.length ? { asistidas: sem.asistidas.slice(0, 24) } : {}) });
     return sem;
   };
   const juzgar = (t, sitio = "cierre", afirmaciones = undefined) => {
@@ -1138,7 +1168,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
        * lo que ellos arreglan. El veredicto del muro no cambia —sus violaciones siguen primero y son las que
        * leen la poda y la escalada—; lo del contrato viaja aparte, en `multaCompleta`, para el mensaje al
        * modelo, y en el expediente entre paréntesis. */
-      if ((sitio === "cierre" || sitio === "reparacion") && v) {
+      if ((sitio === "cierre" || sitio === "reparacion" || sitio === "declaracion") && v) {
         const vc = (() => { try { return _otrosJueces(t, sitio); } catch { return []; } })();
         if (vc.length) {
           v.multaCompleta = `${_multaParaElModelo(v)}\n${vc.map((x) => x.multa).join("\n")}`;
@@ -1179,7 +1209,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
      * lo que el usuario ya vio (que con boleta vacía es VERDE por diseño, la raíz de T13/T24). El defecto que
      * este juez existe para cazar lo cometió el CEREBRO, en su cierre. Multar al rescate por una cifra que el
      * bucle ya verificó es castigar al que arregla. */
-    const vSinBoleta = (sitio === "cierre" || sitio === "reparacion") ? vetoCifraSinBoleta({
+    const vSinBoleta = (sitio === "cierre" || sitio === "reparacion" || sitio === "declaracion") ? vetoCifraSinBoleta({
       texto: t, figsEnBoleta: figsTotales.length, pregunta: q,
       recitaAprobada: recita, datoProyectado: cifrasDelDato(scenario),
     }) : null;
@@ -1203,7 +1233,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     const vRef2 = vetosDeReformular(t, { pregunta: q, previa: _previaDelHilo, sitio });
     /* EL REFERENTE ES DEL PROCEDIMIENTO (2026-09-11): «el primero» lo resolvió el scope canónico; si el cerebro
      * narra sobre otra cuenta del mismo conjunto sin nombrar al referente, se cobra. Solo al cerebro. */
-    const vRefte = (sitio === "cierre" || sitio === "reparacion") ? vetoReferente(t, referente, scopePrev.current) : null;
+    const vRefte = (sitio === "cierre" || sitio === "reparacion" || sitio === "declaracion") ? vetoReferente(t, referente, scopePrev.current) : null;
     /* `sitio` viaja al contrato desde la densidad ejecutiva (2026-09-11): la forma se juzga al cerebro, no a los peldaños */
     const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [], limiteDeHerramienta: motivosNoSoportado.length > 0, sitio, huellas: _huellasDelTurno, figs: figsTotales }),
       ...(vSinBoleta ? [vSinBoleta] : []),
@@ -1226,14 +1256,29 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
 
   /* la declaración del cerebro se separa de la prosa ANTES de lavar; los fragmentos declarados se lavan igual que la prosa */
   const _lavarDeclaracion = (afs) => (Array.isArray(afs) ? afs.map((a) => (a && typeof a === "object" && typeof a.texto === "string") ? { ...a, texto: stripLanguageLeaks(a.texto) } : a) : afs);
+  const salidaCruda = typeof texto === "string" ? texto : "";   // la prosa con su bloque, tal como la escribió el modelo (para pedirle solo la declaración)
   const _declCierre = (typeof texto === "string" && texto.trim()) ? extraerDeclaracion(texto) : null;
   if (_declCierre) texto = _declCierre.respuesta;
   const afirmacionesCierre = _declCierre ? _lavarDeclaracion(_declCierre.afirmaciones) : null;
+  let sitioDelVerde = "cierre";   // dónde se aprobó lo que se sirve como verde: el cierre, o la declaración reparada con la prosa congelada
   if (typeof texto === "string" && texto.trim()) {
     const lavado = stripLanguageLeaks(String(texto));
-    const v1 = juzgar(lavado, "cierre", afirmacionesCierre);
+    let v1 = juzgar(lavado, "cierre", afirmacionesCierre);
     if (v1 && v1.ok) { final = lavado; estado = "verde"; aprobado = true; }
-    else {
+    /* ── LA DECLARACIÓN, CON LA PROSA CONGELADA (fase 4, etapa B): si SOLO falló la declaración, se pide solo el bloque ── */
+    if (!aprobado && _soloDeclaracion(v1)) {
+      const resD = await _llamarCerebro({
+        mensajes: [...mensajes, { role: "assistant", content: salidaCruda.trim() || lavado }, { role: "user", content: _MENSAJE_DECLARACION(v1) }],
+        mapa, herramientas, ronda: rondas, attempt: 0, cierre: true, motivoReintento: "declaracion", soloDeclaracion: true, figsEnBoleta: figsTotales.length, vetoConCifra: false,
+      });
+      const declD = resD && resD.tipo === "texto" ? extraerDeclaracion(String(resD.texto || "")) : null;
+      if (declD && declD.bloque && Array.isArray(declD.afirmaciones) && declD.afirmaciones.length) {
+        const vD = juzgar(lavado, "declaracion", _lavarDeclaracion(declD.afirmaciones));
+        if (vD && vD.ok) { final = lavado; estado = "verde"; aprobado = true; sitioDelVerde = "declaracion"; }
+        else if (vD) v1 = vD;   // la reparación completa parte del juicio más informado: lo que la declaración nueva destapó
+      }
+    }
+    if (!aprobado) {
       /* UNA reparación con la multa — la mecánica del ciclo notarial, con el contexto del agente.
        * ⚠️ LA MULTA SE ARMA CON `_multaDe`, LA MISMA QUE REGISTRA EL EXPEDIENTE (una sola verdad). Acá vivía
        * una segunda derivación que leía `x.detalle || x.reason` — campos que las violations de guardC NO
@@ -1534,7 +1579,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
         cortes: cortesDelTurno.slice(0, 6),   // el motivo de corte del proveedor, por llamada (la lección del natural, punta a punta)
         /* EL NOTARIO SEMÁNTICO (fase 2): por sitio, cuánto se declaró, cuánto quedó sin declarar, qué se vetó y qué detectaron los
          * chequeos viejos; y el sitio que se sirvió, con sus medidas — nada se sirve sin este registro */
-        notario: { modo: "semantico", pasos: notarioDelTurno, servido: (() => { const ultimo = [...notarioDelTurno].reverse().find((x) => x.sitio === (estado === "verde" ? "cierre" : estado === "reparado" ? "reparacion" : estado === "podado" ? "poda" : estado === "playbook" ? `playbook:${playbookActivo ? playbookActivo.nombre : ""}` : estado === "limite" ? "limite" : estado) || (estado === "limite" && (x.sitio === "linea-honesta" || x.sitio === "limite-referente"))); return ultimo ? { sitio: ultimo.sitio, derivada: ultimo.derivada, medidas: ultimo.medidas, vetos: ultimo.vetos } : { sitio: estado, sinJuicioSemantico: true }; })() },
+        notario: { modo: "semantico", pasos: notarioDelTurno, servido: (() => { const ultimo = [...notarioDelTurno].reverse().find((x) => x.sitio === (estado === "verde" ? sitioDelVerde : estado === "reparado" ? "reparacion" : estado === "podado" ? "poda" : estado === "playbook" ? `playbook:${playbookActivo ? playbookActivo.nombre : ""}` : estado === "limite" ? "limite" : estado) || (estado === "limite" && (x.sitio === "linea-honesta" || x.sitio === "limite-referente"))); return ultimo ? { sitio: ultimo.sitio, derivada: ultimo.derivada, medidas: ultimo.medidas, vetos: ultimo.vetos } : { sitio: estado, sinJuicioSemantico: true }; })() },
         recitaCifras: recita && Array.isArray(recita.figs) ? recita.figs.length : 0,
         /* la SIEMBRA: el cuadro desde el que se preguntó queda en el expediente — hoy solo se registra, y esa
          * es toda la promesa (ver la nota de `viewContext` arriba y `_CONTRATO_ASK_DE_CUADRO.md`). */

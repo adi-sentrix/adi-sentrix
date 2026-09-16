@@ -1,4 +1,4 @@
-# Notario semántico · Fase 4 — DISEÑO (2026-09-16) · ETAPA A IMPLEMENTADA en `dev` (ver §10); etapas B y C pendientes
+# Notario semántico · Fase 4 — DISEÑO (2026-09-16) · ETAPAS A y B IMPLEMENTADAS en `dev` (§10, §11); ronda adversarial y etapa C pendientes
 
 **Conclusión primero.** La fase 1 sacó la verdad de la redacción de la *prosa*: el veredicto depende de la afirmación, no de cómo se
 escribió. Pero dejamos la verdad atada a la redacción de la *declaración*: hoy el modelo tiene que adivinar el idioma canónico de la
@@ -222,3 +222,53 @@ texto que llega a pantalla (la pestaña Comercial pinta desde la misma función)
 **Lo que la Etapa A no resuelve (y sigue el plan):** la omisión del modelo (180 puntos afirmados sin declarar en los 23 textos de la
 fase 3; es la Etapa B: protocolo v2, carta de hechos, reparación de declaración con prosa congelada), la ronda adversarial con UltraCode
 sobre el resolutor/ubicador, y la medición fuera de muestra en vivo (Etapa C, con autorización nombrada del gasto).
+
+---
+
+## 11 · Etapa B hecha (2026-09-16, `dev`, offline, sin deploy) — el problema que quedaba: el modelo omite lo que sí escribe
+
+**Decisión de producto aplicada (owner, 2026-09-16):** «carga alta» = las 6 cuentas del detector; las 9 que solo exceden el nivel son
+otro conjunto y se llaman «sobre el nivel declarado de carga» (el Notario lee esa frase de forma literal: son 9).
+
+**Conclusión primero.** La omisión ya no cuesta la respuesta premium. Cuando el cierre falla SOLO por la declaración —hechos escritos
+sin declarar, declarados de una forma que no se pudo verificar, escondidos como lectura, o sin bloque—, el bucle **no reescribe**: le pide
+al modelo únicamente el bloque con la lista exacta de lo que falta, re-juzga la MISMA prosa y sirve la prosa premium original (una
+llamada en el tier base, sin escalar). Nada falso ni ninguna ley de la casa entra por esa vía: si la declaración nueva destapa una
+falsedad, sigue la reparación completa de siempre, y la multa parte de ese juicio (el más informado). En la fase 3, 9 de los 12 cierres
+fallaban solo por la declaración: los 9 habrían tomado esta vía en vez de caer al respaldo.
+
+**Las cinco piezas:**
+1. **Reparación de la declaración con la prosa congelada** (`bucleAgente.js`: `_soloDeclaracion`, `_MENSAJE_DECLARACION`, sitio
+   «declaracion» con las mismas leyes que cierre y reparación; lo servido lleva el registro del sitio). Tope: una por turno.
+2. **Asistencia de identidad** (`juez.js` · `asistirIdentidad`, `ctx.asistir` solo en los sitios del modelo): una cifra de la prosa sin
+   declarar cuyo canon existe en UNA sola fig, o que cae dentro de una relación «A contra B» (la segunda cifra es del otro lado) o de otra
+   afirmación con un solo sujeto y métrica, la declara la casa — pasa por el MISMO verificador (tiene que salir verdadera) y la MISMA
+   consistencia (un fragmento que empieza con «Falabella» no se declara para Lider). Nada semántico se asiste. Medido en la fase 3: 15
+   de 180 omisiones son de identidad mecánica; el resto es del modelo (órdenes 64, lecturas que esconden hechos 21, relaciones 22, grupos
+   15, variaciones 10). Cada asistida queda en el expediente (`asistidas`).
+3. **Carta de hechos del turno** (`src/adi/notario/carta.js`, pegada a los resultados de cada ronda; entera una vez, después solo los
+   subtotales nuevos): referencias con su nombre y valor, conjuntos con su tamaño y única definición («carga comercial alta (6)» ·
+   «sobre el nivel declarado de carga (9)» · «bajo el benchmark (8)» · los estados por SKU…), subtotales del turno con su universo, rankings
+   verificables por eje, cuentas permitidas y la regla «toda comparación en palabras es una relación; todo superlativo, un orden». Junto a
+   la boleta, no en el system: el caché no se toca. ~2,4K caracteres.
+4. **Protocolo v2 de la instrucción** (`declaracion.js` · contrato de ADI, autorizado en el mensaje del owner): qué es una afirmación de
+   hecho con los casos que la fase 3 mostró omitidos (comparaciones en palabras, superlativos, cifras derivadas y cifras dentro de un
+   orden), un ejemplo por tipo, «A vs B» en las comparaciones, los nombres de la carta para el universo, y «si el Notario pide solo la
+   declaración, devuelve solo el bloque».
+5. **Más formas que el vocabulario libre revela** (el extractor de la fase 3 en sus propias palabras, 289 afirmaciones: verdaderas
+   148 → 163 sin tocar el estándar): R12 el período implícito de una variación («Lider creció 14,9 %» → «vs año anterior» cuando es la
+   única variación de la boleta para ese sujeto y métrica); R13 el otro lado que trae su cifra («nivel de referencia (3,5 %)») la usa de
+   comprobante, y entre candidatos gana el de la unidad de la métrica del sujeto (la carga en % no se compara con un subtotal en $); un
+   eje pelado como universo («familias», «marcas») es el eje entero; una ambigüedad entre conceptos queda no-verificable (no cae a un
+   conjunto); un valor «A vs B» está en la frase si una de las dos cifras lo está; un fragmento que empieza con el nombre de una entidad
+   tiene ese sujeto (el lector de cláusula no veía nada antes de la posición 0).
+
+**Candados** (`_notario_semantico_flujo_gate` §F, 45 verificaciones; `_resolutor_gate`, 45): la prosa congelada se sirve byte a byte
+con el sitio «declaracion» y una sola llamada más; sin bloque, el pedido de solo la declaración basta; una falsedad destapada por la
+declaración nueva NO se sirve y la reparación completa parte de esa multa; la casa asiste la cifra verbatim con fig única y jamás la que
+la oración atribuye a otra cuenta; una frase falsa no llega al usuario por ninguna vía (la poda puede servir el resto); el verificador no
+revienta en ninguna de las 399 declaraciones de la fase 3 (un error se contaba como no-verificable y escondía una falsa). Los guiones de
+los gates responden al pedido de solo la declaración (`_guion_declara.mjs`). Suite: verde, 0 red.
+
+**Lo que sigue:** la ronda adversarial (UltraCode, offline, con `_adversarial_notario_harness.mjs`: la mesa de ataque que corre el turno
+entero con un cerebro guionado y dice si una falsedad llegó a pantalla) y, si sobrevive, la estimación de la certificación viva.

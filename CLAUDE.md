@@ -164,8 +164,14 @@ Derivadas que se rompen seguido:
   por métrica/eje:** «carga comercial alta» es la del DETECTOR (6 cuentas), publicada por la proyección desde la misma función que la boleta
   (`datoProyectado.conjuntos`); las que solo exceden el nivel se llaman «sobre el nivel declarado de carga». **Inventario verificable como
   Comercial:** la proyección declara el estado de la Mesa Capital de cada SKU (misma función) y la alerta «crítico». Candado
-  `_resolutor_gate` («tres formas de la declaración, un veredicto» sobre 1.482 afirmaciones; la fase 3 re-juzgada; carnadas). Pendientes
-  del plan (`_NOTARIO_SEMANTICO_FASE4_DISENO.md` §10): la omisión del modelo (etapa B), la ronda adversarial, la medición en vivo (etapa C).
+  `_resolutor_gate` («tres formas de la declaración, un veredicto» sobre 1.482 afirmaciones; la fase 3 re-juzgada; carnadas).
+- **Fase 4, etapa B (owner 2026-09-16, offline): la omisión no cuesta la premium.** Si el cierre falla SOLO por la declaración, el bucle pide
+  únicamente el bloque con la lista exacta de lo que falta (`_MENSAJE_DECLARACION`), re-juzga la MISMA prosa (sitio «declaracion») y sirve la
+  premium original; una falsedad destapada sigue a la reparación completa. La casa asiste la identidad mecánica (`asistirIdentidad`: cifra
+  verbatim con una sola fig, verificada y consistente; nunca órdenes, relaciones, conteos, variaciones ni estados). La carta de hechos del
+  turno (`src/adi/notario/carta.js`) viaja con los resultados de cada ronda. Protocolo v2 de la instrucción (`declaracion.js`). Candado:
+  `_notario_semantico_flujo_gate` §F. Pendientes (`_NOTARIO_SEMANTICO_FASE4_DISENO.md` §11): la ronda adversarial (UltraCode, offline, con
+  `_adversarial_notario_harness.mjs`) y la medición en vivo (etapa C, gasto a nombrar).
 
 ---
 

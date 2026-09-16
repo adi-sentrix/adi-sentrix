@@ -16,7 +16,7 @@
 import { extraerCalculos } from "../oracle/narrationBlocks.js";   // el bloque [[CALCULO]] se saca de la prosa antes de juzgar
 import { verificarAfirmaciones } from "./verificar.js";
 import { omisiones, puntosDeAfirmacion } from "./presencia.js";
-import { normalizarAfirmaciones, normalizar } from "./afirmacion.js";
+import { normalizarAfirmaciones, normalizar, menosAscii } from "./afirmacion.js";
 import { leerClausula } from "../oracle/lectorDeClausula.js";
 import { metricasEn } from "../oracle/guardC.js";
 import { parseFigures } from "../boleta.js";
@@ -69,6 +69,9 @@ export function consistencia(prosa, afirmaciones, { nombres = [] } = {}) {
       const cifras = [..._cifrasDe(oracion), ..._cifrasDe(a.texto)];
       const enFrase = new Set(cifras.map((f) => f.canon));
       for (const v of valores) {
+        /* un valor con DOS cifras («$4,6M vs $2,5M», «41.4% contra 57.3%»): la frase trae la relación si trae una de las dos */
+        const dos = parseFigures(String(v.texto || "")).map((x) => x.canon.replace(/\$/g, ""));
+        if (dos.length >= 2 && dos.some((k) => enFrase.has(k))) continue;
         const c = String(v.canon).replace(/\$/g, "");
         /* el signo dicho en palabras: «cayó $422K» declara «-$422K» — la magnitud está en la frase y la dirección la pone el verbo */
         const signoEnPalabras = Number.isFinite(v.raw) && v.raw < 0 && (_VERBO_DIRECCION.test(oracion) || /\b(?:menos|ca[ií]da|baja|negativ|p[eé]rdida|retroceso|cay[oó])\b/i.test(oracion));
@@ -81,12 +84,14 @@ export function consistencia(prosa, afirmaciones, { nombres = [] } = {}) {
     if (sujetoDecl && nombres.length) {
       let c = null;
       try { c = leerClausula(oracion, Math.max(0, Math.min(oracion.length - 1, posOrig - ini)), { nombres }); } catch { c = null; }
-      const sujetoClausula = c && c.sujeto && c.sujeto.nombre ? normalizar(c.sujeto.nombre) : null;
+      /* el lector no ve un sujeto ANTES de la posición 0: un fragmento que empieza con el nombre de una entidad tiene ese sujeto */
+      const alInicio = nombres.find((n) => normalizar(a.texto).startsWith(normalizar(n) + " "));
+      const sujetoClausula = c && c.sujeto && c.sujeto.nombre ? normalizar(c.sujeto.nombre) : alInicio ? normalizar(alInicio) : null;
       const anterior = s.slice(Math.max(0, ini - 220), ini);
       const nombradoEnTexto = normalizar(a.texto).includes(sujetoDecl) || normalizar(oracion).includes(sujetoDecl) || normalizar(anterior).includes(sujetoDecl);
       const comparacion = /\bcontra\b|\bvs\.?(?![a-z])|\bfrente a\b|\bque\s+(?:el|la|los|las)\b|\bversus\b/i.test(oracion) && parseFigures(oracion).length >= 2;
       if (sujetoClausula && sujetoClausula !== sujetoDecl && !nombradoEnTexto && !comparacion && !sujetoDecl.includes(sujetoClausula) && !sujetoClausula.includes(sujetoDecl)) {
-        out.push({ id: a.id, motivo: `declaracion-inconsistente: la frase habla de ${c.sujeto.nombre} y la declaración dice ${a.sujeto}`, texto: a.texto });
+        out.push({ id: a.id, motivo: `declaracion-inconsistente: la frase habla de ${c && c.sujeto && c.sujeto.nombre ? c.sujeto.nombre : alInicio} y la declaración dice ${a.sujeto}`, texto: a.texto });
       }
     }
     /* (c) la métrica: si el fragmento nombra métricas de la boleta, la declarada tiene que ser una de ellas (o una emparentada:
@@ -106,6 +111,78 @@ export function consistencia(prosa, afirmaciones, { nombres = [] } = {}) {
   }
   return out;
 }
+/* ── LA ASISTENCIA DE IDENTIDAD (fase 4, etapa B · owner 2026-09-16: «que todo hecho relevante que se diga quede cubierto por el Notario») ──
+ * La casa declara por el modelo SOLO lo mecánico: una cifra de la prosa sin declarar cuyo canon existe en UNA sola fig de la evidencia
+ * (con dueño o del negocio), o una cifra que cae dentro de una afirmación declarada de otro tipo con UN sujeto y UNA métrica (hereda
+ * ambos). La afirmación asistida pasa por el mismo verificador (tiene que salir VERDADERA) y por la misma consistencia (el sujeto y la
+ * métrica de la oración no pueden contradecirla); si no, no se asiste y la omisión queda para el modelo. Lo semántico —órdenes,
+ * relaciones, conteos, variaciones, estados, grupos— jamás se asiste. */
+const _ASISTIBLES = new Set(["cifra", "significado-no-declarado:cifra"]);
+function _oracionCon(s, pos, fin) {
+  const ini = Math.max(s.lastIndexOf(". ", pos), s.lastIndexOf("\n", pos), 0);
+  let f = s.indexOf(". ", fin); if (f < 0) f = s.length;
+  let o = s.slice(ini, f).replace(/^[.\s]+/, "").trim();
+  if (o.length > 80) { const c = pos - ini; const a = Math.max(0, Math.min(c - 40, o.length - 80)); o = o.slice(a, a + 80).trim(); }
+  return o;
+}
+function asistirIdentidad(s, declaradas, omisionesLista, ctxVerif, nombres) {
+  const puntos = puntosDeAfirmacion(s);
+  const I = ctxVerif.indice || null;
+  const figs = I ? I.figs : [];
+  const vistos = new Set();
+  const candidatas = [];
+  for (const o of omisionesLista) {
+    if (!_ASISTIBLES.has(o.clase)) continue;
+    const p = puntos.find((x) => x.pos === o.pos && x.clase === "cifra");
+    if (!p || p.suelto || p.negado || !p.canon) continue;
+    const span = menosAscii(p.span).trim();
+    const texto = _oracionCon(s, p.pos, p.fin);
+    let a = null, via = "";
+    /* (1) la evidencia identifica la cifra: una sola fig con ese canon */
+    { const mismas = figs.filter((g) => g.canon && String(g.canon).replace(/\$/g, "") === p.canon); const labels = [...new Set(mismas.map((g) => g.label))]; if (labels.length === 1) { const g = mismas[0]; a = { tipo: "cifra", sujeto: g.entidad || "negocio", metrica: g.concepto, valor: span, texto }; via = `una sola fig con ese canon: ${g.label}`; } }
+    /* (2) dentro de una afirmación de otro tipo con un solo sujeto y una métrica: hereda ambos */
+    if (!a && o.clase === "significado-no-declarado:cifra") {
+      /* dentro de una RELACIÓN «A contra B» con dos valores: la cifra que coincide con B es del otro lado (relacion.vs), la de A del sujeto */
+      for (const d of declaradas) {
+        if (!d || String(d.tipo).toLowerCase() !== "relacion" || !d.texto || typeof d.sujeto !== "string" || !d.metrica || !d.relacion) continue;
+        const u = ubicarFragmento(s, d.texto, { nombres }); if (!u || p.pos < u.ini || p.fin > u.fin) continue;
+        const vt = menosAscii(String(d.valor || ""));
+        const figsV = parseFigures(vt).map((x) => ({ x, i: vt.indexOf(x.text) })).sort((x, y) => x.i - y.i).map((x) => x.x);
+        if (figsV.length !== 2) continue;
+        const vs = typeof d.relacion.vs === "string" ? d.relacion.vs : d.relacion.vs && typeof d.relacion.vs === "object" && typeof d.relacion.vs.sujeto === "string" ? d.relacion.vs.sujeto : null;
+        const metricaVs = d.relacion.vs && typeof d.relacion.vs === "object" && d.relacion.vs.metrica ? d.relacion.vs.metrica : d.metrica;
+        if (figsV[1].canon.replace(/\$/g, "") === p.canon && vs) { a = { tipo: "cifra", sujeto: vs, metrica: metricaVs, valor: span, texto }; via = "el otro lado de la relación que la contiene (segunda cifra del valor)"; break; }
+        if (figsV[0].canon.replace(/\$/g, "") === p.canon) { a = { tipo: "cifra", sujeto: d.sujeto, metrica: d.metrica, valor: span, texto }; via = "el sujeto de la relación que la contiene (primera cifra del valor)"; break; }
+      }
+    }
+    if (!a && o.clase === "significado-no-declarado:cifra") {
+      /* dentro de una afirmación de otro tipo con un solo sujeto y una métrica: hereda ambos */
+      const dueña = declaradas.filter((d) => d && d.texto && FACTUALES.has(String(d.tipo).toLowerCase()) && String(d.tipo).toLowerCase() !== "cifra" && String(d.tipo).toLowerCase() !== "relacion" && typeof d.sujeto === "string" && d.metrica && (() => { const u = ubicarFragmento(s, d.texto, { nombres }); return u && p.pos >= u.ini && p.fin <= u.fin; })());
+      const sujetos = [...new Set(dueña.map((d) => d.sujeto))], metricas = [...new Set(dueña.map((d) => d.metrica))];
+      if (sujetos.length === 1 && metricas.length === 1) { a = { tipo: "cifra", sujeto: sujetos[0], metrica: metricas[0], valor: span, texto }; via = `hereda sujeto y métrica de la afirmación (${String(dueña[0].tipo)}) que la contiene`; }
+    }
+    if (!a) continue;
+    const clave = `${a.sujeto}|${a.metrica}|${p.canon}`;
+    if (vistos.has(clave)) continue;
+    vistos.add(clave);
+    candidatas.push({ ...a, _asistida: via });
+  }
+  if (!candidatas.length) return { nuevas: [], asistidas: [], veredictos: [] };
+  /* el mismo verificador y la misma consistencia que para el modelo: solo entra lo VERDADERO y consistente */
+  const R = verificarAfirmaciones(candidatas, ctxVerif);
+  const canonicas = Array.isArray(R.afirmaciones) ? R.afirmaciones : candidatas;
+  const nuevas = [], asistidas = [], veredictos = [];
+  canonicas.forEach((a, i) => {
+    const v = R.veredictos[i];
+    if (!v || v.veredicto !== "verdadera") return;
+    const inc = consistencia(s, [a], { nombres });
+    if (inc.length) return;
+    nuevas.push(a); veredictos.push(v);
+    asistidas.push({ valor: a.valor && typeof a.valor === "object" ? a.valor.texto : a.valor, sujeto: typeof a.sujeto === "string" ? a.sujeto : "", metrica: a.metrica, via: a._asistida || "", evidencia: v.evidencia });
+  });
+  return { nuevas, asistidas, veredictos };
+}
+
 /** juzgarDeclaracion(prosa, afirmaciones, ctx) → { ok, violations: [{kind, detail, texto}], veredictos, omisiones, medidas }
  *  ctx: { indice | figs+datoProyectado+ejesDelTenant, nombres: [entidades del tenant], sitio, derivada: bool } */
 export function juzgarDeclaracion(prosa, afirmaciones, ctx = {}) {
@@ -132,15 +209,28 @@ export function juzgarDeclaracion(prosa, afirmaciones, ctx = {}) {
     if (v.veredicto === "falsa") violations.push({ kind: "afirmacion-falsa", detail: `afirmacion-falsa: declaraste «${v.texto.slice(0, 70)}» (${_resumenDe(v, declaradas)}) y es FALSA: ${v.motivo}${v.verdad ? ` · La boleta: ${v.verdad}` : ""}. Corrige esa frase con la cifra o el orden de la boleta, o quítala.`, texto: v.texto, id: v.id });
     else if (v.veredicto === "no-verificable") violations.push({ kind: /lectura-encubre-hecho/.test(v.motivo) ? "lectura-encubre-hecho" : "afirmacion-no-verificable", detail: /lectura-encubre-hecho/.test(v.motivo) ? `${v.motivo}.` : `afirmacion-no-verificable: «${v.texto.slice(0, 70)}» no se puede verificar: ${v.motivo}. Sin evidencia en tus resultados no se sirve: quítala, o dila como lectura con sello y sin la cifra ni el orden.`, texto: v.texto, id: v.id });
   }
-  /* 3 · omisiones (sobre la lista canónica: un grupo partido en cifras cubre cada cifra) */
-  const O = omisiones(s, declaradas);
+  /* 3 · omisiones (sobre la lista canónica: un grupo partido en cifras cubre cada cifra) — y la asistencia de identidad, si el sitio la
+   *     admite (ctx.asistir): lo mecánico lo declara la casa, verificado y consistente; lo semántico queda como omisión para el modelo */
+  let O = omisiones(s, declaradas);
+  let asistidas = [];
+  let todasLasDeclaradas = declaradas;
+  if (ctx.asistir && !ctx.derivada && O.omisiones.length) {
+    const A = asistirIdentidad(s, declaradas, O.omisiones, { ...(ctx.indice ? { indice: ctx.indice } : { figs: ctx.figs, datoProyectado: ctx.datoProyectado, ejesDelTenant: ctx.ejesDelTenant }), calculos: Array.isArray(ctx.calculos) ? ctx.calculos : [] }, nombres);
+    if (A.nuevas.length) {
+      todasLasDeclaradas = [...declaradas, ...A.nuevas.map((a, k) => ({ ...a, id: a.id || `asistida${k + 1}` }))];
+      asistidas = A.asistidas;
+      for (const v of A.veredictos) veredictos.push({ ...v, asistida: true });
+      O = omisiones(s, todasLasDeclaradas);
+    }
+  }
   for (const o of O.omisiones) violations.push({ kind: "afirmacion-no-declarada", detail: `afirmacion-no-declarada: «${o.span}» ${o.clase.startsWith("hecho-como-lectura") ? "está declarado solo como lectura y es un hecho" : o.clase.startsWith("significado") ? `es ${o.clase.split(":")[1]} y no está declarado como tal` : "no está declarado"}: decláralo (con su tipo, sujeto, métrica, universo y período) o quítalo.`, texto: o.span, clase: o.clase });
   const medidas = {
     declaradas: veredictos.length, factuales: veredictos.filter((v) => FACTUALES.has(v.tipo)).length,
-    verdaderas: resumen.verdaderas, falsas: resumen.falsas, noVerificables: resumen.noVerificables, selladas: resumen.selladas,
+    verdaderas: resumen.verdaderas + asistidas.length, falsas: resumen.falsas, noVerificables: resumen.noVerificables, selladas: resumen.selladas,
     inconsistentes: incons.length, puntos: O.afirmados, cubiertos: O.cubiertos, omitidos: O.omisiones.length, sinDeclaracion: false, derivada: !!ctx.derivada,
+    asistidas: asistidas.length,
   };
-  return { ok: violations.length === 0, violations, veredictos, omisiones: O.omisiones, medidas, afirmaciones: declaradas };
+  return { ok: violations.length === 0, violations, veredictos, omisiones: O.omisiones, medidas, afirmaciones: todasLasDeclaradas, asistidas };
 }
 
 function _resumenDe(v, afirmaciones) {

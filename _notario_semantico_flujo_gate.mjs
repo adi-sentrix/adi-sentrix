@@ -10,7 +10,11 @@
  *   C · la puerta cerrada: prosa falsa con declaración verdadera → `declaracion-inconsistente`;
  *   D · declaración parcial: se quita un tercio de las de hecho → el detector cobra la omisión;
  *   E · las medidas para el owner: tasa de declaraciones correctas, tasa de afirmaciones omitidas, FP/FN dentro del flujo, reparaciones
- *       provocadas por declaraciones falsas/incompletas, servido sin pasar por el Notario (debe ser 0), y qué queda del Notario viejo.
+ *       provocadas por declaraciones falsas/incompletas, servido sin pasar por el Notario (debe ser 0), y qué queda del Notario viejo;
+ *   F · (fase 4, etapa B · owner 2026-09-16) la REPARACIÓN DE LA DECLARACIÓN CON LA PROSA CONGELADA: si el cierre solo falla por la
+ *       declaración, se pide solo el bloque, se re-juzga la MISMA prosa y se sirve la premium original (una llamada, sin reescritura);
+ *       si la declaración nueva destapa una falsedad, sigue la reparación completa; y la ASISTENCIA DE IDENTIDAD: una cifra verbatim
+ *       con una sola fig la declara la casa (verificada y consistente) — jamás una cifra cuya oración nombra a otra cuenta.
  * Cero red: el cerebro es un guion; herramientas puras; fixtures en disco. */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
@@ -129,7 +133,7 @@ H("C · LA PUERTA CERRADA: prosa falsa con declaración verdadera");
 /* ═══ D · DECLARACIÓN PARCIAL ════════════════════════════════════════════════════════════════════════════════════════════ */
 H("D · DECLARACIÓN PARCIAL: se quita un tercio de las afirmaciones de hecho → el detector cobra la omisión");
 {
-  let detectadas = 0, total = 0, omitidasMedidas = 0, quitadas = 0;
+  let detectadas = 0, total = 0, omitidasMedidas = 0, quitadas = 0, asistidasMedidas = 0;
   for (const id of ids) {
     const c = S.corpus.find((x) => x.id === id && x.sitio === "cierre");
     const F = leer(c.fixture);
@@ -139,11 +143,93 @@ H("D · DECLARACIÓN PARCIAL: se quita un tercio de las afirmaciones de hecho �
     const r = await turno(F.pregunta, [salida, salida]);
     const p = pasoDe(r.r.agente, "cierre");
     total++;
-    if (p && p.vetos.includes("afirmacion-no-declarada")) detectadas++;
-    if (p) omitidasMedidas += p.medidas.omitidos;
+    if (p && (p.vetos.includes("afirmacion-no-declarada") || ((p.medidas.asistidas || 0) > 0 && p.medidas.omitidos === 0))) detectadas++;
+    if (p) { omitidasMedidas += p.medidas.omitidos; asistidasMedidas += p.medidas.asistidas || 0; }
   }
-  console.log(`  quitadas ${quitadas} afirmaciones de hecho en ${total} borradores → omisiones medidas: ${omitidasMedidas} · borradores con omisión cobrada: ${detectadas}/${total}`);
-  ok(detectadas === total, `en todos los borradores con declaración parcial el detector cobra la omisión (${detectadas}/${total})`);
+  console.log(`  quitadas ${quitadas} afirmaciones de hecho en ${total} borradores → omisiones medidas: ${omitidasMedidas} · asistidas por identidad: ${asistidasMedidas} · borradores con omisión cobrada (o asistida por completo): ${detectadas}/${total}`);
+  ok(detectadas === total, `en todos los borradores con declaración parcial el detector cobra la omisión, o la casa la asiste por completo y verificada (${detectadas}/${total})`);
+}
+
+/* ═══ F · LA PROSA CONGELADA Y LA ASISTENCIA DE IDENTIDAD (fase 4, etapa B) ═══════════════════════════════════════════════ */
+H("F · la declaración se repara con la PROSA CONGELADA (solo el bloque, una llamada) y la casa asiste la identidad de una cifra verbatim");
+{
+  /* una pregunta de cobranza (no un encargo de tres dominios: la cobertura del encargo es otra ley y vetaría una respuesta de un solo dominio) */
+  const P1 = "¿Cómo viene mi cobranza y quién me debe más?";
+  /* un cierre limpio sobre esa boleta: dos cifras, un orden, una relación en palabras, un conteo y una lectura — todo verdadero */
+  const prosa = "Lider acumula $4,6M vencidos con 269 días de atraso y es la cuenta con más saldo vencido de los 13 clientes. Debe casi el doble que Falabella ($2,5M). En total, 6 de los 13 clientes tienen saldo vencido. Yo partiría por Lider.";
+  const D = {
+    c1: { tipo: "cifra", sujeto: "Lider", metrica: "Saldo vencido", valor: "$4,6M", texto: "Lider acumula $4,6M vencidos" },
+    c2: { tipo: "cifra", sujeto: "Lider", metrica: "Dias Vencido", valor: "269 días", texto: "269 días de atraso" },
+    o1: { tipo: "orden", sujeto: "Lider", metrica: "Saldo vencido", orden: { forma: "max" }, universo: "los 13 clientes", texto: "es la cuenta con más saldo vencido de los 13 clientes" },
+    r1: { tipo: "relacion", sujeto: "Lider", metrica: "Saldo vencido", relacion: { forma: "veces", k: 2, matiz: "casi", vs: "Falabella" }, valor: "$4,6M vs $2,5M", texto: "Debe casi el doble que Falabella ($2,5M)" },
+    n1: { tipo: "conteo", conteo: { n: 6, m: 13, predicado: "con saldo vencido" }, universo: "los 13 clientes", texto: "6 de los 13 clientes tienen saldo vencido" },
+    l1: { tipo: "lectura", sello: "criterio mío", texto: "Yo partiría por Lider" },
+  };
+  const bloqueDe = (claves) => `${MARCA_INICIO}\n${claves.map((k) => JSON.stringify(D[k])).join("\n")}\n${MARCA_FIN}`;
+  const completo = bloqueDe(["c1", "c2", "o1", "r1", "n1", "l1"]);
+  /* el guion: el cierre, la respuesta al pedido de SOLO la declaración, y la reparación completa — cada uno con su llamada contada */
+  const turnoF = async ({ cierre, declaracion, reparacion }) => {
+    const llamadas = [];
+    const r = await answerViaAgente({ text: P1, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async ({ attempt, mensajes, soloDeclaracion }) => {
+      const ultimo = [...(mensajes || [])].reverse().find((m) => m.role === "user");
+      const pideDeclaracion = !!soloDeclaracion || /NOTARIO — solo la declaración/.test(String(ultimo && ultimo.content));
+      const tipo = pideDeclaracion ? "declaracion" : attempt > 0 ? "reparacion" : "cierre";
+      llamadas.push({ tipo, mensaje: String(ultimo && ultimo.content || "") });
+      const t = tipo === "declaracion" ? declaracion : tipo === "reparacion" ? (reparacion || cierre) : cierre;
+      return { tipo: "texto", texto: t, stop: "end_turn" };
+    } });
+    return { a: r.r.agente, texto: r.r.text, llamadas };
+  };
+  const sinBloque = (t) => extraerDeclaracion(t).respuesta;
+  /* F1 · el cierre declara solo las cifras y la lectura: faltan el orden, la relación y el conteo → se pide SOLO el bloque → verde con la prosa original */
+  {
+    const { a, texto, llamadas } = await turnoF({ cierre: `${prosa}\n\n${bloqueDe(["c1", "c2", "l1"])}`, declaracion: completo });
+    const c1 = pasoDe(a, "cierre"), d1 = pasoDe(a, "declaracion");
+    ok(!!c1 && c1.medidas.falsas === 0 && c1.medidas.omitidos >= 3, `F1 · el cierre falla SOLO por la declaración (0 falsas · ${c1 && c1.medidas.omitidos} omitidas)`);
+    ok(llamadas.some((l) => l.tipo === "declaracion") && !llamadas.some((l) => l.tipo === "reparacion"), `F1 · se pidió SOLO la declaración y no hubo reescritura (llamadas: ${llamadas.map((l) => l.tipo).join(" → ")})`);
+    const pedido = (llamadas.find((l) => l.tipo === "declaracion") || {}).mensaje;
+    ok(/no la reescribas/.test(pedido) && /afirmacion-no-declarada/.test(pedido) && /orden|relación|conteo/i.test(pedido), "F1 · el pedido dice que la prosa queda como está y nombra lo que falta");
+    ok(a.estado === "verde" && !!d1 && d1.medidas.omitidos === 0 && d1.medidas.falsas === 0, `F1 · verde con la declaración reparada (estado ${a.estado}; declaración: ${d1 ? JSON.stringify(d1.medidas) : "sin paso"})`);
+    ok(a.notario.servido && a.notario.servido.sitio === "declaracion", `F1 · lo servido lleva el registro del sitio «declaracion» (${a.notario.servido && a.notario.servido.sitio})`);
+    ok(canon(sinBloque(texto)).trim() === canon(prosa).trim(), "F1 · la prosa servida es la premium ORIGINAL, byte a byte (sin el bloque)");
+  }
+  /* F2 · la declaración nueva destapa una falsedad (declara el orden para Falabella): no se sirve; sigue la reparación completa con esa multa */
+  {
+    const falso = { ...D.o1, sujeto: "Falabella", texto: "es la cuenta con más saldo vencido de los 13 clientes" };
+    const bloqueFalso = `${MARCA_INICIO}\n${[D.c1, D.c2, falso, D.r1, D.n1, D.l1].map((x) => JSON.stringify(x)).join("\n")}\n${MARCA_FIN}`;
+    const { a, llamadas } = await turnoF({ cierre: `${prosa}\n\n${bloqueDe(["c1", "c2", "l1"])}`, declaracion: bloqueFalso, reparacion: `${prosa}\n\n${completo}` });
+    const d1 = pasoDe(a, "declaracion");
+    ok(!!d1 && d1.medidas.falsas >= 1, `F2 · la declaración nueva se juzga contra la misma prosa: ${d1 ? d1.medidas.falsas : "?"} falsa (Falabella no es la de más vencido)`);
+    ok(!(a.estado === "verde" && a.notario.servido && a.notario.servido.sitio === "declaracion"), "F2 · con una falsa en la declaración nueva NO se sirve por la vía de la declaración");
+    const rep2 = llamadas.find((l) => l.tipo === "reparacion");
+    ok(!!rep2 && /afirmacion-falsa/.test(rep2.mensaje) && /Falabella/.test(rep2.mensaje), "F2 · la reparación completa parte del juicio más informado: la multa nombra la falsedad destapada");
+    ok(a.estado === "reparado", `F2 · y la reparación con la declaración correcta se sirve como reparada (estado ${a.estado})`);
+  }
+  /* F3 · sin bloque: el pedido de solo la declaración basta (una llamada, sin reescritura) */
+  {
+    const { a, llamadas } = await turnoF({ cierre: prosa, declaracion: completo });
+    const c1 = pasoDe(a, "cierre");
+    ok(!!c1 && c1.vetos.includes("sin-declaracion"), "F3 · el cierre sin bloque se veta por sin-declaracion");
+    ok(a.estado === "verde" && a.notario.servido && a.notario.servido.sitio === "declaracion" && !llamadas.some((l) => l.tipo === "reparacion"), `F3 · con el bloque pedido aparte, verde por la vía de la declaración y sin reescritura (${llamadas.map((l) => l.tipo).join(" → ")})`);
+  }
+  /* F4 · la asistencia de identidad: el cierre no declara «269 días» (una sola fig con ese canon: Lider · Dias Vencido) → la casa la declara y el cierre es verde sin ninguna llamada más */
+  {
+    const { a, llamadas } = await turnoF({ cierre: `${prosa}\n\n${bloqueDe(["c1", "o1", "r1", "n1", "l1"])}`, declaracion: completo });
+    const c1 = pasoDe(a, "cierre");
+    ok(!!c1 && (c1.medidas.asistidas || 0) >= 1 && c1.medidas.omitidos === 0, `F4 · la casa asiste la cifra verbatim con fig única (asistidas ${c1 && c1.medidas.asistidas}, omitidas ${c1 && c1.medidas.omitidos})`);
+    ok(a.estado === "verde" && llamadas.length === 1 && a.notario.servido && a.notario.servido.sitio === "cierre", `F4 · verde en el cierre, una sola llamada (${llamadas.length}), y la asistida queda en el expediente: ${JSON.stringify((c1 && c1.asistidas || []).map((x) => x.sujeto + " · " + x.metrica + " = " + x.valor))}`);
+  }
+  /* F5 · la asistencia NO adivina: la prosa atribuye los $4,6M a Falabella (falso); la fig única es de Lider, la oración habla de Falabella → no se asiste, y ninguna vía la sirve */
+  {
+    const prosaFalsa = prosa.replace("Lider acumula $4,6M vencidos con 269 días de atraso", "Falabella acumula $4,6M vencidos con 269 días de atraso");
+    const bloqueFalso = `${MARCA_INICIO}\n${[{ ...D.c1, sujeto: "Falabella", texto: "Falabella acumula $4,6M vencidos" }, { ...D.c2, sujeto: "Falabella" }, D.o1, D.r1, D.n1, D.l1].map((x) => JSON.stringify(x)).join("\n")}\n${MARCA_FIN}`;
+    const { a, texto } = await turnoF({ cierre: `${prosaFalsa}\n\n${bloqueDe(["o1", "r1", "n1", "l1"])}`, declaracion: bloqueFalso, reparacion: `${prosaFalsa}\n\n${bloqueFalso}` });
+    const c1 = pasoDe(a, "cierre");
+    /* la casa puede asistir la cifra VERDADERA del otro lado («Falabella ($2,5M)»); las dos con dueño falso ($4,6M y 269 días dichas de Falabella), jamás */
+    const asistidasFalsas = ((c1 && c1.asistidas) || []).filter((x) => /4[.,]6M|269/.test(String(x.valor)));
+    ok(!!c1 && asistidasFalsas.length === 0, `F5 · las cifras con dueño falso en la prosa NO se asisten (asistidas: ${JSON.stringify(((c1 && c1.asistidas) || []).map((x) => x.sujeto + " · " + x.metrica + " = " + x.valor))})`);
+    ok(a.estado !== "verde" && a.estado !== "reparado" && !/Falabella acumula \$4[.,]6M/.test(String(texto)), `F5 · la frase falsa no llega al usuario por ninguna vía (estado ${a.estado}; la poda puede servir el resto)`);
+  }
 }
 
 /* ═══ E · LÍNEA BASE ═════════════════════════════════════════════════════════════════════════════════════════════════════ */

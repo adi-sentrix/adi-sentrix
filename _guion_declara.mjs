@@ -13,7 +13,7 @@ import fs from "node:fs";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
-import { MARCA_INICIO, MARCA_FIN, declaracionDeRespaldo } from "./src/adi/notario/declaracion.js";
+import { MARCA_INICIO, MARCA_FIN, declaracionDeRespaldo, extraerDeclaracion } from "./src/adi/notario/declaracion.js";
 
 const _ejes = () => { const o = {}; for (const e of ["cliente", "sku", "marca", "familia", "bodega", "canal"]) { try { const n = axisEntityNames(e); if (n && n.length) o[e] = n; } catch { /* sin índice */ } } return o; };
 
@@ -29,12 +29,24 @@ export function conDeclaracion(texto, figs, scenario = ESCENARIO_INICIAL, extra 
   return `${t}\n\n${bloqueDe([...afs, ...(Array.isArray(extra) ? extra : [])])}`;   // `extra`: lo que el guion declara A MANO (lo que la derivación no alcanza: un orden, una relación, una lectura)
 }
 
-/** declarando(guion, scenario) → el mismo guion, cuyas respuestas de texto salen con su declaración derivada de `figs` */
-export const declarando = (guion, scenario = ESCENARIO_INICIAL) => async (args) => {
-  const r = await guion(args);
-  /* el guion puede traer `declarar: [...]` con lo que declara a mano (se suma a lo derivado) */
-  if (r && typeof r === "object" && r.tipo === "texto" && typeof r.texto === "string") return { ...r, texto: conDeclaracion(r.texto, args && args.figs, scenario, r.declarar) };
-  return r;
+/** declarando(guion, scenario) → el mismo guion, cuyas respuestas de texto salen con su declaración derivada de `figs`.
+ *  Y cuando el bucle pide SOLO la declaración (fase 4, etapa B: la prosa queda congelada), responde como lo haría un cerebro que declara
+ *  desde la evidencia —el bloque derivado de esa prosa, más lo que el guion declaró a mano para ese texto— SIN consumir un paso del guion. */
+export const declarando = (guion, scenario = ESCENARIO_INICIAL) => {
+  let extraDeUltimoTexto = [];
+  return async (args) => {
+    if (args && args.soloDeclaracion) {
+      const ultimo = [...((args && args.mensajes) || [])].reverse().find((m) => m && m.role === "assistant" && typeof m.content === "string");
+      const prosa = extraerDeclaracion(String((ultimo && ultimo.content) || "")).respuesta;
+      let afs = [];
+      try { afs = declaracionDeRespaldo(prosa, (args && args.figs) || [], { ejesDelTenant: _ejes(), datoProyectado: scenario ? cifrasDelDato(scenario) : null }); } catch { afs = []; }
+      return { tipo: "texto", texto: bloqueDe([...afs, ...extraDeUltimoTexto]), stop: "end_turn" };
+    }
+    const r = await guion(args);
+    /* el guion puede traer `declarar: [...]` con lo que declara a mano (se suma a lo derivado) */
+    if (r && typeof r === "object" && r.tipo === "texto" && typeof r.texto === "string") { extraDeUltimoTexto = Array.isArray(r.declarar) ? r.declarar : []; return { ...r, texto: conDeclaracion(r.texto, args && args.figs, scenario, r.declarar) }; }
+    return r;
+  };
 };
 
 /** afirmacionesDelFixture(fixture, borrador) → las afirmaciones declaradas A MANO (fase 1, seis etiquetadores) para ese borrador vivo, o null */

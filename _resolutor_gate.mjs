@@ -95,6 +95,9 @@ const ningunaVerdadera = (vs) => vs.length > 0 && vs.every((v) => v.veredicto !=
   const falsasFuera = [];
   for (const [clave, { J }] of juicios) for (const v of J.veredictos) if (v.veredicto === "falsa") { const id = `${clave}.${Number(String(v.id).replace(/^a/, "").split(".")[0]) - 1}`; if (!E.falsasConfirmadasIds.includes(id)) falsasFuera.push(id); }
   ok(falsasFuera.every((id) => ESPERADAS_FUERA.has(id)), `fuera de las 7 confirmadas, las falsas son solo las 5 nombradas (hoy ${[...new Set(falsasFuera)].length}: ${[...new Set(falsasFuera)].join(", ")})`, falsasFuera.filter((id) => !ESPERADAS_FUERA.has(id)).join(", "));
+  /* el verificador no revienta: un error se dicta no-verificable y puede esconder una falsa (pasó con «las 6 cuentas sobre el nivel declarado») */
+  const errores = [...juicios.values()].flatMap(({ J }) => J.veredictos.filter((v) => /^error-del-verificador/.test(String(v.motivo))));
+  ok(errores.length === 0, `el verificador no revienta en ninguna de las ${[...juicios.values()].reduce((n, { J }) => n + J.veredictos.length, 0)} declaraciones (errores: ${errores.length})`, errores.slice(0, 2).map((v) => v.motivo).join(" | "));
   const ajenas = [...juicios.values()].reduce((n, { J }) => n + J.violations.filter((v) => v.kind === "declaracion-ajena").length, 0);
   ok(ajenas === 0, `★ los 16 fragmentos «ajenos» de la fase 3 se ubican (hoy ${ajenas} ajenos)`);
   const incons = [...juicios.values()].reduce((n, { J }) => n + J.violations.filter((v) => v.kind === "declaracion-inconsistente").length, 0);
@@ -206,6 +209,24 @@ H("C · la resolución no inventa verdad: el valor es el comprobante y la ambig�
   ok(v6b.veredicto !== "no-verificable" || !/direccion/.test(String(v6b.motivo)), `…y con «más grande» la dirección se lee del fragmento (${v6b.veredicto}: ${String(v6b.motivo).slice(0, 90)})`);
   /* 7 · el ubicador tolerante no ubica un fragmento que la prosa no dice */
   const P = "Falabella vende $19.4M y deja $4.3M de contribución. Lider vende $17.8M.";
+  /* R13 · el otro lado que trae su cifra: «por encima del nivel de referencia (3,5%)» compara la carga de Lider con el nivel declarado, no con el subtotal en $.
+   * La boleta del turno 0 de la fase 3 (la del cruce completo) trae la carga en % de Lider y su variación; la del playbook de margen, no. */
+  const figs0 = (V.turnos.find((t) => t.i === 0).llamadas || []).filter((x) => x.tipo === "texto" && x.declaracion)[0].figs || [];
+  const juzgar0 = (x) => verificarAfirmaciones([x], { figs: figs0, datoProyectado: DATO, ejesDelTenant: ejes }).veredictos[0];
+  const v7 = juzgar0({ tipo: "relacion", sujeto: "Lider", metrica: "Carga comercial", relacion: { forma: "mayor", vs: "nivel de referencia (3,5%)" }, texto: "por encima del nivel de referencia (3,5%)" });
+  ok(v7.veredicto === "verdadera" && /Nivel de carga/i.test(String(v7.motivo) + String(v7.verdad)), `R13 · «vs nivel de referencia (3,5%)» resuelve al nivel declarado con esa cifra → ${v7.veredicto} (${String(v7.motivo).slice(0, 90)})`, v7.motivo);
+  const v7b = juzgar0({ tipo: "relacion", sujeto: "Lider", metrica: "Carga comercial", relacion: { forma: "mayor", vs: "nivel de referencia (4,0%)" }, texto: "por encima del nivel de referencia (4,0%)" });
+  ok(v7b.veredicto !== "verdadera", `R13 · …y con la cifra equivocada (4,0 %) no se resuelve al nivel: ${v7b.veredicto}`, v7b.motivo);
+  const v7c = juzgar0({ tipo: "relacion", sujeto: "Lider", metrica: "Carga comercial", relacion: { forma: "mayor", vs: "nivel declarado" }, texto: "su carga está sobre el nivel declarado" });
+  ok(v7c.veredicto === "verdadera" && !/subtotal/i.test(String(v7c.verdad)), `R13 · «vs nivel declarado» sin cifra elige el candidato de la UNIDAD del sujeto (%), no el subtotal en $ → ${v7c.veredicto} (${String(v7c.verdad).slice(0, 80)})`, v7c.motivo + " · " + v7c.verdad);
+  /* R12 · el período implícito: «Lider creció 14,9%» sin período, con la única variación de la boleta (vs año anterior) */
+  const v8 = juzgar0({ tipo: "variacion", sujeto: "Lider", metrica: "Ventas", variacion: { direccion: "sube", valor: "14,9%" }, texto: "Lider creció 14,9%" });
+  ok(v8.veredicto === "verdadera" && v8.resuelta && v8.resuelta.some((x) => /periodo/.test(x)), `R12 · una variación sin período toma «vs año anterior» si es la única de la boleta → ${v8.veredicto} (${(v8.resuelta || []).join("; ").slice(0, 90)})`, v8.motivo);
+  const v8b = juzgar0({ tipo: "variacion", sujeto: "Lider", metrica: "Ventas", variacion: { direccion: "sube", valor: "20,0%" }, texto: "Lider creció 20,0%" });
+  ok(v8b.veredicto === "falsa", `R12 · …y con la cifra equivocada sigue siendo falsa (el valor es el comprobante): ${v8b.veredicto}`, v8b.motivo);
+  /* el eje pelado como universo («familias») es el eje entero */
+  const v9 = juzgar({ tipo: "orden", sujeto: "Electrodomésticos", metrica: "Ventas", orden: { forma: "max" }, universo: "familias", texto: "la familia que más vende" });
+  ok(v9.veredicto !== "no-verificable" || !/universo-no-resoluble/.test(String(v9.motivo)), `el universo «familias» a secas es el eje entero → ${v9.veredicto} (${String(v9.motivo).slice(0, 80)})`, v9.motivo);
   ok(!ubicarFragmento(P, "Lider deja $4.3M de contribución", { nombres }), "un fragmento con la cifra de OTRA entidad no se ubica (la oración de $4.3M no nombra a Lider)");
   ok(!!ubicarFragmento(P, "Falabella deja $4.3M", { nombres }), "…y el fragmento con la cifra y el dueño correctos sí (asistida)");
 }

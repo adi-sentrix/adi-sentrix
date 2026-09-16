@@ -187,6 +187,19 @@ tolerancia (`ubicar.js`); una sola tolerancia de cifra para el juicio y el compr
   codificaban una limitación de la evidencia se actualizaron con nota. Pendiente (plan): la omisión del modelo (etapa B: protocolo v2,
   carta de hechos, reparación con prosa congelada), la ronda adversarial y la medición en vivo (etapa C, gasto a nombrar).
 
+**El Notario semántico — fase 4, etapa B (2026-09-16, offline; sin corridas ni deploy).** Aprobada la etapa A desde producto («carga
+alta» = las 6 del detector; las 9 que solo exceden el nivel se llaman distinto), la etapa B ataca lo que quedaba: el modelo omite lo que
+sí escribe. La respuesta premium deja de caer por eso: si el cierre falla SOLO por la declaración, el bucle pide únicamente el bloque
+(la prosa congelada, una llamada en el tier base), re-juzga la misma prosa y sirve la premium original; una falsedad destapada sigue a
+la reparación completa. La casa asiste la identidad mecánica (una cifra verbatim con una sola fig, o la del otro lado de una relación),
+verificada y consistente, jamás lo semántico. La carta de hechos del turno viaja con los resultados (referencias, conjuntos con su única
+definición y tamaño, subtotales, rankings, cuentas permitidas); el protocolo v2 de la instrucción (contrato de ADI, autorizado por el
+owner en este mensaje) nombra lo que la fase 3 mostró omitido. Y más formas resueltas sin mover el estándar (período implícito, el otro
+lado con su cifra, la unidad del sujeto, el eje pelado). Candados: `_notario_semantico_flujo_gate` §F (45) y `_resolutor_gate` (45);
+la fase 3 re-juzgada: verdaderas 325 · no verificables 23 · las 12 falsas (7 reales de la corrida + 2 reales destapadas + 3 declaraciones
+contra su propio valor) · 0 FN. Suite 267/267 · 0 red. Sigue la ronda adversarial (UltraCode, offline) y después la estimación de la
+certificación viva. `_NOTARIO_SEMANTICO_FASE4_DISENO.md` §11.
+
 
 ---
 

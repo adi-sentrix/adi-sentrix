@@ -24,6 +24,8 @@
  *  R4 · la unidad implícita por la métrica («rotación 1» → 1.0x).
  *  R9 · el universo de un subtotal que la cifra identifica (si es único; si el fragmento dice el TODO, se declara el todo → falsa).
  *  R10 · la dirección de un orden y la forma de una relación, leídas del fragmento («más grande» → mayor; «el doble» → veces).
+ *  R12 · el período implícito de una variación («vs año anterior» si es la única variación que la boleta trae para ese sujeto y métrica).
+ *  R13 · el otro lado que trae su cifra («nivel de referencia (3,5%)») la usa de comprobante; entre candidatos, el de la unidad del sujeto.
  *  R8 · las derivadas de la casa (brecha = benchmark − margen; variación en $ = venta − venta del año anterior), con su evidencia. */
 import { normalizar, menosAscii, leerValor } from "./afirmacion.js";
 import { parseFigures } from "../boleta.js";
@@ -109,6 +111,25 @@ function _comprobante(a, rol) {
   if (a.relacion && a.relacion.valor != null) return leerValor(a.relacion.valor) || null;
   return null;
 }
+/* R13 · el otro lado que trae su propia cifra («nivel de referencia (3,5%)», «referencia de 120»): esa cifra es su comprobante */
+function _comprobanteEnElTexto(s) {
+  const t = menosAscii(String(s || ""));
+  const figs = parseFigures(t);
+  if (figs.length === 1) return leerValor(figs[0].text) || null;
+  const m = /\b(?:de|a|en)\s+(\d+(?:[.,]\d+)?)\s*$/.exec(t.trim());   // «referencia de 120» (sin unidad: la métrica del sujeto la pone)
+  if (m) return leerValor(m[1]) || null;
+  return null;
+}
+/* la unidad con que la boleta trae la métrica del sujeto (para elegir, entre dos candidatos del otro lado, el comparable) */
+function _unidadDelSujeto(I, a) {
+  try {
+    const s = typeof a.sujeto === "string" ? a.sujeto : null;
+    if (!s || !a.metrica) return null;
+    /* solo una casación exacta o sinónima de la métrica: «Carga comercial» ⊂ «Carga comercial alta» es otra métrica (y otra unidad) */
+    const u = [...new Set(I.buscarFigs(s, a.metrica).filter((f) => typeof I.casa === "function" ? I.casa(a.metrica, f) >= 3 : true).map((f) => f.unidad).filter(Boolean))];
+    return u.length === 1 ? u[0] : null;
+  } catch { return null; }
+}
 
 /* ── R1 · el sujeto (o el otro lado de una relación) que no es una entidad ── */
 function _resolverSujeto(I, sujeto, a, notas, rol = "sujeto") {
@@ -117,7 +138,7 @@ function _resolverSujeto(I, sujeto, a, notas, rol = "sujeto") {
   if (_es(sujeto)) return sujeto;   // {descripcion} ya viene en la forma canónica
   const s = String(sujeto).trim();
   if (!s || _NEGOCIO.test(s) || _entidad(I, s)) return s;
-  const v = _comprobante(a, rol);
+  const v = _comprobante(a, rol) || (rol !== "sujeto" ? _comprobanteEnElTexto(s) : null);
   /* (a) «total …» → el todo de una métrica del negocio */
   const mt = _TOTAL_RE.exec(s);
   if (mt) {
@@ -127,7 +148,11 @@ function _resolverSujeto(I, sujeto, a, notas, rol = "sujeto") {
     if (!resto) { if (rol === "sujeto") a.universo = a.universo || "total"; notas.push(`${rol} «${s}» → negocio (total)`); return rol === "sujeto" ? "negocio" : { sujeto: "negocio", metrica: a.metrica || "", universo: "total" }; }
   }
   /* (b) un concepto del negocio (benchmark, nivel de carga, techo, umbral, un estado del inventario…): el comprobante es el valor */
-  const conceptos = _conceptosDelNegocio(I, s, v);
+  const conceptos0 = _conceptosDelNegocio(I, s, v);
+  /* con varios candidatos y sin comprobante, el otro lado tiene que ser COMPARABLE con la métrica del sujeto: misma unidad
+   * («por encima del nivel declarado» de una carga en % no es el subtotal en $ que también dice «nivel declarado») */
+  const uS = rol !== "sujeto" && !v && conceptos0.length > 1 ? _unidadDelSujeto(I, a) : null;
+  const conceptos = uS && conceptos0.some((f) => f.unidad === uS) ? conceptos0.filter((f) => f.unidad === uS) : conceptos0;
   if (conceptos.length) {
     const compat = v ? conceptos.filter((f) => _mismoValor(v, f)) : conceptos;
     /* con valor, todo candidato que lo sostiene da el mismo veredicto: se toma el mejor casado (el primero); sin valor, dos candidatos son
@@ -146,10 +171,20 @@ function _resolverSujeto(I, sujeto, a, notas, rol = "sujeto") {
       }
       notas.push(`${rol} «${s}» → negocio · ${f.concepto}`); return { sujeto: "negocio", metrica: f.concepto };
     }
-    if (conceptosUnicos.length > 1) notas.push(`${rol} «${s}» ambiguo entre ${conceptosUnicos.slice(0, 3).join(" · ")}: no se resuelve como concepto`);
+    if (conceptosUnicos.length > 1) { notas.push(`${rol} «${s}» ambiguo entre ${conceptosUnicos.slice(0, 3).join(" · ")}: no se resuelve`); return s; }   // nombra conceptos, no un conjunto: la ambigüedad queda no-verificable
     if (v && !compat.length) notas.push(`${rol} «${s}» nombra ${conceptos[0].concepto} = ${conceptos[0].texto}, no ${v.texto}: no se resuelve como concepto`);
     /* sin concepto que cierre, se sigue probando como conjunto: «cuentas bajo el benchmark» casaba por palabras con el subtotal «… (de 8
      * bajo el benchmark)» y ES el conjunto de los 8 */
+  }
+  /* (d, antes que c) un otro lado que trae su cifra («nivel de referencia (3,5%)», «$4.9M»): la fig del negocio con ese valor, si es única —
+   * el valor identifica; un conjunto no lleva valor, así que no puede ganarle */
+  if (rol !== "sujeto" && v && Number.isFinite(v.raw)) {
+    const cands = I.figs.filter((f) => !f.entidad && _mismoValor(v, f));
+    const conceptos2 = [...new Set(cands.map((f) => f.conceptoNorm))];
+    /* varios rótulos con el MISMO valor (la referencia emitida por dos fuentes: «Nivel de carga declarado» y «Nivel de carga comercial declarado»)
+     * dan el mismo veredicto: se toma el que mejor casa con las palabras del otro lado, o el primero */
+    const mismoRaw = cands.length > 1 && cands.every((f) => f.unidad === cands[0].unidad && Math.abs(f.raw - cands[0].raw) <= Math.abs(cands[0].raw) * 0.005);
+    if (conceptos2.length === 1 || mismoRaw) { const f = (typeof I.casa === "function" ? [...cands].sort((x, y) => I.casa(s, y) - I.casa(s, x))[0] : cands[0]); notas.push(`${rol} «${s}» → negocio · ${f.concepto} (por su cifra)`); return { sujeto: "negocio", metrica: f.concepto, ...(f.agregado ? { universo: f.calificador || "" } : {}) }; }
   }
   /* (c) un conjunto que la evidencia identifica («5 cuentas materiales», «los que caen», «las cuentas sanas») → sujeto descrito */
   const c = _esConjunto(I, s);
@@ -202,6 +237,23 @@ function _inferirFormaDeRelacion(a, notas) {
   if (_MAYOR.test(t)) { r.forma = "mayor"; notas.push(`relacion.forma «mayor» leída del fragmento`); return; }
   if (_MENOR.test(t)) { r.forma = "menor"; notas.push(`relacion.forma «menor» leída del fragmento`); return; }
   if (_MEJOR.test(t) || _PEOR.test(t)) { const p = _polaridad(a.metrica); if (p) { r.forma = _MEJOR.test(t) ? p : (p === "mayor" ? "menor" : "mayor"); notas.push(`relacion.forma «${r.forma}» leída del fragmento («${_MEJOR.test(t) ? "mejor" : "peor"}» en ${a.metrica})`); } }
+}
+
+/* ── R12 · el período implícito de una variación: «vs año anterior» cuando es la única variación que la boleta trae para ese sujeto y esa
+ * métrica (el valor sigue siendo el comprobante en el verificador); con una serie mensual o un plan al lado, sigue faltando ── */
+function _periodoImplicito(I, a, notas) {
+  if (normalizar(a.tipo) !== "variacion" || a.periodo || typeof a.sujeto !== "string" || !a.metrica) return;
+  /* las variaciones de la entidad: la de la VENTA es la «Variación vs año anterior» de la cuenta (así la rotula la casa, sin apellido); para otra
+   * métrica, solo una fig de variación que la nombre */
+  const m = normalizar(a.metrica);
+  const ent = a.sujeto === "negocio" ? null : (() => { try { return I.resolverEntidad(a.sujeto); } catch { return null; } })();
+  const propias = a.sujeto === "negocio" ? I.figs.filter((f) => !f.entidad) : (ent ? I.figs.filter((f) => f.entidad && normalizar(f.entidad) === normalizar(ent.nombre)) : []);
+  const variaciones = propias.filter((f) => /variacion|yoy|vs ano anterior|vs presupuesto|vs ppto|crecimiento/.test(f.conceptoNorm) && (/venta|crecimiento|variacion/.test(m) ? !/margen|contribucion|carga|capital|saldo|unidades/.test(f.conceptoNorm) : f.conceptoNorm.includes(m.split(" ")[0])));
+  const anteriores = variaciones.filter((f) => /ano anterior|yoy/.test(f.conceptoNorm) && !/presupuesto|ppto|plan/.test(f.conceptoNorm));
+  const otras = variaciones.filter((f) => !anteriores.includes(f));
+  if (!anteriores.length || otras.length) return;
+  /* también cuando la métrica es la del crecimiento a secas («crecimiento», «variación»): la boleta solo trae la del año anterior */
+  a.periodo = "vs año anterior"; notas.push(`periodo «vs año anterior» (la única variación de «${a.metrica}» que la boleta trae para ${a.sujeto})`);
 }
 
 /* ── R8 · las derivadas de la casa: la evidencia que la cuenta necesita, si la boleta la trae y es única ── */
@@ -306,6 +358,7 @@ export function resolverDeclaracion(raw, I) {
   if (tipo === "cifra") _universoPorValor(I, a, notas);
   if (tipo === "orden") _inferirDireccion(a, notas);
   if (tipo === "relacion") _inferirFormaDeRelacion(a, notas);
+  if (tipo === "variacion") _periodoImplicito(I, a, notas);
   if (tipo === "cifra" || tipo === "variacion") _evidenciaDerivada(I, a, notas);
   if (notas.length) a._resuelta = [...(Array.isArray(a._resuelta) ? a._resuelta : []), ...notas];
   return [a];

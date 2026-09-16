@@ -143,6 +143,8 @@ const _puntajeUniverso = (declarado, f) => { const tu = tokens(Array.isArray(dec
 
 /* ── LOS CONJUNTOS QUE LA EVIDENCIA IDENTIFICA (para universos de orden y conteo) ─────────────────────────────────────────── */
 const _CLAVE_A_RANKING = { ventas: "ventas", contribucion: "contribucion", margen: "margen", carga: "carga", brecha: "brecha", unidades: "unidades", vencido: "saldo_vencido", pendiente: "saldo_pendiente", recuperado: "recuperado", diasvencido: "dias_vencido", capital: "capital", frenado: "capital_frenado", rotacion: "rotacion", cobertura: "dias_inventario", sinventa: "dias_sin_venta" };
+/** conjuntosConocidos(I) → los conjuntos que la evidencia identifica (para la carta de hechos del turno: nombre, tamaño, eje, fuente) */
+export function conjuntosConocidos(I) { return _conjuntosConocidos(I); }
 /* _conjuntosConocidos(I) → [{nombre, set, fuente, re}] · los estados, los umbrales de los rankings (bajo/sobre el benchmark de margen, con saldo
  * vencido, sobre el nivel de carga declarado), los que caen/crecen vs año anterior, y los grupos de los agregados (con sus palabras) */
 function _conjuntosConocidos(I) {
@@ -235,6 +237,8 @@ function _conjuntoDeUniverso(u, I, eje, metrica = "") {
   if (!s.trim() || ES_TODO.test(s)) return { set: null, fuente: "el eje entero" };
   /* «la cartera», «la cartera de clientes», «toda la cartera comercial»: los clientes, todos (fase 4: «la más alta de toda la cartera») */
   if ((!eje || eje === "cliente") && /^(?:toda\s+)?(?:la\s+)?cartera(?:\s+(?:de\s+clientes|de\s+cuentas|comercial|entera|completa|actual))?\s*$/i.test(s.trim())) return { set: null, fuente: "el eje entero" };
+  /* el nombre pelado del eje («familias», «marcas», «los SKU», «carteras») es el eje entero (fase 4: el vocabulario libre del extractor) */
+  if (/^(?:las?|los)?\s*(?:familias?|marcas?|bodegas?|clientes?|cuentas?|skus?|canales?|carteras?|meses)\s*$/i.test(s.trim())) return { set: null, fuente: "el eje entero" };
   /* «las bodegas del inventario», «los clientes de la cartera», «todos los SKU»: el eje entero */
   if (/^(?:las?|los|todos?|todas?)\s+(?:las?\s+|los\s+)?(?:bodegas?|clientes?|cuentas?|skus?|marcas?|familias?|meses)(?:\s+(?:del|de\s+la|de\s+los|de\s+las|en)\s+(?:negocio|cartera|inventario|empresa|demo|a[ñn]o))?\s*$/i.test(s.trim())) return { set: null, fuente: "el eje entero" };
   const total = I.tamanoDelEje(eje);
@@ -255,7 +259,7 @@ function _conjuntoDeUniverso(u, I, eje, metrica = "") {
   /* un grupo de un agregado, por su tamaño y sus palabras («las 5 cuentas materiales», «los que caen», «los grandes») */
   const grupos = conocidos.filter((c) => c.tokens);
   let g = null;
-  if (nums.length) g = grupos.find((c) => nums.includes(c.n) && (tu.some((t) => c.tokens.some((x) => x.startsWith(t.slice(0, 5)))) || (metrica && I.casa(metrica, I.figs.find((f) => f.label === c.nombre)) > 0)));
+  if (nums.length) g = grupos.find((c) => nums.includes(c.n) && (tu.some((t) => c.tokens.some((x) => x.startsWith(t.slice(0, 5)))) || (metrica && (() => { const fg = I.figs.find((f) => f.label === c.nombre); return !!fg && I.casa(metrica, fg) > 0; })())));
   if (!g && tu.length) g = grupos.find((c) => tu.every((t) => c.tokens.some((x) => x.startsWith(t.slice(0, 5)))));
   if (g) return { set: g.set, fuente: g.fuente };
   /* los estados, los umbrales, los que caen/crecen — y una conjunción de dos («bajo el benchmark y sobre el nivel de carga») */
