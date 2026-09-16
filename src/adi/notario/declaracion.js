@@ -11,9 +11,11 @@ import { parseFigures } from "../boleta.js";
 import { normalizar, TIPOS, menosAscii } from "./afirmacion.js";
 import { indiceDeEvidencia, estadoCanon } from "./evidencia.js";
 import { posicionDeCifra } from "./presencia.js";
-import { tolCalculo } from "../oracle/calculoCatalogo.js";
+import { mismoValor } from "./evidencia.js";
 const _U = { pct: "tasa", pp: "tasa", money: "money", days: "days", ratio: "ratio", count: "count" };
-const _mismo = (f, g) => (g.texto && g.texto === menosAscii(String(f.text || "")).trim()) || (_U[f.unit] || f.unit) === (_U[g.unidad] || g.unidad) && Number.isFinite(g.raw) && (Math.abs(g.raw - f.raw) <= (g.unidad === "count" ? 0 : tolCalculo(g.raw, g.unidad)) || (g.canon && g.canon.replace(/\$/g, "") === f.canon.replace(/\$/g, "")));
+/* la cifra de la prosa es la de una fig si la dice verbatim, con el mismo canon, o —a la precisión con que está escrita— es ese valor (la regla de
+ * la casa, `mismoValor`): la tolerancia de cálculo del muro ($1.000 en dinero) no vale acá, casaba «$24.029» con un KPI en $0 */
+const _mismo = (f, g) => (g.texto && g.texto === menosAscii(String(f.text || "")).trim()) || (_U[f.unit] || f.unit) === (_U[g.unidad] || g.unidad) && Number.isFinite(g.raw) && ((g.canon && g.canon.replace(/\$/g, "") === f.canon.replace(/\$/g, "")) || mismoValor({ texto: f.text, raw: f.raw, unidad: f.unit, canon: f.canon }, g.raw, g.unidad, g.texto));
 
 export const MARCA_INICIO = "<<AFIRMACIONES>>";
 export const MARCA_FIN = "<<FIN>>";

@@ -179,8 +179,21 @@ Derivadas que se rompen seguido:
   «incierto» = no verificable); los conteos se rankean y el mejor decide (una enumeración se juzga por los nombrados); un estado lo cubre solo un
   estado o una métrica que lo nombra; la cobertura de una cifra por su canon respeta al dueño; la negación factual de un orden o variación es un
   hecho (solo la epistémica exime); las cifras en palabras y los superlativos libres son puntos. Etiqueta 3.reparacion.3 de la fase 3 reetiquetada
-  verdadera con la definición del owner (bajo el benchmark ∩ sobre el nivel = 6). Pendiente: la ronda adversarial otra vez sobre la versión
-  cerrada; después la etapa C en vivo (gasto a nombrar). `_NOTARIO_SEMANTICO_FASE4_DISENO.md` §12.
+  verdadera con la definición del owner (bajo el benchmark ∩ sobre el nivel = 6). `_NOTARIO_SEMANTICO_FASE4_DISENO.md` §12.
+- **Fase 4, ronda adversarial 2 (2026-09-16, offline): 91 roturas confirmadas sobre la versión cerrada, 91 cerradas, 16 controles** (gate 199).
+  Lo que quedó como ley: el valor es el comprobante a la precisión de lo impreso («+7,5%» vale por 7.55 impreso 7.6%; «58%» por 57.7% NO); el
+  universo de un conteo se casa por lo que dice («todas salvo Lider» = |U| − 1 o su complemento, «ninguna» = 0 o |U|, la negación conserva el verbo,
+  bodega + estado restringe a ese estado); la cobertura es por SIGNIFICADO («bajo el benchmark» lo cubre la brecha, «sobre el nivel» un predicado o
+  métrica que lo diga, por pares; «equivale a $X» es la cifra; «como Lider» solo por relación; «el más crítico» es superlativo; «31 de agosto» es
+  fecha; «vs.» no cierra la oración); el dueño de la cifra con las mismas reglas en presencia y juez (el negocio no cubre la cifra de una cuenta
+  salvo referencia o total; las entidades de referencia —«más que X», «después de X», «contra X», «igual que X,»— no son dueñas; «respectivamente»
+  reparte solo su lista; la bodega dicha como lugar no es dueña); la consistencia lee el FRAGMENTO (tres lados de un comparativo, lados al revés,
+  «no es la que más» = comparativo menor, meses abreviados, el estado del tramo del sujeto, «recuperó $X» = abonado); y la bodega de la prosa se
+  juzga: un estado sin bodega la toma de la prosa antes de verificar (`completarBodegas`). Nombres parciales únicos se resuelven («Polar»).
+  Línea base del flujo: 20 omisiones (las 8 que se fueron eran la fecha «31»). La suite completa destapó 25 gates rojos por falsos positivos sobre los
+  composers (derivación por tolerancia, período pegado a la cifra, «mientras» ≠ «tras», «se completa en X» es lugar, «las 3 SKU del cuadro», el 0x08 de
+  un heredoc en un regex): cerrados en juez/presencia/verificar/declaracion, ningún composer tocado. Suite 268/268 · 0 red. Pendiente: ronda 3 sobre
+  esta versión; después la etapa C en vivo (gasto a nombrar). §13.
 
 ---
 

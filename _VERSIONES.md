@@ -221,6 +221,27 @@ viva. La suite completa destapó 18 gates rojos por falsos positivos de la consi
 mayor a menor», «el que más cae», «más delgado que», partitivos, participaciones, preguntas indirectas): cerrados en el juez y en presencia;
 un composer cambió su declaración, no su prosa. Suite 268/268 · 0 red. `_NOTARIO_SEMANTICO_FASE4_DISENO.md` §12.
 
+**El Notario semántico — fase 4, ronda adversarial 2 (2026-09-16, offline; sin corridas ni deploy).** Los mismos seis ángulos atacaron la
+versión que cerró la ronda 1; un escéptico confirmó 91 roturas (27 al verificador, 64 al turno) y las 91 quedaron cerradas —una, «en conjunto,
+los clientes cargan $655K de más», es verdadera por definición de la casa y queda como control de esa definición—. Las leyes nuevas: la cifra
+directa vale a la precisión de lo impreso (media unidad de su propia precisión; más gruesa solo si vale exactamente lo impreso); el universo
+de un conteo se casa por lo que dice y no por su tamaño («todas salvo X», «ninguna», la negación con su verbo, bodega + estado); la cobertura
+de un punto es por significado (pares dirección/referencia, la brecha cubre «bajo el benchmark», «equivale a $X» es la cifra, «como X» solo
+por relación, ordinal por su puesto, razón por su k, «el más crítico» no es estado, la fecha no es cifra, «vs.» no cierra la oración); el
+dueño de la cifra con las mismas reglas en presencia y en el juez (el negocio no cubre la cifra de una cuenta salvo referencia o total; las
+entidades de referencia no son dueñas; «respectivamente» reparte solo su lista; la cabeza «Entidad:» no vale coordinada; la cola «en …» no
+cruza la coma; la bodega dicha como lugar no es dueña; la oración termina en el fin de línea; la posición de la cifra ya no pierde el espacio
+que la precede); la consistencia lee el fragmento (tres lados, lados al revés, «no es la que más» = comparativo menor, meses abreviados, el
+estado del tramo del sujeto, «recuperó $X» = abonado, «sin capturar» es métrica); un estado declarado sin bodega toma la de la prosa antes
+de verificar; los nombres parciales únicos se resuelven. Candado `_notario_adversarial_gate` 199 (69 + 91 roturas, 23 + 16 controles);
+`_notario_semantico_gate` 31, `_resolutor_gate` 45 (fase 3: 3 inconsistencias), `_notario_semantico_flujo_gate` 45 con la línea base
+de omisiones en 20 (las 8 que se fueron eran «31» de «al 31 de agosto») y 0 inconsistentes. La suite completa destapó 25 gates rojos por falsos
+positivos de las reglas nuevas sobre los composers y los guiones de la casa (la derivación de respaldo casaba «$24.029» con un KPI en $0 por la
+tolerancia del muro; el período de la métrica en su rótulo y pegado a la cifra; «mientras» leído como «tras»; «se completa en Mercado Libre» como
+dueño; «las 3 SKU del cuadro»; «el negocio está sano»; un heredoc que dejó un byte 0x08 en un regex): todos cerrados en el Notario, ningún
+composer tocado. Suite 268/268 · 0 red. Sigue: la ronda 3 sobre esta versión y, si sobrevive, la estimación de la certificación viva (gasto a
+nombrar). `_NOTARIO_SEMANTICO_FASE4_DISENO.md` §13.
+
 
 ---
 

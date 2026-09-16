@@ -45,8 +45,38 @@ export function mismoValor(v, raw, unidad, textoFig = "") {
     const c = parseFigures(uf === "money" ? `$${raw}` : uf === "days" ? `${raw}d` : `${raw}x`);
     if (c.length && v.canon && c[0].canon.replace(/\$/g, "") === String(v.canon).replace(/\$/g, "")) return true;
   }
-  const tol = uf === "count" ? 0 : tolCalculo(raw, uf);
-  return Math.abs(v.raw - raw) <= tol;
+  /* una cifra DIRECTA se dice como la boleta la trae: la cifra dicha, redondeada a SU precisión, tiene que ser el valor de la boleta («$1,57M» y
+   * «$1,6M» valen para 1.572.313; «$19,7M» por $19.4M y «21,7%» por 21.5% no), y no puede ser más gruesa que el texto de la boleta («22%» por
+   * 21.5%, «$0,7M» por $655K). La tolerancia de cálculo queda para lo CALCULADO (sumas, participaciones, derivadas), que no pasa por acá. */
+  if (uf === "count") return v.raw === raw;
+  const pv = _precisionDe(v.texto), pf = textoFig ? _precisionDe(textoFig) : null;
+  if (pv != null) {
+    /* más gruesa que la boleta solo si vale EXACTAMENTE lo impreso («5 puntos» por «5.0 pp», «24%» por «24.0%» — nunca «22%» por «21.5%») */
+    if (pf != null && pv > pf * 1.0001) { const vf = _valorTexto(textoFig, uf); return vf != null && Math.abs(vf - v.raw) <= 1e-9; }
+    /* a su propia precisión, la cifra dicha es un redondeo válido del valor (media unidad: «+7,5%» y «+7,6%» valen para 7.55) */
+    return Math.abs(raw - v.raw) <= pv / 2 + pv * 1e-6 + 1e-9;
+  }
+  return Math.abs(v.raw - raw) <= tolCalculo(raw, uf);
+}
+/* el valor numérico de un texto de cifra en las unidades de la fig («5.0 pp» → 5; «$1.6M» → 1.600.000; «24.0%» → 24) */
+function _valorTexto(texto, unidad) {
+  const t = menosAscii(String(texto || "")).trim().replace(/(\d)[.,](\d{3})(?!\d)/g, "$1$2");
+  const m = /(-?\d+(?:[.,]\d+)?)\s*([KMB])?/i.exec(t);
+  if (!m) return null;
+  const n = parseFloat(m[1].replace(",", "."));
+  const esc = m[2] ? { K: 1e3, M: 1e6, B: 1e9 }[m[2].toUpperCase()] : 1;
+  void unidad;
+  return n * esc;
+}
+/* la precisión ABSOLUTA con que está escrita una cifra: (10^−decimales) × escala («21.5%» → 0.1; «$1.6M» → 100.000; «$655K» → 1.000; «269d» → 1;
+ * «$22.560» —miles con punto— → 1) */
+function _precisionDe(texto) {
+  const t = menosAscii(String(texto || "")).trim().replace(/(\d)[.,](\d{3})(?!\d)/g, "$1$2");
+  const m = /-?\d+(?:[.,](\d+))?\s*([KMB])?/i.exec(t);
+  if (!m) return null;
+  const dec = (m[1] || "").length;
+  const esc = m[2] ? { K: 1e3, M: 1e6, B: 1e9 }[m[2].toUpperCase()] : 1;
+  return Math.pow(10, -dec) * esc;
 }
 
 /* SINÓNIMOS · lo que el modelo (o quien etiqueta) puede escribir como métrica → los conceptos del rótulo que la nombran, en orden de
@@ -122,7 +152,14 @@ export const tokens = (t) => normalizar(t).replace(/[()·,;:%$]/g, " ").split(/\
 export const numerosEn = (t) => (String(t || "").match(/(?<![A-Za-z\d-])\d+(?:[.,]\d+)?(?![A-Za-z\d])/g) || []).map((x) => parseFloat(x.replace(",", ".")));   // «LG-DRYER8KG» no trae un 8
 
 /* las palabras que dicen «el todo» en un universo declarado (un subtotal narrado así es alcance promovido) */
-export const ES_TODO = /\b(?:total(?:es)?|negocio|cartera|global|todos?(?:\s+los|\s+las)?|todas?|entera?|completa?|los\s+13|las\s+13|13\s+clientes|13\s+cuentas|el\s+conjunto)\b(?!\s+(?:bajo|sobre|con|que|de|en)\b)/i;
+export const ES_TODO = /\b(?:total(?:es)?|totalidad|negocio|cartera|global|todos?(?:\s+los|\s+las)?|todas?|entera?|completa?|los\s+13|las\s+13|13\s+clientes|13\s+cuentas|el\s+conjunto|en\s+(?:su\s+)?conjunto|sumad[oa]s|entre\s+tod[oa]s|tod[oa]s\s+junt[oa]s|nadie\s+se\s+salva|ning[uú]n[ao]?\s+se\s+salva|no\s+hay\s+(?:cuenta|cliente|sku|marca)\s+que\s+se\s+salve)\b(?!\s+(?:bajo|sobre|con|que|de|en)\b)/i;
+/* los números EN PALABRAS de un universo o de un fragmento («los trece clientes», «las seis que cargan de más») pasan a dígitos antes de leer
+ * conjuntos: «los 13 clientes» */
+const _NUMS_EN_PALABRAS = { un: 1, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15, veinte: 20, treinta: 30 };
+/* el todo dicho con fuerza («la totalidad de las cuentas», «en conjunto, los clientes», «sumadas», «entre todos», «nadie se salva»): vale aunque
+ * siga «de» (ES_TODO frena «total de <conjunto>») */
+export const ES_TODO_FUERTE = /\b(?:totalidad|en\s+(?:su\s+)?conjunto|sumad[oa]s|entre\s+tod[oa]s|tod[oa]s\s+junt[oa]s|nadie\s+se\s+salva|ning[uú]n[ao]?\s+se\s+salva|no\s+hay\s+(?:cuenta|cliente|sku|marca)\s+que\s+se\s+salve)\b/i;
+export const conDigitos = (t) => String(t || "").replace(/\b(un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|veinte|treinta)\b(?=\s+(?:cuentas?|clientes?|skus?|marcas?|familias?|bodegas?|canales?|que\b|m[aá]s\b|de\s+(?:las|los|ellas|ellos)\b))/gi, (m) => String(_NUMS_EN_PALABRAS[m.toLowerCase()] ?? m));
 
 /** conceptosDe(metrica) → los conceptos normalizados que la nombran, en orden de preferencia (vacío si no hay sinónimo: se casa genérico) */
 export function conceptosDe(metrica) {
@@ -150,6 +187,13 @@ export function indiceDeEvidencia({ figs = [], datoProyectado = null, ejesDelTen
     /* sin tilde, sin puntuación (Valparaiso · «Mercado libre» · «lider») */
     const k2 = k.replace(/[^a-z0-9 ]/g, "");
     for (const [kk, v] of entidades) if (kk.replace(/[^a-z0-9 ]/g, "") === k2) return v;
+    /* un nombre PARCIAL que identifica a UNA sola entidad: «Polar» por La Polar, «MercadoLibre» / «ML» por Mercado Libre; dos candidatas = ninguna */
+    /* solo entidades de un EJE del tenant (no los rótulos de la boleta) y solo palabras («2026», «julio», «total» no nombran a nadie) */
+    if (k2 && !/\s/.test(k2) && /[a-z]/.test(k2) && !/^(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre|total|totales|negocio|cartera|subtotal)$/.test(k2)) {
+      const cands = [];
+      for (const [kk, v] of entidades) { if (!v.eje) continue; const palabras = kk.replace(/[^a-z0-9 ]/g, "").split(/\s+/).filter(Boolean); if (palabras.length >= 2 && ((k2.length >= 4 && palabras.includes(k2)) || palabras.join("") === k2 || palabras.map((w) => w[0]).join("") === k2)) cands.push(v); }
+      if (cands.length === 1) return cands[0];
+    }
     return null;
   };
 

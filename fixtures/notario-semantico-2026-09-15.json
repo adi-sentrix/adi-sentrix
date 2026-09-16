@@ -14976,8 +14976,8 @@
   }
  ],
  "linea_base_flujo": {
-  "omitidos": 28,
+  "omitidos": 20,
   "correctas": 1050,
-  "nota": "medido el 2026-09-15 al cerrar la fase 2 (offline, 12 borradores con declaración manual dentro del flujo): declaradas 1099 (923 de hecho) · 874 verdaderas + 176 selladas = 1050 correctas (95.5 %) · 31 falsas · 18 no-verificables · 0 inconsistentes · 28/950 puntos de la prosa sin declarar (2.9 %) · 0 FP · 0 FN · 6/6 reparaciones por declaraciones falsas/incompletas · 0/6 servido sin pasar por el Notario semántico"
+  "nota": "medido el 2026-09-15 al cerrar la fase 2 (offline, 12 borradores con declaración manual dentro del flujo): declaradas 1099 (923 de hecho) · 874 verdaderas + 176 selladas = 1050 correctas (95.5 %) · 31 falsas · 18 no-verificables · 0 inconsistentes · 28/950 puntos de la prosa sin declarar (2.9 %) · 0 FP · 0 FN · 6/6 reparaciones por declaraciones falsas/incompletas · 0/6 servido sin pasar por el Notario semántico · RONDA 2 (2026-09-16): 20 omitidos — las 8 que se fueron eran «31» de «al 31 de agosto» (una fecha, no una cifra); las 20 que quedan son las mismas de la fase 2 («los que más», «menor», «41,4% contra 57,3», «Vendes más», «vende más pero», «más profundo», «primero»/«segundo», «entre los tres», «120»)"
  }
 }

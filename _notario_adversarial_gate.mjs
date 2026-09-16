@@ -8,7 +8,10 @@
  *   · modo `verificar`: la afirmación FALSA según la boleta no puede salir «verdadera» (falsa o no-verificable, las dos cierran la puerta);
  *   · modo `turno`: la falsedad de la prosa no puede llegar a pantalla con estado verde/reparado/podado.
  * Y las carnadas de CONTROL: para cada familia de rotura, la versión VERDADERA de la misma forma sigue pasando (la puerta se cierra sin
- * bloquear al que dice la verdad). */
+ * bloquear al que dice la verdad).
+ * RONDA 2 (mismo día, sobre la versión que cerró la ronda 1): 91 roturas confirmadas más (`casosRonda2`: 27 verificar + 64 turno) y 16 controles
+ * (`controlesRonda2`): las versiones verdaderas de las trampas cerradas y los falsos positivos que los atacantes reportaron. Una sola de las 91
+ * queda marcada `verdaderaEsperada` (R2-enconjunto: verdadera por definición de la casa). */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -62,9 +65,11 @@ export function correrVerificar(c) {
 }
 
 const F = JSON.parse(fs.readFileSync(new URL("./fixtures/notario-adversarial-2026-09-16.json", import.meta.url), "utf8"));
-H(`A · las ${F.casos.length} roturas confirmadas de la ronda adversarial, replicadas: ninguna vuelve a romper`);
+const RONDAS = [["A", "ronda 1", F.casos], ["A2", "ronda 2", F.casosRonda2 || []]];
+for (const [letra, ronda, casosRonda] of RONDAS) {
+H(`${letra} · las ${casosRonda.length} roturas confirmadas de la ${ronda} adversarial, replicadas: ninguna vuelve a romper`);
 const porAngulo = {};
-for (const c of F.casos) {
+for (const c of casosRonda) {
   const e = c.entrada;
   let rompe = false, detalle = "";
   if (c.modo === "verificar") {
@@ -85,10 +90,12 @@ for (const c of F.casos) {
   ok(!rompe, `${c.id} [${c.modo}] · ${String(c.verdad).slice(0, 110)}`, detalle);
 }
 console.log(`  por ángulo: ${Object.entries(porAngulo).map(([k, v]) => `${k} ${v.ok}/${v.n}`).join(" · ")}`);
+}
 
 /* ═══ B · LOS CONTROLES: la puerta se cierra sin bloquear al que dice la verdad ═══════════════════════════════════════════════════════ */
-const CTL = F.controles || { verificar: [], turno: [] };
-H(`B · controles: ${CTL.verificar.length} declaraciones verdaderas (verificar) + ${CTL.turno.length} turnos correctos (verde en una llamada)`);
+const CONTROLES = [["B", "ronda 1", F.controles || { verificar: [], turno: [] }], ["B2", "ronda 2", F.controlesRonda2 || { verificar: [], turno: [] }]];
+for (const [letra, ronda, CTL] of CONTROLES) {
+H(`${letra} · controles de la ${ronda}: ${CTL.verificar.length} declaraciones verdaderas (verificar) + ${CTL.turno.length} turnos correctos (verde en una llamada)`);
 for (const c of CTL.verificar) {
   const vs = correrVerificar(c);
   const malas = vs.filter((v) => v.veredicto !== "verdadera");
@@ -98,6 +105,7 @@ for (const c of CTL.turno) {
   const r = await correrTurno(c);
   const bien = r.estado === "verde" && r.llamadas.length === 1;
   ok(bien, `${c.id} · «${String(c.cierre).split("\n")[0].slice(0, 80)}» → verde en una llamada`, `estado ${r.estado} · llamadas ${r.llamadas.join(" → ")} · ${(r.pasos || []).map((p) => p.sitio + ": " + (p.multas || []).map((m) => m.slice(0, 120)).join(" | ")).join(" ‖ ")}`);
+}
 }
 
 console.log(`\n── _notario_adversarial_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);

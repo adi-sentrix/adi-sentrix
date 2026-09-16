@@ -32,7 +32,7 @@
  *  R8 · las derivadas de la casa (brecha = benchmark − margen; variación en $ = venta − venta del año anterior), con su evidencia. */
 import { normalizar, menosAscii, leerValor } from "./afirmacion.js";
 import { parseFigures } from "../boleta.js";
-import { mismoValor, necesitaUniverso, universoDeFig, ES_TODO, conceptosDe, unidadCompatible } from "./evidencia.js";
+import { mismoValor, necesitaUniverso, universoDeFig, ES_TODO, ES_TODO_FUERTE, conceptosDe, unidadCompatible, conDigitos } from "./evidencia.js";
 
 const _NEGOCIO = /^(?:el\s+)?(?:negocio|empresa|compañía|compania|total)$/i;
 const _TOK = (s) => normalizar(String(s || "")).replace(/[()·,;:%$]/g, " ").split(/\s+/).filter((w) => w.length >= 3 && !/^\d+$/.test(w));
@@ -348,14 +348,14 @@ function _universoPorValor(I, a, notas) {
   const labels = [...new Set(sostienen.map((f) => f.label))];
   if (labels.length !== 1) { if (labels.length > 1) notas.push(`la cifra ${v.texto} sostiene dos subtotales (${labels.slice(0, 2).join(" · ")}): el universo no se resuelve`); return; }
   const f = sostienen[0];
-  const texto = menosAscii(String(a.texto || ""));
+  const texto = conDigitos(menosAscii(String(a.texto || "")));   // «los trece clientes» → «los 13 clientes»
   const esTotal = /(?:^|· )total$/.test(f.conceptoNorm);
   /* «el total de carga comercial alta es $588K», «toda la contribución no capturada»: el todo de la métrica, dicho con su nombre */
   const totalDeLaMetrica = new RegExp("\\b(?:total(?:es)?|toda|todo)\\s+(?:de\\s+|la\\s+|el\\s+|de\\s+la\\s+|de\\s+el\\s+)?" + normalizar(a.metrica).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(normalizar(texto));
-  if ((ES_TODO.test(texto) || totalDeLaMetrica) && !esTotal) { a.universo = "el total"; notas.push(`el fragmento dice el todo y la cifra es de ${f.label}: universo «el total»`); return; }
+  if ((ES_TODO.test(texto) || ES_TODO_FUERTE.test(texto) || totalDeLaMetrica) && !esTotal) { a.universo = "el total"; notas.push(`el fragmento dice el todo y la cifra es de ${f.label}: universo «el total»`); return; }
   /* el fragmento nombra un conjunto o un número de cuentas: ese es el universo que se declara (y se juzga), no el de la fig que la cifra sostiene */
   const sinCifra = texto.replace(menosAscii(String(a.valor || "")), " ");
-  const nombraConjunto = /\b\d+\s+(?:cuentas?|clientes?|skus?|marcas?|familias?|bodegas?)\b|\b(?:cuentas?|clientes?|skus?)\s+(?:materiales|bajo|sobre|con)\b|\bbajo el benchmark\b|\bsobre el (?:benchmark|nivel)\b|\bmateriales\b/i.test(sinCifra);
+  const nombraConjunto = /\b\d+\s+(?:cuentas?|clientes?|skus?|marcas?|familias?|bodegas?|que\b)|\b(?:cuentas?|clientes?|skus?)\s+(?:materiales|bajo|sobre|con|que)\b|\bbajo el benchmark\b|\bsobre el (?:benchmark|nivel)\b|\bmateriales\b|\b(?:los|las)\s+que\s+(?:exceden|cargan|est[aá]n|caen|crecen|superan|quedan)\b/i.test(sinCifra);
   if (nombraConjunto) { notas.push(`el fragmento nombra un conjunto: el universo lo declara el modelo, no la cifra`); return; }
   const u = universoDeFig(f);
   if (!u) return;

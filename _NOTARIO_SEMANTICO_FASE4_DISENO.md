@@ -360,3 +360,76 @@ Propuesta: «6 cuentas con exceso material sobre el nivel declarado».
 
 **Lo que sigue.** Volver a correr la ronda adversarial fuera de muestra (los atacantes contra la versión cerrada; misma mesa) y, si
 sobrevive, estimar la certificación viva (etapa C, gasto a nombrar antes de gastar).
+
+## 13 · La ronda adversarial 2 (UltraCode, offline, 2026-09-16) — 91 roturas confirmadas sobre la versión cerrada, 91 cerradas, 16 controles
+
+**Qué se hizo.** Los mismos seis ángulos volvieron a atacar la versión que cerró la ronda 1 (script `scratchpad/notario-adversarial-ronda2.js`,
+misma mesa `_adversarial_notario_harness.mjs`, cero llamadas de red). Un escéptico confirmó 91 roturas (27 al verificador, 64 al turno). Todas
+viven en `fixtures/notario-adversarial-2026-09-16.json` (`casosRonda2`) y el gate `_notario_adversarial_gate` las replica: 199 PASS (69 + 91
+roturas, 23 + 16 controles). Una sola quedó marcada `verdaderaEsperada`: «en conjunto, los clientes cargan $655K de más» — el atacante la dio
+por falsa (alcance promovido), pero por la definición de la casa el exceso de carga del negocio lo aportan solo las 6 cuentas sobre el nivel
+declarado: «Carga comercial alta · subtotal» ES el total del negocio. Queda como caso de control de esa definición.
+
+**Las familias que cerró la ronda 2 (cada una con su carnada).**
+- *El valor es el comprobante, con la precisión de lo impreso.* Una cifra directa admite el empate del redondeo a su propia precisión («+7,5%»
+  por 7.55 impreso 7.6%) y una escritura más gruesa solo si vale exactamente lo impreso («5 puntos» por «5.0 pp»; nunca «22%» por «21.5%»,
+  ni «58%» por «57.7%» — regla de la casa, queda falsa). Con dos emisores que redondean distinto, juzga la fig que cierra.
+- *El universo de un conteo o un grupo se casa por lo que dice, no por su tamaño.* «Las 6 cuentas bajo el benchmark» no es «Carga comercial
+  alta · 6 cuentas»; un predicado negado conserva su verbo («no superan el benchmark» es el complemento de «superan el benchmark»); «todas las
+  cuentas salvo Lider» es |universo| − 1 (o su complemento, 1) y otra n es inconsistente; «ninguna familia le gana al benchmark» admite 0 o las 4;
+  una bodega nombrada con un estado («los SKU frenados de Valparaíso») restringe a ese estado.
+- *La cobertura es por SIGNIFICADO.* «Bajo el benchmark» lo cubre una cifra de «Brecha al benchmark» (la brecha es estar bajo), «sobre el
+  nivel» un predicado o una métrica que lo diga (por pares dirección/referencia, uno por cada lado de «bajo el benchmark y sobre el nivel»);
+  «equivale a $4.9M» introduce una cifra y la cubre esa cifra; «como Lider» / «igual que» solo por una relación declarada; un ordinal solo por
+  su puesto; una razón en palabras solo por su k; «el más crítico» es un superlativo, no un estado; «ceden margen» no es una variación; «31 de
+  agosto» es una fecha, no una cifra; «vs. año anterior» no cierra la oración.
+- *El dueño de la cifra, en presencia y en el juez, con las mismas reglas.* Una declaración del NEGOCIO no cubre la cifra que la prosa pone a
+  una cuenta («Lider: 5.0 pp bajo el benchmark» repetido tras el 5.0 pp del negocio), salvo referencia o total («sobre el 3,5% declarado»,
+  «de los $12.6M», «$33K en total», «del total de $135K»). Las entidades de REFERENCIA no son dueñas («más severo que Falabella», «después de
+  Jumbo y Falabella», «contra Lider», «Igual que Falabella, Sodimac lleva…»: la coma coordina solo dentro de una lista que sigue). «Respectivamente»
+  reparte la lista que va antes o después del adverbio, y solo esa. La cabeza «Entidad:» / «Entidad (» abre la cláusula y no vale coordinada. La
+  cola «en <bodega>» no cruza una coma, y la bodega dicha como lugar («frenado en Valparaíso con $14K») no es dueña si antes va la cuenta. La
+  oración termina en el fin de línea (una viñeta no se come la siguiente). Y la posición de la cifra en la oración normalizada ya no pierde el
+  espacio que la precede (`normalizar` recorta; ahora se normaliza sin recortar).
+- *La consistencia lee el fragmento, no la oración entera.* Los lados de un comparativo se juzgan con el comparador DEL fragmento («aunque
+  Falabella tenga más venta» no se juzga con el «más severo que» de antes); «más que Lider (21,5%) y que Jumbo (24,0%)» tiene tres lados y una
+  declaración con uno solo es inconsistente (la coma decimal ya no corta la lista); «no es la que más contribución sin capturar tiene» declarado
+  como comparativo MENOR (o puesto > 1) es lo mismo dicho al revés; «de agosto» casa con «31 ago 2026»; el estado de un fragmento con varias
+  entidades es el del tramo del sujeto; «recuperó $1.9M» es dinero cobrado (abonado), no la tasa «Recuperado» ni el saldo vencido —y «recuperas
+  $22K» de capital o «contribución recuperada» son otros conceptos—; «sin capturar» es métrica y un orden sobre ella es un punto.
+- *La bodega de la prosa se juzga.* Un estado declarado SIN bodega toma la bodega que la prosa le pone (`completarBodegas`, antes de verificar):
+  «LG-DRYER8KG está frenado en Antofagasta» se juzga en Antofagasta y es falso; en Valparaíso, verdadero, sin inconsistencia. Con dos bodegas
+  en la oración vale la del fragmento; con ninguna en el fragmento y dos en la oración, ninguna.
+- *Los nombres parciales que identifican a una sola entidad se resuelven* («Polar» → La Polar, «MercadoLibre» / «ML» → Mercado Libre); dos
+  candidatas = ninguna.
+
+**Lo que la suite completa destapó (268 gates offline; 25 rojos antes de cerrar).** Como en la ronda 1, las reglas nuevas vetaban textos correctos de los
+composers y de los guiones de la casa; cada falso positivo se cerró en el juez o en presencia, ninguno tocó un composer:
+- la derivación de la declaración de respaldo (`declaracionDeRespaldo`) casaba una cifra con cualquier fig a $1.000 de distancia (la tolerancia del muro):
+  «$24.029» de una serie se declaraba como el KPI «Capital frenado · subtotal · 0 SKU = $0» y con la regla de precisión salía FALSA (antes salía verdadera
+  por la misma tolerancia). Ahora la derivación casa con `mismoValor`, la misma regla de la casa que juzga;
+- el período: la métrica de la casa lleva su período en el rótulo («venta · agosto 2026», «Ventas del año anterior»); un fragmento con dos meses declara
+  cada cifra con el suyo; para una CIFRA solo cuenta el período pegado a su valor (sin otra cifra ni cláusula en medio: «$100.0M (+7.6% vs año anterior)»
+  es del +7.6%); «contra tu presupuesto» ↔ «vs ppto» ↔ «plan»; «vs año anterior» y «YoY» son menciones;
+- el conteo con predicado: «bajo el benchmark» declarado y «(… puntos sobre ese nivel)» en otra parte del fragmento no chocan (solo choca la dirección
+  PEGADA al conteo); «por debajo de esa referencia» tras nombrar el benchmark es esa referencia (comodín), «nivel de referencia» es el nivel;
+- el fragmento envuelve lo que su rango cubre (un punto adentro no lo corta: «Falabella · cliente. Venta del período: $19.4M — 1º de 13»); lo que cruza a
+  la cifra de otra cuenta lo frena el dueño; «el primero» anafórico lo cubre una relación mayor/menor; «el negocio está sano en crecimiento» no es el estado
+  «capital sano» (sin inventario ni SKU en la oración); «sin capturar», «contribución», «markup», «cobertura» atan un orden a su métrica;
+- el dueño: «mientras Jumbo» no es «tras Jumbo» (`_REFERIDA` con frontera de palabra); «se completa en Mercado Libre» / «cae en Ripley» son lugares, no
+  dueños (regla única y cola); «las 3 SKU del cuadro» son las entidades que la boleta del cuadro trae («Entidades en el cuadro = N»); el universo
+  «subtotal» leído desde la métrica no es un universo distinto; la variación del negocio también la publica el cuadro anclado («… · vs año anterior (%) ·
+  total = +7.5%») y la que cierra con la magnitud juzga; un top-k no cuenta a los nombrados tras una exclusión («no aparece …: el capital frenado está en
+  X, Y», «fuera de los que más venden»); la negación de OTRA métrica no niega el orden declarado; «la cuenta más grande no es la que más te deja» declarada
+  como comparativo (en cualquier sentido) es lo mismo dicho al revés; «$655K de carga comercial por sobre el nivel declarado» es el postfijo de la propia
+  cifra; «entre las 8 cuentas bajo el benchmark» lo cubre el universo del orden.
+⚠️ Trampa repetida de esta sesión: un heredoc convirtió `` en el byte 0x08 dentro de un regex (`/(?:cuadro…)/` nunca casa); revisar con
+`grep -P "[ -]"` antes de commitear.
+
+**Medido, sin regresión.** `_notario_semantico_gate` 31/31 · `_resolutor_gate` 45/45 (fase 3 re-juzgada: 3 inconsistencias, ≤ 3) ·
+`_notario_semantico_flujo_gate` 45/45 con la línea base de omisiones en 20 (antes 28: las 8 que se fueron eran «31» de «al 31 de agosto», una
+fecha) y 0 declaraciones inconsistentes en los 12 borradores · `_notario_adversarial_gate` 199/199.
+
+**Lo que sigue.** La ronda 3 fuera de muestra sobre esta versión (misma mesa, cero red); si sobrevive, la estimación de la certificación
+viva (etapa C, gasto a nombrar antes de gastar). Sigue pendiente la decisión de producto del rótulo «6 cuentas sobre el nivel declarado (5
+de ellas bajo el benchmark)» → propuesta «6 cuentas con exceso material sobre el nivel declarado».

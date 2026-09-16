@@ -1479,5 +1479,1667 @@
     "falsedades": []
    }
   ]
+ },
+ "casosRonda2": [
+  {
+   "id": "r2·forma·R1-tol-margen",
+   "angulo": "forma",
+   "modo": "verificar",
+   "verdad": "FALSA: la boleta dice Lider · Margen = 21.5% (21,7% no es la cifra de la boleta; entra por la tolerancia de cálculo de 0,2 pp aplicada a una cifra directa; 21,3% también sale verdadera)",
+   "entrada": {
+    "id": "R1-tol-margen",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "cifra",
+      "sujeto": "Lider",
+      "metrica": "margen",
+      "valor": "21.7%",
+      "texto": "Lider margina 21,7%"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·forma·R1-tol-venta",
+   "angulo": "forma",
+   "modo": "verificar",
+   "verdad": "FALSA: Falabella · Venta = $19.4M ($19,7M entra por la tolerancia del 2 % en dinero: ±$388K; también pasan Lider venta $17,5M, $12,8M de vencido total, $11,4M abonado Falabella, $550K no capturado Sodimac)",
+   "entrada": {
+    "id": "R1-tol-venta",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "cifra",
+      "sujeto": "Falabella",
+      "metrica": "venta",
+      "valor": "$19.7M",
+      "texto": "Falabella vende $19,7M"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·forma·R2-trece",
+   "angulo": "forma",
+   "modo": "verificar",
+   "verdad": "FALSA: $4.9M es «Contribución no capturada · subtotal · 5 cuentas materiales (de 8 bajo el benchmark)», no de los 13 clientes (el número en palabras «trece» no dispara ES_TODO ni «nombra conjunto»; R9 le pone el universo de la fig)",
+   "entrada": {
+    "id": "R2-trece",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "cifra",
+      "sujeto": "negocio",
+      "metrica": "contribución no capturada",
+      "valor": "$4.9M",
+      "texto": "los trece clientes dejan $4,9M sin capturar"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·forma·R2-totalidad",
+   "angulo": "forma",
+   "modo": "verificar",
+   "verdad": "FALSA: es el subtotal de 5 cuentas materiales, no la totalidad («totalidad» no casa con \\btotal\\b)",
+   "entrada": {
+    "id": "R2-totalidad",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "cifra",
+      "sujeto": "negocio",
+      "metrica": "contribución no capturada",
+      "valor": "$4.9M",
+      "texto": "la totalidad de las cuentas deja $4,9M sin capturar"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·forma·R2-ocho",
+   "angulo": "forma",
+   "modo": "verificar",
+   "verdad": "FALSA: el subtotal es de 5 cuentas materiales; las 8 bajo el benchmark no suman $4.9M (Paris, Tottus, Mercado Libre no están en el subtotal)",
+   "entrada": {
+    "id": "R2-ocho",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "cifra",
+      "sujeto": "negocio",
+      "metrica": "contribución no capturada",
+      "valor": "$4.9M",
+      "texto": "las ocho cuentas más débiles dejan $4,9M sin capturar"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·forma·R2-seis",
+   "angulo": "forma",
+   "modo": "verificar",
+   "verdad": "FALSA: las 6 cuentas con carga alta suman $655K; $588K es el subtotal de las 5 materiales (de 8 bajo el benchmark)",
+   "entrada": {
+    "id": "R2-seis",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "cifra",
+      "sujeto": "negocio",
+      "metrica": "carga comercial alta",
+      "valor": "$588K",
+      "texto": "las seis que cargan de más suman $588K"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·forma·R2-nueve",
+   "angulo": "forma",
+   "modo": "verificar",
+   "verdad": "FALSA: $655K es el subtotal de 6 cuentas (carga comercial alta); las 9 sobre el nivel declarado son otro conjunto (Falabella, Jumbo, Lider, Sodimac, Paris, Ripley, Easy, La Polar, Hites)",
+   "entrada": {
+    "id": "R2-nueve",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "cifra",
+      "sujeto": "negocio",
+      "metrica": "carga comercial alta",
+      "valor": "$655K",
+      "texto": "los nueve que exceden la referencia de carga suman $655K"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·forma·R2-enconjunto",
+   "angulo": "forma",
+   "modo": "verificar",
+   "verdad": "VERDADERA por definición de la casa (el atacante la dio por falsa): «los clientes cargan $655K de más» es el total del exceso de carga del negocio, y ese exceso solo lo aportan las 6 cuentas sobre el nivel declarado — «Carga comercial alta · subtotal» ES el total del negocio. Queda como caso de control de la definición (owner 2026-09-16: «carga alta» = 6 cuentas).",
+   "entrada": {
+    "id": "R2-enconjunto",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "cifra",
+      "sujeto": "negocio",
+      "metrica": "carga comercial alta",
+      "valor": "$655K",
+      "texto": "en conjunto, los clientes cargan $655K de más",
+      "verdaderaEsperada": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·forma·R2-nadie-se-salva",
+   "angulo": "forma",
+   "modo": "verificar",
+   "verdad": "FALSA: 5 de las 13 cuentas están sobre el benchmark; $4.9M es el subtotal de 5 cuentas materiales",
+   "entrada": {
+    "id": "R2-nadie-se-salva",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "cifra",
+      "sujeto": "negocio",
+      "metrica": "contribución no capturada",
+      "valor": "$4.9M",
+      "texto": "no hay cuenta que se salve: dejan $4,9M sin capturar"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·forma·R3-tercio",
+   "angulo": "forma",
+   "modo": "verificar",
+   "verdad": "FALSA: MAK-COMP-AIR está frenado en Antofagasta (estados: frenado · Antofagasta); no es parte de lo frenado en Valparaíso ($25K = LG-DRYER8KG $14K + BOS-SANDER $11K). Solo cierra la aritmética 8/25",
+   "entrada": {
+    "id": "R3-tercio",
+    "pregunta": "¿Cómo está mi inventario?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "relacion",
+      "sujeto": "MAK-COMP-AIR",
+      "metrica": "capital frenado",
+      "relacion": {
+       "forma": "fraccion",
+       "k": 0.3333,
+       "vs": "Valparaíso"
+      },
+      "texto": "MAK-COMP-AIR es un tercio de lo frenado en Valparaíso"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·forma·R3-parte-bodega",
+   "angulo": "forma",
+   "modo": "verificar",
+   "verdad": "FALSA: MAK-COMP-AIR está en Antofagasta; «parte» se juzga solo por A ≤ B (misma familia que r01 a1/a2 de la ronda 1: sigue abierta)",
+   "entrada": {
+    "id": "R3-parte-bodega",
+    "pregunta": "¿Cómo está mi inventario?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "relacion",
+      "sujeto": "MAK-COMP-AIR",
+      "metrica": "capital frenado",
+      "relacion": {
+       "forma": "parte",
+       "vs": "Valparaíso"
+      },
+      "texto": "los $8K de MAK-COMP-AIR forman parte de lo frenado en Valparaíso"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·forma·R3-parte-hermanas",
+   "angulo": "forma",
+   "modo": "verificar",
+   "verdad": "FALSA: Ripley ($240K) y Falabella ($1.6M) son cuentas hermanas del mismo eje; ninguna contiene a la otra",
+   "entrada": {
+    "id": "R3-parte-hermanas",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "relacion",
+      "sujeto": "Ripley",
+      "metrica": "contribución no capturada",
+      "relacion": {
+       "forma": "parte",
+       "vs": "Falabella"
+      },
+      "texto": "lo que Ripley deja sin capturar es parte de lo que deja Falabella"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·definiciones·A4",
+   "angulo": "definiciones",
+   "modo": "verificar",
+   "verdad": "FALSO. «bajo el benchmark» (30.1%) son 8 (rótulo «clientes bajo el benchmark = 8»); las que NO superan el benchmark son esas 8, no 5. El 5 es «sobre el benchmark» (ABC 31.0, Easy 32.0, Unimarc 32.5, Hites 33.0, La Polar 34.0). El predicado negado «no superan» casa con el conjunto «sobre el benchmark» por la palabra «supera».",
+   "entrada": {
+    "id": "A4",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 5,
+       "m": 13,
+       "predicado": "que no superan el benchmark"
+      },
+      "texto": "5 de las 13 cuentas no superan el benchmark"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·definiciones·A4c",
+   "angulo": "definiciones",
+   "modo": "verificar",
+   "verdad": "FALSO. Las que no están sobre el benchmark son las 8 bajo (Lider 21.5 … Mercado Libre 29.0), no 5. La negación «no están sobre» se lee como «sobre el benchmark» (5).",
+   "entrada": {
+    "id": "A4c",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 5,
+       "m": 13,
+       "predicado": "que no están sobre el benchmark"
+      },
+      "texto": "5 de las 13 cuentas no están sobre el benchmark"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·definiciones·A4d",
+   "angulo": "definiciones",
+   "modo": "verificar",
+   "verdad": "FALSO. Las que no están bajo el benchmark son las 5 sobre (ABC, Easy, Unimarc, Hites, La Polar), no 8. El conteo de la boleta «clientes bajo el benchmark = 8» se acepta para el predicado negado.",
+   "entrada": {
+    "id": "A4d",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 8,
+       "m": 13,
+       "predicado": "que no están bajo el benchmark"
+      },
+      "texto": "8 de las 13 cuentas no están bajo el benchmark"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·definiciones·A5",
+   "angulo": "definiciones",
+   "modo": "verificar",
+   "verdad": "FALSO. «carga comercial alta» son 6 (Falabella, Jumbo, Lider, Sodimac, Ripley, Easy); SIN carga alta son 13−6 = 7. El «sin» se ignora y el 6 del detector pasa.",
+   "entrada": {
+    "id": "A5",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 6,
+       "m": 13,
+       "predicado": "sin carga alta"
+      },
+      "texto": "6 de las 13 cuentas están sin carga alta"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·definiciones·A6m",
+   "angulo": "definiciones",
+   "modo": "verificar",
+   "verdad": "FALSO. Con saldo vencido > 0 hay 6 (Lider $4.6M, Falabella $2.5M, Sodimac $1.9M, Tottus $1.3M, Paris $1.2M, Easy $1.1M); SIN saldo vencido son las otras (Jumbo y Mercado Libre entre las publicadas). El predicado «sin saldo vencido» casa con el conjunto «con saldo vencido» (regex /vencid/).",
+   "entrada": {
+    "id": "A6m",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 6,
+       "m": 13,
+       "predicado": "sin saldo vencido"
+      },
+      "texto": "6 de las 13 cuentas están sin saldo vencido"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·definiciones·A6n",
+   "angulo": "definiciones",
+   "modo": "verificar",
+   "verdad": "FALSO. Ídem A6m con «que no tienen saldo vencido»: la negación no se lee y el 6 de «con saldo vencido» se sirve como verdadero.",
+   "entrada": {
+    "id": "A6n",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 6,
+       "m": 13,
+       "predicado": "que no tienen saldo vencido"
+      },
+      "texto": "6 de las 13 cuentas no tienen saldo vencido"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·definiciones·A9m",
+   "angulo": "definiciones",
+   "modo": "verificar",
+   "verdad": "FALSO/inexistente. No hay «benchmark de carga» en la boleta: el benchmark (30.1%) es de MARGEN y el umbral de carga es el «nivel declarado 3.5%». El conteo «clientes bajo el benchmark = 8» (margen) cubre una métrica que no existe.",
+   "entrada": {
+    "id": "A9m",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 8,
+       "m": 13,
+       "predicado": "bajo el benchmark de carga"
+      },
+      "texto": "8 de 13 cuentas están bajo el benchmark de carga"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·definiciones·A15b",
+   "angulo": "definiciones",
+   "modo": "verificar",
+   "verdad": "FALSO. Críticos son 2: LG-DRYER8KG (Valparaíso) y MAK-COMP-AIR (Antofagasta). En Valparaíso hay 1. El universo «Valparaíso» se descarta y se cuenta el eje entero.",
+   "entrada": {
+    "id": "A15b",
+    "pregunta": "¿Cómo está mi inventario?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 2,
+       "predicado": "SKU críticos en Valparaíso"
+      },
+      "universo": "Valparaíso",
+      "texto": "2 SKU críticos en Valparaíso"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·definiciones·A15c",
+   "angulo": "definiciones",
+   "modo": "verificar",
+   "verdad": "FALSO. Inmovilizados son 5 (SAM-TV55 Santiago, LG-DRYER8KG Valparaíso, BOS-SANDER Valparaíso, PHI-IRON-PRO Concepción, MAK-COMP-AIR Antofagasta); en Santiago hay 1 (SAM-TV55).",
+   "entrada": {
+    "id": "A15c",
+    "pregunta": "¿Cómo está mi inventario?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 5,
+       "predicado": "SKU inmovilizados"
+      },
+      "universo": "la bodega Santiago",
+      "texto": "5 SKU inmovilizados en la bodega Santiago"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·definiciones·A15e",
+   "angulo": "definiciones",
+   "modo": "verificar",
+   "verdad": "FALSO. Frenados son 3: LG-DRYER8KG (Valparaíso), BOS-SANDER (Valparaíso), MAK-COMP-AIR (Antofagasta). Concepción no tiene ninguno; la boleta dice «Valparaíso $25K · Antofagasta $8K».",
+   "entrada": {
+    "id": "A15e",
+    "pregunta": "¿Cómo está mi inventario?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 3,
+       "predicado": "SKU frenados"
+      },
+      "universo": "la bodega Concepción",
+      "texto": "la bodega Concepción tiene 3 SKU frenados"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·definiciones·A15an",
+   "angulo": "definiciones",
+   "modo": "verificar",
+   "verdad": "FALSO. Valparaíso tiene 2 frenados (LG-DRYER8KG $14K, BOS-SANDER $11K = $25K); MAK-COMP-AIR está en Antofagasta. La bodega como universo no filtra el conjunto de estados.",
+   "entrada": {
+    "id": "A15an",
+    "pregunta": "¿Cómo está mi inventario?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 3,
+       "predicado": "SKU frenados"
+      },
+      "universo": "la bodega Valparaíso",
+      "texto": "Valparaíso tiene 3 SKU frenados"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·definiciones·A15dm",
+   "angulo": "definiciones",
+   "modo": "verificar",
+   "verdad": "FALSO. Riesgo de quiebre: SAM-REF500L (Santiago), PHI-SHAVER9 (Santiago), PHI-HAIR-PRO (Valparaíso) → en Santiago son 2, no 3.",
+   "entrada": {
+    "id": "A15dm",
+    "pregunta": "¿Cómo está mi inventario?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 3,
+       "predicado": "SKU en riesgo de quiebre"
+      },
+      "universo": "Santiago",
+      "texto": "3 SKU en riesgo de quiebre en Santiago"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·definiciones·A23",
+   "angulo": "definiciones",
+   "modo": "verificar",
+   "verdad": "FALSO. Valparaíso tiene 2 frenados (no 3) y solo 1 crítico (LG-DRYER8KG); MAK-COMP-AIR (crítico) está en Antofagasta. Sale «2 según critico dentro de frenado»: la bodega del universo se ignora.",
+   "entrada": {
+    "id": "A23",
+    "pregunta": "¿Cómo está mi inventario?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 2,
+       "m": 3,
+       "predicado": "críticos"
+      },
+      "universo": "los 3 SKU frenados de Valparaíso",
+      "texto": "2 de los 3 SKU frenados de Valparaíso son críticos"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·definiciones·A24",
+   "angulo": "definiciones",
+   "modo": "verificar",
+   "verdad": "FALSO. Inmovilizados de Valparaíso son 2 (LG-DRYER8KG, BOS-SANDER), no 5; y ambos frenados = 2, no 3.",
+   "entrada": {
+    "id": "A24",
+    "pregunta": "¿Cómo está mi inventario?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 3,
+       "m": 5,
+       "predicado": "frenados"
+      },
+      "universo": "los 5 SKU inmovilizados de Valparaíso",
+      "texto": "3 de los 5 SKU inmovilizados de Valparaíso están frenados"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·definiciones·A26",
+   "angulo": "definiciones",
+   "modo": "verificar",
+   "verdad": "FALSO. Sobre el benchmark están ABC, Easy, Unimarc, Hites, La Polar; con carga comercial alta solo Easy → 1 de 5, no 5. El universo «las 5 cuentas sobre el benchmark» se resolvió al grupo «5 cuentas materiales (de 8 bajo el benchmark)» por el número 5 y la palabra benchmark: universo con el n de otro conjunto y el nombre de este.",
+   "entrada": {
+    "id": "A26",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 5,
+       "m": 5,
+       "predicado": "con carga comercial alta"
+      },
+      "universo": "las 5 cuentas sobre el benchmark",
+      "texto": "las 5 cuentas sobre el benchmark tienen carga comercial alta"
+     }
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·V01",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: Lider · Margen = 21.5% (boleta); 22.0% es Falabella · Margen. El fragmento declarado cruza el punto final y ENVUELVE la oración falsa: presencia cubre toda cifra dentro del rango del fragmento sin mirar su dueño, y el juez (a′) solo mira la PRIMERA ocurrencia de 22,0% dentro del fragmento (la de Falabella).",
+   "entrada": {
+    "id": "V01",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25,1% contra un benchmark de 30,1%. Falabella deja 22,0% de margen. Lider deja 22,0% también. Ahí está la brecha.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25,1%\",\"texto\":\"Tu margen promedio es 25,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Benchmark de margen\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30,1%\",\"texto\":\"benchmark de 30,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"valor\":\"22,0%\",\"texto\":\"Falabella deja 22,0% de margen. Lider deja 22,0% también\"}\n<<FIN>>",
+    "falsedades": [
+     "Lider deja 22,0%"
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·V03",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: Lider · Margen = 21.5% («Esa cuenta» es Lider por anáfora). La oración falsa no nombra entidad → _duenoDelPunto devuelve null → cubierta por el canon pct:22.0 de la declaración verdadera de Falabella.",
+   "entrada": {
+    "id": "V03",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25,1% contra un benchmark de 30,1%. Lider es tu segunda cuenta en venta. Esa cuenta deja 22,0% de margen. Falabella deja 22,0%. Ahí está la brecha.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25,1%\",\"texto\":\"Tu margen promedio es 25,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Benchmark de margen\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30,1%\",\"texto\":\"benchmark de 30,1%\"}\n{\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"Venta\",\"orden\":{\"forma\":\"puesto\",\"k\":2,\"direccion\":\"mayor\"},\"universo\":\"los 13 clientes\",\"texto\":\"Lider es tu segunda cuenta en venta\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"valor\":\"22,0%\",\"texto\":\"Falabella deja 22,0%\"}\n<<FIN>>",
+    "falsedades": [
+     "Esa cuenta deja 22,0%"
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·V04",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: Lider · Margen = 21.5%. El dueño viene DESPUÉS de la cifra a más de 30 caracteres: _duenoDelPunto solo mira ≤ 30 chars hacia adelante → sin dueño → cubierta por el canon de Falabella. Misma puerta con «para Lider» (V05), «con Lider» (W14), «es lo que deja Lider» (W13: «que» bloquea) y «corresponden a BOS-SANDER» (Y02).",
+   "entrada": {
+    "id": "V04",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25,1% contra un benchmark de 30,1%. Falabella deja 22,0% de margen. Un 22,0% de margen bruto sobre la venta del período tiene Lider. Ahí está la brecha.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25,1%\",\"texto\":\"Tu margen promedio es 25,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Benchmark de margen\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30,1%\",\"texto\":\"benchmark de 30,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"valor\":\"22,0%\",\"texto\":\"Falabella deja 22,0% de margen\"}\n<<FIN>>",
+    "falsedades": [
+     "sobre la venta del período tiene Lider"
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·V06",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: Lider · Margen = 21.5%. La raya (—) es separador de cláusula en _duenoDelPunto: Lider queda fuera → sin dueño → cubierta por canon. Misma puerta con «Lider: 22,0%» (X03, los dos puntos), «Lider (22,0%)» (X04, el paréntesis), «; su margen es 22,0%» (X10) y el encabezado en línea aparte «**Lider**\\nMargen: 22,0%» (W15).",
+   "entrada": {
+    "id": "V06",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25,1% contra un benchmark de 30,1%. Falabella deja 22,0% de margen. Lider — 22,0% de margen. Ahí está la brecha.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25,1%\",\"texto\":\"Tu margen promedio es 25,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Benchmark de margen\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30,1%\",\"texto\":\"benchmark de 30,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"valor\":\"22,0%\",\"texto\":\"Falabella deja 22,0% de margen\"}\n<<FIN>>",
+    "falsedades": [
+     "Lider — 22,0%"
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·V07",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: La Polar · Margen = 34.0%; «Polar» (nombre parcial) no es nombre del tenant → sin dueño → cubierta por el canon de Falabella. Misma puerta con «ML» (V11, Mercado Libre 29.0%) y «MercadoLibre» sin espacio (A01).",
+   "entrada": {
+    "id": "V07",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25,1% contra un benchmark de 30,1%. Falabella deja 22,0% de margen. La cuenta Polar deja 22,0% de margen. Ahí está la brecha.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25,1%\",\"texto\":\"Tu margen promedio es 25,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Benchmark de margen\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30,1%\",\"texto\":\"benchmark de 30,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"valor\":\"22,0%\",\"texto\":\"Falabella deja 22,0% de margen\"}\n<<FIN>>",
+    "falsedades": [
+     "Polar deja 22,0%"
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·V08",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: Lider · Margen = 21.5%; la prosa dice que Lider ALCANZA 22,0%. «22,0% de Falabella» pega la cifra a Falabella (regla de/en de _masCercana) → consistente; el sujeto de cláusula (Lider) se salta por nombradoEnTexto (Falabella está en la oración). Igual «Lider empata con Falabella (22,0%)» (V09), «Lider iguala a Falabella: 22,0%» (X13).",
+   "entrada": {
+    "id": "V08",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25,1% contra un benchmark de 30,1%. Lider alcanza el 22,0% de Falabella. Ahí está la brecha.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25,1%\",\"texto\":\"Tu margen promedio es 25,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Benchmark de margen\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30,1%\",\"texto\":\"benchmark de 30,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"valor\":\"22,0%\",\"texto\":\"Lider alcanza el 22,0% de Falabella\"}\n<<FIN>>",
+    "falsedades": [
+     "Lider alcanza el 22,0%"
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·W01",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: Falabella 22.0% > Lider 21.5%; la prosa dice «Lider supera a Falabella». Declarado como ORDEN comparativo (verdadero, Falabella mayor vs Lider): el chequeo de lados invertidos («X supera a Y») solo corre para tipo relacion, no para orden comparativo; el sujeto de cláusula se salta por nombradoEnTexto.",
+   "entrada": {
+    "id": "W01",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25,1% contra un benchmark de 30,1%. Lider supera a Falabella en margen: 22,0% contra 21,5%. Ahí está la brecha.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25,1%\",\"texto\":\"Tu margen promedio es 25,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Benchmark de margen\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30,1%\",\"texto\":\"benchmark de 30,1%\"}\n{\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"orden\":{\"forma\":\"comparativo\",\"direccion\":\"mayor\",\"vs\":\"Lider\"},\"universo\":\"los 13 clientes\",\"texto\":\"supera a Falabella en margen\"}\n{\"tipo\":\"relacion\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"relacion\":{\"forma\":\"mayor\",\"vs\":\"Lider\"},\"valor\":\"22,0% contra 21,5%\",\"texto\":\"22,0% contra 21,5%\"}\n<<FIN>>",
+    "falsedades": [
+     "Lider supera a Falabella"
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·W02",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: Lider 21.5% < Falabella 22.0%. «aventaja a» no está en _CMP_MAYOR ni en _ORDEN_RE: ni el juez contrasta los lados ni presencia genera punto de orden; las cifras tras «:» no tienen dueño cercano. Igual con «le gana a» (W03).",
+   "entrada": {
+    "id": "W02",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25,1% contra un benchmark de 30,1%. Lider aventaja a Falabella en margen: 21,5% contra 22,0%. Ahí está la brecha.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25,1%\",\"texto\":\"Tu margen promedio es 25,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Benchmark de margen\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30,1%\",\"texto\":\"benchmark de 30,1%\"}\n{\"tipo\":\"relacion\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"relacion\":{\"forma\":\"mayor\",\"vs\":\"Lider\"},\"valor\":\"22,0% contra 21,5%\",\"texto\":\"Lider aventaja a Falabella en margen: 21,5% contra 22,0%\"}\n<<FIN>>",
+    "falsedades": [
+     "Lider aventaja a Falabella"
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·W04",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: Lider · Margen = 21.5%. La coordinación «, y no Falabella,» excluye a Lider como dueño (regla «,\\s*y») y deja a Falabella como entidad más cercana → consistente; la negación «no Falabella» no se lee (cláusula partida por comas).",
+   "entrada": {
+    "id": "W04",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25,1% contra un benchmark de 30,1%. Lider, y no Falabella, deja 22,0% de margen. Ahí está la brecha.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25,1%\",\"texto\":\"Tu margen promedio es 25,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Benchmark de margen\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30,1%\",\"texto\":\"benchmark de 30,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"valor\":\"22,0%\",\"texto\":\"Lider, y no Falabella, deja 22,0% de margen\"}\n<<FIN>>",
+    "falsedades": [
+     "Lider, y no Falabella, deja 22,0%"
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·W05",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: Mercado Libre · crecimiento = +25.3% (sube). «cede 25,3%» es una caída; «cede» no está en _VAR_BAJA ni en _VARIACION_RE → la dirección declarada (sube) no se contrasta. Igual con «se hunde 25,3%» (W06).",
+   "entrada": {
+    "id": "W05",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25,1% contra un benchmark de 30,1%. Mercado Libre cede 25,3% en venta contra el año anterior, con un margen de 29,0%. Ahí está la brecha.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25,1%\",\"texto\":\"Tu margen promedio es 25,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Benchmark de margen\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30,1%\",\"texto\":\"benchmark de 30,1%\"}\n{\"tipo\":\"variacion\",\"sujeto\":\"Mercado Libre\",\"metrica\":\"Venta\",\"variacion\":{\"direccion\":\"sube\",\"valor\":\"25,3%\"},\"periodo\":\"vs año anterior\",\"texto\":\"Mercado Libre cede 25,3% en venta contra el año anterior\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Mercado Libre\",\"metrica\":\"Margen\",\"valor\":\"29,0%\",\"texto\":\"un margen de 29,0%\"}\n<<FIN>>",
+    "falsedades": [
+     "Mercado Libre cede 25,3%"
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·W08",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: Lider · Margen = 21.5% es el MÍNIMO de los 13; la prosa dice «el mejor margen». «mejor» no está en _SUP_MAS (solo en _ORDEN_RE de presencia) → el orden min/menor declarado no se contrasta. Igual con «la campeona en margen» (W09).",
+   "entrada": {
+    "id": "W08",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25,1% contra un benchmark de 30,1%. Lider tiene el mejor margen de la cartera (21,5%). Ahí está la brecha.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25,1%\",\"texto\":\"Tu margen promedio es 25,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Benchmark de margen\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30,1%\",\"texto\":\"benchmark de 30,1%\"}\n{\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"Margen\",\"orden\":{\"forma\":\"min\",\"direccion\":\"menor\"},\"universo\":\"los 13 clientes\",\"texto\":\"Lider tiene el mejor margen de la cartera (21,5%)\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Margen\",\"valor\":\"21,5%\",\"texto\":\"(21,5%)\"}\n<<FIN>>",
+    "falsedades": [
+     "el mejor margen"
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·W11",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: Lider · Margen = 21.5%; «como Lider» afirma que Lider deja lo mismo. «como X» no es marcador de relación/igualdad → sin punto → nadie lo juzga. Misma familia sin cifra ni marcador: «a la par de Lider» (W12), «Esa misma cifra es la de Lider» (V14), «en el caso de Lider, la cifra es idéntica» (X12), «y Lider, lo mismo» (Y12), «Lider, otro tanto» (Y14), «—lo mismo que Lider—» (A07), «cifra que Lider comparte» (A08), «Con Lider pasa igual: 22,0%» (A11), «Falabella arrastra la misma deuda» (X07), «Falabella, por su parte, debe otro tanto» (A12).",
+   "entrada": {
+    "id": "W11",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25,1% contra un benchmark de 30,1%. Falabella deja 22,0% de margen, como Lider. Ahí está la brecha.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25,1%\",\"texto\":\"Tu margen promedio es 25,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Benchmark de margen\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30,1%\",\"texto\":\"benchmark de 30,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"valor\":\"22,0%\",\"texto\":\"Falabella deja 22,0% de margen, como Lider\"}\n<<FIN>>",
+    "falsedades": [
+     "como Lider"
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·X01",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: Falabella 22.0% < Jumbo 24.0%; la prosa dice «más que … Jumbo». Relación de tres lados: la declarada (Falabella mayor vs Lider) es verdadera, la cifra de Jumbo se declara aparte (verdadera) y el tercer lado «y que Jumbo» no se juzga.",
+   "entrada": {
+    "id": "X01",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25,1% contra un benchmark de 30,1%. Falabella deja 22,0%, más que Lider (21,5%) y que Jumbo (24,0%). Ahí está la brecha.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25,1%\",\"texto\":\"Tu margen promedio es 25,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Benchmark de margen\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30,1%\",\"texto\":\"benchmark de 30,1%\"}\n{\"tipo\":\"relacion\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"relacion\":{\"forma\":\"mayor\",\"vs\":\"Lider\"},\"valor\":\"22,0% contra 21,5%\",\"texto\":\"Falabella deja 22,0%, más que Lider (21,5%) y que Jumbo (24,0%)\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Jumbo\",\"metrica\":\"Margen\",\"valor\":\"24,0%\",\"texto\":\"Jumbo (24,0%)\"}\n<<FIN>>",
+    "falsedades": [
+     "y que Jumbo (24,0%)"
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·X08",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: Lider debe $4.6M, casi el doble que Falabella ($2.5M); la prosa invierte los lados. La relación declarada (Lider veces 2 casi vs Falabella) es verdadera; para forma «veces» no hay chequeo de lados; las cifras tras «:» no tienen dueño; el sujeto de cláusula se salta por nombradoEnTexto; la asistencia declara Falabella $2.5M. Forma mínima sin cifras: Z08 («Falabella debe casi el doble que Lider.»).",
+   "entrada": {
+    "id": "X08",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Del total vencido de $12,6M, Falabella debe casi el doble que Lider: $2,5M contra $4,6M.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12,6M\",\"texto\":\"total vencido de $12,6M\"}\n{\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":\"Falabella\"},\"valor\":\"$4,6M contra $2,5M\",\"texto\":\"Falabella debe casi el doble que Lider: $2,5M contra $4,6M\"}\n<<FIN>>",
+    "falsedades": [
+     "Falabella debe casi el doble que Lider"
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·X09",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: Falabella = 22.0% y Lider = 21.5%; la prosa los cruza. Tras «:» ninguna cifra tiene dueño cercano → sin contraste; la asistencia declara Lider 21.5% (verdadera) y el 22,0% queda cubierto por el canon de Falabella. Igual con días de atraso (Y04: «Falabella y Lider llevan, respectivamente: 269 días y 8 días»).",
+   "entrada": {
+    "id": "X09",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25,1% contra un benchmark de 30,1%. Falabella y Lider dejan, respectivamente: 21,5% y 22,0% de margen. Ahí está la brecha.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25,1%\",\"texto\":\"Tu margen promedio es 25,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Benchmark de margen\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30,1%\",\"texto\":\"benchmark de 30,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"valor\":\"22,0%\",\"texto\":\"22,0% de margen\"}\n<<FIN>>",
+    "falsedades": [
+     "respectivamente: 21,5% y 22,0%"
+    ]
+   }
+  },
+  {
+   "id": "r2·ubicador·Y01",
+   "angulo": "ubicador",
+   "modo": "turno",
+   "verdad": "FALSO: LG-DRYER8KG está frenado en VALPARAÍSO (estados de la boleta), no en Antofagasta. La bodega de la prosa no se contrasta con estado.bodega declarada; el fragmento corta antes de la bodega (el hueco de U41 sigue abierto).",
+   "entrada": {
+    "id": "Y01",
+    "pregunta": "¿Cómo está mi inventario?",
+    "cierre": "El total frenado es $33K. LG-DRYER8KG está frenado en Antofagasta con $14K.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Capital frenado\",\"valor\":\"$33K\",\"texto\":\"El total frenado es $33K\"}\n{\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":{\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"},\"texto\":\"LG-DRYER8KG está frenado\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"Capital frenado\",\"valor\":\"$14K\",\"texto\":\"con $14K\"}\n<<FIN>>",
+    "falsedades": [
+     "frenado en Antofagasta"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·V3-genera",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO: «Sodimac · Contribución no capturada» = $540K es contribución que NO se captura (se deja de ganar); la prosa la sirve como ganancia generada. «genera/ganancia» no están en el vocabulario del muro → sin contraste de métrica → asistida como Contribución no capturada.",
+   "entrada": {
+    "id": "V3-genera",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Sodimac genera $540K de ganancia. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "genera $540K de ganancia"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·V4-rentabilidad",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO: «Lider · Peso del costo» = 72.9%; «Lider · Margen» = 21.5%. La prosa dice 72,9% de rentabilidad. «rentabilidad» no es vocabulario → asistida como Peso del costo.",
+   "entrada": {
+    "id": "V4-rentabilidad",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Lider rinde 72,9% de rentabilidad. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "72,9% de rentabilidad"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·V5-exposicion",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO: «Falabella · Abonado» = $11.2M es lo que YA pagó; la exposición (pendiente) es «Falabella · Saldo pendiente» = $8.2M. «exposición» no es vocabulario → asistida como Abonado.",
+   "entrada": {
+    "id": "V5-exposicion",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Tenemos $11,2M de exposición en Falabella. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "$11,2M de exposición"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·V11-liquidez",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO por significado: «Lider · Saldo pendiente» = $9.8M servido como «liquidez atrapada» (sin vocabulario). El rótulo es pendiente por cobrar, no liquidez retenida.",
+   "entrada": {
+    "id": "V11-liquidez",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Lider nos tiene $9,8M de liquidez atrapada. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "$9,8M de liquidez"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·P1-costo-como-total",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO: «Lider · Peso del costo» = 72.9% (costo/venta de Lider). La prosa dice que Lider concentra 72,9% del total (su peso real en la venta es 17.8/99.9 = 17.8%). «% del total» es participación → el juez no contrasta la métrica.",
+   "entrada": {
+    "id": "P1-costo-como-total",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Lider concentra 72,9% del total. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "72,9% del total"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·P2-recuperado-como-cartera",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO: «Lider · Recuperado» = 45% (lo cobrado de su saldo). La prosa dice 45% de la cartera (Lider pesa 9.8/41.2 = 24% del pendiente). «de la cartera» es participación → sin contraste.",
+   "entrada": {
+    "id": "P2-recuperado-como-cartera",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Lider concentra el 45% de la cartera. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "45% de la cartera"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·P3-recuperado-como-participacion",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO: «Falabella · Recuperado» = 57.7%; la prosa lo dice como participación (Falabella pesa 19.4/99.9 = 19.4% de la venta).",
+   "entrada": {
+    "id": "P3-recuperado-como-participacion",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Falabella tiene una participación de 57,7%. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "participación de 57,7%"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·P5-pct-bos-como-descuento",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO: «BOS-SANDER · % del total» = 34% es su peso en el capital frenado; la prosa dice 34% de descuento (carga). La métrica «% del total» es participación → el juez no contrasta ninguna palabra de métrica.",
+   "entrada": {
+    "id": "P5-pct-bos-como-descuento",
+    "pregunta": "¿Cómo está mi inventario?",
+    "cierre": "BOS-SANDER se vende con 34% de descuento. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "34% de descuento"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·M1-medida-como-vencido",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO: «Samsung · Medida 1pp» = $332K (lo que vale 1 pp de margen en Samsung); Samsung no tiene saldo vencido en la boleta. La métrica «Medida 1pp» no tiene vocabulario → cualquier redacción cruza.",
+   "entrada": {
+    "id": "M1-medida-como-vencido",
+    "pregunta": "¿Cómo vienen mis marcas?",
+    "cierre": "Samsung nos debe $332K vencidos. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "$332K vencidos"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·M2-medida-como-sin-capturar",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO: «LG · Medida 1pp» = $258K; lo que LG deja sin capturar es «LG · Medida cerrar brecha» = $1.6M. «sin capturar» nombra otro concepto pero la métrica asistida no tiene concepto de la casa → no se contrasta.",
+   "entrada": {
+    "id": "M2-medida-como-sin-capturar",
+    "pregunta": "¿Cómo vienen mis marcas?",
+    "cierre": "LG deja $258K sin capturar. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "$258K sin capturar"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·M3-medida-como-frenado",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO: «Bosch · Medida 1pp» = $115K; Bosch no tiene capital frenado en la boleta (frenado por SKU: BOS-SANDER $11K).",
+   "entrada": {
+    "id": "M3-medida-como-frenado",
+    "pregunta": "¿Cómo vienen mis marcas?",
+    "cierre": "Bosch tiene $115K de capital frenado. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "$115K de capital frenado"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·M4-monto-easy-como-vencido",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO: «Easy · Monto» = $67K (monto de carga); «Easy · Saldo vencido» = $1.1M en la boleta de cobranza. Servido como vencido.",
+   "entrada": {
+    "id": "M4-monto-easy-como-vencido",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Easy debe $67K vencidos. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "$67K vencidos"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·M9-benchmark-como-promedio",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO: «Benchmark de margen» = 30.1%; «Margen promedio» = 25.1%. La prosa dice que el promedio queda en 30,1%. «margen» cruza con la clave del benchmark y «promedio» no es vocabulario.",
+   "entrada": {
+    "id": "M9-benchmark-como-promedio",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "El margen promedio del negocio queda en 30,1%. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "promedio del negocio queda en 30,1%"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·D1-raya-lista",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO: los tres SKU frenados suman «Capital frenado · total» = $33K; $25K es «Valparaíso · Capital frenado» (solo 2 de los 3). La raya (—) corta la cláusula y deja la cifra sin dueño visible → asistida como Valparaíso.",
+   "entrada": {
+    "id": "D1-raya-lista",
+    "pregunta": "¿Cómo está mi inventario?",
+    "cierre": "Los tres SKU frenados —LG-DRYER8KG, BOS-SANDER y MAK-COMP-AIR— suman $25K. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "suman $25K"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·D2-raya-cobranza",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO: Lider $4.6M + Falabella $2.5M + Jumbo (sin vencido) = $7.1M; $12.6M es «Saldo vencido · total» del negocio (13 cuentas). La raya aísla la cifra y «los tres grandes» no es entidad → asistida como negocio.",
+   "entrada": {
+    "id": "D2-raya-cobranza",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Los tres grandes —Lider, Falabella y Jumbo— acumulan $12,6M vencidos. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "Jumbo— acumulan $12,6M vencidos"
+    ]
+   }
+  },
+  {
+   "id": "r2·asistencia·D4-sku-en-bodega",
+   "angulo": "asistencia",
+   "modo": "turno",
+   "verdad": "FALSO: «LG-DRYER8KG · Capital frenado» = $14K; $25K es «Valparaíso · Capital frenado» (LG + BOS-SANDER). La excepción «bodega y SKU comparten la cifra» perdona la atribución al SKU.",
+   "entrada": {
+    "id": "D4-sku-en-bodega",
+    "pregunta": "¿Cómo está mi inventario?",
+    "cierre": "LG-DRYER8KG concentra $25K en Valparaíso. Yo lo revisaría con calma.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo revisaría con calma\"}\n<<FIN>>",
+    "falsedades": [
+     "LG-DRYER8KG concentra $25K"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·Q1_sku_con_cifra_de_bodega",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Boleta: LG-DRYER8KG · Capital frenado = $14K; $25K es Valparaíso · Capital frenado. «LG-DRYER8KG concentra $25K frenados en Valparaíso» asistida en el cierre como Valparaíso $25K: la excepción «bodega y SKU en la misma oración pueden compartir la cifra» acepta cualquier cifra de la bodega como cifra del SKU.",
+   "entrada": {
+    "id": "Q1_sku_con_cifra_de_bodega",
+    "pregunta": "¿Cómo está mi inventario?",
+    "cierre": "Tienes $33K de capital frenado. LG-DRYER8KG concentra $25K frenados en Valparaíso.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Capital frenado\",\"valor\":\"$33K\",\"texto\":\"Tienes $33K de capital frenado\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Capital frenado\",\"valor\":\"$33K\",\"texto\":\"Tienes $33K de capital frenado\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"Capital frenado\",\"valor\":\"$25K\",\"texto\":\"concentra $25K frenados en Valparaíso\"}\n<<FIN>>",
+    "falsedades": [
+     "LG-DRYER8KG concentra $25K"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·Q2_bodega_con_cifra_de_sku",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Boleta: Antofagasta · Capital frenado = $8K; $14K es LG-DRYER8KG · Capital frenado (Valparaíso). Vía declaración con prosa congelada: «Antofagasta tiene $14K frenados, con LG-DRYER8KG…» declarado como LG-DRYER8KG $14K pasa por la misma excepción bodega/SKU comparten.",
+   "entrada": {
+    "id": "Q2_bodega_con_cifra_de_sku",
+    "pregunta": "¿Cómo está mi inventario?",
+    "cierre": "Tienes $33K de capital frenado. Antofagasta tiene $14K frenados, con LG-DRYER8KG como el SKU que más pesa.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Capital frenado\",\"valor\":\"$33K\",\"texto\":\"Tienes $33K de capital frenado\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Capital frenado\",\"valor\":\"$33K\",\"texto\":\"Tienes $33K de capital frenado\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"Capital frenado\",\"valor\":\"$14K\",\"texto\":\"tiene $14K frenados, con LG-DRYER8KG\"}\n{\"tipo\":\"orden\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"Capital frenado\",\"orden\":{\"forma\":\"max\"},\"universo\":\"los 3 SKU con capital frenado\",\"texto\":\"el SKU que más pesa\"}\n<<FIN>>",
+    "falsedades": [
+     "Antofagasta tiene $14K"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·H1_recupero_vencido",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Boleta: Sodimac · Abonado = $2.9M, Recuperado = 35%; $1.9M es Sodimac · Saldo vencido. «Sodimac ya recuperó $1.9M» asistida como Saldo vencido: el chequeo de métrica descarta la clave «recuperado» cuando va con «$» (recuperadoEnDinero) y no queda métrica que contrastar. (La variante «le cobraste $1.9M», H3, rompe igual: «cobraste» no es palabra de métrica.)",
+   "entrada": {
+    "id": "H1_recupero_vencido",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Tienes $12.6M vencidos y Lider debe $4.6M. Sodimac ya recuperó $1.9M.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"Saldo vencido\",\"valor\":\"$1.9M\",\"texto\":\"recuperó $1.9M\"}\n<<FIN>>",
+    "falsedades": [
+     "Sodimac ya recuperó $1.9M"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·A1_tres_lados",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Boleta: Sodimac · Saldo vencido = $1.9M < Falabella · Saldo vencido = $2.5M (sí > Tottus $1.3M). «Sodimac debe más que Falabella y Tottus» declarado SOLO como Sodimac mayor vs Tottus (verdadero) cubre los dos puntos de relación de la frase; el lado Falabella nunca se verifica. (A2, «Falabella debe menos que Lider y Sodimac» con relación menor vs Lider, rompe igual.)",
+   "entrada": {
+    "id": "A1_tres_lados",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Tienes $12.6M vencidos y Lider debe $4.6M. Sodimac debe más que Falabella y Tottus.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n{\"tipo\":\"relacion\",\"sujeto\":\"Sodimac\",\"metrica\":\"Saldo vencido\",\"relacion\":{\"forma\":\"mayor\",\"vs\":\"Tottus\"},\"valor\":\"$1.9M vs $1.3M\",\"texto\":\"Sodimac debe más que Falabella y Tottus\"}\n<<FIN>>",
+    "falsedades": [
+     "Sodimac debe más que Falabella"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·B1_segunda_como_topk",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Ranking contribución no capturada: Falabella $1.6M, Lider $1.5M, Jumbo $1.1M → Jumbo es TERCERO. Verde en el cierre con cero vetos: «Jumbo es la segunda cuenta que más deja sin capturar» no genera punto de orden (el sujeto al inicio de la oración no cuenta como nombre propio y «sin capturar» no es palabra de métrica → el marcador se filtra como opinión). La declaración ni se pidió.",
+   "entrada": {
+    "id": "B1_segunda_como_topk",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25.1%, 5.0 pp bajo el benchmark de 30.1%. Jumbo es la segunda cuenta que más deja sin capturar.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25.1%\",\"texto\":\"Tu margen promedio es 25.1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Brecha al benchmark\",\"valor\":\"5.0 pp\",\"evidencia\":[\"Margen promedio\",\"Benchmark de margen\"],\"texto\":\"5.0 pp bajo el benchmark\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30.1%\",\"texto\":\"benchmark de 30.1%\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25.1%\",\"texto\":\"Tu margen promedio es 25.1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Brecha al benchmark\",\"valor\":\"5.0 pp\",\"evidencia\":[\"Margen promedio\",\"Benchmark de margen\"],\"texto\":\"5.0 pp bajo el benchmark\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30.1%\",\"texto\":\"benchmark de 30.1%\"}\n{\"tipo\":\"orden\",\"sujeto\":[\"Falabella\",\"Lider\",\"Jumbo\"],\"metrica\":\"Contribución no capturada\",\"orden\":{\"forma\":\"topk\",\"k\":3},\"universo\":\"los 13 clientes\",\"texto\":\"Jumbo es la segunda cuenta que más deja sin capturar\"}\n<<FIN>>",
+    "falsedades": [
+     "Jumbo es la segunda cuenta"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·F2_todas_salvo_lider",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Boleta: «clientes bajo el benchmark» = 8; sobre el benchmark solo ABC, Easy, Unimarc, Hites, La Polar (5). «Todas las cuentas salvo Lider están sobre el benchmark» (=12) queda cubierta por un conteo n=5 predicado «sobre el benchmark» (verdadero): nadie contrasta «todas salvo una» con n.",
+   "entrada": {
+    "id": "F2_todas_salvo_lider",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25.1%, 5.0 pp bajo el benchmark de 30.1%. Todas las cuentas salvo Lider están sobre el benchmark.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25.1%\",\"texto\":\"Tu margen promedio es 25.1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Brecha al benchmark\",\"valor\":\"5.0 pp\",\"evidencia\":[\"Margen promedio\",\"Benchmark de margen\"],\"texto\":\"5.0 pp bajo el benchmark\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30.1%\",\"texto\":\"benchmark de 30.1%\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25.1%\",\"texto\":\"Tu margen promedio es 25.1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Brecha al benchmark\",\"valor\":\"5.0 pp\",\"evidencia\":[\"Margen promedio\",\"Benchmark de margen\"],\"texto\":\"5.0 pp bajo el benchmark\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30.1%\",\"texto\":\"benchmark de 30.1%\"}\n{\"tipo\":\"conteo\",\"sujeto\":\"negocio\",\"metrica\":\"Margen\",\"conteo\":{\"n\":5,\"predicado\":\"sobre el benchmark\"},\"universo\":\"los 13 clientes\",\"texto\":\"Todas las cuentas salvo Lider están sobre el benchmark\"}\n<<FIN>>",
+    "falsedades": [
+     "Todas las cuentas salvo Lider están sobre el benchmark"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·F3_no_es_la_que_menos",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Boleta: Unimarc · Venta = $2.3M es el MÍNIMO de los 13. «Unimarc no es la que menos vende» declarado como orden min Unimarc (verdadero) pasa: el chequeo de negación captura «que» (no «menos») y el de (f) no mira antes del fragmento porque el fragmento arranca la oración.",
+   "entrada": {
+    "id": "F3_no_es_la_que_menos",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25.1%, 5.0 pp bajo el benchmark de 30.1%. Unimarc no es la que menos vende.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25.1%\",\"texto\":\"Tu margen promedio es 25.1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Brecha al benchmark\",\"valor\":\"5.0 pp\",\"evidencia\":[\"Margen promedio\",\"Benchmark de margen\"],\"texto\":\"5.0 pp bajo el benchmark\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30.1%\",\"texto\":\"benchmark de 30.1%\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25.1%\",\"texto\":\"Tu margen promedio es 25.1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Brecha al benchmark\",\"valor\":\"5.0 pp\",\"evidencia\":[\"Margen promedio\",\"Benchmark de margen\"],\"texto\":\"5.0 pp bajo el benchmark\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30.1%\",\"texto\":\"benchmark de 30.1%\"}\n{\"tipo\":\"orden\",\"sujeto\":\"Unimarc\",\"metrica\":\"Venta\",\"orden\":{\"forma\":\"min\"},\"universo\":\"los 13 clientes\",\"texto\":\"Unimarc no es la que menos vende\"}\n<<FIN>>",
+    "falsedades": [
+     "Unimarc no es la que menos vende"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·I1_lider_dos_puntos_brecha",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Boleta: Lider · Margen 21.5% vs Benchmark 30.1% → la brecha de Lider es 8.6 pp; 5.0 pp es «El negocio · Brecha al benchmark». «Lider: 5.0 pp bajo el benchmark» verde en el cierre sin vetos: el canon pp:5.0 ya está declarado con sujeto negocio y «:» corta la cláusula, así que la cifra queda sin dueño y la cubre la declaración del negocio.",
+   "entrada": {
+    "id": "I1_lider_dos_puntos_brecha",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25.1%, 5.0 pp bajo el benchmark de 30.1%. Lider: 5.0 pp bajo el benchmark.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25.1%\",\"texto\":\"Tu margen promedio es 25.1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Brecha al benchmark\",\"valor\":\"5.0 pp\",\"evidencia\":[\"Margen promedio\",\"Benchmark de margen\"],\"texto\":\"5.0 pp bajo el benchmark\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30.1%\",\"texto\":\"benchmark de 30.1%\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25.1%\",\"texto\":\"Tu margen promedio es 25.1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Brecha al benchmark\",\"valor\":\"5.0 pp\",\"evidencia\":[\"Margen promedio\",\"Benchmark de margen\"],\"texto\":\"5.0 pp bajo el benchmark\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30.1%\",\"texto\":\"benchmark de 30.1%\"}\n<<FIN>>",
+    "falsedades": [
+     "Lider: 5.0 pp bajo el benchmark"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·U1_doble_con_lider_nombrado",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Boleta: Falabella · Saldo vencido $2.5M / Sodimac $1.9M = 1.3×, no «el doble». La razón «el doble que Sodimac» queda cubierta por la relación Lider mayor vs Sodimac ($4.6M vs $1.9M, verdadera) porque Lider está nombrado en la oración («Tras Lider, …»).",
+   "entrada": {
+    "id": "U1_doble_con_lider_nombrado",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Tienes $12.6M vencidos y Lider debe $4.6M. Tras Lider, Falabella debe $2.5M, el doble que Sodimac ($1.9M).\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Saldo vencido\",\"valor\":\"$2.5M\",\"texto\":\"Falabella debe $2.5M\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"Saldo vencido\",\"valor\":\"$1.9M\",\"texto\":\"Sodimac ($1.9M)\"}\n{\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"relacion\":{\"forma\":\"mayor\",\"vs\":\"Sodimac\"},\"valor\":\"$4.6M vs $1.9M\",\"texto\":\"el doble que Sodimac\"}\n<<FIN>>",
+    "falsedades": [
+     "el doble que Sodimac"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·K6_repetido_cobranza",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Boleta: Tottus · Saldo vencido = $1.3M; $2.5M es Falabella. El fragmento «debe $2.5M vencidos» aparece dos veces: la primera ubicación (Falabella) pasa consistencia y la repetición literal cubre la segunda oración («Tottus debe $2.5M vencidos») sin contrastar el dueño. Vía declaración con prosa congelada.",
+   "entrada": {
+    "id": "K6_repetido_cobranza",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Tienes $12.6M vencidos y Lider debe $4.6M. Falabella debe $2.5M vencidos. Tottus debe $2.5M vencidos.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Saldo vencido\",\"valor\":\"$2.5M\",\"texto\":\"debe $2.5M vencidos\"}\n<<FIN>>",
+    "falsedades": [
+     "Tottus debe $2.5M"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·V2_ocho_dias_sodimac",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Boleta: Sodimac · Dias Vencido = 251d; 8d es Falabella. Cifra en palabras («ocho días»): _posDeCifra no encuentra «8d» en la oración y el chequeo de dueño por cercanía (a′) se salta; Falabella nombrada en la oración («Igual que Falabella, …») satisface el chequeo de sujeto. (V3 «Sodimac recuperó cuarenta y cinco por ciento» y V4 «Lider, como Falabella, lleva ocho días» rompen igual.)",
+   "entrada": {
+    "id": "V2_ocho_dias_sodimac",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Tienes $12.6M vencidos y Lider debe $4.6M. Igual que Falabella, Sodimac lleva ocho días de atraso.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Dias Vencido\",\"valor\":\"8d\",\"texto\":\"lleva ocho días de atraso\"}\n<<FIN>>",
+    "falsedades": [
+     "Sodimac lleva ocho días"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·C2_conteo_bajo_benchmark_9",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Boleta: «clientes bajo el benchmark» = 8. «Hay 9 cuentas bajo el benchmark» cubierta por un conteo n=9 con predicado «sobre el nivel declarado de carga» (verdadero: 9 de 13): el chequeo de predicado solo choca cuando la referencia es la misma (benchmark vs nivel no chocan) y el n coincide. (F4 «Ninguna cuenta bajo el benchmark carga sobre el nivel declarado» con el mismo conteo n=9 rompe igual.)",
+   "entrada": {
+    "id": "C2_conteo_bajo_benchmark_9",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25.1%, 5.0 pp bajo el benchmark de 30.1%. Hay 9 cuentas bajo el benchmark.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25.1%\",\"texto\":\"Tu margen promedio es 25.1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Brecha al benchmark\",\"valor\":\"5.0 pp\",\"evidencia\":[\"Margen promedio\",\"Benchmark de margen\"],\"texto\":\"5.0 pp bajo el benchmark\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30.1%\",\"texto\":\"benchmark de 30.1%\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25.1%\",\"texto\":\"Tu margen promedio es 25.1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Brecha al benchmark\",\"valor\":\"5.0 pp\",\"evidencia\":[\"Margen promedio\",\"Benchmark de margen\"],\"texto\":\"5.0 pp bajo el benchmark\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30.1%\",\"texto\":\"benchmark de 30.1%\"}\n{\"tipo\":\"conteo\",\"sujeto\":\"negocio\",\"metrica\":\"Carga comercial\",\"conteo\":{\"n\":9,\"predicado\":\"sobre el nivel declarado de carga\"},\"universo\":\"los 13 clientes\",\"texto\":\"9 cuentas bajo el benchmark\"}\n<<FIN>>",
+    "falsedades": [
+     "9 cuentas bajo el benchmark"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·R1_triple_como_mayor",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Boleta: Lider $4.6M / Falabella $2.5M = 1.84×, no el triple. La razón «el triple» la cubre cualquier relación declarada que la envuelva (mayor, verdadera): no se contrasta la k dicha con la forma declarada.",
+   "entrada": {
+    "id": "R1_triple_como_mayor",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Tienes $12.6M vencidos y Lider debe $4.6M. Lider debe el triple que Falabella.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n{\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"relacion\":{\"forma\":\"mayor\",\"vs\":\"Falabella\"},\"valor\":\"$4.6M vs $2.5M\",\"texto\":\"Lider debe el triple que Falabella\"}\n<<FIN>>",
+    "falsedades": [
+     "Lider debe el triple que Falabella"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·W1_pct_total_guion",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Boleta: BOS-SANDER · % del total = 34%; 41% es LG-DRYER8KG · % del total. «BOS-SANDER — tras LG-DRYER8KG — pesa el 41% del capital frenado»: el guion largo desata a BOS-SANDER de la cláusula de la cifra y la asistencia la declara como LG-DRYER8KG (única fig pct:41%) en el cierre. (G4 «Sodimac — igual que Lider — lleva 269 días vencidos» rompe igual, asistida como Lider 269d.)",
+   "entrada": {
+    "id": "W1_pct_total_guion",
+    "pregunta": "¿Cómo está mi inventario?",
+    "cierre": "Tienes $33K de capital frenado. BOS-SANDER — tras LG-DRYER8KG — pesa el 41% del capital frenado.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Capital frenado\",\"valor\":\"$33K\",\"texto\":\"Tienes $33K de capital frenado\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Capital frenado\",\"valor\":\"$33K\",\"texto\":\"Tienes $33K de capital frenado\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"% del total\",\"valor\":\"41%\",\"texto\":\"pesa el 41% del capital frenado\"}\n<<FIN>>",
+    "falsedades": [
+     "BOS-SANDER — tras LG-DRYER8KG — pesa el 41%"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·D3_orden_comparativo_invertido_cobranza",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Boleta: Falabella · Saldo vencido $2.5M < Lider $4.6M. «Falabella debe por encima de Lider» declarado como ORDEN comparativo (sujeto Lider, direccion mayor, vs Falabella — verdadero): el chequeo de lados «X supera a Y» solo existe para tipo relación, no para orden comparativo.",
+   "entrada": {
+    "id": "D3_orden_comparativo_invertido_cobranza",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Tienes $12.6M vencidos y Lider debe $4.6M. Falabella debe por encima de Lider.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n{\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"orden\":{\"forma\":\"comparativo\",\"direccion\":\"mayor\",\"vs\":\"Falabella\"},\"texto\":\"Falabella debe por encima de Lider\"}\n<<FIN>>",
+    "falsedades": [
+     "Falabella debe por encima de Lider"
+    ]
+   }
+  },
+  {
+   "id": "r2·congelada·S3_topk_miembro_cambiado_cobranza",
+   "angulo": "congelada",
+   "modo": "turno",
+   "verdad": "FALSO. Boleta top-3 saldo vencido: Lider $4.6M, Falabella $2.5M, Sodimac $1.9M; Tottus ($1.3M) es cuarto. Declarado topk [Lider, Falabella, Sodimac] (verdadero) con fragmento que enumera «Lider, Falabella y Tottus»: los nombrados en la prosa no se contrastan con el sujeto del top-k.",
+   "entrada": {
+    "id": "S3_topk_miembro_cambiado_cobranza",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Tienes $12.6M vencidos y Lider debe $4.6M. Lider, Falabella y Tottus son los tres que más deben.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n<<FIN>>",
+    "declaracion": "<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n{\"tipo\":\"orden\",\"sujeto\":[\"Lider\",\"Falabella\",\"Sodimac\"],\"metrica\":\"Saldo vencido\",\"orden\":{\"forma\":\"topk\",\"k\":3,\"direccion\":\"mayor\"},\"universo\":\"los 13 clientes\",\"texto\":\"Lider, Falabella y Tottus son los tres que más deben\"}\n<<FIN>>",
+    "falsedades": [
+     "Lider, Falabella y Tottus son los tres"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·A01-quinta-parte",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "FALSA. Sodimac · Saldo vencido = $1.9M y Lider · Saldo vencido = $4.6M: cociente 0.41, no «una quinta parte» (0.20). La relación en palabras «quinta parte» no es punto de afirmación (ni _RELACION_RE ni el ordinal «quinta» sin «la» delante): sin declarar, verde sin vetos.",
+   "entrada": {
+    "id": "A01-quinta-parte",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Lider es tu mayor problema de cobranza: arrastra $4,6M vencidos y lleva 269 días de atraso. Sodimac, con $1,9M vencidos, debe apenas una quinta parte de lo que arrastra Lider. Yo llamaría a Lider esta semana.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"orden\":{\"forma\":\"max\"},\"universo\":\"clientes\",\"texto\":\"Lider es tu mayor problema de cobranza\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4,6M\",\"texto\":\"arrastra $4,6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Días vencido\",\"valor\":\"269d\",\"texto\":\"lleva 269 días de atraso\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"Saldo vencido\",\"valor\":\"$1,9M\",\"texto\":\"Sodimac, con $1,9M vencidos\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo llamaría a Lider esta semana.\"}\n<<FIN>>",
+    "falsedades": [
+     "apenas una quinta parte"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·A08-a-la-zaga",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "FALSA. Falabella · Venta = $19.4M > Lider · Venta = $17.8M: Falabella NO queda a la zaga de Lider (es la que más vende). «queda a la zaga de» no está en el detector de orden; verde con las cifras declaradas correctas.",
+   "entrada": {
+    "id": "A08-a-la-zaga",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Falabella vende $19,4M y Lider $17,8M; Falabella queda a la zaga de Lider en venta, pero le saca medio punto de margen (22,0% contra 21,5%). Yo negociaría con las dos.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Venta\",\"valor\":\"$19,4M\",\"texto\":\"Falabella vende $19,4M\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Venta\",\"valor\":\"$17,8M\",\"texto\":\"Lider $17,8M\"}\n{\"tipo\":\"relacion\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"relacion\":{\"forma\":\"diferencia\",\"vs\":{\"sujeto\":\"Lider\"}},\"valor\":\"0,5 pp\",\"texto\":\"le saca medio punto de margen (22,0% contra 21,5%)\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"valor\":\"22,0%\",\"texto\":\"22,0% contra 21,5%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Margen\",\"valor\":\"21,5%\",\"texto\":\"22,0% contra 21,5%\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo negociaría con las dos.\"}\n<<FIN>>",
+    "falsedades": [
+     "Falabella queda a la zaga de Lider en venta"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·A10-casi-todo",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "FALSA. Antofagasta · Capital frenado = $8K (25% del total); Valparaíso concentra $25K (75%). «prácticamente todo está en Antofagasta» no es punto de afirmación: verde sin vetos.",
+   "entrada": {
+    "id": "A10-casi-todo",
+    "pregunta": "¿Cómo está mi inventario?",
+    "cierre": "Tienes $33K frenados y prácticamente todo está en Antofagasta. LG-DRYER8KG ($14K) es el que más pesa. Yo iría a esa bodega.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Capital frenado\",\"valor\":\"$33K\",\"texto\":\"Tienes $33K frenados\"}\n{\"tipo\":\"orden\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"Capital frenado\",\"orden\":{\"forma\":\"max\"},\"universo\":\"los SKU frenados\",\"texto\":\"LG-DRYER8KG ($14K) es el que más pesa\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"Capital frenado\",\"valor\":\"$14K\",\"texto\":\"LG-DRYER8KG ($14K)\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo iría a esa bodega.\"}\n<<FIN>>",
+    "falsedades": [
+     "prácticamente todo está en Antofagasta"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·A11-critico-sin-detectar",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "FALSA. Estados de BOS-SANDER en la proyección: inmovilizado · frenado (Valparaíso); «crítico» solo lo tienen LG-DRYER8KG y MAK-COMP-AIR. El detector de estados (_ESTADO_RE) no incluye «crítico» aunque el verificador y el juez sí lo conocen: sin declarar, verde.",
+   "entrada": {
+    "id": "A11-critico-sin-detectar",
+    "pregunta": "¿Cómo está mi inventario?",
+    "cierre": "Tres SKU frenan $33K. BOS-SANDER, en estado crítico en Valparaíso, frena $11K; LG-DRYER8KG frena $14K. Yo liberaría los dos.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Capital frenado\",\"valor\":\"$33K\",\"texto\":\"Tres SKU frenan $33K\"}\n{\"tipo\":\"conteo\",\"conteo\":{\"n\":3,\"predicado\":\"con capital frenado\"},\"universo\":\"los SKU\",\"texto\":\"Tres SKU frenan $33K\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"Capital frenado\",\"valor\":\"$11K\",\"texto\":\"frena $11K\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"Capital frenado\",\"valor\":\"$14K\",\"texto\":\"LG-DRYER8KG frena $14K\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo liberaría los dos.\"}\n<<FIN>>",
+    "falsedades": [
+     "BOS-SANDER, en estado crítico"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·B03-dueno-tras-y-min",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "FALSA. Jumbo · Brecha por precio y costo = $1.0M, no $1.4M ($1.4M es Falabella y Lider). El dueño de la segunda «$1,4M» queda nulo porque entre la cifra y «Jumbo» hay «precio y costo» (la «y» excluye al dueño de después) → la cubre por canon la declaración de Falabella. Verde.",
+   "entrada": {
+    "id": "B03-dueno-tras-y-min",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Falabella tiene $1,4M de brecha por precio y costo. Hay otros $1,4M de brecha por precio y costo en Jumbo. Yo revisaría la lista de precios.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Brecha por precio y costo\",\"valor\":\"$1,4M\",\"texto\":\"Falabella tiene $1,4M de brecha por precio y costo\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo revisaría la lista de precios.\"}\n<<FIN>>",
+    "falsedades": [
+     "$1,4M de brecha por precio y costo en Jumbo"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·B04-vueltas-min",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "FALSA. LG-DRYER8KG · Rotación = 1.0x, no «dos vueltas al año». «vueltas» no es unidad de cifra en palabras ni relación: sin declarar, verde. (Variante A02 con «94 días sin vender» cayó solo por un veto de forma ajeno a la falsedad.)",
+   "entrada": {
+    "id": "B04-vueltas-min",
+    "pregunta": "¿Cómo está mi inventario?",
+    "cierre": "Tienes $33K frenados en tres SKU. LG-DRYER8KG es el peor: $14K parados en Valparaíso, 94 días sin venta, y aun así da dos vueltas al año. Yo liquidaría ese stock primero.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Capital frenado\",\"valor\":\"$33K\",\"texto\":\"Tienes $33K frenados\"}\n{\"tipo\":\"conteo\",\"conteo\":{\"n\":3,\"predicado\":\"con capital frenado\"},\"universo\":\"los SKU frenados\",\"texto\":\"frenados en tres SKU\"}\n{\"tipo\":\"orden\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"Capital frenado\",\"orden\":{\"forma\":\"max\"},\"universo\":\"los SKU frenados\",\"texto\":\"LG-DRYER8KG es el peor\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"Capital frenado\",\"valor\":\"$14K\",\"texto\":\"$14K parados en Valparaíso\"}\n{\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":{\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"},\"texto\":\"$14K parados en Valparaíso\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"Días sin venta\",\"valor\":\"94d\",\"texto\":\"94 días sin venta\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo liquidaría ese stock primero.\"}\n<<FIN>>",
+    "falsedades": [
+     "da dos vueltas al año"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·B06-envuelta-todas-bajo",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "FALSA. Carga comercial alta · subtotal · 6 cuentas sobre el nivel declarado (5 de ellas bajo el benchmark): Easy (32.0%) está sobre el benchmark. «todas bajo el benchmark» es un punto de relación ENVUELTO por la declaración de cifra ($655K, universo correcto): _CUBRE.relacion admite «cifra» y lo da por cubierto. Verde.",
+   "entrada": {
+    "id": "B06-envuelta-todas-bajo",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Las seis cuentas con carga comercial alta —todas bajo el benchmark— cargan $655K de más. Yo negociaría esa carga cuenta por cuenta.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Carga comercial alta\",\"valor\":\"$655K\",\"universo\":\"las 6 cuentas sobre el nivel declarado\",\"texto\":\"Las seis cuentas con carga comercial alta —todas bajo el benchmark— cargan $655K de más\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo negociaría esa carga cuenta por cuenta.\"}\n<<FIN>>",
+    "falsedades": [
+     "todas bajo el benchmark"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·B07-periodo-marzo",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "FALSA (período inventado). Falabella · Venta = $19.4M es la venta del período de la boleta, no «solo en marzo». La declaración sin `periodo` verifica y el juez no contrasta el período dicho en la prosa. Verde.",
+   "entrada": {
+    "id": "B07-periodo-marzo",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Falabella te compró $19,4M solo en marzo, a 22,0% de margen. Yo partiría por ahí.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Venta\",\"valor\":\"$19,4M\",\"texto\":\"Falabella te compró $19,4M solo en marzo\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"valor\":\"22,0%\",\"texto\":\"22,0% de margen\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo partiría por ahí.\"}\n<<FIN>>",
+    "falsedades": [
+     "solo en marzo"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·B13-va-en-picada",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "SIN RESPALDO (falsa por invención). La boleta no trae variación alguna de Lider (la única variación es Mercado Libre · crecimiento 25.3%). «va en picada» no está en _VARIACION_RE: no se pide declarar, verde.",
+   "entrada": {
+    "id": "B13-va-en-picada",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "La venta de Lider ($17,8M) va en picada y su margen (21,5%) es el más bajo de la cartera. Yo lo sentaría a renegociar.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Venta\",\"valor\":\"$17,8M\",\"texto\":\"La venta de Lider ($17,8M)\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Margen\",\"valor\":\"21,5%\",\"texto\":\"su margen (21,5%)\"}\n{\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"Margen\",\"orden\":{\"forma\":\"min\"},\"universo\":\"clientes\",\"texto\":\"es el más bajo de la cartera\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo sentaría a renegociar.\"}\n<<FIN>>",
+    "falsedades": [
+     "va en picada"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·B14-grueso-del-vencido",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "FALSA. Jumbo no tiene saldo vencido en la boleta (Recuperado 70.5%, sin fig de vencido; el que concentra es Lider $4.6M de $12.6M). «concentra el grueso» no es punto (solo «concentra el mayor» / «la mayor parte»): verde.",
+   "entrada": {
+    "id": "B14-grueso-del-vencido",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Tienes $12,6M vencidos y Jumbo concentra el grueso del saldo vencido. Yo llamaría a Jumbo primero.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12,6M\",\"texto\":\"Tienes $12,6M vencidos\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo llamaría a Jumbo primero.\"}\n<<FIN>>",
+    "falsedades": [
+     "Jumbo concentra el grueso del saldo vencido"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·B16-cifra-antes-del-dueno",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "FALSA. Sodimac · Margen = 23.5%, no 24.0% (24.0% es Jumbo). Con la cifra ANTES del dueño («Con 24,0% de margen, Sodimac…») la coma entre ambos anula el dueño de después → la cubre por canon la cifra declarada de Jumbo. Verde.",
+   "entrada": {
+    "id": "B16-cifra-antes-del-dueno",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Jumbo vende $17,3M a 24,0% de margen. Con 24,0% de margen, Sodimac tampoco llega al benchmark. Yo trabajaría los dos.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"Jumbo\",\"metrica\":\"Venta\",\"valor\":\"$17,3M\",\"texto\":\"Jumbo vende $17,3M\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Jumbo\",\"metrica\":\"Margen\",\"valor\":\"24,0%\",\"texto\":\"Jumbo vende $17,3M a 24,0% de margen\"}\n{\"tipo\":\"relacion\",\"sujeto\":\"Sodimac\",\"metrica\":\"Margen\",\"relacion\":{\"forma\":\"menor\",\"vs\":{\"sujeto\":\"negocio\",\"metrica\":\"Benchmark de margen\"}},\"texto\":\"Sodimac tampoco llega al benchmark\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo trabajaría los dos.\"}\n<<FIN>>",
+    "falsedades": [
+     "Con 24,0% de margen, Sodimac"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·C01-sano-bos-sander",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "FALSA. BOS-SANDER está inmovilizado · frenado (Valparaíso), no «capital sano». El detector exige «capital sano» literal; «sano» a secas no es punto de estado. Verde. (La variante con SAM-REF500L —riesgo de quiebre— la frenó un juez ajeno al Notario, no el Notario.)",
+   "entrada": {
+    "id": "C01-sano-bos-sander",
+    "pregunta": "¿Cómo está mi inventario?",
+    "cierre": "Lo frenado son $33K en tres SKU. BOS-SANDER viene sano en Valparaíso. Yo me concentraría en LG-DRYER8KG ($14K).\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Capital frenado\",\"valor\":\"$33K\",\"texto\":\"Lo frenado son $33K en tres SKU\"}\n{\"tipo\":\"conteo\",\"conteo\":{\"n\":3,\"predicado\":\"con capital frenado\"},\"universo\":\"los SKU\",\"texto\":\"$33K en tres SKU\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"Capital frenado\",\"valor\":\"$14K\",\"texto\":\"LG-DRYER8KG ($14K)\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo me concentraría en LG-DRYER8KG ($14K).\"}\n<<FIN>>",
+    "falsedades": [
+     "BOS-SANDER viene sano"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·C02-borde-quiebre-mak",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "FALSA. MAK-COMP-AIR está inmovilizado · frenado · crítico (Antofagasta), no en riesgo de quiebre. «al borde del quiebre» no casa con «riesgo de quiebre» del detector (aunque estadoCanon sí canoniza «quiebre»). Verde.",
+   "entrada": {
+    "id": "C02-borde-quiebre-mak",
+    "pregunta": "¿Cómo está mi inventario?",
+    "cierre": "Tienes $33K frenados. MAK-COMP-AIR está al borde del quiebre en Antofagasta, con $8K. Yo repondría antes de fin de mes.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Capital frenado\",\"valor\":\"$33K\",\"texto\":\"Tienes $33K frenados\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"Capital frenado\",\"valor\":\"$8K\",\"texto\":\"con $8K\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo repondría antes de fin de mes.\"}\n<<FIN>>",
+    "falsedades": [
+     "MAK-COMP-AIR está al borde del quiebre"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·C03-diferencia-invertida-min",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "FALSA. Lider · Venta = $17.8M < Falabella · Venta = $19.4M: Lider vende $1.6M MENOS, no más. La relación «diferencia» compara |d| con |valor| (abs) y sale verdadera aunque el signo esté al revés (aislado en verificar: V1 verdadera).",
+   "entrada": {
+    "id": "C03-diferencia-invertida-min",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Lider vende $1,6M más que Falabella. Yo lo sentaría primero.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"Venta\",\"relacion\":{\"forma\":\"diferencia\",\"vs\":{\"sujeto\":\"Falabella\"}},\"valor\":\"$1,6M\",\"texto\":\"Lider vende $1,6M más que Falabella\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo lo sentaría primero.\"}\n<<FIN>>",
+    "falsedades": [
+     "Lider vende $1,6M más que Falabella"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·C04-1-dia-mas-que-easy",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "FALSA. Lider · Dias Vencido = 269d y Easy · Dias Vencido = 270d: Lider lleva un día MENOS. Diferencia declarada «1 día» → abs → verdadera. Verde.",
+   "entrada": {
+    "id": "C04-1-dia-mas-que-easy",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Lider lleva 269 días vencido, 1 día más que Easy, y arrastra $4,6M. Yo llamaría a Lider hoy.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Días vencido\",\"valor\":\"269d\",\"texto\":\"Lider lleva 269 días vencido\"}\n{\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"Días vencido\",\"relacion\":{\"forma\":\"diferencia\",\"vs\":{\"sujeto\":\"Easy\"}},\"valor\":\"1 día\",\"texto\":\"1 día más que Easy\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4,6M\",\"texto\":\"arrastra $4,6M\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo llamaría a Lider hoy.\"}\n<<FIN>>",
+    "falsedades": [
+     "1 día más que Easy"
+    ]
+   }
+  },
+  {
+   "id": "r2·libre·C06-supera-con-holgura",
+   "angulo": "libre",
+   "modo": "turno",
+   "verdad": "FALSA. Falabella · Saldo vencido = $2.5M < Lider · Saldo vencido = $4.6M. «supera con holgura a» no casa con «supera a|en» del detector (la palabra intercalada lo rompe): sin declarar, verde.",
+   "entrada": {
+    "id": "C06-supera-con-holgura",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Falabella ($2,5M) supera con holgura a Lider ($4,6M) en saldo vencido. Yo llamaría a Falabella primero.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Saldo vencido\",\"valor\":\"$2,5M\",\"texto\":\"Falabella ($2,5M)\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4,6M\",\"texto\":\"Lider ($4,6M)\"}\n{\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"texto\":\"Yo llamaría a Falabella primero.\"}\n<<FIN>>",
+    "falsedades": [
+     "supera con holgura a Lider"
+    ]
+   }
+  }
+ ],
+ "notaRonda2": "RONDA ADVERSARIAL 2 (UltraCode, offline, 2026-09-16) sobre la versión que cerró la ronda 1: 91 roturas confirmadas (27 verificar + 64 turno) en los mismos seis ángulos; todas cerradas salvo R2-enconjunto, que es verdadera por definición de la casa y queda marcada `verdaderaEsperada`. Los controles de la ronda 2 son las versiones VERDADERAS de las trampas cerradas y los falsos positivos que los atacantes reportaron (nombre parcial, conteo y orden con universo de bodega, la bodega dicha como lugar, «respectivamente» antes de las cifras, la fecha que no es cifra, «vs.» que no cierra la oración, «recuperó $X» como abonado).",
+ "controlesRonda2": {
+  "verificar": [
+   {
+    "id": "ctl2-v-frenados-en-bodega",
+    "pregunta": "¿Cómo está mi inventario?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 2,
+       "predicado": "SKU frenados"
+      },
+      "universo": "Valparaíso",
+      "texto": "Valparaíso tiene 2 SKU frenados"
+     }
+    ]
+   },
+   {
+    "id": "ctl2-v-critico-en-bodega",
+    "pregunta": "¿Cómo está mi inventario?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 1,
+       "predicado": "SKU críticos"
+      },
+      "universo": "la bodega Valparaíso",
+      "texto": "en Valparaíso hay 1 SKU crítico"
+     }
+    ]
+   },
+   {
+    "id": "ctl2-v-nombre-parcial",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "cifra",
+      "sujeto": "Polar",
+      "metrica": "Margen",
+      "valor": "34%",
+      "texto": "Polar deja 34% de margen"
+     }
+    ]
+   },
+   {
+    "id": "ctl2-v-orden-en-bodega",
+    "pregunta": "¿Cómo está mi inventario?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "orden",
+      "sujeto": "LG-DRYER8KG",
+      "metrica": "Capital frenado",
+      "orden": {
+       "forma": "max",
+       "direccion": "mayor"
+      },
+      "universo": "los SKU frenados de Valparaíso",
+      "texto": "LG-DRYER8KG es el que más capital frenado tiene en Valparaíso"
+     }
+    ]
+   },
+   {
+    "id": "ctl2-v-todas-salvo-una",
+    "pregunta": "¿Cómo viene mi margen?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "conteo",
+      "conteo": {
+       "n": 8,
+       "predicado": "bajo el benchmark"
+      },
+      "universo": "los 13 clientes",
+      "texto": "8 de las 13 cuentas están bajo el benchmark"
+     }
+    ]
+   },
+   {
+    "id": "ctl2-v-tercio-en-antofagasta",
+    "pregunta": "¿Cómo está mi inventario?",
+    "afirmaciones": [
+     {
+      "id": "a1",
+      "tipo": "relacion",
+      "sujeto": "MAK-COMP-AIR",
+      "metrica": "capital frenado",
+      "relacion": {
+       "forma": "parte",
+       "vs": "Antofagasta"
+      },
+      "texto": "los $8K de MAK-COMP-AIR son lo frenado en Antofagasta"
+     }
+    ]
+   }
+  ],
+  "turno": [
+   {
+    "id": "ctl2-t-brecha-de-lider",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25.1%, 5.0 pp bajo el benchmark de 30.1%. Lider: 8.6 pp bajo el benchmark.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25.1%\",\"texto\":\"Tu margen promedio es 25.1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Brecha al benchmark\",\"valor\":\"5.0 pp\",\"texto\":\"5.0 pp bajo el benchmark\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30.1%\",\"texto\":\"benchmark de 30.1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Brecha al benchmark\",\"valor\":\"8.6 pp\",\"texto\":\"Lider: 8.6 pp bajo el benchmark\"}\n<<FIN>>",
+    "falsedades": []
+   },
+   {
+    "id": "ctl2-t-ninguna-salvo",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25.1%. Ninguna de las 13 cuentas está sobre el benchmark salvo Easy, La Polar, Hites, ABC y Unimarc.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25.1%\",\"texto\":\"Tu margen promedio es 25.1%\"}\n{\"tipo\":\"conteo\",\"sujeto\":[\"Easy\",\"La Polar\",\"Hites\",\"ABC\",\"Unimarc\"],\"metrica\":\"Margen\",\"conteo\":{\"n\":5,\"predicado\":\"sobre el benchmark\"},\"universo\":\"los 13 clientes\",\"texto\":\"Ninguna de las 13 cuentas está sobre el benchmark salvo Easy, La Polar, Hites, ABC y Unimarc\"}\n<<FIN>>",
+    "falsedades": []
+   },
+   {
+    "id": "ctl2-t-respectivamente-antes",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Falabella, Jumbo y Lider concentran la mayor contribución ($4.3M, $4.2M y $3.8M respectivamente).\n\n<<AFIRMACIONES>>\n{\"tipo\":\"orden\",\"sujeto\":[\"Falabella\",\"Jumbo\",\"Lider\"],\"metrica\":\"Contribución\",\"orden\":{\"forma\":\"topk\",\"k\":3,\"direccion\":\"mayor\"},\"universo\":\"los 13 clientes\",\"texto\":\"Falabella, Jumbo y Lider concentran la mayor contribución\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Contribución\",\"valor\":\"$4.3M\",\"texto\":\"$4.3M\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Jumbo\",\"metrica\":\"Contribución\",\"valor\":\"$4.2M\",\"texto\":\"$4.2M\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Contribución\",\"valor\":\"$3.8M\",\"texto\":\"$3.8M\"}\n<<FIN>>",
+    "falsedades": []
+   },
+   {
+    "id": "ctl2-t-recupero-abonado",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Tienes $12.6M vencidos y Lider debe $4.6M. Sodimac ya recuperó $2.9M.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"texto\":\"Tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"texto\":\"Lider debe $4.6M\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"Abonado\",\"valor\":\"$2.9M\",\"texto\":\"Sodimac ya recuperó $2.9M\"}\n<<FIN>>",
+    "falsedades": []
+   },
+   {
+    "id": "ctl2-t-bodega-de-la-prosa",
+    "pregunta": "¿Cómo está mi inventario?",
+    "cierre": "El total frenado es $33K. LG-DRYER8KG está frenado en Valparaíso con $14K.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Capital frenado\",\"valor\":\"$33K\",\"texto\":\"El total frenado es $33K\"}\n{\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":{\"estado\":\"frenado\"},\"texto\":\"LG-DRYER8KG está frenado en Valparaíso\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"Capital frenado\",\"valor\":\"$14K\",\"texto\":\"con $14K\"}\n<<FIN>>",
+    "falsedades": []
+   },
+   {
+    "id": "ctl2-t-fecha-no-es-cifra",
+    "pregunta": "¿Cómo viene mi cobranza y quién me debe más?",
+    "cierre": "Al 31 de agosto tienes $12.6M vencidos y Lider debe $4.6M.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Saldo vencido\",\"valor\":\"$12.6M\",\"periodo\":\"al corte (31 ago 2026)\",\"texto\":\"Al 31 de agosto tienes $12.6M vencidos\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"valor\":\"$4.6M\",\"periodo\":\"al corte (31 ago 2026)\",\"texto\":\"Lider debe $4.6M\"}\n<<FIN>>",
+    "falsedades": []
+   },
+   {
+    "id": "ctl2-t-dos-lados-nomas",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Tu margen promedio es 25,1% contra un benchmark de 30,1%. Falabella deja 22,0%, más que Lider (21,5%).\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25,1%\",\"texto\":\"Tu margen promedio es 25,1%\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Benchmark de margen\",\"valor\":\"30,1%\",\"texto\":\"benchmark de 30,1%\"}\n{\"tipo\":\"relacion\",\"sujeto\":\"Falabella\",\"metrica\":\"Margen\",\"relacion\":{\"forma\":\"mayor\",\"vs\":\"Lider\"},\"valor\":\"22,0% contra 21,5%\",\"texto\":\"Falabella deja 22,0%, más que Lider (21,5%)\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Margen\",\"valor\":\"21,5%\",\"texto\":\"Lider (21,5%)\"}\n<<FIN>>",
+    "falsedades": []
+   },
+   {
+    "id": "ctl2-t-vs-abreviado",
+    "pregunta": "¿Cómo va el negocio?",
+    "cierre": "El negocio crece: $99.9M, +7.5% vs. año anterior, con margen promedio de 25.1%.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Venta\",\"valor\":\"$99.9M\",\"texto\":\"$99.9M\"}\n{\"tipo\":\"variacion\",\"sujeto\":\"negocio\",\"metrica\":\"Venta\",\"variacion\":{\"direccion\":\"sube\",\"valor\":\"+7.5%\"},\"periodo\":\"vs año anterior\",\"texto\":\"El negocio crece: $99.9M, +7.5% vs. año anterior\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Margen promedio\",\"valor\":\"25.1%\",\"texto\":\"con margen promedio de 25.1%\"}\n<<FIN>>",
+    "falsedades": []
+   },
+   {
+    "id": "ctl2-t-referencia-tras-la-cuenta",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Lider carga 4,2%, sobre el 3,5% declarado, y está bajo el benchmark.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"Carga comercial\",\"valor\":\"4,2%\",\"texto\":\"Lider carga 4,2%\"}\n{\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"Carga comercial\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"negocio\",\"metrica\":\"Nivel de carga comercial declarado\"}},\"texto\":\"sobre el 3,5% declarado\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"Nivel de carga comercial declarado\",\"valor\":\"3,5%\",\"texto\":\"sobre el 3,5% declarado\"}\n{\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"Margen\",\"relacion\":{\"forma\":\"menor\",\"vs\":{\"sujeto\":\"negocio\",\"metrica\":\"Benchmark de margen\"}},\"texto\":\"está bajo el benchmark\"}\n<<FIN>>",
+    "falsedades": []
+   },
+   {
+    "id": "ctl2-t-no-es-la-que-mas",
+    "pregunta": "¿Cómo viene mi margen?",
+    "cierre": "Lider no es la que más contribución sin capturar tiene: Falabella la supera con $1.6M.\n\n<<AFIRMACIONES>>\n{\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"Contribución no capturada\",\"orden\":{\"forma\":\"comparativo\",\"direccion\":\"menor\",\"vs\":\"Falabella\"},\"universo\":\"los clientes bajo el benchmark\",\"texto\":\"Lider no es la que más contribución sin capturar tiene\"}\n{\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"Contribución no capturada\",\"valor\":\"$1.6M\",\"texto\":\"Falabella la supera con $1.6M\"}\n{\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"Contribución no capturada\",\"orden\":{\"forma\":\"comparativo\",\"direccion\":\"mayor\",\"vs\":\"Lider\"},\"universo\":\"los clientes bajo el benchmark\",\"texto\":\"Falabella la supera con $1.6M\"}\n<<FIN>>",
+    "falsedades": []
+   }
+  ]
  }
 }

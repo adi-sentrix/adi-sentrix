@@ -23,7 +23,7 @@ import { metricasEn } from "../oracle/guardC.js";
 import { rangoDeMatiz } from "../agente/atributosYRelaciones.js";
 import { normalizarAfirmaciones, normalizar, menosAscii } from "./afirmacion.js";
 import { resolverDeclaraciones } from "./resolutor.js";   // fase 4: la casa canoniza la forma de la declaración antes del veredicto
-import { indiceDeEvidencia, tokens, numerosEn, ES_TODO, estadoCanon, conceptosDe, mismoValor as _mismoValor, unidadCompatible as _u, necesitaUniverso as _necesitaUniverso } from "./evidencia.js";
+import { indiceDeEvidencia, tokens, numerosEn, ES_TODO, ES_TODO_FUERTE, estadoCanon, conceptosDe, mismoValor as _mismoValor, unidadCompatible as _u, necesitaUniverso as _necesitaUniverso, conDigitos } from "./evidencia.js";
 
 export const VEREDICTOS = ["verdadera", "falsa", "no-verificable", "sellada"];
 
@@ -115,9 +115,36 @@ const _esElConjuntoOficial = (f, I) => {
   return f.n != null && f.n === c.entidades.length;
 };
 const _mismoSet = (A, B) => A.size === B.size && [...A].every((x) => B.has(x));
+/* la bodega que un texto nombra (una entidad del eje bodega del tenant), normalizada — o null */
+function _bodegaNombrada(texto, I) {
+  const t = normalizar(texto);
+  for (const [k, e] of I.entidades) if (e.eje === "bodega" && new RegExp("(?<![a-z0-9])" + k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![a-z0-9])").test(t)) return k;
+  return null;
+}
+/* los SKU cuyo estado (proyección) está en una bodega */
+function _skusEnBodega(bodega, I, estado = null) {
+  const out = new Set();
+  for (const x of I.estados || []) if (normalizar(x.bodega || "") === bodega && (!estado || estadoCanon(x.estado) === estado || (estado === "inmovilizado" && /^(?:frenado|sobrestock)$/.test(estadoCanon(x.estado))))) out.add(normalizar(x.entidad));
+  return out;
+}
+/* el estado que nombra un universo («los SKU frenados de Valparaíso», «los críticos de Antofagasta»): restringe a ese estado; sin estado, null */
+function _estadoNombrado(texto) {
+  const t = normalizar(texto);
+  return /frenad/.test(t) ? "frenado" : /cr[ií]tic/.test(t) ? "critico" : /inmoviliz|deten|parad/.test(t) ? "inmovilizado" : /sobrestock/.test(t) ? "sobrestock" : /quiebre/.test(t) ? "riesgo de quiebre" : /\bsan[oa]s?\b/.test(t) ? "capital sano" : null;
+}
 function _universoCasa(declarado, f, I = null) {
-  const u = Array.isArray(declarado) ? declarado.join(", ") : String(declarado || "");
+  const u = Array.isArray(declarado) ? declarado.join(", ") : conDigitos(String(declarado || ""));
   if (!u.trim()) return "vacio";
+  /* una BODEGA nombrada en el universo («los 3 SKU frenados de Valparaíso») restringe al grupo: sus SKU tienen que estar todos en esa bodega
+   * (por los estados de la proyección); sin grupo o sin estados, incierto */
+  if (I && !Array.isArray(declarado)) {
+    const bodega = _bodegaNombrada(u, I);
+    if (bodega) {
+      if (!f.entidadesDelGrupo.length) return "incierto";
+      const enBodega = f.entidadesDelGrupo.every((e) => { const es = I.estadosDe(e); return es.length && es.every((x) => normalizar(x.bodega || "") === bodega); });
+      if (!enBodega) return "distinto";
+    }
+  }
   const nums = numerosEn(u).filter((x) => Number.isInteger(x));
   const esSubtotal = /subtotal|promedio|resto de/i.test(f.conceptoNorm) || (f.grupo && f.n != null) || (f.cobertura && f.cobertura.alcance && !/total|negocio|global/i.test(String(f.cobertura.alcance)));
   if (Array.isArray(declarado) && f.entidadesDelGrupo.length) return _mismoSet(new Set(declarado.map(normalizar)), new Set(f.entidadesDelGrupo.map(normalizar))) ? "ok" : "distinto";
@@ -125,7 +152,7 @@ function _universoCasa(declarado, f, I = null) {
   if (nums.length && f.n != null && !numeroCasa) return "distinto";
   /* el todo sobre un subtotal es alcance promovido — salvo que el subtotal sea el conjunto oficial entero de su métrica; con el número del grupo
    * dicho («las 6 cuentas … de los 13 clientes»), el «todo» de al lado es el denominador, no el conjunto */
-  if (!numeroCasa && ES_TODO.test(u) && esSubtotal && !/(?:^|· )total$/.test(f.conceptoNorm)) return _esElConjuntoOficial(f, I) ? "ok" : "promovido";
+  if (!numeroCasa && (ES_TODO.test(u) || ES_TODO_FUERTE.test(u)) && esSubtotal && !/(?:^|· )total$/.test(f.conceptoNorm)) return _esElConjuntoOficial(f, I) ? "ok" : "promovido";
   const calif = String(f.calificador || "");
   if (!calif.trim()) {   // sin rótulo de conjunto («Margen promedio», una cobertura): las palabras del universo contra el texto de la fig
     const tu = tokens(u), tf = tokens(f.universoTexto + " " + f.conceptoNorm);
@@ -307,8 +334,10 @@ const tras = (/(?:m[aá]s|menos|mayor|menor|peor|mejor)\s+(.{0,40})$/.exec(s) ||
 /* _conjuntoDeUniverso(u, I, eje, metrica) → { set|null (entero), fuente } o { error } */
 function _conjuntoDeUniverso(u, I, eje, metrica = "") {
   if (Array.isArray(u)) return { set: new Set(u.map((e) => { const r = I.resolverEntidad(e); return normalizar(r ? r.nombre : e); })), fuente: "lista declarada" };
-  const s = String(u || "");
-  if (!s.trim() || ES_TODO.test(s)) return { set: null, fuente: "el eje entero" };
+  const s = conDigitos(String(u || ""));
+  if (!s.trim() || ES_TODO.test(s) || ES_TODO_FUERTE.test(s)) return { set: null, fuente: "el eje entero" };
+  /* «Valparaíso», «los SKU de Santiago», «en Concepción»: los SKU con estado en esa bodega (la proyección declara la bodega de cada estado) */
+  { const b = _bodegaNombrada(s, I); if (b && (!eje || eje === "sku") && !/\b(?:cuentas?|clientes?|marcas?|familias?)\b/i.test(s)) { const est = _estadoNombrado(s); const set = _skusEnBodega(b, I, est); return { set, fuente: `los SKU ${est ? "«" + est + "» " : "con estado "}en ${b}` }; } }
   /* «la cartera», «la cartera de clientes», «toda la cartera comercial»: los clientes, todos (fase 4: «la más alta de toda la cartera») */
   if ((!eje || eje === "cliente") && /^(?:toda\s+)?(?:la\s+)?cartera(?:\s+(?:de\s+clientes|de\s+cuentas|comercial|entera|completa|actual))?\s*$/i.test(s.trim())) return { set: null, fuente: "el eje entero" };
   /* el nombre pelado del eje («familias», «marcas», «los SKU», «carteras») es el eje entero (fase 4: el vocabulario libre del extractor) */
@@ -334,9 +363,19 @@ function _conjuntoDeUniverso(u, I, eje, metrica = "") {
   const grupos = conocidos.filter((c) => c.tokens);
   let g = null;
   /* una preposición de dirección a secas («sobre», «bajo») no identifica un grupo: «las 6 cuentas sobre el benchmark» no son las «6 cuentas sobre el nivel declarado» */
-  const tuD = tu.filter((t) => !/^(?:sobre|bajo|encima|debajo|entre|desde|hasta)$/.test(t));
-  if (nums.length) g = grupos.find((c) => nums.includes(c.n) && (tuD.some((t) => c.tokens.some((x) => x.startsWith(t.slice(0, 5)))) || (metrica && (() => { const fg = I.figs.find((f) => f.label === c.nombre); return !!fg && I.casa(metrica, fg) > 0; })())));
+  /* …ni la superficie donde se ve («las 3 SKU del cuadro», «las filas de la tabla»): el cuadro no es un conjunto, es donde se muestra el conjunto */
+  const tuD = tu.filter((t) => !/^(?:sobre|bajo|encima|debajo|entre|desde|hasta|cuadro|tabla|pantalla|lista|listado|grafico|curva|muestra|mostrad[oa]s?|publicad[oa]s?)$/.test(t));
+  if (nums.length) g = grupos.find((c) => nums.includes(c.n) && (tuD.some((t) => c.tokens.some((x) => x.startsWith(t.slice(0, 5)))) || (!tuD.length && metrica && (() => { const fg = I.figs.find((f) => f.label === c.nombre); return !!fg && I.casa(metrica, fg) > 0; })())));   // «las 5 cuentas sobre el benchmark» no es el grupo de 5 de la métrica: con palabras propias, deciden las palabras
   if (!g && tu.length) g = grupos.find((c) => tu.every((t) => c.tokens.some((x) => x.startsWith(t.slice(0, 5)))));
+  /* «los 3 SKU (del cuadro)» sin más palabras: el ÚNICO grupo de ese tamaño en el eje es ese grupo */
+  if (!g && nums.length && !tuD.length) { const deTamano = grupos.filter((c) => nums.includes(c.n)); if (deTamano.length === 1) g = deTamano[0]; }
+  /* «las 3 SKU del cuadro» / «las 3 filas que muestra»: las entidades del eje que la boleta del cuadro trae, si son exactamente N (la boleta de un
+   * cuadro anclado declara «Entidades en el cuadro = N») */
+  if (!g && nums.length && !tuD.length && /\b(?:cuadro|tabla|pantalla|lista|listado|grafico|curva|muestra|mostrad[oa]s?)\b/.test(normalizar(s))) {
+    const enBoleta = [...new Set(I.figs.filter((f) => f.entidad && (!eje || !f.eje || f.eje === eje)).map((f) => normalizar(f.entidad)))];
+    const declaraN = I.figs.some((f) => /entidades en el cuadro|filas mostradas/i.test(String(f.label)) && nums.includes(Number(f.raw)));
+    if (enBoleta.length && nums.includes(enBoleta.length) && declaraN) return { set: new Set(enBoleta), fuente: `las ${enBoleta.length} entidades del cuadro` };
+  }
   if (g) return { set: g.set, fuente: g.fuente };
   /* los estados, los umbrales, los que caen/crecen — y una conjunción de dos («bajo el benchmark y sobre el nivel de carga») */
   const partes = s.split(/\s+(?:y|e)\s+|\s*\+\s*|\s*,\s*/i).map((x) => x.trim()).filter(Boolean);
@@ -418,6 +457,17 @@ function _cifra(a, I) {
   const pool = compatibles.length ? compatibles : enPeriodo;
   const exacta = pool.find((f) => _mismoValor(v, f.raw, f.unidad, f.texto));
   if (exacta) {
+    /* un TOTAL del negocio (o un promedio) con un universo declarado que NO es el todo: si el universo es una entidad, la cifra se juzga por la fig
+     * de esa entidad; si es un conjunto, el total no es su cifra (falsa: «Jumbo acumula $12,6M vencidos», «en Valparaíso el frenado llega a $33K») */
+    /* …salvo que el «universo» sea el propio calificador del rótulo («subtotal», «promedio», «total»: leído desde la métrica por el resolutor) */
+    const universoPropio = a.universo && typeof a.universo === "string" && (/^s*(?:subtotal|total|promedio|dels+negocio|negocio)s*$/i.test(a.universo) || normalizar(String(exacta.label || "")).includes(normalizar(a.universo)));
+    if (a.sujeto === "negocio" && exacta.agregado && !_necesitaUniverso(exacta, a.sujeto) && a.universo && typeof a.universo === "string" && a.universo.trim() && !universoPropio && !ES_TODO.test(conDigitos(a.universo))) {
+      const ent = I.resolverEntidad(a.universo.replace(/^\s*(?:en|de|del|la\s+bodega|el\s+cliente|la\s+cuenta|la\s+marca|la\s+familia)\s+/i, "").trim());
+      if (ent) return _cifra({ ...a, sujeto: ent.nombre, universo: "" }, I);
+      let U = null; try { U = _conjuntoDeUniverso(a.universo, I, null, a.metrica); } catch { U = null; }
+      if (U && U.set) return _falsa(`universo-distinto: ${_fmt(exacta)} es el total del negocio, no la cifra de «${a.universo}»`, _fmt(exacta), [exacta.label]);
+      if (U && U.error) return _nv(`universo-no-verificable: ${_fmt(exacta)} es el total del negocio y «${a.universo}» no es un conjunto que la evidencia identifique`, [exacta.label], _fmt(exacta));
+    }
     if (exacta.agregado && _necesitaUniverso(exacta, a.sujeto)) {
       const u = _universoCasa(a.universo, exacta, I);
       if (u === "vacio") return _nv(`universo-no-declarado: la cifra es un agregado (${exacta.label}); la afirmación debe decir de qué conjunto es`, [exacta.label], _fmt(exacta));
@@ -735,9 +785,24 @@ function _relacion(a, I) {
     const cierra = r.forma === "mayor" ? x > y : x < y;
     return cierra ? _ok(`${_nom(a.sujeto)} es ${r.forma} que ${_nom(r.vs.sujeto)} en «${a.metrica}»`, ev, verdad) : _falsa(`relacion-falsa: ${_nom(a.sujeto)} no es ${r.forma} que ${_nom(r.vs.sujeto)} en «${a.metrica}»`, verdad, ev);
   }
+  /* CONTENCIÓN (parte y fracción): dos entidades del mismo eje no son parte una de otra; un SKU es parte de la bodega donde su estado lo pone; un
+   * concepto no es parte de OTRO concepto de la casa (lo vencido no es parte de lo abonado) */
+  if (r.forma === "parte" || r.forma === "fraccion") {
+    const eA = typeof a.sujeto === "string" && a.sujeto !== "negocio" ? I.resolverEntidad(a.sujeto) : null;
+    const eB = typeof r.vs.sujeto === "string" && r.vs.sujeto !== "negocio" ? I.resolverEntidad(r.vs.sujeto) : null;
+    if (eA && eB && eA.eje === eB.eje && normalizar(eA.nombre) !== normalizar(eB.nombre)) return _nv(`relacion-no-verificable: ${eA.nombre} y ${eB.nombre} son dos ${eA.eje}s distintos: ninguno es parte del otro`, ev, verdad);
+    if (eA && eB && eA.eje === "sku" && eB.eje === "bodega") { const es = I.estadosDe(eA.nombre); if (!es.length) return _nv(`sin-evidencia: la proyección no dice en qué bodega está ${eA.nombre}`, ev); if (!es.some((x) => normalizar(x.bodega || "") === normalizar(eB.nombre))) return _falsa(`relacion-falsa: ${eA.nombre} no está en ${eB.nombre} (está en ${[...new Set(es.map((x) => x.bodega).filter(Boolean))].join(", ") || "otra bodega"})`, verdad, ev); }
+    const cA = conceptosDe(a.metrica), cB = conceptosDe(r.vs.metrica || a.metrica);
+    if (r.vs.metrica && cA.length && cB.length && !cA.some((c) => cB.includes(c)) && !(cB.includes("saldo pendiente") && cA.includes("saldo vencido")) && !(cB.includes("capital") && (cA.includes("capital frenado") || cA.includes("capital inmovilizado"))) && !(cB.includes("capital inmovilizado") && cA.includes("capital frenado")) && !(cB.includes("contribucion") && cA.includes("contribucion no capturada"))) return _falsa(`relacion-falsa: «${a.metrica}» no es parte de «${r.vs.metrica}» (conceptos distintos)`, verdad, ev);
+  }
   if (r.forma === "parte") {
     /* A es parte de B: A ≤ B, misma unidad, y el universo de los dos rótulos no se cruza (venta comercial vs inventario) */
     if (fa.universo && fb.universo && fa.universo !== fb.universo && !/tasa/.test(fa.universo + fb.universo)) return _falsa(`universos-distintos: ${_fmt(fa)} (${fa.universo}) no es parte de ${_fmt(fb)} (${fb.universo})`, verdad, ev);
+    /* con una k dicha («una quinta parte», «la mayor parte» = más de la mitad), la parte se juzga como fracción */
+    /* la k de una parte: el valor en % de la afirmación («75%» → 0.75); una k escrita como porcentaje (k: 75) vale igual; una k que es en realidad un
+     * monto (k: 22 por «$22K de los $33K») no es una fracción */
+    const kParte = (a.valor && Number.isFinite(a.valor.raw) && a.valor.unidad === "pct") ? a.valor.raw / 100 : (a.valor && a.valor.unidad === "money") ? null : Number.isFinite(r.k) && r.k > 0 && r.k < 1 ? r.k : Number.isFinite(r.k) && r.k > 1 && r.k <= 100 ? r.k / 100 : null;
+    if (Number.isFinite(kParte) && kParte > 0 && y !== 0) { const q = x / y; const rango = rangoDeMatiz(r.matiz); const cierra = q / kParte >= rango.lo && q / kParte <= rango.hi; return cierra ? _ok(`${kParte} (${r.matiz ? r.matiz + " " : ""}parte) cierra: cociente ${q.toFixed(2)}`, ev, verdad) : _falsa(`relacion-falsa: ${_fmt(fa)} es ${(q * 100).toFixed(0)}% de ${_fmt(fb)}, no ${r.matiz ? r.matiz + " " : ""}${(kParte * 100).toFixed(0)}%`, verdad, ev); }
     return Math.abs(x) <= Math.abs(y) + tolCalculo(y, fb.unidad) ? _ok(`${_fmt(fa)} es parte de ${_fmt(fb)}`, ev, verdad) : _falsa(`relacion-falsa: ${_fmt(fa)} no cabe en ${_fmt(fb)}`, verdad, ev);
   }
   if (r.forma === "igual") {
@@ -748,6 +813,10 @@ function _relacion(a, I) {
     const d = x - y;
     const u = fa.unidad === "pct" ? "pp" : fa.unidad;
     const tol = _tolCalculada(v, u);
+    /* el SIGNO lo fija la forma dicha: «$1,6M más que», «por encima» exigen A > B; «menos que», «por debajo» exigen A < B */
+    const t = normalizar(String(a.texto || ""));
+    const dirDicha = /\b(?:m[aá]s\s+que|por\s+encima|supera|aventaja|arriba\s+de|por\s+sobre|m[aá]s\s+(?:alt|grand)|encima\s+de)\b/.test(t) ? 1 : /\b(?:menos\s+que|por\s+debajo|detr[aá]s|inferior|debajo\s+de|m[aá]s\s+(?:baj|chic|pequeñ)|menor\s+que)\b/.test(t) ? -1 : 0;
+    if (dirDicha && Math.sign(d) !== dirDicha && Math.abs(d) > tol) return _falsa(`relacion-falsa: ${_nom(a.sujeto)} ${dirDicha > 0 ? "no está por encima" : "no está por debajo"} de ${_nom(r.vs.sujeto)} (la diferencia es ${u === "money" ? "$" : ""}${Math.round(d * 100) / 100}${u === "pp" ? " pp" : ""})`, verdad, ev);
     return Math.abs(Math.abs(d) - Math.abs(v.raw)) <= tol ? _ok(`diferencia ${v.texto} entre ${_fmt(fa)} y ${_fmt(fb)}`, ev, verdad) : _falsa(`relacion-falsa: la diferencia es ${u === "money" ? "$" : ""}${Math.round(d * 100) / 100}${u === "pp" ? " pp" : ""}`, verdad, ev);
   }
   /* veces / fracción: q = A/B contra k con el rango del matiz (la misma tabla del juez de la prosa) */
@@ -775,9 +844,24 @@ function _relacion(a, I) {
  * nivel declarado (5 de ellas bajo el benchmark)» → 6, y 5 de esas 6), el grupo de un agregado, los estados del inventario, los umbrales
  * conocidos sobre los rankings, un top-k («los 5 SKU que más venden») y la CONJUNCIÓN de dos conjuntos («bajo el benchmark y sobre el
  * nivel de carga») — con el conjunto de entidades cuando se conoce, para contar dentro de un universo */
-function _candidatosDeConteo(pred, I, eje = "cliente") {
+function _candidatosDeConteo(pred0, I, eje = "cliente") {
+  /* un predicado NEGADO («sin saldo vencido», «que no tienen carga alta», «no superan el benchmark», «no están sobre/bajo…») es el COMPLEMENTO del
+   * predicado afirmado dentro del eje: se cuentan los candidatos que traen su conjunto, restados del eje entero */
+  const negado = /^\s*(?:sin\s+|(?:que\s+)?no\s+(?:tienen?|est[aá]n?|son|es)\s+|(?:que\s+)?no\s+)/i.exec(String(pred0 || ""));
+  if (negado) {
+    /* «no superan el benchmark» conserva el verbo («superan el benchmark» = sobre el benchmark); «no tienen saldo vencido», «sin carga alta», «no están
+     * sobre el benchmark» dejan el predicado desnudo */
+    const positivo = String(pred0).slice(negado[0].length).replace(/^(?:el|la|los|las|de|del)\s+/i, "");
+    const total = I.tamanoDelEje(eje) || null;
+    const todos = new Set([...I.entidades].filter(([, e]) => e.eje === eje).map(([k]) => k));
+    if (!total || !todos.size) return [];
+    const base = _candidatosDeConteo(positivo, I, eje);
+    return base.map((x) => { if (x.set) { const set = new Set([...todos].filter((e) => !x.set.has(e))); return { n: set.size, m: total, fuente: `complemento de ${x.fuente}`, label: `sin ${x.label}`, set }; } return { n: total - x.n, m: total, fuente: `complemento de ${x.fuente}`, label: `sin ${x.label}` }; });
+  }
+  const pred = pred0;
   const tp = tokens(pred);
   if (!tp.length) return [];
+  if (/\bbenchmark\s+de\s+(?!margen\b)[a-záéíóúñ]+/i.test(String(pred))) return [];   // el benchmark de la casa es el de MARGEN; «benchmark de carga» no existe
   /* «con margen publicado en esta lectura», «con YoY en la boleta»: las entidades del eje que traen esa métrica en la boleta */
   const mPub = /^(?:con|que\s+traen?|que\s+tienen)\s+(.+?)\s+(?:publicad[oa]s?(?:\s+en\s+(?:la|esta)\s+(?:boleta|lectura))?|en\s+(?:la|esta)\s+(?:boleta|lectura))\s*$/i.exec(String(pred).trim());
   if (mPub) {
@@ -796,7 +880,10 @@ const predN = normalizar(pred);
     return frase.test(predN);
   };
   const out = [];
-  for (const f of I.figs) if ((f.unidad === "count" || f.fig.unit === "count") && Number.isFinite(f.raw) && !f.agregado && casaPred(f.conceptoNorm + " " + (f.entidad || ""))) out.push({ n: f.raw, m: null, fuente: "conteo de la boleta", label: f.label });
+  /* el conteo explícito de la boleta vale para SU eje: «marcas bajo el benchmark» (= 4) no cuenta «clientes bajo el benchmark» (= 8) */
+  const ejeDicho = /\b(?:cuentas?|clientes?)\b/i.test(pred) ? "cliente" : /\bskus?\b/i.test(pred) ? "sku" : /\bmarcas?\b/i.test(pred) ? "marca" : /\bfamilias?\b/i.test(pred) ? "familia" : /\bbodegas?\b/i.test(pred) ? "bodega" : eje;
+  const ejeDeFig = (f) => /\b(?:cuentas?|clientes?)\b/.test(f.conceptoNorm) ? "cliente" : /\bskus?\b/.test(f.conceptoNorm) ? "sku" : /\bmarcas?\b/.test(f.conceptoNorm) ? "marca" : /\bfamilias?\b/.test(f.conceptoNorm) ? "familia" : /\bbodegas?\b/.test(f.conceptoNorm) ? "bodega" : null;
+  for (const f of I.figs) if ((f.unidad === "count" || f.fig.unit === "count") && Number.isFinite(f.raw) && !f.agregado && casaPred(f.conceptoNorm + " " + (f.entidad || "")) && (!ejeDeFig(f) || ejeDeFig(f) === ejeDicho)) out.push({ n: f.raw, m: null, fuente: "conteo de la boleta", label: f.label });
   for (const f of I.figs) {
     if (!f.agregado) continue;
     const seg = String(f.concepto).split(/\s+·\s+/).find((s) => /^\d+\s+(?:cuentas?|clientes?|skus?|bodegas?|marcas?)\b/i.test(s));
@@ -851,6 +938,8 @@ function _conteo(a, I) {
   const total = I.tamanoDelEje(ejeU);
   /* el universo declarado: si es un SUBCONJUNTO identificable, se cuenta dentro de él (solo con candidatos que traen su conjunto) */
   const U = _conjuntoDeUniverso(a.universo, I, ejeU, pred);
+  /* un universo dicho que la evidencia no identifica no se ignora: el conteo queda no verificable (antes se contaba el eje entero) */
+  if (U.error && !Array.isArray(a.universo) && String(a.universo || "").trim()) return _nv(U.error, cn.slice(0, 1).map((x) => x.label));
   if (U.set) {
     const conSet = cn.filter((x) => x.set);
     if (!conSet.length) return _nv(`universo-no-contable: la boleta cuenta «${pred}» (${fmtC(cn[0])}) pero no identifica quiénes, y el universo es «${uTexto}»`, [cn[0].label]);
@@ -863,7 +952,7 @@ function _conteo(a, I) {
    * boleta, después la intersección que cubre todo el predicado, después el que trae el «de M» dicho; un «(K de ellas …)» del rótulo cuenta
    * dentro de su grupo y sin universo dicho pesa menos que el conjunto del eje; solo entre empatados vale el que trae el n declarado */
   const _mDicho = c.m != null ? c.m : (numerosEn(uTexto).find(Number.isInteger) ?? null);
-  const rango = (x) => { let s = 0; if (x.fuente === "conteo de la boleta") s += 40; if (/∩/.test(x.fuente)) s += 30; if (_mDicho != null) { if (x.m === _mDicho) s += 20; else if (x.m == null) s += 5; else s -= 25; } else if (/de ellas/.test(x.fuente)) s -= 10; return s; };
+  const rango = (x) => { let s = 0; if (/conteo de la boleta/.test(x.fuente)) s += 40; if (/∩/.test(x.fuente)) s += 30; if (_mDicho != null) { if (x.m === _mDicho) s += 20; else if (x.m == null) s += 5; else s -= 25; } else if (/de ellas/.test(x.fuente)) s -= 10; return s; };
   cn = [...cn].sort((x, y) => rango(y) - rango(x));
   const empatados = cn.filter((x) => rango(x) === rango(cn[0]));
   /* una ENUMERACIÓN («Falabella, Lider, Jumbo, Sodimac y Ripley cargan sobre el nivel y están bajo el benchmark») se juzga por los nombrados: el
@@ -924,13 +1013,17 @@ function _variacion(a, I) {
     const cp = I.figs.filter((g) => (a.sujeto === "negocio" ? !g.entidad : (g.entidad && ent && normalizar(g.entidad) === normalizar(ent.nombre))) && /presupuesto|ppto/.test(g.conceptoNorm) && Number.isFinite(g.raw));
     if (!cp.length) return _nv(`sin-evidencia-temporal: la boleta no trae la variación vs presupuesto de ${_nom(a.sujeto)}`);
     const val = v.valor && Number.isFinite(v.valor.raw) ? v.valor : null;
-    const g = (val ? cp.find((x) => _u(x.unidad) === _u(val.unidad)) : null) || cp.find((x) => x.unidad === "pct") || cp[0];
+    const cpU = val ? cp.filter((x) => _u(x.unidad) === _u(val.unidad)) : [];
+    const g = (val ? (cpU.find((x) => _mismoValor({ ...val, raw: Math.abs(val.raw) }, Math.abs(x.raw), x.unidad, x.texto)) || cpU[0]) : null) || cp.find((x) => x.unidad === "pct") || cp[0];
     const dirReal = Math.abs(g.raw) < 0.05 ? "estable" : g.raw > 0 ? "sube" : "baja";
     if (dirReal !== v.direccion) return _falsa(`direccion-falsa: ${_fmt(g)} (${dirReal}), no «${v.direccion}»`, _fmt(g), [g.label]);
     if (val && _u(val.unidad) === _u(g.unidad) && !_mismoValor({ ...val, raw: Math.abs(val.raw) }, Math.abs(g.raw), g.unidad)) return _falsa(`magnitud-distinta: ${_fmt(g)}`, _fmt(g), [g.label]);
     return _ok(`${v.direccion} vs presupuesto: ${_fmt(g)}`, [g.label], _fmt(g));
   }
   let cands = I.buscarFigs(a.sujeto, "variacion", { agregados: a.sujeto === "negocio" }).filter((f) => /variacion|crecimiento|yoy|vs ano anterior/.test(f.conceptoNorm) && !/presupuesto|ppto/.test(f.conceptoNorm));
+  /* el negocio también tiene la variación que publica un CUADRO anclado («El negocio, cliente por cliente · vs año anterior (%) · total»): otro emisor
+   * de la misma variación, con su propio redondeo — entra como candidata y la que cierra con la magnitud dicha juzga */
+  if (a.sujeto === "negocio" && esVenta) for (const g of I.figs) if (!g.entidad && Number.isFinite(g.raw) && /vs ano anterior|yoy|variacion/.test(g.conceptoNorm) && /total/.test(g.conceptoNorm) && !/presupuesto|ppto/.test(g.conceptoNorm) && !cands.includes(g)) cands.push(g);
   if (esVenta) {
     /* la variación de la venta EN DINERO: «YoY = +$2.3M» y, del mismo emisor (salesRead), la fig «Valor» que acompaña a la variación en % —
      * un rótulo sin significado propio (deuda del emisor, anotada para la fase 2): solo cuenta cuando el sujeto tiene su variación en % */
@@ -944,7 +1037,9 @@ function _variacion(a, I) {
   if (!cands.length) return _nv(`sin-evidencia-temporal: la boleta no trae la variación de «${a.metrica}» de ${_nom(a.sujeto)}`);
   const val = v.valor && Number.isFinite(v.valor.raw) ? v.valor : null;
   /* con magnitud dicha, la fig de la misma unidad (% vs $); sin magnitud, la primera con signo */
-  const f = (val ? cands.find((x) => _u(x.unidad) === _u(val.unidad)) : null) || cands[0];
+  /* con varias figs de la misma variación (dos emisores redondean distinto: «+7.5%» y «7.6%»), juzga la que cierra con la magnitud dicha */
+  const candsU = val ? cands.filter((x) => _u(x.unidad) === _u(val.unidad)) : [];
+  const f = (val ? (candsU.find((x) => _mismoValor({ ...val, raw: Math.abs(val.raw) }, Math.abs(x.raw), x.unidad, x.texto)) || candsU[0]) : null) || cands[0];
   const ev = [f.label];
   const dirReal = Math.abs(f.raw) < 0.05 ? "estable" : f.raw > 0 ? "sube" : "baja";
   if (dirReal !== v.direccion) return _falsa(`direccion-falsa: ${_fmt(f)} (${dirReal}), no «${v.direccion}»`, _fmt(f), ev);
