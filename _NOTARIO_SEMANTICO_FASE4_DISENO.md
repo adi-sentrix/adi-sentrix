@@ -1,4 +1,4 @@
-# Notario semántico · Fase 4 — DISEÑO PROPUESTO (2026-09-16, pendiente de revisión del owner; nada implementado)
+# Notario semántico · Fase 4 — DISEÑO (2026-09-16) · ETAPA A IMPLEMENTADA en `dev` (ver §10); etapas B y C pendientes
 
 **Conclusión primero.** La fase 1 sacó la verdad de la redacción de la *prosa*: el veredicto depende de la afirmación, no de cómo se
 escribió. Pero dejamos la verdad atada a la redacción de la *declaración*: hoy el modelo tiene que adivinar el idioma canónico de la
@@ -170,3 +170,55 @@ siempre: cada adición se mide contra los tres corpus completos, jamás contra e
 6. **Prioridad de las deudas de la Mesa Capital** (estados como figs) — sin ellas, dos clases de frase del inventario seguirán NV.
 
 **Esfuerzo estimado:** etapa A 1-2 sesiones · etapa B 1 sesión · etapa C media sesión + el gasto nombrado. Sin deploy en ninguna.
+
+---
+
+## 10 · Estado de implementación — Etapa A hecha (2026-09-16, `dev`, offline, sin deploy)
+
+**Conclusión primero.** La casa ya canoniza la forma de la declaración. Con la corrida en vivo de la fase 3 re-juzgada offline (mismas
+383 declaraciones del modelo, misma boleta de cada turno): **verdaderas 266 → 323, no verificables 66 → 25, fragmentos «ajenos» 16 → 0,
+inconsistencias prosa↔declaración 22 → 1** (la que queda es un defecto real de la prosa: «29.8x» por 29.8 %). Las 7 falsedades reales
+siguen falsas (0 FN) y aparecen 5 falsas más, todas correctas: dos falsedades reales que antes no se podían juzgar («la más alta de
+toda la cartera» con Sodimac 5.4 % contra Easy 5.5 %; LG-WASH11KG «entre los SKU con más riesgo de quiebre» estando sano por la Mesa)
+y tres declaraciones cuya forma contradice su propio valor («mayor» declarado con 41.4 % contra 57.3 %: la prosa era cierta, la
+declaración no — la reparación se la pide al modelo). De los 38 hechos verdaderos que la forma bloqueaba, 33 pasan a verdadero; los 5
+restantes son esas tres declaraciones mal formadas más dos que exigen decisión del modelo (una métrica ambigua y una dirección al revés).
+
+**Lo construido (todo sobre módulos existentes; ningún contrato paralelo):**
+- `src/adi/notario/resolutor.js` — el resolutor (pieza 1), con las tres reglas duras (única-o-no-se-resuelve; el valor es el
+  comprobante; solo se rellena lo que el fragmento dice) y las reglas de forma R1/R3/R4/R5/R8/R9/R10 documentadas en su cabecera. En
+  «A contra B» el sujeto se comprueba con A y el otro lado con B. Un subtotal sin universo toma el de la fig que la cifra identifica (si
+  es única) — y si el fragmento dice el TODO, se declara el todo y el verificador dicta `alcance-promovido`: falsa.
+- `src/adi/notario/ubicar.js` — el ubicador tolerante compartido por el juez y el detector de presencia (literal → sin marcas → con
+  hueco → cabeza/cola → asistida), con el tramo cubierto acotado a lo casado (una oración entera tapaba los hechos de al lado).
+- `verificar.js` / `evidencia.js` — una sola tolerancia (`mismoValor`, canon de la casa + muro) para el juicio y el comprobante;
+  `necesitaUniverso` y `universoDeFig` compartidos; un sujeto descrito casa con el agregado cuyo GRUPO es ese conjunto; «la cartera
+  (de clientes)» es el eje entero; el signo dicho en palabras («cayó $422K» → «-$422K») no es inconsistencia.
+- **Una sola definición de «carga comercial alta»** (decisión de producto del owner): la del detector (carga > nivel declarado y exceso
+  ≥ piso: 6 cuentas, $655K), publicada por la proyección desde la misma función que la boleta (`descomposicionDeBrecha` →
+  `conjuntos`); el conjunto crudo (9 cuentas que exceden el nivel) se llama **«sobre el nivel declarado de carga»** y «carga alta» ya no
+  resuelve a él. «6 cuentas con carga alta» es verdad; «9 cuentas con carga alta» es falsa; «9 sobre el nivel declarado» es verdad.
+- **Inventario/Capital verificable como Comercial**: la proyección declara para cada SKU su estado de la Mesa Capital (frenado · riesgo
+  de quiebre · sobrestock · capital sano, por `diagnoseInventarioSku`, la misma función que la Mesa) y la alerta del dato («crítico»);
+  los $ por estado cierran exactos con los «Estado del inventario: …» de la boleta ($33.2K · $36.4K · $9.8K · $55.6K). Y la brecha al
+  benchmark por marca entra a la proyección con la misma cuenta que por cliente.
+- Las deudas de evidencia de la fase 3 (estados de la Mesa como evidencia, brecha por marca) quedan saldadas por esta vía.
+
+**Candados** (`_resolutor_gate`, 38 verificaciones, en `gates:offline`): A · la fase 3 re-juzgada (≥ 33/38 hechos bloqueados por la
+forma → verdaderos; las 7 falsas jamás verdaderas; las falsas fuera de las 7 nombradas una a una; 0 ajenos; ≤ 3 inconsistencias);
+B · **tres formas de la declaración, un veredicto** sobre las 1.099 afirmaciones manuales de la fase 1 Y las 383 del modelo en la fase 3
+(sujeto-concepto 105/105 · universo dentro de la métrica 157/157 · grupo con lista de valores 154/154); C · carnadas de resolución
+maliciosa (un benchmark con otro valor no resuelve, una entidad mal escrita no se adivina, un grupo con los valores trocados es falso,
+una dirección no se inventa); D · la definición única de «carga alta»; E · el inventario verificable. Seis expectativas de los corpus de
+la fase 1 que codificaban una limitación de la evidencia («la proyección no declara qué SKU están en ese estado») se actualizaron con
+nota. Suite completa: verde, «0 TOCARON LA RED · 0 CON CREDENCIAL VIVA».
+
+**Una decisión de producto que dejo anotada, no tomada:** el rótulo del subtotal del detector dice «6 cuentas sobre el nivel declarado (5 de
+ellas bajo el benchmark)», pero literalmente 9 cuentas exceden el nivel. El Notario lee «sobre el nivel declarado» de forma LITERAL (las 9)
+y «carga (comercial) alta» como el detector (las 6): si el modelo copia el rótulo como conteo («6 cuentas están sobre el nivel declarado»),
+la multa dirá «son 9». Propuesta: renombrar el descriptor del rótulo a «6 cuentas con exceso material sobre el nivel declarado» — cambia
+texto que llega a pantalla (la pestaña Comercial pinta desde la misma función), así que es tuya.
+
+**Lo que la Etapa A no resuelve (y sigue el plan):** la omisión del modelo (180 puntos afirmados sin declarar en los 23 textos de la
+fase 3; es la Etapa B: protocolo v2, carta de hechos, reparación de declaración con prosa congelada), la ronda adversarial con UltraCode
+sobre el resolutor/ubicador, y la medición fuera de muestra en vivo (Etapa C, con autorización nombrada del gasto).

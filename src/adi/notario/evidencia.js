@@ -10,8 +10,44 @@
  * los ejes del tenant (`ejesDelTenant`); «negocio» son las figs sin entidad (los totales).
  * Puro: sin I/O. */
 import { parseFigures } from "../boleta.js";
+import { tolCalculo } from "../oracle/calculoCatalogo.js";
 import { metricasEn } from "../oracle/guardC.js";
 import { normalizar, menosAscii } from "./afirmacion.js";
+
+/* ── LA COMPARACIÓN DE UNA CIFRA DICHA CON UNA FIG (una sola tolerancia para el verificador y el resolutor) ──────────────────────
+ * unidadCompatible: % y pp comparan entre sí («tasa»); el resto, consigo mismo.
+ * mismoValor(valorDeclarado, raw, unidad, textoFig) → true si la cifra dicha es la de la boleta: dicha verbatim como la boleta la trae,
+ * mismo canon (el formateador de la casa: «$10K» es $9.8K) o dentro de la tolerancia del muro (tolCalculo). Una cifra DIRECTA de la boleta
+ * se dice como la boleta la trae («21.5%», no «22%» — que es la de Falabella); el redondeo a media unidad solo se admite en lo CALCULADO. */
+/* un agregado que NECESITA universo declarado: un subtotal, un grupo, un «resto de» — no el promedio o el total del negocio entero */
+export const necesitaUniverso = (f, sujeto = "negocio") => {
+  if (/(?:^|· )total$/.test(f.conceptoNorm) || (sujeto === "negocio" && /promedio/.test(f.conceptoNorm) && !/subtotal/.test(f.conceptoNorm))) return false;   // «Saldo vencido · total», «Margen promedio»: el todo
+  /* «Capital frenado · subtotal» a secas (sin «N SKU», sin grupo, sin cobertura) es el total de su categoría: no hay conjunto que declarar */
+  if (/(?:^|· )subtotal$/.test(f.conceptoNorm) && !f.grupo && f.n == null && !f.cobertura) return false;
+  return !!(f.grupo || f.n != null || /subtotal|resto de/.test(f.conceptoNorm) || (f.cobertura && f.cobertura.alcance && !/total|negocio|global/i.test(String(f.cobertura.alcance))));
+};
+/* el universo que un subtotal lleva en su propio rótulo («· subtotal · 5 cuentas materiales (de 8 bajo el benchmark)» → «5 cuentas
+ * materiales (de 8 bajo el benchmark)»; «de los grandes» → «los grandes») */
+export const universoDeFig = (f) => String(f.calificador || "").replace(/^[\s·]*(?:subtotal|promedio)?[\s·]*/i, "").replace(/^de\s+/, "").trim() || (f.grupo && f.grupo.n ? `${f.grupo.n} ${f.eje || "entidades"}` : "");
+const _COMPAT = { pct: "tasa", pp: "tasa", money: "money", days: "days", ratio: "ratio", count: "count" };
+export const unidadCompatible = (x) => _COMPAT[x || "count"] || x;
+export function mismoValor(v, raw, unidad, textoFig = "") {
+  /* la identidad verbatim: dicha EXACTAMENTE como la boleta la trae, es la de la boleta (una serie del pack imprime «$22.560» para 22 560
+   * y el canon del punto la leería como 22,56) */
+  if (textoFig && v && v.texto && menosAscii(String(v.texto)).trim() === menosAscii(String(textoFig)).trim()) return true;
+  if (!v || !Number.isFinite(v.raw) || !Number.isFinite(raw)) return false;
+  const ud = v.unidad || "count", uf = unidad || "count";
+  if (unidadCompatible(ud) !== unidadCompatible(uf)) return false;
+  /* una magnitud sin signo en la boleta («2.0pp» del supuesto de carga, que el emisor publica sin dirección) es la cifra dicha con el signo del
+   * usuario («-2pp»): en pp y % se compara el valor absoluto cuando la fig no trae signo */
+  if ((uf === "pp" || uf === "pct") && v.raw < 0 && raw > 0 && textoFig && !/^\s*[-+−]/.test(String(textoFig)) && Math.abs(Math.abs(v.raw) - raw) <= tolCalculo(raw, uf)) return true;
+  if (uf === "money" || uf === "days" || uf === "ratio") {
+    const c = parseFigures(uf === "money" ? `$${raw}` : uf === "days" ? `${raw}d` : `${raw}x`);
+    if (c.length && v.canon && c[0].canon.replace(/\$/g, "") === String(v.canon).replace(/\$/g, "")) return true;
+  }
+  const tol = uf === "count" ? 0 : tolCalculo(raw, uf);
+  return Math.abs(v.raw - raw) <= tol;
+}
 
 /* SINÓNIMOS · lo que el modelo (o quien etiqueta) puede escribir como métrica → los conceptos del rótulo que la nombran, en orden de
  * preferencia. Se casan por igualdad normalizada; el resto de la casación es genérica (ver conceptosDe). */
@@ -29,11 +65,11 @@ export const SINONIMOS = [
   [/^margen\s+promedio$|^margen\s+de\s+la\s+cartera$/i, ["margen promedio"]],
   [/^cargas?(?:\s+comercial)?$|^acciones\s+comerciales$|^rebates?$|^descuentos?$/i, ["carga comercial", "carga"]],
   [/^(?:carga\s+comercial\s+alta|carga\s+alta|exceso\s+de\s+carga|carga\s+excedente|carga\s+sobre\s+el\s+nivel)$/i, ["carga comercial alta"]],
-  [/^brechas?(?:\s+(?:al\s+benchmark|de\s+margen|contra\s+el\s+benchmark|al\s+margen))?$|^distancia\s+al\s+benchmark$/i, ["brecha al benchmark"]],
+  [/^brechas?(?:\s+(?:al\s+benchmark|de\s+margen|contra\s+el\s+benchmark|al\s+margen|en\s+puntos|en\s+pp))?$|^distancia\s+al\s+benchmark$|^puntos\s+bajo\s+el\s+benchmark$/i, ["brecha al benchmark"]],
   [/^brecha\s+por\s+precio\s+y\s+costo$|^precio\s+y\s+costo$|^brecha\s+de\s+precio\s+y\s+costo$/i, ["brecha por precio y costo"]],
-  [/^mark-?up(?:\s+sobre\s+costo)?$/i, ["markup sobre costo"]],
-  [/^markup\s+promedio$/i, ["markup promedio"]],
-  [/^peso\s+del\s+costo$|^costo$|^costos$/i, ["peso del costo"]],
+  /* «Markup promedio · los que caen / sanos» es el agregado de «Markup sobre costo» (fase 3: cuatro veces no-verificable por el nombre) */
+  [/^mark-?up(?:\s+sobre\s+costo)?$|^markup\s+promedio$|^precio\s+de\s+lista\s+sobre\s+costo$/i, ["markup sobre costo", "markup promedio"]],
+  [/^peso\s+del\s+costo$|^costo$|^costos$|^cost\s*share$|^participaci[oó]n\s+del\s+costo$/i, ["peso del costo"]],
   [/^unidades(?:\s+vendidas)?$|^volumen$|^volumen\s+vendido$/i, ["unidades vendidas"]],
   [/^unidades\s+en\s+stock$|^stock\s+en\s+unidades$|^unidades\s+en\s+inventario$/i, ["unidades en stock"]],
   [/^capital(?:\s+en\s+inventario)?$|^valor\s+de\s+inventario$|^stock$|^inventario$|^capital\s+total$/i, ["capital", "valor de inventario", "stock", "capital en inventario"]],
@@ -68,6 +104,7 @@ export const ESTADOS = [
   [/sobrestock|sobre\s*stock|exceso\s+de\s+stock|sobreinventario/, "sobrestock"],
   [/quiebre|riesgo\s+de\s+quiebre|desabast/, "riesgo de quiebre"],
   [/sano|saludable|normal|activo|en\s+regla|sin\s+alerta/, "capital sano"],
+  [/cr[ií]tic/, "critico"],   // la alerta del dato (alerta = crit), declarada por la proyección
 ];
 export const estadoCanon = (t) => { const s = normalizar(t); for (const [re, e] of ESTADOS) if (re.test(s)) return e; return s; };
 
@@ -216,5 +253,7 @@ export function indiceDeEvidencia({ figs = [], datoProyectado = null, ejesDelTen
   const estadosDe = (entidad) => { const e = resolverEntidad(entidad); const k = normalizar(e ? e.nombre : entidad); return estados.filter((x) => normalizar(x.entidad) === k); };
   const dias = datoProyectado && datoProyectado.dias ? datoProyectado.dias : {};
 
-  return { entidades, resolverEntidad, figs: F, buscarFigs, figsDeMetrica, rankingDe, rankings, tamanoDelEje, estados, estadosDe, dias, casa: _casa };
+  /* los conjuntos OFICIALES de la proyección («carga comercial alta» = el detector): una definición por métrica/eje */
+  const conjuntos = datoProyectado && datoProyectado.conjuntos && typeof datoProyectado.conjuntos === "object" ? datoProyectado.conjuntos : {};
+  return { entidades, resolverEntidad, figs: F, buscarFigs, figsDeMetrica, rankingDe, rankings, conjuntos, tamanoDelEje, estados, estadosDe, dias, casa: _casa };
 }

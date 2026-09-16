@@ -21,6 +21,7 @@ import { leerClausula } from "../oracle/lectorDeClausula.js";
 import { metricasEn } from "../oracle/guardC.js";
 import { parseFigures } from "../boleta.js";
 import { conceptosDe } from "./evidencia.js";
+import { ubicarFragmento } from "./ubicar.js";   // fase 4: el fragmento declarado se ubica con tolerancia (markdown, comillas, un paréntesis omitido)
 const _PUNTOS = /(\d+(?:[.,]\d+)?)\s+puntos?\b/gi;
 /* las cifras de un tramo: las del canon (parseFigures) + «N puntos» (pp) + los enteros con separador de miles («1.194») como conteos */
 function _cifrasDe(t) {
@@ -54,12 +55,11 @@ export function consistencia(prosa, afirmaciones, { nombres = [] } = {}) {
   const norm = normalizarAfirmaciones(afirmaciones);
   for (const { afirmacion: a } of norm) {
     if (!a.texto) continue;
-    const tN = _dec(normalizar(a.texto));
-    const pos = _ubicar(sN, tN);
-    if (pos < 0) { out.push({ id: a.id, motivo: `declaracion-ajena: el fragmento «${a.texto.slice(0, 60)}» no está en la respuesta`, texto: a.texto }); continue; }
+    const u = ubicarFragmento(s, a.texto, { nombres });
+    if (!u) { out.push({ id: a.id, motivo: `declaracion-ajena: el fragmento «${a.texto.slice(0, 60)}» no está en la respuesta`, texto: a.texto }); continue; }
     if (!FACTUALES.has(a.tipo)) continue;
-    /* la oración de la prosa donde cae el fragmento (sobre el texto original, por posición aproximada) */
-    const posOrig = Math.min(s.length - 1, Math.round(pos * (s.length / Math.max(1, sN.length))));
+    /* la oración de la prosa donde cae el fragmento (sobre el texto original) */
+    const posOrig = Math.min(s.length - 1, u.ini);
     const ini = Math.max(s.lastIndexOf(". ", posOrig), s.lastIndexOf("\n", posOrig), 0);
     let fin = s.indexOf(". ", posOrig + Math.max(1, a.texto.length)); if (fin < 0) fin = s.length;
     const oracion = s.slice(ini, fin);
@@ -70,7 +70,9 @@ export function consistencia(prosa, afirmaciones, { nombres = [] } = {}) {
       const enFrase = new Set(cifras.map((f) => f.canon));
       for (const v of valores) {
         const c = String(v.canon).replace(/\$/g, "");
-        const mismoRaw = cifras.some((f) => Number.isFinite(v.raw) && Math.abs(f.raw - v.raw) < 1e-9 && (f.unit === v.unidad || (/^(?:pct|pp)$/.test(f.unit) && /^(?:pct|pp)$/.test(v.unidad)) || f.unit === "count" || v.unidad === "count"));
+        /* el signo dicho en palabras: «cayó $422K» declara «-$422K» — la magnitud está en la frase y la dirección la pone el verbo */
+        const signoEnPalabras = Number.isFinite(v.raw) && v.raw < 0 && (_VERBO_DIRECCION.test(oracion) || /\b(?:menos|ca[ií]da|baja|negativ|p[eé]rdida|retroceso|cay[oó])\b/i.test(oracion));
+        const mismoRaw = cifras.some((f) => Number.isFinite(v.raw) && (Math.abs(f.raw - v.raw) < 1e-9 || (signoEnPalabras && Math.abs(Math.abs(f.raw) - Math.abs(v.raw)) < 1e-9)) && (f.unit === v.unidad || (/^(?:pct|pp)$/.test(f.unit) && /^(?:pct|pp)$/.test(v.unidad)) || f.unit === "count" || v.unidad === "count"));
         if (enFrase.size && !enFrase.has(c) && !mismoRaw) out.push({ id: a.id, motivo: `declaracion-inconsistente: declaraste ${v.texto} y la frase «${a.texto.slice(0, 60)}» no la trae`, texto: a.texto });
       }
     }
@@ -120,28 +122,33 @@ export function juzgarDeclaracion(prosa, afirmaciones, ctx = {}) {
     violations.push({ kind: "sin-declaracion", detail: `sin-declaracion: tu respuesta afirma hechos (${afirmados} cifras, órdenes o relaciones) y no trae el bloque <<AFIRMACIONES>> … <<FIN>>: declara cada afirmación de hecho con su tipo, sujeto, métrica, valor/orden, universo y período, y su fragmento literal.`, texto: "" });
     return { ok: false, violations, veredictos: [], omisiones: [], medidas };
   }
-  /* 1 · consistencia (lo derivado de las figs por el propio peldaño no se contrasta consigo mismo) */
-  const incons = ctx.derivada ? [] : consistencia(s, afirmaciones, { nombres });
+  /* 1 · veredictos — y la forma canónica (fase 4): el verificador resuelve la forma y devuelve la lista con la que se juzga todo lo demás */
+  const { veredictos, resumen, afirmaciones: canonicas } = verificarAfirmaciones(afirmaciones, { ...(ctx.indice ? { indice: ctx.indice } : { figs: ctx.figs, datoProyectado: ctx.datoProyectado, ejesDelTenant: ctx.ejesDelTenant }), calculos: Array.isArray(ctx.calculos) ? ctx.calculos : [] });
+  const declaradas = Array.isArray(canonicas) ? canonicas : afirmaciones;
+  /* 2 · consistencia (lo derivado de las figs por el propio peldaño no se contrasta consigo mismo) */
+  const incons = ctx.derivada ? [] : consistencia(s, declaradas, { nombres });
   for (const x of incons) violations.push({ kind: /ajena/.test(x.motivo) ? "declaracion-ajena" : "declaracion-inconsistente", detail: x.motivo, texto: x.texto, id: x.id });
-  /* 2 · veredictos */
-  const { veredictos, resumen } = verificarAfirmaciones(afirmaciones, { ...(ctx.indice ? { indice: ctx.indice } : { figs: ctx.figs, datoProyectado: ctx.datoProyectado, ejesDelTenant: ctx.ejesDelTenant }), calculos: Array.isArray(ctx.calculos) ? ctx.calculos : [] });
   for (const v of veredictos) {
-    if (v.veredicto === "falsa") violations.push({ kind: "afirmacion-falsa", detail: `afirmacion-falsa: declaraste «${v.texto.slice(0, 70)}» (${_resumenDe(v, afirmaciones)}) y es FALSA: ${v.motivo}${v.verdad ? ` · La boleta: ${v.verdad}` : ""}. Corrige esa frase con la cifra o el orden de la boleta, o quítala.`, texto: v.texto, id: v.id });
+    if (v.veredicto === "falsa") violations.push({ kind: "afirmacion-falsa", detail: `afirmacion-falsa: declaraste «${v.texto.slice(0, 70)}» (${_resumenDe(v, declaradas)}) y es FALSA: ${v.motivo}${v.verdad ? ` · La boleta: ${v.verdad}` : ""}. Corrige esa frase con la cifra o el orden de la boleta, o quítala.`, texto: v.texto, id: v.id });
     else if (v.veredicto === "no-verificable") violations.push({ kind: /lectura-encubre-hecho/.test(v.motivo) ? "lectura-encubre-hecho" : "afirmacion-no-verificable", detail: /lectura-encubre-hecho/.test(v.motivo) ? `${v.motivo}.` : `afirmacion-no-verificable: «${v.texto.slice(0, 70)}» no se puede verificar: ${v.motivo}. Sin evidencia en tus resultados no se sirve: quítala, o dila como lectura con sello y sin la cifra ni el orden.`, texto: v.texto, id: v.id });
   }
-  /* 3 · omisiones */
-  const O = omisiones(s, afirmaciones);
+  /* 3 · omisiones (sobre la lista canónica: un grupo partido en cifras cubre cada cifra) */
+  const O = omisiones(s, declaradas);
   for (const o of O.omisiones) violations.push({ kind: "afirmacion-no-declarada", detail: `afirmacion-no-declarada: «${o.span}» ${o.clase.startsWith("hecho-como-lectura") ? "está declarado solo como lectura y es un hecho" : o.clase.startsWith("significado") ? `es ${o.clase.split(":")[1]} y no está declarado como tal` : "no está declarado"}: decláralo (con su tipo, sujeto, métrica, universo y período) o quítalo.`, texto: o.span, clase: o.clase });
   const medidas = {
     declaradas: veredictos.length, factuales: veredictos.filter((v) => FACTUALES.has(v.tipo)).length,
     verdaderas: resumen.verdaderas, falsas: resumen.falsas, noVerificables: resumen.noVerificables, selladas: resumen.selladas,
     inconsistentes: incons.length, puntos: O.afirmados, cubiertos: O.cubiertos, omitidos: O.omisiones.length, sinDeclaracion: false, derivada: !!ctx.derivada,
   };
-  return { ok: violations.length === 0, violations, veredictos, omisiones: O.omisiones, medidas };
+  return { ok: violations.length === 0, violations, veredictos, omisiones: O.omisiones, medidas, afirmaciones: declaradas };
 }
 
 function _resumenDe(v, afirmaciones) {
   const a = (Array.isArray(afirmaciones) ? afirmaciones : []).find((x, i) => String(x.id || `a${i + 1}`) === v.id) || {};
+  if (v.resuelta && v.resuelta.length) return _resumenBase(a, v) + ` · resuelta: ${v.resuelta.join("; ")}`;
+  return _resumenBase(a, v);
+}
+function _resumenBase(a, v) {
   const s = Array.isArray(a.sujeto) ? a.sujeto.join(", ") : a.sujeto && typeof a.sujeto === "object" ? a.sujeto.descripcion : a.sujeto;
   return [v.tipo, s, a.metrica, a.valor && (typeof a.valor === "object" ? a.valor.texto : a.valor), a.orden && `orden ${a.orden.forma}${a.orden.k ? " " + a.orden.k : ""}${a.orden.vs ? " vs " + a.orden.vs : ""}`, a.universo].filter(Boolean).join(" · ");
 }

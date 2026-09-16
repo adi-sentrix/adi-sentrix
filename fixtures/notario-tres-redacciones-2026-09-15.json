@@ -1768,8 +1768,8 @@
   {
    "id": "tr-074",
    "contexto": "ambos",
-   "esperado": "no-verificable",
-   "motivo": "sin-evidencia: la boleta trae el capital en sobrestock ($10K) pero no qué SKU lo componen",
+   "esperado": "falsa",
+   "motivo": "conteo-falso: son 1 (estados «sobrestock»), no 4 · Fase 4 (2026-09-16): la proyección declara los estados de la Mesa Capital por SKU y la alerta del dato («crítico»); lo que era una limitación de la evidencia ya no lo es.",
    "afirmacion": {
     "tipo": "conteo",
     "conteo": {
@@ -1783,7 +1783,8 @@
     "Cuatro de los 13 SKU están en sobrestock.",
     "En sobrestock hay 4 SKU.",
     "Los SKU en sobrestock son cuatro."
-   ]
+   ],
+   "verdad": "Solo 1 SKU está en sobrestock (PHI-IRON-PRO, $9.8K): la proyección declara el estado de cada SKU por la misma función que la Mesa Capital."
   },
   {
    "id": "tr-075",
@@ -2173,8 +2174,8 @@
   {
    "id": "tr-092",
    "contexto": "ambos",
-   "esperado": "no-verificable",
-   "motivo": "sin-evidencia: la boleta trae el capital en riesgo de quiebre ($36K) pero no declara qué SKU están en ese estado",
+   "esperado": "verdadera",
+   "motivo": "SAM-REF500L está en riesgo de quiebre (rotación 9.8x ≥ 6 y 17 días ≤ 20): la proyección lo declara · Fase 4 (2026-09-16): la proyección declara los estados de la Mesa Capital por SKU y la alerta del dato («crítico»); lo que era una limitación de la evidencia ya no lo es.",
    "afirmacion": {
     "tipo": "estado",
     "sujeto": "SAM-REF500L",

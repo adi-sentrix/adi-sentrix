@@ -45,8 +45,9 @@ import { composeNoDataMessage } from "./narrationBlocks.js";   // el último rec
 import { simboloMoneda, rotuloMoneda, etiquetaSinDeclarar } from "../../config/moneda.js";
 import { factorComercialDe } from "../../config/contract/figureType.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
-import { figsUmbralFocos } from "../specRetrieval.js";
+import { figsUmbralFocos, descomposicionDeBrecha } from "../specRetrieval.js";   // `descomposicionDeBrecha`: la ÚNICA definición de «carga comercial alta» (el detector) — el Notario resuelve los conjuntos desde acá
 import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";   // los rankings de COBRANZA salen de la MISMA mesa que la herramienta `cobranza` y la pestaña Flujo (owner 2026-09-14)   // el umbral de materialidad, los MISMOS dos números que interpola `declaracionUmbralFocos` (2026-09-14)
+import { diagnoseInventarioSku } from "../diagnosis/economicDiagnosis.js";   // el estado de cada SKU: la MISMA función que la Mesa Capital y la boleta del inventario (Notario semántico, fase 4)
 
 // ── EL FORMATEADOR DE LA BOLETA, SIN UN SEGUNDO FORMATEADOR ────────────────────────────────────────────────────
 // parseFigures canoniza toda cifra con el _fmtC privado de boleta.js (canon = `unit:_fmtC(raw,unit)`). Darle el
@@ -228,6 +229,10 @@ function _construir(scenario) {
       /* ⚠️ el término iba con UNA barra invertida («carga\\s+comercial» dentro de una cadena JS es «cargas+comercial»): el ranking de carga
        * por marca existía pero no casaba nunca — medido al declarar los de cobranza (2026-09-14). Mismos términos que el eje cliente. */
       carga:        _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "mayor", "marcas.pctRebate", ["carga\\s+comercial", "carga"], _LEX.carga),
+      /* la brecha al benchmark por marca: LA MISMA cuenta que por cliente (benchmarkOf − margen, con signo: una marca sobre el benchmark
+       * va negativa). Sin ella, «LG es la mayor brecha en puntos de toda la cartera» (fase 3 del Notario, 2026-09-15) no tenía contra qué
+       * medirse y casaba, por vocabulario, con las medidas en $ de cerrar brecha de 4 marcas — otra métrica y otra unidad. */
+      brecha:       _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "mayor", "benchmarkOf(marca) − marcas.margen", ["brecha\\s+(?:al|contra\\s+el|frente\\s+al|respecto\\s+(?:al|del))\\s+benchmark", "brecha\\s+de\\s+margen", "distancia\\s+(?:al\\s+benchmark|a\\s+la\\s+referencia)", "brecha\\s+al\\s+margen", "brecha(?!\\s+(?:de|en|por)\\s+(?:contribuci[óo]n|precio|costo|carga|dinero|d[óo]lares|pesos|plata|monto|venta|volumen|\\$))"]),
     },
     /* EL EJE SKU · el hueco que dejó la corrida de adopción: el cerebro acertó sus tres superlativos de SKU, pero
      * por mérito suyo — el muro no tenía contra qué medirlos. Son los del universo INVENTARIO (foto de hoy).
@@ -504,6 +509,7 @@ function _construir(scenario) {
     if (Number.isFinite(m.margen)) rankings.marca.margen.filas.push({ entidad: m.nombre, valor: m.margen });
     if (Number.isFinite(m.contribucion)) rankings.marca.contribucion.filas.push({ entidad: m.nombre, valor: m.contribucion });
     if (Number.isFinite(m.pctRebate)) rankings.marca.carga.filas.push({ entidad: m.nombre, valor: m.pctRebate });
+    if (Number.isFinite(m.margen)) { const _vara = benchmarkOf(m); if (Number.isFinite(_vara)) rankings.marca.brecha.filas.push({ entidad: m.nombre, valor: Math.round((_vara - m.margen) * 10) / 10 }); }
     L.push(`- ${m.nombre} — ${_L.ventas} ${F(_moneyK(m.venta), D, undefined, "ventas")} · ${_L.margen} ${F(_pct1(m.margen), D, undefined, "margen")} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D, undefined, "contribucion")} · ${_L.costo} ${F(_moneyK(m.costo), D, undefined, "costo")} · ${_L.carga} ${F(_pct1(m.pctRebate), D, undefined, "carga")} · ${m.unidades} unidades · familia ${m.sfamilia}.`);
   }
   counts.add(f.sfamiliasMargen.length);
@@ -540,6 +546,10 @@ function _construir(scenario) {
     if (_frenado) {
       estados.push({ entidad: s.sku, estado: "frenado", bodega: s.bodega });
     }
+    /* los OTROS tres estados de la Mesa Capital (riesgo de quiebre · sobrestock · capital sano), por la misma función que los pinta; y la
+     * alerta del dato («crítico»). Así «PHI-SHAVER9 está en riesgo de quiebre» o «MAK-COMP-AIR está marcado como crítico» se verifican. */
+    { const e = diagnoseInventarioSku(s); const nombre = { riesgo_quiebre: "riesgo de quiebre", sobrestock: "sobrestock", capital_sano: "capital sano" }[e]; if (nombre) estados.push({ entidad: s.sku, estado: nombre, bodega: s.bodega }); }
+    if (String(s.alerta || "").toLowerCase() === "crit") estados.push({ entidad: s.sku, estado: "crítico", bodega: s.bodega });
     if (Number.isFinite(s.stockUSD) && s.bodega) {
       _capitalBodega.set(s.bodega, (_capitalBodega.get(s.bodega) || 0) + s.stockUSD);
       if (_frenado) _frenadoBodega.set(s.bodega, (_frenadoBodega.get(s.bodega) || 0) + s.stockUSD);
@@ -595,7 +605,18 @@ function _construir(scenario) {
   L.push("LO QUE ESTE DATO NO TIENE (verificado — quien prometa responder esto, inventa):");
   for (const h of _HUECOS) L.push(`- ${h}`);
 
-  return { texto: L.join("\n"), figs, counts: [...counts], estados, rankings, dias, kpisLineas, kpisFigs };
+  /* ── LOS CONJUNTOS OFICIALES (Notario semántico, fase 4 · owner 2026-09-16: una sola definición por métrica/eje) ──
+   * «carga comercial alta» es el universo del DETECTOR (carga > nivel declarado y exceso en $ ≥ piso), calculado por la misma función que
+   * lo publica en la boleta; las cuentas que solo exceden el nivel son OTRO conjunto y se llaman «sobre el nivel declarado de carga». */
+  const conjuntos = {};
+  try {
+    const D = descomposicionDeBrecha(scenario);
+    if (D && Array.isArray(D.filas)) {
+      conjuntos["carga comercial alta"] = { eje: "cliente", entidades: D.filas.filter((x) => x.cargaMaterial).map((x) => x.entidad), fuente: `detector de carga alta: carga > nivel declarado (${D.nivelCarga}%) y exceso ≥ piso de materialidad` };
+      conjuntos["sobre el nivel declarado de carga"] = { eje: "cliente", entidades: D.filas.filter((x) => typeof x.carga === "number" && x.carga > D.nivelCarga).map((x) => x.entidad), fuente: `carga > nivel declarado (${D.nivelCarga}%), sin piso de materialidad` };
+    }
+  } catch { /* sin contrato comercial en este pack: no hay conjunto que declarar */ }
+  return { texto: L.join("\n"), figs, counts: [...counts], estados, rankings, dias, kpisLineas, kpisFigs, conjuntos };
 }
 
 /* LA VARA ES PARTE DE LA CLAVE (Notario semántico, fase 2): el criterio del usuario («mi margen mínimo es 25%») muta el benchmark en runtime y
@@ -622,7 +643,7 @@ export function proyectarDatoNegocio(scenario = ESCENARIO_INICIAL) {
  * cada cifra de la proyección con los tokens dueños que la validan por cercanía. MISMO recorrido que el texto. */
 export function cifrasDelDato(scenario = ESCENARIO_INICIAL) {
   const c = _cacheado(String(scenario || ESCENARIO_INICIAL));
-  return { figs: c.figs, counts: c.counts, estados: c.estados, rankings: c.rankings, dias: c.dias, kpis: c.kpisFigs };   // `kpis`: los KPIs del negocio con su rótulo (Notario semántico)
+  return { figs: c.figs, counts: c.counts, estados: c.estados, rankings: c.rankings, dias: c.dias, kpis: c.kpisFigs, conjuntos: c.conjuntos || {} };   // `kpis`: los KPIs del negocio con su rótulo · `conjuntos`: los conjuntos oficiales (Notario semántico)
 }
 
 /** kpisDelNegocio(scenario) → las líneas de KPI de la proyección, VERBATIM (header + 3-4 líneas).

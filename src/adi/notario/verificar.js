@@ -22,37 +22,17 @@ import { parseFigures } from "../boleta.js";
 import { metricasEn } from "../oracle/guardC.js";
 import { rangoDeMatiz } from "../agente/atributosYRelaciones.js";
 import { normalizarAfirmaciones, normalizar, menosAscii } from "./afirmacion.js";
-import { indiceDeEvidencia, tokens, numerosEn, ES_TODO, estadoCanon, conceptosDe } from "./evidencia.js";
+import { resolverDeclaraciones } from "./resolutor.js";   // fase 4: la casa canoniza la forma de la declaración antes del veredicto
+import { indiceDeEvidencia, tokens, numerosEn, ES_TODO, estadoCanon, conceptosDe, mismoValor as _mismoValor, unidadCompatible as _u, necesitaUniverso as _necesitaUniverso } from "./evidencia.js";
 
 export const VEREDICTOS = ["verdadera", "falsa", "no-verificable", "sellada"];
 
-const _COMPAT = { pct: "tasa", pp: "tasa", money: "money", days: "days", ratio: "ratio", count: "count" };
-const _u = (x) => _COMPAT[x || "count"] || x;
 const _fmt = (f) => `${f.label} = ${f.fig.value}`;
 const _lista = (l) => (l || []).join(", ");
 const _decimales = (texto) => { const m = /\d+[.,](\d+)\s*(?:%|pp|x|d\b)/i.exec(String(texto || "")); return m ? m[1].length : (/\d+\s*(?:%|pp|x|d\b)/i.test(String(texto || "")) ? 0 : null); };
 const _nom = (s) => (s === "negocio" ? "el negocio" : Array.isArray(s) ? s.join(", ") : s && typeof s === "object" ? s.descripcion : String(s));
 
-/* _mismoValor(valorDeclarado, raw, unidad) → true si la cifra dicha es la de la boleta: mismo canon (el formateador de la casa) o dentro de
- * la tolerancia del muro (tolCalculo). Una cifra DIRECTA de la boleta se dice como la boleta la trae («21.5%», no «22%» — que es la de
- * Falabella); el redondeo a media unidad solo se admite en lo CALCULADO (derivadas y relaciones), donde el modelo redondea. */
-function _mismoValor(v, raw, unidad, textoFig = "") {
-  /* la identidad verbatim: dicha EXACTAMENTE como la boleta la trae, es la de la boleta (una serie del pack imprime «$22.560» para 22 560
-   * y el canon del punto la leería como 22,56) */
-  if (textoFig && v && v.texto && menosAscii(String(v.texto)).trim() === menosAscii(String(textoFig)).trim()) return true;
-  if (!v || !Number.isFinite(v.raw) || !Number.isFinite(raw)) return false;
-  const ud = v.unidad || "count", uf = unidad || "count";
-  if (_u(ud) !== _u(uf)) return false;
-  /* una magnitud sin signo en la boleta («2.0pp» del supuesto de carga, que el emisor publica sin dirección) es la cifra dicha con el signo del
-   * usuario («-2pp»): en pp y % se compara el valor absoluto cuando la fig no trae signo */
-  if ((uf === "pp" || uf === "pct") && v.raw < 0 && raw > 0 && textoFig && !/^\s*[-+−]/.test(String(textoFig)) && Math.abs(Math.abs(v.raw) - raw) <= tolCalculo(raw, uf)) return true;
-  if (uf === "money" || uf === "days" || uf === "ratio") {
-    const c = parseFigures(uf === "money" ? `$${raw}` : uf === "days" ? `${raw}d` : `${raw}x`);
-    if (c.length && v.canon && c[0].canon.replace(/\$/g, "") === String(v.canon).replace(/\$/g, "")) return true;
-  }
-  const tol = uf === "count" ? 0 : tolCalculo(raw, uf);
-  return Math.abs(v.raw - raw) <= tol;
-}
+/* _mismoValor y _u viven en evidencia.js (`mismoValor`, `unidadCompatible`): una sola tolerancia para el verificador y el resolutor */
 /* la tolerancia de lo CALCULADO: la del muro, y al menos media unidad de la precisión dicha («36 %» cubre 35.5–36.5; «46.9 %» no cubre 47.3) */
 const _tolCalculada = (v, unidad) => { const d = _decimales(v && v.texto); return Math.max(tolCalculo(v ? v.raw : 0, unidad), d != null ? 0.5 * Math.pow(10, -d) + 1e-9 : 0); };
 
@@ -84,10 +64,17 @@ export function encubreHecho(texto) {
 export function verificarAfirmaciones(afirmaciones, ctx = {}) {
   const indice0 = ctx.indice || indiceDeEvidencia({ figs: ctx.figs || (ctx.ledger && ctx.ledger.figs) || [], datoProyectado: ctx.datoProyectado || null, ejesDelTenant: ctx.ejesDelTenant || null });
   /* los cálculos que el muro recomputó y autorizó en este mismo texto ([[CALCULO]]) viajan con el índice: son evidencia de una cifra declarada */
-  const indice = Array.isArray(ctx.calculos) && ctx.calculos.length ? { ...indice0, calculos: ctx.calculos } : indice0;
-  const todas = normalizarAfirmaciones(afirmaciones);
-  const veredictos = todas.map(({ afirmacion: a, faltas }) => {
-    const base = { id: a.id, tipo: a.tipo, texto: a.texto, faltas };
+  const indice1 = Array.isArray(ctx.calculos) && ctx.calculos.length ? { ...indice0, calculos: ctx.calculos } : indice0;
+  /* los conjuntos que la evidencia identifica, para el resolutor (la misma lista con la que se resuelve un universo) */
+  const indice = { ...indice1, conjuntosConocidos: () => _conjuntosConocidos(indice1) };
+  /* LA CASA CANONIZA LA FORMA (fase 4): cada afirmación se traduce a su forma canónica antes del veredicto — sujeto-concepto → negocio +
+   * métrica, universo dentro de la métrica, grupo con lista de valores → cifras, unidad implícita, dirección leída del fragmento. Nunca
+   * cambia una cifra ni el estándar de verdad (ver resolutor.js). `ctx.resueltas` evita resolver dos veces. */
+  const resueltas = ctx.resueltas ? afirmaciones : resolverDeclaraciones(afirmaciones, indice);
+  const todas = normalizarAfirmaciones(resueltas);
+  const veredictos = todas.map(({ afirmacion: a, faltas }, k) => {
+    const src = resueltas[k] || {};
+    const base = { id: a.id, tipo: a.tipo, texto: a.texto, faltas, ...(Array.isArray(src._resuelta) && src._resuelta.length ? { resuelta: src._resuelta } : {}) };
     if (faltas.length) return { ...base, veredicto: "no-verificable", motivo: `declaracion-incompleta: falta ${faltas.join("; ")}`, verdad: "", evidencia: [] };
     try {
       return { ...base, ..._verificar(a, indice, todas) };
@@ -97,7 +84,7 @@ export function verificarAfirmaciones(afirmaciones, ctx = {}) {
   });
   const resumen = { total: veredictos.length, verdaderas: 0, falsas: 0, noVerificables: 0, selladas: 0 };
   for (const v of veredictos) { if (v.veredicto === "verdadera") resumen.verdaderas++; else if (v.veredicto === "falsa") resumen.falsas++; else if (v.veredicto === "sellada") resumen.selladas++; else resumen.noVerificables++; }
-  return { veredictos, resumen };
+  return { veredictos, resumen, afirmaciones: resueltas };
 }
 
 function _verificar(a, I, todas) {
@@ -149,13 +136,7 @@ const _periodoCasa = (declarado, f, metrica = "") => {
   if (/\bmes\b|trimestre|semana|semestre|mensual/.test(p)) return /\bmes\b|trimestre|semana|semestre|mensual/.test(fp);
   return !/anterior|pasado|previo/.test(normalizar(f.concepto));
 };
-/* un agregado que NECESITA universo declarado: un subtotal, un grupo, un «resto de» — no el promedio o el total del negocio entero */
-const _necesitaUniverso = (f, sujeto) => {
-  if (/(?:^|· )total$/.test(f.conceptoNorm) || (sujeto === "negocio" && /promedio/.test(f.conceptoNorm) && !/subtotal/.test(f.conceptoNorm))) return false;   // «Saldo vencido · total», «Margen promedio»: el todo
-  /* «Capital frenado · subtotal» a secas (sin «N SKU», sin grupo, sin cobertura) es el total de su categoría: no hay conjunto que declarar */
-  if (/(?:^|· )subtotal$/.test(f.conceptoNorm) && !f.grupo && f.n == null && !f.cobertura) return false;
-  return !!(f.grupo || f.n != null || /subtotal|resto de/.test(f.conceptoNorm) || (f.cobertura && f.cobertura.alcance && !/total|negocio|global/i.test(String(f.cobertura.alcance))));
-};
+/* _necesitaUniverso vive en evidencia.js (`necesitaUniverso`): la comparten el verificador y el resolutor */
 /* _puntajeUniverso(declarado, f) → cuántas palabras del universo/descripción declarado están en el CALIFICADOR del agregado (no en su contexto):
  * «los que caen» elige «Markup promedio · los que caen» y no «· sanos» aunque el contexto de este nombre el benchmark */
 const _puntajeUniverso = (declarado, f) => { const tu = tokens(Array.isArray(declarado) ? declarado.join(" ") : String(declarado || "")); const tf = tokens(f.calificador + " " + f.conceptoNorm); return tu.filter((t) => tf.some((x) => x.startsWith(t.slice(0, 5)))).length; };
@@ -168,7 +149,7 @@ function _conjuntosConocidos(I) {
   const out = [];
   const porEstado = new Map();
   for (const x of I.estados) { const e = estadoCanon(x.estado); if (!porEstado.has(e)) porEstado.set(e, new Set()); porEstado.get(e).add(normalizar(x.entidad)); }
-  for (const [e, set] of porEstado) out.push({ nombre: e, eje: "sku", set, fuente: `estados «${e}»`, re: new RegExp(e === "inmovilizado" ? "\\b(?:inmoviliz|deten|parad)" : e === "frenado" ? "\\bfrenad" : e === "sobrestock" ? "\\bsobrestock" : e === "riesgo de quiebre" ? "\\bquiebre" : "\\bsan[oa]s?\\b", "i") });
+  for (const [e, set] of porEstado) out.push({ nombre: e, eje: "sku", set, fuente: `estados «${e}»`, re: new RegExp(e === "inmovilizado" ? "\\b(?:inmoviliz|deten|parad)" : e === "frenado" ? "\\bfrenad" : e === "sobrestock" ? "\\bsobrestock" : e === "riesgo de quiebre" ? "\\bquiebre" : e === "critico" ? "\\bcr[ií]tic" : "\\bsan[oa]s?\\b", "i") });
   /* «con capital frenado» por eje, desde las figs «<entidad> · Capital frenado» de la boleta: las bodegas no tienen estado en la proyección
    * (los estados son de SKU); para SKU manda el estado de la proyección si lo hay */
   const frenadoPorEje = new Map();
@@ -194,8 +175,18 @@ function _conjuntosConocidos(I) {
     out.push({ nombre: "SKU sobre el benchmark", eje: "sku", set: new Set([...mSku].filter(([, v]) => v >= bench.raw).map(([e]) => normalizar(e))), fuente: "margen del SKU ≥ benchmark", re: /(?:sobre|encima|supera|mayor)[^.]{0,25}(?:benchmark|referencia\s+de\s+margen|piso\s+de\s+margen)/i });
   }
   if (R.saldo_vencido) out.push({ nombre: "con saldo vencido", eje: "cliente", set: new Set(R.saldo_vencido.filas.filter((x) => +x.valor > 0).map((x) => normalizar(x.entidad))), fuente: "saldo vencido > 0", re: /vencid|mora\b/i });
+  /* «CARGA COMERCIAL ALTA» TIENE UNA SOLA DEFINICIÓN (owner 2026-09-16): la del detector, publicada por la proyección (`conjuntos`) desde la misma
+   * función que la boleta. Va primero: «cuentas con carga alta» es ESTE conjunto. Las que solo exceden el nivel declarado son otro conjunto,
+   * con otro nombre («sobre el nivel declarado de carga»), y su patrón ya no reconoce «alta». */
+  const oficial = I.conjuntos && I.conjuntos["carga comercial alta"];
+  /* con `tokens` y `n`, como un grupo de la boleta: «las cuentas con carga alta» resuelve al oficial aunque el subtotal no viaje en la boleta
+   * de ese turno. ⚠️ «sobre el nivel declarado» se lee LITERAL (carga > nivel: el crudo, 9), aunque el rótulo del subtotal describa así a
+   * sus 6 — esa redacción del rótulo queda anotada como decisión de producto pendiente (una sola verdad por frase) */
+  if (oficial && Array.isArray(oficial.entidades) && oficial.entidades.length) out.push({ nombre: "carga comercial alta", eje: oficial.eje || "cliente", set: new Set(oficial.entidades.map(normalizar)), fuente: oficial.fuente || "detector de carga alta", n: oficial.entidades.length, tokens: tokens("carga comercial alta"), re: /carga(?:\s+comercial)?\s+alta|alta\s+carga|carga[^.]{0,25}\balta\b|exceso\s+de\s+carga\s+material|carga\s+(?:comercial\s+)?excedida/i });
   const nivel = I.figs.find((f) => /nivel de carga/.test(f.conceptoNorm) && !f.entidad);
-  if (R.carga && nivel) out.push({ nombre: "sobre el nivel de carga", eje: "cliente", set: new Set(R.carga.filas.filter((x) => +x.valor > nivel.raw).map((x) => normalizar(x.entidad))), fuente: "carga > nivel declarado", re: /carga[^.]{0,40}(?:sobre|exced|encima|alta)|(?:sobre|exced|encima)[^.]{0,30}(?:carga|nivel\s+(?:de\s+referencia|declarado))|nivel\s+de\s+(?:referencia|carga)/i });
+  const crudo = I.conjuntos && I.conjuntos["sobre el nivel declarado de carga"];
+  if (crudo && Array.isArray(crudo.entidades) && crudo.entidades.length) out.push({ nombre: "sobre el nivel declarado de carga", eje: crudo.eje || "cliente", set: new Set(crudo.entidades.map(normalizar)), fuente: crudo.fuente || "carga > nivel declarado", re: /(?:sobre|exced|encima|superan?)[^.]{0,30}(?:nivel\s+(?:de\s+referencia|declarado|de\s+carga)|carga)(?![^.]{0,12}\balta\b)|nivel\s+de\s+(?:referencia|carga)(?![^.]{0,12}\balta\b)/i });
+  else if (R.carga && nivel) out.push({ nombre: "sobre el nivel declarado de carga", eje: "cliente", set: new Set(R.carga.filas.filter((x) => +x.valor > nivel.raw).map((x) => normalizar(x.entidad))), fuente: "carga > nivel declarado", re: /(?:sobre|exced|encima|superan?)[^.]{0,30}(?:nivel\s+(?:de\s+referencia|declarado|de\s+carga)|carga)(?![^.]{0,12}\balta\b)|nivel\s+de\s+(?:referencia|carga)(?![^.]{0,12}\balta\b)/i });
   /* contra el PLAN: la brecha al presupuesto por cliente («vs ppto» / «Variación vs presupuesto en $») — antes que «los que caen» a secas, que es
    * contra el año anterior y no se lleva un predicado que nombra el plan */
   const varPpto = new Map(); for (const f of I.figs) if (f.entidad && _FIG_VARIACION_PPTO(f) && Number.isFinite(f.raw) && !varPpto.has(f.entidad)) varPpto.set(f.entidad, f.raw);
@@ -242,6 +233,8 @@ function _conjuntoDeUniverso(u, I, eje, metrica = "") {
   if (Array.isArray(u)) return { set: new Set(u.map((e) => { const r = I.resolverEntidad(e); return normalizar(r ? r.nombre : e); })), fuente: "lista declarada" };
   const s = String(u || "");
   if (!s.trim() || ES_TODO.test(s)) return { set: null, fuente: "el eje entero" };
+  /* «la cartera», «la cartera de clientes», «toda la cartera comercial»: los clientes, todos (fase 4: «la más alta de toda la cartera») */
+  if ((!eje || eje === "cliente") && /^(?:toda\s+)?(?:la\s+)?cartera(?:\s+(?:de\s+clientes|de\s+cuentas|comercial|entera|completa|actual))?\s*$/i.test(s.trim())) return { set: null, fuente: "el eje entero" };
   /* «las bodegas del inventario», «los clientes de la cartera», «todos los SKU»: el eje entero */
   if (/^(?:las?|los|todos?|todas?)\s+(?:las?\s+|los\s+)?(?:bodegas?|clientes?|cuentas?|skus?|marcas?|familias?|meses)(?:\s+(?:del|de\s+la|de\s+los|de\s+las|en)\s+(?:negocio|cartera|inventario|empresa|demo|a[ñn]o))?\s*$/i.test(s.trim())) return { set: null, fuente: "el eje entero" };
   const total = I.tamanoDelEje(eje);
@@ -519,6 +512,8 @@ function _filas(a, I, eje) {
       for (const f of I.figs) if (f.entidad && !vistas.has(f.entidad) && _FIG_VARIACION_PPTO(f) && (!eje || !f.eje || f.eje === eje)) fs.push(f);
     }
     if (!fs.length) return { error: `sin-evidencia: no hay ranking ni cifras de «${a.metrica}» por ${eje} en la boleta` };
+    /* un ranking es de UNA unidad: si la casación juntó «Carga comercial» (%) con «Carga comercial alta» ($), manda la unidad mayoritaria */
+    { const cuenta = new Map(); for (const f of fs) cuenta.set(f.unidad || "?", (cuenta.get(f.unidad || "?") || 0) + 1); const [uMax] = [...cuenta].sort((x, y) => y[1] - x[1])[0]; if (cuenta.size > 1) fs = fs.filter((f) => (f.unidad || "?") === uMax); }
     const vistos = new Map(); for (const f of fs) if (!vistos.has(f.entidad)) vistos.set(f.entidad, f);
     filas = [...vistos.values()].map((f) => ({ entidad: f.entidad, valor: f.raw }));
     universo = `${filas.length} ${eje}s con «${a.metrica}» en la boleta`;
@@ -597,7 +592,13 @@ const _FIG_VARIACION_PPTO = (f) => f.unidad === "money" && (f.conceptoNorm === "
 const _FIG_VARIACION_DINERO = (f) => f.unidad === "money" && (f.conceptoNorm === "yoy" || /^variacion vs ano anterior en \$/.test(f.conceptoNorm) || (f.conceptoNorm === "valor" && /salesread/i.test(String(f.fig.origin && f.fig.origin.tool || ""))));
 function _valorDe(sujeto, metrica, I, universo = "", unidad = null) {
   if (sujeto && typeof sujeto === "object" && sujeto.descripcion) {
-    const ag = _agregadosDe(metrica, I).filter((f) => _universoCasa(sujeto.descripcion, f) === "ok").sort((x, y) => _puntajeUniverso(sujeto.descripcion, y) - _puntajeUniverso(sujeto.descripcion, x));
+    const todos = _agregadosDe(metrica, I);
+    let ag = todos.filter((f) => _universoCasa(sujeto.descripcion, f) === "ok").sort((x, y) => _puntajeUniverso(sujeto.descripcion, y) - _puntajeUniverso(sujeto.descripcion, x));
+    /* sin casación por palabras, por CONJUNTO: «cuentas bajo el benchmark» es el grupo de «Markup promedio · los que caen» (los mismos 8) */
+    if (!ag.length) {
+      const U = _conjuntoDeUniverso(sujeto.descripcion, I, null, metrica);
+      if (U && U.set && U.set.size) ag = todos.filter((f) => f.entidadesDelGrupo && f.entidadesDelGrupo.length === U.set.size && f.entidadesDelGrupo.every((x) => U.set.has(normalizar(x))));
+    }
     return (unidad && ag.find((f) => _u(f.unidad) === _u(unidad))) || ag[0] || null;
   }
   let c = I.buscarFigs(sujeto, metrica, { agregados: sujeto === "negocio" });
@@ -849,7 +850,7 @@ function _variacion(a, I) {
 }
 
 /* ── ESTADO (inventario) ────────────────────────────────────────────────────────────────────────────────────────────────── */
-const _ESTADOS_CONOCIDOS = new Set(["inmovilizado", "frenado", "sobrestock", "riesgo de quiebre", "capital sano"]);
+const _ESTADOS_CONOCIDOS = new Set(["inmovilizado", "frenado", "sobrestock", "riesgo de quiebre", "capital sano", "critico"]);
 function _estado(a, I) {
   const e = a.estado;
   if (Array.isArray(a.sujeto)) {
@@ -874,7 +875,7 @@ function _estado(a, I) {
   /* «sin venta (reciente)» es un estado que la proyección declara en días: hay días sin venta > 0 */
   if (/^sin venta/.test(quiere)) { const d = I.dias[ent.nombre]; if (d && Number.isFinite(d.sinVenta)) return d.sinVenta > 0 ? _ok(`${ent.nombre}: ${d.sinVenta} días sin venta`, ["días de la proyección"], `${d.sinVenta}d sin venta`) : _falsa(`estado-falso: ${ent.nombre} no acumula días sin venta`, "0 días sin venta", ["días de la proyección"]); return _nv(`sin-evidencia: la proyección no trae días sin venta de ${ent.nombre}`, ev, verdad); }
   /* «crítico», «urgente», «delicado» no son estados de la evidencia: no se verifican (ni se sirven como verdaderos) */
-  if (!_ESTADOS_CONOCIDOS.has(quiere)) return _nv(`estado-desconocido: «${e.estado}» no es un estado que la evidencia declare (inmovilizado · frenado · sobrestock · riesgo de quiebre · capital sano)`, ev, verdad);
+  if (!_ESTADOS_CONOCIDOS.has(quiere)) return _nv(`estado-desconocido: «${e.estado}» no es un estado que la evidencia declare (inmovilizado · frenado · sobrestock · riesgo de quiebre · capital sano · crítico)`, ev, verdad);
   const tiene = propios.map((x) => estadoCanon(x.estado));
   if (!propios.length) {
     if (quiere === "capital sano" && I.dias[ent.nombre]) return _ok(`${ent.nombre} no tiene estado de alerta declarado`, ev, verdad);

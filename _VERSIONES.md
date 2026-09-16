@@ -167,6 +167,27 @@ en `fixtures/notario-fase3-*.json`, `_NOTARIO_SEMANTICO_FASE3.md`).
 - Sin cambios de producto tras la corrida: los fallos se traen para decidir (instrucción de declaración, tolerancia del verificador,
   deudas de evidencia de la Mesa Capital).
 
+**El Notario semántico — fase 4, etapa A (2026-09-16, offline; sin corridas ni deploy).** El owner fijó los resultados esperados
+(la premium libre pero todo hecho verificado; cambiar la forma no cambia la verdad; el modelo no necesita las convenciones de ADI;
+0 falsedades servidas y 0 FN; FP ≤ 5 %; una sola verdad por métrica/eje, con «carga alta» definida; Inventario/Capital tan
+verificable como Comercial; ≥ 90 % de premium servida antes de producción) y dejó el mecanismo a la sesión. La casa canoniza la forma
+de la declaración antes del veredicto (`src/adi/notario/resolutor.js`, reglas en su cabecera) y ubica el fragmento declarado con
+tolerancia (`ubicar.js`); una sola tolerancia de cifra para el juicio y el comprobante; `_NOTARIO_SEMANTICO_FASE4_DISENO.md` §10.
+
+- La fase 3 re-juzgada offline (mismas 383 declaraciones del modelo): verdaderas 266 → 323 · no verificables 66 → 25 · fragmentos
+  ajenos 16 → 0 · inconsistencias 22 → 1 (un defecto real de la prosa) · las 7 falsedades siguen falsas (0 FN) y se cazan dos más que
+  antes no se podían juzgar; 33 de los 38 hechos verdaderos bloqueados por la forma pasan a verdadero (los 5 restantes exigen que el
+  modelo corrija su declaración: «mayor» dicho con 41.4 % contra 57.3 %).
+- **«Carga comercial alta» tiene una sola definición**: la del detector (6 cuentas, $655K), publicada por la proyección desde la misma
+  función que la boleta; las 9 que exceden el nivel se llaman «sobre el nivel declarado de carga». Y el inventario se verifica como
+  Comercial: cada SKU con su estado de la Mesa Capital (misma función) y la alerta «crítico»; los $ por estado cierran con la boleta;
+  la brecha al benchmark por marca entra a la proyección.
+- Candado `_resolutor_gate` (38): la fase 3 re-juzgada, «tres formas de la declaración, un veredicto» sobre 1.099 + 383 afirmaciones
+  (416/416), carnadas de resolución maliciosa, la definición única y el inventario verificable. Seis expectativas de la fase 1 que
+  codificaban una limitación de la evidencia se actualizaron con nota. Pendiente (plan): la omisión del modelo (etapa B: protocolo v2,
+  carta de hechos, reparación con prosa congelada), la ronda adversarial y la medición en vivo (etapa C, gasto a nombrar).
+
+
 ---
 
 ## 2.30 — producción · tag `v2.30`

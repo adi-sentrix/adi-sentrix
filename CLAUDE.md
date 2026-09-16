@@ -157,6 +157,15 @@ Derivadas que se rompen seguido:
   viajan con rótulo. Medidas (`_notario_semantico_flujo_gate`): 95.5 % declaraciones correctas, 2.9 % omitidas, 0 FP · 0 FN, 0/6
   servido sin Notario. La tasa del MODELO real se mide en vivo (fase 3, gasto nombrado). Documentos: `_NOTARIO_SEMANTICO_FASE1.md`,
   `_NOTARIO_SEMANTICO_FASE2.md`. Los guiones de los gates declaran con `_guion_declara.mjs` (fuera de `src/`, no es producto).
+- **Fase 4, etapa A (owner 2026-09-16, offline): la casa canoniza la FORMA de la declaración.** «Cambiar la forma de escribir una afirmación no
+  puede cambiar su verdad; el modelo no debería necesitar conocer convenciones internas de ADI». `src/adi/notario/resolutor.js` traduce cada
+  declaración a la forma canónica ANTES del veredicto (reglas en su cabecera; tres reglas duras: única-o-no-se-resuelve, el VALOR es el
+  comprobante, solo se rellena lo que el fragmento dice) y `ubicar.js` ubica el fragmento con tolerancia escalonada. **Una sola definición
+  por métrica/eje:** «carga comercial alta» es la del DETECTOR (6 cuentas), publicada por la proyección desde la misma función que la boleta
+  (`datoProyectado.conjuntos`); las que solo exceden el nivel se llaman «sobre el nivel declarado de carga». **Inventario verificable como
+  Comercial:** la proyección declara el estado de la Mesa Capital de cada SKU (misma función) y la alerta «crítico». Candado
+  `_resolutor_gate` («tres formas de la declaración, un veredicto» sobre 1.482 afirmaciones; la fase 3 re-juzgada; carnadas). Pendientes
+  del plan (`_NOTARIO_SEMANTICO_FASE4_DISENO.md` §10): la omisión del modelo (etapa B), la ronda adversarial, la medición en vivo (etapa C).
 
 ---
 

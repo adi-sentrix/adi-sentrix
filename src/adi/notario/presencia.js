@@ -14,6 +14,7 @@
  * opinión»): un hecho declarado solo como lectura es una omisión de clase `hecho-como-lectura`.
  * Puro: sin I/O, sin dato. */
 import { parseFigures } from "../boleta.js";
+import { ubicarFragmento } from "./ubicar.js";   // fase 4: el fragmento declarado se ubica con tolerancia (el mismo ubicador del juez)
 import { menosAscii } from "./afirmacion.js";
 import { metricasEn } from "../oracle/guardC.js";
 import { normalizar, normalizarAfirmaciones } from "./afirmacion.js";
@@ -203,8 +204,10 @@ export function omisiones(texto, afirmaciones) {
   const s = String(texto || "");
   const puntos = puntosDeAfirmacion(s);
   const { prosaN, mapa } = _normalizarConMapa(s);
-  /* un fragmento que aparece más de una vez en la prosa (el cierre del cruce repetido por el inventario) es la misma afirmación: cubre todas */
-  const _todas = (texto) => { const out = []; let r = _ubicar(prosaN, mapa, texto); const fN = normalizar(texto); let desde = r ? prosaN.indexOf(fN) + fN.length : -1; while (r) { out.push(r); if (desde < 0) break; r = _ubicar(prosaN, mapa, texto, desde); if (r) desde = prosaN.indexOf(fN, desde) + fN.length; } return out; };
+  /* un fragmento que aparece más de una vez en la prosa (el cierre del cruce repetido por el inventario) es la misma afirmación: cubre todas.
+   * La PRIMERA ubicación admite toda la tolerancia del ubicador; las repeticiones solo la literal (o sin marcas): una segunda ubicación
+   * «asistida» tapaba otra oración con las mismas cifras y escondía la afirmación de al lado (medido: 595 → 577 quitadas detectadas). */
+  const _todas = (texto) => { const out = []; let desde = 0; for (let k = 0; k < 12; k++) { const u = ubicarFragmento(s, texto, { desde }); if (!u) break; if (k > 0 && !/^(?:literal|sin-marcas)$/.test(u.modo)) break; out.push([u.ini, u.fin]); if (u.fin <= desde) break; desde = u.fin; } if (!out.length) { const r = _ubicar(prosaN, mapa, texto); if (r) out.push(r); } return out; };
   const decl = normalizarAfirmaciones(afirmaciones).map(({ afirmacion: a }) => { const rangos = _todas(a.texto); return { a, rango: rangos[0] || null, rangos }; });
   const canonDeclarados = new Set();
   const canonColas = new Set();   // lo que cubre SOLO una cola «(y N más)»: el universo del orden menos los listados, el conteo menos sus enumerados

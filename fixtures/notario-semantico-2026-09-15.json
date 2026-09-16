@@ -11619,8 +11619,8 @@
      "evidencia": [
       "estados del inventario"
      ],
-     "veredicto_esperado": "no-verificable",
-     "nota": "DUDA: «crítico» no es un estado de la proyección (inmovilizado · frenado · sobrestock · riesgo de quiebre · capital sano) ni una fig de la boleta; LG-DRYER8KG está frenado e inmovilizado en Valparaíso (165 d, rotación 1.0x, 94 d sin venta). Si «crítico» se toma como sinónimo de «frenado», verdadera — se revisa"
+     "veredicto_esperado": "verdadera",
+     "nota": "DUDA: «crítico» no es un estado de la proyección (inmovilizado · frenado · sobrestock · riesgo de quiebre · capital sano) ni una fig de la boleta; LG-DRYER8KG está frenado e inmovilizado en Valparaíso (165 d, rotación 1.0x, 94 d sin venta). Si «crítico» se toma como sinónimo de «frenado», verdadera — se revisa · Fase 4 (2026-09-16): la proyección declara los estados de la Mesa Capital por SKU y la alerta del dato («crítico»); lo que era una limitación de la evidencia ya no lo es."
     },
     {
      "tipo": "lectura",
@@ -11946,8 +11946,8 @@
      "evidencia": [
       "estados del inventario"
      ],
-     "veredicto_esperado": "no-verificable",
-     "nota": "misma duda que «165 días de cobertura y crítico»: «crítico» no está en la evidencia; LG-DRYER8KG está frenado e inmovilizado (Valparaíso)"
+     "veredicto_esperado": "verdadera",
+     "nota": "misma duda que «165 días de cobertura y crítico»: «crítico» no está en la evidencia; LG-DRYER8KG está frenado e inmovilizado (Valparaíso) · Fase 4 (2026-09-16): la proyección declara los estados de la Mesa Capital por SKU y la alerta del dato («crítico»); lo que era una limitación de la evidencia ya no lo es."
     },
     {
      "tipo": "lectura",
@@ -12409,8 +12409,8 @@
      "evidencia": [
       "estados del inventario"
      ],
-     "veredicto_esperado": "no-verificable",
-     "nota": "DUDA: «crítico» no es un estado de la proyección (inmovilizado · frenado · sobrestock · riesgo de quiebre · capital sano) ni una fig de la boleta; LG-DRYER8KG está frenado e inmovilizado en Valparaíso (165 d, rotación 1.0x, 94 d sin venta). Si «crítico» se toma como sinónimo de «frenado», verdadera — se revisa"
+     "veredicto_esperado": "verdadera",
+     "nota": "DUDA: «crítico» no es un estado de la proyección (inmovilizado · frenado · sobrestock · riesgo de quiebre · capital sano) ni una fig de la boleta; LG-DRYER8KG está frenado e inmovilizado en Valparaíso (165 d, rotación 1.0x, 94 d sin venta). Si «crítico» se toma como sinónimo de «frenado», verdadera — se revisa · Fase 4 (2026-09-16): la proyección declara los estados de la Mesa Capital por SKU y la alerta del dato («crítico»); lo que era una limitación de la evidencia ya no lo es."
     },
     {
      "tipo": "estado",
@@ -12516,8 +12516,8 @@
      "evidencia": [
       "estados del inventario"
      ],
-     "veredicto_esperado": "no-verificable",
-     "nota": "misma duda que en LG-DRYER8KG: «crítico» no está en la evidencia; MAK-COMP-AIR está frenado e inmovilizado en Antofagasta (190 d, rotación 0.8x, 112 d sin venta)"
+     "veredicto_esperado": "verdadera",
+     "nota": "misma duda que en LG-DRYER8KG: «crítico» no está en la evidencia; MAK-COMP-AIR está frenado e inmovilizado en Antofagasta (190 d, rotación 0.8x, 112 d sin venta) · Fase 4 (2026-09-16): la proyección declara los estados de la Mesa Capital por SKU y la alerta del dato («crítico»); lo que era una limitación de la evidencia ya no lo es."
     },
     {
      "tipo": "estado",
