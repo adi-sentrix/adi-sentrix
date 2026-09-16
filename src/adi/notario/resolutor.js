@@ -26,10 +26,13 @@
  *  R10 · la dirección de un orden y la forma de una relación, leídas del fragmento («más grande» → mayor; «el doble» → veces).
  *  R12 · el período implícito de una variación («vs año anterior» si es la única variación que la boleta trae para ese sujeto y métrica).
  *  R13 · el otro lado que trae su cifra («nivel de referencia (3,5%)») la usa de comprobante; entre candidatos, el de la unidad del sujeto.
+ *  RONDA ADVERSARIAL (2026-09-16): el concepto identificado se juzga ahí aunque la cifra no cierre; otra capa solo con la misma cabeza y
+ *  nunca otro concepto de la casa; el todo sobre un subtotal es alcance-promovido; la fracción en palabras trae su k; un superlativo negado
+ *  no da dirección; el otro lado con palabras casa por las palabras, no solo por la cifra.
  *  R8 · las derivadas de la casa (brecha = benchmark − margen; variación en $ = venta − venta del año anterior), con su evidencia. */
 import { normalizar, menosAscii, leerValor } from "./afirmacion.js";
 import { parseFigures } from "../boleta.js";
-import { mismoValor, necesitaUniverso, universoDeFig, ES_TODO } from "./evidencia.js";
+import { mismoValor, necesitaUniverso, universoDeFig, ES_TODO, conceptosDe, unidadCompatible } from "./evidencia.js";
 
 const _NEGOCIO = /^(?:el\s+)?(?:negocio|empresa|compañía|compania|total)$/i;
 const _TOK = (s) => normalizar(String(s || "")).replace(/[()·,;:%$]/g, " ").split(/\s+/).filter((w) => w.length >= 3 && !/^\d+$/.test(w));
@@ -51,6 +54,10 @@ const _polaridad = (metrica) => { const m = normalizar(metrica); for (const [re,
 const _VECES = /\b(\d+(?:[.,]\d+)?)\s*(?:veces|x)\b|\b(dos|tres|cuatro|cinco|seis|diez)\s+veces\b|\b(?:el\s+|al\s+)?doble\b|\btriple\b|\bcu[aá]druple\b/i;
 const _FRACCION = /\b(?:la\s+)?mitad\b|\b(?:un\s+)?tercio\b|\b(?:un\s+)?cuarto\s+de\b|\b(\d+(?:[.,]\d+)?)\s?%\s+(?:de|del)\b/i;
 const _IGUAL = /\b(?:igual|iguales|similar(?:es)?|parecid[oa]s?|casi\s+lo\s+mismo|empatad[oa]s?|a\s+la\s+par)\b/i;
+/* la k de una fracción dicha en palabras («la mitad» 0.5, «un tercio», «un cuarto», «el 47 % de») */
+const _kDeFraccion = (frag) => { const f = normalizar(frag); if (/mitad/.test(f)) return 0.5; if (/tercio/.test(f)) return 1 / 3; if (/cuarto/.test(f)) return 0.25; const m = /(\d+(?:[.,]\d+)?)\s?%/.exec(f); return m ? parseFloat(m[1].replace(",", ".")) / 100 : null; };
+/* un superlativo bajo negación («NO es el que menos») no dice dirección */
+const _NEGADO_ANTES = /\b(?:no|ni|nunca|jam[aá]s|tampoco)\s+(?:es|era|fue|est[aá]|son|sea|resulta|queda|va|ser[aá])?\s*(?:el|la|los|las|quien)?\s*(?:que\s+)?(?:m[aá]s|menos|mayor|menor|peor|mejor)/i;
 
 /* ── el índice como oráculo de formas (nada se inventa: todo sale de las figs, el catálogo y los conjuntos del turno) ── */
 function _entidad(I, s) { try { return I.resolverEntidad(s); } catch { return null; } }
@@ -59,16 +66,32 @@ function _entidad(I, s) { try { return I.resolverEntidad(s); } catch { return nu
 const _mismoValor = (v, f) => !!(v && f && mismoValor(v, f.raw, f.unidad, f.texto));
 /* las figs SIN dueño (del negocio) cuyo concepto nombra lo que el modelo puso como sujeto o como otro lado («Benchmark de margen», «nivel de
  * referencia», «total frenado», «Estado del inventario: capital sano») */
+/* los segmentos de un concepto («Estado del inventario: capital sano» → estado del inventario | capital sano; «Carga comercial alta · subtotal · 6 cuentas…») */
+const _segmentos = (c) => String(c || "").split(/\s*[:·]\s*/).map((x) => x.trim()).filter(Boolean);
+/* ¿el rótulo es OTRO concepto de la casa que el sujeto? («carga» → carga comercial; «carga comercial alta» es otro) */
+const _otroConcepto = (n, f) => { const a = conceptosDe(n); if (!a.length) return false; const b = _segmentos(f.conceptoNorm).flatMap((seg) => conceptosDe(seg)); return b.length > 0 && !a.some((x) => b.includes(x)); };
+/* el sujeto es la CABEZA del concepto de la fig («benchmark» → «Benchmark de margen»; «capital sano» → «Estado del inventario: capital sano») */
+const _cabeza = (n, f) => _segmentos(f.conceptoNorm).some((seg) => seg === n || seg.startsWith(n + " "));
+/* ¿el concepto queda identificado por el sujeto? exacto o sinónimo (casa ≥ 3.4), o contención con el sujeto como cabeza */
+const _identifica = (I, n, f) => (typeof I.casa === "function" ? I.casa(n, f) : 0) >= 3.4 || _cabeza(n, f);
+/* la cabeza de un sujeto-concepto: sin artículo, sin paréntesis y sin la cola «· …» («Contribución no capturada · 5 cuentas materiales» → contribucion no capturada) */
+const _cabezaDelSujeto = (s) => { const n = normalizar(s).replace(/^(?:el|la|los|las|un|una)\s+/, "").replace(/\s*\([^)]*\)\s*/g, " ").trim(); return (_segmentos(n)[0] || n).trim(); };
 function _conceptosDelNegocio(I, s, v = null) {
-  const n = normalizar(s).replace(/^(?:el|la|los|las|un|una)\s+/, "");
+  const n = _cabezaDelSujeto(s);
   if (!n) return [];
   let c = [];
   try { c = I.buscarFigs("negocio", n, { agregados: true }).filter((f) => !f.entidad); } catch { c = []; }
-  /* el comprobante decide entre capas: si la mejor casación no sostiene el valor declarado, valen las figs del negocio de cualquier capa que sí
-   * lo sostengan («capital sano» casa mejor con «capital sano · % del total» = 41 %; el $56K declarado es «Estado del inventario: capital sano») */
-  if (v && !c.some((f) => _mismoValor(v, f))) { const otras = I.figs.filter((f) => !f.entidad && _mismoValor(v, f) && ((typeof I.casa === "function" && I.casa(n, f) > 0) || f.conceptoNorm.includes(n))); if (otras.length) c = otras; }
-  if (!c.length) { const tn = _TOK(n); if (tn.length) c = I.figs.filter((f) => !f.entidad && tn.every((t) => f.conceptoNorm.includes(t.slice(0, 5)))); }
-  return c;
+  const nivel = c.length && typeof I.casa === "function" ? Math.max(...c.map((f) => I.casa(n, f))) : 0;
+  /* el concepto IDENTIFICADO (exacto o sinónimo) se juzga ahí, aunque la cifra no cierre: una cifra mal atribuida sale falsa con la verdad al
+   * lado — nunca se busca otra fig que la sostenga. Solo si esa capa no admite la unidad de la cifra (% contra $) vale otra capa del MISMO
+   * concepto («capital sano · % del total» = 41 % no es «Estado del inventario: capital sano» = $56K, pero es la misma cabeza) */
+  if (nivel >= 3.4) {
+    if (!v || c.some((f) => unidadCompatible(f.unidad) === unidadCompatible(v.unidad))) return c;
+  }
+  const otras = I.figs.filter((f) => !f.entidad && _cabeza(n, f) && !_otroConcepto(n, f) && (!v || _mismoValor(v, f)));
+  if (otras.length) return otras;
+  if (nivel >= 2) return c.filter((f) => !_otroConcepto(n, f) && _cabeza(n, f));   // contención solo con el sujeto como cabeza del concepto
+  return [];
 }
 /* los conjuntos que la evidencia identifica (los mismos que usa el verificador para resolver un universo) */
 function _conjuntos(I) { try { return typeof I.conjuntosConocidos === "function" ? I.conjuntosConocidos() : []; } catch { return []; }
@@ -136,7 +159,11 @@ function _resolverSujeto(I, sujeto, a, notas, rol = "sujeto") {
   if (sujeto == null) return sujeto;
   if (Array.isArray(sujeto)) return sujeto.map((x) => _resolverSujeto(I, x, a, notas, rol));
   if (_es(sujeto)) return sujeto;   // {descripcion} ya viene en la forma canónica
-  const s = String(sujeto).trim();
+  const s0 = String(sujeto).trim();
+  /* «Ripley ($50K)», «Valparaíso ($25K)»: la entidad con su cifra entre paréntesis ES la entidad (la cifra es el comprobante del otro lado) */
+  const sinParentesis = s0.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  if (sinParentesis && sinParentesis !== s0 && _entidad(I, sinParentesis)) { if (rol !== "sujeto") notas.push(`${rol} «${s0}» → ${sinParentesis} (la cifra del paréntesis es su comprobante)`); return sinParentesis; }
+  const s = s0;
   if (!s || _NEGOCIO.test(s) || _entidad(I, s)) return s;
   const v = _comprobante(a, rol) || (rol !== "sujeto" ? _comprobanteEnElTexto(s) : null);
   /* (a) «total …» → el todo de una métrica del negocio */
@@ -154,19 +181,37 @@ function _resolverSujeto(I, sujeto, a, notas, rol = "sujeto") {
   const uS = rol !== "sujeto" && !v && conceptos0.length > 1 ? _unidadDelSujeto(I, a) : null;
   const conceptos = uS && conceptos0.some((f) => f.unidad === uS) ? conceptos0.filter((f) => f.unidad === uS) : conceptos0;
   if (conceptos.length) {
-    const compat = v ? conceptos.filter((f) => _mismoValor(v, f)) : conceptos;
+    /* el concepto identificado (exacto o sinónimo) se toma aunque la cifra no cierre: el verificador dirá falsa, con la verdad al lado */
+    const nS = _cabezaDelSujeto(s);
+    const identificado = conceptos.some((f) => _identifica(I, nS, f));
+    /* la cola del sujeto («· 5 cuentas materiales», «· componente»): si es un universo, se declara como universo de la cifra */
+    const colaS = _segmentos(normalizar(s).replace(/\s*\([^)]*\)\s*/g, " ")).slice(1).join(" · ").trim();
+    if (colaS && rol === "sujeto" && !a.universo && _pareceUniverso(I, colaS)) { a.universo = colaS; notas.push(`universo «${colaS}» leído desde el sujeto`); }
+    /* la cifra elige entre los rótulos del concepto identificado (Ventas totales / Ventas del año anterior son «ventas»); si ninguno cierra,
+     * se toma el mejor casado y el verificador dirá falsa */
+    const compat0 = v ? conceptos.filter((f) => _mismoValor(v, f)) : conceptos;
+    /* el OTRO LADO con su propia cifra que no cierra («nivel de referencia (4,0%)» cuando el nivel es 3,5 %) no se resuelve: la relación se
+     * compararía contra la fig y no contra lo que el texto dice */
+    if (rol !== "sujeto" && v && identificado && !compat0.length) { notas.push(`${rol} «${s}» nombra ${conceptos[0].concepto} = ${conceptos[0].texto}, no ${v.texto}: no se resuelve`); return s; }
+    const compat = compat0.length ? compat0 : (identificado ? [conceptos[0]] : []);
     /* con valor, todo candidato que lo sostiene da el mismo veredicto: se toma el mejor casado (el primero); sin valor, dos candidatos son
      * ambigüedad solo si sus valores difieren (el «total» y el «subtotal» iguales no lo son) */
     const raws = [...new Set(compat.map((f) => Math.round(f.raw * 1000)))];
-    const exacto = compat.find((f) => f.conceptoNorm === normalizar(s) || f.conceptoNorm === normalizar(s).replace(/^(?:el|la|los|las|un|una)\s+/, ""));
-    const conceptosUnicos = exacto ? [exacto.conceptoNorm] : (v && compat.length) || raws.length === 1 ? [compat[0].conceptoNorm] : [...new Set(compat.map((f) => f.conceptoNorm))];
+    const exacto = compat.find((f) => f.conceptoNorm === normalizar(s) || f.conceptoNorm === nS);
+    const conceptosUnicos = exacto ? [exacto.conceptoNorm] : (v && compat0.length) || raws.length === 1 ? [compat[0].conceptoNorm] : [...new Set(compat.map((f) => f.conceptoNorm))];
     if (exacto) compat.unshift(exacto);
     if (conceptosUnicos.length === 1) {
       const f = compat[0];
       if (rol === "sujeto") {
         a.metrica = f.concepto; notas.push(`sujeto «${s}» → negocio · ${f.concepto}`);
         /* el sujeto era el universo de un subtotal («5 cuentas materiales», «grandes», «resto»): queda declarado como universo de la cifra */
-        if (normalizar(a.tipo) === "cifra" && !a.universo && f.agregado && necesitaUniverso(f, "negocio")) { a.universo = s; notas.push(`universo «${s}» (el sujeto nombraba el conjunto del subtotal)`); }
+        if (normalizar(a.tipo) === "cifra" && !a.universo && f.agregado && necesitaUniverso(f, "negocio")) {
+          /* un sujeto que describe un conjunto («las 5 cuentas materiales», «los grandes», «las cuentas bajo el benchmark») queda como universo y se
+           * juzga por sus palabras; un sujeto que solo nombra el concepto («Carga comercial alta · componente») toma el universo de la fig */
+          const describeConjunto = /\b\d+\s+(?:cuentas?|clientes?|skus?|marcas?|familias?|bodegas?)\b|\b(?:materiales|grandes|resto|sanos|los que caen|los que crecen|bajo el benchmark|sobre el (?:nivel|benchmark)|bajo el (?:nivel|umbral)|cuentas|clientes)\b/i.test(s);
+          a.universo = describeConjunto ? s : universoDeFig(f);
+          notas.push(describeConjunto ? `universo «${s}» (el sujeto nombraba el conjunto del subtotal)` : `universo «${a.universo}» ← ${f.label} (el sujeto nombraba el concepto; la cifra identifica el subtotal)`);
+        }
         return "negocio";
       }
       notas.push(`${rol} «${s}» → negocio · ${f.concepto}`); return { sujeto: "negocio", metrica: f.concepto };
@@ -179,7 +224,11 @@ function _resolverSujeto(I, sujeto, a, notas, rol = "sujeto") {
   /* (d, antes que c) un otro lado que trae su cifra («nivel de referencia (3,5%)», «$4.9M»): la fig del negocio con ese valor, si es única —
    * el valor identifica; un conjunto no lleva valor, así que no puede ganarle */
   if (rol !== "sujeto" && v && Number.isFinite(v.raw)) {
-    const cands = I.figs.filter((f) => !f.entidad && _mismoValor(v, f));
+    /* con palabras además de la cifra, esas palabras tienen que casar con el concepto: «el benchmark (5,0 pp)» no es la brecha por valer 5,0 pp;
+     * una cifra pelada («$4.9M») sí puede resolverse solo por su valor */
+    const frase = normalizar(menosAscii(s).replace(/\(?[$]?[\d.,]+\s?(?:[KMB%]|pp|d|x)?\)?/g, " ")).replace(/^(?:el|la|los|las|un|una)\s+/, "").replace(/\s+(?:de|a|en)$/, "").trim();
+    const palabras = _TOK(frase);
+    const cands = I.figs.filter((f) => !f.entidad && _mismoValor(v, f) && (!palabras.length || (typeof I.casa === "function" && I.casa(frase, f) >= 2 && !_otroConcepto(frase, f))));
     const conceptos2 = [...new Set(cands.map((f) => f.conceptoNorm))];
     /* varios rótulos con el MISMO valor (la referencia emitida por dos fuentes: «Nivel de carga declarado» y «Nivel de carga comercial declarado»)
      * dan el mismo veredicto: se toma el que mejor casa con las palabras del otro lado, o el primero */
@@ -221,6 +270,7 @@ function _inferirDireccion(a, notas) {
   if (!a.orden || typeof a.orden !== "object" || a.orden.direccion) return;
   if (/^(?:max|min)$/.test(normalizar(a.orden.forma))) return;   // max/min llevan su dirección en la forma: nada que leer
   const t = menosAscii(String(a.texto || ""));
+  if (_NEGADO_ANTES.test(t)) { notas.push("el superlativo del fragmento está negado: la dirección no se lee"); return; }
   let d = null;
   if (_SUP_MAYOR.test(t)) d = "mayor"; else if (_SUP_MENOR.test(t)) d = "menor";
   else if (_MEJOR.test(t)) d = _polaridad(a.metrica); else if (_PEOR.test(t)) { const p = _polaridad(a.metrica); d = p === "mayor" ? "menor" : p === "menor" ? "mayor" : null; }
@@ -232,7 +282,8 @@ function _inferirFormaDeRelacion(a, notas) {
   const r = a.relacion;
   const mv = _VECES.exec(t);
   if (mv) { r.forma = "veces"; if (!r.k) r.k = mv[1] ? parseFloat(mv[1].replace(",", ".")) : mv[2] ? ({ dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, diez: 10 })[mv[2].toLowerCase()] : /doble/i.test(mv[0]) ? 2 : /triple/i.test(mv[0]) ? 3 : 4; notas.push(`relacion.forma «veces» leída del fragmento`); return; }
-  if (_FRACCION.test(t)) { r.forma = "fraccion"; notas.push(`relacion.forma «fraccion» leída del fragmento`); return; }
+  const mf = _FRACCION.exec(t);
+  if (mf) { r.forma = "fraccion"; if (r.k == null) { const kk = _kDeFraccion(mf[0]); if (kk != null) r.k = kk; } notas.push(`relacion.forma «fraccion»${r.k != null ? " (k " + r.k + ")" : ""} leída del fragmento`); return; }
   if (_IGUAL.test(t)) { r.forma = "igual"; notas.push(`relacion.forma «igual» leída del fragmento`); return; }
   if (_MAYOR.test(t)) { r.forma = "mayor"; notas.push(`relacion.forma «mayor» leída del fragmento`); return; }
   if (_MENOR.test(t)) { r.forma = "menor"; notas.push(`relacion.forma «menor» leída del fragmento`); return; }
@@ -298,7 +349,14 @@ function _universoPorValor(I, a, notas) {
   if (labels.length !== 1) { if (labels.length > 1) notas.push(`la cifra ${v.texto} sostiene dos subtotales (${labels.slice(0, 2).join(" · ")}): el universo no se resuelve`); return; }
   const f = sostienen[0];
   const texto = menosAscii(String(a.texto || ""));
-  if (ES_TODO.test(texto) && !/total/.test(f.conceptoNorm)) { a.universo = "el total"; notas.push(`el fragmento dice el todo y la cifra es de ${f.label}: universo «el total»`); return; }
+  const esTotal = /(?:^|· )total$/.test(f.conceptoNorm);
+  /* «el total de carga comercial alta es $588K», «toda la contribución no capturada»: el todo de la métrica, dicho con su nombre */
+  const totalDeLaMetrica = new RegExp("\\b(?:total(?:es)?|toda|todo)\\s+(?:de\\s+|la\\s+|el\\s+|de\\s+la\\s+|de\\s+el\\s+)?" + normalizar(a.metrica).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(normalizar(texto));
+  if ((ES_TODO.test(texto) || totalDeLaMetrica) && !esTotal) { a.universo = "el total"; notas.push(`el fragmento dice el todo y la cifra es de ${f.label}: universo «el total»`); return; }
+  /* el fragmento nombra un conjunto o un número de cuentas: ese es el universo que se declara (y se juzga), no el de la fig que la cifra sostiene */
+  const sinCifra = texto.replace(menosAscii(String(a.valor || "")), " ");
+  const nombraConjunto = /\b\d+\s+(?:cuentas?|clientes?|skus?|marcas?|familias?|bodegas?)\b|\b(?:cuentas?|clientes?|skus?)\s+(?:materiales|bajo|sobre|con)\b|\bbajo el benchmark\b|\bsobre el (?:benchmark|nivel)\b|\bmateriales\b/i.test(sinCifra);
+  if (nombraConjunto) { notas.push(`el fragmento nombra un conjunto: el universo lo declara el modelo, no la cifra`); return; }
   const u = universoDeFig(f);
   if (!u) return;
   a.universo = u; notas.push(`universo «${u}» ← ${f.label} (la cifra lo identifica)`);

@@ -271,4 +271,92 @@ revienta en ninguna de las 399 declaraciones de la fase 3 (un error se contaba c
 los gates responden al pedido de solo la declaración (`_guion_declara.mjs`). Suite: verde, 0 red.
 
 **Lo que sigue:** la ronda adversarial (UltraCode, offline, con `_adversarial_notario_harness.mjs`: la mesa de ataque que corre el turno
-entero con un cerebro guionado y dice si una falsedad llegó a pantalla) y, si sobrevive, la estimación de la certificación viva.
+entero con un cerebro guionado y dice si una falsedad llegó a pantalla) y, si sobrevive, la estimación de la certificación viva. → §12.
+
+## 12 · La ronda adversarial (UltraCode, offline, 2026-09-16) — 69 roturas confirmadas, 69 cerradas, 23 controles
+
+**Conclusión primero.** Seis agentes atacaron fuera de muestra la relación agente ↔ Notario con el banco offline
+(`_adversarial_notario_harness.mjs`: 637 casos en seis ángulos), un escéptico independiente confirmó 69 roturas re-corriendo cada una y
+cotejando la verdad contra la boleta, y las 69 quedaron cerradas sin abrir ninguna de las puertas que la fase 3 ya tenía cerradas:
+`_notario_adversarial_gate` 92/92 (69 roturas + 23 controles), `_notario_semantico_gate` 31/31, `_resolutor_gate` 45/45,
+`_notario_semantico_flujo_gate` 45/45. La fase 3 re-juzgada: verdaderas 326 · no verificables 23 · falsas 11 · 0 FN · 2 inconsistencias
+(las dos legítimas). Sin corridas ni deploy.
+
+**Lo que rompieron, por familia, y cómo se cerró (cada regla con su carnada en el gate):**
+
+1. **La cifra elegía el concepto.** «el benchmark queda en 5,0 pp» salía verdadera porque «benchmark» está contenido en «Brecha al
+   benchmark» y la cifra cerraba ahí. Ahora el concepto identificado por el nombre se juzga ahí aunque la cifra no cierre (falsa), y un
+   concepto de la casa **nunca** casa con otro concepto de la casa por contención («carga comercial» no es «carga comercial alta»;
+   «contribución» no es «contribución no capturada»; «capital» no es «capital frenado») — `evidencia.js` `_casa`, `resolutor.js` R1.
+2. **Universos y subtotales.** «las cuentas bajo el benchmark cargan $655K», «las 6 cuentas sobre el benchmark suman $655K», «el total
+   de contribución no capturada llega a $4.9M» pasaban: el universo casaba por un número o por cualquier palabra del contexto (hasta la
+   palabra «total» del diagnóstico de la fig). `_universoCasa` v2 (`verificar.js`): el universo declarado se casa con el RÓTULO del
+   grupo — el número, las palabras principales del calificador («5 cuentas materiales»), el paréntesis «(de M …)» que describe a todo el
+   grupo (las 5 están bajo el benchmark) y no el «(K de ellas …)» que describe a una parte (de las 6, 5 bajo el benchmark) — y solo cuentan
+   las palabras del **vocabulario de conjuntos** de la evidencia (bajo/sobre el benchmark, materiales, sanos, los que caen, carga alta…);
+   si esas palabras nombran otro conjunto o solo el superconjunto, decide el CONJUNTO que identifican (set o tamaño). El superconjunto
+   nombrado por el propio rótulo («las cuentas bajo el benchmark» sobre «5 materiales (de 8 bajo el benchmark)») vale solo si la métrica
+   no tiene valores fuera del grupo (conjunto oficial: fuera vale 0 → la carga alta de las 8 es $588K, verdadera; ranking que cubre el
+   superconjunto → la contribución no capturada de las 8 no es $4.9M, falsa; sin evidencia → «incierto» = no verificable, jamás verdadera
+   ni falsa a ciegas). «El total de <métrica>» es el todo (alcance promovido sobre un subtotal, salvo el subtotal que es el conjunto oficial
+   entero). El número del grupo manda sobre el «todo» dicho al lado («las 6 cuentas … de los 13 clientes»: el denominador).
+3. **Conteos.** Ganaba cualquier candidato que trajera el n declarado («5 de las 13 están bajo el benchmark» pasaba con el «(5 de ellas)»
+   del rótulo de carga alta). Ahora los candidatos se **rankean** (conteo explícito de la boleta > intersección que cubre todo el
+   predicado > el que trae el «de M» dicho > «(K de ellas …)», que cuenta dentro de su grupo) y el mejor decide; un predicado con dos
+   conjuntos sin «y» («con carga alta bajo el benchmark») es su intersección; una enumeración («Falabella, Lider, Jumbo, Sodimac y Ripley
+   cargan…») se juzga por los nombrados. «materiales» a secas ya no es «caen de forma material».
+4. **Estados.** «LG-DRYER8KG está en riesgo de quiebre … con $14K de capital frenado» pasaba porque una cifra cubría el punto de estado.
+   Un estado lo cubre solo un estado, o una cifra/conteo/grupo cuya métrica o predicado nombra ESE estado (`presencia.js` `_estadoCubierto`).
+5. **Consistencia prosa ↔ declaración** (`juez.js` `consistencia` v2, reescrita): cobertura de una cifra por su canon **con dueño** («Lider
+   deja 22,0%» no la cubre «Falabella … 22,0%»); el dueño después de la cifra («22,0% de margen tiene Lider»); la ocurrencia de la cifra que
+   cuenta es la del fragmento declarado (no el «(+$1,5M)» de otra cuenta); «22% vs 24% de Jumbo» reparte los lados; el paréntesis
+   comparativo «(8.6 pp contra 8.1 pp)»; la métrica por las palabras pegadas a la cifra (prefijo y postfijo) en fragmentos con varias cifras;
+   la frase que NOMBRA otro concepto de la casa junto a la cifra («$1.6M de brecha por precio y costo» declarado como contribución no
+   capturada; «$19.4M sin capturar» declarado como venta); las palabras propias de cada concepto («no capturado», «problema de margen»,
+   «exceso», «debe» para lo vencido); un superlativo de daño («la que más te está costando», «más lejos», «más grave») no dice la dirección;
+   la exclusividad («la supera SOLO en…», «en todos los ejes») declara lo implicado; una bodega y un SKU nombrados en la misma oración pueden
+   compartir la cifra; los sujetos en lista («Easy y La Polar»).
+6. **Negación.** «$4,6M vencidos no es lo que debe Lider» (la negación después de la cifra), «Mercado Libre no crece» (variación negada,
+   antes eximida), «Lider no está bajo el benchmark» (relación negada) pasaban. Un orden o una variación bajo negación FACTUAL sigue siendo
+   un hecho que declarar — solo la negación EPISTÉMICA («no hay serie para decir si cae», «sin evidencia de que crezca») y la copular de un
+   sustantivo («no es un cliente chico creciendo rápido») eximen; la negación dentro del fragmento contradice la declaración de la misma
+   dirección («no cae» declarado sube sí es compatible); la negación después de la cifra vale aunque medie la métrica, salvo los giros que
+   afirman («no es poco»).
+7. **Cifras en palabras y prosa libre.** «veintiocho por ciento», «casi dos millones», «cuarenta por ciento», «1,9 millones», «casi un año
+   de atraso», «Easy, diez más», «veinte mil dólares», «siete puntos» no eran cifras para nadie; «completa el podio», «va en cabeza», «cierra
+   la tabla» no eran órdenes. Ahora son puntos de afirmación (`presencia.js`), y una cifra declarada en dígitos está en la frase también
+   cuando la frase la dice en palabras («ocho días» ↔ «8 días»).
+8. **El ubicador.** En la asistida, el salto de línea cierra la oración (una lista con viñetas no es una sola oración) y cada cifra se casa por
+   la ocurrencia más cercana al dueño («MAK-COMP-AIR: $8K» es el $8K de su línea, no el de Antofagasta de antes) — `ubicar.js`.
+
+**Los 23 controles** (sección B del gate): la versión VERDADERA de cada familia sigue pasando — 13 declaraciones que tienen que salir
+verdaderas («las cuentas con carga alta suman $655K», «la carga alta de las cuentas bajo el benchmark es $588K», «5 cuentas con carga alta
+están bajo el benchmark», «el total de carga comercial alta es $655K», «9 de las 13 están sobre el nivel declarado de carga»…) y 10 turnos
+correctos que se sirven verdes en UNA llamada, incluidos los falsos positivos que los propios atacantes reportaron: «cinco puntos bajo el
+benchmark» declarado como 5.0 pp, «Falabella supera a Lider en venta» como relación mayor, «la bodega Valparaíso concentra $25K» con la
+bodega como sujeto, «Valparaíso y Antofagasta suman $33K» como la suma de sus figs, «ocho días de atraso» declarado como 8 días, «Mercado
+Libre no cae en ventas: crece 25.3%», «Falabella va en cabeza con $1.6M».
+
+**Lo que la suite completa destapó (268 gates offline, 18 rojos antes de cerrar).** La consistencia v2 vetaba textos correctos de los
+composers de la casa: «de mayor a menor» leído como superlativo, «el que más cae» / «el que más se aleja del plan» como dirección mayor
+(un superlativo de caída no dice quién es el mayor), «no viene cayendo» sin arrastrar el auxiliar, «Lider sube, Ripley cae» en un
+fragmento con las dos direcciones, «su carga comercial es 4.5% de su venta» (el prefijo cortado en «es»), «el 54.6% de la venta» (una
+participación nombra su base), «se completa en Mercado Libre» (un lugar, no un dueño), «…MAK-COMP-AIR, y el capital frenado suma $33K» y
+«Lider concentra $4.6M de $12.6M» (la cláusula coordinada y el partitivo separan a la cifra de la entidad de antes), «quién vende más» (una
+pregunta indirecta no afirma), «más delgado que» (un comparativo de pequeñez es MENOR), y la segunda cifra de «(8.6 pp contra 8.1 pp)» que
+es del otro lado de la afirmación que la envuelve. Todas cerradas en el juez o en presencia; un solo composer cambió su DECLARACIÓN (no su
+prosa): «pesa varias veces lo otro» se declara con ese tramo, sin el nombre del frente («el margen»), que es un rótulo de la ruta
+`comparar-alternativas`. Suite: 268/268 · 0 red.
+
+**Una etiqueta de la fase 3 cambió con la definición del owner.** «Falabella es una de las 6 cuentas donde el margen está bajo el
+benchmark y además la carga comercial está por sobre el nivel de referencia» (3.reparacion.3) se etiquetó FALSA el 15-09 asumiendo las 6 con
+carga alta (de las que 5 están bajo el benchmark). Con la definición del 16-09 —«sobre el nivel declarado» es el conjunto crudo, con
+nombre propio— es VERDADERA: bajo el benchmark (8) ∩ sobre el nivel (9) = 6, las mismas 6 del papel «erosión por acciones comerciales» de
+la proyección. Reetiquetada (nota en `fixtures/notario-fase3-etiquetas-2026-09-15.json`); las falsedades reales de la corrida son 6.
+
+**Decisión de producto pendiente (sin cambio de pantalla hasta que el owner decida).** El rótulo del subtotal dice «6 cuentas sobre el
+nivel declarado (5 de ellas bajo el benchmark)» pero 9 exceden el nivel; el Notario lo lee como el conjunto oficial (6, materiales).
+Propuesta: «6 cuentas con exceso material sobre el nivel declarado».
+
+**Lo que sigue.** Volver a correr la ronda adversarial fuera de muestra (los atacantes contra la versión cerrada; misma mesa) y, si
+sobrevive, estimar la certificación viva (etapa C, gasto a nombrar antes de gastar).

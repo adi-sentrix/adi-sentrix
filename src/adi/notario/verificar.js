@@ -107,21 +107,95 @@ const _nv = (motivo, evidencia = [], verdad = "") => ({ veredicto: "no-verificab
 
 /* ── EL UNIVERSO DECLARADO CONTRA EL DE LA FIG (subtotales, agregados) ─────────────────────────────────────────────────────── */
 /* _universoCasa(declarado, f) → "ok" | "promovido" (dice el todo y la fig es un subtotal) | "distinto" (otro n) | "vacio" (no declarado) */
-function _universoCasa(declarado, f) {
+/* el subtotal que es el conjunto OFICIAL entero de su métrica (las 6 cuentas con carga alta son TODA la carga alta): su todo no está promovido */
+const _esElConjuntoOficial = (f, I) => {
+  if (!I || !I.conjuntos || !f.base) return false;
+  const c = I.conjuntos[f.base]; if (!c || !Array.isArray(c.entidades) || !c.entidades.length) return false;
+  if (f.entidadesDelGrupo.length) { const b = new Set(f.entidadesDelGrupo.map(normalizar)); return c.entidades.length === b.size && c.entidades.every((x) => b.has(normalizar(x))); }
+  return f.n != null && f.n === c.entidades.length;
+};
+const _mismoSet = (A, B) => A.size === B.size && [...A].every((x) => B.has(x));
+function _universoCasa(declarado, f, I = null) {
   const u = Array.isArray(declarado) ? declarado.join(", ") : String(declarado || "");
   if (!u.trim()) return "vacio";
   const nums = numerosEn(u).filter((x) => Number.isInteger(x));
   const esSubtotal = /subtotal|promedio|resto de/i.test(f.conceptoNorm) || (f.grupo && f.n != null) || (f.cobertura && f.cobertura.alcance && !/total|negocio|global/i.test(String(f.cobertura.alcance)));
-  if (nums.length && f.n != null) return nums.includes(f.n) ? "ok" : "distinto";
-  if (Array.isArray(declarado) && f.entidadesDelGrupo.length) {
-    const a = new Set(declarado.map(normalizar)), b = new Set(f.entidadesDelGrupo.map(normalizar));
-    return a.size === b.size && [...a].every((x) => b.has(x)) ? "ok" : "distinto";
+  if (Array.isArray(declarado) && f.entidadesDelGrupo.length) return _mismoSet(new Set(declarado.map(normalizar)), new Set(f.entidadesDelGrupo.map(normalizar))) ? "ok" : "distinto";
+  const numeroCasa = nums.length && f.n != null && nums.includes(f.n);
+  if (nums.length && f.n != null && !numeroCasa) return "distinto";
+  /* el todo sobre un subtotal es alcance promovido — salvo que el subtotal sea el conjunto oficial entero de su métrica; con el número del grupo
+   * dicho («las 6 cuentas … de los 13 clientes»), el «todo» de al lado es el denominador, no el conjunto */
+  if (!numeroCasa && ES_TODO.test(u) && esSubtotal && !/(?:^|· )total$/.test(f.conceptoNorm)) return _esElConjuntoOficial(f, I) ? "ok" : "promovido";
+  const calif = String(f.calificador || "");
+  if (!calif.trim()) {   // sin rótulo de conjunto («Margen promedio», una cobertura): las palabras del universo contra el texto de la fig
+    const tu = tokens(u), tf = tokens(f.universoTexto + " " + f.conceptoNorm);
+    if (!tu.length || tu.some((t) => tf.some((x) => x.startsWith(t.slice(0, 5))))) return "ok";
+    return esSubtotal ? "distinto" : "ok";
   }
-  if (ES_TODO.test(u) && esSubtotal && !/total/i.test(f.conceptoNorm)) return "promovido";
-  const tu = tokens(u), tf = tokens(f.universoTexto + " " + f.conceptoNorm);
-  if (tu.length && tu.some((t) => tf.some((x) => x.startsWith(t.slice(0, 5))))) return "ok";
-  if (!tu.length) return "ok";
+  /* el rótulo del grupo: sus palabras PRINCIPALES («5 cuentas materiales»), el paréntesis «(de M …)» que describe a TODO el grupo («de 8 bajo el
+   * benchmark»: las 5 están bajo el benchmark) — no el paréntesis «(K de ellas …)», que describe a una PARTE («5 de ellas bajo el benchmark»: las
+   * 6 no lo están) — y la base de la métrica («carga comercial alta») con sus sinónimos («exceso de carga») */
+  const casa = (t, lista) => lista.some((x) => x.startsWith(t.slice(0, 5)) || t.startsWith(x.slice(0, 5)));
+  const principal = tokens(calif.replace(/\(.*?\)/g, " ").replace(/\bsubtotal\b|\bpromedio\b|\bresto de\b/g, " "));
+  const aplicables = tokens([...calif.matchAll(/\(\s*de\s+\d+\s+([^)]*)\)/g)].map((m) => m[1]).join(" "));
+  const base = tokens(f.base || f.conceptoNorm.split(/\s*·\s*/)[0]);
+  const sinCabeza = u.replace(/^\s*(?:las?|los|todas?|todos)?\s*\d*\s*(?:cuentas?|clientes?|skus?|marcas?|familias?|bodegas?|productos?)?\s*(?:con|de|del|en|que\s+tienen)?\s*/i, "").trim();
+  const nombraLaBase = !!f.base && conceptosDe(sinCabeza).includes(f.base);
+  const td = tokens(u);
+  /* solo las palabras del VOCABULARIO DE CONJUNTOS de la evidencia distinguen un grupo de otro («bajo», «benchmark», «materiales», «sanos», «caen»,
+   * «carga alta»…); «participación», «negocio» o los nombres de las cuentas no dicen de qué conjunto es la cifra */
+  const vocab = _vocabularioDeConjuntos(I);
+  const ajenos = td.filter((t) => vocab.has(t) && !casa(t, principal) && !casa(t, aplicables) && !casa(t, base) && !(nombraLaBase && casa(t, tokens(sinCabeza))));
+  const distintivo = (nums.length && f.n != null && nums.includes(f.n)) || td.some((t) => casa(t, principal));
+  if (!ajenos.length && distintivo) return "ok";
+  /* las palabras nombran otro conjunto, o solo la base / el superconjunto: decide el CONJUNTO que identifican (set o tamaño) */
+  if (I && td.length) {
+    /* sin la métrica (deciden las PALABRAS del universo, no el tamaño del grupo de esa métrica) y en el EJE del grupo («los sanos» de clientes no son
+     * los SKU «capital sano») */
+    const ejeDelGrupo = (() => { try { if (f.entidadesDelGrupo.length) { const r = I.resolverEntidad(f.entidadesDelGrupo[0]); if (r && r.eje) return r.eje; } } catch { /* sin eje */ } return f.eje || (/\bskus?\b/i.test(calif) ? "sku" : /\bbodegas?\b/i.test(calif) ? "bodega" : /\bmarcas?\b/i.test(calif) ? "marca" : /\bfamilias?\b/i.test(calif) ? "familia" : "cliente"); })();
+    let U = null; try { U = _conjuntoDeUniverso(u, I, ejeDelGrupo, ""); } catch { U = null; }
+    if (U && U.set) {
+      if (f.entidadesDelGrupo.length && _mismoSet(U.set, new Set(f.entidadesDelGrupo.map(normalizar)))) return "ok";
+      if (!f.entidadesDelGrupo.length && f.n != null && U.set.size === f.n) return "ok";
+      /* el SUPERCONJUNTO que el propio rótulo nombra («(de 8 bajo el benchmark)» y el universo dice «las cuentas bajo el benchmark»): la cifra del
+       * subtotal vale para él solo si la métrica no tiene valores fuera del grupo */
+      if (f.m != null && f.m === U.set.size) return _sumaDelSuperconjunto(f, U, I);
+      if (f.entidadesDelGrupo.length || f.n != null) return "distinto";
+      return ajenos.length ? "distinto" : "ok";
+    }
+    if (U && !U.set && !U.error) return esSubtotal ? (_esElConjuntoOficial(f, I) ? "ok" : "promovido") : "ok";   // el eje entero sobre un subtotal
+  }
+  if (ajenos.length) return esSubtotal ? "distinto" : "ok";
+  if (distintivo || !td.length) return "ok";
+  /* sin palabras del vocabulario ni distintivas («las cuentas de la cartera»): como siempre, por las palabras del texto de la fig */
+  const tf = tokens(f.universoTexto + " " + f.conceptoNorm);
+  if (td.some((t) => tf.some((x) => x.startsWith(t.slice(0, 5))))) return "ok";
   return esSubtotal ? "distinto" : "ok";
+}
+/* _sumaDelSuperconjunto(f, U, I) → «ok» si la métrica del subtotal no tiene valores fuera del grupo dentro del superconjunto U (conjunto
+ * oficial: fuera vale 0; ranking que cubre U: se cuentan los que traen valor), «distinto» si hay más miembros con valor que el grupo, e
+ * «incierto» si la evidencia no cubre el superconjunto (el total de U no está en la boleta) */
+function _sumaDelSuperconjunto(f, U, I) {
+  const oficial = I && I.conjuntos && f.base ? I.conjuntos[f.base] : null;
+  if (oficial && Array.isArray(oficial.entidades) && oficial.entidades.length) { const O = new Set(oficial.entidades.map(normalizar)); return [...U.set].filter((e) => O.has(e)).length === f.n ? "ok" : "distinto"; }
+  const conValor = new Set();
+  try { for (const g of I.figsDeMetrica(f.base, f.eje || null)) if (g.entidad && Number.isFinite(g.raw) && g.raw !== 0) conValor.add(normalizar(g.entidad)); } catch { /* sin figs */ }
+  let cubreU = false;
+  try { const rk = I.rankingDe(f.eje || "cliente", f.base); if (rk) { for (const x of rk.r.filas) if (Number.isFinite(+x.valor) && +x.valor !== 0) conValor.add(normalizar(x.entidad)); cubreU = [...U.set].every((e) => rk.r.filas.some((x) => normalizar(x.entidad) === e)); } } catch { /* sin ranking */ }
+  const dentro = [...U.set].filter((e) => conValor.has(e)).length;
+  if (f.n != null && dentro > f.n) return "distinto";
+  return cubreU ? "ok" : "incierto";
+}
+/* el vocabulario de conjuntos de la evidencia: las palabras de los conjuntos conocidos y de los calificadores de los agregados */
+const _VOCAB_CACHE = new WeakMap();
+function _vocabularioDeConjuntos(I) {
+  if (!I) return new Set(["bajo", "sobre", "encima", "debajo", "benchmark", "materiales", "material", "sanos", "sano", "caen", "crecen", "grandes", "frenado", "frenados", "critico", "criticos", "nivel", "declarado", "umbral", "presupuesto", "vencido"]);
+  if (_VOCAB_CACHE.has(I)) return _VOCAB_CACHE.get(I);
+  const out = new Set(["bajo", "sobre", "encima", "debajo", "benchmark", "materiales", "material", "sanos", "sano", "caen", "crecen", "grandes", "frenado", "frenados", "critico", "criticos", "nivel", "declarado", "umbral", "presupuesto", "vencido"]);
+  try { for (const c of _conjuntosConocidos(I)) for (const t of tokens(c.nombre)) out.add(t); } catch { /* sin conjuntos */ }
+  for (const f of I.figs) if (f.agregado && f.calificador) { for (const t of tokens(String(f.calificador).replace(/\bsubtotal\b|\bpromedio\b|\bresto de\b/g, " "))) out.add(t); }
+  _VOCAB_CACHE.set(I, out);
+  return out;
 }
 /* la BASE del año anterior («Ventas del año anterior»): un nivel del período anterior, no una variación contra él («Variación vs año anterior en $», «YoY») */
 const _esBaseAnterior = (f) => /(?:^|\s)(?:del\s+)?ano\s+(?:anterior|pasado)$/.test(f.conceptoNorm) && !/variacion|crecimiento|yoy|\bvs\b/.test(f.conceptoNorm);
@@ -206,7 +280,7 @@ function _conjuntosConocidos(I) {
   const umbral = I.figs.find((f) => !f.entidad && /umbral de materialidad/.test(f.conceptoNorm) && f.unidad === "money" && Number.isFinite(f.raw));
   const varUsd = new Map(); for (const f of I.figs) if (f.entidad && _FIG_VARIACION_DINERO(f) && Number.isFinite(f.raw) && !varUsd.has(f.entidad)) varUsd.set(f.entidad, f.raw);
   if (umbral && varUsd.size) {
-    out.push({ nombre: "caen de forma material", eje: "cliente", set: new Set([...varUsd].filter(([, v]) => v < 0 && Math.abs(v) >= umbral.raw).map(([e]) => normalizar(e))), fuente: `variación < 0 y |variación| ≥ ${umbral.texto}`, re: /(?:caen|ca[ií]da|pierden)[^.]{0,30}material|material(?:es)?[^.]{0,30}(?:caen|ca[ií]da)|sobre el umbral|de forma material|materiales?(?:\s+contra)?/i });
+    out.push({ nombre: "caen de forma material", eje: "cliente", set: new Set([...varUsd].filter(([, v]) => v < 0 && Math.abs(v) >= umbral.raw).map(([e]) => normalizar(e))), fuente: `variación < 0 y |variación| ≥ ${umbral.texto}`, re: /(?:caen|ca[ií]da|pierden)[^.]{0,30}material|material(?:es)?[^.]{0,30}(?:caen|ca[ií]da)|sobre el umbral|de forma material|materiales?\s+contra/i });
     out.push({ nombre: "caen bajo el umbral", eje: "cliente", set: new Set([...varUsd].filter(([, v]) => v < 0 && Math.abs(v) < umbral.raw).map(([e]) => normalizar(e))), fuente: `variación < 0 y |variación| < ${umbral.texto}`, re: /bajo el umbral|debajo del umbral|no material/i });
   }
   for (const f of I.figs) if (f.entidadesDelGrupo.length) out.push({ nombre: f.label, set: new Set(f.entidadesDelGrupo.map(normalizar)), fuente: `grupo «${f.label}»`, tokens: tokens(f.calificador.replace(/\(.*?\)/g, "") + " " + f.base), n: f.n });
@@ -259,7 +333,9 @@ function _conjuntoDeUniverso(u, I, eje, metrica = "") {
   /* un grupo de un agregado, por su tamaño y sus palabras («las 5 cuentas materiales», «los que caen», «los grandes») */
   const grupos = conocidos.filter((c) => c.tokens);
   let g = null;
-  if (nums.length) g = grupos.find((c) => nums.includes(c.n) && (tu.some((t) => c.tokens.some((x) => x.startsWith(t.slice(0, 5)))) || (metrica && (() => { const fg = I.figs.find((f) => f.label === c.nombre); return !!fg && I.casa(metrica, fg) > 0; })())));
+  /* una preposición de dirección a secas («sobre», «bajo») no identifica un grupo: «las 6 cuentas sobre el benchmark» no son las «6 cuentas sobre el nivel declarado» */
+  const tuD = tu.filter((t) => !/^(?:sobre|bajo|encima|debajo|entre|desde|hasta)$/.test(t));
+  if (nums.length) g = grupos.find((c) => nums.includes(c.n) && (tuD.some((t) => c.tokens.some((x) => x.startsWith(t.slice(0, 5)))) || (metrica && (() => { const fg = I.figs.find((f) => f.label === c.nombre); return !!fg && I.casa(metrica, fg) > 0; })())));
   if (!g && tu.length) g = grupos.find((c) => tu.every((t) => c.tokens.some((x) => x.startsWith(t.slice(0, 5)))));
   if (g) return { set: g.set, fuente: g.fuente };
   /* los estados, los umbrales, los que caen/crecen — y una conjunción de dos («bajo el benchmark y sobre el nivel de carga») */
@@ -338,15 +414,16 @@ function _cifra(a, I) {
   /* el universo/período declarados eligen entre las candidatas (Venta vs Venta (flujo); el subtotal de 5 vs el de 6) */
   const enPeriodo = cands.filter((f) => _periodoCasa(a.periodo, f, a.metrica));
   if (!enPeriodo.length) return _nv(`sin-evidencia: la boleta no trae «${a.metrica}» de ${_nom(a.sujeto)} en el período «${a.periodo}»`, cands.slice(0, 2).map((f) => f.label), cands.slice(0, 2).map(_fmt).join(" · "));
-  const compatibles = enPeriodo.filter((f) => !f.agregado || !_necesitaUniverso(f, a.sujeto) || _universoCasa(a.universo, f) === "ok");
+  const compatibles = enPeriodo.filter((f) => !f.agregado || !_necesitaUniverso(f, a.sujeto) || _universoCasa(a.universo, f, I) === "ok");
   const pool = compatibles.length ? compatibles : enPeriodo;
   const exacta = pool.find((f) => _mismoValor(v, f.raw, f.unidad, f.texto));
   if (exacta) {
     if (exacta.agregado && _necesitaUniverso(exacta, a.sujeto)) {
-      const u = _universoCasa(a.universo, exacta);
+      const u = _universoCasa(a.universo, exacta, I);
       if (u === "vacio") return _nv(`universo-no-declarado: la cifra es un agregado (${exacta.label}); la afirmación debe decir de qué conjunto es`, [exacta.label], _fmt(exacta));
       if (u === "promovido") return _falsa(`alcance-promovido: la cifra es de ${exacta.label}, no del total`, _fmt(exacta), [exacta.label]);
       if (u === "distinto") return _falsa(`universo-distinto: la cifra es de ${exacta.label}`, _fmt(exacta), [exacta.label]);
+      if (u === "incierto") return _nv(`universo-no-verificable: la cifra es de ${exacta.label}; el total de «${_nom(a.universo)}» no está en la boleta`, [exacta.label], _fmt(exacta));
     }
     return _ok(`coincide con ${_fmt(exacta)}`, [exacta.label], _fmt(exacta));
   }
@@ -356,7 +433,7 @@ function _cifra(a, I) {
   const deOtra = I.figs.find((f) => f.entidad && f.entidad !== f0.entidad && I.casa(a.metrica, f) > 0 && _mismoValor(v, f.raw, f.unidad, f.texto));
   const agregadoCoincide = cands.find((f) => f.agregado && _mismoValor(v, f.raw, f.unidad, f.texto));
   if (agregadoCoincide) {
-    const u = _universoCasa(a.universo, agregadoCoincide);
+    const u = _universoCasa(a.universo, agregadoCoincide, I);
     if (u === "vacio") return _nv(`universo-no-declarado: la cifra es un agregado (${agregadoCoincide.label}); la afirmación debe decir de qué conjunto es`, [agregadoCoincide.label], _fmt(agregadoCoincide));
     return _falsa(`universo-distinto: la cifra es de ${agregadoCoincide.label}`, _fmt(agregadoCoincide), [agregadoCoincide.label]);
   }
@@ -437,12 +514,23 @@ function _grupo(a, I) {
   const setD = new Set(declaradas.map(normalizar));
   const mismoConjunto = (f) => f.entidadesDelGrupo.length ? (f.entidadesDelGrupo.length === setD.size && f.entidadesDelGrupo.every((e) => setD.has(normalizar(e)))) : (n != null && f.n === n);
   /* 1 · el agregado del conjunto declarado */
-  const propio = [...agregados].sort((x, y) => _puntajeUniverso(descripcion, y) - _puntajeUniverso(descripcion, x)).find((f) => declaradas.length ? mismoConjunto(f) : _universoCasa(descripcion || (n != null ? `${n} cuentas` : ""), f) === "ok" && (n == null || f.n == null || f.n === n));
+  const propio = [...agregados].sort((x, y) => _puntajeUniverso(descripcion, y) - _puntajeUniverso(descripcion, x)).find((f) => declaradas.length ? mismoConjunto(f) : _universoCasa(descripcion || (n != null ? `${n} cuentas` : ""), f, I) === "ok" && (n == null || f.n == null || f.n === n));
   if (propio) {
     if (_mismoValor(v, propio.raw, propio.unidad, propio.texto)) return _ok(`coincide con ${_fmt(propio)} (${propio.n != null ? propio.n + " entidades" : "el conjunto declarado"})`, [propio.label], _fmt(propio));
     return _falsa(`cifra-distinta: ${_fmt(propio)}`, _fmt(propio), [propio.label]);
   }
+  /* 1b · con las entidades declaradas y sus figs individuales (montos y conteos), la SUMA manda: «Valparaíso y Antofagasta suman $33K» es la suma de
+   * sus figs aunque $33K sea también el subtotal de los 3 SKU (la cuenta cierra, no hay grupo ajeno) */
+  if (declaradas.length && v && (v.unidad === "money" || v.unidad === "count")) {
+    const figsI = declaradas.map((e) => I.buscarFigs(e, a.metrica).filter((f) => _u(f.unidad) === _u(v.unidad))[0] || null);
+    if (figsI.every(Boolean)) {
+      const suma = figsI.reduce((s, f) => s + f.raw, 0);
+      if (Math.abs(suma - v.raw) <= tolCalculo(v.raw, v.unidad)) return _ok(`derivada: suma de ${figsI.map(_fmt).join(" + ")}`, figsI.map((f) => f.label), `suma = ${suma}`);
+    }
+  }
   /* 2 · la cifra coincide con un agregado de OTRO conjunto: la cifra es del grupo entero, no del declarado (cifra-de-grupo-mal-repartida) */
+  const incierto = !declaradas.length && agregados.find((f) => _mismoValor(v, f.raw, f.unidad, f.texto) && _universoCasa(descripcion || (n != null ? `${n} cuentas` : ""), f, I) === "incierto");
+  if (incierto) return _nv(`universo-no-verificable: la cifra es de ${incierto.label}; el total de «${descripcion}» no está en la boleta`, [incierto.label], _fmt(incierto));
   const ajeno = agregados.find((f) => _mismoValor(v, f.raw, f.unidad, f.texto));
   if (ajeno) return _falsa(`grupo-distinto: ${v.texto} es ${_fmt(ajeno)} — el conjunto es de ${ajeno.n != null ? ajeno.n : "otro tamaño"}${ajeno.entidadesDelGrupo.length ? ": " + _lista(ajeno.entidadesDelGrupo) : ""}, no ${declaradas.length ? _lista(declaradas) : descripcion}`, _fmt(ajeno), [ajeno.label]);
   /* 3 · sin agregado: la suma de las figs individuales del conjunto declarado (solo montos y conteos) */
@@ -597,7 +685,7 @@ const _FIG_VARIACION_DINERO = (f) => f.unidad === "money" && (f.conceptoNorm ===
 function _valorDe(sujeto, metrica, I, universo = "", unidad = null) {
   if (sujeto && typeof sujeto === "object" && sujeto.descripcion) {
     const todos = _agregadosDe(metrica, I);
-    let ag = todos.filter((f) => _universoCasa(sujeto.descripcion, f) === "ok").sort((x, y) => _puntajeUniverso(sujeto.descripcion, y) - _puntajeUniverso(sujeto.descripcion, x));
+    let ag = todos.filter((f) => _universoCasa(sujeto.descripcion, f, I) === "ok").sort((x, y) => _puntajeUniverso(sujeto.descripcion, y) - _puntajeUniverso(sujeto.descripcion, x));
     /* sin casación por palabras, por CONJUNTO: «cuentas bajo el benchmark» es el grupo de «Markup promedio · los que caen» (los mismos 8) */
     if (!ag.length) {
       const U = _conjuntoDeUniverso(sujeto.descripcion, I, null, metrica);
@@ -612,7 +700,7 @@ function _valorDe(sujeto, metrica, I, universo = "", unidad = null) {
   /* la métrica sin «año anterior» es la del período: la base del año anterior no la representa (venta vs presupuesto comparaba $92.9M) */
   if (!/anterior|pasado|previo/.test(normalizar(metrica))) { const delPeriodo = c.filter((f) => !_esBaseAnterior(f)); if (delPeriodo.length) c = delPeriodo; }
   if (unidad) { const mismaU = c.filter((f) => _u(f.unidad) === _u(unidad)); if (mismaU.length) c = mismaU; }
-  if (universo) { const u = c.find((f) => _universoCasa(universo, f) === "ok"); if (u) return u; }
+  if (universo) { const u = c.find((f) => _universoCasa(universo, f, I) === "ok"); if (u) return u; }
   if (sujeto === "negocio") {
     /* el todo del negocio: «· total» primero, después un promedio; un «resto de» o un subtotal solo si el universo los nombra */
     const total = c.find((f) => /(?:^|· )total$/.test(f.conceptoNorm)); if (total) return total;
@@ -732,11 +820,18 @@ const predN = normalizar(pred);
   }
   const conocidos = _conjuntosConocidos(I).filter((c) => c.re && (!c.eje || c.eje === eje));
   const total = I.tamanoDelEje(eje) || null;
-  const partes = String(pred).split(/\s+(?:y|e)\s+|\s*\+\s*/i).map((x) => x.trim()).filter(Boolean);
+  const partes = String(pred).split(/\s+(?:y|e)\s+|\s*\+\s*|\s*,\s*/i).map((x) => x.trim()).filter(Boolean);
   const sets = partes.map((p) => conocidos.find((c) => c.re.test(p)) || (() => { const t = _topKDe(p, I, eje); return t ? { ...t, nombre: t.fuente } : null; })()).filter(Boolean);
+  /* dos conjuntos nombrados en tramos DISTINTOS del predicado, con o sin «y» («con carga alta bajo el benchmark»): la intersección */
+  const tramos = conocidos.map((c) => { const m = c.re.exec(String(pred)); return m ? { c, a: m.index, b: m.index + m[0].length } : null; }).filter(Boolean).sort((x, y) => x.a - y.a);
+  const distintos = []; for (const t of tramos) { const ult = distintos[distintos.length - 1]; if (!ult || t.a >= ult.b) distintos.push(t); }
   if (partes.length > 1 && sets.length === partes.length) {
     let set = new Set(sets[0].set); for (const c of sets.slice(1)) set = new Set([...set].filter((e) => c.set.has(e)));
     out.push({ n: set.size, m: total, fuente: sets.map((c) => c.fuente).join(" ∩ "), label: sets.map((c) => c.nombre).join(" ∩ "), set });
+  } else if (distintos.length >= 2) {
+    let set = new Set(distintos[0].c.set); for (const t of distintos.slice(1)) set = new Set([...set].filter((e) => t.c.set.has(e)));
+    out.push({ n: set.size, m: total, fuente: distintos.map((t) => t.c.fuente).join(" ∩ "), label: distintos.map((t) => t.c.nombre).join(" ∩ "), set });
+    for (const c of conocidos) if (c.re.test(pred)) out.push({ n: c.set.size, m: c.fuente.startsWith("estados") ? null : total, fuente: c.fuente, label: c.nombre, set: c.set });
   } else {
     for (const c of conocidos) if (c.re.test(pred)) out.push({ n: c.set.size, m: c.fuente.startsWith("estados") ? null : total, fuente: c.fuente, label: c.nombre, set: c.set });
     const t = _topKDe(pred, I, eje);
@@ -764,9 +859,17 @@ function _conteo(a, I) {
     const _mBoleta = _mDicho0 != null && _candidatosDeConteo(uTexto.replace(/\d+/g, " "), I, ejeU).some((x) => x.n === _mDicho0 && !x.set) ? _mDicho0 : null;
     cn = conSet.map((x) => ({ ...x, n: [...x.set].filter((e) => U.set.has(e)).length, m: _mBoleta != null ? _mBoleta : U.set.size, fuente: `${x.fuente} dentro de ${U.fuente}` }));
   }
-  /* con varias candidatas del mismo n gana la que trae el «de M» declarado (o la de predicado más parecido: las de rótulo antes que las de conjunto) */
+  /* el MEJOR candidato decide (ronda adversarial 2026-09-16: antes ganaba cualquiera que trajera el n declarado): el conteo explícito de la
+   * boleta, después la intersección que cubre todo el predicado, después el que trae el «de M» dicho; un «(K de ellas …)» del rótulo cuenta
+   * dentro de su grupo y sin universo dicho pesa menos que el conjunto del eje; solo entre empatados vale el que trae el n declarado */
   const _mDicho = c.m != null ? c.m : (numerosEn(uTexto).find(Number.isInteger) ?? null);
-  const exacto = cn.find((x) => x.n === c.n && _mDicho != null && x.m === _mDicho) || cn.find((x) => x.n === c.n && (x.m == null || _mDicho == null)) || cn.find((x) => x.n === c.n);
+  const rango = (x) => { let s = 0; if (x.fuente === "conteo de la boleta") s += 40; if (/∩/.test(x.fuente)) s += 30; if (_mDicho != null) { if (x.m === _mDicho) s += 20; else if (x.m == null) s += 5; else s -= 25; } else if (/de ellas/.test(x.fuente)) s -= 10; return s; };
+  cn = [...cn].sort((x, y) => rango(y) - rango(x));
+  const empatados = cn.filter((x) => rango(x) === rango(cn[0]));
+  /* una ENUMERACIÓN («Falabella, Lider, Jumbo, Sodimac y Ripley cargan sobre el nivel y están bajo el benchmark») se juzga por los nombrados: el
+   * conjunto de la evidencia que mejor los contiene tiene que ser exactamente ellos (más los no nombrados que el n admite) */
+  const exacto = (Array.isArray(a.sujeto) && a.sujeto.length && cn.some((x) => x.set)) ? (cn.find((x) => x.n === c.n) || cn[0])
+    : empatados.find((x) => x.n === c.n && _mDicho != null && x.m === _mDicho) || empatados.find((x) => x.n === c.n && (x.m == null || _mDicho == null)) || empatados.find((x) => x.n === c.n);
   if (!exacto) return _falsa(`conteo-falso: son ${fmtC(cn[0])}, no ${c.n}`, fmtC(cn[0]), [cn[0].label]);
   if (Array.isArray(a.sujeto) && a.sujeto.length) {
     const nombrados = a.sujeto.map((e) => { const r = I.resolverEntidad(e); return normalizar(r ? r.nombre : e); });

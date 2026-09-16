@@ -200,6 +200,27 @@ la fase 3 re-juzgada: verdaderas 325 · no verificables 23 · las 12 falsas (7 r
 contra su propio valor) · 0 FN. Suite 267/267 · 0 red. Sigue la ronda adversarial (UltraCode, offline) y después la estimación de la
 certificación viva. `_NOTARIO_SEMANTICO_FASE4_DISENO.md` §11.
 
+**El Notario semántico — fase 4, ronda adversarial (2026-09-16, offline; sin corridas ni deploy).** UltraCode atacó fuera de muestra la
+relación agente ↔ Notario con el banco offline (637 casos en seis ángulos: forma, ubicador, asistencia, prosa congelada, definiciones
+únicas, modelo libre); un escéptico independiente confirmó 69 roturas re-corriendo cada una contra la boleta. Las 69 quedaron cerradas
+sin abrir lo que la fase 3 ya cerraba: la cifra ya no elige el concepto (un concepto de la casa nunca casa con otro por contención); el
+universo de un subtotal se casa con el rótulo del grupo y su vocabulario de conjuntos —«(de M …)» describe a todo el grupo, «(K de
+ellas …)» a una parte— y, si nombra otro conjunto, decide el conjunto que identifica; el superconjunto vale solo si la métrica no tiene
+valores fuera del grupo (si no hay evidencia: no verificable, nunca a ciegas); los conteos se rankean (conteo explícito > intersección
+que cubre todo el predicado > el «de M» dicho > «de ellas»); un estado lo cubre solo un estado o una métrica que lo nombra; la
+consistencia prosa↔declaración v2 (dueño de la cifra por su oración, el dueño después de la cifra, la ocurrencia del fragmento, los
+lados de «A vs B», la métrica pegada a la cifra, el concepto nombrado, los superlativos de daño, la exclusividad); la negación factual
+de un orden o una variación es un hecho (solo la epistémica exime) y la negación después de la cifra cuenta; las cifras en palabras
+(«veintiocho por ciento», «casi dos millones», «siete puntos», «casi un año de atraso») y los superlativos libres («va en cabeza»,
+«cierra la tabla», «completa el podio») son puntos de afirmación. Candado `_notario_adversarial_gate` (92: 69 roturas + 23 controles
+verdaderos, incluidos los falsos positivos que los atacantes reportaron); `_notario_semantico_gate` 31, `_resolutor_gate` 45,
+`_notario_semantico_flujo_gate` 45 sin regresión. Fase 3 re-juzgada: verdaderas 326 · no verificables 23 · falsas 11 · 0 FN · 2
+inconsistencias legítimas. Una etiqueta de la fase 3 cambió con la definición del owner (3.reparacion.3: bajo el benchmark ∩ sobre el
+nivel = 6, verdadera). Sigue: la ronda adversarial otra vez sobre la versión cerrada y, si sobrevive, la estimación de la certificación
+viva. La suite completa destapó 18 gates rojos por falsos positivos de la consistencia v2 sobre los composers de la casa («de
+mayor a menor», «el que más cae», «más delgado que», partitivos, participaciones, preguntas indirectas): cerrados en el juez y en presencia;
+un composer cambió su declaración, no su prosa. Suite 268/268 · 0 red. `_NOTARIO_SEMANTICO_FASE4_DISENO.md` §12.
+
 
 ---
 

@@ -172,6 +172,15 @@ Derivadas que se rompen seguido:
   turno (`src/adi/notario/carta.js`) viaja con los resultados de cada ronda. Protocolo v2 de la instrucción (`declaracion.js`). Candado:
   `_notario_semantico_flujo_gate` §F. Pendientes (`_NOTARIO_SEMANTICO_FASE4_DISENO.md` §11): la ronda adversarial (UltraCode, offline, con
   `_adversarial_notario_harness.mjs`) y la medición en vivo (etapa C, gasto a nombrar).
+- **Fase 4, ronda adversarial (2026-09-16, offline): 69 roturas confirmadas fuera de muestra, 69 cerradas, 23 controles.** Las reglas que quedaron
+  (cada una con su carnada en `_notario_adversarial_gate`, 92): un concepto de la casa NUNCA casa con otro por contención (`_casa`); el universo de un
+  subtotal se casa con el rótulo del grupo y el vocabulario de conjuntos («(de M …)» describe a todo el grupo, «(K de ellas …)» a una parte), si
+  nombra otro conjunto decide el conjunto que identifica, y el superconjunto vale solo si la métrica no tiene valores fuera del grupo (sin evidencia:
+  «incierto» = no verificable); los conteos se rankean y el mejor decide (una enumeración se juzga por los nombrados); un estado lo cubre solo un
+  estado o una métrica que lo nombra; la cobertura de una cifra por su canon respeta al dueño; la negación factual de un orden o variación es un
+  hecho (solo la epistémica exime); las cifras en palabras y los superlativos libres son puntos. Etiqueta 3.reparacion.3 de la fase 3 reetiquetada
+  verdadera con la definición del owner (bajo el benchmark ∩ sobre el nivel = 6). Pendiente: la ronda adversarial otra vez sobre la versión
+  cerrada; después la etapa C en vivo (gasto a nombrar). `_NOTARIO_SEMANTICO_FASE4_DISENO.md` §12.
 
 ---
 

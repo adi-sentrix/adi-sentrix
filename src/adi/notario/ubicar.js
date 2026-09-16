@@ -27,7 +27,7 @@ export function normalizarConMapa(s) {
     prevEspacio = false; out.push(ch[0]); mapa.push(i);
   }
   mapa.push(src.length);
-  return { texto: out.join(""), mapa };
+  return { texto: out.join(""), mapa, src };
 }
 /* las marcas que no son prosa: markdown (** * _ `), comillas y guillemets, y la puntuación pegada («Santiago:» = «Santiago») */
 const _MARCAS = /[*_`"'«»“”‘’]/g;
@@ -83,7 +83,11 @@ export function ubicarFragmento(prosa, fragmento, { nombres = [], desde = 0 } = 
   const nums = _numeros(fN), pal = _palabras(fN);
   const duenos = (nombres || []).map((n) => normalizarConMapa(n).texto.trim()).filter((n) => n && fN.includes(n));
   if (nums.length || pal.length >= 2) {
-    for (const o of _oraciones(P.texto)) {
+    /* el salto de línea también cierra una oración (una lista con viñetas no es una sola oración): el espacio normalizado que
+     * cubre un «\n» del original se marca como frontera */
+    const conSaltos = P.texto.split("");
+    for (let k = 0; k < conSaltos.length; k++) if (conSaltos[k] === " " && P.src.slice(P.mapa[k], P.mapa[k + 1]).includes("\n")) conSaltos[k] = "\n";
+    for (const o of _oraciones(conSaltos.join(""))) {
       if (o.fin <= d0) continue;
       const s = P.texto.slice(o.ini, o.fin);
       if (!nums.every((n) => new RegExp("(?<![\\d.])" + _escapar(n) + "(?![\\d])").test(s))) continue;
@@ -93,7 +97,13 @@ export function ubicarFragmento(prosa, fragmento, { nombres = [], desde = 0 } = 
       if (hits >= minimo && (nums.length || hits >= 2)) {
         /* el tramo cubierto: de la primera a la última pieza casada (cifras, dueños, palabras), no la oración entera */
         const posiciones = [];
-        for (const n of nums) { const m = new RegExp("(?<![\\d.])" + _escapar(n) + "(?![\\d])").exec(s); if (m) posiciones.push([m.index, m.index + m[0].length]); }
+        const jD = duenos.length ? s.indexOf(duenos[0]) : -1;
+        for (const n of nums) {
+          /* la ocurrencia de la cifra más cercana al dueño («MAK-COMP-AIR: $8K» es el $8K de su línea, no el «$8K en Antofagasta» de antes) */
+          const re = new RegExp("(?<![\\d.])" + _escapar(n) + "(?![\\d])", "g"); let m, mejor = null, dist = Infinity;
+          while ((m = re.exec(s))) { const d = jD >= 0 ? Math.abs(m.index - jD) : m.index; if (d < dist) { dist = d; mejor = [m.index, m.index + m[0].length]; } }
+          if (mejor) posiciones.push(mejor);
+        }
         for (const d of duenos) { const j = s.indexOf(d); if (j >= 0) posiciones.push([j, j + d.length]); }
         for (const w of pal) { const j = s.indexOf(w); if (j >= 0) posiciones.push([j, j + w.length]); }
         const ini = posiciones.length ? Math.min(...posiciones.map((p) => p[0])) : 0, fin = posiciones.length ? Math.max(...posiciones.map((p) => p[1])) : s.length;

@@ -365,7 +365,8 @@ export const compararAlternativas = {
         p.push(l);
         /* «pesa varias veces lo otro» (el doble o más, sin múltiplo dicho): se declara como la relación mayor entre las dos figs del precio */
         const menor = con.mayor === x ? y : x;
-        D.relacion({ sujeto: "negocio", metrica: _lab(con.mayor.f), forma: "mayor", vs: { sujeto: "negocio", metrica: _lab(menor.f) }, texto: l });
+        /* el tramo declarado es la relación misma («pesa varias veces lo otro»): el nombre del frente («el margen») es un rótulo de esta ruta, no la métrica de la cifra */
+        D.relacion({ sujeto: "negocio", metrica: _lab(con.mayor.f), forma: "mayor", vs: { sujeto: "negocio", metrica: _lab(menor.f) }, texto: "pesa varias veces lo otro" });
       } else {
         const l = `Los dos pesan parecido, así que el tamaño no elige: elige el que puedas mover más rápido, y eso lo sabes tú mejor que el dato.`;
         p.push(l);

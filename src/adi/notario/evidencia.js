@@ -64,6 +64,8 @@ export const SINONIMOS = [
   [/^m[aá]rgen(?:es)?$|^margen\s+comercial$|^margen\s+bruto$/i, ["margen", "margen promedio"]],   // el margen del negocio es su «Margen promedio»
   [/^margen\s+promedio$|^margen\s+de\s+la\s+cartera$/i, ["margen promedio"]],
   [/^cargas?(?:\s+comercial)?$|^acciones\s+comerciales$|^rebates?$|^descuentos?$/i, ["carga comercial", "carga"]],
+  /* la referencia de la carga, como la nombra la prosa («nivel de referencia», «nivel declarado», «referencia de carga») */
+  [/^nivel(?:\s+de\s+(?:carga(?:\s+comercial)?|referencia))?(?:\s+(?:declarado|de\s+referencia))?$|^referencia\s+de\s+(?:la\s+)?carga$|^nivel\s+de\s+carga\s+(?:comercial\s+)?declarado$/i, ["nivel de carga declarado", "nivel de carga comercial declarado", "nivel de carga"]],
   [/^(?:carga\s+comercial\s+alta|carga\s+alta|exceso\s+de\s+carga|carga\s+excedente|carga\s+sobre\s+el\s+nivel)$/i, ["carga comercial alta"]],
   [/^brechas?(?:\s+(?:al\s+benchmark|de\s+margen|contra\s+el\s+benchmark|al\s+margen|en\s+puntos|en\s+pp))?$|^distancia\s+al\s+benchmark$|^puntos\s+bajo\s+el\s+benchmark$/i, ["brecha al benchmark"]],
   [/^brecha\s+por\s+precio\s+y\s+costo$|^precio\s+y\s+costo$|^brecha\s+de\s+precio\s+y\s+costo$/i, ["brecha por precio y costo"]],
@@ -73,7 +75,10 @@ export const SINONIMOS = [
   [/^unidades(?:\s+vendidas)?$|^volumen$|^volumen\s+vendido$/i, ["unidades vendidas"]],
   [/^unidades\s+en\s+stock$|^stock\s+en\s+unidades$|^unidades\s+en\s+inventario$/i, ["unidades en stock"]],
   [/^capital(?:\s+en\s+inventario)?$|^valor\s+de\s+inventario$|^stock$|^inventario$|^capital\s+total$/i, ["capital", "valor de inventario", "stock", "capital en inventario"]],
-  [/^capital\s+(?:frenado|detenido|inmovilizado|parado|bloqueado)$|^frenado$|^inmovilizado$/i, ["capital frenado"]],
+  /* el owner (2026-08-15): «capital inmovilizado = categoría amplia (todo lo no activo); frenado = estado crítico DENTRO de inmovilizado». Dos
+   * conceptos: la ronda adversarial sirvió «capital inmovilizado $33K» (el frenado) cuando la proyección trae «Capital inmovilizado · subtotal · 5 SKU» */
+  [/^capital\s+frenado$|^frenado$/i, ["capital frenado"]],
+  [/^capital\s+(?:detenido|inmovilizado|parado|bloqueado|estancado)$|^inmovilizado$|^parado$|^detenido$/i, ["capital inmovilizado"]],
   [/^rotaci[oó]n$/i, ["rotacion"]],
   [/^d[ií]as\s+(?:de\s+)?inventario$|^cobertura(?:\s+\(doh\))?$|^doh$/i, ["dias de inventario", "cobertura (doh)"]],
   [/^d[ií]as\s+sin\s+venta$/i, ["dias sin venta"]],
@@ -205,6 +210,9 @@ export function indiceDeEvidencia({ figs = [], datoProyectado = null, ejesDelTen
     if (c === m || f.conceptoNorm === m) return 4;
     const sin = conceptosDe(metrica);
     if (sin.length) { const i = sin.indexOf(c); if (i >= 0) return 3.5 - i * 0.01; if (sin.includes(f.conceptoNorm)) return 3.4; }
+    /* un concepto de la casa NUNCA casa con OTRO concepto de la casa por contención: «carga comercial» (la tasa) no es «carga comercial alta» (el
+     * exceso en $), «contribución» no es «contribución no capturada», «capital» no es «capital frenado» (ronda adversarial 2026-09-16) */
+    if (sin.length) { const otro = conceptosDe(c); if (otro.length && !otro.some((x) => sin.includes(x))) return 0; }
     /* contención: «vencido» dentro de «saldo vencido»; se prefiere el concepto más corto (ver buscarFigs) */
     if (m.length >= 4 && c.includes(m)) return 2;   // «vencido» está en «saldo vencido»; lo declarado MÁS específico que el rótulo («capital frenado» vs «capital») no casa
     /* último recurso: el mismo vocabulario del muro */

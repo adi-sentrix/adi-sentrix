@@ -6,13 +6,65 @@
   "nota": "FP = una afirmación verdadera con evidencia en la boleta dictada falsa o no-verificable por un DEFECTO del verificador (la declaración estaba bien formada). Aparte se cuenta la RIGIDEZ: hechos verdaderos y verificables bloqueados porque la declaración no siguió el esquema (el sujeto era un concepto, no una entidad; el universo iba dentro de la métrica; un grupo con lista de valores; una cifra sin unidad) — el modelo no siguió el protocolo, pero el verificador podría tolerarlo. FN = una afirmación falsa dictada verdadera.",
   "fn": 0,
   "fp": 9,
-  "fpEstricto": ["0.reparacion.7", "2.cierre.10", "3.reparacion.7", "9.cierre.11", "10.cierre.19", "10.cierre.20", "4.reparacion.9", "9.cierre.2", "10.cierre.3"],
+  "fpEstricto": [
+   "0.reparacion.7",
+   "2.cierre.10",
+   "3.reparacion.7",
+   "9.cierre.11",
+   "10.cierre.19",
+   "10.cierre.20",
+   "4.reparacion.9",
+   "9.cierre.2",
+   "10.cierre.3"
+  ],
   "rigidez": 29,
-  "rigidezIds": ["2.cierre.7", "4.cierre.4", "8.cierre.0", "5.cierre.5", "0.reparacion.3", "9.reparacion.2", "10.cierre.2", "11.cierre.3", "0.reparacion.6", "9.reparacion.14", "11.cierre.5", "0.cierre.15", "0.cierre.17", "0.cierre.18", "2.reparacion.5", "9.cierre.12", "9.cierre.13", "9.cierre.14", "9.reparacion.10", "9.reparacion.15", "9.reparacion.16", "4.cierre.7", "4.cierre.8", "5.cierre.7", "5.cierre.9", "5.cierre.24", "5.reparacion.9", "5.reparacion.13", "5.reparacion.17"],
-  "falsasConfirmadas": 7,
-  "falsasConfirmadasIds": ["1.reparacion.8", "1.reparacion.10", "2.cierre.6", "3.reparacion.3", "8.reparacion.16", "9.cierre.9", "6.reparacion.15"],
+  "rigidezIds": [
+   "2.cierre.7",
+   "4.cierre.4",
+   "8.cierre.0",
+   "5.cierre.5",
+   "0.reparacion.3",
+   "9.reparacion.2",
+   "10.cierre.2",
+   "11.cierre.3",
+   "0.reparacion.6",
+   "9.reparacion.14",
+   "11.cierre.5",
+   "0.cierre.15",
+   "0.cierre.17",
+   "0.cierre.18",
+   "2.reparacion.5",
+   "9.cierre.12",
+   "9.cierre.13",
+   "9.cierre.14",
+   "9.reparacion.10",
+   "9.reparacion.15",
+   "9.reparacion.16",
+   "4.cierre.7",
+   "4.cierre.8",
+   "5.cierre.7",
+   "5.cierre.9",
+   "5.cierre.24",
+   "5.reparacion.9",
+   "5.reparacion.13",
+   "5.reparacion.17"
+  ],
+  "falsasConfirmadas": 6,
+  "falsasConfirmadasIds": [
+   "1.reparacion.8",
+   "1.reparacion.10",
+   "2.cierre.6",
+   "8.reparacion.16",
+   "9.cierre.9",
+   "6.reparacion.15"
+  ],
   "nvLegitimos": 28,
-  "defectosSinVeredictoErrado": ["2.cierre.3 (el universo «la cartera de clientes» no se resolvió: la afirmación era FALSA —Easy 5.5 % > Sodimac 5.4 %— y quedó no-verificable en vez de falsa)", "9.reparacion.12 («6 de las 8 bajo el benchmark pagan carga alta»: verdadera con el umbral crudo (>3.5 %), 5 según el subtotal de diagnose — dos definiciones de «carga alta» conviven)", "7.reparacion.10 (verdadera por la razón equivocada: la relación era de días vencidos y se verificó como «parte» del saldo)"],
+  "defectosSinVeredictoErrado": [
+   "2.cierre.3 (el universo «la cartera de clientes» no se resolvió: la afirmación era FALSA —Easy 5.5 % > Sodimac 5.4 %— y quedó no-verificable en vez de falsa)",
+   "9.reparacion.12 («6 de las 8 bajo el benchmark pagan carga alta»: verdadera con el umbral crudo (>3.5 %), 5 según el subtotal de diagnose — dos definiciones de «carga alta» conviven)",
+   "7.reparacion.10 (verdadera por la razón equivocada: la relación era de días vencidos y se verificó como «parte» del saldo)",
+   "3.reparacion.3 («una de las 6 cuentas donde el margen está bajo el benchmark y la carga está por sobre el nivel de referencia»: etiquetada FALSA el 15-09 asumiendo las 6 con carga alta (de las que 5 están bajo el benchmark); con la definición del owner del 16-09 —«sobre el nivel declarado» es el conjunto crudo, con nombre propio— es VERDADERA: bajo el benchmark (8) ∩ sobre el nivel (9) = 6, las mismas 6 del papel «erosión por acciones comerciales». Reetiquetada verdadera el 16-09)"
+  ],
   "ejemplos": [
    "FALSA real (cazada): «Cuidado Personal: venta $29.4M — la más alta de las cuatro» → Electrodomésticos vende $33.2M (turno 1, reparación)",
    "FALSA real (cazada): «Falabella es una de las 6 cuentas donde el margen está bajo el benchmark» → son 8 (turno 3)",
@@ -24,6 +76,9 @@
    "RIGIDEZ: «benchmark de 30.1 %» declarado con sujeto «Benchmark de margen» → «entidad-desconocida» (7 veces; la cifra está en la boleta como KPI del negocio)",
    "RIGIDEZ: «Falabella $1.6M, Lider $1.5M, Jumbo $1.1M, Sodimac $540K, Ripley $240K» declarado como UN grupo con cinco valores → el verificador comparó $1.6M con el subtotal $4.9M (3 veces)",
    "RIGIDEZ: «$4,9M que suman las 5 cuentas materiales» con el universo escrito dentro de la métrica y no en `universo` → «universo-no-declarado» (10 veces)"
+  ],
+  "verdaderasReetiquetadasIds": [
+   "3.reparacion.3"
   ]
  },
  "omisiones": {
