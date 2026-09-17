@@ -217,6 +217,21 @@ Derivadas que se rompen seguido:
   entre columnas y la poda huérfana entre párrafos. Falsos positivos gemelos («vende $17,8M con un margen de 21,5 %» cae por la ventana del juez).
   Definiciones de producto por fijar antes de cerrar: buen pagador = vencido 0; «no deja contribución» = contribución ≤ 0; cuantificadores vagos;
   participación sin base. §16.
+- **Notario v3 · «verdad finita, prosa infinita» (owner 2026-09-17, plan aprobado: `_NOTARIO_VERDAD_FINITA_PLAN.md`; offline, detrás de
+  `ADI_NOTARIO_V3`, APAGADO en todos los perfiles hasta el piloto).** Decisión del owner tras la ronda 4: «no quiero seguir resolviendo frases una por
+  una… la prosa puede ser infinita; la verdad de ADI debe ser finita, gobernada y verificable». *ADI entiende y razona → trabaja sobre verdades
+  verificables → interpreta → redacta libremente; Notario verifica hechos identificados, no reconstruye la verdad desde la prosa.* El cerebro emite
+  `<<HECHOS>> … <<FIN>>` (un hecho JSON por línea con id: ref · cifra · orden · relacion · grupo · conteo · variacion · estado · razon · derivada ·
+  propuesta · lectura; universos TIPADOS) y prosa anclada `{{ids: tramo}}` con placeholders `{id}`/`{id.campo}`; la casa evalúa el libro
+  (`src/adi/notario/hechos.js` sobre `verificar.js`), comprueba las anclas con una lista cerrada (`anclas.js`: entidad · número · métrica · estado ·
+  dirección · lados · base · universo visible · sujeto estructural · dominio · período · modalidad · proporción · tablas · predicación sin hecho),
+  RENDERIZA (ningún dígito servido lo escribió el modelo) y juzga las leyes de la casa sobre lo renderizado. Flujo (`bucleAgente.js`, `protocolo.js`):
+  cierre → re-anclaje (+1, prosa congelada; solo forma) → reescritura (+1, con la verdad de la boleta y sus ids) → poda por tramos → escalera.
+  Definiciones de producto fijadas: al día = vencido 0 · «buen pagador» exige historia (nunca demostrable sin ella) · «sin contribución» (≤ 0) ≠ «sin
+  margen» · mayoría > 50 % · proporción pegada a un hecho = razón. Gates: `_hechos_gate` (132) · `_anclas_gate` (79: 0 falsedades de 32 ataques, 0
+  verdaderos bloqueados de 25) · `_notario_v3_flujo_gate` (71: 0 falsedades, ≤ 3 llamadas, flag apagado = hoy). Etapas E0–E3 hechas; siguen E4
+  (composers anclan), E5 (ronda 5 adversarial), E6 (retiro + candado), E7 (piloto vivo, gasto a nombrar). Regla: toda mejora del Notario va por el
+  libro de hechos y las anclas, no por regex nuevas.
 
 ---
 

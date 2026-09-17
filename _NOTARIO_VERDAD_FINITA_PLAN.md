@@ -399,3 +399,23 @@ el tramo se reescribe de infinitas maneras. Cerrar raíces sobre ese diseño es 
    «buen pagador / paga bien / cumple plazos» no se sirve como hecho (ni en prosa ni en tabla) hasta que exista historia.
 4. **El piloto vivo (E7)** queda para después de E5, con gasto nombrado; no se pide ahora.
 5. Orden de trabajo propuesto: E0-E2 primero (todo puro, sin tocar el bucle), medición, y recién ahí E3. Ninguna etapa se publica.
+
+---
+
+## 9 · Estado de las etapas (aprobado por el owner el 2026-09-17; ejecución offline, sin deploy ni gasto)
+
+| Etapa | Estado | Dónde | Medida |
+|---|---|---|---|
+| **E0 · Léxico como datos + ids** | ✅ dev `28a94311` | `src/adi/notario/lexico.js` (claves de métrica con nombre, conceptos, dominio, polaridad, unidad, muro; unidades de tiempo, períodos, ejes, operadores, listas de modalidad/superlativo/dominio); `asignarIds` en `hechos.js` | reutilizado por E1–E3 |
+| **E1 · Verificación tipada** | ✅ dev `28a94311` | `hechos.js` (`libroDeHechos`: ref · cifra · orden · relacion · grupo · conteo · variacion · estado · razon · derivada · propuesta · lectura; universo tipado evaluado en `verificar.js`; la verdad de lo falso como hechos nuevos con id; render de la casa) | `_hechos_gate` 132/132 |
+| **E2 · Prosa anclada** | ✅ dev `28a94311` | `anclas.js` (parser `{{ids: tramo}}` / `⟦…⟧`, placeholders `{id.campo}`, render, comprobaciones 1 y 3-11 + tablas + predicación sin hecho) | `_anclas_gate` 79/79: 0 falsedades servidas de 32 ataques · 0 verdaderos bloqueados de 25 formas |
+| **E3 · El bucle detrás del flag** | ✅ dev (commit de E3) | `protocolo.js` (instrucción v3: el fijo del agente baja de 4.431 a 4.141 tok; carta de claves; mensajes de re-anclar / reescribir; poda por tramos), `bucleAgente.js` (ids en boleta y resumen, `_juezDeAnclas`, cierre → re-anclaje → reescritura → poda → escalera, telemetría `notario.modo = "anclas"`), `sistemaAgente.js`, `voiceFlags.js` (`ADI_NOTARIO_V3`, apagado en todos los perfiles), `ChatADI.jsx` | `_notario_v3_flujo_gate` 71/71: 0 falsedades · verde a la primera · ≤ 3 llamadas · todo número servido lo escribió la casa · flag apagado = el turno de hoy |
+| E4 · La casa ancla lo suyo | pendiente | composers de la escalera con `anclar(fig)`; retiro de `declaracionDeRespaldo` | gates de composers byte-exactos sobre lo renderizado |
+| E5 · Ronda 5 adversarial | pendiente | dos canales (hechos falsos tipados · prosa anclada mentirosa), tres dominios, corpus de verdaderos | criterios de §4; (iii) = 0 |
+| E6 · Retiro y candado | pendiente | `presencia.js`, `ubicar.js`, `juez.consistencia`, parsers de texto | suite completa; conteo de líneas/regex como aserción |
+| E7 · Piloto vivo | pendiente (gasto a nombrar por el owner) | obediencia real del modelo a las anclas; llamadas y costo por turno | 0 falsedades en la muestra |
+
+Lo que E3 dejó escrito para E4–E5: la ley del criterio marcado sigue siendo del texto (`juicio-sin-marcar` en guardC): el modelo escribe «criterio
+mío» en la prosa de su `lectura`, el `sello` del hecho no lo sustituye; un valor escrito por el modelo dentro del ancla que no coincide con el hecho es
+`numero-ajeno` (se cobra, no se corrige en silencio); y dos falsos positivos por significado cerrados en `anclas.js` (la frase de un estado que es el
+nombre de una métrica —«sin venta» en «Días sin venta»—; la palabra de dominio dentro del nombre de una métrica de otro dominio).

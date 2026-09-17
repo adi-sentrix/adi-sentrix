@@ -359,7 +359,9 @@ export function comprobarAnclas(prosa, libro, ctx = {}) {
     for (const e of estadosSpan) {
       const negs = _todos(_RE.negacion, spSinEnt.slice(0, e.ini)).length;
       const dicho = negs % 2 === 1 ? (complementoDe(e.canon) || `no ${e.canon}`) : e.canon;
-      if (!estados.has(dicho) && !(dicho === "inmovilizado" && (estados.has("frenado") || estados.has("sobrestock")))) veto("estado-ajeno", `«${e.texto}»${negs % 2 ? " (negado)" : ""} no es el estado de ${ids.join(", ")} (${[...estados].join(", ") || "sin estado"})`, span, ids);
+      /* la frase del estado puede ser el NOMBRE de una métrica de los hechos («sin venta» en «Días sin venta», «frenado» en «Capital frenado»): es la métrica, no un estado */
+      const esNombreDeMetrica = [...claves].some((c) => normalizar(L.metricaDeClave(c)).includes(normalizar(e.texto)));
+      if (!esNombreDeMetrica && !estados.has(dicho) && !(dicho === "inmovilizado" && (estados.has("frenado") || estados.has("sobrestock")))) veto("estado-ajeno", `«${e.texto}»${negs % 2 ? " (negado)" : ""} no es el estado de ${ids.join(", ")} (${[...estados].join(", ") || "sin estado"})`, span, ids);
     }
     /* 4e dirección por polaridad */
     for (const h of u.hechos) {
@@ -522,7 +524,10 @@ export function comprobarAnclas(prosa, libro, ctx = {}) {
       const ents = _entidadesEn(_sinPlaceholders(s.slice(t.ini, t.fin)), nombres, alias).filter((e) => /^(?:cliente|sku|bodega|marca|familia)$/.test(String(ejeDe(e.k) || "")));
       if (!ents.length) continue;
       for (const [d, re] of Object.entries(_RE.dominio)) {
-        const x = _todos(re, t.texto).find((y) => !_CONDICIONAL.test(y.texto));
+        /* la palabra de dominio dentro del nombre de una métrica de OTRO dominio («venta» en «días sin venta») o de una frase de estado no predica ese dominio */
+        const metsT = _metricasConPosicion(t.texto), estsT = _estadosEnSpan(t.texto);
+        const tapada = (y) => metsT.some((mt) => mt.ini <= y.ini && y.fin <= mt.fin && [...mt.claves].some((c) => L.dominioDeClave(c) && L.dominioDeClave(c) !== d)) || estsT.some((e) => e.ini <= y.ini && y.fin <= e.fin);
+        const x = _todos(re, t.texto).find((y) => !_CONDICIONAL.test(y.texto) && !tapada(y));
         if (!x) continue;
         for (const e of ents) if (!vistos.has(e.k + "|" + d)) { veto("predicacion-sin-hecho", `la oración habla de ${d} sobre ${e.nombre} («${x.texto}») sin un hecho de ${d} de ${e.nombre} anclado en la respuesta`, t.texto, []); break; }
       }

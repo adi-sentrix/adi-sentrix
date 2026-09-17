@@ -1,0 +1,66 @@
+{
+  "nota": "El bucle v3 (verdad finita, E3) con cerebros de guion: cada caso trae la salida del cierre y, si el Notario reintenta, la del re-anclaje (misma prosa, anclas corregidas) o la de la reescritura (con la verdad y sus ids). Los valores los escribe la casa: cuando el guion escribe una cifra equivocada dentro de un ancla ($6.2M), lo servido trae la verdadera.",
+  "hechos_integrada": "{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"h5\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"h6\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h7\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h9\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"},\"den\":{\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}}\n{\"id\":\"h10\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n{\"id\":\"h11\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"h12\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"h14\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":90,\"unidad\":\"days\"}]}}\n{\"id\":\"hO\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"h9b\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h3\",\"h8\",\"h2\"]}",
+  "prosa_integrada": "Te va bien en venta y mal en cobranza, y el problema tiene nombre.\n\n| Cliente | Venta | Vencido | Pendiente |\n|---|---|---|---|\n| Lider | {h1} | {h2} | {h3} |\n| Falabella | {h4} | {h5} | {h6} |\n\n{{h7: Falabella es la que más vende}}, pero {{h8 h3: el que más te debe es Lider, con {h3} pendientes}}: {{h9: el {h9} de lo que le vendiste}}. {{h10: Su vencido casi duplica el de Falabella}} y {{h11: lleva {h11} de atraso}}. {{h12: Jumbo está al día}}; {{h14: {h14.n} cuentas superan {h14.umbral} de mora}}.\n\nEn inventario, {{hO h9b: el caso más viejo es MAK-COMP-AIR, con {h9b} sin venta}}, y {{hV: Valparaíso concentra {hV} de capital frenado}}.\n\n{{hL: Criterio mío: yo priorizaría a Lider, llamarlo hoy y pedirle un calendario de pago antes de venderle más.}} Falabella puede esperar a la semana que viene.",
+  "hechos_deuda": "{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h6\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}",
+  "casos": [
+    {
+      "id": "V1 · verde a la primera (tabla + prosa + lectura, tres dominios)",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "cierre": "<<HECHOS>>\n@hechos_integrada\n<<FIN>>\n@prosa_integrada",
+      "estado": ["verde"], "sitio": "cierre", "llamadas": ["cierre"],
+      "servido": ["Lider | $17.8M | $4.6M | $9.8M", "el que más te debe es Lider, con $9.8M pendientes", "Jumbo está al día", "3 cuentas superan 90 días de mora", "Criterio mío: yo priorizaría a Lider"],
+      "ausente": ["{{", "{h", "}}"]
+    },
+    {
+      "id": "V2 · mentira anclada → reescritura con la verdad y sus ids → reparado",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "falsedades": ["Falabella es la que más te debe", "Falabella es el que más te debe"],
+      "cierre": "<<HECHOS>>\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h6\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"hF\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hF\"]}\n<<FIN>>\n{{hF h6: Falabella es la que más te debe, con {h6} pendientes}}. {{hL: Yo la llamaría hoy.}}",
+      "reescritura": "<<HECHOS>>\n@hechos_integrada\n<<FIN>>\n@prosa_integrada",
+      "estado": ["reparado"], "sitio": "reparacion", "llamadas": ["cierre", "reescritura"],
+      "mensaje": { "tipo": "reescritura", "contiene": ["«hF» es FALSO", "el primero es Lider", "La verdad de la boleta, con ids", "Reescribe SOLO los tramos señalados"] },
+      "servido": ["el que más te debe es Lider"]
+    },
+    {
+      "id": "V3 · sin bloque ni anclas → re-anclaje con la prosa congelada → verde (y la cifra mal escrita la corrige la casa)",
+      "pregunta": "¿Cuánto me debe Lider y cuánto Falabella?",
+      "cierre": "Lider te debe $9.8M pendientes y Falabella $6.2M; el que más te debe es Lider.",
+      "reanclaje": "<<HECHOS>>\n@hechos_deuda\n<<FIN>>\n{{h3: Lider te debe {h3} pendientes}} y {{h6: Falabella {h6}}}; {{h8: el que más te debe es Lider}}.",
+      "estado": ["verde"], "sitio": "reanclaje", "llamadas": ["cierre", "reanclaje"],
+      "mensaje": { "tipo": "reanclaje", "contiene": ["re-anclar", "no la reescribas", "sin-hechos", "hecho-sin-ancla"] },
+      "servido": ["Lider te debe $9.8M pendientes", "Falabella $8.2M", "el que más te debe es Lider"],
+      "ausente": ["$6.2M"]
+    },
+    {
+      "id": "V4 · el modelo no arregla la falsedad → poda residual del tramo → podado, sin la mentira",
+      "pregunta": "¿Cuánto me debe Lider y cuánto Falabella?",
+      "falsedades": ["Falabella es la que más te debe"],
+      "cierre": "<<HECHOS>>\n@hechos_deuda\n{\"id\":\"hF\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{h3: Lider te debe {h3} pendientes}} y {{h6: Falabella {h6}}}. {{hF: Falabella es la que más te debe}}.",
+      "estado": ["podado"], "sitio": "poda", "llamadas": ["cierre", "reescritura"],
+      "servido": ["Lider te debe $9.8M pendientes", "Falabella $8.2M"]
+    },
+    {
+      "id": "V5 · una ley de la casa (registro: «plata») no es forma de ancla: reescritura, no re-anclaje → reparado",
+      "pregunta": "¿Cuánto me debe Lider y cuánto Falabella?",
+      "cierre": "<<HECHOS>>\n@hechos_deuda\n<<FIN>>\n{{h3: Lider te debe {h3} pendientes}} y {{h6: Falabella {h6}}}; {{h8: el que más te debe es Lider}}. Es mucha plata en la calle: yo le cobraría a Lider primero.",
+      "reescritura": "<<HECHOS>>\n@hechos_deuda\n<<FIN>>\n{{h3: Lider te debe {h3} pendientes}} y {{h6: Falabella {h6}}}; {{h8: el que más te debe es Lider}}. Es mucho capital en la calle: yo le cobraría a Lider primero.",
+      "estado": ["reparado"], "sitio": "reparacion", "llamadas": ["cierre", "reescritura"],
+      "servido": ["yo le cobraría a Lider primero", "capital en la calle"], "ausente": ["plata"]
+    },
+    {
+      "id": "V6 · el modelo insiste en la mentira y no queda nada que podar → escalera de respaldo, jamás la falsedad",
+      "pregunta": "¿Cuánto me debe Lider y cuánto Falabella?",
+      "falsedades": ["Falabella es la que más te debe"],
+      "cierre": "<<HECHOS>>\n{\"id\":\"hF\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{hF: Falabella es la que más te debe}}.",
+      "estadoNo": ["verde", "reparado", "podado"], "llamadas": ["cierre", "reescritura"]
+    },
+    {
+      "id": "V7 · con el flag apagado el turno es el de hoy: Notario semántico, sin re-anclaje",
+      "v3": false,
+      "pregunta": "¿Cuánto me debe Lider y cuánto Falabella?",
+      "cierre": "Lider te debe $9.8M pendientes y Falabella $8.2M; el que más te debe es Lider.",
+      "modo": "semantico", "llamadasSin": ["reanclaje"]
+    }
+  ]
+}

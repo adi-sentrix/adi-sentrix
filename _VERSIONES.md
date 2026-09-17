@@ -282,6 +282,22 @@ primera («vende $17,8M con un margen de 21,5 %» cae por el fragmento de la cif
 definiciones de producto por fijar (buen pagador = vencido 0; «no deja contribución» = contribución ≤ 0; cuantificadores vagos; participación sin
 base). `_NOTARIO_SEMANTICO_FASE4_DISENO.md` §16.
 
+**El Notario v3 — «verdad finita, prosa infinita», etapas E0–E3 (2026-09-17, offline; sin corridas ni deploy; detrás de `ADI_NOTARIO_V3`,
+APAGADO en todos los perfiles).** Decisión del owner tras la ronda 4: «no quiero seguir resolviendo frases una por una… la prosa puede ser
+infinita; la verdad de ADI debe ser finita, gobernada y verificable». Plan aprobado (`_NOTARIO_VERDAD_FINITA_PLAN.md`): el cerebro emite el libro
+de hechos con ids (`<<HECHOS>> … <<FIN>>`, tipos ref · cifra · orden · relacion · grupo · conteo · variacion · estado · razon · derivada · propuesta ·
+lectura, universos TIPADOS) y prosa anclada `{{ids: tramo}}` con placeholders `{id}`; la casa evalúa el libro sobre `verificar.js`, comprueba las
+anclas con una lista cerrada, RENDERIZA (ningún dígito servido lo escribió el modelo) y juzga las leyes de la casa sobre lo renderizado.
+- E0–E2 (dev `28a94311`): `lexico.js` (claves de métrica como datos), `hechos.js` (libro con ids, universo tipado, razón, derivada, la verdad de lo
+  falso como hechos nuevos), `anclas.js` (parser, render, comprobaciones). `_hechos_gate` 132/132 · `_anclas_gate` 79/79: 0 falsedades servidas de
+  32 ataques de los escépticos del plan, 0 verdaderos bloqueados de 25 formas (tabla, transpuesta, lista anidada, encabezado, ordinal, «juntos»,
+  cifra en palabras, duración, variación, lectura, base posesiva, universo escrito por la casa).
+- E3: `protocolo.js` (instrucción v3 —el fijo del agente baja de 4.431 a 4.141 tok—, carta de claves, mensajes de RE-ANCLAR con la prosa
+  congelada y REESCRIBIR con la verdad y sus ids, poda por tramos) y el bucle: ids en boleta y resumen, cierre → re-anclaje → reescritura → poda
+  → escalera. `_notario_v3_flujo_gate` 71/71: 0 falsedades, verde a la primera, ≤ 3 llamadas por turno, flag apagado = el turno de hoy byte a byte.
+- Definiciones de producto fijadas por el owner: al día = vencido 0 · «buen pagador» exige historia · «sin contribución» ≠ «sin margen» · mayoría
+  > 50 % · proporción pegada a un hecho = razón. Siguen E4 (composers anclan), E5 (ronda 5), E6 (retiro), E7 (piloto vivo, gasto a nombrar).
+
 
 ---
 

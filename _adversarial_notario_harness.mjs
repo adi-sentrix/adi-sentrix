@@ -73,12 +73,13 @@ if (modo === "figs") {
   const casos = JSON.parse(fs.readFileSync(arg, "utf8"));
   for (const c of casos) {
     const llamadas = [];
-    const r = await answerViaAgente({ text: c.pregunta, history: c.history || [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: async ({ attempt, mensajes, soloDeclaracion }) => {
+    const r = await answerViaAgente({ text: c.pregunta, history: c.history || [], mem: {}, scenario: ESCENARIO_INICIAL, notarioV3: !!c.v3, callAgente: async ({ attempt, mensajes, soloDeclaracion, motivoReintento }) => {
       const ultimo = [...(mensajes || [])].reverse().find((m) => m.role === "user");
       const pideDeclaracion = !!soloDeclaracion || /NOTARIO — solo la declaración/.test(String(ultimo && ultimo.content));
-      const tipo = pideDeclaracion ? "declaracion" : attempt > 0 ? "reparacion" : "cierre";
+      /* v3 (verdad finita): «reanclaje» = la misma prosa con las anclas corregidas; «reparacion» = la reescritura con la verdad (c.reescritura o c.reparacion) */
+      const tipo = pideDeclaracion ? "declaracion" : motivoReintento === "reanclaje" ? "reanclaje" : attempt > 0 ? "reparacion" : "cierre";
       llamadas.push(tipo);
-      const t = tipo === "declaracion" ? (c.declaracion != null ? c.declaracion : c.cierre) : tipo === "reparacion" ? (c.reparacion != null ? c.reparacion : c.cierre) : c.cierre;
+      const t = tipo === "declaracion" ? (c.declaracion != null ? c.declaracion : c.cierre) : tipo === "reanclaje" ? (c.reanclaje != null ? c.reanclaje : c.cierre) : tipo === "reparacion" ? (c.reescritura != null ? c.reescritura : c.reparacion != null ? c.reparacion : c.cierre) : c.cierre;
       return { tipo: "texto", texto: String(t || ""), stop: "end_turn" };
     } });
     const a = r.r.agente || {};

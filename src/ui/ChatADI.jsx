@@ -27,7 +27,7 @@ const _GUTTER_ADI = 44;
 const _SCROLLBAR = 8;
 import { InlineChart } from "./InlineChart.jsx";
 import { composeFollowupRecommendation } from "../adi/specRetrieval.js";   // follow-up (fallback regex del camino sin LLM)
-import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIMS_ONLY_ENABLED, ADI_BYPASS_SIN_PAGO, ADI_AGENTE } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag) · bypass sin pago (detrás de flag, hoy apagado) · el agente como camino (La Poda 2026-09-05 retiró ADI_CAMINO_NATURAL)
+import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIMS_ONLY_ENABLED, ADI_BYPASS_SIN_PAGO, ADI_AGENTE, ADI_NOTARIO_V3 } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag) · bypass sin pago (detrás de flag, hoy apagado) · el agente como camino (La Poda 2026-09-05 retiró ADI_CAMINO_NATURAL)
 import { registrarTurno, resumenTelemetria, exportarTelemetria, borrarTelemetria } from "../adi/telemetria.js";   // el renglón de salud del turno · sin dato de negocio (ver telemetria.js)
 /* (La Poda 2026-09-05: acá vivía el import de `answerViaNatural` — el camino natural se retiró del código;
  * la cascada del turno libre quedó agente → oráculo.) */
@@ -383,7 +383,7 @@ async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, r
  * El bucle vive en bucleAgente.js; esto es su única puerta al mundo: system fijo (persona+invariantes+mapa) +
  * hilo + catálogo → el gateway (/api/adi-agente, runtime node) → {tipo:"herramientas"|"texto"}. El `paso` decide
  * el tier (herramientas→mini de PLAN · cierre/reparación→el de NARRAR). Con la bandera apagada, nadie llama. */
-async function _fetchAgente({ mensajes, scenario, requestContext, ronda, attempt, motivoReintento, cierre, figsEnBoleta, vetoConCifra }) {
+async function _fetchAgente({ mensajes, scenario, requestContext, ronda, attempt, motivoReintento, cierre, figsEnBoleta, vetoConCifra, notarioV3 = false }) {
   const { sistemaDelAgente } = await import("../adi/agente/sistemaAgente.js");
   const { catalogoAgente } = await import("../adi/agente/catalogoAgente.js");
   /* R-eco del examen 1 (2026-08-31): el tier caro se paga SOLO cuando hay cifras verificadas que reescribir —
@@ -402,7 +402,7 @@ async function _fetchAgente({ mensajes, scenario, requestContext, ronda, attempt
     body: JSON.stringify({ mensajes,
       /* «TU NEGOCIO» (owner 2026-09-08): el contexto declarado viaja en el system, enmarcado con sus reglas —
        * ver `bloqueDeContexto`. Sale del pack (perfil.contexto, mismo canal que el diario): cero fetch extra. */
-      system: sistemaDelAgente(scenario, { contextoDelNegocio: (() => { try { const t = getTenantData(); return (t && t.perfil && t.perfil.contexto) || null; } catch { return null; } })() }).fijo,
+      system: sistemaDelAgente(scenario, { contextoDelNegocio: (() => { try { const t = getTenantData(); return (t && t.perfil && t.perfil.contexto) || null; } catch { return null; } })(), notarioV3 }).fijo,   // verdad finita (E3): el protocolo v3 solo cuando el bucle lo pide
       tools: catalogoAgente(), paso,
       access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt, motivoReintento }),
   });
@@ -561,6 +561,7 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
           const o = await answerViaAgente({ text: q, history, mem, scenario,
             viewContext: viewContext || (getUISignals() || {}).viewContext || null,
             cuadro: viewContext || null,
+            notarioV3: ADI_NOTARIO_V3,   // verdad finita (owner 2026-09-17, E3): apagado en todos los perfiles hasta el piloto
             callAgente: (args) => _fetchAgente({ ...args, scenario, requestContext }) });
           if (o && o.r) {
             _ph(3);

@@ -78,7 +78,11 @@ import { getTenantId, getTenantData } from "../../data/tenantStore.js";
  * muro dejan de vetar y quedan en el expediente como detectores; las leyes de la casa siguen juzgando la respuesta entera. Los
  * peldaños determinísticos declaran desde sus propias figs (declaración derivada) y se juzgan con el mismo estándar. */
 import { extraerDeclaracion, declaracionDeRespaldo } from "../notario/declaracion.js";
-import { cartaDeHechos } from "../notario/carta.js";   // fase 4, etapa B: la carta de hechos del turno viaja con los resultados (nombres de referencias, conjuntos y rankings)
+import { cartaDeHechos } from "../notario/carta.js";
+/* VERDAD FINITA (owner 2026-09-17, plan _NOTARIO_VERDAD_FINITA_PLAN.md · E3): el libro de hechos con ids, la prosa anclada y el protocolo v3 — solo detrás de `notarioV3` */
+import { extraerHechos, asignarIds, libroDeHechos, MARCA_HECHOS } from "../notario/hechos.js";
+import { comprobarAnclas } from "../notario/anclas.js";
+import { cartaDeClaves, mensajeDeReanclaje, mensajeDeReescritura, podarTramos, soloReanclaje } from "../notario/protocolo.js";   // fase 4, etapa B: la carta de hechos del turno viaja con los resultados (nombres de referencias, conjuntos y rankings)
 import { crearDeclarador, filtrarPorTexto } from "../notario/declarar.js";
 import { juzgarDeclaracion, CHEQUEOS_DE_HECHO } from "../notario/juez.js";
 import { indiceDeEvidencia } from "../notario/evidencia.js";   // getTenantData: el contexto que el negocio declaró — la ley del porqué lo cita en vez de repreguntar   // la semilla de variación: tenant + pregunta + largo del hilo
@@ -251,14 +255,14 @@ function _factsCompactos(facts) {
  * del cierre). Cada cifra citable ya viaja en `cifras`; los facts de las lecturas se compactan a sus escalares desde un
  * umbral más bajo, salvo las herramientas que llevan su contrato en los facts (`conservar`). Sin las opciones, la
  * conducta de siempre, byte a byte. */
-function _resumenDeRonda(rp, { compactoDesde = TOPE_RESULTADO_CHARS, conservar = null } = {}) {
+function _resumenDeRonda(rp, { compactoDesde = TOPE_RESULTADO_CHARS, conservar = null, conIds = false } = {}) {
   return rp.results.map((r) => {
     const base = {
       tool: r.tool,
       ok: !(r.coverage && r.coverage.supported === false),
       ...(r.coverage && r.coverage.supported === false ? { motivo: r.coverage.reason } : {}),
       facts: r.facts,
-      cifras: (r.boleta || []).map((f) => ({ label: f.label, valor: f.text || f.value })),
+      cifras: (r.boleta || []).map((f) => (conIds && f.id ? { id: f.id, label: f.label, valor: f.text || f.value } : { label: f.label, valor: f.text || f.value })),   // `conIds` (verdad finita): la identidad de cada cifra viaja con ella
     };
     const umbral = conservar && conservar.has(r.tool) ? TOPE_RESULTADO_CHARS : compactoDesde;
     if (JSON.stringify(base).length <= umbral) return base;
@@ -478,7 +482,7 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = nul
  * Un click, un turno: el ambiente sigue publicado mientras la Mesa está abierta, así que abrir la explicación
  * de cuadro por ambiente haría que la siguiente pregunta escrita a mano se respondiera como si fuera un botón.
  * Por eso son dos campos y no uno. Ver `_CONTRATO_ASK_DE_CUADRO.md`. */
-export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO_INICIAL, callAgente, viewContext = null, cuadro = null } = {}) {
+export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO_INICIAL, callAgente, viewContext = null, cuadro = null, notarioV3 = false } = {}) {
   if (typeof callAgente !== "function") throw new TypeError("answerViaAgente sin callAgente: el cerebro lo pone el caller");
   const q = String(text || "").trim();
   const memIn = (mem && typeof mem === "object") ? mem : {};
@@ -780,8 +784,11 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       const ejesCarta = {}; for (const eje of ["cliente", "sku", "marca", "familia", "bodega", "canal"]) { try { const n = axisEntityNames(eje); if (n && n.length) ejesCarta[eje] = n; } catch { /* sin índice */ } }
       const I = indiceDeEvidencia({ figs: [...figsTotales, ..._figsDeRecita], datoProyectado: cifrasDelDato(scenario), ejesDelTenant: ejesCarta });
       const r = cartaDeHechos(I, { vistos: _cartaVistos });
+      const primera = _cartaVistos === null;
       _cartaVistos = r.vistos;
-      return r.texto || "";
+      /* verdad finita (E3): con la primera carta viaja la de claves —cómo citar una cifra por id, las claves de métrica de la evidencia, los estados verificables— */
+      const claves = notarioV3 && primera ? cartaDeClaves(I) : "";
+      return [r.texto || "", claves].filter(Boolean).join("\n");
     } catch { return ""; }
   };
   const _rondaDeHerramientas = (pedidosCrudos, destino, { preRonda = false, compacta = false } = {}) => {
@@ -817,6 +824,8 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     calls += Math.min(pedidos.length, cupo);
     callsDelTurno.push(...pedidos.slice(0, cupo).map((p) => ({ tool: p.tool, args: p.args || {} })));
     figsTotales.push(...(rp.ledger && rp.ledger.figs ? rp.ledger.figs : []));
+    /* verdad finita (E3): cada cifra de la boleta recibe su id (por posición, idempotente) y el mismo id viaja en el resumen de resultados */
+    if (notarioV3) { asignarIds(figsTotales, "c"); for (const r of rp.results) for (const f of r.boleta || []) if (f && !f.id) { const g = figsTotales.find((x) => x && x.label === f.label && String(x.text || x.value) === String(f.text || f.value)); if (g && g.id) f.id = g.id; } }
     resultsTotales.push(...rp.results);
     for (const u of rp.unsupported || []) if (u && u.reason) motivosNoSoportado.push(u.reason);
     for (const r of rp.results) if (r.coverage && r.coverage.supported === false && r.coverage.reason) motivosNoSoportado.push(r.coverage.reason);
@@ -827,7 +836,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
      * el prefijo del proveedor no distingue «mismo contenido en otro orden» de «contenido nuevo». */
     const doctrina = doctrinasParaRonda(rp.results.map((r) => r.tool));
     const carta = _cartaDelTurno();
-    destino.push({ role: "user", content: `[HERRAMIENTAS — no es el usuario] Resultados:\n${JSON.stringify(_resumenDeRonda(rp, compacta ? { compactoDesde: TOPE_RESULTADO_PRE_RONDA, conservar: _FACTS_QUE_SE_CONSERVAN } : {}))}${doctrina ? `\n${doctrina}` : ""}${carta ? `\n${carta}` : ""}\nResponde al usuario con esto, o pide más herramientas si de verdad faltan.` });
+    destino.push({ role: "user", content: `[HERRAMIENTAS — no es el usuario] Resultados:\n${JSON.stringify(_resumenDeRonda(rp, { ...(compacta ? { compactoDesde: TOPE_RESULTADO_PRE_RONDA, conservar: _FACTS_QUE_SE_CONSERVAN } : {}), conIds: notarioV3 }))}${doctrina ? `\n${doctrina}` : ""}${carta ? `\n${carta}` : ""}\nResponde al usuario con esto, o pide más herramientas si de verdad faltan.` });
     return true;
   };
 
@@ -957,7 +966,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * un turno vacío que solo dice «vacio» es indiagnosticable. Observación pura: no decide nada. */
   const cortesDelTurno = [];
   const _llamarCerebro = async (args) => {
-    const res = await callAgente({ ...args, figs: [...figsTotales, ..._figsDeRecita] });   // la boleta del turno y la re-cita: la misma evidencia con la que se juzga
+    const res = await callAgente({ ...args, ...(notarioV3 ? { notarioV3: true } : {}), figs: [...figsTotales, ..._figsDeRecita] });   // la boleta del turno y la re-cita: la misma evidencia con la que se juzga
     if (res && typeof res === "object" && "stop" in res) cortesDelTurno.push(String(res.stop || "(no declarado)"));
     return res;
   };
@@ -1156,10 +1165,29 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     notarioDelTurno.push({ sitio, derivada, medidas: sem.medidas, vetos: sem.violations.map((x) => x.kind), multas: sem.violations.slice(0, 24).map((x) => String(x.detail || "").slice(0, 400)), ...(Array.isArray(sem.asistidas) && sem.asistidas.length ? { asistidas: sem.asistidas.slice(0, 24) } : {}) });
     return sem;
   };
+  /* ── EL JUEZ DE ANCLAS (verdad finita · E3 · owner 2026-09-17): el libro de hechos con ids se evalúa TIPADO (hechos.js sobre verificar.js), la
+   * prosa anclada se comprueba con la lista cerrada de anclas.js y se sirve RENDERIZADA por la casa —ningún dígito de la pantalla lo escribió el
+   * modelo—. Las leyes de la casa (muro y contrato) corren después sobre el texto renderizado, en `juzgar`. Solo detrás de `notarioV3`. */
+  const _aliasDelTenant = (() => { try { const t = getTenantData() || {}; const a = t.perfil && t.perfil.alias; return a && typeof a === "object" ? a : {}; } catch { return {}; } })();
+  const _juezDeAnclas = (prosa, hechos, sitio) => {
+    const _I = _indiceDelTurno();
+    const previas = [];
+    if (!_I) { const vio = [{ kind: "notario-sin-indice", detail: "sin índice de evidencia en este turno", texto: "" }]; notarioDelTurno.push({ sitio, modo: "anclas", medidas: {}, vetos: ["notario-sin-indice"], multas: [vio[0].detail] }); return { sem: { ok: false, violations: vio, medidas: {} }, servido: String(prosa || ""), libro: null }; }
+    const libro = libroDeHechos(Array.isArray(hechos) ? hechos : [], { indice: _I });
+    if (!Array.isArray(hechos)) previas.push({ kind: "sin-hechos", detail: `la salida no trae el bloque ${MARCA_HECHOS} … <<FIN>>: declara tus hechos con id y ancla tu prosa`, texto: "" });
+    let R;
+    try { R = comprobarAnclas(String(prosa || ""), libro, { nombres: duenosTenant || [], alias: _aliasDelTenant }); }
+    catch (e) { R = { ok: false, violations: [{ kind: "notario-anclas-error", detail: `el juez de anclas falló: ${(e && e.message) || e}`, texto: "" }], medidas: {}, servido: String(prosa || "") }; }
+    const violations = [...previas, ...(R.violations || [])];
+    const medidas = { hechos: libro.resumen.total, verdaderos: libro.resumen.verdaderos, sellados: libro.resumen.sellados, falsos: libro.resumen.falsos, noVerificables: libro.resumen.noVerificables, ...(R.medidas || {}) };
+    notarioDelTurno.push({ sitio, modo: "anclas", medidas, vetos: violations.map((x) => x.kind), multas: violations.slice(0, 24).map((x) => String(x.detail || "").slice(0, 400)) });
+    return { sem: { ok: violations.length === 0, violations, medidas }, servido: String(R.servido || ""), libro };
+  };
   const juzgar = (t, sitio = "cierre", afirmaciones = undefined) => {
     /* el canal de lo ya aprobado se enciende SOLO acá: en cualquier otro sitio la llamada es la de siempre */
     const v0 = _guard(t, sitio === "respaldo" ? _boletaAprobadaPrevia : sitio === "reformular-piso" ? _boletaDelHilo : null);
-    const sem = _juezSemantico(t, sitio, afirmaciones, (v0 && Array.isArray(v0.calculos)) ? v0.calculos : []);   // los [[CALCULO]] que el muro autorizó en este texto son evidencia
+    /* verdad finita (E3): en los sitios del cerebro v3 el juicio ya lo hizo el juez de anclas (`{ v3: true, sem }`); acá solo se le suman las leyes de la casa */
+    const sem = (afirmaciones && typeof afirmaciones === "object" && afirmaciones.v3 === true) ? afirmaciones.sem : _juezSemantico(t, sitio, afirmaciones, (v0 && Array.isArray(v0.calculos)) ? v0.calculos : []);   // los [[CALCULO]] que el muro autorizó en este texto son evidencia
     let v = v0;
     let _leyesDelMuro = [];   // las leyes de la casa del muro que ardieron junto al juez semántico (van al rastro con su multa)
     if (sem) {
@@ -1183,7 +1211,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
        * lo que ellos arreglan. El veredicto del muro no cambia —sus violaciones siguen primero y son las que
        * leen la poda y la escalada—; lo del contrato viaja aparte, en `multaCompleta`, para el mensaje al
        * modelo, y en el expediente entre paréntesis. */
-      if ((sitio === "cierre" || sitio === "reparacion" || sitio === "declaracion") && v) {
+      if ((sitio === "cierre" || sitio === "reparacion" || sitio === "declaracion" || sitio === "reanclaje") && v) {
         const vc = (() => { try { return _otrosJueces(t, sitio); } catch { return []; } })();
         if (vc.length) {
           v.multaCompleta = `${_multaParaElModelo(v)}\n${vc.map((x) => x.multa).join("\n")}`;
@@ -1224,7 +1252,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
      * lo que el usuario ya vio (que con boleta vacía es VERDE por diseño, la raíz de T13/T24). El defecto que
      * este juez existe para cazar lo cometió el CEREBRO, en su cierre. Multar al rescate por una cifra que el
      * bucle ya verificó es castigar al que arregla. */
-    const vSinBoleta = (sitio === "cierre" || sitio === "reparacion" || sitio === "declaracion") ? vetoCifraSinBoleta({
+    const vSinBoleta = (sitio === "cierre" || sitio === "reparacion" || sitio === "declaracion" || sitio === "reanclaje") ? vetoCifraSinBoleta({
       texto: t, figsEnBoleta: figsTotales.length, pregunta: q,
       recitaAprobada: recita, datoProyectado: cifrasDelDato(scenario),
     }) : null;
@@ -1248,7 +1276,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     const vRef2 = vetosDeReformular(t, { pregunta: q, previa: _previaDelHilo, sitio });
     /* EL REFERENTE ES DEL PROCEDIMIENTO (2026-09-11): «el primero» lo resolvió el scope canónico; si el cerebro
      * narra sobre otra cuenta del mismo conjunto sin nombrar al referente, se cobra. Solo al cerebro. */
-    const vRefte = (sitio === "cierre" || sitio === "reparacion" || sitio === "declaracion") ? vetoReferente(t, referente, scopePrev.current) : null;
+    const vRefte = (sitio === "cierre" || sitio === "reparacion" || sitio === "declaracion" || sitio === "reanclaje") ? vetoReferente(t, referente, scopePrev.current) : null;
     /* `sitio` viaja al contrato desde la densidad ejecutiva (2026-09-11): la forma se juzga al cerebro, no a los peldaños */
     const vc = [...vetosDeContrato(t, { pregunta: q, entidades: duenosTenant || [], limiteDeHerramienta: motivosNoSoportado.length > 0, sitio, huellas: _huellasDelTurno, figs: figsTotales }),
       ...(vSinBoleta ? [vSinBoleta] : []),
@@ -1276,7 +1304,65 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
   if (_declCierre) texto = _declCierre.respuesta;
   const afirmacionesCierre = _declCierre ? _lavarDeclaracion(_declCierre.afirmaciones) : null;
   let sitioDelVerde = "cierre";   // dónde se aprobó lo que se sirve como verde: el cierre, o la declaración reparada con la prosa congelada
-  if (typeof texto === "string" && texto.trim()) {
+  /* ── EL CIERRE v3 · VERDAD FINITA, PROSA INFINITA (owner 2026-09-17, plan §2.5) ───────────────────────────────────────────────────────
+   * La salida del cerebro es el libro de hechos con ids + la prosa anclada. La casa evalúa el libro tipado, comprueba las anclas, renderiza y
+   * juzga las leyes de la casa sobre lo renderizado. Verde → se sirve (1 llamada, como hoy). Si solo falló la FORMA de las anclas → RE-ANCLAJE
+   * (+1, prosa congelada; reemplaza a la «declaración sola»). Si hay un hecho falso/no verificable o una ley de la casa → REESCRITURA (+1) con la
+   * verdad de la boleta y sus ids (reemplaza a la reparación). Si aun así no pasa → PODA RESIDUAL por tramos (0 llamadas) y la escalera de siempre. */
+  if (notarioV3 && typeof texto === "string" && texto.trim()) {
+    const _X = extraerHechos(salidaCruda);
+    let A = _juezDeAnclas(_X.prosa, _X.hechos, "cierre");
+    let lavado = stripLanguageLeaks(A.servido);
+    let v1 = juzgar(lavado, "cierre", { v3: true, sem: A.sem });
+    if (v1 && v1.ok) { final = lavado; estado = "verde"; aprobado = true; }
+    let salidaBase = salidaCruda;   // la salida del modelo desde la que se reescribe (la del cierre, o la re-anclada si la hubo)
+    if (!aprobado && soloReanclaje(v1)) {
+      const resR = await _llamarCerebro({
+        mensajes: [...mensajes, { role: "assistant", content: salidaCruda.trim() }, { role: "user", content: mensajeDeReanclaje(v1) }],
+        mapa, herramientas, ronda: rondas, attempt: 0, cierre: true, motivoReintento: "reanclaje", figsEnBoleta: figsTotales.length, vetoConCifra: false,
+      });
+      if (resR && resR.tipo === "texto" && String(resR.texto || "").trim()) {
+        const XR = extraerHechos(String(resR.texto));
+        const AR = _juezDeAnclas(XR.prosa, XR.hechos, "reanclaje");
+        const lavR = stripLanguageLeaks(AR.servido);
+        const vR = juzgar(lavR, "reanclaje", { v3: true, sem: AR.sem });
+        if (vR && vR.ok) { final = lavR; estado = "verde"; aprobado = true; sitioDelVerde = "reanclaje"; }
+        else if (vR) { v1 = vR; A = AR; salidaBase = String(resR.texto); lavado = lavR; }   // la reescritura parte del juicio más informado
+      }
+    }
+    if (!aprobado) {
+      const multa = mensajeDeReescritura(v1, A.libro, (v1 && v1.multaCompleta) || _multaParaElModelo(v1));
+      const vetoConCifraV3 = _cifrasDeMulta(_multaDe(v1)).length > 0;   // la misma señal de escalada que el v2 (P2(ii)); nombre propio para que la carnada del gate siga midiendo al v2
+      const hiloR = [...mensajes, { role: "assistant", content: esNarracionVacia(lavado) ? "(respuesta vacía)" : salidaBase.trim() }, { role: "user", content: multa }];
+      let res2 = await _llamarCerebro({ mensajes: [...hiloR], mapa, herramientas, ronda: rondas, attempt: 1, motivoReintento: "guard", figsEnBoleta: figsTotales.length, vetoConCifra: vetoConCifraV3 });
+      const extra2 = _pedidosValidos(res2);
+      if (extra2 && _rondaDeHerramientas(extra2, hiloR)) {   // R1: la reescritura pidió una herramienta válida — corre y se le vuelve a pedir
+        rondaExtraUsada = true;
+        res2 = await _llamarCerebro({
+          mensajes: [...hiloR, { role: "user", content: "[MOTOR — no es el usuario] Las herramientas que pediste ya corrieron: sus cifras están arriba, cada una con su id. Reescribe AHORA tu salida completa —el bloque de hechos y la prosa anclada— con esas cifras verificadas, corrigiendo lo que observó la verificación." }],
+          mapa, herramientas, ronda: rondas, attempt: 1, motivoReintento: "guard", figsEnBoleta: figsTotales.length, vetoConCifra: vetoConCifraV3,
+        });
+      }
+      const X2 = res2 && res2.tipo === "texto" ? extraerHechos(String(res2.texto || "")) : null;
+      if (X2 && X2.prosa.trim()) {
+        const A2 = _juezDeAnclas(X2.prosa, X2.hechos, "reparacion");
+        const lav2 = stripLanguageLeaks(A2.servido);
+        const v2 = juzgar(lav2, "reparacion", { v3: true, sem: A2.sem });
+        if (v2 && v2.ok) { final = lav2; estado = "reparado"; aprobado = true; }
+        else if (v2) {
+          /* la poda residual (comprobación 14): se quitan los tramos con anclas vetadas y las lecturas cuyo apoyo los cita; lo que queda vuelve a juzgarse entero */
+          const podado = podarTramos(X2.prosa, v2.violations || [], A2.libro);
+          if (podado) {
+            const A3 = _juezDeAnclas(podado, X2.hechos, "poda");
+            const lav3 = stripLanguageLeaks(A3.servido);
+            const v3 = juzgar(lav3, "poda", { v3: true, sem: A3.sem });
+            if (v3 && v3.ok) { final = lav3; estado = "podado"; aprobado = true; }
+          }
+        }
+      }
+    }
+  }
+  if (!notarioV3 && typeof texto === "string" && texto.trim()) {
     const lavado = stripLanguageLeaks(String(texto));
     let v1 = juzgar(lavado, "cierre", afirmacionesCierre);
     if (v1 && v1.ok) { final = lavado; estado = "verde"; aprobado = true; }
@@ -1594,7 +1680,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
         cortes: cortesDelTurno.slice(0, 6),   // el motivo de corte del proveedor, por llamada (la lección del natural, punta a punta)
         /* EL NOTARIO SEMÁNTICO (fase 2): por sitio, cuánto se declaró, cuánto quedó sin declarar, qué se vetó y qué detectaron los
          * chequeos viejos; y el sitio que se sirvió, con sus medidas — nada se sirve sin este registro */
-        notario: { modo: "semantico", pasos: notarioDelTurno, servido: (() => { const ultimo = [...notarioDelTurno].reverse().find((x) => x.sitio === (estado === "verde" ? sitioDelVerde : estado === "reparado" ? "reparacion" : estado === "podado" ? "poda" : estado === "playbook" ? `playbook:${playbookActivo ? playbookActivo.nombre : ""}` : estado === "limite" ? "limite" : estado) || (estado === "limite" && (x.sitio === "linea-honesta" || x.sitio === "limite-referente"))); return ultimo ? { sitio: ultimo.sitio, derivada: ultimo.derivada, medidas: ultimo.medidas, vetos: ultimo.vetos } : { sitio: estado, sinJuicioSemantico: true }; })() },
+        notario: { modo: notarioV3 ? "anclas" : "semantico", pasos: notarioDelTurno, servido: (() => { const ultimo = [...notarioDelTurno].reverse().find((x) => x.sitio === (estado === "verde" ? sitioDelVerde : estado === "reparado" ? "reparacion" : estado === "podado" ? "poda" : estado === "playbook" ? `playbook:${playbookActivo ? playbookActivo.nombre : ""}` : estado === "limite" ? "limite" : estado) || (estado === "limite" && (x.sitio === "linea-honesta" || x.sitio === "limite-referente"))); return ultimo ? { sitio: ultimo.sitio, derivada: ultimo.derivada, medidas: ultimo.medidas, vetos: ultimo.vetos } : { sitio: estado, sinJuicioSemantico: true }; })() },
         recitaCifras: recita && Array.isArray(recita.figs) ? recita.figs.length : 0,
         /* la SIEMBRA: el cuadro desde el que se preguntó queda en el expediente — hoy solo se registra, y esa
          * es toda la promesa (ver la nota de `viewContext` arriba y `_CONTRATO_ASK_DE_CUADRO.md`). */

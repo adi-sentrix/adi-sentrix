@@ -322,6 +322,12 @@ export const ADI_BYPASS_SIN_PAGO = P("ADI_BYPASS_SIN_PAGO");
 // EXPERIMENTAL de flagProfile.js — una línea, mismo patrón con que nació el camino natural.
 export const ADI_AGENTE = P("ADI_AGENTE");
 
+// ── NOTARIO v3 · VERDAD FINITA, PROSA INFINITA (owner 2026-09-17, plan _NOTARIO_VERDAD_FINITA_PLAN.md) · APAGADO en todos los perfiles ──
+// Con TRUE el cerebro del agente emite el libro de hechos con ids + prosa anclada y el Notario verifica hechos identificados (hechos.js ·
+// anclas.js), en vez de reconstruir la verdad desde la prosa. Con FALSE el turno es byte-idéntico al de hoy. Se enciende solo en el
+// piloto (E7), con gasto nombrado por el owner: agregar "ADI_NOTARIO_V3" al perfil en flagProfile.js.
+export const ADI_NOTARIO_V3 = P("ADI_NOTARIO_V3");
+
 // ── CONTRATO v2 · GRADUACIÓN EPISTÉMICA VISIBLE detrás de flag · default FALSE (owner 2026-08-07) ──
 // SEPARA DOS COSAS QUE NO SON LO MISMO:
 //   · EL SELLO (estructural, SIEMPRE activo, no depende de este flag): cada claim lleva su `estatus`

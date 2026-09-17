@@ -16,6 +16,7 @@ import { PRINCIPIOS_ARCO, PRINCIPIOS_FORMA, PRINCIPIOS_RUTEO } from "./contratoA
 import { lineaDeNombre } from "./preferenciaNombre.js";   // F3 · «llámame jc» — una línea, "" sin declaración
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje: el agente lee el MISMO dato que la pantalla
 import { instruccionDeDeclaracion } from "../notario/declaracion.js";   // el Notario semántico (owner 2026-09-15): el cerebro declara sus afirmaciones
+import { instruccionDeAnclas } from "../notario/protocolo.js";   // verdad finita (owner 2026-09-17, E3): hechos con id + prosa anclada, detrás de ADI_NOTARIO_V3
 
 /* Las invariantes del agente — pocas y duras (owner). Letra F3, calibrada contra el corpus de exámenes. */
 export const INVARIANTES_AGENTE = [
@@ -59,7 +60,7 @@ export function bloqueDeContexto(contexto) {
 /** sistemaDelAgente(scenario, extra?) → { fijo } · el segmento estable del system (persona + invariantes +
  *  arco + forma + nombre + mapa + contexto declarado). Byte-estable por tenant+nombre+dato+contexto — el
  *  prefijo cacheable del proveedor (el contexto cambia solo cuando el dueño lo edita). */
-export function sistemaDelAgente(scenario = ESCENARIO_INICIAL, { contextoDelNegocio = null } = {}) {
+export function sistemaDelAgente(scenario = ESCENARIO_INICIAL, { contextoDelNegocio = null, notarioV3 = false } = {}) {
   const nombre = lineaDeNombre();
   const fijo = [
     CARTA_DEL_ASESOR,
@@ -78,7 +79,9 @@ export function sistemaDelAgente(scenario = ESCENARIO_INICIAL, { contextoDelNego
     "",
     /* EL NOTARIO SEMÁNTICO (owner 2026-09-15, fase 2): la respuesta va con su declaración; el Notario verifica lo declarado contra los
      * resultados y devuelve lo no declarado. Byte-estable: forma parte del prefijo cacheable. */
-    instruccionDeDeclaracion(),
+    /* VERDAD FINITA (owner 2026-09-17, E3): con `notarioV3` el cerebro recibe el protocolo v3 —el libro de hechos con ids y la prosa anclada— en
+     * lugar del v2. Sin el flag, byte-idéntico. */
+    notarioV3 ? instruccionDeAnclas() : instruccionDeDeclaracion(),
     ...(nombre ? ["", nombre] : []),
     "",
     "Tienes herramientas. Pide las que necesites (varias en paralelo si ayuda) y responde cuando tengas el dato. Si una herramienta declara un límite, ese límite ES la respuesta honesta.",
