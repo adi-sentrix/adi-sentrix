@@ -24,7 +24,8 @@ import { rangoDeMatiz } from "../agente/atributosYRelaciones.js";
 import { normalizarAfirmaciones, normalizar, menosAscii } from "./afirmacion.js";
 import { resolverDeclaraciones } from "./resolutor.js";
 import { ESTADOS_CANON, estadoDeLaCasa, verificarEstadoDeLaCasa } from "./estados.js";
-import { juzgarBase, calcularConBase } from "./tasas.js";   // la base de una tasa (ronda adversarial 3): valor + base, o no es esa tasa   // fase 4: la casa canoniza la forma de la declaración antes del veredicto
+import { juzgarBase, calcularConBase } from "./tasas.js";
+import { metricaPorClave, polaridadDeClave, diasDe, opDe } from "./lexico.js";   // verdad finita (E1): el universo tipado se evalúa por claves, no por palabras   // la base de una tasa (ronda adversarial 3): valor + base, o no es esa tasa   // fase 4: la casa canoniza la forma de la declaración antes del veredicto
 import { indiceDeEvidencia, tokens, numerosEn, ES_TODO, ES_TODO_FUERTE, estadoCanon, conceptosDe, mismoValor as _mismoValor, unidadCompatible as _u, necesitaUniverso as _necesitaUniverso, conDigitos } from "./evidencia.js";
 
 export const VEREDICTOS = ["verdadera", "falsa", "no-verificable", "sellada"];
@@ -316,6 +317,8 @@ const _puntajeUniverso = (declarado, f) => { const tu = tokens(Array.isArray(dec
 const _CLAVE_A_RANKING = { ventas: "ventas", contribucion: "contribucion", margen: "margen", carga: "carga", brecha: "brecha", unidades: "unidades", vencido: "saldo_vencido", pendiente: "saldo_pendiente", porvencer: "saldo_por_vencer", recuperado: "recuperado", diasvencido: "dias_vencido", capital: "capital", frenado: "capital_frenado", rotacion: "rotacion", cobertura: "dias_inventario", sinventa: "dias_sin_venta" };
 /** conjuntosConocidos(I) → los conjuntos que la evidencia identifica (para la carta de hechos del turno: nombre, tamaño, eje, fuente) */
 export function conjuntosConocidos(I) { return _conjuntosConocidos(I); }
+/** conjuntoDeUniverso(u, I, eje, metrica) → { set|null, fuente } | { error } · el mismo resolutor de universos (texto, lista o universo TIPADO) para el libro de hechos */
+export function conjuntoDeUniverso(u, I, eje = null, metrica = "") { return _conjuntoDeUniverso(u, I, eje, metrica); }
 /* _conjuntosConocidos(I) → [{nombre, set, fuente, re}] · los estados, los umbrales de los rankings (bajo/sobre el benchmark de margen, con saldo
  * vencido, sobre el nivel de carga declarado), los que caen/crecen vs año anterior, y los grupos de los agregados (con sus palabras) */
 function _conjuntosConocidos(I) {
@@ -443,8 +446,146 @@ function _conjuntoPorUmbral(s, I, eje) {
   const set = new Set(filas.filter((p) => cmp(p.v)).map((p) => normalizar(p.x.entidad)));
   return { set, fuente: `${eje} · ${clave} ${um.op} ${um.texto.replace(/^.*?(\d)/, "$1")} (${set.size})` };
 }
+/* ── EL UNIVERSO TIPADO (verdad finita · E1 · owner 2026-09-17): {eje, base?, estados?, no_estados?, bodega?, filtros?, top?, excluir?, union?} ──
+ * Ninguna palabra se interpreta: cada cláusula es un objeto y se evalúa con las mismas primitivas (conjuntos conocidos, rankings, estados de la
+ * proyección, definiciones de estados.js). conjunto = (base ∩ estados ∩ ¬no_estados ∩ bodega ∩ filtros ∩ top) − excluir, ∪ union. */
+const _RANKING_DE_CLAVE = { ventas: "ventas", margen: "margen", contribucion: "contribucion", carga: "carga", unidades: "unidades", brecha: "brecha", no_capturada: "no_capturada", saldo_vencido: "saldo_vencido", saldo_pendiente: "saldo_pendiente", saldo_por_vencer: "saldo_por_vencer", recuperado: "recuperado", dias_vencido: "dias_vencido", capital: "capital", capital_frenado: "capital_frenado", capital_inmovilizado: "capital_inmovilizado", rotacion: "rotacion", dias_inventario: "dias_inventario", dias_sin_venta: "dias_sin_venta", margen_inventario: "margen_inventario" };
+const _claveDe = (x) => normalizar(String(x || "")).replace(/\s+/g, "_");
+/* _filasTipadas(clave, I, eje) → {filas:[{entidad, nombre, raw, unidad, texto}], fuente, peorEs}: el ranking de la proyección (con la cifra impresa
+ * o la unidad sin escala ambigua) y, si no, las figs de la boleta con esa métrica en el eje */
+function _filasTipadas(clave, I, eje) {
+  const m = metricaPorClave(clave);
+  const rkClave = _RANKING_DE_CLAVE[clave] || clave;
+  const R = (I.rankings && I.rankings[eje]) || {};
+  const rk = R[rkClave];
+  const out = [];
+  const unidadEsperada = m ? m.unidad : null;
+  if (rk && Array.isArray(rk.filas)) {
+    for (const x of rk.filas) {
+      let raw = null, unidad = null;
+      const texto = x.texto != null ? String(x.texto) : "";
+      if (texto) { const p = parseFigures(menosAscii(texto))[0]; if (p && Number.isFinite(p.raw)) { raw = p.raw; unidad = p.unit; } }
+      if (raw == null && Number.isFinite(+x.valor)) { const u = _UNIDAD_DE_RANKING[rkClave] || unidadEsperada; if (u && u !== "money") { raw = +x.valor; unidad = u; } }
+      if (raw != null) out.push({ entidad: normalizar(x.entidad), nombre: x.entidad, raw, unidad, texto });
+    }
+    if (out.length) return { filas: out, fuente: `ranking ${eje} · ${rkClave}`, peorEs: rk.peorEs || null };
+  }
+  const nombre = m ? m.nombre : String(clave);
+  let fs = [];
+  try { fs = I.figsDeMetrica(nombre, eje); } catch { fs = []; }
+  const vistos = new Map();
+  for (const f of fs) if (f.entidad && Number.isFinite(f.raw) && !vistos.has(normalizar(f.entidad))) vistos.set(normalizar(f.entidad), { entidad: normalizar(f.entidad), nombre: f.entidad, raw: f.raw, unidad: f.unidad, texto: f.texto || "" });
+  return { filas: [...vistos.values()], fuente: `figs «${nombre}» por ${eje}`, peorEs: rk ? rk.peorEs || null : null };
+}
+/* una referencia de la casa por clave («benchmark», «techo_cobertura») → su cifra */
+function _refRaw(ref, I) {
+  const m = metricaPorClave(ref);
+  const nombres = m ? [m.nombre, ...m.conceptos] : [String(ref)];
+  for (const n of nombres) { let fs = []; try { fs = I.buscarFigs("negocio", n); } catch { fs = []; } const f = fs.find((g) => Number.isFinite(g.raw)); if (f) return { raw: f.raw, unidad: f.unidad, label: f.label }; }
+  return null;
+}
+/* el conjunto de un estado: los de la Mesa Capital vienen de la proyección; los definidos (estados.js) se demuestran entidad por entidad */
+function _setDeEstado(canon, I, eje) {
+  const e = estadoCanon(String(canon || "").replace(/_/g, " "));
+  const def = estadoDeLaCasa(e);
+  const conocido = _conjuntosConocidos(I).find((c) => c.nombre === e && (!eje || !c.eje || c.eje === eje));
+  if (conocido && conocido.set) return { set: new Set(conocido.set), fuente: conocido.fuente };
+  if (def && typeof def.verificar === "function") {
+    const todos = _todosDelEje(I, eje || def.eje);
+    if (!todos) return { error: `universo-no-resoluble: el estado «${e}» necesita el eje entero y la evidencia no lo trae` };
+    const set = new Set(); let demostrados = 0;
+    for (const k of todos) { const ent = I.entidades.get(k); let r = null; try { r = def.verificar(I, ent ? ent.nombre : k); } catch { r = null; } if (r && typeof r === "object") { demostrados++; if (r.ok) set.add(k); } }
+    if (!demostrados) return { error: `universo-no-resoluble: la evidencia no demuestra «${e}» para ninguna entidad del eje` };
+    return { set, fuente: `${e} (${def.definicion})` };
+  }
+  if (_ESTADOS_CONOCIDOS.has(e)) return { set: new Set(), fuente: `estados «${e}» (ninguno)` };
+  return { error: `universo-no-resoluble: «${canon}» no es un estado con definición en la casa` };
+}
+function _filtroTipado(f, I, eje) {
+  const clave = _claveDe(f && f.metrica);
+  const op = opDe(f && f.op != null ? f.op : ">");
+  if (!op) return { error: `universo-no-resoluble: operador «${f && f.op}» desconocido` };
+  const F = _filasTipadas(clave, I, eje);
+  if (!F.filas.length) return { error: `universo-no-resoluble: la evidencia no trae «${clave}» por ${eje}` };
+  let lo = null, hi = null, unidad = f.unidad ? String(f.unidad) : null, fuenteV = "";
+  if (f.ref != null) { const r = _refRaw(f.ref, I); if (!r) return { error: `universo-no-resoluble: la referencia «${f.ref}» no está en la evidencia` }; lo = r.raw; unidad = unidad || r.unidad; fuenteV = `${r.label} = ${r.raw}`; }
+  else if (op === "entre") { const v = Array.isArray(f.valor) ? f.valor : [f.valor, f.hasta]; lo = +v[0]; hi = +v[1]; if (!Number.isFinite(lo) || !Number.isFinite(hi)) return { error: "universo-no-resoluble: «entre» necesita dos valores" }; }
+  else { lo = +f.valor; if (!Number.isFinite(lo)) return { error: `universo-no-resoluble: el filtro de «${clave}» no trae valor` }; }
+  /* unidades de tiempo en palabras (meses, trimestre, semestre): a días por tabla, nunca leídas de la prosa */
+  if (unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(unidad)) { const d = diasDe(lo, unidad); if (d == null) return { error: `universo-no-resoluble: unidad «${unidad}» desconocida` }; lo = d; if (hi != null) hi = diasDe(hi, unidad); unidad = "days"; }
+  const uFilas = F.filas[0].unidad;
+  if (unidad && uFilas && _u(unidad) !== _u(uFilas)) return { error: `universo-no-resoluble: el filtro de «${clave}» está en ${unidad} y la evidencia en ${uFilas}` };
+  const cmp = (v) => (op === ">" ? v > lo : op === ">=" ? v >= lo : op === "<" ? v < lo : op === "<=" ? v <= lo : op === "==" ? Math.abs(v - lo) <= tolCalculo(lo, uFilas) : v >= lo && v <= hi);
+  const set = new Set(F.filas.filter((x) => cmp(x.raw)).map((x) => x.entidad));
+  const fmtV = (v) => (uFilas === "money" ? `$${v}` : uFilas === "pct" ? `${v}%` : uFilas === "days" ? `${v} días` : uFilas === "ratio" ? `${v}x` : String(v));
+  return { set, fuente: `${clave} ${op === "entre" ? `entre ${fmtV(lo)} y ${fmtV(hi)}` : `${op} ${fuenteV || fmtV(lo)}`} (${set.size})` };
+}
+function _topTipado(t, I, eje, dentro) {
+  const clave = _claveDe(t && t.metrica);
+  const k = t && Number.isFinite(+t.k) ? +t.k : null;
+  if (!k || k < 1) return { error: "universo-no-resoluble: el top necesita k" };
+  const F = _filasTipadas(clave, I, eje);
+  if (!F.filas.length) return { error: `universo-no-resoluble: la evidencia no trae «${clave}» por ${eje}` };
+  let dir = normalizar(t.direccion || "mayor");
+  if (dir === "peor" || dir === "mejor") {
+    const pol = polaridadDeClave(clave);
+    const peorEs = F.peorEs || (pol === "mayor" ? "menor" : pol === "menor" ? "mayor" : null);
+    if (!peorEs) return { error: `polaridad-no-declarada: la casa no dice qué es «${dir}» en «${clave}»` };
+    dir = dir === "peor" ? peorEs : (peorEs === "mayor" ? "menor" : "mayor");
+  }
+  if (dir !== "mayor" && dir !== "menor") return { error: `universo-no-resoluble: dirección «${t.direccion}» desconocida` };
+  const filas = F.filas.filter((x) => !dentro || dentro.has(x.entidad)).sort((x, y) => (dir === "mayor" ? y.raw - x.raw : x.raw - y.raw)).slice(0, k);
+  return { set: new Set(filas.map((x) => x.entidad)), fuente: `los ${k} de ${dir} ${clave}` };
+}
+const _listaOUno = (x) => (Array.isArray(x) ? x : x == null || x === "" ? [] : [x]);
+function _conjuntoTipado(u, I, eje0, metrica = "") {
+  const eje = normalizar(u.eje || eje0 || "cliente");
+  const fuentes = [];
+  const todos = _todosDelEje(I, eje);
+  let set = null;   // null = el eje entero (sin restricción)
+  const restringir = (S, f) => { set = set ? new Set([...set].filter((x) => S.has(x))) : new Set(S); if (f) fuentes.push(f); };
+  if (u.base && !/^(?:todos|todas|todo|el eje|eje)$/i.test(String(u.base))) {
+    const nombre = normalizar(u.base);
+    const c = _conjuntosConocidos(I).find((x) => normalizar(x.nombre) === nombre && (!x.eje || x.eje === eje));
+    if (!c) return { error: `universo-no-resoluble: la base «${u.base}» no es un conjunto que la evidencia identifique` };
+    restringir(c.set, c.nombre);
+  }
+  for (const est of _listaOUno(u.estados)) { const S = _setDeEstado(est, I, eje); if (S.error) return S; restringir(S.set, S.fuente); }
+  for (const est of _listaOUno(u.no_estados)) {
+    const S = _setDeEstado(est, I, eje); if (S.error) return S;
+    const base = set || todos; if (!base) return { error: `universo-no-resoluble: «sin ${est}» necesita el eje entero y la evidencia no lo trae` };
+    set = new Set([...base].filter((x) => !S.set.has(x))); fuentes.push(`sin ${S.fuente}`);
+  }
+  if (u.bodega) {
+    const b = _bodegaNombrada(String(u.bodega), I);
+    if (!b) return { error: `universo-no-resoluble: «${u.bodega}» no es una bodega del tenant` };
+    if (eje !== "sku") return { error: `universo-no-resoluble: la bodega solo restringe SKU (eje «${eje}»)` };
+    restringir(_skusEnBodega(b, I), `en ${u.bodega}`);
+  }
+  for (const f of Array.isArray(u.filtros) ? u.filtros : []) { const S = _filtroTipado(f, I, eje); if (S.error) return S; restringir(S.set, S.fuente); }
+  if (u.top) { const S = _topTipado(u.top, I, eje, set || todos); if (S.error) return S; restringir(S.set, S.fuente); }
+  if (u.excluir && typeof u.excluir === "object") {
+    const ex = u.excluir;
+    const base = set || todos;
+    if (!base) return { error: "universo-no-resoluble: la exclusión necesita el eje entero y la evidencia no lo trae" };
+    const quitar = new Set(); const partes = [];
+    for (const e of _listaOUno(ex.entidades)) { const r = I.resolverEntidad(e); if (!r) return { error: `universo-no-resoluble: «${e}» no es una entidad del tenant` }; quitar.add(normalizar(r.nombre)); partes.push(r.nombre); }
+    for (const n of _listaOUno(ex.conjuntos)) { const c = _conjuntosConocidos(I).find((x) => normalizar(x.nombre) === normalizar(n) && (!x.eje || x.eje === eje)); if (!c) return { error: `universo-no-resoluble: «${n}» no es un conjunto que la evidencia identifique` }; for (const x of c.set) quitar.add(x); partes.push(c.nombre); }
+    for (const est of _listaOUno(ex.estados)) { const S = _setDeEstado(est, I, eje); if (S.error) return S; for (const x of S.set) quitar.add(x); partes.push(S.fuente); }
+    if (ex.bodega) { const b = _bodegaNombrada(String(ex.bodega), I); if (!b) return { error: `universo-no-resoluble: «${ex.bodega}» no es una bodega del tenant` }; for (const x of _skusEnBodega(b, I)) quitar.add(x); partes.push(`en ${ex.bodega}`); }
+    if (ex.top) { const S = _topTipado(ex.top, I, eje, todos); if (S.error) return S; for (const x of S.set) quitar.add(x); partes.push(S.fuente); }
+    set = new Set([...base].filter((x) => !quitar.has(x))); fuentes.push(`fuera de ${partes.join(" y ")}`);
+  }
+  if (Array.isArray(u.union) && u.union.length) {
+    const acc = set ? new Set(set) : new Set(todos || []);
+    for (const v of u.union) { const S = _conjuntoTipado(v && typeof v === "object" ? v : {}, I, eje, metrica); if (S.error) return S; for (const x of (S.set || _todosDelEje(I, eje) || [])) acc.add(x); }
+    set = acc; fuentes.push("unión");
+  }
+  return { set, fuente: fuentes.length ? fuentes.join(" · ") : "el eje entero", tipado: true };
+}
 /* _conjuntoDeUniverso(u, I, eje, metrica) → { set|null (entero), fuente } o { error } */
 function _conjuntoDeUniverso(u, I, eje, metrica = "") {
+  if (u && typeof u === "object" && !Array.isArray(u)) return _conjuntoTipado(u, I, eje, metrica);   // verdad finita: un universo tipado no se interpreta
   if (Array.isArray(u)) return { set: new Set(u.map((e) => { const r = I.resolverEntidad(e); return normalizar(r ? r.nombre : e); })), fuente: "lista declarada" };
   const s = conDigitos(String(u || ""));
   if (!s.trim() || ES_TODO.test(s) || ES_TODO_FUERTE.test(s)) return { set: null, fuente: "el eje entero" };
@@ -552,6 +693,8 @@ function _delRanking(a, I) {
   const raw = +fila.valor * escala;
   return { raw, unidad: u, label: `ranking ${ent.eje} · ${rk.clave} · ${ent.nombre}`, texto: u === "money" ? (parseFigures(`$${Math.round(raw)}`)[0] || {}).text || String(raw) : `${fila.valor}${u === "pct" ? "%" : u === "pp" ? " pp" : u === "days" ? "d" : u === "ratio" ? "x" : ""}` };
 }
+/** valorDeRanking(a, I) → { raw, unidad, label, texto } | null · la cifra de una entidad en el ranking de la proyección (para el libro de hechos) */
+export function valorDeRanking(a, I) { return _delRanking(a, I); }
 const _DICE_BAJA = /\b(?:ca[ií]da|baja|bajan|bajaron|baj[oó]\b|cae|caen|cay[oó]\b|cayeron|reducci[oó]n|retroce|pierde|pierden|perdi[oó]\b|perdieron|disminu|descend|se\s+contra[ej]|menos|negativ|recorte)/i;
 /* el juicio de la base de una tasa, traducido a veredicto (null cuando la base no aplica o coincide) */
 function _juicioDeBase(a, fig, I) {
@@ -725,10 +868,11 @@ function _grupo(a, I) {
   const setD = new Set(declaradas.map(normalizar));
   /* las entidades nombradas tienen que PERTENECER al universo dicho: «las 6 cuentas sin mora suman $12,6M» sobre las 6 CON mora es falso aunque la
    * suma cierre (ronda adversarial 3: universos negados) */
-  if (declaradas.length && typeof a.universo === "string" && a.universo.trim()) {
+  const _uObj = !!(a.universo && typeof a.universo === "object" && !Array.isArray(a.universo));   // verdad finita: un universo tipado siempre es explícito
+  if (declaradas.length && ((typeof a.universo === "string" && a.universo.trim()) || _uObj)) {
     const ejeG = _ejeDe({ ...a, sujeto: declaradas[0] }, I);
-    const sU = conDigitos(String(a.universo));
-    const explicito = _NEGACION_RE.test(sU) || _EXCLUSION_RE.test(sU) || !!_umbralDe(sU) || _conjuntosConocidos(I).some((c) => c.re && c.re.test(sU));
+    const sU = _uObj ? "" : conDigitos(String(a.universo));
+    const explicito = _uObj || _NEGACION_RE.test(sU) || _EXCLUSION_RE.test(sU) || !!_umbralDe(sU) || _conjuntosConocidos(I).some((c) => c.re && c.re.test(sU));
     let U = null; if (explicito) { try { U = _conjuntoDeUniverso(a.universo, I, ejeG, a.metrica); } catch { U = null; } }
     if (U && U.set) { const fuera = declaradas.filter((e) => !U.set.has(normalizar(e))); if (fuera.length) return _falsa(`grupo-fuera-del-universo: ${_lista(fuera)} no pertenece${fuera.length > 1 ? "n" : ""} a «${a.universo}» (${U.fuente})`, `${U.fuente}`, []); }
   }
@@ -794,6 +938,7 @@ function _ejeDe(a, I) {
   const r = typeof s === "string" ? I.resolverEntidad(s) : null;
   if (r && r.eje) return r.eje;
   if (Array.isArray(a.universo)) { const r2 = I.resolverEntidad(a.universo[0]); if (r2) return r2.eje; }
+  if (a.universo && typeof a.universo === "object" && !Array.isArray(a.universo) && a.universo.eje) return normalizar(a.universo.eje);   // universo tipado: el eje viene declarado
   const u = normalizar(a.universo);
   if (/sku|producto|referencia/.test(u)) return "sku";
   if (/bodega/.test(u)) return "bodega";
@@ -925,7 +1070,7 @@ function _valorDe(sujeto, metrica, I, universo = "", unidad = null) {
   /* la métrica sin «año anterior» es la del período: la base del año anterior no la representa (venta vs presupuesto comparaba $92.9M) */
   if (!/anterior|pasado|previo/.test(normalizar(metrica))) { const delPeriodo = c.filter((f) => !_esBaseAnterior(f)); if (delPeriodo.length) c = delPeriodo; }
   if (unidad) { const mismaU = c.filter((f) => _u(f.unidad) === _u(unidad)); if (mismaU.length) c = mismaU; }
-  if (universo) { const u = c.find((f) => _universoCasa(universo, f, I) === "ok"); if (u) return u; }
+  if (universo && typeof universo === "string") { const u = c.find((f) => _universoCasa(universo, f, I) === "ok"); if (u) return u; }
   if (sujeto === "negocio") {
     /* el todo del negocio: «· total» primero, después un promedio; un «resto de» o un subtotal solo si el universo los nombra */
     const total = c.find((f) => /(?:^|· )total$/.test(f.conceptoNorm)); if (total) return total;
@@ -1127,9 +1272,10 @@ const predN = normalizar(pred);
 function _conteo(a, I) {
   const c = a.conteo;
   const pred = c.predicado || a.metrica;
-  const uTexto = Array.isArray(a.universo) ? "" : String(a.universo || "");
+  const uTipado = a.universo && typeof a.universo === "object" && !Array.isArray(a.universo) ? a.universo : null;   // verdad finita: universo tipado
+  const uTexto = Array.isArray(a.universo) || uTipado ? "" : String(a.universo || "");
   const _uNp = normalizar(uTexto + " " + pred);
-  const ejeU = /sku|producto/.test(_uNp) ? "sku" : /bodega/.test(_uNp) ? "bodega" : /marca/.test(_uNp) ? "marca" : /familia/.test(_uNp) ? "familia" : /canal/.test(_uNp) ? "canal" : "cliente";
+  const ejeU = uTipado && uTipado.eje ? normalizar(uTipado.eje) : /sku|producto/.test(_uNp) ? "sku" : /bodega/.test(_uNp) ? "bodega" : /marca/.test(_uNp) ? "marca" : /familia/.test(_uNp) ? "familia" : /canal/.test(_uNp) ? "canal" : "cliente";
   let cn = _candidatosDeConteo(pred, I, ejeU);
   if (!cn.length) return _nv(`sin-evidencia: la boleta no cuenta «${pred}»`);
   const fmtC = (x) => `${x.n}${x.m != null ? " de " + x.m : ""} (${x.fuente}: ${x.label})`;

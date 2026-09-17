@@ -103,7 +103,8 @@ export function normalizarAfirmacion(a, i = 0) {
   out.sujeto = _sujeto(src.sujeto);
   out.metrica = src.metrica != null ? String(src.metrica).trim() : "";
   out.valor = leerValor(src.valor);
-  out.universo = src.universo != null ? (Array.isArray(src.universo) ? _lista(src.universo) : String(src.universo).trim()) : "";
+  /* el universo TIPADO (verdad finita, E1) viaja como objeto {eje, filtros, estados, excluir, top…}: no se vuelve texto */
+  out.universo = src.universo != null ? (Array.isArray(src.universo) ? _lista(src.universo) : (typeof src.universo === "object" ? src.universo : String(src.universo).trim())) : "";
   out.periodo = src.periodo != null ? String(src.periodo).trim() : "";
   /* la BASE de una tasa («de su saldo pendiente», «sobre el costo»): el modelo puede declararla en `base`, y el resolutor la deja leída (objeto) */
   if (src.base != null && src.base !== "") out.base = typeof src.base === "object" ? src.base : String(src.base).trim();

@@ -34,6 +34,8 @@ export function instruccionDeDeclaracion() {
 }
 
 /* _parsearLineas(bloque) → [afirmaciones] + errores · JSON por línea; tolera un arreglo JSON entero, viñetas y cercas ``` */
+/** parsearLineasDeBloque(bloque) → { afirmaciones, errores } · el mismo parser tolerante, para el bloque <<HECHOS>> del libro (verdad finita) */
+export function parsearLineasDeBloque(bloque) { return _parsearLineas(bloque); }
 function _parsearLineas(bloque) {
   const afirmaciones = [], errores = [];
   const limpio = String(bloque || "").replace(/```(?:json)?/gi, "").trim();
