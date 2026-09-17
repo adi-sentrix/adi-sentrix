@@ -267,6 +267,21 @@ Decisión de producto abierta: exigir que la prosa diga la base de toda particip
 Sigue: la ronda 4 (formas nuevas y cruces Comercial · Cobranza · Inventario) y, si sobrevive con bordes, la estimación de la certificación viva
 (gasto a nombrar). `_NOTARIO_SEMANTICO_FASE4_DISENO.md` §14-15.
 
+**El Notario semántico — fase 4, ronda adversarial 4 (2026-09-17, offline; sin corridas ni deploy): ¿generaliza el cierre de raíz? A medias.**
+Seis ángulos con formas NUEVAS y cruces Comercial · Cobranza · Inventario atacaron `dev 65bb8492` (1.042 casos, 417 hechos verdaderos como
+control, cero red). Confirmadas por el escéptico: 108 roturas (105 estructurales) y 8 falsos positivos; reportadas 135 roturas y 114 hechos
+verdaderos bloqueados (50 terminaron en el respaldo). Las seis familias de la ronda 3 no se reabrieron y lo cerrado por ESTRUCTURA aguanta formas
+nuevas (base del cuadro con sinónimos nuevos, estados del catálogo en lista/tabla/coordinados, valor comprobante, universos negados simples,
+umbrales en días y en dinero, tablas y transpuestas, ordinales, «juntos»). Pero quedan OCHO raíces con nombre, no bordes: el léxico de los estados
+más estrecho que su definición («buen pagador», «sin vencidos», «no rota»); umbrales en palabras/meses/rango y de la POLICY sin número; el álgebra
+de universos (exclusión por bodega sobre SKU, «fuera del top 3», unión/negación coordinada); la POSICIÓN de la base (antes de la cifra, cabecera
+de columna, anafórica, posesiva «de su capital», declarada ≠ dicha); el dueño en sintaxis nuevas (inversión predicativa «El SKU más viejo, con 112
+días, es LG-DRYER8KG», dueño pospuesto, viñeta padre, elipsis paralela); la envoltura «lidera en X y en Y» y las comparaciones con verbo
+transitivo; el puente de cobranza entre COLUMNAS; la poda huérfana entre párrafos. Y el hallazgo gemelo: solo 44 % de lo verdadero sale verde a la
+primera («vende $17,8M con un margen de 21,5 %» cae por el fragmento de la cifra siguiente). Sin cerrar: a decisión del owner, con cuatro
+definiciones de producto por fijar (buen pagador = vencido 0; «no deja contribución» = contribución ≤ 0; cuantificadores vagos; participación sin
+base). `_NOTARIO_SEMANTICO_FASE4_DISENO.md` §16.
+
 
 ---
 

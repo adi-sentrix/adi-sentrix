@@ -578,3 +578,80 @@ declararla siempre — es una regla de estilo con costo en prosa, no una falseda
 un patch con expresiones regulares se escribe SIEMPRE en un `.cjs` con Write (helper `rep.cjs`, que respeta CRLF) y se verifica con
 `grep -P "[\x00-\x08]"`. Sigue: ronda 4 adversarial offline (formas nuevas y cruces Comercial · Cobranza · Inventario) y, si sobrevive con bordes,
 la estimación de la etapa C (gasto a nombrar).
+
+## 16 · La ronda adversarial 4 (UltraCode, offline, 2026-09-17) — ¿generaliza el cierre de raíz? A medias: hallazgos SIN cerrar (a decisión del owner)
+
+**Mandato del owner:** «haz una ronda 4 adversarial offline, pero no solo contra los casos conocidos: incluye formas nuevas y cruces entre
+Comercial, Cobranza e Inventario para comprobar que la solución generaliza. La salida que quiero antes de certificar en vivo es: 0 falsedades
+servidas; las seis familias estructurales cerradas; caída clara de nuevas familias de error; y que lo que quede sean bordes menores, no huecos
+de diseño.» Seis ángulos (cruce clientes venta × cobranza · cruce SKU venta × inventario · encargo triple · tasas y bases con palabras nuevas ·
+estados, umbrales y universos con formas nuevas · prosa libre con tablas y listas) atacaron `dev 65bb8492` con la misma mesa
+(`_adversarial_notario_harness.mjs`, boleta multi-dominio, cero red por el candado `offline-guard`). Corrieron 1.042 casos (417 de ellos hechos
+verdaderos bien declarados, para medir falsos positivos); reportaron 135 roturas y 114 hechos verdaderos bloqueados; el escéptico re-corrió 120
+(tope de 20 por ángulo) y confirmó 108 roturas (4 descartadas: la verdad alegada era incorrecta) y 8 falsos positivos. Resultado íntegro:
+`scratchpad/adv4/` y `scratchpad/adv4_resultado.json` (sesión).
+
+**Respuesta honesta, contra los cuatro criterios del owner:**
+- *0 falsedades servidas:* NO. 108 falsedades confirmadas llegaron a pantalla en verde (o podadas/reparadas con la falsedad dentro).
+- *Las seis familias de la ronda 3 cerradas:* SÍ, y en parte generalizan por significado. Los seis atacantes coinciden en lo que resiste con formas
+  nuevas: la base dicha después de la cifra con sinónimos nuevos («de lo facturado», «sobre lo vendido», «de su deuda») y el cálculo de la tasa
+  dicha sobre otra base; los estados del catálogo en sus formas listadas, negados, con sujeto coordinado, en lista y en tabla; el valor como
+  comprobante (0 roturas en los seis ángulos); los universos negados simples y los umbrales en días y en dinero; tablas fila = entidad y
+  transpuestas con celdas cruzadas; «respectivamente», ordinales, «juntos» como suma; un estado de inventario dicho de un cliente (sin evidencia).
+- *Caída clara de nuevas familias:* NO clara. Ronda 3: 860 casos, ~205 roturas reportadas, 100 confirmadas. Ronda 4: 1.042 casos, 135
+  reportadas, 108 confirmadas (con formas deliberadamente nuevas y cruces). Baja un tercio lo reportado; lo confirmado no baja.
+- *Solo bordes:* NO. El escéptico clasifica 105 de las 108 como estructurales (3 bordes). Caen en OCHO raíces, no en frases:
+
+1. **Léxico de estados más estrecho que su definición** (13 confirmadas · 22 reportadas). Cada estado de `estados.js` tiene dos regex: `re`
+   (declaración) y `prosa` (detección de puntos en la prosa), y la segunda es más corta que la primera: «sin vencidos», «buen pagador», «paga
+   bien», «cumple los plazos», «al corriente», «está pagado», «tiene facturas vencidas», «ya no se vende», «no rota», «se está agotando», «le sobra
+   stock», «no deja contribución», «tampoco tiene atrasos» no son punto y se sirven sin declarar: «Sodimac vende $8,2M y es un buen pagador»
+   (vencido $1.9M, 251 días) sale verde. Es la familia de la auditoría de septiembre (lo cerrado por léxico no generaliza), reaparecida dentro
+   del mecanismo nuevo.
+2. **Umbrales en palabras, meses o rango y umbrales de la POLICY sin número** (9 · 10). «Más de un trimestre / un semestre / seis meses de
+   mora» colapsa al conjunto «con saldo vencido» (6 cuentas en vez de 3) o compara el SALDO contra el 6; «entre 200 y 300 días» no es umbral;
+   «pasó el techo de cobertura», «quedó bajo el piso de rotación» no leen 120 días / 2x.
+3. **Álgebra de universos** (12 · 14). «Fuera de / sin contar / salvo Santiago» sobre SKU no quita nada (la exclusión se resuelve en el eje SKU
+   y queda vacía); «fuera del top 3» se resuelve como el top 3; «excluyendo los frenados y los sobrestock» es intersección (vacía) en vez de
+   unión; «no están frenados ni en sobrestock» niega solo el primero; «los inmovilizados que no están frenados» y «los de Valparaíso que no
+   están frenados» pierden la cláusula negada.
+4. **Posición y forma de la base** (27 · 29). `leerBase` mira 90 caracteres DESPUÉS de la cifra con la preposición pegada. Cae la base antes
+   de la cifra («sobre el costo, Lider deja 21,5 %»), tras paréntesis o inciso, anafórica («de ese total», «dentro de esa bodega»), en la
+   cabecera de una columna/fila/encabezado de lista («% del pendiente» con el recuperado; «Margen sobre costo» con 21,5 %), con contracción
+   («en relación al inventario»), la posesiva («tiene frenado el 29 % de su capital»: numerador = frenado del dueño, base = capital del dueño;
+   la casa lee «capital» a secas y usa el total), el rótulo con base que sombrea la base dicha («umbral · % de la venta» dicho de la
+   contribución), la base de una variación («respecto del presupuesto» con la variación año anterior), «pp» dichos como «%», y la base
+   DECLARADA que pisa la dicha en la prosa (la declaración dice «capital frenado», la prosa «del capital en inventario»: se juzga la declarada).
+5. **El dueño en sintaxis nuevas** (17 · 19). Inversión predicativa «El SKU más viejo, con 112 días sin venta, es LG-DRYER8KG» (los 112 días
+   son de MAK-COMP-AIR: 7 roturas), dueño pospuesto «$4,6M, Falabella» / «$4,6M (Falabella)» / «$4,6M — Falabella», viñeta padre «- Lider:
+   texto» con sub-viñetas cruzadas, elipsis paralela con el orden invertido («Falabella abonó $11,2M y debe $8,2M; Lider, $9,8M y $8,0M»), «ni
+   Jumbo ni Falabella tienen vencido» con un solo dueño declarado, «- Lider y Jumbo: al día» con un solo dueño.
+6. **Envoltura y comparación** (22 · 26). «Falabella lidera en venta y en deuda» / «es la primera en venta y en saldo pendiente» / «va primero
+   en venta y en vencido»: el orden declarado de la venta cubre la segunda métrica (9 roturas, todas servidas); «supera / cubre / no alcanza a
+   cubrir X» sin «que» ni «a» no es relación; «venden parecido», «a la par» no es punto; «un 8,6 % menos» por 8,6 pp; una CIFRA dentro de un
+   universo al que el sujeto no pertenece («entre los frenados, SAM-TV55 con $13K»; «BOS-SANDER, 115 días, sobre el techo de 120») se juzga sin
+   pertenencia; «rota peor» en rotación (más es mejor) declarada «mayor» pasa; «casi toda la cartera», «un puñado» no son punto de proporción.
+7. **Tabla · puente de cobranza entre columnas** (4 · 5). El puente que en prosa une pendiente/vencido/abonado exime también a la COLUMNA: bajo
+   «Vencido» cabe el pendiente $9,8M de Lider; bajo «Abonado», el vencido.
+8. **Poda huérfana entre párrafos** (4 · 4). El estado falso se poda, pero la recomendación que solo se sostenía en él sobrevive si va en párrafo
+   aparte o como ítem de la lista de acciones («Por eso, a Sodimac le ampliaría el cupo» tras podar «Sodimac está al día»).
+
+**El otro hallazgo, tan importante como el primero: los falsos positivos.** De 417 hechos verdaderos bien declarados, 182 (44 %) salieron verdes
+a la primera; 114 se reportaron como bloqueados y, de esos, 50 terminaron en el respaldo (`playbook`: la respuesta premium se pierde) y 17 podados.
+Los ocho revisados por el escéptico, confirmados. Familias estructurales (son la contracara de las raíces 1–6 más el ubicador): (a) «Lider vende
+$17,8M con un margen de 21,5 %» → `declaracion-inconsistente: la frase habla de margen` (la ventana de contraste del juez lee el fragmento de la
+SIGUIENTE cifra); (b) «al día», «pagan puntual», «las morosas» no son universos ni conjuntos contables aunque su definición los resuelve; un estado
+negado en la prosa con la declaración correcta («no está al día» → «en mora») se lee sin la negación; (c) el número de un umbral de la POLICY junto
+al SKU («supera el techo de cobertura de 120 días») se atribuye al negocio; (d) una tasa cruzada cobranza ÷ venta («debe el 55 % de lo que compró»:
+9,8 ÷ 17,8) no se calcula; (e) «vende $A y está frenado en Santiago con $B»: los $B van a la bodega; una tabla SKU · Capital · Estado: la celda
+«frenado» cambia la métrica de la celda numérica; (f) el sujeto después de la base («el 75 % del capital frenado está en Valparaíso»); (g)
+fracciones y cifras en palabras («uno de cada cuatro», «casi diez millones»), «días sin vender», «más de ocho meses».
+
+**Lectura de producto (la que el owner pidió):** las seis familias de la ronda 3 no se reabrieron, y lo que se cerró por ESTRUCTURA (definición del
+estado, conjunto por umbral, base del cuadro, tabla, coordinados, valor comprobante) aguanta formas nuevas y cruces. Pero el cierre no alcanza al
+DISCURSO completo: la base y el dueño se leen en una ventana y una sintaxis, no en la cláusula entera; los universos no se componen; el léxico de
+los estados vive en dos listas desiguales; un superlativo con dos métricas se cubre con una; y la mitad de lo verdadero se frena por la forma. Lo que
+queda no son bordes: son ocho raíces con nombre. Cerrarlas es la misma clase de trabajo que la ronda 3 (offline, sin gasto), con estas
+DEFINICIONES DE PRODUCTO que decide el owner antes: «buen pagador / paga bien / al corriente / cumple los plazos» = saldo vencido 0 (y su
+contrario = en mora); «no deja contribución / no deja margen» = contribución ≤ 0; «casi todo / la mayoría / pocos / un puñado» = proporciones de la
+casa (propuesta: mayoría > 50 %, casi todo ≥ 80 %, pocos ≤ 25 %) o bien lectura, nunca hecho; y la participación sin base dicha (pendiente de §15).

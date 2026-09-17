@@ -208,6 +208,15 @@ Derivadas que se rompen seguido:
   sujeto; «caer» sin métrica pegada es «bajo el benchmark», el verbo de la casa). La suite destapó 18 gates rojos por falsos positivos sobre
   composers y guiones: cerrados en el Notario, ningún composer tocado. Suite 268/268 · 0 red. Decisión de producto abierta: exigir la base de toda
   participación en la prosa. Sigue: ronda 4 (formas nuevas y cruces Comercial · Cobranza · Inventario) y después la etapa C (gasto a nombrar). §14-15.
+- **Fase 4, ronda adversarial 4 (2026-09-17, offline): el cierre de raíz generaliza A MEDIAS — 108 roturas confirmadas (105 estructurales) en
+  OCHO raíces nuevas y 44 % de lo verdadero verde a la primera; SIN cerrar, a decisión del owner.** Las seis familias de la ronda 3 no se
+  reabrieron; lo cerrado por ESTRUCTURA aguanta formas nuevas y cruces. Lo que no: el léxico de los estados (dos regex desiguales: «buen pagador»,
+  «sin vencidos», «no rota» no son punto), umbrales en palabras/meses/rango y de la POLICY sin número, el álgebra de universos (exclusión por bodega,
+  «fuera del top 3», unión/negación), la posición de la base (antes de la cifra, cabecera de columna, anafórica, posesiva, declarada ≠ dicha), el
+  dueño en sintaxis nuevas (inversión predicativa, dueño pospuesto, viñeta padre, elipsis paralela), «lidera en X y en Y», el puente de cobranza
+  entre columnas y la poda huérfana entre párrafos. Falsos positivos gemelos («vende $17,8M con un margen de 21,5 %» cae por la ventana del juez).
+  Definiciones de producto por fijar antes de cerrar: buen pagador = vencido 0; «no deja contribución» = contribución ≤ 0; cuantificadores vagos;
+  participación sin base. §16.
 
 ---
 
