@@ -433,3 +433,49 @@ fecha) y 0 declaraciones inconsistentes en los 12 borradores · `_notario_advers
 **Lo que sigue.** La ronda 3 fuera de muestra sobre esta versión (misma mesa, cero red); si sobrevive, la estimación de la certificación
 viva (etapa C, gasto a nombrar antes de gastar). Sigue pendiente la decisión de producto del rótulo «6 cuentas sobre el nivel declarado (5
 de ellas bajo el benchmark)» → propuesta «6 cuentas con exceso material sobre el nivel declarado».
+
+## 14 · La ronda adversarial 3 (UltraCode, offline, 2026-09-17) — hallazgos SIN cerrar (a decisión del owner)
+
+**Pregunta del owner:** «comprobar si, después de dos rondas adversariales, siguen apareciendo familias estructurales importantes o si empezamos a
+entrar en bordes menores». Seis ángulos atacaron la versión que cerró las rondas 1 y 2 (misma mesa `_adversarial_notario_harness.mjs`, cero
+red), apuntando a los dominios que las rondas anteriores exploraron poco: cobranza, inventario, marcas/familias, «¿Cómo va el negocio?», tablas y
+listas. Corrieron 860 casos; reportaron ~205 roturas; el escéptico confirmó 100 de las 108 que revisó (3 descartadas: la verdad alegada era
+incorrecta), más 5 hechos verdaderos bloqueados. Casos y resultado: `scratchpad/adv3/` y `scratchpad/adv3_resultado.json` (sesión).
+
+**Respuesta honesta: todavía NO son bordes.** 80 de las 100 roturas confirmadas caen en seis familias de DISEÑO (campos que no se juzgan, tipos que
+no existen, formas del discurso que el ubicador no lee), no en léxico:
+1. *La base de un porcentaje no se juzga* (19). El `universo` de una cifra de ENTIDAD es un campo muerto en `_cifra` (solo se mira en agregados), y
+   las tasas de la boleta no llevan su base en el rótulo: «Lider recuperó el 45% de lo vencido» (Recuperado = abonado/venta), «Valparaíso concentra
+   el 75% del capital en inventario» (es del frenado), «LG-DRYER8KG es el 41% de lo frenado en Valparaíso» (es 56 %) salen verdaderas y se sirven.
+2. *El estado cualitativo sin cifra* (21). «Todo al día», «no tiene mora», «paga puntual», «sin atrasos», «vigente», «rota bien»: no hay tipo de
+   estado para clientes ni punto de afirmación sin número, así que la cláusula no entra a juicio y sobrevive incluso a la poda (solo la forma
+   literal «sin vencido» se caza).
+3. *El `valor` de una declaración que no es cifra es comprobante de cobertura, no de verdad* (8 confirmadas; 24 en el ángulo). presencia cuenta el
+   canon de `valor` de cualquier tipo, pero verificar solo lo juzga en cifra/diferencia/variación: «Lider debe $4.9M y es la que más debe» con un
+   orden max verdadero y `valor: "$4.9M"` → verde. El propio protocolo pide `valor "A vs B"` en las relaciones y nunca se contrasta A ni B.
+4. *El universo negado* (9). «Las cuentas sin mora», «que no tienen carga alta», «salvo», «excluyendo», «fuera de» resuelven al conjunto POSITIVO
+   en `_conjuntoDeUniverso` (`_candidatosDeConteo` sí lee la negación): la falsa pasa y la verdadera queda «fuera-del-universo».
+5. *El dueño fuera de la oración: tablas, encabezados y listas* (8 + coordinaciones). El encabezado de columna de una tabla markdown es invisible
+   (columnas cruzadas pasan verdes con declaraciones correctas por celda; un número pelado en una celda ni se ubica), «### Lider» + viñetas, listas
+   anidadas, dos cabezas «Lider ($4,6M) … y Sodimac ($1,9M) …», y el sujeto coordinado («SAM-REF500L y PHI-IRON-PRO están en riesgo»: una
+   declaración de uno cubre a los dos).
+6. *El umbral numérico del predicado* (3; 8 en el ángulo) y *«juntos/sumados»* (2): «6 llevan más de 260 días vencidos» colapsa a «con saldo
+   vencido» (6); «más que LG y Bosch juntos» se juzga par a par.
+Y una RAÍZ común que el ángulo del ubicador nombró bien: cuando el dueño de una cifra da null, la cifra queda absuelta por el canon de cualquier
+declaración verdadera con el mismo número. Las 12 roturas de gramática del dueño (aposición «los $4,6M, la deuda de Falabella,», anáfora ordinal
+«la primera… la segunda», elipsis, «tanto…como», «cifra: Entidad», paréntesis entre sujeto y cifra) son formas distintas de esa misma raíz; cerrarla
+por forma no generaliza (ya se vio), cerrar la raíz sí: sin dueño y con otra entidad nombrada en la oración, el canon no absuelve.
+Bordes (≈8): «más moroso/atrasado/rentable» fuera del léxico de superlativos, «en quiebre» por «riesgo de quiebre», un signo invertido en una cifra
+dicha como «cayeron», comillas tipográficas en el bloque (se descarta la línea en silencio: hecho verdadero podado).
+
+**Hechos verdaderos bloqueados (falsos positivos) que importan para la premium:** «Lider y Falabella deben $4,6M y $2,5M vencidos» (distributiva
+sin «respectivamente» → «$4,6M va junto a Falabella»), «Falabella le sigue a Lider con $2,5M» («le sigue a» no es referencia), «Lider, seguido de
+Falabella, debe $4,6M», «Falabella y Tottus llevan los mismos 8 días».
+
+**Lo que esto cambia.** El conteo no baja (69 → 91 → 100) porque cada ronda entró a dominios nuevos; lo que cambia es la naturaleza: ya no es
+léxico, son seis mecanismos acotados. Recomendación (decisión del owner): cerrar esas seis familias y la raíz del dueño ANTES de la certificación
+viva —tres de ellas (la base del porcentaje, el estado cualitativo, el `valor` no verificado) servirían falsedades con un modelo real—, ronda 4 corta
+sobre esas familias, y recién ahí la etapa C. Decisiones de producto que abren: (a) ¿ADI puede afirmar estados de cobranza en palabras («al día»,
+«paga puntual»)? Si sí, hay que definirlos en la casa (p.ej. «al día» = saldo vencido 0) para poder verificarlos; (b) ¿ADI puede responder con
+tablas markdown? Si sí, el Notario tiene que leer encabezados de columna y filas; si no, la ley de formato las veta antes; (c) la base de cada tasa
+tiene que viajar en el rótulo de la boleta («Recuperado (abonado / venta)», «% del capital frenado»).
