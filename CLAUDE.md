@@ -229,9 +229,13 @@ Derivadas que se rompen seguido:
   cierre → re-anclaje (+1, prosa congelada; solo forma) → reescritura (+1, con la verdad de la boleta y sus ids) → poda por tramos → escalera.
   Definiciones de producto fijadas: al día = vencido 0 · «buen pagador» exige historia (nunca demostrable sin ella) · «sin contribución» (≤ 0) ≠ «sin
   margen» · mayoría > 50 % · proporción pegada a un hecho = razón. Gates: `_hechos_gate` (132) · `_anclas_gate` (79: 0 falsedades de 32 ataques, 0
-  verdaderos bloqueados de 25) · `_notario_v3_flujo_gate` (71: 0 falsedades, ≤ 3 llamadas, flag apagado = hoy). Etapas E0–E3 hechas; siguen E4
-  (composers anclan), E5 (ronda 5 adversarial), E6 (retiro + candado), E7 (piloto vivo, gasto a nombrar). Regla: toda mejora del Notario va por el
-  libro de hechos y las anclas, no por regex nuevas.
+  verdaderos bloqueados de 25) · `_notario_v3_flujo_gate` (71: 0 falsedades, ≤ 3 llamadas, flag apagado = hoy) · `_anclar_composers_gate` (57: E4,
+  los peldaños de la escalera —playbook · encargo · línea honesta · límite— bajo el MISMO juez de anclas, `src/adi/notario/anclar.js`, mismo texto
+  y estado con y sin flag en 16 preguntas; ningún composer cambia su texto, tres cambian solo su declaración). Etapas E0–E4 hechas (aprobadas E0–E3
+  desde producto); siguen E5 (ronda 5 adversarial con UltraCode sobre la premium y el respaldo, formas nuevas fuera de muestra), E6 (retiro +
+  candado), E7 (piloto vivo, gasto a nombrar). Regla: toda mejora del Notario va por el libro de hechos y las anclas, no por regex nuevas; la
+  calibración se hace por SIGNIFICADO (vocabulario de la casa como datos en `lexico.js`), y al tocar `bucleAgente.js` se revisan las carnadas de
+  `_agente_bucle_gate` y `_agente_cifra_sin_boleta_gate` (casan por texto).
 
 ---
 

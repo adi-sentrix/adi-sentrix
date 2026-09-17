@@ -18,8 +18,8 @@ import { verificarAfirmaciones, conjuntoDeUniverso, valorDeRanking } from "./ver
 import { indiceDeEvidencia, mismoValor, unidadCompatible } from "./evidencia.js";
 import { normalizar, menosAscii, leerValor } from "./afirmacion.js";
 import { parsearLineasDeBloque, MARCA_FIN } from "./declaracion.js";
-import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe } from "./lexico.js";
-import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON } from "./estados.js";
+import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO } from "./lexico.js";
+import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON, estadosEn } from "./estados.js";
 
 export const MARCA_HECHOS = "<<HECHOS>>";
 export const TIPOS_DE_HECHO = ["ref", "cifra", "orden", "relacion", "grupo", "conteo", "variacion", "estado", "razon", "derivada", "propuesta", "lectura"];
@@ -103,7 +103,7 @@ export function nombrarUniverso(u, I = null) {
     for (const n of _lista(ex.conjuntos)) fuera.push(n);
     for (const e of _lista(ex.estados)) fuera.push(nombreDeEstado(_canonDe(e)));
     if (ex.bodega) fuera.push(ex.bodega);
-    if (ex.top) fuera.push(`${art} ${ex.top.k} de ${normalizar(ex.top.direccion || "mayor") === "menor" ? "menor" : "mayor"} ${metricaDeClave(ex.top.metrica).toLowerCase()}`);
+    for (const t of _lista(ex.top)) if (_es(t)) fuera.push(`${art} ${t.k} de ${normalizar(t.direccion || "mayor") === "menor" ? "menor" : "mayor"} ${metricaDeClave(t.metrica).toLowerCase()}`);
     texto += ` fuera de ${fuera.join(" y ")}`;
   }
   if (Array.isArray(u.union) && u.union.length) texto += ` y ${u.union.map((v) => nombrarUniverso(v, I)).join(" y ")}`;
@@ -193,7 +193,7 @@ function _aV2(h, I) {
     }
     case "conteo": {
       const c = _es(h.conteo) ? h.conteo : { n: h.n, m: h.m, predicado: h.predicado };
-      return { ...base, conteo: { n: c.n, m: c.m, predicado: c.predicado || (typeof h.de === "string" ? h.de : "") }, universo: typeof h.de === "string" ? h.de : (typeof h.universo === "string" ? h.universo : "") };
+      return { ...base, conteo: { n: c.n, m: c.m, predicado: c.predicado || (typeof h.de === "string" ? h.de : "") }, universo: typeof h.de === "string" ? h.de : (typeof h.universo === "string" ? h.universo : ""), ...(c.predicado ? { _predicado: c.predicado } : {}) };
     }
     default: return { ...base, universo: typeof h.universo === "string" ? h.universo : "", ...(h.base != null ? { base: h.base } : {}), ...(Array.isArray(h.evidencia) ? { evidencia: h.evidencia } : {}) };
   }
@@ -385,6 +385,20 @@ export function libroDeHechos(hechos, ctx = {}) {
       if (_es(u) || (typeof u === "string" && u.trim() && (tipo === "orden" || tipo === "grupo" || tipo === "conteo"))) {
         let U = null; try { U = conjuntoDeUniverso(u, I, _es(u) ? u.eje || null : null, a2.metrica); } catch { U = null; }
         H.universo = { set: U && U.set ? U.set : null, fuente: U ? (U.fuente || U.error || "") : "", texto: nombrarUniverso(u, I), restringido: _es(u) ? !!(U && U.set) : true };
+        if (_es(u)) H.universoTipado = u;   // el universo tal como se declaró (las anclas leen su exclusión)
+        /* un universo escrito como texto («los clientes con saldo vencido», «las 5 marcas»): publica sus estados y solo restringe si no es el eje entero */
+        if (typeof u === "string") {
+          for (const e of estadosEn(u)) { const c = _canonDe(typeof e === "string" ? e : (e && (e.canon || e.estado)) || ""); if (c && ESTADOS_CANON.has(c)) { H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(c); } }
+          const ejeU = (() => { const s0 = H.roles.sujetos.find((x) => x !== "negocio"); const ent = s0 && I.entidades ? I.entidades.get(normalizar(s0)) : null; return (ent && ent.eje) || (typeof I.ejeDe === "function" ? I.ejeDe(s0) : null) || null; })();
+          const total = ejeU && typeof I.tamanoDelEje === "function" ? I.tamanoDelEje(ejeU) : null;
+          if (U && U.set && total && U.set.size >= total) H.universo.restringido = false;
+          const mEje = /^(?:todos\s+los|todas\s+las|los|las|tus|sus|mis)\s+(?:(\d+)\s+)?(?:clientes?|skus?|marcas?|familias?|bodegas?|canales?)(?:\s+(?:de\s+(?:la|tu|su)\s+cartera|del\s+negocio|de\s+la\s+empresa))?$/i.exec(normalizar(u).trim());
+          if (mEje && (!mEje[1] || !total || +mEje[1] >= total)) H.universo.restringido = false;
+        }
+        /* un conteo con predicado de estado («frenados», «en mora») afirma ese estado: lo lleva con sus métricas y su dominio */
+        if (tipo === "conteo" && typeof a2._predicado === "string") {
+          for (const c of estadosEn(a2._predicado)) { if (!ESTADOS_CANON.has(c)) continue; H.estado = H.estado || c; H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(c); for (const k of METRICAS_DE_ESTADO[c] || []) H.claves.add(k); if (!H.dominio) H.dominio = dominioDeEstado(c); }
+        }
         H.render.universo = H.universo.texto;
         if (_es(u)) { for (const f of Array.isArray(u.filtros) ? u.filtros : []) { _addClave(H, f.metrica); if (f.valor != null && !Array.isArray(f.valor)) { const enDias = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)); H.numeros.push({ raw: +f.valor, unidad: enDias ? "count" : (f.unidad || unidadDeClave(f.metrica) || "count"), texto: String(f.valor) }); if (enDias) { const d = diasDe(f.valor, f.unidad); if (d != null) H.numeros.push({ raw: d, unidad: "days", texto: `${d} días` }); } H.render.umbral = _fmtUmbral(f).replace(/^.*?(?:superior a|de al menos|inferior a|de hasta|igual a|entre)\s+/, ""); } } if (u.top) { _addClave(H, u.top.metrica); H.numeros.push({ raw: +u.top.k, unidad: "count", texto: String(u.top.k) }); } for (const e of [..._lista(u.estados), ..._lista(u.no_estados), ..._lista(u.excluir && u.excluir.estados)]) { H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(_canonDe(e)); } }
       }

@@ -142,7 +142,7 @@ export const crucePorSku = {
     const U_SKU = _universoSku();
     const U_TOP = `los ${ventas.length} SKU que más venden`;
     const kContrib = topC.size, kCapital = Math.min(5, capital.length);   // los mismos cortes de `_lectura` (contrib.slice(0, 5) · capital.slice(0, 5))
-    const declaraTopVenta = (texto) => D.orden({ sujeto: ventas.map((v) => v.sku), metrica: "Venta", forma: "topk", k: ventas.length, direccion: "mayor", universo: U_SKU, texto });
+    const declaraTopVenta = (texto, textoV3 = null) => D.orden({ sujeto: ventas.map((v) => v.sku), metrica: "Venta", forma: "topk", k: ventas.length, direccion: "mayor", universo: U_SKU, texto, ...(textoV3 ? { textoV3 } : {}) });
     /* los frenados entre los que más venden: el conteo (0 o los que hay, con su estado) y, si la línea nombra dónde está el capital
      * frenado, la enumeración de los frenados del eje (los tres primeros con nombre; los demás, contados) */
     const declaraFrenadosTop = (texto) => {
@@ -166,7 +166,7 @@ export const crucePorSku = {
     /* sin conteo en la apertura: «tus 5 SKU» es un conteo que la boleta no autoriza (el muro lo cobra: conteo-no-autorizado) */
     const cab = `Los SKU que más venden, con su inventario (venta: ${mVenta} · stock y días: ${mFoto}):`;
     partes.push(cab);
-    declaraTopVenta(cab);
+    declaraTopVenta(cab, cab.split(",")[0]);   // verdad finita (E4): el v3 ancla el orden sobre su cláusula («Los SKU que más venden»), no sobre la leyenda del marco
     for (const v of ventas) {
       const extra = [stock.has(v.sku) ? `stock ${stock.get(v.sku)}` : "sin registro de inventario", dias.has(v.sku) ? `${dias.get(v.sku)} de inventario` : null, frenados.has(v.sku) ? `capital frenado ${frenados.get(v.sku)}` : null].filter(Boolean).join(" · ");
       const l = `- ${v.sku} · vende ${v.fmt} · ${extra}`;
@@ -198,7 +198,8 @@ export const crucePorSku = {
       if (soloCapital.length) {
         const l = `Concentran capital sin estar entre los que más contribuyen ni más venden: ${soloCapital.map((x) => `${x.sku} (${x.fmt} en inventario)`).join(" · ")}.`;
         partes.push(l);
-        D.orden({ sujeto: soloCapital.map((x) => x.sku), metrica: "Valor de inventario", forma: "topk", k: kCapital, direccion: "mayor", universo: U_SKU, texto: l });
+        /* la exclusión se declara TIPADA (verdad finita, E4): el top de capital entre los SKU que no están en el top de contribución ni en el de venta */
+        D.orden({ sujeto: soloCapital.map((x) => x.sku), metrica: "Valor de inventario", forma: "topk", k: kCapital, direccion: "mayor", universo: U_SKU, universoV3: { eje: "sku", excluir: { top: [{ metrica: "contribucion", k: kContrib, direccion: "mayor" }, { metrica: "ventas", k: ventas.length, direccion: "mayor" }] } }, texto: l });
         for (const x of soloCapital) D.cifra({ sujeto: x.sku, metrica: "Valor de inventario", valor: x.fmt, texto: `${x.sku} (${x.fmt} en inventario)` });
       }
     }

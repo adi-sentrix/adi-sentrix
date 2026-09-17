@@ -21,6 +21,7 @@ import { duenosEstructurales } from "./estructura.js";
 import { estadoCanon, ESTADO_NOMBRADO_SRC, ESTADO_PROSA_SRC, complementoDe, ESTADOS_CANON } from "./estados.js";
 import { renderDe } from "./hechos.js";
 import * as L from "./lexico.js";
+import { conjuntosConocidos } from "./verificar.js";
 
 const _u = unidadCompatible;
 const _esc = (t) => String(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -61,7 +62,10 @@ const _BLANCO = "□";
 /* ═══ 1 · EL PARSER ═══ */
 const _ID = /^[a-z][a-z0-9]*$/i;
 /** parsearAnclas(prosa) → { anclas: [{ini, fin, ids, inner, innerIni, innerFin, placeholders}], sueltos: [{id, campo, ini, fin}], errores } */
-const _PERIODO_VIGENTE = "actual";   // el período de la boleta (no es un escenario: el gate del colapso barre el literal como default)
+const _PERIODO_VIGENTE = "actual";
+/* los nombres de métrica de la casa que llevan «no» («Contribución no capturada»): ese «no» no es una negación */
+const _RE_NOMBRE_CON_NO = new RegExp(L.CLAVES_DE_METRICA.filter((m) => /(?:^|\s)no\s/.test(normalizar(m.nombre))).map((m) => normalizar(m.nombre).replace(/\s+/g, "\\s+").replace(/[aeiou]/g, (v) => ({ a: "[aá]", e: "[eé]", i: "[ií]", o: "[oó]", u: "[uúü]" })[v])).join("|") || "(?!x)x", "gi");
+const _RE_MATERIAL = /(?<![a-záéíóúñ])(?:materia(?:l|les)|inmaterial(?:es)?|sobre\s+el\s+umbral|bajo\s+el\s+umbral)(?![a-záéíóúñ])/i;   // el período de la boleta (no es un escenario: el gate del colapso barre el literal como default)
 export function parsearAnclas(prosa) {
   const s = String(prosa || "");
   const anclas = [], errores = [];
@@ -117,6 +121,71 @@ export function renderizar(prosa, libro) {
   for (const a of [...P.anclas].sort((x, y) => x.ini - y.ini)) { out += sust(s.slice(pos, a.ini)); out += _canonTexto(sust(a.inner.replace(/^\s+/, ""))); pos = a.fin; }
   out += sust(s.slice(pos));
   return { texto: out.replace(/[ \t]+\n/g, "\n"), faltantes };
+}
+
+/* el universo restringido de un hecho está ESCRITO cuando el ancla (o su línea) trae el nombre de la casa: el texto del universo tal como la casa
+ * lo nombra, o el nombre de un conjunto de la evidencia con el mismo conjunto. Es lo mismo que {id.universo} rendería. Devuelve la posición
+ * dentro del ancla (para exceptuar sus números) o true si está en la línea. */
+function _universoEscrito(h, sp, tramo, libro) {
+  if (!(h.universo && h.universo.restringido)) return null;
+  const nombres = [];
+  if (h.universo.texto) nombres.push(String(h.universo.texto));
+  if (typeof h.universo.fuente === "string" && h.universo.fuente) nombres.push(h.universo.fuente);
+  const I = libro && libro.indice;
+  if (I && h.universo.set && h.universo.set.size) {
+    let cs = []; try { cs = conjuntosConocidos(I); } catch { cs = []; }
+    for (const c of cs) if (c && c.set && c.set.size === h.universo.set.size && [...c.set].every((k) => h.universo.set.has(k)) && c.nombre) nombres.push(String(c.nombre));
+  }
+  /* el conjunto mayor que describe al universo («5 cuentas materiales (de 8 bajo el benchmark)») también lo nombra, y los sinónimos de la casa */
+  for (const nom of nombres.slice()) { const m = /\(de\s+\d+\s+([^)]+)\)/.exec(String(nom)); if (m) nombres.push(m[1]); }
+  for (const nom of nombres.slice()) { const k = normalizar(nom).replace(/^(?:todos\s+los|todas\s+las|los|las)\s+/, ""); for (const [c, sins] of Object.entries(L.SINONIMOS_DE_CONJUNTO)) if (k === c || k.endsWith(" " + c) || sins.some((x) => normalizar(x) === k)) nombres.push(...sins); }
+  const spN = normalizar(sp);
+  /* exclusión por top («sin estar entre los que más contribuyen ni más venden»): el marcador de exclusión y la métrica de cada top excluido */
+  const ut = h.universoTipado;
+  if (ut && ut.excluir && ut.excluir.top) {
+    const tops = (Array.isArray(ut.excluir.top) ? ut.excluir.top : [ut.excluir.top]).filter((t) => t && typeof t === "object");
+    const mExc = /(?:sin\s+estar\s+entre|fuera\s+de|no\s+est[aá]n?\s+entre|salvo|excepto|que\s+no\s+est[aá]n?\s+entre)/i.exec(spN);
+    if (mExc && tops.length) {
+      const resto = spN.slice(mExc.index);
+      const claves = new Set(_metricasConPosicion(resto).flatMap((mt) => [...mt.claves]));
+      if (tops.every((t) => { const c = L.claveDeMetrica(t.metrica); return c && claves.has(c); })) return { ini: mExc.index, fin: spN.length };
+    }
+  }
+  const _formas = (nom) => { const n0 = normalizar(nom).replace(/^(?:todos\s+los|todas\s+las|los|las|de\s+los|de\s+las|tus|sus)\s+/, ""); const n1 = n0.replace(/^(?:\d+\s+)?(?:clientes?|skus?|marcas?|familias?|bodegas?|canales?|cuentas?)\s+(?=que\s)/, ""); return [...new Set([n0, n1].filter((x) => x.length >= 3))]; };
+  for (const nom of nombres) for (const n of _formas(nom)) {
+    const p = spN.indexOf(n);
+    if (p >= 0) return { ini: p, fin: p + n.length };
+    const linea = tramo && (tramo.lineaTexto || tramo.texto);
+    if (linea && normalizar(linea).includes(n)) return true;
+  }
+  return null;
+}
+
+/* las negaciones REALES de un ancla: sin el «no» de un nombre de métrica («Contribución no capturada»), sin el «No:» que abre la respuesta a la
+ * premisa (estándar de los cuatro puntos) y sin el «no aparece / no hay» con que la casa dice un conteo de cero */
+function _negacionesDe(sp, hechos) {
+  const mets = [..._metricasConPosicion(sp), ..._todos(_RE_NOMBRE_CON_NO, sp)];
+  const cero = (hechos || []).some((h) => h.tipo === "conteo" && ([+h.render.n, ...h.numeros.map((x) => x.raw)].some((v) => v === 0)));
+  const ini0 = sp.search(/\S/);
+  const excluye = (hechos || []).some((h) => h.universoTipado && h.universoTipado.excluir);
+  return _todos(_RE.negacion, sp)
+    .filter((x) => !mets.some((mt) => mt.ini <= x.ini && x.fin <= mt.fin))
+    .filter((x) => !(excluye && /^(?:sin\s+estar\s+entre|no\s+est[aá]n?\s+entre|fuera\s+de)/i.test(sp.slice(x.ini))))   // la exclusión de un universo tipado no niega el hecho
+    .filter((x) => !(x.ini === ini0 && /^\s*no\s*:/i.test(sp)))
+    .filter((x) => !(cero && /^no\s+(?:aparece|hay|figura|queda|tienes?|tenemos)/i.test(sp.slice(x.ini))));
+}
+
+/* un grupo/subtotal está NOMBRADO cuando la línea trae el nombre de la casa de su conjunto (el texto de su universo o un conjunto de la evidencia con los mismos miembros) */
+function _grupoNombrado(h, linea, libro) {
+  if (!linea) return false;
+  const nombres = [];
+  if (h.universo && h.universo.texto) nombres.push(String(h.universo.texto));
+  if (h.universo && typeof h.universo.fuente === "string" && h.universo.fuente) nombres.push(h.universo.fuente);
+  const I = libro && libro.indice; const M = new Set((h.roles.miembros || []).map(normalizar));
+  if (I && M.size) { let cs = []; try { cs = conjuntosConocidos(I); } catch { cs = []; } for (const c of cs) if (c && c.set && c.set.size === M.size && [...M].every((k) => c.set.has(k)) && c.nombre) nombres.push(String(c.nombre)); }
+  for (const nom of nombres.slice()) { const k = normalizar(nom).replace(/^(?:todos\s+los|todas\s+las|los|las)\s+/, ""); for (const [c, sins] of Object.entries(L.SINONIMOS_DE_CONJUNTO)) if (k === c || k.includes(c) || sins.some((x) => normalizar(x) === k)) nombres.push(...sins); }
+  const ln = normalizar(linea);
+  return nombres.some((nom) => { const n = normalizar(nom).replace(/^(?:todos\s+los|todas\s+las|los|las)\s+/, "").replace(/\s*\(.*$/, "").trim(); return n.length >= 3 && ln.includes(n); });
 }
 
 /* ═══ geometría: tramos (celda · viñeta · oración), entidades con posición, blanqueo ═══ */
@@ -277,7 +346,7 @@ export function comprobarAnclas(prosa, libro, ctx = {}) {
     _RE.digito.lastIndex = 0; let m;
     while ((m = _RE.digito.exec(ltSinEnt))) {
       const frag = m[0]; if (!/\d/.test(frag)) continue;
-      if (/^\s*\d{1,2}[.)]\s/.test(lt.slice(m.index)) && /^\s*$/.test(lt.slice(0, m.index))) continue;   // enumerador
+      if (/^\s*\d{1,2}\s*[.)·]\s/.test(lt.slice(m.index)) && /^\s*$/.test(lt.slice(0, m.index))) continue;   // enumerador («1.», «1)», «1 ·»)
       if (/\b(?:19|20)\d\d\b/.test(frag)) continue;   // año
       if (/^\s*\d{1,2}\s+de\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)/i.test(lt.slice(m.index))) continue;   // fecha
       veto("hecho-sin-ancla", `la cifra «${frag.trim()}» está fuera de un ancla`, lt.slice(Math.max(0, m.index - 30), m.index + frag.length + 20));
@@ -319,15 +388,17 @@ export function comprobarAnclas(prosa, libro, ctx = {}) {
     const estadosSpan = _estadosEnSpan(spSinEnt).filter((e) => u.hechos.some((h) => h.tipo === "estado") || /\s/.test(e.texto.trim()) || !_metricasConPosicion(e.texto).flatMap((mt) => [...mt.claves]).some((c) => claves.has(c)));
     /* 4a entidades */
     for (const e of ents) if (!roles.has(e.k)) veto("entidad-ajena", `«${e.nombre}» está dentro del ancla de ${ids.join(", ")} y no es parte de ese hecho`, span, ids);
-    /* 4b números, a su precisión (un pp dicho como % es otro canon) */
+    /* 4b números, a su precisión (un pp dicho como % es otro canon); los del nombre escrito de un universo no son ajenos */
+    const _uEscritos = u.hechos.map((h) => _universoEscrito(h, sp, u.tramo, libro)).filter((x) => x && x.ini != null);
     for (const n of _numerosEn(spSinEnt)) {
+      if (_uEscritos.some((x) => x.ini <= n.ini && n.fin <= x.fin)) continue;
       const cabe = numeros.some((x) => Number.isFinite(x.raw) && (n.pelado ? Math.abs(x.raw - n.raw) < 1e-9 : (_u(x.unidad) === _u(n.unidad) && !(x.unidad === "pp" && n.unidad === "pct" && !/pp|puntos/.test(n.texto)) && !(x.unidad === "pct" && n.unidad === "pp") && mismoValor({ texto: n.enPalabras ? String(n.raw) : n.texto, raw: n.raw, unidad: n.unidad, canon: n.canon }, x.raw, x.unidad, x.texto))));
       const aprox = n.enPalabras && n.matiz && numeros.some((x) => _u(x.unidad) === _u(n.unidad) && Math.abs(x.raw - n.raw) <= Math.max(Math.abs(n.raw) * 0.1, 1e-9));
       if (!cabe && !aprox) veto("numero-ajeno", `«${n.texto}» no es una cifra de ${ids.join(", ")} (${numeros.map((x) => x.texto || x.raw).slice(0, 4).join(" · ") || "sin cifras"})`, span, ids);
     }
     /* 4c métricas: nombradas ⊆ las del hecho; con varias métricas en el ancla, cada palabra pegada a un placeholder de ESA métrica, y cada
      * placeholder de valor con una palabra de su métrica cerca (un ancla con dos valores mudos es ambigua) */
-    const mets = soloLectura ? [] : _metricasConPosicion(spSinEnt).filter((mt) => !_dentroDe(mt, estadosSpan));
+    const mets = soloLectura ? [] : _metricasConPosicion(spSinEnt).filter((mt) => !_dentroDe(mt, estadosSpan)).filter((mt) => !_uEscritos.some((x) => x.ini <= mt.ini && mt.fin <= x.fin));   // las métricas del nombre escrito de un universo no son ajenas
     const phs = u.placeholders.map((p) => ({ ...p, ini: p.ini - u.innerIni, fin: p.fin - u.innerIni, h: H(p.id) })).filter((p) => p.h);
     const setsDeClaves = new Set(phs.map((p) => [...p.h.claves].sort().join("|")).filter(Boolean));
     const variasMetricas = setsDeClaves.size > 1;
@@ -368,7 +439,7 @@ export function comprobarAnclas(prosa, libro, ctx = {}) {
       if (!/^(?:orden|relacion|variacion)$/.test(h.tipo)) continue;
       const dir = h.tipo === "variacion" ? (h.direccion === "sube" ? "mayor" : h.direccion === "baja" ? "menor" : null) : (h.tipo === "orden" ? (h.direccion === "peor" ? (h.polaridad === "mayor" ? "menor" : h.polaridad === "menor" ? "mayor" : null) : h.direccion === "mejor" ? (h.polaridad || null) : h.direccion || null) : (h.direccion === "mayor" || h.direccion === "menor" ? h.direccion : null));
       if (!dir) continue;
-      const neg = _todos(_RE.negacion, spSinEnt).length % 2 === 1;
+      const neg = _negacionesDe(spSinEnt, u.hechos).length % 2 === 1;
       let dicha = null;
       const peor = _RE_PEOR.test(spSinEnt), mejor = _RE_MEJOR.test(spSinEnt);
       if (peor && !mejor) dicha = h.polaridad === "mayor" ? "menor" : h.polaridad === "menor" ? "mayor" : null;
@@ -418,7 +489,8 @@ export function comprobarAnclas(prosa, libro, ctx = {}) {
       const ph = u.placeholders.some((p) => p.id === h.id && (p.campo === "universo" || p.campo === "umbral"));
       const soloEstado = h.estadosDelUniverso && h.estadosDelUniverso.size && !(h.numeros.some((n) => n.unidad !== "count" && n.texto && /d[ií]as|%|\$/.test(n.texto)) && h.tipo !== "conteo");
       const estadoDicho = soloEstado && estadosSpan.some((e) => h.estadosDelUniverso.has(e.canon));
-      if (!ph && !estadoDicho) veto("universo-invisible", `${h.id} vale dentro de «${h.universo.texto}»: el ancla tiene que escribirlo con {${h.id}.universo}`, span, [h.id]);
+      const escrito = _universoEscrito(h, sp, u.tramo, libro);
+      if (!ph && !estadoDicho && !escrito) veto("universo-invisible", `${h.id} vale dentro de «${h.universo.texto}»: el ancla tiene que escribirlo con {${h.id}.universo}`, span, [h.id]);
     }
     /* 4j roles visibles de un cociente */
     for (const h of u.hechos) if (h.tipo === "razon" && h.roles.den && h.roles.den.sujeto && h.roles.den.sujeto !== "negocio" && h.roles.num && normalizar(h.roles.den.sujeto) !== normalizar(h.roles.num.sujeto || "")) { const k = normalizar(h.roles.den.sujeto); if (!ents.some((e) => e.k === k) && !/(?<![a-z])(?:su|sus)(?![a-z])/i.test(spSinEnt) && !u.placeholders.some((p) => p.id === h.id && p.campo === "base")) veto("base-invisible", `${h.id} se divide por ${h.roles.den.sujeto} y el ancla no lo nombra (nómbralo, usa «su» o {${h.id}.base})`, span, [h.id]); }
@@ -427,8 +499,9 @@ export function comprobarAnclas(prosa, libro, ctx = {}) {
     /* 4m dominio cruzado */
     if (dominios.size && !soloLectura) for (const [d, re] of Object.entries(_RE.dominio)) { if (dominios.has(d)) continue; const x = _todos(re, spSinEnt).find((y) => !_dentroDe(y, mets.filter((mt) => [...mt.claves].some((c) => claves.has(c)))) && !_dentroDe(y, estadosSpan)); if (x) veto("dominio-cruzado", `«${x.texto}» es de ${d} y ${ids.join(", ")} es de ${[...dominios].join("/")}`, span, ids); }
     /* 7 (dentro) · negación, tiempo, modalidad, proporción */
-    if (!estadosSpan.length && !u.hechos.some((h) => h.tipo === "estado" || h.tipo === "lectura") && _hay(_RE.negacion, spSinEnt)) veto("negacion-en-ancla", `«${_todos(_RE.negacion, spSinEnt)[0].texto}» niega dentro del ancla de ${ids.join(", ")}: un hecho se afirma en positivo`, span, ids);
-    for (const x of _todos(_RE.tiempo, spSinEnt)) { const p = L.PERIODO_DE_MARCADOR.find(([re]) => re.test(normalizar(x.texto))); const per = p ? p[1] : null; if (!per) continue; for (const h of u.hechos) { if (h.tipo === "lectura") continue; const hp = h.periodo || _PERIODO_VIGENTE; if (per !== hp && !(per === _PERIODO_VIGENTE && hp === "corte")) veto("periodo-ajeno", `«${x.texto}» es «${per}» y ${h.id} es «${hp}»`, span, [h.id]); } }
+    const _negs = _negacionesDe(spSinEnt, u.hechos);
+    if (!estadosSpan.length && !u.hechos.some((h) => h.tipo === "estado" || h.tipo === "lectura") && _negs.length) veto("negacion-en-ancla", `«${_negs[0].texto}» niega dentro del ancla de ${ids.join(", ")}: un hecho se afirma en positivo`, span, ids);
+    for (const x of _todos(_RE.tiempo, spSinEnt)) { const p = L.PERIODO_DE_MARCADOR.find(([re]) => re.test(normalizar(x.texto))); const per = p ? p[1] : null; if (!per) continue; for (const h of u.hechos) { if (h.tipo === "lectura" || h.tipo === "variacion" || [...h.claves].some((c) => /^(?:variacion|vs_presupuesto)/.test(c))) continue; const hp = h.periodo || _PERIODO_VIGENTE; if (per !== hp && !(per === _PERIODO_VIGENTE && hp === "corte")) veto("periodo-ajeno", `«${x.texto}» es «${per}» y ${h.id} es «${hp}»`, span, [h.id]); } }
     if (!u.hechos.every((h) => h.tipo === "lectura" || h.tipo === "propuesta") && _hay(_RE.modalidad, spSinEnt)) veto("modalidad-en-ancla", `«${_todos(_RE.modalidad, spSinEnt)[0].texto}» vuelve hipotético a ${ids.join(", ")}: un hecho no se anida en un supuesto`, span, ids);
     for (const x of [..._todos(_RE.proporcion, spSinEnt), ..._todos(_RE.proporcionSubjetiva, spSinEnt)]) if (!u.hechos.some((h) => h.tipo === "razon" || h.tipo === "conteo" || h.tipo === "grupo" || (h.tipo === "relacion" && /fraccion|parte/.test(h.direccion || "")))) { veto("proporcion-sin-razon", `«${x.texto}» pegada a ${ids.join(", ")} exige una razón o un conteo calculado`, span, ids); break; }
     /* 5 · núcleo */
@@ -436,10 +509,12 @@ export function comprobarAnclas(prosa, libro, ctx = {}) {
       if (u.placeholders.some((p) => p.id === h.id)) continue;
       let nucleo = true;
       if (h.tipo === "estado") nucleo = estadosSpan.some((e) => { const negs = _todos(_RE.negacion, spSinEnt.slice(0, e.ini)).length; const dicho = negs % 2 === 1 ? (complementoDe(e.canon) || `no ${e.canon}`) : e.canon; return dicho === h.estado || (h.estado === "inmovilizado" && (dicho === "frenado" || dicho === "sobrestock")); });
-      else if (h.tipo === "orden") nucleo = _hay(_RE.superlativo, spSinEnt) || _hay(_RE.ordinal, spSinEnt) || _hay(_RE.comparativo, spSinEnt) || _hay(_RE.adjCasa, spSinEnt) || _RE_PEOR.test(spSinEnt) || _RE_MEJOR.test(spSinEnt);
-      else if (h.tipo === "relacion") nucleo = _hay(_RE.comparativo, spSinEnt) || _hay(_RE.proporcion, spSinEnt) || _hay(_RE.fraccionPalabra, spSinEnt) || _numerosEn(spSinEnt).length > 0;
+      else if (h.tipo === "orden") nucleo = _hay(_RE.superlativo, spSinEnt) || _hay(_RE.ordinal, spSinEnt) || _hay(_RE.comparativo, spSinEnt) || _hay(_RE.adjCasa, spSinEnt) || _RE_PEOR.test(spSinEnt) || _RE_MEJOR.test(spSinEnt)
+        || (h.roles.sujetos.filter((x) => x !== "negocio").length >= 2 && h.roles.sujetos.filter((x) => x !== "negocio").every((x) => ents.some((e) => e.k === normalizar(x))));   // la enumeración de sus k sujetos ES el orden top-k
+      else if (h.tipo === "relacion") nucleo = _hay(_RE.comparativo, spSinEnt) || _hay(_RE.proporcion, spSinEnt) || _hay(_RE.fraccionPalabra, spSinEnt) || _numerosEn(spSinEnt).length > 0 || (h.claves.has("umbral_materialidad") && _RE_MATERIAL.test(spSinEnt));   // «material» = sobre el umbral de materialidad (vocabulario de la casa)
       else if (h.tipo === "variacion") nucleo = _hay(_RE.variacion, spSinEnt) || _numerosEn(spSinEnt).length > 0;
-      else if (h.tipo === "conteo") nucleo = _numerosEn(spSinEnt).length > 0 || _hay(_RE.numeroPalabra, spSinEnt) || /(?<![a-z])(?:ning[uú]n[oa]?|nadie|todas?|todos)(?![a-z])/i.test(spSinEnt);
+      else if (h.tipo === "conteo") nucleo = _numerosEn(spSinEnt).length > 0 || _hay(_RE.numeroPalabra, spSinEnt) || /(?<![a-z])(?:ning[uú]n[oa]?|nadie|todas?|todos|no\s+(?:aparece|hay|figura|queda|tienes?|tenemos))(?![a-z])/i.test(spSinEnt)
+        || (h.roles.sujetos.length >= 1 && Number.isFinite(+h.render.n) && +h.render.n === h.roles.sujetos.filter((x) => x !== "negocio").length && h.roles.sujetos.filter((x) => x !== "negocio").every((x) => ents.some((e) => e.k === normalizar(x))));   // la enumeración de sus n sujetos es el conteo
       else if (/^(?:cifra|ref|razon|derivada)$/.test(h.tipo)) nucleo = _numerosEn(spSinEnt).length > 0;
       if (!nucleo) veto("ancla-sin-nucleo", `el ancla de ${h.id} (${h.tipo}) no trae ni su valor ni una palabra de su clase: no afirma nada por sí misma`, span, [h.id]);
     }
@@ -455,7 +530,8 @@ export function comprobarAnclas(prosa, libro, ctx = {}) {
     const us = unidades.filter((u) => u.tramo === t);
     if (!us.length) continue;
     const lt = libre.slice(t.ini, t.fin);
-    const ops = [..._todos(_RE.negacion, lt).map((x) => ({ ...x, clase: "negación" })), ..._todos(_RE.tiempo, lt).map((x) => ({ ...x, clase: "tiempo" })), ..._todos(_RE.modalidad, lt).map((x) => ({ ...x, clase: "modalidad" })), ..._todos(_RE.proforma, lt).map((x) => ({ ...x, clase: "continuación" })), ..._todos(_RE.proporcion, lt).map((x) => ({ ...x, clase: "proporción" })), ..._todos(_RE.proporcionSubjetiva, lt).map((x) => ({ ...x, clase: "proporción" }))];
+    const _nomNo = _todos(_RE_NOMBRE_CON_NO, lt);
+    const ops = [..._todos(_RE.negacion, lt).filter((x) => !_nomNo.some((m) => m.ini <= x.ini && x.fin <= m.fin)).map((x) => ({ ...x, clase: "negación" })), ..._todos(_RE.tiempo, lt).map((x) => ({ ...x, clase: "tiempo" })), ..._todos(_RE.modalidad, lt).map((x) => ({ ...x, clase: "modalidad" })), ..._todos(_RE.proforma, lt).map((x) => ({ ...x, clase: "continuación" })), ..._todos(_RE.proporcion, lt).map((x) => ({ ...x, clase: "proporción" })), ..._todos(_RE.proporcionSubjetiva, lt).map((x) => ({ ...x, clase: "proporción" }))];
     for (const x of ops) {
       const pos = t.ini + x.ini, fin = t.ini + x.fin;
       const pegado = us.some((u) => (fin <= u.ini && _palabras(s.slice(fin, u.ini)).length <= (x.clase === "negación" || x.clase === "modalidad" ? 5 : 3)) || (pos >= u.fin && _palabras(s.slice(u.fin, pos)).length <= 3));
@@ -464,6 +540,8 @@ export function comprobarAnclas(prosa, libro, ctx = {}) {
   }
 
   /* 8 · dueño estructural y visibilidad del sujeto (con anáfora al ancla anterior del mismo párrafo) */
+  const _duenosDeListas = new Set(s.split("\n").filter((l) => /^\s*(?:[-*•]|\d{1,2}[.)])\s+|^\s*\|/.test(l)).flatMap((l) => _entidadesEn(l, nombres, alias).map((e) => e.k)));
+  const _entsDelTexto = new Set(_entidadesEn(s, nombres, alias).map((e) => e.k));
   for (const u of unidades) {
     if (!u.hechos.length) continue;
     const t = u.tramo;
@@ -473,7 +551,21 @@ export function comprobarAnclas(prosa, libro, ctx = {}) {
     for (const h of u.hechos) {
       if (/^(?:conteo|lectura|propuesta)$/.test(h.tipo)) continue;
       if (h.tipo === "grupo" && t && /(?<![a-záéíóúñ])(?:total(?:es)?|subtotal|suma|junt[oa]s|entre\s+(?:los|las)\s+(?:dos|tres|cuatro|cinco))(?![a-záéíóúñ])/i.test(t.lineaTexto || t.texto)) continue;
+      if (h.tipo === "grupo" && _grupoNombrado(h, t ? (t.lineaTexto || t.texto) : u.inner, libro)) continue;   // un subtotal nombrado por su conjunto («en carga comercial alta, $655K») no enumera a sus miembros
       const S = h.tipo === "grupo" ? h.roles.miembros.map(normalizar) : h.roles.sujetos.filter((x) => x !== "negocio").map(normalizar);
+      /* la línea que encabeza una lista: los dueños de las viñetas que siguen (hasta la línea en blanco) son los sujetos visibles del hecho */
+      const hijos = (() => {
+        if (S.length < 2 || !t) return null;
+        const finLinea = s.indexOf("\n", u.fin); if (finLinea < 0) return null;
+        const out = new Set(); let p = finLinea + 1;
+        while (p < s.length) { const q = s.indexOf("\n", p); const linea = s.slice(p, q < 0 ? s.length : q); if (!linea.trim()) break; if (!/^\s*(?:[-*•]|\d{1,2}[.)])\s+|^\s*\|/.test(linea)) break; for (const e of _entidadesEn(linea, nombres, alias)) out.add(e.k); if (q < 0) break; p = q + 1; }
+        return out.size ? out : null;
+      })();
+      if (hijos && S.every((k) => hijos.has(k) || entsAncla.has(k))) continue;
+      /* un top-k o grupo cuyos miembros son los dueños de las viñetas o filas de la respuesta (en cualquier parte): la lista es su evidencia */
+      if (S.length >= 2 && S.every((k) => entsAncla.has(k) || _duenosDeListas.has(k))) continue;
+      /* un hecho de varios sujetos anclado en una frase que se refiere a ellos («por qué cada uno está frenado»): visibles si TODOS están nombrados en la respuesta */
+      if (S.length >= 2 && S.every((k) => entsAncla.has(k) || _entsDelTexto.has(k))) continue;
       for (const k of S) {
         if (entsAncla.has(k)) continue;
         if (dueno && dueno.k === k) continue;

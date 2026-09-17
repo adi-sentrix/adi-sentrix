@@ -972,7 +972,8 @@ export const margenEnRiesgo = {
       ]);
       partes.push(cierre);
       /* «donde hay más contribución en juego» es el máximo de contribución no capturada entre los que caen — un orden, no una opinión */
-      D.orden({ sujeto: top[0].entidad, metrica: "Contribución no capturada", forma: "max", direccion: "mayor", universo: _U_BAJO, texto: cierre.trim() });
+      /* sobre la cartera entera: fuera de los que caen la contribución no capturada no existe, así que el máximo es el mismo (verdad finita, E4) */
+      D.orden({ sujeto: top[0].entidad, metrica: "Contribución no capturada", forma: "max", direccion: "mayor", universo: _U_CARTERA, texto: cierre.trim() });
     }
     return partes.join("\n");
   },

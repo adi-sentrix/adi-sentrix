@@ -82,7 +82,8 @@ import { cartaDeHechos } from "../notario/carta.js";
 /* VERDAD FINITA (owner 2026-09-17, plan _NOTARIO_VERDAD_FINITA_PLAN.md · E3): el libro de hechos con ids, la prosa anclada y el protocolo v3 — solo detrás de `notarioV3` */
 import { extraerHechos, asignarIds, libroDeHechos, MARCA_HECHOS } from "../notario/hechos.js";
 import { comprobarAnclas } from "../notario/anclas.js";
-import { cartaDeClaves, mensajeDeReanclaje, mensajeDeReescritura, podarTramos, soloReanclaje } from "../notario/protocolo.js";   // fase 4, etapa B: la carta de hechos del turno viaja con los resultados (nombres de referencias, conjuntos y rankings)
+import { cartaDeClaves, mensajeDeReanclaje, mensajeDeReescritura, podarTramos, soloReanclaje } from "../notario/protocolo.js";
+import { anclarDeclaracion, anclarPorFigs } from "../notario/anclar.js";   // E4: la casa ancla lo suyo (los peldaños bajo el mismo contrato)   // fase 4, etapa B: la carta de hechos del turno viaja con los resultados (nombres de referencias, conjuntos y rankings)
 import { crearDeclarador, filtrarPorTexto } from "../notario/declarar.js";
 import { juzgarDeclaracion, CHEQUEOS_DE_HECHO } from "../notario/juez.js";
 import { indiceDeEvidencia } from "../notario/evidencia.js";   // getTenantData: el contexto que el negocio declaró — la ley del porqué lo cita en vez de repreguntar   // la semilla de variación: tenant + pregunta + largo del hilo
@@ -1180,8 +1181,19 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     catch (e) { R = { ok: false, violations: [{ kind: "notario-anclas-error", detail: `el juez de anclas falló: ${(e && e.message) || e}`, texto: "" }], medidas: {}, servido: String(prosa || "") }; }
     const violations = [...previas, ...(R.violations || [])];
     const medidas = { hechos: libro.resumen.total, verdaderos: libro.resumen.verdaderos, sellados: libro.resumen.sellados, falsos: libro.resumen.falsos, noVerificables: libro.resumen.noVerificables, ...(R.medidas || {}) };
-    notarioDelTurno.push({ sitio, modo: "anclas", medidas, vetos: violations.map((x) => x.kind), multas: violations.slice(0, 24).map((x) => String(x.detail || "").slice(0, 400)) });
+    notarioDelTurno.push({ sitio, modo: "anclas", medidas, vetos: violations.map((x) => x.kind), multas: violations.slice(0, 24).map((x) => String(x.detail || "").slice(0, 400)), prosa: String(prosa || "").slice(0, 1600), hechos: (Array.isArray(hechos) ? hechos : []).slice(0, 60) });   // la prosa anclada y sus hechos quedan en el expediente: se audita lo que se juzgó
     return { sem: { ok: violations.length === 0, violations, medidas }, servido: String(R.servido || ""), libro };
+  };
+  /* ── LA CASA ANCLA LO SUYO (verdad finita · E4 · owner 2026-09-17): «todos los caminos que puedan terminar frente al usuario deben quedar bajo el
+   * mismo contrato de verdad». Con `notarioV3`, un peldaño con declaración tipada (playbook · encargo compuesto) se ancla desde lo declarado y uno
+   * sin ella (línea honesta · límite) desde las figs con id; el juez de anclas lo juzga como al cerebro y se sirve el RENDER (para un composer que
+   * imprime en canon, byte-igual a lo que escribió). Sin el flag: `juzgar` de siempre (`declaracionDeRespaldo` sigue solo en el v2). */
+  const _juzgarPeldano = (t, sitio, decl = undefined) => {
+    if (!notarioV3) return { v: juzgar(t, sitio, decl), servido: t };
+    const X = Array.isArray(decl) && decl.length ? anclarDeclaracion(t, decl, { prefijo: "d" }) : anclarPorFigs(t, figsTotales, { prefijo: "r" });
+    const A = _juezDeAnclas(X.prosa, X.hechos, sitio);
+    const v = juzgar(A.servido, sitio, { v3: true, sem: A.sem });
+    return { v, servido: A.servido };
   };
   const juzgar = (t, sitio = "cierre", afirmaciones = undefined) => {
     /* el canal de lo ya aprobado se enciende SOLO acá: en cualquier otro sitio la llamada es la de siempre */
@@ -1469,8 +1481,8 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     const _ec = (() => { try { return componerEncargo({ partes: _partesEncargo, leer: _leer, scenario, mem: memIn, semilla: _semillaEc, pregunta: q, declarar: _Dec }); } catch { return null; } })();
     if (_ec && _ec.trim()) {
       const _declEc = filtrarPorTexto(_Dec.lista(), _ec);
-      const vEc = juzgar(_ec, "encargo-compuesto", _declEc.length ? _declEc : undefined);
-      if (vEc && vEc.ok) { final = _ec; estado = "encargo-compuesto"; suplente = true; }
+      const { v: vEc, servido: _ecServido } = _juzgarPeldano(_ec, "encargo-compuesto", _declEc.length ? _declEc : undefined);
+      if (vEc && vEc.ok) { final = _ecServido; estado = "encargo-compuesto"; suplente = true; }
     }
   }
   if (final === null && playbookActivo && typeof playbookActivo.componer === "function") {
@@ -1486,8 +1498,8 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     const _pb = (() => { try { return playbookActivo.componer({ figs: figsTotales, pregunta: q, semilla: _semilla, scenario, mem: memIn, ctx: ctxTurno, declarar: _Dpb }); } catch { return null; } })();
     if (_pb && _pb.trim()) {
       const _declPb = filtrarPorTexto(_Dpb.lista(), _pb);
-      const vPb = juzgar(_pb, `playbook:${playbookActivo.nombre}`, _declPb.length ? _declPb : undefined);
-      if (vPb && vPb.ok) { final = _pb; estado = "playbook"; suplente = true; }
+      const { v: vPb, servido: _pbServido } = _juzgarPeldano(_pb, `playbook:${playbookActivo.nombre}`, _declPb.length ? _declPb : undefined);
+      if (vPb && vPb.ok) { final = _pbServido; estado = "playbook"; suplente = true; }
     }
   }
   /* PELDAÑO 0b · REFORMULAR SIN CEREBRO. Va ARRIBA de la línea honesta por el mismo argumento que el
@@ -1521,7 +1533,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
         return labels;
       } catch { return new Set(); }
     })();
-    final = _lineaHonesta({ motivos: motivosNoSoportado, figs: figsTotales, juzgar: (t) => juzgar(t, "linea-honesta"), entidades: duenosTenant || [], falta: (() => { try { return faltanteQueToca(q); } catch { return null; } })(), preferir: preferirDelTurno,
+    final = _lineaHonesta({ motivos: motivosNoSoportado, figs: figsTotales, juzgar: (t) => _juzgarPeldano(t, "linea-honesta").v, entidades: duenosTenant || [], falta: (() => { try { return faltanteQueToca(q); } catch { return null; } })(), preferir: preferirDelTurno,
       relegar: _figsDelContrato.size ? (f) => _figsDelContrato.has(String(f && f.label)) : null });
     if (final !== null) { estado = "limite"; suplente = true; }
   }
@@ -1544,7 +1556,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     const txt = ents.length
       ? `No pude armar la lectura sobre ${_yLista(ents)} con la calidad que corresponde. ${ents.length > 1 ? "Sus datos siguen" : "Su dato sigue"} en pantalla y no ${ents.length > 1 ? "cambiaron" : "cambió"}: dime qué quieres mirar de ${ents.length > 1 ? "ellas" : "esa cuenta"} —el cuadro completo, el margen contra la referencia, la carga comercial— y lo abro.`
       : `No pude armar la lectura del negocio entero con la calidad que corresponde. La foto del negocio sigue en pie: dime por dónde quieres entrar —margen, cobranza o inventario— y la abro a ese nivel.`;
-    const vL = juzgar(txt, "limite-referente");
+    const vL = _juzgarPeldano(txt, "limite-referente").v;
     if (vL && vL.ok) { final = txt; estado = "limite"; suplente = true; }
   }
   if (final === null) { final = composeNoDataMessage(null); estado = "vacio"; suplente = true; }

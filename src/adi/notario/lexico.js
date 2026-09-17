@@ -51,7 +51,7 @@ export const CLAVES_DE_METRICA = [
   { clave: "rotacion", nombre: "Rotación", conceptos: ["rotacion"], dominio: "inventario", polaridad: "mayor", unidad: "ratio", muro: ["rotacion"] },
   { clave: "dias_inventario", nombre: "Días de inventario", conceptos: ["dias de inventario", "cobertura", "cobertura (doh)"], dominio: "inventario", polaridad: "menor", unidad: "days", muro: ["cobertura"] },
   { clave: "dias_sin_venta", nombre: "Días sin venta", conceptos: ["dias sin venta"], dominio: "inventario", polaridad: "menor", unidad: "days", muro: ["sinventa"] },
-  { clave: "stock", nombre: "Unidades en stock", conceptos: ["unidades en stock"], dominio: "inventario", polaridad: null, unidad: "count", muro: ["unidades_stock"] },
+  { clave: "unidades_stock", nombre: "Unidades en stock", conceptos: ["unidades en stock", "unidades de stock", "stock en unidades"], dominio: "inventario", polaridad: null, unidad: "count", muro: ["unidades_stock"] },
   { clave: "margen_inventario", nombre: "Margen de inventario", conceptos: ["margen de inventario"], dominio: "inventario", polaridad: "mayor", unidad: "pct", muro: ["margen"], tasa: true },
 ];
 const _porClave = new Map(CLAVES_DE_METRICA.map((m) => [m.clave, m]));
@@ -72,10 +72,12 @@ export function claveDeMetrica(texto) {
   const directa = _porClave.get(s.replace(/\s+/g, "_"));
   if (directa) return directa.clave;
   for (const m of CLAVES_DE_METRICA) if (m.conceptos.includes(s)) return m.clave;
-  const sin = conceptosDe(String(texto));
-  for (const m of CLAVES_DE_METRICA) if (sin.some((c) => m.conceptos.includes(c))) return m.clave;
-  for (const m of CLAVES_DE_METRICA) if (m.conceptos.some((c) => c.length >= 4 && s.includes(c))) return m.clave;
-  return null;
+  /* el concepto MÁS LARGO que casa decide («capital frenado · total» → capital_frenado, no capital) */
+  const sin = conceptosDe(String(texto)).slice().sort((a, b) => b.length - a.length);
+  for (const c of sin) for (const m of CLAVES_DE_METRICA) if (m.conceptos.includes(c)) return m.clave;
+  let mejor = null;
+  for (const m of CLAVES_DE_METRICA) for (const c of m.conceptos) if (c.length >= 4 && s.includes(c) && (!mejor || c.length > mejor.c.length)) mejor = { m, c };
+  return mejor ? mejor.m.clave : null;
 }
 export const dominioDeClave = (clave) => { const m = metricaPorClave(clave); return m ? m.dominio : null; };
 export const polaridadDeClave = (clave) => { const m = metricaPorClave(clave); return m ? m.polaridad : null; };
@@ -130,9 +132,9 @@ export const ORDINAL_SRC = "(?:primer[oa]?s?|segund[oa]s?|tercer[oa]?s?|cuart[oa
 /* comparativos y superlativos (clase cerrada del idioma; con adjetivo/verbo de la casa o con entidad son hecho) */
 export const ADJETIVOS_DE_LA_CASA_SRC = "(?:alt[oa]s?|baj[oa]s?|grandes?|chic[oa]s?|peque[ñn][oa]s?|pesad[oa]s?|car[oa]s?|barat[oa]s?|r[aá]pid[oa]s?|lent[oa]s?|viej[oa]s?|antigu[oa]s?|nuev[oa]s?|atrasad[oa]s?|vencid[oa]s?|san[oa]s?|rentables?|delgad[oa]s?|fuertes?|d[eé]biles?|expuest[oa]s?|apalancad[oa]s?|moros[oa]s?|larg[oa]s?|cort[oa]s?|cercan[oa]s?|lejan[oa]s?|concentrad[oa]s?|fren[ao]d[oa]s?|crític[oa]s?)";
 export const VERBOS_DE_LA_CASA_SRC = "(?:vend[eióa]" + _L + "*|factur" + _L + "+|deb[eéií]" + _L + "*|adeud" + _L + "+|pag[aóo]" + _L + "*|abon[aóo]" + _L + "*|cobr[aóo]" + _L + "*|recuper" + _L + "+|rot[aóo]" + _L + "*|crec[eií]" + _L + "*|ca[eíy]" + _L + "*|sub[eií]" + _L + "*|baj[aóo]" + _L + "*|fren[aóo]" + _L + "*|concentr" + _L + "+|aport" + _L + "+|dej[aóo]" + _L + "*|pes[aóo]" + _L + "*|margin" + _L + "+|contribuy" + _L + "+|compr[aóo]" + _L + "*|gan[aóo]" + _L + "*|pierd" + _L + "+|acumul" + _L + "+|arrastr" + _L + "+|lidera" + _L + "*|encabez" + _L + "+|super" + _L + "+|domin" + _L + "+|expon" + _L + "+|inmoviliz" + _L + "+|mueve" + _L + "*|agot" + _L + "+)";
-export const SUPERLATIVO_SRC = "(?:(?:el|la|los|las|lo|quien(?:es)?)\\s+que\\s+(?:m[aá]s|menos)|(?:el|la|los|las|tu|tus|su|sus|mi|mis|nuestr[oa]s?)\\s+(?:mayor(?:es)?|menor(?:es)?|peor(?:es)?|mejor(?:es)?|m[aá]s|menos|principal(?:es)?|primer[oa]?s?|[uú]ltim[oa]s?)\\b|n[uú]mero\\s+uno|nadie\\s+le\\s+(?:gana|hace\\s+sombra)|le\\s+pisa\\s+los\\s+talones|\\btop\\s*\\d*|lidera" + _L + "*|encabeza" + _L + "*|a\\s+la\\s+cabeza|en\\s+cabeza|a\\s+la\\s+zaga|cierra\\s+la\\s+(?:tabla|lista)|completa\\s+el\\s+podio|puntero|dominante)";
+export const SUPERLATIVO_SRC = "(?:(?:el|la|los|las|lo|quien(?:es)?)\\s+(?:\\d{1,2}\\s+)?(?:(?:clientes?|skus?|marcas?|familias?|bodegas?|canales?|cuentas?|productos?)\\s+)?que\\s+(?:m[aá]s|menos)|(?:el|la|los|las|tu|tus|su|sus|mi|mis|nuestr[oa]s?)\\s+(?:mayor(?:es)?|menor(?:es)?|peor(?:es)?|mejor(?:es)?|m[aá]s|menos|principal(?:es)?|primer[oa]?s?|[uú]ltim[oa]s?)\\b|n[uú]mero\\s+uno|donde\\s+(?:hay\\s+)?m[aá]s\\b|donde\\s+menos\\b|nadie\\s+le\\s+(?:gana|hace\\s+sombra)|le\\s+pisa\\s+los\\s+talones|\\btop\\s*\\d*|lidera" + _L + "*|encabeza" + _L + "*|a\\s+la\\s+cabeza|en\\s+cabeza|a\\s+la\\s+zaga|cierra\\s+la\\s+(?:tabla|lista)|completa\\s+el\\s+podio|puntero|dominante)";
 export const COMPARATIVO_SRC = "(?:m[aá]s\\s+(?:que|de)|menos\\s+(?:que|de)|mayor(?:es)?\\s+(?:que|a)|menor(?:es)?\\s+(?:que|a)|peor(?:es)?\\s+que|mejor(?:es)?\\s+que|por\\s+(?:encima|debajo|sobre)\\s+de|(?:muy\\s+)?por\\s+(?:arriba|abajo)\\s+de|supera" + _L + "*|excede" + _L + "*|duplica" + _L + "*|triplica" + _L + "*|dobla" + _L + "*|iguala" + _L + "*|empata" + _L + "*|el\\s+doble|el\\s+triple|la\\s+mitad|un\\s+tercio|un\\s+cuarto|\\d+(?:[.,]\\d+)?\\s*(?:veces|x)\\b|(?:dos|tres|cuatro|cinco|diez)\\s+veces|parecid[oa]s?|similar(?:es)?|a\\s+la\\s+par|casi\\s+(?:igual|lo\\s+mismo)|igual\\s+que|tanto\\s+como|lejos\\s+de|cerca\\s+de|(?:no\\s+)?(?:alcanza|llega)\\s+a\\s+cubrir|(?:no\\s+)?cubre|se\\s+queda\\s+cort[oa]|a\\s+la\\s+zaga|le\\s+saca\\s+ventaja|viene\\s+detr[aá]s|le\\s+sigue|seguid[oa]\\s+(?:de|por))";
-export const VARIACION_SRC = "(?:crec[eií]" + _L + "*|ca[eíy]" + _L + "*|sub[eií]" + _L + "*|baj[aóo]" + _L + "*|aument" + _L + "+|disminu" + _L + "+|retroced" + _L + "+|avanz" + _L + "+|repunt" + _L + "+|se\\s+dispar" + _L + "+|se\\s+desplom" + _L + "+|se\\s+hund" + _L + "+|merm" + _L + "+|afloj" + _L + "+|se\\s+enfr[ií]" + _L + "+|en\\s+picada|mejor[aóo]" + _L + "*|empeor" + _L + "+|deterior" + _L + "+|se\\s+contra[ej]" + _L + "*|recort" + _L + "+|expandi" + _L + "*|interanual|yoy|a[ñn]o\\s+anterior|a[ñn]o\\s+pasado)";
+export const VARIACION_SRC = "(?:crec[eií]" + _L + "*|(?<!(?:que|quienes)\\s)ca[eíy]" + _L + "*|sub[eií]" + _L + "*|baj[aó]" + _L + "*|bajo(?!\\s+(?:el|la|los|las|del|de|un|una|su|sus|tu|tus|ese|esa|este|esta|esos|esas)\\b)|aument" + _L + "+|disminu" + _L + "+|retroced" + _L + "+|avanz" + _L + "+|repunt" + _L + "+|se\\s+dispar" + _L + "+|se\\s+desplom" + _L + "+|se\\s+hund" + _L + "+|merm" + _L + "+|afloj" + _L + "+|se\\s+enfr[ií]" + _L + "+|en\\s+picada|mejor[aóo]" + _L + "*|empeor" + _L + "+|deterior" + _L + "+|se\\s+contra[ej]" + _L + "*|recort" + _L + "+|expandi" + _L + "*|interanual|yoy|a[ñn]o\\s+anterior|a[ñn]o\\s+pasado)";
 export const DURACION_SRC = "(?:desde\\s+hace|hace\\s+(?:m[aá]s\\s+de\\s+)?(?:\\d+|" + NUMERO_PALABRA_SRC + ")\\s+(?:d[ií]as?|semanas?|meses|mes|trimestres?|semestres?|a[ñn]os?)|llev[aó]" + _L + "*\\s+(?:m[aá]s\\s+de\\s+)?(?:\\d+|" + NUMERO_PALABRA_SRC + "|medio|un|una)\\s+(?:d[ií]as?|semanas?|meses|mes|trimestres?|semestres?|a[ñn]os?)|(?:medio|un|una)\\s+(?:a[ñn]o|semestre|trimestre|mes)\\s+(?:sin|de|en|atrasad))";
 /* proporciones: pegadas a un hecho exigen una razón/conteo; sueltas y subjetivas («casi toda», «un puñado») son lectura (decisión del owner) */
 export const PROPORCION_SRC = "(?:la\\s+mayor[ií]a|la\\s+mayor\\s+parte|el\\s+grueso|casi\\s+tod[oa]s?|pr[aá]cticamente\\s+tod[oa]s?|buena\\s+parte|gran\\s+parte|la\\s+mitad|un\\s+tercio|dos\\s+tercios|un\\s+cuarto|tres\\s+cuartos|casi\\s+nada|un\\s+pu[ñn]ado|(?:muy\\s+)?poc[oa]s|(?:uno|dos|tres)\\s+de\\s+cada\\s+(?:dos|tres|cuatro|cinco|diez))";
@@ -158,15 +160,21 @@ export const DOMINIO_PALABRAS = {
 /* modismos con «más/menos/primero» que NO son hecho (clase cerrada) */
 export const MODISMOS_SRC = "(?:adem[aá]s|m[aá]s\\s+bien|nada\\s+m[aá]s|una\\s+vez\\s+m[aá]s|cada\\s+vez\\s+m[aá]s|m[aá]s\\s+all[aá]|es\\s+m[aá]s|m[aá]s\\s+a[uú]n|por\\s+lo\\s+menos|al\\s+menos|a\\s+lo\\s+m[aá]s|m[aá]s\\s+tarde|m[aá]s\\s+adelante|m[aá]s\\s+temprano|de\\s+m[aá]s|en\\s+primer\\s+lugar|en\\s+segundo\\s+lugar|primero\\s+que\\s+nada|lo\\s+m[aá]s\\s+(?:importante|urgente|sano|prudente|claro|simple|razonable|sensato|delicado|relevante|cr[ií]tico)|(?:el|la)\\s+m[aá]s\\s+(?:urgente|importante|prudente|delicad[oa]|relevante|sensat[oa]|razonable))";
 /* los días de una cifra que no es hecho: enumeradores, años, fechas, ids del libro */
-export const NUMERO_LIBRE_SRC = "(?:^\\s*\\d{1,2}[.)]\\s|\\b(?:19|20)\\d\\d\\b|\\b\\d{1,2}\\s+de\\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\\b|\\b[hcr]\\d+[a-z]?\\b)";
+export const NUMERO_LIBRE_SRC = "(?:(?:^|\\n)\\s*\\d{1,2}\\s*[.)·]\\s|\\b(?:19|20)\\d\\d\\b|\\b\\d{1,2}\\s+de\\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\\b|\\b[hcr]\\d+[a-z]?\\b)";
 
+/* los nombres con que la casa dice un CONJUNTO de la evidencia (el verbo de la casa «caer» = bajo el benchmark, ronda 3) */
+export const SINONIMOS_DE_CONJUNTO = {
+  "bajo el benchmark": ["los que caen", "las que caen", "quienes caen", "caen", "bajo la referencia", "bajo esa referencia", "bajo tu benchmark", "bajo el benchmark"],
+  "carga comercial alta": ["carga comercial alta", "carga alta", "sobre el nivel de carga", "sobre el nivel declarado"],
+  materiales: ["materiales", "cuentas materiales", "sobre el umbral de materialidad", "sobre el umbral"],
+};
 /* las métricas con que se habla de cada estado (dentro de un ancla de estado esas palabras no son «métrica ajena») */
 export const METRICAS_DE_ESTADO = {
   "al dia": ["saldo_vencido", "dias_vencido"], "en mora": ["saldo_vencido", "dias_vencido"], "sin deuda": ["saldo_pendiente", "saldo_vencido"], "sin pagos": ["abonado", "recuperado"],
   "buen pagador": ["saldo_vencido", "dias_vencido", "abonado", "recuperado"], "mal pagador": ["saldo_vencido", "dias_vencido", "abonado", "recuperado"],
   "sin contribucion": ["contribucion", "margen"], "sin margen": ["margen", "contribucion"],
-  frenado: ["capital_frenado", "capital", "dias_sin_venta"], inmovilizado: ["capital_inmovilizado", "capital", "stock"], sobrestock: ["capital_inmovilizado", "capital", "stock", "dias_inventario"],
-  "riesgo de quiebre": ["stock", "dias_inventario"], "en quiebre": ["stock"], "capital sano": ["capital"], critico: [], "sin venta": ["dias_sin_venta", "ventas"], "rota bien": ["rotacion", "piso_rotacion"], "rota lento": ["rotacion", "piso_rotacion"],
+  frenado: ["capital_frenado", "capital", "dias_sin_venta"], inmovilizado: ["capital_inmovilizado", "capital", "unidades_stock"], sobrestock: ["capital_inmovilizado", "capital", "stock", "dias_inventario"],
+  "riesgo de quiebre": ["unidades_stock", "dias_inventario"], "en quiebre": ["unidades_stock"], "capital sano": ["capital"], critico: [], "sin venta": ["dias_sin_venta", "ventas"], "rota bien": ["rotacion", "piso_rotacion"], "rota lento": ["rotacion", "piso_rotacion"],
 };
 /* las palabras genéricas de cobranza («debe», «deuda», «saldo», «por cobrar») nombran cualquier saldo; las específicas («pendiente», «vencido») uno solo */
 export const CLAVES_GENERICAS_DE_COBRANZA = ["saldo_pendiente", "saldo_vencido", "saldo_por_vencer"];

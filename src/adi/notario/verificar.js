@@ -573,7 +573,7 @@ function _conjuntoTipado(u, I, eje0, metrica = "") {
     for (const n of _listaOUno(ex.conjuntos)) { const c = _conjuntosConocidos(I).find((x) => normalizar(x.nombre) === normalizar(n) && (!x.eje || x.eje === eje)); if (!c) return { error: `universo-no-resoluble: «${n}» no es un conjunto que la evidencia identifique` }; for (const x of c.set) quitar.add(x); partes.push(c.nombre); }
     for (const est of _listaOUno(ex.estados)) { const S = _setDeEstado(est, I, eje); if (S.error) return S; for (const x of S.set) quitar.add(x); partes.push(S.fuente); }
     if (ex.bodega) { const b = _bodegaNombrada(String(ex.bodega), I); if (!b) return { error: `universo-no-resoluble: «${ex.bodega}» no es una bodega del tenant` }; for (const x of _skusEnBodega(b, I)) quitar.add(x); partes.push(`en ${ex.bodega}`); }
-    if (ex.top) { const S = _topTipado(ex.top, I, eje, todos); if (S.error) return S; for (const x of S.set) quitar.add(x); partes.push(S.fuente); }
+    for (const t of _listaOUno(ex.top)) { if (!t || typeof t !== "object") continue; const S = _topTipado(t, I, eje, todos); if (S.error) return S; for (const x of S.set) quitar.add(x); partes.push(S.fuente); }
     set = new Set([...base].filter((x) => !quitar.has(x))); fuentes.push(`fuera de ${partes.join(" y ")}`);
   }
   if (Array.isArray(u.union) && u.union.length) {

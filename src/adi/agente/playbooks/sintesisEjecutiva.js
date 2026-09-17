@@ -180,9 +180,13 @@ export const sintesisEjecutiva = {
      * IGUAL al umbral es material por regla (≥) y no lleva relación «mayor». Sin umbral declarado no hay corte que verificar: la
      * palabra es criterio del asesor y así se sella. */
     const umbral = umbralUSD ? { sujeto: "negocio", metrica: _lab(umbralUSD) } : null;
+    /* el titular tiene dos cláusulas: el hecho («Veo N riesgos materiales») y la lectura («dejaría el resto…»); cada una se declara por su tramo
+     * (verdad finita, E4: la casa ancla lo declarado, y una recomendación no vive dentro del ancla de un hecho) */
+    const [tituloHecho, tituloLectura] = titular.includes(" y dejaría ") ? [titular.slice(0, titular.indexOf(" y dejaría ")), titular.slice(titular.indexOf(" y dejaría ") + 3).replace(/:$/, "")] : [titular, null];
     if (piso > 0 && umbral) {
-      for (const c of elegidos) if (c.usd > piso) D.relacion({ sujeto: "negocio", metrica: _lab(c.f), forma: "mayor", vs: umbral, texto: titular });
-      for (const c of candidatos) if (!materiales.includes(c)) D.relacion({ sujeto: "negocio", metrica: _lab(c.f), forma: "menor", vs: umbral, texto: titular });
+      for (const c of elegidos) if (c.usd > piso) D.relacion({ sujeto: "negocio", metrica: _lab(c.f), forma: "mayor", vs: umbral, texto: tituloHecho });
+      for (const c of candidatos) if (!materiales.includes(c)) D.relacion({ sujeto: "negocio", metrica: _lab(c.f), forma: "menor", vs: umbral, texto: tituloHecho });
+      if (tituloLectura) D.lectura({ texto: tituloLectura, sello: "criterio mío" });
     } else D.lectura({ texto: titular, sello: "criterio mío" });
     // LA VOZ (2026-09-03): el telegrama «QUÉ. Dónde: X. Primero: Y.» se cuenta como lo contaría un asesor —
     // mismas cifras, mismos dueños, misma estructura de tres, y las ofertas siguen siendo ofertas.
@@ -254,11 +258,14 @@ export const sintesisEjecutiva = {
      * abierto, y la oferta no afirma nada. */
     if (prioridad) {
       D.lectura({ texto: prioridad, sello: "criterio mío" });
+      /* verdad finita (E4): los órdenes que sostienen «concentra los N focos» ya están declarados sobre sus líneas («encabeza X con $Y»); la frase de
+       * prioridad es la lectura que se apoya en ellos. Solo cuando la frase trae el subtotal se declara ese hecho, sobre su propia cláusula. */
+      const _clausulaHecho = prioridad.includes(_MARCA + ":") ? prioridad.slice(prioridad.indexOf(_MARCA + ":") + _MARCA.length + 1).trim().replace(/\.$/, "") : prioridad;
       if (lider && enCuantos >= 2) {
-        for (const c of conDueno) if (c.top.entidad === lider.top.entidad) D.orden({ sujeto: c.top.entidad, metrica: c.top.metrica, forma: "max", universo: c.top.universo, texto: prioridad });
+        void _clausulaHecho;
       } else if (lider) {
-        D.orden({ sujeto: lider.top.entidad, metrica: lider.top.metrica, forma: "max", universo: lider.top.universo, texto: prioridad });
-        D.deFig(lider.f, prioridad, { universo: _universoDe(lider.f) });
+        D.orden({ sujeto: lider.top.entidad, metrica: lider.top.metrica, forma: "max", universo: lider.top.universo, texto: _clausulaHecho });
+        D.deFig(lider.f, _clausulaHecho, { universo: _universoDe(lider.f) });
       }
     }
     D.lectura({ texto: _PORQUE, sello: "abierto" });

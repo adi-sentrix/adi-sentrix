@@ -462,7 +462,8 @@ H("5 · una parte que no se puede armar se declara en una línea — no se inven
 H("6 · cableado: antes del entregable simple, con el muro, y sin memoria nueva");
 {
   const bucle = readFileSync(new URL("./src/adi/agente/bucleAgente.js", import.meta.url), "utf8");
-  const iEc = bucle.indexOf('juzgar(_ec, "encargo-compuesto"'), iPb = bucle.indexOf("juzgar(_pb, `playbook:${playbookActivo.nombre}`");
+  /* desde E4 (verdad finita) los peldaños se juzgan por `_juzgarPeldano` (anclas con el flag; `juzgar` de siempre sin él): el orden es el mismo */
+  const iEc = bucle.indexOf('_juzgarPeldano(_ec, "encargo-compuesto"'), iPb = bucle.indexOf("_juzgarPeldano(_pb, `playbook:${playbookActivo.nombre}`");
   ok(iEc > 0 && iPb > iEc, "el ensamblador va ANTES del entregable simple del playbook, y se juzga con el muro");
   ok(/pasosDelEncargo\(_partesEncargo, pasosDe\(playbook, q, ctxTurno\), ctxTurno\)/.test(bucle), "los pasos del turno son la unión (antes del cerebro)");
   ok(/if \(final === null && playbookActivo && _partesEncargo\.length >= 2\)/.test(bucle), "…y el peldaño exige dos o más partes");

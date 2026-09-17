@@ -296,7 +296,17 @@ anclas con una lista cerrada, RENDERIZA (ningún dígito servido lo escribió el
   congelada y REESCRIBIR con la verdad y sus ids, poda por tramos) y el bucle: ids en boleta y resumen, cierre → re-anclaje → reescritura → poda
   → escalera. `_notario_v3_flujo_gate` 71/71: 0 falsedades, verde a la primera, ≤ 3 llamadas por turno, flag apagado = el turno de hoy byte a byte.
 - Definiciones de producto fijadas por el owner: al día = vencido 0 · «buen pagador» exige historia · «sin contribución» ≠ «sin margen» · mayoría
-  > 50 % · proporción pegada a un hecho = razón. Siguen E4 (composers anclan), E5 (ronda 5), E6 (retiro), E7 (piloto vivo, gasto a nombrar).
+  > 50 % · proporción pegada a un hecho = razón.
+- E4 (aprobadas E0–E3 desde producto): «todos los caminos que puedan terminar frente al usuario deben quedar bajo el mismo contrato de verdad, sin
+  degradar la naturalidad de ADI». La casa ancla lo suyo (`anclar.js`): el tramo que un composer declara es el ancla y la declaración el hecho; las
+  cifras verbatim de la boleta se anclan por su id; los peldaños (playbook · encargo compuesto · línea honesta · límite) pasan por el MISMO juez
+  de anclas que el cerebro y se sirven renderizados. Ningún composer cambia su texto; tres cambian solo su declaración (y una exclusión dicha por la
+  casa —«sin estar entre los que más contribuyen ni más venden»— pasa a universo tipado con `excluir.top`). Calibraciones por significado del texto
+  de la casa (estado que es nombre de métrica, «no» de «Contribución no capturada», «bajo el benchmark», universos escritos con el nombre de la
+  casa o su conjunto mayor, «los que caen» = bajo el benchmark, top-k enumerado, «no aparece» = cero, «No:» abre la respuesta, «1 ·» enumerador,
+  la clave por el concepto más largo, «Stock» = capital). `_anclar_composers_gate` 57/57: mismo texto y estado con y sin flag en 16 preguntas
+  (14 playbooks · 1 puente · 1 límite), 15 peldaños bajo el juez de anclas sin vetos, 238 hechos anclados. Siguen E5 (ronda 5 adversarial con
+  UltraCode sobre premium y respaldo), E6 (retiro), E7 (piloto vivo, gasto a nombrar).
 
 
 ---
