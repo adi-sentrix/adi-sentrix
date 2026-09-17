@@ -194,6 +194,20 @@ Derivadas que se rompen seguido:
   composers (derivación por tolerancia, período pegado a la cifra, «mientras» ≠ «tras», «se completa en X» es lugar, «las 3 SKU del cuadro», el 0x08 de
   un heredoc en un regex): cerrados en juez/presencia/verificar/declaracion, ningún composer tocado. Suite 268/268 · 0 red. Pendiente: ronda 3 sobre
   esta versión; después la etapa C en vivo (gasto a nombrar). §13.
+- **Fase 4, ronda adversarial 3 y cierre de raíz (2026-09-17, offline): 100 roturas confirmadas, seis familias de diseño cerradas por
+  significado, 0/100 y 29 controles nuevos (gate 328).** Mandato del owner: «no quiero parches caso a caso ni reglas para frases específicas»;
+  «ADI sí puede hablar en estados naturales, pero cada estado debe tener una definición empresarial verificable»; «ADI sí puede responder con
+  tablas»; «toda tasa o porcentaje debe conservar su significado completo: valor + base/denominador + universo + período». Lo que la casa sabe
+  ahora: `src/adi/notario/tasas.js` (cada tasa con su BASE; la base dicha junto a la cifra se contrasta, se calcula con la boleta o es falsa —
+  «recuperó el 45 % de su saldo pendiente» es falsa: recuperado = abonado ÷ venta a crédito—; el ledger y el cuadro estampan la base de toda
+  participación), `estados.js` (una definición por estado: inventario y cobranza —«al día» = saldo vencido 0—, sus formas, su contrario y sus
+  dueños coordinados; «saldo por vencer» = pendiente − vencido, calculado por `mesaFlujo` y publicado por la proyección), el VALOR de un
+  orden/relación/conteo/variación es comprobante, los universos negados/excluidos y los umbrales son conjuntos (el sujeto fuera del conjunto es
+  FALSO), `estructura.js` (tablas, listas anidadas y encabezados dan dueño y columna), la gramática del dueño (coordinados con reparto
+  distributivo, aposiciones, elipsis, anáfora ordinal, doble negación, cláusula continuada) y la envoltura por SIGNIFICADO (misma métrica y mismo
+  sujeto; «caer» sin métrica pegada es «bajo el benchmark», el verbo de la casa). La suite destapó 18 gates rojos por falsos positivos sobre
+  composers y guiones: cerrados en el Notario, ningún composer tocado. Suite 268/268 · 0 red. Decisión de producto abierta: exigir la base de toda
+  participación en la prosa. Sigue: ronda 4 (formas nuevas y cruces Comercial · Cobranza · Inventario) y después la etapa C (gasto a nombrar). §14-15.
 
 ---
 

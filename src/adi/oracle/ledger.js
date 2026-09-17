@@ -184,7 +184,17 @@ export function enrichFromFacts(boleta, facts) {
   const _tablaM = facts && facts.tablaM;
   const _yaCruzada = _matriz(_tablaM);
 
-  const walk = (node, entity, key = null, kind = null, titulo = null) => {
+  /* la BASE de una participación: el bloque en que vive el «pct». `focus` («frenado») es el foco del cuadro → «capital frenado» (el mismo
+   * context que ya escribe specRetrieval); un bloque con `label` y `usd` («riesgo de quiebre») es la base de sus filas (`familias`); el
+   * arreglo `estados` reparte el capital en inventario. Ningún texto cambia: solo el `context` de la fig del porcentaje. */
+  const _baseDe = (node, key, base) => {
+    if (!node || typeof node !== "object" || Array.isArray(node)) return base;
+    if (key === "estados" || key === "estadosDelInventario") return "capital en inventario";
+    if (typeof node.focus === "string" && node.focus.trim()) return `capital ${node.focus.trim()}`;
+    if (typeof node.label === "string" && node.label.trim() && (typeof node.usd === "number" || typeof node.total === "number")) return node.label.trim();
+    return base;
+  };
+  const walk = (node, entity, key = null, kind = null, titulo = null, base = null) => {
     // la matriz ya se emitió con su columna: volver a caminarla la aplanaría de nuevo y reintroduciría el defecto.
     if (_yaCruzada && node === _tablaM) return;
     if (node == null) return;
@@ -192,9 +202,10 @@ export function enrichFromFacts(boleta, facts) {
     // ["$6.8M","$6.3M",…] (la serie mes a mes de `trend`). Sin esta rama se descartaban y el guard bloqueaba TODA la
     // tabla temporal (cifras REALES del motor, no autorizadas). Mismo criterio que un string en un campo con nombre.
     if (typeof node === "string") { const mm = node.match(_FIGRE); if (mm) mm.forEach((g) => add(entity || key, g)); return; }
-    if (Array.isArray(node)) { node.forEach((x) => walk(x, entity, key, kind, titulo)); return; }
+    if (Array.isArray(node)) { const baseArr = key === "estados" || key === "estadosDelInventario" ? "capital en inventario" : base; node.forEach((x) => walk(x, entity, key, kind, titulo, baseArr)); return; }
     if (typeof node === "object") {
       const ent = _entityOf(node) || entity || null;
+      const baseAqui = _baseDe(node, key, base);
       const kindAqui = typeof node.kind === "string" ? node.kind : kind;   // el panel declara qué es (movers · rank · …) y sus filas lo heredan
       const tituloAqui = typeof node.title === "string" ? node.title : titulo;   // …y contra qué («Vs año anterior» · «Vs presupuesto»)
       // findings (diagnose): usd crudo. El concepto sale del propio finding (`tipo`/`concepto`/`label`) y si no
@@ -224,8 +235,8 @@ export function enrichFromFacts(boleta, facts) {
           // redondeo que ya usan los demás campos de esta rama, no una regla nueva — nunca citado en la práctica
           // con el float completo (0/26 en la muestra de auditoría), así que esto es consistencia pura, no un
           // cambio de comportamiento observable.
-          add(_labelDe(ent, k, kindAqui, tituloAqui), ku[1] === "days" ? `${Math.round(v)}d` : ku[1] === "ratio" ? `${v.toFixed(1)}x` : `${v.toFixed(1)}%`);
-        } else walk(v, ent, k, kindAqui, tituloAqui);
+          add(_labelDe(ent, k, kindAqui, tituloAqui), ku[1] === "days" ? `${Math.round(v)}d` : ku[1] === "ratio" ? `${v.toFixed(1)}x` : `${v.toFixed(1)}%`, ku[1] === "pct" && /^(?:pct|porcentaje|share|participaci\w*)$/i.test(k) && baseAqui ? { context: baseAqui } : null);
+        } else walk(v, ent, k, kindAqui, tituloAqui, baseAqui);
       }
       return;
     }

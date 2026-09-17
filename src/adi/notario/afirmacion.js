@@ -105,6 +105,8 @@ export function normalizarAfirmacion(a, i = 0) {
   out.valor = leerValor(src.valor);
   out.universo = src.universo != null ? (Array.isArray(src.universo) ? _lista(src.universo) : String(src.universo).trim()) : "";
   out.periodo = src.periodo != null ? String(src.periodo).trim() : "";
+  /* la BASE de una tasa («de su saldo pendiente», «sobre el costo»): el modelo puede declararla en `base`, y el resolutor la deja leída (objeto) */
+  if (src.base != null && src.base !== "") out.base = typeof src.base === "object" ? src.base : String(src.base).trim();
   out.evidencia = _lista(src.evidencia);
   out.sello = src.sello != null ? normalizar(src.sello).replace(/^criterio\s+mio$/, "criterio mío") : "";
   const exige = (cond, que) => { if (!cond) faltas.push(que); };
@@ -140,7 +142,7 @@ export function normalizarAfirmacion(a, i = 0) {
       else if (vs && typeof vs === "object") vs = { sujeto: _sujeto(vs.sujeto != null ? vs.sujeto : (vs.descripcion != null ? { descripcion: vs.descripcion } : null)), metrica: vs.metrica != null ? String(vs.metrica).trim() : "" };
       else if (vs != null && String(vs).trim()) vs = { sujeto: _sujeto(String(vs)), metrica: "" };
       else vs = null;
-      out.relacion = { forma, k: _k(r.k), matiz: r.matiz != null ? normalizar(r.matiz) : "", vs, valor: leerValor(r.valor) };
+      out.relacion = { forma, k: _k(r.k), matiz: r.matiz != null ? normalizar(r.matiz) : "", vs, valor: leerValor(r.valor), ...(r.suma === true ? { suma: true } : {}) };   // «juntos»: la lista se compara como suma (resolutor)
       exige(out.sujeto, "sujeto");
       exige(out.metrica, "metrica");
       exige(FORMAS_DE_RELACION.includes(forma), "relacion.forma (veces · fraccion · mayor · menor · igual · diferencia)");

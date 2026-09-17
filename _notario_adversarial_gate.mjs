@@ -9,6 +9,9 @@
  *   · modo `turno`: la falsedad de la prosa no puede llegar a pantalla con estado verde/reparado/podado.
  * Y las carnadas de CONTROL: para cada familia de rotura, la versión VERDADERA de la misma forma sigue pasando (la puerta se cierra sin
  * bloquear al que dice la verdad).
+ * RONDA 3 (2026-09-17, sobre la versión que cerró la ronda 2): 100 roturas confirmadas más (`casosRonda3`: 31 verificar + 69 turno) y 29 controles
+ * (`controlesRonda3`: 11 verificar + 13 turnos verdaderos + 5 falsos positivos reportados). Las seis familias de diseño y su raíz se cerraron en
+ * tasas.js, estados.js, estructura.js y en presencia/juez/verificar/resolutor (ver _NOTARIO_SEMANTICO_FASE4_DISENO.md §15).
  * RONDA 2 (mismo día, sobre la versión que cerró la ronda 1): 91 roturas confirmadas más (`casosRonda2`: 27 verificar + 64 turno) y 16 controles
  * (`controlesRonda2`): las versiones verdaderas de las trampas cerradas y los falsos positivos que los atacantes reportaron. Una sola de las 91
  * queda marcada `verdaderaEsperada` (R2-enconjunto: verdadera por definición de la casa). */
@@ -24,6 +27,7 @@ import { cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";
 import { playbookPara, pasosDe } from "./src/adi/agente/playbooks/registro.js";
 import { partesDelEncargo, pasosDelEncargo } from "./src/adi/agente/encargoCompuesto.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { dominiosDe, pasosDeDominios, unirPasosDeDominios } from "./src/adi/agente/contratoDeDominios.js";
 import { verificarAfirmaciones } from "./src/adi/notario/verificar.js";
 
 let PASS = 0, FAIL = 0;
@@ -37,7 +41,10 @@ const _figs = new Map();
 const figsDe = (pregunta) => {
   if (_figs.has(pregunta)) return _figs.get(pregunta);
   const pb = playbookPara(pregunta, {});
-  const rp = runPlan({ intent: "answer", calls: pasosDelEncargo(partesDelEncargo(pregunta), pb ? pasosDe(pb, pregunta, {}) : [], {}).map((p) => ({ tool: p.tool, args: p.args || {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 18, preguntaUsuario: pregunta, registry: CAJA });
+  /* la boleta del modo `verificar` es la del turno real: los pasos del procedimiento/encargo UNIDOS a los del contrato de dominios (como en el bucle) */
+  const dom = (() => { try { return dominiosDe(pregunta); } catch { return { dominios: [], eje: null }; } })();
+  const pasos = unirPasosDeDominios(pasosDelEncargo(partesDelEncargo(pregunta), pb ? pasosDe(pb, pregunta, {}) : [], {}), (() => { try { return pasosDeDominios(dom); } catch { return []; } })());
+  const rp = runPlan({ intent: "answer", calls: pasos.map((p) => ({ tool: p.tool, args: p.args || {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 18, preguntaUsuario: pregunta, registry: CAJA });
   const figs = (rp.ledger && rp.ledger.figs) || rp.ledger || [];
   _figs.set(pregunta, figs);
   return figs;
@@ -65,7 +72,7 @@ export function correrVerificar(c) {
 }
 
 const F = JSON.parse(fs.readFileSync(new URL("./fixtures/notario-adversarial-2026-09-16.json", import.meta.url), "utf8"));
-const RONDAS = [["A", "ronda 1", F.casos], ["A2", "ronda 2", F.casosRonda2 || []]];
+const RONDAS = [["A", "ronda 1", F.casos], ["A2", "ronda 2", F.casosRonda2 || []], ["A3", "ronda 3", F.casosRonda3 || []]];
 for (const [letra, ronda, casosRonda] of RONDAS) {
 H(`${letra} · las ${casosRonda.length} roturas confirmadas de la ${ronda} adversarial, replicadas: ninguna vuelve a romper`);
 const porAngulo = {};
@@ -93,7 +100,7 @@ console.log(`  por ángulo: ${Object.entries(porAngulo).map(([k, v]) => `${k} ${
 }
 
 /* ═══ B · LOS CONTROLES: la puerta se cierra sin bloquear al que dice la verdad ═══════════════════════════════════════════════════════ */
-const CONTROLES = [["B", "ronda 1", F.controles || { verificar: [], turno: [] }], ["B2", "ronda 2", F.controlesRonda2 || { verificar: [], turno: [] }]];
+const CONTROLES = [["B", "ronda 1", F.controles || { verificar: [], turno: [] }], ["B2", "ronda 2", F.controlesRonda2 || { verificar: [], turno: [] }], ["B3", "ronda 3", F.controlesRonda3 || { verificar: [], turno: [] }]];
 for (const [letra, ronda, CTL] of CONTROLES) {
 H(`${letra} · controles de la ${ronda}: ${CTL.verificar.length} declaraciones verdaderas (verificar) + ${CTL.turno.length} turnos correctos (verde en una llamada)`);
 for (const c of CTL.verificar) {
@@ -103,8 +110,9 @@ for (const c of CTL.verificar) {
 }
 for (const c of CTL.turno) {
   const r = await correrTurno(c);
-  const bien = r.estado === "verde" && r.llamadas.length === 1;
-  ok(bien, `${c.id} · «${String(c.cierre).split("\n")[0].slice(0, 80)}» → verde en una llamada`, `estado ${r.estado} · llamadas ${r.llamadas.join(" → ")} · ${(r.pasos || []).map((p) => p.sitio + ": " + (p.multas || []).map((m) => m.slice(0, 120)).join(" | ")).join(" ‖ ")}`);
+  const max = Number.isFinite(c.llamadasMax) ? c.llamadasMax : 1;   // el cierre que omitió una declaración la paga con una llamada más, y se sirve
+  const bien = r.estado === "verde" && r.servidoPremium !== false && r.llamadas.length <= max;
+  ok(bien, `${c.id} · «${String(c.cierre).split("\n")[0].slice(0, 80)}» → verde en ${max === 1 ? "una llamada" : "≤ " + max + " llamadas"}`, `estado ${r.estado} · llamadas ${r.llamadas.join(" → ")} · ${(r.pasos || []).map((p) => p.sitio + ": " + (p.multas || []).map((m) => m.slice(0, 120)).join(" | ")).join(" ‖ ")}`);
 }
 }
 

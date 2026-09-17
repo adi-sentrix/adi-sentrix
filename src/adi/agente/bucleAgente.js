@@ -187,6 +187,21 @@ export function _podarOracionVetada(texto, multa, figs, fragmentos = []) {   // 
   const _SENALA = /(?<![\wáéíóúñ])(?:est[eoa]s?|es[eoa]s?|aqu[eé]ll[oa]s?|ah[ií]|ell[oa]s|dich[oa]s?|(?:el|la|los|las) mism[oa]s?|los (?:dos|tres|cuatro|cinco|seis)|las (?:dos|tres|cuatro|cinco|seis)|ambos|ambas)(?![\wáéíóúñ])/i;
   const siguiente = tramos.find(([lo]) => lo >= finUltimaOfensora);
   if (siguiente && _SENALA.test(t.slice(siguiente[0], siguiente[1]).trim())) return null;
+  /* (b3b) NI SI LA SIGUIENTE CONTINÚA LA PODADA (ronda adversarial 3): «Le sigue Lider con $9,8M», «Viene detrás…», «Después…», «También…»,
+   * «Por su lado…» son la segunda mitad de una secuencia o un contraste cuyo primer término acaba de irse — servirla sola miente por omisión. */
+  const _CONTINUA = /^\s*(?:le\s+siguen?|les?\s+siguen?|siguen?\s+(?:en\s+la\s+lista|en\s+el\s+ranking|despu[eé]s)|vienen?\s+(?:detr[aá]s|despu[eé]s|luego|a\s+continuaci[oó]n)|detr[aá]s|m[aá]s\s+atr[aá]s|despu[eé]s|luego|a\s+continuaci[oó]n|en\s+segundo\s+lugar|en\s+tercer\s+lugar|(?:el|la)\s+segund[oa]|(?:el|la)\s+tercer[oa]|tambi[eé]n|tampoco|lo\s+mismo|[ií]dem|igual|otro\s+tanto|por\s+su\s+(?:lado|parte)|en\s+tanto|mientras\s+tanto|en\s+cambio|sin\s+embargo|aun\s+as[ií]|por\s+eso|por\s+lo\s+tanto|as[ií]\s+que|de\s+ah[ií]|en\s+consecuencia|por\s+ende)(?![\wáéíóúñ])/i;
+  if (siguiente && _CONTINUA.test(t.slice(siguiente[0], siguiente[1]).trim())) return null;
+  /* (b4) NI SI UNA RECOMENDACIÓN POSTERIOR SE APOYA EN LA PODADA: la oración de criterio («Yo llamaría a Falabella primero», «iría primero por…»,
+   * «prioridad…») que nombra a una entidad de la ofensora depende del hecho que se fue */
+  const _RECOMIENDA = /\b(?:primero|prioridad|prioritari[oa]|antes\s+que|empezar[ií]a\s+por|ir[ií]a\s+(?:primero\s+)?por|llamar[ií]a|partir[ií]a\s+por|concentrar[ií]a|atacar[ií]a|negociar[ií]a|revisar[ií]a)\b/i;
+  const entidadesDeFigs = [...new Set((Array.isArray(figs) ? figs : []).map((f) => { const l = String(f && f.label || ""); const i = l.indexOf(" · "); return i > 0 ? l.slice(0, i).trim() : ""; }).filter((n) => n && /^[A-ZÁÉÍÓÚ]/.test(n) && !/^(?:estado|medida|supuesto|liberado|vs|nivel|benchmark|umbral|resto|ventas?|saldo|abonado|capital)\b/i.test(n)))];
+  if (entidadesDeFigs.length) {
+    const nombradasEnOfensoras = entidadesDeFigs.filter((n) => ofensoras.some(([lo, hi]) => _normF(t.slice(lo, hi)).includes(_normF(n))));
+    if (nombradasEnOfensoras.length) {
+      const posterioresRec = tramos.filter(([lo]) => lo >= finUltimaOfensora).map(([lo, hi]) => t.slice(lo, hi)).filter((o) => _RECOMIENDA.test(o));
+      if (posterioresRec.some((o) => nombradasEnOfensoras.some((n) => _normF(o).includes(_normF(n))))) return null;
+    }
+  }
 
   const quedan = tramos.filter((x) => !ofensoras.includes(x));
   const podado = quedan.map(([lo, hi]) => t.slice(lo, hi)).join("").replace(/[ \t]+\n/g, "\n").replace(/\n[ \t]+/g, "\n").replace(/\n{3,}/g, "\n\n").trim();

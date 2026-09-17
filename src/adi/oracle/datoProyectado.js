@@ -482,11 +482,16 @@ function _construir(scenario) {
      * vencidos con el sustantivo suelto y con el adjetivo; «antigüedad» también, cuando la oración habla de cobranza. */
     rankings.cliente.dias_vencido    = _RC("mayor", "mesaFlujo.filas.diasVencido", ["d[íi]as\\s+(?:de\\s+)?(?:atraso|retraso|mora|vencid[oa]s?)", "d[íi]as\\s+de\\s+vencimiento", "atrasos?", "retrasos?", "mora", "morosidad", "urgentes?", "urgencia", "antig[üu]edad"], _LEX.dias_vencido);
     rankings.cliente.saldo_pendiente = _RC(null, "mesaFlujo.filas.saldoK", ["saldo\\s+pendiente", "saldo\\s+por\\s+cobrar", "pendiente\\s+de\\s+cobro", "saldo(?!\\s+vencido)", "deuda(?!\\s+vencida)"]);
+    /* lo que debe y AÚN NO VENCE: el saldo menos lo vencido, calculado por la mesa (`porVencerK`, la misma cuenta que su estado «por_vencer»).
+     * «$9,8M sin vencer / vigentes / por vencer» era una cifra sin métrica en la casa y se asistía como el pendiente (ronda adversarial 3). */
+    rankings.cliente.saldo_por_vencer = _RC(null, "mesaFlujo.filas.porVencerK", ["saldo\\s+por\\s+vencer", "por\\s+vencer", "sin\\s+vencer", "vigentes?", "no\\s+vencid[oa]s?", "dentro\\s+de(?:l)?\\s+plazo"]);
+    /* cada fila lleva además su cifra FORMATEADA por la mesa (`texto`): una sola verdad, cero recálculo de escala en quien la verifica */
     for (const fc of _mesaCobro.filas) {
-      if (Number.isFinite(fc.vencidoK)) rankings.cliente.saldo_vencido.filas.push({ entidad: fc.nombre, valor: fc.vencidoK });
-      if (Number.isFinite(fc.recuperadoPct)) rankings.cliente.recuperado.filas.push({ entidad: fc.nombre, valor: fc.recuperadoPct });
-      if (Number.isFinite(fc.diasVencido)) rankings.cliente.dias_vencido.filas.push({ entidad: fc.nombre, valor: fc.diasVencido });
-      if (Number.isFinite(fc.saldoK)) rankings.cliente.saldo_pendiente.filas.push({ entidad: fc.nombre, valor: fc.saldoK });
+      if (Number.isFinite(fc.vencidoK)) rankings.cliente.saldo_vencido.filas.push({ entidad: fc.nombre, valor: fc.vencidoK, ...(fc.vencidoFmt ? { texto: fc.vencidoFmt } : {}) });
+      if (Number.isFinite(fc.recuperadoPct)) rankings.cliente.recuperado.filas.push({ entidad: fc.nombre, valor: fc.recuperadoPct, ...(fc.recuperadoFmt ? { texto: fc.recuperadoFmt } : {}) });
+      if (Number.isFinite(fc.diasVencido)) rankings.cliente.dias_vencido.filas.push({ entidad: fc.nombre, valor: fc.diasVencido, ...(fc.diasVencidoFmt && fc.diasVencidoFmt !== "—" ? { texto: fc.diasVencidoFmt } : {}) });
+      if (Number.isFinite(fc.saldoK)) rankings.cliente.saldo_pendiente.filas.push({ entidad: fc.nombre, valor: fc.saldoK, ...(fc.saldoFmt ? { texto: fc.saldoFmt } : {}) });
+      if (Number.isFinite(fc.porVencerK)) rankings.cliente.saldo_por_vencer.filas.push({ entidad: fc.nombre, valor: fc.porVencerK, ...(fc.porVencerFmt ? { texto: fc.porVencerFmt } : {}) });
       /* ── Y CADA CIFRA DE COBRANZA CON SU DUEÑO (owner 2026-09-14, atribución y significado) ──────────────────────────────
        * La herramienta `cobranza` recorta 8 filas; la mesa tiene 13. «Falabella, Tottus y Paris tienen 8 días de atraso» es
        * verdad y el muro no podía saberlo: solo Falabella viajaba con sus días. Se registran las cifras YA FORMATEADAS por la

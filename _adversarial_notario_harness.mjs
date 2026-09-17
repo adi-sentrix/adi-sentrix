@@ -23,6 +23,7 @@ import { cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";
 import { playbookPara, pasosDe } from "./src/adi/agente/playbooks/registro.js";
 import { partesDelEncargo, pasosDelEncargo } from "./src/adi/agente/encargoCompuesto.js";
 import { answerViaAgente } from "./src/adi/agente/bucleAgente.js";
+import { dominiosDe, pasosDeDominios, unirPasosDeDominios } from "./src/adi/agente/contratoDeDominios.js";
 import { verificarAfirmaciones } from "./src/adi/notario/verificar.js";
 import { extraerDeclaracion } from "./src/adi/notario/declaracion.js";
 
@@ -30,9 +31,15 @@ initTenant(TENANT_DEMO);
 const ejes = {}; for (const e of ["cliente", "sku", "marca", "familia", "bodega", "canal"]) { try { const n = axisEntityNames(e); if (n && n.length) ejes[e] = n; } catch { /* sin índice */ } }
 const DATO = cifrasDelDato(ESCENARIO_INICIAL);
 const CAJA = cajaDelAgente(TOOLS);
+/* la boleta del modo `verificar` es la del turno real: los pasos del procedimiento/encargo UNIDOS a los del contrato de dominios (ronda 4:
+ * los cruces Comercial · Cobranza · Inventario necesitan las boletas de los dos o tres dominios, como en el bucle) */
 const figsDe = (pregunta) => {
   const pb = playbookPara(pregunta, {});
-  const rp = runPlan({ intent: "answer", calls: pasosDelEncargo(partesDelEncargo(pregunta), pb ? pasosDe(pb, pregunta, {}) : [], {}).map((p) => ({ tool: p.tool, args: p.args || {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 18, preguntaUsuario: pregunta, registry: CAJA });
+  const dom = (() => { try { return dominiosDe(pregunta); } catch { return { dominios: [], eje: null }; } })();
+  const pasosPb = pasosDelEncargo(partesDelEncargo(pregunta), pb ? pasosDe(pb, pregunta, {}) : [], {});
+  const pasosContrato = (() => { try { return pasosDeDominios(dom); } catch { return []; } })();
+  const pasos = unirPasosDeDominios(pasosPb, pasosContrato);
+  const rp = runPlan({ intent: "answer", calls: pasos.map((p) => ({ tool: p.tool, args: p.args || {} })) }, { scenario: ESCENARIO_INICIAL, maxCalls: 18, preguntaUsuario: pregunta, registry: CAJA });
   return (rp.ledger && rp.ledger.figs) || rp.ledger || [];
 };
 const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/(\d),(\d)/g, "$1.$2").replace(/\s+/g, " ").trim();

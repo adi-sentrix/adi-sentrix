@@ -423,8 +423,8 @@ composers y de los guiones de la casa; cada falso positivo se cerró en el juez 
   X, Y», «fuera de los que más venden»); la negación de OTRA métrica no niega el orden declarado; «la cuenta más grande no es la que más te deja» declarada
   como comparativo (en cualquier sentido) es lo mismo dicho al revés; «$655K de carga comercial por sobre el nivel declarado» es el postfijo de la propia
   cifra; «entre las 8 cuentas bajo el benchmark» lo cubre el universo del orden.
-⚠️ Trampa repetida de esta sesión: un heredoc convirtió `` en el byte 0x08 dentro de un regex (`/(?:cuadro…)/` nunca casa); revisar con
-`grep -P "[ -]"` antes de commitear.
+⚠️ Trampa repetida de esta sesión: un heredoc convirtió `\b` en el byte 0x08 dentro de un regex (`/\b(?:cuadro…)\b/` nunca casa); revisar con
+`grep -P "[\x00-\x08]"` antes de commitear.
 
 **Medido, sin regresión.** `_notario_semantico_gate` 31/31 · `_resolutor_gate` 45/45 (fase 3 re-juzgada: 3 inconsistencias, ≤ 3) ·
 `_notario_semantico_flujo_gate` 45/45 con la línea base de omisiones en 20 (antes 28: las 8 que se fueron eran «31» de «al 31 de agosto», una
@@ -479,3 +479,102 @@ sobre esas familias, y recién ahí la etapa C. Decisiones de producto que abren
 «paga puntual»)? Si sí, hay que definirlos en la casa (p.ej. «al día» = saldo vencido 0) para poder verificarlos; (b) ¿ADI puede responder con
 tablas markdown? Si sí, el Notario tiene que leer encabezados de columna y filas; si no, la ley de formato las veta antes; (c) la base de cada tasa
 tiene que viajar en el rótulo de la boleta («Recuperado (abonado / venta)», «% del capital frenado»).
+
+## 15 · Cierre de raíz de la ronda 3 (2026-09-17, `dev`, offline, sin deploy) — seis familias y la raíz del dueño, cerradas por significado
+
+**Mandato del owner:** «cerrar esas seis familias y la raíz común antes de cualquier certificación viva… no quiero parches caso a caso ni reglas para
+frases específicas. Cada corrección tiene que resolver la familia de significado completa y servir para múltiples formas de expresar lo mismo… ADI sí
+puede hablar en estados naturales, pero cada estado debe tener una definición empresarial verificable… ADI sí puede responder con tablas… Toda tasa o
+porcentaje debe conservar su significado completo: valor + base/denominador + universo + período… Sin deploy y sin gasto vivo todavía.»
+
+**Resultado:** las 100 roturas confirmadas de la ronda 3 cierran (0/100 rompen), los 5 hechos verdaderos que los atacantes vieron bloqueados se sirven,
+las rondas 1 y 2 siguen cerradas (gate adversarial 328/328 = 199 + 100 + 29 controles nuevos), y los cuatro candados del Notario quedan verdes con sus
+líneas base intactas (31 · 45 · 45 · 328). Ningún composer se tocó. Lo que cambió, por familia — cada una es un MECANISMO, no una lista de frases:
+
+1. **La base del porcentaje — `src/adi/notario/tasas.js`.** Catálogo de las tasas de la casa con su base (denominador) y numerador en claves del
+   vocabulario: margen / benchmark / piso → venta; markup → costo; peso del costo → venta; carga → venta; recuperado → venta a crédito (abonado ÷ venta);
+   umbral de materialidad → venta; variación → año anterior / presupuesto. Una participación («% del total») toma la base de su cuadro: el `context` de
+   la fig («capital frenado», «riesgo de quiebre», «capital en inventario»), que el ledger ahora estampa en toda participación de los facts (el foco
+   del cuadro, el bloque con `label`+`usd`, el arreglo `estados`). El resolutor lee la base dicha junto a la cifra o en `base`/`universo` (R14:
+   «45 % de su saldo pendiente», «21,5 % sobre el costo», «41 % de lo frenado en Valparaíso», «el 75 % del capital en inventario»), el juez no la
+   confunde con otra métrica, y el verificador la contrasta (`juzgarBase`): misma base → vale; base distinta → es OTRA tasa: se calcula con las cifras
+   de la boleta cuando se puede («LG-DRYER8KG · Capital frenado $14K sobre Valparaíso · Capital frenado $25K = 55 %»: verdadera con 55 %, falsa con
+   41 %), es falsa si la tasa de la casa tiene base fija («recuperado se mide sobre la venta a crédito, no sobre el saldo pendiente»; nombra la tasa
+   que sí tiene esa base: «sobre el costo: Markup sobre costo = 37,2 %»), y no verificable si no se puede demostrar. Una participación sin base dicha
+   ni evidencia anclada es no verificable («41 %» no dice de qué total); un cualificador que la evidencia no trae («en el canal online») deja la
+   cifra sin evidencia. Ley del owner cumplida sin relajar nada: la cifra vale por su significado completo.
+2. **Los estados con definición empresarial — `src/adi/notario/estados.js`.** Una sola fuente para presencia, juez, verificador y resolutor: cada estado
+   trae canon, eje, cómo se reconoce (declarado y en prosa), su definición, su fuente y su contrario. Inventario: los de la Mesa Capital (frenado,
+   sobrestock, inmovilizado, riesgo de quiebre, capital sano, crítico, desde la proyección SKU por SKU) más «en quiebre» (unidades en stock = 0), «sin
+   venta» (días sin venta > 0) y «rota bien / lento» (rotación contra el piso). Cobranza, sobre los rankings de la proyección (los 13 clientes):
+   «al día» = saldo vencido 0 (puede tener saldo por vencer), «en mora» = vencido > 0, «sin deuda» = pendiente 0, «sin pagos» = recuperado 0 — con
+   sus formas («paga puntual», «cumple los plazos», «no tiene atrasos», «regularizó su cuenta», «nada vencido»…). Un estado negado es su contrario
+   («no está al día» = «en mora»); el punto de estado tiene DUEÑOS (los sujetos coordinados de su cláusula) y lo cubre solo una declaración del mismo
+   estado que los nombre. Y la cifra que acompaña un estado se lee por su sustantivo pegado antes que por el verbo («Lider debe $9,8M vencidos» es
+   vencido, no pendiente). El «saldo por vencer» (pendiente − vencido, la misma cuenta que decide el estado «por_vencer» de la mesa) es ahora una
+   cifra de la casa: la mesa lo calcula (`porVencerK`), la proyección lo publica como ranking con sus términos («sin vencer», «vigentes», «por vencer»)
+   y el Notario lo nombra en su vocabulario (el del muro + las métricas derivadas). Cada fila de cobranza de la proyección lleva además su cifra
+   formateada por la mesa (`texto`): el verificador la usa tal cual, sin inferir escala. `definicionesDeEstados()` publica las definiciones.
+3. **El valor es el comprobante.** Un orden, una relación, un conteo o una variación verdaderos con un valor que no es de la casa son falsos: cada
+   cifra con unidad del valor (arriba o dentro de `relacion`/`variacion`/`orden`) tiene que ser una cifra del sujeto (o del otro lado, o de una entidad
+   del ranking) en esa métrica, una cantidad que la relación calcula (diferencia, razón, diferencia relativa) o una variación del sujeto; el slot que
+   el verificador del tipo ya consumió (la fracción, la diferencia, la propia variación) no se re-juzga. «Lider debe $4,9M y es la que más debe»,
+   «Falabella debe $2,9M, más que Sodimac ($1,9M)», «vende $5,9M» dentro de una variación verdadera: falsas con la verdad.
+4. **Universos negados, exclusiones y umbrales — una capa para orden, grupo y conteo.** «sin X», «que no tienen/están X», «no X» → el complemento de X
+   dentro del eje; «salvo / excepto / excluyendo / fuera de / sin contar X» → la base (o el eje entero) menos X, por nombre o por conjunto; «con más de
+   260 días vencidos», «mora superior a 90 días», «bajo 25 % de margen» → la proyección filtrada por el umbral (con la unidad y la métrica leídas del
+   texto). Un sujeto que no pertenece al conjunto declarado es FALSO («Lider … entre las cuentas sin mora»: Lider tiene mora), no «sin evidencia»; un
+   grupo cuyas entidades no pertenecen al universo dicho («las 6 cuentas sin mora suman $12,6M» sobre las 6 con mora) es falso. El signo dicho en
+   palabras contra una variación positiva («las ventas cayeron 7,5 %» con +7,5 %) es falso por el signo.
+5. **El dueño en la estructura y en la gramática — `src/adi/notario/estructura.js` + presencia/juez.** La estructura manda: en una tabla markdown la
+   fila es la entidad y la columna la métrica (o la transpuesta, entidades en la cabecera); la viñeta padre que es una entidad es dueña de sus
+   sub-viñetas; el encabezado «Lider:» / «### Lider» / «**Lider**» es dueño de las líneas que siguen; la cabecera de una tabla no afirma nada. El juez
+   contrasta dueño y columna con la declaración («en la tabla la cifra 251 es de Lider y la declaración dice Sodimac», «la columna «Días de atraso»
+   no es «Saldo vencido»»); presencia toma el dueño estructural antes que el de la oración. En la gramática: el sujeto coordinado («Lider junto con
+   Falabella dejan 22,0 %», «Tanto Lider como Falabella…») hace dueños a todos y cada uno tiene que estar declarado; con una lista de cifras del
+   mismo largo se reparte por orden (distributiva, «Lider y Falabella deben $4,6M y $2,5M», que era un falso positivo); la aposición entre paréntesis
+   pegada a la entidad no corta la cláusula («Lider ($4,6M vencidos) lleva 251 días»); la aposición tras la cifra nombra al dueño («los $4,6M, la deuda
+   de Falabella,»); la elipsis del predicado («; también Lider», «Lider, ídem», «está en la misma cifra») es la cifra anterior dicha de esa entidad;
+   la anáfora ordinal resuelve a la lista previa («Lider y Falabella: la segunda debe…»); la doble negación afirma; la cláusula continuada tras «;» con
+   sujeto de métrica hereda el sujeto anterior; «cifra: Entidad» tiene dueño; y la entidad que cierra una expresión de base («de lo frenado en
+   Valparaíso») no es dueña. La asistencia de identidad solo atribuye una cifra a su DUEÑO en la oración, nunca a una entidad solo nombrada. Una sola
+   definición de la entidad de REFERENCIA (`REFERIDA_RE`, con «le sigue a», «seguido de», «escolta a»), y la continuación de una lista con cifra propia
+   («seguido de Valparaíso con $39K») es dueña de la suya.
+6. **La envoltura por significado y la poda.** Un orden o una relación cubren el superlativo / comparador de su cláusula solo si hablan de la misma
+   métrica (con los puentes de la casa: cobranza entre sí, brecha en dinero ↔ contribución no capturada, markup ↔ costo) y del mismo sujeto («Lider debe
+   $4,6M y es la que más vende», «Antofagasta la bodega que más concentra» ya no los cubre otro orden); un conteo o un grupo cubren una variación solo si
+   su predicado habla de variación o la variación sin métrica es de sus propios sujetos; «más + adjetivo» de la casa (moroso, atrasado, rentable…) es
+   superlativo; los verbos de secuencia («viene detrás», «le sigue X con», «seguido de») son un orden en palabras; el n/m de un conteo no cubre un entero
+   con otro sustantivo («6 facturas», «desde hace 6 meses» — la duración dicha como hecho es un punto); «juntos / sumados / entre las dos» compara contra
+   la SUMA. Y la poda no deja huérfana a la oración que depende de la podada: ni la que arranca con un conector de continuación («Le sigue…», «Viene
+   detrás…», «También…», «Por su lado…») ni la recomendación posterior que nombra al sujeto de la podada.
+
+**El protocolo tolera las comillas tipográficas** en una línea JSON (se normalizan y se reintenta; lo que igual no parsea sigue siendo error, nunca
+se descarta en silencio). Dos controles se sirven verdes en DOS llamadas (el cierre omitió una declaración y la casa la pidió): es el diseño de la
+etapa B, no un falso positivo.
+
+**Medido:** ronda 3 0/100 · falsos positivos de la ronda 0/5 · controles nuevos 29/29 · gate adversarial 328/328 · `_notario_semantico_gate` 31/31 ·
+`_resolutor_gate` 45/45 · `_notario_semantico_flujo_gate` 45/45 con la línea base de 20 omisiones intacta (la envoltura por significado sacó 9 falsos
+positivos en el corpus de la fase 2 hasta quedar en 20) · suite completa `npm run gates:offline` 268/268 · 0 red · «0 TOCARON LA RED · 0 CON
+CREDENCIAL VIVA».
+
+**Los falsos positivos que la suite destapó (18 gates rojos, todos cerrados en el Notario; ningún composer tocado — `crucePorSku` se probó con
+una declaración nueva y se revirtió):** el verbo de la casa «caer» sin métrica pegada es «bajo el benchmark» y «los que caen» es el nombre de un
+grupo; «12 SKU venden por debajo del benchmark» habla de margen (la referencia fija la métrica) y «12 SKU» cuenta a la casa; «convierte mejor cada
+peso vendido» no es ventas (la métrica de un superlativo se lee JUNTO a él: la primera palabra con contenido); el superlativo tras una
+preposición («fuera de los que más venden») nombra un grupo; «25,1 % contra un benchmark de 30,1 %», «sobre los $92,9M del año pasado», «del año
+—el mejor del año—» y «24 % de Jumbo» no son bases (referencia, cifra, período, dueño); un universo que nombra la propia métrica no es una base;
+el calificador de un subtotal («subtotal», «3 SKU») no es un conjunto que juzgar por pertenencia; la participación del cuadro vale por la base de
+su cuadro (`cuadroSentrix` la estampa: «participación en la venta»); la variación en dinero («+$2,3M») ya juzgada por su propio slot no se
+re-juzga como comprobante; la continuación de una lista con cifra propia («seguido de Valparaíso con $39K») es dueña de la suya; y la
+declaración derivada del respaldo elige la fig por el dueño del FRAGMENTO antes que por cualquier entidad de la oración («Lider +$2,3M, Jumbo
++$1,9M, Falabella +$1,5M»). El protocolo del modelo (`instruccionDeDeclaracion`) ahora nombra el campo `base` y los estados de cobranza.
+
+**Decisión de producto abierta (owner):** exigir que la prosa diga la base de toda participación («41 % del capital frenado», no «41 %»). Hoy una
+participación sin base dicha vale por la de su cuadro; con la exigencia, los composers de cuadros tendrían que decir la base y el modelo
+declararla siempre — es una regla de estilo con costo en prosa, no una falsedad, por eso no se impuso sin decisión.
+
+**Herramientas de sesión (no producto):** la trampa del heredoc se amplió — además del `\b` → 0x08, un heredoc de Bash reduce `\\` a `\`, así que
+un patch con expresiones regulares se escribe SIEMPRE en un `.cjs` con Write (helper `rep.cjs`, que respeta CRLF) y se verifica con
+`grep -P "[\x00-\x08]"`. Sigue: ronda 4 adversarial offline (formas nuevas y cruces Comercial · Cobranza · Inventario) y, si sobrevive con bordes,
+la estimación de la etapa C (gasto a nombrar).

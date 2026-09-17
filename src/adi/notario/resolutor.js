@@ -29,10 +29,14 @@
  *  RONDA ADVERSARIAL (2026-09-16): el concepto identificado se juzga ahí aunque la cifra no cierre; otra capa solo con la misma cabeza y
  *  nunca otro concepto de la casa; el todo sobre un subtotal es alcance-promovido; la fracción en palabras trae su k; un superlativo negado
  *  no da dirección; el otro lado con palabras casa por las palabras, no solo por la cifra.
- *  R8 · las derivadas de la casa (brecha = benchmark − margen; variación en $ = venta − venta del año anterior), con su evidencia. */
+ *  R8 · las derivadas de la casa (brecha = benchmark − margen; variación en $ = venta − venta del año anterior), con su evidencia.
+ *  R14 · la BASE de una tasa (ronda adversarial 3): lo que la cifra dice junto a sí («45 % de su saldo pendiente», «21,5 % sobre el costo»,
+ *       «41 % de lo frenado en Valparaíso») o el campo `base`/`universo` de la declaración se lee a `base` — el verificador la contrasta con la
+ *       base de la casa (tasas.js). Un cualificador que no nombra nada de la casa («canal online») queda como desconocido. */
 import { normalizar, menosAscii, leerValor } from "./afirmacion.js";
 import { parseFigures } from "../boleta.js";
 import { mismoValor, necesitaUniverso, universoDeFig, ES_TODO, ES_TODO_FUERTE, conceptosDe, unidadCompatible, conDigitos } from "./evidencia.js";
+import { leerBase, leerBaseDeclarada, clavesDeMetrica } from "./tasas.js";   // R14: la base de una tasa, dicha junto a la cifra o declarada
 
 const _NEGOCIO = /^(?:el\s+)?(?:negocio|empresa|compañía|compania|total)$/i;
 const _TOK = (s) => normalizar(String(s || "")).replace(/[()·,;:%$]/g, " ").split(/\s+/).filter((w) => w.length >= 3 && !/^\d+$/.test(w));
@@ -276,10 +280,14 @@ function _inferirDireccion(a, notas) {
   else if (_MEJOR.test(t)) d = _polaridad(a.metrica); else if (_PEOR.test(t)) { const p = _polaridad(a.metrica); d = p === "mayor" ? "menor" : p === "menor" ? "mayor" : null; }
   if (d) { a.orden.direccion = d; notas.push(`orden.direccion «${d}» leída del fragmento`); }
 }
+const _JUNTOS = /\b(?:junt[oa]s|sumad[oa]s|en\s+conjunto|combinad[oa]s|entre\s+(?:las|los)\s+(?:dos|tres|cuatro|cinco|\d+)|en\s+total|la\s+suma\s+de)\b/i;
 function _inferirFormaDeRelacion(a, notas) {
-  if (!a.relacion || typeof a.relacion !== "object" || a.relacion.forma) return;
+  if (!a.relacion || typeof a.relacion !== "object") return;
   const t = menosAscii(String(a.texto || ""));
   const r = a.relacion;
+  /* «más que LG y Bosch juntos»: el otro lado (o el sujeto) en lista se compara como SUMA, no par a par */
+  if (!r.suma && _JUNTOS.test(t) && ((r.vs && (Array.isArray(r.vs) || (typeof r.vs === "object" && Array.isArray(r.vs.sujeto)))) || Array.isArray(a.sujeto))) { r.suma = true; notas.push("relacion.suma leída del fragmento («juntos»): la lista se compara como suma"); }
+  if (r.forma) return;
   const mv = _VECES.exec(t);
   if (mv) { r.forma = "veces"; if (!r.k) r.k = mv[1] ? parseFloat(mv[1].replace(",", ".")) : mv[2] ? ({ dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, diez: 10 })[mv[2].toLowerCase()] : /doble/i.test(mv[0]) ? 2 : /triple/i.test(mv[0]) ? 3 : 4; notas.push(`relacion.forma «veces» leída del fragmento`); return; }
   const mf = _FRACCION.exec(t);
@@ -411,6 +419,8 @@ export function resolverDeclaracion(raw, I) {
     }
     if (_es(a.orden) && typeof a.orden.vs === "string" && a.orden.vs) { const r = _resolverSujeto(I, a.orden.vs, a, notas, "orden.vs"); if (typeof r === "string") a.orden.vs = r; }
   }
+  /* R14 · la base de una tasa */
+  if (tipo === "cifra") _leerBaseDeLaCifra(I, a, notas);
   /* R4 · R9 · R10 · R8 */
   if (tipo === "cifra") _unidadImplicita(I, a, notas);
   if (tipo === "cifra") _universoPorValor(I, a, notas);
@@ -420,6 +430,31 @@ export function resolverDeclaracion(raw, I) {
   if (tipo === "cifra" || tipo === "variacion") _evidenciaDerivada(I, a, notas);
   if (notas.length) a._resuelta = [...(Array.isArray(a._resuelta) ? a._resuelta : []), ...notas];
   return [a];
+}
+
+/* ── R14 · la base de una tasa: del campo `base`, del `universo` cuando nombra un concepto de la casa, o de la frase junto a la cifra ── */
+const _baseSerializable = (b) => (b ? { texto: b.texto, claves: [...b.claves], entidad: b.entidad && b.entidad.nombre ? b.entidad.nombre : null, estado: b.estado || null, desconocida: !!b.desconocida } : null);
+function _leerBaseDeLaCifra(I, a, notas) {
+  if (a.base && typeof a.base === "object") return;
+  const resolverEntidad = (s) => _entidad(I, s);
+  const esEntidad = typeof a.sujeto === "string" && a.sujeto !== "negocio" && !!_entidad(I, a.sujeto);
+  let b = null, origen = "";
+  if (typeof a.base === "string" && a.base.trim()) { b = leerBaseDeclarada(a.base, { resolverEntidad }); origen = "base"; }
+  if (!b && typeof a.universo === "string" && a.universo.trim()) {
+    const u = leerBaseDeclarada(a.universo, { resolverEntidad });
+    /* el universo que nombra un concepto (o una entidad) es una base; el que no nombra nada solo cuenta como cualificador desconocido si el
+     * sujeto es una entidad (el universo de un subtotal del negocio lo juzga el verificador por su cuenta) */
+    /* el universo que nombra la PROPIA métrica («margen promedio» en una cifra de margen promedio) no es una base */
+    const propias = new Set([...clavesDeMetrica(a.metrica)]);
+    const nombraLaPropia = u && u.claves.size && !u.entidad && !u.estado && [...u.claves].every((k) => propias.has(k));
+    if (u && !nombraLaPropia && (u.claves.size || u.entidad || u.estado)) { b = u; origen = "universo"; }
+    else if (u && u.desconocida && esEntidad && !(a.valor && a.valor.unidad !== "pct" && /\b(?:de|del|en|entre)\s+(?:la|el|los|las)\s+/.test(normalizar(a.universo)) && ES_TODO.test(conDigitos(a.universo)))) { b = u; origen = "universo"; }
+  }
+  const v0 = leerValor(a.valor);   // la declaración cruda trae el valor como texto: se lee
+  if (!b && v0 && v0.texto && v0.unidad === "pct" && typeof a.texto === "string") { b = leerBase(a.texto, v0.texto, { resolverEntidad, metrica: a.metrica }); origen = "frase"; }
+  if (!b) return;
+  a.base = _baseSerializable(b);
+  notas.push(`base «${b.texto}» leída desde ${origen === "frase" ? "la frase" : "el campo " + origen}`);
 }
 
 /** resolverDeclaraciones(lista, I) → la lista canónica (puede ser más larga que la original si un grupo se partió) */

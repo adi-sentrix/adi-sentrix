@@ -11,7 +11,20 @@
  * Puro: sin I/O. */
 import { parseFigures } from "../boleta.js";
 import { tolCalculo } from "../oracle/calculoCatalogo.js";
-import { metricasEn } from "../oracle/guardC.js";
+import { metricasEn as _metricasDelMuro } from "../oracle/guardC.js";
+
+/* ── EL VOCABULARIO DEL NOTARIO = el del muro + las métricas DERIVADAS que la proyección publica (fase 4, ronda 3) ──────────────────────────
+ * «$9,8M sin vencer», «$9,8M vigentes», «saldo por vencer»: el muro no tiene clave para lo que debe y aún no vence, así que la cifra se leía como
+ * el pendiente. La mesa de cobranza calcula `porVencerK` (saldo − vencido) y la proyección lo publica como ranking; acá se nombra. */
+const _VOCABULARIO_DERIVADO = [
+  { clave: "porvencer", re: /\bpor\s+vencer\b|\bsin\s+vencer\b|\bvigentes?\b|\bdentro\s+de(?:l)?\s+plazo\b|\ba[uú]n\s+no\s+vence[n]?\b|\bno\s+vencid[oa]s?\b/i },
+];
+export function metricasEn(texto) {
+  const out = _metricasDelMuro(texto);   // un Set (el muro lo devuelve así y quien lo lee usa .has)
+  const s = String(texto || "");
+  for (const m of _VOCABULARIO_DERIVADO) if (m.re.test(s)) { out.add(m.clave); if (m.clave === "porvencer" && out.has("vencido") && /\bno\s+vencid/i.test(s) && !/(?<!\bno\s)\bvencid/i.test(s)) out.delete("vencido"); }
+  return out;
+}
 import { normalizar, menosAscii } from "./afirmacion.js";
 
 /* ── LA COMPARACIÓN DE UNA CIFRA DICHA CON UNA FIG (una sola tolerancia para el verificador y el resolutor) ──────────────────────
@@ -86,6 +99,8 @@ export const SINONIMOS = [
   [/^ventas?\s+del\s+a[ñn]o\s+(?:anterior|pasado)$|^venta\s+(?:del\s+)?a[ñn]o\s+(?:anterior|pasado)$|^base\s+del\s+a[ñn]o\s+anterior$/i, ["ventas del ano anterior"]],   // la base del crecimiento, con fila propia
   [/^(?:saldo\s+)?vencidos?$|^(?:deuda\s+)?(?:en\s+)?mora$|^saldo\s+en\s+mora$|^deuda\s+vencida$/i, ["saldo vencido"]],
   [/^(?:saldo\s+)?pendientes?$|^por\s+cobrar$|^deuda$|^saldo$/i, ["saldo pendiente"]],
+  /* lo que debe y aún no vence (la mesa lo calcula: saldo − vencido); «vigente» y «sin vencer» son sus nombres en la prosa */
+  [/^(?:saldo\s+|deuda\s+|monto\s+)?(?:por\s+vencer|sin\s+vencer|vigentes?|no\s+vencid[oa]s?|dentro\s+de(?:l)?\s+plazo|a[uú]n\s+no\s+vencid[oa]s?)$/i, ["saldo por vencer"]],
   [/^d[ií]as?\s+(?:de\s+)?(?:atraso|mora|retraso|vencid[oa]s?)$|^atraso$|^dias?\s+vencido$/i, ["dias vencido"]],
   [/^recuperaci[oó]n$|^recuperad[oa]$|^cobranza\s+recuperada$|^tasa\s+de\s+recuperaci[oó]n$/i, ["recuperado"]],
   [/^abonad[oa]s?$|^abonos?$|^pagad[oa]$|^cobrad[oa]$/i, ["abonado"]],
@@ -126,22 +141,14 @@ export const SINONIMOS = [
 
 /* los rankings de la proyección, por concepto (normalizado) → clave del ranking en cada eje */
 export const CLAVES_DE_RANKING = {
-  cliente: { ventas: ["venta", "ventas", "venta (flujo)"], margen: ["margen"], contribucion: ["contribucion"], carga: ["carga comercial", "carga"], unidades: ["unidades vendidas", "unidades"], brecha: ["brecha al benchmark", "brecha"], no_capturada: ["contribucion no capturada"], saldo_vencido: ["saldo vencido"], recuperado: ["recuperado"], dias_vencido: ["dias vencido"], saldo_pendiente: ["saldo pendiente"] },
+  cliente: { ventas: ["venta", "ventas", "venta (flujo)"], margen: ["margen"], contribucion: ["contribucion"], carga: ["carga comercial", "carga"], unidades: ["unidades vendidas", "unidades"], brecha: ["brecha al benchmark", "brecha"], no_capturada: ["contribucion no capturada"], saldo_vencido: ["saldo vencido"], saldo_por_vencer: ["saldo por vencer"], recuperado: ["recuperado"], dias_vencido: ["dias vencido"], saldo_pendiente: ["saldo pendiente"] },
   marca: { ventas: ["venta", "ventas"], margen: ["margen"], contribucion: ["contribucion"], carga: ["carga comercial", "carga"] },
   sku: { ventas: ["venta", "ventas"], contribucion: ["contribucion"], capital: ["capital", "valor de inventario", "stock", "capital en inventario"], capital_inmovilizado: ["capital inmovilizado"], capital_frenado: ["capital frenado"], rotacion: ["rotacion"], dias_inventario: ["dias de inventario", "cobertura (doh)"], dias_sin_venta: ["dias sin venta"], margen_inventario: ["margen de inventario"] },
   bodega: { capital: ["capital", "capital en inventario"], capital_frenado: ["capital frenado"], capital_inmovilizado: ["capital inmovilizado"] },
 };
 
-/* los estados del inventario y sus sinónimos en la prosa de la casa */
-export const ESTADOS = [
-  [/inmoviliz|deten|parad|bloquead|estancad/, "inmovilizado"],
-  [/frenad/, "frenado"],
-  [/sobrestock|sobre\s*stock|exceso\s+de\s+stock|sobreinventario/, "sobrestock"],
-  [/quiebre|riesgo\s+de\s+quiebre|desabast/, "riesgo de quiebre"],
-  [/sano|saludable|normal|activo|en\s+regla|sin\s+alerta/, "capital sano"],
-  [/cr[ií]tic/, "critico"],   // la alerta del dato (alerta = crit), declarada por la proyección
-];
-export const estadoCanon = (t) => { const s = normalizar(t); for (const [re, e] of ESTADOS) if (re.test(s)) return e; return s; };
+/* los estados de la casa (inventario Y cobranza) viven en estados.js — una sola fuente para presencia, juez, verificador y resolutor */
+export { ESTADOS, estadoCanon } from "./estados.js";
 
 const _NEGOCIO_FIG = /^(?:el\s+negocio|negocio|total|cartera|global)$/i;
 /* un mes, como lo rotula el cuadro «el año mes a mes» (abreviado o entero) */

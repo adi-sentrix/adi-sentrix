@@ -205,6 +205,10 @@ function buildDesdePlanilla(D) {
        * medio llenar, el que tiene plazo muestra su cifra y el que no, una raya. */
       vencidoK: c.dias === null ? null : c.vencidoK,
       vencidoFmt: c.dias === null ? null : (c.vencidoK > 0 ? _mK(c.vencidoK) : null),
+      /* lo que debe y AÚN NO VENCE («por vencer», «sin vencer», «vigente»): el saldo menos lo vencido — la misma cuenta que decide el estado
+       * «por_vencer» de abajo, publicada como cifra para que ADI pueda decirla y el Notario verificarla (fase 4, ronda 3). Sin plazo, nulo. */
+      porVencerK: c.dias === null ? null : _r1(Math.max(0, c.saldoK - c.vencidoK)),
+      porVencerFmt: c.dias === null ? null : _mK(_r1(Math.max(0, c.saldoK - c.vencidoK))),
       recuperadoPct: _pct(c.abonadoK, c.ventaK), recuperadoFmt: `${_pct(c.abonadoK, c.ventaK)}%`,
       /* ⚠️ EL PLAZO VIAJA FORMATEADO, y no es un capricho de estilo. La tabla escribía `{f.diasCredito}d`, así
        * que sin plazo declarado la celda mostraba una «d» suelta — una unidad sin número. Formatear acá es
@@ -371,6 +375,7 @@ export function buildMesaFlujo(scenario = ESCENARIO_INICIAL) {
       abonadoK, abonadoFmt: _mK(abonadoK),
       saldoK, saldoFmt: _mK(saldoK),
       vencidoK, vencidoFmt: vencidoK > 0 ? _mK(vencidoK) : null,
+      porVencerK: _r1(Math.max(0, saldoK - vencidoK)), porVencerFmt: _mK(_r1(Math.max(0, saldoK - vencidoK))),
       recuperadoPct: _pct(abonadoK, ventaK), recuperadoFmt: `${_pct(abonadoK, ventaK)}%`,
       /* el plazo va también FORMATEADO: la tabla ya no le pega la unidad a mano, porque el camino de la
          planilla no tiene plazo que mostrar y le quedaba una «d» sola en la celda. */

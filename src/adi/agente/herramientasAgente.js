@@ -491,7 +491,8 @@ export function cuadroSentrix(args = {}, ctx = {}) {
    * cuadro no tiene dueña — el mismo criterio de «Capital frenado · total». */
   for (const c of L.cabecera) _emitir(`${I.cuadro} · ${c.label}`, c.valor, { mandatory: true, entidad: null });
   /* 2 · LAS FILAS — cada cifra con su dueño en el label, la ley de la boleta */
-  for (const f of L.filas) for (const c of f.cifras) _emitir(`${f.nombre} · ${c.label}`, c.valor);
+  /* la PARTICIPACIÓN de una fila lleva su base en el context (Notario semántico, fase 4): «participación en la venta» — la métrica dicha del cuadro */
+  for (const f of L.filas) for (const c of f.cifras) _emitir(`${f.nombre} · ${c.label}`, c.valor, /^(?:participaci[oó]n|acumulado|peso)$/i.test(String(c.label || "")) && I.metricaDicha ? { context: `${_ctx} · ${String(c.label).toLowerCase()} en la ${I.metricaDicha}` } : {});
   /* 2b · CUÁNTAS FILAS LLEVA CADA SEÑAL. Es la cifra de la INTERPRETACIÓN («de 13 cuentas, 4 caen»), y sin
    * autorizarla el muro la mata con razón: un conteo que no corresponde a nada es un conteo inventado. Sale de
    * agrupar las banderas que el módulo ya puso en cada fila — se cuenta su veredicto, no se calcula nada. */

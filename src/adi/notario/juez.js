@@ -15,13 +15,16 @@
  * Puro: sin I/O, sin red. */
 import { extraerCalculos } from "../oracle/narrationBlocks.js";   // el bloque [[CALCULO]] se saca de la prosa antes de juzgar
 import { verificarAfirmaciones } from "./verificar.js";
-import { omisiones, puntosDeAfirmacion } from "./presencia.js";
+import { omisiones, puntosDeAfirmacion, REFERIDA_RE } from "./presencia.js";
 import { normalizarAfirmaciones, normalizar, menosAscii } from "./afirmacion.js";
 import { leerClausula } from "../oracle/lectorDeClausula.js";
-import { metricasEn } from "../oracle/guardC.js";
+import { metricasEn } from "./evidencia.js";   // el del muro + las métricas derivadas de la proyección
+import { leerBase } from "./tasas.js";
+import { ESTADOS_CANON, ESTADO_NOMBRADO_SRC, estadosCompatibles } from "./estados.js";   // el catálogo de estados de la casa
+import { duenosEstructurales } from "./estructura.js";   // tablas, listas y encabezados: el dueño y la columna de cada cifra (ronda adversarial 3)   // «21,5 % sobre el costo»: la base de una tasa no es otra métrica (la juzga el verificador)
 import { parseFigures } from "../boleta.js";
 import { conceptosDe, estadoCanon } from "./evidencia.js";
-const _ESTADOS_CANON = new Set(["inmovilizado", "frenado", "sobrestock", "riesgo de quiebre", "capital sano", "critico"]);
+const _ESTADOS_CANON = ESTADOS_CANON;   // el catálogo de la casa (estados.js)
 import { ubicarFragmento } from "./ubicar.js";   // fase 4: el fragmento declarado se ubica con tolerancia (markdown, comillas, un paréntesis omitido)
 const _PUNTOS = /(\d+(?:[.,]\d+)?)\s+puntos?\b/gi;
 /* las cifras de un tramo: las del canon (parseFigures) + «N puntos» (pp) + los enteros con separador de miles («1.194») como conteos */
@@ -66,7 +69,7 @@ const _VERBO_DIRECCION = /\b(?:crec|ca(?:e|en|y)|sub(?:e|en|i)|baj(?:a|an|ó|aro
  *       menos que») no se declara como el hecho afirmado. */
 const _NEG_CLAUSULA = /\b(?:no|ni|nunca|jam[aá]s|tampoco|ya\s+no|sin|lejos\s+de|dista(?:n|nte)?\s+(?:mucho\s+)?de|bastante\s+menos|mucho\s+menos|ni\s+siquiera|no\s+llega)\b/i;
 /* los estados que pueden convivir en la misma frase sin contradecirse: inmovilizado abarca frenado y sobrestock; «crítico» es la alerta del dato */
-const _ESTADOS_COMPATIBLES = (dicho, enFrag) => dicho === enFrag || (enFrag === "inmovilizado" && (dicho === "frenado" || dicho === "sobrestock")) || (dicho === "inmovilizado" && (enFrag === "frenado" || enFrag === "sobrestock"));
+const _ESTADOS_COMPATIBLES = estadosCompatibles;   // el catálogo (estados.js)
 /* «la que más te está costando», «la peor», «el mayor problema»: un superlativo de daño no dice la dirección de la métrica (más costo = menor margen) */
 const _SUP_INVERSO = /\bm[aá]s\s+(?:te\s+|le\s+|les\s+|nos\s+|se\s+)?(?:est[aá]n?\s+|viene\s+|vienen\s+)?(?:lejos|distante|alej\w*|grave|sever[oa]|cr[ií]tic[oa]|ca[eíy]\w*|baj[a-z]+|retroced\w*|desplom\w*|deterior\w*|empeor\w*|costando|cuesta|cuestan|pierde|pierden|perdiendo|duele|duelen|castiga|castigan|sufre|sufren|rezag\w*|atras\w*|dej[a-z]+\s+(?:sobre\s+la\s+mesa|en\s+el\s+camino|de\s+ganar))\b|\bpeor(?:es)?\b|\bproblema\b/i;
 const _SUP_MAS = /\b(?:(?:el|la|los|las)\s+mejor(?:es)?\b|mejor(?:es)?\s+(?:margen|venta|contribuci|recuperaci|rotaci|cobertura|markup)|m[aá]s\s+(?!baj[oa]|pequeñ|chic|cort|barat|cerca|delgad|lent|d[eé]bil|escas|fin[oa]|estrech|livian|leve)[a-záéíóúñ]+|mayor(?:es)?|encabeza|lidera|primer[oa]?|en\s+cabeza|a\s+la\s+cabeza|(?:el|la|quien)\s+que\s+m[aá]s|top\s*\d)\b/i;
@@ -111,7 +114,7 @@ function _conceptosNombrados(texto, soloPegadoAlFinal = false) {
 const _PERIODO_EN_PROSA = /\b(?:(?:solo\s+|s[oó]lo\s+)?(?:en|de|durante)\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b|(?:el|este|del)\s+(?:primer|segundo|tercer|cuarto|[uú]ltimo)\s+(?:trimestre|semestre)\b|\bq[1-4]\b|(?:la|esta)\s+semana\s+pasada\b|(?:el|este)\s+mes\s+pasado\b|(?:contra|vs\.?|frente\s+a)\s+(?:el\s+|tu\s+|su\s+|mi\s+|nuestro\s+)?(?:presupuesto|ppto|plan)\b|(?:contra|vs\.?|frente\s+a|respecto\s+(?:de|a|al|del))\s+(?:el\s+)?a[ñn]o\s+(?:anterior|pasado)\b|\byoy\b|(?:para|en)\s+el\s+pr[oó]ximo\s+a[ñn]o\b|\ben\s+20\d\d\b)/i;
 const _esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /* lo que precede a una entidad que es REFERENCIA (no dueña): comparadores y exclusiones */
-const _REFERIDA = /(?<![a-záéíóúñ])(?:m[aá]s\s+(?:[a-záéíóúñ]+\s+)?que|menos\s+(?:[a-záéíóúñ]+\s+)?que|mayor(?:es)?\s+que|menor(?:es)?\s+que|mejor(?:es)?\s+que|peor(?:es)?\s+que|igual\s+que|tanto\s+como|tan\s+[a-záéíóúñ]+\s+como|(?:supera|aventaja|adelanta|rebasa|sobrepasa)n?\s+a|contra|vs\.?|frente\s+a|respecto\s+(?:de|a|al)|comparad[oa]s?\s+con|a\s+diferencia\s+de|despu[eé]s\s+de|detr[aá]s\s+de|tras|excepto|salvo|aparte\s+de|adem[aá]s\s+de|sin\s+contar|fuera\s+de|por\s+encima\s+de|por\s+debajo\s+de|delante\s+de)\s+(?:(?:el|la|los|las|a|de|del)\s+)*$/;
+const _REFERIDA = REFERIDA_RE;   // una sola definición (presencia.js)
 function _entidadesEn(texto, nombres) {
   const t = normalizar(texto);
   const out = [];
@@ -129,11 +132,14 @@ function _masCercana(entidades0, pos, fin, oracionN0 = "", ejeDe = null) {
   let oracionN = oracionN0.replace(/—[^—]{1,80}—/g, (m, off) => (pos >= off && pos < off + m.length ? m : " ".repeat(m.length)));
   oracionN = oracionN.replace(/,?\s*(?:y|e|pero)\s+no\s+[a-z0-9][^,;:]{0,40}?(?=,|\s+(?:deja|tiene|debe|vende|acumula|arrastra|queda|es|son|est[aá]))/g, (m) => " ".repeat(m.length));
   const entidadesTodas = entidades0.filter((e) => oracionN.slice(e.pos, e.fin).trim().length);
+  /* «Lider ($4,6M vencidos) lleva 251 días»: el paréntesis pegado a una entidad es su aposición; para una cifra FUERA de él se borra (mismo largo)
+   * y la cláusula sigue con ese sujeto («Sodimac ($1,9M) 269 días» → los 269 son de Sodimac) */
+  oracionN = oracionN.replace(/\(([^()]{1,80})\)/g, (m, inner, off) => { if (pos >= off && pos < off + m.length) return m; return entidadesTodas.some((e) => e.fin <= off && /^\s*$/.test(oracionN.slice(e.fin, off))) ? " ".repeat(m.length) : m; });
   /* la entidad que es REFERENCIA no es dueña de nada: tras un comparador («más severo que Falabella», «contra Lider») o una exclusión («después de
    * Jumbo y Falabella», «salvo Ripley») — y la coordinada con ella */
   const referida = (e, profundidad = 0) => {
     const antesE = oracionN.slice(Math.max(0, e.pos - 40), e.pos);
-    if (_REFERIDA.test(antesE)) return true;
+    if (_REFERIDA.test(antesE) && !(/seguid[oa]s?\s+(?:de|por)\s+(?:(?:el|la|los|las)\s+)?$/.test(antesE) && /^\s+con\s+(?:unos\s+|casi\s+|apenas\s+|solo\s+)?[$\d]|^\s*\(\s*[$\d]|^\s*:\s*[$\d]/.test(oracionN.slice(e.fin, e.fin + 40)))) return true;   // la continuación de una lista con cifra propia («seguido de Valparaíso con $39K») es dueña de la suya
     const mCoord = /(?:,|\s+y|\s+e|\s+o|\s+ni)\s+$/.exec(antesE);
     if (mCoord && profundidad < 4 && (!/^,/.test(mCoord[0]) || /^\s*(?:,|\s+(?:y|e|o|ni)\s)/.test(oracionN.slice(e.fin)))) { const prev = entidadesTodas.filter((o) => o.fin <= e.pos - mCoord[0].length + 1).pop(); if (prev && e.pos - prev.fin <= mCoord[0].length + 1) return referida(prev, profundidad + 1); }   // «Igual que Falabella, Sodimac lleva…»: la coma no coordina si no sigue una lista
     return false;
@@ -150,8 +156,21 @@ function _masCercana(entidades0, pos, fin, oracionN0 = "", ejeDe = null) {
     else { const mAntes = new RegExp("(" + CIF + "(?:\\s*(?:,|y|e)\\s*" + CIF + ")*)\\s*,?\\s*$").exec(oracionN.slice(0, iR)); if (mAntes) lista = { ini: mAntes.index, texto: mAntes[1] }; }
     if (lista) { const cifras = [...lista.texto.matchAll(new RegExp(CIF, "g"))].map((m) => lista.ini + m.index); const k = cifras.indexOf(pos); const base = entidades.filter((e) => e.fin <= lista.ini).slice(-cifras.length); if (k >= 0 && base.length === cifras.length && base[k]) return base[k]; }
   }
+  /* A · «Lider y Falabella deben $4,6M y $2,5M»: tantas cifras coordinadas como entidades coordinadas antes → la k-ésima es de la k-ésima */
+  { const CIF = "[$]?\\d[\\d.,]*\\s?(?:[kmb%]|pp|d|dias)?"; const reL = new RegExp("(" + CIF + ")(?:\\s*,\\s*(?:" + CIF + "))*\\s+(?:y|e)\\s+(?:" + CIF + ")", "g"); let mL;
+    while ((mL = reL.exec(oracionN))) { if (pos >= mL.index && pos < mL.index + mL[0].length) { const lista = [...mL[0].matchAll(new RegExp(CIF, "g"))].map((x) => mL.index + x.index); const k = lista.findIndex((x, i) => pos >= x && (i === lista.length - 1 || pos < lista[i + 1])); const antesL = entidades.filter((e) => e.fin <= mL.index).sort((a, b) => a.pos - b.pos); const run = []; for (let i = antesL.length - 1; i >= 0; i--) { if (!run.length) { run.unshift(antesL[i]); continue; } const entre = oracionN.slice(antesL[i].fin, run[0].pos); if (/^\s*(?:,|\s*(?:y|e|o|ni|como|junto\s+(?:con|a)|as[ií]\s+como)\s+|,\s*(?:y|e|o|ni)\s+)\s*$/.test(entre)) run.unshift(antesL[i]); else break; } if (run.length === lista.length && k >= 0 && run[k]) return run[k]; break; } if (mL.index > pos) break; } }
+  /* C · «Los $4,6M más viejos del vencido, la deuda de Falabella, son el foco»: la aposición tras la cifra nombra al dueño */
+  { const AP = /^[^,;:.]{0,40},\s*(?:(?:la|el|los|las|tod[oa]s?|es\s+decir|o\s+sea)\s+)?(?:[a-záéíóúñ]+\s+){0,3}(?:de|del)\s+$/; const e = entidades.find((x) => x.pos > fin && x.pos - fin <= 70 && AP.test(oracionN.slice(fin, x.pos)) && /^\s*[,.;]/.test(oracionN.slice(x.fin, x.fin + 2))); if (e) return e; }
+  /* E · «Lider y Falabella: la segunda debe $4,6M»: el ordinal apunta a la lista que precede a los dos puntos */
+  { const mOrd = /(?:^|[:;.])\s*(?:la|el)\s+(primer[ao]|segund[ao]|tercer[ao]|cuart[ao]|quint[ao]|[uú]ltim[ao])\b[^,;:.]{0,40}$/.exec(oracionN.slice(0, pos));
+    if (mOrd) { const iDos = oracionN.lastIndexOf(":", pos); const lista = entidadesTodas.filter((e) => e.fin <= (iDos >= 0 ? iDos : pos)).slice(-6); if (lista.length >= 2) { const idx = ({ primer: 0, segund: 1, tercer: 2, cuart: 3, quint: 4 })[mOrd[1].slice(0, mOrd[1].length - 1)]; const e = /ultim/.test(mOrd[1]) ? lista[lista.length - 1] : lista[idx]; if (e) return e; } } }
   /* «$2,5M de Lider», «$52K en Jumbo»: la entidad pegada después con «de»/«en» es la dueña — salvo una bodega tras «en» («en Antofagasta» es un lugar) */
+  /* «$4,6M vencidos: Falabella» / «22,0%: ese es el margen de Lider»: la entidad tras los dos puntos que cierran la cláusula de la cifra es la dueña */
+  { const iDos = oracionN.indexOf(":", fin); if (iDos >= 0 && !/[;:—()•·,]/.test(oracionN.slice(fin, iDos))) { const e = entidades.find((x) => x.pos > iDos && /^\s*(?:(?:es|era|ese|esa|este|esta|el|la|lo)\s+(?:es\s+)?(?:el\s+|la\s+)?(?:[a-záéíóúñ]+\s+){0,3}(?:de\s+)?)?$/.test(oracionN.slice(iDos + 1, x.pos)) && /^\s*(?:[.,;]|$)/.test(oracionN.slice(x.fin, x.fin + 3))); if (e) return e; } }
   const tras = oracionN.slice(fin, fin + 40);
+  /* «el 55 % de lo frenado en Valparaíso»: la entidad que cierra una expresión de BASE no es dueña de la cifra */
+  const _BASE_TRAS = /^\s*(?:,\s*)?(?:de|del|sobre)\s+(?:lo|la|el|los|las|su|sus|todo\s+el|toda\s+la)\s+[a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){0,2}\s+(?:en|de|del)\s+$/;
+  const enBase = (e) => e.pos > fin && _BASE_TRAS.test(oracionN.slice(fin, e.pos));
   const mDe = /^\s*(?:,\s*)?(de|del|en)\s+/.exec(tras);
   if (mDe) { const e = entidades.find((x) => x.pos === fin + mDe[0].length || (x.pos > fin && x.pos <= fin + mDe[0].length + 1)); if (e && !(mDe[1] === "en" && typeof ejeDe === "function" && ejeDe(e.nombre) === "bodega")) return e; }
   /* dentro de un paréntesis, el dueño es quien va justo antes del «(»: «MAK-COMP-AIR ($8K, 190 días, en Antofagasta)» */
@@ -162,6 +181,12 @@ function _masCercana(entidades0, pos, fin, oracionN0 = "", ejeDe = null) {
   if (abre >= 0 && abre > cierra && !/\b(?:es|era|esta|estan|son|fue|tiene|tienen|nivel|referencia|benchmark|umbral)\b/.test(dentro)) { const antesDelParentesis = entidades.filter((e) => e.fin <= abre); if (antesDelParentesis.length && abre - antesDelParentesis[antesDelParentesis.length - 1].fin <= 3) return antesDelParentesis[antesDelParentesis.length - 1]; }
   /* la cláusula de la cifra: entre ; : — ( ) o viñetas */
   const iniC = Math.max(...[";", ":", "—", "(", ")", "•", "·"].map((c) => oracionN.lastIndexOf(c, pos)), -1) + 1;
+  /* G · «…, menos que Falabella; la contribución no capturada es $1,6M»: la cláusula continuada sin entidad y con sujeto de métrica es del sujeto de la anterior */
+  if (iniC > 0 && oracionN[iniC - 1] === ";" && !entidades.some((e) => e.pos >= iniC && e.fin <= pos) && /^\s*(?:y\s+|pero\s+)?(?:su|sus|la|el|los|las)\s+[a-záéíóúñ ]{3,40}?\s+(?:es|son|queda|quedan|llega|llegan|suma|suman|alcanza|alcanzan|fue|fueron|est[aá]|est[aá]n)\s+(?:de\s+|a\s+|en\s+)?$/.test(oracionN.slice(iniC, pos))) {
+    const iniPrev = Math.max(...[";", ":", "—", "(", ")", "•", "·"].map((c) => oracionN.lastIndexOf(c, iniC - 2)), -1) + 1;
+    const prev = entidades.filter((e) => e.pos >= iniPrev && e.fin <= iniC - 1);
+    if (prev.length) return prev[0];
+  }
   /* «Lider: 5.0 pp bajo el benchmark», «Lider — 22,0%»: la entidad pegada al separador que abre la cláusula es la cabeza, y dueña */
   { const cabeza = entidades.filter((e) => e.fin <= pos && /^\s*(?:[:—·]|-\s)\s*$/.test(oracionN.slice(e.fin, iniC)) && !/(?:,|\s+(?:y|e|o|ni|con|entre|sin))\s+$/.test(oracionN.slice(Math.max(0, e.pos - 8), e.pos)) && !entidades.some((o) => o.pos >= iniC && o.fin <= pos)); if (cabeza.length) return cabeza[cabeza.length - 1]; }
   let finC = Math.min(...[";", ":", "—", "(", ")", "•", "·"].map((c) => { const i = oracionN.indexOf(c, fin); return i < 0 ? Infinity : i; }));
@@ -172,7 +197,7 @@ function _masCercana(entidades0, pos, fin, oracionN0 = "", ejeDe = null) {
   /* «LG-DRYER8KG está frenado en Valparaíso con $14K»: la bodega dicha como lugar («en …») no es dueña si antes va otra entidad en la cláusula */
   const antesSinLugar = antes.filter((e) => !(typeof ejeDe === "function" && ejeDe(e.nombre) === "bodega" && /\b(?:en|desde|hacia)\s+(?:la\s+bodega\s+)?$/.test(oracionN.slice(Math.max(0, e.pos - 14), e.pos)) && antes.some((o) => o !== e && ejeDe(o.nombre) !== "bodega")));
   if (antesSinLugar.length) return antesSinLugar[antesSinLugar.length - 1];
-  const despues = enClausula.filter((e) => e.pos >= fin);
+  const despues = enClausula.filter((e) => e.pos >= fin && !enBase(e));
   /* después de la cifra solo cuenta si viene pegada («22,0% de margen tiene Lider» no; «$4,6M vencidos de Lider» sí) — a ≤ 12 caracteres */
   /* «22% vs 24% de Jumbo»: si entre la cifra y la entidad de después hay otra cifra o un comparador, la entidad es de la otra cifra */
   /* «$4,6M vencidos de Lider», «22,0% de margen tiene Lider»: hasta 30 caracteres sin otra cifra, coma ni conector («y», «contra», «con», «que»…) */
@@ -236,6 +261,7 @@ export function consistencia(prosa, afirmaciones, { nombres = [], ejeDe = null }
   const out = [];
   const norm = normalizarAfirmaciones(afirmaciones);
   const nombresLimpios = (nombres || []).filter((n) => typeof n === "string" && n.trim());
+  const tramosEstructura = (() => { try { return duenosEstructurales(s, nombresLimpios); } catch { return []; } })();
   for (const { afirmacion: a } of norm) {
     if (!a.texto) continue;
     const u = ubicarFragmento(s, a.texto, { nombres: nombresLimpios });
@@ -252,6 +278,25 @@ export function consistencia(prosa, afirmaciones, { nombres = [], ejeDe = null }
     const entidades = _entidadesEn(oracion, nombresLimpios);
     const sujetoDecl = _sujetoDecl(a);
     const vsDecl = a.relacion && a.relacion.vs && typeof a.relacion.vs.sujeto === "string" && a.relacion.vs.sujeto !== "negocio" ? normalizar(a.relacion.vs.sujeto) : null;
+    /* (0) LA ESTRUCTURA MANDA: una cifra en una celda, una sub-viñeta o bajo un encabezado tiene el dueño (y la columna) que la estructura le da */
+    if (a.tipo === "cifra" && a.valor && a.valor.texto && sujetoDecl && tramosEstructura.length) {
+      const vN = _dec(normalizar(a.valor.texto)).replace(/\s+/g, " ");
+      /* la celda numérica sin unidad («| 251 |» declarada «251d»): se busca también el número pelado */
+      let off = fragN.indexOf(vN);
+      if (off < 0) { const num = vN.replace(/\s*(?:[kmb%]|pp|d|dias?)$/i, ""); if (num) { const esc = num.replace(/[.*+?^$()|[\]\\]/g, "\\$&"); off = fragN.search(new RegExp("(?<![\\d.,])" + esc + "(?![\\d.,])")); } }
+      if (off < 0) off = 0;
+      const posCifra = posOrig + off;
+      const tramo = tramosEstructura.find((t) => t.dueno && posCifra >= t.ini && posCifra < t.fin);
+      if (tramo) {
+        const d = normalizar(tramo.dueno);
+        if (d !== sujetoDecl && !d.includes(sujetoDecl) && !sujetoDecl.includes(d) && d !== vsDecl) { out.push({ id: a.id, motivo: `declaracion-inconsistente: en la ${tramo.tipo === "tabla" ? "tabla" : tramo.tipo === "lista" ? "lista" : "sección"} la cifra ${a.valor.texto} es de ${tramo.dueno} y la declaración dice ${a.sujeto}`, texto: a.texto }); continue; }
+        if (tramo.metrica && a.metrica) {
+          const kc = new Set([...metricasEn(normalizar(tramo.metrica))].filter((k) => k !== "participacion" && k !== "variacion"));
+          const kd = new Set([...metricasEn(normalizar(String(a.metrica).split(/\s*[:·]\s*/)[0]))].filter((k) => k !== "participacion" && k !== "variacion"));
+          if (kc.size && kd.size && ![...kc].some((k) => kd.has(k)) && !([...kc].every((k) => /^(?:pendiente|vencido|abonado)$/.test(k)) && [...kd].some((k) => /^(?:pendiente|vencido|abonado)$/.test(k)))) out.push({ id: a.id, motivo: `declaracion-inconsistente: la columna «${tramo.metrica}» no es «${a.metrica}»`, texto: a.texto });
+        }
+      }
+    }
     const valores = [a.valor, a.variacion && a.variacion.valor, a.relacion && a.relacion.valor].filter((v) => v && v.canon);
     /* (a) la cifra declarada tiene que estar en la frase (misma cifra: el canon), si la frase trae cifras */
     if (valores.length) {
@@ -274,7 +319,10 @@ export function consistencia(prosa, afirmaciones, { nombres = [], ejeDe = null }
         const cerca = _masCercana(entidades, p, p + String(a.valor.texto).length, oracionN, ejeDe);
         /* «el resto está en Antofagasta con MAK-COMP-AIR ($8K)»: una bodega y un SKU nombrados en la misma oración pueden compartir la cifra */
         const comparten = cerca && sujetoDecl && typeof ejeDe === "function" && oracionN.includes(sujetoDecl) && (() => { const e1 = ejeDe(cerca.nombre), e2 = ejeDe(sujetoDecl); return (e1 === "bodega" && e2 === "sku") || (e1 === "sku" && e2 === "bodega"); })();
-        if (cerca && sujetoDecl && cerca.nombre !== sujetoDecl && !sujetoDecl.includes(cerca.nombre) && !cerca.nombre.includes(sujetoDecl) && !comparten) out.push({ id: a.id, motivo: `declaracion-inconsistente: la cifra ${a.valor.texto} va junto a ${cerca.nombre} en la frase y la declaración dice ${a.sujeto}`, texto: a.texto });
+        /* el sujeto coordinado con el más cercano («Falabella y Tottus llevan los mismos 8 días», «Lider junto con Falabella dejan 22,0 %») comparte la cifra */
+        const coordinados = cerca ? (() => { const run = [cerca]; const orden = [...entidades].sort((x, y) => x.pos - y.pos); const COORD = /^\s*(?:,|\s*(?:y|e|o|ni|como|junto\s+(?:con|a)|as[ií]\s+como|y\s+tambi[eé]n|al\s+igual\s+que)\s+|,\s*(?:y|e|o|ni|as[ií]\s+como|junto\s+(?:con|a)|al\s+igual\s+que)\s+)\s*,?\s*$/; let i = orden.indexOf(cerca); for (let k = i - 1; k >= 0; k--) { if (COORD.test(oracionN.slice(orden[k].fin, run[0].pos))) run.unshift(orden[k]); else break; } for (let k = i + 1; k < orden.length; k++) { if (orden[k].pos <= p && COORD.test(oracionN.slice(run[run.length - 1].fin, orden[k].pos))) run.push(orden[k]); else break; } return run.map((e) => e.nombre); })() : [];
+        const compartida = cerca && sujetoDecl && coordinados.length > 1 && coordinados.some((n) => n === sujetoDecl || n.includes(sujetoDecl) || sujetoDecl.includes(n));
+        if (cerca && sujetoDecl && cerca.nombre !== sujetoDecl && !sujetoDecl.includes(cerca.nombre) && !cerca.nombre.includes(sujetoDecl) && !comparten && !compartida) out.push({ id: a.id, motivo: `declaracion-inconsistente: la cifra ${a.valor.texto} va junto a ${cerca.nombre} en la frase y la declaración dice ${a.sujeto}`, texto: a.texto });
         /* la excepción «comparten» deja una lectura alternativa (la cifra como del que la frase nombra) que el juez verifica con la boleta */
         if (cerca && sujetoDecl && comparten && cerca.nombre !== sujetoDecl) out.push({ id: a.id, alternativa: { tipo: "cifra", sujeto: cerca.nombre, metrica: a.metrica, valor: a.valor.texto, texto: a.texto }, motivo: `declaracion-inconsistente: la cifra ${a.valor.texto} va junto a ${cerca.nombre} en la frase y la declaración dice ${a.sujeto}`, texto: a.texto });
         /* una referencia o un partitivo junto a la cuenta («sobre el nivel de 3,5%», «$25K de los $33K frenados») no es una cifra de la cuenta */
@@ -285,7 +333,8 @@ export function consistencia(prosa, afirmaciones, { nombres = [], ejeDe = null }
     }
     if (entidades.length >= 2 && a.tipo === "relacion" && a.valor && a.valor.texto) {
       const figsV = parseFigures(String(a.valor.texto)).map((x) => ({ x, i: String(a.valor.texto).indexOf(x.text) })).sort((x, y) => x.i - y.i).map((x) => x.x);
-      if (figsV.length === 2) {
+      /* «8d vs 8d» sobre «Falabella y Tottus llevan los mismos 8 días»: las dos cifras del valor son la MISMA cifra compartida — no hay lados que cruzar */
+      if (figsV.length === 2 && !(figsV[0].canon === figsV[1].canon && _cifrasDe(oracion).filter((c) => c.canon === figsV[0].canon.replace(/$/g, "")).length < 2)) {
         const pA = _posDeCifra(oracionN, { texto: figsV[0].text, raw: figsV[0].raw, unidad: figsV[0].unit }, fragN, sujetoDecl), pB = _posDeCifra(oracionN, { texto: figsV[1].text, raw: figsV[1].raw, unidad: figsV[1].unit }, fragN, vsDecl);
         const cA = pA >= 0 ? _masCercana(entidades, pA, pA + figsV[0].text.length, oracionN, ejeDe) : null, cB = pB >= 0 ? _masCercana(entidades, pB, pB + figsV[1].text.length, oracionN, ejeDe) : null;
         if (cA && sujetoDecl && cA.nombre !== sujetoDecl && !sujetoDecl.includes(cA.nombre)) out.push({ id: a.id, motivo: `declaracion-inconsistente: en la frase ${figsV[0].text} va junto a ${cA.nombre}, no a ${a.sujeto}`, texto: a.texto });
@@ -324,7 +373,11 @@ export function consistencia(prosa, afirmaciones, { nombres = [], ejeDe = null }
       /* el POSTFIJO de la cifra: «22,0% de carga comercial», «$4,6M vencidos», «269 días de atraso» — hasta 30 caracteres, sin cruzar una coma o un paréntesis */
       let postfijo = [], prefijo = [], junto = "", conceptoAntes = "", conceptoTras = "";   // el postfijo se lee CON la cifra: «58d de inventario» es cobertura, «$4,6M vencidos» es vencido
       if (a.valor && a.valor.texto) { const p = _posDeCifra(oracionN, a.valor, fragN, sujetoDecl); if (p >= 0) { const largo = _dec(normalizar(a.valor.texto)).length; const tras = oracionN.slice(p, p + largo + 30).split(_CORTE_JUNTO)[0] || ""; const antes = oracionN.slice(Math.max(0, p - 30), p).split(_CORTE_JUNTO).pop() || ""; postfijo = limpia(metricasEn(tras)); prefijo = limpia(metricasEn(antes)); junto = antes + " " + tras; conceptoAntes = (oracionN.slice(Math.max(0, p - 40), p).split(/[,;:()—·]|\d/).pop() || "").replace(/precio\s*[\/-]\s*costo/g, "precio y costo"); conceptoTras = (oracionN.slice(p + largo, p + largo + 45).split(/[,;:()—·]|\d|\s+con\s+|\b(?:uno?|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|veinte|veinti\w+|dieci\w+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien(?:to)?|medio|media)\b/)[0] || "").replace(/precio\s*[\/-]\s*costo/g, "precio y costo"); } }
-      const enFrag = limpia(metricasEn(a.texto));
+      /* la BASE dicha junto a una tasa («45 % de su saldo pendiente», «21,5 % sobre el costo») no es otra métrica: la contrasta el verificador
+       * (tasas.js); acá se descuentan sus claves para que la cifra se lea por su métrica */
+      const baseTras = a.valor && a.valor.texto && a.valor.unidad === "pct" ? (() => { try { return leerBase(a.texto, a.valor.texto, { metrica: a.metrica }); } catch { return null; } })() : null;
+      if (baseTras && baseTras.claves && baseTras.claves.size) { postfijo = postfijo.filter((k) => !baseTras.claves.has(k)); }
+      const enFrag = limpia(metricasEn(a.texto)).filter((k) => !(baseTras && baseTras.claves && baseTras.claves.has(k)));
       /* un fragmento con VARIAS cifras («LG-DRYER8KG ($14K, 165 días de cobertura, rotación 1x)») reparte sus métricas entre ellas: solo cuentan las
        * palabras pegadas a la cifra declarada */
       const cifrasDelFragmento = _cifrasDe(a.texto).filter((c) => c.unit !== "count").length;   // «brecha de 5,9 puntos» también es una cifra
@@ -345,8 +398,12 @@ export function consistencia(prosa, afirmaciones, { nombres = [], ejeDe = null }
         const decl = new Set([...metricasEn(cabezaMetrica)].filter((k) => k !== "participacion"));
         for (const c of conceptosDe(cabezaMetrica)) { for (const k of metricasEn(c)) decl.add(k); for (const k of (_CLAVES_DEL_CONCEPTO[c] || [])) decl.add(k); }
         for (const k of (_CLAVES_DEL_CONCEPTO[cabezaMetrica] || [])) decl.add(k);
-        const cruza = decl.size === 0 || enFrase.some((k) => decl.has(k)) || ((decl.has("variacion") || decl.has("ventas")) && _VERBO_DIRECCION.test(a.texto)) || (a.tipo === "variacion" && enFrase.every((k) => k === "ventas" || k === "variacion"));
-        if (!cruza) out.push({ id: a.id, motivo: `declaracion-inconsistente: la frase «${a.texto.slice(0, 60)}» habla de ${enFrase.join("/")} y la declaración dice «${a.metrica}»`, texto: a.texto });
+        /* la métrica PEGADA a la cifra manda («debe $9,8M vencidos»: la cifra es de lo vencido aunque «debe» sea palabra del pendiente); solo sin
+         * palabra pegada decide el resto del fragmento */
+        const _limpiaK = (ks) => [...new Set(ks)].filter((k) => k !== "participacion" && k !== "variacion");
+        const pegadas = a.tipo === "cifra" && !variasCifras ? (_limpiaK(postfijo).length ? _limpiaK(postfijo) : _limpiaK(prefijo)) : [];   // el POSTFIJO («$9,8M vencidos») antes que el prefijo («debe»): el sustantivo pegado nombra la cifra
+        const cruza = decl.size === 0 || (pegadas.length ? pegadas.some((k) => decl.has(k)) : enFrase.some((k) => decl.has(k))) || ((decl.has("variacion") || decl.has("ventas")) && _VERBO_DIRECCION.test(a.texto)) || (a.tipo === "variacion" && enFrase.every((k) => k === "ventas" || k === "variacion"));
+        if (!cruza) out.push({ id: a.id, motivo: `declaracion-inconsistente: la frase «${a.texto.slice(0, 60)}» habla de ${(pegadas.length ? pegadas : enFrase).join("/")} y la declaración dice «${a.metrica}»`, texto: a.texto });
       }
     }
     /* (p) el PERÍODO dicho en la prosa («solo en marzo», «el trimestre pasado», «contra el presupuesto») tiene que estar en la declaración */
@@ -424,7 +481,7 @@ export function consistencia(prosa, afirmaciones, { nombres = [], ejeDe = null }
       if (m) { const antes = entidades.filter((e) => e.fin <= m.index), despues = entidades.filter((e) => e.pos >= m.index + m[0].length); const eA = antes[antes.length - 1], eB = despues[0]; if (eA && eB && eA.nombre === vsO && eB.nombre === sujetoDecl) out.push({ id: a.id, motivo: `declaracion-inconsistente: en la frase ${eA.nombre} ${m[0]} ${eB.nombre}; la declaración pone los lados al revés`, texto: a.texto }); }
     }
     if (a.tipo === "relacion" && a.relacion && /^(?:veces|fraccion|parte)$/.test(String(a.relacion.forma)) && sujetoDecl && vsDecl && entidades.length >= 2) {
-      const m = /\b(?:el\s+doble|el\s+triple|la\s+mitad|un\s+tercio|(?:\d+(?:[.,]\d+)?|dos|tres|cuatro|cinco|seis|diez)\s+veces)\s+(?:que|de|de\s+lo\s+que)\b/.exec(oracionN);
+      const m = /\b(?:el\s+doble|el\s+triple|la\s+mitad|un\s+tercio|(?:\d+(?:[.,]\d+)?|dos|tres|cuatro|cinco|seis|diez)\s+veces)\s+(?:que|de|de\s+lo\s+que|lo\s+que)\b|\b(?:duplica|dobla|triplica|cuadruplica)\s+(?:lo|el|la|los|las)\s+[a-záéíóúñ ]{0,30}?\s+(?:de|del|que)\b/.exec(oracionN);
       if (m) { const antes = entidades.filter((e) => e.fin <= m.index), despues = entidades.filter((e) => e.pos >= m.index + m[0].length); const eA = antes[antes.length - 1], eB = despues[0]; if (eA && eB && eA.nombre === vsDecl && eB.nombre === sujetoDecl) out.push({ id: a.id, motivo: `declaracion-inconsistente: en la frase ${eA.nombre} es ${m[0]} ${eB.nombre}; la declaración pone los lados al revés`, texto: a.texto }); }
     }
     /* un top-k con sujetos declarados: los nombrados en el fragmento tienen que ser esos */
@@ -449,8 +506,8 @@ export function consistencia(prosa, afirmaciones, { nombres = [], ejeDe = null }
       /* con varias entidades en el fragmento, el estado que cuenta es el del TRAMO del sujeto («LG-DRYER8KG (…, crítico) y BOS-SANDER (…)» no pone «crítico» a BOS-SANDER) */
       const entsFrag = _entidadesEn(a.texto, nombresLimpios);
       const tramo = (() => { if (!sujetoDecl || entsFrag.length < 2) return fragN; const yo = entsFrag.find((e) => e.nombre === sujetoDecl); if (!yo) return fragN; const sig = entsFrag.find((e) => e.pos > yo.fin && e.nombre !== sujetoDecl); return fragN.slice(yo.pos, sig ? sig.pos : fragN.length); })();
-      const enFrag = [...new Set([...tramo.matchAll(/inmoviliz\w*|deten\w*|parad\w*|frenad\w*|sobrestock|quiebre|san[oa]s?\b|cr[ií]tic\w*/g)].map((m) => estadoCanon(m[0])))].filter((e) => _ESTADOS_CANON.has(e));
-      if (enFrag.length && !enFrag.some((e) => _ESTADOS_COMPATIBLES(dicho, e))) out.push({ id: a.id, motivo: `declaracion-inconsistente: la frase dice «${enFrag.join("/")}» y la declaración pone el estado «${a.estado.estado}»`, texto: a.texto });
+      const enFrag = [...new Set([...tramo.matchAll(new RegExp(ESTADO_NOMBRADO_SRC, "g"))].map((m) => estadoCanon(m[0])))].filter((e) => _ESTADOS_CANON.has(e));
+      if (enFrag.length && !enFrag.some((e) => estadosCompatibles(dicho, e))) out.push({ id: a.id, motivo: `declaracion-inconsistente: la frase dice «${enFrag.join("/")}» y la declaración pone el estado «${a.estado.estado}»`, texto: a.texto });
       /* la BODEGA de la prosa («frenado en Antofagasta») tiene que ser la declarada; sin bodega declarada y con bodega en la frase, falta */
       if (typeof ejeDe === "function") {
         const bodegaProsa = _bodegaDeLaProsa(a.texto, oracion, nombresLimpios, ejeDe);
@@ -537,7 +594,14 @@ function _asistible(g, oracion, s, p, nombres) {
   /* una clave de OTRO concepto en la oración («recuperó $1.9M» para un saldo vencido) tampoco */
   if (claves.length && enOracion.length && !enOracion.some((k) => claves.includes(k)) && !nombradoLiteral) return false;
   const ents = _entidadesEn(oracion, nombres || []);
-  if (g.entidad) { const e = normalizar(g.entidad); if (!ents.some((x) => x.nombre === e || x.nombre.includes(e) || e.includes(x.nombre))) return false; }
+  if (g.entidad) {
+    const e = normalizar(g.entidad);
+    if (!ents.some((x) => x.nombre === e || x.nombre.includes(e) || e.includes(x.nombre))) return false;
+    /* H · la entidad tiene que ser la DUEÑA de la cifra en la oración (la misma regla del juez), no una solo nombrada («Entre Lider, Jumbo y
+     * Sodimac, la cuenta con menos margen deja 23,5 %»: nadie es dueño; «Lider debe $4,6M»: Lider) */
+    const p0 = _posDeCifra(oN, { texto: p.span, raw: p.raw, unidad: p.unit }, "", e);
+    if (p0 >= 0) { let cerca = null; try { cerca = _masCercana(ents, p0, p0 + _dec(normalizar(p.span)).length, oN); } catch { cerca = null; } if (!cerca) return ents.length === 1; if (!(cerca.nombre === e || cerca.nombre.includes(e) || e.includes(cerca.nombre))) return false; }
+  }
   else if (ents.length && !/\b(?:total(?:es)?|negocio|cartera|en\s+conjunto|entre\s+tod[oa]s|tod[oa]s\s+(?:las|los)|el\s+conjunto)\b/.test(oN)) return false;
   return true;
 }

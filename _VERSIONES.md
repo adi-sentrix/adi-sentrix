@@ -242,6 +242,31 @@ dueño; «las 3 SKU del cuadro»; «el negocio está sano»; un heredoc que dej�
 composer tocado. Suite 268/268 · 0 red. Sigue: la ronda 3 sobre esta versión y, si sobrevive, la estimación de la certificación viva (gasto a
 nombrar). `_NOTARIO_SEMANTICO_FASE4_DISENO.md` §13.
 
+**El Notario semántico — fase 4, ronda adversarial 3 y su cierre de raíz (2026-09-17, offline; sin corridas ni deploy).** Seis ángulos nuevos
+(cobranza, inventario, marcas/familias, «¿Cómo va el negocio?», tablas y listas) atacaron la versión que cerró las rondas 1 y 2: 860 casos, 100
+roturas confirmadas por el escéptico, y la respuesta honesta al owner fue que todavía no eran bordes: 80 caían en seis familias de DISEÑO. El owner
+aprobó cerrarlas de raíz antes de cualquier certificación viva, sin parches por frase: «cada corrección tiene que resolver la familia de significado
+completa». Lo que quedó como mecanismo de la casa: (1) la BASE de un porcentaje (`src/adi/notario/tasas.js`: catálogo de tasas con base y numerador;
+el resolutor lee la base dicha junto a la cifra; el verificador la contrasta, la calcula con las cifras de la boleta o la dicta falsa; el ledger y el
+cuadro estampan la base de toda participación); (2) los ESTADOS con definición empresarial verificable (`estados.js`: inventario y cobranza —«al
+día» = saldo vencido 0, «en mora», «sin deuda», «sin pagos»— con sus formas, su contrario y sus dueños coordinados; «saldo por vencer» = pendiente −
+vencido, calculado por la mesa y publicado por la proyección); (3) el VALOR de un orden, relación, conteo o variación es comprobante (un valor que
+no es de la casa hace falsa la declaración); (4) universos NEGADOS y EXCLUIDOS y umbrales numéricos como conjuntos reales (el sujeto fuera del
+conjunto es falso); (5) el DUEÑO en la estructura (`estructura.js`: tablas markdown y transpuestas, listas anidadas, encabezados) y en la gramática
+(sujeto coordinado con reparto distributivo, aposiciones, elipsis, anáfora ordinal, doble negación, cláusula continuada, «cifra: Entidad», la base
+no es dueña, una sola definición de la entidad de referencia); (6) la ENVOLTURA por significado (misma métrica —con los puentes de la casa— y mismo
+sujeto; «más + adjetivo» es superlativo; los verbos de secuencia son orden; «juntos» compara la suma; el entero pelado y la duración son puntos) y
+la poda que no deja huérfanas a las oraciones dependientes. Medido: ronda 3 0/100, los 5 hechos verdaderos que los atacantes vieron bloqueados se
+sirven, `_notario_adversarial_gate` 328 (69 + 91 + 100 roturas, 23 + 16 + 29 controles), `_notario_semantico_gate` 31, `_resolutor_gate` 45,
+`_notario_semantico_flujo_gate` 45 con la línea base de 20 omisiones intacta. La suite completa destapó 18 gates rojos por falsos positivos de
+las reglas nuevas sobre los composers y guiones (el verbo de la casa «caer» = bajo el benchmark; «los que caen» como nombre de grupo; «12 SKU
+venden por debajo del benchmark»; «convierte mejor cada peso vendido»; el superlativo tras una preposición nombra un grupo; «25,1 % contra un
+benchmark» y «sobre los $92,9M» no son bases; «24 % de Jumbo» es dueño; el calificador de un subtotal no es un conjunto; la participación del cuadro
+vale por la base de su cuadro): todos cerrados en el Notario, ningún composer tocado (crucePorSku se probó y se revirtió). Suite 268/268 · 0 red.
+Decisión de producto abierta: exigir que la prosa diga la base de toda participación («41 % del capital frenado») — hoy vale por la de su cuadro.
+Sigue: la ronda 4 (formas nuevas y cruces Comercial · Cobranza · Inventario) y, si sobrevive con bordes, la estimación de la certificación viva
+(gasto a nombrar). `_NOTARIO_SEMANTICO_FASE4_DISENO.md` §14-15.
+
 
 ---
 
