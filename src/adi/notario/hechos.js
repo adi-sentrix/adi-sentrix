@@ -18,8 +18,8 @@ import { verificarAfirmaciones, conjuntoDeUniverso, valorDeRanking } from "./ver
 import { indiceDeEvidencia, mismoValor, unidadCompatible } from "./evidencia.js";
 import { normalizar, menosAscii, leerValor } from "./afirmacion.js";
 import { parsearLineasDeBloque, MARCA_FIN } from "./declaracion.js";
-import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO } from "./lexico.js";
-import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON, estadosEn } from "./estados.js";
+import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO, opDe } from "./lexico.js";
+import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON, estadosEn, estadoDeclarado, ejeCompatible, COMPLEMENTO_V3 } from "./estados.js";
 
 export const MARCA_HECHOS = "<<HECHOS>>";
 export const TIPOS_DE_HECHO = ["ref", "cifra", "orden", "relacion", "grupo", "conteo", "variacion", "estado", "razon", "derivada", "propuesta", "lectura"];
@@ -114,7 +114,11 @@ export function nombrarUniverso(u, I = null) {
 function _figPorId(I, id) {
   const k = String(id || "").trim();
   if (!k) return null;
-  return I.figs.find((f) => f.fig && String(f.fig.id || "") === k) || I.figs.find((f) => normalizar(f.label) === normalizar(k)) || null;
+  const kl = k.toLowerCase();
+  const porId = I.figs.find((f) => f.fig && String(f.fig.id || "").toLowerCase() === kl) || null;
+  if (porId) return porId;
+  if (/^\d+$/.test(k)) { const cands = I.figs.filter((f) => f.fig && /^[a-z]+\d+$/i.test(String(f.fig.id || "")) && String(f.fig.id).replace(/^[a-z]+/i, "") === k); if (cands.length === 1) return cands[0]; }
+  return I.figs.find((f) => normalizar(f.label) === normalizar(k)) || null;
 }
 function _figDe(I, sujeto, clave, unidad = null) {
   const nombre = metricaDeClave(clave);
@@ -122,6 +126,7 @@ function _figDe(I, sujeto, clave, unidad = null) {
   try { fs = I.buscarFigs(sujeto, nombre, { agregados: sujeto === "negocio" }); } catch { fs = []; }
   if (unidad) { const mu = fs.filter((f) => _u(f.unidad) === _u(unidad)); if (mu.length) fs = mu; }
   /* el todo del negocio: «· total» primero; nunca un subtotal si hay total */
+  if (sujeto === "negocio") { fs = fs.filter((f) => !/resto de|subtotal|\(\d+ de \d+\)/.test(f.conceptoNorm + " " + normalizar(f.label || ""))); }   // el negocio nunca es un «Resto de…» ni un subtotal parcial (ronda 5, VE R01)
   if (sujeto === "negocio" && fs.length > 1) { const t = fs.find((f) => /(?:^|· )total$/.test(f.conceptoNorm)); if (t) return t; const sinParte = fs.filter((f) => !/resto de|subtotal/.test(f.conceptoNorm)); if (sinParte.length) return sinParte.find((f) => !f.agregado) || sinParte[0]; }
   if (fs.length) return fs.find((f) => !f.agregado) || fs[0];
   /* la proyección (ranking con cifra impresa o unidad sin escala ambigua) cuando la boleta no trae la fig */
@@ -129,10 +134,20 @@ function _figDe(I, sujeto, clave, unidad = null) {
   if (rk) return { label: rk.label, texto: rk.texto, raw: rk.raw, unidad: rk.unidad, entidad: sujeto, concepto: nombre, conceptoNorm: normalizar(nombre), deRanking: true, fig: { id: null, value: rk.texto } };
   return null;
 }
-const _operando = (I, x) => {
+/* un operando por id de HECHO del libro (h1): la fig de su evidencia, o el hecho calculado como operando */
+const _operandoDeHecho = (I, libro, id) => {
+  const Hh = libro && libro.porId ? libro.porId.get(String(id)) : null;
+  if (!Hh || !Hh.ok) return null;
+  if (Hh.tipo === "derivada" && Hh.resultado && Number.isFinite(Hh.resultado.raw)) { const clave = [...Hh.claves][0] || null; return { label: Hh.id, texto: Hh.resultado.texto || "", raw: Hh.resultado.raw, unidad: Hh.resultado.unidad, entidad: Hh.roles.sujetos[0] || "negocio", concepto: clave ? metricaDeClave(clave) : Hh.id, conceptoNorm: normalizar(clave ? metricaDeClave(clave) : Hh.id), fig: { id: Hh.id, value: Hh.resultado.texto } }; }
+  if (Array.isArray(Hh.evidencia) && Hh.evidencia.length === 1) { const f = _figPorId(I, Hh.evidencia[0]); if (f) return f; }
+  const n = Hh.numeros[0]; if (!n || !Number.isFinite(n.raw)) return null;
+  const clave = [...Hh.claves][0] || null;
+  return { label: Hh.id, texto: Hh.render.valor || n.texto || "", raw: n.raw, unidad: n.unidad, entidad: Hh.roles.sujetos[0] || "negocio", concepto: clave ? metricaDeClave(clave) : Hh.id, conceptoNorm: normalizar(clave ? metricaDeClave(clave) : Hh.id), fig: { id: Hh.id, value: Hh.render.valor } };
+};
+const _operando = (I, x, libro = null) => {
   if (x == null) return null;
-  if (typeof x === "string") return _figPorId(I, x);
-  if (_es(x)) { if (x.id) return _figPorId(I, x.id); if (x.sujeto != null && x.metrica != null) return _figDe(I, x.sujeto === "negocio" || /^(?:negocio|total)$/i.test(String(x.sujeto)) ? "negocio" : x.sujeto, x.metrica); }
+  if (typeof x === "string") return _figPorId(I, x) || _operandoDeHecho(I, libro, x);
+  if (_es(x)) { if (x.id) return _figPorId(I, x.id) || _operandoDeHecho(I, libro, x.id); if (x.sujeto != null && x.metrica != null) return _figDe(I, x.sujeto === "negocio" || /^(?:negocio|total)$/i.test(String(x.sujeto)) ? "negocio" : x.sujeto, x.metrica); }
   return null;
 };
 const _fmtFig = (f) => `${f.label} = ${f.texto || (f.fig && f.fig.value) || formatoDeLaCasa(f.raw, f.unidad)}`;
@@ -146,7 +161,7 @@ function _H(id, tipo, extra = {}) {
 const _addEnt = (H, I, nombre) => { if (!nombre || typeof nombre !== "string" || nombre === "negocio") return; const r = I.resolverEntidad(nombre); H.entidades.add(normalizar(r ? r.nombre : nombre)); };
 const _addClave = (H, m) => { if (m == null || m === "") return; const c = claveDeMetrica(m) || normalizar(String(m)).replace(/\s+/g, "_"); H.claves.add(c); if (!H.dominio) H.dominio = dominioDeClave(c); if (H.polaridad == null) H.polaridad = polaridadDeClave(c); };
 const _addNum = (H, v, unidad = null) => { const r = typeof v === "object" && v && Number.isFinite(v.raw) ? v : leerValor(v); if (r && Number.isFinite(r.raw)) H.numeros.push({ raw: r.raw, unidad: unidad || r.unidad || "count", texto: r.texto || String(v) }); };
-const _dominioDeFig = (f) => { const c = claveDeMetrica(f.concepto); const d = c ? dominioDeClave(c) : null; if (d) return d; const t = normalizar((f.context || "") + " " + (f.calificador || "") + " " + (f.fig && f.fig.universo || "")); if (/vencid|pendiente|abonad|recuperad|cobr|mora/.test(t)) return "cobranza"; if (/capital|frenad|inventario|stock|bodega|rotaci/.test(t)) return "inventario"; if (/venta|margen|contribuci|carga|benchmark|costo/.test(t)) return "comercial"; return null; };
+const _dominioDeFig = (f) => { const c = claveDeMetrica(f.concepto); const d = c ? dominioDeClave(c) : null; if (d) return d; const t = normalizar((f.context || "") + " " + (f.calificador || "") + " " + (f.fig && f.fig.universo || "") + " " + (f.fig && f.fig.context || "") + " " + String(f.label || "").split(" · ").slice(1).join(" "));   /* el rótulo también dice el dominio («Medida · cerrar brecha al piso») */ if (/vencid|pendiente|abonad|recuperad|cobr|mora/.test(t)) return "cobranza"; if (/capital|frenad|inventario|stock|bodega|rotaci/.test(t)) return "inventario"; if (/venta|margen|contribuci|carga|benchmark|costo|brecha|precio|markup/.test(t)) return "comercial"; return null; };
 
 function _deFig(H, I, f, sujeto = null) {
   H.ok = true; H.veredicto = "verdadera"; H.motivo = `fig de la boleta: ${_fmtFig(f)}`; H.verdad = _fmtFig(f); H.evidencia = [f.label];
@@ -178,10 +193,12 @@ function _aV2(h, I) {
       return { ...base, relacion: { forma: r.forma, k: r.k, matiz: r.matiz, vs, valor: r.valor, ...(r.suma === true || h.suma === true ? { suma: true } : {}) }, universo: typeof h.universo === "string" ? h.universo : "" };
     }
     case "grupo": {
-      const miembros = _lista(h.miembros).length ? _lista(h.miembros) : (Array.isArray(h.sujeto) ? h.sujeto : []);
+      let miembros = _lista(h.miembros).length ? _lista(h.miembros) : (Array.isArray(h.sujeto) ? h.sujeto : []);
       const agregado = normalizar(h.agregado || "suma");
+      /* sin miembros y con universo tipado («los clientes en mora»): los miembros son el conjunto */
+      if (!miembros.length && (_es(h.de) || _es(h.universo))) { try { const U = conjuntoDeUniverso(_es(h.de) ? h.de : h.universo, I, (_es(h.de) ? h.de : h.universo).eje || null, ""); if (U && U.set) miembros = [...U.set].map((k) => (I.entidades.get(k) || { nombre: k }).nombre); } catch { /* sin conjunto: la declaración queda incompleta */ } }
       const metrica = agregado === "participacion" ? "Participación en la venta" : base.metrica;
-      return { ...base, sujeto: miembros, metrica, grupo: { entidades: miembros, n: miembros.length || h.n }, universo: typeof h.universo === "string" ? h.universo : (h.de && typeof h.de === "string" ? h.de : "") };
+      return { ...base, sujeto: miembros, metrica, grupo: { entidades: miembros, n: miembros.length || h.n, agregado }, universo: typeof h.universo === "string" ? h.universo : (h.de && typeof h.de === "string" ? h.de : "") };
     }
     case "variacion": {
       const v = _es(h.variacion) ? h.variacion : {};
@@ -210,12 +227,22 @@ function _juzgarV2(a2, I) {
 const _aplica = (H, v) => { H.veredicto = v.veredicto; H.ok = v.veredicto === "verdadera" || v.veredicto === "sellada"; H.motivo = String(v.motivo || ""); H.verdad = String(v.verdad || ""); H.evidencia = Array.isArray(v.evidencia) ? v.evidencia.slice() : []; return H; };
 
 /* ── los evaluadores nuevos ── */
-function _razon(H, h, I) {
-  const num = _operando(I, h.num), den = _operando(I, h.den);
+/* la base con que una métrica forma una tasa de la casa (recuperado = abonado ÷ venta; vencido sobre venta; participaciones sobre el total) */
+const _BASE_DE_RAZON = { abonado: "ventas", saldo_vencido: "ventas", saldo_pendiente: "ventas", saldo_por_vencer: "ventas", contribucion: "ventas", no_capturada: "ventas", carga_alta: "ventas", costo: "ventas", capital_frenado: "capital", capital_inmovilizado: "capital", unidades: "unidades", ventas: "ventas" };
+/* una métrica que contiene a otra (misma entidad): sumarlas cuenta dos veces */
+const _CONTIENE = { saldo_pendiente: ["saldo_vencido", "saldo_por_vencer"], capital: ["capital_frenado", "capital_inmovilizado"], ventas: ["contribucion", "costo", "no_capturada", "carga_alta"], contribucion: ["no_capturada"] };
+/* comercial y cobranza comparten el universo (la venta a crédito produce el saldo); inventario es otro universo y no se relaciona por cociente ni por suma */
+const _reconcilian = (a, b) => a === b || (["comercial", "cobranza"].includes(a) && ["comercial", "cobranza"].includes(b));
+function _razon(H, h, I, libro = null) {
+  const num = _operando(I, h.num, libro), den = _operando(I, h.den, libro);
   if (!num) return _aplica(H, { veredicto: "no-verificable", motivo: `sin-evidencia: el numerador ${JSON.stringify(h.num)} no está en la evidencia`, verdad: "", evidencia: [] });
   if (!den) return _aplica(H, { veredicto: "no-verificable", motivo: `sin-evidencia: el denominador ${JSON.stringify(h.den)} no está en la evidencia`, verdad: "", evidencia: den ? [den.label] : [] });
   if (_u(num.unidad) !== _u(den.unidad)) return _aplica(H, { veredicto: "no-verificable", motivo: `unidades-distintas: ${_fmtFig(num)} y ${_fmtFig(den)} no se dividen`, verdad: "", evidencia: [num.label, den.label] });
   if (!Number.isFinite(den.raw) || den.raw === 0) return _aplica(H, { veredicto: "no-verificable", motivo: `sin-evidencia: ${_fmtFig(den)} es cero`, verdad: "", evidencia: [den.label] });
+  if (normalizar(num.label) === normalizar(den.label)) return _aplica(H, { veredicto: "no-verificable", motivo: "razon-vacua: la misma cifra sobre sí misma no dice nada", verdad: "", evidencia: [num.label] });
+  /* una razón es aritmética: cualquier par de cifras de la misma unidad se divide (v3.1: sin lista de pares); lo que no se divide es una cifra sobre sí misma,
+   * unidades distintas, o dos universos que la casa declara que NO reconcilian (inventario contra comercial/cobranza) */
+  { const dn = _dominioDeFig(num), dd = _dominioDeFig(den); if (dn && dd && !_reconcilian(dn, dd)) return _aplica(H, { veredicto: "no-verificable", motivo: `universos-que-no-reconcilian: ${dn} sobre ${dd} no es una proporción de la casa`, verdad: "", evidencia: [num.label, den.label] }); }
   const q = num.raw / den.raw;
   const forma = normalizar(h.forma || (h.valor && /x\s*$|veces/i.test(String(h.valor)) ? "veces" : "pct"));
   H.roles.num = { sujeto: num.entidad || "negocio", label: num.label }; H.roles.den = { sujeto: den.entidad || "negocio", label: den.label };
@@ -243,9 +270,11 @@ function _razon(H, h, I) {
 }
 const _impreso = (t) => { const m = /(-?\d+(?:[.,]\d+)?)\s*([kmb])?/i.exec(String(t || "").replace(/\$/g, "").replace(/\.(?=\d{3}\b)/g, "")); if (!m) return null; const v = parseFloat(m[1].replace(",", ".")); const e = m[2] ? { k: 1e3, m: 1e6, b: 1e9 }[m[2].toLowerCase()] : 1; return v * e; };
 
-function _derivada(H, h, I) {
-  const op = normalizar(h.op || "");
-  const ops = _lista(h.de).map((x) => _operando(I, x));
+const _OP_ALIAS = { resta: "diferencia", diferencia_pp: "pp", division: "cociente", ratio: "cociente", veces: "cociente", proporcion: "cociente", total: "suma", sumar: "suma", restar: "diferencia" };
+function _derivada(H, h, I, libro = null) {
+  const op0 = normalizar(h.op || "");
+  const op = _OP_ALIAS[op0] || op0;
+  const ops = _lista(h.de).map((x) => _operando(I, x, libro));
   const falta = _lista(h.de)[ops.findIndex((x) => !x)];
   if (falta !== undefined) return _aplica(H, { veredicto: "no-verificable", motivo: `sin-evidencia: el operando ${JSON.stringify(falta)} no está en la evidencia`, verdad: "", evidencia: [] });
   if (ops.length < 2) return _aplica(H, { veredicto: "no-verificable", motivo: "derivada-incompleta: hacen falta al menos dos operandos", verdad: "", evidencia: [] });
@@ -253,8 +282,18 @@ function _derivada(H, h, I) {
   H.roles.sujetos = [...new Set(ops.map((f) => f.entidad || "negocio"))]; H.dominio = _dominioDeFig(ops[0]);
   const raws = ops.map((f) => f.raw), u0 = ops[0].unidad;
   let res = null, unidad = u0, cuenta = "";
+  if (op === "suma" || op === "diferencia") {
+    if (ops.some((f) => f.unidad === "pct" || f.unidad === "pp")) return _aplica(H, { veredicto: "no-verificable", motivo: "las tasas no se suman ni se restan (usa pp para la brecha entre dos tasas)", verdad: "", evidencia: ops.map((f) => f.label) });
+    const claves = [...new Set(ops.map((f) => claveDeMetrica(f.concepto) || normalizar(f.concepto)))];
+    if (claves.length > 1 && new Set(ops.map((f) => _dominioDeFig(f) || "")).size > 1) return _aplica(H, { veredicto: "no-verificable", motivo: `dominios-distintos: ${ops.map((f) => f.label).join(" y ")} no se suman`, verdad: "", evidencia: ops.map((f) => f.label) });
+    const totales = ops.filter((f) => !f.entidad || f.entidad === "negocio"), partes = ops.filter((f) => f.entidad && f.entidad !== "negocio");
+    if (op === "suma" && totales.length && partes.length && totales.some((t) => partes.some((p) => (claveDeMetrica(t.concepto) || "") === (claveDeMetrica(p.concepto) || "x")))) return _aplica(H, { veredicto: "no-verificable", motivo: "total-y-parte: el total ya contiene a la parte", verdad: "", evidencia: ops.map((f) => f.label) });
+    /* la misma entidad, una métrica que contiene a la otra (el vencido es parte del pendiente): sumarlas cuenta dos veces */
+    if (op === "suma") for (const a of ops) for (const b of ops) { if (a === b) continue; const ca = claveDeMetrica(a.concepto), cb = claveDeMetrica(b.concepto); if (ca && cb && (_CONTIENE[ca] || []).includes(cb) && normalizar(a.entidad || "negocio") === normalizar(b.entidad || "negocio")) return _aplica(H, { veredicto: "no-verificable", motivo: `parte-y-todo: ${metricaDeClave(cb)} ya está dentro de ${metricaDeClave(ca)}`, verdad: "", evidencia: ops.map((f) => f.label) }); }
+  }
   if (op === "suma") { if (!ops.every((f) => _u(f.unidad) === _u(u0))) return _aplica(H, { veredicto: "no-verificable", motivo: "unidades-mezcladas", verdad: "", evidencia: ops.map((f) => f.label) }); res = raws.reduce((s, x) => s + x, 0); cuenta = ops.map(_fmtFig).join(" + "); }
   else if (op === "diferencia") { if (ops.length !== 2 || _u(ops[1].unidad) !== _u(u0)) return _aplica(H, { veredicto: "no-verificable", motivo: "diferencia: dos operandos de la misma unidad", verdad: "", evidencia: ops.map((f) => f.label) }); res = raws[0] - raws[1]; cuenta = `${_fmtFig(ops[0])} − ${_fmtFig(ops[1])}`; if (u0 === "pct") unidad = "pp"; }
+  else if (op === "cociente") { if (ops.length !== 2 || raws[1] === 0) return _aplica(H, { veredicto: "no-verificable", motivo: "cociente: dos operandos, divisor ≠ 0", verdad: "", evidencia: ops.map((f) => f.label) }); if (_u(ops[0].unidad) !== _u(ops[1].unidad)) return _aplica(H, { veredicto: "no-verificable", motivo: `unidades-distintas: ${ops[0].label} (${ops[0].unidad}) no se divide por ${ops[1].label} (${ops[1].unidad})`, verdad: "", evidencia: ops.map((f) => f.label) }); const enPct = /%/.test(String(h.valor || "")) || !(h.valor != null); res = enPct ? (raws[0] / raws[1]) * 100 : raws[0] / raws[1]; unidad = enPct ? "pct" : "ratio"; cuenta = `${_fmtFig(ops[0])} ÷ ${_fmtFig(ops[1])}`; }
   else if (op === "pp") { if (ops.length !== 2 || !ops.every((f) => f.unidad === "pct" || f.unidad === "pp")) return _aplica(H, { veredicto: "no-verificable", motivo: "pp: dos tasas", verdad: "", evidencia: ops.map((f) => f.label) }); res = raws[0] - raws[1]; unidad = "pp"; cuenta = `${_fmtFig(ops[0])} − ${_fmtFig(ops[1])}`; }
   else if (op === "variacion_relativa") { if (ops.length !== 2 || raws[1] === 0) return _aplica(H, { veredicto: "no-verificable", motivo: "variación relativa: (nuevo − base) ÷ base, base ≠ 0", verdad: "", evidencia: ops.map((f) => f.label) }); res = ((raws[0] - raws[1]) / Math.abs(raws[1])) * 100; unidad = "pct"; cuenta = `(${_fmtFig(ops[0])} − ${_fmtFig(ops[1])}) ÷ ${_fmtFig(ops[1])}`; }
   else if (op === "producto") { if (ops.length !== 2) return _aplica(H, { veredicto: "no-verificable", motivo: "producto: dos operandos", verdad: "", evidencia: ops.map((f) => f.label) }); const pct = ops.find((f) => f.unidad === "pct"), otro = ops.find((f) => f !== pct); if (!pct || !otro) return _aplica(H, { veredicto: "no-verificable", motivo: "producto: una cifra × una tasa", verdad: "", evidencia: ops.map((f) => f.label) }); res = otro.raw * pct.raw / 100; unidad = otro.unidad; cuenta = `${_fmtFig(otro)} × ${_fmtFig(pct)}`; }
@@ -263,11 +302,19 @@ function _derivada(H, h, I) {
   const v = h.valor != null ? leerValor(h.valor) : null;
   if (v && Number.isFinite(v.raw)) {
     if (_u(v.unidad) !== _u(unidad) && !(unidad === "pp" && v.unidad === "pct")) return _aplica(H, { veredicto: "no-verificable", motivo: `unidad-distinta: la cuenta da ${formatoDeLaCasa(res, unidad)} y el valor dicho es ${v.texto}`, verdad, evidencia: ops.map((f) => f.label) });
-    const tol = Math.max(tolCalculo(res, unidad === "pp" ? "pct" : unidad), 0.5 * Math.pow(10, -_decimales(v.texto)) + 1e-9);
-    if (Math.abs(Math.abs(res) - Math.abs(v.raw)) > tol) return _aplica(H, { veredicto: "falsa", motivo: `derivada-falsa: ${verdad}, no ${v.texto}`, verdad, evidencia: ops.map((f) => f.label) });
+    const dec = _decimales(v.texto), escala = /m\b/i.test(v.texto) ? 1e6 : /k\b/i.test(v.texto) ? 1e3 : 1;
+    const tol = (unidad === "money" && dec > 0) ? 0.5 * Math.pow(10, -dec) * escala + 1e-9 : Math.max(tolCalculo(res, unidad === "pp" ? "pct" : unidad), 0.5 * Math.pow(10, -dec) + 1e-9);
+    const conSigno = /^\s*[+\-−]/.test(String(h.valor || ""));
+    /* la cuenta sobre los operandos tal como se muestran (redondeados a la precisión dicha) también vale: $4.6M + $2.5M = $7.1M */
+    const redondear = (x) => (Math.round((x / escala) * Math.pow(10, dec)) / Math.pow(10, dec)) * escala;
+    const resRed = op === "suma" ? raws.map(redondear).reduce((s, x) => s + x, 0) : (op === "diferencia" || op === "pp") ? redondear(raws[0]) - redondear(raws[1]) : res;
+    const cerca = (r) => Math.abs(Math.abs(r) - Math.abs(v.raw)) <= tol;
+    if (!cerca(res) && !cerca(resRed)) return _aplica(H, { veredicto: "falsa", motivo: `derivada-falsa: ${verdad}, no ${v.texto}`, verdad, evidencia: ops.map((f) => f.label) });
+    if (op === "diferencia" && res < 0 && !conSigno && v.raw > 0 && Math.abs(res) > tol) return _aplica(H, { veredicto: "falsa", motivo: `signo: la diferencia es ${formatoDeLaCasa(res, unidad)} (negativa), no ${v.texto}`, verdad, evidencia: ops.map((f) => f.label) });
     H.numeros.push({ raw: v.raw, unidad: v.unidad, texto: v.texto });
   }
   H.render.valor = v && Number.isFinite(v.raw) ? _canonTexto(v.texto) : formatoDeLaCasa(res, unidad); H.numeros.push({ raw: res, unidad, texto: formatoDeLaCasa(res, unidad) });
+  H.resultado = { raw: res, unidad, texto: formatoDeLaCasa(res, unidad) };
   return _aplica(H, { veredicto: "verdadera", motivo: `derivada (${op}): ${verdad}`, verdad, evidencia: ops.map((f) => f.label) });
 }
 const _decimales = (t) => { const m = /\d+[.,](\d+)/.exec(String(t || "")); return m ? m[1].length : 0; };
@@ -278,6 +325,7 @@ function _conteoTipado(H, h, I) {
   const u = _es(h.de) ? h.de : (_es(h.universo) ? h.universo : null);
   if (!u) return null;   // sin universo tipado: lo juzga el verificador de siempre
   const c = _es(h.conteo) ? h.conteo : { n: h.n, m: h.m };
+  H.universoTipado = u;   // el universo tal como se declaró: las anclas leen su eje y su exclusión
   const n = Number.isFinite(+c.n) ? +c.n : NaN;
   const U = conjuntoDeUniverso(u, I, u.eje || null, "");
   if (U.error) return _aplica(H, { veredicto: "no-verificable", motivo: U.error, verdad: "", evidencia: [] });
@@ -285,10 +333,20 @@ function _conteoTipado(H, h, I) {
   const total = I.tamanoDelEje(eje);
   const set = U.set || new Set([...I.entidades].filter(([, e]) => e.eje === eje).map(([k]) => k));
   const mBase = u.base && !/^todos?|todas$/i.test(String(u.base)) ? (conjuntoDeUniverso({ eje, base: u.base }, I, eje, "").set || new Set()).size : (total || set.size);
+  /* los «de M» admisibles: el eje entero, la base, el conjunto por estados y la base con estados (la cadena antes de filtros, top y exclusiones) */
+  const mAdmisibles = new Set([mBase, total].filter((x) => Number.isFinite(x) && x > 0));
+  { const tam = (uu) => { try { const S = conjuntoDeUniverso(uu, I, eje, ""); return S && S.set ? S.set.size : null; } catch { return null; } };
+    const tieneEst = _lista(u.estados).length || _lista(u.no_estados).length;
+    const masRestriccion = (Array.isArray(u.filtros) && u.filtros.length) || u.top || u.bodega || u.excluir;   // el «de M» por estados vale solo si algo más restringe: «6 de 6 en mora» es vacuo
+    if (tieneEst && masRestriccion) { const s1 = tam({ eje, estados: u.estados, no_estados: u.no_estados }); if (s1) mAdmisibles.add(s1); if (u.base) { const s2 = tam({ eje, base: u.base, estados: u.estados, no_estados: u.no_estados }); if (s2) mAdmisibles.add(s2); } }
+    if (u.bodega) { const s3 = tam({ eje, bodega: u.bodega }); if (s3) mAdmisibles.add(s3); } }
+  const mDicho = c.m != null && Number.isFinite(+c.m) ? +c.m : null;
+  const mRender = mDicho != null && mAdmisibles.has(mDicho) ? mDicho : mBase;
   H.universo = { set, fuente: U.fuente, texto: nombrarUniverso(u, I), restringido: !!U.set };
-  H.render.universo = H.universo.texto; H.render.n = String(set.size); H.render.m = String(mBase);
+  H.render.universo = H.universo.texto; H.render.n = String(set.size); H.render.m = String(mRender);
   for (const k of set) H.entidades.add(k);
   H.roles.miembros = [...set].map((k) => (I.entidades.get(k) || { nombre: k }).nombre);
+  { const nombrados = _lista(h.sujeto).map((x) => { const r = I.resolverEntidad(x); return normalizar(r ? r.nombre : x); }); const fuera = nombrados.filter((k) => !set.has(k)); if (fuera.length) return _aplica(H, { veredicto: "falsa", motivo: `fuera-del-conjunto: ${fuera.map((k) => (I.entidades.get(k) || { nombre: k }).nombre).join(", ")} no está en «${nombrarUniverso(u, I)}»`, verdad: `${nombrarUniverso(u, I)}: ${H.roles.miembros.join(", ")}`, evidencia: [U.fuente].filter(Boolean) }); }
   for (const f of Array.isArray(u.filtros) ? u.filtros : []) { _addClave(H, f.metrica); if (f.valor != null && !Array.isArray(f.valor)) { const unidad = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)) ? "days" : (f.unidad || unidadDeClave(f.metrica) || "count"); const raw = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)) ? diasDe(f.valor, f.unidad) : +f.valor; H.numeros.push({ raw: +f.valor, unidad: unidad === "days" && raw !== +f.valor ? "count" : unidad, texto: String(f.valor) }); if (raw != null && raw !== +f.valor) H.numeros.push({ raw, unidad: "days", texto: `${raw} días` }); H.render.umbral = _fmtUmbral(f).replace(/^.*?(?:superior a|de al menos|inferior a|de hasta|igual a|entre)\s+/, ""); } }
   if (u.top) { _addClave(H, u.top.metrica); H.numeros.push({ raw: +u.top.k, unidad: "count", texto: String(u.top.k) }); H.render.k = String(u.top.k); }
   for (const e of [..._lista(u.estados), ..._lista(u.no_estados), ..._lista(u.excluir && u.excluir.estados)]) { const c = _canonDe(e); H.estado = H.estado || c; H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(c); if (!H.dominio) H.dominio = dominioDeEstado(c); }
@@ -297,7 +355,7 @@ function _conteoTipado(H, h, I) {
   const verdad = `${set.size}${mBase ? " de " + mBase : ""} en ${H.universo.texto}${lista ? ": " + lista : ""}`;
   if (!Number.isFinite(n)) return _aplica(H, { veredicto: "verdadera", motivo: `conteo tipado: ${verdad}`, verdad, evidencia: [U.fuente] });
   if (n !== set.size) return _aplica(H, { veredicto: "falsa", motivo: `conteo-falso: son ${verdad}, no ${n}`, verdad, evidencia: [U.fuente] });
-  if (c.m != null && Number.isFinite(+c.m) && +c.m !== mBase) return _aplica(H, { veredicto: "falsa", motivo: `universo-falso: son ${set.size} de ${mBase}, no de ${c.m}`, verdad, evidencia: [U.fuente] });
+  if (mDicho != null && !mAdmisibles.has(mDicho)) return _aplica(H, { veredicto: "falsa", motivo: `universo-falso: son ${set.size} de ${[...mAdmisibles].join(" o de ")}, no de ${c.m}`, verdad, evidencia: [U.fuente] });
   return _aplica(H, { veredicto: "verdadera", motivo: `conteo tipado: ${verdad}`, verdad, evidencia: [U.fuente] });
 }
 
@@ -306,7 +364,7 @@ function _verdadDeLoFalso(H, h, I, libro) {
   const out = [];
   const nuevo = (suf, tipo, extra) => { const id = `${H.id}${suf}`; if (libro.porId.has(id)) return null; return { id, tipo, ...extra }; };
   if (H.tipo === "estado" && H.estado) {
-    const comp = complementoDe(H.estado);
+    const comp = complementoDe(H.estado) || COMPLEMENTO_V3[H.estado] || null;
     if (comp) { const n = nuevo("a", "estado", { sujeto: H.roles.sujetos[0], estado: comp }); if (n) out.push(n); }
   }
   let k = 0;
@@ -316,6 +374,78 @@ function _verdadDeLoFalso(H, h, I, libro) {
     const n = nuevo(String.fromCharCode(98 + k), "ref", { de: f.fig && f.fig.id ? f.fig.id : f.label }); if (n) { out.push(n); k++; }
   }
   return out;
+}
+
+/* ── VALIDACIÓN DE ESQUEMA (v3.1 · pieza 2): el hecho tipado tiene la forma que el protocolo enseña, o no entra al libro ── */
+const _ENUM = { orden_forma: ["max", "min", "puesto", "topk", "comparativo"], direccion: ["mayor", "menor", "peor", "mejor"], relacion_forma: ["veces", "fraccion", "parte", "mayor", "menor", "igual", "diferencia"], variacion_dir: ["sube", "baja"], agregado: ["suma", "participacion", "promedio"], op: ["suma", "diferencia", "cociente", "pp", "resta", "diferencia_pp", "division", "ratio", "producto", "variacion_relativa", "veces", "proporcion", "total", "sumar", "restar"] };
+const _entero = (x) => Number.isFinite(+x) && Math.floor(+x) === +x;
+const _esNegado = (e) => /^\s*no[ _]+\S/i.test(String(e == null ? "" : e));
+const _sinNo = (e) => (typeof e === "string" ? e.replace(/^\s*no[ _]+/i, "") : e);
+/* un universo escrito que nombra un estado («clientes al día», «SKU sin venta», «cuentas no en mora») se resuelve como universo tipado */
+const _EJE_DE_SUSTANTIVO = { cliente: "cliente", clientes: "cliente", cuenta: "cliente", cuentas: "cliente", sku: "sku", skus: "sku", producto: "sku", productos: "sku", marca: "marca", marcas: "marca", familia: "familia", familias: "familia", bodega: "bodega", bodegas: "bodega", canal: "canal", canales: "canal" };
+function _universoDeTexto(s) {
+  const m = /^(?:los|las|tus|mis|sus|todos\s+los|todas\s+las)?\s*(?:\d+\s+)?([a-z]+)\s+(?:que\s+est[aá]n\s+|que\s+)?(.+)$/i.exec(normalizar(String(s || "")).trim());
+  if (!m) return null;
+  const eje = _EJE_DE_SUSTANTIVO[m[1]]; if (!eje) return null;
+  const resto = m[2].trim();
+  const c = estadoDeclarado(resto); if (c) return { eje, estados: [c] };
+  const neg = /^(?:no|sin)\s+(.+)$/.exec(resto); if (neg) { const c2 = estadoDeclarado(neg[1]); if (c2) return { eje, no_estados: [c2] }; }
+  return null;
+}
+const _ejeDeEntidad = (I, nombre) => { try { const r = I.resolverEntidad(nombre); return r ? r.eje : null; } catch { return null; } };
+export function validarUniverso(u, I, sujeto = null) {
+  if (u == null || typeof u === "string") return null;
+  if (Array.isArray(u)) return u.every((x) => typeof x === "string" && x.trim()) ? null : "una lista de universo trae nombres de entidades";
+  if (!_es(u)) return "el universo es un objeto, un texto o una lista de entidades";
+  const permitidas = ["eje", "base", "estados", "no_estados", "bodega", "filtros", "top", "excluir", "union"];
+  const raras = Object.keys(u).filter((k) => !permitidas.includes(k)); if (raras.length) return `universo con campos desconocidos: ${raras.join(", ")}`;
+  const eje = normalizar(u.eje || "cliente");
+  if (!EJES_VALIDOS.includes(eje)) return `eje desconocido «${u.eje}»`;
+  if (I && typeof I.tamanoDelEje === "function" && !I.tamanoDelEje(eje)) return `eje-sin-entidades: la evidencia no trae ${PLURAL_DE_EJE[eje] || eje + "s"}`;
+  for (const e of [..._lista(u.estados), ..._lista(u.no_estados)]) { const c = estadoDeclarado(e); if (!c) return `estado-desconocido: «${e}» (se escribe con su nombre exacto)`; const def = estadoDeLaCasa(c); if (!ejeCompatible(def, eje)) return `el estado «${e}» es de ${def.eje}, no de ${eje}`; }
+  if (u.bodega != null && eje !== "sku") return "la bodega solo restringe SKU";
+  if (u.filtros != null) { if (!Array.isArray(u.filtros)) return "filtros es una lista"; for (const f of u.filtros) { if (!_es(f) || !f.metrica) return "cada filtro es {metrica, op, valor, unidad}"; const op = opDe(f.op); if (!op) return `op desconocido «${f.op}»`; if (op === "entre") { const v = Array.isArray(f.valor) ? f.valor : [f.valor, f.hasta]; if (!Number.isFinite(+v[0]) || !Number.isFinite(+v[1]) || +v[0] > +v[1]) return "«entre» necesita [desde, hasta] con desde ≤ hasta"; } else if (f.ref == null && !Number.isFinite(+String(f.valor).replace(",", "."))) return `el filtro de ${f.metrica} necesita un valor numérico`; } }
+  if (u.top != null) { if (!_es(u.top) || !u.top.metrica) return "top es {metrica, k, direccion}"; if (!_entero(u.top.k) || +u.top.k < 1) return "top.k es un entero ≥ 1"; if (u.top.direccion && !_ENUM.direccion.includes(normalizar(u.top.direccion))) return `direccion desconocida «${u.top.direccion}»`; }
+  if (u.excluir != null) { if (!_es(u.excluir)) return "excluir es un objeto"; const rarasX = Object.keys(u.excluir).filter((k) => !["entidades", "conjuntos", "estados", "top", "bodega"].includes(k)); if (rarasX.length) return `excluir con campos desconocidos: ${rarasX.join(", ")}`; if (u.excluir.bodega != null && eje !== "sku") return "la exclusión por bodega solo aplica a SKU"; for (const e of _lista(u.excluir.estados)) { if (!estadoDeclarado(e)) return `estado-desconocido: «${e}»`; } for (const t of _lista(u.excluir.top)) { if (!_es(t) || !t.metrica || !_entero(t.k) || +t.k < 1) return "excluir.top es {metrica, k} con k entero ≥ 1"; } }
+  if (u.union != null) { if (!Array.isArray(u.union) || !u.union.every(_es)) return "union es una lista de universos"; for (const v of u.union) { const e = validarUniverso(v, I); if (e) return e; if (!["base", "estados", "no_estados", "bodega", "filtros", "top", "excluir"].some((k) => v[k] != null)) return "una unión con el eje entero no restringe nada"; if (v.eje && normalizar(v.eje) !== eje) return `una unión mezcla ejes (${eje} y ${normalizar(v.eje)})`; } }
+  { const est = _lista(u.estados).map((e) => estadoDeclarado(e)).filter(Boolean), noEst = _lista(u.no_estados).map((e) => estadoDeclarado(e)).filter(Boolean), exEst = _lista(u.excluir && u.excluir.estados).map((e) => estadoDeclarado(e)).filter(Boolean);
+    if (est.some((c) => noEst.includes(c) || exEst.includes(c))) return "el universo pide y excluye el mismo estado";
+    if (est.some((c) => est.includes((complementoDe(c) || COMPLEMENTO_V3[c])))) return "estados contradictorios en el mismo universo";
+    if (exEst.some((c) => exEst.includes((complementoDe(c) || COMPLEMENTO_V3[c])))) return "excluir un estado y su complemento deja el eje vacío";
+    if (noEst.some((c) => noEst.includes((complementoDe(c) || COMPLEMENTO_V3[c])))) return "quitar un estado y su complemento deja el eje vacío";
+    const total = typeof I.tamanoDelEje === "function" ? I.tamanoDelEje(eje) : null;
+    for (const t of _lista(u.excluir && u.excluir.top)) if (_es(t) && total && +t.k >= total) return `excluir los ${t.k} de mayor/menor es excluir el eje entero (${total})`;
+    for (const e of _lista(u.excluir && u.excluir.entidades)) { const es = _ejeDeEntidad(I, e); if (es && es !== eje) return `«${e}» es de ${es} y el universo es de ${eje}`; } }
+  if (u.filtros != null) for (const f of u.filtros) { const c = _claveEstricta(f.metrica); if (!c) return `la métrica «${f.metrica}» del filtro no es una clave de la casa`; const um = unidadDeClave(c); const uf = f.unidad ? String(f.unidad).toLowerCase() : null; if (uf && um && !_unidadCompatibleEstricta(uf, um)) return `unidad «${uf}» no es la de ${c} (${um})`; if (f.ref != null) { const rc = _refDeLaCasa(f.ref); if (rc) { if (!rc.familia.test(c)) return `referencia-ajena: ${rc.nombre} no es la referencia de ${c}`; } else { const cr = _claveEstricta(f.ref); if (!cr) return `la referencia «${f.ref}» no es una referencia ni una clave de la casa`; if (dominioDeClave(cr) && dominioDeClave(c) && dominioDeClave(cr) !== dominioDeClave(c)) return `la referencia ${cr} es de ${dominioDeClave(cr)} y la métrica ${c} de ${dominioDeClave(c)}`; if (unidadDeClave(cr) && um && !_unidadCompatibleEstricta(unidadDeClave(cr), um)) return `la referencia ${cr} (${unidadDeClave(cr)}) no se compara con ${c} (${um})`; } } }
+  if (sujeto && typeof sujeto === "string" && sujeto !== "negocio") { const es = _ejeDeEntidad(I, sujeto); if (es && es !== eje) return `el sujeto «${sujeto}» es de ${es} y el universo es de ${eje}`; }
+  return null;
+}
+const EJES_VALIDOS = ["cliente", "sku", "marca", "familia", "bodega", "canal", "mes"];
+const _GENERICAS = new Set(["deuda", "saldo", "deuda total", "saldos", "monto", "cifra", "valor"]);
+const _claveEstricta = (m) => { const s = normalizar(String(m || "")); if (!s || _GENERICAS.has(s)) return null; const k = claveDeMetrica(m); return k && metricaPorClave(k) ? k : null; };
+/* las referencias de la casa y la familia de métricas que comparan: una referencia de otra familia no es un filtro */
+const _REF_DE_LA_CASA = [
+  { re: /^benchmark(?:[ _]de[ _]margen)?$|^margen[ _]benchmark$/, familia: /^margen/, nombre: "benchmark" },
+  { re: /^nivel[ _](?:de[ _])?carga(?:[ _]declarad[oa])?$|^carga[ _]declarada$/, familia: /^carga/, nombre: "nivel_carga" },
+  { re: /^umbral(?:[ _]de)?[ _]materialidad$|^materialidad$/, familia: /^(?:ventas|contribucion|no_capturada|brecha|saldo_|abonado|carga_alta)/, nombre: "umbral_materialidad" },
+  { re: /^piso(?:[ _]de)?[ _]rotacion$/, familia: /^rotacion/, nombre: "piso_rotacion" },
+  { re: /^techo(?:[ _]de)?[ _]cobertura$/, familia: /^(?:dias_inventario|cobertura)/, nombre: "techo_cobertura" },
+];
+const _refDeLaCasa = (ref) => { const s = normalizar(String(ref || "")).trim(); return _REF_DE_LA_CASA.find((r) => r.re.test(s)) || null; };
+const _unidadCompatibleEstricta = (a, b) => { const A = String(a || "").toLowerCase(), B = String(b || "").toLowerCase(); if (A === B) return true; if ((A === "pct" && B === "pp") || (A === "pp" && B === "pct")) return false; const t = /^(?:days|dias|dia|d|semanas?|meses|mes|trimestres?|semestres?|anos?|años?)$/; if (t.test(A) && t.test(B)) return true; return unidadCompatible(A) === unidadCompatible(B); };
+export function validarHecho(h, I) {
+  const tipo = normalizar(h.tipo);
+  const repetidos = (xs) => { const v = xs.map((x) => normalizar(typeof x === "string" ? x : JSON.stringify(x))); return new Set(v).size !== v.length; };
+  if (tipo === "orden") { const o = _es(h.orden) ? h.orden : {}; if (!_ENUM.orden_forma.includes(normalizar(o.forma || ""))) return `orden.forma desconocida «${o.forma}»`; if ((normalizar(o.forma) === "min" && normalizar(o.direccion || "") === "mayor") || (normalizar(o.forma) === "max" && normalizar(o.direccion || "") === "menor")) return "forma y dirección contradictorias (min es menor, max es mayor)"; if (/^(?:puesto|topk)$/.test(normalizar(o.forma)) && (!_entero(o.k) || +o.k < 1)) return "orden.k es un entero ≥ 1"; if (o.direccion && !_ENUM.direccion.includes(normalizar(o.direccion))) return `orden.direccion desconocida «${o.direccion}»`; if (Array.isArray(h.sujeto) && repetidos(h.sujeto)) return "sujetos repetidos"; return validarUniverso(h.universo, I, Array.isArray(h.sujeto) ? h.sujeto[0] : h.sujeto); }
+  if (tipo === "relacion") { const r = _es(h.relacion) ? h.relacion : {}; if (!_ENUM.relacion_forma.includes(normalizar(r.forma || ""))) return `relacion.forma desconocida «${r.forma}»`; if (Array.isArray(h.sujeto) && repetidos(h.sujeto)) return "sujetos repetidos"; if (_es(r.vs) && Array.isArray(r.vs.grupo) && repetidos(r.vs.grupo)) return "comparados repetidos"; if (r.k != null && !(Number.isFinite(+r.k) && +r.k > 0)) return "relacion.k es un número > 0"; return null; }
+  if (tipo === "conteo") { const c = _es(h.conteo) ? h.conteo : h; if (!_entero(c.n) || +c.n < 0) return "conteo.n es un entero ≥ 0"; if (c.m != null && (!_entero(c.m) || +c.m < +c.n)) return "conteo.m es un entero ≥ n"; return validarUniverso(h.de != null ? h.de : h.universo, I); }
+  if (tipo === "variacion") { const v = _es(h.variacion) ? h.variacion : {}; if (v.direccion && !_ENUM.variacion_dir.includes(normalizar(v.direccion))) return `variacion.direccion desconocida «${v.direccion}»`; if (h.periodo && !/^(?:anterior|presupuesto|actual)$/.test(periodoDe(h.periodo))) return `periodo desconocido «${h.periodo}»`; return null; }
+  if (tipo === "estado") { const e = _sinNo(_es(h.estado) ? h.estado.estado : h.estado); const c = estadoDeclarado(e); if (!c) return `estado-desconocido: «${e}» (se escribe con su nombre exacto)`; const def = estadoDeLaCasa(c); const sujetos = _lista(h.sujeto); for (const s of sujetos) { const es = _ejeDeEntidad(I, s); if (es && !ejeCompatible(def, es)) return `el estado «${e}» es de ${def.eje} y «${s}» es de ${es}`; } const bodega = _es(h.estado) ? h.estado.bodega : h.bodega; if (bodega && sujetos.some((s) => _ejeDeEntidad(I, s) && _ejeDeEntidad(I, s) !== "sku")) return "la bodega solo acompaña a un SKU"; return null; }
+  if (tipo === "razon") { if (h.valor != null) { const v = leerValor(h.valor); if (v && Number.isFinite(v.raw) && (!/^(?:pct|ratio|count)$/.test(v.unidad || "count") || /(?:unidades?|d[ií]as?|\$|\bpp\b|puntos|k\b|m\b)/i.test(String(h.valor)))) return `una razón es una proporción: «${h.valor}» no es un porcentaje ni un cociente`; } const nk = _es(h.num) && h.num.metrica != null ? _claveEstricta(h.num.metrica) : null, dk = _es(h.den) && h.den.metrica != null ? _claveEstricta(h.den.metrica) : null; if (_es(h.num) && h.num.metrica != null && !nk) return `la métrica «${h.num.metrica}» del numerador no es una clave de la casa`; if (_es(h.den) && h.den.metrica != null && !dk) return `la métrica «${h.den.metrica}» del denominador no es una clave de la casa`; if (nk && dk && unidadDeClave(nk) && unidadDeClave(dk) && !_unidadCompatibleEstricta(unidadDeClave(nk), unidadDeClave(dk))) return `unidades-distintas: ${nk} (${unidadDeClave(nk)}) no se divide por ${dk} (${unidadDeClave(dk)})`; return null; }
+  if (tipo === "derivada") { const op = normalizar(h.op || ""); if (!_ENUM.op.includes(op)) return `derivada.op desconocida «${h.op}»`; const de = _lista(h.de); if (de.length < 2) return "derivada.de necesita al menos dos operandos"; if (repetidos(de)) return "operandos repetidos"; return null; }
+  if (tipo === "grupo") { const m = _lista(h.miembros).length ? _lista(h.miembros) : _lista(h.sujeto); if (repetidos(m)) return "miembros repetidos"; { const ejesM = [...new Set(m.map((x) => _ejeDeEntidad(I, x)).filter(Boolean))]; if (ejesM.length > 1) return `miembros de ejes distintos (${ejesM.join(", ")}) no forman un grupo`; } if (h.agregado && !_ENUM.agregado.includes(normalizar(h.agregado))) return `agregado desconocido «${h.agregado}»`; return validarUniverso(h.universo, I); }
+  if (tipo === "cifra") { if (h.universo != null && typeof h.universo !== "string") { const e = validarUniverso(h.universo, I, h.sujeto); if (e) return e; } return null; }
+  return null;
 }
 
 /** libroDeHechos(hechos, ctx) → { hechos: [H], porId: Map, errores, resumen, texto } · ctx = { indice } | { figs, datoProyectado, ejesDelTenant } */
@@ -328,6 +458,8 @@ export function libroDeHechos(hechos, ctx = {}) {
     const H = _H(h.id, tipo);
     if (libro.porId.has(h.id)) { H.motivo = `id-repetido: «${h.id}» ya existe en el libro`; libro.errores.push(H.motivo); return H; }
     if (!TIPOS_DE_HECHO.includes(tipo)) { H.motivo = `tipo desconocido «${h.tipo}» (${TIPOS_DE_HECHO.join(" · ")})`; return H; }
+    /* el contrato tipado se valida ANTES de evaluar: lo mal formado no se adivina (ronda 5, R13) */
+    { const e = validarHecho(h, I); if (e) { H.motivo = `esquema: ${e}`; return H; } }
     try {
       if (tipo === "ref") {
         const f = _figPorId(I, h.de != null ? h.de : h.ref);
@@ -352,19 +484,23 @@ export function libroDeHechos(hechos, ctx = {}) {
         H.ok = true; H.veredicto = "sellada"; H.motivo = `lectura con sello «${h.sello || "criterio mío"}»${apoyo.length ? " · apoyo " + apoyo.join(", ") : ""}`; H.sello = h.sello || "criterio mío";
         return H;
       }
-      if (tipo === "razon") return _razon(H, h, I);
-      if (tipo === "derivada") return _derivada(H, h, I);
+      if (tipo === "razon") return _razon(H, h, I, libro);
+      if (tipo === "derivada") return _derivada(H, h, I, libro);
+      if (tipo === "conteo" && typeof h.de === "string") { const t = _universoDeTexto(h.de); if (t) h = { ...h, de: t }; }
       if (tipo === "conteo") { const R = _conteoTipado(H, h, I); if (R) return R; }
       if (tipo === "cifra" && (h.valor == null || h.valor === "")) {
         /* la cifra identificada por (sujeto, clave) sin valor: la fig de la boleta o la proyección */
         const sujeto = h.sujeto === "negocio" || /^(?:negocio|total)$/i.test(String(h.sujeto || "")) ? "negocio" : h.sujeto;
         const f = _figDe(I, sujeto, h.metrica, h.unidad || null);
         if (!f) { H.motivo = `sin-evidencia: la boleta no trae «${metricaDeClave(h.metrica)}» de ${sujeto}`; H.roles.sujetos = [sujeto]; _addEnt(H, I, sujeto); _addClave(H, h.metrica); return H; }
+        if (h.unidad && !_unidadCompatibleEstricta(String(h.unidad), f.unidad || "count")) { H.motivo = `unidad-declarada: ${f.label} viene en ${f.unidad || "count"}, no en ${h.unidad}`; H.roles.sujetos = [sujeto]; _addEnt(H, I, sujeto); _addClave(H, h.metrica); H.evidencia = [f.label]; return H; }
         return _deFig(H, I, f, sujeto);
       }
       /* lo demás lo juzga verificar.js con la afirmación traducida */
-      const a2 = _aV2(h, I);
+      const negado = tipo === "estado" && _esNegado(_es(h.estado) ? h.estado.estado : h.estado);
+      const a2 = _aV2(negado ? { ...h, estado: _es(h.estado) ? { ...h.estado, estado: _sinNo(h.estado.estado) } : _sinNo(h.estado) } : h, I);
       const v = _juzgarV2(a2, I);
+      if (negado) { if (v.veredicto === "verdadera") { v.veredicto = "falsa"; v.motivo = `negacion-falsa: sí está «${a2.estado.estado}» (${v.verdad || v.motivo})`; } else if (v.veredicto === "falsa") { v.veredicto = "verdadera"; v.motivo = `no está «${a2.estado.estado}»: ${v.verdad || v.motivo}`; } }
       _aplica(H, v);
       /* roles, claves, números y render desde el hecho identificado (no desde ninguna prosa) */
       const sujetos = Array.isArray(a2.sujeto) ? a2.sujeto : (a2.sujeto != null ? [a2.sujeto] : []);
@@ -376,7 +512,7 @@ export function libroDeHechos(hechos, ctx = {}) {
       if (a2.estado) { H.estado = _canonDe(a2.estado.estado); H.roles.bodega = a2.estado.bodega || null; if (a2.estado.bodega) _addEnt(H, I, a2.estado.bodega); H.dominio = H.dominio || dominioDeEstado(H.estado); H.render.estado = nombreDeEstado(H.estado); }
       if (a2.valor != null) _addNum(H, a2.valor);
       if (a2.relacion) { if (a2.relacion.valor != null) _addNum(H, a2.relacion.valor); if (Number.isFinite(+a2.relacion.k)) { H.numeros.push({ raw: +a2.relacion.k, unidad: "ratio", texto: String(a2.relacion.k) }); H.render.k = String(a2.relacion.k); } H.render.rel = _renderRelacion(a2, I); H.matiz = a2.relacion.matiz || ""; H.direccion = a2.relacion.forma; }
-      if (a2.orden) { if (Number.isFinite(+a2.orden.k)) { H.numeros.push({ raw: +a2.orden.k, unidad: "count", texto: String(a2.orden.k) }); H.render.k = String(a2.orden.k); } H.direccion = a2.orden.direccion || ""; H.forma = a2.orden.forma; }
+      if (a2.orden) { H.forma = normalizar(String(a2.orden.forma || "")); if (Number.isFinite(+a2.orden.k)) { H.numeros.push({ raw: +a2.orden.k, unidad: "count", texto: String(a2.orden.k) }); H.render.k = String(a2.orden.k); } H.direccion = a2.orden.direccion || (a2.orden.forma === "max" || a2.orden.forma === "topk" ? "mayor" : a2.orden.forma === "min" ? "menor" : "");   /* por definición: max = mayor, min = menor (ronda 5, R2) */ H.forma = a2.orden.forma; }
       if (a2.variacion) { if (a2.variacion.valor != null) _addNum(H, a2.variacion.valor); H.direccion = a2.variacion.direccion; H.periodo = periodoDe(h.periodo || "anterior"); H.claves.add(H.periodo === "presupuesto" ? "vs_presupuesto" : "variacion"); }
       if (a2.conteo) { H.numeros.push({ raw: +a2.conteo.n, unidad: "count", texto: String(a2.conteo.n) }); H.render.n = String(a2.conteo.n); if (a2.conteo.m != null) { H.numeros.push({ raw: +a2.conteo.m, unidad: "count", texto: String(a2.conteo.m) }); H.render.m = String(a2.conteo.m); } }
       if (a2.periodo && !H.periodo) H.periodo = periodoDe(a2.periodo);
@@ -404,12 +540,24 @@ export function libroDeHechos(hechos, ctx = {}) {
       }
       if (tipo === "cifra" && v.veredicto === "verdadera") { const f = (v.evidencia || []).map((l) => I.figs.find((g) => normalizar(g.label) === normalizar(l))).find(Boolean); if (f) { H.render.valor = f.texto || (f.fig && String(f.fig.value)) || ""; if (!H.dominio) H.dominio = _dominioDeFig(f); } if (!H.render.valor && a2.valor && a2.valor.texto) H.render.valor = a2.valor.texto; }
       if (tipo === "grupo") { const gv = leerValor(a2.valor); if (gv && gv.texto) H.render.valor = _canonTexto(gv.texto); }
+      /* un grupo con universo tipado: cada miembro pertenece al universo, o el grupo es falso */
+      if (tipo === "grupo" && _es(h.universo) && H.ok) { let U = null; try { U = conjuntoDeUniverso(h.universo, I, h.universo.eje || null, ""); } catch { U = null; } const miembros = (_lista(h.miembros).length ? _lista(h.miembros) : _lista(h.sujeto)).map((x) => { const r = I.resolverEntidad(x); return normalizar(r ? r.nombre : x); }); if (U && U.set) { const fuera = miembros.filter((k) => !U.set.has(k)); if (fuera.length) _aplica(H, { veredicto: "falsa", motivo: `fuera-del-universo: ${fuera.map((k) => (I.entidades.get(k) || { nombre: k }).nombre).join(", ")} no pertenece a «${nombrarUniverso(h.universo, I)}»`, verdad: `${nombrarUniverso(h.universo, I)}: ${[...U.set].map((k) => (I.entidades.get(k) || { nombre: k }).nombre).join(", ")}`, evidencia: H.evidencia }); } else if (U && U.error) _aplica(H, { veredicto: "no-verificable", motivo: U.error, verdad: "", evidencia: [] }); }
+      /* la unidad declarada tiene que ser la de la fig; pp dicho por % (o al revés) es otra cifra; el signo de una variación es su dirección */
+      if ((tipo === "cifra" || tipo === "variacion") && H.ok) {
+        const f = (v.evidencia || []).map((l) => I.figs.find((g) => normalizar(g.label) === normalizar(l))).find(Boolean);
+        const vd = h.valor != null ? leerValor(h.valor) : (tipo === "variacion" && _es(h.variacion) && h.variacion.valor != null ? leerValor(h.variacion.valor) : null);
+        if (f && h.unidad && !_unidadCompatibleEstricta(String(h.unidad), f.unidad || "count")) _aplica(H, { veredicto: "no-verificable", motivo: `unidad-declarada: ${f.label} viene en ${f.unidad}, no en ${h.unidad}`, verdad: _fmtFig(f), evidencia: [f.label] });
+        else if (f && vd && Number.isFinite(vd.raw) && ((vd.unidad === "pp" && f.unidad === "pct") || (vd.unidad === "pct" && f.unidad === "pp")) && /pp|puntos|%/i.test(String(h.valor != null ? h.valor : (h.variacion && h.variacion.valor)))) _aplica(H, { veredicto: "falsa", motivo: `unidad: ${f.label} es ${f.unidad === "pct" ? "un porcentaje" : "puntos"}, no ${vd.texto}`, verdad: _fmtFig(f), evidencia: [f.label] });
+        else if (tipo === "variacion" && vd && Number.isFinite(vd.raw) && /^[+\-−]/.test(String(h.variacion && h.variacion.valor || "").trim()) && H.direccion && ((H.direccion === "sube" && vd.raw < 0) || (H.direccion === "baja" && vd.raw > 0))) _aplica(H, { veredicto: "falsa", motivo: `signo: «${vd.texto}» contradice la dirección «${H.direccion}»`, verdad: f ? _fmtFig(f) : "", evidencia: f ? [f.label] : [] });
+      }
       if (tipo === "variacion") { const f = (v.evidencia || []).map((l) => I.figs.find((g) => normalizar(g.label) === normalizar(l))).find(Boolean); H.render.valor = a2.variacion && a2.variacion.valor && a2.variacion.valor.texto ? _canonTexto(a2.variacion.valor.texto) : (f ? (f.texto || (f.fig && String(f.fig.value)) || "") : ""); if (f && !H.numeros.length) H.numeros.push({ raw: f.raw, unidad: f.unidad, texto: f.texto || "" }); }
       return H;
     } catch (e) {
       H.veredicto = "no-verificable"; H.motivo = `error-del-libro: ${e && e.message ? e.message : e}`; return H;
     }
   };
+  /* las lecturas y las propuestas se evalúan después de los hechos: su apoyo puede venir declarado más abajo */
+  cola.sort((a, b) => (normalizar(a.tipo) === "lectura" ? 1 : 0) - (normalizar(b.tipo) === "lectura" ? 1 : 0));
   for (const h of cola) {
     const H = evaluar(h);
     libro.hechos.push(H); libro.porId.set(H.id, H);

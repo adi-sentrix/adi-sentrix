@@ -155,7 +155,7 @@ export function normalizarAfirmacion(a, i = 0) {
     case "grupo": {
       const g = src.grupo && typeof src.grupo === "object" ? src.grupo : {};
       const entidades = _lista(g.entidades).length ? _lista(g.entidades) : Array.isArray(out.sujeto) ? out.sujeto : [];
-      out.grupo = { entidades, n: Number.isFinite(+g.n) ? +g.n : (entidades.length || null) };
+      out.grupo = { entidades, n: Number.isFinite(+g.n) ? +g.n : (entidades.length || null), ...(g.agregado ? { agregado: String(g.agregado) } : {}) };
       if (!Array.isArray(out.sujeto) && entidades.length) out.sujeto = entidades;
       exige(out.metrica, "metrica");
       exige(out.valor && Number.isFinite(out.valor.raw), "valor");

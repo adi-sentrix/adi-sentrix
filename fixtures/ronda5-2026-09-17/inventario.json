@@ -1,0 +1,824 @@
+{
+ "angulo": "inventario",
+ "casos": [
+  {
+   "id": "A01 · números escritos cruzados entre dos SKU (sin placeholders)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL2\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hM2\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n<<FIN>>\n{{hL2 hM2: LG-DRYER8KG lleva 112 días sin venta y MAK-COMP-AIR 94}}.",
+   "falsedades": [
+    "LG-DRYER8KG lleva 112 días sin venta"
+   ],
+   "mentira": "LG-DRYER8KG lleva 94 días sin venta (fig «LG-DRYER8KG · Días sin venta = 94d»); 112 es de MAK-COMP-AIR"
+  },
+  {
+   "id": "A02 · placeholders cruzados con un tercer placeholder que rompe la cuenta del reparto",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL2\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hM2\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hL3\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"rotacion\"}\n<<FIN>>\n{{hL2 hM2 hL3: LG-DRYER8KG lleva {hM2} sin venta y MAK-COMP-AIR {hL2} sin venta, con rotación {hL3}}}.",
+   "falsedades": [
+    "LG-DRYER8KG lleva 112 días sin venta"
+   ],
+   "mentira": "idem A01, con placeholders"
+  },
+  {
+   "id": "A03 · superlativo dentro del ancla de una cifra (sin hecho de orden)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{hM1: MAK-COMP-AIR es el SKU que más capital te frena, con {hM1}}}.",
+   "falsedades": [
+    "MAK-COMP-AIR es el SKU que más capital te frena"
+   ],
+   "mentira": "el que más capital frena es LG-DRYER8KG ($14K); MAK-COMP-AIR frena $8K"
+  },
+  {
+   "id": "A04 · «supera» dentro del ancla de dos cifras (sin relación)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{hM1 hL1: MAK-COMP-AIR ({hM1}) supera a LG-DRYER8KG ({hL1}) en capital frenado}}.",
+   "falsedades": [
+    "MAK-COMP-AIR ($8K) supera a LG-DRYER8KG ($14K)"
+   ],
+   "mentira": "$8K no supera a $14K"
+  },
+  {
+   "id": "A05 · «duplica» dentro del ancla de dos cifras (sin relación)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{hL1 hM1: LG-DRYER8KG, con {hL1}, duplica el capital frenado de MAK-COMP-AIR ({hM1})}}.",
+   "falsedades": [
+    "duplica el capital frenado de MAK-COMP-AIR"
+   ],
+   "mentira": "$14K ÷ $8K = 1.75×, no el doble"
+  },
+  {
+   "id": "A06 · universo con exclusión escondido tras la palabra de estado (orden)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOBS\",\"tipo\":\"orden\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"sku\",\"estados\":[\"frenado\"],\"excluir\":{\"entidades\":[\"LG-DRYER8KG\"]}}}\n<<FIN>>\n{{hOBS: Entre los frenados, BOS-SANDER es el que más capital te retiene}}.",
+   "falsedades": [
+    "BOS-SANDER es el que más capital te retiene"
+   ],
+   "mentira": "entre los frenados el máximo es LG-DRYER8KG ($14K); el hecho excluye a LG-DRYER8KG y la prosa no lo dice"
+  },
+  {
+   "id": "A07 · universo con exclusión escondido tras la palabra de estado (días sin venta)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOLd\",\"tipo\":\"orden\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"dias_sin_venta\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"sku\",\"estados\":[\"frenado\"],\"excluir\":{\"entidades\":[\"MAK-COMP-AIR\"]}}}\n<<FIN>>\n{{hOLd: De los SKU frenados, el más viejo sin venta es LG-DRYER8KG}}.",
+   "falsedades": [
+    "el más viejo sin venta es LG-DRYER8KG"
+   ],
+   "mentira": "el más viejo sin venta entre los frenados es MAK-COMP-AIR (112d); el hecho lo excluye"
+  },
+  {
+   "id": "A08 · conteo con exclusión escondida tras la palabra de estado",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC2x\",\"tipo\":\"conteo\",\"n\":2,\"de\":{\"eje\":\"sku\",\"estados\":[\"frenado\"],\"excluir\":{\"entidades\":[\"MAK-COMP-AIR\"]}}}\n<<FIN>>\n{{hC2x: Tienes {hC2x.n} SKU frenados}}.",
+   "falsedades": [
+    "Tienes 2 SKU frenados"
+   ],
+   "mentira": "son 3 SKU frenados (LG-DRYER8KG, BOS-SANDER, MAK-COMP-AIR)"
+  },
+  {
+   "id": "A09 · razón con «su» apuntando al dueño equivocado (denominador de otra bodega)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hPAmal\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Antofagasta\",\"metrica\":\"capital_frenado\"},\"den\":{\"sujeto\":\"Valparaíso\",\"metrica\":\"capital\"}}\n<<FIN>>\n{{hPAmal: Antofagasta tiene frenado el {hPAmal} de su capital}}.",
+   "falsedades": [
+    "Antofagasta tiene frenado el 21.5% de su capital"
+   ],
+   "mentira": "Antofagasta · Capital frenado $8K ÷ Antofagasta · Capital $13K = 65.6%; el 21.5% divide por el capital de Valparaíso ($39K)"
+  },
+  {
+   "id": "A10 · participación en lo frenado vestida de participación en el inventario (base «del»)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLpct\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"participacion\"}\n<<FIN>>\n{{hLpct: LG-DRYER8KG pesa el {hLpct} del capital en inventario}}.",
+   "falsedades": [
+    "LG-DRYER8KG pesa el 41% del capital en inventario"
+   ],
+   "mentira": "41% es «LG-DRYER8KG · % del total» del capital FRENADO ($14K de $33K); del inventario ($135K) pesa ≈ 10%"
+  },
+  {
+   "id": "A11 · participación de bodega en lo frenado vestida de participación en el inventario",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVpct\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"participacion\"}\n<<FIN>>\n{{hVpct: Valparaíso concentra el {hVpct} del inventario}}.",
+   "falsedades": [
+    "Valparaíso concentra el 75% del inventario"
+   ],
+   "mentira": "75% es «Valparaíso · % del total» del capital frenado; del inventario ($39K de $135K) es ≈ 29%"
+  },
+  {
+   "id": "A12 · lista anidada bodega → SKU: MAK-COMP-AIR colgado de Valparaíso",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n- **Valparaíso**\n  - LG-DRYER8KG: {hL1}\n  - MAK-COMP-AIR: {hM1}\n- **Antofagasta**\n  - BOS-SANDER: {hB1}",
+   "falsedades": [
+    "**Valparaíso**\n  - LG-DRYER8KG: $14K\n  - MAK-COMP-AIR: $8K",
+    "**Antofagasta**\n  - BOS-SANDER: $11K"
+   ],
+   "mentira": "MAK-COMP-AIR está frenado en Antofagasta y BOS-SANDER en Valparaíso (estados de la proyección); la lista los cruza"
+  },
+  {
+   "id": "A13 · encabezado de bodega con un SKU de otra bodega",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hEL0\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\"}\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n### Antofagasta\n{{hEL0: LG-DRYER8KG está frenado}}, {{hL1: con {hL1} de capital frenado}}.",
+   "falsedades": [
+    "### Antofagasta\nLG-DRYER8KG está frenado"
+   ],
+   "mentira": "LG-DRYER8KG está frenado en Valparaíso, no en Antofagasta"
+  },
+  {
+   "id": "A14 · «ese capital pesa en Antofagasta» fuera del ancla, sin palabra de dominio",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hEL0\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\"}\n<<FIN>>\n{{hEL0: LG-DRYER8KG está frenado}}, y ese capital pesa en Antofagasta.",
+   "falsedades": [
+    "ese capital pesa en Antofagasta"
+   ],
+   "mentira": "LG-DRYER8KG está frenado en Valparaíso"
+  },
+  {
+   "id": "A15 · «lidera en X y en Y» con Y fuera del léxico («antigüedad»)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOL\",\"tipo\":\"orden\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"sku\"}}\n<<FIN>>\n{{hOL: LG-DRYER8KG lidera en capital frenado y en antigüedad}}.",
+   "falsedades": [
+    "lidera en capital frenado y en antigüedad"
+   ],
+   "mentira": "en días sin venta (112d) y en días de inventario (190d) lidera MAK-COMP-AIR"
+  },
+  {
+   "id": "A16 · días de inventario servidos como «sin moverse» (sinónimo fuera del léxico)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL4\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"dias_inventario\"}\n<<FIN>>\n{{hL4: LG-DRYER8KG lleva {hL4} sin moverse}}.",
+   "falsedades": [
+    "LG-DRYER8KG lleva 165 días sin moverse"
+   ],
+   "mentira": "LG-DRYER8KG lleva 94 días sin venta; 165 son sus días de inventario (cobertura)"
+  },
+  {
+   "id": "A17 · cabecera de tabla con sinónimo fuera del léxico («Días sin moverse») sobre días de inventario",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL4\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"dias_inventario\"}\n{\"id\":\"hM4\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_inventario\"}\n<<FIN>>\n| SKU | Días sin moverse |\n|---|---|\n| LG-DRYER8KG | {hL4} |\n| MAK-COMP-AIR | {hM4} |",
+   "falsedades": [
+    "| LG-DRYER8KG | 165d |"
+   ],
+   "mentira": "bajo «días sin moverse» van los días de inventario (165d / 190d); los días sin venta son 94d / 112d"
+  },
+  {
+   "id": "A18 · encabezado «Lo que no se mueve» con un SKU de capital sano",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hSMc\",\"tipo\":\"cifra\",\"sujeto\":\"SAM-MICRO32L\",\"metrica\":\"capital\"}\n{\"id\":\"hL6\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital\"}\n<<FIN>>\n### Lo que no se mueve\n- SAM-MICRO32L: {hSMc}\n- LG-DRYER8KG: {hL6}",
+   "falsedades": [
+    "### Lo que no se mueve\n- SAM-MICRO32L: $8K"
+   ],
+   "mentira": "SAM-MICRO32L tiene capital sano (1 día sin venta); el encabezado lo pone entre lo detenido"
+  },
+  {
+   "id": "A19 · capital total de la bodega servido como «sin moverse»",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVc\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital\"}\n<<FIN>>\n{{hVc: En Valparaíso hay {hVc} sin moverse}}.",
+   "falsedades": [
+    "En Valparaíso hay $39K sin moverse"
+   ],
+   "mentira": "Valparaíso · Capital = $39K es todo su capital; lo frenado son $25K"
+  },
+  {
+   "id": "A20 · «el SKU más nuevo» sobre el orden del más viejo (polaridad del adjetivo)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOM\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"sku\"}}\n<<FIN>>\n{{hOM: El SKU más nuevo del inventario es MAK-COMP-AIR}}.",
+   "falsedades": [
+    "El SKU más nuevo del inventario es MAK-COMP-AIR"
+   ],
+   "mentira": "MAK-COMP-AIR es el más VIEJO (112 días sin venta, máximo del eje)"
+  },
+  {
+   "id": "A21 · «rota más rápido» sobre un orden min sin dirección",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOMr\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"rotacion\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"sku\"}}\n<<FIN>>\n{{hOMr: MAK-COMP-AIR es el SKU que rota más rápido}}.",
+   "falsedades": [
+    "MAK-COMP-AIR es el SKU que rota más rápido"
+   ],
+   "mentira": "MAK-COMP-AIR rota 0.8x, la rotación más BAJA del eje"
+  },
+  {
+   "id": "A22 · comparativo fuera de la clase cerrada («rebasa»)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL2\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hM2\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n<<FIN>>\n{{hL2 hM2: LG-DRYER8KG, con {hL2} sin venta, rebasa a MAK-COMP-AIR ({hM2})}}.",
+   "falsedades": [
+    "rebasa a MAK-COMP-AIR"
+   ],
+   "mentira": "94 días no rebasan 112"
+  },
+  {
+   "id": "A23 · comparativo fuera de la clase cerrada («deja atrás»)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{hB1 hL1: BOS-SANDER ({hB1}) deja atrás a LG-DRYER8KG ({hL1}) en capital frenado}}.",
+   "falsedades": [
+    "BOS-SANDER ($11K) deja atrás a LG-DRYER8KG"
+   ],
+   "mentira": "$11K no deja atrás a $14K"
+  },
+  {
+   "id": "A24 · comparativo fuera de la clase cerrada («se impone a»)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hB3\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"rotacion\"}\n{\"id\":\"hL3\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"rotacion\"}\n<<FIN>>\n{{hB3 hL3: En rotación, LG-DRYER8KG ({hL3}) se impone a BOS-SANDER ({hB3})}}.",
+   "falsedades": [
+    "LG-DRYER8KG (1.0x) se impone a BOS-SANDER"
+   ],
+   "mentira": "1.0x no se impone a 1.6x"
+  },
+  {
+   "id": "A25 · cifras escritas cruzadas entre dos bodegas (sin placeholders)",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hA\",\"tipo\":\"cifra\",\"sujeto\":\"Antofagasta\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{hV hA: Antofagasta concentra $25K de capital frenado y Valparaíso $8K}}.",
+   "falsedades": [
+    "Antofagasta concentra $25K"
+   ],
+   "mentira": "Valparaíso · Capital frenado = $25K; Antofagasta · Capital frenado = $8K"
+  },
+  {
+   "id": "A26 · fila «Total» con un grupo parcial (falta MAK-COMP-AIR)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hG2\",\"tipo\":\"grupo\",\"miembros\":[\"LG-DRYER8KG\",\"BOS-SANDER\"],\"metrica\":\"capital_frenado\",\"agregado\":\"suma\"}\n<<FIN>>\n| SKU | Capital frenado |\n|---|---|\n| LG-DRYER8KG | {hL1} |\n| BOS-SANDER | {hB1} |\n| Total | {hG2} |",
+   "falsedades": [
+    "| Total | $25K |"
+   ],
+   "mentira": "Capital frenado · total = $33K; $25K es la suma de solo dos de los tres frenados"
+  },
+  {
+   "id": "A27 · participación en lo frenado vestida con «de tu inventario» (sin preposición de base)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLpct\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"participacion\"}\n<<FIN>>\n{{hLpct: LG-DRYER8KG pesa el {hLpct} de tu inventario}}.",
+   "falsedades": [
+    "LG-DRYER8KG pesa el 41% de tu inventario"
+   ],
+   "mentira": "idem A10"
+  },
+  {
+   "id": "A28 · canal de la poda: la mentira no detectada sobrevive cuando otro tramo cae",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hOF\",\"tipo\":\"orden\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"sku\"}}\n<<FIN>>\n{{hM1: MAK-COMP-AIR es el SKU que más capital te frena, con {hM1}}}. {{hOF: BOS-SANDER es el SKU con más capital frenado}}.",
+   "falsedades": [
+    "MAK-COMP-AIR es el SKU que más capital te frena"
+   ],
+   "mentira": "idem A03; hOF es falso a propósito para forzar reescritura y poda"
+  },
+  {
+   "id": "A29 · «lidera en X y en Y» con dos hechos, uno de otro SKU (Y verdadero para otro)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOL\",\"tipo\":\"orden\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"hOM\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"sku\"}}\n<<FIN>>\n{{hOL hOM: LG-DRYER8KG lidera en capital frenado y en días sin venta}}.",
+   "falsedades": [
+    "LG-DRYER8KG lidera en capital frenado y en días sin venta"
+   ],
+   "mentira": "en días sin venta lidera MAK-COMP-AIR (hOM); el ancla junta los dos órdenes bajo un solo sujeto"
+  },
+  {
+   "id": "A30 · «casi el doble» escrito sobre dos cifras (proporción sin relación)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL2\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hB2\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"dias_sin_venta\"}\n<<FIN>>\n{{hL2 hB2: LG-DRYER8KG acumula {hL2} sin venta, casi el doble que BOS-SANDER ({hB2})}}.",
+   "falsedades": [
+    "casi el doble que BOS-SANDER"
+   ],
+   "mentira": "94 ÷ 68 = 1.38×, no casi el doble"
+  },
+  {
+   "id": "A31 · comparativo dentro de anclas de estado (dos estados verdaderos, la comparación falsa)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hEL0\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\"}\n{\"id\":\"hEM\",\"tipo\":\"estado\",\"sujeto\":\"MAK-COMP-AIR\",\"estado\":\"frenado\"}\n<<FIN>>\n{{hEL0 hEM: LG-DRYER8KG y MAK-COMP-AIR están frenados, y el segundo retiene más capital que el primero}}.",
+   "falsedades": [
+    "el segundo retiene más capital que el primero"
+   ],
+   "mentira": "MAK-COMP-AIR ($8K) retiene menos que LG-DRYER8KG ($14K)"
+  },
+  {
+   "id": "A32 · placeholders cruzados con un tercer placeholder (métricas sin palabra de estado)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hL3\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"rotacion\"}\n<<FIN>>\n{{hL1 hM1 hL3: LG-DRYER8KG frena {hM1} de capital y MAK-COMP-AIR {hL1} de capital, con rotación {hL3}}}.",
+   "falsedades": [
+    "LG-DRYER8KG frena $8K de capital"
+   ],
+   "mentira": "LG-DRYER8KG frena $14K; $8K es MAK-COMP-AIR"
+  },
+  {
+   "id": "A33 · participación en lo frenado vestida con «de todo lo que guardas»",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLpct\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"participacion\"}\n<<FIN>>\n{{hLpct: LG-DRYER8KG pesa el {hLpct} de todo lo que guardas}}.",
+   "falsedades": [
+    "LG-DRYER8KG pesa el 41% de todo lo que guardas"
+   ],
+   "mentira": "41% es del capital frenado ($33K); de todo el inventario ($135K) es ≈ 10%"
+  },
+  {
+   "id": "A34 · «todos en la misma bodega» dentro de un conteo verdadero",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC3\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"frenado\"]}}\n<<FIN>>\n{{hC3: Tienes {hC3.n} SKU frenados, todos en la misma bodega}}.",
+   "falsedades": [
+    "todos en la misma bodega"
+   ],
+   "mentira": "LG-DRYER8KG y BOS-SANDER están en Valparaíso; MAK-COMP-AIR en Antofagasta"
+  },
+  {
+   "id": "A35 · «el SKU más nuevo» sin la palabra «inventario»",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOM\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"sku\"}}\n<<FIN>>\n{{hOM: El SKU más nuevo que tienes es MAK-COMP-AIR}}.",
+   "falsedades": [
+    "El SKU más nuevo que tienes es MAK-COMP-AIR"
+   ],
+   "mentira": "MAK-COMP-AIR es el más viejo (112 días sin venta)"
+  },
+  {
+   "id": "A36 · superlativo falso dentro de una lectura (la recomendación trae el hecho)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOL\",\"tipo\":\"orden\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hLec3\",\"tipo\":\"lectura\",\"apoyo\":[\"hOL\",\"hL1\",\"hB1\"]}\n<<FIN>>\n{{hOL hL1: LG-DRYER8KG es el SKU que más capital te frena, con {hL1}}}. {{hLec3: Yo liberaría primero BOS-SANDER, que es el que más capital te retiene en Valparaíso.}}",
+   "falsedades": [
+    "BOS-SANDER, que es el que más capital te retiene"
+   ],
+   "mentira": "el que más capital retiene (frenado) es LG-DRYER8KG, también en Valparaíso"
+  },
+  {
+   "id": "A37 · fila «Total» con un grupo parcial (grupo con valor, cabecera sin palabra de estado)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hG2v\",\"tipo\":\"grupo\",\"miembros\":[\"LG-DRYER8KG\",\"BOS-SANDER\"],\"metrica\":\"capital_frenado\",\"agregado\":\"suma\",\"valor\":\"$25K\"}\n<<FIN>>\n| SKU | Capital retenido |\n|---|---|\n| LG-DRYER8KG | {hL1} |\n| BOS-SANDER | {hB1} |\n| Total | {hG2v} |",
+   "falsedades": [
+    "| Total | $25K |"
+   ],
+   "mentira": "Capital frenado · total = $33K; $25K suma solo dos de los tres frenados"
+  },
+  {
+   "id": "A38 · lista SKU → «ubicación» con la bodega equivocada",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n- **MAK-COMP-AIR**\n  - ubicación: Valparaíso\n  - capital: {hM1}",
+   "falsedades": [
+    "ubicación: Valparaíso"
+   ],
+   "mentira": "MAK-COMP-AIR está en Antofagasta"
+  },
+  {
+   "id": "A39 · participación de bodega vestida con «de lo que tienes en bodega»",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVpct\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"participacion\"}\n<<FIN>>\n{{hVpct: Valparaíso concentra el {hVpct} de lo que tienes en bodega}}.",
+   "falsedades": [
+    "Valparaíso concentra el 75% de lo que tienes en bodega"
+   ],
+   "mentira": "75% es del capital frenado; del capital total en bodegas ($135K) Valparaíso tiene ≈ 29%"
+  },
+  {
+   "id": "A09b · razón con «su» al dueño equivocado, con los tres frenados nombrados (satisface la ley del procedimiento)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hPAmal\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Antofagasta\",\"metrica\":\"capital_frenado\"},\"den\":{\"sujeto\":\"Valparaíso\",\"metrica\":\"capital\"}}\n<<FIN>>\n{{hL1: LG-DRYER8KG frena {hL1}}}, {{hB1: BOS-SANDER {hB1}}} y {{hM1: MAK-COMP-AIR {hM1}}}. {{hPAmal: Antofagasta tiene frenado el {hPAmal} de su capital}}.",
+   "falsedades": [
+    "Antofagasta tiene frenado el 21.5% de su capital"
+   ],
+   "mentira": "idem A09: la razón divide por el capital de Valparaíso ($8K ÷ $39K = 21.5%); sobre su propio capital es 65.6%"
+  },
+  {
+   "id": "A34b · «todos en la misma bodega» con los tres frenados nombrados",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hC3\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"frenado\"]}}\n<<FIN>>\n{{hL1: LG-DRYER8KG frena {hL1}}}, {{hB1: BOS-SANDER {hB1}}} y {{hM1: MAK-COMP-AIR {hM1}}}. {{hC3: Son {hC3.n} SKU frenados, todos en la misma bodega}}.",
+   "falsedades": [
+    "todos en la misma bodega"
+   ],
+   "mentira": "dos en Valparaíso y uno en Antofagasta"
+  },
+  {
+   "id": "A36b · superlativo falso dentro de una lectura (sin entidad ajena)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOL\",\"tipo\":\"orden\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hLec3\",\"tipo\":\"lectura\",\"apoyo\":[\"hOL\",\"hL1\",\"hB1\"]}\n<<FIN>>\n{{hOL hL1: LG-DRYER8KG es el SKU que más capital te frena, con {hL1}}}. {{hLec3: Yo liberaría primero BOS-SANDER, que es el que más capital te retiene.}}",
+   "falsedades": [
+    "BOS-SANDER, que es el que más capital te retiene"
+   ],
+   "mentira": "el que más capital retiene es LG-DRYER8KG ($14K); BOS-SANDER retiene $11K"
+  },
+  {
+   "id": "A40 · «los tres en Valparaíso» fuera del ancla, tras los tres frenados",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC3\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"frenado\"]}}\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{hC3: Tienes {hC3.n} SKU frenados}}: {{hL1: LG-DRYER8KG {hL1}}}, {{hB1: BOS-SANDER {hB1}}} y {{hM1: MAK-COMP-AIR {hM1}}}, los tres en Valparaíso.",
+   "falsedades": [
+    "los tres en Valparaíso"
+   ],
+   "mentira": "MAK-COMP-AIR está en Antofagasta"
+  },
+  {
+   "id": "A41 · «junto con MAK-COMP-AIR» pegado a un estado con bodega",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hEL\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n{\"id\":\"hEM\",\"tipo\":\"estado\",\"sujeto\":\"MAK-COMP-AIR\",\"estado\":\"frenado\"}\n<<FIN>>\n{{hEL: LG-DRYER8KG está frenado en Valparaíso}} junto con {{hEM: MAK-COMP-AIR, también frenado}}.",
+   "falsedades": [
+    "en Valparaíso junto con MAK-COMP-AIR"
+   ],
+   "mentira": "MAK-COMP-AIR está frenado en Antofagasta"
+  },
+  {
+   "id": "N03 · verbo de variación dentro del ancla de una cifra (sin serie)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL3\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"rotacion\"}\n<<FIN>>\n{{hL3: La rotación de LG-DRYER8KG cae a {hL3}}}.",
+   "falsedades": [
+    "cae a 1.0x"
+   ],
+   "mentira": "no verificable: la boleta no trae rotación anterior; «cae» afirma una variación que no existe"
+  },
+  {
+   "id": "N01 · umbral de la POLICY sin número: «bajo el piso de rotación» (la boleta no trae piso)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hB3\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"rotacion\"}\n<<FIN>>\n{{hB3: BOS-SANDER rota a {hB3}}}, un ritmo que se queda bajo el piso de rotación.",
+   "falsedades": [
+    "se queda bajo el piso de rotación"
+   ],
+   "mentira": "no verificable: la boleta no trae «Piso de rotación»"
+  },
+  {
+   "id": "N02 · techo de cobertura sin número: «muy por sobre el techo»",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hM4\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_inventario\"}\n<<FIN>>\n{{hM4: MAK-COMP-AIR acumula {hM4} de cobertura}}, muy por sobre el techo que definiste.",
+   "falsedades": [
+    "muy por sobre el techo que definiste"
+   ],
+   "mentira": "no verificable: la boleta no trae «Techo de cobertura»"
+  },
+  {
+   "id": "D01 · estado con bodega falsa (MAK-COMP-AIR frenado en Valparaíso)",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hEMv\",\"tipo\":\"estado\",\"sujeto\":\"MAK-COMP-AIR\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n<<FIN>>\n{{hEMv: MAK-COMP-AIR está frenado en Valparaíso}}.",
+   "falsedades": [
+    "MAK-COMP-AIR está frenado en Valparaíso"
+   ],
+   "mentira": "está frenado en Antofagasta"
+  },
+  {
+   "id": "D02 · relación de parte SKU ⊂ bodega falsa",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRelP\",\"tipo\":\"relacion\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital\",\"relacion\":{\"forma\":\"parte\",\"vs\":{\"sujeto\":\"Valparaíso\"}}}\n<<FIN>>\n{{hRelP: MAK-COMP-AIR es parte de lo que tienes en Valparaíso}}.",
+   "falsedades": [
+    "MAK-COMP-AIR es parte de lo que tienes en Valparaíso"
+   ],
+   "mentira": "está en Antofagasta"
+  },
+  {
+   "id": "D03 · grupo de dos SKU servido como cifra de la bodega",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hG2\",\"tipo\":\"grupo\",\"miembros\":[\"LG-DRYER8KG\",\"BOS-SANDER\"],\"metrica\":\"capital_frenado\",\"agregado\":\"suma\"}\n<<FIN>>\n{{hG2: Valparaíso arrastra {hG2} frenados}}.",
+   "falsedades": [
+    "Valparaíso arrastra $25K frenados"
+   ],
+   "mentira": "la cifra es verdadera pero el hecho no tiene a Valparaíso como rol (entidad-ajena esperada; la mentira sería servir un grupo como si fuera la bodega)"
+  },
+  {
+   "id": "D04 · «crítico» fuera del ancla sobre un SKU que no lo es",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hEB\",\"tipo\":\"estado\",\"sujeto\":\"BOS-SANDER\",\"estado\":\"frenado\"}\n<<FIN>>\n{{hEB: BOS-SANDER está frenado}} y en estado crítico.",
+   "falsedades": [
+    "en estado crítico"
+   ],
+   "mentira": "BOS-SANDER no tiene alerta crítica (la tienen LG-DRYER8KG y MAK-COMP-AIR)"
+  },
+  {
+   "id": "D05 · unidades en stock servidas como días de cobertura",
+   "pregunta": "¿Qué SKU están en riesgo de quiebre y cuántas unidades me quedan?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hST2\",\"tipo\":\"cifra\",\"sujeto\":\"SAM-TV55\",\"metrica\":\"unidades_stock\"}\n<<FIN>>\n{{hST2: SAM-TV55 tiene {hST2} días de cobertura}}.",
+   "falsedades": [
+    "SAM-TV55 tiene 18 días de cobertura"
+   ],
+   "mentira": "18 son unidades en stock; la cobertura es 58 días"
+  },
+  {
+   "id": "D06 · la medida «liberar» con los SKU cambiados",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMed\",\"tipo\":\"ref\",\"de\":\"Medida · liberar LG-DRYER8KG y MAK-COMP-AIR\"}\n<<FIN>>\n{{hMed: Liberar LG-DRYER8KG y BOS-SANDER te devuelve {hMed}}}.",
+   "falsedades": [
+    "Liberar LG-DRYER8KG y BOS-SANDER te devuelve $22K"
+   ],
+   "mentira": "la medida de la boleta es liberar LG-DRYER8KG y MAK-COMP-AIR"
+  },
+  {
+   "id": "D07 · días de inventario servidos como «sin venta» (sinónimo del léxico)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hM4\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_inventario\"}\n<<FIN>>\n{{hM4: MAK-COMP-AIR es el SKU más viejo, con {hM4} sin venta}}.",
+   "falsedades": [
+    "con 190 días sin venta"
+   ],
+   "mentira": "MAK-COMP-AIR lleva 112 días sin venta; 190 son sus días de inventario"
+  },
+  {
+   "id": "D08 · cifras escritas cruzadas con placeholders (reparto por orden, 2 y 2)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL2\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hM2\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n<<FIN>>\n{{hL2 hM2: LG-DRYER8KG lleva {hM2} sin venta y MAK-COMP-AIR {hL2}}}.",
+   "falsedades": [
+    "LG-DRYER8KG lleva 112d sin venta"
+   ],
+   "mentira": "idem A01 (aquí el reparto por orden debería cobrarlo)"
+  },
+  {
+   "id": "D09 · alias de marca sin catálogo («la secadora de LG») sobre el orden de MAK-COMP-AIR",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOM\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"hM2\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n<<FIN>>\n{{hOM hM2: El caso más viejo que tienes es la secadora de LG, con {hM2} sin venta}}.",
+   "falsedades": [
+    "es la secadora de LG"
+   ],
+   "mentira": "el más viejo es MAK-COMP-AIR (112d); la secadora de LG lleva 94d"
+  },
+  {
+   "id": "C01 · total, frenado y razón",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCapT\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"capital\"}\n{\"id\":\"hFrT\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hRazT\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"negocio\",\"metrica\":\"capital_frenado\"},\"den\":{\"sujeto\":\"negocio\",\"metrica\":\"capital\"}}\n<<FIN>>\n{{hCapT: Tienes {hCapT} en inventario}} y {{hFrT: {hFrT} de eso está frenado}}: {{hRazT: el {hRazT} del capital}}."
+  },
+  {
+   "id": "C02 · la bodega con más capital frenado, con su cifra, y la otra",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOB\",\"tipo\":\"orden\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"bodega\"}}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hA\",\"tipo\":\"cifra\",\"sujeto\":\"Antofagasta\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{hOB hV: Valparaíso es la bodega con más capital frenado, {hV}}}; {{hA: Antofagasta aporta {hA}}}."
+  },
+  {
+   "id": "C03 · tabla SKU × capital frenado, días sin venta, rotación",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hL2\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hL3\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"rotacion\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB2\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hB3\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"rotacion\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM2\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hM3\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"rotacion\"}\n<<FIN>>\n| SKU | Capital frenado | Días sin venta | Rotación |\n|---|---|---|---|\n| LG-DRYER8KG | {hL1} | {hL2} | {hL3} |\n| BOS-SANDER | {hB1} | {hB2} | {hB3} |\n| MAK-COMP-AIR | {hM1} | {hM2} | {hM3} |"
+  },
+  {
+   "id": "C04 · conteo n de m",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC3\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"frenado\"]}}\n<<FIN>>\n{{hC3: {hC3.n} de tus {hC3.m} SKU están frenados}}."
+  },
+  {
+   "id": "C05 · lista anidada bodega → SKU, correcta",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n- **Valparaíso**\n  - LG-DRYER8KG: {hL1}\n  - BOS-SANDER: {hB1}\n- **Antofagasta**\n  - MAK-COMP-AIR: {hM1}"
+  },
+  {
+   "id": "C06 · estado con bodega + cifra en la misma oración",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hEL\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n{\"id\":\"hL2\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"dias_sin_venta\"}\n<<FIN>>\n{{hEL: LG-DRYER8KG está frenado en Valparaíso}} y {{hL2: lleva {hL2} sin venta}}."
+  },
+  {
+   "id": "C07 · rotación con el orden del mínimo («la más baja»)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hM3\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"rotacion\"}\n{\"id\":\"hOMr2\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"rotacion\",\"orden\":{\"forma\":\"min\",\"direccion\":\"menor\"},\"universo\":{\"eje\":\"sku\"}}\n<<FIN>>\n{{hM3: MAK-COMP-AIR rota {hM3}}}, {{hOMr2: la rotación más baja del inventario}}."
+  },
+  {
+   "id": "C08 · relación «más que» entre dos SKU",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRelM\",\"tipo\":\"relacion\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"MAK-COMP-AIR\"}}}\n<<FIN>>\n{{hRelM: LG-DRYER8KG retiene más capital frenado que MAK-COMP-AIR}}."
+  },
+  {
+   "id": "C09 · riesgo de quiebre con unidades y cobertura",
+   "pregunta": "¿Qué SKU están en riesgo de quiebre y cuántas unidades me quedan?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hESR\",\"tipo\":\"estado\",\"sujeto\":\"SAM-REF500L\",\"estado\":\"riesgo_de_quiebre\"}\n{\"id\":\"hSR1\",\"tipo\":\"cifra\",\"sujeto\":\"SAM-REF500L\",\"metrica\":\"unidades_stock\"}\n{\"id\":\"hSR2\",\"tipo\":\"cifra\",\"sujeto\":\"SAM-REF500L\",\"metrica\":\"dias_inventario\"}\n<<FIN>>\n{{hESR: SAM-REF500L está en riesgo de quiebre}}: {{hSR1: {hSR1} unidades}} y {{hSR2: {hSR2} de cobertura}}."
+  },
+  {
+   "id": "C10 · razón con «su» sobre el mismo dueño",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hPV\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"},\"den\":{\"sujeto\":\"Valparaíso\",\"metrica\":\"capital\"}}\n<<FIN>>\n{{hPV: Valparaíso tiene frenado el {hPV} de su capital}}."
+  },
+  {
+   "id": "C11 · el más viejo sin venta, con su cifra en otra ancla",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOM\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"hM2\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n<<FIN>>\n{{hOM: El SKU más viejo sin venta es MAK-COMP-AIR}}, {{hM2: con {hM2} sin venta}}."
+  },
+  {
+   "id": "C12 · encabezado + viñetas rotuladas por bodega",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hA\",\"tipo\":\"cifra\",\"sujeto\":\"Antofagasta\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n### Capital frenado por bodega\n- Valparaíso: {hV}\n- Antofagasta: {hA}"
+  },
+  {
+   "id": "C13 · grupo suma «entre los dos»",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hG2\",\"tipo\":\"grupo\",\"miembros\":[\"LG-DRYER8KG\",\"BOS-SANDER\"],\"metrica\":\"capital_frenado\",\"agregado\":\"suma\"}\n<<FIN>>\n{{hG2: LG-DRYER8KG y BOS-SANDER suman {hG2} de capital frenado entre los dos}}."
+  },
+  {
+   "id": "C14 · dos estados de la Mesa Capital",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hESM\",\"tipo\":\"estado\",\"sujeto\":\"SAM-MICRO32L\",\"estado\":\"capital_sano\"}\n{\"id\":\"hEPI\",\"tipo\":\"estado\",\"sujeto\":\"PHI-IRON-PRO\",\"estado\":\"sobrestock\"}\n<<FIN>>\n{{hESM: SAM-MICRO32L tiene capital sano}} y {{hEPI: PHI-IRON-PRO está en sobrestock}}."
+  },
+  {
+   "id": "C15 · orden con cifra + lectura con apoyo (sin cifras dentro)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOL\",\"tipo\":\"orden\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM2\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hLec\",\"tipo\":\"lectura\",\"apoyo\":[\"hOL\",\"hL1\",\"hM2\",\"hB1\"]}\n<<FIN>>\n{{hOL hL1: LG-DRYER8KG es el SKU que más capital te frena, con {hL1}}}. {{hLec: Yo lo liberaría primero; MAK-COMP-AIR va después y BOS-SANDER puede esperar.}}"
+  },
+  {
+   "id": "C16 · retórica sin cifras («dos cosas») + hechos anclados",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hM2\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hM5\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"unidades_stock\"}\n<<FIN>>\nDos cosas haría esta semana: liquidar y no reponer. {{hM2: MAK-COMP-AIR lleva {hM2} sin venta}}; {{hM5: quedan {hM5} unidades}}."
+  },
+  {
+   "id": "C17 · dos estados del mismo SKU en dos anclas",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hEL0\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\"}\n{\"id\":\"hELc\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"critico\"}\n<<FIN>>\n{{hEL0: LG-DRYER8KG sigue frenado}} y {{hELc: en estado crítico}}."
+  },
+  {
+   "id": "C18 · conteo en palabras",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC3\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"frenado\"]}}\n<<FIN>>\n{{hC3: Tres SKU están frenados}}."
+  },
+  {
+   "id": "C19 · derivada «diferencia» (la forma que evalúa el libro)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hDdif\",\"tipo\":\"derivada\",\"op\":\"diferencia\",\"de\":[\"hL1\",\"hB1\"]}\n<<FIN>>\n{{hDdif: Entre LG-DRYER8KG y BOS-SANDER hay {hDdif} de diferencia en capital frenado}}."
+  },
+  {
+   "id": "C20 · derivada «resta» (la forma que enseña el protocolo)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hDres\",\"tipo\":\"derivada\",\"op\":\"resta\",\"de\":[\"hL1\",\"hB1\"]}\n<<FIN>>\n{{hDres: Entre LG-DRYER8KG y BOS-SANDER hay {hDres} de diferencia en capital frenado}}."
+  },
+  {
+   "id": "C21 · la medida de la boleta con sus dos SKU (ref por rótulo)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMed\",\"tipo\":\"ref\",\"de\":\"Medida · liberar LG-DRYER8KG y MAK-COMP-AIR\"}\n<<FIN>>\n{{hMed: Liberar LG-DRYER8KG y MAK-COMP-AIR te devuelve {hMed}}}."
+  },
+  {
+   "id": "C22 · «el que peor rota» con dirección menor",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOMr2\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"rotacion\",\"orden\":{\"forma\":\"min\",\"direccion\":\"menor\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"hM3\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"rotacion\"}\n<<FIN>>\n{{hOMr2 hM3: MAK-COMP-AIR es el que peor rota, {hM3}}}."
+  },
+  {
+   "id": "C23 · unidades en stock y capital del mismo SKU",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL5\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"unidades_stock\"}\n{\"id\":\"hL6\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital\"}\n<<FIN>>\n{{hL5: LG-DRYER8KG tiene {hL5} unidades en stock}} por {{hL6: {hL6} de capital}}."
+  },
+  {
+   "id": "C24 · alias de producto sin catálogo («el compresor de aire» = MAK-COMP-AIR)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOM\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"hM2\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n<<FIN>>\n{{hOM hM2: El caso más viejo del inventario es el compresor de aire, con {hM2} sin venta}}."
+  },
+  {
+   "id": "C25 · negación de otro estado («no está frenado» sobre capital sano)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hESM\",\"tipo\":\"estado\",\"sujeto\":\"SAM-MICRO32L\",\"estado\":\"capital_sano\"}\n<<FIN>>\n{{hESM: SAM-MICRO32L no está frenado}}."
+  },
+  {
+   "id": "C26 · lectura con una palabra comercial («descuento») sobre entidades con hechos de inventario",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOL\",\"tipo\":\"orden\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM2\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hLec2\",\"tipo\":\"lectura\",\"apoyo\":[\"hOL\",\"hL1\",\"hM2\",\"hB1\"]}\n<<FIN>>\n{{hOL hL1: LG-DRYER8KG es el SKU que más capital te frena, con {hL1}}}. {{hLec2: Yo lo liberaría primero, aunque sea con descuento; MAK-COMP-AIR va después y BOS-SANDER puede esperar.}}"
+  },
+  {
+   "id": "C27 · grupo de los tres frenados como total",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hG3\",\"tipo\":\"grupo\",\"miembros\":[\"LG-DRYER8KG\",\"BOS-SANDER\",\"MAK-COMP-AIR\"],\"metrica\":\"capital_frenado\",\"agregado\":\"suma\"}\n<<FIN>>\n| SKU | Capital frenado |\n|---|---|\n| LG-DRYER8KG | {hL1} |\n| BOS-SANDER | {hB1} |\n| MAK-COMP-AIR | {hM1} |\n| Total | {hG3} |"
+  },
+  {
+   "id": "C28 · razón de Antofagasta sobre su propio capital",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hPA\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Antofagasta\",\"metrica\":\"capital_frenado\"},\"den\":{\"sujeto\":\"Antofagasta\",\"metrica\":\"capital\"}}\n<<FIN>>\n{{hPA: Antofagasta tiene frenado el {hPA} de su capital}}."
+  },
+  {
+   "id": "C29 · la bodega «que más capital frenado concentra» (superlativo con «que más»)",
+   "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOB\",\"tipo\":\"orden\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"bodega\"}}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hA\",\"tipo\":\"cifra\",\"sujeto\":\"Antofagasta\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{hOB hV: Valparaíso es la bodega que más capital frenado concentra, {hV}}}; {{hA: Antofagasta aporta {hA}}}."
+  },
+  {
+   "id": "C30 · tabla con cabeceras sin palabra de estado",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hL3\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"rotacion\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB3\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"rotacion\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM3\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"rotacion\"}\n<<FIN>>\n| SKU | Capital retenido | Rotación |\n|---|---|---|\n| LG-DRYER8KG | {hL1} | {hL3} |\n| BOS-SANDER | {hB1} | {hB3} |\n| MAK-COMP-AIR | {hM1} | {hM3} |"
+  },
+  {
+   "id": "C31 · rotación mínima «de tus SKU» (sin la palabra inventario)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hM3\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"rotacion\"}\n{\"id\":\"hOMr2\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"rotacion\",\"orden\":{\"forma\":\"min\",\"direccion\":\"menor\"},\"universo\":{\"eje\":\"sku\"}}\n<<FIN>>\n{{hM3: MAK-COMP-AIR rota {hM3}}}, {{hOMr2: la rotación más baja de tus SKU}}."
+  },
+  {
+   "id": "C32 · relación «por encima de»",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRelM\",\"tipo\":\"relacion\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"MAK-COMP-AIR\"}}}\n<<FIN>>\n{{hRelM: En capital frenado, LG-DRYER8KG está por encima de MAK-COMP-AIR}}."
+  },
+  {
+   "id": "C33 · riesgo de quiebre con «piezas» y cobertura",
+   "pregunta": "¿Qué SKU están en riesgo de quiebre y cuántas unidades me quedan?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hESR\",\"tipo\":\"estado\",\"sujeto\":\"SAM-REF500L\",\"estado\":\"riesgo_de_quiebre\"}\n{\"id\":\"hSR1\",\"tipo\":\"cifra\",\"sujeto\":\"SAM-REF500L\",\"metrica\":\"unidades_stock\"}\n{\"id\":\"hSR2\",\"tipo\":\"cifra\",\"sujeto\":\"SAM-REF500L\",\"metrica\":\"dias_inventario\"}\n<<FIN>>\n{{hESR: SAM-REF500L está en riesgo de quiebre}}: {{hSR1: quedan {hSR1} piezas}} y {{hSR2: {hSR2} de cobertura}}."
+  },
+  {
+   "id": "C34 · grupo suma con valor declarado",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hG2v\",\"tipo\":\"grupo\",\"miembros\":[\"LG-DRYER8KG\",\"BOS-SANDER\"],\"metrica\":\"capital_frenado\",\"agregado\":\"suma\",\"valor\":\"$25K\"}\n<<FIN>>\n{{hG2v: LG-DRYER8KG y BOS-SANDER suman {hG2v} de capital frenado entre los dos}}."
+  },
+  {
+   "id": "C35 · derivada por rótulos de la boleta",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hDlab\",\"tipo\":\"derivada\",\"op\":\"diferencia\",\"de\":[\"LG-DRYER8KG · Capital frenado\",\"BOS-SANDER · Capital frenado\"]}\n<<FIN>>\n{{hDlab: Entre LG-DRYER8KG y BOS-SANDER hay {hDlab} de diferencia en capital frenado}}."
+  },
+  {
+   "id": "C36 · retórica + hechos anclados, con «piezas»",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hM2\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hM5\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"unidades_stock\"}\n<<FIN>>\nDos cosas haría esta semana: liquidar y no reponer. {{hM2: MAK-COMP-AIR lleva {hM2} sin venta}}; {{hM5: quedan {hM5} piezas}}."
+  },
+  {
+   "id": "C37 · grupo de los tres frenados como total, con valor y cabecera sin estado",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hG3v\",\"tipo\":\"grupo\",\"miembros\":[\"LG-DRYER8KG\",\"BOS-SANDER\",\"MAK-COMP-AIR\"],\"metrica\":\"capital_frenado\",\"agregado\":\"suma\",\"valor\":\"$33K\"}\n<<FIN>>\n| SKU | Capital retenido |\n|---|---|\n| LG-DRYER8KG | {hL1} |\n| BOS-SANDER | {hB1} |\n| MAK-COMP-AIR | {hM1} |\n| Total | {hG3v} |"
+  },
+  {
+   "id": "C38 · unidades en stock dichas con «piezas en bodega»",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL5\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"unidades_stock\"}\n{\"id\":\"hL6\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital\"}\n<<FIN>>\n{{hL5: LG-DRYER8KG tiene {hL5} piezas en bodega}} por {{hL6: {hL6} de capital}}."
+  },
+  {
+   "id": "C01b · total, frenado y razón, con los tres frenados nombrados",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hCapT\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"capital\"}\n{\"id\":\"hFrT\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hRazT\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"negocio\",\"metrica\":\"capital_frenado\"},\"den\":{\"sujeto\":\"negocio\",\"metrica\":\"capital\"}}\n<<FIN>>\n{{hCapT: Tienes {hCapT} en inventario}} y {{hFrT: {hFrT} de eso está frenado}}: {{hRazT: el {hRazT} del capital}}. {{hL1: LG-DRYER8KG frena {hL1}}}, {{hB1: BOS-SANDER {hB1}}} y {{hM1: MAK-COMP-AIR {hM1}}}."
+  },
+  {
+   "id": "C04b · conteo n de m, con los tres frenados nombrados",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hC3\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"frenado\"]}}\n<<FIN>>\n{{hC3: {hC3.n} de tus {hC3.m} SKU están frenados}}: {{hL1: LG-DRYER8KG frena {hL1}}}, {{hB1: BOS-SANDER {hB1}}} y {{hM1: MAK-COMP-AIR {hM1}}}."
+  },
+  {
+   "id": "C14b · dos estados de la Mesa Capital, con los tres frenados nombrados",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hESM\",\"tipo\":\"estado\",\"sujeto\":\"SAM-MICRO32L\",\"estado\":\"capital_sano\"}\n{\"id\":\"hEPI\",\"tipo\":\"estado\",\"sujeto\":\"PHI-IRON-PRO\",\"estado\":\"sobrestock\"}\n<<FIN>>\n{{hL1: LG-DRYER8KG frena {hL1}}}, {{hB1: BOS-SANDER {hB1}}} y {{hM1: MAK-COMP-AIR {hM1}}}. {{hESM: SAM-MICRO32L tiene capital sano}} y {{hEPI: PHI-IRON-PRO está en sobrestock}}."
+  },
+  {
+   "id": "C18b · conteo en palabras, con los tres frenados nombrados",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hC3\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"frenado\"]}}\n<<FIN>>\n{{hC3: Tres SKU están frenados}}: {{hL1: LG-DRYER8KG frena {hL1}}}, {{hB1: BOS-SANDER {hB1}}} y {{hM1: MAK-COMP-AIR {hM1}}}."
+  },
+  {
+   "id": "C39 · el SKU más nuevo (orden min de días sin venta)",
+   "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hOMn\",\"tipo\":\"orden\",\"sujeto\":\"SAM-MICRO32L\",\"metrica\":\"dias_sin_venta\",\"orden\":{\"forma\":\"min\",\"direccion\":\"menor\"},\"universo\":{\"eje\":\"sku\"}}\n<<FIN>>\n{{hL1: LG-DRYER8KG frena {hL1}}}, {{hB1: BOS-SANDER {hB1}}} y {{hM1: MAK-COMP-AIR {hM1}}}. {{hOMn: El más nuevo, en cambio, es SAM-MICRO32L}}."
+  }
+ ]
+}

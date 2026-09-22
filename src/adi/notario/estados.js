@@ -72,6 +72,33 @@ export const ESTADOS_DE_LA_CASA = [
     verificar: (I, ent) => { const v = _deRanking(I, "cliente", "recuperado", ent); if (v == null) return null; return { ok: v === 0, verdad: `${ent} · Recuperado = ${v}%`, evidencia: ["ranking recuperado"] }; } },
 ];
 
+/* las formas de la ronda 5 (datos): se suman a `re` y a `prosa` del estado; el complemento de «frenado» son los estados sanos */
+const _FORMAS_EXTRA = {
+  "buen pagador": ["historial\\s+(?:impecable|limpio|sano)", "(?:es|son)\\s+de\\s+fiar", "confiables?\\s+(?:en|para)\\s+(?:el\\s+)?pago", "de\\s+confianza\\s+(?:en|para)\\s+(?:el\\s+)?pago", "paga\\s+dentro\\s+de(?:l)?\\s+plazo", "(?:nunca|sin|jam[aá]s)\\s+(?:[a-záéíóúñ]+\\s+){0,3}problemas\\s+de\\s+(?:cobranza|pago)", "impecable\\s+en\\s+pagos?"],
+  "sin deuda": ["a\\s+paz\\s+y\\s+salvo", "cancel[oó]\\s+toda\\s+su\\s+deuda", "(?:dej[oó]|qued[oó])\\s+(?:en|a)\\s+cero", "saldo\\s+en\\s+cero"],
+  "al dia": ["tiene\\s+todo\\s+vigente", "ni\\s+una\\s+factura\\s+vencida", "no\\s+tienen\\s+nada\\s+vencido", "sin\\s+nada\\s+vencido"],
+  "sin pagos": ["ni\\s+un\\s+(?:peso|centavo)", "no\\s+ha\\s+entrado\\s+nada"],
+  "sin venta": ["no\\s+se\\s+mueve", "sin\\s+moverse"],
+};
+for (const e of ESTADOS_DE_LA_CASA) {
+  const extra = _FORMAS_EXTRA[e.canon]; if (!extra) continue;
+  e.re = new RegExp(e.re.source + "|" + extra.join("|"), e.re.flags);
+  e.prosa = new RegExp(e.prosa.source + "|" + extra.join("|"), e.prosa.flags);
+}
+/* «frenado» no lleva complemento en el catálogo: el juez v2 (presencia) leería «no está frenado» como un punto de «capital sano» sin declarar; el libro v3 usa COMPLEMENTO_V3 */
+export const COMPLEMENTO_V3 = { frenado: "capital sano" };
+for (const e of ESTADOS_DE_LA_CASA) if (e.canon === "sin contribucion" || e.canon === "sin margen") e.ejes = ["cliente", "sku", "marca", "familia", "canal"];   // se demuestran con la métrica, en cualquier eje que la tenga
+/** ejeCompatible(def, eje) → el estado vale en ese eje */
+export const ejeCompatible = (def, eje) => !def || !eje || (Array.isArray(def.ejes) ? def.ejes.includes(eje) : !def.eje || def.eje === eje);
+/** estadoDeclarado(s) → el canon de un estado escrito por su nombre exacto o por una forma del catálogo que lo nombra ENTERA (sin negación); null si no */
+export function estadoDeclarado(s) {
+  const t = normalizar(String(s || "").replace(/_/g, " ")).trim();
+  if (!t) return null;
+  if (ESTADOS_CANON.has(t)) return t;
+  if (/(?:^|\s)(?:no|ni|nunca|jamas|tampoco)(?:\s|$)/.test(t)) return null;
+  for (const e of ESTADOS_DE_LA_CASA) { const rx = new RegExp("^(?:" + e.re.source + ")$", "i"); if (rx.test(t)) return e.canon; }
+  return null;
+}
 export const ESTADOS_CANON = new Set(ESTADOS_DE_LA_CASA.map((e) => e.canon));
 const _porCanon = new Map(ESTADOS_DE_LA_CASA.map((e) => [e.canon, e]));
 export const estadoDeLaCasa = (canon) => _porCanon.get(canon) || null;

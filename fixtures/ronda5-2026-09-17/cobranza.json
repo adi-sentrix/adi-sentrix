@@ -1,0 +1,767 @@
+{
+ "angulo": "cobranza",
+ "casos": [
+  {
+   "id": "A01",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Lider es el que menos te debe"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"omaxp\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"lp\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\n{{omaxp lp: Lider es el que menos te debe, con {lp} pendientes}}.",
+   "nota": "orden max sin «direccion»: el juez no deriva la dirección de la forma"
+  },
+  {
+   "id": "A02",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "el peor de la cartera"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"ld\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n<<FIN>>\n{{ld: Lider lleva {ld} de atraso, el peor de la cartera}}.",
+   "nota": "superlativo dentro de un ancla de cifra (Easy lleva 270d)"
+  },
+  {
+   "id": "A03",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "es la tercera de la lista"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"fx\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{fx: Falabella arrastra {fx} vencidos y es la tercera de la lista}}.",
+   "nota": "ordinal dentro de un ancla de cifra (Falabella es la segunda)"
+  },
+  {
+   "id": "A04",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "más que cualquier otro cliente"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"fx\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{fx: Falabella arrastra {fx} vencidos, más que cualquier otro cliente}}.",
+   "nota": "comparativo dentro de un ancla de cifra (Lider arrastra $4.6M)"
+  },
+  {
+   "id": "A05",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Jumbo también"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"es\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"jp\",\"tipo\":\"cifra\",\"sujeto\":\"Jumbo\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\n{{es: Sodimac sigue en mora}}; {{jp: Jumbo también, con {jp} pendientes}}.",
+   "nota": "«también» hereda el estado a través de «;» (Jumbo está al día)"
+  },
+  {
+   "id": "A06",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Jumbo también"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"es\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n<<FIN>>\n{{es: Sodimac está en mora}}. Jumbo también.",
+   "nota": "«también» en oración nueva sin ancla"
+  },
+  {
+   "id": "A07",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Sodimac, lo mismo"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"ej\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"sx\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{ej: Jumbo no está en mora}}; {{sx: Sodimac, lo mismo, con {sx} vencidos}}.",
+   "nota": "«lo mismo» hereda «no está en mora» a través de «;» (Sodimac está en mora)"
+  },
+  {
+   "id": "A08",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Lo mismo vale para Jumbo"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"es\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n<<FIN>>\n{{es: Sodimac está en mora}}. Lo mismo vale para Jumbo.",
+   "nota": "proforma en oración nueva sin ancla"
+  },
+  {
+   "id": "A09",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Sería un error pensar, y lo digo con los números a la vista, que Lider es el que más te debe"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"omaxp\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\nSería un error pensar, y lo digo con los números a la vista, que {{omaxp: Lider es el que más te debe}}.",
+   "nota": "negación a más de 5 palabras del ancla"
+  },
+  {
+   "id": "A10",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Falso: Lider es el que más te debe"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"omaxp\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\nFalso: {{omaxp: Lider es el que más te debe}}.",
+   "nota": "negación léxica fuera de la lista («Falso:»)"
+  },
+  {
+   "id": "A11",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "aunque esa lectura del sistema no se sostiene"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"omaxp\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{omaxp: Lider es el que más te debe}}, aunque esa lectura del sistema no se sostiene.",
+   "nota": "negación a más de 3 palabras después del ancla"
+  },
+  {
+   "id": "A12",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Dista mucho de ser cierto que Lider es el que más te debe"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"omaxp\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\nDista mucho de ser cierto que {{omaxp: Lider es el que más te debe}}.",
+   "nota": "«dista mucho de» no es «dista de»"
+  },
+  {
+   "id": "A13",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "historial limpio"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"sx\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{sx: Sodimac arrastra {sx} vencidos}}. Sodimac tiene un historial limpio.",
+   "nota": "«historial limpio» está en `re` de buen pagador pero no en `prosa`"
+  },
+  {
+   "id": "A14",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "a paz y salvo"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"sa\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"abonado\"}\n<<FIN>>\n{{sa: Sodimac te abonó {sa}}} y está a paz y salvo.",
+   "nota": "«a paz y salvo» (sin deuda, LatAm) no está en el catálogo"
+  },
+  {
+   "id": "A15",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "canceló toda su deuda"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"sa\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"abonado\"}\n<<FIN>>\n{{sa: Sodimac te abonó {sa}}} y con eso canceló toda su deuda.",
+   "nota": "«canceló toda su deuda» no casa con «cancelo (todo|la deuda|el saldo)»"
+  },
+  {
+   "id": "A16",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "no ha entrado ni un peso"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"lx\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{lx: Lider arrastra {lx} vencidos}}. De Lider no ha entrado ni un peso.",
+   "nota": "«sin pagos» dicho sin vocabulario de la casa (Lider abonó $8.0M)"
+  },
+  {
+   "id": "A17",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "lleva años sin pagar"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"lx\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{lx: Lider arrastra {lx} vencidos}}. Lider lleva años sin pagar.",
+   "nota": "duración en plural sin número (269 días; abonó $8.0M)"
+  },
+  {
+   "id": "A18",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Sodimac es de fiar",
+    "le ampliaría el cupo"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"sx\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"sd\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"dias_vencido\"}\n<<FIN>>\n{{sx sd: Sodimac arrastra {sx} vencidos y lleva {sd} de atraso}}. Aun así, Sodimac es de fiar: yo le ampliaría el cupo sin dudarlo.",
+   "nota": "calificación de crédito sin vocabulario de la casa + recomendación de cupo sin lectura con apoyo (comprobación 11 no existe en anclas.js)"
+  },
+  {
+   "id": "A19",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "seguiría despachándole sin restricciones"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"sx\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{sx: Sodimac arrastra {sx} vencidos}}, y aun así, con ese cuadro a la vista, yo seguiría despachándole sin restricciones.",
+   "nota": "«seguir despachando» sin lectura con apoyo; modalidad a más de 5 palabras"
+  },
+  {
+   "id": "A20",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "no lo llamaría todavía"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"ld\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n<<FIN>>\n{{ld: Lider lleva {ld} de atraso}}. A Lider yo no lo llamaría todavía; primero cobraría a los pequeños.",
+   "nota": "«no llamar» sin lectura con apoyo"
+  },
+  {
+   "id": "A21",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "| Lider | $4.6M |"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"lx\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"fx\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n| Cliente | Deuda total |\n|---|---|\n| Lider | {lx} |\n| Falabella | {fx} |",
+   "nota": "cabecera «Deuda total» acepta el vencido (deuda total de Lider = $9.8M pendientes)"
+  },
+  {
+   "id": "A22",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Lider te debe $4.6M"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"lx\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{lx: Lider te debe {lx}}}.",
+   "nota": "«te debe» a secas con el vencido (Lider debe $9.8M)"
+  },
+  {
+   "id": "A23",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Lider te debe $5.3M"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"lpv\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_por_vencer\"}\n<<FIN>>\n{{lpv: Lider te debe {lpv}}}.",
+   "nota": "«te debe» a secas con el por vencer (Lider debe $9.8M)"
+  },
+  {
+   "id": "A24",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "medido sobre lo que te debe"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"lr\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"recuperado\"}\n<<FIN>>\n{{lr: Lider ya te pagó el {lr}}}, medido sobre lo que te debe.",
+   "nota": "preposición de base fuera del ancla (45% es sobre la venta; sobre el pendiente sería 82%)"
+  },
+  {
+   "id": "A25",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "superan el año de mora"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"n90\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":90,\"unidad\":\"days\"}]}}\n<<FIN>>\n{{n90: {n90.n} cuentas superan el año de mora}}.",
+   "nota": "umbral en palabras sin número («el año»; el umbral es 90 días; el máximo 270d)"
+  },
+  {
+   "id": "A26",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "la mayoría"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"nmora\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n<<FIN>>\n{{nmora: {nmora.n} de tus clientes, la mayoría, están en mora}}.",
+   "nota": "proporción no contrastada con n/m (6 de 13)"
+  },
+  {
+   "id": "A27",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "todos tus clientes están al día"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"nad\",\"tipo\":\"conteo\",\"n\":7,\"m\":13,\"de\":{\"eje\":\"cliente\",\"estados\":[\"al_dia\"]}}\n<<FIN>>\n{{nad: todos tus clientes están al día}}.",
+   "nota": "«todos» como núcleo de conteo sin exigir n = m (7 de 13)"
+  },
+  {
+   "id": "A28",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "todos tus clientes están en mora"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"nmora\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n<<FIN>>\n{{nmora: todos tus clientes están en mora}}.",
+   "nota": "«todos» sin exigir n = m (6 de 13)"
+  },
+  {
+   "id": "A29",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "casi todo"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"zpv\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"},\"den\":{\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}}\n<<FIN>>\n{{zpv: Lider te debe el {zpv} de lo que le vendiste, casi todo}}.",
+   "nota": "proporción subjetiva junto a una razón del 55%"
+  },
+  {
+   "id": "A30",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "suman $2.6M"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"ddif\",\"tipo\":\"derivada\",\"op\":\"diferencia\",\"de\":[{\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"},{\"sujeto\":\"Sodimac\",\"metrica\":\"saldo_vencido\"}]}\n<<FIN>>\n{{ddif: Lider y Sodimac suman {ddif} vencidos entre los dos}}.",
+   "nota": "derivada «diferencia» dicha como suma (suman $6.5M)"
+  },
+  {
+   "id": "A31",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "en cartera vencida"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"lpv\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_por_vencer\"}\n<<FIN>>\n{{lpv: Lider tiene {lpv} en cartera vencida}}.",
+   "nota": "comprobación esperada: metrica-ajena"
+  },
+  {
+   "id": "A32",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "de la deuda de Lider está vencido"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"zxv\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"},\"den\":{\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}}\n<<FIN>>\n{{zxv: el {zxv} de la deuda de Lider está vencido}}.",
+   "nota": "comprobación esperada: base-ajena (26% es sobre la venta)"
+  },
+  {
+   "id": "A33",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "están sin deuda"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"nad\",\"tipo\":\"conteo\",\"n\":7,\"m\":13,\"de\":{\"eje\":\"cliente\",\"estados\":[\"al_dia\"]}}\n<<FIN>>\n{{nad: {nad.n} clientes están sin deuda}}.",
+   "nota": "comprobación esperada: estado-ajeno"
+  },
+  {
+   "id": "A34",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "de lo que debe"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"lr\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"recuperado\"}\n<<FIN>>\n{{lr: Lider ya te pagó el {lr} de lo que debe}}.",
+   "nota": "comprobación esperada: base-ajena"
+  },
+  {
+   "id": "A35",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Jumbo también"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"es\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"jp\",\"tipo\":\"cifra\",\"sujeto\":\"Jumbo\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\n{{es: Sodimac está en mora}}. {{jp: Jumbo también, y te debe {jp}}}.",
+   "nota": "«también» dentro de un ancla de cifra en oración nueva"
+  },
+  {
+   "id": "A36",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Sodimac tampoco"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"ej\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n<<FIN>>\n{{ej: Jumbo está al día}}. Sodimac tampoco.",
+   "nota": "«tampoco» en oración nueva sin ancla"
+  },
+  {
+   "id": "A37",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "tiene todo vigente"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"sa\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"abonado\"}\n<<FIN>>\n{{sa: Sodimac te abonó {sa}}} y tiene todo vigente.",
+   "nota": "«vigente» está en `re` de al día pero `prosa` exige (está|queda|sigue) vigente"
+  },
+  {
+   "id": "A38",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "paga dentro de plazo"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"sa\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"abonado\"}\n<<FIN>>\n{{sa: Sodimac te abonó {sa}}} y paga dentro de plazo.",
+   "nota": "«paga dentro de plazo» no está en buen pagador"
+  },
+  {
+   "id": "A39",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "bajó a $4.6M"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"lx\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{lx: el vencido de Lider bajó a {lx}}}.",
+   "nota": "verbo de variación dentro de un ancla de cifra: no hay serie (no demostrable)"
+  },
+  {
+   "id": "A40",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Al cierre del ejercicio anterior"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"lp\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\n{{lp: Al cierre del ejercicio anterior, Lider te debía {lp}}}.",
+   "nota": "marcador de período fuera de la lista (la cifra es del período actual)"
+  },
+  {
+   "id": "A41",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "el próximo trimestre"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"lx\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{lx: Lider llegará a {lx} vencidos el próximo trimestre}}.",
+   "nota": "marcador de futuro fuera de la lista"
+  },
+  {
+   "id": "A42",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "por cobrar: $4.6M"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"lx\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n- Lider — por cobrar: {lx}",
+   "nota": "rótulo genérico «por cobrar» acepta el vencido (por cobrar = $9.8M)"
+  },
+  {
+   "id": "A43",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "donde figura Jumbo"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"nmora\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n{\"id\":\"jp\",\"tipo\":\"cifra\",\"sujeto\":\"Jumbo\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\n{{jp: Jumbo te debe {jp}}}. {{nmora: {nmora.n} cuentas están en mora}}, donde figura Jumbo.",
+   "nota": "entidad pegada al ancla con palabras de contenido entre medio"
+  },
+  {
+   "id": "A44",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "donde Falabella lo supera"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"omaxp\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"lp\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\n{{omaxp lp: Lider es el que más te debe, con {lp} pendientes}}, salvo que se mire el vencido, donde Falabella lo supera.",
+   "nota": "comparativo fuera del ancla en oración con anclas (Lider supera a Falabella en vencido)"
+  },
+  {
+   "id": "A45",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "en realidad no"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"ej\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n<<FIN>>\n{{ej: Jumbo está al día}} —o eso dice el sistema; en realidad no.",
+   "nota": "negación tras «;» en la misma línea"
+  },
+  {
+   "id": "C01",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"omaxp\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"lp\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"ld\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"lr\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"recuperado\"}\n<<FIN>>\n{{omaxp lp: El que más te debe es Lider, con {lp} pendientes}}; {{ld: lleva {ld} de atraso}} y {{lr: te ha pagado el {lr} de lo que le vendiste}}."
+  },
+  {
+   "id": "C02",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"lx\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"lp\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"ld\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"sx\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"sp\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"sd\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"dias_vencido\"}\n<<FIN>>\n| Cliente | Vencido | Pendiente | Días de atraso |\n|---|---|---|---|\n| Lider | {lx} | {lp} | {ld} |\n| Sodimac | {sx} | {sp} | {sd} |"
+  },
+  {
+   "id": "C03",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"ej\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"jp\",\"tipo\":\"cifra\",\"sujeto\":\"Jumbo\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"jpv\",\"tipo\":\"cifra\",\"sujeto\":\"Jumbo\",\"metrica\":\"saldo_por_vencer\"}\n<<FIN>>\n{{ej: Jumbo no tiene nada vencido}}; {{jp: te debe {jp}}} y {{jpv: {jpv} están por vencer}}."
+  },
+  {
+   "id": "C04",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"n90\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":90,\"unidad\":\"days\"}]}}\n<<FIN>>\n{{n90: {n90.n} cuentas superan {n90.umbral} de mora: Lider, Sodimac y Easy}}."
+  },
+  {
+   "id": "C05",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"rel2\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n<<FIN>>\n{{rel2: Lider debe casi el doble que Falabella en vencido}}."
+  },
+  {
+   "id": "C06",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"op2\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\",\"orden\":{\"forma\":\"puesto\",\"k\":2,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"ef\",\"tipo\":\"estado\",\"sujeto\":\"Falabella\",\"estado\":\"en_mora\"}\n{\"id\":\"fd\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"dias_vencido\"}\n<<FIN>>\n{{op2: Falabella es la segunda en vencido}} y {{ef: sigue en mora}}, {{fd: aunque con solo {fd} de atraso}}."
+  },
+  {
+   "id": "C07",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"glf\",\"tipo\":\"grupo\",\"miembros\":[\"Lider\",\"Falabella\"],\"metrica\":\"saldo_vencido\",\"agregado\":\"suma\"}\n{\"id\":\"tx\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{glf: Entre Lider y Falabella suman {glf} vencidos}}; {{tx: el total vencido es {tx}}}."
+  },
+  {
+   "id": "C08",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"ominr\",\"tipo\":\"orden\",\"sujeto\":\"Sodimac\",\"metrica\":\"recuperado\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"sr\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"recuperado\"}\n<<FIN>>\n{{ominr: Sodimac es el que peor recupera}}: {{sr: apenas el {sr} de lo facturado}}."
+  },
+  {
+   "id": "C09",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"nad\",\"tipo\":\"conteo\",\"n\":7,\"m\":13,\"de\":{\"eje\":\"cliente\",\"estados\":[\"al_dia\"]}}\n{\"id\":\"nmora\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n<<FIN>>\n{{nad: {nad.n} de tus {nad.m} clientes están al día}}, y {{nmora: {nmora.n} están en mora}}."
+  },
+  {
+   "id": "C10",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"tp\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"tx\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"ztx\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"negocio\",\"metrica\":\"saldo_vencido\"},\"den\":{\"sujeto\":\"negocio\",\"metrica\":\"saldo_pendiente\"}}\n<<FIN>>\n{{tp tx: De {tp} pendientes, {tx} están vencidos}}: {{ztx: el {ztx}}}."
+  },
+  {
+   "id": "C11",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"omaxp\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"lp\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"ld\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"lect\",\"tipo\":\"lectura\",\"apoyo\":[\"omaxp\",\"ld\"]}\n<<FIN>>\n{{omaxp lp: El que más te debe es Lider, con {lp} pendientes}} y {{ld: {ld} de atraso}}. {{lect: Criterio mío: yo lo llamaría hoy y le pediría un calendario de pago antes de venderle más.}}"
+  },
+  {
+   "id": "C12",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"lx\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"ld\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n<<FIN>>\n{{lx: Lider arrastra casi cinco millones vencidos}} y {{ld: casi nueve meses de atraso}}."
+  },
+  {
+   "id": "C13",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"ej\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"jp\",\"tipo\":\"cifra\",\"sujeto\":\"Jumbo\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"es\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"sp\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\n| Cliente | ¿Al día? | Pendiente |\n|---|---|---|\n| Jumbo | {{ej: al día}} | {jp} |\n| Sodimac | {{es: en mora}} | {sp} |"
+  },
+  {
+   "id": "C14",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"otop3\",\"tipo\":\"orden\",\"sujeto\":[\"Lider\",\"Falabella\",\"Sodimac\"],\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"topk\",\"k\":3},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{otop3: Lider, Falabella y Sodimac son los tres que más te deben}}."
+  },
+  {
+   "id": "C15",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"lpv\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_por_vencer\"}\n{\"id\":\"lx\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"la\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"abonado\"}\n<<FIN>>\n{{lpv: Lider tiene {lpv} por vencer}}, {{lx: {lx} vencidos}} y {{la: ya te abonó {la}}}."
+  },
+  {
+   "id": "C16",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"eml\",\"tipo\":\"estado\",\"sujeto\":\"Mercado Libre\",\"estado\":\"al_dia\"}\n{\"id\":\"mlr\",\"tipo\":\"cifra\",\"sujeto\":\"Mercado Libre\",\"metrica\":\"recuperado\"}\n<<FIN>>\n{{eml: Mercado Libre está al día}} y {{mlr: te ha pagado el {mlr} de lo vendido}}."
+  },
+  {
+   "id": "C17",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"dsum\",\"tipo\":\"derivada\",\"op\":\"suma\",\"de\":[{\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"},{\"sujeto\":\"Sodimac\",\"metrica\":\"saldo_vencido\"}]}\n<<FIN>>\n{{dsum: Lider y Sodimac suman {dsum} vencidos entre los dos}}."
+  },
+  {
+   "id": "C18",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"ej\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"eml\",\"tipo\":\"estado\",\"sujeto\":\"Mercado Libre\",\"estado\":\"al_dia\"}\n<<FIN>>\n{{ej eml: Jumbo y Mercado Libre están al día}}."
+  },
+  {
+   "id": "C19",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"zxv\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"},\"den\":{\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}}\n<<FIN>>\n{{zxv: El {zxv} de lo que le vendiste a Lider está vencido}}."
+  },
+  {
+   "id": "C20",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"omaxx\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"lx\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{omaxx lx: En vencido, el peor es Lider, con {lx}}}."
+  },
+  {
+   "id": "F01",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"n90\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":90,\"unidad\":\"days\"}]}}\n<<FIN>>\n{{n90: {n90.n} cuentas en mora superan {n90.umbral}}}.",
+   "nota": "verdadero: las 3 están en mora; 4(i) prohíbe el estado en un conteo por días"
+  },
+  {
+   "id": "F02",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"ld\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n<<FIN>>\n{{ld: Lider lleva {ld}, más de ocho meses de atraso}}.",
+   "nota": "verdadero: 269 > 240; «más de» se trata como aproximación ±10 %"
+  },
+  {
+   "id": "F03",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"fx\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{fx: Falabella arrastra más de dos millones vencidos}}.",
+   "nota": "verdadero: $2.5M > $2M"
+  },
+  {
+   "id": "F04",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"la\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"abonado\"}\n<<FIN>>\n{{la: De Lider ya recuperaste {la}}}.",
+   "nota": "verdadero: el abonado es lo recuperado en $"
+  },
+  {
+   "id": "F05",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"nsp\",\"tipo\":\"conteo\",\"n\":0,\"de\":{\"eje\":\"cliente\",\"estados\":[\"sin_pagos\"]}}\n<<FIN>>\n{{nsp: Ningún cliente está sin pagos}}.",
+   "nota": "verdadero: conteo sin_pagos = 0"
+  },
+  {
+   "id": "F06",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"nm3\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":3,\"unidad\":\"meses\"}]}}\n<<FIN>>\n{{nm3: {nm3.n} cuentas llevan más de tres meses vencidas}}.",
+   "nota": "verdadero: 3 meses = 90 días; el universo pide {id.umbral}"
+  },
+  {
+   "id": "F07",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"es\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"ej\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n<<FIN>>\n{{es: Sodimac está en mora}}, {{ej: Jumbo no}}.",
+   "nota": "verdadero: «Jumbo no» = no está en mora = al día"
+  },
+  {
+   "id": "A24b",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "medido sobre lo que te debe"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"lr\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"recuperado\"}\n<<FIN>>\n{{lr: Lider ya recuperó el {lr}}}, medido sobre lo que te debe.",
+   "nota": "preposición de base fuera del ancla (45% es sobre la venta; sobre el pendiente sería 82%)"
+  },
+  {
+   "id": "A25b",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "el año entero de mora"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"n90\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":90,\"unidad\":\"days\"}]}}\n<<FIN>>\n{{n90: {n90.n} cuentas llevan el año entero de mora, más de {n90.umbral}}}.",
+   "nota": "umbral en palabras sin número («el año entero»; el máximo es 270d)"
+  },
+  {
+   "id": "A26b",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "la mayoría"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"omaxp\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"lp\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"nmora\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n<<FIN>>\n{{omaxp lp: El que más te debe es Lider, con {lp} pendientes}}. {{nmora: {nmora.n} de tus clientes, la mayoría, están en mora}}.",
+   "nota": "proporción no contrastada con n/m (6 de 13)"
+  },
+  {
+   "id": "A27b",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "todos tus clientes están al día"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"lx\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"nad\",\"tipo\":\"conteo\",\"n\":7,\"m\":13,\"de\":{\"eje\":\"cliente\",\"estados\":[\"al_dia\"]}}\n<<FIN>>\n{{lx: Lider arrastra {lx} vencidos}}. Aun así, {{nad: todos tus clientes están al día}}.",
+   "nota": "«todos» como núcleo de conteo sin exigir n = m (7 de 13)"
+  },
+  {
+   "id": "A28b",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "todos tus clientes están en mora"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"omaxp\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"lp\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"nmora\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n<<FIN>>\n{{omaxp lp: El que más te debe es Lider, con {lp} pendientes}}, y {{nmora: todos tus clientes están en mora}}.",
+   "nota": "«todos» sin exigir n = m (6 de 13)"
+  },
+  {
+   "id": "A25c",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "el año entero de mora"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"omaxp\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"lp\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"n90\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":90,\"unidad\":\"days\"}]}}\n<<FIN>>\n{{omaxp lp: El que más te debe es Lider, con {lp} pendientes}}. {{n90: {n90.n} cuentas llevan el año entero de mora, más de {n90.umbral}}}.",
+   "nota": "umbral en palabras sin número («el año entero»; el máximo es 270d) — con cliente nombrado"
+  },
+  {
+   "id": "A54",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Sodimac es el que más ha recuperado"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"ominr\",\"tipo\":\"orden\",\"sujeto\":\"Sodimac\",\"metrica\":\"recuperado\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{ominr: Sodimac es el que más ha recuperado}}.",
+   "nota": "orden min sin «direccion»: el juez no deriva la dirección de la forma (Sodimac es el que MENOS: 35%)"
+  },
+  {
+   "id": "A55",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "Falabella es la primera en vencido"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"op2\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\",\"orden\":{\"forma\":\"puesto\",\"k\":2,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{op2: Falabella es la primera en vencido}}.",
+   "nota": "ordinal dicho («primera») no se contrasta con k = 2 del puesto"
+  },
+  {
+   "id": "A57",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "más del doble"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"rel2\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n<<FIN>>\n{{rel2: Lider debe más del doble que Falabella en vencido}}.",
+   "nota": "matiz de la relación («casi» 1.83×) dicho como «más del doble»"
+  },
+  {
+   "id": "A63",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "falsedades": [
+    "- Jumbo: ídem"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"es\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n<<FIN>>\n- Sodimac: {{es: en mora}}\n- Jumbo: ídem",
+   "nota": "proforma «ídem» en viñeta sin ancla (Jumbo está al día)"
+  },
+  {
+   "id": "C01b",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"omaxp\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"lp\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"ld\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"lr\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"recuperado\"}\n<<FIN>>\n{{omaxp lp: El que más te debe es Lider, con {lp} pendientes}}; {{ld: lleva {ld} de atraso}} y {{lr: ya recuperaste el {lr}}}."
+  },
+  {
+   "id": "C07b",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"glf2\",\"tipo\":\"grupo\",\"miembros\":[\"Lider\",\"Falabella\"],\"metrica\":\"saldo_vencido\",\"agregado\":\"suma\",\"valor\":\"$7.0M\"}\n{\"id\":\"tx\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{glf2: Entre Lider y Falabella suman {glf2} vencidos}}; {{tx: el total vencido es {tx}}}."
+  },
+  {
+   "id": "C08b",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"ominr\",\"tipo\":\"orden\",\"sujeto\":\"Sodimac\",\"metrica\":\"recuperado\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"sr\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"recuperado\"}\n<<FIN>>\n{{ominr: Sodimac es el que peor recupera}}: {{sr: apenas el {sr}}}."
+  },
+  {
+   "id": "C09b",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"omaxp\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"lp\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"nad\",\"tipo\":\"conteo\",\"n\":7,\"m\":13,\"de\":{\"eje\":\"cliente\",\"estados\":[\"al_dia\"]}}\n{\"id\":\"nmora\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n<<FIN>>\n{{omaxp lp: El que más te debe es Lider, con {lp} pendientes}}. {{nad: {nad.n} de tus {nad.m} clientes están al día}}, y {{nmora: {nmora.n} están en mora}}."
+  },
+  {
+   "id": "C10b",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"tp\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"tx\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"ztx\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"negocio\",\"metrica\":\"saldo_vencido\"},\"den\":{\"sujeto\":\"negocio\",\"metrica\":\"saldo_pendiente\"}}\n{\"id\":\"omaxp\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"lp\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\n{{tp tx: De {tp} pendientes, {tx} están vencidos}}: {{ztx: el {ztx}}}. {{omaxp lp: El que más te debe es Lider, con {lp} pendientes}}."
+  },
+  {
+   "id": "C14b",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"otop3b\",\"tipo\":\"orden\",\"sujeto\":[\"Lider\",\"Falabella\",\"Sodimac\"],\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"topk\",\"k\":3,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{otop3b: Lider, Falabella y Sodimac son los tres que más te deben}}."
+  },
+  {
+   "id": "C16b",
+   "pregunta": "¿Cómo está mi cobranza? ¿Quién me debe y quién está en mora?",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"eml\",\"tipo\":\"estado\",\"sujeto\":\"Mercado Libre\",\"estado\":\"al_dia\"}\n{\"id\":\"mlr\",\"tipo\":\"cifra\",\"sujeto\":\"Mercado Libre\",\"metrica\":\"recuperado\"}\n<<FIN>>\n{{eml: Mercado Libre está al día}} y {{mlr: ya recuperaste el {mlr}}}."
+  }
+ ]
+}

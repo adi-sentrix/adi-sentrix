@@ -1,0 +1,6411 @@
+{
+  "angulo": "hechos",
+  "casos": [
+    {
+      "id": "u01-vacio",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "universo tipado vacío {} → debería ser el eje entero (13) o no-verificable; nunca otra cosa",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {}
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 6,
+          "de": {}
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "falsa"
+      }
+    },
+    {
+      "id": "u02-contradictorio",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "estados ∩ no_estados del mismo estado: universo vacío por contradicción; n=0 sale «verdadera» (vacuo)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ],
+            "no_estados": [
+              "en_mora"
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "al_dia",
+              "en_mora"
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable"
+      }
+    },
+    {
+      "id": "u03-union-eje-entero",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "unión con el eje entero: «los clientes en mora ∪ todos» = 13; el hecho dice 13 en mora",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ],
+            "union": [
+              {
+                "eje": "cliente"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 9,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ],
+            "union": [
+              {
+                "eje": "sku",
+                "estados": [
+                  "frenado"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable"
+      }
+    },
+    {
+      "id": "u04-excluir-todo",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "excluir de todo: base − (todas las entidades) = ∅ → n=0 vacuo; excluir el propio estado",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "cliente",
+            "excluir": {
+              "estados": [
+                "en_mora",
+                "al_dia"
+              ]
+            }
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ],
+            "excluir": {
+              "estados": [
+                "en_mora"
+              ]
+            }
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable"
+      }
+    },
+    {
+      "id": "u05-top-k-mayor-que-eje",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "top con k > tamaño del eje (13): «los 20 de mayor venta» = todos; y un orden topk 20 vacuo",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {
+            "eje": "cliente",
+            "top": {
+              "metrica": "ventas",
+              "k": 20
+            }
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "orden",
+          "sujeto": "Unimarc",
+          "metrica": "ventas",
+          "orden": {
+            "forma": "topk",
+            "k": 20,
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "orden",
+          "sujeto": "Unimarc",
+          "metrica": "ventas",
+          "orden": {
+            "forma": "topk",
+            "k": 12,
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "falsa"
+      }
+    },
+    {
+      "id": "u06-filtro-unidad-dias-vs-meses",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "umbral en meses vs días: «más de 3 días» dicho como «3 meses»; y unidad «months» desconocida",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 6,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": ">",
+                "valor": 3,
+                "unidad": "meses"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": ">",
+                "valor": 3,
+                "unidad": "meses"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": ">",
+                "valor": 3,
+                "unidad": "months"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 6,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": ">",
+                "valor": 90,
+                "unidad": "days"
+              }
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "verdadera",
+        "h3": "no-verificable",
+        "h4": "falsa"
+      }
+    },
+    {
+      "id": "u07-filtro-pct-vs-pp",
+      "pregunta": "¿Cómo viene mi margen?",
+      "nota": "% y pp son «tasa» compatibles: brecha (pp) filtrada con unidad pct; margen (pct) con unidad pp",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 4,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "brecha",
+                "op": ">",
+                "valor": 6,
+                "unidad": "pct"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 5,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "margen",
+                "op": ">",
+                "valor": 30,
+                "unidad": "pp"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 4,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": ">",
+                "valor": 90,
+                "unidad": "pct"
+              }
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "no-verificable"
+      }
+    },
+    {
+      "id": "u08-filtro-ref-otro-dominio",
+      "pregunta": "¿Cómo viene mi margen?",
+      "nota": "ref a una referencia de OTRO dominio o de otra métrica: recuperado > nivel_carga, margen > umbral_materialidad, margen < nivel_carga",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "recuperado",
+                "op": ">",
+                "ref": "nivel_carga"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "margen",
+                "op": ">",
+                "ref": "umbral_materialidad"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "margen",
+                "op": "<",
+                "ref": "nivel_carga"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": ">",
+                "ref": "benchmark"
+              }
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "no-verificable",
+        "h4": "no-verificable"
+      }
+    },
+    {
+      "id": "u09-base-todos",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "base «todos» (y variantes): m contra 13",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 6,
+          "m": 13,
+          "de": {
+            "eje": "cliente",
+            "base": "todos",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 6,
+          "m": 6,
+          "de": {
+            "eje": "cliente",
+            "base": "todos",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 6,
+          "m": 13,
+          "de": {
+            "eje": "cliente",
+            "base": "todos los clientes",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "falsa",
+        "h3": "verdadera"
+      }
+    },
+    {
+      "id": "u10-bodega-sobre-clientes",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "bodega sobre el eje cliente: `bodega` se rechaza, pero `excluir.bodega` no mira el eje → «13 clientes fuera de Santiago»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {
+            "eje": "cliente",
+            "bodega": "Santiago"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {
+            "eje": "cliente",
+            "excluir": {
+              "bodega": "Santiago"
+            }
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "orden",
+          "sujeto": "Lider",
+          "metrica": "saldo_pendiente",
+          "orden": {
+            "forma": "max"
+          },
+          "universo": {
+            "eje": "cliente",
+            "excluir": {
+              "bodega": "Santiago"
+            }
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "no-verificable"
+      }
+    },
+    {
+      "id": "u11-estado-de-otro-eje",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "estados de SKU evaluados sobre clientes: «0 clientes frenados», «13 clientes no frenados», «0 clientes con capital sano»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "frenado"
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {
+            "eje": "cliente",
+            "no_estados": [
+              "frenado"
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "capital_sano"
+            ]
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "sku",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "no-verificable",
+        "h4": "no-verificable"
+      }
+    },
+    {
+      "id": "u12-ranking-parcial-bodega",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "el ranking de capital frenado por bodega solo trae las 2 con frenado; Santiago y Concepción tienen $0: «Antofagasta es la de menor frenado» y «1 bodega bajo $10K» son falsos",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "orden",
+          "sujeto": "Antofagasta",
+          "metrica": "capital_frenado",
+          "orden": {
+            "forma": "min"
+          },
+          "universo": {
+            "eje": "bodega"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 1,
+          "de": {
+            "eje": "bodega",
+            "filtros": [
+              {
+                "metrica": "capital_frenado",
+                "op": "<",
+                "valor": 10000,
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 2,
+          "de": {
+            "eje": "bodega",
+            "top": {
+              "metrica": "capital_frenado",
+              "k": 2,
+              "direccion": "menor"
+            }
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "Santiago",
+          "metrica": "capital_frenado",
+          "orden": {
+            "forma": "min"
+          },
+          "universo": {
+            "eje": "bodega"
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "falsa",
+        "h3": "verdadera",
+        "h4": "no-verificable"
+      },
+      "nota_v31": {
+        "h3": "v3.1: capital frenado ausente vale 0 (AUSENTE_VALE_CERO): las 2 de menor son las dos bodegas sin capital frenado",
+        "h4": "v3.1: dos bodegas con 0 comparten el mínimo (empate)"
+      }
+    },
+    {
+      "id": "u13-ranking-parcial-sku",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "capital frenado / inmovilizado por SKU: el ranking trae solo los que tienen; los demás valen $0 → «MAK-COMP-AIR es el de menor inmovilizado», «1 SKU con frenado bajo $10K», «0 SKU con frenado igual a $0»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "orden",
+          "sujeto": "MAK-COMP-AIR",
+          "metrica": "capital_inmovilizado",
+          "orden": {
+            "forma": "min"
+          },
+          "universo": {
+            "eje": "sku"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 1,
+          "de": {
+            "eje": "sku",
+            "filtros": [
+              {
+                "metrica": "capital_frenado",
+                "op": "<",
+                "valor": 10000,
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "sku",
+            "filtros": [
+              {
+                "metrica": "capital_frenado",
+                "op": "==",
+                "valor": 0,
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "MAK-COMP-AIR",
+          "metrica": "capital_frenado",
+          "orden": {
+            "forma": "min"
+          },
+          "universo": {
+            "eje": "sku"
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "falsa",
+        "h3": "falsa",
+        "h4": "falsa"
+      }
+    },
+    {
+      "id": "u14-ranking-parcial-cliente",
+      "pregunta": "¿Cómo viene mi margen?",
+      "nota": "contribución no capturada: el ranking trae solo los 8 bajo el benchmark; los 5 sobre él no tienen nada que capturar → «Mercado Libre es el de menor no capturada de los clientes»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "orden",
+          "sujeto": "Mercado Libre",
+          "metrica": "no_capturada",
+          "orden": {
+            "forma": "min"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 8,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "no_capturada",
+                "op": ">=",
+                "valor": 0,
+                "unidad": "money"
+              }
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "falsa"
+      }
+    },
+    {
+      "id": "u15-igualdad-con-tolerancia",
+      "pregunta": "¿Cómo viene mi margen?",
+      "nota": "op «==» con tolerancia: «clientes con margen igual a 22%» — Lider tiene 21.5, Falabella 22.0",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 1,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "margen",
+                "op": "==",
+                "valor": 22,
+                "unidad": "pct"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 2,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "margen",
+                "op": "==",
+                "valor": 22,
+                "unidad": "pct"
+              }
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "falsa"
+      }
+    },
+    {
+      "id": "u16-campos-malformados",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "filtros como objeto (no lista), excluir como string, excluir con clave equivocada: la restricción se ignora en silencio y el eje entero sale «verdadera»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {
+            "eje": "cliente",
+            "filtros": {
+              "metrica": "dias_vencido",
+              "op": ">",
+              "valor": 90,
+              "unidad": "days"
+            }
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {
+            "eje": "cliente",
+            "excluir": "Lider"
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {
+            "eje": "cliente",
+            "excluir": {
+              "entidad": "Lider"
+            }
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 12,
+          "de": {
+            "eje": "cliente",
+            "excluir": {
+              "entidades": "Lider"
+            }
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "no-verificable",
+        "h4": "verdadera"
+      }
+    },
+    {
+      "id": "u17-eje-inexistente",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "conteo 0 sobre ejes que la evidencia no trae («clientes» en plural, canal, mes): 0 de 0",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "clientes"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "canal"
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "mes"
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "familia"
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "no-verificable",
+        "h4": "no-verificable"
+      }
+    },
+    {
+      "id": "u18-m-de-la-cadena",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "FALSO POSITIVO probable: «3 de los 6 en mora superan 90 días» y «2 de los 7 sin mora deben más de $1M» son verdaderos con m = tamaño del paso previo; el libro solo acepta m = 13",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 3,
+          "m": 6,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ],
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": ">",
+                "valor": 90,
+                "unidad": "days"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 2,
+          "m": 7,
+          "de": {
+            "eje": "cliente",
+            "no_estados": [
+              "en_mora"
+            ],
+            "filtros": [
+              {
+                "metrica": "saldo_pendiente",
+                "op": ">",
+                "valor": 1000000,
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 3,
+          "m": 13,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ],
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": ">",
+                "valor": 90,
+                "unidad": "days"
+              }
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera"
+      }
+    },
+    {
+      "id": "z01-razon-unidad-del-valor",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "la razón vencido/pendiente de Lider es 46.4%: el valor dicho con unidad equivocada («$47», «47 pp», «47 días», «47 unidades») no debe salir verdadero",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Lider",
+            "metrica": "saldo_pendiente"
+          },
+          "valor": "$47"
+        },
+        {
+          "id": "h2",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Lider",
+            "metrica": "saldo_pendiente"
+          },
+          "valor": "47 pp"
+        },
+        {
+          "id": "h3",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Lider",
+            "metrica": "saldo_pendiente"
+          },
+          "valor": "47 días"
+        },
+        {
+          "id": "h4",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Lider",
+            "metrica": "saldo_pendiente"
+          },
+          "valor": "47 unidades"
+        },
+        {
+          "id": "h5",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Lider",
+            "metrica": "saldo_pendiente"
+          },
+          "valor": "47%"
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "falsa",
+        "h3": "falsa",
+        "h4": "falsa",
+        "h5": "verdadera"
+      }
+    },
+    {
+      "id": "z02-razon-entidades-distintas",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "num y den de entidades distintas: Lider vencido ÷ Falabella venta (23.7%); y Lider vencido ÷ negocio venta",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Falabella",
+            "metrica": "ventas"
+          },
+          "valor": "24%"
+        },
+        {
+          "id": "h2",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "negocio",
+            "metrica": "ventas"
+          },
+          "valor": "4,6%"
+        },
+        {
+          "id": "h3",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "negocio",
+            "metrica": "ventas"
+          },
+          "valor": "4,9%"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "falsa"
+      }
+    },
+    {
+      "id": "z03-razon-unidades-incompatibles",
+      "pregunta": "¿Cómo viene mi margen?",
+      "nota": "num y den de unidades incompatibles o de tasas distintas: margen (pct) ÷ brecha (pp) = 250% pasa por «tasa»; vencido ($) ÷ días",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "margen"
+          },
+          "den": {
+            "sujeto": "Lider",
+            "metrica": "brecha"
+          },
+          "valor": "250%"
+        },
+        {
+          "id": "h2",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "ventas"
+          },
+          "den": {
+            "sujeto": "Lider",
+            "metrica": "margen"
+          },
+          "valor": "83%"
+        },
+        {
+          "id": "h3",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "margen"
+          },
+          "den": {
+            "sujeto": "negocio",
+            "metrica": "benchmark"
+          },
+          "valor": "71%"
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "verdadera"
+      }
+    },
+    {
+      "id": "z04-razon-precision-justa",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "redondeo: raw 46.39% vs impreso 46.94%: «46%», «47%», «46.9%», «46.4%» y «47.4%»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Lider",
+            "metrica": "saldo_pendiente"
+          },
+          "valor": "46%"
+        },
+        {
+          "id": "h2",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Lider",
+            "metrica": "saldo_pendiente"
+          },
+          "valor": "46,9%"
+        },
+        {
+          "id": "h3",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Lider",
+            "metrica": "saldo_pendiente"
+          },
+          "valor": "46,4%"
+        },
+        {
+          "id": "h4",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Lider",
+            "metrica": "saldo_pendiente"
+          },
+          "valor": "47,4%"
+        },
+        {
+          "id": "h5",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Falabella",
+            "metrica": "saldo_vencido"
+          },
+          "valor": "1,8x"
+        },
+        {
+          "id": "h6",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Falabella",
+            "metrica": "saldo_vencido"
+          },
+          "valor": "2x"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "falsa",
+        "h5": "verdadera",
+        "h6": "falsa"
+      }
+    },
+    {
+      "id": "z05-razon-por-id-de-hecho",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "FALSO POSITIVO: el plan (§2.3) y el protocolo citan razón por id de HECHO (h1) — el libro solo resuelve ids de fig (cN)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "ref",
+          "de": "Lider · Saldo vencido"
+        },
+        {
+          "id": "h2",
+          "tipo": "ref",
+          "de": "Lider · Saldo pendiente"
+        },
+        {
+          "id": "h3",
+          "tipo": "razon",
+          "num": {
+            "id": "h1"
+          },
+          "den": {
+            "id": "h2"
+          },
+          "valor": "47%"
+        },
+        {
+          "id": "h4",
+          "tipo": "razon",
+          "num": "Lider · Saldo vencido",
+          "den": "Lider · Saldo pendiente",
+          "valor": "47%"
+        }
+      ],
+      "esperado": {
+        "h3": "verdadera",
+        "h4": "verdadera"
+      }
+    },
+    {
+      "id": "d01-derivada-ops-del-protocolo",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "FALSO POSITIVO: el protocolo enseña op: resta|suma|cociente|diferencia_pp; el libro implementa suma|diferencia|pp|variacion_relativa|producto",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "derivada",
+          "op": "resta",
+          "de": [
+            {
+              "sujeto": "Lider",
+              "metrica": "saldo_pendiente"
+            },
+            {
+              "sujeto": "Lider",
+              "metrica": "saldo_vencido"
+            }
+          ],
+          "valor": "$5,3M"
+        },
+        {
+          "id": "h2",
+          "tipo": "derivada",
+          "op": "cociente",
+          "de": [
+            {
+              "sujeto": "Lider",
+              "metrica": "saldo_vencido"
+            },
+            {
+              "sujeto": "Lider",
+              "metrica": "saldo_pendiente"
+            }
+          ],
+          "valor": "46%"
+        },
+        {
+          "id": "h3",
+          "tipo": "derivada",
+          "op": "diferencia_pp",
+          "de": [
+            {
+              "sujeto": "Falabella",
+              "metrica": "recuperado"
+            },
+            {
+              "sujeto": "Lider",
+              "metrica": "recuperado"
+            }
+          ],
+          "valor": "12,7 pp"
+        },
+        {
+          "id": "h4",
+          "tipo": "derivada",
+          "op": "diferencia",
+          "de": [
+            {
+              "sujeto": "Lider",
+              "metrica": "saldo_pendiente"
+            },
+            {
+              "sujeto": "Lider",
+              "metrica": "saldo_vencido"
+            }
+          ],
+          "valor": "$5,3M"
+        },
+        {
+          "id": "h5",
+          "tipo": "derivada",
+          "op": "diferencia",
+          "de": [
+            {
+              "sujeto": "Lider",
+              "metrica": "saldo_pendiente"
+            },
+            {
+              "sujeto": "Lider",
+              "metrica": "saldo_vencido"
+            }
+          ],
+          "valor": "$5,2M"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera"
+      },
+      "nota_v31": {
+        "h5": "v3.1: la cuenta sobre los operandos tal como se muestran ($9.8M − $4.6M = $5.2M) también vale; la casa renderiza el canon"
+      }
+    },
+    {
+      "id": "d02-derivada-encadenada",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "operandos por id encadenados (ids de hechos, derivada de derivada) y suma de subconjunto + conjunto (vencido ⊂ pendiente)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "ref",
+          "de": "Lider · Saldo vencido"
+        },
+        {
+          "id": "h2",
+          "tipo": "ref",
+          "de": "Falabella · Saldo vencido"
+        },
+        {
+          "id": "h3",
+          "tipo": "derivada",
+          "op": "suma",
+          "de": [
+            "h1",
+            "h2"
+          ],
+          "valor": "$7,1M"
+        },
+        {
+          "id": "h4",
+          "tipo": "derivada",
+          "op": "suma",
+          "de": [
+            "Lider · Saldo vencido",
+            "Falabella · Saldo vencido"
+          ],
+          "valor": "$7,1M"
+        },
+        {
+          "id": "h5",
+          "tipo": "derivada",
+          "op": "suma",
+          "de": [
+            "h4",
+            "Sodimac · Saldo vencido"
+          ],
+          "valor": "$9,0M"
+        },
+        {
+          "id": "h6",
+          "tipo": "derivada",
+          "op": "suma",
+          "de": [
+            "Lider · Saldo pendiente",
+            "Lider · Saldo vencido"
+          ],
+          "valor": "$14,4M"
+        },
+        {
+          "id": "h7",
+          "tipo": "derivada",
+          "op": "suma",
+          "de": [
+            "Saldo vencido · total",
+            "Lider · Saldo vencido"
+          ],
+          "valor": "$17,2M"
+        }
+      ],
+      "esperado": {
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera",
+        "h6": "no-verificable",
+        "h7": "no-verificable"
+      }
+    },
+    {
+      "id": "d03-derivada-tolerancia",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "la suma raw es $7.04M (impresa 4.6+2.5=7.1): «$7,15M» y «$7,2M» no son ninguna de las dos",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "derivada",
+          "op": "suma",
+          "de": [
+            "Lider · Saldo vencido",
+            "Falabella · Saldo vencido"
+          ],
+          "valor": "$7,15M"
+        },
+        {
+          "id": "h2",
+          "tipo": "derivada",
+          "op": "suma",
+          "de": [
+            "Lider · Saldo vencido",
+            "Falabella · Saldo vencido"
+          ],
+          "valor": "$7,2M"
+        },
+        {
+          "id": "h3",
+          "tipo": "derivada",
+          "op": "suma",
+          "de": [
+            "Lider · Saldo vencido",
+            "Falabella · Saldo vencido"
+          ],
+          "valor": "$7,0M"
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "falsa",
+        "h3": "verdadera"
+      }
+    },
+    {
+      "id": "d04-derivada-unidades",
+      "pregunta": "¿Cómo viene mi margen?",
+      "nota": "suma de dos tasas (43.5%), pp sobre dinero, producto de dos dineros, valor con unidad distinta",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "derivada",
+          "op": "suma",
+          "de": [
+            {
+              "sujeto": "Lider",
+              "metrica": "margen"
+            },
+            {
+              "sujeto": "Falabella",
+              "metrica": "margen"
+            }
+          ],
+          "valor": "43,5%"
+        },
+        {
+          "id": "h2",
+          "tipo": "derivada",
+          "op": "pp",
+          "de": [
+            {
+              "sujeto": "Lider",
+              "metrica": "ventas"
+            },
+            {
+              "sujeto": "Falabella",
+              "metrica": "ventas"
+            }
+          ],
+          "valor": "1,6 pp"
+        },
+        {
+          "id": "h3",
+          "tipo": "derivada",
+          "op": "producto",
+          "de": [
+            {
+              "sujeto": "Lider",
+              "metrica": "ventas"
+            },
+            {
+              "sujeto": "Falabella",
+              "metrica": "ventas"
+            }
+          ]
+        },
+        {
+          "id": "h4",
+          "tipo": "derivada",
+          "op": "producto",
+          "de": [
+            {
+              "sujeto": "Lider",
+              "metrica": "ventas"
+            },
+            {
+              "sujeto": "Lider",
+              "metrica": "margen"
+            }
+          ],
+          "valor": "$3,8M"
+        },
+        {
+          "id": "h5",
+          "tipo": "derivada",
+          "op": "diferencia",
+          "de": [
+            {
+              "sujeto": "Lider",
+              "metrica": "ventas"
+            },
+            {
+              "sujeto": "Falabella",
+              "metrica": "ventas"
+            }
+          ],
+          "valor": "8%"
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "no-verificable",
+        "h4": "verdadera",
+        "h5": "no-verificable"
+      }
+    },
+    {
+      "id": "g01-grupo-miembros-repetidos",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "grupo con el mismo miembro dos veces: «Lider y Lider suman $9,1M vencido» (doble conteo)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "grupo",
+          "miembros": [
+            "Lider",
+            "Lider"
+          ],
+          "metrica": "saldo_vencido",
+          "agregado": "suma",
+          "valor": "$9,1M"
+        },
+        {
+          "id": "h2",
+          "tipo": "grupo",
+          "miembros": [
+            "Lider",
+            "Falabella"
+          ],
+          "metrica": "saldo_vencido",
+          "agregado": "suma",
+          "valor": "$7,1M"
+        },
+        {
+          "id": "h3",
+          "tipo": "grupo",
+          "miembros": [
+            "Lider",
+            "Lider",
+            "Falabella"
+          ],
+          "metrica": "saldo_vencido",
+          "agregado": "suma",
+          "valor": "$11,7M"
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "verdadera",
+        "h3": "falsa"
+      }
+    },
+    {
+      "id": "g02-grupo-ejes-mezclados",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "nota": "grupo con miembros de ejes distintos: cliente + SKU en venta (la venta del SKU es parte de la de los clientes) y en participación",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "grupo",
+          "miembros": [
+            "Falabella",
+            "SAM-TV55"
+          ],
+          "metrica": "ventas",
+          "agregado": "suma",
+          "valor": "$32,7M"
+        },
+        {
+          "id": "h2",
+          "tipo": "grupo",
+          "miembros": [
+            "Falabella",
+            "SAM-TV55"
+          ],
+          "metrica": "ventas",
+          "agregado": "participacion",
+          "valor": "32,7%"
+        },
+        {
+          "id": "h3",
+          "tipo": "grupo",
+          "miembros": [
+            "Falabella",
+            "Lider",
+            "Jumbo"
+          ],
+          "metrica": "ventas",
+          "agregado": "participacion",
+          "valor": "54,6%"
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "verdadera"
+      }
+    },
+    {
+      "id": "g03-grupo-de-universo-tipado",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "grupo con `de` tipado (plan §2.2): el universo se ignora y la suma del total se casa con «los clientes al día suman $12,6M vencido»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "grupo",
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "al_dia"
+            ]
+          },
+          "metrica": "saldo_vencido",
+          "agregado": "suma",
+          "valor": "$12,6M"
+        },
+        {
+          "id": "h2",
+          "tipo": "grupo",
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ]
+          },
+          "metrica": "saldo_vencido",
+          "agregado": "suma",
+          "valor": "$12,6M"
+        },
+        {
+          "id": "h3",
+          "tipo": "grupo",
+          "miembros": [
+            "Jumbo",
+            "Mercado Libre"
+          ],
+          "universo": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ]
+          },
+          "metrica": "saldo_pendiente",
+          "agregado": "suma",
+          "valor": "$6,3M"
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "verdadera",
+        "h3": "falsa"
+      }
+    },
+    {
+      "id": "r01-relacion-sujeto-repetido",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "relación con suma y sujeto repetido: «Falabella y Falabella deben más vencido que Lider» (2.5+2.5 > 4.6)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "relacion",
+          "sujeto": [
+            "Falabella",
+            "Falabella"
+          ],
+          "metrica": "saldo_vencido",
+          "relacion": {
+            "forma": "mayor",
+            "vs": {
+              "sujeto": "Lider"
+            }
+          },
+          "suma": true
+        },
+        {
+          "id": "h2",
+          "tipo": "relacion",
+          "sujeto": "Falabella",
+          "metrica": "saldo_vencido",
+          "relacion": {
+            "forma": "mayor",
+            "vs": {
+              "sujeto": "Lider"
+            }
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "relacion",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "relacion": {
+            "forma": "veces",
+            "k": 2,
+            "vs": {
+              "sujeto": "Falabella"
+            }
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "relacion",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "relacion": {
+            "forma": "veces",
+            "k": 2,
+            "matiz": "más de",
+            "vs": {
+              "sujeto": "Falabella"
+            }
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "falsa",
+        "h3": "verdadera",
+        "h4": "falsa"
+      },
+      "nota_v31": {
+        "h3": "v3.1: el múltiplo a secas conserva la cota calibrada de la casa (±15 %): 1.83× cierra con «2×». La cota estricta (1.9–2.1) queda a decisión del owner"
+      }
+    },
+    {
+      "id": "n01-conteo-tipos-raros",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "n como string con texto, n negativo, n como lista, k negativo: lo no numérico se ignora y sale verdadero",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": "7 clientes",
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": "siete",
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": -6,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": [
+            6
+          ],
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "conteo",
+          "n": "6",
+          "m": "13",
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        },
+        {
+          "id": "h6",
+          "tipo": "conteo",
+          "n": 6,
+          "m": "trece",
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        },
+        {
+          "id": "h7",
+          "tipo": "conteo",
+          "n": 6,
+          "m": 12,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        },
+        {
+          "id": "h8",
+          "tipo": "orden",
+          "sujeto": "Lider",
+          "metrica": "ventas",
+          "orden": {
+            "forma": "topk",
+            "k": -1
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h9",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "cliente",
+            "top": {
+              "metrica": "ventas",
+              "k": -3
+            }
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "no-verificable",
+        "h3": "falsa",
+        "h4": "verdadera",
+        "h5": "verdadera",
+        "h6": "no-verificable",
+        "h7": "falsa",
+        "h8": "falsa",
+        "h9": "no-verificable"
+      }
+    },
+    {
+      "id": "n02-conteo-texto-vs-tipado",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "conteo con universo en texto («clientes al día» son 7, no 6) y con predicado de estado",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 6,
+          "de": "clientes al día"
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 7,
+          "de": "clientes al día"
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 6,
+          "de": "clientes con saldo vencido"
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "verdadera",
+        "h3": "verdadera"
+      }
+    },
+    {
+      "id": "e01-estado-bodega-falsa",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "estado con bodega falsa, estado de cliente con bodega (categoría), estado de SKU sin bodega",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "estado",
+          "sujeto": "LG-DRYER8KG",
+          "estado": "frenado",
+          "bodega": "Santiago"
+        },
+        {
+          "id": "h2",
+          "tipo": "estado",
+          "sujeto": "Sodimac",
+          "estado": "en_mora",
+          "bodega": "Valparaíso"
+        },
+        {
+          "id": "h3",
+          "tipo": "estado",
+          "sujeto": "SAM-TV55",
+          "estado": "inmovilizado",
+          "bodega": "Valparaíso"
+        },
+        {
+          "id": "h4",
+          "tipo": "estado",
+          "sujeto": "MAK-COMP-AIR",
+          "estado": "frenado",
+          "bodega": "Antofagasta"
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "no-verificable",
+        "h3": "falsa",
+        "h4": "verdadera"
+      }
+    },
+    {
+      "id": "e02-buen-pagador",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "buen pagador y sus formas: nunca verdadero; «impecable» no es estado; «sin mora» sí (al día)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "estado",
+          "sujeto": "Jumbo",
+          "estado": "buen_pagador"
+        },
+        {
+          "id": "h2",
+          "tipo": "estado",
+          "sujeto": "Jumbo",
+          "estado": "paga puntual"
+        },
+        {
+          "id": "h3",
+          "tipo": "estado",
+          "sujeto": "Jumbo",
+          "estado": "cumple los plazos"
+        },
+        {
+          "id": "h4",
+          "tipo": "estado",
+          "sujeto": "Jumbo",
+          "estado": "impecable"
+        },
+        {
+          "id": "h5",
+          "tipo": "estado",
+          "sujeto": "Sodimac",
+          "estado": "sin_mora"
+        },
+        {
+          "id": "h6",
+          "tipo": "estado",
+          "sujeto": "Jumbo",
+          "estado": "sin_mora"
+        },
+        {
+          "id": "h7",
+          "tipo": "estado",
+          "sujeto": "Sodimac",
+          "estado": "mal_pagador"
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "no-verificable",
+        "h4": "no-verificable",
+        "h5": "falsa",
+        "h6": "verdadera",
+        "h7": "no-verificable"
+      }
+    },
+    {
+      "id": "e03-estado-contradictorio-dato",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "SAM-TV55 figura «inmovilizado» y «capital sano» a la vez en la proyección: dos hechos contrarios salen verdaderos",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "estado",
+          "sujeto": "SAM-TV55",
+          "estado": "inmovilizado"
+        },
+        {
+          "id": "h2",
+          "tipo": "estado",
+          "sujeto": "SAM-TV55",
+          "estado": "capital_sano"
+        },
+        {
+          "id": "h3",
+          "tipo": "estado",
+          "sujeto": "SAM-TV55",
+          "estado": "frenado"
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 6,
+          "de": {
+            "eje": "sku",
+            "estados": [
+              "capital_sano"
+            ]
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "conteo",
+          "n": 5,
+          "de": {
+            "eje": "sku",
+            "estados": [
+              "capital_sano"
+            ],
+            "no_estados": [
+              "inmovilizado"
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "no-verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera"
+      },
+      "nota_v31": {
+        "h2": "v3.1: capital sano = no frenado; inmovilizado no lo contradice",
+        "h1": "v3.1: «inmovilizado» es la categoría amplia (estado ≠ Activo) y convive con «capital sano» (= no frenado): no hay contradicción"
+      }
+    },
+    {
+      "id": "e04-estado-eje-cruzado",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "estados sobre el eje equivocado y estados con definición sin evidencia",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "estado",
+          "sujeto": "Lider",
+          "estado": "frenado"
+        },
+        {
+          "id": "h2",
+          "tipo": "estado",
+          "sujeto": "LG-DRYER8KG",
+          "estado": "al_dia"
+        },
+        {
+          "id": "h3",
+          "tipo": "estado",
+          "sujeto": "MAK-COMP-AIR",
+          "estado": "rota_bien"
+        },
+        {
+          "id": "h4",
+          "tipo": "estado",
+          "sujeto": "SAM-REF500L",
+          "estado": "sin_venta"
+        },
+        {
+          "id": "h5",
+          "tipo": "estado",
+          "sujeto": "SAM-MICRO32L",
+          "estado": "sin_venta"
+        },
+        {
+          "id": "h6",
+          "tipo": "estado",
+          "sujeto": "PHI-SHAVER9",
+          "estado": "en_quiebre"
+        },
+        {
+          "id": "h7",
+          "tipo": "estado",
+          "sujeto": "MAK-COMP-AIR",
+          "estado": "sin_margen"
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "no-verdadera",
+        "h4": "no-verificable",
+        "h5": "verdadera",
+        "h6": "falsa",
+        "h7": "no-verificable"
+      }
+    },
+    {
+      "id": "i01-ref-y-rotulos",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "ref por rótulo que aparece dos veces (75% / 75.0%), ref por id de otro tipo de escritura (C4), ref a fig de referencia sin dueño",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "ref",
+          "de": "Valparaíso · % del total"
+        },
+        {
+          "id": "h2",
+          "tipo": "ref",
+          "de": "C4"
+        },
+        {
+          "id": "h3",
+          "tipo": "ref",
+          "de": "c4"
+        },
+        {
+          "id": "h4",
+          "tipo": "ref",
+          "de": "Umbral de materialidad · en dinero"
+        },
+        {
+          "id": "h5",
+          "tipo": "ref",
+          "de": "c999"
+        },
+        {
+          "id": "h6",
+          "tipo": "ref",
+          "de": 4
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "no-verificable",
+        "h6": "verdadera"
+      }
+    },
+    {
+      "id": "i02-ids-repetidos-e-imitados",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "ids repetidos (el segundo intenta reemplazar a un falso por un verdadero y al revés) e ids que imitan la verdad de lo falso (h2a, h2b)",
+      "hechos": [
+        {
+          "id": "h2",
+          "tipo": "estado",
+          "sujeto": "Sodimac",
+          "estado": "al_dia"
+        },
+        {
+          "id": "h2",
+          "tipo": "estado",
+          "sujeto": "Sodimac",
+          "estado": "en_mora"
+        },
+        {
+          "id": "h3",
+          "tipo": "estado",
+          "sujeto": "Jumbo",
+          "estado": "al_dia"
+        },
+        {
+          "id": "h3",
+          "tipo": "estado",
+          "sujeto": "Jumbo",
+          "estado": "en_mora"
+        },
+        {
+          "id": "h2b",
+          "tipo": "cifra",
+          "sujeto": "Sodimac",
+          "metrica": "saldo_vencido",
+          "valor": "$0"
+        },
+        {
+          "id": "h5",
+          "tipo": "estado",
+          "sujeto": "Easy",
+          "estado": "al_dia"
+        },
+        {
+          "id": "h5a",
+          "tipo": "estado",
+          "sujeto": "Easy",
+          "estado": "al_dia"
+        },
+        {
+          "id": "h6a",
+          "tipo": "estado",
+          "sujeto": "Tottus",
+          "estado": "al_dia"
+        },
+        {
+          "id": "h6",
+          "tipo": "estado",
+          "sujeto": "Tottus",
+          "estado": "al_dia"
+        }
+      ],
+      "esperado": {
+        "h2": "falsa",
+        "h3": "verdadera",
+        "h2b": "falsa",
+        "h5": "falsa",
+        "h5a": "falsa",
+        "h6a": "falsa",
+        "h6": "falsa"
+      }
+    },
+    {
+      "id": "i03-tipos-raros",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "tipos desconocidos o con mayúsculas/espacios; tipo faltante",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "hecho",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "valor": "$4,6M"
+        },
+        {
+          "id": "h2",
+          "tipo": "REF",
+          "de": "Lider · Saldo vencido"
+        },
+        {
+          "id": "h3",
+          "tipo": " cifra ",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "valor": "$9,8M"
+        },
+        {
+          "id": "h4",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "valor": "$9,8M"
+        },
+        {
+          "id": "h5",
+          "tipo": "afirmacion",
+          "texto": "Lider te debe $9,8M vencidos"
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "verdadera",
+        "h3": "falsa",
+        "h4": "no-verificable",
+        "h5": "no-verificable"
+      }
+    },
+    {
+      "id": "p01-propuesta-como-hecho",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "propuestas con el sujeto y la métrica de una fig de la boleta pero con otro valor: salen «sellada» con ok=true y render del número falso",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "propuesta",
+          "valor": "$9,9M",
+          "sujeto": "Jumbo",
+          "de": "saldo_vencido"
+        },
+        {
+          "id": "h2",
+          "tipo": "propuesta",
+          "valor": "269 días",
+          "sujeto": "Jumbo",
+          "de": "dias_vencido"
+        },
+        {
+          "id": "h3",
+          "tipo": "propuesta",
+          "valor": "30%",
+          "sujeto": "Lider",
+          "de": "abonado"
+        },
+        {
+          "id": "h4",
+          "tipo": "propuesta",
+          "valor": "un plan de pago"
+        },
+        {
+          "id": "h5",
+          "tipo": "lectura",
+          "apoyo": [
+            "h1"
+          ]
+        }
+      ],
+      "esperado": {
+        "h1": "sellada",
+        "h2": "sellada",
+        "h3": "sellada",
+        "h4": "no-verificable",
+        "h5": "sellada"
+      }
+    },
+    {
+      "id": "l01-lectura-apoyos",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "lectura con apoyo falso, inexistente, no verificable, en una propuesta, en otra lectura, y adelantada (declarada antes que su apoyo)",
+      "hechos": [
+        {
+          "id": "h0",
+          "tipo": "lectura",
+          "apoyo": [
+            "h1"
+          ]
+        },
+        {
+          "id": "h1",
+          "tipo": "ref",
+          "de": "Lider · Saldo vencido"
+        },
+        {
+          "id": "h2",
+          "tipo": "estado",
+          "sujeto": "Sodimac",
+          "estado": "al_dia"
+        },
+        {
+          "id": "h3",
+          "tipo": "lectura",
+          "apoyo": [
+            "h2"
+          ]
+        },
+        {
+          "id": "h4",
+          "tipo": "lectura",
+          "apoyo": [
+            "h2a"
+          ]
+        },
+        {
+          "id": "h5",
+          "tipo": "lectura",
+          "apoyo": [
+            "h99"
+          ]
+        },
+        {
+          "id": "h6",
+          "tipo": "estado",
+          "sujeto": "Jumbo",
+          "estado": "buen_pagador"
+        },
+        {
+          "id": "h7",
+          "tipo": "lectura",
+          "apoyo": [
+            "h6"
+          ]
+        },
+        {
+          "id": "h8",
+          "tipo": "lectura",
+          "apoyo": [
+            "h1"
+          ],
+          "sello": "criterio mío"
+        },
+        {
+          "id": "h9",
+          "tipo": "lectura",
+          "apoyo": [
+            "h8"
+          ]
+        },
+        {
+          "id": "h10",
+          "tipo": "lectura",
+          "apoyo": []
+        }
+      ],
+      "esperado": {
+        "h0": "sellada",
+        "h3": "no-verificable",
+        "h4": "sellada",
+        "h5": "no-verificable",
+        "h7": "no-verificable",
+        "h8": "sellada",
+        "h9": "sellada",
+        "h10": "sellada"
+      }
+    },
+    {
+      "id": "c01-cifra-claves-ambiguas",
+      "pregunta": "¿Cómo viene mi margen?",
+      "nota": "cifras por clave donde la casación por sinónimo puede tomar OTRA fig: contribución vs no capturada, brecha (pp) vs brecha $ , carga (%) vs carga alta ($)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "contribucion",
+          "valor": "$1,5M"
+        },
+        {
+          "id": "h2",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "contribucion",
+          "valor": "$3,8M"
+        },
+        {
+          "id": "h3",
+          "tipo": "cifra",
+          "sujeto": "Falabella",
+          "metrica": "brecha",
+          "valor": "$1,4M"
+        },
+        {
+          "id": "h4",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "carga",
+          "valor": "$125K"
+        },
+        {
+          "id": "h5",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "carga"
+        },
+        {
+          "id": "h6",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "carga",
+          "unidad": "money"
+        },
+        {
+          "id": "h7",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "margen",
+          "valor": "37,2%"
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "verdadera",
+        "h3": "falsa",
+        "h4": "falsa",
+        "h5": "verdadera",
+        "h6": "no-verificable",
+        "h7": "falsa"
+      }
+    },
+    {
+      "id": "c02-cifra-negocio-ambigua",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "cifra de «negocio» por clave: ventas (período vs año anterior vs headlineSub) y margen (promedio vs benchmark)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "cifra",
+          "sujeto": "negocio",
+          "metrica": "ventas"
+        },
+        {
+          "id": "h2",
+          "tipo": "cifra",
+          "sujeto": "negocio",
+          "metrica": "ventas",
+          "valor": "$92,9M"
+        },
+        {
+          "id": "h3",
+          "tipo": "cifra",
+          "sujeto": "negocio",
+          "metrica": "ventas",
+          "valor": "$99,9M"
+        },
+        {
+          "id": "h4",
+          "tipo": "cifra",
+          "sujeto": "negocio",
+          "metrica": "margen"
+        },
+        {
+          "id": "h5",
+          "tipo": "cifra",
+          "sujeto": "negocio",
+          "metrica": "margen",
+          "valor": "30,1%"
+        },
+        {
+          "id": "h6",
+          "tipo": "cifra",
+          "sujeto": "negocio",
+          "metrica": "saldo_vencido",
+          "valor": "$12,6M"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "falsa",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "falsa",
+        "h6": "verdadera"
+      }
+    },
+    {
+      "id": "c03-cifra-metrica-libre",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "métrica fuera de la carta de claves («deuda», «saldo», «vencido»): una palabra genérica casa con cualquier saldo",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "deuda",
+          "valor": "$4,6M"
+        },
+        {
+          "id": "h2",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "saldo",
+          "valor": "$4,6M"
+        },
+        {
+          "id": "h3",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "vencido",
+          "valor": "$9,8M"
+        },
+        {
+          "id": "h4",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "ventas",
+          "valor": "$2,3M"
+        },
+        {
+          "id": "h5",
+          "tipo": "cifra",
+          "sujeto": "Jumbo",
+          "metrica": "saldo_vencido"
+        },
+        {
+          "id": "h6",
+          "tipo": "cifra",
+          "sujeto": "Jumbo",
+          "metrica": "saldo_vencido",
+          "valor": "$0"
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "falsa",
+        "h4": "falsa",
+        "h5": "verdadera",
+        "h6": "verdadera"
+      }
+    },
+    {
+      "id": "v01-variacion-periodo",
+      "pregunta": "¿Cómo viene mi margen?",
+      "nota": "variación con período presupuesto (no hay), valor en % dicho como el YoY en $, y el negocio (headline 7.6%)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "variacion",
+          "sujeto": "Lider",
+          "metrica": "ventas",
+          "variacion": {
+            "direccion": "sube",
+            "valor": "14,9%"
+          },
+          "periodo": "presupuesto"
+        },
+        {
+          "id": "h2",
+          "tipo": "variacion",
+          "sujeto": "Lider",
+          "metrica": "ventas",
+          "variacion": {
+            "direccion": "sube",
+            "valor": "+2,3%"
+          },
+          "periodo": "anterior"
+        },
+        {
+          "id": "h3",
+          "tipo": "variacion",
+          "sujeto": "negocio",
+          "metrica": "ventas",
+          "variacion": {
+            "direccion": "sube",
+            "valor": "7,6%"
+          },
+          "periodo": "anterior"
+        },
+        {
+          "id": "h4",
+          "tipo": "variacion",
+          "sujeto": "La Polar",
+          "metrica": "ventas",
+          "variacion": {
+            "direccion": "sube"
+          },
+          "periodo": "anterior"
+        },
+        {
+          "id": "h5",
+          "tipo": "variacion",
+          "sujeto": "Ripley",
+          "metrica": "margen",
+          "variacion": {
+            "direccion": "baja"
+          },
+          "periodo": "anterior"
+        }
+      ],
+      "esperado": {
+        "h1": "no-verdadera",
+        "h2": "falsa",
+        "h3": "verdadera",
+        "h4": "falsa",
+        "h5": "no-verificable"
+      }
+    },
+    {
+      "id": "o01-orden-empates-y-polaridad",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "empates en 0 (7 clientes con vencido 0): «Hites es el que menos vencido tiene»; polaridad: mejor/peor en días vencido; comparativo consigo mismo",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "orden",
+          "sujeto": "Hites",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "min"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "orden",
+          "sujeto": "Hites",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "puesto",
+            "k": 1,
+            "direccion": "menor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "orden",
+          "sujeto": "Lider",
+          "metrica": "dias_vencido",
+          "orden": {
+            "forma": "max",
+            "direccion": "mejor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "Easy",
+          "metrica": "dias_vencido",
+          "orden": {
+            "forma": "max",
+            "direccion": "peor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "orden",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "comparativo",
+            "direccion": "mayor",
+            "vs": "Lider"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h6",
+          "tipo": "orden",
+          "sujeto": "SAM-REF500L",
+          "metrica": "capital",
+          "orden": {
+            "forma": "max",
+            "direccion": "peor"
+          },
+          "universo": {
+            "eje": "sku"
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verdadera",
+        "h2": "no-verdadera",
+        "h3": "falsa",
+        "h4": "verdadera",
+        "h5": "falsa",
+        "h6": "no-verificable"
+      }
+    },
+    {
+      "id": "t01-control-cobranza-1",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "CONTROL · «El que más te debe es Lider: $9,8M pendientes, el 55% de lo que le vendiste; $4,6M ya vencidos, con 269 días de atraso»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "orden",
+          "sujeto": "Lider",
+          "metrica": "saldo_pendiente",
+          "orden": {
+            "forma": "max"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "ref",
+          "de": "Lider · Saldo pendiente"
+        },
+        {
+          "id": "h3",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_pendiente"
+          },
+          "den": {
+            "sujeto": "Lider",
+            "metrica": "ventas"
+          },
+          "valor": "55%"
+        },
+        {
+          "id": "h4",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "valor": "$4,6M"
+        },
+        {
+          "id": "h5",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "dias_vencido",
+          "valor": "269 días"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera"
+      }
+    },
+    {
+      "id": "t02-control-cobranza-2",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "CONTROL · «Su vencido casi duplica el de Falabella; entre los dos suman $7,1M. Jumbo y Mercado Libre están al día y son los únicos sin mora con más de $1M pendientes»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "relacion",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "relacion": {
+            "forma": "veces",
+            "k": 2,
+            "matiz": "casi",
+            "vs": {
+              "sujeto": "Falabella"
+            }
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "grupo",
+          "miembros": [
+            "Lider",
+            "Falabella"
+          ],
+          "metrica": "saldo_vencido",
+          "agregado": "suma",
+          "valor": "$7,1M"
+        },
+        {
+          "id": "h3",
+          "tipo": "estado",
+          "sujeto": [
+            "Jumbo",
+            "Mercado Libre"
+          ],
+          "estado": "al_dia"
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 2,
+          "de": {
+            "eje": "cliente",
+            "no_estados": [
+              "en_mora"
+            ],
+            "filtros": [
+              {
+                "metrica": "saldo_pendiente",
+                "op": ">",
+                "valor": 1000000,
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "estado",
+          "sujeto": "Jumbo",
+          "estado": "al día"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera"
+      }
+    },
+    {
+      "id": "t03-control-cobranza-3",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "CONTROL · «Tres cuentas superan un trimestre de mora; fuera de las tres que más te compran, la que más debe es Sodimac; Easy es la de mayor atraso entre las morosas fuera de ese top»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": ">",
+                "valor": 1,
+                "unidad": "trimestre"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "orden",
+          "sujeto": "Sodimac",
+          "metrica": "saldo_pendiente",
+          "orden": {
+            "forma": "max"
+          },
+          "universo": {
+            "eje": "cliente",
+            "excluir": {
+              "top": {
+                "metrica": "ventas",
+                "k": 3
+              }
+            }
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "orden",
+          "sujeto": "Easy",
+          "metrica": "dias_vencido",
+          "orden": {
+            "forma": "max"
+          },
+          "universo": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ],
+            "excluir": {
+              "top": {
+                "metrica": "ventas",
+                "k": 3
+              }
+            }
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 6,
+          "m": 13,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "lectura",
+          "apoyo": [
+            "h1",
+            "h2"
+          ],
+          "sello": "criterio mío"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "sellada"
+      }
+    },
+    {
+      "id": "t04-control-comercial-1",
+      "pregunta": "¿Cómo viene mi margen?",
+      "nota": "CONTROL · «Lider está 8,6 pp bajo el benchmark; La Polar tiene el mejor margen; 8 de 13 cuentas caen bajo la referencia; Falabella es la que más vende entre las que caen»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "derivada",
+          "op": "pp",
+          "de": [
+            {
+              "sujeto": "negocio",
+              "metrica": "benchmark"
+            },
+            {
+              "sujeto": "Lider",
+              "metrica": "margen"
+            }
+          ],
+          "valor": "8,6 pp"
+        },
+        {
+          "id": "h2",
+          "tipo": "orden",
+          "sujeto": "La Polar",
+          "metrica": "margen",
+          "orden": {
+            "forma": "max",
+            "direccion": "mejor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 8,
+          "m": 13,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "margen",
+                "op": "<",
+                "ref": "benchmark"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "Falabella",
+          "metrica": "ventas",
+          "orden": {
+            "forma": "max"
+          },
+          "universo": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "margen",
+                "op": "<",
+                "ref": "benchmark"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "ref",
+          "de": "c1"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera"
+      }
+    },
+    {
+      "id": "t05-control-comercial-2",
+      "pregunta": "¿Cómo viene mi margen?",
+      "nota": "CONTROL · «Ripley cae 8,2% contra el año anterior; Lider crece $2,3M; 4 de las 6 cuentas con carga alta están en mora; el markup de Lider es 37,2%»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "variacion",
+          "sujeto": "Ripley",
+          "metrica": "ventas",
+          "variacion": {
+            "direccion": "baja",
+            "valor": "-8,2%"
+          },
+          "periodo": "anterior"
+        },
+        {
+          "id": "h2",
+          "tipo": "variacion",
+          "sujeto": "Lider",
+          "metrica": "ventas",
+          "variacion": {
+            "direccion": "sube",
+            "valor": "+$2,3M"
+          },
+          "periodo": "anterior"
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 4,
+          "m": 6,
+          "de": {
+            "eje": "cliente",
+            "base": "carga comercial alta",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "markup",
+          "valor": "37,2%"
+        },
+        {
+          "id": "h5",
+          "tipo": "conteo",
+          "n": 5,
+          "m": 8,
+          "de": {
+            "eje": "cliente",
+            "base": "bajo el benchmark",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera"
+      }
+    },
+    {
+      "id": "t06-control-inventario-1",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "CONTROL · «Valparaíso concentra el 64% de su capital en frenado; LG-DRYER8KG es el SKU con más capital frenado y lleva 94 días sin venta; 2 de los 3 frenados están en Valparaíso»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Valparaíso",
+            "metrica": "capital_frenado"
+          },
+          "den": {
+            "sujeto": "Valparaíso",
+            "metrica": "capital"
+          },
+          "valor": "64%"
+        },
+        {
+          "id": "h2",
+          "tipo": "orden",
+          "sujeto": "LG-DRYER8KG",
+          "metrica": "capital_frenado",
+          "orden": {
+            "forma": "max"
+          },
+          "universo": {
+            "eje": "sku"
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "cifra",
+          "sujeto": "LG-DRYER8KG",
+          "metrica": "dias_sin_venta",
+          "valor": "94 días"
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 2,
+          "de": {
+            "eje": "sku",
+            "estados": [
+              "frenado"
+            ],
+            "bodega": "Valparaíso"
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "estado",
+          "sujeto": "LG-DRYER8KG",
+          "estado": "frenado",
+          "bodega": "Valparaíso"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera"
+      }
+    },
+    {
+      "id": "t07-control-inventario-2",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "CONTROL · «MAK-COMP-AIR es el que peor rota (0,8x) y el de mayor cobertura; 3 SKU superan dos meses sin venta; ni frenados ni en sobrestock quedan 9»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "orden",
+          "sujeto": "MAK-COMP-AIR",
+          "metrica": "rotacion",
+          "orden": {
+            "forma": "max",
+            "direccion": "peor"
+          },
+          "universo": {
+            "eje": "sku"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "cifra",
+          "sujeto": "MAK-COMP-AIR",
+          "metrica": "rotacion",
+          "valor": "0,8x"
+        },
+        {
+          "id": "h3",
+          "tipo": "orden",
+          "sujeto": "MAK-COMP-AIR",
+          "metrica": "dias_inventario",
+          "orden": {
+            "forma": "max"
+          },
+          "universo": {
+            "eje": "sku"
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "sku",
+            "filtros": [
+              {
+                "metrica": "dias_sin_venta",
+                "op": ">",
+                "valor": 2,
+                "unidad": "meses"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "conteo",
+          "n": 9,
+          "de": {
+            "eje": "sku",
+            "no_estados": [
+              "frenado",
+              "sobrestock"
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera"
+      }
+    },
+    {
+      "id": "t08-control-integrada",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "nota": "CONTROL · integrada: «Falabella vende más que Lider; Lider debe $9,8M; LG-DRYER8KG frenado en Valparaíso; el vencido total es $12,6M, el 31% del pendiente; SAM-TV55 es el SKU que más vende»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "relacion",
+          "sujeto": "Falabella",
+          "metrica": "ventas",
+          "relacion": {
+            "forma": "mayor",
+            "vs": {
+              "sujeto": "Lider"
+            }
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "saldo_pendiente",
+          "valor": "$9,8M"
+        },
+        {
+          "id": "h3",
+          "tipo": "estado",
+          "sujeto": "LG-DRYER8KG",
+          "estado": "frenado",
+          "bodega": "Valparaíso"
+        },
+        {
+          "id": "h4",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "negocio",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "negocio",
+            "metrica": "saldo_pendiente"
+          },
+          "valor": "31%"
+        },
+        {
+          "id": "h5",
+          "tipo": "orden",
+          "sujeto": "SAM-TV55",
+          "metrica": "ventas",
+          "orden": {
+            "forma": "max"
+          },
+          "universo": {
+            "eje": "sku"
+          }
+        },
+        {
+          "id": "h6",
+          "tipo": "lectura",
+          "apoyo": [
+            "h2",
+            "h4"
+          ],
+          "sello": "criterio mío"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera",
+        "h6": "sellada"
+      }
+    },
+    {
+      "id": "t09-control-integrada-2",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "nota": "CONTROL · «Lider y Falabella concentran el 37% de la venta; Sodimac lleva 251 días de mora y recuperó solo el 35%; Santiago tiene el mayor capital en bodega; el vencido de Lider es 2,1M más que el de Falabella»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "grupo",
+          "miembros": [
+            "Lider",
+            "Falabella"
+          ],
+          "metrica": "ventas",
+          "agregado": "participacion",
+          "valor": "37,3%"
+        },
+        {
+          "id": "h2",
+          "tipo": "cifra",
+          "sujeto": "Sodimac",
+          "metrica": "dias_vencido",
+          "valor": "251 días"
+        },
+        {
+          "id": "h3",
+          "tipo": "cifra",
+          "sujeto": "Sodimac",
+          "metrica": "recuperado",
+          "valor": "35%"
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "Santiago",
+          "metrica": "capital",
+          "orden": {
+            "forma": "max"
+          },
+          "universo": {
+            "eje": "bodega"
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "relacion",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "relacion": {
+            "forma": "diferencia",
+            "valor": "$2,1M",
+            "vs": {
+              "sujeto": "Falabella"
+            }
+          }
+        },
+        {
+          "id": "h6",
+          "tipo": "derivada",
+          "op": "diferencia",
+          "de": [
+            {
+              "sujeto": "Lider",
+              "metrica": "dias_vencido"
+            },
+            {
+              "sujeto": "Falabella",
+              "metrica": "dias_vencido"
+            }
+          ],
+          "valor": "261 días"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera",
+        "h6": "verdadera"
+      }
+    },
+    {
+      "id": "t10-control-cobranza-4",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "CONTROL · «Sodimac está en mora, no al día; Falabella va segunda en vencido; la mitad de los que deben más de $5M están en mora (2 de 4)»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "estado",
+          "sujeto": "Sodimac",
+          "estado": "en_mora"
+        },
+        {
+          "id": "h2",
+          "tipo": "orden",
+          "sujeto": "Falabella",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "puesto",
+            "k": 2,
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 4,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "saldo_pendiente",
+                "op": ">",
+                "valor": 5000000,
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ],
+            "filtros": [
+              {
+                "metrica": "saldo_pendiente",
+                "op": ">",
+                "valor": 5000000,
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "propuesta",
+          "valor": "30%",
+          "sujeto": "Lider",
+          "de": "abonado"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "sellada"
+      }
+    },
+    {
+      "id": "t11-control-comercial-3",
+      "pregunta": "¿Cómo viene mi margen?",
+      "nota": "CONTROL · «Falabella vende $19,4M con un margen de 22%; su contribución no capturada es $1,6M; Mercado Libre es la de menor carga; Easy y La Polar caen contra el año anterior»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "cifra",
+          "sujeto": "Falabella",
+          "metrica": "ventas",
+          "valor": "$19,4M"
+        },
+        {
+          "id": "h2",
+          "tipo": "cifra",
+          "sujeto": "Falabella",
+          "metrica": "margen",
+          "valor": "22%"
+        },
+        {
+          "id": "h3",
+          "tipo": "cifra",
+          "sujeto": "Falabella",
+          "metrica": "no_capturada",
+          "valor": "$1,6M"
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "Mercado Libre",
+          "metrica": "carga",
+          "orden": {
+            "forma": "min"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "variacion",
+          "sujeto": "Easy",
+          "metrica": "ventas",
+          "variacion": {
+            "direccion": "baja",
+            "valor": "-5%"
+          },
+          "periodo": "anterior"
+        },
+        {
+          "id": "h6",
+          "tipo": "variacion",
+          "sujeto": "La Polar",
+          "metrica": "ventas",
+          "variacion": {
+            "direccion": "baja"
+          },
+          "periodo": "anterior"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera",
+        "h6": "verdadera"
+      }
+    },
+    {
+      "id": "t12-control-inventario-3",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "CONTROL · «El capital en inventario es $135K; Santiago tiene $64K; el frenado ($33K) es el 24% del total; BOS-SANDER rota 1,6x y es el que mejor rota entre los frenados»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "cifra",
+          "sujeto": "negocio",
+          "metrica": "capital",
+          "valor": "$135K"
+        },
+        {
+          "id": "h2",
+          "tipo": "cifra",
+          "sujeto": "Santiago",
+          "metrica": "capital",
+          "valor": "$64K"
+        },
+        {
+          "id": "h3",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "negocio",
+            "metrica": "capital_frenado"
+          },
+          "den": {
+            "sujeto": "negocio",
+            "metrica": "capital"
+          },
+          "valor": "24%"
+        },
+        {
+          "id": "h4",
+          "tipo": "cifra",
+          "sujeto": "BOS-SANDER",
+          "metrica": "rotacion",
+          "valor": "1,6x"
+        },
+        {
+          "id": "h5",
+          "tipo": "orden",
+          "sujeto": "BOS-SANDER",
+          "metrica": "rotacion",
+          "orden": {
+            "forma": "max",
+            "direccion": "mejor"
+          },
+          "universo": {
+            "eje": "sku",
+            "estados": [
+              "frenado"
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera"
+      }
+    },
+    {
+      "id": "u19-top-invertido-ranking-parcial",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "el ranking parcial invierte el top: «los 3 SKU de MENOR capital frenado» son los 3 frenados (los únicos con frenado, es decir los de MAYOR); Valparaíso «entre las 2 bodegas de menor frenado»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "orden",
+          "sujeto": "LG-DRYER8KG",
+          "metrica": "capital_frenado",
+          "orden": {
+            "forma": "topk",
+            "k": 3,
+            "direccion": "menor"
+          },
+          "universo": {
+            "eje": "sku"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "sku",
+            "top": {
+              "metrica": "capital_frenado",
+              "k": 3,
+              "direccion": "menor"
+            }
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "orden",
+          "sujeto": "Valparaíso",
+          "metrica": "capital_frenado",
+          "orden": {
+            "forma": "topk",
+            "k": 2,
+            "direccion": "menor"
+          },
+          "universo": {
+            "eje": "bodega"
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "LG-DRYER8KG",
+          "metrica": "capital_frenado",
+          "orden": {
+            "forma": "min"
+          },
+          "universo": {
+            "eje": "sku",
+            "excluir": {
+              "entidades": [
+                "MAK-COMP-AIR",
+                "BOS-SANDER"
+              ]
+            }
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "falsa",
+        "h3": "falsa",
+        "h4": "falsa"
+      }
+    },
+    {
+      "id": "u20-top-invertido-cliente",
+      "pregunta": "¿Cómo viene mi margen?",
+      "nota": "«Falabella está entre los 8 clientes de menor contribución no capturada» (ranking de 8: los que caen; Falabella es la MAYOR)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "orden",
+          "sujeto": "Falabella",
+          "metrica": "no_capturada",
+          "orden": {
+            "forma": "topk",
+            "k": 8,
+            "direccion": "menor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "orden",
+          "sujeto": "Falabella",
+          "metrica": "no_capturada",
+          "orden": {
+            "forma": "max"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "verdadera"
+      }
+    },
+    {
+      "id": "n03-conteo-con-nombres-ignorados",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "conteo tipado con `sujeto` enumerado: los nombres (clientes al día) se ignoran y el n del conjunto real (en mora) lo hace verdadero",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 6,
+          "sujeto": [
+            "Jumbo",
+            "Mercado Libre",
+            "Ripley",
+            "La Polar",
+            "Hites",
+            "ABC"
+          ],
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 6,
+          "sujeto": [
+            "Jumbo",
+            "Mercado Libre",
+            "Ripley",
+            "La Polar",
+            "Hites",
+            "ABC"
+          ],
+          "de": "clientes con saldo vencido"
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "falsa"
+      }
+    },
+    {
+      "id": "u21-m-base-conjunto",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "FALSO POSITIVO simétrico a u18: «4 de los 13 clientes tienen carga alta y están en mora» es verdadero; el libro solo acepta m = 6 (la base)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 4,
+          "m": 13,
+          "de": {
+            "eje": "cliente",
+            "base": "carga comercial alta",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 4,
+          "m": 6,
+          "de": {
+            "eje": "cliente",
+            "base": "carga comercial alta",
+            "estados": [
+              "en_mora"
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera"
+      }
+    },
+    {
+      "id": "z06-razon-forma-veces-sin-unidad",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "razón en «veces» con valor sin unidad («1,8») y en % sin símbolo («46»): qué se renderiza",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "razon",
+          "forma": "veces",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Falabella",
+            "metrica": "saldo_vencido"
+          },
+          "valor": "1,8"
+        },
+        {
+          "id": "h2",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Lider",
+            "metrica": "saldo_pendiente"
+          },
+          "valor": "46"
+        },
+        {
+          "id": "h3",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Lider",
+            "metrica": "saldo_pendiente"
+          },
+          "valor": "0,46x"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera"
+      }
+    },
+    {
+      "id": "c04-valor-con-unidad-equivocada",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "valores con la unidad equivocada en cifra, variación y relación: «4,6%» de vencido, «$269» de días, «14,9 pp» de variación, «45 días» de recuperado, diferencia «2,1%»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "valor": "4,6%"
+        },
+        {
+          "id": "h2",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "dias_vencido",
+          "valor": "$269"
+        },
+        {
+          "id": "h3",
+          "tipo": "variacion",
+          "sujeto": "Lider",
+          "metrica": "ventas",
+          "variacion": {
+            "direccion": "sube",
+            "valor": "14,9 pp"
+          },
+          "periodo": "anterior"
+        },
+        {
+          "id": "h4",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "recuperado",
+          "valor": "45 días"
+        },
+        {
+          "id": "h5",
+          "tipo": "relacion",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "relacion": {
+            "forma": "diferencia",
+            "valor": "2,1%",
+            "vs": {
+              "sujeto": "Falabella"
+            }
+          }
+        },
+        {
+          "id": "h6",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "recuperado",
+          "valor": "45 pp"
+        }
+      ],
+      "esperado": {
+        "h1": "no-verdadera",
+        "h2": "no-verdadera",
+        "h3": "no-verdadera",
+        "h4": "no-verdadera",
+        "h5": "no-verdadera",
+        "h6": "no-verdadera"
+      }
+    },
+    {
+      "id": "r02-relacion-matiz-y-k-string",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "k=2 sin matiz sobre un cociente de 1.83 (¿«el doble» exacto?), matiz «exactamente», k=1.8 sin matiz; y un puesto con k como string (posible falso positivo)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "relacion",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "relacion": {
+            "forma": "veces",
+            "k": 2,
+            "matiz": "exactamente",
+            "vs": {
+              "sujeto": "Falabella"
+            }
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "relacion",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "relacion": {
+            "forma": "veces",
+            "k": 1.8,
+            "vs": {
+              "sujeto": "Falabella"
+            }
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "relacion",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "relacion": {
+            "forma": "veces",
+            "k": 2.2,
+            "vs": {
+              "sujeto": "Falabella"
+            }
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "Falabella",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "puesto",
+            "k": "2",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "relacion",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "relacion": {
+            "forma": "veces",
+            "k": 2,
+            "vs": {
+              "grupo": [
+                "Falabella",
+                "Falabella"
+              ]
+            }
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "verdadera",
+        "h3": "falsa",
+        "h4": "verdadera",
+        "h5": "falsa"
+      }
+    },
+    {
+      "id": "g04-grupo-universo-tipado-fuera",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "grupo con universo tipado que sus miembros NO cumplen (Jumbo y Mercado Libre no están en mora): el universo se descarta en la traducción",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "grupo",
+          "miembros": [
+            "Jumbo",
+            "Mercado Libre"
+          ],
+          "universo": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ]
+          },
+          "metrica": "saldo_pendiente",
+          "agregado": "suma",
+          "valor": "$6,3M"
+        },
+        {
+          "id": "h2",
+          "tipo": "grupo",
+          "miembros": [
+            "Jumbo",
+            "Mercado Libre"
+          ],
+          "universo": "clientes con saldo vencido",
+          "metrica": "saldo_pendiente",
+          "agregado": "suma",
+          "valor": "$6,3M"
+        },
+        {
+          "id": "h3",
+          "tipo": "grupo",
+          "miembros": [
+            "Jumbo",
+            "Mercado Libre"
+          ],
+          "universo": {
+            "eje": "cliente",
+            "estados": [
+              "al_dia"
+            ]
+          },
+          "metrica": "saldo_pendiente",
+          "agregado": "suma",
+          "valor": "$6,3M"
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "falsa",
+        "h3": "verdadera"
+      }
+    },
+    {
+      "id": "x01-estado-negado-en-el-enum",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "el campo estado es un enum, pero se canoniza con la expresión regular de la prosa: «no_en_mora» → en mora, «no_al_dia» → al día, «casi_al_dia», «en_mora_leve», «al_dia_y_en_mora»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "estado",
+          "sujeto": "Lider",
+          "estado": "no_en_mora"
+        },
+        {
+          "id": "h2",
+          "tipo": "estado",
+          "sujeto": "Jumbo",
+          "estado": "no_al_dia"
+        },
+        {
+          "id": "h3",
+          "tipo": "estado",
+          "sujeto": "Jumbo",
+          "estado": "casi_al_dia"
+        },
+        {
+          "id": "h4",
+          "tipo": "estado",
+          "sujeto": "Lider",
+          "estado": "en_mora_leve"
+        },
+        {
+          "id": "h5",
+          "tipo": "estado",
+          "sujeto": "Jumbo",
+          "estado": "al_dia_y_en_mora"
+        },
+        {
+          "id": "h6",
+          "tipo": "estado",
+          "sujeto": "Jumbo",
+          "estado": "nunca_al_dia"
+        },
+        {
+          "id": "h7",
+          "tipo": "estado",
+          "sujeto": "Jumbo",
+          "estado": "no_esta_al_dia"
+        },
+        {
+          "id": "h8",
+          "tipo": "estado",
+          "sujeto": "Lider",
+          "estado": "en_mora"
+        },
+        {
+          "id": "h9",
+          "tipo": "estado",
+          "sujeto": "Lider",
+          "estado": "EN_MORA"
+        },
+        {
+          "id": "h10",
+          "tipo": "estado",
+          "sujeto": "Lider",
+          "estado": " en_mora "
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "falsa",
+        "h3": "no-verificable",
+        "h4": "no-verificable",
+        "h5": "no-verificable",
+        "h6": "falsa",
+        "h7": "falsa",
+        "h8": "verdadera",
+        "h9": "verdadera",
+        "h10": "verdadera"
+      }
+    },
+    {
+      "id": "x02-estado-negado-inventario",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "lo mismo sobre SKU: «no_frenado» sobre el frenado; la disyunción «frenado_o_sobrestock» sobre un sobrestock; «no_frenado» sobre uno sano (verdadero); «critical» fuera del enum",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "estado",
+          "sujeto": "LG-DRYER8KG",
+          "estado": "no_frenado"
+        },
+        {
+          "id": "h2",
+          "tipo": "estado",
+          "sujeto": "PHI-IRON-PRO",
+          "estado": "frenado_o_sobrestock"
+        },
+        {
+          "id": "h3",
+          "tipo": "estado",
+          "sujeto": "LG-WASH11KG",
+          "estado": "no_frenado"
+        },
+        {
+          "id": "h4",
+          "tipo": "estado",
+          "sujeto": "LG-DRYER8KG",
+          "estado": "critical"
+        },
+        {
+          "id": "h5",
+          "tipo": "estado",
+          "sujeto": "SAM-TV55",
+          "estado": "sin_venta"
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "verdadera|no-verificable",
+        "h3": "verdadera",
+        "h4": "no-verificable",
+        "h5": "verdadera"
+      }
+    },
+    {
+      "id": "x03-union-malformada",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "un miembro de `union` que no es objeto (string, null) se convierte en {} = el eje entero: «los clientes en mora y Jumbo» = 13",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ],
+            "union": [
+              "Jumbo"
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 7,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ],
+            "union": [
+              "Jumbo"
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ],
+            "union": [
+              null
+            ]
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ],
+            "union": [
+              {}
+            ]
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "conteo",
+          "n": 6,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ],
+            "union": []
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "no-verificable",
+        "h4": "no-verificable",
+        "h5": "verdadera"
+      }
+    },
+    {
+      "id": "x04-excluir-top-k-raro",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "excluir un top con k mayor que el eje (20), fraccionario (2.5), como texto («3»), negativo o cero",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "cliente",
+            "excluir": {
+              "top": {
+                "metrica": "ventas",
+                "k": 20,
+                "direccion": "mayor"
+              }
+            }
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 11,
+          "de": {
+            "eje": "cliente",
+            "excluir": {
+              "top": {
+                "metrica": "ventas",
+                "k": 2.5,
+                "direccion": "mayor"
+              }
+            }
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 10,
+          "de": {
+            "eje": "cliente",
+            "excluir": {
+              "top": {
+                "metrica": "ventas",
+                "k": "3",
+                "direccion": "mayor"
+              }
+            }
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 12,
+          "de": {
+            "eje": "cliente",
+            "excluir": {
+              "top": {
+                "metrica": "ventas",
+                "k": -1,
+                "direccion": "mayor"
+              }
+            }
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {
+            "eje": "cliente",
+            "excluir": {
+              "top": {
+                "metrica": "ventas",
+                "k": 0,
+                "direccion": "mayor"
+              }
+            }
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "verdadera",
+        "h4": "no-verificable",
+        "h5": "no-verificable"
+      }
+    },
+    {
+      "id": "x05-filtro-entre-invertido",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "«entre 300 y 200 días» (límites invertidos) da el conjunto vacío: «0 clientes entre 200 y 300 días de mora» sale verdadera; son 3 (Lider 269, Sodimac 251, Easy 270)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": "entre",
+                "valor": [
+                  300,
+                  200
+                ],
+                "unidad": "days"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": "entre",
+                "valor": [
+                  200,
+                  300
+                ],
+                "unidad": "days"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": "entre",
+                "valor": 200,
+                "hasta": 300,
+                "unidad": "days"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": "entre",
+                "valor": [
+                  200
+                ],
+                "unidad": "days"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": "entre",
+                "valor": [
+                  "200",
+                  "300"
+                ],
+                "unidad": "days"
+              }
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "no-verificable",
+        "h5": "verdadera"
+      }
+    },
+    {
+      "id": "x06-filtro-valor-con-texto",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "valores de filtro escritos como texto («5M», «$5M», «5.000.000») y la escala del dinero: el ranking está en dólares, no en miles",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 4,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "saldo_pendiente",
+                "op": ">",
+                "valor": "5M",
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 4,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "saldo_pendiente",
+                "op": ">",
+                "valor": "$5M",
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 4,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "saldo_pendiente",
+                "op": ">",
+                "valor": 5000000,
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 13,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "saldo_pendiente",
+                "op": ">",
+                "valor": 5000,
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "conteo",
+          "n": 4,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "saldo_pendiente",
+                "op": ">",
+                "valor": "5.000.000",
+                "unidad": "money"
+              }
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "no-verificable"
+      }
+    },
+    {
+      "id": "x07-filtro-metrica-generica",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "una métrica genérica en el filtro («deuda», «saldo») no es una clave: ¿casa con el pendiente (4 sobre $3M) o con el vencido (1 sobre $3M)?",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 1,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "deuda",
+                "op": ">",
+                "valor": 3000000,
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 4,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "deuda",
+                "op": ">",
+                "valor": 3000000,
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 4,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "saldo",
+                "op": ">",
+                "valor": 3000000,
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 1,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "saldo",
+                "op": ">",
+                "valor": 3000000,
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "conteo",
+          "n": 1,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "vencido",
+                "op": ">",
+                "valor": 3000000,
+                "unidad": "money"
+              }
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "no-verificable",
+        "h4": "no-verificable",
+        "h5": "verdadera"
+      }
+    },
+    {
+      "id": "x08-orden-eje-del-sujeto-vs-universo",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "nota": "el eje del orden lo fija el sujeto, no el universo declarado: «SAM-TV55 es el cliente que más vende» y «Falabella es el SKU que más vende»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "orden",
+          "sujeto": "SAM-TV55",
+          "metrica": "ventas",
+          "orden": {
+            "forma": "max",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "orden",
+          "sujeto": "Falabella",
+          "metrica": "ventas",
+          "orden": {
+            "forma": "max",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "sku"
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "orden",
+          "sujeto": "Valparaíso",
+          "metrica": "capital",
+          "orden": {
+            "forma": "max",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "Falabella",
+          "metrica": "ventas",
+          "orden": {
+            "forma": "max",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "conteo",
+          "n": 1,
+          "de": {
+            "eje": "cliente",
+            "top": {
+              "metrica": "ventas",
+              "k": 1,
+              "direccion": "mayor"
+            },
+            "excluir": {
+              "entidades": [
+                "SAM-TV55"
+              ]
+            }
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "falsa|no-verificable",
+        "h2": "falsa|no-verificable",
+        "h3": "falsa|no-verificable",
+        "h4": "verdadera",
+        "h5": "no-verificable"
+      }
+    },
+    {
+      "id": "x09-grupo-agregado-promedio",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "el plan §2.2 admite agregado promedio; el libro solo suma: «Lider y Falabella promedian $37,2M» (la suma) sale verdadera y el promedio real ($18,6M) sale falso",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "grupo",
+          "miembros": [
+            "Lider",
+            "Falabella"
+          ],
+          "metrica": "ventas",
+          "agregado": "promedio",
+          "valor": "$18,6M"
+        },
+        {
+          "id": "h2",
+          "tipo": "grupo",
+          "miembros": [
+            "Lider",
+            "Falabella"
+          ],
+          "metrica": "ventas",
+          "agregado": "promedio",
+          "valor": "$37,2M"
+        },
+        {
+          "id": "h3",
+          "tipo": "grupo",
+          "miembros": [
+            "Lider",
+            "Falabella"
+          ],
+          "metrica": "ventas",
+          "agregado": "suma",
+          "valor": "$37,2M"
+        },
+        {
+          "id": "h4",
+          "tipo": "grupo",
+          "miembros": [
+            "Lider",
+            "Falabella"
+          ],
+          "metrica": "margen",
+          "agregado": "promedio",
+          "valor": "21,8%"
+        },
+        {
+          "id": "h5",
+          "tipo": "grupo",
+          "miembros": [
+            "Lider",
+            "Falabella"
+          ],
+          "metrica": "ventas",
+          "agregado": "maximo",
+          "valor": "$37,2M"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "falsa",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "no-verificable"
+      }
+    },
+    {
+      "id": "x10-derivada-operando-repetido",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "una derivada con el mismo operando dos veces: «Lider vencido + Lider vencido = $9,1M» (c8 = Lider · Saldo vencido = $4.6M); y la diferencia consigo mismo; y la resta invertida sin signo",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "derivada",
+          "op": "suma",
+          "de": [
+            "c8",
+            "c8"
+          ],
+          "valor": "$9,1M"
+        },
+        {
+          "id": "h2",
+          "tipo": "derivada",
+          "op": "suma",
+          "de": [
+            "c8",
+            "c8",
+            "c12"
+          ],
+          "valor": "$11,6M"
+        },
+        {
+          "id": "h3",
+          "tipo": "derivada",
+          "op": "diferencia",
+          "de": [
+            "c8",
+            "c8"
+          ],
+          "valor": "$0"
+        },
+        {
+          "id": "h4",
+          "tipo": "derivada",
+          "op": "suma",
+          "de": [
+            "c8",
+            "c12"
+          ],
+          "valor": "$7,0M"
+        },
+        {
+          "id": "h5",
+          "tipo": "derivada",
+          "op": "diferencia",
+          "de": [
+            "c4",
+            "c8"
+          ],
+          "valor": "$8,0M"
+        },
+        {
+          "id": "h6",
+          "tipo": "derivada",
+          "op": "diferencia",
+          "de": [
+            "c8",
+            "c4"
+          ],
+          "valor": "$8,0M"
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "no-verificable",
+        "h4": "verdadera",
+        "h5": "verdadera",
+        "h6": "falsa|no-verificable"
+      }
+    },
+    {
+      "id": "x11-razon-vacua-y-cruzada",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "nota": "razón de una cifra consigo misma (100 %) y razón entre dominios ($ de cobranza ÷ $ de inventario: 33,7 veces) — aritmética correcta sobre magnitudes que no se dividen",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "valor": "100%"
+        },
+        {
+          "id": "h2",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "negocio",
+            "metrica": "capital"
+          },
+          "valor": "33,7x"
+        },
+        {
+          "id": "h3",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "negocio",
+            "metrica": "saldo_vencido"
+          },
+          "valor": "36%"
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "verdadera"
+      }
+    },
+    {
+      "id": "x12-conteo-de-lista",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "`de` como lista de entidades o `base` como lista: no es un universo tipado",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 2,
+          "de": [
+            "Jumbo",
+            "Lider"
+          ]
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 2,
+          "de": {
+            "eje": "cliente",
+            "base": [
+              "Jumbo",
+              "Lider"
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 6,
+          "de": {
+            "eje": "cliente",
+            "estados": "en_mora"
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "verdadera"
+      }
+    },
+    {
+      "id": "x13-estados-con-coma",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "dos estados en una sola cadena («en_mora, al_dia»): la expresión regular se queda con uno (al día = 7) y «7 clientes en mora o al día» sale verdadera; son 13",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 7,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora, al_dia"
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 7,
+          "de": {
+            "eje": "cliente",
+            "estados": "en_mora al_dia"
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 6,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora"
+            ],
+            "no_estados": [
+              "al_dia, en_mora"
+            ]
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "cliente",
+            "estados": [
+              "en_mora",
+              "al_dia"
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "no-verificable",
+        "h4": "no-verificable"
+      },
+      "nota_v31": {
+        "h4": "v3.1: un universo con un estado y su complemento está vacío por construcción: no es un hecho"
+      }
+    },
+    {
+      "id": "x14-top-que-corta-un-empate",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "top 3 de menor días vencido con 7 clientes empatados en 0: el conjunto son 3 arbitrarios (los primeros del ranking); un orden verdadero sobre un empatado sale «fuera del universo»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "cliente",
+            "top": {
+              "metrica": "dias_vencido",
+              "k": 3,
+              "direccion": "menor"
+            }
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "cliente",
+            "top": {
+              "metrica": "dias_vencido",
+              "k": 3,
+              "direccion": "menor"
+            },
+            "excluir": {
+              "entidades": [
+                "Jumbo",
+                "Mercado Libre",
+                "Ripley"
+              ]
+            }
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "orden",
+          "sujeto": "Unimarc",
+          "metrica": "saldo_pendiente",
+          "orden": {
+            "forma": "min",
+            "direccion": "menor"
+          },
+          "universo": {
+            "eje": "cliente",
+            "top": {
+              "metrica": "dias_vencido",
+              "k": 3,
+              "direccion": "menor"
+            }
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "Hites",
+          "metrica": "dias_vencido",
+          "orden": {
+            "forma": "topk",
+            "k": 3,
+            "direccion": "menor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "no-verificable",
+        "h3": "no-verificable",
+        "h4": "verdadera"
+      },
+      "nota_v31": {
+        "h3": "v3.1: el universo «los 3 de menor días vencido» parte un empate: el conjunto no está definido"
+      }
+    },
+    {
+      "id": "x15-excluir-bodega-en-eje-bodega",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "`excluir.bodega` sobre el eje bodega no quita la bodega: «4 bodegas fuera de Santiago» y «Santiago es la de mayor capital fuera de Santiago»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 4,
+          "de": {
+            "eje": "bodega",
+            "excluir": {
+              "bodega": "Santiago"
+            }
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "bodega",
+            "excluir": {
+              "entidades": [
+                "Santiago"
+              ]
+            }
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 2,
+          "de": {
+            "eje": "sku",
+            "estados": [
+              "frenado"
+            ],
+            "bodega": "Valparaíso"
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 1,
+          "de": {
+            "eje": "sku",
+            "estados": [
+              "frenado"
+            ],
+            "excluir": {
+              "bodega": "Valparaíso"
+            }
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "orden",
+          "sujeto": "Santiago",
+          "metrica": "capital",
+          "orden": {
+            "forma": "max",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "bodega",
+            "excluir": {
+              "bodega": "Santiago"
+            }
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "falsa|no-verificable"
+      }
+    },
+    {
+      "id": "x16-orden-direccion-no-canonica",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "cualquier dirección distinta de la cadena exacta «mayor» ordena ascendente: «MAYOR», «mas», «Mayor», «mayor » convierten el máximo en mínimo",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "orden",
+          "sujeto": "Hites",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "max",
+            "direccion": "MAYOR"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "orden",
+          "sujeto": "Jumbo",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "max",
+            "direccion": "mas"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "orden",
+          "sujeto": "Hites",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "topk",
+            "k": 3,
+            "direccion": "Mayor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "max",
+            "direccion": "mayor "
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "orden",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "max",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h6",
+          "tipo": "orden",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "puesto",
+            "k": 1,
+            "direccion": "MAYOR"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "falsa|no-verificable",
+        "h3": "falsa",
+        "h4": "verdadera",
+        "h5": "verdadera",
+        "h6": "verdadera"
+      }
+    },
+    {
+      "id": "x17-orden-min-sin-direccion",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "forma «min» sin dirección (la instrucción la marca opcional) se evalúa como máximo: «Lider es el que menos debe vencido» sale verdadera",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "orden",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "min"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "orden",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "min",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "orden",
+          "sujeto": "Hites",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "min",
+            "direccion": "menor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "Hites",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "min"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "no-verificable",
+        "h3": "no-verificable",
+        "h4": "no-verificable"
+      },
+      "nota_v31": {
+        "h3": "v3.1: siete clientes con vencido 0 comparten el mínimo: no hay «el que menos» (empate)",
+        "h4": "v3.1: empate en el mínimo"
+      }
+    },
+    {
+      "id": "x17b-orden-min-sin-direccion-inventario",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "la misma raíz sobre rotación: «PHI-SHAVER9 es el que peor rota» (rota 11,2x, el mejor) sale verdadera con forma min sin dirección; MAK-COMP-AIR (0,8x, el peor) sale falsa",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "orden",
+          "sujeto": "PHI-SHAVER9",
+          "metrica": "rotacion",
+          "orden": {
+            "forma": "min"
+          },
+          "universo": {
+            "eje": "sku"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "orden",
+          "sujeto": "MAK-COMP-AIR",
+          "metrica": "rotacion",
+          "orden": {
+            "forma": "min"
+          },
+          "universo": {
+            "eje": "sku"
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "orden",
+          "sujeto": "MAK-COMP-AIR",
+          "metrica": "rotacion",
+          "orden": {
+            "forma": "min",
+            "direccion": "menor"
+          },
+          "universo": {
+            "eje": "sku"
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "MAK-COMP-AIR",
+          "metrica": "rotacion",
+          "orden": {
+            "forma": "max",
+            "direccion": "peor"
+          },
+          "universo": {
+            "eje": "sku"
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "falsa",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera"
+      }
+    },
+    {
+      "id": "x18-topk-k-texto",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "k como texto: «3» se compara por coerción, «tres» y el puesto «1» como texto fallan sobre un hecho verdadero",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "orden",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "topk",
+            "k": "3",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "orden",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "topk",
+            "k": "tres",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "orden",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "puesto",
+            "k": "1",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "Falabella",
+          "metrica": "saldo_vencido",
+          "orden": {
+            "forma": "puesto",
+            "k": 2,
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "no-verificable",
+        "h3": "verdadera",
+        "h4": "verdadera"
+      }
+    },
+    {
+      "id": "x19-cifra-valor-sin-unidad",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "cifra con valor sin unidad («9.8», «9,8»), con escala equivocada («$9.800K») y días sin la palabra («269»)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "saldo_pendiente",
+          "valor": "9.8"
+        },
+        {
+          "id": "h2",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "saldo_pendiente",
+          "valor": "9,8"
+        },
+        {
+          "id": "h3",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "saldo_pendiente",
+          "valor": "$9.800K"
+        },
+        {
+          "id": "h4",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "saldo_pendiente",
+          "valor": "$9,8M"
+        },
+        {
+          "id": "h5",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "dias_vencido",
+          "valor": "269"
+        }
+      ],
+      "esperado": {
+        "h1": "falsa|no-verificable",
+        "h2": "falsa|no-verificable",
+        "h3": "falsa",
+        "h4": "verdadera",
+        "h5": "verdadera|no-verificable"
+      }
+    },
+    {
+      "id": "x20-variacion-signo-contradictorio",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "dirección «baja» con valor «+8,2%» y «sube» con «-14,9%»: el signo del valor contradice la dirección y el render lleva el signo dicho",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "variacion",
+          "sujeto": "Ripley",
+          "metrica": "ventas",
+          "variacion": {
+            "direccion": "baja",
+            "valor": "+8,2%"
+          },
+          "periodo": "anterior"
+        },
+        {
+          "id": "h2",
+          "tipo": "variacion",
+          "sujeto": "Lider",
+          "metrica": "ventas",
+          "variacion": {
+            "direccion": "sube",
+            "valor": "-14,9%"
+          },
+          "periodo": "anterior"
+        },
+        {
+          "id": "h3",
+          "tipo": "variacion",
+          "sujeto": "Ripley",
+          "metrica": "ventas",
+          "variacion": {
+            "direccion": "baja",
+            "valor": "8,2%"
+          },
+          "periodo": "anterior"
+        },
+        {
+          "id": "h4",
+          "tipo": "variacion",
+          "sujeto": "Lider",
+          "metrica": "ventas",
+          "variacion": {
+            "direccion": "sube",
+            "valor": "$2,3M"
+          },
+          "periodo": "anterior"
+        }
+      ],
+      "esperado": {
+        "h1": "falsa|no-verificable",
+        "h2": "falsa|no-verificable",
+        "h3": "verdadera",
+        "h4": "verdadera"
+      }
+    },
+    {
+      "id": "x21-relacion-diferencia-sin-signo",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "una diferencia declarada sin dirección vale en los dos sentidos: «Falabella, $2,1M frente a Lider» (Falabella debe $2,1M MENOS)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "relacion",
+          "sujeto": "Falabella",
+          "metrica": "saldo_vencido",
+          "relacion": {
+            "forma": "diferencia",
+            "valor": "$2,1M",
+            "vs": {
+              "sujeto": "Lider"
+            }
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "relacion",
+          "sujeto": "Falabella",
+          "metrica": "saldo_vencido",
+          "relacion": {
+            "forma": "mayor",
+            "vs": {
+              "sujeto": "Lider"
+            }
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "relacion",
+          "sujeto": "Lider",
+          "metrica": "saldo_vencido",
+          "relacion": {
+            "forma": "diferencia",
+            "valor": "$2,1M",
+            "vs": {
+              "sujeto": "Falabella"
+            }
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "falsa",
+        "h3": "verdadera"
+      }
+    },
+    {
+      "id": "x22-filtro-ref-de-otro-dominio-inventario",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "referencias de la casa aplicadas a métricas ajenas en inventario: capital contra el umbral de materialidad (comercial); y las referencias propias (piso, techo, benchmark) que esta boleta no trae · (el índice resuelve piso, benchmark y techo desde la proyección aunque la boleta de este turno no los imprima: 3, 12 y 2 SKU)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 0,
+          "de": {
+            "eje": "sku",
+            "filtros": [
+              {
+                "metrica": "capital",
+                "op": ">",
+                "ref": "umbral_materialidad"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "sku",
+            "filtros": [
+              {
+                "metrica": "rotacion",
+                "op": "<",
+                "ref": "piso_rotacion"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 12,
+          "de": {
+            "eje": "sku",
+            "filtros": [
+              {
+                "metrica": "margen_inventario",
+                "op": "<",
+                "ref": "benchmark"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "sku",
+            "filtros": [
+              {
+                "metrica": "dias_inventario",
+                "op": ">",
+                "ref": "techo_cobertura"
+              }
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "falsa"
+      }
+    },
+    {
+      "id": "x23-conteo-base-conjunto-otro-eje",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "base «carga comercial alta» (un conjunto de clientes) sobre el eje SKU",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 6,
+          "de": {
+            "eje": "sku",
+            "base": "carga comercial alta"
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 6,
+          "de": {
+            "eje": "cliente",
+            "base": "carga comercial alta"
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "verdadera"
+      }
+    },
+    {
+      "id": "x24-cifra-referencia-con-dueno",
+      "pregunta": "¿Cómo viene mi margen?",
+      "nota": "una referencia de la casa (benchmark, nivel de carga) atribuida a un cliente: «el benchmark de Lider es 30,1%»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "benchmark",
+          "valor": "30,1%"
+        },
+        {
+          "id": "h2",
+          "tipo": "cifra",
+          "sujeto": "negocio",
+          "metrica": "benchmark"
+        },
+        {
+          "id": "h3",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "nivel_carga"
+        },
+        {
+          "id": "h4",
+          "tipo": "cifra",
+          "sujeto": "Lider",
+          "metrica": "margen"
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "verdadera",
+        "h3": "no-verificable",
+        "h4": "verdadera"
+      }
+    },
+    {
+      "id": "x25-filtro-op-alias",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "operadores con alias («mas», «=», «≥») y operadores desconocidos («!=», «>>»)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": "mas",
+                "valor": 90,
+                "unidad": "days"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": "!=",
+                "valor": 0,
+                "unidad": "days"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": ">>",
+                "valor": 90,
+                "unidad": "days"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 7,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": "=",
+                "valor": 0,
+                "unidad": "days"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "dias_vencido",
+                "op": "≥",
+                "valor": 251,
+                "unidad": "days"
+              }
+            ]
+          }
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "no-verificable",
+        "h3": "no-verificable",
+        "h4": "verdadera",
+        "h5": "verdadera"
+      }
+    },
+    {
+      "id": "x26-derivada-entre-dominios",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "nota": "suma de un vencido de cobranza con un capital frenado de inventario: la unidad coincide ($) y la cuenta cierra ($4,6M), pero son magnitudes de dominios distintos",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "derivada",
+          "op": "suma",
+          "de": [
+            {
+              "sujeto": "Lider",
+              "metrica": "saldo_vencido"
+            },
+            {
+              "sujeto": "Valparaíso",
+              "metrica": "capital_frenado"
+            }
+          ],
+          "valor": "$4,6M"
+        },
+        {
+          "id": "h2",
+          "tipo": "derivada",
+          "op": "suma",
+          "de": [
+            {
+              "sujeto": "Lider",
+              "metrica": "saldo_vencido"
+            },
+            {
+              "sujeto": "Falabella",
+              "metrica": "saldo_vencido"
+            }
+          ],
+          "valor": "$7,0M"
+        }
+      ],
+      "esperado": {
+        "h1": "no-verificable",
+        "h2": "verdadera"
+      }
+    },
+    {
+      "id": "t13-control-cobranza-5",
+      "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
+      "nota": "CONTROL · «Cuatro cuentas concentran saldos pendientes sobre $5M y dos de ellas arrastran más de un trimestre de mora; Lider encabeza el pendiente incluso si dejo fuera a la cuenta que más me compra; Unimarc es la de menor pendiente de la cartera; el vencido de Lider es el 36% del total vencido. Yo empezaría por Lider.» · (primera redacción decía «tres de ellas»: el banco la cobró como falsa y tenía razón: Falabella lleva 8 días y Jumbo 0)",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 4,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "saldo_pendiente",
+                "op": ">",
+                "valor": 5000000,
+                "unidad": "money"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "conteo",
+          "n": 2,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "saldo_pendiente",
+                "op": ">",
+                "valor": 5000000,
+                "unidad": "money"
+              },
+              {
+                "metrica": "dias_vencido",
+                "op": ">",
+                "valor": 1,
+                "unidad": "trimestre"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "orden",
+          "sujeto": "Lider",
+          "metrica": "saldo_pendiente",
+          "orden": {
+            "forma": "max",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente",
+            "excluir": {
+              "top": {
+                "metrica": "ventas",
+                "k": "1",
+                "direccion": "mayor"
+              }
+            }
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "Unimarc",
+          "metrica": "saldo_pendiente",
+          "orden": {
+            "forma": "min",
+            "direccion": "menor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "razon",
+          "num": {
+            "id": "c8"
+          },
+          "den": {
+            "id": "c4"
+          },
+          "valor": "36%"
+        },
+        {
+          "id": "h6",
+          "tipo": "lectura",
+          "apoyo": [
+            "h1",
+            "h3"
+          ],
+          "sello": "criterio mío"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera",
+        "h6": "sellada"
+      }
+    },
+    {
+      "id": "t14-control-comercial-4",
+      "pregunta": "¿Cómo viene mi margen?",
+      "nota": "CONTROL · «Nueve cuentas exceden el nivel de carga declarado; de las que tienen carga alta y además están bajo el benchmark, la de mayor venta es Falabella; Samsung es la marca que más vende; solo una cuenta supera 33% de margen; Lider y Jumbo suman $2,6M de contribución no capturada.»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 9,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "carga",
+                "op": ">",
+                "ref": "nivel_carga"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "orden",
+          "sujeto": "Falabella",
+          "metrica": "ventas",
+          "orden": {
+            "forma": "max",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente",
+            "base": "carga comercial alta",
+            "filtros": [
+              {
+                "metrica": "margen",
+                "op": "<",
+                "ref": "benchmark"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "orden",
+          "sujeto": "Samsung",
+          "metrica": "ventas",
+          "orden": {
+            "forma": "max",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "marca"
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 1,
+          "de": {
+            "eje": "cliente",
+            "filtros": [
+              {
+                "metrica": "margen",
+                "op": ">",
+                "valor": 33,
+                "unidad": "pct"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "grupo",
+          "miembros": [
+            "Lider",
+            "Jumbo"
+          ],
+          "metrica": "no_capturada",
+          "agregado": "suma",
+          "valor": "$2,6M"
+        },
+        {
+          "id": "h6",
+          "tipo": "lectura",
+          "apoyo": [
+            "h2",
+            "h5"
+          ],
+          "sello": "criterio mío"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera",
+        "h6": "sellada"
+      }
+    },
+    {
+      "id": "t15-control-inventario-4",
+      "pregunta": "¿Cómo está mi inventario?",
+      "nota": "CONTROL · «Fuera de Valparaíso solo queda un SKU frenado; MAK-COMP-AIR es el de mayor cobertura y el de menor rotación; entre 100 y 200 días de cobertura hay tres SKU; Santiago concentra el 47% del capital; el frenado de Valparaíso supera al de Antofagasta por $16K.»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "conteo",
+          "n": 1,
+          "de": {
+            "eje": "sku",
+            "estados": [
+              "frenado"
+            ],
+            "excluir": {
+              "bodega": "Valparaíso"
+            }
+          }
+        },
+        {
+          "id": "h2",
+          "tipo": "orden",
+          "sujeto": "MAK-COMP-AIR",
+          "metrica": "dias_inventario",
+          "orden": {
+            "forma": "max",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "sku"
+          }
+        },
+        {
+          "id": "h3",
+          "tipo": "orden",
+          "sujeto": "MAK-COMP-AIR",
+          "metrica": "rotacion",
+          "orden": {
+            "forma": "min",
+            "direccion": "menor"
+          },
+          "universo": {
+            "eje": "sku"
+          }
+        },
+        {
+          "id": "h4",
+          "tipo": "conteo",
+          "n": 3,
+          "de": {
+            "eje": "sku",
+            "filtros": [
+              {
+                "metrica": "dias_inventario",
+                "op": "entre",
+                "valor": [
+                  100,
+                  200
+                ],
+                "unidad": "days"
+              }
+            ]
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "razon",
+          "num": {
+            "id": "c82"
+          },
+          "den": {
+            "id": "c37"
+          },
+          "valor": "47%"
+        },
+        {
+          "id": "h6",
+          "tipo": "derivada",
+          "op": "diferencia",
+          "de": [
+            "c2",
+            "c4"
+          ],
+          "valor": "$16K"
+        },
+        {
+          "id": "h7",
+          "tipo": "lectura",
+          "apoyo": [
+            "h1",
+            "h2"
+          ],
+          "sello": "criterio mío"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera",
+        "h6": "verdadera",
+        "h7": "sellada"
+      }
+    },
+    {
+      "id": "t16-control-integrada-3",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "nota": "CONTROL · «Lider concentra el 36% del vencido total; los tres SKU frenados suman $33K; Jumbo está al día y es la tercera cuenta en venta; Sodimac recuperó el 35% y lleva 251 días vencido; fuera de las tres que más venden, Sodimac es la que más debe. Priorizaría la cobranza de Lider antes que liberar el capital frenado.»",
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "razon",
+          "num": {
+            "sujeto": "Lider",
+            "metrica": "saldo_vencido"
+          },
+          "den": {
+            "sujeto": "negocio",
+            "metrica": "saldo_vencido"
+          },
+          "valor": "36%"
+        },
+        {
+          "id": "h2",
+          "tipo": "grupo",
+          "miembros": [
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "MAK-COMP-AIR"
+          ],
+          "metrica": "capital_frenado",
+          "agregado": "suma",
+          "valor": "$33K"
+        },
+        {
+          "id": "h3",
+          "tipo": "estado",
+          "sujeto": "Jumbo",
+          "estado": "al_dia"
+        },
+        {
+          "id": "h4",
+          "tipo": "orden",
+          "sujeto": "Jumbo",
+          "metrica": "ventas",
+          "orden": {
+            "forma": "puesto",
+            "k": 3,
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente"
+          }
+        },
+        {
+          "id": "h5",
+          "tipo": "cifra",
+          "sujeto": "Sodimac",
+          "metrica": "recuperado",
+          "valor": "35%"
+        },
+        {
+          "id": "h6",
+          "tipo": "cifra",
+          "sujeto": "Sodimac",
+          "metrica": "dias_vencido",
+          "valor": "251 días"
+        },
+        {
+          "id": "h7",
+          "tipo": "orden",
+          "sujeto": "Sodimac",
+          "metrica": "saldo_pendiente",
+          "orden": {
+            "forma": "max",
+            "direccion": "mayor"
+          },
+          "universo": {
+            "eje": "cliente",
+            "excluir": {
+              "top": {
+                "metrica": "ventas",
+                "k": 3,
+                "direccion": "mayor"
+              }
+            }
+          }
+        },
+        {
+          "id": "h8",
+          "tipo": "lectura",
+          "apoyo": [
+            "h1",
+            "h7"
+          ],
+          "sello": "criterio mío"
+        }
+      ],
+      "esperado": {
+        "h1": "verdadera",
+        "h2": "verdadera",
+        "h3": "verdadera",
+        "h4": "verdadera",
+        "h5": "verdadera",
+        "h6": "verdadera",
+        "h7": "verdadera",
+        "h8": "sellada"
+      }
+    }
+  ]
+}

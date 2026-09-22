@@ -1,0 +1,3263 @@
+{
+ "angulo": "respaldo",
+ "nota": "Tres bloques: (1) casa:* = composer mentiroso/descuidado sobre anclar.js (runner propio adv5_respaldo_casa.mjs); (2) turno = los mismos libros+prosas ancladas confirmados en el turno entero por el banco; (3) turno con cierre vacío = 34 preguntas × {v3:true,false} para medir la degradación del respaldo. Pregunta base de (1) y (2): la integrada (boleta de 335 cifras).",
+ "casos": [
+  {
+   "id": "RA1",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "- Lider · Saldo vencido: $17.8M\n- Lider · Dias Vencido: 269d",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Lider · Venta",
+     "texto": "- Lider · Saldo vencido: $17.8M"
+    },
+    {
+     "fn": "deFig",
+     "label": "Lider · Dias Vencido",
+     "texto": "- Lider · Dias Vencido: 269d"
+    }
+   ],
+   "falsedades": [
+    "Lider · Saldo vencido: $17.8M"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA2",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider tiene $17.8M vencidos. Lider lleva 269d de atraso.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Lider · Venta",
+     "texto": "Lider tiene $17.8M vencidos."
+    },
+    {
+     "fn": "deFig",
+     "label": "Lider · Dias Vencido",
+     "texto": "Lider lleva 269d de atraso."
+    }
+   ],
+   "falsedades": [
+    "Lider tiene $17.8M vencidos"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA3",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lo que sí tengo verificado: Lider · Saldo vencido: $17.8M. Lider · Dias Vencido: 269d.",
+   "falsedades": [
+    "Lider · Saldo vencido: $17.8M"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA4",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lo que sí tengo verificado: Jumbo · Saldo vencido: $4.6M.",
+   "falsedades": [
+    "Jumbo · Saldo vencido: $4.6M"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA5",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Falabella, Tottus y Paris llevan 8d de atraso.",
+   "verdadero": true,
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA6",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Sodimac · Saldo pendiente: $8.2M. Sodimac · Saldo vencido: $1.9M.",
+   "falsedades": [
+    "Sodimac · Saldo pendiente: $8.2M"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA7",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider te debe $17.8M.",
+   "falsedades": [
+    "Lider te debe $17.8M"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA8",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Sodimac vendió $8.2M y te debe $8.2M.",
+   "falsedades": [
+    "te debe $8.2M"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA9",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Tottus tiene $1.9M vencidos. Tottus · Saldo vencido: $1.3M.",
+   "falsedades": [
+    "Tottus tiene $1.9M vencidos"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA10",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lo que sí tengo verificado: Lider · Saldo vencido: $4.6M.",
+   "verdadero": true,
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA11",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lo que sí tengo verificado: Capital frenado · total: $33K.",
+   "verdadero": true,
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA12",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lo que sí tengo verificado: Falabella · Venta: $19.4M.",
+   "verdadero": true,
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RB1",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Falabella es la que menos vende.",
+   "declaraciones": [
+    {
+     "fn": "orden",
+     "args": {
+      "sujeto": "Falabella",
+      "metrica": "Ventas",
+      "forma": "max",
+      "universo": {
+       "eje": "cliente"
+      },
+      "texto": "Falabella es la que menos vende."
+     }
+    }
+   ],
+   "falsedades": [
+    "Falabella es la que menos vende"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RB2",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Falabella es la que menos vende.",
+   "declaraciones": [
+    {
+     "fn": "orden",
+     "args": {
+      "sujeto": "Falabella",
+      "metrica": "Ventas",
+      "forma": "max",
+      "direccion": "mayor",
+      "universo": {
+       "eje": "cliente"
+      },
+      "texto": "Falabella es la que menos vende."
+     }
+    }
+   ],
+   "falsedades": [
+    "Falabella es la que menos vende"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RB3",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider es la que más vende.",
+   "declaraciones": [
+    {
+     "fn": "orden",
+     "args": {
+      "sujeto": "Falabella",
+      "metrica": "Ventas",
+      "forma": "max",
+      "universo": {
+       "eje": "cliente"
+      },
+      "texto": "Lider es la que más vende."
+     }
+    }
+   ],
+   "falsedades": [
+    "Lider es la que más vende"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RB4",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "El que más te debe es Lider.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "orden",
+     "args": {
+      "sujeto": "Lider",
+      "metrica": "Saldo pendiente",
+      "forma": "max",
+      "universo": {
+       "eje": "cliente"
+      },
+      "texto": "El que más te debe es Lider."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RB5",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider es la que más vende.",
+   "declaraciones": [
+    {
+     "fn": "orden",
+     "args": {
+      "sujeto": "Falabella",
+      "metrica": "Ventas",
+      "forma": "max",
+      "universo": {
+       "eje": "cliente"
+      },
+      "texto": "la cuenta que más vende",
+      "textoV3": "es la que más vende"
+     }
+    }
+   ],
+   "falsedades": [
+    "Lider es la que más vende"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RB6",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Sodimac es el que más te debe entre los clientes que venden menos de $10M.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "orden",
+     "args": {
+      "sujeto": "Sodimac",
+      "metrica": "Saldo pendiente",
+      "forma": "max",
+      "universoV3": {
+       "eje": "cliente",
+       "filtros": [
+        {
+         "metrica": "ventas",
+         "op": "<",
+         "valor": 10000000,
+         "unidad": "money"
+        }
+       ]
+      },
+      "texto": "Sodimac es el que más te debe entre los clientes que venden menos de $10M."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RB7",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Easy es el que más días de atraso lleva.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "orden",
+     "args": {
+      "sujeto": "Easy",
+      "metrica": "Dias Vencido",
+      "forma": "max",
+      "universo": {
+       "eje": "cliente"
+      },
+      "texto": "Easy es el que más días de atraso lleva."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RB8",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider es el que peor margen tiene.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "orden",
+     "args": {
+      "sujeto": "Lider",
+      "metrica": "Margen",
+      "forma": "min",
+      "universo": {
+       "eje": "cliente"
+      },
+      "texto": "Lider es el que peor margen tiene."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RB9",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider es el que mejor margen tiene.",
+   "declaraciones": [
+    {
+     "fn": "orden",
+     "args": {
+      "sujeto": "Lider",
+      "metrica": "Margen",
+      "forma": "min",
+      "universo": {
+       "eje": "cliente"
+      },
+      "texto": "Lider es el que mejor margen tiene."
+     }
+    }
+   ],
+   "falsedades": [
+    "Lider es el que mejor margen tiene"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RC1",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Jumbo está en mora.",
+   "declaraciones": [
+    {
+     "fn": "estado",
+     "args": {
+      "sujeto": "Jumbo",
+      "estado": "al_dia",
+      "texto": "Jumbo está en mora."
+     }
+    }
+   ],
+   "falsedades": [
+    "Jumbo está en mora"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RC2",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Sodimac no está al día.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "estado",
+     "args": {
+      "sujeto": "Sodimac",
+      "estado": "en_mora",
+      "texto": "Sodimac no está al día."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RC3",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "LG-DRYER8KG está frenado en Santiago.",
+   "declaraciones": [
+    {
+     "fn": "estado",
+     "args": {
+      "sujeto": "LG-DRYER8KG",
+      "estado": "frenado",
+      "bodega": "Santiago",
+      "texto": "LG-DRYER8KG está frenado en Santiago."
+     }
+    }
+   ],
+   "falsedades": [
+    "frenado en Santiago"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RC4",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Jumbo está al día.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "estado",
+     "args": {
+      "sujeto": "Jumbo",
+      "estado": "al_dia",
+      "texto": "Jumbo está al día."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RD1",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Falabella · Saldo pendiente: $8.2M.\nFalabella es la que más te debe: yo la llamaría hoy y le pediría un calendario de pago.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Falabella · Saldo pendiente",
+     "texto": "Falabella · Saldo pendiente: $8.2M."
+    },
+    {
+     "fn": "lectura",
+     "args": {
+      "texto": "Falabella es la que más te debe: yo la llamaría hoy y le pediría un calendario de pago."
+     }
+    }
+   ],
+   "falsedades": [
+    "Falabella es la que más te debe"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RD2",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider · Saldo vencido: $4.6M.\nLider cayó fuerte contra el año pasado y yo revisaría el precio antes de tocarle el cupo.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Lider · Saldo vencido",
+     "texto": "Lider · Saldo vencido: $4.6M."
+    },
+    {
+     "fn": "lectura",
+     "args": {
+      "texto": "Lider cayó fuerte contra el año pasado y yo revisaría el precio antes de tocarle el cupo."
+     }
+    }
+   ],
+   "falsedades": [
+    "Lider cayó fuerte contra el año pasado"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RD3",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Sodimac · Venta: $8.2M. Falabella · Venta: $19.4M. Sodimac · Saldo vencido: $1.9M. Falabella · Saldo vencido: $2.5M.\nSodimac vende más que Falabella, así que yo le mantendría el cupo.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Sodimac · Venta",
+     "texto": "Sodimac · Venta: $8.2M."
+    },
+    {
+     "fn": "deFig",
+     "label": "Falabella · Venta",
+     "texto": "Falabella · Venta: $19.4M."
+    },
+    {
+     "fn": "deFig",
+     "label": "Sodimac · Saldo vencido",
+     "texto": "Sodimac · Saldo vencido: $1.9M."
+    },
+    {
+     "fn": "deFig",
+     "label": "Falabella · Saldo vencido",
+     "texto": "Falabella · Saldo vencido: $2.5M."
+    },
+    {
+     "fn": "lectura",
+     "args": {
+      "texto": "Sodimac vende más que Falabella, así que yo le mantendría el cupo."
+     }
+    }
+   ],
+   "falsedades": [
+    "Sodimac vende más que Falabella"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RD4",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Jumbo · Venta: $17.3M.\nJumbo es tu segunda cuenta en venta y yo la cuidaría.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Jumbo · Venta",
+     "texto": "Jumbo · Venta: $17.3M."
+    },
+    {
+     "fn": "lectura",
+     "args": {
+      "texto": "Jumbo es tu segunda cuenta en venta y yo la cuidaría."
+     }
+    }
+   ],
+   "falsedades": [
+    "Jumbo es tu segunda cuenta en venta"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RD5",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider · Saldo pendiente: $9.8M.\nCasi todo lo que te debe Lider ya venció; yo iría por eso primero.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Lider · Saldo pendiente",
+     "texto": "Lider · Saldo pendiente: $9.8M."
+    },
+    {
+     "fn": "lectura",
+     "args": {
+      "texto": "Casi todo lo que te debe Lider ya venció; yo iría por eso primero."
+     }
+    }
+   ],
+   "falsedades": [
+    "Casi todo lo que te debe Lider ya venció"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RD6",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider · Saldo pendiente: $9.8M. Sodimac · Saldo pendiente: $5.3M.\nLider y Sodimac son las cuentas que más te deben: yo las llamaría hoy.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Lider · Saldo pendiente",
+     "texto": "Lider · Saldo pendiente: $9.8M."
+    },
+    {
+     "fn": "deFig",
+     "label": "Sodimac · Saldo pendiente",
+     "texto": "Sodimac · Saldo pendiente: $5.3M."
+    },
+    {
+     "fn": "lectura",
+     "args": {
+      "texto": "Lider y Sodimac son las cuentas que más te deben: yo las llamaría hoy."
+     }
+    }
+   ],
+   "falsedades": [
+    "Lider y Sodimac son las cuentas que más te deben"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RD7",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Falabella · Dias Vencido: 8d. Lider · Dias Vencido: 269d.\nFalabella ya supera a Lider en atraso y yo la pondría primera en la lista de llamadas.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Falabella · Dias Vencido",
+     "texto": "Falabella · Dias Vencido: 8d."
+    },
+    {
+     "fn": "deFig",
+     "label": "Lider · Dias Vencido",
+     "texto": "Lider · Dias Vencido: 269d."
+    },
+    {
+     "fn": "lectura",
+     "args": {
+      "texto": "Falabella ya supera a Lider en atraso y yo la pondría primera en la lista de llamadas."
+     }
+    }
+   ],
+   "falsedades": [
+    "Falabella ya supera a Lider en atraso"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RD8",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider · Saldo pendiente: $9.8M.\nYo llamaría hoy a Lider y le pediría un calendario de pago antes de venderle más.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Lider · Saldo pendiente",
+     "texto": "Lider · Saldo pendiente: $9.8M."
+    },
+    {
+     "fn": "lectura",
+     "args": {
+      "texto": "Yo llamaría hoy a Lider y le pediría un calendario de pago antes de venderle más."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RD9",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Jumbo · Saldo pendiente: $5.1M.\nYo a Jumbo lo trataría como cuenta en mora y le frenaría los despachos.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Jumbo · Saldo pendiente",
+     "texto": "Jumbo · Saldo pendiente: $5.1M."
+    },
+    {
+     "fn": "lectura",
+     "args": {
+      "texto": "Yo a Jumbo lo trataría como cuenta en mora y le frenaría los despachos."
+     }
+    }
+   ],
+   "falsedades": [
+    "Jumbo lo trataría como cuenta en mora"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RD10",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "MAK-COMP-AIR · Días sin venta: 112d.\nMAK-COMP-AIR lleva medio año en la bodega sin moverse; yo lo liquidaría.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "MAK-COMP-AIR · Días sin venta",
+     "texto": "MAK-COMP-AIR · Días sin venta: 112d."
+    },
+    {
+     "fn": "lectura",
+     "args": {
+      "texto": "MAK-COMP-AIR lleva medio año en la bodega sin moverse; yo lo liquidaría."
+     }
+    }
+   ],
+   "falsedades": [
+    "lleva medio año en la bodega"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RE1",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider debe casi el doble que Falabella.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "relacion",
+     "args": {
+      "sujeto": "Lider",
+      "metrica": "Saldo vencido",
+      "forma": "veces",
+      "k": 2,
+      "matiz": "casi",
+      "vs": {
+       "sujeto": "Falabella"
+      },
+      "texto": "Lider debe casi el doble que Falabella."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RE2",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Falabella debe casi el doble que Lider.",
+   "declaraciones": [
+    {
+     "fn": "relacion",
+     "args": {
+      "sujeto": "Lider",
+      "metrica": "Saldo vencido",
+      "forma": "veces",
+      "k": 2,
+      "matiz": "casi",
+      "vs": {
+       "sujeto": "Falabella"
+      },
+      "texto": "Falabella debe casi el doble que Lider."
+     }
+    }
+   ],
+   "falsedades": [
+    "Falabella debe casi el doble que Lider"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RE3",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Falabella debe casi la mitad que Lider.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "relacion",
+     "args": {
+      "sujeto": "Lider",
+      "metrica": "Saldo vencido",
+      "forma": "veces",
+      "k": 2,
+      "matiz": "casi",
+      "vs": {
+       "sujeto": "Falabella"
+      },
+      "texto": "Falabella debe casi la mitad que Lider."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RE4",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider vende casi el doble que Jumbo.",
+   "declaraciones": [
+    {
+     "fn": "relacion",
+     "args": {
+      "sujeto": "Lider",
+      "metrica": "Saldo pendiente",
+      "forma": "veces",
+      "k": 2,
+      "matiz": "casi",
+      "vs": {
+       "sujeto": "Jumbo"
+      },
+      "texto": "Lider vende casi el doble que Jumbo."
+     }
+    }
+   ],
+   "falsedades": [
+    "Lider vende casi el doble que Jumbo"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RE5",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider factura casi el doble que Jumbo.",
+   "declaraciones": [
+    {
+     "fn": "relacion",
+     "args": {
+      "sujeto": "Lider",
+      "metrica": "Saldo pendiente",
+      "forma": "veces",
+      "k": 2,
+      "matiz": "casi",
+      "vs": {
+       "sujeto": "Jumbo"
+      },
+      "texto": "Lider factura casi el doble que Jumbo."
+     }
+    }
+   ],
+   "falsedades": [
+    "Lider factura casi el doble que Jumbo"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RE6",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider te debe casi el doble que Jumbo.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "relacion",
+     "args": {
+      "sujeto": "Lider",
+      "metrica": "Saldo pendiente",
+      "forma": "veces",
+      "k": 2,
+      "matiz": "casi",
+      "vs": {
+       "sujeto": "Jumbo"
+      },
+      "texto": "Lider te debe casi el doble que Jumbo."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RF1",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider creció 14.9% contra el año anterior.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "variacion",
+     "args": {
+      "sujeto": "Lider",
+      "metrica": "Ventas",
+      "direccion": "sube",
+      "valor": "14.9%",
+      "periodo": "vs año anterior",
+      "texto": "Lider creció 14.9% contra el año anterior."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RF2",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Ripley creció 8.2% contra el año anterior.",
+   "declaraciones": [
+    {
+     "fn": "variacion",
+     "args": {
+      "sujeto": "Ripley",
+      "metrica": "Ventas",
+      "direccion": "sube",
+      "valor": "8.2%",
+      "periodo": "vs año anterior",
+      "texto": "Ripley creció 8.2% contra el año anterior."
+     }
+    }
+   ],
+   "falsedades": [
+    "Ripley creció 8.2%"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RF3",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Ripley cayó 8.2% contra el año anterior.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "variacion",
+     "args": {
+      "sujeto": "Ripley",
+      "metrica": "Ventas",
+      "direccion": "baja",
+      "valor": "8.2%",
+      "periodo": "vs año anterior",
+      "texto": "Ripley cayó 8.2% contra el año anterior."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RF4",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider cayó 14.9% contra el año anterior.",
+   "declaraciones": [
+    {
+     "fn": "variacion",
+     "args": {
+      "sujeto": "Lider",
+      "metrica": "Ventas",
+      "direccion": "sube",
+      "valor": "14.9%",
+      "periodo": "vs año anterior",
+      "texto": "Lider cayó 14.9% contra el año anterior."
+     }
+    }
+   ],
+   "falsedades": [
+    "Lider cayó 14.9%"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RF5",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "El margen de Lider subió 14.9% contra el año anterior.",
+   "declaraciones": [
+    {
+     "fn": "variacion",
+     "args": {
+      "sujeto": "Lider",
+      "metrica": "Ventas",
+      "direccion": "sube",
+      "valor": "14.9%",
+      "periodo": "vs año anterior",
+      "texto": "El margen de Lider subió 14.9% contra el año anterior."
+     }
+    }
+   ],
+   "falsedades": [
+    "El margen de Lider subió 14.9%"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RG1",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "3 cuentas superan 90 días de mora.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "conteo",
+     "args": {
+      "n": 3,
+      "universo": {
+       "eje": "cliente",
+       "filtros": [
+        {
+         "metrica": "dias_vencido",
+         "op": ">",
+         "valor": 90,
+         "unidad": "days"
+        }
+       ]
+      },
+      "texto": "3 cuentas superan 90 días de mora."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RG2",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "5 cuentas superan 90 días de mora.",
+   "declaraciones": [
+    {
+     "fn": "conteo",
+     "args": {
+      "n": 5,
+      "universo": {
+       "eje": "cliente",
+       "filtros": [
+        {
+         "metrica": "dias_vencido",
+         "op": ">",
+         "valor": 90,
+         "unidad": "days"
+        }
+       ]
+      },
+      "texto": "5 cuentas superan 90 días de mora."
+     }
+    }
+   ],
+   "falsedades": [
+    "5 cuentas superan 90 días"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RH1",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "| Cliente | Venta | Vencido | Pendiente |\n|---|---|---|---|\n| Lider | $17.8M | $4.6M | $9.8M |\n| Falabella | $19.4M | $2.5M | $8.2M |",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Lider · Venta",
+     "texto": "| Lider | $17.8M | $4.6M | $9.8M |"
+    },
+    {
+     "fn": "deFig",
+     "label": "Lider · Saldo vencido",
+     "texto": "| Lider | $17.8M | $4.6M | $9.8M |"
+    },
+    {
+     "fn": "deFig",
+     "label": "Lider · Saldo pendiente",
+     "texto": "| Lider | $17.8M | $4.6M | $9.8M |"
+    },
+    {
+     "fn": "deFig",
+     "label": "Falabella · Venta",
+     "texto": "| Falabella | $19.4M | $2.5M | $8.2M |"
+    },
+    {
+     "fn": "deFig",
+     "label": "Falabella · Saldo vencido",
+     "texto": "| Falabella | $19.4M | $2.5M | $8.2M |"
+    },
+    {
+     "fn": "deFig",
+     "label": "Falabella · Saldo pendiente",
+     "texto": "| Falabella | $19.4M | $2.5M | $8.2M |"
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RH2",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "| Cliente | Venta | Pendiente |\n|---|---|---|\n| Lider | $9.8M | $17.8M |\n| Falabella | $19.4M | $8.2M |",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Lider · Saldo pendiente",
+     "texto": "| Lider | $9.8M | $17.8M |"
+    },
+    {
+     "fn": "deFig",
+     "label": "Lider · Venta",
+     "texto": "| Lider | $9.8M | $17.8M |"
+    },
+    {
+     "fn": "deFig",
+     "label": "Falabella · Venta",
+     "texto": "| Falabella | $19.4M | $8.2M |"
+    },
+    {
+     "fn": "deFig",
+     "label": "Falabella · Saldo pendiente",
+     "texto": "| Falabella | $19.4M | $8.2M |"
+    }
+   ],
+   "falsedades": [
+    "| Lider | $9.8M | $17.8M |"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RH3",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "| Cliente | Venta | Pendiente |\n|---|---|---|\n| Falabella | $19.4M | $8.2M |\n| Lider | $17.8M | $5.3M |",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Falabella · Venta",
+     "texto": "| Falabella | $19.4M | $8.2M |"
+    },
+    {
+     "fn": "deFig",
+     "label": "Falabella · Saldo pendiente",
+     "texto": "| Falabella | $19.4M | $8.2M |"
+    },
+    {
+     "fn": "deFig",
+     "label": "Lider · Venta",
+     "texto": "| Lider | $17.8M | $5.3M |"
+    },
+    {
+     "fn": "deFig",
+     "label": "Sodimac · Saldo pendiente",
+     "texto": "| Lider | $17.8M | $5.3M |"
+    }
+   ],
+   "falsedades": [
+    "| Lider | $17.8M | $5.3M |"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RH4",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "| Cliente | Deuda |\n|---|---|\n| Lider | $17.8M |\n| Falabella | $19.4M |",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Lider · Venta",
+     "texto": "| Lider | $17.8M |"
+    },
+    {
+     "fn": "deFig",
+     "label": "Falabella · Venta",
+     "texto": "| Falabella | $19.4M |"
+    }
+   ],
+   "falsedades": [
+    "| Lider | $17.8M |"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RH5",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "| Cliente | Saldo |\n|---|---|\n| Lider | $9.8M |\n| Falabella | $2.5M |",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Lider · Saldo pendiente",
+     "texto": "| Lider | $9.8M |"
+    },
+    {
+     "fn": "deFig",
+     "label": "Falabella · Saldo vencido",
+     "texto": "| Falabella | $2.5M |"
+    }
+   ],
+   "falsedades": [
+    "| Falabella | $2.5M |"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RH6",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "| Cliente | Venta | Pendiente |\n|---|---|---|\n| Lider | $17.8M | $9.8M |\n| Falabella | $19.4M | $8.2M |",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Lider · Venta",
+     "texto": "| Lider | $17.8M | $9.8M |",
+     "extra": {
+      "valor": "$17,8M"
+     }
+    },
+    {
+     "fn": "deFig",
+     "label": "Lider · Saldo pendiente",
+     "texto": "| Lider | $17.8M | $9.8M |",
+     "extra": {
+      "valor": "$9,8M"
+     }
+    },
+    {
+     "fn": "deFig",
+     "label": "Falabella · Venta",
+     "texto": "| Falabella | $19.4M | $8.2M |",
+     "extra": {
+      "valor": "$19,4M"
+     }
+    },
+    {
+     "fn": "deFig",
+     "label": "Falabella · Saldo pendiente",
+     "texto": "| Falabella | $19.4M | $8.2M |",
+     "extra": {
+      "valor": "$8,2M"
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RJ1",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider y Falabella suman $37.2M de venta.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "grupo",
+     "args": {
+      "sujeto": [
+       "Lider",
+       "Falabella"
+      ],
+      "metrica": "Venta",
+      "valor": "$37.2M",
+      "texto": "Lider y Falabella suman $37.2M de venta."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RJ2",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider y Falabella suman $37.2M de deuda.",
+   "declaraciones": [
+    {
+     "fn": "grupo",
+     "args": {
+      "sujeto": [
+       "Lider",
+       "Falabella"
+      ],
+      "metrica": "Venta",
+      "valor": "$37.2M",
+      "texto": "Lider y Falabella suman $37.2M de deuda."
+     }
+    }
+   ],
+   "falsedades": [
+    "$37.2M de deuda"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RK1",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Falabella vende $19.4M y Lider $17.8M.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Falabella · Venta",
+     "texto": "Falabella vende $19.4M y Lider $17.8M."
+    },
+    {
+     "fn": "deFig",
+     "label": "Lider · Venta",
+     "texto": "Falabella vende $19.4M y Lider $17.8M."
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RK2",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Falabella vende $19.4M y Lider $9.8M.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Falabella · Venta",
+     "texto": "Falabella vende $19.4M y Lider $9.8M."
+    },
+    {
+     "fn": "deFig",
+     "label": "Lider · Saldo pendiente",
+     "texto": "Falabella vende $19.4M y Lider $9.8M."
+    }
+   ],
+   "falsedades": [
+    "Lider $9.8M"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RO1",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider te debe $5.0M.",
+   "declaraciones": [
+    {
+     "raw": {
+      "tipo": "propuesta",
+      "valor": "$5.0M",
+      "sujeto": "Lider",
+      "de": "saldo_pendiente",
+      "texto": "Lider te debe $5.0M."
+     }
+    }
+   ],
+   "falsedades": [
+    "Lider te debe $5.0M"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RO2",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider · Saldo pendiente: $9.8M.\nYo le pediría a Lider un abono de $5.0M esta semana.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Lider · Saldo pendiente",
+     "texto": "Lider · Saldo pendiente: $9.8M."
+    },
+    {
+     "raw": {
+      "tipo": "propuesta",
+      "valor": "$5.0M",
+      "sujeto": "Lider",
+      "texto": "Yo le pediría a Lider un abono de $5.0M esta semana."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RP1",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "El capital frenado se concentra en Valparaíso: $25K, el 75% del total.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Valparaíso · Capital frenado",
+     "texto": "El capital frenado se concentra en Valparaíso: $25K, el 75% del total."
+    },
+    {
+     "fn": "deFig",
+     "label": "Valparaíso · % del total",
+     "texto": "El capital frenado se concentra en Valparaíso: $25K, el 75% del total."
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RP2",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "El capital frenado se concentra en Antofagasta: $25K, el 75% del total.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Valparaíso · Capital frenado",
+     "texto": "El capital frenado se concentra en Antofagasta: $25K, el 75% del total."
+    },
+    {
+     "fn": "deFig",
+     "label": "Valparaíso · % del total",
+     "texto": "El capital frenado se concentra en Antofagasta: $25K, el 75% del total."
+    }
+   ],
+   "falsedades": [
+    "Antofagasta: $25K"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RP3",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "- MAK-COMP-AIR · Cobertura (DOH): 190d\n- LG-DRYER8KG · Cobertura (DOH): 165d\n- BOS-SANDER · Cobertura (DOH): 115d",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "MAK-COMP-AIR · Cobertura (DOH)",
+     "texto": "- MAK-COMP-AIR · Cobertura (DOH): 190d"
+    },
+    {
+     "fn": "deFig",
+     "label": "LG-DRYER8KG · Cobertura (DOH)",
+     "texto": "- LG-DRYER8KG · Cobertura (DOH): 165d"
+    },
+    {
+     "fn": "deFig",
+     "label": "BOS-SANDER · Cobertura (DOH)",
+     "texto": "- BOS-SANDER · Cobertura (DOH): 115d"
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RP4",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "- MAK-COMP-AIR · Días sin venta: 190d\n- MAK-COMP-AIR · Cobertura (DOH): 190d",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "MAK-COMP-AIR · Cobertura (DOH)",
+     "texto": "- MAK-COMP-AIR · Días sin venta: 190d"
+    },
+    {
+     "fn": "deFig",
+     "label": "MAK-COMP-AIR · Cobertura (DOH)",
+     "texto": "- MAK-COMP-AIR · Cobertura (DOH): 190d"
+    }
+   ],
+   "falsedades": [
+    "Días sin venta: 190d"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RP5",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "MAK-COMP-AIR lleva 190d sin venta. MAK-COMP-AIR · Rotación: 0.8x.",
+   "falsedades": [
+    "lleva 190d sin venta"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RP6",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lo que sí tengo verificado: SAM-REF500L · Capital: $19K.",
+   "verdadero": true,
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RP7",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lo que sí tengo verificado: Jumbo · Recuperado: 70.5%.",
+   "verdadero": true,
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RD2b",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider · Saldo vencido: $4.6M. Lider · Venta: $17.8M.\nLider cayó fuerte contra el año pasado y yo revisaría el precio antes de tocarle el cupo.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Lider · Saldo vencido",
+     "texto": "Lider · Saldo vencido: $4.6M."
+    },
+    {
+     "fn": "deFig",
+     "label": "Lider · Venta",
+     "texto": "Lider · Venta: $17.8M."
+    },
+    {
+     "fn": "lectura",
+     "args": {
+      "texto": "Lider cayó fuerte contra el año pasado y yo revisaría el precio antes de tocarle el cupo."
+     }
+    }
+   ],
+   "falsedades": [
+    "Lider cayó fuerte contra el año pasado"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RD10b",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "MAK-COMP-AIR · Cobertura (DOH): 190d.\nMAK-COMP-AIR lleva medio año en la bodega sin moverse; yo lo liquidaría.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "MAK-COMP-AIR · Cobertura (DOH)",
+     "texto": "MAK-COMP-AIR · Cobertura (DOH): 190d."
+    },
+    {
+     "fn": "lectura",
+     "args": {
+      "texto": "MAK-COMP-AIR lleva medio año en la bodega sin moverse; yo lo liquidaría."
+     }
+    }
+   ],
+   "falsedades": [
+    "lleva medio año en la bodega"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RD11",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Falabella · Recuperado: 57.7%.\nFalabella es la que peor paga de la cartera; yo le cortaría el crédito.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Falabella · Recuperado",
+     "texto": "Falabella · Recuperado: 57.7%."
+    },
+    {
+     "fn": "lectura",
+     "args": {
+      "texto": "Falabella es la que peor paga de la cartera; yo le cortaría el crédito."
+     }
+    }
+   ],
+   "falsedades": [
+    "Falabella es la que peor paga"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RD12",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Easy · Saldo vencido: $1.1M. Easy · Venta: $3.4M.\nEasy creció con fuerza este año; yo le abriría cupo.",
+   "declaraciones": [
+    {
+     "fn": "deFig",
+     "label": "Easy · Saldo vencido",
+     "texto": "Easy · Saldo vencido: $1.1M."
+    },
+    {
+     "fn": "deFig",
+     "label": "Easy · Venta",
+     "texto": "Easy · Venta: $3.4M."
+    },
+    {
+     "fn": "lectura",
+     "args": {
+      "texto": "Easy creció con fuerza este año; yo le abriría cupo."
+     }
+    }
+   ],
+   "falsedades": [
+    "Easy creció con fuerza"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RP5b",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "MAK-COMP-AIR lleva 190d sin rotar.",
+   "falsedades": [
+    "lleva 190d sin rotar"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RE7",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lider debe casi el triple que Falabella.",
+   "declaraciones": [
+    {
+     "fn": "relacion",
+     "args": {
+      "sujeto": "Lider",
+      "metrica": "Saldo vencido",
+      "forma": "veces",
+      "k": 2,
+      "matiz": "casi",
+      "vs": {
+       "sujeto": "Falabella"
+      },
+      "texto": "Lider debe casi el triple que Falabella."
+     }
+    }
+   ],
+   "falsedades": [
+    "casi el triple"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RE8",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Falabella debe casi el doble que Lider.",
+   "declaraciones": [
+    {
+     "fn": "relacion",
+     "args": {
+      "sujeto": "Falabella",
+      "metrica": "Saldo vencido",
+      "forma": "fraccion",
+      "k": 0.5,
+      "matiz": "casi",
+      "vs": {
+       "sujeto": "Lider"
+      },
+      "texto": "Falabella debe casi el doble que Lider."
+     }
+    }
+   ],
+   "falsedades": [
+    "Falabella debe casi el doble que Lider"
+   ],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RE9",
+   "modo": "casa:declaracion",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Falabella debe casi la mitad que Lider.",
+   "verdadero": true,
+   "declaraciones": [
+    {
+     "fn": "relacion",
+     "args": {
+      "sujeto": "Falabella",
+      "metrica": "Saldo vencido",
+      "forma": "fraccion",
+      "k": 0.5,
+      "matiz": "casi",
+      "vs": {
+       "sujeto": "Lider"
+      },
+      "texto": "Falabella debe casi la mitad que Lider."
+     }
+    }
+   ],
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA13",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lo que sí tengo verificado: LG-DRYER8KG · Días sin venta: 94d.",
+   "verdadero": true,
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA14",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lo que sí tengo verificado: Estado del inventario: riesgo de quiebre: $36K.",
+   "verdadero": true,
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA15",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lo que sí tengo verificado: LG-DRYER8KG · Capital frenado: $14K.",
+   "verdadero": true,
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA16",
+   "modo": "casa:figs",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "texto": "Lo que sí tengo verificado: Sodimac · Dias Vencido: 251d.",
+   "verdadero": true,
+   "falsedades": [],
+   "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
+  },
+  {
+   "id": "RA1 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Lider · Venta\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Lider · Dias Vencido\"}\n<<FIN>>\n- Lider · Saldo vencido: {{d1: $17.8M}}\n- Lider · Dias Vencido: {{d2: 269d}}",
+   "falsedades": [
+    "Lider · Saldo vencido: $17.8M"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RA2 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Lider · Venta\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Lider · Dias Vencido\"}\n<<FIN>>\nLider tiene {{d1: $17.8M}} vencidos. Lider lleva {{d2: 269d}} de atraso.",
+   "falsedades": [
+    "Lider tiene $17.8M vencidos"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RA3 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c78\"}\n{\"id\":\"r2\",\"tipo\":\"ref\",\"de\":\"c322\"}\n<<FIN>>\nLo que sí tengo verificado: Lider · Saldo vencido: {r1}. Lider · Dias Vencido: {r2}.",
+   "falsedades": [
+    "Lider · Saldo vencido: $17.8M"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RA4 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c295\"}\n<<FIN>>\nLo que sí tengo verificado: Jumbo · Saldo vencido: {r1}.",
+   "falsedades": [
+    "Jumbo · Saldo vencido: $4.6M"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RA5 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n\n<<FIN>>\nFalabella, Tottus y Paris llevan 8d de atraso.",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RA6 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c303\"}\n{\"id\":\"r2\",\"tipo\":\"ref\",\"de\":\"c82\"}\n<<FIN>>\nSodimac · Saldo pendiente: {r2}. Sodimac · Saldo vencido: {r1}.",
+   "falsedades": [
+    "Sodimac · Saldo pendiente: $8.2M"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RA7 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c78\"}\n<<FIN>>\n{{r1: Lider te debe $17.8M}}.",
+   "falsedades": [
+    "Lider te debe $17.8M"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RA8 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c82\"}\n{\"id\":\"r2\",\"tipo\":\"ref\",\"de\":\"c82\"}\n<<FIN>>\n{{r1: Sodimac vendió $8.2M}} y te debe {r2}.",
+   "falsedades": [
+    "te debe $8.2M"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RA9 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c116\"}\n{\"id\":\"r2\",\"tipo\":\"ref\",\"de\":\"c307\"}\n<<FIN>>\n{{r1: Tottus tiene $1.9M}} vencidos. Tottus · Saldo vencido: {r2}.",
+   "falsedades": [
+    "Tottus tiene $1.9M vencidos"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RA10 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c295\"}\n<<FIN>>\nLo que sí tengo verificado: Lider · Saldo vencido: {r1}.",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RA11 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c208\"}\n<<FIN>>\nLo que sí tengo verificado: Capital frenado · total: {r1}.",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RA12 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c80\"}\n<<FIN>>\nLo que sí tengo verificado: Falabella · Venta: {r1}.",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RB1 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"Ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{d1: Falabella es la que menos vende.}}",
+   "falsedades": [
+    "Falabella es la que menos vende"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RB2 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"Ventas\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{d1: Falabella es la que menos vende.}}",
+   "falsedades": [
+    "Falabella es la que menos vende"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RB3 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"Ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{d1: Lider es la que más vende.}}",
+   "falsedades": [
+    "Lider es la que más vende"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RB4 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{d1: El que más te debe es Lider.}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RB5 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n\n<<FIN>>\nLider es la que más vende.",
+   "falsedades": [
+    "Lider es la que más vende"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RB6 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"orden\",\"sujeto\":\"Sodimac\",\"metrica\":\"Saldo pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"ventas\",\"op\":\"<\",\"valor\":10000000,\"unidad\":\"money\"}]}}\n<<FIN>>\n{{d1: Sodimac es el que más te debe entre los clientes que venden menos de $10M.}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RB7 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"orden\",\"sujeto\":\"Easy\",\"metrica\":\"Dias Vencido\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{d1: Easy es el que más días de atraso lleva.}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RB8 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"Margen\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{d1: Lider es el que peor margen tiene.}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RB9 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"Margen\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{d1: Lider es el que mejor margen tiene.}}",
+   "falsedades": [
+    "Lider es el que mejor margen tiene"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RC1 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n<<FIN>>\n{{d1: Jumbo está en mora.}}",
+   "falsedades": [
+    "Jumbo está en mora"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RC2 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n<<FIN>>\n{{d1: Sodimac no está al día.}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RC3 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\",\"bodega\":\"Santiago\"}\n<<FIN>>\n{{d1: LG-DRYER8KG está frenado en Santiago.}}",
+   "falsedades": [
+    "frenado en Santiago"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RC4 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n<<FIN>>\n{{d1: Jumbo está al día.}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RD1 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Falabella · Saldo pendiente\"}\n{\"id\":\"d2\",\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"apoyo\":[\"d1\"]}\n<<FIN>>\nFalabella · Saldo pendiente: {{d1: $8.2M}}.\n{{d2: Falabella es la que más te debe: yo la llamaría hoy y le pediría un calendario de pago.}}",
+   "falsedades": [
+    "Falabella es la que más te debe"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RD2 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Lider · Saldo vencido\"}\n{\"id\":\"d2\",\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"apoyo\":[\"d1\"]}\n<<FIN>>\nLider · Saldo vencido: {{d1: $4.6M}}.\n{{d2: Lider cayó fuerte contra el año pasado y yo revisaría el precio antes de tocarle el cupo.}}",
+   "falsedades": [
+    "Lider cayó fuerte contra el año pasado"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RD3 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Sodimac · Venta\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Falabella · Venta\"}\n{\"id\":\"d3\",\"tipo\":\"ref\",\"de\":\"Sodimac · Saldo vencido\"}\n{\"id\":\"d4\",\"tipo\":\"ref\",\"de\":\"Falabella · Saldo vencido\"}\n{\"id\":\"d5\",\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"apoyo\":[\"d1\",\"d2\",\"d3\",\"d4\"]}\n<<FIN>>\nSodimac · Venta: {{d1: $8.2M}}. Falabella · Venta: {{d2: $19.4M}}. Sodimac · Saldo vencido: {{d3: $1.9M}}. Falabella · Saldo vencido: {{d4: $2.5M}}.\n{{d5: Sodimac vende más que Falabella, así que yo le mantendría el cupo.}}",
+   "falsedades": [
+    "Sodimac vende más que Falabella"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RD4 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Jumbo · Venta\"}\n{\"id\":\"d2\",\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"apoyo\":[\"d1\"]}\n<<FIN>>\nJumbo · Venta: {{d1: $17.3M}}.\n{{d2: Jumbo es tu segunda cuenta en venta y yo la cuidaría.}}",
+   "falsedades": [
+    "Jumbo es tu segunda cuenta en venta"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RD5 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Lider · Saldo pendiente\"}\n{\"id\":\"d2\",\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"apoyo\":[\"d1\"]}\n<<FIN>>\nLider · Saldo pendiente: {{d1: $9.8M}}.\n{{d2: Casi todo lo que te debe Lider ya venció; yo iría por eso primero.}}",
+   "falsedades": [
+    "Casi todo lo que te debe Lider ya venció"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RD6 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Lider · Saldo pendiente\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Sodimac · Saldo pendiente\"}\n{\"id\":\"d3\",\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"apoyo\":[\"d1\",\"d2\"]}\n<<FIN>>\nLider · Saldo pendiente: {{d1: $9.8M}}. Sodimac · Saldo pendiente: {{d2: $5.3M}}.\n{{d3: Lider y Sodimac son las cuentas que más te deben: yo las llamaría hoy.}}",
+   "falsedades": [
+    "Lider y Sodimac son las cuentas que más te deben"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RD7 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Falabella · Dias Vencido\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Lider · Dias Vencido\"}\n{\"id\":\"d3\",\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"apoyo\":[\"d1\",\"d2\"]}\n<<FIN>>\nFalabella · Dias Vencido: {{d1: 8d}}. Lider · Dias Vencido: {{d2: 269d}}.\n{{d3: Falabella ya supera a Lider en atraso y yo la pondría primera en la lista de llamadas.}}",
+   "falsedades": [
+    "Falabella ya supera a Lider en atraso"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RD8 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Lider · Saldo pendiente\"}\n{\"id\":\"d2\",\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"apoyo\":[\"d1\"]}\n<<FIN>>\nLider · Saldo pendiente: {{d1: $9.8M}}.\n{{d2: Yo llamaría hoy a Lider y le pediría un calendario de pago antes de venderle más.}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RD9 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Jumbo · Saldo pendiente\"}\n{\"id\":\"d2\",\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"apoyo\":[\"d1\"]}\n<<FIN>>\nJumbo · Saldo pendiente: {{d1: $5.1M}}.\n{{d2: Yo a Jumbo lo trataría como cuenta en mora y le frenaría los despachos.}}",
+   "falsedades": [
+    "Jumbo lo trataría como cuenta en mora"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RD10 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"MAK-COMP-AIR · Días sin venta\"}\n{\"id\":\"d2\",\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"apoyo\":[\"d1\"]}\n<<FIN>>\nMAK-COMP-AIR · Días sin venta: {{d1: 112d}}.\n{{d2: MAK-COMP-AIR lleva medio año en la bodega sin moverse; yo lo liquidaría.}}",
+   "falsedades": [
+    "lleva medio año en la bodega"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RE1 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n<<FIN>>\n{{d1: Lider debe casi el doble que Falabella.}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RE2 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n<<FIN>>\n{{d1: Falabella debe casi el doble que Lider.}}",
+   "falsedades": [
+    "Falabella debe casi el doble que Lider"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RE3 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n<<FIN>>\n{{d1: Falabella debe casi la mitad que Lider.}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RE4 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo pendiente\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Jumbo\"}}}\n<<FIN>>\n{{d1: Lider vende casi el doble que Jumbo.}}",
+   "falsedades": [
+    "Lider vende casi el doble que Jumbo"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RE5 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo pendiente\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Jumbo\"}}}\n<<FIN>>\n{{d1: Lider factura casi el doble que Jumbo.}}",
+   "falsedades": [
+    "Lider factura casi el doble que Jumbo"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RE6 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo pendiente\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Jumbo\"}}}\n<<FIN>>\n{{d1: Lider te debe casi el doble que Jumbo.}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RF1 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"variacion\",\"sujeto\":\"Lider\",\"metrica\":\"Ventas\",\"variacion\":{\"direccion\":\"sube\",\"valor\":\"14.9%\"},\"periodo\":\"vs año anterior\"}\n<<FIN>>\n{{d1: Lider creció 14.9% contra el año anterior.}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RF2 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"variacion\",\"sujeto\":\"Ripley\",\"metrica\":\"Ventas\",\"variacion\":{\"direccion\":\"sube\",\"valor\":\"8.2%\"},\"periodo\":\"vs año anterior\"}\n<<FIN>>\n{{d1: Ripley creció 8.2% contra el año anterior.}}",
+   "falsedades": [
+    "Ripley creció 8.2%"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RF3 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"variacion\",\"sujeto\":\"Ripley\",\"metrica\":\"Ventas\",\"variacion\":{\"direccion\":\"baja\",\"valor\":\"8.2%\"},\"periodo\":\"vs año anterior\"}\n<<FIN>>\n{{d1: Ripley cayó 8.2% contra el año anterior.}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RF4 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"variacion\",\"sujeto\":\"Lider\",\"metrica\":\"Ventas\",\"variacion\":{\"direccion\":\"sube\",\"valor\":\"14.9%\"},\"periodo\":\"vs año anterior\"}\n<<FIN>>\n{{d1: Lider cayó 14.9% contra el año anterior.}}",
+   "falsedades": [
+    "Lider cayó 14.9%"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RF5 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"variacion\",\"sujeto\":\"Lider\",\"metrica\":\"Ventas\",\"variacion\":{\"direccion\":\"sube\",\"valor\":\"14.9%\"},\"periodo\":\"vs año anterior\"}\n<<FIN>>\n{{d1: El margen de Lider subió 14.9% contra el año anterior.}}",
+   "falsedades": [
+    "El margen de Lider subió 14.9%"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RG1 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":90,\"unidad\":\"days\"}]}}\n<<FIN>>\n{{d1: 3 cuentas superan 90 días de mora.}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RG2 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"conteo\",\"n\":5,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":90,\"unidad\":\"days\"}]}}\n<<FIN>>\n{{d1: 5 cuentas superan 90 días de mora.}}",
+   "falsedades": [
+    "5 cuentas superan 90 días"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RH1 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Lider · Venta\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Lider · Saldo vencido\"}\n{\"id\":\"d3\",\"tipo\":\"ref\",\"de\":\"Lider · Saldo pendiente\"}\n{\"id\":\"d4\",\"tipo\":\"ref\",\"de\":\"Falabella · Venta\"}\n{\"id\":\"d5\",\"tipo\":\"ref\",\"de\":\"Falabella · Saldo vencido\"}\n{\"id\":\"d6\",\"tipo\":\"ref\",\"de\":\"Falabella · Saldo pendiente\"}\n<<FIN>>\n| Cliente | Venta | Vencido | Pendiente |\n|---|---|---|---|\n| Lider | {{d1: $17.8M}} | {{d2: $4.6M}} | {{d3: $9.8M}} |\n| Falabella | {{d4: $19.4M}} | {{d5: $2.5M}} | {{d6: $8.2M}} |",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RH2 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Lider · Saldo pendiente\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Lider · Venta\"}\n{\"id\":\"d3\",\"tipo\":\"ref\",\"de\":\"Falabella · Venta\"}\n{\"id\":\"d4\",\"tipo\":\"ref\",\"de\":\"Falabella · Saldo pendiente\"}\n<<FIN>>\n| Cliente | Venta | Pendiente |\n|---|---|---|\n| Lider | {{d1: $9.8M}} | {{d2: $17.8M}} |\n| Falabella | {{d3: $19.4M}} | {{d4: $8.2M}} |",
+   "falsedades": [
+    "| Lider | $9.8M | $17.8M |"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RH3 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Falabella · Venta\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Falabella · Saldo pendiente\"}\n{\"id\":\"d3\",\"tipo\":\"ref\",\"de\":\"Lider · Venta\"}\n{\"id\":\"d4\",\"tipo\":\"ref\",\"de\":\"Sodimac · Saldo pendiente\"}\n<<FIN>>\n| Cliente | Venta | Pendiente |\n|---|---|---|\n| Falabella | {{d1: $19.4M}} | {{d2: $8.2M}} |\n| Lider | {{d3: $17.8M}} | {{d4: $5.3M}} |",
+   "falsedades": [
+    "| Lider | $17.8M | $5.3M |"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RH4 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Lider · Venta\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Falabella · Venta\"}\n<<FIN>>\n| Cliente | Deuda |\n|---|---|\n| Lider | {{d1: $17.8M}} |\n| Falabella | {{d2: $19.4M}} |",
+   "falsedades": [
+    "| Lider | $17.8M |"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RH5 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Lider · Saldo pendiente\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Falabella · Saldo vencido\"}\n<<FIN>>\n| Cliente | Saldo |\n|---|---|\n| Lider | {{d1: $9.8M}} |\n| Falabella | {{d2: $2.5M}} |",
+   "falsedades": [
+    "| Falabella | $2.5M |"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RH6 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Lider · Venta\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Lider · Saldo pendiente\"}\n{\"id\":\"d3\",\"tipo\":\"ref\",\"de\":\"Falabella · Venta\"}\n{\"id\":\"d4\",\"tipo\":\"ref\",\"de\":\"Falabella · Saldo pendiente\"}\n<<FIN>>\n| Cliente | Venta | Pendiente |\n|---|---|---|\n| Lider | {{d1 d2: $17.8M}} | {{d1 d2: $9.8M}} |\n| Falabella | {{d3 d4: $19.4M}} | {{d3 d4: $8.2M}} |",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RJ1 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"grupo\",\"miembros\":[\"Lider\",\"Falabella\"],\"metrica\":\"Venta\",\"agregado\":\"suma\",\"valor\":\"$37.2M\"}\n<<FIN>>\nLider y Falabella suman {{d1: $37.2M}} de venta.",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RJ2 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"grupo\",\"miembros\":[\"Lider\",\"Falabella\"],\"metrica\":\"Venta\",\"agregado\":\"suma\",\"valor\":\"$37.2M\"}\n<<FIN>>\nLider y Falabella suman {{d1: $37.2M}} de deuda.",
+   "falsedades": [
+    "$37.2M de deuda"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RK1 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Falabella · Venta\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Lider · Venta\"}\n<<FIN>>\nFalabella vende {{d1: $19.4M}} y Lider {{d2: $17.8M}}.",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RK2 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Falabella · Venta\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Lider · Saldo pendiente\"}\n<<FIN>>\nFalabella vende {{d1: $19.4M}} y Lider {{d2: $9.8M}}.",
+   "falsedades": [
+    "Lider $9.8M"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RO1 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"propuesta\",\"valor\":\"$5.0M\",\"sujeto\":\"Lider\",\"de\":\"saldo_pendiente\"}\n<<FIN>>\n{{d1: Lider te debe $5.0M.}}",
+   "falsedades": [
+    "Lider te debe $5.0M"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RO2 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Lider · Saldo pendiente\"}\n{\"id\":\"d2\",\"tipo\":\"propuesta\",\"valor\":\"$5.0M\",\"sujeto\":\"Lider\"}\n<<FIN>>\nLider · Saldo pendiente: {{d1: $9.8M}}.\n{{d2: Yo le pediría a Lider un abono de $5.0M esta semana.}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RP1 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Valparaíso · Capital frenado\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Valparaíso · % del total\"}\n<<FIN>>\nEl capital frenado se concentra en Valparaíso: {{d1: $25K}}, el {{d2: 75%}} del total.",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RP2 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Valparaíso · Capital frenado\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Valparaíso · % del total\"}\n<<FIN>>\nEl capital frenado se concentra en Antofagasta: {{d1: $25K}}, el {{d2: 75%}} del total.",
+   "falsedades": [
+    "Antofagasta: $25K"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RP3 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"MAK-COMP-AIR · Cobertura (DOH)\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"LG-DRYER8KG · Cobertura (DOH)\"}\n{\"id\":\"d3\",\"tipo\":\"ref\",\"de\":\"BOS-SANDER · Cobertura (DOH)\"}\n<<FIN>>\n- MAK-COMP-AIR · Cobertura (DOH): {{d1: 190d}}\n- LG-DRYER8KG · Cobertura (DOH): {{d2: 165d}}\n- BOS-SANDER · Cobertura (DOH): {{d3: 115d}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RP4 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"MAK-COMP-AIR · Cobertura (DOH)\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"MAK-COMP-AIR · Cobertura (DOH)\"}\n<<FIN>>\n- MAK-COMP-AIR · Días sin venta: {{d1: 190d}}\n- MAK-COMP-AIR · Cobertura (DOH): {{d2: 190d}}",
+   "falsedades": [
+    "Días sin venta: 190d"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RP5 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c236\"}\n{\"id\":\"r2\",\"tipo\":\"ref\",\"de\":\"c237\"}\n<<FIN>>\n{{r1: MAK-COMP-AIR lleva 190d}} sin venta. MAK-COMP-AIR · Rotación: {r2}.",
+   "falsedades": [
+    "lleva 190d sin venta"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RP6 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c244\"}\n<<FIN>>\nLo que sí tengo verificado: SAM-REF500L · Capital: {r1}.",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RP7 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c334\"}\n<<FIN>>\nLo que sí tengo verificado: Jumbo · Recuperado: {r1}.",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RD2b · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Lider · Saldo vencido\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Lider · Venta\"}\n{\"id\":\"d3\",\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"apoyo\":[\"d1\",\"d2\"]}\n<<FIN>>\nLider · Saldo vencido: {{d1: $4.6M}}. Lider · Venta: {{d2: $17.8M}}.\n{{d3: Lider cayó fuerte contra el año pasado y yo revisaría el precio antes de tocarle el cupo.}}",
+   "falsedades": [
+    "Lider cayó fuerte contra el año pasado"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RD10b · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"MAK-COMP-AIR · Cobertura (DOH)\"}\n{\"id\":\"d2\",\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"apoyo\":[\"d1\"]}\n<<FIN>>\nMAK-COMP-AIR · Cobertura (DOH): {{d1: 190d}}.\n{{d2: MAK-COMP-AIR lleva medio año en la bodega sin moverse; yo lo liquidaría.}}",
+   "falsedades": [
+    "lleva medio año en la bodega"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RD11 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Falabella · Recuperado\"}\n{\"id\":\"d2\",\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"apoyo\":[\"d1\"]}\n<<FIN>>\nFalabella · Recuperado: {{d1: 57.7%}}.\n{{d2: Falabella es la que peor paga de la cartera; yo le cortaría el crédito.}}",
+   "falsedades": [
+    "Falabella es la que peor paga"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RD12 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Easy · Saldo vencido\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Easy · Venta\"}\n{\"id\":\"d3\",\"tipo\":\"lectura\",\"sello\":\"criterio mío\",\"apoyo\":[\"d1\",\"d2\"]}\n<<FIN>>\nEasy · Saldo vencido: {{d1: $1.1M}}. Easy · Venta: {{d2: $3.4M}}.\n{{d3: Easy creció con fuerza este año; yo le abriría cupo.}}",
+   "falsedades": [
+    "Easy creció con fuerza"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RP5b · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c236\"}\n<<FIN>>\n{{r1: MAK-COMP-AIR lleva 190d}} sin rotar.",
+   "falsedades": [
+    "lleva 190d sin rotar"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RE7 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"Saldo vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n<<FIN>>\n{{d1: Lider debe casi el triple que Falabella.}}",
+   "falsedades": [
+    "casi el triple"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RE8 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"relacion\",\"sujeto\":\"Falabella\",\"metrica\":\"Saldo vencido\",\"relacion\":{\"forma\":\"fraccion\",\"k\":0.5,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Lider\"}}}\n<<FIN>>\n{{d1: Falabella debe casi el doble que Lider.}}",
+   "falsedades": [
+    "Falabella debe casi el doble que Lider"
+   ],
+   "verdadero": false,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RE9 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"relacion\",\"sujeto\":\"Falabella\",\"metrica\":\"Saldo vencido\",\"relacion\":{\"forma\":\"fraccion\",\"k\":0.5,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Lider\"}}}\n<<FIN>>\n{{d1: Falabella debe casi la mitad que Lider.}}",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RA13 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c232\"}\n<<FIN>>\nLo que sí tengo verificado: LG-DRYER8KG · Días sin venta: {r1}.",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RA14 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c205\"}\n<<FIN>>\nLo que sí tengo verificado: Estado del inventario: riesgo de quiebre: {r1}.",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RA15 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c23\"}\n<<FIN>>\nLo que sí tengo verificado: LG-DRYER8KG · Capital frenado: {r1}.",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "RA16 · turno",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c326\"}\n<<FIN>>\nLo que sí tengo verificado: Sodimac · Dias Vencido: {r1}.",
+   "falsedades": [],
+   "verdadero": true,
+   "modo": "turno",
+   "nota": "el mismo libro + prosa anclada que produce anclar.js para el caso casa homónimo, corrido en el turno ENTERO por el banco"
+  },
+  {
+   "id": "CO1 · v3",
+   "dominio": "comercial",
+   "pregunta": "¿Cómo va el negocio?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO1 · v2",
+   "dominio": "comercial",
+   "pregunta": "¿Cómo va el negocio?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO2 · v3",
+   "dominio": "comercial",
+   "pregunta": "¿Cuál es mi mejor cliente por margen?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO2 · v2",
+   "dominio": "comercial",
+   "pregunta": "¿Cuál es mi mejor cliente por margen?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO3 · v3",
+   "dominio": "comercial",
+   "pregunta": "Dame la ficha de Falabella",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO3 · v2",
+   "dominio": "comercial",
+   "pregunta": "Dame la ficha de Falabella",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO4 · v3",
+   "dominio": "comercial",
+   "pregunta": "¿Qué margen tiene Lider?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO4 · v2",
+   "dominio": "comercial",
+   "pregunta": "¿Qué margen tiene Lider?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO5 · v3",
+   "dominio": "comercial",
+   "pregunta": "¿Cuánto le vendo a Jumbo?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO5 · v2",
+   "dominio": "comercial",
+   "pregunta": "¿Cuánto le vendo a Jumbo?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO6 · v3",
+   "dominio": "comercial",
+   "pregunta": "¿Qué cliente me está perdiendo contribución?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO6 · v2",
+   "dominio": "comercial",
+   "pregunta": "¿Qué cliente me está perdiendo contribución?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO7 · v3",
+   "dominio": "comercial",
+   "pregunta": "¿Dónde tengo oportunidad de precio?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO7 · v2",
+   "dominio": "comercial",
+   "pregunta": "¿Dónde tengo oportunidad de precio?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO8 · v3",
+   "dominio": "comercial",
+   "pregunta": "Dame una lectura por canal",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO8 · v2",
+   "dominio": "comercial",
+   "pregunta": "Dame una lectura por canal",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO9 · v3",
+   "dominio": "comercial",
+   "pregunta": "¿Qué pasa si crezco 3% en ventas?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO9 · v2",
+   "dominio": "comercial",
+   "pregunta": "¿Qué pasa si crezco 3% en ventas?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO10 · v3",
+   "dominio": "comercial",
+   "pregunta": "¿Qué margen tengo en riesgo?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO10 · v2",
+   "dominio": "comercial",
+   "pregunta": "¿Qué margen tengo en riesgo?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO11 · v3",
+   "dominio": "comercial",
+   "pregunta": "Ordéname los clientes por caja",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO11 · v2",
+   "dominio": "comercial",
+   "pregunta": "Ordéname los clientes por caja",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO12 · v3",
+   "dominio": "comercial",
+   "pregunta": "¿Cómo vienen las ventas contra el año anterior?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO12 · v2",
+   "dominio": "comercial",
+   "pregunta": "¿Cómo vienen las ventas contra el año anterior?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO13 · v3",
+   "dominio": "comercial",
+   "pregunta": "¿Qué marca me deja más contribución?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CO13 · v2",
+   "dominio": "comercial",
+   "pregunta": "¿Qué marca me deja más contribución?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB1 · v3",
+   "dominio": "cobranza",
+   "pregunta": "¿Quién me debe más?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB1 · v2",
+   "dominio": "cobranza",
+   "pregunta": "¿Quién me debe más?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB2 · v3",
+   "dominio": "cobranza",
+   "pregunta": "¿Cuánto me debe Sodimac?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB2 · v2",
+   "dominio": "cobranza",
+   "pregunta": "¿Cuánto me debe Sodimac?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB3 · v3",
+   "dominio": "cobranza",
+   "pregunta": "¿Qué clientes están en mora?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB3 · v2",
+   "dominio": "cobranza",
+   "pregunta": "¿Qué clientes están en mora?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB4 · v3",
+   "dominio": "cobranza",
+   "pregunta": "¿Cuánto tengo vencido en total?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB4 · v2",
+   "dominio": "cobranza",
+   "pregunta": "¿Cuánto tengo vencido en total?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB5 · v3",
+   "dominio": "cobranza",
+   "pregunta": "¿Cuánto llevo recuperado de Lider?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB5 · v2",
+   "dominio": "cobranza",
+   "pregunta": "¿Cuánto llevo recuperado de Lider?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB6 · v3",
+   "dominio": "cobranza",
+   "pregunta": "¿A quién le corto el crédito?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB6 · v2",
+   "dominio": "cobranza",
+   "pregunta": "¿A quién le corto el crédito?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB7 · v3",
+   "dominio": "cobranza",
+   "pregunta": "¿Qué cuentas llevan más de 90 días de atraso?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB7 · v2",
+   "dominio": "cobranza",
+   "pregunta": "¿Qué cuentas llevan más de 90 días de atraso?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB8 · v3",
+   "dominio": "cobranza",
+   "pregunta": "¿Jumbo está al día?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB8 · v2",
+   "dominio": "cobranza",
+   "pregunta": "¿Jumbo está al día?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB9 · v3",
+   "dominio": "cobranza",
+   "pregunta": "¿Cuánto me debe Falabella y cuánto le vendo?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "CB9 · v2",
+   "dominio": "cobranza",
+   "pregunta": "¿Cuánto me debe Falabella y cuánto le vendo?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN1 · v3",
+   "dominio": "inventario",
+   "pregunta": "¿Cuánto capital tengo frenado?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN1 · v2",
+   "dominio": "inventario",
+   "pregunta": "¿Cuánto capital tengo frenado?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN2 · v3",
+   "dominio": "inventario",
+   "pregunta": "¿Qué SKU tengo parado?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN2 · v2",
+   "dominio": "inventario",
+   "pregunta": "¿Qué SKU tengo parado?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN3 · v3",
+   "dominio": "inventario",
+   "pregunta": "¿Cómo está el inventario en Valparaíso?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN3 · v2",
+   "dominio": "inventario",
+   "pregunta": "¿Cómo está el inventario en Valparaíso?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN4 · v3",
+   "dominio": "inventario",
+   "pregunta": "¿Qué SKU rota peor?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN4 · v2",
+   "dominio": "inventario",
+   "pregunta": "¿Qué SKU rota peor?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN5 · v3",
+   "dominio": "inventario",
+   "pregunta": "¿Qué familia concentra más capital frenado?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN5 · v2",
+   "dominio": "inventario",
+   "pregunta": "¿Qué familia concentra más capital frenado?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN6 · v3",
+   "dominio": "inventario",
+   "pregunta": "¿Los SKU que más vendo son los que tienen más capital en inventario?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN6 · v2",
+   "dominio": "inventario",
+   "pregunta": "¿Los SKU que más vendo son los que tienen más capital en inventario?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN7 · v3",
+   "dominio": "inventario",
+   "pregunta": "¿Cuántos días de cobertura tiene MAK-COMP-AIR?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN7 · v2",
+   "dominio": "inventario",
+   "pregunta": "¿Cuántos días de cobertura tiene MAK-COMP-AIR?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN8 · v3",
+   "dominio": "inventario",
+   "pregunta": "¿Qué tengo en riesgo de quiebre?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "IN8 · v2",
+   "dominio": "inventario",
+   "pregunta": "¿Qué tengo en riesgo de quiebre?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "MX1 · v3",
+   "dominio": "mixto",
+   "pregunta": "Dame una síntesis ejecutiva para el directorio",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "MX1 · v2",
+   "dominio": "mixto",
+   "pregunta": "Dame una síntesis ejecutiva para el directorio",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "MX2 · v3",
+   "dominio": "mixto",
+   "pregunta": "¿Qué hago primero esta semana?",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "MX2 · v2",
+   "dominio": "mixto",
+   "pregunta": "¿Qué hago primero esta semana?",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "MX3 · v3",
+   "dominio": "mixto",
+   "pregunta": "Resume comercial, cobranza e inventario",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "MX3 · v2",
+   "dominio": "mixto",
+   "pregunta": "Resume comercial, cobranza e inventario",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "MX4 · v3",
+   "dominio": "mixto",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  },
+  {
+   "id": "MX4 · v2",
+   "dominio": "mixto",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": false,
+   "cierre": "",
+   "falsedades": [],
+   "modo": "turno",
+   "nota": "cierre vacío: el cerebro mudo obliga al respaldo; se compara v3 true vs false"
+  }
+ ]
+}

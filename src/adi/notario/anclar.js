@@ -6,6 +6,7 @@
  * un composer que imprime en canon es byte-igual a lo que escribió (lo mide `_anclar_composers_gate`). Reemplaza a `declaracionDeRespaldo` (re-leer
  * la prosa del composer con regex) en el flujo v3. Puro: sin I/O, sin red. */
 import { normalizar } from "./afirmacion.js";
+import { estadosEn } from "./estados.js";
 
 const _es = (x) => x && typeof x === "object" && !Array.isArray(x);
 /* plegado de acentos que CONSERVA el largo (las posiciones del texto original siguen valiendo) */
@@ -36,6 +37,26 @@ export function hechoDeDeclaracion(a, id) {
 }
 
 /* la primera aparición del tramo en el texto (exacta; si no, plegando acentos y mayúsculas) */
+/* la cláusula de una cifra: [ini, fin) desde el corte anterior (: ; . — ( ) · | , salto) hasta el siguiente, sin otra cifra ni otra ancla dentro */
+function _clausulaDe(s, a, b) {
+  const cortes = [":", ";", ".", "—", "\n", "(", ")", "·", "|", ",", "{", "}", "⟦", "⟧"];
+  let ini = Math.max(-1, ...cortes.map((c) => s.lastIndexOf(c, a - 1))) + 1;
+  let fin = Math.min(s.length, ...cortes.map((c) => { const i = s.indexOf(c, b); return i < 0 ? s.length : i; }));
+  const CONJ = /\s(?:y|e|o|u|ni|pero|aunque|mientras|sino|que|donde|cuando|porque|—|–|-)\s/gi;
+  { let antes = s.slice(ini, a); let m, last = -1; CONJ.lastIndex = 0; while ((m = CONJ.exec(antes))) last = m.index + m[0].length; if (last >= 0) ini += last; antes = s.slice(ini, a); if (/[\d$]/.test(antes)) ini = a; }   // otra cifra antes, o una conjunción: el ancla parte después
+  { const despues = s.slice(b, fin); CONJ.lastIndex = 0; const mc = CONJ.exec(despues); const md = /[\d$]/.exec(despues); const corte = Math.min(mc ? mc.index : Infinity, md ? md.index : Infinity); if (Number.isFinite(corte)) fin = b + corte; }   // otra cifra o una conjunción después: el ancla termina antes
+  while (ini < a && /\s/.test(s[ini])) ini++;
+  /* el valor va justo después de dos puntos: el rótulo anterior («riesgo de quiebre: $36K») es su nombre y entra al ancla */
+  if (ini === a && s[a - 1 - (s.slice(0, a).length - s.slice(0, a).trimEnd().length)] === ":") {
+    const fin0 = s.slice(0, a).trimEnd().length - 1;
+    const ini0 = Math.max(-1, ...cortes.map((c) => s.lastIndexOf(c, fin0 - 1))) + 1;
+    const rotulo = s.slice(ini0, fin0);
+    if (rotulo.trim() && !/[\d$]/.test(rotulo) && rotulo.trim().length <= 60) { ini = ini0; while (ini < a && /\s/.test(s[ini])) ini++; }
+  }
+  const en = /^(?:[-*•]|\d{1,2}\s*[.)·])\s*/.exec(s.slice(ini, a)); if (en) ini += en[0].length;
+  while (fin > b && /\s/.test(s[fin - 1])) fin--;
+  return { ini, fin };
+}
 function _ubicar(s, frag, desde = 0) {
   const f = String(frag || "");
   if (!f.trim()) return -1;
@@ -68,8 +89,10 @@ export function anclarDeclaracion(texto, declaraciones, { prefijo = "d" } = {}) 
     const valor = a.valor != null ? String(a.valor).trim() : "";
     const pv = (tipo === "cifra" || tipo === "grupo") && valor ? s.indexOf(valor, ini) : -1;
     if (pv >= 0 && pv + valor.length <= fin) {
-      /* la cifra ancla SU VALOR: el dueño lo da la viñeta, la fila o la oración (comprobación 8), como a un placeholder suelto del cerebro */
-      ini = pv; fin = pv + valor.length;
+      /* la cifra ancla SU CLÁUSULA: desde el último corte antes del valor hasta el siguiente corte o la siguiente cifra (v3.1: «$17.8M vencidos» lleva la
+       * palabra al ancla y el juez la ve; el dueño de lo demás lo da la viñeta, la fila o la oración) */
+      const cl = _clausulaDe(s, pv, pv + valor.length);
+      ini = cl.ini; fin = cl.fin;
     } else {
       /* un tramo de varias líneas (una lista rankeada) ancla su primera línea; el enumerador o la viñeta quedan fuera del ancla */
       const salto = s.indexOf("\n", ini);
@@ -162,16 +185,21 @@ export function anclarPorFigs(texto, figs, { prefijo = "r" } = {}) {
           if (porPalabras.length === 1) f = porPalabras[0];
           else if (porPalabras.length > 1 && new Set(porPalabras.map((g) => _n(g.label))).size === 1) f = porPalabras[0];
         }
+        else if (con.length > 1 && new Set(con.map((g) => _n(_entidadDeLabel(g.label)))).size > 1 && new Set(con.map((g) => _n(String(g.label).split(/\s+·\s+/).slice(1).join(" ")))).size === 1) {
+          /* varias entidades de la línea con la MISMA cifra y el MISMO concepto («Falabella, Tottus y Paris llevan 8d»): la cifra es de todas, el ancla lleva todos los ids */
+          f = con;
+        }
         else if (con.length > 1 && new Set(con.map((g) => _n(_entidadDeLabel(g.label)))).size === 1) {
           /* misma entidad, misma cifra: decide el concepto que la línea nombra; si ninguno, cualquiera (el dueño y el número son los mismos) */
           const porConcepto = con.filter((g) => { const c = String(g.label).split(/\s+·\s+/).slice(1).join(" "); return c && linea.includes(_plano(c)); });
-          f = porConcepto.length === 1 ? porConcepto[0] : con[0];
+          f = porConcepto.length === 1 ? porConcepto[0] : (porConcepto.length > 1 && new Set(porConcepto.map((g) => _n(g.label))).size === 1 ? porConcepto[0] : con[0]);   // el concepto que la línea nombra, aunque la boleta lo traiga dos veces
         }
       }
       if (!f) continue;
-      n++;
-      const id = `${prefijo}${n}`;
-      hechos.push({ id, tipo: "ref", de: f.id || f.label });
+      const varios = Array.isArray(f) ? f : null;
+      const ids = [];
+      for (const g of varios || [f]) { n++; const id = `${prefijo}${n}`; ids.push(id); hechos.push({ id, tipo: "ref", de: g.id || g.label }); }
+      const id = ids.join(" ");
       /* el ancla cubre la cláusula «métrica de Entidad, valor» (desde el último : ; . — o el inicio de la línea), sin el enumerador; si la
        * cláusula ya tiene otra ancla o no cabe, se ancla solo el valor */
       let ini = p;
@@ -179,7 +207,14 @@ export function anclarPorFigs(texto, figs, { prefijo = "r" } = {}) {
       const cand = corte + 1;
       const pre = s.slice(cand, p);
       if (!/[{}]/.test(pre) && !usado(cand, p) && pre.trim().length && pre.trim().length <= 70) { ini = cand + (pre.length - pre.trimStart().length); const en = /^(?:[-*•]|\d{1,2}\s*[.)·])\s*/.exec(s.slice(ini, p)); if (en) ini += en[0].length; }
-      spans.push({ ini, fin: p + v.length, id, valor: ini < p });
+      else if (!pre.trim().length) { const cl = _clausulaDe(s, p, p + v.length); if (cl.ini < p && !usado(cl.ini, p) && !/[{}]/.test(s.slice(cl.ini, p))) ini = cl.ini; }   // «riesgo de quiebre: $36K»: el rótulo antes de los dos puntos es el nombre del valor
+      const finCl = _clausulaDe(s, p, p + v.length).fin;
+      const fin = finCl > p + v.length && !usado(p + v.length, finCl) ? finCl : p + v.length;
+      if (varios && ini === p && fin === p + v.length) { const cl = _clausulaDe(s, p, p + v.length); if (!usado(cl.ini, cl.fin)) { ini = cl.ini; } }   // con varios ids el ancla es la cláusula (no hay placeholder de varios)
+      /* la casa se reconoce a sí misma: un estado de la casa dicho en la cláusula de UNA entidad se declara como hecho de estado de esa entidad (el libro lo
+       * verifica con la proyección; si no lo está, el ancla cae) — salvo que el estado sea parte del rótulo de la fig (es el nombre de la cifra) */
+      if (!varios) { const ent = _entidadDeLabel(f.label); const clausula = s.slice(ini, fin); if (ent && ini < p) { for (const c of estadosEn(clausula)) { if (normalizar(String(f.label)).includes(c)) continue; n++; const idE = `${prefijo}${n}`; ids.push(idE); hechos.push({ id: idE, tipo: "estado", sujeto: ent, estado: c }); } } }
+      spans.push({ ini, fin, id: ids.join(" "), valor: ini < p || fin > p + v.length || !!varios || ids.length > 1 });
     }
   }
   spans.sort((a, b) => a.ini - b.ini);

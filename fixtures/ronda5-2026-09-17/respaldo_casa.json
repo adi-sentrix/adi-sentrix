@@ -1,0 +1,1618 @@
+{
+  "nota": "Casos del composer mentiroso / descuidado para adv5_respaldo_casa.mjs. modo declaracion = anclarDeclaracion (playbook · encargo); modo figs = anclarPorFigs (línea honesta · límite). Q = la pregunta integrada (boleta de 335 cifras).",
+  "casos": [
+    {
+      "id": "RA1",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "- Lider · Saldo vencido: $17.8M\n- Lider · Dias Vencido: 269d",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Lider · Venta",
+          "texto": "- Lider · Saldo vencido: $17.8M"
+        },
+        {
+          "fn": "deFig",
+          "label": "Lider · Dias Vencido",
+          "texto": "- Lider · Dias Vencido: 269d"
+        }
+      ],
+      "falsedades": [
+        "Lider · Saldo vencido: $17.8M"
+      ]
+    },
+    {
+      "id": "RA2",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider tiene $17.8M vencidos. Lider lleva 269d de atraso.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Lider · Venta",
+          "texto": "Lider tiene $17.8M vencidos."
+        },
+        {
+          "fn": "deFig",
+          "label": "Lider · Dias Vencido",
+          "texto": "Lider lleva 269d de atraso."
+        }
+      ],
+      "falsedades": [
+        "Lider tiene $17.8M vencidos"
+      ]
+    },
+    {
+      "id": "RA3",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lo que sí tengo verificado: Lider · Saldo vencido: $17.8M. Lider · Dias Vencido: 269d.",
+      "falsedades": [
+        "Lider · Saldo vencido: $17.8M"
+      ]
+    },
+    {
+      "id": "RA4",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lo que sí tengo verificado: Jumbo · Saldo vencido: $4.6M.",
+      "falsedades": [
+        "Jumbo · Saldo vencido: $4.6M"
+      ]
+    },
+    {
+      "id": "RA5",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Falabella, Tottus y Paris llevan 8d de atraso.",
+      "verdadero": true,
+      "falsedades": []
+    },
+    {
+      "id": "RA6",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Sodimac · Saldo pendiente: $8.2M. Sodimac · Saldo vencido: $1.9M.",
+      "falsedades": [
+        "Sodimac · Saldo pendiente: $8.2M"
+      ]
+    },
+    {
+      "id": "RA7",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider te debe $17.8M.",
+      "falsedades": [
+        "Lider te debe $17.8M"
+      ]
+    },
+    {
+      "id": "RA8",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Sodimac vendió $8.2M y te debe $8.2M.",
+      "falsedades": [
+        "te debe $8.2M"
+      ]
+    },
+    {
+      "id": "RA9",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Tottus tiene $1.9M vencidos. Tottus · Saldo vencido: $1.3M.",
+      "falsedades": [
+        "Tottus tiene $1.9M vencidos"
+      ]
+    },
+    {
+      "id": "RA10",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lo que sí tengo verificado: Lider · Saldo vencido: $4.6M.",
+      "verdadero": true,
+      "falsedades": []
+    },
+    {
+      "id": "RA11",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lo que sí tengo verificado: Capital frenado · total: $33K.",
+      "verdadero": true,
+      "falsedades": []
+    },
+    {
+      "id": "RA12",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lo que sí tengo verificado: Falabella · Venta: $19.4M.",
+      "verdadero": true,
+      "falsedades": []
+    },
+    {
+      "id": "RB1",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Falabella es la que menos vende.",
+      "declaraciones": [
+        {
+          "fn": "orden",
+          "args": {
+            "sujeto": "Falabella",
+            "metrica": "Ventas",
+            "forma": "max",
+            "universo": {
+              "eje": "cliente"
+            },
+            "texto": "Falabella es la que menos vende."
+          }
+        }
+      ],
+      "falsedades": [
+        "Falabella es la que menos vende"
+      ]
+    },
+    {
+      "id": "RB2",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Falabella es la que menos vende.",
+      "declaraciones": [
+        {
+          "fn": "orden",
+          "args": {
+            "sujeto": "Falabella",
+            "metrica": "Ventas",
+            "forma": "max",
+            "direccion": "mayor",
+            "universo": {
+              "eje": "cliente"
+            },
+            "texto": "Falabella es la que menos vende."
+          }
+        }
+      ],
+      "falsedades": [
+        "Falabella es la que menos vende"
+      ]
+    },
+    {
+      "id": "RB3",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider es la que más vende.",
+      "declaraciones": [
+        {
+          "fn": "orden",
+          "args": {
+            "sujeto": "Falabella",
+            "metrica": "Ventas",
+            "forma": "max",
+            "universo": {
+              "eje": "cliente"
+            },
+            "texto": "Lider es la que más vende."
+          }
+        }
+      ],
+      "falsedades": [
+        "Lider es la que más vende"
+      ]
+    },
+    {
+      "id": "RB4",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "El que más te debe es Lider.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "orden",
+          "args": {
+            "sujeto": "Lider",
+            "metrica": "Saldo pendiente",
+            "forma": "max",
+            "universo": {
+              "eje": "cliente"
+            },
+            "texto": "El que más te debe es Lider."
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RB5",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider es la que más vende.",
+      "declaraciones": [
+        {
+          "fn": "orden",
+          "args": {
+            "sujeto": "Falabella",
+            "metrica": "Ventas",
+            "forma": "max",
+            "universo": {
+              "eje": "cliente"
+            },
+            "texto": "la cuenta que más vende",
+            "textoV3": "es la que más vende"
+          }
+        }
+      ],
+      "falsedades": [
+        "Lider es la que más vende"
+      ]
+    },
+    {
+      "id": "RB6",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Sodimac es el que más te debe entre los clientes que venden menos de $10M.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "orden",
+          "args": {
+            "sujeto": "Sodimac",
+            "metrica": "Saldo pendiente",
+            "forma": "max",
+            "universoV3": {
+              "eje": "cliente",
+              "filtros": [
+                {
+                  "metrica": "ventas",
+                  "op": "<",
+                  "valor": 10000000,
+                  "unidad": "money"
+                }
+              ]
+            },
+            "texto": "Sodimac es el que más te debe entre los clientes que venden menos de $10M."
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RB7",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Easy es el que más días de atraso lleva.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "orden",
+          "args": {
+            "sujeto": "Easy",
+            "metrica": "Dias Vencido",
+            "forma": "max",
+            "universo": {
+              "eje": "cliente"
+            },
+            "texto": "Easy es el que más días de atraso lleva."
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RB8",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider es el que peor margen tiene.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "orden",
+          "args": {
+            "sujeto": "Lider",
+            "metrica": "Margen",
+            "forma": "min",
+            "universo": {
+              "eje": "cliente"
+            },
+            "texto": "Lider es el que peor margen tiene."
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RB9",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider es el que mejor margen tiene.",
+      "declaraciones": [
+        {
+          "fn": "orden",
+          "args": {
+            "sujeto": "Lider",
+            "metrica": "Margen",
+            "forma": "min",
+            "universo": {
+              "eje": "cliente"
+            },
+            "texto": "Lider es el que mejor margen tiene."
+          }
+        }
+      ],
+      "falsedades": [
+        "Lider es el que mejor margen tiene"
+      ]
+    },
+    {
+      "id": "RC1",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Jumbo está en mora.",
+      "declaraciones": [
+        {
+          "fn": "estado",
+          "args": {
+            "sujeto": "Jumbo",
+            "estado": "al_dia",
+            "texto": "Jumbo está en mora."
+          }
+        }
+      ],
+      "falsedades": [
+        "Jumbo está en mora"
+      ]
+    },
+    {
+      "id": "RC2",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Sodimac no está al día.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "estado",
+          "args": {
+            "sujeto": "Sodimac",
+            "estado": "en_mora",
+            "texto": "Sodimac no está al día."
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RC3",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "LG-DRYER8KG está frenado en Santiago.",
+      "declaraciones": [
+        {
+          "fn": "estado",
+          "args": {
+            "sujeto": "LG-DRYER8KG",
+            "estado": "frenado",
+            "bodega": "Santiago",
+            "texto": "LG-DRYER8KG está frenado en Santiago."
+          }
+        }
+      ],
+      "falsedades": [
+        "frenado en Santiago"
+      ]
+    },
+    {
+      "id": "RC4",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Jumbo está al día.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "estado",
+          "args": {
+            "sujeto": "Jumbo",
+            "estado": "al_dia",
+            "texto": "Jumbo está al día."
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RD1",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Falabella · Saldo pendiente: $8.2M.\nFalabella es la que más te debe: yo la llamaría hoy y le pediría un calendario de pago.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Falabella · Saldo pendiente",
+          "texto": "Falabella · Saldo pendiente: $8.2M."
+        },
+        {
+          "fn": "lectura",
+          "args": {
+            "texto": "Falabella es la que más te debe: yo la llamaría hoy y le pediría un calendario de pago."
+          }
+        }
+      ],
+      "falsedades": [
+        "Falabella es la que más te debe"
+      ]
+    },
+    {
+      "id": "RD2",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider · Saldo vencido: $4.6M.\nLider cayó fuerte contra el año pasado y yo revisaría el precio antes de tocarle el cupo.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Lider · Saldo vencido",
+          "texto": "Lider · Saldo vencido: $4.6M."
+        },
+        {
+          "fn": "lectura",
+          "args": {
+            "texto": "Lider cayó fuerte contra el año pasado y yo revisaría el precio antes de tocarle el cupo."
+          }
+        }
+      ],
+      "falsedades": [
+        "Lider cayó fuerte contra el año pasado"
+      ]
+    },
+    {
+      "id": "RD3",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Sodimac · Venta: $8.2M. Falabella · Venta: $19.4M. Sodimac · Saldo vencido: $1.9M. Falabella · Saldo vencido: $2.5M.\nSodimac vende más que Falabella, así que yo le mantendría el cupo.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Sodimac · Venta",
+          "texto": "Sodimac · Venta: $8.2M."
+        },
+        {
+          "fn": "deFig",
+          "label": "Falabella · Venta",
+          "texto": "Falabella · Venta: $19.4M."
+        },
+        {
+          "fn": "deFig",
+          "label": "Sodimac · Saldo vencido",
+          "texto": "Sodimac · Saldo vencido: $1.9M."
+        },
+        {
+          "fn": "deFig",
+          "label": "Falabella · Saldo vencido",
+          "texto": "Falabella · Saldo vencido: $2.5M."
+        },
+        {
+          "fn": "lectura",
+          "args": {
+            "texto": "Sodimac vende más que Falabella, así que yo le mantendría el cupo."
+          }
+        }
+      ],
+      "falsedades": [
+        "Sodimac vende más que Falabella"
+      ]
+    },
+    {
+      "id": "RD4",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Jumbo · Venta: $17.3M.\nJumbo es tu segunda cuenta en venta y yo la cuidaría.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Jumbo · Venta",
+          "texto": "Jumbo · Venta: $17.3M."
+        },
+        {
+          "fn": "lectura",
+          "args": {
+            "texto": "Jumbo es tu segunda cuenta en venta y yo la cuidaría."
+          }
+        }
+      ],
+      "falsedades": [
+        "Jumbo es tu segunda cuenta en venta"
+      ]
+    },
+    {
+      "id": "RD5",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider · Saldo pendiente: $9.8M.\nCasi todo lo que te debe Lider ya venció; yo iría por eso primero.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Lider · Saldo pendiente",
+          "texto": "Lider · Saldo pendiente: $9.8M."
+        },
+        {
+          "fn": "lectura",
+          "args": {
+            "texto": "Casi todo lo que te debe Lider ya venció; yo iría por eso primero."
+          }
+        }
+      ],
+      "falsedades": [
+        "Casi todo lo que te debe Lider ya venció"
+      ]
+    },
+    {
+      "id": "RD6",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider · Saldo pendiente: $9.8M. Sodimac · Saldo pendiente: $5.3M.\nLider y Sodimac son las cuentas que más te deben: yo las llamaría hoy.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Lider · Saldo pendiente",
+          "texto": "Lider · Saldo pendiente: $9.8M."
+        },
+        {
+          "fn": "deFig",
+          "label": "Sodimac · Saldo pendiente",
+          "texto": "Sodimac · Saldo pendiente: $5.3M."
+        },
+        {
+          "fn": "lectura",
+          "args": {
+            "texto": "Lider y Sodimac son las cuentas que más te deben: yo las llamaría hoy."
+          }
+        }
+      ],
+      "falsedades": [
+        "Lider y Sodimac son las cuentas que más te deben"
+      ]
+    },
+    {
+      "id": "RD7",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Falabella · Dias Vencido: 8d. Lider · Dias Vencido: 269d.\nFalabella ya supera a Lider en atraso y yo la pondría primera en la lista de llamadas.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Falabella · Dias Vencido",
+          "texto": "Falabella · Dias Vencido: 8d."
+        },
+        {
+          "fn": "deFig",
+          "label": "Lider · Dias Vencido",
+          "texto": "Lider · Dias Vencido: 269d."
+        },
+        {
+          "fn": "lectura",
+          "args": {
+            "texto": "Falabella ya supera a Lider en atraso y yo la pondría primera en la lista de llamadas."
+          }
+        }
+      ],
+      "falsedades": [
+        "Falabella ya supera a Lider en atraso"
+      ]
+    },
+    {
+      "id": "RD8",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider · Saldo pendiente: $9.8M.\nYo llamaría hoy a Lider y le pediría un calendario de pago antes de venderle más.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Lider · Saldo pendiente",
+          "texto": "Lider · Saldo pendiente: $9.8M."
+        },
+        {
+          "fn": "lectura",
+          "args": {
+            "texto": "Yo llamaría hoy a Lider y le pediría un calendario de pago antes de venderle más."
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RD9",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Jumbo · Saldo pendiente: $5.1M.\nYo a Jumbo lo trataría como cuenta en mora y le frenaría los despachos.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Jumbo · Saldo pendiente",
+          "texto": "Jumbo · Saldo pendiente: $5.1M."
+        },
+        {
+          "fn": "lectura",
+          "args": {
+            "texto": "Yo a Jumbo lo trataría como cuenta en mora y le frenaría los despachos."
+          }
+        }
+      ],
+      "falsedades": [
+        "Jumbo lo trataría como cuenta en mora"
+      ]
+    },
+    {
+      "id": "RD10",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "MAK-COMP-AIR · Días sin venta: 112d.\nMAK-COMP-AIR lleva medio año en la bodega sin moverse; yo lo liquidaría.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "MAK-COMP-AIR · Días sin venta",
+          "texto": "MAK-COMP-AIR · Días sin venta: 112d."
+        },
+        {
+          "fn": "lectura",
+          "args": {
+            "texto": "MAK-COMP-AIR lleva medio año en la bodega sin moverse; yo lo liquidaría."
+          }
+        }
+      ],
+      "falsedades": [
+        "lleva medio año en la bodega"
+      ]
+    },
+    {
+      "id": "RE1",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider tiene vencido casi el doble que Falabella.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "relacion",
+          "args": {
+            "sujeto": "Lider",
+            "metrica": "Saldo vencido",
+            "forma": "veces",
+            "k": 2,
+            "matiz": "casi",
+            "vs": {
+              "sujeto": "Falabella"
+            },
+            "texto": "Lider tiene vencido casi el doble que Falabella."
+          }
+        }
+      ],
+      "falsedades": [],
+      "nota_v31": "v3.1 (decisión 3): «debe» a secas es el saldo pendiente; una relación de vencido se dice «tiene vencido». Texto original: Lider debe casi el doble que Falabella."
+    },
+    {
+      "id": "RE2",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Falabella debe casi el doble que Lider.",
+      "declaraciones": [
+        {
+          "fn": "relacion",
+          "args": {
+            "sujeto": "Lider",
+            "metrica": "Saldo vencido",
+            "forma": "veces",
+            "k": 2,
+            "matiz": "casi",
+            "vs": {
+              "sujeto": "Falabella"
+            },
+            "texto": "Falabella debe casi el doble que Lider."
+          }
+        }
+      ],
+      "falsedades": [
+        "Falabella debe casi el doble que Lider"
+      ]
+    },
+    {
+      "id": "RE3",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Falabella debe casi la mitad que Lider.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "relacion",
+          "args": {
+            "sujeto": "Lider",
+            "metrica": "Saldo vencido",
+            "forma": "veces",
+            "k": 2,
+            "matiz": "casi",
+            "vs": {
+              "sujeto": "Falabella"
+            },
+            "texto": "Falabella debe casi la mitad que Lider."
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RE4",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider vende casi el doble que Jumbo.",
+      "declaraciones": [
+        {
+          "fn": "relacion",
+          "args": {
+            "sujeto": "Lider",
+            "metrica": "Saldo pendiente",
+            "forma": "veces",
+            "k": 2,
+            "matiz": "casi",
+            "vs": {
+              "sujeto": "Jumbo"
+            },
+            "texto": "Lider vende casi el doble que Jumbo."
+          }
+        }
+      ],
+      "falsedades": [
+        "Lider vende casi el doble que Jumbo"
+      ]
+    },
+    {
+      "id": "RE5",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider factura casi el doble que Jumbo.",
+      "declaraciones": [
+        {
+          "fn": "relacion",
+          "args": {
+            "sujeto": "Lider",
+            "metrica": "Saldo pendiente",
+            "forma": "veces",
+            "k": 2,
+            "matiz": "casi",
+            "vs": {
+              "sujeto": "Jumbo"
+            },
+            "texto": "Lider factura casi el doble que Jumbo."
+          }
+        }
+      ],
+      "falsedades": [
+        "Lider factura casi el doble que Jumbo"
+      ]
+    },
+    {
+      "id": "RE6",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider te debe casi el doble que Jumbo.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "relacion",
+          "args": {
+            "sujeto": "Lider",
+            "metrica": "Saldo pendiente",
+            "forma": "veces",
+            "k": 2,
+            "matiz": "casi",
+            "vs": {
+              "sujeto": "Jumbo"
+            },
+            "texto": "Lider te debe casi el doble que Jumbo."
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RF1",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider creció 14.9% contra el año anterior.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "variacion",
+          "args": {
+            "sujeto": "Lider",
+            "metrica": "Ventas",
+            "direccion": "sube",
+            "valor": "14.9%",
+            "periodo": "vs año anterior",
+            "texto": "Lider creció 14.9% contra el año anterior."
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RF2",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Ripley creció 8.2% contra el año anterior.",
+      "declaraciones": [
+        {
+          "fn": "variacion",
+          "args": {
+            "sujeto": "Ripley",
+            "metrica": "Ventas",
+            "direccion": "sube",
+            "valor": "8.2%",
+            "periodo": "vs año anterior",
+            "texto": "Ripley creció 8.2% contra el año anterior."
+          }
+        }
+      ],
+      "falsedades": [
+        "Ripley creció 8.2%"
+      ]
+    },
+    {
+      "id": "RF3",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Ripley cayó 8.2% contra el año anterior.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "variacion",
+          "args": {
+            "sujeto": "Ripley",
+            "metrica": "Ventas",
+            "direccion": "baja",
+            "valor": "8.2%",
+            "periodo": "vs año anterior",
+            "texto": "Ripley cayó 8.2% contra el año anterior."
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RF4",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider cayó 14.9% contra el año anterior.",
+      "declaraciones": [
+        {
+          "fn": "variacion",
+          "args": {
+            "sujeto": "Lider",
+            "metrica": "Ventas",
+            "direccion": "sube",
+            "valor": "14.9%",
+            "periodo": "vs año anterior",
+            "texto": "Lider cayó 14.9% contra el año anterior."
+          }
+        }
+      ],
+      "falsedades": [
+        "Lider cayó 14.9%"
+      ]
+    },
+    {
+      "id": "RF5",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "El margen de Lider subió 14.9% contra el año anterior.",
+      "declaraciones": [
+        {
+          "fn": "variacion",
+          "args": {
+            "sujeto": "Lider",
+            "metrica": "Ventas",
+            "direccion": "sube",
+            "valor": "14.9%",
+            "periodo": "vs año anterior",
+            "texto": "El margen de Lider subió 14.9% contra el año anterior."
+          }
+        }
+      ],
+      "falsedades": [
+        "El margen de Lider subió 14.9%"
+      ]
+    },
+    {
+      "id": "RG1",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "3 cuentas superan 90 días de mora.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "conteo",
+          "args": {
+            "n": 3,
+            "universo": {
+              "eje": "cliente",
+              "filtros": [
+                {
+                  "metrica": "dias_vencido",
+                  "op": ">",
+                  "valor": 90,
+                  "unidad": "days"
+                }
+              ]
+            },
+            "texto": "3 cuentas superan 90 días de mora."
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RG2",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "5 cuentas superan 90 días de mora.",
+      "declaraciones": [
+        {
+          "fn": "conteo",
+          "args": {
+            "n": 5,
+            "universo": {
+              "eje": "cliente",
+              "filtros": [
+                {
+                  "metrica": "dias_vencido",
+                  "op": ">",
+                  "valor": 90,
+                  "unidad": "days"
+                }
+              ]
+            },
+            "texto": "5 cuentas superan 90 días de mora."
+          }
+        }
+      ],
+      "falsedades": [
+        "5 cuentas superan 90 días"
+      ]
+    },
+    {
+      "id": "RH1",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "| Cliente | Venta | Vencido | Pendiente |\n|---|---|---|---|\n| Lider | $17.8M | $4.6M | $9.8M |\n| Falabella | $19.4M | $2.5M | $8.2M |",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Lider · Venta",
+          "texto": "| Lider | $17.8M | $4.6M | $9.8M |"
+        },
+        {
+          "fn": "deFig",
+          "label": "Lider · Saldo vencido",
+          "texto": "| Lider | $17.8M | $4.6M | $9.8M |"
+        },
+        {
+          "fn": "deFig",
+          "label": "Lider · Saldo pendiente",
+          "texto": "| Lider | $17.8M | $4.6M | $9.8M |"
+        },
+        {
+          "fn": "deFig",
+          "label": "Falabella · Venta",
+          "texto": "| Falabella | $19.4M | $2.5M | $8.2M |"
+        },
+        {
+          "fn": "deFig",
+          "label": "Falabella · Saldo vencido",
+          "texto": "| Falabella | $19.4M | $2.5M | $8.2M |"
+        },
+        {
+          "fn": "deFig",
+          "label": "Falabella · Saldo pendiente",
+          "texto": "| Falabella | $19.4M | $2.5M | $8.2M |"
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RH2",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "| Cliente | Venta | Pendiente |\n|---|---|---|\n| Lider | $9.8M | $17.8M |\n| Falabella | $19.4M | $8.2M |",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Lider · Saldo pendiente",
+          "texto": "| Lider | $9.8M | $17.8M |"
+        },
+        {
+          "fn": "deFig",
+          "label": "Lider · Venta",
+          "texto": "| Lider | $9.8M | $17.8M |"
+        },
+        {
+          "fn": "deFig",
+          "label": "Falabella · Venta",
+          "texto": "| Falabella | $19.4M | $8.2M |"
+        },
+        {
+          "fn": "deFig",
+          "label": "Falabella · Saldo pendiente",
+          "texto": "| Falabella | $19.4M | $8.2M |"
+        }
+      ],
+      "falsedades": [
+        "| Lider | $9.8M | $17.8M |"
+      ]
+    },
+    {
+      "id": "RH3",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "| Cliente | Venta | Pendiente |\n|---|---|---|\n| Falabella | $19.4M | $8.2M |\n| Lider | $17.8M | $5.3M |",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Falabella · Venta",
+          "texto": "| Falabella | $19.4M | $8.2M |"
+        },
+        {
+          "fn": "deFig",
+          "label": "Falabella · Saldo pendiente",
+          "texto": "| Falabella | $19.4M | $8.2M |"
+        },
+        {
+          "fn": "deFig",
+          "label": "Lider · Venta",
+          "texto": "| Lider | $17.8M | $5.3M |"
+        },
+        {
+          "fn": "deFig",
+          "label": "Sodimac · Saldo pendiente",
+          "texto": "| Lider | $17.8M | $5.3M |"
+        }
+      ],
+      "falsedades": [
+        "| Lider | $17.8M | $5.3M |"
+      ]
+    },
+    {
+      "id": "RH4",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "| Cliente | Deuda |\n|---|---|\n| Lider | $17.8M |\n| Falabella | $19.4M |",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Lider · Venta",
+          "texto": "| Lider | $17.8M |"
+        },
+        {
+          "fn": "deFig",
+          "label": "Falabella · Venta",
+          "texto": "| Falabella | $19.4M |"
+        }
+      ],
+      "falsedades": [
+        "| Lider | $17.8M |"
+      ]
+    },
+    {
+      "id": "RH5",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "| Cliente | Saldo |\n|---|---|\n| Lider | $9.8M |\n| Falabella | $2.5M |",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Lider · Saldo pendiente",
+          "texto": "| Lider | $9.8M |"
+        },
+        {
+          "fn": "deFig",
+          "label": "Falabella · Saldo vencido",
+          "texto": "| Falabella | $2.5M |"
+        }
+      ],
+      "falsedades": [
+        "| Falabella | $2.5M |"
+      ]
+    },
+    {
+      "id": "RH6",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "| Cliente | Venta | Pendiente |\n|---|---|---|\n| Lider | $17.8M | $9.8M |\n| Falabella | $19.4M | $8.2M |",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Lider · Venta",
+          "texto": "| Lider | $17.8M | $9.8M |",
+          "extra": {
+            "valor": "$17,8M"
+          }
+        },
+        {
+          "fn": "deFig",
+          "label": "Lider · Saldo pendiente",
+          "texto": "| Lider | $17.8M | $9.8M |",
+          "extra": {
+            "valor": "$9,8M"
+          }
+        },
+        {
+          "fn": "deFig",
+          "label": "Falabella · Venta",
+          "texto": "| Falabella | $19.4M | $8.2M |",
+          "extra": {
+            "valor": "$19,4M"
+          }
+        },
+        {
+          "fn": "deFig",
+          "label": "Falabella · Saldo pendiente",
+          "texto": "| Falabella | $19.4M | $8.2M |",
+          "extra": {
+            "valor": "$8,2M"
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RJ1",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider y Falabella suman $37.2M de venta.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "grupo",
+          "args": {
+            "sujeto": [
+              "Lider",
+              "Falabella"
+            ],
+            "metrica": "Venta",
+            "valor": "$37.2M",
+            "texto": "Lider y Falabella suman $37.2M de venta."
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RJ2",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider y Falabella suman $37.2M de deuda.",
+      "declaraciones": [
+        {
+          "fn": "grupo",
+          "args": {
+            "sujeto": [
+              "Lider",
+              "Falabella"
+            ],
+            "metrica": "Venta",
+            "valor": "$37.2M",
+            "texto": "Lider y Falabella suman $37.2M de deuda."
+          }
+        }
+      ],
+      "falsedades": [
+        "$37.2M de deuda"
+      ]
+    },
+    {
+      "id": "RK1",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Falabella vende $19.4M y Lider $17.8M.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Falabella · Venta",
+          "texto": "Falabella vende $19.4M y Lider $17.8M."
+        },
+        {
+          "fn": "deFig",
+          "label": "Lider · Venta",
+          "texto": "Falabella vende $19.4M y Lider $17.8M."
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RK2",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Falabella vende $19.4M y Lider $9.8M.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Falabella · Venta",
+          "texto": "Falabella vende $19.4M y Lider $9.8M."
+        },
+        {
+          "fn": "deFig",
+          "label": "Lider · Saldo pendiente",
+          "texto": "Falabella vende $19.4M y Lider $9.8M."
+        }
+      ],
+      "falsedades": [
+        "Lider $9.8M"
+      ]
+    },
+    {
+      "id": "RO1",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider te debe $5.0M.",
+      "declaraciones": [
+        {
+          "raw": {
+            "tipo": "propuesta",
+            "valor": "$5.0M",
+            "sujeto": "Lider",
+            "de": "saldo_pendiente",
+            "texto": "Lider te debe $5.0M."
+          }
+        }
+      ],
+      "falsedades": [
+        "Lider te debe $5.0M"
+      ]
+    },
+    {
+      "id": "RO2",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider · Saldo pendiente: $9.8M.\nYo le pediría a Lider un abono de $5.0M esta semana.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Lider · Saldo pendiente",
+          "texto": "Lider · Saldo pendiente: $9.8M."
+        },
+        {
+          "raw": {
+            "tipo": "propuesta",
+            "valor": "$5.0M",
+            "sujeto": "Lider",
+            "texto": "Yo le pediría a Lider un abono de $5.0M esta semana."
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RP1",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "El capital frenado se concentra en Valparaíso: $25K, el 75% del total.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Valparaíso · Capital frenado",
+          "texto": "El capital frenado se concentra en Valparaíso: $25K, el 75% del total."
+        },
+        {
+          "fn": "deFig",
+          "label": "Valparaíso · % del total",
+          "texto": "El capital frenado se concentra en Valparaíso: $25K, el 75% del total."
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RP2",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "El capital frenado se concentra en Antofagasta: $25K, el 75% del total.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Valparaíso · Capital frenado",
+          "texto": "El capital frenado se concentra en Antofagasta: $25K, el 75% del total."
+        },
+        {
+          "fn": "deFig",
+          "label": "Valparaíso · % del total",
+          "texto": "El capital frenado se concentra en Antofagasta: $25K, el 75% del total."
+        }
+      ],
+      "falsedades": [
+        "Antofagasta: $25K"
+      ]
+    },
+    {
+      "id": "RP3",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "- MAK-COMP-AIR · Cobertura (DOH): 190d\n- LG-DRYER8KG · Cobertura (DOH): 165d\n- BOS-SANDER · Cobertura (DOH): 115d",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "MAK-COMP-AIR · Cobertura (DOH)",
+          "texto": "- MAK-COMP-AIR · Cobertura (DOH): 190d"
+        },
+        {
+          "fn": "deFig",
+          "label": "LG-DRYER8KG · Cobertura (DOH)",
+          "texto": "- LG-DRYER8KG · Cobertura (DOH): 165d"
+        },
+        {
+          "fn": "deFig",
+          "label": "BOS-SANDER · Cobertura (DOH)",
+          "texto": "- BOS-SANDER · Cobertura (DOH): 115d"
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RP4",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "- MAK-COMP-AIR · Días sin venta: 190d\n- MAK-COMP-AIR · Cobertura (DOH): 190d",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "MAK-COMP-AIR · Cobertura (DOH)",
+          "texto": "- MAK-COMP-AIR · Días sin venta: 190d"
+        },
+        {
+          "fn": "deFig",
+          "label": "MAK-COMP-AIR · Cobertura (DOH)",
+          "texto": "- MAK-COMP-AIR · Cobertura (DOH): 190d"
+        }
+      ],
+      "falsedades": [
+        "Días sin venta: 190d"
+      ]
+    },
+    {
+      "id": "RP5",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "MAK-COMP-AIR lleva 190d sin venta. MAK-COMP-AIR · Rotación: 0.8x.",
+      "falsedades": [
+        "lleva 190d sin venta"
+      ]
+    },
+    {
+      "id": "RP6",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lo que sí tengo verificado: SAM-REF500L · Capital: $19K.",
+      "verdadero": true,
+      "falsedades": []
+    },
+    {
+      "id": "RP7",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lo que sí tengo verificado: Jumbo · Recuperado: 70.5%.",
+      "verdadero": true,
+      "falsedades": []
+    },
+    {
+      "id": "RD2b",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider · Saldo vencido: $4.6M. Lider · Venta: $17.8M.\nLider cayó fuerte contra el año pasado y yo revisaría el precio antes de tocarle el cupo.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Lider · Saldo vencido",
+          "texto": "Lider · Saldo vencido: $4.6M."
+        },
+        {
+          "fn": "deFig",
+          "label": "Lider · Venta",
+          "texto": "Lider · Venta: $17.8M."
+        },
+        {
+          "fn": "lectura",
+          "args": {
+            "texto": "Lider cayó fuerte contra el año pasado y yo revisaría el precio antes de tocarle el cupo."
+          }
+        }
+      ],
+      "falsedades": [
+        "Lider cayó fuerte contra el año pasado"
+      ]
+    },
+    {
+      "id": "RD10b",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "MAK-COMP-AIR · Cobertura (DOH): 190d.\nMAK-COMP-AIR lleva medio año en la bodega sin moverse; yo lo liquidaría.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "MAK-COMP-AIR · Cobertura (DOH)",
+          "texto": "MAK-COMP-AIR · Cobertura (DOH): 190d."
+        },
+        {
+          "fn": "lectura",
+          "args": {
+            "texto": "MAK-COMP-AIR lleva medio año en la bodega sin moverse; yo lo liquidaría."
+          }
+        }
+      ],
+      "falsedades": [
+        "lleva medio año en la bodega"
+      ]
+    },
+    {
+      "id": "RD11",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Falabella · Recuperado: 57.7%.\nFalabella es la que peor paga de la cartera; yo le cortaría el crédito.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Falabella · Recuperado",
+          "texto": "Falabella · Recuperado: 57.7%."
+        },
+        {
+          "fn": "lectura",
+          "args": {
+            "texto": "Falabella es la que peor paga de la cartera; yo le cortaría el crédito."
+          }
+        }
+      ],
+      "falsedades": [
+        "Falabella es la que peor paga"
+      ]
+    },
+    {
+      "id": "RD12",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Easy · Saldo vencido: $1.1M. Easy · Venta: $3.4M.\nEasy creció con fuerza este año; yo le abriría cupo.",
+      "declaraciones": [
+        {
+          "fn": "deFig",
+          "label": "Easy · Saldo vencido",
+          "texto": "Easy · Saldo vencido: $1.1M."
+        },
+        {
+          "fn": "deFig",
+          "label": "Easy · Venta",
+          "texto": "Easy · Venta: $3.4M."
+        },
+        {
+          "fn": "lectura",
+          "args": {
+            "texto": "Easy creció con fuerza este año; yo le abriría cupo."
+          }
+        }
+      ],
+      "falsedades": [
+        "Easy creció con fuerza"
+      ]
+    },
+    {
+      "id": "RP5b",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "MAK-COMP-AIR lleva 190d sin rotar.",
+      "falsedades": [
+        "lleva 190d sin rotar"
+      ]
+    },
+    {
+      "id": "RE7",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lider debe casi el triple que Falabella.",
+      "declaraciones": [
+        {
+          "fn": "relacion",
+          "args": {
+            "sujeto": "Lider",
+            "metrica": "Saldo vencido",
+            "forma": "veces",
+            "k": 2,
+            "matiz": "casi",
+            "vs": {
+              "sujeto": "Falabella"
+            },
+            "texto": "Lider debe casi el triple que Falabella."
+          }
+        }
+      ],
+      "falsedades": [
+        "casi el triple"
+      ]
+    },
+    {
+      "id": "RE8",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Falabella debe casi el doble que Lider.",
+      "declaraciones": [
+        {
+          "fn": "relacion",
+          "args": {
+            "sujeto": "Falabella",
+            "metrica": "Saldo vencido",
+            "forma": "fraccion",
+            "k": 0.5,
+            "matiz": "casi",
+            "vs": {
+              "sujeto": "Lider"
+            },
+            "texto": "Falabella debe casi el doble que Lider."
+          }
+        }
+      ],
+      "falsedades": [
+        "Falabella debe casi el doble que Lider"
+      ]
+    },
+    {
+      "id": "RE9",
+      "modo": "declaracion",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Falabella debe casi la mitad que Lider.",
+      "verdadero": true,
+      "declaraciones": [
+        {
+          "fn": "relacion",
+          "args": {
+            "sujeto": "Falabella",
+            "metrica": "Saldo vencido",
+            "forma": "fraccion",
+            "k": 0.5,
+            "matiz": "casi",
+            "vs": {
+              "sujeto": "Lider"
+            },
+            "texto": "Falabella debe casi la mitad que Lider."
+          }
+        }
+      ],
+      "falsedades": []
+    },
+    {
+      "id": "RA13",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lo que sí tengo verificado: LG-DRYER8KG · Días sin venta: 94d.",
+      "verdadero": true,
+      "falsedades": []
+    },
+    {
+      "id": "RA14",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lo que sí tengo verificado: Estado del inventario: riesgo de quiebre: $36K.",
+      "verdadero": true,
+      "falsedades": []
+    },
+    {
+      "id": "RA15",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lo que sí tengo verificado: LG-DRYER8KG · Capital frenado: $14K.",
+      "verdadero": true,
+      "falsedades": []
+    },
+    {
+      "id": "RA16",
+      "modo": "figs",
+      "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+      "texto": "Lo que sí tengo verificado: Sodimac · Dias Vencido: 251d.",
+      "verdadero": true,
+      "falsedades": []
+    }
+  ]
+}

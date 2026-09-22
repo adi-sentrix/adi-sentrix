@@ -236,6 +236,22 @@ Derivadas que se rompen seguido:
   candado), E7 (piloto vivo, gasto a nombrar). Regla: toda mejora del Notario va por el libro de hechos y las anclas, no por regex nuevas; la
   calibración se hace por SIGNIFICADO (vocabulario de la casa como datos en `lexico.js`), y al tocar `bucleAgente.js` se revisan las carnadas de
   `_agente_bucle_gate` y `_agente_cifra_sin_boleta_gate` (casan por texto).
+- **Notario v3.1 · «cada palabra tiene dueño» (E5, 2026-09-22, offline).** La ronda 5 (UltraCode, 888 casos fuera de muestra) sirvió el 58 % de
+  las falsedades sobre E4: una verdad parcial prestaba verdad a la afirmación de al lado. Mandato del owner: «resuelve ese problema de raíz, sin
+  convertir la solución en nuevas restricciones de lenguaje para ADI y sin volver al ciclo de parches frase por frase». Lo que quedó como diseño
+  (`_NOTARIO_V31_PROPUESTA.md`): (1) el LIBRO exige lo que la prosa podrá decir —validación de esquema antes del veredicto, empates, rankings
+  parciales, razones y derivadas tipadas, «no_<estado>», el «de M» de un conteo—; (2) cada palabra con carga de verdad dentro de un ancla tiene un
+  DUEÑO de su clase —cotas de proporción como datos (`COTAS_DE_PROPORCION`), matiz y multiplicador escritos, exclusión y eje escritos, bodega, grupo,
+  operando de una razón, sujeto del superlativo coordinado, recomendación, proforma— y FUERA de las anclas no hay retractación, métrica pegada,
+  bodega, pertenencia con entidad, nota al pie ni base de tasa; (3) la CASA se reconoce a sí misma —la cifra de un composer ancla su cláusula, el
+  rótulo antes de los dos puntos, el estado del SKU dicho en la cláusula, la bodega que la proyección declara—; (4) los falsos positivos se cierran
+  por SIGNIFICADO (forma del catálogo, artículo, fracción contra proporción real, variación con su métrica, unidad que desambigua), nunca por regex
+  de frase. Medido con los 888 completos: turno 58 % → 0.3 % (1 aceptada de 317); verdes a la primera 60 %; libro 0/440; casa 0/46; candado `_ronda5_gate` (9/9, ~10 min). Reglas nuevas: «debe» a secas =
+  saldo pendiente (decisión 3), «deuda total / por cobrar» = pendiente; el múltiplo a secas conserva ±15 % (la cota estricta queda a decisión del
+  owner); «inmovilizado» convive con «capital sano»; el complemento «capital sano» de «frenado» vive SOLO en `COMPLEMENTO_V3` (el juez v2 leería
+  «no está frenado» como un punto sin declarar). ⚠️ Trampas medidas esta etapa: un `//` dentro de una línea de una sola línea se traga el código
+  que sigue (usar `/* */`); un heredoc de bash convierte `\\b` en 0x08 (los parches con regex van por Write `.cjs`); las trazas de depuración se
+  quitan antes del commit.
 
 ---
 

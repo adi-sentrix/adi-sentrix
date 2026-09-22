@@ -1,0 +1,1107 @@
+{
+ "angulo": "verdaderos",
+ "casos": [
+  {
+   "id": "V01",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · conclusión primero + razón + tabla + superlativo + lectura + oferta",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"ref\",\"de\":\"c3\"}\n{\"id\":\"h2\",\"tipo\":\"ref\",\"de\":\"c4\"}\n{\"id\":\"h3\",\"tipo\":\"razon\",\"num\":{\"id\":\"c4\"},\"den\":{\"id\":\"c3\"}}\n{\"id\":\"h4\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"h5\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"h6\",\"tipo\":\"ref\",\"de\":\"c11\"}\n{\"id\":\"h7\",\"tipo\":\"ref\",\"de\":\"c12\"}\n{\"id\":\"h8\",\"tipo\":\"ref\",\"de\":\"c15\"}\n{\"id\":\"h9\",\"tipo\":\"ref\",\"de\":\"c16\"}\n{\"id\":\"h10\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h10\",\"h5\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nLa respuesta corta: {{h1: te deben {h1}}} y {{h2: {h2} de eso ya venció}}; {{h3: es el {h3} del saldo pendiente}}, y en una cartera de este tamaño eso es un problema de gestión antes que un accidente.\n\n| Cliente | Pendiente | Vencido |\n|---|---|---|\n| Lider | {h4} | {h5} |\n| Falabella | {h6} | {h7} |\n| Sodimac | {h8} | {h9} |\n\n{{h10: El vencido tiene un dueño claro: Lider es el que más te debe vencido}}. {{hL: Criterio mío: yo empezaría la semana con esa llamada, y las otras dos pueden esperar al jueves.}} ¿Te armo el detalle cuenta por cuenta?"
+  },
+  {
+   "id": "V02",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · «el de mayor atraso» (superlativo con «de») + conteo por estado + umbral + tabla transpuesta + respectivamente + lectura · reanclaje: «el mayor atraso es el de Easy»",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hE6\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n{\"id\":\"h90\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":90,\"unidad\":\"days\"}]}}\n{\"id\":\"hA\",\"tipo\":\"ref\",\"de\":\"c35\"}\n{\"id\":\"hB\",\"tipo\":\"ref\",\"de\":\"c39\"}\n{\"id\":\"hC\",\"tipo\":\"ref\",\"de\":\"c45\"}\n{\"id\":\"hD\",\"tipo\":\"ref\",\"de\":\"c37\"}\n{\"id\":\"hMax\",\"tipo\":\"orden\",\"sujeto\":\"Easy\",\"metrica\":\"dias_vencido\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hMax\",\"hC\",\"hD\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hE6: Tienes {hE6.n} clientes en mora}}, aunque el peso está concentrado: {{h90: {h90.n} de ellos superan {h90.umbral} de atraso}} y ahí está la conversación de verdad.\n\n| | Lider | Sodimac | Easy |\n|---|---|---|---|\n| Días vencido | {hA} | {hB} | {hC} |\n\n{{hA hB hC: Lider, Sodimac y Easy llevan {hA}, {hB} y {hC} de atraso, respectivamente}}; {{hMax: el de mayor atraso es Easy}}, y la distancia con Lider es mínima. {{hD: Falabella, en cambio, lleva {hD}}}: mora técnica, de las que se resuelven con un recordatorio. {{hL: Criterio mío: las cuentas largas van hoy a una mesa de cobranza; Falabella se resuelve con un correo.}}",
+   "reanclaje": "<<HECHOS>>\n{\"id\":\"hE6\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n{\"id\":\"h90\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":90,\"unidad\":\"days\"}]}}\n{\"id\":\"hA\",\"tipo\":\"ref\",\"de\":\"c35\"}\n{\"id\":\"hB\",\"tipo\":\"ref\",\"de\":\"c39\"}\n{\"id\":\"hC\",\"tipo\":\"ref\",\"de\":\"c45\"}\n{\"id\":\"hD\",\"tipo\":\"ref\",\"de\":\"c37\"}\n{\"id\":\"hMax\",\"tipo\":\"orden\",\"sujeto\":\"Easy\",\"metrica\":\"dias_vencido\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hMax\",\"hC\",\"hD\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hE6: Tienes {hE6.n} clientes en mora}}, aunque el peso está concentrado: {{h90: {h90.n} de ellos superan {h90.umbral} de atraso}} y ahí está la conversación de verdad.\n\n| | Lider | Sodimac | Easy |\n|---|---|---|---|\n| Días vencido | {hA} | {hB} | {hC} |\n\n{{hA hB hC: Lider, Sodimac y Easy llevan {hA}, {hB} y {hC} de atraso, respectivamente}}; {{hMax: el mayor atraso es el de Easy}}, y la distancia con Lider es mínima. {{hD: Falabella, en cambio, lleva {hD}}}: mora técnica, de las que se resuelven con un recordatorio. {{hL: Criterio mío: las cuentas largas van hoy a una mesa de cobranza; Falabella se resuelve con un correo.}}"
+  },
+  {
+   "id": "V02b",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · lo mismo con «el que más» (forma del catálogo)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hE6\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n{\"id\":\"h90\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":90,\"unidad\":\"days\"}]}}\n{\"id\":\"hA\",\"tipo\":\"ref\",\"de\":\"c35\"}\n{\"id\":\"hB\",\"tipo\":\"ref\",\"de\":\"c39\"}\n{\"id\":\"hC\",\"tipo\":\"ref\",\"de\":\"c45\"}\n{\"id\":\"hD\",\"tipo\":\"ref\",\"de\":\"c37\"}\n{\"id\":\"hMax\",\"tipo\":\"orden\",\"sujeto\":\"Easy\",\"metrica\":\"dias_vencido\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hMax\",\"hC\",\"hD\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hE6: Tienes {hE6.n} clientes en mora}}, aunque el peso está concentrado: {{h90: {h90.n} de ellos superan {h90.umbral} de atraso}} y ahí está la conversación de verdad.\n\n| | Lider | Sodimac | Easy |\n|---|---|---|---|\n| Días vencido | {hA} | {hB} | {hC} |\n\n{{hA hB hC: Lider, Sodimac y Easy llevan {hA}, {hB} y {hC} de atraso, respectivamente}}; {{hMax: Easy es el que más atraso lleva}}, y la distancia con Lider es mínima. {{hD: Falabella, en cambio, lleva {hD}}}: mora técnica, de las que se resuelven con un recordatorio. {{hL: Criterio mío: las cuentas largas van hoy a una mesa de cobranza; Falabella se resuelve con un correo.}}"
+  },
+  {
+   "id": "V03",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · lista anidada con viñeta padre + estados (negación del catálogo) + rótulos + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hJ\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"hJp\",\"tipo\":\"ref\",\"de\":\"c31\"}\n{\"id\":\"hJr\",\"tipo\":\"ref\",\"de\":\"c47\"}\n{\"id\":\"hM\",\"tipo\":\"estado\",\"sujeto\":\"Mercado Libre\",\"estado\":\"al_dia\"}\n{\"id\":\"hMp\",\"tipo\":\"ref\",\"de\":\"c34\"}\n{\"id\":\"hMr\",\"tipo\":\"ref\",\"de\":\"c48\"}\n{\"id\":\"hS\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"hSv\",\"tipo\":\"ref\",\"de\":\"c16\"}\n{\"id\":\"hSd\",\"tipo\":\"ref\",\"de\":\"c39\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hS\",\"hSd\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nHay cuentas que se portan como uno quisiera que se portaran todas, y una que es el caso contrario.\n\n- **Jumbo** — {{hJ: no tiene nada vencido}}\n  - pendiente: {hJp}\n  - recuperado: {hJr}\n- **Mercado Libre** — {{hM: al día}}\n  - pendiente: {hMp}\n  - recuperado: {hMr}\n- **Sodimac** — {{hS: en mora}}\n  - vencido: {hSv}\n  - días vencido: {hSd}\n\n{{hL: Criterio mío: a Sodimac yo le pediría un calendario de pago antes del próximo despacho.}}"
+  },
+  {
+   "id": "V04",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · ordinales + «juntos» (grupo) + razón con base posesiva + lectura de crédito",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h7\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hP2\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"puesto\",\"k\":2,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hG\",\"tipo\":\"grupo\",\"miembros\":[\"Lider\",\"Falabella\"],\"metrica\":\"saldo_pendiente\",\"agregado\":\"suma\",\"valor\":\"$18.0M\"}\n{\"id\":\"hR\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"},\"den\":{\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h7\",\"hR\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{h7: El primer lugar en saldo pendiente es de Lider}} y {{hP2: el segundo, de Falabella}}; {{hG: juntos concentran {hG} pendientes}}. {{hR: En el caso de Lider, es el {hR} de su venta}}, una proporción incómoda para cualquier gerente de crédito. {{hL: Criterio mío: el cupo de Lider se congela hasta ver un abono.}}"
+  },
+  {
+   "id": "V05",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · cifra en palabras aproximada + relación «duplica» + estado por negación del catálogo + anáfora",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n{\"id\":\"hFv\",\"tipo\":\"ref\",\"de\":\"c12\"}\n{\"id\":\"hJ\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"hJp\",\"tipo\":\"ref\",\"de\":\"c31\"}\n<<FIN>>\n{{hLv: Lider arrastra casi cinco millones vencidos}} y {{hRel: casi duplica el vencido de Falabella}}, {{hFv: que va en {hFv}}}. {{hJ: Jumbo, sin mora}}, {{hJp: solo te debe {hJp} pendientes}}: ese es el cliente que uno quisiera clonar."
+  },
+  {
+   "id": "V07",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · cabecera booleana «¿Al día?» (forma declarada en el plan §2.4-9) con celdas {id.estado} · reanclaje: cabecera «Estado»",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hJ\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"hM\",\"tipo\":\"estado\",\"sujeto\":\"Mercado Libre\",\"estado\":\"al_dia\"}\n{\"id\":\"hF\",\"tipo\":\"estado\",\"sujeto\":\"Falabella\",\"estado\":\"en_mora\"}\n{\"id\":\"hS\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"hJp\",\"tipo\":\"ref\",\"de\":\"c31\"}\n{\"id\":\"hMp\",\"tipo\":\"ref\",\"de\":\"c34\"}\n{\"id\":\"hFp\",\"tipo\":\"ref\",\"de\":\"c11\"}\n{\"id\":\"hSp\",\"tipo\":\"ref\",\"de\":\"c15\"}\n<<FIN>>\n| Cliente | Pendiente | ¿Al día? |\n|---|---|---|\n| Jumbo | {hJp} | {hJ.estado} |\n| Mercado Libre | {hMp} | {hM.estado} |\n| Falabella | {hFp} | {hF.estado} |\n| Sodimac | {hSp} | {hS.estado} |\n\nLa tabla se lee sola: {{hS hF: Sodimac y Falabella están en mora}}, aunque por motivos muy distintos.",
+   "reanclaje": "<<HECHOS>>\n{\"id\":\"hJ\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"hM\",\"tipo\":\"estado\",\"sujeto\":\"Mercado Libre\",\"estado\":\"al_dia\"}\n{\"id\":\"hF\",\"tipo\":\"estado\",\"sujeto\":\"Falabella\",\"estado\":\"en_mora\"}\n{\"id\":\"hS\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"hJp\",\"tipo\":\"ref\",\"de\":\"c31\"}\n{\"id\":\"hMp\",\"tipo\":\"ref\",\"de\":\"c34\"}\n{\"id\":\"hFp\",\"tipo\":\"ref\",\"de\":\"c11\"}\n{\"id\":\"hSp\",\"tipo\":\"ref\",\"de\":\"c15\"}\n<<FIN>>\n| Cliente | Pendiente | Estado |\n|---|---|---|\n| Jumbo | {hJp} | {hJ.estado} |\n| Mercado Libre | {hMp} | {hM.estado} |\n| Falabella | {hFp} | {hF.estado} |\n| Sodimac | {hSp} | {hS.estado} |\n\nLa tabla se lee sola: {{hS hF: Sodimac y Falabella están en mora}}, aunque por motivos muy distintos."
+  },
+  {
+   "id": "V07b",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · cabecera «Estado» con celdas {id.estado} + sujeto coordinado en un ancla de estado",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hJ\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"hM\",\"tipo\":\"estado\",\"sujeto\":\"Mercado Libre\",\"estado\":\"al_dia\"}\n{\"id\":\"hF\",\"tipo\":\"estado\",\"sujeto\":\"Falabella\",\"estado\":\"en_mora\"}\n{\"id\":\"hS\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"hJp\",\"tipo\":\"ref\",\"de\":\"c31\"}\n{\"id\":\"hMp\",\"tipo\":\"ref\",\"de\":\"c34\"}\n{\"id\":\"hFp\",\"tipo\":\"ref\",\"de\":\"c11\"}\n{\"id\":\"hSp\",\"tipo\":\"ref\",\"de\":\"c15\"}\n<<FIN>>\n| Cliente | Pendiente | Estado |\n|---|---|---|\n| Jumbo | {hJp} | {hJ.estado} |\n| Mercado Libre | {hMp} | {hM.estado} |\n| Falabella | {hFp} | {hF.estado} |\n| Sodimac | {hSp} | {hS.estado} |\n\nLa tabla se lee sola: {{hS hF: Sodimac y Falabella están en mora}}, aunque por motivos muy distintos."
+  },
+  {
+   "id": "V08",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · conteo n de m + umbral + universo restringido escrito por la casa",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":90,\"unidad\":\"days\"}]}}\n{\"id\":\"hU\",\"tipo\":\"orden\",\"sujeto\":\"Sodimac\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\",\"excluir\":{\"top\":{\"metrica\":\"ventas\",\"k\":3}}}}\n{\"id\":\"hSp\",\"tipo\":\"ref\",\"de\":\"c15\"}\n<<FIN>>\n{{hC: {hC.n} de tus {hC.m} clientes superan {hC.umbral} de atraso}}; el resto de la cartera está dentro de plazo. {{hU hSp: Entre {hU.universo}, el que más te debe es Sodimac, con {hSp} pendientes}}."
+  },
+  {
+   "id": "V09",
+   "pregunta": "¿Cuánto me debe Lider y cuánto Falabella?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · cifras por sujeto+metrica + duración + variación tipada + propuesta sellada + lectura de crédito",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h6\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h11\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hV14\",\"tipo\":\"variacion\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\",\"variacion\":{\"direccion\":\"sube\"},\"periodo\":\"anterior\"}\n{\"id\":\"hProp\",\"tipo\":\"propuesta\",\"valor\":\"30%\",\"sujeto\":\"Lider\",\"de\":\"saldo_vencido\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h8\",\"h11\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{h3: Lider te debe {h3}}} y {{h6: Falabella, {h6}}}; {{h8: el mayor deudor es Lider}}, {{h11: con facturas vencidas desde hace {h11}}}. Y sin embargo {{hV14: Lider crece contra el año anterior}}: te compra más y te paga peor. {{hL: Criterio mío: antes de despachar la próxima orden, yo le pediría a Lider un abono}}: {{hProp: algo como el {hProp} del vencido sería una señal suficiente}}."
+  },
+  {
+   "id": "V16",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · encabezado en negrita CON texto («Lider, en una línea:») + blanco + viñetas «rótulo: cifra» + oferta pegada tras «.}}» · reanclaje: encabezado limpio y oferta en párrafo aparte",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"hLa\",\"tipo\":\"ref\",\"de\":\"c6\"}\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hLr\",\"tipo\":\"ref\",\"de\":\"c36\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLr\",\"hLv\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n**Lider, en una línea:** {{hLp: te debe {hLp}}}.\n\n- abonado: {hLa}\n- pendiente: {hLp}\n- vencido: {hLv}\n- recuperado: {hLr}\n\n{{hL: Criterio mío: con ese nivel de recuperación, yo condicionaría el próximo despacho a un abono.}} ¿Quieres que arme el mismo cuadro para Falabella?",
+   "reanclaje": "<<HECHOS>>\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"hLa\",\"tipo\":\"ref\",\"de\":\"c6\"}\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hLr\",\"tipo\":\"ref\",\"de\":\"c36\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLr\",\"hLv\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n**Lider**\n- abonado: {hLa}\n- pendiente: {hLp}\n- vencido: {hLv}\n- recuperado: {hLr}\n\n{{hL: Criterio mío: con ese nivel de recuperación, yo condicionaría el próximo despacho a un abono.}}\n\n¿Quieres que arme el mismo cuadro para Falabella?"
+  },
+  {
+   "id": "V16b",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · encabezado limpio «**Lider**» + viñetas + lectura con el punto FUERA del ancla + oferta",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"hLa\",\"tipo\":\"ref\",\"de\":\"c6\"}\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hLr\",\"tipo\":\"ref\",\"de\":\"c36\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLr\",\"hLv\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n**Lider**\n- abonado: {hLa}\n- pendiente: {hLp}\n- vencido: {hLv}\n- recuperado: {hLr}\n\n{{hL: Criterio mío: con ese nivel de recuperación, yo condicionaría el próximo despacho a un abono}}. ¿Quieres que arme el mismo cuadro para Falabella?"
+  },
+  {
+   "id": "V18",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · relación escrita por la casa con {id.rel} (forma declarada cubierta) + reparto distributivo · reanclaje: la relación con los dos nombres escritos",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hFv\",\"tipo\":\"ref\",\"de\":\"c12\"}\n<<FIN>>\nEn vencido, {{hRel: {hRel.rel}}}: {{hLv hFv: Lider arrastra {hLv} y Falabella {hFv}}}. La diferencia no es de tamaño de cuenta, es de hábito de pago.",
+   "reanclaje": "<<HECHOS>>\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hFv\",\"tipo\":\"ref\",\"de\":\"c12\"}\n<<FIN>>\nEn vencido, {{hRel: Lider casi duplica a Falabella}}: {{hLv hFv: Lider arrastra {hLv} y Falabella {hFv}}}. La diferencia no es de tamaño de cuenta, es de hábito de pago."
+  },
+  {
+   "id": "V19",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · dos conteos por estado + estado suelto (responde «cuántos», no «quiénes»: la ley deuda-sin-nombre puede frenarlo)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hAd\",\"tipo\":\"conteo\",\"de\":{\"eje\":\"cliente\",\"estados\":[\"al_dia\"]}}\n{\"id\":\"hEm\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n{\"id\":\"hR\",\"tipo\":\"estado\",\"sujeto\":\"Ripley\",\"estado\":\"al_dia\"}\n<<FIN>>\n{{hAd: {hAd.n} de tus {hAd.m} clientes están al día}} y {{hEm: {hEm.n} están en mora}}: una cartera partida en dos, y la parte que paga es la de las cuentas chicas. {{hR: Ripley, por ejemplo, está al día}}."
+  },
+  {
+   "id": "V23",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · razón calculada + «peor/mejor» con polaridad + lectura de crédito",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hA\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hV\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hR\",\"tipo\":\"razon\",\"num\":{\"id\":\"c2\"},\"den\":{\"id\":\"c1\"}}\n{\"id\":\"hSmin\",\"tipo\":\"orden\",\"sujeto\":\"Sodimac\",\"metrica\":\"recuperado\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hSr\",\"tipo\":\"ref\",\"de\":\"c40\"}\n{\"id\":\"hMLmax\",\"tipo\":\"orden\",\"sujeto\":\"Mercado Libre\",\"metrica\":\"recuperado\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hMLr\",\"tipo\":\"ref\",\"de\":\"c48\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hSmin\",\"hSr\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hV: De {hV} vendidos}}, {{hA: llevas {hA} abonados}}, {{hR: un {hR} de lo vendido}}. {{hSmin hSr: El que peor recupera es Sodimac, con {hSr}}}; {{hMLmax hMLr: el mejor, Mercado Libre, con {hMLr}}}. {{hL: Criterio mío: a Sodimac no le vendería más hasta que suba ese porcentaje.}}"
+  },
+  {
+   "id": "V24",
+   "pregunta": "¿Cuánto me debe Lider y cuánto Falabella?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · valores escritos por el modelo dentro del ancla (la casa los reemplaza) + «más de la mitad» sobre una razón de 55.1% + «venta» en una oración con Falabella",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h6\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n{\"id\":\"hR\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"},\"den\":{\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}}\n<<FIN>>\n{{h3: Lider te debe $9,8M}} y {{h6: Falabella $8,2M}}; {{hRel: Lider debe más que Falabella}}, {{hR: y en su caso es más de la mitad de la venta: {hR}}}."
+  },
+  {
+   "id": "V24b",
+   "pregunta": "¿Cuánto me debe Lider y cuánto Falabella?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · valores escritos por el modelo (los reemplaza la casa) + relación mayor + razón con base posesiva",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h6\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n{\"id\":\"hR\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"},\"den\":{\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}}\n<<FIN>>\n{{h3: Lider te debe $9,8M}} y {{h6: Falabella $8,2M}}; {{hRel: Lider debe más que Falabella}}. {{hR: En el caso de Lider es el {hR} de su venta}}."
+  },
+  {
+   "id": "V25",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · umbral «entre» con {id.umbral} + segundo conteo con umbral · reanclaje: {id.universo}",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\"entre\",\"valor\":[1,30],\"unidad\":\"days\"}]}}\n{\"id\":\"hL30\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":90,\"unidad\":\"days\"}]}}\n<<FIN>>\n{{hC: {hC.n} cuentas llevan entre {hC.umbral} de atraso}}: son atrasos de días y se cobran con un correo. {{hL30: Las otras {hL30.n}, con más de {hL30.umbral}, son otra conversación}}.",
+   "reanclaje": "<<HECHOS>>\n{\"id\":\"hC\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\"entre\",\"valor\":[1,30],\"unidad\":\"days\"}]}}\n{\"id\":\"hL30\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":90,\"unidad\":\"days\"}]}}\n<<FIN>>\n{{hC: {hC.n} de {hC.universo}}}: son atrasos de días y se cobran con un correo. {{hL30: Las otras {hL30.n}, con más de {hL30.umbral}, son otra conversación}}."
+  },
+  {
+   "id": "V29",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · «casi la mitad» junto a una razón de 46.4% (fracción en palabras con matiz)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hR\",\"tipo\":\"razon\",\"num\":{\"id\":\"c8\"},\"den\":{\"id\":\"c7\"}}\n<<FIN>>\n{{hLp: Lider te debe {hLp}}} y {{hLv hR: casi la mitad ya está vencida: {hLv}, el {hR} del pendiente}}."
+  },
+  {
+   "id": "V30",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · negación del catálogo («no está en mora») + «tampoco» con el estado escrito",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hJ\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"hM\",\"tipo\":\"estado\",\"sujeto\":\"Mercado Libre\",\"estado\":\"al_dia\"}\n{\"id\":\"hJp\",\"tipo\":\"ref\",\"de\":\"c31\"}\n<<FIN>>\n{{hJ: Jumbo no está en mora}} y {{hM: Mercado Libre tampoco está en mora}}; {{hJp: Jumbo te debe {hJp}}}, pero todo dentro de plazo."
+  },
+  {
+   "id": "V30b",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · «tampoco» como proforma con su hecho de estado anclado pero sin la palabra del estado (el plan §2.4-5 lo declara veto)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hJ\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"hM\",\"tipo\":\"estado\",\"sujeto\":\"Mercado Libre\",\"estado\":\"al_dia\"}\n<<FIN>>\n{{hJ: Jumbo no está en mora}} y {{hM: Mercado Libre tampoco}}."
+  },
+  {
+   "id": "V32",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · duración en palabras aproximada (269 d ≈ 9 meses) + «también» en un ancla del mismo tipo",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h11\",\"tipo\":\"ref\",\"de\":\"c35\"}\n{\"id\":\"hE\",\"tipo\":\"ref\",\"de\":\"c45\"}\n<<FIN>>\n{{h11: Lider lleva casi nueve meses de atraso}} y {{hE: Easy, casi nueve meses también}}."
+  },
+  {
+   "id": "V33",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · «más de ocho meses» (240 d) como cota inferior verdadera de 269 d",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h11\",\"tipo\":\"ref\",\"de\":\"c35\"}\n<<FIN>>\n{{h11: Lider lleva más de ocho meses de atraso}}."
+  },
+  {
+   "id": "V37",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · continuación «también» con el hecho de estado anclado (comprobación 6 satisfecha) sin la palabra del estado (comprobación 5 lo declara veto)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hS\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"hL\",\"tipo\":\"estado\",\"sujeto\":\"Lider\",\"estado\":\"en_mora\"}\n{\"id\":\"hSd\",\"tipo\":\"ref\",\"de\":\"c39\"}\n{\"id\":\"hLd\",\"tipo\":\"ref\",\"de\":\"c35\"}\n<<FIN>>\n{{hS hSd: Sodimac está en mora desde hace {hSd}}} y {{hL hLd: Lider también, desde hace {hLd}}}."
+  },
+  {
+   "id": "V38",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · continuación «también» con el estado escrito",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hS\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"hL\",\"tipo\":\"estado\",\"sujeto\":\"Lider\",\"estado\":\"en_mora\"}\n{\"id\":\"hSd\",\"tipo\":\"ref\",\"de\":\"c39\"}\n{\"id\":\"hLd\",\"tipo\":\"ref\",\"de\":\"c35\"}\n<<FIN>>\n{{hS hSd: Sodimac está en mora desde hace {hSd}}} y {{hL hLd: Lider también está en mora, desde hace {hLd}}}."
+  },
+  {
+   "id": "V39",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · negación del catálogo («no tiene facturas vencidas» = al día)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hJ\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"hJp\",\"tipo\":\"ref\",\"de\":\"c31\"}\n<<FIN>>\n{{hJ: Jumbo no tiene facturas vencidas}}; {{hJp: te debe {hJp}}}, todo por vencer."
+  },
+  {
+   "id": "V40",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · negación libre del catálogo («ni una factura vencida») sobre un estado verdadero",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hJ\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n<<FIN>>\n{{hJ: Jumbo no tiene ni una factura vencida}}."
+  },
+  {
+   "id": "V42",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · ordinal por puesto",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hP3\",\"tipo\":\"orden\",\"sujeto\":\"Sodimac\",\"metrica\":\"dias_vencido\",\"orden\":{\"forma\":\"puesto\",\"k\":3,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hSd\",\"tipo\":\"ref\",\"de\":\"c39\"}\n<<FIN>>\n{{hP3: Sodimac va tercero en días vencido}}, {{hSd: con {hSd}}}."
+  },
+  {
+   "id": "V47",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · «casi la mitad» sobre un conteo 6 de 13 (46 %)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n<<FIN>>\n{{hC: Casi la mitad de tus clientes está en mora}}."
+  },
+  {
+   "id": "V48",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · conteo n de m por estado (responde «cuántos», no «quiénes»: la ley deuda-sin-nombre puede frenarlo)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n<<FIN>>\n{{hC: {hC.n} de tus {hC.m} clientes están en mora}}."
+  },
+  {
+   "id": "V49",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · relación «casi el doble» (9.8 / 5.3 = 1.85)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Sodimac\"}}}\n<<FIN>>\n{{hRel: Lider debe casi el doble que Sodimac en pendiente}}."
+  },
+  {
+   "id": "V51",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · «la mayoría» sola en un ancla de conteo (7 de 13) + el mismo id en dos anclas",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC\",\"tipo\":\"conteo\",\"n\":7,\"de\":{\"eje\":\"cliente\",\"estados\":[\"al_dia\"]}}\n<<FIN>>\n{{hC: La mayoría de tus clientes están al día}}: {{hC: {hC.n} de {hC.m}}}."
+  },
+  {
+   "id": "V51b",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · «la mayoría» con n de m en el mismo ancla",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC\",\"tipo\":\"conteo\",\"n\":7,\"de\":{\"eje\":\"cliente\",\"estados\":[\"al_dia\"]}}\n<<FIN>>\n{{hC: La mayoría de tus clientes están al día: {hC.n} de {hC.m}}}."
+  },
+  {
+   "id": "V54",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · modismo «lo más urgente» + «dos cosas que haría hoy» delante de una lectura + oferta pegada tras «.}}» · reanclaje: «hoy» dentro de la lectura y la oferta aparte",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"h5\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h5\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nLo más urgente es la cobranza. {{h4 h5: Lider te debe {h4} y tiene {h5} vencidos}}. Dos cosas que haría hoy: {{hL: criterio mío, llamar a Lider y frenar el próximo despacho hasta ver un abono.}} ¿Seguimos con Falabella?",
+   "reanclaje": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"h5\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h5\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nLo más urgente es la cobranza. {{h4 h5: Lider te debe {h4} y tiene {h5} vencidos}}. {{hL: Criterio mío: hoy llamaría a Lider y frenaría el próximo despacho hasta ver un abono}}. ¿Seguimos con Falabella?"
+  },
+  {
+   "id": "V56",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · proporción subjetiva («buena parte») con su razón en el ancla",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"hR\",\"tipo\":\"razon\",\"num\":{\"id\":\"c8\"},\"den\":{\"id\":\"c7\"}}\n<<FIN>>\n{{hLp: Lider te debe {hLp}}} y {{hR: buena parte del pendiente ya venció: el {hR}}}."
+  },
+  {
+   "id": "V59",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · encabezado markdown + línea en blanco (markdown estándar) + viñetas «rótulo: cifra» · reanclaje: sin la línea en blanco",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n<<FIN>>\n### Lider\n\n- pendiente: {hLp}\n- vencido: {hLv}",
+   "reanclaje": "<<HECHOS>>\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n<<FIN>>\n### Lider\n- pendiente: {hLp}\n- vencido: {hLv}"
+  },
+  {
+   "id": "V59b",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · encabezado con el dueño sin línea en blanco + viñetas «rótulo: cifra»",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n<<FIN>>\n### Lider\n- pendiente: {hLp}\n- vencido: {hLv}"
+  },
+  {
+   "id": "V60",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · dos encabezados en negrita con dueño + viñetas (el Notario pasa; la ley formato-de-informe cuenta «2 subtítulos»)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hFp\",\"tipo\":\"ref\",\"de\":\"c11\"}\n{\"id\":\"hFv\",\"tipo\":\"ref\",\"de\":\"c12\"}\n<<FIN>>\n**Lider**\n- pendiente: {hLp}\n- vencido: {hLv}\n\n**Falabella**\n- pendiente: {hFp}\n- vencido: {hFv}"
+  },
+  {
+   "id": "V06",
+   "pregunta": "¿Cómo vienen las ventas contra el año anterior?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · encabezado + variación tipada + placeholder suelto + orden sobre variación + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVar\",\"tipo\":\"variacion\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\",\"variacion\":{\"direccion\":\"sube\"},\"periodo\":\"anterior\"}\n{\"id\":\"hL\",\"tipo\":\"ref\",\"de\":\"c12\"}\n{\"id\":\"hLd\",\"tipo\":\"ref\",\"de\":\"c11\"}\n{\"id\":\"hOrd\",\"tipo\":\"orden\",\"sujeto\":\"Mercado Libre\",\"metrica\":\"variacion\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hML\",\"tipo\":\"ref\",\"de\":\"c18\"}\n{\"id\":\"hLP\",\"tipo\":\"ref\",\"de\":\"c33\"}\n{\"id\":\"hE\",\"tipo\":\"ref\",\"de\":\"c32\"}\n{\"id\":\"hLec\",\"tipo\":\"lectura\",\"apoyo\":[\"hLP\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n**Cómo viene la venta**\n\n{{hVar: Lider crece contra el año anterior}}: {hL}, {{hLd: que en dinero son {hLd}}}. {{hOrd hML: El mayor salto relativo es de Mercado Libre, {hML}}}, aunque sobre una base chica. Del otro lado, {{hLP: La Polar cae {hLP}}} y {{hE: Easy, {hE}}}. {{hLec: Criterio mío: yo miraría primero a La Polar; ahí la conversación es comercial y vale una visita antes que un informe.}}"
+  },
+  {
+   "id": "V12",
+   "pregunta": "¿Cuál es mi margen y cómo está frente al benchmark?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · referencia + brecha + derivada pp + conteo por conjunto de la casa (sinónimo) + subtotal + tabla + peor/mejor + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMp\",\"tipo\":\"ref\",\"de\":\"c10\"}\n{\"id\":\"hB\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hBr\",\"tipo\":\"ref\",\"de\":\"c11\"}\n{\"id\":\"hD\",\"tipo\":\"derivada\",\"op\":\"pp\",\"de\":[\"c8\",\"c10\"]}\n{\"id\":\"hN\",\"tipo\":\"conteo\",\"n\":8,\"de\":{\"eje\":\"cliente\",\"base\":\"bajo el benchmark\"}}\n{\"id\":\"hNC\",\"tipo\":\"ref\",\"de\":\"c46\"}\n{\"id\":\"hL1\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hF\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hLP\",\"tipo\":\"ref\",\"de\":\"c43\"}\n{\"id\":\"hMin\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"margen\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hMax\",\"tipo\":\"orden\",\"sujeto\":\"La Polar\",\"metrica\":\"margen\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hMin\",\"hL1\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hMp: Tu margen promedio es {hMp}}} frente a {{hB: un benchmark de {hB}}}: {{hBr: {hBr} de brecha}}, {{hD: o sea {hD} de diferencia}}. {{hN: {hN.n} de tus clientes están bajo el benchmark}} y {{hNC: entre los materiales dejan {hNC} de contribución no capturada}}.\n\n| Cliente | Margen |\n|---|---|\n| Lider | {hL1} |\n| Falabella | {hF} |\n| La Polar | {hLP} |\n\n{{hMin: El peor margen es el de Lider}} y {{hMax: el mejor, el de La Polar}}; la distancia entre ambos es la que ordena la conversación. {{hL: Criterio mío: la conversación de precio empieza con Lider, que es donde la brecha vale más.}}"
+  },
+  {
+   "id": "V13",
+   "pregunta": "¿Quién es mi mejor cliente en venta y cómo paga?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · «número uno» + razón de participación + top-k enumerado + cruce venta/cobranza + lectura de crédito",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMax\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h1\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hR\",\"tipo\":\"razon\",\"num\":{\"id\":\"c1\"},\"den\":{\"id\":\"c14\"}}\n{\"id\":\"hT3\",\"tipo\":\"orden\",\"sujeto\":[\"Falabella\",\"Lider\",\"Jumbo\"],\"metrica\":\"ventas\",\"orden\":{\"forma\":\"topk\",\"k\":3,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h2\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"h3\",\"tipo\":\"ref\",\"de\":\"c3\"}\n{\"id\":\"hFe\",\"tipo\":\"estado\",\"sujeto\":\"Falabella\",\"estado\":\"en_mora\"}\n{\"id\":\"hFv\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hFd\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hFe\",\"hFv\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hMax: Tu número uno en venta es Falabella}}: {{h1 hR: {h1}, el {hR} de todo lo que vendiste}}. {{hT3: Falabella, Lider y Jumbo son tu top tres en venta}}; {{h2 h3: Lider y Jumbo van con {h2} y {h3}}}.\n\n¿Cómo paga? {{hFe: Falabella está en mora}}, {{hFv hFd: con {hFv} vencidos y {hFd} de atraso}}: una mora corta, de las que se corrigen con un recordatorio. {{hL: Criterio mío: se le cobra con un correo cordial, sin tocar el cupo.}}"
+  },
+  {
+   "id": "V14",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · «encabeza» + «por encima de» con anáfora del sujeto + dos cifras mudas + lectura con superlativo retórico",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hF\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"contribucion\"}\n{\"id\":\"hJ\",\"tipo\":\"cifra\",\"sujeto\":\"Jumbo\",\"metrica\":\"contribucion\"}\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"Falabella\",\"metrica\":\"contribucion\",\"relacion\":{\"forma\":\"mayor\",\"matiz\":\"apenas\",\"vs\":{\"sujeto\":\"Jumbo\"}}}\n{\"id\":\"hMax\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"contribucion\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hLd\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"contribucion\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hJ\",\"hRel\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nEn contribución la foto es más pareja de lo que sugiere la venta: {{hMax: Falabella encabeza}}, {{hRel: apenas por encima de Jumbo}}, {{hF hJ: con {hF} frente a {hJ}}}; {{hLd: Lider aporta {hLd}}}. {{hL: Criterio mío: Jumbo es la cuenta que menos ruido te da por peso de contribución, y eso también vale.}}"
+  },
+  {
+   "id": "V20",
+   "pregunta": "¿Cuál es mi margen y cómo está frente al benchmark?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · subtotal con universo + tres cifras con dueño nombrado + carga alta + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hNC\",\"tipo\":\"ref\",\"de\":\"c46\"}\n{\"id\":\"hFn\",\"tipo\":\"ref\",\"de\":\"c47\"}\n{\"id\":\"hLn\",\"tipo\":\"ref\",\"de\":\"c48\"}\n{\"id\":\"hJn\",\"tipo\":\"ref\",\"de\":\"c49\"}\n{\"id\":\"hCA\",\"tipo\":\"ref\",\"de\":\"c50\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hFn\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hNC: La contribución no capturada suma {hNC} entre las cuentas materiales}}: {{hFn: Falabella {hFn}}}, {{hLn: Lider {hLn}}} y {{hJn: Jumbo {hJn}}}. {{hCA: La carga comercial alta, en cambio, pesa {hCA}}}: ahí el problema es de disciplina comercial antes que de dinero. {{hL: Criterio mío: Falabella primero, que es donde la brecha vale más.}}"
+  },
+  {
+   "id": "V21",
+   "pregunta": "¿Cómo vienen las ventas contra el año anterior?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · conteo con umbral 0 % + orden mínimo con variación + «seguida de» + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hN\",\"tipo\":\"conteo\",\"n\":4,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"variacion\",\"op\":\"<\",\"valor\":0,\"unidad\":\"pct\"}]}}\n{\"id\":\"hLPv\",\"tipo\":\"ref\",\"de\":\"c33\"}\n{\"id\":\"hMin\",\"tipo\":\"orden\",\"sujeto\":\"La Polar\",\"metrica\":\"variacion\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hR\",\"tipo\":\"ref\",\"de\":\"c34\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hMin\",\"hLPv\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hN: {hN.n} clientes cierran el año con una variación inferior a {hN.umbral}}}: {{hMin hLPv: La Polar es la que más retrocede, {hLPv}}}, {{hR: seguida de Ripley con {hR}}}. {{hL: Criterio mío: son cuentas chicas y la explicación está en una llamada, no en una tabla.}}"
+  },
+  {
+   "id": "V26",
+   "pregunta": "¿Cuál es mi margen y cómo está frente al benchmark?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · orden dentro de un universo por referencia + conteo con universo escrito por la casa",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hU\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"margen\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"margen\",\"op\":\"<\",\"ref\":\"benchmark\"}]}}\n{\"id\":\"hL1\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hAbove\",\"tipo\":\"conteo\",\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"margen\",\"op\":\">=\",\"ref\":\"benchmark\"}]}}\n<<FIN>>\n{{hU hL1: Entre {hU.universo}, el peor es Lider, con {hL1}}}. {{hAbove: Del otro lado están {hAbove.universo}: {hAbove.n} cuentas}} y ahí la tarea es cuidar lo que ya funciona."
+  },
+  {
+   "id": "V27",
+   "pregunta": "¿Quién es mi mejor cliente en venta y cómo paga?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · razón con {id.base} + grupo participación con «juntas»",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hR\",\"tipo\":\"razon\",\"num\":{\"id\":\"c1\"},\"den\":{\"id\":\"c14\"}}\n{\"id\":\"hG\",\"tipo\":\"grupo\",\"miembros\":[\"Falabella\",\"Lider\",\"Jumbo\"],\"metrica\":\"ventas\",\"agregado\":\"participacion\",\"valor\":\"54.5%\"}\n<<FIN>>\n{{hR: Falabella es el {hR} {hR.base}}}, y {{hG: las cuentas grandes juntas concentran el {hG} de la venta}}. Ese grado de concentración no es un riesgo nuevo, pero es un riesgo."
+  },
+  {
+   "id": "V27b",
+   "pregunta": "¿Quién es mi mejor cliente en venta y cómo paga?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · «uno de cada dos» (50 %) sobre una participación de 54.5 % (veto defendible: la fracción no cierra a su precisión)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hG\",\"tipo\":\"grupo\",\"miembros\":[\"Falabella\",\"Lider\",\"Jumbo\"],\"metrica\":\"ventas\",\"agregado\":\"participacion\",\"valor\":\"54.5%\"}\n<<FIN>>\n{{hG: Uno de cada dos pesos que facturas sale de Falabella, Lider y Jumbo}}."
+  },
+  {
+   "id": "V34",
+   "pregunta": "¿Cómo vienen las ventas contra el año anterior?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · encabezado con «año anterior» + «de X a Y» con dos métricas mudas (ambigua por diseño) + «Quien más» como superlativo · mide además qué sirve el respaldo de QV",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hT\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"variacion\"}\n{\"id\":\"hVa\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"ventas_anterior\"}\n{\"id\":\"hVt\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"ventas\"}\n{\"id\":\"hLid\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"variacion_usd\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hLd\",\"tipo\":\"ref\",\"de\":\"c11\"}\n<<FIN>>\n### Venta contra el año anterior\n\n{{hT: El negocio crece {hT}}}: {{hVa hVt: de {hVa} a {hVt}}}. {{hLid hLd: Quien más aporta al crecimiento es Lider, con {hLd} adicionales}}. Criterio mío: es un buen año, y un buen año es el momento para ordenar la cobranza."
+  },
+  {
+   "id": "V35",
+   "pregunta": "¿Cómo vienen las ventas contra el año anterior?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · encabezado + variación del negocio + período anterior dentro del ancla + orden en $ + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hT\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"variacion\"}\n{\"id\":\"hVa\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"ventas_anterior\"}\n{\"id\":\"hVt\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"ventas\"}\n{\"id\":\"hLid\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"variacion_usd\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hLd\",\"tipo\":\"ref\",\"de\":\"c11\"}\n{\"id\":\"hLec\",\"tipo\":\"lectura\",\"apoyo\":[\"hT\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n### Cómo viene la venta\n\n{{hT: El negocio crece {hT}}}: {{hVt: vendiste {hVt}}} {{hVa: contra {hVa} del año pasado}}. {{hLid hLd: El que más aporta al crecimiento es Lider, con {hLd} adicionales}}. {{hLec: Criterio mío: es un buen año, y un buen año es el momento para ordenar la cobranza.}}"
+  },
+  {
+   "id": "V41",
+   "pregunta": "¿Cuál es mi margen y cómo está frente al benchmark?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · «benchmark de {hB}» pegado a la cifra de la referencia + derivada diferencia (pp) + relación contra la referencia · reanclaje: cada cifra en su ancla",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hB\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hD\",\"tipo\":\"derivada\",\"op\":\"diferencia\",\"de\":[\"c8\",\"c1\"]}\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"margen\",\"relacion\":{\"forma\":\"menor\",\"vs\":{\"sujeto\":\"negocio\",\"metrica\":\"benchmark\"}}}\n<<FIN>>\n{{hL1 hB: Lider deja {hL1} de margen contra un benchmark de {hB}}}: {{hD: {hD} de distancia}}, {{hRel: por debajo de la referencia}}.",
+   "reanclaje": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hB\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hD\",\"tipo\":\"derivada\",\"op\":\"diferencia\",\"de\":[\"c8\",\"c1\"]}\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"margen\",\"relacion\":{\"forma\":\"menor\",\"vs\":{\"sujeto\":\"negocio\",\"metrica\":\"benchmark\"}}}\n<<FIN>>\n{{hL1: Lider deja {hL1} de margen}} {{hB: contra un benchmark de {hB}}}: {{hD: {hD} de distancia}}, {{hRel: por debajo de la referencia}}."
+  },
+  {
+   "id": "V50",
+   "pregunta": "¿Quién es mi mejor cliente en venta y cómo paga?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · ordinal por puesto + «cierra la lista» como mínimo",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hJ3\",\"tipo\":\"orden\",\"sujeto\":\"Jumbo\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"puesto\",\"k\":3,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hMin\",\"tipo\":\"orden\",\"sujeto\":\"Unimarc\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hU\",\"tipo\":\"ref\",\"de\":\"c13\"}\n<<FIN>>\n{{hJ3: Jumbo va tercero en venta}} y {{hMin hU: cierra la lista Unimarc, con {hU}}}."
+  },
+  {
+   "id": "V52",
+   "pregunta": "¿Cuál es mi margen y cómo está frente al benchmark?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · «no capturados» pegado a la cifra (el «no» del nombre de la métrica fuera de su nombre completo)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMaxNC\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"no_capturada\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hFn\",\"tipo\":\"ref\",\"de\":\"c47\"}\n{\"id\":\"hL2\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"no_capturada\",\"orden\":{\"forma\":\"puesto\",\"k\":2,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hLn\",\"tipo\":\"ref\",\"de\":\"c48\"}\n<<FIN>>\n{{hMaxNC hFn: Tu principal fuga de contribución es Falabella, con {hFn} no capturados}}; {{hL2 hLn: la segunda es Lider, con {hLn}}}. ¿Quieres que te muestre de qué parte de la brecha viene cada una?"
+  },
+  {
+   "id": "V53",
+   "pregunta": "¿Cuál es mi margen y cómo está frente al benchmark?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · «principal» + ordinal + nombre completo de la métrica + oferta (el Notario pasa; la ley evidencia-sin-usar puede frenarlo)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMaxNC\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"no_capturada\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hFn\",\"tipo\":\"ref\",\"de\":\"c47\"}\n{\"id\":\"hL2\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"no_capturada\",\"orden\":{\"forma\":\"puesto\",\"k\":2,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hLn\",\"tipo\":\"ref\",\"de\":\"c48\"}\n<<FIN>>\n{{hMaxNC hFn: Tu principal fuga es Falabella, con {hFn} de contribución no capturada}}; {{hL2 hLn: la segunda es Lider, con {hLn}}}. ¿Quieres que te muestre de qué parte de la brecha viene cada una?"
+  },
+  {
+   "id": "V10",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · conteo por estado + estados con bodega en viñetas + participación + lectura de inventario",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCnt\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"frenado\"]}}\n{\"id\":\"hT\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hA\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n{\"id\":\"hAc\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hB\",\"tipo\":\"estado\",\"sujeto\":\"BOS-SANDER\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n{\"id\":\"hBc\",\"tipo\":\"ref\",\"de\":\"c10\"}\n{\"id\":\"hC\",\"tipo\":\"estado\",\"sujeto\":\"MAK-COMP-AIR\",\"estado\":\"frenado\",\"bodega\":\"Antofagasta\"}\n{\"id\":\"hCc\",\"tipo\":\"ref\",\"de\":\"c12\"}\n{\"id\":\"hV\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hVp\",\"tipo\":\"ref\",\"de\":\"c3\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hA\",\"hAc\",\"hC\",\"hCc\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hCnt: Tienes {hCnt.n} SKU frenados}} y {{hT: entre ellos suman {hT} de capital frenado}}. No es una cifra que asuste por tamaño; asusta por concentración.\n\n- {{hA hAc: LG-DRYER8KG, frenado en Valparaíso, con {hAc}}}\n- {{hB hBc: BOS-SANDER, frenado en Valparaíso, con {hBc}}}\n- {{hC hCc: MAK-COMP-AIR, frenado en Antofagasta, con {hCc}}}\n\n{{hV: Valparaíso concentra {hV}}}: {{hVp: {hVp} de participación}}. {{hL: Criterio mío: la secadora y el compresor se liquidan primero; la lijadora puede esperar una temporada.}}"
+  },
+  {
+   "id": "V11",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · superlativo con adjetivo de la casa + relación con anáfora + conteo con umbral + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hO\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"hOd\",\"tipo\":\"ref\",\"de\":\"c31\"}\n{\"id\":\"hOr\",\"tipo\":\"ref\",\"de\":\"c30\"}\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"LG-DRYER8KG\"}}}\n{\"id\":\"hLd\",\"tipo\":\"ref\",\"de\":\"c25\"}\n{\"id\":\"hCnt\",\"tipo\":\"conteo\",\"n\":2,\"de\":{\"eje\":\"sku\",\"filtros\":[{\"metrica\":\"dias_sin_venta\",\"op\":\">\",\"valor\":90,\"unidad\":\"days\"}]}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hO\",\"hOd\",\"hOr\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hO hOd: El SKU más viejo sin moverse es MAK-COMP-AIR, con {hOd} sin venta}} y {{hOr: una rotación de {hOr}}}. {{hRel: Supera a LG-DRYER8KG}}, {{hLd: que lleva {hLd}}}. {{hCnt: Son {hCnt.n} los SKU con más de {hCnt.umbral} sin venta}}: una temporada completa sin una sola salida. {{hL: Criterio mío: el compresor se liquida con descuento; a esa rotación, esperar sale más caro que rematar.}}"
+  },
+  {
+   "id": "V17",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · tabla con cabeceras que son NOMBRES COMPLETOS de métrica («Capital frenado», «Días sin venta») · reanclaje: cabeceras «Capital» y «Días»",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"a1\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"a2\",\"tipo\":\"ref\",\"de\":\"c25\"}\n{\"id\":\"a3\",\"tipo\":\"ref\",\"de\":\"c24\"}\n{\"id\":\"b1\",\"tipo\":\"ref\",\"de\":\"c10\"}\n{\"id\":\"b2\",\"tipo\":\"ref\",\"de\":\"c28\"}\n{\"id\":\"b3\",\"tipo\":\"ref\",\"de\":\"c27\"}\n{\"id\":\"k1\",\"tipo\":\"ref\",\"de\":\"c12\"}\n{\"id\":\"k2\",\"tipo\":\"ref\",\"de\":\"c31\"}\n{\"id\":\"k3\",\"tipo\":\"ref\",\"de\":\"c30\"}\n{\"id\":\"hT\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"b3\",\"a3\",\"k3\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n| SKU | Capital frenado | Días sin venta | Rotación |\n|---|---|---|---|\n| LG-DRYER8KG | {a1} | {a2} | {a3} |\n| BOS-SANDER | {b1} | {b2} | {b3} |\n| MAK-COMP-AIR | {k1} | {k2} | {k3} |\n\n{{hT: Son {hT} en total}}, y la tabla ya dice cuál de los tres tiene arreglo: {{hL: criterio mío, la lijadora todavía tiene salida; los otros dos, no.}}",
+   "reanclaje": "<<HECHOS>>\n{\"id\":\"a1\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"a2\",\"tipo\":\"ref\",\"de\":\"c25\"}\n{\"id\":\"a3\",\"tipo\":\"ref\",\"de\":\"c24\"}\n{\"id\":\"b1\",\"tipo\":\"ref\",\"de\":\"c10\"}\n{\"id\":\"b2\",\"tipo\":\"ref\",\"de\":\"c28\"}\n{\"id\":\"b3\",\"tipo\":\"ref\",\"de\":\"c27\"}\n{\"id\":\"k1\",\"tipo\":\"ref\",\"de\":\"c12\"}\n{\"id\":\"k2\",\"tipo\":\"ref\",\"de\":\"c31\"}\n{\"id\":\"k3\",\"tipo\":\"ref\",\"de\":\"c30\"}\n{\"id\":\"hT\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"b3\",\"a3\",\"k3\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n| SKU | Capital | Días | Rotación |\n|---|---|---|---|\n| LG-DRYER8KG | {a1} | {a2} | {a3} |\n| BOS-SANDER | {b1} | {b2} | {b3} |\n| MAK-COMP-AIR | {k1} | {k2} | {k3} |\n\n{{hT: Son {hT} en total}}, y la tabla ya dice cuál de los tres tiene arreglo: {{hL: criterio mío, la lijadora todavía tiene salida; los otros dos, no.}}"
+  },
+  {
+   "id": "V17b",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · la misma tabla con cabeceras cortas + total + lectura con negación interna",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"a1\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"a2\",\"tipo\":\"ref\",\"de\":\"c25\"}\n{\"id\":\"a3\",\"tipo\":\"ref\",\"de\":\"c24\"}\n{\"id\":\"b1\",\"tipo\":\"ref\",\"de\":\"c10\"}\n{\"id\":\"b2\",\"tipo\":\"ref\",\"de\":\"c28\"}\n{\"id\":\"b3\",\"tipo\":\"ref\",\"de\":\"c27\"}\n{\"id\":\"k1\",\"tipo\":\"ref\",\"de\":\"c12\"}\n{\"id\":\"k2\",\"tipo\":\"ref\",\"de\":\"c31\"}\n{\"id\":\"k3\",\"tipo\":\"ref\",\"de\":\"c30\"}\n{\"id\":\"hT\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"b3\",\"a3\",\"k3\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n| SKU | Capital | Días | Rotación |\n|---|---|---|---|\n| LG-DRYER8KG | {a1} | {a2} | {a3} |\n| BOS-SANDER | {b1} | {b2} | {b3} |\n| MAK-COMP-AIR | {k1} | {k2} | {k3} |\n\n{{hT: Son {hT} en total}}, y la tabla ya dice cuál de los tres tiene arreglo: {{hL: criterio mío, la lijadora todavía tiene salida; los otros dos, no.}}"
+  },
+  {
+   "id": "V22",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · razón frenado/capital + orden por bodega + participación de un SKU + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hR\",\"tipo\":\"razon\",\"num\":{\"id\":\"c14\"},\"den\":{\"id\":\"c37\"}}\n{\"id\":\"hVb\",\"tipo\":\"orden\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"bodega\"}}\n{\"id\":\"hV\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hLGp\",\"tipo\":\"ref\",\"de\":\"c9\"}\n{\"id\":\"hLG\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLGp\",\"hLG\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hR: El {hR} de tu capital en inventario está frenado}}, {{hVb hV: y la bodega que más concentra es Valparaíso, con {hV}}}. {{hLGp: LG-DRYER8KG pesa el {hLGp} de eso}}, {{hLG: {hLG} de capital frenado}}. {{hL: Criterio mío: una sola referencia con ese peso se negocia con el proveedor antes que rematarse.}}"
+  },
+  {
+   "id": "V22b",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · una participación («% del total») dicha con su base en palabras («del capital frenado»)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLGp\",\"tipo\":\"ref\",\"de\":\"c9\"}\n{\"id\":\"hLG\",\"tipo\":\"ref\",\"de\":\"c8\"}\n<<FIN>>\n{{hLGp: LG-DRYER8KG explica el {hLGp} del capital frenado}}, {{hLG: {hLG}}}."
+  },
+  {
+   "id": "V28",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · conteo por estado de la Mesa Capital + estado + dos métricas pegadas + estado opuesto + lectura (el Notario pasa; la ley evidencia-sin-usar puede frenarlo)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hQ\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"riesgo_de_quiebre\"]}}\n{\"id\":\"hS1\",\"tipo\":\"estado\",\"sujeto\":\"SAM-REF500L\",\"estado\":\"riesgo_de_quiebre\"}\n{\"id\":\"hS1c\",\"tipo\":\"ref\",\"de\":\"c42\"}\n{\"id\":\"hS1u\",\"tipo\":\"ref\",\"de\":\"c72\"}\n{\"id\":\"hS1d\",\"tipo\":\"ref\",\"de\":\"c67\"}\n{\"id\":\"hSo\",\"tipo\":\"estado\",\"sujeto\":\"PHI-IRON-PRO\",\"estado\":\"sobrestock\"}\n{\"id\":\"hSod\",\"tipo\":\"ref\",\"de\":\"c59\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hS1\",\"hS1d\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nMientras tanto, {{hQ: {hQ.n} SKU están en riesgo de quiebre}}, y {{hS1 hS1c: el caso más claro es SAM-REF500L: en riesgo de quiebre con {hS1c} de capital}}, {{hS1d hS1u: {hS1d} de cobertura y {hS1u} unidades en stock}}. {{hSo hSod: PHI-IRON-PRO está en el extremo opuesto, en sobrestock con {hSod} de cobertura}}. {{hL: Criterio mío: el refrigerador se repone esta semana; la plancha se deja correr sin comprar.}}"
+  },
+  {
+   "id": "V36",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · tabla transpuesta de inventario + superlativo + duración retórica dentro del ancla",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"a\",\"tipo\":\"ref\",\"de\":\"c23\"}\n{\"id\":\"b\",\"tipo\":\"ref\",\"de\":\"c26\"}\n{\"id\":\"k\",\"tipo\":\"ref\",\"de\":\"c29\"}\n{\"id\":\"hO\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_inventario\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"sku\"}}\n<<FIN>>\n| | LG-DRYER8KG | BOS-SANDER | MAK-COMP-AIR |\n|---|---|---|---|\n| Días de inventario | {a} | {b} | {k} |\n\n{{hO: El compresor MAK-COMP-AIR es el que más cobertura arrastra}}: {{k: {k}, más de medio año de cobertura}}."
+  },
+  {
+   "id": "V43",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · universo por no_estados dicho con «no … ni … ni» (la negación ES el universo)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC\",\"tipo\":\"conteo\",\"de\":{\"eje\":\"sku\",\"no_estados\":[\"frenado\",\"sobrestock\"]}}\n<<FIN>>\n{{hC: {hC.n} de tus {hC.m} SKU no están ni frenados ni en sobrestock}}."
+  },
+  {
+   "id": "V43b",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · el mismo universo dicho con «no … ni»",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC\",\"tipo\":\"conteo\",\"de\":{\"eje\":\"sku\",\"no_estados\":[\"frenado\",\"sobrestock\"]}}\n<<FIN>>\n{{hC: {hC.n} de tus {hC.m} SKU no están frenados ni en sobrestock}}."
+  },
+  {
+   "id": "V44",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · conteo por estado «capital sano» + la cifra «Estado del inventario: capital sano» nombrada como capital sano + participación",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC2\",\"tipo\":\"conteo\",\"de\":{\"eje\":\"sku\",\"estados\":[\"capital_sano\"]}}\n{\"id\":\"hSano\",\"tipo\":\"ref\",\"de\":\"c17\"}\n{\"id\":\"hSanoP\",\"tipo\":\"ref\",\"de\":\"c34\"}\n<<FIN>>\n{{hC2: {hC2.n} SKU vienen sanos}}; {{hSano: el capital sano es {hSano}}}, {{hSanoP: {hSanoP} de participación}}."
+  },
+  {
+   "id": "V15",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · encargo compuesto en tres dominios con rótulos en negrita + duración + lectura de prioridad",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hS\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"hSd\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hSv\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"ventas\"}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hO\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"hOd\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h8\",\"h3\",\"hS\",\"hSd\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nVamos por partes, que el problema es uno solo con dos caras.\n\n**Cobranza.** {{h8 h3: El que más te debe es Lider, con {h3} pendientes}}, {{h2: de los cuales {h2} ya vencieron}}. {{hS hSd: Sodimac, en mora desde hace {hSd}}}, es la cuenta que uno olvida: {{hSv: te compra apenas {hSv}}}, y por eso mismo conviene mirarla.\n\n**Inventario.** {{hV: Valparaíso tiene {hV} de capital frenado}} y {{hO hOd: el caso más viejo es MAK-COMP-AIR, con {hOd} sin venta}}.\n\n{{hL: Criterio mío: primero Lider, después Sodimac; el compresor puede esperar.}}"
+  },
+  {
+   "id": "V31",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · prioridad integrada: tres dominios sobre un mismo cliente + «arrastra {h2} vencidos desde hace {h11}» (verbo de la casa delante de la métrica) · reanclaje: sin el verbo",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLn\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"no_capturada\"}\n{\"id\":\"hLc\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"carga_alta\"}\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"h11\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLn\",\"h2\",\"h11\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nSi tuviera que resumirlo en una frase: el mismo cliente te está costando por tres lados. {{hLn: Lider deja {hLn} de contribución sin capturar}}, {{hLc: carga {hLc} de carga comercial alta}} y {{h2 h11: arrastra {h2} vencidos desde hace {h11}}}. Al lado de eso, {{hV: los {hV} frenados en Valparaíso}} son un detalle. {{hL: Criterio mío: la prioridad es Lider, y la conversación de precio y la de cobranza van en la misma reunión.}}",
+   "reanclaje": "<<HECHOS>>\n{\"id\":\"hLn\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"no_capturada\"}\n{\"id\":\"hLc\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"carga_alta\"}\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"h11\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLn\",\"h2\",\"h11\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nSi tuviera que resumirlo en una frase: el mismo cliente te está costando por tres lados. {{hLn: Lider deja {hLn} de contribución sin capturar}}, {{hLc: carga {hLc} de carga comercial alta}} y {{h2 h11: {h2} vencidos desde hace {h11}}}. Al lado de eso, {{hV: los {hV} frenados en Valparaíso}} son un detalle. {{hL: Criterio mío: la prioridad es Lider, y la conversación de precio y la de cobranza van en la misma reunión.}}"
+  },
+  {
+   "id": "V31b",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · lo mismo con «tiene {h2} vencidos, con {h11} de atraso»",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLn\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"no_capturada\"}\n{\"id\":\"hLc\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"carga_alta\"}\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"h11\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLn\",\"h2\",\"h11\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nSi tuviera que resumirlo en una frase: el mismo cliente te está costando por tres lados. {{hLn: Lider deja {hLn} de contribución sin capturar}}, {{hLc: carga {hLc} de carga comercial alta}} y {{h2 h11: tiene {h2} vencidos, con {h11} de atraso}}. Al lado de eso, {{hV: los {hV} frenados en Valparaíso}} son un detalle. {{hL: Criterio mío: la prioridad es Lider, y la conversación de precio y la de cobranza van en la misma reunión.}}"
+  },
+  {
+   "id": "V45",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "serie": "V",
+   "nota": "sonda · «uno de cada cuatro» (25 %) sobre una razón de 25.6 % (veto defendible a su precisión)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hR\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"},\"den\":{\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}}\n<<FIN>>\n{{h1: Lider te compró {h1}}} y {{h2: te tiene {h2} vencidos}}: {{hR: uno de cada cuatro pesos que le vendes está vencido}}."
+  },
+  {
+   "id": "V46",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "serie": "V",
+   "nota": "control · cruce venta/cobranza con razón y base «de lo que le vendes»",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hR\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"},\"den\":{\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}}\n<<FIN>>\n{{h1: Lider te compró {h1}}} y {{h2: te tiene {h2} vencidos}}: {{hR: el {hR} de lo que le vendes está vencido}}."
+  },
+  {
+   "id": "X31a",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "serie": "X",
+   "nota": "aísla V31: verbo de la casa («arrastra») delante de la métrica",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"h11\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n<<FIN>>\n{{h2 h11: Lider arrastra {h2} vencidos desde hace {h11}}}."
+  },
+  {
+   "id": "X31b",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "serie": "X",
+   "nota": "aísla V31: sin verbo delante",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"h11\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n<<FIN>>\n{{h2 h11: Lider: {h2} vencidos desde hace {h11}}}."
+  },
+  {
+   "id": "X31d",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "serie": "X",
+   "nota": "aísla V31: verbo que NO es de la casa («suma») delante",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"h11\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n<<FIN>>\n{{h2 h11: Lider suma {h2} vencidos desde hace {h11}}}."
+  },
+  {
+   "id": "X02a",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "X",
+   "nota": "aísla V02: «el de mayor atraso»",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMax\",\"tipo\":\"orden\",\"sujeto\":\"Easy\",\"metrica\":\"dias_vencido\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{hMax: el de mayor atraso es Easy}}."
+  },
+  {
+   "id": "X02b",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "X",
+   "nota": "aísla V02: «el mayor atraso»",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMax\",\"tipo\":\"orden\",\"sujeto\":\"Easy\",\"metrica\":\"dias_vencido\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{hMax: el mayor atraso es el de Easy}}."
+  },
+  {
+   "id": "X02d",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "X",
+   "nota": "«más atrasada»: adjetivo de la casa en superlativo (¿estado o superlativo?)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMax\",\"tipo\":\"orden\",\"sujeto\":\"Easy\",\"metrica\":\"dias_vencido\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{hMax: Easy es la cuenta más atrasada}}."
+  },
+  {
+   "id": "X59c",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "X",
+   "nota": "aísla V59: negrita + línea en blanco",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n<<FIN>>\n**Lider**\n\n- pendiente: {hLp}\n- vencido: {hLv}"
+  },
+  {
+   "id": "X59d",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "X",
+   "nota": "aísla V59: «Lider:» sin blanco",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n<<FIN>>\nLider:\n- pendiente: {hLp}\n- vencido: {hLv}"
+  },
+  {
+   "id": "X16b",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "X",
+   "nota": "aísla V16: la oferta pegada tras «.}}» (el punto dentro del ancla)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"hLa\",\"tipo\":\"ref\",\"de\":\"c6\"}\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hLr\",\"tipo\":\"ref\",\"de\":\"c36\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLr\",\"hLv\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n**Lider**\n- abonado: {hLa}\n- pendiente: {hLp}\n- vencido: {hLv}\n- recuperado: {hLr}\n\n{{hL: Criterio mío: con ese nivel de recuperación, yo condicionaría el próximo despacho a un abono.}} ¿Quieres que arme el mismo cuadro para Falabella?"
+  },
+  {
+   "id": "X54a",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "X",
+   "nota": "aísla V54: «hoy» fuera, pegado a una lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"h5\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h5\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{h4 h5: Lider te debe {h4} y tiene {h5} vencidos}}. Dos cosas que haría hoy: {{hL: criterio mío, llamar a Lider y frenar el próximo despacho hasta ver un abono.}}"
+  },
+  {
+   "id": "X54c",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "X",
+   "nota": "aísla V54: sin «hoy»",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"h5\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h5\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{h4 h5: Lider te debe {h4} y tiene {h5} vencidos}}. Dos cosas que haría esta semana: {{hL: criterio mío, llamar a Lider y frenar el próximo despacho hasta ver un abono.}}"
+  },
+  {
+   "id": "X41a",
+   "pregunta": "¿Cuál es mi margen y cómo está frente al benchmark?",
+   "v3": true,
+   "serie": "X",
+   "nota": "aísla V41: «benchmark» pegado a la cifra",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hB\",\"tipo\":\"ref\",\"de\":\"c8\"}\n<<FIN>>\n{{hL1 hB: Lider deja {hL1} de margen contra un benchmark de {hB}}}."
+  },
+  {
+   "id": "X41b",
+   "pregunta": "¿Cuál es mi margen y cómo está frente al benchmark?",
+   "v3": true,
+   "serie": "X",
+   "nota": "«una referencia de margen»: «una» + «referencia» leído como cifra en palabras",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hB\",\"tipo\":\"ref\",\"de\":\"c8\"}\n<<FIN>>\n{{hL1 hB: Lider deja {hL1} de margen contra una referencia de margen de {hB}}}."
+  },
+  {
+   "id": "X22a",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "X",
+   "nota": "participación con la base que dice el rótulo de la boleta («% del total»)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLGp\",\"tipo\":\"ref\",\"de\":\"c9\"}\n{\"id\":\"hLG\",\"tipo\":\"ref\",\"de\":\"c8\"}\n<<FIN>>\n{{hLGp: LG-DRYER8KG explica el {hLGp} del total}}, {{hLG: {hLG}}}."
+  },
+  {
+   "id": "X07a",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "X",
+   "nota": "aísla V07: cabecera booleana «¿Al día?»",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hJ\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"hS\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"hJp\",\"tipo\":\"ref\",\"de\":\"c31\"}\n{\"id\":\"hSp\",\"tipo\":\"ref\",\"de\":\"c15\"}\n<<FIN>>\n| Cliente | Pendiente | ¿Al día? |\n|---|---|---|\n| Jumbo | {hJp} | {hJ.estado} |\n| Sodimac | {hSp} | {hS.estado} |"
+  },
+  {
+   "id": "X25b",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "X",
+   "nota": "aísla V25: «entre» con {id.universo}",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\"entre\",\"valor\":[1,30],\"unidad\":\"days\"}]}}\n<<FIN>>\n{{hC: {hC.n} de {hC.universo} son atrasos de días}}."
+  },
+  {
+   "id": "X51b",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "X",
+   "nota": "aísla V51: «la mayoría» sola sobre un conteo 7 de 13",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hC\",\"tipo\":\"conteo\",\"n\":7,\"de\":{\"eje\":\"cliente\",\"estados\":[\"al_dia\"]}}\n<<FIN>>\n{{hC: La mayoría de tus clientes están al día}}."
+  },
+  {
+   "id": "N01",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "N",
+   "nota": "premium · derivada suma («entre los dos») + razón sobre venta + ordinales + estado + lectura + oferta aparte",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hT\",\"tipo\":\"ref\",\"de\":\"c3\"}\n{\"id\":\"hVt\",\"tipo\":\"ref\",\"de\":\"c4\"}\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"hFp\",\"tipo\":\"ref\",\"de\":\"c11\"}\n{\"id\":\"hS\",\"tipo\":\"derivada\",\"op\":\"suma\",\"de\":[\"c7\",\"c11\"]}\n{\"id\":\"hRS\",\"tipo\":\"razon\",\"num\":{\"id\":\"c3\"},\"den\":{\"id\":\"c1\"}}\n{\"id\":\"hO1\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hO2\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"puesto\",\"k\":2,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hJp\",\"tipo\":\"ref\",\"de\":\"c31\"}\n{\"id\":\"hJ\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hO1\",\"hLp\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nPrimero el número, después el nombre.\n\n{{hT: Te deben {hT}}}, {{hRS: el {hRS} de lo que vendiste}}, y {{hVt: {hVt} ya están vencidos}}. {{hO1: El que más te debe es Lider}}, {{hLp: con {hLp} pendientes}}; {{hO2: el segundo es Falabella}}, {{hFp: con {hFp}}}. {{hS: Entre los dos concentran {hS}}}: la cartera no está repartida, está apoyada en dos cuentas.\n\n{{hJ: Jumbo está al día}} {{hJp: con {hJp} pendientes}}, y esa es la diferencia entre deber y estar atrasado. {{hL: Criterio mío: la semana empieza por Lider; el resto puede esperar a que él conteste.}}\n\n¿Quieres que ordene el vencido por antigüedad?"
+  },
+  {
+   "id": "N02",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "N",
+   "nota": "premium · lista numerada con dueño en negrita y guion + estados con cifra + umbral en MESES escrito por la casa + negación retórica fuera del catálogo + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hE\",\"tipo\":\"ref\",\"de\":\"c45\"}\n{\"id\":\"hLd\",\"tipo\":\"ref\",\"de\":\"c35\"}\n{\"id\":\"hSd\",\"tipo\":\"ref\",\"de\":\"c39\"}\n{\"id\":\"hFd\",\"tipo\":\"ref\",\"de\":\"c37\"}\n{\"id\":\"hC3\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":6,\"unidad\":\"meses\"}]}}\n{\"id\":\"hEe\",\"tipo\":\"estado\",\"sujeto\":\"Easy\",\"estado\":\"en_mora\"}\n{\"id\":\"hLe\",\"tipo\":\"estado\",\"sujeto\":\"Lider\",\"estado\":\"en_mora\"}\n{\"id\":\"hSe\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hC3\",\"hEe\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nOrdenados de peor a mejor, así están los atrasos largos:\n\n1. **Easy** — {{hEe hE: en mora, con {hE} de atraso}}\n2. **Lider** — {{hLe hLd: en mora, {hLd}}}\n3. **Sodimac** — {{hSe hSd: en mora, {hSd}}}\n\n{{hC3: Son {hC3.n} las cuentas con más de {hC3.umbral} de atraso}}; {{hFd: Falabella, con {hFd}, no entra en esa liga}}. {{hL: Criterio mío: a estos tres se les pide un calendario de pago firmado, no un recordatorio.}}"
+  },
+  {
+   "id": "N03",
+   "pregunta": "¿Cuánto me debe Lider y cuánto Falabella?",
+   "v3": true,
+   "serie": "N",
+   "nota": "premium · tabla transpuesta + relación mayor + dos razones con base posesiva + propuesta en días + lectura + oferta",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLp\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"hFp\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"hLv\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hFv\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n{\"id\":\"hRL\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"},\"den\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}}\n{\"id\":\"hRF\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\"},\"den\":{\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\"}}\n{\"id\":\"hP\",\"tipo\":\"propuesta\",\"valor\":\"60 días\",\"sujeto\":\"Lider\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLv\",\"hRL\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n| | Lider | Falabella |\n|---|---|---|\n| Pendiente | {hLp} | {hFp} |\n| Vencido | {hLv} | {hFv} |\n\n{{hRel: Lider te debe más que Falabella}}, pero la diferencia importante no está en el monto sino en la calidad: {{hRL: en Lider, el {hRL} de su pendiente ya venció}}; {{hRF: en Falabella, el {hRF}}}. Mismo tipo de cliente, dos conductas de pago.\n\n{{hL: Criterio mío: a Lider le cambiaría las condiciones antes de la próxima orden}}; {{hP: un plazo de {hP} sería lo razonable}}. ¿Te preparo la carta?"
+  },
+  {
+   "id": "N04",
+   "pregunta": "¿Cuál es mi margen y cómo está frente al benchmark?",
+   "v3": true,
+   "serie": "N",
+   "nota": "premium · benchmark + brecha + conteo de la boleta + tabla + peor/mayor con polaridad + partición de la brecha con dos métricas pegadas + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMp\",\"tipo\":\"ref\",\"de\":\"c10\"}\n{\"id\":\"hB\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hBr\",\"tipo\":\"ref\",\"de\":\"c11\"}\n{\"id\":\"hN\",\"tipo\":\"ref\",\"de\":\"c9\"}\n{\"id\":\"hFm\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hLm\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hJm\",\"tipo\":\"ref\",\"de\":\"c4\"}\n{\"id\":\"hFb\",\"tipo\":\"ref\",\"de\":\"c58\"}\n{\"id\":\"hFc\",\"tipo\":\"ref\",\"de\":\"c51\"}\n{\"id\":\"hFn\",\"tipo\":\"ref\",\"de\":\"c47\"}\n{\"id\":\"hMin\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"margen\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hMaxNC\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"no_capturada\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hMaxNC\",\"hFn\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hMp: El margen promedio es {hMp}}}, {{hB: contra un benchmark de {hB}}}: {{hBr: {hBr} de brecha}}. {{hN: {hN} clientes están bajo el benchmark}}, y no son los chicos.\n\n| Cliente | Margen |\n|---|---|\n| Lider | {hLm} |\n| Falabella | {hFm} |\n| Jumbo | {hJm} |\n\n{{hMin: El peor margen es el de Lider}}, pero {{hMaxNC: la mayor contribución no capturada es la de Falabella}}: {{hFn: {hFn}}}, {{hFb hFc: de los cuales {hFb} son brecha por precio y costo y {hFc} carga comercial alta}}. Dicho en una frase: en Lider duele el porcentaje, en Falabella duele el monto. {{hL: Criterio mío: la primera reunión de precios es con Falabella.}}"
+  },
+  {
+   "id": "N05",
+   "pregunta": "¿Cómo vienen las ventas contra el año anterior?",
+   "v3": true,
+   "serie": "N",
+   "nota": "premium · headline + año pasado/este año en anclas separadas + conteo con umbral 0 % + viñetas con variación tipada y cifras pegadas + lectura + oferta",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hH\",\"tipo\":\"ref\",\"de\":\"c9\"}\n{\"id\":\"hVa\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hVt\",\"tipo\":\"ref\",\"de\":\"c10\"}\n{\"id\":\"hUp\",\"tipo\":\"conteo\",\"n\":9,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"variacion\",\"op\":\">\",\"valor\":0,\"unidad\":\"pct\"}]}}\n{\"id\":\"hLd\",\"tipo\":\"ref\",\"de\":\"c11\"}\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c12\"}\n{\"id\":\"hMLp\",\"tipo\":\"ref\",\"de\":\"c18\"}\n{\"id\":\"hLPp\",\"tipo\":\"ref\",\"de\":\"c33\"}\n{\"id\":\"hRp\",\"tipo\":\"ref\",\"de\":\"c34\"}\n{\"id\":\"hLv\",\"tipo\":\"variacion\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\",\"variacion\":{\"direccion\":\"sube\"},\"periodo\":\"anterior\"}\n{\"id\":\"hLPv\",\"tipo\":\"variacion\",\"sujeto\":\"La Polar\",\"metrica\":\"ventas\",\"variacion\":{\"direccion\":\"baja\"},\"periodo\":\"anterior\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLPv\",\"hLPp\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hH: La venta crece {hH}}}: {{hVa: de {hVa} el año pasado}} {{hVt: a {hVt} este año}}. {{hUp: {hUp.n} de tus {hUp.m} clientes suben}}; el resto retrocede, y ahí está lo interesante.\n\n- {{hLv hLd hLp: Lider sube {hLp}, es decir {hLd} más}}\n- {{hMLp: Mercado Libre, {hMLp}}}\n- {{hLPv hLPp: La Polar baja {hLPp}}}\n- {{hRp: Ripley, {hRp}}}\n\n{{hL: Criterio mío: La Polar es chica, pero una caída de dos dígitos en una cuenta chica suele ser el primer aviso de algo más grande.}} ¿Quieres ver el detalle por familia?"
+  },
+  {
+   "id": "N06",
+   "pregunta": "¿Quién es mi mejor cliente en venta y cómo paga?",
+   "v3": true,
+   "serie": "N",
+   "nota": "premium · preguntas retóricas + superlativo con «la que más» + top-k enumerado con «completan» + «cierra la tabla» + estado con matiz + ordinal por puesto (recuperado, quinto) + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMax\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hF\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hT3\",\"tipo\":\"orden\",\"sujeto\":[\"Falabella\",\"Lider\",\"Jumbo\"],\"metrica\":\"ventas\",\"orden\":{\"forma\":\"topk\",\"k\":3,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hL\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hJ\",\"tipo\":\"ref\",\"de\":\"c3\"}\n{\"id\":\"hMin\",\"tipo\":\"orden\",\"sujeto\":\"Unimarc\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hU\",\"tipo\":\"ref\",\"de\":\"c13\"}\n{\"id\":\"hFe\",\"tipo\":\"estado\",\"sujeto\":\"Falabella\",\"estado\":\"en_mora\"}\n{\"id\":\"hFd\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hFr\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"recuperado\"}\n{\"id\":\"hFrO\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"recuperado\",\"orden\":{\"forma\":\"puesto\",\"k\":5,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hLec\",\"tipo\":\"lectura\",\"apoyo\":[\"hFe\",\"hFd\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n¿Quién? {{hMax: Falabella, la que más te compra}}, {{hF: con {hF}}}. {{hT3: El podio lo completan Lider y Jumbo}} ({{hL hJ: {hL} y {hJ}}}), y {{hMin hU: cierra la tabla Unimarc, con {hU}}}.\n\n¿Cómo paga? Regular, no mal: {{hFe hFd: está en mora, pero con {hFd} de atraso}}, es decir, una factura que se pasó de fecha, no un cliente que dejó de pagar. {{hFr: Ha recuperado el {hFr} de lo vendido}}, {{hFrO: quinta en recuperación}}. {{hLec: Criterio mío: se le cobra con un correo cordial y se le sigue despachando.}}"
+  },
+  {
+   "id": "N07",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "N",
+   "nota": "premium · orden por bodega con «la que más» + participación con «del total» sobre una ref + tabla con columna de estado y bodega ({id.estado} + lugar) + duración + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hT\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hVb\",\"tipo\":\"orden\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"bodega\"}}\n{\"id\":\"hV\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hVp\",\"tipo\":\"ref\",\"de\":\"c3\"}\n{\"id\":\"hA\",\"tipo\":\"ref\",\"de\":\"c4\"}\n{\"id\":\"hE1\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n{\"id\":\"hE2\",\"tipo\":\"estado\",\"sujeto\":\"BOS-SANDER\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n{\"id\":\"hE3\",\"tipo\":\"estado\",\"sujeto\":\"MAK-COMP-AIR\",\"estado\":\"frenado\",\"bodega\":\"Antofagasta\"}\n{\"id\":\"hE1c\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hE2c\",\"tipo\":\"ref\",\"de\":\"c10\"}\n{\"id\":\"hE3c\",\"tipo\":\"ref\",\"de\":\"c12\"}\n{\"id\":\"hE3d\",\"tipo\":\"ref\",\"de\":\"c31\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hE3\",\"hE3d\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nFrenado tienes poco en monto y mucho en concentración: {{hT: {hT} en total}}, {{hVb hV: y la bodega que más capital frenado concentra es Valparaíso, con {hV}}}, {{hVp: el {hVp} del total}}; {{hA: Antofagasta tiene el resto, {hA}}}.\n\n| SKU | Bodega | Capital frenado |\n|---|---|---|\n| LG-DRYER8KG | {hE1.estado} en Valparaíso | {hE1c} |\n| BOS-SANDER | {hE2.estado} en Valparaíso | {hE2c} |\n| MAK-COMP-AIR | {hE3.estado} en Antofagasta | {hE3c} |\n\n{{hE3d: El compresor lleva {hE3d} sin venta}}. {{hL: Criterio mío: ese es el primero que liquidaría; los de Valparaíso admiten una promoción antes que un remate.}}"
+  },
+  {
+   "id": "N08",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "serie": "N",
+   "nota": "premium · encargo compuesto con rótulos en negrita + cruce comercial/cobranza sobre un mismo cliente + benchmark del negocio por sujeto+metrica + estado con bodega + propuesta + lectura de prioridad",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hFv\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"hFo\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hLn\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"no_capturada\"}\n{\"id\":\"hLm\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"margen\"}\n{\"id\":\"hB\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"benchmark\"}\n{\"id\":\"hLp\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"hLv\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hLd\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hLo\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hVf\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hTf\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hMk\",\"tipo\":\"estado\",\"sujeto\":\"MAK-COMP-AIR\",\"estado\":\"frenado\",\"bodega\":\"Antofagasta\"}\n{\"id\":\"hP\",\"tipo\":\"propuesta\",\"valor\":\"50%\",\"sujeto\":\"Lider\",\"de\":\"saldo_vencido\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLo\",\"hLv\",\"hLd\",\"hLn\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nTres dominios, una sola prioridad, y tiene nombre.\n\n**Comercial.** {{hFo hFv: Falabella es la que más vende, {hFv}}}, pero {{hLn: Lider es quien más contribución deja sin capturar, {hLn}}}: {{hLm hB: su margen de {hLm} queda lejos del benchmark de {hB}}}.\n\n**Cobranza.** {{hLo: Lider es también el que más vencido arrastra}}: {{hLv hLp: {hLv} vencidos sobre {hLp} pendientes}}, {{hLd: desde hace {hLd}}}.\n\n**Inventario.** {{hTf: El capital frenado es {hTf}}} y {{hVf: Valparaíso concentra {hVf}}}; {{hMk: MAK-COMP-AIR está frenado en Antofagasta}}. Es un tema de orden, no de caja.\n\n{{hL: Criterio mío: la prioridad es Lider, porque el mismo cliente te cuesta en margen y en cobranza}}; {{hP: yo le pediría un abono del {hP} del vencido antes de discutir precio}}. Falabella va segunda y el inventario, tercero."
+  },
+  {
+   "id": "N09",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "N",
+   "nota": "premium · conteo por estado + cifra de estado + participación + viñetas con estado y cobertura + relación con alias en palabras (refrigerador/afeitadora) + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hQ\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"riesgo_de_quiebre\"]}}\n{\"id\":\"hQc\",\"tipo\":\"ref\",\"de\":\"c15\"}\n{\"id\":\"hQp\",\"tipo\":\"ref\",\"de\":\"c32\"}\n{\"id\":\"hR1\",\"tipo\":\"estado\",\"sujeto\":\"SAM-REF500L\",\"estado\":\"riesgo_de_quiebre\"}\n{\"id\":\"hR1d\",\"tipo\":\"ref\",\"de\":\"c67\"}\n{\"id\":\"hR1u\",\"tipo\":\"ref\",\"de\":\"c72\"}\n{\"id\":\"hR2\",\"tipo\":\"estado\",\"sujeto\":\"PHI-SHAVER9\",\"estado\":\"riesgo_de_quiebre\"}\n{\"id\":\"hR2d\",\"tipo\":\"ref\",\"de\":\"c68\"}\n{\"id\":\"hR3\",\"tipo\":\"estado\",\"sujeto\":\"PHI-HAIR-PRO\",\"estado\":\"riesgo_de_quiebre\"}\n{\"id\":\"hR3d\",\"tipo\":\"ref\",\"de\":\"c66\"}\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"SAM-REF500L\",\"metrica\":\"dias_inventario\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"PHI-SHAVER9\"}}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hR2\",\"hR2d\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nDel otro lado del frenado está lo que se te puede acabar: {{hQ: {hQ.n} SKU en riesgo de quiebre}}, {{hQc: {hQc} de capital}}, {{hQp: el {hQp} del inventario}}.\n\n- {{hR1 hR1d: SAM-REF500L, en riesgo de quiebre con {hR1d} de cobertura}} y {{hR1u: {hR1u} unidades}}\n- {{hR2 hR2d: PHI-SHAVER9, en riesgo de quiebre con {hR2d}}}\n- {{hR3 hR3d: PHI-HAIR-PRO, en riesgo de quiebre con {hR3d}}}\n\n{{hRel: El refrigerador tiene más cobertura que la afeitadora}}, así que la urgencia va al revés de lo que sugiere el capital. {{hL: Criterio mío: la afeitadora se repone esta semana; con dos semanas de cobertura no hay margen para esperar al proveedor.}}"
+  },
+  {
+   "id": "N10",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "N",
+   "nota": "premium · tres sujetos coordinados en un ancla de estados + conteos complementarios con negación del catálogo + «el que mejor» con polaridad + recomendación de crédito con apoyo de cobranza",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hJ\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"hM\",\"tipo\":\"estado\",\"sujeto\":\"Mercado Libre\",\"estado\":\"al_dia\"}\n{\"id\":\"hR\",\"tipo\":\"estado\",\"sujeto\":\"Ripley\",\"estado\":\"al_dia\"}\n{\"id\":\"hEm\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n{\"id\":\"hAd\",\"tipo\":\"conteo\",\"n\":7,\"de\":{\"eje\":\"cliente\",\"estados\":[\"al_dia\"]}}\n{\"id\":\"hJr\",\"tipo\":\"ref\",\"de\":\"c47\"}\n{\"id\":\"hMr\",\"tipo\":\"ref\",\"de\":\"c48\"}\n{\"id\":\"hMr1\",\"tipo\":\"orden\",\"sujeto\":\"Mercado Libre\",\"metrica\":\"recuperado\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hM\",\"hMr1\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nAntes de la lista negra, la lista blanca: {{hJ hM hR: Jumbo, Mercado Libre y Ripley están al día}}, y no son los únicos: {{hAd: {hAd.n} de tus {hAd.m} clientes no tienen nada vencido}}. {{hEm: Los otros {hEm.n} están en mora}}.\n\n{{hMr1 hMr: Mercado Libre es el que mejor recupera, {hMr}}}; {{hJr: Jumbo va en {hJr}}}. {{hL: Criterio mío: a Mercado Libre yo le ampliaría el cupo; se lo ha ganado con hechos, no con promesas.}}"
+  },
+  {
+   "id": "N11",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "N",
+   "nota": "premium · viñetas «rótulo: cifra» sin dueño (totales) + dos razones + derivada suma de tres + razón parte/total con «solo» + lectura con fracción en palabras dentro de la lectura + oferta",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hT\",\"tipo\":\"ref\",\"de\":\"c3\"}\n{\"id\":\"hV\",\"tipo\":\"ref\",\"de\":\"c4\"}\n{\"id\":\"hA\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hVe\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hRa\",\"tipo\":\"razon\",\"num\":{\"id\":\"c2\"},\"den\":{\"id\":\"c1\"}}\n{\"id\":\"hRv\",\"tipo\":\"razon\",\"num\":{\"id\":\"c4\"},\"den\":{\"id\":\"c3\"}}\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hFv\",\"tipo\":\"ref\",\"de\":\"c12\"}\n{\"id\":\"hSv\",\"tipo\":\"ref\",\"de\":\"c16\"}\n{\"id\":\"hS3\",\"tipo\":\"derivada\",\"op\":\"suma\",\"de\":[\"c8\",\"c12\",\"c16\"]}\n{\"id\":\"hR3\",\"tipo\":\"razon\",\"num\":{\"id\":\"c8\"},\"den\":{\"id\":\"c4\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLv\",\"hR3\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nDos cifras y una lectura.\n\n- Pendiente: {hT}\n- Vencido: {hV}\n- Abonado: {hA}\n\n{{hVe: De {hVe} vendidos}}, {{hRa: llevas cobrado el {hRa}}}; {{hRv: del pendiente, el {hRv} ya venció}}. Eso último no es una estadística: es una lista corta. {{hS3: Lider, Falabella y Sodimac suman {hS3} vencidos}}, y {{hR3: Lider solo explica el {hR3} de todo el vencido}}.\n\n{{hL: Criterio mío: una cartera donde un cliente explica más de un tercio del vencido no se gestiona con una campaña; se gestiona con una llamada.}} ¿Te armo el guion de esa llamada?"
+  },
+  {
+   "id": "N12",
+   "pregunta": "¿Cuál es mi margen y cómo está frente al benchmark?",
+   "v3": true,
+   "serie": "N",
+   "nota": "premium · tabla + referencia + «más bajo» y «segundo más bajo» (ordinal con dirección menor) + relación con verbo de la casa («margina más que») + derivada pp + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hF\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hS\",\"tipo\":\"ref\",\"de\":\"c3\"}\n{\"id\":\"hJ\",\"tipo\":\"ref\",\"de\":\"c4\"}\n{\"id\":\"hB\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hMin\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"margen\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hP2\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"margen\",\"orden\":{\"forma\":\"puesto\",\"k\":2,\"direccion\":\"menor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"Jumbo\",\"metrica\":\"margen\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"Lider\"}}}\n{\"id\":\"hD\",\"tipo\":\"derivada\",\"op\":\"pp\",\"de\":[\"c4\",\"c1\"]}\n{\"id\":\"hLec\",\"tipo\":\"lectura\",\"apoyo\":[\"hMin\",\"hL\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n| Cliente | Margen |\n|---|---|\n| Lider | {hL} |\n| Falabella | {hF} |\n| Sodimac | {hS} |\n| Jumbo | {hJ} |\n\nTodos por debajo de la referencia, {{hB: que es {hB}}}, pero no todos igual de lejos. {{hMin: Lider tiene el margen más bajo}} y {{hP2: Falabella el segundo más bajo}}; {{hRel: Jumbo margina más que Lider}}, {{hD: {hD} más}}. La ironía es que los que peor marginan son los que más te compran. {{hLec: Criterio mío: si solo puedes tener una conversación de precios este mes, es con Lider.}}"
+  },
+  {
+   "id": "N13",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "serie": "N",
+   "nota": "premium · prioridad con dos lentes declaradas + tabla transpuesta de tres métricas de dos dominios + «donde más» + relación «casi duplica» + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLv\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hLd\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hLn\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"no_capturada\"}\n{\"id\":\"hFn\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"no_capturada\"}\n{\"id\":\"hFv\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hFd\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hO\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"no_capturada\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLv\",\"hLd\",\"hLn\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nSi el criterio es riesgo, la respuesta es Lider; si es contribución, Falabella. Te doy las dos y te digo cuál elegiría yo.\n\n| | Lider | Falabella |\n|---|---|---|\n| Vencido | {hLv} | {hFv} |\n| Días vencido | {hLd} | {hFd} |\n| Contribución no capturada | {hLn} | {hFn} |\n\n{{hO: Falabella es donde más contribución se te escapa}}, pero {{hRel: el vencido de Lider casi duplica el de Falabella}} y, sobre todo, es viejo. {{hL: Criterio mío: Lider primero, porque el dinero que ya vendiste y no cobraste vale más que el que todavía puedes negociar.}}"
+  },
+  {
+   "id": "N14",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "N",
+   "nota": "premium · tabla con cabecera «Estado» y filas que son NOMBRES de los estados de la Mesa Capital con su cifra + razón + lectura con fracción en palabras",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hS\",\"tipo\":\"ref\",\"de\":\"c37\"}\n{\"id\":\"hSano\",\"tipo\":\"ref\",\"de\":\"c17\"}\n{\"id\":\"hSanoP\",\"tipo\":\"ref\",\"de\":\"c34\"}\n{\"id\":\"hFr\",\"tipo\":\"ref\",\"de\":\"c14\"}\n{\"id\":\"hQ\",\"tipo\":\"ref\",\"de\":\"c15\"}\n{\"id\":\"hSo\",\"tipo\":\"ref\",\"de\":\"c16\"}\n{\"id\":\"hRf\",\"tipo\":\"razon\",\"num\":{\"id\":\"c14\"},\"den\":{\"id\":\"c37\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hRf\",\"hFr\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nEl inventario completo, en cuatro cajones:\n\n| Estado | Capital |\n|---|---|\n| Capital sano | {hSano} |\n| Riesgo de quiebre | {hQ} |\n| Capital frenado | {hFr} |\n| Sobrestock | {hSo} |\n\n{{hS: Son {hS} en total}}; {{hSanoP: el sano pesa {hSanoP}}} y {{hRf: el frenado, el {hRf}}}. {{hL: Criterio mío: el problema no es el tamaño del frenado, es que no se mueve; con un cuarto del capital fuera de circulación, la compra del próximo trimestre tendría que ser más corta.}}"
+  },
+  {
+   "id": "N15",
+   "pregunta": "¿Quién es mi mejor cliente en venta y cómo paga?",
+   "v3": true,
+   "serie": "N",
+   "nota": "sonda premium · «tu mejor cliente» (las palabras del usuario) fuera de ancla + estado sin el dueño nombrado en la oración + (error propio: c37 en q9 es Paris · Variación en $)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hF\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hL\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hJ\",\"tipo\":\"ref\",\"de\":\"c3\"}\n{\"id\":\"hG\",\"tipo\":\"grupo\",\"miembros\":[\"Falabella\",\"Lider\",\"Jumbo\"],\"metrica\":\"ventas\",\"agregado\":\"suma\",\"valor\":\"$54.5M\"}\n{\"id\":\"hR\",\"tipo\":\"razon\",\"num\":{\"id\":\"c1\"},\"den\":{\"id\":\"c14\"}}\n{\"id\":\"hFe\",\"tipo\":\"estado\",\"sujeto\":\"Falabella\",\"estado\":\"en_mora\"}\n{\"id\":\"hFvd\",\"tipo\":\"ref\",\"de\":\"c37\"}\n{\"id\":\"hLec\",\"tipo\":\"lectura\",\"apoyo\":[\"hFe\",\"hFvd\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hF: Falabella te compró {hF}}}, {{hL: Lider {hL}}} y {{hJ: Jumbo {hJ}}}: {{hG: juntos, {hG}}}. {{hR: Falabella sola es el {hR} de la venta}}, un peso que se agradece en el presupuesto y se sufre en la negociación.\n\n¿Y cómo paga tu mejor cliente? {{hFe hFvd: Con un atraso menor: está en mora, {hFvd}}}. {{hLec: Criterio mío: no es un problema de crédito, es un problema de calendario; se resuelve con una llamada de cortesía.}}"
+  },
+  {
+   "id": "N01b",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "N",
+   "nota": "control premium · derivada suma («entre los dos») + razón sobre venta + ordinales + estado + lectura + oferta aparte (sin «dos cuentas» ni negación pegada)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hT\",\"tipo\":\"ref\",\"de\":\"c3\"}\n{\"id\":\"hVt\",\"tipo\":\"ref\",\"de\":\"c4\"}\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c7\"}\n{\"id\":\"hFp\",\"tipo\":\"ref\",\"de\":\"c11\"}\n{\"id\":\"hS\",\"tipo\":\"derivada\",\"op\":\"suma\",\"de\":[\"c7\",\"c11\"]}\n{\"id\":\"hRS\",\"tipo\":\"razon\",\"num\":{\"id\":\"c3\"},\"den\":{\"id\":\"c1\"}}\n{\"id\":\"hO1\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hO2\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"puesto\",\"k\":2,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hJp\",\"tipo\":\"ref\",\"de\":\"c31\"}\n{\"id\":\"hJ\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hO1\",\"hLp\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nPrimero el número, después el nombre.\n\n{{hT: Te deben {hT}}}, {{hRS: el {hRS} de lo que vendiste}}, y {{hVt: {hVt} ya están vencidos}}. {{hO1: El que más te debe es Lider}}, {{hLp: con {hLp} pendientes}}; {{hO2: el segundo es Falabella}}, {{hFp: con {hFp}}}. {{hS: Entre los dos concentran {hS}}}. La cartera está apoyada en Lider y Falabella, y eso es un riesgo en sí mismo.\n\n{{hJ: Jumbo está al día}} {{hJp: con {hJp} pendientes}}, y esa es la diferencia entre deber y estar atrasado. {{hL: Criterio mío: la semana empieza por Lider; el resto puede esperar a que él conteste.}}\n\n¿Quieres que ordene el vencido por antigüedad?"
+  },
+  {
+   "id": "N02b",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "N",
+   "nota": "control premium · lista numerada con dueño en negrita + estados con cifra + umbral en MESES escrito por la casa + lectura (la retórica fuera del ancla y sin negación)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hE\",\"tipo\":\"ref\",\"de\":\"c45\"}\n{\"id\":\"hLd\",\"tipo\":\"ref\",\"de\":\"c35\"}\n{\"id\":\"hSd\",\"tipo\":\"ref\",\"de\":\"c39\"}\n{\"id\":\"hFd\",\"tipo\":\"ref\",\"de\":\"c37\"}\n{\"id\":\"hC3\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"dias_vencido\",\"op\":\">\",\"valor\":6,\"unidad\":\"meses\"}]}}\n{\"id\":\"hEe\",\"tipo\":\"estado\",\"sujeto\":\"Easy\",\"estado\":\"en_mora\"}\n{\"id\":\"hLe\",\"tipo\":\"estado\",\"sujeto\":\"Lider\",\"estado\":\"en_mora\"}\n{\"id\":\"hSe\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hC3\",\"hEe\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nOrdenados de peor a mejor, así están los atrasos largos:\n\n1. **Easy** — {{hEe hE: en mora, con {hE} de atraso}}\n2. **Lider** — {{hLe hLd: en mora, {hLd}}}\n3. **Sodimac** — {{hSe hSd: en mora, {hSd}}}\n\n{{hC3: Son {hC3.n} las cuentas con más de {hC3.umbral} de atraso}}; {{hFd: Falabella, con {hFd}}}, juega en otra liga. {{hL: Criterio mío: a estos tres se les pide un calendario de pago firmado, en lugar de un recordatorio.}}"
+  },
+  {
+   "id": "N04b",
+   "pregunta": "¿Cuál es mi margen y cómo está frente al benchmark?",
+   "v3": true,
+   "serie": "N",
+   "nota": "control premium · benchmark + brecha + conteo + tabla + peor/mayor + partición de la brecha con la métrica pegada a cada cifra («brecha de precio» · «carga comercial alta») + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMp\",\"tipo\":\"ref\",\"de\":\"c10\"}\n{\"id\":\"hB\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hBr\",\"tipo\":\"ref\",\"de\":\"c11\"}\n{\"id\":\"hN\",\"tipo\":\"ref\",\"de\":\"c9\"}\n{\"id\":\"hFm\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hLm\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hJm\",\"tipo\":\"ref\",\"de\":\"c4\"}\n{\"id\":\"hFb\",\"tipo\":\"ref\",\"de\":\"c58\"}\n{\"id\":\"hFc\",\"tipo\":\"ref\",\"de\":\"c51\"}\n{\"id\":\"hFn\",\"tipo\":\"ref\",\"de\":\"c47\"}\n{\"id\":\"hMin\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"margen\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hMaxNC\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"no_capturada\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hMaxNC\",\"hFn\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hMp: El margen promedio es {hMp}}}, {{hB: contra un benchmark de {hB}}}: {{hBr: {hBr} de brecha}}. {{hN: {hN} clientes están bajo el benchmark}}. Y son las cuentas grandes.\n\n| Cliente | Margen |\n|---|---|\n| Lider | {hLm} |\n| Falabella | {hFm} |\n| Jumbo | {hJm} |\n\n{{hMin: El peor margen es el de Lider}}, pero {{hMaxNC: la mayor contribución no capturada es la de Falabella}}: {{hFn: {hFn}}}, {{hFb hFc: de los cuales {hFb} son brecha de precio y {hFc} carga comercial alta}}. Dicho en una frase: en Lider duele el porcentaje, en Falabella duele el monto. {{hL: Criterio mío: la primera reunión de precios es con Falabella.}}"
+  },
+  {
+   "id": "N05b",
+   "pregunta": "¿Cómo vienen las ventas contra el año anterior?",
+   "v3": true,
+   "serie": "N",
+   "nota": "control premium · headline + año pasado/este año en anclas separadas + conteo con {id.universo} + viñetas con variación tipada + lectura sin cifras + oferta",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hH\",\"tipo\":\"ref\",\"de\":\"c9\"}\n{\"id\":\"hVa\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hVt\",\"tipo\":\"ref\",\"de\":\"c10\"}\n{\"id\":\"hUp\",\"tipo\":\"conteo\",\"n\":9,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"variacion\",\"op\":\">\",\"valor\":0,\"unidad\":\"pct\"}]}}\n{\"id\":\"hLd\",\"tipo\":\"ref\",\"de\":\"c11\"}\n{\"id\":\"hLp\",\"tipo\":\"ref\",\"de\":\"c12\"}\n{\"id\":\"hMLp\",\"tipo\":\"ref\",\"de\":\"c18\"}\n{\"id\":\"hLPp\",\"tipo\":\"ref\",\"de\":\"c33\"}\n{\"id\":\"hRp\",\"tipo\":\"ref\",\"de\":\"c34\"}\n{\"id\":\"hLv\",\"tipo\":\"variacion\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\",\"variacion\":{\"direccion\":\"sube\"},\"periodo\":\"anterior\"}\n{\"id\":\"hLPv\",\"tipo\":\"variacion\",\"sujeto\":\"La Polar\",\"metrica\":\"ventas\",\"variacion\":{\"direccion\":\"baja\"},\"periodo\":\"anterior\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLPv\",\"hLPp\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hH: La venta crece {hH}}}: {{hVa: de {hVa} el año pasado}} {{hVt: a {hVt} este año}}. {{hUp: Son {hUp.n} de {hUp.universo}}}; el resto va en la otra dirección, y ahí está lo interesante.\n\n- {{hLv hLp: Lider sube {hLp}}}, {{hLd: {hLd} más}}\n- {{hMLp: Mercado Libre, {hMLp}}}\n- {{hLPv hLPp: La Polar baja {hLPp}}}\n- {{hRp: Ripley, {hRp}}}\n\n{{hL: Criterio mío: La Polar es chica, pero una caída de esa magnitud en cuentas pequeñas suele ser el primer aviso de algo más grande.}} ¿Quieres ver el detalle por familia?"
+  },
+  {
+   "id": "N06b",
+   "pregunta": "¿Quién es mi mejor cliente en venta y cómo paga?",
+   "v3": true,
+   "serie": "N",
+   "nota": "control premium · preguntas retóricas + «la que más» + top-k con «completan el podio» + «cierra la tabla» + estado con matiz y dueño nombrado + tasa sin base + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMax\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hF\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hT3\",\"tipo\":\"orden\",\"sujeto\":[\"Falabella\",\"Lider\",\"Jumbo\"],\"metrica\":\"ventas\",\"orden\":{\"forma\":\"topk\",\"k\":3,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hL\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hJ\",\"tipo\":\"ref\",\"de\":\"c3\"}\n{\"id\":\"hMin\",\"tipo\":\"orden\",\"sujeto\":\"Unimarc\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hU\",\"tipo\":\"ref\",\"de\":\"c13\"}\n{\"id\":\"hFe\",\"tipo\":\"estado\",\"sujeto\":\"Falabella\",\"estado\":\"en_mora\"}\n{\"id\":\"hFd\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hFr\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"recuperado\"}\n{\"id\":\"hLec\",\"tipo\":\"lectura\",\"apoyo\":[\"hFe\",\"hFd\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n¿Quién? {{hMax: Falabella, la que más te compra}}, {{hF: con {hF}}}. {{hT3: Falabella, Lider y Jumbo completan el podio}} ({{hL hJ: {hL} y {hJ}}}), y {{hMin hU: cierra la tabla Unimarc, con {hU}}}.\n\n¿Cómo paga? Regular, con matices: {{hFe hFd: Falabella está en mora, pero con {hFd} de atraso}}, es decir, se le pasó la fecha; muy distinto de dejar de pagar. {{hFr: Ha recuperado el {hFr}}}. {{hLec: Criterio mío: se le cobra con un correo cordial y se le sigue despachando.}}"
+  },
+  {
+   "id": "N07b",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "N",
+   "nota": "control premium · orden por bodega con «la que más» + participación + tabla con columna de estado y bodega ({id.estado} + lugar) + alias con el nombre + duración + lectura con apoyo completo",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hT\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hVb\",\"tipo\":\"orden\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"bodega\"}}\n{\"id\":\"hV\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hVp\",\"tipo\":\"ref\",\"de\":\"c3\"}\n{\"id\":\"hA\",\"tipo\":\"ref\",\"de\":\"c4\"}\n{\"id\":\"hE1\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n{\"id\":\"hE2\",\"tipo\":\"estado\",\"sujeto\":\"BOS-SANDER\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n{\"id\":\"hE3\",\"tipo\":\"estado\",\"sujeto\":\"MAK-COMP-AIR\",\"estado\":\"frenado\",\"bodega\":\"Antofagasta\"}\n{\"id\":\"hE1c\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hE2c\",\"tipo\":\"ref\",\"de\":\"c10\"}\n{\"id\":\"hE3c\",\"tipo\":\"ref\",\"de\":\"c12\"}\n{\"id\":\"hE3d\",\"tipo\":\"ref\",\"de\":\"c31\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hE3\",\"hE3d\",\"hE1\",\"hE2\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nTienes poco en monto y mucho en concentración: {{hT: {hT} en total}}, {{hVb hV: y la bodega que más capital frenado concentra es Valparaíso, con {hV}}}, {{hVp: {hVp} de participación}}; {{hA: Antofagasta tiene el resto, {hA}}}.\n\n| SKU | Bodega | Capital |\n|---|---|---|\n| LG-DRYER8KG | {hE1.estado} en Valparaíso | {hE1c} |\n| BOS-SANDER | {hE2.estado} en Valparaíso | {hE2c} |\n| MAK-COMP-AIR | {hE3.estado} en Antofagasta | {hE3c} |\n\n{{hE3d: El compresor MAK-COMP-AIR lleva {hE3d} sin venta}}. {{hL: Criterio mío: ese es el primero que liquidaría; los de Valparaíso admiten una promoción antes que un remate.}}"
+  },
+  {
+   "id": "N08b",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "serie": "N",
+   "nota": "control premium · encargo compuesto con rótulos en negrita + cruce comercial/cobranza sobre un mismo cliente + benchmark del negocio en su ancla + estado con bodega + propuesta sin marcador de tiempo + lectura de prioridad",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hFv\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"hFo\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hLn\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"no_capturada\"}\n{\"id\":\"hLm\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"margen\"}\n{\"id\":\"hB\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"benchmark\"}\n{\"id\":\"hLp\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"hLv\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hLd\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hLo\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hVf\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hTf\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hMk\",\"tipo\":\"estado\",\"sujeto\":\"MAK-COMP-AIR\",\"estado\":\"frenado\",\"bodega\":\"Antofagasta\"}\n{\"id\":\"hP\",\"tipo\":\"propuesta\",\"valor\":\"50%\",\"sujeto\":\"Lider\",\"de\":\"saldo_vencido\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLo\",\"hLv\",\"hLd\",\"hLn\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nTres dominios, una sola prioridad, y tiene nombre.\n\n**Comercial.** {{hFo hFv: Falabella es la que más vende, {hFv}}}, pero {{hLn: Lider es quien más contribución deja sin capturar, {hLn}}}: {{hLm: su margen es {hLm}}} {{hB: y el benchmark, {hB}}}.\n\n**Cobranza.** {{hLo: Lider es también el que más vencido arrastra}}: {{hLv hLp: {hLv} vencidos sobre {hLp} pendientes}}, {{hLd: desde hace {hLd}}}.\n\n**Inventario.** {{hTf: El capital frenado es {hTf}}} y {{hVf: Valparaíso concentra {hVf}}}; {{hMk: MAK-COMP-AIR está frenado en Antofagasta}}. Es un tema de orden, no de caja.\n\n{{hL: Criterio mío: la prioridad es Lider, porque el mismo cliente te cuesta en margen y en cobranza}}; {{hP: yo le pediría un abono del {hP} del vencido como condición para discutir precio}}. Falabella va segunda; lo demás, tercero."
+  },
+  {
+   "id": "N09b",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "N",
+   "nota": "control premium · conteo por estado + participación + viñetas con estado y cobertura + «supera a» + lectura sin cifras",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hQ\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"riesgo_de_quiebre\"]}}\n{\"id\":\"hQp\",\"tipo\":\"ref\",\"de\":\"c32\"}\n{\"id\":\"hR1\",\"tipo\":\"estado\",\"sujeto\":\"SAM-REF500L\",\"estado\":\"riesgo_de_quiebre\"}\n{\"id\":\"hR1d\",\"tipo\":\"ref\",\"de\":\"c67\"}\n{\"id\":\"hR1u\",\"tipo\":\"ref\",\"de\":\"c72\"}\n{\"id\":\"hR2\",\"tipo\":\"estado\",\"sujeto\":\"PHI-SHAVER9\",\"estado\":\"riesgo_de_quiebre\"}\n{\"id\":\"hR2d\",\"tipo\":\"ref\",\"de\":\"c68\"}\n{\"id\":\"hR3\",\"tipo\":\"estado\",\"sujeto\":\"PHI-HAIR-PRO\",\"estado\":\"riesgo_de_quiebre\"}\n{\"id\":\"hR3d\",\"tipo\":\"ref\",\"de\":\"c66\"}\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"SAM-REF500L\",\"metrica\":\"dias_inventario\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"PHI-SHAVER9\"}}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hR2\",\"hR2d\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nDel otro lado está lo que se te puede acabar: {{hQ: {hQ.n} SKU en riesgo de quiebre}}, {{hQp: {hQp} de participación}}.\n\n- {{hR1 hR1d: SAM-REF500L, en riesgo de quiebre con {hR1d} de cobertura}} y {{hR1u: {hR1u} en existencia}}\n- {{hR2 hR2d: PHI-SHAVER9, en riesgo de quiebre con {hR2d}}}\n- {{hR3 hR3d: PHI-HAIR-PRO, en riesgo de quiebre con {hR3d}}}\n\n{{hRel: En cobertura, SAM-REF500L supera a PHI-SHAVER9}}, así que la urgencia va al revés de lo que sugiere el capital. {{hL: Criterio mío: la afeitadora PHI-SHAVER9 se repone esta semana; con esa cobertura no hay margen para esperar al proveedor.}}"
+  },
+  {
+   "id": "N10b",
+   "pregunta": "¿Qué clientes están en mora y cuánto llevan de atraso?",
+   "v3": true,
+   "serie": "N",
+   "nota": "control premium · tres sujetos coordinados en un ancla de estados + conteos complementarios + «el que mejor» con polaridad + recomendación de crédito con apoyo de cobranza",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hJ\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"hM\",\"tipo\":\"estado\",\"sujeto\":\"Mercado Libre\",\"estado\":\"al_dia\"}\n{\"id\":\"hR\",\"tipo\":\"estado\",\"sujeto\":\"Ripley\",\"estado\":\"al_dia\"}\n{\"id\":\"hEm\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n{\"id\":\"hAd\",\"tipo\":\"conteo\",\"n\":7,\"de\":{\"eje\":\"cliente\",\"estados\":[\"al_dia\"]}}\n{\"id\":\"hJr\",\"tipo\":\"ref\",\"de\":\"c47\"}\n{\"id\":\"hMr\",\"tipo\":\"ref\",\"de\":\"c48\"}\n{\"id\":\"hMr1\",\"tipo\":\"orden\",\"sujeto\":\"Mercado Libre\",\"metrica\":\"recuperado\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hM\",\"hMr1\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nAntes de la lista negra, la lista blanca: {{hJ hM hR: Jumbo, Mercado Libre y Ripley están al día}}. Hay más como ellos: {{hAd: {hAd.n} de tus {hAd.m} clientes están al día}}. {{hEm: Los otros {hEm.n} están en mora}}.\n\n{{hMr1 hMr: Mercado Libre es el que mejor recupera, {hMr}}}; {{hJr: Jumbo va en {hJr}}}. {{hL: Criterio mío: a Mercado Libre yo le ampliaría el cupo; se lo ha ganado con hechos y con puntualidad.}}"
+  },
+  {
+   "id": "N11b",
+   "pregunta": "¿Cuánto me deben en total y cuánto está vencido?",
+   "v3": true,
+   "serie": "N",
+   "nota": "control premium · viñetas «rótulo: cifra» de totales + dos razones + derivada suma de tres + razón parte/total con «solo» + lectura sin cifras + oferta",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hT\",\"tipo\":\"ref\",\"de\":\"c3\"}\n{\"id\":\"hV\",\"tipo\":\"ref\",\"de\":\"c4\"}\n{\"id\":\"hA\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hVe\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hRa\",\"tipo\":\"razon\",\"num\":{\"id\":\"c2\"},\"den\":{\"id\":\"c1\"}}\n{\"id\":\"hRv\",\"tipo\":\"razon\",\"num\":{\"id\":\"c4\"},\"den\":{\"id\":\"c3\"}}\n{\"id\":\"hLv\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hFv\",\"tipo\":\"ref\",\"de\":\"c12\"}\n{\"id\":\"hSv\",\"tipo\":\"ref\",\"de\":\"c16\"}\n{\"id\":\"hS3\",\"tipo\":\"derivada\",\"op\":\"suma\",\"de\":[\"c8\",\"c12\",\"c16\"]}\n{\"id\":\"hR3\",\"tipo\":\"razon\",\"num\":{\"id\":\"c8\"},\"den\":{\"id\":\"c4\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hLv\",\"hR3\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nDos cifras y una lectura.\n\n- Pendiente: {hT}\n- Vencido: {hV}\n- Abonado: {hA}\n\n{{hVe: De {hVe} vendidos}}, {{hRa: llevas cobrado el {hRa}}}; {{hRv: del pendiente, el {hRv} ya venció}}. Eso último es una lista corta, con nombres. {{hS3: Lider, Falabella y Sodimac suman {hS3} vencidos}}, y {{hR3: Lider solo explica el {hR3} de todo el vencido}}.\n\n{{hL: Criterio mío: una cartera donde una sola cuenta explica esa parte del vencido se gestiona con una llamada, sin campañas.}} ¿Te armo el guion de esa llamada?"
+  },
+  {
+   "id": "N12b",
+   "pregunta": "¿Cuál es mi margen y cómo está frente al benchmark?",
+   "v3": true,
+   "serie": "N",
+   "nota": "control premium · tabla + referencia + «más bajo» y «segunda de menor margen» + relación con verbo de la casa («margina más que») + derivada pp + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hF\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hS\",\"tipo\":\"ref\",\"de\":\"c3\"}\n{\"id\":\"hJ\",\"tipo\":\"ref\",\"de\":\"c4\"}\n{\"id\":\"hB\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hMin\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"margen\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hP2\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"margen\",\"orden\":{\"forma\":\"puesto\",\"k\":2,\"direccion\":\"menor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hRel\",\"tipo\":\"relacion\",\"sujeto\":\"Jumbo\",\"metrica\":\"margen\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"Lider\"}}}\n{\"id\":\"hD\",\"tipo\":\"derivada\",\"op\":\"pp\",\"de\":[\"c4\",\"c1\"]}\n{\"id\":\"hLec\",\"tipo\":\"lectura\",\"apoyo\":[\"hMin\",\"hL\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n| Cliente | Margen |\n|---|---|\n| Lider | {hL} |\n| Falabella | {hF} |\n| Sodimac | {hS} |\n| Jumbo | {hJ} |\n\n{{hB: La referencia es {hB}}}, y la tabla se lee sola. {{hMin: Lider tiene el margen más bajo}} y {{hP2: Falabella es la segunda de menor margen}}; {{hRel: Jumbo margina más que Lider}}, {{hD: {hD} más}}. La ironía es que el margen se adelgaza justo en tus cuentas grandes. {{hLec: Criterio mío: si solo puedes tener una conversación de precios este mes, es con Lider.}}"
+  },
+  {
+   "id": "N14b",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "N",
+   "nota": "control premium · los cuatro estados de la Mesa Capital en prosa con su cifra + razón + lectura sin cifras",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hS\",\"tipo\":\"ref\",\"de\":\"c37\"}\n{\"id\":\"hSano\",\"tipo\":\"ref\",\"de\":\"c17\"}\n{\"id\":\"hSanoP\",\"tipo\":\"ref\",\"de\":\"c34\"}\n{\"id\":\"hFr\",\"tipo\":\"ref\",\"de\":\"c14\"}\n{\"id\":\"hQ\",\"tipo\":\"ref\",\"de\":\"c15\"}\n{\"id\":\"hSo\",\"tipo\":\"ref\",\"de\":\"c16\"}\n{\"id\":\"hRf\",\"tipo\":\"razon\",\"num\":{\"id\":\"c14\"},\"den\":{\"id\":\"c37\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hRf\",\"hFr\"],\"sello\":\"criterio mío\"}\n<<FIN>>\nEl inventario completo, en cuatro cajones: {{hSano: {hSano} con capital sano}}, {{hQ: {hQ} en riesgo de quiebre}}, {{hFr: {hFr} frenados}} y {{hSo: {hSo} en sobrestock}}. {{hS: Son {hS} en total}}; {{hSanoP: el sano pesa {hSanoP}}} y {{hRf: el frenado, el {hRf}}}. {{hL: Criterio mío: el problema no es el tamaño del frenado, es que no se mueve; con esa parte del capital fuera de circulación, la compra del próximo trimestre tendría que ser más corta.}}"
+  },
+  {
+   "id": "N15b",
+   "pregunta": "¿Quién es mi mejor cliente en venta y cómo paga?",
+   "v3": true,
+   "serie": "N",
+   "nota": "control premium · tres cifras con dueño + grupo suma con «juntos» + razón sobre la venta total + pregunta retórica con el dueño + estado con días + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hF\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hL\",\"tipo\":\"ref\",\"de\":\"c2\"}\n{\"id\":\"hJ\",\"tipo\":\"ref\",\"de\":\"c3\"}\n{\"id\":\"hG\",\"tipo\":\"grupo\",\"miembros\":[\"Falabella\",\"Lider\",\"Jumbo\"],\"metrica\":\"ventas\",\"agregado\":\"suma\",\"valor\":\"$54.5M\"}\n{\"id\":\"hR\",\"tipo\":\"razon\",\"num\":{\"id\":\"c1\"},\"den\":{\"id\":\"c14\"}}\n{\"id\":\"hFe\",\"tipo\":\"estado\",\"sujeto\":\"Falabella\",\"estado\":\"en_mora\"}\n{\"id\":\"hFvd\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hLec\",\"tipo\":\"lectura\",\"apoyo\":[\"hFe\",\"hFvd\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hF: Falabella te compró {hF}}}, {{hL: Lider {hL}}} y {{hJ: Jumbo {hJ}}}: {{hG: juntos, {hG}}}. {{hR: Falabella sola es el {hR} de la venta}}, un peso que se agradece en el presupuesto y se sufre en la negociación.\n\n¿Y cómo paga? {{hFe hFvd: Falabella está en mora, con un atraso de {hFvd}}}. {{hLec: Criterio mío: no es un problema de crédito, es un problema de calendario; se resuelve con una llamada de cortesía.}}"
+  },
+  {
+   "id": "N16",
+   "pregunta": "¿Quién es mi mejor cliente en venta y cómo paga?",
+   "v3": true,
+   "serie": "N",
+   "nota": "control premium · {id.k} en palabras del ancla + grupo participación con «entre las tres» + anáfora ordinal («la primera») con su cifra + lectura",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hT3\",\"tipo\":\"orden\",\"sujeto\":[\"Falabella\",\"Lider\",\"Jumbo\"],\"metrica\":\"ventas\",\"orden\":{\"forma\":\"topk\",\"k\":3,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hG\",\"tipo\":\"grupo\",\"miembros\":[\"Falabella\",\"Lider\",\"Jumbo\"],\"metrica\":\"ventas\",\"agregado\":\"participacion\",\"valor\":\"54.5%\"}\n{\"id\":\"hF\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hG\"],\"sello\":\"criterio mío\"}\n<<FIN>>\n{{hT3: Tus {hT3.k} mayores cuentas son Falabella, Lider y Jumbo}}, {{hG: y entre las tres concentran el {hG} de la venta}}; {{hF: la primera, sola, {hF}}}. {{hL: Criterio mío: esa concentración no se arregla vendiéndoles menos, se arregla vendiéndole más al resto.}}"
+  },
+  {
+   "id": "R03",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "R",
+   "nota": "ROTURA · «Estado del inventario: riesgo de quiebre» = $36K (capital) recibe la clave «ventas» porque «venta» ⊂ «inventario» (claveDeMetrica, casado por subcadena): la cifra se sirve como venta",
+   "falsedades": [
+    "te vendió $36K"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCnt\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"frenado\"]}}\n{\"id\":\"hT\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hA\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n{\"id\":\"hAc\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hB\",\"tipo\":\"estado\",\"sujeto\":\"BOS-SANDER\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n{\"id\":\"hBc\",\"tipo\":\"ref\",\"de\":\"c10\"}\n{\"id\":\"hC\",\"tipo\":\"estado\",\"sujeto\":\"MAK-COMP-AIR\",\"estado\":\"frenado\",\"bodega\":\"Antofagasta\"}\n{\"id\":\"hCc\",\"tipo\":\"ref\",\"de\":\"c12\"}\n{\"id\":\"hQc\",\"tipo\":\"ref\",\"de\":\"c15\"}\n<<FIN>>\n{{hCnt: Tienes {hCnt.n} SKU frenados}} y {{hT: entre ellos suman {hT} de capital frenado}}.\n\n- {{hA hAc: LG-DRYER8KG, frenado en Valparaíso, con {hAc}}}\n- {{hB hBc: BOS-SANDER, frenado en Valparaíso, con {hBc}}}\n- {{hC hCc: MAK-COMP-AIR, frenado en Antofagasta, con {hCc}}}\n\nY hay otro grupo que preocupa por lo contrario: {{hQc: ese grupo te vendió {hQc}}}."
+  },
+  {
+   "id": "R04",
+   "pregunta": "¿Qué SKU tengo frenados y en qué bodega?",
+   "v3": true,
+   "serie": "R",
+   "nota": "ROTURA · «Estado del inventario: sobrestock» = $10K (capital) tipada como Venta por la misma subcadena",
+   "falsedades": [
+    "te vendió $10K"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCnt\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"frenado\"]}}\n{\"id\":\"hT\",\"tipo\":\"ref\",\"de\":\"c1\"}\n{\"id\":\"hA\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n{\"id\":\"hAc\",\"tipo\":\"ref\",\"de\":\"c8\"}\n{\"id\":\"hB\",\"tipo\":\"estado\",\"sujeto\":\"BOS-SANDER\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n{\"id\":\"hBc\",\"tipo\":\"ref\",\"de\":\"c10\"}\n{\"id\":\"hC\",\"tipo\":\"estado\",\"sujeto\":\"MAK-COMP-AIR\",\"estado\":\"frenado\",\"bodega\":\"Antofagasta\"}\n{\"id\":\"hCc\",\"tipo\":\"ref\",\"de\":\"c12\"}\n{\"id\":\"hSo\",\"tipo\":\"ref\",\"de\":\"c16\"}\n<<FIN>>\n{{hCnt: Tienes {hCnt.n} SKU frenados}} y {{hT: entre ellos suman {hT} de capital frenado}}.\n\n- {{hA hAc: LG-DRYER8KG, frenado en Valparaíso, con {hAc}}}\n- {{hB hBc: BOS-SANDER, frenado en Valparaíso, con {hBc}}}\n- {{hC hCc: MAK-COMP-AIR, frenado en Antofagasta, con {hCc}}}\n\n{{hSo: El cajón del exceso te vendió {hSo}}}."
+  },
+  {
+   "id": "R05",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "serie": "R",
+   "nota": "control · «negocio · capital» debe resolver a «Capital en inventario · total» = $135K y no al «Resto de Valor de inventario (3 de 13)» = $17K",
+   "falsedades": [
+    "$17K"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hK\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"capital\"}\n<<FIN>>\n{{hK: El inventario completo vale {hK}}}."
+  },
+  {
+   "id": "R01",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "serie": "R",
+   "nota": "ROTURA · «negocio · contribucion» se resuelve a «Resto de Contribución (3 de 13)» = $1.5M aunque la boleta trae «Contribución total» = $25.0M (c117): la razón da 284.7% y el total del negocio se sirve como $1.5M",
+   "falsedades": [
+    "284.7%",
+    "el negocio suma $1.5M de contribución en total"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hF\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"contribucion\"}\n{\"id\":\"hT\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"contribucion\"}\n{\"id\":\"hR\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Falabella\",\"metrica\":\"contribucion\"},\"den\":{\"sujeto\":\"negocio\",\"metrica\":\"contribucion\"}}\n<<FIN>>\n{{hF: Falabella deja {hF} de contribución}}: {{hR: el {hR} {hR.base}}}; {{hT: el negocio suma {hT} de contribución en total}}."
+  },
+  {
+   "id": "R02",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "serie": "R",
+   "nota": "ROTURA (variante con la base en palabras): la comprobación 4g la frena por «del negocio» sin vocabulario de la casa, no por la falsedad",
+   "falsedades": [
+    "284.7%",
+    "que suma $1.5M en total"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hF\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"contribucion\"}\n{\"id\":\"hT\",\"tipo\":\"cifra\",\"sujeto\":\"negocio\",\"metrica\":\"contribucion\"}\n{\"id\":\"hR\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Falabella\",\"metrica\":\"contribucion\"},\"den\":{\"sujeto\":\"negocio\",\"metrica\":\"contribucion\"}}\n<<FIN>>\n{{hF: Falabella deja {hF} de contribución}}: {{hR: el {hR} de la contribución del negocio}}, {{hT: que suma {hT} en total}}."
+  }
+ ]
+}

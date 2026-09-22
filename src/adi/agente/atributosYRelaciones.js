@@ -146,6 +146,7 @@ const _MULT = [
  * cierto de 1.9× a 3.2× (más allá se dice «el triple»); «casi el doble» de 1.3× a 2.1×; «el doble» a secas, ±15 %. Medido:
  * $19.4M contra $8.2M (2.37×) NO es «el doble» pero sí «más del doble»; $14K contra $8K (1.75×) es «casi el doble». */
 const _MATIZ = [   // el «de» es opcional porque «del»/«de la» ya quedaron dentro del multiplicador
+  { re: /\b(?:exactamente|justo|exacto)\s*$/i, lo: 0.98, hi: 1.02 },   // «exactamente el doble» es el doble (ronda 5)
   { re: /\b(?:poco|algo)\s+m[aá]s(?:\s+de)?\s*$/i, lo: 0.95, hi: 1.35 },
   { re: /\b(?:poco|algo)\s+menos(?:\s+de)?\s*$/i, lo: 0.65, hi: 1.05 },
   { re: /\bm[aá]s(?:\s+de)?\s*$/i, lo: 0.95, hi: 1.6 },
@@ -156,7 +157,7 @@ const _MATIZ = [   // el «de» es opcional porque «del»/«de la» ya quedaron
   { re: /\b(?:casi|apenas|pr[aá]cticamente)\s*$/i, lo: 0.8, hi: 1.1 },
   { re: /\b(?:cerca|alrededor)(?:\s+de)?\s*$|\b(?:aproximadamente|unas?|como)\s*$/i, lo: 0.7, hi: 1.3 },
 ];
-const _RANGO_PLANO = { lo: 0.85, hi: 1.15 };
+const _RANGO_PLANO = { lo: 0.85, hi: 1.15 };   // el múltiplo a secas, ±15 %: la cota calibrada de la casa (fase 3: «2×» para 1.83; cuatro puntos: «seis veces» para 6.33). La cota estricta de la propuesta v3.1 (1.9–2.1) queda a decisión del owner
 /** rangoDeMatiz(matiz) → el rango admitido de r/k para un matiz dicho («más de», «casi», «cerca de», «poco más de»…; vacío = plano ±15 %).
  *  La MISMA tabla que usa el juez de la prosa, expuesta para el Notario semántico (verificar.js): una relación declarada por su
  *  significado {veces, k, matiz} se juzga con el rango que fija el matiz, sin una segunda tabla (owner 2026-09-15). */

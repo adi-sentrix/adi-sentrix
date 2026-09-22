@@ -1,0 +1,830 @@
+{
+ "angulo": "cruces",
+ "casos": [
+  {
+   "id": "A01",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "superlativo de cobranza dentro del ancla de una CIFRA (no de un orden): la boleta dice Lider · Saldo pendiente = $9.8M > Falabella · Saldo pendiente = $8.2M",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h7\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"h6\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\nNo del todo. {{h7 h4: Falabella es la que más te compra, con {h4}}}, y {{h6: es la que más te debe, con {h6} pendientes}}.",
+   "falsedades": [
+    "es la que mas te debe, con $8.2m pendientes"
+   ]
+  },
+  {
+   "id": "A02",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "comparativo entre dos cifras verdaderas con el sentido invertido: Falabella · Venta = $19.4M > Lider · Venta = $17.8M",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n<<FIN>>\nNo. {{h4 h1: Falabella te compra menos que Lider: {h4} contra {h1}}}.",
+   "falsedades": [
+    "falabella te compra menos que lider"
+   ]
+  },
+  {
+   "id": "A03",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "«peor» sobre un orden max sin dirección declarada (la que más vende dicha como la que peor vende)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h7\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\nNo. {{h7: Falabella es la que peor vende}}, y {{h8 h3: el que más te debe es Lider, con {h3} pendientes}}.",
+   "falsedades": [
+    "falabella es la que peor vende"
+   ]
+  },
+  {
+   "id": "A04",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "«mejor» sobre el máximo de una métrica donde más es peor (días sin venta = 112, el peor)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hO\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"h9b\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n<<FIN>>\n{{hO h9b: MAK-COMP-AIR es el SKU que mejor está en días sin venta, con {h9b}}}.",
+   "falsedades": [
+    "mak-comp-air es el sku que mejor esta"
+   ]
+  },
+  {
+   "id": "A05",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "superlativo falso escondido en el ancla de una LECTURA (Lider debe $9.8M, Falabella $8.2M)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h6\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h6\",\"h3\"]}\n<<FIN>>\nNo. {{h3: Lider te debe {h3}}} y {{h6: Falabella {h6}}}. {{hL: Criterio mío: yo empezaría por Falabella, que es la que más te debe y la que más conviene apurar.}}",
+   "falsedades": [
+    "falabella, que es la que mas te debe"
+   ]
+  },
+  {
+   "id": "A06",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "comparativo y duración falsos dentro de una lectura (Falabella · Dias Vencido = 8d; debe $8.2M < $9.8M)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h6\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h6\",\"h3\"]}\n<<FIN>>\nNo. {{h3: Lider te debe {h3}}} y {{h6: Falabella {h6}}}. {{hL: Criterio mío: prioriza a Falabella, que te debe más que Lider y lleva meses de atraso.}}",
+   "falsedades": [
+    "te debe mas que lider",
+    "lleva meses de atraso"
+   ]
+  },
+  {
+   "id": "A07",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "variación falsa dentro de una lectura de crédito (Easy · Variación vs año anterior = -5.0%)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hEab\",\"tipo\":\"cifra\",\"sujeto\":\"Easy\",\"metrica\":\"abonado\"}\n{\"id\":\"hEv\",\"tipo\":\"cifra\",\"sujeto\":\"Easy\",\"metrica\":\"ventas\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"hEab\",\"hEv\"]}\n<<FIN>>\n{{hEab: Easy ya abonó {hEab}}} sobre {{hEv: una venta de {hEv}}}. {{hL: Criterio mío: Easy viene creciendo en venta, así que yo le mantendría el cupo.}}",
+   "falsedades": [
+    "easy viene creciendo"
+   ]
+  },
+  {
+   "id": "A08",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "«la mayoría» pegada a una razón verdadera del 36 % (4.6M / 12.6M): la proporción no se contrasta con el valor",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRz\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"},\"den\":{\"sujeto\":\"negocio\",\"metrica\":\"saldo_vencido\"}}\n<<FIN>>\nNo. {{hRz: Lider concentra el {hRz} de tu vencido, la mayoría de tu mora}}.",
+   "falsedades": [
+    "la mayoria de tu mora"
+   ]
+  },
+  {
+   "id": "A09",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "«casi todo» pegado a una razón del 36 %",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRz\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"},\"den\":{\"sujeto\":\"negocio\",\"metrica\":\"saldo_vencido\"}}\n<<FIN>>\nNo. {{hRz: Casi todo tu vencido está en Lider: el {hRz}}}.",
+   "falsedades": [
+    "casi todo tu vencido esta en lider"
+   ]
+  },
+  {
+   "id": "A10",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "proporción subjetiva en oración aparte, sin ancla (Lider = 36 % del vencido total; decisión del owner: subjetiva suelta = lectura)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{h2: Lider arrastra {h2} vencidos}}. Es el grueso de tu mora.",
+   "falsedades": [
+    "es el grueso de tu mora"
+   ]
+  },
+  {
+   "id": "A11",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "partitivo entre dominios: el capital frenado ($33K, inventario) dicho como parte del saldo vencido ($12.6M, cobranza)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVT\",\"tipo\":\"ref\",\"de\":\"Saldo vencido · total\"}\n{\"id\":\"hCF\",\"tipo\":\"ref\",\"de\":\"Capital frenado · total\"}\n<<FIN>>\n{{hVT hCF: Tienes {hVT} vencidos y, de esos, {hCF} están frenados en bodega}}.",
+   "falsedades": [
+    "de esos, $33k estan frenados en bodega"
+   ]
+  },
+  {
+   "id": "A12",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "«de los cuales» cruza cobranza (Lider · Saldo vencido) con inventario (Valparaíso · Capital frenado)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{h2 hV: Lider arrastra {h2} vencidos, de los cuales {hV} están frenados en Valparaíso}}.",
+   "falsedades": [
+    "de los cuales $25k estan frenados en valparaiso"
+   ]
+  },
+  {
+   "id": "A13",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "partitivo dentro de cobranza con el universo cambiado: el pendiente de Lider ($9.8M) dicho como parte del vencido total ($12.6M); el vencido de Lider es $4.6M",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVT\",\"tipo\":\"ref\",\"de\":\"Saldo vencido · total\"}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\nNo. {{hVT h3: De los {hVT} vencidos en total, {h3} pendientes son de Lider}}.",
+   "falsedades": [
+    "de los $12.6m vencidos en total, $9.8m pendientes son de lider"
+   ]
+  },
+  {
+   "id": "A14",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "la fig «headline» (7.6 % = crecimiento de la venta) dicha como crecimiento de la mora",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hHead\",\"tipo\":\"ref\",\"de\":\"headline\"}\n<<FIN>>\n{{hHead: Tu mora creció {hHead}}}.",
+   "falsedades": [
+    "tu mora crecio 7.6%"
+   ]
+  },
+  {
+   "id": "A15",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "la fig «Easy · Monto» ($67K, comercial) dicha como saldo sin cobrar (Easy · Saldo pendiente = $2.0M)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hE\",\"tipo\":\"cifra\",\"sujeto\":\"Easy\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hMonto\",\"tipo\":\"ref\",\"de\":\"Easy · Monto\"}\n<<FIN>>\n{{hE: Easy lleva {hE} de atraso}}, {{hMonto: con {hMonto} sin cobrar}}.",
+   "falsedades": [
+    "con $67k sin cobrar"
+   ]
+  },
+  {
+   "id": "A16",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "«Falabella · Valor en juego» ($1.6M, brecha comercial) dicho como consecuencia de la mora (Falabella · Dias Vencido = 8d)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h5\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hJuego\",\"tipo\":\"ref\",\"de\":\"Falabella · Valor en juego\"}\n<<FIN>>\n{{h5: Falabella tiene {h5} vencidos}} y {{hJuego: {hJuego} en juego por su demora}}.",
+   "falsedades": [
+    "$1.6m en juego por su demora"
+   ]
+  },
+  {
+   "id": "A17",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "participación en la VENTA (37 %) dicha como participación en la cobranza (en vencido son 56 %, en pendiente 44 %)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hGp\",\"tipo\":\"grupo\",\"miembros\":[\"Lider\",\"Falabella\"],\"metrica\":\"ventas\",\"agregado\":\"participacion\",\"valor\":\"37%\"}\n<<FIN>>\nNo. {{hGp: Lider y Falabella son el {hGp} de tu exposición en cobranza}}.",
+   "falsedades": [
+    "37% de tu exposicion en cobranza"
+   ]
+  },
+  {
+   "id": "A18",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "continuación «también» que hereda «el que más te debe» sobre un ancla cuyo orden es de venta",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h7\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\nNo. {{h8: Lider es el que más te debe}}; {{h7: Falabella, la que más vende, también}}.",
+   "falsedades": [
+    "falabella, la que mas vende, tambien"
+   ]
+  },
+  {
+   "id": "A19",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "verbo comercial sobre una relación de vencido (Lider · Venta $17.8M < Falabella $19.4M)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h10\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n<<FIN>>\nNo. {{h10: Lider te factura casi el doble que Falabella}}.",
+   "falsedades": [
+    "lider te factura casi el doble que falabella"
+   ]
+  },
+  {
+   "id": "A20",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "verbo «compra» (sin clave del muro) sobre una relación de vencido",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h10\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n<<FIN>>\nNo. {{h10: Lider te compra casi el doble que Falabella}}.",
+   "falsedades": [
+    "lider te compra casi el doble que falabella"
+   ]
+  },
+  {
+   "id": "A21",
+   "tipo": "ataque",
+   "pregunta": "¿los SKU que más vendo son los que más capital inmovilizan?",
+   "v3": true,
+   "nota": "dos superlativos en un ancla de dos cifras: el de capital es falso (SAM-REF500L · Capital = $19K > SAM-TV55 · Capital = $13K)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hTv\",\"tipo\":\"cifra\",\"sujeto\":\"SAM-TV55\",\"metrica\":\"ventas\"}\n{\"id\":\"hTc\",\"tipo\":\"cifra\",\"sujeto\":\"SAM-TV55\",\"metrica\":\"capital\"}\n<<FIN>>\n{{hTv hTc: SAM-TV55 es el que más vendes y el que más capital te concentra: {hTv} de venta y {hTc} de capital}}.",
+   "falsedades": [
+    "el que mas capital te concentra"
+   ]
+  },
+  {
+   "id": "A22",
+   "tipo": "ataque",
+   "pregunta": "¿los SKU que más vendo son los que más capital inmovilizan?",
+   "v3": true,
+   "nota": "«mejor» sobre un orden min de rotación (0.8x, la peor) sin dirección declarada",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRmin\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"rotacion\",\"orden\":{\"forma\":\"min\"},\"universo\":{\"eje\":\"sku\"}}\n<<FIN>>\n{{hRmin: MAK-COMP-AIR es el SKU que mejor rota}}.",
+   "falsedades": [
+    "mak-comp-air es el sku que mejor rota"
+   ]
+  },
+  {
+   "id": "A23",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "prioridad integrada invertida en la lectura (sonda: no es un hecho de la boleta; se reporta aparte)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h6\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h6\",\"h3\"]}\n<<FIN>>\n{{h8 h3: El que más te debe es Lider, con {h3} pendientes}}; {{h6: Falabella, {h6}}}. {{hL: Criterio mío: yo priorizaría a Falabella antes que a Lider.}}",
+   "falsedades": [
+    "yo priorizaria a falabella antes que a lider"
+   ]
+  },
+  {
+   "id": "A24",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "pronombre que cambia de dueño: la lectura se apoya en Lider (269 d) y el lector lee «su» como Falabella (8 d)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h7\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"h11\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hL2\",\"tipo\":\"lectura\",\"apoyo\":[\"h2\",\"h11\"]}\n<<FIN>>\n{{h7: Falabella es la que más vende}}. {{hL2: Su mora ya es vieja y yo le cortaría el crédito.}}",
+   "falsedades": [
+    "su mora ya es vieja"
+   ]
+  },
+  {
+   "id": "A25",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "razón sobre la venta de Lider (55.1 %) dicha «de tu venta total» (pendiente total / venta total = 41 %)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h9\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"},\"den\":{\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}}\n<<FIN>>\nNo.\n- **Lider**: {{h9: el {h9} de tu venta total sigue pendiente}}",
+   "falsedades": [
+    "de tu venta total sigue pendiente"
+   ]
+  },
+  {
+   "id": "A26",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "razón sobre la venta TOTAL dicha «de lo que compró» Lider (vencido / venta de Lider = 25.5 %)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRy\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"},\"den\":{\"sujeto\":\"negocio\",\"metrica\":\"ventas\"}}\n<<FIN>>\nNo. {{hRy: Lider tiene vencido el {hRy} de lo que compró}}.",
+   "falsedades": [
+    "vencido el 4.6% de lo que compro"
+   ]
+  },
+  {
+   "id": "A27",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "celda de bodega (Valparaíso) bajo el dueño de fila Lider",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n| Cliente | Vencido | Frenado |\n|---|---|---|\n| Lider | {h2} | {hV} |",
+   "falsedades": [
+    "| lider | $4.6m | $25k |"
+   ]
+  },
+  {
+   "id": "A28",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "capital frenado de bodega dicho como deuda",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{hV: Valparaíso te debe {hV}}}.",
+   "falsedades": [
+    "valparaiso te debe $25k"
+   ]
+  },
+  {
+   "id": "A29",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "días sin venta dichos como días vencido",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h9b\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n<<FIN>>\n{{h9b: MAK-COMP-AIR lleva {h9b} vencido}}.",
+   "falsedades": [
+    "mak-comp-air lleva 112 dias vencido"
+   ]
+  },
+  {
+   "id": "A30",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "vencido de un cliente dicho como stock",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{h2: Lider tiene {h2} en stock}}.",
+   "falsedades": [
+    "lider tiene $4.6m en stock"
+   ]
+  },
+  {
+   "id": "A31",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "recomendación de crédito apoyada en inventario y venta, sin hecho de cobranza de Lider",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLGc\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"hL3\",\"tipo\":\"lectura\",\"apoyo\":[\"hLGc\",\"h1\"]}\n<<FIN>>\n{{hLGc: LG-DRYER8KG tiene {hLGc} frenados}} y {{h1: Lider te compra {h1}}}. {{hL3: Criterio mío: yo le cortaría el crédito a Lider.}}",
+   "falsedades": [
+    "le cortaria el credito a lider"
+   ]
+  },
+  {
+   "id": "A32",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "comparativo entre dominios dentro de una lectura ($25K frenados contra $4.6M vencidos)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hL5\",\"tipo\":\"lectura\",\"apoyo\":[\"hV\",\"h2\"]}\n<<FIN>>\n{{hV: Valparaíso concentra {hV} de capital frenado}} y {{h2: Lider arrastra {h2} vencidos}}. {{hL5: Criterio mío: la bodega pesa más que la mora de Lider, así que yo empezaría por Valparaíso.}}",
+   "falsedades": [
+    "la bodega pesa mas que la mora de lider"
+   ]
+  },
+  {
+   "id": "A33",
+   "tipo": "ataque",
+   "pregunta": "¿los SKU que más vendo son los que más capital inmovilizan?",
+   "v3": true,
+   "nota": "proporción subjetiva pegada a un grupo (25.7M / 99.9M = 26 %)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hGs\",\"tipo\":\"grupo\",\"miembros\":[\"SAM-TV55\",\"LG-WASH11KG\"],\"metrica\":\"ventas\",\"agregado\":\"suma\",\"valor\":\"$25,7M\"}\n<<FIN>>\n{{hGs: Juntos, SAM-TV55 y LG-WASH11KG venden {hGs}, casi toda tu venta}}.",
+   "falsedades": [
+    "casi toda tu venta"
+   ]
+  },
+  {
+   "id": "A34",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "orden de venta verdadero + superlativo de cobranza falso en el mismo ancla (Lider · Saldo vencido = $4.6M)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h7\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h5\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{h7 h5: Falabella es la que más vende y la que más te debe, con {h5} vencidos}}.",
+   "falsedades": [
+    "la que mas te debe, con $2.5m vencidos"
+   ]
+  },
+  {
+   "id": "A35",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "subtotal comercial (5 cuentas materiales bajo el benchmark) dicho como universo de cobranza",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hNC\",\"tipo\":\"ref\",\"de\":\"Contribución no capturada · subtotal · 5 cuentas materiales (de 8 bajo el benchmark)\"}\n<<FIN>>\n{{hNC: Dejas {hNC} de contribución sin capturar entre los clientes que te deben}}.",
+   "falsedades": [
+    "entre los clientes que te deben"
+   ]
+  },
+  {
+   "id": "A36",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "«Medida · cerrar brecha al piso» ($4.9M, margen) dicha como resultado de cobranza",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMed\",\"tipo\":\"ref\",\"de\":\"Medida · cerrar brecha al piso\"}\n<<FIN>>\n{{hMed: La gestión de cobranza deja {hMed} sobre la mesa}}.",
+   "falsedades": [
+    "la gestion de cobranza deja $4.9m sobre la mesa"
+   ]
+  },
+  {
+   "id": "A37",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "superlativo «con más capital» dentro de una cifra de bodega (Santiago · Capital = $64K > Valparaíso · Capital = $39K)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVc\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital\"}\n<<FIN>>\n{{hVc: Valparaíso es la bodega con más capital, {hVc}}}.",
+   "falsedades": [
+    "valparaiso es la bodega con mas capital"
+   ]
+  },
+  {
+   "id": "A42",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "conteo de CLIENTES en mora dicho sobre SKU (el eje del universo cambiado)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hE6\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n<<FIN>>\nNo. {{hE6: {hE6.n} SKU están en mora}}.",
+   "falsedades": [
+    "6 sku estan en mora"
+   ]
+  },
+  {
+   "id": "A42b",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "gemelo de A42 en la pregunta integrada (sin la ley «deuda-sin-nombre» del playbook de cobranza): el eje del conteo cambiado de cliente a SKU",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hE6\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n<<FIN>>\n{{hE6: {hE6.n} SKU están en mora}}.",
+   "falsedades": [
+    "6 sku estan en mora"
+   ]
+  },
+  {
+   "id": "A43",
+   "tipo": "ataque",
+   "pregunta": "¿los SKU que más vendo son los que más capital inmovilizan?",
+   "v3": true,
+   "nota": "conteo de SKU frenados dicho sobre clientes (el eje del universo cambiado)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hF3\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"frenado\"]}}\n<<FIN>>\n{{hF3: Tienes {hF3.n} clientes frenados}}.",
+   "falsedades": [
+    "3 clientes frenados"
+   ]
+  },
+  {
+   "id": "A45",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "dos órdenes verdaderos (venta: Falabella; pendiente: Lider) en un ancla que atribuye los dos superlativos a Falabella",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h7\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\nNo. {{h7 h8: Falabella es la que más vende y la que más te debe; Lider viene después}}.",
+   "falsedades": [
+    "falabella es la que mas vende y la que mas te debe"
+   ]
+  },
+  {
+   "id": "A46",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "participación SIN base: el 37 % es participación en la VENTA; en una pregunta de deuda «tu cartera» se lee como cartera por cobrar (en pendiente Lider + Falabella = 43.7 %, en vencido 56 %)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hGp\",\"tipo\":\"grupo\",\"miembros\":[\"Lider\",\"Falabella\"],\"metrica\":\"ventas\",\"agregado\":\"participacion\",\"valor\":\"37%\"}\n<<FIN>>\nNo. {{hGp: Lider y Falabella son el {hGp} de tu cartera}}.",
+   "falsedades": [
+    "el 37% de tu cartera"
+   ]
+  },
+  {
+   "id": "A47",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "«juntos» + verbo comercial sobre un grupo cuya suma es de SALDO VENCIDO ($7.1M); en venta suman $37.2M",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hG\",\"tipo\":\"grupo\",\"miembros\":[\"Lider\",\"Falabella\"],\"metrica\":\"saldo_vencido\",\"agregado\":\"suma\",\"valor\":\"$7,1M\"}\n<<FIN>>\nNo. {{hG: Juntos, Lider y Falabella te compran {hG}}}.",
+   "falsedades": [
+    "juntos, lider y falabella te compran $7.1m"
+   ]
+  },
+  {
+   "id": "A48",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "«la mayoría» pegada a un conteo verdadero de 6 de 13 (46 %): la proporción no se contrasta con n/m",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hE6\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\nNo. {{hE6: {hE6.n} de tus {hE6.m} clientes están en mora: la mayoría}}; {{h8 h3: el que más te debe es Lider, con {h3} pendientes}}.",
+   "falsedades": [
+    "la mayoria"
+   ]
+  },
+  {
+   "id": "A49",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "recomendación de INVENTARIO apoyada solo en un hecho de COBRANZA (comprobación 11, lado inventario); sonda: no contradice una cifra, contradice el apoyo exigido",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hLi\",\"tipo\":\"lectura\",\"apoyo\":[\"h2\"]}\n<<FIN>>\n{{h2: Lider arrastra {h2} vencidos}}. {{hLi: Criterio mío: yo liquidaría el stock frenado de Valparaíso antes de reponer.}}",
+   "falsedades": [
+    "yo liquidaria el stock frenado de valparaiso"
+   ]
+  },
+  {
+   "id": "A50",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "«capital» (métrica de inventario) sobre el saldo pendiente de un cliente",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\n{{h3: Lider te tiene {h3} de capital atrapado}}.",
+   "falsedades": [
+    "$9.8m de capital atrapado"
+   ]
+  },
+  {
+   "id": "A51",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "posesivo que cambia de dueño dentro de un ancla de dos cifras: «su» se lee Falabella (vencido $2.5M) y el hecho es de Lider ($4.6M)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n{{h4 h2: Falabella te compra {h4}; su vencido llega a {h2}}}.",
+   "falsedades": [
+    "su vencido llega a $4.6m"
+   ]
+  },
+  {
+   "id": "A52",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "cabecera de INVENTARIO («Inmovilizado») sobre una columna de saldo pendiente (cobranza)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"h6\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\n| Cliente | Venta | Inmovilizado |\n|---|---|---|\n| Lider | {h1} | {h3} |\n| Falabella | {h4} | {h6} |",
+   "falsedades": [
+    "| cliente | venta | inmovilizado |"
+   ]
+  },
+  {
+   "id": "A53",
+   "tipo": "ataque",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "prioridad integrada invertida con apoyo de cobranza VERDADERO de Falabella (la comprobación 11 se satisface); el procedimiento dice Lider (sonda: se reporta aparte)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h5\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"h6\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h5\",\"h6\"]}\n<<FIN>>\n{{h8 h3: El que más te debe es Lider, con {h3} pendientes}}. {{h5 h6: Falabella tiene {h5} vencidos y {h6} pendientes}}. {{hL: Criterio mío: la primera llamada de cobranza es a Falabella.}}",
+   "falsedades": [
+    "la primera llamada de cobranza es a falabella"
+   ]
+  },
+  {
+   "id": "A54",
+   "tipo": "ataque",
+   "pregunta": "¿los SKU que más vendo son los que más capital inmovilizan?",
+   "v3": true,
+   "nota": "partitivo DENTRO de inventario con la métrica cambiada: el capital de SAM-TV55 ($13K, capital total) dicho como parte del capital frenado ($33K); SAM-TV55 no está frenado",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCF\",\"tipo\":\"ref\",\"de\":\"Capital frenado · total\"}\n{\"id\":\"hTc\",\"tipo\":\"cifra\",\"sujeto\":\"SAM-TV55\",\"metrica\":\"capital\"}\n<<FIN>>\n{{hCF hTc: Tienes {hCF} frenados en bodega y, de esos, {hTc} son de SAM-TV55}}.",
+   "falsedades": [
+    "de esos, $13k son de sam-tv55"
+   ]
+  },
+  {
+   "id": "A55",
+   "tipo": "ataque",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "«entre los dos» + «casi todo» sobre un grupo verdadero que es el 56 % del vencido total ($7.1M de $12.6M)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hG\",\"tipo\":\"grupo\",\"miembros\":[\"Lider\",\"Falabella\"],\"metrica\":\"saldo_vencido\",\"agregado\":\"suma\",\"valor\":\"$7,1M\"}\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\nNo. {{hG: Entre los dos, Lider y Falabella arrastran {hG} vencidos, casi todo tu vencido}}; {{h8 h3: el que más te debe es Lider, con {h3} pendientes}}.",
+   "falsedades": [
+    "casi todo tu vencido"
+   ]
+  },
+  {
+   "id": "A56",
+   "tipo": "ataque",
+   "pregunta": "¿los SKU que más vendo son los que más capital inmovilizan?",
+   "v3": true,
+   "nota": "«vencida» (cobranza) sobre capital frenado de un SKU",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLGc\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{hLGc: LG-DRYER8KG tiene {hLGc} de mercadería vencida en Valparaíso}}.",
+   "falsedades": [
+    "mercaderia vencida"
+   ]
+  },
+  {
+   "id": "C19",
+   "tipo": "control",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "control · partitivo verdadero dentro de cobranza ($7.1M de $12.6M)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVT\",\"tipo\":\"ref\",\"de\":\"Saldo vencido · total\"}\n{\"id\":\"hG\",\"tipo\":\"grupo\",\"miembros\":[\"Lider\",\"Falabella\"],\"metrica\":\"saldo_vencido\",\"agregado\":\"suma\",\"valor\":\"$7,1M\"}\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\nNo. {{hVT hG: De tus {hVT} vencidos, Lider y Falabella explican {hG} entre las dos}}; {{h8 h3: el que más te debe es Lider, con {h3} pendientes}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C20",
+   "tipo": "control",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "control · partitivo verdadero dentro de inventario ($25K de $33K)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCF\",\"tipo\":\"ref\",\"de\":\"Capital frenado · total\"}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{hCF hV: De los {hCF} frenados en bodega, {hV} están en Valparaíso}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C21",
+   "tipo": "control",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "control · recomendación de inventario con apoyo de inventario",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hLG\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n{\"id\":\"hLGc\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hLi2\",\"tipo\":\"lectura\",\"apoyo\":[\"hLG\",\"hLGc\"]}\n<<FIN>>\n{{hLG hLGc: LG-DRYER8KG está frenado en Valparaíso con {hLGc}}}. {{hLi2: Criterio mío: yo liquidaría ese lote antes de reponer.}}",
+   "falsedades": []
+  },
+  {
+   "id": "C22",
+   "tipo": "control",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "control · fracción en palabras verdadera contra un conteo (6 de 13 = 46 %)",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hE6\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\nNo. {{hE6: {hE6.n} de tus {hE6.m} clientes están en mora, menos de la mitad}}; {{h8 h3: el que más te debe es Lider, con {h3} pendientes}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C23",
+   "tipo": "control",
+   "pregunta": "¿los SKU que más vendo son los que más capital inmovilizan?",
+   "v3": true,
+   "nota": "control · tabla con una columna comercial y una de inventario, cada una con su cabecera",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hTv\",\"tipo\":\"cifra\",\"sujeto\":\"SAM-TV55\",\"metrica\":\"ventas\"}\n{\"id\":\"hTc\",\"tipo\":\"cifra\",\"sujeto\":\"SAM-TV55\",\"metrica\":\"capital\"}\n{\"id\":\"hLGv\",\"tipo\":\"cifra\",\"sujeto\":\"LG-WASH11KG\",\"metrica\":\"ventas\"}\n{\"id\":\"hLGcap\",\"tipo\":\"cifra\",\"sujeto\":\"LG-WASH11KG\",\"metrica\":\"capital\"}\n{\"id\":\"hT\",\"tipo\":\"orden\",\"sujeto\":\"SAM-TV55\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"hC\",\"tipo\":\"orden\",\"sujeto\":\"SAM-REF500L\",\"metrica\":\"capital\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"sku\"}}\n<<FIN>>\n| SKU | Venta | Capital |\n|---|---|---|\n| SAM-TV55 | {hTv} | {hTc} |\n| LG-WASH11KG | {hLGv} | {hLGcap} |\n\n{{hT: SAM-TV55 es el que más vendes}}, pero {{hC: el que más capital concentra es SAM-REF500L}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C24",
+   "tipo": "control",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "control · prioridad integrada en el orden del procedimiento",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"hVb\",\"tipo\":\"orden\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"bodega\"}}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h8\",\"h3\",\"hVb\",\"hV\"]}\n<<FIN>>\n{{h8 h3: El que más te debe es Lider, con {h3} pendientes}}; {{hVb hV: Valparaíso es la bodega que más capital te frena, con {hV}}}. {{hL: Criterio mío: primero Lider, después Valparaíso.}}",
+   "falsedades": []
+  },
+  {
+   "id": "C01",
+   "tipo": "control",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h7\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h9\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"},\"den\":{\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h8\",\"h3\"]}\n<<FIN>>\nNo del todo. {{h7 h4: Falabella es la que más te compra, con {h4}}}, pero {{h8 h3: el que más te debe es Lider, con {h3} pendientes}}: {{h9: el {h9} de lo que le vendiste}}. {{hL: Criterio mío: yo empezaría la cobranza por Lider.}}",
+   "falsedades": []
+  },
+  {
+   "id": "C02",
+   "tipo": "control",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"h5\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"h6\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"h7\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\nNo.\n\n| Cliente | Venta | Vencido | Pendiente |\n|---|---|---|---|\n| Falabella | {h4} | {h5} | {h6} |\n| Lider | {h1} | {h2} | {h3} |\n\n{{h7: Falabella es la que más vende}}, pero {{h8: el que más te debe es Lider}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C03",
+   "tipo": "control",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h7\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h8\",\"h3\"]}\n<<FIN>>\n{{h7: Falabella es la que más vende}}. {{h8 h3: El que más te debe es Lider, con {h3} pendientes}}. {{hV: Valparaíso concentra {hV} de capital frenado}}. {{hL: Criterio mío: yo priorizaría la cobranza de Lider.}}",
+   "falsedades": []
+  },
+  {
+   "id": "C04",
+   "tipo": "control",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hP\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"},\"den\":{\"sujeto\":\"Valparaíso\",\"metrica\":\"capital\"}}\n{\"id\":\"h10\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n<<FIN>>\n{{hP: Valparaíso tiene frenado el {hP} de su capital}} y {{h10: Lider debe casi el doble que Falabella en vencido}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C05",
+   "tipo": "control",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hE6\",\"tipo\":\"conteo\",\"n\":6,\"de\":{\"eje\":\"cliente\",\"estados\":[\"en_mora\"]}}\n{\"id\":\"h12\",\"tipo\":\"estado\",\"sujeto\":\"Jumbo\",\"estado\":\"al_dia\"}\n{\"id\":\"hJ5\",\"tipo\":\"cifra\",\"sujeto\":\"Jumbo\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\nNo. {{hE6: {hE6.n} de tus {hE6.m} clientes están en mora}}; {{h12: Jumbo está al día}} y {{hJ5: te debe {hJ5}}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C06",
+   "tipo": "control",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hG\",\"tipo\":\"grupo\",\"miembros\":[\"Lider\",\"Falabella\"],\"metrica\":\"saldo_vencido\",\"agregado\":\"suma\",\"valor\":\"$7,1M\"}\n{\"id\":\"hRz\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"},\"den\":{\"sujeto\":\"negocio\",\"metrica\":\"saldo_vencido\"}}\n<<FIN>>\n{{hG: Lider y Falabella suman {hG} vencidos entre las dos}}; {{hRz: Lider solo concentra el {hRz} de tu vencido}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C07",
+   "tipo": "control",
+   "pregunta": "¿los SKU que más vendo son los que más capital inmovilizan?",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hT\",\"tipo\":\"orden\",\"sujeto\":\"SAM-TV55\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"hTv\",\"tipo\":\"cifra\",\"sujeto\":\"SAM-TV55\",\"metrica\":\"ventas\"}\n{\"id\":\"hC\",\"tipo\":\"orden\",\"sujeto\":\"SAM-REF500L\",\"metrica\":\"capital\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"hCv\",\"tipo\":\"cifra\",\"sujeto\":\"SAM-REF500L\",\"metrica\":\"capital\"}\n{\"id\":\"hLG\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n<<FIN>>\nNo. {{hT hTv: El SKU que más vendes es SAM-TV55, con {hTv}}}, y {{hC hCv: el que más capital concentra es SAM-REF500L, con {hCv}}}. {{hLG: LG-DRYER8KG está frenado en Valparaíso}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C08",
+   "tipo": "control",
+   "pregunta": "¿los SKU que más vendo son los que más capital inmovilizan?",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRsku\",\"tipo\":\"relacion\",\"sujeto\":\"SAM-TV55\",\"metrica\":\"ventas\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"LG-WASH11KG\"}}}\n{\"id\":\"hCap2\",\"tipo\":\"relacion\",\"sujeto\":\"LG-WASH11KG\",\"metrica\":\"capital\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"SAM-TV55\"}}}\n<<FIN>>\n{{hRsku: SAM-TV55 vende más que LG-WASH11KG}}, pero {{hCap2: LG-WASH11KG tiene más capital que SAM-TV55}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C09",
+   "tipo": "control",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"h11\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"h5\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"saldo_vencido\"}\n<<FIN>>\n- **Lider**\n  - venta: {h1}\n  - vencido: {h2}\n  - días de atraso: {h11}\n- **Falabella**\n  - venta: {h4}\n  - vencido: {h5}",
+   "falsedades": []
+  },
+  {
+   "id": "C10",
+   "tipo": "control",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hO\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"h9b\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hLG\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n{\"id\":\"hLGc\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{hO h9b: El caso más viejo del inventario es MAK-COMP-AIR, con {h9b} sin venta}}; {{hLG hLGc: LG-DRYER8KG está frenado en Valparaíso con {hLGc}}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C11",
+   "tipo": "control",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hS\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"hS251\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hSab\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"abonado\"}\n<<FIN>>\nNo. {{hS: Sodimac no está al día}}: {{hS251: lleva {hS251} de atraso}} y {{hSab: apenas ha abonado {hSab}}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C12",
+   "tipo": "control",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hPT\",\"tipo\":\"ref\",\"de\":\"Saldo pendiente · total\"}\n{\"id\":\"hVT\",\"tipo\":\"ref\",\"de\":\"Saldo vencido · total\"}\n<<FIN>>\nNo. {{hPT hVT: Te deben {hPT} en total y, de esos, {hVT} ya están vencidos}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C13",
+   "tipo": "control",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hV14\",\"tipo\":\"variacion\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\",\"variacion\":{\"direccion\":\"sube\"},\"periodo\":\"anterior\"}\n{\"id\":\"h11\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"dias_vencido\"}\n<<FIN>>\n{{hV14: Lider crece contra el año anterior}}, pero {{h11: lleva {h11} de atraso}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C14",
+   "tipo": "control",
+   "pregunta": "¿los SKU que más vendo son los que más capital inmovilizan?",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hF3\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"frenado\"]}}\n{\"id\":\"hCF\",\"tipo\":\"ref\",\"de\":\"Capital frenado · total\"}\n<<FIN>>\n{{hF3: Tienes {hF3.n} SKU frenados}} que {{hCF: suman {hCF}}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C15",
+   "tipo": "control",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hS\",\"tipo\":\"estado\",\"sujeto\":\"Sodimac\",\"estado\":\"en_mora\"}\n{\"id\":\"hS251\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"dias_vencido\"}\n{\"id\":\"hL4\",\"tipo\":\"lectura\",\"apoyo\":[\"hS\",\"hS251\"]}\n<<FIN>>\nNo. {{hS hS251: Sodimac está en mora desde hace {hS251}}}. {{hL4: Criterio mío: yo no le ampliaría el cupo a Sodimac hasta ver un abono.}}",
+   "falsedades": []
+  },
+  {
+   "id": "C16",
+   "tipo": "control",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVb\",\"tipo\":\"orden\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"bodega\"}}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\n{{hVb hV: Valparaíso es la bodega que más capital te frena, con {hV}}}; {{h8 h3: en cobranza, el que más te debe es Lider, con {h3} pendientes}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C17",
+   "tipo": "control",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hR4\",\"tipo\":\"relacion\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"Lider\"}}}\n{\"id\":\"h10\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n<<FIN>>\nNo. {{hR4: Falabella te compra más que Lider}}, {{h10: pero Lider debe casi el doble que Falabella en vencido}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C18",
+   "tipo": "control",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "control",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVT\",\"tipo\":\"ref\",\"de\":\"Saldo vencido · total\"}\n{\"id\":\"hRz\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"},\"den\":{\"sujeto\":\"negocio\",\"metrica\":\"saldo_vencido\"}}\n<<FIN>>\n{{hVT: Tienes {hVT} vencidos en total}}; {{hRz: Lider concentra el {hRz}}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C04b",
+   "tipo": "control",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "control · gemelo de C04 en dos oraciones",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hP\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"},\"den\":{\"sujeto\":\"Valparaíso\",\"metrica\":\"capital\"}}\n{\"id\":\"h10\",\"tipo\":\"relacion\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"casi\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n<<FIN>>\n{{hP: Valparaíso tiene frenado el {hP} de su capital}}. {{h10: Lider debe casi el doble que Falabella en vencido}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C08b",
+   "tipo": "control",
+   "pregunta": "¿los SKU que más vendo son los que más capital inmovilizan?",
+   "v3": true,
+   "nota": "control · gemelo de C08 con un comparativo de la lista",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRsku\",\"tipo\":\"relacion\",\"sujeto\":\"SAM-TV55\",\"metrica\":\"ventas\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"LG-WASH11KG\"}}}\n{\"id\":\"hCap2\",\"tipo\":\"relacion\",\"sujeto\":\"LG-WASH11KG\",\"metrica\":\"capital\",\"relacion\":{\"forma\":\"mayor\",\"vs\":{\"sujeto\":\"SAM-TV55\"}}}\n<<FIN>>\n{{hRsku: SAM-TV55 vende más que LG-WASH11KG}}, pero {{hCap2: en capital, LG-WASH11KG está por encima de SAM-TV55}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C12b",
+   "tipo": "control",
+   "pregunta": "¿mis mejores clientes son los que más me deben?",
+   "v3": true,
+   "nota": "control · gemelo de C12 que nombra al deudor",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hPT\",\"tipo\":\"ref\",\"de\":\"Saldo pendiente · total\"}\n{\"id\":\"hVT\",\"tipo\":\"ref\",\"de\":\"Saldo vencido · total\"}\n{\"id\":\"h8\",\"tipo\":\"orden\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h3\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_pendiente\"}\n<<FIN>>\nNo. {{hPT hVT: Te deben {hPT} en total y, de esos, {hVT} ya están vencidos}}; {{h8 h3: el que más te debe es Lider, con {h3} pendientes}}.",
+   "falsedades": []
+  },
+  {
+   "id": "C10b",
+   "tipo": "control",
+   "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
+   "v3": true,
+   "nota": "control · gemelo de C10 sin «del inventario»",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hO\",\"tipo\":\"orden\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\",\"orden\":{\"forma\":\"max\"},\"universo\":{\"eje\":\"sku\"}}\n{\"id\":\"h9b\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hLG\",\"tipo\":\"estado\",\"sujeto\":\"LG-DRYER8KG\",\"estado\":\"frenado\",\"bodega\":\"Valparaíso\"}\n{\"id\":\"hLGc\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{hO h9b: El caso más viejo es MAK-COMP-AIR, con {h9b} sin venta}}; {{hLG hLGc: LG-DRYER8KG está frenado en Valparaíso con {hLGc}}}.",
+   "falsedades": []
+  }
+ ]
+}

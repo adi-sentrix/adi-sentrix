@@ -78,7 +78,7 @@ H("3 · anclarDeclaracion y anclarPorFigs");
   ];
   const R = anclarDeclaracion(texto, decl);
   ok(R.hechos.length === 5 && R.hechos[0].tipo === "ref" && R.hechos[0].de === "Lider · Ventas", "una cifra con una fig de evidencia es una ref a esa fig", JSON.stringify(R.hechos[0]));
-  ok(R.prosa.startsWith("Lider vende {{d1: $17.8M}} y su margen es {{d2: 21.5%}}."), "una cifra declarada ancla su valor (el dueño lo da la oración, como a un placeholder del cerebro)", R.prosa.split("\n")[0]);
+  ok(R.prosa.startsWith("{{d1: Lider vende $17.8M}} y {{d2: su margen es 21.5%}}."), "una cifra declarada ancla su cláusula (v3.1: hasta la conjunción, el corte o la siguiente cifra; la palabra pegada a la cifra queda bajo el juez)", R.prosa.split("\n")[0]);
   ok(R.prosa.includes("| Lider | {{d3: $17.8M}} | {{d4: 21.5%}} |"), "una fila de tabla se ancla celda por celda, cada celda con el id cuyo valor es", R.prosa.split("\n").find((l) => /^\| Lider/.test(l)));
   const lect = R.hechos.find((h) => h.tipo === "lectura");
   ok(lect && lect.apoyo.length === 4, "la lectura se apoya en los hechos del mismo composer");
@@ -91,7 +91,7 @@ H("3 · anclarDeclaracion y anclarPorFigs");
   ok(hechoDeDeclaracion({ tipo: "estado", sujeto: "Jumbo", estado: { estado: "al día" } }, "x").estado === "al día", "el estado declarado viaja como estado v3");
   const figs = [{ id: "c1", label: "Lider · Ventas", text: "$17.8M" }, { id: "c2", label: "Falabella · Saldo pendiente", text: "$8.2M" }, { id: "c3", label: "Jumbo · Saldo pendiente", text: "$8.2M" }, { id: "c4", label: "Clientes · total", text: "13" }];
   const F = anclarPorFigs("Lo que tengo verificado ahora: venta de Lider, $17.8M; saldo pendiente de Falabella, $8.2M. Son 13 clientes, no 130.", figs);
-  ok(F.prosa === "Lo que tengo verificado ahora: {{r1: venta de Lider, $17.8M}}; {{r2: saldo pendiente de Falabella, $8.2M}}. {{r3: Son 13}} clientes, no 130." && F.hechos.every((h) => h.tipo === "ref"), "las cifras verbatim de la boleta se anclan con su cláusula a su ref; el valor repetido lo decide la entidad de la línea; «130» no es «13»", F.prosa);
+  ok(F.prosa === "Lo que tengo verificado ahora: {{r1: venta de Lider, $17.8M}}; {{r2: saldo pendiente de Falabella, $8.2M}}. {{r3: Son 13 clientes}}, no 130." && F.hechos.every((h) => h.tipo === "ref"), "las cifras verbatim de la boleta se anclan con su cláusula a su ref; el valor repetido lo decide la entidad de la línea; «130» no es «13»", F.prosa);
   const G = anclarPorFigs("Hay $8.2M pendientes.", figs);
   ok(G.prosa === "Hay $8.2M pendientes." && G.hechos.length === 0, "con dos figs del mismo valor y ninguna entidad en la línea, no se ancla (el Notario lo cobrará)", G.prosa);
 }

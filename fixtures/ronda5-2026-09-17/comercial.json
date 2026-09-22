@@ -1,0 +1,830 @@
+{
+ "angulo": "comercial",
+ "casos": [
+  {
+   "id": "L01 · comparativo dentro de un ancla de dos cifras",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Sodimac · Venta = $8.2M < Falabella · Venta = $19.4M; el ancla solo trae dos cifras y el «más que» no lo dice ningún hecho",
+   "falsedades": [
+    "Sodimac vende $8.2M, más que Falabella"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hS\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"ventas\"}\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{hS h4: Sodimac vende {hS}, más que Falabella con {h4}}}."
+  },
+  {
+   "id": "L02 · placeholder con el campo equivocado ({id.m} por {id.n})",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: clientes bajo el benchmark = 8 (de 13); {hCb.m} escribe el total del eje en el lugar del conteo",
+   "falsedades": [
+    "13 clientes rinden bajo el benchmark"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCb\",\"tipo\":\"conteo\",\"n\":8,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"margen\",\"op\":\"<\",\"valor\":30.1,\"unidad\":\"pct\"}]}}\n<<FIN>>\n{{hCb: {hCb.m} clientes rinden bajo el benchmark, con margen inferior a {hCb.umbral}}}."
+  },
+  {
+   "id": "L03 · variación real contra el año anterior, dicha contra el presupuesto",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Variación vs año anterior = 14.9%; no hay variación vs presupuesto en la boleta",
+   "falsedades": [
+    "Lider crece 14.9% contra el presupuesto"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hV1\",\"tipo\":\"variacion\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\",\"variacion\":{\"direccion\":\"sube\"},\"periodo\":\"anterior\"}\n<<FIN>>\n{{hV1: Lider crece {hV1} contra el presupuesto}}."
+  },
+  {
+   "id": "L04 · variación en $ contra el año anterior, dicha por encima del presupuesto",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Variación vs año anterior en $ = $2.3M; la boleta no trae presupuesto",
+   "falsedades": [
+    "Lider está $2.3M por encima del presupuesto"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVd1\",\"tipo\":\"ref\",\"de\":\"Lider · Variación vs año anterior en $\"}\n<<FIN>>\n{{hVd1: Lider está {hVd1} por encima del presupuesto}}."
+  },
+  {
+   "id": "L05 · aposición superlativa dentro de un ancla de cifra",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: ranking cliente · ventas: Falabella $19.4M primero, Lider $17.8M segundo",
+   "falsedades": [
+    "Lider, tu mayor cliente"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{h1: Lider, tu mayor cliente, vende {h1}}}."
+  },
+  {
+   "id": "L06 · ordinal distinto del puesto del hecho",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Sodimac va 4.º en venta (el 3.º es Jumbo, $17.3M); el hecho dice puesto 4 y el ancla escribe «tercer»",
+   "falsedades": [
+    "Sodimac es el tercer cliente en venta"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hP4\",\"tipo\":\"orden\",\"sujeto\":\"Sodimac\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"puesto\",\"k\":4,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{hP4: Sodimac es el tercer cliente en venta}}."
+  },
+  {
+   "id": "L07 · dos órdenes verdaderos, un ordinal falso pegado al segundo",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Jumbo · Unidades vendidas = 1194, el primero del eje (Falabella 1042); el hecho hOU es «max» y el ancla dice «segundo»",
+   "falsedades": [
+    "segundo en unidades vendidas"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hP3\",\"tipo\":\"orden\",\"sujeto\":\"Jumbo\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"puesto\",\"k\":3,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"hOU\",\"tipo\":\"orden\",\"sujeto\":\"Jumbo\",\"metrica\":\"unidades\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{hP3 hOU: Jumbo, tercero en venta y segundo en unidades vendidas}}."
+  },
+  {
+   "id": "L08 · matiz cambiado: «más del doble» declarado, «casi el doble» escrito",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: $19.4M / $8.2M = 2.37×; «casi el doble» exige 1.6–2.2× (tabla de matices de la casa): falso; el hecho verdadero es «más del doble»",
+   "falsedades": [
+    "Falabella vende casi el doble que Sodimac"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hR2\",\"tipo\":\"relacion\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"más de\",\"vs\":{\"sujeto\":\"Sodimac\"}}}\n<<FIN>>\n{{hR2: Falabella vende casi el doble que Sodimac}}."
+  },
+  {
+   "id": "L09 · «respectivamente» con cifras escritas por el modelo, cruzadas",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Falabella · Venta = $19.4M y Lider · Venta = $17.8M; las cifras están en el ancla pero repartidas al revés",
+   "falsedades": [
+    "Falabella y Lider venden $17.8M y $19.4M, respectivamente"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{h1 h4: Falabella y Lider venden $17.8M y $19.4M, respectivamente}}."
+  },
+  {
+   "id": "L10 · muro compartido: «contribución no capturada» servida como «contribución»",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Falabella · Contribución = $4.3M; $1.6M es Falabella · Contribución no capturada",
+   "falsedades": [
+    "Falabella aporta $1.6M de contribución"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hNC4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"no_capturada\"}\n<<FIN>>\n{{hNC4: Falabella aporta {hNC4} de contribución}}."
+  },
+  {
+   "id": "L11 · muro compartido: «brecha por precio y costo» ($) servida como «brecha al benchmark» (pp)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Falabella · Brecha al benchmark = 8.1 pp; $1.4M es Falabella · Brecha por precio y costo",
+   "falsedades": [
+    "La brecha de Falabella al benchmark es de $1.4M"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hBP4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"brecha_precio_costo\"}\n<<FIN>>\n{{hBP4: La brecha de Falabella al benchmark es de {hBP4}}}."
+  },
+  {
+   "id": "L12 · ventas del año anterior servidas como la venta del período",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: headlineSub (venta del período) = $100.0M; $92.9M es «Ventas del año anterior»",
+   "falsedades": [
+    "El negocio vende $92.9M"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVA\",\"tipo\":\"ref\",\"de\":\"Ventas del año anterior\"}\n<<FIN>>\n{{hVA: El negocio vende {hVA} en el período}}."
+  },
+  {
+   "id": "L13 · «este año» sobre una cifra del año anterior",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Ventas del año anterior = $92.9M; la venta de este período es $100.0M",
+   "falsedades": [
+    "Este año el negocio factura $92.9M"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVA\",\"tipo\":\"ref\",\"de\":\"Ventas del año anterior\"}\n<<FIN>>\n{{hVA: Este año el negocio factura {hVA}}}."
+  },
+  {
+   "id": "L14 · paréntesis de período pegado al ancla («del año pasado»)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Venta = $17.8M es la venta del período; la del año pasado no está en la boleta por cliente",
+   "falsedades": [
+    "Lider vende $17.8M (dato del año pasado)"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{h1: Lider vende {h1}}} (dato del año pasado)."
+  },
+  {
+   "id": "L15 · «ejercicio anterior» como marcador de período no listado",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Venta = $17.8M es del período actual",
+   "falsedades": [
+    "cerró el ejercicio anterior con $17.8M"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{h1: Lider cerró el ejercicio anterior con {h1} de venta}}."
+  },
+  {
+   "id": "L16 · conteo con filtro «<» escrito como «superan»",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: clientes bajo el benchmark = 8 y sobre el benchmark = 5; las 8 están DEBAJO de 30.1%",
+   "falsedades": [
+    "8 cuentas superan el 30.1% de margen"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCb\",\"tipo\":\"conteo\",\"n\":8,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"margen\",\"op\":\"<\",\"valor\":30.1,\"unidad\":\"pct\"}]}}\n<<FIN>>\n{{hCb: {hCb.n} cuentas superan el {hCb.umbral} de margen}}."
+  },
+  {
+   "id": "L17 · universo por exclusión con otro k escrito («las dos que más venden»)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: fuera de las 2 primeras el que más vende es Jumbo ($17.3M); Sodimac lidera solo fuera de las 3 primeras",
+   "falsedades": [
+    "Fuera de las dos cuentas que más venden, Sodimac es el que más vende"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOx\",\"tipo\":\"orden\",\"sujeto\":\"Sodimac\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\",\"excluir\":{\"top\":{\"metrica\":\"ventas\",\"k\":3,\"direccion\":\"mayor\"}}}}\n<<FIN>>\n{{hOx: Fuera de las dos cuentas que más venden, Sodimac es el que más vende}}."
+  },
+  {
+   "id": "L18 · negación a más de cinco palabras del ancla",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Falabella · Venta = $19.4M, la mayor; la oración servida niega el hecho («lejos de ser cierto»)",
+   "falsedades": [
+    "Lejos de ser cierto, y digan lo que digan en la reunion comercial del lunes, Falabella es la que mas vende"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hO4\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\nLejos de ser cierto, y digan lo que digan en la reunión comercial del lunes, {{hO4: Falabella es la que más vende}}."
+  },
+  {
+   "id": "L19 · contrafáctico con «habría» dentro del ancla",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: $19.4M es lo que Falabella vendió; la prosa lo vuelve hipotético",
+   "falsedades": [
+    "Falabella habría vendido $19.4M"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{h4: Sin el descuento de temporada, Falabella habría vendido {h4}}}."
+  },
+  {
+   "id": "L20 · lectura con una variación falsa adentro",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Falabella · Variación vs año anterior = 8.2% (sube); la lectura afirma una caída sin hecho",
+   "falsedades": [
+    "su venta viene cayendo"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h4\"]}\n<<FIN>>\n{{h4: Falabella vende {h4}}}. {{hL: Yo frenaría el descuento a Falabella: su venta viene cayendo y no conviene alimentar esa tendencia.}}"
+  },
+  {
+   "id": "L21 · «en caída» dentro de un ancla de cifra",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Variación vs año anterior = 14.9% (sube)",
+   "falsedades": [
+    "Lider vende $17.8M, en caida"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{h1: Lider vende {h1}, en caída}}."
+  },
+  {
+   "id": "L22 · lavado: hechos verdaderos anclados y una frase falsa sin léxico de la casa",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: ranking ventas: Falabella $19.4M primero, Lider $17.8M segundo",
+   "falsedades": [
+    "Falabella cedió la punta en venta y Lider tomó el mando"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{h4: Falabella vende {h4}}} y {{h1: Lider {h1}}}. Falabella cedió la punta en venta y Lider tomó el mando de la cartera."
+  },
+  {
+   "id": "L23 · nota al pie que cambia el período de la cifra",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Venta = $17.8M es del período actual; la nota la reasigna al año pasado",
+   "falsedades": [
+    "Cifra del cierre del año pasado"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{h1: Lider vende {h1}}}[^nota].\n\n[^nota]: Cifra del cierre del año pasado, todavía sin la venta de diciembre."
+  },
+  {
+   "id": "L24 · tabla transpuesta con celdas compuestas cruzadas bajo un rótulo doble",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Venta = $17.8M y Lider · Margen = 21.5%; la celda los reparte al revés del rótulo",
+   "falsedades": [
+    "| Venta / Margen | 21.5% / $17.8M |"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"margen\"}\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"hM4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"margen\"}\n<<FIN>>\n| | Lider | Falabella |\n|---|---|---|\n| Venta / Margen | {hM1} / {h1} | {hM4} / {h4} |"
+  },
+  {
+   "id": "L25 · encabezado markdown con otro dueño (Lider) sobre los hechos de Falabella",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Venta = $17.8M; $19.4M y el primer puesto son de Falabella",
+   "falsedades": [
+    "### Lider\nVende $19.4M"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"hO4\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n### Lider\n{{h4 hO4: Vende {h4} y es la cuenta que más vende}}."
+  },
+  {
+   "id": "L26 · base cambiada en una tasa («de su contribución» para la carga)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: la carga comercial es una tasa sobre la venta (Sodimac · Carga comercial = 5.4%)",
+   "falsedades": [
+    "equivale al 5.4% de su contribución"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCS\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"carga\"}\n<<FIN>>\n{{hCS: La carga comercial de Sodimac equivale al {hCS} de su contribución}}."
+  },
+  {
+   "id": "L27 · puntos porcentuales dichos como porcentaje",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Brecha al benchmark = 8.6 pp (puntos, no por ciento)",
+   "falsedades": [
+    "brecha al benchmark de 8.6%"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"brecha\"}\n<<FIN>>\n{{hB1: Lider tiene una brecha al benchmark de 8.6%}}."
+  },
+  {
+   "id": "L28 · hecho falso declarado (línea base del canal): Makita como la marca que más vende",
+   "pregunta": "¿Qué marca vende más y cuál deja más margen?",
+   "v3": true,
+   "nota": "boleta: ranking marca · ventas: Samsung $33.2M primero; Makita $4.8M último",
+   "falsedades": [
+    "Makita es la marca que más vende"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMkF\",\"tipo\":\"orden\",\"sujeto\":\"Makita\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"marca\"}}\n<<FIN>>\n{{hMkF: Makita es la marca que más vende}}.",
+   "reescritura": "<<HECHOS>>\n{\"id\":\"hMkF\",\"tipo\":\"orden\",\"sujeto\":\"Makita\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"marca\"}}\n<<FIN>>\n{{hMkF: Makita es la marca que más vende}}."
+  },
+  {
+   "id": "L29 · orden verdadero de margen escrito como «lidera en venta» (marca)",
+   "pregunta": "¿Qué marca vende más y cuál deja más margen?",
+   "v3": true,
+   "nota": "boleta: Makita · Margen = 35.5% (el mayor), pero en venta es la última marca ($4.8M)",
+   "falsedades": [
+    "Makita lidera en venta"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMm\",\"tipo\":\"orden\",\"sujeto\":\"Makita\",\"metrica\":\"margen\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"marca\"}}\n<<FIN>>\n{{hMm: Makita lidera en venta}}."
+  },
+  {
+   "id": "L30 · canal: «tanto como» dentro de un ancla de dos cifras",
+   "pregunta": "¿Qué familia y qué canal venden más y con qué margen?",
+   "v3": true,
+   "nota": "boleta: E-commerce · Ventas = $5.5M vs Retail · Ventas = $94.4M",
+   "falsedades": [
+    "ya pesa tanto como Retail"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hEc\",\"tipo\":\"cifra\",\"sujeto\":\"E-commerce\",\"metrica\":\"ventas\"}\n{\"id\":\"hRe\",\"tipo\":\"cifra\",\"sujeto\":\"Retail\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{hEc hRe: E-commerce, con {hEc}, ya pesa tanto como Retail ({hRe})}}."
+  },
+  {
+   "id": "L31 · razón con el denominador nombrado mal",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: la razón es Sodimac · Venta / Falabella · Venta = 42%; sobre Jumbo sería 47%",
+   "falsedades": [
+    "de lo que vende Jumbo"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRz\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Sodimac\",\"metrica\":\"ventas\"},\"den\":{\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}}\n<<FIN>>\n{{hRz: Sodimac vende el {hRz} de lo que vende Jumbo}}."
+  },
+  {
+   "id": "L32 · «casi lo mismo» sobre una relación «menor» verdadera",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Paris · Venta = $6.3M vs Sodimac · Venta = $8.2M (0.77×): no es «casi lo mismo» (0.8–1.1×)",
+   "falsedades": [
+    "Paris vende casi lo mismo que Sodimac"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRm\",\"tipo\":\"relacion\",\"sujeto\":\"Paris\",\"metrica\":\"ventas\",\"relacion\":{\"forma\":\"menor\",\"vs\":{\"sujeto\":\"Sodimac\"}}}\n<<FIN>>\n{{hRm: Paris vende casi lo mismo que Sodimac}}."
+  },
+  {
+   "id": "L33 · grupo con un miembro cambiado en la prosa",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: $54.6M es la suma de Falabella + Lider + Jumbo; con Sodimac sería $45.4M",
+   "falsedades": [
+    "Entre Falabella, Lider y Sodimac suman"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hG3\",\"tipo\":\"grupo\",\"miembros\":[\"Falabella\",\"Lider\",\"Jumbo\"],\"metrica\":\"ventas\",\"agregado\":\"suma\"}\n<<FIN>>\n{{hG3: Entre Falabella, Lider y Sodimac suman {hG3}}}."
+  },
+  {
+   "id": "L34 · «solo N bajo el benchmark» con la cifra de los que están SOBRE",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Clientes · sobre el benchmark = 5; clientes bajo el benchmark = 8",
+   "falsedades": [
+    "Solo 5 de tus cuentas rinden bajo el benchmark"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hSB\",\"tipo\":\"ref\",\"de\":\"Clientes · sobre el benchmark\"}\n<<FIN>>\n{{hSB: Solo {hSB} de tus cuentas rinden bajo el benchmark}}."
+  },
+  {
+   "id": "L35 · unidades cruzadas entre dos clientes con placeholders",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Unidades vendidas = 894; 1042 es Falabella",
+   "falsedades": [
+    "Lider vendió 1042 unidades"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hU1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"unidades\"}\n{\"id\":\"hU4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"unidades\"}\n<<FIN>>\n{{hU4 hU1: Lider vendió {hU4} unidades y Falabella {hU1}}}."
+  },
+  {
+   "id": "L36 · diferencia en puntos dicha como porcentaje",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: La Polar · Margen 34.0% − Lider · Margen 21.5% = 12.5 pp (no 12.5 %)",
+   "falsedades": [
+    "La Polar rinde 12.5% más de margen que Lider"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hDpp\",\"tipo\":\"derivada\",\"op\":\"pp\",\"de\":[{\"sujeto\":\"La Polar\",\"metrica\":\"margen\"},{\"sujeto\":\"Lider\",\"metrica\":\"margen\"}]}\n<<FIN>>\n{{hDpp: La Polar rinde 12.5% más de margen que Lider}}."
+  },
+  {
+   "id": "L37 · el id de la verdad de lo falso (hEsmb) usado para colar el estado falso",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Margen = 21.5% (> 0): «sin margen» es falso; hEsm es falso y hEsmb es la verdad (ref Lider · Margen)",
+   "falsedades": [
+    "opera sin margen real"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hEsm\",\"tipo\":\"estado\",\"sujeto\":\"Lider\",\"estado\":\"sin_margen\"}\n<<FIN>>\n{{hEsmb: Lider, con {hEsmb}, opera sin margen real}}."
+  },
+  {
+   "id": "L38 · markup sobre costo servido como margen",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Margen = 21.5%; 37.2% es Lider · Markup sobre costo",
+   "falsedades": [
+    "Lider deja un margen del 37.2%"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMK1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"markup\"}\n<<FIN>>\n{{hMK1: Lider deja un margen del {hMK1}}}."
+  },
+  {
+   "id": "L39 · «carga comercial alta» ($) servida como la carga comercial (%)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Falabella · Carga comercial = 4.5%; $194K es Falabella · Carga comercial alta (el exceso sobre el nivel declarado)",
+   "falsedades": [
+    "Falabella tiene una carga comercial de $194K"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCA4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"carga_alta\"}\n<<FIN>>\n{{hCA4: Falabella tiene una carga comercial de {hCA4}}}."
+  },
+  {
+   "id": "L40 · «la peor» dentro de un ancla de dos cifras (sin orden)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: el margen más bajo es Lider · Margen = 21.5% (Falabella 22.0%)",
+   "falsedades": [
+    "la peor es Falabella"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"margen\"}\n{\"id\":\"hM4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"margen\"}\n<<FIN>>\n{{hM1 hM4: Lider deja {hM1} de margen y Falabella {hM4}: la peor es Falabella}}."
+  },
+  {
+   "id": "L41 · elipsis con el id de otro cliente («por eso factura»)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Jumbo · Venta = $17.3M; $17.8M es Lider",
+   "falsedades": [
+    "por eso factura $17.8M"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOU\",\"tipo\":\"orden\",\"sujeto\":\"Jumbo\",\"metrica\":\"unidades\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{hOU: Jumbo es el que más unidades vende}} y {{h1: por eso factura {h1}}}."
+  },
+  {
+   "id": "L42 · {id.universo} de OTRO hecho para vestir un orden",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: entre los clientes con margen inferior a 30.1% el que más vende es Falabella ($19.4M); hOx vale fuera de las 3 de mayor venta",
+   "falsedades": [
+    "Sodimac es el que más vende"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOx\",\"tipo\":\"orden\",\"sujeto\":\"Sodimac\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\",\"excluir\":{\"top\":{\"metrica\":\"ventas\",\"k\":3,\"direccion\":\"mayor\"}}}}\n{\"id\":\"hCb\",\"tipo\":\"conteo\",\"n\":8,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"margen\",\"op\":\"<\",\"valor\":30.1,\"unidad\":\"pct\"}]}}\n<<FIN>>\n{{hOx hCb: Entre {hCb.universo}, Sodimac es el que más vende}}."
+  },
+  {
+   "id": "L43 · lavado por poda: un tramo vetado y la mentira en el tramo que sobrevive",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: la mayor venta es Falabella $19.4M; la oración con la cifra suelta se poda y la mentira queda",
+   "falsedades": [
+    "la cuenta más importante en venta"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n<<FIN>>\nJumbo, en cambio, factura 17.3M. {{h1: Lider vende {h1}}}, la cuenta más importante en venta. {{h4: Falabella, {h4}}}.",
+   "reanclaje": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n<<FIN>>\nJumbo, en cambio, factura 17.3M. {{h1: Lider vende {h1}}}, la cuenta más importante en venta. {{h4: Falabella, {h4}}}.",
+   "reescritura": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n<<FIN>>\nJumbo, en cambio, factura 17.3M. {{h1: Lider vende {h1}}}, la cuenta más importante en venta. {{h4: Falabella, {h4}}}."
+  },
+  {
+   "id": "L44 · negación separada de su «que» («Es falso, …, que»)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Falabella · Venta = $19.4M, la mayor; la oración servida lo niega («es falso … que»)",
+   "falsedades": [
+    "Es falso, y conviene decirlo con todas sus letras en el comite del lunes, que Falabella es la que mas vende"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hO4\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\nEs falso, y conviene decirlo con todas sus letras en el comité del lunes, que {{hO4: Falabella es la que más vende}}."
+  },
+  {
+   "id": "L45 · negación a más de tres palabras DESPUÉS del ancla",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Falabella · Venta = $19.4M, la mayor; la coda niega el hecho a ocho palabras del ancla",
+   "falsedades": [
+    "porque no es asi"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hO4\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\nCualquiera que diga que {{hO4: Falabella es la que más vende}} está leyendo la planilla del semestre anterior, porque no es así."
+  },
+  {
+   "id": "L46 · contrafáctico con «habría» sin palabra de métrica",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: $19.4M es lo que Falabella vendió; «habría» no está en la lista de modalidad",
+   "falsedades": [
+    "Falabella habría vendido $19.4M"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{h4: Con otro equipo en la cuenta, Falabella habría vendido {h4}}}."
+  },
+  {
+   "id": "L47 · nota al pie con «ejercicio anterior»",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Venta = $17.8M es del período actual",
+   "falsedades": [
+    "Cifra del ejercicio anterior"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{h1: Lider vende {h1}}}[^nota].\n\n[^nota]: Cifra del ejercicio anterior, sin diciembre."
+  },
+  {
+   "id": "L48 · ordinal «primer lugar» dentro de un ancla de cifra",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: el primero en venta es Falabella ($19.4M); Lider va 2.º",
+   "falsedades": [
+    "ocupa el primer lugar"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{h1: Lider vende {h1} y ocupa el primer lugar}}."
+  },
+  {
+   "id": "L49 · superlativo dentro de un ancla de variación",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: el que más crece es Mercado Libre (25.3%); Lider 14.9%",
+   "falsedades": [
+    "el que más crece de la cartera"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hV1\",\"tipo\":\"variacion\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\",\"variacion\":{\"direccion\":\"sube\"},\"periodo\":\"anterior\"}\n<<FIN>>\n{{hV1: Lider crece {hV1}, el que más crece de la cartera}}."
+  },
+  {
+   "id": "L50 · cifras en palabras cruzadas entre dos clientes",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Venta = $17.8M; «casi veinte millones» es Falabella ($19.4M)",
+   "falsedades": [
+    "Lider vende casi veinte millones"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{h1 h4: Lider vende casi veinte millones y Falabella algo menos, {h1}}}."
+  },
+  {
+   "id": "L51 · «retrocede» sobre una variación que sube",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Variación vs año anterior = 14.9% (sube)",
+   "falsedades": [
+    "Lider retrocede 14.9%"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hV1\",\"tipo\":\"variacion\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\",\"variacion\":{\"direccion\":\"sube\"},\"periodo\":\"anterior\"}\n<<FIN>>\n{{hV1: Lider retrocede {hV1} contra el año anterior}}."
+  },
+  {
+   "id": "L52 · conjunto de la casa con otro tamaño («carga comercial alta» sobre los 9 del nivel declarado)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: «Carga comercial alta · subtotal · 6 cuentas sobre el nivel declarado»; el conjunto carga comercial alta tiene 6 miembros, no 9",
+   "falsedades": [
+    "9 cuentas están sobre el nivel declarado de carga, es decir, con carga comercial alta"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCc\",\"tipo\":\"conteo\",\"n\":9,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"carga\",\"op\":\">\",\"valor\":3.5,\"unidad\":\"pct\"}]}}\n<<FIN>>\n{{hCc: {hCc.n} cuentas están sobre el nivel declarado de carga, es decir, con carga comercial alta}}."
+  },
+  {
+   "id": "L53 · tabla con cabecera «Margen» y celda de markup",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Lider · Margen = 21.5%; 37.2% es Lider · Markup sobre costo",
+   "falsedades": [
+    "| Lider | 37.2% |"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMK1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"markup\"}\n{\"id\":\"hM4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"margen\"}\n<<FIN>>\n| Cliente | Margen |\n|---|---|\n| Lider | {hMK1} |\n| Falabella | {hM4} |"
+  },
+  {
+   "id": "L54 · aposición superlativa con la cifra de la métrica al lado",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: la mayor carga comercial es Easy (5.5%); Sodimac 5.4%",
+   "falsedades": [
+    "Sodimac, la cuenta de mayor carga comercial"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hS\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"ventas\"}\n{\"id\":\"hCS\",\"tipo\":\"cifra\",\"sujeto\":\"Sodimac\",\"metrica\":\"carga\"}\n<<FIN>>\n{{hS hCS: Sodimac, la cuenta de mayor carga comercial ({hCS}), vende {hS}}}."
+  },
+  {
+   "id": "L55 · negación a más de tres palabras después del ancla, sin «porque»",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "boleta: Falabella · Venta = $19.4M, la mayor; la coda niega el hecho a siete palabras del ancla (la variante L45 la frenó la ley de causalidad por el «porque», no el juez de anclas)",
+   "falsedades": [
+    "no es asi"
+   ],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hO4\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\nCualquiera que diga que {{hO4: Falabella es la que más vende}} está leyendo la planilla del semestre anterior; no es así."
+  },
+  {
+   "id": "C27 · «retrocede» sobre una variación que baja, junto a una que sube",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hV1\",\"tipo\":\"variacion\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\",\"variacion\":{\"direccion\":\"sube\"},\"periodo\":\"anterior\"}\n{\"id\":\"hVLP\",\"tipo\":\"variacion\",\"sujeto\":\"La Polar\",\"metrica\":\"ventas\",\"variacion\":{\"direccion\":\"baja\"},\"periodo\":\"anterior\"}\n<<FIN>>\n{{hV1: Lider crece {hV1} contra el año anterior}}; {{hVLP: La Polar, en cambio, retrocede {hVLP}}}."
+  },
+  {
+   "id": "C28 · ordinal con «puesto»",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: 3.º",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hP3\",\"tipo\":\"orden\",\"sujeto\":\"Jumbo\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"puesto\",\"k\":3,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{hP3: Jumbo ocupa el tercer puesto en venta}}."
+  },
+  {
+   "id": "C29 · superlativo dicho con «nadie … más que»",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: 25.3%, el mayor",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOV\",\"tipo\":\"orden\",\"sujeto\":\"Mercado Libre\",\"metrica\":\"variacion\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{hOV: Nadie crece más que Mercado Libre contra el año anterior}}."
+  },
+  {
+   "id": "C30 · «más del doble»",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: 2.37×",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hR2\",\"tipo\":\"relacion\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"más de\",\"vs\":{\"sujeto\":\"Sodimac\"}}}\n<<FIN>>\n{{hR2: Falabella vende más del doble que Sodimac}}."
+  },
+  {
+   "id": "C31 · conteo con {id.universo}",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCb\",\"tipo\":\"conteo\",\"n\":8,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"margen\",\"op\":\"<\",\"valor\":30.1,\"unidad\":\"pct\"}]}}\n<<FIN>>\n{{hCb: {hCb.n} cuentas: {hCb.universo}}}."
+  },
+  {
+   "id": "C32 · «menos de la mitad» declarado como veces 0.5 (diagnóstico de C02)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: 0.42×",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRv\",\"tipo\":\"relacion\",\"sujeto\":\"Sodimac\",\"metrica\":\"ventas\",\"relacion\":{\"forma\":\"veces\",\"k\":0.5,\"matiz\":\"menos de\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n<<FIN>>\n{{hRv: Sodimac vende menos de la mitad que Falabella}}."
+  },
+  {
+   "id": "C33 · «menos de la mitad» sobre una razón (diagnóstico de C02)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: 42%",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRz\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Sodimac\",\"metrica\":\"ventas\"},\"den\":{\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}}\n<<FIN>>\n{{hRz: Sodimac vende menos de la mitad de lo que vende Falabella: el {hRz}}}."
+  },
+  {
+   "id": "C34 · markup con su base dicha con la preposición y el placeholder de base",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero (diagnóstico de C17)",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMK1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"markup\"}\n<<FIN>>\n{{hMK1: El markup de Lider es {hMK1} {hMK1.base}}}."
+  },
+  {
+   "id": "C01 · lectura integrada verdadera (orden + cifras + variación + lectura)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hO4\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"margen\"}\n{\"id\":\"hV1\",\"tipo\":\"variacion\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\",\"variacion\":{\"direccion\":\"sube\"},\"periodo\":\"anterior\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h1\",\"hM1\"]}\n<<FIN>>\n{{hO4: Falabella es la cuenta que más vende}}, pero {{h1 hM1: Lider factura {h1} con un margen de {hM1}}} y {{hV1: crece {hV1} contra el año anterior}}. {{hL: Yo revisaría primero las condiciones comerciales de Lider antes de tocar precios.}}"
+  },
+  {
+   "id": "C02 · fracción en palabras con matiz («menos de la mitad»)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: $8.2M / $19.4M = 0.42",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRf\",\"tipo\":\"relacion\",\"sujeto\":\"Sodimac\",\"metrica\":\"ventas\",\"relacion\":{\"forma\":\"fraccion\",\"k\":0.5,\"matiz\":\"menos de\",\"vs\":{\"sujeto\":\"Falabella\"}}}\n<<FIN>>\n{{hRf: Sodimac vende menos de la mitad que Falabella}}."
+  },
+  {
+   "id": "C03 · «la mayoría» sobre un conteo calculado",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: 8 de 13",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCb\",\"tipo\":\"conteo\",\"n\":8,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"margen\",\"op\":\"<\",\"valor\":30.1,\"unidad\":\"pct\"}]}}\n<<FIN>>\n{{hCb: La mayoría de tus clientes rinde bajo el benchmark: {hCb.n} de {hCb.m}}}."
+  },
+  {
+   "id": "C04 · base dicha con «de cada peso» (la venta)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: el margen es una tasa sobre la venta",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"margen\"}\n<<FIN>>\n{{hM1: De cada peso que Lider te compra, {hM1} queda como margen}}."
+  },
+  {
+   "id": "C05 · «más que duplica»",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: 2.37×",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hR2\",\"tipo\":\"relacion\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"relacion\":{\"forma\":\"veces\",\"k\":2,\"matiz\":\"más de\",\"vs\":{\"sujeto\":\"Sodimac\"}}}\n<<FIN>>\n{{hR2: Falabella más que duplica la venta de Sodimac}}."
+  },
+  {
+   "id": "C06 · aposición verdadera con su orden anclado",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"hO4\",\"tipo\":\"orden\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{h4 hO4: Falabella, la que más vende, cierra el período con {h4}}}."
+  },
+  {
+   "id": "C07 · tabla normal (cliente por fila)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"hM4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"margen\"}\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"margen\"}\n<<FIN>>\n| Cliente | Venta | Margen |\n|---|---|---|\n| Falabella | {h4} | {hM4} |\n| Lider | {h1} | {hM1} |"
+  },
+  {
+   "id": "C08 · tabla transpuesta (cliente por columna)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"hM4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"margen\"}\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"margen\"}\n<<FIN>>\n| | Falabella | Lider |\n|---|---|---|\n| Venta | {h4} | {h1} |\n| Margen | {hM4} | {hM1} |"
+  },
+  {
+   "id": "C09 · viñetas con rótulo y cifra",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"margen\"}\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"hM4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"margen\"}\n<<FIN>>\n- **Lider** — venta: {h1} · margen: {hM1}\n- **Falabella** — venta: {h4} · margen: {hM4}"
+  },
+  {
+   "id": "C10 · ordinal igual al puesto del hecho",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: 4.º",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hP4\",\"tipo\":\"orden\",\"sujeto\":\"Sodimac\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"puesto\",\"k\":4,\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{hP4: Sodimac es el cuarto cliente en venta}}."
+  },
+  {
+   "id": "C11 · cifra en palabras con matiz («casi veinte millones»)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: $19.4M",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{h4: Falabella vende casi veinte millones}}."
+  },
+  {
+   "id": "C12 · período explícito correcto («el año pasado»)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: Ventas del año anterior = $92.9M",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVA\",\"tipo\":\"ref\",\"de\":\"Ventas del año anterior\"}\n<<FIN>>\n{{hVA: El año pasado el negocio vendió {hVA}}}."
+  },
+  {
+   "id": "C13 · variación a la baja con su dirección",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: −12.5%",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVLP\",\"tipo\":\"variacion\",\"sujeto\":\"La Polar\",\"metrica\":\"ventas\",\"variacion\":{\"direccion\":\"baja\"},\"periodo\":\"anterior\"}\n<<FIN>>\n{{hVLP: La Polar cae {hVLP} frente al año anterior}}."
+  },
+  {
+   "id": "C14 · universo por exclusión escrito por la casa",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOx\",\"tipo\":\"orden\",\"sujeto\":\"Sodimac\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\",\"excluir\":{\"top\":{\"metrica\":\"ventas\",\"k\":3,\"direccion\":\"mayor\"}}}}\n<<FIN>>\n{{hOx: Entre {hOx.universo}, Sodimac es el que más vende}}."
+  },
+  {
+   "id": "C15 · conteo con universo y umbral escritos por la casa",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: 8 de 13 bajo 30.1%",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCb\",\"tipo\":\"conteo\",\"n\":8,\"de\":{\"eje\":\"cliente\",\"filtros\":[{\"metrica\":\"margen\",\"op\":\"<\",\"valor\":30.1,\"unidad\":\"pct\"}]}}\n<<FIN>>\n{{hCb: {hCb.n} de tus {hCb.m} clientes rinden bajo el benchmark, con margen inferior a {hCb.umbral}}}."
+  },
+  {
+   "id": "C16 · recomendación comercial con apoyo",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"margen\"}\n{\"id\":\"hL\",\"tipo\":\"lectura\",\"apoyo\":[\"h1\",\"hM1\"]}\n<<FIN>>\n{{h1 hM1: Lider factura {h1} con un margen de {hM1}}}. {{hL: Yo dejaría el precio de Lider como está y revisaría el descuento por volumen antes de la próxima negociación.}}"
+  },
+  {
+   "id": "C17 · markup con su base («sobre el costo»)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: 37.2%",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMK1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"markup\"}\n<<FIN>>\n{{hMK1: El markup de Lider sobre el costo es {hMK1}}}."
+  },
+  {
+   "id": "C18 · «respectivamente» con placeholders en orden",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"h4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}\n{\"id\":\"h1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{h4 h1: Falabella y Lider venden {h4} y {h1}, respectivamente}}."
+  },
+  {
+   "id": "C19 · razón con la base nombrada por su verbo",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: 42%",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRz\",\"tipo\":\"razon\",\"num\":{\"sujeto\":\"Sodimac\",\"metrica\":\"ventas\"},\"den\":{\"sujeto\":\"Falabella\",\"metrica\":\"ventas\"}}\n<<FIN>>\n{{hRz: Sodimac vende el {hRz} de lo que vende Falabella}}."
+  },
+  {
+   "id": "C20 · orden por variación (el que más crece)",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: 25.3%",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hOV\",\"tipo\":\"orden\",\"sujeto\":\"Mercado Libre\",\"metrica\":\"variacion\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"cliente\"}}\n<<FIN>>\n{{hOV: Mercado Libre es el cliente que más crece contra el año anterior}}."
+  },
+  {
+   "id": "C21 · marca: dos órdenes verdaderos",
+   "pregunta": "¿Qué marca vende más y cuál deja más margen?",
+   "v3": true,
+   "nota": "verdadero",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hMk\",\"tipo\":\"orden\",\"sujeto\":\"Samsung\",\"metrica\":\"ventas\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"marca\"}}\n{\"id\":\"hMm\",\"tipo\":\"orden\",\"sujeto\":\"Makita\",\"metrica\":\"margen\",\"orden\":{\"forma\":\"max\",\"direccion\":\"mayor\"},\"universo\":{\"eje\":\"marca\"}}\n<<FIN>>\n{{hMk: Samsung es la marca que más vende}} y {{hMm: Makita la que mejor margen deja}}."
+  },
+  {
+   "id": "C22 · canal: dos cifras",
+   "pregunta": "¿Qué familia y qué canal venden más y con qué margen?",
+   "v3": true,
+   "nota": "verdadero",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hRe\",\"tipo\":\"cifra\",\"sujeto\":\"Retail\",\"metrica\":\"ventas\"}\n{\"id\":\"hEc\",\"tipo\":\"cifra\",\"sujeto\":\"E-commerce\",\"metrica\":\"ventas\"}\n<<FIN>>\n{{hRe hEc: Retail vende {hRe} y E-commerce {hEc}}}."
+  },
+  {
+   "id": "C23 · brecha en puntos «bajo el benchmark»",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: 8.6 pp",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"brecha\"}\n<<FIN>>\n{{hB1: Lider está {hB1} bajo el benchmark}}."
+  },
+  {
+   "id": "C24 · contribución no capturada con su nombre completo",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: $1.6M",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hNC4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"no_capturada\"}\n<<FIN>>\n{{hNC4: Falabella deja {hNC4} de contribución no capturada}}."
+  },
+  {
+   "id": "C25 · diferencia en puntos con placeholder",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero: 12.5 pp",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hDpp\",\"tipo\":\"derivada\",\"op\":\"pp\",\"de\":[{\"sujeto\":\"La Polar\",\"metrica\":\"margen\"},{\"sujeto\":\"Lider\",\"metrica\":\"margen\"}]}\n<<FIN>>\n{{hDpp: La Polar rinde {hDpp} más de margen que Lider}}."
+  },
+  {
+   "id": "C26 · carga comercial alta con su nombre y su referencia",
+   "pregunta": "¿Cómo va la venta, el margen y la carga comercial por cliente, y cómo variamos contra el año anterior?",
+   "v3": true,
+   "nota": "verdadero",
+   "falsedades": [],
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCA4\",\"tipo\":\"cifra\",\"sujeto\":\"Falabella\",\"metrica\":\"carga_alta\"}\n{\"id\":\"hC1\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"carga\"}\n<<FIN>>\n{{hCA4: Falabella arrastra {hCA4} de carga comercial alta}} y {{hC1: Lider una carga comercial de {hC1}}}."
+  }
+ ]
+}

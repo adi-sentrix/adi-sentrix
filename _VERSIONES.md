@@ -307,6 +307,19 @@ anclas con una lista cerrada, RENDERIZA (ningún dígito servido lo escribió el
   la clave por el concepto más largo, «Stock» = capital). `_anclar_composers_gate` 57/57: mismo texto y estado con y sin flag en 16 preguntas
   (14 playbooks · 1 puente · 1 límite), 15 peldaños bajo el juez de anclas sin vetos, 238 hechos anclados. Siguen E5 (ronda 5 adversarial con
   UltraCode sobre premium y respaldo), E6 (retiro), E7 (piloto vivo, gasto a nombrar).
+- E5 (2026-09-22, offline): la ronda 5 (UltraCode, 888 casos fuera de muestra: comercial · cobranza · inventario · cruces · verdaderos · flujo ·
+  respaldo · hechos · respaldo_casa) sirvió 183 de 317 falsedades (58 %) sobre E4 y mostró 16 raíces: una verdad parcial prestaba verdad a la
+  afirmación de al lado. **v3.1 «cada palabra tiene dueño»** (`_NOTARIO_V31_PROPUESTA.md`): el libro exige lo que la prosa podrá decir
+  (validación de esquema, empates, rankings parciales, razones, derivadas, grupos, «no_<estado>», «de M»); cada palabra con carga de verdad dentro
+  de un ancla tiene un dueño de su clase (cotas de proporción como datos, matiz y multiplicador, exclusión y eje escritos, bodega, grupo, operando
+  de razón, sujeto del superlativo, recomendación, proforma; fuera de las anclas no hay retractación, métrica pegada, bodega, pertenencia, nota al
+  pie ni base); la casa se reconoce a sí misma (la cifra ancla su cláusula, el rótulo antes de los dos puntos, el estado del SKU, la bodega de la
+  proyección); y los falsos positivos se cerraron por significado (forma del catálogo, artículo «un/una», fracción contra proporción real, variación
+  con su métrica, unidad que desambigua). Medido con los 888 completos: turno 58 % → 0.3 % de falsedades servidas (1 aceptada de 317), verdaderos verdes a
+  la primera 60 % → 60 %, al respaldo 31 % → 29 %; libro 0 falsos verdaderos · 0 verdaderos bloqueados (de 440); casa 0 · 0 (de 46). Candado
+  `_ronda5_gate` (libro y casa enteros + 1 de cada 4 casos de turno) 9/9. Seis divergencias aceptadas y tres decisiones pendientes (múltiplo a
+  secas ±15 %, «buena parte», lecturas con léxico de hecho) en la propuesta §7. `_agente_playbooks_gate` 455/455 tras sacar el complemento de
+  «frenado» del catálogo compartido (`COMPLEMENTO_V3`). Siguen E6 (retiro + candado) y E7 (piloto vivo, gasto a nombrar).
 
 
 ---
