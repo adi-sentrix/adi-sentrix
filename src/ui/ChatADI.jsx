@@ -379,7 +379,7 @@ async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, r
 // La key sigue server-side; `datoNegocio` viaja igual que en el camino actual (misma proyección memoizada).
 // A DIFERENCIA de _fetchNarrateC, una narración VACÍA no lanza: el ciclo notarial la trata como veredicto propio
 // (narracion-vacia) y dispara la reparación/suplente — lanzar acá le robaría el caso al ciclo.
-/* ── ADI AGENTE · una ronda del bucle (F2 · detrás de ADI_AGENTE, hoy APAGADA) ────────────────────────────────
+/* ── ADI AGENTE · una ronda del bucle (F2 · detrás de ADI_AGENTE, ENCENDIDA desde 2026-09-02) ────────────────
  * El bucle vive en bucleAgente.js; esto es su única puerta al mundo: system fijo (persona+invariantes+mapa) +
  * hilo + catálogo → el gateway (/api/adi-agente, runtime node) → {tipo:"herramientas"|"texto"}. El `paso` decide
  * el tier (herramientas→mini de PLAN · cierre/reparación→el de NARRAR). Con la bandera apagada, nadie llama. */

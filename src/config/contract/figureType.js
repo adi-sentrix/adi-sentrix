@@ -135,6 +135,14 @@ export const UNIVERSOS = {
   dias_inventario: {
     etiqueta: "días de inventario", unidad: "days", moneda: null, escala: null, periodo: "hoy",
     fuentes: ["skuInventario.doh|cobertura|diasSinVenta"], nota: "días, declarados por la fuente",
+    /* ⚠️ NO ES SOLO INVENTARIO (owner 2026-09-23, medido con `_sonda_recuperado_universo.mjs`, TAREA 1 del
+     * incremento 3): la fig auto-enriquecida "<Cliente> · Días Vencido" (cobranza, `facts.clientes[].diasVencido`
+     * vía `enrichFromFacts`) TAMBIÉN cae acá — la única ruta de unidad "days" es esta, genérica (`_RUTAS` abajo).
+     * El NOMBRE del universo es incorrecto para esa fig (no es inventario), pero el PERÍODO no miente: "hoy" es
+     * exactamente la foto al corte declarado que le corresponde a "Días vencido" (mismo corte que `cobranza`/
+     * `tasa_cobranza`). Es el mismo acierto que el comentario del owner señaló como casualidad de nombre, no de
+     * diseño — Y NO SE TOCA: "arreglar" el nombre (ej. separar un universo `dias_cobranza`) no cambia ningún
+     * período servido, así que no hay defecto que cerrar y sí el riesgo de romper lo que ya reconcilia bien. */
   },
   unidades: {
     etiqueta: "unidades", unidad: "count", moneda: null, escala: null, periodo: null,
@@ -143,6 +151,47 @@ export const UNIVERSOS = {
   brecha_pp: {
     etiqueta: "brecha en puntos", unidad: "pp", moneda: null, escala: null, periodo: "anual",
     fuentes: ["benchmark − margen"], nota: "puntos porcentuales: es una DIFERENCIA, nunca un porcentaje de algo",
+  },
+  /* ── COBRANZA (owner 2026-09-22, TAREA B) ────────────────────────────────────────────────────────────────────
+   * EL DEFECTO MEDIDO: sin este universo, toda fig de cobranza (venta a crédito, abonado, saldo pendiente, saldo
+   * vencido) caía por defecto a `venta_comercial` (la única ruta `especifica:false` de `unidad:"money"` en
+   * `_RUTAS`) — periodo "anual". `_sonda_cobranza_universo.mjs`/`_sonda_cobranza_toolrunner.mjs` lo confirmaron
+   * end-to-end: la tool `cobranza()` (herramientasAgente.js) vía `runPlan` (toolRunner.js, el ejecutor que usa
+   * bucleAgente.js EN VIVO) sellaba `facts.periodo = "año cerrado — los 12 meses ya ocurrieron"` para una
+   * respuesta que es una FOTO al `flujoComercial.fechaCorte` (2026-08-31 en el demo) — un período FALSO.
+   * ESCALA: cobranza comparte la escala comercial del pack — `mesaFlujo.js` valoriza con el MISMO
+   * `factorComercialDe(getTenantData())` que usa venta_comercial (comentario propio: "el dataset trabaja en
+   * miles ($K), igual que venta/contribución del resto de la Mesa") — por eso `escala:"K"`, igual que
+   * `venta_comercial`, y NUNCA "raw" como `inventario`.
+   * PERÍODO: "hoy" — es una FOTO al corte declarado (`flujoComercial.fechaCorte`), nunca un año cerrado; mismo
+   * principio que ya declara `inventario` para el stock. */
+  cobranza: {
+    etiqueta: "cobranza", unidad: "money", moneda: MONEDA_BASE, escala: "K", periodo: "hoy",
+    fuentes: ["flujoComercial", "mesaFlujo.js:buildMesaFlujo", "herramientasAgente.js:cobranza"],
+    nota: "venta a crédito, abonado, saldo pendiente y saldo vencido: una FOTO al corte declarado (flujoComercial.fechaCorte), nunca un año cerrado. Comparte la escala comercial del pack con venta_comercial (mesaFlujo usa el mismo factorComercialDe)",
+  },
+  /* ── TASA DE COBRANZA (owner 2026-09-23, TAREA 1 del incremento 3) ──────────────────────────────────────────
+   * EL DEFECTO MEDIDO: el mismo defecto de `cobranza` (arriba) pero en PORCENTAJE, no en dinero. La fig
+   * "<Cliente> · Recuperado" no la escribe ningún composer — la AUTO-ENRIQUECE `enrichFromFacts` (ledger.js,
+   * `walk()`) al recorrer `cobranza().facts.clientes[].recuperado` (mesaFlujo.js: `recuperadoPct`, "abonado ÷
+   * venta" del cliente). Como esa fig nunca declara `universo` (nadie lo pide: nace del recorrido genérico de
+   * facts), `deriveFigureType` la resuelve por `_RUTAS` — y hasta esta declaración, ninguna ruta de unidad "pct"
+   * reconocía la palabra "recuperado": caía a la última, genérica (`tasa_comercial`, período "anual"). Medido
+   * con `_sonda_recuperado_universo.mjs`, vía `runPlan`/`toolRunner` (el mismo camino que usa el agente EN
+   * VIVO): las 8 figs "· Recuperado" del tenant demo salían `universo=tasa_comercial · periodo=anual`, cuando
+   * "Recuperado" es abonado/venta EN LA MISMA FOTO al corte (`facts.fechaCorte`, "31 ago 2026") que ya declara
+   * el universo `cobranza` — un período FALSO, igual que el defecto de dinero que cerró la TAREA B.
+   * ESCALA: es un porcentaje puro (abonado ÷ venta, ambos del mismo pack) — sin moneda ni escala, igual que
+   * `tasa_comercial`/`tasa_inventario`.
+   * PERÍODO: "hoy" — la misma foto al corte declarado que `cobranza` (money), nunca un año cerrado.
+   * ⚠️ "Días vencido" NO entra acá — ver la nota en `dias_inventario` y en `_RUTAS` (unidad "days"): su período
+   * YA es "hoy" por una ruta genérica que coincide con el correcto por casualidad de nombre, no de diseño; el
+   * defecto real que existía ahí es solo de NOMBRE de universo, y esta TAREA no lo toca (instrucción del owner:
+   * "Días vencido NO se toca"). */
+  tasa_cobranza: {
+    etiqueta: "tasa de cobranza", unidad: "pct", moneda: null, escala: null, periodo: "hoy",
+    fuentes: ["mesaFlujo.js:buildMesaFlujo (recuperadoPct)", "herramientasAgente.js:cobranza (facts.clientes[].recuperado)", "oracle/ledger.js:enrichFromFacts"],
+    nota: "\"Recuperado\" (abonado ÷ venta del cliente): una FOTO al corte declarado (flujoComercial.fechaCorte), nunca un año cerrado — la misma foto que declara el universo cobranza en dinero.",
   },
 };
 
@@ -165,6 +214,35 @@ export const DIVERGENCIAS = [
   {
     entre: ["precio_unitario", "inventario"],
     razon: "el precio unitario es del mundo comercial (miles/unidad declarada) y el stock del de inventario (unidades propias): el mismo SKU no trae la misma cantidad en las dos fuentes",
+  },
+  /* owner 2026-09-23, TAREA 1 del incremento 3 — hallada al declarar `tasa_cobranza` (arriba): el candado
+   * genérico del final de `reconcilian()` (misma unidad + escala + período ⇒ "reconciled") le daba "reconciled"
+   * a este par SOLO porque los dos son "pct", sin escala y con período "hoy" — no porque midan lo mismo. Una
+   * tasa de inventario (ej. margen % de un SKU) y "Recuperado" (abonado ÷ venta de un cliente) son conceptos sin
+   * relación: no hay ninguna cuenta del producto que los sume ni los compare. NINGÚN par preexistente cambió de
+   * veredicto al declarar esto (medido con `_sonda_reconcilian_matriz.mjs`, antes/después) — es un par NUEVO
+   * (no existía `tasa_cobranza` antes de esta TAREA), declarado para que el candado genérico no le regale
+   * "reconciled" a dos porcentajes sin relación solo por coincidir en forma. */
+  {
+    entre: ["tasa_inventario", "tasa_cobranza"],
+    razon: "las dos son porcentajes sin escala, en la foto de hoy, pero miden cosas distintas: una tasa de inventario (ej. margen % de un SKU) y «Recuperado» (abonado ÷ venta de un cliente) no tienen ninguna operación declarada entre sí — coinciden en FORMA (unidad, escala, período), no en significado",
+  },
+];
+
+// ── QUÉ RECONCILIA COMPARÁNDOSE, NUNCA SUMÁNDOSE (owner 2026-09-22, TAREA B) ────────────────────────────────────
+// A diferencia de `DIVERGENCIAS` (donde la escala/valorización SÍ puede variar por pack — inventario↔venta_comercial
+// se mide por archivo en `motorKpi.js`/se declara a mano en cada tenant), este par es comparable POR CONTRATO, en
+// TODO pack: cobranza usa la MISMA escala comercial que venta_comercial (mesaFlujo.js llama al mismo
+// `factorComercialDe`), así que lo único que las separa es el marco temporal — año cerrado contra una foto al
+// corte — y esa diferencia es estructural, no una medición del archivo. Es exactamente la relación que el producto
+// YA calcula («recuperado = abonado ÷ venta a crédito», `notario/tasas.js`): bloquearla habría roto esa cuenta.
+// «comparable» = se relacionan nombrando los dos marcos temporales, jamás se suman (mismo vocabulario que usa la
+// declaración por pack — ver el comentario de `ESTADOS_COMPATIBILIDAD` más abajo).
+export const COMPARABLES = [
+  {
+    entre: ["venta_comercial", "cobranza"],
+    marcos: { venta_comercial: "el período cerrado", cobranza: "una foto al corte declarado" },
+    razon: "cobranza y venta comercial comparten la misma escala y moneda del pack (mesaFlujo.js usa el mismo factorComercialDe que venta_comercial): lo único que cambia es el marco temporal — la venta es del año cerrado y cobranza es una foto al corte (flujoComercial.fechaCorte). Se relacionan nombrando los dos marcos —es la misma cuenta que «recuperado = abonado ÷ venta a crédito»— y nunca se suman ni se consolidan en un total único",
   },
 ];
 
@@ -215,6 +293,10 @@ export function reconcilian(a, b, pack = null) {
   if (a === b) return { estado: "reconciled", razon: `mismo universo (${A.etiqueta}): misma moneda, escala y período` };
   const decl = compatibilidadDeclarada(a, b, pack);
   if (decl) return { estado: decl.estado, razon: decl.razon, declarada: true, ...(decl.marcos && typeof decl.marcos === "object" ? { marcos: decl.marcos } : {}) };
+  // COMPARABLES (owner 2026-09-22): pares comparables POR CONTRATO, en todo pack — no dependen de una medición del
+  // archivo (a diferencia de `compatibilidadDeclarada`, que sigue mandando si el pack quiere decir otra cosa).
+  const cmp = COMPARABLES.find((x) => (x.entre[0] === a && x.entre[1] === b) || (x.entre[0] === b && x.entre[1] === a));
+  if (cmp) return { estado: "comparable", razon: cmp.razon, ...(cmp.marcos ? { marcos: cmp.marcos } : {}) };
   const d = DIVERGENCIAS.find((x) => (x.entre[0] === a && x.entre[1] === b) || (x.entre[0] === b && x.entre[1] === a));
   if (d) return { estado: "divergent", razon: d.razon };
   if (A.unidad !== B.unidad) return { estado: "unsupported", razon: `unidades distintas (${A.unidad} vs ${B.unidad}): no hay operación declarada entre «${A.etiqueta}» y «${B.etiqueta}»` };
@@ -318,11 +400,21 @@ const _RUTAS = [
   { unidad: "money", re: /\b(capital|stock|inventario|inmovilizad\w*|detenid\w*|sobrestock|quiebre|reponer|liquidar|mercader[íi]a)\b/i, universo: "inventario", especifica: true },
   { unidad: "money", re: /\b(precio|precio lista|costo medio|costo unitario|ticket|valor unitario|por unidad)\b/i, universo: "precio_unitario", especifica: true },
   { unidad: "money", re: /\b(resultado|gastos?|ebitda|utilidad|resultado final|resultado operacional)\b/i, universo: "resultado_pnl", especifica: true },
+  // COBRANZA (owner 2026-09-22, TAREA B) · vocabulario EXCLUSIVO de `mesaFlujo.js`/`herramientasAgente.js:cobranza`
+  // (medido: "abonad*", "saldo pendiente", "saldo vencido", "venta a crédito" y "(flujo)" no aparecen en ningún
+  // label de otro universo — grep sobre src/adi/). Sin esta ruta, estas etiquetas caían al default de abajo
+  // (venta_comercial, periodo "anual") — el defecto que este universo existe para cerrar.
+  { unidad: "money", re: /\babonad\w*\b|\bsaldo\s+pendiente\b|\bsaldo\s+vencido\b|\bventa\s+a\s+cr[ée]dito\b|\(flujo\)/i, universo: "cobranza", especifica: true },
   { unidad: "money", re: /./, universo: "venta_comercial", especifica: false },
   { unidad: "pct", re: /\b(inventario|stock|capital|rotaci[oó]n|cobertura|quiebre|sobrestock)\b/i, universo: "tasa_inventario", especifica: true },
+  // TASA DE COBRANZA (owner 2026-09-23, TAREA 1 del incremento 3) · vocabulario EXCLUSIVO de la fig
+  // auto-enriquecida "<Cliente> · Recuperado" (`enrichFromFacts`, ledger.js, sobre `cobranza().facts`) — medido:
+  // "recuperad[oa]" no aparece como clave de ningún otro dominio de facts (grep `recuperado:` sobre src/adi/).
+  // "recuperable" (adjetivo de la brecha comercial, "contribución no capturada") NO casa: distinto sufijo.
+  { unidad: "pct", re: /\brecuperad[oa]s?\b/i, universo: "tasa_cobranza", especifica: true },
   { unidad: "pct", re: /./, universo: "tasa_comercial", especifica: false },
   { unidad: "ratio", re: /./, universo: "rotacion", especifica: false },
-  { unidad: "days", re: /./, universo: "dias_inventario", especifica: false },
+  { unidad: "days", re: /./, universo: "dias_inventario", especifica: false },   // también recibe "Días vencido" (cobranza) — ver la nota en UNIVERSOS.dias_inventario: nombre incorrecto, período correcto, NO SE TOCA
   { unidad: "count", re: /./, universo: "unidades", especifica: false },
   { unidad: "pp", re: /./, universo: "brecha_pp", especifica: false },
 ];

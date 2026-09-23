@@ -181,9 +181,16 @@ export function buildRolesCartera(scenario) {
   const preguntaAlDueno = candidatos.length
     ? { clave: "volumen_deliberado",
         entidades: candidatos.map((f) => f.entidad),
+        // REGISTRO (owner 2026-09-22): el registro del proyecto es TUTEO NEUTRO (CLAUDE.md, `_registro_gate.mjs`);
+        // un incremento anterior lo cambió a «usted» en este archivo y en otros tres — revertido. Lo que sí se
+        // corrige, EN TUTEO: «se te fue de las manos» era coloquial. Se reemplaza por una formulación formal que
+        // conserva la misma disyuntiva cerrada (solo el dueño la puede resolver). ⚠️ NO uses «se deterioró» acá:
+        // el Notario semántico lo trata como una AFIRMACIÓN de evolución temporal que exige serie declarada
+        // (CLAUDE.md §2, «cuatro garantías»/`deterioro-no-medido`) — aunque esté dentro de una PREGUNTA, no de un
+        // hecho, y eso tumbaba el turno entero a «límite» (medido al elegir la palabra: `afirmacion-no-declarada`).
         texto: candidatos.length === 1
-          ? `¿El volumen de ${candidatos[0].entidad} a ese margen es una apuesta tuya —rotación y liquidez— o se te fue de las manos?`
-          : `¿El volumen de ${candidatos[0].entidad} y ${candidatos[1].entidad} a ese margen es una apuesta tuya —rotación y liquidez— o se te fue de las manos?`,
+          ? `¿El volumen de ${candidatos[0].entidad} a ese margen es una apuesta tuya —rotación y liquidez— o pasó sin que lo decidieras?`
+          : `¿El volumen de ${candidatos[0].entidad} y ${candidatos[1].entidad} a ese margen es una apuesta tuya —rotación y liquidez— o pasó sin que lo decidieras?`,
         porque: "de la respuesta depende si eso es estrategia o fuga, y el dato no mide intención" }
     : null;
 

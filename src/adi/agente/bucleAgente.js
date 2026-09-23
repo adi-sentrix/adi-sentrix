@@ -30,7 +30,10 @@
  * decide el tier con eso (escalar el cierre a un modelo mejor SOLO cuando hay material que reescribir; con
  * boleta vacía la escalada fue 66% del gasto y CERO verdes).
  *
- * PURO · sin red · detrás de la bandera ADI_AGENTE (hoy APAGADA en todos los perfiles). */
+ * PURO · sin red · detrás de la bandera ADI_AGENTE — ENCENDIDA en demo/prod/dev desde el 2026-09-02, cuando
+ * el owner la ascendió a FEATURE (ver src/config/flagProfile.js: PROFILES.prod = [...FEATURE]). Nació apagada
+ * el 2026-08-30 y esta línea decía eso; corregida el 2026-09-22 porque hizo concluir a una auditoría que el
+ * sistema entero del agente no corría en producción. */
 import { runPlan } from "../oracle/toolRunner.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
 import { cajaDelAgente } from "./herramientasAgente.js";

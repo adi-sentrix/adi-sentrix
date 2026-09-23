@@ -489,7 +489,7 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt, 
 }
 
 // path → handler (para los wrappers que enrutan por URL)
-/* ── ADI AGENTE · UNA RONDA DEL BUCLE (F2 · 2026-08-30 · detrás de la bandera ADI_AGENTE, hoy apagada) ─────────
+/* ── ADI AGENTE · UNA RONDA DEL BUCLE (F2 · nació 2026-08-30 · ADI_AGENTE ENCENDIDA desde 2026-09-02) ─────────
  * El bucle vive EN EL CLIENTE (bucleAgente.js — el dato del tenant está allá); este handler es UNA llamada al
  * cerebro en modo libre: system + mensajes + catálogo de herramientas → el modelo pide herramientas o responde.
  * Mismos frenos que las demás pasadas (acceso, rate limit, config) y misma telemetría, etapa «agente».

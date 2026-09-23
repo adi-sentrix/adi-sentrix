@@ -328,6 +328,16 @@ export const ADI_AGENTE = P("ADI_AGENTE");
 // piloto (E7), con gasto nombrado por el owner: agregar "ADI_NOTARIO_V3" al perfil en flagProfile.js.
 export const ADI_NOTARIO_V3 = P("ADI_NOTARIO_V3");
 
+// ── LA ENTREGA · el compositor sin modelo (plan `_ADI_LLMBUSINESS_PLAN.md`) · APAGADA en todos los perfiles ──
+// Primer corte vertical (una sola ruta: «¿dónde estoy perdiendo plata?», el ejemplo del plan §7). Con TRUE,
+// `src/adi/entrega/componer.js` puede componer la Entrega —el documento corto, verificado hecho por hecho contra
+// la boleta con `notario/hechos.js`, que un modelo anfitrión (ChatGPT/Claude fuera de ADI) leería y narraría—
+// para la ruta de contribución no capturada / brecha comercial. Con FALSE (hoy, en todos los perfiles) el módulo
+// existe pero ningún camino de producción lo importa: el turno de ADI es byte-idéntico al de siempre. Mismo
+// patrón que ADI_NOTARIO_V3: nace sin entrada en PROFILES de flagProfile.js — encenderla es agregarla a un
+// perfil ahí, decisión del owner, no un efecto de este commit.
+export const ADI_ENTREGA = P("ADI_ENTREGA");
+
 // ── CONTRATO v2 · GRADUACIÓN EPISTÉMICA VISIBLE detrás de flag · default FALSE (owner 2026-08-07) ──
 // SEPARA DOS COSAS QUE NO SON LO MISMO:
 //   · EL SELLO (estructural, SIEMPRE activo, no depende de este flag): cada claim lleva su `estatus`

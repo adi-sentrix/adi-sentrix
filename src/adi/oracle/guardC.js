@@ -2577,6 +2577,24 @@ function _consolidacionDeUniversos(narration, ledger) {
   return [];
 }
 
+/* EL ANAFÓRICO PLURAL («ambos», «los dos», «las dos») liga TODA la descripción anterior de dos sujetos, el mismo
+ * vocabulario que ya usa `_CONSOLIDA_ANAFORICO` arriba — «PHI-SHAVER9 … ($3.4M) con capital ($11K) …, igual que
+ * PHI-HAIR-PRO ($2.8M, $6K, …): AMBOS sostienen margen sin pedir capital» liga las dos cifras de CADA sujeto
+ * nombrado antes, no solo las más cercanas al verbo. Con esta marca se conserva la lectura de ORACIÓN COMPLETA
+ * (todas las cifras con dueño, todos los pares); SIN ella, la construcción ata solo lo que de verdad toca. */
+const _ANAFORICO_PLURAL = /\b(?:ambos|ambas|los\s+dos|las\s+dos)\b/i;
+/* owner 2026-09-23, TAREA 1 del incremento 3 — MEDIDO al declarar `tasa_cobranza` (figureType.js): esta función
+ * pareaba TODAS las cifras con dueño de la oración entre sí en cuanto aparecía CUALQUIER gatillo relacional en
+ * cualquier parte de ella. Eso confunde una CONSTRUCCIÓN («A frente a B») con una simple ENUMERACIÓN de hechos
+ * del mismo sujeto («Lider va primero: peor brecha (8.6 pp), $4.6M vencidos con solo 45% recuperado y 269 días de
+ * atraso») o una lista de comparaciones PARALELAS, cada una dentro de su propio universo («8.6 pp contra 8.1 pp
+ * de brecha; … 45% contra 57.7% recuperado»): «con solo» ata «45%» a «$4.6M vencidos», nunca a «8.6 pp», y cada
+ * «contra»/«vs» ata sus dos vecinos, no los de la comparación de al lado. El REGLA («de quién es una cifra se
+ * decide por ESTRUCTURA, no por cercanía léxica») ya la aplicaba el lector de cláusula para el DUEÑO de una
+ * cifra; acá se aplica al PAR que arma una relación: sin el anafórico plural (arriba), cada aparición del
+ * gatillo ata SOLO la cifra con dueño más cercana antes y la más cercana después — los dos lados de ESA
+ * construcción, no todas las cifras de la oración. La carnada que sigue ardiendo: «$4.6M vencidos sostienen los
+ * $19.4M de venta» («sostienen» ata exactamente esas dos cifras, vecinas). */
 function _cruceDeUniversos(narration, ledger) {
   const owners = _universeOwners(ledger);
   if (owners.size < 2) return [];
@@ -2586,9 +2604,46 @@ function _cruceDeUniversos(narration, ledger) {
   for (const [lo, hi] of _oraciones(text)) {
     const oracion = text.slice(lo, hi);
     if (!_CRUCE_RELACIONAL.test(oracion)) continue;   // sin construcción que ATE las dos cifras → no se juzga
-    const figs = parseFigures(oracion).filter((f) => owners.has(f.canon));
-    for (let i = 0; i < figs.length; i++) for (let j = i + 1; j < figs.length; j++) {
-      const a = figs[i], b = figs[j];
+    const pares = [];
+    if (_ANAFORICO_PLURAL.test(oracion)) {
+      // lectura ancha (legado): el anafórico liga TODA la oración — ver el comentario de arriba («ambos sostienen…»)
+      const figs = parseFigures(oracion).filter((f) => owners.has(f.canon));
+      for (let i = 0; i < figs.length; i++) for (let j = i + 1; j < figs.length; j++) pares.push([figs[i], figs[j]]);
+    } else {
+      // lectura estrecha: cada aparición del gatillo ata las DOS cifras con dueño más cercanas a él — no
+      // necesariamente una de cada lado («SAM-TV55 vende $13.3M y tiene $13K inmovilizados, o sea que el stock
+      // es una fracción de su venta»: las dos cifras de «fracción de» están las dos ANTES del gatillo, «su
+      // venta» no repite el número) — nunca un producto cartesiano de toda la oración.
+      // ⚠️ `parseFigures` NO devuelve las cifras en orden de aparición en el texto (barre money, luego pct, luego
+      // ratio, días y pp, cada pasada por separado), así que la cercanía se mide por la POSICIÓN real de cada
+      // cifra en la oración (indexOf de su texto), no por el orden de llegada del parser. Un texto repetido usa
+      // la aparición más cercana al gatillo.
+      const figsOr = parseFigures(oracion).filter((f) => owners.has(f.canon));
+      const re = new RegExp(_CRUCE_RELACIONAL.source, "gi");
+      let m;
+      while ((m = re.exec(oracion))) {
+        const ini = m.index, fin = m.index + m[0].length;
+        const candidatos = [];
+        for (const f of figsOr) {
+          let mejor = Infinity, i = -1;
+          while ((i = oracion.indexOf(f.text, i + 1)) !== -1) {
+            const d = i >= fin ? i - fin : (i + f.text.length <= ini ? ini - (i + f.text.length) : 0);
+            if (d < mejor) mejor = d;
+          }
+          if (mejor < Infinity) candidatos.push({ f, d: mejor });
+        }
+        candidatos.sort((x, y) => x.d - y.d);
+        const elegidas = [];
+        for (const c of candidatos) {
+          if (elegidas.some((e) => e.f.canon === c.f.canon)) continue;
+          elegidas.push(c);
+          if (elegidas.length === 2) break;
+        }
+        if (elegidas.length === 2) pares.push([elegidas[0].f, elegidas[1].f]);
+        if (re.lastIndex === m.index) re.lastIndex++;   // gatillo de ancho cero: no debería pasar, pero no cuelga
+      }
+    }
+    for (const [a, b] of pares) {
       if (a.canon === b.canon) continue;
       const ua = [...owners.get(a.canon)], ub = [...owners.get(b.canon)];
       // sólo se marca si TODAS las lecturas posibles del par divergen: si alguna combinación reconcilia, la
@@ -2634,15 +2689,29 @@ function _marcoTemporalNoDeclarado(narration, ledger) {
       const a = figs[i], b = figs[j];
       if (a.canon === b.canon) continue;
       const ua = [...owners.get(a.canon)], ub = [...owners.get(b.canon)];
+      // TODAS las lecturas posibles del par, INCLUIDA la de mismo universo (owner 2026-09-22, TAREA B). Antes el
+      // `if (x !== y)` la excluía de `veredictos` — así que un canon con dueño ambiguo (p.ej. «$2.5M» que es a la
+      // vez «Falabella · Saldo vencido» -cobranza- y, por coincidencia numérica, otra cifra de venta_comercial en
+      // la MISMA boleta) nunca veía su lectura inocente (cobranza↔cobranza, reconciliada) y se marcaba igual,
+      // aunque el comentario de arriba prometiera "si alguna reconcilia, no hay marcos que declarar". Medido con
+      // la carnada de `_atribucion_y_significado_gate.mjs` al declarar el universo `cobranza`. Mismo patrón que
+      // `_cruceDeUniversos` (arriba), que SÍ incluye `x === y` desde siempre.
       const veredictos = [];
-      for (const x of ua) for (const y of ub) if (x !== y) veredictos.push(reconcilian(x, y));
+      for (const x of ua) for (const y of ub) veredictos.push(reconcilian(x, y));
       if (!veredictos.length || !veredictos.every((v) => v.estado === "comparable")) continue;
       const clave = `${a.canon}|${b.canon}`;
       if (vistos.has(clave)) continue;
       vistos.add(clave);
       const A = UNIVERSOS[ua[0]], Bu = UNIVERSOS[ub[0]];
       const m = veredictos[0].marcos || {};
-      const faltan = [!tienePeriodo ? `el del período («${m.venta_comercial || "período cerrado"}»)` : null, !tieneFoto ? `el de la foto («${m.inventario || "foto de inventario a hoy"}»)` : null].filter(Boolean).join(" y ");
+      // EL MARCO SE LEE POR EL PERÍODO DECLARADO DE CADA UNIVERSO, NO POR SU NOMBRE (owner 2026-09-22): esto
+      // decía `m.venta_comercial`/`m.inventario` a mano — cierto solo para ESE par. Con `cobranza` (periodo
+      // "hoy", como inventario, pero NO es inventario) esa lectura hardcodeada caía al fallback de inventario y
+      // decía «foto de inventario a hoy» sobre una respuesta de cobranza. Se busca por `periodo` para que
+      // cualquier par futuro —declarado en `COMPARABLES` o por el pack— quede bien etiquetado sin tocar acá.
+      const _deAnual = [ua[0], ub[0]].find((u) => UNIVERSOS[u] && UNIVERSOS[u].periodo === "anual");
+      const _deHoy = [ua[0], ub[0]].find((u) => UNIVERSOS[u] && UNIVERSOS[u].periodo === "hoy");
+      const faltan = [!tienePeriodo ? `el del período («${(_deAnual && m[_deAnual]) || "período cerrado"}»)` : null, !tieneFoto ? `el de la foto («${(_deHoy && m[_deHoy]) || "foto de inventario a hoy"}»)` : null].filter(Boolean).join(" y ");
       out.push(`«${a.text}» (${A.etiqueta}) y «${b.text}» (${Bu.etiqueta}) se relacionan en la misma oración: en este archivo son comparables, pero viven en marcos distintos y la respuesta no nombra ${faltan}. Di de qué marco es cada cifra o no las relaciones — y nunca las sumes`);
     }
   }

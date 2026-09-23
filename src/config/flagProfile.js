@@ -71,6 +71,12 @@ const FEATURE = [
   "ADI_VIGIA",
 ];
 
+/* LA ENTREGA (owner 2026-09-22, plan `_ADI_LLMBUSINESS_PLAN.md`): `ADI_ENTREGA` (declarada en voiceFlags.js) NO
+ * tiene entrada en ningún perfil A PROPÓSITO — mismo patrón que `ADI_NOTARIO_V3` un poco más abajo en ese mismo
+ * archivo. `P("ADI_ENTREGA")` da `false` en floor/demo/prod/dev por igual: el compositor de la Entrega existe en
+ * `src/adi/entrega/`, pero ningún camino de producción lo importa todavía. Encenderla en algún perfil es una
+ * decisión del owner (agregar la cadena acá), no un efecto de haber escrito el módulo. */
+
 // DEV-TOOLS · herramientas internas · SOLO dev (nunca demo/prod)
 const DEV_TOOLS = [
   // El COLAPSO DEL EJE DE ESCENARIOS (owner 2026-08-07, ejecutado 2026-08-30) retiró de acá el switcher: primero

@@ -72,7 +72,11 @@ H("1c · la cita reemplaza la re-pregunta; la caducidad re-mide; el olvido borra
   const t3 = String(r3.r.text || "");
   ok(/tu palabra ya está anotada/.test(t3) && /«sí, es apuesta mía — lo estoy empujando yo»/.test(t3),
     "★ el porqué siguiente CITA la palabra guardada (con su fecha) en vez de re-preguntar", t3.slice(0, 120));
-  ok(!/apuesta tuya —rotación y liquidez— o se te fue/.test(t3), "…y la pregunta NO se repite");
+  // REGISTRO (owner 2026-09-22): rolesCartera.js sigue en tuteo — solo cambió «se te fue de las manos»
+  // (coloquial) por «pasó sin que lo decidieras» (formal, misma disyuntiva; «se deterioró» se descartó porque
+  // el Notario lo trata como afirmación de evolución temporal — ver el comentario en rolesCartera.js). La
+  // carnada sigue el texto NUEVO.
+  ok(!/apuesta tuya —rotación y liquidez— o pasó sin que lo decidieras/.test(t3), "…y la pregunta NO se repite");
 
   /* el refinamiento del supervisor: la palabra dada sobre OTRA cuenta también se recuerda — se nombra lo
    * resuelto y la pregunta queda SOLO para lo abierto */

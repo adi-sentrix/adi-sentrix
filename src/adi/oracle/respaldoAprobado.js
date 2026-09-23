@@ -60,7 +60,9 @@ export function _respaldoDeLoYaAprobado(memIn, juzgar, contexto = {}) {
    * cuatro preguntas de familias distintas (T17·T19·T24·T27) recibieron la MISMA cadena de 153 caracteres, y
    * una vez en el hilo el cerebro la copiaba (T20).
    *
-   * PERO ESTE PELDAÑO LO COMPARTEN DOS CAMINOS, y el natural está VIVO en producción (`ADI_CAMINO_NATURAL` va
+   * PERO ESTE PELDAÑO LO COMPARTEN DOS CAMINOS, y el natural YA NO EXISTE (se retiró el 2026-09-05, La Poda) ⚠️ y `ADI_AGENTE` está ENCENDIDA desde el
+   * 2026-09-02 — la frase de abajo quedó de agosto y era falsa en sus dos mitades; se conserva tachada
+   * porque la medición que la sigue se hizo cuando el natural todavía existía. Decía: (`ADI_CAMINO_NATURAL` va
    * en el perfil `prod`; la bandera apagada es `ADI_AGENTE`, que es otra cosa). Medido antes de tocar: al ceder,
    * el turno del camino natural pasaba de esta frase de 153 chars al tablero de KPIs de `suplenteDignoDelDato`,
    * 1.174 chars. PALABRA DEL OWNER (2026-08-31, textual): «No quiero que una reparación diseñada y medida para
