@@ -79,6 +79,12 @@ function _procedenciaDeFig(f) {
   const t = f && f.fig && f.fig.tipo;
   if (!t || !t.verificabilidad) return "derivado";   // sin tipo declarado (ej. la proyección de un ranking, sin
   // fig real detrás): es una lectura que YA calculó el motor sobre el dato, nunca un archivo — nunca "medido" a ciegas.
+  /* SIN CRUDO, NUNCA «MEDIDO» (owner 2026-09-23 — arreglo del verificador). `fig.tipo.verificabilidad` se estampa
+   * en `fig()` por el RÓTULO, sin saber si esa fig llegó con un `raw` genuino — por eso «literal»/«declarada_no_
+   * verificable» pueden convivir con `f.crudo === false` (evidencia.js reparseó el texto ya redondeado porque no
+   * había crudo). Cuando eso pasa, la etiqueta de la fuente miente: no es una lectura directa del archivo, es una
+   * reconstrucción desde lo que la pantalla muestra — la procedencia más floja que ya existe en la escala. */
+  if (f && f.crudo === false) return "derivado";
   switch (t.verificabilidad) {
     case "literal":
       // un total/subtotal declarado (cobertura o `agregado` del índice) es una SUMA del motor aunque ninguna
@@ -323,6 +329,13 @@ function _razon(H, h, I, libro = null) {
   const num = _operando(I, h.num, libro), den = _operando(I, h.den, libro);
   if (!num) return _aplica(H, { veredicto: "no-verificable", motivo: `sin-evidencia: el numerador ${JSON.stringify(h.num)} no está en la evidencia`, verdad: "", evidencia: [] });
   if (!den) return _aplica(H, { veredicto: "no-verificable", motivo: `sin-evidencia: el denominador ${JSON.stringify(h.den)} no está en la evidencia`, verdad: "", evidencia: den ? [den.label] : [] });
+  /* UN OPERANDO SIN CRUDO NO DIVIDE (owner 2026-09-23 — arreglo del verificador). `crudo === false` = evidencia.js
+   * no tenía `fig.raw` y reparseó el TEXTO ya redondeado para mostrar (p. ej. «$12.6M» → 12.600.000, cuando el dato
+   * real podía ser 12.556.300): usarlo como operando de una razón divide un redondeo, no un dato. Leer ese mismo
+   * texto para comprobar que el modelo lo repitió sigue siendo legítimo (eso pasa por `mismoValor`, no por acá) —
+   * lo que se cierra es SOLO la aritmética nueva sobre un operando reconstruido. */
+  if (num.crudo === false) return _aplica(H, { veredicto: "no-verificable", motivo: `sin-crudo: ${_fmtFig(num)} es una reconstrucción desde el texto mostrado (falta el valor crudo) — no se puede usar como operando de una razón`, verdad: "", evidencia: [num.label] });
+  if (den.crudo === false) return _aplica(H, { veredicto: "no-verificable", motivo: `sin-crudo: ${_fmtFig(den)} es una reconstrucción desde el texto mostrado (falta el valor crudo) — no se puede usar como operando de una razón`, verdad: "", evidencia: [den.label] });
   if (_u(num.unidad) !== _u(den.unidad)) return _aplica(H, { veredicto: "no-verificable", motivo: `unidades-distintas: ${_fmtFig(num)} y ${_fmtFig(den)} no se dividen`, verdad: "", evidencia: [num.label, den.label] });
   if (!Number.isFinite(den.raw) || den.raw === 0) return _aplica(H, { veredicto: "no-verificable", motivo: `sin-evidencia: ${_fmtFig(den)} es cero`, verdad: "", evidencia: [den.label] });
   if (normalizar(num.label) === normalizar(den.label)) return _aplica(H, { veredicto: "no-verificable", motivo: "razon-vacua: la misma cifra sobre sí misma no dice nada", verdad: "", evidencia: [num.label] });
@@ -365,6 +378,9 @@ function _derivada(H, h, I, libro = null) {
   const falta = _lista(h.de)[ops.findIndex((x) => !x)];
   if (falta !== undefined) return _aplica(H, { veredicto: "no-verificable", motivo: `sin-evidencia: el operando ${JSON.stringify(falta)} no está en la evidencia`, verdad: "", evidencia: [] });
   if (ops.length < 2) return _aplica(H, { veredicto: "no-verificable", motivo: "derivada-incompleta: hacen falta al menos dos operandos", verdad: "", evidencia: [] });
+  /* UN OPERANDO SIN CRUDO NO SE SUMA NI SE RESTA (owner 2026-09-23 — arreglo del verificador, mismo candado que
+   * `_razon`): `crudo === false` = evidencia.js reparseó el texto ya redondeado porque `fig.raw` no existía. */
+  { const sc = ops.find((f) => f.crudo === false); if (sc) return _aplica(H, { veredicto: "no-verificable", motivo: `sin-crudo: ${_fmtFig(sc)} es una reconstrucción desde el texto mostrado (falta el valor crudo) — no se puede usar como operando de una derivada`, verdad: "", evidencia: [sc.label] }); }
   for (const f of ops) { _addEnt(H, I, f.entidad); const c = claveDeMetrica(f.concepto); H.claves.add(c || normalizar(f.concepto).replace(/\s+/g, "_")); H.numeros.push({ raw: f.raw, unidad: f.unidad, texto: f.texto || "" }); }
   H.roles.sujetos = [...new Set(ops.map((f) => f.entidad || "negocio"))]; H.dominio = _dominioDeFig(ops[0]);
   const raws = ops.map((f) => f.raw), u0 = ops[0].unidad;

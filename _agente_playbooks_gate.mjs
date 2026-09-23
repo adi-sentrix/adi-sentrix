@@ -1376,14 +1376,59 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       return /Valparaíso|Antofagasta/.test(String(Mut.lecturaPorEje.componer({ figs, pregunta: "qué SKU tienen capital frenado" }) || ""));
     });
 
-  // (C) el número leído solo de `raw`: marca vuelve a salir SIN ordenar (el motor no pone raw en todas)
-  await carnada("el ranking por marca sin ordenar (raw solo en las destacadas)", "src/adi/agente/playbooks/lecturaPorEje.js",
-    [[/  if \(f && Number\.isFinite\(f\.raw\)\) return f\.raw;\n  const s = String/, "  return (f && Number.isFinite(f.raw)) ? f.raw : NaN;\n  const s = String"]],
-    async (Mut) => {
-      const figs = boletaDelPlaybook(Mut.lecturaPorEje, "bonanza", "qué marca deja más margen");
-      const t = String(Mut.lecturaPorEje.componer({ figs, pregunta: "qué marca deja más margen" }) || "");
-      return !/de mayor a menor/.test(t) || t.indexOf("Makita") > t.indexOf("LG");
-    });
+  /* (C) EL MECANISMO DE `_num` (reparseo del texto cuando la fig no trae `raw`) — REAPUNTADA a figs sintéticas
+   * (owner 2026-09-23). La carnada original mutaba el fallback y esperaba que «qué marca deja más margen»
+   * saliera SIN ordenar, contra la boleta REAL de `marginRead`. Dejó de morder porque el motor mejoró, no
+   * porque el invariante se aflojó: el arreglo del verificador de hoy (`src/adi/oracle/ledger.js`,
+   * `enrichFromFacts`, Condición 1) le dio `raw` finito a TODO campo de días/ratio/% que la panel-walk
+   * descubre — «margen» incluido — así que hasta Makita (que no cae en el subconjunto «below» que
+   * `composeSpecMargin` arma explícito, por estar SOBRE el benchmark) llega con `raw`. Medido: con el
+   * fallback completamente roto, los SEIS ejes de este playbook (sku_frenado · canal · marca · familia ·
+   * cliente · bodega) en los CUATRO escenarios del demo (bonanza/tension/crisis/actual) siguen ordenando
+   * completo — cero dependencia real del reparseo en ese camino hoy.
+   * El mecanismo sigue vivo en producto (defensa para cualquier fig futura que llegue sin `raw` — un
+   * composer nuevo, un dato de otro tenant, un campo que la próxima ronda del verificador no cubra), así que
+   * se sigue vigilando: DIRECTO, con figs sintéticas que fuerzan el caso que el demo ya no fuerza, no a
+   * través de una boleta real que ya no lo necesita. */
+  {
+    const _figSinRaw = (label, text) => ({ label, text });   // sin `raw`: fuerza la rama de texto de `_num`
+    // a propósito DESORDENADAS: si el fallback no reparsea, el orden que sale es el de esta lista, no el de la cifra
+    const figsMarcaSinRaw = [
+      _figSinRaw("LG · Margen", "24.0%"),
+      _figSinRaw("Makita · Margen", "35.5%"),
+      _figSinRaw("Samsung · Margen", "24.2%"),
+      _figSinRaw("Bosch · Margen", "26.0%"),
+      _figSinRaw("Philips · Margen", "26.6%"),
+    ];
+    initTenant(TENANT_DEMO);
+    const pbVivo = lecturaPorEjePb();
+    const tOk = String(pbVivo.componer({ figs: figsMarcaSinRaw, pregunta: "qué marca deja más margen" }) || "");
+    const ordenOk = /de mayor a menor/.test(tOk)
+      && tOk.indexOf("Makita") < tOk.indexOf("Philips") && tOk.indexOf("Philips") < tOk.indexOf("Bosch")
+      && tOk.indexOf("Bosch") < tOk.indexOf("Samsung") && tOk.indexOf("Samsung") < tOk.indexOf("LG");
+    ok(ordenOk, "el fallback de `_num` reparsea el texto y ordena correcto SIN `raw` (figs sintéticas, fallback intacto)", tOk);
+
+    await carnada("el fallback de `_num` deja de reparsear (mecanismo, con figs sin `raw`)", "src/adi/agente/playbooks/lecturaPorEje.js",
+      [[/  if \(f && Number\.isFinite\(f\.raw\)\) return f\.raw;\n  const s = String/, "  return (f && Number.isFinite(f.raw)) ? f.raw : NaN;\n  const s = String"]],
+      async (Mut) => {
+        const t = String(Mut.lecturaPorEje.componer({ figs: figsMarcaSinRaw, pregunta: "qué marca deja más margen" }) || "");
+        return !/de mayor a menor/.test(t) || t.indexOf("Makita") > t.indexOf("LG");
+      });
+  }
+
+  /* …Y LA MEJORA, REGISTRADA (no escondida detrás de la carnada que dejó de morder): en bonanza, las 5 figs
+   * «· Margen» del eje marca YA traen `raw` finito — Makita incluida. Si alguien le vuelve a quitar el crudo
+   * (composeSpecMargin o la Condición 1 de `enrichFromFacts`), este candado se entera solo. */
+  {
+    initTenant(TENANT_DEMO);
+    const figsReales = boletaDelPlaybook(lecturaPorEjePb(), "bonanza", "qué marca deja más margen");
+    const figsMargen = figsReales.filter((f) => /· Margen$/.test(f.label));
+    ok(figsMargen.length === 5 && figsMargen.every((f) => Number.isFinite(f.raw)),
+      "…y en bonanza las 5 marcas del eje traen `raw` finito en su «· Margen» (Makita incluida)",
+      JSON.stringify(figsMargen.map((f) => ({ label: f.label, raw: f.raw }))));
+    const makita = figsMargen.find((f) => f.label.startsWith("Makita"));
+    ok(!!makita && makita.raw === 35.5, "…y Makita trae raw=35.5, no solo el texto «35.5%»", makita);
+  }
 
   // (D) `_FUERA` vaciado: una simulación que nombra un eje queda secuestrada por la lectura
   await carnada("lectura por eje secuestra una simulación", "src/adi/agente/playbooks/lecturaPorEje.js",

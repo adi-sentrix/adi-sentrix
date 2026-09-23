@@ -451,8 +451,15 @@ export const lecturaDeVentas = {
     const refAnt = !contraPpto ? _find(figs, /^Ventas del a[ñn]o anterior$/i) : null;
     const totalPpto = contraPpto ? _find(figs, /^Venta total$/i) : null;
     const pptoFig = contraPpto ? _find(figs, /^Presupuesto total$/i) : null;
+    // «Ventas del período» (owner 2026-09-23 — arreglo del verificador, specRetrieval.js composeSpecVentas): el
+    // MISMO total que antes SOLO vivía en la primera `headlineSub`, ahora con crudo real y rótulo propio — dedup
+    // por canon contra la fig que `enrichFromFacts` auto-generaba (ledger.js), así que `subs` puede llegar VACÍO
+    // (las dos mitades de headlineSub ya están cubiertas por figs con nombre: «Ventas del período» + «Ventas del
+    // año anterior»). Sin esta rama el par se perdía y la apertura caía al fraseo degradado sin las dos cifras.
+    const totalPeriodo = !contraPpto ? _find(figs, /^Ventas del per[ií]odo$/i) : null;
     const par = subs.length === 2 ? { total: _val(subs[0]), ref: _val(subs[1]), figs: [subs[0], subs[1]] }
       : subs.length === 1 && refAnt ? { total: _val(subs[0]), ref: _val(refAnt), figs: [subs[0], refAnt] }
+      : totalPeriodo && refAnt ? { total: _val(totalPeriodo), ref: _val(refAnt), figs: [totalPeriodo, refAnt] }
       : totalPpto && pptoFig ? { total: _val(totalPpto), ref: _val(pptoFig), figs: [totalPpto, pptoFig] } : null;
     const yoy = _all(figs, contraPpto ? /· vs ppto$/i : /· YoY$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
       .filter((x) => x.entidad && Number.isFinite(x.usd));

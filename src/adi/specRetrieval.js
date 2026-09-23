@@ -1257,6 +1257,21 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
   for (const e of estados) bol.push(fig(`Estado del inventario: ${e.label}`, _money(e.usd), { unit: "money", raw: e.usd, mandatory: false, context: "distribución de inventario" }));
   bol.push(...figsUmbralFocos());   // el playbook de inventario declara si el total es material («Está bajo el 0.05% de tu venta: $50K») — con rótulo, al final (2026-09-14)
   if (lever2) bol.push(fig(`Medida · liberar ${lever2.skus.join(" y ")}`, _money(lever2.usd), { unit: "money", raw: lever2.usd, mandatory: true, source: "computed", formula: "Σ capital top 2", context: "cuánto vale la medida" }));
+  /* «· Días de inventario» / «· Rotación» / «· Días sin venta» POR SKU, CON CRUDO REAL (owner 2026-09-23 —
+   * arreglo del verificador). Mismo defecto que «Entidad · Venta» en composeSpecMargin: ninguna fig de este
+   * composer traía estos tres rótulos — los auto-publicaba `enrichFromFacts` (ledger.js) leyendo
+   * `facts.inventory.bySku[]`, con la MISMA fórmula de formato («${Math.round(v)}d» / «${v.toFixed(1)}x») pero
+   * sin `raw`, porque a esa altura ya no tiene el número, solo el texto. Reproducir la MISMA fórmula acá (no
+   * una nueva) garantiza el mismo texto, así que esta fig explícita reemplaza —nunca duplica— a la
+   * auto-enriquecida (dedup por canon en `enrichFromFacts`). GANCHO: cifras autorizadas, no obligan a la
+   * narración a nombrar cada SKU. AL FINAL DE TODO (no intercalada arriba): varias fixtures citan las figs de
+   * este composer por posición (`asignarIds`/«c8», «c12»…) — intercalar cifras nuevas les corre el número a las
+   * de siempre y rompe una cita que no tenía nada que ver con el crudo. */
+  for (const s of B.skus) {
+    if (Number.isFinite(s.doh)) bol.push(fig(`${s.sku} · Días de inventario`, `${Math.round(s.doh)}d`, { unit: "days", raw: s.doh, mandatory: false, gancho: true, context: B.ctx }));
+    if (Number.isFinite(s.rotacion)) bol.push(fig(`${s.sku} · Rotación`, `${s.rotacion.toFixed(1)}x`, { unit: "ratio", raw: s.rotacion, mandatory: false, gancho: true, context: B.ctx }));
+    if (Number.isFinite(s.diasSinVenta)) bol.push(fig(`${s.sku} · Días sin venta`, `${Math.round(s.diasSinVenta)}d`, { unit: "days", raw: s.diasSinVenta, mandatory: false, gancho: true, context: B.ctx }));
+  }
   return {
     opener: B.lines.filter(Boolean).join("\n\n"),
     suggestions: B.suggestions,
@@ -1636,6 +1651,23 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       }));
     }
   }
+  /* «· Venta» PARA LAS 13 CUENTAS, CON CRUDO REAL (owner 2026-09-23 — arreglo del verificador). Antes, ninguna
+   * fig de este composer traía `Entidad · Venta`: el índice de evidencia (`notario/evidencia.js`) no tenía de
+   * dónde sacar el crudo, y la única fig con ese rótulo la auto-publicaba `enrichFromFacts` (ledger.js) leyendo
+   * `facts.margin.panel.rows[].venta` — sin `raw`, porque a esa altura ya es el TEXTO formateado («$17.8M»), no
+   * el número. Una razón que dividiera por esa cifra (p. ej. «¿qué peso tiene Lider en la venta de los que
+   * caen?») dividía un redondeo. Acá se publica la MISMA cifra con su crudo: `_mVenta` usa el mismo factor de
+   * escala que `_fmtMoneyFacts` (los dos delegan en `factorComercialDe`), así que el texto sale BYTE-IDÉNTICO al
+   * que ya mostraba la boleta — esta fig explícita reemplaza a la auto-enriquecida (dedup por canon en
+   * `enrichFromFacts`), nunca la duplica. GANCHO: no fuerza la narración a nombrar la venta de cada cliente. */
+  /* SOLO PARA LAS ENTIDADES QUE ESTE FOCO YA CITÓ (owner 2026-09-23, hallazgo al medir): publicarla para las
+   * 13 SIEMPRE —sin mirar qué focó el usuario pidió— ampliaba el «alcance del turno» que lee `conversationScope`
+   * y el punto que resalta la Mesa (`_mirror_gate`): un foco de 4 cuentas (p. ej. «alto_volumen_bajo_margen»)
+   * pasaba a verse como si hablara de las 13, porque esta fig nueva las nombraba a todas igual. Acotar a las
+   * entidades que YA tienen una fig «· Margen» en esta boleta es el mismo recorte que cada foco ya hizo —nunca
+   * amplía lo que el foco decidió mostrar. */
+  const _entidadesConMargen = new Set(bol.filter((f) => / · Margen$/.test(f.label)).map((f) => f.label.split(" · ")[0]));
+  for (const r of rows) if (_entidadesConMargen.has(_mNombre(r)) && typeof r.venta === "number") bol.push(fig(`${_mNombre(r)} · Venta`, _mVenta(r.venta), { unit: "money", raw: r.venta * _fxe(), mandatory: false, gancho: true, context: _ctx }));
   return {
     opener: lines.filter(Boolean).join("\n\n"),
     suggestions,
@@ -1775,6 +1807,13 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
     /* LA VENTA DEL AÑO ANTERIOR CON RÓTULO PROPIO (Notario semántico, fase 2 — deuda de la fase 1): «$100,0M vs $92,9M» viajaba solo en
      * `headlineSub`, sin significado, y una afirmación verdadera quedaba no-verificable. La base del crecimiento es una cifra del negocio. */
     bol.push(fig("Ventas del año anterior", _m(totAnt), { unit: "money", raw: totAnt * _fxe(), mandatory: false, context: "la venta del año anterior: la base contra la que se mide el crecimiento" }));
+    /* …Y LA VENTA DEL PERÍODO, CON EL MISMO RÓTULO PROPIO (owner 2026-09-23 — arreglo del verificador): el mismo defecto,
+     * la otra mitad — «$100,0M» (el `tot` de la línea de arriba) viajaba SOLO en `headlineSub`, y una razón que dividiera
+     * por la venta del negocio («¿qué peso tiene el vencido de Lider en la venta total?») no podía usarla como operando:
+     * `enrichFromFacts` (ledger.js) reparseaba el TEXTO ya redondeado, no el dato. Mismo `_m(tot)` exacto que ya se
+     * mostraba (esta fig explícita reemplaza —dedup por canon— a la que `enrichFromFacts` auto-generaba sin crudo, nunca
+     * la duplica) y mismo rótulo que ya usa el resumen ejecutivo para el mismo concepto («Ventas del período»). */
+    bol.push(fig("Ventas del período", _m(tot), { unit: "money", raw: tot * _fxe(), mandatory: false, context: "la venta del período: la que crece o cae contra el año anterior" }));
     const panel = { kind: "movers", title: "Vs año anterior", headline: `${_sgnp(tp)}${_p1(tp)}%`, headlineSub: `${_m(tot)} vs ${_m(totAnt)}`, rows: mov.map((r) => ({ nombre: r.nombre, val: r.d, valFmt: `${_sgnp(r.d)}${_m(r.d)}`, pct: +r.p.toFixed(1), pos: r.d >= 0 })).sort((a, b) => b.val - a.val) };
     return { lines, suggestions: ["Es por volumen o por precio", "Quiénes redujeron su compra"], bol, panel };
   }

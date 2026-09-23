@@ -234,6 +234,15 @@ export function indiceDeEvidencia({ figs = [], datoProyectado = null, ejesDelTen
     if (!entidad && partes.length === 2 && /^familia$/i.test(partes[1])) { entidad = partes[0]; eje = "familia"; concepto = "capital"; _agregarDeRotulo(entidad, "familia"); }
     let raw = Number.isFinite(+fig.raw) && fig.raw !== "" && fig.raw != null ? +fig.raw : NaN;
     let unidad = fig.unit || null;
+    /* EL CRUDO Y SU RECONSTRUCCIÓN, DISTINGUIDOS (owner 2026-09-23 — arreglo del verificador). `crudo` es la
+     * bandera: true cuando `raw` es el valor que el motor calculó; false cuando ninguna fig.raw existía y este
+     * fallback reparseó `fig.value` —el TEXTO ya redondeado para mostrar, p. ej. «$12.6M»— como si fuera el
+     * dato. Reconstruir así es LEGÍTIMO para comprobar que un texto repite lo que la pantalla muestra (`raw`
+     * sigue sirviendo para eso, `mismoValor` no cambia); es ILEGÍTIMO usarlo como operando exacto de una cuenta
+     * nueva (una razón, una derivada) — ahí un redondeo se haría pasar por un dato, y `raw` solo no alcanza para
+     * distinguir los dos usos. `hechos.js` (`_razon`/`_derivada`) lee esta bandera antes de dividir o sumar: sin
+     * crudo, el hecho sale «no verificable: falta el valor crudo», nunca un cociente calculado sobre el texto. */
+    let crudo = Number.isFinite(raw);
     if (!Number.isFinite(raw)) { const p = parseFigures(menosAscii(String(fig.value || ""))); if (p.length) { raw = p[0].raw; unidad = unidad || p[0].unit; } else if (/^-?\d+$/.test(String(fig.value || "").trim())) { raw = parseInt(fig.value, 10); unidad = unidad || "count"; } }
     /* «5.0 pp» viene con unit «pct» en alguna fig: la unidad del canon manda */
     if (unidad === "pct" && /\bpp\b/.test(String(fig.value || ""))) unidad = "pp";
@@ -250,7 +259,7 @@ export function indiceDeEvidencia({ figs = [], datoProyectado = null, ejesDelTen
     const entidadesDelGrupo = grupo ? grupo.entidades : [];
     const n = grupo && grupo.n != null ? grupo.n : cobertura && Number.isFinite(+cobertura.n) ? +cobertura.n : (() => { const m = /(\d+)\s+(?:cuentas|clientes|sku|skus)/i.exec(concepto) || /\((\d+)\s+de\s+\d+\)/.exec(concepto); return m ? +m[1] : null; })();
     const m = cobertura && Number.isFinite(+cobertura.m) ? +cobertura.m : (() => { const mm = /\(\s*de\s+(\d+)\b/i.exec(concepto) || /\(\d+\s+de\s+(\d+)\)/.exec(concepto); return mm ? +mm[1] : null; })();
-    F.push({ fig, label, entidad, eje, concepto, conceptoNorm, base, calificador, universoTexto, raw, unidad, canon: String(fig.canon || "").replace(/\$/g, ""), texto: menosAscii(String(fig.value ?? fig.text ?? "")).trim(), agregado, grupo, cobertura, n, m, entidadesDelGrupo, periodo: t.periodo || "", universo: t.universoEtiqueta || t.universo || "", claves: metricasEn(concepto), source: fig.source || "", formula: fig.formula || "", context: fig.context || "" });
+    F.push({ fig, label, entidad, eje, concepto, conceptoNorm, base, calificador, universoTexto, raw, crudo, unidad, canon: String(fig.canon || "").replace(/\$/g, ""), texto: menosAscii(String(fig.value ?? fig.text ?? "")).trim(), agregado, grupo, cobertura, n, m, entidadesDelGrupo, periodo: t.periodo || "", universo: t.universoEtiqueta || t.universo || "", claves: metricasEn(concepto), source: fig.source || "", formula: fig.formula || "", context: fig.context || "" });
   }
 
   /* ── la casación de la métrica declarada con el concepto de la fig ── */
@@ -283,7 +292,13 @@ export function indiceDeEvidencia({ figs = [], datoProyectado = null, ejesDelTen
       const s = _casa(metrica, f);
       if (s > 0) cands.push({ f, s });
     }
-    cands.sort((a, b) => b.s - a.s || a.f.conceptoNorm.length - b.f.conceptoNorm.length);
+    /* A IGUAL CASACIÓN, GANA EL CRUDO (owner 2026-09-23 — arreglo del verificador): entre dos figs que casan
+     * igual de bien con la métrica pedida —p. ej. «Lider · Venta (flujo)» (cobranza, `raw` genuino) y «Lider ·
+     * Venta» (auto-enriquecida por `enrichFromFacts`, sin `raw`)—, la que SÍ trae el dato del motor gana sobre
+     * la que este índice tuvo que reconstruir desde el texto. Antes el desempate era solo «el concepto más
+     * corto», y «Venta» (5) le ganaba a «Venta (flujo)» (13) aunque la primera no tuviera crudo: una razón
+     * quedaba dividiendo por un redondeo pudiendo dividir por el dato real. */
+    cands.sort((a, b) => b.s - a.s || (a.f.crudo === false) - (b.f.crudo === false) || a.f.conceptoNorm.length - b.f.conceptoNorm.length);
     /* solo la mejor capa: exacto y sinónimos van juntos (4 · 3.5 · 3.4); la contención (2) y las claves del muro (1) solo si no hay nada mejor */
     const top = cands.length ? cands[0].s : 0;
     return cands.filter((c) => c.s >= top - 0.6).map((c) => c.f);

@@ -458,6 +458,20 @@ export function buildMesaFlujo(scenario = ESCENARIO_INICIAL) {
       ? `Los ${conParams} clientes del período, al ${_dLegible(corte)}.`
       : `${conParams} de ${delDato} clientes, al ${_dLegible(corte)} — el resto no tiene plazo de crédito declarado.`,
     completo: conParams === delDato,
+    /* EL CRUDO DEL TOTAL, EXPUESTO (owner 2026-09-23 — arreglo del verificador): la rama de planilla YA devuelve
+     * `total` (arriba, `buildDesdePlanilla`); esta rama (la que usa el demo/bonanza) lo calculaba en variables
+     * locales y nunca lo publicaba. Sin `total`, `herramientasAgente.js:cobranza()` le pasaba `raw: NaN` a los
+     * figs «· total» y el índice de evidencia (`notario/evidencia.js`) reparseaba el TEXTO ya redondeado como si
+     * fuera el crudo — la participación de una cuenta en el vencido salía sobre un denominador aproximado. Es
+     * PURAMENTE ADITIVO: mismos campos, misma forma y mismos nombres que ya usa la rama de planilla; ningún campo
+     * existente de este objeto cambia. */
+    total: {
+      ventaK, ventaFmt: _mK(ventaK),
+      abonadoK, abonadoFmt: _mK(abonadoK),
+      saldoK, saldoFmt: _mK(saldoK),
+      vencidoK, vencidoFmt: _mK(vencidoK),
+      recuperadoPct: _pct(abonadoK, ventaK), recuperadoFmt: `${_pct(abonadoK, ventaK)}%`,
+    },
   };
 }
 

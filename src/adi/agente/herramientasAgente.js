@@ -296,12 +296,23 @@ export function cobranza(_args = {}, ctx = {}) {
   /* los TOTALES · con el label del propio módulo (en la planilla dice «a crédito»; en el demo, «del período») */
   const esPlanilla = M.origen === "planilla";
   const ventaLabel = esPlanilla ? "Venta a crédito del período" : "Venta del período (flujo)";
-  const T = M.total || null;
+  /* EL CRUDO, NUNCA NaN SI LAS FILAS LO TIENEN (owner 2026-09-23 — arreglo del verificador): `mesaFlujo.js` ya
+   * publica `total` en las dos ramas; esto es el segundo piso, defensivo — si algún día un tenant llega sin él,
+   * el crudo se suma de las MISMAS filas que la boleta ya cita abajo (`f.ventaK`/`f.abonadoK`/`f.saldoK`/
+   * `f.vencidoK`), nunca se deja en NaN. Sin esto, el índice de evidencia (`notario/evidencia.js`) reparseaba el
+   * TEXTO ya redondeado del KPI como si fuera el crudo, y una razón sobre ese total (p. ej. la participación de
+   * una cuenta en el vencido) dividía un redondeo, no un dato. `M.filas` es la lista COMPLETA del módulo (no el
+   * cap de 8 de la boleta), así que la suma reconstruida es exacta. */
+  const _sumaDeFilas = (campo) => { let acc = 0, algo = false; for (const f of M.filas) if (Number.isFinite(f[campo])) { acc += f[campo]; algo = true; } return algo ? acc : NaN; };
+  const T = M.total || {
+    ventaK: _sumaDeFilas("ventaK"), abonadoK: _sumaDeFilas("abonadoK"), saldoK: _sumaDeFilas("saldoK"),
+    vencidoK: _sumaDeFilas("vencidoK"),
+  };
   const kpiDe = (key) => (M.kpis || []).find((k) => k.key === key) || null;
   const kV = kpiDe("venta"), kA = kpiDe("abonado"), kS = kpiDe("saldo"), kX = kpiDe("vencido");
-  if (kV) _fig(ventaLabel, T ? T.ventaFmt : kV.valor, T ? T.ventaK : NaN, { mandatory: true });
-  if (kA) _fig("Abonado · total", T ? T.abonadoFmt : kA.valor, T ? T.abonadoK : NaN, { mandatory: true });
-  if (kS) _fig("Saldo pendiente · total", T ? T.saldoFmt : kS.valor, T ? T.saldoK : NaN, { mandatory: true });
+  if (kV) _fig(ventaLabel, kV.valor, T.ventaK, { mandatory: true });
+  if (kA) _fig("Abonado · total", kA.valor, T.abonadoK, { mandatory: true });
+  if (kS) _fig("Saldo pendiente · total", kS.valor, T.saldoK, { mandatory: true });
   const vencidoCalculable = !!(kX && kX.valor && kX.valor !== "—");
   /* EL TOTAL VENCIDO DECLARA SU GRUPO (owner 2026-09-14, grupos, conteos, universos e inventos): «Las cinco cuentas con vencido —Lider,
    * Falabella, Sodimac, Tottus y Paris— suman $12.6M» (son seis: falta Easy) y «Son $12.6M vencidos entre Lider, Falabella, Sodimac y
@@ -309,7 +320,7 @@ export function cobranza(_args = {}, ctx = {}) {
    * declara el conjunto (`grupo: { n, entidades }`, después de `fig()`). El grupo son TODAS las filas del módulo con vencido, no las 8
    * que caben en la boleta. */
   const _conVencido = M.filas.filter((f) => f.vencidoFmt != null && Number.isFinite(f.vencidoK) && f.vencidoK > 0).map((f) => f.nombre);
-  if (vencidoCalculable) _fig("Saldo vencido · total", kX.valor, T && T.vencidoK != null ? T.vencidoK : NaN);
+  if (vencidoCalculable) _fig("Saldo vencido · total", kX.valor, T.vencidoK);
   if (vencidoCalculable && _conVencido.length >= 2) boleta[boleta.length - 1] = { ...boleta[boleta.length - 1], grupo: { n: _conVencido.length, entidades: _conVencido } };
 
   /* las FILAS · cap 8, en el orden del módulo (vencido primero, después saldo) — cada cifra con su dueño */
@@ -319,6 +330,19 @@ export function cobranza(_args = {}, ctx = {}) {
     _fig(`${f.nombre} · Abonado`, f.abonadoFmt, f.abonadoK);
     _fig(`${f.nombre} · Saldo pendiente`, f.saldoFmt, f.saldoK);
     if (f.vencidoFmt != null) _fig(`${f.nombre} · Saldo vencido`, f.vencidoFmt, f.vencidoK);
+  }
+  /* «· Recuperado» Y «· Dias Vencido» POR CLIENTE, CON CRUDO REAL (owner 2026-09-23 — arreglo del verificador).
+   * `mesaFlujo.js` YA calcula `recuperadoPct`/`diasVencido` por fila (los usa para `recuperadoFmt`/
+   * `diasVencidoFmt`, que ya se mostraban en pantalla) — nadie los publicaba como fig, así que `enrichFromFacts`
+   * (ledger.js) los auto-generaba leyendo `facts.clientes[]`, sin `raw`. Mismo texto exacto (son los MISMOS
+   * campos `*Fmt` que ya usa la pantalla), esta fig explícita reemplaza a la auto-enriquecida (dedup por canon).
+   * GANCHO: no fuerza a nombrar el detalle de cada cliente. EN SU PROPIO BUCLE, DESPUÉS del de arriba (no
+   * intercalada): varias fixtures citan las figs de esta tool por posición (`asignarIds`/«c8», «c12»…) — intercalar
+   * cifras nuevas les corre el número a las de siempre y rompe una cita que no tenía nada que ver con el crudo. */
+  const _ctxCobranza = `flujo comercial al ${M.fechaCorteFmt || "cierre del período"} — la misma mesa que la pestaña`;
+  for (const f of filas) {
+    if (f.recuperadoFmt != null && Number.isFinite(f.recuperadoPct)) boleta.push(fig(`${f.nombre} · Recuperado`, f.recuperadoFmt, { unit: "pct", raw: f.recuperadoPct, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
+    if (f.diasVencidoFmt && f.diasVencidoFmt !== "—" && Number.isFinite(f.diasVencido)) boleta.push(fig(`${f.nombre} · Dias Vencido`, f.diasVencidoFmt, { unit: "days", raw: f.diasVencido, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
   }
 
   return {

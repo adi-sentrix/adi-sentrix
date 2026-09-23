@@ -210,7 +210,11 @@ export function enrichFromFacts(boleta, facts) {
       const tituloAqui = typeof node.title === "string" ? node.title : titulo;   // …y contra qué («Vs año anterior» · «Vs presupuesto»)
       // findings (diagnose): usd crudo. El concepto sale del propio finding (`tipo`/`concepto`/`label`) y si no
       // trae ninguno queda "Monto" — nunca el nombre pelado (hallazgo G).
-      if (typeof node.usd === "number" && node.entidad) add(_labelDe(node.entidad, node.concepto || node.metrica || node.tipo || node.label || "monto"), _moneyE(node.usd));
+      // EL CRUDO, SIN ADIVINAR ESCALA (owner 2026-09-23 — arreglo del verificador, Condición 1): `node.usd` es
+      // dólar crudo POR CONTRATO (nunca «K» — a diferencia de `venta`/`costo`/`contribucion`, que SÍ vienen en
+      // miles según la fuente y por eso _KEYUNIT los omite, abajo). Pasarlo como `raw` no es una cuenta nueva: es
+      // el MISMO número que `_moneyE` ya formatea, una segunda vez.
+      if (typeof node.usd === "number" && node.entidad) add(_labelDe(node.entidad, node.concepto || node.metrica || node.tipo || node.label || "monto"), _moneyE(node.usd), { raw: node.usd });
       for (const [k, v] of Object.entries(node)) {
         if (_CLAVES_ECO.has(k)) continue;   // el eco de una referencia del negocio que ya viaja con su rótulo («Nivel de carga comercial declarado»)
         if (typeof v === "string") { const mm = v.match(_FIGRE); if (mm) { const sig = _SIGNIFICADO_CABECERA(k, kindAqui, tituloAqui); mm.forEach((g) => add(_labelDe(ent, k, kindAqui, tituloAqui), g, sig ? { context: sig } : null)); } }
@@ -235,7 +239,13 @@ export function enrichFromFacts(boleta, facts) {
           // redondeo que ya usan los demás campos de esta rama, no una regla nueva — nunca citado en la práctica
           // con el float completo (0/26 en la muestra de auditoría), así que esto es consistencia pura, no un
           // cambio de comportamiento observable.
-          add(_labelDe(ent, k, kindAqui, tituloAqui), ku[1] === "days" ? `${Math.round(v)}d` : ku[1] === "ratio" ? `${v.toFixed(1)}x` : `${v.toFixed(1)}%`, ku[1] === "pct" && /^(?:pct|porcentaje|share|participaci\w*)$/i.test(k) && baseAqui ? { context: baseAqui } : null);
+          // EL CRUDO, SIN ADIVINAR ESCALA (owner 2026-09-23 — arreglo del verificador, Condición 1): a diferencia
+          // del $ (omitido arriba: una clave de facts puede venir en miles o cruda según la fuente, y acá no hay
+          // cómo saberlo sin el formateo del composer), días/ratio/% NUNCA tienen ese problema — no hay factor de
+          // escala que aplicar, `v` ES el operando exacto que esta MISMA línea ya formatea (Math.round/.toFixed).
+          // Pasarlo como `raw` es el mismo número, no una cuenta propia — y por eso el texto que se reconstruye
+          // desde él es SIEMPRE idéntico al que ya se mostraba (candado en `_verificador_crudo_gate.mjs`).
+          add(_labelDe(ent, k, kindAqui, tituloAqui), ku[1] === "days" ? `${Math.round(v)}d` : ku[1] === "ratio" ? `${v.toFixed(1)}x` : `${v.toFixed(1)}%`, { raw: v, ...(ku[1] === "pct" && /^(?:pct|porcentaje|share|participaci\w*)$/i.test(k) && baseAqui ? { context: baseAqui } : {}) });
         } else walk(v, ent, k, kindAqui, tituloAqui, baseAqui);
       }
       return;
