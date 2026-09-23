@@ -29,7 +29,8 @@ import { POLICY_CONFIG } from "../config/businessPolicy.js";
 import { PLANTILLA_VERSION } from "../config/contract/plantilla.js";
 import { verifyAccessCode } from "../adi/llm/accessToken.js";
 import { persistirCarga, cargasPrevias, activarVersion, declararCobro, declararDiario, hashSha256, historiaActiva,
-         guardarConversacion, listarConversaciones, leerConversacion, ocultarConversacion, declararContexto } from "./persistirCarga.server.js";
+         guardarConversacion, listarConversaciones, leerConversacion, ocultarConversacion, declararContexto,
+         monedaTenant } from "./persistirCarga.server.js";
 import { diffDeCarga, periodosDeHechos } from "./historico.js";
 
 /* De qué empresa es esta carga. Sale del código firmado y de ningún otro lado.
@@ -238,6 +239,19 @@ export async function handleIngesta(body = {}, env) {
       /* El aviso se calcula ANTES de insertar: después, la carga de recién sería siempre «una carga previa». */
       const previa = await cargasPrevias({ tenantId: empresa, hash, env });
       if (previa.hubo) repetido = previa.cuando;
+
+      /* ── CAMINO B (Etapa 2 §3, medido con sonda offline antes de escribir esto — ver el informe): si ESTE
+       * archivo no trae moneda, se ofrece la que la EMPRESA ya declaró en una carga anterior (`tenants.moneda`,
+       * `db/migraciones/012_perfil_empresa.sql`, sin aplicar) — así la pantalla no vuelve a preguntar algo que
+       * este cliente ya contestó. Se mergea ANTES de persistir, para que la versión inactiva recién guardada
+       * (la que arma la preview de `PanelDatos.jsx`) ya la traiga; si la empresa tampoco la declaró nunca,
+       * `monedaTenant` da `null` y todo sigue exactamente como hasta hoy: preguntando. NUNCA se infiere — es la
+       * MISMA declaración de una carga previa, recordada, no un valor nuevo. */
+      if (!(r.dataset.perfil && r.dataset.perfil.moneda)) {
+        const heredada = await monedaTenant({ tenantId: empresa, env });
+        if (heredada) r.dataset = { ...r.dataset, perfil: { ...(r.dataset.perfil || {}), moneda: heredada } };
+      }
+
       /* ⚠️ SE GUARDA EL SELLO **SIN CONFIRMAR**, y no es un detalle: el sello lleva adentro un campo que dice si
        * el usuario asumió las observaciones, y en este momento no las asumió — la versión todavía está
        * inactiva. Guardar acá el confirmado dejaría una fila afirmando algo que no pasó. Cuando el usuario

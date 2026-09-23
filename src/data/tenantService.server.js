@@ -30,6 +30,7 @@ import { TENANTS } from "./tenants/index.js";
 import { verifyAccessCode } from "../adi/llm/accessToken.js";
 import { clienteDesdeEntorno, baseConfigurada } from "./supabaseRest.js";
 import { emitirPase } from "./paseTenant.js";
+import { perfilEmpresaDesdeFilaTenant } from "../config/contract/perfilCliente.js";
 
 const _env = (env) => env || (typeof process !== "undefined" && process.env) || {};
 
@@ -40,6 +41,8 @@ export const MENSAJE_SIN_DATOS =
   "Todavía no hay datos cargados para esta empresa. Puedes subir una planilla o mirar el demo.";
 
 /* packActivo({ tenantId, env }) → qué tiene esta empresa guardado en la base.
+ * EXPORTADA (antes privada) para que `_entrega_gate.mjs` pueda ejercer el camino B —el merge del perfil de
+ * empresa dentro de `pack.perfil`— con un doble en memoria, sin abrir una segunda función solo para probar.
  *   { estado:"sin-base" }                    → no hay Supabase configurado: el que llama sigue como hoy
  *   { estado:"empresa-desconocida" }         → hay base, y esta empresa no existe en ella
  *   { estado:"sin-datos" }                   → la empresa existe y todavía no activó ninguna versión
@@ -47,7 +50,7 @@ export const MENSAJE_SIN_DATOS =
  *
  * ⚠️ CORRE EN EDGE. Por eso el cliente de la base se escribió a mano sobre `fetch` y no con el SDK: este
  * módulo lo importa `/api/adi-data`, que junto con otros cuatro endpoints corre en runtime edge. */
-async function packActivo({ tenantId, env, cliente }) {
+export async function packActivo({ tenantId, env, cliente }) {
   const e = _env(env);
   if (!baseConfigurada(e)) return { estado: "sin-base" };
 
@@ -59,8 +62,22 @@ async function packActivo({ tenantId, env, cliente }) {
   if (!db || !p.ok) return { estado: "sin-base" };
 
   /* Preguntar por la empresa YA es la comprobación de que existe: RLS hace que la de otro no aparezca. Esto
-   * reemplaza al «¿está en el registro de esta build?» — con base, quién existe lo dice la base, no el bundle. */
-  const emp = await db.seleccionar("tenants", { pase: p.pase, columnas: "id,nombre", limite: 1 });
+   * reemplaza al «¿está en el registro de esta build?» — con base, quién existe lo dice la base, no el bundle.
+   *
+   * ⚠️ CAMINO B (Etapa 2 §2, `db/migraciones/012_perfil_empresa.sql`, SIN APLICAR): se intenta primero CON las
+   * columnas del perfil de empresa (sector/subsector/país/modelo comercial/banda de tamaño/moneda); si la base
+   * las rechaza —columna inexistente, porque la migración todavía no corrió— `seleccionar` devuelve
+   * `{ok:false}` SIN LANZAR (`supabaseRest.js`), y acá se degrada a la consulta de SIEMPRE, sin perfil. Es
+   * exactamente el comportamiento de antes de esta tarea: nadie pierde el pack activo porque una columna nueva
+   * no existe todavía. El día que la migración corra, la primera consulta empieza a traer el perfil sin tocar
+   * una línea más. */
+  const COLUMNAS_TENANT_BASE = "id,nombre";
+  const COLUMNAS_TENANT_CON_PERFIL = COLUMNAS_TENANT_BASE
+    + ",sector_codigo,sector_procedencia,subsector_codigo,subsector_procedencia,pais_codigo,pais_procedencia"
+    + ",modelo_comercial_codigo,modelo_comercial_procedencia,tamano_banda_codigo,tamano_banda_procedencia"
+    + ",moneda,moneda_procedencia";
+  let emp = await db.seleccionar("tenants", { pase: p.pase, columnas: COLUMNAS_TENANT_CON_PERFIL, limite: 1 });
+  if (!emp.ok) emp = await db.seleccionar("tenants", { pase: p.pase, columnas: COLUMNAS_TENANT_BASE, limite: 1 });
   if (!emp.ok) return { estado: "sin-base" };            // la base no respondió: se cae al camino de hoy
   if (!emp.filas.length) return { estado: "empresa-desconocida" };
 
@@ -69,7 +86,18 @@ async function packActivo({ tenantId, env, cliente }) {
   if (!v.filas.length) return { estado: "sin-datos", nombre: emp.filas[0].nombre };
 
   const f = v.filas[0];
-  return { estado: "activo", pack: f.pack, sello: f.sello, version: f.version, nombre: emp.filas[0].nombre };
+  /* EL MERGE: solo agrega lo que la fila de `tenants` trajo — nunca pisa lo que el pack YA declaraba (la
+   * moneda de ESTE archivo, si la tenía, manda sobre la de la empresa). `construirPerfilCliente` sabe leer
+   * esta misma forma (`{valor, procedencia}`) en `perfilCliente.js` — es la única puerta de entrada. */
+  const perfilEmpresa = perfilEmpresaDesdeFilaTenant(emp.filas[0]);
+  const pack = perfilEmpresa
+    ? { ...f.pack, perfil: {
+        ...(perfilEmpresa.campos || {}),
+        ...(f.pack && f.pack.perfil ? f.pack.perfil : {}),
+        moneda: (f.pack && f.pack.perfil && f.pack.perfil.moneda) || perfilEmpresa.moneda || null,
+      } }
+    : f.pack;
+  return { estado: "activo", pack, sello: f.sello, version: f.version, nombre: emp.filas[0].nombre };
 }
 
 /** Los ids que esta build conoce — sale del registro, no de una lista escrita a mano. */

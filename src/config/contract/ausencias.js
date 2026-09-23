@@ -41,6 +41,13 @@ export const TIPOS_DE_AUSENCIA = [
   "no_calculado",               // el dato no trae lo necesario para calcularlo, ni existe un campo declarado
   "sin_fecha_corte",            // no hay una fecha de corte/cierre declarada para ese universo
   "conocimiento_no_construido", // la capa de Business Knowledge (Etapa 3 del plan) todavía no existe — no es un hueco del DATO, es un hueco del PRODUCTO
+  // perfil_incompleto (Etapa 2 §4, owner 2026-09-23, plan §3 «cómo se pega al cliente»): DISTINTO de
+  // `conocimiento_no_construido` — ese es un hueco del CATÁLOGO (no hay benchmarks del sector todavía, aunque
+  // el cliente esté perfectamente identificado); este es un hueco de LA IDENTIDAD DEL CLIENTE (sector,
+  // subsector, tamaño, país, modelo comercial) — el catálogo podría existir mañana y esta ausencia seguiría
+  // aplicando si el cliente no declaró quién es. Las dos gatillan la misma ley («falla cerrado»), por razones
+  // distintas — `config/contract/perfilCliente.js` es la fuente de este hueco, nunca se recalcula acá.
+  "perfil_incompleto",
 ];
 
 /* ── EL CATÁLOGO ESTÁTICO · «lo que este dato no tiene», sea cual sea el tenant ─────────────────────────────────
@@ -125,6 +132,17 @@ export const AUSENCIAS_DEL_DATO = [
     id: "conocimiento_sector_general", tipo: "conocimiento_no_construido", dominio: "general",
     texto: "conocimiento del sector (referencias de la industria, cualquier dominio): NO construido.",
     entrega: { titulo: "Sin conocimiento del sector cargado todavía", motivo: "El Business Knowledge (referencias del sector) todavía no está construido: esta prioridad compara solo contra lo que cada dominio ya declara, no contra el sector." },
+  },
+
+  /* ── «SIN PERFIL COMPLETO DEL CLIENTE TODAVÍA» (Etapa 2 §4, owner 2026-09-23) — el título genérico que usan
+   * las cuatro rutas de `entrega/componer.js` (`_limitePerfilIncompleto`). El MOTIVO específico (qué campos
+   * faltan, para ESTE tenant) se arma dinámico en `componer.js`, igual que `faltaRango` — este catálogo solo
+   * fija el título y la identidad del tipo. `enPrompt` NO se marca (mismo criterio que `conocimiento_sector_*`:
+   * agregar esto al prompt del narrador de producción es una decisión aparte, no de esta tarea). */
+  {
+    id: "perfil_cliente_incompleto", tipo: "perfil_incompleto", dominio: "general",
+    texto: "perfil del cliente (sector, subsector, tamaño, país, modelo comercial): incompleto — sin él, el conocimiento del oficio no se aplica con seguridad, aunque el catálogo exista.",
+    entrega: { titulo: "Sin perfil completo del cliente todavía", motivo: "Sector, subsector, tamaño (banda), país y/o modelo comercial no están declarados ni se pueden derivar todavía." },
   },
 ];
 

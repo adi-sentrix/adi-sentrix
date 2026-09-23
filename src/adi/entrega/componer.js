@@ -38,6 +38,11 @@ import { pasosDeDominios } from "../agente/contratoDeDominios.js";
 import { prioridadIntegrada, LENTES } from "../agente/prioridadIntegrada.js";
 import { crearEntrega } from "./esquema.js";
 import { ausenciaPorId } from "../../config/contract/ausencias.js";   // Etapa 2 §2 (owner 2026-09-23): las ausencias del dato, declaradas UNA vez
+// Etapa 2 §4 (owner 2026-09-23, plan §3 «cómo se pega al cliente») — EL PERFIL DEL CLIENTE viaja en el Marco,
+// como los demás hechos: `getTenantData()` es el MISMO acceso que ya usa todo `oracle/` (datoProyectado.js,
+// entityRecord.js, toolRegistry.js) para leer el tenant activo — no se abre una segunda fuente de identidad.
+import { getTenantData } from "../../data/tenantStore.js";
+import { construirPerfilCliente, seleccionarConocimientoDelOficio, ETIQUETA_DEL_CAMPO } from "../../config/contract/perfilCliente.js";
 
 export const PREGUNTA_BRECHA_COMERCIAL = "¿dónde estoy perdiendo plata?";
 export const PREGUNTA_COBRANZA = "¿quién me debe más?";
@@ -105,6 +110,27 @@ function _textoDeTipo(procedencia, { subtotal = false, extra = null } = {}) {
  * este archivo. Ahora sale del catálogo declarado (`config/contract/ausencias.js`) — una ausencia, un id, usada
  * donde corresponde. El texto que cada ruta sirve NO cambió (medido: mismo título, mismo motivo por dominio). */
 const _limiteDeAusencia = (id) => { const a = ausenciaPorId(id); return a && a.entrega ? { titulo: a.entrega.titulo, motivo: a.entrega.motivo } : null; };
+
+/* TAREA 4 (owner 2026-09-23, Etapa 2 §4 del plan — «cómo se pega al cliente»): la IDENTIDAD del tenant activo
+ * (nombre + perfil) para el Marco. Una sola lectura por Entrega, reusada por las cuatro rutas — el mismo patrón
+ * que `_correrPlaybook`/`_indiceDelTenant` ya establecen en este archivo (TAREA 3, línea ~152): lo genérico
+ * entre rutas se extrae UNA vez, no se copia. `getTenantData()` puede dar `{}` si nada se cargó (tenantEmpty.js)
+ * — `construirPerfilCliente` ya sabe declarar ausente cada campo sobre un tenant vacío, no se protege acá. */
+function _identidadDelTenant() {
+  const t = getTenantData() || {};
+  return { empresaNombre: t.nombre || null, perfil: construirPerfilCliente(t) };
+}
+
+/* El límite «perfil incompleto» (plan §3, «falla cerrado»): SOLO se declara si falta algo — un perfil completo
+ * no necesita un hallazgo que lo diga. El título sale del catálogo de ausencias (una sola redacción); el motivo
+ * es dinámico porque los campos que faltan cambian por tenant (mismo patrón que `faltaRango` en `_periodoDelMarco`). */
+function _limitePerfilIncompleto(perfil) {
+  if (!perfil || perfil.completo) return null;
+  const a = ausenciaPorId("perfil_cliente_incompleto");
+  const titulo = (a && a.entrega && a.entrega.titulo) || "Sin perfil completo del cliente todavía";
+  const campos = perfil.faltantes.map((c) => ETIQUETA_DEL_CAMPO[c] || c).join(", ");
+  return { titulo, motivo: `Falta declarar o no se pudo derivar: ${campos}. Sin el perfil completo, ADI no aplica conocimiento del oficio a esta empresa aunque el catálogo lo tuviera — para no comparar contra un sector equivocado.` };
+}
 
 /* TAREA 3 (owner 2026-09-23, Etapa 2 §3 del plan — «el universo como objeto»): "los 2 de mayor brecha", "los
  * mayores deudores", "los SKU con más capital frenado" dejan de ser listas parecidas sin identidad y pasan a ser
@@ -227,13 +253,15 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
 
   const nClientes = ejesDelTenant.cliente ? ejesDelTenant.cliente.length : null;
   const { periodo, faltaRango } = _periodoDelMarco(figsUsadas);
+  const { empresaNombre, perfil } = _identidadDelTenant();
   entrega.marco = {
-    empresa: null,   // el nombre del cliente no viaja en la boleta de este playbook — no se inventa
+    empresa: empresaNombre,   // el nombre del tenant activo (getTenantData().nombre) — no de la boleta de este playbook
     periodo,         // HECHO verificable (figureType.UNIVERSOS · periodoDeFiguras) — nunca texto suelto
     universo: nClientes != null ? `${nClientes} clientes` : null,
     moneda: "$",     // el símbolo que la boleta ya imprime — la escala nunca se declara (regla de la casa)
     definiciones: ["Margen = contribución sobre venta neta.", "La brecha estimada es la diferencia contra el benchmark declarado, no dinero ya perdido."],
     referenciaDeclarada: { texto: `Benchmark de margen: ${R(idBench)}, declarado por usted.`, hechoId: idBench },
+    perfil,          // plan §3 «cómo se pega al cliente» — sector/subsector/tamaño/país/modelo comercial, con procedencia
   };
   if (nClientes != null) cifrasImpresas.push(`${nClientes} clientes`);
   // el «12» de «los 12 meses ya ocurrieron» es texto CANÓNICO del contrato (figureType.PERIODO_TXT), no un
@@ -295,9 +323,11 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
   // que el pack no sostiene es el RANGO calendario (fecha de inicio/fin). Se declara como límite, no se inventa
   // una fecha — ver la nota de `_periodoDelMarco` sobre el hueco de ingesta exacto.
   if (faltaRango) entrega.limites.push({ titulo: "El período no declara un rango de fechas calendario", motivo: "El dato confirma que es el año cerrado (12 meses ya ocurridos), pero el pack no trae una fecha de cierre para el universo comercial — a diferencia de la cobranza, que sí la declara (flujoComercial.fechaCorte). No se afirma un mes ni un año." });
+  { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
 
-  // ── REFERENCIA DEL OFICIO · vacía en este corte a propósito (ver el límite de arriba) — no se inventa contenido
-  entrega.referenciaDelOficio = [];
+  // ── REFERENCIA DEL OFICIO · el enganche del plan §3 — «falla cerrado» si el perfil no está completo; hoy
+  // también vacía porque el catálogo (Etapa 3) todavía no existe (`perfilCliente.js:CATALOGO_CONOCIMIENTO_DEL_OFICIO`)
+  entrega.referenciaDelOficio = seleccionarConocimientoDelOficio(perfil);
 
   // ── PARA SU JUICIO · reusa las huellas con sello (probado/indicado/abierto) y la pregunta al dueño de
   // `rolesCartera` — sin introducir NINGÚN número que no esté ya verificado arriba (regla 1 del plan) ──
@@ -425,13 +455,15 @@ export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta
   const periodo = fechaCorte ? { tipo: "foto", texto: `foto de cobranza al ${fechaCorte}`, familias: ["hoy"], rango: fechaCorte } : null;
 
   const nClientes = ejesDelTenant.cliente ? ejesDelTenant.cliente.length : null;
+  const { empresaNombre, perfil } = _identidadDelTenant();
   entrega.marco = {
-    empresa: null,
+    empresa: empresaNombre,
     periodo,
     universo: nClientes != null ? `${nClientes} clientes` : null,
     moneda: "$",
     definiciones: ["Saldo pendiente = venta a crédito menos lo ya abonado.", "El saldo vencido es la parte del saldo pendiente que ya superó su plazo de pago; sin plazo declarado no se calcula — nunca se declara en cero."],
     referenciaDeclarada: null,   // cobranza no compara contra un benchmark — no se inventa uno (regla 4 generalizada)
+    perfil,
   };
   if (nClientes != null) cifrasImpresas.push(`${nClientes} clientes`);
   if (periodo && periodo.texto) cifrasImpresas.push(periodo.texto);
@@ -494,9 +526,10 @@ export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta
     _limiteDeAusencia("conocimiento_sector_cobranza"),
   ];
   if (!idVencidoTotal) entrega.limites.push({ titulo: "El vencido no se puede calcular", motivo: "Su empresa no declaró un plazo de pago: sin plazo, no se puede afirmar qué parte del saldo está vencida — nunca se declara en cero. Declárelo y el vencido se calcula solo." });
+  { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
 
-  // ── REFERENCIA DEL OFICIO · vacía a propósito (mismo motivo que la ruta 1) ──
-  entrega.referenciaDelOficio = [];
+  // ── REFERENCIA DEL OFICIO · el enganche del plan §3 (ver la nota de la ruta 1) ──
+  entrega.referenciaDelOficio = seleccionarConocimientoDelOficio(perfil);
 
   // ── PARA SU JUICIO ──
   entrega.paraSuJuicio = idVencidoTotal
@@ -606,8 +639,9 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
   // "hoy" correctamente antes de este incremento.
   const nBodegas = ejesDelTenant.bodega ? ejesDelTenant.bodega.length : null;
   const { periodo, faltaRango } = _periodoDelMarco(figsUsadas);
+  const { empresaNombre, perfil } = _identidadDelTenant();
   entrega.marco = {
-    empresa: null,
+    empresa: empresaNombre,
     periodo,
     universo: nBodegas != null ? `${bySku.length} SKU frenados en ${nBodegas} bodegas` : `${bySku.length} SKU frenados`,
     moneda: "$",
@@ -618,6 +652,7 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
     referenciaDeclarada: (idUmbralPct && idUmbralUsd)
       ? { texto: `Umbral de materialidad de tu negocio: ${R(idUmbralPct)} de la venta (${R(idUmbralUsd)}), declarado por ti.`, hechoId: idUmbralPct }
       : null,
+    perfil,
   };
   if (nBodegas != null) cifrasImpresas.push(`${bySku.length} SKU frenados en ${nBodegas} bodegas`); else cifrasImpresas.push(`${bySku.length} SKU frenados`);
   if (periodo && periodo.texto) cifrasImpresas.push(periodo.texto);
@@ -688,9 +723,10 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
   }
   entrega.limites.push(_limiteDeAusencia("conocimiento_sector_inventario"));
   if (faltaRango) entrega.limites.push({ titulo: "El período no declara una fecha de corte para el inventario", motivo: "El dato confirma que es una foto de inventario a hoy, pero el pack no trae una fecha de corte declarada para este universo — a diferencia de la cobranza, que sí la declara (flujoComercial.fechaCorte). No se afirma una fecha." });
+  { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
 
-  // ── REFERENCIA DEL OFICIO · vacía a propósito (mismo motivo que las dos rutas anteriores) ──
-  entrega.referenciaDelOficio = [];
+  // ── REFERENCIA DEL OFICIO · el enganche del plan §3 (ver la nota de la ruta 1) ──
+  entrega.referenciaDelOficio = seleccionarConocimientoDelOficio(perfil);
 
   // ── PARA SU JUICIO · la MISMA pregunta que ya certifica el playbook (asesoria.js) — no se redacta una nueva ──
   entrega.paraSuJuicio = [
@@ -856,8 +892,9 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
 
   const domTxt = dominios.map((d) => _DOM_NOMBRE[d]).join(", ").replace(/, ([^,]*)$/, " y $1");
   const { periodo, faltaRango } = _periodoDelMarco(figsUsadas);
+  const { empresaNombre, perfil } = _identidadDelTenant();
   entrega.marco = {
-    empresa: null,
+    empresa: empresaNombre,
     periodo,
     universo: `${dominios.length} dominios (${domTxt})`,
     moneda: "$",
@@ -866,6 +903,7 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
       "La prioridad integrada compara señal por señal dentro de cada dominio y entre los dominios que comparten cliente; nunca suma montos de dominios distintos.",
     ],
     referenciaDeclarada: idBenchComercial ? { texto: `Benchmark de margen (comercial): ${R(idBenchComercial)}, declarado por ti. Inventario y cobranza no comparan contra un benchmark en este dato.`, hechoId: idBenchComercial } : null,
+    perfil,
   };
   cifrasImpresas.push(`${dominios.length} dominios (${domTxt})`);
   if (periodo && periodo.texto) cifrasImpresas.push(periodo.texto);
@@ -923,9 +961,10 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
     _limiteDeAusencia("conocimiento_sector_general"),
   ];
   if (faltaRango) entrega.limites.push({ titulo: "El año comercial no declara un rango de fechas calendario", motivo: "El dato confirma que la parte comercial es el año cerrado (12 meses ya ocurridos), pero el pack no trae una fecha de cierre para ese universo — a diferencia de inventario y cobranza, que sí declaran su foto al corte." });
+  { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
 
-  // ── REFERENCIA DEL OFICIO · vacía a propósito (mismo motivo que las otras tres rutas) ──
-  entrega.referenciaDelOficio = [];
+  // ── REFERENCIA DEL OFICIO · el enganche del plan §3 (ver la nota de la ruta 1) ──
+  entrega.referenciaDelOficio = seleccionarConocimientoDelOficio(perfil);
 
   // ── PARA SU JUICIO · una pregunta por dominio, reusando el mismo texto que ya certifican las otras rutas ──
   entrega.paraSuJuicio = [];
@@ -974,7 +1013,9 @@ function _textoDeLaEntrega(entrega, titulo = "¿Dónde deja de ganar?") {
   // TAREA 3 (owner 2026-09-23): `PERIODO_MIXTO_TXT` (el marco de dos familias, ver figureType.js) ya termina en
   // punto — la ruta multidominio es la primera en llegar acá con un período mixto. Sin este chequeo la cabecera
   // salía "…con el suyo.. Esta Entrega…" (doble punto). Nunca se le quita el punto al texto: se evita duplicarlo.
-  const cabezaMarco = [m.universo, periodoTxt].filter(Boolean).join(", ");
+  // TAREA 4 (owner 2026-09-23): el nombre del tenant activo abre el Marco, como en el ejemplo del plan §7
+  // («Distribuidora Demo, acumulado enero–agosto 2026, 14 clientes…») — antes `m.empresa` no se imprimía nunca.
+  const cabezaMarco = [m.empresa, m.universo, periodoTxt].filter(Boolean).join(", ");
   L.push(`**Marco.** ${cabezaMarco}${cabezaMarco && !/[.!?]\s*$/.test(cabezaMarco) ? ". " : cabezaMarco ? " " : ""}${m.definiciones.join(" ")} ${m.referenciaDeclarada ? m.referenciaDeclarada.texto : ""}`.trim());
   L.push("");
   L.push("**Respuesta.**");

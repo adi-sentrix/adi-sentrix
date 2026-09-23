@@ -299,6 +299,19 @@ export async function activarVersion({ tenantId, versionId, moneda, actor = null
   if (!r.ok) return { activada: false, motivo: `no se pudo activar: ${r.motivo}` };
   if (!r.filas.length) return { activada: false, motivo: "la base no confirmó la activación" };
 
+  /* ── CAMINO B (Etapa 2 §3, medido con sonda offline — ver el informe): la moneda de la EMPRESA ────────────
+   * Si esta activación declaró una moneda —recién, por la pantalla, o porque el archivo ya la traía en su
+   * hoja Empresa— queda TAMBIÉN en `tenants` (`adi_declarar_perfil_empresa`, `012_perfil_empresa.sql`), para
+   * que el período siguiente la HEREDE y no se le vuelva a preguntar. Es BEST-EFFORT y no condiciona el
+   * resultado: la activación ya se confirmó con `r.ok` de arriba, y esto es un beneficio adicional para la
+   * próxima carga, no un requisito de esta. Si la migración todavía no está aplicada, la función no existe
+   * en la base y `llamarFuncion` devuelve `{ok:false}` sin lanzar — se ignora, y la próxima carga se
+   * comporta exactamente como hoy: preguntando. */
+  const monedaParaHeredar = monedaDeclarada || (packVersion && packVersion.perfil && monedaLimpia(packVersion.perfil.moneda)) || null;
+  if (monedaParaHeredar) {
+    await db.llamarFuncion("adi_declarar_perfil_empresa", { p_moneda: monedaParaHeredar }, { pase: p.pase });
+  }
+
   /* EL PACK ACUMULADO VUELVE AL LLAMADOR: la pantalla activa en la sesión LO QUE QUEDÓ ACTIVO en la base — la
    * historia completa—, no el archivo suelto que acaba de subir. Sin esto, la sesión mostraría solo los meses
    * del archivo hasta la próxima recarga. La moneda declarada al activar se refleja igual que en la base. */
@@ -307,6 +320,60 @@ export async function activarVersion({ tenantId, versionId, moneda, actor = null
     : packFinal;
   return { activada: true, versionId, version: r.filas[0].version, sello, moneda: monedaDeclarada,
     ...(alcance ? { alcance } : {}), ...(packSesion ? { pack: packSesion } : {}) };
+}
+
+/* monedaTenant({ tenantId, env, cliente }) → "USD" | null — la moneda que la EMPRESA ya declaró alguna vez
+ * (`tenants.moneda`, camino B — `db/migraciones/012_perfil_empresa.sql`, SIN APLICAR todavía). La usa
+ * `handleIngesta.server.js` para no volver a preguntar la moneda en un archivo nuevo que no la trae: es la
+ * MISMA declaración de una carga anterior, recordada — nunca una moneda inferida de otra cosa.
+ *
+ * Si la columna todavía no existe (migración sin aplicar) la base responde con un error de columna
+ * desconocida; `seleccionar` nunca lanza (contrato `{ok, ...}` de `supabaseRest.js`), así que esto
+ * simplemente devuelve `null` y el llamador sigue preguntando, como hoy. */
+export async function monedaTenant({ tenantId, env, cliente } = {}) {
+  if (!tenantId) return null;
+  const e = env || (typeof process !== "undefined" && process.env) || {};
+  const db = cliente || clienteDesdeEntorno(e);
+  if (!db) return null;
+  const p = await emitirPase({ tenantId, secreto: e.SUPABASE_JWT_SECRET || "" });
+  if (!p.ok) return null;
+  const r = await db.seleccionar("tenants", { pase: p.pase, columnas: "moneda", limite: 1 });
+  if (!r.ok || !r.filas.length) return null;
+  return monedaLimpia(r.filas[0].moneda);
+}
+
+/* declararPerfilEmpresa({ tenantId, sector, subsector, pais, modeloComercial, tamanoBanda, moneda, env,
+ *   cliente }) → { declarada, perfil? , motivo? }
+ * EL ENGANCHE para la pantalla que todavía no se construye (Etapa siguiente, plan §3 «cómo se pega al
+ * cliente»): cada campo es opcional y llega como `{codigo, procedencia}` — `sector: {codigo:"comercio",
+ * procedencia:"medido"}` — salvo `moneda`, que es el código de texto plano (la misma forma que ya usa
+ * `activarVersion`). Va por la MISMA función controlada que la herencia automática de moneda
+ * (`adi_declarar_perfil_empresa`), nunca por una escritura directa a `tenants` — esa tabla es de solo
+ * lectura para el producto (`001_esquema_base.sql`) fuera de esta función acotada por columna. */
+export async function declararPerfilEmpresa({
+  tenantId, sector, subsector, pais, modeloComercial, tamanoBanda, moneda, env, cliente, ttlSegundos,
+} = {}) {
+  if (!tenantId) return { declarada: false, sinBase: true, motivo: "sin sesión con empresa: no se declara nada" };
+  const e = env || (typeof process !== "undefined" && process.env) || {};
+  const db = cliente || clienteDesdeEntorno(e);
+  if (!db) return { declarada: false, sinBase: true, motivo: "base no configurada" };
+  const p = await emitirPase({ tenantId, secreto: e.SUPABASE_JWT_SECRET || "", ...(ttlSegundos ? { ttlSegundos } : {}) });
+  if (!p.ok) return { declarada: false, motivo: `no se pudo emitir el pase: ${p.motivo}` };
+
+  const par = (x) => (x && typeof x.codigo === "string" && x.codigo ? x.codigo : null);
+  const proc = (x) => (x && (x.procedencia === "medido" || x.procedencia === "derivado") ? x.procedencia : null);
+
+  const r = await db.llamarFuncion("adi_declarar_perfil_empresa", {
+    p_sector_codigo: par(sector), p_sector_procedencia: proc(sector),
+    p_subsector_codigo: par(subsector), p_subsector_procedencia: proc(subsector),
+    p_pais_codigo: par(pais), p_pais_procedencia: proc(pais),
+    p_modelo_comercial_codigo: par(modeloComercial), p_modelo_comercial_procedencia: proc(modeloComercial),
+    p_tamano_banda_codigo: par(tamanoBanda), p_tamano_banda_procedencia: proc(tamanoBanda),
+    p_moneda: typeof moneda === "string" ? moneda : null,
+  }, { pase: p.pase });
+  if (!r.ok) return { declarada: false, motivo: `no se pudo declarar: ${r.motivo}` };
+  if (!r.filas.length) return { declarada: false, motivo: "la base no confirmó la declaración" };
+  return { declarada: true, perfil: r.filas[0] };
 }
 
 /* cargasPrevias({ tenantId, hash, env, cliente }) → { hubo, cuando } | { hubo:false }

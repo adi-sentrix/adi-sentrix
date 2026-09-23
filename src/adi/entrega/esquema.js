@@ -39,6 +39,12 @@ export function crearEntrega() {
       moneda: null,            // el SÍMBOLO declarado por la boleta — nunca una escala inventada
       definiciones: [],        // ["Margen = contribución sobre venta neta", ...]
       referenciaDeclarada: null, // { texto, hechoId } — el benchmark, con quién lo declaró
+      // perfil: { empresa, campos: {sector,subsector,tamano,pais,moneda,modeloComercial}, faltantes, completo }
+      // | null — Etapa 2 §4 (owner 2026-09-23, plan §3 «cómo se pega al cliente»): el perfil que la capa de
+      // Business Knowledge necesita para emparejar. `config/contract/perfilCliente.js:construirPerfilCliente`
+      // es la ÚNICA fuente; cada campo declara su procedencia con el MISMO vocabulario de `notario/hechos.js`
+      // (PROCEDENCIAS) o `null` si el dato no lo sostiene — un campo ausente NUNCA se adivina acá.
+      perfil: null,
     },
     respuesta: [],              // [{ texto, hechos: [id, ...] }]
     // filas: [{ valores: {columna: texto}, hechos: [id,...], procedencia }] — `procedencia` (Etapa 2 §1, owner

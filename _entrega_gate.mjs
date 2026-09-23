@@ -32,6 +32,11 @@ import { libroDeHechos, asignarIds, peorProcedencia, procedenciaDe, PROCEDENCIAS
 import { indiceDeEvidencia } from "./src/adi/notario/evidencia.js";
 import { AUSENCIAS_DEL_DATO, TIPOS_DE_AUSENCIA, ausenciasDe, limitesDeAusencias, ausenciaPorId } from "./src/config/contract/ausencias.js";
 import { fig } from "./src/adi/boleta.js";   // SOLO se llama (nunca se edita — boleta.js está en la lista de "no tocar"): carnadas N/P/Q necesitan figs con `.tipo` real
+import { construirPerfilCliente, perfilAutorizaConocimiento, seleccionarConocimientoDelOficio, CAMPOS_DEL_PERFIL, CATALOGO_CONOCIMIENTO_DEL_OFICIO, perfilEmpresaDesdeFilaTenant } from "./src/config/contract/perfilCliente.js";
+import { persistirCarga, activarVersion, monedaTenant, declararPerfilEmpresa } from "./src/ingesta/persistirCarga.server.js";
+import { handleIngesta } from "./src/ingesta/handleIngesta.server.js";
+import { packActivo } from "./src/data/tenantService.server.js";
+import fs from "node:fs";
 
 let pass = 0, fail = 0;
 const ok = (c, m, extra = "") => { if (c) { pass++; console.log("  ✓ " + m); } else { fail++; console.log("  ✗ " + m + (extra ? "\n      " + extra : "")); } };
@@ -438,6 +443,386 @@ H("12 · el universo — objeto con identidad (eje·entidades·filtros·período
   // preexistente del validador general de Notario v3 que esta tarea encontró al usarlo para universos de Entrega.
   const errTopMetricaInventada = validarUniverso({ eje: "cliente", top: { metrica: "esto-no-es-una-metrica-de-la-casa", k: 2, direccion: "mayor" } }, Ireal);
   ok(errTopMetricaInventada === null, "hallazgo declarado · validarUniverso NO valida top.metrica contra el catálogo (a diferencia de filtros[].metrica) — documentado en el informe, no corregido en esta tarea", "ver _ADI_LLMBUSINESS_PLAN.md / el informe de esta etapa");
+}
+
+/* ═══ 13 · ETAPA 2 §4 (owner 2026-09-23) — EL PERFIL DEL CLIENTE, plan §3 «cómo se pega al cliente» ══════════════ */
+H("13 · perfilCliente.js — el perfil, falla cerrado, sobre TENANT_DEMO real (no un tenant inventado)");
+{
+  const perfil = construirPerfilCliente(TENANT_DEMO);
+  ok(!!perfil && perfil.empresa && perfil.empresa.nombre === "ADI Demo" && perfil.empresa.id === "demo", "el perfil trae la identidad real del tenant (id/nombre), no inventada", JSON.stringify(perfil && perfil.empresa));
+  ok(Array.isArray(CAMPOS_DEL_PERFIL) && CAMPOS_DEL_PERFIL.length === 6, "los seis campos del plan §3: sector · subsector · tamaño · país · moneda · modelo comercial", CAMPOS_DEL_PERFIL.join(","));
+
+  // LO QUE SÍ ESTÁ DECLARADO HOY, medido: la moneda (TENANT_DEMO.perfil.moneda = "CLP", demo.js línea 449)
+  ok(perfil.campos.moneda.valor === "CLP" && perfil.campos.moneda.procedencia === "medido", "moneda: declarada por el tenant (\"medido\") — el ÚNICO campo con valor hoy", JSON.stringify(perfil.campos.moneda));
+
+  // LO QUE ES DERIVABLE EN VALOR pero no en banda: la venta anual real (ventasKPI.totalActual × factorComercialDe)
+  const ventaEsperada = Math.round(TENANT_DEMO.ventasKPI.totalActual * 1e3);   // demo declara escalaComercial "K"
+  ok(perfil.campos.tamano.ventaAnual.valor === ventaEsperada && perfil.campos.tamano.ventaAnual.procedencia === "derivado", `tamaño: la venta anual real se DERIVA (${perfil.campos.tamano.ventaAnual.valor} — ventasKPI.totalActual × factorComercialDe)`, JSON.stringify(perfil.campos.tamano.ventaAnual));
+  ok(perfil.campos.tamano.valor === null, "tamaño: la BANDA (pyme/mediana/grande) NO se inventa — sigue null aunque el número exista (decisión de producto frenada)");
+
+  // LO QUE NO EXISTE Y SE DECLARA AUSENTE, no adivinado — sector/subsector/país/modelo comercial
+  for (const c of ["sector", "subsector", "pais", "modeloComercial"]) {
+    ok(perfil.campos[c].valor === null && perfil.campos[c].procedencia === null && typeof perfil.campos[c].motivo === "string" && perfil.campos[c].motivo.length > 0, `${c}: ausente, declarado con motivo (no null a secas)`, JSON.stringify(perfil.campos[c]));
+  }
+
+  // EL PERFIL DE TENANT_DEMO ES INCOMPLETO (sector/subsector/tamaño-banda/país/modelo comercial faltan) — la
+  // realidad de HOY, no un caso de prueba fabricado.
+  ok(perfil.completo === false, "TENANT_DEMO: perfil.completo === false (faltan 5 de 6 campos)");
+  ok(Array.isArray(perfil.faltantes) && perfil.faltantes.length === 5 && perfil.faltantes.includes("moneda") === false, `perfil.faltantes trae ${perfil.faltantes.length} campo(s), moneda NO está entre ellos`, perfil.faltantes.join(","));
+}
+{
+  // sobre un tenant VACÍO (sin ventasKPI, sin perfil.moneda) — no revienta, declara todo ausente
+  const perfilVacio = construirPerfilCliente({});
+  ok(perfilVacio.completo === false && perfilVacio.faltantes.length === 6, "tenant vacío ({}) → perfil.completo === false, los seis campos faltantes, sin reventar", JSON.stringify(perfilVacio.faltantes));
+  ok(perfilVacio.empresa.id === null && perfilVacio.empresa.nombre === null, "tenant vacío → identidad null, no inventada");
+}
+
+H("13b · perfilAutorizaConocimiento / seleccionarConocimientoDelOficio — FALLA CERRADO, con carnadas reales");
+{
+  const perfilIncompleto = construirPerfilCliente(TENANT_DEMO);
+  const perfilCompletoFalso = { ...perfilIncompleto, completo: true, faltantes: [] };   // SOLO para la carnada — nunca así en producción
+
+  ok(perfilAutorizaConocimiento(perfilIncompleto) === false, "perfilAutorizaConocimiento(incompleto) === false");
+  ok(perfilAutorizaConocimiento(perfilCompletoFalso) === true, "perfilAutorizaConocimiento(completo) === true — la función SÍ distingue, no es un false-siempre disfrazado");
+  ok(perfilAutorizaConocimiento(null) === false && perfilAutorizaConocimiento(undefined) === false, "perfilAutorizaConocimiento(null/undefined) === false, no revienta");
+
+  // CARNADA R · el catálogo real está vacío hoy, así que esto solo prueba «no revienta con lo real» — la carnada
+  // de verdad es la siguiente (con un catálogo FALSO no vacío).
+  ok(Array.isArray(CATALOGO_CONOCIMIENTO_DEL_OFICIO) && CATALOGO_CONOCIMIENTO_DEL_OFICIO.length === 0, "CATALOGO_CONOCIMIENTO_DEL_OFICIO está vacío (Etapa 3 no construida) — real, no un placeholder con forma de contenido");
+  ok(seleccionarConocimientoDelOficio(perfilIncompleto).length === 0, "con el catálogo real (vacío): selector da [] sobre TENANT_DEMO");
+
+  // CARNADA S · LA CANDADO DE VERDAD: un catálogo FALSO con un ítem que "calzaría perfecto" — con perfil
+  // INCOMPLETO tiene que dar [] IGUAL, sin que importe qué traiga el catálogo. Si este assert diera roja, el
+  // «falla cerrado» del plan §3 estaría roto: el candado se pone rojo de verdad si alguien cambia `<=` por `<`
+  // o borra el `if` de `perfilAutorizaConocimiento` dentro de `seleccionarConocimientoDelOficio`.
+  const catalogoFalso = [{ id: "carnada-benchmark-sector", texto: "un ítem que calzaría perfecto si el perfil estuviera completo" }];
+  const conPerfilIncompleto = seleccionarConocimientoDelOficio(perfilIncompleto, catalogoFalso);
+  ok(Array.isArray(conPerfilIncompleto) && conPerfilIncompleto.length === 0, "CARNADA S · catálogo FALSO con contenido + perfil INCOMPLETO → [] de todas formas (falla cerrado real, no de fachada)", JSON.stringify(conPerfilIncompleto));
+
+  // control negativo de la carnada: con perfil COMPLETO (falso, solo para probar que el candado no es un
+  // false-siempre) el MISMO catálogo falso SÍ pasa — si esto diera roja, `seleccionarConocimientoDelOficio`
+  // estaría bloqueando todo siempre, lo cual sería tan falso como no bloquear nunca.
+  const conPerfilCompleto = seleccionarConocimientoDelOficio(perfilCompletoFalso, catalogoFalso);
+  ok(Array.isArray(conPerfilCompleto) && conPerfilCompleto.length === 1 && conPerfilCompleto[0].id === "carnada-benchmark-sector", "control · con perfil COMPLETO (falso) el mismo catálogo SÍ pasa — el candado discrimina, no bloquea siempre", JSON.stringify(conPerfilCompleto));
+}
+
+H("13c · el Marco de la Entrega REAL trae el perfil y su límite — las cuatro rutas, TENANT_DEMO");
+{
+  for (const [nombre, RR] of [["brecha comercial", R], ["cobranza", RC], ["inventario", RI], ["multidominio", RM]]) {
+    ok(RR.entrega.marco.empresa === "ADI Demo", `${nombre}: marco.empresa === "ADI Demo" (antes viajaba null siempre)`, String(RR.entrega.marco.empresa));
+    ok(!!RR.entrega.marco.perfil && RR.entrega.marco.perfil.completo === false, `${nombre}: marco.perfil viaja, completo === false sobre TENANT_DEMO`);
+    ok(RR.entrega.marco.perfil.campos.moneda.valor === "CLP", `${nombre}: marco.perfil.campos.moneda.valor === "CLP"`);
+    ok(Array.isArray(RR.entrega.referenciaDelOficio) && RR.entrega.referenciaDelOficio.length === 0, `${nombre}: referenciaDelOficio sigue [] (catálogo vacío) — el enganche no cambia el comportamiento de hoy`);
+    const lim = RR.entrega.limites.find((l) => l && l.titulo === "Sin perfil completo del cliente todavía");
+    ok(!!lim && /moneda/i.test(lim.motivo) === false && /sector/i.test(lim.motivo), `${nombre}: el límite "perfil incompleto" está presente y nombra los campos que faltan (no "moneda", que SÍ está declarada)`, lim ? lim.motivo : "(ausente)");
+    ok(RR.texto.includes("ADI Demo"), `${nombre}: el texto de la Entrega abre el Marco con el nombre del tenant ("ADI Demo")`);
+  }
+  // el propio verificador (verificar.js) sigue en cero violaciones con el Marco ampliado — el perfil no rompe
+  // ninguna de las ocho reglas de composición (no imprime cifras nuevas, no toca Respuesta/Cifras)
+  const vR = verificarEntrega({ texto: R.texto, entrega: R.entrega });
+  ok(vR.ok, "brecha comercial: verificarEntrega sigue en CERO violaciones con marco.empresa/marco.perfil poblados", JSON.stringify(vR.violaciones));
+}
+H("13d · ausencias.js — perfil_incompleto es un tipo nuevo, distinto de conocimiento_no_construido");
+{
+  ok(TIPOS_DE_AUSENCIA.includes("perfil_incompleto"), "TIPOS_DE_AUSENCIA declara \"perfil_incompleto\"");
+  const a = ausenciaPorId("perfil_cliente_incompleto");
+  ok(!!a && a.tipo === "perfil_incompleto" && a.dominio === "general", "ausenciaPorId(\"perfil_cliente_incompleto\") existe, tipo y dominio correctos", JSON.stringify(a));
+  ok(a.id !== "conocimiento_sector_general" && a.tipo !== "conocimiento_no_construido", "distinto del hueco de CATÁLOGO (conocimiento_sector_general) — dos razones, dos ids");
+}
+
+/* ═══ 14 · CAMINO B (owner 2026-09-23, Etapa 2 §1-§4) — el perfil de empresa fuera de la plantilla ═══════════ */
+H("14 · db/migraciones/012_perfil_empresa.sql — LA MIGRACIÓN ESCRITA, NO APLICADA, sobre TEXTO");
+{
+  const sql = fs.readFileSync("./db/migraciones/012_perfil_empresa.sql", "utf8");
+
+  // 1 · TODAS LAS COLUMNAS EXISTEN Y SON OPCIONALES — ningún `not null`, ningún default distinto de nulo
+  const COLUMNAS = ["sector_codigo", "sector_procedencia", "subsector_codigo", "subsector_procedencia",
+    "pais_codigo", "pais_procedencia", "modelo_comercial_codigo", "modelo_comercial_procedencia",
+    "tamano_banda_codigo", "tamano_banda_procedencia", "moneda", "moneda_procedencia"];
+  for (const c of COLUMNAS) {
+    const re = new RegExp(`add column if not exists ${c}\\s+text;`);
+    ok(re.test(sql), `columna «${c}»: existe, tipo texto, SIN \`not null\` y sin default (opcional, nula por defecto)`);
+  }
+  // (acotado a las líneas `add column` de `tenants`: `perfil_taxonomia` SÍ exige `not null` en sus propias
+  // columnas —campo/código del catálogo—, que es otra tabla con otra regla, no una columna nueva de `tenants`)
+  const lineasAddColumn = (sql.match(/^alter table public\.tenants add column.*$/gm) || []);
+  ok(lineasAddColumn.length === COLUMNAS.length && lineasAddColumn.every((l) => !/not null/i.test(l)),
+    "★ ninguna columna nueva de `tenants` lleva `not null` — una empresa de hoy no pierde una fila por esto", lineasAddColumn.join("\n"));
+
+  // 2 · LA PROCEDENCIA ES EL VOCABULARIO DEL NOTARIO, y la moneda NUNCA puede ser 'derivado' — estructural
+  for (const c of ["sector", "subsector", "pais", "modelo_comercial", "tamano_banda"]) {
+    ok(new RegExp(`${c}_procedencia is null or ${c}_procedencia in \\('medido', 'derivado'\\)`).test(sql),
+      `${c}_procedencia: solo "medido" o "derivado" — el mismo vocabulario que notario/hechos.js:PROCEDENCIAS`);
+  }
+  ok(/moneda_procedencia is null or moneda_procedencia = 'medido'/.test(sql),
+    "★ ley estructural: moneda_procedencia SOLO puede ser 'medido' — nunca 'derivado', ni por accidente futuro");
+  ok(/moneda is null or moneda ~ '\^\[A-Z\]\{2,6\}\$'/.test(sql),
+    "moneda: mismo patrón que monedaLimpia() en config/moneda.js — 2 a 6 letras mayúsculas");
+
+  // 3 · LA TAXONOMÍA NACE VACÍA — ningún `insert into perfil_taxonomia` en el archivo
+  ok(/create table if not exists public\.perfil_taxonomia/.test(sql), "la tabla de la lista autorizada existe");
+  ok(!/insert into public\.perfil_taxonomia/i.test(sql), "★ CERO filas sembradas — la taxonomía la decide el owner, esta tarea no la inventa ni con un ejemplo");
+  ok(/campo in \('sector', 'subsector', 'pais', 'modelo_comercial', 'tamano_banda'\)/.test(sql), "los cinco campos gobernados por taxonomía, los mismos que el plan §3 (moneda queda fuera: la valida su propio patrón, no un vocabulario del owner)");
+
+  // 4 · EL CANDADO DE VERDAD — el trigger rechaza un código que no está en la lista, para los cinco campos
+  ok(/create or replace function adi\.validar_perfil_tenant/.test(sql), "el trigger de validación existe");
+  ok(/before insert or update on public\.tenants/.test(sql), "corre en INSERT y en UPDATE — una fila no puede NACER con un código inválido, ni cambiar a uno");
+  for (const c of ["sector", "subsector", "pais", "modelo_comercial", "tamano_banda"]) {
+    ok(new RegExp(`new\\.${c}_codigo is not null and not exists[\\s\\S]{0,160}raise exception`).test(sql),
+      `★ CARNADA (estructura) · ${c}: un código no autorizado dispara \`raise exception\` — no un warning, no un silencio`);
+  }
+
+  // 5 · LA ESCRITURA VA POR UNA FUNCIÓN ACOTADA, no por una política nueva de UPDATE en `tenants`
+  ok(/create or replace function public\.adi_declarar_perfil_empresa/.test(sql), "la función de escritura controlada existe");
+  ok(/security definer/.test(sql) && /set search_path = public, pg_temp/.test(sql),
+    "★ `security definer` con `search_path` fijado — el mismo candado de seguridad que adi.plan_actual()");
+  ok(/v_tenant := adi\.tenant_actual\(\)/.test(sql) && /where id = v_tenant/.test(sql),
+    "★ solo puede tocar la fila de SU PROPIO tenant (del pase firmado) — nunca un id que mande el cliente");
+  ok(!/^create policy/mi.test(sql), "★ NO se crea ninguna política nueva — sigue sin haber un `create policy` en todo el archivo");
+  ok(!/^\s*grant (update|insert|delete) on (table )?public\.tenants/mi.test(sql),
+    "★ NO se otorga UPDATE/INSERT/DELETE directo sobre `tenants` a `adi_tenant` — sigue de solo lectura para el producto, como manda la 001; la única puerta de escritura es la función acotada");
+  ok(/grant execute on function public\.adi_declarar_perfil_empresa/.test(sql), "la función queda otorgada a `adi_tenant`, si no nadie podría llamarla");
+
+  ok(!/drop table|delete from|truncate/i.test(sql), "★ CONTROL NEGATIVO · la migración no borra nada — es puramente aditiva");
+  // todo `alter table` / `create table` de este archivo toca SOLO lo que declara esta tarea — nunca
+  // `fact_pack_versions`, `uploads`, `memberships` ni (por supuesto) una tabla que represente la plantilla
+  const tablasTocadas = [...sql.matchAll(/^(?:alter table|create table if not exists) public\.(\w+)/gm)].map((m) => m[1]);
+  ok(tablasTocadas.length > 0 && tablasTocadas.every((t) => t === "tenants" || t === "perfil_taxonomia"),
+    "★ CONTROL NEGATIVO · las únicas tablas tocadas son `tenants` y `perfil_taxonomia` — ninguna otra, y ninguna representa la plantilla (que vive en código, no en la base)", tablasTocadas.join(","));
+}
+
+H("14b · perfilCliente.js — construirPerfilCliente LEE el camino B cuando existe, y sigue igual cuando no");
+{
+  // CONTROL: TENANT_DEMO real, sin tocar — el comportamiento de HOY no cambia ni un carácter (ya probado en la
+  // sección 13, se repite acá el mínimo para dejar el contraste explícito al lado del caso nuevo).
+  const perfilDemo = construirPerfilCliente(TENANT_DEMO);
+  ok(perfilDemo.campos.sector.valor === null, "TENANT_DEMO (sin camino B mergeado) sigue con sector ausente — cero regresión");
+
+  // CASO NUEVO: un tenant con el camino B ya mergeado en `perfil` (lo que packActivo haría tras leer `tenants`)
+  const CON_CAMINO_B = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil,
+    sector: { valor: "comercio_retail", procedencia: "medido" },
+    subsector: { valor: "ferreteria", procedencia: "medido" },
+    pais: { valor: "cl", procedencia: "medido" },
+    modeloComercial: { valor: "distribucion", procedencia: "derivado" },
+    tamanoBanda: { valor: "mediana", procedencia: "medido" },
+  } };
+  const P = construirPerfilCliente(CON_CAMINO_B);
+  ok(P.campos.sector.valor === "comercio_retail" && P.campos.sector.procedencia === "medido", "sector: leído del camino B con su procedencia", JSON.stringify(P.campos.sector));
+  ok(P.campos.subsector.valor === "ferreteria", "subsector: leído del camino B");
+  ok(P.campos.pais.valor === "cl", "país: leído del camino B (nunca derivado de la moneda: acá vino declarado)");
+  ok(P.campos.modeloComercial.valor === "distribucion" && P.campos.modeloComercial.procedencia === "derivado", "modelo comercial: procedencia 'derivado' se respeta tal cual");
+  ok(P.campos.tamano.valor === "mediana" && P.campos.tamano.procedencia === "medido", "★ tamaño: la BANDA ahora SÍ puede venir del camino B — antes era null sí o sí");
+  ok(P.campos.tamano.ventaAnual.valor === perfilDemo.campos.tamano.ventaAnual.valor, "…y la venta anual REAL (derivada de ventasKPI) no cambia por esto: son dos cosas distintas en el mismo objeto");
+  ok(P.faltantes.length === 0 && P.completo === true, "★ con los seis campos presentes (moneda ya la tenía TENANT_DEMO), el perfil da COMPLETO por primera vez en este gate");
+
+  // CARNADA · procedencia inválida (fuera de {"medido","derivado"}) se trata como AUSENTE — defensa en
+  // profundidad, la base ya lo rechazaría con el trigger, esto es el segundo control, no el primero.
+  const CON_PROCEDENCIA_INVALIDA = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil,
+    sector: { valor: "comercio_retail", procedencia: "estimacion_referencia" } } };
+  const Pinv = construirPerfilCliente(CON_PROCEDENCIA_INVALIDA);
+  ok(Pinv.campos.sector.valor === null && typeof Pinv.campos.sector.motivo === "string",
+    "★ CARNADA · procedencia fuera del vocabulario del notario → el campo se trata como AUSENTE, no como dato dudoso");
+
+  // CARNADA · valor vacío o no-string tampoco pasa
+  const CON_VALOR_VACIO = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil, pais: { valor: "", procedencia: "medido" } } };
+  ok(construirPerfilCliente(CON_VALOR_VACIO).campos.pais.valor === null, "★ CARNADA · valor vacío no cuenta como declarado");
+}
+
+H("14c · perfilEmpresaDesdeFilaTenant — el mapeo puro desde una fila cruda de `tenants`");
+{
+  const filaCompleta = {
+    id: "acme", nombre: "ACME",
+    sector_codigo: "comercio_retail", sector_procedencia: "medido",
+    subsector_codigo: null, subsector_procedencia: null,
+    pais_codigo: "cl", pais_procedencia: "medido",
+    modelo_comercial_codigo: null, modelo_comercial_procedencia: null,
+    tamano_banda_codigo: "mediana", tamano_banda_procedencia: "derivado",
+    moneda: "USD", moneda_procedencia: "medido",
+  };
+  const m = perfilEmpresaDesdeFilaTenant(filaCompleta);
+  ok(m.campos.sector.valor === "comercio_retail" && m.campos.sector.procedencia === "medido", "mapea sector con su procedencia");
+  ok(!("subsector" in m.campos), "un par codigo/procedencia ambos NULOS no entra al objeto (no se inventa un `{valor:null}`)");
+  ok(m.campos.tamanoBanda.valor === "mediana" && m.campos.tamanoBanda.procedencia === "derivado", "tamanoBanda: la clave camelCase que perfilCliente.js espera");
+  ok(m.moneda === "USD", "moneda mapea como string plano (no {valor,procedencia}) — distinto del resto, a propósito");
+
+  ok(perfilEmpresaDesdeFilaTenant(null) === null, "fila nula → null, no revienta");
+  ok(perfilEmpresaDesdeFilaTenant({ id: "acme", nombre: "ACME" }) === null, "★ CONTROL NEGATIVO · fila sin ninguna columna del camino B (o migración sin aplicar, columnas ausentes del select) → null, no un objeto vacío disfrazado");
+
+  // CARNADA · un código sin su procedencia (o con una inválida) no entra — defensa en profundidad
+  const filaSucia = { sector_codigo: "algo", sector_procedencia: "propuesta", moneda: "us-dollars" };
+  const ms = perfilEmpresaDesdeFilaTenant(filaSucia);
+  ok(ms === null, "★ CARNADA · procedencia fuera de {medido,derivado} Y moneda con formato inválido → TODO descartado, null");
+}
+
+/* ═══ 15 · CAMINO B — LA MONEDA SE HEREDA (Etapa 2 §3, medido con sonda antes de escribir el código) ═════════ */
+H("15 · doble en memoria — el mismo patrón de _persistir_carga_gate.mjs, extendido a `tenants`");
+const ENV_CON_BASE_PB = {
+  SUPABASE_URL: "https://proyecto-de-prueba.supabase.co", SUPABASE_ANON_KEY: "llave-publica-de-prueba",
+  SUPABASE_JWT_SECRET: "secreto-jwt-de-prueba",
+};
+function dobleConTenant({ tenantsRow = null, migracionAplicada = true } = {}) {
+  const log = [];
+  let ultimaVersion = null;
+  let fila = tenantsRow ? { ...tenantsRow } : null;
+  const cli = {
+    async seleccionar(tabla, o) {
+      log.push({ op: "seleccionar", tabla, ...o });
+      if (tabla === "fact_pack_versions") {
+        if (o && o.filtros && o.filtros.id) return { ok: true, filas: ultimaVersion ? [ultimaVersion] : [] };
+        return { ok: true, filas: ultimaVersion ? [{ version: ultimaVersion.version, pack: ultimaVersion.pack }] : [] };
+      }
+      if (tabla === "tenants") {
+        /* Simula la migración SIN APLICAR: pedir columnas del camino B se rechaza, igual que PostgREST
+         * rechazaría un `select` sobre una columna que no existe todavía. */
+        const pideColumnasNuevas = /sector_codigo|moneda/.test(String(o.columnas || ""));
+        if (pideColumnasNuevas && !migracionAplicada) return { ok: false, motivo: "la base respondió 400 (columna inexistente)" };
+        return { ok: true, filas: fila ? [fila] : [] };
+      }
+      return { ok: true, filas: [] };
+    },
+    async insertar(tabla, o) {
+      log.push({ op: "insertar", tabla, ...o });
+      const f = Array.isArray(o.filas) ? o.filas[0] : o.filas;
+      if (tabla === "fact_pack_versions") ultimaVersion = { ...f, id: "v-1", version: (ultimaVersion ? ultimaVersion.version + 1 : 1) };
+      return { ok: true, filas: [{ ...f, id: `${tabla}-id-1` }] };
+    },
+    async actualizar(tabla, o) {
+      log.push({ op: "actualizar", tabla, ...o });
+      if (tabla === "fact_pack_versions" && ultimaVersion) ultimaVersion = { ...ultimaVersion, pack: o.cambios.pack };
+      return { ok: true, filas: [] };
+    },
+    async subirObjeto() { return { ok: true, filas: [] }; },
+    async llamarFuncion(nombre, argumentos) {
+      log.push({ op: "llamarFuncion", nombre, argumentos });
+      if (nombre === "adi_activar_version" && ultimaVersion) {
+        ultimaVersion = { ...ultimaVersion, activa: true };
+        if (argumentos.p_moneda) {
+          const pack = ultimaVersion.pack || {};
+          ultimaVersion.pack = { ...pack, perfil: { ...(pack.perfil || {}), moneda: argumentos.p_moneda } };
+        }
+        return { ok: true, filas: [{ id: argumentos.p_version_id, version: ultimaVersion.version, activa: true }] };
+      }
+      if (nombre === "adi_declarar_perfil_empresa") {
+        if (!migracionAplicada) return { ok: false, motivo: "la función no existe todavía (migración sin aplicar)" };
+        fila = fila || { id: "acme", nombre: "ACME" };
+        if (argumentos.p_moneda) { fila = { ...fila, moneda: argumentos.p_moneda, moneda_procedencia: "medido" }; }
+        for (const [pref, campo] of [["sector", "sector"], ["subsector", "subsector"], ["pais", "pais"], ["modelo_comercial", "modelo_comercial"], ["tamano_banda", "tamano_banda"]]) {
+          const kCodigo = `p_${pref}_codigo`, kProc = `p_${pref}_procedencia`;
+          if (argumentos[kCodigo]) fila = { ...fila, [`${campo}_codigo`]: argumentos[kCodigo], [`${campo}_procedencia`]: argumentos[kProc] || fila[`${campo}_procedencia`] };
+        }
+        return { ok: true, filas: [{ id: fila.id, sector_codigo: fila.sector_codigo || null, moneda: fila.moneda || null }] };
+      }
+      if (nombre === "adi_version_activa") {
+        return { ok: true, filas: ultimaVersion && ultimaVersion.activa ? [{ id: ultimaVersion.id, version: ultimaVersion.version, pack: ultimaVersion.pack, sello: ultimaVersion.sello || null }] : [] };
+      }
+      return { ok: true, filas: [] };
+    },
+  };
+  return { cli, log, filaTenant: () => fila };
+}
+const BYTES_PB = new Uint8Array([80, 75, 3, 4, 9, 9, 9]);
+
+H("15a · ESCRITURA · activar con moneda declarada la deja TAMBIÉN en `tenants` (best-effort)");
+{
+  const { cli, log } = dobleConTenant();
+  const c1 = await persistirCarga({ tenantId: "acme", bytes: BYTES_PB, nombreArchivo: "enero.xlsx", dataset: { id: "acme", nombre: "ACME", perfil: {} }, env: ENV_CON_BASE_PB, cliente: cli });
+  ok(c1.guardado, "carga 1 guardada", c1.motivo);
+  const a1 = await activarVersion({ tenantId: "acme", versionId: c1.versionId, moneda: "USD", env: ENV_CON_BASE_PB, cliente: cli });
+  ok(a1.activada && a1.moneda === "USD", "activada con USD declarado", a1.motivo);
+
+  const llamadaHerencia = log.find((x) => x.op === "llamarFuncion" && x.nombre === "adi_declarar_perfil_empresa");
+  ok(!!llamadaHerencia && llamadaHerencia.argumentos.p_moneda === "USD",
+    "★ activarVersion llamó a adi_declarar_perfil_empresa con la moneda recién declarada — no se limitó a guardarla en el pack de esta versión");
+  ok(log.indexOf(llamadaHerencia) > log.findIndex((x) => x.op === "llamarFuncion" && x.nombre === "adi_activar_version"),
+    "…DESPUÉS de confirmar la activación, nunca antes (la herencia no puede bloquear ni condicionar el acto principal)");
+}
+
+H("15b · LECTURA · un archivo nuevo sin moneda hereda la de la empresa — YA NO se pregunta dos veces");
+{
+  const { cli } = dobleConTenant({ tenantsRow: { id: "acme", nombre: "ACME", moneda: "USD", moneda_procedencia: "medido" } });
+  const archivo = Buffer.from((await import("./src/ingesta/plantilla/generarPlantilla.js")).plantillaEjemplo()).toString("base64");
+  const { code } = await (await import("./src/adi/llm/accessToken.js")).makeAccessCode("prueba", 72, "secreto-de-puerta", Date.now(), "acme");
+  /* ⚠️ SIN VARIABLES DE SUPABASE A PROPÓSITO. `handleIngesta` no acepta un `cliente` inyectado en su firma
+   * pública — crea el suyo desde el entorno (`clienteDesdeEntorno`). Pasarle un entorno CON base apuntaría a
+   * una URL de prueba y el candado de red del gate (correctamente) lo mataría — ya pasó al escribir este
+   * gate. Sin `SUPABASE_URL`, `clienteDesdeEntorno` da `null` y el camino de guardado se declara `sinBase`,
+   * sin tocar la red: es el mismo patrón que usa `_persistir_carga_gate.mjs` §10. La pieza NUEVA que SÍ se
+   * verifica con el doble inyectado es `monedaTenant`, abajo. */
+  const ENV = { ADI_TOKEN_SECRET: "secreto-de-puerta" };
+
+  const r = await handleIngesta({ archivo, nombre: "febrero.xlsx", access: code }, ENV);
+  ok(r.persistencia && r.persistencia.sinBase === true, "sin Supabase configurado, handleIngesta se declara `sinBase` — cero red", JSON.stringify(r.persistencia));
+  const heredada = await monedaTenant({ tenantId: "acme", env: ENV_CON_BASE_PB, cliente: cli });
+  ok(heredada === "USD", "★ monedaTenant(acme) devuelve la moneda que la empresa ya declaró", heredada);
+
+  // el efecto de punta a punta: un dataset SIN moneda, mergeado como lo hace handleIngesta.server.js
+  const DATASET_SIN_MONEDA = { id: "acme", nombre: "ACME", perfil: {} };
+  const deberiaPreguntar_antes = !(DATASET_SIN_MONEDA.perfil && DATASET_SIN_MONEDA.perfil.moneda);
+  ok(deberiaPreguntar_antes, "de fábrica, un archivo sin moneda SÍ dispara la pregunta (monedaDelArchivo ausente)");
+  const mergeado = { ...DATASET_SIN_MONEDA, perfil: { ...DATASET_SIN_MONEDA.perfil, moneda: heredada } };
+  ok(Boolean(mergeado.perfil.moneda), "★ tras el merge (la misma línea que handleIngesta.server.js ejecuta), `perfil.moneda` queda poblado — la pantalla YA NO pregunta");
+  ok(r.ok, "…y la ingesta real (sin base configurada en este sub-caso) sigue funcionando igual que siempre", r.motivo);
+}
+
+H("15c · CONTROL NEGATIVO · una empresa que NUNCA declaró moneda sigue preguntando — nada se infiere");
+{
+  const { cli } = dobleConTenant({ tenantsRow: { id: "acme", nombre: "ACME" } });   // sin moneda, sin procedencia
+  const heredada = await monedaTenant({ tenantId: "acme", env: ENV_CON_BASE_PB, cliente: cli });
+  ok(heredada === null, "★ CONTROL NEGATIVO · sin declaración previa, monedaTenant da null — la pregunta se sigue haciendo, nada se inventa");
+}
+
+H("15d · CONTROL NEGATIVO · migración SIN APLICAR → todo se comporta EXACTAMENTE como hoy");
+{
+  const { cli } = dobleConTenant({ tenantsRow: { id: "acme", nombre: "ACME" }, migracionAplicada: false });
+  const heredada = await monedaTenant({ tenantId: "acme", env: ENV_CON_BASE_PB, cliente: cli });
+  ok(heredada === null, "★ sin la columna `moneda` en la base (400 simulado), monedaTenant degrada a null — no revienta, no miente");
+
+  const c1 = await persistirCarga({ tenantId: "acme", bytes: BYTES_PB, nombreArchivo: "enero.xlsx", dataset: { id: "acme", nombre: "ACME", perfil: {} }, env: ENV_CON_BASE_PB, cliente: cli });
+  const a1 = await activarVersion({ tenantId: "acme", versionId: c1.versionId, moneda: "USD", env: ENV_CON_BASE_PB, cliente: cli });
+  ok(a1.activada && a1.moneda === "USD", "★ la activación NO se rompe aunque `adi_declarar_perfil_empresa` no exista todavía — best-effort de verdad", a1.motivo);
+
+  const permanece = await packActivo({ tenantId: "acme", env: ENV_CON_BASE_PB, cliente: cli });
+  ok(permanece.estado === "activo" && permanece.pack, "★ packActivo también degrada limpio: sigue devolviendo el pack activo aunque las columnas del perfil no existan", JSON.stringify(permanece.estado));
+}
+
+H("15e · declararPerfilEmpresa — el enganche para la pantalla futura (Etapa siguiente, NO construida)");
+{
+  const { cli, log } = dobleConTenant({ tenantsRow: { id: "acme", nombre: "ACME" } });
+  const r = await declararPerfilEmpresa({
+    tenantId: "acme", env: ENV_CON_BASE_PB, cliente: cli,
+    sector: { codigo: "comercio_retail", procedencia: "medido" },
+    moneda: "EUR",
+  });
+  ok(r.declarada, "declara sector + moneda en un solo llamado", r.motivo);
+  const llamada = log.find((x) => x.op === "llamarFuncion" && x.nombre === "adi_declarar_perfil_empresa");
+  ok(llamada.argumentos.p_sector_codigo === "comercio_retail" && llamada.argumentos.p_sector_procedencia === "medido" && llamada.argumentos.p_moneda === "EUR",
+    "…con los argumentos armados 1 a 1 desde la forma {codigo,procedencia}");
+  ok(llamada.argumentos.p_subsector_codigo === null, "…y lo que no se pasó viaja null (coalesce en la base conserva lo que ya había)");
+
+  const sinEmpresa = await declararPerfilEmpresa({ env: ENV_CON_BASE_PB });
+  ok(!sinEmpresa.declarada && sinEmpresa.sinBase === true, "sin tenantId no se declara nada, marcado como esperado");
+}
+
+/* ═══ 16 · packActivo — el merge del camino B dentro de `pack.perfil`, sin pisar lo que el pack ya trae ═══════ */
+H("16 · packActivo — merge real con TENANT_DEMO como base del pack");
+{
+  const packConTodo = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil } };   // TENANT_DEMO.perfil.moneda = "CLP"
+  const { cli } = dobleConTenant({
+    tenantsRow: { id: "demo", nombre: "ADI Demo", sector_codigo: "comercio_retail", sector_procedencia: "medido", moneda: "USD", moneda_procedencia: "medido" },
+  });
+  // sembrar una versión activa con el pack de arriba, usando el mismo doble
+  const ins = await cli.insertar("fact_pack_versions", { pase: "x", filas: { pack: packConTodo, activa: false } });
+  await cli.llamarFuncion("adi_activar_version", { p_version_id: ins.filas[0].id });
+
+  const g = await packActivo({ tenantId: "demo", env: ENV_CON_BASE_PB, cliente: cli });
+  ok(g.estado === "activo", "estado activo", JSON.stringify(g));
+  ok(g.pack.perfil.sector && g.pack.perfil.sector.valor === "comercio_retail", "★ el sector de `tenants` queda mergeado dentro de `pack.perfil`");
+  ok(g.pack.perfil.moneda === "CLP", "★ LA MONEDA DEL PACK (la de ESTE archivo, \"CLP\") MANDA sobre la de la empresa (\"USD\") — nunca al revés");
+  ok(g.pack.ventasKPI === TENANT_DEMO.ventasKPI, "el resto del pack (ventasKPI, etc.) viaja intacto — el merge toca solo `perfil`");
+
+  const perfilCompuesto = construirPerfilCliente(g.pack);
+  ok(perfilCompuesto.campos.sector.valor === "comercio_retail" && perfilCompuesto.campos.moneda.valor === "CLP",
+    "…y `construirPerfilCliente` sobre el pack ya mergeado lee las dos cosas correctamente juntas");
 }
 
 console.log(`\n── _entrega_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
