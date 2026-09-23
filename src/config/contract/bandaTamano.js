@@ -15,11 +15,25 @@
  * firmada — «es la misma regla, sin excepción.» Ninguna de las dos rutas devuelve un valor aproximado: cuando
  * falta un insumo, `calcularBandaTamano` devuelve `banda: null` con el motivo exacto de qué faltó.
  *
- * QUÉ UF SE USA cuando el período abarca varios meses: la propuesta ya lo resuelve (§3, textual: «la del período
- * que el cliente declara... (`periodo_actual`)») — es la UF del MES DE CIERRE que el cliente declaró, nunca un
- * promedio ni la del día de hoy. `periodo_actual` es una fecha de cierre única (una sola fecha, plantilla.js:
- * PARAMETROS), no un rango, así que no hay ambigüedad de "cuál mes del rango" — la pregunta que sí sería una
- * decisión de significado (promediar UF entre varios meses) no se presenta con la forma actual del dato.
+ * QUÉ UF SE USA cuando el período abarca varios meses — DECISIÓN DE SIGNIFICADO, con fundamento (owner
+ * 2026-09-23, «quiero tu lectura, no mi supuesto»): la del CIERRE del período (`periodo_actual`), nunca un
+ * promedio de los doce meses ni la del día de hoy. Tres razones, ninguna es la costumbre por sí sola:
+ *   1. Es la práctica de la clasificación oficial chilena: SII/SERCOTEC clasifican con la venta anual declarada
+ *      en el ejercicio tributario y la UF vigente al cierre de ESE ejercicio, no un promedio de UF intra-año.
+ *      Usar el cierre es alinearse con el mismo criterio que define los propios umbrales (2.400/25.000/100.000
+ *      UF, `UMBRALES_UF` abajo), no un criterio distinto aplicado a una escala ajena.
+ *   2. Es la única UF que el dato puede sostener sin inventar historia: `periodo_actual` es una fecha de cierre
+ *      única (una sola fecha, `plantilla.js:PARAMETROS`), no un rango — no hay 12 fechas de cierre mensuales
+ *      declaradas con las que promediar, y esta tabla nunca interpola ni reconstruye una serie que el cliente no
+ *      entregó (misma ley que gobierna toda la tabla: «sin interpolación ni estimación»).
+ *   3. Es la que más le importa al negocio cerca de un corte: la banda de una empresa que cruza 2.400 UF a mitad
+ *      de año debe reflejar dónde TERMINÓ el ejercicio, no un promedio que diluye el cruce — clasificar "Micro"
+ *      a una empresa que cerró el año ya "Pequeña" (o viceversa) sería la banda de un año que no fue.
+ * Cambia en qué banda cae una empresa cerca de un corte: una empresa que promedia bajo el umbral pero CIERRA
+ * sobre él (o al revés) tiene una banda distinta según qué UF se use — por eso queda esta decisión escrita, no
+ * implícita en el código. `periodo_actual` es una fecha de cierre (una sola fecha), así que no hay ambigüedad de
+ * "cuál mes del rango" una vez tomada esta decisión — la pregunta que sí sería una decisión de significado
+ * (promediar UF entre varios meses) no se presenta con la forma actual del dato.
  *
  * DE DÓNDE SALE EL PERÍODO — SONDA (ver el informe de la tarea, sección "la sonda del período"): el `dataset`
  * que devuelve `motorKpi.js:calcularDataset` (el que se vuelve `tenant`/`pack`) NO expone el período declarado
@@ -27,9 +41,10 @@
  * ninguna clave de período. La única ruta MEDIDA que sobrevive hasta el `tenant` en producción es
  * `tenant.hechos.parametros.periodo_actual` (la fecha cruda que declaró el archivo, dentro de
  * `packAGuardar.hechos` — `persistirCarga.server.js`, y la reconstruye `activarVersion` en la fusión histórica,
- * línea 271). Esa ruta NO EXISTE en los tenants de fábrica (`TENANT_DEMO`, `empresa2`, el tenant vacío): son
- * objetos escritos a mano, sin `.hechos`. Por diseño, entonces, esos tenants dan «sin período declarado» — que
- * es la verdad: nunca declararon un período en el sentido de la plantilla. `periodoDeclaradoDe` lee ESA ruta y
+ * línea 271). Un tenant escrito a mano (`empresa2`, el tenant vacío) que NO declara esa ruta da «sin período
+ * declarado» — que es la verdad: nunca declaró un período en el sentido de la plantilla. `TENANT_DEMO` SÍ la
+ * declara desde la corrección del owner 2026-09-23 (`data/tenants/demo.js`, ver el comentario junto a `hechos`
+ * ahí: la evidencia del propio archivo para el período real del demo). `periodoDeclaradoDe` lee ESA ruta y
  * ninguna otra; no inventa un fallback (por ejemplo, tomar el último mes de `ventasMensuales`) porque eso sería
  * exactamente el tipo de inferencia silenciosa que este perfil prohíbe en cualquier otro campo. */
 import { ufDelPeriodo } from "./tablaUF.js";

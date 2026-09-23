@@ -81,10 +81,25 @@ let respuestaConAlarma = null;
 
   /* LA CONDICIÓN QUE HACE CHICA A LA PANTALLA: si el dataset tiene las mismas claves que el tenant de
    * referencia, `initTenant` lo activa sin adaptador. Si algún día divergen, la pantalla activaría un negocio a
-   * medias y media app quedaría pintando lo anterior — sin error, que es lo peligroso. */
-  const faltan = Object.keys(TENANT_DEMO).filter((k) => !(k in sube.dataset));
+   * medias y media app quedaría pintando lo anterior — sin error, que es lo peligroso.
+   *
+   * ⚠️ EXCEPCIÓN DECLARADA, no un agujero silencioso (owner 2026-09-23, «el período real del demo»):
+   * `TENANT_DEMO` ahora trae `.hechos` (para que `bandaTamano.js` pueda calcular la banda de tamaño sobre el
+   * tenant de fábrica — ver el comentario junto a `hechos` en `data/tenants/demo.js`). Esa llave NO puede salir
+   * de `sube.dataset` con la arquitectura de HOY: `ingestarPlantilla.js` devuelve `hechos` como HERMANO de
+   * `dataset` (nunca dentro de él — es la misma "sonda del período" de `bandaTamano.js`), y la respuesta de
+   * SUBIDA de `handleIngesta.server.js` ni siquiera expone ese hermano al cliente (solo lo usa server-side para
+   * `persistirCarga`/`activarVersion`). Un tenant `initTenant`-activado directo (esta pantalla, ANTES de
+   * persistir) legítimamente no trae `.hechos` — degrada honesto a "sin período declarado", no a medias: el
+   * resto del negocio (venta, margen, inventario, cobranza) se activa completo, que es lo que este chequeo
+   * existe para proteger. Un tenant real PERSISTIDO sí lo trae (`persistirCarga.server.js` linea 146,
+   * `activarVersion` fusión histórica) — ese es el camino que prueba `_entrega_gate.mjs` §17c, no este. */
+  const CLAVES_QUE_HECHOS_NO_VIAJA_EN_LA_ACTIVACION_DIRECTA = ["hechos"];
+  const faltan = Object.keys(TENANT_DEMO)
+    .filter((k) => !CLAVES_QUE_HECHOS_NO_VIAJA_EN_LA_ACTIVACION_DIRECTA.includes(k))
+    .filter((k) => !(k in sube.dataset));
   ok(faltan.length === 0,
-    `el dataset trae las ${Object.keys(TENANT_DEMO).length} claves del tenant de referencia: initTenant lo activa directo`,
+    `el dataset trae las ${Object.keys(TENANT_DEMO).length - CLAVES_QUE_HECHOS_NO_VIAJA_EN_LA_ACTIVACION_DIRECTA.length} claves del tenant de referencia que SÍ viajan en la activación directa: initTenant lo activa sin negocio a medias`,
     `faltan: ${faltan.join(", ")}`);
 }
 

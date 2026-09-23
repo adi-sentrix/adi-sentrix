@@ -22,7 +22,27 @@
  * SIN INTERPOLACIÓN NI ESTIMACIÓN. Si el período declarado no tiene una fila exacta en esta tabla, `ufDelPeriodo`
  * devuelve `null` — nunca redondea al mes más cercano ni reutiliza el valor de otro período. Eso es lo que
  * mantiene la banda auditable: cada banda que ADI entregó se puede rastrear a una fila firmada, nunca a una
- * conjetura. */
+ * conjetura.
+ *
+ * ── CORRECCIÓN DEL OWNER (2026-09-23): «no quiero mi firma sobre una UF aproximada o derivada» ──────────────
+ * La fila original de esta tabla (período 2026-09) sembraba un valor DERIVADO — el cociente de los tres pares
+ * pesos/UF que el owner ya había aprobado para los umbrales ($98MM/2.400 UF, etc., ≈ $41.000). Esa fila nunca
+ * fue una lectura de la serie oficial, y el propio comentario que la sembró lo decía así: «no es una lectura de
+ * la serie oficial del Banco Central de Chile». El owner la corrigió, textual: «Sustituye los $41.000 por el
+ * valor oficial de UF correspondiente al período que usemos, con fuente SII/Banco Central... La UF oficial debe
+ * quedar respaldada por su fuente y fecha; no como una cifra estimada a mi nombre.»
+ *
+ * QUÉ CAMBIÓ: la fila de abajo (período 2025-12 — ver `data/tenants/demo.js`, tarea «el período real del demo»,
+ * misma fecha) reemplaza esa fila derivada por una LECTURA DIRECTA de la serie oficial del SII, con su URL y su
+ * fecha exacta. `grado` pasa de "referencia" a "oficial": ya no es una cifra que alguien tuvo que aprobar, es un
+ * valor publicado que cualquiera puede volver a consultar en la misma fuente.
+ *
+ * DE QUIÉN ES LA FIRMA AHORA (ver `adi-referencia-de-quien` / la corrección textual de arriba): el campo `firma`
+ * de la fila NUNCA vuelve a decir que el owner aprobó un NÚMERO. Dice que el owner aprobó USAR esta FUENTE — el
+ * número y la fecha los pone el SII, no jc. Si mañana alguien necesita otro período, el candado `_uf_firma_gate`
+ * (`_entrega_gate.mjs` §17) se enciende si una fila nueva vuelve a redactar la firma como si el owner hubiera
+ * calculado o propuesto la cifra: la firma solo puede aprobar la FUENTE.
+ */
 
 /** El vocabulario de procedencia de una pieza de conocimiento — el mismo patrón que ya usan `ausencias.js` y
  *  la tabla de bandas: fuente, fecha en que se firmó, vigencia declarada, quién firma y el grado de certeza. Un
@@ -30,29 +50,35 @@
 export const GRADOS_DE_LA_UF = ["oficial", "referencia"];
 
 /* ── LA TABLA ─────────────────────────────────────────────────────────────────────────────────────────────
- * Una sola fila hoy: el período de esta tarea (2026-09), sembrado con el equivalente que se desprende de las
- * cifras que el owner ya aprobó para los umbrales en pesos (`_ADI_PERFIL_VOCABULARIOS_PROPUESTA.md` §3, tabla
- * del owner 2026-09-23: «$98 MM ≈ 2.400 UF · $1.025 MM ≈ 25.000 UF · $4.100 MM ≈ 100.000 UF»). Los tres cocientes
- * dan ~$41.000 — el mismo número que el owner escribió textual: «UF ≈ $41.000 al 2026-09-23».
+ * Una sola fila hoy: el período que resultó ser el período real del archivo de demostración («2025-12» — ver
+ * `data/tenants/demo.js:TENANT_DEMO.hechos.parametros.periodo_actual` y su comentario, con la evidencia del
+ * propio archivo). El valor es una LECTURA DIRECTA de la serie oficial del Servicio de Impuestos Internos, no
+ * un cálculo ni una interpolación: UF al 31 de diciembre de 2025 = $39.727,96.
  *
- * ⚠️ ES UN VALOR DE REFERENCIA, NO EL VALOR OFICIAL DIARIO DE LA UF (`grado: "referencia"`). El valor oficial de
- * la UF lo publica el Banco Central de Chile y cambia cada día del mes (indexado a la inflación del mes
- * anterior). Antes de un piloto con datos reales, esta fila tiene que reemplazarse — o acompañarse — con la
- * serie oficial correspondiente a cada período que un cliente declare. Mientras tanto, un período sin fila acá
- * simplemente no tiene banda (falla cerrado, ver `bandaTamano.js`): no hay número inventado que lo disimule. */
+ * EQUIVALENTES EN PESOS DE LOS UMBRALES CON ESTA UF — PRESENTACIÓN, NUNCA EL UMBRAL. El umbral vivo y sellado
+ * está en UF (`bandaTamano.js:UMBRALES_UF` — 2.400 · 25.000 · 100.000 UF, sin tocar). Estos pesos son lo que esos
+ * mismos umbrales VALEN hoy, con ESTA fila de UF, solo para que quien lea el archivo no tenga que hacer la
+ * cuenta — si mañana cambia la fila de UF, estos pesos cambian con ella, el umbral en UF no:
+ *   · Micro   hasta 2.400 UF   ≈ 2.400   × 39.727,96 = $95.347.104
+ *   · Pequeña hasta 25.000 UF  ≈ 25.000  × 39.727,96 = $993.199.000
+ *   · Mediana hasta 100.000 UF ≈ 100.000 × 39.727,96 = $3.972.796.000
+ *   (el archivo de demostración vende ≈$100.000.000/año ≈ 2.517,1 UF — un 4,9% sobre el corte de Micro, cae en
+ *   Pequeña; ver la sonda de `_entrega_gate.mjs` §17c y el informe de esta tarea). */
 export const TABLA_UF = [
   {
     moneda: "CLP",
-    periodo: "2026-09",              // "aaaa-mm", el mismo grano que `motorKpi.js` usa para el período declarado
-    valor: 41000,                    // CLP por 1 UF
-    fuente: "cifra de referencia derivada de los umbrales en pesos que el owner aprobó junto con los umbrales en UF " +
-      "el 2026-09-23 ($98MM/2.400 UF · $1.025MM/25.000 UF · $4.100MM/100.000 UF) — no es una lectura de la serie " +
-      "oficial del Banco Central de Chile",
-    fecha: "2026-09-23",             // cuándo se firmó esta fila
-    vigencia: "período 2026-09 solamente. La UF real cambia cada día del mes; esta fila NO se extiende a otros " +
+    periodo: "2025-12",              // "aaaa-mm", el mismo grano que `motorKpi.js` usa para el período declarado
+    valor: 39727.96,                 // CLP por 1 UF — SII, valor oficial al 31-dic-2025, sin redondear
+    fuente: "Servicio de Impuestos Internos de Chile (SII) — serie oficial de la UF, " +
+      "https://www.sii.cl/valores_y_fechas/uf/uf2025.htm",
+    fecha: "2025-12-31",             // la fecha que el SII publica para este valor — no la fecha en que se copió acá
+    vigencia: "período 2025-12 solamente. La UF real cambia cada día del mes; esta fila NO se extiende a otros " +
       "períodos ni se usa para interpolar — un período sin su propia fila no tiene UF aplicable (ver `ufDelPeriodo`)",
-    firma: "jc (owner, jc.navsil@gmail.com) — valor de referencia para destrabar esta tarea, no el valor oficial",
-    grado: "referencia",
+    // ⚠️ LA FIRMA APRUEBA LA FUENTE, NO EL NÚMERO (owner 2026-09-23, textual arriba en la cabecera del archivo).
+    firma: "jc (owner, jc.navsil@gmail.com) aprobó usar la fuente oficial (SII) para esta fila — el valor y la " +
+      "fecha los publica el SII, no son una cifra propuesta ni calculada por el owner; verificado contra " +
+      "sii.cl/valores_y_fechas/uf/uf2025.htm el 2026-09-23",
+    grado: "oficial",
   },
 ];
 

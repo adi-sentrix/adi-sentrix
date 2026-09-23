@@ -529,7 +529,38 @@ export const flujoComercial = {
   },
 };
 
+/* ── EL PERÍODO REAL DEL DEMO (owner 2026-09-23, corrección: «si el paquete de demostración representa un año
+ * concreto, déjalo explícito... para que pueda recorrer exactamente el mismo camino que un cliente real») ─────
+ *
+ * LA EVIDENCIA, del propio archivo (no una suposición): este dataset trae UNA sola fecha explícita en todo su
+ * árbol — `flujoComercial.fechaCorte = "2026-08-31"` (arriba) — y la propia `compatibilidad` de este tenant
+ * (abajo, `"inventario|resultado_pnl"`) declara con TODAS las letras que esa fecha NO es el cierre del P&L/venta:
+ * «el P&L es del año cerrado ... el inventario es la foto de hoy» — la misma distinción corre para cobranza
+ * (`figureType.js`: «cobranza es una foto al corte, ... nunca un año cerrado»). Es decir: `fechaCorte` es el
+ * "HOY" de este negocio ficticio — el mismo "hoy" contra el que se miden los vencidos de cobranza y la foto de
+ * inventario —, y la venta/P&L es "el año YA CERRADO" antes de ese hoy: el último ejercicio completo que terminó
+ * antes del 2026-08-31, que es el año calendario 2025 (cerrado el 2025-12-31). Ningún otro año calza con las dos
+ * piezas de evidencia a la vez sin contradecir una de ellas.
+ *
+ * Por eso `periodo_actual` — el campo por el que un cliente real declara el cierre de SU período informado
+ * (`plantilla.js`: «fecha de cierre del período que informas») — se declara acá como **"2025-12-31"**, NO como
+ * "2026-08-31": ese día es el cierre de la cobranza (ya vive en `flujoComercial.fechaCorte`, sin tocar), pero el
+ * campo que este perfil necesita es el cierre del período que informa la VENTA/P&L, que es el que clasifica el
+ * tamaño de la empresa (`bandaTamano.js`). Se declara por la MISMA vía que usaría un cliente real
+ * (`tenant.hechos.parametros.periodo_actual` — ver `motorKpi.js:448`, `bandaTamano.js:periodoDeclaradoDe`), no
+ * por un atajo del demo: es la prueba de que el camino completo (período → UF del período → banda → perfil)
+ * funciona igual para el archivo de fábrica que para un cliente real. Verificado con carnada real en
+ * `_entrega_gate.mjs` §17c: con esta fecha, la banda calculada es "pequena" (venta anual $100MM ≈ 2.517 UF con
+ * la UF oficial de `tablaUF.js`, un 4,9% sobre el corte de "micro").
+ *
+ * `empresa2` (el segundo tenant de fábrica) NO recibe este campo: su comentario propio dice que existe "para no
+ * declarar nada" a propósito (prueba el camino de un tenant que no declaró — ver su cabecera de VOCABULARIO DE
+ * ENTRADA); no trae ninguna fecha en todo su árbol de la que derivar un período con evidencia, y forzarle una
+ * inventaría exactamente lo que esta tarea prohíbe. Frenado, no una omisión. */
+export const hechos = { parametros: { periodo_actual: "2025-12-31" } };
+
 export const TENANT_DEMO = {
+  hechos,
   // la escala del universo comercial de ESTE dataset: se almacena en MILES (contrato figureType · «K»).
   // Declarada explícita desde 2026-08-30: un pack de planilla declara «raw»; el que no declara cae a «K».
   escalaComercial: "K",

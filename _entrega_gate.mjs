@@ -462,23 +462,23 @@ H("13 · perfilCliente.js — el perfil, falla cerrado, sobre TENANT_DEMO real (
   // LO QUE ES DERIVABLE EN VALOR pero no en banda: la venta anual real (ventasKPI.totalActual × factorComercialDe)
   const ventaEsperada = Math.round(TENANT_DEMO.ventasKPI.totalActual * 1e3);   // demo declara escalaComercial "K"
   ok(perfil.campos.tamano.ventaAnual.valor === ventaEsperada && perfil.campos.tamano.ventaAnual.procedencia === "derivado", `tamaño: la venta anual real se DERIVA (${perfil.campos.tamano.ventaAnual.valor} — ventasKPI.totalActual × factorComercialDe)`, JSON.stringify(perfil.campos.tamano.ventaAnual));
-  // TAREA 1 (owner 2026-09-23): la BANDA ahora SÍ se calcula (bandaTamano.js) — sobre TENANT_DEMO sigue dando
-  // null, pero YA NO porque esté frenada: es porque TENANT_DEMO no trae `.hechos.parametros.periodo_actual` (es
-  // un tenant escrito a mano, nunca pasó por la ingesta real) — «sin período declarado no hay UF aplicable»,
-  // exactamente la cadena de falla cerrada que pide el encargo. Se prueba la cadena completa, con carnada real,
-  // en la sección 17 de este gate.
-  ok(perfil.campos.tamano.valor === null, "tamaño: sin período declarado en TENANT_DEMO, la banda da null (no se inventa)");
-  ok(/sin período declarado/.test(perfil.campos.tamano.motivo || ""), "★ el motivo nombra la causa real: sin período declarado no hay UF aplicable", perfil.campos.tamano.motivo);
+  // CORRECCIÓN (owner 2026-09-23) — «el período real del demo»: TENANT_DEMO YA declara
+  // `.hechos.parametros.periodo_actual` ("2025-12-31", con la evidencia del propio archivo — ver el comentario en
+  // `data/tenants/demo.js` junto a `hechos`), por la MISMA vía que un cliente real. La banda ahora SÍ se calcula
+  // de punta a punta sobre el tenant real, no solo en un caso fabricado — la cadena completa (con carnada extra)
+  // se re-verifica en la sección 17c.
+  ok(perfil.campos.tamano.valor === "pequena", `★ CADENA REAL · TENANT_DEMO con período declarado → banda "pequena" (hoy: ${perfil.campos.tamano.valor})`, JSON.stringify(perfil.campos.tamano));
+  ok(perfil.campos.tamano.insumos && perfil.campos.tamano.insumos.periodo === "2025-12", "…el insumo `periodo` es el mes de CIERRE de la venta/P&L («2025-12-31» recortado a «2025-12»)", perfil.campos.tamano.insumos && perfil.campos.tamano.insumos.periodo);
 
   // LO QUE NO EXISTE Y SE DECLARA AUSENTE, no adivinado — sector/tipoProducto/país/modelo comercial
   for (const c of ["sector", "tipoProducto", "pais", "modeloComercial"]) {
     ok(perfil.campos[c].valor === null && perfil.campos[c].procedencia === null && typeof perfil.campos[c].motivo === "string" && perfil.campos[c].motivo.length > 0, `${c}: ausente, declarado con motivo (no null a secas)`, JSON.stringify(perfil.campos[c]));
   }
 
-  // EL PERFIL DE TENANT_DEMO ES INCOMPLETO (sector/tipoProducto/tamaño-banda/país/modelo comercial faltan) — la
-  // realidad de HOY, no un caso de prueba fabricado.
-  ok(perfil.completo === false, "TENANT_DEMO: perfil.completo === false (faltan 5 de 6 campos)");
-  ok(Array.isArray(perfil.faltantes) && perfil.faltantes.length === 5 && perfil.faltantes.includes("moneda") === false, `perfil.faltantes trae ${perfil.faltantes.length} campo(s), moneda NO está entre ellos`, perfil.faltantes.join(","));
+  // EL PERFIL DE TENANT_DEMO SIGUE INCOMPLETO (sector/tipoProducto/país/modelo comercial faltan; tamaño y moneda
+  // YA están) — la realidad de HOY, no un caso de prueba fabricado.
+  ok(perfil.completo === false, "TENANT_DEMO: perfil.completo === false (faltan 4 de 6 campos — tamaño y moneda ya no faltan)");
+  ok(Array.isArray(perfil.faltantes) && perfil.faltantes.length === 4 && perfil.faltantes.includes("moneda") === false && perfil.faltantes.includes("tamano") === false, `perfil.faltantes trae ${perfil.faltantes.length} campo(s), ni moneda ni tamaño están entre ellos`, perfil.faltantes.join(","));
 }
 {
   // sobre un tenant VACÍO (sin ventasKPI, sin perfil.moneda) — no revienta, declara todo ausente
@@ -875,22 +875,30 @@ H("17a · bandaPorUF — los bordes EXACTOS (2.400 · 25.000 · 100.000 UF), sel
   ok(bandaPorUF(-1) === null && bandaPorUF(NaN) === null && bandaPorUF("100") === null && bandaPorUF(undefined) === null, "★ CONTROL NEGATIVO · un número inválido (negativo, NaN, no-numérico, ausente) → null, nunca una banda inventada");
 }
 
-H("17b · calcularBandaTamano — sobre el archivo de demostración ($100MM), UF 2026-09 sembrada ($41.000)");
+H("17b · calcularBandaTamano — sobre el archivo de demostración ($100MM), UF 2025-12 OFICIAL ($39.727,96 SII)");
 {
-  const r = calcularBandaTamano({ ventaAnual: 100000000, moneda: "CLP", periodo: "2026-09" });
-  ok(r.banda === "pequena" && r.procedencia === "derivado", `$100MM / $41.000 = ${r.insumos.ventaAnualUF.toFixed(1)} UF → "pequena" (hoy: ${r.banda}) — coincide con la propuesta, textual: "apenas un 2% por encima del corte de Micro"`, JSON.stringify(r));
-  ok(r.insumos.ufValor === 41000 && r.insumos.ufFila.grado === "referencia", "los insumos traen el valor de UF usado y su fila completa (auditable)", JSON.stringify(r.insumos.ufFila));
+  const r = calcularBandaTamano({ ventaAnual: 100000000, moneda: "CLP", periodo: "2025-12" });
+  ok(r.banda === "pequena" && r.procedencia === "derivado", `$100MM / $39.727,96 = ${r.insumos.ventaAnualUF.toFixed(1)} UF → "pequena" (hoy: ${r.banda}) — ≈2.517 UF, un ~4,9% sobre el corte de 2.400 UF de Micro`, JSON.stringify(r));
+  ok(r.insumos.ufValor === 39727.96 && r.insumos.ufFila.grado === "oficial", "los insumos traen el valor de UF usado y su fila completa (auditable)", JSON.stringify(r.insumos.ufFila));
   ok(r.insumos.proporcionada === false, "sin mesesInformados (o con 12), no se prorratea");
-  // el mismo monto pero justo bajo el corte de micro en UF ($98.4MM = 2.400 × $41.000) sale "micro"
-  const rMicro = calcularBandaTamano({ ventaAnual: 2400 * 41000, moneda: "CLP", periodo: "2026-09" });
-  ok(rMicro.banda === "micro", `2.400 UF exactas en pesos ($${(2400 * 41000).toLocaleString("es-CL")}) → "micro" (hoy: ${rMicro.banda})`);
+  // el mismo monto pero justo bajo el corte de micro en UF ($95.347.104 = 2.400 × $39.727,96) sale "micro"
+  const rMicro = calcularBandaTamano({ ventaAnual: 2400 * 39727.96, moneda: "CLP", periodo: "2025-12" });
+  ok(rMicro.banda === "micro", `2.400 UF exactas en pesos ($${(2400 * 39727.96).toLocaleString("es-CL")}) → "micro" (hoy: ${rMicro.banda})`);
 
   // LA TABLA ES UNA PIEZA FIRMADA, no un número suelto — los nueve-campos-de-procedencia del estilo de la casa
-  ok(Array.isArray(TABLA_UF) && TABLA_UF.length === 1, `TABLA_UF trae ${TABLA_UF.length} fila (la única sembrada hoy, 2026-09)`);
+  ok(Array.isArray(TABLA_UF) && TABLA_UF.length === 1, `TABLA_UF trae ${TABLA_UF.length} fila (la única sembrada hoy, 2025-12)`);
   const filaUF = TABLA_UF[0];
   ok(["fuente", "fecha", "vigencia", "firma", "grado"].every((k) => typeof filaUF[k] === "string" && filaUF[k].length > 0), "★ la fila trae los cinco campos de procedencia (fuente/fecha/vigencia/firma/grado), ninguno vacío", JSON.stringify(Object.keys(filaUF)));
-  ok(filaUF.grado === "referencia", "★ declarado EXPLÍCITAMENTE como valor de REFERENCIA, no el oficial diario de la UF");
+  ok(filaUF.grado === "oficial", "★ CORRECCIÓN (owner 2026-09-23) · declarado EXPLÍCITAMENTE como valor OFICIAL — ya no una referencia derivada");
+  ok(filaUF.valor === 39727.96, "★ el valor coincide EXACTAMENTE con el oficial declarado por el owner (SII, UF al 31-dic-2025)", String(filaUF.valor));
+  ok(/sii/i.test(filaUF.fuente) && /sii\.cl/i.test(filaUF.fuente), "★ CANDADO · la fila lleva su FUENTE (SII, con URL)", filaUF.fuente);
+  ok(filaUF.fecha === "2025-12-31", "★ CANDADO · la fila lleva su FECHA exacta (la que publica el SII, no la fecha en que se copió)", filaUF.fecha);
   ok(/jc/.test(filaUF.firma) && /owner/i.test(filaUF.firma), "★ la firma nombra a quién — el owner, jc.navsil@gmail.com");
+  // ★ CANDADO (owner 2026-09-23, textual: «no quiero mi firma sobre una UF aproximada o derivada») · la firma
+  // aprueba la FUENTE, nunca un NÚMERO calculado o propuesto por el owner — «valor de referencia» era la forma
+  // vieja (fila derivada, retirada); si vuelve, este candado se enciende.
+  ok(/aprob[oó] usar la fuente/i.test(filaUF.firma), "★ CANDADO · la firma dice que el owner aprobó USAR la fuente, no que propuso el número", filaUF.firma);
+  ok(!/valor de referencia/i.test(filaUF.firma) && !/propuest[oa] por el owner/i.test(filaUF.firma), "★ CANDADO · ningún campo de firma atribuye al owner una cifra derivada", filaUF.firma);
 }
 
 H("17c · LA CADENA DE FALLA CERRADA — sin período → sin UF → sin banda → perfil incompleto → la capa no entrega");
@@ -899,18 +907,31 @@ H("17c · LA CADENA DE FALLA CERRADA — sin período → sin UF → sin banda �
   const sinPeriodo = calcularBandaTamano({ ventaAnual: 100000000, moneda: "CLP", periodo: null });
   ok(sinPeriodo.banda === null && /sin período declarado/.test(sinPeriodo.motivo), "★ CARNADA · sin período → banda null, motivo nombra la causa", sinPeriodo.motivo);
 
-  // 2 · sobre un TENANT REAL (no un caso fabricado): TENANT_DEMO no trae `.hechos`, así que periodoDeclaradoDe da null
+  // 2 · CORRECCIÓN (owner 2026-09-23, «el período real del demo») — TENANT_DEMO YA declara
+  // `.hechos.parametros.periodo_actual` con evidencia del propio archivo (ver el comentario junto a `hechos` en
+  // `data/tenants/demo.js`). Ya NO es el caso "sin período" — es la prueba de que el tenant de fábrica recorre
+  // el MISMO camino que un cliente real, de punta a punta, hasta una banda concreta.
   const { TENANT_DEMO: _TD } = await import("./src/data/tenants/demo.js");
-  ok(periodoDeclaradoDe(_TD) === null, "★ periodoDeclaradoDe(TENANT_DEMO) === null — el hueco de ingesta medido en la sonda (ver el informe): un tenant escrito a mano nunca declaró período");
-  const perfilSinPeriodo = construirPerfilCliente(_TD);
-  ok(perfilSinPeriodo.campos.tamano.valor === null, "…y por eso el perfil de TENANT_DEMO nunca tiene banda");
-  ok(perfilSinPeriodo.completo === false && perfilSinPeriodo.faltantes.includes("tamano"), "…el perfil queda INCOMPLETO por la banda faltante");
-  ok(perfilAutorizaConocimiento(perfilSinPeriodo) === false, "★ CADENA COMPLETA · perfilAutorizaConocimiento === false — «la capa no se entrega», exactamente el mandato del encargo");
+  ok(periodoDeclaradoDe(_TD) === "2025-12", `★ CANDADO · periodoDeclaradoDe(TENANT_DEMO) === "2025-12" — el demo declara período por la MISMA vía que un cliente real (hoy: ${periodoDeclaradoDe(_TD)})`, String(periodoDeclaradoDe(_TD)));
+  const perfilConPeriodoReal = construirPerfilCliente(_TD);
+  ok(perfilConPeriodoReal.campos.tamano.valor === "pequena", `★ CANDADO · CADENA COMPLETA SOBRE EL TENANT REAL · período declarado → UF del período (${perfilConPeriodoReal.campos.tamano.insumos.ufValor}) → banda "${perfilConPeriodoReal.campos.tamano.valor}"`, JSON.stringify(perfilConPeriodoReal.campos.tamano));
+  ok(perfilConPeriodoReal.campos.tamano.insumos.ufFila.grado === "oficial", "…la UF que usó la cadena es la fila OFICIAL (SII), no una referencia");
+  ok(!perfilConPeriodoReal.faltantes.includes("tamano"), "…y por eso «tamano» ya NO está entre los campos faltantes del perfil");
 
-  // 3 · control positivo — CON período declarado (simulando la ruta real: `tenant.hechos.parametros.periodo_actual`,
-  // la que persistirCarga.server.js/activarVersion arma), la banda SÍ se calcula y el perfil puede completar
+  // control negativo — SIN el período (un tenant que nunca lo declaró) la cadena sigue fallando cerrada, exactamente
+  // como antes de esta corrección: la corrección no debilitó la regla, solo le dio a TENANT_DEMO un dato real.
+  const { TENANT_EMPRESA2: _TE2 } = await import("./src/data/tenants/empresa2.js");
+  ok(periodoDeclaradoDe(_TE2) === null, "control negativo · empresa2 (no declara nada, a propósito) sigue SIN período — periodoDeclaradoDe === null");
+  const perfilSinPeriodo = construirPerfilCliente(_TE2);
+  ok(perfilSinPeriodo.campos.tamano.valor === null, "…y por eso su perfil nunca tiene banda (no se inventa)");
+  ok(perfilSinPeriodo.completo === false && perfilSinPeriodo.faltantes.includes("tamano"), "…el perfil queda INCOMPLETO por la banda faltante");
+  ok(perfilAutorizaConocimiento(perfilSinPeriodo) === false, "★ CADENA COMPLETA (control) · perfilAutorizaConocimiento === false — «la capa no se entrega», exactamente el mandato del encargo");
+
+  // 3 · control positivo genérico — CON período declarado a mano (simulando la ruta real:
+  // `tenant.hechos.parametros.periodo_actual`, la que persistirCarga.server.js/activarVersion arma) sobre un
+  // tenant sintético, para separar "el mecanismo funciona en general" de "el demo declara su período real" (2·arriba)
   const TENANT_CON_PERIODO = { ..._TD,
-    hechos: { parametros: { ..._TD.hechos?.parametros, periodo_actual: "2026-09-30" } },
+    hechos: { parametros: { ..._TD.hechos?.parametros, periodo_actual: "2025-12-15" } },
     perfil: { ..._TD.perfil,
       sector: { valor: "minorista", procedencia: "medido" },
       tipoProducto: { valor: "durable", procedencia: "medido" },
@@ -919,18 +940,18 @@ H("17c · LA CADENA DE FALLA CERRADA — sin período → sin UF → sin banda �
     },
   };
   const perfilConPeriodo = construirPerfilCliente(TENANT_CON_PERIODO);
-  ok(perfilConPeriodo.campos.tamano.valor === "pequena", `★ CON período declarado, la banda SÍ se calcula (hoy: ${perfilConPeriodo.campos.tamano.valor})`, JSON.stringify(perfilConPeriodo.campos.tamano));
-  ok(perfilConPeriodo.campos.tamano.insumos && perfilConPeriodo.campos.tamano.insumos.periodo === "2026-09", "…y el insumo `periodo` es el mes de CIERRE («2026-09-30» recortado a «2026-09»), no una interpolación");
+  ok(perfilConPeriodo.campos.tamano.valor === "pequena", `★ mecanismo genérico, otra fecha del mismo mes → misma banda (hoy: ${perfilConPeriodo.campos.tamano.valor})`, JSON.stringify(perfilConPeriodo.campos.tamano));
+  ok(perfilConPeriodo.campos.tamano.insumos && perfilConPeriodo.campos.tamano.insumos.periodo === "2025-12", "…y el insumo `periodo` es el mes de CIERRE («2025-12-15» recortado a «2025-12»), no una interpolación");
   ok(perfilConPeriodo.completo === true && perfilAutorizaConocimiento(perfilConPeriodo) === true, "★ con los seis campos presentes (banda incluida), el perfil COMPLETA y la capa SÍ se entrega");
 }
 
 H("17d · MONEDA SIN TABLA → SIN BANDA (misma regla, sin excepción — la clasificación es chilena)");
 {
-  const rUSD = calcularBandaTamano({ ventaAnual: 5000000, moneda: "USD", periodo: "2026-09" });
+  const rUSD = calcularBandaTamano({ ventaAnual: 5000000, moneda: "USD", periodo: "2025-12" });
   ok(rUSD.banda === null && /clasificación oficial de tamaño es chilena/.test(rUSD.motivo), "★ CARNADA · USD no tiene tabla → banda null, el motivo dice por qué", rUSD.motivo);
-  ok(ufDelPeriodo("2026-09", "USD") === null, "ufDelPeriodo nunca inventa una fila para una moneda sin tabla");
+  ok(ufDelPeriodo("2025-12", "USD") === null, "ufDelPeriodo nunca inventa una fila para una moneda sin tabla");
   // control negativo · CLP con un período que SÍ está sembrado da la fila
-  ok(ufDelPeriodo("2026-09", "CLP") !== null, "control · CLP con el período sembrado SÍ resuelve");
+  ok(ufDelPeriodo("2025-12", "CLP") !== null, "control · CLP con el período sembrado SÍ resuelve");
   // período CLP fuera de la tabla (sin interpolar)
   const rSinFila = calcularBandaTamano({ ventaAnual: 100000000, moneda: "CLP", periodo: "2026-01" });
   ok(rSinFila.banda === null && /hay que sembrar esa fila/.test(rSinFila.motivo), "★ CARNADA · CLP con un período SIN fila firmada → banda null (nunca interpola con la fila más cercana)", rSinFila.motivo);
@@ -939,10 +960,10 @@ H("17d · MONEDA SIN TABLA → SIN BANDA (misma regla, sin excepción — la cla
 H("17e · el prorrateo a doce meses — SOLO para elegir la banda, registrado, nunca mostrado como cifra");
 {
   // 8 meses de venta que YA suman lo mismo que el caso "pequena" de arriba, prorrateados a 12 deberían subir de banda
-  const r8 = calcularBandaTamano({ ventaAnual: 60000000, moneda: "CLP", periodo: "2026-09", mesesInformados: 8 });
+  const r8 = calcularBandaTamano({ ventaAnual: 60000000, moneda: "CLP", periodo: "2025-12", mesesInformados: 8 });
   ok(r8.insumos.proporcionada === true && r8.insumos.ventaAnualProrrateada === 60000000 * 12 / 8, "★ con 8 meses informados, la venta SE PRORRATEA a 12 para elegir banda (90MM), registrado en `insumos.ventaAnualProrrateada`", JSON.stringify(r8.insumos));
   ok(r8.insumos.ventaAnual === 60000000, "…pero `insumos.ventaAnual` conserva el monto REAL informado (60MM) — el prorrateado nunca reemplaza al real, es un insumo aparte");
-  const r12 = calcularBandaTamano({ ventaAnual: 60000000, moneda: "CLP", periodo: "2026-09", mesesInformados: 12 });
+  const r12 = calcularBandaTamano({ ventaAnual: 60000000, moneda: "CLP", periodo: "2025-12", mesesInformados: 12 });
   ok(r12.insumos.proporcionada === false && r12.insumos.ventaAnualProrrateada === null, "control · con 12 meses informados, NO se prorratea");
   ok(mesesInformadosDe({ ventasMensuales: [1, 2, 3] }) === 3 && mesesInformadosDe({}) === null, "mesesInformadosDe: cuenta `ventasMensuales`, o null si el tenant no trae el campo (nunca fuerza un prorrateo que no puede probar)");
 }
@@ -1065,8 +1086,8 @@ H("19 · candados de la tarea — resumen con controles negativos, para que ning
   const TENANT_PERFECTO = {
     id: "perfecto", nombre: "Perfecto SpA",
     ventasKPI: { totalActual: 500 }, escalaComercial: "K",
-    ventasMensuales: Array.from({ length: 12 }, (_, i) => ({ mes: i, periodo: `2026-${String(i + 1).padStart(2, "0")}` })),
-    hechos: { parametros: { periodo_actual: "2026-09-30" } },
+    ventasMensuales: Array.from({ length: 12 }, (_, i) => ({ mes: i, periodo: `2025-${String(i + 1).padStart(2, "0")}` })),
+    hechos: { parametros: { periodo_actual: "2025-12-31" } },
     perfil: { moneda: "CLP",
       sector: { valor: "distribucion", procedencia: "medido" },
       tipoProducto: { valor: "consumo", procedencia: "medido" },
