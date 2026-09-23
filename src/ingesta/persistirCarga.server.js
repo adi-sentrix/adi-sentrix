@@ -342,16 +342,18 @@ export async function monedaTenant({ tenantId, env, cliente } = {}) {
   return monedaLimpia(r.filas[0].moneda);
 }
 
-/* declararPerfilEmpresa({ tenantId, sector, subsector, pais, modeloComercial, tamanoBanda, moneda, env,
+/* declararPerfilEmpresa({ tenantId, sector, tipoProducto, pais, modeloComercial, tamanoBanda, moneda, env,
  *   cliente }) → { declarada, perfil? , motivo? }
  * EL ENGANCHE para la pantalla que todavía no se construye (Etapa siguiente, plan §3 «cómo se pega al
  * cliente»): cada campo es opcional y llega como `{codigo, procedencia}` — `sector: {codigo:"comercio",
  * procedencia:"medido"}` — salvo `moneda`, que es el código de texto plano (la misma forma que ya usa
  * `activarVersion`). Va por la MISMA función controlada que la herencia automática de moneda
  * (`adi_declarar_perfil_empresa`), nunca por una escritura directa a `tenants` — esa tabla es de solo
- * lectura para el producto (`001_esquema_base.sql`) fuera de esta función acotada por columna. */
+ * lectura para el producto (`001_esquema_base.sql`) fuera de esta función acotada por columna.
+ * `tipoProducto` — antes `subsector` — renombrado (owner 2026-09-23, `013_perfil_taxonomia_siembra.sql`) junto
+ * con la columna y el parámetro de la función de la base (`p_tipo_producto_codigo`). */
 export async function declararPerfilEmpresa({
-  tenantId, sector, subsector, pais, modeloComercial, tamanoBanda, moneda, env, cliente, ttlSegundos,
+  tenantId, sector, tipoProducto, pais, modeloComercial, tamanoBanda, moneda, env, cliente, ttlSegundos,
 } = {}) {
   if (!tenantId) return { declarada: false, sinBase: true, motivo: "sin sesión con empresa: no se declara nada" };
   const e = env || (typeof process !== "undefined" && process.env) || {};
@@ -365,7 +367,7 @@ export async function declararPerfilEmpresa({
 
   const r = await db.llamarFuncion("adi_declarar_perfil_empresa", {
     p_sector_codigo: par(sector), p_sector_procedencia: proc(sector),
-    p_subsector_codigo: par(subsector), p_subsector_procedencia: proc(subsector),
+    p_tipo_producto_codigo: par(tipoProducto), p_tipo_producto_procedencia: proc(tipoProducto),
     p_pais_codigo: par(pais), p_pais_procedencia: proc(pais),
     p_modelo_comercial_codigo: par(modeloComercial), p_modelo_comercial_procedencia: proc(modeloComercial),
     p_tamano_banda_codigo: par(tamanoBanda), p_tamano_banda_procedencia: proc(tamanoBanda),

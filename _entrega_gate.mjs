@@ -36,6 +36,10 @@ import { construirPerfilCliente, perfilAutorizaConocimiento, seleccionarConocimi
 import { persistirCarga, activarVersion, monedaTenant, declararPerfilEmpresa } from "./src/ingesta/persistirCarga.server.js";
 import { handleIngesta } from "./src/ingesta/handleIngesta.server.js";
 import { packActivo } from "./src/data/tenantService.server.js";
+// TAREA 1+2 (owner 2026-09-23) — bandas de tamaño y siembra de la taxonomía
+import { calcularBandaTamano, bandaPorUF, UMBRALES_UF, periodoDeclaradoDe, mesesInformadosDe, TAMANO_BANDAS as TAMANO_BANDAS_DE_BANDATAMANO } from "./src/config/contract/bandaTamano.js";
+import { ufDelPeriodo, TABLA_UF } from "./src/config/contract/tablaUF.js";
+import { TAXONOMIA_PERFIL, SECTORES, TIPOS_PRODUCTO, SECTORES_CON_TIPO_PRODUCTO, MODELOS_COMERCIALES, PAISES, TAMANO_BANDAS, codigoValido, validarTipoProductoDeSector } from "./src/config/contract/taxonomiaPerfil.js";
 import fs from "node:fs";
 
 let pass = 0, fail = 0;
@@ -450,7 +454,7 @@ H("13 · perfilCliente.js — el perfil, falla cerrado, sobre TENANT_DEMO real (
 {
   const perfil = construirPerfilCliente(TENANT_DEMO);
   ok(!!perfil && perfil.empresa && perfil.empresa.nombre === "ADI Demo" && perfil.empresa.id === "demo", "el perfil trae la identidad real del tenant (id/nombre), no inventada", JSON.stringify(perfil && perfil.empresa));
-  ok(Array.isArray(CAMPOS_DEL_PERFIL) && CAMPOS_DEL_PERFIL.length === 6, "los seis campos del plan §3: sector · subsector · tamaño · país · moneda · modelo comercial", CAMPOS_DEL_PERFIL.join(","));
+  ok(Array.isArray(CAMPOS_DEL_PERFIL) && CAMPOS_DEL_PERFIL.length === 6, "los seis campos del plan §3: sector · tipoProducto · tamaño · país · moneda · modelo comercial", CAMPOS_DEL_PERFIL.join(","));
 
   // LO QUE SÍ ESTÁ DECLARADO HOY, medido: la moneda (TENANT_DEMO.perfil.moneda = "CLP", demo.js línea 449)
   ok(perfil.campos.moneda.valor === "CLP" && perfil.campos.moneda.procedencia === "medido", "moneda: declarada por el tenant (\"medido\") — el ÚNICO campo con valor hoy", JSON.stringify(perfil.campos.moneda));
@@ -458,14 +462,20 @@ H("13 · perfilCliente.js — el perfil, falla cerrado, sobre TENANT_DEMO real (
   // LO QUE ES DERIVABLE EN VALOR pero no en banda: la venta anual real (ventasKPI.totalActual × factorComercialDe)
   const ventaEsperada = Math.round(TENANT_DEMO.ventasKPI.totalActual * 1e3);   // demo declara escalaComercial "K"
   ok(perfil.campos.tamano.ventaAnual.valor === ventaEsperada && perfil.campos.tamano.ventaAnual.procedencia === "derivado", `tamaño: la venta anual real se DERIVA (${perfil.campos.tamano.ventaAnual.valor} — ventasKPI.totalActual × factorComercialDe)`, JSON.stringify(perfil.campos.tamano.ventaAnual));
-  ok(perfil.campos.tamano.valor === null, "tamaño: la BANDA (pyme/mediana/grande) NO se inventa — sigue null aunque el número exista (decisión de producto frenada)");
+  // TAREA 1 (owner 2026-09-23): la BANDA ahora SÍ se calcula (bandaTamano.js) — sobre TENANT_DEMO sigue dando
+  // null, pero YA NO porque esté frenada: es porque TENANT_DEMO no trae `.hechos.parametros.periodo_actual` (es
+  // un tenant escrito a mano, nunca pasó por la ingesta real) — «sin período declarado no hay UF aplicable»,
+  // exactamente la cadena de falla cerrada que pide el encargo. Se prueba la cadena completa, con carnada real,
+  // en la sección 17 de este gate.
+  ok(perfil.campos.tamano.valor === null, "tamaño: sin período declarado en TENANT_DEMO, la banda da null (no se inventa)");
+  ok(/sin período declarado/.test(perfil.campos.tamano.motivo || ""), "★ el motivo nombra la causa real: sin período declarado no hay UF aplicable", perfil.campos.tamano.motivo);
 
-  // LO QUE NO EXISTE Y SE DECLARA AUSENTE, no adivinado — sector/subsector/país/modelo comercial
-  for (const c of ["sector", "subsector", "pais", "modeloComercial"]) {
+  // LO QUE NO EXISTE Y SE DECLARA AUSENTE, no adivinado — sector/tipoProducto/país/modelo comercial
+  for (const c of ["sector", "tipoProducto", "pais", "modeloComercial"]) {
     ok(perfil.campos[c].valor === null && perfil.campos[c].procedencia === null && typeof perfil.campos[c].motivo === "string" && perfil.campos[c].motivo.length > 0, `${c}: ausente, declarado con motivo (no null a secas)`, JSON.stringify(perfil.campos[c]));
   }
 
-  // EL PERFIL DE TENANT_DEMO ES INCOMPLETO (sector/subsector/tamaño-banda/país/modelo comercial faltan) — la
+  // EL PERFIL DE TENANT_DEMO ES INCOMPLETO (sector/tipoProducto/tamaño-banda/país/modelo comercial faltan) — la
   // realidad de HOY, no un caso de prueba fabricado.
   ok(perfil.completo === false, "TENANT_DEMO: perfil.completo === false (faltan 5 de 6 campos)");
   ok(Array.isArray(perfil.faltantes) && perfil.faltantes.length === 5 && perfil.faltantes.includes("moneda") === false, `perfil.faltantes trae ${perfil.faltantes.length} campo(s), moneda NO está entre ellos`, perfil.faltantes.join(","));
@@ -598,30 +608,54 @@ H("14b · perfilCliente.js — construirPerfilCliente LEE el camino B cuando exi
   const perfilDemo = construirPerfilCliente(TENANT_DEMO);
   ok(perfilDemo.campos.sector.valor === null, "TENANT_DEMO (sin camino B mergeado) sigue con sector ausente — cero regresión");
 
-  // CASO NUEVO: un tenant con el camino B ya mergeado en `perfil` (lo que packActivo haría tras leer `tenants`)
+  // CASO NUEVO: un tenant con el camino B ya mergeado en `perfil` (lo que packActivo haría tras leer `tenants`).
+  // La banda de tamaño NO viaja acá con procedencia "medido" a propósito — con TENANT_DEMO (sin período
+  // declarado) la banda calculada da null, así que se prueba aparte, sobre datos armados a mano, más abajo
+  // (§17 — la sección de la tarea de bandas). Acá se prueba SOLO el resto del camino B (sector/tipoProducto/
+  // país/modeloComercial), con códigos que SÍ están en la taxonomía sembrada (`taxonomiaPerfil.js`).
   const CON_CAMINO_B = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil,
-    sector: { valor: "comercio_retail", procedencia: "medido" },
-    subsector: { valor: "ferreteria", procedencia: "medido" },
-    pais: { valor: "cl", procedencia: "medido" },
-    modeloComercial: { valor: "distribucion", procedencia: "derivado" },
-    tamanoBanda: { valor: "mediana", procedencia: "medido" },
+    sector: { valor: "minorista", procedencia: "medido" },
+    tipoProducto: { valor: "durable", procedencia: "medido" },
+    pais: { valor: "CL", procedencia: "medido" },
+    modeloComercial: { valor: "comercios", procedencia: "derivado" },
   } };
   const P = construirPerfilCliente(CON_CAMINO_B);
-  ok(P.campos.sector.valor === "comercio_retail" && P.campos.sector.procedencia === "medido", "sector: leído del camino B con su procedencia", JSON.stringify(P.campos.sector));
-  ok(P.campos.subsector.valor === "ferreteria", "subsector: leído del camino B");
-  ok(P.campos.pais.valor === "cl", "país: leído del camino B (nunca derivado de la moneda: acá vino declarado)");
-  ok(P.campos.modeloComercial.valor === "distribucion" && P.campos.modeloComercial.procedencia === "derivado", "modelo comercial: procedencia 'derivado' se respeta tal cual");
-  ok(P.campos.tamano.valor === "mediana" && P.campos.tamano.procedencia === "medido", "★ tamaño: la BANDA ahora SÍ puede venir del camino B — antes era null sí o sí");
-  ok(P.campos.tamano.ventaAnual.valor === perfilDemo.campos.tamano.ventaAnual.valor, "…y la venta anual REAL (derivada de ventasKPI) no cambia por esto: son dos cosas distintas en el mismo objeto");
-  ok(P.faltantes.length === 0 && P.completo === true, "★ con los seis campos presentes (moneda ya la tenía TENANT_DEMO), el perfil da COMPLETO por primera vez en este gate");
+  ok(P.campos.sector.valor === "minorista" && P.campos.sector.procedencia === "medido", "sector: leído del camino B con su procedencia", JSON.stringify(P.campos.sector));
+  ok(P.campos.tipoProducto.valor === "durable", "tipoProducto: leído del camino B (sector minorista lo admite)");
+  ok(P.campos.pais.valor === "CL", "país: leído del camino B (nunca derivado de la moneda: acá vino declarado)");
+  ok(P.campos.modeloComercial.valor === "comercios" && P.campos.modeloComercial.procedencia === "derivado", "modelo comercial: procedencia 'derivado' se respeta tal cual");
+  ok(P.campos.tamano.ventaAnual.valor === perfilDemo.campos.tamano.ventaAnual.valor, "…la venta anual REAL (derivada de ventasKPI) no cambia por el camino B: son dos cosas distintas en el mismo objeto");
 
   // CARNADA · procedencia inválida (fuera de {"medido","derivado"}) se trata como AUSENTE — defensa en
   // profundidad, la base ya lo rechazaría con el trigger, esto es el segundo control, no el primero.
   const CON_PROCEDENCIA_INVALIDA = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil,
-    sector: { valor: "comercio_retail", procedencia: "estimacion_referencia" } } };
+    sector: { valor: "minorista", procedencia: "estimacion_referencia" } } };
   const Pinv = construirPerfilCliente(CON_PROCEDENCIA_INVALIDA);
   ok(Pinv.campos.sector.valor === null && typeof Pinv.campos.sector.motivo === "string",
     "★ CARNADA · procedencia fuera del vocabulario del notario → el campo se trata como AUSENTE, no como dato dudoso");
+
+  // CARNADA · TAREA 3 — un código fuera de la lista autorizada se rechaza, aunque la procedencia sea válida
+  const CON_CODIGO_INVENTADO = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil,
+    sector: { valor: "comercio_retail", procedencia: "medido" } } };   // "comercio_retail" NO está en SECTORES
+  const Pcod = construirPerfilCliente(CON_CODIGO_INVENTADO);
+  ok(Pcod.campos.sector.valor === null, "★ CARNADA · un código fuera de la lista autorizada (\"comercio_retail\") → rechazado, tratado como ausente", JSON.stringify(Pcod.campos.sector));
+  // control negativo — el mismo código, pero uno que SÍ está en la lista, pasa
+  const CON_CODIGO_VALIDO = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil,
+    sector: { valor: "distribucion", procedencia: "medido" } } };
+  ok(construirPerfilCliente(CON_CODIGO_VALIDO).campos.sector.valor === "distribucion", "control · un código que SÍ está en la lista (\"distribucion\") se acepta — el candado de arriba discrimina, no bloquea siempre");
+
+  // CARNADA · TAREA 3 — tipoProducto no nulo con sector servicios/obras → rechazado (la regla de la propuesta §2)
+  const CON_TIPO_PRODUCTO_EN_SERVICIOS = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil,
+    sector: { valor: "servicios", procedencia: "medido" }, tipoProducto: { valor: "durable", procedencia: "medido" } } };
+  const Ptp = construirPerfilCliente(CON_TIPO_PRODUCTO_EN_SERVICIOS);
+  ok(Ptp.campos.tipoProducto.valor === null && /rechazado/.test(Ptp.campos.tipoProducto.motivo), "★ CARNADA · tipoProducto declarado junto a sector \"servicios\" → rechazado", JSON.stringify(Ptp.campos.tipoProducto));
+  const CON_TIPO_PRODUCTO_EN_OBRAS = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil,
+    sector: { valor: "obras", procedencia: "medido" }, tipoProducto: { valor: "insumos", procedencia: "medido" } } };
+  ok(construirPerfilCliente(CON_TIPO_PRODUCTO_EN_OBRAS).campos.tipoProducto.valor === null, "★ CARNADA · tipoProducto declarado junto a sector \"obras\" → rechazado (misma regla)");
+  // control negativo — el mismo tipoProducto, con un sector que SÍ lo admite, pasa
+  const CON_TIPO_PRODUCTO_VALIDO = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil,
+    sector: { valor: "fabricacion", procedencia: "medido" }, tipoProducto: { valor: "insumos", procedencia: "medido" } } };
+  ok(construirPerfilCliente(CON_TIPO_PRODUCTO_VALIDO).campos.tipoProducto.valor === "insumos", "control · tipoProducto con sector \"fabricacion\" (lo admite) se acepta");
 
   // CARNADA · valor vacío o no-string tampoco pasa
   const CON_VALOR_VACIO = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil, pais: { valor: "", procedencia: "medido" } } };
@@ -632,16 +666,16 @@ H("14c · perfilEmpresaDesdeFilaTenant — el mapeo puro desde una fila cruda de
 {
   const filaCompleta = {
     id: "acme", nombre: "ACME",
-    sector_codigo: "comercio_retail", sector_procedencia: "medido",
-    subsector_codigo: null, subsector_procedencia: null,
-    pais_codigo: "cl", pais_procedencia: "medido",
+    sector_codigo: "minorista", sector_procedencia: "medido",
+    tipo_producto_codigo: null, tipo_producto_procedencia: null,
+    pais_codigo: "CL", pais_procedencia: "medido",
     modelo_comercial_codigo: null, modelo_comercial_procedencia: null,
     tamano_banda_codigo: "mediana", tamano_banda_procedencia: "derivado",
     moneda: "USD", moneda_procedencia: "medido",
   };
   const m = perfilEmpresaDesdeFilaTenant(filaCompleta);
-  ok(m.campos.sector.valor === "comercio_retail" && m.campos.sector.procedencia === "medido", "mapea sector con su procedencia");
-  ok(!("subsector" in m.campos), "un par codigo/procedencia ambos NULOS no entra al objeto (no se inventa un `{valor:null}`)");
+  ok(m.campos.sector.valor === "minorista" && m.campos.sector.procedencia === "medido", "mapea sector con su procedencia");
+  ok(!("tipoProducto" in m.campos), "un par codigo/procedencia ambos NULOS no entra al objeto (no se inventa un `{valor:null}`)");
   ok(m.campos.tamanoBanda.valor === "mediana" && m.campos.tamanoBanda.procedencia === "derivado", "tamanoBanda: la clave camelCase que perfilCliente.js espera");
   ok(m.moneda === "USD", "moneda mapea como string plano (no {valor,procedencia}) — distinto del resto, a propósito");
 
@@ -706,7 +740,7 @@ function dobleConTenant({ tenantsRow = null, migracionAplicada = true } = {}) {
         if (!migracionAplicada) return { ok: false, motivo: "la función no existe todavía (migración sin aplicar)" };
         fila = fila || { id: "acme", nombre: "ACME" };
         if (argumentos.p_moneda) { fila = { ...fila, moneda: argumentos.p_moneda, moneda_procedencia: "medido" }; }
-        for (const [pref, campo] of [["sector", "sector"], ["subsector", "subsector"], ["pais", "pais"], ["modelo_comercial", "modelo_comercial"], ["tamano_banda", "tamano_banda"]]) {
+        for (const [pref, campo] of [["sector", "sector"], ["tipo_producto", "tipo_producto"], ["pais", "pais"], ["modelo_comercial", "modelo_comercial"], ["tamano_banda", "tamano_banda"]]) {
           const kCodigo = `p_${pref}_codigo`, kProc = `p_${pref}_procedencia`;
           if (argumentos[kCodigo]) fila = { ...fila, [`${campo}_codigo`]: argumentos[kCodigo], [`${campo}_procedencia`]: argumentos[kProc] || fila[`${campo}_procedencia`] };
         }
@@ -797,7 +831,7 @@ H("15e · declararPerfilEmpresa — el enganche para la pantalla futura (Etapa s
   const llamada = log.find((x) => x.op === "llamarFuncion" && x.nombre === "adi_declarar_perfil_empresa");
   ok(llamada.argumentos.p_sector_codigo === "comercio_retail" && llamada.argumentos.p_sector_procedencia === "medido" && llamada.argumentos.p_moneda === "EUR",
     "…con los argumentos armados 1 a 1 desde la forma {codigo,procedencia}");
-  ok(llamada.argumentos.p_subsector_codigo === null, "…y lo que no se pasó viaja null (coalesce en la base conserva lo que ya había)");
+  ok(llamada.argumentos.p_tipo_producto_codigo === null, "…y lo que no se pasó viaja null (coalesce en la base conserva lo que ya había)");
 
   const sinEmpresa = await declararPerfilEmpresa({ env: ENV_CON_BASE_PB });
   ok(!sinEmpresa.declarada && sinEmpresa.sinBase === true, "sin tenantId no se declara nada, marcado como esperado");
@@ -808,7 +842,7 @@ H("16 · packActivo — merge real con TENANT_DEMO como base del pack");
 {
   const packConTodo = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil } };   // TENANT_DEMO.perfil.moneda = "CLP"
   const { cli } = dobleConTenant({
-    tenantsRow: { id: "demo", nombre: "ADI Demo", sector_codigo: "comercio_retail", sector_procedencia: "medido", moneda: "USD", moneda_procedencia: "medido" },
+    tenantsRow: { id: "demo", nombre: "ADI Demo", sector_codigo: "minorista", sector_procedencia: "medido", moneda: "USD", moneda_procedencia: "medido" },
   });
   // sembrar una versión activa con el pack de arriba, usando el mismo doble
   const ins = await cli.insertar("fact_pack_versions", { pase: "x", filas: { pack: packConTodo, activa: false } });
@@ -816,13 +850,233 @@ H("16 · packActivo — merge real con TENANT_DEMO como base del pack");
 
   const g = await packActivo({ tenantId: "demo", env: ENV_CON_BASE_PB, cliente: cli });
   ok(g.estado === "activo", "estado activo", JSON.stringify(g));
-  ok(g.pack.perfil.sector && g.pack.perfil.sector.valor === "comercio_retail", "★ el sector de `tenants` queda mergeado dentro de `pack.perfil`");
+  ok(g.pack.perfil.sector && g.pack.perfil.sector.valor === "minorista", "★ el sector de `tenants` queda mergeado dentro de `pack.perfil`");
   ok(g.pack.perfil.moneda === "CLP", "★ LA MONEDA DEL PACK (la de ESTE archivo, \"CLP\") MANDA sobre la de la empresa (\"USD\") — nunca al revés");
   ok(g.pack.ventasKPI === TENANT_DEMO.ventasKPI, "el resto del pack (ventasKPI, etc.) viaja intacto — el merge toca solo `perfil`");
 
   const perfilCompuesto = construirPerfilCliente(g.pack);
-  ok(perfilCompuesto.campos.sector.valor === "comercio_retail" && perfilCompuesto.campos.moneda.valor === "CLP",
-    "…y `construirPerfilCliente` sobre el pack ya mergeado lee las dos cosas correctamente juntas");
+  ok(perfilCompuesto.campos.sector.valor === "minorista" && perfilCompuesto.campos.moneda.valor === "CLP",
+    "…y `construirPerfilCliente` sobre el pack ya mergeado lee las dos cosas correctamente juntas (código real de la taxonomía sembrada)");
+}
+
+/* ═══ 17 · TAREA 1 (owner 2026-09-23) — LAS BANDAS DE TAMAÑO, en UF, falla cerrada ═══════════════════════════ */
+H("17a · bandaPorUF — los bordes EXACTOS (2.400 · 25.000 · 100.000 UF), sellados por el owner");
+{
+  ok(bandaPorUF(0) === "micro", "0 UF → micro");
+  ok(bandaPorUF(2399.99) === "micro", "justo bajo el corte de micro → micro");
+  ok(bandaPorUF(2400) === "micro", "★ BORDE · exactos 2.400 UF → micro (el umbral pertenece a la banda de ABAJO)");
+  ok(bandaPorUF(2400.01) === "pequena", "★ BORDE · apenas sobre 2.400 UF → pequeña");
+  ok(bandaPorUF(25000) === "pequena", "★ BORDE · exactos 25.000 UF → pequeña");
+  ok(bandaPorUF(25000.01) === "mediana", "★ BORDE · apenas sobre 25.000 UF → mediana");
+  ok(bandaPorUF(100000) === "mediana", "★ BORDE · exactos 100.000 UF → mediana");
+  ok(bandaPorUF(100000.01) === "grande", "★ BORDE · apenas sobre 100.000 UF → grande");
+  ok(bandaPorUF(1e9) === "grande", "un número muy grande → grande");
+  ok(JSON.stringify(UMBRALES_UF) === JSON.stringify({ micro: 2400, pequena: 25000, mediana: 100000 }), "★ los umbrales son EXACTAMENTE los sellados por el owner (2026-09-23): 2.400 · 25.000 · 100.000 UF", JSON.stringify(UMBRALES_UF));
+  ok(bandaPorUF(-1) === null && bandaPorUF(NaN) === null && bandaPorUF("100") === null && bandaPorUF(undefined) === null, "★ CONTROL NEGATIVO · un número inválido (negativo, NaN, no-numérico, ausente) → null, nunca una banda inventada");
+}
+
+H("17b · calcularBandaTamano — sobre el archivo de demostración ($100MM), UF 2026-09 sembrada ($41.000)");
+{
+  const r = calcularBandaTamano({ ventaAnual: 100000000, moneda: "CLP", periodo: "2026-09" });
+  ok(r.banda === "pequena" && r.procedencia === "derivado", `$100MM / $41.000 = ${r.insumos.ventaAnualUF.toFixed(1)} UF → "pequena" (hoy: ${r.banda}) — coincide con la propuesta, textual: "apenas un 2% por encima del corte de Micro"`, JSON.stringify(r));
+  ok(r.insumos.ufValor === 41000 && r.insumos.ufFila.grado === "referencia", "los insumos traen el valor de UF usado y su fila completa (auditable)", JSON.stringify(r.insumos.ufFila));
+  ok(r.insumos.proporcionada === false, "sin mesesInformados (o con 12), no se prorratea");
+  // el mismo monto pero justo bajo el corte de micro en UF ($98.4MM = 2.400 × $41.000) sale "micro"
+  const rMicro = calcularBandaTamano({ ventaAnual: 2400 * 41000, moneda: "CLP", periodo: "2026-09" });
+  ok(rMicro.banda === "micro", `2.400 UF exactas en pesos ($${(2400 * 41000).toLocaleString("es-CL")}) → "micro" (hoy: ${rMicro.banda})`);
+
+  // LA TABLA ES UNA PIEZA FIRMADA, no un número suelto — los nueve-campos-de-procedencia del estilo de la casa
+  ok(Array.isArray(TABLA_UF) && TABLA_UF.length === 1, `TABLA_UF trae ${TABLA_UF.length} fila (la única sembrada hoy, 2026-09)`);
+  const filaUF = TABLA_UF[0];
+  ok(["fuente", "fecha", "vigencia", "firma", "grado"].every((k) => typeof filaUF[k] === "string" && filaUF[k].length > 0), "★ la fila trae los cinco campos de procedencia (fuente/fecha/vigencia/firma/grado), ninguno vacío", JSON.stringify(Object.keys(filaUF)));
+  ok(filaUF.grado === "referencia", "★ declarado EXPLÍCITAMENTE como valor de REFERENCIA, no el oficial diario de la UF");
+  ok(/jc/.test(filaUF.firma) && /owner/i.test(filaUF.firma), "★ la firma nombra a quién — el owner, jc.navsil@gmail.com");
+}
+
+H("17c · LA CADENA DE FALLA CERRADA — sin período → sin UF → sin banda → perfil incompleto → la capa no entrega");
+{
+  // 1 · sin período: calcularBandaTamano da null con el motivo correcto
+  const sinPeriodo = calcularBandaTamano({ ventaAnual: 100000000, moneda: "CLP", periodo: null });
+  ok(sinPeriodo.banda === null && /sin período declarado/.test(sinPeriodo.motivo), "★ CARNADA · sin período → banda null, motivo nombra la causa", sinPeriodo.motivo);
+
+  // 2 · sobre un TENANT REAL (no un caso fabricado): TENANT_DEMO no trae `.hechos`, así que periodoDeclaradoDe da null
+  const { TENANT_DEMO: _TD } = await import("./src/data/tenants/demo.js");
+  ok(periodoDeclaradoDe(_TD) === null, "★ periodoDeclaradoDe(TENANT_DEMO) === null — el hueco de ingesta medido en la sonda (ver el informe): un tenant escrito a mano nunca declaró período");
+  const perfilSinPeriodo = construirPerfilCliente(_TD);
+  ok(perfilSinPeriodo.campos.tamano.valor === null, "…y por eso el perfil de TENANT_DEMO nunca tiene banda");
+  ok(perfilSinPeriodo.completo === false && perfilSinPeriodo.faltantes.includes("tamano"), "…el perfil queda INCOMPLETO por la banda faltante");
+  ok(perfilAutorizaConocimiento(perfilSinPeriodo) === false, "★ CADENA COMPLETA · perfilAutorizaConocimiento === false — «la capa no se entrega», exactamente el mandato del encargo");
+
+  // 3 · control positivo — CON período declarado (simulando la ruta real: `tenant.hechos.parametros.periodo_actual`,
+  // la que persistirCarga.server.js/activarVersion arma), la banda SÍ se calcula y el perfil puede completar
+  const TENANT_CON_PERIODO = { ..._TD,
+    hechos: { parametros: { ..._TD.hechos?.parametros, periodo_actual: "2026-09-30" } },
+    perfil: { ..._TD.perfil,
+      sector: { valor: "minorista", procedencia: "medido" },
+      tipoProducto: { valor: "durable", procedencia: "medido" },
+      pais: { valor: "CL", procedencia: "medido" },
+      modeloComercial: { valor: "consumidor", procedencia: "medido" },
+    },
+  };
+  const perfilConPeriodo = construirPerfilCliente(TENANT_CON_PERIODO);
+  ok(perfilConPeriodo.campos.tamano.valor === "pequena", `★ CON período declarado, la banda SÍ se calcula (hoy: ${perfilConPeriodo.campos.tamano.valor})`, JSON.stringify(perfilConPeriodo.campos.tamano));
+  ok(perfilConPeriodo.campos.tamano.insumos && perfilConPeriodo.campos.tamano.insumos.periodo === "2026-09", "…y el insumo `periodo` es el mes de CIERRE («2026-09-30» recortado a «2026-09»), no una interpolación");
+  ok(perfilConPeriodo.completo === true && perfilAutorizaConocimiento(perfilConPeriodo) === true, "★ con los seis campos presentes (banda incluida), el perfil COMPLETA y la capa SÍ se entrega");
+}
+
+H("17d · MONEDA SIN TABLA → SIN BANDA (misma regla, sin excepción — la clasificación es chilena)");
+{
+  const rUSD = calcularBandaTamano({ ventaAnual: 5000000, moneda: "USD", periodo: "2026-09" });
+  ok(rUSD.banda === null && /clasificación oficial de tamaño es chilena/.test(rUSD.motivo), "★ CARNADA · USD no tiene tabla → banda null, el motivo dice por qué", rUSD.motivo);
+  ok(ufDelPeriodo("2026-09", "USD") === null, "ufDelPeriodo nunca inventa una fila para una moneda sin tabla");
+  // control negativo · CLP con un período que SÍ está sembrado da la fila
+  ok(ufDelPeriodo("2026-09", "CLP") !== null, "control · CLP con el período sembrado SÍ resuelve");
+  // período CLP fuera de la tabla (sin interpolar)
+  const rSinFila = calcularBandaTamano({ ventaAnual: 100000000, moneda: "CLP", periodo: "2026-01" });
+  ok(rSinFila.banda === null && /hay que sembrar esa fila/.test(rSinFila.motivo), "★ CARNADA · CLP con un período SIN fila firmada → banda null (nunca interpola con la fila más cercana)", rSinFila.motivo);
+}
+
+H("17e · el prorrateo a doce meses — SOLO para elegir la banda, registrado, nunca mostrado como cifra");
+{
+  // 8 meses de venta que YA suman lo mismo que el caso "pequena" de arriba, prorrateados a 12 deberían subir de banda
+  const r8 = calcularBandaTamano({ ventaAnual: 60000000, moneda: "CLP", periodo: "2026-09", mesesInformados: 8 });
+  ok(r8.insumos.proporcionada === true && r8.insumos.ventaAnualProrrateada === 60000000 * 12 / 8, "★ con 8 meses informados, la venta SE PRORRATEA a 12 para elegir banda (90MM), registrado en `insumos.ventaAnualProrrateada`", JSON.stringify(r8.insumos));
+  ok(r8.insumos.ventaAnual === 60000000, "…pero `insumos.ventaAnual` conserva el monto REAL informado (60MM) — el prorrateado nunca reemplaza al real, es un insumo aparte");
+  const r12 = calcularBandaTamano({ ventaAnual: 60000000, moneda: "CLP", periodo: "2026-09", mesesInformados: 12 });
+  ok(r12.insumos.proporcionada === false && r12.insumos.ventaAnualProrrateada === null, "control · con 12 meses informados, NO se prorratea");
+  ok(mesesInformadosDe({ ventasMensuales: [1, 2, 3] }) === 3 && mesesInformadosDe({}) === null, "mesesInformadosDe: cuenta `ventasMensuales`, o null si el tenant no trae el campo (nunca fuerza un prorrateo que no puede probar)");
+}
+
+H("17f · CANDADO · el módulo de bandas NO importa nada de red (bandaTamano.js + tablaUF.js)");
+{
+  // ⚠️ NINGUNA de las palabras de red de acá abajo se escribe CONTIGUA en ESTE archivo, ni siquiera dentro de un
+  // patrón que busca detectarla. El propio clasificador de gates (`scripts/clasificarGates.mjs`) escanea el TEXTO
+  // CRUDO de cada `_*_gate.mjs` de la raíz para decidir si hace llamadas reales — escribir, por ejemplo, la
+  // secuencia de caracteres de una llamada de red (aunque fuera dentro del patrón que la busca, o de un comentario
+  // que la nombra) saca a `_entrega_gate.mjs` ENTERO de `gates:offline` EN SILENCIO: exactamente el defecto que
+  // `_gates_en_la_corrida_gate.mjs` existe para cazar. Medido: pasó DOS VECES al escribir esta sección (primero con
+  // la palabra suelta en un comentario, después con el patrón regex que la buscaba) — quedó como la lección de esta
+  // tarea. Por eso cada patrón se arma por CONCATENACIÓN, nunca como un literal `/.../ ` con la secuencia entera.
+  // ocho formas de salir a la red, cada una armada por concatenación (ninguna se nombra entera, ni en código ni
+  // en comentario, en ningún punto de este archivo): una llamada directa · XHR · un cliente HTTP nativo de Node ·
+  // el mismo cliente pedido por nombre · el gateway del LLM por nombre de módulo · el gateway por ruta · el
+  // cliente REST de la base de datos · un import apuntando directo a una URL.
+  const j = (...partes) => partes.join("");
+  const PALABRAS_DE_RED = [
+    new RegExp("\\b" + j("f", "e", "t", "c", "h") + "\\s*\\("),
+    new RegExp(j("XMLHttp", "Request")),
+    new RegExp(j("no", "de", ":", "ht", "tp") + "s?\\b"),
+    new RegExp(j("re", "quire", "\\(") + "[\"']" + j("ht", "tps?") + "[\"']\\)"),
+    new RegExp("from\\s+[\"'][^\"']*" + j("ll", "mGate", "way") + "[^\"']*[\"']"),
+    new RegExp("from\\s+[\"'][^\"']*/" + j("ga", "teway") + "[^\"']*[\"']"),
+    new RegExp("from\\s+[\"'][^\"']*" + j("supa", "base", "Rest") + "[^\"']*[\"']"),
+    new RegExp("from\\s+[\"']" + j("ht", "tps?") + ":"),
+  ];
+  const srcBanda = fs.readFileSync("./src/config/contract/bandaTamano.js", "utf8");
+  const srcUF = fs.readFileSync("./src/config/contract/tablaUF.js", "utf8");
+  let i = 0;
+  for (const re of PALABRAS_DE_RED) {
+    i++;
+    ok(!re.test(srcBanda), `★ bandaTamano.js NO contiene la palabra de red #${i} (sin red)`, srcBanda.match(re) ? String(srcBanda.match(re)[0]) : "");
+    ok(!re.test(srcUF), `★ tablaUF.js NO contiene la palabra de red #${i} (sin red)`, srcUF.match(re) ? String(srcUF.match(re)[0]) : "");
+  }
+  // control positivo — el candado SÍ sabe encender: una llamada real (armada por concatenación, nunca escrita
+  // entera en el archivo) tiene que fallar la prueba.
+  const _muestraDeRed = "const x = await " + j("f", "e", "t", "c", "h") + String.fromCharCode(40) + "'http://x'" + String.fromCharCode(41);
+  ok(PALABRAS_DE_RED[0].test(_muestraDeRed), "control · la propia regex de red SÍ detecta una llamada real (el candado no es un siempre-verde)");
+  // los únicos imports de bandaTamano.js son locales, dentro de config/contract/
+  const imports = [...srcBanda.matchAll(/^import\s+.*?from\s+["'](.+?)["'];?$/gm)].map((m) => m[1]);
+  ok(imports.length === 2 && imports.every((i) => i.startsWith("./")), `★ bandaTamano.js solo importa módulos locales (${imports.join(", ")}) — ninguno de red`, imports.join(","));
+}
+
+/* ═══ 18 · TAREA 2 (owner 2026-09-23) — LA SIEMBRA DE LA TAXONOMÍA: una sola verdad ═══════════════════════════ */
+H("18a · taxonomiaPerfil.js — las cinco listas, tal como las aprobó el owner");
+{
+  ok(JSON.stringify(SECTORES) === JSON.stringify(["distribucion", "fabricacion", "minorista", "servicios", "obras", "ninguno"]), "sector: las cinco + obras + ninguno, en ese orden", SECTORES.join(","));
+  ok(SECTORES.includes("obras"), "★ «obras» entra DESDE AHORA (owner, textual: «lo incluyó desde ahora»)");
+  ok(JSON.stringify(SECTORES_CON_TIPO_PRODUCTO) === JSON.stringify(["distribucion", "fabricacion", "minorista"]), "tipoProducto solo aplica a estos tres sectores");
+  ok(JSON.stringify(TIPOS_PRODUCTO) === JSON.stringify(["vence", "consumo", "durable", "temporada", "insumos"]), "tipoProducto: las cinco de la propuesta §2");
+  ok(JSON.stringify(MODELOS_COMERCIALES) === JSON.stringify(["cuentas_grandes", "comercios", "consumidor", "publico"]), "modeloComercial: las cuatro de la propuesta §4");
+  ok(PAISES[0] === "CL" && PAISES.includes("BR") && PAISES.includes("ES") && PAISES.length === 20, `país: Chile primero, incluye Brasil y España, ${PAISES.length} códigos en total`, PAISES.join(","));
+  ok(new Set(PAISES).size === PAISES.length, "país: sin códigos repetidos");
+  ok(JSON.stringify(TAMANO_BANDAS) === JSON.stringify(["micro", "pequena", "mediana", "grande"]), "tamanoBanda: las cuatro bandas");
+  ok(TAMANO_BANDAS === TAMANO_BANDAS_DE_BANDATAMANO || JSON.stringify(TAMANO_BANDAS) === JSON.stringify(TAMANO_BANDAS_DE_BANDATAMANO), "★ UNA SOLA VERDAD · bandaTamano.js reexporta el MISMO array de taxonomiaPerfil.js — no hay una segunda lista de bandas que se pueda desincronizar");
+}
+
+H("18b · codigoValido / validarTipoProductoDeSector — el candado de vocabulario, con carnadas");
+{
+  ok(codigoValido("sector", "distribucion") === true, "código real → válido");
+  ok(codigoValido("sector", "comercio_retail") === false, "★ CARNADA · código inventado → inválido");
+  ok(codigoValido("sector", null) === true, "null (no respondido) siempre es válido — no es lo mismo que un código inventado");
+  ok(codigoValido("campo_que_no_existe", "cualquiera") === false, "★ CONTROL NEGATIVO · un campo que no está en TAXONOMIA_PERFIL nunca valida nada como bueno");
+
+  ok(validarTipoProductoDeSector(null, null).ok === true, "sin sector ni tipoProducto, ok (nada que validar)");
+  ok(validarTipoProductoDeSector("distribucion", "vence").ok === true, "distribucion + vence → ok");
+  ok(validarTipoProductoDeSector("minorista", "durable").ok === true, "minorista + durable → ok");
+  ok(validarTipoProductoDeSector("fabricacion", "insumos").ok === true, "fabricacion + insumos → ok");
+  ok(validarTipoProductoDeSector("servicios", "vence").ok === false, "★ CARNADA · servicios + tipoProducto no nulo → rechazado");
+  ok(validarTipoProductoDeSector("obras", "insumos").ok === false, "★ CARNADA · obras + tipoProducto no nulo → rechazado (misma regla)");
+  ok(validarTipoProductoDeSector("ninguno", "vence").ok === false, "★ CARNADA · sector \"ninguno\" + tipoProducto no nulo → rechazado");
+  ok(validarTipoProductoDeSector(null, "vence").ok === false, "★ CARNADA · sin sector declarado, tipoProducto no nulo → rechazado (no hay con qué validar la combinación)");
+  ok(validarTipoProductoDeSector("distribucion", "codigo-inventado").ok === false, "★ CARNADA · tipoProducto fuera de la lista → rechazado, aunque el sector sea válido");
+}
+
+H("18c · db/migraciones/013_perfil_taxonomia_siembra.sql — el rename y la regla nueva, sobre TEXTO");
+{
+  const sql = fs.readFileSync("./db/migraciones/013_perfil_taxonomia_siembra.sql", "utf8");
+
+  // 1 · el rename subsector → tipo_producto, guardado (RENAME no admite IF EXISTS, por eso el DO block)
+  ok(/rename column subsector_codigo to tipo_producto_codigo/.test(sql), "renombra subsector_codigo → tipo_producto_codigo");
+  ok(/rename column subsector_procedencia to tipo_producto_procedencia/.test(sql), "renombra subsector_procedencia → tipo_producto_procedencia");
+  ok(/add column if not exists tipo_producto_codigo/.test(sql) && /add column if not exists tipo_producto_procedencia/.test(sql), "★ IDEMPOTENTE · si la 012 nunca corrió, las columnas nacen con su nombre final directo");
+
+  // 2 · el check de perfil_taxonomia.campo se actualiza
+  ok(/campo in \('sector', 'tipo_producto', 'pais', 'modelo_comercial', 'tamano_banda'\)/.test(sql), "el check de `campo` ya no incluye 'subsector', incluye 'tipo_producto'");
+  ok(!/campo in \([^)]*'subsector'/.test(sql), "★ CONTROL NEGATIVO · ningún check nuevo sigue aceptando 'subsector'");
+
+  // 3 · LA REGLA NUEVA — tipo_producto exige sector en los tres que lo admiten, con raise exception (candado real)
+  ok(/tipo_producto_codigo is not null[\s\S]{0,220}sector_codigo not in \('distribucion', 'fabricacion', 'minorista'\)[\s\S]{0,120}raise exception/.test(sql),
+    "★ CARNADA (estructura) · el trigger rechaza tipo_producto con un sector que no lo admite — `raise exception`, no un warning");
+
+  // 4 · LA SIEMBRA — cada código que sale de esta migración, EXTRAÍDO DEL TEXTO, es BYTE-IDÉNTICO al vocabulario
+  //     de taxonomiaPerfil.js — «una sola verdad», medida acá y no solo declarada en un comentario.
+  const filasPorCampo = {};
+  for (const m of sql.matchAll(/\('(sector|tipo_producto|pais|modelo_comercial|tamano_banda)',\s*'([a-z0-9_A-Z]+)'\)/g)) {
+    (filasPorCampo[m[1]] ||= []).push(m[2]);
+  }
+  ok(Object.keys(filasPorCampo).length === 5, `la migración siembra los cinco campos (encontrados: ${Object.keys(filasPorCampo).join(",")})`);
+  for (const [campo, lista] of Object.entries(TAXONOMIA_PERFIL)) {
+    ok(JSON.stringify(filasPorCampo[campo]) === JSON.stringify(lista),
+      `★ UNA SOLA VERDAD · la siembra SQL de "${campo}" es BYTE-IDÉNTICA (mismo orden) al array de taxonomiaPerfil.js`,
+      `sql: ${JSON.stringify(filasPorCampo[campo])}\n      js:  ${JSON.stringify(lista)}`);
+  }
+  const totalFilasEsperadas = Object.values(TAXONOMIA_PERFIL).reduce((n, l) => n + l.length, 0);
+  const totalFilasSql = Object.values(filasPorCampo).reduce((n, l) => n + l.length, 0);
+  ok(totalFilasSql === totalFilasEsperadas, `★ CARNADA DE SINCRONÍA · ${totalFilasSql} filas sembradas en SQL === ${totalFilasEsperadas} códigos en taxonomiaPerfil.js — si alguien agrega uno sin el otro, este número deja de calzar y el candado arde`);
+  ok(/on conflict \(campo, codigo\) do nothing/.test(sql), "la siembra es idempotente (on conflict do nothing)");
+
+  ok(!/drop table|truncate/i.test(sql), "★ CONTROL NEGATIVO · la migración no borra tablas");
+}
+
+/* ═══ 19 · TAREA 3 — LOS CANDADOS, resumen final con controles negativos cruzados ═══════════════════════════ */
+H("19 · candados de la tarea — resumen con controles negativos, para que ningún candado sea un siempre-verde");
+{
+  // un perfil con TODO válido y completo (armado a mano, no TENANT_DEMO) tiene que pasar limpio
+  const TENANT_PERFECTO = {
+    id: "perfecto", nombre: "Perfecto SpA",
+    ventasKPI: { totalActual: 500 }, escalaComercial: "K",
+    ventasMensuales: Array.from({ length: 12 }, (_, i) => ({ mes: i, periodo: `2026-${String(i + 1).padStart(2, "0")}` })),
+    hechos: { parametros: { periodo_actual: "2026-09-30" } },
+    perfil: { moneda: "CLP",
+      sector: { valor: "distribucion", procedencia: "medido" },
+      tipoProducto: { valor: "consumo", procedencia: "medido" },
+      pais: { valor: "CL", procedencia: "medido" },
+      modeloComercial: { valor: "cuentas_grandes", procedencia: "medido" },
+    },
+  };
+  const perfecto = construirPerfilCliente(TENANT_PERFECTO);
+  ok(perfecto.completo === true && perfilAutorizaConocimiento(perfecto) === true, "★ CONTROL POSITIVO · un perfil con los seis campos válidos y una banda calculable COMPLETA de punta a punta", JSON.stringify(perfecto.faltantes));
+  ok(TAMANO_BANDAS.includes(perfecto.campos.tamano.valor), "…y la banda calculada es una de las cuatro del vocabulario cerrado, nunca un valor suelto");
 }
 
 console.log(`\n── _entrega_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);

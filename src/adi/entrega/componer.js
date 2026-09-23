@@ -261,7 +261,7 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
     moneda: "$",     // el símbolo que la boleta ya imprime — la escala nunca se declara (regla de la casa)
     definiciones: ["Margen = contribución sobre venta neta.", "La brecha estimada es la diferencia contra el benchmark declarado, no dinero ya perdido."],
     referenciaDeclarada: { texto: `Benchmark de margen: ${R(idBench)}, declarado por usted.`, hechoId: idBench },
-    perfil,          // plan §3 «cómo se pega al cliente» — sector/subsector/tamaño/país/modelo comercial, con procedencia
+    perfil,          // plan §3 «cómo se pega al cliente» — sector/tipoProducto/tamaño/país/modelo comercial, con procedencia
   };
   if (nClientes != null) cifrasImpresas.push(`${nClientes} clientes`);
   // el «12» de «los 12 meses ya ocurrieron» es texto CANÓNICO del contrato (figureType.PERIODO_TXT), no un

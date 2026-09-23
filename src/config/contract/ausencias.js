@@ -141,8 +141,8 @@ export const AUSENCIAS_DEL_DATO = [
    * agregar esto al prompt del narrador de producción es una decisión aparte, no de esta tarea). */
   {
     id: "perfil_cliente_incompleto", tipo: "perfil_incompleto", dominio: "general",
-    texto: "perfil del cliente (sector, subsector, tamaño, país, modelo comercial): incompleto — sin él, el conocimiento del oficio no se aplica con seguridad, aunque el catálogo exista.",
-    entrega: { titulo: "Sin perfil completo del cliente todavía", motivo: "Sector, subsector, tamaño (banda), país y/o modelo comercial no están declarados ni se pueden derivar todavía." },
+    texto: "perfil del cliente (sector, tipo de producto, tamaño, país, modelo comercial): incompleto — sin él, el conocimiento del oficio no se aplica con seguridad, aunque el catálogo exista.",
+    entrega: { titulo: "Sin perfil completo del cliente todavía", motivo: "Sector, tipo de producto, tamaño (banda), país y/o modelo comercial no están declarados ni se pueden derivar todavía." },
   },
 ];
 

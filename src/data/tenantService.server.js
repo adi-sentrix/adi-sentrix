@@ -65,7 +65,7 @@ export async function packActivo({ tenantId, env, cliente }) {
    * reemplaza al «¿está en el registro de esta build?» — con base, quién existe lo dice la base, no el bundle.
    *
    * ⚠️ CAMINO B (Etapa 2 §2, `db/migraciones/012_perfil_empresa.sql`, SIN APLICAR): se intenta primero CON las
-   * columnas del perfil de empresa (sector/subsector/país/modelo comercial/banda de tamaño/moneda); si la base
+   * columnas del perfil de empresa (sector/tipo de producto/país/modelo comercial/banda de tamaño/moneda); si la base
    * las rechaza —columna inexistente, porque la migración todavía no corrió— `seleccionar` devuelve
    * `{ok:false}` SIN LANZAR (`supabaseRest.js`), y acá se degrada a la consulta de SIEMPRE, sin perfil. Es
    * exactamente el comportamiento de antes de esta tarea: nadie pierde el pack activo porque una columna nueva
@@ -73,7 +73,7 @@ export async function packActivo({ tenantId, env, cliente }) {
    * una línea más. */
   const COLUMNAS_TENANT_BASE = "id,nombre";
   const COLUMNAS_TENANT_CON_PERFIL = COLUMNAS_TENANT_BASE
-    + ",sector_codigo,sector_procedencia,subsector_codigo,subsector_procedencia,pais_codigo,pais_procedencia"
+    + ",sector_codigo,sector_procedencia,tipo_producto_codigo,tipo_producto_procedencia,pais_codigo,pais_procedencia"
     + ",modelo_comercial_codigo,modelo_comercial_procedencia,tamano_banda_codigo,tamano_banda_procedencia"
     + ",moneda,moneda_procedencia";
   let emp = await db.seleccionar("tenants", { pase: p.pase, columnas: COLUMNAS_TENANT_CON_PERFIL, limite: 1 });

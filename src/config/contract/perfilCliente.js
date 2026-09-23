@@ -1,6 +1,6 @@
 /* === config/contract/perfilCliente.js · EL PERFIL DEL CLIENTE (plan `_ADI_LLMBUSINESS_PLAN.md` §3, Etapa 2)
  * ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
- * «El motor necesita un perfil (sector, subsector, tamaño, país, modelo comercial) que se captura en la
+ * «El motor necesita un perfil (sector, tipo de producto, tamaño, país, modelo comercial) que se captura en la
  * ingesta. Sin perfil no se entrega nada de esta capa: falla cerrado» (plan §3). Este módulo arma ESE perfil
  * con lo que el producto ya tiene hoy — nada más — y declara explícitamente qué falta. Un campo ausente NUNCA
  * se adivina: se declara ausente, con el motivo.
@@ -43,18 +43,29 @@
  * NO pasa por `notario/hechos.js:libroDeHechos()` — esa maquinaria verifica CIFRAS de la boleta (una `fig` con
  * `.tipo.verificabilidad`, para arbitrar sumas/restas/razones); estos son campos de IDENTIDAD del tenant, leídos
  * directo del objeto tenant, en el mismo patrón que `entrega/componer.js` ya usa para `marco.empresa` /
- * `marco.moneda`. Decisión de MECÁNICA, no de significado — documentada, no escondida. */
+ * `marco.moneda`. Decisión de MECÁNICA, no de significado — documentada, no escondida.
+ *
+ * ── TAREA 1+2 (owner 2026-09-23, `_ADI_PERFIL_VOCABULARIOS_PROPUESTA.md`): LAS BANDAS DE TAMAÑO Y LA SIEMBRA ──
+ * «subsector» se renombra a **tipoProducto** acá y en la migración 013 (la propuesta §2, nota: «el plan lo
+ * llamaba subsector pero el contenido es tipo de producto» — el owner lo confirmó al usar «tipoProducto» en el
+ * encargo mismo). La BANDA de tamaño deja de estar frenada: `bandaTamano.js` la calcula (venta anual ÷ UF del
+ * período declarado, contra los umbrales sellados por el owner), nunca se pregunta. El vocabulario de los cinco
+ * campos (sector/tipoProducto/modeloComercial/país/tamanoBanda) vive en `taxonomiaPerfil.js` — UNA sola fuente,
+ * que este módulo usa para validar cualquier código que llegue por camino B antes de darlo por bueno. */
 import { factorComercialDe } from "./figureType.js";
 import { monedaDelNegocio } from "../moneda.js";
+import { calcularBandaTamano, periodoDeclaradoDe, mesesInformadosDe } from "./bandaTamano.js";
+import { codigoValido, validarTipoProductoDeSector } from "./taxonomiaPerfil.js";
 
-/** Los seis campos que el plan §3 nombra, en el orden del encargo. */
-export const CAMPOS_DEL_PERFIL = ["sector", "subsector", "tamano", "pais", "moneda", "modeloComercial"];
+/** Los seis campos que el plan §3 nombra, en el orden del encargo. `tipoProducto` — antes «subsector» — es el
+ *  nombre que fija la propuesta §2 (tarea 2026-09-23). */
+export const CAMPOS_DEL_PERFIL = ["sector", "tipoProducto", "tamano", "pais", "moneda", "modeloComercial"];
 
 /** La forma en que cada campo se nombra en prosa (para un límite de la Entrega, nunca la clave interna cruda). */
-export const ETIQUETA_DEL_CAMPO = { sector: "sector", subsector: "subsector", tamano: "tamaño (banda)", pais: "país", moneda: "moneda", modeloComercial: "modelo comercial" };
+export const ETIQUETA_DEL_CAMPO = { sector: "sector", tipoProducto: "tipo de producto", tamano: "tamaño (banda)", pais: "país", moneda: "moneda", modeloComercial: "modelo comercial" };
 
 /* ── CAMINO B (owner 2026-09-23, `db/migraciones/012_perfil_empresa.sql`, SIN APLICAR) ────────────────────────
- * Sector, subsector, país, modelo comercial y la banda de tamaño se capturan FUERA de la plantilla congelada:
+ * Sector, tipo de producto, país, modelo comercial y la banda de tamaño se capturan FUERA de la plantilla congelada:
  * viven en `tenants` (la fila por EMPRESA), no en el pack (la fila por archivo subido). El camino de lectura
  * es mecánico y no inventa nada: quien arma el `tenant` que le llega a este módulo (hoy `packActivo` en
  * `data/tenantService.server.js`) es responsable de MERGEAR esas columnas dentro de `tenant.perfil` con esta
@@ -62,15 +73,23 @@ export const ETIQUETA_DEL_CAMPO = { sector: "sector", subsector: "subsector", ta
  * mergee (la migración sin aplicar, o un tenant fabricado a mano como TENANT_DEMO), el campo sigue
  * exactamente como declaraba antes de este cambio: ausente, con su motivo — CERO diferencia de comportamiento.
  *
- * `_delPerfilDeEmpresa` es la ÚNICA puerta de entrada, y valida la FORMA (nunca el vocabulario: la taxonomía
- * la decide el owner, no este módulo) — un valor con procedencia fuera de {"medido","derivado"} o sin `valor`
- * de texto se trata como si no estuviera, la misma defensa en profundidad que ya tiene el trigger de la base
- * (`adi.validar_perfil_tenant()`), no la primera línea de defensa. */
+ * `_delPerfilDeEmpresa` es la ÚNICA puerta de entrada, y valida FORMA Y VOCABULARIO (owner 2026-09-23, tarea 2:
+ * antes solo validaba la forma — «la taxonomía la decide el owner, no este módulo» seguía siendo cierto el día
+ * que se escribió, pero el owner YA la decidió, `taxonomiaPerfil.js`, así que dejar pasar un código inventado
+ * sería el mismo hueco que un `check` sin sembrar) — un valor con procedencia fuera de {"medido","derivado"},
+ * sin `valor` de texto, o con un código que NO está en la lista cerrada del campo se trata como si no estuviera,
+ * la misma defensa en profundidad que ya tiene el trigger de la base (`adi.validar_perfil_tenant()`), no la
+ * primera línea de defensa. */
 const _PROCEDENCIAS_DEL_PERFIL_EMPRESA = ["medido", "derivado"];
+/** camelCase (como lo usa este módulo y `tenant.perfil`) → snake_case (como lo usa `taxonomiaPerfil.js` y la
+ *  base, para que las dos listas sigan siendo la misma verdad sin renombrar ninguna de las dos). */
+const _CAMPO_A_TAXONOMIA = { sector: "sector", tipoProducto: "tipo_producto", modeloComercial: "modelo_comercial", pais: "pais", tamanoBanda: "tamano_banda" };
 function _delPerfilDeEmpresa(t, campo) {
   const v = t && t.perfil && t.perfil[campo];
   if (!v || typeof v.valor !== "string" || !v.valor) return null;
   if (!_PROCEDENCIAS_DEL_PERFIL_EMPRESA.includes(v.procedencia)) return null;
+  const campoTaxonomia = _CAMPO_A_TAXONOMIA[campo];
+  if (campoTaxonomia && !codigoValido(campoTaxonomia, v.valor)) return null;   // código fuera de la lista → rechazado (nunca se cuela, nunca se avisa como "casi")
   return { valor: v.valor, procedencia: v.procedencia,
     fuente: `tenant.perfil.${campo} — declarado por la empresa o derivado por el motor (camino B, fuera de la plantilla; \`db/migraciones/012_perfil_empresa.sql\`, sin aplicar)` };
 }
@@ -83,7 +102,7 @@ function _delPerfilDeEmpresa(t, campo) {
  * casa. Sigue siendo PURO: recibe una fila ya leída, no la va a buscar. */
 const _PARES_PERFIL_TENANT = [
   ["sector", "sector_codigo", "sector_procedencia"],
-  ["subsector", "subsector_codigo", "subsector_procedencia"],
+  ["tipoProducto", "tipo_producto_codigo", "tipo_producto_procedencia"],
   ["pais", "pais_codigo", "pais_procedencia"],
   ["modeloComercial", "modelo_comercial_codigo", "modelo_comercial_procedencia"],
   ["tamanoBanda", "tamano_banda_codigo", "tamano_banda_procedencia"],
@@ -108,30 +127,52 @@ export function construirPerfilCliente(tenant) {
   const t = tenant || {};
   const monedaCod = monedaDelNegocio(t);   // "CLP" | null — NUNCA inferida (config/moneda.js, ley del owner)
 
-  // TAMAÑO — el valor (venta anual real) se deriva; la BANDA (camino B: `tenant.perfil.tamanoBanda`) se lee
-  // si ya la mergearon; si no, sigue sin definir — ver la cabecera del archivo.
+  // TAMAÑO — el valor (venta anual real) se deriva; la BANDA se CALCULA siempre (propuesta §3, textual: «no se
+  // pregunta, se calcula») con `bandaTamano.js` — venta anual ÷ UF del período declarado, contra los umbrales
+  // sellados por el owner. Un valor de camino B con procedencia "medido" (una corrección humana manual de la
+  // banda, si algún día existiera) es la ÚNICA razón para no recalcular — hoy nunca ocurre en la práctica,
+  // porque la banda nunca se pregunta, pero la puerta queda para no perder un ajuste humano si existiera.
   const ventasKPI = t.ventasKPI || null;
   const tieneVenta = ventasKPI && typeof ventasKPI.totalActual === "number" && Number.isFinite(ventasKPI.totalActual);
   const ventaAnual = tieneVenta ? Math.round(ventasKPI.totalActual * factorComercialDe(t)) : null;
   const bandaDeEmpresa = _delPerfilDeEmpresa(t, "tamanoBanda");
-  const tamano = {
-    valor: bandaDeEmpresa ? bandaDeEmpresa.valor : null,
-    procedencia: bandaDeEmpresa ? bandaDeEmpresa.procedencia : null,
-    fuente: bandaDeEmpresa ? bandaDeEmpresa.fuente : null,
-    ...(bandaDeEmpresa ? {} : { motivo: "la banda de tamaño (qué venta anual cuenta como pyme/mediana/grande) no está definida — es una decisión de producto, no de este módulo" }),
-    ventaAnual: ventaAnual != null
-      ? { valor: ventaAnual, moneda: monedaCod, procedencia: "derivado", fuente: "tenant.ventasKPI.totalActual × factorComercialDe(tenant) — ingesta/plantilla/motorKpi.js + config/contract/figureType.js" }
-      : { valor: null, moneda: null, procedencia: null, motivo: "el tenant no trae ventasKPI.totalActual" },
-  };
+  const bandaManual = bandaDeEmpresa && bandaDeEmpresa.procedencia === "medido" ? bandaDeEmpresa : null;
+  const periodoDeclarado = periodoDeclaradoDe(t);
+  const bandaCalculada = bandaManual ? null : calcularBandaTamano({
+    ventaAnual, moneda: monedaCod, periodo: periodoDeclarado, mesesInformados: mesesInformadosDe(t),
+  });
+  const tamano = bandaManual
+    ? { valor: bandaManual.valor, procedencia: bandaManual.procedencia, fuente: bandaManual.fuente,
+        ventaAnual: ventaAnual != null ? { valor: ventaAnual, moneda: monedaCod, procedencia: "derivado", fuente: "tenant.ventasKPI.totalActual × factorComercialDe(tenant)" } : { valor: null, moneda: null, procedencia: null, motivo: "el tenant no trae ventasKPI.totalActual" } }
+    : {
+        valor: bandaCalculada.banda,
+        procedencia: bandaCalculada.procedencia,
+        fuente: bandaCalculada.banda ? "config/contract/bandaTamano.js:calcularBandaTamano — venta anual ÷ UF del período declarado, contra los umbrales sellados por el owner (2.400 · 25.000 · 100.000 UF)" : null,
+        ...(bandaCalculada.banda ? {} : { motivo: bandaCalculada.motivo }),
+        insumos: bandaCalculada.insumos,
+        ventaAnual: ventaAnual != null
+          ? { valor: ventaAnual, moneda: monedaCod, procedencia: "derivado", fuente: "tenant.ventasKPI.totalActual × factorComercialDe(tenant) — ingesta/plantilla/motorKpi.js + config/contract/figureType.js" }
+          : { valor: null, moneda: null, procedencia: null, motivo: "el tenant no trae ventasKPI.totalActual" },
+      };
+
+  const sectorCampo = _delPerfilDeEmpresa(t, "sector");
+  const tipoProductoCrudo = _delPerfilDeEmpresa(t, "tipoProducto");
+  // TAREA 3 · candado: tipoProducto no nulo con sector servicios/obras (o sin sector) → rechazado. La validación
+  // cruzada vive en `taxonomiaPerfil.js` (una sola regla, la misma que el trigger de la base aplicará) — acá se
+  // APLICA, no se reinventa.
+  const _validacionTipoProducto = validarTipoProductoDeSector(sectorCampo ? sectorCampo.valor : null, tipoProductoCrudo ? tipoProductoCrudo.valor : null);
+  const tipoProductoCampo = (tipoProductoCrudo && _validacionTipoProducto.ok) ? tipoProductoCrudo : null;
 
   const campos = {
-    sector: _delPerfilDeEmpresa(t, "sector") || {
+    sector: sectorCampo || {
       valor: null, procedencia: null, fuente: null,
       motivo: "no se declara en la plantilla (hoja Empresa) ni en la pantalla de carga, y no hay un campo del dato del que derivarlo sin adivinar",
     },
-    subsector: _delPerfilDeEmpresa(t, "subsector") || {
+    tipoProducto: tipoProductoCampo || {
       valor: null, procedencia: null, fuente: null,
-      motivo: "mismo hueco que sector, con más detalle — depende de que exista sector primero",
+      motivo: (tipoProductoCrudo && !_validacionTipoProducto.ok)
+        ? `declarado pero rechazado: ${_validacionTipoProducto.motivo}`
+        : "mismo hueco que sector, con más detalle — depende de que exista sector primero, y solo aplica a distribución, fabricación y minorista",
     },
     tamano,
     pais: _delPerfilDeEmpresa(t, "pais") || {
