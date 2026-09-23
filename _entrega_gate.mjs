@@ -28,8 +28,10 @@ import { verificarEntrega } from "./src/adi/entrega/verificar.js";
 import { crearEntrega, camposFaltantes, PARTES_DE_LA_ENTREGA } from "./src/adi/entrega/esquema.js";
 import { ADI_ENTREGA } from "./src/config/voiceFlags.js";
 import { reconcilian, UNIVERSOS } from "./src/config/contract/figureType.js";
-import { libroDeHechos, asignarIds } from "./src/adi/notario/hechos.js";
+import { libroDeHechos, asignarIds, peorProcedencia, procedenciaDe, PROCEDENCIAS, NOMBRE_DE_PROCEDENCIA, validarUniverso } from "./src/adi/notario/hechos.js";
 import { indiceDeEvidencia } from "./src/adi/notario/evidencia.js";
+import { AUSENCIAS_DEL_DATO, TIPOS_DE_AUSENCIA, ausenciasDe, limitesDeAusencias, ausenciaPorId } from "./src/config/contract/ausencias.js";
+import { fig } from "./src/adi/boleta.js";   // SOLO se llama (nunca se edita — boleta.js está en la lista de "no tocar"): carnadas N/P/Q necesitan figs con `.tipo` real
 
 let pass = 0, fail = 0;
 const ok = (c, m, extra = "") => { if (c) { pass++; console.log("  ✓ " + m); } else { fail++; console.log("  ✗ " + m + (extra ? "\n      " + extra : "")); } };
@@ -305,6 +307,138 @@ ok(VM.ok, `verificarEntrega sobre la ruta multidominio: 0 violaciones (${VM.viol
 /* ═══ 9 · LA BANDERA — apagada bajo Node, el camino de producción no cambia ═══ */
 H("9 · ADI_ENTREGA — apagada en el piso (Node/gates), byte-exacto");
 ok(ADI_ENTREGA === false, `ADI_ENTREGA === false bajo Node (piso) — hoy: ${ADI_ENTREGA}`);
+
+/* ═══ 10 · ETAPA 2 §1 (owner 2026-09-23) — LA PROCEDENCIA, como campo del hecho ═══════════════════════════════
+ * `notario/hechos.js` declara PROCEDENCIAS (medido·derivado·estimacion_referencia·supuesto_usuario·propuesta) y
+ * calcula `H.procedencia` para cada hecho; `entrega/componer.js` la sube a la columna "Tipo" de Cifras
+ * (`_textoDeTipo`), leyendo el campo — nunca al revés. Acá se verifica el campo Y dos carnadas reales sobre
+ * `peorProcedencia` (la regla del owner: «una derivada hereda la peor procedencia de sus insumos»). */
+H("10 · la procedencia — campo del hecho, no texto a mano (Etapa 2 §1)");
+{
+  ok(JSON.stringify(PROCEDENCIAS) === JSON.stringify(["medido", "derivado", "estimacion_referencia", "supuesto_usuario", "propuesta"]), "PROCEDENCIAS trae las cinco categorías del owner, en el orden declarado", JSON.stringify(PROCEDENCIAS));
+  for (const p of PROCEDENCIAS) ok(!!NOMBRE_DE_PROCEDENCIA[p], `NOMBRE_DE_PROCEDENCIA trae texto para «${p}»`);
+  // brecha comercial: cifras medidas (venta, margen) vs. una brecha contra el benchmark declarado (estimación)
+  const filaTop = R.entrega.cifras.filas[0];
+  ok(filaTop.procedencia === "estimacion_referencia", `la fila del cliente prioritario (brecha comercial) es «estimacion_referencia» (hoy: ${filaTop.procedencia}) — la contribución no capturada es una brecha contra el benchmark, la peor de venta+margen+brecha`, JSON.stringify(filaTop));
+  const filaTotalBrecha = R.entrega.cifras.filas.find((f) => /^Total/.test(f.valores.Cliente || ""));
+  ok(filaTotalBrecha && filaTotalBrecha.procedencia === "estimacion_referencia", "el subtotal de la brecha comercial también es «estimacion_referencia» (hereda de la fig que cita)", filaTotalBrecha ? filaTotalBrecha.procedencia : "(sin fila)");
+  // cobranza: saldo/vencido por cliente son LECTURA DIRECTA (medido); el total es una SUMA del motor (derivado)
+  const filaTopCobranza = RC.entrega.cifras.filas[0];
+  ok(filaTopCobranza.procedencia === "medido", `la fila del deudor prioritario es «medido» (hoy: ${filaTopCobranza.procedencia}) — saldo y vencido son lectura directa de la mesa de cobranza`, JSON.stringify(filaTopCobranza));
+  const filaTotalCobranza = RC.entrega.cifras.filas.find((f) => /^Total/.test(f.valores.Cliente || ""));
+  ok(filaTotalCobranza && filaTotalCobranza.procedencia === "derivado", "el subtotal de cobranza («Total cartera») es «derivado» (es una suma del motor, no un campo de la fuente)", filaTotalCobranza ? filaTotalCobranza.procedencia : "(sin fila)");
+  // inventario: capital/días/rotación por SKU son campos de la fuente (medido); el total frenado es una suma
+  const filaTopInv = RI.entrega.cifras.filas[0];
+  ok(filaTopInv.procedencia === "medido", `la fila del SKU prioritario es «medido» (hoy: ${filaTopInv.procedencia})`, JSON.stringify(filaTopInv));
+  const filaTotalInv = RI.entrega.cifras.filas.find((f) => /^Total/.test(f.valores.SKU || ""));
+  ok(filaTotalInv && filaTotalInv.procedencia === "derivado", "el subtotal de inventario es «derivado»", filaTotalInv ? filaTotalInv.procedencia : "(sin fila)");
+}
+{
+  // CARNADA N · «una derivada hereda la PEOR procedencia de sus insumos» — una razón entre un hecho «medido» y
+  // uno «estimacion_referencia» tiene que salir «estimacion_referencia», sin importar el orden de los operandos.
+  // Las figs se arman con `fig()` (boleta.js — SOLO se llama, nunca se edita) para que traigan `.tipo` real: una
+  // fig de {label,value,raw,unit} a mano, sin pasar por `fig()`, no tiene `.tipo` y la procedencia cae al default
+  // conservador ("derivado"), que no es lo que esta carnada necesita probar.
+  const figsCarnada = asignarIds([
+    fig("Demo · Venta", "$10K", { unit: "money", raw: 10000 }),
+    fig("Demo · Contribución no capturada", "$2K", { unit: "money", raw: 2000 }),
+  ]);
+  const Ip = indiceDeEvidencia({ figs: figsCarnada, datoProyectado: null, ejesDelTenant: {} });
+  const hechosCarnada = [
+    { id: "e1", tipo: "ref", de: figsCarnada[0].id },
+    { id: "e2", tipo: "ref", de: figsCarnada[1].id },
+    { id: "e3", tipo: "razon", num: { id: "e1" }, den: { id: "e2" }, forma: "veces" },
+  ];
+  const libroCarnada = libroDeHechos(hechosCarnada, { indice: Ip });
+  const h1 = libroCarnada.porId.get("e1"), h2 = libroCarnada.porId.get("e2"), h3 = libroCarnada.porId.get("e3");
+  ok(h1 && h1.procedencia === "medido", `carnada N · «Venta» (lectura directa) es «medido» (hoy: ${h1 && h1.procedencia})`);
+  ok(h2 && h2.procedencia === "estimacion_referencia", `carnada N · «Contribución no capturada» (brecha) es «estimacion_referencia» (hoy: ${h2 && h2.procedencia})`);
+  ok(h3 && h3.ok && h3.procedencia === "estimacion_referencia", `carnada N · la razón entre ambos hereda la PEOR (estimacion_referencia), no la mejor (hoy: ${h3 && h3.procedencia})`, JSON.stringify(h3 && h3.procedencia));
+  // orden inverso: mismo resultado — «peor» no depende de quién es el numerador
+  ok(peorProcedencia("medido", "estimacion_referencia") === "estimacion_referencia" && peorProcedencia("estimacion_referencia", "medido") === "estimacion_referencia", "carnada N · peorProcedencia es conmutativa (no depende del orden de los argumentos)");
+  ok(peorProcedencia("medido", "derivado", "propuesta", "estimacion_referencia") === "propuesta", "carnada N · peorProcedencia con varios insumos elige la más débil de todas (propuesta)");
+  ok(peorProcedencia() === null && peorProcedencia(null, undefined) === null, "carnada N · sin insumos válidos, null (nunca inventa una procedencia)");
+}
+
+/* ═══ 11 · ETAPA 2 §2 (owner 2026-09-23) — LAS AUSENCIAS, declaradas como dato ═══════════════════════════════ */
+H("11 · las ausencias del dato — catálogo declarado (Etapa 2 §2)");
+{
+  ok(Array.isArray(AUSENCIAS_DEL_DATO) && AUSENCIAS_DEL_DATO.length >= 15, `AUSENCIAS_DEL_DATO trae ${AUSENCIAS_DEL_DATO.length} entradas (≥ 15: las 11 de siempre + 4 «conocimiento del sector»)`);
+  const ids = AUSENCIAS_DEL_DATO.map((a) => a.id);
+  ok(new Set(ids).size === ids.length, "cada ausencia tiene un id único");
+  ok(AUSENCIAS_DEL_DATO.every((a) => TIPOS_DE_AUSENCIA.includes(a.tipo)), "cada ausencia declara un tipo de TIPOS_DE_AUSENCIA", AUSENCIAS_DEL_DATO.filter((a) => !TIPOS_DE_AUSENCIA.includes(a.tipo)).map((a) => a.id).join(","));
+  ok(AUSENCIAS_DEL_DATO.every((a) => ["comercial", "inventario", "cobranza", "general"].includes(a.dominio)), "cada ausencia declara un dominio del vocabulario del negocio");
+  // BYTE-IDÉNTICO al `_HUECOS` que traía `datoProyectado.js` ANTES de esta tarea (medido con `_sonda_huecos_byte_identico.mjs`) — el prompt del narrador, que corre en producción, no cambia un byte.
+  const _HUECOS_ORIGINAL = [
+    "historial de compra cliente×SKU: NO existe. La relación cliente×SKU disponible es una AFINIDAD ESTIMADA (sellada `indicado`), nunca una venta registrada — «quiénes dejaron de comprar» no es respondible.",
+    "entradas y recepciones de inventario: NO existen — «entradas y salidas» no es dibujable ni narrable.",
+    "lead time de proveedor: NO existe — no se puede decir qué se quiebra antes de que llegue reposición.",
+    "estado de órdenes de compra: NO existe.",
+    "causa de la detención de un SKU: NO está en el dato — se localiza dónde, no por qué.",
+    "meta de rotación por familia: NO existe.",
+    "ningún SKU está en más de una bodega — transferir stock entre bodegas NO es evaluable con este dato.",
+    "serie a futuro / pronóstico: NO existe — solo la evolución hasta hoy.",
+    "resultado (después de gastos) POR MES: NO existe — los gastos son % sobre la venta anual.",
+    "la META no existe en este dato: el benchmark lo declara el cliente y benchmark ≠ promedio ≠ meta.",
+    "fuente sectorial autorizada: NO hay — la única referencia es la del propio negocio (su benchmark declarado).",
+  ];
+  const huecosNuevo = AUSENCIAS_DEL_DATO.filter((a) => a.enPrompt).map((a) => a.texto);
+  ok(JSON.stringify(huecosNuevo) === JSON.stringify(_HUECOS_ORIGINAL), "datoProyectado._HUECOS (reconstruido por `enPrompt`) es BYTE-IDÉNTICO al que corría en producción antes de esta tarea", huecosNuevo.length !== _HUECOS_ORIGINAL.length ? `${huecosNuevo.length} vs ${_HUECOS_ORIGINAL.length}` : huecosNuevo.map((h, i) => h === _HUECOS_ORIGINAL[i] ? null : `[${i}] ${h}`).filter(Boolean).join(" | "));
+  // la MISMA ausencia, declarada UNA vez, usada en las cuatro rutas — cada Entrega trae el límite que corresponde a SU dominio, sacado del catálogo
+  const lb = R.entrega.limites.find((l) => l.titulo === "Sin conocimiento del sector cargado todavía");
+  ok(!!lb && lb.motivo === ausenciaPorId("conocimiento_sector_comercial").entrega.motivo, "brecha comercial sirve el límite del catálogo (conocimiento_sector_comercial), no un string aparte");
+  const lbC = RC.entrega.limites.find((l) => l.titulo === "Sin conocimiento del sector cargado todavía");
+  ok(!!lbC && lbC.motivo === ausenciaPorId("conocimiento_sector_cobranza").entrega.motivo, "cobranza sirve el límite del catálogo (conocimiento_sector_cobranza)");
+  const lbI = RI.entrega.limites.find((l) => l.titulo === "Sin conocimiento del sector cargado todavía");
+  ok(!!lbI && lbI.motivo === ausenciaPorId("conocimiento_sector_inventario").entrega.motivo, "inventario sirve el límite del catálogo (conocimiento_sector_inventario)");
+  const lbM = RM.entrega.limites.find((l) => l.titulo === "Sin conocimiento del sector cargado todavía");
+  ok(!!lbM && lbM.motivo === ausenciaPorId("conocimiento_sector_general").entrega.motivo, "multidominio sirve el límite del catálogo (conocimiento_sector_general)");
+  // los CUATRO motivos son DISTINTOS entre sí — la centralización no aplanó la especificidad por dominio
+  const motivos = new Set([lb.motivo, lbC.motivo, lbI.motivo, lbM.motivo]);
+  ok(motivos.size === 4, "los cuatro motivos siguen siendo específicos por dominio (no se fusionaron en uno genérico)");
+}
+{
+  // CARNADA O · un id que no existe en el catálogo no revienta — declara ausencia de ausencia, no inventa una
+  ok(ausenciaPorId("esto-no-existe") === null, "carnada O · ausenciaPorId(id-inexistente) → null, nunca inventa una entrada");
+  ok(Array.isArray(ausenciasDe("dominio-inexistente")) && ausenciasDe("dominio-inexistente").every((a) => a.dominio === "general"), "carnada O · ausenciasDe(dominio-inexistente) solo devuelve las «general» (nunca revienta, nunca inventa dominio)");
+  ok(limitesDeAusencias([]).every((a) => a.dominio !== "comercial" && a.dominio !== "inventario" && a.dominio !== "cobranza"), "carnada O · limitesDeAusencias([]) — sin dominios, solo las ausencias «general»");
+}
+
+/* ═══ 12 · ETAPA 2 §3 (owner 2026-09-23) — EL UNIVERSO, como objeto con identidad ═══════════════════════════════ */
+H("12 · el universo — objeto con identidad (eje·entidades·filtros·período), Etapa 2 §3");
+{
+  for (const [nombre, RR] of [["brecha comercial", R], ["cobranza", RC], ["inventario", RI], ["multidominio", RM]]) {
+    ok(Array.isArray(RR.entrega.universos) && RR.entrega.universos.length >= 1, `${nombre}: entrega.universos trae ${RR.entrega.universos ? RR.entrega.universos.length : 0} objeto(s) (≥ 1)`);
+    ok(RR.entrega.universos.every((u) => u.valido === true), `${nombre}: todos los universos declarados VALIDAN contra el índice del turno (validarUniverso)`, JSON.stringify(RR.entrega.universos.filter((u) => !u.valido)));
+    ok(RR.entrega.universos.every((u) => u.eje && Array.isArray(u.entidades) && typeof u.texto === "string" && u.texto), `${nombre}: cada universo trae eje, entidades y texto (identidad completa)`);
+  }
+  ok(R.entrega.universos[0].eje === "cliente" && R.entrega.universos[0].top && R.entrega.universos[0].top.metrica === "no_capturada", "brecha comercial: el universo es «cliente», rankeado por contribución no capturada");
+  ok(RC.entrega.universos[0].eje === "cliente" && RC.entrega.universos[0].top && RC.entrega.universos[0].top.metrica === "saldo_vencido", "cobranza: el universo es «cliente», rankeado por saldo vencido");
+  ok(RI.entrega.universos[0].eje === "sku" && RI.entrega.universos[0].top && RI.entrega.universos[0].top.metrica === "capital_frenado", "inventario: el universo es «sku», rankeado por capital frenado");
+  ok(RM.entrega.universos.some((u) => u.eje === "sku") && RM.entrega.universos.some((u) => u.eje === "cliente"), "multidominio: hay universos de DOS ejes distintos (cliente para comercial/cobranza, sku para inventario) — no todos los dominios comparten identidad");
+}
+{
+  // CARNADA P · un eje DESCONOCIDO (que no es del vocabulario EJES_VALIDOS) tiene que fallar la validación —
+  // `validarUniverso` no es un rubber-stamp: de verdad rechaza un universo mal formado.
+  const Ireal = R.libro.indice;
+  const err = validarUniverso({ eje: "planeta" }, Ireal);
+  ok(typeof err === "string" && err.length > 0, "carnada P · un universo con un eje inventado («planeta») NO valida (validarUniverso devuelve el error)", String(err));
+  // CARNADA Q · un eje del vocabulario pero SIN entidades en la evidencia de este turno (índice vacío) también falla
+  const Ivacio = indiceDeEvidencia({ figs: [], datoProyectado: null, ejesDelTenant: {} });
+  const err2 = validarUniverso({ eje: "canal" }, Ivacio);
+  ok(typeof err2 === "string" && err2.length > 0, "carnada Q · un universo de un eje sin entidades en la evidencia del turno NO valida", String(err2));
+  // control negativo · el universo REAL que declaró la ruta 1 sigue validando limpio (las carnadas de arriba cazan lo roto, no todo)
+  const okReal = validarUniverso({ eje: "cliente", top: { metrica: "no_capturada", k: 2, direccion: "mayor" } }, Ireal);
+  ok(okReal === null, "control · el universo real de la brecha comercial sigue validando limpio (null = sin error)", String(okReal));
+  // ⚠️ HALLAZGO (no corregido acá — fuera del alcance de esta tarea, ver el informe): `validarUniverso` valida
+  // `top.k`/`top.direccion`/`top.metrica` (que exista y no sea vacía) pero NO valida que `top.metrica` sea una
+  // CLAVE de la casa (sí lo hace para `filtros[].metrica` y `excluir.top[].metrica`) — un universo con
+  // `top:{metrica:"esto-no-existe",k:2,direccion:"mayor"}` valida limpio hoy. Medido con esta misma carnada
+  // (antes de corregirla para probar lo que sí está cubierto): no es un defecto de esta tarea, es un hueco
+  // preexistente del validador general de Notario v3 que esta tarea encontró al usarlo para universos de Entrega.
+  const errTopMetricaInventada = validarUniverso({ eje: "cliente", top: { metrica: "esto-no-es-una-metrica-de-la-casa", k: 2, direccion: "mayor" } }, Ireal);
+  ok(errTopMetricaInventada === null, "hallazgo declarado · validarUniverso NO valida top.metrica contra el catálogo (a diferencia de filtros[].metrica) — documentado en el informe, no corregido en esta tarea", "ver _ADI_LLMBUSINESS_PLAN.md / el informe de esta etapa");
+}
 
 console.log(`\n── _entrega_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

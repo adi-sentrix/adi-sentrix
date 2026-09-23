@@ -29,7 +29,7 @@ import { buildRolesCartera } from "../sentrix/rolesCartera.js";
 import { cifrasDelDato } from "../oracle/datoProyectado.js";
 import { axisEntityNames } from "../oracle/entityIndex.js";
 import { indiceDeEvidencia } from "../notario/evidencia.js";
-import { libroDeHechos, asignarIds, renderDe } from "../notario/hechos.js";
+import { libroDeHechos, asignarIds, renderDe, procedenciaDe, NOMBRE_DE_PROCEDENCIA, PROCEDENCIAS, validarUniverso, nombrarUniverso } from "../notario/hechos.js";
 import { periodoDeFiguras, reconcilian, UNIVERSOS, PERIODO_TXT } from "../../config/contract/figureType.js";
 // TAREA 3 (encargo multidominio, owner 2026-09-23) — LA MISMA hoja y LA MISMA prioridad que ya certifica el
 // agente en vivo: «no escribas otra prioridad, sería una segunda verdad». Nada de esto se reescribe acá.
@@ -37,6 +37,7 @@ import { partesDelEncargo, dominiosDelEncargo } from "../agente/partesDelEncargo
 import { pasosDeDominios } from "../agente/contratoDeDominios.js";
 import { prioridadIntegrada, LENTES } from "../agente/prioridadIntegrada.js";
 import { crearEntrega } from "./esquema.js";
+import { ausenciaPorId } from "../../config/contract/ausencias.js";   // Etapa 2 §2 (owner 2026-09-23): las ausencias del dato, declaradas UNA vez
 
 export const PREGUNTA_BRECHA_COMERCIAL = "¿dónde estoy perdiendo plata?";
 export const PREGUNTA_COBRANZA = "¿quién me debe más?";
@@ -79,6 +80,56 @@ const _entidadDe = (label) => { const p = String(label || "").split("·").map((s
 
 function _vacia(motivo) {
   return { texto: "", entrega: null, libro: null, ok: false, motivo };
+}
+
+/* ── TAREA 1 (owner 2026-09-23, Etapa 2 §1 del plan — «la procedencia sube a campo del hecho, y el texto sale de
+ * ahí, no al revés») ──────────────────────────────────────────────────────────────────────────────────────────
+ * Antes, la columna "Tipo" de cada fila de Cifras era un string escrito A MANO por ruta ("medido", "medido /
+ * brecha estimada", "medido / vencido no calculado", "subtotal"...) — cinco redacciones sin una fuente común.
+ * Ahora sale de `notario/hechos.js` (`procedenciaDe`, la MISMA verificación que ya corre por hecho): la
+ * procedencia de una FILA es la peor entre los hechos que declaró (la misma regla del owner —"una derivada
+ * hereda la peor procedencia de sus insumos"— aplicada a una fila con más de una cifra). `_textoDeTipo` es el
+ * ÚNICO lugar de este archivo que redacta el string visible. */
+function _procedenciaDeFila(libro, ids) {
+  const ps = (Array.isArray(ids) ? ids : [ids]).filter(Boolean).map((id) => procedenciaDe(libro, id)).filter(Boolean);
+  if (!ps.length) return null;
+  return ps.reduce((peor, p) => (PROCEDENCIAS.indexOf(p) > PROCEDENCIAS.indexOf(peor) ? p : peor));
+}
+function _textoDeTipo(procedencia, { subtotal = false, extra = null } = {}) {
+  const base = procedencia ? NOMBRE_DE_PROCEDENCIA[procedencia] : "sin procedencia declarada";
+  return [base, subtotal ? "subtotal" : null, extra].filter(Boolean).join(" · ");
+}
+
+/* TAREA 2 (owner 2026-09-23, Etapa 2 §2 del plan — «las ausencias como hechos, no como silencios»): el límite
+ * «Sin conocimiento del sector cargado todavía» vivía escrito a mano, con variaciones, en las CUATRO rutas de
+ * este archivo. Ahora sale del catálogo declarado (`config/contract/ausencias.js`) — una ausencia, un id, usada
+ * donde corresponde. El texto que cada ruta sirve NO cambió (medido: mismo título, mismo motivo por dominio). */
+const _limiteDeAusencia = (id) => { const a = ausenciaPorId(id); return a && a.entrega ? { titulo: a.entrega.titulo, motivo: a.entrega.motivo } : null; };
+
+/* TAREA 3 (owner 2026-09-23, Etapa 2 §3 del plan — «el universo como objeto»): "los 2 de mayor brecha", "los
+ * mayores deudores", "los SKU con más capital frenado" dejan de ser listas parecidas sin identidad y pasan a ser
+ * OBJETOS con eje, entidades, filtros y período — el mismo vocabulario de "universo tipado" que
+ * `notario/hechos.js` ya valida (`validarUniverso`) y nombra (`nombrarUniverso`) para los hechos `orden`/`grupo`/
+ * `conteo`. `validarUniverso` es best-effort: la Entrega NO se cae porque el universo no valide contra el índice
+ * del turno (ej. un `top.metrica` que el índice no puede casar sin figs de ESE eje) — se declara igual, con el
+ * error a la vista, nunca en silencio (CLAUDE.md §5: «declara, no esconde»). Es el CIMIENTO para que una
+ * pregunta de seguimiento («de esos, ¿cuál priorizo?») se resuelva sobre el universo correcto — la conversación
+ * en sí queda para más adelante (Etapa 6 del plan), acá solo se declara la identidad. */
+function _declararUniverso(entrega, I, { id, eje, top = null, base = null, filtros = null, excluir = null, periodo = null, entidades = [], criterio = null }) {
+  const u = { eje };
+  if (top) u.top = top;
+  if (base) u.base = base;
+  if (filtros) u.filtros = filtros;
+  if (excluir) u.excluir = excluir;
+  let errorValidacion = null;
+  // `top` es OPCIONAL a propósito: la prioridad integrada (multidominio) no reduce a una sola métrica declarada
+  // —es materialidad+severidad+urgencia, señal por señal (prioridadIntegrada.js)— y forzar un `top.metrica` que
+  // no es el criterio real sería declarar un universo falso. Sin `top`/`base`/`filtros`/`excluir`, `validarUniverso`
+  // no tiene nada que objetar (el eje entero) y `criterio` lleva la descripción en texto libre.
+  try { errorValidacion = validarUniverso(u, I); } catch (e) { errorValidacion = `error-de-validacion: ${e && e.message ? e.message : e}`; }
+  let texto = "";
+  try { texto = criterio || nombrarUniverso(u, I); } catch { texto = criterio || ""; }
+  entrega.universos.push({ id, eje, base: base || null, top: top || null, filtros: filtros || null, excluir: excluir || null, periodo, entidades, criterio, texto, valido: !errorValidacion, errorValidacion });
 }
 
 /* ── el libro de hechos de este turno: declara SOLO `ref` (cita literal de una fig), `razon` y `derivada`
@@ -216,23 +267,29 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
 
   // ── CIFRAS · la tabla — la unidad que no se puede partir (mecanismo 2): dueño + venta + margen + brecha + tipo ──
   entrega.cifras.columnas = ["Cliente", "Venta", "Margen", "Contribución no capturada (brecha estimada)", "Tipo"];
-  const _filaCliente = (entidad, ids) => ({
-    valores: { Cliente: entidad, Venta: R(ids.venta), Margen: R(ids.margen), "Contribución no capturada (brecha estimada)": R(ids.juego), Tipo: "medido / brecha estimada" },
-    hechos: [ids.venta, ids.margen, ids.juego].filter(Boolean),
-  });
+  const _filaCliente = (entidad, ids) => {
+    const hechosFila = [ids.venta, ids.margen, ids.juego].filter(Boolean);
+    const procedencia = _procedenciaDeFila(libro, hechosFila);
+    return {
+      valores: { Cliente: entidad, Venta: R(ids.venta), Margen: R(ids.margen), "Contribución no capturada (brecha estimada)": R(ids.juego), Tipo: _textoDeTipo(procedencia) },
+      hechos: hechosFila,
+      procedencia,
+    };
+  };
   entrega.cifras.filas.push(_filaCliente(top.entidad, idsTop));
   if (idsSeg) entrega.cifras.filas.push(_filaCliente(segundo.entidad, idsSeg));
-  if (idTotal) entrega.cifras.filas.push({
-    valores: { Cliente: "Total (cuentas materiales)", Venta: "", Margen: "", "Contribución no capturada (brecha estimada)": R(idTotal), Tipo: "subtotal" },
+  if (idTotal) { const procedencia = _procedenciaDeFila(libro, [idTotal]); entrega.cifras.filas.push({
+    valores: { Cliente: "Total (cuentas materiales)", Venta: "", Margen: "", "Contribución no capturada (brecha estimada)": R(idTotal), Tipo: _textoDeTipo(procedencia, { subtotal: true }) },
     hechos: [idTotal],
-  });
+    procedencia,
+  }); }
 
   // ── LO QUE NO SE PUEDE CONCLUIR · cada ausencia es un HALLAZGO con título, nunca una prohibición ni una excusa ──
   entrega.limites = [
     { titulo: "La brecha estimada no es dinero ya perdido", motivo: `Es una comparación contra el benchmark que usted declaró (${R(idBench)}); no es recuperable en su totalidad ni necesariamente.` },
     { titulo: `La causa de que ${top.entidad} esté bajo el benchmark no está en los datos`, motivo: "Esta lectura localiza dónde está la brecha, no explica por qué — no hay causalidad sin respaldo." },
     { titulo: "No hay serie mensual de margen por cliente en este dato", motivo: `No se puede afirmar que el margen de ${top.entidad} venga subiendo, bajando o se mantenga: solo que está en el valor de este corte.` },
-    { titulo: "Sin conocimiento del sector cargado todavía", motivo: "El Business Knowledge (benchmarks del sector) todavía no está construido: esta Entrega compara solo contra el benchmark que usted declaró, no contra el sector." },
+    _limiteDeAusencia("conocimiento_sector_comercial"),
   ];
   // El Marco YA declara el período con verdad (tipo "cerrado", año cerrado — ver `_periodoDelMarco`); lo único
   // que el pack no sostiene es el RANGO calendario (fecha de inicio/fin). Se declara como límite, no se inventa
@@ -266,6 +323,13 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
     ],
     noPuedo: ["Quién dejó de comprar qué (no hay historial cliente×SKU)", "La causa exacta de la brecha (el dato localiza, no explica)"],
   };
+
+  // TAREA 3 — el universo que sostiene la Respuesta y las Cifras: los clientes citados, rankeados por la MISMA
+  // métrica que ordena `prioridadDe` (contribución no capturada, descendente).
+  _declararUniverso(entrega, I, {
+    id: "brecha_comercial_prioridad", eje: "cliente", top: { metrica: "no_capturada", k: idsSeg ? 2 : 1, direccion: "mayor" },
+    periodo: periodo ? periodo.tipo : null, entidades: [top.entidad, ...(segundo ? [segundo.entidad] : [])],
+  });
 
   entrega.procedencia = { libro, cifrasImpresas };
 
@@ -406,22 +470,28 @@ export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta
 
   // ── CIFRAS ──
   entrega.cifras.columnas = ["Cliente", "Saldo pendiente", "Saldo vencido", "Tipo"];
-  const _filaCliente = (entidad, ids) => ({
-    valores: { Cliente: entidad, "Saldo pendiente": R(ids.saldo), "Saldo vencido": ids.vencido ? R(ids.vencido) : "—", Tipo: ids.vencido ? "medido" : "medido / vencido no calculado" },
-    hechos: [ids.saldo, ids.vencido].filter(Boolean),
-  });
+  const _filaCliente = (entidad, ids) => {
+    const hechosFila = [ids.saldo, ids.vencido].filter(Boolean);
+    const procedencia = _procedenciaDeFila(libro, hechosFila);
+    return {
+      valores: { Cliente: entidad, "Saldo pendiente": R(ids.saldo), "Saldo vencido": ids.vencido ? R(ids.vencido) : "—", Tipo: _textoDeTipo(procedencia, { extra: ids.vencido ? null : "vencido no calculado" }) },
+      hechos: hechosFila,
+      procedencia,
+    };
+  };
   entrega.cifras.filas.push(_filaCliente(topEntidad, idsTop));
   if (idsSeg) entrega.cifras.filas.push(_filaCliente(segundoEntidad, idsSeg));
-  entrega.cifras.filas.push({
-    valores: { Cliente: "Total (cartera)", "Saldo pendiente": R(idSaldoTotal), "Saldo vencido": idVencidoTotal ? R(idVencidoTotal) : "—", Tipo: "subtotal" },
-    hechos: [idSaldoTotal, idVencidoTotal].filter(Boolean),
-  });
+  { const hechosFila = [idSaldoTotal, idVencidoTotal].filter(Boolean); const procedencia = _procedenciaDeFila(libro, hechosFila); entrega.cifras.filas.push({
+    valores: { Cliente: "Total (cartera)", "Saldo pendiente": R(idSaldoTotal), "Saldo vencido": idVencidoTotal ? R(idVencidoTotal) : "—", Tipo: _textoDeTipo(procedencia, { subtotal: true }) },
+    hechos: hechosFila,
+    procedencia,
+  }); }
 
   // ── LO QUE NO SE PUEDE CONCLUIR ──
   entrega.limites = [
     { titulo: "El saldo pendiente no es una pérdida", motivo: "Es capital retenido del cliente; sería pérdida solo si se volviera incobrable, y eso no está en los datos." },
     { titulo: "La causa de la deuda no está en los datos", motivo: "Esta lectura localiza cuánto y quién debe, no explica la conducta de pago — no hay causalidad sin respaldo." },
-    { titulo: "Sin conocimiento del sector cargado todavía", motivo: "El Business Knowledge (referencias del sector sobre plazos y mora) todavía no está construido." },
+    _limiteDeAusencia("conocimiento_sector_cobranza"),
   ];
   if (!idVencidoTotal) entrega.limites.push({ titulo: "El vencido no se puede calcular", motivo: "Su empresa no declaró un plazo de pago: sin plazo, no se puede afirmar qué parte del saldo está vencida — nunca se declara en cero. Declárelo y el vencido se calcula solo." });
 
@@ -438,6 +508,13 @@ export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta
     puedo: ["Deuda vencida por antigüedad", "Cuánto se vendió a crédito contra al contado", "Ranking completo de deudores"],
     noPuedo: ["Por qué un cliente dejó de pagar a tiempo (el dato mide cuánto, no por qué)", "Riesgo de que la deuda se vuelva incobrable (no hay historial de mora)"],
   };
+
+  // TAREA 3 — el universo: los clientes citados, rankeados por la MISMA clave que mesaFlujo.js (vencido
+  // descendente, saldo pendiente como desempate — `buildMesaFlujo`, líneas 231/392).
+  _declararUniverso(entrega, I, {
+    id: "cobranza_prioridad", eje: "cliente", top: { metrica: "saldo_vencido", k: idsSeg ? 2 : 1, direccion: "mayor" },
+    periodo: periodo ? periodo.tipo : null, entidades: [topEntidad, ...(segundoEntidad ? [segundoEntidad] : [])],
+  });
 
   entrega.procedencia = { libro, cifrasImpresas };
 
@@ -577,16 +654,22 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
 
   // ── CIFRAS · una fila por SKU con capital frenado (mecanismo 2: dueño + cuánto + con qué evidencia, en la misma fila) ──
   entrega.cifras.columnas = ["SKU", "Bodega", "Capital frenado", "Días de inventario", "Rotación", "Tipo"];
-  const _filaSku = (s, ids) => ({
-    valores: { SKU: s.sku, Bodega: s.bodega || "—", "Capital frenado": R(ids.monto), "Días de inventario": ids.dias ? R(ids.dias) : "—", "Rotación": ids.rot ? R(ids.rot) : "—", Tipo: "medido" },
-    hechos: [ids.monto, ids.dias, ids.rot].filter(Boolean),
-  });
+  const _filaSku = (s, ids) => {
+    const hechosFila = [ids.monto, ids.dias, ids.rot].filter(Boolean);
+    const procedencia = _procedenciaDeFila(libro, hechosFila);
+    return {
+      valores: { SKU: s.sku, Bodega: s.bodega || "—", "Capital frenado": R(ids.monto), "Días de inventario": ids.dias ? R(ids.dias) : "—", "Rotación": ids.rot ? R(ids.rot) : "—", Tipo: _textoDeTipo(procedencia) },
+      hechos: hechosFila,
+      procedencia,
+    };
+  };
   entrega.cifras.filas.push(_filaSku(topSku, idsTop));
   if (idsSeg) entrega.cifras.filas.push(_filaSku(segundoSku, idsSeg));
-  entrega.cifras.filas.push({
-    valores: { SKU: `Total (${bySku.length} SKU frenados)`, Bodega: "", "Capital frenado": R(idTotal), "Días de inventario": "", "Rotación": "", Tipo: "subtotal" },
+  { const procedencia = _procedenciaDeFila(libro, [idTotal]); entrega.cifras.filas.push({
+    valores: { SKU: `Total (${bySku.length} SKU frenados)`, Bodega: "", "Capital frenado": R(idTotal), "Días de inventario": "", "Rotación": "", Tipo: _textoDeTipo(procedencia, { subtotal: true }) },
     hechos: [idTotal],
-  });
+    procedencia,
+  }); }
 
   // ── LO QUE NO SE PUEDE CONCLUIR ──
   const _cruce = reconcilian("inventario", "venta_comercial");
@@ -603,7 +686,7 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
     const _falt = typeof lt.faltante === "string" && lt.faltante ? lt.faltante.charAt(0).toUpperCase() + lt.faltante.slice(1) : null;
     entrega.limites.push({ titulo: "Mover stock entre bodegas queda sin evidencia para evaluarlo", motivo: [lt.motivo, _falt].filter(Boolean).join(" ") });
   }
-  entrega.limites.push({ titulo: "Sin conocimiento del sector cargado todavía", motivo: "El Business Knowledge (referencias del sector sobre rotación e inventario) todavía no está construido: esta Entrega compara solo contra el umbral de materialidad que tú declaraste, no contra el sector." });
+  entrega.limites.push(_limiteDeAusencia("conocimiento_sector_inventario"));
   if (faltaRango) entrega.limites.push({ titulo: "El período no declara una fecha de corte para el inventario", motivo: "El dato confirma que es una foto de inventario a hoy, pero el pack no trae una fecha de corte declarada para este universo — a diferencia de la cobranza, que sí la declara (flujoComercial.fechaCorte). No se afirma una fecha." });
 
   // ── REFERENCIA DEL OFICIO · vacía a propósito (mismo motivo que las dos rutas anteriores) ──
@@ -619,6 +702,12 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
     puedo: ["Capital frenado por bodega", "Capital por familia y marca", "Detalle de riesgo de quiebre y sobrestock", "Simular el efecto de liberar los SKU frenados"],
     noPuedo: ["Por qué cada SKU quedó frenado (no hay historial de compras ni causa declarada)", "Si conviene transferir stock entre bodegas (ningún SKU está en más de una)"],
   };
+
+  // TAREA 3 — el universo: los SKU citados, rankeados por capital frenado descendente (el mismo orden de `bySku`).
+  _declararUniverso(entrega, I, {
+    id: "inventario_prioridad", eje: "sku", top: { metrica: "capital_frenado", k: idsSeg ? 2 : 1, direccion: "mayor" },
+    periodo: periodo ? periodo.tipo : null, entidades: [topSku.sku, ...(segundoSku ? [segundoSku.sku] : [])],
+  });
 
   entrega.procedencia = { libro, cifrasImpresas };
 
@@ -820,6 +909,10 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
         Marco: _MARCO_CORTO[UNIVERSOS[_DOM_UNIVERSO[fila.dominio]].periodo] || "—",
       },
       hechos: hechosFila,
+      // sin columna "Tipo" propia (esta tabla no la tenía antes de la Etapa 2): la procedencia queda como CAMPO
+      // estructural, igual que las otras tres rutas — no se le agrega una columna visible nueva a una tabla ya
+      // cerrada por el candado del owner sin que él lo pida.
+      procedencia: _procedenciaDeFila(libro, hechosFila),
     });
   }
 
@@ -827,7 +920,7 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
   entrega.limites = [
     { titulo: "Los tres dominios no se consolidan en un total único", motivo: "Comercial, inventario y cobranza se miden en escalas y marcos temporales propios y no reconcilian entre sí (contrato de datos declarado): cada cifra de esta Entrega queda con su propio dominio, nunca sumada con la de otro." },
     { titulo: "La causa de estas señales no está en los datos", motivo: "Esta lectura localiza dónde pesa más cada dominio y quién concentra más de uno, no explica por qué — no hay causalidad sin respaldo." },
-    { titulo: "Sin conocimiento del sector cargado todavía", motivo: "El Business Knowledge (referencias del sector) todavía no está construido: esta prioridad compara solo contra lo que cada dominio ya declara, no contra el sector." },
+    _limiteDeAusencia("conocimiento_sector_general"),
   ];
   if (faltaRango) entrega.limites.push({ titulo: "El año comercial no declara un rango de fechas calendario", motivo: "El dato confirma que la parte comercial es el año cerrado (12 meses ya ocurridos), pero el pack no trae una fecha de cierre para ese universo — a diferencia de inventario y cobranza, que sí declaran su foto al corte." });
 
@@ -849,6 +942,18 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
     puedo: ["El detalle de cada dominio por separado (comercial, inventario o cobranza)", "El cruce por SKU entre venta e inventario", "La cobranza cruzada con la venta, cuenta por cuenta", "Reordenar la prioridad con otro criterio (ventas, contribución, capital)"],
     noPuedo: ["Por qué pasa cada cosa que esta prioridad localiza (el dato mide qué y cuánto, no por qué)", "Un total único de los tres dominios (no reconcilian entre sí)"],
   };
+
+  // TAREA 3 — un universo POR DOMINIO (el líder que cita la Respuesta, eje según el dominio — inventario es SKU,
+  // comercial/cobranza son cliente) más el universo de la prioridad INTEGRADA (materialidad+severidad+urgencia,
+  // señal por señal — prioridadIntegrada.js — no reduce a una sola métrica, así que `top` queda sin declarar y
+  // el criterio viaja en texto libre; ver el comentario de `_declararUniverso`).
+  const _ejeDeDominio = (d) => (d === "inventario" ? "sku" : "cliente");
+  for (const d of Object.keys(lideres)) {
+    _declararUniverso(entrega, I, { id: `${d}_lider`, eje: _ejeDeDominio(d), periodo: _MARCO_CORTO[UNIVERSOS[_DOM_UNIVERSO[d]].periodo] || null, entidades: [lideres[d].x.entidad], criterio: `quien más pesa en ${_DOM_NOMBRE[d]}, por materialidad · severidad · urgencia` });
+  }
+  if (top) {
+    _declararUniverso(entrega, I, { id: "prioridad_integrada", eje: _ejeDeDominio(top.dominios[0] || "comercial"), entidades: [top.entidad], criterio: "prioridad integrada por señales — materialidad, severidad y urgencia entre los dominios que comparten cliente, nunca por suma de montos" });
+  }
 
   entrega.procedencia = { libro, cifrasImpresas };
 

@@ -28,6 +28,91 @@ const _es = (x) => x && typeof x === "object" && !Array.isArray(x);
 const _lista = (x) => (Array.isArray(x) ? x : x == null || x === "" ? [] : [x]).map((s) => (typeof s === "string" ? s.trim() : s)).filter((s) => s !== "" && s != null);
 const _u = unidadCompatible;
 
+/* ── PROCEDENCIA DE CADA HECHO (owner 2026-09-23, Etapa 2 del plan `_ADI_LLMBUSINESS_PLAN.md` — «enriquecer el
+ * libro de hechos», TAREA 1) ═══════════════════════════════════════════════════════════════════════════════════
+ * De dónde viene una cifra, no cuán cierta es — un eje NUEVO y DISTINTO del que ya existe (`figureType.js`:
+ * `sello` probado/indicado/abierto y `verificabilidad`, que miden CERTEZA/reconciliación). Las cinco categorías
+ * son las del owner, textuales:
+ *   medido               · del archivo (lectura directa, o un campo que la FUENTE declara aunque ADI no lo
+ *                          reconstruya — «días de inventario» es de la fuente igual que «venta»).
+ *   derivado              · calculado por el motor a partir de medidos (una suma, un total, un conteo del universo).
+ *   estimacion_referencia · una BRECHA contra una referencia (benchmark/objetivo/política) — ley del owner: «una
+ *                          brecha contra referencia es una ESTIMACIÓN, nunca dinero que ya se perdió».
+ *   supuesto_usuario      · una cifra que el usuario aportó (un escenario/supuesto de simulación elegido por él).
+ *   propuesta             · un número de una recomendación — NO es un dato de la empresa (hecho tipo `propuesta`).
+ * REGLA DEL OWNER, textual: «una derivada hereda la PEOR procedencia de sus insumos» — `_peorProcedencia` abajo.
+ *
+ * ⚠️ DECISIÓN DE SIGNIFICADO QUE ESTE MÓDULO PROPONE Y NO CIERRA (frenada para el owner, ver el informe): el
+ * ORDEN total «de la más firme a la más débil» (`PROCEDENCIAS`, el mismo array hace de escala) es una lectura
+ * razonable de las cinco categorías, no una que el owner haya fijado él mismo. Si se confirma otro orden, cambia
+ * SOLO acá — es la única tabla que decide «peor».
+ *
+ * CÓMO SE DERIVA DE LO QUE YA EXISTE (reuso, no una segunda verdad): cada fig de la boleta YA declara
+ * `fig.tipo.verificabilidad` (figureType.js) sin que ningún composer tenga que declararlo aparte —
+ * `_procedenciaDeFig` traduce esa clase (más `fig.cobertura`/`fig.agregado`, que ya distinguen un total/subtotal
+ * de una lectura simple, y `fig.source`, que ya declara un escenario) a la procedencia. Es una traducción, no un
+ * cálculo nuevo: no se vuelve a leer ninguna etiqueta con una regex propia, salvo la MISMA que ya usa
+ * `figureType.js` (`VERIFICABILIDAD_POR_METRICA`, la regla «PALANCA») para reconocer una brecha contra una vara
+ * — se declara acá en vez de reimportar el contrato (`notario/` no importa `config/contract/` hoy; abrir ese
+ * import es una decisión de arquitectura aparte, no de esta tarea). Un gate nuevo (`_ronda_procedencia_gate` /
+ * `_entrega_gate`) compara el texto contra el de `figureType.js` para que las dos copias no diverjan en silencio. */
+export const PROCEDENCIAS = ["medido", "derivado", "estimacion_referencia", "supuesto_usuario", "propuesta"];
+export const NOMBRE_DE_PROCEDENCIA = {
+  medido: "medido", derivado: "derivado", estimacion_referencia: "estimación contra referencia",
+  supuesto_usuario: "supuesto del usuario", propuesta: "propuesta",
+};
+/* la MISMA regex que figureType.js (VERIFICABILIDAD_POR_METRICA, la regla «PALANCA» — comentario textual: «se
+ * calcula contra una vara (benchmark/target/política)»). Declarada acá (no importada) a propósito: `notario/`
+ * no importa `config/contract/` en ningún archivo hoy y abrir ese ciclo es una decisión que esta tarea no toma;
+ * el candado nuevo (`_entrega_gate.mjs`) verifica que el texto siga byte-igual al de la fuente. */
+const _RE_PALANCA = /\b(no capturad\w*|en juego|brecha|exceso|recuperable|potencial|oportunidad|perdid\w*|detenid\w*)\b/i;
+/** peorProcedencia(...ps) → la de menor firmeza entre las declaradas (ignora null/undefined); null si ninguna. */
+export function peorProcedencia(...ps) {
+  const vistas = ps.filter((p) => PROCEDENCIAS.includes(p));
+  if (!vistas.length) return null;
+  return vistas.reduce((peor, p) => (PROCEDENCIAS.indexOf(p) > PROCEDENCIAS.indexOf(peor) ? p : peor));
+}
+/* la procedencia de UNA fig de la boleta (una entrada del índice de evidencia: trae `.fig` —el objeto crudo que
+ * `fig()` emitió, con `.tipo`—, `.cobertura` y `.agregado` —el propio índice ya distingue un total/subtotal de
+ * una lectura simple, ver evidencia.js—). */
+function _procedenciaDeFig(f) {
+  const t = f && f.fig && f.fig.tipo;
+  if (!t || !t.verificabilidad) return "derivado";   // sin tipo declarado (ej. la proyección de un ranking, sin
+  // fig real detrás): es una lectura que YA calculó el motor sobre el dato, nunca un archivo — nunca "medido" a ciegas.
+  switch (t.verificabilidad) {
+    case "literal":
+      // un total/subtotal declarado (cobertura o `agregado` del índice) es una SUMA del motor aunque ninguna
+      // regla de `VERIFICABILIDAD_POR_METRICA` lo haya marcado — el campo que sí lo sabe es la cobertura, no el
+      // texto del rótulo.
+      return (f.cobertura || f.agregado) ? "derivado" : "medido";
+    case "declarada_no_verificable": return "medido";   // lo declara el ARCHIVO (doh, rotación): ADI no lo reconstruye, pero no lo calculó — sigue siendo del archivo, no del motor
+    case "derivada_reconciliada": return "derivado";
+    case "derivada_no_reconciliada":
+      // ⚠️ MEDIDO (sonda `_sonda_procedencia.mjs`, descartado): `fig.source` NO distingue hoy «un supuesto que
+      // aportó el usuario» de «un cálculo determinístico del motor que no reconcilia con lo almacenado» — las
+      // dos formas viajan con `source:"computed"` (ej. «Brecha al benchmark» = benchmark − margen,
+      // herramientasAgente.js:398 — un cálculo del motor, no un supuesto de nadie) y la razón derivada dice
+      // literalmente «supuesto DEL MOTOR», no del usuario. Clasificar por `source` habría marcado esa resta como
+      // «supuesto del usuario», que es falso. Por eso «supuesto_usuario» NO se infiere acá: hoy no hay productor
+      // que declare una cifra como aporte del usuario (assumptionRegistry.js lo dice de frente: la simulación
+      // paramétrica «todavía NO tiene productor en el motor»). Queda declarado en `PROCEDENCIAS` para cuando lo
+      // haya, y solo se alcanza por asignación explícita (ver `_operandoDeHecho`/un hecho que la declare a mano).
+      if (_RE_PALANCA.test(`${t.verificabilidadRazon || ""} ${f.label || f.concepto || ""}`)) return "estimacion_referencia";   // una brecha contra una vara declarada
+      return "derivado";
+    case "no_calculable": return null;   // no debería llegar a imprimirse como cifra — se declara ausente, no con procedencia
+    default: return "derivado";
+  }
+}
+/* la procedencia de un OPERANDO de razón/derivada (`_operando()`): si viene de OTRO hecho del libro (una derivada
+ * anidada, `_operandoDeHecho`), hereda la procedencia YA calculada de ESE hecho — no se re-deriva de su fig; si
+ * viene de una fig de la boleta, se traduce con `_procedenciaDeFig`. */
+function _procedenciaDeOperando(op, libro) {
+  if (!op) return null;
+  const Hop = libro && libro.porId ? libro.porId.get(String(op.label)) : null;
+  if (Hop && Hop.procedencia !== undefined) return Hop.procedencia;
+  return _procedenciaDeFig(op);
+}
+
 /* ── ids en la boleta: cada fig recibe una identidad estable dentro del turno (por posición; idempotente) ── */
 export function asignarIds(figs, prefijo = "c") {
   if (!Array.isArray(figs)) return figs;
@@ -156,7 +241,7 @@ const _tolPct = (texto) => { const m = /(\d+)(?:[.,](\d+))?\s*%/.exec(String(tex
 
 /* ── el hecho evaluado ── */
 function _H(id, tipo, extra = {}) {
-  return { id, tipo, ok: false, veredicto: "no-verificable", motivo: "", verdad: "", evidencia: [], entidades: new Set(), roles: { sujetos: [], vs: [], miembros: [], bodega: null, num: null, den: null }, claves: new Set(), dominio: null, estado: null, polaridad: null, numeros: [], universo: null, periodo: "", render: {}, derivados: [], ...extra };
+  return { id, tipo, ok: false, veredicto: "no-verificable", motivo: "", verdad: "", evidencia: [], entidades: new Set(), roles: { sujetos: [], vs: [], miembros: [], bodega: null, num: null, den: null }, claves: new Set(), dominio: null, estado: null, polaridad: null, numeros: [], universo: null, periodo: "", render: {}, derivados: [], procedencia: null, ...extra };
 }
 const _addEnt = (H, I, nombre) => { if (!nombre || typeof nombre !== "string" || nombre === "negocio") return; const r = I.resolverEntidad(nombre); H.entidades.add(normalizar(r ? r.nombre : nombre)); };
 const _addClave = (H, m) => { if (m == null || m === "") return; const c = claveDeMetrica(m) || normalizar(String(m)).replace(/\s+/g, "_"); H.claves.add(c); if (!H.dominio) H.dominio = dominioDeClave(c); if (H.polaridad == null) H.polaridad = polaridadDeClave(c); };
@@ -172,6 +257,7 @@ function _deFig(H, I, f, sujeto = null) {
   H.dominio = _dominioDeFig(f); H.polaridad = c ? polaridadDeClave(c) : null;
   H.numeros.push({ raw: f.raw, unidad: f.unidad, texto: f.texto || (f.fig && f.fig.value) || "" });
   H.render.valor = f.texto || (f.fig && String(f.fig.value)) || formatoDeLaCasa(f.raw, f.unidad);
+  H.procedencia = _procedenciaDeFig(f);
   if (f.agregado) { H.universo = { set: null, fuente: f.universoTexto || f.calificador || "", texto: f.universoTexto || "" }; H.render.universo = f.universoTexto || ""; }
   if (/anterior|pasado/.test(f.conceptoNorm) && !/variacion|vs/.test(f.conceptoNorm)) H.periodo = "anterior";
   return H;
@@ -266,6 +352,7 @@ function _razon(H, h, I, libro = null) {
   if (v && Number.isFinite(v.raw)) H.render.valor = _canonTexto(v.texto);
   H.render.base = den.entidad ? `de ${den.label}` : `del ${String(den.concepto || den.label).toLowerCase()}`;
   H.numeros.push({ raw: forma === "veces" ? q : q * 100, unidad: forma === "veces" ? "ratio" : "pct", texto: H.render.valor });
+  H.procedencia = peorProcedencia(_procedenciaDeOperando(num, libro), _procedenciaDeOperando(den, libro));   // «una derivada hereda la peor procedencia de sus insumos» (owner) — una razón es la misma regla con dos insumos
   return _aplica(H, { veredicto: "verdadera", motivo: `razon: ${cuenta}`, verdad: cuenta, evidencia: [num.label, den.label] });
 }
 const _impreso = (t) => { const m = /(-?\d+(?:[.,]\d+)?)\s*([kmb])?/i.exec(String(t || "").replace(/\$/g, "").replace(/\.(?=\d{3}\b)/g, "")); if (!m) return null; const v = parseFloat(m[1].replace(",", ".")); const e = m[2] ? { k: 1e3, m: 1e6, b: 1e9 }[m[2].toLowerCase()] : 1; return v * e; };
@@ -315,6 +402,7 @@ function _derivada(H, h, I, libro = null) {
   }
   H.render.valor = v && Number.isFinite(v.raw) ? _canonTexto(v.texto) : formatoDeLaCasa(res, unidad); H.numeros.push({ raw: res, unidad, texto: formatoDeLaCasa(res, unidad) });
   H.resultado = { raw: res, unidad, texto: formatoDeLaCasa(res, unidad) };
+  H.procedencia = peorProcedencia(...ops.map((f) => _procedenciaDeOperando(f, libro)));   // «una derivada hereda la peor procedencia de sus insumos» (owner, textual)
   return _aplica(H, { veredicto: "verdadera", motivo: `derivada (${op}): ${verdad}`, verdad, evidencia: ops.map((f) => f.label) });
 }
 const _decimales = (t) => { const m = /\d+[.,](\d+)/.exec(String(t || "")); return m ? m[1].length : 0; };
@@ -326,6 +414,7 @@ function _conteoTipado(H, h, I) {
   if (!u) return null;   // sin universo tipado: lo juzga el verificador de siempre
   const c = _es(h.conteo) ? h.conteo : { n: h.n, m: h.m };
   H.universoTipado = u;   // el universo tal como se declaró: las anclas leen su eje y su exclusión
+  H.procedencia = "derivado";   // un conteo sobre el universo es SIEMPRE un cálculo del motor (contar entidades), nunca una lectura directa de un archivo
   const n = Number.isFinite(+c.n) ? +c.n : NaN;
   const U = conjuntoDeUniverso(u, I, u.eje || null, "");
   if (U.error) return _aplica(H, { veredicto: "no-verificable", motivo: U.error, verdad: "", evidencia: [] });
@@ -470,6 +559,7 @@ export function libroDeHechos(hechos, ctx = {}) {
         const v = leerValor(h.valor);
         if (!v || !Number.isFinite(v.raw)) { H.motivo = "propuesta sin valor"; return H; }
         H.ok = true; H.veredicto = "sellada"; H.motivo = "propuesta del asesor (criterio mío): no se juzga contra la boleta"; H.render.valor = v.texto; H.numeros.push({ raw: v.raw, unidad: v.unidad, texto: v.texto });
+        H.procedencia = "propuesta";   // un número de una recomendación — NUNCA un dato de la empresa (owner, Etapa 2)
         if (h.de != null) _addClave(H, h.de); if (h.sujeto) { H.roles.sujetos = [h.sujeto]; _addEnt(H, I, h.sujeto); }
         return H;
       }
@@ -482,6 +572,7 @@ export function libroDeHechos(hechos, ctx = {}) {
         if (falsos.length) { H.motivo = `apoyo-falso: la lectura se apoya en ${falsos.join(", ")}, que no es verdadero`; return H; }
         for (const id of apoyo) { const A = libro.porId.get(String(id)); for (const e of A.entidades) H.entidades.add(e); for (const c of A.claves) H.claves.add(c); if (!H.dominio) H.dominio = A.dominio; }
         H.ok = true; H.veredicto = "sellada"; H.motivo = `lectura con sello «${h.sello || "criterio mío"}»${apoyo.length ? " · apoyo " + apoyo.join(", ") : ""}`; H.sello = h.sello || "criterio mío";
+        H.procedencia = peorProcedencia(...apoyo.map((id) => { const A = libro.porId.get(String(id)); return A ? A.procedencia : null; }));   // una lectura hereda la peor procedencia de lo que la apoya; sin apoyo, null (interpretación libre — no hay cifra que fechar)
         return H;
       }
       if (tipo === "razon") return _razon(H, h, I, libro);
@@ -502,6 +593,13 @@ export function libroDeHechos(hechos, ctx = {}) {
       const v = _juzgarV2(a2, I);
       if (negado) { if (v.veredicto === "verdadera") { v.veredicto = "falsa"; v.motivo = `negacion-falsa: sí está «${a2.estado.estado}» (${v.verdad || v.motivo})`; } else if (v.veredicto === "falsa") { v.veredicto = "verdadera"; v.motivo = `no está «${a2.estado.estado}»: ${v.verdad || v.motivo}`; } }
       _aplica(H, v);
+      /* la procedencia de orden/relacion/grupo/conteo/variacion/estado/cifra-con-valor: la peor entre las figs que
+       * la evidencia citó (`v.evidencia`, labels) — el mismo mecanismo que `_deFig`/`_razon`/`_derivada`, aplicado
+       * a lo que ya resolvió `verificar.js` en vez de reabrir un camino nuevo. */
+      if (H.evidencia && H.evidencia.length) {
+        const figsEv = H.evidencia.map((l) => I.figs.find((g) => normalizar(g.label) === normalizar(l))).filter(Boolean);
+        if (figsEv.length) H.procedencia = peorProcedencia(...figsEv.map(_procedenciaDeFig));
+      }
       /* roles, claves, números y render desde el hecho identificado (no desde ninguna prosa) */
       const sujetos = Array.isArray(a2.sujeto) ? a2.sujeto : (a2.sujeto != null ? [a2.sujeto] : []);
       H.roles.sujetos = sujetos.map(String); for (const s of sujetos) _addEnt(H, I, typeof s === "string" ? s : null);
@@ -608,3 +706,11 @@ export function renderDe(libro, id, campo = "valor") {
 }
 
 export const esFactual = (tipo) => _FACTUALES.has(normalizar(tipo));
+
+/** procedenciaDe(libro, id) → "medido"|"derivado"|"estimacion_referencia"|"supuesto_usuario"|"propuesta"|null
+ *  (null si el hecho no existe o no verificó). Etapa 2 del plan — la Entrega la lee para que el texto de la
+ *  columna «Tipo» SALGA del campo, en vez de escribirse a mano por fila (owner, textual). */
+export function procedenciaDe(libro, id) {
+  const H = libro && libro.porId ? libro.porId.get(String(id)) : null;
+  return H && H.ok ? (H.procedencia || null) : null;
+}

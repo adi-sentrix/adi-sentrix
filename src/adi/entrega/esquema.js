@@ -41,12 +41,25 @@ export function crearEntrega() {
       referenciaDeclarada: null, // { texto, hechoId } — el benchmark, con quién lo declaró
     },
     respuesta: [],              // [{ texto, hechos: [id, ...] }]
-    cifras: { columnas: [], filas: [] },   // filas: [{ valores: {columna: texto}, hechos: [id,...], tipo }]
+    // filas: [{ valores: {columna: texto}, hechos: [id,...], procedencia }] — `procedencia` (Etapa 2 §1, owner
+    // 2026-09-23): "medido"|"derivado"|"estimacion_referencia"|"supuesto_usuario"|"propuesta"|null — la PEOR
+    // entre los hechos que la fila declaró (notario/hechos.js: `procedenciaDe`, PROCEDENCIAS). El texto visible
+    // de la columna "Tipo" (si la tabla la trae) SALE de este campo (componer.js: `_textoDeTipo`), nunca al revés.
+    cifras: { columnas: [], filas: [] },
     limites: [],                 // [{ titulo, motivo }]
     referenciaDelOficio: [],     // [{ texto, fuente, alcance, fecha, vigencia, firma }] — vacía en este corte
     paraSuJuicio: [],            // [{ texto, hechos: [id,...] }]
     queMasPuedoCalcular: { puedo: [], noPuedo: [] },
     procedencia: { libro: null, cifrasImpresas: [] },
+    // universos: [{ id, eje, base, top: {metrica,k,direccion}|null, filtros, excluir, periodo, entidades: [...],
+    // texto, valido, errorValidacion }] — Etapa 2 §3 (owner 2026-09-23, «el universo como objeto»): cada listado
+    // que la Entrega hace ("los 2 de mayor brecha", "los mayores deudores", "los SKU con más capital frenado")
+    // es un OBJETO con identidad propia, no una lista de nombres parecida a otra. Usa el MISMO vocabulario de
+    // "universo tipado" que ya valida y nombra `notario/hechos.js` (`validarUniverso`/`nombrarUniverso`,
+    // `conjuntoDeUniverso`) — no una segunda definición de universo. Es el cimiento para que una pregunta de
+    // seguimiento («de esos, ¿cuál priorizo?») se resuelva sobre el universo correcto, no sobre el parecido
+    // (owner: «no hace falta la conversación todavía; hace falta que el universo tenga identidad desde ahora»).
+    universos: [],
   };
 }
 

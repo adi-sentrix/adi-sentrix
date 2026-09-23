@@ -35,6 +35,7 @@ import { referenciaEsDelNegocio } from "../../config/businessPolicy.js";
 import { getSelloDeCarga } from "../../ingesta/estadoCarga.js";
 import { enLaCarpeta } from "../../ingesta/selloEnRespuesta.js";
 import { UNIVERSOS, DIVERGENCIAS, reconcilian } from "../../config/contract/figureType.js";   // `reconcilian` lee la declaración del pack (owner 2026-09-14)
+import { AUSENCIAS_DEL_DATO } from "../../config/contract/ausencias.js";   // Etapa 2 §2 (owner 2026-09-23): las ausencias, DECLARADAS como dato — `_HUECOS` (abajo) las lee de acá, no las repite
 import { METRICS } from "../../config/contract/metricRegistry.js";
 import { deriveKpis } from "../../engine/scenarios.js";
 import { getVentasKPI } from "../../engine/metrics.js";   // la venta del negocio que muestra la PANTALLA — decisión del owner 2026-09-01 (ver `_construir`)
@@ -94,19 +95,14 @@ const _L = {
 // composers ya declaran en pantalla (mesaCapital.js: lead time / orden de compra / causa; temporalTable.js:
 // resultado por mes; figureType: la meta no existe). Es la sección que le permite al narrador DECLINAR BIEN
 // en vez de estirar.
-const _HUECOS = [
-  "historial de compra cliente×SKU: NO existe. La relación cliente×SKU disponible es una AFINIDAD ESTIMADA (sellada `indicado`), nunca una venta registrada — «quiénes dejaron de comprar» no es respondible.",
-  "entradas y recepciones de inventario: NO existen — «entradas y salidas» no es dibujable ni narrable.",
-  "lead time de proveedor: NO existe — no se puede decir qué se quiebra antes de que llegue reposición.",
-  "estado de órdenes de compra: NO existe.",
-  "causa de la detención de un SKU: NO está en el dato — se localiza dónde, no por qué.",
-  "meta de rotación por familia: NO existe.",
-  "ningún SKU está en más de una bodega — transferir stock entre bodegas NO es evaluable con este dato.",
-  "serie a futuro / pronóstico: NO existe — solo la evolución hasta hoy.",
-  "resultado (después de gastos) POR MES: NO existe — los gastos son % sobre la venta anual.",
-  "la META no existe en este dato: el benchmark lo declara el cliente y benchmark ≠ promedio ≠ meta.",
-  "fuente sectorial autorizada: NO hay — la única referencia es la del propio negocio (su benchmark declarado).",
-];
+// ⚠️ ETAPA 2 §2 (owner 2026-09-23): estas once frases SALEN de `config/contract/ausencias.js`
+// (`AUSENCIAS_DEL_DATO`, filtradas por `enPrompt`, en el MISMO orden) — antes vivían acá como strings sueltos,
+// sin id ni dominio; ahora son datos DECLARADOS (con id/tipo/dominio) que la Entrega (`entrega/componer.js`)
+// también puede reusar, en vez de una lista de prosa que solo este archivo podía leer. BYTE-IDÉNTICO a antes
+// (medido con `_sonda_huecos_byte_identico.mjs`; el candado permanente vive en `_entrega_gate.mjs`): las cuatro
+// ausencias «conocimiento del sector» nuevas (una por dominio, para la Entrega) NO llevan `enPrompt` y por eso no
+// se cuelan acá — este prompt, que corre en producción hoy, no cambia un byte.
+const _HUECOS = AUSENCIAS_DEL_DATO.filter((a) => a.enPrompt).map((a) => a.texto);
 
 // ── memo por tenant+escenario (initTenant invalida) ───────────────────────────────────────────────────────────
 const _memo = new Map();
