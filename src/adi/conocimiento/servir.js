@@ -4,14 +4,29 @@
  * decide nada: solo arma el texto de la pieza+entidad YA medida por `medir.js`.
  *
  *   ocurre          → «El oficio mira X. En [entidad] está ocurriendo: [cifra] contra [referencia] (medido).
- *                      No implica: …»
+ *                      [no_implica de la pieza, ya escrito como "No implica que…"]»
  *   no_ocurre       → «El oficio mira X. ADI lo midió y no está ocurriendo en [entidad]: [cifra] contra
  *                      [referencia]. Esto no excluye: …»
  *   indeterminable  → «El oficio mira X. Con estos datos no se puede saber: [motivo]. Lo resolvería: [resolveria].»
  *
  * Sujeto de la pieza siempre "el oficio" + el sector declarado — nunca el nombre de la empresa. La MEDICIÓN
  * (la parte «en Lider…») es la única que nombra la entidad — regla del documento: «la pieza tiene por sujeto al
- * sector, la medición a la empresa, y la frase puente la escribe la casa». */
+ * sector, la medición a la empresa, y la frase puente la escribe la casa».
+ *
+ * ═══ CORRECCIÓN 2026-09-23 (owner, defecto 1) — «el "no implica" que ustedes escriban no llega al usuario» ═══════
+ * Hay dos negativas distintas y las dos son legítimas: `pieza.no_implica` es sobre el CONOCIMIENTO («que el
+ * oficio diga que mires acá no implica que esta sea la causa») y `medicion.no_excluye` es sobre ESTA MEDICIÓN
+ * («que no esté ocurriendo no descarta X»). La versión anterior servía SIEMPRE `medicion.no_excluye` bajo el
+ * rótulo «No implica:», también en "ocurre" — la salvaguarda que el owner firma (`pieza.no_implica`) nunca
+ * llegaba al usuario. Ahora cada veredicto sirve la negativa que le corresponde, una sola por ítem: "ocurre" →
+ * `pieza.no_implica`; "no_ocurre" → `medicion.no_excluye` (el descarte — para que no suene a tranquilidad
+ * total). "indeterminable" no cambia: motivo + resolvería.
+ *
+ * Las dos negativas se redactan distinto y NO se combinan con el mismo conector: `pieza.no_implica` se escribe
+ * como oración completa, exactamente como en el documento (§1: «No implica que sea la causa del margen.») — se
+ * sirve TAL CUAL, sin agregarle un rótulo "No implica:" por delante (eso duplicaría la frase: "No implica: No
+ * implica que…"). `medicion.no_excluye` se escribe como frase nominal («descuentos aplicados…») y sí necesita el
+ * rótulo fijo "Esto no excluye:" para leerse como oración. */
 const _SECTOR_TXT = { distribucion: "distribución", fabricacion: "fabricación", minorista: "minorista", servicios: "servicios", obras: "obras" };
 
 function _sectorDe(pieza) {
@@ -34,7 +49,11 @@ export function servirPieza(pieza, entidad, medicion) {
   if (medicion.estado === "ocurre") {
     const cifraTxt = medicion.cifra ? medicion.cifra.texto : "(cifra no disponible)";
     const refTxt = medicion.referencia && medicion.referencia.texto ? medicion.referencia.texto : null;
-    cuerpo = `En ${entidad} está ocurriendo: ${cifraTxt}${refTxt ? ` contra ${refTxt}` : ""} (medido).${medicion.noExcluye ? ` No implica: ${medicion.noExcluye}.` : ""}`;
+    // el "no implica" que se sirve en "ocurre" es el de la PIEZA (el conocimiento), no el de la medición — ver
+    // corrección 2026-09-23 en la cabecera de este archivo. Se sirve TAL CUAL (ya es una oración completa, "No
+    // implica que…" — igual que el ejemplo del documento): agregarle el rótulo "No implica:" la duplicaría.
+    const noImplica = typeof pieza.no_implica === "string" && pieza.no_implica.trim() ? pieza.no_implica.trim() : null;
+    cuerpo = `En ${entidad} está ocurriendo: ${cifraTxt}${refTxt ? ` contra ${refTxt}` : ""} (medido).${noImplica ? ` ${noImplica}` : ""}`;
     hechoId = medicion.cifra ? medicion.cifra.id : null;
   } else if (medicion.estado === "no_ocurre") {
     const cifraTxt = medicion.cifra ? medicion.cifra.texto : "(cifra no disponible)";

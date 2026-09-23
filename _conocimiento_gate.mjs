@@ -12,7 +12,7 @@
  *   4 · ninguna pieza con literal numérico en `pertinencia` ni en `efecto`/`condicion`/`contraindicacion`
  *       (candado del validador de esquema).
  *   5 · `sujeto: "sector"` en toda pieza, y el enunciado no nombra ninguna entidad real del tenant.
- *   6 · una pieza en `estado: "borrador"` NUNCA se sirve — las seis piezas sembradas nacen así.
+ *   6 · una pieza en `estado: "borrador"` NUNCA se sirve — las cuatro piezas sembradas nacen así.
  *   7 · perfil incompleto apaga la capa entera (candado ya existente de perfilCliente.js, reusado).
  *   8 · LA CONCLUSIÓN DEL PROCEDIMIENTO ES BYTE-IDÉNTICA CON LA CAPA ENCENDIDA Y APAGADA — se prueba sobre las
  *       cuatro rutas reales de `componer.js`, comparando la Entrega completa MENOS `referenciaDelOficio` (que
@@ -43,7 +43,7 @@ import { construirTablaDeSenales } from "./src/adi/conocimiento/tablaSenales.js"
 import { evaluarPertinencia } from "./src/adi/conocimiento/evaluarPertinencia.js";
 import { medirPieza } from "./src/adi/conocimiento/medir.js";
 import { servirPieza } from "./src/adi/conocimiento/servir.js";
-import { aplicarAcotadores } from "./src/adi/conocimiento/acotadores.js";
+import { aplicarAcotadores, TOPE_CARACTERES_OFICIO } from "./src/adi/conocimiento/acotadores.js";
 import { recuentoDeLoRevisado } from "./src/adi/conocimiento/recuento.js";
 import { referenciaDelOficio, _evaluarInfraestructura } from "./src/adi/conocimiento/seleccionar.js";
 
@@ -74,10 +74,15 @@ const PERFIL_INCOMPLETO = construirPerfilCliente(TENANT_DEMO);
 H("0 · ADI_CONOCIMIENTO — apagada bajo Node (piso), como ADI_ENTREGA/ADI_NOTARIO_V3");
 ok(ADI_CONOCIMIENTO === false, "ADI_CONOCIMIENTO da false bajo Node — encenderla es una decisión del owner en flagProfile.js, no un efecto de este commit");
 
-/* ═══ 1 · LAS SEIS PIEZAS SEMBRADAS — esquema válido, todas "borrador", sin firma ═══ */
-H("1 · piezas.js — las seis piezas sembradas (CAU-01 · CAU-06 · CAU-03 · RSG-06 · MOV-05 · PRI-04)");
-ok(PIEZAS_CONOCIMIENTO.length === 6, `hay exactamente 6 piezas sembradas (hay ${PIEZAS_CONOCIMIENTO.length})`);
-for (const id of ["CAU-01", "CAU-06", "CAU-03", "RSG-06", "MOV-05", "PRI-04"]) ok(!!piezaPorId(id), `la pieza ${id} está sembrada`);
+/* ═══ 1 · LAS CUATRO PIEZAS SEMBRADAS — esquema válido, todas "borrador", sin firma ═══
+ * Owner 2026-09-23 (defecto 4 de la validación de contenido): RSG-06 y MOV-05 medían EXACTAMENTE lo mismo que
+ * CAU-06 (mismo predicado, mismo cálculo `skuFrenadoVsTopSeller`) y se colapsaron dentro de CAU-06 — ver la
+ * cabecera de `piezas.js`. Quedan 4 piezas sembradas, no 6; sus ids ya no existen en el catálogo. */
+H("1 · piezas.js — las cuatro piezas sembradas (CAU-01 · CAU-06 · CAU-03 · PRI-04)");
+ok(PIEZAS_CONOCIMIENTO.length === 4, `hay exactamente 4 piezas sembradas (hay ${PIEZAS_CONOCIMIENTO.length})`);
+for (const id of ["CAU-01", "CAU-06", "CAU-03", "PRI-04"]) ok(!!piezaPorId(id), `la pieza ${id} está sembrada`);
+// ★ CARNADA · RSG-06 y MOV-05 NO deben resucitar como piezas propias (se colapsaron dentro de CAU-06)
+for (const id of ["RSG-06", "MOV-05"]) ok(!piezaPorId(id), `★ CARNADA · la pieza ${id} NO está sembrada (colapsada dentro de CAU-06, defecto 4)`);
 for (const p of PIEZAS_CONOCIMIENTO) {
   const r = validarPieza(p, { entidadesConocidas: (TENANT_DEMO.clientesVentas || []).map((c) => c.nombre) });
   ok(r.ok, `${p.id} pasa el validador de esquema`, r.errores.join(" | "));
@@ -179,23 +184,108 @@ H("5 · medir.js — ocurre / no_ocurre / indeterminable, con cifra+id o motivo+
   }
 }
 
+/* ═══ 5b · EL "NO IMPLICA" QUE LLEGA AL USUARIO (defecto 1, owner 2026-09-23) ═══
+ * «Firmar una pieza hoy es firmar una salvaguarda que no se sirve» — servir.js SIEMPRE servía `medicion.no_excluye`
+ * bajo el rótulo "No implica:", también en "ocurre". Este bloque prueba que ahora "ocurre" sirve `pieza.no_implica`
+ * (la salvaguarda que el owner firma) y "no_ocurre" sigue sirviendo `medicion.no_excluye` (el descarte) — cada
+ * veredicto, su propia negativa, nunca la otra, nunca las dos. */
+H("5b · servir.js — cada veredicto sirve SU negativa (defecto 1: ocurre→no_implica, no_ocurre→no_excluye)");
+{
+  const cuentaBajoBenchmark = Object.entries(TABLA.cuentas).find(([, c]) => c.bajoBenchmark)[0];
+  // ★ CARNADA · no_implica y no_excluye deliberadamente DISTINTOS y reconocibles, para que la prueba no pueda
+  // pasar por casualidad si el código sirve el campo equivocado.
+  const piezaCarnada = { ...piezaPorId("CAU-01"), id: "CARNADA-DEFECTO1", no_implica: "TEXTO-NO-IMPLICA-9f3a", medicion: { ...piezaPorId("CAU-01").medicion, no_excluye: "TEXTO-NO-EXCLUYE-b71c" } };
+  const mOcurre = medirPieza(piezaCarnada, cuentaBajoBenchmark, TABLA);
+  if (mOcurre.estado === "ocurre") {
+    const sOcurre = servirPieza(piezaCarnada, cuentaBajoBenchmark, mOcurre);
+    ok(sOcurre.texto.includes("TEXTO-NO-IMPLICA-9f3a"), "★ CARNADA · \"ocurre\" sirve pieza.no_implica (la salvaguarda firmada)", sOcurre.texto);
+    ok(!sOcurre.texto.includes("TEXTO-NO-EXCLUYE-b71c"), "★ CARNADA · \"ocurre\" NO sirve medicion.no_excluye (el defecto 1 original)", sOcurre.texto);
+    ok(!/No implica: No implica/.test(sOcurre.texto), "★ CARNADA · no hay doble rótulo (\"No implica: No implica que…\") — pieza.no_implica se sirve TAL CUAL, ya es oración completa", sOcurre.texto);
+  } else {
+    ok(false, "no se pudo forzar \"ocurre\" con la pieza carnada del defecto 1 — revisar la cuenta elegida");
+  }
+  const cuentaNoBajoBenchmark2 = Object.entries(TABLA.cuentas).find(([, c]) => !c.bajoBenchmark && c.cargaPct != null && c.cargaSobreResto === false);
+  if (cuentaNoBajoBenchmark2) {
+    const mNo = medirPieza(piezaCarnada, cuentaNoBajoBenchmark2[0], TABLA);
+    if (mNo.estado === "no_ocurre") {
+      const sNo = servirPieza(piezaCarnada, cuentaNoBajoBenchmark2[0], mNo);
+      ok(sNo.texto.includes("TEXTO-NO-EXCLUYE-b71c"), "control · \"no_ocurre\" SÍ sirve medicion.no_excluye (el descarte)", sNo.texto);
+      ok(!sNo.texto.includes("TEXTO-NO-IMPLICA-9f3a"), "control · \"no_ocurre\" NO sirve pieza.no_implica", sNo.texto);
+    }
+  }
+  // control negativo real: CAU-01 servida de verdad, sobre la misma cuenta que 5 arriba
+  const mReal = medirPieza(piezaPorId("CAU-01"), cuentaBajoBenchmark, TABLA);
+  const sReal = servirPieza(piezaPorId("CAU-01"), cuentaBajoBenchmark, mReal);
+  ok(sReal.texto.includes(piezaPorId("CAU-01").no_implica), "control · CAU-01 real: el texto servido incluye pieza.no_implica verbatim", sReal.texto);
+}
+
 /* ═══ 6 · SERVICIO + ACOTADORES — la forma fija, y los cuatro acotadores del documento §3 ═══ */
 H("6 · servir.js + acotadores.js — forma fija y los cuatro acotadores (entidad · orden · dedup · tamaño)");
 {
   const RES = _evaluarInfraestructura({ scenario: ESCENARIO_INICIAL, pregunta: PREGUNTA_LECTURA, entidadesEnRespuesta: ["Lider", "Falabella"], perfil: PERFIL_COMPLETO });
   ok(RES.salida.length > 0, `el pipeline completo (sin la puerta de firma) sirve ${RES.salida.length} ítems sobre datos reales`);
-  ok(RES.salida.every((s) => /^El oficio mira: /.test(s.texto) || /^Y en \d+ /.test(s.texto)), "toda línea servida usa la forma fija (\"El oficio mira…\") o la línea de agregado (\"Y en N…\")");
+  ok(RES.salida.every((s) => /^El oficio mira: /.test(s.texto) || /^Y en \d+ /.test(s.texto) || /^\d+ mediciones más no entraron por espacio/.test(s.texto)), "toda línea servida usa la forma fija (\"El oficio mira…\"), la línea de agregado (\"Y en N…\") o la línea combinada de sobrantes por tope (defecto 2)");
   ok(RES.salida.some((s) => /est[aá] ocurriendo/.test(s.texto)), "al menos una pieza sirve el estado \"ocurre\", con su cifra");
   const soloEntidadesNombradas = RES.detalle.filter((d) => d.pertinente && d.estado && d.entidad && !["Lider", "Falabella"].includes(d.entidad)).length;
   ok(soloEntidadesNombradas > 0, `hay ${soloEntidadesNombradas} mediciones sobre entidades NO nombradas por la Respuesta — el acotador 1 las agrega, no las pierde`);
   ok(RES.salida.some((s) => /^Y en \d+ .* más del mismo conjunto/.test(s.texto)), "el acotador 1 (acotar por entidad) produjo al menos una línea de agregado con conteo");
+  ok(!RES.salida.some((s) => /ver «Qué más puedo calcular»/.test(s.texto)), "★ CARNADA · ninguna línea de agregado promete «ver Qué más puedo calcular» (esa sección no tiene cómo recibir el enlace — defecto 2)");
   // orden: la primera línea servida es "ocurre" (mayor valor informativo), nunca "indeterminable" primero si hay un "ocurre" disponible
   const idxOcurre = RES.salida.findIndex((s) => /est[aá] ocurriendo/.test(s.texto));
   const idxIndet = RES.salida.findIndex((s) => /no se puede saber/.test(s.texto));
   ok(idxOcurre === 0 || idxIndet === -1 || idxOcurre < idxIndet, "el acotador 2 (orden por valor informativo) pone \"ocurre\" antes que \"indeterminable\"");
-  // dedup: CAU-06 · RSG-06 · MOV-05 miden el MISMO cálculo (skuFrenadoVsTopSeller) sobre el MISMO SKU — verificar
-  // que el pipeline los reconoce como la misma hipótesis (piezasRelacionadas), no como tres líneas repetidas.
+  // CAU-06 (defecto 4, colapsada) es UNA sola pieza — un solo enunciado, nunca tres líneas casi iguales por SKU.
+  const lineasCAU06 = RES.salida.filter((s) => /Cuando un SKU está frenado/.test(s.texto));
+  ok(lineasCAU06.length <= 1, `★ defecto 4 · a lo sumo UNA línea con el enunciado de CAU-06 en la salida (dio ${lineasCAU06.length}) — antes CAU-06/RSG-06/MOV-05 servían tres casi iguales`, RES.salida.map((s) => s.texto).join("\n"));
   ok(RES.sobrantes.length >= 0, "el tope de tamaño produjo una lista de sobrantes trazable (nunca se pierde en silencio)");
+}
+/* ═══ 6b · DEFECTO 2 EN LA RUTA REAL — los sobrantes aparecen en UNA línea combinada, nunca desaparecen sin
+ * rastro y nunca se repiten una vez por pieza ═══
+ * Reproduce exactamente el caso medido en la sonda: 4 piezas firmadas, 2 entidades nombradas (Falabella, Lider),
+ * el tope por defecto (TOPE_CARACTERES_OFICIO) — antes del arreglo, CAU-03 desaparecía sin dejar rastro; en la
+ * primera versión del arreglo, cada pieza cortada agregaba su PROPIA línea («CAU-01 midió…», «PRI-04 midió…»,
+ * …) — el owner pidió combinarlas (segunda pasada, 2026-09-23): una sola línea, total + desglose por veredicto. */
+H("6b · defecto 2 en la ruta real — el tope nunca descarta en silencio, y en UNA sola línea");
+{
+  const RES2 = _evaluarInfraestructura({ scenario: ESCENARIO_INICIAL, pregunta: PREGUNTA_LECTURA, entidadesEnRespuesta: ["Falabella", "Lider"], perfil: PERFIL_COMPLETO, maxCaracteres: TOPE_CARACTERES_OFICIO });
+  const huboSobrantesCAU03 = RES2.sobrantes.some((s) => s.piezaId === "CAU-03");
+  if (huboSobrantesCAU03) {
+    ok(RES2.salida.some((s) => /^\d+ mediciones más no entraron por espacio en esta sección: /.test(s.texto)), "★ CARNADA · con algo cortado por el tope (incluida CAU-03), la salida SÍ trae una línea combinada con conteo — antes desaparecía sin rastro (defecto 2)", RES2.salida.map((s) => s.texto).join("\n"));
+    const lineasDeSobrantes = RES2.salida.filter((s) => /mediciones más no entraron por espacio/.test(s.texto));
+    ok(lineasDeSobrantes.length <= 1, `★ CARNADA · a lo sumo UNA línea de sobrantes en toda la salida (dio ${lineasDeSobrantes.length}) — nunca una por pieza`, RES2.salida.map((s) => s.texto).join("\n"));
+  } else {
+    console.log("      (con este tope, todo entró completo esta corrida — la línea 6 ya probó el mecanismo con un tope artificialmente chico)");
+  }
+  // control negativo: con un tope enorme, nada se corta y no aparece ninguna línea de sobrantes
+  const RES3 = _evaluarInfraestructura({ scenario: ESCENARIO_INICIAL, pregunta: PREGUNTA_LECTURA, entidadesEnRespuesta: ["Falabella", "Lider"], perfil: PERFIL_COMPLETO, maxCaracteres: 100000 });
+  ok(RES3.sobrantes.length === 0, "control · con un tope enorme, nada se corta (0 sobrantes)");
+  ok(!RES3.salida.some((s) => /que no entraron por espacio/.test(s.texto)), "control negativo · sin nada cortado, no aparece ninguna línea de sobrantes (no es un siempre-presente)");
+}
+/* ═══ 6c · EL PRESUPUESTO REAL DE MULTIDOMINIO — la ruta más densa, medida sin adornar el resultado ═══
+ * Owner 2026-09-23 (segunda pasada): «si después de combinarlas sigue pasándose, no lo fuerces más: decímelo
+ * con el número, documentá que esa ruta es la más densa y queda al límite». Corre la ruta REAL
+ * (componerEntregaMultidominio) con las 4 piezas REALES de `piezas.js` firmadas a mano (clon en memoria, nunca
+ * sembrado) — el techo de la Entrega corta es 900 palabras (`TOPE_PALABRAS`, src/adi/entrega/verificar.js). */
+H("6c · el presupuesto real de Multidominio (la ruta más densa) — medido, no forzado");
+{
+  const catalogoFirmado4 = PIEZAS_CONOCIMIENTO.map((p) => ({ ...p, estado: "firmada", firma: { por: "_conocimiento_gate.mjs §6c", fecha: "2026-09-23" } }));
+  initTenant(TENANT_PERFIL_COMPLETO);
+  let RMulti;
+  try {
+    RMulti = componerEntregaMultidominio({ scenario: ESCENARIO_INICIAL, pregunta: PREGUNTA_MULTIDOMINIO, conocimientoActivo: true, conocimientoCatalogo: catalogoFirmado4 });
+  } finally {
+    initTenant(TENANT_DEMO);
+  }
+  ok(RMulti.ok, "componerEntregaMultidominio compone ok con las 4 piezas reales firmadas", RMulti.motivo);
+  const nPalabras = (RMulti.texto || "").trim().split(/\s+/).filter(Boolean).length;
+  const lineasSobrantesMulti = (RMulti.entrega.referenciaDelOficio || []).filter((s) => /mediciones más no entraron por espacio/.test(s.texto));
+  ok(lineasSobrantesMulti.length <= 1, `★ Multidominio · a lo sumo UNA línea combinada de sobrantes (dio ${lineasSobrantesMulti.length}) — no una por pieza`, (RMulti.entrega.referenciaDelOficio || []).map((s) => s.texto).join("\n"));
+  console.log(`      Multidominio, 4 piezas reales firmadas: ${nPalabras} palabras (techo 900) — ${nPalabras > 900 ? "SOBRE EL TECHO" : "bajo el techo"}`);
+  if (nPalabras > 900) {
+    console.log(`      ⚠️ Multidominio queda sobre el techo aun con la línea de sobrantes combinada: es la ruta más densa`);
+    console.log(`         (3 dominios, hasta 4 piezas pertinentes a la vez, varias entidades ya nombradas) — reportado al owner, no forzado más.`);
+  }
+  // el número queda documentado acá mismo, no forzado: no hay un ok() que exija <900 — ver la nota de cabecera.
 }
 {
   // acotadores.js en aislamiento, con un tope de caracteres MUY chico — para demostrar que topa por TAMAÑO, no por CONTEO
@@ -208,8 +298,12 @@ H("6 · servir.js + acotadores.js — forma fija y los cuatro acotadores (entida
   ok(servidos.length === 1 && sobrantes.length === 2, `★ CARNADA · con un tope de 150 caracteres y 3 ítems de 100, sirve 1 y sobran 2 (topa por TAMAÑO, no por número de piezas — dio ${servidos.length}/${sobrantes.length})`);
 }
 
-/* ═══ 7 · EL RECUENTO DE LO REVISADO — empresa sana, la capa no queda muda ═══ */
-H("7 · recuento.js — \"De las N cosas que el oficio mira…\" cuando nada es pertinente");
+/* ═══ 7 · EL RECUENTO DE LO REVISADO — empresa sana, la capa no queda muda ═══
+ * Owner 2026-09-23 (defecto 3): la forma vieja, «De las N cosas que el oficio mira…, ADI midió M: …», mezclaba
+ * piezas (N) con mediciones (M) bajo la misma palabra "cosas" — un ejecutivo no podía saber en una lectura que
+ * M no es un subconjunto de N. Ahora cada número lleva su propia unidad: "aspectos" (piezas) y "casos"
+ * (mediciones) — ver la corrección en la cabecera de `recuento.js`. */
+H("7 · recuento.js — cada número con su propia unidad (defecto 3), cuando nada es pertinente");
 {
   // se simula "nada pertinente" con una entidad inexistente en la tabla (ninguna cuenta real se llama así) —
   // así TODAS las piezas de sujeto "cuenta"/"sku" reales de la tabla siguen encendiendo (no se puede vaciar la
@@ -219,7 +313,9 @@ H("7 · recuento.js — \"De las N cosas que el oficio mira…\" cuando nada es 
   ok(rec === null, "sin ninguna entidad en la tabla, ninguna pieza mide nada — el recuento no inventa un conteo de cero contra cero");
   // con la tabla real, todas las piezas "firmadas" (simuladas) sí producen un recuento con cifra
   const recReal = recuentoDeLoRevisado(PIEZAS_CONOCIMIENTO, TABLA, PERFIL_COMPLETO, PREGUNTA_LECTURA);
-  ok(!!recReal && /^De las 6 cosas que el oficio mira en un distribuidor, ADI midió \d+: /.test(recReal.texto), "sobre datos reales, el recuento cuenta cuántas de las piezas ADI pudo medir", recReal && recReal.texto);
+  ok(!!recReal && new RegExp(`^El oficio revisa ${PIEZAS_CONOCIMIENTO.length} aspectos de un distribuidor\\. ADI los midió en \\d+ casos: `).test(recReal.texto), "sobre datos reales, el recuento nombra los aspectos (piezas) y los casos (mediciones) por separado — nunca \"cosas\" para las dos", recReal && recReal.texto);
+  ok(!!recReal && !/\bcosas\b/i.test(recReal.texto), "★ CARNADA · el texto del recuento no usa la palabra \"cosas\" (la mezcla que causaba el defecto 3)", recReal && recReal.texto);
+  ok(!!recReal && recReal.medidas !== recReal.total, "control · en este demo, aspectos (piezas) y casos (mediciones) SON números distintos — la frase vieja los leía como si fueran lo mismo", `total=${recReal && recReal.total} medidas=${recReal && recReal.medidas}`);
   console.log(`      "${recReal.texto}"`);
 }
 
@@ -234,13 +330,13 @@ initTenant(TENANT_DEMO);
   ok(Array.isArray(puerta2) && puerta2.length === 0, `★ PUERTA 2 · activo:true pero perfil incompleto (TENANT_DEMO real, faltan: ${PERFIL_INCOMPLETO.faltantes.join(", ")}) → [] — perfil incompleto apaga la capa ENTERA`);
 
   const puerta3 = referenciaDelOficio({ perfil: PERFIL_COMPLETO, pregunta: PREGUNTA_LECTURA, entidadesEnRespuesta: ["Lider", "Falabella"], scenario: ESCENARIO_INICIAL, activo: true });
-  ok(Array.isArray(puerta3) && puerta3.length === 0, "★ PUERTA 3 (LA CENTRAL DE ESTA SIEMBRA) · activo:true + perfil COMPLETO, pero las 6 piezas están en \"borrador\" → [] — una pieza sin firmar NUNCA se sirve");
+  ok(Array.isArray(puerta3) && puerta3.length === 0, "★ PUERTA 3 (LA CENTRAL DE ESTA SIEMBRA) · activo:true + perfil COMPLETO, pero las cuatro piezas están en \"borrador\" → [] — una pieza sin firmar NUNCA se sirve");
 
-  // control positivo: con un catálogo de las MISMAS 6 piezas pero "firmadas" a mano (clon, nunca piezas.js), la
+  // control positivo: con un catálogo de las MISMAS 4 piezas pero "firmadas" a mano (clon, nunca piezas.js), la
   // puerta 3 SÍ deja pasar contenido — la infraestructura funciona; lo que falta es la validación del owner.
   const catalogoFirmado = PIEZAS_CONOCIMIENTO.map((p) => ({ ...p, estado: "firmada", firma: { por: "control-positivo-del-gate", fecha: p.fecha } }));
   const { validas: firmadasValidas } = piezasValidas(catalogoFirmado);
-  ok(firmadasValidas.length === 6, "control · las 6 piezas, firmadas a mano, siguen pasando el validador de esquema (firmarlas no cambia su forma)");
+  ok(firmadasValidas.length === PIEZAS_CONOCIMIENTO.length, `control · las ${PIEZAS_CONOCIMIENTO.length} piezas, firmadas a mano, siguen pasando el validador de esquema (firmarlas no cambia su forma)`);
 }
 
 /* ═══ 9 · LA CONCLUSIÓN DEL PROCEDIMIENTO — BYTE-IDÉNTICA con la capa encendida y apagada ═══ */
