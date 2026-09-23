@@ -338,6 +338,16 @@ export const ADI_NOTARIO_V3 = P("ADI_NOTARIO_V3");
 // perfil ahí, decisión del owner, no un efecto de este commit.
 export const ADI_ENTREGA = P("ADI_ENTREGA");
 
+// ── LA CAPA DE CONOCIMIENTO DE OFICIO · pertinencia + medición (`_ADI_BUSINESS_KNOWLEDGE_V0_PROPUESTA.md` v0.2)
+// · APAGADA en todos los perfiles ── Con TRUE, `src/adi/conocimiento/seleccionar.js:referenciaDelOficio` corre
+// el pipeline completo (tabla de señales → pertinencia → medición → acotadores → recuento) en vez de delegar en
+// `seleccionarConocimientoDelOficio` (perfilCliente.js, catálogo vacío). Con FALSE (hoy, en todos los perfiles)
+// el resultado es EXACTAMENTE el de hoy — mismo patrón que ADI_ENTREGA/ADI_NOTARIO_V3: nace sin entrada en
+// PROFILES de flagProfile.js, encenderla es una decisión del owner. Y aunque se encienda, las seis piezas
+// sembradas (`src/adi/conocimiento/piezas.js`) nacen `estado: "borrador"` — sin firma, no se sirven: encender
+// esta bandera hoy no cambia una Entrega servida ni un byte (candado `_conocimiento_gate.mjs`).
+export const ADI_CONOCIMIENTO = P("ADI_CONOCIMIENTO");
+
 // ── CONTRATO v2 · GRADUACIÓN EPISTÉMICA VISIBLE detrás de flag · default FALSE (owner 2026-08-07) ──
 // SEPARA DOS COSAS QUE NO SON LO MISMO:
 //   · EL SELLO (estructural, SIEMPRE activo, no depende de este flag): cada claim lleva su `estatus`

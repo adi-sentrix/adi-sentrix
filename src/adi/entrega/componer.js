@@ -42,7 +42,12 @@ import { ausenciaPorId } from "../../config/contract/ausencias.js";   // Etapa 2
 // como los demás hechos: `getTenantData()` es el MISMO acceso que ya usa todo `oracle/` (datoProyectado.js,
 // entityRecord.js, toolRegistry.js) para leer el tenant activo — no se abre una segunda fuente de identidad.
 import { getTenantData } from "../../data/tenantStore.js";
-import { construirPerfilCliente, seleccionarConocimientoDelOficio, ETIQUETA_DEL_CAMPO } from "../../config/contract/perfilCliente.js";
+import { construirPerfilCliente, ETIQUETA_DEL_CAMPO } from "../../config/contract/perfilCliente.js";
+// Etapa 3 (owner 2026-09-23, `_ADI_BUSINESS_KNOWLEDGE_V0_PROPUESTA.md` v0.2) — el enganche real de la Referencia
+// del oficio: pertinencia medida contra la tabla de señales, nunca contra prosa. `referenciaDelOficio` ENVUELVE
+// a `seleccionarConocimientoDelOficio` (perfilCliente.js): con la bandera `ADI_CONOCIMIENTO` apagada (hoy, en
+// todos los perfiles) delega en ella tal cual — cero diferencia de comportamiento (ver `_conocimiento_gate.mjs`).
+import { referenciaDelOficio } from "../conocimiento/seleccionar.js";
 
 export const PREGUNTA_BRECHA_COMERCIAL = "¿dónde estoy perdiendo plata?";
 export const PREGUNTA_COBRANZA = "¿quién me debe más?";
@@ -190,7 +195,7 @@ function _indiceDelTenant(figs, scenario) {
   return { I: indiceDeEvidencia({ figs, datoProyectado, ejesDelTenant }), ejesDelTenant };
 }
 
-export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, pregunta = PREGUNTA_BRECHA_COMERCIAL } = {}) {
+export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, pregunta = PREGUNTA_BRECHA_COMERCIAL, conocimientoActivo = undefined, conocimientoCatalogo = undefined } = {}) {
   // 1 · LA BOLETA — los mismos dos pasos que el playbook margen-en-riesgo ya certifica (marginRead + diagnose)
   const { figs } = _correrPlaybook(margenEnRiesgo, { scenario, pregunta });
   if (!figs.length) return _vacia("sin boleta: el motor no produjo cifras para esta pregunta con los datos activos");
@@ -325,9 +330,9 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
   if (faltaRango) entrega.limites.push({ titulo: "El período no declara un rango de fechas calendario", motivo: "El dato confirma que es el año cerrado (12 meses ya ocurridos), pero el pack no trae una fecha de cierre para el universo comercial — a diferencia de la cobranza, que sí la declara (flujoComercial.fechaCorte). No se afirma un mes ni un año." });
   { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
 
-  // ── REFERENCIA DEL OFICIO · el enganche del plan §3 — «falla cerrado» si el perfil no está completo; hoy
-  // también vacía porque el catálogo (Etapa 3) todavía no existe (`perfilCliente.js:CATALOGO_CONOCIMIENTO_DEL_OFICIO`)
-  entrega.referenciaDelOficio = seleccionarConocimientoDelOficio(perfil);
+  // ── REFERENCIA DEL OFICIO · Etapa 3 — pertinencia medida contra la tabla de señales de ESTA Entrega (las
+  // cuentas que la Respuesta nombra encienden `cuenta.en_respuesta`) ──
+  entrega.referenciaDelOficio = referenciaDelOficio({ perfil, pregunta, entidadesEnRespuesta: [top.entidad, ...(segundo ? [segundo.entidad] : [])], scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
 
   // ── PARA SU JUICIO · reusa las huellas con sello (probado/indicado/abierto) y la pregunta al dueño de
   // `rolesCartera` — sin introducir NINGÚN número que no esté ya verificado arriba (regla 1 del plan) ──
@@ -394,7 +399,7 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
  *   3. La regla 4 de `verificar.js` («comparables-juntas») asumía que TODA Entrega compara contra un benchmark
  *      — cierto en brecha comercial, falso en cobranza (no hay benchmark de deuda). Se generalizó a activarse
  *      por CONTENIDO (el texto nombra «brecha»/«benchmark»), no por la forma de la Entrega — ver verificar.js. */
-export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta = PREGUNTA_COBRANZA } = {}) {
+export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta = PREGUNTA_COBRANZA, conocimientoActivo = undefined, conocimientoCatalogo = undefined } = {}) {
   // 1 · LA BOLETA — el mismo (único) paso que el playbook `cobranza` ya certifica
   const { rp, figs } = _correrPlaybook(cobranza, { scenario, pregunta });
   if (!figs.length) return _vacia("sin boleta: el motor no produjo cifras para esta pregunta con los datos activos");
@@ -528,8 +533,8 @@ export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta
   if (!idVencidoTotal) entrega.limites.push({ titulo: "El vencido no se puede calcular", motivo: "Su empresa no declaró un plazo de pago: sin plazo, no se puede afirmar qué parte del saldo está vencida — nunca se declara en cero. Declárelo y el vencido se calcula solo." });
   { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
 
-  // ── REFERENCIA DEL OFICIO · el enganche del plan §3 (ver la nota de la ruta 1) ──
-  entrega.referenciaDelOficio = seleccionarConocimientoDelOficio(perfil);
+  // ── REFERENCIA DEL OFICIO · Etapa 3 (ver la nota de la ruta 1) ──
+  entrega.referenciaDelOficio = referenciaDelOficio({ perfil, pregunta, entidadesEnRespuesta: [topEntidad, ...(segundoEntidad ? [segundoEntidad] : [])], scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
 
   // ── PARA SU JUICIO ──
   entrega.paraSuJuicio = idVencidoTotal
@@ -581,7 +586,7 @@ export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta
  *   4. El límite de transferencia entre bodegas (`facts.limite_transferencia`, `inventoryStatus` en
  *      toolRegistry.js) se reusa TAL CUAL — `cap.motivo`/`cap.faltante` son el texto que el owner ya selló para
  *      la cara Capital (capability.js): no se redacta una frase nueva para decir lo mismo. */
-export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregunta = PREGUNTA_INVENTARIO } = {}) {
+export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregunta = PREGUNTA_INVENTARIO, conocimientoActivo = undefined, conocimientoCatalogo = undefined } = {}) {
   // 1 · LA BOLETA — el mismo (único) paso que el playbook `inventario-inmovilizado` ya certifica
   const { rp, figs } = _correrPlaybook(inventarioInmovilizado, { scenario, pregunta });
   if (!figs.length) return _vacia("sin boleta: el motor no produjo cifras para esta pregunta con los datos activos");
@@ -725,8 +730,8 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
   if (faltaRango) entrega.limites.push({ titulo: "El período no declara una fecha de corte para el inventario", motivo: "El dato confirma que es una foto de inventario a hoy, pero el pack no trae una fecha de corte declarada para este universo — a diferencia de la cobranza, que sí la declara (flujoComercial.fechaCorte). No se afirma una fecha." });
   { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
 
-  // ── REFERENCIA DEL OFICIO · el enganche del plan §3 (ver la nota de la ruta 1) ──
-  entrega.referenciaDelOficio = seleccionarConocimientoDelOficio(perfil);
+  // ── REFERENCIA DEL OFICIO · Etapa 3 (ver la nota de la ruta 1) ──
+  entrega.referenciaDelOficio = referenciaDelOficio({ perfil, pregunta, entidadesEnRespuesta: [topSku.sku, ...(segundoSku ? [segundoSku.sku] : [])], scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
 
   // ── PARA SU JUICIO · la MISMA pregunta que ya certifica el playbook (asesoria.js) — no se redacta una nueva ──
   entrega.paraSuJuicio = [
@@ -787,7 +792,7 @@ const _MARCO_CORTO = { anual: "año cerrado", hoy: "foto a hoy" };
  *  archivo — la única tentación precalculada (mecanismo 6) es DENTRO de cobranza (participación del líder sobre
  *  el vencido total de LA MISMA cartera). Y aunque alguna vez se declarara una, `notario/hechos.js` la rechaza
  *  de raíz (`_derivada`, «dominios-distintos») — ver la carnada 3.e en `_entrega_gate.mjs`. */
-export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, pregunta = PREGUNTA_MULTIDOMINIO } = {}) {
+export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, pregunta = PREGUNTA_MULTIDOMINIO, conocimientoActivo = undefined, conocimientoCatalogo = undefined } = {}) {
   // 1 · QUÉ PIDE EL ENCARGO — la misma hoja que ya cobra el contrato de dominios
   const partes = partesDelEncargo(pregunta);
   if (partes.length < 2) return _vacia("no es un encargo multidominio: la pregunta no pide dos o más partes");
@@ -963,8 +968,8 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
   if (faltaRango) entrega.limites.push({ titulo: "El año comercial no declara un rango de fechas calendario", motivo: "El dato confirma que la parte comercial es el año cerrado (12 meses ya ocurridos), pero el pack no trae una fecha de cierre para ese universo — a diferencia de inventario y cobranza, que sí declaran su foto al corte." });
   { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
 
-  // ── REFERENCIA DEL OFICIO · el enganche del plan §3 (ver la nota de la ruta 1) ──
-  entrega.referenciaDelOficio = seleccionarConocimientoDelOficio(perfil);
+  // ── REFERENCIA DEL OFICIO · Etapa 3 (ver la nota de la ruta 1) — las entidades líder de cada dominio ──
+  entrega.referenciaDelOficio = referenciaDelOficio({ perfil, pregunta, entidadesEnRespuesta: [...new Set(Object.values(lideres).map((L) => L.x.entidad))], scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
 
   // ── PARA SU JUICIO · una pregunta por dominio, reusando el mismo texto que ya certifican las otras rutas ──
   entrega.paraSuJuicio = [];
