@@ -23,14 +23,17 @@ import { cajaDelAgente } from "../agente/herramientasAgente.js";
 import { pasosDe } from "../agente/playbooks/registro.js";
 import { margenEnRiesgo, prioridadDe } from "../agente/playbooks/margenEnRiesgo.js";
 import { cobranza } from "../agente/playbooks/cobranza.js";
+import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";
 import { inventarioInmovilizado } from "../agente/playbooks/asesoria.js";
 import { descomposicionDeBrecha } from "../specRetrieval.js";
 import { cifrasDelDato } from "../oracle/datoProyectado.js";
 import { axisEntityNames } from "../oracle/entityIndex.js";
 import { asignarIds } from "../notario/hechos.js";
 import { indiceDeEvidencia } from "../notario/evidencia.js";
-import { periodoDeFiguras } from "../../config/contract/figureType.js";
+import { periodoDeFiguras, factorComercialDe } from "../../config/contract/figureType.js";
 import { dominiosDe } from "../agente/contratoDeDominios.js";
+import { fig } from "../boleta.js";
+import { getTenantData } from "../../data/tenantStore.js";
 
 const _EJES = ["cliente", "sku", "marca", "familia", "bodega", "canal"];
 
@@ -57,6 +60,47 @@ function _correrPasos(pasos, { scenario, pregunta }) {
     );
   } catch { rp = null; }
   return { rp, figs: asignarIds((rp && rp.ledger && rp.ledger.figs) || [], "s") };
+}
+
+/* ═══ EL LIBRO EVALUABLE COMPLETO DE COBRANZA (owner 2026-09-23, PRI-04 — corrección tras el informe: «el tope
+ * de 8 rompe la regla 2 sellada y hace falsa la línea de cobertura») ═══════════════════════════════════════════
+ * `herramientasAgente.js:cobranza()` publica como máximo 8 filas por cliente — un tope de TAMAÑO DE PROMPT para
+ * lo que ve el agente, no una verdad del negocio. Esta capa necesita el LIBRO EVALUABLE COMPLETO (regla 2 del
+ * sello: «proporciones calculadas sobre el libro evaluable COMPLETO, nunca sobre el subconjunto que se
+ * responde»), así que arma su PROPIA evidencia — misma fuente (`buildMesaFlujo`, la MISMA mesa que la pestaña
+ * Flujo Comercial y que la herramienta del agente), mismo formateador de fig (`boleta.js:fig`), mismo factor de
+ * escala (`factorComercialDe`) — sin el tope. NUNCA se toca `herramientasAgente.js` ni lo que el agente muestra
+ * en su propia boleta: esto es evidencia INTERNA de esta capa, para verificar PRI-04, no para narrar.
+ *
+ * ⚠️ EL VENCIDO EN $0 SE PUBLICA ACÁ, A DIFERENCIA DEL AGENTE: `mesaFlujo.js` dice `vencidoFmt: null` tanto
+ * para "sin plazo" como para "con plazo y vencido = 0" — el agente omite la fig en los dos casos (no hay nada
+ * útil que mostrar de un $0). Para esta capa esa ambigüedad ES el problema: un cliente al día NO es un cliente
+ * sin plazo. Por eso, cuando `diasCredito != null` (plazo declarado, con certeza), esta función publica «·
+ * Saldo vencido» con SU valor real, sea $0 o no — un hecho verificable, nunca una cifra inventada; sin plazo
+ * (`diasCredito === null`), la fig NO se publica (la ley del owner: nunca $0 cuando no hay plazo). */
+function _figsCobranzaCompleta(scenario) {
+  let M = null;
+  try { M = buildMesaFlujo(scenario); } catch { M = null; }
+  if (!M || !Array.isArray(M.filas) || !M.filas.length) return { figs: [], totalClientes: 0 };
+  const fx = factorComercialDe(getTenantData() || {});
+  const esPlanilla = M.origen === "planilla";
+  const ventaLabel = esPlanilla ? "Venta a crédito" : "Venta (flujo)";
+  const ventaLabelTotal = esPlanilla ? "Venta a crédito del período" : "Venta del período (flujo)";
+  const ctx = `flujo comercial al ${M.fechaCorteFmt || "cierre del período"} — la misma mesa que la pestaña (libro evaluable completo de cobranza, sin el tope de la boleta del agente)`;
+  const out = [];
+  const _f = (label, valorFmt, rawK) => out.push(fig(label, valorFmt, { unit: "money", raw: Number.isFinite(rawK) ? rawK * fx : null, source: "actual", context: ctx }));
+  if (M.total) {
+    if (M.total.ventaFmt != null) _f(ventaLabelTotal, M.total.ventaFmt, M.total.ventaK);
+    if (M.total.abonadoFmt != null) _f("Abonado · total", M.total.abonadoFmt, M.total.abonadoK);
+    if (M.total.saldoFmt != null) _f("Saldo pendiente · total", M.total.saldoFmt, M.total.saldoK);
+    if (M.total.vencidoK != null) _f("Saldo vencido · total", M.total.vencidoFmt, M.total.vencidoK);
+  }
+  for (const f of M.filas) {
+    _f(`${f.nombre} · ${ventaLabel}`, f.ventaFmt, f.ventaK);
+    _f(`${f.nombre} · Saldo pendiente`, f.saldoFmt, f.saldoK);
+    if (f.diasCredito != null) _f(`${f.nombre} · Saldo vencido`, f.vencidoK > 0 ? f.vencidoFmt : "$0", f.vencidoK || 0);
+  }
+  return { figs: asignarIds(out, "mc"), totalClientes: M.filas.length };
 }
 
 /* ── el léxico de tema/métrica de la pregunta — el MISMO tipo de detección léxica y determinística que ya usa
@@ -130,22 +174,41 @@ export function construirTablaDeSenales({ scenario = ESCENARIO_INICIAL, pregunta
   }
 
   // ── COBRANZA: vencido_positivo / al_dia (notario/estados.js: "al día" = saldo vencido 0) ──
+  // La boleta que vería el agente (capada a 8 filas — se conserva TAL CUAL, no se toca `herramientasAgente.js`).
   let figsCobranza = [];
   try {
     const pasosC = pasosDe(cobranza, _PREG_COBRANZA);
     const rC = _correrPasos(pasosC, { scenario, pregunta: _PREG_COBRANZA });
     figsCobranza = rC.figs;
-    for (const f of _all(figsCobranza, /· Saldo vencido$/i)) {
+  } catch { /* sin boleta de cobranza en este pack */ }
+
+  // ═══ EL LIBRO EVALUABLE COMPLETO (owner 2026-09-23, PRI-04 — corrección: «el tope de 8 rompe la regla 2
+  // sellada») — evidencia INTERNA de esta capa, nunca lo que el agente narra. `_figsCobranzaCompleta` trae las
+  // 13 cuentas del demo (no las 8 de la boleta), de la MISMA fuente (`buildMesaFlujo`) y con el MISMO
+  // formateador de fig — «una sola verdad por eje», nunca dos caminos que puedan divergir. ═══
+  let figsCobranzaCompleta = [], universoCobranzaTotal = 0;
+  try {
+    const R = _figsCobranzaCompleta(scenario);
+    figsCobranzaCompleta = R.figs; universoCobranzaTotal = R.totalClientes;
+    for (const f of _all(figsCobranzaCompleta, /· Saldo pendiente$/i)) {
+      const e = _entidadDe(_lab(f)); if (!e) continue;
+      const v = _num(f);
+      if (!cuentas[e]) cuentas[e] = { bajoBenchmark: null, cargaAlta: null, cargaPct: null, cargaSobreResto: null, cargaPromedioResto: null, venta: null, variacionVenta: "sin_serie", enRespuesta: nombradas.has(e), prioridadPrimera: false };
+      cuentas[e].saldoPendiente = Number.isFinite(v) ? v : null;
+      if (cuentas[e].tienePlazoDeclarado === undefined) cuentas[e].tienePlazoDeclarado = false;   // sin fig de vencido todavía: por defecto "sin plazo" — la pasada de abajo lo corrige a `true` si corresponde
+    }
+    // «· Saldo vencido» ahora se publica SIEMPRE que hay plazo declarado (con o sin monto — ver la cabecera de
+    // `_figsCobranzaCompleta`): su presencia sola decide "tiene plazo", sin ambigüedad y sin cruzar nada más.
+    for (const f of _all(figsCobranzaCompleta, /· Saldo vencido$/i)) {
       const e = _entidadDe(_lab(f)); if (!e) continue;
       const v = _num(f);
       if (!cuentas[e]) cuentas[e] = { bajoBenchmark: null, cargaAlta: null, cargaPct: null, cargaSobreResto: null, cargaPromedioResto: null, venta: null, variacionVenta: "sin_serie", enRespuesta: nombradas.has(e), prioridadPrimera: false };
       cuentas[e].vencido = Number.isFinite(v) ? v : null;
       cuentas[e].vencidoPositivo = Number.isFinite(v) ? v > 0 : null;
       cuentas[e].alDia = Number.isFinite(v) ? v === 0 : null;
+      cuentas[e].tienePlazoDeclarado = true;
     }
-    // una cuenta con saldo pendiente pero SIN fig de "Saldo vencido" (no hay plazo declarado): vencido no
-    // calculable — queda `null`, nunca se asume 0 (regla del owner, CLAUDE.md §4).
-  } catch { /* sin boleta de cobranza en este pack: los campos de cobranza quedan null, honestos */ }
+  } catch { /* sin flujo comercial en este pack: los campos de cobranza quedan null, honestos */ }
 
   // ── VARIACIÓN DE VENTA — se busca la fig "· Variación" (si el motor la publica para este eje) sobre la MISMA
   // boleta comercial de arriba; sin ella, el predicado declara "sin_serie" (nunca se inventa un signo) ──
@@ -212,7 +275,10 @@ export function construirTablaDeSenales({ scenario = ESCENARIO_INICIAL, pregunta
   // `axisEntityNames` por eje. ── */
   const ejesDelTenant = {};
   for (const eje of _EJES) { try { const n = axisEntityNames(eje); if (n && n.length) ejesDelTenant[eje] = n; } catch { /* eje sin índice en este tenant */ } }
-  const figsUnion = asignarIds([...figsComercial, ...figsCobranza, ...figsInv, ...figsTop], "u");
+  // ★ PRI-04 (owner 2026-09-23, corrección) · el índice de evidencia se arma con `figsCobranzaCompleta` (el
+  // libro evaluable ENTERO), no con `figsCobranza` (la boleta capada a 8 que vería el agente) — así toda
+  // participación/derivada que declare esta capa verifica sobre el universo COMPLETO (regla 2 del sello).
+  const figsUnion = asignarIds([...figsComercial, ...figsCobranzaCompleta, ...figsInv, ...figsTop], "u");
   let indice = null;
   try { indice = indiceDeEvidencia({ figs: figsUnion, datoProyectado: cifrasDelDato(scenario), ejesDelTenant }); } catch { indice = null; }
 
@@ -224,8 +290,15 @@ export function construirTablaDeSenales({ scenario = ESCENARIO_INICIAL, pregunta
     // el índice de evidencia compartido — `medir.js` declara sus hechos `cifra`/`razon` sobre ESTE índice y los
     // verifica con `libroDeHechos` (notario/hechos.js), nunca calculándolos por su cuenta.
     _indice: indice,
+    // el TOTAL de clientes con venta a crédito que `buildMesaFlujo` conoce (la fuente, sin ningún tope) — la
+    // vara con la que `coberturaPisoDeCobranza` (medir.js) comprueba que no está afirmando más de lo que esta
+    // evidencia pudo verificar (regla B del owner: «la cobertura nunca puede afirmar más de lo que vio»). Una
+    // cartera de prueba autónoma (sin `buildMesaFlujo` real detrás) no lo declara, y eso es correcto: no hay
+    // fuente externa con la que contrastar.
+    _universoCobranza: universoCobranzaTotal || null,
     // las boletas crudas, por si algún cálculo necesita buscar una fig puntual (ej. citar el `ref` exacto de un
     // SKU en el top de ventas) — `medir.js` las usa solo para eso, nunca para leer un número sin verificar.
-    _figs: { comercial: figsComercial, cobranza: figsCobranza, inventarioFrenado: figsInv, inventarioTop: figsTop, union: figsUnion },
+    // `cobranza` sigue siendo la boleta CAPADA (lo que ve el agente); `cobranzaCompleta` es la nueva, sin tope.
+    _figs: { comercial: figsComercial, cobranza: figsCobranza, cobranzaCompleta: figsCobranzaCompleta, inventarioFrenado: figsInv, inventarioTop: figsTop, union: figsUnion },
   };
 }

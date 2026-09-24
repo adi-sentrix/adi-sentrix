@@ -40,6 +40,7 @@ import { medirPieza } from "./medir.js";
 import { servirPieza } from "./servir.js";
 import { aplicarAcotadores, TOPE_CARACTERES_OFICIO } from "./acotadores.js";
 import { recuentoDeLoRevisado } from "./recuento.js";
+import { coberturaPisoDeCobranza } from "./medir.js";
 
 const _PLURAL = { cuenta: "cuentas", sku: "SKU" };
 
@@ -51,9 +52,14 @@ function _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, perfil,
 
   const items = [];
   const detalle = [];   // traza completa por (pieza, entidad) — para el informe/gate, no para la Entrega
+  // PRI-04 (piso de materialidad de cobranza, owner 2026-09-23): la pieza pertinente que trae línea de
+  // cobertura fija al cierre (regla 4 del diseño sellado) — reconocida por su cálculo, no por su id, para que
+  // cualquier otra pieza que en el futuro declare el MISMO mecanismo la herede sin tocar este archivo.
+  let piezaConCobertura = null;
   for (const pieza of validas) {
     const pert = evaluarPertinencia(pieza, tabla, perfil, pregunta);
     if (!pert.pertinente) { detalle.push({ piezaId: pieza.id, pertinente: false, motivo: pert.motivo }); continue; }
+    if (pieza.medicion && pieza.medicion.calculo === "pisoMaterialidadCobranza" && !piezaConCobertura) piezaConCobertura = pieza;
     const entidades = pert.entidades.length ? pert.entidades : [null];
     for (const entidad of entidades) {
       const medicion = medirPieza(pieza, entidad, tabla);
@@ -93,6 +99,17 @@ function _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, perfil,
     const nIndet = sobrantes.length - nOcurre - nNoOcurre;
     const partes = [nOcurre ? `${nOcurre} ocurre` : null, nNoOcurre ? `${nNoOcurre} no` : null, nIndet ? `${nIndet} sin poder saberse` : null].filter(Boolean).join(", ");
     salida.push({ texto: `${sobrantes.length} mediciones más no entraron por espacio en esta sección: ${partes}.`, fuente: null, alcance: null, fecha: null, vigencia: null, firma: null });
+  }
+
+  // ═══ PRI-04 · LA LÍNEA DE COBERTURA, FIJA AL CIERRE (owner 2026-09-23, regla 4 del diseño sellado) ═══════════
+  // Se agrega DESPUÉS del tope de tamaño —igual que la línea de sobrantes de arriba— para que nunca se la
+  // coma el recorte: la cobertura es la garantía de que la pieza no calla a quien no pudo evaluar, así que es
+  // la ÚLTIMA cosa que se sacrifica, no la primera. `coberturaPisoDeCobranza` recorre el universo COMPLETO de
+  // la tabla de señales (nunca el subconjunto que la Respuesta nombra) y devuelve `null` si las identidades de
+  // cobertura no cierran — ahí no se sirve nada, «la pieza no se sirve» (falla cerrado, regla 4).
+  if (piezaConCobertura) {
+    const cob = coberturaPisoDeCobranza(tabla);
+    if (cob) salida.push({ texto: cob.texto, fuente: piezaConCobertura.fuente || null, alcance: piezaConCobertura.alcance || null, fecha: piezaConCobertura.fecha || null, vigencia: piezaConCobertura.vigencia || null, firma: piezaConCobertura.firma || null });
   }
 
   return { salida, sobrantes, detalle, invalidas, tabla };

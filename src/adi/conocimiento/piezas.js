@@ -106,19 +106,38 @@ export const PIEZAS_CONOCIMIENTO = [
     efecto: { sobre: "causalidad", sentido: "orienta", condicion: "nunca decide con este dato" },
   },
   {
-    id: "PRI-04", version: 1, tipo: "senal", alimenta: "prioridades", etiqueta: ["B"], grado: "establecido",
-    enunciado: "La participación de una cuenta en la venta y su participación en el vencido son dos cifras distintas. La segunda mide la exposición: una cuenta puede vender poco y deber desproporcionadamente, o vender mucho y deber poco.",
+    // === PRI-04 · EL PISO DE MATERIALIDAD DE COBRANZA (owner 2026-09-23, diseño SELLADO — cinco reglas; ver la
+    // cabecera de `medir.js:pisoMaterialidadCobranza` y `config/contract/pisoMaterialidadCobranza.js`). Sigue
+    // sin firmar: `estado`/`firma` no se tocan acá — esta actualización es de CONTENIDO (enunciado, no_implica,
+    // medición), la firma es del owner. Reemplaza `participacionCruzada` (una comparación sin piso, retirada)
+    // por el cálculo con umbral estructural: D_c = (participación en el vencido − participación en la venta) ×
+    // vencido total, comparado contra k × saldo pendiente del universo evaluable. Ya NUNCA mide "no_ocurre"
+    // (medir.js: `estadoFalso: "bajo_piso"`) — el veredicto negativo afirma la diferencia y el piso, nunca "no
+    // ocurre" (Aclaración 2 del diseño: «nombrar la pregunta hace verdadero el "no"... la forma segura no
+    // responde "no": afirma dos hechos»). ===
+    id: "PRI-04", version: 2, tipo: "senal", alimenta: "prioridades", etiqueta: ["B"], grado: "establecido",
+    enunciado: "¿Alguna cuenta pesa más en el vencido que en la venta, con una diferencia que supere el piso de materialidad?",
     sujeto: "sector",
     fuente: { tipo: "principio-del-oficio", detalle: "controller senior; validación owner + socio pendiente" },
     alcance: { ..._ALCANCE_BASE },
     fecha: "2026-09-23", vigencia: "2027-09-23", firma: null, estado: "borrador",
-    no_implica: "No implica que la cuenta sea mala pagadora: la diferencia puede ser un plazo pactado más largo, o vencido documental en facturas puntuales.",
-    pertinencia: { todo: ["cuenta.vencido_positivo", "cuenta.en_respuesta"] },
+    no_implica: "No implica que la cuenta sea mala pagadora: la diferencia puede ser un plazo pactado más largo, o vencido documental en facturas puntuales. Tampoco implica que una cuenta bajo el piso esté al día: el piso mide si la desproporción es grande, no si el vencido existe.",
+    pertinencia: {
+      alguno: [
+        { todo: ["cuenta.vencido_positivo", "cuenta.en_respuesta"] },
+        { todo: ["cuenta.sin_plazo_declarado", "cuenta.en_respuesta"] },
+      ],
+    },
     medicion: {
-      calculo: "participacionCruzada", existe_en_motor: false, derivado_barato: true,
-      por_entidad: "cuenta", comparador: "mayor", lados: ["participacion_vencido", "participacion_venta"],
+      calculo: "pisoMaterialidadCobranza", existe_en_motor: false, derivado_barato: true,
+      por_entidad: "cuenta",
       decisivo: true, no_excluye: "vencido documental en facturas puntuales; que la diferencia sea un plazo pactado",
-      insumos: ["vencido por cuenta (cobranza)", "venta por cuenta (comercial)", "vencido total de la cartera", "venta total de la cartera"],
+      insumos: [
+        "vencido por cuenta (cobranza)", "venta por cuenta (comercial)",
+        "vencido total del universo evaluable (cuentas con plazo de pago declarado)",
+        "venta y saldo pendiente del universo evaluable",
+        "piso de materialidad (criterio de ADI, o declarado por la empresa — config/contract/pisoMaterialidadCobranza.js)",
+      ],
     },
     efecto: { sobre: "prioridades", sentido: "agrava", condicion: "estado = ocurre" },
   },

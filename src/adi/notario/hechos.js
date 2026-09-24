@@ -109,11 +109,15 @@ function _procedenciaDeFig(f) {
     default: return "derivado";
   }
 }
-/* la procedencia de un OPERANDO de razón/derivada (`_operando()`): si viene de OTRO hecho del libro (una derivada
- * anidada, `_operandoDeHecho`), hereda la procedencia YA calculada de ESE hecho — no se re-deriva de su fig; si
- * viene de una fig de la boleta, se traduce con `_procedenciaDeFig`. */
+/* la procedencia de un OPERANDO de razón/derivada (`_operando()`): si el operando es una CONSTANTE declarada
+ * (`{constante:{...}}` — owner 2026-09-23, piso de materialidad de cobranza: «crudo verificado × constante
+ * declarada con su procedencia») trae su propia procedencia YA fijada, nunca se deriva de una fig que no
+ * existe; si viene de OTRO hecho del libro (una derivada anidada, `_operandoDeHecho`), hereda la procedencia YA
+ * calculada de ESE hecho — no se re-deriva de su fig; si viene de una fig de la boleta, se traduce con
+ * `_procedenciaDeFig`. */
 function _procedenciaDeOperando(op, libro) {
   if (!op) return null;
+  if (op.procedenciaDeclarada !== undefined && op.procedenciaDeclarada !== null) return op.procedenciaDeclarada;
   const Hop = libro && libro.porId ? libro.porId.get(String(op.label)) : null;
   if (Hop && Hop.procedencia !== undefined) return Hop.procedencia;
   return _procedenciaDeFig(op);
@@ -235,8 +239,28 @@ const _operandoDeHecho = (I, libro, id) => {
   const clave = [...Hh.claves][0] || null;
   return { label: Hh.id, texto: Hh.render.valor || n.texto || "", raw: n.raw, unidad: n.unidad, entidad: Hh.roles.sujetos[0] || "negocio", concepto: clave ? metricaDeClave(clave) : Hh.id, conceptoNorm: normalizar(clave ? metricaDeClave(clave) : Hh.id), fig: { id: Hh.id, value: Hh.render.valor } };
 };
+/* un operando CONSTANTE declarado por la capa que llama, con su propia procedencia — nunca una fig, nunca el
+ * hecho de un id del libro (owner 2026-09-23, piso de materialidad de cobranza: «una operación nueva mínima,
+ * crudo verificado × constante declarada con su procedencia»). `c = {raw, unidad, texto, procedencia, label,
+ * concepto, entidad}` — `raw`/`unidad` son los únicos campos obligatorios; el resto tiene default razonable.
+ * Sirve tanto para un criterio de la casa (el piso de materialidad, `k`) como para una SUMA ya verificada por
+ * OTRO llamado a `libroDeHechos` (una derivada sobre un universo de N cuentas que este operando reempaqueta
+ * como un solo número con procedencia ya resuelta — ver `medir.js:_constOperando`). */
+const _operandoConstante = (c) => {
+  const raw = Number(c && c.raw);
+  if (!Number.isFinite(raw)) return null;
+  const unidad = c.unidad || "count";
+  return {
+    label: c.label || "constante", texto: c.texto != null ? String(c.texto) : formatoDeLaCasa(raw, unidad),
+    raw, unidad, entidad: c.entidad || "negocio", concepto: c.concepto || c.label || "constante",
+    conceptoNorm: normalizar(c.concepto || c.label || "constante"), crudo: true,
+    procedenciaDeclarada: c.procedencia !== undefined ? c.procedencia : null,
+    fig: { id: null, value: c.texto != null ? String(c.texto) : formatoDeLaCasa(raw, unidad) },
+  };
+};
 const _operando = (I, x, libro = null) => {
   if (x == null) return null;
+  if (_es(x) && x.constante) return _operandoConstante(x.constante);
   if (typeof x === "string") return _figPorId(I, x) || _operandoDeHecho(I, libro, x);
   if (_es(x)) { if (x.id) return _figPorId(I, x.id) || _operandoDeHecho(I, libro, x.id); if (x.sujeto != null && x.metrica != null) return _figDe(I, x.sujeto === "negocio" || /^(?:negocio|total)$/i.test(String(x.sujeto)) ? "negocio" : x.sujeto, x.metrica); }
   return null;
@@ -399,7 +423,7 @@ function _derivada(H, h, I, libro = null) {
   else if (op === "cociente") { if (ops.length !== 2 || raws[1] === 0) return _aplica(H, { veredicto: "no-verificable", motivo: "cociente: dos operandos, divisor ≠ 0", verdad: "", evidencia: ops.map((f) => f.label) }); if (_u(ops[0].unidad) !== _u(ops[1].unidad)) return _aplica(H, { veredicto: "no-verificable", motivo: `unidades-distintas: ${ops[0].label} (${ops[0].unidad}) no se divide por ${ops[1].label} (${ops[1].unidad})`, verdad: "", evidencia: ops.map((f) => f.label) }); const enPct = /%/.test(String(h.valor || "")) || !(h.valor != null); res = enPct ? (raws[0] / raws[1]) * 100 : raws[0] / raws[1]; unidad = enPct ? "pct" : "ratio"; cuenta = `${_fmtFig(ops[0])} ÷ ${_fmtFig(ops[1])}`; }
   else if (op === "pp") { if (ops.length !== 2 || !ops.every((f) => f.unidad === "pct" || f.unidad === "pp")) return _aplica(H, { veredicto: "no-verificable", motivo: "pp: dos tasas", verdad: "", evidencia: ops.map((f) => f.label) }); res = raws[0] - raws[1]; unidad = "pp"; cuenta = `${_fmtFig(ops[0])} − ${_fmtFig(ops[1])}`; }
   else if (op === "variacion_relativa") { if (ops.length !== 2 || raws[1] === 0) return _aplica(H, { veredicto: "no-verificable", motivo: "variación relativa: (nuevo − base) ÷ base, base ≠ 0", verdad: "", evidencia: ops.map((f) => f.label) }); res = ((raws[0] - raws[1]) / Math.abs(raws[1])) * 100; unidad = "pct"; cuenta = `(${_fmtFig(ops[0])} − ${_fmtFig(ops[1])}) ÷ ${_fmtFig(ops[1])}`; }
-  else if (op === "producto") { if (ops.length !== 2) return _aplica(H, { veredicto: "no-verificable", motivo: "producto: dos operandos", verdad: "", evidencia: ops.map((f) => f.label) }); const pct = ops.find((f) => f.unidad === "pct"), otro = ops.find((f) => f !== pct); if (!pct || !otro) return _aplica(H, { veredicto: "no-verificable", motivo: "producto: una cifra × una tasa", verdad: "", evidencia: ops.map((f) => f.label) }); res = otro.raw * pct.raw / 100; unidad = otro.unidad; cuenta = `${_fmtFig(otro)} × ${_fmtFig(pct)}`; }
+  else if (op === "producto") { if (ops.length !== 2) return _aplica(H, { veredicto: "no-verificable", motivo: "producto: dos operandos", verdad: "", evidencia: ops.map((f) => f.label) }); const pct = ops.find((f) => f.unidad === "pct" || f.unidad === "pp"), otro = ops.find((f) => f !== pct); if (!pct || !otro) return _aplica(H, { veredicto: "no-verificable", motivo: "producto: una cifra × una tasa (pct o pp)", verdad: "", evidencia: ops.map((f) => f.label) }); res = otro.raw * pct.raw / 100; unidad = otro.unidad; cuenta = `${_fmtFig(otro)} × ${_fmtFig(pct)}`; }
   else return _aplica(H, { veredicto: "no-verificable", motivo: `derivada: operación «${h.op}» desconocida (suma · diferencia · pp · variacion_relativa · producto)`, verdad: "", evidencia: [] });
   const verdad = `${cuenta} = ${formatoDeLaCasa(res, unidad)}`;
   const v = h.valor != null ? leerValor(h.valor) : null;

@@ -224,7 +224,12 @@ H("6 · servir.js + acotadores.js — forma fija y los cuatro acotadores (entida
 {
   const RES = _evaluarInfraestructura({ scenario: ESCENARIO_INICIAL, pregunta: PREGUNTA_LECTURA, entidadesEnRespuesta: ["Lider", "Falabella"], perfil: PERFIL_COMPLETO });
   ok(RES.salida.length > 0, `el pipeline completo (sin la puerta de firma) sirve ${RES.salida.length} ítems sobre datos reales`);
-  ok(RES.salida.every((s) => /^El oficio mira: /.test(s.texto) || /^Y en \d+ /.test(s.texto) || /^\d+ mediciones más no entraron por espacio/.test(s.texto)), "toda línea servida usa la forma fija (\"El oficio mira…\"), la línea de agregado (\"Y en N…\") o la línea combinada de sobrantes por tope (defecto 2)");
+  // ★ PRI-04 (owner 2026-09-23, piso de materialidad de cobranza) agrega una QUINTA forma fija — la línea de
+  // cobertura del cierre (regla 4 del diseño sellado, `medir.js:coberturaPisoDeCobranza`), que arranca con
+  // "Vencido total: " o, cuando ningún cliente tiene plazo declarado, con "No puedo evaluar la desproporción de
+  // vencido: " (Aclaración 3). Se prueba con su propio candado (`_piso_materialidad_gate.mjs`); acá solo se
+  // reconoce la forma para que esta aserción general siga cubriendo TODAS las líneas que sirve el pipeline.
+  ok(RES.salida.every((s) => /^El oficio mira: /.test(s.texto) || /^Y en \d+ /.test(s.texto) || /^\d+ mediciones más no entraron por espacio/.test(s.texto) || /^Vencido total: /.test(s.texto) || /^No puedo evaluar la desproporción de vencido: /.test(s.texto)), "toda línea servida usa la forma fija (\"El oficio mira…\"), la línea de agregado (\"Y en N…\"), la línea combinada de sobrantes por tope (defecto 2), o la línea de cobertura de PRI-04");
   ok(RES.salida.some((s) => /est[aá] ocurriendo/.test(s.texto)), "al menos una pieza sirve el estado \"ocurre\", con su cifra");
   const soloEntidadesNombradas = RES.detalle.filter((d) => d.pertinente && d.estado && d.entidad && !["Lider", "Falabella"].includes(d.entidad)).length;
   ok(soloEntidadesNombradas > 0, `hay ${soloEntidadesNombradas} mediciones sobre entidades NO nombradas por la Respuesta — el acotador 1 las agrega, no las pierde`);

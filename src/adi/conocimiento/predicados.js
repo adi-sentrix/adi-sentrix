@@ -26,6 +26,7 @@ export const PREDICADOS_CERRADOS = Object.freeze([
   { predicado: "cuenta.carga_sobre_resto", sujeto: "cuenta", disponible: true, fuente: "derivado barato: carga % de la cuenta > promedio de carga % de las demás cuentas del mismo dato (relación mayor(a,b), sin umbral)" },
   { predicado: "cuenta.vencido_positivo", sujeto: "cuenta", disponible: true, fuente: "cobranza (mesaFlujo) — saldo vencido > 0" },
   { predicado: "cuenta.al_dia", sujeto: "cuenta", disponible: true, fuente: "cobranza (mesaFlujo) — saldo vencido = 0 (notario/estados.js: \"al día\")" },
+  { predicado: "cuenta.sin_plazo_declarado", sujeto: "cuenta", disponible: true, fuente: "cobranza (mesaFlujo) — hay saldo pendiente pero ninguna fig de saldo vencido (config/politicaCobro.js: sin plazo, propio ni general)" },
   { predicado: "cuenta.variacion_venta_neg", sujeto: "cuenta", disponible: true, fuente: "fig \"· Variación\" de la boleta comercial si existe; si no hay fig, indisponible (sin_serie)" },
   { predicado: "cuenta.variacion_venta_pos", sujeto: "cuenta", disponible: true, fuente: "idem, signo contrario" },
   { predicado: "cuenta.en_respuesta", sujeto: "cuenta", disponible: true, fuente: "entidades nombradas por la conclusión del procedimiento de ESTA Entrega (top/segundo de la ruta), pasadas por el compositor" },
@@ -96,6 +97,7 @@ export function evaluarPredicadoAtomico(predicado, entidad, tabla, ctx = {}) {
       case "cuenta.carga_sobre_resto": return c.cargaSobreResto;
       case "cuenta.vencido_positivo": return c.vencidoPositivo;
       case "cuenta.al_dia": return c.alDia;
+      case "cuenta.sin_plazo_declarado": return c.tienePlazoDeclarado == null ? null : c.tienePlazoDeclarado === false;
       case "cuenta.variacion_venta_neg": return c.variacionVenta === "neg";
       case "cuenta.variacion_venta_pos": return c.variacionVenta === "pos";
       case "cuenta.en_respuesta": return c.enRespuesta;

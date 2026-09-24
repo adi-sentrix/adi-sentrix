@@ -28,6 +28,15 @@
  * implica que…"). `medicion.no_excluye` se escribe como frase nominal («descuentos aplicados…») y sí necesita el
  * rótulo fijo "Esto no excluye:" para leerse como oración. */
 const _SECTOR_TXT = { distribucion: "distribución", fabricacion: "fabricación", minorista: "minorista", servicios: "servicios", obras: "obras" };
+/* el nombre de cada procedencia, EXACTO al de `notario/hechos.js:NOMBRE_DE_PROCEDENCIA` — declarado acá en vez
+ * de importado a propósito: `conocimiento/` no depende de `notario/` para texto de prosa (solo `medir.js` lo
+ * hace, para VERIFICAR). Un candado (`_piso_materialidad_gate.mjs`) compara los dos textos. `medicion.procedencia`
+ * es `null` para todo cálculo que no lo declare (CAU-01/CAU-06/CAU-03) — el texto cae a "medido", byte-idéntico
+ * a como servía este archivo antes de esta corrección (owner 2026-09-23, PRI-04: una cifra derivada o estimada
+ * nunca puede decir "(medido)" — la verdad es cifra + dueño + significado, CLAUDE.md §2). */
+const _NOMBRE_DE_PROCEDENCIA = { medido: "medido", derivado: "derivado", estimacion_referencia: "estimación contra referencia", supuesto_usuario: "supuesto del usuario", propuesta: "propuesta" };
+const _procTxt = (medicion) => (medicion.procedencia && _NOMBRE_DE_PROCEDENCIA[medicion.procedencia]) || "medido";
+const _bordeTxt = (medicion) => (medicion.borde === true ? " Esta cuenta queda al borde del piso: con un criterio algo más exigente o más laxo cambiaría de lado." : "");
 
 function _sectorDe(pieza) {
   const s = pieza && pieza.alcance && pieza.alcance.sector;
@@ -53,7 +62,26 @@ export function servirPieza(pieza, entidad, medicion) {
     // corrección 2026-09-23 en la cabecera de este archivo. Se sirve TAL CUAL (ya es una oración completa, "No
     // implica que…" — igual que el ejemplo del documento): agregarle el rótulo "No implica:" la duplicaría.
     const noImplica = typeof pieza.no_implica === "string" && pieza.no_implica.trim() ? pieza.no_implica.trim() : null;
-    cuerpo = `En ${entidad} está ocurriendo: ${cifraTxt}${refTxt ? ` contra ${refTxt}` : ""} (medido).${noImplica ? ` ${noImplica}` : ""}`;
+    cuerpo = `En ${entidad} está ocurriendo: ${cifraTxt}${refTxt ? ` contra ${refTxt}` : ""} (${_procTxt(medicion)}).${_bordeTxt(medicion)}${noImplica ? ` ${noImplica}` : ""}`;
+    hechoId = medicion.cifra ? medicion.cifra.id : null;
+  } else if (medicion.estado === "senal" || medicion.estado === "bajo_piso") {
+    // ★ PRI-04 (owner 2026-09-23, Aclaración 2 del diseño sellado, corregido en la segunda vuelta): las TRES
+    // partes fijas, en orden, TAMBIÉN para señal — hecho con cifra · piso con su dueño (ADI) · veredicto. El
+    // veredicto negativo ("bajo_piso") NUNCA niega un hecho: afirma que la diferencia existe, con su cifra, y
+    // muestra el piso. No hay ningún "no" que un anfitrión pueda podar; y en el libro de hechos no existe un
+    // hecho "diferencia = 0", así que "no ocurre" no tiene dueño (regla estructural, no un veto léxico).
+    // `medicion.cifra.texto` YA nombra la entidad y la dirección de la diferencia (medir.js la construye, con
+    // magnitud siempre positiva) — esta forma NO antepone "En {entidad}" para no duplicarlo. Y NO agrega la
+    // procedencia entre paréntesis: «piso de ADI» / «declarado por tu empresa» ya declara quién lo puso — la
+    // jerga de procedencia ("estimación contra referencia") no llega al usuario en esta pieza (queda solo como
+    // dato estructural en `medicion.procedencia`, nunca "medido").
+    const cifraTxt = medicion.cifra ? medicion.cifra.texto : "(cifra no disponible)";
+    const refTxt = medicion.referencia && medicion.referencia.texto ? medicion.referencia.texto : null;
+    const veredictoTxt = medicion.estado === "senal" ? "señal" : "bajo el piso";
+    const negativa = medicion.estado === "senal"
+      ? (typeof pieza.no_implica === "string" && pieza.no_implica.trim() ? ` ${pieza.no_implica.trim()}` : "")
+      : (medicion.noExcluye ? ` Esto no excluye: ${medicion.noExcluye}.` : "");
+    cuerpo = `${cifraTxt}${refTxt ? ` ${refTxt}` : ""} Veredicto: ${veredictoTxt}.${_bordeTxt(medicion)}${negativa}`;
     hechoId = medicion.cifra ? medicion.cifra.id : null;
   } else if (medicion.estado === "no_ocurre") {
     const cifraTxt = medicion.cifra ? medicion.cifra.texto : "(cifra no disponible)";
