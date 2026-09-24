@@ -176,6 +176,12 @@ export const procedenciaDeLaCarga = () => (cargaEsDelNegocio() ? "interna_empres
 export const etiquetaDeLaCarga = () =>
   (cargaEsDelNegocio() ? "tu nivel de carga comercial declarado" : "el nivel de referencia de carga comercial que uso");
 
+/* ── LA MISMA DOCTRINA, PARA EL PISO DE MATERIALIDAD DE FOCOS (owner 2026-09-23, CAU-01) ───────────────────────
+ * `materialidadFocoPctVenta` (0.05% de la venta real) es el mismo piso que ya decide "Carga comercial alta" en
+ * el detector (`specRetrieval.js:pisoFocosUSD`/`figsUmbralFocos`) — un umbral de POLICY como `targetCarga`, así
+ * que se resuelve igual y en el mismo archivo: quien resuelve el valor resuelve de quién es. */
+export const materialidadFocoEsDelNegocio = () => _perfilVal("materialidadFocoPctVenta") !== undefined;
+
 /** La frase corta que declara el límite cuando la vara es nuestra, o "" cuando es del negocio. */
 export const notaDeLaReferencia = () =>
   (referenciaEsDelNegocio() ? "" : "es la referencia general de ADI, no una meta que tu negocio haya declarado");

@@ -28,9 +28,15 @@
 const _RANGO_VALOR = { ocurre: 0, no_ocurre: 1, indeterminable_con_resolucion: 2, indeterminable_sin_resolucion: 3 };
 const _RANGO_ETIQUETA = { C: 0, B: 1, A: 2 };
 
+/* ═══ CORRECCIÓN 2026-09-23 (owner, cierre de CAU-01) — dos vocabularios de estado, un solo valor informativo ═══
+ * PRI-04 (y ahora CAU-01 v2, ver `medir.js`) mide "señal"/"bajo_piso" en vez de "ocurre"/"no_ocurre" — los
+ * mismos DOS niveles de decisión (positivo decisivo · negativo decisivo), con otro nombre porque el veredicto
+ * negativo nunca dice "no ocurre" (Aclaración 2 del diseño sellado de PRI-04). Sin este reconocimiento, "señal"/
+ * "bajo_piso" caían al rango de "indeterminable" — un veredicto MEDIDO, ordenado y reportado como si no se
+ * hubiera podido saber. Es una corrección de exactitud del ordenamiento existente, no una regla nueva. */
 function _valorInformativo(item) {
-  if (item.estado === "ocurre") return _RANGO_VALOR.ocurre;
-  if (item.estado === "no_ocurre") return _RANGO_VALOR.no_ocurre;
+  if (item.estado === "ocurre" || item.estado === "senal") return _RANGO_VALOR.ocurre;
+  if (item.estado === "no_ocurre" || item.estado === "bajo_piso") return _RANGO_VALOR.no_ocurre;
   return item._resolveria ? _RANGO_VALOR.indeterminable_con_resolucion : _RANGO_VALOR.indeterminable_sin_resolucion;
 }
 function _valorEtiqueta(item) {

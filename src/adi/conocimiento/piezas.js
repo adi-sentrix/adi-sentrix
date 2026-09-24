@@ -45,21 +45,44 @@ const _ALCANCE_BASE = { sector: ["distribucion"], tipoProducto: "*", modeloComer
 
 export const PIEZAS_CONOCIMIENTO = [
   {
-    id: "CAU-01", version: 1, tipo: "senal", alimenta: "causalidad", etiqueta: ["B"], grado: "usual",
-    enunciado: "Cuando una cuenta cadena está bajo el benchmark de margen, el oficio mira primero si su carga comercial (convenio, rappel, aporte publicitario, descuento logístico) pesa más que la del resto de la cartera.",
+    // === CAU-01 · LA CARGA COMERCIAL DE LA CUENTA CONTRA EL RESTO DE LA CARTERA (owner 2026-09-23, diseño
+    // aprobado — ver la cabecera de `medir.js:cargaCuentaVsResto`). Sigue sin firmar: `estado`/`firma` no se
+    // tocan acá, esta actualización es de CONTENIDO (medición), la firma es del owner. Reemplaza el promedio
+    // simple de porcentajes (`promedio_resto`, retirado — no es verificable: `hechos.js` no suma porcentajes)
+    // por la TASA REAL PONDERADA del resto (carga $ del resto ÷ venta del resto), comparada contra el piso de
+    // materialidad del Core (`pisoFocosUSD()`, el mismo que decide "Carga comercial alta"). Como PRI-04, ya
+    // NUNCA mide "no_ocurre": el veredicto negativo es "bajo_piso" — afirma la diferencia y el piso, nunca "no
+    // ocurre" (misma ley del diseño sellado de PRI-04, Aclaración 2). ===
+    id: "CAU-01", version: 2, tipo: "senal", alimenta: "causalidad", etiqueta: ["B"], grado: "usual",
+    // enunciado sin el paréntesis de ejemplos ni "más allá del piso de materialidad" (owner 2026-09-24, cierre
+    // de presentación): el bloque de servicio ya declara el piso en su propia línea de cierre — repetirlo acá
+    // era ruido. El encabezado del bloque se arma como "En {sector}, {enunciado en minúscula}" (servir.js).
+    enunciado: "Cuando una cuenta cadena está bajo el benchmark de margen, el oficio mira primero si su carga comercial pesa más que la del resto de la cartera.",
     sujeto: "sector",
-    fuente: { tipo: "principio-del-oficio", detalle: "controller senior; validación owner + socio pendiente" },
+    fuente: { tipo: "principio-del-oficio", detalle: "controller senior; validación owner + socio pendiente (el principio es del oficio; el piso es criterio general de ADI, ajustable por la empresa)" },
     alcance: { ..._ALCANCE_BASE },
     fecha: "2026-09-23", vigencia: "2027-09-23", firma: null, estado: "borrador",
-    no_implica: "No implica que la carga sea la causa del margen bajo: localiza dónde mirar primero, no explica por qué.",
+    // ═══ CORRECCIÓN 2026-09-24 (owner, cierre de presentación) — UNA sola oración de límite, no tres ═══════════
+    // Antes: dos oraciones acá ("No implica…" + "Tampoco implica que una cuenta bajo el piso cargue poco…") más
+    // una tercera servida aparte desde `medicion.no_excluye` ("Esto no excluye: descuentos…") — tres avisos por
+    // bloque. La segunda oración ya la cubre la línea del piso (el bloque ya dice "Bajo el piso de ADI…"); la
+    // tercera se funde ACÁ, en una sola oración, que es lo único que el bloque imprime (`servir.js`: el bloque
+    // usa `pieza.no_implica` tal cual, ya no lo concatena con `medicion.no_excluye`). El texto también corrige
+    // el defecto de raíz (owner): «hipótesis de CAU-04, no sembrada todavía» filtraba un id de pieza al usuario
+    // — ya no se nombra ninguna pieza, ni sembrada ni hipotética.
+    no_implica: "No implica que la carga sea la causa del margen bajo: indica dónde mirar primero; tampoco descarta descuentos aplicados en el pago que no quedaron registrados.",
     pertinencia: { todo: ["cuenta.bajo_benchmark"] },
     medicion: {
       calculo: "cargaCuentaVsResto", existe_en_motor: true, derivado_barato: true,
-      por_entidad: "cuenta", comparador: "mayor", referencia: "promedio_resto",
-      decisivo: true, no_excluye: "descuentos aplicados en el pago sin registrar (hipótesis de CAU-04, no sembrada todavía)",
-      insumos: ["carga % por cuenta (descomposicionDeBrecha)", "carga % de las demás cuentas del mismo dato"],
+      por_entidad: "cuenta", comparador: "mayor", referencia: "tasa_ponderada_resto",
+      decisivo: true, no_excluye: "descuentos aplicados en el pago que no quedaron registrados",
+      insumos: [
+        "carga % y venta por cuenta, propia y del resto de la cartera (descomposicionDeBrecha)",
+        "venta y carga % de TODAS las demás cuentas de la cartera completa (nunca solo las bajo benchmark)",
+        "piso de materialidad de focos comerciales (el mismo del detector del Core — specRetrieval.js:pisoFocosUSD)",
+      ],
     },
-    efecto: { sobre: "causalidad", sentido: "orienta", condicion: "estado = ocurre" },
+    efecto: { sobre: "causalidad", sentido: "orienta", condicion: "estado = senal" },
   },
   {
     // === pieza colapsada 2026-09-23 (owner, defecto 4): antes CAU-06 · RSG-06 · MOV-05 — mismo predicado, mismo
@@ -116,7 +139,14 @@ export const PIEZAS_CONOCIMIENTO = [
     // ocurre" (Aclaración 2 del diseño: «nombrar la pregunta hace verdadero el "no"... la forma segura no
     // responde "no": afirma dos hechos»). ===
     id: "PRI-04", version: 2, tipo: "senal", alimenta: "prioridades", etiqueta: ["B"], grado: "establecido",
-    enunciado: "¿Alguna cuenta pesa más en el vencido que en la venta, con una diferencia que supere el piso de materialidad?",
+    // ═══ CORRECCIÓN 2026-09-24 (coordinador, con autorización expresa para tocar campos de una pieza FIRMADA —
+    // «hacelo sin cambiar su significado… solo se une el texto de sus dos campos existentes») ═══════════════════
+    // ANTES: enunciado en forma de PREGUNTA («¿Alguna cuenta pesa más…?»), distinto de la forma AFIRMATIVA de
+    // las demás piezas — el encabezado del bloque quedaba desparejo (CAU-01 afirma, PRI-04 pregunta). AHORA: la
+    // MISMA idea, en afirmación — el principio no cambia (participación en el vencido vs. participación en la
+    // venta, la brecha localiza exposición), solo la forma gramatical. El encabezado del bloque antepone
+    // "En {sector}, " (servir.js) — acá va solo la cláusula, igual que en CAU-01.
+    enunciado: "el oficio compara la participación de cada cuenta en el vencido con su participación en la venta: una cuenta puede vender poco y deber mucho.",
     sujeto: "sector",
     fuente: { tipo: "principio-del-oficio", detalle: "controller senior; firmada por el owner 2026-09-23 (el principio es del oficio; el piso es criterio general de ADI, ajustable por la empresa)" },
     alcance: { ..._ALCANCE_BASE },
@@ -126,7 +156,15 @@ export const PIEZAS_CONOCIMIENTO = [
      * una vez arriba, las cuentas en el orden de prioridad que ya usa ADI, la cobertura al cierre; (3) la rama sin
      * señal se prueba con carteras de prueba, sin alterar el demo (`_piso_materialidad_gate`). */
     firma: { por: "owner (jc)", fecha: "2026-09-23" }, estado: "firmada",
-    no_implica: "No implica que la cuenta sea mala pagadora: la diferencia puede ser un plazo pactado más largo, o vencido documental en facturas puntuales. Tampoco implica que una cuenta bajo el piso esté al día: el piso mide si la desproporción es grande, no si el vencido existe.",
+    // ANTES: "No implica que la cuenta sea mala pagadora: la diferencia puede ser un plazo pactado más largo, o
+    // vencido documental en facturas puntuales. Tampoco implica que una cuenta bajo el piso esté al día: el piso
+    // mide si la desproporción es grande, no si el vencido existe." (dos oraciones; una tercera se sumaba aparte
+    // desde `medicion.no_excluye` en el bloque viejo). AHORA: una sola oración — la segunda («Tampoco implica…
+    // bajo el piso») la cubre la línea del piso del bloque, y su contenido YA está dentro de la primera oración
+    // (plazo pactado / vencido documental) — unir los dos campos no agrega texto nuevo: `medicion.no_excluye`
+    // (abajo) NO se toca, sigue declarado tal cual para quien lo consulte aparte; el bloque nuevo solo imprime
+    // `no_implica`. Cero cambio de significado: mismo principio, misma salvaguarda, sin la repetición.
+    no_implica: "No implica que la cuenta sea mala pagadora: la diferencia puede ser un plazo pactado más largo o vencido documental en facturas puntuales.",
     pertinencia: {
       alguno: [
         { todo: ["cuenta.vencido_positivo", "cuenta.en_respuesta"] },

@@ -26,6 +26,25 @@ const _CAMPOS_OBLIGATORIOS = ["id", "tipo", "alimenta", "enunciado", "sujeto", "
 const _ESTADOS_VALIDOS = ["borrador", "propuesta", "firmada"];
 const _ALIMENTA_VALIDO = ["impacto", "prioridades", "riesgos", "causalidad", "siguiente_movimiento"];
 
+/* ═══ EL FORMATO DE ID DE PIEZA (owner 2026-09-24, cierre de presentación de CAU-01) ═══════════════════════════
+ * El propio esquema del catálogo (`piezas.js`) nombra sus piezas "CAU-01", "CAU-06", "CAU-03", "PRI-04" — 2 a 5
+ * letras mayúsculas, un guion, 2 o 3 dígitos. Ese es el ÚNICO formato que este proyecto usa para un id de pieza,
+ * declarado UNA vez acá — exportado para que el candado y cualquier otro archivo lo lean de la MISMA fuente,
+ * nunca copiado a mano. */
+export const ID_PIEZA_RE = /\b[A-Z]{2,5}-\d{2,3}\b/;
+
+/* ★ ARREGLO DE RAÍZ (owner 2026-09-24) — «un id interno se filtró al texto del usuario» (CAU-04, una hipótesis
+ * que NI SIQUIERA está sembrada en el catálogo, mencionada dentro de `medicion.no_excluye` de CAU-01). La
+ * carnada anterior comparaba solo contra los ids DEL CATÁLOGO REAL — ciega a cualquier id de una pieza que no
+ * esté sembrada (como CAU-04). El arreglo es ESTRUCTURAL: ningún campo de texto que `servir.js` imprime al
+ * usuario (`enunciado`, `no_implica`, `medicion.no_excluye`) puede contener un token con la FORMA de un id de
+ * pieza — no importa si esa pieza existe hoy en `PIEZAS_CONOCIMIENTO` o no. Una pieza así se rechaza acá, antes
+ * de llegar a pertinencia/medición/servicio. */
+const _CAMPOS_DE_TEXTO_SERVIDO = ["enunciado", "no_implica"];
+function _tieneIdDePieza(texto) {
+  return typeof texto === "string" && ID_PIEZA_RE.test(texto);
+}
+
 /* un dígito ASCII en cualquier parte del JSON de un nodo — ni en un predicado, ni en un valor de composición.
  * `pieza.version`, `pieza.fecha`, `pieza.vigencia`, `pieza.alcance` viven FUERA de `pertinencia`/`efecto` y no
  * se escanean acá (una fecha o una versión no son un umbral de negocio). */
@@ -62,6 +81,14 @@ export function validarPieza(pieza, { entidadesConocidas = [] } = {}) {
   if (pieza.estado !== "borrador" && !pieza.firma) err(`una pieza que no es "borrador" necesita firma declarada`);
   if (!_ALIMENTA_VALIDO.includes(pieza.alimenta)) err(`alimenta "${pieza.alimenta}" no está en la lista válida (${_ALIMENTA_VALIDO.join(" · ")})`);
   if (typeof pieza.no_implica !== "string" || !pieza.no_implica.trim()) err('no_implica no puede estar vacío — cada pieza servida declara lo que su medición NO prueba');
+
+  // ★ NINGÚN ID DE PIEZA EN UN CAMPO QUE SE SIRVE AL USUARIO (owner 2026-09-24) — estructural, por FORMA
+  // (`ID_PIEZA_RE`), no por lista de ids conocidos: atrapa también un id de una pieza que ni siquiera está
+  // sembrada en el catálogo (el caso real: "CAU-04" dentro de `medicion.no_excluye` de CAU-01).
+  for (const campo of _CAMPOS_DE_TEXTO_SERVIDO) {
+    if (_tieneIdDePieza(pieza[campo])) err(`${campo} contiene un token con forma de id de pieza (${ID_PIEZA_RE.exec(pieza[campo])[0]}) — ningún id interno del catálogo puede llegar al texto que lee el usuario`);
+  }
+  if (pieza.medicion && _tieneIdDePieza(pieza.medicion.no_excluye)) err(`medicion.no_excluye contiene un token con forma de id de pieza (${ID_PIEZA_RE.exec(pieza.medicion.no_excluye)[0]}) — ningún id interno del catálogo puede llegar al texto que lee el usuario`);
 
   // CERO LITERALES NUMÉRICOS en pertinencia/efecto/condicion/contraindicacion — el candado central
   if (_tieneDigito(pieza.pertinencia)) err("pertinencia trae un literal numérico — la pieza no puede definir un umbral, solo leer el veredicto del motor");

@@ -10,8 +10,12 @@
  * campo que ya declara el Marco de la Entrega). Es una proyección — el trabajo es publicar, no calcular
  * (§4 B1 del documento).
  *
- * `cuenta.carga_sobre_resto` es la ÚNICA relación derivada acá (mayor(a,b) entre dos cifras que el motor YA
- * calculó, sin umbral): la carga % de una cuenta contra el promedio de carga % de las demás.
+ * ═══ CORRECCIÓN 2026-09-23 (owner, CAU-01) — «cargaSobreResto»/«cargaPromedioResto» se retiran ═══════════════
+ * Eran un SEGUNDO cálculo de "la carga contra el resto" — un promedio simple de porcentajes, sin piso — que
+ * convivía sin verificar al lado del que de verdad sirve la pieza CAU-01 (`medir.js:cargaCuentaVsResto`, la
+ * tasa real ponderada verificada por `libroDeHechos`). Un promedio de tasas no es verificable (`hechos.js` no
+ * suma porcentajes) y ningún predicado ni cálculo los usaba ya — quedaban como ruido, no como una segunda
+ * verdad servida. Se retiran del todo (también de `predicados.js`).
  *
  * Import solo del motor (oracle/, agente/playbooks/, specRetrieval, config/contract) — LA CAPA IMPORTA DEL
  * MOTOR, NUNCA AL REVÉS (candado del plan §4 C, verificado por `_conocimiento_gate.mjs`). Sin red: los playbooks
@@ -133,8 +137,8 @@ export function construirTablaDeSenales({ scenario = ESCENARIO_INICIAL, pregunta
   const cuentas = {};
   const skus = {};
 
-  // ── COMERCIAL: bajo_benchmark · carga_alta · carga_sobre_resto — descomposicionDeBrecha es LA fuente oficial
-  // (specRetrieval.js, la misma que usa `datoProyectado.js:conjuntos["carga comercial alta"]`) ──
+  // ── COMERCIAL: bajo_benchmark · carga_alta — descomposicionDeBrecha es LA fuente oficial (specRetrieval.js,
+  // la misma que usa `datoProyectado.js:conjuntos["carga comercial alta"]`) ──
   let D = null;
   try { D = descomposicionDeBrecha(scenario); } catch { D = null; }
   let prTop = null;
@@ -154,16 +158,11 @@ export function construirTablaDeSenales({ scenario = ESCENARIO_INICIAL, pregunta
   } catch { prTop = null; }
 
   if (D && Array.isArray(D.filas)) {
-    const cargasValidas = D.filas.filter((f) => typeof f.carga === "number");
     for (const f of D.filas) {
-      const otras = cargasValidas.filter((x) => x.entidad !== f.entidad);
-      const promedioResto = otras.length ? otras.reduce((s, x) => s + x.carga, 0) / otras.length : null;
       cuentas[f.entidad] = {
         bajoBenchmark: !!f.bajoBenchmark,
         cargaAlta: !!f.cargaMaterial,
         cargaPct: typeof f.carga === "number" ? f.carga : null,
-        cargaSobreResto: (typeof f.carga === "number" && promedioResto != null) ? f.carga > promedioResto : null,
-        cargaPromedioResto: promedioResto,
         venta: typeof f.venta === "number" ? f.venta : null,
         vencidoPositivo: null, alDia: null, vencido: null,
         variacionVenta: "sin_serie",
@@ -193,7 +192,7 @@ export function construirTablaDeSenales({ scenario = ESCENARIO_INICIAL, pregunta
     for (const f of _all(figsCobranzaCompleta, /· Saldo pendiente$/i)) {
       const e = _entidadDe(_lab(f)); if (!e) continue;
       const v = _num(f);
-      if (!cuentas[e]) cuentas[e] = { bajoBenchmark: null, cargaAlta: null, cargaPct: null, cargaSobreResto: null, cargaPromedioResto: null, venta: null, variacionVenta: "sin_serie", enRespuesta: nombradas.has(e), prioridadPrimera: false };
+      if (!cuentas[e]) cuentas[e] = { bajoBenchmark: null, cargaAlta: null, cargaPct: null, venta: null, variacionVenta: "sin_serie", enRespuesta: nombradas.has(e), prioridadPrimera: false };
       cuentas[e].saldoPendiente = Number.isFinite(v) ? v : null;
       if (cuentas[e].tienePlazoDeclarado === undefined) cuentas[e].tienePlazoDeclarado = false;   // sin fig de vencido todavía: por defecto "sin plazo" — la pasada de abajo lo corrige a `true` si corresponde
     }
@@ -202,7 +201,7 @@ export function construirTablaDeSenales({ scenario = ESCENARIO_INICIAL, pregunta
     for (const f of _all(figsCobranzaCompleta, /· Saldo vencido$/i)) {
       const e = _entidadDe(_lab(f)); if (!e) continue;
       const v = _num(f);
-      if (!cuentas[e]) cuentas[e] = { bajoBenchmark: null, cargaAlta: null, cargaPct: null, cargaSobreResto: null, cargaPromedioResto: null, venta: null, variacionVenta: "sin_serie", enRespuesta: nombradas.has(e), prioridadPrimera: false };
+      if (!cuentas[e]) cuentas[e] = { bajoBenchmark: null, cargaAlta: null, cargaPct: null, venta: null, variacionVenta: "sin_serie", enRespuesta: nombradas.has(e), prioridadPrimera: false };
       cuentas[e].vencido = Number.isFinite(v) ? v : null;
       cuentas[e].vencidoPositivo = Number.isFinite(v) ? v > 0 : null;
       cuentas[e].alDia = Number.isFinite(v) ? v === 0 : null;

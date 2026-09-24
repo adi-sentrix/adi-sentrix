@@ -23,7 +23,6 @@
 export const PREDICADOS_CERRADOS = Object.freeze([
   { predicado: "cuenta.bajo_benchmark", sujeto: "cuenta", disponible: true, fuente: "descomposicionDeBrecha(scenario).filas[].bajoBenchmark (marginRead — brecha > 0 vs benchmark declarado)" },
   { predicado: "cuenta.carga_alta", sujeto: "cuenta", disponible: true, fuente: "conjunto \"carga comercial alta\" del detector (diagnose · datoProyectado.conjuntos)" },
-  { predicado: "cuenta.carga_sobre_resto", sujeto: "cuenta", disponible: true, fuente: "derivado barato: carga % de la cuenta > promedio de carga % de las demás cuentas del mismo dato (relación mayor(a,b), sin umbral)" },
   { predicado: "cuenta.vencido_positivo", sujeto: "cuenta", disponible: true, fuente: "cobranza (mesaFlujo) — saldo vencido > 0" },
   { predicado: "cuenta.al_dia", sujeto: "cuenta", disponible: true, fuente: "cobranza (mesaFlujo) — saldo vencido = 0 (notario/estados.js: \"al día\")" },
   { predicado: "cuenta.sin_plazo_declarado", sujeto: "cuenta", disponible: true, fuente: "cobranza (mesaFlujo) — hay saldo pendiente pero ninguna fig de saldo vencido (config/politicaCobro.js: sin plazo, propio ni general)" },
@@ -94,7 +93,6 @@ export function evaluarPredicadoAtomico(predicado, entidad, tabla, ctx = {}) {
     switch (predicado) {
       case "cuenta.bajo_benchmark": return c.bajoBenchmark;
       case "cuenta.carga_alta": return c.cargaAlta;
-      case "cuenta.carga_sobre_resto": return c.cargaSobreResto;
       case "cuenta.vencido_positivo": return c.vencidoPositivo;
       case "cuenta.al_dia": return c.alDia;
       case "cuenta.sin_plazo_declarado": return c.tienePlazoDeclarado == null ? null : c.tienePlazoDeclarado === false;

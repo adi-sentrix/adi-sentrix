@@ -26,7 +26,20 @@
  * como oración completa, exactamente como en el documento (§1: «No implica que sea la causa del margen.») — se
  * sirve TAL CUAL, sin agregarle un rótulo "No implica:" por delante (eso duplicaría la frase: "No implica: No
  * implica que…"). `medicion.no_excluye` se escribe como frase nominal («descuentos aplicados…») y sí necesita el
- * rótulo fijo "Esto no excluye:" para leerse como oración. */
+ * rótulo fijo "Esto no excluye:" para leerse como oración.
+ *
+ * ═══ CORRECCIÓN 2026-09-23 (owner, cierre de CAU-01) — «cero ruido: la pregunta del oficio UNA vez, el "no
+ * implica" UNA vez» ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Con una sola pieza sirviendo UNA entidad, el encabezado ("El oficio mira: …") y la negativa nunca se repetían.
+ * Con DOS piezas firmadas y una Entrega que nombra VARIAS cuentas de la misma pieza (CAU-01 en 3+ cuentas bajo
+ * benchmark, por ejemplo), cada ítem servido volvía a imprimir el mismo encabezado y la misma negativa — el
+ * defecto que el owner cerró para PRI-04 («la pregunta del oficio una vez arriba») se veía roto apenas una pieza
+ * tenía más de una entidad pertinente. `servirPieza` ahora acepta `{ incluirEncabezado, incluirNegativa }`
+ * (default `true` los dos — el comportamiento de siempre, byte-idéntico para una pieza con una sola entidad
+ * servida) para que el LLAMADOR (`seleccionar.js`, tras acotadores) decida, por pieza, cuál de los ítems
+ * servidos lleva el encabezado y cuáles negativas ya se sirvieron — sin tocar `acotadores.js` ni tocar el orden
+ * ni el contenido de lo que cada cuenta mide. El texto devuelve además `negativaTexto` (la negativa exacta que
+ * ESTE ítem aportaría, o `null`) para que el llamador sepa si ya la vio. */
 const _SECTOR_TXT = { distribucion: "distribución", fabricacion: "fabricación", minorista: "minorista", servicios: "servicios", obras: "obras" };
 /* el nombre de cada procedencia, EXACTO al de `notario/hechos.js:NOMBRE_DE_PROCEDENCIA` — declarado acá en vez
  * de importado a propósito: `conocimiento/` no depende de `notario/` para texto de prosa (solo `medir.js` lo
@@ -45,15 +58,21 @@ function _sectorDe(pieza) {
   return lista.map((x) => _SECTOR_TXT[x] || x).join(" y ");
 }
 
-/** servirPieza(pieza, entidad, medicion) → { texto, fuente, alcance, fecha, vigencia, firma, hechoId } | null
+/** servirPieza(pieza, entidad, medicion, { incluirEncabezado, incluirNegativa }) → { texto, fuente, alcance,
+ *  fecha, vigencia, firma, hechoId, negativaTexto } | null
  *  Nunca sirve si `pieza.estado !== "firmada"` (candado del gate — ver `seleccionar.js`, que es quien filtra
- *  ANTES de llegar acá; este módulo no vuelve a chequear el gobierno, solo redacta con la forma fija). */
-export function servirPieza(pieza, entidad, medicion) {
+ *  ANTES de llegar acá; este módulo no vuelve a chequear el gobierno, solo redacta con la forma fija).
+ *  `incluirEncabezado`/`incluirNegativa` (default `true` los dos): el llamador los pone en `false` para no
+ *  repetir el encabezado o una negativa ya servida por OTRO ítem de la misma pieza en la misma sección (ver la
+ *  corrección 2026-09-23 en la cabecera). `negativaTexto` siempre se devuelve (aunque `incluirNegativa` sea
+ *  `false`) para que el llamador sepa cuál negativa "vio" este ítem. */
+export function servirPieza(pieza, entidad, medicion, { incluirEncabezado = true, incluirNegativa = true } = {}) {
   if (!pieza || !medicion) return null;
-  const oficio = `El oficio mira: ${pieza.enunciado}`;
   const sector = _sectorDe(pieza);
+  const encabezado = incluirEncabezado ? `El oficio mira: ${pieza.enunciado} (en ${sector}). ` : "";
   let cuerpo = "";
   let hechoId = null;
+  let negativaTexto = null;
 
   if (medicion.estado === "ocurre") {
     const cifraTxt = medicion.cifra ? medicion.cifra.texto : "(cifra no disponible)";
@@ -62,11 +81,12 @@ export function servirPieza(pieza, entidad, medicion) {
     // corrección 2026-09-23 en la cabecera de este archivo. Se sirve TAL CUAL (ya es una oración completa, "No
     // implica que…" — igual que el ejemplo del documento): agregarle el rótulo "No implica:" la duplicaría.
     const noImplica = typeof pieza.no_implica === "string" && pieza.no_implica.trim() ? pieza.no_implica.trim() : null;
-    cuerpo = `En ${entidad} está ocurriendo: ${cifraTxt}${refTxt ? ` contra ${refTxt}` : ""} (${_procTxt(medicion)}).${_bordeTxt(medicion)}${noImplica ? ` ${noImplica}` : ""}`;
+    negativaTexto = noImplica;
+    cuerpo = `En ${entidad} está ocurriendo: ${cifraTxt}${refTxt ? ` contra ${refTxt}` : ""} (${_procTxt(medicion)}).${_bordeTxt(medicion)}${(incluirNegativa && noImplica) ? ` ${noImplica}` : ""}`;
     hechoId = medicion.cifra ? medicion.cifra.id : null;
   } else if (medicion.estado === "senal" || medicion.estado === "bajo_piso") {
-    // ★ PRI-04 (owner 2026-09-23, Aclaración 2 del diseño sellado, corregido en la segunda vuelta): las TRES
-    // partes fijas, en orden, TAMBIÉN para señal — hecho con cifra · piso con su dueño (ADI) · veredicto. El
+    // ★ PRI-04/CAU-01 (owner 2026-09-23, Aclaración 2 del diseño sellado, corregido en la segunda vuelta): las
+    // TRES partes fijas, en orden, TAMBIÉN para señal — hecho con cifra · piso con su dueño (ADI) · veredicto. El
     // veredicto negativo ("bajo_piso") NUNCA niega un hecho: afirma que la diferencia existe, con su cifra, y
     // muestra el piso. No hay ningún "no" que un anfitrión pueda podar; y en el libro de hechos no existe un
     // hecho "diferencia = 0", así que "no ocurre" no tiene dueño (regla estructural, no un veto léxico).
@@ -78,15 +98,17 @@ export function servirPieza(pieza, entidad, medicion) {
     const cifraTxt = medicion.cifra ? medicion.cifra.texto : "(cifra no disponible)";
     const refTxt = medicion.referencia && medicion.referencia.texto ? medicion.referencia.texto : null;
     const veredictoTxt = medicion.estado === "senal" ? "señal" : "bajo el piso";
-    const negativa = medicion.estado === "senal"
-      ? (typeof pieza.no_implica === "string" && pieza.no_implica.trim() ? ` ${pieza.no_implica.trim()}` : "")
-      : (medicion.noExcluye ? ` Esto no excluye: ${medicion.noExcluye}.` : "");
+    negativaTexto = medicion.estado === "senal"
+      ? (typeof pieza.no_implica === "string" && pieza.no_implica.trim() ? pieza.no_implica.trim() : null)
+      : (medicion.noExcluye ? `Esto no excluye: ${medicion.noExcluye}.` : null);
+    const negativa = (incluirNegativa && negativaTexto) ? ` ${negativaTexto}` : "";
     cuerpo = `${cifraTxt}${refTxt ? ` ${refTxt}` : ""} Veredicto: ${veredictoTxt}.${_bordeTxt(medicion)}${negativa}`;
     hechoId = medicion.cifra ? medicion.cifra.id : null;
   } else if (medicion.estado === "no_ocurre") {
     const cifraTxt = medicion.cifra ? medicion.cifra.texto : "(cifra no disponible)";
     const refTxt = medicion.referencia && medicion.referencia.texto ? medicion.referencia.texto : null;
-    cuerpo = `ADI lo midió: en ${entidad} NO está ocurriendo: ${cifraTxt}${refTxt ? ` contra ${refTxt}` : ""}.${medicion.noExcluye ? ` Esto no excluye: ${medicion.noExcluye}.` : ""}`;
+    negativaTexto = medicion.noExcluye ? `Esto no excluye: ${medicion.noExcluye}.` : null;
+    cuerpo = `ADI lo midió: en ${entidad} NO está ocurriendo: ${cifraTxt}${refTxt ? ` contra ${refTxt}` : ""}.${(incluirNegativa && negativaTexto) ? ` ${negativaTexto}` : ""}`;
     hechoId = medicion.cifra ? medicion.cifra.id : null;
   } else {
     cuerpo = `Con estos datos no se puede saber en ${entidad}: falta ${medicion.motivo || "el insumo necesario"}.${medicion.resolveria ? ` Lo resolvería: ${medicion.resolveria}.` : ""}`;
@@ -94,7 +116,7 @@ export function servirPieza(pieza, entidad, medicion) {
   }
 
   return {
-    texto: `${oficio} (en ${sector}). ${cuerpo}`,
+    texto: `${encabezado}${cuerpo}`,
     fuente: pieza.fuente || null,
     alcance: pieza.alcance || null,
     fecha: pieza.fecha || null,
@@ -104,5 +126,134 @@ export function servirPieza(pieza, entidad, medicion) {
     entidad,
     estado: medicion.estado,
     hechoId,
+    negativaTexto,
   };
+}
+
+/* ═══ EL BLOQUE, POR PIEZA CON VEREDICTO SEÑAL/BAJO_PISO (owner 2026-09-24, cierre de presentación de CAU-01)
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+ * El listado por ítem (`servirPieza` + `acotadores.js`) sirve bien a CAU-06/CAU-03 (estados "ocurre"/
+ * "no_ocurre", pocas entidades pertinentes por turno), pero para una pieza que mide TODA la cartera bajo un
+ * mismo criterio —señal/bajo_piso, PRI-04 y CAU-01— el owner encontró tres defectos reales en la muestra en
+ * vivo: (1) una SEÑAL (lo material) podía quedar escondida en la línea de "no entraron por espacio" — nunca
+ * aceptable; (2) el id interno de la pieza ("(CAU-01)") se filtraba al texto del usuario; (3) redacción
+ * robótica ("El oficio mira: Cuando…", paréntesis colgando).
+ *
+ * La forma nueva, UN bloque por pieza, nunca cortado por `acotadores.js` (bypassa ese pipeline entero — ver
+ * `seleccionar.js:_BLOQUE_POR_CALCULO`): encabezado (una vez, lenguaje de negocio) → una línea POR CADA señal,
+ * siempre, con nombre → una línea con las cuentas bajo el piso (primero las que tienen exceso, con "al borde"
+ * si corresponde; después las que cargan/pesan menos, agrupadas) → el "no implica" (una vez) → el cierre
+ * (piso + cobertura, ya armado por `coberturaCargaVsResto`/`coberturaPisoDeCobranza`). Cada cifra sigue siendo
+ * la que ya verificó `medir.js` — este módulo solo redacta, nunca inventa un número: lee `medicion.partes`
+ * (crudo, sin parsear texto) para cada cuenta. */
+const _minuscula = (s) => { const t = String(s || "").trim(); return t ? t.charAt(0).toLowerCase() + t.slice(1) : t; };
+function _headerDeBloque(pieza) {
+  const sector = _sectorDe(pieza);
+  const e = String(pieza.enunciado || "").trim();
+  // una pregunta ("¿…?") no se empalma en minúscula tras una coma — se dos-puntea, tal cual, para que se lea
+  // como pregunta y no como una frase mal cortada. Owner 2026-09-24: las piezas del catálogo hoy afirman, no
+  // preguntan (PRI-04 se unificó); esta rama queda por si una futura pieza sí lo hace.
+  return e.startsWith("¿") ? `En ${sector}: ${e}` : `En ${sector}, ${_minuscula(e)}`;
+}
+/* "A, B y C" — la coordinación de la casa (nunca "A, B, y C" con coma antes de "y"). */
+const _listaConY = (arr) => (arr.length <= 1 ? (arr[0] || "") : `${arr.slice(0, -1).join(", ")} y ${arr[arr.length - 1]}`);
+/* la línea única de "bajo el piso": primero las que tienen exceso (con "al borde" si corresponde), separadas
+ * por punto y coma de las que cargan/pesan menos (agrupadas, sin repetir cifra — la cifra es lo que las hace
+ * señal o borde; cargar menos no tiene "exceso" que mostrar, owner 2026-09-23). `null` si no hay ninguna cuenta
+ * bajo el piso (pieza sin veredictos negativos este turno — el bloque simplemente no trae esta línea). */
+function _lineaBajoPiso(conExceso, sinExceso, pisoDe, verboMenosSing, verboMenosPlural) {
+  const partes = [];
+  if (conExceso.length) partes.push(`Bajo ${pisoDe}: ${conExceso.join(", ")}`);
+  if (sinExceso.length) {
+    const verbo = sinExceso.length === 1 ? verboMenosSing : verboMenosPlural;
+    const frase = `${_listaConY(sinExceso)} ${verbo}`;
+    partes.push(conExceso.length ? `; ${frase}` : frase.charAt(0).toUpperCase() + frase.slice(1));
+  }
+  if (!partes.length) return null;
+  return `${partes.join("")}.`;
+}
+/* la oración de límite ÚNICA del bloque (owner 2026-09-24, defecto 2 — «tres avisos por bloque»): el campo
+ * `pieza.no_implica` YA es la oración completa que se sirve, tal cual, sin concatenar `medicion.no_excluye` —
+ * lo que antes agregaba una tercera oración ahora vive DENTRO de `no_implica` (una decisión de contenido, en
+ * `piezas.js`, no de este módulo: acá solo se imprime UNA vez). */
+const _oracionDeLimite = (pieza) => (typeof pieza.no_implica === "string" && pieza.no_implica.trim()) ? pieza.no_implica.trim() : null;
+/* CUENTAS NOMBRADAS → línea completa; SEÑALES NO NOMBRADAS, cuando la pieza es contexto adicional (no responde
+ * el tema de la pregunta) → compactadas por nombre y monto, nunca ocultas (owner 2026-09-24, defecto 4). El
+ * criterio de "responde la pregunta" lo decide el LLAMADOR (`seleccionar.js`, con `dominiosDe(pregunta)` — el
+ * contrato de dominios que ya existe, ningún clasificador nuevo) y llega ya resuelto en `respondeLaPregunta`. */
+function _despliegaCompleta(entidad, nombradas, respondeLaPregunta) {
+  return respondeLaPregunta || nombradas.has(entidad);
+}
+
+/** servirBloqueCargaVsResto(pieza, porEntidad, cierreTexto, opts) → { texto, ... } | null — el bloque de CAU-01.
+ *  `porEntidad`: Map(entidad → medicion), en el orden natural de la cartera (`medir.js:resultadosCargaVsResto`).
+ *  `cierreTexto`: el texto YA armado por `medir.js:coberturaCargaVsResto` (piso + cobertura, una sola verdad —
+ *  este módulo no lo recalcula). `opts.nombradas` (Set, default vacío) y `opts.respondeLaPregunta` (boolean,
+ *  default true — desplegar todo si el llamador no lo declara, el comportamiento de siempre). `null` si no hay
+ *  ninguna medición con `.partes` (defensivo: nada que redactar). */
+export function servirBloqueCargaVsResto(pieza, porEntidad, cierreTexto, { nombradas = new Set(), respondeLaPregunta = true } = {}) {
+  if (!pieza || !porEntidad || !porEntidad.size || !cierreTexto) return null;
+  const señalLineas = [];
+  const señalesCompactas = [];
+  const conExceso = [];
+  const sinExceso = [];
+  let pisoDe = null;
+  for (const [entidad, m] of porEntidad) {
+    if (!m || !m.partes) continue;
+    const p = m.partes;
+    if (pisoDe == null) pisoDe = p.declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI";
+    if (m.estado === "senal") {
+      if (_despliegaCompleta(entidad, nombradas, respondeLaPregunta)) {
+        /* «$X sobre el piso ($Y)» se leía como si superara el piso POR $X: el monto es la diferencia contra el resto,
+         * y el piso se nombra aparte («supera»), nunca como punto de partida del monto (supervisor 2026-09-24). */
+        señalLineas.push(`${entidad}: ${p.propio} de su venta en carga comercial contra ${p.resto} del resto de la cartera; ${p.puntos}, ${p.monto} por encima del resto; supera ${pisoDe} (${p.pisoTexto}). Señal.`);
+      } else {
+        señalesCompactas.push(`${entidad} (${p.monto})`);
+      }
+    } else if (m.estado === "bajo_piso") {
+      if (p.sentido === "mas") conExceso.push(`${entidad} (${p.monto} por encima del resto${m.borde ? ", al borde" : ""})`);
+      else sinExceso.push(entidad);
+    }
+  }
+  if (!señalLineas.length && !señalesCompactas.length && !conExceso.length && !sinExceso.length) return null;
+  const señalCompactaLinea = señalesCompactas.length ? `También superan ${pisoDe}: ${señalesCompactas.join(", ")}.` : null;
+  const bajoPisoLinea = pisoDe ? _lineaBajoPiso(conExceso, sinExceso, pisoDe, "carga menos que el resto de la cartera", "cargan menos que el resto de la cartera") : null;
+  const negativa = _oracionDeLimite(pieza);
+  const texto = [_headerDeBloque(pieza), ...señalLineas, señalCompactaLinea, bajoPisoLinea, negativa, cierreTexto].filter((s) => s && s.trim()).join(" ");
+  return { texto, piezaId: pieza.id, fuente: pieza.fuente || null, alcance: pieza.alcance || null, fecha: pieza.fecha || null, vigencia: pieza.vigencia || null, firma: pieza.firma || null, estado: "bloque" };
+}
+
+/** servirBloquePisoDeCobranza(pieza, porEntidad, cierreTexto, opts) → { texto, ... } | null — el bloque de
+ *  PRI-04, la MISMA forma que `servirBloqueCargaVsResto` (ver la cabecera de arriba), con el vocabulario propio
+ *  de PRI-04 (participación en el vencido vs. en la venta — "pesa", no "carga"). `porEntidad`:
+ *  `medir.js:resultadosPisoDeCobranza`. `opts` igual que en `servirBloqueCargaVsResto`. Sin cambiar ningún
+ *  veredicto ni la pertinencia sellada de PRI-04. */
+export function servirBloquePisoDeCobranza(pieza, porEntidad, cierreTexto, { nombradas = new Set(), respondeLaPregunta = true } = {}) {
+  if (!pieza || !porEntidad || !porEntidad.size || !cierreTexto) return null;
+  const señalLineas = [];
+  const señalesCompactas = [];
+  const conExceso = [];
+  const sinExceso = [];
+  let pisoDe = null;
+  for (const [entidad, m] of porEntidad) {
+    if (!m || !m.partes) continue;
+    const p = m.partes;
+    if (pisoDe == null) pisoDe = p.declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI";
+    if (m.estado === "senal") {
+      if (_despliegaCompleta(entidad, nombradas, respondeLaPregunta)) {
+        señalLineas.push(`${entidad}: ${p.propio} del vencido contra ${p.resto} de la venta; ${p.puntos}, ${p.monto} de diferencia; supera ${pisoDe} (${p.pisoTexto}). Señal.`);
+      } else {
+        señalesCompactas.push(`${entidad} (${p.monto})`);
+      }
+    } else if (m.estado === "bajo_piso") {
+      if (p.sentido === "mas") conExceso.push(`${entidad} (${p.monto} de diferencia${m.borde ? ", al borde" : ""})`);
+      else sinExceso.push(entidad);
+    }
+  }
+  if (!señalLineas.length && !señalesCompactas.length && !conExceso.length && !sinExceso.length) return null;
+  const señalCompactaLinea = señalesCompactas.length ? `También superan ${pisoDe}: ${señalesCompactas.join(", ")}.` : null;
+  const bajoPisoLinea = pisoDe ? _lineaBajoPiso(conExceso, sinExceso, pisoDe, "pesa menos en el vencido que en la venta", "pesan menos en el vencido que en la venta") : null;
+  const negativa = _oracionDeLimite(pieza);
+  const texto = [_headerDeBloque(pieza), ...señalLineas, señalCompactaLinea, bajoPisoLinea, negativa, cierreTexto].filter((s) => s && s.trim()).join(" ");
+  return { texto, piezaId: pieza.id, fuente: pieza.fuente || null, alcance: pieza.alcance || null, fecha: pieza.fecha || null, vigencia: pieza.vigencia || null, firma: pieza.firma || null, estado: "bloque" };
 }

@@ -51,6 +51,12 @@
 import { libroDeHechos, peorProcedencia, formatoDeLaCasa } from "../notario/hechos.js";
 import { pisoMaterialidadCobranzaDe, BORDE_FACTOR_INFERIOR, BORDE_FACTOR_SUPERIOR } from "../../config/contract/pisoMaterialidadCobranza.js";
 import { getTenantData } from "../../data/tenantStore.js";
+/* ── CAU-01 · LA CARGA COMERCIAL DE LA CUENTA CONTRA EL RESTO DE LA CARTERA (owner 2026-09-23, diseño aprobado)
+ * — el MISMO piso que ya decide "Carga comercial alta" en el detector del Core (nunca recalculado aparte: se
+ * toma de `pisoFocosUSD()`, specRetrieval.js) y la MISMA doctrina de propiedad que ya resuelve `businessPolicy.js`
+ * para el resto de los umbrales de POLICY (`materialidadFocoEsDelNegocio`, hermana de `cargaEsDelNegocio`). */
+import { pisoFocosUSD } from "../specRetrieval.js";
+import { POLICY, materialidadFocoEsDelNegocio } from "../../config/businessPolicy.js";
 
 /* el número crudo de un hecho YA VERIFICADO por `libroDeHechos` (h.ok === true): para `cifra` es el único valor
  * declarado; para `razon` es el ÚLTIMO de los tres (numerador, denominador, razón) — ver hechos.js:_razon, que
@@ -114,31 +120,157 @@ function _constOperando(H, label, concepto) {
  * hechosDeApoyo: [id,...] }. `condicion` es el resultado de la relación (mayor/menor/pertenece) — nunca un
  * número que esta capa inventó: sale de comparar `raw`s que YA verificó `libroDeHechos`. ── */
 const CALCULOS = {
+  /* ── CAU-01 · LA CARGA COMERCIAL DE LA CUENTA CONTRA EL RESTO DE LA CARTERA (owner 2026-09-23, diseño aprobado)
+   * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   * «El resto de la cartera» = la TASA REAL PONDERADA del resto, nunca el promedio simple de porcentajes (un
+   * promedio de tasas no es verificable: `hechos.js` no suma porcentajes — regla 1 del owner). Para la cuenta
+   * `entidad`, sobre las OTRAS cuentas de la CARTERA COMPLETA (nunca solo las bajo benchmark ni las nombradas en
+   * la Respuesta):
+   *   tasa_resto = Σ(carga%ᵢ × ventaᵢ) del resto ÷ Σ(ventaᵢ) del resto     (carga $ del resto ÷ venta del resto)
+   *   exceso = (carga%_propia − tasa_resto) × venta_propia                (mismo signo que la diferencia de pp)
+   *   piso   = pisoFocosUSD() — el MISMO piso que decide "Carga comercial alta" en el detector del Core (Core:
+   *            0,05% de la venta REAL del negocio · specRetrieval.js, NUNCA recalculado aparte)
+   *   Señal ⟺ exceso ≥ piso. Si la cuenta carga MENOS o IGUAL que el resto (exceso ≤ 0), nunca hay exceso que
+   *   comparar: siempre "bajo el piso" (regla del owner: «no hay exceso que comparar con el piso» — nunca se dice
+   *   "queda bajo el piso" al lado de "a favor", se lee contradictorio).
+   * Cada cifra —la carga% y la venta de cada cuenta, propia y del resto— es un HECHO por separado, verificado por
+   * `libroDeHechos` (el mismo camino que ya prueba la cabecera de este archivo para las 13 cuentas del demo); el
+   * carga-$ por cuenta, los totales del resto, la tasa, la diferencia en pp y el exceso en $ son DERIVADAS
+   * encadenadas por id dentro del MISMO libro — ningún dígito lo calcula esta capa por fuera de esa verificación.
+   * Si CUALQUIER cuenta del resto no verifica venta o carga, la medición entera de `entidad` es "no se puede
+   * saber" (nunca un resto parcial vendido como completo — regla del owner, misma que la regla 2 del sello de
+   * PRI-04). */
   cargaCuentaVsResto(entidad, tabla) {
     const I = tabla && tabla._indice;
     if (!I) return { insuficiente: true, motivo: "no hay índice de evidencia para verificar la carga comercial de esta boleta", resolveria: "reconstruir la tabla de señales con la boleta comercial disponible" };
-    const otras = Object.keys((tabla && tabla.cuentas) || {}).filter((e) => e !== entidad);
-    if (!otras.length) return { insuficiente: true, motivo: `no hay otras cuentas con las que promediar la carga comercial de ${entidad}`, resolveria: "cargar el resto de la cartera" };
+    const cs = (tabla && tabla.cuentas) || {};
+    // la cartera COMPLETA (owner: «nunca solo las bajo benchmark ni las nombradas en la respuesta») — toda
+    // cuenta con venta comercial declarada en este turno, el mismo universo que `descomposicionDeBrecha` publica.
+    const cartera = Object.keys(cs).filter((e) => cs[e] && cs[e].venta != null);
+    if (!cs[entidad] || cs[entidad].venta == null) return { insuficiente: true, motivo: `${entidad} no tiene venta comercial declarada en la boleta de este turno`, resolveria: "correr marginRead/diagnose para esta cuenta" };
+    const otras = cartera.filter((e) => e !== entidad);
+    if (!otras.length) return { insuficiente: true, motivo: `no hay otras cuentas en la cartera con las que comparar la carga comercial de ${entidad}`, resolveria: "cargar el resto de la cartera" };
 
     const hechos = [
       { id: "carga_propia", tipo: "cifra", sujeto: entidad, metrica: "carga" },
-      ...otras.map((e, i) => ({ id: `carga_resto_${i}`, tipo: "cifra", sujeto: e, metrica: "carga" })),
+      { id: "venta_propia", tipo: "cifra", sujeto: entidad, metrica: "ventas" },
     ];
+    const cargaUSDIds = [], ventaIds = [];
+    otras.forEach((e, i) => {
+      hechos.push({ id: `carga_resto_${i}`, tipo: "cifra", sujeto: e, metrica: "carga" });
+      hechos.push({ id: `venta_resto_${i}`, tipo: "cifra", sujeto: e, metrica: "ventas" });
+      // carga $ de esta cuenta del resto = venta × carga% — una derivada por cuenta, encadenada por id dentro
+      // del mismo libro (nunca un promedio de porcentajes).
+      hechos.push({ id: `cargaUSD_resto_${i}`, tipo: "derivada", op: "producto", de: [`venta_resto_${i}`, `carga_resto_${i}`] });
+      cargaUSDIds.push(`cargaUSD_resto_${i}`); ventaIds.push(`venta_resto_${i}`);
+    });
+    const cargaUSDTotalId = cargaUSDIds.length >= 2 ? "cargaUSD_total" : cargaUSDIds[0];
+    const ventaTotalId = ventaIds.length >= 2 ? "venta_total" : ventaIds[0];
+    if (cargaUSDIds.length >= 2) hechos.push({ id: "cargaUSD_total", tipo: "derivada", op: "suma", de: cargaUSDIds });
+    if (ventaIds.length >= 2) hechos.push({ id: "venta_total", tipo: "derivada", op: "suma", de: ventaIds });
+    // tasa_resto = carga $ del resto ÷ venta del resto (la tasa REAL ponderada, no el promedio de porcentajes)
+    hechos.push({ id: "tasa_resto", tipo: "derivada", op: "cociente", de: [cargaUSDTotalId, ventaTotalId] });
+    hechos.push({ id: "dif_pp", tipo: "derivada", op: "pp", de: ["carga_propia", "tasa_resto"] });
+    // exceso = dif_pp × venta propia — se calcula siempre (con el signo de dif_pp); solo se USA cuando dif_pp > 0
+    hechos.push({ id: "exceso", tipo: "derivada", op: "producto", de: ["dif_pp", "venta_propia"] });
+
     const libro = libroDeHechos(hechos, { indice: I });
-    const propio = libro.hechos[0];
-    const resto = libro.hechos.slice(1).filter((h) => h.ok);
+    const porId = libro.porId;
+    const propioCarga = porId.get("carga_propia"), propioVenta = porId.get("venta_propia");
+    if (!propioCarga || !propioCarga.ok) return { insuficiente: true, motivo: `la carga comercial de ${entidad} no se pudo verificar en la boleta (${propioCarga ? propioCarga.motivo : "sin hecho"})`, resolveria: "correr marginRead/diagnose para esta cuenta" };
+    if (!propioVenta || !propioVenta.ok) return { insuficiente: true, motivo: `la venta de ${entidad} no se pudo verificar en la boleta (${propioVenta ? propioVenta.motivo : "sin hecho"})`, resolveria: "correr marginRead/diagnose para esta cuenta" };
 
-    if (!propio || !propio.ok) return { insuficiente: true, motivo: `la carga comercial de ${entidad} no se pudo verificar en la boleta (${propio ? propio.motivo : "sin hecho"})`, resolveria: "correr marginRead/diagnose para esta cuenta" };
-    if (!resto.length) return { insuficiente: true, motivo: "ninguna de las demás cuentas verificó su carga comercial para calcular el promedio", resolveria: "correr marginRead/diagnose para el resto de la cartera" };
+    // ★ regla del owner: el resto es la cartera completa o la pieza no mide — nunca un resto parcial vendido
+    // como completo. Se comprueba CADA cuenta del resto por separado (no basta con que la suma final "no dé
+    // error": una cuenta faltante tiene que nombrarse).
+    const fallidas = [];
+    otras.forEach((e, i) => {
+      const hC = porId.get(`carga_resto_${i}`), hV = porId.get(`venta_resto_${i}`);
+      if (!hC || !hC.ok || !hV || !hV.ok) fallidas.push(e);
+    });
+    if (fallidas.length) {
+      return {
+        insuficiente: true,
+        motivo: `el resto de la cartera no se pudo verificar completo: ${otras.length - fallidas.length} de ${otras.length} cuentas (sin verificar: ${fallidas.join(", ")})`,
+        resolveria: "correr marginRead/diagnose para el resto de la cartera",
+      };
+    }
 
-    const propioRaw = _crudo(propio);
-    const promedioResto = resto.reduce((s, h) => s + _crudo(h), 0) / resto.length;
+    const hTasaResto = porId.get("tasa_resto");
+    if (!hTasaResto || !hTasaResto.ok) return { insuficiente: true, motivo: `la tasa de carga del resto de la cartera no se pudo verificar para ${entidad}`, resolveria: null };
+    const hDifPp = porId.get("dif_pp");
+    if (!hDifPp || !hDifPp.ok) return { insuficiente: true, motivo: `la diferencia de carga comercial de ${entidad} contra el resto no se pudo verificar`, resolveria: null };
+    const hExceso = porId.get("exceso");
+    if (!hExceso || !hExceso.ok) return { insuficiente: true, motivo: `el exceso de carga comercial de ${entidad} no se pudo verificar`, resolveria: null };
+
+    const difPpRaw = _crudo(hDifPp), excesoRaw = _crudo(hExceso);
+    const direccion = difPpRaw > 0 ? "carga más" : difPpRaw < 0 ? "carga menos" : "carga igual";
+    const aFavor = difPpRaw < 0 ? " a su favor" : "";
+    const puntosTxt = formatoDeLaCasa(Math.abs(difPpRaw), "pp").replace(/\bpp\b/, "puntos");
+    const montoAbsTxt = formatoDeLaCasa(Math.abs(excesoRaw), "money");
+    const cargaPropiaTxt = propioCarga.render.valor, cargaRestoTxt = hTasaResto.render.valor;
+    // hecho con cifra (parte 1) — nombra la entidad, su carga y la tasa REAL del resto de la cartera (regla 3
+    // del encargo: el texto de CAU-01 nombra siempre "el resto de la cartera" como su referencia).
+    const hechoTxt = `${entidad} ${direccion} en carga comercial que el resto de la cartera: ${cargaPropiaTxt} propio y ${cargaRestoTxt} del resto de la cartera. La diferencia es de ${puntosTxt}, ${montoAbsTxt}${aFavor}.`;
+
+    // piso con su dueño (parte 2) — tomado de la MISMA función del Core, nunca recalculado aparte.
+    const pisoUSD = pisoFocosUSD();
+    const declaradoPorLaEmpresa = materialidadFocoEsDelNegocio();
+    const pctMaterialidad = POLICY.materialidadFocoPctVenta;
+    const pisoTxt = formatoDeLaCasa(pisoUSD, "money");
+    // el mismo formato que ya usa `specRetrieval.js:declaracionUmbralFocos` para el % (String(pct), no
+    // formatoDeLaCasa: un 0,05% redondeado a un decimal leería "0.1%" y mentiría sobre el piso real) — y la
+    // MISMA frase que la pestaña Comercial ("de tu venta", owner 2026-09-24: nunca "de tu venta real"). Sin
+    // paréntesis propios: quien la usa (referenciaTexto de abajo, coberturaCargaVsResto) ya la envuelve en los
+    // suyos — anidar paréntesis fue exactamente el defecto 4 que el owner cazó («($50K) mal ubicado»).
+    const pisoDesc = `${String(pctMaterialidad)}% de tu venta, ${pisoTxt}`;
+    const pisoDe = declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI";
+
+    let material, referenciaTexto, borde;
+    if (difPpRaw > 0) {
+      material = excesoRaw >= pisoUSD;
+      // el borde (mismo criterio que PRI-04): el veredicto cambiaría dentro de la banda [piso/2, 2×piso]
+      const pisoInf = BORDE_FACTOR_INFERIOR * pisoUSD, pisoSup = BORDE_FACTOR_SUPERIOR * pisoUSD;
+      borde = (excesoRaw >= pisoInf) !== (excesoRaw >= pisoSup);
+      referenciaTexto = material ? `Supera ${pisoDe} (${pisoDesc}).` : `Queda bajo ${pisoDe} (${pisoDesc}).`;
+    } else {
+      // ★ owner: la cuenta carga MENOS (o igual) que el resto — no hay exceso que comparar con el piso; nunca
+      // "queda bajo el piso" al lado de "a favor" (se lee contradictorio). Siempre bajo el piso, sin borde: no
+      // hay exceso cerca del que el veredicto pueda cambiar.
+      material = false;
+      borde = false;
+      referenciaTexto = `No hay exceso que comparar con ${pisoDe} (${pisoDesc}).`;
+    }
+
+    const procedencia = peorProcedencia(hExceso.procedencia, declaradoPorLaEmpresa ? "supuesto_usuario" : "estimacion_referencia");
+    const hechosDeApoyo = [
+      propioCarga.id, propioVenta.id,
+      ...otras.flatMap((e, i) => [`carga_resto_${i}`, `venta_resto_${i}`]),
+      cargaUSDTotalId, ventaTotalId, hTasaResto.id, hDifPp.id, hExceso.id,
+    ];
+
     return {
       insuficiente: false,
-      condicion: propioRaw > promedioResto,
-      citas: [_cita(propio)],
-      referenciaTexto: `${promedioResto.toFixed(1)}% (promedio de ${resto.length} de ${otras.length} cuentas verificadas — cada una, un hecho verificado por separado)`,
-      hechosDeApoyo: resto.map((h) => h.id),
+      condicion: material,
+      // "señal"/"bajo_piso" — los mismos dos estados PROPIOS que ya sirve PRI-04 (servir.js ya tiene su forma
+      // fija genérica para cualquier pieza que los declare): nunca "no_ocurre" — el veredicto negativo afirma
+      // la diferencia y el piso, nunca "no ocurre" (misma ley que PRI-04).
+      estadoVerdadero: "senal",
+      estadoFalso: "bajo_piso",
+      citas: [{ id: hExceso.id, texto: hechoTxt }],
+      referenciaTexto,
+      hechosDeApoyo,
+      borde,
+      procedencia,
+      // ═══ owner 2026-09-24 (presentación en bloque) — las PARTES crudas de la redacción, para que servir.js
+      // arme el bloque sin volver a parsear texto (nunca una regex sobre `hechoTxt`/`referenciaTexto`: cada
+      // pieza ya es un valor con dueño). `sentido` es la MISMA lectura que decide `direccion`/`aFavor` arriba,
+      // expuesta como enum en vez de en prosa.
+      partes: {
+        propio: cargaPropiaTxt, resto: cargaRestoTxt, puntos: puntosTxt, monto: montoAbsTxt,
+        sentido: difPpRaw > 0 ? "mas" : difPpRaw < 0 ? "menos" : "igual",
+        pisoTexto: pisoTxt, declaradoPorLaEmpresa,
+      },
     };
   },
 
@@ -280,7 +412,14 @@ const CALCULOS = {
     const pisoDesc = `${formatoDeLaCasa(k * 100, "pct")} del saldo pendiente evaluable, ${pisoTxt}`;
     /* el dueño del piso se nombra según quién lo puso (regla 1): si la empresa lo ajustó, NO es «de ADI». */
     const pisoDe = declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI";
-    const referenciaTexto = material ? `Supera ${pisoDe} (${pisoDesc}).` : `Queda bajo ${pisoDe} (${pisoDesc}).`;
+    // ═══ AJUSTE DE REDACCIÓN (owner 2026-09-23, cierre de CAU-01) — «no escribas "Queda bajo el piso de ADI
+    // ($50K)" al lado de "$131K a su favor" — se lee contradictorio» — misma claridad que CAU-01, CERO cambio de
+    // veredicto: `material` ya daba `false` en esta rama (difRaw negativo o cero nunca alcanza `pisoRaw` positivo).
+    // Solo cambia la FRASE: cuando la cuenta pesa menos o igual (nunca hay un exceso que comparar), se dice así
+    // en vez de "Queda bajo…", que sugiere una comparación que no ocurrió.
+    const referenciaTexto = difPpRaw <= 0
+      ? `No hay exceso que comparar con ${pisoDe} (${pisoDesc}).`
+      : (material ? `Supera ${pisoDe} (${pisoDesc}).` : `Queda bajo ${pisoDe} (${pisoDesc}).`);
 
     return {
       insuficiente: false,
@@ -295,6 +434,13 @@ const CALCULOS = {
       hechosDeApoyo: [hVencidoTotal.id, hShareVenta.id, hShareVencido.id, hDifPp.id, hDifMonto.id, hPisoMonto.id],
       borde,
       procedencia,
+      // ═══ owner 2026-09-24 (presentación en bloque, la misma forma para CAU-01 y PRI-04) — ver la nota
+      // gemela en `cargaCuentaVsResto`: las partes crudas, para que servir.js arme el bloque sin parsear texto.
+      partes: {
+        propio: shareVencidoTxt, resto: shareVentaTxt, puntos: puntosTxt, monto: montoAbsTxt,
+        sentido: difPpRaw > 0 ? "mas" : difPpRaw < 0 ? "menos" : "igual",
+        pisoTexto: pisoTxt, declaradoPorLaEmpresa,
+      },
     };
   },
 };
@@ -362,7 +508,8 @@ export function medirPieza(pieza, entidad, tabla) {
       decisivo, noExcluye, calculo: m.calculo, hechos: hechosDeApoyo,
       // ★ PRI-04 (owner 2026-09-23): borde/procedencia son PASSTHROUGH opcionales — `undefined` para todo
       // cálculo que no los declare (CAU-01/CAU-06/CAU-03, sin cambios), así que se normalizan a `null` acá.
-      borde: r.borde != null ? r.borde : null, procedencia: r.procedencia || null,
+      // `partes` (owner 2026-09-24): idem, las piezas crudas para el bloque — `null` si el cálculo no las declara.
+      borde: r.borde != null ? r.borde : null, procedencia: r.procedencia || null, partes: r.partes || null,
     };
   }
 
@@ -383,7 +530,7 @@ export function medirPieza(pieza, entidad, tabla) {
     cifra: r.citas[0] || null, referencia: { texto: r.referenciaTexto, hechos: hechosDeApoyo },
     motivo: null, resolveria: null,
     decisivo, noExcluye, calculo: m.calculo, hechos: hechosDeApoyo,
-    borde: r.borde != null ? r.borde : null, procedencia: r.procedencia || null,
+    borde: r.borde != null ? r.borde : null, procedencia: r.procedencia || null, partes: r.partes || null,
   };
 }
 
@@ -453,11 +600,28 @@ export function coberturaPisoDeCobranza(tabla) {
   const partes = [];
   const libroVT = libroDeHechos([{ id: "vencido_total_cobertura", tipo: "cifra", sujeto: "negocio", metrica: "saldo_vencido" }], { indice: I });
   const hVT = libroVT.hechos[0];
-  if (hVT && hVT.ok) {
-    const vtRaw = _crudo(hVT);
+  const vtOk = !!(hVT && hVT.ok);
+  const vtRaw = vtOk ? _crudo(hVT) : null;
+  const pisoSobreEvaluado = k * saldoEvalRaw;
+  const vencidoTotalBajoPiso = vtOk && Number.isFinite(vtRaw) && vtRaw < pisoSobreEvaluado;
+
+  // ═══ FORMA CORTA (owner 2026-09-24, cierre de presentación) — solo con cobertura LIMPIA: sin truncar y sin
+  // ninguna cuenta sin plazo declarado. Con cobertura parcial o con cuentas sin plazo, sigue la forma larga de
+  // siempre — nunca calla lo que hay que declarar; acá solo se acorta lo que ya estaba completo. Mismos números,
+  // misma identidad (evaluados+sinPlazo=total, señal+bajo_piso+al_dia=evaluados) — ya verificados arriba. */
+  if (!truncado && !sinPlazo.length) {
+    const pisoTxtCorto = formatoDeLaCasa(pisoSobreEvaluado, "money");
+    const pisoLineaCorta = declaradoPorLaEmpresa
+      ? `Piso: ${formatoDeLaCasa(k * 100, "pct")} del saldo pendiente (${pisoTxtCorto}), declarado por tu empresa; no es una referencia del sector ni una meta.`
+      : `Piso: ${formatoDeLaCasa(k * 100, "pct")} del saldo pendiente (${pisoTxtCorto}), criterio general de ADI, ajustable por tu empresa; no es una referencia del sector ni una meta.`;
+    const vtLineaCorta = vtOk ? `Vencido total: ${hVT.render.valor} (${pctSaldo(vtRaw)} del saldo pendiente).${vencidoTotalBajoPiso ? ` El vencido total queda bajo ${declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI"}: ninguna cuenta puede ser señal en este turno.` : ""}` : null;
+    const clientesLineaCorta = `${evaluables.length} clientes evaluados, todos con plazo declarado: ${nSenal} señal · ${nBajoPiso} bajo el piso · ${nAlDia} al día.`;
+    return { texto: [vtLineaCorta, clientesLineaCorta, pisoLineaCorta].filter(Boolean).join(" ") };
+  }
+
+  if (vtOk) {
     partes.push(`Vencido total: ${hVT.render.valor} (${pctSaldo(vtRaw)} ${baseLabel}).`);
-    const pisoSobreEvaluado = k * saldoEvalRaw;
-    if (Number.isFinite(vtRaw) && vtRaw < pisoSobreEvaluado) partes.push(`El vencido total queda bajo ${declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI"}: ninguna cuenta puede ser señal en este turno.`);
+    if (vencidoTotalBajoPiso) partes.push(`El vencido total queda bajo ${declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI"}: ninguna cuenta puede ser señal en este turno.`);
   }
   // ★ REGLA B — nunca "100% del saldo" (ni "N clientes" a secas) si el universo de la fuente es más grande que
   // lo que esta evidencia pudo verificar: la cobertura se declara PARCIAL, con el conteo exacto de lo que falta.
@@ -475,4 +639,80 @@ export function coberturaPisoDeCobranza(tabla) {
   }
   partes.push(lineaPiso);
   return { texto: partes.join(" ") };
+}
+
+/** coberturaCargaVsResto(tabla) → { texto } | null — la LÍNEA DE COBERTURA fija al cierre de CAU-01 (mismo
+ *  patrón que `coberturaPisoDeCobranza`, ver arriba): identidades que TIENEN que cerrar — `señal + bajo_piso +
+ *  sin_evaluar = bajo el benchmark` (el universo pertinente de CAU-01, ver `piezas.js`: la pieza se enciende
+ *  con "cuenta.bajo_benchmark"). Si no cierran, no se sirve nada (falla cerrado). Recorre TODAS las cuentas bajo
+ *  el benchmark de la cartera completa (nunca el subconjunto que la Respuesta nombra), reutilizando
+ *  `CALCULOS.cargaCuentaVsResto` cuenta por cuenta — el mismo cálculo que sirve cada línea. Llamada por
+ *  `seleccionar.js` una sola vez por turno, cuando CAU-01 es pertinente. `null` si no hay ninguna cuenta bajo el
+ *  benchmark que cubrir (nada que declarar), o si las identidades no cierran. */
+export function coberturaCargaVsResto(tabla) {
+  const I = tabla && tabla._indice;
+  if (!I) return null;
+  const cs = (tabla && tabla.cuentas) || {};
+  const cartera = Object.keys(cs).filter((e) => cs[e] && cs[e].venta != null);
+  const bajoBenchmark = cartera.filter((e) => cs[e].bajoBenchmark === true);
+  if (!bajoBenchmark.length) return null;
+
+  let nSenal = 0, nBajoPiso = 0, nSinEvaluar = 0;
+  for (const e of bajoBenchmark) {
+    const r = CALCULOS.cargaCuentaVsResto(e, tabla);
+    if (r.insuficiente) { nSinEvaluar++; continue; }
+    if (r.condicion === true) nSenal++; else nBajoPiso++;
+  }
+  // ★ LA IDENTIDAD QUE TIENE QUE CERRAR: señal + bajo el piso + sin evaluar = cuentas bajo el benchmark.
+  if (nSenal + nBajoPiso + nSinEvaluar !== bajoBenchmark.length) return null;
+
+  const pisoUSD = pisoFocosUSD();
+  const declaradoPorLaEmpresa = materialidadFocoEsDelNegocio();
+  const pctMaterialidad = POLICY.materialidadFocoPctVenta;
+  const pisoTxt = formatoDeLaCasa(pisoUSD, "money");
+  // ═══ REDACCIÓN (owner 2026-09-24, cierre de presentación) — "Piso: X% de tu venta ($Y)" en una sola
+  // cláusula (nunca "($Y)" colgando después de "ajustable por tu empresa", que lo hacía leer como si el monto
+  // calificara a la empresa) y "de tu venta" (nunca "de tu venta real" — la MISMA frase de
+  // `specRetrieval.js:declaracionUmbralFocos`, la que ya lee la pestaña Comercial). Piso primero, cartera
+  // después — el orden que pidió el owner para el cierre del bloque. ═══
+  const lineaPiso = declaradoPorLaEmpresa
+    ? `Piso: ${String(pctMaterialidad)}% de tu venta (${pisoTxt}), declarado por tu empresa; no es una referencia del sector ni una meta.`
+    : `Piso: ${String(pctMaterialidad)}% de tu venta (${pisoTxt}), criterio general de ADI, ajustable por tu empresa; no es una referencia del sector ni una meta.`;
+
+  const sinEvaluarTxt = nSinEvaluar ? ` · ${nSinEvaluar} sin evaluar (el resto de la cartera no se pudo verificar completo para esa(s) cuenta(s))` : "";
+  const lineaCartera = `Cartera de ${cartera.length} cuentas; ${bajoBenchmark.length} bajo el benchmark: ${nSenal} señal · ${nBajoPiso} bajo el piso${sinEvaluarTxt}.`;
+  return { texto: `${lineaPiso} ${lineaCartera}` };
+}
+
+/** resultadosCargaVsResto(pieza, tabla) → { cartera, bajoBenchmark, porEntidad } — el mismo escaneo que
+ *  `coberturaCargaVsResto` (todas las cuentas bajo benchmark de la cartera COMPLETA, nunca el subconjunto que
+ *  la Respuesta nombra), pero devolviendo la MEDICIÓN COMPLETA por cuenta (`medirPieza`, con `.cifra`/
+ *  `.referencia`/`.partes`/`.borde`) en vez de solo el conteo — lo que necesita el bloque de presentación
+ *  (`servir.js:servirBloqueCargaVsResto`) para nombrar cada señal y cada cuenta bajo el piso. `porEntidad` es
+ *  un `Map` en el orden natural de la cartera (el mismo que ya usa el resto de la capa — nunca un orden
+ *  inventado). Owner 2026-09-24, presentación en bloque. */
+export function resultadosCargaVsResto(pieza, tabla) {
+  const cs = (tabla && tabla.cuentas) || {};
+  const cartera = Object.keys(cs).filter((e) => cs[e] && cs[e].venta != null);
+  const bajoBenchmark = cartera.filter((e) => cs[e].bajoBenchmark === true);
+  const porEntidad = new Map();
+  for (const e of bajoBenchmark) porEntidad.set(e, medirPieza(pieza, e, tabla));
+  return { cartera, bajoBenchmark, porEntidad };
+}
+
+/** resultadosPisoDeCobranza(pieza, tabla) → { evaluables, porEntidad, nAlDia } — el mismo universo evaluable
+ *  que `coberturaPisoDeCobranza` (regla 2 del sello: el libro evaluable COMPLETO), con la medición completa por
+ *  cuenta (`medirPieza`) para las cuentas con vencido positivo (las "al día" no miden señal/bajo_piso: se
+ *  cuentan aparte, `nAlDia`, igual que ya hace `coberturaPisoDeCobranza`). Owner 2026-09-24, presentación en
+ *  bloque — sin cambiar la pertinencia ni el universo evaluable sellados de PRI-04. */
+export function resultadosPisoDeCobranza(pieza, tabla) {
+  const { evaluables } = _universoDePiso(tabla);
+  const porEntidad = new Map();
+  let nAlDia = 0;
+  for (const e of evaluables) {
+    const c = tabla.cuentas[e];
+    if (c.vencidoPositivo === false) { nAlDia++; continue; }
+    porEntidad.set(e, medirPieza(pieza, e, tabla));
+  }
+  return { evaluables, porEntidad, nAlDia };
 }

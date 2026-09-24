@@ -402,7 +402,9 @@ H("12 · cobertura con evidencia truncada — declara PARCIAL, nunca \"100%\" de
   ];
   const tabla = tablaDeCartera(clientes);
   const cobCompleta = coberturaPisoDeCobranza(tabla);
-  ok(!!cobCompleta && /Cobertura: 2 clientes/.test(cobCompleta.texto) && !/parcial/i.test(cobCompleta.texto), "control · sin truncar, la cobertura dice \"Cobertura: 2 clientes\" (sin \"parcial\")", cobCompleta && cobCompleta.texto);
+  // ★ owner 2026-09-24 (cierre de presentación) — cobertura LIMPIA (sin truncar, sin sinPlazo) ahora usa la
+  // forma corta: "N clientes evaluados, todos con plazo declarado: …" en vez de "Cobertura: N clientes…".
+  ok(!!cobCompleta && /2 clientes evaluados, todos con plazo declarado/.test(cobCompleta.texto) && !/parcial/i.test(cobCompleta.texto), "control · sin truncar, la cobertura dice \"2 clientes evaluados, todos con plazo declarado\" (sin \"parcial\")", cobCompleta && cobCompleta.texto);
 
   // ★ CARNADA · la fuente (buildMesaFlujo, simulada con `_universoCobranza`) declara MÁS clientes de los que
   // esta evidencia pudo verificar (2 de 5) — la cobertura tiene que declararse PARCIAL, con el conteo exacto,
@@ -423,7 +425,7 @@ H("12 · cobertura con evidencia truncada — declara PARCIAL, nunca \"100%\" de
   const tablaCompletaIgual = tablaDeCartera(clientes);
   tablaCompletaIgual._universoCobranza = 2;
   const cobIgual = coberturaPisoDeCobranza(tablaCompletaIgual);
-  ok(!!cobIgual && /Cobertura: /.test(cobIgual.texto) && !/parcial/i.test(cobIgual.texto), "control negativo · con _universoCobranza = lo verificado, NO dice \"parcial\" (no es un siempre-parcial)", cobIgual && cobIgual.texto);
+  ok(!!cobIgual && /clientes evaluados, todos con plazo declarado/.test(cobIgual.texto) && !/parcial/i.test(cobIgual.texto), "control negativo · con _universoCobranza = lo verificado, NO dice \"parcial\" (no es un siempre-parcial)", cobIgual && cobIgual.texto);
 }
 
 /* ═══ 13 · TENANT_DEMO REAL — el universo evaluable ahora son las 13 cuentas, no las 8 de la boleta del agente
@@ -443,7 +445,7 @@ H("13 · TENANT_DEMO/bonanza — el universo evaluable son las 13 cuentas (no el
   ok(sinPlazo.length === 0, `★ ninguna queda "sin plazo" de verdad (dio ${sinPlazo.length}) — el demo declara plazo para todos`, sinPlazo.join(", "));
   ok(tabla._universoCobranza === 13, `★ tabla._universoCobranza = 13 (el total real de buildMesaFlujo, dio ${tabla._universoCobranza})`);
   const cob = coberturaPisoDeCobranza(tabla);
-  ok(!!cob && /Cobertura: 13 clientes/.test(cob.texto) && !/parcial/i.test(cob.texto), "★ la cobertura real dice \"Cobertura: 13 clientes\" (no \"parcial\", ya no hay tope)", cob && cob.texto);
+  ok(!!cob && /13 clientes evaluados, todos con plazo declarado/.test(cob.texto) && !/parcial/i.test(cob.texto), "★ la cobertura real dice \"13 clientes evaluados, todos con plazo declarado\" (no \"parcial\", ya no hay tope)", cob && cob.texto);
   console.log(`      nota: con evidencia COMPLETA, el % legítimamente llega a 100% del saldo evaluable — la regla B prohíbe el "100%" SOLO cuando la evidencia está truncada (§12 arriba lo prueba con evidencia truncada de verdad)`);
 }
 

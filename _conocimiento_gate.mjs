@@ -164,12 +164,14 @@ H("4 · evaluarPertinencia.js — las entidades encendidas, no un booleano");
   ok(!pNunca.pertinente && pNunca.entidades.length === 0, "control negativo · un predicado no disponible (Ficha sin integrar) nunca enciende — conservador, no se sirve");
 }
 
-/* ═══ 5 · MEDICIÓN — los tres estados, cada uno con su respaldo ═══ */
-H("5 · medir.js — ocurre / no_ocurre / indeterminable, con cifra+id o motivo+resolveria");
+/* ═══ 5 · MEDICIÓN — los estados, cada uno con su respaldo ═══
+ * CAU-01 v2 (owner 2026-09-23) ya no mide "ocurre"/"no_ocurre": mide "señal"/"bajo_piso", el MISMO par que
+ * PRI-04 (Aclaración 2 del diseño sellado — el veredicto negativo nunca dice "no ocurre"). */
+H("5 · medir.js — señal / bajo_piso / indeterminable (CAU-01), con cifra+id o motivo+resolveria");
 {
   const cuentaBajoBenchmark = Object.entries(TABLA.cuentas).find(([, c]) => c.bajoBenchmark)[0];
   const mCAU01 = medirPieza(piezaPorId("CAU-01"), cuentaBajoBenchmark, TABLA);
-  ok(["ocurre", "no_ocurre"].includes(mCAU01.estado), `CAU-01 sobre ${cuentaBajoBenchmark} mide un veredicto decisivo (dio "${mCAU01.estado}")`);
+  ok(["senal", "bajo_piso"].includes(mCAU01.estado), `CAU-01 sobre ${cuentaBajoBenchmark} mide un veredicto decisivo (dio "${mCAU01.estado}")`);
   ok(!!mCAU01.cifra && !!mCAU01.cifra.id, "★ toda pieza servida trae una cifra CON ID (regla 2 del documento)", JSON.stringify(mCAU01.cifra));
   console.log(`      CAU-01 · ${cuentaBajoBenchmark} · ${mCAU01.estado}: ${mCAU01.cifra.texto} contra ${mCAU01.referencia.texto}`);
 
@@ -177,51 +179,53 @@ H("5 · medir.js — ocurre / no_ocurre / indeterminable, con cifra+id o motivo+
   ok(mCAU03.estado === "indeterminable", "CAU-03 (vencido por tramo, NO existe en el motor) siempre da \"indeterminable\"");
   ok(typeof mCAU03.motivo === "string" && mCAU03.motivo.length > 0 && typeof mCAU03.resolveria === "string", "★ todo \"indeterminable\" trae motivo Y qué lo resolvería (regla 2)", mCAU03.motivo);
 
-  // ★ REGLA 3 · no_ocurre SOLO si decisivo:true — carnada: la MISMA condición con decisivo:false
-  const cuentaNoBajoBenchmark = Object.entries(TABLA.cuentas).find(([, c]) => !c.bajoBenchmark && c.cargaPct != null && !c.cargaSobreResto);
-  ok(!!cuentaNoBajoBenchmark, "hay al menos una cuenta con carga% bajo el promedio del resto (para la carnada de \"no_ocurre\")");
-  if (cuentaNoBajoBenchmark) {
+  // ★ REGLA 3 · "bajo_piso" SOLO si decisivo:true — carnada: la MISMA condición con decisivo:false
+  const cuentaBajoPiso = Object.keys(TABLA.cuentas).find((e) => medirPieza(piezaPorId("CAU-01"), e, TABLA).estado === "bajo_piso");
+  ok(!!cuentaBajoPiso, "hay al menos una cuenta cuya carga contra el resto de la cartera mide \"bajo_piso\" (para la carnada de \"no decisivo\")");
+  if (cuentaBajoPiso) {
     const noDecisiva = { ...piezaPorId("CAU-01"), id: "CARNADA-NO-DECISIVA", medicion: { ...piezaPorId("CAU-01").medicion, decisivo: false } };
-    const mNoDecisiva = medirPieza(noDecisiva, cuentaNoBajoBenchmark[0], TABLA);
-    ok(mNoDecisiva.estado === "indeterminable" && mNoDecisiva.motivo === "la cifra disponible no decide (medición no decisiva)", "★ CARNADA · con decisivo:false, un comparador que da falso NUNCA dice \"no_ocurre\" — cae a indeterminable con el motivo exacto del documento", mNoDecisiva.estado);
-    const mDecisiva = medirPieza(piezaPorId("CAU-01"), cuentaNoBajoBenchmark[0], TABLA);
-    ok(mDecisiva.estado === "no_ocurre", "control · la MISMA condición, con decisivo:true (CAU-01 real), sí dice \"no_ocurre\"");
+    const mNoDecisiva = medirPieza(noDecisiva, cuentaBajoPiso, TABLA);
+    ok(mNoDecisiva.estado === "indeterminable" && mNoDecisiva.motivo === "la cifra disponible no decide (medición no decisiva)", "★ CARNADA · con decisivo:false, un comparador que da falso NUNCA dice \"bajo_piso\" — cae a indeterminable con el motivo exacto del documento", mNoDecisiva.estado);
+    const mDecisiva = medirPieza(piezaPorId("CAU-01"), cuentaBajoPiso, TABLA);
+    ok(mDecisiva.estado === "bajo_piso", "control · la MISMA condición, con decisivo:true (CAU-01 real), sí dice \"bajo_piso\"");
   }
 }
 
 /* ═══ 5b · EL "NO IMPLICA" QUE LLEGA AL USUARIO (defecto 1, owner 2026-09-23) ═══
  * «Firmar una pieza hoy es firmar una salvaguarda que no se sirve» — servir.js SIEMPRE servía `medicion.no_excluye`
- * bajo el rótulo "No implica:", también en "ocurre". Este bloque prueba que ahora "ocurre" sirve `pieza.no_implica`
- * (la salvaguarda que el owner firma) y "no_ocurre" sigue sirviendo `medicion.no_excluye` (el descarte) — cada
- * veredicto, su propia negativa, nunca la otra, nunca las dos. */
-H("5b · servir.js — cada veredicto sirve SU negativa (defecto 1: ocurre→no_implica, no_ocurre→no_excluye)");
+ * bajo el rótulo "No implica:", también en "ocurre"/"señal". Este bloque prueba que "señal" sirve `pieza.no_implica`
+ * (la salvaguarda que el owner firma) y "bajo_piso" sigue sirviendo `medicion.no_excluye` (el descarte) — cada
+ * veredicto, su propia negativa, nunca la otra, nunca las dos. CAU-01 v2 mide "señal"/"bajo_piso" (Aclaración 2 del
+ * diseño sellado de PRI-04: el veredicto negativo nunca dice "no ocurre"). */
+H("5b · servir.js — cada veredicto sirve SU negativa (defecto 1: señal→no_implica, bajo_piso→no_excluye)");
 {
-  const cuentaBajoBenchmark = Object.entries(TABLA.cuentas).find(([, c]) => c.bajoBenchmark)[0];
   // ★ CARNADA · no_implica y no_excluye deliberadamente DISTINTOS y reconocibles, para que la prueba no pueda
   // pasar por casualidad si el código sirve el campo equivocado.
   const piezaCarnada = { ...piezaPorId("CAU-01"), id: "CARNADA-DEFECTO1", no_implica: "TEXTO-NO-IMPLICA-9f3a", medicion: { ...piezaPorId("CAU-01").medicion, no_excluye: "TEXTO-NO-EXCLUYE-b71c" } };
-  const mOcurre = medirPieza(piezaCarnada, cuentaBajoBenchmark, TABLA);
-  if (mOcurre.estado === "ocurre") {
-    const sOcurre = servirPieza(piezaCarnada, cuentaBajoBenchmark, mOcurre);
-    ok(sOcurre.texto.includes("TEXTO-NO-IMPLICA-9f3a"), "★ CARNADA · \"ocurre\" sirve pieza.no_implica (la salvaguarda firmada)", sOcurre.texto);
-    ok(!sOcurre.texto.includes("TEXTO-NO-EXCLUYE-b71c"), "★ CARNADA · \"ocurre\" NO sirve medicion.no_excluye (el defecto 1 original)", sOcurre.texto);
-    ok(!/No implica: No implica/.test(sOcurre.texto), "★ CARNADA · no hay doble rótulo (\"No implica: No implica que…\") — pieza.no_implica se sirve TAL CUAL, ya es oración completa", sOcurre.texto);
+  const cuentaSenal = Object.keys(TABLA.cuentas).find((e) => medirPieza(piezaCarnada, e, TABLA).estado === "senal");
+  ok(!!cuentaSenal, "hay al menos una cuenta cuya carga contra el resto de la cartera mide \"señal\" (para la carnada del defecto 1)");
+  if (cuentaSenal) {
+    const mSenal = medirPieza(piezaCarnada, cuentaSenal, TABLA);
+    const sSenal = servirPieza(piezaCarnada, cuentaSenal, mSenal);
+    ok(sSenal.texto.includes("TEXTO-NO-IMPLICA-9f3a"), "★ CARNADA · \"señal\" sirve pieza.no_implica (la salvaguarda firmada)", sSenal.texto);
+    ok(!sSenal.texto.includes("TEXTO-NO-EXCLUYE-b71c"), "★ CARNADA · \"señal\" NO sirve medicion.no_excluye (el defecto 1 original)", sSenal.texto);
+    ok(!/No implica: No implica/.test(sSenal.texto), "★ CARNADA · no hay doble rótulo (\"No implica: No implica que…\") — pieza.no_implica se sirve TAL CUAL, ya es oración completa", sSenal.texto);
   } else {
-    ok(false, "no se pudo forzar \"ocurre\" con la pieza carnada del defecto 1 — revisar la cuenta elegida");
+    ok(false, "no se pudo forzar \"señal\" con la pieza carnada del defecto 1 — revisar la cuenta elegida");
   }
-  const cuentaNoBajoBenchmark2 = Object.entries(TABLA.cuentas).find(([, c]) => !c.bajoBenchmark && c.cargaPct != null && c.cargaSobreResto === false);
-  if (cuentaNoBajoBenchmark2) {
-    const mNo = medirPieza(piezaCarnada, cuentaNoBajoBenchmark2[0], TABLA);
-    if (mNo.estado === "no_ocurre") {
-      const sNo = servirPieza(piezaCarnada, cuentaNoBajoBenchmark2[0], mNo);
-      ok(sNo.texto.includes("TEXTO-NO-EXCLUYE-b71c"), "control · \"no_ocurre\" SÍ sirve medicion.no_excluye (el descarte)", sNo.texto);
-      ok(!sNo.texto.includes("TEXTO-NO-IMPLICA-9f3a"), "control · \"no_ocurre\" NO sirve pieza.no_implica", sNo.texto);
-    }
+  const cuentaBajoPiso2 = Object.keys(TABLA.cuentas).find((e) => medirPieza(piezaCarnada, e, TABLA).estado === "bajo_piso");
+  if (cuentaBajoPiso2) {
+    const mBajo = medirPieza(piezaCarnada, cuentaBajoPiso2, TABLA);
+    const sBajo = servirPieza(piezaCarnada, cuentaBajoPiso2, mBajo);
+    ok(sBajo.texto.includes("TEXTO-NO-EXCLUYE-b71c"), "control · \"bajo_piso\" SÍ sirve medicion.no_excluye (el descarte)", sBajo.texto);
+    ok(!sBajo.texto.includes("TEXTO-NO-IMPLICA-9f3a"), "control · \"bajo_piso\" NO sirve pieza.no_implica", sBajo.texto);
   }
-  // control negativo real: CAU-01 servida de verdad, sobre la misma cuenta que 5 arriba
-  const mReal = medirPieza(piezaPorId("CAU-01"), cuentaBajoBenchmark, TABLA);
-  const sReal = servirPieza(piezaPorId("CAU-01"), cuentaBajoBenchmark, mReal);
-  ok(sReal.texto.includes(piezaPorId("CAU-01").no_implica), "control · CAU-01 real: el texto servido incluye pieza.no_implica verbatim", sReal.texto);
+  // control negativo real: CAU-01 servida de verdad, sobre la cuenta señal de arriba
+  if (cuentaSenal) {
+    const mReal = medirPieza(piezaPorId("CAU-01"), cuentaSenal, TABLA);
+    const sReal = servirPieza(piezaPorId("CAU-01"), cuentaSenal, mReal);
+    ok(sReal.texto.includes(piezaPorId("CAU-01").no_implica), "control · CAU-01 real: el texto servido incluye pieza.no_implica verbatim", sReal.texto);
+  }
 }
 
 /* ═══ 6 · SERVICIO + ACOTADORES — la forma fija, y los cuatro acotadores del documento §3 ═══ */
@@ -229,13 +233,17 @@ H("6 · servir.js + acotadores.js — forma fija y los cuatro acotadores (entida
 {
   const RES = _evaluarInfraestructura({ scenario: ESCENARIO_INICIAL, pregunta: PREGUNTA_LECTURA, entidadesEnRespuesta: ["Lider", "Falabella"], perfil: PERFIL_COMPLETO });
   ok(RES.salida.length > 0, `el pipeline completo (sin la puerta de firma) sirve ${RES.salida.length} ítems sobre datos reales`);
-  // ★ PRI-04 (owner 2026-09-23, piso de materialidad de cobranza) agrega una QUINTA forma fija — la línea de
-  // cobertura del cierre (regla 4 del diseño sellado, `medir.js:coberturaPisoDeCobranza`), que arranca con
-  // "Vencido total: " o, cuando ningún cliente tiene plazo declarado, con "No puedo evaluar la desproporción de
-  // vencido: " (Aclaración 3). Se prueba con su propio candado (`_piso_materialidad_gate.mjs`); acá solo se
-  // reconoce la forma para que esta aserción general siga cubriendo TODAS las líneas que sirve el pipeline.
-  ok(RES.salida.every((s) => /^El oficio mira: /.test(s.texto) || /^Y en \d+ /.test(s.texto) || /^\d+ mediciones más no entraron por espacio/.test(s.texto) || /^Vencido total: /.test(s.texto) || /^No puedo evaluar la desproporción de vencido: /.test(s.texto)), "toda línea servida usa la forma fija (\"El oficio mira…\"), la línea de agregado (\"Y en N…\"), la línea combinada de sobrantes por tope (defecto 2), o la línea de cobertura de PRI-04");
-  ok(RES.salida.some((s) => /est[aá] ocurriendo/.test(s.texto)), "al menos una pieza sirve el estado \"ocurre\", con su cifra");
+  // ★ PRI-04/CAU-01 (owner 2026-09-24, presentación en bloque) se sirven en UN bloque cada una, con encabezado
+  // propio "En {sector}, …"/"En {sector}: …" (`servir.js:_headerDeBloque`) — nunca "El oficio mira:" ni el id de
+  // la pieza. El resto de las formas (agregado, sobrantes, ocurre/no_ocurre/indeterminable) siguen siendo de
+  // CAU-06/CAU-03, que no se tocaron.
+  ok(RES.salida.every((s) =>
+    /^El oficio mira: /.test(s.texto) || /^Y en \d+ /.test(s.texto) || /^\d+ mediciones más no entraron por espacio/.test(s.texto) ||
+    /^En [a-záéíóúñ]+[,:] /.test(s.texto) ||
+    /est[aá] ocurriendo: /.test(s.texto) || /^ADI lo midió: /.test(s.texto) || /Veredicto: (?:señal|bajo el piso)\./.test(s.texto) ||
+    /^Con estos datos no se puede saber en /.test(s.texto)
+  ), "toda línea servida usa la forma fija (\"El oficio mira…\"), la línea de agregado (\"Y en N…\"), la línea combinada de sobrantes por tope (defecto 2), el bloque de PRI-04/CAU-01 (\"En {sector}, …\"), o el cuerpo de una de las cuatro formas de veredicto de CAU-06/CAU-03", RES.salida.map((s) => s.texto).join("\n---\n"));
+  ok(RES.salida.some((s) => /est[aá] ocurriendo/.test(s.texto) || /Veredicto: señal\.| Señal\./.test(s.texto)), "al menos una pieza sirve un veredicto positivo decisivo (\"ocurre\" o \"señal\"), con su cifra");
   const soloEntidadesNombradas = RES.detalle.filter((d) => d.pertinente && d.estado && d.entidad && !["Lider", "Falabella"].includes(d.entidad)).length;
   ok(soloEntidadesNombradas > 0, `hay ${soloEntidadesNombradas} mediciones sobre entidades NO nombradas por la Respuesta — el acotador 1 las agrega, no las pierde`);
   ok(RES.salida.some((s) => /^Y en \d+ .* más del mismo conjunto/.test(s.texto)), "el acotador 1 (acotar por entidad) produjo al menos una línea de agregado con conteo");

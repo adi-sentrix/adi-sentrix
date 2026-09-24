@@ -18,7 +18,7 @@ import { verificarAfirmaciones, conjuntoDeUniverso, valorDeRanking } from "./ver
 import { indiceDeEvidencia, mismoValor, unidadCompatible } from "./evidencia.js";
 import { normalizar, menosAscii, leerValor } from "./afirmacion.js";
 import { parsearLineasDeBloque, MARCA_FIN } from "./declaracion.js";
-import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO, opDe } from "./lexico.js";
+import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO, opDe, esReferencia } from "./lexico.js";
 import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON, estadosEn, estadoDeclarado, ejeCompatible, COMPLEMENTO_V3 } from "./estados.js";
 
 export const MARCA_HECHOS = "<<HECHOS>>";
@@ -76,6 +76,21 @@ export function peorProcedencia(...ps) {
  * `fig()` emitió, con `.tipo`—, `.cobertura` y `.agregado` —el propio índice ya distingue un total/subtotal de
  * una lectura simple, ver evidencia.js—). */
 function _procedenciaDeFig(f) {
+  /* ═══ ARREGLO DE RAÍZ (owner 2026-09-23, CAU-01) — «la referencia de ADI no puede salir etiquetada "medida"» ═
+   * La fig «Umbral de materialidad · en dinero» (specRetrieval.js:figsUmbralFocos, el mismo piso que decide
+   * "Carga comercial alta" en el detector) verificaba con procedencia "medido": su rótulo no matchea ninguna
+   * regla de `VERIFICABILIDAD_POR_METRICA` (esas reconocen una BRECHA contra una vara — "no capturada", "en
+   * juego", "exceso"… — no la vara misma), así que caía al default "literal" → "medido". El mismo agujero
+   * afecta a CUALQUIER fig cuya métrica sea una referencia de la casa (benchmark, nivel de carga, piso de
+   * rotación, techo de cobertura — `lexico.js:CLAVES_DE_METRICA`, `polaridad: "referencia"`).
+   * MARCA ESTRUCTURAL, no inferencia por texto de rótulo: `lexico.js` ya declara qué claves son una referencia
+   * (`referencia: true`, la MISMA lista que ya usa `polaridadDeClave`/`_dominioDeFig` para reconocer estas
+   * cifras) — se reutiliza esa marca (`esReferencia`), no se agrega ninguna nueva. Toda fig cuya métrica
+   * resuelve a una de esas claves sale "estimacion_referencia" (una referencia declarada por ADI o por la
+   * empresa nunca es un hecho medido del archivo), ANTES de mirar `verificabilidad` — la vara no tiene tipo de
+   * verificabilidad propio, es un criterio, no una lectura. */
+  const claveRef = claveDeMetrica(f && f.concepto);
+  if (claveRef && esReferencia(claveRef)) return "estimacion_referencia";
   const t = f && f.fig && f.fig.tipo;
   if (!t || !t.verificabilidad) return "derivado";   // sin tipo declarado (ej. la proyección de un ranking, sin
   // fig real detrás): es una lectura que YA calculó el motor sobre el dato, nunca un archivo — nunca "medido" a ciegas.
