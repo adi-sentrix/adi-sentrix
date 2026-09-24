@@ -604,6 +604,11 @@ export function coberturaPisoDeCobranza(tabla) {
   const vtRaw = vtOk ? _crudo(hVT) : null;
   const pisoSobreEvaluado = k * saldoEvalRaw;
   const vencidoTotalBajoPiso = vtOk && Number.isFinite(vtRaw) && vtRaw < pisoSobreEvaluado;
+  // ═══ owner 2026-09-24 (pertinencia por encargo, defecto 1) — «la oferta de PRI-04 necesita el vencido total y
+  // su peso en el saldo pendiente; ya son hechos verificados acá, reusalos» — se expone el MISMO hecho `hVT` (ya
+  // verificado arriba, nunca recalculado) como campo estructural del retorno, para que `servir.js:servirOferta
+  // PisoDeCobranza` arme su cola sin declarar un hecho nuevo ni reparsear el texto de esta línea. */
+  const vencidoTotal = vtOk ? { hechoId: hVT.id, raw: vtRaw, texto: hVT.render.valor, pctTexto: pctSaldo(vtRaw) } : null;
 
   // ═══ FORMA CORTA (owner 2026-09-24, cierre de presentación) — solo con cobertura LIMPIA: sin truncar y sin
   // ninguna cuenta sin plazo declarado. Con cobertura parcial o con cuentas sin plazo, sigue la forma larga de
@@ -616,7 +621,7 @@ export function coberturaPisoDeCobranza(tabla) {
       : `Piso: ${formatoDeLaCasa(k * 100, "pct")} del saldo pendiente (${pisoTxtCorto}), criterio general de ADI, ajustable por tu empresa; no es una referencia del sector ni una meta.`;
     const vtLineaCorta = vtOk ? `Vencido total: ${hVT.render.valor} (${pctSaldo(vtRaw)} del saldo pendiente).${vencidoTotalBajoPiso ? ` El vencido total queda bajo ${declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI"}: ninguna cuenta puede ser señal en este turno.` : ""}` : null;
     const clientesLineaCorta = `${evaluables.length} clientes evaluados, todos con plazo declarado: ${nSenal} señal · ${nBajoPiso} bajo el piso · ${nAlDia} al día.`;
-    return { texto: [vtLineaCorta, clientesLineaCorta, pisoLineaCorta].filter(Boolean).join(" ") };
+    return { texto: [vtLineaCorta, clientesLineaCorta, pisoLineaCorta].filter(Boolean).join(" "), vencidoTotal };
   }
 
   if (vtOk) {
@@ -638,7 +643,7 @@ export function coberturaPisoDeCobranza(tabla) {
     }
   }
   partes.push(lineaPiso);
-  return { texto: partes.join(" ") };
+  return { texto: partes.join(" "), vencidoTotal };
 }
 
 /** coberturaCargaVsResto(tabla) → { texto } | null — la LÍNEA DE COBERTURA fija al cierre de CAU-01 (mismo

@@ -165,10 +165,21 @@ export const PIEZAS_CONOCIMIENTO = [
     // (abajo) NO se toca, sigue declarado tal cual para quien lo consulte aparte; el bloque nuevo solo imprime
     // `no_implica`. Cero cambio de significado: mismo principio, misma salvaguarda, sin la repetición.
     no_implica: "No implica que la cuenta sea mala pagadora: la diferencia puede ser un plazo pactado más largo o vencido documental en facturas puntuales.",
+    // ═══ CORRECCIÓN 2026-09-24 (owner, pertinencia por encargo) — textual: «Sí, apruebo la regla y el cambio en
+    // preguntas abiertas.» ═══════════════════════════════════════════════════════════════════════════════════════
+    // ÚNICO cambio sobre PRI-04 firmada (ver la cabecera de esta pieza, arriba): ni el enunciado, ni `no_implica`,
+    // ni `medicion` (el cálculo, el veredicto) se tocan — solo se agrega una TERCERA rama a la pertinencia (cuándo
+    // se enciende). Con sujeto abierto (el usuario no nombró ninguna cuenta — `pregunta.sujeto_abierto`) y encargo
+    // de cobranza (`pregunta.tema_cobranza`), PRI-04 se sirve como principal con TODAS sus señales, aunque el
+    // procedimiento no haya nombrado (`cuenta.en_respuesta`) una cuenta con vencido positivo. Antes de esta rama,
+    // una pregunta genuinamente abierta de cobranza podía dejar PRI-04 sin encender si el procedimiento nombraba
+    // solo cuentas al día — la exposición de cobranza no puede desaparecer con un sujeto vacío (regla del diseño,
+    // ejemplo C: «la cobranza NO desaparece con sujeto vacío»). Las dos ramas originales (arriba) no cambian.
     pertinencia: {
       alguno: [
         { todo: ["cuenta.vencido_positivo", "cuenta.en_respuesta"] },
         { todo: ["cuenta.sin_plazo_declarado", "cuenta.en_respuesta"] },
+        { todo: ["pregunta.tema_cobranza", "pregunta.sujeto_abierto"] },
       ],
     },
     medicion: {

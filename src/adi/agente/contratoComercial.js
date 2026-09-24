@@ -46,13 +46,18 @@ const _SALUDO_O_META = /^\s*(?:hola|gracias|ok|dale|listo|buen[oa]s?\b)/i;
 /** ¿El tema del turno es comercial? Solo la pregunta: el foco (cuenta, porqué, lector) lo deciden el procedimiento y la ruta.
  *  `conOtrosUniversos` (contrato de dominios, owner 2026-09-14: «composición, no exclusión»): una palabra de inventario
  *  o cobranza ya no retira el tema comercial — suma su propio dominio. Sin la opción, la conducta de siempre. */
-export function esTemaComercial(pregunta, { conOtrosUniversos = false } = {}) {
+export function esTemaComercial(pregunta, { conOtrosUniversos = false, sinFallbackDeNombre = false } = {}) {
   const q = String(pregunta || "");
   if (!q.trim() || _SALUDO_O_META.test(q) || _DEFINICION.test(q)) return false;
   if (esReformular(q)) return false;
   if (!conOtrosUniversos && _OTRO_UNIVERSO.test(q)) return false;
   if (_OTRO_EJE.test(q)) return conOtrosUniversos ? _COMERCIAL.test(q) : false;   // por otro eje: es comercial, pero su realidad es la lectura de ESE eje (la decide el contrato de dominios)
   if (_COMERCIAL.test(q)) return true;
+  // sinFallbackDeNombre (owner 2026-09-24, aditivo, default false): la capa de conocimiento (conocimiento/
+  // tablaSenales.js) la usa para NO encender "comercial" solo por nombrar una cuenta ("¿Cómo está la cobranza
+  // de Lider?" no es tema comercial). Ningún llamador existente la pasa: el resto del producto queda byte-
+  // idéntico (dominiosDe/contratoDeDominios.js no la usa).
+  if (sinFallbackDeNombre) return false;
   /* «¿Cómo está Falabella?»: el nombre de una cuenta es tema comercial por definición (el eje cliente es comercial) */
   const _n = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   try { const qn = _n(q); return axisEntityNames("cliente").some((e) => e && String(e).length >= 3 && qn.includes(_n(e))); } catch { return false; }

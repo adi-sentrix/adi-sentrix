@@ -47,7 +47,7 @@ import { construirPerfilCliente, ETIQUETA_DEL_CAMPO } from "../../config/contrac
 // del oficio: pertinencia medida contra la tabla de señales, nunca contra prosa. `referenciaDelOficio` ENVUELVE
 // a `seleccionarConocimientoDelOficio` (perfilCliente.js): con la bandera `ADI_CONOCIMIENTO` apagada (hoy, en
 // todos los perfiles) delega en ella tal cual — cero diferencia de comportamiento (ver `_conocimiento_gate.mjs`).
-import { referenciaDelOficio } from "../conocimiento/seleccionar.js";
+import { referenciaDelOficioConOfertas } from "../conocimiento/seleccionar.js";
 
 export const PREGUNTA_BRECHA_COMERCIAL = "¿dónde estoy perdiendo plata?";
 export const PREGUNTA_COBRANZA = "¿quién me debe más?";
@@ -124,6 +124,26 @@ const _limiteDeAusencia = (id) => { const a = ausenciaPorId(id); return a && a.e
 function _identidadDelTenant() {
   const t = getTenantData() || {};
   return { empresaNombre: t.nombre || null, perfil: construirPerfilCliente(t) };
+}
+
+/* Etapa 3 (owner 2026-09-24, pertinencia por encargo) — el SUJETO DEL USUARIO: las cuentas que la PREGUNTA misma
+ * nombra, con la MISMA comparación que ya usa `contratoComercial.js:esTemaComercial` (índice de entidades del
+ * tenant, `axisEntityNames("cliente")` — nunca una lista de palabras). Se pasa a `referenciaDelOficioConOfertas`
+ * ADEMÁS de `entidadesEnRespuesta` (lo que el PROCEDIMIENTO nombra): la capa de conocimiento necesita distinguir
+ * las dos fuentes para decidir bloque principal (sujeto = usuario + procedimiento) vs. mención (solo usuario) —
+ * ver `conocimiento/seleccionar.js`. */
+const _normEnt = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+function _entidadesDeLaPregunta(pregunta) {
+  const q = _normEnt(pregunta);
+  if (!q.trim()) return [];
+  try { return (axisEntityNames("cliente") || []).filter((e) => e && String(e).length >= 3 && q.includes(_normEnt(e))); } catch { return []; }
+}
+/* las ofertas (documento §5, exactamente una por pieza no principal) tal como las arma `conocimiento/servir.js`
+ * — su `.texto` YA es una frase completa con la cifra-gancho verificada; acá solo se extrae ese texto para
+ * sumarlo al menú `queMasPuedoCalcular.puedo` (array de strings, ver `_textoDeLaEntrega`). Con la capa apagada o
+ * sin ofertas este turno, `ofertas` es `[]` y el menú queda BYTE-IDÉNTICO al de antes de esta Etapa. */
+function _ofertasTexto(ofertas) {
+  return (Array.isArray(ofertas) ? ofertas : []).map((o) => o && o.texto).filter(Boolean);
 }
 
 /* El límite «perfil incompleto» (plan §3, «falla cerrado»): SOLO se declara si falta algo — un perfil completo
@@ -332,7 +352,8 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
 
   // ── REFERENCIA DEL OFICIO · Etapa 3 — pertinencia medida contra la tabla de señales de ESTA Entrega (las
   // cuentas que la Respuesta nombra encienden `cuenta.en_respuesta`) ──
-  entrega.referenciaDelOficio = referenciaDelOficio({ perfil, pregunta, entidadesEnRespuesta: [top.entidad, ...(segundo ? [segundo.entidad] : [])], scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
+  const _refOficio1 = referenciaDelOficioConOfertas({ perfil, pregunta, entidadesEnRespuesta: [top.entidad, ...(segundo ? [segundo.entidad] : [])], entidadesDeLaPregunta: _entidadesDeLaPregunta(pregunta), scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
+  entrega.referenciaDelOficio = _refOficio1.salida;
 
   // ── PARA SU JUICIO · reusa las huellas con sello (probado/indicado/abierto) y la pregunta al dueño de
   // `rolesCartera` — sin introducir NINGÚN número que no esté ya verificado arriba (regla 1 del plan) ──
@@ -348,13 +369,15 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
   }
   entrega.paraSuJuicio = paraSuJuicio;
 
-  // ── QUÉ MÁS PUEDO CALCULAR · menú sin cifras (no necesita verificación numérica) ──
+  // ── QUÉ MÁS PUEDO CALCULAR · menú por ruta + las ofertas de la capa de conocimiento (Etapa 3, owner 2026-09-24:
+  // antes un menú estático sin cifras; una oferta trae una cifra-gancho YA verificada — `_ofertasTexto`) ──
   entrega.queMasPuedoCalcular = {
     puedo: [
       `Margen por producto dentro de ${top.entidad}`,
       "Carga comercial alta, cuenta por cuenta",
       "Ranking completo por contribución no capturada",
       "Simular un cambio de carga o de precio en la cuenta prioritaria",
+      ..._ofertasTexto(_refOficio1.ofertas),
     ],
     noPuedo: ["Quién dejó de comprar qué (no hay historial cliente×SKU)", "La causa exacta de la brecha (el dato localiza, no explica)"],
   };
@@ -534,7 +557,8 @@ export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta
   { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
 
   // ── REFERENCIA DEL OFICIO · Etapa 3 (ver la nota de la ruta 1) ──
-  entrega.referenciaDelOficio = referenciaDelOficio({ perfil, pregunta, entidadesEnRespuesta: [topEntidad, ...(segundoEntidad ? [segundoEntidad] : [])], scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
+  const _refOficio2 = referenciaDelOficioConOfertas({ perfil, pregunta, entidadesEnRespuesta: [topEntidad, ...(segundoEntidad ? [segundoEntidad] : [])], entidadesDeLaPregunta: _entidadesDeLaPregunta(pregunta), scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
+  entrega.referenciaDelOficio = _refOficio2.salida;
 
   // ── PARA SU JUICIO ──
   entrega.paraSuJuicio = idVencidoTotal
@@ -543,7 +567,7 @@ export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta
 
   // ── QUÉ MÁS PUEDO CALCULAR ──
   entrega.queMasPuedoCalcular = {
-    puedo: ["Deuda vencida por antigüedad", "Cuánto se vendió a crédito contra al contado", "Ranking completo de deudores"],
+    puedo: ["Deuda vencida por antigüedad", "Cuánto se vendió a crédito contra al contado", "Ranking completo de deudores", ..._ofertasTexto(_refOficio2.ofertas)],
     noPuedo: ["Por qué un cliente dejó de pagar a tiempo (el dato mide cuánto, no por qué)", "Riesgo de que la deuda se vuelva incobrable (no hay historial de mora)"],
   };
 
@@ -730,8 +754,10 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
   if (faltaRango) entrega.limites.push({ titulo: "El período no declara una fecha de corte para el inventario", motivo: "El dato confirma que es una foto de inventario a hoy, pero el pack no trae una fecha de corte declarada para este universo — a diferencia de la cobranza, que sí la declara (flujoComercial.fechaCorte). No se afirma una fecha." });
   { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
 
-  // ── REFERENCIA DEL OFICIO · Etapa 3 (ver la nota de la ruta 1) ──
-  entrega.referenciaDelOficio = referenciaDelOficio({ perfil, pregunta, entidadesEnRespuesta: [topSku.sku, ...(segundoSku ? [segundoSku.sku] : [])], scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
+  // ── REFERENCIA DEL OFICIO · Etapa 3 (ver la nota de la ruta 1) — eje SKU: no hay cuentas que el usuario pueda
+  // nombrar en la pregunta para este eje, `entidadesDeLaPregunta` queda vacío (comportamiento de siempre) ──
+  const _refOficio3 = referenciaDelOficioConOfertas({ perfil, pregunta, entidadesEnRespuesta: [topSku.sku, ...(segundoSku ? [segundoSku.sku] : [])], entidadesDeLaPregunta: _entidadesDeLaPregunta(pregunta), scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
+  entrega.referenciaDelOficio = _refOficio3.salida;
 
   // ── PARA SU JUICIO · la MISMA pregunta que ya certifica el playbook (asesoria.js) — no se redacta una nueva ──
   entrega.paraSuJuicio = [
@@ -740,7 +766,7 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
 
   // ── QUÉ MÁS PUEDO CALCULAR ──
   entrega.queMasPuedoCalcular = {
-    puedo: ["Capital frenado por bodega", "Capital por familia y marca", "Detalle de riesgo de quiebre y sobrestock", "Simular el efecto de liberar los SKU frenados"],
+    puedo: ["Capital frenado por bodega", "Capital por familia y marca", "Detalle de riesgo de quiebre y sobrestock", "Simular el efecto de liberar los SKU frenados", ..._ofertasTexto(_refOficio3.ofertas)],
     noPuedo: ["Por qué cada SKU quedó frenado (no hay historial de compras ni causa declarada)", "Si conviene transferir stock entre bodegas (ningún SKU está en más de una)"],
   };
 
@@ -969,7 +995,8 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
   { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
 
   // ── REFERENCIA DEL OFICIO · Etapa 3 (ver la nota de la ruta 1) — las entidades líder de cada dominio ──
-  entrega.referenciaDelOficio = referenciaDelOficio({ perfil, pregunta, entidadesEnRespuesta: [...new Set(Object.values(lideres).map((L) => L.x.entidad))], scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
+  const _refOficio4 = referenciaDelOficioConOfertas({ perfil, pregunta, entidadesEnRespuesta: [...new Set(Object.values(lideres).map((L) => L.x.entidad))], entidadesDeLaPregunta: _entidadesDeLaPregunta(pregunta), scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
+  entrega.referenciaDelOficio = _refOficio4.salida;
 
   // ── PARA SU JUICIO · una pregunta por dominio, reusando el mismo texto que ya certifican las otras rutas ──
   entrega.paraSuJuicio = [];
@@ -983,7 +1010,7 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
 
   // ── QUÉ MÁS PUEDO CALCULAR ──
   entrega.queMasPuedoCalcular = {
-    puedo: ["El detalle de cada dominio por separado (comercial, inventario o cobranza)", "El cruce por SKU entre venta e inventario", "La cobranza cruzada con la venta, cuenta por cuenta", "Reordenar la prioridad con otro criterio (ventas, contribución, capital)"],
+    puedo: ["El detalle de cada dominio por separado (comercial, inventario o cobranza)", "El cruce por SKU entre venta e inventario", "La cobranza cruzada con la venta, cuenta por cuenta", "Reordenar la prioridad con otro criterio (ventas, contribución, capital)", ..._ofertasTexto(_refOficio4.ofertas)],
     noPuedo: ["Por qué pasa cada cosa que esta prioridad localiza (el dato mide qué y cuánto, no por qué)", "Un total único de los tres dominios (no reconcilian entre sí)"],
   };
 

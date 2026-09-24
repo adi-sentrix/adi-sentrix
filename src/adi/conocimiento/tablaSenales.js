@@ -36,6 +36,7 @@ import { asignarIds } from "../notario/hechos.js";
 import { indiceDeEvidencia } from "../notario/evidencia.js";
 import { periodoDeFiguras, factorComercialDe } from "../../config/contract/figureType.js";
 import { dominiosDe } from "../agente/contratoDeDominios.js";
+import { esTemaComercial } from "../agente/contratoComercial.js";
 import { fig } from "../boleta.js";
 import { getTenantData } from "../../data/tenantStore.js";
 
@@ -113,9 +114,35 @@ function _figsCobranzaCompleta(scenario) {
 const _RE_MARGEN = /\bmargen|rentabilidad|contribuci[oó]n/i;
 const _RE_CARGA = /\bcarga comercial|convenio|rappel|aporte publicitario|descuento log[ií]stico/i;
 const _RE_PLAZOS = /\bplazo|d[ií]as de pago|d[ií]as de cobro/i;
-function _preguntaDeLaTabla(pregunta) {
+/* ═══ CORRECCIÓN 2026-09-24 (owner, pertinencia por encargo) — «el fallback "nombre de cliente ⇒ comercial" no
+ * es el dominio del ENCARGO de esta capa» ══════════════════════════════════════════════════════════════════════
+ * `dominiosDe(pregunta)` (contratoDeDominios.js) enciende "comercial" también cuando la pregunta solo NOMBRA una
+ * cuenta (`contratoComercial.js:esTemaComercial`, el último recurso — «¿Cómo está Falabella?»). Eso es correcto
+ * para el contrato comercial (decide qué pasos correr), pero es FALSO para el dominio del ENCARGO que esta capa
+ * usa para decidir "responde la pregunta": «¿Cómo está la cobranza de Lider?» nombra a Lider y encendería
+ * "comercial" solo por eso, aunque el usuario no preguntó una palabra de carga/margen — CAU-01 pasaría a
+ * "responder la pregunta" por una digresión, no por el encargo real. Corrección: si "comercial" vino SOLO del
+ * fallback de nombre (recalculado acá con `sinFallbackDeNombre:true`, la MISMA función, sin lista de palabras
+ * nueva), se retira — salvo que sin él no quede ningún dominio (una pregunta que solo nombra una cuenta, sin
+ * ningún otro léxico de dominio, sigue siendo comercial: no hay a qué otro dominio caer). No se toca
+ * `contratoDeDominios.js` ni `contratoComercial.js` para el resto del producto — ver la opción aditiva en
+ * `esTemaComercial`. */
+function _dominiosDelEncargo(pregunta) {
   let dominios = [];
   try { dominios = dominiosDe(pregunta).dominios || []; } catch { dominios = []; }
+  if (dominios.includes("comercial")) {
+    let esComercialSinFallback = false;
+    try { esComercialSinFallback = esTemaComercial(pregunta, { conOtrosUniversos: true, sinFallbackDeNombre: true }); } catch { esComercialSinFallback = false; }
+    if (!esComercialSinFallback) {
+      const sinComercial = dominios.filter((d) => d !== "comercial");
+      if (sinComercial.length) dominios = sinComercial;   // "comercial" solo vino del fallback de nombre: se retira
+      // si `sinComercial` queda vacío, no hay otro dominio al que caer: se conserva "comercial" tal cual venía
+    }
+  }
+  return dominios;
+}
+function _preguntaDeLaTabla(pregunta, { entidadesDeLaPregunta = [] } = {}) {
+  const dominios = _dominiosDelEncargo(pregunta);
   const q = String(pregunta || "");
   const temas = [...dominios];
   // "prioridad" es un tema propio de la pregunta (no un dominio del contrato): se enciende con un encargo de
@@ -125,14 +152,22 @@ function _preguntaDeLaTabla(pregunta) {
   if (_RE_MARGEN.test(q)) metricas.push("margen");
   if (_RE_CARGA.test(q)) metricas.push("carga");
   if (_RE_PLAZOS.test(q)) metricas.push("plazos");
-  return { temas, metricas, texto: q };
+  // el SUJETO del usuario (owner 2026-09-24, pertinencia por encargo): sin cuentas nombradas por el usuario en
+  // la pregunta, "sujetoAbierto" — la única lectura que necesita `evaluarPertinencia.js` (PRI-04 en preguntas
+  // abiertas) y `seleccionar.js` (nivel principal/mención). No es un booleano inventado: es `entidadesDeLaPregunta`
+  // (el sujeto real, pasado por el llamador) vacío o no.
+  const sujetoAbierto = !(Array.isArray(entidadesDeLaPregunta) && entidadesDeLaPregunta.filter(Boolean).length);
+  return { temas, metricas, texto: q, sujetoAbierto };
 }
 
-/** construirTablaDeSenales({ scenario, pregunta, entidadesEnRespuesta }) → la tabla de señales por entidad.
- *  PROYECCIÓN pura sobre lo que el motor ya calculó — ver la cabecera. `entidadesEnRespuesta` (opcional): las
- *  cuentas/SKU que la Respuesta de ESTA Entrega ya nombra — así `cuenta.en_respuesta` no adivina, lo declara
- *  quien compone la Entrega (mismo dato que ya usan los acotadores, §3 del documento). */
-export function construirTablaDeSenales({ scenario = ESCENARIO_INICIAL, pregunta = "", entidadesEnRespuesta = [] } = {}) {
+/** construirTablaDeSenales({ scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta }) → la tabla de
+ *  señales por entidad. PROYECCIÓN pura sobre lo que el motor ya calculó — ver la cabecera. `entidadesEnRespuesta`
+ *  (opcional): las cuentas/SKU que la Respuesta de ESTA Entrega ya nombra (el PROCEDIMIENTO) — así
+ *  `cuenta.en_respuesta` no adivina, lo declara quien compone la Entrega (mismo dato que ya usan los acotadores,
+ *  §3 del documento). `entidadesDeLaPregunta` (opcional, owner 2026-09-24, pertinencia por encargo): las cuentas
+ *  que el USUARIO nombró en la pregunta — distinto de `entidadesEnRespuesta` (que puede nombrar cuentas que el
+ *  PROCEDIMIENTO eligió, no el usuario). Alimenta `tabla.pregunta.sujetoAbierto` — ver `_preguntaDeLaTabla`. */
+export function construirTablaDeSenales({ scenario = ESCENARIO_INICIAL, pregunta = "", entidadesEnRespuesta = [], entidadesDeLaPregunta = [] } = {}) {
   const nombradas = new Set((entidadesEnRespuesta || []).filter(Boolean));
   const cuentas = {};
   const skus = {};
@@ -284,7 +319,7 @@ export function construirTablaDeSenales({ scenario = ESCENARIO_INICIAL, pregunta
   return {
     cuentas, skus,
     periodo: { abierto: periodoAbierto },
-    pregunta: _preguntaDeLaTabla(pregunta),
+    pregunta: _preguntaDeLaTabla(pregunta, { entidadesDeLaPregunta }),
     _scenario: scenario,
     // el índice de evidencia compartido — `medir.js` declara sus hechos `cifra`/`razon` sobre ESTE índice y los
     // verifica con `libroDeHechos` (notario/hechos.js), nunca calculándolos por su cuenta.

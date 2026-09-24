@@ -366,7 +366,15 @@ H("14 · bandera OFF / pieza sin firmar — CAU-01 no aporta nada a la Entrega s
 }
 
 /* ═══ 15 · PRESENTACIÓN EN BLOQUE (owner 2026-09-24) — una señal NUNCA se omite por espacio, ningún id interno
- * llega al usuario, y el encabezado/no-implica aparecen exactamente una vez por pieza ═══ */
+ * llega al usuario, y el encabezado/no-implica aparecen exactamente una vez por pieza ═══
+ * ★ ACTUALIZACIÓN 2026-09-24 (pertinencia por encargo) — la pregunta de esta sección se cambió de "quién me debe
+ * más y dónde pierdo plata" a "por qué el margen está bajo y quién me debe más": con el rediseño de pertinencia
+ * por encargo (ver `_pertinencia_por_encargo_gate.mjs`), una pieza solo se sirve en BLOQUE si su dominio ES el
+ * del encargo (antes: todo pertinente se bloqueaba, sin importar el dominio) — la pregunta vieja no traía léxico
+ * comercial (ni "margen" ni "carga"), así que CAU-01 pasaba a mención/oferta y el bloque quedaba fuera de
+ * `referenciaDelOficio` (esta sección prueba el TOPE de caracteres del BLOQUE, no la clasificación de dominio:
+ * necesita que CAU-01 y PRI-04 sean AMBAS principales). El veredicto de cada cuenta (señal/bajo_piso, cifras) no
+ * cambia con la pregunta — solo el léxico de dominio. */
 H("15 · el bloque — señal nunca se omite por espacio, sin id interno, encabezado/no-implica una vez");
 {
   const { referenciaDelOficio } = await import("./src/adi/conocimiento/seleccionar.js");
@@ -391,7 +399,7 @@ H("15 · el bloque — señal nunca se omite por espacio, sin id interno, encabe
   // las señales reales de este turno (control independiente, sin pasar por referenciaDelOficio) — para saber
   // QUÉ nombres tiene que sobrevivir cualquier tope.
   const { construirTablaDeSenales } = await import("./src/adi/conocimiento/tablaSenales.js");
-  const tablaControl = construirTablaDeSenales({ scenario: ESCENARIO_INICIAL, pregunta: "quién me debe más y dónde pierdo plata", entidadesEnRespuesta: ["Falabella", "Lider", "Jumbo"] });
+  const tablaControl = construirTablaDeSenales({ scenario: ESCENARIO_INICIAL, pregunta: "por qué el margen está bajo y quién me debe más", entidadesEnRespuesta: ["Falabella", "Lider", "Jumbo"] });
   const bajoBenchmarkControl = Object.keys(tablaControl.cuentas).filter((e) => tablaControl.cuentas[e].bajoBenchmark === true);
   const senalesCAU01 = bajoBenchmarkControl.filter((e) => medirPieza(CAU01_FIRMADA, e, tablaControl).estado === "senal");
   ok(senalesCAU01.length > 0, `hay ${senalesCAU01.length} señal(es) de CAU-01 este turno (control, para saber qué nombres no se pueden perder): ${senalesCAU01.join(", ")}`);
@@ -399,7 +407,7 @@ H("15 · el bloque — señal nunca se omite por espacio, sin id interno, encabe
   // ★ CARNADA 1 · con un tope de caracteres RIDÍCULAMENTE chico (10 — ni una palabra entera cabría en el
   // pipeline por ítem viejo), las señales de CAU-01 y PRI-04 siguen nombradas — el bloque nunca pasa por el
   // tope de tamaño (bypassa `acotadores.js` entero, ver `seleccionar.js:_BLOQUE_POR_CALCULO`).
-  const salidaTopeChico = referenciaDelOficio({ perfil: PERFIL_COMPLETO, pregunta: "quién me debe más y dónde pierdo plata", entidadesEnRespuesta: ["Falabella", "Lider", "Jumbo"], scenario: ESCENARIO_INICIAL, activo: true, catalogo: CATALOGO, maxCaracteres: 10 });
+  const salidaTopeChico = referenciaDelOficio({ perfil: PERFIL_COMPLETO, pregunta: "por qué el margen está bajo y quién me debe más", entidadesEnRespuesta: ["Falabella", "Lider", "Jumbo"], scenario: ESCENARIO_INICIAL, activo: true, catalogo: CATALOGO, maxCaracteres: 10 });
   const textoCompleto = salidaTopeChico.map((s) => s.texto).join("\n");
   for (const e of senalesCAU01) ok(textoCompleto.includes(`${e}:`), `★ CARNADA · con maxCaracteres:10, la señal "${e}" (CAU-01) SIGUE nombrada en el texto servido`, textoCompleto.slice(0, 300));
   ok(!/mediciones más no entraron por espacio/.test(textoCompleto) || senalesCAU01.every((e) => textoCompleto.includes(`${e}:`)), "★ CARNADA · aunque hubiera una línea de sobrantes (del pipeline viejo de CAU-06/CAU-03), ninguna señal de CAU-01/PRI-04 cayó ahí", textoCompleto);
@@ -407,7 +415,7 @@ H("15 · el bloque — señal nunca se omite por espacio, sin id interno, encabe
 
   // ★ CARNADA 2 · ningún id interno del catálogo aparece en el texto servido — comparado contra los ids REALES
   // de PIEZAS_CONOCIMIENTO (nunca una lista de palabras a mano: si el catálogo cambia, esta carnada lo sigue).
-  const salidaNormal = referenciaDelOficio({ perfil: PERFIL_COMPLETO, pregunta: "quién me debe más y dónde pierdo plata", entidadesEnRespuesta: ["Falabella", "Lider", "Jumbo"], scenario: ESCENARIO_INICIAL, activo: true, catalogo: CATALOGO });
+  const salidaNormal = referenciaDelOficio({ perfil: PERFIL_COMPLETO, pregunta: "por qué el margen está bajo y quién me debe más", entidadesEnRespuesta: ["Falabella", "Lider", "Jumbo"], scenario: ESCENARIO_INICIAL, activo: true, catalogo: CATALOGO });
   const textoNormal = salidaNormal.map((s) => s.texto).join("\n");
   ok(textoNormal.length > 0, "la sección sirvió contenido real para esta carnada");
   for (const id of PIEZAS_CONOCIMIENTO.map((p) => p.id)) {
@@ -508,46 +516,64 @@ H("17 · una sola oración de límite por bloque — nunca se concatena medicion
   }
 }
 
-/* ═══ 18 · SEÑALES NO NOMBRADAS, COMPACTADAS CUANDO LA PIEZA ES CONTEXTO (owner 2026-09-24, defecto 4) ═══
- * Con la pregunta de margen (dominio "comercial"), PRI-04 (dominio "cobranza") es contexto adicional: sus
- * señales NO nombradas se compactan por nombre y monto, nunca como línea completa ni ocultas. Se prueba sobre
- * el pipeline real (`referenciaDelOficio`) y se demuestra que el criterio (`respondeLaPregunta`) es lo que
- * decide, llamando al bloque directo con la opción en `true`/`false` (copia de argumentos, nunca el archivo). */
-H("18 · señales de cobranza no nombradas se compactan (por nombre y monto) cuando cobranza no es el tema");
+/* ═══ 18 · MENCIÓN + OFERTA CUANDO LA PIEZA ES DE OTRO DOMINIO (owner 2026-09-24, actualizado por la pertinencia
+ * por encargo — ver `_pertinencia_por_encargo_gate.mjs`) ═══
+ * REDISEÑO 2026-09-24: con la pregunta de margen (dominio "comercial"), PRI-04 (dominio "cobranza") YA NO se
+ * sirve como bloque completo (el defecto 4 original — "5 señales completas aunque el usuario no las nombró y el
+ * tema es carga/margen, no cobranza" — se cerraba antes compactando esas señales DENTRO del mismo bloque; ahora
+ * el diseño sellado (owner 2026-09-24) va más allá: una pieza de otro dominio pasa a MENCIÓN (una oración, solo
+ * sobre cuentas que el USUARIO nombró en la pregunta — Lider, aquí) + EXACTAMENTE una OFERTA para «Qué más puedo
+ * calcular» con el resto de sus señales. Se prueba sobre el pipeline real (`referenciaDelOficioConOfertas`) y,
+ * de control, llamando al bloque directo con `abierta`/`sujeto` en vez del viejo `respondeLaPregunta`/`nombradas`
+ * — prueba que la opción sigue siendo lo que decide el despliegue completo, no una casualidad de los datos. */
+H("18 · mención + oferta cuando la pieza es de otro dominio (antes: bloque con señales compactadas)");
 {
   const { construirPerfilCliente } = await import("./src/config/contract/perfilCliente.js");
-  const { referenciaDelOficio } = await import("./src/adi/conocimiento/seleccionar.js");
+  const { referenciaDelOficioConOfertas } = await import("./src/adi/conocimiento/seleccionar.js");
   const { ESCENARIO_INICIAL } = await import("./src/config/scenarios.js");
   const TENANT_PERFIL_COMPLETO18 = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil, sector: { valor: "distribucion", procedencia: "medido" }, tipoProducto: { valor: "durable", procedencia: "medido" }, pais: { valor: "CL", procedencia: "medido" }, modeloComercial: { valor: "cuentas_grandes", procedencia: "medido" } } };
   const PERFIL18 = construirPerfilCliente(TENANT_PERFIL_COMPLETO18);
   initTenant(TENANT_DEMO);
   const CATALOGO18 = [{ ...PIEZA, estado: "firmada", firma: { por: "gate §18", fecha: "2026-09-24" } }, piezaPorId("PRI-04")];
   const pregMargen = "¿Por qué Falabella, Lider y Jumbo están bajo el benchmark de margen?";
-  const salida18 = referenciaDelOficio({ perfil: PERFIL18, pregunta: pregMargen, entidadesEnRespuesta: ["Falabella", "Lider", "Jumbo"], scenario: ESCENARIO_INICIAL, activo: true, catalogo: CATALOGO18 });
-  const bloquePRI04_18 = salida18.find((s) => /el oficio compara la participación/.test(s.texto));
-  ok(!!bloquePRI04_18, "el bloque de PRI-04 se sirvió en la pregunta de margen");
-  if (bloquePRI04_18) {
-    const t = bloquePRI04_18.texto;
-    ok(/Lider: [\d.]+% del vencido contra/.test(t), "★ Lider (nombrada, señal) trae la línea COMPLETA", t);
-    ok(/También superan el piso de ADI: /.test(t), "★ hay una línea compacta para las señales no nombradas", t);
+  // `entidadesDeLaPregunta` — las cuentas que el USUARIO nombró (las tres, literal en el texto de la pregunta):
+  // sin esto, "sujeto abierto" sería `true` y la mención/oferta perdería su distinción (ver el candado nuevo).
+  const { salida: salida18, ofertas: ofertas18 } = referenciaDelOficioConOfertas({ perfil: PERFIL18, pregunta: pregMargen, entidadesEnRespuesta: ["Falabella", "Lider", "Jumbo"], entidadesDeLaPregunta: ["Falabella", "Lider", "Jumbo"], scenario: ESCENARIO_INICIAL, activo: true, catalogo: CATALOGO18 });
+  const mencionPRI04_18 = salida18.find((s) => /Lider pesa más en el vencido/.test(s.texto));
+  ok(!!mencionPRI04_18, "la mención de PRI-04 (Lider) se sirvió en la pregunta de margen");
+  ok(!salida18.some((s) => /el oficio compara la participación/.test(s.texto)), "★ CARNADA · PRI-04 ya NO se sirve como bloque completo (encabezado ausente) en la pregunta de margen");
+  if (mencionPRI04_18) {
+    const t = mencionPRI04_18.texto;
+    ok(/Lider pesa más en el vencido que en la venta — [\d.]+% del vencido contra/.test(t), "★ Lider (nombrada por el usuario, señal) trae la mención con su cifra", t);
     for (const noNombrada of ["Sodimac", "Tottus", "Paris", "Easy"]) {
-      ok(new RegExp(`${noNombrada} \\(\\$`).test(t), `★ CARNADA · ${noNombrada} (señal, no nombrada) aparece por NOMBRE y MONTO en la línea compacta`, t);
-      ok(!new RegExp(`${noNombrada}: [\\d.]+% del vencido contra`).test(t), `★ CARNADA · ${noNombrada} NO aparece como línea completa (nunca oculta, pero tampoco desplegada de más)`, t);
+      ok(!t.includes(noNombrada), `★ CARNADA · ${noNombrada} (señal, no nombrada por el usuario) NO aparece en la mención`, t);
     }
   }
+  const ofertaPRI04_18 = (ofertas18 || []).find((o) => o.dominio === "cobranza");
+  ok(!!ofertaPRI04_18, "hay EXACTAMENTE una oferta de cobranza (PRI-04) para «Qué más puedo calcular»");
+  if (ofertaPRI04_18) {
+    ok(/5 cuentas superan/.test(ofertaPRI04_18.texto), `★ CARNADA · la oferta cuenta las 5 señales de PRI-04 este turno (Lider incluida: el conteo es un resumen de la pieza, no una repetición del detalle)`, ofertaPRI04_18.texto);
+    ok(!!ofertaPRI04_18.gancho && !!ofertaPRI04_18.gancho.hechoId, "★ CARNADA · la oferta trae un gancho con hechoId (cifra verificada por el libro de hechos, no inventada)", JSON.stringify(ofertaPRI04_18.gancho));
+  }
 
-  // ★ CARNADA de control — llamando al bloque DIRECTO con respondeLaPregunta:true (copia del argumento, no del
-  // archivo), TODAS las señales se despliegan completas — prueba que la opción es lo que decide el compactado,
-  // no una casualidad de los datos.
+  // ★ CARNADA de control — llamando al bloque DIRECTO con `abierta`/`sujeto` (copia de argumentos, no del
+  // archivo): con `abierta:true` TODAS las señales se despliegan completas; con `abierta:false` y un `sujeto`
+  // chico, las que quedan fuera se compactan — prueba que la opción sigue siendo lo que decide, no los datos.
   const { construirTablaDeSenales } = await import("./src/adi/conocimiento/tablaSenales.js");
   const tabla18 = construirTablaDeSenales({ scenario: ESCENARIO_INICIAL, pregunta: pregMargen, entidadesEnRespuesta: ["Falabella", "Lider", "Jumbo"] });
   const { porEntidad: porEntidad18 } = resultadosPisoDeCobranza(piezaPorId("PRI-04"), tabla18);
   const cierre18 = coberturaPisoDeCobranza(tabla18);
-  const bloqueForzado = servirBloquePisoDeCobranza(piezaPorId("PRI-04"), porEntidad18, cierre18.texto, { nombradas: new Set(["Falabella", "Lider", "Jumbo"]), respondeLaPregunta: true });
-  ok(!!bloqueForzado, "el bloque forzado (respondeLaPregunta:true) se sirvió");
+  const bloqueForzado = servirBloquePisoDeCobranza(piezaPorId("PRI-04"), porEntidad18, cierre18.texto, { sujeto: new Set(["Falabella", "Lider", "Jumbo"]), abierta: true });
+  ok(!!bloqueForzado, "el bloque forzado (abierta:true) se sirvió");
   if (bloqueForzado) {
-    ok(!/También superan/.test(bloqueForzado.texto), "★ CARNADA control · con respondeLaPregunta:true, NO hay línea compacta (todo se despliega completo)", bloqueForzado.texto);
-    for (const nombre of ["Sodimac", "Tottus", "Paris", "Easy"]) ok(new RegExp(`${nombre}: [\\d.]+% del vencido contra`).test(bloqueForzado.texto), `★ CARNADA control · con respondeLaPregunta:true, ${nombre} SÍ trae línea completa`, bloqueForzado.texto);
+    ok(!/También superan|Fuera de/.test(bloqueForzado.texto), "★ CARNADA control · con abierta:true, NO hay línea compacta (todo se despliega completo)", bloqueForzado.texto);
+    for (const nombre of ["Sodimac", "Tottus", "Paris", "Easy"]) ok(new RegExp(`${nombre}: [\\d.]+% del vencido contra`).test(bloqueForzado.texto), `★ CARNADA control · con abierta:true, ${nombre} SÍ trae línea completa`, bloqueForzado.texto);
+  }
+  const bloqueCerrado = servirBloquePisoDeCobranza(piezaPorId("PRI-04"), porEntidad18, cierre18.texto, { sujeto: new Set(["Lider"]), abierta: false });
+  ok(!!bloqueCerrado, "el bloque cerrado (abierta:false, sujeto:{Lider}) se sirvió");
+  if (bloqueCerrado) {
+    ok(/Fuera de la nombrada, también superan/.test(bloqueCerrado.texto), "★ CARNADA control · con abierta:false, las señales fuera del sujeto se compactan", bloqueCerrado.texto);
+    for (const nombre of ["Sodimac", "Tottus", "Paris", "Easy"]) ok(!new RegExp(`${nombre}: [\\d.]+% del vencido contra`).test(bloqueCerrado.texto), `★ CARNADA control · con abierta:false, ${nombre} NO trae línea completa`, bloqueCerrado.texto);
   }
 }
 

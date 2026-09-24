@@ -365,11 +365,27 @@ initTenant(TENANT_DEMO);
 }
 
 /* ═══ 9 · LA CONCLUSIÓN DEL PROCEDIMIENTO — BYTE-IDÉNTICA con la capa encendida y apagada ═══ */
-H("9 · byte-identidad — las cuatro rutas de componer.js, capa ON vs OFF, MENOS \"referenciaDelOficio\"");
+H("9 · byte-identidad — las cuatro rutas de componer.js, capa ON vs OFF, MENOS \"referenciaDelOficio\" Y \"queMasPuedoCalcular\"");
+/* ★ ACTUALIZACIÓN 2026-09-24 (pertinencia por encargo) — `queMasPuedoCalcular.puedo` se suma a lo excluido de la
+ * comparación byte-idéntica. Antes era un menú ESTÁTICO por ruta (nunca lo tocaba `ADI_CONOCIMIENTO`); ahora
+ * `componer.js` funde ahí las OFERTAS de la capa (una por pieza pertinente que no es principal este turno — ver
+ * `_pertinencia_por_encargo_gate.mjs`), así que con la capa ENCENDIDA y una pieza que sí sirve contenido, ese
+ * menú SÍ puede traer una o más líneas de más — la Entrega sigue byte-idéntica en todo lo demás (Respuesta,
+ * Cifras, Límites, Para su juicio, universos, prioridad): la regla dura del diseño («conclusión byte-idéntica
+ * ON/OFF») es sobre la CONCLUSIÓN del procedimiento, no sobre un menú de sugerencias sin cifra que ahora SÍ
+ * trae una cifra verificada. Con la capa apagada, o sin ninguna pieza pertinente fuera del encargo, el menú
+ * queda exactamente igual que antes (0 ofertas) — la sección 9 de más abajo (TENANT_DEMO, perfil incompleto)
+ * ya lo prueba: `referenciaDelOficio === []` en las dos corridas, así que tampoco hay ofertas que fusionar. */
 function _sinReferenciaDelOficio(R) {
   if (!R || !R.entrega) return null;
-  const { referenciaDelOficio: _r, ...resto } = R.entrega;
-  return JSON.stringify({ ok: R.ok, texto: R.texto.replace(/\*\*Referencia del oficio\*\*[\s\S]*?(?=\n\*\*Para su juicio)/, "**Referencia del oficio** [omitido de esta comparación]\n\n"), entrega: resto });
+  const { referenciaDelOficio: _r, queMasPuedoCalcular: _q, ...resto } = R.entrega;
+  return JSON.stringify({
+    ok: R.ok,
+    texto: R.texto
+      .replace(/\*\*Referencia del oficio\*\*[\s\S]*?(?=\n\*\*Para su juicio)/, "**Referencia del oficio** [omitido de esta comparación]\n\n")
+      .replace(/\*\*Qué más puedo calcular\.\*\*[\s\S]*$/, "**Qué más puedo calcular.** [omitido de esta comparación]"),
+    entrega: resto,
+  });
 }
 {
   const rutas = [
@@ -420,7 +436,16 @@ function _sinReferenciaDelOficio(R) {
       ok(sirvioContenido, `★ ${nombre} · CON la pieza de prueba firmada, referenciaDelOficio SÍ sirve contenido real (${Ron.entrega.referenciaDelOficio.length} ítem(s))`, JSON.stringify(Ron.entrega.referenciaDelOficio));
       ok(JSON.stringify(Roff.entrega.referenciaDelOficio) === "[]", `${nombre} (capa apagada, sin catálogo de prueba) sigue dando referenciaDelOficio === []`);
       const sOff = _sinReferenciaDelOficio(Roff), sOn = _sinReferenciaDelOficio(Ron);
-      ok(sOff === sOn, `★★ ${nombre} · BYTE-IDÉNTICA incluso SIRVIENDO contenido real (Respuesta · Cifras · Límites · Para su juicio · universos · prioridad) — la ÚNICA diferencia es la sección referenciaDelOficio`, sOff === sOn ? "" : "difieren fuera de referenciaDelOficio — la pieza de prueba está tocando algo que no debería");
+      ok(sOff === sOn, `★★ ${nombre} · BYTE-IDÉNTICA incluso SIRVIENDO contenido real (Respuesta · Cifras · Límites · Para su juicio · universos · prioridad) — la ÚNICA diferencia es la sección referenciaDelOficio y, cuando la pieza no es principal, "Qué más puedo calcular"`, sOff === sOn ? "" : "difieren fuera de referenciaDelOficio/queMasPuedoCalcular — la pieza de prueba está tocando algo que no debería");
+      // ★ owner 2026-09-24 (pertinencia por encargo) — "queMasPuedoCalcular" con la capa OFF es el mismo menú
+      // estático de siempre (estas 4 rutas ya lo prueban en la sección 9, capa OFF ↔ ON con [] referenciaDelOficio);
+      // con la capa ON y una pieza que sirve contenido, el menú es AL MENOS ese mismo menú (nunca se pierde una
+      // línea vieja) — y trae exactamente una línea más SI Y SOLO SI la pieza de prueba no fue principal este
+      // turno (si fue principal, va en el bloque, no en la oferta — cero líneas de más).
+      const puedoOff = Roff.entrega.queMasPuedoCalcular.puedo, puedoOn = Ron.entrega.queMasPuedoCalcular.puedo;
+      const esPrefijo = puedoOff.every((s, i) => puedoOn[i] === s);
+      ok(esPrefijo, `★ ${nombre} · "Qué más puedo calcular" con la capa ON conserva TODO el menú de la capa OFF, en el mismo orden`, JSON.stringify({ puedoOff, puedoOn }));
+      ok(puedoOn.length === puedoOff.length || puedoOn.length === puedoOff.length + 1, `★ ${nombre} · con la capa ON, el menú trae 0 o 1 línea de más (la oferta de la pieza de prueba, si no fue principal) — nunca más de una por pieza pertinente`, `off=${puedoOff.length} on=${puedoOn.length}`);
       if (sirvioContenido && !unCasoConContenido) unCasoConContenido = { nombre, Roff, Ron, sOff };
     }
 

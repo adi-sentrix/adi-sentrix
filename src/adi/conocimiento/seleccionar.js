@@ -53,7 +53,12 @@ import { piezasValidas } from "./validarPieza.js";
 import { construirTablaDeSenales } from "./tablaSenales.js";
 import { evaluarPertinencia } from "./evaluarPertinencia.js";
 import { medirPieza, coberturaPisoDeCobranza, coberturaCargaVsResto, resultadosCargaVsResto, resultadosPisoDeCobranza } from "./medir.js";
-import { servirPieza, servirBloqueCargaVsResto, servirBloquePisoDeCobranza } from "./servir.js";
+import {
+  servirPieza, servirBloqueCargaVsResto, servirBloquePisoDeCobranza,
+  servirMencionCargaVsResto, servirMencionPisoDeCobranza,
+  servirOfertaCargaVsResto, servirOfertaPisoDeCobranza,
+  introDeMencion,
+} from "./servir.js";
 import { aplicarAcotadores, TOPE_CARACTERES_OFICIO } from "./acotadores.js";
 import { recuentoDeLoRevisado } from "./recuento.js";
 
@@ -84,25 +89,52 @@ const _DOMINIO_POR_CALCULO = {
   cargaCuentaVsResto: "comercial",
   pisoMaterialidadCobranza: "cobranza",
 };
+
+/* ═══ REDISEÑO 2026-09-24 (owner, pertinencia por encargo, diseño aprobado) — TRES NIVELES ═══════════════════════
+ * Antes, una pieza señal/bajo_piso se servía SIEMPRE como bloque completo (con las señales fuera del dominio
+ * compactadas por nombre y monto dentro del MISMO bloque). Ahora el llamador decide, ANTES de redactar, el NIVEL
+ * de la pieza para ESTE turno:
+ *   · PRINCIPAL — el dominio de la pieza ES el del encargo (`tabla.pregunta.temas`, ya corregido por el fallback
+ *     de nombre en `tablaSenales.js`) → bloque completo (`servirBloque*`), con SUJETO (usuario+procedimiento) o
+ *     pregunta abierta decidiendo qué cuenta lleva línea completa (ver `servir.js:_despliegaCompleta`).
+ *   · MENCIÓN + OFERTA — el dominio NO es el del encargo → como mucho una mención breve (una oración, solo sobre
+ *     cuentas que el USUARIO nombró — `nombradasPorUsuario`, nunca las del procedimiento) MÁS exactamente una
+ *     oferta para «Qué más puedo calcular» (con las señales restantes, cifra-gancho verificada).
+ * `sujeto` (Set) = unión de `entidadesEnRespuesta` (procedimiento) + `entidadesDeLaPregunta` (usuario) — decide
+ * el bloque principal. `nombradasPorUsuario` (Set) = solo `entidadesDeLaPregunta` — decide la mención (regla del
+ * diseño: "solo señales sobre cuentas nombradas por el USUARIO, no por el procedimiento"). `abierta` = el usuario
+ * no nombró ninguna cuenta (`tabla.pregunta.sujetoAbierto`) — despliega TODO el dominio principal, sin compactar. */
+function _resolverBloqueOMencion(pieza, tabla, ctx, spec) {
+  const { porEntidad } = spec.resultados(pieza, tabla);
+  if (!porEntidad.size) return null;
+  const respondeLaPregunta = ((tabla.pregunta && tabla.pregunta.temas) || []).includes(spec.dominio);
+  if (respondeLaPregunta) {
+    const cierre = spec.cobertura(tabla);
+    if (!cierre) return null;
+    const bloque = spec.servirBloque(pieza, porEntidad, cierre.texto, { sujeto: ctx.sujeto, abierta: ctx.abierta });
+    return bloque ? { nivel: "principal", bloque } : null;
+  }
+  const intro = introDeMencion(tabla);
+  const mencion = spec.servirMencion(pieza, porEntidad, { nombradas: ctx.nombradasPorUsuario, intro });
+  // ★ owner 2026-09-24 (corrección tras revisión) — la oferta reusa el MISMO cierre (`coberturaCargaVsResto`/
+  // `coberturaPisoDeCobranza`) que arma el bloque principal, para su cola (PRI-04: vencido total + % del saldo
+  // pendiente, hechos YA verificados — ver `servir.js:servirOfertaPisoDeCobranza`). Nunca un hecho nuevo: es la
+  // MISMA llamada que ya hacía este archivo para el bloque, solo que ahora también corre en el camino de la
+  // oferta (la pieza no es principal, pero su cierre sigue siendo una verdad válida de citar).
+  const cierreParaOferta = spec.cobertura(tabla);
+  const oferta = spec.servirOferta(pieza, porEntidad, cierreParaOferta);
+  if (!mencion && !oferta) return null;
+  return { nivel: "mencion", mencion, oferta };
+}
 const _BLOQUE_POR_CALCULO = {
-  cargaCuentaVsResto: (pieza, tabla, entidadesEnRespuesta) => {
-    const { porEntidad } = resultadosCargaVsResto(pieza, tabla);
-    if (!porEntidad.size) return null;
-    const cierre = coberturaCargaVsResto(tabla);
-    if (!cierre) return null;
-    const nombradas = new Set((entidadesEnRespuesta || []).filter(Boolean));
-    const respondeLaPregunta = (tabla.pregunta && tabla.pregunta.temas || []).includes(_DOMINIO_POR_CALCULO.cargaCuentaVsResto);
-    return servirBloqueCargaVsResto(pieza, porEntidad, cierre.texto, { nombradas, respondeLaPregunta });
-  },
-  pisoMaterialidadCobranza: (pieza, tabla, entidadesEnRespuesta) => {
-    const { porEntidad } = resultadosPisoDeCobranza(pieza, tabla);
-    if (!porEntidad.size) return null;
-    const cierre = coberturaPisoDeCobranza(tabla);
-    if (!cierre) return null;
-    const nombradas = new Set((entidadesEnRespuesta || []).filter(Boolean));
-    const respondeLaPregunta = (tabla.pregunta && tabla.pregunta.temas || []).includes(_DOMINIO_POR_CALCULO.pisoMaterialidadCobranza);
-    return servirBloquePisoDeCobranza(pieza, porEntidad, cierre.texto, { nombradas, respondeLaPregunta });
-  },
+  cargaCuentaVsResto: (pieza, tabla, ctx) => _resolverBloqueOMencion(pieza, tabla, ctx, {
+    resultados: resultadosCargaVsResto, cobertura: coberturaCargaVsResto, dominio: _DOMINIO_POR_CALCULO.cargaCuentaVsResto,
+    servirBloque: servirBloqueCargaVsResto, servirMencion: servirMencionCargaVsResto, servirOferta: servirOfertaCargaVsResto,
+  }),
+  pisoMaterialidadCobranza: (pieza, tabla, ctx) => _resolverBloqueOMencion(pieza, tabla, ctx, {
+    resultados: resultadosPisoDeCobranza, cobertura: coberturaPisoDeCobranza, dominio: _DOMINIO_POR_CALCULO.pisoMaterialidadCobranza,
+    servirBloque: servirBloquePisoDeCobranza, servirMencion: servirMencionPisoDeCobranza, servirOferta: servirOfertaPisoDeCobranza,
+  }),
 };
 
 /* ═══ CERO RUIDO (owner 2026-09-23, cierre de CAU-01) — «la pregunta del oficio UNA vez arriba, el "no implica"
@@ -134,12 +166,22 @@ function _colapsarOficioRepetido(servidos) {
 
 /* el corazón, factorizado para que el gate pueda pedir el resultado CON el filtro de firma (el que se sirve de
  * verdad) o SIN él (para demostrar el mecanismo sobre las piezas borrador, nunca servido a un cliente). */
-function _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, perfil, maxCaracteres }) {
+function _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, perfil, maxCaracteres }) {
   const { validas, invalidas } = piezasValidas(catalogo, {});
-  const tabla = construirTablaDeSenales({ scenario, pregunta, entidadesEnRespuesta });
+  const tabla = construirTablaDeSenales({ scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta });
+
+  // ═══ owner 2026-09-24 (pertinencia por encargo) — SUJETO (usuario + procedimiento, decide el bloque principal)
+  // vs. NOMBRADAS-POR-USUARIO (solo el usuario, decide la mención) — ver la cabecera de `_resolverBloqueOMencion`.
+  const _limpio = (arr) => new Set((arr || []).filter(Boolean));
+  const nombradasPorUsuario = _limpio(entidadesDeLaPregunta);
+  const sujeto = new Set([..._limpio(entidadesEnRespuesta), ...nombradasPorUsuario]);
+  const abierta = !!(tabla.pregunta && tabla.pregunta.sujetoAbierto);
+  const ctxNivel = { sujeto, nombradasPorUsuario, abierta };
 
   const items = [];
-  const bloques = [];   // piezas señal/bajo_piso: UN bloque cada una — nunca pasa por acotadores.js
+  const bloques = [];    // piezas principales (señal/bajo_piso): UN bloque cada una — nunca pasa por acotadores.js
+  const menciones = [];  // piezas de otro dominio, con señal sobre una cuenta nombrada por el usuario
+  const ofertas = [];    // EXACTAMENTE una por pieza no principal — para «Qué más puedo calcular» (componer.js)
   const detalle = [];   // traza completa por (pieza, entidad) — para el informe/gate, no para la Entrega
   for (const pieza of validas) {
     const pert = evaluarPertinencia(pieza, tabla, perfil, pregunta);
@@ -154,8 +196,14 @@ function _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, perfil,
         const medicion = medirPieza(pieza, entidad, tabla);
         detalle.push({ piezaId: pieza.id, entidad, pertinente: true, estado: medicion.estado, motivo: medicion.motivo, resolveria: medicion.resolveria, cifra: medicion.cifra, referencia: medicion.referencia });
       }
-      const bloque = bloqueFn(pieza, tabla, entidadesEnRespuesta);
-      if (bloque) bloques.push(bloque);
+      const resuelto = bloqueFn(pieza, tabla, ctxNivel);
+      if (resuelto) {
+        if (resuelto.nivel === "principal") { if (resuelto.bloque) bloques.push(resuelto.bloque); }
+        else {
+          if (resuelto.mencion) menciones.push(resuelto.mencion);
+          if (resuelto.oferta) ofertas.push(resuelto.oferta);
+        }
+      }
       continue;   // ★ una señal nunca se corta por espacio (owner 2026-09-24): esta pieza no entra a items/acotadores
     }
     for (const entidad of entidadesPert) {
@@ -177,6 +225,7 @@ function _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, perfil,
   const servidos = _colapsarOficioRepetido(servidosCrudos);
   const salida = [
     ...bloques.map((b) => ({ texto: b.texto, fuente: b.fuente, alcance: b.alcance, fecha: b.fecha, vigencia: b.vigencia, firma: b.firma })),
+    ...menciones.map((m) => ({ texto: m.texto, fuente: m.fuente, alcance: m.alcance, fecha: m.fecha, vigencia: m.vigencia, firma: m.firma })),
     ...servidos.map((s) => ({ texto: s.texto, fuente: s.fuente, alcance: s.alcance, fecha: s.fecha, vigencia: s.vigencia, firma: s.firma })),
   ];
   for (const [, lst] of agregadoPorPieza) {
@@ -233,39 +282,57 @@ function _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, perfil,
   // arriba), servido por `coberturaCargaVsResto`/`coberturaPisoDeCobranza` — la MISMA función, una sola vez,
   // nunca duplicada entre el bloque y una línea suelta.
 
-  return { salida, sobrantes, detalle, invalidas, tabla };
+  return { salida, sobrantes, detalle, invalidas, tabla, ofertas };
 }
 
-/** referenciaDelOficio({ perfil, pregunta, entidadesEnRespuesta, scenario, activo, catalogo }) →
+/** referenciaDelOficio({ perfil, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, scenario, activo, catalogo }) →
  *  [{texto,fuente,...}] — EL ENGANCHE que reemplaza (envolviendo) a `seleccionarConocimientoDelOficio` en los
  *  cuatro sitios de `componer.js`. Firma compatible: si se omite todo salvo `perfil`, se comporta igual que la
- *  función que envuelve (catálogo vacío hoy en perfilCliente.js).
+ *  función que envuelve (catálogo vacío hoy en perfilCliente.js). MISMA firma y forma de retorno que antes del
+ *  rediseño 2026-09-24 (array) — `entidadesDeLaPregunta` es ADITIVA (default `[]`, ningún llamador viejo se
+ *  rompe): sin ella, "sujeto" = solo `entidadesEnRespuesta` y "abierta" = `true` (el comportamiento de siempre:
+ *  desplegar todo — ver `tablaSenales.js:_preguntaDeLaTabla`, `sujetoAbierto` con `entidadesDeLaPregunta` vacío).
  *
  *  `catalogo` (opcional, default `PIEZAS_CONOCIMIENTO` — el real, las 4 piezas en "borrador"): NUNCA lo pasa
  *  ningún camino de producción. Existe para que `_conocimiento_gate.mjs` pueda probar la prueba de identidad
  *  (§9) con una pieza de prueba FIRMADA que sí se sirve, sin sembrar nada firmado en el catálogo real. */
-export function referenciaDelOficio({ perfil, pregunta = "", entidadesEnRespuesta = [], scenario = ESCENARIO_INICIAL, activo = ADI_CONOCIMIENTO, catalogo = PIEZAS_CONOCIMIENTO, maxCaracteres = TOPE_CARACTERES_OFICIO } = {}) {
-  if (!activo) return seleccionarConocimientoDelOficio(perfil);                 // puerta 1 — byte-idéntico a hoy
-  if (!perfilAutorizaConocimiento(perfil)) return [];                           // puerta 2 — perfil incompleto
+export function referenciaDelOficio({ perfil, pregunta = "", entidadesEnRespuesta = [], entidadesDeLaPregunta = [], scenario = ESCENARIO_INICIAL, activo = ADI_CONOCIMIENTO, catalogo = PIEZAS_CONOCIMIENTO, maxCaracteres = TOPE_CARACTERES_OFICIO } = {}) {
+  return _referenciaDelOficioInterna({ perfil, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, scenario, activo, catalogo, maxCaracteres }).salida;
+}
+
+/** referenciaDelOficioConOfertas(opts) → { salida, ofertas } — la función HERMANA (nota técnica del diseño): la
+ *  MISMA firma y el MISMO pipeline que `referenciaDelOficio` (nunca una segunda pasada ni una segunda verdad),
+ *  pero además devuelve `ofertas` — una por pieza pertinente que NO es principal este turno (documento §5), para
+ *  que `componer.js` las funda en `queMasPuedoCalcular`. `referenciaDelOficio` sigue devolviendo solo el array
+ *  (los cuatro sitios existentes de `componer.js` no cambian su forma); esta función es la que se usa donde
+ *  además se necesitan las ofertas. */
+export function referenciaDelOficioConOfertas({ perfil, pregunta = "", entidadesEnRespuesta = [], entidadesDeLaPregunta = [], scenario = ESCENARIO_INICIAL, activo = ADI_CONOCIMIENTO, catalogo = PIEZAS_CONOCIMIENTO, maxCaracteres = TOPE_CARACTERES_OFICIO } = {}) {
+  const { salida, ofertas } = _referenciaDelOficioInterna({ perfil, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, scenario, activo, catalogo, maxCaracteres });
+  return { salida, ofertas: ofertas || [] };
+}
+
+function _referenciaDelOficioInterna({ perfil, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, scenario, activo, catalogo, maxCaracteres }) {
+  if (!activo) return { salida: seleccionarConocimientoDelOficio(perfil), ofertas: [] };   // puerta 1 — byte-idéntico a hoy
+  if (!perfilAutorizaConocimiento(perfil)) return { salida: [], ofertas: [] };              // puerta 2 — perfil incompleto
 
   const { validas } = piezasValidas(catalogo, {});
   const firmadas = validas.filter((p) => p.estado === "firmada");
-  if (!firmadas.length) return [];                                             // puerta 3 — nada firmado todavía
+  if (!firmadas.length) return { salida: [], ofertas: [] };                                 // puerta 3 — nada firmado todavía
 
-  const { salida } = _procesar(firmadas, { scenario, pregunta, entidadesEnRespuesta, perfil, maxCaracteres });
+  const { salida, ofertas } = _procesar(firmadas, { scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, perfil, maxCaracteres });
   if (!salida.length) {
-    const tabla = construirTablaDeSenales({ scenario, pregunta, entidadesEnRespuesta });
+    const tabla = construirTablaDeSenales({ scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta });
     const rec = recuentoDeLoRevisado(firmadas, tabla, perfil, pregunta);
     if (rec) salida.push({ texto: rec.texto, fuente: null, alcance: null, fecha: null, vigencia: null, firma: null });
   }
-  return salida;
+  return { salida, ofertas };
 }
 
-/** _evaluarInfraestructura({ catalogo, scenario, pregunta, entidadesEnRespuesta, perfil }) → { salida, sobrantes,
- *  detalle, invalidas, tabla } — corre el pipeline COMPLETO sin la puerta 3 (firma), para probar el MECANISMO
- *  (pertinencia + medición + acotadores + recuento) sobre datos reales sin servir nada a un cliente. Uso
- *  exclusivo de `_conocimiento_gate.mjs` y de un informe — `referenciaDelOficio` (la función de producción)
- *  NUNCA llama a esto. */
-export function _evaluarInfraestructura({ catalogo = PIEZAS_CONOCIMIENTO, scenario = ESCENARIO_INICIAL, pregunta = "", entidadesEnRespuesta = [], perfil = null, maxCaracteres = TOPE_CARACTERES_OFICIO } = {}) {
-  return _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, perfil, maxCaracteres });
+/** _evaluarInfraestructura({ catalogo, scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, perfil }) →
+ *  { salida, sobrantes, detalle, invalidas, tabla, ofertas } — corre el pipeline COMPLETO sin la puerta 3
+ *  (firma), para probar el MECANISMO (pertinencia + medición + acotadores + recuento) sobre datos reales sin
+ *  servir nada a un cliente. Uso exclusivo de `_conocimiento_gate.mjs` y de un informe — `referenciaDelOficio`
+ *  (la función de producción) NUNCA llama a esto. */
+export function _evaluarInfraestructura({ catalogo = PIEZAS_CONOCIMIENTO, scenario = ESCENARIO_INICIAL, pregunta = "", entidadesEnRespuesta = [], entidadesDeLaPregunta = [], perfil = null, maxCaracteres = TOPE_CARACTERES_OFICIO } = {}) {
+  return _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, perfil, maxCaracteres });
 }

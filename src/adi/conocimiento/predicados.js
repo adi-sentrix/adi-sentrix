@@ -44,6 +44,11 @@ export const PREDICADOS_CERRADOS = Object.freeze([
   { predicado: "pregunta.metrica_margen", sujeto: "pregunta", disponible: true, fuente: "texto de la pregunta menciona margen/rentabilidad — mismo léxico que el contrato comercial" },
   { predicado: "pregunta.metrica_carga", sujeto: "pregunta", disponible: true, fuente: "texto de la pregunta menciona carga comercial/convenio/rappel" },
   { predicado: "pregunta.metrica_plazos", sujeto: "pregunta", disponible: true, fuente: "texto de la pregunta menciona plazo/días de pago" },
+  // owner 2026-09-24 (pertinencia por encargo, cambio aprobado sobre PRI-04 — ver piezas.js): "sujeto abierto" =
+  // el usuario no nombró ninguna cuenta en la pregunta (`entidadesDeLaPregunta` vacío, tablaSenales.js). Nunca un
+  // literal numérico ni una lista de palabras: lee `tabla.pregunta.sujetoAbierto`, ya calculado contra el índice
+  // de entidades del tenant (`axisEntityNames("cliente")`, la misma comparación de contratoComercial.js).
+  { predicado: "pregunta.sujeto_abierto", sujeto: "pregunta", disponible: true, fuente: "entidadesDeLaPregunta.length === 0 (tablaSenales.js, sobre axisEntityNames(\"cliente\"))" },
 ]);
 
 const _POR_NOMBRE = new Map(PREDICADOS_CERRADOS.map((p) => [p.predicado, p]));
@@ -79,6 +84,7 @@ export function evaluarPredicadoAtomico(predicado, entidad, tabla, ctx = {}) {
       case "pregunta.metrica_margen": return preg.metricas ? preg.metricas.includes("margen") : null;
       case "pregunta.metrica_carga": return preg.metricas ? preg.metricas.includes("carga") : null;
       case "pregunta.metrica_plazos": return preg.metricas ? preg.metricas.includes("plazos") : null;
+      case "pregunta.sujeto_abierto": return typeof preg.sujetoAbierto === "boolean" ? preg.sujetoAbierto : null;
       default: return null;
     }
   }
