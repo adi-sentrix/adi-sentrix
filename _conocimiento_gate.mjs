@@ -86,8 +86,13 @@ for (const id of ["RSG-06", "MOV-05"]) ok(!piezaPorId(id), `★ CARNADA · la pi
 for (const p of PIEZAS_CONOCIMIENTO) {
   const r = validarPieza(p, { entidadesConocidas: (TENANT_DEMO.clientesVentas || []).map((c) => c.nombre) });
   ok(r.ok, `${p.id} pasa el validador de esquema`, r.errores.join(" | "));
-  ok(p.estado === "borrador", `${p.id} nace en estado "borrador"`);
-  ok(p.firma == null, `${p.id} no trae firma (sin validar — el owner no aprobó el contenido)`);
+  /* PRI-04 la firmó el owner el 2026-09-23 («Sí, fírmala así»); las demás siguen en borrador hasta su validación. */
+  if (p.id === "PRI-04") {
+    ok(p.estado === "firmada" && !!p.firma && /owner/.test(p.firma.por), `${p.id} está firmada por el owner`);
+  } else {
+    ok(p.estado === "borrador", `${p.id} sigue en estado "borrador"`);
+    ok(p.firma == null, `${p.id} no trae firma (sin validar — el owner no aprobó el contenido)`);
+  }
   ok(p.sujeto === "sector", `${p.id} declara sujeto "sector", nunca una empresa del cliente`);
   ok(typeof p.no_implica === "string" && p.no_implica.trim().length > 0, `${p.id} declara su "no_implica"`);
 }
@@ -334,8 +339,15 @@ initTenant(TENANT_DEMO);
   const puerta2 = referenciaDelOficio({ perfil: PERFIL_INCOMPLETO, pregunta: PREGUNTA_LECTURA, entidadesEnRespuesta: ["Lider"], scenario: ESCENARIO_INICIAL, activo: true });
   ok(Array.isArray(puerta2) && puerta2.length === 0, `★ PUERTA 2 · activo:true pero perfil incompleto (TENANT_DEMO real, faltan: ${PERFIL_INCOMPLETO.faltantes.join(", ")}) → [] — perfil incompleto apaga la capa ENTERA`);
 
-  const puerta3 = referenciaDelOficio({ perfil: PERFIL_COMPLETO, pregunta: PREGUNTA_LECTURA, entidadesEnRespuesta: ["Lider", "Falabella"], scenario: ESCENARIO_INICIAL, activo: true });
-  ok(Array.isArray(puerta3) && puerta3.length === 0, "★ PUERTA 3 (LA CENTRAL DE ESTA SIEMBRA) · activo:true + perfil COMPLETO, pero las cuatro piezas están en \"borrador\" → [] — una pieza sin firmar NUNCA se sirve");
+  /* PRI-04 ya está firmada (owner 2026-09-23): la puerta 3 se prueba con el catálogo real devuelto a borrador
+   * (clon), y además se prueba que, con el catálogo real, las piezas en borrador no aportan NADA. */
+  const catalogoTodoBorrador = PIEZAS_CONOCIMIENTO.map((p) => ({ ...p, estado: "borrador", firma: null }));
+  const argsP3 = { perfil: PERFIL_COMPLETO, pregunta: PREGUNTA_LECTURA, entidadesEnRespuesta: ["Lider", "Falabella"], scenario: ESCENARIO_INICIAL, activo: true };
+  const puerta3 = referenciaDelOficio({ ...argsP3, catalogo: catalogoTodoBorrador });
+  ok(Array.isArray(puerta3) && puerta3.length === 0, "★ PUERTA 3 (LA CENTRAL DE ESTA SIEMBRA) · activo:true + perfil COMPLETO, pero todas las piezas en \"borrador\" → [] — una pieza sin firmar NUNCA se sirve");
+  const salidaReal = referenciaDelOficio({ ...argsP3 });
+  const soloFirmadas = referenciaDelOficio({ ...argsP3, catalogo: PIEZAS_CONOCIMIENTO.filter((p) => p.estado === "firmada") });
+  ok(JSON.stringify(salidaReal) === JSON.stringify(soloFirmadas), "★ PUERTA 3 · con el catálogo real, la salida es idéntica a la de SOLO las piezas firmadas — las piezas en borrador no aportan nada", JSON.stringify(salidaReal).slice(0, 300));
 
   // control positivo: con un catálogo de las MISMAS 4 piezas pero "firmadas" a mano (clon, nunca piezas.js), la
   // puerta 3 SÍ deja pasar contenido — la infraestructura funciona; lo que falta es la validación del owner.

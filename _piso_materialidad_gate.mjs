@@ -76,7 +76,7 @@ H("0 · piezas.js — PRI-04 pasa el validador, sigue \"borrador\", apunta al c�
 {
   const r = validarPieza(PIEZA);
   ok(r.ok, "PRI-04 pasa el validador de esquema", r.errores.join(" | "));
-  ok(PIEZA.estado === "borrador" && PIEZA.firma == null, "PRI-04 sigue sin firmar (la firma es del owner)");
+  ok(PIEZA.estado === "firmada" && !!PIEZA.firma && /owner/.test(PIEZA.firma.por), "PRI-04 está firmada por el owner (2026-09-23, «Sí, fírmala así»)");
   ok(PIEZA.medicion.calculo === "pisoMaterialidadCobranza", "PRI-04 apunta al cálculo del piso de materialidad");
   ok(PIEZAS_CONOCIMIENTO.length === 4, "siguen sembradas exactamente 4 piezas");
 }
@@ -279,7 +279,7 @@ H("5 · el pipeline real nunca restringe el universo por lo que la Respuesta nom
 H("6 · bandera OFF / pieza sin firmar — PRI-04 no aporta nada a la Entrega, ni con el mecanismo nuevo");
 {
   const catalogoFirmado = [{ ...PIEZA, estado: "firmada", firma: { por: "_piso_materialidad_gate.mjs", fecha: "2026-09-23" } }];
-  const catalogoBorrador = [PIEZA];
+  const catalogoBorrador = [{ ...PIEZA, estado: "borrador", firma: null }];   /* clon: la real ya está firmada */
   initTenant(TENANT_DEMO);
   const tabla = construirTablaDeSenales({ scenario: ESCENARIO_INICIAL, pregunta: "quién me debe más", entidadesEnRespuesta: [] });
   // sin firmar: `evaluarPertinencia` puede encender, pero `seleccionar.js`/`referenciaDelOficio` nunca lo sirve —
@@ -287,7 +287,7 @@ H("6 · bandera OFF / pieza sin firmar — PRI-04 no aporta nada a la Entrega, n
   // catálogo real (piezas.js) sigue en "borrador".
   const pert = evaluarPertinencia(catalogoBorrador[0], tabla, null, "quién me debe más");
   ok(pert != null, "evaluar pertinencia de PRI-04 (nuevo predicado \"alguno\") no lanza sobre TENANT_DEMO real");
-  ok(catalogoFirmado[0].estado === "firmada" && catalogoBorrador[0].estado === "borrador", "control · el clon firmado no altera piezas.js (la pieza real sigue en borrador)");
+  ok(catalogoFirmado[0].estado === "firmada" && catalogoBorrador[0].estado === "borrador", "control · los clones (firmado y borrador) no alteran piezas.js");
 }
 
 /* ═══ 7 · EMPRESA CON AJUSTE DECLARADO — cambia la línea y el veredicto donde corresponde ═══ */

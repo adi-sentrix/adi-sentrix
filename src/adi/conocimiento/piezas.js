@@ -6,7 +6,7 @@
  * Las seis del documento (§9, siembra 2 — «las 6 que miden hoy»): CAU-01 · CAU-06 · CAU-03 · RSG-06 · MOV-05 ·
  * PRI-04. Esquema exacto de la Parte B §5 del documento. Quedan CUATRO piezas sembradas, no seis: RSG-06 y
  * MOV-05 se colapsaron dentro de CAU-06 el 2026-09-23 (defecto 4, ver más abajo) — medían exactamente lo mismo.
- * `estado: "borrador"` en las cuatro, ninguna con `firma`: el owner NO validó el enunciado todavía —
+ * `estado: "borrador"` en las que el owner todavía no validó; PRI-04 FIRMADA por el owner el 2026-09-23 —
  * `_conocimiento_gate.mjs` prueba que ninguna se sirve así.
  *
  * ⚠️ CAU-03 se siembra DISTINTA de lo que el documento supuso (verificado antes de escribir, como pide el
@@ -118,9 +118,14 @@ export const PIEZAS_CONOCIMIENTO = [
     id: "PRI-04", version: 2, tipo: "senal", alimenta: "prioridades", etiqueta: ["B"], grado: "establecido",
     enunciado: "¿Alguna cuenta pesa más en el vencido que en la venta, con una diferencia que supere el piso de materialidad?",
     sujeto: "sector",
-    fuente: { tipo: "principio-del-oficio", detalle: "controller senior; validación owner + socio pendiente" },
+    fuente: { tipo: "principio-del-oficio", detalle: "controller senior; firmada por el owner 2026-09-23 (el principio es del oficio; el piso es criterio general de ADI, ajustable por la empresa)" },
     alcance: { ..._ALCANCE_BASE },
-    fecha: "2026-09-23", vigencia: "2027-09-23", firma: null, estado: "borrador",
+    fecha: "2026-09-23", vigencia: "2027-09-23",
+    /* FIRMA DEL OWNER (2026-09-23), textual: «Sí, fírmala así». Lo firmado: (1) el principio —exposición ≠
+     * participación— es del oficio y el piso es criterio de ADI, cada uno con su rótulo; (2) la pregunta del oficio
+     * una vez arriba, las cuentas en el orden de prioridad que ya usa ADI, la cobertura al cierre; (3) la rama sin
+     * señal se prueba con carteras de prueba, sin alterar el demo (`_piso_materialidad_gate`). */
+    firma: { por: "owner (jc)", fecha: "2026-09-23" }, estado: "firmada",
     no_implica: "No implica que la cuenta sea mala pagadora: la diferencia puede ser un plazo pactado más largo, o vencido documental en facturas puntuales. Tampoco implica que una cuenta bajo el piso esté al día: el piso mide si la desproporción es grande, no si el vencido existe.",
     pertinencia: {
       alguno: [
