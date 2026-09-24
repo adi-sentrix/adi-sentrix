@@ -151,7 +151,13 @@ export const PIEZAS_CONOCIMIENTO = [
     // MISMA idea, en afirmación — el principio no cambia (participación en el vencido vs. participación en la
     // venta, la brecha localiza exposición), solo la forma gramatical. El encabezado del bloque antepone
     // "En {sector}, " (servir.js) — acá va solo la cláusula, igual que en CAU-01.
-    enunciado: "el oficio compara la participación de cada cuenta en el vencido con su participación en la venta: una cuenta puede vender poco y deber mucho.",
+    /* ═══ owner 2026-09-24, textual: «Apruebo las dos decisiones» (ley ADI_CAJA_NO_ES_COBRANZA: caja ≠ cobranza;
+     * solo la venta A CRÉDITO genera exposición, la de contado no) — cambio de BASE aprobado sobre esta pieza
+     * FIRMADA: «la venta» pasa a «la venta a crédito» en el enunciado y en los insumos declarados. El principio,
+     * el cálculo (`medir.js:pisoMaterialidadCobranza`) y el veredicto no cambian — solo la métrica contra la que
+     * se mide la participación en venta, que ahora es la del mismo flujo de cobranza, nunca la venta comercial
+     * total (que incluye ventas de contado, que no generan exposición). ═══ */
+    enunciado: "el oficio compara la participación de cada cuenta en el vencido con su participación en la venta a crédito: una cuenta puede vender poco a crédito y deber mucho.",
     sujeto: "sector",
     fuente: { tipo: "principio-del-oficio", detalle: "controller senior; firmada por el owner 2026-09-23 (el principio es del oficio; el piso es criterio general de ADI, ajustable por la empresa)" },
     alcance: { ..._ALCANCE_BASE },
@@ -194,9 +200,9 @@ export const PIEZAS_CONOCIMIENTO = [
       por_entidad: "cuenta",
       decisivo: true, no_excluye: "vencido documental en facturas puntuales; que la diferencia sea un plazo pactado",
       insumos: [
-        "vencido por cuenta (cobranza)", "venta por cuenta (comercial)",
+        "vencido por cuenta (cobranza)", "venta a crédito por cuenta (cobranza)",
         "vencido total del universo evaluable (cuentas con plazo de pago declarado)",
-        "venta y saldo pendiente del universo evaluable",
+        "venta a crédito y saldo pendiente del universo evaluable",
         "piso de materialidad (criterio de ADI, o declarado por la empresa — config/contract/pisoMaterialidadCobranza.js)",
       ],
     },

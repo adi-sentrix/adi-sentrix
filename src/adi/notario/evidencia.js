@@ -95,7 +95,19 @@ function _precisionDe(texto) {
 /* SINÓNIMOS · lo que el modelo (o quien etiqueta) puede escribir como métrica → los conceptos del rótulo que la nombran, en orden de
  * preferencia. Se casan por igualdad normalizada; el resto de la casación es genérica (ver conceptosDe). */
 export const SINONIMOS = [
+  /* «venta (flujo)»/«venta a crédito» SIGUEN como sinónimo de «ventas» acá a propósito (owner 2026-09-24 —
+   * medido con `_ronda5_gate`: un negocio 100 % a crédito, como el demo, tiene el MISMO número en «Ventas
+   * totales» y en «Venta del período (flujo)», y un genérico «¿cuánto vendí?» sigue aceptando cualquiera de
+   * las dos figs cuando UNA SOLA existe). Lo que cambió no es esta lista: es que PRI-04 (medir.js) YA NO
+   * pide la métrica «ventas» — pide la clave separada `venta_credito` (la entrada de abajo), así que un
+   * cliente con las DOS figs (venta comercial y venta a crédito distintas, ej. mayormente al contado) nunca
+   * más diluye su participación de cobranza mezclando la comercial — ver la carnada «Contado» en
+   * `_piso_materialidad_gate.mjs` §15. */
   [/^(?:ventas?|facturaci[oó]n|venta\s+comercial|venta\s+del\s+per[ií]odo|ventas\s+del\s+per[ií]odo)$/i, ["venta", "ventas", "ventas del periodo", "ventas totales", "venta (flujo)", "venta del periodo (flujo)"]],
+  /* «caja ≠ cobranza» (owner 2026-09-24): la venta A CRÉDITO es también su propio concepto — quien pida
+   * explícitamente «Venta a crédito» (PRI-04, vía `venta_credito`) la encuentra por nombre exacto, sin
+   * depender de que la comercial esté ausente (la entrada de arriba solo la ofrece como ÚLTIMO recurso). */
+  [/^(?:venta\s+a\s+cr[eé]dito(?:\s+del\s+per[ií]odo)?|venta\s*\(flujo\)|venta\s+del\s+per[ií]odo\s*\(flujo\))$/i, ["venta (flujo)", "venta a credito", "venta a credito del periodo", "venta del periodo (flujo)"]],
   [/^ventas?\s+del\s+a[ñn]o\s+(?:anterior|pasado)$|^venta\s+(?:del\s+)?a[ñn]o\s+(?:anterior|pasado)$|^base\s+del\s+a[ñn]o\s+anterior$/i, ["ventas del ano anterior"]],   // la base del crecimiento, con fila propia
   [/^(?:saldo\s+)?vencidos?$|^(?:deuda\s+)?(?:en\s+)?mora$|^saldo\s+en\s+mora$|^deuda\s+vencida$/i, ["saldo vencido"]],
   [/^(?:saldo\s+)?pendientes?$|^por\s+cobrar$|^deuda$|^saldo$/i, ["saldo pendiente"]],
@@ -141,6 +153,14 @@ export const SINONIMOS = [
 
 /* los rankings de la proyección, por concepto (normalizado) → clave del ranking en cada eje */
 export const CLAVES_DE_RANKING = {
+  /* «ventas» del RANKING (no del léxico de figs) sigue aceptando «venta (flujo)» a propósito: el criterio de
+   * prioridad `ordenPorCriterio(..., "ventas")` (prioridadIntegrada.js) cae a la venta del flujo de cobranza
+   * cuando cubre más clientes que la comercial —para ORDENAR, nunca para PRI-04 (que usa la clave separada
+   * `venta_credito`, con su propio bloque de SINONIMOS arriba)— y el Notario necesita reconocer esa métrica
+   * declarada contra el ranking proyectado (que cubre el eje ENTERO) para no marcar «universo-incompleto»
+   * cuando la boleta del turno trae menos filas de cobranza que clientes tiene el negocio (tope de 8 filas de
+   * `herramientasAgente.js:cobranza()`). owner 2026-09-24: no tocar esto es parte de «cero cálculo de las
+   * piezas cambia salvo la base de PRI-04» — este ranking no es una pieza, y revertirlo evita una regresión. */
   cliente: { ventas: ["venta", "ventas", "venta (flujo)"], margen: ["margen"], contribucion: ["contribucion"], carga: ["carga comercial", "carga"], unidades: ["unidades vendidas", "unidades"], brecha: ["brecha al benchmark", "brecha"], no_capturada: ["contribucion no capturada"], saldo_vencido: ["saldo vencido"], saldo_por_vencer: ["saldo por vencer"], recuperado: ["recuperado"], dias_vencido: ["dias vencido"], saldo_pendiente: ["saldo pendiente"] },
   marca: { ventas: ["venta", "ventas"], margen: ["margen"], contribucion: ["contribucion"], carga: ["carga comercial", "carga"] },
   sku: { ventas: ["venta", "ventas"], contribucion: ["contribucion"], capital: ["capital", "valor de inventario", "stock", "capital en inventario"], capital_inmovilizado: ["capital inmovilizado"], capital_frenado: ["capital frenado"], rotacion: ["rotacion"], dias_inventario: ["dias de inventario", "cobertura (doh)"], dias_sin_venta: ["dias sin venta"], margen_inventario: ["margen de inventario"] },

@@ -22,7 +22,12 @@
  *
  * ⚠️ LA FECHA DE CORTE ES DECLARADA, NO ES «HOY». Si la antigüedad se midiera contra el reloj, «vencido hace
  * 36 días» cambiaría cada mañana y la misma pregunta daría dos respuestas distintas en dos días distintos.
- * Todo se mide contra `flujoComercial.fechaCorte`, y la pantalla la dice. */
+ * Todo se mide contra `flujoComercial.fechaCorte`, y la pantalla la dice.
+ *
+ * ⚠️ «CAJA» ES TESORERÍA, ESTO ES COBRANZA (owner 2026-09-24, ley ADI_CAJA_NO_ES_COBRANZA): esta cara mide
+ * abonos de VENTA A CRÉDITO, no una posición de caja ni movimientos de tesorería. El rótulo visible y el texto
+ * de la `ask` de la serie mensual pasan de «entrada de caja» a **«cobros recibidos»**; las llaves internas
+ * (`caja`, `montoK`, …) se quedan igual — son la forma del dato, no lo que la pantalla dice. */
 
 import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { flujoComercial } from "../../data/demoData.js";
@@ -273,7 +278,7 @@ function buildDesdePlanilla(D) {
     totalFmt: _mK(cajaTotalK),
     picoLabel: pico.label, picoFmt: _mK(pico.montoK),
     valleLabel: valle.label, valleFmt: _mK(valle.montoK),
-    ask: "¿Cómo viene mi entrada de caja mes a mes?",
+    ask: "¿Cómo vienen mis cobros recibidos mes a mes?",
   };
 
   const docs = D.facturas.length;
@@ -430,7 +435,7 @@ export function buildMesaFlujo(scenario = ESCENARIO_INICIAL) {
     totalFmt: _mK(cajaTotalK),
     picoLabel: pico.label, picoFmt: _mK(pico.montoK),
     valleLabel: valle.label, valleFmt: _mK(valle.montoK),
-    ask: "¿Cómo viene mi entrada de caja mes a mes?",
+    ask: "¿Cómo vienen mis cobros recibidos mes a mes?",
   };
 
   const conParams = filas.length, delDato = base.length;

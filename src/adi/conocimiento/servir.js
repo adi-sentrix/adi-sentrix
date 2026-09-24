@@ -270,7 +270,7 @@ export function servirBloqueCargaVsResto(pieza, porEntidad, cierreTexto, { sujet
 
 /** servirBloquePisoDeCobranza(pieza, porEntidad, cierreTexto, opts) → { texto, ... } | null — el bloque de
  *  PRI-04, la MISMA forma que `servirBloqueCargaVsResto` (ver la cabecera de arriba), con el vocabulario propio
- *  de PRI-04 (participación en el vencido vs. en la venta — "pesa", no "carga"). `porEntidad`:
+ *  de PRI-04 (participación en el vencido vs. en la venta a crédito — "pesa", no "carga"). `porEntidad`:
  *  `medir.js:resultadosPisoDeCobranza`. `opts` igual que en `servirBloqueCargaVsResto`. Sin cambiar ningún
  *  veredicto ni la pertinencia sellada de PRI-04. */
 export function servirBloquePisoDeCobranza(pieza, porEntidad, cierreTexto, { sujeto = new Set(), abierta = true } = {}) {
@@ -286,7 +286,7 @@ export function servirBloquePisoDeCobranza(pieza, porEntidad, cierreTexto, { suj
     if (pisoDe == null) pisoDe = p.declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI";
     if (m.estado === "senal") {
       if (_despliegaCompleta(entidad, sujeto, abierta)) {
-        señalLineas.push(`${entidad}: ${p.propio} del vencido contra ${p.resto} de la venta; ${p.puntos}, ${p.monto} de diferencia; supera ${pisoDe} (${p.pisoTexto}). Señal.`);
+        señalLineas.push(`${entidad}: ${p.propio} del vencido contra ${p.resto} de la venta a crédito; ${p.puntos}, ${p.monto} de diferencia; supera ${pisoDe} (${p.pisoTexto}). Señal.`);
       } else {
         señalesCompactas.push(`${entidad} (${p.monto})`);
       }
@@ -298,9 +298,9 @@ export function servirBloquePisoDeCobranza(pieza, porEntidad, cierreTexto, { suj
       // sujeto individualiza su bajo-piso. ═══
       if (!abierta && sujeto.has(entidad)) {
         if (p.sentido === "mas") {
-          señalLineas.push(`${entidad}: ${p.propio} del vencido contra ${p.resto} de la venta; ${p.puntos}, ${p.monto} de diferencia; bajo ${pisoDe} (${p.pisoTexto})${m.borde ? ", al borde" : ""}.`);
+          señalLineas.push(`${entidad}: ${p.propio} del vencido contra ${p.resto} de la venta a crédito; ${p.puntos}, ${p.monto} de diferencia; bajo ${pisoDe} (${p.pisoTexto})${m.borde ? ", al borde" : ""}.`);
         } else {
-          señalLineas.push(`${entidad}: ${p.propio} del vencido contra ${p.resto} de la venta; ${p.monto} de diferencia a su favor: en esta cuenta no pesa más en el vencido.`);
+          señalLineas.push(`${entidad}: ${p.propio} del vencido contra ${p.resto} de la venta a crédito; ${p.monto} de diferencia a su favor: en esta cuenta no pesa más en el vencido.`);
         }
       } else if (abierta) {
         if (p.sentido === "mas") conExceso.push(`${entidad} (${p.monto} de diferencia${m.borde ? ", al borde" : ""})`);
@@ -312,7 +312,7 @@ export function servirBloquePisoDeCobranza(pieza, porEntidad, cierreTexto, { suj
   const señalCompactaLinea = señalesCompactas.length
     ? `Fuera de ${sujeto.size === 1 ? "la nombrada" : "las nombradas"}, también ${señalesCompactas.length === 1 ? "supera" : "superan"} ${pisoDe}: ${señalesCompactas.join(", ")}.`
     : null;
-  const bajoPisoLinea = pisoDe ? _lineaBajoPiso(conExceso, sinExceso, pisoDe, "pesa menos en el vencido que en la venta", "pesan menos en el vencido que en la venta") : null;
+  const bajoPisoLinea = pisoDe ? _lineaBajoPiso(conExceso, sinExceso, pisoDe, "pesa menos en el vencido que en la venta a crédito", "pesan menos en el vencido que en la venta a crédito") : null;
   const negativa = _oracionDeLimite(pieza);
   const texto = [_headerDeBloque(pieza), ...señalLineas, señalCompactaLinea, bajoPisoLinea, negativa, cierreTexto].filter((s) => s && s.trim()).join(" ");
   return { texto, piezaId: pieza.id, fuente: pieza.fuente || null, alcance: pieza.alcance || null, fecha: pieza.fecha || null, vigencia: pieza.vigencia || null, firma: pieza.firma || null, estado: "bloque" };
@@ -372,7 +372,7 @@ export function servirMencionPisoDeCobranza(pieza, porEntidad, { nombradas = new
     if (!m || !m.partes || m.estado !== "senal" || !nombradas.has(entidad)) continue;
     const p = m.partes;
     const pisoDe = p.declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI";
-    clausulas.push(`${entidad} pesa más en el vencido que en la venta — ${p.propio} del vencido contra ${p.resto} de la venta; ${p.puntos}, ${p.monto} de diferencia; supera ${pisoDe} (${p.pisoTexto})`);
+    clausulas.push(`${entidad} pesa más en el vencido que en la venta a crédito — ${p.propio} del vencido contra ${p.resto} de la venta a crédito; ${p.puntos}, ${p.monto} de diferencia; supera ${pisoDe} (${p.pisoTexto})`);
   }
   if (!clausulas.length) return null;
   const negativa = _oracionDeLimite(pieza);
@@ -426,11 +426,11 @@ export function servirOfertaPisoDeCobranza(pieza, porEntidad, cierre) {
   if (!señales.length) return null;
   const pisoDe = señales[0].m.partes.declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI";
   const n = señales.length;
-  // ★ PRI-04 compara la participación en el vencido con la participación en la venta — NUNCA "contra el resto
+  // ★ PRI-04 compara la participación en el vencido con la participación en la venta a crédito — NUNCA "contra el resto
   // de la cartera" (esa es la comparación de CAU-01; la corrección del owner tras revisar la oferta anterior).
   const cuerpo = n <= 3
-    ? `La exposición de cobranza de toda la cartera (participación en el vencido contra participación en la venta): ${n} cuenta${n === 1 ? "" : "s"} superan ${pisoDe} (${señales.map(({ entidad, m }) => `${entidad} ${m.partes.monto}`).join(", ")} de diferencia)`
-    : `La exposición de cobranza de toda la cartera (participación en el vencido contra participación en la venta): ${n} cuentas superan ${pisoDe}`;
+    ? `La exposición de cobranza de toda la cartera (participación en el vencido contra participación en la venta a crédito): ${n} cuenta${n === 1 ? "" : "s"} superan ${pisoDe} (${señales.map(({ entidad, m }) => `${entidad} ${m.partes.monto}`).join(", ")} de diferencia)`
+    : `La exposición de cobranza de toda la cartera (participación en el vencido contra participación en la venta a crédito): ${n} cuentas superan ${pisoDe}`;
   const vt = cierre && cierre.vencidoTotal;
   const texto = vt ? `${cuerpo}; ${vt.texto} vencido (${vt.pctTexto} del saldo pendiente).` : `${cuerpo}.`;
   const top = señales[0].m.cifra;

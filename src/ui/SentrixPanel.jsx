@@ -1710,13 +1710,13 @@ function MesaFlujoCara({ flujo: F, onAsk = null, onGuardarPlazos = null }) {
 
     <div style={_panel}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:9 }}>
-        <span style={_head}>{_dot}La entrada de caja, mes a mes</span>
+        <span style={_head}>{_dot}Los cobros recibidos, mes a mes</span>
         {_link("Que ADI lo explique", undefined, _explicarCajaF)}
       </div>
       <div style={{ position:"relative" }}>
       <svg viewBox={`0 0 ${_W} ${_H}`} style={{ width:"100%", height:"auto", display:"block" }} role="img"
         onMouseLeave={() => _setHovMes(null)}
-        aria-label={`Entrada de caja por mes: total ${F.caja.totalFmt}, el mes más alto es ${F.caja.picoLabel} con ${F.caja.picoFmt}.`}>
+        aria-label={`Cobros recibidos por mes: total ${F.caja.totalFmt}, el mes más alto es ${F.caja.picoLabel} con ${F.caja.picoFmt}.`}>
         <defs>
           <linearGradient id="adiFlujoFill" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0" stopColor={C.celeste} stopOpacity="0.22"/>

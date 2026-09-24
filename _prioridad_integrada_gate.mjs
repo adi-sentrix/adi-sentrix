@@ -266,22 +266,29 @@ H("9 · el segundo prompt en vivo (autorizado, 1 llamada): el modelo terminó en
 /* ═══ 10 · EL CRITERIO DEL USUARIO MANDA: LA JERARQUÍA (owner 2026-09-14, corrección del estándar) ═══════════════════ */
 H("10 · la jerarquía del criterio: explícito manda · implícito se interpreta · ambiguo se puede preguntar · ejecutivo se entrega con el criterio declarado");
 {
-  const { criterioDeLaPregunta, ordenPorCriterio, primerosPorCriterio, CRITERIOS } = await import("./src/adi/agente/prioridadIntegrada.js");
+  const { criterioDeLaPregunta, pideTesoreria, ordenPorCriterio, primerosPorCriterio, CRITERIOS } = await import("./src/adi/agente/prioridadIntegrada.js");
   const { playbookPara } = await import("./src/adi/agente/playbooks/registro.js");
   const FX2 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-produccion2-2026-09-14.json", import.meta.url), "utf8"));
   /* 1 · explícito */
-  const expl = [["Prioriza ventas y dime por dónde parto.", "ventas"], ["Ahora ordénamelo por caja.", "caja"], ["Quiero recuperar contribución: ¿qué cuenta primero?", "contribucion"], ["Prioriza riesgo.", "riesgo"], ["Con la lente de cobranza, ¿quién primero?", "caja"], ["ahora por contribución", "contribucion"], ["Prioriza margen.", "contribucion"], ["ordénamelo por crecimiento", "crecimiento"], ["quiero liberar capital: ¿qué SKU primero?", "capital"]];
+  const expl = [["Prioriza ventas y dime por dónde parto.", "ventas"], ["Ahora ordénamelo por cobranza.", "credito"], ["Quiero recuperar contribución: ¿qué cuenta primero?", "contribucion"], ["Prioriza riesgo.", "riesgo"], ["Con la lente de cobranza, ¿quién primero?", "credito"], ["ahora por contribución", "contribucion"], ["Prioriza margen.", "contribucion"], ["ordénamelo por crecimiento", "crecimiento"], ["quiero liberar capital: ¿qué SKU primero?", "capital"]];
   for (const [q, c] of expl) { const r = criterioDeLaPregunta(q); ok(r && r.criterio === c && r.modo === "explicito", `explícito: «${q}» → ${c}`, JSON.stringify(r)); }
+  /* ★ «caja ≠ cobranza» (owner 2026-09-24): «caja»/«liquidez» NUNCA fijan un criterio (ni «credito» ni ningún otro) —
+   * es tesorería, y `pideTesoreria` lo detecta aparte para que el playbook declare la ausencia. */
+  ok(criterioDeLaPregunta("Ahora ordénamelo por caja.") === null, "★ «ahora ordénamelo por caja» ya NO fija ningún criterio (caja es tesorería, no cobranza)");
+  ok(criterioDeLaPregunta("Prioriza liquidez.") === null, "★ «prioriza liquidez» tampoco fija criterio");
+  ok(pideTesoreria("Ahora ordénamelo por caja.") === true && pideTesoreria("Prioriza liquidez.") === true, "…y las dos se detectan como pedido de tesorería");
+  ok(pideTesoreria("Ahora ordénamelo por cobranza.") === false && pideTesoreria("Prioriza ventas.") === false, "control · un criterio real (cobranza, ventas) no se lee como pedido de tesorería");
   /* 2 · implícito: solo el riesgo (en un encargo, «riesgo de cobranza» o «dejo contribución sobre la mesa» son partes, no el criterio) */
   ok(criterioDeLaPregunta(FX2.pregunta) && criterioDeLaPregunta(FX2.pregunta).criterio === "riesgo" && criterioDeLaPregunta(FX2.pregunta).modo === "implicito", "implícito: «el mayor riesgo económico… qué debería preocuparme» → riesgo integrado, sin preguntar");
   ok(criterioDeLaPregunta(Q) === null, "★ el primer prompt de producción (menciona «riesgo de cobranza» como PARTE) no fija criterio: lectura ejecutiva general");
   ok(criterioDeLaPregunta("Mira el negocio y dime qué harías primero.") === null && criterioDeLaPregunta("¿Cómo va el negocio?") === null, "sin objetivo dicho no hay criterio");
   /* los órdenes bajo cada lente: los mismos hechos, otra prioridad */
   const P1 = primerosPorCriterio(FIGS, DOMS);
-  ok(P1.riesgo.entidad === "Lider" && P1.caja.entidad === "Lider" && P1.crecimiento.entidad === "Lider", `por riesgo integrado, cobranza y crecimiento: Lider primero`);
+  ok(P1.riesgo.entidad === "Lider" && P1.credito.entidad === "Lider" && P1.crecimiento.entidad === "Lider", `por riesgo integrado, exposición de crédito y crecimiento: Lider primero`);
   ok(P1.contribucion.entidad === "Falabella" && P1.ventas.entidad === "Falabella" && P1.capital.entidad === "LG-DRYER8KG", `★ por contribución y por ventas: Falabella primero; por capital: LG-DRYER8KG — Lider no es una prioridad universal`);
-  ok(ordenPorCriterio(FIGS, DOMS, "caja").lista.slice(0, 3).map((x) => x.entidad).join(">") === "Lider>Falabella>Sodimac" && ordenPorCriterio(FIGS, DOMS, "contribucion").lista.slice(0, 3).map((x) => x.entidad).join(">") === "Falabella>Lider>Jumbo", "…con sus listas: cobranza Lider > Falabella > Sodimac · contribución Falabella > Lider > Jumbo");
-  ok(CRITERIOS.caja.nombre === "cobranza", "la lente de caja se NOMBRA «cobranza» en pantalla (la palabra «caja» junto a una contribución dispara la naturaleza económica del muro)");
+  ok(ordenPorCriterio(FIGS, DOMS, "credito").lista.slice(0, 3).map((x) => x.entidad).join(">") === "Lider>Falabella>Sodimac" && ordenPorCriterio(FIGS, DOMS, "contribucion").lista.slice(0, 3).map((x) => x.entidad).join(">") === "Falabella>Lider>Jumbo", "…con sus listas: exposición de crédito Lider > Falabella > Sodimac · contribución Falabella > Lider > Jumbo");
+  ok(CRITERIOS.credito.nombre === "exposición de crédito", "★ la lente antes llamada «caja» se NOMBRA «exposición de crédito» en pantalla (owner 2026-09-24: caja ≠ cobranza)");
+  ok(!("caja" in CRITERIOS), "★ CARNADA · ya no existe la clave CRITERIOS.caja");
   /* el respaldo bajo cada modo, con cerebro mudo */
   const corre = async (q) => { MUDO.llamadas = []; const r0 = await answerViaAgente({ text: q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO }); const r = r0.r; const t = r.text; return { r, t, cierre: t.slice(Math.max(0, t.indexOf("Dónde pondría el foco primero"))), doctrina: (MUDO.llamadas[0] ? MUDO.llamadas[0].mensajes : []).map((m) => String(m.content || "")).find((c) => c.startsWith("[ENCARGO COMPUESTO")) || "" }; };
   const a = await corre(Q);
@@ -296,12 +303,22 @@ H("10 · la jerarquía del criterio: explícito manda · implícito se interpret
   ok(/por riesgo integrado, Lider primero/.test(c.cierre) && !/\bel orden\b/.test(c.cierre), "…y dice que por riesgo integrado sería Lider (sin la palabra «orden», que el muro lee como ranking)");
   ok(/El usuario fijó el criterio: contribución/.test(c.doctrina) && /1º Falabella/.test(c.doctrina), "…y el cerebro recibe ese criterio como conclusión que conserva");
   ok(a.r.agente.vetos.length === 0 && b.r.agente.vetos.length === 0 && c.r.agente.vetos.length === 0, "los tres pasan muro, contrato y notarial", [a, b, c].map((x) => JSON.stringify(x.r.agente.vetos).slice(0, 80)).join(" | "));
-  /* el cambio de criterio en un turno siguiente: los mismos hechos, otra prioridad (playbook prioridad-por-lente) */
-  ok((playbookPara("Ahora ordénamelo por caja.", {}) || {}).nombre === "prioridad-por-lente" && (playbookPara("Prioriza ventas: ¿qué cuenta va primero?", {}) || {}).nombre === "prioridad-por-lente", "«ahora ordénamelo por caja» y «prioriza ventas» los atiende el playbook prioridad-por-lente");
+  /* el cambio de criterio en un turno siguiente: los mismos hechos, otra prioridad (playbook prioridad-por-lente) —
+   * y «caja» sigue atendida por el MISMO playbook (owner 2026-09-24): ya no ordena por cobranza, declara tesorería ausente */
+  ok((playbookPara("Ahora ordénamelo por caja.", {}) || {}).nombre === "prioridad-por-lente" && (playbookPara("Ahora ordénamelo por cobranza.", {}) || {}).nombre === "prioridad-por-lente" && (playbookPara("Prioriza ventas: ¿qué cuenta va primero?", {}) || {}).nombre === "prioridad-por-lente", "«ahora ordénamelo por caja», «…por cobranza» y «prioriza ventas» los atiende el playbook prioridad-por-lente");
   ok((playbookPara(Q, {}) || {}).nombre === "cruce-por-sku" && (playbookPara(Q + " Prioriza contribución.", {}) || {}).nombre === "cruce-por-sku", "…que se retira en un encargo compuesto (ahí el criterio va por el ensamblador)");
+  /* ★ «ahora ordénamelo por cobranza» — la forma correcta de lo que antes se pedía como «caja»: mismos hechos, misma
+   * lista (Lider > Falabella > Sodimac), ahora bajo el nombre «exposición de crédito». */
+  const dCobranza = await corre("Ahora ordénamelo por cobranza.");
+  ok(dCobranza.r.agente.estado === "playbook" && /Ordenado bajo el criterio que fijaste — exposici[oó]n de cr[eé]dito/.test(dCobranza.t) && /por exposici[oó]n de cr[eé]dito, el criterio que pediste/.test(dCobranza.t) && /^1\. Lider — \$4\.6M vencidos, 269d de atraso/m.test(dCobranza.t) && /^2\. Falabella — \$2\.5M vencidos, 8d de atraso/m.test(dCobranza.t), "★ «ahora ordénamelo por cobranza» → Lider > Falabella > Sodimac por exposición de crédito, los mismos hechos", dCobranza.t.slice(0, 200));
+  ok(/Con otra lente cambia quién va primero: por contribución, Falabella primero/.test(dCobranza.t) && dCobranza.r.agente.vetos.length === 0, "…con la nota de la otra lente, y pasa el Notario");
+  /* ★★ «ahora ordénamelo por caja» (owner 2026-09-24, ley ADI_CAJA_NO_ES_COBRANZA) — YA NO ordena por cobranza:
+   * declara que no hay datos de tesorería y ofrece la exposición de crédito, sin llamarla caja. */
   const d = await corre("Ahora ordénamelo por caja.");
-  ok(d.r.agente.estado === "playbook" && /Ordenado bajo el criterio que fijaste — cobranza/.test(d.t) && /por cobranza, el criterio que pediste/.test(d.t) && /^1\. Lider — \$4\.6M vencidos, 269d de atraso/m.test(d.t) && /^2\. Falabella — \$2\.5M vencidos, 8d de atraso/m.test(d.t), "★ «ahora ordénamelo por caja» → Lider > Falabella > Sodimac por cobranza, los mismos hechos", d.t.slice(0, 200));
-  ok(/Con otra lente cambia quién va primero: por contribución, Falabella primero/.test(d.t) && d.r.agente.vetos.length === 0, "…con la nota de la otra lente, y pasa el Notario");
+  ok(d.r.agente.estado === "playbook" && /es tesorer[ií]a/.test(d.t) && /no se puede priorizar ni leer por caja/.test(d.t) && /exposici[oó]n de cr[eé]dito por cliente/.test(d.t) && /no es caja, es cobranza/.test(d.t), `★ «ahora ordénamelo por caja» declara sin datos de tesorería, ofreciendo exposición de crédito`, d.t.slice(0, 260));
+  ok(/por exposici[oó]n de cr[eé]dito, el criterio que pediste/.test(d.t) && /^1\. Lider — \$4\.6M vencidos, 269d de atraso/m.test(d.t) && /^2\. Falabella — \$2\.5M vencidos, 8d de atraso/m.test(d.t), "…y ofrece la MISMA lista (Lider > Falabella > Sodimac) bajo su nombre real", d.t.slice(0, 260));
+  ok(!/Ordenado bajo el criterio que fijaste — cobranza/.test(d.t) && !/Ordenado bajo el criterio que fijaste — caja/.test(d.t), "★ CARNADA · NUNCA dice \"Ordenado bajo el criterio que fijaste\" para «caja» (no es un criterio reconocido)");
+  ok(d.r.agente.vetos.length === 0, "…pasa muro, contrato y notarial: «caja» no queda pegada a ningún monto de cobranza (el veto _COMO_CAJA no se dispara)", JSON.stringify(d.r.agente.vetos).slice(0, 200));
   const e = await corre("Prioriza ventas: ¿qué cuenta va primero?");
   ok(e.r.agente.estado === "playbook" && /por ventas, el criterio que pediste/.test(e.t) && /^1\. Falabella — \$19\.4M de venta/m.test(e.t) && /por riesgo integrado, Lider primero/.test(e.t), "★ «prioriza ventas» → Falabella primero por venta, y dice que por riesgo integrado sería Lider");
   /* la ley por criterio */

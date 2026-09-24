@@ -138,12 +138,17 @@ Derivadas que se rompen seguido:
   «prioridad» («mayor riesgo», «qué debería preocuparme», «prioritario», «lo más grave», «merece atención primero» son la
   misma decisión); ninguna prioridad local («Yo miraría primero Falabella, criterio mío») sobrevive como global; el Notario
   verifica que el último párrafo con prioridad sobre las cuentas nombre a la primera. Dos casos permanentes.
-  **El criterio del usuario manda** (owner 2026-09-14): explícito («prioriza caja/ventas/riesgo», «quiero recuperar
+  **El criterio del usuario manda** (owner 2026-09-14): explícito («prioriza cobranza/ventas/riesgo», «quiero recuperar
   contribución», «ahora ordénamelo por…») → manda; implícito claro («mayor riesgo económico») → se interpreta; realmente
   ambiguo → el cerebro puede preguntar qué lente; lectura ejecutiva general → ADI entrega la suya (riesgo integrado) con el
   criterio DECLARADO y la nota de que otra lente cambia quién va primero. Lider primero es del criterio de riesgo integrado,
   no universal (por contribución/ventas, Falabella). Lentes en `CRITERIOS`; el cambio de criterio en un turno siguiente lo
   atiende `prioridad-por-lente` con los mismos hechos.
+  ⚠️ **Caja ≠ cobranza** (owner 2026-09-24, ley `adi-caja-no-es-cobranza`): cobranza no es sinónimo de tesorería, aunque
+  pueda impactarla — cuentas por cobrar controla la EXPOSICIÓN DE CRÉDITO por cliente (solo la venta A CRÉDITO genera
+  exposición, la de contado no). El criterio antes llamado «caja» se llama **«exposición de crédito»** (`CRITERIOS.credito`);
+  «caja»/«liquidez» nunca lo disparan — sin datos de tesorería se declara (`ausencias.js:sin_datos_tesoreria`) y se ofrece
+  la exposición de crédito sin llamarla caja.
 
 - **El Notario semántico (owner 2026-09-15, fases 1 y 2, offline).** Decisión del owner tras la ronda fuera de muestra (38 % FP · 44 % FN
   con patrones de palabras): «Notario verifica la afirmación y su evidencia, no la redacción». *El modelo redacta; el modelo declara qué

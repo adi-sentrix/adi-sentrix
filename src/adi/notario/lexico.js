@@ -12,7 +12,7 @@ import { conceptosDe } from "./evidencia.js";
  * (capital, stock, participación) · «referencia» = un umbral de la POLICY o del negocio (benchmark, nivel de carga, piso de rotación) */
 export const CLAVES_DE_METRICA = [
   /* ── comercial ── */
-  { clave: "ventas", nombre: "Venta", conceptos: ["venta", "ventas", "ventas del periodo", "venta del periodo", "ventas totales", "venta (flujo)", "vende", "venden", "vendio", "vendiste", "vendieron", "te compro", "te compraron", "le vendiste", "les vendiste", "facturado", "facturaste"], dominio: "comercial", polaridad: "mayor", unidad: "money", muro: ["ventas"] },
+  { clave: "ventas", nombre: "Venta", conceptos: ["venta", "ventas", "ventas del periodo", "venta del periodo", "ventas totales", "vende", "venden", "vendio", "vendiste", "vendieron", "te compro", "te compraron", "le vendiste", "les vendiste", "facturado", "facturaste"], dominio: "comercial", polaridad: "mayor", unidad: "money", muro: ["ventas"] },
   { clave: "ventas_anterior", nombre: "Ventas del año anterior", conceptos: ["ventas del ano anterior"], dominio: "comercial", polaridad: null, unidad: "money", muro: ["ventas"] },
   { clave: "margen", nombre: "Margen", conceptos: ["margen"], dominio: "comercial", polaridad: "mayor", unidad: "pct", muro: ["margen"], tasa: true },
   { clave: "margen_promedio", nombre: "Margen promedio", conceptos: ["margen promedio"], dominio: "comercial", polaridad: "mayor", unidad: "pct", muro: ["margen"], tasa: true, negocio: true },
@@ -38,6 +38,10 @@ export const CLAVES_DE_METRICA = [
   { clave: "piso_rotacion", nombre: "Piso de rotación", conceptos: ["piso de rotacion"], dominio: "inventario", polaridad: "referencia", unidad: "ratio", muro: ["rotacion"], referencia: true },
   { clave: "techo_cobertura", nombre: "Techo de cobertura", conceptos: ["techo de cobertura", "techo de dias de inventario"], dominio: "inventario", polaridad: "referencia", unidad: "days", muro: ["cobertura"], referencia: true },
   /* ── cobranza ── */
+  /* «caja ≠ cobranza» (owner 2026-09-24, ADI_CAJA_NO_ES_COBRANZA): la venta A CRÉDITO del flujo de cobranza —
+   * «Venta a crédito» (planilla) / «Venta (flujo)» (demo) — es una clave DISTINTA de la venta comercial total
+   * («ventas», arriba): solo la venta a crédito genera exposición de cobranza; la venta de contado no. */
+  { clave: "venta_credito", nombre: "Venta a crédito", conceptos: ["venta a credito", "venta a credito del periodo", "venta (flujo)", "venta del periodo (flujo)"], dominio: "cobranza", polaridad: "mayor", unidad: "money", muro: ["ventas"] },
   { clave: "saldo_vencido", nombre: "Saldo vencido", conceptos: ["saldo vencido", "deuda vencida", "deuda en mora", "monto vencido"], dominio: "cobranza", polaridad: "menor", unidad: "money", muro: ["vencido"] },
   { clave: "saldo_pendiente", nombre: "Saldo pendiente", conceptos: ["saldo pendiente", "deuda", "deuda total", "por cobrar", "sin cobrar", "saldo por cobrar", "pendiente de cobro", "debe", "te debe", "le debe", "deben", "te deben", "adeuda", "adeudan", "lo que te debe", "lo que debe"], dominio: "cobranza", polaridad: "menor", unidad: "money", muro: ["pendiente"] },
   { clave: "saldo_por_vencer", nombre: "Saldo por vencer", conceptos: ["saldo por vencer"], dominio: "cobranza", polaridad: null, unidad: "money", muro: ["porvencer"] },

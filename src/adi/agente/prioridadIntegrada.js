@@ -182,8 +182,8 @@ export const CRITERIO = "dentro de cada dominio, materialidad (cuánto está en 
 
 /* ══ EL CRITERIO DEL USUARIO MANDA (owner 2026-09-14, corrección del estándar) ═══════════════════════════════════════
  * «La prioridad no debe ser rígida ni pertenecer siempre al procedimiento. Depende del objetivo del usuario.» La jerarquía:
- *   1 · criterio EXPLÍCITO del usuario → manda («prioriza ventas», «prioriza caja», «prioriza riesgo», «quiero recuperar
- *       contribución», «ahora ordénamelo por caja»).
+ *   1 · criterio EXPLÍCITO del usuario → manda («prioriza ventas», «prioriza cobranza», «prioriza riesgo», «quiero recuperar
+ *       contribución», «ahora ordénamelo por cobranza»).
  *   2 · criterio IMPLÍCITO pero claro → ADI lo interpreta sin preguntar («mayor riesgo económico» → materialidad +
  *       severidad + urgencia).
  *   3 · multidominio realmente ambiguo → ADI puede preguntar qué lente quiere usar, sobre todo si distintos criterios
@@ -191,13 +191,23 @@ export const CRITERIO = "dentro de cada dominio, materialidad (cuánto está en 
  *   4 · lectura ejecutiva general → no frenar al usuario: ADI entrega una prioridad ejecutiva propia (la de la casa: el
  *       riesgo integrado), declara el criterio y, si es material, indica que otra lente cambiaría el orden.
  * Lider primero queda asociado al criterio de RIESGO INTEGRADO de estos fixtures, no convertido en prioridad universal. Y
- * el usuario puede cambiar el criterio después («ahora ordénamelo por caja», «ahora por contribución») sin que cambien los
- * hechos: las mismas señales, otro orden. El respaldo nunca pregunta (no conversa): entrega con el criterio declarado y
- * ofrece reordenar; el cerebro recibe la jerarquía y puede preguntar solo en el caso 3. */
+ * el usuario puede cambiar el criterio después («ahora ordénamelo por cobranza», «ahora por contribución») sin que cambien
+ * los hechos: las mismas señales, otro orden. El respaldo nunca pregunta (no conversa): entrega con el criterio declarado y
+ * ofrece reordenar; el cerebro recibe la jerarquía y puede preguntar solo en el caso 3.
+ *
+ * ══ «CAJA ≠ COBRANZA» (owner 2026-09-24, ley ADI_CAJA_NO_ES_COBRANZA) ═════════════════════════════════════════════════
+ * Textual: «En ADI, cobranza no es sinónimo de tesorería, aunque pueda impactarla. La información de cuentas por cobrar
+ * cumple también una función comercial muy importante: controlar la exposición de crédito por cliente.» El criterio que
+ * antes se llamaba «caja» pasa a **«exposición de crédito»** (clave `credito`): la misma señal de siempre (saldo vencido
+ * al corte y su atraso — «usá lo que ya mide», ningún cálculo cambia), pero nombrada por lo que mide. «Caja» y «liquidez»
+ * NUNCA disparan este criterio (`_SINONIMOS` ya no los lista): son tesorería, y este producto no tiene datos de tesorería.
+ * Ese pedido lo atiende `prioridadPorLente.js` declarando la ausencia (`config/contract/ausencias.js:sin_datos_tesoreria`)
+ * y ofreciendo la exposición de crédito como lo más cercano que sí se mide, sin llamarla caja — el veto de salida
+ * `_COMO_CAJA` (guardC.js) ya prohíbe narrar una cifra de cobranza como caja. */
 export const CRITERIOS = {
   riesgo:       { nombre: "riesgo integrado", dicho: "materialidad + severidad + urgencia, señal por señal entre dominios", clave: "cliente" },
   contribucion: { nombre: "contribución", dicho: "la contribución sin capturar del período, la brecha comercial", clave: "cliente", dominio: "comercial", lente: "materialidad" },
-  caja:         { nombre: "cobranza", dicho: "el saldo vencido al corte y su atraso", clave: "cliente", dominio: "cobranza", lente: "materialidad", desempate: "urgencia" },   // se pide como «caja», «cobranza» o «liquidez»; en pantalla se dice «cobranza» (la palabra «caja» junto a una contribución dispara la naturaleza económica del muro)
+  credito:      { nombre: "exposición de crédito", dicho: "el saldo vencido al corte y su atraso", clave: "cliente", dominio: "cobranza", lente: "materialidad", desempate: "urgencia" },   // se pide como «cobranza», «cobrar», «vencido», «deuda», «crédito» o «exposición»; NUNCA con «caja»/«liquidez» (tesorería) — ver la nota de arriba
   ventas:       { nombre: "ventas", dicho: "la venta del período", clave: "cliente" },
   crecimiento:  { nombre: "crecimiento", dicho: "la variación de la venta contra el año anterior", clave: "cliente", figs: /· YoY$/i },
   capital:      { nombre: "capital", dicho: "el capital frenado en inventario", clave: "sku", dominio: "inventario", lente: "materialidad" },
@@ -205,13 +215,15 @@ export const CRITERIOS = {
 const _SINONIMOS = [
   [/\b(?:riesgo|riesgos|grave|graves|gravedad|urgente|urgencia|peligro)\b/i, "riesgo"],
   [/\b(?:contribuci[oó]n|margen|m[aá]rgenes|rentabilidad|brecha)\b/i, "contribucion"],
-  [/\b(?:caja|cobranza|cobrar|cobro|liquidez|vencido|vencidos|saldo)\b/i, "caja"],
+  /* «caja»/«liquidez»/«efectivo»/«tesorería» quedan FUERA a propósito (owner 2026-09-24): son tesorería, no cobranza —
+   * ver `prioridadPorLente.js:_pideTesoreria` para ese pedido. */
+  [/\b(?:cobranza|cobrar|cobro|deuda|cr[eé]dito|exposici[oó]n|atraso|mora|vencido|vencidos|saldo)\b/i, "credito"],
   [/\b(?:crecimiento|crecer|crece|crecen)\b/i, "crecimiento"],
   [/\b(?:ventas?|volumen|facturaci[oó]n)\b/i, "ventas"],
   [/\b(?:capital|inventario|stock|frenado)\b/i, "capital"],
 ];
 const _criterioDe = (palabra) => { for (const [re, c] of _SINONIMOS) if (re.test(String(palabra))) return c; return null; };
-const _OBJ = "(?:ventas?|volumen|facturaci[oó]n|caja|cobranza|cobro|liquidez|riesgo|riesgos|contribuci[oó]n|margen|m[aá]rgenes|rentabilidad|crecimiento|capital|inventario|stock)";
+const _OBJ = "(?:ventas?|volumen|facturaci[oó]n|caja|cobranza|cobro|deuda|cr[eé]dito|exposici[oó]n|atraso|mora|liquidez|efectivo|tesorer[ií]a|riesgo|riesgos|contribuci[oó]n|margen|m[aá]rgenes|rentabilidad|crecimiento|capital|inventario|stock)";
 /* explícito: el usuario nombra el criterio con un verbo de ordenar o de objetivo */
 const _EXPLICITO = [
   new RegExp(`\\bprioriz[ae]\\w*\\s+(?:por\\s+|la\\s+|el\\s+|las\\s+|los\\s+)?(${_OBJ})`, "i"),
@@ -234,6 +246,21 @@ export function criterioDeLaPregunta(pregunta) {
   for (const re of _EXPLICITO) { const m = re.exec(q); if (m) { const c = _criterioDe(m[1]); if (c) return { criterio: c, modo: "explicito" }; } }
   for (const [re, c] of _IMPLICITO) if (re.test(q)) return { criterio: c, modo: "implicito" };
   return null;
+}
+
+/* ══ «CAJA» ES TESORERÍA (owner 2026-09-24) ═══════════════════════════════════════════════════════════════════════════
+ * El usuario puede pedir ordenar/priorizar por «caja» o «liquidez» — un objetivo legítimo, pero de un dato que este
+ * producto NO tiene (tesorería). No se reinterpreta como cobranza: se declara la ausencia y se ofrece la exposición de
+ * crédito como lo más cercano que sí se mide (ver `prioridadPorLente.js`, que reúsa este detector). */
+const _TESORERIA = /\bcaja\b|\bliquidez\b|\befectivo\b|\btesorer[ií]a\b/i;
+/** pideTesoreria(q) → true si la pregunta fija un criterio de orden/prioridad y ese criterio es tesorería («caja»,
+ *  «liquidez», «efectivo») — nunca cuando ya hay un criterio real reconocido (p. ej. «prioriza cobranza»). */
+export function pideTesoreria(pregunta) {
+  const q = String(pregunta || "");
+  if (!_TESORERIA.test(q)) return false;
+  if (criterioDeLaPregunta(q)) return false;   // otra palabra de la pregunta ya fijó un criterio real: no es un pedido de tesorería
+  for (const re of _EXPLICITO) if (re.test(q)) return true;
+  return false;
 }
 
 /* el orden bajo un criterio: la lista de entidades con el valor que las ordena (en palabras), de la más grave a la menos.

@@ -51,7 +51,10 @@ function tablaDeCartera(clientes) {
   const cuentas = {};
   let vencidoTotal = 0;
   for (const c of clientes) {
-    figs.push(_fig(c.nombre, "Venta", c.venta));
+    // ★ owner 2026-09-24 («caja ≠ cobranza», decisión 2): PRI-04 mide contra la venta A CRÉDITO del flujo de
+    // cobranza («Venta a crédito» / «Venta (flujo)»), nunca contra la venta comercial total («Venta») — el
+    // mismo rótulo que usa `mesaFlujo.js`/`tablaSenales.js` de verdad.
+    figs.push(_fig(c.nombre, "Venta a crédito", c.venta));
     figs.push(_fig(c.nombre, "Saldo pendiente", c.saldoPendiente));
     cuentas[c.nombre] = {
       bajoBenchmark: null, cargaAlta: null, cargaPct: null, cargaSobreResto: null, cargaPromedioResto: null,
@@ -457,6 +460,64 @@ H("14 · la migración 014 declara el MISMO rango que pisoMaterialidadCobranza.j
   const sql = readFileSync(new URL("./db/migraciones/014_piso_materialidad_cobranza.sql", import.meta.url), "utf8");
   ok(sql.includes("between 0.001 and 0.10"), `★ CARNADA · el check SQL usa 0.001..0.10 — los MISMOS números que PISO_MATERIALIDAD_COBRANZA_MIN (${PISO_MATERIALIDAD_COBRANZA_MIN}) / _MAX (${PISO_MATERIALIDAD_COBRANZA_MAX})`);
   ok(PISO_MATERIALIDAD_COBRANZA_MIN === 0.001 && PISO_MATERIALIDAD_COBRANZA_MAX === 0.10, "los literales del módulo JS son los mismos que se afirman arriba (si alguien cambia uno sin el otro, este candado arde)");
+}
+
+/* ═══ 15 · CARNADA — LA BASE NUEVA (venta A CRÉDITO) NO DILUYE LA EXPOSICIÓN DE UN CLIENTE MAYORMENTE AL
+ * CONTADO; LA BASE VIEJA (venta comercial total) SÍ LA DILUÍA (owner 2026-09-24, «caja ≠ cobranza», decisión 2:
+ * PRI-04 mide contra la venta a crédito del mismo flujo de cobranza, nunca contra la venta comercial total —
+ * la venta de contado no genera exposición y no puede diluir la participación de un cliente) ═══ */
+H("15 · carnada — cliente mayormente al contado: la base a crédito no diluye su exposición; la comercial sí la diluía");
+{
+  // "Contado" compra mucho ($2.000) pero casi todo al contado: solo $100 a crédito, con $90 pendiente y $80
+  // vencido — una exposición real y grande dentro de lo poco que sí es a crédito. El resto de la cartera es
+  // 100% a crédito (su venta comercial coincide con su venta a crédito, para no introducir otra variable).
+  const clientes = [
+    { nombre: "Contado", ventaCredito: 100, ventaComercial: 2000, saldoPendiente: 90, vencido: 80 },
+    { nombre: "R1", ventaCredito: 300, ventaComercial: 300, saldoPendiente: 300, vencido: 30 },
+    { nombre: "R2", ventaCredito: 300, ventaComercial: 300, saldoPendiente: 300, vencido: 30 },
+    { nombre: "R3", ventaCredito: 300, ventaComercial: 300, saldoPendiente: 300, vencido: 30 },
+  ];
+  const figs = [];
+  const cuentas = {};
+  let vencidoTotal = 0;
+  for (const c of clientes) {
+    figs.push(_fig(c.nombre, "Venta a crédito", c.ventaCredito));
+    figs.push(_fig(c.nombre, "Venta", c.ventaComercial));   // la venta COMERCIAL también está en la boleta — PRI-04 no debe usarla
+    figs.push(_fig(c.nombre, "Saldo pendiente", c.saldoPendiente));
+    figs.push(_fig(c.nombre, "Saldo vencido", c.vencido));
+    vencidoTotal += c.vencido;
+    cuentas[c.nombre] = {
+      bajoBenchmark: null, cargaAlta: null, cargaPct: null, venta: c.ventaComercial, variacionVenta: "sin_serie",
+      enRespuesta: false, prioridadPrimera: false, saldoPendiente: c.saldoPendiente,
+      tienePlazoDeclarado: true, vencido: c.vencido, vencidoPositivo: c.vencido > 0,
+    };
+  }
+  figs.push(_fig(null, "Saldo vencido · total", vencidoTotal));
+  const ejesDelTenant = { cliente: clientes.map((c) => c.nombre) };
+  const indice = indiceDeEvidencia({ figs, datoProyectado: null, ejesDelTenant });
+  const tabla = { cuentas, skus: {}, periodo: { abierto: false }, pregunta: { temas: [], metricas: [] }, _indice: indice, _figs: { comercial: figs, cobranza: figs, inventarioFrenado: [], inventarioTop: [], union: figs } };
+
+  // ★ CARNADA · con la base nueva (código real, hoy), "Contado" es señal: su participación en la venta a
+  // crédito (100/1000 = 10%) es chica y su participación en el vencido (80/170 ≈ 47%) es grande — la exposición
+  // real no se diluye con la venta al contado.
+  const mContado = medir(tabla, "Contado");
+  ok(mContado.estado === "senal" || mContado.estado === "ocurre", `★ CARNADA · "Contado" (compra mucho pero casi todo al contado) SÍ es señal con la base a crédito (dio "${mContado.estado}")`, JSON.stringify(mContado));
+  console.log(`      Contado (base a crédito, la real): ${mContado.estado}${mContado.cifra ? " · " + mContado.cifra.texto : ""}`);
+
+  // control: los tres clientes 100% a crédito quedan bajo el piso (pesan menos en el vencido que en su venta a crédito)
+  for (const r of ["R1", "R2", "R3"]) { const m = medir(tabla, r); ok(m.estado === "bajo_piso", `control · ${r} (100% a crédito) queda bajo el piso`, m.estado); }
+
+  // ★ CARNADA · si PRI-04 midiera contra la venta COMERCIAL total (el error corregido en esta decisión), la
+  // participación en venta de "Contado" saltaría a 2000 / 2900 ≈ 68,97% del negocio — MAYOR que su 80/170 ≈
+  // 47,06% del vencido — y D_c (que mide cuánto PESA MÁS en el vencido que en la venta) se volvería NEGATIVO:
+  // "Contado" habría desaparecido como exposición de crédito (o peor, leído "a su favor"). Aritmética vieja, en
+  // los mismos números de esta cartera — nunca ejecutada por el código real, solo para demostrar la dilución
+  // que la base nueva evita.
+  const totalVentaComercial = clientes.reduce((s, c) => s + c.ventaComercial, 0);
+  const shareVentaComercialContado = (clientes[0].ventaComercial / totalVentaComercial) * 100;
+  const shareVencidoContado = (clientes[0].vencido / vencidoTotal) * 100;
+  ok(Math.abs(totalVentaComercial - 2900) < 1e-6 && Math.abs(shareVentaComercialContado - (2000 / 2900) * 100) < 1e-6, "control · la aritmética vieja se calcula sobre los mismos $2.000 de venta comercial de Contado");
+  ok(shareVentaComercialContado > shareVencidoContado, `★ CARNADA · con la venta COMERCIAL como base, la participación en venta de Contado (${shareVentaComercialContado.toFixed(1)}%) supera a su participación en el vencido (${shareVencidoContado.toFixed(1)}%): D_c se habría vuelto NEGATIVO — la base vieja diluía (hasta invertía) la exposición real que la base nueva sí detecta como señal`);
 }
 
 console.log(`\n── _piso_materialidad_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);

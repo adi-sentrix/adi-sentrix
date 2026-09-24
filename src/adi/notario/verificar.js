@@ -1179,7 +1179,14 @@ function _relacion(a, I) {
     if (eA && eB && eA.eje === eB.eje && normalizar(eA.nombre) !== normalizar(eB.nombre)) return _nv(`relacion-no-verificable: ${eA.nombre} y ${eB.nombre} son dos ${eA.eje}s distintos: ninguno es parte del otro`, ev, verdad);
     if (eA && eB && eA.eje === "sku" && eB.eje === "bodega") { const es = I.estadosDe(eA.nombre); if (!es.length) return _nv(`sin-evidencia: la proyección no dice en qué bodega está ${eA.nombre}`, ev); if (!es.some((x) => normalizar(x.bodega || "") === normalizar(eB.nombre))) return _falsa(`relacion-falsa: ${eA.nombre} no está en ${eB.nombre} (está en ${[...new Set(es.map((x) => x.bodega).filter(Boolean))].join(", ") || "otra bodega"})`, verdad, ev); }
     const cA = conceptosDe(a.metrica), cB = conceptosDe(r.vs.metrica || a.metrica);
-    if (r.vs.metrica && cA.length && cB.length && !cA.some((c) => cB.includes(c)) && !(cB.includes("saldo pendiente") && cA.includes("saldo vencido")) && !(cB.includes("capital") && (cA.includes("capital frenado") || cA.includes("capital inmovilizado"))) && !(cB.includes("capital inmovilizado") && cA.includes("capital frenado")) && !(cB.includes("contribucion") && cA.includes("contribucion no capturada"))) return _falsa(`relacion-falsa: «${a.metrica}» no es parte de «${r.vs.metrica}» (conceptos distintos)`, verdad, ev);
+    /* «caja ≠ cobranza» (owner 2026-09-24): abonado y saldo pendiente son PARTE de la venta A CRÉDITO («Venta a
+     * crédito del período», «Venta del período (flujo)») y de nada más: la venta al contado no genera abono ni
+     * saldo, así que nunca son «parte» de la venta comercial total (supervisor 2026-09-24). Antes de que «venta a
+     * crédito» tuviera su propia clave (`venta_credito`, lexico.js) este par pasaba por accidente: `conceptosDe`
+     * no reconocía ese rótulo y la lista de conceptos quedaba vacía, así que este chequeo se saltaba entero (nunca
+     * validó el par a propósito). Con la clave nueva, `cB` deja de estar vacío y hay que declarar el par. */
+    const _esVentaCredito = (c) => c.includes("venta a credito");
+    if (r.vs.metrica && cA.length && cB.length && !cA.some((c) => cB.includes(c)) && !(cB.includes("saldo pendiente") && cA.includes("saldo vencido")) && !(cB.includes("capital") && (cA.includes("capital frenado") || cA.includes("capital inmovilizado"))) && !(cB.includes("capital inmovilizado") && cA.includes("capital frenado")) && !(cB.includes("contribucion") && cA.includes("contribucion no capturada")) && !(_esVentaCredito(cB) && (cA.includes("abonado") || cA.includes("saldo pendiente")))) return _falsa(`relacion-falsa: «${a.metrica}» no es parte de «${r.vs.metrica}» (conceptos distintos)`, verdad, ev);
   }
   if (r.forma === "parte") {
     /* A es parte de B: A ≤ B, misma unidad, y el universo de los dos rótulos no se cruza (venta comercial vs inventario) */

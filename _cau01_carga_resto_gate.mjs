@@ -293,7 +293,8 @@ H("11 · control cruzado · PRI-04 con diferencia a favor también dice \"no hay
   const cuentas = {};
   let vencidoTotal = 0;
   for (const c of clientes) {
-    figs.push(_f2(c.nombre, "Venta", c.venta));
+    // ★ owner 2026-09-24 («caja ≠ cobranza», decisión 2): PRI-04 mide contra la venta A CRÉDITO, no la comercial.
+    figs.push(_f2(c.nombre, "Venta a crédito", c.venta));
     figs.push(_f2(c.nombre, "Saldo pendiente", c.saldoPendiente));
     figs.push(_f2(c.nombre, "Saldo vencido", c.vencido));
     vencidoTotal += c.vencido;
@@ -543,7 +544,7 @@ H("18 · mención + oferta cuando la pieza es de otro dominio (antes: bloque con
   ok(!salida18.some((s) => /el oficio compara la participación/.test(s.texto)), "★ CARNADA · PRI-04 ya NO se sirve como bloque completo (encabezado ausente) en la pregunta de margen");
   if (mencionPRI04_18) {
     const t = mencionPRI04_18.texto;
-    ok(/Lider pesa más en el vencido que en la venta — [\d.]+% del vencido contra/.test(t), "★ Lider (nombrada por el usuario, señal) trae la mención con su cifra", t);
+    ok(/Lider pesa más en el vencido que en la venta a crédito — [\d.]+% del vencido contra/.test(t), "★ Lider (nombrada por el usuario, señal) trae la mención con su cifra", t);
     for (const noNombrada of ["Sodimac", "Tottus", "Paris", "Easy"]) {
       ok(!t.includes(noNombrada), `★ CARNADA · ${noNombrada} (señal, no nombrada por el usuario) NO aparece en la mención`, t);
     }

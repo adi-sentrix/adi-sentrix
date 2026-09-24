@@ -307,8 +307,11 @@ const CALCULOS = {
     const c = tabla && tabla.cuentas && tabla.cuentas[entidad];
     if (!c || c.vencido == null || c.venta == null) return { insuficiente: true, motivo: `falta el vencido o la venta de ${entidad} para calcular su participación`, resolveria: "correr la boleta de cobranza y la comercial para esta cuenta" };
 
+    // ★ owner 2026-09-24 («caja ≠ cobranza»; ver ADI_CAJA_NO_ES_COBRANZA): la participación en VENTA de una
+    // lectura de cobranza es sobre la venta A CRÉDITO (clave "venta_credito"), nunca sobre la venta comercial
+    // total ("ventas") — solo la venta a crédito genera exposición de cobranza.
     const hechos = [
-      { id: "part_venta", tipo: "razon", num: { sujeto: entidad, metrica: "ventas" }, den: { sujeto: "negocio", metrica: "ventas" }, forma: "pct" },
+      { id: "part_venta", tipo: "razon", num: { sujeto: entidad, metrica: "venta_credito" }, den: { sujeto: "negocio", metrica: "venta_credito" }, forma: "pct" },
       { id: "part_vencido", tipo: "razon", num: { sujeto: entidad, metrica: "saldo_vencido" }, den: { sujeto: "negocio", metrica: "saldo_vencido" }, forma: "pct" },
     ];
     const libro = libroDeHechos(hechos, { indice: I });
@@ -345,8 +348,11 @@ const CALCULOS = {
     const { evaluables } = _universoDePiso(tabla);
     if (evaluables.length < 2) return { insuficiente: true, motivo: "el universo evaluable (cuentas con plazo de pago declarado) tiene menos de dos cuentas: no hay con qué comparar participaciones", resolveria: "declarar plazo de pago de más clientes" };
 
-    const ventaEvaluableTotal = _sumaVerificada("venta_evaluable_total", evaluables, "ventas", I);
-    if (!ventaEvaluableTotal) return { insuficiente: true, motivo: "la venta del universo evaluable no se pudo verificar (falta la venta de al menos una cuenta con plazo declarado)", resolveria: "correr la boleta comercial para todas las cuentas con plazo declarado" };
+    // ★ owner 2026-09-24 («caja ≠ cobranza», decisión 2 — base de PRI-04): la venta contra la que se mide la
+    // participación es la venta A CRÉDITO del mismo flujo de cobranza (clave "venta_credito"), nunca la venta
+    // comercial total ("ventas") — la venta de contado no genera exposición y no puede diluir la participación.
+    const ventaEvaluableTotal = _sumaVerificada("venta_evaluable_total", evaluables, "venta_credito", I);
+    if (!ventaEvaluableTotal) return { insuficiente: true, motivo: "la venta a crédito del universo evaluable no se pudo verificar (falta la venta a crédito de al menos una cuenta con plazo declarado)", resolveria: "correr la boleta de cobranza para todas las cuentas con plazo declarado" };
     const saldoEvaluado = _sumaVerificada("saldo_evaluado", evaluables, "saldo_pendiente", I);
     if (!saldoEvaluado) return { insuficiente: true, motivo: "el saldo pendiente del universo evaluable no se pudo verificar", resolveria: "correr la boleta de cobranza para todas las cuentas con plazo declarado" };
 
@@ -354,18 +360,18 @@ const CALCULOS = {
 
     const libroA = libroDeHechos([
       { id: "vencido_total", tipo: "cifra", sujeto: "negocio", metrica: "saldo_vencido" },
-      { id: "share_venta", tipo: "razon", num: { sujeto: entidad, metrica: "ventas" }, den: { constante: _constOperando(ventaEvaluableTotal, "venta_evaluable_total", "ventas") }, forma: "pct" },
+      { id: "share_venta", tipo: "razon", num: { sujeto: entidad, metrica: "venta_credito" }, den: { constante: _constOperando(ventaEvaluableTotal, "venta_evaluable_total", "venta_credito") }, forma: "pct" },
       { id: "share_vencido", tipo: "razon", num: { sujeto: entidad, metrica: "saldo_vencido" }, den: { sujeto: "negocio", metrica: "saldo_vencido" }, forma: "pct" },
     ], { indice: I });
     const [hVencidoTotal, hShareVenta, hShareVencido] = libroA.hechos;
     if (!hVencidoTotal || !hVencidoTotal.ok) return { insuficiente: true, motivo: "el vencido total del universo evaluable no se pudo verificar", resolveria: "correr la boleta de cobranza" };
-    if (!hShareVenta || !hShareVenta.ok) return { insuficiente: true, motivo: `la participación de ${entidad} en la venta del universo evaluable no se pudo verificar (${hShareVenta ? hShareVenta.motivo : "sin hecho"})`, resolveria: "correr la boleta comercial para esta cuenta" };
+    if (!hShareVenta || !hShareVenta.ok) return { insuficiente: true, motivo: `la participación de ${entidad} en la venta a crédito del universo evaluable no se pudo verificar (${hShareVenta ? hShareVenta.motivo : "sin hecho"})`, resolveria: "correr la boleta de cobranza para esta cuenta" };
     if (!hShareVencido || !hShareVencido.ok) return { insuficiente: true, motivo: `la participación de ${entidad} en el vencido no se pudo verificar (${hShareVencido ? hShareVencido.motivo : "sin hecho"})`, resolveria: "correr la boleta de cobranza para esta cuenta" };
 
     const libroB = libroDeHechos([
       { id: "dif_pp", tipo: "derivada", op: "pp", de: [
         { constante: _constOperando(hShareVencido, "share_vencido", "saldo_vencido") },
-        { constante: _constOperando(hShareVenta, "share_venta", "ventas") },
+        { constante: _constOperando(hShareVenta, "share_venta", "venta_credito") },
       ] },
     ], { indice: I });
     const hDifPp = libroB.hechos[0];
@@ -405,7 +411,7 @@ const CALCULOS = {
     const montoAbsTxt = formatoDeLaCasa(Math.abs(difRaw), "money");
     // hecho con cifra (parte 1) — nombra la entidad y su dirección; servir.js ya no antepone "En {entidad}"
     // para esta pieza (regla C: tres partes fijas, también para señal).
-    const hechoTxt = `${entidad} ${direccion} en el vencido que en la venta: ${shareVencidoTxt} del vencido y ${shareVentaTxt} de la venta. La diferencia es de ${puntosTxt}, ${montoAbsTxt}${aFavor}.`;
+    const hechoTxt = `${entidad} ${direccion} en el vencido que en la venta a crédito: ${shareVencidoTxt} del vencido y ${shareVentaTxt} de la venta a crédito. La diferencia es de ${puntosTxt}, ${montoAbsTxt}${aFavor}.`;
     // piso con su dueño (parte 2) — «piso de ADI»/«declarado por tu empresa» YA declara la autoría: nunca se
     // agrega jerga de procedencia («estimación contra referencia») al texto del usuario (owner, segunda vuelta).
     // La procedencia ESTRUCTURAL sigue viva en `procedencia` (nunca "medido") para quien la necesite verificar.

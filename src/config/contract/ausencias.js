@@ -99,6 +99,16 @@ export const AUSENCIAS_DEL_DATO = [
     id: "sin_meta_declarada", tipo: "no_calculado", dominio: "general", enPrompt: true,
     texto: "la META no existe en este dato: el benchmark lo declara el cliente y benchmark ≠ promedio ≠ meta.",
   },
+  /* «caja ≠ cobranza» (owner 2026-09-24, ley ADI_CAJA_NO_ES_COBRANZA, textual: «En ADI, cobranza no es sinónimo
+   * de tesorería, aunque pueda impactarla»): este dato no trae posición de caja ni movimientos de tesorería —
+   * cuentas por cobrar informa la EXPOSICIÓN DE CRÉDITO por cliente, que es distinto. `enPrompt` NO se marca (no
+   * es un límite general del dato como los de arriba: se declara puntualmente cuando el usuario pide priorizar
+   * o leer por «caja»/«liquidez», ver `prioridadPorLente.js`). */
+  {
+    id: "sin_datos_tesoreria", tipo: "no_calculado", dominio: "cobranza",
+    texto: "«caja» es tesorería: este dato no trae posición de caja ni movimientos de tesorería — no se puede priorizar ni leer por caja. Cuentas por cobrar informa la exposición de crédito por cliente (pendiente, vencido y su atraso): es la referencia disponible sobre crédito, no sobre caja.",
+    entrega: { titulo: "Sin datos de tesorería", motivo: "Este dato no trae posición de caja ni movimientos de tesorería. Cuentas por cobrar informa la exposición de crédito por cliente, que es distinto." },
+  },
   {
     id: "sin_fuente_sectorial", tipo: "conocimiento_no_construido", dominio: "general", enPrompt: true,
     texto: "fuente sectorial autorizada: NO hay — la única referencia es la del propio negocio (su benchmark declarado).",
