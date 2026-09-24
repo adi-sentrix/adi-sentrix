@@ -69,7 +69,7 @@ H("0 · piezas.js — CAU-01 pasa el validador, sigue \"borrador\", apunta al c�
 {
   const r = validarPieza(PIEZA);
   ok(r.ok, "CAU-01 pasa el validador de esquema", r.errores.join(" | "));
-  ok(PIEZA.estado === "borrador" && !PIEZA.firma, "CAU-01 sigue sin firmar (la firma es del owner)");
+  ok(PIEZA.estado === "firmada" && !!PIEZA.firma && /owner/.test(PIEZA.firma.por), "CAU-01 está firmada por el owner (2026-09-24, «Firmo la pieza 2»)");
   ok(PIEZA.medicion.calculo === "cargaCuentaVsResto", "CAU-01 apunta al cálculo de la carga contra el resto de la cartera");
   ok(PIEZAS_CONOCIMIENTO.length === 4, "siguen sembradas exactamente 4 piezas");
 }
@@ -360,9 +360,8 @@ H("14 · bandera OFF / pieza sin firmar — CAU-01 no aporta nada a la Entrega s
   const { referenciaDelOficio } = await import("./src/adi/conocimiento/seleccionar.js");
   const { ESCENARIO_INICIAL } = await import("./src/config/scenarios.js");
   initTenant(TENANT_DEMO);
-  const salida = referenciaDelOficio({ perfil: null, pregunta: "dónde estoy perdiendo plata", entidadesEnRespuesta: [], scenario: ESCENARIO_INICIAL, activo: true, catalogo: PIEZAS_CONOCIMIENTO });
-  ok(Array.isArray(salida) && salida.length === 0, "con el catálogo real (CAU-01 en borrador) y sin perfil, referenciaDelOficio no sirve nada");
-  ok(PIEZA.estado === "borrador", "control · CAU-01 sigue en \"borrador\" en piezas.js (la firma es del owner)");
+  const salida = referenciaDelOficio({ perfil: null, /* sin perfil: la puerta 2 apaga todo, firmada o no */ pregunta: "dónde estoy perdiendo plata", entidadesEnRespuesta: [], scenario: ESCENARIO_INICIAL, activo: true, catalogo: PIEZAS_CONOCIMIENTO });
+  ok(Array.isArray(salida) && salida.length === 0, "con el catálogo real (CAU-01 firmada) pero sin perfil, referenciaDelOficio no sirve nada");
 }
 
 /* ═══ 15 · PRESENTACIÓN EN BLOQUE (owner 2026-09-24) — una señal NUNCA se omite por espacio, ningún id interno

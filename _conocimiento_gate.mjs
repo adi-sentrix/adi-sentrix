@@ -87,7 +87,7 @@ for (const p of PIEZAS_CONOCIMIENTO) {
   const r = validarPieza(p, { entidadesConocidas: (TENANT_DEMO.clientesVentas || []).map((c) => c.nombre) });
   ok(r.ok, `${p.id} pasa el validador de esquema`, r.errores.join(" | "));
   /* PRI-04 la firmó el owner el 2026-09-23 («Sí, fírmala así»); las demás siguen en borrador hasta su validación. */
-  if (p.id === "PRI-04") {
+  if (p.id === "PRI-04" || p.id === "CAU-01") {   /* CAU-01 firmada por el owner 2026-09-24 («Firmo la pieza 2») */
     ok(p.estado === "firmada" && !!p.firma && /owner/.test(p.firma.por), `${p.id} está firmada por el owner`);
   } else {
     ok(p.estado === "borrador", `${p.id} sigue en estado "borrador"`);

@@ -59,9 +59,14 @@ export const PIEZAS_CONOCIMIENTO = [
     // era ruido. El encabezado del bloque se arma como "En {sector}, {enunciado en minúscula}" (servir.js).
     enunciado: "Cuando una cuenta cadena está bajo el benchmark de margen, el oficio mira primero si su carga comercial pesa más que la del resto de la cartera.",
     sujeto: "sector",
-    fuente: { tipo: "principio-del-oficio", detalle: "controller senior; validación owner + socio pendiente (el principio es del oficio; el piso es criterio general de ADI, ajustable por la empresa)" },
+    fuente: { tipo: "principio-del-oficio", detalle: "controller senior; firmada por el owner 2026-09-24 (el principio es del oficio; el piso es el piso canónico de materialidad comercial del Core, criterio general de ADI, ajustable por la empresa)" },
     alcance: { ..._ALCANCE_BASE },
-    fecha: "2026-09-23", vigencia: "2027-09-23", firma: null, estado: "borrador",
+    fecha: "2026-09-23", vigencia: "2027-09-23",
+    /* FIRMA DEL OWNER (2026-09-24), textual: «Firmo la pieza 2». Lo firmado: el resto de la cartera es la tasa
+     * real ponderada; el piso es el piso canónico de materialidad comercial del Core (el mismo de la pestaña
+     * Comercial); cada texto nombra su referencia; presentación en bloque y pertinencia por encargo (principal ·
+     * mención · oferta). */
+    firma: { por: "owner (jc)", fecha: "2026-09-24" }, estado: "firmada",
     // ═══ CORRECCIÓN 2026-09-24 (owner, cierre de presentación) — UNA sola oración de límite, no tres ═══════════
     // Antes: dos oraciones acá ("No implica…" + "Tampoco implica que una cuenta bajo el piso cargue poco…") más
     // una tercera servida aparte desde `medicion.no_excluye` ("Esto no excluye: descuentos…") — tres avisos por
@@ -155,7 +160,9 @@ export const PIEZAS_CONOCIMIENTO = [
      * participación— es del oficio y el piso es criterio de ADI, cada uno con su rótulo; (2) la pregunta del oficio
      * una vez arriba, las cuentas en el orden de prioridad que ya usa ADI, la cobertura al cierre; (3) la rama sin
      * señal se prueba con carteras de prueba, sin alterar el demo (`_piso_materialidad_gate`). */
-    firma: { por: "owner (jc)", fecha: "2026-09-23" }, estado: "firmada",
+    /* RECONFIRMACIÓN DEL OWNER (2026-09-24), textual: «reconfirmo la pieza 1 con su nueva redacción» — el
+     * enunciado en afirmación, una sola oración de límite, y también en preguntas abiertas de cobranza. */
+    firma: { por: "owner (jc)", fecha: "2026-09-23", reconfirmada: "2026-09-24" }, estado: "firmada",
     // ANTES: "No implica que la cuenta sea mala pagadora: la diferencia puede ser un plazo pactado más largo, o
     // vencido documental en facturas puntuales. Tampoco implica que una cuenta bajo el piso esté al día: el piso
     // mide si la desproporción es grande, no si el vencido existe." (dos oraciones; una tercera se sumaba aparte
