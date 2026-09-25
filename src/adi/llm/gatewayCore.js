@@ -17,6 +17,7 @@ import { resolverModelos } from "./modelDefaults.js";   // el default de modelo 
 import { chooseModel } from "./modelRouter.js";
 import { estimateCostUSD, resolvePricingKey } from "./modelPricing.js";   // el precio se resuelve por FAMILIA (owner 2026-08-11)
 import { emit as emitTelemetria, desdeRespuesta, nuevoTraceId, aReasonCode } from "./telemetry.js";   // observación pura (owner 2026-08-10)
+import { exigirContador } from "./exigirContador.js";   // ETAPA 0 (owner 2026-09-25) · candado OPT-IN "sin contador no hay gasto" — apagado por defecto, ver su cabecera
 import { verifyAccessCode, makeAccessCode, makeMintGrant, verifyMintGrant, constantTimeEqual as verifyEq, tenantLimpio } from "./accessToken.js";
 // ARQUITECTURA C (Fase 3 · detrás del flag ADI_ORACLE_ENABLED) · las DOS pasadas del oráculo verificado.
 import { ADI_PERSONA, ADI_PERSONA_PLAN, renderInteractionMemory } from "../oracle/persona.js";
@@ -198,6 +199,12 @@ export async function handleSpec({ text, context, access } = {}, env) {
     // El error NOMBRA la variable, y la telemetría lo separa de un fallo del proveedor con su propio código:
     // "nadie configuró el proveedor" y "el proveedor falló" son dos problemas distintos y se arreglan distinto.
     if (falta) return _frenado({ ok: false, error: mensajeFaltaProveedor(falta), configFaltante: falta }, "config_missing");
+    // EL CANDADO "SIN CONTADOR NO HAY GASTO" (owner 2026-09-25, ETAPA 0 · exigirContador.js) · OPT-IN, apagado por
+    // defecto: sin ADI_EXIGIR_CONTADOR=1 esto es un no-op exacto y el comportamiento no cambia ni un byte. Encendido,
+    // exige un sink de telemetría instalado ANTES de gastar — mismo `_frenado` que el resto de los frenos de este
+    // handler, con su propio reasonCode cerrado (`sin_contador`, ver REASON_CODES en telemetry.js).
+    const _contador = exigirContador({ env });
+    if (!_contador.ok) return _frenado({ ok: false, error: _contador.mensaje }, _contador.reasonCode);
     const userMessage = buildParseUserMessage(context, text);
     let spec, usage;
     try {
@@ -241,6 +248,8 @@ export async function handleNarrate({ text, evidence, access } = {}, env) {
     if (!acc.ok) return _frenado({ ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" });
     if (!text || typeof text !== "string") return _frenado({ ok: false, error: "sin texto" });
     if (falta) return _frenado({ ok: false, error: mensajeFaltaProveedor(falta), configFaltante: falta }, "config_missing");   // ver el bloque en handleSpec
+    const _contador = exigirContador({ env });   // ver el candado en handleSpec — mismo trato acá
+    if (!_contador.ok) return _frenado({ ok: false, error: _contador.mensaje }, _contador.reasonCode);
     const system = buildNarrateSystem(evidence);   // general vs simulación (evidence.transform) · provider-neutral
     let narration, usage;
     try {
@@ -334,6 +343,8 @@ export async function handlePlan({ text, history, mem, scenario, access, tenantI
     if (!text || typeof text !== "string") return _frenado({ ok: false, error: "sin texto" });
     if (!_checkRateLimit(tenantId, env)) return _frenado({ ok: false, error: "rate_limited", reason: "demasiadas solicitudes, esperá un momento" });
     if (falta) return _frenado({ ok: false, error: mensajeFaltaProveedor(falta), configFaltante: falta }, "config_missing");   // ver el bloque en handleSpec
+    const _contador = exigirContador({ env });   // ver el candado en handleSpec — mismo trato acá
+    if (!_contador.ok) return _frenado({ ok: false, error: _contador.mensaje }, _contador.reasonCode);
     // ROUTER (owner 2026-08-02, ver modelRouter.js): intento 0 = tier1 (idéntico a la config estática de siempre);
     // reintentos posteriores (el turno cayó acá de nuevo porque el intento anterior no dio JSON válido) escalan de
     // modelo. `routed` es null si el router no aplica (proveedor≠openai o apagado) → se usa tier1 tal cual, sin cambios.
@@ -431,6 +442,8 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt, 
     if (!payload || typeof payload !== "object") return _frenado({ ok: false, error: "sin payload" });
     if (!_checkRateLimit(tenantId, env)) return _frenado({ ok: false, error: "rate_limited", reason: "demasiadas solicitudes, esperá un momento" });
     if (falta) return _frenado({ ok: false, error: mensajeFaltaProveedor(falta), configFaltante: falta }, "config_missing");   // ver el bloque en handleSpec
+    const _contador = exigirContador({ env });   // ver el candado en handleSpec — mismo trato acá
+    if (!_contador.ok) return _frenado({ ok: false, error: _contador.mensaje }, _contador.reasonCode);
     /* (La Poda · owner 2026-09-05) Acá vivió la rama `payload.modoNatural` — el hilo entero como mensajes y
      * el system del cerebro único (naturalPrompt.js, retirado con ella). El camino natural se retiró del
      * código; un payload con `modoNatural` hoy es un caller viejo y se frena con error tipado. */
@@ -478,7 +491,7 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt, 
     }
     const modeloReal = modeloEfectivo || model;
     const _rn = { ok: true, narration, usage, stop: motivoCorte || null, bloques: bloquesRecibidos || null, modelUsed: model,
-      costUSD: estimateCostUSD(modeloReal, usage), modelReason: routed ? routed.reason : "static:sin router" };
+      modelFamilia: resolvePricingKey(modeloReal), costUSD: estimateCostUSD(modeloReal, usage), modelReason: routed ? routed.reason : "static:sin router" };
     _emitir(_rn);
     return _rn;
   } catch (e) {
@@ -517,6 +530,8 @@ export async function handleAgente({ mensajes, system, tools, paso, access, tena
     if (!acc.ok) return _frenado({ ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" });
     if (!_checkRateLimit(tenantId, env)) return _frenado({ ok: false, error: "rate_limited", reason: "demasiadas solicitudes, esperá un momento" });
     if (falta) return _frenado({ ok: false, error: mensajeFaltaProveedor(falta), configFaltante: falta }, "config_missing");
+    const _contador = exigirContador({ env });   // ver el candado en handleSpec — mismo trato acá
+    if (!_contador.ok) return _frenado({ ok: false, error: _contador.mensaje }, _contador.reasonCode);
     const _msgs = Array.isArray(mensajes) ? mensajes.filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim()) : [];
     if (!_msgs.length) return _frenado({ ok: false, error: "agente sin mensajes: el hilo es obligatorio" });
     if (!(typeof system === "string" && system.trim()) && !Array.isArray(system)) return _frenado({ ok: false, error: "agente sin system: el contrato viene armado del cliente" });

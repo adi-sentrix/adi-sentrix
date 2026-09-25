@@ -18,11 +18,35 @@ import { leerLibro } from "./leerLibro.js";
 import { proponerMapeo, elegirEje } from "./mapeoDeterministico.js";
 import { normalizarEje, construirDataset } from "./normalizar.js";
 import { disponibilidadSentrix } from "./disponibilidad.js";
+import { evaluarAmbiguedad } from "./materialidadColumna.js";
+import { REQUERIDAS } from "../config/contract/ingestaColumnas.js";
+import { SOURCES } from "../config/contract/sourceManifest.js";
+
+/* ¿el campo en disputa de una ambigüedad es obligatorio para este eje? Una «indecisa» trae dos campos posibles
+ * (`"campoA | campoB"`) — si CUALQUIERA de los dos es obligatoria, se trata como obligatoria: todavía no se sabe
+ * cuál de las dos interpretaciones es la correcta, así que no se puede asumir que cayó en la opcional. */
+function _esObligatoria(eje, a) {
+  const obligatorias = REQUERIDAS[eje] || [];
+  const campos = String(a.campo || "").includes(" | ") ? a.campo.split(" | ") : [a.campo];
+  return campos.some((c) => obligatorias.includes(c));
+}
 
 /* ingestarLibro(archivo, { id, nombre, nombreArchivo, unidadesConfirmadas, ejePorHoja })
  *   · `unidadesConfirmadas` — el cerrojo: sin `true` no se normaliza un solo número.
  *   · `ejePorHoja` — { "Nombre de hoja": "skuInventario" } para forzar el eje cuando la hoja es ambigua.
- * Devuelve { ok, dataset, preview, bloqueos } · con ok:false el dataset es null y los bloqueos dicen por qué. */
+ * Devuelve { ok, dataset, preview, bloqueos } · con ok:false el dataset es null y los bloqueos dicen por qué.
+ *
+ * CORTE 0b (2026-09-25, autorizado por el supervisor SOLO en este camino): una ambigüedad de columna ya no
+ * bloquea la carga a ciegas. Para cada `ambigua` que `mapeoDeterministico` reporta, se corre
+ * `evaluarAmbiguedad` (el motor puro de materialidad, `materialidadColumna.js`) SOLO si `unidadesConfirmadas`
+ * es `true` (sin eso no hay un solo número confiable con qué comparar, y la escala sigue preguntándose sí o sí
+ * — la materialidad nunca la silencia). Con el resultado:
+ *   · NO material → se resuelve SOLA (el supuesto determinístico entra al mapeo real) y queda declarada como
+ *     aviso `ambiguedad-resuelta-por-no-material`, nunca como bloqueo. Aplica igual si el campo es obligatorio.
+ *   · Material, campo OPCIONAL → no bloquea: el campo queda sin mapear (pendiente), y la ambigüedad se reporta
+ *     con su comparación completa para que se pregunte.
+ *   · Material, campo OBLIGATORIO → sigue bloqueando la carga entera, como antes (no hay con qué construir el
+ *     eje sin ese campo, y la diferencia es demasiado grande para elegir por defecto). */
 export function ingestarLibro(archivo, { id, nombre, nombreArchivo = "", unidadesConfirmadas = false, ejePorHoja = {} } = {}) {
   const libro = leerLibro(archivo, { nombreArchivo });
   const hojas = [], ejes = {};
@@ -40,7 +64,29 @@ export function ingestarLibro(archivo, { id, nombre, nombreArchivo = "", unidade
     }
 
     const prop = proponerMapeo({ eje: eleccion.eje, encabezados: hoja.encabezados });
-    const norm = normalizarEje({ eje: eleccion.eje, filas: hoja.filas, mapeo: prop.mapeo, unidadesConfirmadas });
+
+    // ── materialidad de cada ambigüedad (corte 0b) ────────────────────────────────────────────────────────
+    const mapeoFinal = { ...prop.mapeo };
+    const ambiguasSinResolver = [];
+    const resueltasPorMaterialidad = [];
+    for (const a of prop.ambiguas) {
+      const obligatoria = _esObligatoria(eleccion.eje, a);
+      if (!unidadesConfirmadas) { ambiguasSinResolver.push({ ...a, obligatoria, materialidad: null }); continue; }
+
+      const m = evaluarAmbiguedad({ eje: eleccion.eje, filas: hoja.filas, mapeoBase: prop.mapeo, ambiguedad: a, obligatoria });
+      if (m.accion === "seguir_declarando" && m.supuestoElegido) {
+        const unidad = ((SOURCES[eleccion.eje] || {}).schema || {})[m.supuestoElegido.campo] || null;
+        mapeoFinal[m.supuestoElegido.campo] = { columna: m.supuestoElegido.columna, via: "resuelto por materialidad", unidad };
+        resueltasPorMaterialidad.push({ ...a, obligatoria, materialidad: m });
+        avisos.push({ tipo: "ambiguedad-resuelta-por-no-material",
+          detalle: `«${hoja.nombre}»: "${m.supuestoElegido.campo}" quedó "${m.supuestoElegido.columna}" — la diferencia entre candidatas (${m.metricaComparada}) es ${m.deltaMax} y el piso es ${m.piso}, no material. ${m.supuestoElegido.motivo}`,
+          hoja: hoja.nombre });
+      } else {
+        ambiguasSinResolver.push({ ...a, obligatoria, materialidad: m });
+      }
+    }
+
+    const norm = normalizarEje({ eje: eleccion.eje, filas: hoja.filas, mapeo: mapeoFinal, unidadesConfirmadas });
 
     hojas.push({
       hoja: hoja.nombre,
@@ -48,8 +94,9 @@ export function ingestarLibro(archivo, { id, nombre, nombreArchivo = "", unidade
       ejeForzado: !!forzado,
       filasLeidas: hoja.filas.length,
       filasNormalizadas: norm.filas.length,
-      mapeo: Object.entries(prop.mapeo).map(([campo, m]) => ({ campo, columna: m.columna, via: m.via, unidad: m.unidad })),
-      ambiguas: prop.ambiguas,
+      mapeo: Object.entries(mapeoFinal).map(([campo, m]) => ({ campo, columna: m.columna, via: m.via, unidad: m.unidad })),
+      ambiguas: ambiguasSinResolver,
+      resueltasPorMaterialidad,
       faltantes: prop.faltantes,
       opcionalesAusentes: prop.opcionalesAusentes,
       sinResolver: prop.sinResolver,
@@ -59,7 +106,10 @@ export function ingestarLibro(archivo, { id, nombre, nombreArchivo = "", unidade
     });
 
     for (const b of [...prop.faltantes.map((f) => ({ tipo: "columna-obligatoria-ausente", detalle: `${eleccion.eje}.${f.campo} (${f.unidad})`, hoja: hoja.nombre })),
-                     ...prop.ambiguas.map((a) => ({ tipo: "columna-ambigua", detalle: `${eleccion.eje}.${a.campo}: la reclaman ${a.columnas.map((c) => `"${c}"`).join(" y ")}`, hoja: hoja.nombre })),
+                     // solo bloquea la ambigüedad que SIGUE sin resolver Y es obligatoria (o que no se pudo
+                     // evaluar por falta de unidades confirmadas — mismo trato que antes en ese caso: bloquea).
+                     ...ambiguasSinResolver.filter((a) => a.obligatoria || !unidadesConfirmadas)
+                       .map((a) => ({ tipo: "columna-ambigua", detalle: `${eleccion.eje}.${a.campo}: la reclaman ${a.columnas.map((c) => `"${c}"`).join(" y ")}`, hoja: hoja.nombre })),
                      ...norm.bloqueos.map((b2) => ({ ...b2, hoja: hoja.nombre }))]) bloqueos.push(b);
     for (const a of norm.avisos) avisos.push({ ...a, hoja: hoja.nombre });
 

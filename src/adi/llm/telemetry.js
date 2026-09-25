@@ -49,8 +49,13 @@ export const CAMPOS_TELEMETRIA = Object.freeze([...CAMPOS]);
 // proveedor. Se separa porque los dos se arreglan distinto y confundirlos deja invisible la única causa que el
 // operador puede corregir solo: una caída entera por falta de `LLM_PROVIDER` se veía idéntica a un 401 del
 // proveedor. La lista sigue CERRADA: un código nuevo se declara acá y se enumera en su gate, jamás se cuela.
+// `sin_contador` (owner 2026-09-25, ETAPA 0 · el candado "sin contador no hay gasto"): NO es un fallo del
+// proveedor ni de configuración — es que el CALLER decidió exigir un contador instalado (ADI_EXIGIR_CONTADOR=1,
+// ver exigirContador.js) y no lo hay. Se separa de `config_missing` por la misma razón que ese código se separó
+// de `provider_error`: son dos causas que se arreglan distinto, y confundirlas esconde la única que el operador
+// puede corregir solo. La lista sigue CERRADA: se declara acá y se enumera en su gate, jamás se cuela.
 export const REASON_CODES = ["rate_limited", "network_error", "invalid_plan", "empty_redirect",
-  "guard_rejected", "provider_error", "config_missing", "unknown"];
+  "guard_rejected", "provider_error", "config_missing", "sin_contador", "unknown"];
 
 // Traduce el texto que produce el motor a un código. NO persiste nada del texto: solo decide cuál de los siete.
 const _MAPA = [

@@ -1,0 +1,47 @@
+{
+  "_que_es": "Fixtures sintéticos para _acta_ingesta_gate.mjs, corte 0b (motor de materialidad, camino heterogéneo). Cada entrada es una hoja de un archivo sintético (sin datos de ningún cliente real): { hoja, filas } donde filas[0] son los encabezados tal como los escribiría un usuario y el resto son filas de datos. `ejePorHoja` fuerza el eje cuando la ambigüedad haría que `elegirEje` no elija ninguno (comportamiento existente de mapeoDeterministico.js, no de este corte).",
+
+  "ambiguedad_no_material": {
+    "_que_prueba": "Dos columnas («Costo» y «Costo total») reclaman el mismo campo del contrato («costo») con los MISMOS valores en cada fila — la diferencia entre candidatas es $0, muy por debajo del piso de materialidad (0.05% de $3.000 = $1,5). Debe resolverse SOLA: no bloquea, no pregunta, queda declarado como aviso y como propuesta de memoria de empresa.",
+    "hoja": "Margen",
+    "eje": "clientesMargen",
+    "filas": [
+      ["Cliente", "Venta", "Costo", "Costo total", "Rebates", "Margen %"],
+      ["Cuenta Uno", 1000, 700, 700, 10, 29],
+      ["Cuenta Dos", 2000, 1400, 1400, 20, 29]
+    ]
+  },
+
+  "ambiguedad_material": {
+    "_que_prueba": "Dos columnas («Costo» y «Costo total» — ambas sinónimos DECLARADOS del mismo campo «costo» en ingestaColumnas.js, igual que en ambiguedad_no_material) con valores MUY distintos: la contribución total sale $20.700 con una candidata y $2.700 con la otra (diferencia $18.000), muy por encima del piso (0.05% de $30.000 = $15). El campo es OPCIONAL (no está en REQUERIDAS.clientesMargen) así que NO bloquea la carga — queda pendiente y se pregunta, con las cifras de cada candidata.",
+    "hoja": "Margen",
+    "eje": "clientesMargen",
+    "filas": [
+      ["Cliente", "Venta", "Costo", "Costo total", "Rebates", "Margen %"],
+      ["Cuenta Uno", 10000, 3000, 9000, 100, 29],
+      ["Cuenta Dos", 20000, 6000, 18000, 200, 29]
+    ]
+  },
+
+  "columna_desconocida": {
+    "_que_prueba": "«Vendedor» no está en ningún sinónimo del contrato — el eje se resuelve igual (nombre/venta no son ambiguos) y la columna desconocida queda `pendiente`, sin bloquear.",
+    "hoja": "Ventas",
+    "eje": null,
+    "filas": [
+      ["Cliente", "Venta del mes", "Vendedor"],
+      ["Cuenta Uno", 1000, "Perez"],
+      ["Cuenta Dos", 2000, "Diaz"]
+    ]
+  },
+
+  "sin_escala_confirmada": {
+    "_que_prueba": "Un archivo sin ambigüedad alguna, pero cargado con `unidadesConfirmadas:false` — la escala se pregunta SIEMPRE, la materialidad nunca corre y nunca la puede silenciar.",
+    "hoja": "Datos",
+    "eje": null,
+    "filas": [
+      ["Cliente", "Venta del mes"],
+      ["Cuenta Uno", 1000],
+      ["Cuenta Dos", 2000]
+    ]
+  }
+}

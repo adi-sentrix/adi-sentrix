@@ -35,6 +35,12 @@ const CONOCIDAS = {
   UF:  { simbolo: "UF",   decimales: 2, locale: "es-CL" },
 };
 
+/* Los códigos que sabemos escribir, como LISTA (2026-09-25, aditivo para el Acta de ingesta — ver
+ * `ingesta/acta/actaDeIngesta.js`): las opciones de la pregunta de moneda salen de ACÁ, nunca de una lista
+ * escrita a mano en otro archivo — «todo rótulo sale del contrato». No cambia ningún comportamiento existente:
+ * es la misma tabla `CONOCIDAS` de siempre, solo que ahora también se puede leer desde afuera. */
+export const MONEDAS_CONOCIDAS = Object.keys(CONOCIDAS);
+
 /** Normaliza lo que haya escrito el usuario: «clp», « Usd », «CLP ». No traduce ni corrige: solo limpia. */
 export function monedaLimpia(x) {
   const s = String(x == null ? "" : x).trim().toUpperCase();

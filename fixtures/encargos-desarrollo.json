@@ -1,0 +1,232 @@
+{
+  "_meta": {
+    "titulo": "Catálogo de DESARROLLO de encargos tipados · Encargo v1 (Fable, 2026-09-25 · Etapa 0)",
+    "contrato": "_ADI_CONTRATO_ENCARGO_V1.md",
+    "tenant": "demo", "escenario": "bonanza", "versionDatos": "dev 5a27b0b8",
+    "periodos": { "comercial": "año cerrado 2025 (tenant.hechos.parametros.periodo_actual = 2025-12-31)", "cobranza": "foto al corte 2026-08-31 (flujoComercial.fechaCorte)", "inventario": "foto sin fecha declarada" },
+    "nota": "Visible para quien implementa. Lo esperado está en términos verificables (estados de parte, motivos cerrados, entidades canónicas, veredictos de premisas, prohibiciones). Las cifras NO se escriben acá: el gate las toma del motor. Los veredictos de estado de cobranza se derivaron a mano de las reglas de mesaFlujo.js (facturas por escalera 12/8/6, paso 350/n, vencimiento = fecha + diasCredito, pago = vencimiento + retrasoPago, techo pctAbonado): solo se usan los clientes con margen de días holgado (Paris y Tottus quedan vencidos por 14 y 1 día y NO se usan como premisa). Los estados de SKU salen de diagnoseInventarioSku con POLICY 2x/120d · quiebre ≥6x y ≤20d · sobrestock 60–120d.",
+    "conteos": { "total": 44, "validos": 32, "defectuosos": 12, "porCierre": { "cifra": 7, "lectura": 8, "decision": 6, "comparacion": 4, "simulacion": 4, "definicion": 3 }, "decision_pendiente": 2 }
+  },
+  "casos": [
+    {
+      "id": "D01", "titulo": "cifra · comercial · una entidad, un concepto",
+      "encargo": { "version": "encargo/v1", "preguntaOriginal": "cuánto le vendimos a Jumbo", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "cifra", "conceptos": ["ventas"], "entidades": [ { "nombre": "Jumbo" } ] } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Jumbo", "eje": "cliente" } ], "noResuelto": [], "prohibido": { "entidades": ["Falabella", "Lider", "Tottus"], "conceptos": ["saldo_vencido", "capital"] } }
+    },
+    {
+      "id": "D02", "titulo": "cifra · comercial · universo tipado top 3 por contribución",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "cifra", "conceptos": ["contribucion", "margen"], "universo": { "eje": "cliente", "top": { "metrica": "contribucion", "k": 3, "direccion": "mayor" } } } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [], "noResuelto": [], "premisasDelGate": "el universo resuelto tiene exactamente 3 miembros del eje cliente: Falabella, Jumbo, Lider (contribución 4070 · 3960 · 3655 en clientesMargen)", "prohibido": { "conceptos": ["saldo_vencido", "capital"] } }
+    },
+    {
+      "id": "D03", "titulo": "cifra · inventario · capital por bodega (eje group-by, sin entidades)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "inventario", "cierre": "cifra", "conceptos": ["capital"], "eje": "bodega" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["inventario"], "entidadesResueltas": [], "noResuelto": [], "premisasDelGate": "el listado trae las 4 bodegas (Santiago, Valparaíso, Concepción, Antofagasta) y ninguna otra; Santiago primera por capital", "prohibido": { "conceptos": ["ventas", "margen"], "temas": ["comercial", "cobranza"] } }
+    },
+    {
+      "id": "D04", "titulo": "cifra · cobranza · saldo vencido y días de una cuenta",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "cobranza", "cierre": "cifra", "conceptos": ["saldo_vencido", "dias_vencido", "saldo_pendiente"], "entidades": [ { "nombre": "Lider", "eje": "cliente" } ] } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["cobranza"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Lider", "eje": "cliente" } ], "noResuelto": [], "prohibido": { "entidades": ["Falabella", "Sodimac"], "conceptos": ["ventas", "margen", "capital"] } }
+    },
+    {
+      "id": "D05", "titulo": "cifra · comercial · margen por marca (listado del eje)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "cifra", "conceptos": ["margen", "ventas"], "eje": "marca" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [], "noResuelto": [], "premisasDelGate": "las 5 marcas del índice (Samsung, LG, Philips, Bosch, Makita), ninguna cuenta ni familia", "prohibido": { "entidades": ["Falabella", "Electrodomésticos"] } }
+    },
+    {
+      "id": "D06", "titulo": "cifra · inventario · días de inventario y rotación de un SKU (dos marcos declarados)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "inventario", "cierre": "cifra", "conceptos": ["dias_inventario", "rotacion", "capital"], "entidades": [ { "nombre": "SAM-TV55" } ] } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["inventario"], "entidadesResueltas": [ { "parte": "p1", "nombre": "SAM-TV55", "eje": "sku" } ], "noResuelto": [], "prohibido": { "entidades": ["SAM-REF500L", "Samsung"] } }
+    },
+    {
+      "id": "D07", "titulo": "cifra · comercial · universo por filtro contra la referencia de la casa (sobre el nivel de carga)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "cifra", "conceptos": ["carga", "ventas"], "universo": { "eje": "cliente", "filtros": [ { "metrica": "carga", "op": ">", "ref": "nivel_carga" } ] } } ], "premisas": [ { "id": "q1", "tipo": "conteo", "conteo": { "n": 9 }, "de": { "eje": "cliente", "filtros": [ { "metrica": "carga", "op": ">", "ref": "nivel_carga" } ] } } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [], "noResuelto": [], "premisas": [ { "id": "q1", "veredicto": "verdadera" } ], "premisasDelGate": "carga > 3.5 (targetCarga) en clientesMargen: Falabella, Lider, Jumbo, Sodimac, Paris, Ripley, Easy, La Polar, Hites = 9; ABC (3.5) NO entra", "nota": "el veredicto exige que el índice de evidencia traiga la carga de las 13 cuentas (proyección); si no la trae, el gate debe reportar no-verificable y NO verdadera" }
+    },
+    {
+      "id": "D08", "titulo": "lectura · comercial · la cartera entera",
+      "encargo": { "version": "encargo/v1", "preguntaOriginal": "¿dónde estoy perdiendo plata?", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "lectura" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [], "noResuelto": [], "equivalencia": "misma Entrega, byte a byte, que componerEntregaBrechaComercial() con la pregunta fija (candado de equivalencia del plan)", "prohibido": { "temas": ["inventario", "cobranza"] } }
+    },
+    {
+      "id": "D09", "titulo": "lectura · cobranza · la cartera entera",
+      "encargo": { "version": "encargo/v1", "preguntaOriginal": "¿quién me debe más?", "partes": [ { "id": "p1", "tema": "cobranza", "cierre": "lectura" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["cobranza"], "entidadesResueltas": [], "noResuelto": [], "equivalencia": "misma Entrega, byte a byte, que componerEntregaCobranza()", "prohibido": { "temas": ["inventario"], "conceptos": ["capital", "margen"] } }
+    },
+    {
+      "id": "D10", "titulo": "lectura · inventario · la foto entera",
+      "encargo": { "version": "encargo/v1", "preguntaOriginal": "¿tengo demasiado inventario?", "partes": [ { "id": "p1", "tema": "inventario", "cierre": "lectura" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["inventario"], "entidadesResueltas": [], "noResuelto": [], "equivalencia": "misma Entrega, byte a byte, que componerEntregaInventario()", "prohibido": { "temas": ["cobranza"] } }
+    },
+    {
+      "id": "D11", "titulo": "lectura · tres temas · el encargo compuesto de referencia",
+      "encargo": { "version": "encargo/v1", "preguntaOriginal": "Hazme una lectura ejecutiva de estos datos. ¿Qué debería preocuparme primero?", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "lectura" }, { "id": "p2", "tema": "inventario", "cierre": "lectura" }, { "id": "p3", "tema": "cobranza", "cierre": "lectura" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1", "p2", "p3"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial", "inventario", "cobranza"], "entidadesResueltas": [], "noResuelto": [], "criterio": { "lente": "riesgo", "origen": "adi" }, "equivalencia": "misma Entrega, byte a byte, que componerEntregaMultidominio()", "nota": "tres temas pedidos = tres cubiertos (ley de cobertura del encargo); cierre integrado con criterio declarado de ADI" }
+    },
+    {
+      "id": "D12", "titulo": "lectura · comercial · una cuenta puntual",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "lectura", "entidades": [ { "nombre": "Falabella" } ] } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Falabella", "eje": "cliente" } ], "noResuelto": [], "prohibido": { "temas": ["cobranza", "inventario"] }, "nota": "el sujeto de la respuesta es Falabella; el procedimiento puede nombrar el benchmark y el total de la cartera como referencia, nunca la cifra de otra cuenta como sujeto" }
+    },
+    {
+      "id": "D13", "titulo": "lectura · inventario · una bodega",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "inventario", "cierre": "lectura", "entidades": [ { "nombre": "Valparaíso", "eje": "bodega" } ] } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["inventario"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Valparaíso", "eje": "bodega" } ], "noResuelto": [], "premisasDelGate": "los SKU de Valparaíso son LG-DRYER8KG, BOS-SANDER, SAM-MICRO32L, PHI-HAIR-PRO; dos de ellos frenados (LG-DRYER8KG, BOS-SANDER)", "prohibido": { "entidades": ["SAM-REF500L", "Santiago"] } }
+    },
+    {
+      "id": "D14", "titulo": "lectura · cobranza · universo tipado «en mora» + premisas de estado",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "cobranza", "cierre": "lectura", "universo": { "eje": "cliente", "estados": ["en mora"] } } ], "premisas": [ { "id": "q1", "tipo": "estado", "sujeto": "Ripley", "estado": "al dia" }, { "id": "q2", "tipo": "estado", "sujeto": "Jumbo", "estado": "en mora" }, { "id": "q3", "tipo": "estado", "sujeto": "Sodimac", "estado": "en mora" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["cobranza"], "entidadesResueltas": [], "noResuelto": [], "premisas": [ { "id": "q1", "veredicto": "verdadera" }, { "id": "q2", "veredicto": "falsa" }, { "id": "q3", "veredicto": "verdadera" } ], "premisasDelGate": "en mora (saldo vencido > 0 al corte): Lider, Falabella, Sodimac, Easy con holgura (Paris y Tottus también, por 14 y 1 día); al día (vencido 0): Jumbo, Mercado Libre, Ripley, La Polar, Hites, ABC, Unimarc" }
+    },
+    {
+      "id": "D15", "titulo": "lectura · comercial · premisas verdadera y falsa sobre el ranking",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "lectura", "conceptos": ["ventas", "margen"] } ], "premisas": [ { "id": "q1", "tipo": "orden", "sujeto": "Falabella", "metrica": "ventas", "orden": { "forma": "max" }, "universo": { "eje": "cliente" } }, { "id": "q2", "tipo": "orden", "sujeto": "Jumbo", "metrica": "margen", "orden": { "forma": "max" }, "universo": { "eje": "cliente" } }, { "id": "q3", "tipo": "relacion", "sujeto": "Lider", "metrica": "ventas", "relacion": { "forma": "mayor", "vs": { "sujeto": "Jumbo" } } } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [], "noResuelto": [], "premisas": [ { "id": "q1", "veredicto": "verdadera" }, { "id": "q2", "veredicto": "falsa" }, { "id": "q3", "veredicto": "verdadera" } ], "premisasDelGate": "ventas oficial por cliente = clientesVentas.actual: Falabella 19433 máx; Lider 17857 > Jumbo 17332. Margen máx = La Polar 34.0, no Jumbo (24.0) → q2 falsa y la verdad con id nombra a La Polar" }
+    },
+    {
+      "id": "D16", "titulo": "decision · tres temas · sin criterio (ADI declara el suyo)",
+      "encargo": { "version": "encargo/v1", "preguntaOriginal": "tengo plata parada y clientes que no pagan, por dónde parto", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "decision" }, { "id": "p2", "tema": "inventario", "cierre": "decision" }, { "id": "p3", "tema": "cobranza", "cierre": "decision" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1", "p2", "p3"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial", "inventario", "cobranza"], "entidadesResueltas": [], "noResuelto": [], "criterio": { "lente": "riesgo", "origen": "adi" }, "avisosIncluyen": ["criterio_de_adi"], "nota": "la prioridad integrada por señales; la Entrega declara el criterio y que otra lente cambia quién va primero" }
+    },
+    {
+      "id": "D17", "titulo": "decision · comercial + cobranza · una cuenta · criterio del usuario · premisas (ejemplo 6.1 del contrato)",
+      "encargo": { "version": "encargo/v1", "conversacionId": null, "preguntaOriginal": "¿me conviene seguir empujando a Lider? mira margen y lo que me debe; yo creo que es el que más me compra", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "decision", "conceptos": ["ventas", "margen", "contribucion", "carga"], "entidades": [ { "nombre": "Lider" } ] }, { "id": "p2", "tema": "cobranza", "cierre": "decision", "conceptos": ["saldo_vencido", "dias_vencido"], "entidades": [ { "nombre": "Lider", "eje": "cliente" } ] } ], "criterio": { "lente": "credito" }, "premisas": [ { "id": "q1", "tipo": "orden", "sujeto": "Lider", "metrica": "ventas", "orden": { "forma": "max" }, "universo": { "eje": "cliente" } }, { "id": "q2", "tipo": "estado", "sujeto": "Lider", "estado": "al dia" } ], "profundidad": "completa" },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1", "p2"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial", "cobranza"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Lider", "eje": "cliente" }, { "parte": "p2", "nombre": "Lider", "eje": "cliente" } ], "noResuelto": [], "criterio": { "lente": "credito", "origen": "usuario" }, "premisas": [ { "id": "q1", "veredicto": "falsa" }, { "id": "q2", "veredicto": "falsa" } ], "prohibido": { "temas": ["inventario"] }, "nota": "la conclusión sale del análisis, no de la premisa; la verdad con id de q1 nombra a Falabella" }
+    },
+    {
+      "id": "D18", "titulo": "decision · inventario · lente capital",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "inventario", "cierre": "decision", "conceptos": ["capital_frenado", "dias_sin_venta"] } ], "criterio": { "lente": "capital" } },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["inventario"], "entidadesResueltas": [], "noResuelto": [], "criterio": { "lente": "capital", "origen": "usuario" }, "premisasDelGate": "los frenados son LG-DRYER8KG, BOS-SANDER, MAK-COMP-AIR; el mayor capital frenado es LG-DRYER8KG (13600)", "prohibido": { "temas": ["comercial", "cobranza"] } }
+    },
+    {
+      "id": "D19", "titulo": "decision · comercial · universo bajo el benchmark · lente contribución",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "decision", "conceptos": ["no_capturada", "brecha", "margen"], "universo": { "eje": "cliente", "filtros": [ { "metrica": "margen", "op": "<", "ref": "benchmark" } ] } } ], "criterio": { "lente": "contribucion" }, "premisas": [ { "id": "q1", "tipo": "conteo", "conteo": { "n": 8 }, "de": { "eje": "cliente", "filtros": [ { "metrica": "margen", "op": "<", "ref": "benchmark" } ] } } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [], "noResuelto": [], "criterio": { "lente": "contribucion", "origen": "usuario" }, "premisas": [ { "id": "q1", "veredicto": "verdadera" } ], "premisasDelGate": "margen < 30.1 en clientesMargen: Falabella, Lider, Jumbo, Sodimac, Tottus, Paris, Mercado Libre, Ripley = 8; por contribución no capturada el primero es Falabella (criterio del usuario, no riesgo integrado)" }
+    },
+    {
+      "id": "D20", "titulo": "decision · comercial + inventario · una marca (eje marca en los dos temas)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "decision", "conceptos": ["ventas", "margen", "contribucion"], "entidades": [ { "nombre": "Philips", "eje": "marca" } ] }, { "id": "p2", "tema": "inventario", "cierre": "decision", "conceptos": ["capital"], "entidades": [ { "nombre": "Philips", "eje": "marca" } ] } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1", "p2"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial", "inventario"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Philips", "eje": "marca" }, { "parte": "p2", "nombre": "Philips", "eje": "marca" } ], "noResuelto": [], "premisasDelGate": "capital por marca existe (METRICS.capital.sourceByAxis.marca, groupByField marca): Philips = PHI-SHAVER9 + PHI-IRON-PRO + PHI-HAIR-PRO; ninguna cifra de Samsung", "prohibido": { "entidades": ["Samsung", "LG"] } }
+    },
+    {
+      "id": "D21", "titulo": "decision · comercial · la vara del usuario como criterio (referencia declarada)",
+      "encargo": { "version": "encargo/v1", "preguntaOriginal": "mi benchmark real es 25, no 30; con eso, quién está bajo", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "decision", "conceptos": ["margen", "brecha"] } ], "criterio": { "referencia": { "concepto": "benchmark", "valor": 25, "unidad": "pct" } } },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [], "noResuelto": [], "criterio": { "referencia": { "concepto": "benchmark", "valor": 25, "unidad": "pct" }, "origen": "usuario" }, "decision_pendiente": "contrato §7.6: la referencia del usuario vale para esta consulta con dueño nombrado y no persiste; la Entrega debe imprimir las DOS referencias (30.1 declarada en el perfil · 25 del usuario) sin que la del usuario pise la de la empresa. Pendiente confirmar si además cambia el universo «bajo el benchmark» (con 25: Falabella, Lider, Jumbo, Sodimac = 4)" }
+    },
+    {
+      "id": "D22", "titulo": "comparacion · comercial · dos cuentas",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "comparacion", "conceptos": ["ventas", "margen", "carga", "contribucion"], "entidades": [ { "nombre": "Falabella" }, { "nombre": "Lider" } ] } ], "premisas": [ { "id": "q1", "tipo": "relacion", "sujeto": "Jumbo", "metrica": "contribucion", "relacion": { "forma": "mayor", "vs": { "sujeto": "Lider" } } } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Falabella", "eje": "cliente" }, { "parte": "p1", "nombre": "Lider", "eje": "cliente" } ], "noResuelto": [], "premisas": [ { "id": "q1", "veredicto": "verdadera" } ], "premisasDelGate": "contribución Jumbo 3960 > Lider 3655 (clientesMargen). La premisa nombra a Jumbo, que NO es sujeto de la comparación: se verifica igual (la evidencia trae la cartera) y la comparación sigue siendo Falabella vs Lider" }
+    },
+    {
+      "id": "D23", "titulo": "comparacion · inventario · dos SKU (estados distintos)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "inventario", "cierre": "comparacion", "conceptos": ["capital", "rotacion", "dias_inventario", "dias_sin_venta"], "entidades": [ { "nombre": "SAM-TV55" }, { "nombre": "LG-DRYER8KG" } ] } ], "premisas": [ { "id": "q1", "tipo": "estado", "sujeto": "LG-DRYER8KG", "estado": "frenado" }, { "id": "q2", "tipo": "estado", "sujeto": "SAM-TV55", "estado": "frenado" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["inventario"], "entidadesResueltas": [ { "parte": "p1", "nombre": "SAM-TV55", "eje": "sku" }, { "parte": "p1", "nombre": "LG-DRYER8KG", "eje": "sku" } ], "noResuelto": [], "premisas": [ { "id": "q1", "veredicto": "verdadera" }, { "id": "q2", "veredicto": "falsa" } ], "premisasDelGate": "LG-DRYER8KG rotación 1.0 < 2 → capital_frenado; SAM-TV55 rotación 3.6, doh 58 → capital_sano (no frenado, no sobrestock por 2 días)" }
+    },
+    {
+      "id": "D24", "titulo": "comparacion · comercial · dos marcas",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "comparacion", "conceptos": ["ventas", "margen", "contribucion"], "entidades": [ { "nombre": "Samsung", "eje": "marca" }, { "nombre": "LG", "eje": "marca" } ] } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Samsung", "eje": "marca" }, { "parte": "p1", "nombre": "LG", "eje": "marca" } ], "noResuelto": [], "prohibido": { "entidades": ["Electrodomésticos", "Línea Blanca", "Philips"] }, "nota": "Samsung y Electrodomésticos comparten cifras en el demo (31600): la Entrega nombra la MARCA, nunca la familia" }
+    },
+    {
+      "id": "D25", "titulo": "comparacion · inventario · dos bodegas por capital",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "inventario", "cierre": "comparacion", "conceptos": ["capital", "capital_frenado"], "entidades": [ { "nombre": "Santiago", "eje": "bodega" }, { "nombre": "Antofagasta", "eje": "bodega" } ] } ], "premisas": [ { "id": "q1", "tipo": "orden", "sujeto": "Santiago", "metrica": "capital", "orden": { "forma": "max" }, "universo": { "eje": "bodega" } } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["inventario"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Santiago", "eje": "bodega" }, { "parte": "p1", "nombre": "Antofagasta", "eje": "bodega" } ], "noResuelto": [], "premisas": [ { "id": "q1", "veredicto": "verdadera" } ], "premisasDelGate": "capital por bodega: Santiago 63800 · Valparaíso 39000 · Concepción 19400 · Antofagasta 12800; compareEntities corre por bodega (verificado en toolContracts: «corre perfecto por bodega y por canal»)" }
+    },
+    {
+      "id": "D26", "titulo": "simulacion · comercial · precio +5 % en una cuenta (simulateGeneral)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "simulacion", "conceptos": ["ventas", "contribucion", "margen"], "entidades": [ { "nombre": "Jumbo" } ], "supuestos": ["s1"] } ], "supuestos": [ { "id": "s1", "tipo": "price", "valor": 5, "unidad": "pct", "alcance": { "eje": "cliente", "nombre": "Jumbo" }, "origen": "supuesto" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Jumbo", "eje": "cliente" } ], "noResuelto": [], "supuestosResueltos": [ { "id": "s1", "productor": "simulateGeneral" } ], "nota": "cinco piezas etiquetadas (base · supuesto · resultado · delta · límites); el resultado lleva procedencia supuesto_usuario; costModel variable_total del perfil demo autoriza el margen" }
+    },
+    {
+      "id": "D27", "titulo": "simulacion · comercial · bajar la carga 1 pp en una cuenta (simulateCarga delta_pp)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "simulacion", "conceptos": ["carga", "contribucion"], "entidades": [ { "nombre": "Falabella" } ], "supuestos": ["s1"] } ], "supuestos": [ { "id": "s1", "tipo": "custom", "valor": -1, "unidad": "pct", "alcance": { "eje": "cliente", "nombre": "Falabella" }, "origen": "supuesto", "cita": "carga comercial en puntos" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Falabella", "eje": "cliente" } ], "noResuelto": [], "supuestosResueltos": [ { "id": "s1", "productor": "simulateCarga" } ], "decision_pendiente": "ASSUMPTIONS no tiene un tipo «carga»: hoy solo cabe como `custom` (perturbs null). Propuesta: agregar `carga: { perturbs: \"carga\", units: [\"pp\"] }` al registro (aditivo, una línea) para que el supuesto sea tipado y no dependa de `cita`. Hasta esa decisión el gate acepta `custom` + alcance cliente como productor simulateCarga" }
+    },
+    {
+      "id": "D28", "titulo": "simulacion · inventario · liberar el capital frenado de un SKU (simulateCapital)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "inventario", "cierre": "simulacion", "conceptos": ["capital_frenado"], "entidades": [ { "nombre": "LG-DRYER8KG" } ], "supuestos": ["s1"] } ], "supuestos": [ { "id": "s1", "tipo": "custom", "valor": 100, "unidad": "pct", "alcance": { "eje": "sku", "nombre": "LG-DRYER8KG" }, "origen": "supuesto", "cita": "liberar el capital frenado" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["inventario"], "entidadesResueltas": [ { "parte": "p1", "nombre": "LG-DRYER8KG", "eje": "sku" } ], "noResuelto": [], "supuestosResueltos": [ { "id": "s1", "productor": "simulateCapital" } ], "prohibido": { "temas": ["comercial"] } }
+    },
+    {
+      "id": "D29", "titulo": "simulacion · comercial · caída de volumen −10 % en el canal digital (una cuenta)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "simulacion", "conceptos": ["ventas", "contribucion"], "entidades": [ { "nombre": "Mercado Libre" } ], "supuestos": ["s1"] } ], "supuestos": [ { "id": "s1", "tipo": "growth", "valor": -10, "unidad": "pct", "alcance": { "eje": "cliente", "nombre": "Mercado Libre" }, "origen": "supuesto" } ], "premisas": [ { "id": "q1", "tipo": "variacion", "sujeto": "Mercado Libre", "metrica": "ventas", "variacion": { "direccion": "sube" }, "periodo": "anterior" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Mercado Libre", "eje": "cliente" } ], "noResuelto": [], "supuestosResueltos": [ { "id": "s1", "productor": "simulateGeneral" } ], "premisas": [ { "id": "q1", "veredicto": "verdadera" } ], "premisasDelGate": "Mercado Libre 5462 vs 4354 = +25.4 % (la mayor variación de la cartera); el escenario −10 % es hipotético y no cambia el hecho medido" }
+    },
+    {
+      "id": "D30", "titulo": "definicion · contribución no capturada",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "definicion", "concepto": "no_capturada" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [], "noResuelto": [], "prohibido": { "cifras": "ninguna cifra del negocio en la Entrega (defineConcept: nunca cifras, nunca boleta)" } }
+    },
+    {
+      "id": "D31", "titulo": "definicion · días de inventario (DOH)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "inventario", "cierre": "definicion", "concepto": "doh" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["inventario"], "entidadesResueltas": [], "noResuelto": [], "prohibido": { "cifras": "ninguna" } }
+    },
+    {
+      "id": "D32", "titulo": "definicion · benchmark (con la distinción benchmark ≠ promedio ≠ meta)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "definicion", "concepto": "benchmark" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [], "noResuelto": [], "prohibido": { "cifras": "ninguna", "palabras": ["meta", "target"] } }
+    },
+    {
+      "id": "D33", "titulo": "DEFECTUOSO · entidad inexistente (parcial) + tema ausente (ejemplo 6.2 del contrato)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "cifra", "conceptos": ["ventas"], "entidades": [ { "nombre": "Jumbo" }, { "nombre": "Cencosud" } ] }, { "id": "p2", "tema": "tesoreria", "cierre": "lectura" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": [], "parciales": ["p1"], "noResueltas": ["p2"] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Jumbo", "eje": "cliente" } ], "noResuelto": [ { "parte": "p1", "campo": "entidad", "motivo": "entidad_inexistente", "valorIncluye": "Cencosud" }, { "parte": "p2", "campo": "tema", "motivo": "tema_ausente", "alternativasIncluyen": [ { "tipo": "ausencia", "id": "sin_datos_tesoreria" } ] } ], "limitesEsperados": ["sin_datos_tesoreria"], "prohibido": { "entidades": ["Cencosud"], "sustitucion": "ninguna cuenta ocupa el lugar de Cencosud" } }
+    },
+    {
+      "id": "D34", "titulo": "DEFECTUOSO · período mensual por entidad (sin serie real en el demo)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "cifra", "conceptos": ["ventas"], "entidades": [ { "nombre": "Jumbo" } ], "periodo": { "tipo": "mes", "valor": "2025-07" } } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": [], "parciales": ["p1"], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Jumbo", "eje": "cliente" } ], "noResuelto": [ { "parte": "p1", "campo": "periodo", "motivo": "periodo_no_disponible", "alternativasIncluyen": [ { "tipo": "periodo", "periodo": { "tipo": "vigente" } } ] } ], "limitesEsperados": ["sin_pronostico"], "nota": "serieRealDe('Jumbo') → real:false (historialMargen sintético, sin campo periodo). La parte queda parcial: corre con el período vigente (año cerrado) y declara que el mes no está. Esto NO es sustitución: el marco impreso dice «año cerrado», nunca «julio»" }
+    },
+    {
+      "id": "D35", "titulo": "DEFECTUOSO · tesorería sola (caja ≠ cobranza)",
+      "encargo": { "version": "encargo/v1", "preguntaOriginal": "cómo anda mi flujo de caja", "partes": [ { "id": "p1", "tema": "tesoreria", "cierre": "lectura" } ] },
+      "esperado": { "valido": false, "partes": { "resueltas": [], "parciales": [], "noResueltas": ["p1"] }, "temasCubiertos": [], "entidadesResueltas": [], "noResuelto": [ { "parte": "p1", "campo": "tema", "motivo": "tema_ausente", "alternativasIncluyen": [ { "tipo": "ausencia", "id": "sin_datos_tesoreria" } ] } ], "limitesEsperados": ["sin_datos_tesoreria"], "prohibido": { "temas": ["cobranza"], "nota": "la exposición de crédito se OFRECE como alternativa tipada; NO se sirve una lectura de cobranza en lugar de la caja (ley adi-caja-no-es-cobranza)" } }
+    },
+    {
+      "id": "D36", "titulo": "DEFECTUOSO · concepto sin productor en ese eje (rotación por cliente)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "inventario", "cierre": "cifra", "conceptos": ["rotacion"], "eje": "cliente" } ] },
+      "esperado": { "valido": false, "partes": { "resueltas": [], "parciales": [], "noResueltas": ["p1"] }, "temasCubiertos": [], "entidadesResueltas": [], "noResuelto": [ { "parte": "p1", "campo": "eje", "motivo": "eje_no_soportado", "alternativasIncluyen": [ { "tipo": "eje", "eje": "sku" }, { "tipo": "eje", "eje": "bodega" } ] } ], "nota": "METRICS.rotacion.axes = [sku, bodega]; además el eje cliente no es sujeto de inventario. Se acepta también `concepto_sin_productor` con campo `concepto` si el implementador valida el concepto antes que el eje — pero UNO de los dos tiene que aparecer y la parte no corre" }
+    },
+    {
+      "id": "D37", "titulo": "DEFECTUOSO · cobranza por marca (solo existe por cliente)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "cobranza", "cierre": "cifra", "conceptos": ["saldo_vencido"], "entidades": [ { "nombre": "Samsung", "eje": "marca" } ] } ] },
+      "esperado": { "valido": false, "partes": { "resueltas": [], "parciales": [], "noResueltas": ["p1"] }, "temasCubiertos": [], "entidadesResueltas": [ { "parte": "p1", "nombre": "Samsung", "eje": "marca" } ], "noResuelto": [ { "parte": "p1", "campo": "concepto", "motivo": "concepto_sin_productor", "alternativasIncluyen": [ { "tipo": "eje", "eje": "cliente" } ] } ], "prohibido": { "sustitucion": "ninguna cuenta de la marca Samsung (Falabella, Paris, Ripley, Hites) se sirve en lugar de la marca" } }
+    },
+    {
+      "id": "D38", "titulo": "DEFECTUOSO · cruce bloqueado cliente×SKU (capital de una cuenta)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "inventario", "cierre": "cifra", "conceptos": ["capital"], "entidades": [ { "nombre": "Jumbo", "eje": "cliente" } ] } ] },
+      "esperado": { "valido": false, "partes": { "resueltas": [], "parciales": [], "noResueltas": ["p1"] }, "temasCubiertos": [], "entidadesResueltas": [ { "parte": "p1", "nombre": "Jumbo", "eje": "cliente" } ], "noResuelto": [ { "parte": "p1", "campo": "concepto", "motivo": "cruce_bloqueado" } ], "limitesEsperados": ["sin_historial_cliente_sku"], "nota": "BLOCKED_CROSSES cliente×sku; entityCapitalLigado declina con relación estimada (decisión 9). Se acepta `eje_no_soportado` como motivo alternativo, pero el límite sin_historial_cliente_sku debe aparecer" }
+    },
+    {
+      "id": "D39", "titulo": "DEFECTUOSO · comparación con tres entidades (ejemplo 6.3 del contrato)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "comparacion", "conceptos": ["margen"], "entidades": [ { "nombre": "Falabella" }, { "nombre": "Lider" }, { "nombre": "Jumbo" } ] } ] },
+      "esperado": { "valido": false, "partes": { "resueltas": [], "parciales": [], "noResueltas": ["p1"] }, "temasCubiertos": [], "entidadesResueltas": [ { "parte": "p1", "nombre": "Falabella", "eje": "cliente" }, { "parte": "p1", "nombre": "Lider", "eje": "cliente" }, { "parte": "p1", "nombre": "Jumbo", "eje": "cliente" } ], "noResuelto": [ { "parte": "p1", "campo": "cierre", "motivo": "cardinalidad", "alternativasIncluyen": [ { "tipo": "cierre", "cierre": "cifra" } ] } ], "prohibido": { "sustitucion": "no se comparan «las dos primeras» en silencio" } }
+    },
+    {
+      "id": "D40", "titulo": "DEFECTUOSO · supuesto sin productor (días de inventario) y simulación sobre cobranza",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "inventario", "cierre": "simulacion", "conceptos": ["dias_inventario", "capital"], "entidades": [ { "nombre": "SAM-TV55" } ], "supuestos": ["s1"] }, { "id": "p2", "tema": "cobranza", "cierre": "simulacion", "conceptos": ["saldo_vencido"], "entidades": [ { "nombre": "Lider" } ], "supuestos": ["s2"] } ], "supuestos": [ { "id": "s1", "tipo": "inventory", "valor": -20, "unidad": "days", "alcance": { "eje": "sku", "nombre": "SAM-TV55" }, "origen": "supuesto" }, { "id": "s2", "tipo": "custom", "valor": 100, "unidad": "pct", "alcance": { "eje": "cliente", "nombre": "Lider" }, "origen": "supuesto", "cita": "si Lider paga todo lo vencido" } ] },
+      "esperado": { "valido": false, "partes": { "resueltas": [], "parciales": [], "noResueltas": ["p1", "p2"] }, "temasCubiertos": [], "entidadesResueltas": [ { "parte": "p1", "nombre": "SAM-TV55", "eje": "sku" }, { "parte": "p2", "nombre": "Lider", "eje": "cliente" } ], "noResuelto": [ { "parte": null, "campo": "supuesto", "motivo": "supuesto_sin_productor", "valorIncluye": "s1" }, { "parte": null, "campo": "supuesto", "motivo": "supuesto_sin_productor", "valorIncluye": "s2" }, { "parte": "p1", "campo": "cierre", "motivo": "cierre_incompleto" }, { "parte": "p2", "campo": "cierre", "motivo": "cierre_incompleto" } ], "nota": "assumptionRegistry: «la simulación paramétrica todavía NO tiene productor»; no hay simulador de cobranza. La cita NUNCA se lee" }
+    },
+    {
+      "id": "D41", "titulo": "DEFECTUOSO · concepto desconocido + concepto de otro tema (parcial)",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "cifra", "conceptos": ["ventas", "ebitda", "saldo_vencido"], "entidades": [ { "nombre": "Sodimac" } ] } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": [], "parciales": ["p1"], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Sodimac", "eje": "cliente" } ], "noResuelto": [ { "parte": "p1", "campo": "concepto", "motivo": "concepto_desconocido", "valorIncluye": "ebitda" }, { "parte": "p1", "campo": "concepto", "motivo": "concepto_de_otro_tema", "valorIncluye": "saldo_vencido", "alternativasIncluyen": [ { "tipo": "tema", "tema": "cobranza" } ] } ], "prohibido": { "conceptos": ["saldo_vencido"], "nota": "el saldo vencido de Sodimac existe, pero NO se sirve: la parte es comercial y el concepto es de cobranza; se ofrece como parte nueva, nunca se cuela" } }
+    },
+    {
+      "id": "D42", "titulo": "DEFECTUOSO · entidad de otro eje que el declarado",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "cifra", "conceptos": ["ventas"], "entidades": [ { "nombre": "Samsung", "eje": "cliente" } ] } ] },
+      "esperado": { "valido": false, "partes": { "resueltas": [], "parciales": [], "noResueltas": ["p1"] }, "temasCubiertos": [], "entidadesResueltas": [], "noResuelto": [ { "parte": "p1", "campo": "entidad", "motivo": "entidad_eje_incompatible", "alternativasIncluyen": [ { "tipo": "entidad", "nombre": "Samsung", "eje": "marca" } ] } ], "prohibido": { "sustitucion": "no se sirve la marca Samsung como si fuera un cliente, ni una cuenta que venda Samsung" } }
+    },
+    {
+      "id": "D43", "titulo": "DEFECTUOSO · criterio inexistente («caja») + premisa mal formada; la parte sí corre",
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "cobranza", "cierre": "decision" } ], "criterio": { "lente": "caja" }, "premisas": [ { "id": "q1", "tipo": "estado", "sujeto": "Lider", "estado": "moroso crónico" }, { "id": "q2", "tipo": "propuesta", "valor": "5%" }, { "id": "q3", "tipo": "orden", "sujeto": "Lider", "metrica": "saldo_vencido", "orden": { "forma": "max" }, "universo": { "eje": "cliente" } } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["cobranza"], "entidadesResueltas": [], "noResuelto": [ { "parte": null, "campo": "criterio", "motivo": "criterio_desconocido", "alternativasIncluyen": [ { "tipo": "lente", "lente": "credito" } ] }, { "parte": null, "campo": "premisa", "motivo": "premisa_mal_formada", "valorIncluye": "q1" }, { "parte": null, "campo": "premisa", "motivo": "premisa_mal_formada", "valorIncluye": "q2" } ], "criterio": { "lente": "riesgo", "origen": "adi" }, "premisas": [ { "id": "q3", "veredicto": "verdadera" } ], "limitesEsperados": ["sin_datos_tesoreria"], "premisasDelGate": "Lider es el mayor saldo vencido al corte (≈ 2× el de Falabella, que es el segundo); «moroso crónico» no es un canon de ESTADOS_CANON (validarHecho: estado-desconocido); `propuesta` no es tipo de premisa" }
+    },
+    {
+      "id": "D44", "titulo": "DEFECTUOSO · raíz inválida: versión equivocada y partes vacías",
+      "encargo": { "version": "encargo/v0", "partes": [] },
+      "esperado": { "valido": false, "partes": { "resueltas": [], "parciales": [], "noResueltas": [] }, "temasCubiertos": [], "entidadesResueltas": [], "noResuelto": [ { "parte": null, "campo": "version", "motivo": "version_invalida" }, { "parte": null, "campo": "partes", "motivo": "encargo_vacio" } ], "nota": "el validador PARA en la raíz: no hay partes que resolver ni Entrega que componer" }
+    }
+  ]
+}

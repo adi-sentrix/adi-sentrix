@@ -9,6 +9,9 @@
  *   [1] PLAN emite · [2] NARRAR emite · [3] el intento viaja (sin él no se distingue un reintento)
  *   [4] ÉXITO y ERROR quedan tipados · [5] la RUTA DETERMINÍSTICA es un campo real, no una suposición
  *   [6] OBSERVACIÓN PURA · ninguna decisión del gateway depende de la telemetría, y no puede tumbar un turno
+ *   [7] EL CANDADO DE CONSUMO (owner 2026-09-25, ETAPA 0 · exigirContador.js) llega a los CINCO sitios que
+ *       salen al proveedor, y llega ANTES de cada salida — con carnada: si el orden se invirtiera, esta
+ *       misma sección tiene que dar rojo, no solo el archivo real.
  */
 import { readFileSync } from "fs";
 import { REASON_CODES, aReasonCode, _limpio, emit, setSink } from "./src/adi/llm/telemetry.js";
@@ -27,6 +30,8 @@ const cuerpo = (nombre) => {
   return SRC.slice(i, j < 0 ? SRC.length : j);
 };
 const PLAN = cuerpo("handlePlan"), NARR = cuerpo("handleNarrateC");
+// los otros tres sitios que salen al proveedor (ETAPA 0, sección [7] más abajo) — mismo aislador, sin cambiarlo.
+const SPEC = cuerpo("handleSpec"), NARRATE_LEGACY = cuerpo("handleNarrate"), AGENTE = cuerpo("handleAgente");
 
 H("[1] PLAN EMITE · dentro del handler, no en cualquier parte del archivo");
 {
@@ -62,8 +67,10 @@ H("[4] ÉXITO Y ERROR QUEDAN TIPADOS · y el motivo es un código cerrado, nunca
   // otro sin ponerse rojo — y lo que hace CERRADA a la lista no es su tamaño, sino que esté escrita. Acá va
   // entera: sumar, sacar o renombrar un código obliga a tocar esta línea, que es el registro de la decisión.
   // `config_missing` entró el 2026-08-13: "nadie declaró proveedor" y "el proveedor falló" no son lo mismo.
+  // `sin_contador` entró el 2026-09-25 (ETAPA 0, exigirContador.js): "no hay contador instalado" tampoco es lo
+  // mismo que ninguno de los otros ocho — ver su porqué en telemetry.js.
   const CODIGOS = ["rate_limited", "network_error", "invalid_plan", "empty_redirect", "guard_rejected",
-    "provider_error", "config_missing", "unknown"];
+    "provider_error", "config_missing", "sin_contador", "unknown"];
   ok(REASON_CODES.length === CODIGOS.length && CODIGOS.every((c) => REASON_CODES.includes(c)),
     `los ${CODIGOS.length} códigos declarados, ni uno más — ${REASON_CODES.join(" · ")}`);
   ok(aReasonCode("cifra-no-autorizada: 4.3M de Falabella") === "guard_rejected",
@@ -99,6 +106,68 @@ H("[6] OBSERVACIÓN PURA · no decide, y su fallo no puede tumbar un turno");
   try { emit({ traceId: "t", etapa: "plan", resultado: "ok" }); } catch { cayo = true; }
   setSink(null);
   ok(!cayo, "si el destino explota, `emit` se lo traga: la respuesta al usuario nunca se ve afectada");
+}
+
+H("[7] EL CANDADO DE CONSUMO LLEGA A LOS CINCO SITIOS, Y ANTES DE CADA SALIDA (owner 2026-09-25, ETAPA 0)");
+{
+  // los cinco cuerpos que en algún momento llaman a getAdapter(provider).<método>(...) — spec, narrar clásico,
+  // plan, narrar-C, agente. `SPEC`/`NARRATE_LEGACY`/`AGENTE` se aislaron arriba con el MISMO `cuerpo()` que ya
+  // usa este gate para PLAN/NARR: un solo aislador, no uno nuevo por sitio.
+  const SITIOS = [
+    ["handleSpec", SPEC],
+    ["handleNarrate", NARRATE_LEGACY],
+    ["handlePlan", PLAN],
+    ["handleNarrateC", NARR],
+    ["handleAgente", AGENTE],
+  ];
+  for (const [nombre, cuerpoDelSitio] of SITIOS) {
+    ok(cuerpoDelSitio.length > 200, `se aisló el cuerpo de ${nombre} — ${cuerpoDelSitio.length} caracteres`);
+  }
+
+  // EL CANDADO, y DÓNDE QUEDA (owner 2026-09-25): el texto exacto que los cinco sitios comparten, byte a byte —
+  // no una mención suelta de `exigirContador`, sino la pareja completa "lo pide y frena si lo rechaza". El primer
+  // renglón puede traer o no un comentario después del `;` (handleSpec no lo lleva, los otros cuatro sí: "// ver
+  // el candado en handleSpec — mismo trato acá"), así que `[^\n]*` absorbe eso sin exigir una forma única.
+  const CANDADO = /const _contador = exigirContador\(\{ env \}\);[^\n]*\n\s*if \(!_contador\.ok\) return _frenado\(/;
+  // EL MARCADOR DE CRUCE que YA usan los cinco (desde antes de este candado, ver gatewayCore.js): la línea que
+  // declara que la llamada SALIÓ y puede facturarse. Si el candado quedara DESPUÉS de esta línea, frenaría un
+  // turno que ya se pagó — exactamente lo que "antes de salir" quiere decir.
+  const MARCADOR_DE_CRUCE = "_salioAlProveedor = true";
+  const posiciones = (texto) => {
+    const m = CANDADO.exec(texto);
+    return { iCandado: m ? m.index : -1, iSalida: texto.indexOf(MARCADOR_DE_CRUCE) };
+  };
+  const antesDeSalir = ({ iCandado, iSalida }) => iCandado >= 0 && iSalida >= 0 && iCandado < iSalida;
+
+  for (const [nombre, cuerpoDelSitio] of SITIOS) {
+    const p = posiciones(cuerpoDelSitio);
+    ok(p.iCandado >= 0, `${nombre} · pide exigirContador() y frena con _frenado si lo rechaza`);
+    ok(p.iSalida >= 0, `${nombre} · tiene su propio marcador de cruce — sin él no hay con qué comparar el orden`);
+    ok(antesDeSalir(p), `${nombre} · el candado queda ANTES del marcador de cruce — candado en ${p.iCandado}, cruce en ${p.iSalida}`);
+  }
+
+  // LA CARNADA (pedida por el supervisor): si el orden se invirtiera, esta MISMA regla tiene que dar rojo — no
+  // solo "el archivo real pasó", sino "la regla sabría detectarlo si dejara de ser cierto". Se arma una COPIA de
+  // texto a mano (nunca se toca gatewayCore.js) con el marcador de cruce ANTES del candado, y se exige que
+  // `antesDeSalir` la rechace.
+  H("  carnada · invertir el orden en una copia de texto tiene que dar rojo");
+  {
+    const ordenCorrecto =
+      "  try {\n" +
+      "    const _contador = exigirContador({ env });\n" +
+      "    if (!_contador.ok) return _frenado({ ok: false }, \"sin_contador\");\n" +
+      "    _salioAlProveedor = true;\n" +
+      "  }";
+    const ordenInvertido =
+      "  try {\n" +
+      "    _salioAlProveedor = true;\n" +
+      "    const _contador = exigirContador({ env });\n" +
+      "    if (!_contador.ok) return _frenado({ ok: false }, \"sin_contador\");\n" +
+      "  }";
+    ok(antesDeSalir(posiciones(ordenCorrecto)), "control · el orden correcto SÍ pasa la regla (si esto fallara, la carnada de abajo no probaría nada)");
+    const p = posiciones(ordenInvertido);
+    ok(!antesDeSalir(p), `carnada · con el candado DESPUÉS del cruce, la regla lo rechaza — candado en ${p.iCandado}, cruce en ${p.iSalida}`);
+  }
 }
 
 console.log(`\n── CABLEADO DE TELEMETRÍA · ${PASS} PASS · ${FAIL} FAIL ──`);
