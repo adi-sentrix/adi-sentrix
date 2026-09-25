@@ -40,7 +40,13 @@ const F = JSON.parse(fs.readFileSync(new URL("./fixtures/hechos-tipados-2026-09-
 /* ═══ 1 · EL LÉXICO ═══ */
 H("1 · el léxico como datos: claves de métrica, dominios, polaridad, tiempo");
 ok(CLAVES_DE_METRICA.length >= 30, `${CLAVES_DE_METRICA.length} claves de métrica`);
-ok(claveDeMetrica("Saldo vencido") === "saldo_vencido" && claveDeMetrica("deuda vencida") === "saldo_vencido" && claveDeMetrica("Venta (flujo)") === "ventas", "una métrica dicha con palabras resuelve a su clave (Saldo vencido · deuda vencida · Venta (flujo))");
+// CORREGIDO (owner 2026-09-25, CLAUDE.md §4 «un rótulo visible no puede nombrar dos campos»): esta aserción
+// consagraba un defecto — «Venta (flujo)» (el rótulo de `mesaFlujo`, cobranza) daba "ventas" (comercial) porque
+// `claveDeMetrica` recortaba el paréntesis ANTES de comparar contra los sinónimos, así que nunca probaba la frase
+// completa contra `venta_credito.conceptos` (que trae «venta (flujo)» literal). Corregido: prueba el rótulo
+// COMPLETO primero, solo recorta si no hay coincidencia. Barrido real de 908 rótulos (comercial+inventario+
+// cobranza): 9 cambiaron, los 9 este mismo caso, 0 inesperados — ver `_entrega_general_gate.mjs` §7.
+ok(claveDeMetrica("Saldo vencido") === "saldo_vencido" && claveDeMetrica("deuda vencida") === "saldo_vencido" && claveDeMetrica("Venta (flujo)") === "venta_credito", "una métrica dicha con palabras resuelve a su clave (Saldo vencido · deuda vencida · Venta (flujo) → venta_credito, no ventas)");
 ok(metricaDeClave("dias_vencido") === "Días vencido" && metricaDeClave("Margen") === "Margen", "la clave vuelve al nombre con que se busca la fig; un nombre libre pasa tal cual");
 ok(diasDe(3, "meses") === 90 && diasDe(1, "trimestre") === 90 && diasDe(2, "semestres") === 360 && diasDe(1, "año") === 365, "meses · trimestre · semestre · año → días por tabla");
 ok(new Set(CLAVES_DE_METRICA.map((m) => m.clave)).size === CLAVES_DE_METRICA.length, "sin claves repetidas");

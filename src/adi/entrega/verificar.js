@@ -107,8 +107,13 @@ export function verificarEntrega({ texto, entrega, partes = [] } = {}) {
   if (huerfanas.length) v("cifras-desnudas", `cifras en el texto sin hecho que las respalde: ${huerfanas.join(", ")}`);
 
   // 2 · oración-hecho = dueño + métrica + valor en la misma oración — cada oración de Respuesta trae al menos un
-  // hecho de apoyo declarado (evidencia estructural) y al menos una cifra impresa (evidencia de forma)
+  // hecho de apoyo declarado (evidencia estructural) y al menos una cifra impresa (evidencia de forma).
+  // EXCEPCIÓN (corte 3b, `componerEntrega`, cierre `definicion`): el contrato §1.1 PROHÍBE cifras en una
+  // definición (`defineConcept` nunca lee la boleta) — una oración marcada `_definicion` no tiene hecho que
+  // declarar ni cifra que traer, y eso es lo CORRECTO, no un hueco. Ninguna de las 4 rutas fijas marca esto: la
+  // regla queda idéntica para ellas.
   (entrega.respuesta || []).forEach((r, i) => {
+    if (r._definicion) return;
     if (!Array.isArray(r.hechos) || !r.hechos.length) v("oracion-hecho", `respuesta[${i}] no declara los hechos que la sostienen: «${(r.texto || "").slice(0, 80)}»`);
     if (!_cifrasEnTexto(r.texto).length) v("oracion-hecho", `respuesta[${i}] no trae ninguna cifra: «${(r.texto || "").slice(0, 80)}»`);
   });
@@ -134,9 +139,27 @@ export function verificarEntrega({ texto, entrega, partes = [] } = {}) {
   // original exigía `marco.referenciaDeclarada` SIEMPRE, asumiendo que TODA Entrega compara contra un benchmark
   // — cierto para la brecha comercial, falso para cobranza (no hay benchmark de deuda). La regla ahora se activa
   // por CONTENIDO (el texto nombra «brecha»/«benchmark»), no por la forma de la Entrega.
-  const _HABLA_DE_BRECHA = /\bbenchmark\b|\bbrecha\b/i.test(texto);
+  // CORTE 3b (owner 2026-09-25) — CORREGIDO por el supervisor: el escaneo sigue siendo el TEXTO COMPLETO («Para
+  // su juicio» y «Referencia del oficio» SÍ pueden afirmar una brecha sin su referencia — hay que seguir
+  // vigilándolos). Solo se descuentan DOS cosas, por MARCA estructural, nunca por texto adivinado:
+  //  · los límites de AUSENCIA (`lim._ausencia`, `_limiteDeAusencia` en componer.js): la frase fija «el Business
+  //    Knowledge (benchmarks del sector) todavía no está construido: esta Entrega compara solo contra el
+  //    benchmark que usted declaró» nombra «benchmark» para decir que NO hay uno del sector, no para afirmar una
+  //    brecha propia — no es el caso que esta regla vigila.
+  //  · las oraciones `_definicion` (defineConcept: EXPLICAN qué es «benchmark»/«brecha», contrato §1.1 — no
+  //    afirman una, y `definicion` prohíbe cifras y marco).
+  // Las 4 rutas fijas nunca marcan un límite `_ausencia` de forma distinta a como ya lo hacían (campo aditivo) ni
+  // tienen respuesta `_definicion`: el cambio no las afecta — `_entrega_gate` sigue en 363/363.
+  const _SIN_EXCLUSIONES = (() => {
+    let t = String(texto || "");
+    for (const lim of entrega.limites || []) { if (lim && lim._ausencia) t = t.split(`- **${lim.titulo}.** ${lim.motivo}`).join(""); }
+    for (const r of entrega.respuesta || []) { if (r && r._definicion) t = t.split(`▸ ${r.texto}`).join(""); }
+    return t;
+  })();
+  const _HABLA_DE_BRECHA = /\bbenchmark\b|\bbrecha\b/i.test(_SIN_EXCLUSIONES);
   if (_HABLA_DE_BRECHA && (!entrega.marco || !entrega.marco.referenciaDeclarada)) v("comparables-juntas", "el texto habla de benchmark/brecha y el marco no declara la referencia — una brecha sin su referencia no se sostiene sola");
   (entrega.respuesta || []).forEach((r, i) => {
+    if (r._definicion) return;
     if (/benchmark|brecha/i.test(r.texto) && !_cifrasEnTexto(r.texto).length) v("comparables-juntas", `respuesta[${i}] habla de benchmark/brecha sin ninguna cifra en la misma oración: «${(r.texto || "").slice(0, 80)}»`);
   });
 
@@ -147,12 +170,21 @@ export function verificarEntrega({ texto, entrega, partes = [] } = {}) {
     if (_PROHIBICION.test(lim.titulo || "")) v("limite-como-prohibicion", `limites[${i}] suena a prohibición, no a hallazgo: «${lim.titulo}»`);
   });
 
-  // 6 · toda tentación precalculada — con más de una cuenta en Cifras, el libro tiene que traer al menos una
-  // `razon` o `derivada` (participación del primero, resto de una partición): la tentación de calcular a mano
-  // queda precalculada, no dejada al anfitrión
-  if (libro && (entrega.cifras.filas || []).filter((f) => f.hechos.length).length > 1) {
-    const hayTentacion = libro.hechos.some((h) => h.tipo === "razon" || h.tipo === "derivada");
-    if (!hayTentacion) v("tentacion-no-precalculada", "hay más de una cuenta en juego y ningún hecho `razon`/`derivada` precalcula su relación");
+  // 6 · toda tentación precalculada — con más de una CUENTA (dueño distinto) en Cifras, el libro tiene que traer
+  // al menos una `razon` o `derivada` (participación del primero, resto de una partición): la tentación de
+  // calcular a mano queda precalculada, no dejada al anfitrión.
+  // CORTE 3b (owner 2026-09-25): el conteo pasó de FILAS a DUEÑOS DISTINTOS (primera columna de cada fila — el
+  // dueño, en TODAS las tablas de este archivo: «Cliente»/«SKU»/«Entidad / grupo»/…). Una Entrega general puede
+  // traer varias filas de UN MISMO dueño (tres métricas de un solo cliente, sin ninguna tentación segura que
+  // precalcular entre ellas por unidades incompatibles) sin que eso sea el defecto que esta regla vigila. Las 4
+  // rutas fijas SIEMPRE tienen ≥2 dueños distintos cuando esta regla las alcanza (nunca declaran una fila de un
+  // solo cliente sin comparación): el cambio no las afecta — ver `_entrega_gate.mjs`, sin tocar.
+  if (libro) {
+    const duenosEnJuego = new Set((entrega.cifras.filas || []).filter((f) => f.hechos && f.hechos.length).map((f) => Object.values(f.valores)[0]));
+    if (duenosEnJuego.size > 1) {
+      const hayTentacion = libro.hechos.some((h) => h.tipo === "razon" || h.tipo === "derivada");
+      if (!hayTentacion) v("tentacion-no-precalculada", "hay más de una cuenta en juego y ningún hecho `razon`/`derivada` precalcula su relación");
+    }
   }
 
   // 7 · ningún adjetivo evaluativo de la casa sobre una cifra

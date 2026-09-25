@@ -39,16 +39,56 @@ const PREGUNTAS = [
   "por punto de venta, ¿quién queda bajo el plan?",
 ];
 
+/* ═══ DIVERGENCIAS CONOCIDAS (owner 2026-09-25) ══════════════════════════════════════════════════════════════
+ * Preguntas donde el flag v3 SÍ cambia el texto servido — no por un defecto nuevo, sino por una regla léxica del
+ * Notario v3 (`notario/anclas.js:_clavesEn`, «un concepto exacto del léxico es el ÚNICO dueño de la mención»,
+ * desempate por ORDEN del arreglo `CLAVES_DE_METRICA`) que el plan v2 aprobado CONGELA desde la etapa 1 y RETIRA
+ * en la etapa 4 (`_ADI_PLAN_PRODUCTO_V2.md` §4, tabla de destino: anclas.js/anclar.js/protocolo.js → «Retirar,
+ * congelar en E1, borrar en E4»); el flag `ADI_NOTARIO_V3` está apagado en todos los perfiles, así que esto no
+ * afecta a ningún usuario hoy.
+ *
+ * DIAGNÓSTICO (owner 2026-09-25): la fig de cobranza «Venta (flujo)»/«Venta del período (flujo)» canoniza
+ * correctamente a la clave `venta_credito` (lexico.js:claveDeMetrica, corregido la misma fecha — CLAUDE.md §4).
+ * El verbo «Vendiste» en la prosa del playbook (`playbooks/cobranza.js`, corregido la misma fecha para decir
+ * SIEMPRE «venta a crédito») solo resuelve, por concepto EXACTO del léxico, a la clave `ventas` (comercial) —
+ * nunca a `venta_credito`, porque `ventas` está declarada ANTES en el arreglo y `_clavesEn` da la mención a una
+ * sola clave (single-best-match). El juez rechaza el ancla (`metrica-ajena`) y el peldaño degrada de "playbook"
+ * a "cobertura-cifra". PROBADO Y DESCARTADO: agregar los verbos de «vender» al `conceptos` de `venta_credito`
+ * en `lexico.js` no resuelve nada — `claveDeMetrica` sigue devolviendo la PRIMERA clave del arreglo que casa,
+ * sin importar cuántas claves declaren el mismo sinónimo — así que el arreglo real exige tocar el desempate de
+ * `anclas.js` (congelado, no se toca) o rediseñar `claveDeMetrica` con un alcance mucho más amplio que este caso
+ * puntual. Se deja declarado, no resuelto — el plan v2 lo retira en la etapa 4 junto con todo `anclas.js`.
+ *
+ * CARNADA (abajo, sección 2b): cada entrada acá tiene que traer `veto`, `motivo` y `fecha` no vacíos — una
+ * entrada agregada sin esos tres campos pone el gate en rojo, para que nadie use esta lista como un basurero de
+ * preguntas rojas sin justificar. */
+const DIVERGENCIAS_CONOCIDAS = new Map([
+  ["cuánto vendí a crédito vs contado", {
+    veto: "metrica-ajena",
+    motivo: "el verbo «Vendiste» solo resuelve a la clave «ventas» por el desempate de _clavesEn/claveDeMetrica (notario/anclas.js + notario/lexico.js) — «venta_credito» nunca gana, aunque la fig sea correctamente la venta a crédito. Regla léxica del Notario v3, congelada por el plan v2 (`anclas.js` se retira en la etapa 4). Probado agregar sinónimos a `venta_credito` como dato: no resuelve el desempate.",
+    fecha: "2026-09-25",
+  }],
+]);
+
 /* ═══ 1-2 · MISMO TEXTO, MISMO CONTRATO ═══ */
 H("1 · los peldaños con el flag apagado y encendido: mismo texto, mismo estado; con el flag, bajo el juez de anclas");
 const M = { turnos: 0, iguales: 0, anclados: 0, conDigitos: 0, hechos: 0, sitios: new Map() };
+const DIVS_VISTAS = [];
 for (const q of PREGUNTAS) {
   const v2 = await answerViaAgente({ text: q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
   const v3 = await answerViaAgente({ text: q, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO, notarioV3: true });
   const a2 = v2.r.agente || {}, a3 = v3.r.agente || {};
   const t2 = String(v2.r.text || ""), t3 = String(v3.r.text || "");
-  M.turnos++;
   const igual = t2 === t3 && a2.estado === a3.estado;
+  const divergencia = DIVERGENCIAS_CONOCIDAS.get(q);
+  if (divergencia) {
+    // se reporta APARTE, sin fallar el candado principal — pero si algún día deja de divergir, se avisa (para
+    // que alguien la retire de la lista en vez de dejarla ahí de adorno).
+    DIVS_VISTAS.push({ q, divergencia, sigueDivergiendo: !igual });
+    console.log(`  ⚠ DIVERGENCIA CONOCIDA · «${q.slice(0, 70)}» → ${igual ? "YA NO DIVERGE (considerar retirarla de la lista)" : `veto «${divergencia.veto}» — ${divergencia.motivo} (plan v2, congelado; ${divergencia.fecha})`}`);
+    continue;   // no cuenta para M.turnos/M.iguales: esta pregunta NO exige igualdad, está declarada aparte
+  }
+  M.turnos++;
   if (igual) M.iguales++;
   ok(igual, `«${q.slice(0, 70)}» → ${a3.estado} · mismo texto y mismo estado con y sin flag`, `v2 ${a2.estado}: ${t2.slice(0, 160).replace(/\n/g, " ⏎ ")}\n      v3 ${a3.estado}: ${t3.slice(0, 160).replace(/\n/g, " ⏎ ")}`);
   const sv = a3.notario && a3.notario.servido;
@@ -61,9 +101,25 @@ for (const q of PREGUNTAS) {
   }
 }
 H("2 · las medidas");
-ok(M.iguales === M.turnos, `texto y estado idénticos con y sin flag: ${M.iguales} de ${M.turnos}`);
+ok(M.iguales === M.turnos, `texto y estado idénticos con y sin flag, sobre las preguntas SIN divergencia conocida: ${M.iguales} de ${M.turnos}`);
 console.log(`  peldaños servidos: ${[...M.sitios.entries()].map(([k, n]) => `${k} ${n}`).join(" · ")} · bajo el juez de anclas: ${M.anclados} · con dígitos: ${M.conDigitos} · hechos anclados: ${M.hechos}`);
 ok(M.anclados >= 8, `al menos 8 peldaños con composer bajo el juez de anclas (${M.anclados})`);
+
+H("2b · divergencias conocidas — reportadas aparte, no fallan el candado principal");
+for (const { q, divergencia } of DIVS_VISTAS) {
+  console.log(`  · «${q}» — veto esperado «${divergencia.veto}»: ${divergencia.motivo}`);
+  console.log(`      plan v2 (congelado, retira anclas.js en etapa 4) · declarada ${divergencia.fecha}`);
+}
+// CARNADA: cada entrada de DIVERGENCIAS_CONOCIDAS tiene que traer los tres campos, no vacíos — sin esto, la
+// lista se convierte en un basurero de preguntas rojas «declaradas» sin justificar.
+for (const [q, d] of DIVERGENCIAS_CONOCIDAS) {
+  ok(!!(d && d.veto && String(d.veto).trim()) && !!(d && d.motivo && String(d.motivo).trim()) && !!(d && d.fecha && String(d.fecha).trim()),
+    `★ CARNADA · «${q.slice(0, 60)}» declara veto, motivo y fecha (no puede agregarse sin justificar)`, JSON.stringify(d));
+}
+// una divergencia declarada que YA NO diverge no es un fallo — es información: se avisó arriba (2b) para que
+// alguien la retire; no se exige acá para no crear un candado que obliga a editar este archivo cada vez que
+// algo mejora aguas arriba.
+ok(DIVERGENCIAS_CONOCIDAS.size === 1, `exactamente 1 divergencia conocida hoy (CASO A, owner 2026-09-25) — si esto crece, cada una necesita su propia justificación arriba`, [...DIVERGENCIAS_CONOCIDAS.keys()].join(" | "));
 
 /* ═══ 3 · LAS PIEZAS PURAS ═══ */
 H("3 · anclarDeclaracion y anclarPorFigs");

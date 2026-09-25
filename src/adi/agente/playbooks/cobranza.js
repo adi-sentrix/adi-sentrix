@@ -76,11 +76,16 @@ export const cobranza = {
     const saldo = _find(figs, /^Saldo pendiente · total$/i);
     if (!saldo || !venta) return null;
     const vencidoTotal = _find(figs, /^Saldo vencido · total$/i);
-    const esCredito = /a crédito/i.test(_lab(venta));
+    /* CORREGIDO (owner 2026-09-25, ley «caja ≠ cobranza»: solo la venta A CRÉDITO genera exposición, PRI-04 se
+     * mide contra ella): esta cifra es SIEMPRE la venta a crédito —viene de `mesaFlujo`, la mesa del cobro, no
+     * de la venta comercial total— sea cual sea el rótulo exacto que el emisor le puso a la fig (la planilla dice
+     * «Venta a crédito del período», el demo «Venta del período (flujo)»). Antes, la prosa solo decía «a crédito»
+     * si el RÓTULO literal lo traía escrito, así que en el demo el composer decía «vendiste $X» a secas —el mismo
+     * defecto de concepto que motivó la corrección de `claveDeMetrica` (lexico.js, misma fecha): un rótulo sin la
+     * palabra «crédito» no cambia lo que la cifra ES. Se dice «a crédito» siempre, sin mirar el rótulo. */
     /* EL NOTARIO SEMÁNTICO (fase 2): los totales son cifras del negocio (universo «total»); lo abonado y el saldo son PARTE de la venta
-     * («de eso ya entró…», «de una venta de…») y el vencido es parte del saldo; la venta viaja con el rótulo exacto del emisor (en la
-     * planilla dice «a crédito», en el demo «del período (flujo)»); cada saldo con su dueño; «el más pesado» es un orden máximo de
-     * Saldo vencido sobre el eje entero. */
+     * a crédito («de eso ya entró…», «de una venta a crédito de…») y el vencido es parte del saldo; cada saldo con su dueño; «el más
+     * pesado» es un orden máximo de Saldo vencido sobre el eje entero. */
     const D = declaradorDe(declarar);
     const declaraTotales = (texto) => {
       D.deFig(venta, texto);
@@ -90,7 +95,7 @@ export const cobranza = {
     };
 
     if (c.forma === "credito") {
-      const l0 = `Vendiste ${esCredito ? "a crédito " : ""}${_val(venta)} en el período. De eso ya entró ${_val(abonado)} (abonado) y queda un saldo pendiente de ${_val(saldo)}.`;
+      const l0 = `Vendiste a crédito ${_val(venta)} en el período. De eso ya entró ${_val(abonado)} (abonado) y queda un saldo pendiente de ${_val(saldo)}.`;
       declaraTotales(l0);
       return [
         l0,
@@ -105,7 +110,7 @@ export const cobranza = {
     if (!porCliente.length) return null;
     const vencidos = _all(figs, /· Saldo vencido$/i).map((f) => ({ entidad: _entidadDe(_lab(f)), fmt: _val(f) })).filter((x) => x.entidad);
     // LA VOZ (2026-09-03): un asesor cuenta la deuda, no la lista un ledger — mismas cifras, mismos dueños.
-    const partes = [`Tienes ${_val(saldo)} por cobrar, de una venta ${esCredito ? "a crédito " : ""}de ${_val(venta)} — ya te abonaron ${_val(abonado)}.`];
+    const partes = [`Tienes ${_val(saldo)} por cobrar, de una venta a crédito de ${_val(venta)} — ya te abonaron ${_val(abonado)}.`];
     declaraTotales(partes[0]);
     /* EL UNIVERSO DE LA LISTA, EXPLÍCITO (owner 2026-09-15): la mesa del cobro ordena «vencido primero» — la lista de arriba son las cuentas
      * CON saldo vencido, de mayor a menor vencido; las que deben sin vencido van aparte con su saldo (Jumbo queda fuera del ranking de

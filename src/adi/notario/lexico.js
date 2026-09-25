@@ -69,18 +69,32 @@ export function metricaDeClave(clave) {
   const m = metricaPorClave(clave);
   return m ? m.nombre : String(clave).trim();
 }
-/** claveDeMetrica(texto) → la clave de una métrica dicha con palabras («Saldo vencido», «deuda vencida», «Venta (flujo)») o null */
+/** claveDeMetrica(texto) → la clave de una métrica dicha con palabras («Saldo vencido», «deuda vencida», «Venta (flujo)») o null.
+ *  UN RÓTULO NO PUEDE NOMBRAR DOS CAMPOS (owner 2026-09-25, ley CLAUDE.md §4 — «un rótulo visible no puede nombrar
+ *  dos campos»; hallazgo real: «Venta (flujo)» —el rótulo de `mesaFlujo`, cobranza— recortaba su paréntesis ANTES
+ *  de comparar, así que nunca llegaba a probarse contra `venta_credito.conceptos` —que sí trae «venta (flujo)»
+ *  LITERAL, paréntesis incluido— y caía al sinónimo corto «venta» → clave "ventas" (comercial), la métrica
+ *  EQUIVOCADA para un rótulo de cobranza). Regla general, no un alias de un caso: se prueba el rótulo COMPLETO,
+ *  con su paréntesis, contra los sinónimos primero; solo si no hay ninguna coincidencia exacta se recorta el
+ *  paréntesis y se repite la misma búsqueda — nunca al revés. */
 export function claveDeMetrica(texto) {
   if (texto == null) return null;
-  const s = normalizar(String(texto)).replace(/\s*\(.*?\)\s*$/, "").trim();
-  if (!s) return null;
-  const directa = _porClave.get(s.replace(/\s+/g, "_"));
-  if (directa) return directa.clave;
-  for (const m of CLAVES_DE_METRICA) if (m.conceptos.includes(s)) return m.clave;
+  const conParentesis = normalizar(String(texto)).trim();
+  if (!conParentesis) return null;
+  const sinParentesis = conParentesis.replace(/\s*\(.*?\)\s*$/, "").trim();
+  const candidatos = sinParentesis === conParentesis ? [conParentesis] : [conParentesis, sinParentesis];
+  for (const s of candidatos) {
+    if (!s) continue;
+    const directa = _porClave.get(s.replace(/\s+/g, "_"));
+    if (directa) return directa.clave;
+    for (const m of CLAVES_DE_METRICA) if (m.conceptos.includes(s)) return m.clave;
+  }
   /* el concepto MÁS LARGO que casa decide («capital frenado · total» → capital_frenado, no capital) */
   const sin = conceptosDe(String(texto)).slice().sort((a, b) => b.length - a.length);
   for (const c of sin) for (const m of CLAVES_DE_METRICA) if (m.conceptos.includes(c)) return m.clave;
   let mejor = null;
+  const s = sinParentesis;   // el barrido por palabra sigue sobre el texto SIN paréntesis (como siempre): el
+                              // paréntesis final no es una palabra de negocio, es una aclaración de forma.
   const _enPalabra = (c) => new RegExp("(?<![a-záéíóúñ])" + c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![a-záéíóúñ])").test(s);   // por palabra: «inventario» no contiene «venta»
   for (const m of CLAVES_DE_METRICA) for (const c of m.conceptos) if (c.length >= 4 && _enPalabra(c) && (!mejor || c.length > mejor.c.length)) mejor = { m, c };
   return mejor ? mejor.m.clave : null;
