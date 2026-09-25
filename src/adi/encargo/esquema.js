@@ -80,13 +80,25 @@ const _PRODUCTOR_RESIDUAL = {
   // mesaCapital.js / inventoryStatus{frenado}: sku, bodega y su agregado por familia (NO marca, a diferencia de la métrica «capital» del registro)
   capital_frenado: ["sku", "bodega", "familia"], capital_inmovilizado: ["sku", "bodega", "familia"],
   dias_sin_venta: ["sku"], margen_inventario: ["sku"],
-  // marginRead (causa_precio/causa_costo)
-  markup: ["cliente", "sku", "marca", "familia"], peso_costo: ["cliente", "sku", "marca", "familia"],
+  /* CORREGIDO (Etapa 1 · Corte 3a, owner 2026-09-25, con evidencia): el contrato §3.3 declaraba `marginRead
+   * (causa_precio/causa_costo)` como productor de markup/peso_costo por cliente·sku·marca·familia. Contrastado
+   * contra el Core (`_lecturas_gate.mjs` §5): `specRetrieval.js` SÍ calcula `_markup`/`_costShare` en los focos
+   * `causa_precio`/`causa_costo`/`subir_precio`, pero SOLO los usa para ORDENAR filas y para la PROSA («markup
+   * 12.3%» dentro de `lines`) — ningún `fig()` de todo el archivo (ni de `entityRecord.js`) lleva la etiqueta
+   * «Markup» ni «Peso del costo» (grep confirmado: cero resultados). No hay una cifra AUTORIZADA que citar: hoy
+   * ningún cierre `cifra` puede servir markup/peso_costo sin inventar un número. `[]` en las dos, en TODOS los
+   * ejes, hasta que `specRetrieval.js` publique el fig (entonces se corrige acá, no se restaura a mano). */
+  markup: [], peso_costo: [],
   // salesRead (vs_anterior): sku NO (skusMargen no trae anterior)
   variacion: ["cliente", "marca", "familia", "canal"], variacion_usd: ["cliente", "marca", "familia", "canal"],
   ventas_anterior: ["cliente", "marca", "familia", "canal"],
-  // clientesVentas.presupuesto / ventasKPI: solo cliente (y el negocio, fuera del alcance de un eje de entidad)
-  vs_presupuesto: ["cliente"], vs_presupuesto_usd: ["cliente"],
+  /* CORREGIDO (Etapa 1 · Corte 3a, con evidencia): el contrato §3.3 declaraba «marca/familia/sku NO». Contrastado:
+   * `specRetrieval.js` (`salesRead{focus:"vs_presupuesto"}`) SÍ trae presupuesto real por marca/familia/canal
+   * (`_pptoByDim`, con figs por entidad — verificado: «LG · vs ppto», «Línea Blanca · vs ppto», «Retail · vs
+   * ppto», valores reales del demo) — SOLO por SKU declina de verdad (la propia tool lo declara: «Por SKU no
+   * tengo presupuesto propio — sólo por cliente»), y por bodega declina también (`_ejeNoAbierto`: el dato no baja
+   * a ese eje). `["cliente", "marca", "familia", "canal"]`, sku y bodega quedan fuera. */
+  vs_presupuesto: ["cliente", "marca", "familia", "canal"], vs_presupuesto_usd: ["cliente", "marca", "familia", "canal"],
   // mesaFlujo.js (flujoComercial): SOLO cliente — marca/familia/sku/canal/bodega ⇒ concepto_sin_productor
   venta_credito: ["cliente"], saldo_vencido: ["cliente"], saldo_pendiente: ["cliente"], saldo_por_vencer: ["cliente"],
   abonado: ["cliente"], recuperado: ["cliente"], dias_vencido: ["cliente"],
@@ -112,6 +124,15 @@ export function ejesConProductor(clave) {
   if (m && METRICS[m]) return Object.keys(METRICS[m].sourceByAxis || {});
   if (Object.prototype.hasOwnProperty.call(_PRODUCTOR_RESIDUAL, clave)) return _PRODUCTOR_RESIDUAL[clave].slice();
   return [];
+}
+
+/** metricaCoreDe(clave) → la clave de `metricRegistry.js:METRICS` que sirve esta clave del léxico (§3.3), o null si
+ *  la clave no tiene fuente DECLARATIVA (las del camino procedural — `_PRODUCTOR_RESIDUAL` arriba — no tienen una
+ *  métrica de `METRICS` que las nombre; su tool sale de otra tabla, en `lecturasDe.js`, Corte 3a). Aditivo para ese
+ *  corte: REUSA `_CLAVE_A_METRICA` (nunca la copia) — es el mismo mapa que ya resuelve `ejesConProductor`, solo que
+ *  antes no exponía el NOMBRE de la métrica, solo si tenía o no productor por eje. */
+export function metricaCoreDe(clave) {
+  return _CLAVE_A_METRICA[clave] || null;
 }
 
 /** cruceBloqueadoDe(clave, eje) → el registro de BLOCKED_CROSSES que aplica, o null si ese (clave, eje) no es un
