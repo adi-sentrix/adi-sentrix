@@ -57,7 +57,12 @@ const CORPUS = { foto, quienes, porque, directorio, plan, comparar };
 /* ═══ 1 · NATURALIDAD · cero voz de motor, en todo el corpus ═══════════════════════════════════════════════ */
 H("1 · naturalidad: el mecanismo detrás, el criterio delante — cero voz de motor en el corpus determinístico");
 for (const [k, v] of Object.entries(CORPUS)) {
-  ok(v.a.estado === "playbook", `«${k}» sale por su procedimiento (${v.a.estado})`);
+  /* «comparar» (owner 2026-09-24, ronda 4 de `coberturaCorta.js`): «¿qué es más urgente, margen o cobranza?»
+   * ahora resuelve por la cobertura corta —el cierre entre TEMAS, no cuentas, con `dineroEnJuego` del
+   * registro— en vez de caer al playbook `compararAlternativas`; sigue siendo SU PROCEDIMIENTO determinístico
+   * (voz de motor cero, igual), solo que el peldaño que responde es otro. */
+  const estadoEsperado = k === "comparar" ? ["playbook", "cobertura-corta"] : ["playbook"];
+  ok(estadoEsperado.includes(v.a.estado), `«${k}» sale por su procedimiento (${v.a.estado})`);
   const vm = vetosDeRegistro(v.t, {}).filter((x) => x.regla === "lexico-voz-de-motor");
   ok(vm.length === 0 && !/\bel motor\b|\bdel motor\b|seg[uú]n el procedimiento|la regla me dice/i.test(v.t), `…sin «el motor», «según el procedimiento» ni «la regla me dice»`, v.t.slice(0, 120));
 }
@@ -79,8 +84,11 @@ H("2 · jerarquía: la foto abre con la tesis, sin una sola cifra, y recién des
 H("3 · no repetición: una cifra una vez fuera de tablas; el benchmark una vez; nombres sin abuso");
 for (const [k, v] of Object.entries(CORPUS)) {
   /* el porqué y el plan admiten UNA reaparición: la cifra vuelve cuando cambia su significado (el total del cobro
-   * vencido como base de la comparación «$33K contra los $12.6M») — la regla del owner, no una excepción */
-  const max = (k === "porque" || k === "plan") ? 2 : 1;
+   * vencido como base de la comparación «$33K contra los $12.6M») — la regla del owner, no una excepción.
+   * «comparar» (ronda 4): el cierre entre TEMAS reusa A PROPÓSITO la MISMA cifra que ya declaró la línea del
+   * dominio («nunca una fuente nueva» — el mandato del coordinador) para armar «$X de A contra $Y de B»: el
+   * total de cada dominio aparece una vez en su línea y una segunda vez en la comparación, con el MISMO valor. */
+  const max = (k === "porque" || k === "plan" || k === "comparar") ? 2 : 1;
   const rep = repetidas(v.t, max);
   ok(rep.length === 0, `«${k}»: ninguna cifra se repite${max === 2 ? " más de dos veces" : ""}`, rep.join(", "));
 }

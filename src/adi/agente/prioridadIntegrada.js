@@ -39,6 +39,7 @@ import { leerClausula } from "../oracle/lectorDeClausula.js";   // la negación 
 
 import { axisEntityNames } from "../oracle/entityIndex.js";   // los clientes del dato, para las lentes de ventas y crecimiento
 import { declaradorDe } from "../notario/declarar.js";   // el Notario semántico (fase 2): el cierre declara MIENTRAS escribe, con el mismo estándar que el cerebro
+import { regexDeDominio } from "../../config/contract/dominios.js";   // el registro único (owner 2026-09-24): _TESORERIA se deriva de acá
 
 const _lab = (f) => String((f && f.label) || "");
 const _val = (f) => String((f && (f.text || f.value)) || "");
@@ -204,6 +205,39 @@ export const CRITERIO = "dentro de cada dominio, materialidad (cuánto está en 
  * Ese pedido lo atiende `prioridadPorLente.js` declarando la ausencia (`config/contract/ausencias.js:sin_datos_tesoreria`)
  * y ofreciendo la exposición de crédito como lo más cercano que sí se mide, sin llamarla caja — el veto de salida
  * `_COMO_CAJA` (guardC.js) ya prohíbe narrar una cifra de cobranza como caja. */
+
+/* ══ EL CIERRE DEL ENCARGO — decisión · lectura · cifra (owner 2026-09-24, `encargo_natural_diseno.md` §"Lo
+ * aprobado" 1c) ═════════════════════════════════════════════════════════════════════════════════════════════════
+ * «Cobertura, profundidad y cierre son tres decisiones separadas»: cobertura es CUÁNTOS temas (los dominios de
+ * `dominiosDe`), profundidad es CUÁNTO detalle (`_PIDE_DETALLE`, nunca por tener dos temas) y CIERRE es CÓMO
+ * termina la pregunta — lo que decide si un encargo de 2-3 temas es un ENCARGO de verdad o una pregunta simple
+ * que solo nombra varios temas sueltos. El vocabulario de cierres vive ACÁ, junto a `CRITERIOS` (son la misma
+ * familia: qué quiere el usuario que ADI haga con la evidencia), y NO en el reconocedor de dominios ni en
+ * `partesDelEncargo.js` (que solo lo CONSUME vía `cierreDeLaPregunta`).
+ *   · «cifra» (el default: sin marca de decisión ni de lectura) — una cifra o una relación puntual por tema:
+ *     «¿cuánto vendió Lider y cuánto me debe?», «¿los SKU que más vendo son los que más capital inmovilizan?»,
+ *     «¿cuánto vendí y cuánto cobré?». Sigue SIMPLE aunque nombre 2-3 dominios y una cuenta nombrada.
+ *   · «decisión» — pide una prioridad, un veredicto o una conclusión: «qué me preocupa más», «qué merece
+ *     atención primero», «me conviene seguir…», «dónde tengo el mayor problema», «cuál me da más dolores de
+ *     cabeza». Con ≥ 2 temas, es encargo.
+ *   · «lectura» — pide una mirada conjunta sin pedir necesariamente una prioridad: «mírame ventas e
+ *     inventario», «dame una vista 360 de Unimarc», «hazme una lectura de estos datos». Con ≥ 2 temas, es
+ *     encargo.
+ * LA CORRECCIÓN DE DISEÑO (hallada con el set v1, Fable proponía «cuenta nombrada ⇒ simple», falso): el sujeto
+ * (una cuenta nombrada) NO decide nada acá — «damen una vista 360 de Unimarc… venta, margen, bodega, cobranza»
+ * es encargo con cuenta nombrada, porque el CIERRE es «lectura» sobre 3 temas. El sujeto acota, no decide. */
+const _CIERRE_DECISION = /\b(?:primero|prioridad|prioritari[oa]s?|prioriza(?:r|me|melo|mela)?|merece(?:n)? (?:m[aá]s )?atenci[oó]n|me (?:preocupa|preocupar[ií]a)|te preocupa|deber[ií]a(?:mos)? preocuparme|qu[eé] (?:me|te|nos) preocupa|mayor riesgo|riesgo econ[oó]mico|m[aá]s (?:urgente|grave|cr[ií]tico)|lo m[aá]s grave|el mayor problema|junt[ae]?\s+m[aá]s problemas|d[oó]nde (?:est[aá]|tengo) (?:hoy )?(?:el )?(?:mayor )?(?:riesgo|problema)|d[oó]nde estoy perdiendo|me conviene|conviene seguir|vale la pena|dolor(?:es)? de cabeza|d(?:a|á)(?:me)? (?:m[aá]s )?dolor(?:es)? de cabeza|qu[eé] har[ií]as primero|qu[eé] har[ií]a primero|d[oó]nde (?:pondr[ií]as|actuar[ií]as)|por d[oó]nde (?:empezar|partir|entrar)|foco primero|vale m[aá]s la pena|ay[uú]dame(?:\s+a)?|tomar una decisi[oó]n|no s[eé] por d[oó]nde partir|me alcanza para|tengo (?:plata|recursos|caja)\s+para|(?:eso|me)\s+da\s+(?:para|caja)|riesgos? (?:para|del negocio|principales)|acciones recomendadas|qu[eé] deber[ií]a mirar primero|no doy abasto)\b/i;
+const _CIERRE_LECTURA = /\b(?:m[ií]rame|mira(?:me)?\b|hazme una lectura|una lectura (?:ejecutiva|completa|conjunta)|dame una (?:vista|mirada|foto)|vista 360|cu[eé]ntame(?:\s+de)?|resumen ejecutivo|s[ií]ntesis ejecutiva|c[oó]mo (?:viene|va|anda|estamos|vamos)|hazme un diagn[oó]stico|hazme un checkeo|hazme un chequeo|quiero entender|quiero saber (?:qu[eé] me est[aá]|si)|compara(?:me)?\b|cruzando|cruza(?:r|me)?\b|considerando)\b/i;
+/** cierreDeLaPregunta(q) → "decision" | "lectura" | "cifra" — el CÓMO cierra, independiente de cuántos temas
+ *  nombre y de si pide detalle. Léxico cerrado; ante la duda, «cifra» (el default más conservador: no convierte
+ *  una pregunta simple en encargo sin una marca real de decisión o lectura). */
+export function cierreDeLaPregunta(pregunta) {
+  const q = String(pregunta || "");
+  if (_CIERRE_DECISION.test(q)) return "decision";
+  if (_CIERRE_LECTURA.test(q)) return "lectura";
+  return "cifra";
+}
+
 export const CRITERIOS = {
   riesgo:       { nombre: "riesgo integrado", dicho: "materialidad + severidad + urgencia, señal por señal entre dominios", clave: "cliente" },
   contribucion: { nombre: "contribución", dicho: "la contribución sin capturar del período, la brecha comercial", clave: "cliente", dominio: "comercial", lente: "materialidad" },
@@ -252,12 +286,17 @@ export function criterioDeLaPregunta(pregunta) {
  * El usuario puede pedir ordenar/priorizar por «caja» o «liquidez» — un objetivo legítimo, pero de un dato que este
  * producto NO tiene (tesorería). No se reinterpreta como cobranza: se declara la ausencia y se ofrece la exposición de
  * crédito como lo más cercano que sí se mide (ver `prioridadPorLente.js`, que reúsa este detector). */
-const _TESORERIA = /\bcaja\b|\bliquidez\b|\befectivo\b|\btesorer[ií]a\b/i;
+/* `_TESORERIA` se DERIVA del registro único (`config/contract/dominios.js`, owner 2026-09-24), byte-idéntico al
+ * regex que este archivo tenía hasta esta etapa. PEREZOSO (`_import_sin_dato_gate`): el registro es un contrato
+ * estático, pero el candado mira la RUTA del import, no si el dato es de empresa; se calcula en el primer uso
+ * (memoizado, `regexDeDominio` ya cachea por su cuenta) — la opción que pidió el coordinador. */
+let _tesoreriaRe = null;
+const _TESORERIA = () => _tesoreriaRe || (_tesoreriaRe = regexDeDominio("tesoreria"));
 /** pideTesoreria(q) → true si la pregunta fija un criterio de orden/prioridad y ese criterio es tesorería («caja»,
  *  «liquidez», «efectivo») — nunca cuando ya hay un criterio real reconocido (p. ej. «prioriza cobranza»). */
 export function pideTesoreria(pregunta) {
   const q = String(pregunta || "");
-  if (!_TESORERIA.test(q)) return false;
+  if (!_TESORERIA().test(q)) return false;
   if (criterioDeLaPregunta(q)) return false;   // otra palabra de la pregunta ya fijó un criterio real: no es un pedido de tesorería
   for (const re of _EXPLICITO) if (re.test(q)) return true;
   return false;
@@ -333,7 +372,9 @@ const _otrasLentes = (figs, dominios, criterio, D = declaradorDe(null)) => {
   };
   return `Con otra lente cambia quién va primero: ${otras.map(tramo).join("; ")}.`;
 };
-const _MODO_TXT = { explicito: "el criterio que pediste", implicito: "el criterio que se lee en tu pregunta" };
+/* «sustituto»: el usuario pidió un criterio sin datos (caja/tesorería) y ADI ofrece el más cercano que sí mide —
+ * nunca se dice «el criterio que pediste» de algo que no pidió (supervisor 2026-09-24, ley caja ≠ cobranza). */
+const _MODO_TXT = { explicito: "el criterio que pediste", implicito: "el criterio que se lee en tu pregunta", sustituto: "lo más cercano que sí mido, no caja" };
 
 /* ── EN PALABRAS: el cierre del ensamblador y la conclusión que viaja al cerebro ────────────────────────────────── */
 const _DOM_TXT = { comercial: "comercial", cobranza: "cobranza", inventario: "inventario" };

@@ -1,0 +1,834 @@
+[
+  {
+    "id": "q01",
+    "origen": "real",
+    "pregunta": "Estoy vendiendo más, pero quiero saber si ese crecimiento realmente está siendo sano. Mira ventas, contribución, margen, unidades, inventario y cobranza juntos. Dime qué clientes o SKU están empujando el crecimiento, cuáles están deteriorando el resultado, si estoy acumulando stock donde no corresponde, si alguno de mis principales clientes también representa riesgo de cobranza y dónde pondrías el foco primero. Separa qué puedes demostrar, qué solo está indicado y qué todavía no sabes.",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "pregunta real, idéntica y literal en los 8 fixtures leídos (encargo-vivo 1-7 y encargo-produccion-2026-09-14); pide cruzar tres dominios y decidir dónde poner el foco primero — el encargo compuesto de referencia del proyecto."
+  },
+  {
+    "id": "q02",
+    "origen": "nueva",
+    "pregunta": "dime como estamos en general, quiero un resumen de todo el negocio antes de la reunion de mañana",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "lectura",
+    "nota": "encargo sin objeto explícito: pide una lectura general del negocio, cruzando los tres dominios que ADI conoce."
+  },
+  {
+    "id": "q03",
+    "origen": "nueva",
+    "pregunta": "entre Lider y Falabella cual me esta dando mas dolores de cabeza? mira venta, margen, stock y lo que me deben",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": [
+      "Lider",
+      "Falabella"
+    ],
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "compara dos clientes puntuales cruzando tres dominios a la vez; pide un veredicto, no una cifra suelta."
+  },
+  {
+    "id": "q04",
+    "origen": "nueva",
+    "pregunta": "tengo plata en mercaderia parada y clientes que no me pagan, no se por donde partir esta semana, ayudame a priorizar",
+    "temas": [
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "pide comparar dos dominios distintos (inventario parado vs. cobranza) para decidir por cuál empezar."
+  },
+  {
+    "id": "q05",
+    "origen": "nueva",
+    "pregunta": "quiero saber si me conviene seguir empujando venta a Jumbo o frenar un poco, considerando el margen que deja, cuanto stock tengo de lo que compra y como anda pagando",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": [
+      "Jumbo"
+    ],
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "decisión comercial concreta sobre un cliente que exige leer margen, stock disponible y comportamiento de pago juntos."
+  },
+  {
+    "id": "q06",
+    "origen": "nueva",
+    "pregunta": "quiero entender que tan sano esta el crecimiento que estoy teniendo, cruzando lo que vendo, lo que se me queda parado en bodega y como anda la cobranza",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "lectura",
+    "nota": "paráfrasis distinta del encargo compuesto clásico (\"crecimiento sano\"), pide lectura conjunta sin pedir explícitamente prioridad."
+  },
+  {
+    "id": "q07",
+    "origen": "nueva",
+    "pregunta": "de mis clientes grandes, cual es el que junta mas problemas: poco margen, mucho stock parado de lo suyo y deuda vencida?",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "pide identificar la cuenta donde coinciden señales de los tres dominios — cruce por cliente, no suma de dominios."
+  },
+  {
+    "id": "q08",
+    "origen": "nueva",
+    "pregunta": "estoy por tomar una decision grande de a quien seguirle vendiendo a credito, ayudame viendo margen y mora juntos",
+    "temas": [
+      "comercial",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "cruza margen y comportamiento de pago para decidir política de crédito; dos temas pero con análisis conjunto explícito."
+  },
+  {
+    "id": "q09",
+    "origen": "nueva",
+    "pregunta": "quiero entender que me esta pasando con Sodimac: ventas, cuanto stock mio le tengo casi reservado y la plata que me debe",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": [
+      "Sodimac"
+    ],
+    "tipo": "encargo",
+    "cierre": "lectura",
+    "nota": "ficha 360 de un cliente puntual cruzando los tres dominios; el usuario habla de \"reservado\" pero ADI no tiene ese concepto, solo stock disponible."
+  },
+  {
+    "id": "q10",
+    "origen": "nueva",
+    "pregunta": "compara Falabella y Ripley: quien me deja mas plata en la mesa entre margen bajo y cobranza atrasada",
+    "temas": [
+      "comercial",
+      "cobranza"
+    ],
+    "sujeto": [
+      "Falabella",
+      "Ripley"
+    ],
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "\"plata en la mesa\" mezcla contribución no capturada (comercial) con mora (cobranza) en una sola comparación — ambigua, exige que ADI separe los dos conceptos antes de comparar."
+  },
+  {
+    "id": "q11",
+    "origen": "nueva",
+    "pregunta": "necesito saber donde estoy perdiendo plata: en descuentos que doy, en stock que no rota o en cuentas que no cobro",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "encargo de lectura general que exige ordenar tres fugas de valor de distinta naturaleza económica (contribución, capital, saldo por cobrar) sin sumarlas."
+  },
+  {
+    "id": "q12",
+    "origen": "nueva",
+    "pregunta": "armame un ranking de que atender primero: los clientes con mas descuento, los productos parados o las cuentas vencidas",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "pide explícitamente un único ranking cruzando tres dominios distintos — riesgo de que ADI simplemente liste tres rankings separados en vez de priorizar."
+  },
+  {
+    "id": "q13",
+    "origen": "nueva",
+    "pregunta": "quiero saber si el crecimiento de Tottus me esta trayendo cola: revisa el margen, si tengo su stock disponible y como anda pagando",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": [
+      "Tottus"
+    ],
+    "tipo": "encargo",
+    "cierre": "lectura",
+    "nota": "mismo patrón del encargo compuesto pero aplicado a un solo cliente en vez de la cartera completa."
+  },
+  {
+    "id": "q14",
+    "origen": "nueva",
+    "pregunta": "hazme un checkeo rapido: margen general, inventario parado y cobranza vencida, todo junto porfa",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "lectura",
+    "nota": "encargo corto tipo WhatsApp, tres dominios pedidos explícitamente en una sola lectura."
+  },
+  {
+    "id": "q15",
+    "origen": "nueva",
+    "pregunta": "entre Easy y Hites cual me conviene apretar mas en condiciones comerciales, mirando tambien cuanto me deben",
+    "temas": [
+      "comercial",
+      "cobranza"
+    ],
+    "sujeto": [
+      "Easy",
+      "Hites"
+    ],
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "decisión sobre condiciones comerciales que exige cruzar carga comercial/margen con exposición de cobranza."
+  },
+  {
+    "id": "q16",
+    "origen": "nueva",
+    "pregunta": "damen una vista 360 de Unimarc antes de reunirme con ellos: venta, margen, que producto tienen mio en bodega y su cobranza",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": [
+      "Unimarc"
+    ],
+    "tipo": "encargo",
+    "cierre": "lectura",
+    "nota": "typo (\"damen\" por \"dame\") + ficha completa de un cliente cruzando tres dominios; sin pedir priorización, solo lectura."
+  },
+  {
+    "id": "q17",
+    "origen": "nueva",
+    "pregunta": "que deberia mirar primero esta semana, lo comercial, el inventario o la cobranza? no doy abasto",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "pide priorizar entre dominios completos (no entre clientes o SKU puntuales) — encargo de nivel más alto que el resto."
+  },
+  {
+    "id": "q18",
+    "origen": "nueva",
+    "pregunta": "quiero saber si vale la pena seguir dandole mas descuento a Paris considerando el margen que me deja y lo que me debe",
+    "temas": [
+      "comercial",
+      "cobranza"
+    ],
+    "sujeto": [
+      "Paris"
+    ],
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "decisión comercial sobre un cliente puntual que exige leer margen/carga comercial junto con su situación de cobranza."
+  },
+  {
+    "id": "q19",
+    "origen": "nueva",
+    "pregunta": "cuanto vendio Lider este mes y cuanto me debe",
+    "temas": [
+      "comercial",
+      "cobranza"
+    ],
+    "sujeto": [
+      "Lider"
+    ],
+    "tipo": "simple",
+    "cierre": "cifra",
+    "nota": "dos cifras puntuales del mismo cliente, una de cada dominio, sin pedir que se relacionen entre sí."
+  },
+  {
+    "id": "q20",
+    "origen": "nueva",
+    "pregunta": "dime el margen de Falabella y aparte cuantos dias de atraso tiene en su pago",
+    "temas": [
+      "comercial",
+      "cobranza"
+    ],
+    "sujeto": [
+      "Falabella"
+    ],
+    "tipo": "simple",
+    "cierre": "cifra",
+    "nota": "el propio \"aparte\" marca que son dos datos independientes, no un cruce."
+  },
+  {
+    "id": "q21",
+    "origen": "nueva",
+    "pregunta": "cuanto stock me queda de SAM-TV55 y cual es su margen",
+    "temas": [
+      "inventario",
+      "comercial"
+    ],
+    "sujeto": [
+      "SAM-TV55"
+    ],
+    "tipo": "simple",
+    "cierre": "cifra",
+    "nota": "dos cifras de un mismo producto, sin pedir relación causal entre ellas."
+  },
+  {
+    "id": "q22",
+    "origen": "nueva",
+    "pregunta": "que venta tuvo Jumbo en el periodo y cuanto tiene vencido",
+    "temas": [
+      "comercial",
+      "cobranza"
+    ],
+    "sujeto": [
+      "Jumbo"
+    ],
+    "tipo": "simple",
+    "cierre": "cifra",
+    "nota": "dos cifras de un cliente puntual en una sola frase, sin pedir comparación ni priorización."
+  },
+  {
+    "id": "q23",
+    "origen": "nueva",
+    "pregunta": "quiero el saldo pendiente de Sodimac y tambien cuanto le vendi el mes pasado",
+    "temas": [
+      "cobranza",
+      "comercial"
+    ],
+    "sujeto": [
+      "Sodimac"
+    ],
+    "tipo": "simple",
+    "cierre": "cifra",
+    "nota": "orden invertido respecto a q23 similares: primero cobranza, después venta, pero siguen siendo dos cifras separadas."
+  },
+  {
+    "id": "q24",
+    "origen": "nueva",
+    "pregunta": "cuanto capital tengo frenado en Makita y aparte cual es el margen que me deja esa marca",
+    "temas": [
+      "inventario",
+      "comercial"
+    ],
+    "sujeto": [
+      "Makita"
+    ],
+    "tipo": "simple",
+    "cierre": "cifra",
+    "nota": "dos cifras sobre la marca Makita, sin pedir relación entre el capital inmovilizado y el margen."
+  },
+  {
+    "id": "q25",
+    "origen": "nueva",
+    "pregunta": "dame el numero de unidades vendidas a Tottus y el saldo que tiene conmigo",
+    "temas": [
+      "comercial",
+      "cobranza"
+    ],
+    "sujeto": [
+      "Tottus"
+    ],
+    "tipo": "simple",
+    "cierre": "cifra",
+    "nota": "pide unidades (comercial) y saldo (cobranza) de un cliente puntual, sin cruzarlos."
+  },
+  {
+    "id": "q26",
+    "origen": "nueva",
+    "pregunta": "cual es el dias de inventario del LG-DRYER8KG y cuanto se ha vendido de ese producto",
+    "temas": [
+      "inventario",
+      "comercial"
+    ],
+    "sujeto": [
+      "LG-DRYER8KG"
+    ],
+    "tipo": "simple",
+    "cierre": "cifra",
+    "nota": "dos métricas de un mismo SKU sin relación pedida entre ellas."
+  },
+  {
+    "id": "q27",
+    "origen": "nueva",
+    "pregunta": "necesito la exposicion de credito de Ripley y por separado su venta del trimestre",
+    "temas": [
+      "cobranza",
+      "comercial"
+    ],
+    "sujeto": [
+      "Ripley"
+    ],
+    "tipo": "simple",
+    "cierre": "cifra",
+    "nota": "\"por separado\" deja explícito que no busca un cruce, solo dos cifras."
+  },
+  {
+    "id": "q28",
+    "origen": "nueva",
+    "pregunta": "cuanto le debo... digo cuanto me debe ABC y cual es el margen que me deja",
+    "temas": [
+      "cobranza",
+      "comercial"
+    ],
+    "sujeto": [
+      "ABC"
+    ],
+    "tipo": "simple",
+    "cierre": "cifra",
+    "nota": "autocorrección típica de mensaje apurado (\"le debo\"→\"me debe\"); dos cifras de un cliente sin cruce."
+  },
+  {
+    "id": "q29",
+    "origen": "nueva",
+    "pregunta": "pasame el stock de Philips en bodega y la venta que llevamos de esa marca",
+    "temas": [
+      "inventario",
+      "comercial"
+    ],
+    "sujeto": [
+      "Philips"
+    ],
+    "tipo": "simple",
+    "cierre": "cifra",
+    "nota": "dos cifras de una marca, sin pedir si el stock corresponde a lo que vende."
+  },
+  {
+    "id": "q30",
+    "origen": "nueva",
+    "pregunta": "cuantos dias de atraso tiene La Polar y cual fue su venta el mes pasado",
+    "temas": [
+      "cobranza",
+      "comercial"
+    ],
+    "sujeto": [
+      "La Polar"
+    ],
+    "tipo": "simple",
+    "cierre": "cifra",
+    "nota": "dos cifras de un cliente en una sola oración, sin pedir relación."
+  },
+  {
+    "id": "q31",
+    "origen": "nueva",
+    "pregunta": "dime cuanto vendio Mercado Libre y si tiene algo vencido",
+    "temas": [
+      "comercial",
+      "cobranza"
+    ],
+    "sujeto": [
+      "Mercado Libre"
+    ],
+    "tipo": "simple",
+    "cierre": "cifra",
+    "nota": "pregunta corta de dos partes, cada una respondible por separado."
+  },
+  {
+    "id": "q32",
+    "origen": "nueva",
+    "pregunta": "cual es el margen de Hites ahora y cuanto stock tengo de lo que compra",
+    "temas": [
+      "comercial",
+      "inventario"
+    ],
+    "sujeto": [
+      "Hites"
+    ],
+    "tipo": "simple",
+    "cierre": "cifra",
+    "nota": "dos cifras de dominios distintos sobre el mismo cliente, sin pedir cruce ni prioridad."
+  },
+  {
+    "id": "q33",
+    "origen": "nueva",
+    "pregunta": "cual es mi margen general este mes",
+    "temas": [
+      "comercial"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "cifra",
+    "nota": "una sola cifra, un solo dominio."
+  },
+  {
+    "id": "q34",
+    "origen": "nueva",
+    "pregunta": "que productos tengo frenados en bodega",
+    "temas": [
+      "inventario"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "lectura",
+    "nota": "un solo dominio, pide una lista/lectura, no una cifra única."
+  },
+  {
+    "id": "q35",
+    "origen": "nueva",
+    "pregunta": "cuanto tengo vencido en total de cobranza",
+    "temas": [
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "cifra",
+    "nota": "un solo dominio, una sola cifra agregada."
+  },
+  {
+    "id": "q36",
+    "origen": "nueva",
+    "pregunta": "cual es mi top 5 clientes por venta",
+    "temas": [
+      "comercial"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "cifra",
+    "nota": "un solo dominio, ranking simple sin cruce con otros temas."
+  },
+  {
+    "id": "q37",
+    "origen": "nueva",
+    "pregunta": "cuantos dias de inventario tengo acumulados en la bodega de Valparaiso",
+    "temas": [
+      "inventario"
+    ],
+    "sujeto": [
+      "Valparaiso"
+    ],
+    "tipo": "un_tema",
+    "cierre": "cifra",
+    "nota": "un solo dominio, agregado por bodega en vez de por cliente o producto."
+  },
+  {
+    "id": "q38",
+    "origen": "nueva",
+    "pregunta": "quien me esta dando mas descuento de toda la cartera",
+    "temas": [
+      "comercial"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "cifra",
+    "nota": "un solo dominio (carga comercial), pide el cliente con mayor descuento."
+  },
+  {
+    "id": "q39",
+    "origen": "nueva",
+    "pregunta": "cuanto capital tengo inmovilizado en total",
+    "temas": [
+      "inventario"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "cifra",
+    "nota": "un solo dominio, cifra agregada de capital frenado."
+  },
+  {
+    "id": "q40",
+    "origen": "nueva",
+    "pregunta": "que cliente tiene la deuda mas vieja conmigo",
+    "temas": [
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "cifra",
+    "nota": "un solo dominio, pide el cliente con más días de atraso."
+  },
+  {
+    "id": "q41",
+    "origen": "nueva",
+    "pregunta": "cuanta plata tengo disponible en caja hoy",
+    "temas": [
+      "tesoreria"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "cifra",
+    "nota": "tesorería pura (efectivo disponible); ADI no tiene datos de caja, un buen asesor debe declinar con honestidad, no inventar ni desviar a cobranza."
+  },
+  {
+    "id": "q42",
+    "origen": "nueva",
+    "pregunta": "como anda mi flujo de caja este mes",
+    "temas": [
+      "tesoreria"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "cifra",
+    "nota": "flujo de caja es tesorería, no cobranza; ADI no tiene esos datos aunque conozca cuentas por cobrar."
+  },
+  {
+    "id": "q43",
+    "origen": "nueva",
+    "pregunta": "con lo que me deben los clientes, me alcanza para pagarle a mis proveedores este mes?",
+    "temas": [
+      "tesoreria",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "trampa clásica: usa cobranza (que ADI sí conoce) como insumo de una pregunta de tesorería (pago a proveedores, que ADI no conoce) — solo puede aportar el dato parcial y declinar el resto."
+  },
+  {
+    "id": "q44",
+    "origen": "nueva",
+    "pregunta": "si cobro todo lo vencido hoy, tengo plata para comprar mas stock?",
+    "temas": [
+      "tesoreria",
+      "cobranza",
+      "inventario"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "mezcla tres dominios pero la pregunta de fondo (\"tengo plata para\") es de caja, dato que ADI no tiene aunque conozca el vencido y el capital en stock."
+  },
+  {
+    "id": "q45",
+    "origen": "nueva",
+    "pregunta": "cuanta liquidez tengo considerando lo que me deben y lo que tengo que pagar",
+    "temas": [
+      "tesoreria",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "lectura",
+    "nota": "\"liquidez\" es tesorería; ADI conoce la mitad del cruce (lo que le deben) pero no lo que el cliente tiene que pagar a proveedores ni su caja."
+  },
+  {
+    "id": "q46",
+    "origen": "nueva",
+    "pregunta": "necesito saber si voy a tener caja para cubrir sueldos este mes",
+    "temas": [
+      "tesoreria"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "cifra",
+    "nota": "pregunta de tesorería pura y urgente; sin datos de caja, ADI debe declinar en vez de aproximar con cobranza."
+  },
+  {
+    "id": "q47",
+    "origen": "nueva",
+    "pregunta": "la plata que Lider me debe, la puedo contar como caja disponible?",
+    "temas": [
+      "tesoreria",
+      "cobranza"
+    ],
+    "sujeto": [
+      "Lider"
+    ],
+    "tipo": "simple",
+    "cierre": "cifra",
+    "nota": "confusión explícita caja=cobranza que el enunciado del ejercicio pide cubrir; el saldo por cobrar NO es caja disponible, un buen asesor debe distinguirlo."
+  },
+  {
+    "id": "q48",
+    "origen": "nueva",
+    "pregunta": "cuanto efectivo me va a quedar despues de pagarle a los proveedores este mes",
+    "temas": [
+      "tesoreria"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "cifra",
+    "nota": "tesorería pura (efectivo neto tras pagos a proveedores); fuera del alcance de datos de ADI."
+  },
+  {
+    "id": "q49",
+    "origen": "nueva",
+    "pregunta": "si vendo todo el stock que tengo parado, eso me da caja para pagar deudas?",
+    "temas": [
+      "tesoreria",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "asume que liquidar inventario se traduce directo en caja; ADI conoce el capital en stock parado pero no puede confirmar conversión a efectivo ni el destino de pago de deudas."
+  },
+  {
+    "id": "q50",
+    "origen": "nueva",
+    "pregunta": "cual es mi capital de trabajo disponible ahora mismo",
+    "temas": [
+      "tesoreria"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "cifra",
+    "nota": "\"capital de trabajo\" es un concepto financiero de tesorería (activo corriente neto de caja/pagos); ADI solo tiene una pieza (capital en inventario), no el conjunto."
+  },
+  {
+    "id": "r01",
+    "origen": "real",
+    "pregunta": "Hazme una lectura ejecutiva de estos datos. Dime qué debería preocuparme más y dónde pondrías el foco primero.",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "pregunta real de fixtures/ (lectura-ejecutiva, poda-corpus, voz-asesor, cruce-vivo); etiqueta del supervisor"
+  },
+  {
+    "id": "r02",
+    "origen": "real",
+    "pregunta": "dame los 3 riesgos para el directorio",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "pregunta real de fixtures/ (lectura-ejecutiva, poda-corpus, voz-asesor, cruce-vivo); etiqueta del supervisor"
+  },
+  {
+    "id": "r03",
+    "origen": "real",
+    "pregunta": "Dame un resumen para directorio con los 3 riesgos principales del negocio y las 3 acciones recomendadas.",
+    "temas": [
+      "comercial",
+      "inventario",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "encargo",
+    "cierre": "decision",
+    "nota": "pregunta real de fixtures/ (lectura-ejecutiva, poda-corpus, voz-asesor, cruce-vivo); etiqueta del supervisor"
+  },
+  {
+    "id": "r04",
+    "origen": "real",
+    "pregunta": "quién me debe y qué está vencido",
+    "temas": [
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "lectura",
+    "nota": "pregunta real de fixtures/ (lectura-ejecutiva, poda-corpus, voz-asesor, cruce-vivo); etiqueta del supervisor"
+  },
+  {
+    "id": "r05",
+    "origen": "real",
+    "pregunta": "qué marca deja más margen",
+    "temas": [
+      "comercial"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "cifra",
+    "nota": "pregunta real de fixtures/ (lectura-ejecutiva, poda-corpus, voz-asesor, cruce-vivo); etiqueta del supervisor"
+  },
+  {
+    "id": "r06",
+    "origen": "real",
+    "pregunta": "capital por bodega",
+    "temas": [
+      "inventario"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "cifra",
+    "nota": "pregunta real de fixtures/ (lectura-ejecutiva, poda-corpus, voz-asesor, cruce-vivo); etiqueta del supervisor"
+  },
+  {
+    "id": "r07",
+    "origen": "real",
+    "pregunta": "por que estamos perdiendo margen?",
+    "temas": [
+      "comercial"
+    ],
+    "sujeto": "cartera",
+    "tipo": "un_tema",
+    "cierre": "lectura",
+    "nota": "pregunta real de fixtures/ (lectura-ejecutiva, poda-corpus, voz-asesor, cruce-vivo); etiqueta del supervisor"
+  },
+  {
+    "id": "r08",
+    "origen": "real",
+    "pregunta": "¿Mis principales clientes comerciales son también los que más me deben?",
+    "temas": [
+      "comercial",
+      "cobranza"
+    ],
+    "sujeto": "cartera",
+    "tipo": "simple",
+    "cierre": "lectura",
+    "nota": "pregunta real de fixtures/ (lectura-ejecutiva, poda-corpus, voz-asesor, cruce-vivo); etiqueta del supervisor"
+  },
+  {
+    "id": "r09",
+    "origen": "real",
+    "pregunta": "¿Los SKU que más vendo son también los que más capital me inmovilizan?",
+    "temas": [
+      "comercial",
+      "inventario"
+    ],
+    "sujeto": "cartera",
+    "tipo": "simple",
+    "cierre": "lectura",
+    "nota": "pregunta real de fixtures/ (lectura-ejecutiva, poda-corpus, voz-asesor, cruce-vivo); etiqueta del supervisor"
+  },
+  {
+    "id": "r10",
+    "origen": "real",
+    "pregunta": "¿Estoy sosteniendo stock en productos que venden bien pero dejan poca contribución?",
+    "temas": [
+      "comercial",
+      "inventario"
+    ],
+    "sujeto": "cartera",
+    "tipo": "simple",
+    "cierre": "lectura",
+    "nota": "pregunta real de fixtures/ (lectura-ejecutiva, poda-corpus, voz-asesor, cruce-vivo); etiqueta del supervisor"
+  }
+]

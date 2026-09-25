@@ -27,6 +27,18 @@
  * ⚠️ Y DOS MONTOS DE UNIVERSOS DISTINTOS NUNCA VAN JUNTOS SIN DECIR DE CUÁL SALE CADA UNO (CLAUDE.md §2).
  * Comparar margen con capital de inventario es legítimo — esconder que son dos mundos, no.
  *
+ * ⛔ RETIRADO (coordinador, ronda 7, 2026-09-24): «dos FRENTES/TEMAS del negocio» (margen/carga/cobranza/
+ * capital/tesorería) YA NO se responde acá. La misma clase de pregunta no puede tener dos voces según la
+ * redacción: «¿qué es más urgente, margen o cobranza?» y «¿ataco el margen o el capital frenado?» son la MISMA
+ * decisión —dos TEMAS del registro puestos en la balanza— y las dos las responde `coberturaCorta.js`
+ * (`_cierreEntreTemas`/`decisionEntreTemas`, la MISMA función que este archivo ya reusaba). El reconocimiento
+ * de que una disyuntiva corta es un ENCARGO (para que `_intentarCoberturaCorta` la tome) sale del REGISTRO
+ * (`dominiosDe` reconoce ≥ 2 temas) + la FORMA ya certificada de comparación (`formaConversacional` === "comparar",
+ * la misma marca que usa este archivo para «¿A o B?») — ver `partesDelEncargo.js:encargoDe`. Este archivo
+ * conserva SOLO lo que de verdad es suyo: (a) dos CUENTAS nombradas —«¿renegocio Sodimac o recupero Ripley?»—,
+ * donde el precio de cada camino es la cuenta misma, y (b) las ESTRATEGIAS fijas —crecer vs proteger margen—,
+ * que no son temas del registro sino direcciones de decisión. Nada de dos implementaciones de lo mismo.
+ *
  * PURO · determinístico · sin red. Cifras VERBATIM de la boleta. */
 
 import { formaConversacional } from "../formaConversacional.js";
@@ -60,10 +72,12 @@ const _ord = (f) => {
   return (/^[^\d]*-/.test(s) ? -1 : 1) * Number(m[1]) * (m[2] ? _ESCALA[m[2].toLowerCase()] : 1);
 };
 
-/* ── LOS DOS CAMINOS QUE EL USUARIO PUSO EN LA BALANZA ────────────────────────────────────────────────────── */
+/* ── LOS DOS CAMINOS QUE EL USUARIO PUSO EN LA BALANZA ─────────────────────────────────────────────────────
+ * Solo quedan `_MARGEN` (para el frente de la estrategia «proteger margen») y `_VOLUMEN` (la de «crecer») — el
+ * resto de los frentes del negocio (carga, cobranza, capital, tesorería, o margen puesto contra cualquiera de
+ * ellos) ya NO se detecta acá: son TEMAS del registro y los resuelve `coberturaCorta.js` (ver la nota de
+ * retirada arriba). */
 const _MARGEN = /\bmargen(?:es)?\b|\brentabilidad\b|\bcontribuci[oó]n\b|\bprotej|\bproteger\b/i;
-const _COBRANZA = /\bcobranza\b|\bcobrar\b|\bcobro\b|\bdeuda\b|\bvencid|\bmora\b|\bpor cobrar\b/i;
-const _CAPITAL = /\binventario\b|\bstock\b|\bcapital\b|\bbodega[s]?\b|\bfrenado\b/i;
 const _VOLUMEN = /\bvend(?:o|er)\b|\bventa[s]?\b|\bvolumen\b|\bcrecer\b|\bfacturar\b|\bcrecimiento\b/i;
 
 const _TIPOS = {
@@ -80,14 +94,6 @@ const _TIPOS = {
        * es peor. */
       { tool: "rolesCartera", args: {},
         para: "el nivel de carga declarado del negocio: la referencia sin la cual la carga de cada cuenta no dice si cede de más o está donde debe" },
-    ],
-  },
-  dominios: {
-    pasos: [
-      { tool: "diagnose", args: {},
-        para: "el subtotal de cada frente —lo que se cede en acciones comerciales y el capital frenado—: el precio de atacar cada uno" },
-      { tool: "cobranza", args: {},
-        para: "el saldo vencido: el precio del frente de cobranza, para poder ponerlo al lado de los otros" },
     ],
   },
   estrategias: {
@@ -132,25 +138,15 @@ function _caso(pregunta, ctx) {
   const ents = (() => { try { return entidadesNombradas(q, "cliente"); } catch { return []; } })();
   if (ents.length >= 2) return { tipo: "cuentas", opciones: ents.slice(0, 2).map((e) => e.nombre) };
   if (par) return { tipo: "cuentas", opciones: par };   // «¿cuál de los dos conviene?» sobre el par resuelto
-  /* DOS FRENTES del negocio: margen · cobranza · capital */
-  const frentes = [];
-  if (_MARGEN.test(q)) frentes.push("margen");
-  if (_COBRANZA.test(q)) frentes.push("cobranza");
-  if (_CAPITAL.test(q)) frentes.push("capital");
-  if (frentes.length >= 2) return { tipo: "dominios", opciones: frentes.slice(0, 2) };
-  /* CRECER vs PROTEGER: la disyuntiva de estrategia, que no nombra frentes sino direcciones */
+  /* CRECER vs PROTEGER: la disyuntiva de estrategia, que no nombra frentes del registro sino direcciones de
+   * decisión — no es un tema/frente («margen» acá es la condición que protegerías, no un dominio comparado
+   * contra otro). Cualquier disyuntiva de dos TEMAS del registro (margen vs cobranza, margen vs capital
+   * frenado, etc.) ya no se resuelve acá — ver la nota de retirada arriba: la toma `coberturaCorta.js`. */
   if (_VOLUMEN.test(q) && _MARGEN.test(q)) return { tipo: "estrategias", opciones: ["volumen", "margen"] };
   return null;                                   // disyuntiva sin dos caminos identificables: se retira
 }
 
 const _pasosDe = (c) => { const t = _TIPOS[c.tipo]; return typeof t.pasos === "function" ? t.pasos(c) : t.pasos; };
-
-/* el precio de cada frente, con el rótulo por el que se lee y la palabra con que se nombra en pantalla */
-const _PRECIO_FRENTE = {
-  margen: { re: /^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i, nombre: "el margen", que: "es lo que se está cediendo en acciones comerciales por sobre el nivel que tienes declarado" },
-  cobranza: { re: /^Saldo vencido · total$/i, nombre: "la cobranza", que: "es lo que ya se pasó de plazo, del total que te deben" },
-  capital: { re: /^Capital frenado · subtotal$|^Capital frenado · total$/i, nombre: "el capital en inventario", que: "es lo que está inmovilizado en bodega" },
-};
 
 /* ── LA CONCLUSIÓN ES DEL PROCEDIMIENTO, NO DEL NARRADOR (ley del owner, 2026-09-10) ───────────────────────
  * La elección —cuál camino va primero, o que el dato no elige— se deriva UNA vez acá, y de estas funciones
@@ -213,27 +209,6 @@ function _eleccionDeCuentas(la, lb) {
   }
   return { regla: "empate", eleccion: null, descartada: null, opciones: [la.e, lb.e] };
 }
-function _ladosDeDominios(opciones, figs) {
-  const lados = opciones.map((k) => {
-    const d = _PRECIO_FRENTE[k];
-    const f = _find(figs, d.re);
-    return f ? { k, d, f, v: _ord(f) } : null;
-  });
-  return lados.some((x) => !x) ? null : lados;
-}
-/* las palabras con que cada frente puede aparecer en prosa — para DEFENDER la elección, nunca para mostrarla */
-const _FORMAS_FRENTE = {
-  margen: ["el margen", "las condiciones"],
-  cobranza: ["la cobranza", "el cobro"],
-  capital: ["el capital en inventario", "el capital frenado", "el inventario"],
-};
-function _eleccionDeDominios(x, y) {
-  const mayor = x.v >= y.v ? x : y, menor = x.v >= y.v ? y : x;
-  if (Number.isFinite(x.v) && Number.isFinite(y.v) && mayor.v >= menor.v * 2) {
-    return { regla: "tamano", mayor, eleccion: _FORMAS_FRENTE[mayor.k], descartada: _FORMAS_FRENTE[menor.k] };
-  }
-  return { regla: "empate", mayor, eleccion: null, descartada: null, opciones: [..._FORMAS_FRENTE[x.k], ..._FORMAS_FRENTE[y.k]] };
-}
 /* crecer vs proteger no es empate y el porqué está escrito en el composer: crecer sobre una condición cara
  * multiplica la fuga. La elección es fija; lo variable es la cifra que la sostiene. */
 const _ELECCION_ESTRATEGIAS = { regla: "condicion-primero", eleccion: ["proteger margen", "la condición"], descartada: ["el volumen", "vender más", "crecer"] };
@@ -247,10 +222,6 @@ export function conclusionDe(figs, pregunta, ctx) {
   if (c.tipo === "cuentas") {
     const d = _ladosDeCuentas(c.opciones, figs);
     return d ? { tipo: "cuentas", ..._eleccionDeCuentas(d.la, d.lb) } : null;
-  }
-  if (c.tipo === "dominios") {
-    const lados = _ladosDeDominios(c.opciones, figs);
-    return lados ? { tipo: "dominios", ..._eleccionDeDominios(lados[0], lados[1]) } : null;
   }
   return _find(figs, /^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i) ? { tipo: "estrategias", ..._ELECCION_ESTRATEGIAS } : null;
 }
@@ -267,12 +238,17 @@ export const compararAlternativas = {
   nombre: "comparar-alternativas",
   multidominio: true,   // compone su parte aunque la pregunta haga participar a dos dominios (contrato de dominios, owner 2026-09-14)
 
-  /* sin nombres de cuenta: son dato del pack y se publicarían en el bundle. El caso de dos cuentas lo prueba
-   * su gate armando los nombres desde el tenant cargado. */
+  /* sin nombres de cuenta: son dato del pack y se publicarían en el bundle. ⚠️ ronda 7: esto mismo se rompió
+   * acá — al retirar los ejemplos de «dominios» (ya no son de este archivo) se reemplazaron con nombres de
+   * cuenta reales (`_bundle_sin_datos_gate`, clientes en el bundle: 1 → 2), justo lo que este comentario ya
+   * advertía; y un reemplazo SIN nombres tampoco sirve: `_caso()` solo reconoce «cuentas» con una entidad real
+   * del tenant (`entidadesNombradas`), así que un ejemplo inventado («esta cuenta», «la que cede») resuelve 0
+   * pasos y ese otro candado (`_agente_playbooks_gate`) también arde. El caso «cuentas» no tiene un ejemplo
+   * seguro que declarar ACÁ — vive, con nombres reales del tenant, en `EJEMPLOS_DEL_GATE["comparar-
+   * alternativas"]` de `_agente_playbooks_gate.mjs`, el mismo patrón que ya usa «ficha-de-entidad». Acá solo
+   * queda el caso que SÍ es seguro sin nombres: estrategias (crecer vs proteger). */
   ejemplos: [
-    "¿qué es más urgente, margen o cobranza?",
     "¿vendo más o protejo margen?",
-    "¿ataco el margen o el capital frenado?",
   ],
 
   cuandoAplica(pregunta, ctx) { return _caso(pregunta, ctx) !== null; },
@@ -285,7 +261,6 @@ export const compararAlternativas = {
     const c = _caso(pregunta, ctx);
     if (!c) return [];
     if (c.tipo === "cuentas") return [/· Contribución$/i];
-    if (c.tipo === "dominios") return [_PRECIO_FRENTE[c.opciones[0]].re, _PRECIO_FRENTE[c.opciones[1]].re];
     return [/^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i];
   },
 
@@ -344,43 +319,10 @@ export const compararAlternativas = {
       return p.join("\n");
     }
 
-    /* ── (b) DOS FRENTES DEL NEGOCIO · margen · cobranza · capital ─────────────────────────────────────────── */
-    if (c.tipo === "dominios") {
-      const lados = _ladosDeDominios(c.opciones, figs);
-      if (!lados) return null;
-      const [x, y] = lados;
-      p.push(`Los dos frentes, con precio.`);
-      /* el precio de cada frente: la fig con su universo (el subtotal con su conjunto, el total como total) */
-      for (const z of [x, y]) { const l = `· ${z.d.nombre[0].toUpperCase()}${z.d.nombre.slice(1)}: ${_val(z.f)} — ${z.d.que}.`; p.push(l); D.deFig(z.f, l, { universo: _universoDe(z.f) }); }
-      /* ⚠️ DOS MONTOS DE UNIVERSOS DISTINTOS NO VAN JUNTOS SIN DECLARARLO (CLAUDE.md §2) */
-      const cruzaUniverso = c.opciones.includes("capital") && c.opciones.some((k) => k !== "capital");
-      if (cruzaUniverso) {
-        const l = `⚠️ Y no son el mismo dinero: uno sale de tu venta comercial y el otro del inventario en bodega, que en este dato son dos mundos que no cierran entre sí. Se pueden ordenar por urgencia, no sumar.`;
-        p.push(l);
-        D.lectura({ texto: l, sello: "probado" });   // la divergencia de universos la declara el pack (CLAUDE.md §4)
-      }
-      const con = _eleccionDeDominios(x, y);
-      if (con.regla === "tamano") {
-        const l = `Por tamaño no hay empate: ${con.mayor.d.nombre} pesa varias veces lo otro, así que ahí es donde una hora tuya rinde más.`;
-        p.push(l);
-        /* «pesa varias veces lo otro» (el doble o más, sin múltiplo dicho): se declara como la relación mayor entre las dos figs del precio */
-        const menor = con.mayor === x ? y : x;
-        /* el tramo declarado es la relación misma («pesa varias veces lo otro»): el nombre del frente («el margen») es un rótulo de esta ruta, no la métrica de la cifra */
-        D.relacion({ sujeto: "negocio", metrica: _lab(con.mayor.f), forma: "mayor", vs: { sujeto: "negocio", metrica: _lab(menor.f) }, texto: "pesa varias veces lo otro" });
-      } else {
-        const l = `Los dos pesan parecido, así que el tamaño no elige: elige el que puedas mover más rápido, y eso lo sabes tú mejor que el dato.`;
-        p.push(l);
-        D.lectura({ texto: l, sello: "abierto" });
-      }
-      p.push(variante(semilla, [
-        `¿Te abro el que elijas por dentro, para ver dónde se concentra?`,
-        `Dime cuál abrimos y vemos quién lo concentra.`,
-        `Si quieres entro por uno y te muestro dónde está el grueso.`,
-      ]));
-      return p.join("\n");
-    }
-
-    /* ── (c) CRECER vs PROTEGER · la disyuntiva de estrategia ──────────────────────────────────────────────── */
+    /* ── (b) CRECER vs PROTEGER · la disyuntiva de estrategia ─────────────────────────────────────────────────
+     * ⛔ Las dos ramas que antes vivían acá —«dos FRENTES del negocio» y «tesorería nombrada»— se retiraron
+     * (ronda 7, ver la nota al inicio del archivo): esos casos ya no los devuelve `_caso()`, así que este punto
+     * del código nunca los ve. */
     const crecio = _find(figs, /^headline$/i);
     const cargaAlta = _find(figs, /^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i);
     const nivel = _find(figs, reDeReferencia("pctRebate"));
@@ -421,19 +363,17 @@ export const compararAlternativas = {
     /* ⚠️ (1) LA ALTERNATIVA ESCONDIDA · la falla que el owner nombró: «no responder solo una alternativa ni
      * esconder la otra». Solo se cobra si el texto YA está respondiendo con cifras — declinar no se multa. */
     if (citadas.length) {
-      const nombres = c.tipo === "cuentas" ? c.opciones
-        : c.tipo === "dominios" ? c.opciones.map((k) => _PRECIO_FRENTE[k].nombre.replace(/^el |^la /, ""))
-        : ["vender", "margen"];
+      const nombres = c.tipo === "cuentas" ? c.opciones : ["vender", "margen"];
       const faltan = nombres.filter((n) => !new RegExp(_esc(n).replace(/\s+/g, "\\s+"), "i").test(t));
       if (faltan.length) {
         v.push({ regla: "alternativa-escondida", multa: `respondes por un solo camino: falta ${faltan.join(" y ")}. El usuario no pidió ver una alternativa, pidió saber CUÁL — y mostrar una sola parece una recomendación sin serlo. Nombra los dos y ponle precio a cada uno.` });
       }
     }
-    /* (2) SIN PRECIO no hay comparación: dos nombres sin cifra son una opinión con formato de análisis */
+    /* (2) SIN PRECIO no hay comparación: dos nombres sin cifra son una opinión con formato de análisis. */
     if (citadas.length === 1) {
       v.push({ regla: "comparacion-sin-precio", multa: "comparas dos caminos con una sola cifra. Cada uno necesita la suya: con un solo número se sostiene cualquiera de las dos conclusiones, y el dueño no puede verificar la elección." });
     }
-    /* (3) NI ELIGE NI MARCA EL TRADEOFF — el owner pidió una de las dos, no un resumen que deja la pelota */
+    /* (3) NI ELIGE NI MARCA EL TRADEOFF — el owner pidió una de las dos, no un resumen que deja la pelota. */
     if (citadas.length >= 2 && !/yo entrar[ií]a|primero\b|no son la misma|no son el mismo|pesan parecido|no hay empate|por eso elijo|se ordenan por|no elige/i.test(t)) {
       v.push({ regla: "comparacion-sin-cierre", multa: "pusiste los dos caminos y no dijiste nada. El owner pidió elegir o marcar el tradeoff: si un precio es de otro tamaño, elige y di por qué; si miden cosas distintas, dilo. Dejar los dos montos y callarse es devolverle la pregunta." });
     }

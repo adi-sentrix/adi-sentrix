@@ -87,7 +87,7 @@ export const prioridadPorLente = {
       const linea2 = "Ofrezco en su lugar la exposición de crédito por cliente —el saldo vencido y su atraso—: no es caja, es cobranza.";
       D.lectura({ texto: linea1, sello: "criterio mío" });
       D.lectura({ texto: linea2, sello: "criterio mío" });
-      const texto = componerPrioridadIntegrada(figs, _DOMS, { criterio: "credito", modo: "explicito", declarar });
+      const texto = componerPrioridadIntegrada(figs, _DOMS, { criterio: "credito", modo: "sustituto", declarar });
       return texto ? `${linea1}\n${linea2}\n${texto}` : `${linea1}\n${linea2}`;
     }
     /* el cuerpo lo escribe —y lo declara— la prioridad integrada con el MISMO colector (la convención del ensamblador del encargo):

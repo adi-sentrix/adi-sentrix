@@ -27,6 +27,7 @@ import { readFileSync } from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { compararAlternativas as PBC, conclusionDe as conclusionComparar } from "./src/adi/agente/playbooks/compararAlternativas.js";
+import { decisionEntreTemas } from "./src/adi/agente/coberturaCorta.js";
 import { planDeAccion as PBP, conclusionDe as conclusionPlan } from "./src/adi/agente/playbooks/planDeAccion.js";
 import { hipotesisDelUsuario as PBH, conclusionDe as conclusionHipotesis } from "./src/adi/agente/playbooks/hipotesisDelUsuario.js";
 import { margenEnRiesgo as PBM, prioridadDe as prioridadMargen } from "./src/adi/agente/playbooks/margenEnRiesgo.js";
@@ -106,20 +107,29 @@ H("1 · comparar-alternativas · la elección es del procedimiento");
   ok(!reglas(adaptada).includes("conclusion-cambiada"),
     "…y la adaptación legítima pasa limpia: misma elección dicha con otras palabras");
 
-  /* donde el dato NO elige, inventarle una elección también es cambiarla — figs sintéticas de rótulos */
+  /* donde el dato NO elige, inventarle una elección también es cambiarla — figs sintéticas de rótulos.
+   * ⚠️ owner 2026-09-24, ronda 6: bajo la ley nueva, «margen» y «cobranza» COMPARTEN clave «cliente» —
+   * `decisionEntreTemas` SIEMPRE elige un ganador ahí con cualquier señal; ya no existe un «empate por montos
+   * parejos» entre dominios de la MISMA clave. El «no elige» genuino de la ley nueva es SIN CLAVE COMÚN
+   * (margen↔capital: cliente vs SKU).
+   * ⛔ RONDA 7 (coordinador): «¿ataco el margen o el capital frenado?» YA NO es de `compararAlternativas.js` —
+   * es una disyuntiva de TEMAS del registro, y esas las responde `coberturaCorta.js`, siempre (la consolidación:
+   * una sola voz para la misma clase de pregunta, ver `_comparar_alternativas_gate.mjs` §10). La ley que este
+   * bloque defendía —«sin clave común, el procedimiento no elige por tamaño»— sigue viva, pero se prueba contra
+   * su dueño actual: `decisionEntreTemas` (importada de `coberturaCorta.js`), la MISMA función que compone la
+   * respuesta real (`_comparar_alternativas_gate.mjs` §7/§10 ya prueban que la prosa compuesta nunca inventa un
+   * ganador y nunca la suma) — acá se prueba la DERIVACIÓN pura, sin narrador de por medio. */
   const FIGS_DOM = [
-    { label: "Carga comercial alta · subtotal", text: "$4.0M", raw: 4.0e6 },
-    { label: "Saldo vencido · total", text: "$3.0M", raw: 3.0e6 },
+    { label: "Contribución no capturada · subtotal", text: "$4.0M", raw: 4.0e6 },
+    { label: "Capital frenado · total", text: "$3.0M", raw: 3.0e6 },
   ];
-  const QD = "¿qué es más urgente, margen o cobranza?";
-  const conD = conclusionComparar(FIGS_DOM, QD);
-  ok(!!conD && !conD.eleccion && Array.isArray(conD.opciones),
-    "con montos parejos el procedimiento NO elige — y eso también es una conclusión");
-  const reglasD = (t) => PBC.listaNotarial(t, { figs: FIGS_DOM, pregunta: QD }).map((x) => x.regla);
-  ok(reglasD("El margen va en $4.0M y la cobranza en $3.0M. Yo empezaría por la cobranza, que es más rápida.").includes("conclusion-cambiada"),
-    "★ inventarle una elección al dato ARDE: el empate era la conclusión");
-  ok(!reglasD("El margen va en $4.0M y la cobranza en $3.0M: pesan parecido, así que el tamaño no elige. Elige el que puedas mover más rápido — eso lo sabes tú.").includes("conclusion-cambiada"),
-    "…y declarar el empate pasa limpio");
+  const QD = "¿ataco el margen o el capital frenado?";
+  ok(PBC.cuandoAplica(QD) === false,
+    "★ compararAlternativas.js ya NO reconoce esta disyuntiva de temas — cede el turno a coberturaCorta.js");
+  const decD = decisionEntreTemas({ dominios: ["comercial", "inventario"], figs: FIGS_DOM, pregunta: QD });
+  ok(!!decD && decD.tipo === "sinClaveComun" && Array.isArray(decD.partes) && decD.partes.length === 2,
+    "sin clave común (margen↔capital) el procedimiento NO elige por tamaño — y eso también es una conclusión", JSON.stringify(decD));
+  ok(!decD.temaGanador && !decD.x, "…y no inventa ni ganador ni señal donde el dato no eligió", JSON.stringify(decD));
 }
 
 /* ═══ 2 · PLAN: LA PRIMERA ACCIÓN NO CAMBIA DE FRENTE NI DE DUEÑO ══════════════════════════════════════════ */

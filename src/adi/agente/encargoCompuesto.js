@@ -52,9 +52,9 @@ import { pasosDe } from "./playbooks/registro.js";
 import { pasosDeDominios, unirPasosDeDominios } from "./contratoDeDominios.js";   // la realidad de inventario para sus partes (owner 2026-09-14)
 import { componerReformulacion, destinatarioDe } from "./reformular.js";
 import { declaradorDe } from "../notario/declarar.js";   // el Notario semántico (fase 2): los peldaños declaran mientras escriben
-import { partesDelEncargo as _partesDeLaHoja, dominiosDelEncargo, coberturaDelEncargo, esEncargoCompuesto } from "./partesDelEncargo.js";
+import { partesDelEncargo as _partesDeLaHoja, dominiosDelEncargo, coberturaDelEncargo, esEncargoCompuesto, encargoDe } from "./partesDelEncargo.js";
 import { componerPrioridadIntegrada, conclusionDePrioridad, criterioDeLaPregunta } from "./prioridadIntegrada.js";   // materialidad + severidad + urgencia, señal por señal; el criterio del usuario manda (owner 2026-09-14)
-export { esEncargoCompuesto, dominiosDelEncargo, coberturaDelEncargo };
+export { esEncargoCompuesto, dominiosDelEncargo, coberturaDelEncargo, encargoDe };
 
 /* ── LOS PROCEDIMIENTOS DE CADA PARTE (la hoja los nombra; acá se resuelven) ─────────────────────────────────── */
 const _PLAYBOOKS = {

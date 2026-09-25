@@ -79,7 +79,11 @@ H("1 · el registro cumple su patrón — agregar el segundo playbook es agregar
      * frontend (el gate del bundle lo cazó). Sus preguntas de muestra viven ACÁ, que es quien las usa. */
     const EJEMPLOS_DEL_GATE = { "ficha-de-entidad": ["dame la ficha de Lider", "qué pasa con Jumbo", "cómo viene LG", "dame la ficha de LG-DRYER8KG"],
       "ask-de-cuadro": ["¿Cuánto capital tengo en Valparaíso?", "¿Cuánto capital tengo en Línea Blanca?", "¿Cuánto capital tengo en Más de 90 días?", "Profundiza en SAM-REF500L", "¿Cómo libero el capital de LG-DRYER8KG?", "¿Cómo viene el cobro de Lider?"],
-      "cuadro-explicado": ["¿Qué clientes explican el 80% de mi venta?"] };
+      "cuadro-explicado": ["¿Qué clientes explican el 80% de mi venta?"],
+      /* ronda 7: el caso «cuentas» de comparar-alternativas.js solo lo reconoce `entidadesNombradas` con una
+       * cuenta REAL del tenant — el mismo motivo por el que «ficha-de-entidad» ya vive acá y no en su propio
+       * módulo (`_bundle_sin_datos_gate` lo cazaría si viajaran nombres del demo en `ejemplos`). */
+      "comparar-alternativas": ["¿miro Lider o Falabella?", "¿renegocio Falabella o recupero Lider?"] };
     const CTX_DEL_GATE = { "cuadro-explicado": () => ({ cuadro: _anclaViva("comercial/01/pareto-ventas", { met: "ventas" }) }) };
     const muestras = EJEMPLOS_DEL_GATE[pb.nombre]
       || (Array.isArray(pb.ejemplos) && pb.ejemplos.length ? pb.ejemplos : ["como viene mi margen?"]);

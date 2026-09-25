@@ -258,11 +258,18 @@ H("6 · cableado: la forma se juzga al cerebro y no a los peldaños; sin el juez
   } finally { try { unlinkSync(tmp); } catch { /* ya no está */ } }
 }
 
-/* ═══ 7 · EL ENCARGO COMPUESTO ES UNA SOLICITUD DE PROFUNDIDAD (owner 2026-09-11) ═══════════════════════════
- * «Si el usuario enumera varias cosas que quiere saber, no aplicar la regla de "el detalle se ofrece, no se
- * despliega": ya está pidiendo ese detalle.» Los cuatro prompts de su batería compuesta cuentan; las
- * preguntas de una sola cosa, no. */
-H("7 · el encargo compuesto cuenta como detalle: sin veto de formato, con la forma de «una sola lectura»");
+/* ═══ 7 · EL ENCARGO COMPUESTO YA NO ES, POR SÍ SOLO, UNA SOLICITUD DE PROFUNDIDAD ═══════════════════════════
+ * LA LEY VIEJA (owner 2026-09-11): «si el usuario enumera varias cosas que quiere saber… ya está pidiendo ese
+ * detalle» — un encargo compuesto heredaba la forma larga automáticamente.
+ * LA CORRECCIÓN (owner 2026-09-24, `encargo_natural_diseno.md` §"Lo aprobado" 1b, textual): «Profundidad = cuánto:
+ * forma corta por defecto; forma larga solo si se pide profundidad — nunca por tener dos temas.» Cubrir de más ya
+ * no cuesta forma larga (el reconocedor nuevo, dominios + cierre, generaliza la cobertura a preguntas naturales
+ * cortas — «¿qué es más urgente, margen o cobranza?» ahora SÍ es encargo — y volverlas largas por default habría
+ * sido exactamente lo que la ley nueva prohíbe). `pideDetalle` ya NO hereda de `esEncargoCompuesto`
+ * (`contratoAgente.js`): depende solo de `_PIDE_DETALLE`, las mismas palabras de siempre («detalle», «completo»,
+ * «cuenta por cuenta»…) — por eso «natural» (que dice «el negocio COMPLETO») sigue pidiendo detalle, y los otros
+ * tres, que no usan esas palabras, ya no. */
+H("7 · el encargo compuesto es una cobertura, no una forma: la profundidad depende solo de _PIDE_DETALLE");
 {
   const { esEncargoCompuesto } = await import("./src/adi/agente/contratoAgente.js");
   const { entregableDe } = await import("./src/adi/agente/playbooks/registro.js");
@@ -272,10 +279,29 @@ H("7 · el encargo compuesto cuenta como detalle: sin veto de formato, con la fo
     comercial: "Analiza la cartera: quién sostiene ventas, quién destruye margen, dónde está la mayor recuperación y qué tres cuentas revisarías primero. Explícalo para comercial.",
     natural: "Mira el negocio completo como si fueras mi asesor. Dime qué está bien, qué te preocupa, por qué, cuánto dinero está en juego y dónde actuarías primero.",
   };
-  for (const [k, q] of Object.entries(BATERIA)) ok(esEncargoCompuesto(q) && pideDetalle(q), `«${k}» es un encargo compuesto → pide detalle`);
-  for (const q of ["¿Cómo va el negocio?", "¿Por qué está pasando?", "¿Qué parte de eso puedes demostrar y qué parte no?", "¿qué es más urgente, margen o cobranza?", "dame los 3 riesgos para el directorio", "¿Cuánto vende SAM-TV55 y cuánto stock tiene?"])
+  for (const [k, q] of Object.entries(BATERIA)) ok(esEncargoCompuesto(q), `«${k}» sigue siendo un encargo compuesto (cobertura sin cambios)`);
+  ok(pideDetalle(BATERIA.natural), "…«natural» sigue pidiendo detalle: dice «el negocio COMPLETO» (_PIDE_DETALLE, una palabra literal)");
+  ok(!pideDetalle(BATERIA.ejecutivo) && !pideDetalle(BATERIA.causal) && !pideDetalle(BATERIA.comercial), "★ …pero «ejecutivo», «causal» y «comercial» YA NO piden detalle: ninguno dice «detalle/completo/paso a paso» — ser encargo no alcanza");
+  for (const q of ["¿Cómo va el negocio?", "¿Por qué está pasando?", "¿Qué parte de eso puedes demostrar y qué parte no?", "¿Cuánto vende SAM-TV55 y cuánto stock tiene?"])
     ok(!esEncargoCompuesto(q), `…y «${q}» no lo es`);
-  ok(reglas(PANTALLAS.T2, BATERIA.ejecutivo).length === 0, "★ ante un encargo compuesto, una respuesta con estructura NO recibe el veto de formato: el detalle es suyo");
+  /* «dame los 3 riesgos para el directorio» (owner 2026-09-24, set de diseño v1, fila r02): pide el negocio ENTERO
+   * sin nombrar ningún dominio («riesgos» + «para el directorio» — el mecanismo LOCAL de `encargoDe`,
+   * `_NEGOCIO_ENTERO`, que NO toca `_EJECUTIVA`/`esLecturaEjecutiva`) con cierre de DECISIÓN implícito («los 3
+   * riesgos» pide priorizar) ⇒ AHORA es encargo — el set de diseño v1 lo exige (FN = 0) y el playbook específico
+   * de esta forma exacta (`sintesis-ejecutiva`, «para el directorio») sigue respondiendo igual: va primero en la
+   * escalera (`_voz_asesor_gate`/`_voz_etapa3_gate`), este peldaño nuevo nunca lo reemplaza. */
+  ok(esEncargoCompuesto("dame los 3 riesgos para el directorio"), "★ «dame los 3 riesgos para el directorio» AHORA es encargo (el negocio entero, sin nombrar dominio, con cierre de decisión) — antes no lo era, por el mismo defecto que «¿qué es más urgente…?»");
+  /* «¿qué es más urgente, margen o cobranza?» (owner 2026-09-24, la corrección de diseño): 2 temas (margen=comercial,
+   * cobranza) + cierre de DECISIÓN («más urgente») ⇒ SÍ es encargo — antes no lo era por el defecto colateral de
+   * `_DEFINICION` («qué es…» lo leía como pregunta de definición) y porque el conteo de palabras nunca lo iba a ver
+   * (es corta). El reconocedor nuevo lo ve; la respuesta sigue siendo corta (profundidad no cambia con esto). */
+  ok(esEncargoCompuesto("¿qué es más urgente, margen o cobranza?") && !pideDetalle("¿qué es más urgente, margen o cobranza?"),
+    "★ «¿qué es más urgente, margen o cobranza?» AHORA es encargo (2 temas + decisión) — y sigue corta: cobertura sin profundidad");
+  /* LA FORMA YA NO SE REGALA (owner 2026-09-24): sin pedir detalle, un borrador largo y con subtítulos para un
+   * encargo de cobertura corta ARDE por formato — exactamente como cualquier otra pregunta. La forma la exime
+   * `_PIDE_DETALLE`, nunca `esEncargoCompuesto` por sí solo. */
+  ok(reglas(PANTALLAS.T2, BATERIA.ejecutivo).length > 0, "★ sin pedir detalle, un borrador largo con subtítulos para «ejecutivo» SÍ arde por formato ahora: ser encargo ya no exime la forma");
+  ok(reglas(PANTALLAS.T2, BATERIA.natural).length === 0, "…pero para «natural» (que SÍ pide detalle: «completo») el mismo borrador sigue exento");
   ok(/FORMA \(encargo compuesto\)/.test(formaDelTurno(BATERIA.natural)) && /UNA sola lectura/.test(formaDelTurno(BATERIA.natural)) && !/cierra con la versión para/.test(formaDelTurno(BATERIA.natural)),
     "la forma del encargo compuesto pide UNA sola lectura en orden — y sin lector nombrado no inventa uno");
   ok(/cierra con la versión para el equipo comercial/.test(formaDelTurno(BATERIA.comercial)), "…y con lector nombrado, cierra con su versión después de la lectura completa");

@@ -316,7 +316,8 @@ H("10 · la jerarquía del criterio: explícito manda · implícito se interpret
    * declara que no hay datos de tesorería y ofrece la exposición de crédito, sin llamarla caja. */
   const d = await corre("Ahora ordénamelo por caja.");
   ok(d.r.agente.estado === "playbook" && /es tesorer[ií]a/.test(d.t) && /no se puede priorizar ni leer por caja/.test(d.t) && /exposici[oó]n de cr[eé]dito por cliente/.test(d.t) && /no es caja, es cobranza/.test(d.t), `★ «ahora ordénamelo por caja» declara sin datos de tesorería, ofreciendo exposición de crédito`, d.t.slice(0, 260));
-  ok(/por exposici[oó]n de cr[eé]dito, el criterio que pediste/.test(d.t) && /^1\. Lider — \$4\.6M vencidos, 269d de atraso/m.test(d.t) && /^2\. Falabella — \$2\.5M vencidos, 8d de atraso/m.test(d.t), "…y ofrece la MISMA lista (Lider > Falabella > Sodimac) bajo su nombre real", d.t.slice(0, 260));
+  /* «caja» no es un criterio que el usuario haya pedido para cobranza: la cabecera dice que es lo más cercano que se mide, no «el criterio que pediste» (supervisor 2026-09-24) */
+  ok(/por exposici[oó]n de cr[eé]dito, lo m[aá]s cercano que s[ií] mido, no caja/.test(d.t) && !/el criterio que pediste/.test(d.t) && /^1\. Lider — \$4\.6M vencidos, 269d de atraso/m.test(d.t) && /^2\. Falabella — \$2\.5M vencidos, 8d de atraso/m.test(d.t), "…y ofrece la MISMA lista (Lider > Falabella > Sodimac) bajo su nombre real", d.t.slice(0, 260));
   ok(!/Ordenado bajo el criterio que fijaste — cobranza/.test(d.t) && !/Ordenado bajo el criterio que fijaste — caja/.test(d.t), "★ CARNADA · NUNCA dice \"Ordenado bajo el criterio que fijaste\" para «caja» (no es un criterio reconocido)");
   ok(d.r.agente.vetos.length === 0, "…pasa muro, contrato y notarial: «caja» no queda pegada a ningún monto de cobranza (el veto _COMO_CAJA no se dispara)", JSON.stringify(d.r.agente.vetos).slice(0, 200));
   const e = await corre("Prioriza ventas: ¿qué cuenta va primero?");
@@ -342,7 +343,12 @@ H("11 · «Hazme una lectura ejecutiva de estos datos… qué debería preocupar
   const { criterioDeLaPregunta } = await import("./src/adi/agente/prioridadIntegrada.js");
   const { playbookPara } = await import("./src/adi/agente/playbooks/registro.js");
   const Q3 = "Hazme una lectura ejecutiva de estos datos. Dime qué debería preocuparme más y dónde pondrías el foco primero.";
-  ok(esLecturaEjecutiva(Q3) && !esEncargoCompuesto(Q3), "es una lectura ejecutiva de los datos (no enumera tres preguntas, pide el negocio entero)");
+  /* ⚠️ owner 2026-09-24 (encargo natural): hasta la etapa 2, Q3 llegaba a partesDelEncargo SOLO por `esLecturaEjecutiva`
+   * (no enumeraba tres preguntas bajo el conteo viejo). Ahora TAMBIÉN es encargo por el camino nuevo —dominios + cierre—:
+   * `esLecturaEjecutiva` enciende los tres dominios (comercial+inventario+cobranza, el dato los trae) y «qué debería
+   * preocuparme más» es un cierre de DECISIÓN → `encargoDe(Q3).esEncargo` es true. Las dos rutas concuerdan; ya no hace
+   * falta que una calle a la otra. */
+  ok(esLecturaEjecutiva(Q3) && esEncargoCompuesto(Q3), "es una lectura ejecutiva de los datos, y ahora TAMBIÉN un encargo por dominios+cierre (las dos rutas concuerdan)");
   ok(dominiosDe(Q3).dominios.join(",") === "comercial,inventario,cobranza", "★ participan todos los dominios que el dato trae, aunque no los nombre");
   ok(partesDelEncargo(Q3).map((p) => p.clave).join(",") === "foto,inventario,cobranza,primero", "★ las partes: la foto, el inventario, la cobranza y la prioridad");
   ok((playbookPara(Q3, {}) || {}).nombre === "resumen-del-negocio", "la foto del negocio es su paraguas (el cruce por SKU no la toma)");

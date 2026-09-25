@@ -29,13 +29,26 @@ import { datasetCapability } from "../sentrix/capability.js";
 import { margenEnRiesgo } from "./playbooks/margenEnRiesgo.js";
 import { esReformular } from "./reformular.js";
 import { axisEntityNames } from "../oracle/entityIndex.js";   // una pregunta que nombra a un cliente es comercial aunque no diga «venta»
+import { regexDeDominio } from "../../config/contract/dominios.js";   // el registro único (owner 2026-09-24): _COMERCIAL se DERIVA de acá, byte-idéntico al de siempre
 
-/* el léxico del tema, cerrado a propósito: lo que suena a resultado comercial. Un «capital»/«stock»/«cobranza» en
- * la misma pregunta la manda a su universo (esos procedimientos ya leen lo suyo), y una definición no lee cartera. */
+/* el léxico del tema vive en `config/contract/dominios.js` (el registro único, owner 2026-09-24): cerrado a
+ * propósito, lo que suena a resultado comercial. `_COMERCIAL` se deriva de acá, byte-idéntico al que este archivo
+ * tenía hasta esta etapa. Un «capital»/«stock»/«cobranza» en la misma pregunta la manda a su universo (esos
+ * procedimientos ya leen lo suyo, ver `_OTRO_UNIVERSO` abajo — esa lista SIGUE local: es más liviana a propósito,
+ * ver el porqué en `dominios.js`), y una definición no lee cartera. */
 const _W = "[\\wáéíóúñ]";   // la letra de la casa: \w no incluye las vocales con tilde
-const _COMERCIAL = new RegExp(`(?<!${_W})(?:ventas?|vend[ií](?:[oó]|mos|endo|ste|eron|a|an|e|en)?|vend(?:o|es|e|en|emos)|vendid[oa]s?|factur${_W}*|ingresos?|contribu${_W}*|m[aá]rgen(?:es)?|rentab${_W}*|benchmark|costos?|precios?|markup|acciones comerciales|carga comercial|rebates?|descuentos?|clientes?|cuentas?|cartera|negocio|resultado comercial|crec${_W}*|volumen|mix|ticket|comercial(?:es)?|ganamos|ganando|gano|mejorando|apuesta)(?!${_W})`, "i");
+/* PEREZOSO (owner 2026-09-24, `_import_sin_dato_gate`): `dominios.js` es un contrato ESTÁTICO —nada de tenant—,
+ * pero el candado protege «nadie deriva datos al importarse» mirando la RUTA del import, no si el dato es de
+ * empresa; calcularlo en el primer uso (memoizado, `regexDeDominio` ya cachea internamente) lo deja fuera del
+ * barrido sin sumarlo a la lista blanca a mano — la opción que pidió el coordinador. */
+let _comercialRe = null;
+const _COMERCIAL = () => _comercialRe || (_comercialRe = regexDeDominio("comercial"));
 const _OTRO_UNIVERSO = new RegExp(`(?<!${_W})(?:inventario|stock|rotaci[oó]n|bodegas?|sku|reposici[oó]n|quiebres?|sobrestock|inmoviliz${_W}*|capital|cobranza|cobros?|vencid[oa]s?|deuda|abonos?|pagos?|plazo|flujo de caja|efectivo)(?!${_W})`, "i");
-const _DEFINICION = /^\s*¿?\s*(?:qu[eé] (?:es|son|significa|quiere decir)|expl[ií]came (?:qu[eé] es|el concepto)|c[oó]mo se (?:calcula|define))\b/i;
+/* «¿qué es MÁS urgente, margen o cobranza?» NO es una definición (owner 2026-09-24, el mismo defecto colateral
+ * que `contratoDeDominios.js:_DEFINICION`, corregido igual acá: las dos regex viven duplicadas a propósito —
+ * cada archivo tiene su propio léxico de saludo/definición desde antes de esta etapa — así que el arreglo se
+ * repite, no se centraliza, para no tocar un archivo que no pidieron). */
+const _DEFINICION = /^\s*¿?\s*(?:qu[eé] (?:es|son|significa|quiere decir)(?!\s+m[aá]s\b)|expl[ií]came (?:qu[eé] es|el concepto)|c[oó]mo se (?:calcula|define))\b/i;
 /* OTRO EJE, OTRA LECTURA (medido al cablear, 2026-09-13): el contrato es la realidad comercial POR CLIENTE. Una pregunta por
  * marca, familia, canal, producto o sucursal es comercial, pero su procedimiento («lectura por eje») compone con las figs
  * de SU eje; sumarle las trece cuentas mezclaba márgenes de clientes en un ranking de marcas. Ese eje tiene su lectura;
@@ -51,8 +64,8 @@ export function esTemaComercial(pregunta, { conOtrosUniversos = false, sinFallba
   if (!q.trim() || _SALUDO_O_META.test(q) || _DEFINICION.test(q)) return false;
   if (esReformular(q)) return false;
   if (!conOtrosUniversos && _OTRO_UNIVERSO.test(q)) return false;
-  if (_OTRO_EJE.test(q)) return conOtrosUniversos ? _COMERCIAL.test(q) : false;   // por otro eje: es comercial, pero su realidad es la lectura de ESE eje (la decide el contrato de dominios)
-  if (_COMERCIAL.test(q)) return true;
+  if (_OTRO_EJE.test(q)) return conOtrosUniversos ? _COMERCIAL().test(q) : false;   // por otro eje: es comercial, pero su realidad es la lectura de ESE eje (la decide el contrato de dominios)
+  if (_COMERCIAL().test(q)) return true;
   // sinFallbackDeNombre (owner 2026-09-24, aditivo, default false): la capa de conocimiento (conocimiento/
   // tablaSenales.js) la usa para NO encender "comercial" solo por nombrar una cuenta ("¿Cómo está la cobranza
   // de Lider?" no es tema comercial). Ningún llamador existente la pasa: el resto del producto queda byte-

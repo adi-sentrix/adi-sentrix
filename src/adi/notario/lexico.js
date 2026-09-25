@@ -7,6 +7,7 @@
  * Puro: sin I/O, sin red. */
 import { normalizar } from "./afirmacion.js";
 import { conceptosDe } from "./evidencia.js";
+import { idsActivos } from "../../config/contract/dominios.js";   // el registro único (owner 2026-09-24): DOMINIOS se deriva de acá
 
 /* polaridad: «mayor» = más es mejor (margen, venta, rotación) · «menor» = más es peor (vencido, brecha, días sin venta) · null = sin polaridad
  * (capital, stock, participación) · «referencia» = un umbral de la POLICY o del negocio (benchmark, nivel de carga, piso de rotación) */
@@ -93,8 +94,16 @@ export const clavesDelMuro = (clave) => { const m = metricaPorClave(clave); retu
 /** clavesPorPalabraDelMuro(claveDelMuro) → las claves de métrica que esa palabra del muro puede nombrar («vencido» → saldo_vencido) */
 export function clavesPorPalabraDelMuro(k) { return CLAVES_DE_METRICA.filter((m) => m.muro.includes(k)).map((m) => m.clave); }
 
-/* ── los dominios de la casa y cómo se nombran en la prosa (para la comprobación de predicación por dominio, etapa E2) ── */
-export const DOMINIOS = ["comercial", "cobranza", "inventario"];
+/* ── los dominios de la casa y cómo se nombran en la prosa (para la comprobación de predicación por dominio, etapa E2) ──
+ * `DOMINIOS` se DERIVA del registro único (`config/contract/dominios.js`, owner 2026-09-24): los mismos tres ids,
+ * en el orden del registro (nadie más importa este arreglo hoy, así que el orden no rompe nada). `DOMINIO_PALABRAS`
+ * abajo NO se tocó: es un vocabulario para un problema distinto —verificar de qué dominio es una predicación DENTRO
+ * de una prosa ya escrita—, no «¿de qué dominio es esta pregunta»; el porqué está en `dominios.js`.
+ * PEREZOSO (`_import_sin_dato_gate`): el registro es un contrato estático, pero el candado mira la RUTA del
+ * import, no si el dato es de empresa; se calcula en el primer uso (memoizado) — la opción que pidió el
+ * coordinador. */
+let _dominiosLexico = null;
+export const DOMINIOS = () => _dominiosLexico || (_dominiosLexico = idsActivos());
 
 /* ── unidades de tiempo en días (los umbrales dichos en meses o trimestres se convierten con esta tabla, nunca se leen de la prosa) ── */
 export const UNIDADES_DE_TIEMPO = { dia: 1, dias: 1, semana: 7, semanas: 7, quincena: 15, quincenas: 15, mes: 30, meses: 30, bimestre: 60, bimestres: 60, trimestre: 90, trimestres: 90, cuatrimestre: 120, cuatrimestres: 120, semestre: 180, semestres: 180, ano: 365, anio: 365, anos: 365, anios: 365 };

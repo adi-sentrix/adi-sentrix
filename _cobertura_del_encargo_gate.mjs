@@ -51,11 +51,30 @@ initTenant(TENANT_DEMO);
 const FX = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-produccion-2026-09-14.json", import.meta.url), "utf8"));
 
 /* ── LOS CASOS: el prompt de producción, tal cual, y sus equivalentes de dos y tres dominios ─────────────────────── */
+/* ⚠️ PROFUNDIDAD, NO COBERTURA, DECIDE LA FORMA (owner 2026-09-24, decisión aprobada — coordinador, textual: «la
+ * forma larga sale SOLO cuando se pide profundidad, nunca por tener dos temas»). De las cuatro, SOLO «producción»
+ * y «tres dominios, otra forma» PIDEN profundidad (`_PIDE_PROFUNDIDAD`, ampliado para reconocer «separa qué
+ * puedes demostrar, qué solo está indicado…»): esas dos siguen por `componerEncargo`, el camino certificado,
+ * byte a byte.
+ *
+ * «comercial + inventario» y «comercial + cobranza» NO piden profundidad, y las dos toman caminos distintos
+ * desde la RONDA 5 (owner, vía coordinador: el cierre ya no compara dinero en juego entre dominios — hereda
+ * `prioridadIntegrada.js` entero, ver la nota de la sección 2):
+ *   · «comercial + inventario» NO comparte clave entre sus dos temas (cliente vs SKU): la cobertura corta
+ *     responde siempre —regla 2, sin veredicto («el procedimiento no ordena… no comparten clave»)— y esa misma
+ *     frase nombra «cliente», que cubre la marca léxica de «quiénes» (`partesDelEncargo.js`, léxica, nunca
+ *     comprensión): 0 vetos, sin ceder.
+ *   · «comercial + cobranza» SÍ comparte clave: la cobertura corta arma un veredicto (regla 1) que hereda
+ *     `prioridadIntegrada` y cita a la ENTIDAD que decide, pero ya no repite la palabra «contribuci» que antes
+ *     cubría «quiénes» por casualidad léxica (esa sustitución se retiró en la ronda 5) — así que «quiénes» (qué
+ *     clientes puntuales deterioran) queda sin cubrir y el peldaño cede, limpio, al ensamblador completo. Los
+ *     dos caminos son degradación segura o cobertura corta genuina, nunca menos completos. Marcado acá con
+ *     `partes`. */
 const CASOS = [
-  { id: "producción (3 dominios)", q: FX.pregunta, dominios: ["comercial", "inventario", "cobranza"], partes: ["foto", "crecimiento", "unidades", "quienes", "cruce-sku", "inventario", "cobranza", "sello", "primero"] },
-  { id: "tres dominios, otra forma", q: "Quiero una lectura completa: cómo viene la venta y el margen, qué SKU están empujando las ventas y cuáles tienen stock frenado, quiénes me deben y qué está vencido, y por dónde partirías. Dime qué puedes demostrar y qué no.", dominios: ["comercial", "inventario", "cobranza"], partes: ["crecimiento", "cruce-sku", "inventario", "cobranza", "sello", "primero"] },
-  { id: "comercial + inventario", q: "Mira ventas e inventario juntos: qué clientes están empujando el crecimiento, qué SKU tienen capital frenado sin venta detrás, si estoy acumulando stock donde no corresponde y dónde pondrías el foco primero.", dominios: ["comercial", "inventario"], partes: ["crecimiento", "quienes", "cruce-sku", "inventario", "primero"] },
-  { id: "comercial + cobranza", q: "Mira ventas, margen y cobranza juntos: qué clientes están deteriorando el resultado, si mis principales clientes también me deben, cuánto está vencido y qué harías primero.", dominios: ["comercial", "cobranza"], partes: ["quienes", "cobranza", "primero"] },
+  { id: "producción (3 dominios)", q: FX.pregunta, dominios: ["comercial", "inventario", "cobranza"], partes: ["foto", "crecimiento", "unidades", "quienes", "cruce-sku", "inventario", "cobranza", "sello", "primero"], profundidad: "larga" },
+  { id: "tres dominios, otra forma", q: "Quiero una lectura completa: cómo viene la venta y el margen, qué SKU están empujando las ventas y cuáles tienen stock frenado, quiénes me deben y qué está vencido, y por dónde partirías. Dime qué puedes demostrar y qué no.", dominios: ["comercial", "inventario", "cobranza"], partes: ["crecimiento", "cruce-sku", "inventario", "cobranza", "sello", "primero"], profundidad: "larga" },
+  { id: "comercial + inventario", q: "Mira ventas e inventario juntos: qué clientes están empujando el crecimiento, qué SKU tienen capital frenado sin venta detrás, si estoy acumulando stock donde no corresponde y dónde pondrías el foco primero.", dominios: ["comercial", "inventario"], partes: ["crecimiento", "quienes", "cruce-sku", "inventario", "primero"], profundidad: "corta" },
+  { id: "comercial + cobranza", q: "Mira ventas, margen y cobranza juntos: qué clientes están deteriorando el resultado, si mis principales clientes también me deben, cuánto está vencido y qué harías primero.", dominios: ["comercial", "cobranza"], partes: ["quienes", "cobranza", "primero"], profundidad: "corta" },
 ];
 const MARCAS = { comercial: /\bventa|\bmargen|\bcontribuci/i, inventario: /\binventario|\bstock|\bfrenad/i, cobranza: /\bcobranza|\bvencid|\bsaldo|\bpor cobrar|\bdeben?\b/i };
 const CLIENTES = /\b(?:Falabella|Lider|Jumbo|Sodimac|Tottus|Paris|Easy|Ripley|La Polar|Hites|ABC|Unimarc|Mercado Libre)\b/;
@@ -105,18 +124,41 @@ for (const c of CASOS) {
   const partes = partesDelEncargo(c.q);
   const faltan = coberturaDelEncargo(t, partes);
   console.log(`  — ${c.id}: [${r.r.agente.estado}] ${t.length} chars`);
-  ok(r.r.agente.estado === "encargo-compuesto", `   el turno lo responde el ensamblador (${r.r.agente.estado})`, t.slice(0, 120));
   ok(cubiertos(t).join(",") === c.dominios.join(","), `   ★ dominios pedidos = dominios cubiertos (${cubiertos(t).join(" + ")})`);
   ok(faltan.length === 0, `   ★ ninguna parte explícita desaparece (${partes.length} partes)`, faltan.map((p) => p.clave).join(","));
-  ok(/^Lectura conjunta de /.test(t), "   abre con la lectura conjunta: qué se relaciona y por qué clave");
-  if (c.dominios.includes("inventario")) {
-    ok(/período cerrado/.test(t) && /foto de inventario/.test(t), "   el cruce por SKU va con sus dos marcos (período cerrado · foto de inventario)");
-    ok(!new RegExp(`${CLIENTES.source}[^.\\n]{0,80}\\b(?:stock|inventario|frenad)`, "i").test(t), "   ningún cliente queda relacionado con el inventario (esa clave no existe en el archivo)");
+  /* «comercial + cobranza» pide «quiénes» (qué clientes puntuales deterioran) — RONDA 5: el cierre entre temas
+   * ya no compara dinero en juego (esa cifra, y su sustento léxico «contribuci», se retiraron); hereda
+   * `prioridadIntegrada.js` y no nombra clientes por sujeto, así que «quiénes» queda sin cubrir por la
+   * cobertura corta — cede, limpio, al ensamblador (degradación segura). «comercial + inventario» NO comparte
+   * clave entre sus dos temas (cliente vs SKU): cae siempre en la regla 2 (sin veredicto), y su propia frase
+   * («no ordena… por cliente») sí nombra «cliente» — cubre «quiénes» por el mismo estándar léxico de siempre,
+   * sin ceder. */
+  const _pideQuienesYCompartenClave = partes.some((p) => p.clave === "quienes") && c.dominios.length === 2 && c.dominios.every((d) => d === "comercial" || d === "cobranza");
+  if (_pideQuienesYCompartenClave && c.profundidad !== "larga") ok(r.r.agente.vetos.length === 1 && /parte-del-encargo-omitida/.test(r.r.agente.vetos[0]), "   el único veto del expediente es la cesión documentada de la cobertura corta (pide «quiénes», comparte clave)", JSON.stringify(r.r.agente.vetos).slice(0, 200));
+  else ok(r.r.agente.vetos.length === 0, "   el turno pasó el muro, el contrato y la notarial sin vetos", JSON.stringify(r.r.agente.vetos).slice(0, 200));
+  if (c.profundidad === "larga") {
+    ok(r.r.agente.estado === "encargo-compuesto", `   pidió profundidad: lo responde el ensamblador (${r.r.agente.estado})`, t.slice(0, 120));
+    ok(/^Lectura conjunta de /.test(t), "   abre con la lectura conjunta: qué se relaciona y por qué clave");
+    if (c.dominios.includes("inventario")) {
+      ok(/período cerrado/.test(t) && /foto de inventario/.test(t), "   el cruce por SKU va con sus dos marcos (período cerrado · foto de inventario)");
+      ok(!new RegExp(`${CLIENTES.source}[^.\\n]{0,80}\\b(?:stock|inventario|frenad)`, "i").test(t), "   ningún cliente queda relacionado con el inventario (esa clave no existe en el archivo)");
+    }
+    if (c.dominios.includes("cobranza")) ok(/Tus principales clientes por venta, con su saldo y su vencido al lado/.test(t), "   la cobranza va cruzada por cliente con la venta (clave real: la misma cuenta)");
+    ok(/Dónde pondría el foco primero — /.test(t) && (t.match(/^Criterio:/gm) || []).length === 1, "   ★ cierra con UNA prioridad integrada y su criterio dicho");
+    ok(!/¿Lo abrimos por|Dime y lo abrimos|Si igual quieres verlo/.test(t), "   una sola lectura: sin ofertas de cierre de cada parte");
+  } else if (_pideQuienesYCompartenClave) {
+    /* «comercial + cobranza»: pide «quiénes», comparte clave — cede al ensamblador completo, más largo, la
+     * misma cobertura. Degradación segura (CLAUDE.md §2). */
+    ok(r.r.agente.estado === "encargo-compuesto", `   NO pidió profundidad, pero pide «quiénes» (más fino que el veredicto heredado de prioridadIntegrada): cede al ensamblador — degradación segura (${r.r.agente.estado})`, t.slice(0, 120));
+  } else {
+    /* «comercial + inventario»: NO comparte clave entre sus dos temas (cliente vs SKU) — la cobertura corta
+     * (ronda 5) NUNCA cierra con un veredicto acá: dice que el procedimiento no los ordena entre sí, por qué
+     * (no comparten clave) y ofrece abrir uno. Nada de «pesa más» ni «Primero X»: eso solo aparece cuando SÍ
+     * comparten clave (medido en `_encargo_natural_gate.mjs` §7, p. ej. «margen o cobranza»). */
+    ok(r.r.agente.estado === "cobertura-corta", `   NO pidió profundidad: lo responde la cobertura corta (${r.r.agente.estado})`, t.slice(0, 120));
+    ok(t.length < 500, `   ★ y es corta de verdad (${t.length} chars, < 500)`, t);
+    ok(/no comparten clave/i.test(t) && !/\bpesa m[aá]s\b/i.test(t) && !/^Primero /m.test(t), "   sin clave común, el procedimiento no ordena entre temas: lo dice, y no inventa un veredicto");
   }
-  if (c.dominios.includes("cobranza")) ok(/Tus principales clientes por venta, con su saldo y su vencido al lado/.test(t), "   la cobranza va cruzada por cliente con la venta (clave real: la misma cuenta)");
-  ok(/Dónde pondría el foco primero — /.test(t) && (t.match(/^Criterio:/gm) || []).length === 1, "   ★ cierra con UNA prioridad integrada y su criterio dicho");
-  ok(!/¿Lo abrimos por|Dime y lo abrimos|Si igual quieres verlo/.test(t), "   una sola lectura: sin ofertas de cierre de cada parte");
-  ok(r.r.agente.vetos.length === 0, "   el ensamblador pasó el muro, el contrato y la notarial sin vetos", JSON.stringify(r.r.agente.vetos).slice(0, 200));
 }
 {
   const t = SALIDAS["producción (3 dominios)"].t;

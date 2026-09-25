@@ -71,7 +71,8 @@ import { playbookPara, pasosDe, promesasCumplidas, doctrinaDelPlaybook, vetosDel
 import { anclaDelCuadro } from "./playbooks/cuadroExplicado.js";   // el cuadro abierto persiste en la memoria del hilo (owner 2026-09-08: «profundiza en…»)   // el playbook: la evidencia ANTES de la decisión (owner 2026-08-31)
 import { serieRealDe } from "../sentrix/capability.js";
 import { buildRolesCartera } from "../sentrix/rolesCartera.js";
-import { partesDelEncargo, pasosDelEncargo, componerEncargo, doctrinaDelEncargo } from "./encargoCompuesto.js";
+import { partesDelEncargo, pasosDelEncargo, componerEncargo, doctrinaDelEncargo, encargoDe } from "./encargoCompuesto.js";
+import { componerCoberturaCorta, componerCoberturaCifra } from "./coberturaCorta.js";   // el respaldo de cobertura corta (owner 2026-09-24)
 import { dominiosDe, pasosDeDominios, unirPasosDeDominios, doctrinaDeDominios } from "./contratoDeDominios.js";   // la pregunta determina qué dominios participan (owner 2026-09-14) — generaliza el contrato comercial   // toda pregunta comercial parte de la misma realidad comercial (owner 2026-09-13)   // el peldaño del encargo compuesto (owner 2026-09-11): cobertura garantizada cuando el cerebro cae   // las huellas con sello del turno: el juez compartido las lee para no aceptar un mecanismo afirmado sin su sello (owner 2026-09-11)
 import { getTenantId, getTenantData } from "../../data/tenantStore.js";
 /* ── EL NOTARIO SEMÁNTICO (owner 2026-09-15, fase 2) ─────────────────────────────────────────────────────────────────
@@ -762,8 +763,19 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     if (_dom.dominios.length < 2 || !_dom.eje || (_preferirDelTurno0 && Array.isArray(_preferirDelTurno0.entidades))) return null;
     try { const n = axisEntityNames(_dom.eje) || []; return n.length ? n : null; } catch { return null; }
   })();
+  /* SIN REFERENTE NI ALCANCE, LA MÉTRICA PEDIDA SOLA NO BASTA (owner 2026-09-24, fin de la falla silenciosa,
+   * `encargo_natural_diseno.md` §5): «¿cuánto vendí y cuánto cobré?» sin cerebro servía «Lider · Variación vs año
+   * anterior» — una cifra AJENA (de un cliente que nadie nombró) — porque `_metricaPedida` (arriba) solo ORDENA
+   * por concepto, nunca excluye por dueño; sin `alcance`/`entidades`, `_preferida` (en `_lineaHonesta`) deja
+   * pasar cualquier fila, y «Variación vs año anterior» matchea la fig de CUALQUIER cliente. Cuando NINGÚN otro
+   * mecanismo resolvió a quién se refiere la pregunta (ni un referente nombrado, ni el alcance global, ni un eje),
+   * el default es el alcance «cartera»: cifras SIN dueño de cuenta primero (los totales del negocio) — la misma
+   * protección que ya usa `planSintetico.scope.level === "global"`, ahora también cuando lo único que se resolvió
+   * fue el CONCEPTO. No cambia qué cifras existen ni cuáles están verificadas; solo evita que una cuenta que
+   * nadie mencionó se sirva como si fuera la respuesta. */
+  const _soloMetricaSinDueno = !!(_metricaPedida && !_entidadesDelEje && !(_preferirDelTurno0 && (_preferirDelTurno0.alcance || _preferirDelTurno0.entidades)));
   const preferirDelTurno = _preferirDelTurno0 || _metricaPedida || _entidadesDelEje
-    ? { ...(_preferirDelTurno0 || {}), ...(_entidadesDelEje ? { entidades: _entidadesDelEje, alcance: undefined } : {}), ...(_metricaPedida ? { metrica: _metricaPedida } : {}) }
+    ? { ...(_preferirDelTurno0 || {}), ...(_entidadesDelEje ? { entidades: _entidadesDelEje, alcance: undefined } : {}), ...(_metricaPedida ? { metrica: _metricaPedida } : {}), ...(_soloMetricaSinDueno ? { alcance: "cartera" } : {}) }
     : null;
 
   // ── el bucle ──
@@ -1472,11 +1484,43 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
    * ya trajo la evidencia, «no pude completar la lectura» es FALSO — la lectura está hecha. Este peldaño
    * responde la pregunta con las cifras que los pasos verificaron, y se juzga como cualquier otro (guardC + el
    * contrato + la propia lista del playbook): si no pasara, cede al siguiente sin ruido. */
-  /* PELDAÑO 0 · EL ENSAMBLADOR DEL ENCARGO COMPUESTO (owner 2026-09-11). Va ARRIBA del entregable simple: cuando el
-   * usuario pidió varias cosas y las partes tienen evidencia, responder una sola es dejar caer partes explícitamente
-   * pedidas. Cada parte se compone con SU boleta (los resultados de sus propios pasos, ya ejecutados en este
-   * turno; `leer` los re-deriva de las mismas herramientas, sin cerebro y sin red), se juzga como cualquier peldaño
-   * y, si no pasa, cede al piso simple de siempre. */
+  /* PELDAÑO -1 · LA COBERTURA CORTA, ANTES QUE NADA, CUANDO NO SE PIDIÓ PROFUNDIDAD (owner 2026-09-24, decisión YA
+   * aprobada, textual: «separar qué temas cubrir, cuánta profundidad dar y cómo cerrar… la forma larga sale SOLO
+   * cuando se pide profundidad, nunca por tener dos temas»). Con un encargo (`encargoDe(q).esEncargo`) cuya
+   * profundidad NO fue pedida (`profundidad !== "larga"`), la cobertura corta va PRIMERO — antes del ensamblador
+   * (`componerEncargo`, forma larga de siempre) y antes del playbook activo: cubrir de más no cuesta forma larga.
+   * `componerEncargo` queda para cuando SÍ se pidió profundidad (₋_PIDE_PROFUNDIDAD, ampliado para reconocer
+   * «separa qué puedes demostrar, qué solo está indicado…» — el encargo certificado de producción SÍ la pide). */
+  const _encargoNatural = (() => { try { return encargoDe(q); } catch { return null; } })();
+  const _leerCC = (pasos) => { try { return (runPlan({ intent: "answer", calls: (pasos || []).map((s) => ({ tool: s.tool, args: s.args || {} })) }, { scenario, maxCalls: CALLS_POR_RONDA, preguntaUsuario: q, registry: caja }).ledger || {}).figs || []; } catch { return []; } };
+  const _intentarCoberturaCorta = () => {
+    if (final !== null || !_encargoNatural || !_encargoNatural.esEncargo) return;
+    const _Dcc = crearDeclarador();
+    const _cc = (() => { try { return componerCoberturaCorta({ encargo: _encargoNatural, pregunta: q, leer: _leerCC, declarar: _Dcc }); } catch { return null; } })();
+    if (_cc && _cc.trim()) {
+      const _declCc = filtrarPorTexto(_Dcc.lista(), _cc);
+      const { v: vCc, servido: _ccServido } = _juzgarPeldano(_cc, "cobertura-corta", _declCc.length ? _declCc : undefined);
+      if (vCc && vCc.ok) { final = _ccServido; estado = "cobertura-corta"; suplente = true; }
+    }
+  };
+  /* «DAME LOS 3 RIESGOS PARA EL DIRECTORIO» NO ES UN CHOQUE (owner 2026-09-24, resuelto por el coordinador,
+   * textual: «no es un choque de producto. Es un entregable específico —tres riesgos— y `sintesis-ejecutiva` lo
+   * atiende, certificado. Dejalo así»). También dispara `_NEGOCIO_ENTERO` (2+ temas, cierre de decisión), pero
+   * este peldaño SOLO adelanta a los playbooks que el coordinador nombró como «cede ante la cobertura corta»:
+   * cobranza y cruce-por-sku (su propio cierre es de una relación puntual, no de una lectura de dos temas) y
+   * comparar-alternativas (la cobertura corta arma su propio cierre entre frentes, con las MISMAS cifras de
+   * sus líneas — ya no delega en ese playbook, que llama «el margen» a la carga comercial). Con cualquier OTRO
+   * playbook activo —hoy solo `sintesis-ejecutiva`— se respeta el orden de siempre: el playbook primero. */
+  const _CEDEN_A_COBERTURA_CORTA = new Set(["cobranza", "cruce-por-sku", "comparar-alternativas"]);
+  const _puedeAdelantar = !playbookActivo || _CEDEN_A_COBERTURA_CORTA.has(playbookActivo.nombre);
+  if (_puedeAdelantar && _encargoNatural && _encargoNatural.esEncargo && _encargoNatural.profundidad !== "larga") _intentarCoberturaCorta();
+  /* PELDAÑO 0 · EL ENSAMBLADOR DEL ENCARGO COMPUESTO (owner 2026-09-11). Solo se llega acá sin profundidad
+   * pedida — cuando la cobertura corta de arriba no pudo componer (por eso sigue siendo el camino certificado
+   * para el encargo de producción, que SÍ pide profundidad y nunca pasa por el peldaño de arriba). Cuando el
+   * usuario pidió varias cosas y las partes tienen evidencia, responder una sola es dejar caer partes
+   * explícitamente pedidas. Cada parte se compone con SU boleta (los resultados de sus propios pasos, ya
+   * ejecutados en este turno; `leer` los re-deriva de las mismas herramientas, sin cerebro y sin red), se juzga
+   * como cualquier peldaño y, si no pasa, cede al piso simple de siempre. */
   if (final === null && playbookActivo && _partesEncargo.length >= 2) {
     const _semillaEc = `${(() => { try { return getTenantId() || "demo"; } catch { return "demo"; } })()}::${q}::${Array.isArray(history) ? history.length : 0}`;
     const _leer = (pasos) => { try { return (runPlan({ intent: "answer", calls: (pasos || []).map((s) => ({ tool: s.tool, args: s.args || {} })) }, { scenario, maxCalls: CALLS_POR_RONDA, preguntaUsuario: q, registry: caja }).ledger || {}).figs || []; } catch { return []; } };
@@ -1505,7 +1549,11 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       if (vPb && vPb.ok) { final = _pbServido; estado = "playbook"; suplente = true; }
     }
   }
-  /* PELDAÑO 0b · REFORMULAR SIN CEREBRO. Va ARRIBA de la línea honesta por el mismo argumento que el
+  /* PELDAÑO 0c · LA COBERTURA CORTA, DE VUELTA, COMO RED DE SEGURIDAD (owner 2026-09-24). Para cuando SÍ se pidió
+   * profundidad (arriba no se intentó) pero el ensamblador y el playbook activo no pudieron componer (o no
+   * aplican): mejor una cobertura corta que nada — «degradación segura», nunca menos completo que lo pedido. */
+  _intentarCoberturaCorta();
+  /* PELDAÑO 0d · REFORMULAR SIN CEREBRO. Va ARRIBA de la línea honesta por el mismo argumento que el
    * entregable del playbook: con la respuesta anterior en el hilo, «no pude completar la lectura» es FALSO —
    * la lectura está hecha y en pantalla. Medido con el hilo real del owner (2026-09-10): sin este peldaño el
    * turno terminaba `vacio` y la escalera servía el mensaje de sin-datos, que es LA MISMA FRASE que los vetos
@@ -1517,6 +1565,28 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     if (_rf && _rf.trim()) {
       const vRf = juzgar(_rf, "reformular-piso");
       if (vRf && vRf.ok) { final = _rf; estado = "reformular-piso"; suplente = true; }
+    }
+  }
+  /* PELDAÑO 0e · LA COBERTURA CORTA EN MODO CIFRA (owner 2026-09-24, item 2). Antes del límite: una pregunta
+   * SIMPLE de ≥ 2 temas con cierre «cifra» («¿cuánto vendí y cuánto cobré?», «¿cuánto vendió Lider y cuánto me
+   * debe?») no es un encargo (no pide lectura ni decisión), pero SÍ pidió dos cifras concretas — «no pude
+   * completar la lectura» es falso cuando las dos cifras están verificadas y listas. Una línea por tema, con la
+   * métrica que la pregunta nombró (cobré→abonado, debe→saldo pendiente, vencido→saldo vencido), el sujeto
+   * nombrado si lo hay. Se sirve si AL MENOS una cifra se verificó; si ninguna, cede al límite de siempre (que
+   * ya declara qué leyó y pregunta, sin cifra ajena — el fix del punto 5 del diseño). */
+  if (final === null) {
+    const _temasCifra = [...new Set([...(_dom.dominios || []), ...(_dom.ausentes || [])])];
+    if (_dom.dominios.length >= 1 && _temasCifra.length >= 2) {
+      const _sujetoCifra = (() => { try { return encargoDe(q); } catch { return null; } })();
+      if (_sujetoCifra && _sujetoCifra.cierre === "cifra") {
+        const _Dcf = crearDeclarador();
+        const _cf = (() => { try { return componerCoberturaCifra({ dominios: _dom.dominios, ausentes: _dom.ausentes, sujeto: _sujetoCifra.sujeto, pregunta: q, leer: _leerCC, declarar: _Dcf }); } catch { return null; } })();
+        if (_cf && _cf.trim()) {
+          const _declCf = filtrarPorTexto(_Dcf.lista(), _cf);
+          const { v: vCf, servido: _cfServido } = _juzgarPeldano(_cf, "cobertura-cifra", _declCf.length ? _declCf : undefined);
+          if (vCf && vCf.ok) { final = _cfServido; estado = "cobertura-cifra"; suplente = true; }
+        }
+      }
     }
   }
   if (final === null) {

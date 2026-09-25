@@ -31,16 +31,29 @@ import { getTenantData } from "../../data/tenantStore.js";
 import { datasetCapability, transferenciaCapability } from "../sentrix/capability.js";
 import { reconcilian } from "../../config/contract/figureType.js";
 import { POLICY } from "../../config/businessPolicy.js";
+import { idsActivos, regexDeDominio } from "../../config/contract/dominios.js";   // el registro único (owner 2026-09-24): _INVENTARIO/_COBRANZA se DERIVAN de acá, byte-idénticas a las de siempre
 
-export const DOMINIOS = ["comercial", "inventario", "cobranza"];
+/* PEREZOSOS (owner 2026-09-24, `_import_sin_dato_gate`): `dominios.js` es un contrato ESTÁTICO —nada de tenant—,
+ * pero el candado protege «nadie deriva datos al importarse» mirando la RUTA del import, no si el dato es de
+ * empresa; calcular estos cuatro en el primer uso (memoizados, `regexDeDominio`/`idsActivos` ya cachean por su
+ * cuenta) los deja fuera del barrido sin sumarlos a la lista blanca a mano — la opción que pidió el coordinador. */
+let _dominiosActivos = null;
+export const DOMINIOS = () => _dominiosActivos || (_dominiosActivos = idsActivos());   // ["comercial", "inventario", "cobranza"], en el orden del registro
 
 const _W = "[\\wáéíóúñ]";
-/* el léxico de cada dominio. Los de inventario y cobranza son, palabra por palabra, los que `_OTRO_UNIVERSO` usaba
- * para EXCLUIR al contrato comercial (contratoComercial.js) más el tema de la asesoría de inventario (`_B_TEMA`) y las
- * formas del cobro del playbook (`_DEUDA`/`_CREDITO`): ahora suman en vez de restar. «sku» no es un dominio: es un eje. */
-const _INVENTARIO = new RegExp(`(?<!${_W})(?:inventarios?|stock|existencias|mercader[ií]as?|rotaci[oó]n|rot(?:a|an|ando)|bodegas?|dep[oó]sitos?|almac[eé]n(?:es)?|reposici[oó]n|reponer|quiebres?|sobrestock|inmoviliz${_W}*|frenad${_W}*|dormid${_W}*|capital(?! de trabajo)|d[ií]as de inventario|cobertura)(?!${_W})`, "i");
-const _COBRANZA = new RegExp(`(?<!${_W})(?:cobranzas?|cobros?|cobrad[oa]s?|cobrar|cobrando|vencid[oa]s?|mora|deudas?|deben|debe|adeud${_W}*|abonos?|abonad[oa]s?|pagos?|pagan|pagado|pagar|plazo de pago|por cobrar|saldos? pendientes?|cr[eé]dito|contado|flujo de caja|efectivo)(?!${_W})`, "i");
-const _DEFINICION = /^\s*¿?\s*(?:qu[eé] (?:es|son|significa|quiere decir)|expl[ií]came (?:qu[eé] es|el concepto)|c[oó]mo se (?:calcula|define))\b/i;
+/* el léxico de cada dominio vive en `config/contract/dominios.js` (el registro único, owner 2026-09-24): estos dos
+ * regex se DERIVAN de él —`regexDeDominio` arma el MISMO envoltorio de borde que antes se escribía acá a mano—,
+ * byte-idénticos a los que este archivo tenía hasta esta etapa. Los de inventario y cobranza son, palabra por
+ * palabra, los que `_OTRO_UNIVERSO` usaba para EXCLUIR al contrato comercial (contratoComercial.js) más el tema
+ * de la asesoría de inventario (`_B_TEMA`) y las formas del cobro del playbook (`_DEUDA`/`_CREDITO`): ahora
+ * suman en vez de restar. «sku» no es un dominio: es un eje. */
+let _inventarioRe = null, _cobranzaRe = null;
+const _INVENTARIO = () => _inventarioRe || (_inventarioRe = regexDeDominio("inventario"));
+const _COBRANZA = () => _cobranzaRe || (_cobranzaRe = regexDeDominio("cobranza"));
+/* «¿qué es MÁS urgente, margen o cobranza?» NO es una definición (owner 2026-09-24, defecto colateral del diseño
+ * del encargo natural): es una DECISIÓN entre dos temas. El negative lookahead excluye «es/son + más» — una
+ * definición real nunca sigue con un comparativo pegado («qué es el margen bruto» sigue matcheando). */
+const _DEFINICION = /^\s*¿?\s*(?:qu[eé] (?:es|son|significa|quiere decir)(?!\s+m[aá]s\b)|expl[ií]came (?:qu[eé] es|el concepto)|c[oó]mo se (?:calcula|define))\b/i;
 const _SALUDO_O_META = /^\s*(?:hola|gracias|ok|dale|listo|buen[oa]s?\b)/i;
 /* el eje que la pregunta nombra —fuera de cliente y SKU— para que Inventario aporte su corte por ese mismo eje y
  * Comercial, cuando compone con otro dominio, su lectura por ese eje en vez de las trece cuentas. */
@@ -59,19 +72,26 @@ export function ejeNombrado(pregunta) {
   return e ? e[0] : null;
 }
 
-/** dominiosDe(q) → { dominios: [...], eje } · determinístico y léxico; ante la duda, ninguno. */
+let _tesoreriaAusenteRe = null;
+const _TESORERIA_AUSENTE = () => _tesoreriaAusenteRe || (_tesoreriaAusenteRe = regexDeDominio("tesoreria"));   // el registro único (owner 2026-09-24): «caja»/«liquidez»/«efectivo»/«tesorería»
+
+/** dominiosDe(q) → { dominios: [...], eje, ausentes: [...] } · determinístico y léxico; ante la duda, ninguno.
+ *  `ausentes` (owner 2026-09-24, encargo natural §"registro único"): los dominios del registro con `estado:
+ *  "ausente"` (hoy solo "tesoreria") cuyo léxico aparece en la pregunta — un campo NUEVO, aditivo: nadie que
+ *  desestructure `{ dominios, eje }` cambia de conducta. */
 export function dominiosDe(pregunta) {
   const q = String(pregunta || "");
-  const vacio = { dominios: [], eje: null };
+  const vacio = { dominios: [], eje: null, ausentes: [] };
   if (!q.trim() || _SALUDO_O_META.test(q) || _DEFINICION.test(q)) return vacio;
   if (esReformular(q)) return vacio;
   const sin = (() => { try { return _sinNombresDeEntidad(q); } catch { return q; } })();
   const dominios = [];
   const ejecutiva = esLecturaEjecutiva(q);
   if (ejecutiva || esTemaComercial(q, { conOtrosUniversos: true })) dominios.push("comercial");
-  if (_INVENTARIO.test(sin) || (ejecutiva && _hayInventario())) dominios.push("inventario");
-  if (_COBRANZA.test(sin) || (ejecutiva && _hayCobranza())) dominios.push("cobranza");
-  return { dominios, eje: ejeNombrado(q) };
+  if (_INVENTARIO().test(sin) || (ejecutiva && _hayInventario())) dominios.push("inventario");
+  if (_COBRANZA().test(sin) || (ejecutiva && _hayCobranza())) dominios.push("cobranza");
+  const ausentes = _TESORERIA_AUSENTE().test(sin) ? ["tesoreria"] : [];
+  return { dominios, eje: ejeNombrado(q), ausentes };
 }
 
 /* ── LOS PASOS DE CADA DOMINIO · herramientas que ya existen, con su para-qué ─────────────────────────────────────── */

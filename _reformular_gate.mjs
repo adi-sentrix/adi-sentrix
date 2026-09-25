@@ -140,13 +140,28 @@ H("5 · las cinco rutas del owner siguen respondiendo lo suyo");
     ["¿será que Lider está comprando menos?", "hipotesis-del-usuario"],
     ["¿hago bien en priorizar volumen?", "desafiar-decision"],
     ["¿por qué vendo más pero gano menos?", "contradiccion-de-metricas"],
-    ["¿qué es más urgente, margen o cobranza?", "comparar-alternativas"],
     ["qué hago esta semana", "plan-de-accion"],
   ];
   for (const [q, dueño] of DUEÑOS) {
     ok((playbookPara(q, CTX) || {}).nombre === dueño, `«${q.slice(0, 38)}» sigue siendo de ${dueño}`);
     ok(!esReformular(q), `…y la ley de reformular no se le asoma`);
   }
+
+  /* ⛔ RONDA 7 (coordinador, 2026-09-24/25): «¿qué es más urgente, margen o cobranza?» YA NO es de
+   * `comparar-alternativas.js` — la consolidación del owner manda toda disyuntiva entre TEMAS/FRENTES del
+   * registro a `coberturaCorta.js`, siempre, en cualquier redacción (ver `_comparar_alternativas_gate.mjs` §10
+   * y `_encargo_natural_gate.mjs` §8). `comparar-alternativas.js` retiró ese caso entero: `cuandoAplica` ya
+   * devuelve `false` para esta pregunta, así que `playbookPara` no puede seguir dándola como suya —y no debe:
+   * eso sería la MISMA clase de pregunta con dos voces, justo lo que la consolidación cerró. `cobertura-corta`
+   * no es un playbook del registro (no pasa por `playbookPara`): se mide por el bucle real, con el cerebro
+   * mudo, igual que §6 de este archivo. */
+  const Q5 = "¿qué es más urgente, margen o cobranza?";
+  ok((playbookPara(Q5, CTX) || {}).nombre !== "comparar-alternativas",
+    `«${Q5.slice(0, 38)}» ya no es de comparar-alternativas (retirado, ronda 7)`, JSON.stringify((playbookPara(Q5, CTX) || {}).nombre));
+  const MUDO5 = async () => ({ tipo: "texto", texto: "" });
+  const r5 = await answerViaAgente({ text: Q5, history: [], mem: {}, scenario: ESC, callAgente: declarando(MUDO5) });
+  ok(r5.r.agente.estado === "cobertura-corta", `«${Q5.slice(0, 38)}» sigue siendo de cobertura-corta (estado ${r5.r.agente.estado})`, r5.r.text);
+  ok(!esReformular(Q5), `…y la ley de reformular no se le asoma`);
 }
 
 

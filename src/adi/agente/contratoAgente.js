@@ -573,7 +573,7 @@ export function vetosDeRegistro(texto, contexto = {}) {
    * último recurso: quitarles la respuesta parcial dejaría al usuario sin nada. Una pregunta simple no es un
    * encargo: sin dos partes pedidas esta regla no existe. */
   const _sitioEc = contexto.sitio || "";
-  if (!_sitioEc || _sitioEc === "cierre" || _sitioEc === "reparacion" || _sitioEc === "poda" || _sitioEc === "encargo-compuesto") {
+  if (!_sitioEc || _sitioEc === "cierre" || _sitioEc === "reparacion" || _sitioEc === "poda" || _sitioEc === "encargo-compuesto" || _sitioEc === "cobertura-corta") {
     const _partes = (() => { try { return partesDelEncargo(contexto.pregunta); } catch { return []; } })();
     if (_partes.length >= 2) {
       const _faltan = coberturaDelEncargo(texto, _partes);
@@ -1119,11 +1119,26 @@ export function vetosDeContrato(texto, contexto = {}) {
  * NO se mide un número de palabras (su condición: un tope rígido deteriora la calidad): se mide la FORMA. La
  * mecánica es la de siempre —el veto da UNA oportunidad de reescribir (la reparación) y, si vuelve a incumplir,
  * responde el procedimiento determinístico, que ya habla bien—. Se juzga al cerebro, no a los peldaños. */
-const _PIDE_DETALLE = /\bdetalle|\bdetallad|\bdesgl[oó]s|\ba fondo\b|\bcomplet[oa]\b|\buno por uno\b|\bcuenta por cuenta\b|\bcliente por cliente\b|\bsku por sku\b|\bpara el analista\b|\bcon todo\b|\bpaso a paso\b|\bm[aá]s (?:largo|extenso)\b|\bexti[eé]ndete\b|\bexpl[aá]yate\b/i;
+/* «separa qué puedes demostrar, qué solo está indicado y qué todavía no sabes» (owner 2026-09-24, el encargo
+ * certificado de producción, `_cobertura_del_encargo_gate` CASO 1 — igual en 8 fixtures reales): pedir la
+ * partición probado/indicado/abierto de TODA la evidencia es pedir profundidad, aunque no diga «detalle» ni
+ * «completo». Estructural, no una frase suelta: cualquier «separa/dime/dinos … qué puedes demostrar» cuenta —
+ * es el mismo pedido que «cuenta por cuenta», solo que sobre el eje probado/indicado/abierto en vez del eje
+ * de entidades. */
+const _PIDE_DETALLE = /\bdetalle|\bdetallad|\bdesgl[oó]s|\ba fondo\b|\bcomplet[oa]\b|\buno por uno\b|\bcuenta por cuenta\b|\bcliente por cliente\b|\bsku por sku\b|\bpara el analista\b|\bcon todo\b|\bpaso a paso\b|\bm[aá]s (?:largo|extenso)\b|\bexti[eé]ndete\b|\bexpl[aá]yate\b|\b(?:separ[ao]|dime|dinos|dec[ií]me)\b[^.?!\n]{0,25}\bqu[eé] (?:puedes|podr[ií]as|se puede)\s+demostrar\b/i;
 const _PIDE_LISTA = /\bcu[aá]l(?:es)?\b|\bqui[eé]n(?:es)?\b|\bqu[eé] (?:clientes|cuentas|sku|productos|bodegas|familias|canales)\b|\branking\b|\btop\b|\blos (?:\d+|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b|\btod[oa]s\b|\bcada\b|\blista\b|\bl[ií]stame\b|\btabla\b|\ben vi[ñn]etas\b|\benum[eé]ra/i;
-/* EL ENCARGO COMPUESTO ES UNA SOLICITUD DE PROFUNDIDAD (owner 2026-09-11): `esEncargoCompuesto` se movió SIN CAMBIAR UNA
- * COMA a partesDelEncargo.js (la hoja que comparten el ensamblador y este contrato) y acá se re-exporta. */
-export const pideDetalle = (pregunta) => _PIDE_DETALLE.test(String(pregunta || "")) || esEncargoCompuesto(pregunta);
+/* `esEncargoCompuesto` se movió SIN CAMBIAR UNA COMA a partesDelEncargo.js (la hoja que comparten el ensamblador y
+ * este contrato) y acá se re-exporta.
+ * ⚠️ PROFUNDIDAD YA NO ES COBERTURA (owner 2026-09-24, `encargo_natural_diseno.md` §"Lo aprobado" 1b): «forma
+ * corta por defecto; forma larga solo si se pide profundidad — nunca por tener dos temas». Hasta esta etapa,
+ * `pideDetalle` heredaba el detalle de CUALQUIER encargo compuesto (`|| esEncargoCompuesto(pregunta)`); con el
+ * reconocedor nuevo (dominios + cierre) eso habría vuelto largo TODO encargo natural de dos o tres temas, justo
+ * lo que la ley quiere evitar: cubrir de más no cuesta forma larga, cuesta unas líneas más en la misma lectura
+ * corta. La profundidad depende SOLO de `_PIDE_DETALLE` (equivalente a `encargoDe(q).profundidad`, que usa la
+ * misma marca). Las cuatro baterías largas ya certificadas (`_densidad_ejecutiva_gate` §7) siguen siendo
+ * encargo —eso no cambia—, pero ya no heredan la forma larga por serlo: si el usuario no pidió detalle, ADI
+ * responde corto y cubierto, no largo. */
+export const pideDetalle = (pregunta) => _PIDE_DETALLE.test(String(pregunta || ""));
 export const pideLista = (pregunta) => _PIDE_LISTA.test(String(pregunta || ""));
 const _ES_ITEM = /^\s*(?:[-·•*]|\d{1,2}[.)])\s+/;
 /* un encabezado: «# Título», una línea que es SOLO un rótulo en negrita, o un rótulo en negrita que abre la

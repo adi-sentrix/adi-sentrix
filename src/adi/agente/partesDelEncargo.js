@@ -22,8 +22,23 @@
  * con la pregunta canónica que cada una sabe responder, su dominio y las marcas con las que se verifica que una
  * respuesta la CUBRE. No importa playbooks ni contratos, a propósito: lo leen el ensamblador (que compone) y el
  * contrato (que cobra), y los dos tienen que ver EXACTAMENTE las mismas partes — una regla, un archivo.
- * `esEncargoCompuesto` vive acá por la misma razón (antes en contratoAgente, que ahora lo re-exporta sin cambiarlo). */
-import { sinPresentacionPosterior } from "./reformular.js";
+ * `esEncargoCompuesto` vive acá por la misma razón (antes en contratoAgente, que ahora lo re-exporta sin cambiarlo).
+ *
+ * `encargoDe` (owner 2026-09-24, diseño aprobado `encargo_natural_diseno.md`): el reconocedor de arriba (conteo
+ * de palabras e interrogativas) reconocía 1 de 20 encargos naturales fuera de muestra — «mírame ventas e
+ * inventario» o «¿qué me preocupa más, margen o cobranza?» son encargos reales y no los veía. La corrección
+ * separa TRES decisiones que antes iban pegadas: COBERTURA (¿cuántos temas? — los dominios de `dominiosDe`, el
+ * registro único de `config/contract/dominios.js`), PROFUNDIDAD (¿cuánto detalle? — `_PIDE_PROFUNDIDAD`, nunca
+ * por tener dos temas) y CIERRE (¿cómo cierra? — `cierreDeLaPregunta`, en `prioridadIntegrada.js`, junto a
+ * `CRITERIOS`). `esEncargoCompuesto` pasa a ser la UNIÓN del reconocedor viejo (nadie pierde lo que ya tenía) con
+ * `encargoDe(q).esEncargo` (lo nuevo, para las formas naturales cortas): un OR estrictamente aditivo — ninguna
+ * pregunta que hoy es encargo deja de serlo. */
+import { sinPresentacionPosterior, destinatarioDe } from "./reformular.js";
+import { dominiosDe } from "./contratoDeDominios.js";
+import { cierreDeLaPregunta } from "./prioridadIntegrada.js";
+import { formaConversacional } from "./formaConversacional.js";
+import { axisEntityNames } from "../oracle/entityIndex.js";
+import { idsActivos } from "../../config/contract/dominios.js";
 
 const _FIN = "(?![\\wáéíóúñ])";
 
@@ -32,10 +47,19 @@ const _FIN = "(?![\\wáéíóúñ])";
  * primero» enumera lo que quiere saber: ya está pidiendo ese detalle. Con «el detalle se ofrece, no se
  * despliega» el modelo respondería de menos. Se cuenta la enumeración: tres o más preguntas parciales en un
  * mensaje largo. Las interrogativas con tilde valen en cualquier parte; sin tilde, solo al arranque de una
- * cláusula («, que…» «y que…» «¿que…»), para que un «que» conjunción no cuente. */
+ * cláusula («, que…» «y que…» «¿que…»), para que un «que» conjunción no cuente.
+ * ⚠️ ESTE RECONOCEDOR YA NO ES LA PUERTA DE LA COBERTURA (owner 2026-09-24): sigue vivo como SEGUNDO camino —
+ * `esEncargoCompuesto` = esto OR `encargoDe(q).esEncargo` — para que ningún encargo largo ya certificado
+ * (`_certificacion_congelada_gate`, las baterías de `_densidad_ejecutiva_gate`/`_cobertura_del_encargo_gate`)
+ * cambie de resultado. El camino nuevo, basado en dominios + cierre, es el que generaliza. */
 /* ⚠️ sin `\b` tras la tilde: «qué\b» no encuentra «qué » nunca (la trampa de siempre de esta casa) — los bordes
  * se escriben con las clases que sí conocen la tilde y la ñ */
 const _INTERROGATIVA = /(?<![\wáéíóúñ])por qu[eé](?![\wáéíóúñ])|(?<![\wáéíóúñ])(?:qué|cuál(?:es)?|cuánt[oa]s?|quién(?:es)?|cómo|dónde|cuándo)(?![\wáéíóúñ])|(?:^|[,;:¿]\s*|(?<![\wáéíóúñ])y\s+)(?:que|cual(?:es)?|cuant[oa]s?|quien(?:es)?|como|donde|cuando)(?![\wáéíóúñ])|(?<![\wáéíóúñ])si (?:es|era|fue|son|hay|viene|vienen|est[aá]n?|conviene|se debe)(?![\wáéíóúñ])/gi;
+function _esEncargoPorConteo(pregunta) {
+  const q = String(pregunta || "");
+  if (q.trim().split(/\s+/).length < 12) return false;
+  return (q.match(_INTERROGATIVA) || []).length >= 3;
+}
 /* LA LECTURA EJECUTIVA DE LOS DATOS (owner 2026-09-14, prueba 2): «Hazme una lectura ejecutiva de estos datos. Dime qué debería
  * preocuparme más y dónde pondrías el foco primero» no enumera tres preguntas, pero pide el negocio ENTERO: es un encargo
  * de todos los dominios que el dato trae, con la foto, el inventario, la cobranza y la prioridad. Léxico cerrado, y acotado
@@ -43,10 +67,85 @@ const _INTERROGATIVA = /(?<![\wáéíóúñ])por qu[eé](?![\wáéíóúñ])|(?<
  * siendo la foto comercial de la 2.27. */
 export const _EJECUTIVA = /\b(?:lectura|resumen|s[ií]ntesis|visi[oó]n|panorama|foto)\s+(?:ejecutiv[oa]\s+)?(?:de|sobre)\s+(?:estos|mis|todos los|los|tus)\s+datos\b/i;   // «lectura ejecutiva de estos datos» — no «con los datos» de paso (el prompt de gerente lo dice) ni «resumen ejecutivo de negocio» (la foto de la 2.27)
 export function esLecturaEjecutiva(pregunta) { return _EJECUTIVA.test(String(pregunta || "")); }
+
+/* ── PROFUNDIDAD: la misma marca que `contratoAgente.js:_PIDE_DETALLE`, duplicada A PROPÓSITO (owner 2026-09-24)
+ * ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * Importar `contratoAgente.js` acá crearía un SEGUNDO ciclo de módulos (contratoAgente.js YA importa de este
+ * archivo) sobre uno que ya existe con `contratoDeDominios.js` — dos ciclos en el mismo módulo hoja es más
+ * frágil que una lista de palabras repetida una vez, documentada, con el mismo texto. Si una crece, la otra
+ * tiene que crecer con ella: están una junto a la otra a propósito. */
+const _PIDE_PROFUNDIDAD = /\bdetalle|\bdetallad|\bdesgl[oó]s|\ba fondo\b|\bcomplet[oa]\b|\buno por uno\b|\bcuenta por cuenta\b|\bcliente por cliente\b|\bsku por sku\b|\bpara el analista\b|\bcon todo\b|\bpaso a paso\b|\bm[aá]s (?:largo|extenso)\b|\bexti[eé]ndete\b|\bexpl[aá]yate\b|\b(?:separ[ao]|dime|dinos|dec[ií]me)\b[^.?!\n]{0,25}\bqu[eé] (?:puedes|podr[ií]as|se puede)\s+demostrar\b/i;
+
+/* ── EL NEGOCIO ENTERO, SIN NOMBRAR NINGÚN DOMINIO (owner 2026-09-24, set de diseño v1: q02/r02/r03) ────────────
+ * «dime cómo estamos en general, quiero un resumen de todo el negocio…», «dame los 3 riesgos para el directorio»
+ * piden el negocio ENTERO sin decir «ventas»/«inventario»/«cobranza» — `dominiosDe` (léxico puro) no tiene nada
+ * que encender. Léxico CERRADO y ACOTADO a la forma ejecutiva de pedir la cartera completa (no es
+ * `esLecturaEjecutiva`/`_EJECUTIVA` de `contratoDeDominios.js`, que exige terminar en «…datos» y a propósito NO
+ * cubre «el negocio completo» —la foto comercial de la 2.27, ver `_prioridad_integrada_gate.mjs` §11—: este es
+ * un mecanismo LOCAL, sin tocar ese regex compartido). Si `dominiosDe` ya encontró ≥ 2 temas, esto no agrega
+ * nada (nunca RESTA un tema que el léxico sí encontró). */
+const _NEGOCIO_ENTERO = /\bresumen (?:de|para) (?:todo el negocio|el directorio|directorio)\b|\bpara (?:el|la) directorio\b|\briesgos? (?:principales )?(?:del negocio|para el directorio)\b|\bc[oó]mo estamos en general\b|\btodo el negocio\b/i;
+
+const _norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+/** el sujeto (una cuenta nombrada) de la pregunta, o null — NO decide si es encargo (esa es la corrección de
+ *  diseño del v1: «cuenta nombrada ⇒ simple» es falso), solo lo acota. */
+function _sujetoDeLaPregunta(pregunta) {
+  try {
+    const qn = _norm(pregunta);
+    const nombre = axisEntityNames("cliente").find((e) => e && String(e).length >= 3 && qn.includes(_norm(e)));
+    return nombre || null;
+  } catch { return null; }
+}
+
+/**
+ * encargoDe(pregunta, ctx) → { sujeto, dominios, ausentes, cierre, profundidad, esEncargo, lector } | null
+ *   TRES DECISIONES SEPARADAS (owner 2026-09-24):
+ *   · COBERTURA — `dominios`/`ausentes` de `dominiosDe(q)` (el registro único): cuántos TEMAS nombra la pregunta.
+ *   · PROFUNDIDAD — "larga" solo si `_PIDE_PROFUNDIDAD` (nunca por tener dos temas: cubrir de más es CORTO).
+ *   · CIERRE — "decision" | "lectura" | "cifra" (`cierreDeLaPregunta`, prioridadIntegrada.js).
+ *   `esEncargo` = ≥ 2 temas (dominios activos + dominios ausentes, ej. comercial + tesorería) Y cierre ≠ "cifra".
+ *   Una cifra o una relación puntual por tema («¿cuánto vendió Lider y cuánto me debe?») sigue SIMPLE aunque
+ *   nombre dos o tres dominios y una cuenta — el sujeto acota, no decide (la corrección de diseño del set v1). */
+export function encargoDe(pregunta, ctx = {}) {
+  const q = sinPresentacionPosterior(String(pregunta || ""));
+  if (!q.trim()) return null;
+  let dom = { dominios: [], eje: null, ausentes: [] };
+  try { dom = dominiosDe(q) || dom; } catch { /* dom ya es el vacío */ }
+  let dominios = Array.isArray(dom.dominios) ? dom.dominios : [];
+  const ausentes = Array.isArray(dom.ausentes) ? dom.ausentes : [];
+  /* «todo el negocio», sin nombrar ningún dominio: solo SUMA (nunca resta lo que el léxico ya encontró) */
+  if (dominios.length < 2 && _NEGOCIO_ENTERO.test(q)) dominios = idsActivos();
+  let cierre = "cifra";
+  try { cierre = cierreDeLaPregunta(q) || "cifra"; } catch { cierre = "cifra"; }
+  const temas = [...new Set([...dominios, ...ausentes])];
+  /* LA DISYUNTIVA ENTRE TEMAS ES DECISIÓN, EN CUALQUIER REDACCIÓN (coordinador, ronda 7, 2026-09-24): «¿ataco
+   * el margen o el capital frenado?» no lleva ninguna palabra de `_CIERRE_DECISION` (prioridadIntegrada.js) —
+   * el reconocimiento sale del REGISTRO (`dominiosDe` ya encontró ≥ 2 temas, arriba) + la FORMA ya certificada
+   * de comparación (`formaConversacional(q) === "comparar"`, la misma marca que usa `compararAlternativas.js`
+   * para «¿A o B?»): nunca una lista de frases nueva. Solo sube el cierre cuando el LÉXICO DEL REGISTRO ya
+   * encontró ≥ 2 temas — así «¿renegocio Sodimac o recupero Ripley?» (0 temas: son cuentas, no dominios) sigue
+   * sin encargo, y esa disyuntiva sigue siendo de `compararAlternativas.js`, no de acá. Estrictamente aditivo:
+   * nunca BAJA un cierre que ya era "decision"/"lectura" por su propio léxico.
+   * ⚠️ MEDIDO (regresión real, `_agente_playbooks_gate`): «cuánto vendí a crédito vs contado» también es
+   * `formaConversacional === "comparar"` (por «vs», otra rama de ese detector) y también nombra 2 temas —pero
+   * NO es una decisión, es un DESGLOSE («cuánto» + «vs»), y subirle el cierre le robaba el turno al playbook de
+   * cobranza. La disyuntiva de DECISIÓN de la casa siempre se dice con «o» —los cuatro ejemplos del coordinador
+   * la llevan: «…margen O cobranza», «…margen O el capital», «…caja O cobranza», «…capital frenado O la
+   * cobranza»—; «vs»/«entre X y Y» son la forma de COMPARAR un desglose, no de decidir. Se exige el «o». */
+  if (cierre === "cifra" && temas.length >= 2 && /\bo\b/i.test(q) && formaConversacional(q) === "comparar") cierre = "decision";
+  const esEncargo = temas.length >= 2 && cierre !== "cifra";
+  const profundidad = _PIDE_PROFUNDIDAD.test(q) ? "larga" : "corta";
+  const sujeto = _sujetoDeLaPregunta(q);
+  let lector = null;
+  try { lector = destinatarioDe(q) || null; } catch { lector = null; }
+  return { sujeto, dominios, ausentes, cierre, profundidad, esEncargo, lector };
+}
+
+/** esEncargoCompuesto(q) = el reconocedor de siempre (conteo) OR `encargoDe(q).esEncargo` (dominios + cierre) —
+ *  una unión estrictamente aditiva: ninguna pregunta que hoy es encargo deja de serlo. */
 export function esEncargoCompuesto(pregunta) {
-  const q = String(pregunta || "");
-  if (q.trim().split(/\s+/).length < 12) return false;
-  return (q.match(_INTERROGATIVA) || []).length >= 3;
+  if (_esEncargoPorConteo(pregunta)) return true;
+  try { const e = encargoDe(pregunta); return !!(e && e.esEncargo); } catch { return false; }
 }
 
 /* ── LAS PARTES, en el orden lógico de la casa ───────────────────────────────────────────────────────────────────
