@@ -1,5 +1,7 @@
 # ADI · Plan del flujo CORE + NOTARIO + KNOWLEDGE → ENTREGA → LLM → USUARIO
 
+> ⚠️ SUPERADO (2026-09-25): el plan vigente es `_ADI_PLAN_PRODUCTO_V2.md`, aprobado por el owner. Este queda como historia.
+
 > Owner 2026-09-25: «Nuestro trabajo para complemento que funcionará con un LLM es que este flujo sea de altísimo nivel.»
 > Deriva de `_ADI_LLMBUSINESS_PLAN.md` (marco aprobado 2026-09-22). Estado: propuesta del supervisor, pendiente de
 > aprobación del owner.
