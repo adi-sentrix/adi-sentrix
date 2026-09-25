@@ -172,8 +172,11 @@ export function runPlan(plan, { scenario = ESCENARIO_INICIAL, maxCalls = 8, preg
      * inventoryStatus SE SUMA (encargo «umbral del usuario», 2026-08-13, hallazgo vivo): cuando la pregunta trae
      * un umbral numérico de días que la tool NO aplica (focus ≠ stale), la tool tiene que poder DECLARARLO en
      * facts — y el único lugar donde ese umbral existe es la frase literal del turno. Mismo mecanismo, misma
-     * condición: sin `preguntaUsuario` todo es byte-idéntico. */
-    const args = { ...callArgs, scenario, ...((name === "defineConcept" || name === "inventoryStatus") && preguntaUsuario ? { _preguntaUsuario: preguntaUsuario } : {}) };
+     * condición: sin `preguntaUsuario` todo es byte-idéntico.
+     * cobranza SE SUMA (ley del piso sin modelo, owner 2026-09-25): la cuenta que la pregunta nombra pero el
+     * recorte de 8 filas deja afuera necesita la MISMA frase literal para sumar su fila, aditivamente, al final
+     * de la boleta (ver la cabecera de `cobranza()` en herramientasAgente.js). Mismo mecanismo, misma condición. */
+    const args = { ...callArgs, scenario, ...((name === "defineConcept" || name === "inventoryStatus" || name === "cobranza") && preguntaUsuario ? { _preguntaUsuario: preguntaUsuario } : {}) };
     let res;
     try {
       res = _tool(args);

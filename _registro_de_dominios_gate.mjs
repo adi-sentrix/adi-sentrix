@@ -9,14 +9,21 @@
  *       nada — por eso la copia.
  *   2 · ENTRADA REGISTRADA ⇒ RECONOCIDA — cada concepto activo del registro (una muestra representativa: los
  *       literales, no los fragmentos-de-regex con clase de caracteres) enciende su propio dominio en `dominiosDe`.
- *   3 · LA MIGRACIÓN BYTE-IDÉNTICA — `_INVENTARIO` (`contratoDeDominios.js`) y `_COMERCIAL` (`contratoComercial.js`)
- *       se DERIVAN del registro: se verifica que el `.source` del regex derivado es EXACTO al que estos archivos
- *       tenían hardcodeado antes de esta etapa (una copia congelada de esa fuente, para que este candado arda si
- *       alguien la cambia sin querer). `_COBRANZA` sumó UN fragmento en la etapa 2 (tolerancia morfológica —
- *       «cobré», el ejemplo textual del diseño): se prueba por SUPERCONJUNTO DE CONDUCTA (0 regresiones + el caso
- *       nuevo), no por byte-identidad. `_TESORERIA` (`prioridadIntegrada.js`) se reconstruye con un envoltorio
- *       distinto (`\b(?:…)\b` en vez de `\b…\b|\b…\b` por alternativa) — tampoco es byte-idéntica, EQUIVALENCIA DE
- *       CONDUCTA sobre una batería de casos.
+ *   3 · LA MIGRACIÓN BYTE-IDÉNTICA — `_INVENTARIO` (`contratoDeDominios.js`) se DERIVA del registro: se verifica
+ *       que el `.source` del regex derivado es EXACTO al que este archivo tenía hardcodeado antes de esta etapa
+ *       (una copia congelada de esa fuente, para que este candado arda si alguien la cambia sin querer).
+ *       `_COBRANZA` sumó fragmentos en las etapas 2 y 4 (tolerancia morfológica — «cobré», «paga», el ejemplo
+ *       textual del diseño — y la corrección «caja ≠ cobranza»): se prueba por SUPERCONJUNTO DE CONDUCTA (0
+ *       regresiones + los casos nuevos), no por byte-identidad. **`_COMERCIAL` (`contratoComercial.js`) dejó de
+ *       ser byte-idéntica en la ley del piso sin modelo (owner 2026-09-25, ronda 4, vía coordinador):** sumó el
+ *       LADO COMPRADOR de la venta —«nos/te/le/les compra», «compra(n) más», «comprándonos»— porque «¿cuál es el
+ *       cliente que más nos compra?» no encendía NINGÚN dominio (el reconocedor solo sabía leer el verbo desde
+ *       el lado del vendedor) y el turno caía al límite sin ninguna cifra que filtrar por concepto — la cifra
+ *       ajena medida en el set ciego v2. El coordinador la aceptó explícitamente por ser «un concepto de negocio
+ *       estable», la misma vara que ya aplicó a «cobré»/«paga»: se prueba igual, por SUPERCONJUNTO DE CONDUCTA.
+ *       `_TESORERIA` (`prioridadIntegrada.js`) se reconstruye con un envoltorio distinto (`\b(?:…)\b` en vez de
+ *       `\b…\b|\b…\b` por alternativa) — tampoco es byte-idéntica, EQUIVALENCIA DE CONDUCTA sobre una batería de
+ *       casos.
  *   4 · EL BARRIDO, HONESTO — lo que NO se migró queda documentado acá, con el porqué (no es un olvido): la lista
  *       de `_OTRO_UNIVERSO` (contratoComercial.js) y `_SINONIMOS`/`_OBJ` (prioridadIntegrada.js) siguen locales.
  *       Este candado no finge que están migradas; prueba que existen y anota la razón (en `dominios.js`).
@@ -116,7 +123,18 @@ H("3 · byte-identidad: _INVENTARIO/_COBRANZA/_COMERCIAL se derivan del registro
   const nuevoCob = regexDeDominio("cobranza");
   const nuevoCom = regexDeDominio("comercial");
   ok(nuevoInv.source === ORIG_INVENTARIO.source && nuevoInv.flags === ORIG_INVENTARIO.flags, "★ regexDeDominio(\"inventario\") es BYTE-IDÉNTICO a la fuente original de _INVENTARIO");
-  ok(nuevoCom.source === ORIG_COMERCIAL.source && nuevoCom.flags === ORIG_COMERCIAL.flags, "★ regexDeDominio(\"comercial\") es BYTE-IDÉNTICO a la fuente original de _COMERCIAL");
+  /* _COMERCIAL YA NO es byte-idéntica desde la ley del piso sin modelo (owner 2026-09-25, ronda 4): se agregó
+   * el lado COMPRADOR de la venta — «nos/te/le/les compra», «compra(n) más», «comprándonos» —, el mismo concepto
+   * de negocio contado desde el cliente. Se prueba por SUPERCONJUNTO DE CONDUCTA, la misma vara que _COBRANZA. */
+  const CASOS_COMERCIAL_ORIGINALES = ["las ventas del mes", "vendí mucho ayer", "vendo todos los días", "vendido por completo",
+    "facturación del período", "la contribución marginal", "cuál es mi margen", "rentabilidad del negocio", "el benchmark de la industria",
+    "los costos fijos", "precios de lista", "el markup aplicado", "acciones comerciales activas", "carga comercial alta", "rebates otorgados",
+    "descuentos aplicados", "mis clientes principales", "esas cuentas grandes", "toda la cartera", "cómo va el negocio", "resultado comercial del mes",
+    "crecimiento sostenido", "el volumen vendido", "mix de productos", "ticket promedio", "el área comercial", "ganamos ese cliente", "vamos ganando terreno"];
+  const regresionesCom = CASOS_COMERCIAL_ORIGINALES.filter((c) => ORIG_COMERCIAL.test(c) && !nuevoCom.test(c));
+  ok(regresionesCom.length === 0, `★ 0 regresiones: los ${CASOS_COMERCIAL_ORIGINALES.length} casos que _COMERCIAL original reconocía, la derivada del registro los sigue reconociendo`, regresionesCom.join(" | "));
+  ok(!ORIG_COMERCIAL.test("cuánto nos compra") && nuevoCom.test("cuánto nos compra"), "★ tolerancia NUEVA (ley del piso sin modelo): «nos compra» (el lado comprador — «¿cuál es el cliente que más nos compra?») NO lo reconocía _COMERCIAL original — la derivada del registro sí");
+  ok(!ORIG_COMERCIAL.test("cómo anda pagando") && !nuevoCom.test("cómo anda pagando"), "…y «pagando» NO enciende comercial (es cobranza, no se cruzó el vocabulario)");
   /* _COBRANZA YA NO es byte-idéntica desde la etapa 2 (owner 2026-09-24): se agregaron «cobrés?» y «paga» —
    * tolerancia morfológica, los ejemplos TEXTUALES del diseño («vendí, cobré», «…y cómo paga?»). Se prueba por
    * SUPERCONJUNTO DE CONDUCTA: todo lo que la fuente original reconocía SIGUE MAYORMENTE reconociéndose — con

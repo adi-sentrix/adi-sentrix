@@ -167,9 +167,19 @@ export const cobranza = {
     if (!hayVencidoCalculado && /vencid[oa]s?\b[^.\n]*(?:\$\s?[\d.,]|(?<![\d.,])0(?![\d.,])[^%])|(?:\$\s?0|\$0\b)[^.\n]*vencid/i.test(t)) {
       v.push({ regla: "vencido-inventado", multa: "sin plazo de pago declarado el vencido NO se puede calcular: va «—» con su porqué, jamás $0 ni otra cifra. Di que no se puede saber y por qué." });
     }
-    /* (2) la deuda con nombre: si la boleta trae clientes con saldo y la respuesta no nombra a ninguno */
+    /* (2) la deuda con nombre: si la boleta trae clientes con saldo y la respuesta no nombra a ninguno. EXCEPCIÓN
+     * (owner 2026-09-25, ley del piso sin modelo, obligatorio C): cuando la PREGUNTA nombra una cuenta puntual
+     * («cómo está SU deuda» de La Polar) no es «quién me debe» de toda la cartera — es una respuesta SOBRE ESA
+     * cuenta, y exigirle que enumere a las demás la empujaría de vuelta a la cartera entera (justo lo que la ley
+     * prohíbe: una cuenta nombrada recibe SU cifra, no la de la cartera disfrazada de respuesta completa).
+     * Nombrar a la cuenta pedida basta; no hace falta nombrar a las otras. */
+    const _normCob = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const _pregNombraCliente = (() => {
+      try { const qn = _normCob(pregunta); return (axisEntityNames("cliente") || []).find((e) => e && String(e).length >= 3 && qn.includes(_normCob(e))) || null; } catch { return null; }
+    })();
     const clientes = _all(figs, /· Saldo pendiente$/i).map((f) => _entidadDe(_lab(f))).filter(Boolean);
-    if (_caso(pregunta).forma === "deuda" && clientes.length >= 2 && !clientes.some((n) => t.includes(n))) {
+    if (_caso(pregunta).forma === "deuda" && clientes.length >= 2 && !clientes.some((n) => t.includes(n))
+      && !(_pregNombraCliente && t.includes(_pregNombraCliente))) {
       v.push({ regla: "deuda-sin-nombre", multa: `la boleta trae ${clientes.length} clientes con saldo pendiente y la respuesta no nombra a ninguno: la pregunta es QUIÉN debe — cada saldo con su cliente.` });
     }
     /* (3) crédito vs contado no se deriva: un monto de «contado» que la mesa no declaró es una resta propia */

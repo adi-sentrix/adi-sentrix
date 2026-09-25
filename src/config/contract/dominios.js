@@ -59,13 +59,21 @@ export const DOMINIOS_REGISTRO = [
     sujeto: "cliente",
     estado: "activo",
     boundary: "acento",
-    /* byte-idéntico a `_COMERCIAL` (contratoComercial.js, hasta esta etapa): mismos fragmentos, mismo orden. */
+    /* byte-idéntico a `_COMERCIAL` (contratoComercial.js) hasta la etapa 1; la etapa del piso sin modelo (owner
+     * 2026-09-25, ley `adi-piso-sin-modelo`) agregó EL LADO DEL COMPRADOR — «el cliente que más nos compra»,
+     * «cuánto nos compra Jumbo»: la misma realidad comercial contada desde el cliente, no una palabra coloquial
+     * nueva (regla E de la ley: nada de vocabulario de cierres ni de habla suelta). Sin esto, `dominiosDe` no
+     * encontraba NINGÚN dominio en la pregunta y el turno caía al límite sin ninguna cifra que filtrar — la
+     * cifra ajena medida en el set ciego v2. Formas de 3ª persona (el verbo del CLIENTE, no del negocio): «nos
+     * compra», «te compra», «le compra», «les compra», «compra más», «compran más», «comprándonos». */
     conceptosDeEntrada: [
       "ventas?", `vend[ií](?:[oó]|mos|endo|ste|eron|a|an|e|en)?`, `vend(?:o|es|e|en|emos)`, "vendid[oa]s?",
       `factur${_W}*`, "ingresos?", `contribu${_W}*`, "m[aá]rgen(?:es)?", `rentab${_W}*`, "benchmark", "costos?",
       "precios?", "markup", "acciones comerciales", "carga comercial", "rebates?", "descuentos?", "clientes?",
       "cuentas?", "cartera", "negocio", "resultado comercial", `crec${_W}*`, "volumen", "mix", "ticket",
       "comercial(?:es)?", "ganamos", "ganando", "gano", "mejorando", "apuesta",
+      "nos compra(?:n)?", "te compra(?:n)?", "le compra(?:n)?", "les compra(?:n)?", "compra(?:n)? m[aá]s",
+      "compr[aá]ndonos",
     ],
     metricas: ["ventas", "ventas_anterior", "margen", "margen_promedio", "contribucion", "no_capturada", "carga",
       "carga_alta", "brecha", "brecha_precio_costo", "unidades", "markup", "peso_costo", "costo", "variacion",
@@ -127,11 +135,15 @@ export const DOMINIOS_REGISTRO = [
      * primera persona del pretérito). Solo la forma ACENTUADA («cobré»/«cobrés», nunca «cobre» sin tilde): sin
      * tilde colisiona con «el cobre» (el metal) — un falso positivo real, aunque improbable en este negocio.
      * `paga` (3a persona: «cómo paga», del ejemplo «…considerando margen, stock y cómo paga?») — sin colisión
-     * conocida en este negocio. */
+     * conocida en este negocio. Etapa del piso sin modelo (owner 2026-09-25, ley `adi-piso-sin-modelo`): dos
+     * fragmentos MÁS, misma familia que los ya aceptados, no vocabulario nuevo — «pagando» es el gerundio de
+     * «paga/pagan/pagado/pagar», que ya viven acá (el mismo hueco morfológico que «cobrando» ya cerró para
+     * «cobrar»); «atraso» es el nombre de negocio de `dias_vencido` («cuántos días de atraso lleva» — el
+     * ejemplo textual del owner), y sin él la pregunta no encendía NINGÚN dominio de cobranza. */
     conceptosDeEntrada: [
       "cobranzas?", "cobros?", "cobrad[oa]s?", "cobrar", "cobrando", "vencid[oa]s?", "mora", "deudas?", "deben",
-      "debe", `adeud${_W}*`, "abonos?", "abonad[oa]s?", "pagos?", "paga", "pagan", "pagado", "pagar", "plazo de pago",
-      "por cobrar", "saldos? pendientes?", "cr[eé]dito", "contado", "cobrés?",
+      "debe", `adeud${_W}*`, "abonos?", "abonad[oa]s?", "pagos?", "paga", "pagan", "pagado", "pagar", "pagando", "plazo de pago",
+      "por cobrar", "saldos? pendientes?", "cr[eé]dito", "contado", "cobrés?", "atrasad[oa]s?", "atraso",
     ],
     metricas: ["venta_credito", "saldo_vencido", "saldo_pendiente", "saldo_por_vencer", "abonado", "recuperado", "dias_vencido"],
     lentes: ["materialidad", "severidad", "urgencia"],

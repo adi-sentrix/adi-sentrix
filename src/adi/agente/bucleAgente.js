@@ -90,6 +90,8 @@ import { cartaDeClaves, mensajeDeReanclaje, mensajeDeReescritura, podarTramos, s
 import { anclarDeclaracion, anclarPorFigs } from "../notario/anclar.js";   // E4: la casa ancla lo suyo (los peldaños bajo el mismo contrato)   // fase 4, etapa B: la carta de hechos del turno viaja con los resultados (nombres de referencias, conjuntos y rankings)
 import { crearDeclarador, filtrarPorTexto } from "../notario/declarar.js";
 import { juzgarDeclaracion, CHEQUEOS_DE_HECHO } from "../notario/juez.js";
+import { claveDeMetrica, clavesDeMetrica, metricaDeClave } from "../notario/lexico.js";   // ley del piso sin modelo (owner 2026-09-25): la clave real de un concepto, contra la que se filtra una cifra antes de servirla — `clavesDeMetrica` (ronda 4): TODOS los conceptos nombrados, no solo el mejor
+import { _lineaDeAusencia as lineaDeAusencia } from "./coberturaCorta.js";   // la línea de ausencia declarada, reusada fuera de la cobertura corta (owner 2026-09-25)
 import { indiceDeEvidencia } from "../notario/evidencia.js";   // getTenantData: el contexto que el negocio declaró — la ley del porqué lo cita en vez de repreguntar   // la semilla de variación: tenant + pregunta + largo del hilo
 
 const TOPE_RONDAS = 3;      // rondas que pueden pedir herramientas
@@ -283,7 +285,27 @@ const TOPE_RESULTADO_PRE_RONDA = 1500;
 const _METRICAS_REFUTACION = ["margen", "venta", "ventas", "contribución", "contribucion", "carga", "capital",
   "inventario", "rotación", "rotacion", "unidades", "acciones", "costo"];
 const _reWord = (t) => new RegExp(`\\b${String(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = null, relegar = null }) {
+/* LEY DEL PISO SIN MODELO (owner 2026-09-25, `adi-piso-sin-modelo`), obligatorio A y C: «cerrar de raíz la
+ * cifra ajena» — una cifra solo se sirve si su CONCEPTO (la clave de métrica del registro, `notario/lexico.js:
+ * claveDeMetrica`) y su ENTIDAD son los pedidos; si no hay cifra así, ADI dice qué entendió y pregunta o dice
+ * qué le falta, nunca «Lo que tengo verificado ahora: <otra cosa>». Medido en el set ciego v2: sin este
+ * candado, «¿cuál es el cliente que más nos compra?» servía «variación vs año anterior de Lider» (11 preguntas
+ * simples cayeron acá y sirvieron un concepto que nadie pidió) y una cuenta nombrada sin cifra propia recibía
+ * la de OTRA cuenta (`_preferida` ya la ordenaba primero, pero el resto de la boleta seguía como respaldo —
+ * la propia cartera, servida como si fuera la cuenta pedida). `conceptoPedido` es la clave que
+ * `claveDeMetrica(pregunta)` resolvió cuando NADA de lo de arriba (referente, alcance, metrica por dominio) ya
+ * lo hizo — un backstop, no un segundo camino: si el mecanismo de siempre ya fijó `preferir.metrica`, este
+ * filtro igual corre (la clave real de la fig contra la clave real pedida), porque una agrupación por RÓTULO
+ * (ej. «· Venta$|Variación vs año anterior») puede mezclar dos conceptos distintos bajo un mismo casillero —
+ * el defecto medido con Ripley («vendo a crédito» resolvía a «ventas», y la fig sur servida terminó siendo
+ * «Variación vs año anterior», que NO es lo que se pidió). */
+function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = null, relegar = null, conceptoPedido = null, conceptosPedidos = null, sinRankingVerificado = false }) {
+  /* TODOS los conceptos pedidos, no solo el mejor (owner 2026-09-25, ronda 4): «compara marzo vs abril en
+   * ventas, margen y contribución» nombra TRES conceptos igual de explícitos — filtrar por uno solo
+   * (`claveDeMetrica`, «el más largo gana») tiraba las cifras de los otros dos, vaciando la lista que la
+   * garantía C3 (`_consistencia_conversacional_gate`) necesita recorrer. `conceptoPedido` (singular, de
+   * llamadores viejos) se trata como un conjunto de uno. */
+  const _conceptosPedidos = conceptosPedidos instanceof Set ? conceptosPedidos : (conceptoPedido ? new Set([conceptoPedido]) : null);
   const motivo = motivos.length ? motivos[motivos.length - 1] : null;
   /* las cifras salen de la BOLETA ACUMULADA — verificadas por el muro antes de adoptarse, nunca compuestas
    * libres (F1 §9.3). Obligatorias primero.
@@ -365,6 +387,11 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = nul
     const partes = String(f.label || "").split("·").map((x) => x.trim()).filter(Boolean);
     const _ents = Array.isArray(entidades) ? entidades : [];
     if (partes.length >= 2 && _ents.some((e) => _reWord(e).test(partes[0]))) return { concepto: partes.slice(1).join(" · "), dueno: partes[0] };
+    /* «EL NEGOCIO» (owner 2026-09-25, ronda 4): el alcance por defecto que usa `proyectar` cuando no hay
+     * entidad («Venta del período · el negocio») no es un cliente del tenant, pero SÍ es un dueño reconocible
+     * —el negocio entero—, no parte del concepto. Sin este caso, el concepto quedaba «Venta del período el
+     * negocio» (los dos segmentos pegados): un error de redacción que el coordinador señaló de paso. */
+    if (partes.length >= 2 && /^el negocio$/i.test(partes[partes.length - 1])) return { concepto: partes.slice(0, -1).join(" · "), dueno: partes[partes.length - 1] };
     return { concepto: partes.join(" · "), dueno: null };
   };
   const _decible = (f) => {
@@ -375,10 +402,44 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = nul
   const _enProsa = (f) => {
     const { concepto, dueno } = _conceptoYDueno(f);
     const c = concepto.replace(/\s*·\s*/g, " "); const cMin = c.charAt(0).toLowerCase() + c.slice(1);
+    if (dueno && /^el negocio$/i.test(dueno)) return `${cMin} del negocio`;   // «de el negocio» no es español: la contracción
     return dueno ? `${cMin} de ${dueno}` : cMin;
   };
-  const _base = _ordenBase.filter(_decible);
-  const candidatas = preferir ? [..._conMetrica(_base.filter(_preferida)), ..._conMetrica(_base.filter((f) => !_preferida(f)))] : _base;
+  /* «EL CLIENTE QUE MÁS NOS COMPRA» SIN NOMBRARLO (owner 2026-09-25, ley del piso sin modelo, obligatorio A):
+   * una pregunta por UNA IDENTIDAD superlativa («el cliente que más…», «mi mejor cliente») sin nombrar la
+   * cuenta pide un RANKING, no una cifra puntual — este peldaño no arma rankings (esa es la comprensión abierta
+   * que la ley deja al LLM), así que servir la primera cifra verificada del concepto correcto («venta de Paris,
+   * $6.3M») afirmaría, sin verificarlo, que Paris ES la respuesta al «quién». Con `sinRankingVerificado`, se
+   * cae directo al `_armar(null)` de abajo: el concepto SÍ se declara (si se resolvió), la identidad no se
+   * inventa. */
+  const _base = sinRankingVerificado ? [] : _ordenBase.filter(_decible);
+  /* ENTIDAD CORRECTA, DE RAÍZ (owner 2026-09-25, obligatorio C): con una cuenta NOMBRADA (`preferir.entidades`,
+   * nunca `alcance: "cartera"`, que es «cualquier entidad» a propósito), este peldaño YA NO cae al resto de la
+   * cartera cuando esa cuenta no tiene cifra: o responde la entidad pedida, o dice que no tiene esa cifra para
+   * ella — la cartera entera servida «como si fuera» la cuenta nombrada es justo lo que la ley prohíbe. Sin una
+   * entidad nombrada (alcance de cartera o sin preferencia), la conducta de siempre no cambia un byte. */
+  const _soloEntidadNombrada = !!(preferir && Array.isArray(preferir.entidades) && preferir.entidades.length);
+  const _candidatasPreferidas = preferir
+    ? (_soloEntidadNombrada ? _conMetrica(_base.filter(_preferida)) : [..._conMetrica(_base.filter(_preferida)), ..._conMetrica(_base.filter((f) => !_preferida(f)))])
+    : _base;
+  /* CIFRA AJENA, DE RAÍZ (owner 2026-09-25, obligatorio A): con un CONCEPTO resuelto (`conceptoPedido`, la
+   * clave de `notario/lexico.js:claveDeMetrica`), la fig servida tiene que ser DE ESE CONCEPTO — nunca la
+   * primera disponible de otro. Filtra, no ordena: si nada de lo verificado es del concepto pedido, este
+   * peldaño se queda sin cifra que ofrecer (el `_armar(null)` de abajo, jamás una sustitución silenciosa). */
+  const _claveDeFig = (f) => { try { return claveDeMetrica(_conceptoYDueno(f).concepto); } catch { return null; } };
+  /* SOLO SE RECHAZA LO QUE SE SABE DISTINTO (owner 2026-09-25, ronda 4, vía coordinador): el filtro NO exige
+   * que la clave de la fig SEA la pedida — exige que NO SEA OTRA conocida. Medido en dos garantías que este
+   * candado casi rompe: (a) la PROYECCIÓN («Proyección · el negocio +3.0%») y la cifra del AÑO ANTERIOR
+   * («Año anterior (mes a mes)») no nombran su métrica en el rótulo —la trae la herramienta que las produjo,
+   * no el texto del label— así que `claveDeMetrica` no las resuelve (null) y el filtro estricto las tiraba
+   * aunque fueran EXACTAMENTE lo pedido («si la pregunta pide una proyección, la cifra proyectada ES el
+   * concepto pedido», coordinador 2026-09-25); (b) una pregunta que nombra VARIOS conceptos a la vez («ventas,
+   * margen y contribución») solo deja pasar el más largo (`claveDeMetrica` es un único ganador), y el resto de
+   * candidatas legítimas —con clave DISTINTA pero no CONOCIDA como ajena— quedaban fuera, vaciando la lista
+   * que C3 (`_consistencia_conversacional_gate`) necesita recorrer hasta encontrar una que el muro acepte. La
+   * cifra ajena que SÍ hay que cerrar («variación vs año anterior de Lider» para «quién nos compra más») tiene
+   * una clave RESUELTA y DISTINTA de la pedida — ese caso sigue cayendo, intacto. */
+  const candidatas = _conceptosPedidos && _conceptosPedidos.size ? _candidatasPreferidas.filter((f) => { const c = _claveDeFig(f); return c === null || _conceptosPedidos.has(c); }) : _candidatasPreferidas;
 
   /* C3 DE LA CORRIDA 3 (2026-08-31) · EL RESCATE DEJA DE RENDIRSE CON LA PRIMERA CIFRA. Medido: «compara Q1 vs
    * Q2» con `trend` corrido llegaba acá con 46 cifras verificadas en la boleta; este peldaño elegía la primera
@@ -423,8 +484,11 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = nul
   };
 
   /* sin un LÍMITE que nombrar ni contenido que ofrecer, este peldaño no tiene nada honesto que decir: cede al
-   * siguiente. Una disculpa sin cifra ni alternativa no es una respuesta (criterio del owner). */
-  if (!motivo && !candidatas.length && !refutacion && !falta) return null;
+   * siguiente. Una disculpa sin cifra ni alternativa no es una respuesta (criterio del owner). EXCEPCIÓN
+   * (owner 2026-09-25, obligatorio A): con un CONCEPTO resuelto y ninguna cifra de ese concepto, sí hay algo
+   * honesto que decir — qué se entendió — y se sigue de largo hasta el mensaje de abajo en vez de ceder sin
+   * dejar constancia de lo que se entendió. */
+  if (!motivo && !candidatas.length && !refutacion && !falta && !conceptoPedido) return null;
   /* SI LO QUE FALTA ES DEL ARCHIVO, SE NOMBRA (owner 2026-08-31): «tu archivo no trae la hoja Abonos: con
    * ella te abro quién te debe». Eso es el «límite corto CON alternativa» aplicado al dato incompleto — decir
    * la CAUSA, no la consecuencia, y con el nombre de la columna o la hoja tal como la ingesta la nombró. */
@@ -433,8 +497,13 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = nul
    * que corresponde»), sino «puedo demostrar X, pero no todavía Y; si me dices Z, separo ambas causas». El
    * orden cambia de sentido: PRIMERO lo que sí se puede afirmar —la cifra verificada, con su dueño—, DESPUÉS el
    * límite con su causa cuando la hay, y al final la puerta concreta. Mismo material, misma verdad; el que lee
-   * se lleva primero lo que sirve. Sin causa nombrable y sin cifra, se dice corto y se pide la pista. */
+   * se lleva primero lo que sirve. Sin causa nombrable y sin cifra, se dice corto y se pide la pista.
+   * SIN CIFRA DEL CONCEPTO PEDIDO (owner 2026-09-25, obligatorio A): se dice QUÉ se entendió —el nombre de la
+   * métrica, en el idioma del usuario, vía el registro (`notario/lexico.js:metricaDeClave`)— en vez de callar
+   * el concepto y ofrecer cualquier otra cosa. */
+  const _nombreDelConcepto = (conceptoPedido && !candidatas.length) ? (() => { try { return metricaDeClave(conceptoPedido); } catch { return null; } })() : null;
   const _limite = falta ? `Tu archivo no trae ${falta.pieza}: con eso te abro ${falta.abre}.`
+    : _nombreDelConcepto ? `Entendí que preguntas por ${_nombreDelConcepto.toLowerCase()}${_soloEntidadNombrada ? ` de ${preferir.entidades[0]}` : ""}: no tengo esa cifra verificada para responderte con seguridad.`
     : motivo ? `Lo que no pude armar es el resto: ${motivo}.` : null;
   const _armar = (fig) => (fig
     ? [
@@ -1532,6 +1601,30 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       if (vEc && vEc.ok) { final = _ecServido; estado = "encargo-compuesto"; suplente = true; }
     }
   }
+  /* PELDAÑO 0a · COBERTURA POR TEMAS ANTES DE UN PLAYBOOK QUE YA CEDE (owner 2026-09-25, ley del piso sin
+   * modelo, obligatorios B y C). `_CEDEN_A_COBERTURA_CORTA` (arriba) ya marca a «cobranza» y otros como
+   * playbooks que deberían ceder ante la cobertura corta cuando el turno pide ≥ 2 temas — pero `esEncargo` se
+   * queda en `false` cuando el CIERRE no se reconoció (la misma brecha del peldaño 0f, más abajo), y entonces el
+   * playbook de UN SOLO dominio responde primero y se queda con el turno entero: la cartera completa, sin la
+   * cuenta nombrada, sin el segundo tema. Medido: «…si le sigo vendiendo a crédito a La Polar o le corto, mirá
+   * su deuda y su margen» — 2 temas (cobranza + comercial), La Polar nombrada — terminaba en el playbook de
+   * cobranza de SIEMPRE (cartera entera, sin La Polar, sin margen). Con una cuenta nombrada Y ≥ 2 temas Y un
+   * playbook de los que YA ceden activo, se intenta la cobertura corta ACÁ, antes de que ese playbook tome el
+   * turno — nunca cuando no hay playbook compitiendo (ese caso lo sigue decidiendo `esEncargo` de siempre, sin
+   * tocar un byte: el «¿cuánto vendió Lider y cuánto me debe?» de la certificación no pasa por acá). */
+  if (final === null && playbookActivo && _CEDEN_A_COBERTURA_CORTA.has(playbookActivo.nombre) && _encargoNatural && _encargoNatural.sujeto) {
+    const _temasPrevios = [...new Set([...(_dom.dominios || []), ...(_dom.ausentes || [])])];
+    if (_temasPrevios.length >= 2) {
+      const _encPrevio = { ..._encargoNatural, esEncargo: true };
+      const _DcfPrevio = crearDeclarador();
+      const _ccPrevio = (() => { try { return componerCoberturaCorta({ encargo: _encPrevio, pregunta: q, leer: _leerCC, declarar: _DcfPrevio }); } catch { return null; } })();
+      if (_ccPrevio && _ccPrevio.trim()) {
+        const _declCcPrevio = filtrarPorTexto(_DcfPrevio.lista(), _ccPrevio);
+        const { v: vCcPrevio, servido: _ccPrevioServido } = _juzgarPeldano(_ccPrevio, "cobertura-corta", _declCcPrevio.length ? _declCcPrevio : undefined);
+        if (vCcPrevio && vCcPrevio.ok) { final = _ccPrevioServido; estado = "cobertura-corta"; suplente = true; }
+      }
+    }
+  }
   if (final === null && playbookActivo && typeof playbookActivo.componer === "function") {
     /* LA SEMILLA DE VARIACIÓN (owner 2026-09-03, «matar la repetición»): tenant + pregunta + largo del hilo —
      * todo del turno mismo, cero estado nuevo. Determinística (los gates replican byte a byte) y distinta
@@ -1589,6 +1682,55 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
       }
     }
   }
+  /* PELDAÑO 0f · COBERTURA POR TEMAS RECONOCIDOS, RED FINAL (owner 2026-09-25, ley del piso sin modelo,
+   * obligatorio B — textual: «si ADI reconoce dos o más temas pedidos, debe cubrirlos todos… reconocer además
+   * la intención de decidir/priorizar solo agrega el veredicto; no puede ser condición para cubrir los temas»).
+   * Los peldaños de arriba (cobertura corta · encargo compuesto · playbook · cobertura-cifra) ya cubren la
+   * enorme mayoría de los encargos de ≥ 2 temas; a este solo llegan los que NINGUNO de ellos pudo componer —
+   * medido en el set ciego v2: 13/24 encargos con un CIERRE que esta casa decidió no perseguir palabra por
+   * palabra («tengo que decidir si…», «prepararme para…», «panorama», «semáforo», «ranking» — regla E de la
+   * ley, nada de vocabulario de cierres nuevo) se quedaban con `cierre` en su default «cifra» y, si además una
+   * cuenta nombrada no tenía TODAS sus cifras (el candado de `componerCoberturaCifra` cede el turno ENTERO ante
+   * un solo tema sin cifra: «nunca una sustitución silenciosa»), no llegaban a ningún lado con cobertura. Este
+   * peldaño verifica la única condición que la ley pone —≥ 2 temas reconocidos por el registro (`dominiosDe`,
+   * activos + ausentes)— y fuerza la MISMA cobertura corta de siempre; sin veredicto salvo que el cierre real lo
+   * pida (`componerCoberturaCorta` ya lo hace solo, leído de `encargoDe`, nunca escrito acá). */
+  if (final === null) {
+    const _temasFinal = [...new Set([...(_dom.dominios || []), ...(_dom.ausentes || [])])];
+    const _enc0Final = (() => { try { return encargoDe(q); } catch { return null; } })();
+    /* SALVAGUARDA (medida al implementar esta ley): dos palabras del léxico de DOS dominios distintos no
+     * siempre son DOS temas pedidos — «cuánto vendí a crédito» enciende comercial (vendí) y cobranza (crédito)
+     * por un solo DESGLOSE, no por dos preguntas (la misma nota ya vive en `partesDelEncargo.js:135`, sobre
+     * «cuánto vendí a crédito vs contado»). Sin una CUENTA nombrada (`encargoDe(q).sujeto`) ni la marca de
+     * encargo de siempre (`esEncargoCompuesto`, conteo de interrogativas o `esEncargo` ya resuelto), este
+     * peldaño no fuerza cobertura sobre lo que puede ser una sola pregunta con vocabulario cruzado — cede al
+     * límite de siempre, que ya sabe declarar lo que falta (certificación congelada, p3). */
+    if (_temasFinal.length >= 2 && (!!(_enc0Final && _enc0Final.sujeto) || esEncargoCompuesto(q))) {
+      const _encFinal = { ...(_enc0Final || {}), dominios: _dom.dominios, ausentes: _dom.ausentes, esEncargo: true };
+      const _Dcf2 = crearDeclarador();
+      const _cc2 = (() => { try { return componerCoberturaCorta({ encargo: _encFinal, pregunta: q, leer: _leerCC, declarar: _Dcf2 }); } catch { return null; } })();
+      if (_cc2 && _cc2.trim()) {
+        const _declCc2 = filtrarPorTexto(_Dcf2.lista(), _cc2);
+        const { v: vCc2, servido: _cc2Servido } = _juzgarPeldano(_cc2, "cobertura-temas", _declCc2.length ? _declCc2 : undefined);
+        if (vCc2 && vCc2.ok) { final = _cc2Servido; estado = "cobertura-temas"; suplente = true; }
+      }
+    }
+  }
+  /* PELDAÑO 0g · LA AUSENCIA DE TESORERÍA, SOLA (owner 2026-09-25, ley del piso sin modelo, obligatorio D). El
+   * peldaño de arriba solo cubre ≥ 2 temas: una pregunta de tesorería SOLA («cuánta plata tengo disponible en
+   * caja hoy», «cuál es mi flujo de caja») es 1 solo tema (ausente) y no lo alcanza — antes caía, sin ningún
+   * handler, al genérico «con lo que tengo no puedo responder eso con seguridad», que no dice POR QUÉ. Se sirve
+   * la MISMA línea que ya usa la cobertura corta para una ausencia (`_lineaDeAusencia`, reusada, nunca una
+   * segunda redacción de la misma declaración). */
+  if (final === null && (_dom.ausentes || []).includes("tesoreria")) {
+    const _Dt = crearDeclarador();
+    const _lt = (() => { try { return lineaDeAusencia("tesoreria", _Dt); } catch { return null; } })();
+    if (_lt && _lt.texto) {
+      const _declLt = filtrarPorTexto(_Dt.lista(), _lt.texto);
+      const { v: vLt, servido: _ltServido } = _juzgarPeldano(_lt.texto, "ausencia-tesoreria", _declLt.length ? _declLt : undefined);
+      if (vLt && vLt.ok) { final = _ltServido; estado = "ausencia-tesoreria"; suplente = true; }
+    }
+  }
   if (final === null) {
     /* `preferir` (2026-09-11): el rescate ya no sirve la fila 1 de la herramienta a ciegas — con un referente
      * resuelto prefiere SUS cifras, y con alcance de negocio entero prefiere las cifras sin dueño de cuenta.
@@ -1606,8 +1748,21 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
         return labels;
       } catch { return new Set(); }
     })();
+    /* LA CIFRA AJENA, DE RAÍZ (owner 2026-09-25, obligatorio A): la clave de métrica que `claveDeMetrica`
+     * resuelve de la PREGUNTA — el backstop final de `_lineaHonesta`, que filtra la fig servida contra esta
+     * clave sin importar si `preferirDelTurno.metrica` ya ordenó algo (ver la cabecera de `_lineaHonesta`).
+     * `_conceptosDeLaPregunta` (ronda 4, plural): TODOS los conceptos que la pregunta nombra explícitamente —
+     * «ventas, margen y contribución» son tres, no uno — es el que de verdad filtra; el singular solo redacta
+     * el mensaje cuando no queda ninguna cifra de ningún concepto pedido. */
+    const _conceptoDeLaPregunta = (() => { try { return claveDeMetrica(q); } catch { return null; } })();
+    const _conceptosDeLaPregunta = (() => { try { return new Set(clavesDeMetrica(q)); } catch { return null; } })();
+    /* «EL CLIENTE QUE MÁS NOS COMPRA», SIN NOMBRARLO (owner 2026-09-25, obligatorio A): una identidad
+     * superlativa pedida sin cuenta nombrada es un RANKING, y este piso no arma rankings sin verificarlos —
+     * ver la cabecera de `_lineaHonesta`. Acotado a la forma «el/la Xque más…»/«mi mejor Xcliente»: nunca decide
+     * sobre una cuenta YA nombrada (`_soloMetricaSinDueno`/`preferirDelTurno.entidades` gobiernan ese caso). */
+    const _pidenIdentidadSuperlativa = !(preferirDelTurno && preferirDelTurno.entidades) && /\b(?:el|la|los|las)\s+(?:clientes?|cuentas?|sku|productos?)\s+que\s+m[aá]s\b|\bmejor\s+cliente\b|\bcliente\s+(?:principal|n[uú]mero\s*1|top)\b|\bqui[eé]n\s+es\s+(?:mi|nuestro|el)\b.{0,20}\bmejor\b/i.test(q);
     final = _lineaHonesta({ motivos: motivosNoSoportado, figs: figsTotales, juzgar: (t) => _juzgarPeldano(t, "linea-honesta").v, entidades: duenosTenant || [], falta: (() => { try { return faltanteQueToca(q); } catch { return null; } })(), preferir: preferirDelTurno,
-      relegar: _figsDelContrato.size ? (f) => _figsDelContrato.has(String(f && f.label)) : null });
+      relegar: _figsDelContrato.size ? (f) => _figsDelContrato.has(String(f && f.label)) : null, conceptoPedido: _conceptoDeLaPregunta, conceptosPedidos: _conceptosDeLaPregunta, sinRankingVerificado: _pidenIdentidadSuperlativa });
     if (final !== null) { estado = "limite"; suplente = true; }
   }
   if (final === null) {
@@ -1633,6 +1788,25 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
     if (vL && vL.ok) { final = txt; estado = "limite"; suplente = true; }
   }
   if (final === null) { final = composeNoDataMessage(null); estado = "vacio"; suplente = true; }
+
+  /* PELDAÑO FINAL · LA AUSENCIA DE TESORERÍA NUNCA SE PIERDE DETRÁS DE UNA COBERTURA PARCIAL (owner 2026-09-25,
+   * ley del piso sin modelo, obligatorio D). Los peldaños 0f/0g (arriba) ya la declaran cuando SON ellos los
+   * que responden — pero un peldaño MÁS ARRIBA en la escalera (un playbook de un solo tema que sí sabe
+   * responder, la línea honesta con una cifra de otro tema) puede ganar el turno sin saber que la pregunta
+   * TAMBIÉN pedía tesorería («cuánto vendí y cuánta plata tengo disponible en caja» — el playbook de ventas
+   * responde su parte completa y la caja queda sin mencionar, sin declarar la ausencia). Solo determinístico
+   * (`suplente`): un turno que el CEREBRO ya respondió no se toca acá — verde audita otra cosa, la experiencia
+   * completa con el modelo. La línea es la MISMA `lineaDeAusencia` certificada (0g); se agrega y el conjunto
+   * pasa el mismo par de leyes duras que ya protege el «trato» de abajo (`_guard` + el contrato) antes de
+   * aceptarse — si no pasa, el texto ya aprobado se sirve tal cual, nunca se arriesga lo que ya estaba bien. */
+  if (suplente && typeof final === "string" && final && (_dom.ausentes || []).includes("tesoreria") && !/tesorer[ií]a/i.test(final)) {
+    const _Dta = crearDeclarador();
+    const _ltAusente = (() => { try { return lineaDeAusencia("tesoreria", _Dta); } catch { return null; } })();
+    if (_ltAusente && _ltAusente.texto) {
+      const combinado = `${final} ${_ltAusente.texto}`;
+      try { const vta = _guard(combinado); if (vta && vta.ok && !vetosDeContrato(combinado).length) final = combinado; } catch { /* la respuesta ya aprobada, sin la línea, antes que arriesgarla */ }
+    }
+  }
 
   /* R4c DEL EXAMEN 1 (2026-08-31): el trato registrado llega TAMBIÉN en los peldaños de rescate — en T14/T15
    * «jc»/«wachin» se guardaron en el motor y jamás aparecieron en pantalla (los verdes lo traen porque el

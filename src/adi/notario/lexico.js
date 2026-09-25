@@ -13,7 +13,7 @@ import { idsActivos } from "../../config/contract/dominios.js";   // el registro
  * (capital, stock, participación) · «referencia» = un umbral de la POLICY o del negocio (benchmark, nivel de carga, piso de rotación) */
 export const CLAVES_DE_METRICA = [
   /* ── comercial ── */
-  { clave: "ventas", nombre: "Venta", conceptos: ["venta", "ventas", "ventas del periodo", "venta del periodo", "ventas totales", "vende", "venden", "vendio", "vendiste", "vendieron", "te compro", "te compraron", "le vendiste", "les vendiste", "facturado", "facturaste"], dominio: "comercial", polaridad: "mayor", unidad: "money", muro: ["ventas"] },
+  { clave: "ventas", nombre: "Venta", conceptos: ["venta", "ventas", "ventas del periodo", "venta del periodo", "ventas totales", "vendo", "vende", "venden", "vendio", "vendiste", "vendieron", "te compro", "te compraron", "le vendiste", "les vendiste", "facturado", "facturaste", "nos compra", "nos compran", "te compra", "le compra", "les compra"], dominio: "comercial", polaridad: "mayor", unidad: "money", muro: ["ventas"] },
   { clave: "ventas_anterior", nombre: "Ventas del año anterior", conceptos: ["ventas del ano anterior"], dominio: "comercial", polaridad: null, unidad: "money", muro: ["ventas"] },
   { clave: "margen", nombre: "Margen", conceptos: ["margen"], dominio: "comercial", polaridad: "mayor", unidad: "pct", muro: ["margen"], tasa: true },
   { clave: "margen_promedio", nombre: "Margen promedio", conceptos: ["margen promedio"], dominio: "comercial", polaridad: "mayor", unidad: "pct", muro: ["margen"], tasa: true, negocio: true },
@@ -48,7 +48,7 @@ export const CLAVES_DE_METRICA = [
   { clave: "saldo_por_vencer", nombre: "Saldo por vencer", conceptos: ["saldo por vencer"], dominio: "cobranza", polaridad: null, unidad: "money", muro: ["porvencer"] },
   { clave: "abonado", nombre: "Abonado", conceptos: ["abonado"], dominio: "cobranza", polaridad: "mayor", unidad: "money", muro: ["abonado"] },
   { clave: "recuperado", nombre: "Recuperado", conceptos: ["recuperado"], dominio: "cobranza", polaridad: "mayor", unidad: "pct", muro: ["recuperado"], tasa: true },
-  { clave: "dias_vencido", nombre: "Días vencido", conceptos: ["dias vencido"], dominio: "cobranza", polaridad: "menor", unidad: "days", muro: ["diasvencido", "vencido"] },   // «269 días de mora», «lleva 269 días vencido»
+  { clave: "dias_vencido", nombre: "Días vencido", conceptos: ["dias vencido", "dias de atraso", "dias de mora", "atraso"], dominio: "cobranza", polaridad: "menor", unidad: "days", muro: ["diasvencido", "vencido"] },   // «269 días de mora», «lleva 269 días vencido», «cuántos días de atraso lleva»
   /* ── inventario ── */
   { clave: "capital", nombre: "Capital", conceptos: ["capital", "valor de inventario", "stock", "capital en inventario", "inventario"], dominio: "inventario", polaridad: null, unidad: "money", muro: ["capital"] },
   { clave: "capital_frenado", nombre: "Capital frenado", conceptos: ["capital frenado"], dominio: "inventario", polaridad: "menor", unidad: "money", muro: ["frenado", "capital"] },
@@ -84,6 +84,19 @@ export function claveDeMetrica(texto) {
   const _enPalabra = (c) => new RegExp("(?<![a-záéíóúñ])" + c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![a-záéíóúñ])").test(s);   // por palabra: «inventario» no contiene «venta»
   for (const m of CLAVES_DE_METRICA) for (const c of m.conceptos) if (c.length >= 4 && _enPalabra(c) && (!mejor || c.length > mejor.c.length)) mejor = { m, c };
   return mejor ? mejor.m.clave : null;
+}
+/** clavesDeMetrica(texto) → TODAS las claves cuyo concepto aparece en el texto, no solo la MEJOR (owner
+ *  2026-09-25, ronda 4, ley del piso sin modelo, vía coordinador): una pregunta puede nombrar varios conceptos
+ *  a la vez («ventas, margen y contribución») y `claveDeMetrica` —«el concepto más largo que casa decide»—
+ *  descarta los demás aunque estén igual de explícitos. Mismo criterio de palabra (concepto de ≥ 4 caracteres,
+ *  borde de palabra), sin quedarse con uno solo. */
+export function clavesDeMetrica(texto) {
+  const s = normalizar(String(texto || ""));
+  if (!s) return [];
+  const _enPalabra = (c) => new RegExp("(?<![a-záéíóúñ])" + c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![a-záéíóúñ])").test(s);
+  const claves = new Set();
+  for (const m of CLAVES_DE_METRICA) { if (m.conceptos.some((c) => c.length >= 4 && _enPalabra(c))) claves.add(m.clave); }
+  return [...claves];
 }
 export const dominioDeClave = (clave) => { const m = metricaPorClave(clave); return m ? m.dominio : null; };
 export const polaridadDeClave = (clave) => { const m = metricaPorClave(clave); return m ? m.polaridad : null; };

@@ -60,6 +60,18 @@ const _lab = (f) => String((f && f.label) || "");
 const _find = (figs, re) => (Array.isArray(figs) ? figs : []).find((f) => re.test(_lab(f))) || null;
 const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const _norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+/* «VENTA A CRÉDITO» NO ES «VENTA» (owner 2026-09-25, ley del piso sin modelo, ronda 3 — cambio silencioso de
+ * concepto medido: «cuánto le vendo a crédito a Ripley» servía «Ripley vendió $4.7M», la fig comercial «·
+ * Venta» — el total, contado + crédito. En el demo coincide (100% crédito); en una planilla con contado sería
+ * otro número. `venta_credito` YA es una clave de `notario/lexico.js`, con su propia fig en la mesa de
+ * cobranza («· Venta a crédito» / «· Venta (flujo)», ahora disponible para cualquier cuenta nombrada por la
+ * fila aditiva de `cobranza()`). Léxico angosto a propósito: «a crédito» pegado a un verbo de venta o a
+ * «venta(s)» — «vendo a crédito», «venta a crédito», nunca el «crédito» suelto de `saldo_pendiente`/
+ * `dias_vencido` (ese es cobranza, ya cubierto). */
+const _PIDE_VENTA_CREDITO = /\b(?:vend\w*|venta[s]?|factur\w*)\b[^.?!\n]{0,15}\ba\s+cr[eé]dito\b|\ba\s+cr[eé]dito\b[^.?!\n]{0,15}\b(?:vend\w*|venta[s]?)\b/i;
+const _figVentaCredito = (figs, sujeto) => (sujeto
+  ? _find(figs, new RegExp(`^${_esc(sujeto)} · (?:Venta a cr[eé]dito|Venta \\(flujo\\))$`, "i"))
+  : _find(figs, /^(?:Venta a cr[eé]dito del per[ií]odo|Venta del per[ií]odo \(flujo\))$/i));
 
 /** los pasos de todos los dominios pedidos, UN DOMINIO A LA VEZ (owner 2026-09-24: el tope de llamadas por ronda
  *  —8— se agotaría si se pidieran juntos; medido: «Inventario: sin señal material» aunque el dato SÍ tenía SKU
@@ -136,6 +148,16 @@ function _medidaDineroEnJuego(dominio, figs) {
 function _lineaComercial(pregunta, sujeto, figs, D, breve = false) {
   const balde = _baldeComercial(pregunta);
   if (balde === "ventas") {
+    /* VENTA A CRÉDITO ≠ VENTA (owner 2026-09-25, ley del piso sin modelo, ronda 3): ver la cabecera de
+     * `_PIDE_VENTA_CREDITO`. Se resuelve ANTES de tocar la fig comercial «· Venta» — la carnada es literal:
+     * pedir crédito nunca llega a esa línea. */
+    if (_PIDE_VENTA_CREDITO.test(String(pregunta || ""))) {
+      const fc = _figVentaCredito(figs, sujeto);
+      if (!fc) return null;
+      const tc = sujeto ? `Ventas: ${sujeto}, ${_val(fc)} vendidos a crédito.` : `Ventas: ${_val(fc)} vendidos a crédito en el período.`;
+      D.cifra({ sujeto: sujeto || "negocio", metrica: "Venta a crédito", valor: _val(fc), universo: sujeto ? undefined : "total", texto: tc });
+      return { texto: tc, valor: _num(fc), universo: "venta_credito", entidad: sujeto || "negocio", rotulo: "Venta a crédito", fmt: _val(fc), esMedidaDeDineroEnJuego: false, nombreTema: "comercial" };
+    }
     const f = sujeto ? _find(figs, new RegExp(`^${_esc(sujeto)} · Venta$`, "i")) : _find(figs, /^Ventas del per[ií]odo$/i);
     if (!f) return null;
     const entidad = sujeto || "negocio";
@@ -182,6 +204,36 @@ function _lineaComercial(pregunta, sujeto, figs, D, breve = false) {
    * de figs que mezclaría otro nivel de agregación), más la brecha del líder al benchmark (severidad). El TEMA
    * del cierre se llama «margen» solo si la pregunta lo nombró así (se le devuelve su propia palabra); genérico
    * («lo comercial»), se llama «comercial» — el nombre del dominio que SÍ dijo, no uno que no dijo. */
+  /* ENTIDAD CORRECTA, DE RAÍZ (owner 2026-09-25, ley del piso sin modelo, obligatorio C): con una cuenta
+   * NOMBRADA, esta línea es SOBRE ESA CUENTA — nunca el total de la cartera con el líder de la cartera al lado,
+   * que un lector lee como si fuera de la cuenta que preguntó (el defecto medido: «Ripley…» abría con «encabeza
+   * Falabella»). Se busca la fila de la cuenta pedida en `senalesDelDominio` (nunca la `[0]`); sin fila para
+   * ELLA, este dominio no tiene señal que dar de esa cuenta — `null`, y `_lineaDeDominio` lo dice sin inventar
+   * nada (nunca la señal de otra cuenta como sustituto). */
+  if (sujeto) {
+    const propia = senalesDelDominio(figs, "comercial").find((x) => _norm(x.entidad) === _norm(sujeto));
+    const nombreTemaS = balde === "margen" ? "margen" : "comercial";
+    if (propia) {
+      let ts = `${balde === "margen" ? "Margen" : "Comercial"}: ${sujeto} deja ${propia.materialidad.fmt} de contribución no capturada (estimada contra el benchmark)`;
+      D.cifra({ sujeto, metrica: propia.materialidad.rotulo, valor: propia.materialidad.fmt, texto: ts });
+      if (!breve && propia.severidad) { ts += `, ${_frase(propia.severidad.fmt, propia.severidad.rotulo)}`; D.cifra({ sujeto, metrica: propia.severidad.rotulo, valor: propia.severidad.fmt, texto: ts }); }
+      ts += ".";
+      return { texto: ts, valor: propia.materialidad.n, universo: "margen", entidad: sujeto, rotulo: propia.materialidad.rotulo, fmt: propia.materialidad.fmt, esMedidaDeDineroEnJuego: false, nombreTema: nombreTemaS };
+    }
+    /* SIN «Contribución no capturada» PARA ESTA CUENTA (owner 2026-09-25): esa fig solo existe para las cuentas
+     * bajo el benchmark — una cuenta AL o SOBRE el benchmark no la tiene, y eso no es «sin cifra»: el Margen
+     * verbatim de la cuenta SÍ está en la boleta («La Polar · Margen = 34.0%» — con margen no la penaliza el
+     * detector de gap). Se sirve esa, en vez de declinar sobre una cuenta que en realidad tiene el dato. */
+    if (balde === "margen" || !balde) {
+      const fm = _find(figs, new RegExp(`^${_esc(sujeto)} · Margen$`, "i"));
+      if (fm) {
+        const tm = `Margen: ${sujeto} tiene ${_val(fm)} de margen.`;
+        D.cifra({ sujeto, metrica: "Margen", valor: _val(fm), texto: tm });
+        return { texto: tm, valor: _num(fm), universo: "margen", entidad: sujeto, rotulo: "Margen", fmt: _val(fm), esMedidaDeDineroEnJuego: false, nombreTema: nombreTemaS };
+      }
+    }
+    return null;
+  }
   const dj = _medidaDineroEnJuego("comercial", figs);
   if (!dj) return null;
   const nombreTema = balde === "margen" ? "margen" : "comercial";
@@ -229,10 +281,56 @@ const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
  *  capital frenado total; deuda/cobranza/atraso → saldo vencido total — el mapeo del coordinador coincide con
  *  lo que el registro declara, así que no hace falta un balde de conceptos acá), con su total y quién encabeza,
  *  más la severidad/urgencia del líder (recuperado, días, atraso) como dato adicional. */
-function _lineaSenal(dominio, figs, D, breve = false) {
-  const dj = _medidaDineroEnJuego(dominio, figs);
+const _PIDE_ATRASO = /\bd[ií]as?\s+de\s+atraso\b|\bd[ií]as?\s+de\s+mora\b|\batrasad[oa]s?\b|\batraso\b/i;
+function _lineaSenal(dominio, figs, D, breve = false, sujeto = null, pregunta = "") {
   const L = LENTES[dominio];
-  if (!dj || !L) return null;
+  if (!L) return null;
+  /* ENTIDAD CORRECTA, DE RAÍZ (owner 2026-09-25, ley del piso sin modelo, obligatorio C): con una cuenta
+   * nombrada y un dominio de clave «cliente» (cobranza), la línea es SOBRE ESA CUENTA — nunca el total de la
+   * cartera con el líder de la cartera al lado (el defecto medido con Ripley: la línea de cobranza abría con
+   * «encabeza Lider»). Un dominio de clave «sku» (inventario) no tiene eje de cliente: el sujeto no lo acota
+   * (sigue siendo la foto de siempre), consistente con «los SKU van aparte» del resto de la casa. */
+  if (sujeto && L.clave === "cliente") {
+    const propia = senalesDelDominio(figs, dominio).find((x) => _norm(x.entidad) === _norm(sujeto));
+    if (propia) {
+      /* la forma natural reusa `L.materialidad.como` (ya certificada: «$X vencidos», «$X frenados») en vez de una
+       * redacción nueva — «Ripley, $4.6M vencidos, …» */
+      let ts = `${_DOM_TXT[dominio]}: ${sujeto}, ${L.materialidad.como(propia.materialidad.fmt)}`;
+      D.cifra({ sujeto, metrica: propia.materialidad.rotulo, valor: propia.materialidad.fmt, texto: ts });
+      if (!breve) {
+        if (propia.severidad) { ts += `, ${_frase(propia.severidad.fmt, propia.severidad.rotulo)}`; D.cifra({ sujeto, metrica: propia.severidad.rotulo, valor: propia.severidad.fmt, texto: ts }); }
+        if (propia.urgencia && L.urgencia) { ts += `, ${_frase(propia.urgencia.fmt, propia.urgencia.rotulo)}`; D.cifra({ sujeto, metrica: propia.urgencia.rotulo, valor: propia.urgencia.fmt, texto: ts }); }
+      }
+      ts += ".";
+      return { texto: ts, valor: propia.materialidad.n, universo: dominio, entidad: sujeto, rotulo: propia.materialidad.rotulo, fmt: propia.materialidad.fmt, esMedidaDeDineroEnJuego: false, nombreTema: dominio };
+    }
+    /* «AL DÍA» NO ES «SIN CIFRA» (owner 2026-09-25, coordinador, ley del piso sin modelo — falso por omisión
+     * medido: «Jumbo… sin cifra verificada» cuando la boleta SÍ trae a Jumbo, $5.1M pendiente, sin vencido). La
+     * definición de la casa es finita (`notario/estados.js:al dia` = saldo vencido 0) y ya está VERIFICADA acá:
+     * sin fila en `senalesDelDominio` (que exige un «· Saldo vencido» — un cliente sin vencido nunca lo trae),
+     * la cuenta puede o bien no tener saldo pendiente TAMPOCO (ausente de este dato: cede a «sin cifra») o
+     * tenerlo con vencido cero (al día) — solo cobranza declara ese estado, `LENTES.cobranza` es el único
+     * dominio de clave cliente con esta ambigüedad (inventario nunca llega acá: su clave es «sku»). */
+    if (dominio === "cobranza") {
+      const fp = _find(figs, new RegExp(`^${_esc(sujeto)} · Saldo pendiente$`, "i"));
+      if (fp) {
+        /* pidió específicamente días de atraso (owner 2026-09-25, coordinador, forma exacta pedida): la
+         * duración es la respuesta, no el monto pendiente — «al día, sin días de atraso», corto. */
+        if (_PIDE_ATRASO.test(String(pregunta || ""))) {
+          const t3 = `Cobranza: ${sujeto} está al día, sin días de atraso.`;
+          D.estado({ sujeto, estado: "al dia", texto: t3 });
+          return { texto: t3, valor: 0, universo: dominio, entidad: sujeto, rotulo: "Dias Vencido", fmt: "0d", esMedidaDeDineroEnJuego: false, nombreTema: dominio };
+        }
+        const t2 = `Cobranza: ${sujeto} está al día (sin vencido), ${_val(fp)} pendiente.`;
+        D.estado({ sujeto, estado: "al dia", texto: t2 });
+        D.cifra({ sujeto, metrica: "Saldo pendiente", valor: _val(fp), texto: t2 });
+        return { texto: t2, valor: _num(fp), universo: dominio, entidad: sujeto, rotulo: "Saldo pendiente", fmt: _val(fp), esMedidaDeDineroEnJuego: false, nombreTema: dominio };
+      }
+    }
+    return null;
+  }
+  const dj = _medidaDineroEnJuego(dominio, figs);
+  if (!dj) return null;
   let t = `${_DOM_TXT[dominio]}: ${dj.fmt} de ${dj.rotulo.toLowerCase()}`;
   D.cifra({ sujeto: "negocio", metrica: dj.rotulo, valor: dj.fmt, universo: dj.universo, texto: t });
   /* quién encabeza sale de `senalesDelDominio` (el eje correcto: SKU en inventario, cliente en cobranza) —
@@ -260,15 +358,22 @@ function _lineaSenal(dominio, figs, D, breve = false) {
 /** la línea de un dominio pedido — comercial resuelve su concepto; inventario/cobranza usan la señal (coinciden
  *  con el mapeo del coordinador); sin señal, lo dice. */
 function _lineaDeDominio(dominio, pregunta, sujeto, figs, D, breve = false) {
-  const r = dominio === "comercial" ? _lineaComercial(pregunta, sujeto, figs, D, breve) : _lineaSenal(dominio, figs, D, breve);
-  return r || { texto: `${_DOM_TXT[dominio] || dominio}: sin señal material en este dato.`, valor: NaN, universo: dominio };
+  const r = dominio === "comercial" ? _lineaComercial(pregunta, sujeto, figs, D, breve) : _lineaSenal(dominio, figs, D, breve, sujeto, pregunta);
+  /* sin señal —owner 2026-09-25, obligatorio C—: si había una cuenta pedida, se lo dice A ELLA (nunca calla el
+   * nombre ni lo reemplaza por el de otra cuenta). */
+  return r || { texto: sujeto && LENTES[dominio] && LENTES[dominio].clave === "cliente"
+    ? `${_DOM_TXT[dominio] || dominio}: sin cifra verificada de ${sujeto} en este dato.`
+    : `${_DOM_TXT[dominio] || dominio}: sin señal material en este dato.`, valor: NaN, universo: dominio };
 }
 
 /** la línea de un dominio AUSENTE (tesorería): la ausencia declarada — y la exposición de crédito se OFRECE, no
  *  se promete sin entregar (owner 2026-09-24, defecto C: «Tesorería… mido en su lugar…» y después ninguna cifra).
  *  ⚠️ NO repite «caja»/«efectivo» (guardC.js:_COMO_CAJA mira ±140/260 chars alrededor de cada cifra; ver la nota
- *  histórica de esta misma función). */
-function _lineaDeAusencia(id, D) {
+ *  histórica de esta misma función). EXPORTADA (owner 2026-09-25, ley del piso sin modelo, obligatorio D): una
+ *  pregunta de tesorería SOLA —sin acompañar a otro tema— también tiene que declarar la ausencia con esta MISMA
+ *  línea, no el genérico «no puedo responder eso con seguridad»; `bucleAgente.js` la reusa como
+ *  `lineaDeAusencia` fuera de la cobertura corta, en vez de escribir una segunda línea de ausencia. */
+export function _lineaDeAusencia(id, D) {
   const info = dominioPorId(id);
   if (!info || !info.ausencia) return null;
   const t = `Tesorería: este archivo no trae datos de tesorería. Puedo mostrarte en su lugar la exposición de crédito por cliente si te sirve.`;
@@ -441,8 +546,14 @@ export function componerCoberturaCorta({ encargo, pregunta = "", leer, declarar 
 /* ⚠️ LA TRAMPA DE SIEMPRE DE ESTA CASA: `\b` no encuentra borde justo después de una vocal acentuada («cobré »)
  * porque `\b`/`\w` son ASCII. Los bordes se escriben con la clase que sí conoce la tilde y la ñ. */
 const _FIN_CC = "(?![\\wáéíóúñ])";
+/* «cuántos días de atraso lleva» (owner 2026-09-25, ley del piso sin modelo, obligatorio A): pregunta por una
+ * DURACIÓN (dias_vencido), no por un monto — antes de este renglón caía al balde genérico «Saldo pendiente»
+ * (un monto) y respondía un concepto que nadie pidió. Va ANTES de «vencid» a propósito: «atraso»/«mora» son más
+ * específicos que el «vencido» genérico y tienen que ganarle. */
 const _METRICA_COBRANZA = [
   [new RegExp(`\\bcobr[eé]s?${_FIN_CC}|\\bcobrad[oa]s?${_FIN_CC}|\\babon`, "i"), "Abonado", "abonado"],
+  /* el rótulo de la boleta es literal «Dias Vencido», sin tilde (`herramientasAgente.js:enrichFromFacts`) */
+  [/\bd[ií]as?\s+de\s+atraso\b|\bd[ií]as?\s+de\s+mora\b|\batrasad[oa]s?\b|\batraso\b/i, "Dias Vencido", "días de atraso"],
   [/\bvencid/i, "Saldo vencido", "vencido"],
   [/\bdeb[eo]\b|\bdeben\b|\badeud|\bdeuda\b/i, "Saldo pendiente", "pendiente"],
 ];
@@ -453,6 +564,16 @@ const _metricaInventario = (pregunta) => { for (const [re, label, nombre] of _ME
 /** { texto, verificada } — `verificada` false cuando no hubo fig y el texto es la declaración de ausencia. */
 function _lineaCifraDeDominio(dominio, { sujeto, pregunta, figs, D }) {
   if (dominio === "comercial") {
+    /* VENTA A CRÉDITO ≠ VENTA (owner 2026-09-25, ley del piso sin modelo, ronda 3 — el mismo cambio silencioso
+     * de concepto que `_lineaComercial`, ver su cabecera): se resuelve ANTES de tocar «· Venta». Sin la fig de
+     * crédito, declina SOLO ese concepto — nunca lo reemplaza por la venta total. */
+    if (_PIDE_VENTA_CREDITO.test(String(pregunta || ""))) {
+      const fc = _figVentaCredito(figs, sujeto);
+      if (!fc) return { texto: `${_DOM_TXT.comercial}: sin cifra verificada de venta a crédito en este dato.`, verificada: false };
+      const tc = sujeto ? `${sujeto}: ${_val(fc)} vendidos a crédito.` : `Venta a crédito del período: ${_val(fc)}.`;
+      D.cifra({ sujeto: sujeto || "negocio", metrica: "Venta a crédito", valor: _val(fc), universo: sujeto ? undefined : "total", texto: tc });
+      return { texto: tc, verificada: true };
+    }
     const f = sujeto ? _find(figs, new RegExp(`^${_esc(sujeto)} · Venta$`, "i")) : _find(figs, /^Ventas del per[ií]odo$/i);
     if (!f) return { texto: `${_DOM_TXT.comercial}: sin cifra verificada de venta en este dato.`, verificada: false };
     const t = sujeto ? `${sujeto} vendió ${_val(f)}.` : `Venta del período: ${_val(f)}.`;
@@ -462,10 +583,30 @@ function _lineaCifraDeDominio(dominio, { sujeto, pregunta, figs, D }) {
   if (dominio === "cobranza") {
     const { label, nombre } = _metricaCobranza(pregunta);
     const f = sujeto ? _find(figs, new RegExp(`^${_esc(sujeto)} · ${_esc(label)}$`, "i")) : _find(figs, new RegExp(`^${_esc(label)} · total$`, "i"));
-    if (!f) return { texto: `${_DOM_TXT.cobranza}: sin cifra verificada de ${nombre} en este dato.`, verificada: false };
-    /* «Lider tiene $9.8M de pendiente» → «Lider te debe $9.8M (saldo pendiente)» (owner 2026-09-24, forma) */
+    if (!f) {
+      /* «AL DÍA» NO ES «SIN CIFRA» (owner 2026-09-25, coordinador — la misma corrección que `_lineaSenal`): sin
+       * fig de «Saldo vencido»/«Dias Vencido» para la cuenta, antes de declinar se comprueba si la cuenta SÍ
+       * está en el dato (tiene «Saldo pendiente») — sin vencido publicado y CON pendiente es la definición de
+       * la casa de «al día» (`notario/estados.js`), no una ausencia. Solo aplica a esos dos labels: «Saldo
+       * pendiente» ausente sigue siendo la cuenta ausente del dato (nada que reinterpretar). */
+      if (sujeto && (label === "Saldo vencido" || label === "Dias Vencido")) {
+        const fp = _find(figs, new RegExp(`^${_esc(sujeto)} · Saldo pendiente$`, "i"));
+        if (fp) {
+          const tAlDia = label === "Dias Vencido" ? `${sujeto} está al día, sin días de atraso.` : `${sujeto} está al día (sin vencido), ${_val(fp)} pendiente.`;
+          D.estado({ sujeto, estado: "al dia", texto: tAlDia });
+          if (label !== "Dias Vencido") D.cifra({ sujeto, metrica: "Saldo pendiente", valor: _val(fp), texto: tAlDia });
+          return { texto: tAlDia, verificada: true };
+        }
+      }
+      return { texto: `${_DOM_TXT.cobranza}: sin cifra verificada de ${nombre} en este dato.`, verificada: false };
+    }
+    /* «Lider tiene $9.8M de pendiente» → «Lider te debe $9.8M (saldo pendiente)» (owner 2026-09-24, forma).
+     * «Días vencido» es una DURACIÓN, no un monto: se dice con `_frase` (la misma forma que ya usa la línea de
+     * señal — «269 días de atraso», nunca «269d»), owner 2026-09-25. */
     const t = sujeto
-      ? (label === "Saldo pendiente" ? `${sujeto} te debe ${_val(f)} (saldo pendiente).` : `${sujeto}: ${_val(f)} de ${nombre}.`)
+      ? (label === "Saldo pendiente" ? `${sujeto} te debe ${_val(f)} (saldo pendiente).`
+        : label === "Dias Vencido" ? `${sujeto} lleva ${_frase(_val(f), label)}.`
+        : `${sujeto}: ${_val(f)} de ${nombre}.`)
       : `${label}: ${_val(f)}.`;
     D.cifra({ sujeto: sujeto || "negocio", metrica: label, valor: _val(f), universo: sujeto ? undefined : "total", texto: t });
     return { texto: t, verificada: true };

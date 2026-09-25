@@ -26,7 +26,7 @@ import { ventaOficialDelPeriodo } from "../sentrix/temporal.js";   // `proyectar
 import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";   // `cobranza` · la MISMA mesa que la pestaña Flujo Comercial — una sola verdad, cero recalculo
 import { buildRolesCartera, REGLAS_DE_ROL } from "../sentrix/rolesCartera.js";   // `rolesCartera` · el papel de cada cliente y la huella de cada mecanismo (el porqué, hecho evidencia)
 import { lecturaDeCuadro } from "../sentrix/lecturaDeCuadro.js";   // `cuadroSentrix` · lo que ESE cuadro pinta, del mismo módulo que lo pinta (owner 2026-09-08)
-import { findCandidates } from "../oracle/entityIndex.js";
+import { findCandidates, axisEntityNames } from "../oracle/entityIndex.js";   // axisEntityNames: `cobranza` la usa para sumar, ADITIVO, la fila de una cuenta nombrada fuera del top 8 (owner 2026-09-25, ley del piso sin modelo)
 /* el NOMBRE de la referencia de carga sale de REFERENCIA_CAMPO (entityRecord.js), la tabla que ya declara la
  * referencia autorizada de cada campo: una etiqueta copiada a mano es la forma en que «Target de carga» y «Meta
  * de carga comercial» llegaron a nombrar la MISMA cifra con dos palabras, y una de ellas prohibida en superficie. */
@@ -343,6 +343,37 @@ export function cobranza(_args = {}, ctx = {}) {
   for (const f of filas) {
     if (f.recuperadoFmt != null && Number.isFinite(f.recuperadoPct)) boleta.push(fig(`${f.nombre} · Recuperado`, f.recuperadoFmt, { unit: "pct", raw: f.recuperadoPct, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
     if (f.diasVencidoFmt && f.diasVencidoFmt !== "—" && Number.isFinite(f.diasVencido)) boleta.push(fig(`${f.nombre} · Dias Vencido`, f.diasVencidoFmt, { unit: "days", raw: f.diasVencido, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
+  }
+
+  /* LA CUENTA NOMBRADA, FUERA DEL TOP 8 (owner 2026-09-25, ley del piso sin modelo, obligatorio B/C): el
+   * recorte de arriba es «vencido primero, después saldo» — una cuenta AL DÍA con saldo chico queda afuera
+   * aunque la pregunta la nombre. Medido: «Jumbo … cuánto nos compra, cuánto descuento, cómo anda pagando»
+   * servía «Cobranza: sin cifra verificada de Jumbo» siendo FALSO — Jumbo está en `M.filas`, con $5.1M
+   * pendiente y $0 vencido (al día). ADITIVO A PROPÓSITO, al FINAL: el recorte de 8, su orden y sus posiciones
+   * NO cambian — varias fixtures citan las figs de arriba por posición (`asignarIds`/«c8», «c12»…); intercalar
+   * estas figs les correría el número. `_preguntaUsuario` solo la inyecta el motor de llamadas
+   * (`toolRunner.js`, ver su cabecera) cuando la recibe: sin ella, esto no agrega ni un byte — mismo
+   * comportamiento de siempre. */
+  const _entidadesNombradas = (() => {
+    try {
+      const q = String((_args && _args._preguntaUsuario) || "");
+      if (!q.trim()) return [];
+      const _normEnt = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      const qn = _normEnt(q);
+      return (axisEntityNames("cliente") || []).filter((e) => e && String(e).length >= 3 && qn.includes(_normEnt(e)));
+    } catch { return []; }
+  })();
+  if (_entidadesNombradas.length) {
+    const _yaEnTop8 = new Set(filas.map((f) => f.nombre));
+    const _extra = _entidadesNombradas.map((n) => M.filas.find((f) => f.nombre === n)).filter((f) => f && !_yaEnTop8.has(f.nombre));
+    for (const f of _extra) {
+      _fig(`${f.nombre} · ${esPlanilla ? "Venta a crédito" : "Venta (flujo)"}`, f.ventaFmt, f.ventaK);
+      _fig(`${f.nombre} · Abonado`, f.abonadoFmt, f.abonadoK);
+      _fig(`${f.nombre} · Saldo pendiente`, f.saldoFmt, f.saldoK);
+      if (f.vencidoFmt != null) _fig(`${f.nombre} · Saldo vencido`, f.vencidoFmt, f.vencidoK);
+      if (f.recuperadoFmt != null && Number.isFinite(f.recuperadoPct)) boleta.push(fig(`${f.nombre} · Recuperado`, f.recuperadoFmt, { unit: "pct", raw: f.recuperadoPct, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
+      if (f.diasVencidoFmt && f.diasVencidoFmt !== "—" && Number.isFinite(f.diasVencido)) boleta.push(fig(`${f.nombre} · Dias Vencido`, f.diasVencidoFmt, { unit: "days", raw: f.diasVencido, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
+    }
   }
 
   return {
