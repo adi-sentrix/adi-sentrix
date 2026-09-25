@@ -74,6 +74,7 @@ const CONSUMIDORES = new Map([
   ["src/adi/oracle/serieIntent.js", "solo EXACTO resuelve; prefijo/tipeo → noResuelve con oferta (310ca8f — el arreglo del defecto de la captura)"],
   ["src/adi/oracle/fichaIntent.js", "GRIS-OFERTA declarado: el parecido produce un BOTÓN etiquetado con el nombre resuelto — el usuario lee y decide; traído al supervisor 2026-09-03"],
   ["src/adi/agente/herramientasAgente.js", "solo EXACTO resuelve; el parecido viaja como sugerencia en el sinSoporte («ofrécelo, no lo asumas»)"],
+  ["src/adi/encargo/validar.js", "solo EXACTO resuelve; el parecido viaja como ALTERNATIVA tipada en `noResuelto` y nunca sustituye a la entidad pedida (contrato del encargo v1 §1.2 y §7.1; plan v2 aprobado 2026-09-25, supervisor)"],
 ]);
 {
   const con = _archivos(path.join(ROOT, "src")).filter((p) => /\bfindCandidates\b/.test(fs.readFileSync(p, "utf8")));

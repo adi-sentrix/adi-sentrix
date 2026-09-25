@@ -18,6 +18,13 @@ export const ASSUMPTIONS = {
   margin:    { label: "Cambio de margen",      perturbs: "margen", units: ["pct"],          sign: "any" },  // puntos porcentuales
   inventory: { label: "Cambio de inventario",  perturbs: "doh",    units: ["days", "pct"],  sign: "any" },
   custom:    { label: "Supuesto libre",        perturbs: null,     units: ["pct", "money", "days"], sign: "any" },
+  /* ── ADITIVO (owner 2026-09-25, `_ADI_CONTRATO_ENCARGO_V1.md` §3.5 y §7.1 — «el productor sale del tipo, nunca
+   * de la cita»): antes, «bajar la carga 1 pp» o «cambiar el costo» solo cabían como `custom` (perturbs null),
+   * así que el Encargo no podía tipar el supuesto y el validador dependía de LEER `Supuesto.cita` — justo lo que
+   * la ley `adi-no-desviarse-deterministico` prohíbe. Ninguno de los cinco tipos existentes cambia: es una entrada
+   * más por tipo, igual que el resto de este registro. */
+  carga:     { label: "Cambio de carga comercial", perturbs: "carga", units: ["pp"],  sign: "any" },   // puntos porcentuales · productor: simulateCarga (comercial · cliente)
+  costo:     { label: "Cambio de costo",           perturbs: "costo", units: ["pct"], sign: "any" },   // % sobre el costo · productor: simulateCosto (comercial · sku/cliente/marca/familia)
 };
 
 // helper: ¿es válida la FORMA del supuesto? → {ok} o {ok:false, reason, offer}. null = sin supuesto (scenario "actual").

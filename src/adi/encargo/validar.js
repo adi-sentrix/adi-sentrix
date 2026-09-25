@@ -1,0 +1,495 @@
+/* === src/adi/encargo/validar.js · EL VALIDADOR DEL ENCARGO (Etapa 1 · Corte 1 · owner 2026-09-25) ══════════════
+ * `validarEncargo(encargo, ctx) → Resolucion`, puro, en el orden fijo de `_ADI_CONTRATO_ENCARGO_V1.md` §4.
+ *
+ * LA LEY QUE ESTE ARCHIVO OBEDECE (contrato §0, memoria `adi-no-desviarse-deterministico`): la comprensión del
+ * lenguaje es del LLM. Este módulo NUNCA lee `encargo.preguntaOriginal` ni `Supuesto.cita` — viajan solo para
+ * auditoría en el rastro, ningún `if` de acá los mira. Todo valor válido es un id EXACTO de una tabla que ya
+ * existe en el Core (dominios.js, lexico.js, entityIndex.js, metricRegistry.js, assumptionRegistry.js,
+ * ausencias.js, hechos.js, estados.js, glossary.js) — nunca una coincidencia difusa ni una palabra suelta.
+ * PROHIBIDO (candado del gate, carnada 4): importar `dominiosDeTexto`, `claveDeMetrica` para leer texto libre,
+ * `criterioDeLaPregunta`, `detectors.js`, `intentLayer.js`, o correr una regex sobre `preguntaOriginal`/`cita`.
+ *
+ * NUNCA SUSTITUCIÓN POR VECINO (`adi-piso-sin-modelo`): una parte inválida no anula a las demás; dentro de una
+ * parte, lo válido corre y lo inválido se declara en `noResuelto` — jamás se corre con «el más parecido».
+ *
+ * PURO · sin I/O · sin red · determinístico: mismo tenant + misma versión de datos + mismo encargo ⇒ misma
+ * Resolucion, byte a byte (no depende de nada que cambie entre llamadas salvo el catálogo del tenant activo). */
+import { dominioPorId, idsActivos } from "../../config/contract/dominios.js";
+import { resolveCanonical, resolveEntityRef, findCandidates, axisEntityNames, AXES } from "../oracle/entityIndex.js";
+import { metricaPorClave, esReferencia } from "../notario/lexico.js";
+import { validarHecho, validarUniverso } from "../notario/hechos.js";
+import { ausenciasDe } from "../../config/contract/ausencias.js";
+import { assumptionValid } from "../../config/contract/assumptionRegistry.js";
+import { serieRealDe } from "../sentrix/capability.js";
+import { CRITERIOS } from "../agente/prioridadIntegrada.js";   // SOLO el dato `CRITERIOS` (§3); nunca `criterioDeLaPregunta`
+import {
+  PARTES_MAX, SUPUESTOS_USUARIO_MAX, CIERRES, EJES, TIPOS_DE_PREMISA, USAR_VALORES, PROFUNDIDAD_VALORES,
+  CAMPOS_RAIZ, CAMPOS_PARTE, conceptoDeDefinicionValido, ejesConProductor, cruceBloqueadoDe, productorDe,
+  sujetoDeTema, nuevoNoResuelto, nuevoAviso, resolucionVacia,
+} from "./esquema.js";
+
+const _es = (x) => x != null && typeof x === "object" && !Array.isArray(x);
+const _str = (x) => typeof x === "string" && x.trim() !== "";
+const _lista = (x) => (Array.isArray(x) ? x : []);
+
+/* ── el índice liviano que `validarHecho`/`validarUniverso` (hechos.js) exigen: SOLO `resolverEntidad` y
+ * `tamanoDelEje` (lo único que esas dos funciones tocan de su parámetro `I` — confirmado leyendo hechos.js). Se
+ * construye sobre `entityIndex.js` (Fase 3, el índice O(1) del Core), nunca sobre una evidencia de boleta: esta
+ * etapa valida FORMA, no verifica veredictos (eso lo hace la Entrega en la etapa 1, con el libro real). */
+function _indiceLigero() {
+  return {
+    resolverEntidad(nombre) {
+      if (nombre == null || nombre === "negocio") return null;
+      const r = resolveEntityRef(nombre);
+      return r.estado === "resuelto" ? { nombre: r.nombre, eje: r.dimension } : null;
+    },
+    tamanoDelEje(eje) {
+      const n = axisEntityNames(eje).length;
+      return n || null;
+    },
+  };
+}
+
+/* ── resolución de una entidad declarada en el encargo (§4e) ──────────────────────────────────────────────────
+ * Nunca fuzzy para RESOLVER (solo se ofrece como alternativa tipada, `findCandidates`). */
+function _resolverEntidadRef(ref) {
+  const nombre = ref && ref.nombre;
+  if (!_str(nombre)) return { estado: "invalida" };
+  if (ref.eje != null) {
+    if (!EJES.includes(ref.eje)) return { estado: "eje_desconocido" };
+    const canon = resolveCanonical(ref.eje, nombre);
+    if (canon) return { estado: "resuelta", nombre: canon, eje: ref.eje };
+    // ¿existe en OTRO eje? → entidad_eje_incompatible, nunca se sirve como si fuera del eje pedido
+    for (const otro of AXES) {
+      if (otro === ref.eje) continue;
+      const c2 = resolveCanonical(otro, nombre);
+      if (c2) return { estado: "eje_incompatible", nombre: c2, eje: otro };
+    }
+    return { estado: "inexistente", candidatos: findCandidates(ref.eje, nombre) };
+  }
+  const r = resolveEntityRef(nombre);
+  if (r.estado === "resuelto") return { estado: "resuelta", nombre: r.nombre, eje: r.dimension };
+  if (r.estado === "ambiguo") return { estado: "ambigua", opciones: r.opciones };
+  return { estado: "inexistente", candidatos: r.candidatos || [] };
+}
+
+/* ── conceptos (§4f): CLAVES_DE_METRICA ∩ DOMINIOS_REGISTRO[tema].metricas, luego productor por (concepto, eje) ── */
+function _validarConcepto(clave, tema, eje) {
+  const m = metricaPorClave(clave);
+  if (!m) return { estado: "desconocido" };
+  if (m.dominio != null && m.dominio !== tema) return { estado: "otro_tema", dominio: m.dominio };
+  if (eje == null) return { estado: "valido" };   // sin eje resuelto todavía (parte sin entidades ni Parte.eje ni sujeto): no se puede juzgar productor
+  const cruce = cruceBloqueadoDe(clave, eje);
+  if (cruce) return { estado: "cruce_bloqueado", cruce };
+  if (!productorDe(clave, eje)) return { estado: "sin_productor", ejes: ejesConProductor(clave) };
+  return { estado: "valido" };
+}
+
+/* ── el productor de un supuesto de simulación (§3.5): depende de (tipo, tema, eje) — no hay tabla declarativa
+ * en el Core para esto (assumptionRegistry.js solo declara la FORMA), así que se codifica la tabla del contrato,
+ * leída de `simulateGeneral`/`simulateCarga`/`simulateCapital`/`simulateCosto` (toolContracts.js/specRetrieval.js). */
+function _productorDeSupuesto(tipo, tema, eje) {
+  if (tema === "comercial") {
+    if ((tipo === "growth" || tipo === "price") && ["cliente", "sku", "marca", "familia"].includes(eje)) return "simulateGeneral";
+    if (tipo === "margin" && ["sku", "cliente", "marca", "familia"].includes(eje)) return "simulateCosto";
+    if (tipo === "carga" && eje === "cliente") return "simulateCarga";     // tipo NUEVO §7.1 (aditivo)
+    if (tipo === "costo" && ["sku", "cliente", "marca", "familia"].includes(eje)) return "simulateCosto";   // tipo NUEVO §7.1
+    // «custom con perturbs: carga» (§3.5): decision_pendiente D27 — hasta que el LLM emita tipo "carga", un
+    // supuesto libre con alcance cliente en un cierre de simulación comercial se acepta como productor de carga.
+    if (tipo === "custom" && eje === "cliente") return "simulateCarga";
+    return null;
+  }
+  if (tema === "inventario") {
+    if (tipo === "custom" && eje === "sku") return "simulateCapital";   // «liberar el capital frenado», sin parámetro
+    return null;   // la simulación paramétrica de inventario (tipo "inventory") NO tiene productor (assumptionRegistry.js lo declara)
+  }
+  return null;   // cobranza y cualquier otro tema: ningún productor de simulación hoy
+}
+
+/* ── periodo (§4h) ──────────────────────────────────────────────────────────────────────────────────────────── */
+const _ISO_MES = /^\d{4}-(0[1-9]|1[0-2])$/;
+const _ISO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
+function _marcoVigenteDe(tema) {
+  if (tema === "comercial") return "cerrado";
+  if (tema === "inventario" || tema === "cobranza") return "foto";
+  return "foto";
+}
+function _resolverPeriodo(periodo, tema, entidadCanonica) {
+  const marcoVigente = _marcoVigenteDe(tema);
+  if (periodo == null) return { resuelto: { tipo: "vigente", valor: null, marco: marcoVigente }, problema: null };
+  if (!_es(periodo) || !["vigente", "mes", "rango"].includes(periodo.tipo)) {
+    return { resuelto: { tipo: "vigente", valor: null, marco: marcoVigente }, problema: { motivo: "periodo_mal_formado" } };
+  }
+  if (periodo.tipo === "vigente") return { resuelto: { tipo: "vigente", valor: null, marco: marcoVigente }, problema: null };
+  if (periodo.tipo === "mes" && !(_str(periodo.valor) && _ISO_MES.test(periodo.valor))) {
+    return { resuelto: { tipo: "vigente", valor: null, marco: marcoVigente }, problema: { motivo: "periodo_mal_formado" } };
+  }
+  if (periodo.tipo === "rango") {
+    const v = periodo.valor;
+    const ok = _es(v) && _str(v.desde) && _str(v.hasta) && _ISO_FECHA.test(v.desde) && _ISO_FECHA.test(v.hasta);
+    if (!ok) return { resuelto: { tipo: "vigente", valor: null, marco: marcoVigente }, problema: { motivo: "periodo_mal_formado" } };
+  }
+  // "mes"/"rango" bien formados: §7.5 — sin entidad puntual, NINGÚN productor devuelve un mes suelto (la serie
+  // del negocio no declara año); con entidad, depende de `serieRealDe` (real:false en el demo → sin-periodo).
+  if (!entidadCanonica) return { resuelto: { tipo: "vigente", valor: null, marco: marcoVigente }, problema: { motivo: "periodo_no_disponible" } };
+  const serie = serieRealDe(entidadCanonica);
+  if (!serie || !serie.real) return { resuelto: { tipo: "vigente", valor: null, marco: marcoVigente }, problema: { motivo: "periodo_no_disponible" } };
+  return { resuelto: { tipo: periodo.tipo, valor: periodo.valor, marco: "serie" }, problema: null };
+}
+
+/* ── criterio (§4·2) ────────────────────────────────────────────────────────────────────────────────────────── */
+const _CRITERIOS_IDS = new Set(Object.keys(CRITERIOS));
+function _resolverCriterio(criterio) {
+  if (criterio == null) return { resuelto: { lente: "riesgo", origen: "adi", alternativa: null }, problema: null, avisoAdi: true };
+  if (!_es(criterio)) return { resuelto: { lente: "riesgo", origen: "adi", alternativa: null }, problema: { motivo: "criterio_desconocido" }, avisoAdi: true };
+  if (_str(criterio.lente)) {
+    if (_CRITERIOS_IDS.has(criterio.lente)) return { resuelto: { lente: criterio.lente, origen: "usuario", alternativa: criterio.lente === "riesgo" ? null : "riesgo" }, problema: null, avisoAdi: false };
+    // «caja» no es una lente: la reserva `criterio_tesoreria` cae en `criterio_desconocido` con alternativa crédito (contrato §2.1, fila `criterio_tesoreria`)
+    return { resuelto: { lente: "riesgo", origen: "adi", alternativa: null }, problema: { motivo: "criterio_desconocido", alternativaCredito: true }, avisoAdi: true };
+  }
+  if (_es(criterio.referencia) && _str(criterio.referencia.concepto) && typeof criterio.referencia.valor === "number" && _str(criterio.referencia.unidad)) {
+    // REFERENCIAS_DE_LA_CASA (§3) = las claves de lexico.js con `referencia: true` — `esReferencia` es exactamente esa marca.
+    if (esReferencia(criterio.referencia.concepto)) return { resuelto: { referencia: { ...criterio.referencia }, origen: "usuario" }, problema: null, avisoAdi: false };
+    return { resuelto: { lente: "riesgo", origen: "adi", alternativa: null }, problema: { motivo: "criterio_desconocido" }, avisoAdi: true };
+  }
+  return { resuelto: { lente: "riesgo", origen: "adi", alternativa: null }, problema: { motivo: "criterio_desconocido" }, avisoAdi: true };
+}
+
+/* ── supuestos de la raíz (§4·3) — se resuelven ANTES del recorrido de partes para que una parte "simulacion"
+ * sepa si sus ids citados tienen productor; el ORDEN de aparición en `noResuelto` no importa (§8: subconjunto). */
+function _resolverSupuestosRaiz(supuestos, partes) {
+  const lista = _lista(supuestos);
+  const resueltos = [];         // SupuestoResuelto[] (solo válidos, con productor)
+  const noResuelto = [];
+  const porId = new Map();      // id → { ok, productor }
+  const usados = lista.slice(0, SUPUESTOS_USUARIO_MAX);
+  if (lista.length > SUPUESTOS_USUARIO_MAX) {
+    noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: lista.length, motivo: "supuesto_tope", detalle: `más de ${SUPUESTOS_USUARIO_MAX} supuestos` }));
+  }
+  for (const s of usados) {
+    if (!_es(s) || !_str(s.id)) continue;   // sin id no se puede referenciar desde una parte: se declina en silencio de forma inofensiva (no hay campo que nombrar)
+    if (s.origen != null && !["supuesto", "declarado"].includes(s.origen)) {
+      noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: s.id, motivo: "origen_no_admitido", detalle: `origen «${s.origen}» no admitido por el encargo (§7): un supuesto de un documento entra por «aportar contexto»` }));
+      porId.set(s.id, { ok: false }); continue;
+    }
+    const v = assumptionValid({ type: s.tipo, value: s.valor, unit: s.unidad });
+    if (!v.ok) {
+      noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: s.id, motivo: "supuesto_mal_formado", detalle: v.reason, alternativas: [{ tipo: "supuesto", tipo_supuesto: s.tipo, units: v.offer || [] }] }));
+      porId.set(s.id, { ok: false }); continue;
+    }
+    let eje = null;
+    if (s.alcance === "negocio") { eje = "negocio"; }
+    else if (_es(s.alcance) && EJES.includes(s.alcance.eje) && _str(s.alcance.nombre)) {
+      const canon = resolveCanonical(s.alcance.eje, s.alcance.nombre);
+      if (!canon) { noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: s.id, motivo: "supuesto_mal_formado", detalle: `el alcance no resuelve: «${s.alcance.nombre}» no existe en ${s.alcance.eje}` })); porId.set(s.id, { ok: false }); continue; }
+      eje = s.alcance.eje;
+    } else {
+      noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: s.id, motivo: "supuesto_mal_formado", detalle: "el alcance no resuelve: falta {eje, nombre} o \"negocio\"" }));
+      porId.set(s.id, { ok: false }); continue;
+    }
+    const parteQueLoCita = partes.find((p) => _es(p) && _lista(p.supuestos).includes(s.id));
+    const tema = parteQueLoCita ? parteQueLoCita.tema : null;
+    const productor = tema ? _productorDeSupuesto(s.tipo, tema, eje) : null;
+    if (!productor) {
+      noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: s.id, motivo: "supuesto_sin_productor", detalle: `«${s.tipo}» sobre ${eje} en ${tema || "(ninguna parte lo cita)"}: la simulación paramétrica todavía no tiene productor en el motor` }));
+      porId.set(s.id, { ok: false }); continue;
+    }
+    resueltos.push({ id: s.id, tipo: s.tipo, valor: s.valor, unidad: s.unidad, alcance: s.alcance, origen: s.origen || "supuesto", productor });
+    porId.set(s.id, { ok: true, productor });
+  }
+  return { resueltos, noResuelto, porId };
+}
+
+/* ── premisas de la raíz (§4·4 y §1.3) — SOLO forma: el veredicto lo pone la Entrega con el libro real. ────── */
+function _resolverPremisasRaiz(premisas, I) {
+  const validas = [];
+  const noResuelto = [];
+  for (const p of _lista(premisas)) {
+    if (!_es(p) || !_str(p.id)) continue;
+    if (!TIPOS_DE_PREMISA.includes(p.tipo)) {
+      noResuelto.push(nuevoNoResuelto({ campo: "premisa", valor: p.id, motivo: "premisa_mal_formada", detalle: `tipo «${p.tipo}» no es una premisa factual (${TIPOS_DE_PREMISA.join(" · ")})` }));
+      continue;
+    }
+    const err = validarHecho(p, I);
+    if (err) { noResuelto.push(nuevoNoResuelto({ campo: "premisa", valor: p.id, motivo: "premisa_mal_formada", detalle: err })); continue; }
+    validas.push(p);
+  }
+  return { validas, noResuelto };
+}
+
+/* ── una Parte completa (§4·1) ──────────────────────────────────────────────────────────────────────────────── */
+function _validarParte(parteCruda, idx, supuestosPorId, I) {
+  const id = _str(parteCruda && parteCruda.id) ? parteCruda.id : `p${idx + 1}`;
+  const noResuelto = [];
+  const avisos = [];
+
+  const rarosDeParte = Object.keys(parteCruda || {}).filter((k) => !CAMPOS_PARTE.includes(k));
+  for (const k of rarosDeParte) avisos.push(nuevoAviso("campo_desconocido", `campo «${k}» no reconocido en la parte`, id));
+
+  const tema = parteCruda && parteCruda.tema;
+  const temaEntrada = dominioPorId(tema);
+  if (!temaEntrada) {
+    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "tema", valor: tema, motivo: "tema_desconocido", alternativas: idsActivos().map((t) => ({ tipo: "tema", tema: t })) }));
+    return { id, tema: tema ?? null, cierre: parteCruda && parteCruda.cierre, estado: "no_resuelta", conceptos: [], entidades: [], eje: null, universo: null, periodo: null, ausencias: [], noResuelto, avisos };
+  }
+  if (temaEntrada.estado === "ausente") {
+    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "tema", valor: tema, motivo: "tema_ausente", alternativas: [{ tipo: "ausencia", id: temaEntrada.ausencia.id, alternativa: temaEntrada.ausencia.alternativa }] }));
+    return { id, tema, cierre: parteCruda && parteCruda.cierre, estado: "no_resuelta", conceptos: [], entidades: [], eje: null, universo: null, periodo: null, ausencias: [], noResuelto, avisos };
+  }
+
+  const cierre = parteCruda.cierre;
+  if (!CIERRES.includes(cierre)) {
+    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "cierre", valor: cierre, motivo: "cierre_desconocido", alternativas: CIERRES.map((c) => ({ tipo: "cierre", cierre: c })) }));
+    return { id, tema, cierre: cierre ?? null, estado: "no_resuelta", conceptos: [], entidades: [], eje: null, universo: null, periodo: null, ausencias: ausenciasDe(tema).map((a) => a.id), noResuelto, avisos };
+  }
+
+  /* ── entidades (§4e) ── */
+  const entidadesEntrada = _lista(parteCruda.entidades);
+  const entidadesResueltas = [];       // { nombre, eje } — SOLO las que sí resolvieron
+  let entidadesValidasN = 0;
+  for (const ref of entidadesEntrada) {
+    const r = _resolverEntidadRef(ref);
+    if (r.estado === "resuelta") { entidadesResueltas.push({ nombre: r.nombre, eje: r.eje }); entidadesValidasN++; continue; }
+    if (r.estado === "eje_incompatible") {
+      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "entidad", valor: ref, motivo: "entidad_eje_incompatible", alternativas: [{ tipo: "entidad", nombre: r.nombre, eje: r.eje }] }));
+      continue;
+    }
+    if (r.estado === "ambigua") {
+      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "entidad", valor: ref, motivo: "entidad_ambigua", alternativas: (r.opciones || []).map((o) => ({ tipo: "entidad", nombre: o.nombre, eje: o.dimension })) }));
+      continue;
+    }
+    if (r.estado === "eje_desconocido") {
+      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "eje", valor: ref && ref.eje, motivo: "eje_no_soportado", alternativas: EJES.map((e) => ({ tipo: "eje", eje: e })) }));
+      continue;
+    }
+    // "inexistente" | "invalida"
+    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "entidad", valor: ref, motivo: "entidad_inexistente", alternativas: (r.candidatos || []).slice(0, 3).map((c) => ({ tipo: "entidad", nombre: c.nombre, eje: c.dimension || (ref && ref.eje) || null })) }));
+  }
+
+  /* ── el eje efectivo de la parte (§4d): el de la primera entidad resuelta; si no hay entidades, Parte.eje o el sujeto del tema ── */
+  let ejeEfectivo = null;
+  if (entidadesResueltas.length) ejeEfectivo = entidadesResueltas[0].eje;
+  else if (_str(parteCruda.eje)) ejeEfectivo = EJES.includes(parteCruda.eje) ? parteCruda.eje : null;
+  else ejeEfectivo = sujetoDeTema(tema);
+  if (_str(parteCruda.eje) && !EJES.includes(parteCruda.eje) && !entidadesResueltas.length) {
+    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "eje", valor: parteCruda.eje, motivo: "eje_no_soportado", alternativas: EJES.map((e) => ({ tipo: "eje", eje: e })) }));
+  }
+
+  /* ── conceptos (§4f) ── */
+  const conceptosEntrada = _lista(parteCruda.conceptos);
+  const conceptosValidos = [];
+  /* el eje sin productor se reporta de DOS formas posibles (contrato §4d/D36: «se acepta también
+   * concepto_sin_productor si el implementador valida concepto antes que eje — pero UNO de los dos tiene que
+   * aparecer»): cuando el usuario declaró `Parte.eje` EXPLÍCITO, la raíz del problema es el eje que pidió, así
+   * que se reporta UNA vez como `eje_no_soportado` (campo "eje"); cuando el eje salió por defecto (de una entidad
+   * o del sujeto del tema), se reporta por CONCEPTO (`concepto_sin_productor`), porque ahí no hay un campo "eje"
+   * que el usuario haya escrito para señalar. */
+  const ejeFueExplicito = _str(parteCruda.eje) && EJES.includes(parteCruda.eje);
+  const ejesSinProductorDeLaParte = new Set();
+  for (const c of conceptosEntrada) {
+    if (!_str(c)) continue;
+    const r = _validarConcepto(c, tema, ejeEfectivo);
+    if (r.estado === "valido") { conceptosValidos.push(c); continue; }
+    if (r.estado === "desconocido") {
+      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "concepto", valor: c, motivo: "concepto_desconocido", alternativas: temaEntrada.metricas.map((k) => ({ tipo: "concepto", clave: k })) }));
+      continue;
+    }
+    if (r.estado === "otro_tema") {
+      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "concepto", valor: c, motivo: "concepto_de_otro_tema", alternativas: [{ tipo: "tema", tema: r.dominio }] }));
+      continue;
+    }
+    if (r.estado === "cruce_bloqueado") {
+      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "concepto", valor: c, motivo: "cruce_bloqueado", detalle: r.cruce ? r.cruce.reason : "", alternativas: ejesConProductor(c).map((e) => ({ tipo: "eje", eje: e })) }));
+      continue;
+    }
+    // "sin_productor"
+    if (ejeFueExplicito) { for (const e of r.ejes) ejesSinProductorDeLaParte.add(e); continue; }
+    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "concepto", valor: c, motivo: "concepto_sin_productor", alternativas: r.ejes.map((e) => ({ tipo: "eje", eje: e })) }));
+  }
+  if (ejeFueExplicito && ejesSinProductorDeLaParte.size) {
+    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "eje", valor: parteCruda.eje, motivo: "eje_no_soportado", alternativas: [...ejesSinProductorDeLaParte].map((e) => ({ tipo: "eje", eje: e })) }));
+  }
+
+  /* ── universo (§4g) ── */
+  let universoResuelto = null, universoValido = null, universoDado = parteCruda.universo != null;
+  if (universoDado) {
+    const uEff = _es(parteCruda.universo) ? { ...parteCruda.universo, eje: parteCruda.universo.eje || ejeEfectivo } : parteCruda.universo;
+    const sujetoParaValidar = entidadesResueltas.length ? entidadesResueltas[0].nombre : null;
+    const err = validarUniverso(uEff, I, sujetoParaValidar);
+    if (err) {
+      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "universo", valor: parteCruda.universo, motivo: "universo_invalido", detalle: err }));
+      universoValido = false;
+    } else if (_es(uEff) && uEff.eje && ejeEfectivo && uEff.eje !== ejeEfectivo) {
+      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "universo", valor: parteCruda.universo, motivo: "universo_invalido", detalle: `el universo es de ${uEff.eje} y la parte es de ${ejeEfectivo}` }));
+      universoValido = false;
+    } else {
+      universoResuelto = uEff; universoValido = true;
+    }
+  }
+
+  /* ── periodo (§4h) ── */
+  const entidadParaSerie = entidadesResueltas.length ? entidadesResueltas[0].nombre : null;
+  const periodoDado = parteCruda.periodo != null;
+  const { resuelto: periodoResuelto, problema: periodoProblema } = _resolverPeriodo(parteCruda.periodo, tema, entidadParaSerie);
+  if (periodoProblema) {
+    const alt = [{ tipo: "periodo", periodo: { tipo: "vigente" } }];
+    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "periodo", valor: parteCruda.periodo, motivo: periodoProblema.motivo, alternativas: alt }));
+  }
+  const periodoValido = !periodoProblema;
+
+  /* ── concepto único de `definicion` (§1.1) ── */
+  let definicionValida = null;
+  if (cierre === "definicion") {
+    definicionValida = conceptoDeDefinicionValido(parteCruda.concepto);
+    if (!definicionValida) {
+      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "concepto", valor: parteCruda.concepto, motivo: "concepto_desconocido", alternativas: [] }));
+    }
+  }
+
+  /* ── cardinalidad / ejes mezclados de `comparacion` (§1.1) ── */
+  let cardinalidadOk = true, ejesMezclados = false;
+  if (cierre === "comparacion") {
+    if (entidadesEntrada.length !== 2) {
+      cardinalidadOk = false;
+      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "cierre", valor: entidadesEntrada.length, motivo: "cardinalidad", alternativas: [{ tipo: "cierre", cierre: "cifra" }] }));
+    } else if (entidadesResueltas.length === 2 && entidadesResueltas[0].eje !== entidadesResueltas[1].eje) {
+      ejesMezclados = true;
+      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "eje", valor: entidadesResueltas.map((e) => e.eje), motivo: "ejes_mezclados", alternativas: entidadesResueltas.map((e) => ({ tipo: "eje", eje: e.eje })) }));
+    }
+  }
+
+  /* ── supuestos citados por una `simulacion` (§1.1 + §4·3, resuelto arriba a nivel raíz) ── */
+  const supuestosCitados = cierre === "simulacion" ? _lista(parteCruda.supuestos).filter((x) => _str(x)) : [];
+  const supuestosValidosN = supuestosCitados.filter((sid) => supuestosPorId.get(sid) && supuestosPorId.get(sid).ok).length;
+  if (cierre === "simulacion" && supuestosValidosN === 0) {
+    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "cierre", valor: supuestosCitados, motivo: "cierre_incompleto", detalle: "ningún supuesto citado tiene productor" }));
+  }
+
+  /* ── cifra sin concepto ni universo.top (§1.1) ── */
+  if (cierre === "cifra" && conceptosEntrada.length === 0 && !(universoResuelto && universoResuelto.top)) {
+    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "cierre", valor: null, motivo: "cierre_incompleto", detalle: "una cifra exige al menos un concepto o un universo con top" }));
+  }
+
+  /* ── ausencias del tema (§4j): SIEMPRE que el tema esté activo, sea cual sea el resto ── */
+  const ausencias = ausenciasDe(tema).map((a) => a.id);
+
+  /* ── el estado final de la parte (§1.2) ── */
+  // «la única entidad» es el caso con 1 sola entidad pedida — pero CERO de N válidas (N ≥ 1) es igual de esencial:
+  // no hay nada válido que correr, así que tampoco es «parcial» (parcial exige algo útil que mostrar).
+  const entidadEsencialFalla = entidadesEntrada.length > 0 && entidadesValidasN === 0;
+  // simétrico para concepto: «el único concepto» O todos los conceptos pedidos, si además no hay un universo.top
+  // que sostenga la cifra por otro lado (D02: conceptos inválidos con universo.top corriendo igual no es este caso).
+  const conceptoEsencialFalla = (cierre === "cifra") && conceptosEntrada.length > 0 && conceptosValidos.length === 0
+    && !(universoResuelto && universoResuelto.top);
+  const cifraSinNada = cierre === "cifra" && conceptosEntrada.length === 0 && !(universoResuelto && universoResuelto.top);
+  const parcialForzado = (entidadesEntrada.length > entidadesValidasN) || (conceptosEntrada.length > conceptosValidos.length)
+    || (universoDado && !universoValido) || (periodoDado && !periodoValido)
+    || (cierre === "simulacion" && supuestosCitados.length > supuestosValidosN);
+
+  let estado;
+  if (cierre === "definicion") {
+    estado = definicionValida ? "resuelta" : "no_resuelta";
+  } else if (cierre === "comparacion") {
+    estado = (cardinalidadOk && !ejesMezclados && entidadesResueltas.length === 2) ? "resuelta" : "no_resuelta";
+  } else if (cierre === "simulacion") {
+    if (supuestosValidosN === 0 || entidadEsencialFalla) estado = "no_resuelta";
+    else estado = parcialForzado ? "parcial" : "resuelta";
+  } else if (cierre === "cifra") {
+    if (entidadEsencialFalla || conceptoEsencialFalla || cifraSinNada) estado = "no_resuelta";
+    else estado = parcialForzado ? "parcial" : "resuelta";
+  } else {   // lectura · decision
+    if (entidadEsencialFalla) estado = "no_resuelta";
+    else estado = parcialForzado ? "parcial" : "resuelta";
+  }
+
+  return {
+    id, tema, cierre, estado,
+    conceptos: conceptosValidos, entidades: entidadesResueltas, eje: ejeEfectivo,
+    universo: universoValido ? universoResuelto : null, periodo: periodoResuelto,
+    ausencias, noResuelto, avisos,
+  };
+}
+
+/* ── EL VALIDADOR ────────────────────────────────────────────────────────────────────────────────────────────── */
+/** validarEncargo(encargo, ctx) → Resolucion. `ctx = { tenant?, versionId?, indice? }`: el tenant/versionId activos
+ *  ya gobiernan `entityIndex.js` (se cambian con `initTenant`/`onTenantChange` ANTES de llamar, como el resto del
+ *  Core) — acá solo se leen por si un llamador quiere dejar constancia de con qué corrió; `ctx.indice`, si viene,
+ *  REEMPLAZA el índice liviano por defecto (inyectable para un gate que arma un tenant sintético sin re-inicializar
+ *  el store real — mismo patrón que `dominiosDeTexto(texto, { registro })`). */
+export function validarEncargo(encargo, ctx = {}) {
+  if (!_es(encargo)) return resolucionVacia(encargo);
+
+  /* § raíz (§4·0): version · partes · claves desconocidas — si falla, PARA. */
+  const raroDeRaiz = Object.keys(encargo).filter((k) => !CAMPOS_RAIZ.includes(k));
+  const noResuletoRaiz = [];
+  if (encargo.version !== "encargo/v1") noResuletoRaiz.push(nuevoNoResuelto({ campo: "version", valor: encargo.version, motivo: "version_invalida" }));
+  const partesCrudas = _lista(encargo.partes);
+  if (partesCrudas.length === 0) noResuletoRaiz.push(nuevoNoResuelto({ campo: "partes", valor: encargo.partes, motivo: "encargo_vacio" }));
+  else if (partesCrudas.length > PARTES_MAX) noResuletoRaiz.push(nuevoNoResuelto({ campo: "partes", valor: partesCrudas.length, motivo: "partes_tope" }));
+  if (raroDeRaiz.length) for (const k of raroDeRaiz) noResuletoRaiz.push(nuevoNoResuelto({ campo: "raiz", valor: k, motivo: "campo_desconocido" }));
+  if (encargo.version !== "encargo/v1" || partesCrudas.length === 0 || partesCrudas.length > PARTES_MAX || raroDeRaiz.length) {
+    return { ok: false, encargo, partes: [], criterio: null, supuestos: [], premisas: [], noResuelto: noResuletoRaiz, avisos: [] };
+  }
+
+  const I = ctx.indice || _indiceLigero();
+
+  /* asigna ids de parte por posición cuando faltan (§1: "id... si falta, ADI lo asigna por posición") */
+  const partesConId = partesCrudas.map((p, i) => (_es(p) && !_str(p.id) ? { ...p, id: `p${i + 1}` } : p));
+
+  /* § supuestos de la raíz (§4·3) — ANTES del recorrido de partes: una `simulacion` necesita saber si sus ids tienen productor */
+  const { resueltos: supuestosResueltos, noResuelto: noResueltoSupuestos, porId: supuestosPorId } = _resolverSupuestosRaiz(encargo.supuestos, partesConId);
+
+  /* § criterio (§4·2) */
+  const { resuelto: criterioResuelto, problema: criterioProblema, avisoAdi } = _resolverCriterio(encargo.criterio);
+  const noResueltoCriterio = [];
+  const avisosRaiz = [];
+  if (criterioProblema) {
+    const alternativas = criterioProblema.alternativaCredito
+      ? [{ tipo: "lente", lente: "credito" }, { tipo: "ausencia", id: "sin_datos_tesoreria" }]
+      : Object.keys(CRITERIOS).map((l) => ({ tipo: "lente", lente: l }));
+    noResueltoCriterio.push(nuevoNoResuelto({ campo: "criterio", valor: encargo.criterio, motivo: criterioProblema.motivo, alternativas }));
+  }
+  if (avisoAdi) avisosRaiz.push(nuevoAviso("criterio_de_adi", "sin criterio válido del usuario: se usó el criterio de ADI (riesgo integrado)"));
+
+  /* § premisas (§4·4 + §1.3) */
+  const { validas: premisasValidas, noResuelto: noResueltoPremisas } = _resolverPremisasRaiz(encargo.premisas, I);
+
+  /* § usar · profundidad (§4·5) */
+  const noResueltoUsarProfundidad = [];
+  if (encargo.usar != null && !USAR_VALORES.includes(encargo.usar)) noResueltoUsarProfundidad.push(nuevoNoResuelto({ campo: "usar", valor: encargo.usar, motivo: "usar_invalido" }));
+  if (encargo.profundidad != null && !PROFUNDIDAD_VALORES.includes(encargo.profundidad)) noResueltoUsarProfundidad.push(nuevoNoResuelto({ campo: "profundidad", valor: encargo.profundidad, motivo: "profundidad_invalida" }));
+
+  /* § contexto (§4·6) — sin libro de conversación en esta etapa: cualquier contexto pedido está no disponible */
+  const noResueltoContexto = [];
+  if (_es(encargo.contexto)) {
+    const idOk = /^E\d+(?:\.[hu]\d+)?$/;
+    const idsDeContexto = [encargo.contexto.entregaRef, ...(Array.isArray(encargo.contexto.hechosRef) ? encargo.contexto.hechosRef : []), encargo.contexto.universoRef].filter(_str);
+    for (const cid of idsDeContexto) {
+      if (!idOk.test(cid)) noResueltoContexto.push(nuevoNoResuelto({ campo: "contexto", valor: cid, motivo: "contexto_mal_formado" }));
+      else noResueltoContexto.push(nuevoNoResuelto({ campo: "contexto", valor: cid, motivo: "contexto_no_disponible" }));
+    }
+  }
+
+  /* § cada parte, sola (§4·1) */
+  const partesResueltas = partesConId.map((p, i) => _validarParte(p, i, supuestosPorId, I));
+
+  const avisosDeParte = partesResueltas.flatMap((p) => p.avisos.map((a) => ({ ...a, parte: p.id })));
+  const noResueltoPartes = partesResueltas.flatMap((p) => p.noResuelto);
+
+  const ok = partesResueltas.some((p) => p.estado === "resuelta" || p.estado === "parcial");
+
+  return {
+    ok,
+    encargo: { ...encargo, partes: partesConId },
+    partes: partesResueltas.map((p) => ({
+      id: p.id, tema: p.tema, cierre: p.cierre, estado: p.estado,
+      conceptos: p.conceptos, entidades: p.entidades, eje: p.eje, universo: p.universo, periodo: p.periodo,
+      ausencias: p.ausencias,
+    })),
+    criterio: criterioResuelto,
+    supuestos: supuestosResueltos,
+    premisas: premisasValidas,
+    noResuelto: [...noResueltoSupuestos, ...noResueltoCriterio, ...noResueltoPremisas, ...noResueltoUsarProfundidad, ...noResueltoContexto, ...noResueltoPartes],
+    avisos: [...avisosRaiz, ...avisosDeParte],
+  };
+}
