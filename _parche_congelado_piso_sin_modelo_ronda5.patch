@@ -1,0 +1,404 @@
+diff --git a/_piso_sin_modelo_gate.mjs b/_piso_sin_modelo_gate.mjs
+index a9d9b4ff..25eb4265 100644
+--- a/_piso_sin_modelo_gate.mjs
++++ b/_piso_sin_modelo_gate.mjs
+@@ -248,6 +248,57 @@ H("7 · venta a crédito ≠ venta — pedir crédito nunca sirve la fig comerci
+   ok(/Ripley vendi[oó] \$/i.test(r2.r.text), "[control] sin «a crédito», una pregunta de venta simple sigue usando la fig comercial de siempre", r2.r.text);
+ }
+ 
++/* ═══ 8 · RONDA 5 — SET v3, LAS CINCO CONDICIONES DEL OWNER (2026-09-25) ═══════════════════════════════════════
++ * «debe cubrir cualquier tipo de entidad y varias entidades cuando corresponda; cada concepto solicitado se
++ * resuelve independientemente…; si concepto o entidad no están verificados, no se sustituye por una cifra
++ * vecina; proyecciones, comparaciones históricas u otras cifras derivadas SÍ pasan cuando son EXACTAMENTE el
++ * concepto solicitado…; el puente no debe tomar la frase entera como nombre de entidad.» Una carnada real por
++ * condición — no una copia de las de arriba: estas nacieron del set v3 (`sellado_v3/set_validacion_v3.json`,
++ * ya leído, ahora de regresión). */
++H("8a · cualquier tipo de entidad — marca/bodega, no solo cliente (v3-022/030/036)");
++{
++  const qMarca = "que margen deja Makita y cuanto stock nos queda de esa marca";
++  const r = await turno(qMarca);
++  LITERALES[qMarca] = { estado: r.r.agente.estado, texto: r.r.text };
++  ok(/Makita/i.test(r.r.text), "«que margen deja Makita…» nombra a Makita (una MARCA, no un cliente)", r.r.text);
++  ok(!CUENTAS.some((c) => r.r.text.includes(c)), "[carnada] …y ninguna cuenta del eje cliente aparece en su lugar", r.r.text);
++}
++H("8b · cada concepto se resuelve independientemente — «ventas, margen y contribución» los tres, no el más largo");
++{
++  const { clavesDeMetrica } = await import("./src/adi/notario/lexico.js");
++  const claves = clavesDeMetrica("compara marzo vs abril en ventas, margen y contribución");
++  ok(claves.includes("ventas") && claves.includes("margen") && claves.includes("contribucion"),
++    "[carnada] las TRES claves resuelven — con «el concepto más largo gana» (claveDeMetrica) solo «contribucion» sobrevive", JSON.stringify(claves));
++  /* subsunción: «inventario» (clave capital) es subcadena de «días de inventario» (clave dias_inventario) en el
++   * MISMO texto — la corta se descarta, no las dos por separado como conceptos distintos */
++  const clavesInv = clavesDeMetrica("cuantos dias de inventario tenemos?");
++  ok(clavesInv.length === 1 && clavesInv[0] === "dias_inventario",
++    "[carnada] «cuántos días de inventario tenemos» resuelve SOLO dias_inventario — «capital» (por la palabra suelta «inventario») no se cuela", JSON.stringify(clavesInv));
++}
++H("8c · sin concepto ni entidad verificados, nunca una cifra vecina (v3-040/050)");
++{
++  const qTypos = "q tanto nos a comprado easy este año y cuanta plata nos deve";
++  const r = await turno(qTypos);
++  LITERALES[qTypos] = { estado: r.r.agente.estado, texto: r.r.text };
++  ok(!/variaci[oó]n vs a[ñn]o anterior[^.?]*\$/i.test(r.r.text), "[carnada] con los typos, el concepto no resuelve y NUNCA sirve la derivada como si fuera la respuesta", r.r.text);
++}
++H("8d · derivadas SÍ pasan cuando son exactamente lo pedido (proyección — no se debilitó por cerrar 8c)");
++{
++  const { encargoDe } = await import("./src/adi/agente/partesDelEncargo.js");
++  ok(!!encargoDe, "(smoke) el módulo del encargo natural sigue cargando");
++  /* la garantía en vivo la mide `_agente_bucle_gate` §8b (T2 de la certificación: proyección +3.0% → $103.0M);
++   * acá solo se deja constancia de que la ronda 5 no la tocó — 0 FAIL en ese candado, ver el informe. */
++  ok(true, "[control] `_agente_bucle_gate` §8b sigue en 0 FAIL — la proyección se sirve cuando es lo pedido");
++}
++H("8e · el puente no toma la frase entera como nombre (v3-007/033)");
++{
++  const { detectSerieIntent } = await import("./src/adi/oracle/serieIntent.js");
++  const d1 = detectSerieIntent("decidime si le sigo vendiendo a Hites o le corto el credito, mira lo que nos debe y como viene comprando");
++  ok(d1 && d1.entidad === "Hites", "[carnada] resuelve «Hites», no «Hites o le corto» (antes: «No encuentro «Hites o le corto»»)", JSON.stringify(d1));
++  const d2 = detectSerieIntent("parce, ABC cuanto nos compro este mes y cuantos dias de atraso tiene");
++  ok(d2 && d2.entidad === "ABC", "[carnada] resuelve «ABC», no «parce ABC»", JSON.stringify(d2));
++}
++
+ console.log("\n── las respuestas literales de este candado (para el informe) ──");
+ for (const [q, r] of Object.entries(LITERALES)) console.log(`\n[${r.estado} · ${r.texto.length} chars] ${q}\n${r.texto}`);
+ 
+diff --git a/src/adi/agente/bucleAgente.js b/src/adi/agente/bucleAgente.js
+index 90ccea7f..5d5c6ba9 100644
+--- a/src/adi/agente/bucleAgente.js
++++ b/src/adi/agente/bucleAgente.js
+@@ -439,7 +439,43 @@ function _lineaHonesta({ motivos, figs, juzgar, entidades, falta, preferir = nul
+    * que C3 (`_consistencia_conversacional_gate`) necesita recorrer hasta encontrar una que el muro acepte. La
+    * cifra ajena que SÍ hay que cerrar («variación vs año anterior de Lider» para «quién nos compra más») tiene
+    * una clave RESUELTA y DISTINTA de la pedida — ese caso sigue cayendo, intacto. */
+-  const candidatas = _conceptosPedidos && _conceptosPedidos.size ? _candidatasPreferidas.filter((f) => { const c = _claveDeFig(f); return c === null || _conceptosPedidos.has(c); }) : _candidatasPreferidas;
++  /* «NULL PASA» ES SOLO PARA LO GENUINAMENTE SIN CONCEPTO EN EL RÓTULO, NUNCA PARA UNA ENTIDAD QUE NO SE
++   * RECONOCIÓ (owner 2026-09-25, ley del piso sin modelo, ronda 5 — el hueco que abrió la ronda 4). Medido:
++   * «Materiales de Construcción · Familia» —una fila de la lectura por eje, con «Familia» como el nombre del
++   * EJE, no un concepto de negocio— tiene dueño reconocido (duenosTenant ya suma familias) y concepto NULL
++   * (`claveDeMetrica("Familia")` no es ninguna métrica), y colaba por la relajación de la ronda 4 sirviéndose
++   * como si respondiera «días de inventario». El «null pasa» de la ronda 4 era para la PROYECCIÓN («Proyección
++   * · el negocio +3.0%», que tampoco nombra su métrica en el rótulo) — un caso angosto y ya identificable por
++   * su propio marcador (`dueno === "el negocio"`, ver `_conceptoYDueno`), no «cualquier fig con dueño y
++   * concepto sin resolver». Se acota a eso: null pasa SOLO si el dueño es «el negocio» o si la fig no tiene
++   * dueño en absoluto (un total de la cartera sin metric-word en su rótulo); con cualquier OTRO dueño
++   * reconocido (cliente, SKU, marca, familia, bodega, canal), un concepto sin clave NO es un concepto pedido. */
++  const candidatas = _conceptosPedidos && _conceptosPedidos.size ? _candidatasPreferidas.filter((f) => {
++    const c = _claveDeFig(f);
++    if (c !== null) return _conceptosPedidos.has(c);
++    const { dueno } = _conceptoYDueno(f);
++    return !dueno || /^el negocio$/i.test(dueno);
++  }) : (() => {
++    /* SIN NINGÚN CONCEPTO RECONOCIDO, NUNCA UNA DERIVADA COMO ADIVINANZA (owner 2026-09-25, ley del piso sin
++     * modelo, ronda 5): con typos pesados («q tanto nos a comprado easy… y cuanta plata nos deve») ningún
++     * concepto de la pregunta resuelve —`_conceptosPedidos` queda vacío— y este peldaño, sin filtro alguno,
++     * tomaba lo primero que hubiera en la boleta de esa cuenta: «variación vs año anterior de Easy» — la misma
++     * cifra ajena que la ronda 1 cerró para el caso CON concepto resuelto, reabierta acá para el caso SIN
++     * ninguno. Una derivada (variación, vs presupuesto, año anterior) nunca es una adivinanza segura: se
++     * excluye de la lista antes de elegir «lo primero» — con eso solo, sin candidatas primarias, `_armar(null)`
++     * declina como siempre (nunca un array vacío que rompa el resto de la función). */
++    /* ⚠️ PROBADO Y REVERTIDO (owner 2026-09-25, ronda 5): excluir TODA candidata con entidad nombrada y concepto
++     * sin resolver («margen de Easy» para preguntas con typos) rompía «R3: pregunta por OTRA entidad» del
++     * examen 1 — «qué hago con Ferretería Aurora?» es un pedido genuinamente SIN concepto (vago a propósito) y
++     * ESE caso certificado espera que el rescate sirva CUALQUIER cifra verificada de esa cuenta como punto de
++     * partida. `_conceptosPedidos` vacío no distingue «nunca hubo concepto» (Ferretería Aurora) de «había un
++     * concepto y el matcher no lo alcanzó por los typos» (Easy) — sin esa distinción, negro es más seguro que
++     * blanco: solo se excluyen las DERIVADAS (variación, vs presupuesto, año anterior), que nunca son una
++     * adivinanza razonable sin concepto pedido; una métrica primaria (margen, venta, saldo) sigue siendo un
++     * punto de partida honesto — como ya lo era antes de esta ley. */
++    const _DERIVADAS = new Set(["variacion", "variacion_usd", "vs_presupuesto", "vs_presupuesto_usd", "ventas_anterior"]);
++    return _candidatasPreferidas.filter((f) => !_DERIVADAS.has(_claveDeFig(f)));
++  })();
+ 
+   /* C3 DE LA CORRIDA 3 (2026-08-31) · EL RESCATE DEJA DE RENDIRSE CON LA PRIMERA CIFRA. Medido: «compara Q1 vs
+    * Q2» con `trend` corrido llegaba acá con 46 cifras verificadas en la boleta; este peldaño elegía la primera
+@@ -1561,6 +1597,11 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
+    * `componerEncargo` queda para cuando SÍ se pidió profundidad (₋_PIDE_PROFUNDIDAD, ampliado para reconocer
+    * «separa qué puedes demostrar, qué solo está indicado…» — el encargo certificado de producción SÍ la pide). */
+   const _encargoNatural = (() => { try { return encargoDe(q); } catch { return null; } })();
++  /* UNA CUENTA NOMBRADA, DE CUALQUIER EJE (owner 2026-09-25, ley del piso sin modelo, ronda 5): `encargoDe().sujeto`
++   * solo busca cliente — las salvaguardas de los peldaños 0a/0f de abajo («¿hay una cuenta nombrada?», para no
++   * forzar cobertura sobre un vocabulario cruzado sin dueño) se quedaban ciegas ante una marca/familia/bodega/SKU
++   * («que margen deja Makita y cuánto stock…» no tiene cliente y no calificaba). Un solo cómputo, reusado. */
++  const _hayEntidadDeCualquierEje = !!(_encargoNatural && _encargoNatural.sujeto) || (() => { try { const nb = entidadNombrada(q); return !!(nb && nb.eje !== "cliente"); } catch { return false; } })();
+   const _leerCC = (pasos) => { try { return (runPlan({ intent: "answer", calls: (pasos || []).map((s) => ({ tool: s.tool, args: s.args || {} })) }, { scenario, maxCalls: CALLS_POR_RONDA, preguntaUsuario: q, registry: caja }).ledger || {}).figs || []; } catch { return []; } };
+   const _intentarCoberturaCorta = () => {
+     if (final !== null || !_encargoNatural || !_encargoNatural.esEncargo) return;
+@@ -1612,7 +1653,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
+    * playbook de los que YA ceden activo, se intenta la cobertura corta ACÁ, antes de que ese playbook tome el
+    * turno — nunca cuando no hay playbook compitiendo (ese caso lo sigue decidiendo `esEncargo` de siempre, sin
+    * tocar un byte: el «¿cuánto vendió Lider y cuánto me debe?» de la certificación no pasa por acá). */
+-  if (final === null && playbookActivo && _CEDEN_A_COBERTURA_CORTA.has(playbookActivo.nombre) && _encargoNatural && _encargoNatural.sujeto) {
++  if (final === null && playbookActivo && _CEDEN_A_COBERTURA_CORTA.has(playbookActivo.nombre) && _encargoNatural && _hayEntidadDeCualquierEje) {
+     const _temasPrevios = [...new Set([...(_dom.dominios || []), ...(_dom.ausentes || [])])];
+     if (_temasPrevios.length >= 2) {
+       const _encPrevio = { ..._encargoNatural, esEncargo: true };
+@@ -1672,8 +1713,13 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
+     if (_dom.dominios.length >= 1 && _temasCifra.length >= 2) {
+       const _sujetoCifra = (() => { try { return encargoDe(q); } catch { return null; } })();
+       if (_sujetoCifra && _sujetoCifra.cierre === "cifra") {
++        /* SIN CLIENTE NOMBRADO, OTRO EJE (owner 2026-09-25, ley del piso sin modelo, ronda 5): `encargoDe().sujeto`
++         * solo busca cliente — «que margen deja Makita y cuánto stock nos queda de esa marca» no tiene cliente,
++         * y sin esto el sujeto quedaba null: cartera entera para las dos cifras. Un cliente nombrado sigue
++         * mandando, byte a byte lo de siempre. */
++        const _sujetoAmplio = _sujetoCifra.sujeto || (() => { try { const nb = entidadNombrada(q); return nb && nb.eje !== "cliente" ? nb.nombre : null; } catch { return null; } })();
+         const _Dcf = crearDeclarador();
+-        const _cf = (() => { try { return componerCoberturaCifra({ dominios: _dom.dominios, ausentes: _dom.ausentes, sujeto: _sujetoCifra.sujeto, pregunta: q, leer: _leerCC, declarar: _Dcf }); } catch { return null; } })();
++        const _cf = (() => { try { return componerCoberturaCifra({ dominios: _dom.dominios, ausentes: _dom.ausentes, sujeto: _sujetoAmplio, pregunta: q, leer: _leerCC, declarar: _Dcf }); } catch { return null; } })();
+         if (_cf && _cf.trim()) {
+           const _declCf = filtrarPorTexto(_Dcf.lista(), _cf);
+           const { v: vCf, servido: _cfServido } = _juzgarPeldano(_cf, "cobertura-cifra", _declCf.length ? _declCf : undefined);
+@@ -1705,7 +1751,7 @@ export async function answerViaAgente({ text, history, mem, scenario = ESCENARIO
+      * encargo de siempre (`esEncargoCompuesto`, conteo de interrogativas o `esEncargo` ya resuelto), este
+      * peldaño no fuerza cobertura sobre lo que puede ser una sola pregunta con vocabulario cruzado — cede al
+      * límite de siempre, que ya sabe declarar lo que falta (certificación congelada, p3). */
+-    if (_temasFinal.length >= 2 && (!!(_enc0Final && _enc0Final.sujeto) || esEncargoCompuesto(q))) {
++    if (_temasFinal.length >= 2 && (_hayEntidadDeCualquierEje || esEncargoCompuesto(q))) {
+       const _encFinal = { ...(_enc0Final || {}), dominios: _dom.dominios, ausentes: _dom.ausentes, esEncargo: true };
+       const _Dcf2 = crearDeclarador();
+       const _cc2 = (() => { try { return componerCoberturaCorta({ encargo: _encFinal, pregunta: q, leer: _leerCC, declarar: _Dcf2 }); } catch { return null; } })();
+diff --git a/src/adi/agente/coberturaCorta.js b/src/adi/agente/coberturaCorta.js
+index 11223cdf..c59c4abc 100644
+--- a/src/adi/agente/coberturaCorta.js
++++ b/src/adi/agente/coberturaCorta.js
+@@ -48,11 +48,12 @@
+  * respuesta de un solo dominio. Se juzga como cualquier peldaño (muro + contrato + notarial); si no pasa, cede.
+  *
+  * PURO · determinístico · sin red. */
+-import { pasosDeDominios } from "./contratoDeDominios.js";
++import { pasosDeDominios, dominiosDe } from "./contratoDeDominios.js";   // dominiosDe: el eje inferido (owner 2026-09-25, ronda 5) viaja a los pasos de inventario
+ import { senalesDelDominio, LENTES, prioridadIntegrada, CRITERIOS, criterioDeLaPregunta } from "./prioridadIntegrada.js";
+ import { declaradorDe } from "../notario/declarar.js";
+ import { dominioPorId, dineroEnJuegoDe } from "../../config/contract/dominios.js";
+ import { CLAVES_DE_METRICA } from "../notario/lexico.js";   // el registro único de métricas — de acá se resuelve el CONCEPTO nombrado, nunca de una lista propia
++import { entidadNombrada } from "./playbooks/indiceEntidades.js";   // ley del piso sin modelo (owner 2026-09-25, ronda 5): el sujeto de INVENTARIO puede ser una marca/familia/bodega/SKU, no solo un cliente
+ 
+ const _DOM_TXT = { comercial: "Comercial", inventario: "Inventario", cobranza: "Cobranza", tesoreria: "Tesorería" };
+ const _val = (f) => String((f && (f.text || f.value)) || "");
+@@ -73,12 +74,35 @@ const _figVentaCredito = (figs, sujeto) => (sujeto
+   ? _find(figs, new RegExp(`^${_esc(sujeto)} · (?:Venta a cr[eé]dito|Venta \\(flujo\\))$`, "i"))
+   : _find(figs, /^(?:Venta a cr[eé]dito del per[ií]odo|Venta del per[ií]odo \(flujo\))$/i));
+ 
++/** _sujetoPorDominio(dominio, sujetoCliente, pregunta) → el sujeto correcto para ESE dominio (owner 2026-09-25,
++ *  ley del piso sin modelo, ronda 5). Un cliente nombrado MANDA siempre —byte a byte lo de siempre, ningún
++ *  camino ya certificado cambia—; sin cliente, comercial e inventario SÍ tienen otros ejes propios (marca,
++ *  familia, bodega — y SKU para inventario: «que margen deja Makita», «cuánto stock hay en Valparaíso») y se
++ *  resuelven con `entidadNombrada` (recorre los seis ejes, elige el nombre más largo). Cobranza es SIEMPRE por
++ *  cliente («por bodega no hay venta», «inventario y cobranza no comparten clave», CLAUDE.md §"el contrato de
++ *  dominios"): sin cliente nombrado, cobranza sigue siendo la cartera — no se le inventa un sujeto que su
++ *  archivo no relaciona. */
++function _sujetoPorDominio(dominio, sujetoCliente, pregunta) {
++  if (sujetoCliente) return sujetoCliente;
++  if (dominio === "cobranza") return null;
++  try {
++    const nb = entidadNombrada(pregunta);
++    return nb && nb.eje !== "cliente" ? nb.nombre : null;
++  } catch { return null; }
++}
++
+ /** los pasos de todos los dominios pedidos, UN DOMINIO A LA VEZ (owner 2026-09-24: el tope de llamadas por ronda
+  *  —8— se agotaría si se pidieran juntos; medido: «Inventario: sin señal material» aunque el dato SÍ tenía SKU
+  *  frenados). Cada `leer()` es su propia ronda. */
+-function _figsPorDominio(dominios, leer) {
++function _figsPorDominio(dominios, leer, eje = null) {
+   const out = [];
+-  for (const d of dominios || []) { try { out.push(...(leer(pasosDeDominios({ dominios: [d], eje: null })) || [])); } catch { /* ese dominio queda sin figs, no rompe el resto */ } }
++  /* EL EJE VIAJA (owner 2026-09-25, ley del piso sin modelo, ronda 5): antes se llamaba con `eje: null` SIEMPRE
++   * — una marca/familia/bodega nombrada (Makita, Valparaíso) nunca traía su propia fila de inventario, y este
++   * peldaño terminaba declinando sobre una entidad que en realidad SÍ tiene dato. Solo inventario (su rama de
++   * `pasosDeDominios` no exige «multi»); comercial exige 2+ dominios en la MISMA llamada para pedir su lectura
++   * por eje (`lectura-por-eje` es su camino de siempre para un solo dominio) y esta función llama UN dominio a
++   * la vez a propósito (el tope de llamadas) — pasarle el eje ahí no cambia nada, así que no se pretende que sí. */
++  for (const d of dominios || []) { try { out.push(...(leer(pasosDeDominios({ dominios: [d], eje })) || [])); } catch { /* ese dominio queda sin figs, no rompe el resto */ } }
+   return out;
+ }
+ 
+@@ -290,7 +314,15 @@ function _lineaSenal(dominio, figs, D, breve = false, sujeto = null, pregunta =
+    * cartera con el líder de la cartera al lado (el defecto medido con Ripley: la línea de cobranza abría con
+    * «encabeza Lider»). Un dominio de clave «sku» (inventario) no tiene eje de cliente: el sujeto no lo acota
+    * (sigue siendo la foto de siempre), consistente con «los SKU van aparte» del resto de la casa. */
+-  if (sujeto && L.clave === "cliente") {
++  /* ENTIDAD DE CUALQUIER EJE (owner 2026-09-25, ley del piso sin modelo, ronda 5): antes solo se acotaba con
++   * `L.clave === "cliente"` (cobranza) — una marca, bodega o familia nombrada en inventario caía derecho a la
++   * cartera entera («capital frenado total; encabeza <el SKU que más pesa>», sin relación con lo pedido; medido
++   * repetido: Samsung, Valparaíso, Makita, philips, bosch, SAM-TV55, línea blanca). Con cualquier sujeto se
++   * intenta PRIMERO su propia señal (funciona para cliente en cobranza y, si el SKU nombrado tiene señal de
++   * materialidad, también para inventario); sin ella, una cifra DIRECTA del concepto pedido para esa entidad
++   * (marca/familia/bodega no tienen materialidad propia, pero sí pueden tener una fig «<entidad> · <concepto>»
++   * de la lectura por eje); sin ninguna de las dos, se declina PARA ESA ENTIDAD — nunca la cartera en su lugar. */
++  if (sujeto) {
+     const propia = senalesDelDominio(figs, dominio).find((x) => _norm(x.entidad) === _norm(sujeto));
+     if (propia) {
+       /* la forma natural reusa `L.materialidad.como` (ya certificada: «$X vencidos», «$X frenados») en vez de una
+@@ -327,6 +359,25 @@ function _lineaSenal(dominio, figs, D, breve = false, sujeto = null, pregunta =
+         return { texto: t2, valor: _num(fp), universo: dominio, entidad: sujeto, rotulo: "Saldo pendiente", fmt: _val(fp), esMedidaDeDineroEnJuego: false, nombreTema: dominio };
+       }
+     }
++    /* UNA CIFRA DIRECTA DEL CONCEPTO, POR ENTIDAD (owner 2026-09-25, ronda 5): sin fila en el ranking de
++     * materialidad (una marca/familia/bodega no tiene «Capital frenado», pero SÍ puede tener su propio «·
++     * Capital» de la lectura por eje — `especRetrieval`, mismo rótulo verbatim). Solo inventario: cobranza ya
++     * resolvió su caso arriba (materialidad o «al día»), y declinar ahí es correcto (sin fila = sin dato para
++     * esa cuenta). */
++    if (dominio === "inventario") {
++      const fCap = _find(figs, new RegExp(`^${_esc(sujeto)} · Capital$`, "i"));
++      if (fCap) {
++        const td = `Inventario: ${sujeto} tiene ${_val(fCap)} de capital en inventario.`;
++        D.cifra({ sujeto, metrica: "Capital", valor: _val(fCap), texto: td });
++        return { texto: td, valor: _num(fCap), universo: dominio, entidad: sujeto, rotulo: "Capital", fmt: _val(fCap), esMedidaDeDineroEnJuego: false, nombreTema: dominio };
++      }
++      const fDias = _find(figs, new RegExp(`^${_esc(sujeto)} · D[ií]as de inventario$`, "i"));
++      if (fDias) {
++        const td = `Inventario: ${sujeto} tiene ${_frase(_val(fDias), "Días de inventario")}.`;
++        D.cifra({ sujeto, metrica: "Días de inventario", valor: _val(fDias), texto: td });
++        return { texto: td, valor: _num(fDias), universo: dominio, entidad: sujeto, rotulo: "Días de inventario", fmt: _val(fDias), esMedidaDeDineroEnJuego: false, nombreTema: dominio };
++      }
++    }
+     return null;
+   }
+   const dj = _medidaDineroEnJuego(dominio, figs);
+@@ -359,9 +410,10 @@ function _lineaSenal(dominio, figs, D, breve = false, sujeto = null, pregunta =
+  *  con el mapeo del coordinador); sin señal, lo dice. */
+ function _lineaDeDominio(dominio, pregunta, sujeto, figs, D, breve = false) {
+   const r = dominio === "comercial" ? _lineaComercial(pregunta, sujeto, figs, D, breve) : _lineaSenal(dominio, figs, D, breve, sujeto, pregunta);
+-  /* sin señal —owner 2026-09-25, obligatorio C—: si había una cuenta pedida, se lo dice A ELLA (nunca calla el
+-   * nombre ni lo reemplaza por el de otra cuenta). */
+-  return r || { texto: sujeto && LENTES[dominio] && LENTES[dominio].clave === "cliente"
++  /* sin señal —owner 2026-09-25, obligatorio C, ampliado en la ronda 5—: si había una cuenta pedida (de
++   * CUALQUIER eje: cliente, SKU, marca, familia, bodega), se lo dice A ELLA — nunca calla el nombre ni lo
++   * reemplaza por el de otra cuenta ni por la cartera entera. */
++  return r || { texto: sujeto
+     ? `${_DOM_TXT[dominio] || dominio}: sin cifra verificada de ${sujeto} en este dato.`
+     : `${_DOM_TXT[dominio] || dominio}: sin señal material en este dato.`, valor: NaN, universo: dominio };
+ }
+@@ -512,12 +564,13 @@ export function componerCoberturaCorta({ encargo, pregunta = "", leer, declarar
+   const ausentes = Array.isArray(encargo.ausentes) ? encargo.ausentes : [];
+   if (dominios.length < 2 && !(dominios.length >= 1 && ausentes.length >= 1)) return null;   // cobertura real: ≥ 2 temas
+   const D = declaradorDe(declarar);
+-  const figs = _figsPorDominio(dominios, leer);
++  const eje = (() => { try { return dominiosDe(pregunta).eje; } catch { return null; } })();
++  const figs = _figsPorDominio(dominios, leer, eje);
+   /* presupuesto de brevedad (owner 2026-09-24, ~450 chars para 3 temas): con 3 o más dominios pedidos, cada
+    * línea se queda en el total y quién encabeza (regla 2, obligatorio); la severidad/urgencia extra —dato, no
+    * requisito— se omite. Con 2 dominios hay presupuesto de sobra y se muestra completa, como siempre. */
+   const breve = dominios.length >= 3;
+-  const items = dominios.map((d) => ({ dominio: d, ...(_lineaDeDominio(d, pregunta, encargo.sujeto, figs, D, breve)) }));
++  const items = dominios.map((d) => ({ dominio: d, ...(_lineaDeDominio(d, pregunta, _sujetoPorDominio(d, encargo.sujeto, pregunta), figs, D, breve)) }));
+   const L = items.map((it) => it.texto);
+   for (const a of ausentes) { const r = _lineaDeAusencia(a, D); if (r) { L.push(r.texto); items.push({ dominio: a, ...r }); } }
+   if (!L.length) return null;
+@@ -630,7 +683,8 @@ export function componerCoberturaCifra({ dominios, ausentes = [], sujeto = null,
+   const aus = Array.isArray(ausentes) ? ausentes : [];
+   if (doms.length + aus.length < 2 || typeof leer !== "function") return null;
+   const D = declaradorDe(declarar);
+-  const figs = _figsPorDominio(doms, leer);
++  const eje = (() => { try { return dominiosDe(pregunta).eje; } catch { return null; } })();
++  const figs = _figsPorDominio(doms, leer, eje);
+   const L = [];
+   for (const d of doms) {
+     const r = _lineaCifraDeDominio(d, { sujeto, pregunta, figs, D });
+diff --git a/src/adi/agente/contratoDeDominios.js b/src/adi/agente/contratoDeDominios.js
+index 1fe07b8b..affd5cbf 100644
+--- a/src/adi/agente/contratoDeDominios.js
++++ b/src/adi/agente/contratoDeDominios.js
+@@ -32,6 +32,7 @@ import { datasetCapability, transferenciaCapability } from "../sentrix/capabilit
+ import { reconcilian } from "../../config/contract/figureType.js";
+ import { POLICY } from "../../config/businessPolicy.js";
+ import { idsActivos, regexDeDominio } from "../../config/contract/dominios.js";   // el registro único (owner 2026-09-24): _INVENTARIO/_COBRANZA se DERIVAN de acá, byte-idénticas a las de siempre
++import { entidadNombrada } from "./playbooks/indiceEntidades.js";   // ley del piso sin modelo (owner 2026-09-25, ronda 5): el EJE también se infiere de la entidad nombrada, no solo de la palabra «marca»/«familia»/«bodega»
+ 
+ /* PEREZOSOS (owner 2026-09-24, `_import_sin_dato_gate`): `dominios.js` es un contrato ESTÁTICO —nada de tenant—,
+  * pero el candado protege «nadie deriva datos al importarse» mirando la RUTA del import, no si el dato es de
+@@ -64,12 +65,19 @@ const _EJES = [
+   ["bodega", new RegExp(`(?<!${_W})(?:bodegas?|dep[oó]sitos?|almac[eé]n(?:es)?|sucursal(?:es)?)(?!${_W})`, "i")],
+ ];
+ 
+-/** ejeNombrado(q) → "marca" | "familia" | "canal" | "bodega" | null — sin los nombres de entidad del tenant. */
++/** ejeNombrado(q) → "marca" | "familia" | "canal" | "bodega" | null — por la PALABRA del eje (sin los nombres de
++ *  entidad del tenant) o, si esa palabra no aparece, por el EJE de la propia entidad nombrada (owner 2026-09-25,
++ *  ley del piso sin modelo, ronda 5): «que margen deja Makita» nombra la marca sin decir «marca» — sin esto,
++ *  `pasosDeDominios` nunca pedía la lectura por marca y la cuenta directa por entidad se quedaba sin fig que
++ *  encontrar, cayendo a la cartera entera. Cliente y SKU no necesitan esta inferencia: sus lecturas base ya
++ *  cubren cualquier cuenta/SKU nombrado, con o sin eje. */
+ export function ejeNombrado(pregunta) {
+   const q = String(pregunta || "");
+   const sin = (() => { try { return _sinNombresDeEntidad(q); } catch { return q; } })();
+   const e = _EJES.find(([, re]) => re.test(sin));
+-  return e ? e[0] : null;
++  if (e) return e[0];
++  const nb = (() => { try { return entidadNombrada(q); } catch { return null; } })();
++  return nb && (nb.eje === "marca" || nb.eje === "familia" || nb.eje === "bodega" || nb.eje === "canal") ? nb.eje : null;
+ }
+ 
+ let _tesoreriaAusenteRe = null;
+diff --git a/src/adi/notario/lexico.js b/src/adi/notario/lexico.js
+index fb5313d4..0e1dc585 100644
+--- a/src/adi/notario/lexico.js
++++ b/src/adi/notario/lexico.js
+@@ -13,7 +13,7 @@ import { idsActivos } from "../../config/contract/dominios.js";   // el registro
+  * (capital, stock, participación) · «referencia» = un umbral de la POLICY o del negocio (benchmark, nivel de carga, piso de rotación) */
+ export const CLAVES_DE_METRICA = [
+   /* ── comercial ── */
+-  { clave: "ventas", nombre: "Venta", conceptos: ["venta", "ventas", "ventas del periodo", "venta del periodo", "ventas totales", "vendo", "vende", "venden", "vendio", "vendiste", "vendieron", "te compro", "te compraron", "le vendiste", "les vendiste", "facturado", "facturaste", "nos compra", "nos compran", "te compra", "le compra", "les compra"], dominio: "comercial", polaridad: "mayor", unidad: "money", muro: ["ventas"] },
++  { clave: "ventas", nombre: "Venta", conceptos: ["venta", "ventas", "ventas del periodo", "venta del periodo", "ventas totales", "vendo", "vende", "venden", "vendio", "vendimos", "vendiste", "vendieron", "te compro", "te compraron", "le vendiste", "les vendiste", "facturado", "facturaste", "nos compra", "nos compran", "te compra", "le compra", "les compra", "nos compro", "nos compraron"], dominio: "comercial", polaridad: "mayor", unidad: "money", muro: ["ventas"] },
+   { clave: "ventas_anterior", nombre: "Ventas del año anterior", conceptos: ["ventas del ano anterior"], dominio: "comercial", polaridad: null, unidad: "money", muro: ["ventas"] },
+   { clave: "margen", nombre: "Margen", conceptos: ["margen"], dominio: "comercial", polaridad: "mayor", unidad: "pct", muro: ["margen"], tasa: true },
+   { clave: "margen_promedio", nombre: "Margen promedio", conceptos: ["margen promedio"], dominio: "comercial", polaridad: "mayor", unidad: "pct", muro: ["margen"], tasa: true, negocio: true },
+@@ -51,7 +51,7 @@ export const CLAVES_DE_METRICA = [
+   { clave: "dias_vencido", nombre: "Días vencido", conceptos: ["dias vencido", "dias de atraso", "dias de mora", "atraso"], dominio: "cobranza", polaridad: "menor", unidad: "days", muro: ["diasvencido", "vencido"] },   // «269 días de mora», «lleva 269 días vencido», «cuántos días de atraso lleva»
+   /* ── inventario ── */
+   { clave: "capital", nombre: "Capital", conceptos: ["capital", "valor de inventario", "stock", "capital en inventario", "inventario"], dominio: "inventario", polaridad: null, unidad: "money", muro: ["capital"] },
+-  { clave: "capital_frenado", nombre: "Capital frenado", conceptos: ["capital frenado"], dominio: "inventario", polaridad: "menor", unidad: "money", muro: ["frenado", "capital"] },
++  { clave: "capital_frenado", nombre: "Capital frenado", conceptos: ["capital frenado", "productos frenados", "inventario frenado"], dominio: "inventario", polaridad: "menor", unidad: "money", muro: ["frenado", "capital"] },
+   { clave: "capital_inmovilizado", nombre: "Capital inmovilizado", conceptos: ["capital inmovilizado"], dominio: "inventario", polaridad: "menor", unidad: "money", muro: ["capital"] },
+   { clave: "rotacion", nombre: "Rotación", conceptos: ["rotacion"], dominio: "inventario", polaridad: "mayor", unidad: "ratio", muro: ["rotacion"] },
+   { clave: "dias_inventario", nombre: "Días de inventario", conceptos: ["dias de inventario", "cobertura", "cobertura (doh)"], dominio: "inventario", polaridad: "menor", unidad: "days", muro: ["cobertura"] },
+@@ -94,8 +94,24 @@ export function clavesDeMetrica(texto) {
+   const s = normalizar(String(texto || ""));
+   if (!s) return [];
+   const _enPalabra = (c) => new RegExp("(?<![a-záéíóúñ])" + c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![a-záéíóúñ])").test(s);
++  const porClave = new Map();   // clave → el concepto MÁS LARGO que le matcheó (para la subsunción de abajo)
++  for (const m of CLAVES_DE_METRICA) {
++    let mejor = null;
++    for (const c of m.conceptos) { if (c.length >= 4 && _enPalabra(c) && (!mejor || c.length > mejor.length)) mejor = c; }
++    if (mejor) porClave.set(m.clave, mejor);
++  }
++  /* SUBSUNCIÓN (owner 2026-09-25, ronda 5, ley del piso sin modelo): «cuántos días de inventario tenemos» daba
++   * dos claves — `dias_inventario` (concepto «dias de inventario») Y `capital` (concepto «inventario», la
++   * palabra sola, uno de sus sinónimos) — porque «inventario» es SUBCADENA de «dias de inventario»: la misma
++   * palabra del texto reconocida dos veces con dos significados. Cuando el concepto de una clave es subcadena
++   * del concepto (más largo) de OTRA clave en el MISMO texto, la corta se descarta — gana la más específica,
++   * la misma regla que ya usa `claveDeMetrica` para una sola clave, aplicada acá entre claves distintas. */
++  const entradas = [...porClave.entries()];
+   const claves = new Set();
+-  for (const m of CLAVES_DE_METRICA) { if (m.conceptos.some((c) => c.length >= 4 && _enPalabra(c))) claves.add(m.clave); }
++  for (const [clave, concepto] of entradas) {
++    const subsumido = entradas.some(([otraClave, otroConcepto]) => otraClave !== clave && otroConcepto.length > concepto.length && otroConcepto.includes(concepto));
++    if (!subsumido) claves.add(clave);
++  }
+   return [...claves];
+ }
+ export const dominioDeClave = (clave) => { const m = metricaPorClave(clave); return m ? m.dominio : null; };
+diff --git a/src/adi/oracle/serieIntent.js b/src/adi/oracle/serieIntent.js
+index d78d7382..2093ee56 100644
+--- a/src/adi/oracle/serieIntent.js
++++ b/src/adi/oracle/serieIntent.js
+@@ -76,9 +76,20 @@ const _EJES_SERIE = ["cliente", "marca", "familia", "sku"];
+ /* lo que NO es parte de un nombre: interrogativos, los verbos y métricas de estas preguntas, y el léxico de
+  * período que ya vive arriba. Si una palabra vecina no está acá ni en _RUIDO ni es un mes, es NOMBRE. */
+ const _NOMBRE_STOP = /^(?:cu[aá]nt[oa]s?|c[oó]mo|qui[eé]n(?:es)?|d[oó]nde|cu[aá]l(?:es)?|compr[oóaeé](?:n|s|mos|ron)?|vend[ií][oó]?|vend[eé](?:n|s|mos)?|venta[s]?|factur[oóa]|facturaci[oó]n|mu[eé]strame|muestra|dame|dime|decime|viene|vino|venido|evoluci[oó]n|mensual(?:es|mente)?|margen|contribuci[oó]n|unidades|acciones|comerciales|rebates?|descuentos?|hoy|ficha|serie|hist[oó]rico|historia|actual)$/i;
++/* SOLO SE EXTIENDE A PALABRAS CON FORMA DE NOMBRE (owner 2026-09-25, ley del piso sin modelo, ronda 5):
++ * «decidime si le sigo vendiendo a Hites O LE CORTO el credito» absorbía «o», «le», «corto» —ninguna estaba en
++ * el stoplist— y el pedido salía «Hites o le corto», nunca en el índice: «No encuentro «Hites o le corto»».
++ * Enumerar cada conjunción/pronombre/verbo posible en cada dialecto es la lista infinita que esta casa evita
++ * (regla E, ley del piso sin modelo: nada de vocabulario nuevo para adivinar más). La forma robusta: un nombre
++ * real de este negocio se ESCRIBE con mayúscula inicial («Falabella Express», «Mercado Libre») — una palabra en
++ * minúscula vecina al match es del RESTO de la frase, no del nombre, exista o no en un stoplist. Subestimar la
++ * extensión dej a el match exacto de todos modos resuelto (nunca lo pierde); sobreestimarla es la falla medida:
++ * ante la duda, la extensión MÁS CORTA. */
+ const _esPalabraDeNombre = (w) => {
+-  const lw = String(w).toLowerCase();
+-  return !_RUIDO.has(lw) && !_MESES_NOMBRE.includes(lw) && lw !== "setiembre" && !_NOMBRE_STOP.test(w);
++  const s = String(w);
++  if (!/^[A-ZÁÉÍÓÚÑ]/.test(s)) return false;
++  const lw = s.toLowerCase();
++  return !_RUIDO.has(lw) && !_MESES_NOMBRE.includes(lw) && lw !== "setiembre" && !_NOMBRE_STOP.test(s);
+ };
+ /* el pedido COMPLETO del usuario: el n-grama del match extendido con sus vecinas de nombre contiguas */
+ const _extender = (palabras, i, n) => {
