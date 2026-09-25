@@ -51,6 +51,7 @@ import { METRICS } from "../../config/contract/metricRegistry.js";              
 // data-driven y su canon de alcance. `pnlRead` (abajo) los ENVUELVE — no reimplementa ni una suma.
 import { composePnl, buildPnlCascade, pnlDefined, pnlDisponibilidad, pnlEjesDisponibles, pnlEntidadCanon } from "../pnl.js";
 import { simboloMoneda } from "../../config/moneda.js";
+import { CRUDO_MONEY } from "./ledger.js";   // el símbolo con el que se cuelga el crudo del $ formateado (ver la nota en _fmtMoneyFacts)
 
 const _loadSrc = (source, scenario) => { const s = SOURCES[source]; if (!s) return []; return (typeof s.scenarioLoad === "function" ? s.scenarioLoad(scenario) : s.load()) || []; };
 
@@ -64,13 +65,37 @@ const _loadSrc = (source, scenario) => { const s = SOURCES[source]; if (!s) retu
 const _MONEY_K = /^(venta|ventas|ventaAnt|costo|costos|contribucion|contribucionAnt|rebates|rebate|presupuesto|anterior|actual)$/;
 const _moneyK = (vK) => { const v = vK * _fxT(), a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
 const _moneyRaw = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
+// EL CRUDO DEL $, CAPTURADO DESDE EL ORIGEN (owner 2026-09-25 — corte 2b, «resuelto DE RAÍZ», sobre el pendiente
+// que ya nombraba `adi-verificado-no-es-exacto`: «capturar el crudo en toolRegistry.js _fmtMoneyFacts, donde la
+// escala se conoce»). ACÁ es el único punto de la cadena que sabe con qué factor multiplicar `v` (miles → $
+// crudos): `enrichFromFacts` (ledger.js) recibe el campo YA formateado como texto y no puede reconstruir la
+// escala sin adivinar. Por cada campo money se cuelga su crudo con `CRUDO_MONEY` (un Symbol, invisible a
+// `Object.keys`/`JSON.stringify`: la forma de `facts` que ve el LLM no cambia un byte) para que `walk()` lo lea
+// sin tener que reparsear el texto que esta misma función acaba de escribir.
 function _fmtMoneyFacts(node) {
   if (Array.isArray(node)) return node.map(_fmtMoneyFacts);
   if (node && typeof node === "object") {
     const out = {};
+    const crudos = {};
+    let tieneCrudo = false;
+    // EL CRUDO QUE EL COMPOSER YA COLGÓ (specRetrieval.js:_conCrudo) SE HEREDA, NO SE PISA (owner 2026-09-25,
+    // corte 2b — bug real medido): esta función RECONSTRUYE cada objeto anidado (`out = {}` nuevo por nivel), y
+    // `Object.entries` nunca trae propiedades con clave Symbol — así que sin esta línea, el crudo que un panel de
+    // specRetrieval.js colgó en `node[CRUDO_MONEY]` se perdía en silencio al pasar por acá, aunque el símbolo
+    // fuera el mismo. Medido con `_raw_gate.mjs`: sin esto, «Variación vs año anterior»/«Valor» de un panel
+    // seguían sin crudo pese a que el composer ya lo declaraba.
+    const previo = node[CRUDO_MONEY];
+    if (previo && typeof previo === "object") { Object.assign(crudos, previo); tieneCrudo = true; }
     for (const [k, v] of Object.entries(node)) {
-      out[k] = (typeof v === "number" && Number.isFinite(v) && _MONEY_K.test(k)) ? _moneyK(v) : _fmtMoneyFacts(v);
+      if (typeof v === "number" && Number.isFinite(v) && _MONEY_K.test(k)) {
+        out[k] = _moneyK(v);
+        crudos[k] = v * _fxT();   // EXACTAMENTE el mismo cálculo que hace `_moneyK` por dentro para formatear
+        tieneCrudo = true;
+      } else {
+        out[k] = _fmtMoneyFacts(v);
+      }
     }
+    if (tieneCrudo) Object.defineProperty(out, CRUDO_MONEY, { value: crudos, enumerable: false, configurable: true });
     return out;
   }
   return node;

@@ -279,7 +279,16 @@ export function indiceDeEvidencia({ figs = [], datoProyectado = null, ejesDelTen
     const entidadesDelGrupo = grupo ? grupo.entidades : [];
     const n = grupo && grupo.n != null ? grupo.n : cobertura && Number.isFinite(+cobertura.n) ? +cobertura.n : (() => { const m = /(\d+)\s+(?:cuentas|clientes|sku|skus)/i.exec(concepto) || /\((\d+)\s+de\s+\d+\)/.exec(concepto); return m ? +m[1] : null; })();
     const m = cobertura && Number.isFinite(+cobertura.m) ? +cobertura.m : (() => { const mm = /\(\s*de\s+(\d+)\b/i.exec(concepto) || /\(\d+\s+de\s+(\d+)\)/.exec(concepto); return mm ? +mm[1] : null; })();
-    F.push({ fig, label, entidad, eje, concepto, conceptoNorm, base, calificador, universoTexto, raw, crudo, unidad, canon: String(fig.canon || "").replace(/\$/g, ""), texto: menosAscii(String(fig.value ?? fig.text ?? "")).trim(), agregado, grupo, cobertura, n, m, entidadesDelGrupo, periodo: t.periodo || "", universo: t.universoEtiqueta || t.universo || "", claves: metricasEn(concepto), source: fig.source || "", formula: fig.formula || "", context: fig.context || "" });
+    /* ORIGEN (owner 2026-09-25, Etapa 1 corte 2 — ley de los cuatro orígenes). `boleta.js:fig()` NO acepta un
+     * opt `origen` (destructura solo los campos que conoce y no hace spread de lo desconocido en su return) y
+     * ⛔ es archivo que no se toca — así que no hay forma de pasarlo POR `fig()`. La vía sin tocarlo: `fig()`
+     * devuelve un objeto plano y mutable; un composer (o el futuro productor «aportar contexto» / motor de
+     * escenarios) lo CUELGA después (`const f = fig(...); f.origen = {...}; boleta.push(f)`), igual que ya se
+     * lee `context`/`source`/`cobertura` acá abajo. Hoy NINGÚN composer lo hace: sin origen declarado = medido
+     * (la ley del owner), así que este campo sale `null` para toda fig existente y nada cambia. */
+    const origen = fig.origen && typeof fig.origen === "object" ? fig.origen : (typeof fig.origen === "string" ? { titular: fig.origen } : null);
+    const confirmacion = fig.confirmacion && typeof fig.confirmacion === "object" ? fig.confirmacion : null;
+    F.push({ fig, label, entidad, eje, concepto, conceptoNorm, base, calificador, universoTexto, raw, crudo, unidad, canon: String(fig.canon || "").replace(/\$/g, ""), texto: menosAscii(String(fig.value ?? fig.text ?? "")).trim(), agregado, grupo, cobertura, n, m, entidadesDelGrupo, periodo: t.periodo || "", universo: t.universoEtiqueta || t.universo || "", claves: metricasEn(concepto), source: fig.source || "", formula: fig.formula || "", context: fig.context || "", origen, confirmacion });
   }
 
   /* ── la casación de la métrica declarada con el concepto de la fig ── */

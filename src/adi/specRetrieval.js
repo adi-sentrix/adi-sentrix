@@ -12,6 +12,7 @@ import { SOURCES } from "../config/contract/sourceManifest.js";
 import { guessDimension, REFERENCIA_CAMPO } from "./oracle/entityRecord.js";   // Etapa 1 (owner 2026-08-04): resuelve el EJE de un entityScope heredado (bodega/canal vs nombre/sku) — ver _scopeRows
 import { POLICY, benchmarkOf } from "../config/businessPolicy.js";   // umbrales de política (UNA verdad) para el diagnose
 import { fig } from "./boleta.js";   // BOLETA de cifras autorizadas (primera clase · emitida por el composer · la valida el guard)
+import { CRUDO_MONEY } from "./oracle/ledger.js";   // el crudo de un campo del PANEL (ver la nota en _conCrudo, abajo)
 import { diagnoseInventario, diagnoseClientes, diagnoseSkus, concentracion } from "./diagnosis/economicDiagnosis.js";   // motor: 4 puntas inventario + patrón económico cliente/SKU + concentración 80/20 · UNA verdad
 import { clientesVentas as _cVentas, marcasVentas as _mVentas, sfamiliasVentas as _fVentas, historialMargen as _histM } from "../data/demoData.js";
 import { getTenantData } from "../data/tenantStore.js";
@@ -37,6 +38,24 @@ import { datasetCapability } from "./sentrix/capability.js";   // LA declaració
 import { headlineTotal } from "./sentrix/headline.js";   // los TOTALES DE CABECERA (decisión 6): la MISMA fuente oficial que pinta la card, nunca la suma del ranking
 import { simboloMoneda } from "../config/moneda.js";
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
+
+/* conCrudo(obj, campo, raw) — CRUDO OBLIGATORIO, resuelto EN EL ORIGEN (owner 2026-09-25, corte 2b). Los paneles
+ * de este archivo (`{kind:"movers"|"rank"|..., headline, rows:[{val, valFmt}, …]}`) formatean `val` a `valFmt`
+ * ACÁ MISMO, con `_fxe()` (la escala del pack, la única autoridad — `figureType.js:factorComercialDe`) — así que
+ * ESTE es el único punto que sabe con qué número real construyó el texto. `enrichFromFacts` (ledger.js:`walk`)
+ * auto-publica una fig por cada `valFmt`/`headline` que camina en `facts` (la boleta curada del composer no
+ * cubre cada fila de cada panel); sin esto, esa fig nacía reparseando el TEXTO ya redondeado — la lección
+ * `adi-verificado-no-es-exacto` (36,3→36,1) aplicada a cualquier "· Variación…"/"· Valor" de un panel.
+ * El crudo viaja con `CRUDO_MONEY` (ledger.js), un Symbol: invisible a `Object.keys`/`for…in`/`JSON.stringify`,
+ * así que la FORMA de `facts` que ve el LLM en el prompt no cambia ni un byte — esto es aditivo puro. */
+function _conCrudo(obj, campo, raw) {
+  if (!obj || typeof obj !== "object" || !Number.isFinite(raw)) return obj;
+  const existente = obj[CRUDO_MONEY];
+  const mapa = existente && typeof existente === "object" ? existente : {};
+  mapa[campo] = raw;
+  if (!existente) Object.defineProperty(obj, CRUDO_MONEY, { value: mapa, enumerable: false, configurable: true });
+  return obj;
+}
 
 // carga la fuente vía el CONTRATO: scenarioLoad (scenario-aware) si el manifest lo declara, si no el load base.
 function _load(source, scenario) {
@@ -1775,7 +1794,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
     for (const r of [...over.slice(0, 3), ...under.slice(0, 2)]) bol.push(fig(`${r.nombre} · vs ppto`, `${_sgnp(r.dev)}${_m(r.dev)}`, { unit: "money", raw: r.dev * _fxe(), mandatory: false, context: "vs presupuesto" }));
     bol.push(fig(scoped ? "Venta del grupo" : "Venta total", _m(totA), { unit: "money", raw: totA * _fxe(), mandatory: true, context: "vs presupuesto" }));
     bol.push(fig(scoped ? "Presupuesto del grupo" : "Presupuesto total", _m(totP), { unit: "money", raw: totP * _fxe(), mandatory: false, context: "vs presupuesto" }));
-    const panel = { kind: "movers", title: "Vs presupuesto", headline: `${_sgnp(tp)}${_p1(tp)}%`, headlineSub: `${_m(totA)} vs ${_m(totP)}`, rows: withDev.map((r) => ({ nombre: r.nombre, val: r.dev, valFmt: `${_sgnp(r.dev)}${_m(r.dev)}`, pct: +r.devp.toFixed(1), pos: r.dev >= 0 })) };
+    const panel = _conCrudo({ kind: "movers", title: "Vs presupuesto", headline: `${_sgnp(tp)}${_p1(tp)}%`, headlineSub: `${_m(totA)} vs ${_m(totP)}`, rows: withDev.map((r) => _conCrudo({ nombre: r.nombre, val: r.dev, valFmt: `${_sgnp(r.dev)}${_m(r.dev)}`, pct: +r.devp.toFixed(1), pos: r.dev >= 0 }, "valFmt", r.dev * _fxe())) }, "headline", tp);
     return { lines, suggestions: ["Cómo vamos vs el año anterior", "Es por volumen o por precio"], bol, panel };
   }
 
@@ -1814,7 +1833,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
      * mostraba (esta fig explícita reemplaza —dedup por canon— a la que `enrichFromFacts` auto-generaba sin crudo, nunca
      * la duplica) y mismo rótulo que ya usa el resumen ejecutivo para el mismo concepto («Ventas del período»). */
     bol.push(fig("Ventas del período", _m(tot), { unit: "money", raw: tot * _fxe(), mandatory: false, context: "la venta del período: la que crece o cae contra el año anterior" }));
-    const panel = { kind: "movers", title: "Vs año anterior", headline: `${_sgnp(tp)}${_p1(tp)}%`, headlineSub: `${_m(tot)} vs ${_m(totAnt)}`, rows: mov.map((r) => ({ nombre: r.nombre, val: r.d, valFmt: `${_sgnp(r.d)}${_m(r.d)}`, pct: +r.p.toFixed(1), pos: r.d >= 0 })).sort((a, b) => b.val - a.val) };
+    const panel = _conCrudo({ kind: "movers", title: "Vs año anterior", headline: `${_sgnp(tp)}${_p1(tp)}%`, headlineSub: `${_m(tot)} vs ${_m(totAnt)}`, rows: mov.map((r) => _conCrudo({ nombre: r.nombre, val: r.d, valFmt: `${_sgnp(r.d)}${_m(r.d)}`, pct: +r.p.toFixed(1), pos: r.d >= 0 }, "valFmt", r.d * _fxe())).sort((a, b) => b.val - a.val) }, "headline", tp);
     return { lines, suggestions: ["Es por volumen o por precio", "Quiénes redujeron su compra"], bol, panel };
   }
 
@@ -2104,7 +2123,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
     bol.push(fig("Cuentas bajo el benchmark", String(bajoBench.length), { unit: "count", raw: bajoBench.length, context: _ctx }));
     if (_filtrado) bol.push(fig("Cuentas materiales bajo el benchmark", String(withGap.length), { unit: "count", raw: withGap.length, context: _ctx }));
     for (const r of listedG) bol.push(fig(`${r.nombre} · no capturada`, _money(r.gap), { unit: "money", raw: r.gap, mandatory: false, context: _ctx }));
-    panel = { kind: "gap", title: "Contribución no capturada", headline: _money(totalGap), rows: withGap.map((r) => ({ nombre: r.nombre, val: r.gap, valFmt: _money(r.gap) })) };
+    panel = _conCrudo({ kind: "gap", title: "Contribución no capturada", headline: _money(totalGap), rows: withGap.map((r) => _conCrudo({ nombre: r.nombre, val: r.gap, valFmt: _money(r.gap) }, "valFmt", r.gap)) }, "headline", totalGap);
     suggestions = ["Quién sostiene la contribución", "Es por precio o por costo"];
   } else if (focus === "origen") {
     if (entity && dc[entity]) {
@@ -2115,7 +2134,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
         `**Qué mirar:** ${d.origenContribucion === "volumen" ? "crece por tamaño, no por rentabilidad — subir su margen aunque sea un punto rinde mucho por el volumen que mueve" : d.origenContribucion === "calidad" ? "aporta por calidad de venta — el upside está en ganarle volumen sin resignar ese margen" : "conviene sostener el equilibrio y empujar donde haya espacio"}.`,
       ];
       if (r) bol.push(fig(`${entity} · Contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * _fxe(), mandatory: true, context: _ctx }));
-      panel = { kind: "rank", title: `Contribución · contexto de ${entity}`, rows: rows.slice().sort((a, b) => b.contribucion - a.contribucion).slice(0, 8).map((x) => ({ nombre: _mNombre(x), val: x.contribucion, valFmt: _mVenta(x.contribucion), hi: _mNombre(x) === entity })) };
+      panel = { kind: "rank", title: `Contribución · contexto de ${entity}`, rows: rows.slice().sort((a, b) => b.contribucion - a.contribucion).slice(0, 8).map((x) => _conCrudo({ nombre: _mNombre(x), val: x.contribucion, valFmt: _mVenta(x.contribucion), hi: _mNombre(x) === entity }, "valFmt", x.contribucion * _fxe())) };
     } else {
       const byO = {}; for (const r of rows) { const d = dc[_mNombre(r)]; if (d) { (byO[d.origenContribucion] = byO[d.origenContribucion] || { c: 0, names: [] }); byO[d.origenContribucion].c += r.contribucion; byO[d.origenContribucion].names.push(_mNombre(r)); } }
       const ord = Object.entries(byO).sort((a, b) => b[1].c - a[1].c);
@@ -2125,7 +2144,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
         ord[1] ? `Del lado ${ord[1][0] === "calidad" ? "de la calidad (margen alto)" : ord[1][0]}: ${ord[1][1].names.slice(0, 3).join(", ")} (${_mVenta(ord[1][1].c)}).` : "",
         `**Qué mirar:** si la contribución depende del volumen (cuentas grandes, margen bajo), es más frágil — un punto de margen ahí es lo que más rinde.`,
       ];
-      panel = { kind: "rank", title: "Contribución por cliente", rows: rows.slice().sort((a, b) => b.contribucion - a.contribucion).slice(0, 8).map((x) => ({ nombre: _mNombre(x), val: x.contribucion, valFmt: _mVenta(x.contribucion) })) };
+      panel = { kind: "rank", title: "Contribución por cliente", rows: rows.slice().sort((a, b) => b.contribucion - a.contribucion).slice(0, 8).map((x) => _conCrudo({ nombre: _mNombre(x), val: x.contribucion, valFmt: _mVenta(x.contribucion) }, "valFmt", x.contribucion * _fxe())) };
     }
     suggestions = ["Quién sostiene la contribución", "Cuánta contribución no capturo"];
   } else if (focus === "alta_venta_baja_contribucion") {
@@ -2140,7 +2159,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
       `**Qué hacer:** en los de alto volumen y bajo margen, un punto de margen es lo que más rinde; en los de buen margen y poco tamaño, el upside es ganarles volumen.`,
     ];
     for (const r of lead.slice(0, 3)) bol.push(fig(`${r.nombre} · Contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * _fxe(), mandatory: false, context: _ctx }));
-    panel = { kind: "rank", title: "Venta vs contribución", rows: wd.slice().sort((a, b) => (b.venta || 0) - (a.venta || 0)).slice(0, 8).map((r) => ({ nombre: r.nombre, val: r.contribucion, valFmt: _mVenta(r.contribucion), sub: `${_p1(r.margen)}%` })) };
+    panel = { kind: "rank", title: "Venta vs contribución", rows: wd.slice().sort((a, b) => (b.venta || 0) - (a.venta || 0)).slice(0, 8).map((r) => _conCrudo({ nombre: r.nombre, val: r.contribucion, valFmt: _mVenta(r.contribucion), sub: `${_p1(r.margen)}%` }, "valFmt", r.contribucion * _fxe())) };
     suggestions = ["De dónde viene la contribución", "Cuánta contribución no capturo"];
   } else {   // rank
     orden = "descendente por Contribución";
@@ -2154,7 +2173,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
       `**Qué mirar:** son las cuentas que hay que blindar; si quieres ver qué tan concentrada está, mira el 80/20.`,
     ];
     for (const r of sorted.slice(0, 5)) bol.push(fig(`${_mNombre(r)} · Contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * _fxe(), mandatory: false, context: _ctx }));
-    panel = { kind: "rank", title: `Contribución por ${L.s}`, rows: sorted.slice(0, 8).map((r) => ({ nombre: _mNombre(r), val: r.contribucion, valFmt: _mVenta(r.contribucion) })) };
+    panel = { kind: "rank", title: `Contribución por ${L.s}`, rows: sorted.slice(0, 8).map((r) => _conCrudo({ nombre: _mNombre(r), val: r.contribucion, valFmt: _mVenta(r.contribucion) }, "valFmt", r.contribucion * _fxe())) };
     suggestions = ["Quién sostiene la contribución", "De dónde viene la contribución"];
   }
 

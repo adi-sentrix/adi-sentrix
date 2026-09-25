@@ -22,8 +22,12 @@ import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polari
 import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON, estadosEn, estadoDeclarado, ejeCompatible, COMPLEMENTO_V3 } from "./estados.js";
 
 export const MARCA_HECHOS = "<<HECHOS>>";
-export const TIPOS_DE_HECHO = ["ref", "cifra", "orden", "relacion", "grupo", "conteo", "variacion", "estado", "razon", "derivada", "propuesta", "lectura"];
-const _FACTUALES = new Set(["ref", "cifra", "orden", "relacion", "grupo", "conteo", "variacion", "estado", "razon", "derivada"]);
+/* "discrepancia" (owner 2026-09-25, ley de los cuatro orígenes: «un declarado nunca pisa un medido») NO es un
+ * tipo que el modelo declare en el bloque `<<HECHOS>>`: lo EMITE el libro mismo cuando dos hechos de origen
+ * distinto comparten la misma llave (concepto, entidad, eje, período, unidad) — ver el bloque al final de
+ * `libroDeHechos`. Se lista acá para que `esFactual`/los gates lo reconozcan como hecho factual. */
+export const TIPOS_DE_HECHO = ["ref", "cifra", "orden", "relacion", "grupo", "conteo", "variacion", "estado", "razon", "derivada", "propuesta", "lectura", "discrepancia"];
+const _FACTUALES = new Set(["ref", "cifra", "orden", "relacion", "grupo", "conteo", "variacion", "estado", "razon", "derivada", "discrepancia"]);
 const _es = (x) => x && typeof x === "object" && !Array.isArray(x);
 const _lista = (x) => (Array.isArray(x) ? x : x == null || x === "" ? [] : [x]).map((s) => (typeof s === "string" ? s.trim() : s)).filter((s) => s !== "" && s != null);
 const _u = unidadCompatible;
@@ -136,6 +140,144 @@ function _procedenciaDeOperando(op, libro) {
   const Hop = libro && libro.porId ? libro.porId.get(String(op.label)) : null;
   if (Hop && Hop.procedencia !== undefined) return Hop.procedencia;
   return _procedenciaDeFig(op);
+}
+
+/* ── ORÍGENES · COMPOSICIÓN · FUERZA (owner 2026-09-25, Etapa 1 corte 2 — leyes del encargo, textuales) ═══════════
+ * Cuatro orígenes SIEMPRE distinguibles, del INSUMO (de dónde viene, no cuán cierto es — eje aparte de
+ * `PROCEDENCIAS` arriba, que YA mezclaba origen y naturaleza; se conserva sin tocar, como LEGADO):
+ *   medido     · por ADI sobre datos de la empresa (el archivo). Sin origen declarado = medido.
+ *   documento  · extraído de un documento (contrato, factura…) — tres sellos que no se mezclan, REVISIÓN 3 §4:
+ *                extraído (la lectura) · confirmado (el usuario avala esa lectura, fuerza condicionada, igual
+ *                que un declarado) · verificado (ADI tiene el ORIGINAL y comprueba por código — SOLO este sella
+ *                «verificada»). Se distingue acá con el sub-flag `verificado` de la fuente declarada.
+ *   declarado  · por el usuario (una cifra que aporta, una referencia que fija).
+ *   supuesto   · para un escenario (el motor de simulación).
+ * La CONFIRMACIÓN (`H.confirmacion = {por, cuando, medio, sobre}`) es un sello APARTE — quién, cuándo, medio,
+ * sobre qué — y NUNCA cambia el origen (un declarado confirmado sigue siendo declarado, solo que su fuerza deja
+ * de depender de que el usuario no se haya equivocado sin más).
+ *
+ * NATURALEZA (qué operación lo produjo) es el TERCER eje, independiente: directo · derivado ·
+ * estimacion_referencia · propuesta. COMPOSICIÓN es la lista COMPLETA de insumos de un hecho —cada uno con su
+ * origen, su id y su rol— que NUNCA se resume («sin resumir nunca», ley del owner): a diferencia de
+ * `peorProcedencia` (que colapsa una lista a un solo valor, perdiendo de vista CUÁLES insumos son cuáles), acá
+ * cada insumo queda visible. FUERZA es la tercera pieza, calculada APARTE de la composición: ADI garantiza
+ * SIEMPRE su aritmética, la fuerza la pone el insumo más débil — `verificada` (solo medidos, o documento
+ * VERIFICADO por ADI, y con CRUDO en todos: sin crudo, nunca «verificada», la lección 36,3→36,1,
+ * `adi-verificado-no-es-exacto`) · `condicionada` (algún insumo declarado, extraído o confirmado — nombra de qué
+ * insumo depende, vía `composicion`) · `hipotetica` (algún supuesto — gana sobre cualquier otra combinación).
+ *
+ * `procedencia` (arriba) se CONSERVA como campo LEGADO: se calcula con una TABLA FIJA desde estos dos ejes
+ * nuevos (origen.titular, naturaleza), para que las 4 rutas fijas de `entrega/componer.js` y todo gate que lea
+ * `procedenciaDe()`/`PROCEDENCIAS`/`NOMBRE_DE_PROCEDENCIA` sigan produciendo EXACTAMENTE lo mismo. Hoy NINGÚN
+ * productor declara un origen ≠ medido sobre una fig real («aportar contexto» y el motor de escenarios no
+ * existen todavía — este módulo solo tiene que saber RECIBIRLOS), así que `origen.titular` es SIEMPRE "medido"
+ * para todo lo existente y la tabla reconstruye el valor legado byte a byte. La ÚNICA procedencia legada con
+ * origen ≠ medido que existe hoy es la constante "supuesto_usuario" de `pisoMaterialidadCobranza.js`
+ * (CAU-01/PRI-04, firmadas — no se tocan): se decompone con `_naturalezaDeLegado`/`_origenDeLegado` para que su
+ * combinación con otros insumos, DENTRO de una misma razón/derivada/lectura, siga reconstruyendo el mismo
+ * resultado (verificado con la suite completa: `_hechos_gate`, `_entrega_gate`, `_verificador_crudo_gate`,
+ * `_anclas_gate`, `_cau01_carga_resto_gate`, `_piso_materialidad_gate`, `_notario_v3_flujo_gate` — los 7 gates
+ * que importan este archivo). ⚠️ DECISIÓN DE SIGNIFICADO ABIERTA (reportada, no resuelta acá): la tabla fija de
+ * dos ejes no es matemáticamente equivalente al «peor de 5 categorías» plano en TODAS las combinaciones
+ * teóricas (un "derivado" combinado con un "supuesto_usuario" dentro del MISMO peor-cálculo reconstruye
+ * "derivado", no "supuesto_usuario") — esa combinación no es alcanzable hoy en ningún camino real del código
+ * (se auditó: el único productor de "supuesto_usuario" es `pisoMaterialidadCobranzaDe`, y su constante solo se
+ * combina, dentro de un mismo cálculo, con insumos "medido"); si un futuro productor la alcanza, el candado
+ * `_origenes_gate.mjs` la cubre con una carnada sintética. */
+export const ORIGENES = ["medido", "documento", "declarado", "supuesto"];
+export const NOMBRE_DE_ORIGEN = { medido: "medido", documento: "extraído de documento", declarado: "declarado por el usuario", supuesto: "supuesto del escenario" };
+/* orden de firmeza para el titular — DECISIÓN PROPUESTA, no ley (§A del diseño v2): medido > documento >
+ * declarado > supuesto. Solo esta tabla decide «peor»; cambia SOLO acá si el owner confirma otro orden. */
+export const ORDEN_FIRMEZA_ORIGEN = ["medido", "documento", "declarado", "supuesto"];
+/** peorOrigen(...os) → el titular de menor firmeza entre los declarados (ignora null/undefined); null si ninguno. */
+export function peorOrigen(...os) {
+  const vistos = os.filter((o) => ORIGENES.includes(o));
+  if (!vistos.length) return null;
+  return vistos.reduce((peor, o) => (ORDEN_FIRMEZA_ORIGEN.indexOf(o) > ORDEN_FIRMEZA_ORIGEN.indexOf(peor) ? o : peor));
+}
+export const NATURALEZAS = ["directo", "derivado", "estimacion_referencia", "propuesta"];
+function _peorNaturaleza(...ns) {
+  const vistas = ns.filter((n) => NATURALEZAS.includes(n));
+  if (!vistas.length) return null;
+  return vistas.reduce((peor, n) => (NATURALEZAS.indexOf(n) > NATURALEZAS.indexOf(peor) ? n : peor));
+}
+export const FUERZAS = ["verificada", "condicionada", "hipotetica"];
+
+/* la tabla fija (una función, un archivo) — §A del diseño v2, «Tabla legado»: directo+medido→medido ·
+ * derivado→derivado · estimacion_referencia→estimacion_referencia · propuesta→propuesta · cualquier origen≠medido
+ * con naturaleza directo→supuesto_usuario. */
+export function procedenciaLegado(origenTitular, naturaleza) {
+  if (naturaleza === "derivado") return "derivado";
+  if (naturaleza === "estimacion_referencia") return "estimacion_referencia";
+  if (naturaleza === "propuesta") return "propuesta";
+  if (naturaleza === "directo") return origenTitular === "medido" ? "medido" : "supuesto_usuario";
+  return null;
+}
+/* decompone una PROCEDENCIA LEGADA ya declarada a mano (constantes de `medir.js`/`_operandoConstante`, piezas
+ * FIRMADAS que no se tocan) en los dos ejes nuevos — nunca al revés: esto es solo para que esas constantes
+ * participen en `peorNaturaleza`/`peorOrigen` sin reabrir esas piezas. */
+function _naturalezaDeLegado(p) { return p === "medido" || p === "supuesto_usuario" ? "directo" : (p === "derivado" || p === "estimacion_referencia" || p === "propuesta" ? p : null); }
+function _origenDeLegado(p) { return p === "supuesto_usuario" ? "supuesto" : "medido"; }
+
+/* el origen DECLARADO sobre una fig — ver el comentario grande de arriba: se cuelga sobre el objeto que `fig()`
+ * devuelve (nunca por sus opts, que boleta.js no puede tocar), y `evidencia.js` lo surface como `.origen`. */
+function _origenDeclaradoDeFig(f) {
+  const decl = (f && f.origen) || (f && f.fig && f.fig.origen);
+  if (!decl) return null;
+  const bag = typeof decl === "string" ? { titular: decl } : decl;
+  return bag && ORIGENES.includes(bag.titular) ? bag : null;
+}
+function _origenDeFigStruct(f) { const d = _origenDeclaradoDeFig(f); return d ? d.titular : "medido"; }
+function _naturalezaDeFig(f) { const p = _procedenciaDeFig(f); return p == null ? null : _naturalezaDeLegado(p); }
+/* mismo patrón de tres ramas que `_procedenciaDeOperando`: constante con sus ejes ya declarados (nuevos o
+ * legados), hecho anterior del libro (hereda lo YA calculado) o fig de la boleta. */
+function _naturalezaDeOperando(op, libro) {
+  if (!op) return null;
+  if (op.origenDeclarado && op.naturalezaDeclarada) return op.naturalezaDeclarada;
+  if (op.procedenciaDeclarada !== undefined && op.procedenciaDeclarada !== null) return _naturalezaDeLegado(op.procedenciaDeclarada);
+  const Hop = libro && libro.porId ? libro.porId.get(String(op.label)) : null;
+  if (Hop && Hop.naturaleza !== undefined) return Hop.naturaleza;
+  return _naturalezaDeFig(op);
+}
+function _origenDeOperando(op, libro) {
+  if (!op) return null;
+  if (op.origenDeclarado) return op.origenDeclarado;
+  if (op.procedenciaDeclarada !== undefined && op.procedenciaDeclarada !== null) return _origenDeLegado(op.procedenciaDeclarada);
+  const Hop = libro && libro.porId ? libro.porId.get(String(op.label)) : null;
+  if (Hop && Hop.origen && Hop.origen.titular) return Hop.origen.titular;
+  return _origenDeFigStruct(op);
+}
+const _idDeOperando = (op) => (op && op.fig && op.fig.id) || (op && op.label) || null;
+const _crudoDeOperando = (op) => !(op && op.crudo === false);
+
+/** fuerzaDeComposicion(composicion) → "verificada"|"condicionada"|"hipotetica"|null. Ley del owner, textual: «ADI
+ * garantiza siempre su aritmética; la fuerza la pone el insumo más débil». null = sin insumos (propuesta: el
+ * número es del asesor, no una medición) O algún insumo medido SIN CRUDO (owner 2026-09-25, corte 2b — «resuelto
+ * DE RAÍZ»): «condicionada» está definida como «depende de un insumo declarado/extraído/confirmado — del
+ * usuario»; una cifra medida y solo REDONDEADA por ADI no depende del usuario, así que no puede llamarse
+ * condicionada — mezclaría dos clases de verdad distintas. Es la MISMA regla que ya rige razones y derivadas
+ * (`_razon`/`_derivada`: sin crudo, el hecho entero sale «no-verificable»): acá, cuando el hecho SÍ verifica
+ * (una cita directa que repite lo mostrado, legítima — `mismoValor`), la fuerza queda null, ninguna de las tres. */
+function _fuerzaDeComposicion(composicion) {
+  const cs = Array.isArray(composicion) ? composicion : [];
+  if (!cs.length) return null;
+  if (cs.some((c) => c.origen === "supuesto")) return "hipotetica";
+  if (cs.some((c) => c.crudo === false)) return null;
+  const fuerte = (c) => c.origen === "medido" || (c.origen === "documento" && c.verificado === true);
+  return cs.every(fuerte) ? "verificada" : "condicionada";
+}
+/* aplica una composición (lista de insumos) a un hecho: fija `composicion`, `naturaleza`, `origen` (bag
+ * {titular,lista,fuentes}), `fuerza` y el `procedencia` LEGADO vía la tabla fija. Un insumo trae, además de
+ * {origen,id,rol}: `naturaleza` (para combinar) y opcionalmente `crudo`/`verificado`. */
+function _aplicarComposicion(H, composicion) {
+  const cs = Array.isArray(composicion) ? composicion : [];
+  H.composicion = cs.map((c) => ({ origen: c.origen || "medido", id: c.id != null ? c.id : null, rol: c.rol || "insumo" }));
+  H.naturaleza = _peorNaturaleza(...cs.map((c) => c.naturaleza));
+  const titular = peorOrigen(...cs.map((c) => c.origen));
+  H.origen = { titular, lista: [...new Set(cs.map((c) => c.origen).filter((o) => ORIGENES.includes(o)))], fuentes: cs.map((c) => ({ origen: c.origen || "medido", ref: c.id != null ? c.id : null })) };
+  H.fuerza = _fuerzaDeComposicion(cs);
+  H.procedencia = procedenciaLegado(titular, H.naturaleza);
+  return H;
 }
 
 /* ── ids en la boleta: cada fig recibe una identidad estable dentro del turno (por posición; idempotente) ── */
@@ -286,7 +428,7 @@ const _tolPct = (texto) => { const m = /(\d+)(?:[.,](\d+))?\s*%/.exec(String(tex
 
 /* ── el hecho evaluado ── */
 function _H(id, tipo, extra = {}) {
-  return { id, tipo, ok: false, veredicto: "no-verificable", motivo: "", verdad: "", evidencia: [], entidades: new Set(), roles: { sujetos: [], vs: [], miembros: [], bodega: null, num: null, den: null }, claves: new Set(), dominio: null, estado: null, polaridad: null, numeros: [], universo: null, periodo: "", render: {}, derivados: [], procedencia: null, ...extra };
+  return { id, tipo, ok: false, veredicto: "no-verificable", motivo: "", verdad: "", evidencia: [], entidades: new Set(), roles: { sujetos: [], vs: [], miembros: [], bodega: null, num: null, den: null }, claves: new Set(), dominio: null, estado: null, polaridad: null, numeros: [], universo: null, periodo: "", render: {}, derivados: [], procedencia: null, composicion: [], naturaleza: null, origen: null, fuerza: null, confirmacion: null, ...extra };
 }
 const _addEnt = (H, I, nombre) => { if (!nombre || typeof nombre !== "string" || nombre === "negocio") return; const r = I.resolverEntidad(nombre); H.entidades.add(normalizar(r ? r.nombre : nombre)); };
 const _addClave = (H, m) => { if (m == null || m === "") return; const c = claveDeMetrica(m) || normalizar(String(m)).replace(/\s+/g, "_"); H.claves.add(c); if (!H.dominio) H.dominio = dominioDeClave(c); if (H.polaridad == null) H.polaridad = polaridadDeClave(c); };
@@ -294,6 +436,18 @@ const _addNum = (H, v, unidad = null) => { const r = typeof v === "object" && v 
 const _dominioDeFig = (f) => { const c = claveDeMetrica(f.concepto); const d = c ? dominioDeClave(c) : null; if (d) return d; const t = normalizar((f.context || "") + " " + (f.calificador || "") + " " + (f.fig && f.fig.universo || "") + " " + (f.fig && f.fig.context || "") + " " + String(f.label || "").split(" · ").slice(1).join(" "));   /* el rótulo también dice el dominio («Medida · cerrar brecha al piso») */ if (/vencid|pendiente|abonad|recuperad|cobr|mora/.test(t)) return "cobranza"; if (/capital|frenad|inventario|stock|bodega|rotaci/.test(t)) return "inventario"; if (/venta|margen|contribuci|carga|benchmark|costo|brecha|precio|markup/.test(t)) return "comercial"; return null; };
 
 function _deFig(H, I, f, sujeto = null) {
+  /* CRUDO: PARA CALCULAR, NO PARA CITAR (owner 2026-09-25, corte 2c — corrige el corte 2b). Ley vigente del
+   * Notario (fase 4, ronda 2): «el valor es el comprobante a la precisión de lo impreso» — una cita que repite
+   * EXACTAMENTE lo que la boleta muestra es verdadera sin más prueba, tenga o no crudo detrás. El crudo es
+   * obligatorio para hacer una cuenta NUEVA sobre el número (una razón, una derivada — `_razon`/`_derivada`, sin
+   * tocar: ahí SÍ se rechaza sin crudo, porque dividir/sumar un texto redondeado no es dividir/sumar el dato) —
+   * nunca para rechazar la cita en sí. El corte 2b había hecho que ESTA rama («ref»/«cifra» sin valor) rechazara
+   * la cita completa sin crudo (`_ronda5_gate`, RA15: «LG-DRYER8KG · Valor de inventario = $14K» sin crudo, una
+   * cita correctamente redondeada de un composer de la casa, quedaba «no-verificable» y tumbaba el ancla) — eso
+   * mezclaba las dos leyes. Lo que SÍ cambia sin crudo es la FUERZA (abajo, vía `_aplicarComposicion` →
+   * `_fuerzaDeComposicion`): nunca «verificada», y NUNCA «condicionada» tampoco (esa palabra es para un insumo
+   * declarado por el usuario, no para el redondeo de ADI) — queda null, ninguna de las tres. El veredicto sigue
+   * siendo el de siempre: verdadera si coincide con lo mostrado, falsa si no. */
   H.ok = true; H.veredicto = "verdadera"; H.motivo = `fig de la boleta: ${_fmtFig(f)}`; H.verdad = _fmtFig(f); H.evidencia = [f.label];
   const s = sujeto || f.entidad || "negocio";
   H.roles.sujetos = [s]; _addEnt(H, I, s);
@@ -302,7 +456,7 @@ function _deFig(H, I, f, sujeto = null) {
   H.dominio = _dominioDeFig(f); H.polaridad = c ? polaridadDeClave(c) : null;
   H.numeros.push({ raw: f.raw, unidad: f.unidad, texto: f.texto || (f.fig && f.fig.value) || "" });
   H.render.valor = f.texto || (f.fig && String(f.fig.value)) || formatoDeLaCasa(f.raw, f.unidad);
-  H.procedencia = _procedenciaDeFig(f);
+  { const declarado = _origenDeclaradoDeFig(f); _aplicarComposicion(H, [{ origen: _origenDeFigStruct(f), naturaleza: _naturalezaDeFig(f), id: _idDeOperando(f), rol: "valor", crudo: f.crudo !== false, verificado: declarado && declarado.verificado === true }]); const conf = f.confirmacion || (f.fig && f.fig.confirmacion); if (conf && typeof conf === "object") H.confirmacion = conf; }
   if (f.agregado) { H.universo = { set: null, fuente: f.universoTexto || f.calificador || "", texto: f.universoTexto || "" }; H.render.universo = f.universoTexto || ""; }
   if (/anterior|pasado/.test(f.conceptoNorm) && !/variacion|vs/.test(f.conceptoNorm)) H.periodo = "anterior";
   return H;
@@ -404,12 +558,27 @@ function _razon(H, h, I, libro = null) {
   if (v && Number.isFinite(v.raw)) H.render.valor = _canonTexto(v.texto);
   H.render.base = den.entidad ? `de ${den.label}` : `del ${String(den.concepto || den.label).toLowerCase()}`;
   H.numeros.push({ raw: forma === "veces" ? q : q * 100, unidad: forma === "veces" ? "ratio" : "pct", texto: H.render.valor });
-  H.procedencia = peorProcedencia(_procedenciaDeOperando(num, libro), _procedenciaDeOperando(den, libro));   // «una derivada hereda la peor procedencia de sus insumos» (owner) — una razón es la misma regla con dos insumos
+  H.procedencia = peorProcedencia(_procedenciaDeOperando(num, libro), _procedenciaDeOperando(den, libro));   // «una derivada hereda la peor procedencia de sus insumos» (owner) — una razón es la misma regla con dos insumos (campo LEGADO: se sobreescribe abajo con la tabla fija, mismo resultado)
+  _aplicarComposicion(H, [
+    { origen: _origenDeOperando(num, libro), naturaleza: _naturalezaDeOperando(num, libro), id: _idDeOperando(num), rol: "numerador", crudo: _crudoDeOperando(num) },
+    { origen: _origenDeOperando(den, libro), naturaleza: _naturalezaDeOperando(den, libro), id: _idDeOperando(den), rol: "denominador", crudo: _crudoDeOperando(den) },
+  ]);
   return _aplica(H, { veredicto: "verdadera", motivo: `razon: ${cuenta}`, verdad: cuenta, evidencia: [num.label, den.label] });
 }
 const _impreso = (t) => { const m = /(-?\d+(?:[.,]\d+)?)\s*([kmb])?/i.exec(String(t || "").replace(/\$/g, "").replace(/\.(?=\d{3}\b)/g, "")); if (!m) return null; const v = parseFloat(m[1].replace(",", ".")); const e = m[2] ? { k: 1e3, m: 1e6, b: 1e9 }[m[2].toLowerCase()] : 1; return v * e; };
 
 const _OP_ALIAS = { resta: "diferencia", diferencia_pp: "pp", division: "cociente", ratio: "cociente", veces: "cociente", proporcion: "cociente", total: "suma", sumar: "suma", restar: "diferencia" };
+/* el ROL de cada insumo de una derivada, para la composición (nunca «operando genérico» cuando la operación ya
+ * dice qué papel cumple cada número — «sin resumir nunca», ley del owner). */
+function _rolesDeOperandos(op, n) {
+  if (op === "suma") return Array.from({ length: n }, (_, i) => `sumando_${i + 1}`);
+  if (op === "diferencia") return ["minuendo", "sustraendo"];
+  if (op === "cociente") return ["numerador", "denominador"];
+  if (op === "pp") return ["tasa_a", "tasa_b"];
+  if (op === "variacion_relativa") return ["valor_nuevo", "valor_base"];
+  if (op === "producto") return ["factor", "tasa"];
+  return Array.from({ length: n }, (_, i) => `operando_${i + 1}`);
+}
 function _derivada(H, h, I, libro = null) {
   const op0 = normalizar(h.op || "");
   const op = _OP_ALIAS[op0] || op0;
@@ -457,7 +626,8 @@ function _derivada(H, h, I, libro = null) {
   }
   H.render.valor = v && Number.isFinite(v.raw) ? _canonTexto(v.texto) : formatoDeLaCasa(res, unidad); H.numeros.push({ raw: res, unidad, texto: formatoDeLaCasa(res, unidad) });
   H.resultado = { raw: res, unidad, texto: formatoDeLaCasa(res, unidad) };
-  H.procedencia = peorProcedencia(...ops.map((f) => _procedenciaDeOperando(f, libro)));   // «una derivada hereda la peor procedencia de sus insumos» (owner, textual)
+  H.procedencia = peorProcedencia(...ops.map((f) => _procedenciaDeOperando(f, libro)));   // «una derivada hereda la peor procedencia de sus insumos» (owner, textual) — campo LEGADO: se sobreescribe abajo con la tabla fija, mismo resultado
+  { const roles = _rolesDeOperandos(op, ops.length); _aplicarComposicion(H, ops.map((f, i) => ({ origen: _origenDeOperando(f, libro), naturaleza: _naturalezaDeOperando(f, libro), id: _idDeOperando(f), rol: roles[i] || `operando_${i + 1}`, crudo: _crudoDeOperando(f) }))); }
   return _aplica(H, { veredicto: "verdadera", motivo: `derivada (${op}): ${verdad}`, verdad, evidencia: ops.map((f) => f.label) });
 }
 const _decimales = (t) => { const m = /\d+[.,](\d+)/.exec(String(t || "")); return m ? m[1].length : 0; };
@@ -469,9 +639,10 @@ function _conteoTipado(H, h, I) {
   if (!u) return null;   // sin universo tipado: lo juzga el verificador de siempre
   const c = _es(h.conteo) ? h.conteo : { n: h.n, m: h.m };
   H.universoTipado = u;   // el universo tal como se declaró: las anclas leen su eje y su exclusión
-  H.procedencia = "derivado";   // un conteo sobre el universo es SIEMPRE un cálculo del motor (contar entidades), nunca una lectura directa de un archivo
+  H.procedencia = "derivado";   // un conteo sobre el universo es SIEMPRE un cálculo del motor (contar entidades), nunca una lectura directa de un archivo — campo LEGADO: se sobreescribe abajo con la tabla fija, mismo resultado
   const n = Number.isFinite(+c.n) ? +c.n : NaN;
   const U = conjuntoDeUniverso(u, I, u.eje || null, "");
+  _aplicarComposicion(H, [{ origen: "medido", naturaleza: "derivado", id: (typeof U.fuente === "string" ? U.fuente : null), rol: "universo_evaluado", crudo: true }]);
   if (U.error) return _aplica(H, { veredicto: "no-verificable", motivo: U.error, verdad: "", evidencia: [] });
   const eje = normalizar(u.eje || "cliente");
   const total = I.tamanoDelEje(eje);
@@ -615,6 +786,9 @@ export function libroDeHechos(hechos, ctx = {}) {
         if (!v || !Number.isFinite(v.raw)) { H.motivo = "propuesta sin valor"; return H; }
         H.ok = true; H.veredicto = "sellada"; H.motivo = "propuesta del asesor (criterio mío): no se juzga contra la boleta"; H.render.valor = v.texto; H.numeros.push({ raw: v.raw, unidad: v.unidad, texto: v.texto });
         H.procedencia = "propuesta";   // un número de una recomendación — NUNCA un dato de la empresa (owner, Etapa 2)
+        /* sin insumos: el número es del asesor, no una medición — la fuerza (verificada/condicionada/hipotetica)
+         * no aplica; la naturaleza sí es "propuesta" y la tabla fija reconstruye el mismo LEGADO de la línea de arriba. */
+        H.composicion = []; H.naturaleza = "propuesta"; H.origen = { titular: "medido", lista: [], fuentes: [] }; H.fuerza = null;
         if (h.de != null) _addClave(H, h.de); if (h.sujeto) { H.roles.sujetos = [h.sujeto]; _addEnt(H, I, h.sujeto); }
         return H;
       }
@@ -627,7 +801,10 @@ export function libroDeHechos(hechos, ctx = {}) {
         if (falsos.length) { H.motivo = `apoyo-falso: la lectura se apoya en ${falsos.join(", ")}, que no es verdadero`; return H; }
         for (const id of apoyo) { const A = libro.porId.get(String(id)); for (const e of A.entidades) H.entidades.add(e); for (const c of A.claves) H.claves.add(c); if (!H.dominio) H.dominio = A.dominio; }
         H.ok = true; H.veredicto = "sellada"; H.motivo = `lectura con sello «${h.sello || "criterio mío"}»${apoyo.length ? " · apoyo " + apoyo.join(", ") : ""}`; H.sello = h.sello || "criterio mío";
-        H.procedencia = peorProcedencia(...apoyo.map((id) => { const A = libro.porId.get(String(id)); return A ? A.procedencia : null; }));   // una lectura hereda la peor procedencia de lo que la apoya; sin apoyo, null (interpretación libre — no hay cifra que fechar)
+        H.procedencia = peorProcedencia(...apoyo.map((id) => { const A = libro.porId.get(String(id)); return A ? A.procedencia : null; }));   // una lectura hereda la peor procedencia de lo que la apoya; sin apoyo, null (interpretación libre — no hay cifra que fechar) — campo LEGADO: se sobreescribe abajo con la tabla fija, mismo resultado
+        /* la composición de una lectura es la de TODO lo que la apoya, concatenada (nunca resumida): cada insumo
+         * de cada hecho de apoyo, con su rol original más el id del apoyo que lo trajo. */
+        _aplicarComposicion(H, apoyo.flatMap((id) => { const A = libro.porId.get(String(id)); return A && Array.isArray(A.composicion) ? A.composicion.map((c) => ({ ...c, rol: `${c.rol} (${id})` })) : []; }));
         return H;
       }
       if (tipo === "razon") return _razon(H, h, I, libro);
@@ -653,7 +830,10 @@ export function libroDeHechos(hechos, ctx = {}) {
        * a lo que ya resolvió `verificar.js` en vez de reabrir un camino nuevo. */
       if (H.evidencia && H.evidencia.length) {
         const figsEv = H.evidencia.map((l) => I.figs.find((g) => normalizar(g.label) === normalizar(l))).filter(Boolean);
-        if (figsEv.length) H.procedencia = peorProcedencia(...figsEv.map(_procedenciaDeFig));
+        if (figsEv.length) {
+          H.procedencia = peorProcedencia(...figsEv.map(_procedenciaDeFig));   // campo LEGADO: se sobreescribe abajo con la tabla fija, mismo resultado
+          _aplicarComposicion(H, figsEv.map((f) => ({ origen: _origenDeFigStruct(f), naturaleza: _naturalezaDeFig(f), id: _idDeOperando(f), rol: f.concepto || f.label || "evidencia", crudo: f.crudo !== false })));
+        }
       }
       /* roles, claves, números y render desde el hecho identificado (no desde ninguna prosa) */
       const sujetos = Array.isArray(a2.sujeto) ? a2.sujeto : (a2.sujeto != null ? [a2.sujeto] : []);
@@ -718,6 +898,46 @@ export function libroDeHechos(hechos, ctx = {}) {
       for (const d of _verdadDeLoFalso(H, h, I, libro)) { const D = evaluar(d); if (D.ok) { D.derivadoDe = H.id; libro.hechos.push(D); libro.porId.set(D.id, D); H.derivados.push(D.id); } }
     }
   }
+  /* ── UN DECLARADO NUNCA PISA UN MEDIDO (owner 2026-09-25, ley de los cuatro orígenes) ═══════════════════════════
+   * Misma llave (concepto, entidad, eje, período, unidad) con DOS orígenes distintos → los DOS hechos quedan en
+   * el libro (ninguno se descarta) y se emite un hecho `discrepancia` nuevo, factual, con la diferencia. Hoy
+   * ningún productor declara un origen ≠ medido sobre una fig real («aportar contexto» y el motor de escenarios
+   * no existen todavía), así que este bloque no encuentra pares — está listo para RECIBIRLOS, no para
+   * generarlos: 0 hechos nuevos sobre cualquier libro de hoy (verificado por `_origenes_gate.mjs`). */
+  { const _llaveDeHecho = (H) => {
+      if (!H.ok || !_FACTUALES.has(H.tipo) || H.tipo === "discrepancia") return null;
+      if (!Array.isArray(H.composicion) || H.composicion.length !== 1) return null;   // solo citas directas (una sola fig): una razón/derivada no comparte llave con un declarado suelto
+      const n = H.numeros[H.numeros.length - 1];
+      if (!n || !Number.isFinite(n.raw)) return null;
+      const clave = [...H.claves][0] || "";
+      if (!clave) return null;
+      const sujeto = H.roles.sujetos[0] || "negocio";
+      return `${clave}|${normalizar(sujeto)}|${H.periodo || ""}|${n.unidad || ""}`;
+    };
+    const porLlave = new Map();
+    for (const H of libro.hechos) { const k = _llaveDeHecho(H); if (!k) continue; if (!porLlave.has(k)) porLlave.set(k, []); porLlave.get(k).push(H); }
+    let dn = 0;
+    for (const [, Hs] of porLlave) {
+      for (let i = 0; i < Hs.length; i++) for (let j = i + 1; j < Hs.length; j++) {
+        const A = Hs[i], B = Hs[j];
+        if (!A.origen || !B.origen || !A.origen.titular || !B.origen.titular || A.origen.titular === B.origen.titular) continue;
+        const na = A.numeros[A.numeros.length - 1], nb = B.numeros[B.numeros.length - 1];
+        if (!na || !nb) continue;
+        dn++;
+        const id = `d${dn}`;
+        if (libro.porId.has(id)) continue;
+        const D = _H(id, "discrepancia", {
+          ok: true, veredicto: "verdadera",
+          motivo: `discrepancia: ${A.id} (${NOMBRE_DE_ORIGEN[A.origen.titular] || A.origen.titular}) dice ${na.texto || formatoDeLaCasa(na.raw, na.unidad)}, ${B.id} (${NOMBRE_DE_ORIGEN[B.origen.titular] || B.origen.titular}) dice ${nb.texto || formatoDeLaCasa(nb.raw, nb.unidad)}`,
+          de: [A.id, B.id],
+          diferencia: { raw: na.raw - nb.raw, unidad: na.unidad },
+          entidades: new Set([...A.entidades, ...B.entidades]), claves: new Set([...A.claves, ...B.claves]),
+        });
+        D.verdad = D.motivo;
+        libro.hechos.push(D); libro.porId.set(id, D);
+      }
+    }
+  }
   libro.resumen = { total: libro.hechos.length, verdaderos: libro.hechos.filter((x) => x.ok && x.veredicto === "verdadera").length, sellados: libro.hechos.filter((x) => x.veredicto === "sellada").length, falsos: libro.hechos.filter((x) => x.veredicto === "falsa").length, noVerificables: libro.hechos.filter((x) => x.veredicto === "no-verificable").length, derivados: libro.hechos.filter((x) => x.derivadoDe).length };
   libro.texto = textoDelLibro(libro);
   return libro;
@@ -768,4 +988,30 @@ export const esFactual = (tipo) => _FACTUALES.has(normalizar(tipo));
 export function procedenciaDe(libro, id) {
   const H = libro && libro.porId ? libro.porId.get(String(id)) : null;
   return H && H.ok ? (H.procedencia || null) : null;
+}
+
+/** origenDe(libro, id) → {titular, lista, fuentes} | null — el bag de origen del hecho (§A del diseño v2). */
+export function origenDe(libro, id) {
+  const H = libro && libro.porId ? libro.porId.get(String(id)) : null;
+  return H && H.ok ? (H.origen || null) : null;
+}
+/** naturalezaDe(libro, id) → "directo"|"derivado"|"estimacion_referencia"|"propuesta"|null */
+export function naturalezaDe(libro, id) {
+  const H = libro && libro.porId ? libro.porId.get(String(id)) : null;
+  return H && H.ok ? (H.naturaleza || null) : null;
+}
+/** fuerzaDe(libro, id) → "verificada"|"condicionada"|"hipotetica"|null — null si el hecho no tiene insumos (propuesta) o no verificó. */
+export function fuerzaDe(libro, id) {
+  const H = libro && libro.porId ? libro.porId.get(String(id)) : null;
+  return H && H.ok ? (H.fuerza || null) : null;
+}
+/** composicionDe(libro, id) → [{origen, id, rol}] — la composición COMPLETA, nunca resumida. [] si no hay insumos o el hecho no existe. */
+export function composicionDe(libro, id) {
+  const H = libro && libro.porId ? libro.porId.get(String(id)) : null;
+  return H && H.ok && Array.isArray(H.composicion) ? H.composicion : [];
+}
+/** confirmacionDe(libro, id) → {por, cuando, medio, sobre} | null — el sello aparte; NO cambia el origen. */
+export function confirmacionDe(libro, id) {
+  const H = libro && libro.porId ? libro.porId.get(String(id)) : null;
+  return H ? (H.confirmacion || null) : null;
 }

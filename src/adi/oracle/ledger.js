@@ -39,6 +39,16 @@ const _moneyE = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1
 // autorizado → falso "cifra-no-autorizada" en cualquier variación negativa. Mismo criterio que la rama "$", ahora
 // simétrico.
 const _FIGRE = /-?\$\s?\d[\d.,]*\s*[KMB]?|-?\d[\d.,]*\s*%|\d[\d.,]*\s*(?:x|×)|\b\d+\s*d(?:[ií]as?)?\b/gi;
+// EL CRUDO DEL $ FORMATEADO POR toolRegistry.js:_fmtMoneyFacts (owner 2026-09-25 — corte 2b, «resuelto DE RAÍZ»).
+// El $ se omitía arriba (comentario «la escala K/crudo es ambigua sin el formateo del composer») porque, para
+// cuando `walk()` ve el campo, `_fmtMoneyFacts` YA lo convirtió en texto («$17.8M») y el número original (en
+// miles) se perdió. Pero `_fmtMoneyFacts` SÍ conoce la escala (multiplica por `factorComercialDe`, la MISMA
+// cuenta que ya usa cada `raw` explícito del producto) — así que ahí es donde el crudo se puede capturar, no acá.
+// `toolRegistry.js` cuelga el crudo de cada campo money en `node[CRUDO_MONEY][key]`, con un SÍMBOLO (nunca una
+// clave de texto): un Symbol no aparece en `Object.entries`/`Object.keys`/`for…in`/`JSON.stringify`, así que la
+// forma de `facts` que ve el LLM en el prompt NO cambia ni un byte — el crudo es invisible salvo para quien tiene
+// la referencia al símbolo (acá mismo). `walk()` lo lee abajo, en la MISMA rama que ya detecta el texto formateado.
+export const CRUDO_MONEY = Symbol("crudoMoneyDeFacts");
 const _unitOf = (v) => /%/.test(v) ? "pct" : /(?:×|\dx)\b/i.test(v) ? "ratio" : /\d\s*d(?:[ií]as?)?\b/i.test(v) ? "days" : "money";
 // crudos → unidad por NOMBRE de clave (días/%/x · el $ se omite: la escala K/crudo es ambigua sin el formateo del composer)
 const _KEYUNIT = [[/doh|d[ií]as/i, "days"], [/rotacion/i, "ratio"], [/margen|carga|benchmark|rebate|share|participaci|concentraci|cobertura|variacion|yoy|crecimiento|pct|porcentaje/i, "pct"]];
@@ -217,7 +227,18 @@ export function enrichFromFacts(boleta, facts) {
       if (typeof node.usd === "number" && node.entidad) add(_labelDe(node.entidad, node.concepto || node.metrica || node.tipo || node.label || "monto"), _moneyE(node.usd), { raw: node.usd });
       for (const [k, v] of Object.entries(node)) {
         if (_CLAVES_ECO.has(k)) continue;   // el eco de una referencia del negocio que ya viaja con su rótulo («Nivel de carga comercial declarado»)
-        if (typeof v === "string") { const mm = v.match(_FIGRE); if (mm) { const sig = _SIGNIFICADO_CABECERA(k, kindAqui, tituloAqui); mm.forEach((g) => add(_labelDe(ent, k, kindAqui, tituloAqui), g, sig ? { context: sig } : null)); } }
+        if (typeof v === "string") {
+          const mm = v.match(_FIGRE);
+          if (mm) {
+            const sig = _SIGNIFICADO_CABECERA(k, kindAqui, tituloAqui);
+            // el crudo que `toolRegistry.js:_fmtMoneyFacts` colgó para ESTE campo — solo se usa cuando el string
+            // trae UN único match (si trajera dos, el crudo de un solo número no se puede repartir entre los dos
+            // sin adivinar cuál es cuál: se prefiere sin-crudo a un crudo mal asignado).
+            const crudoMap = node[CRUDO_MONEY];
+            const crudo = mm.length === 1 && crudoMap && Number.isFinite(crudoMap[k]) ? crudoMap[k] : null;
+            mm.forEach((g) => add(_labelDe(ent, k, kindAqui, tituloAqui), g, { ...(sig ? { context: sig } : {}), ...(crudo != null ? { raw: crudo } : {}) }));
+          }
+        }
         else if (typeof v === "number" && Number.isFinite(v)) {
           // crudos por unidad-según-clave · SOLO días/%/x (el $ se omite por la ambigüedad de escala K/crudo)
           // …y ANTES que eso, la NATURALEZA: un puesto o un conteo no son una tasa aunque su clave nombre la

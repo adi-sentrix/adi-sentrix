@@ -33,6 +33,7 @@ import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
 import { indiceDeEvidencia } from "./src/adi/notario/evidencia.js";
 import { libroDeHechos, asignarIds } from "./src/adi/notario/hechos.js";
+import { fig } from "./src/adi/boleta.js";
 
 let pass = 0, fail = 0;
 const ok = (c, m, extra = "") => { if (c) { pass++; console.log("  ✓ " + m); } else { fail++; console.log("  ✗ " + m + (extra ? "\n      " + extra : "")); } };
@@ -107,53 +108,64 @@ H("3 · la tasa de recuperación — ley canónica del owner, con crudo genuino"
 /* ═══ 4 · CARNADA — operando sin crudo en una razón → no-verificable, nunca un cociente ═══ */
 H("4 · CARNADA — un operando sin crudo hace «no-verificable», nunca un número");
 {
-  // «Paris · Venta»/«Tottus · Venta» (composeSpecMargin, campo `venta` en MILES) nacen de enrichFromFacts SIN
-  // `raw` — a propósito: el ARREGLO GENÉRICO (Paso 2, Condición 1) sólo estampa crudo en días/ratio/% (sin
-  // ambigüedad de escala) y en `node.usd` (dólar crudo por contrato); el $ genérico de un `venta`/`costo`/
-  // `contribucion` queda sin crudo porque la escala (K vs cruda) depende de la FUENTE y este módulo no la conoce
-  // sin el formateo del composer — la MISMA razón por la que antes del arreglo «Saldo vencido · total» rompía.
-  // Antes de este arreglo la carnada usaba «Lider/Falabella · Peso del costo» — ESE caso ya no sirve de ejemplo:
-  // `costShare` es un campo `%` sin ambigüedad de escala y el arreglo genérico ahora SÍ le pone crudo (control
-  // positivo en `_grupos_conteos_universos_gate`/sonda, no acá).
-  const figs = figsDeCall("marginRead", { focus: "bajo_benchmark", dimension: "cliente" }, "cómo viene el margen");
-  const fVenta = figs.find((f) => f.label === "Paris · Venta");
-  ok(!!fVenta && !Number.isFinite(fVenta.raw), "★ control de la carnada · «Paris · Venta» sigue naciendo sin `raw` (el $ genérico queda fuera del arreglo — escala ambigua)", fVenta ? `raw=${fVenta.raw}` : "fig ausente");
-  const I = indiceDe(figs);
-  const idxF = I.figs.find((f) => f.label === "Paris · Venta");
+  // ★ owner 2026-09-25, corte 2b — «resuelto DE RAÍZ»: «Paris · Venta»/«Tottus · Venta» (composeSpecMargin) YA
+  // NO son el ejemplo — el arreglo de ESTE corte captura el crudo del $ genérico desde el origen
+  // (`toolRegistry.js:_fmtMoneyFacts`, símbolo `CRUDO_MONEY`) y `_raw_gate.mjs` mide CERO figs sin crudo en todo
+  // el barrido del demo. La carnada se fabrica a mano —dos figs SIN `raw`, el mismo defecto de origen— para que
+  // siga probando el MECANISMO sin depender de qué fig real carezca de crudo hoy (que ya no es ninguna).
+  const sinCrudoA = fig("Paris · Venta sintética", "$6.3M", { unit: "money" });   // sin `raw`, a propósito
+  const sinCrudoB = fig("Tottus · Venta sintética", "$6.8M", { unit: "money" });   // sin `raw`, a propósito
+  const figsSint = asignarIds([sinCrudoA, sinCrudoB]);
+  const I = indiceDe(figsSint);
+  const idxF = I.figs.find((f) => f.label === "Paris · Venta sintética");
   ok(!!idxF && idxF.crudo === false && Number.isFinite(idxF.raw), "el índice de evidencia SÍ reparsea el texto para `raw` (uso legítimo: citar/cotejar) pero marca `crudo: false`", JSON.stringify({ raw: idxF && idxF.raw, crudo: idxF && idxF.crudo }));
   const libro = libroDeHechos([
-    { id: "h1", tipo: "razon", num: { sujeto: "Paris", metrica: "Venta" }, den: { sujeto: "Tottus", metrica: "Venta" }, valor: "93%" },
+    { id: "h1", tipo: "razon", num: { id: figsSint[0].id }, den: { id: figsSint[1].id }, valor: "93%" },
   ], { indice: I });
   ok(libro.hechos[0].veredicto === "no-verificable" && /sin-crudo/.test(libro.hechos[0].motivo), "★ CARNADA · la razón sale «no-verificable: sin-crudo», JAMÁS un cociente calculado sobre el texto", JSON.stringify(libro.hechos[0]));
 
   // la misma carnada del lado de una derivada (suma/diferencia)
   const libroD = libroDeHechos([
-    { id: "h1", tipo: "derivada", op: "diferencia", de: [{ sujeto: "Tottus", metrica: "Venta" }, { sujeto: "Paris", metrica: "Venta" }], valor: "$500K" },
+    { id: "h1", tipo: "derivada", op: "diferencia", de: [figsSint[1].id, figsSint[0].id], valor: "$500K" },
   ], { indice: I });
   ok(libroD.hechos[0].veredicto === "no-verificable" && /sin-crudo/.test(libroD.hechos[0].motivo), "★ CARNADA (derivada) · una diferencia con un operando sin crudo también sale «no-verificable: sin-crudo»", JSON.stringify(libroD.hechos[0]));
+
+  // UNA CITA DIRECTA ES OTRA COSA (corte 2c, corrige el corte 2b): «el valor es el comprobante a la precisión de
+  // lo impreso» — una cita directa («ref»/«cifra» SIN valor) sobre una fig sin crudo sigue verdadera (repite
+  // EXACTAMENTE lo mostrado); el crudo es obligatorio para CALCULAR (razón/derivada, arriba), no para citar. El
+  // corte 2b había rechazado también esta rama y `_ronda5_gate` (RA15) cazó la regresión sobre un composer real.
+  // Lo único que sin-crudo cambia acá es la fuerza: nunca «verificada», y NUNCA «condicionada» (esa palabra es
+  // de un insumo declarado por el usuario) — null.
+  const libroRef = libroDeHechos([{ id: "h1", tipo: "ref", de: figsSint[0].id }], { indice: I });
+  ok(libroRef.hechos[0].veredicto === "verdadera", "★ CONTROL (cita directa) · «ref» sin valor sobre una fig sin crudo SIGUE verdadera — repite lo mostrado", JSON.stringify(libroRef.hechos[0]));
+  ok(libroRef.hechos[0].fuerza == null, `★ CARNADA (cita directa) · fuerza = ${libroRef.hechos[0].fuerza} (null: nunca verificada, nunca condicionada)`);
 }
 
-/* ═══ 5 · CARNADA — el fallback nunca se etiqueta «literal» / «medido» ═══ */
-H("5 · CARNADA — el fallback de reparseo nunca produce la procedencia «medido»");
+/* ═══ 5 · CARNADA — sin crudo, la fuerza no es NINGUNA de las tres (ni siquiera «condicionada») ═══ */
+H("5 · CARNADA — sin crudo, ni «verificada» ni «condicionada» ni «hipotética»: null");
 {
-  const figs = figsDeCall("marginRead", { focus: "bajo_benchmark", dimension: "cliente" }, "cómo viene el margen");
-  const I = indiceDe(figs);
-  // el fig.tipo.verificabilidad de origen SÍ dice «literal» (se estampa por el rótulo, sin saber si hay crudo) —
-  // lo que este candado exige es que la CASA no lo repita ciegamente cuando `crudo === false`.
-  const idxF = I.figs.find((f) => f.label === "Paris · Venta");
-  ok(idxF && idxF.fig && idxF.fig.tipo && idxF.fig.tipo.verificabilidad === "literal", "★ control · sin el arreglo, la fig de origen SÍ trae `tipo.verificabilidad: \"literal\"` (la trampa que este candado cierra)");
-  const libro = libroDeHechos([{ id: "h1", tipo: "cifra", sujeto: "Paris", metrica: "Venta", valor: "$6.3M" }], { indice: I });
-  ok(libro.hechos[0].procedencia !== "medido", "★ CARNADA · la procedencia del hecho NO es «medido» — la reconstrucción no hereda la confianza de una lectura directa", `procedencia=${libro.hechos[0].procedencia}`);
+  // ★ owner 2026-09-25, corte 2b: la rama «cifra CON valor» (mismoValor) SIGUE siendo legítima —cotejar lo que
+  // el modelo escribió contra lo impreso no es una cuenta nueva— así que el hecho sigue verificando VERDADERA;
+  // lo que cambia es que su FUERZA ya no puede llamarse «condicionada» (esa palabra es para un insumo declarado
+  // por el usuario, no para el redondeo de ADI): queda null, ninguna de las tres.
+  const sinCrudo = fig("Paris · Venta sintética", "$6.3M", { unit: "money" });   // sin `raw`, a propósito
+  const figsSint = asignarIds([sinCrudo]);
+  const I = indiceDe(figsSint);
+  const libro = libroDeHechos([{ id: "h1", tipo: "cifra", sujeto: "Paris", metrica: "Venta sintética", valor: "$6.3M" }], { indice: I });
+  ok(libro.hechos[0].veredicto === "verdadera", "la cita CON valor (mismoValor) sigue verificando verdadera — no se tocó lo legítimo", JSON.stringify(libro.hechos[0]));
+  ok(libro.hechos[0].procedencia !== "medido", "★ CARNADA · la procedencia LEGADO del hecho NO es «medido»", `procedencia=${libro.hechos[0].procedencia}`);
+  ok(libro.hechos[0].fuerza !== "condicionada" && libro.hechos[0].fuerza == null, "★ CARNADA · la fuerza no es «condicionada» (ni ninguna otra): null — una cifra medida y redondeada por ADI no depende del usuario", `fuerza=${libro.hechos[0].fuerza}`);
 }
 
 /* ═══ 6 · CONTROL NEGATIVO — citar/cotejar una cifra impresa SIGUE verificando ═══ */
 H("6 · CONTROL NEGATIVO — comprobar que se repitió lo impreso sigue funcionando");
 {
-  const figs = figsDeCall("marginRead", { focus: "bajo_benchmark", dimension: "cliente" }, "cómo viene el margen");
-  const I = indiceDe(figs);
-  const libro = libroDeHechos([{ id: "h1", tipo: "cifra", sujeto: "Paris", metrica: "Venta", valor: "$6.3M" }], { indice: I });
-  ok(libro.hechos[0].veredicto === "verdadera", "★ CONTROL · «Paris · Venta = $6.3M» (repite el texto mostrado) sigue verificando VERDADERA — no se rompió lo legítimo", JSON.stringify(libro.hechos[0]));
-  const libroFalso = libroDeHechos([{ id: "h1", tipo: "cifra", sujeto: "Paris", metrica: "Venta", valor: "$9M" }], { indice: I });
+  const sinCrudo = fig("Paris · Venta sintética", "$6.3M", { unit: "money" });   // sin `raw`, a propósito
+  const figsSint = asignarIds([sinCrudo]);
+  const I = indiceDe(figsSint);
+  const libro = libroDeHechos([{ id: "h1", tipo: "cifra", sujeto: "Paris", metrica: "Venta sintética", valor: "$6.3M" }], { indice: I });
+  ok(libro.hechos[0].veredicto === "verdadera", "★ CONTROL · «Paris · Venta sintética = $6.3M» (repite el texto mostrado) sigue verificando VERDADERA — no se rompió lo legítimo", JSON.stringify(libro.hechos[0]));
+  const libroFalso = libroDeHechos([{ id: "h1", tipo: "cifra", sujeto: "Paris", metrica: "Venta sintética", valor: "$9M" }], { indice: I });
   ok(libroFalso.hechos[0].veredicto === "falsa", "★ CONTROL · y una cifra que NO coincide con lo impreso sigue saliendo FALSA (el juicio de cita no se aflojó)");
 }
 
