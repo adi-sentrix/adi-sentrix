@@ -141,7 +141,42 @@ function _dominiosDelEncargo(pregunta) {
   }
   return dominios;
 }
-function _preguntaDeLaTabla(pregunta, { entidadesDeLaPregunta = [] } = {}) {
+/* ═══ CORTE 3d.2 (owner 2026-09-25, `_ADI_DISENO_CORTE_3D.md` §A.4) — PERTINENCIA POR FORMA, no por prosa ═══════
+ * Hallazgo del diseño: `componerEntrega` (el camino general de `entrega/componer.js`, para CUALQUIER encargo)
+ * pasa `pregunta: ""` a esta capa — así que `dominiosDe("")` siempre da `[]` y ninguna pieza puede ser PRINCIPAL:
+ * PRI-04 en un encargo de cobranza salía como oferta. Viola la ley del owner «la comprensión del lenguaje es del
+ * LLM; ADI no lee prosa» (memoria `adi-no-desviarse-deterministico`). Con `encargo` (objeto tipado, construido
+ * desde la `Resolucion` del validador — `construirEncargoDeLaTabla` abajo, llamado por `componer.js`, NUNCA por
+ * esta capa a partir de `preguntaOriginal`) esta función NO evalúa un solo regex ni `dominiosDe(pregunta)`: usa
+ * los campos ya resueltos por el contrato del encargo. Sin `encargo` (las 4 rutas fijas, que siguen llamando con
+ * la `pregunta` real de siempre), el comportamiento es EXACTAMENTE el de antes, byte a byte — candado
+ * `_conocimiento_gate`. */
+const _METRICA_A_TEMA_DE_LA_TABLA = { margen: "margen", carga: "carga", dias_vencido: "plazos" };
+/** construirEncargoDeLaTabla(partesUtiles, { criterio }) → el objeto `encargo` tipado que `_preguntaDeLaTabla`
+ *  consume — construido por quien compone la Entrega (`entrega/componer.js`, desde `ParteResuelta[]` y
+ *  `resolucion.criterio`), nunca a partir de texto. `temas` = los dominios de las partes del encargo (no una
+ *  lectura de `dominiosDe`); `metricas` = los conceptos declarados por esas partes, acotados al vocabulario que
+ *  esta tabla ya reconoce (margen/carga/plazos — `dias_vencido` es la clave real de `notario/lexico.js` para esa
+ *  métrica); `prioridad` = el encargo pide una decisión, o toca dos o más temas (la MISMA condición que antes
+ *  leía el léxico "prioridad|preocupa|riesgo|prioritario|primero", ahora por la FORMA del cierre); `sujetoAbierto`
+ *  = ninguna parte trae una entidad nombrada por el usuario. */
+export function construirEncargoDeLaTabla(partesUtiles, { criterio = null } = {}) {
+  const partes = Array.isArray(partesUtiles) ? partesUtiles : [];
+  const temas = [...new Set(partes.map((p) => p && p.tema).filter(Boolean))];
+  const metricas = [...new Set(partes.flatMap((p) => (Array.isArray(p.conceptos) ? p.conceptos : []))
+    .map((c) => _METRICA_A_TEMA_DE_LA_TABLA[c]).filter(Boolean))];
+  const prioridad = partes.some((p) => p && p.cierre === "decision") || temas.length >= 2 || !!(criterio && (criterio.lente || criterio.referencia));
+  const entidadesDelUsuario = [...new Set(partes.flatMap((p) => (Array.isArray(p.entidades) ? p.entidades.map((e) => e && e.nombre) : [])).filter(Boolean))];
+  return { temas, metricas, prioridad, sujetoAbierto: !entidadesDelUsuario.length };
+}
+
+function _preguntaDeLaTabla(pregunta, { entidadesDeLaPregunta = [], encargo = null } = {}) {
+  if (encargo) {
+    // CERO REGEX, CERO `dominiosDe(pregunta)` — la carnada del gate: cambiar `pregunta` no cambia nada acá.
+    const temas = [...(encargo.temas || [])];
+    if (encargo.prioridad && !temas.includes("prioridad")) temas.push("prioridad");
+    return { temas, metricas: [...(encargo.metricas || [])], texto: "", sujetoAbierto: !!encargo.sujetoAbierto };
+  }
   const dominios = _dominiosDelEncargo(pregunta);
   const q = String(pregunta || "");
   const temas = [...dominios];
@@ -166,8 +201,10 @@ function _preguntaDeLaTabla(pregunta, { entidadesDeLaPregunta = [] } = {}) {
  *  `cuenta.en_respuesta` no adivina, lo declara quien compone la Entrega (mismo dato que ya usan los acotadores,
  *  §3 del documento). `entidadesDeLaPregunta` (opcional, owner 2026-09-24, pertinencia por encargo): las cuentas
  *  que el USUARIO nombró en la pregunta — distinto de `entidadesEnRespuesta` (que puede nombrar cuentas que el
- *  PROCEDIMIENTO eligió, no el usuario). Alimenta `tabla.pregunta.sujetoAbierto` — ver `_preguntaDeLaTabla`. */
-export function construirTablaDeSenales({ scenario = ESCENARIO_INICIAL, pregunta = "", entidadesEnRespuesta = [], entidadesDeLaPregunta = [] } = {}) {
+ *  PROCEDIMIENTO eligió, no el usuario). Alimenta `tabla.pregunta.sujetoAbierto` — ver `_preguntaDeLaTabla`.
+ *  `encargo` (opcional, ADITIVO, owner 2026-09-25, corte 3d.2): el objeto tipado de `construirEncargoDeLaTabla` —
+ *  con él, `tabla.pregunta` se decide por FORMA, sin leer un carácter de `pregunta`. */
+export function construirTablaDeSenales({ scenario = ESCENARIO_INICIAL, pregunta = "", entidadesEnRespuesta = [], entidadesDeLaPregunta = [], encargo = null } = {}) {
   const nombradas = new Set((entidadesEnRespuesta || []).filter(Boolean));
   const cuentas = {};
   const skus = {};
@@ -319,7 +356,7 @@ export function construirTablaDeSenales({ scenario = ESCENARIO_INICIAL, pregunta
   return {
     cuentas, skus,
     periodo: { abierto: periodoAbierto },
-    pregunta: _preguntaDeLaTabla(pregunta, { entidadesDeLaPregunta }),
+    pregunta: _preguntaDeLaTabla(pregunta, { entidadesDeLaPregunta, encargo }),
     _scenario: scenario,
     // el índice de evidencia compartido — `medir.js` declara sus hechos `cifra`/`razon` sobre ESTE índice y los
     // verifica con `libroDeHechos` (notario/hechos.js), nunca calculándolos por su cuenta.

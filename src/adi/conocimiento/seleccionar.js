@@ -166,9 +166,9 @@ function _colapsarOficioRepetido(servidos) {
 
 /* el corazón, factorizado para que el gate pueda pedir el resultado CON el filtro de firma (el que se sirve de
  * verdad) o SIN él (para demostrar el mecanismo sobre las piezas borrador, nunca servido a un cliente). */
-function _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, perfil, maxCaracteres }) {
+function _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, perfil, maxCaracteres, encargo }) {
   const { validas, invalidas } = piezasValidas(catalogo, {});
-  const tabla = construirTablaDeSenales({ scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta });
+  const tabla = construirTablaDeSenales({ scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, encargo });
 
   // ═══ owner 2026-09-24 (pertinencia por encargo) — SUJETO (usuario + procedimiento, decide el bloque principal)
   // vs. NOMBRADAS-POR-USUARIO (solo el usuario, decide la mención) — ver la cabecera de `_resolverBloqueOMencion`.
@@ -295,9 +295,11 @@ function _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, entidad
  *
  *  `catalogo` (opcional, default `PIEZAS_CONOCIMIENTO` — el real, las 4 piezas en "borrador"): NUNCA lo pasa
  *  ningún camino de producción. Existe para que `_conocimiento_gate.mjs` pueda probar la prueba de identidad
- *  (§9) con una pieza de prueba FIRMADA que sí se sirve, sin sembrar nada firmado en el catálogo real. */
-export function referenciaDelOficio({ perfil, pregunta = "", entidadesEnRespuesta = [], entidadesDeLaPregunta = [], scenario = ESCENARIO_INICIAL, activo = ADI_CONOCIMIENTO, catalogo = PIEZAS_CONOCIMIENTO, maxCaracteres = TOPE_CARACTERES_OFICIO } = {}) {
-  return _referenciaDelOficioInterna({ perfil, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, scenario, activo, catalogo, maxCaracteres }).salida;
+ *  (§9) con una pieza de prueba FIRMADA que sí se sirve, sin sembrar nada firmado en el catálogo real.
+ *  `encargo` (opcional, ADITIVO, owner 2026-09-25, corte 3d.2): ver `tablaSenales.js:construirEncargoDeLaTabla` —
+ *  con él, la pertinencia por tema/métrica se decide por la FORMA del encargo, no por `pregunta`. */
+export function referenciaDelOficio({ perfil, pregunta = "", entidadesEnRespuesta = [], entidadesDeLaPregunta = [], scenario = ESCENARIO_INICIAL, activo = ADI_CONOCIMIENTO, catalogo = PIEZAS_CONOCIMIENTO, maxCaracteres = TOPE_CARACTERES_OFICIO, encargo = null } = {}) {
+  return _referenciaDelOficioInterna({ perfil, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, scenario, activo, catalogo, maxCaracteres, encargo }).salida;
 }
 
 /** referenciaDelOficioConOfertas(opts) → { salida, ofertas } — la función HERMANA (nota técnica del diseño): la
@@ -306,12 +308,12 @@ export function referenciaDelOficio({ perfil, pregunta = "", entidadesEnRespuest
  *  que `componer.js` las funda en `queMasPuedoCalcular`. `referenciaDelOficio` sigue devolviendo solo el array
  *  (los cuatro sitios existentes de `componer.js` no cambian su forma); esta función es la que se usa donde
  *  además se necesitan las ofertas. */
-export function referenciaDelOficioConOfertas({ perfil, pregunta = "", entidadesEnRespuesta = [], entidadesDeLaPregunta = [], scenario = ESCENARIO_INICIAL, activo = ADI_CONOCIMIENTO, catalogo = PIEZAS_CONOCIMIENTO, maxCaracteres = TOPE_CARACTERES_OFICIO } = {}) {
-  const { salida, ofertas } = _referenciaDelOficioInterna({ perfil, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, scenario, activo, catalogo, maxCaracteres });
+export function referenciaDelOficioConOfertas({ perfil, pregunta = "", entidadesEnRespuesta = [], entidadesDeLaPregunta = [], scenario = ESCENARIO_INICIAL, activo = ADI_CONOCIMIENTO, catalogo = PIEZAS_CONOCIMIENTO, maxCaracteres = TOPE_CARACTERES_OFICIO, encargo = null } = {}) {
+  const { salida, ofertas } = _referenciaDelOficioInterna({ perfil, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, scenario, activo, catalogo, maxCaracteres, encargo });
   return { salida, ofertas: ofertas || [] };
 }
 
-function _referenciaDelOficioInterna({ perfil, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, scenario, activo, catalogo, maxCaracteres }) {
+function _referenciaDelOficioInterna({ perfil, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, scenario, activo, catalogo, maxCaracteres, encargo = null }) {
   if (!activo) return { salida: seleccionarConocimientoDelOficio(perfil), ofertas: [] };   // puerta 1 — byte-idéntico a hoy
   if (!perfilAutorizaConocimiento(perfil)) return { salida: [], ofertas: [] };              // puerta 2 — perfil incompleto
 
@@ -319,9 +321,9 @@ function _referenciaDelOficioInterna({ perfil, pregunta, entidadesEnRespuesta, e
   const firmadas = validas.filter((p) => p.estado === "firmada");
   if (!firmadas.length) return { salida: [], ofertas: [] };                                 // puerta 3 — nada firmado todavía
 
-  const { salida, ofertas } = _procesar(firmadas, { scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, perfil, maxCaracteres });
+  const { salida, ofertas } = _procesar(firmadas, { scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, perfil, maxCaracteres, encargo });
   if (!salida.length) {
-    const tabla = construirTablaDeSenales({ scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta });
+    const tabla = construirTablaDeSenales({ scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, encargo });
     const rec = recuentoDeLoRevisado(firmadas, tabla, perfil, pregunta);
     if (rec) salida.push({ texto: rec.texto, fuente: null, alcance: null, fecha: null, vigencia: null, firma: null });
   }
@@ -333,6 +335,6 @@ function _referenciaDelOficioInterna({ perfil, pregunta, entidadesEnRespuesta, e
  *  (firma), para probar el MECANISMO (pertinencia + medición + acotadores + recuento) sobre datos reales sin
  *  servir nada a un cliente. Uso exclusivo de `_conocimiento_gate.mjs` y de un informe — `referenciaDelOficio`
  *  (la función de producción) NUNCA llama a esto. */
-export function _evaluarInfraestructura({ catalogo = PIEZAS_CONOCIMIENTO, scenario = ESCENARIO_INICIAL, pregunta = "", entidadesEnRespuesta = [], entidadesDeLaPregunta = [], perfil = null, maxCaracteres = TOPE_CARACTERES_OFICIO } = {}) {
-  return _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, perfil, maxCaracteres });
+export function _evaluarInfraestructura({ catalogo = PIEZAS_CONOCIMIENTO, scenario = ESCENARIO_INICIAL, pregunta = "", entidadesEnRespuesta = [], entidadesDeLaPregunta = [], perfil = null, maxCaracteres = TOPE_CARACTERES_OFICIO, encargo = null } = {}) {
+  return _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, perfil, maxCaracteres, encargo });
 }

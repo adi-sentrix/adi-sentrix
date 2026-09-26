@@ -425,8 +425,195 @@ H("11 · claveDeMetrica(\"Venta (flujo)\") === \"venta_credito\" (CLAUDE.md §4 
   ok(c === "venta_credito", "claveDeMetrica(\"Venta (flujo)\") === \"venta_credito\" (cobranza, no comercial)", c);
 }
 
-/* ═══ 12 · CERO red ═══════════════════════════════════════════════════════════════════════════════════════════ */
-H("12 · CERO red — clasificarFuente(este gate) === offline");
+/* ═══ 13 · REVISIÓN DE CALIDAD DEL SUPERVISOR (2026-09-25) — (a) la Respuesta de una lectura/decision con
+ * entidad abre con la CONCLUSIÓN del procedimiento, nunca un volcado de conceptos; y ninguna cifra se repite
+ * con dos rótulos ═══════════════════════════════════════════════════════════════════════════════════════════ */
+H("13a · lectura con entidad — abre con la CONCLUSIÓN (posición, brecha, margen vs benchmark), no un volcado");
+{
+  const res = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "lectura", entidades: [{ nombre: "Lider", eje: "cliente" }] }] }, {});
+  const R = componerEntrega(res);
+  ok(R.ok, "compone ok", R.motivo);
+  if (R.ok) {
+    const primera = R.entrega.respuesta[0];
+    ok(/^Lider(,.*)?: vende /.test(primera.texto), "★ la PRIMERA oración es la conclusión (dueño + posición + vende + margen vs benchmark), no un listado", primera.texto);
+    ok(/contra el benchmark de/.test(primera.texto), "la conclusión cita el benchmark (regla madre: ADI arma decisiones, no muestra datos)", primera.texto);
+    ok(!/\byoy\b/i.test(R.texto), "★ CARNADA · ningún alias de jerga (\"yoy\") sobrevive en el texto — se dedupeó a su clave canónica", R.texto.match(/yoy/i));
+    ok(!/\$\s\$/.test(R.texto), "★ CARNADA · ningún \"$ $\" (rótulo con \"en $\" pegado a un valor en dinero) en todo el texto", (R.texto.match(/\$\s\$[^\s]*/g) || []).join(", "));
+    // «la Respuesta nunca repite la misma cifra con dos rótulos»: dentro de la MISMA fila (Entidad+Tema) de
+    // Cifras, cada Métrica aparece una sola vez — dos claves LEGÍTIMAMENTE distintas (ej. variación en % y en $)
+    // no son un duplicado; dos filas con el rótulo IDÉNTICO sí lo serían.
+    const claves = new Map();
+    for (const f of R.entrega.cifras.filas) {
+      const k = `${f.valores["Entidad / grupo"]}::${f.valores["Tema"]}::${f.valores["Métrica"]}`;
+      claves.set(k, (claves.get(k) || 0) + 1);
+    }
+    const repetidas = [...claves.entries()].filter(([, n]) => n > 1);
+    ok(repetidas.length === 0, "ninguna fila de Cifras repite (Entidad, Tema, Métrica) — ningún rótulo duplicado", JSON.stringify(repetidas));
+  }
+}
+
+H("13b · cifra con entidad (no lectura/decision) sigue con el listado — el contrato §1.1 no cambia");
+{
+  const res = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", entidades: [{ nombre: "Lider", eje: "cliente" }], conceptos: ["margen", "ventas"] }] }, {});
+  const R = componerEntrega(res);
+  ok(R.ok, "compone ok", R.motivo);
+  if (R.ok) ok(/^Lider: /.test(R.entrega.respuesta[0].texto) && !/vende .* contra el benchmark/.test(R.entrega.respuesta[0].texto), "una `cifra` (no lectura/decision) NO recibe la conclusión — sigue siendo un listado de lo pedido", R.entrega.respuesta[0].texto);
+}
+
+/* ═══ 14 · (b) LA INICIATIVA NUNCA REPITE LO PEDIDO ═══════════════════════════════════════════════════════════
+ * Caso real medido: en un encargo de 2 temas (comercial+cobranza, cartera entera) el pedido YA declara «Lider
+ * concentra el 36.3% del vencido total» (razón sobre el vencido de Lider ÷ vencido total) — el candidato de
+ * iniciativa `participacion-vencido` calcula EXACTAMENTE la misma razón sobre los MISMOS figs: tiene que
+ * desaparecer, no duplicarse con otro rótulo. */
+H("14 · (b) la iniciativa no repite un hecho ya pedido (misma razón, mismos figs subyacentes)");
+{
+  const res = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "lectura" }, { id: "p2", tema: "cobranza", cierre: "lectura" }] }, {});
+  const R = componerEntrega(res);
+  ok(R.ok, "compone ok", R.motivo);
+  if (R.ok) {
+    const ocurrencias = (R.texto.match(/Lider concentra el 36[.,]3%/g) || []).length;
+    ok(ocurrencias === 1, `★ CARNADA · «Lider concentra el 36,3%[...]» aparece UNA sola vez (pedido) — la iniciativa no lo repite (apareció ${ocurrencias} veces)`, R.texto);
+    ok(!R.entrega.respuesta.some((r) => r._iniciativa && /vencido total/i.test(r.texto) && /Lider/.test(r.texto) && /36[.,]3%/.test(r.texto)), "ninguna oración de iniciativa duplica el contenido exacto de la participación de Lider en el vencido total");
+  }
+}
+
+/* ═══ 15 · (c) SECCIONES VACÍAS NO SE IMPRIMEN + OFERTAS CONCRETAS ═══════════════════════════════════════════ */
+H("15a · «Para su juicio» no se imprime si no hay contenido; con contenido, sí");
+{
+  // comercial "cifra" de una entidad SIN carga comercial alta detectada (Jumbo: bajo el nivel, sin cuenta con
+  // roles/candidatos de volumen que dispare `buildRolesCartera`) — puede quedar sin nada que preguntar.
+  const resVacio = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", entidades: [{ nombre: "Jumbo", eje: "cliente" }], conceptos: ["ventas"] }] }, {});
+  const Rvacio = componerEntrega(resVacio);
+  ok(Rvacio.ok, "compone ok (caso sin «Para su juicio»)", Rvacio.motivo);
+  if (Rvacio.ok) {
+    ok(Rvacio.entrega.paraSuJuicio.length === 0, "en este caso, `entrega.paraSuJuicio` queda vacío (nada que preguntar sin inventar sujeto)", JSON.stringify(Rvacio.entrega.paraSuJuicio));
+    ok(!/\*\*Para su juicio\.\*\*/.test(Rvacio.texto), "★ CARNADA · con `paraSuJuicio` vacío, la sección NO se imprime (ni el título)", Rvacio.texto);
+  }
+  const resConContenido = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "cobranza", cierre: "lectura", entidades: [{ nombre: "Lider", eje: "cliente" }] }] }, {});
+  const Rcon = componerEntrega(resConContenido);
+  ok(Rcon.ok, "compone ok (caso con «Para su juicio»)", Rcon.motivo);
+  if (Rcon.ok) ok(Rcon.entrega.paraSuJuicio.length > 0 && /\*\*Para su juicio\.\*\*/.test(Rcon.texto), "con contenido, el título SÍ se imprime", Rcon.texto.includes("Para su juicio"));
+}
+
+H("15b · «Qué más puedo calcular» trae ofertas CONCRETAS (con el nombre de la entidad), no solo el genérico");
+{
+  const res = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "lectura", entidades: [{ nombre: "Lider", eje: "cliente" }] }] }, {});
+  const R = componerEntrega(res);
+  ok(R.ok, "compone ok", R.motivo);
+  if (R.ok) {
+    ok(R.entrega.queMasPuedoCalcular.puedo.some((s) => s.includes("Lider")), "★ hay al menos una oferta CONCRETA que nombra a Lider (no solo \"Otro corte del mismo encargo\")", JSON.stringify(R.entrega.queMasPuedoCalcular.puedo));
+  }
+}
+
+/* ═══ 16 · (d) CAU-03 COMO AUSENCIA — toda Entrega que sirve cobranza declara la antigüedad del vencido ═══════ */
+H("16 · (d) cobranza siempre declara «antigüedad del vencido» como límite (ausencias.js, no la pieza en borrador)");
+{
+  const res = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "cobranza", cierre: "lectura", entidades: [{ nombre: "Lider", eje: "cliente" }] }] }, {});
+  const R = componerEntrega(res);
+  ok(R.ok, "compone ok", R.motivo);
+  if (R.ok) ok(R.entrega.limites.some((l) => /antig[uü]edad del vencido/i.test(l.titulo)), "★ el límite «La antigüedad del vencido no está en los datos» aparece", JSON.stringify(R.entrega.limites.map((l) => l.titulo)));
+  // ACTUALIZADO (owner, 2026-09-25, ronda 2 de revisión): «agrega la ausencia de antigüedad del vencido también
+  // a las rutas fijas de cobranza y multidominio — es un agregado de verdad intencional». Antes esta sección
+  // probaba lo CONTRARIO (que la ruta fija NO la ganaba); ahora prueba que SÍ la gana, en las DOS rutas fijas que
+  // sirven cobranza — el ÚNICO texto que cambia en esas rutas en este corte (ver `componer.js`, con la misma fecha).
+  const fijaCobranza = componerEntregaCobranza({ pregunta: PREGUNTA_COBRANZA });
+  ok(fijaCobranza.ok && fijaCobranza.entrega.limites.some((l) => /antig[uü]edad del vencido/i.test(l.titulo)), "★ AGREGADO INTENCIONAL · la ruta FIJA de cobranza (componerEntregaCobranza) también declara este límite ahora", JSON.stringify(fijaCobranza.entrega.limites.map((l) => l.titulo)));
+  const fijaMulti = componerEntregaMultidominio({ pregunta: PREGUNTA_MULTIDOMINIO });
+  ok(fijaMulti.ok && fijaMulti.entrega.limites.some((l) => /antig[uü]edad del vencido/i.test(l.titulo)), "★ AGREGADO INTENCIONAL · la ruta FIJA multidominio (componerEntregaMultidominio) también declara este límite ahora", JSON.stringify(fijaMulti.entrega.limites.map((l) => l.titulo)));
+  // control negativo: la ruta fija de INVENTARIO (que no sirve cobranza) sigue SIN este límite — el agregado es
+  // solo para las rutas que efectivamente cubren cobranza, nunca uno que no la toca.
+  const fijaInv = componerEntregaInventario({ pregunta: PREGUNTA_INVENTARIO });
+  ok(fijaInv.ok && !fijaInv.entrega.limites.some((l) => /antig[uü]edad del vencido/i.test(l.titulo)), "control negativo · la ruta fija de INVENTARIO (no sirve cobranza) sigue SIN este límite");
+}
+
+/* ═══ 17 · (e) SIN UNIDADES ABREVIADAS EN LA PROSA (el camino general) ═══════════════════════════════════════ */
+H("17 · (e) \"269d\" → \"269 días\" en Respuesta/Para su juicio del camino general — la tabla de Cifras no cambia");
+{
+  const res = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "lectura" }, { id: "p2", tema: "cobranza", cierre: "lectura" }] }, {});
+  const R = componerEntrega(res);
+  ok(R.ok, "compone ok", R.motivo);
+  if (R.ok) {
+    const textoRespuesta = R.entrega.respuesta.map((r) => r.texto).join(" ");
+    ok(!/\b\d+d\b/.test(textoRespuesta), "★ ninguna Respuesta trae un día abreviado (\"269d\") — se escribe \"269 días\"", textoRespuesta.match(/\b\d+d\b/g));
+    ok(/\b\d+\s+días\b/.test(textoRespuesta), "★ la forma larga (\"N días\") SÍ aparece", textoRespuesta.match(/\b\d+\s+días\b/g));
+    const filaConDias = R.entrega.cifras.filas.find((f) => /d[ií]as/i.test(f.valores["Métrica"] || ""));
+    if (filaConDias) ok(/\d+d$/.test(filaConDias.valores.Valor), "la tabla de Cifras conserva el formato denso (\"269d\") — no se tocó", filaConDias.valores.Valor);
+  }
+}
+
+/* ═══ 19 · REVISIÓN DE CALIDAD DEL SUPERVISOR (2026-09-25, ronda 2) — (1) EL MARCO POR DOMINIO, error MATERIAL de
+ * CONCEPTO: una Entrega de cobranza NUNCA dice «inventario»; una de comercial NUNCA dice «foto» (cobranza SÍ
+ * puede decir «foto de cobranza», así que la carnada es específica por dominio, no una prohibición ciega de la
+ * palabra) ═══════════════════════════════════════════════════════════════════════════════════════════════════ */
+H("19 · (1) el Marco por dominio — cobranza nunca dice \"inventario\"; comercial nunca dice \"foto\"");
+{
+  const resCobranza = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "cobranza", cierre: "lectura", entidades: [{ nombre: "Lider", eje: "cliente" }] }] }, {});
+  const Rc = componerEntrega(resCobranza);
+  ok(Rc.ok, "compone ok (cobranza sola)", Rc.motivo);
+  if (Rc.ok) {
+    ok(!/inventario/i.test(Rc.entrega.marco && (Rc.entrega.marco.periodo && Rc.entrega.marco.periodo.texto || "")), "★ CARNADA · el Marco de una Entrega SOLO cobranza no menciona \"inventario\"", JSON.stringify(Rc.entrega.marco.periodo));
+    ok(/foto de cobranza al/.test(Rc.entrega.marco.periodo.texto || ""), "★ el Marco declara \"foto de cobranza al {fecha}\" — el mismo marco que la ruta fija de cobranza", Rc.entrega.marco.periodo.texto);
+    ok(Rc.entrega.marco.periodo.rango, "el período trae `rango` (la fecha de corte real, `facts.fechaCorte`)", Rc.entrega.marco.periodo.rango);
+  }
+  const resComercial = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "lectura", entidades: [{ nombre: "Lider", eje: "cliente" }] }] }, {});
+  const Rm = componerEntrega(resComercial);
+  ok(Rm.ok, "compone ok (comercial solo)", Rm.motivo);
+  if (Rm.ok) ok(!/\bfoto\b/i.test(Rm.entrega.marco.periodo.texto || ""), "★ CARNADA · el Marco de una Entrega SOLO comercial no dice \"foto\" (es año cerrado)", Rm.entrega.marco.periodo.texto);
+
+  // control positivo: multi-tema (comercial+cobranza+inventario) SÍ puede nombrar los tres, cada uno con el suyo
+  const resTres = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "lectura" }, { id: "p2", tema: "inventario", cierre: "lectura" }, { id: "p3", tema: "cobranza", cierre: "lectura" }] }, {});
+  ok(resTres.ok, "el encargo de 3 partes valida");
+  // (3 partes, las 3 "lectura" sin entidad) delega a la ruta fija multidominio — no ejercita `_periodoGeneralPorDominio`,
+  // así que se arma un caso NO delegable (agregando un cuarto elemento no cambia el tema, solo evita la forma exacta
+  // de delegación) para probar la combinación real de "tres marcos" en el camino general.
+  const resTresGeneral = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "lectura", entidades: [{ nombre: "Lider", eje: "cliente" }] }, { id: "p2", tema: "inventario", cierre: "lectura" }, { id: "p3", tema: "cobranza", cierre: "lectura" }] }, {});
+  const Rtres = componerEntrega(resTresGeneral);
+  ok(Rtres.ok, "compone ok (comercial+inventario+cobranza, camino general)", Rtres.motivo);
+  if (Rtres.ok) {
+    const ptxt = Rtres.entrega.marco.periodo.texto || "";
+    ok(/año cerrado/.test(ptxt) && /foto de inventario a hoy/.test(ptxt) && /cobranza es una foto al/.test(ptxt), "con los 3 dominios, el Marco nombra los TRES marcos, cada uno con su propio texto — nunca uno solo por los tres", ptxt);
+  }
+}
+
+/* ═══ 20 · (2) EL UNIVERSO DEL PUESTO — error MATERIAL de universo: el denominador de "N° de M..." tiene que ser
+ * el tamaño de un universo DECLARADO en `entrega.universos` (nunca la boleta capada de este turno) ═══════════ */
+H("20 · (2) el denominador del puesto == tamaño de un universo declarado en entrega.universos");
+{
+  const res = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "cobranza", cierre: "lectura", entidades: [{ nombre: "Lider", eje: "cliente" }] }] }, {});
+  const R = componerEntrega(res);
+  ok(R.ok, "compone ok", R.motivo);
+  if (R.ok) {
+    const conclusion = R.entrega.respuesta[0].texto;
+    const m = /(\d+)° de (\d+)/.exec(conclusion);
+    ok(!!m, "la conclusión trae la forma \"N° de M\"", conclusion);
+    if (m) {
+      const total = Number(m[2]);
+      // ★ CANDADO CENTRAL — la cartera del demo tiene 13 clientes: el denominador NUNCA puede ser 8 (la boleta
+      // capada del agente, memoria `adi-piso-materialidad-cobranza`) — tiene que ser 13 (mesaFlujo/la proyección).
+      ok(total === 13, "★ CARNADA · el denominador es 13 (la cartera completa vía mesaFlujo/rankings), NUNCA 8 (la boleta capada del agente)", conclusion);
+      const universo = R.entrega.universos.find((u) => Array.isArray(u.entidades) && u.entidades.length === total && u.entidades.includes("Lider"));
+      ok(!!universo, "★ existe un universo declarado en `entrega.universos` cuyo `entidades.length` es EXACTAMENTE el denominador del puesto", JSON.stringify(R.entrega.universos.map((u) => ({ id: u.id, n: (u.entidades || []).length }))));
+    }
+  }
+  // el mismo candado en comercial — el conteo (5) tiene que calzar con un universo declarado
+  const resC = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "lectura", entidades: [{ nombre: "Lider", eje: "cliente" }] }] }, {});
+  const RC = componerEntrega(resC);
+  ok(RC.ok, "compone ok (comercial)", RC.motivo);
+  if (RC.ok) {
+    const conclusion = RC.entrega.respuesta[0].texto;
+    const m = /(\d+)° de (\d+)/.exec(conclusion);
+    ok(!!m, "la conclusión comercial trae la forma \"N° de M\"", conclusion);
+    ok(/cuentas con contribuci[oó]n no capturada/.test(conclusion), "★ declara DE QUÉ UNIVERSO son esas N — \"cuentas con contribución no capturada\", nunca un número suelto", conclusion);
+    if (m) {
+      const total = Number(m[2]);
+      const universo = RC.entrega.universos.find((u) => Array.isArray(u.entidades) && u.entidades.length === total && u.entidades.includes("Lider"));
+      ok(!!universo, "existe un universo declarado cuyo tamaño calza con el denominador comercial", JSON.stringify(RC.entrega.universos.map((u) => ({ id: u.id, n: (u.entidades || []).length }))));
+    }
+  }
+}
+
+/* ═══ 21 · CERO red ═══════════════════════════════════════════════════════════════════════════════════════════ */
+H("21 · CERO red — clasificarFuente(este gate) === offline");
 {
   const fuente = fs.readFileSync("./_entrega_general_gate.mjs", "utf8");
   const c = clasificarFuente(fuente);

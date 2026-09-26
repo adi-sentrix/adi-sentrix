@@ -113,6 +113,17 @@ export const AUSENCIAS_DEL_DATO = [
     id: "sin_fuente_sectorial", tipo: "conocimiento_no_construido", dominio: "general", enPrompt: true,
     texto: "fuente sectorial autorizada: NO hay — la única referencia es la del propio negocio (su benchmark declarado).",
   },
+  /* CORTE 3d, revisión de calidad del supervisor (2026-09-25) — «toda Entrega que sirve cobranza declara que el
+   * dato no trae la antigüedad del vencido por tramos, así que no se puede distinguir vencido documental de
+   * disputa». Ya verificado en `piezas.js` (CAU-03): `cobranza.js` solo trae un saldo vencido TOTAL por cliente,
+   * nunca por tramo de antigüedad ni fecha de vencimiento por documento — esto es una AUSENCIA del Core, no el
+   * contenido (sin firmar) de CAU-03. `enPrompt` NO se marca (mismo criterio que el resto de las ausencias
+   * agregadas después de las once originales: no se cambia el prompt de producción sin que el owner lo pida). */
+  {
+    id: "sin_antiguedad_vencido", tipo: "no_calculado", dominio: "cobranza",
+    texto: "antigüedad del vencido por tramos: NO existe — solo un saldo vencido total por cliente, sin fecha de vencimiento por documento.",
+    entrega: { titulo: "La antigüedad del vencido no está en los datos", motivo: "El dato trae un saldo vencido total por cliente, no el vencido por tramo de antigüedad: no se puede distinguir si es un documento en trámite (rechazo, retención, nota de crédito pendiente) o una disputa de cobranza real." },
+  },
 
   /* ── «SIN CONOCIMIENTO DEL SECTOR CARGADO TODAVÍA» — LA MISMA ausencia, declarada UNA vez por dominio (antes
    * vivía repetida, con variaciones, en las cuatro rutas de `entrega/componer.js`). No es un hueco del DATO (el

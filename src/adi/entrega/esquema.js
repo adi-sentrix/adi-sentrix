@@ -66,6 +66,14 @@ export function crearEntrega() {
     // seguimiento («de esos, ¿cuál priorizo?») se resuelva sobre el universo correcto, no sobre el parecido
     // (owner: «no hace falta la conversación todavía; hace falta que el universo tenga identidad desde ahora»).
     universos: [],
+    // iniciativa: { ids, ofertaIds, calls, on } | null — Corte 3d.1 (owner 2026-09-25, `entrega/iniciativa.js`):
+    // la traza estructural de lo que ADI agregó SIN que el encargo lo pidiera. `null` en las 4 rutas fijas y en
+    // cualquier Entrega que no importe `iniciativa.js` — campo ADITIVO, ninguna Entrega vieja lo necesita.
+    iniciativa: null,
+    // detalle: { iniciativaNoVerificada: [{id,motivo}] } | null — Corte 3d.1: los hechos de iniciativa que NO
+    // verificaron (no se sirven, no tumban la Entrega, no desaparecen sin rastro). El resto de `detalle` (filas
+    // recortadas por tamaño, universoRef, comoPedirlo) es del corte 3d.3, fuera de este encargo.
+    detalle: null,
   };
 }
 

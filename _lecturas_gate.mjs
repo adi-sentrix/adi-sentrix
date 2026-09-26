@@ -134,15 +134,18 @@ H("4 · CARNADA — cambiar preguntaOriginal no cambia el plan de lecturas");
  * volver a validarla contra sí misma) y se corre `lecturasDe` + `runPlan` contra el tenant demo (escenario
  * `bonanza`, el canónico). Se cuentan figs totales de la boleta combinada.
  *
- * DOS FAMILIAS QUEDAN FUERA DEL MUESTREO AL REVÉS (documentado, no un olvido): `diagnose`, `cobranza` e
- * `inventoryStatus{focus:"frenado"}` no reciben `dimension` en su llamada (`_callsDeConceptoEje`, lecturasDe.js)
- * — su ruteo es el MISMO sea cual sea el eje que se les pida, así que "producir algo" al pedirles un eje no
- * declarado no es evidencia de que ESE eje tenga productor: es que la tool ignora el parámetro. Probarlas cruzado
- * daría avisos sin significado (ya verificado a mano: `diagnose` con eje "sku" sigue devolviendo SU ranking de
- * clientes de siempre). Se prueban SOLO en su eje declarado (el forward check ya las cubre). */
+ * TRES FAMILIAS QUEDAN FUERA DEL MUESTREO AL REVÉS (documentado, no un olvido): `diagnose`, `cobranza`,
+ * `inventoryStatus{focus:"frenado"}` y —desde el corte 3d, revisión de calidad del supervisor 2026-09-25—
+ * `rolesCartera` (productor de `markup`) no reciben `dimension` en su llamada (`_callsDeConceptoEje`,
+ * lecturasDe.js) — su ruteo es el MISMO sea cual sea el eje que se les pida, así que "producir algo" al pedirles
+ * un eje no declarado no es evidencia de que ESE eje tenga productor: es que la tool ignora el parámetro.
+ * Probarlas cruzado daría avisos sin significado (ya verificado a mano: `diagnose` con eje "sku" sigue
+ * devolviendo SU ranking de clientes de siempre; `rolesCartera` con eje "sku"/"marca"/"familia"/"bodega"/"canal"
+ * devuelve las MISMAS 41 figs de markup por cliente de siempre — medido al agregar `markup` a la tabla). Se
+ * prueban SOLO en su eje declarado (el forward check ya las cubre). */
 H("5 · el contraste del productor residual (esquema.js:_PRODUCTOR_RESIDUAL) contra el Core (demo · bonanza)");
 const FAMILIAS_EJE_INSENSIBLE = new Set([
-  "no_capturada", "carga_alta", "brecha", "brecha_precio_costo",
+  "no_capturada", "carga_alta", "brecha", "brecha_precio_costo", "markup",
   "capital_frenado", "capital_inmovilizado", "dias_sin_venta", "margen_inventario",
   "venta_credito", "saldo_vencido", "saldo_pendiente", "saldo_por_vencer", "abonado", "recuperado", "dias_vencido",
 ]);
@@ -165,7 +168,13 @@ for (const m of CLAVES_DE_METRICA) {
   const clave = m.clave;
   if (clave === "participacion" || m.dominio == null) continue;   // derivada transversal, sin tema propio — fuera de este contraste (nota en lecturasDe.js)
   const declarados = ejesConProductor(clave);
-  if (!declarados.length) continue;   // referencia (benchmark, nivel_carga…): «se citan, no se ordenan» — sin productor por diseño, no hay nada que contrastar
+  // CORRECCIÓN DEL SUPERVISOR (corte 3d, 2026-09-25, «que no se repita») — ANTES, una clave con CERO ejes
+  // declarados (`[]` — sea una referencia genuina como `benchmark`, o un olvido como `markup` lo fue) se SALTABA
+  // ENTERA, sin pasar ni por el forward check (nada que forward-chequear, correcto) NI por el muestreo al
+  // revés — así que si el Core SÍ producía algo para una clave declarada `[]` por error, este gate nunca lo
+  // veía. Ahora el reverso corre SIEMPRE (para toda clave con dominio, tenga o no ejes declarados) — es
+  // exactamente el candado que habría atrapado el hueco de `markup`/`peso_costo` antes de que llegara a la
+  // Entrega servida. `paresConProductor` sigue contando SOLO el forward (declarados.length puede ser 0).
   for (const eje of declarados) {
     paresConProductor++;
     const n = _figsDe(m.dominio, clave, eje);

@@ -30,9 +30,15 @@ export const EJES = EJES_DEL_INDICE.slice();   // = entityIndex.js:AXES → ["sk
 export const TIPOS_DE_PREMISA = ["cifra", "orden", "relacion", "grupo", "conteo", "variacion", "estado", "razon", "derivada"];
 export const USAR_VALORES = ["medido", "declarado"];
 export const PROFUNDIDAD_VALORES = ["breve", "completa"];
+/* INICIATIVA_VALORES (Corte 3d.1, owner 2026-09-25, `_ADI_DISENO_CORTE_3D.md` §A.2c) — el interruptor del LLM
+ * sobre la iniciativa de CFO: "completa" (default) corre el catálogo; "ninguna" la apaga entera. Campo ADITIVO
+ * al contrato v1 (no rompe ningún encargo viejo que no lo declare). Se DECLARA acá (no se importa de
+ * `entrega/iniciativa.js`, la MISMA razón que `SUPUESTOS_USUARIO_MAX` arriba: este archivo es el contrato del
+ * encargo, no depende de la capa de composición) — mismo par de valores, si diverge lo atrapa `_iniciativa_gate`. */
+export const INICIATIVA_VALORES = ["completa", "ninguna"];
 
 /* ── los campos válidos de la raíz y de una Parte (para `campo_desconocido`) ────────────────────────────────── */
-export const CAMPOS_RAIZ = ["version", "conversacionId", "preguntaOriginal", "partes", "criterio", "supuestos", "premisas", "usar", "profundidad", "contexto"];
+export const CAMPOS_RAIZ = ["version", "conversacionId", "preguntaOriginal", "partes", "criterio", "supuestos", "premisas", "usar", "profundidad", "iniciativa", "contexto"];
 export const CAMPOS_PARTE = ["id", "tema", "cierre", "conceptos", "entidades", "eje", "universo", "periodo", "concepto", "supuestos"];
 
 /* ── MOTIVOS (§2.1) — lista cerrada; el gate compara contra esta lista y contra el texto exacto del contrato ── */
@@ -44,12 +50,12 @@ export const MOTIVOS = [
   "eje_no_soportado", "cruce_bloqueado", "universo_invalido", "periodo_mal_formado",
   "periodo_no_disponible", "criterio_desconocido", "criterio_tesoreria", "supuesto_mal_formado",
   "supuesto_sin_productor", "supuesto_tope", "origen_no_admitido", "premisa_mal_formada",
-  "usar_invalido", "profundidad_invalida", "contexto_no_disponible", "contexto_mal_formado",
+  "usar_invalido", "profundidad_invalida", "iniciativa_invalida", "contexto_no_disponible", "contexto_mal_formado",
 ];
 
 /* ── CAMPOS de un NoResuelto (§2, el enum de `campo`) ───────────────────────────────────────────────────────── */
 export const CAMPOS = ["version", "partes", "tema", "cierre", "concepto", "entidad", "eje", "universo", "periodo",
-  "criterio", "supuesto", "premisa", "usar", "profundidad", "contexto", "raiz"];
+  "criterio", "supuesto", "premisa", "usar", "profundidad", "iniciativa", "contexto", "raiz"];
 
 /* ── conceptos válidos para `definicion` (§3, tabla «conceptos de definición»): CONCEPT_DEFS ∪ CLAVES_DE_METRICA,
  * exactamente como dice el contrato §1.1 («id de CONCEPT_DEFS o clave de CLAVES_DE_METRICA») — se DERIVA de los
@@ -80,15 +86,29 @@ const _PRODUCTOR_RESIDUAL = {
   // mesaCapital.js / inventoryStatus{frenado}: sku, bodega y su agregado por familia (NO marca, a diferencia de la métrica «capital» del registro)
   capital_frenado: ["sku", "bodega", "familia"], capital_inmovilizado: ["sku", "bodega", "familia"],
   dias_sin_venta: ["sku"], margen_inventario: ["sku"],
-  /* CORREGIDO (Etapa 1 · Corte 3a, owner 2026-09-25, con evidencia): el contrato §3.3 declaraba `marginRead
-   * (causa_precio/causa_costo)` como productor de markup/peso_costo por cliente·sku·marca·familia. Contrastado
-   * contra el Core (`_lecturas_gate.mjs` §5): `specRetrieval.js` SÍ calcula `_markup`/`_costShare` en los focos
-   * `causa_precio`/`causa_costo`/`subir_precio`, pero SOLO los usa para ORDENAR filas y para la PROSA («markup
-   * 12.3%» dentro de `lines`) — ningún `fig()` de todo el archivo (ni de `entityRecord.js`) lleva la etiqueta
-   * «Markup» ni «Peso del costo» (grep confirmado: cero resultados). No hay una cifra AUTORIZADA que citar: hoy
-   * ningún cierre `cifra` puede servir markup/peso_costo sin inventar un número. `[]` en las dos, en TODOS los
-   * ejes, hasta que `specRetrieval.js` publique el fig (entonces se corrige acá, no se restaura a mano). */
-  markup: [], peso_costo: [],
+  /* CORREGIDO (Corte 3d, revisión de calidad del supervisor, 2026-09-25, UNA SOLA VERDAD — error material) —
+   * el grep del corte 3a (comentario de arriba, ahora obsoleto) miró `specRetrieval.js`/`entityRecord.js` pero
+   * NO `agente/herramientasAgente.js`, donde SÍ hay un `fig()` real:
+   *   · `markup` → SÍ hay productor: `herramientasAgente.js:rolesCartera()` (líneas ~452-456) publica
+   *     "{cliente} · Markup sobre costo" con `raw: f.markup` (crudo real, `(precioLista−costoMedio)÷costoMedio×100`)
+   *     para las cuentas "que caen" (bajo benchmark, tope 8 por venta) y, si hay huella de precio, también para
+   *     los "sanos". Cobertura PARCIAL (no todo cliente, igual que `no_capturada`/`carga_alta` — un cliente fuera
+   *     del recorte de `rolesCartera` no tiene esta fig ese turno): eje "cliente", ningún otro (rolesCartera es
+   *     client-only). `entityRecord` (el productor de `cifra`+entidad) NO la trae — verificado corriendo la tool:
+   *     solo Costo/Precio de lista/Costo medio unitario, sin el cociente — así que una `cifra` puntual de markup
+   *     sobre una entidad sigue sin productor hoy; el productor real es de la lectura de cartera (`rolesCartera`,
+   *     parte del contrato comercial), reportado como gap de `lecturasDe.js` para un corte aparte (no se cambia
+   *     el ruteo de `_pasosCifra` acá).
+   *   · `peso_costo` → hay una CIFRA con crudo real (`raw` finito, verificado en vivo: "Lider · Peso del costo" =
+   *     72.88…%), pero NO sale de un `fig()` deliberado de ningún playbook: sale del AUTO-WALK de facts
+   *     (`oracle/ledger.js:enrichFromFacts`/`_KEYLABEL.costShare = "Peso del costo"`, activo de verdad vía
+   *     `toolRunner.js:tiparBoleta` — la propia cabecera de `ledger.js` dice "sombra, no importado por el
+   *     pipeline vivo", y ESO YA NO ES CIERTO para `enrichFromFacts`/`tiparBoleta`/`recordCall`, que sí se
+   *     importan; una limpieza de esa cabecera queda fuera de este corte). Es la situación que se reporta al
+   *     supervisor en vez de resolverse a solas: `[]` se mantiene por ahora — declarar un productor para una
+   *     cifra que ningún playbook autoriza a propósito sería la MISMA clase de defecto que este corte cierra en
+   *     otro lado (una cifra sin dueño declarado). */
+  markup: ["cliente"], peso_costo: [],
   // salesRead (vs_anterior): sku NO (skusMargen no trae anterior)
   variacion: ["cliente", "marca", "familia", "canal"], variacion_usd: ["cliente", "marca", "familia", "canal"],
   ventas_anterior: ["cliente", "marca", "familia", "canal"],

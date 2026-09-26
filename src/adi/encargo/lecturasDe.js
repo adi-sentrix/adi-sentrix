@@ -79,6 +79,15 @@ const _FAM_CAPITAL_FRENADO = new Set(["capital_frenado", "capital_inmovilizado",
 const _FAM_VS_ANTERIOR = new Set(["variacion", "variacion_usd", "ventas_anterior"]);
 const _FAM_VS_PRESUPUESTO = new Set(["vs_presupuesto", "vs_presupuesto_usd"]);
 const _FAM_COBRANZA = new Set(["venta_credito", "saldo_vencido", "saldo_pendiente", "saldo_por_vencer", "abonado", "recuperado", "dias_vencido"]);
+/* CORTE 3d, revisión de calidad del supervisor (2026-09-25, evidencia con crudo real) — `markup` SÍ tiene
+ * productor: `agente/herramientasAgente.js:rolesCartera()` publica "{cliente} · Markup sobre costo" con `raw`
+ * real, client-only, sin `dimension` (es una lectura de CARTERA, no un group-by con eje — mismo patrón que
+ * `_FAM_DIAGNOSE`/`_FAM_CAPITAL_FRENADO`/`_FAM_COBRANZA` de abajo: la tool ignora el eje pedido porque su ruteo
+ * es siempre el mismo). Cobertura PARCIAL (cuentas "que caen" + sanos de una huella, no toda la cartera) — el
+ * mismo tipo de cobertura que ya tienen `no_capturada`/`carga_alta` (vía diagnose). `peso_costo` NO entra acá:
+ * no tiene un `fig()` propio autorizado por ningún playbook (ver la nota de `esquema.js:_PRODUCTOR_RESIDUAL`),
+ * viaja solo por el auto-walk de facts — reportado al supervisor, no cableado como productor de un concepto. */
+const _FAM_MARKUP = new Set(["markup"]);
 
 /** la llamada (o llamadas) que sirve UN concepto por UN eje, group-by, sin entidad puntual (contrato §3.3). */
 function _callsDeConceptoEje(tema, concepto, eje) {
@@ -96,6 +105,9 @@ function _callsDeConceptoEje(tema, concepto, eje) {
   }
   if (_FAM_VS_PRESUPUESTO.has(concepto)) {
     return [{ tool: "salesRead", args: { focus: "vs_presupuesto", dimension: eje }, para: `${concepto} por ${eje} (salesRead vs_presupuesto)` }];
+  }
+  if (_FAM_MARKUP.has(concepto)) {
+    return [{ tool: "rolesCartera", args: {}, para: `${concepto} — el papel de cada cuenta y su markup sobre costo, por cliente (contrato §3.3)` }];
   }
   const metrica = metricaCoreDe(concepto) || concepto;
   return [{ tool: "queryMetric", args: { metric: metrica, dimension: eje }, para: `${concepto} por ${eje} (METRICS.${metrica})` }];

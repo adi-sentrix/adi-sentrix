@@ -24,7 +24,7 @@ import { serieRealDe } from "../sentrix/capability.js";
 import { CRITERIOS } from "../agente/prioridadIntegrada.js";   // SOLO el dato `CRITERIOS` (§3); nunca `criterioDeLaPregunta`
 import {
   PARTES_MAX, SUPUESTOS_USUARIO_MAX, CIERRES, EJES, TIPOS_DE_PREMISA, USAR_VALORES, PROFUNDIDAD_VALORES,
-  CAMPOS_RAIZ, CAMPOS_PARTE, conceptoDeDefinicionValido, ejesConProductor, cruceBloqueadoDe, productorDe,
+  INICIATIVA_VALORES, CAMPOS_RAIZ, CAMPOS_PARTE, conceptoDeDefinicionValido, ejesConProductor, cruceBloqueadoDe, productorDe,
   sujetoDeTema, nuevoNoResuelto, nuevoAviso, resolucionVacia,
 } from "./esquema.js";
 
@@ -458,6 +458,9 @@ export function validarEncargo(encargo, ctx = {}) {
   const noResueltoUsarProfundidad = [];
   if (encargo.usar != null && !USAR_VALORES.includes(encargo.usar)) noResueltoUsarProfundidad.push(nuevoNoResuelto({ campo: "usar", valor: encargo.usar, motivo: "usar_invalido" }));
   if (encargo.profundidad != null && !PROFUNDIDAD_VALORES.includes(encargo.profundidad)) noResueltoUsarProfundidad.push(nuevoNoResuelto({ campo: "profundidad", valor: encargo.profundidad, motivo: "profundidad_invalida" }));
+  // Corte 3d.1 (owner 2026-09-25) — `iniciativa` (§A.2c): un valor inválido no bloquea el encargo, se declara y
+  // el compositor cae al default ("completa") — el MISMO patrón que `profundidad_invalida` arriba.
+  if (encargo.iniciativa != null && !INICIATIVA_VALORES.includes(encargo.iniciativa)) noResueltoUsarProfundidad.push(nuevoNoResuelto({ campo: "iniciativa", valor: encargo.iniciativa, motivo: "iniciativa_invalida" }));
 
   /* § contexto (§4·6) — sin libro de conversación en esta etapa: cualquier contexto pedido está no disponible */
   const noResueltoContexto = [];

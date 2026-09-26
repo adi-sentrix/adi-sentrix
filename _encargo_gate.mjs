@@ -201,6 +201,19 @@ H("7 · MOTIVOS — todo lo emitido por la corrida pertenece a la lista cerrada 
   console.log(`  · motivos ejercitados por el catálogo (${usados.size} de ${MOTIVOS.length}): ${[...usados].sort().join(" · ")}`);
 }
 
+/* ═══ 8 · CORTE 3d, revisión de calidad del supervisor (2026-09-25) — `markup` YA NO declina sin razón ═══════════
+ * Antes (`_PRODUCTOR_RESIDUAL.markup = []`) un encargo `cifra` de markup por cliente DECLINABA
+ * (`concepto_sin_productor`) mientras la Entrega, por otro camino, SÍ lo mostraba (dame-todo de una lectura) —
+ * el error de "una sola verdad" que el supervisor cerró. Ahora el validador acepta (hay productor real:
+ * `rolesCartera`, ver `esquema.js`/`lecturasDe.js`) y el motivo `concepto_sin_productor` no aparece para este par. */
+H("8 · markup(cliente) ya no declina — el validador y la Entrega dicen lo mismo");
+{
+  const res = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["markup"], eje: "cliente" }] }, {});
+  ok(res.ok, "el encargo de markup por cliente valida (ok:true)", JSON.stringify(res.noResuelto));
+  const declino = (res.noResuelto || []).some((n) => n.motivo === "concepto_sin_productor" && n.valor === "markup");
+  ok(!declino, "★ CARNADA · \"markup\" ya no sale con motivo concepto_sin_productor", JSON.stringify(res.noResuelto));
+}
+
 console.log(`\n── _encargo_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 if (fail) { console.log("\nFALLOS:"); for (const f of fails) console.log("  ✗ " + f); }
 process.exit(fail ? 1 : 0);

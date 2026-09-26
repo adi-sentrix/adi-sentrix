@@ -117,8 +117,11 @@ export function verificarEntrega({ texto, entrega, partes = [] } = {}) {
   // espíritu que la excepción `_definicion` de arriba (una oración que legítimamente no tiene cifra propia no es
   // el defecto que esta regla vigila). SÍ sigue exigiendo `hechos` declarados (el id de la premisa evaluada):
   // `_premisa` nunca exime esa mitad de la regla, solo la cifra.
+  // EXCEPCIÓN (corte 3d.1, `entrega/iniciativa.js` — la marca visible de la iniciativa de CFO): la línea
+  // `_marcaIniciativa` es un TÍTULO de sección (la constante `MARCA_INICIATIVA`), no una oración-hecho — igual
+  // que `_definicion` no tiene cifra propia por contrato, esta línea no tiene hecho ni cifra por DISEÑO (§A.5.3).
   (entrega.respuesta || []).forEach((r, i) => {
-    if (r._definicion) return;
+    if (r._definicion || r._marcaIniciativa) return;
     if (!Array.isArray(r.hechos) || !r.hechos.length) v("oracion-hecho", `respuesta[${i}] no declara los hechos que la sostienen: «${(r.texto || "").slice(0, 80)}»`);
     if (!r._premisa && !_cifrasEnTexto(r.texto).length) v("oracion-hecho", `respuesta[${i}] no trae ninguna cifra: «${(r.texto || "").slice(0, 80)}»`);
   });
@@ -210,6 +213,24 @@ export function verificarEntrega({ texto, entrega, partes = [] } = {}) {
   if (Array.isArray(partes) && partes.length) {
     const faltantes = coberturaDelEncargo(texto, partes);
     if (faltantes.length) v("cobertura-de-dominios", `partes pedidas que la Entrega no cubre: ${faltantes.map((p) => p.nombre).join(" · ")}`);
+  }
+
+  // 12 · toda iniciativa citada verificó y quedó ubicada (corte 3d.1, owner 2026-09-25, `entrega/iniciativa.js`).
+  // «Una señal nunca desaparece»: todo id `i*` que la Entrega declara SERVIDO (`entrega.iniciativa.ids`) tiene que
+  // (a) verificar en su propio libro (`entrega.procedencia.libroIniciativa`) y (b) aparecer citado en Respuesta
+  // (una oración marcada `solicitud:"iniciativa"`) o en la oferta (`entrega.iniciativa.ofertaIds`) — nunca
+  // declarado como servido y ausente del texto. Es OPCIONAL: una Entrega sin `entrega.iniciativa` (las 4 rutas
+  // fijas, que no importan `iniciativa.js`) no paga esta regla.
+  if (entrega.iniciativa && Array.isArray(entrega.iniciativa.ids) && entrega.iniciativa.ids.length) {
+    const libroIni = entrega.procedencia && entrega.procedencia.libroIniciativa;
+    const citadosEnRespuesta = new Set();
+    for (const r of entrega.respuesta || []) if (r.solicitud === "iniciativa") for (const id of r.hechos || []) citadosEnRespuesta.add(id);
+    const enOferta = new Set(entrega.iniciativa.ofertaIds || []);
+    for (const id of entrega.iniciativa.ids) {
+      const h = libroIni && libroIni.porId.get(id);
+      if (!h || !h.ok) { v("iniciativa-no-verificada", `el hecho de iniciativa ${id} está declarado como servido pero no verifica en su libro`); continue; }
+      if (!citadosEnRespuesta.has(id) && !enOferta.has(id)) v("iniciativa-sin-ubicar", `el hecho de iniciativa ${id} verificó pero no aparece en Respuesta ni en la oferta — una señal no puede desaparecer`);
+    }
   }
 
   return { ok: violaciones.length === 0, violaciones };

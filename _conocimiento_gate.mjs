@@ -45,7 +45,8 @@ import { medirPieza } from "./src/adi/conocimiento/medir.js";
 import { servirPieza } from "./src/adi/conocimiento/servir.js";
 import { aplicarAcotadores, TOPE_CARACTERES_OFICIO } from "./src/adi/conocimiento/acotadores.js";
 import { recuentoDeLoRevisado } from "./src/adi/conocimiento/recuento.js";
-import { referenciaDelOficio, _evaluarInfraestructura } from "./src/adi/conocimiento/seleccionar.js";
+import { referenciaDelOficio, referenciaDelOficioConOfertas, _evaluarInfraestructura } from "./src/adi/conocimiento/seleccionar.js";
+import { construirEncargoDeLaTabla } from "./src/adi/conocimiento/tablaSenales.js";
 
 let pass = 0, fail = 0;
 const ok = (c, m, extra = "") => { if (c) { pass++; console.log("  ✓ " + m); } else { fail++; console.log("  ✗ " + m + (extra ? "\n      " + extra : "")); } };
@@ -468,6 +469,59 @@ function _sinReferenciaDelOficio(R) {
     }
   } finally {
     initTenant(TENANT_DEMO);   // restaurar el tenant real para el resto del gate
+  }
+}
+
+/* ═══ 10 · CORTE 3d.2 (owner 2026-09-25, `_ADI_DISENO_CORTE_3D.md` §A.4) — PERTINENCIA POR ENCARGO TIPADO ═══════
+ * Hallazgo del diseño: `componerEntrega` (el camino general) pasaba `pregunta: ""` a esta capa, así que ninguna
+ * pieza podía ser PRINCIPAL — ni siquiera pertinente, en el caso de PRI-04 sin `entidadesEnRespuesta`. Este
+ * bloque prueba que `construirEncargoDeLaTabla` (tablaSenales.js) + el parámetro `encargo` en
+ * `referenciaDelOficioConOfertas` cierran el hueco: PRI-04 (firmada) queda PRINCIPAL en un encargo de cobranza,
+ * sin que `referenciaDelOficioConOfertas` lea un carácter de `pregunta`. */
+H("10 · CORTE 3d.2 — pertinencia por encargo tipado (PRI-04 principal en cobranza, sin leer pregunta)");
+{
+  initTenant(TENANT_PERFIL_COMPLETO);
+  try {
+    const encargoCobranza = construirEncargoDeLaTabla(
+      [{ id: "p1", tema: "cobranza", cierre: "lectura", conceptos: [], entidades: [] }],
+      { criterio: null },
+    );
+    ok(JSON.stringify(encargoCobranza.temas) === JSON.stringify(["cobranza"]), "construirEncargoDeLaTabla: temas = [\"cobranza\"] desde la parte, no de texto", JSON.stringify(encargoCobranza));
+    ok(encargoCobranza.sujetoAbierto === true, "construirEncargoDeLaTabla: sujetoAbierto = true (la parte no nombra ninguna entidad)");
+    ok(encargoCobranza.prioridad === false, "construirEncargoDeLaTabla: prioridad = false (un solo tema, cierre \"lectura\")");
+
+    const argsBase = { perfil: PERFIL_COMPLETO, entidadesEnRespuesta: [], entidadesDeLaPregunta: [], scenario: ESCENARIO_INICIAL, activo: true };
+    const _tienePri04 = (salida) => salida.some((s) => /vencid[oa]/i.test(s.texto) && /venta a cr[eé]dito/i.test(s.texto));
+
+    // SIN `encargo`, con `pregunta: ""` (el hallazgo del diseño): sin entidadesEnRespuesta y sin léxico de
+    // pregunta, NINGUNA rama de la pertinencia de PRI-04 se enciende — la capa entera queda muda, el defecto
+    // real que motiva este corte (ni siquiera llega a "oferta": la pieza no es pertinente para ninguna cuenta).
+    const Rsin = referenciaDelOficioConOfertas({ ...argsBase, pregunta: "" });
+    ok(!_tienePri04(Rsin.salida), "★ hallazgo confirmado · SIN `encargo` y con `pregunta:\"\"`, PRI-04 no se enciende para ninguna cuenta (a lo sumo, la línea de recuento «nada ocurre»)", JSON.stringify(Rsin.salida));
+
+    // CON `encargo` (tema cobranza, sujeto abierto): la tercera rama de la pertinencia de PRI-04 («tema_cobranza
+    // Y sujeto_abierto») se enciende SIN mirar `pregunta` — bloque PRINCIPAL completo.
+    const Rcon = referenciaDelOficioConOfertas({ ...argsBase, pregunta: "", encargo: encargoCobranza });
+    ok(Rcon.salida.length > 0, "★ CON `encargo` de cobranza, la capa SÍ sirve contenido (PRI-04 se enciende por sujeto abierto + tema del encargo)", JSON.stringify(Rcon.salida));
+    ok(_tienePri04(Rcon.salida), "★ CANDADO CENTRAL · PRI-04 (firmada) sale PRINCIPAL en un encargo de cobranza — el bloque completo, no una mención ni una oferta", JSON.stringify(Rcon.salida));
+    // PRI-04 es principal (bloque completo, arriba) — NO además una oferta de sí misma. Otra pieza pertinente de
+    // OTRO tema (CAU-01, comercial) sí puede quedar como oferta este turno: eso es correcto (mención/oferta es
+    // justamente lo que le toca a una pieza pertinente cuyo tema NO es el del encargo) — la carnada es que PRI-04
+    // no se duplique entre el bloque y la oferta.
+    ok(!_tienePri04(Rcon.ofertas), "PRI-04 (bloque PRINCIPAL) no se duplica como oferta de sí misma", JSON.stringify(Rcon.ofertas));
+
+    // ★ CARNADA (owner) · «pregunta con "margen" + encargo de cobranza ⇒ metricas sin margen» — con `encargo`
+    // presente, ni un carácter de `pregunta` entra a `tabla.pregunta`: cambiar `preguntaOriginal` a un texto que
+    // habla de OTRO tema (margen/comercial) no cambia ni un byte de la salida.
+    const Rmargen = referenciaDelOficioConOfertas({ ...argsBase, pregunta: "¿cómo está mi margen y mi carga comercial?", encargo: encargoCobranza });
+    ok(JSON.stringify(Rmargen.salida) === JSON.stringify(Rcon.salida), "★ CARNADA · cambiar `preguntaOriginal` (a un texto de OTRO tema) no cambia la pertinencia — cero regex evaluada sobre pregunta con `encargo` presente", JSON.stringify({ Rmargen: Rmargen.salida, Rcon: Rcon.salida }));
+
+    // control negativo: SIN `encargo`, la MISMA pregunta de margen (que antes sí encendía "comercial" por texto)
+    // no enciende PRI-04 — confirma que el camino de texto (las 4 rutas fijas) sigue vivo y no se rompió.
+    const RmargenSinEncargo = referenciaDelOficioConOfertas({ ...argsBase, pregunta: "¿cómo está mi margen y mi carga comercial?" });
+    ok(!_tienePri04(RmargenSinEncargo.salida), "control · SIN `encargo`, una pregunta de margen no enciende PRI-04 (el camino de texto de las 4 rutas fijas sigue intacto)");
+  } finally {
+    initTenant(TENANT_DEMO);
   }
 }
 

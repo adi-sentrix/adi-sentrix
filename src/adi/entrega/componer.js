@@ -61,6 +61,16 @@ import { construirPerfilCliente, ETIQUETA_DEL_CAMPO } from "../../config/contrac
 // a `seleccionarConocimientoDelOficio` (perfilCliente.js): con la bandera `ADI_CONOCIMIENTO` apagada (hoy, en
 // todos los perfiles) delega en ella tal cual — cero diferencia de comportamiento (ver `_conocimiento_gate.mjs`).
 import { referenciaDelOficioConOfertas } from "../conocimiento/seleccionar.js";
+// CORTE 3d.2 (owner 2026-09-25, `_ADI_DISENO_CORTE_3D.md` §A.4) — la pertinencia de Knowledge por FORMA del
+// encargo, no por prosa: `componerEntrega` (abajo) pasaba `pregunta: ""` a la capa de conocimiento, así que
+// ninguna pieza podía ser PRINCIPAL en el camino general (PRI-04 en cobranza salía como oferta). Con
+// `construirEncargoDeLaTabla` se arma el objeto tipado desde la `Resolucion`, nunca desde texto.
+import { construirEncargoDeLaTabla } from "../conocimiento/tablaSenales.js";
+// CORTE 3d.1 (owner 2026-09-25, `_ADI_DISENO_CORTE_3D.md` §A) — la iniciativa de CFO: hechos que el Core ya
+// puede calcular y que ADI ofrece SIN que el encargo los haya pedido, con proporcionalidad por cierre y
+// candado de que lo pedido nunca cambia. Vive en su propio archivo (catálogo + motor), nunca mezclado con el
+// árbol de decisión de `_delegarRutaCanonica`/las 4 rutas fijas (que no la ejercitan — ver `_iniciativa_gate`).
+import { calcularIniciativa, MARCA_INICIATIVA, INICIATIVA_VALORES } from "./iniciativa.js";
 
 export const PREGUNTA_BRECHA_COMERCIAL = "¿dónde estoy perdiendo plata?";
 export const PREGUNTA_COBRANZA = "¿quién me debe más?";
@@ -579,6 +589,12 @@ export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta
     { titulo: "El saldo pendiente no es una pérdida", motivo: "Es capital retenido del cliente; sería pérdida solo si se volviera incobrable, y eso no está en los datos." },
     { titulo: "La causa de la deuda no está en los datos", motivo: "Esta lectura localiza cuánto y quién debe, no explica la conducta de pago — no hay causalidad sin respaldo." },
     _limiteDeAusencia("conocimiento_sector_cobranza"),
+    // AGREGADO INTENCIONAL (owner/supervisor, 2026-09-25, revisión de calidad del corte 3d): «toda Entrega que
+    // sirve cobranza declara que el dato no trae la antigüedad del vencido por tramos» — antes solo lo declaraba
+    // el camino general; el owner pidió extenderlo también a esta ruta fija. Sale de `ausencias.js` (el mismo
+    // catálogo, no la pieza CAU-01 en borrador). ÚNICO cambio de texto de esta ruta en este corte — ver
+    // `_entrega_gate.mjs` (expectativas de `limites.length` actualizadas con la misma fecha).
+    _limiteDeAusencia("sin_antiguedad_vencido"),
   ];
   if (!idVencidoTotal) entrega.limites.push({ titulo: "El vencido no se puede calcular", motivo: "Su empresa no declaró un plazo de pago: sin plazo, no se puede afirmar qué parte del saldo está vencida — nunca se declara en cero. Declárelo y el vencido se calcula solo." });
   { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
@@ -1017,6 +1033,10 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
     { titulo: "Los tres dominios no se consolidan en un total único", motivo: "Comercial, inventario y cobranza se miden en escalas y marcos temporales propios y no reconcilian entre sí (contrato de datos declarado): cada cifra de esta Entrega queda con su propio dominio, nunca sumada con la de otro." },
     { titulo: "La causa de estas señales no está en los datos", motivo: "Esta lectura localiza dónde pesa más cada dominio y quién concentra más de uno, no explica por qué — no hay causalidad sin respaldo." },
     _limiteDeAusencia("conocimiento_sector_general"),
+    // AGREGADO INTENCIONAL (owner/supervisor, 2026-09-25, revisión de calidad del corte 3d) — ver la nota gemela
+    // en `componerEntregaCobranza`: esta ruta SIEMPRE cubre cobranza (los tres dominios son su forma canónica),
+    // así que declara la ausencia sin condición. ÚNICO cambio de texto de esta ruta en este corte.
+    _limiteDeAusencia("sin_antiguedad_vencido"),
   ];
   if (faltaRango) entrega.limites.push({ titulo: "El año comercial no declara un rango de fechas calendario", motivo: "El dato confirma que la parte comercial es el año cerrado (12 meses ya ocurridos), pero el pack no trae una fecha de cierre para ese universo — a diferencia de inventario y cobranza, que sí declaran su foto al corte." });
   { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
@@ -1165,20 +1185,242 @@ function _limitesDeclarados(resolucion, temasCubiertos) {
   return limites;
 }
 
+/* CORRECCIÓN DEL SUPERVISOR (2026-09-25, revisión de calidad tras la entrega de 3d) — «un rótulo que ya termina
+ * en "en $" duplica el signo cuando se pega a un valor en dinero (regla madre: la Entrega la lee un LLM, no
+ * puede llevar jerga ni ruido)». Se corta el sufijo " en $" SOLO al armar una ORACIÓN (nunca en la tabla de
+ * Cifras, donde el rótulo y el valor viven en columnas separadas y no hay ambigüedad ni doble signo). */
+const _sinSufijoDolar = (etiqueta) => String(etiqueta || "").replace(/\s+en\s*\$\s*$/i, "");
+
 /* ── PLAN «entidad» (cierre `cifra`/`lectura`/`decision` con ≥1 entidad declarada) ──────────────────────────────
  * Declara CADA fig «entidad · concepto» que encuentra para esa entidad (filtrada a `parte.conceptos` si el
  * encargo los trajo — nunca sustituye un concepto por otro) y devuelve el plan (solo ids, sin texto: se rinde
- * en la fase 2, después de verificar el libro — el MISMO patrón de las 4 rutas fijas). */
-function _planCifraEntidad(parte, figs, ref) {
+ * en la fase 2, después de verificar el libro — el MISMO patrón de las 4 rutas fijas).
+ *
+ * CORRECCIÓN DEL SUPERVISOR (2026-09-25) — dos defectos de calidad reales, medidos sobre el ejemplo servido:
+ *   1 · «la Respuesta nunca repite la misma cifra con dos rótulos»: en el camino "dame todo" (sin `conceptos`
+ *       declarados), dos figs pueden canonizar a la MISMA clave con etiquetas de origen distintas (ej. "YoY" y
+ *       "Variación vs año anterior en $" son la MISMA clave `variacion_usd` — notario/lexico.js) — acá se dedupea
+ *       por CLAVE CANÓNICA (`_claveDeFig`, la misma que ya usa el Notario), quedándose con la primera fig.
+ *   2 · una `lectura`/`decision` sobre una entidad ya NO abre con un volcado de conceptos: abre con la
+ *       CONCLUSIÓN del procedimiento para esa entidad (`_construirConclusionEntidad`, abajo) — posición en la
+ *       cartera, brecha contra el benchmark, contribución no capturada, carga contra el resto (comercial);
+ *       posición y saldo/vencido (cobranza); posición y capital frenado (inventario). Reusa `lecturaDeMargen`/
+ *       `prioridadDe` — LAS MISMAS funciones que ya arma la ruta fija de brecha comercial (`_ADI_DISENO...`
+ *       instrucción del supervisor: «mira cómo la ruta de brecha comercial arma su Respuesta... y reusa eso»).
+ *       Las figs que la conclusión necesita SIEMPRE quedan también en `filas` (Cifras) — nunca un id que solo
+ *       vive en la Respuesta (regla 3 de verificar.js, doble colocación). `cifra` (no lectura/decision) sigue
+ *       con el listado — es lo que ese cierre pide por contrato (§1.1: una cifra puntual). */
+function _planCifraEntidad(parte, figs, ref, I) {
   const filasPorEntidad = [];
+  const esLecturaODecision = parte.cierre === "lectura" || parte.cierre === "decision";
   for (const e of parte.entidades) {
     const universo = parte.conceptos && parte.conceptos.length ? parte.conceptos : null;
-    const candidatas = universo ? universo.map((c) => ({ clave: c, fig: _filaDe(figs, e.nombre, c) })).filter((x) => x.fig)
-      : _figsDeEntidad(figs, e.nombre).map((f) => ({ clave: null, fig: f, etiqueta: _conceptoDeLabel(_lab(f)) }));
-    const filas = candidatas.map((c) => ({ etiqueta: c.etiqueta || _labelDeClave(c.clave) || c.clave, id: ref(c.fig) })).filter((f) => f.id);
-    if (filas.length) filasPorEntidad.push({ entidad: e.nombre, eje: e.eje, filas });
+    let candidatas;
+    if (universo) {
+      candidatas = universo.map((c) => ({ clave: c, fig: _filaDe(figs, e.nombre, c) })).filter((x) => x.fig);
+    } else {
+      const vistos = new Set();
+      candidatas = [];
+      for (const f of _figsDeEntidad(figs, e.nombre)) {
+        const clave = _claveDeFig(f);
+        const llave = clave || `__sin_clave__:${_lab(f)}`;
+        if (vistos.has(llave)) continue;   // ★ dedup por clave canónica — «la misma cifra nunca con dos rótulos»
+        vistos.add(llave);
+        candidatas.push({ clave, fig: f, etiqueta: clave ? null : _conceptoDeLabel(_lab(f)) });
+      }
+    }
+    // ★ el rótulo de Cifras (columna "Métrica") queda CANÓNICO, con su "en $" si lo tiene — nunca se le quita
+    // acá: dos claves distintas (ej. "variacion" % y "variacion_usd" $) pueden compartir casi el mismo nombre, y
+    // recortar "en $" las volvería INDISTINGUIBLES en la tabla ("un rótulo no puede nombrar dos campos",
+    // CLAUDE.md §4). El recorte de "en $" es SOLO para la ORACIÓN (ver el volcado en la fase 2, más abajo).
+    const filas = candidatas.map((c) => ({ clave: c.clave, etiqueta: c.etiqueta || _labelDeClave(c.clave) || c.clave, id: ref(c.fig) })).filter((f) => f.id);
+    if (!filas.length) continue;
+    const entry = { entidad: e.nombre, eje: e.eje, filas };
+    if (esLecturaODecision) entry.conclusion = _construirConclusionEntidad(parte.tema, e.nombre, figs, filas, ref, I);
+    filasPorEntidad.push(entry);
   }
   return { kind: "entidad", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, filasPorEntidad };
+}
+
+/* «abre con la CONCLUSIÓN del procedimiento para esa entidad» (supervisor, revisión de calidad 2026-09-25) —
+ * arma los INSUMOS (ids ya `ref()`ados, listos para `R()`) de la conclusión, reusando SIEMPRE una fig que ya
+ * esté en `filas` cuando exista (`_idDeClave`, abajo): así todo hecho de la Respuesta también vive en Cifras
+ * (regla 3, doble colocación), y ninguna cifra se cuenta dos veces. Devuelve `null` si no hay ni el mínimo dato
+ * (venta/margen para comercial, saldo para cobranza) para no fingir una conclusión sin sostén — la Respuesta cae
+ * al listado (ver el llamador en la fase 2) en vez de imprimir una oración vacía.
+ *
+ * CORRECCIÓN DEL SUPERVISOR (2026-09-25, error MATERIAL de universo) — «Lider, 1° de 8 clientes» sobre una
+ * cartera de 13: el puesto se calculaba sobre la BOLETA de este turno, capada a 8 filas por
+ * `herramientasAgente.js:cobranza()` (memoria `adi-piso-materialidad-cobranza`: «la boleta de cobranza del
+ * agente trae solo 8 filas»). Ahora el puesto se lee de `I.rankings.<eje>.<clave>` — LA MISMA proyección
+ * (`oracle/datoProyectado.js`, sobre `mesaFlujo`/el dato completo, sin tope) que ya usa el resto del Notario
+ * para completar una fig que la boleta no trajo — nunca la boleta capada. Si el pack no publica ese ranking (un
+ * escenario sintético sin `mesaFlujo`), cae a la boleta de este turno COMO RESPALDO, declarado como tal (nunca
+ * en silencio) — un caso que hoy no ocurre con TENANT_DEMO. `universoEntidades`/`universoCriterio` viajan para
+ * que el llamador (fase 2) declare el universo en `entrega.universos` — el DENOMINADOR del puesto tiene que ser
+ * el tamaño de un universo declarado, no un número suelto (candado del gate). */
+function _idDeClave(filas, figs, entidad, clave, ref) {
+  const existente = filas.find((f) => f.clave === clave);
+  if (existente) return existente.id;
+  const fig = _filaDe(figs, entidad, clave);
+  if (!fig) return null;
+  const id = ref(fig);
+  if (id != null) filas.push({ clave, etiqueta: _labelDeClave(clave) || clave, id });   // rótulo canónico — ver la nota de `_planCifraEntidad`
+  return id;
+}
+/* ranking de la PROYECCIÓN (universo completo), ordenado de mayor a menor — `null` si el pack no lo publica. */
+function _rankingCompleto(I, eje, clave) {
+  const r = I && I.rankings && I.rankings[eje] && I.rankings[eje][clave];
+  if (!r || !Array.isArray(r.filas) || !r.filas.length) return null;
+  return [...r.filas].sort((a, b) => (Number.isFinite(b.valor) ? b.valor : -Infinity) - (Number.isFinite(a.valor) ? a.valor : -Infinity));
+}
+function _construirConclusionEntidad(tema, entidad, figs, filas, ref, I) {
+  if (tema === "comercial") {
+    const idVenta = _idDeClave(filas, figs, entidad, "ventas", ref);
+    const idMargen = _idDeClave(filas, figs, entidad, "margen", ref);
+    if (idVenta == null && idMargen == null) return null;
+    const lect = lecturaDeMargen(figs);
+    const pr = prioridadDe(figs);
+    // el benchmark es del "negocio" (referencia, no cliente): un `ref()` propio no exige doble colocación
+    // (verificar.js regla 3 solo exige la cita de hechos CUYO dueño no es "negocio").
+    const idBench = lect && lect.bench ? ref(lect.bench) : null;
+    const idJuego = _idDeClave(filas, figs, entidad, "no_capturada", ref);
+    const idCarga = _idDeClave(filas, figs, entidad, "carga_alta", ref);
+    // ★ CORRECCIÓN (2026-09-25, tras revisión) — el universo de "contribución no capturada" es el de las CUENTAS
+    // MATERIALES bajo el benchmark (`prioridadDe(figs).juego` — margenEnRiesgo.js, LA MISMA fuente que ya usa la
+    // ruta fija de brecha comercial, `descomposicionDeBrecha`, CAU-01 y el resto del sistema): NO se reemplaza por
+    // `I.rankings.cliente.no_capturada` (que incluye TODA cuenta con brecha > 0, sin el filtro de materialidad —
+    // sería una SEGUNDA definición del mismo concepto, justo lo que "una sola verdad" prohíbe). El supervisor
+    // aceptó el conteo "5" como correcto; lo que faltaba era declarar de qué universo son esas 5 — ver
+    // `universoTexto` abajo ("cuentas con contribución no capturada").
+    let posicion = null, total = null, universoEntidades = null;
+    if (pr && Array.isArray(pr.juego) && pr.juego.length) {
+      const idx = pr.juego.findIndex((x) => x.entidad === entidad);
+      if (idx >= 0) { posicion = idx + 1; total = pr.juego.length; universoEntidades = pr.juego.map((x) => x.entidad); }
+    }
+    return { tipo: "comercial", entidad, idVenta, idMargen, idBench, idJuego, idCarga, posicion, total, universoEntidades, universoEje: "cliente", universoCriterio: "cuentas con contribución no capturada", universoTexto: "cuentas con contribución no capturada" };
+  }
+  if (tema === "cobranza") {
+    const idSaldo = _idDeClave(filas, figs, entidad, "saldo_pendiente", ref);
+    if (idSaldo == null) return null;
+    const idVencido = _idDeClave(filas, figs, entidad, "saldo_vencido", ref);
+    let posicion = null, total = null, universoEntidades = null;
+    const rankingSP = _rankingCompleto(I, "cliente", "saldo_pendiente");
+    if (rankingSP) {
+      const idx = rankingSP.findIndex((f) => f.entidad === entidad);
+      if (idx >= 0) { posicion = idx + 1; total = rankingSP.length; universoEntidades = rankingSP.map((f) => f.entidad); }
+    } else {
+      // respaldo declarado (ver la cabecera): solo si el pack no publica el ranking completo — no ocurre con TENANT_DEMO.
+      const filasSaldo = _all(figs, /· Saldo pendiente$/i);
+      const idx = filasSaldo.findIndex((f) => _entidadDe(_lab(f)) === entidad);
+      if (idx >= 0) { posicion = idx + 1; total = filasSaldo.length; universoEntidades = filasSaldo.map((f) => _entidadDe(_lab(f))).filter(Boolean); }
+    }
+    return { tipo: "cobranza", entidad, idSaldo, idVencido, posicion, total, universoEntidades, universoEje: "cliente", universoCriterio: "clientes con saldo pendiente", universoTexto: "clientes con saldo pendiente" };
+  }
+  if (tema === "inventario") {
+    const idFrenado = _idDeClave(filas, figs, entidad, "capital_frenado", ref);
+    if (idFrenado == null) return { tipo: "inventario_sin_frenado", entidad };
+    const idDias = _idDeClave(filas, figs, entidad, "dias_inventario", ref);
+    let posicion = null, total = null, universoEntidades = null;
+    const rankingCF = _rankingCompleto(I, "sku", "capital_frenado");
+    if (rankingCF) {
+      const idx = rankingCF.findIndex((f) => f.entidad === entidad);
+      if (idx >= 0) { posicion = idx + 1; total = rankingCF.length; universoEntidades = rankingCF.map((f) => f.entidad); }
+    } else {
+      const filasFrenado = _all(figs, /· Capital frenado$/i).filter((f) => !/^Capital frenado · total$/i.test(_lab(f)));
+      const idx = filasFrenado.findIndex((f) => _entidadDe(_lab(f)) === entidad);
+      if (idx >= 0) { posicion = idx + 1; total = filasFrenado.length; universoEntidades = filasFrenado.map((f) => _entidadDe(_lab(f))).filter(Boolean); }
+    }
+    return { tipo: "inventario", entidad, idFrenado, idDias, posicion, total, universoEntidades, universoEje: "sku", universoCriterio: "SKU con capital frenado", universoTexto: "SKU con capital frenado" };
+  }
+  return null;
+}
+/* renderiza la conclusión — números de POSICIÓN (ordinal/total) no son un hecho de la boleta, son un conteo que
+ * este compositor hace sobre el índice ya construido (mismo patrón que `nClientes`/`PERIODO_TXT` en el Marco de
+ * las 4 rutas fijas): se registran en `cifrasImpresas` para que la regla 1 (cero cifras desnudas) los reconozca,
+ * sin fingir un id de hecho que no existe. El texto SIEMPRE declara de qué universo son el puesto y el total
+ * (supervisor: «debe decir de qué universo son esas N») — nunca un número suelto sin dueño. */
+function _renderConclusionEntidad(c, R, cifrasImpresas) {
+  if (!c || c.tipo === "inventario_sin_frenado") return null;
+  const _pos = (txt) => { cifrasImpresas.push(String(c.posicion)); cifrasImpresas.push(String(c.total)); return txt; };
+  if (c.tipo === "comercial") {
+    if (c.idVenta == null && c.idMargen == null) return null;
+    const posTxt = c.posicion != null ? _pos(`, ${c.posicion}° de ${c.total} ${c.universoTexto}`) : "";
+    const partes = [];
+    if (c.idVenta != null) partes.push(`vende ${R(c.idVenta)}`);
+    if (c.idMargen != null) partes.push(c.idBench != null ? `con un margen de ${R(c.idMargen)} contra el benchmark de ${R(c.idBench)}` : `con un margen de ${R(c.idMargen)}`);
+    if (c.idJuego != null) partes.push(`brecha estimada ${R(c.idJuego)}`);
+    if (c.idCarga != null) partes.push(`carga comercial alta ${R(c.idCarga)}`);
+    return `${c.entidad}${posTxt}: ${partes.join(", ")}.`;
+  }
+  if (c.tipo === "cobranza") {
+    const posTxt = c.posicion != null ? _pos(`, ${c.posicion}° de ${c.total} ${c.universoTexto}`) : "";
+    const partes = [`${R(c.idSaldo)} pendientes`];
+    partes.push(c.idVencido != null ? `de los cuales ${R(c.idVencido)} vencido` : "sin plazo de pago declarado — su vencido no se puede calcular");
+    return `${c.entidad}${posTxt}: ${partes.join(", ")}.`;
+  }
+  if (c.tipo === "inventario") {
+    const posTxt = c.posicion != null ? _pos(`, ${c.posicion}° de ${c.total} ${c.universoTexto}`) : "";
+    const partes = [`${R(c.idFrenado)} frenados`];
+    if (c.idDias != null) partes.push(`${R(c.idDias)} de inventario`);
+    return `${c.entidad}${posTxt}: ${partes.join(", ")}.`;
+  }
+  return null;
+}
+function _hechosDeConclusion(c) {
+  if (!c) return [];
+  return [c.idVenta, c.idMargen, c.idBench, c.idJuego, c.idCarga, c.idSaldo, c.idVencido, c.idFrenado, c.idDias].filter((x) => x != null);
+}
+
+/* (c) CORRECCIÓN DEL SUPERVISOR (2026-09-25) — «Qué más puedo calcular» con texto genérico no le sirve al LLM:
+ * arma OFERTAS CONCRETAS desde lo que ESTE encargo ya tocó (entidad/eje/tema), con su cifra-gancho cuando un id
+ * ya verificado la sostiene (mismo patrón que las ofertas de Knowledge — nunca un hecho nuevo, siempre uno que
+ * `planes` ya declaró y `R` ya puede renderizar). Sin candidatos concretos (ej. el encargo es solo `definicion`/
+ * `comparacion`/`simulacion`), cae al genérico de siempre — nunca una sección vacía. */
+function _ofertasConcretas(planes, R) {
+  const out = [];
+  const _push = (s) => { if (s && !out.includes(s)) out.push(s); };
+  for (const plan of planes) {
+    if (plan.kind === "entidad") {
+      for (const { entidad, conclusion } of plan.filasPorEntidad) {
+        if (plan.tema === "comercial") {
+          _push(conclusion && conclusion.tipo === "comercial" && conclusion.idJuego != null
+            ? `Carga comercial de ${entidad} frente al resto de la cartera (hoy, brecha estimada: ${R(conclusion.idJuego)})`
+            : `Detalle de margen y carga comercial de ${entidad}, cuenta por cuenta`);
+        } else if (plan.tema === "cobranza") {
+          _push(conclusion && conclusion.tipo === "cobranza" && conclusion.idVencido != null
+            ? `Antigüedad del vencido de ${entidad} si se declara por tramos (hoy, vencido: ${R(conclusion.idVencido)})`
+            : `Detalle del saldo de ${entidad}, por concepto`);
+        } else if (plan.tema === "inventario") {
+          _push(`Rotación y bodega de ${entidad}`);
+        }
+      }
+    } else if (plan.kind === "grupo" || plan.kind === "grupoUniverso") {
+      if (plan.tema === "comercial") _push("Ranking completo por contribución no capturada");
+      else if (plan.tema === "cobranza") _push("Ranking completo por saldo vencido");
+      else if (plan.tema === "inventario") _push("Capital frenado por bodega");
+    } else if (plan.kind === "multitema") {
+      for (const d of plan.temas) {
+        if (d === "inventario") _push("El cruce por SKU entre venta e inventario");
+        if (d === "cobranza") _push("La cobranza cruzada con la venta, cuenta por cuenta");
+      }
+    }
+  }
+  return out;
+}
+
+/* la entidad que "representa" un tema para una pregunta de «Para su juicio» que necesita SUJETO (nunca una
+ * pregunta genérica sin nombre): la que el pedido ya nombró (entidad-plan) o, si no, la que lidera el
+ * ranking/la prioridad de ese tema — nunca una entidad inventada ni la primera del índice del tenant. */
+function _entidadRepresentativaDeTema(tema, planes) {
+  for (const p of planes) if (p.tema === tema && p.kind === "entidad" && p.filasPorEntidad.length) return p.filasPorEntidad[0].entidad;
+  for (const p of planes) if (p.kind === "multitema" && p.lideres && p.lideres[tema]) return p.lideres[tema].x.entidad;
+  for (const p of planes) {
+    if (p.tema !== tema) continue;
+    if (p.kind === "grupo" && p.orden && p.orden.length) return p.orden[0];
+    if (p.kind === "grupoUniverso" && p.miembros && p.miembros.length) return p.miembros[0];
+  }
+  return null;
 }
 
 /* un universo con `estados`/`no_estados`/`filtros` exige evaluar el ESTADO de cada entidad contra el dato real
@@ -1474,6 +1716,49 @@ function _planDefinicion(parte, facts) {
   return { kind: "definicion", tema: parte.tema, parteId: parte.id, concepto: facts.concepto, definicion: facts.definicion, distingue: facts.distingue || null };
 }
 
+/* ═══ (1) CORRECCIÓN DEL SUPERVISOR (2026-09-25, error MATERIAL de CONCEPTO) — EL MARCO POR DOMINIO ═══════════════
+ * Una Entrega de cobranza decía «Marco. ADI Demo, 13 clientes, foto de inventario a hoy» — cobranza NO es
+ * inventario. Raíz: `figureType.js:PERIODO_TXT.hoy = "foto de inventario a hoy — no es un promedio anual"` es un
+ * texto GLOBAL (usado por TODO el sistema, no solo esta Entrega) que asume que la familia "hoy" siempre es
+ * inventario; es correcto para inventario y FALSO para cobranza, que también es una foto al corte (el propio
+ * archivo ya lo advierte: "dias_inventario: nombre incorrecto, período correcto, NO SE TOCA" — las figs de
+ * cobranza caen ahí por compatibilidad de UNIDAD, no de significado). NO se toca `figureType.js` (archivo
+ * compartido por todo el sistema, un cambio ahí es una decisión de otro alcance): se generaliza al camino
+ * GENERAL la MISMA solución que ya usa `componerEntregaCobranza` (la ruta fija) — nunca `periodoDeFiguras` sobre
+ * figs de cobranza, siempre `facts.fechaCorte` de la propia tool `cobranza`, la fuente MÁS verificable que ya
+ * usa la pestaña Flujo Comercial. Comercial/inventario siguen exactamente igual (`_periodoDelMarco`, sin tocar). */
+const _esFigDeCobranza = (fig) => { const clave = claveDeMetrica(_conceptoDeLabel(_lab(fig))); return !!clave && dominioDeClave(clave) === "cobranza"; };
+function _fechaCorteDeCobranza(rp, plan) {
+  const idx = plan && Array.isArray(plan.calls) ? plan.calls.findIndex((c) => c && c.tool === "cobranza") : -1;
+  if (idx < 0) return null;
+  const facts = rp && rp.results && rp.results[idx] && rp.results[idx].facts;
+  return (facts && facts.fechaCorte) || null;
+}
+function _periodoGeneralPorDominio({ figsUsadas, temasCubiertos, rp, plan }) {
+  // comercial/inventario: la MISMA fuente de siempre, pero SIN las figs de cobranza (que `periodoDeFiguras`
+  // clasificaría mal — ver la cabecera de arriba).
+  const figsNoCobranza = figsUsadas.filter((f) => !_esFigDeCobranza(f));
+  const noCobranza = figsNoCobranza.length ? _periodoDelMarco(figsNoCobranza) : { periodo: null, faltaRango: false };
+  let periodoCobranza = null;
+  if (temasCubiertos.has("cobranza")) {
+    const fechaCorte = _fechaCorteDeCobranza(rp, plan);
+    // MISMA forma que la ruta fija de cobranza (`componerEntregaCobranza`): "foto de cobranza al {fecha}".
+    if (fechaCorte) periodoCobranza = { tipo: "foto", texto: `foto de cobranza al ${fechaCorte}`, familias: ["cobranza"], rango: fechaCorte };
+  }
+  if (noCobranza.periodo && periodoCobranza) {
+    // combinación de dos o tres marcos en una sola declaración — misma idea que `PERIODO_MIXTO_TXT`
+    // (figureType.js) para comercial+inventario, generalizada acá para incluir cobranza sin tocar ese archivo.
+    const partesTexto = [];
+    if (noCobranza.periodo.familias.includes("anual")) partesTexto.push("la venta, el margen y la contribución son del año cerrado — los 12 meses ya ocurrieron");
+    if (noCobranza.periodo.familias.includes("hoy")) partesTexto.push("el capital, el stock, la rotación y los días de inventario son la foto de inventario a hoy");
+    partesTexto.push(`la cobranza es una foto al ${periodoCobranza.rango}`);
+    const texto = `${partesTexto.length > 2 ? "tres marcos" : "dos marcos"} en la misma respuesta: ${partesTexto.join("; ")}. Cada cifra se declara con el suyo.`;
+    return { periodo: { tipo: "mixto", texto, familias: [...noCobranza.periodo.familias, "cobranza"], rango: null }, faltaRango: noCobranza.faltaRango };
+  }
+  if (periodoCobranza) return { periodo: periodoCobranza, faltaRango: false };
+  return noCobranza;
+}
+
 /** componerEntrega(resolucion) → { texto, entrega, libro, ok, motivo }. Recibe la `Resolucion` del validador
  *  (`encargo/validar.js`), corre `lecturasDe(resolucion)` sobre el Core y arma la Entrega de siete partes para
  *  CUALQUIER encargo válido — generalización de las 4 funciones de arriba (que quedan como envolturas/fixtures
@@ -1564,7 +1849,7 @@ export function componerEntrega(resolucion) {
     if (partesYaAgrupadas.has(p.id)) continue;
     const figsDeP = _figsDeParte(p.id);
     if (p.cierre === "cifra" || ((p.cierre === "lectura" || p.cierre === "decision") && p.entidades && p.entidades.length)) {
-      if (p.entidades && p.entidades.length) { const plan = _planCifraEntidad(p, figsDeP, ref); if (plan) planes.push(plan); }
+      if (p.entidades && p.entidades.length) { const plan = _planCifraEntidad(p, figsDeP, ref, I); if (plan) planes.push(plan); }
       else if (p.cierre === "cifra") {
         // CORTE 3c · pieza 1 (D07): universo por estado/filtro SIN `top` — el mismo camino que arriba, para el
         // cierre `cifra`.
@@ -1627,6 +1912,53 @@ export function componerEntrega(resolucion) {
   const rotos = libro.hechos.filter((h) => !h.ok);
   if (rotos.length) return { texto: "", entrega: null, libro, ok: false, motivo: `${rotos.length} hecho(s) no verificaron: ${rotos.map((h) => `${h.id} (${h.motivo})`).join(" · ")}` };
 
+  // ═══ CORTE 3d.1 (owner 2026-09-25) — LA INICIATIVA DE CFO. Se declara y verifica en SU PROPIO libro, con SU
+  // PROPIO prefijo de id (`i*`, asignado por `iniciativa.js` — nunca comparte contador con `e*`): lo pedido de
+  // arriba (`hechos`/`contador`/`libro`/`rotos`) queda INTACTO, se calcule o no la iniciativa (candado §A.6). Un
+  // hecho de iniciativa que no verifica no se sirve y no tumba la Entrega (`iniciativaNoVerificada`, abajo); el
+  // texto se arma más adelante, junto a `cifrasImpresas`, para que la regla «cero cifras desnudas» lo audite igual.
+  const _iniciativaFlagCruda = resolucion.encargo && resolucion.encargo.iniciativa;
+  const iniciativaOn = INICIATIVA_VALORES.includes(_iniciativaFlagCruda) ? _iniciativaFlagCruda !== "ninguna" : true;   // default "completa"; un valor inválido ya quedó declarado en noResuelto (validar.js)
+  const partesParaIniciativa = partesUtiles.map((p) => ({ tema: p.tema, cierre: p.cierre, conceptos: (p.conceptos || []).length, entidades: (p.entidades || []).map((e) => e.nombre) }));
+  const yaTieneIntegrada = planes.some((pl) => pl.kind === "multitema");
+  const { hechos: hechosIniciativa, candidatos: candidatosIniciativa } = calcularIniciativa({
+    figs, partes: partesParaIniciativa, iniciativaOn, yaTieneIntegrada,
+  });
+  const libroIniciativa = hechosIniciativa.length ? libroDeHechos(hechosIniciativa, { indice: I }) : null;
+  const iniciativaVerificada = [];
+  const iniciativaNoVerificada = [];
+  for (const c of candidatosIniciativa) {
+    const okIni = !!libroIniciativa && c.hechos.every((id) => { const h = libroIniciativa.porId.get(id); return h && h.ok; });
+    if (okIni) iniciativaVerificada.push(c);
+    else {
+      const primero = libroIniciativa && c.hechos.map((id) => libroIniciativa.porId.get(id)).find((h) => h && !h.ok);
+      iniciativaNoVerificada.push({ id: c.catalogo, motivo: (primero && primero.motivo) || "hecho de iniciativa no verificado" });
+    }
+  }
+  // ═══ (b) LA INICIATIVA NUNCA REPITE LO PEDIDO (supervisor, revisión de calidad 2026-09-25) — «un hecho de
+  // iniciativa cuyo contenido (clave, entidad, valor, universo) ya está servido como pedido NO se sirve otra
+  // vez». Se compara por FIRMA — tipo de operación + el/los FIG(s) subyacente(s) (nunca el texto, nunca el id de
+  // hecho, que vive en libros distintos): dos hechos que citan LOS MISMOS figs con la MISMA operación (razón o
+  // derivada) son el MISMO contenido, aunque uno lo haya declarado el pedido y el otro la iniciativa. Solo mira
+  // un nivel (el operando directo de una razón/derivada es siempre un `ref` en este catálogo — nunca una
+  // derivada anidada), que es exactamente la forma de todos los candidatos de `iniciativa.js` hoy.
+  const _porIdPedidoRaw = new Map(hechos.map((h) => [h.id, h]));
+  const _figDeHechoPedido = (id) => { const h = _porIdPedidoRaw.get(id); return h && h.tipo === "ref" ? h.de : null; };
+  const _firmaDeHecho = (h, figDe) => {
+    if (!h) return null;
+    if (h.tipo === "razon") { const n = figDe(h.num && h.num.id), d = figDe(h.den && h.den.id); return (n != null && d != null) ? `razon:${n}/${d}` : null; }
+    if (h.tipo === "derivada") { const ids = (h.de || []).map((x) => figDe(x && x.id)); return ids.every((x) => x != null) ? `derivada:${h.op}:${[...ids].sort().join(",")}` : null; }
+    return null;
+  };
+  const _firmasPedido = new Set();
+  for (const h of hechos) { const f = _firmaDeHecho(h, _figDeHechoPedido); if (f) _firmasPedido.add(f); }
+  const _porIdIniciativaRaw = new Map(hechosIniciativa.map((h) => [h.id, h]));
+  const _figDeHechoIniciativa = (id) => { const h = _porIdIniciativaRaw.get(id); return h && h.tipo === "ref" ? h.de : null; };
+  const iniciativaSinDuplicar = iniciativaVerificada.filter((c) => {
+    const firmas = c.hechos.map((id) => _firmaDeHecho(_porIdIniciativaRaw.get(id), _figDeHechoIniciativa)).filter(Boolean);
+    return !firmas.some((f) => _firmasPedido.has(f));
+  });
+
   // ── FASE 2 · renderizar (SOLO desde `R(id)`, nunca un número a mano) ──
   const entrega = crearEntrega();
   const cifrasImpresas = [];
@@ -1670,14 +2002,34 @@ export function componerEntrega(resolucion) {
 
   for (const plan of planes) {
     if (plan.kind === "entidad") {
-      for (const { entidad, eje, filas } of plan.filasPorEntidad) {
+      // (a) CORRECCIÓN DEL SUPERVISOR (2026-09-25) — «una lectura/decision sobre una entidad abre con la
+      // CONCLUSIÓN del procedimiento, no con un volcado». Cifras SIEMPRE recibe la lista completa (una fila por
+      // fig, deduplicada por clave); la Respuesta abre con la conclusión (`_construirConclusionEntidad`,
+      // declarada en la fase 1) cuando el cierre es `lectura`/`decision` y la conclusión pudo armarse — si no
+      // (cierre `cifra`, o datos insuficientes para una conclusión), sigue el listado de siempre.
+      for (const { entidad, eje, filas, conclusion } of plan.filasPorEntidad) {
         if (!filas.length) continue;
         temasCubiertos.add(plan.tema);
         for (const f of filas) entrega.cifras.filas.push(_fila(entidad, plan.tema, f.etiqueta, f.id));
-        const frases = filas.slice(0, 5).map((f) => `${f.etiqueta.toLowerCase()} ${R(f.id)}`);
-        const texto = `${entidad}: ${frases.join(", ")}.`;
-        entrega.respuesta.push({ texto, hechos: filas.map((f) => f.id) });
+        let texto = null, hechosRespuesta = null;
+        if (plan.cierre === "lectura" || plan.cierre === "decision") texto = _renderConclusionEntidad(conclusion, R, cifrasImpresas);
+        if (texto) hechosRespuesta = _hechosDeConclusion(conclusion);
+        else {
+          // el recorte de "en $" (`_sinSufijoDolar`) es SOLO acá, al pegar rótulo+valor en una oración — la
+          // tabla de Cifras de arriba usa `f.etiqueta` tal cual (canónico, ver la nota de `_planCifraEntidad`).
+          const frases = filas.slice(0, 5).map((f) => `${_sinSufijoDolar(f.etiqueta).toLowerCase()} ${R(f.id)}`);
+          texto = `${entidad}: ${frases.join(", ")}.`;
+          hechosRespuesta = filas.map((f) => f.id);
+        }
+        entrega.respuesta.push({ texto, hechos: hechosRespuesta });
         _declararUniverso(entrega, I, { id: `${plan.parteId}_${entidad}`, eje: eje || "cliente", entidades: [entidad] });
+        // (2) CORRECCIÓN DEL SUPERVISOR (2026-09-25, error MATERIAL de universo) — el puesto que la conclusión
+        // declara («N° de M...») tiene que tener un universo VERIFICABLE: se declara acá, con TODAS las
+        // entidades del ranking completo (nunca solo el top-k) — el candado del gate compara el denominador
+        // contra `entrega.universos[x].entidades.length`.
+        if (conclusion && conclusion.universoEntidades && conclusion.universoEntidades.length) {
+          _declararUniverso(entrega, I, { id: `${plan.parteId}_${entidad}_ranking`, eje: conclusion.universoEje || "cliente", entidades: conclusion.universoEntidades, criterio: conclusion.universoCriterio });
+        }
       }
     } else if (plan.kind === "grupo") {
       temasCubiertos.add(plan.tema);
@@ -1733,7 +2085,7 @@ export function componerEntrega(resolucion) {
       const kTxt = R(plan.idConteo), mTxt = renderDe(libro, plan.idConteo, "m"), uTxt = renderDe(libro, plan.idConteo, "universo");
       if (mTxt != null) cifrasImpresas.push(mTxt);
       const claveTentTxt = plan.claveTentacion ? _labelDeClave(plan.claveTentacion) : null;
-      const tentacion = plan.idTotal ? ` En conjunto, ${claveTentTxt ? claveTentTxt.toLowerCase() : "el total"} suma ${R(plan.idTotal)}${plan.idShare ? `; ${plan.miembros[0]} concentra el ${R(plan.idShare)}` : ""}.` : "";
+      const tentacion = plan.idTotal ? ` En conjunto, ${claveTentTxt ? _sinSufijoDolar(claveTentTxt).toLowerCase() : "el total"} suma ${R(plan.idTotal)}${plan.idShare ? `; ${plan.miembros[0]} concentra el ${R(plan.idShare)}` : ""}.` : "";
       const texto = `Sobre ${_DOM_NOMBRE[plan.tema] || plan.tema}: hay ${kTxt}${mTxt ? ` de ${mTxt}` : ""} en ${uTxt || "el universo declarado"}${plan.miembros.length ? `: ${plan.miembros.join(", ")}` : ""}.${tentacion}`;
       entrega.respuesta.push({ texto, hechos: [plan.idConteo, plan.idTotal, plan.idShare].filter(Boolean) });
       for (const nombre of plan.miembros) {
@@ -1797,9 +2149,36 @@ export function componerEntrega(resolucion) {
   entrega.respuesta = entrega.respuesta.filter((r) => r.hechos.length || r._definicion);
   if (!entrega.respuesta.length) return _vacia("ninguna parte produjo una oración con evidencia — nada que servir");
 
+  // ═══ CORTE 3d.1 — RENDER de la iniciativa (candado i: se anexa DESPUÉS de todo lo pedido, nunca insertada en
+  // medio — lo pedido queda byte-idéntico esté la iniciativa encendida o no). `Riniciativa` renderiza contra
+  // `libroIniciativa` (nunca `libro`, el de arriba — un id `i*` no existe ahí) pero empuja a la MISMA
+  // `cifrasImpresas` que ya audita la regla «cero cifras desnudas» (verificar.js regla 1). ──
+  const idsIniciativaUsados = [];
+  const ofertaIdsIniciativa = [];
+  const _ofertasIniciativaTexto = [];   // se funde en `entrega.queMasPuedoCalcular.puedo` más abajo — ese campo se REASIGNA entero al final de esta función, así que empujar acá se perdería.
+  if (iniciativaSinDuplicar.length) {
+    const Riniciativa = (id) => { const v = libroIniciativa ? renderDe(libroIniciativa, id) : null; if (v != null) cifrasImpresas.push(v); return v; };
+    const principales = iniciativaSinDuplicar.filter((c) => c.nivel === "principal");
+    const ofertas = iniciativaSinDuplicar.filter((c) => c.nivel === "oferta");
+    if (principales.length) {
+      entrega.respuesta.push({ texto: "", hechos: [], _marcaIniciativa: true });
+      for (const c of principales) {
+        entrega.respuesta.push({ texto: c.render(Riniciativa), hechos: c.hechos, solicitud: "iniciativa", _iniciativa: true });
+        idsIniciativaUsados.push(...c.hechos);
+      }
+    }
+    for (const c of ofertas) {
+      _ofertasIniciativaTexto.push(`▹ ${c.render(Riniciativa)}`);
+      idsIniciativaUsados.push(...c.hechos);
+      ofertaIdsIniciativa.push(...c.hechos);
+    }
+  }
+
   // ── MARCO, LÍMITES (noResuelto + ausencias), REFERENCIA DEL OFICIO, QUÉ MÁS PUEDO CALCULAR ──
   const nClientes = ejesDelTenant.cliente ? ejesDelTenant.cliente.length : null;
-  const { periodo } = _periodoDelMarco(figsUsadas);
+  // (1) CORRECCIÓN DEL SUPERVISOR (2026-09-25) — el marco por dominio: cobranza NUNCA se declara "inventario"
+  // (ver la cabecera de `_periodoGeneralPorDominio`, arriba).
+  const { periodo } = _periodoGeneralPorDominio({ figsUsadas, temasCubiertos, rp, plan });
   const { empresaNombre, perfil } = _identidadDelTenant();
   entrega.marco = {
     ...entrega.marco,
@@ -1817,6 +2196,10 @@ export function componerEntrega(resolucion) {
 
   entrega.limites = [..._limitesDeclarados(resolucion, temasCubiertos), ...limitesGap, ...entrega.limites];
   { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
+  // (d) CORRECCIÓN DEL SUPERVISOR (2026-09-25) — «toda Entrega que sirve cobranza declara que el dato no trae
+  // la antigüedad del vencido por tramos» (ya decidido; sale de `ausencias.js`, nunca de la pieza CAU-01 en
+  // borrador). Solo en el camino GENERAL: las 4 rutas fijas quedan byte a byte, sin tocar.
+  if (temasCubiertos.has("cobranza")) { const la = _limiteDeAusencia("sin_antiguedad_vencido"); if (la) entrega.limites.push(la); }
 
   // entidades del USUARIO (ley «pertinencia por encargo», owner 2026-09-24): salen de `resolucion`, NUNCA del texto.
   const entidadesDelUsuario = [...new Set(partesUtiles.flatMap((p) => (p.entidades || []).map((e) => e.nombre)))];
@@ -1827,15 +2210,79 @@ export function componerEntrega(resolucion) {
     if (p.kind === "multitema") return Object.values(p.lideres).map((L) => L.x.entidad);
     return [];
   }))];
-  const _refOficio = referenciaDelOficioConOfertas({ perfil, pregunta: "", entidadesEnRespuesta, entidadesDeLaPregunta: entidadesDelUsuario, scenario });
+  // CORTE 3d.2 — `encargoDeLaTabla` reemplaza `pregunta: ""` por el objeto tipado: la pertinencia se decide por
+  // la FORMA del encargo (temas/métricas/prioridad/sujeto), nunca por una cadena de texto vacía ni por prosa.
+  const encargoDeLaTabla = construirEncargoDeLaTabla(partesUtiles, { criterio: resolucion.criterio });
+  const _refOficio = referenciaDelOficioConOfertas({ perfil, pregunta: "", entidadesEnRespuesta, entidadesDeLaPregunta: entidadesDelUsuario, scenario, encargo: encargoDeLaTabla });
   entrega.referenciaDelOficio = _refOficio.salida;
 
-  entrega.queMasPuedoCalcular = { puedo: [..._ofertasTexto(_refOficio.ofertas), "Otro corte del mismo encargo (por entidad, por eje, comparado o simulado)"], noPuedo: ["Lo que el dato no trae (ver «Lo que no se puede concluir»)"] };
+  // (c) CORRECCIÓN DEL SUPERVISOR (2026-09-25) — ofertas CONCRETAS del catálogo de este encargo (entidad/eje/
+  // tema con su cifra-gancho cuando existe), nunca solo el genérico "Otro corte..." (se conserva como ÚLTIMO
+  // recurso, si el encargo no dejó ningún candidato concreto — nunca una sección vacía).
+  const ofertasConcretas = _ofertasConcretas(planes, R);
+  if (!ofertasConcretas.length) ofertasConcretas.push("Otro corte del mismo encargo (por entidad, por eje, comparado o simulado)");
+  entrega.queMasPuedoCalcular = { puedo: [..._ofertasTexto(_refOficio.ofertas), ...ofertasConcretas, ..._ofertasIniciativaTexto], noPuedo: ["Lo que el dato no trae (ver «Lo que no se puede concluir»)"] };
+
+  // (c) CORRECCIÓN DEL SUPERVISOR (2026-09-25) — «Para su juicio» se llena con lo que YA EXISTE, nunca queda
+  // vacía sin razón: la pregunta al dueño de `rolesCartera` (la MISMA que ya arma la ruta fija de brecha
+  // comercial) y las hipótesis con su apoyo (carga comercial, cuando la conclusión de una entidad la trajo).
+  // Un dominio sin entidad representativa NO fuerza una pregunta sin sujeto — se omite, no se inventa a quién
+  // preguntarle (`_entidadRepresentativaDeTema` declina en vez de adivinar).
+  entrega.paraSuJuicio = [];
+  // `buildRolesCartera` pregunta por HASTA DOS cuentas del PORTAFOLIO ENTERO (las de mayor volumen con brecha —
+  // rolesCartera.js:candidatos), sin relación con lo que ESTE encargo pidió: nombrarlas en un `cifra` de UNA
+  // entidad puntual (ej. "cuánto le vendimos a Jumbo") filtraría cuentas prohibidas por el contrato de
+  // pertinencia (medido: D01/D05 del catálogo). Se limita a cuando comercial ES una lectura de CARTERA —
+  // multitema, o un grupo/ranking por CLIENTE — nunca cuando el encargo es puntual sobre una entidad o sobre
+  // otro eje (marca/familia/etc., donde "cartera de clientes" no aplica).
+  const _comercialEsDeCartera = planes.some((p) => (p.kind === "multitema" && p.temas.includes("comercial"))
+    || ((p.kind === "grupo" || p.kind === "grupoUniverso") && p.tema === "comercial" && p.eje === "cliente"));
+  if (temasCubiertos.has("comercial") && _comercialEsDeCartera) {
+    let rolesGeneral = null;
+    try { rolesGeneral = buildRolesCartera(scenario); } catch { rolesGeneral = null; }
+    if (rolesGeneral && rolesGeneral.hay && rolesGeneral.preguntaAlDueno) entrega.paraSuJuicio.push({ texto: `Solo usted puede responder: ${rolesGeneral.preguntaAlDueno.texto}`, hechos: [] });
+  }
+  if (temasCubiertos.has("comercial")) {
+    for (const p of planes) {
+      if (p.kind !== "entidad" || p.tema !== "comercial") continue;
+      for (const { entidad, conclusion } of p.filasPorEntidad) {
+        if (conclusion && conclusion.tipo === "comercial" && conclusion.idCarga != null) {
+          entrega.paraSuJuicio.push({ texto: `Hipótesis no demostrada: parte de la brecha de ${entidad} está en la carga comercial (apoyo: ${R(conclusion.idCarga)} de carga comercial alta medida en esa cuenta).`, hechos: [conclusion.idCarga] });
+        }
+      }
+    }
+  }
+  if (temasCubiertos.has("inventario")) {
+    const entidadInv = _entidadRepresentativaDeTema("inventario", planes);
+    if (entidadInv) entrega.paraSuJuicio.push({ texto: `Solo usted puede responder: ¿qué pasó con ${entidadInv} — fue una sobrecompra, un cambio de temporada, un cliente que no retiró, o un proveedor que llegó tarde? El dato mide cuánto está frenado, no por qué.`, hechos: [] });
+  }
+  if (temasCubiertos.has("cobranza")) {
+    const entidadCob = _entidadRepresentativaDeTema("cobranza", planes);
+    if (entidadCob) entrega.paraSuJuicio.push({ texto: `Solo usted puede responder: la deuda de ${entidadCob}, ¿responde a un plazo pactado más largo o a que dejó de pagar a tiempo? El dato mide cuánto y desde cuándo, no por qué.`, hechos: [] });
+  }
+
+  // (e) CORRECCIÓN DEL SUPERVISOR (2026-09-25) — unidades abreviadas fuera de la tabla de Cifras: "269d" → "269
+  // días" SOLO en la prosa (Respuesta/Para su juicio) del camino GENERAL — la tabla de Cifras y las 4 rutas
+  // fijas (que arman su propio texto, nunca por acá) no se tocan. El número YA está registrado en
+  // `cifrasImpresas` (vía `R`, antes de esta transformación de texto): la regla 1 lo sigue reconociendo porque
+  // compara por SUBCADENA ("269".includes en "269d").
+  const _desabreviarDias = (t) => String(t || "").replace(/\b(\d+(?:[.,]\d+)?)d\b/g, "$1 días");
+  entrega.respuesta = entrega.respuesta.map((r) => ({ ...r, texto: _desabreviarDias(r.texto) }));
+  entrega.paraSuJuicio = entrega.paraSuJuicio.map((p) => ({ ...p, texto: _desabreviarDias(p.texto) }));
+
   entrega.temasCubiertos = [...temasCubiertos];
-  // `libroPremisas` es un campo ADITIVO (corte 3c, pieza 3): nunca reemplaza `libro` (el que `verificarEntrega`
-  // audita con la regla 9) — es el libro APARTE de las premisas, para que un gate o el owner puedan auditar el
-  // veredicto de cada una sin tener que reconstruirlo.
-  entrega.procedencia = { libro, cifrasImpresas, libroPremisas };
+  // CORTE 3d.1 (owner 2026-09-25) — la traza estructural de la iniciativa: `ids` (verificados y SERVIDOS, en
+  // Respuesta o en la oferta — «una señal nunca desaparece»), `ofertaIds` (subconjunto que salió como oferta,
+  // no como texto principal), `calls` (llamadas ➕ usadas — siempre 0 en este corte, ver la cabecera de
+  // `iniciativa.js`) y `on` (el interruptor efectivo, ya resuelto del encargo). `detalle.iniciativaNoVerificada`
+  // es DONDE van los hechos de iniciativa que no verificaron: no se sirven y no tumban la Entrega, pero tampoco
+  // desaparecen sin rastro.
+  entrega.iniciativa = { ids: idsIniciativaUsados, ofertaIds: ofertaIdsIniciativa, calls: 0, on: iniciativaOn };
+  entrega.detalle = { iniciativaNoVerificada };
+  // `libroPremisas`/`libroIniciativa` son campos ADITIVOS (corte 3c pieza 3 / corte 3d.1): ninguno reemplaza
+  // `libro` (el que `verificarEntrega` audita con la regla 9) — son los libros APARTE, para que un gate o el
+  // owner puedan auditar su veredicto sin tener que reconstruirlo.
+  entrega.procedencia = { libro, cifrasImpresas, libroPremisas, libroIniciativa };
 
   const texto = _textoDeLaEntrega(entrega, "Su encargo");
   return { texto, entrega, libro, ok: true, motivo: "" };
@@ -1860,7 +2307,15 @@ function _textoDeLaEntrega(entrega, titulo = "¿Dónde deja de ganar?") {
   L.push(`**Marco.** ${cabezaMarco}${cabezaMarco && !/[.!?]\s*$/.test(cabezaMarco) ? ". " : cabezaMarco ? " " : ""}${m.definiciones.join(" ")} ${m.referenciaDeclarada ? m.referenciaDeclarada.texto : ""}`.trim());
   L.push("");
   L.push("**Respuesta.**");
-  for (const r of entrega.respuesta) L.push(`▸ ${r.texto}`);
+  // CORTE 3d.1 (owner 2026-09-25) — la iniciativa de CFO se distingue de lo pedido en TRES capas (§A.5): la
+  // marca de texto de la casa (`MARCA_INICIATIVA`, una constante — el owner la cambia sin tocar código), el
+  // glifo `▹` (vs. `▸` de lo pedido) y el campo estructural `solicitud:"iniciativa"` (ver `entrega.respuesta[i]`).
+  // Sin iniciativa (encargo apagado o catálogo vacío) NINGUNA oración trae `_marcaIniciativa`/`_iniciativa`, así
+  // que este bloque es un no-op — byte a byte lo mismo que antes del corte.
+  for (const r of entrega.respuesta) {
+    if (r._marcaIniciativa) { L.push(`**${MARCA_INICIATIVA}**`); continue; }
+    L.push(`${r._iniciativa ? "▹" : "▸"} ${r.texto}`);
+  }
   L.push("");
   L.push(`**Cifras.**`);
   L.push(`| ${entrega.cifras.columnas.join(" | ")} |`);
@@ -1874,9 +2329,14 @@ function _textoDeLaEntrega(entrega, titulo = "¿Dónde deja de ganar?") {
   if (entrega.referenciaDelOficio.length) for (const r of entrega.referenciaDelOficio) L.push(`- ${r.texto}`);
   else L.push("- Sin conocimiento del sector cargado todavía (ver «Lo que no se puede concluir»).");
   L.push("");
-  L.push("**Para su juicio.**");
-  for (const p of entrega.paraSuJuicio) L.push(`- ${p.texto}`);
-  L.push("");
+  // (c) CORRECCIÓN DEL SUPERVISOR (2026-09-25) — «una sección sin contenido no se imprime»: las 4 rutas fijas
+  // SIEMPRE dejan `paraSuJuicio` con ≥1 ítem (verificado); esta condición es un no-op para ellas y solo actúa
+  // en el camino general cuando de verdad no hay nada que preguntar.
+  if (entrega.paraSuJuicio.length) {
+    L.push("**Para su juicio.**");
+    for (const p of entrega.paraSuJuicio) L.push(`- ${p.texto}`);
+    L.push("");
+  }
   L.push("**Qué más puedo calcular.** " + entrega.queMasPuedoCalcular.puedo.join(" · ") + ". **No puedo:** " + entrega.queMasPuedoCalcular.noPuedo.join(" · ") + ".");
   return L.join("\n");
 }
