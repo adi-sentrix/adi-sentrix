@@ -40,6 +40,16 @@
  * "propuesta" acá, porque ningún campo de este perfil nace de una brecha, de un supuesto de simulación ni de
  * una recomendación).
  *
+ * ⚠️ LA MONEDA ES LA EXCEPCIÓN, CORREGIDA POR EL SUPERVISOR (2026-09-26). Los cinco campos del camino B
+ * (sector/tipoProducto/país/modeloComercial/tamanoBanda) siguen con el vocabulario de 012: "medido" = lo tipeó
+ * el usuario. Para la MONEDA eso era la mezcla de procedencias que prohíbe la ley de los cuatro orígenes del
+ * owner (2026-09-25): con `notario/hechos.js:ORIGENES`, "medido" significa lo que ADI MIDE sobre el dato de la
+ * empresa — y la moneda nunca se mide ni se deriva, siempre la declara la empresa. Por eso, SOLO para moneda,
+ * la procedencia correcta y la que este módulo escribe de ahora en más es **"declarado"** (migración 015: el
+ * check de `tenants.moneda_procedencia` ya solo admite ese valor, con los `'medido'` viejos migrados). La
+ * LECTURA de acá sigue aceptando el legado `'medido'` de una fila no migrada y lo trata como `'declarado'` —
+ * nunca como un tercer significado.
+ *
  * NO pasa por `notario/hechos.js:libroDeHechos()` — esa maquinaria verifica CIFRAS de la boleta (una `fig` con
  * `.tipo.verificabilidad`, para arbitrar sumas/restas/razones); estos son campos de IDENTIDAD del tenant, leídos
  * directo del objeto tenant, en el mismo patrón que `entrega/componer.js` ya usa para `marco.empresa` /
@@ -117,7 +127,13 @@ export function perfilEmpresaDesdeFilaTenant(fila) {
       campos[campo] = { valor, procedencia };
     }
   }
-  const moneda = typeof fila.moneda === "string" && /^[A-Z]{2,6}$/.test(fila.moneda) ? fila.moneda : null;
+  // ★ CORRECCIÓN DEL SUPERVISOR (2026-09-26): la única procedencia válida de la moneda es "declarado"; se acepta
+  // también el legado "medido" (012/013, antes de que la 015 corrigiera el vocabulario) y se trata igual — nunca
+  // "derivado" (la moneda no se infiere, ni siquiera acá). Sin columna de procedencia (una fila de antes de la
+  // 012, o un tenant fabricado a mano sin ese campo) se sigue aceptando por FORMATO solo, como siempre: esta
+  // función no vuelve más estricta una fila que ya funcionaba.
+  const procedenciaMonedaOk = fila.moneda_procedencia == null || fila.moneda_procedencia === "declarado" || fila.moneda_procedencia === "medido";
+  const moneda = typeof fila.moneda === "string" && /^[A-Z]{2,6}$/.test(fila.moneda) && procedenciaMonedaOk ? fila.moneda : null;
   if (!Object.keys(campos).length && !moneda) return null;
   return { campos, moneda };
 }
@@ -180,7 +196,10 @@ export function construirPerfilCliente(tenant) {
       motivo: "no se declara en la plantilla ni en la pantalla de carga; no se deriva de la moneda (varios países comparten moneda — la misma ley que prohíbe inferir la moneda corre también en esta dirección)",
     },
     moneda: monedaCod
-      ? { valor: monedaCod, procedencia: "medido", fuente: "tenant.perfil.moneda — hoja Empresa (config/contract/plantilla.js:PARAMETROS clave \"moneda\") o la pantalla de carga si el archivo no la trae (ui/PanelDatos.jsx), o heredada de una carga anterior de la misma empresa (camino B, `tenants.moneda`)" }
+      // ★ CORREGIDO (supervisor, 2026-09-26): "declarado", no "medido" — la moneda siempre la declara la
+      // empresa (por el archivo o por la pantalla de carga), nunca la mide ADI ni la deriva el motor; con la
+      // ley de los cuatro orígenes, "medido" es lo que ADI mide sobre el dato, no lo que la empresa declara.
+      ? { valor: monedaCod, procedencia: "declarado", fuente: "tenant.perfil.moneda — hoja Empresa (config/contract/plantilla.js:PARAMETROS clave \"moneda\") o la pantalla de carga si el archivo no la trae (ui/PanelDatos.jsx), o heredada de una carga anterior de la misma empresa (camino B, `tenants.moneda`)" }
       : { valor: null, procedencia: null, fuente: null, motivo: "el cliente todavía no la declaró (ni en el archivo ni en la pantalla de carga, ni en una carga anterior de esta empresa)" },
     modeloComercial: _delPerfilDeEmpresa(t, "modeloComercial") || {
       valor: null, procedencia: null, fuente: null,

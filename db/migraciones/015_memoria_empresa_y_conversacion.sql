@@ -10,7 +10,7 @@
 -- ⚠️ ESTO ES UN ARCHIVO, NO UN HECHO EN LA BASE — igual que 012/013/014: no se aplicó contra ningún proyecto de
 -- Supabase. Aplicar una migración es un paso de despliegue que esta tarea no tiene autorización de dar.
 --
--- TRES PIEZAS, EN ESTE ORDEN:
+-- CUATRO PIEZAS, EN ESTE ORDEN:
 --   1 · `memoria_empresa` — tabla NUEVA (la ÚNICA memoria de empresa: absorbe lo que hoy vive disperso en
 --       `pack.perfil.diario` (007) y `pack.perfil.contexto` (011) — REVISIÓN 2 del supervisor, textual: «UNA
 --       memoria de empresa que absorbe diario y contexto, con migración de datos», en vez de una TERCERA tabla
@@ -27,9 +27,17 @@
 --       hoy esos checks solo admiten `medido|derivado` (hallazgo 3 de `_ADI_DISENO_FLUJO_V2.md`), y un campo del
 --       perfil que la empresa declara conversando con el LLM (Etapa 3, «perfil conversando») es exactamente un
 --       origen «declarado» — no una decisión nueva, la registra el diseño v2 revisado por el supervisor.
---       ⚠️ `moneda_procedencia` NO se toca: su check estructural («SOLO `medido`») es una ley aparte («la moneda
---       nunca se infiere, ni siquiera acá», 012) y en su vocabulario `'medido'` YA significa «lo declaró el
---       usuario» — agregar `'declarado'` ahí sería una tercera palabra para la misma idea, no una capacidad nueva.
+--       ⚠️ CORRECCIÓN DEL SUPERVISOR (2026-09-26) SOBRE LA MONEDA — la primera versión de esta migración dejaba
+--       `moneda_procedencia` intacta («SOLO `medido`»), razonando que en el vocabulario de 012 `'medido'` YA
+--       significaba «lo declaró el usuario». Es la MEZCLA de procedencias que el owner prohibió (ley de los
+--       cuatro orígenes, 2026-09-25): en ESE vocabulario, «medido» significa lo que ADI mide sobre el dato de la
+--       empresa — nunca lo que la empresa declara. La moneda SIEMPRE la declara la empresa (nunca se mide sobre
+--       el archivo, nunca se deriva — «la moneda nunca se infiere, ni siquiera acá», 012), así que su única
+--       procedencia correcta es `'declarado'`. Corregido: `moneda_procedencia` pasa a admitir SOLO `'declarado'`
+--       (nunca `'medido'`, nunca `'derivado'` — la ley de «nunca se infiere» se mantiene igual de dura, con la
+--       palabra correcta) y los valores `'medido'` que ya existieran se migran a `'declarado'` (pieza 4, §5).
+--   4 · La corrección de `moneda_procedencia` (arriba) + su migración de datos + `adi_declarar_perfil_empresa`
+--       redefinida para escribir `'declarado'` en vez de `'medido'` de ahora en más.
 --
 -- IDEMPOTENTE, como las cinco anteriores: correrla dos veces seguidas es inocua.
 
@@ -376,6 +384,91 @@ alter table public.tenants drop constraint if exists tenants_tamano_banda_proced
 alter table public.tenants add constraint tenants_tamano_banda_procedencia_check
   check (tamano_banda_procedencia is null or tamano_banda_procedencia in ('medido', 'derivado', 'declarado'));
 
--- ⚠️ `tenants_moneda_procedencia_check` (012) NO SE TOCA A PROPÓSITO — ver la cabecera de este archivo, §0:
--- sigue aceptando SOLO 'medido' ("la moneda nunca se infiere, ni siquiera acá"), y en ese vocabulario 'medido'
--- YA significa "lo declaró el usuario". Agregar 'declarado' ahí sería una tercera palabra para la misma idea.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════════
+-- 5 · LA MONEDA · CORRECCIÓN DEL SUPERVISOR (2026-09-26) — `moneda_procedencia` pasa a admitir SOLO 'declarado'
+-- ════════════════════════════════════════════════════════════════════════════════════════════════════
+-- Ver la cabecera de este archivo, §0, punto 3. La moneda SIEMPRE la declara la empresa (por el archivo o por
+-- la pantalla de carga) — nunca la MIDE ADI sobre datos ni la DERIVA el motor. Con la ley de los cuatro
+-- orígenes, eso es «declarado», no «medido» (en `notario/hechos.js:ORIGENES`, «medido» es lo que ADI mide
+-- sobre el dato de la empresa). El check de 012 («SOLO `medido`») tenía la ley correcta («nunca se infiere») con
+-- la PALABRA equivocada — se corrige la palabra, la ley no se afloja: sigue sin admitir `'derivado'`.
+alter table public.tenants drop constraint if exists tenants_moneda_procedencia_check;
+alter table public.tenants add constraint tenants_moneda_procedencia_check
+  check (moneda_procedencia is null or moneda_procedencia = 'declarado');
+
+-- MIGRACIÓN DE DATOS: todo `'medido'` que ya existiera (escrito por `adi_declarar_perfil_empresa` de 012/013,
+-- bajo el vocabulario viejo) pasa a `'declarado'` — el MISMO hecho («la empresa lo declaró»), con la palabra
+-- correcta. No es un cambio de qué se sabe, es corregir cómo se lo llama; ningún valor de `moneda` se toca.
+update public.tenants set moneda_procedencia = 'declarado' where moneda_procedencia = 'medido';
+
+-- `adi_declarar_perfil_empresa` (013) escribía `moneda_procedencia = 'medido'` — con el check de arriba ya
+-- corregido, seguir escribiendo 'medido' rompería la PRÓXIMA declaración de moneda. Se redefine con la MISMA
+-- firma (mismo patrón que 013 usó sobre 012: `create or replace`, no se reescribe la migración vieja) y el
+-- único cambio es esa palabra.
+create or replace function public.adi_declarar_perfil_empresa(
+  p_sector_codigo                text default null,
+  p_sector_procedencia           text default null,
+  p_tipo_producto_codigo         text default null,
+  p_tipo_producto_procedencia    text default null,
+  p_pais_codigo                  text default null,
+  p_pais_procedencia             text default null,
+  p_modelo_comercial_codigo      text default null,
+  p_modelo_comercial_procedencia text default null,
+  p_tamano_banda_codigo          text default null,
+  p_tamano_banda_procedencia     text default null,
+  p_moneda                       text default null
+)
+returns table (
+  id                             text,
+  sector_codigo                  text,
+  tipo_producto_codigo           text,
+  pais_codigo                    text,
+  modelo_comercial_codigo        text,
+  tamano_banda_codigo            text,
+  moneda                         text
+)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_tenant text;
+  v_moneda text;
+begin
+  v_tenant := adi.tenant_actual();
+  if v_tenant is null then
+    raise exception 'sin pase: no se declara nada sin saber de qué empresa es';
+  end if;
+
+  v_moneda := nullif(upper(trim(coalesce(p_moneda, ''))), '');
+  if v_moneda is not null and v_moneda !~ '^[A-Z]{2,6}$' then
+    v_moneda := null;
+  end if;
+
+  update public.tenants set
+    sector_codigo                  = coalesce(p_sector_codigo, sector_codigo),
+    sector_procedencia             = coalesce(p_sector_procedencia, sector_procedencia),
+    tipo_producto_codigo           = coalesce(p_tipo_producto_codigo, tipo_producto_codigo),
+    tipo_producto_procedencia      = coalesce(p_tipo_producto_procedencia, tipo_producto_procedencia),
+    pais_codigo                    = coalesce(p_pais_codigo, pais_codigo),
+    pais_procedencia               = coalesce(p_pais_procedencia, pais_procedencia),
+    modelo_comercial_codigo        = coalesce(p_modelo_comercial_codigo, modelo_comercial_codigo),
+    modelo_comercial_procedencia   = coalesce(p_modelo_comercial_procedencia, modelo_comercial_procedencia),
+    tamano_banda_codigo            = coalesce(p_tamano_banda_codigo, tamano_banda_codigo),
+    tamano_banda_procedencia       = coalesce(p_tamano_banda_procedencia, tamano_banda_procedencia),
+    moneda                         = coalesce(v_moneda, moneda),
+    -- ★ CORREGIDO (015): 'declarado', no 'medido' — la moneda siempre la declara la empresa.
+    moneda_procedencia             = case when v_moneda is not null then 'declarado' else moneda_procedencia end
+  where id = v_tenant;
+
+  return query
+    select t.id, t.sector_codigo, t.tipo_producto_codigo, t.pais_codigo, t.modelo_comercial_codigo,
+           t.tamano_banda_codigo, t.moneda
+      from public.tenants t
+     where t.id = v_tenant;
+end;
+$$;
+
+grant execute on function public.adi_declarar_perfil_empresa(
+  text, text, text, text, text, text, text, text, text, text, text
+) to adi_tenant;

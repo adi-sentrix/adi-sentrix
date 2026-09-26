@@ -50,17 +50,25 @@ H("3 · el tope de `conversaciones.estado` es el MISMO que `libro.js:LIBRO_TOPE_
   ok(sql.includes("16384") && sql.match(/16384/g).length >= 2, "el número aparece más de una vez (el check de la tabla y la función de guardado — la doble validación del diseño, como 007)");
 }
 
-/* ═══ 4 · EL PERFIL — «declarado» se agrega a los CINCO checks de procedencia, la moneda NO se toca ═══ */
-H("4 · `'declarado'` entra en los cinco checks de procedencia del perfil; `moneda_procedencia` queda intacta");
+/* ═══ 4 · EL PERFIL — «declarado» se agrega a los CINCO checks de procedencia ═══ */
+H("4 · `'declarado'` entra en los cinco checks de procedencia del perfil");
 {
   const camposConDeclarado = ["sector_procedencia", "tipo_producto_procedencia", "pais_procedencia", "modelo_comercial_procedencia", "tamano_banda_procedencia"];
   for (const campo of camposConDeclarado) {
     const re = new RegExp(`check \\(${campo} is null or ${campo} in \\('medido', 'derivado', 'declarado'\\)\\)`);
     ok(re.test(sql), `«${campo}» admite ahora medido·derivado·declarado`);
   }
-  ok(/check \(moneda_procedencia is null or moneda_procedencia = 'medido'\)/.test(sql) === false, "la 015 no vuelve a declarar el check de moneda (no lo toca en absoluto)");
-  ok(!/moneda_procedencia in \([^)]*'declarado'/.test(sql), "★ CARNADA · «declarado» NUNCA se cuela en el check de `moneda_procedencia`");
-  ok(/tenants_moneda_procedencia_check/i.test(sql) === false || /NO SE TOCA/i.test(sql), "si se nombra el check de moneda, es solo para decir que no se toca");
+}
+
+/* ═══ 4b · LA MONEDA — CORRECCIÓN DEL SUPERVISOR (2026-09-26): admite SOLO 'declarado', nunca 'medido'/'derivado' ═══ */
+H("4b · `moneda_procedencia` pasa a admitir SOLO 'declarado' (nunca 'medido' ni 'derivado'); se migran los datos");
+{
+  ok(/check \(moneda_procedencia is null or moneda_procedencia = 'declarado'\)/.test(sql), "el check de `moneda_procedencia` admite ÚNICAMENTE 'declarado'");
+  ok(!/check \(moneda_procedencia is null or moneda_procedencia = 'medido'\)/.test(sql), "★ CARNADA · el check viejo (SOLO 'medido') ya no está — se reemplazó, no se duplicó");
+  ok(!/moneda_procedencia in \([^)]*'derivado'/.test(sql), "★ CARNADA · «derivado» NUNCA entra al check de `moneda_procedencia` — la moneda no se infiere, ni con la palabra corregida");
+  ok(/update public\.tenants set moneda_procedencia = 'declarado' where moneda_procedencia = 'medido'/.test(sql), "★ la migración de DATOS existe: todo 'medido' persistido pasa a 'declarado', con su porqué en el comentario de al lado");
+  ok(/moneda_procedencia\s*=\s*case when v_moneda is not null then 'declarado' else moneda_procedencia end/.test(sql), "`adi_declarar_perfil_empresa` (redefinida en la 015) escribe 'declarado' de ahora en más, no 'medido'");
+  ok(/moneda_procedencia\s*=\s*case when v_moneda is not null then 'medido' else moneda_procedencia end/.test(sqlAnterior012), "la función de la 012 (histórica, sin editar) seguía escribiendo 'medido' — la 015 es la que la corrige, con `create or replace` (patrón de 013 sobre 012)");
 
   // los cinco checks de 012 admitían SOLO medido|derivado — se prueba que la 012 (sin tocar) sigue así, para que
   // quede claro que el cambio de vocabulario es responsabilidad de la 015 y no una edición retroactiva de la 012.

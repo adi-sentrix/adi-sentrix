@@ -456,8 +456,11 @@ H("13 · perfilCliente.js — el perfil, falla cerrado, sobre TENANT_DEMO real (
   ok(!!perfil && perfil.empresa && perfil.empresa.nombre === "ADI Demo" && perfil.empresa.id === "demo", "el perfil trae la identidad real del tenant (id/nombre), no inventada", JSON.stringify(perfil && perfil.empresa));
   ok(Array.isArray(CAMPOS_DEL_PERFIL) && CAMPOS_DEL_PERFIL.length === 6, "los seis campos del plan §3: sector · tipoProducto · tamaño · país · moneda · modelo comercial", CAMPOS_DEL_PERFIL.join(","));
 
-  // LO QUE SÍ ESTÁ DECLARADO HOY, medido: la moneda (TENANT_DEMO.perfil.moneda = "CLP", demo.js línea 449)
-  ok(perfil.campos.moneda.valor === "CLP" && perfil.campos.moneda.procedencia === "medido", "moneda: declarada por el tenant (\"medido\") — el ÚNICO campo con valor hoy", JSON.stringify(perfil.campos.moneda));
+  // LO QUE SÍ ESTÁ DECLARADO HOY: la moneda (TENANT_DEMO.perfil.moneda = "CLP", demo.js línea 449).
+  // ★ CORREGIDO (supervisor, 2026-09-26): procedencia "declarado", no "medido" — la moneda siempre la declara
+  // la empresa, nunca la mide ADI ni la deriva el motor (ley de los cuatro orígenes, notario/hechos.js:ORIGENES;
+  // migración 015 corrige el check de `tenants.moneda_procedencia` al mismo vocabulario).
+  ok(perfil.campos.moneda.valor === "CLP" && perfil.campos.moneda.procedencia === "declarado", "moneda: declarada por el tenant (\"declarado\") — el ÚNICO campo con valor hoy", JSON.stringify(perfil.campos.moneda));
 
   // LO QUE ES DERIVABLE EN VALOR pero no en banda: la venta anual real (ventasKPI.totalActual × factorComercialDe)
   const ventaEsperada = Math.round(TENANT_DEMO.ventasKPI.totalActual * 1e3);   // demo declara escalaComercial "K"
