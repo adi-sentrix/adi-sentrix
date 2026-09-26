@@ -319,7 +319,11 @@ export const nombreDeEstado = (canon) => _NOMBRE_DE_ESTADO[canon] || canon;
 const _canonDe = (e) => estadoCanon(String(e || "").replace(/_/g, " "));
 const _ESTADOS_COBRANZA = new Set(["al dia", "en mora", "sin deuda", "sin pagos", "buen pagador", "mal pagador"]);
 const _ESTADOS_COMERCIAL = new Set(["sin contribucion", "sin margen"]);
-const dominioDeEstado = (canon) => (_ESTADOS_COBRANZA.has(canon) ? "cobranza" : _ESTADOS_COMERCIAL.has(canon) ? "comercial" : ESTADOS_CANON.has(canon) ? "inventario" : null);
+/* CORTE 3c (owner 2026-09-25, pieza 3 «veredicto de premisas») — EXPORTADA (antes privada): `entrega/componer.js`
+ * necesita la MISMA tabla para decidir a qué parte del encargo pertenece una premisa de tipo `estado` (¿la parte
+ * de cobranza o la de inventario?), sin reimplementar el mapa canon→dominio en un segundo archivo («una sola
+ * verdad»). El cuerpo no cambió: solo se agrega `export`. */
+export const dominioDeEstado = (canon) => (_ESTADOS_COBRANZA.has(canon) ? "cobranza" : _ESTADOS_COMERCIAL.has(canon) ? "comercial" : ESTADOS_CANON.has(canon) ? "inventario" : null);
 
 /* ── el nombre de un universo tipado, escrito por la casa (la plantilla de {id.universo}) ── */
 const _OPS = { ">": "superior a", ">=": "de al menos", "<": "inferior a", "<=": "de hasta", "==": "igual a" };

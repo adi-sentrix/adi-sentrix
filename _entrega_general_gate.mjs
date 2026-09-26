@@ -1,5 +1,21 @@
-/* === _entrega_general_gate.mjs · LA ENTREGA PARA CUALQUIER ENCARGO SOPORTADO — ETAPA 1 · CORTE 3b (owner
+/* === _entrega_general_gate.mjs · LA ENTREGA PARA CUALQUIER ENCARGO SOPORTADO — ETAPA 1 · CORTE 3b + 3c (owner
  * 2026-09-25, offline) ═══════════════════════════════════════════════════════════════════════════════════════
+ * EXTENDIDO EN EL CORTE 3c (owner 2026-09-25) — tres piezas, todas sobre `componerEntrega(resolucion)`:
+ *   1 · UNIVERSO POR ESTADO — D07/D14/D19 (universo con `estados`/`no_estados`/`filtros` SIN `top`) YA NO
+ *       declinan: `entrega/componer.js:_planCifraGrupoUniverso`/`_cerrarGrupoUniverso` resuelven el conjunto con
+ *       `conjuntoDeUniverso` (notario/verificar.js — la MISMA primitiva que ya evalúa un universo tipado para el
+ *       Notario v3) contra `I.rankings` (de `datoProyectado`, TODO el eje, no solo la boleta impresa) y declaran
+ *       un hecho `conteo` verificado (K de M). Sección 2 (antes 2b, ahora reescrita).
+ *   2 · TENTACIONES PRECALCULADAS — total + participación del primero, SOLO sobre un concepto monetario del
+ *       grupo (`claveTentacion`, independiente del concepto que ordena la lista: sumar una tasa no es una cifra
+ *       de la casa). Sección 3 (carnada: mezclar dos universos distintos no verifica).
+ *   3 · VEREDICTO DE PREMISAS — `resolucion.premisas` (ya validadas por FORMA en `validar.js`) se juzgan con el
+ *       MISMO `libroDeHechos` que verifica cada hecho de la Entrega, en un libro APARTE (`entrega.procedencia.
+ *       libroPremisas`) para que una premisa falsa nunca tumbe la Entrega — es información legítima, no un hecho
+ *       roto del compositor. La Entrega abre la parte correspondiente con el veredicto (verdadera/falsa —con la
+ *       verdad y su id— /no verificable); la conclusión de cada parte NUNCA lee la premisa (ley
+ *       «premisa-adoptada»). Sección 4.
+ *
  * Corre `src/adi/entrega/componer.js:componerEntrega(resolucion)` — el generalizador del corte 3b — sobre los
  * casos VÁLIDOS de `fixtures/encargos-desarrollo.json` (los mismos 44 que certifican `_encargo_gate` y
  * `_lecturas_gate`, cortes 1 y 3a) y verifica las garantías que pide el encargo del corte:
@@ -23,20 +39,19 @@
  *       `notario/hechos.js` que `componer.js` nunca pisa (candado directo sobre `procedenciaDe`/`NOMBRE_DE_
  *       PROCEDENCIA`, la MISMA tabla que arma la columna «Tipo»).
  *
- * GAP DECLARADO DEL CORTE (no una falla del gate): un `universo` con `estados`/`no_estados`/`filtros` sin `top`
- * sobre una parte SIN entidades (D07, D14, D19, single-parte) declina con un límite («el filtro no se aplica
- * todavía en este corte») en vez de listar sin filtrar. Cuando esa parte es la ÚNICA del encargo, `componerEntrega`
- * devuelve `ok:false` con el motivo nombrado (ninguna parte se sirvió — ver sección 2b); cuando conviven con
- * partes que SÍ se pueden componer, la parte no soportada sale como LÍMITE y el resto se sirve con `ok:true`
- * (sección 5 — corrección del supervisor, owner 2026-09-25: «una parte no soportada no puede tumbar la Entrega»).
- * El tope de tamaño por `profundidad` (D27, "sin corte 3c") queda igual: declarado, no forzado a pasar por 900
- * palabras — ver la cabecera de `componer.js`.
+ * GAP DEL CORTE 3b — CERRADO EN EL 3c PARA D07/D14/D19 (ver la pieza 1 de la cabecera). Lo que SIGUE fuera de
+ * alcance (no hay caso del catálogo que lo pida, así que no se fuerza): un universo con `estados`/`no_estados`/
+ * `filtros` COMBINADO con `top` en la MISMA parte — `componer.js` sigue declinando esa combinación con el límite
+ * de siempre («el filtro del universo no se aplica todavía en este corte»); si conviven con partes que SÍ se
+ * pueden componer, la parte no soportada sale como LÍMITE y el resto se sirve con `ok:true` (sección 9 —
+ * corrección del supervisor, owner 2026-09-25: «una parte no soportada no puede tumbar la Entrega»). El tope de
+ * tamaño por `profundidad` (D27, "sin corte 3c") queda igual: declarado, no forzado a pasar por 900 palabras.
  *
  * CORRECCIONES DEL SUPERVISOR SOBRE LA PRIMERA VERSIÓN DE ESTE CORTE (owner 2026-09-25), las tres cerradas acá:
  *   (1) la regla 4 de verificar.js (comparables-juntas) había dejado de vigilar «Para su juicio»/«Referencia del
  *       oficio» — ahora escanea el TEXTO COMPLETO otra vez, y solo descuenta por MARCA estructural (`lim._ausencia`,
- *       una oración `_definicion`), nunca por sección. Carnada nueva: sección 6.
- *   (2) una parte no soportada ya no tumbaba el resto — corregido y probado: sección 5.
+ *       una oración `_definicion`), nunca por sección. Carnada nueva: sección 10.
+ *   (2) una parte no soportada ya no tumbaba el resto — corregido y probado: sección 9.
  *   (3) el emparejador de rótulos aproximado (singular/plural + alias a mano) se RETIRÓ: `componer.js` reusa
  *       `notario/lexico.js:claveDeMetrica`, la MISMA canonización que ya usa el Notario para reconocer el
  *       concepto de una fig — nunca sobre texto del usuario. Esto además destapó y cerró un defecto real (una fig
@@ -45,7 +60,7 @@
  *       matcher.
  *   (4) el hueco de `claveDeMetrica` (punto 3) — CERRADO por el supervisor, owner 2026-09-25, CLAUDE.md §4 («un
  *       rótulo visible no puede nombrar dos campos»): ahora prueba el rótulo COMPLETO con su paréntesis ANTES de
- *       recortarlo. Sección 7 pasó de documentar el hueco a EXIGIR el valor correcto.
+ *       recortarlo. Sección 11 pasó de documentar el hueco a EXIGIR el valor correcto.
  *
  * CERO llamadas a un LLM · CERO red. Solo por `npm run gates:offline` o
  * `node --import ./scripts/offline-guard.mjs _entrega_general_gate.mjs`. */
@@ -76,12 +91,37 @@ initTenant(TENANT_DEMO);
 const CATALOGO = JSON.parse(fs.readFileSync("./fixtures/encargos-desarrollo.json", "utf8"));
 const CASOS_VALIDOS = CATALOGO.casos.filter((c) => c.esperado && c.esperado.valido === true);
 
-/* casos que este corte declina A PROPÓSITO (universo con estados/no_estados/filtros, sin top, sobre una parte sin
- * entidades) — gap declarado en la cabecera de componer.js, contado aparte de "sobre el catálogo". */
-const IDS_GAP_UNIVERSO_FILTRO = new Set(["D07", "D14", "D19"]);
+/* CORTE 3c — D07/D14/D19 (universo estados/no_estados/filtros SIN top) ya NO se cuentan aparte: componen como
+ * cualquier otro caso del catálogo y pasan por el loop genérico de la sección 2 (verificarEntrega, temasCubiertos,
+ * noResuelto, entidades prohibidas, determinismo) igual que los demás — la sección 3 (antes 2b) los audita
+ * ADEMÁS con la garantía específica de esta pieza (K de M correcto, contra `premisasDelGate` del fixture). */
+const IDS_GAP_UNIVERSO_FILTRO = new Set();
 /* D27 excede el tope de 900 palabras (tope de tamaño por profundidad, corte 3c, no este) — se compone y se
  * verifica todo LO DEMÁS, pero no se exige que pase la regla 8 de verificar.js. */
 const IDS_SIN_TOPE_DE_TAMANO = new Set(["D27"]);
+/* CORTE 3c · PIEZA 1 — el conteo K-de-M esperado de cada universo por estado (contra `premisasDelGate` del
+ * fixture, verificado a mano por el autor del catálogo). */
+const K_DE_M_ESPERADO = {
+  D07: { n: 9, m: 13, set: ["Falabella", "Lider", "Jumbo", "Sodimac", "Paris", "Ripley", "Easy", "La Polar", "Hites"] },
+  D14: { n: 6, m: 13, set: ["Lider", "Falabella", "Sodimac", "Easy", "Paris", "Tottus"] },
+  D19: { n: 8, m: 13, set: ["Falabella", "Lider", "Jumbo", "Sodimac", "Tottus", "Paris", "Mercado Libre", "Ripley"], primero: "Falabella" },
+};
+/* CORTE 3c · PIEZA 3 — CERRADO (owner 2026-09-25, orden del supervisor): D22/q1 y D29/q1 daban «no-verificable»
+ * porque una premisa se juzgaba SOLO contra la boleta de la parte donde cayó, no contra lo que ADI ya sabe de la
+ * empresa. Dos arreglos de raíz, en el Notario compartido (no en este archivo, no en `entrega/componer.js`):
+ *   D22/q1 — `notario/verificar.js:_relacion` (vía `_valorDe`) ahora cae a `I.rankings` (`_delRanking`, la MISMA
+ *     primitiva que ya usaba `_cifra`) cuando la boleta de la parte no trae la fig — la proyección SÍ tiene la
+ *     contribución de Jumbo aunque la comparación de esta parte solo pidiera Falabella y Lider.
+ *   D29/q1 — `oracle/datoProyectado.js` ahora publica `rankings.<eje>.variacion` (cliente · marca · familia ·
+ *     canal — SKU no trae año anterior) con `specRetrieval.js:variacionVentasPorEje`, LA MISMA función que usa
+ *     `salesRead` («una sola verdad por eje»); `notario/verificar.js:_variacion` cae a ese ranking cuando la
+ *     boleta no trae la fig (una `simulacion`, en este caso, que solo publica el escenario, no la serie real).
+ * Las dos ahora dan «verdadera», como esperaba el fixture — sin tocar ni el fixture ni ningún otro veredicto
+ * (los 8 casos que ya coincidían siguen coincidiendo; los 9 gates del Notario que corren sobre estas dos
+ * funciones compartidas — `_hechos_gate`, `_resolutor_gate`, `_anclas_gate`, `_anclar_composers_gate`,
+ * `_notario_semantico_gate`, `_notario_semantico_flujo_gate`, `_notario_adversarial_gate`,
+ * `_adversarial_notario_gate`, `_origenes_gate`, `_raw_gate`, `_ronda5_gate` — se corrieron y quedaron en su
+ * mismo verde, sin tocar una sola aserción). */
 
 /* ═══ 1 · EQUIVALENCIA BYTE A BYTE — las 4 rutas fijas, por delegación ═══════════════════════════════════════ */
 H("1 · equivalencia byte a byte — componerEntrega(resolucion) === la ruta fija, por delegación (D08-D11)");
@@ -179,18 +219,114 @@ for (const { caso, res, entrega } of resultadosCompuestos.values()) {
   ok(otra.ok && otra.texto === entrega.texto, `${caso.id} · determinismo: dos corridas de la MISMA Resolucion dan el MISMO texto`);
 }
 
-/* ═══ 2b · el gap declarado (universo con estado/filtro): decline HONESTO, no en silencio ═══════════════════════ */
-H("2b · gap declarado del corte (universo estados/no_estados/filtros sin top) — declina con el gap NOMBRADO");
-for (const id of IDS_GAP_UNIVERSO_FILTRO) {
+/* ═══ 3 · CORTE 3c · PIEZA 1 — UNIVERSO POR ESTADO: D07/D14/D19 componen, con su grupo y su «K de M» ═══════════ */
+H("3 · pieza 1 (universo por estado) — D07/D14/D19 componen con el grupo K de M correcto (contra premisasDelGate)");
+for (const [id, esp] of Object.entries(K_DE_M_ESPERADO)) {
   const x = resultadosCompuestos.get(id);
   ok(!!x, `${id} · el caso corrió`);
   if (!x) continue;
-  ok(!x.entrega.ok, `${id} · componerEntrega declina (no compone un listado sin filtrar)`);
-  ok(!x.entrega.ok && /filtro del universo no se aplica/.test(x.entrega.motivo || ""), `${id} · el motivo NOMBRA el gap (nunca "sin evidencia" mudo)`, x.entrega.motivo);
+  ok(x.entrega.ok, `${id} · componerEntrega YA NO declina (compone el grupo)`, x.entrega.motivo);
+  if (!x.entrega.ok) continue;
+  const libro = x.entrega.libro;
+  // el hecho `conteo` del grupo: único en el libro para este caso (los otros hechos son `ref`/`derivada`/`razon`)
+  const hConteo = libro.hechos.find((h) => h.tipo === "conteo" && h.ok);
+  ok(!!hConteo, `${id} · el libro trae un hecho «conteo» verificado (el grupo)`);
+  if (!hConteo) continue;
+  ok(hConteo.render.n === String(esp.n), `${id} · K = ${esp.n} (medido, no afirmado)`, hConteo.render.n);
+  ok(hConteo.render.m === String(esp.m), `${id} · M = ${esp.m}`, hConteo.render.m);
+  const miembros = new Set([...hConteo.entidades].map((k) => (libro.indice.entidades.get(k) || { nombre: k }).nombre));
+  const esperados = new Set(esp.set);
+  const faltan = esp.set.filter((n) => ![...miembros].some((m) => m === n));
+  const sobran = [...miembros].filter((m) => !esperados.has(m));
+  ok(faltan.length === 0 && sobran.length === 0, `${id} · el conjunto medido es EXACTAMENTE el esperado`, JSON.stringify({ faltan, sobran }));
+  // universo tipado declarado en la Entrega (Etapa 2 §3): esta parte SÍ trae estados/filtros ahora (antes null)
+  const uDeclarado = (x.entrega.entrega.universos || []).find((u) => u.id === "p1");
+  ok(!!uDeclarado && uDeclarado.valido, `${id} · entrega.universos declara el universo tipado, válido`, JSON.stringify(uDeclarado));
+  if (esp.primero) ok(x.entrega.texto.includes(`por contribución no capturada: ${esp.primero}`) || x.entrega.texto.includes(esp.primero), `${id} · el «primero» del grupo (decision) es ${esp.primero}`, x.entrega.texto);
 }
 
-/* ═══ 3 · CARNADA · preguntaOriginal nunca se lee ═══════════════════════════════════════════════════════════ */
-H("3 · CARNADA · cambiar preguntaOriginal no cambia la Entrega (componerEntrega nunca la lee)");
+/* ═══ 4 · CORTE 3c · PIEZA 2 — TENTACIONES PRECALCULADAS, con su carnada (nunca cruza universos) ══════════════ */
+H("4 · pieza 2 (tentaciones precalculadas) — total + participación del primero, y la carnada de universos distintos");
+{
+  // D07 (13 cuentas comerciales, conceptos carga+ventas): el total/participación se calculan sobre VENTAS (money),
+  // nunca sobre CARGA (una tasa — «las tasas no se suman», notario/hechos.js candado de raíz, no de este archivo).
+  const x = resultadosCompuestos.get("D07");
+  ok(!!x && x.entrega.ok, "D07 · el caso compone (para probar su tentación)");
+  if (x && x.entrega.ok) {
+    const libro = x.entrega.libro;
+    const hSuma = libro.hechos.find((h) => h.tipo === "derivada" && h.ok && /^derivada \(suma\)/.test(h.motivo));
+    ok(!!hSuma, "D07 · el libro trae una `derivada` de tipo suma (el total del grupo)", JSON.stringify(libro.hechos.map((h) => h.tipo)));
+    ok(!!hSuma && hSuma.claves.has("ventas"), "D07 · la suma es sobre «ventas» (money), NUNCA sobre «carga» (una tasa)", hSuma ? [...hSuma.claves].join(",") : "");
+    const hRazon = libro.hechos.find((h) => h.tipo === "razon" && h.ok);
+    ok(!!hRazon, "D07 · el libro trae una `razon` (la participación del primero sobre el total)");
+    ok(/concentra el/.test(x.entrega.texto) && /suma \$/.test(x.entrega.texto), "D07 · el texto imprime el total Y la participación (la tentación, ya calculada)");
+  }
+  // CARNADA — sumar capital (inventario) con ventas (comercial) en una `derivada` es NO-VERIFICABLE por diseño de
+  // `notario/hechos.js:_derivada` («dominios-distintos»): la propia verificación (regla 9, ya corre en cada
+  // Entrega) tumbaría cualquier compositor que lo intentara. Se prueba el candado DIRECTO (sin pasar por
+  // componer.js, que hoy nunca genera esta mezcla — la carnada es del verificador, con dientes reales).
+  {
+    const figCapital = { id: "cX", label: "Santiago · Capital", raw: 63800, unidad: "money", texto: "$63.8K", entidad: "Santiago", concepto: "Capital", conceptoNorm: "capital", crudo: true, fig: { id: "cX", tipo: { verificabilidad: "literal" } } };
+    const figVenta = { id: "cY", label: "Falabella · Venta", raw: 19433000, unidad: "money", texto: "$19.4M", entidad: "Falabella", concepto: "Venta", conceptoNorm: "venta", crudo: true, fig: { id: "cY", tipo: { verificabilidad: "literal" } } };
+    const I = { figs: [figCapital, figVenta], buscarFigs: () => [], resolverEntidad: () => null, tamanoDelEje: () => null, entidades: new Map(), rankings: {}, conjuntos: {} };
+    const libroMezcla = libroDeHechos([
+      { id: "r1", tipo: "ref", de: "cX" }, { id: "r2", tipo: "ref", de: "cY" },
+      { id: "m1", tipo: "derivada", op: "suma", de: [{ id: "r1" }, { id: "r2" }] },
+    ], { indice: I });
+    const hMezcla = libroMezcla.porId.get("m1");
+    ok(!!hMezcla && !hMezcla.ok && hMezcla.veredicto === "no-verificable" && /dominios-distintos/.test(hMezcla.motivo), "CARNADA: sumar capital (inventario) + venta (comercial) da no-verificable «dominios-distintos» — el candado tiene dientes", JSON.stringify(hMezcla && { ok: hMezcla.ok, veredicto: hMezcla.veredicto, motivo: hMezcla.motivo }));
+  }
+}
+
+/* ═══ 5 · CORTE 3c · PIEZA 3 — VEREDICTO DE PREMISAS, contra premisasDelGate del catálogo ═══════════════════════ */
+H("5 · pieza 3 (veredicto de premisas) — cada premisa del catálogo, contra esperado.premisas");
+{
+  const IDS_CON_PREMISAS = CATALOGO.casos.filter((c) => c.encargo && Array.isArray(c.encargo.premisas) && c.encargo.premisas.length).map((c) => c.id);
+  ok(IDS_CON_PREMISAS.length >= 10, `el catálogo trae ≥10 casos con premisas (trae ${IDS_CON_PREMISAS.length})`);
+  for (const id of IDS_CON_PREMISAS) {
+    const caso = CATALOGO.casos.find((c) => c.id === id);
+    const x = resultadosCompuestos.get(id);
+    if (!x) { ok(false, `${id} · el caso corrió con al menos una parte útil (¿esperado.valido y estado resuelto?)`); continue; }
+    ok(x.entrega.ok, `${id} · componerEntrega ok con premisas en el encargo`, x.entrega.motivo);
+    if (!x.entrega.ok) continue;
+    const lp = x.entrega.entrega.procedencia.libroPremisas;
+    ok(!!lp, `${id} · entrega.procedencia.libroPremisas existe (el libro APARTE de las premisas)`);
+    if (!lp) continue;
+    const esperadas = (caso.esperado.premisas || []);
+    for (const esp of esperadas) {
+      const H1 = lp.porId.get(String(esp.id));
+      ok(!!H1, `${id}/${esp.id} · la premisa quedó en el libro de premisas`);
+      if (!H1) continue;
+      // CERRADO (owner 2026-09-25): D22/q1 y D29/q1 ya NO son una excepción — el respaldo por ranking (`_relacion`,
+      // `_variacion`, notario/verificar.js) las juzga como el resto. EXIGE el veredicto correcto; si el motor
+      // discrepa contra `premisasDelGate` (el catálogo calculado a mano), esta aserción lo dice con la evidencia
+      // — no se ajusta el motor ni el fixture desde este gate.
+      ok(H1.veredicto === esp.veredicto, `${id}/${esp.id} · veredicto = «${esp.veredicto}» (esperado, premisasDelGate)`, `real: «${H1.veredicto}» — ${H1.motivo}`);
+    }
+    // cada premisa bien formada del encargo (TIPOS_DE_PREMISA) abre la parte correspondiente en la Respuesta,
+    // marcada `_premisa` — nunca decide la conclusión (se prueba en la sección 6 con una carnada directa).
+    const nPremisasEnRespuesta = x.entrega.entrega.respuesta.filter((r) => r._premisa).length;
+    ok(nPremisasEnRespuesta === esperadas.length, `${id} · la Entrega abre ${esperadas.length} premisa(s) en la Respuesta (una por premisa bien formada)`, `real: ${nPremisasEnRespuesta}`);
+  }
+}
+
+/* ═══ 6 · CORTE 3c · PIEZA 3 · CARNADA — una premisa FALSA nunca cambia la conclusión (ley «premisa-adoptada») ══ */
+H("6 · CARNADA · una premisa falsa sobre quién vende más NO cambia el «primero» del análisis (D15: Falabella)");
+{
+  // D15 declara Falabella como «primero» por ventas (medido); su premisa q2 (Jumbo tiene el margen máximo) es
+  // FALSA (La Polar lo es). La conclusión de la parte (una lectura sin decision, sin «primero» explícito en este
+  // caso) se prueba indirectamente: el TEXTO declara el veredicto («no es así») y AL MISMO TIEMPO nombra a
+  // Falabella con su cifra real de ventas — ninguno de los dos hechos depende del otro.
+  const x = resultadosCompuestos.get("D15");
+  ok(!!x && x.entrega.ok, "D15 · el caso compone");
+  if (x && x.entrega.ok) {
+    ok(/no es así/.test(x.entrega.texto), "D15 · el veredicto «falsa» de q2 (Jumbo no tiene el margen máximo) se declara en el texto");
+    ok(/Falabella.*\$19\.4M|\$19\.4M.*Falabella/.test(x.entrega.texto) || x.entrega.texto.includes("Falabella"), "D15 · Falabella (el máximo REAL de ventas, medido) sigue en el texto con su propia cifra — la premisa falsa no lo reemplaza ni lo esconde");
+  }
+}
+
+/* ═══ 7 · CARNADA · preguntaOriginal nunca se lee ═══════════════════════════════════════════════════════════ */
+H("7 · CARNADA · cambiar preguntaOriginal no cambia la Entrega (componerEntrega nunca la lee)");
 {
   const caso = CATALOGO.casos.find((c) => c.id === "D01");
   const res1 = validarEncargo(caso.encargo, {});
@@ -199,8 +335,8 @@ H("3 · CARNADA · cambiar preguntaOriginal no cambia la Entrega (componerEntreg
   ok(e1.ok && e2.ok && e1.texto === e2.texto, "D01 con preguntaOriginal distinta produce el MISMO texto");
 }
 
-/* ═══ 4 · CARNADA · fuerza nula nunca se rotula «medido»/verificada ═══════════════════════════════════════════ */
-H("4 · CARNADA · un hecho con fuerza nula (propuesta, sin insumos) nunca sale con la etiqueta de «medido»");
+/* ═══ 8 · CARNADA · fuerza nula nunca se rotula «medido»/verificada ═══════════════════════════════════════════ */
+H("8 · CARNADA · un hecho con fuerza nula (propuesta, sin insumos) nunca sale con la etiqueta de «medido»");
 {
   // un hecho `propuesta` (notario/hechos.js): sin composición, `fuerza` queda null por diseño («un número del
   // asesor, no una medición» — el mismo comentario de hechos.js) — se prueba el INVARIANTE que la columna «Tipo»
@@ -216,14 +352,17 @@ H("4 · CARNADA · un hecho con fuerza nula (propuesta, sin insumos) nunca sale 
   ok(fuerzaDe(libro, "pr1") === null, "fuerzaDe(libro, id) también da null para este hecho (la misma verdad, otra puerta)");
 }
 
-/* ═══ 5 · UNA PARTE NO SOPORTADA NO TUMBA LA ENTREGA (corrección del supervisor, owner 2026-09-25) ═════════════ */
-H("5 · una parte con universo-por-estado no soportada no impide servir las demás partes del MISMO encargo");
+/* ═══ 9 · UNA PARTE NO SOPORTADA NO TUMBA LA ENTREGA (corrección del supervisor, owner 2026-09-25) ═════════════
+ * CORTE 3c: `estados` SOLO (sin `top`) ya NO es «no soportada» (pieza 1 — p2 compondría). Esta carnada necesita
+ * un universo que SIGA fuera de alcance: `estados` COMBINADO con `top` en la MISMA parte — la combinación que
+ * `componer.js` sigue declinando a propósito (ver la cabecera de este gate). */
+H("9 · una parte con universo no soportado (estados + top combinados) no impide servir las demás partes del MISMO encargo");
 {
   const encargo = {
     version: "encargo/v1",
     partes: [
       { id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], entidades: [{ nombre: "Jumbo" }] },
-      { id: "p2", tema: "cobranza", cierre: "lectura", universo: { eje: "cliente", estados: ["en mora"] } },
+      { id: "p2", tema: "cobranza", cierre: "lectura", universo: { eje: "cliente", estados: ["en mora"], top: { metrica: "saldo_vencido", k: 3, direccion: "mayor" } } },
     ],
   };
   const res = validarEncargo(encargo, {});
@@ -247,8 +386,8 @@ H("5 · una parte con universo-por-estado no soportada no impide servir las dem�
   }
 }
 
-/* ═══ 6 · CARNADA · una brecha en «Para su juicio» sin referencia declarada viola comparables-juntas ═══════════ */
-H("6 · CARNADA · «Para su juicio» afirmando una brecha sin marco.referenciaDeclarada da violación (regla 4)");
+/* ═══ 10 · CARNADA · una brecha en «Para su juicio» sin referencia declarada viola comparables-juntas ═══════════ */
+H("10 · CARNADA · «Para su juicio» afirmando una brecha sin marco.referenciaDeclarada da violación (regla 4)");
 {
   const entrega = crearEntrega();
   entrega.marco.referenciaDeclarada = null;   // a propósito: nadie declaró la referencia
@@ -275,19 +414,19 @@ H("6 · CARNADA · «Para su juicio» afirmando una brecha sin marco.referenciaD
   ok(!v2.violaciones.some((x) => x.regla === "comparables-juntas"), "control negativo: con la referencia declarada, la MISMA oración no viola comparables-juntas");
 }
 
-/* ═══ 7 · CERRADO POR EL SUPERVISOR · claveDeMetrica ya NO nombra dos campos con un rótulo (CLAUDE.md §4) ══════
+/* ═══ 11 · CERRADO POR EL SUPERVISOR · claveDeMetrica ya NO nombra dos campos con un rótulo (CLAUDE.md §4) ══════
  * `claveDeMetrica` (notario/lexico.js, owner 2026-09-25) ahora prueba el rótulo COMPLETO, con su paréntesis,
  * contra los sinónimos ANTES de recortarlo — regla general, no un alias de este caso. Barrido real (908 rótulos
  * únicos de comercial+inventario+cobranza, `_sweep_claveDeMetrica.mjs`, borrado tras reportarse): 9 cambiaron, los
  * 9 el MISMO caso («Venta (flujo)»/«Venta del período (flujo)» → venta_credito, no ventas), 0 inesperados. */
-H("7 · claveDeMetrica(\"Venta (flujo)\") === \"venta_credito\" (CLAUDE.md §4 — el rótulo ya no nombra dos campos)");
+H("11 · claveDeMetrica(\"Venta (flujo)\") === \"venta_credito\" (CLAUDE.md §4 — el rótulo ya no nombra dos campos)");
 {
   const c = claveDeMetrica("Venta (flujo)");
   ok(c === "venta_credito", "claveDeMetrica(\"Venta (flujo)\") === \"venta_credito\" (cobranza, no comercial)", c);
 }
 
-/* ═══ 8 · CERO red ═══════════════════════════════════════════════════════════════════════════════════════════ */
-H("8 · CERO red — clasificarFuente(este gate) === offline");
+/* ═══ 12 · CERO red ═══════════════════════════════════════════════════════════════════════════════════════════ */
+H("12 · CERO red — clasificarFuente(este gate) === offline");
 {
   const fuente = fs.readFileSync("./_entrega_general_gate.mjs", "utf8");
   const c = clasificarFuente(fuente);

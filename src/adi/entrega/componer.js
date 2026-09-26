@@ -29,8 +29,14 @@ import { buildRolesCartera } from "../sentrix/rolesCartera.js";
 import { cifrasDelDato } from "../oracle/datoProyectado.js";
 import { axisEntityNames } from "../oracle/entityIndex.js";
 import { indiceDeEvidencia } from "../notario/evidencia.js";
-import { libroDeHechos, asignarIds, renderDe, procedenciaDe, NOMBRE_DE_PROCEDENCIA, PROCEDENCIAS, validarUniverso, nombrarUniverso } from "../notario/hechos.js";
+import { libroDeHechos, asignarIds, renderDe, procedenciaDe, NOMBRE_DE_PROCEDENCIA, PROCEDENCIAS, validarUniverso, nombrarUniverso, dominioDeEstado } from "../notario/hechos.js";
 import { periodoDeFiguras, reconcilian, UNIVERSOS, PERIODO_TXT } from "../../config/contract/figureType.js";
+// CORTE 3c (owner 2026-09-25, piezas 1 y 3 del encargo) — `conjuntoDeUniverso` es LA MISMA primitiva que ya
+// evalúa un universo tipado (estados/filtros) para el Notario v3 (`notario/hechos.js:_conteoTipado` la llama
+// igual): se reusa acá para el mismo fin, nunca un motor de estados nuevo. `estadoCanon` (estados.js) traduce el
+// estado de una premisa a su canon para saber a qué dominio pertenece (pieza 3).
+import { conjuntoDeUniverso } from "../notario/verificar.js";
+import { estadoCanon } from "../notario/estados.js";
 // TAREA 3 (encargo multidominio, owner 2026-09-23) — LA MISMA hoja y LA MISMA prioridad que ya certifica el
 // agente en vivo: «no escribas otra prioridad, sería una segunda verdad». Nada de esto se reescribe acá.
 import { partesDelEncargo, dominiosDelEncargo } from "../agente/partesDelEncargo.js";
@@ -43,7 +49,7 @@ import { crearEntrega } from "./esquema.js";
 // sentido: clave → `nombre` (el rótulo humano, "Venta"/"Margen"/…) que las figs YA traen ("Entidad · Venta"), la
 // MISMA convención que las 4 rutas fijas ya explotan a mano (`figVenta`, `figMargen`, …) — nunca una segunda tabla.
 import { lecturasDe, REGISTRO_LECTURAS } from "../encargo/lecturasDe.js";
-import { metricaPorClave, claveDeMetrica } from "../notario/lexico.js";
+import { metricaPorClave, claveDeMetrica, dominioDeClave, unidadDeClave } from "../notario/lexico.js";
 import { ausenciaPorId } from "../../config/contract/ausencias.js";   // Etapa 2 §2 (owner 2026-09-23): las ausencias del dato, declaradas UNA vez
 // Etapa 2 §4 (owner 2026-09-23, plan §3 «cómo se pega al cliente») — EL PERFIL DEL CLIENTE viaja en el Marco,
 // como los demás hechos: `getTenantData()` es el MISMO acceso que ya usa todo `oracle/` (datoProyectado.js,
@@ -179,12 +185,17 @@ function _limitePerfilIncompleto(perfil) {
  * error a la vista, nunca en silencio (CLAUDE.md §5: «declara, no esconde»). Es el CIMIENTO para que una
  * pregunta de seguimiento («de esos, ¿cuál priorizo?») se resuelva sobre el universo correcto — la conversación
  * en sí queda para más adelante (Etapa 6 del plan), acá solo se declara la identidad. */
-function _declararUniverso(entrega, I, { id, eje, top = null, base = null, filtros = null, excluir = null, periodo = null, entidades = [], criterio = null }) {
+function _declararUniverso(entrega, I, { id, eje, top = null, base = null, filtros = null, excluir = null, periodo = null, entidades = [], criterio = null, estados = null, no_estados = null }) {
   const u = { eje };
   if (top) u.top = top;
   if (base) u.base = base;
   if (filtros) u.filtros = filtros;
   if (excluir) u.excluir = excluir;
+  // CORTE 3c · pieza 1 (owner 2026-09-25) — `estados`/`no_estados` (universo por estado: «en mora», «frenados»…)
+  // eran los dos únicos campos del universo tipado que este declarador no sabía pasar (aditivo, sin tocar el
+  // resto de la firma: todo llamador existente sigue igual, ninguno pasaba estos campos antes de este corte).
+  if (estados) u.estados = estados;
+  if (no_estados) u.no_estados = no_estados;
   let errorValidacion = null;
   // `top` es OPCIONAL a propósito: la prioridad integrada (multidominio) no reduce a una sola métrica declarada
   // —es materialidad+severidad+urgencia, señal por señal (prioridadIntegrada.js)— y forzar un `top.metrica` que
@@ -193,7 +204,7 @@ function _declararUniverso(entrega, I, { id, eje, top = null, base = null, filtr
   try { errorValidacion = validarUniverso(u, I); } catch (e) { errorValidacion = `error-de-validacion: ${e && e.message ? e.message : e}`; }
   let texto = "";
   try { texto = criterio || nombrarUniverso(u, I); } catch { texto = criterio || ""; }
-  entrega.universos.push({ id, eje, base: base || null, top: top || null, filtros: filtros || null, excluir: excluir || null, periodo, entidades, criterio, texto, valido: !errorValidacion, errorValidacion });
+  entrega.universos.push({ id, eje, base: base || null, top: top || null, filtros: filtros || null, excluir: excluir || null, estados: estados || null, no_estados: no_estados || null, periodo, entidades, criterio, texto, valido: !errorValidacion, errorValidacion });
 }
 
 /* ── el libro de hechos de este turno: declara SOLO `ref` (cita literal de una fig), `razon` y `derivada`
@@ -1174,6 +1185,154 @@ function _planCifraEntidad(parte, figs, ref) {
  * (notario/estados.js aplicado a un universo completo) — un subsistema que este corte NO construye (gap declarado
  * en la cabecera). `universo.top` (el ranking) SÍ está resuelto. */
 const _universoNoSoportado = (u) => !!(u && ((Array.isArray(u.estados) && u.estados.length) || (Array.isArray(u.no_estados) && u.no_estados.length) || (Array.isArray(u.filtros) && u.filtros.length)));
+/* con `top` el ranking YA está resuelto (el camino de siempre, `_planCifraGrupo`/`_planMultiTema`): el gap real es
+ * SOLO estados/no_estados/filtros SIN top — esa combinación es la que la pieza 1 del corte 3c resuelve abajo. */
+const _universoPorEstadoSinTop = (u) => _universoNoSoportado(u) && !(u && u.top);
+
+/* ═══ CORTE 3c · PIEZA 1 (owner 2026-09-25) — UNIVERSO POR ESTADO, con los CONJUNTOS que el Core ya calcula ═══════
+ * «Sobre el nivel de carga», «bajo el benchmark», «en mora», «frenado»… no son un motor de estados nuevo: son
+ * `conjuntoDeUniverso(universo, I, eje)` — LA MISMA primitiva que ya evalúa un universo tipado para el Notario v3
+ * (hechos.js:_conteoTipado la llama igual, para una premisa declarada por el modelo). `I.rankings` (de
+ * `datoProyectado`, ver `_indiceDelTenant` en este archivo) trae CADA entidad del eje, no solo las que la boleta
+ * de este turno imprimió — así que el filtro se evalúa sobre el eje ENTERO, nunca solo sobre lo impreso. Si el
+ * Core no puede resolver el universo (`U.error` — ninguna clave del eje, ranking parcial, etc.), esta parte
+ * declina con el motivo REAL (nunca "no se aplica todavía"): `concepto_sin_productor` no es lo mismo que
+ * "el dato no alcanza para este umbral", y el límite lo dice.
+ * El conteo «K de M» entra al libro como hecho `conteo` VERIFICADO — no se afirma un número a mano: se mide con
+ * `conjuntoDeUniverso` primero y se declara ESE número, así que el hecho verifica por construcción (mismo patrón
+ * que `_declararUniverso` ya usa para nombrar un universo con `validarUniverso`/`nombrarUniverso`). */
+function _planCifraGrupoUniverso(parte, figs, I) {
+  const u = parte.universo;
+  const eje = normalizarEje(u.eje || parte.eje || "cliente");
+  let U = null;
+  try { U = conjuntoDeUniverso(u, I, eje, ""); } catch (e) { U = { error: `error-de-conjunto: ${e && e.message ? e.message : e}` }; }
+  if (!U || U.error) return { error: (U && U.error) || `universo-no-resoluble: «${JSON.stringify(u)}» no se pudo evaluar contra el dato` };
+  if (!U.set) return { error: "universo-no-restringido: el universo declarado no filtra nada (equivale al eje entero) — nada que listar como grupo" };
+  const total = I.tamanoDelEje(eje);
+  const miembros = [...U.set].map((k) => (I.entidades.get(k) || { nombre: k }).nombre);
+  if (!miembros.length) return { error: "universo-vacio: ninguna entidad del eje cumple el universo declarado" };
+  const conceptos = parte.conceptos && parte.conceptos.length ? parte.conceptos.slice() : [];
+  // orden de exhibición: por el primer concepto declarado si es una cifra medible (de mayor a menor); si no hay
+  // concepto o no es medible, el orden que ya trae el conjunto (estable, sin inventar un criterio nuevo).
+  const claveOrden = conceptos.find((c) => claveDeMetrica(c) && unidadDeClave(claveDeMetrica(c))) || null;
+  const porEntidad = new Map();
+  for (const nombre of miembros) {
+    const m = new Map();
+    for (const c of conceptos) { const f = _filaDe(figs, nombre, c); if (f) m.set(c, f); }
+    porEntidad.set(nombre, m);
+  }
+  // orden de exhibición: SIEMPRE de mayor a menor en `claveOrden` — un grupo filtrado por estado/umbral es, por
+  // construcción, un grupo de "casos" (sobre el nivel de carga, bajo el benchmark, en mora…): el más extremo
+  // primero es la convención que ya usa el resto de la casa (mesaFlujo «vencido primero», prioridadIntegrada «el
+  // que más pesa primero») — nunca la polaridad de la métrica (que dice qué es "bueno", no en qué orden listar un
+  // grupo de "los que fallan el criterio"). DECISIÓN DE PRESENTACIÓN, no de significado: reportada al supervisor.
+  let orden = miembros.slice();
+  if (claveOrden) {
+    orden = miembros.slice().sort((a, b) => {
+      const fa = porEntidad.get(a).get(claveOrden), fb = porEntidad.get(b).get(claveOrden);
+      const va = fa && Number.isFinite(fa.raw) ? fa.raw : NaN, vb = fb && Number.isFinite(fb.raw) ? fb.raw : NaN;
+      if (!Number.isFinite(va) || !Number.isFinite(vb)) return 0;
+      return vb - va;
+    });
+  }
+  // la CIFRA DE LA TENTACIÓN (pieza 2 del corte 3c) es independiente de `claveOrden` (el criterio de EXHIBICIÓN):
+  // el primer concepto MONETARIO entre los declarados — sumar/participar tiene sentido en dinero, nunca en una
+  // tasa («las tasas no se suman», notario/hechos.js) aunque esa tasa sea la que ordena la lista (D07: ordena por
+  // «carga», la tentación es sobre «ventas»; D19: ordena y tienta sobre «no_capturada», que sí es dinero).
+  const claveTentacion = conceptos.find((c) => claveDeMetrica(c) && unidadDeClave(claveDeMetrica(c)) === "money") || null;
+  return { kind: "grupoUniverso", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, eje, universo: u, miembros: orden, n: U.set.size, m: total, fuenteConteo: U.fuente, conceptos, claveOrden, claveTentacion, porEntidad };
+}
+const normalizarEje = (e) => String(e || "cliente").trim().toLowerCase();
+
+/* CORTE 3c · PIEZA 2 (owner 2026-09-25) — EL LÍMITE DE CANTIDAD de tentaciones precalculadas por grupo, para no
+ * inflar el libro con una participación individual por cada fila de un grupo grande (D07 tiene 9 cuentas: nadie
+ * necesita "la participación de CADA una sobre el total" para no tener que calcularla a mano — con el total y la
+ * del primero, la tentación de sumar/repartir a mano ya queda cubierta). Constante técnica, ajustable; DECISIÓN
+ * REPORTADA AL SUPERVISOR (no hay un número «correcto» en el contrato): 1 — el total del grupo, siempre, más la
+ * participación de UN SOLO miembro (el primero por `claveOrden`, la exhibición ya elegida) — nunca una fila por
+ * miembro. Si el owner prefiere un N mayor (ej. la participación de los primeros 3), este es el único número que
+ * cambia. */
+export const TENTACION_PARTICIPACION_TOP = 1;
+/* declara el hecho `conteo` VERIFICADO del grupo (K de M) — `n` YA es el tamaño medido por `conjuntoDeUniverso`
+ * arriba (nunca un número afirmado a mano): el hecho verifica por construcción, igual que `_declararRef` declara
+ * una fig que YA existe. Mismo patrón que `_declararRef`/`_declararUniverso` de este archivo (un solo lugar que
+ * empuja al array `hechos` con el contador compartido del turno). */
+function _declararConteo(hechos, contador, universo, n) {
+  const id = `e${++contador.n}`;
+  hechos.push({ id, tipo: "conteo", conteo: { n }, de: universo });
+  return id;
+}
+/* CORTE 3c · PIEZA 2 (owner 2026-09-25) — la SUMA de N cifras del MISMO concepto/universo/unidad (nunca dos
+ * universos distintos: `notario/hechos.js:_derivada` ya rechaza una suma de dominios distintos como
+ * no-verificable — «carnada con dientes», el candado no es de este archivo, se reusa). N arbitrario: `_derivada`
+ * ya reduce con `raws.reduce(...)`, no hay límite de operandos en la verificación. */
+function _declararSuma(hechos, contador, ids) {
+  const limpios = (ids || []).filter((x) => x != null);
+  if (limpios.length < 2) return null;
+  const id = `e${++contador.n}`;
+  hechos.push({ id, tipo: "derivada", op: "suma", de: limpios.map((x) => ({ id: x })) });
+  return id;
+}
+/* cierra un plan «grupoUniverso»: declara el conteo K-de-M, las figs de cada miembro (una vez cada una, MISMO
+ * patrón «declarar antes de imprimir») y la tentación precalculada (total + participación del primero) cuando el
+ * concepto que ordena el grupo es una cifra monetaria — nunca sobre una tasa (pieza 2: «jamás se suman universos
+ * distintos», y sumar % entre cuentas tampoco es una cifra de la casa). Usado por las dos formas que la pieza 1
+ * cubre: `cifra` sin entidades (D07) y `lectura`/`decision` sin entidades (D14/D19). */
+function _cerrarGrupoUniverso(p, figsDeP, I, hechos, contador, ref, declararRazon) {
+  const gp = _planCifraGrupoUniverso(p, figsDeP, I);
+  if (gp.error) return { error: gp.error };
+  const idConteo = _declararConteo(hechos, contador, gp.universo, gp.n);
+  for (const nombre of gp.miembros) { const m = gp.porEntidad.get(nombre); for (const [clave, fig] of m) m.set(clave, ref(fig)); }
+  let idTotal = null, idShare = null;
+  let idShares = [];
+  if (gp.claveTentacion && gp.miembros.length >= 2) {
+    const ids = gp.miembros.map((nombre) => gp.porEntidad.get(nombre).get(gp.claveTentacion)).filter((x) => x != null);
+    if (ids.length >= 2) {
+      idTotal = _declararSuma(hechos, contador, ids);
+      // el LÍMITE DE CANTIDAD (TENTACION_PARTICIPACION_TOP, pieza 2): una participación individual por MIEMBRO,
+      // nunca una por fila — se corta acá, no se deja crecer con el tamaño del grupo (D07 tiene 9 cuentas).
+      if (idTotal) for (const idMiembro of ids.slice(0, TENTACION_PARTICIPACION_TOP)) { const s = declararRazon(idMiembro, idTotal); if (s) idShares.push(s); }
+      idShare = idShares[0] || null;
+    }
+  }
+  return { kind: "grupoUniverso", tema: p.tema, parteId: p.id, cierre: p.cierre, eje: gp.eje, universo: gp.universo, idConteo, n: gp.n, m: gp.m, fuenteConteo: gp.fuenteConteo, miembros: gp.miembros, claveOrden: gp.claveOrden, claveTentacion: gp.claveTentacion, porEntidad: gp.porEntidad, idTotal, idShare, idShares };
+}
+
+/* ═══ CORTE 3c · PIEZA 3 (owner 2026-09-25) — A QUÉ PARTE DEL ENCARGO PERTENECE UNA PREMISA ═══════════════════
+ * Por el DOMINIO de su métrica o de su estado (`notario/lexico.js:dominioDeClave`, `notario/hechos.js:
+ * dominioDeEstado` — las MISMAS tablas que ya usa el Notario, nunca una lista nueva ni una lectura de
+ * `preguntaOriginal`). Sin dominio reconocible, o sin una parte útil de ese tema, cae en la PRIMERA parte útil —
+ * el caso de casi todo el catálogo de desarrollo (una sola parte por encargo: D07/D19/D22/D23/D25/D29/D43). */
+function _dominioDePremisa(p) {
+  if (!p) return null;
+  const tipo = String(p.tipo || "").toLowerCase();
+  if (tipo === "estado") {
+    const eRaw = (p.estado && typeof p.estado === "object") ? p.estado.estado : p.estado;
+    const c = estadoCanon(String(eRaw || "").replace(/^\s*no[ _]+/i, "").replace(/_/g, " "));
+    return dominioDeEstado(c);
+  }
+  const claveDe = (m) => (m != null ? claveDeMetrica(m) : null);
+  const clave = claveDe(p.metrica) || claveDe(p.num && p.num.metrica) || claveDe(p.den && p.den.metrica);
+  return clave ? dominioDeClave(clave) : null;
+}
+function _parteDePremisa(p, partesUtiles) {
+  const dom = _dominioDePremisa(p);
+  if (dom) { const m = partesUtiles.find((x) => x.tema === dom); if (m) return m.id; }
+  return partesUtiles.length ? partesUtiles[0].id : null;
+}
+/* el texto canónico del veredicto — de los CAMPOS del hecho evaluado (`H.verdad`/`H.motivo`, la MISMA prosa que
+ * `notario/hechos.js:textoDelLibro` ya arma para el Notario), nunca de `preguntaOriginal`: «verdadera» dice lo
+ * medido, «falsa» dice lo medido MÁS la verdad con id (los hechos `_verdadDeLoFalso` ya declaró — H.derivados),
+ * «no verificable» dice por qué. La CONCLUSIÓN de la parte (quién es prioridad, qué cifra manda) es del análisis
+ * de arriba, no de este texto — ley «premisa-adoptada»: acá solo se declara el veredicto, nunca se decide con él. */
+function _textoVerdadDerivada(H, libroPremisas) {
+  return (H.derivados || []).map((d) => { const D = libroPremisas.porId.get(d); return D ? (D.verdad || D.motivo) : null; }).filter(Boolean).join(" · ");
+}
+function _textoDePremisa(H, libroPremisas) {
+  if (H.veredicto === "verdadera") return `Sobre lo que usted da por hecho: es correcto — ${H.verdad || H.motivo}.`;
+  if (H.veredicto === "falsa") { const vd = _textoVerdadDerivada(H, libroPremisas); return `Sobre lo que usted da por hecho: no es así — ${H.verdad || H.motivo}${vd ? `. La verdad: ${vd}` : ""}.`; }
+  return `Sobre lo que usted da por hecho, no se pudo verificar con este dato: ${H.motivo}.`;
+}
 
 /* ── PLAN «grupo» (cierre `cifra` sin entidades: listado del eje, group-by o `universo.top`) ──────────────────── */
 function _planCifraGrupo(parte, figs) {
@@ -1380,10 +1539,19 @@ export function componerEntrega(resolucion) {
   const _limiteUniversoNoSoportado = (p) => ({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el filtro del universo no se aplica todavía en este corte`, motivo: "Filtrar por estado o por un umbral numérico exige evaluar cada entidad contra el dato real; ese motor no está construido en este corte (queda señalado para el corte 3c). Se declina esta parte en vez de servir un listado sin filtrar o adivinar el criterio." });
 
   const partesLecturaDecisionSinEntidad = partesUtiles.filter((p) => ["lectura", "decision"].includes(p.cierre) && !(p.entidades && p.entidades.length));
-  const partesUniversoNoSoportado = partesLecturaDecisionSinEntidad.filter((p) => _universoNoSoportado(p.universo));
+  // CORTE 3c · pieza 1 (owner 2026-09-25): separa el universo-por-estado SIN `top` (D14/D19 — se compone abajo,
+  // con los conjuntos que el Core ya calcula) del resto de universos no soportados (con `top` combinado con
+  // estados/filtros: combinación fuera del catálogo de desarrollo, sigue declinándose como antes).
+  const partesUniversoPorEstado = partesLecturaDecisionSinEntidad.filter((p) => _universoPorEstadoSinTop(p.universo));
+  const partesUniversoNoSoportado = partesLecturaDecisionSinEntidad.filter((p) => _universoNoSoportado(p.universo) && !_universoPorEstadoSinTop(p.universo));
   for (const p of partesUniversoNoSoportado) limitesGap.push(_limiteUniversoNoSoportado(p));
+  for (const p of partesUniversoPorEstado) {
+    const r = _cerrarGrupoUniverso(p, _figsDeParte(p.id), I, hechos, contador, ref, declararRazon);
+    if (r.error) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no se pudo evaluar`, motivo: r.error }); continue; }
+    planes.push(r);
+  }
   const partesSinEntidadLecturaDecision = partesLecturaDecisionSinEntidad.filter((p) => !_universoNoSoportado(p.universo));
-  const partesYaAgrupadas = new Set([...partesSinEntidadLecturaDecision, ...partesUniversoNoSoportado].map((p) => p.id));
+  const partesYaAgrupadas = new Set([...partesSinEntidadLecturaDecision, ...partesUniversoNoSoportado, ...partesUniversoPorEstado].map((p) => p.id));
   if (partesSinEntidadLecturaDecision.length) {
     const temas = [...new Set(partesSinEntidadLecturaDecision.map((p) => p.tema))];
     const conDecision = partesSinEntidadLecturaDecision.some((p) => p.cierre === "decision");
@@ -1398,6 +1566,14 @@ export function componerEntrega(resolucion) {
     if (p.cierre === "cifra" || ((p.cierre === "lectura" || p.cierre === "decision") && p.entidades && p.entidades.length)) {
       if (p.entidades && p.entidades.length) { const plan = _planCifraEntidad(p, figsDeP, ref); if (plan) planes.push(plan); }
       else if (p.cierre === "cifra") {
+        // CORTE 3c · pieza 1 (D07): universo por estado/filtro SIN `top` — el mismo camino que arriba, para el
+        // cierre `cifra`.
+        if (_universoPorEstadoSinTop(p.universo)) {
+          const r = _cerrarGrupoUniverso(p, figsDeP, I, hechos, contador, ref, declararRazon);
+          if (r.error) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no se pudo evaluar`, motivo: r.error }); continue; }
+          planes.push(r);
+          continue;
+        }
         if (_universoNoSoportado(p.universo)) { limitesGap.push(_limiteUniversoNoSoportado(p)); continue; }
         const plan = _planCifraGrupo(p, figsDeP);
         if (plan) {
@@ -1443,6 +1619,9 @@ export function componerEntrega(resolucion) {
   // UNA vez, ANTES de saber si el texto la va a necesitar (se declara igual, sin costo: `ref()` de un hecho que
   // no se imprime no rompe nada). Mismo patrón que ya usan las 4 rutas fijas y la ruta multidominio de arriba.
   const idBenchComercialGlobal = planes.some((pl) => pl.tema === "comercial" || (pl.kind === "multitema" && pl.temas.includes("comercial"))) ? ref(_find(figs, /^Benchmark de margen$/i)) : null;
+  // CORTE 3c · pieza 1 — un `grupoUniverso` comercial puede nombrar «benchmark»/«nivel de carga» en el texto de su
+  // universo (`nombrarUniverso`, vía `_fmtUmbral`): declararlo acá, ANTES de imprimir, es el mismo patrón que la
+  // línea de arriba — un `ref()` de un hecho que el texto termina no usando no rompe nada.
 
   const libro = libroDeHechos(hechos, { indice: I });
   const rotos = libro.hechos.filter((h) => !h.ok);
@@ -1455,6 +1634,39 @@ export function componerEntrega(resolucion) {
   entrega.cifras.columnas = ["Entidad / grupo", "Tema", "Métrica", "Valor", "Tipo"];
   const temasCubiertos = new Set();
   const _fila = (entidad, tema, etiqueta, id) => { const procedencia = _procedenciaDeFila(libro, [id]); return { valores: { "Entidad / grupo": entidad, "Tema": _DOM_NOMBRE[tema] || tema, "Métrica": etiqueta, "Valor": R(id), "Tipo": _textoDeTipo(procedencia) }, hechos: [id], procedencia }; };
+
+  // ═══ CORTE 3c · PIEZA 3 (owner 2026-09-25) — VEREDICTO DE PREMISAS ═══════════════════════════════════════════
+  // `resolucion.premisas` ya pasó `validarHecho` (validar.js): son hechos bien FORMADOS, no verificados. Se
+  // juzgan ACÁ contra lo medido, con el MISMO `libroDeHechos` que verifica cada hecho de esta Entrega — nunca una
+  // segunda verdad. Libro APARTE (`libroPremisas`, nunca mezclado con `libro`/`rotos` de arriba): una premisa
+  // falsa es información legítima para declarar, no un hecho roto del compositor — mezclarla en `libro` tumbaría
+  // la Entrega entera por algo que EL USUARIO afirmó, no ADI. La conclusión de cada parte (arriba, FASE 1) NUNCA
+  // lee esto: se calcula sobre lo medido, y el veredicto de la premisa solo se ANUNCIA (ley «premisa-adoptada»,
+  // CLAUDE.md §2: «la conclusión es del procedimiento, no del narrador» — acá, no de la premisa).
+  const premisasCrudas = Array.isArray(resolucion.premisas) ? resolucion.premisas : [];
+  const libroPremisas = premisasCrudas.length ? libroDeHechos(premisasCrudas, { indice: I }) : null;
+  if (libroPremisas) {
+    const premisasPorParte = new Map();
+    for (const p of premisasCrudas) {
+      const H = libroPremisas.porId.get(String(p.id));
+      if (!H) continue;
+      const parteId = _parteDePremisa(p, partesUtiles);
+      if (!parteId) continue;
+      if (!premisasPorParte.has(parteId)) premisasPorParte.set(parteId, []);
+      premisasPorParte.get(parteId).push(H);
+      // regla 1 de verificarEntrega («cero cifras desnudas»): la cifra que `_textoDePremisa` va a imprimir sale
+      // literal de `H.verdad`/`H.motivo`/el `verdad` de sus derivados — se registra ACÁ (mismo patrón que `R(id)`
+      // sobre el libro principal, pero este libro es OTRO: no hay un `R` que lo haga solo).
+      for (const s of [H.verdad, H.motivo, ...(H.derivados || []).map((d) => { const D = libroPremisas.porId.get(d); return D && (D.verdad || D.motivo); })]) if (s) cifrasImpresas.push(s);
+    }
+    // se abre por el orden de las PARTES del encargo (determinístico, nunca el orden en que el usuario escribió
+    // las premisas): «la Entrega abre la parte correspondiente» — una premisa, una vez, en la parte que le toca.
+    for (const p of partesUtiles) {
+      const items = premisasPorParte.get(p.id);
+      if (!items || !items.length) continue;
+      for (const H of items) entrega.respuesta.push({ texto: _textoDePremisa(H, libroPremisas), hechos: [H.id], _premisa: true });
+    }
+  }
 
   for (const plan of planes) {
     if (plan.kind === "entidad") {
@@ -1514,6 +1726,34 @@ export function componerEntrega(resolucion) {
       temasCubiertos.add(plan.tema);
       const texto = `${plan.concepto}: ${plan.definicion}${plan.distingue ? ` ${plan.distingue}` : ""}`;
       entrega.respuesta.push({ texto, hechos: [], _definicion: true });
+    } else if (plan.kind === "grupoUniverso") {
+      // CORTE 3c · pieza 1 — EL GRUPO ES EL HECHO `conteo` (K de M, ya verificado): la Respuesta y las Cifras solo
+      // RENDERIZAN lo que ese hecho ya declaró, nunca listan un miembro que el conteo no cuenta.
+      temasCubiertos.add(plan.tema);
+      const kTxt = R(plan.idConteo), mTxt = renderDe(libro, plan.idConteo, "m"), uTxt = renderDe(libro, plan.idConteo, "universo");
+      if (mTxt != null) cifrasImpresas.push(mTxt);
+      const claveTentTxt = plan.claveTentacion ? _labelDeClave(plan.claveTentacion) : null;
+      const tentacion = plan.idTotal ? ` En conjunto, ${claveTentTxt ? claveTentTxt.toLowerCase() : "el total"} suma ${R(plan.idTotal)}${plan.idShare ? `; ${plan.miembros[0]} concentra el ${R(plan.idShare)}` : ""}.` : "";
+      const texto = `Sobre ${_DOM_NOMBRE[plan.tema] || plan.tema}: hay ${kTxt}${mTxt ? ` de ${mTxt}` : ""} en ${uTxt || "el universo declarado"}${plan.miembros.length ? `: ${plan.miembros.join(", ")}` : ""}.${tentacion}`;
+      entrega.respuesta.push({ texto, hechos: [plan.idConteo, plan.idTotal, plan.idShare].filter(Boolean) });
+      for (const nombre of plan.miembros) {
+        const m = plan.porEntidad.get(nombre);
+        for (const [clave, id] of m) { if (id == null) continue; entrega.cifras.filas.push(_fila(nombre, plan.tema, _labelDeClave(clave) || clave, id)); }
+      }
+      if (plan.idTotal) {
+        const procedenciaTotal = _procedenciaDeFila(libro, [plan.idTotal]);
+        entrega.cifras.filas.push({ valores: { "Entidad / grupo": `Total (${plan.n} ${plan.eje})`, "Tema": _DOM_NOMBRE[plan.tema] || plan.tema, "Métrica": claveTentTxt || "", "Valor": R(plan.idTotal), "Tipo": _textoDeTipo(procedenciaTotal, { subtotal: true }) }, hechos: [plan.idTotal], procedencia: procedenciaTotal });
+      }
+      // decision (D19): la conclusión sale del análisis — el criterio ya resuelto por `validarEncargo` (nunca
+      // una premisa del usuario) decide quién abre la fila; la cifra que sostiene «el primero» es la MISMA que
+      // ya ordenó el grupo (`claveOrden`, ya declarada y renderizada arriba — nunca una segunda referencia).
+      if (plan.cierre === "decision" && resolucion.criterio && plan.miembros.length) {
+        const lenteTxt = resolucion.criterio.lente ? (metricaPorClave(resolucion.criterio.lente) ? metricaPorClave(resolucion.criterio.lente).nombre.toLowerCase() : resolucion.criterio.lente) : (resolucion.criterio.referencia && resolucion.criterio.referencia.concepto);
+        const idPrimero = plan.claveOrden ? plan.porEntidad.get(plan.miembros[0]).get(plan.claveOrden) : null;
+        if (lenteTxt && idPrimero != null) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${plan.miembros[0]}, con ${R(idPrimero)} en ${(plan.claveOrden ? _labelDeClave(plan.claveOrden) : lenteTxt).toLowerCase()}.`, hechos: [plan.idConteo, idPrimero] });
+        else if (lenteTxt) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${plan.miembros[0]} (${kTxt} de ${mTxt} en ${uTxt}).`, hechos: [plan.idConteo] });
+      }
+      _declararUniverso(entrega, I, { id: plan.parteId, eje: plan.eje, filtros: (plan.universo && plan.universo.filtros) || null, estados: (plan.universo && plan.universo.estados) || null, no_estados: (plan.universo && plan.universo.no_estados) || null, entidades: plan.miembros });
     } else if (plan.kind === "multitema") {
       const frase = (dominio, lente, ids) => (ids && ids[lente]) ? LENTES[dominio][lente].como(R(ids[lente])) : null;
       const filasVistas = new Set();   // dedup: idsIntegrada/idsVersus pueden repetir la MISMA señal que ya declaró `lideres` (mismo id, cacheado en `_planMultiTema`)
@@ -1592,7 +1832,10 @@ export function componerEntrega(resolucion) {
 
   entrega.queMasPuedoCalcular = { puedo: [..._ofertasTexto(_refOficio.ofertas), "Otro corte del mismo encargo (por entidad, por eje, comparado o simulado)"], noPuedo: ["Lo que el dato no trae (ver «Lo que no se puede concluir»)"] };
   entrega.temasCubiertos = [...temasCubiertos];
-  entrega.procedencia = { libro, cifrasImpresas };
+  // `libroPremisas` es un campo ADITIVO (corte 3c, pieza 3): nunca reemplaza `libro` (el que `verificarEntrega`
+  // audita con la regla 9) — es el libro APARTE de las premisas, para que un gate o el owner puedan auditar el
+  // veredicto de cada una sin tener que reconstruirlo.
+  entrega.procedencia = { libro, cifrasImpresas, libroPremisas };
 
   const texto = _textoDeLaEntrega(entrega, "Su encargo");
   return { texto, entrega, libro, ok: true, motivo: "" };

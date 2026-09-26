@@ -46,7 +46,7 @@ import { composeNoDataMessage } from "./narrationBlocks.js";   // el último rec
 import { simboloMoneda, rotuloMoneda, etiquetaSinDeclarar } from "../../config/moneda.js";
 import { factorComercialDe } from "../../config/contract/figureType.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
-import { figsUmbralFocos, descomposicionDeBrecha } from "../specRetrieval.js";   // `descomposicionDeBrecha`: la ÚNICA definición de «carga comercial alta» (el detector) — el Notario resuelve los conjuntos desde acá
+import { figsUmbralFocos, descomposicionDeBrecha, variacionVentasPorEje } from "../specRetrieval.js";   // `descomposicionDeBrecha`: la ÚNICA definición de «carga comercial alta» (el detector) — el Notario resuelve los conjuntos desde acá. `variacionVentasPorEje`: cierre D29 del corte 3c (owner 2026-09-25) — LA MISMA función que usa `salesRead` para «vs año anterior», publicada acá para que el Notario la verifique sin reimplementarla («una sola verdad por eje»).
 import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";   // los rankings de COBRANZA salen de la MISMA mesa que la herramienta `cobranza` y la pestaña Flujo (owner 2026-09-14)   // el umbral de materialidad, los MISMOS dos números que interpola `declaracionUmbralFocos` (2026-09-14)
 import { diagnoseInventarioSku } from "../diagnosis/economicDiagnosis.js";   // el estado de cada SKU: la MISMA función que la Mesa Capital y la boleta del inventario (Notario semántico, fase 4)
 
@@ -217,6 +217,22 @@ function _construir(scenario) {
        * brecha de margen en la prosa de la casa; solo «brecha de contribución» es la otra (y su término, más largo, gana). */
       brecha:       _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "mayor", "benchmarkOf(cliente) − clientesMargen.margen", ["brecha\\s+(?:al|contra\\s+el|frente\\s+al|respecto\\s+(?:al|del))\\s+benchmark", "brecha\\s+de\\s+margen", "distancia\\s+(?:al\\s+benchmark|a\\s+la\\s+referencia)", "brecha\\s+al\\s+margen", "brecha(?!\\s+(?:de|en|por)\\s+(?:contribuci[óo]n|precio|costo|carga|dinero|d[óo]lares|pesos|plata|monto|venta|volumen|\\$))"]),
       no_capturada: _R("los clientes bajo el benchmark · venta comercial (año cerrado)", "mayor", "mayor", "clientesVentas.actual × (benchmarkOf(cliente) − clientesMargen.margen)", ["contribuci[óo]n\\s+(?:no\\s+capturada|sin\\s+capturar)", "contribuci[óo]n\\s+(?:que\\s+)?(?:se\\s+)?dej(?:a|an|as|amos)\\s+de\\s+capturar", "brecha\\s+de\\s+contribuci[óo]n(?:\\s+(?:no\\s+capturada|sin\\s+capturar))?", "brecha\\s+en\\s+(?:pesos|dinero|d[óo]lares|plata|\\$)", "sin\\s+capturar", "no\\s+capturad[oa]s?"]),
+      /* CIERRE DE BRECHA D29 (owner 2026-09-25, corte 3c): la variación vs año anterior por cliente, con la MISMA
+       * fuente y el MISMO cálculo que `salesRead` (`specRetrieval.js:variacionVentasPorEje`, reusada tal cual —
+       * nunca una copia). Antes el Core la calculaba (composeSpecVentas, foco "vs_anterior") pero la proyección no
+       * la publicaba, así que una premisa de variación quedaba «no verificable» aunque el dato SÍ lo supiera. Sin
+       * lado malo propio en la CIFRA (peorEs "menor": una caída es la que preocupa) — el signo lo juzga `_variacion`
+       * en `notario/verificar.js`, esta tabla solo ordena. Las filas se llenan más abajo, junto al resto del eje.
+       * ⚠️ TÉRMINOS ANGOSTOS A PROPÓSITO (regresión real, hallada y cerrada el mismo día): con `["variaci[óo]n",
+       * "crecimiento", "yoy", "vs año anterior"]` este ranking (en %) empezaba a responder también «las tres
+       * cuentas que más empujan el crecimiento» (metrica "YoY", `_orden`/`_filas`, verificar.js) — una afirmación
+       * que la casa YA verificaba en DÓLARES contra las figs de la boleta (P1 de `notario-semantico-2026-09-15.
+       * json`: Lider +$2,3M · Jumbo +$1,9M · Falabella +$1,5M son las tres mayores en dinero; Mercado Libre sería
+       * la primera en %). Los términos amplios hacían que el lookup genérico de OTRO tipo de hecho (`_orden`) casi
+       * quedaran una moneda con otra, sirviendo falso donde antes verificaba verdadero (`_notario_semantico_gate`,
+       * `_notario_semantico_flujo_gate`). Este ranking solo lo necesita `_variacion` (verificar.js), que SIEMPRE
+       * lo busca por la clave literal "variacion" — un término único y exacto es suficiente y no colisiona. */
+      variacion:    _R("los clientes con año anterior declarado · venta comercial (año cerrado)", "mayor", "menor", "specRetrieval.variacionVentasPorEje(\"cliente\").pct", ["variaci[óo]n"]),
     },
     marca: {
       ventas:       _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "menor", "marcas.venta", ["ventas?", "factura(?:ci[óo]n)?"], _LEX.ventas),
@@ -229,6 +245,20 @@ function _construir(scenario) {
        * va negativa). Sin ella, «LG es la mayor brecha en puntos de toda la cartera» (fase 3 del Notario, 2026-09-15) no tenía contra qué
        * medirse y casaba, por vocabulario, con las medidas en $ de cerrar brecha de 4 marcas — otra métrica y otra unidad. */
       brecha:       _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "mayor", "benchmarkOf(marca) − marcas.margen", ["brecha\\s+(?:al|contra\\s+el|frente\\s+al|respecto\\s+(?:al|del))\\s+benchmark", "brecha\\s+de\\s+margen", "distancia\\s+(?:al\\s+benchmark|a\\s+la\\s+referencia)", "brecha\\s+al\\s+margen", "brecha(?!\\s+(?:de|en|por)\\s+(?:contribuci[óo]n|precio|costo|carga|dinero|d[óo]lares|pesos|plata|monto|venta|volumen|\\$))"]),
+      /* CIERRE DE BRECHA D29 (owner 2026-09-25) — mismo mecanismo que el eje cliente, arriba. */
+      variacion:    _R("las marcas con año anterior declarado · venta comercial (año cerrado)", "mayor", "menor", "specRetrieval.variacionVentasPorEje(\"marca\").pct", ["variaci[óo]n"]),
+    },
+    /* CIERRE DE BRECHA D29 (owner 2026-09-25, corte 3c) — EJES FAMILIA Y CANAL: hasta acá no tenían ranking propio
+     * (ninguna otra métrica de estos dos ejes se ha necesitado todavía); se agregan SOLO con «variación», que es
+     * lo que el corte 3a confirmó que el Core sí calcula por familia y por canal (`_ventasRows`/`applyScenarioTo
+     * SfamiliasVentas`/`_ventasByCanal`, specRetrieval.js). No se inventan ventas/margen/contribución para estos
+     * ejes: eso queda para cuando un caso real los necesite (la misma regla del eje bodega, arriba, que solo
+     * declaró lo que el inventario ya calculaba). */
+    familia: {
+      variacion: _R("las familias con año anterior declarado · venta comercial (año cerrado)", "mayor", "menor", "specRetrieval.variacionVentasPorEje(\"familia\").pct", ["variaci[óo]n"]),
+    },
+    canal: {
+      variacion: _R("los canales con año anterior declarado · venta comercial (año cerrado)", "mayor", "menor", "specRetrieval.variacionVentasPorEje(\"canal\").pct", ["variaci[óo]n"]),
     },
     /* EL EJE SKU · el hueco que dejó la corrida de adopción: el cerebro acertó sus tres superlativos de SKU, pero
      * por mérito suyo — el muro no tenía contra qué medirlos. Son los del universo INVENTARIO (foto de hoy).
@@ -271,6 +301,19 @@ function _construir(scenario) {
       capital_inmovilizado: _R("las bodegas del inventario · foto de hoy", "mayor", "mayor", "Σ skuInventario.stockUSD por bodega (estado ≠ Activo)", ["capital\\s+inmovilizado", "inmovilizado"]),
     },
   };
+  /* CIERRE DE BRECHA D29 (owner 2026-09-25, corte 3c — orden del supervisor): llenar el ranking «variación» de
+   * los CUATRO ejes que sí la calculan (cliente, marca, familia, canal — el corte 3a confirmó que SKU no trae
+   * año anterior), con la MISMA función que ya usa `salesRead` (`variacionVentasPorEje`, specRetrieval.js) —
+   * nunca una tercera copia del cálculo. NO es la misma pieza que la «variacion» que cada cliente ya registra
+   * más abajo con `F(...)`: aquella autoriza el TEXTO narrado de la proyección (una cadena, para que el muro no
+   * la rechace si aparece); esta es la ESTRUCTURA (`I.rankingDe`) que `notario/verificar.js:_variacion` consulta
+   * cuando la boleta del turno no trae la fig — las dos cuentan lo mismo, con la misma fórmula, para consumidores
+   * distintos; ninguna de las dos se recalcula aparte, y ninguna reemplaza a la otra. */
+  for (const _ejeVar of ["cliente", "marca", "familia", "canal"]) {
+    for (const v of variacionVentasPorEje(_ejeVar, scenario)) {
+      if (Number.isFinite(v.pct)) rankings[_ejeVar].variacion.filas.push({ entidad: v.entidad, valor: Math.round(v.pct * 10) / 10 });
+    }
+  }
   /* LOS DOS CAMPOS DE DÍAS, POR SEPARADO (owner 2026-08-16, deriva medida en el Examen 4). El texto ya los
    * distingue —«Días de inventario 190d» y «112d sin venta»— pero como CIFRAS los dos llegan al notario con el
    * mismo dueño y la misma unidad, así que no tenía cómo ver que el narrador le puso a uno el rótulo del otro

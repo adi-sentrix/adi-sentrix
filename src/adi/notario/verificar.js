@@ -685,7 +685,9 @@ function _valorDeclarado(a) { return a.valor && Number.isFinite(a.valor.raw) ? a
 /* las métricas cuyo ranking de la proyección trae el valor SIN escala ambigua (la venta va en miles en el dato y el capital en dólares:
  * el dinero de los rankings no se compara; unidades, tasas, días y rotación sí) — la proyección es evidencia estructurada aunque la
  * boleta del turno no traiga la fig */
-const _UNIDAD_DE_RANKING = { unidades: "count", margen: "pct", carga: "pct", brecha: "pp", recuperado: "pct", dias_vencido: "days", rotacion: "ratio", dias_inventario: "days", dias_sin_venta: "days", margen_inventario: "pct" };
+/* «variacion»: cierre D29 del corte 3c (owner 2026-09-25) — el ranking que publica `oracle/datoProyectado.js`
+ * (variacionVentasPorEje, la MISMA función de `salesRead`) trae un % ya calculado, sin escala ambigua. */
+const _UNIDAD_DE_RANKING = { unidades: "count", margen: "pct", carga: "pct", brecha: "pp", recuperado: "pct", dias_vencido: "days", rotacion: "ratio", dias_inventario: "days", dias_sin_venta: "days", margen_inventario: "pct", variacion: "pct" };
 function _delRanking(a, I) {
   const ent = typeof a.sujeto === "string" && a.sujeto !== "negocio" ? I.resolverEntidad(a.sujeto) : null;
   if (!ent) return null;
@@ -1111,7 +1113,18 @@ function _valorDe(sujeto, metrica, I, universo = "", unidad = null) {
   let c = I.buscarFigs(sujeto, metrica, { agregados: sujeto === "negocio" });
   /* la variación de la venta EN DINERO: «YoY» y la fig «Valor» del emisor salesRead (sin rótulo propio — deuda anotada para la fase 2) */
   if (_ES_VARIACION_DINERO(metrica) && sujeto !== "negocio") { const ent = I.resolverEntidad(sujeto); if (ent) c = [...I.figs.filter((f) => f.entidad && normalizar(f.entidad) === normalizar(ent.nombre) && _FIG_VARIACION_DINERO(f)), ...c]; }
-  if (!c.length) return null;
+  /* CIERRE DE BRECHA (owner 2026-09-25, orden del supervisor sobre el corte 3c: D22/q1) — «una premisa se juzga
+   * contra LO QUE ADI SABE DE LA EMPRESA, no contra la boleta de la parte donde cayó». `_cifra` (arriba, línea
+   * ~745) YA cae a la proyección (`_delRanking`, rankings sin escala ambigua) cuando la boleta del turno no
+   * trae la fig; `_relacion` (más abajo) llama a ESTA función para CADA lado de la relación y no tenía el mismo
+   * respaldo — no era una regla nueva, era una cobertura que faltaba. MISMO respaldo, reusado tal cual (una
+   * regla, un lugar: `_delRanking`, no una segunda copia) — nunca al revés: si `I.buscarFigs` sí encontró algo,
+   * la boleta manda (más específica que la proyección). */
+  if (!c.length) {
+    const rk = _delRanking({ sujeto, metrica }, I);
+    if (rk && (!unidad || _u(rk.unidad) === _u(unidad))) return { label: rk.label, texto: rk.texto, raw: rk.raw, unidad: rk.unidad, entidad: sujeto, concepto: metrica, conceptoNorm: normalizar(metrica), agregado: false, deRanking: true, fig: { id: null, value: rk.texto } };
+    return null;
+  }
   /* la métrica sin «año anterior» es la del período: la base del año anterior no la representa (venta vs presupuesto comparaba $92.9M) */
   if (!/anterior|pasado|previo/.test(normalizar(metrica))) { const delPeriodo = c.filter((f) => !_esBaseAnterior(f)); if (delPeriodo.length) c = delPeriodo; }
   if (unidad) { const mismaU = c.filter((f) => _u(f.unidad) === _u(unidad)); if (mismaU.length) c = mismaU; }
@@ -1432,7 +1445,26 @@ function _variacion(a, I) {
     cands = I.buscarFigs(a.sujeto, a.metrica, { agregados: a.sujeto === "negocio" }).filter((f) => /variacion|crecimiento|yoy|vs ano anterior|anterior/.test(f.conceptoNorm + " " + f.context));
     if (!cands.length) return _nv(`sin-evidencia-temporal: la boleta no trae la variación ni la serie de «${a.metrica}» de ${_nom(a.sujeto)} — sin evidencia temporal no hay «${v.direccion}»`);
   }
-  if (!cands.length) return _nv(`sin-evidencia-temporal: la boleta no trae la variación de «${a.metrica}» de ${_nom(a.sujeto)}`);
+  if (!cands.length) {
+    /* CIERRE DE BRECHA (owner 2026-09-25, orden del supervisor sobre el corte 3c: D29) — «una premisa se juzga
+     * contra LO QUE ADI SABE DE LA EMPRESA, no contra la boleta de la parte en que cayó». Mismo respaldo que ya
+     * usan `_cifra` y `_relacion` (arriba): la proyección (`_delRanking`, rankings sin escala ambigua) cuando la
+     * boleta del turno no trae la fig — reusado tal cual, nunca una segunda regla. SOLO para la variación de
+     * VENTA («esVenta»): `oracle/datoProyectado.js:variacionVentasPorEje` únicamente calcula esa (cliente, marca,
+     * familia, canal — SKU no trae año anterior); inventar un respaldo de margen/contribución/carga sin fuente
+     * sería una segunda verdad, no un cierre de brecha. */
+    if (esVenta) {
+      const rk = _delRanking({ sujeto: a.sujeto, metrica: "variacion" }, I);
+      if (rk && Number.isFinite(rk.raw)) {
+        const dirRk = Math.abs(rk.raw) < 0.05 ? "estable" : rk.raw > 0 ? "sube" : "baja";
+        if (dirRk !== v.direccion) return _falsa(`direccion-falsa: ${rk.label} = ${rk.texto} (${dirRk}), no «${v.direccion}»`, `${rk.label} = ${rk.texto}`, [rk.label]);
+        const val0 = v.valor && Number.isFinite(v.valor.raw) ? v.valor : null;
+        if (val0 && val0.unidad === "pct" && !_mismoValor({ ...val0, raw: Math.abs(val0.raw) }, Math.abs(rk.raw), "pct")) return _falsa(`magnitud-distinta: ${rk.label} = ${rk.texto}`, `${rk.label} = ${rk.texto}`, [rk.label]);
+        return _ok(`${v.direccion} vs año anterior: ${rk.label} = ${rk.texto}`, [rk.label], `${rk.label} = ${rk.texto}`);
+      }
+    }
+    return _nv(`sin-evidencia-temporal: la boleta no trae la variación de «${a.metrica}» de ${_nom(a.sujeto)}`);
+  }
   const val = v.valor && Number.isFinite(v.valor.raw) ? v.valor : null;
   /* con magnitud dicha, la fig de la misma unidad (% vs $); sin magnitud, la primera con signo */
   /* con varias figs de la misma variación (dos emisores redondean distinto: «+7.5%» y «7.6%»), juzga la que cierra con la magnitud dicha */

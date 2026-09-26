@@ -1733,6 +1733,26 @@ function _ventasRows(dim, scenario) {
   if (dim === "sku") return _skusM.map((s) => ({ nombre: s.nombre, actual: s.venta, unidades: s.unidades, marca: s.marca, sfamilia: s.sfamilia }));   // sin anterior/ppto
   return _load("clientesVentas", scenario);
 }
+/** variacionDeFilas(rows) → [{entidad, actual, anterior, delta, pct}] · SOLO las filas con año anterior declarado
+ *  (owner 2026-09-25, cierre de la brecha D29 del corte 3c: «Publícala con la MISMA función que usa salesRead»).
+ *  Extraída de `_ventasFocusBlock` (foco "vs_anterior") SIN cambiar un número: la misma fuente (`_ventasRows`) y
+ *  el mismo cálculo (`_pctChg`), ahora en un solo lugar que `salesRead` (abajo) y `oracle/datoProyectado.js`
+ *  (la proyección) llaman IGUAL — «una sola verdad por eje»: la pantalla, el agente y la proyección leen ESTA
+ *  función, nunca una copia. `rows` es lo que el llamador ya resolvió para su eje (con o sin scope/filtros);
+ *  esta función no decide el universo, solo mide la variación de las filas que recibe. */
+export function variacionDeFilas(rows) {
+  return (Array.isArray(rows) ? rows : []).filter((r) => typeof r.anterior === "number").map((r) => ({
+    entidad: r.nombre, actual: r.actual || 0, anterior: r.anterior || 0,
+    delta: (r.actual || 0) - (r.anterior || 0), pct: _pctChg(r.actual || 0, r.anterior || 0),
+  }));
+}
+/** variacionVentasPorEje(dim, scenario) → variacionDeFilas(_ventasRows(dim, scenario)) · el eje ENTERO, sin scope
+ *  ni filtros (lo que `oracle/datoProyectado.js` necesita para publicar el ranking completo). `_ventasRows` ya
+ *  declara que `sku` no trae `.anterior` (comentario arriba, "sin anterior/ppto") — `variacionDeFilas` lo filtra
+ *  solo, sin que el llamador tenga que saber por qué eje sí y por cuál no. */
+export function variacionVentasPorEje(dim, scenario) {
+  return variacionDeFilas(_ventasRows(dim, scenario));
+}
 // presupuesto sólo existe por CLIENTE → para marca/familia/canal se hace ROLL-UP de clientesVentas por ese eje (agregado honesto)
 function _pptoByDim(dim, scenario) {
   const cv = _load("clientesVentas", scenario);
@@ -1808,8 +1828,10 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
     const _todasY = _ventasRows(dim, scenario);
     let _scopedY = rows.length > 0 && rows.length < _todasY.length;
     if (!rows.some((r) => typeof r.anterior === "number")) { useRows = _load("clientesVentas", scenario); LL = _VLBL.cliente; note = `Por ${L.s} no tengo el año anterior (sólo venta actual) — te lo doy por cliente, que es el eje con YoY.`; _scopedY = false; }   // sku → pivot al eje cliente COMPLETO
-    const conA = useRows.filter((r) => typeof r.anterior === "number");
-    const mov = conA.map((r) => ({ nombre: r.nombre, d: (r.actual || 0) - (r.anterior || 0), p: _pctChg(r.actual || 0, r.anterior || 0) }));
+    // MISMA FUENTE, MISMO CÁLCULO que `oracle/datoProyectado.js` publica en su ranking (owner 2026-09-25, cierre
+    // D29): `variacionDeFilas`, no una copia inline — «una sola verdad por eje».
+    const conA = variacionDeFilas(useRows);
+    const mov = conA.map((r) => ({ nombre: r.entidad, d: r.delta, p: r.pct }));
     const up = mov.filter((r) => r.d > 0).sort((a, b) => b.d - a.d), down = mov.filter((r) => r.d < 0).sort((a, b) => a.d - b.d);
     const _totFilas = conA.reduce((a, r) => a + (r.actual || 0), 0), _totAntFilas = conA.reduce((a, r) => a + (r.anterior || 0), 0);
     const tot = !_scopedY && typeof _kpi.totalActual === "number" ? _kpi.totalActual : _totFilas;

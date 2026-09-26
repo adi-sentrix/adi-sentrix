@@ -112,10 +112,15 @@ export function verificarEntrega({ texto, entrega, partes = [] } = {}) {
   // definición (`defineConcept` nunca lee la boleta) — una oración marcada `_definicion` no tiene hecho que
   // declarar ni cifra que traer, y eso es lo CORRECTO, no un hueco. Ninguna de las 4 rutas fijas marca esto: la
   // regla queda idéntica para ellas.
+  // EXCEPCIÓN (corte 3c, pieza 3 — veredicto de premisas, `entrega/componer.js:_textoDePremisa`): una premisa
+  // «no verificable» declara POR QUÉ (falta evidencia), y ese motivo no siempre trae una cifra impresa — mismo
+  // espíritu que la excepción `_definicion` de arriba (una oración que legítimamente no tiene cifra propia no es
+  // el defecto que esta regla vigila). SÍ sigue exigiendo `hechos` declarados (el id de la premisa evaluada):
+  // `_premisa` nunca exime esa mitad de la regla, solo la cifra.
   (entrega.respuesta || []).forEach((r, i) => {
     if (r._definicion) return;
     if (!Array.isArray(r.hechos) || !r.hechos.length) v("oracion-hecho", `respuesta[${i}] no declara los hechos que la sostienen: «${(r.texto || "").slice(0, 80)}»`);
-    if (!_cifrasEnTexto(r.texto).length) v("oracion-hecho", `respuesta[${i}] no trae ninguna cifra: «${(r.texto || "").slice(0, 80)}»`);
+    if (!r._premisa && !_cifrasEnTexto(r.texto).length) v("oracion-hecho", `respuesta[${i}] no trae ninguna cifra: «${(r.texto || "").slice(0, 80)}»`);
   });
 
   // 3 · doble colocación — todo hecho citado en Respuesta aparece también en Cifras (tabla) o en la lista de hechos
