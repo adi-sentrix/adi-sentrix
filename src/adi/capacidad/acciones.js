@@ -1,4 +1,4 @@
-/* === src/adi/capacidad/acciones.js · LAS CUATRO ACCIONES DE LA CAPACIDAD (Etapa 3, corte 8, owner 2026-09-25) ═
+/* === src/adi/capacidad/acciones.js · LAS CUATRO ACCIONES DE LA CAPACIDAD (Etapa 3, corte 9, owner 2026-09-26) ═
  * `_ADI_DISENO_FLUJO_V2.md` §E: una sola capacidad ante el LLM, cuatro acciones — `conocerEmpresa`, `consultar`,
  * `aportarContexto`, `retomar`. Este archivo NO sabe de MCP ni de OpenAPI ni de HTTP: eso es `puerta.js`. Acá solo
  * viven las cuatro funciones, con el TENANT INYECTADO por quien llama (ley del owner: «el tenant sale del token,
@@ -22,13 +22,51 @@
  *
  * `tenant` (el objeto inyectado en las cuatro acciones): `{ id, nombre, dataset, version?, sello? }` — la MISMA
  * forma que ya devuelve `data/tenantService.server.js:packActivo`/`handleData` para el estado "activo". `puerta.js`
- * arma este objeto DESPUÉS de verificar el token; ninguna acción de acá vuelve a verificar nada de identidad. */
+ * arma este objeto DESPUÉS de verificar el token; ninguna acción de acá vuelve a verificar nada de identidad.
+ *
+ * ═══ CORTE 9 (owner 2026-09-26) — LA CONTINUIDAD REAL, YA NO EL DOBLE ═══════════════════════════════════════════
+ * `continuidadMemoria.js` (el doble en memoria de esta pieza) se RETIRA: el carril B publicó la continuidad real
+ * en `src/adi/continuidad/` (memoria de empresa + libro de conversación + estado vigente + retomar, sobre un
+ * ALMACÉN inyectable — `continuidad/almacen.js`). Lo que este archivo llamaba `continuidad` (con las cinco
+ * funciones del doble: `nuevaConversacion`/`obtenerEstado`/`registrarAporte`/`confirmarAporte`/`listarAportes`)
+ * pasa a ser, LITERAL, el ALMACÉN de `_ADI_CONTINUIDAD_INTEGRACION.md` §1: `crearAlmacenEnMemoria()` por defecto
+ * en los gates y en la puerta (un proceso, una instancia — ver `puerta.js`), o `crearAlmacenSupabase(...)` el día
+ * que el owner autorice aplicar la migración 015 (HOY no aplicada: este archivo NUNCA la importa por defecto).
+ * Las funciones PURAS de `continuidad/` (`empresa.js`, `libro.js`, `estadoVigente.js`, `retomar.js`) se llaman
+ * directo desde acá, con el almacén como primer parámetro — el mismo patrón que ya usa el resto del repo para
+ * separar cálculo de transporte.
+ *
+ * LO QUE ESTE CORTE CONECTA (`_ADI_CONTINUIDAD_INTEGRACION.md` §2) Y LO QUE DEJA DECLARADO COMO LÍMITE:
+ *   · `consultar` abre/reusa el libro de conversación, registra lo entregado como referencias (tabla de Cifras:
+ *     ya es la forma denormalizada que el libro necesita — sujeto/métrica/valor/procedencia — sin tener que leer
+ *     el libro de hechos interno de `entrega/componer.js`), avanza criterio y supuestos vivos desde `resolucion`
+ *     (ya resueltos por `validarEncargo`, sin tocar `componerEntrega`), y juzga las premisas leyendo
+ *     `salida.entrega.procedencia.libroPremisas` — un campo YA EXPUESTO por `componerEntrega` para esto mismo.
+ *   · LÍMITE DECLARADO (no se resuelve acá, congelado en `entrega/componer.js` durante esta etapa, ver
+ *     `_ADI_CONTINUIDAD_INTEGRACION.md` §3): plegar `memoriaDeEmpresa().hechos` como FIGS con `.origen` dentro del
+ *     libro de hechos del turno (para que un declarado que choca con un medido dispare el hecho `discrepancia` de
+ *     `notario/hechos.js`) es trabajo de `entrega/componer.js`. Este corte no lo hace: un declarado y un medido
+ *     conviven, cada uno visible por su propio camino (`conocerEmpresa`/`aportarContexto` para lo declarado,
+ *     `consultar` para lo medido), pero todavía no se CRUZAN en una sola Entrega. Reportado al supervisor.
+ *   · LÍMITE DECLARADO (`retomar`, ver su cabecera más abajo): el `reverificar()` real exige reconstruir el
+ *     índice de evidencia de la versión activa (`notario/evidencia.js:indiceDeEvidencia`), que hoy solo se arma
+ *     DENTRO de `entrega/componer.js` corriendo los playbooks del turno — tocar eso está fuera de lo que este
+ *     corte puede hacer sin meterse en `entrega/componer.js` (congelado). `retomar` queda con `reverificar:null`,
+ *     que es el comportamiento YA DISEÑADO de `continuidad/retomar.js` para este caso: falla cerrado,
+ *     `estadoReverificacion:"sin_reverificar"` para todo, nunca un veredicto inventado. */
 import { initTenant, getTenantData } from "../../data/tenantStore.js";
 import { validarEncargo } from "../encargo/validar.js";
 import { componerEntrega } from "../entrega/componer.js";
 import { construirCatalogo } from "./catalogo.js";
 import { construirPerfilCliente } from "../../config/contract/perfilCliente.js";
-import { crearContinuidadEnMemoria } from "./continuidadMemoria.js";
+import { crearAlmacenEnMemoria } from "../continuidad/almacen.js";
+import { memoriaDeEmpresa, declararHecho, confirmarHecho, hechoDePerfilCampo } from "../continuidad/empresa.js";
+import {
+  libroNuevo, emitirConversacionId, detectarCambioVersion, registrarEntrega,
+  actualizarCriterio, agregarSupuestoVivo, registrarPremisa, registrarHechoAportado,
+} from "../continuidad/libro.js";
+import { estadoVigenteDe, eventosDeContinuidad, lineaDeContinuidad } from "../continuidad/estadoVigente.js";
+import { retomar as reverificarConversacion } from "../continuidad/retomar.js";
 
 /* ── LA CABECERA DE USO (plan v2, Etapa 3 · «una cabecera de USO para el LLM») ───────────────────────────────────
  * Viaja en CADA `consultar(...)`. Cuatro reglas, en el vocabulario de negocio del contrato (nunca "boleta" ni
@@ -77,31 +115,85 @@ function _entenderAporte(aporte) {
   };
 }
 
+/* el aporte de la puerta manda `valor` como CUALQUIER tipo (el `inputSchema` MCP lo declara `{}` a propósito: un
+ * LLM puede mandar un número, un texto o ya un objeto {raw,unidad,texto}) — `empresa.js:declararHecho` exige la
+ * forma tipada. Esta es la ÚNICA traducción de forma que este archivo hace sobre el valor de un aporte. */
+function _valorParaEmpresa(valorCrudo, unidadDelCampo) {
+  if (valorCrudo != null && typeof valorCrudo === "object" && !Array.isArray(valorCrudo) && ("raw" in valorCrudo || "texto" in valorCrudo)) {
+    return { raw: valorCrudo.raw != null && Number.isFinite(+valorCrudo.raw) ? +valorCrudo.raw : null, unidad: valorCrudo.unidad || unidadDelCampo || null, texto: valorCrudo.texto != null ? String(valorCrudo.texto) : null };
+  }
+  if (typeof valorCrudo === "number" && Number.isFinite(valorCrudo)) return { raw: valorCrudo, unidad: unidadDelCampo || null, texto: null };
+  return { raw: null, unidad: unidadDelCampo || null, texto: valorCrudo != null ? String(valorCrudo) : null };
+}
+
+/* ── etiquetas cortas para los eventos de continuidad (texto de la CASA, nunca del LLM) ─────────────────────── */
+function _etiquetaCriterio(c) {
+  if (!c) return null;
+  if (c.valor && c.valor.lente) return c.valor.lente;
+  if (c.valor && c.valor.referencia) return c.valor.referencia.concepto;
+  return null;
+}
+function _etiquetaSupuesto(s) {
+  return [s.tipo, s.alcance && (s.alcance.nombre || s.alcance), s.valor != null ? `${s.valor}${s.unidad || ""}` : null].filter(Boolean).join(" · ") || s.id;
+}
+
+/* ── lo entregado, como REFERENCIAS para el libro (`_ADI_CONTINUIDAD_INTEGRACION.md` §2, paso 8) ────────────────
+ * La tabla de Cifras que ya arma `componerEntrega` (`entrega.cifras.filas`) es, por diseño, la forma DENORMALIZADA
+ * que el libro necesita — cada fila ya trae su entidad, su métrica, su valor y su procedencia (`_fila`/`_procedenciaDeFila`,
+ * `entrega/componer.js`) — así que este corte NO reconstruye el libro de hechos interno del compositor (eso exigiría
+ * tocar `entrega/componer.js`, congelado): lee lo que ya está expuesto. */
+function _hechosDeLaEntrega(entregaJson) {
+  const filas = (entregaJson && entregaJson.cifras && Array.isArray(entregaJson.cifras.filas)) ? entregaJson.cifras.filas : [];
+  return filas.map((f) => ({
+    sujeto: (f.valores && (f.valores["Entidad / grupo"] || f.valores["Entidad"])) || null,
+    metrica: (f.valores && f.valores["Métrica"]) || null,
+    valor: (f.valores && f.valores["Valor"]) || null,
+    unidad: null,
+    periodo: null,
+    origen: f.procedencia || null,
+    ref: Array.isArray(f.hechos) && f.hechos.length ? f.hechos[0] : null,
+  }));
+}
+
 /** crearAcciones({ continuidad? }) → { conocerEmpresa, consultar, aportarContexto, retomar }
  *
- *  EL PUNTO DE ENGANCHE (owner: «deja escrito el punto de enganche» para el carril B): `continuidad` es la
- *  interfaz inyectable de `src/adi/continuidad/` (`_ADI_DISENO_FLUJO_V2.md` §B — memoria de empresa + libro de
- *  conversación + estado vigente). Hoy la respalda el doble en memoria (`continuidadMemoria.js`); el día que el
- *  carril B publique la real, se pasa acá y ninguna otra línea de este archivo cambia. El contrato que
- *  `aportarContexto`/`retomar` exigen de `continuidad` (cualquier implementación que lo cumpla sirve):
- *    · nuevaConversacion(tenantId?)                    → conversacionId (string)
- *    · obtenerEstado(conversacionId)                   → EstadoVigente | null
- *    · registrarAporte(conversacionId, aporteEntendido) → { id, ...aporteEntendido, estado, creadoEn }
- *    · confirmarAporte(conversacionId, aporteId)        → boolean
- *    · listarAportes(conversacionId)                    → AporteRegistrado[]
- *  `EstadoVigente = { conversacionId, tenantId, turno, creadoEn, actualizadoEn, hechosAportados: [...] }`. */
-export function crearAcciones({ continuidad = crearContinuidadEnMemoria() } = {}) {
+ *  `continuidad` es el ALMACÉN inyectable de `src/adi/continuidad/almacen.js` (owner: «deja escrito el punto de
+ *  enganche» — corte 9: YA ESTÁ enganchado). Por defecto, `crearAlmacenEnMemoria()` — la misma instancia que usan
+ *  los gates y la que `puerta.js` comparte por proceso (nunca una por request: perdería la conversación entre
+ *  llamadas). El día que el owner autorice aplicar la migración 015, se inyecta `crearAlmacenSupabase({url,
+ *  apikey, pase})` (`continuidad/almacenSupabase.js`, escrito y sin usar) desde donde se arme la puerta —
+ *  NINGUNA línea de este archivo cambia: es exactamente el "almacén" que `_ADI_CONTINUIDAD_INTEGRACION.md` §1
+ *  describe. */
+export function crearAcciones({ continuidad = crearAlmacenEnMemoria() } = {}) {
+  const store = continuidad; // alias local: acá adentro es, literal, el almacén de `continuidad/almacen.js`
+
   /* 1 · conocerEmpresa({ tenant, conversacionId? }) → la ficha completa de la empresa activa + el catálogo
-   * generado (contrato §E). Sin cifras del negocio salvo lo que el catálogo YA declara que no lleva (temas,
-   * conceptos, ejes, cierres, definiciones) — el perfil trae sus CAMPOS y sus FALTANTES, nunca una cifra de venta. */
+   * generado (contrato §E) + la memoria de empresa VIGENTE (criterios/hechos/documentos que la empresa declaró,
+   * nunca una cifra medida) + el perfil plegado como hechos de solo lectura (`hechoDePerfilCampo`) + el estado
+   * vigente de la conversación, si se indicó una. */
   function conocerEmpresa({ tenant, conversacionId = null } = {}) {
     const prep = _prepararTenant(tenant);
     if (!prep.ok) return { ok: false, motivo: prep.motivo };
 
+    const tenantId = tenant.id || null;
     const datosDelTenant = getTenantData();
     const perfil = construirPerfilCliente(datosDelTenant);
     const catalogo = construirCatalogo();
-    const hechosAportados = conversacionId ? continuidad.listarAportes(conversacionId) : [];
+
+    // migración EN LECTURA de lo legado (007 diario / 011 contexto) — hoy vive en la versión activa del pack
+    // (`_ADI_CONTINUIDAD_INTEGRACION.md`, cabecera de `continuidad/empresa.js`): `memoriaDeEmpresa` lo traduce
+    // sin que este archivo tenga que saber cómo.
+    const legado = {
+      diario: (datosDelTenant && datosDelTenant.perfil && datosDelTenant.perfil.diario) || null,
+      contexto: (datosDelTenant && datosDelTenant.perfil && datosDelTenant.perfil.contexto) || null,
+    };
+    const memoria = memoriaDeEmpresa(store, tenantId, { legado });
+    const perfilPlegado = Object.entries(perfil.campos || {})
+      .map(([campo, v]) => hechoDePerfilCampo(campo, { codigo: v && v.valor, procedencia: v && v.procedencia }))
+      .filter(Boolean);
+
+    const libro = conversacionId ? store.leerLibro(conversacionId) : null;
+    const estadoVigente = libro ? estadoVigenteDe(libro, { versionIdActual: tenant.version || null }) : null;
 
     // el NOMBRE DE LA EMPRESA sale primero del propio dataset cargado (`datosDelTenant.nombre` — "ADI Demo", el
     // nombre real del negocio) y solo si el dataset no lo trae se cae a `tenant.nombre`: en el camino SIN base de
@@ -116,13 +208,19 @@ export function crearAcciones({ continuidad = crearContinuidadEnMemoria() } = {}
       perfil: { campos: perfil.campos, faltantes: perfil.faltantes, completo: perfil.completo },
       catalogo,
       conversacionId: conversacionId || null,
-      hechosAportados,
+      hechosAportados: [...memoria.hechos, ...perfilPlegado],
+      estadoVigente,
     };
   }
 
   /* 2 · consultar({ tenant, encargo }) → valida el Encargo v1 contra el Core (`validarEncargo`) y arma la Entrega
    * (`componerEntrega`) — CUALQUIER encargo válido, nunca un catálogo de preguntas fijas. La cabecera de USO viaja
-   * SIEMPRE, incluso cuando la Entrega quedó vacía (el LLM necesita las mismas reglas para leer un `noResuelto`). */
+   * SIEMPRE, incluso cuando la Entrega quedó vacía (el LLM necesita las mismas reglas para leer un `noResuelto`).
+   *
+   * LA CONTINUIDAD DE ESTE TURNO (`_ADI_CONTINUIDAD_INTEGRACION.md` §2), TODO en esta capa, CERO líneas tocadas
+   * de `entrega/componer.js`: abre o reusa el libro de conversación, avanza criterio/supuestos vivos/premisas con
+   * lo que `validarEncargo` YA resolvió y lo que `componerEntrega` YA expuso (`entrega.procedencia.libroPremisas`),
+   * registra lo entregado como referencias, y antepone UNA línea de la casa al texto SOLO si hubo un evento. */
   function consultar({ tenant, encargo } = {}) {
     const prep = _prepararTenant(tenant);
     if (!prep.ok) return { ok: false, motivo: prep.motivo, uso: CABECERA_DE_USO };
@@ -130,13 +228,77 @@ export function crearAcciones({ continuidad = crearContinuidadEnMemoria() } = {}
     const resolucion = validarEncargo(encargo, {});
     const salida = componerEntrega(resolucion);
 
+    const versionIdActivo = tenant.version != null ? tenant.version : null;
+    const conversacionIdEntrante = (encargo && typeof encargo.conversacionId === "string" && encargo.conversacionId) || null;
+    let libro = conversacionIdEntrante ? store.leerLibro(conversacionIdEntrante) : null;
+    const esNueva = !libro;
+    if (!libro) {
+      libro = libroNuevo({ versionId: versionIdActivo });
+    }
+    const cambioVersion = detectarCambioVersion(libro, versionIdActivo);
+
+    const eventosBase = { cambioVersion, cifrasReverificadas: [], premisasFalsas: [], criterioCambio: null, supuestosVivosRelevantes: [] };
+
+    if (salida.ok && salida.entrega) {
+      // § criterio (§4·2 del contrato del encargo, ya resuelto por `validarEncargo` — nunca se infiere acá)
+      const criterioAntes = libro.criterioVigente;
+      if (resolucion.criterio) libro = actualizarCriterio(libro, resolucion.criterio);
+      if (resolucion.criterio && resolucion.criterio.origen === "usuario" && JSON.stringify(criterioAntes && criterioAntes.valor) !== JSON.stringify(libro.criterioVigente && libro.criterioVigente.valor)) {
+        eventosBase.criterioCambio = { de: _etiquetaCriterio(criterioAntes), a: _etiquetaCriterio(libro.criterioVigente) };
+      }
+
+      // § premisas — el veredicto YA lo calculó `componerEntrega` (mismo `libroDeHechos` que juzga la Entrega,
+      // expuesto en `procedencia.libroPremisas`): esta capa solo LEE, nunca re-juzga (ley «premisa-adoptada»).
+      const libroPremisas = salida.entrega.procedencia && salida.entrega.procedencia.libroPremisas;
+      for (const p of (resolucion.premisas || [])) {
+        const H = libroPremisas && libroPremisas.porId ? libroPremisas.porId.get(String(p.id)) : null;
+        if (!H) continue;
+        libro = registrarPremisa(libro, { id: p.id, hecho: p, veredicto: H.veredicto, verdadId: (H.derivados && H.derivados[0]) || null });
+        if (H.veredicto === "falsa") eventosBase.premisasFalsas.push({ id: p.id, texto: H.verdad || H.motivo || p.id });
+      }
+
+      // § supuestos vivos — «relevante» = ya estaba vivo ANTES de este turno (un supuesto recién declarado en
+      // este mismo encargo no es una sorpresa de continuidad: el usuario lo acaba de pedir).
+      const vivosAntes = new Set((libro.supuestosVivos || []).map((s) => s.id));
+      for (const s of (resolucion.supuestos || [])) {
+        libro = agregarSupuestoVivo(libro, { id: s.id, concepto: s.tipo, tipo: s.tipo, valor: s.valor, unidad: s.unidad, alcance: s.alcance });
+        if (vivosAntes.has(s.id)) eventosBase.supuestosVivosRelevantes.push({ id: s.id, texto: _etiquetaSupuesto(s) });
+      }
+
+      // § lo entregado, como referencias (paso 8) — ver `_hechosDeLaEntrega`
+      const hechosParaLibro = _hechosDeLaEntrega(salida.entrega);
+      const entidadesEntregadas = [...new Set(hechosParaLibro.map((h) => h.sujeto).filter(Boolean))];
+      const cierres = [...new Set((resolucion.partes || []).map((p) => p.cierre).filter(Boolean))];
+      libro = registrarEntrega(libro, {
+        versionId: versionIdActivo,
+        temas: salida.entrega.temasCubiertos || [],
+        entidades: entidadesEntregadas,
+        cierre: cierres.length === 1 ? cierres[0] : (cierres.length ? cierres.join("+") : null),
+        hechos: hechosParaLibro,
+        universos: salida.entrega.universos || [],
+      });
+    }
+
+    store.guardarLibro(libro);
+
+    const estadoVigente = estadoVigenteDe(libro, { versionIdActual: versionIdActivo });
+    const eventos = eventosDeContinuidad(eventosBase);
+    const lineaContinuidad = lineaDeContinuidad(eventos);
+    const textoConContinuidad = salida.ok && lineaContinuidad ? `${lineaContinuidad}\n\n${salida.texto}` : (salida.ok ? salida.texto : "");
+
     return {
       ok: Boolean(salida.ok),
-      entrega: salida.ok ? { texto: salida.texto, json: salida.entrega } : null,
+      entrega: salida.ok ? { texto: textoConContinuidad, json: salida.entrega } : null,
       noResuelto: resolucion.noResuelto || [],
       uso: CABECERA_DE_USO,
+      continuidad: {
+        conversacionId: libro.conversacionId,
+        nueva: esNueva,
+        motivoNueva: esNueva ? (conversacionIdEntrante ? "el conversacionId indicado no existe: se abrió una conversación nueva" : "no llegó un conversacionId: se abrió una conversación nueva") : null,
+        estadoVigente,
+      },
       meta: {
-        conversacionId: (encargo && encargo.conversacionId) || null,
+        conversacionId: libro.conversacionId,
         motivo: salida.motivo || null,
         avisos: resolucion.avisos || [],
         criterio: resolucion.criterio || null,
@@ -145,63 +307,95 @@ export function crearAcciones({ continuidad = crearContinuidadEnMemoria() } = {}
   }
 
   /* 3 · aportarContexto({ tenant, conversacionId?, aportes?, confirmar? }) → registra lo que el usuario declaró
-   * (perfil, criterio, hecho, documento) en la continuidad INYECTADA. Nunca pisa un medido: acá solo se GUARDA el
-   * aporte con su estado ("pendiente" hasta que se confirme, o desde ya "vigente" si `confirmar` lo nombra en el
-   * mismo llamado) — la colisión contra un hecho medido del Core es trabajo de `src/adi/continuidad/` (carril B,
-   * ver la nota en `retomar`); este corte lo declara como límite en vez de fingir que ya lo resuelve. */
+   * (criterio, hecho, documento — el perfil se rechaza acá: vive en `tenants`, ver `empresa.js:declararHecho`) en
+   * la MEMORIA DE EMPRESA real (`continuidad/empresa.js`). Nunca pisa un medido — esta memoria no tiene medidos
+   * (ley «un declarado nunca pisa un medido», satisfecha por construcción, ver la cabecera de `empresa.js`): una
+   * colisión posible es solo contra OTRO declarado de la misma llave, y ahí SÍ queda `pendiente` con
+   * `conflictoCon`, hasta que se confirme (`confirmarHecho` nunca toca el origen — ley del owner, textual). */
   function aportarContexto({ tenant, conversacionId = null, aportes = [], confirmar = [] } = {}) {
     const prep = _prepararTenant(tenant);
     if (!prep.ok) return { ok: false, motivo: prep.motivo };
 
-    const idDeConversacion = conversacionId || continuidad.nuevaConversacion(tenant.id || null);
+    const tenantId = tenant.id || null;
+    const idDeConversacion = conversacionId || emitirConversacionId();
+    let libro = store.leerLibro(idDeConversacion) || libroNuevo({ conversacionId: idDeConversacion, versionId: tenant.version != null ? tenant.version : null });
+
     const listaAportes = Array.isArray(aportes) ? aportes : [];
     const listaConfirmar = Array.isArray(confirmar) ? confirmar : [];
 
     const resultados = listaAportes.map((crudo) => {
       const { valido, motivo, entendido } = _entenderAporte(crudo);
       if (!valido) return { id: null, estado: "rechazado", motivo, recibido: crudo };
-      const registro = continuidad.registrarAporte(idDeConversacion, entendido);
+
+      const aporte = {
+        clase: entendido.clase,
+        concepto: entendido.concepto,
+        entidad: entendido.entidad,
+        periodo: entendido.periodo,
+        valor: _valorParaEmpresa(entendido.valor, entendido.unidad),
+        origen: entendido.clase === "documento" ? "documento" : "declarado",
+        documento: entendido.documento,
+      };
+      const r = declararHecho(store, tenantId, aporte, { actorLabel: "anfitrion", conversacionId: idDeConversacion });
+      if (!r.ok) return { id: null, estado: "rechazado", motivo: r.motivo, recibido: crudo };
+
+      if (r.id) libro = registrarHechoAportado(libro, r.id);
+
       return {
-        id: registro.id,
-        estado: registro.estado,
-        entendido: { clase: registro.clase, concepto: registro.concepto, entidad: registro.entidad, periodo: registro.periodo, valor: registro.valor, unidad: registro.unidad },
-        // esta pieza no evalúa colisión contra un hecho medido del Core todavía (ver la cabecera del archivo):
-        // se declara `null`, nunca se afirma "sin conflicto" como si se hubiera comprobado.
-        conflictoCon: null,
-        paraConfirmar: registro.estado === "pendiente",
+        id: r.id,
+        estado: r.estado,
+        entendido: { clase: entendido.clase, concepto: entendido.concepto, entidad: entendido.entidad, periodo: entendido.periodo, valor: entendido.valor, unidad: entendido.unidad },
+        conflictoCon: r.conflictoCon || null,
+        paraConfirmar: r.estado === "pendiente",
       };
     });
 
-    const confirmaciones = listaConfirmar.map((id) => ({ id, confirmado: continuidad.confirmarAporte(idDeConversacion, id) }));
+    const confirmaciones = listaConfirmar.map((id) => {
+      const r = confirmarHecho(store, tenantId, id, { actorLabel: "anfitrion", medio: "chat-anfitrion", resolverConflicto: true });
+      return { id, confirmado: Boolean(r.ok) };
+    });
+
+    store.guardarLibro(libro);
 
     return {
       ok: true,
       conversacionId: idDeConversacion,
       resultados,
       confirmaciones,
-      estadoVigente: continuidad.obtenerEstado(idDeConversacion),
+      estadoVigente: estadoVigenteDe(libro, { versionIdActual: tenant.version != null ? tenant.version : null }),
     };
   }
 
-  /* 4 · retomar({ tenant, conversacionId }) → el estado vigente de una conversación anterior. LÍMITE DECLARADO
-   * (owner: «declina honestamente cuenta como éxito», nunca en silencio): este corte NO re-verifica cada hecho
-   * aportado contra la versión de datos activa — esa re-verificación es la pieza de continuidad del carril B
-   * (`_ADI_DISENO_FLUJO_V2.md` §B, "Retomar"). Hoy `retomar` devuelve el estado tal cual quedó guardado y lo dice. */
+  /* 4 · retomar({ tenant, conversacionId }) → el estado vigente + los hechos de las últimas Entregas
+   * RE-VERIFICADOS contra la versión activa (`continuidad/retomar.js`), sin recomponer prosa.
+   *
+   * LÍMITE DECLARADO (owner: «declina honestamente cuenta como éxito», nunca en silencio): el `reverificar()`
+   * real exige el índice de evidencia de la versión activa (`notario/evidencia.js:indiceDeEvidencia`), que hoy
+   * solo se arma DENTRO de `entrega/componer.js` corriendo los playbooks del turno (`_indiceDelTenant`/
+   * `_correrPlaybook`) — conectarlo desde acá sin tocar `entrega/componer.js` (congelado durante esta etapa) no
+   * es posible con lo que ese módulo expone hoy. Reportado al supervisor (`_ADI_CONTINUIDAD_INTEGRACION.md`
+   * §2, nota de "retomar": "Construirlo es responsabilidad de quien conecte esta pieza al índice de evidencia
+   * real, no de `continuidad/`"). Por eso `reverificar` va `null`: es el comportamiento YA DISEÑADO por
+   * `continuidad/retomar.js` para este caso — cada hecho vuelve con `estadoReverificacion:"sin_reverificar"`,
+   * nunca un veredicto inventado. */
   function retomar({ tenant, conversacionId } = {}) {
     const prep = _prepararTenant(tenant);
     if (!prep.ok) return { ok: false, motivo: prep.motivo };
     if (!conversacionId || typeof conversacionId !== "string") return { ok: false, motivo: "falta conversacionId" };
 
-    const estadoVigente = continuidad.obtenerEstado(conversacionId);
-    if (!estadoVigente) return { ok: false, motivo: "no existe una conversación con ese id", conversacionId };
+    const libro = store.leerLibro(conversacionId);
+    if (!libro) return { ok: false, motivo: "no existe una conversación con ese id", conversacionId };
+
+    const r = reverificarConversacion(libro, { versionIdActual: tenant.version != null ? tenant.version : null, reverificar: null });
 
     return {
       ok: true,
       conversacionId,
-      estadoVigente,
-      hechos: estadoVigente.hechosAportados,
+      estadoVigente: r.estadoVigente,
+      hechos: r.hechos,
+      lineaContinuidad: r.lineaContinuidad,
       advertencias: [
-        "este corte no re-verifica los hechos contra la versión de datos activa (esa pieza vive en la continuidad real, carril B) — lo que sigue es el estado tal cual quedó guardado.",
+        "este corte no re-verifica los hechos contra la versión de datos activa (falta conectar el índice de evidencia real del Core desde `entrega/componer.js`, reportado al supervisor): todo hecho entregado vuelve con estadoReverificacion:\"sin_reverificar\".",
       ],
     };
   }

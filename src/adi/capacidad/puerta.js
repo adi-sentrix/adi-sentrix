@@ -29,11 +29,21 @@
  *   GPT necesita LEER antes de poder llamar con su token; ninguna acción real corre sin bearer, esto solo
  *   describe la forma. */
 import { crearAcciones } from "./acciones.js";
+import { crearAlmacenEnMemoria } from "../continuidad/almacen.js";
 import { handleData } from "../../data/tenantService.server.js";
 import { verifyAccessCode } from "../llm/accessToken.js";
 
 const _json = (obj, status = 200, extraHeaders = null) =>
   new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", ...(extraHeaders || {}) } });
+
+/* ── LA CONTINUIDAD, COMPARTIDA POR PROCESO (corte 9, owner 2026-09-26) — el MISMO patrón que el rate limit de
+ * más abajo (`_golpesPorIp`/`_golpesGlobal`, módulo-level): una instancia por isolate, no una por request — si
+ * cada llamada creara su propio almacén, `aportarContexto`/`retomar` jamás encontrarían la conversación de la
+ * llamada anterior dentro del MISMO proceso (best-effort por instancia, la misma advertencia que ya deja escrita
+ * el rate limit: no es una persistencia durable — eso es `crearAlmacenSupabase`, el día que la migración 015 se
+ * aplique). `crearAcciones` recibe este almacén siempre, nunca uno nuevo por pedido. */
+const _almacenDelProceso = crearAlmacenEnMemoria();
+const _acciones = crearAcciones({ continuidad: _almacenDelProceso });
 
 /* ── LA BANDERA (apagada por defecto) ────────────────────────────────────────────────────────────────────────── */
 const _flagEncendida = (env) => String((env && env.ADI_COMPLEMENTO) || "").trim() === "true";
@@ -292,8 +302,7 @@ export async function manejarPuerta(request, env) {
   let cuerpo;
   try { cuerpo = await request.json(); } catch { cuerpo = {}; }
 
-  const acciones = crearAcciones();
-  const ctx = { tenant: resTenant.tenant, acciones };
+  const ctx = { tenant: resTenant.tenant, acciones: _acciones };
 
   try {
     if (cuerpo && cuerpo.jsonrpc) {

@@ -25,7 +25,7 @@ import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { DOMINIOS_REGISTRO } from "./src/config/contract/dominios.js";
 import { construirCatalogo } from "./src/adi/capacidad/catalogo.js";
 import { crearAcciones } from "./src/adi/capacidad/acciones.js";
-import { crearContinuidadEnMemoria } from "./src/adi/capacidad/continuidadMemoria.js";
+import { crearAlmacenEnMemoria } from "./src/adi/continuidad/almacen.js";
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -161,32 +161,52 @@ H("5 · tenant inyectado: sin dataset → declarado (ok:false), nunca una excepc
   ok(true, "el tenant sin dataset nunca llega a initTenant (verificado por construcción: _prepararTenant corta antes)");
 }
 
-/* ═══ 6 · aportarContexto / retomar — la FORMA del enganche de continuidad (doble en memoria) ═══════════════════ */
-H("6 · aportarContexto/retomar contra el doble de continuidad — la forma del enganche");
+/* ═══ 6 · aportarContexto / retomar — contra la CONTINUIDAD REAL (carril B, `src/adi/continuidad/`) ══════════════
+ * Corte 9 (owner 2026-09-26): ya no hay doble — `continuidad` acá es el ALMACÉN de `continuidad/almacen.js`. El
+ * flujo completo (consultar → conversación → aportarContexto → retomar) lo prueba `_capacidad_continuidad_gate.mjs`;
+ * acá solo la FORMA del enganche: `crearAcciones({continuidad})` funciona contra un almacén real, con las leyes
+ * de `empresa.js` intactas (el perfil se rechaza; un aporte sin colisión queda vigente ya mismo; solo una
+ * colisión entre dos declarados abre el "pendiente"). */
+H("6 · aportarContexto/retomar contra la continuidad real — la forma del enganche");
 {
-  const continuidad = crearContinuidadEnMemoria();
+  const continuidad = crearAlmacenEnMemoria();
   const { aportarContexto, retomar } = crearAcciones({ continuidad });
 
-  const a1 = aportarContexto({ tenant: TENANT, aportes: [{ clase: "perfil", concepto: "sector", valor: "retail_moda" }] });
-  ok(a1.ok === true, "aportarContexto crea una conversación y registra el aporte");
-  ok(typeof a1.conversacionId === "string" && a1.conversacionId.length > 0, "conversacionId emitido por la continuidad inyectada");
-  ok(a1.resultados[0].estado === "pendiente" && a1.resultados[0].paraConfirmar === true, "el aporte queda pendiente hasta confirmarse", JSON.stringify(a1.resultados[0]));
+  // el perfil NUNCA se declara por esta vía (ley de `empresa.js:declararHecho` — vive en `tenants`, 012/013)
+  const aPerfil = aportarContexto({ tenant: TENANT, aportes: [{ clase: "perfil", concepto: "sector", valor: "retail_moda" }] });
+  ok(aPerfil.ok === true, "aportarContexto responde ok:true aunque el aporte se rechace (el rechazo va en el resultado, no en el sobre)");
+  ok(aPerfil.resultados[0].estado === "rechazado", "clase \"perfil\" se rechaza: vive en tenants, no en la memoria de empresa", JSON.stringify(aPerfil.resultados[0]));
 
-  const a2 = aportarContexto({ tenant: TENANT, conversacionId: a1.conversacionId, aportes: [], confirmar: [a1.resultados[0].id] });
-  ok(a2.ok === true && a2.confirmaciones[0].confirmado === true, "confirmar por id marca el aporte como confirmado");
+  // un aporte SIN colisión (primera vez que se declara esa llave) queda VIGENTE de inmediato — no hay nada que
+  // confirmar todavía (ley de `empresa.js`: la confirmación es el camino de SALIDA de un conflicto, no un paso
+  // obligatorio para toda declaración nueva).
+  const a1 = aportarContexto({ tenant: TENANT, aportes: [{ clase: "criterio", concepto: "benchmark_propio_margen", valor: 28, unidad: "pct" }] });
+  ok(a1.ok === true, "aportarContexto crea una conversación y registra el aporte");
+  ok(typeof a1.conversacionId === "string" && a1.conversacionId.length > 0, "conversacionId emitido por la continuidad inyectada (emitirConversacionId)");
+  ok(a1.resultados[0].estado === "vigente" && a1.resultados[0].paraConfirmar === false, "un aporte sin colisión queda vigente sin pedir confirmación", JSON.stringify(a1.resultados[0]));
+
+  // declarar OTRO valor para la MISMA llave (mismo concepto/entidad/período) SÍ choca: nunca se pisa en
+  // silencio — entra "pendiente" con `conflictoCon`, y el origen sigue "declarado" en los dos.
+  const a2 = aportarContexto({ tenant: TENANT, conversacionId: a1.conversacionId, aportes: [{ clase: "criterio", concepto: "benchmark_propio_margen", valor: 32, unidad: "pct" }] });
+  ok(a2.resultados[0].estado === "pendiente" && a2.resultados[0].paraConfirmar === true, "un valor distinto de la MISMA llave nunca pisa en silencio: queda pendiente", JSON.stringify(a2.resultados[0]));
+  ok(a2.resultados[0].conflictoCon === a1.resultados[0].id, "el conflicto apunta al hecho vigente que chocó", JSON.stringify(a2.resultados[0]));
+
+  const a3 = aportarContexto({ tenant: TENANT, conversacionId: a1.conversacionId, aportes: [], confirmar: [a2.resultados[0].id] });
+  ok(a3.ok === true && a3.confirmaciones[0].confirmado === true, "confirmar por id resuelve el conflicto (el nuevo valor queda vigente, el viejo se retira)");
 
   const r1 = retomar({ tenant: TENANT, conversacionId: a1.conversacionId });
-  ok(r1.ok === true, "retomar recupera la conversación creada por aportarContexto");
-  ok(r1.hechos.length === 1 && r1.hechos[0].estado === "vigente", "retomar ve el aporte YA confirmado como vigente", JSON.stringify(r1.hechos));
-  ok(Array.isArray(r1.advertencias) && r1.advertencias.length > 0, "retomar declara el límite de re-verificación (carril B pendiente)", JSON.stringify(r1.advertencias));
+  ok(r1.ok === true, "retomar recupera la conversación abierta por aportarContexto");
+  ok(Array.isArray(r1.hechos) && r1.hechos.length === 0, "sin ninguna Entrega todavía (nunca se llamó consultar), retomar no inventa hechos entregados", JSON.stringify(r1.hechos));
+  ok(Array.isArray(r1.estadoVigente.hechosAportados) && r1.estadoVigente.hechosAportados.length === 2, "el estado vigente sí referencia los DOS aportes de esta conversación (el vigente y el confirmado)", JSON.stringify(r1.estadoVigente.hechosAportados));
+  ok(Array.isArray(r1.advertencias) && r1.advertencias.length > 0, "retomar declara el límite de re-verificación (el índice de evidencia real vive en entrega/componer.js)", JSON.stringify(r1.advertencias));
 
   const rFalla = retomar({ tenant: TENANT, conversacionId: "conversacion-que-no-existe" });
   ok(rFalla.ok === false, "retomar sobre un id inexistente se declara, no inventa un estado vacío con ok:true");
 
-  // una acción sin la continuidad inyectada (default) también funciona — usa su propio doble en memoria
+  // una acción sin la continuidad inyectada (default) también funciona — usa su propio almacén en memoria
   const suelto = crearAcciones();
   const aSuelto = suelto.aportarContexto({ tenant: TENANT, aportes: [{ clase: "hecho", concepto: "acuerdo verbal de plazo", valor: "60 días" }] });
-  ok(aSuelto.ok === true, "crearAcciones() sin argumentos trae su propio doble en memoria por defecto");
+  ok(aSuelto.ok === true, "crearAcciones() sin argumentos trae su propio almacén en memoria por defecto");
 }
 
 console.log(`\n── _capacidad_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
