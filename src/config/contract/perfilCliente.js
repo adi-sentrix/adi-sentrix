@@ -83,25 +83,46 @@ export const ETIQUETA_DEL_CAMPO = { sector: "sector", tipoProducto: "tipo de pro
  * mergee (la migración sin aplicar, o un tenant fabricado a mano como TENANT_DEMO), el campo sigue
  * exactamente como declaraba antes de este cambio: ausente, con su motivo — CERO diferencia de comportamiento.
  *
+ * ⚠️ CORRECCIÓN DEL SUPERVISOR (2026-09-26, segunda ronda) — LA LEY DE LOS CUATRO ORÍGENES, CAMPO POR CAMPO.
+ * El owner, textual, sobre el perfil: «el perfil y la moneda son atributos persistentes de la empresa, no del
+ * archivo, y ADI debe recordarlos SIN INFERIRLOS». Sector, tipo de producto, país y modelo comercial los
+ * declara SIEMPRE la empresa — nunca los mide ni los deriva ADI — así que su ÚNICA procedencia válida es
+ * `"declarado"`; se acepta el legado `"medido"` (012/013, antes de que la 015 corrigiera el vocabulario: ahí
+ * "medido" significaba "lo tipeó el usuario") y se traduce igual — nunca `"derivado"`, que ya no es válido
+ * para estos cuatro campos. La banda de tamaño es la EXCEPCIÓN INVERSA: `bandaTamano.js` la CALCULA siempre a
+ * partir de la venta y la UF — «no se pregunta, se calcula» (owner 2026-09-23) — así que su única procedencia
+ * válida es `"derivado"`; un legado `"medido"` para la banda representaría un ajuste manual que la ley ya no
+ * admite, y NO se traduce (traducirlo a "derivado" mentiría sobre su origen) — se descarta, igual que la
+ * migración 015 lo limpia en la base (nunca se re-etiqueta un origen, ley general: «nunca se reemplaza en
+ * silencio» tampoco autoriza a RENOMBRAR un origen que no calza).
+ *
  * `_delPerfilDeEmpresa` es la ÚNICA puerta de entrada, y valida FORMA Y VOCABULARIO (owner 2026-09-23, tarea 2:
  * antes solo validaba la forma — «la taxonomía la decide el owner, no este módulo» seguía siendo cierto el día
  * que se escribió, pero el owner YA la decidió, `taxonomiaPerfil.js`, así que dejar pasar un código inventado
- * sería el mismo hueco que un `check` sin sembrar) — un valor con procedencia fuera de {"medido","derivado"},
- * sin `valor` de texto, o con un código que NO está en la lista cerrada del campo se trata como si no estuviera,
+ * sería el mismo hueco que un `check` sin sembrar) — un valor con procedencia inválida PARA ESE CAMPO, sin
+ * `valor` de texto, o con un código que NO está en la lista cerrada del campo se trata como si no estuviera,
  * la misma defensa en profundidad que ya tiene el trigger de la base (`adi.validar_perfil_tenant()`), no la
  * primera línea de defensa. */
-const _PROCEDENCIAS_DEL_PERFIL_EMPRESA = ["medido", "derivado"];
+const _CAMPOS_SOLO_DERIVADO = new Set(["tamanoBanda"]);
+/** procedenciaNormalizadaPerfilEmpresa(campo, procedenciaCruda) → "declarado" | "derivado" | null
+ * La ÚNICA función que decide qué procedencia es válida para un campo del camino B, y a qué se traduce el
+ * legado — exportada para que `perfilEmpresaDesdeFilaTenant` y `_delPerfilDeEmpresa` usen la MISMA regla. */
+export function procedenciaNormalizadaPerfilEmpresa(campo, procedenciaCruda) {
+  if (_CAMPOS_SOLO_DERIVADO.has(campo)) return procedenciaCruda === "derivado" ? "derivado" : null;
+  return (procedenciaCruda === "declarado" || procedenciaCruda === "medido") ? "declarado" : null;
+}
 /** camelCase (como lo usa este módulo y `tenant.perfil`) → snake_case (como lo usa `taxonomiaPerfil.js` y la
  *  base, para que las dos listas sigan siendo la misma verdad sin renombrar ninguna de las dos). */
 const _CAMPO_A_TAXONOMIA = { sector: "sector", tipoProducto: "tipo_producto", modeloComercial: "modelo_comercial", pais: "pais", tamanoBanda: "tamano_banda" };
 function _delPerfilDeEmpresa(t, campo) {
   const v = t && t.perfil && t.perfil[campo];
   if (!v || typeof v.valor !== "string" || !v.valor) return null;
-  if (!_PROCEDENCIAS_DEL_PERFIL_EMPRESA.includes(v.procedencia)) return null;
+  const procedencia = procedenciaNormalizadaPerfilEmpresa(campo, v.procedencia);
+  if (!procedencia) return null;
   const campoTaxonomia = _CAMPO_A_TAXONOMIA[campo];
   if (campoTaxonomia && !codigoValido(campoTaxonomia, v.valor)) return null;   // código fuera de la lista → rechazado (nunca se cuela, nunca se avisa como "casi")
-  return { valor: v.valor, procedencia: v.procedencia,
-    fuente: `tenant.perfil.${campo} — declarado por la empresa o derivado por el motor (camino B, fuera de la plantilla; \`db/migraciones/012_perfil_empresa.sql\`, sin aplicar)` };
+  return { valor: v.valor, procedencia,
+    fuente: `tenant.perfil.${campo} — declarado por la empresa (camino B, fuera de la plantilla; \`db/migraciones/012_perfil_empresa.sql\`, sin aplicar)` };
 }
 
 /* perfilEmpresaDesdeFilaTenant(fila) → { campos: {...}, moneda } | null
@@ -122,8 +143,8 @@ export function perfilEmpresaDesdeFilaTenant(fila) {
   const campos = {};
   for (const [campo, colValor, colProcedencia] of _PARES_PERFIL_TENANT) {
     const valor = fila[colValor];
-    const procedencia = fila[colProcedencia];
-    if (typeof valor === "string" && valor && _PROCEDENCIAS_DEL_PERFIL_EMPRESA.includes(procedencia)) {
+    const procedencia = procedenciaNormalizadaPerfilEmpresa(campo, fila[colProcedencia]);
+    if (typeof valor === "string" && valor && procedencia) {
       campos[campo] = { valor, procedencia };
     }
   }
@@ -145,9 +166,13 @@ export function construirPerfilCliente(tenant) {
 
   // TAMAÑO — el valor (venta anual real) se deriva; la BANDA se CALCULA siempre (propuesta §3, textual: «no se
   // pregunta, se calcula») con `bandaTamano.js` — venta anual ÷ UF del período declarado, contra los umbrales
-  // sellados por el owner. Un valor de camino B con procedencia "medido" (una corrección humana manual de la
-  // banda, si algún día existiera) es la ÚNICA razón para no recalcular — hoy nunca ocurre en la práctica,
-  // porque la banda nunca se pregunta, pero la puerta queda para no perder un ajuste humano si existiera.
+  // sellados por el owner. ★ CORREGIDO (supervisor, 2026-09-26): la puerta de un "ajuste humano manual" de la
+  // banda (antes, un valor de camino B con procedencia "medido") queda CERRADA — la ley del owner dice que el
+  // perfil "no se infiere", y la banda es la excepción inversa: ADI la calcula, la empresa nunca la declara.
+  // `procedenciaNormalizadaPerfilEmpresa("tamanoBanda", ...)` ya no admite "medido" para este campo (SOLO
+  // "derivado"), así que `_delPerfilDeEmpresa` nunca devuelve un valor manual acá — `bandaManual` queda
+  // siempre `null` y la banda SIEMPRE se calcula. Se deja la forma condicional (en vez de borrar la rama) para
+  // que quede documentado qué existía y por qué se cerró, no para dejar una puerta abierta de hecho.
   const ventasKPI = t.ventasKPI || null;
   const tieneVenta = ventasKPI && typeof ventasKPI.totalActual === "number" && Number.isFinite(ventasKPI.totalActual);
   const ventaAnual = tieneVenta ? Math.round(ventasKPI.totalActual * factorComercialDe(t)) : null;

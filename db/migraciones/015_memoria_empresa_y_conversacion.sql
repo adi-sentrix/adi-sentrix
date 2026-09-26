@@ -22,22 +22,25 @@
 --       Ley del owner (2026-09-26, textual): «el libro de conversación va como `estado` en la tabla
 --       `conversaciones` de la migración 009, no en tabla nueva» — así que esta migración NO crea
 --       `libro_conversacion` (esa tabla estaba en el diseño §B original; la corrige la ley de arriba).
---   3 · `'declarado'` en los checks de procedencia del perfil (012) — consecuencia DIRECTA de la ley de los
---       cuatro orígenes (owner 2026-09-25: «medido · documento · declarado · supuesto, SIEMPRE distinguibles»):
---       hoy esos checks solo admiten `medido|derivado` (hallazgo 3 de `_ADI_DISENO_FLUJO_V2.md`), y un campo del
---       perfil que la empresa declara conversando con el LLM (Etapa 3, «perfil conversando») es exactamente un
---       origen «declarado» — no una decisión nueva, la registra el diseño v2 revisado por el supervisor.
---       ⚠️ CORRECCIÓN DEL SUPERVISOR (2026-09-26) SOBRE LA MONEDA — la primera versión de esta migración dejaba
---       `moneda_procedencia` intacta («SOLO `medido`»), razonando que en el vocabulario de 012 `'medido'` YA
---       significaba «lo declaró el usuario». Es la MEZCLA de procedencias que el owner prohibió (ley de los
---       cuatro orígenes, 2026-09-25): en ESE vocabulario, «medido» significa lo que ADI mide sobre el dato de la
---       empresa — nunca lo que la empresa declara. La moneda SIEMPRE la declara la empresa (nunca se mide sobre
---       el archivo, nunca se deriva — «la moneda nunca se infiere, ni siquiera acá», 012), así que su única
---       procedencia correcta es `'declarado'`. Corregido: `moneda_procedencia` pasa a admitir SOLO `'declarado'`
---       (nunca `'medido'`, nunca `'derivado'` — la ley de «nunca se infiere» se mantiene igual de dura, con la
---       palabra correcta) y los valores `'medido'` que ya existieran se migran a `'declarado'` (pieza 4, §5).
---   4 · La corrección de `moneda_procedencia` (arriba) + su migración de datos + `adi_declarar_perfil_empresa`
---       redefinida para escribir `'declarado'` en vez de `'medido'` de ahora en más.
+--   3 · EL PERFIL — la ley de los cuatro orígenes, aplicada CAMPO POR CAMPO (§4). Owner, textual (2026-09-25):
+--       «medido · documento · declarado · supuesto, SIEMPRE distinguibles». Owner, textual, sobre el perfil
+--       (2026-09-26, al revisar esta pieza): «el perfil y la moneda son atributos persistentes de la empresa,
+--       no del archivo, y ADI debe recordarlos SIN INFERIRLOS».
+--       ⚠️ CORRECCIÓN DEL SUPERVISOR, EN DOS RONDAS. La PRIMERA versión de esta migración solo AGREGABA
+--       `'declarado'` a los cinco checks del perfil (sector/tipo_producto/país/modelo_comercial/banda),
+--       dejando `'medido'`/`'derivado'` admitidos también, y dejaba `moneda_procedencia` intacta («SOLO
+--       `medido`»), razonando que en el vocabulario de 012 `'medido'` YA significaba «lo declaró el usuario».
+--       Las DOS cosas eran la MISMA mezcla de procedencias que el owner prohibió: en el vocabulario de
+--       `notario/hechos.js:ORIGENES`, «medido» es lo que ADI MIDE sobre el dato de la empresa — nunca lo que la
+--       empresa declara. El supervisor corrigió primero la moneda y después extendió la misma corrección al
+--       resto del perfil: sector, tipo de producto, país y modelo comercial los declara SIEMPRE la empresa
+--       (nunca los mide ni los deriva ADI) → su única procedencia correcta es `'declarado'`, sin admitir
+--       `'medido'` ni `'derivado'`. La EXCEPCIÓN es la banda de tamaño: `bandaTamano.js` la CALCULA siempre —
+--       «no se pregunta, se calcula» (owner 2026-09-23) — así que su única procedencia correcta es `'derivado'`,
+--       sin admitir `'declarado'` ni `'medido'`. Los valores `'medido'` que ya existieran se migran a
+--       `'declarado'` (sector/tipo_producto/país/modelo_comercial/moneda) o se limpian (banda, §4).
+--   4 · `adi_declarar_perfil_empresa` redefinida (§5) para escribir el origen CORRECTO de los seis campos
+--       (los cinco del perfil + moneda) de ahora en más, sin confiar en lo que el caller le pase.
 --
 -- IDEMPOTENTE, como las cinco anteriores: correrla dos veces seguidas es inocua.
 
@@ -353,16 +356,21 @@ grant execute on function public.adi_guardar_estado_conversacion(text, jsonb, uu
 
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
--- 4 · `'declarado'` en los checks de procedencia del perfil (012) — la ley de los cuatro orígenes, aplicada
+-- 4 · EL PERFIL — la ley de los cuatro orígenes, aplicada CAMPO POR CAMPO (CORRECCIÓN DEL SUPERVISOR, 2026-09-26)
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
--- Los CINCO checks de abajo (sector, tipo_producto, país, modelo comercial, banda de tamaño) admitían solo
--- `medido|derivado` (012, hallazgo 3 de `_ADI_DISENO_FLUJO_V2.md`). Se agrega `'declarado'` — el mismo origen
--- que `notario/hechos.js:ORIGENES` ya usa para «lo aportó el usuario» — para que la Etapa 3 («perfil
--- conversando») pueda guardar una respuesta del chat sin traducir un vocabulario contra otro. NINGÚN dato
--- existente cambia de valor: esto solo AGREGA una palabra admitida a un `check`.
+-- ⚠️ ESTA SECCIÓN REEMPLAZA LA PRIMERA VERSIÓN DE ESTA MIGRACIÓN, que solo AGREGABA `'declarado'` a los cinco
+-- checks (dejando `'medido'`/`'derivado'` admitidos también). El supervisor extendió la misma corrección que
+-- ya se aplicó a la moneda: la ley del owner sobre el perfil, textual, es «el perfil y la moneda son atributos
+-- persistentes de la empresa, no del archivo, y ADI debe recordarlos SIN INFERIRLOS» — y con la ley de los
+-- cuatro orígenes (2026-09-25), "medido" es lo que ADI MIDE sobre el dato, nunca lo que la empresa declara.
+-- Sector, tipo de producto, país y modelo comercial los declara SIEMPRE la empresa (hoy por camino B; mañana
+-- conversando con el LLM, Etapa 3) — nunca los mide ni los deriva ADI — así que su única procedencia correcta
+-- es `'declarado'`. La banda de tamaño es la EXCEPCIÓN inversa: `bandaTamano.js` la CALCULA siempre a partir de
+-- la venta y la UF del período — «no se pregunta, se calcula» (owner 2026-09-23) — así que nunca puede ser
+-- `'declarado'`, y su única procedencia correcta es `'derivado'`.
 alter table public.tenants drop constraint if exists tenants_sector_procedencia_check;
 alter table public.tenants add constraint tenants_sector_procedencia_check
-  check (sector_procedencia is null or sector_procedencia in ('medido', 'derivado', 'declarado'));
+  check (sector_procedencia is null or sector_procedencia = 'declarado');
 
 -- el nombre viejo del constraint (`…subsector_procedencia_check`) quedó de la 012, previo al rename de la 013
 -- (RENAME COLUMN no renombra los constraints que la referencian) — se limpia el nombre viejo si sobrevive y se
@@ -370,23 +378,45 @@ alter table public.tenants add constraint tenants_sector_procedencia_check
 alter table public.tenants drop constraint if exists tenants_subsector_procedencia_check;
 alter table public.tenants drop constraint if exists tenants_tipo_producto_procedencia_check;
 alter table public.tenants add constraint tenants_tipo_producto_procedencia_check
-  check (tipo_producto_procedencia is null or tipo_producto_procedencia in ('medido', 'derivado', 'declarado'));
+  check (tipo_producto_procedencia is null or tipo_producto_procedencia = 'declarado');
 
 alter table public.tenants drop constraint if exists tenants_pais_procedencia_check;
 alter table public.tenants add constraint tenants_pais_procedencia_check
-  check (pais_procedencia is null or pais_procedencia in ('medido', 'derivado', 'declarado'));
+  check (pais_procedencia is null or pais_procedencia = 'declarado');
 
 alter table public.tenants drop constraint if exists tenants_modelo_comercial_procedencia_check;
 alter table public.tenants add constraint tenants_modelo_comercial_procedencia_check
-  check (modelo_comercial_procedencia is null or modelo_comercial_procedencia in ('medido', 'derivado', 'declarado'));
+  check (modelo_comercial_procedencia is null or modelo_comercial_procedencia = 'declarado');
 
+-- ★ LA EXCEPCIÓN: banda de tamaño, SOLO 'derivado' — nunca 'declarado' (no se pregunta) ni 'medido' (ADI no la
+-- mide, la calcula desde otros dos hechos ya medidos: venta anual y UF del período).
 alter table public.tenants drop constraint if exists tenants_tamano_banda_procedencia_check;
 alter table public.tenants add constraint tenants_tamano_banda_procedencia_check
-  check (tamano_banda_procedencia is null or tamano_banda_procedencia in ('medido', 'derivado', 'declarado'));
+  check (tamano_banda_procedencia is null or tamano_banda_procedencia = 'derivado');
+
+-- MIGRACIÓN DE DATOS (sector/tipo_producto/país/modelo_comercial): todo `'medido'` que ya existiera —escrito
+-- por `adi_declarar_perfil_empresa` de 012/013, bajo el vocabulario viejo donde esa palabra significaba «lo
+-- declaró el usuario»— pasa a `'declarado'`. El MISMO hecho, la palabra correcta; ningún código se toca.
+update public.tenants set sector_procedencia           = 'declarado' where sector_procedencia           = 'medido';
+update public.tenants set tipo_producto_procedencia     = 'declarado' where tipo_producto_procedencia     = 'medido';
+update public.tenants set pais_procedencia              = 'declarado' where pais_procedencia              = 'medido';
+update public.tenants set modelo_comercial_procedencia  = 'declarado' where modelo_comercial_procedencia  = 'medido';
+
+-- DEFENSA PARA LA BANDA: el diseño de 012 dejaba abierta la puerta a un valor 'medido' («una corrección humana
+-- manual de la banda, si algún día existiera») que HOY NO OCURRE EN NINGÚN CAMINO REAL del producto
+-- (`config/contract/perfilCliente.js`, comentario junto a `bandaManual`: «hoy nunca ocurre en la práctica»).
+-- Con la ley corregida esa puerta deja de existir: un valor 'medido' para la banda sería un ajuste manual que
+-- la ley del owner ya no admite, no un hecho que se pueda re-etiquetar como 'derivado' sin mentir sobre su
+-- origen. Se limpia (nunca se re-etiqueta) por si alguna fila lo tuviera al aplicar esta migración — no debería
+-- existir ninguna, y esta línea es la red de seguridad, no una migración de datos real esperada.
+update public.tenants set tamano_banda_codigo = null, tamano_banda_procedencia = null where tamano_banda_procedencia = 'medido';
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
--- 5 · LA MONEDA · CORRECCIÓN DEL SUPERVISOR (2026-09-26) — `moneda_procedencia` pasa a admitir SOLO 'declarado'
+-- 5 · LA MONEDA Y LA FUNCIÓN DE ESCRITURA · CORRECCIÓN DEL SUPERVISOR (2026-09-26)
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
+-- `moneda_procedencia` pasa a admitir SOLO 'declarado' — y, más abajo, `adi_declarar_perfil_empresa` se
+-- redefine UNA sola vez para corregir el origen de los CINCO campos del perfil (§4) y de la moneda a la vez:
+-- es la misma función, no tiene sentido reescribirla dos veces en el mismo archivo.
 -- Ver la cabecera de este archivo, §0, punto 3. La moneda SIEMPRE la declara la empresa (por el archivo o por
 -- la pantalla de carga) — nunca la MIDE ADI sobre datos ni la DERIVA el motor. Con la ley de los cuatro
 -- orígenes, eso es «declarado», no «medido» (en `notario/hechos.js:ORIGENES`, «medido» es lo que ADI mide
@@ -401,10 +431,16 @@ alter table public.tenants add constraint tenants_moneda_procedencia_check
 -- correcta. No es un cambio de qué se sabe, es corregir cómo se lo llama; ningún valor de `moneda` se toca.
 update public.tenants set moneda_procedencia = 'declarado' where moneda_procedencia = 'medido';
 
--- `adi_declarar_perfil_empresa` (013) escribía `moneda_procedencia = 'medido'` — con el check de arriba ya
--- corregido, seguir escribiendo 'medido' rompería la PRÓXIMA declaración de moneda. Se redefine con la MISMA
--- firma (mismo patrón que 013 usó sobre 012: `create or replace`, no se reescribe la migración vieja) y el
--- único cambio es esa palabra.
+-- `adi_declarar_perfil_empresa` (013) ESCRIBÍA la procedencia que el CALLER le pasara (`p_sector_procedencia`,
+-- etc. — confiaba en quien llamara para decir "medido" o "derivado") y fijaba `moneda_procedencia = 'medido'`
+-- a mano. Con los checks de arriba ya corregidos, eso rompería la PRÓXIMA declaración de cualquier campo. Se
+-- redefine con la MISMA firma (mismo patrón que 013 usó sobre 012: `create or replace`, no se reescribe la
+-- migración vieja — y se mantienen los parámetros `p_*_procedencia` para no romper la firma que ya llama
+-- `persistirCarga.server.js:declararPerfilEmpresa`) y la función deja de CONFIAR en el origen que el caller le
+-- pasa: lo DECIDE ella misma, igual que ya hacía con la moneda — sector/tipo_producto/país/modelo_comercial
+-- siempre "declarado" cuando llega un código nuevo (la empresa los declara, ADI nunca los mide ni los deriva);
+-- tamano_banda siempre "derivado" (se calcula, nunca se pregunta). Los parámetros `p_*_procedencia` quedan
+-- ACEPTADOS PERO IGNORADOS — documentado acá para que no se lean como un origen configurable que ya no existe.
 create or replace function public.adi_declarar_perfil_empresa(
   p_sector_codigo                text default null,
   p_sector_procedencia           text default null,
@@ -445,19 +481,22 @@ begin
     v_moneda := null;
   end if;
 
+  -- ★ CORREGIDO (015) — el ORIGEN de cada campo lo decide esta función, no el parámetro `p_*_procedencia`
+  -- (que se sigue aceptando en la firma, pero se ignora: ver el comentario de arriba). Sector, tipo de
+  -- producto, país y modelo comercial son SIEMPRE "declarado" cuando llega un código; la banda de tamaño es
+  -- SIEMPRE "derivado" cuando llega una (nunca la declara nadie, `bandaTamano.js` la calcula).
   update public.tenants set
     sector_codigo                  = coalesce(p_sector_codigo, sector_codigo),
-    sector_procedencia             = coalesce(p_sector_procedencia, sector_procedencia),
+    sector_procedencia             = case when p_sector_codigo is not null then 'declarado' else sector_procedencia end,
     tipo_producto_codigo           = coalesce(p_tipo_producto_codigo, tipo_producto_codigo),
-    tipo_producto_procedencia      = coalesce(p_tipo_producto_procedencia, tipo_producto_procedencia),
+    tipo_producto_procedencia      = case when p_tipo_producto_codigo is not null then 'declarado' else tipo_producto_procedencia end,
     pais_codigo                    = coalesce(p_pais_codigo, pais_codigo),
-    pais_procedencia               = coalesce(p_pais_procedencia, pais_procedencia),
+    pais_procedencia               = case when p_pais_codigo is not null then 'declarado' else pais_procedencia end,
     modelo_comercial_codigo        = coalesce(p_modelo_comercial_codigo, modelo_comercial_codigo),
-    modelo_comercial_procedencia   = coalesce(p_modelo_comercial_procedencia, modelo_comercial_procedencia),
+    modelo_comercial_procedencia   = case when p_modelo_comercial_codigo is not null then 'declarado' else modelo_comercial_procedencia end,
     tamano_banda_codigo            = coalesce(p_tamano_banda_codigo, tamano_banda_codigo),
-    tamano_banda_procedencia       = coalesce(p_tamano_banda_procedencia, tamano_banda_procedencia),
+    tamano_banda_procedencia       = case when p_tamano_banda_codigo is not null then 'derivado' else tamano_banda_procedencia end,
     moneda                         = coalesce(v_moneda, moneda),
-    -- ★ CORREGIDO (015): 'declarado', no 'medido' — la moneda siempre la declara la empresa.
     moneda_procedencia             = case when v_moneda is not null then 'declarado' else moneda_procedencia end
   where id = v_tenant;
 

@@ -50,14 +50,27 @@ H("3 · el tope de `conversaciones.estado` es el MISMO que `libro.js:LIBRO_TOPE_
   ok(sql.includes("16384") && sql.match(/16384/g).length >= 2, "el número aparece más de una vez (el check de la tabla y la función de guardado — la doble validación del diseño, como 007)");
 }
 
-/* ═══ 4 · EL PERFIL — «declarado» se agrega a los CINCO checks de procedencia ═══ */
-H("4 · `'declarado'` entra en los cinco checks de procedencia del perfil");
+/* ═══ 4 · EL PERFIL — CORRECCIÓN DEL SUPERVISOR (2026-09-26, segunda ronda): CADA campo admite UN SOLO origen ═══
+ * sector/tipo_producto/país/modelo_comercial: SOLO 'declarado' (la empresa los declara, ADI nunca los mide ni
+ * los deriva). tamano_banda: SOLO 'derivado' (bandaTamano.js la calcula siempre, nunca se pregunta). Ninguno
+ * de los cinco admite ya `'medido'` ni una combinación — la primera versión de esta migración (candado
+ * anterior) solo AGREGABA 'declarado' dejando medido/derivado también admitidos; el supervisor cerró esa
+ * puerta igual que ya se había cerrado para la moneda. */
+H("4 · sector/tipo_producto/país/modelo_comercial admiten SOLO 'declarado'; tamano_banda SOLO 'derivado'");
 {
-  const camposConDeclarado = ["sector_procedencia", "tipo_producto_procedencia", "pais_procedencia", "modelo_comercial_procedencia", "tamano_banda_procedencia"];
-  for (const campo of camposConDeclarado) {
-    const re = new RegExp(`check \\(${campo} is null or ${campo} in \\('medido', 'derivado', 'declarado'\\)\\)`);
-    ok(re.test(sql), `«${campo}» admite ahora medido·derivado·declarado`);
+  for (const campo of ["sector_procedencia", "tipo_producto_procedencia", "pais_procedencia", "modelo_comercial_procedencia"]) {
+    ok(new RegExp(`check \\(${campo} is null or ${campo} = 'declarado'\\)`).test(sql), `«${campo}» admite ÚNICAMENTE 'declarado'`);
+    ok(!new RegExp(`${campo} in \\(`).test(sql), `★ CARNADA · «${campo}» ya no es un \`in (...)\` con varias palabras — es una sola procedencia`);
   }
+  ok(/check \(tamano_banda_procedencia is null or tamano_banda_procedencia = 'derivado'\)/.test(sql), "«tamano_banda_procedencia» admite ÚNICAMENTE 'derivado'");
+  ok(!/tamano_banda_procedencia in \(/.test(sql), "★ CARNADA · «tamano_banda_procedencia» ya no es un `in (...)` con varias palabras");
+
+  // migración de datos: sector/tipo_producto/país/modelo_comercial → 'declarado'; banda → limpiada, NUNCA relabeled
+  for (const campo of ["sector_procedencia", "tipo_producto_procedencia", "pais_procedencia", "modelo_comercial_procedencia"]) {
+    ok(new RegExp(`update public\\.tenants set ${campo}\\s*= 'declarado' where ${campo}\\s*= 'medido'`).test(sql), `★ la migración de datos de «${campo}»: todo 'medido' pasa a 'declarado'`);
+  }
+  ok(/update public\.tenants set tamano_banda_codigo = null, tamano_banda_procedencia = null where tamano_banda_procedencia = 'medido'/.test(sql), "★ la banda con el legado 'medido' se LIMPIA (código y procedencia a null) — nunca se relabela como 'derivado'");
+  ok(!/tamano_banda_procedencia = 'derivado' where tamano_banda_procedencia = 'medido'/.test(sql), "★ CARNADA · ningún relabel directo de la banda de 'medido' a 'derivado' (mentiría sobre el origen)");
 }
 
 /* ═══ 4b · LA MONEDA — CORRECCIÓN DEL SUPERVISOR (2026-09-26): admite SOLO 'declarado', nunca 'medido'/'derivado' ═══ */
@@ -72,7 +85,24 @@ H("4b · `moneda_procedencia` pasa a admitir SOLO 'declarado' (nunca 'medido' ni
 
   // los cinco checks de 012 admitían SOLO medido|derivado — se prueba que la 012 (sin tocar) sigue así, para que
   // quede claro que el cambio de vocabulario es responsabilidad de la 015 y no una edición retroactiva de la 012.
-  ok(/sector_procedencia in \('medido', 'derivado'\)/.test(sqlAnterior012), "la 012 (histórica, sin editar) seguía admitiendo solo medido·derivado — la 015 es la que amplía");
+  ok(/sector_procedencia in \('medido', 'derivado'\)/.test(sqlAnterior012), "la 012 (histórica, sin editar) seguía admitiendo medido·derivado — la 015 es la que restringe a un solo origen por campo");
+}
+
+/* ═══ 4c · `adi_declarar_perfil_empresa` decide el origen de LOS CINCO campos del perfil, no solo la moneda ═══ */
+H("4c · la función redefinida escribe 'declarado' (4 campos) o 'derivado' (banda) sin confiar en el caller");
+{
+  for (const [param, columna] of [
+    ["p_sector_codigo", "sector_procedencia"], ["p_tipo_producto_codigo", "tipo_producto_procedencia"],
+    ["p_pais_codigo", "pais_procedencia"], ["p_modelo_comercial_codigo", "modelo_comercial_procedencia"],
+  ]) {
+    const re = new RegExp(`${columna}\\s*=\\s*case when ${param} is not null then 'declarado' else ${columna} end`);
+    ok(re.test(sql), `«${columna}» = 'declarado' cuando llega «${param}» — no el valor que el caller pasó en \`p_*_procedencia\``);
+  }
+  ok(/tamano_banda_procedencia\s*=\s*case when p_tamano_banda_codigo is not null then 'derivado' else tamano_banda_procedencia end/.test(sql), "«tamano_banda_procedencia» = 'derivado' cuando llega un código — nunca 'declarado'");
+  ok(sql.includes("ACEPTADOS PERO IGNORADOS"), "el archivo documenta que los parámetros `p_*_procedencia` siguen existiendo (no se rompe la firma que llama `persistirCarga.server.js`) pero ya no deciden el origen");
+
+  // la 013 (histórica, sin editar) SÍ confiaba en el parámetro — para que quede claro qué corrige la 015
+  ok(/sector_procedencia\s*=\s*coalesce\(p_sector_procedencia, sector_procedencia\)/.test(readFileSync(new URL("./db/migraciones/013_perfil_taxonomia_siembra.sql", import.meta.url), "utf8")), "la 013 (histórica, sin editar) todavía confiaba en `p_sector_procedencia` tal cual — la 015 es la que deja de confiar en el caller");
 }
 
 /* ═══ 5 · LOS NOMBRES DE FUNCIÓN que `almacenSupabase.js` asume — existen en el SQL ═══ */
