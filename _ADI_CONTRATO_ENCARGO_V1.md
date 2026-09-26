@@ -3,6 +3,14 @@
 > Estado: ESPECIFICACIÓN para la etapa 1 (`_ADI_PLAN_PRODUCTO_V2.md`, B4 · corte 2 de `_ADI_DISENO_FLUJO_V2.md` §F).
 > Solo lectura del repo (dev `5a27b0b8`); nada ejecutado. La implementa Sonnet en `src/adi/encargo/{esquema,validar}.js`
 > detrás de `ADI_ENTREGA`, con el candado `_encargo_gate` sobre `fixtures/encargos-desarrollo.json`. Sin commitear.
+>
+> **PUESTA AL DÍA 2026-09-26 (Fable, sobre dev `9bf39d71`, tras la medición ciega de cierre de la etapa 1).** Varias
+> decisiones posteriores al 2026-09-25 vivían solo en el código (`esquema.js`, `validar.js`, `lecturasDe.js`,
+> `assumptionRegistry.js`) o en el diagnóstico de la medición, y el catálogo sellado v1 se escribió contra el texto
+> viejo. Cada cambio de esta puesta al día lleva la marca **[2026-09-26]** en su sitio: §1 (`iniciativa`), §1.2 (tope de
+> supuestos · universo único inválido · `campo_desconocido` de parte), §1.3 (ley de premisas con universo propio), §2 y
+> §2.1 (motivos y campos), §3.3 (`markup` · `peso_costo` · `vs_presupuesto` · `margen_promedio`), §3.5 (`carga` · `costo` ·
+> `custom`), §4 (orden de validación), §7.1 (cerradas) y §7.2 (abiertas, NO decididas) y §8 (regla del catálogo).
 
 ---
 
@@ -37,6 +45,10 @@ Encargo {
   premisas?:        Premisa[]                           // lo que el usuario da por hecho; ADI las verifica, nunca las adopta
   usar?:            "medido" | "declarado"              // default "medido": sobre qué realidad calcula el Core si un declarado colisiona
   profundidad?:     "breve" | "completa"                // default "completa"
+  iniciativa?:      "completa" | "ninguna"              // [2026-09-26] default "completa": el interruptor del LLM sobre la iniciativa de CFO
+                                                        // (`_ADI_DISENO_CORTE_3D.md` §A.2c, corte 3d.1). "ninguna" la apaga entera; lo PEDIDO
+                                                        // queda byte-idéntico con o sin ella (§A.6). Un valor fuera del enum ⇒ `iniciativa_invalida`
+                                                        // (se declara, no bloquea, el compositor cae al default — mismo patrón que `profundidad`).
   contexto?:        Contexto                            // referencias por id a lo ya entregado (etapa 2)
 }
 
@@ -94,6 +106,19 @@ Universo   = el objeto de `validarUniverso` (hechos.js): { eje, base?, estados?,
 - `criterio`, `supuestos` y `premisas` inválidos **no** invalidan ninguna parte: se declaran y se ignoran (una decisión
   sin criterio válido corre con el criterio de ADI y lo dice; una simulación cuyo único supuesto es inválido queda
   `no_resuelta` por §1.1).
+- **[2026-09-26] El tope de supuestos rechaza el CONJUNTO entero.** Con más de `SUPUESTOS_USUARIO_MAX` supuestos
+  declarados, se declara `supuesto_tope` y **ningún** supuesto de ese encargo se valida ni se liga a una parte — nunca se
+  eligen «los tres primeros» en silencio. Consecuencia: toda `simulacion` que los cite queda `cierre_incompleto` ⇒
+  `no_resuelta`; las partes de otros cierres siguen corriendo (la regla de oro no cambia).
+- **[2026-09-26] Una `cifra` sin entidades cuyo ÚNICO universo es inválido queda `no_resuelta`**, no `parcial`: el
+  universo era la única forma en que la parte acotaba su población, y sin él no hay población sobre la que correr el
+  concepto. Servir el listado global «como si» sería la sustitución silenciosa que la ley del owner prohíbe (medido en
+  la etapa 1: una `cifra` de cobranza «clientes de Santiago» servía el ranking de los 13). Con entidades resueltas, un
+  universo inválido sigue siendo `parcial` (corre sobre las entidades y declara el universo).
+- **[2026-09-26] `campo_desconocido` dentro de una parte** es aviso (la parte corre) **y además** se declara en
+  `noResuelto` como `{ parte: id, campo: "raiz", valor: <la clave>, motivo: "campo_desconocido" }` — lo mismo que ya
+  hacía la raíz, para que lo no reconocido nunca quede solo en `avisos` (§7.1, ya cerrado; el código había
+  implementado solo la mitad raíz). No cambia el estado de la parte.
 
 ### 1.3 · Premisas tipadas (esquema de `TIPOS_DE_HECHO`)
 
@@ -106,6 +131,16 @@ el subconjunto **factual** de `TIPOS_DE_HECHO` (`hechos.js`). Quedan fuera: `ref
 Veredicto: `libroDeHechos(premisas, { indice de la Entrega })` ⇒ `verdadera` | `falsa` (+ la verdad con id, `hNa…`) |
 `no-verificable` (esquema inválido ⇒ `noResuelto.premisa_mal_formada` con el texto de `validarHecho`). Una premisa
 `falsa` **nunca** cambia la conclusión (`premisa-adoptada`); la Entrega la declara en «Sobre lo que usted da por hecho».
+
+**[2026-09-26] Ley de premisas con universo propio.** Una premisa trae SU PROPIO universo tipado (`universo`/`de`),
+independiente del universo de la parte. Verificarla exige nombrar lo que ese universo contiene: el veredicto de
+«hay 3 SKU en riesgo de quiebre» (universo global) nombra a PHI-HAIR-PRO aunque la parte pidiera solo Santiago; el
+de «Falabella está al día» (falsa) nombra a Falabella con su saldo vencido aunque la parte fuera «los clientes al
+día». Por eso: (1) una entidad que una premisa necesita nombrar **puede aparecer** en la Entrega aunque quede fuera del
+universo de la parte — en «Sobre lo que usted da por hecho», nunca como sujeto de una cifra pedida; (2) el catálogo
+(§8) **nunca** pone en `prohibido.entidades` una entidad que una premisa del mismo caso necesite nombrar (tres casos
+del catálogo v1 se contradecían así); (3) lo que SÍ sigue prohibido es que una entidad fuera del universo de la parte
+reciba una cifra propia en «Cifras» o en la oración de la respuesta pedida — eso es sustitución, no verificación.
 
 ---
 
@@ -132,7 +167,8 @@ ParteResuelta {
 NoResuelto {
   parte:        string | null                           // id de la parte, o null si es de la raíz (criterio, supuestos, premisas, contexto)
   campo:        enum CAMPOS                             // "version"|"partes"|"tema"|"cierre"|"concepto"|"entidad"|"eje"|"universo"|"periodo"|
-                                                        //  "criterio"|"supuesto"|"premisa"|"usar"|"profundidad"|"contexto"|"raiz"
+                                                        //  "criterio"|"supuesto"|"premisa"|"usar"|"profundidad"|"iniciativa"|"contexto"|"raiz"
+                                                        //  [2026-09-26] "iniciativa" agregado (corte 3d.1)
   valor:        any                                     // EXACTAMENTE lo recibido (el objeto o el string), sin normalizar
   motivo:       enum MOTIVOS                            // §2.1 — lista cerrada, es lo que el gate compara
   detalle:      string                                  // texto de la casa (de validarUniverso/validarHecho/ausencia.texto/BLOQUEADOS.porque); sin cifras
@@ -151,7 +187,7 @@ Alternativa = { tipo: "entidad", nombre, eje } | { tipo: "concepto", clave, tema
 | `version_invalida` | `version` ≠ "encargo/v1" | — |
 | `encargo_vacio` | `partes` ausente o `[]` | — |
 | `partes_tope` | `partes.length` > PARTES_MAX | — |
-| `campo_desconocido` | clave fuera del esquema (raíz o parte) | — |
+| `campo_desconocido` | clave fuera del esquema (raíz o parte). [2026-09-26] En la raíz invalida el encargo (§1.2); en una parte va a `noResuelto` con `parte: id`, `campo: "raiz"` y la parte corre (aviso + declaración) | — |
 | `tema_desconocido` | `tema` ∉ ids de DOMINIOS_REGISTRO | `{tipo:"tema"}` × ids activos |
 | `tema_ausente` | `tema` con `estado:"ausente"` (tesorería) | `{tipo:"ausencia", id: dominio.ausencia.id, alternativa}` |
 | `cierre_desconocido` | `cierre` ∉ CIERRES | `{tipo:"cierre"}` × CIERRES |
@@ -160,23 +196,23 @@ Alternativa = { tipo: "entidad", nombre, eje } | { tipo: "concepto", clave, tema
 | `ejes_mezclados` | `comparacion` con entidades de dos ejes | `{tipo:"eje"}` de cada una |
 | `concepto_desconocido` | clave ∉ CLAVES_DE_METRICA ni CONCEPT_DEFS | `{tipo:"concepto"}` × claves del tema |
 | `concepto_de_otro_tema` | clave existe, pero `dominio` ≠ `tema` | `{tipo:"tema", tema: dominio de la clave}` |
-| `concepto_sin_productor` | clave del tema, pero ningún productor la sirve en ese eje (§3.3) | `{tipo:"eje"}` donde sí · `{tipo:"concepto"}` que sí |
+| `concepto_sin_productor` | clave del tema, pero ningún productor la sirve en ese eje (§3.3). [2026-09-26, regla del supervisor tras RC6] Es el motivo **por concepto** (campo `concepto`, uno por clave que falla) siempre que el eje salió **por defecto** (de una entidad o del sujeto del tema), y también cuando el eje fue **explícito** pero AL MENOS otro concepto de la misma parte sí tiene productor en ese eje (prueba de que el eje es válido; lo que falla es el concepto) | `{tipo:"eje"}` donde sí · `{tipo:"concepto"}` que sí |
 | `entidad_inexistente` | `resolveCanonical` = null en el eje dado, o `guessDimension` = null sin eje | hasta 3 `{tipo:"entidad"}` del fuzzy de `entityIndex` (como OFERTA) |
 | `entidad_ambigua` | sin `eje` y `guessDimensionDetallado.colision` | `{tipo:"entidad", nombre, eje}` por cada colisión |
 | `entidad_eje_incompatible` | la entidad existe en OTRO eje que el declarado | `{tipo:"entidad", nombre, eje: el real}` |
-| `eje_no_soportado` | `eje` ∉ EJES, o no disponible para ese tema/concepto (`axisAvailable`, `sourceByAxis`) | `{tipo:"eje"}` disponibles |
+| `eje_no_soportado` | `eje` ∉ EJES; o [2026-09-26, regla del supervisor tras RC6] `Parte.eje` **explícito** y **ningún** concepto pedido tiene productor en ese eje (ahí falla el eje, no un concepto): UN solo `noResuelto` con campo `eje`, nunca uno por concepto. Con eje por defecto este motivo no se usa (es `concepto_sin_productor`) | `{tipo:"eje"}` disponibles |
 | `cruce_bloqueado` | la parte pide un cruce de `BLOCKED_CROSSES` (cliente×sku, marca×cliente) | `offer` del cruce como `{tipo:"concepto"}` |
 | `universo_invalido` | `validarUniverso` devuelve texto | — (detalle = ese texto) |
 | `periodo_mal_formado` | `tipo` ∉ enum, o `valor` no ISO | `{tipo:"periodo", periodo:{tipo:"vigente"}}` |
 | `periodo_no_disponible` | `mes`/`rango` sin serie real para esa entidad/eje (`serieRealDe`), o `rango` (sin productor en v1) | `{tipo:"periodo", periodo:{tipo:"vigente"}}` + la ausencia `sin_serie` si aplica |
 | `criterio_desconocido` | `lente` ∉ CRITERIOS o `referencia.concepto` ∉ REFERENCIAS_DE_LA_CASA | `{tipo:"lente"}` × CRITERIOS |
 | `criterio_tesoreria` | reservado: NO existe una lente de caja; una `lente` inexistente cae en `criterio_desconocido` con alternativa `credito` | `{tipo:"lente", lente:"credito"}` + ausencia `sin_datos_tesoreria` |
-| `supuesto_mal_formado` | `assumptionValid` falla, o `alcance` no resuelve | `{tipo:"supuesto", tipo_supuesto, units}` |
+| `supuesto_mal_formado` | `assumptionValid` falla, o `alcance` no resuelve; [2026-09-26] o `tipo:"custom"` en una parte comercial sobre cliente/sku/marca/familia — «custom» no nombra un concepto de negocio y la Entrega no puede rotularlo (§3.5): se declina con las alternativas de concepto nombrado (`carga`, `costo`) | `{tipo:"supuesto", tipo_supuesto, units}` · `{tipo:"concepto", concepto:"carga"\|"costo"}` |
 | `supuesto_sin_productor` | tipo válido, pero sin productor para (tema, eje) — §3.5 | `{tipo:"supuesto"}` con productor |
-| `supuesto_tope` | más de SUPUESTOS_USUARIO_MAX | — |
+| `supuesto_tope` | más de SUPUESTOS_USUARIO_MAX. [2026-09-26] Rechaza el conjunto ENTERO: ningún supuesto del encargo se valida ni se liga (§1.2); `valor` = la cantidad recibida | — |
 | `origen_no_admitido` | `origen` = "documento" (o fuera del enum) | — (§7) |
 | `premisa_mal_formada` | `tipo` ∉ TIPOS_DE_PREMISA o `validarHecho` devuelve texto | — (detalle = ese texto) |
-| `usar_invalido` / `profundidad_invalida` | fuera del enum | — |
+| `usar_invalido` / `profundidad_invalida` / `iniciativa_invalida` | fuera del enum ([2026-09-26] `iniciativa_invalida` agregado, corte 3d.1: se declara y el compositor cae a "completa") | — |
 | `contexto_no_disponible` | ids de contexto con formato válido pero sin libro de conversación (etapa 2) o inexistentes en él | — |
 | `contexto_mal_formado` | ids que no siguen `E<n>` / `E<n>.h<k>` / `E<n>.u<k>` | — |
 
@@ -235,8 +271,10 @@ y es lo que el catálogo de desarrollo espera:
 | carga_alta · no_capturada · brecha · brecha_precio_costo | cliente (detector) · sku (diagnose capital NO: solo comercial por cliente) | `diagnose` / `descomposicionDeBrecha` | **por cliente**; otros ejes ⇒ `concepto_sin_productor` |
 | unidades | cliente · sku · marca · familia | `METRICS.unidades` | |
 | variacion · variacion_usd · ventas_anterior | cliente · marca · familia · canal · negocio | `salesRead` (vs_anterior) | **sku NO** (`skusMargen` no trae anterior) |
-| vs_presupuesto · vs_presupuesto_usd | cliente · negocio | `clientesVentas.presupuesto`, `ventasKPI` | marca/familia/sku NO |
-| markup · peso_costo | cliente · sku · marca · familia | `marginRead` (causa_precio/causa_costo) | |
+| vs_presupuesto · vs_presupuesto_usd | cliente · marca · familia · canal · negocio | `salesRead{focus:"vs_presupuesto"}` (`_pptoByDim`, presupuesto real por marca/familia/canal agregado desde `clientesVentas.presupuesto`), `ventasKPI` | **[2026-09-26, corregido con evidencia en el corte 3a]** antes decía «marca/familia/sku NO». Lo que sí declina: **sku** («por SKU no tengo presupuesto propio») y **bodega** (el dato no baja a ese eje) |
+| markup | **cliente** (cobertura PARCIAL) | `herramientasAgente.js:rolesCartera()` — «{cliente} · Markup sobre costo» con `raw` real, solo para las cuentas del recorte de cartera (las que caen bajo el benchmark, tope 8 por venta, y los sanos con huella de precio) | **[2026-09-26, corregido en el corte 3d — «una sola verdad», error material]** antes decía «cliente · sku · marca · familia» vía `marginRead`. `marginRead`/`entityRecord` NO publican el cociente: una `cifra` puntual de markup sobre una cuenta fuera del recorte de `rolesCartera` no tiene fig ese turno (gap reportado de `lecturasDe`). Marca/familia/sku ⇒ `concepto_sin_productor` |
+| peso_costo | **ninguno** (`[]`) | — | **[2026-09-26, corte 3d.3/3d.4, opción B]** `costShare` se calcula en al menos dos sitios sin relación declarada (`specRetrieval._costShare` por SKU · `sentrix/reading.js`) y la única fig viva salía del auto-walk de `ledger.js`, no de un productor deliberado: declarar uno sería inventar una segunda verdad. La Entrega dejó de servirlo (`_planCifraEntidad` filtra por `productorDe`) y toda parte que lo pida ⇒ `concepto_sin_productor` en cualquier eje |
+| margen_promedio | negocio (escalar, `lexico.js: negocio:true`) | `margenKPI.pct` | [2026-09-26] sin eje de entidad propio: por cliente/marca/etc. ⇒ `concepto_sin_productor` |
 | benchmark · nivel_carga · umbral_materialidad | negocio (referencias) | POLICY / perfil | se citan, no se ordenan |
 | capital · unidades_stock | sku · bodega · marca · familia (capital) · sku · bodega (stock) | `METRICS.capital` / `METRICS.stock` | **cliente NO** (`BLOCKED_CROSSES`) |
 | capital_frenado · capital_inmovilizado | sku · bodega · familia | `mesaCapital` / `inventoryStatus{frenado}` | |
@@ -262,10 +300,14 @@ y es lo que el catálogo de desarrollo espera:
 | price | pct | `simulateGeneral` (variableA) | comercial · cliente/sku/marca/familia | `perfil.costModel` declarado (demo: `variable_total`) |
 | growth | pct · money | `simulateGeneral` (variableB volumen) / `simulate` | comercial · cliente/sku/marca/familia | idem |
 | margin | pct (pp) | `simulateCosto` (vía costo medio) / `calcular.margen_objetivo` | comercial · sku/cliente/marca/familia | — |
-| custom con `perturbs: carga` (delta_pp) | pp | `simulateCarga` | comercial · cliente | — |
-| custom capital | — | `simulateCapital` (liberar capital frenado, sin parámetro) | inventario · sku | el supuesto es «liberar»; no toma valor |
+| **carga** (tipo NUEVO, §7.1) | pp | `simulateCarga` (`delta_pp`) | comercial · **cliente** | **[2026-09-26]** reemplaza a «custom con `perturbs: carga`» de la tabla original: el productor sale del TIPO, nunca de la `cita`. `alcance` con otro eje ⇒ `supuesto_sin_productor` |
+| **costo** (tipo NUEVO, §7.1) | pct | `simulateCosto` (`scope:"all"` sobre la entidad del alcance) | comercial · sku/cliente/marca/familia | **[2026-09-26]** idem: entrada aditiva de `ASSUMPTIONS` |
+| custom en comercial | — | **ninguno**: se declina ANTES de buscar productor | comercial · cliente/sku/marca/familia | **[2026-09-26, corte 3d — «custom es jerga del sistema»]** ⇒ `supuesto_mal_formado` con alternativas `{tipo:"concepto", concepto:"carga"}` (solo cliente) y `{tipo:"concepto", concepto:"costo"}`. Antes la Entrega componía «supuesto: custom −1 %» sin decir de qué era el −1 % |
+| custom capital | — | `simulateCapital` (liberar capital frenado, sin parámetro) | inventario · sku | el supuesto es «liberar»; no toma valor (se mantiene: acá «custom» nunca produjo jerga porque no hay cifra que nombrar) |
 | inventory | days · pct | **ninguno** (`assumptionRegistry.js`: «la simulación paramétrica todavía NO tiene productor») | — | ⇒ `supuesto_sin_productor` |
+| cualquiera con `alcance: "negocio"` | — | **ninguno** hoy (los cuatro productores exigen una entidad del alcance) | — | [2026-09-26] ⇒ `supuesto_sin_productor` |
 | cualquiera sobre cobranza | — | **ninguno** | — | ⇒ `supuesto_sin_productor` |
+| más de SUPUESTOS_USUARIO_MAX (3) | — | — | — | [2026-09-26] `supuesto_tope` y el conjunto entero se rechaza (§1.2) |
 
 ---
 
@@ -276,6 +318,7 @@ validarEncargo(encargo, ctx) → Resolucion          ctx = { tenant, versionId, 
  0. raíz: version · partes (vacío/tope) · claves desconocidas → si falla, Resolucion { ok:false, noResuelto:[…] } y PARA.
  1. por cada parte, en orden y SIN mirar a las demás:
     a. claves desconocidas de la parte → campo_desconocido (la parte sigue: es aviso, no veto)     ← decisión: aviso
+       [2026-09-26] …y ADEMÁS un noResuelto { parte, campo:"raiz", valor: clave, motivo:"campo_desconocido" } (§1.2)
     b. tema → TEMAS (desconocido | ausente ⇒ no_resuelta)
     c. cierre → CIERRES; reglas de §1.1
     d. eje → EJES ∩ ejes con productor del tema (default: DOMINIOS_REGISTRO[tema].sujeto)
@@ -283,14 +326,22 @@ validarEncargo(encargo, ctx) → Resolucion          ctx = { tenant, versionId, 
        · si dos entidades resueltas tienen ejes distintos y el cierre es comparacion ⇒ ejes_mezclados
        · si una entidad resuelve en un eje sin productor para algún concepto ⇒ ese concepto ⇒ concepto_sin_productor (no la entidad)
     f. conceptos → CLAVES_DE_METRICA ∩ DOMINIOS_REGISTRO[tema].metricas; luego productor por (concepto, eje) (§3.3)
+       [2026-09-26, regla del supervisor (RC6)] el motivo cuando falta productor:
+         · eje POR DEFECTO (entidad o sujeto del tema)            ⇒ `concepto_sin_productor` por cada concepto que falla
+         · eje EXPLÍCITO y ≥ 1 concepto pedido SÍ produce en él   ⇒ `concepto_sin_productor` por cada concepto que falla
+         · eje EXPLÍCITO y NINGÚN concepto pedido produce en él   ⇒ UN `eje_no_soportado` (campo "eje"), sin entradas por concepto
+       (cierra la ambigüedad «D36» que el código dejó escrita; el cruce bloqueado sigue siendo `cruce_bloqueado`)
     g. universo → validarUniverso(universo, indice, sujeto) ; el eje del universo tiene que ser el de la parte
+       [2026-09-26] `cifra` SIN entidades cuyo único universo es inválido ⇒ estado `no_resuelta` (§1.2)
     h. periodo → enum; "mes"/"rango" ⇒ serieRealDe(entidad) (o negocio) ; sin serie ⇒ periodo_no_disponible
     i. cruce: si (tema, eje, conceptos) cae en BLOCKED_CROSSES ⇒ cruce_bloqueado
     j. ausencias: ausenciasDe(tema) → ParteResuelta.ausencias (siempre; no es error)
  2. criterio → CRITERIOS | REFERENCIAS_DE_LA_CASA ; inválido ⇒ noResuelto + criterio de ADI ("riesgo", origen "adi") + aviso
- 3. supuestos → assumptionValid + alcance resuelto + productor (§3.5) + tope ; los válidos se ligan a las partes que los citan
+ 3. supuestos → tope PRIMERO ([2026-09-26] si se excede, `supuesto_tope` y ningún supuesto se valida ni se liga) ;
+    luego assumptionValid + alcance resuelto + «custom» comercial ⇒ supuesto_mal_formado + productor (§3.5) ;
+    los válidos se ligan a las partes que los citan
  4. premisas → tipo ∈ TIPOS_DE_PREMISA + validarHecho(premisa, indice) ; el veredicto NO se calcula acá (lo pone la Entrega con el libro)
- 5. usar · profundidad → enum
+ 5. usar · profundidad · iniciativa → enum ([2026-09-26] `iniciativa_invalida` declara y no bloquea)
  6. contexto → formato ; sin libro ⇒ contexto_no_disponible (etapa 2 lo resuelve)
  7. ok = alguna parte resuelta o parcial
 ```
@@ -390,6 +441,50 @@ Además: `ASSUMPTIONS` gana `carga` (pp) y `costo` (pct) como entradas ADITIVAS 
 tipo, nunca de la cita); `definicion` de `recuperado` se sirve desde la definición canónica de `tasas.js` (abonado ÷
 venta a crédito, ley del owner).
 
+**[2026-09-26] Cerradas después (supervisor / owner, cortes 3a–3d y medición de cierre de la etapa 1):**
+8. `iniciativa` ∈ {"completa","ninguna"} en la raíz del encargo (§1); lo pedido queda byte-idéntico con o sin ella.
+9. `custom` en una parte comercial ya no compone: `supuesto_mal_formado` con alternativas de concepto nombrado (§3.5).
+10. Regla de RC6 (supervisor): eje explícito sin ningún concepto productor ⇒ un `eje_no_soportado`; con algunos ⇒
+    `concepto_sin_productor` por concepto; eje por defecto ⇒ siempre `concepto_sin_productor` (§2.1, §4f).
+11. El tope de supuestos rechaza el conjunto entero (§1.2, §4·3).
+12. `cifra` sin entidades con su único universo inválido ⇒ `no_resuelta` (§1.2, §4g).
+13. `campo_desconocido` dentro de una parte también va a `noResuelto` con `campo:"raiz"` (§1.2, §4·1a).
+14. Ley de premisas con universo propio: una premisa puede nombrar entidades fuera del universo de la parte, y el
+    catálogo no las prohíbe (§1.3, §8).
+15. La tabla §3.3 se corrigió con evidencia: `markup` solo cliente (parcial), `peso_costo` sin productor,
+    `vs_presupuesto` por cliente/marca/familia/canal, `margen_promedio` solo negocio.
+
+### 7.2 · Abiertas tras la medición (2026-09-26) — CERRADAS por el supervisor el mismo día (ver 7.3)
+
+### 7.3 · Decisiones del supervisor sobre 7.2 (2026-09-26, arquitecto; el owner delegó los mecanismos)
+
+1. RC9 · `lectura`/`decision` con TODOS los conceptos pedidos sin productor → `no_resuelta` (misma regla que `cifra`).
+2. `lectura`/`decision` sin entidades cuyo ÚNICO universo es inválido → `no_resuelta` (misma regla que `cifra`, 7.1·12):
+   nunca se sirve la cartera entera en lugar del recorte pedido.
+3. RC12 · entidad puntual de eje `bodega`/`canal` con concepto que SÍ produce en ese eje → se SIRVE por el listado del
+   eje filtrado a esa entidad (la promesa del validador se cumple); sin productor → `concepto_sin_productor`.
+4. RC14 · `definicion` sin `concepto` → `cierre_incompleto`, `campo: "concepto"`.
+5. RC15 · `ejes_mezclados` → `campo: "cierre"` (igual que `cardinalidad`).
+6. RC13 · `entidad_inexistente` con eje EXPLÍCITO de ≤ 5 miembros y sin ningún parecido → se ofrecen TODOS los
+   miembros como alternativas (solo en el validador; el escaneo de texto libre no lo usa).
+7. Comparación en cobranza: sigue `decision_pendiente` hasta medir su composer.
+
+(Texto original de 7.2, conservado como historia:)
+- **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
+  `conceptos: []`; ¿debe ser `no_resuelta`, como ya lo es en `cifra`? Alcanza también a `temasCubiertos`.
+- **`lectura`/`decision` sin entidades cuyo único universo es inválido**: la decisión 12 se tomó para `cifra`; ¿la
+  misma regla para los otros dos cierres?
+- **Entidad puntual de eje `bodega`/`canal` en una `cifra`** (RC12): el validador la acepta (`productorDe` es true
+  para capital@bodega, ventas@canal) pero `entityRecord` no cubre esos ejes; ¿se enruta por el group-by filtrado o se
+  declina con `eje_no_soportado`? El catálogo v2 espera que se SIRVA (el validador ya lo promete).
+- **`definicion` sin el campo `concepto`** (RC14): ¿`cierre_incompleto` (campo ausente) o `concepto_desconocido`
+  (valor fuera de catálogo)? El contrato §2.1 distingue las dos; el código usa la segunda.
+- **`ejes_mezclados`: campo `eje` o `cierre`** (RC15): su hermano `cardinalidad` usa `cierre` (ejemplo 6.3).
+- **Alternativas de `entidad_inexistente` en un eje chico** (RC13): con un eje de ≤ N miembros sin ningún parecido,
+  ¿se ofrecen todos los miembros? (`findCandidates` hoy devuelve `[]`).
+- **Comparación en cobranza**: cerrada como «dos `cifra` de `mesaFlujo` + `derivada`» (7.1·4) pero sin composer
+  medido todavía — sigue `decision_pendiente` en el catálogo.
+
 ---
 
 ## 8 · Lo que el gate `_encargo_gate` comprueba (formato del fixture en `fixtures/encargos-desarrollo.json`)
@@ -409,3 +504,15 @@ Cada caso: `{ id, titulo, encargo, esperado }` con `esperado`:
 ```
 El gate corre SOLO por `npm run gates:offline`; cero red; el tenant es el demo (`bonanza`). Los casos con
 `decision_pendiente` se cuentan aparte y no ponen rojo hasta que el supervisor fije la decisión.
+
+**[2026-09-26] Reglas de redacción del catálogo (aprendidas de la medición v1):**
+- `prohibido.entidades` **nunca** incluye una entidad que una premisa del mismo caso necesite nombrar para
+  verificarse (§1.3, ley de premisas con universo propio): si la parte restringe el universo y una premisa mira el
+  universo global, las entidades que el veredicto nombra quedan fuera de la prohibición. Lo que se prohíbe es que
+  reciban una cifra propia como sujeto de lo pedido.
+- Las expectativas se escriben contra el CÓDIGO vigente y este contrato ya puesto al día (§3.3, §3.5), nunca contra
+  una tabla que el código corrigió después: un caso que pida `capital_frenado` por marca o `markup` por marca espera
+  `concepto_sin_productor`, no `resuelta`.
+- Un supuesto de carga/costo se escribe con `tipo:"carga"`/`"costo"` (§7.1), nunca `custom` + `cita`.
+- `supuestosResueltos: [{ id, productor }]` y `avisosIncluyen: [tipos]` son campos opcionales adicionales del
+  `esperado`, ya usados por el catálogo de desarrollo.

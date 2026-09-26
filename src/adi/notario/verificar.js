@@ -1421,15 +1421,47 @@ function _variacion(a, I) {
   /* el período elige el panel: «vs presupuesto» se verifica con la variación contra el presupuesto, nunca con la del año anterior */
   if (/presupuesto|ppto|plan\b/.test(p)) {
     const ent = a.sujeto !== "negocio" ? I.resolverEntidad(a.sujeto) : null;
-    const cp = I.figs.filter((g) => (a.sujeto === "negocio" ? !g.entidad : (g.entidad && ent && normalizar(g.entidad) === normalizar(ent.nombre))) && /presupuesto|ppto/.test(g.conceptoNorm) && Number.isFinite(g.raw));
-    if (!cp.length) return _nv(`sin-evidencia-temporal: la boleta no trae la variación vs presupuesto de ${_nom(a.sujeto)}`);
-    const val = v.valor && Number.isFinite(v.valor.raw) ? v.valor : null;
-    const cpU = val ? cp.filter((x) => _u(x.unidad) === _u(val.unidad)) : [];
-    const g = (val ? (cpU.find((x) => _mismoValor({ ...val, raw: Math.abs(val.raw) }, Math.abs(x.raw), x.unidad, x.texto)) || cpU[0]) : null) || cp.find((x) => x.unidad === "pct") || cp[0];
-    const dirReal = Math.abs(g.raw) < 0.05 ? "estable" : g.raw > 0 ? "sube" : "baja";
-    if (dirReal !== v.direccion) return _falsa(`direccion-falsa: ${_fmt(g)} (${dirReal}), no «${v.direccion}»`, _fmt(g), [g.label]);
-    if (val && _u(val.unidad) === _u(g.unidad) && !_mismoValor({ ...val, raw: Math.abs(val.raw) }, Math.abs(g.raw), g.unidad)) return _falsa(`magnitud-distinta: ${_fmt(g)}`, _fmt(g), [g.label]);
-    return _ok(`${v.direccion} vs presupuesto: ${_fmt(g)}`, [g.label], _fmt(g));
+    const cpTodo = I.figs.filter((g) => (a.sujeto === "negocio" ? !g.entidad : (g.entidad && ent && normalizar(g.entidad) === normalizar(ent.nombre))) && /presupuesto|ppto/.test(g.conceptoNorm) && Number.isFinite(g.raw));
+    /* RC-VAR (owner, medición de cierre etapa 1 · diagnostico.md §RC-VAR): «presupuesto|ppto» en el conceptoNorm
+     * trae DOS cosas distintas — una variación YA CALCULADA (rótulo "Variación vs presupuesto"/"‹entidad› · vs
+     * ppto", con signo) y el objetivo CRUDO (rótulo "Presupuesto de ventas"/"Presupuesto total", un monto que
+     * SIEMPRE es positivo, no una diferencia). Solo la primera es una variación.
+     * CORREGIDO (supervisor, regresión medida en `_ancla_de_cuadro_gate`/`_forma_conversacional_gate` sobre el
+     * playbook «El negocio, cliente por cliente»): el filtro original solo reconocía «variacion|crecimiento» y
+     * se comía el rótulo REAL que `specRetrieval.js:composeSpecVentas` publica por cliente — `"‹nombre› · vs
+     * ppto"` (`conceptoNorm` "vs ppto", con `raw` = actual − presupuesto, YA firmado) — nunca contiene la
+     * palabra "variación". Con el filtro angosto, esa fig quedaba fuera de `cp`, la rama caía al fallback de
+     * "objetivo crudo" y, sin encontrar el `real` con ese mismo criterio de exclusión, el turno perdía la
+     * verdad («Ripley cae bajo presupuesto») como no-verificable. Mismo patrón que ya usa `resolutor.js:310`
+     * para identificar una variación genuina: «variacion|crecimiento|vs presupuesto|vs ppto» — «vs presupuesto»/
+     * «vs ppto» NUNCA aparece en el objetivo crudo («presupuesto de ventas»/«presupuesto total»: ahí "presupuesto"
+     * va precedido de «de»/«total», nunca de «vs»), así que la carnada de Ripley (4.727 vs 4.900, sin esta fig
+     * en su boleta) sigue cayendo al fallback de resta real y sigue `falsa`. */
+    const cp = cpTodo.filter((g) => /variacion|crecimiento|vs presupuesto|vs ppto/.test(g.conceptoNorm));
+    if (cp.length) {
+      const val = v.valor && Number.isFinite(v.valor.raw) ? v.valor : null;
+      const cpU = val ? cp.filter((x) => _u(x.unidad) === _u(val.unidad)) : [];
+      const g = (val ? (cpU.find((x) => _mismoValor({ ...val, raw: Math.abs(val.raw) }, Math.abs(x.raw), x.unidad, x.texto)) || cpU[0]) : null) || cp.find((x) => x.unidad === "pct") || cp[0];
+      const dirReal = Math.abs(g.raw) < 0.05 ? "estable" : g.raw > 0 ? "sube" : "baja";
+      if (dirReal !== v.direccion) return _falsa(`direccion-falsa: ${_fmt(g)} (${dirReal}), no «${v.direccion}»`, _fmt(g), [g.label]);
+      if (val && _u(val.unidad) === _u(g.unidad) && !_mismoValor({ ...val, raw: Math.abs(val.raw) }, Math.abs(g.raw), g.unidad)) return _falsa(`magnitud-distinta: ${_fmt(g)}`, _fmt(g), [g.label]);
+      return _ok(`${v.direccion} vs presupuesto: ${_fmt(g)}`, [g.label], _fmt(g));
+    }
+    /* Sin una variación ya calculada: solo queda el objetivo crudo. Se deriva la dirección con una RESTA real
+     * (valor real de la MISMA métrica y entidad, menos el objetivo) — nunca con el signo del objetivo. Sin el
+     * valor real con qué comparar, «no-verificable»: jamás se infiere una dirección de un monto que no es una
+     * diferencia (ley del owner, "piso sin modelo": sin con qué comparar, no se decide). */
+    const objetivo = cpTodo.find((x) => x.unidad !== "pct") || cpTodo[0];
+    if (objetivo) {
+      const real = I.buscarFigs(a.sujeto, a.metrica, { agregados: a.sujeto === "negocio" }).find((f) => f !== objetivo && Number.isFinite(f.raw) && _u(f.unidad) === _u(objetivo.unidad) && !/presupuesto|ppto|variacion|crecimiento|anterior|yoy/.test(f.conceptoNorm));
+      if (real) {
+        const deltaPct = objetivo.raw ? ((real.raw - objetivo.raw) / Math.abs(objetivo.raw)) * 100 : (real.raw === objetivo.raw ? 0 : real.raw > objetivo.raw ? 1 : -1);
+        const dirReal = Math.abs(deltaPct) < 0.05 ? "estable" : deltaPct > 0 ? "sube" : "baja";
+        if (dirReal !== v.direccion) return _falsa(`direccion-falsa: ${_fmt(real)} contra ${_fmt(objetivo)} (${dirReal}), no «${v.direccion}»`, `${_fmt(real)} vs ${_fmt(objetivo)}`, [real.label, objetivo.label]);
+        return _ok(`${v.direccion} vs presupuesto: ${_fmt(real)} contra ${_fmt(objetivo)}`, [real.label, objetivo.label], `${_fmt(real)} vs ${_fmt(objetivo)}`);
+      }
+    }
+    return _nv(`sin-evidencia-temporal: la boleta no trae con qué comparar la variación vs presupuesto de ${_nom(a.sujeto)} (solo el objetivo crudo, sin el valor real de la métrica)`);
   }
   let cands = I.buscarFigs(a.sujeto, "variacion", { agregados: a.sujeto === "negocio" }).filter((f) => /variacion|crecimiento|yoy|vs ano anterior/.test(f.conceptoNorm) && !/presupuesto|ppto/.test(f.conceptoNorm));
   /* el negocio también tiene la variación que publica un CUADRO anclado («El negocio, cliente por cliente · vs año anterior (%) · total»): otro emisor

@@ -83,7 +83,8 @@ import { calcularIniciativa, MARCA_INICIATIVA, INICIATIVA_VALORES } from "./inic
 // desaparece»). `PROFUNDIDAD_VALORES`/`CAMPOS_RAIZ` son la MISMA fuente que ya valida `encargo/validar.js` —
 // nunca una segunda lista de profundidades válidas ni un segundo orden de campos del encargo.
 import { gobernarTamano } from "./tamano.js";
-import { PROFUNDIDAD_VALORES, CAMPOS_RAIZ, productorDe } from "../encargo/esquema.js";
+import { PROFUNDIDAD_VALORES, CAMPOS_RAIZ, productorDe, sujetoDeTema } from "../encargo/esquema.js";
+import { dominioPorId } from "../../config/contract/dominios.js";
 import { createHash } from "node:crypto";
 // CORTE 3e (owner 2026-09-26, «la Entrega no le habla a nadie», REFINADO) — la pregunta abierta con función
 // sugerida REEMPLAZA «Solo usted/tú puede(s) responder…» en las siete llamadas de este archivo (las 4 rutas
@@ -2212,7 +2213,40 @@ export function componerEntrega(resolucion) {
     const figsDelGrupo = _figsDePartes(partesSinEntidadLecturaDecision.map((p) => p.id));
     const plan = _planMultiTema(temas, figsDelGrupo, ref, declararRazon, declararDerivada, { conDecision });
     if (plan) { plan.partesIds = partesSinEntidadLecturaDecision.map((p) => p.id); planes.push(plan); }
-    else for (const p of partesSinEntidadLecturaDecision) partesYaAgrupadas.delete(p.id);   // sin evidencia suficiente: cada parte cae en su propio "no se pudo componer" abajo
+    else {
+      // RC8 (owner, diagnostico.md §RC8, punto 2 — «LA GRIETA DE UN SOLO TEMA CON EJE EXPLÍCITO», documentada en
+      // lecturasDe.js:230-239 y cerrada solo a medias): `_planMultiTema` está pensado para "cartera entera con
+      // el sujeto por defecto" — con un solo tema y un eje EXPLÍCITO (ej. "el margen por marca") no arma nada, y
+      // sin este fallback la parte caía sin plan NI límite: "ninguna parte del encargo produjo evidencia
+      // suficiente para componer la Entrega". Mismo camino "grupo por eje" que `cifra` YA usa (`_planCifraGrupo`,
+      // más abajo): un listado por el eje pedido, por cada parte del grupo con un eje explícito propio (distinto
+      // del sujeto por defecto del tema) — nunca se inventa un eje que la parte no declaró.
+      let huboFallback = false;
+      for (const p of partesSinEntidadLecturaDecision) {
+        if (!(p.eje && p.eje !== sujetoDeTema(p.tema))) continue;
+        // `_planCifraGrupo` solo lista `parte.conceptos` (los VALIDADOS, §1: vacío = "lo que el procedimiento del
+        // tema sirva" — el mismo contrato que ya resolvió el punto 1 de RC8 en `lecturasDe.js`). Sin conceptos
+        // declarados se usa el MISMO criterio ahí (todos los del tema con productor en este eje), nunca una
+        // segunda tabla ni un concepto inventado.
+        let pParaGrupo = p;
+        if (!(p.conceptos && p.conceptos.length)) {
+          const metricasDelTema = (dominioPorId(p.tema) && dominioPorId(p.tema).metricas) || [];
+          const conceptosConProductor = metricasDelTema.filter((c) => productorDe(c, p.eje));
+          if (!conceptosConProductor.length) continue;
+          pParaGrupo = { ...p, conceptos: conceptosConProductor };
+        }
+        const planG = _planCifraGrupo(pParaGrupo, _figsDeParte(p.id));
+        if (!planG) continue;
+        const figA0 = planG.orden.length > 1 ? planG.porEntidad.get(planG.orden[0]).get(planG.claveOrden) : null;
+        const figB0 = planG.orden.length > 1 ? planG.porEntidad.get(planG.orden[1]).get(planG.claveOrden) : null;
+        for (const e of planG.orden) for (const [clave, fig] of planG.porEntidad.get(e)) planG.porEntidad.get(e).set(clave, ref(fig));
+        if (figA0 && figB0) planG.idDiffOrden = declararDerivada(figA0, planG.porEntidad.get(planG.orden[0]).get(planG.claveOrden), figB0, planG.porEntidad.get(planG.orden[1]).get(planG.claveOrden));
+        planes.push(planG);
+        partesYaAgrupadas.add(p.id);
+        huboFallback = true;
+      }
+      if (!huboFallback) for (const p of partesSinEntidadLecturaDecision) partesYaAgrupadas.delete(p.id);   // sin evidencia suficiente: cada parte cae en su propio "no se pudo componer" abajo
+    }
   }
   for (const p of partesUtiles) {
     if (partesYaAgrupadas.has(p.id)) continue;
@@ -2293,7 +2327,7 @@ export function componerEntrega(resolucion) {
   // texto se arma más adelante, junto a `cifrasImpresas`, para que la regla «cero cifras desnudas» lo audite igual.
   const _iniciativaFlagCruda = resolucion.encargo && resolucion.encargo.iniciativa;
   const iniciativaOn = INICIATIVA_VALORES.includes(_iniciativaFlagCruda) ? _iniciativaFlagCruda !== "ninguna" : true;   // default "completa"; un valor inválido ya quedó declarado en noResuelto (validar.js)
-  const partesParaIniciativa = partesUtiles.map((p) => ({ tema: p.tema, cierre: p.cierre, conceptos: (p.conceptos || []).length, entidades: (p.entidades || []).map((e) => e.nombre) }));
+  const partesParaIniciativa = partesUtiles.map((p) => ({ tema: p.tema, cierre: p.cierre, conceptos: (p.conceptos || []).length, entidades: (p.entidades || []).map((e) => e.nombre), universo: p.universo || null }));
   const yaTieneIntegrada = planes.some((pl) => pl.kind === "multitema");
   const { hechos: hechosIniciativa, candidatos: candidatosIniciativa } = calcularIniciativa({
     figs, partes: partesParaIniciativa, iniciativaOn, yaTieneIntegrada,
@@ -2375,7 +2409,14 @@ export function componerEntrega(resolucion) {
       // regla 1 de verificarEntrega («cero cifras desnudas»): la cifra que `_textoDePremisa` va a imprimir sale
       // literal de `H.verdad`/`H.motivo`/el `verdad` de sus derivados — se registra ACÁ (mismo patrón que `R(id)`
       // sobre el libro principal, pero este libro es OTRO: no hay un `R` que lo haga solo).
-      for (const s of [H.verdad, H.motivo, ...(H.derivados || []).map((d) => { const D = libroPremisas.porId.get(d); return D && (D.verdad || D.motivo); })]) if (s) cifrasImpresas.push(s);
+      // RC1 (owner, diagnostico.md §RC1): ese comentario asumía que ESO es lo que `_textoDePremisa` siempre
+      // imprime — falso para una premisa `cifra` (H.tipo distinto de ref/razon/derivada): ahí
+      // `_rotuloDeLaCasaDeH(H)` fabrica un string NUEVO con el VALOR RECLAMADO por el usuario (p.ej. «Tottus:
+      // margen 32%», el 32% es lo que el usuario afirmó, tomado de H.numeros — no de H.verdad/H.motivo). Sin
+      // registrar ESE rótulo, `verificarEntrega` lo veía como una cifra desnuda (regla 1) y tumbaba una Entrega
+      // por lo demás bien compuesta. Se agrega el mismo rótulo que `_textoDePremisa` realmente usa (null cuando
+      // no aplica — hechos ref/razon/derivada ya quedan cubiertos por H.verdad arriba).
+      for (const s of [H.verdad, H.motivo, _rotuloDeLaCasaDeH(H), ...(H.derivados || []).map((d) => { const D = libroPremisas.porId.get(d); return D && (D.verdad || D.motivo); })]) if (s) cifrasImpresas.push(s);
     }
     // se abre por el orden de las PARTES del encargo (determinístico, nunca el orden en que el usuario escribió
     // las premisas): «la Entrega abre la parte correspondiente» — una premisa, una vez, en la parte que le toca.

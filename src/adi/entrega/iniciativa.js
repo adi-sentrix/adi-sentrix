@@ -209,12 +209,17 @@ function _participacionFrenado(figs, D) {
 }
 
 /* ── CRUCE ── */
-function _integrada(figs, temas, D) {
+// RC4 (owner, diagnostico.md §RC4): `entidadesPermitidas` (Set|null) — cuando el encargo no trae ninguna parte
+// "cartera entera" (todas nombran entidades específicas), el "top" que `prioridadIntegrada` calcule sobre TODA
+// la cartera solo se sirve si es una de las entidades que el encargo nombró — nunca una cuenta ajena al alcance
+// pedido. `null` (hay al menos una parte "cartera entera" real) no acota: cualquier top es una respuesta legítima.
+function _integrada(figs, temas, D, entidadesPermitidas = null) {
   if (!Array.isArray(temas) || temas.length < 2) return null;
   let P = null;
   try { P = prioridadIntegrada(figs, temas); } catch { P = null; }
   const top = P && Array.isArray(P.integrada) ? P.integrada[0] : null;
   if (!top || !top.senales) return null;
+  if (entidadesPermitidas && !entidadesPermitidas.has(top.entidad)) return null;
   const idsPorDominio = {};
   for (const dom of Object.keys(top.senales)) {
     const s = top.senales[dom];
@@ -258,7 +263,14 @@ export function calcularIniciativa({ figs, partes = [], iniciativaOn = true, yaT
   // «la cartera entera»: lectura/decision SIN entidad — el único caso donde una AGREGADA de cartera es del
   // mismo tipo de lectura que las 4 rutas fijas ya sirven de punta a punta (con el contrato comercial completo
   // corrido, así que el Marco ya trae su referencia si el texto la necesita).
-  const _tieneLecturaDeCarteraEntera = (tema) => _partesDe(tema).some((p) => (p.cierre === "lectura" || p.cierre === "decision") && !(p.entidades && p.entidades.length));
+  // RC4 (owner, diagnostico.md §RC4 — MATERIAL: entidad no pedida con cifra real fuera del alcance): sin
+  // `entidades` NO alcanza para llamarla «cartera entera» — un `Parte.universo` declarado (ej. "clientes al
+  // día") YA ES un recorte real de la cartera, aunque no nombre entidades una por una. Sin este chequeo, una
+  // parte con universo restringido disparaba una agregada sobre TODA la cartera y nombraba a quien más pesa
+  // ahí (p.ej. un moroso dentro de "quién está al día"), una entidad que el propio recorte excluye por
+  // definición — nunca autorizado por la cabecera de la iniciativa («SIN que ninguna parte del encargo los haya
+  // pedido» habla de MÉTRICAS no pedidas del MISMO alcance, no de entidades ajenas al alcance).
+  const _tieneLecturaDeCarteraEntera = (tema) => _partesDe(tema).some((p) => (p.cierre === "lectura" || p.cierre === "decision") && !(p.entidades && p.entidades.length) && !p.universo);
 
   // COMERCIAL — solo si el encargo tocó comercial (nunca un tema no pedido, ley §A.2a)
   if (_tieneLecturaDeCarteraEntera("comercial")) {
@@ -297,8 +309,18 @@ export function calcularIniciativa({ figs, partes = [], iniciativaOn = true, yaT
   // pedido mismo no calculó ya la integrada (`_planMultiTema`, componer.js): evita servir la MISMA oración dos
   // veces cuando el encargo es "lectura/decision sin entidad" sobre ≥2 temas — ese camino ya la sirve como pedido.
   const temasDelEncargo = [...new Set(partes.map((p) => p.tema))];
+  // RC4 (owner, diagnostico.md §RC4, disparador 2 · V20): el mismo defecto de fondo con otro gatillo — antes
+  // corría con solo `temasDelEncargo.length>=2`, sin mirar si las partes traen entidades declaradas.
+  // `_integrada` corre `prioridadIntegrada(figs, temas)` sobre TODA la cartera (sin acotarla) y nombra a quien
+  // más pesa ahí — con TODAS las partes del encargo nombrando entidades específicas (nunca "cartera entera"),
+  // ese "quien más pesa" puede ser una cuenta que el encargo nunca mencionó (V20: preguntó por Sodimac/Easy,
+  // salió Lider). Cuando SÍ hay una parte "cartera entera" real, no hace falta acotar: nada se excluyó, así que
+  // cualquier entidad que resulte "la que más pesa" es una respuesta legítima a "la cartera entera" (2b: ambas
+  // partes nombran la MISMA entidad — Lider — y `_integrada` la sirve porque es justo la que se preguntó).
+  const hayCarteraEnteraEnAlgunTema = temasDelEncargo.some((t) => _tieneLecturaDeCarteraEntera(t));
+  const entidadesNombradas = hayCarteraEnteraEnAlgunTema ? null : new Set(partes.flatMap((p) => p.entidades || []));
   if (temasDelEncargo.length >= 2 && !yaTieneIntegrada) {
-    const it = _integrada(figs, temasDelEncargo, D);
+    const it = _integrada(figs, temasDelEncargo, D, entidadesNombradas);
     if (it) candidatos.push({ ...it, nivel: "principal" });
   }
 

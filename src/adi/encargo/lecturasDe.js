@@ -56,7 +56,8 @@ import { cajaDelAgente } from "../agente/herramientasAgente.js";
 /* `pasosDelContratoComercial` NO se importa directo: `pasosDeDominios` (abajo) ya la llama por dentro cuando el
  * tema comercial participa sin eje explícito — importarla acá sería una segunda invocación que nadie usa. */
 import { pasosDeDominios } from "../agente/contratoDeDominios.js";
-import { sujetoDeTema, metricaCoreDe } from "./esquema.js";
+import { sujetoDeTema, metricaCoreDe, productorDe } from "./esquema.js";
+import { dominioPorId } from "../../config/contract/dominios.js";
 
 /* LA CAJA EXTENDIDA (owner 2026-08-30, F2 · ADI Agente): `cobranza` y `rolesCartera` —las dos que
  * `pasosDelContratoComercial`/`pasosDeDominios` ya citan por nombre— viven en `cajaDelAgente`, no en `TOOLS` del
@@ -125,7 +126,24 @@ function _pasosCifra(p) {
   if (p.entidades.length) {
     // LA FILA COMPLETA de cada entidad (entityRecord: "TODAS sus columnas reales del dato") — cubre de sobra
     // cualquier concepto puntual de comercial/inventario que la parte haya pedido, sin adivinar cuál.
-    return p.entidades.map((e) => ({ tool: "entityRecord", args: { dimension: e.eje, entity: e.nombre }, para: `la fila completa de ${e.nombre} (entityRecord)` }));
+    // RC12 (owner, diagnostico.md §RC12 — MATERIAL, el contrato §3.4 ejemplifica comparar bodegas): `entityRecord`
+    // SOLO tiene fuente para sku/cliente/marca/familia (`entityRecord.js:_sources`, `default: return null`) — una
+    // entidad de eje bodega/canal SIEMPRE fallaba ahí, aunque `productorDe(concepto, eje)` sea `true` (el camino
+    // de listado/group-by SÍ la sirve). Esas entidades van por el MISMO camino que un `cifra` sin entidades
+    // (group-by de `queryMetric`/etc. por ese eje, SIN filtro de entidad — un filtro `{bodega: nombre}` redirige
+    // a `entityRecord` otra vez, `toolRegistry.js:queryMetric` líneas 230-232): el compositor
+    // (`_planCifraEntidad`, componer.js) ya filtra las figs resultantes por `entidad === nombre`, así que no hace
+    // falta una segunda ruta de composición — solo la llamada correcta, por CONCEPTO PEDIDO (sin `conceptos`
+    // declarados no hay «fila completa» posible en este camino: nada que listar).
+    const out = [];
+    for (const e of p.entidades) {
+      if (e.eje === "bodega" || e.eje === "canal") {
+        for (const c of (p.conceptos || [])) out.push(..._callsDeConceptoEje(p.tema, c, e.eje));
+        continue;
+      }
+      out.push({ tool: "entityRecord", args: { dimension: e.eje, entity: e.nombre }, para: `la fila completa de ${e.nombre} (entityRecord)` });
+    }
+    return _dedupeCalls(out);
   }
   if (p.universo && p.universo.top && p.universo.top.metrica) {
     const { metrica, k, direccion } = p.universo.top;
@@ -234,7 +252,15 @@ function _pasosLecturaDecision(partes) {
   // en vez de tocar `contratoDeDominios.js` sin un caso que lo pida: si aparece, cae acá, por concepto y eje —
   // mismo camino que el group-by de `cifra`, para no inventar una segunda regla de composición.
   if (!out.length && dominios.length === 1 && eje) {
-    const conceptos = new Set(partes.flatMap((p) => p.conceptos || []));
+    // RC8 (owner, diagnostico.md §RC8, punto 1): `conceptos` SIN declarar (`Parte.conceptos` vacío/ausente) es,
+    // por contrato (§1: "lo que el procedimiento del tema sirva"), NO "nada que pedir" — antes el bucle solo
+    // recorría lo DECLARADO, así que una parte "dame el margen por familia" (eje explícito, sin conceptos)
+    // producía `plan.calls: []` y la Entrega fallaba con "el encargo no generó ninguna lectura del Core". Sin
+    // conceptos declarados, se usan TODOS los del tema con productor en ESE eje (mismo criterio que ya usa
+    // `validar.js:_validarConcepto` vía `productorDe`, nunca una segunda tabla).
+    const declarados = partes.flatMap((p) => p.conceptos || []);
+    const metricasDelTema = (dominioPorId(dominios[0]) && dominioPorId(dominios[0]).metricas) || [];
+    const conceptos = new Set(declarados.length ? declarados : metricasDelTema.filter((c) => productorDe(c, eje)));
     for (const c of conceptos) out.push(..._callsDeConceptoEje(dominios[0], c, eje));
   }
   return out;

@@ -65,7 +65,10 @@ function _resolverEntidadRef(ref) {
       const c2 = resolveCanonical(otro, nombre);
       if (c2) return { estado: "eje_incompatible", nombre: c2, eje: otro };
     }
-    return { estado: "inexistente", candidatos: findCandidates(ref.eje, nombre) };
+    // RC13 (owner, diagnostico.md §RC13): acá el eje YA es explícito y estructurado (Entidad.eje, nunca un
+    // fragmento de texto libre) — el opt-in `ejeChico` es seguro: con un eje de pocos miembros, ofrecerlos TODOS
+    // como alternativa es la respuesta correcta («Mayorista» contra un `canal` de solo 2 miembros).
+    return { estado: "inexistente", candidatos: findCandidates(ref.eje, nombre, { ejeChico: true }) };
   }
   const r = resolveEntityRef(nombre);
   if (r.estado === "resuelto") return { estado: "resuelta", nombre: r.nombre, eje: r.dimension };
@@ -167,8 +170,15 @@ function _resolverSupuestosRaiz(supuestos, partes) {
   const resueltos = [];         // SupuestoResuelto[] (solo válidos, con productor)
   const noResuelto = [];
   const porId = new Map();      // id → { ok, productor }
-  const usados = lista.slice(0, SUPUESTOS_USUARIO_MAX);
-  if (lista.length > SUPUESTOS_USUARIO_MAX) {
+  /* RC16 (owner, medición de cierre etapa 1 · diagnostico.md §RC16 — MATERIAL, contradice el ejemplo explícito
+   * del contrato): superar el tope RECHAZA EL CONJUNTO ENTERO, nunca «los primeros N». Antes se seguía validando
+   * `lista.slice(0, MAX)` — con 4 supuestos y tope 3, los 3 primeros terminaban con productor y corriendo en
+   * `RESOLUCION.supuestos`, exactamente lo que el contrato prohíbe. Con el tope excedido, `usados = []`: ningún
+   * supuesto de ESE encargo se valida ni se liga a partes (toda `simulacion` que los cite queda sin supuestos
+   * válidos → `no_resuelta`, por el camino que ya existe más abajo). */
+  const excedeTope = lista.length > SUPUESTOS_USUARIO_MAX;
+  const usados = excedeTope ? [] : lista;
+  if (excedeTope) {
     noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: lista.length, motivo: "supuesto_tope", detalle: `más de ${SUPUESTOS_USUARIO_MAX} supuestos` }));
   }
   for (const s of usados) {
@@ -242,7 +252,14 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
   const avisos = [];
 
   const rarosDeParte = Object.keys(parteCruda || {}).filter((k) => !CAMPOS_PARTE.includes(k));
-  for (const k of rarosDeParte) avisos.push(nuevoAviso("campo_desconocido", `campo «${k}» no reconocido en la parte`, id));
+  /* RC18 (owner, diagnostico.md §RC18): §7.1 ya cerró esto — «el campo desconocido dentro de una parte es
+   * aviso... se declara en noResuelto con campo "raiz"/"campo_desconocido"... y la parte corre» (mismo motivo
+   * que a nivel raíz, líneas 441-447 más abajo). Antes solo se empujaba a `avisos`: la mitad de la ley. Esto NO
+   * cambia `parcialForzado` ni ningún estado — sigue siendo un aviso no bloqueante, ahora también declarado. */
+  for (const k of rarosDeParte) {
+    avisos.push(nuevoAviso("campo_desconocido", `campo «${k}» no reconocido en la parte`, id));
+    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "raiz", valor: k, motivo: "campo_desconocido" }));
+  }
 
   const tema = parteCruda && parteCruda.tema;
   const temaEntrada = dominioPorId(tema);
@@ -303,7 +320,11 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
    * o del sujeto del tema), se reporta por CONCEPTO (`concepto_sin_productor`), porque ahí no hay un campo "eje"
    * que el usuario haya escrito para señalar. */
   const ejeFueExplicito = _str(parteCruda.eje) && EJES.includes(parteCruda.eje);
-  const ejesSinProductorDeLaParte = new Set();
+  /* RC6 (decisión del SUPERVISOR, diagnostico.md §RC6 — el propio código traía la ambigüedad documentada como
+   * D36, sin decidir). Con eje EXPLÍCITO, un concepto "sin_productor" no se declara todavía: se junta acá y se
+   * decide DESPUÉS de recorrer TODOS los conceptos de la parte, porque el motivo correcto depende del resultado
+   * conjunto (ver el bloque de abajo). */
+  const sinProductorPendientes = [];   // { c, ejes } — solo cuando el eje fue explícito
   for (const c of conceptosEntrada) {
     if (!_str(c)) continue;
     const r = _validarConcepto(c, tema, ejeEfectivo);
@@ -321,11 +342,25 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
       continue;
     }
     // "sin_productor"
-    if (ejeFueExplicito) { for (const e of r.ejes) ejesSinProductorDeLaParte.add(e); continue; }
+    if (ejeFueExplicito) { sinProductorPendientes.push({ c, ejes: r.ejes }); continue; }
     noResuelto.push(nuevoNoResuelto({ parte: id, campo: "concepto", valor: c, motivo: "concepto_sin_productor", alternativas: r.ejes.map((e) => ({ tipo: "eje", eje: e })) }));
   }
-  if (ejeFueExplicito && ejesSinProductorDeLaParte.size) {
-    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "eje", valor: parteCruda.eje, motivo: "eje_no_soportado", alternativas: [...ejesSinProductorDeLaParte].map((e) => ({ tipo: "eje", eje: e })) }));
+  /* La decisión (§RC6 del diagnóstico, tomada por el supervisor): si el eje es explícito y AL MENOS UN OTRO
+   * concepto de la MISMA parte SÍ resuelve en ese eje, el eje en sí queda probado válido por esa prueba — el
+   * motivo correcto es `concepto_sin_productor`, uno por cada concepto que falla (campo "concepto"). Si NINGÚN
+   * concepto pedido tiene productor en ese eje, es el EJE el que falla, no cada concepto: UN solo
+   * `eje_no_soportado` (campo "eje") con las alternativas de ejes que sí producen. Con eje POR DEFECTO (no
+   * explícito) la rama de arriba ya declara siempre `concepto_sin_productor` — esta decisión no la toca. */
+  if (ejeFueExplicito && sinProductorPendientes.length) {
+    if (conceptosValidos.length > 0) {
+      for (const { c, ejes } of sinProductorPendientes) {
+        noResuelto.push(nuevoNoResuelto({ parte: id, campo: "concepto", valor: c, motivo: "concepto_sin_productor", alternativas: ejes.map((e) => ({ tipo: "eje", eje: e })) }));
+      }
+    } else {
+      const ejesAlternativos = new Set();
+      for (const { ejes } of sinProductorPendientes) for (const e of ejes) ejesAlternativos.add(e);
+      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "eje", valor: parteCruda.eje, motivo: "eje_no_soportado", alternativas: [...ejesAlternativos].map((e) => ({ tipo: "eje", eje: e })) }));
+    }
   }
 
   /* ── universo (§4g) ── */
@@ -358,9 +393,18 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
   /* ── concepto único de `definicion` (§1.1) ── */
   let definicionValida = null;
   if (cierre === "definicion") {
-    definicionValida = conceptoDeDefinicionValido(parteCruda.concepto);
-    if (!definicionValida) {
-      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "concepto", valor: parteCruda.concepto, motivo: "concepto_desconocido", alternativas: [] }));
+    /* RC14 (owner, diagnostico.md §RC14): un campo REQUERIDO ausente (`concepto == null` — no vino, distinto de
+     * un valor inválido que sí vino) es `cierre_incompleto` (§2.1), no `concepto_desconocido` — son motivos
+     * semánticamente distintos: «no me dijiste qué concepto» vs. «me dijiste uno que no existe». El campo que
+     * falta es "concepto" (el campo que el motivo señala), no "cierre" — el cierre en sí está bien formado. */
+    if (parteCruda.concepto == null) {
+      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "concepto", valor: null, motivo: "cierre_incompleto", detalle: "una definición exige el campo concepto" }));
+      definicionValida = false;
+    } else {
+      definicionValida = conceptoDeDefinicionValido(parteCruda.concepto);
+      if (!definicionValida) {
+        noResuelto.push(nuevoNoResuelto({ parte: id, campo: "concepto", valor: parteCruda.concepto, motivo: "concepto_desconocido", alternativas: [] }));
+      }
     }
   }
 
@@ -372,7 +416,11 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
       noResuelto.push(nuevoNoResuelto({ parte: id, campo: "cierre", valor: entidadesEntrada.length, motivo: "cardinalidad", alternativas: [{ tipo: "cierre", cierre: "cifra" }] }));
     } else if (entidadesResueltas.length === 2 && entidadesResueltas[0].eje !== entidadesResueltas[1].eje) {
       ejesMezclados = true;
-      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "eje", valor: entidadesResueltas.map((e) => e.eje), motivo: "ejes_mezclados", alternativas: entidadesResueltas.map((e) => ({ tipo: "eje", eje: e.eje })) }));
+      /* RC15 (owner, diagnostico.md §RC15): mismo bloque, misma clase de problema que su vecino `cardinalidad`
+       * (3 líneas arriba) — el cierre completo (`comparacion`) no puede correr por cómo está armado el CONJUNTO
+       * de entidades, no por un campo de entrada suelto. `campo:"cierre"`, igual que `cardinalidad` y el ejemplo
+       * 6.3 del contrato. */
+      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "cierre", valor: entidadesResueltas.map((e) => e.eje), motivo: "ejes_mezclados", alternativas: entidadesResueltas.map((e) => ({ tipo: "eje", eje: e.eje })) }));
     }
   }
 
@@ -400,6 +448,20 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
   const conceptoEsencialFalla = (cierre === "cifra") && conceptosEntrada.length > 0 && conceptosValidos.length === 0
     && !(universoResuelto && universoResuelto.top);
   const cifraSinNada = cierre === "cifra" && conceptosEntrada.length === 0 && !(universoResuelto && universoResuelto.top);
+  /* RC17 (owner, diagnostico.md §RC17 — MATERIAL, viola literalmente «nada se sustituye por un vecino»): cuando
+   * la parte NO tiene entidades y el ÚNICO universo declarado es inválido, no hay población sobre la que correr
+   * el concepto — mismo patrón que `entidadEsencialFalla`/`conceptoEsencialFalla`. Antes esto solo marcaba
+   * `parcialForzado` y la parte quedaba "parcial": el compositor (que sí filtra por estado) igual la corría y
+   * servía un listado GLOBAL sin el filtro que el usuario pidió — una sustitución silenciosa. Aplica a los tres
+   * cierres con universo real (comparacion/definicion/simulacion no lo usan). */
+  const universoEsencialFalla = (cierre === "cifra" || cierre === "lectura" || cierre === "decision")
+    && entidadesEntrada.length === 0 && universoDado && universoValido === false;
+  /* RC9 (owner, diagnostico.md §RC9): en lectura/decision, cuando la entidad resuelve pero TODOS los conceptos
+   * EXPLÍCITAMENTE pedidos fallan, la parte no corrió nada de lo pedido para ese tema — la etiqueta correcta es
+   * `no_resuelta`, el MISMO patrón que ya aplica `cifra` (`conceptoEsencialFalla`), extendido a los dos cierres
+   * que faltaban. */
+  const conceptoEsencialFallaLD = (cierre === "lectura" || cierre === "decision")
+    && conceptosEntrada.length > 0 && conceptosValidos.length === 0;
   const parcialForzado = (entidadesEntrada.length > entidadesValidasN) || (conceptosEntrada.length > conceptosValidos.length)
     || (universoDado && !universoValido) || (periodoDado && !periodoValido)
     || (cierre === "simulacion" && supuestosCitados.length > supuestosValidosN);
@@ -413,10 +475,10 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
     if (supuestosValidosN === 0 || entidadEsencialFalla) estado = "no_resuelta";
     else estado = parcialForzado ? "parcial" : "resuelta";
   } else if (cierre === "cifra") {
-    if (entidadEsencialFalla || conceptoEsencialFalla || cifraSinNada) estado = "no_resuelta";
+    if (entidadEsencialFalla || conceptoEsencialFalla || cifraSinNada || universoEsencialFalla) estado = "no_resuelta";
     else estado = parcialForzado ? "parcial" : "resuelta";
   } else {   // lectura · decision
-    if (entidadEsencialFalla) estado = "no_resuelta";
+    if (entidadEsencialFalla || conceptoEsencialFallaLD || universoEsencialFalla) estado = "no_resuelta";
     else estado = parcialForzado ? "parcial" : "resuelta";
   }
 

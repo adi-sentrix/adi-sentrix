@@ -129,7 +129,14 @@ const _maxDist = (n) => (n <= 4 ? 0 : n <= 7 ? 1 : 2);
 
 // findCandidates(dimension, name) → [{nombre, distancia, motivo}] ordenados por cercanía. Vacío si nada se acerca.
 // Motivos: "exacto" (ya canonicaliza) · "prefijo" (el usuario escribió de menos) · "tipeo" (Levenshtein).
-export function findCandidates(dimension, name, { max = 3 } = {}) {
+// `ejeChico` (opt-in, default false — NUNCA cambia el comportamiento de un llamador viejo sin pedirlo): con la
+// similitud vacía Y el eje con pocos miembros totales, ofrece TODOS como alternativa (RC13, ver abajo). Debe
+// pedirlo el llamador explícitamente porque `findCandidates` también se usa para escanear texto libre en busca
+// de un fragmento que SÍ se parezca a una entidad (`serieIntent.js`/`fichaIntent.js`): ahí, "sin ningún parecido"
+// tiene que seguir significando "nada", no "ofrezco cualquier eje chico" — de lo contrario cualquier n-grama de
+// cualquier pregunta dispara una falsa coincidencia contra un eje de 2-3 miembros (medido: rompió el puente de
+// `detectSerieIntent`, `_notario_adversarial_gate`/`_variacion_gate`).
+export function findCandidates(dimension, name, { max = 3, ejeChico = false } = {}) {
   const m = _idx().byAxis.get(dimension);
   if (!m || name == null) return [];
   const q = _norm(name);
@@ -141,6 +148,15 @@ export function findCandidates(dimension, name, { max = 3 } = {}) {
   for (const [k, canon] of m) {
     if (k.startsWith(q) || q.startsWith(k)) { out.push({ nombre: canon, distancia: Math.abs(k.length - q.length), motivo: "prefijo" }); continue; }
     if (lim > 0) { const d = _lev(q, k, lim); if (d <= lim) out.push({ nombre: canon, distancia: d, motivo: "tipeo" }); }
+  }
+  if (!out.length && ejeChico) {
+    // RC13 (owner, diagnostico.md §RC13): sin ningún parecido de texto, un eje CHICO (pocos miembros totales)
+    // igual tiene alternativas razonables — con 2-5 miembros, "no hay fuzzy que valga": TODOS son la oferta
+    // (ej. "Mayorista" contra un eje `canal` de solo "Retail"/"E-commerce" — ninguno se parece, los dos son la
+    // respuesta). `distancia: Infinity` los deja ordenar DESPUÉS de cualquier match real por similitud en el
+    // llamador que junta candidatos de varios ejes (`resolveEntityRef`), nunca antes.
+    const todos = [...new Set(m.values())].sort((a, b) => a.localeCompare(b));
+    if (todos.length && todos.length <= 5) return todos.slice(0, max).map((nombre) => ({ nombre, distancia: Infinity, motivo: "eje_chico" }));
   }
   return out.sort((a, b) => a.distancia - b.distancia || a.nombre.localeCompare(b.nombre)).slice(0, max);
 }

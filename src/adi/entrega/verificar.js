@@ -20,6 +20,7 @@
  * se niega a servir la Entrega (ver el candado 3.e en `_entrega_gate.mjs`, que lo prueba con una carnada). */
 import { detectVoseo, stripLanguageLeaks } from "../llm/voiceGuard.js";
 import { coberturaDelEncargo } from "../agente/partesDelEncargo.js";
+import { normalizar } from "../notario/afirmacion.js";
 
 const _PALABRAS = (t) => String(t || "").trim().split(/\s+/).filter(Boolean);
 /** contarPalabras(texto) → cantidad de palabras — la MISMA cuenta que ya usa la regla 8, exportada para que
@@ -213,7 +214,16 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
     const duenosEnJuego = new Set((entrega.cifras.filas || []).filter((f) => f.hechos && f.hechos.length).map((f) => Object.values(f.valores)[0]).filter((d) => d !== "Negocio"));
     if (duenosEnJuego.size > 1) {
       const hayTentacion = libro.hechos.some((h) => h.tipo === "razon" || h.tipo === "derivada");
-      if (!hayTentacion) v("tentacion-no-precalculada", "hay más de una cuenta en juego y ningún hecho `razon`/`derivada` precalcula su relación");
+      // RC5 (owner, diagnostico.md §RC5): esta regla solo miraba el libro del PEDIDO — pero el usuario puede
+      // haber traído la MISMA comparación como PREMISA (`libroPremisas`, tipo "relacion", ej. «Sodimac saldo
+      // vencido mayor que Easy»), que SÍ se imprime en el texto (`_textoDePremisa`, entrega/componer.js) aunque
+      // el pedido en sí no calculó ninguna razón/derivada cruzada. Cuenta como tentación precalculada solo
+      // cuando compara EXACTAMENTE los dos dueños en juego (mismo conjunto, ni más ni menos entidades) — nunca
+      // una relación sobre otras cuentas que la parte no trae a Cifras.
+      const duenosNorm = new Set([...duenosEnJuego].map((d) => normalizar(d)));
+      const libroPremisas = entrega.procedencia && entrega.procedencia.libroPremisas;
+      const hayRelacionDePremisa = !hayTentacion && libroPremisas && (libroPremisas.hechos || []).some((h) => h.tipo === "relacion" && h.entidades && h.entidades.size === duenosNorm.size && [...duenosNorm].every((d) => h.entidades.has(d)));
+      if (!hayTentacion && !hayRelacionDePremisa) v("tentacion-no-precalculada", "hay más de una cuenta en juego y ningún hecho `razon`/`derivada` precalcula su relación");
     }
   }
 

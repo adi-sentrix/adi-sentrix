@@ -25,6 +25,7 @@ import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { validarEncargo } from "./src/adi/encargo/validar.js";
 import { MOTIVOS } from "./src/adi/encargo/esquema.js";
+import { componerEntrega } from "./src/adi/entrega/componer.js";   // solo para la CARNADA §9 (contrato §7.3·2)
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -212,6 +213,41 @@ H("8 · markup(cliente) ya no declina — el validador y la Entrega dicen lo mis
   ok(res.ok, "el encargo de markup por cliente valida (ok:true)", JSON.stringify(res.noResuelto));
   const declino = (res.noResuelto || []).some((n) => n.motivo === "concepto_sin_productor" && n.valor === "markup");
   ok(!declino, "★ CARNADA · \"markup\" ya no sale con motivo concepto_sin_productor", JSON.stringify(res.noResuelto));
+}
+
+/* ═══ 9 · CARNADA 5 · contrato §7.3·2 (decisión del supervisor, 2026-09-26) — `lectura`/`decision` SIN
+ * entidades cuyo ÚNICO universo es inválido → `no_resuelta`, MISMA regla que RC17 ya aplica a `cifra`
+ * (`validar.js:universoEsencialFalla`, reusada tal cual — nunca una segunda función). Nunca se sirve la
+ * cartera entera en lugar del recorte pedido: se prueba en las DOS capas — el validador (p1 no_resuelta) y la
+ * Entrega (el tema de p1 NUNCA queda cubierto, aunque otra parte del mismo encargo sí componga). */
+H("9 · CARNADA 5 — lectura sin entidades con universo inválido → no_resuelta, y la Entrega no sirve la cartera entera (§7.3·2)");
+{
+  // p1: cobranza · lectura · SIN entidades · universo inválido (bodega solo restringe SKU, nunca cliente —
+  // el MISMO disparador que ya usa el catálogo sellado para `cifra`, RC17). p2: inventario · cifra · sin
+  // entidades ni universo (group-by liso, siempre resuelve) — para que el encargo SÍ componga una Entrega y la
+  // prueba de "no cartera entera" tenga algo real contra qué compararse.
+  const encargo = {
+    version: "encargo/v1",
+    partes: [
+      { id: "p1", tema: "cobranza", cierre: "lectura", universo: { eje: "cliente", bodega: "Santiago" } },
+      { id: "p2", tema: "inventario", cierre: "cifra", conceptos: ["capital"] },
+    ],
+  };
+  const R = validarEncargo(encargo, {});
+  ok(R.ok, "el encargo compone (p2 resuelve) — R.ok=true", JSON.stringify(R.partes.map((p) => ({ id: p.id, estado: p.estado }))));
+  const p1 = porId(R.partes, "p1");
+  ok(!!p1 && p1.estado === "no_resuelta", "★ CARNADA · p1 (lectura sin entidades, universo inválido) queda no_resuelta, NUNCA parcial", JSON.stringify(p1));
+  const nr = (R.noResuelto || []).find((n) => n.parte === "p1" && n.campo === "universo" && n.motivo === "universo_invalido");
+  ok(!!nr, "★ CARNADA · noResuelto declara universo_invalido para p1", JSON.stringify(R.noResuelto));
+
+  let entrega = null;
+  try { entrega = componerEntrega(R); } catch (e) { entrega = null; }
+  ok(!!entrega && entrega.ok, "la Entrega compone ok (con lo que p2 sí trae)", entrega && entrega.motivo);
+  if (entrega && entrega.ok) {
+    const temas = entrega.entrega.temasCubiertos || [];
+    ok(!temas.includes("cobranza"), "★ CARNADA · el tema de p1 (cobranza) NUNCA queda cubierto — la Entrega no sirve la cartera entera en su lugar", JSON.stringify(temas));
+    ok(temas.includes("inventario"), "…y el tema de p2 (inventario) SÍ queda cubierto — el resto del encargo no se apaga por p1", JSON.stringify(temas));
+  }
 }
 
 console.log(`\n── _encargo_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
