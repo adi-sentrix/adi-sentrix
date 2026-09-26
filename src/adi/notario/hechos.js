@@ -16,7 +16,7 @@ import { parseFigures } from "../boleta.js";
 import { tolCalculo } from "../oracle/calculoCatalogo.js";
 import { verificarAfirmaciones, conjuntoDeUniverso, valorDeRanking } from "./verificar.js";
 import { indiceDeEvidencia, mismoValor, unidadCompatible } from "./evidencia.js";
-import { normalizar, menosAscii, leerValor } from "./afirmacion.js";
+import { normalizar, menosAscii, leerValor, direccionPorDefecto } from "./afirmacion.js";
 import { parsearLineasDeBloque, MARCA_FIN } from "./declaracion.js";
 import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO, opDe, esReferencia } from "./lexico.js";
 import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON, estadosEn, estadoDeclarado, ejeCompatible, COMPLEMENTO_V3 } from "./estados.js";
@@ -474,7 +474,14 @@ function _aV2(h, I) {
   switch (tipo) {
     case "orden": {
       const o = _es(h.orden) ? h.orden : {};
-      return { ...base, orden: { forma: o.forma, k: o.k, direccion: o.direccion, vs: o.vs }, universo: universo(h.universo, h.sujeto) };
+      // R-DIRECCION (diagnóstico v3, MATERIAL): un HECHO estructurado (premisa del encargo o `<<HECHOS>>` del
+      // modelo) no trae un fragmento de prosa propio que leer (`base.texto` de arriba es un placeholder, «${id}»,
+      // nunca el fragmento real) — así que si no declaró `orden.direccion`, no hay ninguna palabra que
+      // `resolutor.js` pueda ir a buscar. Acá SÍ se rellena con `direccionPorDefecto` (max/topk/puesto → mayor,
+      // min → menor) antes de que la puerta de completitud de `afirmacion.js` lo juzgue — esa puerta conserva su
+      // propio default angosto (solo max/min) para cuando SÍ hay prosa real que leer (`_resolutor_gate`, fase 1).
+      const direccion = o.direccion || direccionPorDefecto(normalizar(String(o.forma || "")));
+      return { ...base, orden: { forma: o.forma, k: o.k, direccion, vs: o.vs }, universo: universo(h.universo, h.sujeto) };
     }
     case "relacion": {
       const r = _es(h.relacion) ? h.relacion : {};
@@ -849,7 +856,7 @@ export function libroDeHechos(hechos, ctx = {}) {
       if (a2.estado) { H.estado = _canonDe(a2.estado.estado); H.roles.bodega = a2.estado.bodega || null; if (a2.estado.bodega) _addEnt(H, I, a2.estado.bodega); H.dominio = H.dominio || dominioDeEstado(H.estado); H.render.estado = nombreDeEstado(H.estado); }
       if (a2.valor != null) _addNum(H, a2.valor);
       if (a2.relacion) { if (a2.relacion.valor != null) _addNum(H, a2.relacion.valor); if (Number.isFinite(+a2.relacion.k)) { H.numeros.push({ raw: +a2.relacion.k, unidad: "ratio", texto: String(a2.relacion.k) }); H.render.k = String(a2.relacion.k); } H.render.rel = _renderRelacion(a2, I); H.matiz = a2.relacion.matiz || ""; H.direccion = a2.relacion.forma; }
-      if (a2.orden) { H.forma = normalizar(String(a2.orden.forma || "")); if (Number.isFinite(+a2.orden.k)) { H.numeros.push({ raw: +a2.orden.k, unidad: "count", texto: String(a2.orden.k) }); H.render.k = String(a2.orden.k); } H.direccion = a2.orden.direccion || (a2.orden.forma === "max" || a2.orden.forma === "topk" ? "mayor" : a2.orden.forma === "min" ? "menor" : "");   /* por definición: max = mayor, min = menor (ronda 5, R2) */ H.forma = a2.orden.forma; }
+      if (a2.orden) { H.forma = normalizar(String(a2.orden.forma || "")); if (Number.isFinite(+a2.orden.k)) { H.numeros.push({ raw: +a2.orden.k, unidad: "count", texto: String(a2.orden.k) }); H.render.k = String(a2.orden.k); } H.direccion = a2.orden.direccion || direccionPorDefecto(a2.orden.forma);   /* UNA SOLA definición (R-DIRECCION, diagnóstico v3): afirmacion.js:direccionPorDefecto — antes esta línea y la puerta de completitud de afirmacion.js discrepaban (acá ya trataba topk=mayor, allá solo max/min) */ H.forma = a2.orden.forma; }
       if (a2.variacion) { if (a2.variacion.valor != null) _addNum(H, a2.variacion.valor); H.direccion = a2.variacion.direccion; H.periodo = periodoDe(h.periodo || "anterior"); H.claves.add(H.periodo === "presupuesto" ? "vs_presupuesto" : "variacion"); }
       if (a2.conteo) { H.numeros.push({ raw: +a2.conteo.n, unidad: "count", texto: String(a2.conteo.n) }); H.render.n = String(a2.conteo.n); if (a2.conteo.m != null) { H.numeros.push({ raw: +a2.conteo.m, unidad: "count", texto: String(a2.conteo.m) }); H.render.m = String(a2.conteo.m); } }
       if (a2.periodo && !H.periodo) H.periodo = periodoDe(a2.periodo);

@@ -31,6 +31,23 @@ export const FORMAS_DE_RELACION = ["veces", "fraccion", "parte", "mayor", "menor
 export const DIRECCIONES = ["mayor", "menor", "peor", "mejor"];
 export const DIRECCIONES_DE_VARIACION = ["sube", "baja", "estable"];
 
+/** direccionPorDefecto(forma) → «mayor» · «menor» · "" — la lectura por defecto de una forma de orden SIN
+ *  `direccion` declarada, para un HECHO ESTRUCTURADO (sin fragmento de prosa propio que leer): «el top 3», «quién
+ *  es 3°» leen descendente por defecto en el lenguaje de negocio real — no es una ambigüedad real, a diferencia de
+ *  un `comparativo` (A vs B sin decir quién gana), que sigue sin default. UNA SOLA DEFINICIÓN para toda la casa
+ *  (diagnóstico v3, raíz R-DIRECCION, MATERIAL): antes `hechos.js:852` (el render de un hecho verificado) ya
+ *  asumía «topk = mayor» con su PROPIO cálculo inline, mientras `notario/hechos.js:_aV2` (lo que arma el HECHO
+ *  antes de juzgarlo) no rellenaba nada — una premisa del encargo o un `<<HECHOS>>` del modelo con `puesto`/`topk`
+ *  sin `direccion` explícita se declaraba «no-verificable: falta orden.direccion» aunque el propio Core ya sabía
+ *  resolverla por default para renderizar. Se usa en DOS puntos de `hechos.js`, nunca acá: `_aV2` (rellena
+ *  `orden.direccion` ANTES de juzgar un hecho sin prosa) y la línea de `H.direccion` (renderiza con la MISMA
+ *  regla). `normalizarAfirmacion` (abajo) NO la usa para puesto/topk a propósito: esa puerta también corre con una
+ *  declaración de PROSA real (`resolutor.js`, fase 1/etapa A, candado `_resolutor_gate`) donde «puesto sin palabra
+ *  de dirección en el fragmento» es una ambigüedad genuina del lenguaje que no se debe inventar — la puerta
+ *  conserva su default angosto (solo max/min) para ese camino, y un hecho estructurado ya llega con la dirección
+ *  rellenada por `_aV2`, así que nunca la necesita acá. */
+export const direccionPorDefecto = (forma) => (forma === "max" || forma === "topk" || forma === "puesto" ? "mayor" : forma === "min" ? "menor" : "");
+
 /* los sujetos que nombran el todo: se resuelven a las figs sin entidad (totales del negocio) */
 const _NEGOCIO = /^(?:el\s+)?(?:negocio|total|la\s+cartera|cartera|global|la\s+empresa|empresa|el\s+total)$/i;
 
@@ -121,6 +138,14 @@ export function normalizarAfirmacion(a, i = 0) {
     case "orden": {
       const o = src.orden && typeof src.orden === "object" ? src.orden : {};
       const forma = normalizar(o.forma);
+      /* ESTA puerta queda con el default ORIGINAL, angosto (max/min): la ejercita `verificarAfirmaciones` llamada
+       * DIRECTO con una declaración de PROSA real (fase 1/etapa A, `resolutor.js` — `_resolutor_gate` la prueba a
+       * propósito: «sin "más grande" ni "mayor" en el fragmento, orden.direccion sigue faltando»). Ahí, puesto/topk
+       * SIN palabra de dirección en el fragmento es una ambigüedad real del lenguaje — inventar «mayor» sería
+       * exactamente lo que ese candado prohíbe. `direccionPorDefecto` (arriba) SÍ cubre puesto/topk, pero se aplica
+       * donde no hay prosa que leer: `notario/hechos.js:_aV2` (un HECHO estructurado — el de una premisa del
+       * encargo o el `<<HECHOS>>` del modelo, sin fragmento propio, ver R-DIRECCION del diagnóstico v3) rellena
+       * `orden.direccion` ANTES de llegar acá, así que para esos dos casos la puerta ya recibe el campo completo. */
       out.orden = { forma, k: o.k != null ? +o.k : null, direccion: normalizar(o.direccion) || (forma === "max" ? "mayor" : forma === "min" ? "menor" : ""), vs: o.vs != null ? String(o.vs).trim() : "" };
       exige(out.sujeto, "sujeto");
       exige(out.metrica, "metrica");

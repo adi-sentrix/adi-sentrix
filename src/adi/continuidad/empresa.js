@@ -133,12 +133,14 @@ export function declararHecho(store, tenantId, aporte, { actorLabel = null, conv
 
   const clase = _normTxt(aporte.clase);
   if (!CLASES_HECHO_EMPRESA.includes(clase)) return { ok: false, motivo: `clase desconocida «${aporte.clase}» (${CLASES_HECHO_EMPRESA.join(" · ")})` };
-  if (clase === "perfil") return { ok: false, motivo: "el perfil no se declara por esta vía: vive en `tenants` (adi_declarar_perfil_empresa, migraciones 012/013)" };
+  /* el perfil vive en la ficha de la empresa (`tenants`, migraciones 012/013) y se declara por su propia vía; el
+   * motivo que viaja al LLM va en palabras de negocio, sin nombres internos (supervisor 2026-09-26). */
+  if (clase === "perfil") return { ok: false, motivo: "el perfil de la empresa se declara por su propia vía, no como un hecho de la memoria" };
 
   const origen = _normTxt(aporte.origen || "declarado");
   if (!ORIGENES_HECHO_EMPRESA.includes(origen)) return { ok: false, motivo: `origen «${aporte.origen}» no admitido en la memoria de empresa (${ORIGENES_HECHO_EMPRESA.join(" · ")})` };
   if (!aporte.concepto || !String(aporte.concepto).trim()) return { ok: false, motivo: "falta el concepto del hecho" };
-  if (origen === "documento" && !_es(aporte.documento)) return { ok: false, motivo: "un hecho de documento exige {documento:{nombre,tipo,parte,...}} (REVISIÓN 3 §4)" };
+  if (origen === "documento" && !_es(aporte.documento)) return { ok: false, motivo: "un dato tomado de un documento necesita decir de qué documento y de qué parte viene" };
   if (_es(aporte.documento) && aporte.documento.sello != null && !SELLOS_DOCUMENTO.includes(_normTxt(aporte.documento.sello))) {
     return { ok: false, motivo: `sello de documento «${aporte.documento.sello}» desconocido (${SELLOS_DOCUMENTO.join(" · ")})` };
   }

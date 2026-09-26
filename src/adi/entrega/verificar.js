@@ -411,5 +411,14 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
     }
   }
 
+  // 16 · SIN DOCUMENTACIÓN INTERNA EN EL TEXTO (diagnóstico v3, supervisor 2026-09-26 — raíz R-SECCION-FILTRADA,
+  // MATERIAL). Un `detalle` de `validar.js` llegó a citar la numeración de `_ADI_CONTRATO_ENCARGO_V1.md` («§7»,
+  // «§7.1») dentro del texto que lee el usuario — una cita de sección no es vocabulario de negocio, es
+  // documentación de implementación filtrada al Complemento. Se corrigieron los tres `detalle` que la citaban
+  // (`validar.js`, motivos `origen_no_admitido` y `supuesto_mal_formado`), pero el candado va ACÁ, no solo en el
+  // origen: cualquier «§» futuro en CUALQUIER texto servido (un `detalle` nuevo, una plantilla, un playbook) se
+  // atrapa antes de llegar al usuario, sin depender de que nadie recuerde no escribirlo.
+  if (/§/.test(texto)) v("documentacion-interna-en-texto", "el texto cita una numeración de sección interna («§») — eso es documentación de implementación, no vocabulario de negocio, y no puede llegar a la Entrega");
+
   return { ok: violaciones.length === 0, violaciones };
 }

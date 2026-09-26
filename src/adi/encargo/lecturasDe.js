@@ -58,6 +58,8 @@ import { cajaDelAgente } from "../agente/herramientasAgente.js";
 import { pasosDeDominios } from "../agente/contratoDeDominios.js";
 import { sujetoDeTema, metricaCoreDe, productorDe } from "./esquema.js";
 import { dominioPorId } from "../../config/contract/dominios.js";
+import { dominioDeClave } from "../notario/lexico.js";
+import { resolveEntityRef } from "../oracle/entityIndex.js";
 
 /* LA CAJA EXTENDIDA (owner 2026-08-30, F2 · ADI Agente): `cobranza` y `rolesCartera` —las dos que
  * `pasosDelContratoComercial`/`pasosDeDominios` ya citan por nombre— viven en `cajaDelAgente`, no en `TOOLS` del
@@ -330,6 +332,76 @@ function _dedupeCalls(calls) {
   return out;
 }
 
+/* ── R-EVIDENCIA-PREMISA (diagnóstico v3, supervisor 2026-09-26 — MATERIAL, la raíz más alineada con la ley del
+ * owner ya aprobada, memoria `adi-flujo-producto-complemento`: «una premisa se juzga contra LO QUE ADI SABE de la
+ * empresa, no contra la boleta de la parte»). Hasta acá el plan solo miraba `resolucion.partes` — una premisa
+ * (`resolucion.premisas`, ya validada y tipada por `validar.js:_resolverPremisasRaiz` vía `hechos.js:validarHecho`)
+ * podía declarar un (metrica, eje) que NINGUNA parte pidió (marca dentro de una lectura por cliente, familia
+ * dentro de una simulación de una sola entidad): esa lectura nunca se agendaba, y `libroPremisas`
+ * (`entrega/componer.js`, MISMO índice de evidencia `I` que arma este plan) la declaraba «sin-evidencia» aunque
+ * el Core supiera calcularla. `_conceptosYEjesDePremisa` resuelve qué (concepto, eje) necesita CADA premisa —
+ * exactamente los mismos campos tipados que ya lee `_pasosCifra`/`_pasosLecturaDecision` de una Parte — y
+ * `_callsDeConceptoEje` arma la MISMA llamada que ya usa el resto de este archivo para esa combinación (nunca un
+ * productor nuevo, nunca una segunda tabla).
+ *
+ * EL EJE de un sujeto puntual (Samsung, Línea Blanca) se resuelve con `resolveEntityRef` — el MISMO índice de
+ * entidades que ya usa `validar.js` para resolver `Parte.entidades` (`oracle/entityIndex.js`): tenant-dependiente,
+ * nunca de red ni de LLM, coherente con la dependencia que este archivo ya declara en su cabecera. `productorDe`
+ * (esquema.js) es el MISMO candado que ya audita el pedido de una Parte: sin productor para ese (concepto, eje),
+ * no hay llamada que inventar — la premisa sigue «sin-evidencia», honesto, no un intento fallido.
+ *
+ * ESTAS LLAMADAS VIAJAN EN EL PLAN GENERAL (comparten `I` con `libroPremisas`, `entrega/componer.js`) PERO NUNCA
+ * SE ATRIBUYEN A NINGÚN `porParte[id]` — la ley que este corte no puede romper: «nunca agregan cifras ni
+ * entidades a lo servido en la parte». Esa separación la garantiza `_figsDeParte` (componer.js), que solo deja
+ * ver a una parte las figs de LAS LLAMADAS QUE SU PROPIO `porParte[pid]` ya declaró; una llamada que no aparece en
+ * ningún `porParte[pid]` quedó fuera de esa vista, aunque su fig exista en el índice de evidencia. Tipos de
+ * premisa NO cubiertos hoy (alcance de este corte, con evidencia): `estado` (el estado ya lo sirven los
+ * detectores fijos de cada dominio, `pasosDeDominios`, no un concepto con productor) y `razon`/`derivada` (sus
+ * operandos referencian otro hecho por id, no un `(concepto, eje)` nuevo — fuera de lo que el catálogo diagnosticó). */
+function _ejeDeSujetoPremisa(sujeto) {
+  const nombre = Array.isArray(sujeto) ? sujeto[0] : (sujeto && typeof sujeto === "object" ? null : sujeto);
+  if (typeof nombre !== "string" || !nombre.trim() || nombre === "negocio") return null;
+  const r = resolveEntityRef(nombre);
+  return r && r.estado === "resuelto" ? r.dimension : null;
+}
+function _conceptosYEjesDePremisa(p) {
+  if (!p || typeof p !== "object") return [];
+  const out = [];
+  const add = (concepto, eje) => { if (concepto && eje) out.push({ concepto: String(concepto), eje }); };
+  const ejeDeUniverso = (u) => (u && typeof u === "object" ? u.eje : null);
+  const tipo = p.tipo;
+  if (tipo === "cifra") {
+    add(p.metrica, ejeDeUniverso(p.universo) || _ejeDeSujetoPremisa(p.sujeto));
+  } else if (tipo === "orden" || tipo === "grupo") {
+    add(p.metrica, ejeDeUniverso(p.universo) || _ejeDeSujetoPremisa(p.sujeto));
+  } else if (tipo === "conteo") {
+    add(p.metrica, ejeDeUniverso(p.de != null ? p.de : p.universo));
+  } else if (tipo === "variacion") {
+    add(p.metrica, _ejeDeSujetoPremisa(p.sujeto));
+  } else if (tipo === "relacion") {
+    const eje = ejeDeUniverso(p.universo) || _ejeDeSujetoPremisa(p.sujeto);
+    add(p.metrica, eje);
+    const vs = p.relacion && p.relacion.vs;
+    if (vs) {
+      const vsSujeto = vs.sujeto != null ? vs.sujeto : vs.grupo;
+      add(vs.metrica || p.metrica, _ejeDeSujetoPremisa(vsSujeto) || eje);
+    }
+  }
+  return out;
+}
+/** callsDePremisas(premisas) → las llamadas ➕ que las PREMISAS del encargo necesitan para poder juzgarse, más
+ *  allá de lo que la Parte ya pidió — SOLO para `libroPremisas`, ver la nota de arriba. */
+function _callsDePremisas(premisas) {
+  const out = [];
+  for (const p of Array.isArray(premisas) ? premisas : []) {
+    for (const { concepto, eje } of _conceptosYEjesDePremisa(p)) {
+      if (!productorDe(concepto, eje)) continue;   // sin productor: nada que agendar, la premisa sigue sin-evidencia
+      out.push(..._callsDeConceptoEje(dominioDeClave(concepto) || "", concepto, eje));
+    }
+  }
+  return out;
+}
+
 /** lecturasDe(resolucion) → { plan, porParte }. Puro frente al encargo (nunca lee `preguntaOriginal`); hereda de
  *  `pasosDeDominios` la dependencia del TENANT activo (no de la red, no del LLM) — ver cabecera. */
 export function lecturasDe(resolucion) {
@@ -360,7 +432,11 @@ export function lecturasDe(resolucion) {
   const lecturaCalls = _pasosLecturaDecision(partesLecturaDecision);
   for (const p of partesLecturaDecision) porParte[p.id] = lecturaCalls.filter((c) => _temaDeCall(c) === p.tema);
 
-  const todas = _dedupeCalls([...lecturaCalls, ...sueltas]);
+  // R-EVIDENCIA-PREMISA: se agregan DESPUÉS de fijar `porParte` (arriba) — nunca entran a esa traza, así que
+  // ninguna parte las hereda como "lo servido" (ver la nota de `_callsDePremisas`).
+  const premisaCalls = _callsDePremisas(resolucion.premisas);
+
+  const todas = _dedupeCalls([...lecturaCalls, ...sueltas, ...premisaCalls]);
   return {
     plan: { intent: "encargo", calls: todas.map(({ tool, args }) => ({ tool, args: args || {} })) },
     porParte,

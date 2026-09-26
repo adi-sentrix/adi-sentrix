@@ -184,7 +184,7 @@ function _resolverSupuestosRaiz(supuestos, partes) {
   for (const s of usados) {
     if (!_es(s) || !_str(s.id)) continue;   // sin id no se puede referenciar desde una parte: se declina en silencio de forma inofensiva (no hay campo que nombrar)
     if (s.origen != null && !["supuesto", "declarado"].includes(s.origen)) {
-      noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: s.id, motivo: "origen_no_admitido", detalle: `origen «${s.origen}» no admitido por el encargo (§7): un supuesto de un documento entra por «aportar contexto»` }));
+      noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: s.id, motivo: "origen_no_admitido", detalle: `origen «${s.origen}» no admitido por el encargo: un supuesto de un documento entra por «aportar contexto»` }));
       porId.set(s.id, { ok: false }); continue;
     }
     const v = assumptionValid({ type: s.tipo, value: s.valor, unit: s.unidad });
@@ -210,11 +210,11 @@ function _resolverSupuestosRaiz(supuestos, partes) {
     // porque el motivo es más específico (`supuesto_mal_formado`, no `supuesto_sin_productor`: el motor SÍ podría
     // correr esto, lo que falta es que el supuesto declare CON QUÉ CONCEPTO de negocio se nombra).
     if (s.tipo === "custom" && tema === "comercial" && eje === "cliente") {
-      noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: s.id, motivo: "supuesto_mal_formado", detalle: `«custom» no nombra un concepto de negocio: dime si el supuesto mueve la carga comercial o el costo, con el tipo "carga" o "costo" (§7.1)`, alternativas: [{ tipo: "concepto", concepto: "carga" }, { tipo: "concepto", concepto: "costo" }] }));
+      noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: s.id, motivo: "supuesto_mal_formado", detalle: `«custom» no nombra un concepto de negocio: dime si el supuesto mueve la carga comercial o el costo, con el tipo "carga" o "costo"`, alternativas: [{ tipo: "concepto", concepto: "carga" }, { tipo: "concepto", concepto: "costo" }] }));
       porId.set(s.id, { ok: false }); continue;
     }
     if (s.tipo === "custom" && tema === "comercial" && ["sku", "marca", "familia"].includes(eje)) {
-      noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: s.id, motivo: "supuesto_mal_formado", detalle: `«custom» no nombra un concepto de negocio: dime si el supuesto mueve el costo, con el tipo "costo" (§7.1)`, alternativas: [{ tipo: "concepto", concepto: "costo" }] }));
+      noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: s.id, motivo: "supuesto_mal_formado", detalle: `«custom» no nombra un concepto de negocio: dime si el supuesto mueve el costo, con el tipo "costo"`, alternativas: [{ tipo: "concepto", concepto: "costo" }] }));
       porId.set(s.id, { ok: false }); continue;
     }
     const productor = tema ? _productorDeSupuesto(s.tipo, tema, eje) : null;
