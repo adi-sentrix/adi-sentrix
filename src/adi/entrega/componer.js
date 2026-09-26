@@ -26,6 +26,10 @@ import { margenEnRiesgo, lecturaDeMargen, prioridadDe } from "../agente/playbook
 import { cobranza } from "../agente/playbooks/cobranza.js";
 import { inventarioInmovilizado } from "../agente/playbooks/asesoria.js";
 import { buildRolesCartera } from "../sentrix/rolesCartera.js";
+// CORTE 3e (owner 2026-09-26) — `CONCEPT_DEFS[slug].neutra`: la redacción en tercera persona del glosario, para
+// el cierre `definicion` (`_planDefinicion`, más abajo). Cruzar hacia `sentrix/` desde `entrega/` ya es un patrón
+// establecido en este archivo (`rolesCartera.js`, línea de arriba) — no es una capa nueva.
+import { CONCEPT_DEFS } from "../sentrix/glossary.js";
 import { cifrasDelDato } from "../oracle/datoProyectado.js";
 import { axisEntityNames } from "../oracle/entityIndex.js";
 import { indiceDeEvidencia } from "../notario/evidencia.js";
@@ -81,6 +85,10 @@ import { calcularIniciativa, MARCA_INICIATIVA, INICIATIVA_VALORES } from "./inic
 import { gobernarTamano } from "./tamano.js";
 import { PROFUNDIDAD_VALORES, CAMPOS_RAIZ, productorDe } from "../encargo/esquema.js";
 import { createHash } from "node:crypto";
+// CORTE 3e (owner 2026-09-26, «la Entrega no le habla a nadie», REFINADO) — la pregunta abierta con función
+// sugerida REEMPLAZA «Solo usted/tú puede(s) responder…» en las siete llamadas de este archivo (las 4 rutas
+// fijas + el camino general): ver `preguntaAbierta.js` para las leyes y el cruce dominio × tipo de hueco.
+import { construirPreguntaAbierta } from "./preguntaAbierta.js";
 
 export const PREGUNTA_BRECHA_COMERCIAL = "¿dónde estoy perdiendo plata?";
 export const PREGUNTA_COBRANZA = "¿quién me debe más?";
@@ -237,6 +245,60 @@ function _declararRef(hechos, contador, fig) {
   return id;
 }
 
+/* ── LAS TRES PREGUNTAS ABIERTAS QUE REPITEN LAS 4 RUTAS FIJAS + EL CAMINO GENERAL (corte 3e, owner 2026-09-26)
+ * ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * Antes: «Solo usted/tú puede(s) responder: …» — segunda persona, y una función nunca sugerida. Ahora, las TRES
+ * preguntas de siempre (comercial: la intención detrás del volumen a ese margen; inventario: la causa de que un
+ * SKU esté frenado; cobranza: el plazo pactado detrás de una deuda) se escriben UNA vez acá y las llaman las
+ * cuatro rutas fijas y el camino general — nunca se redactan de nuevo por sitio (sería la segunda verdad que
+ * este archivo mismo advierte que no se permite, línea ~10).
+ *
+ * `roles.preguntaAlDueno.texto` (`sentrix/rolesCartera.js`) NO se reusa tal cual: esa prosa está en segunda
+ * persona («…es una apuesta tuya…», «…sin que lo decidieras») porque `rolesCartera.js` es de OTRO carril (la
+ * cara Comercial de Sentrix, fuera del alcance de este corte — el encargo lista `src/adi/entrega/` como lo único
+ * que este corte toca). En vez de parchear texto ajeno con cirugía de regex, se compone una pregunta NUEVA, en
+ * tercera persona, con las mismas entidades (`roles.preguntaAlDueno.entidades`) y el mismo fundamento
+ * (`.porque`: «el dato no mide intención») — la regla de composición vive en `entrega/`, que es de este corte. */
+// CORTE 3e (owner 2026-09-26, ronda de cierre) — texto BREVE a propósito, ver la nota gemela en
+// `preguntaAbierta.js:_DONDE_POR_TIPO`: la ruta multidominio sirve hasta tres de estos bloques, y las 4 rutas
+// fijas no gobiernan tamaño — cada palabra de más se paga tres veces contra el tope de 900.
+function _preguntaAbiertaComercial(roles, perfil) {
+  if (!roles || !roles.hay || !roles.preguntaAlDueno) return null;
+  const ents = roles.preguntaAlDueno.entidades || [];
+  if (!ents.length) return null;
+  const sujeto = ents.length > 1 ? `${ents[0]} y ${ents[1]}` : ents[0];
+  return construirPreguntaAbierta({
+    pregunta: `¿El volumen de ${sujeto} fue deliberado?`,
+    sobre: { entidad: sujeto, metrica: "margen y volumen" },
+    porQueNoEstaEnLosDatos: "El dato no mide intención.",
+    dominio: "comercial", tipoDeHueco: "causa_no_medida",
+    queCambia: "Si fue deliberado, sostenerlo; si no, revisar la cuenta.",
+    perfil,
+  });
+}
+function _preguntaAbiertaInventario(entidad, perfil) {
+  if (!entidad) return null;
+  return construirPreguntaAbierta({
+    pregunta: `¿Qué explica que ${entidad} esté frenado — sobrecompra, temporada, cliente que no retiró, o proveedor tardío?`,
+    sobre: { entidad, metrica: "capital frenado" },
+    porQueNoEstaEnLosDatos: "El dato no mide causa.",
+    dominio: "inventario", tipoDeHueco: "causa_no_medida",
+    queCambia: "Según la causa: liquidar, reprogramar la compra o reclamar al proveedor.",
+    perfil,
+  });
+}
+function _preguntaAbiertaCobranza(entidad, perfil) {
+  if (!entidad) return null;
+  return construirPreguntaAbierta({
+    pregunta: `La deuda de ${entidad}, ¿es un plazo pactado más largo o un atraso real?`,
+    sobre: { entidad, metrica: "saldo vencido" },
+    porQueNoEstaEnLosDatos: "El dato no registra el plazo pactado.",
+    dominio: "cobranza", tipoDeHueco: "condicion_pactada",
+    queCambia: "Si el plazo es más largo, no hay atraso; si no, corresponde cobranza.",
+    perfil,
+  });
+}
+
 /** componerEntregaBrechaComercial({ scenario, pregunta }) → { texto, entrega, libro, ok, motivo }
  *  El corte vertical completo: boleta → libro de hechos verificado → Entrega (texto markdown + estructura). */
 /* ── LO GENÉRICO ENTRE RUTAS (owner 2026-09-22, TAREA 3 — extraído al sumar `componerEntregaCobranza`) ──
@@ -329,7 +391,8 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
     universo: nClientes != null ? `${nClientes} clientes` : null,
     moneda: "$",     // el símbolo que la boleta ya imprime — la escala nunca se declara (regla de la casa)
     definiciones: ["Margen = contribución sobre venta neta.", "La brecha estimada es la diferencia contra el benchmark declarado, no dinero ya perdido."],
-    referenciaDeclarada: { texto: `Benchmark de margen: ${R(idBench)}, declarado por usted.`, hechoId: idBench },
+    // CORTE 3e (owner 2026-09-26) — «declarado por usted» → «declarado por la empresa» (tercera persona).
+    referenciaDeclarada: { texto: `Benchmark de margen: ${R(idBench)}, declarado por la empresa.`, hechoId: idBench },
     perfil,          // plan §3 «cómo se pega al cliente» — sector/tipoProducto/tamaño/país/modelo comercial, con procedencia
   };
   if (nClientes != null) cifrasImpresas.push(`${nClientes} clientes`);
@@ -383,7 +446,8 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
 
   // ── LO QUE NO SE PUEDE CONCLUIR · cada ausencia es un HALLAZGO con título, nunca una prohibición ni una excusa ──
   entrega.limites = [
-    { titulo: "La brecha estimada no es dinero ya perdido", motivo: `Es una comparación contra el benchmark que usted declaró (${R(idBench)}); no es recuperable en su totalidad ni necesariamente.` },
+    // CORTE 3e (owner 2026-09-26) — «que usted declaró» → «que la empresa declaró».
+    { titulo: "La brecha estimada no es dinero ya perdido", motivo: `Es una comparación contra el benchmark que la empresa declaró (${R(idBench)}); no es recuperable en su totalidad ni necesariamente.` },
     { titulo: `La causa de que ${top.entidad} esté bajo el benchmark no está en los datos`, motivo: "Esta lectura localiza dónde está la brecha, no explica por qué — no hay causalidad sin respaldo." },
     { titulo: "No hay serie mensual de margen por cliente en este dato", motivo: `No se puede afirmar que el margen de ${top.entidad} venga subiendo, bajando o se mantenga: solo que está en el valor de este corte.` },
     _limiteDeAusencia("conocimiento_sector_comercial"),
@@ -404,9 +468,10 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
   let roles = null;
   try { roles = buildRolesCartera(scenario); } catch { roles = null; }
   const paraSuJuicio = [];
-  if (roles && roles.hay && roles.preguntaAlDueno) {
-    paraSuJuicio.push({ texto: `Solo usted puede responder: ${roles.preguntaAlDueno.texto}`, hechos: [] });
-  }
+  // CORTE 3e (owner 2026-09-26) — antes: `Solo usted puede responder: ${roles.preguntaAlDueno.texto}` (segunda
+  // persona, sin función sugerida). Ahora: pregunta abierta en tercera persona + función derivada del cruce
+  // dominio × tipo de hueco — ver `_preguntaAbiertaComercial`, arriba.
+  { const pa = _preguntaAbiertaComercial(roles, perfil); if (pa) paraSuJuicio.push(pa); }
   if (idsTop.carga) {
     const cTop = R(idsTop.carga);
     paraSuJuicio.push({ texto: `Hipótesis no demostrada: parte de la brecha de ${top.entidad} está en la carga comercial (apoyo: ${cTop} de carga comercial alta medida en esa cuenta).`, hechos: [idsTop.carga] });
@@ -614,8 +679,11 @@ export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta
   entrega.referenciaDelOficio = _refOficio2.salida;
 
   // ── PARA SU JUICIO ──
+  // CORTE 3e (owner 2026-09-26) — antes: `Solo usted puede responder: la deuda de X, ¿responde a un plazo
+  // pactado…?` (segunda persona). Ahora: pregunta abierta en tercera persona, tipo de hueco "condicion_pactada"
+  // → función sugerida «la gestión de crédito y cobranza» — ver `_preguntaAbiertaCobranza`.
   entrega.paraSuJuicio = idVencidoTotal
-    ? [{ texto: `Solo usted puede responder: la deuda de ${topEntidad}, ¿responde a un plazo pactado más largo o a que dejó de pagar a tiempo? El dato mide cuánto y desde cuándo, no por qué.`, hechos: [] }]
+    ? [_preguntaAbiertaCobranza(topEntidad, perfil)].filter(Boolean)
     : [{ texto: "Declarar el plazo de pago de cada cliente permite calcular el vencido automáticamente, sin volver a cargar el archivo.", hechos: [] }];
 
   // ── QUÉ MÁS PUEDO CALCULAR ──
@@ -633,7 +701,9 @@ export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta
 
   entrega.procedencia = { libro, cifrasImpresas };
 
-  const texto = _textoDeLaEntrega(entrega, "¿Quién le debe más?");
+  // CORTE 3e (owner 2026-09-26) — «¿Quién le debe más?» → «¿Quién le debe más a la empresa?»: «le» sin sujeto
+  // explícito es ambiguo entre «a usted» y «a la empresa»; con el sujeto explícito, tercera persona sin ambigüedad.
+  const texto = _textoDeLaEntrega(entrega, "¿Quién le debe más a la empresa?");
   return { texto, entrega, libro, ok: true, motivo: "" };
 }
 
@@ -728,11 +798,13 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
     universo: nBodegas != null ? `${bySku.length} SKU frenados en ${nBodegas} bodegas` : `${bySku.length} SKU frenados`,
     moneda: "$",
     definiciones: [
-      "Capital frenado = stock cuya rotación está bajo el piso o cuyos días de inventario superan el techo que declara tu política — no es todo el inventario, es el subconjunto que no está rotando.",
+      // CORTE 3e (owner 2026-09-26) — «tu política» → «la política de la empresa».
+      "Capital frenado = stock cuya rotación está bajo el piso o cuyos días de inventario superan el techo que declara la política de la empresa — no es todo el inventario, es el subconjunto que no está rotando.",
       "El capital frenado no se suma ni se compara con la venta comercial: son universos distintos (ver «Lo que no se puede concluir»).",
     ],
     referenciaDeclarada: (idUmbralPct && idUmbralUsd)
-      ? { texto: `Umbral de materialidad de tu negocio: ${R(idUmbralPct)} de la venta (${R(idUmbralUsd)}), declarado por ti.`, hechoId: idUmbralPct }
+      // CORTE 3e (owner 2026-09-26) — «tu negocio»/«declarado por ti» → tercera persona.
+      ? { texto: `Umbral de materialidad de la empresa: ${R(idUmbralPct)} de la venta (${R(idUmbralUsd)}), declarado por la empresa.`, hechoId: idUmbralPct }
       : null,
     perfil,
   };
@@ -743,7 +815,8 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
   const respuesta = [];
   {
     const vTotal = R(idTotal);
-    const texto = `Tienes ${vTotal} de capital frenado: stock que no está rotando.`;
+    // CORTE 3e (owner 2026-09-26) — «Tienes» (segunda persona) → tercera persona.
+    const texto = `La empresa tiene ${vTotal} de capital frenado: stock que no está rotando.`;
     respuesta.push({ texto, hechos: [idTotal] });
   }
   {
@@ -813,9 +886,9 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
   entrega.referenciaDelOficio = _refOficio3.salida;
 
   // ── PARA SU JUICIO · la MISMA pregunta que ya certifica el playbook (asesoria.js) — no se redacta una nueva ──
-  entrega.paraSuJuicio = [
-    { texto: `Solo tú puedes responder: ¿qué pasó con esos SKU — fue una sobrecompra, un cambio de temporada, un cliente que no retiró, o un proveedor que llegó tarde? El dato mide cuánto está frenado, no por qué.`, hechos: [] },
-  ];
+  // CORTE 3e (owner 2026-09-26) — antes: `Solo tú puedes responder: …` (segunda persona). Ahora: pregunta
+  // abierta en tercera persona, tipo de hueco "causa_no_medida" → función sugerida «compras y abastecimiento».
+  entrega.paraSuJuicio = [_preguntaAbiertaInventario(topSku.sku, perfil)].filter(Boolean);
 
   // ── QUÉ MÁS PUEDO CALCULAR ──
   entrega.queMasPuedoCalcular = {
@@ -831,7 +904,8 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
 
   entrega.procedencia = { libro, cifrasImpresas };
 
-  const texto = _textoDeLaEntrega(entrega, "¿Tienes demasiado inventario?");
+  // CORTE 3e (owner 2026-09-26) — «¿Tienes demasiado inventario?» (segunda persona, «tienes») → tercera persona.
+  const texto = _textoDeLaEntrega(entrega, "¿Tiene la empresa demasiado inventario?");
   return { texto, entrega, libro, ok: true, motivo: "" };
 }
 
@@ -986,7 +1060,8 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
       "Esta Entrega cruza comercial, inventario y cobranza: cada dominio aporta su propia cifra, con su propio universo y su propio marco temporal — nunca se consolidan en un total único.",
       "La prioridad integrada compara señal por señal dentro de cada dominio y entre los dominios que comparten cliente; nunca suma montos de dominios distintos.",
     ],
-    referenciaDeclarada: idBenchComercial ? { texto: `Benchmark de margen (comercial): ${R(idBenchComercial)}, declarado por ti. Inventario y cobranza no comparan contra un benchmark en este dato.`, hechoId: idBenchComercial } : null,
+    // CORTE 3e (owner 2026-09-26) — «declarado por ti» → «declarado por la empresa».
+    referenciaDeclarada: idBenchComercial ? { texto: `Benchmark de margen (comercial): ${R(idBenchComercial)}, declarado por la empresa. Inventario y cobranza no comparan contra un benchmark en este dato.`, hechoId: idBenchComercial } : null,
     perfil,
   };
   cifrasImpresas.push(`${dominios.length} dominios (${domTxt})`);
@@ -1021,13 +1096,23 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
 
   // ── CIFRAS · una fila por (dominio, entidad) citada en la Respuesta — la doble colocación (mecanismo 2) ──
   entrega.cifras.columnas = ["Dominio", "Entidad", "Materialidad", "Severidad", "Urgencia", "Marco"];
+  // AGREGADO (supervisor, revisión de cierre del 3d / corte 3e, 2026-09-26) — «269d» → «269 días» en las celdas
+  // de ESTA tabla (misma transformación que ya aplica el camino GENERAL a su prosa, `_desabreviarDias`, más
+  // abajo en este archivo — no se comparte la función porque una vive antes de renderizar filas de esta ruta
+  // fija y la otra después de renderizar prosa del camino general, ámbitos que no se cruzan). Esta ruta fija no
+  // gobierna tamaño (`gobernarTamano` no la ejercita: `entrega.detalle`/`entrega.meta` quedan `null` siempre),
+  // así que el «si el tope lo permite» del owner es hoy un SÍ incondicional — no hay tope de palabras que la
+  // tabla de esta ruta pueda exceder por desabreviar una unidad.
+  const _desabreviarDiasTabla = (t) => String(t == null ? "" : t).replace(/\b(\d+(?:[.,]\d+)?)d\b/g, "$1 días");
   for (const fila of filasMap.values()) {
     const hechosFila = [fila.materialidad, fila.severidad, fila.urgencia].filter(Boolean);
     if (!hechosFila.length) continue;
     entrega.cifras.filas.push({
       valores: {
         Dominio: _DOM_NOMBRE[fila.dominio], Entidad: fila.entidad,
-        Materialidad: fila.materialidad ? R(fila.materialidad) : "—", Severidad: fila.severidad ? R(fila.severidad) : "—", Urgencia: fila.urgencia ? R(fila.urgencia) : "—",
+        Materialidad: fila.materialidad ? _desabreviarDiasTabla(R(fila.materialidad)) : "—",
+        Severidad: fila.severidad ? _desabreviarDiasTabla(R(fila.severidad)) : "—",
+        Urgencia: fila.urgencia ? _desabreviarDiasTabla(R(fila.urgencia)) : "—",
         Marco: _MARCO_CORTO[UNIVERSOS[_DOM_UNIVERSO[fila.dominio]].periodo] || "—",
       },
       hechos: hechosFila,
@@ -1060,10 +1145,13 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
   if (lideres.comercial) {
     let roles = null;
     try { roles = buildRolesCartera(scenario); } catch { roles = null; }
-    if (roles && roles.hay && roles.preguntaAlDueno) entrega.paraSuJuicio.push({ texto: `Sobre comercial, solo tú puedes responder: ${roles.preguntaAlDueno.texto}`, hechos: [] });
+    // CORTE 3e (owner 2026-09-26) — antes: `Sobre comercial, solo tú puedes responder: …` (segunda persona).
+    { const pa = _preguntaAbiertaComercial(roles, perfil); if (pa) entrega.paraSuJuicio.push(pa); }
   }
-  if (lideres.inventario) entrega.paraSuJuicio.push({ texto: `Sobre inventario, solo tú puedes responder: ¿qué pasó con ${lideres.inventario.x.entidad} — fue una sobrecompra, un cambio de temporada, un cliente que no retiró, o un proveedor que llegó tarde? El dato mide cuánto está frenado, no por qué.`, hechos: [] });
-  if (lideres.cobranza) entrega.paraSuJuicio.push({ texto: `Sobre cobranza, solo tú puedes responder: la deuda de ${lideres.cobranza.x.entidad}, ¿responde a un plazo pactado más largo o a que dejó de pagar a tiempo? El dato mide cuánto y desde cuándo, no por qué.`, hechos: [] });
+  // CORTE 3e (owner 2026-09-26) — antes: `Sobre inventario/cobranza, solo tú puedes responder: …` (segunda
+  // persona). Ahora: preguntas abiertas en tercera persona con función sugerida (mismas dos de siempre).
+  { const pa = _preguntaAbiertaInventario(lideres.inventario && lideres.inventario.x.entidad, perfil); if (pa) entrega.paraSuJuicio.push(pa); }
+  { const pa = _preguntaAbiertaCobranza(lideres.cobranza && lideres.cobranza.x.entidad, perfil); if (pa) entrega.paraSuJuicio.push(pa); }
 
   // ── QUÉ MÁS PUEDO CALCULAR ──
   entrega.queMasPuedoCalcular = {
@@ -1085,7 +1173,8 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
 
   entrega.procedencia = { libro, cifrasImpresas };
 
-  const texto = _textoDeLaEntrega(entrega, "¿Qué debería preocuparme primero?");
+  // CORTE 3e (owner 2026-09-26) — «¿Qué debería preocuparme primero?» (primera persona, «-me») → tercera persona.
+  const texto = _textoDeLaEntrega(entrega, "¿Qué debería preocupar primero a la empresa?");
   return { texto, entrega, libro, ok: true, motivo: "", partes, dominios };
 }
 
@@ -1588,13 +1677,51 @@ function _parteDePremisa(p, partesUtiles) {
  * medido, «falsa» dice lo medido MÁS la verdad con id (los hechos `_verdadDeLoFalso` ya declaró — H.derivados),
  * «no verificable» dice por qué. La CONCLUSIÓN de la parte (quién es prioridad, qué cifra manda) es del análisis
  * de arriba, no de este texto — ley «premisa-adoptada»: acá solo se declara el veredicto, nunca se decide con él. */
+/* AGREGADO (supervisor, revisión de cierre del 3d / corte 3e, 2026-09-26) — `H.verdad` (notario/hechos.js) es,
+ * para los hechos que pasan por el juez general (orden · relacion · grupo · conteo · variacion · estado), una
+ * traza INTERNA de depuración del Notario («ranking cliente · variacion · Mercado Libre = 25.3%») — nunca prosa
+ * pensada para el lector. `_textoDePremisa` la imprimía verbatim. Acá se arma un RÓTULO DE LA CASA con los
+ * mismos campos que el libro ya expone y verificó — `H.evidencia` (labels REALES "Entidad · Concepto" de la
+ * boleta, nunca una clave interna), `H.claves`, `H.numeros`, `H.direccion` — jamás la clave interna del ranking
+ * ni el separador «·» de índice. Los hechos `ref`/`razon`/`derivada` siguen usando `H.verdad`: para ESOS tipos ya
+ * es prosa de la casa (`_fmtFig`, notario/hechos.js) — esta función solo interviene donde el veredicto general
+ * podía filtrar sintaxis interna. Sin evidencia suficiente para un rótulo, cae a `H.verdad`/`H.motivo` (nunca
+ * deja el veredicto sin texto). */
+const _VERBO_DIRECCION_PREMISA = { sube: "creció", baja: "cayó" };
+function _rotuloDeLaCasaDeH(H) {
+  // CORREGIDO (2026-09-26, medido con D29 al correr `_entrega_neutral_gate`) — cuando el hecho no vino de una
+  // fig de la boleta sino de `I.rankings` (notario/verificar.js, «cae al ranking cuando la boleta no trae la
+  // fig», ver la nota de `_dominioDePremisa`), `H.evidencia[0]` NO es un label "Entidad · Concepto": es el MISMO
+  // placeholder interno «ranking <eje> · <clave> · <entidad>» que esta función existe para no imprimir — así que
+  // NUNCA se trata como fig real. Y `H.numeros` viene vacío en ese camino (el número vive solo adentro de
+  // `H.verdad`/`H.motivo`): se LEE de ahí con un lector numérico simple, nunca se inventa.
+  const figCruda = (H.evidencia && H.evidencia[0]) || null;
+  const fig = figCruda && !/^ranking\s/i.test(figCruda) ? figCruda : null;
+  const entidad = fig ? _entidadDe(fig) : (H.roles.sujetos[0] && H.roles.sujetos[0] !== "negocio" ? H.roles.sujetos[0] : null);
+  const clave = fig ? _claveDeFig({ label: fig }) : ([...H.claves].find((c) => c !== "variacion" && c !== "vs_presupuesto") || null);
+  const conceptoTxt = clave ? _labelDeClave(clave).toLowerCase() : null;
+  let valor = H.numeros && H.numeros[0] ? H.numeros[0].texto : null;
+  if (!valor) { const mv = /(-?\d+(?:[.,]\d+)?\s?(?:%|pp))/.exec(`${H.verdad || ""} ${H.motivo || ""}`); if (mv) valor = mv[1]; }
+  if (!entidad || !valor) return null;
+  if (H.tipo === "variacion") {
+    const verbo = _VERBO_DIRECCION_PREMISA[H.direccion] || "varió";
+    const periodoTxt = H.periodo === "presupuesto" ? "contra el presupuesto" : "contra el año anterior";
+    return `${entidad} ${verbo} ${valor}${conceptoTxt ? ` en ${conceptoTxt}` : ""} ${periodoTxt}`;
+  }
+  if (conceptoTxt) return `${entidad}: ${conceptoTxt} ${valor}`;
+  return null;
+}
 function _textoVerdadDerivada(H, libroPremisas) {
   return (H.derivados || []).map((d) => { const D = libroPremisas.porId.get(d); return D ? (D.verdad || D.motivo) : null; }).filter(Boolean).join(" · ");
 }
 function _textoDePremisa(H, libroPremisas) {
-  if (H.veredicto === "verdadera") return `Sobre lo que usted da por hecho: es correcto — ${H.verdad || H.motivo}.`;
-  if (H.veredicto === "falsa") { const vd = _textoVerdadDerivada(H, libroPremisas); return `Sobre lo que usted da por hecho: no es así — ${H.verdad || H.motivo}${vd ? `. La verdad: ${vd}` : ""}.`; }
-  return `Sobre lo que usted da por hecho, no se pudo verificar con este dato: ${H.motivo}.`;
+  const _esFactualDeLaCasa = H.tipo === "ref" || H.tipo === "razon" || H.tipo === "derivada";
+  const verdadCasa = _esFactualDeLaCasa ? (H.verdad || H.motivo) : (_rotuloDeLaCasaDeH(H) || H.verdad || H.motivo);
+  // CORTE 3e (owner 2026-09-26) — «Sobre lo que usted da por hecho» → «Sobre la premisa declarada por la
+  // empresa» (tercera persona, ley «LA ENTREGA NO LE HABLA A NADIE»).
+  if (H.veredicto === "verdadera") return `Sobre la premisa declarada por la empresa: es correcto — ${verdadCasa}.`;
+  if (H.veredicto === "falsa") { const vd = _textoVerdadDerivada(H, libroPremisas); return `Sobre la premisa declarada por la empresa: no es así — ${verdadCasa}${vd ? `. La verdad: ${vd}` : ""}.`; }
+  return `Sobre la premisa declarada por la empresa, no se pudo verificar con este dato: ${H.motivo}.`;
 }
 
 /* ── PLAN «grupo» (cierre `cifra` sin entidades: listado del eje, group-by o `universo.top`) ──────────────────── */
@@ -1808,10 +1935,28 @@ function _planSimulacion(parte, figs, supuesto, ref, declararDerivada, I) {
   return { kind: "simulacion", tema: parte.tema, parteId: parte.id, supuesto, fraseSupuesto, bloques, negocio, descartadasFueraDeUniverso: descartadas, universoPedido: entidadesPermitidas ? [...entidadesPermitidas] : null };
 }
 
+/* CORTE 3e (owner 2026-09-26, «LA ENTREGA NO LE HABLA A NADIE», resuelto por el owner) — «una sola verdad por
+ * concepto, dos registros de presentación»: `facts.definicion`/`facts.distingue` (de `oracle/toolRegistry.js:
+ * defineConcept`, que lee `sentrix/glossary.js`) siguen en tuteo — es el registro CORRECTO de Sentrix, y esta
+ * Entrega NUNCA los lee. En vez de parchear ese texto acá (lo que se intentó primero y el owner descartó: un
+ * posesivo «tu»→«su» no cubre un VERBO conjugado en tú, «la referencia que definiste»), el glosario declara
+ * `CONCEPT_DEFS[slug].neutra` — la MISMA definición, en tercera persona, escrita a mano para los conceptos que
+ * nombraban al usuario y heredada automáticamente (mismo texto) para los que ya eran de tercero (ver el backfill
+ * al pie de `CONCEPT_DEFS` en glossary.js). Esta función va a buscarla por `facts.slug` (aditivo en
+ * `defineConcept`, nunca leído por el chat) — NUNCA arma texto a mano ni transforma `facts.definicion`. Sin
+ * `neutra` (un concepto sin backfill, o `facts.slug` ausente porque la resolución no fue por CONCEPT_DEFS —
+ * inalcanzable hoy, ver la nota de `resolveGlossary`), la definición se DECLINA (`"sin_neutra"`, el llamador la
+ * declara como límite) — nunca se sirve el texto de Sentrix como si fuera neutro. */
 /* ── PLAN «definicion» — sin figs, sin dígitos: `defineConcept` nunca lee la boleta (contrato §1.1). ─────────── */
 function _planDefinicion(parte, facts) {
   if (!facts || !facts.es_definicion) return null;
-  return { kind: "definicion", tema: parte.tema, parteId: parte.id, concepto: facts.concepto, definicion: facts.definicion, distingue: facts.distingue || null };
+  const c = facts.slug ? CONCEPT_DEFS[facts.slug] : null;
+  const neutra = c && c.neutra;
+  if (!neutra || !neutra.def) return "sin_neutra";
+  return {
+    kind: "definicion", tema: parte.tema, parteId: parte.id, concepto: neutra.aka || facts.concepto,
+    definicion: neutra.def, distingue: neutra.distingue || null,
+  };
 }
 
 /* ═══ (1) CORRECCIÓN DEL SUPERVISOR (2026-09-25, error MATERIAL de CONCEPTO) — EL MARCO POR DOMINIO ═══════════════
@@ -1871,7 +2016,7 @@ function _profundidadDe(resolucion) {
 // resultado ya delegado de una ruta fija.
 function _tituloDeTexto(texto) {
   const m = /^\*\*ENTREGA ADI · (.+)\*\*/.exec(String(texto || "").split("\n", 1)[0] || "");
-  return m ? m[1] : "Su encargo";
+  return m ? m[1] : "Encargo";   // CORTE 3e (owner 2026-09-26) — «Su encargo» → «Encargo» (tercera persona)
 }
 // CORTE 3d.4 (owner 2026-09-26) — `entregaRef` determinístico: MISMO tenant + MISMA versión de datos + MISMO
 // encargo canónico ⇒ MISMO ref, sin cálculo nuevo (para que «deme la fila completa de e14» se resuelva por
@@ -1963,7 +2108,13 @@ function _conTamanoGobernado(resultado, resolucion) {
   // pisan): la libertad narrativa de una simulación en bloques (siempre que haya bloques, cualquier profundidad)
   // y la guía de uso genérica del Marco («Cada cifra…»), que en "breve" se retira del Marco y se declara acá —
   // la MISMA condición que `_textoDeLaEntrega` usa para omitirla del render (nunca dos criterios distintos).
-  const notas = [];
+  // CORTE 3e (owner 2026-09-26, «LA ENTREGA NO LE HABLA A NADIE», ley 1) — la nota de uso SIEMPRE declara que la
+  // Entrega va en tercera persona y que el trato es del LLM anfitrión, no de ADI: «adapte» (imperativo de usted)
+  // se dirige al NARRADOR que lee esta Entrega, nunca al lector final de la respuesta que ese narrador escriba —
+  // el mismo registro que ya usa la nota de la libertad narrativa de abajo («Narre con libertad…»). Sin esto, un
+  // narrador podría leer «declarado por la empresa» y suponer que ADI no sabe tratar de tú/usted, en vez de
+  // entender que la composición es a propósito neutra para que él (el narrador) decida el trato con su usuario.
+  const notas = ["Esta Entrega no se dirige al usuario; adapte el trato a su conversación."];
   if (entregaGob._simulacionConBloques) notas.push("Narre con libertad; nombre la simulación o la entidad solo cuando una cifra salga de su bloque o se compare con otra.");
   if (profundidad === "breve" && (entregaGob.marco.definiciones || []).some(_esGuiaDeUsoGenerica)) notas.push("Cada cifra de esta Entrega viaja con su dueño, su período y su origen; universos distintos nunca se suman.");
   // CORTE 3d (owner 2026-09-26, garantía §3 de la simulación) — `descartadasFueraDeUniverso`: cuántas figs
@@ -2109,7 +2260,12 @@ export function componerEntrega(resolucion) {
       const idxs = [..._callIdsDePartes([p.id])].map((cid) => Number(cid.slice(1)));
       const facts = idxs.map((i) => rp.results[i] && rp.results[i].facts).find((f) => f && f.es_definicion && f.concepto)
         || rp.results.map((r) => r.facts).find((f) => f && f.es_definicion && f.concepto);   // sin índice hallado (defensivo): no se pierde la única definición del turno
-      const plan = _planDefinicion(p, facts); if (plan) planes.push(plan);
+      const plan = _planDefinicion(p, facts);
+      // CORTE 3e (owner 2026-09-26) — «declina, no adivina»: sin `neutra` para este concepto, la parte se declara
+      // como límite (la MISMA disciplina que `_universoNoSoportado` unas líneas arriba), nunca se sirve el texto
+      // de Sentrix (tuteo) como si fuera de la Entrega.
+      if (plan === "sin_neutra") limitesGap.push({ titulo: `Sobre la parte ${p.id}, la definición de «${facts.concepto}» no está disponible en este registro`, motivo: "Esta definición todavía no tiene una redacción en tercera persona para la Entrega — se declina en vez de servir el texto de Sentrix, que está en segunda persona." });
+      else if (plan) planes.push(plan);
     }
   }
   if (!planes.length) {
@@ -2305,7 +2461,8 @@ export function componerEntrega(resolucion) {
         // (`plan.supuesto.id`): son dos campos DISTINTOS en la tabla (nunca se funden en uno) porque un motor
         // futuro con variantes múltiples los separaría sin cambiar esta forma. El rótulo es SIEMPRE el concepto
         // de negocio (`plan.fraseSupuesto`) — nunca «custom».
-        const simulacionTxt = `Simulación declarada por usted`;
+        // CORTE 3e (owner 2026-09-26) — «declarada por usted» → «declarada por la empresa» (tercera persona).
+        const simulacionTxt = `Simulación declarada por la empresa`;
         const supuestoTxt = _capitaliza(plan.fraseSupuesto);
         const _valorSupuesto = `${Math.abs(plan.supuesto.valor)}${plan.supuesto.unidad === "pct" ? "%" : plan.supuesto.unidad === "pp" ? " puntos" : ` ${plan.supuesto.unidad}`}`;
         cifrasImpresas.push(_valorSupuesto);
@@ -2410,7 +2567,14 @@ export function componerEntrega(resolucion) {
           const frasesPares = bloque.pares.map((p, pi) => {
             const art = _articulo(p.concepto);
             const esDelta = bloque.idDelta && p.concepto === bloque.deltaConcepto;
-            const rango = `de ${R(p.base.id)} a ${R(p.resultado.id)}${esDelta ? ` (${R(bloque.idDelta)})` : ""}`;
+            const baseTxt = R(p.base.id), resultadoTxt = R(p.resultado.id);
+            // AGREGADO (supervisor, revisión de cierre del 3d, 2026-09-26) — un par base↔resultado IDÉNTICO nunca
+            // se narra «de X a X» (afirma un cambio que el dato no sostiene): se declara «se mantiene en X».
+            const sinCambio = baseTxt != null && baseTxt === resultadoTxt;
+            const rango = sinCambio
+              ? `se mantiene en ${resultadoTxt}${esDelta ? ` (${R(bloque.idDelta)})` : ""}`
+              : `de ${baseTxt} a ${resultadoTxt}${esDelta ? ` (${R(bloque.idDelta)})` : ""}`;
+            if (sinCambio) return pi === 0 ? `${art} ${p.concepto} ${rango}` : `${art} ${p.concepto}, ${rango}`;
             return pi === 0 ? `${art} ${p.concepto} pasaría ${rango}` : `${art} ${p.concepto}, ${rango}`;
           });
           const frasesSueltas = bloque.resultadoSueltos.map((r) => `${r.concepto.toLowerCase()} pasaría a ${R(r.id)}`);
@@ -2423,7 +2587,8 @@ export function componerEntrega(resolucion) {
           });
           if (bloque.sinDelta) entrega.limites.push({ titulo: `El delta contra lo real no se pudo aislar como cifra propia (${bloque.entidad})`, motivo: "La simulación no publicó una cifra 'base' con el mismo concepto que el resultado: se declara la base y el resultado por separado, sin restar a mano." });
         }
-        entrega.limites.push({ titulo: "Esta simulación es un resultado hipotético, no lo que ya ocurrió", motivo: "El supuesto lo declaró usted; ADI calcula el efecto sobre el dato real, pero no afirma que vaya a pasar." });
+        // CORTE 3e (owner 2026-09-26) — «lo declaró usted» → «lo declaró la empresa».
+        entrega.limites.push({ titulo: "Esta simulación es un resultado hipotético, no lo que ya ocurrió", motivo: "El supuesto lo declaró la empresa; ADI calcula el efecto sobre el dato real, pero no afirma que vaya a pasar." });
         if (plan.descartadasFueraDeUniverso) entrega._simulacionDescartadas = (entrega._simulacionDescartadas || 0) + plan.descartadasFueraDeUniverso;
         if (descartadasJergaInterna) entrega._simulacionDescartadasJerga = (entrega._simulacionDescartadasJerga || 0) + descartadasJergaInterna;
         // el universo pedido de ESTA simulación, para que `verificar.js` regla 14 audite «ninguna fila fuera del
@@ -2507,7 +2672,8 @@ export function componerEntrega(resolucion) {
         _filaDedup(plan.lideres.cobranza.x.entidad, "cobranza", "Participación del vencido total", plan.idShare);
         entrega.respuesta.push({ texto: `De lo vencido en toda la cartera, ${plan.lideres.cobranza.x.entidad} concentra el ${R(plan.idShare)}.`, hechos: [plan.idShare], prioridad: plan.temas.length + 2 });
       }
-      if (plan.idBenchComercial) entrega.marco.referenciaDeclarada = entrega.marco.referenciaDeclarada || { texto: `Benchmark de margen (comercial): ${R(plan.idBenchComercial)}, declarado por usted.`, hechoId: plan.idBenchComercial };
+      // CORTE 3e (owner 2026-09-26) — «declarado por usted» → «declarado por la empresa».
+      if (plan.idBenchComercial) entrega.marco.referenciaDeclarada = entrega.marco.referenciaDeclarada || { texto: `Benchmark de margen (comercial): ${R(plan.idBenchComercial)}, declarado por la empresa.`, hechoId: plan.idBenchComercial };
     }
   }
   entrega.respuesta = entrega.respuesta.filter((r) => r.hechos.length || r._definicion);
@@ -2555,7 +2721,8 @@ export function componerEntrega(resolucion) {
   if (nClientes != null) cifrasImpresas.push(`${nClientes} clientes`);
   if (periodo && periodo.texto) cifrasImpresas.push(periodo.texto);
   if (idBenchComercialGlobal && !entrega.marco.referenciaDeclarada) {
-    entrega.marco.referenciaDeclarada = { texto: `Benchmark de margen: ${R(idBenchComercialGlobal)}, declarado por usted.`, hechoId: idBenchComercialGlobal };
+    // CORTE 3e (owner 2026-09-26) — «declarado por usted» → «declarado por la empresa».
+    entrega.marco.referenciaDeclarada = { texto: `Benchmark de margen: ${R(idBenchComercialGlobal)}, declarado por la empresa.`, hechoId: idBenchComercialGlobal };
   }
 
   entrega.limites = [..._limitesDeclarados(resolucion, temasCubiertos), ...limitesGap, ...entrega.limites];
@@ -2604,7 +2771,8 @@ export function componerEntrega(resolucion) {
   if (temasCubiertos.has("comercial") && _comercialEsDeCartera) {
     let rolesGeneral = null;
     try { rolesGeneral = buildRolesCartera(scenario); } catch { rolesGeneral = null; }
-    if (rolesGeneral && rolesGeneral.hay && rolesGeneral.preguntaAlDueno) entrega.paraSuJuicio.push({ texto: `Solo usted puede responder: ${rolesGeneral.preguntaAlDueno.texto}`, hechos: [] });
+    // CORTE 3e (owner 2026-09-26) — antes: `Solo usted puede responder: …` (segunda persona).
+    { const pa = _preguntaAbiertaComercial(rolesGeneral, perfil); if (pa) entrega.paraSuJuicio.push(pa); }
   }
   if (temasCubiertos.has("comercial")) {
     for (const p of planes) {
@@ -2618,11 +2786,13 @@ export function componerEntrega(resolucion) {
   }
   if (temasCubiertos.has("inventario")) {
     const entidadInv = _entidadRepresentativaDeTema("inventario", planes);
-    if (entidadInv) entrega.paraSuJuicio.push({ texto: `Solo usted puede responder: ¿qué pasó con ${entidadInv} — fue una sobrecompra, un cambio de temporada, un cliente que no retiró, o un proveedor que llegó tarde? El dato mide cuánto está frenado, no por qué.`, hechos: [] });
+    // CORTE 3e (owner 2026-09-26) — antes: `Solo usted puede responder: ¿qué pasó con …?` (segunda persona).
+    { const pa = _preguntaAbiertaInventario(entidadInv, perfil); if (pa) entrega.paraSuJuicio.push(pa); }
   }
   if (temasCubiertos.has("cobranza")) {
     const entidadCob = _entidadRepresentativaDeTema("cobranza", planes);
-    if (entidadCob) entrega.paraSuJuicio.push({ texto: `Solo usted puede responder: la deuda de ${entidadCob}, ¿responde a un plazo pactado más largo o a que dejó de pagar a tiempo? El dato mide cuánto y desde cuándo, no por qué.`, hechos: [] });
+    // CORTE 3e (owner 2026-09-26) — antes: `Solo usted puede responder: la deuda de …?` (segunda persona).
+    { const pa = _preguntaAbiertaCobranza(entidadCob, perfil); if (pa) entrega.paraSuJuicio.push(pa); }
   }
 
   // (e) CORRECCIÓN DEL SUPERVISOR (2026-09-25) — unidades abreviadas fuera de la tabla de Cifras: "269d" → "269
@@ -2651,7 +2821,8 @@ export function componerEntrega(resolucion) {
   // owner puedan auditar su veredicto sin tener que reconstruirlo.
   entrega.procedencia = { libro, cifrasImpresas, libroPremisas, libroIniciativa };
 
-  const texto = _textoDeLaEntrega(entrega, "Su encargo");
+  // CORTE 3e (owner 2026-09-26) — «Su encargo» → «Encargo» (ley 1, textual: «"Encargo" (no "Su encargo")»).
+  const texto = _textoDeLaEntrega(entrega, "Encargo");
   return _conTamanoGobernado({ texto, entrega, libro, ok: true, motivo: "" }, resolucion);
 }
 
@@ -2659,7 +2830,9 @@ export function componerEntrega(resolucion) {
  * todo lo que aparece ya pasó por `R(id)` arriba y vive en `entrega.*`. `titulo` es lo único que cambia entre
  * rutas (era literal «¿Dónde deja de ganar?» hasta la TAREA 3 — generalizado para que la segunda ruta no
  * herede el título de la primera). ── */
-function _textoDeLaEntrega(entrega, titulo = "¿Dónde deja de ganar?", profundidad = "completa") {
+// CORTE 3e (owner 2026-09-26) — «¿Dónde deja de ganar?» → «¿Dónde la empresa deja de ganar?»: sujeto omitido con
+// verbo en 3ª persona es ambiguo entre «usted» (trato formal) y «la empresa»; con el sujeto explícito, no lo es.
+function _textoDeLaEntrega(entrega, titulo = "¿Dónde la empresa deja de ganar?", profundidad = "completa") {
   const _breve = profundidad === "breve";
   const L = [];
   L.push(`**ENTREGA ADI · ${titulo}**`);
@@ -2713,7 +2886,8 @@ function _textoDeLaEntrega(entrega, titulo = "¿Dónde deja de ganar?", profundi
   // un límite ya declarado arriba («ver «Lo que no se puede concluir»»): en "breve" esa sección entera es
   // redundante y se omite (encabezado incluido). Con contenido real (Business Knowledge activo) NUNCA se omite.
   if (!(_breve && !entrega.referenciaDelOficio.length)) {
-    L.push("**Referencia del oficio** (general, no es un dato ni un objetivo tuyo).");
+    // CORTE 3e (owner 2026-09-26) — «un objetivo tuyo» → «un objetivo de la empresa» (tercera persona).
+    L.push("**Referencia del oficio** (general, no es un dato ni un objetivo de la empresa).");
     if (entrega.referenciaDelOficio.length) for (const r of entrega.referenciaDelOficio) L.push(`- ${r.texto}`);
     else L.push("- Sin conocimiento del sector cargado todavía (ver «Lo que no se puede concluir»).");
     L.push("");
@@ -2722,20 +2896,41 @@ function _textoDeLaEntrega(entrega, titulo = "¿Dónde deja de ganar?", profundi
   // SIEMPRE dejan `paraSuJuicio` con ≥1 ítem (verificado); esta condición es un no-op para ellas y solo actúa
   // en el camino general cuando de verdad no hay nada que preguntar.
   if (entrega.paraSuJuicio.length) {
-    L.push("**Para su juicio.**");
+    // CORTE 3e (owner 2026-09-26) — «Para su juicio» lleva «su» de trato (posesivo de segunda persona formal):
+    // se renombra a un título neutro, sin cambiar qué contiene la sección (preguntas abiertas + hipótesis).
+    L.push("**Preguntas abiertas y supuestos a validar.**");
     // BREVE — UNA sola pregunta abierta: la de MAYOR PRIORIDAD del procedimiento (la del dominio/entidad que la
     // conclusión integrada ya nombró como primero — `_entidadPrioritariaDeEntrega`, la MISMA fuente que decide
     // quién abre el procedimiento, nunca una segunda definición de "quién va primero"). Las demás NO desaparecen:
     // siguen completas en `entrega.paraSuJuicio` (estructura completa siempre) y la sección cierra con el conteo.
     let items = entrega.paraSuJuicio;
+    let notaResto = "";
     if (_breve && items.length > 1) {
       const entidadPrioritaria = _entidadPrioritariaDeEntrega(entrega);
       let idx = entidadPrioritaria ? items.findIndex((p) => p.texto.includes(entidadPrioritaria)) : -1;
       if (idx < 0) idx = 0;
       const resto = items.length - 1;
-      items = [{ ...items[idx], texto: `${items[idx].texto} (+${resto} pregunta${resto === 1 ? "" : "s"} en el detalle)` }];
+      notaResto = ` (+${resto} pregunta${resto === 1 ? "" : "s"} en el detalle)`;
+      items = [items[idx]];
     }
-    for (const p of items) L.push(`- ${p.texto}`);
+    // CORTE 3e — una PREGUNTA ABIERTA (`_preguntaAbierta`, `preguntaAbierta.js`) es un BLOQUE de varias líneas con
+    // rótulos propios («**Pregunta abierta:**», «**Función sugerida…**», …): se imprime tal cual, sin viñeta «- »
+    // (que aplastaría el bloque en una sola línea). Una hipótesis simple (`_textoDePremisa`/carga comercial)
+    // sigue siendo una oración con viñeta, como siempre.
+    // BREVE (owner 2026-09-26, hallazgo D11 al medir el catálogo: el bloque completo de una pregunta abierta
+    // sobre el tope de 350) — mismo principio que ya usan `limites` (título sin motivo, recuperable con
+    // `profundidad:"completa"`): en breve se sirve SOLO la línea «Pregunta abierta», nunca «Función sugerida»/
+    // «Dónde…»/«Qué cambia» — la estructura sigue completa (`entrega.paraSuJuicio` no cambia), solo el TEXTO.
+    for (const p of items) {
+      if (p._preguntaAbierta) {
+        const lineas = String(p.texto).split("\n");
+        if (_breve) { L.push(`${lineas[0]}${notaResto}`); }
+        else { for (const linea of lineas) L.push(linea); }
+        L.push("");
+      } else {
+        L.push(`- ${p.texto}${notaResto}`);
+      }
+    }
     L.push("");
   }
   // BREVE — «solo el RÓTULO corto de la primera oferta, sin paréntesis ni cláusulas»: se corta en el primer "("

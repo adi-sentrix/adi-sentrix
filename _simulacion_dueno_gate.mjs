@@ -87,7 +87,11 @@ const _JERGA_INTERNA_SIM = /^(lectura relativa descartada|movimiento de carga|to
       // COMPARABLES JUNTAS — todo tipo con productor de simulateGeneral/simulateCosto/simulateCarga trae un
       // par base↔resultado (growth/price/margin/costo mueven venta o margen sobre un valor real existente; solo
       // simulateCapital, sin base que contrastar, cae legítimamente a "concepto pasaría a valor" sin "de…a…").
-      if (!/pasar[ií]a de .+ a /.test(R.texto)) sinComparablesJuntas++;
+      // AGREGADO (supervisor, revisión de cierre del 3d, corte 3e, 2026-09-26) — un par base↔resultado IDÉNTICO
+      // (el supuesto no mueve la cifra para esa entidad/tipo) ya NO dice «pasaría de X a X» (afirmaría un cambio
+      // que no ocurrió): dice «se mantiene en X» — misma disciplina de comparables-juntas, base y resultado
+      // siguen en la MISMA cláusula, solo cambia el verbo cuando no hay cambio. Medido: 2/65 del barrido caen acá.
+      if (!/pasar[ií]a de .+ a /.test(R.texto) && !/se mantiene en /.test(R.texto)) sinComparablesJuntas++;
     }
   }
   const total = ENTIDADES.length * TIPOS.length;

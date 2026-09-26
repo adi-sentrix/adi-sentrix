@@ -65,7 +65,8 @@ function hechosEsencialesDeOracion(r, libro) {
  *  (las 4 rutas fijas). Nunca se usa si el ítem YA declara `.prioridad` (un número, incluido 0). */
 function prioridadDe(item, idx) {
   if (typeof item.prioridad === "number") return item.prioridad;
-  // «NUNCA se recorta»: premisas (Corte 3c pieza 3 — «lo que usted da por hecho» es un negativo obligatorio, no
+  // «NUNCA se recorta»: premisas (Corte 3c pieza 3 — «sobre la premisa declarada por la empresa» es un negativo
+  // obligatorio (renombrado en tercera persona en el corte 3e, `entrega/componer.js:_textoDePremisa`), no
   // una señal opcional) y definiciones (un encargo `cierre:"definicion"` NO TIENE otro contenido: recortarla
   // dejaría la Entrega vacía) — protegidas por el MISMO marcador estructural que ya usa `hechosEsencialesDeOracion`.
   if (item._premisa || item._definicion) return 0;

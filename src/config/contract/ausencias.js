@@ -48,6 +48,15 @@ export const TIPOS_DE_AUSENCIA = [
   // aplicando si el cliente no declaró quién es. Las dos gatillan la misma ley («falla cerrado»), por razones
   // distintas — `config/contract/perfilCliente.js` es la fuente de este hueco, nunca se recalcula acá.
   "perfil_incompleto",
+  // CORTE 3e (owner 2026-09-26, «la Entrega no le habla a nadie», REFINADO) — dos tipos MÁS, la misma lista
+  // abierta de arriba (no una taxonomía nueva por caso): son las dos formas de hueco que la ley del owner nombra
+  // TEXTUALMENTE para cruzarlas con `config/contract/dominios.js:funcion` y sugerir a quién consultar
+  // (`entrega/preguntaAbierta.js`). `condicion_pactada` es distinta de `causa_no_medida`: no es que el dato no
+  // mida una causa, es que el dato no trae un ACUERDO entre partes (plazo de pago, condición comercial) que solo
+  // existe fuera del sistema. `decision_de_rumbo` es distinta de ambas: no es un hueco del dato de ESTE turno,
+  // es que la respuesta depende de una decisión de dirección del negocio, no de una medición posible.
+  "condicion_pactada",          // una condición pactada entre partes (plazo, cláusula) que el dato no registra
+  "decision_de_rumbo",          // la respuesta depende de una decisión de dirección del negocio, no de una medición
 ];
 
 /* ── EL CATÁLOGO ESTÁTICO · «lo que este dato no tiene», sea cual sea el tenant ─────────────────────────────────
@@ -137,7 +146,9 @@ export const AUSENCIAS_DEL_DATO = [
   {
     id: "conocimiento_sector_comercial", tipo: "conocimiento_no_construido", dominio: "comercial",
     texto: "conocimiento del sector (benchmarks de margen de la industria): NO construido — la única referencia disponible es el benchmark que declaró el cliente.",
-    entrega: { titulo: "Sin conocimiento del sector cargado todavía", motivo: "El Business Knowledge (benchmarks del sector) todavía no está construido: esta Entrega compara solo contra el benchmark que usted declaró, no contra el sector." },
+    // CORTE 3e (owner 2026-09-26) — «usted declaró» → «la empresa declaró»: la Entrega va en tercera persona,
+    // sin pronombres de trato (ley «LA ENTREGA NO LE HABLA A NADIE»). Mismo texto, mismo motivo, solo el trato.
+    entrega: { titulo: "Sin conocimiento del sector cargado todavía", motivo: "El Business Knowledge (benchmarks del sector) todavía no está construido: esta Entrega compara solo contra el benchmark que la empresa declaró, no contra el sector." },
   },
   {
     id: "conocimiento_sector_cobranza", tipo: "conocimiento_no_construido", dominio: "cobranza",
@@ -147,7 +158,8 @@ export const AUSENCIAS_DEL_DATO = [
   {
     id: "conocimiento_sector_inventario", tipo: "conocimiento_no_construido", dominio: "inventario",
     texto: "conocimiento del sector (rotación e inventario habituales de la industria): NO construido — la única referencia disponible es el umbral de materialidad que declaró el cliente.",
-    entrega: { titulo: "Sin conocimiento del sector cargado todavía", motivo: "El Business Knowledge (referencias del sector sobre rotación e inventario) todavía no está construido: esta Entrega compara solo contra el umbral de materialidad que tú declaraste, no contra el sector." },
+    // CORTE 3e (owner 2026-09-26) — «tú declaraste» → «la empresa declaró» (misma ley que la entrada de arriba).
+    entrega: { titulo: "Sin conocimiento del sector cargado todavía", motivo: "El Business Knowledge (referencias del sector sobre rotación e inventario) todavía no está construido: esta Entrega compara solo contra el umbral de materialidad que la empresa declaró, no contra el sector." },
   },
   {
     id: "conocimiento_sector_general", tipo: "conocimiento_no_construido", dominio: "general",

@@ -21,6 +21,13 @@
  * pegadas — o "w" — `\b…\b`, la que ya usaba `prioridadIntegrada.js` para tesorería) `· ausencia` (solo si
  * `estado: "ausente"`: `{ que, alternativa }`, la misma forma que exige `entrega/esquema.js`).
  *
+ * CORTE 3e (owner 2026-09-26, «la Entrega no le habla a nadie», REFINADO) — `· funcion`: UN atributo por dominio,
+ * el nombre de la función del negocio que OPERA ese dominio día a día («cobranza → la gestión de crédito y
+ * cobranza», el ejemplo textual del owner). Es la mitad DOMINIO del cruce que deriva a quién sugerir consultar
+ * cuando la Entrega declara una pregunta abierta (`entrega/preguntaAbierta.js`); la otra mitad es el TIPO de
+ * hueco (`config/contract/ausencias.js:TIPOS_DE_AUSENCIA`). Nunca una taxonomía nueva por caso — un atributo más
+ * de ESTE registro, la misma disciplina que ya usan `metricas`/`lentes`/`relaciones`.
+ *
  * LA MIGRACIÓN, EN DOS ETAPAS (owner, textual: «unión primero, fuente única después, con el candado "entrada
  * registrada ⇒ reconocida"»). Esta etapa hizo FUENTE ÚNICA, byte-idéntica, en los tres puntos donde relocar el
  * vocabulario sin cambiar UN CARÁCTER del regex resultante: `dominiosDe` (`_INVENTARIO`/`_COBRANZA`),
@@ -56,6 +63,7 @@ export const DOMINIOS_REGISTRO = [
     id: "comercial",
     nombre: "Comercial",
     definicion: "la venta a clientes: monto, evolución, margen, contribución, carga comercial y precio/costo — el resultado comercial del negocio, por cuenta.",
+    funcion: "quien negocia con la cuenta",   // corte 3e (owner 2026-09-26) — la función que OPERA este dominio
     sujeto: "cliente",
     estado: "activo",
     boundary: "acento",
@@ -97,6 +105,7 @@ export const DOMINIOS_REGISTRO = [
     id: "inventario",
     nombre: "Inventario",
     definicion: "el stock: capital, días de inventario, rotación y estado de cada SKU (rotando en rango · riesgo de quiebre · sobrestock · inmovilizado) — una FOTO, nunca un acumulado.",
+    funcion: "compras y abastecimiento",   // corte 3e (owner 2026-09-26) — la función que OPERA este dominio
     sujeto: "sku",
     estado: "activo",
     boundary: "acento",
@@ -119,6 +128,8 @@ export const DOMINIOS_REGISTRO = [
     id: "cobranza",
     nombre: "Cobranza",
     definicion: "cuentas por cobrar: saldo pendiente, vencido y su atraso — el control de la EXPOSICIÓN DE CRÉDITO por cliente (solo la venta A CRÉDITO la genera) y el apoyo a la decisión comercial, además de su impacto financiero. No es tesorería (ver `caja ≠ cobranza`, ley `adi-caja-no-es-cobranza`).",
+    // corte 3e (owner 2026-09-26) — el ejemplo TEXTUAL del owner para la función que OPERA este dominio.
+    funcion: "la gestión de crédito y cobranza",
     sujeto: "cliente",
     estado: "activo",
     boundary: "acento",
@@ -154,6 +165,9 @@ export const DOMINIOS_REGISTRO = [
     id: "tesoreria",
     nombre: "Tesorería",
     definicion: "posición de caja, liquidez y movimientos de efectivo — capital de trabajo, pagos a proveedores, sueldos. DISTINTA de cobranza: cobranza controla la exposición de crédito, no la caja.",
+    // corte 3e (owner 2026-09-26) — declarada por completitud del registro (todo dominio gana el atributo), aunque
+    // este dominio está "ausente" hoy: ninguna Entrega actual sugiere consultar tesorería.
+    funcion: "tesorería y finanzas",
     sujeto: "negocio",
     estado: "ausente",
     boundary: "w",

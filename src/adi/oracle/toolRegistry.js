@@ -1422,8 +1422,13 @@ function defineConcept({ concept, _preguntaUsuario } = {}) {
     const citado = enPalabras || pregunta.replace(/_/g, " ").replace(/\s+/g, " ").trim() || "ese concepto";
     return { facts: null, boleta: [], coverage: { supported: false, reason: `no tengo una definición curada para «${citado}»` } };
   }
+  // CORTE 3e (owner 2026-09-26) — `slug` es ADITIVO (nunca lo leía nadie antes de este campo): el chat de ADI
+  // Agente sigue usando `facts.concepto`/`facts.definicion`/`facts.distingue` tal cual, en tuteo — es SU registro
+  // correcto (CLAUDE.md, `sentrix/glossary.js`). `slug` es el enganche para que SOLO `entrega/componer.js`
+  // (`_planDefinicion`) pueda ir a buscar `CONCEPT_DEFS[slug].neutra` sin duplicar la definición acá ni cambiar
+  // lo que este tool le sirve al chat.
   return {
-    facts: { concepto: d.aka, definicion: d.def, ...(d.distingue ? { distingue: d.distingue } : {}), es_definicion: true },
+    facts: { concepto: d.aka, definicion: d.def, ...(d.distingue ? { distingue: d.distingue } : {}), es_definicion: true, slug: d.slug || null },
     boleta: [], coverage: { supported: true, fuente: d.fuente },
   };
 }

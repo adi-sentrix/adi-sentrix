@@ -382,8 +382,12 @@ function _sinReferenciaDelOficio(R) {
   const { referenciaDelOficio: _r, queMasPuedoCalcular: _q, ...resto } = R.entrega;
   return JSON.stringify({
     ok: R.ok,
+    // CORTE 3e (owner 2026-09-26, «LA ENTREGA NO LE HABLA A NADIE») — «Para su juicio» se renombró (título neutro,
+    // sin «su» de trato): el lookahead que delimitaba «Referencia del oficio» seguía el título VIEJO y dejó de
+    // matchear, así que la sección ya no se enmascaraba antes de comparar — esta prueba no vigilaba nada porque
+    // comparaba con el contenido real de referenciaDelOficio adentro. Título nuevo, misma máscara.
     texto: R.texto
-      .replace(/\*\*Referencia del oficio\*\*[\s\S]*?(?=\n\*\*Para su juicio)/, "**Referencia del oficio** [omitido de esta comparación]\n\n")
+      .replace(/\*\*Referencia del oficio\*\*[\s\S]*?(?=\n\*\*Preguntas abiertas y supuestos a validar)/, "**Referencia del oficio** [omitido de esta comparación]\n\n")
       .replace(/\*\*Qué más puedo calcular\.\*\*[\s\S]*$/, "**Qué más puedo calcular.** [omitido de esta comparación]"),
     entrega: resto,
   });

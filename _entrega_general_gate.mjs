@@ -503,12 +503,16 @@ H("15a · «Para su juicio» no se imprime si no hay contenido; con contenido, s
   ok(Rvacio.ok, "compone ok (caso sin «Para su juicio»)", Rvacio.motivo);
   if (Rvacio.ok) {
     ok(Rvacio.entrega.paraSuJuicio.length === 0, "en este caso, `entrega.paraSuJuicio` queda vacío (nada que preguntar sin inventar sujeto)", JSON.stringify(Rvacio.entrega.paraSuJuicio));
-    ok(!/\*\*Para su juicio\.\*\*/.test(Rvacio.texto), "★ CARNADA · con `paraSuJuicio` vacío, la sección NO se imprime (ni el título)", Rvacio.texto);
+    // CORTE 3e (owner 2026-09-26, «LA ENTREGA NO LE HABLA A NADIE») — «Para su juicio» llevaba «su» de trato
+    // (posesivo de segunda persona formal): el título se renombró a uno neutro. Misma carnada, título nuevo.
+    ok(!/\*\*Preguntas abiertas y supuestos a validar\.\*\*/.test(Rvacio.texto), "★ CARNADA · con `paraSuJuicio` vacío, la sección NO se imprime (ni el título)", Rvacio.texto);
   }
   const resConContenido = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "cobranza", cierre: "lectura", entidades: [{ nombre: "Lider", eje: "cliente" }] }] }, {});
   const Rcon = componerEntrega(resConContenido);
   ok(Rcon.ok, "compone ok (caso con «Para su juicio»)", Rcon.motivo);
-  if (Rcon.ok) ok(Rcon.entrega.paraSuJuicio.length > 0 && /\*\*Para su juicio\.\*\*/.test(Rcon.texto), "con contenido, el título SÍ se imprime", Rcon.texto.includes("Para su juicio"));
+  // CORTE 3e (owner 2026-09-26) — título renombrado (ver arriba); el contenido sigue siendo el mismo campo
+  // `entrega.paraSuJuicio`, ahora con preguntas abiertas tipadas en vez de «Solo usted/tú puede(s) responder».
+  if (Rcon.ok) ok(Rcon.entrega.paraSuJuicio.length > 0 && /\*\*Preguntas abiertas y supuestos a validar\.\*\*/.test(Rcon.texto), "con contenido, el título SÍ se imprime", Rcon.texto.includes("Preguntas abiertas"));
 }
 
 H("15b · «Qué más puedo calcular» trae ofertas CONCRETAS (con el nombre de la entidad), no solo el genérico");

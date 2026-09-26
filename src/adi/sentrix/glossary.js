@@ -92,12 +92,24 @@ export const CONCEPT_DEFS = {
     aka: "contribución no capturada",
     def: "Es la brecha entre lo que un cliente aporta hoy y lo que aportaría si alcanzara el benchmark de margen. No es una pérdida contable —ese dinero no salió de la caja—: es contribución que quedas sin capturar por operar bajo el benchmark. Es recuperable subiendo el margen de esas cuentas.",
     distingue: "No es un rebate ni un costo: es la contribución que dejas de ganar por el margen bajo. El rebate, en cambio, es parte de la **carga comercial** que ayuda a generar esa brecha.",
+    // CORTE 3e (owner 2026-09-26, «LA ENTREGA NO LE HABLA A NADIE») — `neutra`: LA MISMA definición, mismos
+    // términos de fórmula (**negrita**, sin tocar), en tercera persona. Este texto (`def`/`distingue`, arriba)
+    // sigue en tuteo A PROPÓSITO — es el registro correcto para Sentrix (el "i" de las cards, el chat de ADI
+    // Agente); `neutra` es SOLO para la Entrega (`entrega/componer.js`, que nunca lee `def`/`distingue`).
+    neutra: {
+      def: "Es la brecha entre lo que un cliente aporta hoy y lo que aportaría si alcanzara el benchmark de margen. No es una pérdida contable —ese dinero no salió de la caja—: es contribución que la empresa queda sin capturar por operar bajo el benchmark. Es recuperable subiendo el margen de esas cuentas.",
+      distingue: "No es un rebate ni un costo: es la contribución que la empresa deja de ganar por el margen bajo. El rebate, en cambio, es parte de la **carga comercial** que ayuda a generar esa brecha.",
+    },
   },
   carga: {
     aka: "carga comercial",
     etiquetas: ["carga", "carga comercial", "carga comercial %"],
     def: "Es la parte de la venta que se va en acciones comerciales —rebates, descuentos, condiciones— antes de llegar a la contribución. Se expresa como % de la venta. Cuanta más carga, menos margen retienes. Es una de las causas de que un cliente rinda por debajo de su potencial.",
     distingue: "La carga comercial es la TASA (%); las **acciones comerciales** son el mismo hecho medido en dinero. Y ninguna de las dos es la **contribución no capturada**, que es el resultado —lo que dejas de ganar—, no la causa.",
+    neutra: {
+      def: "Es la parte de la venta que se va en acciones comerciales —rebates, descuentos, condiciones— antes de llegar a la contribución. Se expresa como % de la venta. Cuanta más carga, menos margen retiene la empresa. Es una de las causas de que un cliente rinda por debajo de su potencial.",
+      distingue: "La carga comercial es la TASA (%); las **acciones comerciales** son el mismo hecho medido en dinero. Y ninguna de las dos es la **contribución no capturada**, que es el resultado —lo que la empresa deja de ganar—, no la causa.",
+    },
   },
   acciones: {
     aka: "acciones comerciales",
@@ -110,12 +122,20 @@ export const CONCEPT_DEFS = {
     etiquetas: ["rebate", "rebates"],
     def: "Un rebate es un descuento o devolución que le concedes al cliente sobre la venta. Forma parte de las **acciones comerciales**: es dinero de la venta que no llega a la contribución.",
     distingue: "El rebate es un costo comercial concreto. La **contribución no capturada** es otra cosa: la brecha de margen que ese costo —y otros— te dejan.",
+    neutra: {
+      def: "Un rebate es un descuento o devolución que la empresa concede al cliente sobre la venta. Forma parte de las **acciones comerciales**: es dinero de la venta que no llega a la contribución.",
+      distingue: "El rebate es un costo comercial concreto. La **contribución no capturada** es otra cosa: la brecha de margen que ese costo —y otros— le dejan a la empresa.",
+    },
   },
   benchmark: {
     aka: "benchmark",
     etiquetas: ["benchmark", "vs benchmark"],
     def: "Es el punto de referencia contra el que ADI mide el margen de cada cuenta: la referencia que define tu negocio (tu criterio, o el que traiga tu dato). Un cliente por debajo del benchmark rinde menos que la referencia que definiste.",
     distingue: "No viene de una fuente sectorial: es TU referencia (tu criterio o tu dato) contra la que se mide cada cuenta.",
+    neutra: {
+      def: "Es el punto de referencia contra el que ADI mide el margen de cada cuenta: la referencia que define el negocio de la empresa (su criterio, o el que traiga su dato). Un cliente por debajo del benchmark rinde menos que la referencia que la empresa declaró.",
+      distingue: "No viene de una fuente sectorial: es la referencia de la empresa (su criterio o su dato) contra la que se mide cada cuenta.",
+    },
   },
   margen: {
     aka: "margen de contribución",
@@ -257,6 +277,9 @@ export const CONCEPT_DEFS = {
     etiquetas: ["seleccion", "lo seleccionado", "la seleccion"],
     def: "Es el subconjunto que quedó marcado en pantalla —las filas elegidas o el filtro activo— y sobre el que se responde mientras siga vivo. Al cambiar de vista o de filtro, deja de aplicar.",
     distingue: "No es un universo del dato sino del momento: lo define lo que estás mirando, no la estructura del negocio.",
+    neutra: {
+      distingue: "No es un universo del dato sino del momento: lo define lo que está seleccionado en pantalla, no la estructura del negocio.",
+    },
   },
   en_juego: {
     aka: "en juego",
@@ -282,6 +305,12 @@ export const CONCEPT_DEFS = {
     etiquetas: ["vara", "vara_usuario", "tu vara", "la vara", "vara declarada", "referencia declarada"],
     def: "Es la referencia que el usuario fija para juzgar una métrica: el margen mínimo aceptable, el objetivo de carga comercial, el umbral de días de inventario. Cuando está declarada, reemplaza a la referencia por defecto y ADI mide contra ella.",
     distingue: "No es el **benchmark** por defecto del negocio: es la referencia que tú declaraste para este análisis, y por eso toda cifra medida contra ella se sella INDICADO.",
+    // `aka` TAMBIÉN se imprime como el nombre del concepto («tu referencia: Es la referencia que...») — se
+    // neutraliza igual que `def`/`distingue`.
+    neutra: {
+      aka: "la referencia declarada",
+      distingue: "No es el **benchmark** por defecto del negocio: es la referencia que la empresa declaró para este análisis, y por eso toda cifra medida contra ella se sella INDICADO.",
+    },
   },
   meta: {
     aka: "meta",
@@ -307,6 +336,9 @@ export const CONCEPT_DEFS = {
     etiquetas: ["anterior", "año anterior", "ano anterior", "vs año anterior", "vs ano anterior"],
     def: "Es la misma métrica del período equivalente del año previo. Es la comparación que dice si la cuenta mejoró o se deterioró, con independencia de si cumplió su presupuesto.",
     distingue: "Compara contra tú mismo un año atrás; el **presupuesto** compara contra lo comprometido y el **benchmark**, contra la referencia de rendimiento.",
+    neutra: {
+      distingue: "Compara contra el propio negocio un año atrás; el **presupuesto** compara contra lo comprometido y el **benchmark**, contra la referencia de rendimiento.",
+    },
   },
   promedio_cartera: {
     aka: "el promedio de la cartera",
@@ -341,6 +373,22 @@ export const CONCEPT_DEFS = {
     distingue: "Se distingue de **indicado**, que sí se calcula pero cuelga de un supuesto, y de **probado**, que reconcilia sin ninguno.",
   },
 };
+
+/* CORTE 3e (owner 2026-09-26, «LA ENTREGA NO LE HABLA A NADIE», resuelto por el owner) — «una sola verdad por
+ * concepto, dos registros de presentación»: `def`/`distingue`/`aka` (arriba) son la redacción de SENTRIX —
+ * tuteo neutro, el registro correcto de esa superficie, sin cambios — y `neutra` es la redacción de LA ENTREGA
+ * (tercera persona, sin pronombres de trato; ver `entrega/preguntaAbierta.js`/`entrega/componer.js` del mismo
+ * corte). Solo 7 conceptos necesitaban una `neutra` escrita a mano (los que nombraban al usuario de frente:
+ * no_capturada · carga · rebate · benchmark · seleccion · vara · anterior — declarados arriba, junto a su `def`/
+ * `distingue`, para que quien lea uno lea el otro al lado). Para el resto, cuyo `def`/`distingue` YA es de
+ * tercero (no le habla a nadie), este BACKFILL completa `neutra` con el MISMO texto — nunca una copia manual que
+ * pueda divergir: se lee de `def`/`distingue`/`aka` en el momento en que este módulo carga, así que un cambio
+ * futuro a uno de ellos (que no toque el tuteo) se refleja solo, sin tocar dos lugares. Un override parcial
+ * (solo `distingue`, como `seleccion`/`anterior`; solo `aka`+`distingue`, como `vara`) conserva lo declarado y
+ * completa lo que falta — nunca pisa lo que ya se escribió a mano. */
+for (const c of Object.values(CONCEPT_DEFS)) {
+  c.neutra = { aka: (c.neutra && c.neutra.aka) || c.aka, def: (c.neutra && c.neutra.def) || c.def, distingue: (c.neutra && "distingue" in c.neutra) ? c.neutra.distingue : c.distingue };
+}
 
 // ── NORMALIZACIÓN de etiqueta (una sola forma para "Días inv.", "días inv", "DIAS INV.") ──────────────────────
 // Sin acentos, sin puntuación de adorno, sin artículo inicial. Es lo único que decide si dos textos son LA MISMA
@@ -421,28 +469,34 @@ function _defDeComponente(componentId) {
   return `${partes.slice(0, 2).join(". ")}${partes[2] ? ` ${partes[2]}` : ""}.`;
 }
 
-/* resolveGlossary(termino) → { slug, aka, def, distingue, fuente } | null · LA ENTRADA ÚNICA del glosario.
+/* resolveGlossary(termino) → { slug, aka, def, distingue, neutra, fuente } | null · LA ENTRADA ÚNICA del glosario.
  * `fuente` declara de dónde salió la respuesta: "concepto" (definición curada del negocio) · "metrica" (el "i" de
  * la card) · "componente" (lo que el manifiesto declara de esa pieza). Devuelve null —honesto— cuando no hay
  * entrada: inventar una definición es exactamente el defecto que este glosario existe para cerrar.
- * ESCALERA: slug exacto → etiqueta exacta (índice derivado) → frase libre (CONCEPT_MATCHERS) → null. */
+ * ESCALERA: slug exacto → etiqueta exacta (índice derivado) → frase libre (CONCEPT_MATCHERS) → null.
+ * CORTE 3e (owner 2026-09-26) — `neutra` viaja SIEMPRE que `fuente === "concepto"` (todo concepto la tiene, ver
+ * el backfill tras `CONCEPT_DEFS`). Para "metrica" (el "i" de una card, fuera del alcance de este corte: NINGÚN
+ * `concepto` de un cierre `definicion` resuelve ahí — `encargo/esquema.js:conceptoDeDefinicionValido` solo acepta
+ * slugs de `CONCEPT_DEFS` o de `CLAVES_DE_METRICA`, nunca una etiqueta de pantalla con espacios) `neutra` es
+ * `null` — declarado, no fingido. Para "componente" el texto YA se compone en tercera persona (`_defDeComponente`,
+ * cero pronombres por construcción — "Es la cara de la vista…"), así que `neutra` es el mismo `def`. */
 export function resolveGlossary(termino) {
   const t = String(termino == null ? "" : termino);
   if (!t.trim()) return null;
   const directo = CONCEPT_DEFS[t];
-  if (directo) return { slug: t, aka: directo.aka, def: directo.def, distingue: directo.distingue, fuente: "concepto" };
+  if (directo) return { slug: t, aka: directo.aka, def: directo.def, distingue: directo.distingue, neutra: directo.neutra, fuente: "concepto" };
   const hit = _INDEX.get(_norm(t));
   if (hit) {
-    if (hit.slug) { const c = CONCEPT_DEFS[hit.slug]; return { slug: hit.slug, aka: c.aka, def: c.def, distingue: c.distingue, fuente: "concepto" }; }
-    if (hit.metricDef) return { slug: null, aka: hit.metricDef, def: METRIC_DEFS[hit.metricDef], distingue: null, fuente: "metrica" };
+    if (hit.slug) { const c = CONCEPT_DEFS[hit.slug]; return { slug: hit.slug, aka: c.aka, def: c.def, distingue: c.distingue, neutra: c.neutra, fuente: "concepto" }; }
+    if (hit.metricDef) return { slug: null, aka: hit.metricDef, def: METRIC_DEFS[hit.metricDef], distingue: null, neutra: null, fuente: "metrica" };
     if (hit.componentId) {
       const def = _defDeComponente(hit.componentId);
       const m = VIEW_MANIFEST[hit.componentId];
-      if (def) return { slug: null, aka: m.label, def, distingue: null, fuente: "componente" };
+      if (def) return { slug: null, aka: m.label, def, distingue: null, neutra: { aka: m.label, def, distingue: null }, fuente: "componente" };
     }
   }
   const slug = matchConcept(t);
-  if (slug) { const c = CONCEPT_DEFS[slug]; return { slug, aka: c.aka, def: c.def, distingue: c.distingue, fuente: "concepto" }; }
+  if (slug) { const c = CONCEPT_DEFS[slug]; return { slug, aka: c.aka, def: c.def, distingue: c.distingue, neutra: c.neutra, fuente: "concepto" }; }
   return null;
 }
 
