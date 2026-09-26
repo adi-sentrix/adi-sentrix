@@ -60,7 +60,7 @@ import { componerEntrega } from "../entrega/componer.js";
 import { construirCatalogo } from "./catalogo.js";
 import { construirPerfilCliente } from "../../config/contract/perfilCliente.js";
 import { crearAlmacenEnMemoria } from "../continuidad/almacen.js";
-import { memoriaDeEmpresa, declararHecho, confirmarHecho, hechoDePerfilCampo } from "../continuidad/empresa.js";
+import { memoriaDeEmpresa, declararHecho, confirmarHecho, hechoDePerfilCampo, leerPendientes } from "../continuidad/empresa.js";
 import {
   libroNuevo, emitirConversacionId, detectarCambioVersion, registrarEntrega,
   actualizarCriterio, agregarSupuestoVivo, registrarPremisa, registrarHechoAportado,
@@ -170,7 +170,12 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria() } = {}) {
   /* 1 · conocerEmpresa({ tenant, conversacionId? }) → la ficha completa de la empresa activa + el catálogo
    * generado (contrato §E) + la memoria de empresa VIGENTE (criterios/hechos/documentos que la empresa declaró,
    * nunca una cifra medida) + el perfil plegado como hechos de solo lectura (`hechoDePerfilCampo`) + el estado
-   * vigente de la conversación, si se indicó una. */
+   * vigente de la conversación, si se indicó una.
+   *
+   * `hechosAportados` es SOLO lo VIGENTE (`memoriaDeEmpresa`, ya filtra por `estado:"vigente"`) — lo único que
+   * cuenta como dato. `pendientesDeConfirmar` (corrección 2026-09-26, ley del owner: «proponer es del modelo,
+   * confirmar es de la persona») va APARTE, nunca mezclado: un pendiente se anuncia como pendiente, jamás se
+   * cuenta como lo que la empresa "ya sabe" — el LLM se lo devuelve a la persona antes de usarlo. */
   function conocerEmpresa({ tenant, conversacionId = null } = {}) {
     const prep = _prepararTenant(tenant);
     if (!prep.ok) return { ok: false, motivo: prep.motivo };
@@ -191,6 +196,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria() } = {}) {
     const perfilPlegado = Object.entries(perfil.campos || {})
       .map(([campo, v]) => hechoDePerfilCampo(campo, { codigo: v && v.valor, procedencia: v && v.procedencia }))
       .filter(Boolean);
+    const pendientes = leerPendientes(store, tenantId, {});
 
     const libro = conversacionId ? store.leerLibro(conversacionId) : null;
     const estadoVigente = libro ? estadoVigenteDe(libro, { versionIdActual: tenant.version || null }) : null;
@@ -209,6 +215,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria() } = {}) {
       catalogo,
       conversacionId: conversacionId || null,
       hechosAportados: [...memoria.hechos, ...perfilPlegado],
+      pendientesDeConfirmar: pendientes,
       estadoVigente,
     };
   }
@@ -309,9 +316,15 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria() } = {}) {
   /* 3 · aportarContexto({ tenant, conversacionId?, aportes?, confirmar? }) → registra lo que el usuario declaró
    * (criterio, hecho, documento — el perfil se rechaza acá: vive en `tenants`, ver `empresa.js:declararHecho`) en
    * la MEMORIA DE EMPRESA real (`continuidad/empresa.js`). Nunca pisa un medido — esta memoria no tiene medidos
-   * (ley «un declarado nunca pisa un medido», satisfecha por construcción, ver la cabecera de `empresa.js`): una
-   * colisión posible es solo contra OTRO declarado de la misma llave, y ahí SÍ queda `pendiente` con
-   * `conflictoCon`, hasta que se confirme (`confirmarHecho` nunca toca el origen — ley del owner, textual). */
+   * (ley «un declarado nunca pisa un medido», satisfecha por construcción, ver la cabecera de `empresa.js`).
+   *
+   * CORRECCIÓN (owner 2026-09-26, ley aprobada): «un dato declarado o leído de un documento se devuelve para
+   * confirmar ANTES de usarlo; proponer es del modelo, confirmar es de la persona.» TODO aporte nuevo (haya o
+   * no colisión con otro declarado) entra `"pendiente"` con `paraConfirmar:true` y el `entendido` canónico —
+   * la ÚNICA salida directa es declarar EXACTAMENTE el mismo valor ya vigente (nada nuevo que confirmar). Un
+   * aporte con colisión de valor queda además con `conflictoCon`. Ningún pendiente cuenta como dato: no aparece
+   * en `hechosAportados` de `conocerEmpresa` (solo vigentes), solo en `pendientesDeConfirmar`. Confirmar
+   * (`confirmarHecho`) es lo único que promueve a `"vigente"` — y NUNCA toca el origen (ley del owner, textual). */
   function aportarContexto({ tenant, conversacionId = null, aportes = [], confirmar = [] } = {}) {
     const prep = _prepararTenant(tenant);
     if (!prep.ok) return { ok: false, motivo: prep.motivo };

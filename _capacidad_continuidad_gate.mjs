@@ -14,11 +14,12 @@
  *   6 · retomar → re-verificado (honesto: sin el índice de evidencia real conectado, declara el límite —
  *       nunca inventa un veredicto)
  *   7 · carnada «el LLM manda un tenant ajeno» → ignorado, tanto en `encargo.*` como en el argumento de la acción
+ *   8 · carnada «un aporte sin confirmar usado como dato» → nunca en hechosAportados, siempre anunciado en
+ *       pendientesDeConfirmar (owner 2026-09-26, ley «proponer es del modelo, confirmar es de la persona»)
  *
  * CERO llamadas a un LLM · CERO red · CERO ruta `/api/adi-*` (esa parte de la puerta la prueba `_puerta_gate.mjs`
  * — acá se entra por `crearAcciones` directo, sin HTTP, para que `clasificarFuente()` lo vea offline sin ambigüedad).
  * Solo por `npm run gates:offline` o `node --import ./scripts/offline-guard.mjs _capacidad_continuidad_gate.mjs`. */
-import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { crearAcciones } from "./src/adi/capacidad/acciones.js";
@@ -90,12 +91,16 @@ H("4 · aportarContexto: un valor que choca con otro declarado queda pendiente; 
 {
   const { aportarContexto, conocerEmpresa } = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
 
+  // ley 2026-09-26 («proponer es del modelo, confirmar es de la persona»): el PRIMER declarado también nace
+  // pendiente — nada se usa como dato antes de que la persona lo confirme.
   const a1 = aportarContexto({ tenant: TENANT_V1, aportes: [{ clase: "criterio", concepto: "benchmark_propio_margen", valor: 28, unidad: "pct" }] });
-  ok(a1.ok === true && a1.resultados[0].estado === "vigente", "primer declarado, sin colisión: queda vigente de inmediato", JSON.stringify(a1.resultados[0]));
+  ok(a1.ok === true && a1.resultados[0].estado === "pendiente" && a1.resultados[0].paraConfirmar === true, "★ LEY 2026-09-26 · el primer declarado TAMBIÉN nace pendiente, sin colisión ni excepción", JSON.stringify(a1.resultados[0]));
 
+  // un segundo valor para la MISMA llave choca IGUAL mientras el primero sigue sin confirmar (la colisión se
+  // compara contra vigente Y contra pendiente — así "mismo aporte dos veces" nunca duplica filas al azar).
   const a2 = aportarContexto({ tenant: TENANT_V1, conversacionId: a1.conversacionId, aportes: [{ clase: "criterio", concepto: "benchmark_propio_margen", valor: 32, unidad: "pct" }] });
   ok(a2.resultados[0].estado === "pendiente" && a2.resultados[0].paraConfirmar === true, "un valor DISTINTO de la misma llave nunca pisa en silencio: entra pendiente", JSON.stringify(a2.resultados[0]));
-  ok(a2.resultados[0].conflictoCon === a1.resultados[0].id, "el pendiente declara CONTRA QUÉ hecho choca");
+  ok(a2.resultados[0].conflictoCon === a1.resultados[0].id, "el pendiente declara CONTRA QUÉ hecho choca, aunque ese otro tampoco esté confirmado todavía");
 
   const a3 = aportarContexto({ tenant: TENANT_V1, conversacionId: a1.conversacionId, aportes: [], confirmar: [a2.resultados[0].id] });
   ok(a3.confirmaciones[0].confirmado === true, "confirmar por id resuelve el conflicto");
@@ -126,9 +131,10 @@ H("5 · un hecho declarado y una cifra medida de la MISMA entidad/concepto convi
   const filaJumbo = medido.entrega.json.cifras.filas.find((f) => f.valores["Entidad / grupo"] === "Jumbo");
   ok(Boolean(filaJumbo) && filaJumbo.procedencia === "medido", "la fila de Jumbo declara su procedencia \"medido\"", JSON.stringify(filaJumbo));
 
-  // lo DECLARADO — el usuario aporta SU PROPIA cifra de venta para Jumbo, en la MISMA conversación
+  // lo DECLARADO — el usuario aporta SU PROPIA cifra de venta para Jumbo, en la MISMA conversación. Ley
+  // 2026-09-26: nace "pendiente" (nadie lo confirmó todavía) — igual conviene con el medido sin bloquearse.
   const declarado = aportarContexto({ tenant: TENANT_V1, conversacionId: medido.continuidad.conversacionId, aportes: [{ clase: "hecho", concepto: "ventas", entidad: "Jumbo", valor: 999999999, unidad: "clp" }] });
-  ok(declarado.ok === true && declarado.resultados[0].estado === "vigente", "el declarado se registra sin que el medido lo bloquee");
+  ok(declarado.ok === true && declarado.resultados[0].estado === "pendiente" && declarado.resultados[0].paraConfirmar === true, "el declarado se registra (pendiente de confirmar) sin que el medido lo bloquee", JSON.stringify(declarado.resultados[0]));
 
   // AMBOS quedan visibles y NINGUNO se alteró: el medido sigue siendo la cifra de la boleta (no el 999999999
   // declarado) y el declarado sigue etiquetado "declarado" (nunca se promovió a "medido" por coincidir de concepto).
@@ -179,6 +185,31 @@ H("7 · CARNADA · un tenant/tenantId colado en encargo.* o en aportes.* se igno
   // sin existir un solo lugar de `acciones.js` que acepte "de qué empresa es esto" desde el cuerpo de la llamada.
   const aporteConTenantAjeno = aportarContexto({ tenant: TENANT_V1, aportes: [{ clase: "hecho", concepto: "acuerdo_verbal", valor: "60 días", tenant: "empresa-ajena", tenantId: "otra-empresa-000" }] });
   ok(aporteConTenantAjeno.ok === true && aporteConTenantAjeno.resultados[0].estado !== "rechazado", "aportarContexto también ignora un tenant colado dentro de un aporte — declara el hecho igual", JSON.stringify(aporteConTenantAjeno.resultados[0]));
+}
+
+/* ═══ 8 · CARNADA · «un aporte sin confirmar usado como dato» → ROJO (owner 2026-09-26) ═══════════════════════════
+ * La ley del corte: «un dato declarado o leído de un documento se devuelve para confirmar ANTES de usarlo».
+ * Esta carnada prueba las dos caras: (a) un pendiente NUNCA aparece en `hechosAportados` de `conocerEmpresa`
+ * (lo único que cuenta como "lo que la empresa ya sabe"); (b) SÍ aparece, aparte, en `pendientesDeConfirmar`,
+ * anunciado como pendiente — nunca desaparece en silencio, nunca se confunde con dato. Si `hechosAportados`
+ * alguna vez incluyera un pendiente, o `pendientesDeConfirmar` lo escondiera, esta sección se pone roja. */
+H("8 · CARNADA · un aporte sin confirmar jamás cuenta como dato — solo aparece anunciado como pendiente");
+{
+  const { aportarContexto, conocerEmpresa } = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
+
+  const a1 = aportarContexto({ tenant: TENANT_V1, aportes: [{ clase: "hecho", concepto: "plazo_de_pago_pactado", entidad: "Jumbo", valor: 90, unidad: "days" }] });
+  ok(a1.ok === true && a1.resultados[0].estado === "pendiente", "el aporte nace pendiente (nadie lo confirmó)", JSON.stringify(a1.resultados[0]));
+
+  const c1 = conocerEmpresa({ tenant: TENANT_V1, conversacionId: a1.conversacionId });
+  ok(!c1.hechosAportados.some((h) => h.concepto === "plazo_de_pago_pactado"), "★ CARNADA · el pendiente NUNCA aparece en hechosAportados (nunca cuenta como dato)", JSON.stringify(c1.hechosAportados.filter((h) => h.concepto === "plazo_de_pago_pactado")));
+  ok(c1.pendientesDeConfirmar.some((h) => h.id === a1.resultados[0].id && h.concepto === "plazo_de_pago_pactado" && h.estado === "pendiente"), "el pendiente SÍ aparece, aparte, anunciado como \"pendiente de confirmar\" — nunca se esconde", JSON.stringify(c1.pendientesDeConfirmar));
+
+  // confirmarlo lo mueve de una lista a la otra — recién ahí cuenta como dato
+  const a2 = aportarContexto({ tenant: TENANT_V1, conversacionId: a1.conversacionId, aportes: [], confirmar: [a1.resultados[0].id] });
+  ok(a2.confirmaciones[0].confirmado === true, "confirmar promueve el pendiente");
+  const c2 = conocerEmpresa({ tenant: TENANT_V1, conversacionId: a1.conversacionId });
+  ok(c2.hechosAportados.some((h) => h.concepto === "plazo_de_pago_pactado" && h.estado === "vigente"), "recién CONFIRMADO, el hecho pasa a hechosAportados (ahora sí cuenta como dato)", JSON.stringify(c2.hechosAportados.filter((h) => h.concepto === "plazo_de_pago_pactado")));
+  ok(!c2.pendientesDeConfirmar.some((h) => h.concepto === "plazo_de_pago_pactado"), "y deja de aparecer en pendientesDeConfirmar (ya no hay nada que confirmar)");
 }
 
 console.log(`\n── _capacidad_continuidad_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);

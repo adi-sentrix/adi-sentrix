@@ -177,19 +177,21 @@ H("6 · aportarContexto/retomar contra la continuidad real — la forma del enga
   ok(aPerfil.ok === true, "aportarContexto responde ok:true aunque el aporte se rechace (el rechazo va en el resultado, no en el sobre)");
   ok(aPerfil.resultados[0].estado === "rechazado", "clase \"perfil\" se rechaza: vive en tenants, no en la memoria de empresa", JSON.stringify(aPerfil.resultados[0]));
 
-  // un aporte SIN colisión (primera vez que se declara esa llave) queda VIGENTE de inmediato — no hay nada que
-  // confirmar todavía (ley de `empresa.js`: la confirmación es el camino de SALIDA de un conflicto, no un paso
-  // obligatorio para toda declaración nueva).
+  // ACTUALIZADO (owner 2026-09-26, ley aprobada «un dato declarado o leído de un documento se devuelve para
+  // confirmar ANTES de usarlo; proponer es del modelo, confirmar es de la persona»): TODO aporte nuevo — haya o
+  // no colisión — nace "pendiente", con `paraConfirmar:true`. Antes de esta fecha, un aporte sin colisión
+  // quedaba vigente de inmediato; eso violaba la ley (ADI proponía y usaba en el mismo paso).
   const a1 = aportarContexto({ tenant: TENANT, aportes: [{ clase: "criterio", concepto: "benchmark_propio_margen", valor: 28, unidad: "pct" }] });
   ok(a1.ok === true, "aportarContexto crea una conversación y registra el aporte");
   ok(typeof a1.conversacionId === "string" && a1.conversacionId.length > 0, "conversacionId emitido por la continuidad inyectada (emitirConversacionId)");
-  ok(a1.resultados[0].estado === "vigente" && a1.resultados[0].paraConfirmar === false, "un aporte sin colisión queda vigente sin pedir confirmación", JSON.stringify(a1.resultados[0]));
+  ok(a1.resultados[0].estado === "pendiente" && a1.resultados[0].paraConfirmar === true, "★ LEY 2026-09-26 · todo aporte nuevo nace pendiente — proponer no es usar", JSON.stringify(a1.resultados[0]));
 
-  // declarar OTRO valor para la MISMA llave (mismo concepto/entidad/período) SÍ choca: nunca se pisa en
-  // silencio — entra "pendiente" con `conflictoCon`, y el origen sigue "declarado" en los dos.
+  // declarar OTRO valor para la MISMA llave (mismo concepto/entidad/período), MIENTRAS el primero sigue sin
+  // confirmar, SÍ choca igual (la colisión se compara contra vigente Y contra pendiente): nunca se pisa en
+  // silencio — entra "pendiente" con `conflictoCon` apuntando al primero, y el origen sigue "declarado" en los dos.
   const a2 = aportarContexto({ tenant: TENANT, conversacionId: a1.conversacionId, aportes: [{ clase: "criterio", concepto: "benchmark_propio_margen", valor: 32, unidad: "pct" }] });
   ok(a2.resultados[0].estado === "pendiente" && a2.resultados[0].paraConfirmar === true, "un valor distinto de la MISMA llave nunca pisa en silencio: queda pendiente", JSON.stringify(a2.resultados[0]));
-  ok(a2.resultados[0].conflictoCon === a1.resultados[0].id, "el conflicto apunta al hecho vigente que chocó", JSON.stringify(a2.resultados[0]));
+  ok(a2.resultados[0].conflictoCon === a1.resultados[0].id, "el conflicto apunta al primer pendiente, aunque TODAVÍA no esté confirmado", JSON.stringify(a2.resultados[0]));
 
   const a3 = aportarContexto({ tenant: TENANT, conversacionId: a1.conversacionId, aportes: [], confirmar: [a2.resultados[0].id] });
   ok(a3.ok === true && a3.confirmaciones[0].confirmado === true, "confirmar por id resuelve el conflicto (el nuevo valor queda vigente, el viejo se retira)");
