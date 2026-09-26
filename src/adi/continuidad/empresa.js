@@ -102,11 +102,31 @@ export function leerHistoria(store, tenantId, filtro = {}) {
   return todos.filter((h) => _pasaFiltro(h, filtro)).sort((a, b) => String(a.declaradoEn || "").localeCompare(String(b.declaradoEn || "")));
 }
 
+/** leerPendientes(store, tenantId, filtro?) → HechoEmpresa[] · solo `estado:"pendiente"` — lo que ADI PROPUSO
+ * (declarado o leído de un documento) y la persona todavía NO confirmó (ley 2026-09-26, cabecera de
+ * `declararHecho`). Existe para que quien exponga "el estado" (`conocerEmpresa`/`capacidad/acciones.js`) pueda
+ * mostrarlo SEPARADO de `leerVigentes` — nunca mezclado como si ya fuera dato: un pendiente se anuncia como
+ * "pendiente de confirmar", jamás se usa en una Entrega ni se cuenta como parte de lo que la empresa "ya sabe". */
+export function leerPendientes(store, tenantId, filtro = {}) {
+  const todos = (store.leerHechosEmpresa(tenantId) || []).filter((h) => h.estado === "pendiente");
+  return todos.filter((h) => _pasaFiltro(h, filtro));
+}
+
 /** declararHecho(store, tenantId, aporte, opts?) → ResultadoAporte
  * aporte = { clase, concepto, eje?, entidad?, periodo?, valor?: {raw?, unidad?, texto?}, origen?, documento?,
  *            confirmacion?, reemplaza?: id, estado?: "pendiente"|"vigente" }
- * ResultadoAporte = { ok, id?, estado?, entendido?, conflictoCon?, reemplazo?, duplicado?, motivo? } — la MISMA
- * forma que el diseño §E espera de `aportarContexto` (para que la Etapa 3 lo llame sin traducir nada). */
+ * ResultadoAporte = { ok, id?, estado?, entendido?, conflictoCon?, reemplazo?, duplicado?, paraConfirmar?, motivo? }
+ * — la MISMA forma que el diseño §E espera de `aportarContexto` (para que la Etapa 3 lo llame sin traducir nada).
+ *
+ * ═══ CORRECCIÓN (owner 2026-09-26, ley aprobada, reportada por el supervisor tras el corte 9 de `capacidad/`):
+ * «un dato declarado o leído de un documento se devuelve para confirmar ANTES de usarlo; proponer es del modelo,
+ * confirmar es de la persona.» Antes de esta fecha, un aporte SIN colisión quedaba "vigente" de inmediato (sin
+ * pedir nada) — eso violaba la ley: ADI proponía y usaba en el mismo paso. Ahora TODO aporte nuevo (declarado o
+ * documento, las dos únicas procedencias que esta memoria admite) entra "pendiente", con `paraConfirmar:true` y
+ * el `entendido` canónico, para que el LLM se lo devuelva a la persona ANTES de que cuente como dato. La ÚNICA
+ * salida directa (sin pasar por "pendiente") es declarar EXACTAMENTE el mismo valor que YA está vigente — ahí no
+ * hay nada nuevo que confirmar, es la misma afirmación de vuelta. `confirmarHecho` es el ÚNICO camino que promueve
+ * un "pendiente" a "vigente" (con o sin conflicto que resolver: ver su cabecera) — y NUNCA toca el origen. */
 export function declararHecho(store, tenantId, aporte, { actorLabel = null, conversacionId = null } = {}) {
   if (!tenantId) return { ok: false, motivo: "sin empresa: no se declara nada sin saber de qué empresa es" };
   if (!_es(aporte)) return { ok: false, motivo: "el aporte tiene que ser un objeto" };
@@ -129,39 +149,46 @@ export function declararHecho(store, tenantId, aporte, { actorLabel = null, conv
 
   const candidato = {
     clase, concepto: String(aporte.concepto).trim(), eje: aporte.eje || null, entidad: aporte.entidad || null,
+    // «pendiente» SIEMPRE al nacer (ley 2026-09-26, ver la cabecera de esta función): proponer no es usar.
     periodo: aporte.periodo || null, valor, origen, documento: aporte.documento || null, confirmacion: null,
-    estado: "vigente", declaradoEn: _ahora(), actorLabel: actorLabel || null, conversacionId: conversacionId || null, reemplaza: null,
+    estado: "pendiente", declaradoEn: _ahora(), actorLabel: actorLabel || null, conversacionId: conversacionId || null, reemplaza: null,
   };
 
+  // la llave se compara contra lo VIGENTE **y contra lo PENDIENTE** (corrección 2026-09-26: desde que nace
+  // "pendiente", una llave declarada dos veces antes de confirmarse tiene que seguir siendo LA MISMA fila —
+  // "mismo aporte dos veces → mismo id, nunca dos filas nuevas al azar" — y un valor DISTINTO mientras la
+  // primera sigue sin confirmar tiene que declararse en conflicto igual que si ya estuviera vigente).
   const clave = claveDeHecho(candidato);
-  const colision = leerVigentes(store, tenantId, {}).find((h) => claveDeHecho(h) === clave);
+  const colision = [...leerVigentes(store, tenantId, {}), ...leerPendientes(store, tenantId, {})].find((h) => claveDeHecho(h) === clave);
 
   if (colision) {
-    /* (a) reemplazo EXPLÍCITO: se retira la vieja (con historia) y la nueva queda vigente con el vínculo */
-    if (aporte.reemplaza && String(aporte.reemplaza) === String(colision.id)) {
-      store.actualizarHechoEmpresa(tenantId, colision.id, { estado: "retirado" });
-      const guardado = store.guardarHechoEmpresa(tenantId, { ...candidato, id: _nuevoId(store), reemplaza: colision.id });
-      return { ok: true, id: guardado.id, estado: "vigente", entendido: guardado, reemplazo: colision.id };
-    }
-    /* (b) mismo valor: nada nuevo que declarar — se toca la confirmación si vino, NUNCA el origen ni el valor */
+    /* (a) mismo valor que el YA vigente: nada nuevo que declarar ni que confirmar — se toca la confirmación si
+     * vino, NUNCA el origen ni el valor. Es la ÚNICA salida directa (no pasa por "pendiente"). */
     if (_mismoValorDeclarado(candidato.valor, colision.valor)) {
       if (aporte.confirmacion) store.actualizarHechoEmpresa(tenantId, colision.id, { confirmacion: aporte.confirmacion });
-      return { ok: true, id: colision.id, estado: colision.estado, entendido: colision, duplicado: true };
+      return { ok: true, id: colision.id, estado: colision.estado, entendido: colision, duplicado: true, paraConfirmar: colision.estado === "pendiente" };
     }
-    /* (c) valor DISTINTO sin reemplazo explícito: NUNCA se pisa en silencio — entra pendiente, con el conflicto declarado */
-    const guardado = store.guardarHechoEmpresa(tenantId, { ...candidato, id: _nuevoId(store), estado: "pendiente" });
+    /* (b) valor DISTINTO del vigente — con reemplazo EXPLÍCITO (`aporte.reemplaza`) o sin él, da IGUAL: nunca se
+     * pisa en silencio y nunca se usa antes de confirmar. Entra "pendiente", con el conflicto declarado; si el
+     * aporte nombró explícitamente a qué hecho reemplaza, ese vínculo viaja ya en `reemplaza` (queda escrito, pero
+     * el retiro real del vigente ocurre RECIÉN al confirmar — `confirmarHecho({resolverConflicto:true})`, nunca acá). */
+    const reemplazaExplicito = aporte.reemplaza && String(aporte.reemplaza) === String(colision.id);
+    const guardado = store.guardarHechoEmpresa(tenantId, { ...candidato, id: _nuevoId(store), reemplaza: reemplazaExplicito ? colision.id : null });
     return { ok: true, id: guardado.id, estado: "pendiente", entendido: guardado, conflictoCon: colision.id, paraConfirmar: true };
   }
 
   const guardado = store.guardarHechoEmpresa(tenantId, { ...candidato, id: _nuevoId(store) });
-  return { ok: true, id: guardado.id, estado: guardado.estado, entendido: guardado };
+  return { ok: true, id: guardado.id, estado: guardado.estado, entendido: guardado, paraConfirmar: true };
 }
 
 /** confirmarHecho(store, tenantId, id, opts?) → ResultadoAporte
  * La confirmación es un SELLO APARTE (`{por, cuando, medio, sobre}`) — NUNCA cambia el origen (ley del owner,
  * textual: «un dato confirmado de un contrato sigue viniendo del contrato»). `resolverConflicto:true` promueve
- * un hecho `"pendiente"` (uno que había entrado con `conflictoCon`) a `"vigente"`, retirando al que chocaba —
- * es el ÚNICO camino para que un `"pendiente"` deje de serlo sin haber declarado `reemplaza` desde el principio. */
+ * un hecho `"pendiente"` a `"vigente"` — ES EL ÚNICO CAMINO, desde la corrección 2026-09-26 («proponer es del
+ * modelo, confirmar es de la persona»), para que CUALQUIER pendiente (con `conflictoCon` porque chocó con un
+ * vigente, o sin él porque era la primera vez que se declaraba esa llave — `declararHecho` ya no deja nada
+ * "vigente" de entrada) deje de serlo. Si además había un `conflictoCon` real (otro vigente con la misma llave),
+ * ese otro se retira acá — nunca antes de confirmar. */
 export function confirmarHecho(store, tenantId, id, { actorLabel = null, medio = "chat-anfitrion", resolverConflicto = false } = {}) {
   if (!tenantId) return { ok: false, motivo: "sin empresa: no se confirma nada sin saber de qué empresa es" };
   const todos = store.leerHechosEmpresa(tenantId) || [];
@@ -173,10 +200,14 @@ export function confirmarHecho(store, tenantId, id, { actorLabel = null, medio =
 
   if (resolverConflicto && h.estado === "pendiente") {
     const clave = claveDeHecho(h);
-    const otroVigente = todos.find((x) => x.estado === "vigente" && String(x.id) !== String(h.id) && claveDeHecho(x) === clave);
-    if (otroVigente) store.actualizarHechoEmpresa(tenantId, otroVigente.id, { estado: "retirado" });
+    // el competidor puede ser VIGENTE (chocó contra lo ya confirmado) o él mismo PENDIENTE (dos declaraciones
+    // sin confirmar todavía para la misma llave — corrección 2026-09-26: `declararHecho` ya compara contra
+    // ambos estados, así que confirmar tiene que poder retirar cualquiera de los dos, nunca dejar un pendiente
+    // huérfano compitiendo con el que se acaba de promover).
+    const otro = todos.find((x) => (x.estado === "vigente" || x.estado === "pendiente") && String(x.id) !== String(h.id) && claveDeHecho(x) === clave);
+    if (otro) store.actualizarHechoEmpresa(tenantId, otro.id, { estado: "retirado" });
     cambios.estado = "vigente";
-    if (otroVigente) cambios.reemplaza = otroVigente.id;
+    if (otro) cambios.reemplaza = otro.id;
   }
 
   const actualizado = store.actualizarHechoEmpresa(tenantId, id, cambios);

@@ -58,7 +58,11 @@ H("2 · mismo aporte dos veces → mismo id (nunca se pisa, nunca se duplica al 
   ok(r1.ok && r2.ok, "las dos declaraciones se aceptan", JSON.stringify({ r1, r2 }));
   ok(r1.id === r2.id, "★ mismo id: la segunda vez es el MISMO hecho, no uno nuevo", `r1.id=${r1.id} r2.id=${r2.id}`);
   ok(r2.duplicado === true, "la segunda declaración se marca «duplicado» (mismo valor, no hay nada nuevo)");
-  ok(leerVigentes(store, TENANT).length === 1, "sigue habiendo UNA sola fila vigente con esa llave");
+  // ACTUALIZADA (owner 2026-09-26, ley «proponer es del modelo, confirmar es de la persona»): `declararHecho`
+  // ya NO deja nada "vigente" al nacer — este aporte, sin confirmar, sigue "pendiente". La ley que este caso
+  // prueba (mismo aporte dos veces → una sola fila, nunca dos al azar) sigue intacta: se verifica sobre el
+  // TOTAL de filas de esa llave, no sobre `leerVigentes` (que hoy da 0, correctamente — nada se confirmó).
+  ok(leerVigentes(store, TENANT).length === 0 && store.leerHechosEmpresa(TENANT).length === 1, "sigue habiendo UNA sola fila con esa llave (pendiente, nadie la confirmó todavía)");
 }
 H("2b · determinismo de los ids del libro — E<n>.h<k>, nunca al azar");
 {
@@ -88,9 +92,14 @@ H("3 · la versión de datos cambia a mitad de la conversación: se declara (eve
 H("4 · sin conversacionId devuelto: se abre un libro nuevo y la memoria de EMPRESA no pierde nada");
 {
   const store = crearAlmacenEnMemoria();
-  declararHecho(store, TENANT, { clase: "criterio", concepto: "benchmark_margen", valor: { raw: 22, unidad: "pct" } }, { actorLabel: "jc", conversacionId: "c-vieja" });
+  // ACTUALIZADA (owner 2026-09-26, ley «proponer es del modelo, confirmar es de la persona»): declarar YA no
+  // deja nada vigente — para probar que la memoria de EMPRESA (lo que la empresa YA SABE, confirmado) sobrevive
+  // a perder el libro, este caso confirma el criterio antes de "perder" la conversación (si se dejara pendiente,
+  // seguiría sin ser dato — lo probado acá es otra cosa: que lo YA CONFIRMADO no depende del libro).
+  const declarado = declararHecho(store, TENANT, { clase: "criterio", concepto: "benchmark_margen", valor: { raw: 22, unidad: "pct" } }, { actorLabel: "jc", conversacionId: "c-vieja" });
+  confirmarHecho(store, TENANT, declarado.id, { actorLabel: "jc", resolverConflicto: true });
   const antes = leerVigentes(store, TENANT);
-  ok(antes.length === 1, "la empresa ya tiene un criterio declarado antes de «perder» el libro");
+  ok(antes.length === 1, "la empresa ya tiene un criterio declarado (y confirmado) antes de «perder» el libro");
 
   // el anfitrión no trae conversacionId: se emite uno NUEVO (nunca se reconstruye desde prosa)
   const libroPerdido = libroNuevo({ versionId: "v9" });
