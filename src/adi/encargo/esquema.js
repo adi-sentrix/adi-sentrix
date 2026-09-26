@@ -102,12 +102,17 @@ const _PRODUCTOR_RESIDUAL = {
    *   · `peso_costo` → hay una CIFRA con crudo real (`raw` finito, verificado en vivo: "Lider · Peso del costo" =
    *     72.88…%), pero NO sale de un `fig()` deliberado de ningún playbook: sale del AUTO-WALK de facts
    *     (`oracle/ledger.js:enrichFromFacts`/`_KEYLABEL.costShare = "Peso del costo"`, activo de verdad vía
-   *     `toolRunner.js:tiparBoleta` — la propia cabecera de `ledger.js` dice "sombra, no importado por el
-   *     pipeline vivo", y ESO YA NO ES CIERTO para `enrichFromFacts`/`tiparBoleta`/`recordCall`, que sí se
-   *     importan; una limpieza de esa cabecera queda fuera de este corte). Es la situación que se reporta al
-   *     supervisor en vez de resolverse a solas: `[]` se mantiene por ahora — declarar un productor para una
-   *     cifra que ningún playbook autoriza a propósito sería la MISMA clase de defecto que este corte cierra en
-   *     otro lado (una cifra sin dueño declarado). */
+   *     `toolRunner.js:tiparBoleta` — la cabecera de `ledger.js` ya NO dice "sombra, no importado por el pipeline
+   *     vivo": se corrigió ese comentario en el CORTE 3d.3/3d.4, owner 2026-09-26, «UNA SOLA VERDAD»). RESUELTO en
+   *     ese mismo corte, Opción B (la Entrega deja de servirlo, en vez de inventarle un productor): `costShare` se
+   *     calcula en AL MENOS dos sitios sin relación declarada entre sí (`specRetrieval.js:_costShare`, por SKU vía
+   *     el driver de un diagnóstico de margen, y `sentrix/reading.js`, dentro de la explicación "por qué" de una
+   *     lectura) — no hay UN productor único (tool, eje) que el validador pudiera declarar sin fabricar una
+   *     relación que no existe; sería inventar la MISMA clase de "segunda verdad" que este corte cierra en otro
+   *     lado. `componer.js:_planCifraEntidad` (rama "dame todo", sin `universo` declarado) ahora filtra por
+   *     `productorDe(clave, eje)` ANTES de servir una fig auto-caminada — la MISMA función que ya audita el
+   *     pedido explícito — así que «Peso del costo» ya no aparece en ninguna Entrega mientras seguir `[]` acá.
+   *     `[]` se mantiene: no es un placeholder pendiente, es la verdad declarada de que hoy no hay productor. */
   markup: ["cliente"], peso_costo: [],
   // salesRead (vs_anterior): sku NO (skusMargen no trae anterior)
   variacion: ["cliente", "marca", "familia", "canal"], variacion_usd: ["cliente", "marca", "familia", "canal"],

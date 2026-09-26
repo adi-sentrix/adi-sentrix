@@ -71,6 +71,16 @@ import { construirEncargoDeLaTabla } from "../conocimiento/tablaSenales.js";
 // candado de que lo pedido nunca cambia. Vive en su propio archivo (catálogo + motor), nunca mezclado con el
 // árbol de decisión de `_delegarRutaCanonica`/las 4 rutas fijas (que no la ejercitan — ver `_iniciativa_gate`).
 import { calcularIniciativa, MARCA_INICIATIVA, INICIATIVA_VALORES } from "./iniciativa.js";
+// CORTE 3d.3/3d.4 (owner 2026-09-25/26, `_ADI_DISENO_CORTE_3D.md` §B) — TAMAÑO GOBERNADO: la estructura de la
+// Entrega sigue SIEMPRE completa (`entrega.procedencia.libro`, `entrega.universos`); lo que se gobierna por
+// `encargo.profundidad` es el TEXTO servido (`respuesta`/`cifras.filas`) — `gobernarTamano` (puro, en su propio
+// archivo para no mezclar la PRIORIDAD del procedimiento con el árbol de decisión de arriba) recorta por
+// prioridad, nunca por aparición, y lo recortado va a `entrega.detalle` con los MISMOS ids («lo recortado no
+// desaparece»). `PROFUNDIDAD_VALORES`/`CAMPOS_RAIZ` son la MISMA fuente que ya valida `encargo/validar.js` —
+// nunca una segunda lista de profundidades válidas ni un segundo orden de campos del encargo.
+import { gobernarTamano } from "./tamano.js";
+import { PROFUNDIDAD_VALORES, CAMPOS_RAIZ, productorDe } from "../encargo/esquema.js";
+import { createHash } from "node:crypto";
 
 export const PREGUNTA_BRECHA_COMERCIAL = "¿dónde estoy perdiendo plata?";
 export const PREGUNTA_COBRANZA = "¿quién me debe más?";
@@ -1223,6 +1233,17 @@ function _planCifraEntidad(parte, figs, ref, I) {
       candidatas = [];
       for (const f of _figsDeEntidad(figs, e.nombre)) {
         const clave = _claveDeFig(f);
+        // UNA SOLA VERDAD (owner 2026-09-26, CORTE 3d — «Peso del costo») — el «dame todo» camina TODAS las figs
+        // de la entidad, incluidas las que llegan por el AUTO-WALK de `oracle/ledger.js:enrichFromFacts` (activo
+        // de verdad en `toolRunner.js`, no «sombra»): antes de este corte, un concepto que `validar.js` DECLINA
+        // cuando el usuario lo pide a propósito (`concepto_sin_productor` — hoy solo `peso_costo`, sin productor
+        // declarado para NINGÚN eje, `esquema.js:_PRODUCTOR_RESIDUAL.peso_costo = []`) igual se SERVÍA acá, sin
+        // que nadie lo pidiera — la MISMA cifra, autorizada para el «dame todo» y prohibida para el pedido
+        // explícito, dos verdades. Se elige la opción que respeta «toda cifra servida es una cifra autorizada del
+        // pipeline»: si el validador declina el concepto (cero ejes con productor), el «dame todo» tampoco lo
+        // sirve — nunca una tabla de excepciones a mano para «peso_costo»: es la MISMA función `productorDe` que
+        // ya audita el pedido explícito, aplicada acá con el MISMO criterio (regla general, no un caso especial).
+        if (clave && !productorDe(clave, e.eje)) continue;
         const llave = clave || `__sin_clave__:${_lab(f)}`;
         if (vistos.has(llave)) continue;   // ★ dedup por clave canónica — «la misma cifra nunca con dos rótulos»
         vistos.add(llave);
@@ -1679,35 +1700,112 @@ function _planComparacion(parte, figs, ref, declararDerivada) {
   return { kind: "comparacion", tema: parte.tema, parteId: parte.id, a: a.nombre, b: b.nombre, pares };
 }
 
-/* ── PLAN «simulacion» (`simulate*` ya resuelto por `lecturasDe`/`validar.js`: acá solo se clasifican las figs
- * que la tool devolvió en las CINCO piezas del plan (§1, ejemplo §7): base · supuesto · resultado · delta ·
- * límites. Ninguna pieza que la tool no sostenga se inventa — se declara ausente (mecanismo 7: «lo que no está en
- * los datos se dice como hallazgo, no como excusa»). El SUPUESTO no es una fig: es el dato del encargo que el
- * usuario ya declaró (`Supuesto`, procedencia `supuesto_usuario`) — la casa no lo verifica contra la boleta,
- * solo lo cita con su dueño. ── */
-function _planSimulacion(parte, figs, supuesto, ref, declararDerivada) {
-  if (!figs.length) return null;
-  const resultado = [], base = [];
+/* CORTE 3d (owner 2026-09-26) — el CONCEPTO de negocio de un supuesto, nunca su `tipo` interno («custom» es
+ * jerga del sistema, no una palabra que un dueño de negocio reconozca). El tipo YA es un concepto nombrado
+ * (`config/contract/assumptionRegistry.js`, §7.1): carga/costo/price/growth/margin — un supuesto sin concepto
+ * nombrable (`custom` no migrado) ya NO llega acá (`validar.js:_resolverSupuestosRaiz` lo declina antes,
+ * `supuesto_mal_formado`); el `null` de abajo es defensivo, para un caso legado que no pasó por esa validación. */
+const _CONCEPTO_DE_SUPUESTO = { carga: "la carga comercial", costo: "el costo", price: "el precio", growth: "el volumen", margin: "el margen" };
+function _fraseDeSupuesto(s) {
+  if (!s) return null;
+  // «liberar el capital inmovilizado» (simulateCapital) es una acción SIN parámetro numérico — no hay «−1%» que
+  // nombrar en prosa (el problema que motivó este corte), así que `tipo:"custom"` acá nunca fue jerga: se queda
+  // como estaba (validar.js no lo retiró, ver su comentario en `_productorDeSupuesto`).
+  if (s.productor === "simulateCapital") return "liberar el capital inmovilizado";
+  const concepto = _CONCEPTO_DE_SUPUESTO[s.tipo];
+  if (!concepto || !Number.isFinite(s.valor)) return null;
+  const magnitud = Math.abs(s.valor);
+  const unidadTxt = s.unidad === "pp" ? (magnitud === 1 ? "1 punto" : `${magnitud} puntos`) : s.unidad === "pct" ? `${magnitud}%` : `${magnitud} ${s.unidad}`;
+  const verbo = s.valor > 0 ? "sube" : s.valor < 0 ? "baja" : "se mueve";
+  return `${concepto} ${verbo} ${unidadTxt}`;
+}
+const _capitaliza = (s) => { const t = String(s || ""); return t ? t.charAt(0).toUpperCase() + t.slice(1) : t; };
+
+/* ── PLAN «simulacion» (`simulate*` ya resuelto por `lecturasDe`/`validar.js`) — CADA hecho de la simulación
+ * lleva su DUEÑO (owner 2026-09-26, error MATERIAL hallado en D27: 96 filas de clientes que la parte NUNCA pidió,
+ * cifras "Base (real)"/"Resultado" sin entidad). Se organiza por BLOQUE (uno por entidad del universo pedido, más
+ * un bloque "Negocio" para lo que la tool devuelve sin entidad propia — benchmark, montos agregados): CADA bloque
+ * declara su `entidad`, y dentro de él se clasifican las CINCO piezas del plan (§1, ejemplo §7): base · supuesto ·
+ * resultado · delta · límites. Ninguna pieza que la tool no sostenga se inventa — se declara ausente.
+ *
+ * UNIVERSO (§3 de la garantía) — el filtro es por ENTIDAD RESUELTA (`I.resolverEntidad`, la MISMA que ya usa
+ * `notario/evidencia.js` para no confundir «Supuesto · movimiento de carga» con una entidad llamada «Supuesto»),
+ * nunca por texto: toda fig cuya entidad resuelta no esté en `parte.entidades`/el alcance del supuesto se
+ * DESCARTA y se cuenta (`descartadasFueraDeUniverso`) — nunca se sirve en silencio ni se pierde sin rastro.
+ *
+ * El SUPUESTO no es una fig: es el dato del encargo que el usuario ya declaró (`Supuesto`, procedencia
+ * `supuesto_usuario`) — la casa no lo verifica contra la boleta, solo lo cita con su dueño y su concepto. */
+function _planSimulacion(parte, figs, supuesto, ref, declararDerivada, I) {
+  if (!figs.length || !supuesto) return null;
+  const fraseSupuesto = _fraseDeSupuesto(supuesto);
+  if (!fraseSupuesto) return { kind: "simulacion", tema: parte.tema, parteId: parte.id, sinConcepto: true, supuesto };
+
+  // el universo pedido: PRIMERO la Resolucion (`parte.entidades`, ask 3 — «el plan se arma solo con las entidades
+  // y el universo de la Resolucion»); si la parte no trae entidades explícitas, el alcance del propio supuesto.
+  const nombresDeParte = (parte.entidades || []).map((e) => e.nombre).filter(Boolean);
+  const nombrePedido = supuesto.alcance && supuesto.alcance !== "negocio" ? supuesto.alcance.nombre : null;
+  const entidadesPermitidas = nombresDeParte.length ? new Set(nombresDeParte) : (nombrePedido ? new Set([nombrePedido]) : null);
+
+  const bloquesPorEntidad = new Map();
+  const negocio = { base: [], resultado: [] };
+  let descartadas = 0;
   for (const f of figs) {
-    const concepto = _conceptoDeLabel(_lab(f));
+    const label = _lab(f);
+    const partesLabel = String(label || "").split(/\s+·\s+/);
+    let entidad = null, concepto = _conceptoDeLabel(label);
+    if (partesLabel.length > 1 && I && typeof I.resolverEntidad === "function") {
+      const e0 = I.resolverEntidad(partesLabel[0]);
+      if (e0) { entidad = e0.nombre; concepto = partesLabel.slice(1).join(" · "); }
+      else if (partesLabel.length === 2) {
+        // convención invertida de algún composer («Lectura relativa descartada · Falabella»): la entidad real
+        // queda AL FINAL — se reconoce por la MISMA resolución, nunca por una lista de rótulos a mano.
+        const eN = I.resolverEntidad(partesLabel[1]);
+        if (eN) { entidad = eN.nombre; concepto = partesLabel[0]; }
+      }
+    }
+    if (entidad && entidadesPermitidas && !entidadesPermitidas.has(entidad)) { descartadas++; continue; }
     const id = ref(f);
     if (!id) continue;
-    if (/supuest[oa]|meta\s*·/i.test(concepto)) resultado.push({ concepto, id, fig: f });
-    else base.push({ concepto, id, fig: f });
+    const grupo = entidad ? (bloquesPorEntidad.get(entidad) || (bloquesPorEntidad.set(entidad, { entidad, base: [], resultado: [] }), bloquesPorEntidad.get(entidad))) : negocio;
+    // simulateCapital («liberar el capital inmovilizado») es una acción SIN estado "antes" que contrastar — no
+    // hay un "supuesto"/"meta" en el rótulo (a diferencia de carga/costo) porque no hay una comparación base↔
+    // resultado, solo el efecto de la acción — así que TODA fig de entidad de este productor ES el resultado
+    // (nunca queda vacío el bloque, nunca se le pide una "base" que este productor no publica).
+    const esAccionSinBase = entidad && supuesto.productor === "simulateCapital";
+    if (esAccionSinBase || /supuest[oa]|meta\s*·/i.test(concepto)) grupo.resultado.push({ concepto, id, fig: f });
+    else grupo.base.push({ concepto, id, fig: f });
   }
-  if (!resultado.length && !base.length) return null;
-  // delta: cuando resultado[0] y una base con el MISMO prefijo de concepto (ej. «Costo» ↔ «Costo supuesto») existen —
-  // nunca un delta entre conceptos distintos.
-  let idDelta = null;
+
+  // EMPAREJAMIENTO base↔resultado — SIEMPRE dentro del MISMO bloque (misma entidad, mismo escenario), cuando un
+  // resultado y una base comparten el MISMO prefijo de concepto (ej. «Margen actual» ↔ «Margen supuesto»). Nunca
+  // un par entre conceptos distintos ni entre bloques distintos (eso sería comparar entidades, un hecho
+  // `comparacion` aparte, fuera de alcance porque el motor de hoy corre UN supuesto por parte — nunca dos
+  // escenarios a la vez). El par es la unidad que la garantía "comparables juntas" narra («de 22,0 % a 23,0 %»,
+  // owner 2026-09-26): NUNCA se sirve un "resultado" sin decir de dónde partió, cuando el dato SÍ trae esa base.
   const _normConcepto = (s) => String(s || "").replace(/\s*(actual|supuest[oa]|propuest[oa])\s*$/i, "").trim().toLowerCase();
-  if (resultado.length) {
-    for (const r of resultado) {
+  const _emparejar = (grupo) => {
+    const pares = [], resultadoSueltos = [];
+    for (const r of grupo.resultado) {
       const prefijo = _normConcepto(r.concepto);
-      const b0 = base.find((x) => _normConcepto(x.concepto) === prefijo);
-      if (b0) { idDelta = declararDerivada(r.fig, r.id, b0.fig, b0.id); if (idDelta) break; }
+      const b0 = grupo.base.find((x) => _normConcepto(x.concepto) === prefijo);
+      if (b0) pares.push({ concepto: prefijo, base: b0, resultado: r }); else resultadoSueltos.push(r);
     }
+    const idsBaseEnPares = new Set(pares.map((p) => p.base.id));
+    const baseSinPar = grupo.base.filter((b) => !idsBaseEnPares.has(b.id));
+    return { pares, resultadoSueltos, baseSinPar };
+  };
+
+  const bloques = [];
+  for (const [, grupo] of bloquesPorEntidad) {
+    if (!grupo.base.length && !grupo.resultado.length) continue;
+    const { pares, resultadoSueltos, baseSinPar } = _emparejar(grupo);
+    let idDelta = null, deltaConcepto = null;
+    for (const p of pares) { const id = declararDerivada(p.resultado.fig, p.resultado.id, p.base.fig, p.base.id); if (id) { idDelta = id; deltaConcepto = p.concepto; break; } }
+    bloques.push({ entidad: grupo.entidad, pares, resultadoSueltos, baseSinPar, idDelta, deltaConcepto, sinDelta: !idDelta });
   }
-  return { kind: "simulacion", tema: parte.tema, parteId: parte.id, supuesto, base, resultado, idDelta, sinDelta: !idDelta };
+  if (!bloques.length && !negocio.base.length && !negocio.resultado.length) return null;
+
+  return { kind: "simulacion", tema: parte.tema, parteId: parte.id, supuesto, fraseSupuesto, bloques, negocio, descartadasFueraDeUniverso: descartadas, universoPedido: entidadesPermitidas ? [...entidadesPermitidas] : null };
 }
 
 /* ── PLAN «definicion» — sin figs, sin dígitos: `defineConcept` nunca lee la boleta (contrato §1.1). ─────────── */
@@ -1759,13 +1857,133 @@ function _periodoGeneralPorDominio({ figsUsadas, temasCubiertos, rp, plan }) {
   return noCobranza;
 }
 
+// CORTE 3d.3 (owner 2026-09-25/26) — `encargo.profundidad` ya lo valida `validar.js` (solo membresía de enum: un
+// valor inválido queda en `noResuelto`, nunca bloquea el encargo — el compositor cae al default). Acá se REUSA
+// la MISMA lista (`PROFUNDIDAD_VALORES`), nunca una segunda regla de qué profundidad es válida.
+function _profundidadDe(resolucion) {
+  const p = resolucion && resolucion.encargo && resolucion.encargo.profundidad;
+  return PROFUNDIDAD_VALORES.includes(p) ? p : "completa";
+}
+// el título vive SOLO en la primera línea del texto ya renderizado (`**ENTREGA ADI · <título>**`, ver
+// `_textoDeLaEntrega`) — nunca se duplicó en `entrega` porque hasta este corte nadie necesitaba re-renderizar un
+// resultado ya armado. Extraerlo de ahí (en vez de inventar un segundo campo `entrega.titulo`) es lo mínimo para
+// que `gobernarTamano` pueda volver a llamar a `_textoDeLaEntrega` con el MISMO título, incluso sobre el
+// resultado ya delegado de una ruta fija.
+function _tituloDeTexto(texto) {
+  const m = /^\*\*ENTREGA ADI · (.+)\*\*/.exec(String(texto || "").split("\n", 1)[0] || "");
+  return m ? m[1] : "Su encargo";
+}
+// CORTE 3d.4 (owner 2026-09-26) — `entregaRef` determinístico: MISMO tenant + MISMA versión de datos + MISMO
+// encargo canónico ⇒ MISMO ref, sin cálculo nuevo (para que «deme la fila completa de e14» se resuelva por
+// identidad, no por recomputar). El "tenant" es el que el Marco ya declara (`entrega.marco.empresa`, la MISMA
+// fuente que ya imprime la Entrega — nunca una segunda identidad de tenant); la "versión de datos" es el
+// `scenario` activo (`config/scenarios.js` — el único versionado de datos que existe en este corte de
+// desarrollo; Etapa 2/Supabase reemplazará esto por un version-id real sin tocar la forma del ref). El encargo
+// se canoniza con el MISMO orden de campos que `CAMPOS_RAIZ` (esquema.js) declara — nunca el orden en que el
+// llamador escribió las claves, para que dos serializaciones del MISMO encargo (distinto orden de teclas) den el
+// MISMO hash.
+function _encargoCanonico(encargo) {
+  if (!encargo || typeof encargo !== "object") return {};
+  const out = {};
+  for (const campo of CAMPOS_RAIZ) if (campo in encargo) out[campo] = encargo[campo];
+  return out;
+}
+function _entregaRefDe(tenant, scenario, encargo) {
+  const canon = JSON.stringify(_encargoCanonico(encargo));
+  const h = createHash("sha1").update(`${tenant || ""}|${scenario}|${canon}`).digest("hex");
+  return `E:${h}`;
+}
+// aplica `gobernarTamano` sobre CUALQUIER resultado ya armado — la ruta general Y las 4 rutas fijas DELEGADAS
+// (nunca las 4 funciones exportadas cuando se llaman DIRECTO: esas quedan byte a byte, ver la cabecera del
+// archivo). Con las 4 rutas fijas de hoy (D08-D11, medidas: todas caben bajo el tope de "completa" sin recortar
+// nada) esto es un no-op de TEXTO — el candado de equivalencia byte a byte (`_entrega_general_gate` sección 1)
+// solo compara `.texto`, así que agregar `entrega.meta`/`entrega.detalle` acá no lo rompe.
+// CORTE 3d.3 (owner 2026-09-26, ronda final) — «breve ≤ 350 en TODO, incluidos los resultados DELEGADOS»: las 4
+// rutas fijas no declaran `.prioridad` (nunca se tocan) — acá, ANTES de gobernar, se marca prioridad 0 en la
+// oración que YA es la conclusión del procedimiento por LEY (CLAUDE.md §2 ley 4): la que abre con «Prioridad del
+// procedimiento» o «Quien más pesa en el conjunto». Un ítem que YA declara `.prioridad` (el camino general, que
+// la asigna en FASE 2) se deja intacto — esto NUNCA pisa una prioridad ya explícita, solo rellena la de las
+// rutas fijas, que no tienen ninguna.
+const _MARCADOR_CONCLUSION_INTEGRADA = /^(Prioridad del procedimiento|Quien m[aá]s pesa en el conjunto)/;
+// CORTE 3d.3 (owner 2026-09-26, cierre de "breve") — la entidad PRIORITARIA de una Entrega es la que nombra la
+// conclusión integrada («Prioridad del procedimiento…»/«Quien más pesa en el conjunto…», el veredicto de
+// `prioridadIntegrada`) — se REUSA esa MISMA oración para decidir, en "breve", cuál pregunta de "Para su juicio"
+// se sirve (garantía: nunca una segunda definición de "quién va primero", la del procedimiento es la única).
+function _entidadPrioritariaDeEntrega(entrega) {
+  const concl = (entrega.respuesta || []).find((r) => _MARCADOR_CONCLUSION_INTEGRADA.test(r.texto || ""));
+  if (!concl) return null;
+  const m = /(?:riesgo integrado|mayor contribuci[oó]n en juego|mayor capital frenado)\s*:\s*(?:abrir primero\s+)?([^,.:;—(]+)/i.exec(concl.texto || "");
+  return m ? m[1].trim() : null;
+}
+// la ORACIÓN de guía de uso genérica del Marco (fallback de `_vacia`/simulación cuando `entrega.marco.
+// definiciones` no trae nada propio) — es una instrucción de CÓMO LEER la Entrega, no un hecho del negocio; en
+// "breve" se retira del Marco y se declara en `detalle.notaDeUso` (nunca desaparece, cambia de sección).
+const _esGuiaDeUsoGenerica = (s) => /^Cada cifra de esta Entrega viaja con su dueño/.test(String(s || ""));
+
+// CORTE 3d.3 (owner 2026-09-26, cierre del corte; renombrado owner 2026-09-26 por `_colapso_eje_gate` C4) — «el
+// tope de 8 filas es un MÁXIMO, no una garantía; si hay celdas con texto largo (rótulos de supuesto/simulación)
+// que se REPITEN en cada fila, en "breve" se abrevian con el rótulo corto de la casa». Nunca cambia `f.valores`
+// (la estructura de la fila queda IDÉNTICA en breve y en completa — el candado "breve ⊂ completa" compara
+// `f.valores` byte a byte): es una transformación de RENDER, aplicada solo al imprimir la tabla.
+// `_ROTULO_CORTO_COLUMNA` cubre las columnas que hoy repiten el MISMO valor en cada fila de una simulación
+// (Simulación siempre es "Simulación declarada por usted"; Supuesto es la MISMA frase de negocio para las N
+// filas del bloque) — nunca las columnas que sí varían por fila (Entidad, Métrica, Valor, Tipo).
+function _supuestoCorto(fraseCompleta) {
+  const s = String(fraseCompleta || "");
+  if (/^liberar/i.test(s)) return "Liberar capital";
+  const m = /^(?:la |el )?([a-záéíóúñ ]+?)\s+(sube|baja|se mueve)\s+(\d+(?:[.,]\d+)?)\s*(punto|puntos|%|[a-záéíóúñ]+)/i.exec(s);
+  if (!m) return s;
+  const concepto = _capitaliza(m[1].trim());
+  const signo = /^baja$/i.test(m[2]) ? "−" : /^sube$/i.test(m[2]) ? "+" : "";
+  const unidad = /^punto/i.test(m[4]) ? "pp" : m[4] === "%" ? "%" : ` ${m[4]}`;
+  return `${concepto} ${signo}${m[3]}${unidad}`;
+}
+// «Declarada» (concuerda con «la simulación», femenino) — antes «Declarado» (concordaba con «el escenario»).
+const _ROTULO_CORTO_COLUMNA = { "Simulación": () => "Declarada", Supuesto: (v) => _supuestoCorto(v) };
+function _conPrioridadDeConclusion(entrega) {
+  if (!Array.isArray(entrega.respuesta) || !entrega.respuesta.length) return entrega;
+  let cambio = false;
+  const respuesta = entrega.respuesta.map((r) => {
+    if (typeof r.prioridad === "number" || !_MARCADOR_CONCLUSION_INTEGRADA.test(r.texto || "")) return r;
+    cambio = true;
+    return { ...r, prioridad: 0 };
+  });
+  return cambio ? { ...entrega, respuesta } : entrega;
+}
+
+function _conTamanoGobernado(resultado, resolucion) {
+  if (!resultado || !resultado.ok || !resultado.entrega) return resultado;
+  const profundidad = _profundidadDe(resolucion);
+  const titulo = _tituloDeTexto(resultado.texto);
+  const entregaConPrioridad = _conPrioridadDeConclusion(resultado.entrega);
+  const { entrega: entregaGob, detalle, meta, texto } = gobernarTamano(entregaConPrioridad, profundidad, _textoDeLaEntrega, titulo);
+  const encargoCrudo = resolucion && resolucion.encargo;
+  const comoPedirlo = encargoCrudo ? { ..._encargoCanonico(encargoCrudo), profundidad: "completa" } : null;
+  // NOTA DE USO (owner 2026-09-26, cierre del corte) — dos fuentes posibles, combinadas en un ARRAY (nunca se
+  // pisan): la libertad narrativa de una simulación en bloques (siempre que haya bloques, cualquier profundidad)
+  // y la guía de uso genérica del Marco («Cada cifra…»), que en "breve" se retira del Marco y se declara acá —
+  // la MISMA condición que `_textoDeLaEntrega` usa para omitirla del render (nunca dos criterios distintos).
+  const notas = [];
+  if (entregaGob._simulacionConBloques) notas.push("Narre con libertad; nombre la simulación o la entidad solo cuando una cifra salga de su bloque o se compare con otra.");
+  if (profundidad === "breve" && (entregaGob.marco.definiciones || []).some(_esGuiaDeUsoGenerica)) notas.push("Cada cifra de esta Entrega viaja con su dueño, su período y su origen; universos distintos nunca se suman.");
+  // CORTE 3d (owner 2026-09-26, garantía §3 de la simulación) — `descartadasFueraDeUniverso`: cuántas figs
+  // descartó `_planSimulacion` por pertenecer a una entidad que la parte NO pidió (nunca servidas, nunca
+  // silenciadas del todo: el conteo queda en `meta`). `0` cuando la Entrega no tiene ninguna simulación.
+  const entrega = {
+    ...entregaGob,
+    detalle: { ...(detalle || {}), comoPedirlo, ...(notas.length ? { notaDeUso: notas } : {}) },
+    meta: { ...meta, entregaRef: _entregaRefDe(entregaGob.marco && entregaGob.marco.empresa, ESCENARIO_INICIAL, encargoCrudo), descartadasFueraDeUniverso: resultado.entrega._simulacionDescartadas || 0, descartadasJergaInterna: resultado.entrega._simulacionDescartadasJerga || 0 },
+  };
+  return { ...resultado, texto, entrega };
+}
+
 /** componerEntrega(resolucion) → { texto, entrega, libro, ok, motivo }. Recibe la `Resolucion` del validador
  *  (`encargo/validar.js`), corre `lecturasDe(resolucion)` sobre el Core y arma la Entrega de siete partes para
  *  CUALQUIER encargo válido — generalización de las 4 funciones de arriba (que quedan como envolturas/fixtures
  *  de equivalencia, ver la cabecera). CERO lectura de `resolucion.encargo.preguntaOriginal` (carnada del gate). */
 export function componerEntrega(resolucion) {
   const canonica = _delegarRutaCanonica(resolucion);
-  if (canonica) return canonica;
+  if (canonica) return _conTamanoGobernado(canonica, resolucion);
 
   if (!resolucion || !Array.isArray(resolucion.partes)) return _vacia("sin resolución: nada que componer");
   const partesUtiles = resolucion.partes.filter((p) => p.estado === "resuelta" || p.estado === "parcial");
@@ -1882,7 +2100,7 @@ export function componerEntrega(resolucion) {
       const crudaP = ((resolucion.encargo && resolucion.encargo.partes) || []).find((x) => x && x.id === p.id);
       const citados = crudaP && Array.isArray(crudaP.supuestos) ? crudaP.supuestos : [];
       const supuesto = citados.map((sid) => (resolucion.supuestos || []).find((s) => s.id === sid)).find(Boolean) || null;
-      const planS = _planSimulacion(p, figsDeP, supuesto, ref, declararDerivada);
+      const planS = _planSimulacion(p, figsDeP, supuesto, ref, declararDerivada, I);
       if (planS) planes.push(planS);
     } else if (p.cierre === "definicion") {
       // la call de ESTA parte es SIEMPRE una sola (`_pasosDefinicion`, lecturasDe.js) — se ubica por su índice
@@ -1963,7 +2181,19 @@ export function componerEntrega(resolucion) {
   const entrega = crearEntrega();
   const cifrasImpresas = [];
   const R = (id) => { const v = renderDe(libro, id); if (v != null) cifrasImpresas.push(v); return v; };
-  entrega.cifras.columnas = ["Entidad / grupo", "Tema", "Métrica", "Valor", "Tipo"];
+  // CORTE 3d (owner 2026-09-26) — una simulación tiene su PROPIA forma de tabla (Entidad · Simulación · Supuesto ·
+  // Métrica · Valor · Tipo, garantía §2 de la simulación): «la fila es indivisible», no cabe en las columnas
+  // genéricas de arriba (que no declaran de qué simulación/supuesto sale un valor). Hoy NINGÚN caso del catálogo
+  // mezcla `simulacion` con otro cierre en el MISMO encargo (`_simulacion_dueno_gate.mjs` lo prueba) — si algún
+  // día un encargo mezclara los dos, esta rama seguiría siendo la correcta para la tabla ENTERA solo cuando TODO
+  // el encargo es simulación; mezclar de verdad dos formas de tabla en una queda fuera de este corte (se
+  // reportaría, no se improvisa una tercera forma). Columna "Simulación" (antes "Escenario", retirado owner
+  // 2026-09-26 — `_colapso_eje_gate` C4: el CONCEPTO visible «escenario» murió, «simulación» es la palabra en
+  // TODO texto emitido; el campo estructural sigue llamándose `escenarioId` internamente, eso no es texto).
+  const _esSoloSimulacion = planes.length > 0 && planes.every((p) => p.kind === "simulacion");
+  entrega.cifras.columnas = _esSoloSimulacion
+    ? ["Entidad", "Simulación", "Supuesto", "Métrica", "Valor", "Tipo"]
+    : ["Entidad / grupo", "Tema", "Métrica", "Valor", "Tipo"];
   const temasCubiertos = new Set();
   const _fila = (entidad, tema, etiqueta, id) => { const procedencia = _procedenciaDeFila(libro, [id]); return { valores: { "Entidad / grupo": entidad, "Tema": _DOM_NOMBRE[tema] || tema, "Métrica": etiqueta, "Valor": R(id), "Tipo": _textoDeTipo(procedencia) }, hechos: [id], procedencia }; };
 
@@ -2059,21 +2289,148 @@ export function componerEntrega(resolucion) {
       _declararUniverso(entrega, I, { id: plan.parteId, eje: (resolucion.partes.find((p) => p.id === plan.parteId) || {}).eje || "cliente", entidades: [plan.a, plan.b] });
     } else if (plan.kind === "simulacion") {
       temasCubiertos.add(plan.tema);
-      for (const b of plan.base) entrega.cifras.filas.push(_fila("Base (real)", plan.tema, b.concepto, b.id));
-      for (const r of plan.resultado) entrega.cifras.filas.push(_fila("Resultado (con el supuesto)", plan.tema, r.concepto, r.id));
-      if (plan.idDelta) entrega.cifras.filas.push(_fila("Delta", plan.tema, "Resultado − base", plan.idDelta));
-      // el valor del supuesto NO es un hecho del libro (es el dato que el usuario ya declaró, procedencia
-      // `supuesto_usuario` — plan §1 «de qué tipo: medido, estimado, supuesto suyo»): se registra en
-      // `cifrasImpresas` igual que el período o el universo (mismo patrón que las 4 rutas fijas), para que la
-      // regla «cero cifras desnudas» no lo confunda con un número sin dueño.
-      const _valorSupuesto = plan.supuesto ? `${plan.supuesto.valor}${plan.supuesto.unidad === "pct" ? "%" : plan.supuesto.unidad === "pp" ? "pp" : ""}` : null;
-      if (_valorSupuesto) cifrasImpresas.push(_valorSupuesto);
-      const sTxt = plan.supuesto ? `${plan.supuesto.tipo} ${_valorSupuesto}${plan.supuesto.unidad !== "pct" && plan.supuesto.unidad !== "pp" ? ` ${plan.supuesto.unidad}` : ""}, declarado por usted (supuesto suyo, no medido)` : "un supuesto declarado por usted";
-      const rFrases = plan.resultado.slice(0, 3).map((r) => `${r.concepto.toLowerCase()} ${R(r.id)}`);
-      const texto = `Simulación — supuesto: ${sTxt}. Resultado: ${rFrases.join(", ") || "sin cifra propia de este escenario"}${plan.idDelta ? `; delta contra lo real: ${R(plan.idDelta)}` : ""}.`;
-      entrega.respuesta.push({ texto, hechos: [...plan.base.map((b) => b.id), ...plan.resultado.map((r) => r.id), plan.idDelta].filter(Boolean) });
-      entrega.limites.push({ titulo: "Este resultado es un escenario hipotético, no lo que ya ocurrió", motivo: "El supuesto lo declaró usted; ADI calcula el efecto sobre el dato real, pero no afirma que vaya a pasar." });
-      if (plan.sinDelta) entrega.limites.push({ titulo: "El delta contra lo real no se pudo aislar como cifra propia", motivo: "La simulación no publicó una cifra 'base' con el mismo concepto que el resultado: se declara la base y el resultado por separado, sin restar a mano." });
+      if (plan.sinConcepto) {
+        // supuesto sin concepto de negocio nombrable — no debería llegar acá (validar.js ya lo declina antes),
+        // defensivo: se declina la parte en vez de imprimir el tipo interno del sistema («custom») en prosa.
+        limitesGap.push({ titulo: `Sobre la parte ${plan.parteId} (${_DOM_NOMBRE[plan.tema] || plan.tema}), el supuesto no declara un concepto de negocio`, motivo: "El tipo del supuesto no tiene un nombre de negocio en el registro (carga, costo, precio, volumen o margen) — se declina en vez de imprimir el tipo interno del sistema." });
+      } else {
+        // SIMULACIÓN Y SUPUESTO (garantía §1/§2, owner 2026-09-26; renombrado owner 2026-09-26 por
+        // `_colapso_eje_gate` C4 — «el CONCEPTO visible "escenario" murió», ley 2026-08-07: el dato es UNA sola
+        // realidad, Simulate v2 queda porque el "¿qué pasa si…?" es una pregunta del usuario, NUNCA un mundo
+        // alterno permanente con nombre propio). En texto EMITIDO (prosa, encabezados, columnas y celdas) la
+        // palabra es SIEMPRE «simulación» — «escenario» solo puede seguir viviendo en identificadores
+        // ESTRUCTURALES que nunca se imprimen (`escenarioId`, `plan.supuesto.id`), nunca en una variable cuyo
+        // VALOR se compone en el texto servido (por eso esta variable ya no se llama `escenarioTxt`). Hoy el
+        // motor corre UN supuesto por parte, así que "simulación" y "supuesto" comparten identidad
+        // (`plan.supuesto.id`): son dos campos DISTINTOS en la tabla (nunca se funden en uno) porque un motor
+        // futuro con variantes múltiples los separaría sin cambiar esta forma. El rótulo es SIEMPRE el concepto
+        // de negocio (`plan.fraseSupuesto`) — nunca «custom».
+        const simulacionTxt = `Simulación declarada por usted`;
+        const supuestoTxt = _capitaliza(plan.fraseSupuesto);
+        const _valorSupuesto = `${Math.abs(plan.supuesto.valor)}${plan.supuesto.unidad === "pct" ? "%" : plan.supuesto.unidad === "pp" ? " puntos" : ` ${plan.supuesto.unidad}`}`;
+        cifrasImpresas.push(_valorSupuesto);
+
+        // `prioridad` (opcional, default 0 — "Negocio" nunca se recorta: es el contexto compartido de TODOS los
+        // bloques) — cuando se pasa, iguala la del bloque dueño de la fila (misma prioridad explícita que sus
+        // oraciones, ver más abajo), para que `gobernarTamano` recorte fila+oración del mismo bloque JUNTAS.
+        const _filaSim = (entidadTxt, etiqueta, id, prioridad = 0) => {
+          const procedencia = _procedenciaDeFila(libro, [id]);
+          return { valores: { Entidad: entidadTxt, "Simulación": simulacionTxt, Supuesto: supuestoTxt, Métrica: etiqueta, Valor: R(id), Tipo: _textoDeTipo(procedencia) }, hechos: [id], procedencia, entidad: entidadTxt === "Negocio" ? "negocio" : entidadTxt, escenarioId: plan.supuesto.id, supuestoId: plan.supuesto.id, prioridad };
+        };
+
+        // LÉXICO DE LA CASA (owner 2026-09-26, ronda final del corte) — la tabla de una simulación sirve SOLO
+        // filas con PAPEL DE NEGOCIO: la REFERENCIA (benchmark/umbral declarado — UNA vez por concepto, nunca
+        // repetida entre "Negocio" y una entidad), los PARES base↔resultado, el IMPACTO en $ (liberado/
+        // comprometido, por entidad) y el DELTA. Todo lo demás — «Lectura relativa descartada», «movimiento de
+        // carga» (duplica la columna Supuesto), un «total» agregado que duplica el impacto de la única entidad en
+        // alcance — es jerga interna del motor: no le dice nada al LLM y puede inducirlo a error. Se descarta y
+        // se cuenta en `meta.descartadasJergaInterna`, nunca se sirve.
+        // la CLAVE de dedup es por CONCEPTO CANÓNICO, no por texto exacto — «Benchmark» y «Benchmark de margen»
+        // son la MISMA referencia con dos redacciones (dos composers distintos la nombran distinto); si se
+        // dedupara por texto exacto, la variante corta se colaría como si fuera otra referencia (el defecto
+        // medido: D27 servía "Benchmark de margen" en Negocio Y "Benchmark" en Falabella, duplicados).
+        const _ES_IMPACTO_SIM = (c) => /^(liberad[oa]|comprometid[oa]|liberable)$/i.test(String(c || "").trim());
+        const _CLAVE_REFERENCIA_SIM = (c) => {
+          const s = String(c || "").trim().toLowerCase();
+          if (/^benchmark\b/.test(s)) return "benchmark";
+          if (/^rotaci[oó]n m[ií]nima$/.test(s)) return "rotacion_minima";
+          if (/^cobertura m[aá]xima$/.test(s)) return "cobertura_maxima";
+          return null;
+        };
+        const _referenciasServidas = new Set();   // clave canónica → ya se sirvió una vez
+        const _referenciaServible = (item) => {
+          const clave = _CLAVE_REFERENCIA_SIM(item.concepto);
+          if (!clave || _referenciasServidas.has(clave)) return false;
+          _referenciasServidas.add(clave);
+          return true;
+        };
+        let descartadasJergaInterna = 0;
+
+        // NEGOCIO — SOLO la(s) referencia(s) (benchmark, umbrales de la política): el resto (montos agregados,
+        // el supuesto repetido) es jerga interna. SIEMPRE prioridad 0: es el contexto de todos los bloques.
+        const negocioServible = [...plan.negocio.base, ...plan.negocio.resultado].filter((item) => {
+          const ok = _referenciaServible(item);
+          if (!ok) descartadasJergaInterna++;
+          return ok;
+        });
+        for (const item of negocioServible) entrega.cifras.filas.push(_filaSim("Negocio", item.concepto, item.id));
+
+        // léxico DE ARTÍCULOS para «comparables juntas» (owner 2026-09-26) — género gramatical de los conceptos
+        // que hoy nombran los productores de simulación; por defecto "el" (más frecuente en el léxico de la casa).
+        const _GENERO_CONCEPTO = { margen: "el", carga: "la", costo: "el", "contribución": "la", venta: "la", volumen: "el", precio: "el" };
+        const _articulo = (concepto) => _GENERO_CONCEPTO[String(concepto || "").toLowerCase()] || "el";
+
+        // BLOQUES — uno por entidad del universo pedido. Garantía §2/§(ii): el encabezado nombra ENTIDAD +
+        // ESCENARIO + SUPUESTO una sola vez; el cuerpo del bloque hereda ese alcance y no lo repite — el LLM narra
+        // con libertad dentro del bloque, y solo vuelve a nombrar la entidad si cita algo de OTRO bloque.
+        if (plan.bloques.length) entrega._simulacionConBloques = true;
+        for (const [i, bloque] of plan.bloques.entries()) {
+          const bloqueId = `sim_${plan.parteId}_${i}`;
+          // FILAS — pares (base + resultado, ambos con papel de negocio), resultados sueltos (sin base que
+          // contrastar — ej. simulateCapital), impacto/referencia entre lo que quedó sin par; el resto se descarta.
+          for (const p of bloque.pares) {
+            entrega.cifras.filas.push(_filaSim(bloque.entidad, p.base.concepto, p.base.id, i));
+            entrega.cifras.filas.push(_filaSim(bloque.entidad, p.resultado.concepto, p.resultado.id, i));
+          }
+          for (const r of bloque.resultadoSueltos) entrega.cifras.filas.push(_filaSim(bloque.entidad, r.concepto, r.id, i));
+          for (const b of bloque.baseSinPar) {
+            if (_ES_IMPACTO_SIM(b.concepto) || _referenciaServible(b)) entrega.cifras.filas.push(_filaSim(bloque.entidad, b.concepto, b.id, i));
+            else descartadasJergaInterna++;
+          }
+          if (bloque.idDelta) entrega.cifras.filas.push(_filaSim(bloque.entidad, `Delta · ${_capitaliza(bloque.deltaConcepto)}`, bloque.idDelta, i));
+
+          // ENCABEZADO — cita un hecho REAL y SERVIDO (la referencia si existe; si no, el primer par o resultado
+          // suelto del bloque) para que la regla «oración con cifra» (verificar.js regla 2) se cumpla sin
+          // depender de una fig de jerga interna que ya no se sirve.
+          const hechosEncabezado = negocioServible[0] ? [negocioServible[0].id]
+            : bloque.pares[0] ? [bloque.pares[0].resultado.id]
+            : bloque.resultadoSueltos[0] ? [bloque.resultadoSueltos[0].id]
+            : bloque.baseSinPar.slice(0, 1).map((b) => b.id);
+          const _fraseTieneCifra = /\d/.test(plan.fraseSupuesto);
+          const _citaValor = !_fraseTieneCifra && hechosEncabezado.length ? ` (${R(hechosEncabezado[0])})` : "";
+          // CORTE 3d.3 (owner 2026-09-26) — PRIORIDAD EXPLÍCITA: el encabezado y el cuerpo de un MISMO bloque
+          // comparten la MISMA `.prioridad` (el índice del bloque — el primero es 0, «la conclusión», nunca
+          // recortable) para que `entrega/tamano.js:gobernarTamano` los trate como una unidad ATÓMICA: un bloque
+          // se sirve entero o se recorta entero a `detalle`, nunca un encabezado huérfano sin su resultado (el
+          // defecto medido al gobernar D27 con el fallback por índice, antes de esta prioridad explícita).
+          // el encabezado nombra la pieza por lo que ES — «simulación» (owner 2026-09-26, `_colapso_eje_gate`
+          // C4) — nunca «escenario declarado por usted»: «Falabella — simulación: la carga comercial baja 1
+          // punto», no un mundo alterno con nombre propio, la pregunta «¿qué pasa si…?» del usuario.
+          entrega.respuesta.push({
+            texto: `${bloque.entidad} — simulación: ${plan.fraseSupuesto}${_citaValor}.`,
+            hechos: hechosEncabezado, _bloqueId: bloqueId, _bloqueEncabezado: true, _simulacion: true, prioridad: i,
+            _bloqueMeta: { entidad: bloque.entidad, escenarioId: plan.supuesto.id, supuestoId: plan.supuesto.id },
+          });
+
+          // CUERPO — COMPARABLES JUNTAS (ley del plan LLMBusiness, owner 2026-09-26): cada resultado viaja con SU
+          // base, en la MISMA cláusula («el margen pasaría de 22,0 % a 23,0 %»), nunca «margen supuesto» como
+          // sujeto suelto sin decir desde dónde. El delta se pega al par que lo trae, entre paréntesis. Los
+          // resultados sin base propia (simulateCapital) caen a «concepto pasaría a valor», la única forma que el
+          // dato sostiene cuando no hay un "antes" que contrastar.
+          const frasesPares = bloque.pares.map((p, pi) => {
+            const art = _articulo(p.concepto);
+            const esDelta = bloque.idDelta && p.concepto === bloque.deltaConcepto;
+            const rango = `de ${R(p.base.id)} a ${R(p.resultado.id)}${esDelta ? ` (${R(bloque.idDelta)})` : ""}`;
+            return pi === 0 ? `${art} ${p.concepto} pasaría ${rango}` : `${art} ${p.concepto}, ${rango}`;
+          });
+          const frasesSueltas = bloque.resultadoSueltos.map((r) => `${r.concepto.toLowerCase()} pasaría a ${R(r.id)}`);
+          const cuerpoPartes = [...frasesPares, ...frasesSueltas];
+          const textoCuerpo = cuerpoPartes.length ? `${_capitaliza(cuerpoPartes.join("; "))}.` : "No hay una cifra propia de esta simulación.";
+          entrega.respuesta.push({
+            texto: textoCuerpo,
+            hechos: [...bloque.pares.flatMap((p) => [p.base.id, p.resultado.id]), ...bloque.resultadoSueltos.map((r) => r.id), bloque.idDelta].filter(Boolean),
+            _bloqueId: bloqueId, _simulacion: true, prioridad: i,
+          });
+          if (bloque.sinDelta) entrega.limites.push({ titulo: `El delta contra lo real no se pudo aislar como cifra propia (${bloque.entidad})`, motivo: "La simulación no publicó una cifra 'base' con el mismo concepto que el resultado: se declara la base y el resultado por separado, sin restar a mano." });
+        }
+        entrega.limites.push({ titulo: "Esta simulación es un resultado hipotético, no lo que ya ocurrió", motivo: "El supuesto lo declaró usted; ADI calcula el efecto sobre el dato real, pero no afirma que vaya a pasar." });
+        if (plan.descartadasFueraDeUniverso) entrega._simulacionDescartadas = (entrega._simulacionDescartadas || 0) + plan.descartadasFueraDeUniverso;
+        if (descartadasJergaInterna) entrega._simulacionDescartadasJerga = (entrega._simulacionDescartadasJerga || 0) + descartadasJergaInterna;
+        // el universo pedido de ESTA simulación, para que `verificar.js` regla 14 audite «ninguna fila fuera del
+        // universo pedido» SIN depender de que el llamador acuerde pasarle `partes` (que ya tiene otro dueño:
+        // regla 11, cobertura de dominios, con una forma de parte distinta — nunca se comparten los dos usos).
+        if (plan.universoPedido) entrega._simulacionUniverso = [...(entrega._simulacionUniverso || []), ...plan.universoPedido];
+      }
     } else if (plan.kind === "definicion") {
       temasCubiertos.add(plan.tema);
       const texto = `${plan.concepto}: ${plan.definicion}${plan.distingue ? ` ${plan.distingue}` : ""}`;
@@ -2110,7 +2467,14 @@ export function componerEntrega(resolucion) {
       const frase = (dominio, lente, ids) => (ids && ids[lente]) ? LENTES[dominio][lente].como(R(ids[lente])) : null;
       const filasVistas = new Set();   // dedup: idsIntegrada/idsVersus pueden repetir la MISMA señal que ya declaró `lideres` (mismo id, cacheado en `_planMultiTema`)
       const _filaDedup = (entidad, dominio, etiqueta, id) => { const k = `${dominio}::${entidad}::${id}`; if (filasVistas.has(k)) return; filasVistas.add(k); entrega.cifras.filas.push(_fila(entidad, dominio, etiqueta, id)); };
-      for (const d of plan.temas) {
+      // CORTE 3d.3 (owner 2026-09-26) — PRIORIDAD EXPLÍCITA (ley: «se recorta por la prioridad del procedimiento,
+      // nunca por el orden de aparición»): la CONCLUSIÓN INTEGRADA («Prioridad del procedimiento…», el veredicto
+      // de `prioridadIntegrada`, CLAUDE.md §2 ley 4) es SIEMPRE prioridad 0 — la única que `gobernarTamano` nunca
+      // puede recortar, aunque no sea la primera oración escrita. Las lecturas POR DOMINIO (una por tema, antes de
+      // la integrada) llevan prioridad 1..N en el orden en que el procedimiento las declaró (`plan.temas`); las
+      // menciones adicionales (comparativo «va antes que», concentración de cobranza) van DESPUÉS de todas —
+      // son apoyo, no la conclusión ni las lecturas por dominio.
+      for (const [di, d] of plan.temas.entries()) {
         temasCubiertos.add(d);
         const L = plan.lideres[d];
         if (!L) continue;
@@ -2120,7 +2484,7 @@ export function componerEntrega(resolucion) {
         const vs = plan.versusLider && plan.versusLider.dominio === d ? plan.versusLider : null;
         const claveVs = vs ? [vs.idDiff] : [];
         const clausulaVs = vs ? ` — ${R(vs.idDiff)} más que ${vs.segundo}` : "";
-        entrega.respuesta.push({ texto: `En ${_DOM_NOMBRE[d]}, quien más pesa es ${L.x.entidad}: ${partesFrase.join(", ")}${clausulaVs}.`, hechos: [...Object.values(L.ids).filter(Boolean), ...claveVs] });
+        entrega.respuesta.push({ texto: `En ${_DOM_NOMBRE[d]}, quien más pesa es ${L.x.entidad}: ${partesFrase.join(", ")}${clausulaVs}.`, hechos: [...Object.values(L.ids).filter(Boolean), ...claveVs], prioridad: di + 1 });
         for (const [lente, id] of Object.entries(L.ids)) if (id != null) _filaDedup(L.x.entidad, d, LENTES[d][lente].nombre, id);
         if (vs) _filaDedup(`${vs.entidad} − ${vs.segundo}`, d, "Diferencia · materialidad", vs.idDiff);
       }
@@ -2132,16 +2496,16 @@ export function componerEntrega(resolucion) {
         // «con otra lente cambia quién va primero» (decision, criterio declarado) — CLÁUSULA de la MISMA oración,
         // no una oración aparte: una oración sin cifra propia rompe la regla «dueño + métrica + valor» del plan.
         const cierreLente = plan.conDecision ? " Con otra lente (por ejemplo, contribución o ventas) puede cambiar quién va primero: esta es la lectura de riesgo integrado del procedimiento." : "";
-        entrega.respuesta.push({ texto: `${prefijoDecision}, por riesgo integrado: ${plan.top.entidad}${coincide} (${partesTop.join("; ")}).${cierreLente}`, hechos: Object.values(plan.idsIntegrada).flatMap((o) => Object.values(o)).filter(Boolean) });
+        entrega.respuesta.push({ texto: `${prefijoDecision}, por riesgo integrado: ${plan.top.entidad}${coincide} (${partesTop.join("; ")}).${cierreLente}`, hechos: Object.values(plan.idsIntegrada).flatMap((o) => Object.values(o)).filter(Boolean), prioridad: 0 });
       }
       if (plan.top && plan.idsVersus && plan.idsVersus.length) {
         const comparativos = plan.idsVersus.map(({ it, idA, idB }) => `${it.nombre} (${R(idA)} contra ${R(idB)})`).join(", ");
         for (const { it, idA, idB } of plan.idsVersus) { _filaDedup(plan.top.entidad, it.dominio, it.nombre || it.metrica, idA); _filaDedup(plan.top.versus.contra, it.dominio, it.nombre || it.metrica, idB); }
-        entrega.respuesta.push({ texto: `${plan.top.entidad} va antes que ${plan.top.versus.contra}: es peor en ${comparativos}.`, hechos: plan.idsVersus.flatMap((x) => [x.idA, x.idB]).filter(Boolean) });
+        entrega.respuesta.push({ texto: `${plan.top.entidad} va antes que ${plan.top.versus.contra}: es peor en ${comparativos}.`, hechos: plan.idsVersus.flatMap((x) => [x.idA, x.idB]).filter(Boolean), prioridad: plan.temas.length + 1 });
       }
       if (plan.lideres.cobranza && plan.idShare) {
         _filaDedup(plan.lideres.cobranza.x.entidad, "cobranza", "Participación del vencido total", plan.idShare);
-        entrega.respuesta.push({ texto: `De lo vencido en toda la cartera, ${plan.lideres.cobranza.x.entidad} concentra el ${R(plan.idShare)}.`, hechos: [plan.idShare] });
+        entrega.respuesta.push({ texto: `De lo vencido en toda la cartera, ${plan.lideres.cobranza.x.entidad} concentra el ${R(plan.idShare)}.`, hechos: [plan.idShare], prioridad: plan.temas.length + 2 });
       }
       if (plan.idBenchComercial) entrega.marco.referenciaDeclarada = entrega.marco.referenciaDeclarada || { texto: `Benchmark de margen (comercial): ${R(plan.idBenchComercial)}, declarado por usted.`, hechoId: plan.idBenchComercial };
     }
@@ -2278,6 +2642,9 @@ export function componerEntrega(resolucion) {
   // es DONDE van los hechos de iniciativa que no verificaron: no se sirven y no tumban la Entrega, pero tampoco
   // desaparecen sin rastro.
   entrega.iniciativa = { ids: idsIniciativaUsados, ofertaIds: ofertaIdsIniciativa, calls: 0, on: iniciativaOn };
+  // `detalle.notaDeUso` (libertad narrativa de la simulación en bloques + guía de uso genérica del Marco en
+  // "breve") se arma DESPUÉS, en `_conTamanoGobernado` — es la única función que conoce la `profundidad` final,
+  // y la MISMA condición decide qué se omite del render Y qué se declara acá (nunca dos criterios distintos).
   entrega.detalle = { iniciativaNoVerificada };
   // `libroPremisas`/`libroIniciativa` son campos ADITIVOS (corte 3c pieza 3 / corte 3d.1): ninguno reemplaza
   // `libro` (el que `verificarEntrega` audita con la regla 9) — son los libros APARTE, para que un gate o el
@@ -2285,14 +2652,15 @@ export function componerEntrega(resolucion) {
   entrega.procedencia = { libro, cifrasImpresas, libroPremisas, libroIniciativa };
 
   const texto = _textoDeLaEntrega(entrega, "Su encargo");
-  return { texto, entrega, libro, ok: true, motivo: "" };
+  return _conTamanoGobernado({ texto, entrega, libro, ok: true, motivo: "" }, resolucion);
 }
 
 /* ── el markdown, en el orden de las siete partes (plan §1) — puro texto, ninguna cifra nueva se escribe acá:
  * todo lo que aparece ya pasó por `R(id)` arriba y vive en `entrega.*`. `titulo` es lo único que cambia entre
  * rutas (era literal «¿Dónde deja de ganar?» hasta la TAREA 3 — generalizado para que la segunda ruta no
  * herede el título de la primera). ── */
-function _textoDeLaEntrega(entrega, titulo = "¿Dónde deja de ganar?") {
+function _textoDeLaEntrega(entrega, titulo = "¿Dónde deja de ganar?", profundidad = "completa") {
+  const _breve = profundidad === "breve";
   const L = [];
   L.push(`**ENTREGA ADI · ${titulo}**`);
   L.push("");
@@ -2304,7 +2672,19 @@ function _textoDeLaEntrega(entrega, titulo = "¿Dónde deja de ganar?") {
   // TAREA 4 (owner 2026-09-23): el nombre del tenant activo abre el Marco, como en el ejemplo del plan §7
   // («Distribuidora Demo, acumulado enero–agosto 2026, 14 clientes…») — antes `m.empresa` no se imprimía nunca.
   const cabezaMarco = [m.empresa, m.universo, periodoTxt].filter(Boolean).join(", ");
-  L.push(`**Marco.** ${cabezaMarco}${cabezaMarco && !/[.!?]\s*$/.test(cabezaMarco) ? ". " : cabezaMarco ? " " : ""}${m.definiciones.join(" ")} ${m.referenciaDeclarada ? m.referenciaDeclarada.texto : ""}`.trim());
+  // BREVE (owner 2026-09-26, cierre del corte) — la guía de uso genérica («Cada cifra de esta Entrega viaja con
+  // su dueño…») es una instrucción de LECTURA, no un hecho: se retira del Marco (va a `detalle.notaDeUso`,
+  // `_conTamanoGobernado` la declara). Si además queda MÁS de una explicación (el Marco de varios dominios: cada
+  // dominio con su propio párrafo de por qué no se consolidan) se omiten todas — `cabezaMarco` ya nombra los
+  // dominios con su período (`periodoTxt`, `figureType.js`, no se toca); la forma compacta de "breve" es esa
+  // cabecera sola, sin las explicaciones. La estructura sigue completa: `entrega.marco.definiciones` no cambia,
+  // solo el RENDER — se recupera entero con `profundidad:"completa"`.
+  const _defSinGuia = (m.definiciones || []).filter((s) => !_esGuiaDeUsoGenerica(s));
+  const defTxt = _breve ? (_defSinGuia.length <= 1 ? _defSinGuia.join(" ") : "") : m.definiciones.join(" ");
+  const _cabezaConPunto = cabezaMarco ? (cabezaMarco + (/[.!?]\s*$/.test(cabezaMarco) ? "" : ".")) : "";
+  // sin espacios dobles cuando `defTxt` queda vacío (breve, con más de una explicación retirada): se arma por
+  // PARTES no vacías, nunca por concatenación de plantilla con huecos.
+  L.push(`**Marco.** ${[_cabezaConPunto, defTxt, m.referenciaDeclarada ? m.referenciaDeclarada.texto : ""].filter(Boolean).join(" ")}`.trim());
   L.push("");
   L.push("**Respuesta.**");
   // CORTE 3d.1 (owner 2026-09-25) — la iniciativa de CFO se distingue de lo pedido en TRES capas (§A.5): la
@@ -2320,23 +2700,49 @@ function _textoDeLaEntrega(entrega, titulo = "¿Dónde deja de ganar?") {
   L.push(`**Cifras.**`);
   L.push(`| ${entrega.cifras.columnas.join(" | ")} |`);
   L.push(`|${entrega.cifras.columnas.map(() => "---").join("|")}|`);
-  for (const f of entrega.cifras.filas) L.push(`| ${entrega.cifras.columnas.map((c) => f.valores[c] || "").join(" | ")} |`);
+  for (const f of entrega.cifras.filas) L.push(`| ${entrega.cifras.columnas.map((c) => { const v = f.valores[c] || ""; return _breve && _ROTULO_CORTO_COLUMNA[c] ? _ROTULO_CORTO_COLUMNA[c](v) : v; }).join(" | ")} |`);
   L.push("");
   L.push("**Lo que no se puede concluir con estos datos.**");
-  for (const lim of entrega.limites) L.push(`- **${lim.titulo}.** ${lim.motivo}`);
+  // BREVE (owner 2026-09-26, ronda final del corte) — el límite sale con su TÍTULO (la negativa misma: sigue
+  // siendo el hallazgo completo, nunca una prohibición recortada) y el MOTIVO queda en `entrega.limites` —
+  // completo siempre, «la estructura sigue completa»; se recupera pidiendo `profundidad:"completa"`
+  // (`detalle.comoPedirlo`). Nunca se pierde: es el motivo el que se compacta en el TEXTO, no el límite mismo.
+  for (const lim of entrega.limites) L.push(_breve ? `- **${lim.titulo}.**` : `- **${lim.titulo}.** ${lim.motivo}`);
   L.push("");
-  L.push("**Referencia del oficio** (general, no es un dato ni un objetivo tuyo).");
-  if (entrega.referenciaDelOficio.length) for (const r of entrega.referenciaDelOficio) L.push(`- ${r.texto}`);
-  else L.push("- Sin conocimiento del sector cargado todavía (ver «Lo que no se puede concluir»).");
-  L.push("");
+  // BREVE — «Referencia del oficio» vacía imprime SIEMPRE la misma línea genérica, que solo apunta de vuelta a
+  // un límite ya declarado arriba («ver «Lo que no se puede concluir»»): en "breve" esa sección entera es
+  // redundante y se omite (encabezado incluido). Con contenido real (Business Knowledge activo) NUNCA se omite.
+  if (!(_breve && !entrega.referenciaDelOficio.length)) {
+    L.push("**Referencia del oficio** (general, no es un dato ni un objetivo tuyo).");
+    if (entrega.referenciaDelOficio.length) for (const r of entrega.referenciaDelOficio) L.push(`- ${r.texto}`);
+    else L.push("- Sin conocimiento del sector cargado todavía (ver «Lo que no se puede concluir»).");
+    L.push("");
+  }
   // (c) CORRECCIÓN DEL SUPERVISOR (2026-09-25) — «una sección sin contenido no se imprime»: las 4 rutas fijas
   // SIEMPRE dejan `paraSuJuicio` con ≥1 ítem (verificado); esta condición es un no-op para ellas y solo actúa
   // en el camino general cuando de verdad no hay nada que preguntar.
   if (entrega.paraSuJuicio.length) {
     L.push("**Para su juicio.**");
-    for (const p of entrega.paraSuJuicio) L.push(`- ${p.texto}`);
+    // BREVE — UNA sola pregunta abierta: la de MAYOR PRIORIDAD del procedimiento (la del dominio/entidad que la
+    // conclusión integrada ya nombró como primero — `_entidadPrioritariaDeEntrega`, la MISMA fuente que decide
+    // quién abre el procedimiento, nunca una segunda definición de "quién va primero"). Las demás NO desaparecen:
+    // siguen completas en `entrega.paraSuJuicio` (estructura completa siempre) y la sección cierra con el conteo.
+    let items = entrega.paraSuJuicio;
+    if (_breve && items.length > 1) {
+      const entidadPrioritaria = _entidadPrioritariaDeEntrega(entrega);
+      let idx = entidadPrioritaria ? items.findIndex((p) => p.texto.includes(entidadPrioritaria)) : -1;
+      if (idx < 0) idx = 0;
+      const resto = items.length - 1;
+      items = [{ ...items[idx], texto: `${items[idx].texto} (+${resto} pregunta${resto === 1 ? "" : "s"} en el detalle)` }];
+    }
+    for (const p of items) L.push(`- ${p.texto}`);
     L.push("");
   }
-  L.push("**Qué más puedo calcular.** " + entrega.queMasPuedoCalcular.puedo.join(" · ") + ". **No puedo:** " + entrega.queMasPuedoCalcular.noPuedo.join(" · ") + ".");
+  // BREVE — «solo el RÓTULO corto de la primera oferta, sin paréntesis ni cláusulas»: se corta en el primer "("
+  // o "—" (los dos separadores que este archivo usa para colgar la cláusula explicativa de una oferta). El texto
+  // completo sigue en `entrega.queMasPuedoCalcular.puedo` (estructura completa) y se recupera con `comoPedirlo`.
+  const _rotuloCorto = (s) => String(s || "").split(/\s*[(—]/)[0].trim();
+  const _puedoTxt = _breve && entrega.queMasPuedoCalcular.puedo.length ? _rotuloCorto(entrega.queMasPuedoCalcular.puedo[0]) : entrega.queMasPuedoCalcular.puedo.join(" · ");
+  L.push("**Qué más puedo calcular.** " + _puedoTxt + ". **No puedo:** " + entrega.queMasPuedoCalcular.noPuedo.join(" · ") + ".");
   return L.join("\n");
 }

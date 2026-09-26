@@ -94,13 +94,18 @@ function _productorDeSupuesto(tipo, tema, eje) {
     if (tipo === "margin" && ["sku", "cliente", "marca", "familia"].includes(eje)) return "simulateCosto";
     if (tipo === "carga" && eje === "cliente") return "simulateCarga";     // tipo NUEVO §7.1 (aditivo)
     if (tipo === "costo" && ["sku", "cliente", "marca", "familia"].includes(eje)) return "simulateCosto";   // tipo NUEVO §7.1
-    // «custom con perturbs: carga» (§3.5): decision_pendiente D27 — hasta que el LLM emita tipo "carga", un
-    // supuesto libre con alcance cliente en un cierre de simulación comercial se acepta como productor de carga.
-    if (tipo === "custom" && eje === "cliente") return "simulateCarga";
+    // RETIRADO (owner 2026-09-26, CORTE 3d — «custom es jerga del sistema», error MATERIAL de la Entrega:
+    // «Simulación — supuesto: custom -1%…» no dice de qué es el -1%). Ya NO se acepta «custom» en cliente/sku/
+    // marca/familia como si fuera «carga»/«costo»: el tipo NUEVO §7.1 existe justo para esto — un supuesto
+    // «custom» en esta forma ahora se declina en `_resolverSupuestosRaiz` (motivo `supuesto_mal_formado`, con las
+    // alternativas de concepto nombrado), en vez de componer con un rótulo que la prosa no puede nombrar.
     return null;
   }
   if (tema === "inventario") {
-    if (tipo === "custom" && eje === "sku") return "simulateCapital";   // «liberar el capital frenado», sin parámetro
+    // «liberar el capital frenado» NO tiene un tipo nombrado nuevo (§7.1): es una acción sin parámetro numérico
+    // (no hay «−1%» que nombrar en prosa, a diferencia de carga/costo) — «custom» acá nunca produjo jerga, se
+    // mantiene como estaba.
+    if (tipo === "custom" && eje === "sku") return "simulateCapital";
     return null;   // la simulación paramétrica de inventario (tipo "inventory") NO tiene productor (assumptionRegistry.js lo declara)
   }
   return null;   // cobranza y cualquier otro tema: ningún productor de simulación hoy
@@ -189,6 +194,19 @@ function _resolverSupuestosRaiz(supuestos, partes) {
     }
     const parteQueLoCita = partes.find((p) => _es(p) && _lista(p.supuestos).includes(s.id));
     const tema = parteQueLoCita ? parteQueLoCita.tema : null;
+    // CORTE 3d (owner 2026-09-26) — «un supuesto custom sin concepto del registro NO llega a la Entrega»: un
+    // "custom" en un alcance donde SÍ hay un tipo nombrado (carga/costo, §7.1) se declina ACÁ, con las
+    // alternativas de concepto — nunca compone con «custom» de jerga. Va ANTES del lookup genérico de productor
+    // porque el motivo es más específico (`supuesto_mal_formado`, no `supuesto_sin_productor`: el motor SÍ podría
+    // correr esto, lo que falta es que el supuesto declare CON QUÉ CONCEPTO de negocio se nombra).
+    if (s.tipo === "custom" && tema === "comercial" && eje === "cliente") {
+      noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: s.id, motivo: "supuesto_mal_formado", detalle: `«custom» no nombra un concepto de negocio: dime si el supuesto mueve la carga comercial o el costo, con el tipo "carga" o "costo" (§7.1)`, alternativas: [{ tipo: "concepto", concepto: "carga" }, { tipo: "concepto", concepto: "costo" }] }));
+      porId.set(s.id, { ok: false }); continue;
+    }
+    if (s.tipo === "custom" && tema === "comercial" && ["sku", "marca", "familia"].includes(eje)) {
+      noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: s.id, motivo: "supuesto_mal_formado", detalle: `«custom» no nombra un concepto de negocio: dime si el supuesto mueve el costo, con el tipo "costo" (§7.1)`, alternativas: [{ tipo: "concepto", concepto: "costo" }] }));
+      porId.set(s.id, { ok: false }); continue;
+    }
     const productor = tema ? _productorDeSupuesto(s.tipo, tema, eje) : null;
     if (!productor) {
       noResuelto.push(nuevoNoResuelto({ campo: "supuesto", valor: s.id, motivo: "supuesto_sin_productor", detalle: `«${s.tipo}» sobre ${eje} en ${tema || "(ninguna parte lo cita)"}: la simulación paramétrica todavía no tiene productor en el motor` }));

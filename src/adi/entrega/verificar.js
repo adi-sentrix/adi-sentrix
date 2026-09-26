@@ -22,6 +22,10 @@ import { detectVoseo, stripLanguageLeaks } from "../llm/voiceGuard.js";
 import { coberturaDelEncargo } from "../agente/partesDelEncargo.js";
 
 const _PALABRAS = (t) => String(t || "").trim().split(/\s+/).filter(Boolean);
+/** contarPalabras(texto) → cantidad de palabras — la MISMA cuenta que ya usa la regla 8, exportada para que
+ *  `entrega/tamano.js:gobernarTamano` (Corte 3d.3) use la ÚNICA fuente de conteo, nunca una segunda cuenta que
+ *  pueda divergir de la que este archivo verifica al final. */
+export function contarPalabras(texto) { return _PALABRAS(texto).length; }
 
 /* un número «impreso»: dinero ($21.5M · $500K · $50), porcentaje (12.0%), puntos porcentuales (3.4 pp), veces
  * (1.5x) o un entero suelto pegado a una palabra de conteo/unidad (5 clientes, 6 cuentas, 37 productos). No
@@ -63,7 +67,18 @@ function _adjetivosEvaluativos(texto) {
   return m ? m[0] : null;
 }
 
-const TOPE_PALABRAS = 900;
+/* CORTE 3d.3 (owner 2026-09-25/26, `_ADI_DISENO_CORTE_3D.md` §B.1) — DOS PROFUNDIDADES, UN SOLO LIBRO. Los topes
+ * son constantes EXPORTADAS de este archivo (una sola fuente — `entrega/tamano.js:gobernarTamano` las importa de
+ * acá, nunca las copia). `TOPE_PALABRAS` se conserva como alias de `TOPE_COMPLETA` (mismo valor de siempre, 900):
+ * ningún llamador que no declare `profundidad` cambia de comportamiento. */
+export const TOPE_BREVE = 350;
+export const TOPE_COMPLETA = 900;
+const TOPE_PALABRAS = TOPE_COMPLETA;
+/* el tope de FILAS de la tabla de Cifras, por profundidad (§B.1: "Cifras: ≤8 filas / ≤24 filas") — lo que se
+ * gobierna es el TEXTO servido; `entrega.procedencia.libro` (la verificación completa) y `entrega.universos`
+ * (siempre pequeños, nunca recortados en este corte) no cambian de tamaño con la profundidad. */
+export const FILAS_BREVE_MAX = 8;
+export const FILAS_COMPLETA_MAX = 24;
 
 /* REGISTRO — voseo y coloquialismos/anglicismos vetados NUNCA en la Entrega (owner 2026-09-22, corrección del
  * mismo día sobre la TAREA 2 original). La primera versión de esta regla también marcaba el PRONOMBRE de tuteo
@@ -86,10 +101,13 @@ function _tuteoOColoquial(texto) {
   return null;
 }
 
-/** verificarEntrega({ texto, entrega }) → { ok, violaciones: [{ regla, detalle }] }
+/** verificarEntrega({ texto, entrega, partes, profundidad }) → { ok, violaciones: [{ regla, detalle }] }
  *  Las ocho reglas de composición del plan §1 (la novena — autoverificación hecho por hecho — ya la aplicó
- *  `componer.js` con `notario/hechos.js`; acá se re-chequea que el libro haya quedado limpio, en profundidad). */
-export function verificarEntrega({ texto, entrega, partes = [] } = {}) {
+ *  `componer.js` con `notario/hechos.js`; acá se re-chequea que el libro haya quedado limpio, en profundidad).
+ *  `profundidad` (ADITIVA, Corte 3d.3, owner 2026-09-25/26): "breve"|"completa", default "completa" — NINGÚN
+ *  llamador viejo (las 4 rutas fijas, que nunca declaran profundidad) cambia de tope: siguen contra
+ *  `TOPE_COMPLETA`/`FILAS_COMPLETA_MAX`, los mismos números de siempre. */
+export function verificarEntrega({ texto, entrega, partes = [], profundidad = "completa" } = {}) {
   const violaciones = [];
   const v = (regla, detalle) => violaciones.push({ regla, detalle });
 
@@ -188,7 +206,11 @@ export function verificarEntrega({ texto, entrega, partes = [] } = {}) {
   // rutas fijas SIEMPRE tienen ≥2 dueños distintos cuando esta regla las alcanza (nunca declaran una fila de un
   // solo cliente sin comparación): el cambio no las afecta — ver `_entrega_gate.mjs`, sin tocar.
   if (libro) {
-    const duenosEnJuego = new Set((entrega.cifras.filas || []).filter((f) => f.hechos && f.hechos.length).map((f) => Object.values(f.valores)[0]));
+    // CORTE 3d (owner 2026-09-26) — la tabla de una simulación (garantía §2) declara "Negocio" como dueño de las
+    // figs sin entidad propia (benchmark, montos agregados de todo el alcance) — no es una CUENTA que compita con
+    // otra, es el agregado del universo; contarla como un segundo "dueño" frente a la única entidad pedida
+    // dispararía esta regla sin que haya ninguna tentación real de comparar dos cuentas (D28: LG-DRYER8KG solo).
+    const duenosEnJuego = new Set((entrega.cifras.filas || []).filter((f) => f.hechos && f.hechos.length).map((f) => Object.values(f.valores)[0]).filter((d) => d !== "Negocio"));
     if (duenosEnJuego.size > 1) {
       const hayTentacion = libro.hechos.some((h) => h.tipo === "razon" || h.tipo === "derivada");
       if (!hayTentacion) v("tentacion-no-precalculada", "hay más de una cuenta en juego y ningún hecho `razon`/`derivada` precalcula su relación");
@@ -205,9 +227,18 @@ export function verificarEntrega({ texto, entrega, partes = [] } = {}) {
   const registro = _tuteoOColoquial(texto);
   if (registro) v("registro-informal", `${registro.motivo}${registro.forma ? ` («${registro.forma}»)` : ""} — la Entrega va en tuteo neutro, sin voseo ni coloquialismos`);
 
-  // 8 · tope de tamaño — 900 palabras la Entrega corta
+  // 8 · tope de tamaño — CORTE 3d.3: por profundidad (350 breve / 900 completa, antes siempre 900)
+  const _topePalabras = profundidad === "breve" ? TOPE_BREVE : TOPE_COMPLETA;
   const n = _PALABRAS(texto).length;
-  if (n > TOPE_PALABRAS) v("tope-de-tamano", `${n} palabras, sobre el tope de ${TOPE_PALABRAS}`);
+  if (n > _topePalabras) v("tope-de-tamano", `${n} palabras, sobre el tope de ${_topePalabras} (profundidad: ${profundidad})`);
+
+  // 13 · CORTE 3d.3 (owner 2026-09-25/26) — tope de FILAS de Cifras por profundidad (8 breve / 24 completa): lo
+  // recortado tiene que haber ido a `entrega.detalle.filas`, nunca simplemente faltar sin rastro — esta regla
+  // solo vigila que la tabla SERVIDA respete el tope; que lo recortado esté en `detalle` lo prueba el gate
+  // (`_tamano_gate.mjs`), no esta regla (que es puramente sobre lo impreso, como el resto de este archivo).
+  const _topeFilas = profundidad === "breve" ? FILAS_BREVE_MAX : FILAS_COMPLETA_MAX;
+  const _nFilas = (entrega.cifras && Array.isArray(entrega.cifras.filas)) ? entrega.cifras.filas.length : 0;
+  if (_nFilas > _topeFilas) v("filas-sobre-el-tope", `${_nFilas} filas en Cifras, sobre el tope de ${_topeFilas} (profundidad: ${profundidad})`);
 
   // 11 · cobertura de dominios (TAREA 3, encargo multidominio) — solo si el llamador declara las partes pedidas
   if (Array.isArray(partes) && partes.length) {
@@ -230,6 +261,101 @@ export function verificarEntrega({ texto, entrega, partes = [] } = {}) {
       const h = libroIni && libroIni.porId.get(id);
       if (!h || !h.ok) { v("iniciativa-no-verificada", `el hecho de iniciativa ${id} está declarado como servido pero no verifica en su libro`); continue; }
       if (!citadosEnRespuesta.has(id) && !enOferta.has(id)) v("iniciativa-sin-ubicar", `el hecho de iniciativa ${id} verificó pero no aparece en Respuesta ni en la oferta — una señal no puede desaparecer`);
+    }
+  }
+
+  // 14 · CORTE 3d (owner 2026-09-26) — DUEÑO DE LA SIMULACIÓN, por BLOQUE (ajuste del supervisor: el vínculo vive
+  // en la ESTRUCTURA, no obliga a repetir entidad/escenario/supuesto en cada oración de la prosa). Tres chequeos:
+  //   (a) todo BLOQUE (`entrega.respuesta[i]._bloqueId`) tiene un encabezado (`_bloqueEncabezado:true`) que
+  //       declara `_bloqueMeta.{entidad,escenarioId,supuestoId}` completos — un bloque sin encabezado, o con el
+  //       encabezado incompleto, arde.
+  //   (b) toda oración marcada `_simulacion:true` pertenece a un bloque (`_bloqueId`) O declara explícitamente,
+  //       en `_mezcla.{entidades,escenarios}`, los alcances que mezcla (comparar escenarios/entidades, citar una
+  //       cifra de otro bloque) — nunca una oración de simulación suelta, sin bloque y sin declarar su mezcla.
+  //   (c) toda fila de una tabla de simulación (columnas "Simulación"+"Supuesto" declaradas — la columna se
+  //       llama "Simulación" en TODO texto emitido desde owner 2026-09-26, `_colapso_eje_gate` C4: el concepto
+  //       visible «escenario» murió; el campo estructural `escenarioId` no cambia, no es texto) trae Entidad,
+  //       Simulación y Supuesto — la fila es indivisible.
+  {
+    const bloques = new Map();
+    for (const r of entrega.respuesta || []) {
+      if (!r._bloqueId) continue;
+      if (r._bloqueEncabezado) bloques.set(r._bloqueId, { meta: r._bloqueMeta || null, visto: true });
+      else if (!bloques.has(r._bloqueId)) bloques.set(r._bloqueId, { meta: null, visto: false });
+    }
+    for (const [bid, b] of bloques) {
+      if (!b.visto) { v("bloque-sin-encabezado", `el bloque "${bid}" no declara un encabezado (entidad · escenario · supuesto)`); continue; }
+      const m = b.meta;
+      if (!m || !m.entidad || !m.escenarioId || !m.supuestoId) v("bloque-sin-dueno", `el bloque "${bid}" no declara entidad/escenario/supuesto completos en su encabezado`);
+    }
+    (entrega.respuesta || []).forEach((r, i) => {
+      if (!r._simulacion || r._bloqueId) return;
+      const mezcla = r._mezcla;
+      const declaraMezcla = mezcla && ((Array.isArray(mezcla.entidades) && mezcla.entidades.length) || (Array.isArray(mezcla.escenarios) && mezcla.escenarios.length));
+      if (!declaraMezcla) v("oracion-simulacion-sin-alcance", `respuesta[${i}] es de una simulación pero no pertenece a un bloque ni declara los alcances que mezcla (\`_mezcla\`)`);
+    });
+    const colsSim = entrega.cifras && Array.isArray(entrega.cifras.columnas) ? entrega.cifras.columnas : [];
+    if (colsSim.includes("Simulación") && colsSim.includes("Supuesto")) {
+      (entrega.cifras.filas || []).forEach((f, i) => {
+        const val = f.valores || {};
+        if (!val.Entidad || !val["Simulación"] || !val.Supuesto) v("fila-simulacion-sin-dueno", `cifras.filas[${i}] no declara Entidad/Simulación/Supuesto completos`);
+      });
+      // (d) UNIVERSO — `entrega._simulacionUniverso` (componer.js:_planSimulacion, la unión de `parte.entidades`
+      // de cada parte `simulacion` de ESTE encargo) declara qué entidades pidió el encargo; NUNCA se reusa el
+      // parámetro `partes` de esta función (regla 11, cobertura de dominios) — es una forma de "parte" distinta
+      // (`{nombre,cubre}` de `partesDelEncargo.js`, no `{entidades:[...]}` de `encargo/validar.js`), mezclarlas
+      // sería la MISMA clase de "dos verdades" que este corte cierra en otro lado. «Negocio» (el agregado sin
+      // entidad propia) nunca cuenta como fuera de universo. Opcional: una Entrega sin simulación no la paga.
+      if (Array.isArray(entrega._simulacionUniverso) && entrega._simulacionUniverso.length) {
+        const universoPedido = new Set(entrega._simulacionUniverso);
+        if (universoPedido.size) {
+          (entrega.cifras.filas || []).forEach((f, i) => {
+            const ent = f.valores && f.valores.Entidad;
+            if (ent && ent !== "Negocio" && !universoPedido.has(ent)) v("fila-fuera-de-universo", `cifras.filas[${i}] nombra a "${ent}", fuera del universo pedido (${[...universoPedido].join(", ")})`);
+          });
+        }
+      }
+      // (g) LÉXICO DE LA CASA (owner 2026-09-26, ronda final) — una fila cuyo rótulo (Métrica) es JERGA INTERNA
+      // del motor (rótulos ya identificados como tales: no dicen nada al LLM, pueden inducirlo a error) nunca se
+      // sirve. `componer.js:_planSimulacion` ya filtra proactivamente (mecanismo primario); esta es la red de
+      // seguridad — una lista NEGATIVA de rótulos conocidos, no la lista positiva completa (esa es dinámica: los
+      // pares base↔resultado cambian de nombre según el concepto de cada encargo).
+      const _JERGA_INTERNA_SIM = /^(lectura relativa descartada|movimiento de carga|total)$/i;
+      (entrega.cifras.filas || []).forEach((f, i) => {
+        const met = f.valores && f.valores.Métrica;
+        if (met && _JERGA_INTERNA_SIM.test(String(met).trim())) v("fila-jerga-interna", `cifras.filas[${i}] sirve un rótulo de jerga interna del motor: "${met}"`);
+      });
+    }
+
+    // (e) el DELTA no mezcla ENTIDADES — el propio hecho `derivada` ya declara qué entidades involucran sus
+    // operandos (`h.entidades`, notario/hechos.js: lo calcula el veredicto, no se re-deriva acá); más de una
+    // entidad en un delta de simulación es la MISMA clase de error que motivó este corte (D27, 96 filas ajenas).
+    if (libro) {
+      (entrega.cifras.filas || []).forEach((f, i) => {
+        if (f.escenarioId == null) return;
+        for (const id of f.hechos || []) {
+          const h = libro.porId.get(id);
+          if (!h || h.tipo !== "derivada") continue;
+          const ents = h.entidades ? [...h.entidades] : [];
+          if (ents.length > 1) v("delta-entre-entidades-distintas", `cifras.filas[${i}] (delta) mezcla operandos de entidades distintas (${ents.join(" · ")})`);
+        }
+      });
+    }
+    // (f) el DELTA no mezcla ESCENARIOS — un MISMO id de hecho no puede pertenecer a filas de dos escenarios
+    // distintos (sería un valor calculado bajo un supuesto compartido entre dos bloques que declararon supuestos
+    // DISTINTOS). El motor de hoy corre un solo escenario por parte (nunca ocurre en el catálogo real); el
+    // chequeo queda para cuando exista un motor de variantes múltiples — `_simulacion_dueno_gate.mjs` lo prueba
+    // con una Entrega sintética.
+    {
+      const escenarioDeHecho = new Map();
+      (entrega.cifras.filas || []).forEach((f) => {
+        if (f.escenarioId == null) return;
+        for (const id of f.hechos || []) {
+          const previo = escenarioDeHecho.get(id);
+          if (previo != null && previo !== f.escenarioId) v("delta-entre-escenarios-distintos", `el hecho "${id}" aparece en filas de escenarios distintos ("${previo}" · "${f.escenarioId}")`);
+          else escenarioDeHecho.set(id, f.escenarioId);
+        }
+      });
     }
   }
 

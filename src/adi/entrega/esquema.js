@@ -70,10 +70,18 @@ export function crearEntrega() {
     // la traza estructural de lo que ADI agregó SIN que el encargo lo pidiera. `null` en las 4 rutas fijas y en
     // cualquier Entrega que no importe `iniciativa.js` — campo ADITIVO, ninguna Entrega vieja lo necesita.
     iniciativa: null,
-    // detalle: { iniciativaNoVerificada: [{id,motivo}] } | null — Corte 3d.1: los hechos de iniciativa que NO
-    // verificaron (no se sirven, no tumban la Entrega, no desaparecen sin rastro). El resto de `detalle` (filas
-    // recortadas por tamaño, universoRef, comoPedirlo) es del corte 3d.3, fuera de este encargo.
+    // detalle: { iniciativaNoVerificada: [{id,motivo}], oraciones: [{...oracion, id?}], filas: [{...fila,id}],
+    // comoPedirlo: {...} } | null — Corte 3d.1 (iniciativaNoVerificada) + Corte 3d.3/3d.4 (oraciones/filas
+    // recortadas por `entrega/tamano.js:gobernarTamano`, con `comoPedirlo` — el encargo exacto con
+    // `profundidad:"completa"` para pedir de vuelta lo recortado). NUNCA texto renderizado: es la parte
+    // ESTRUCTURAL de lo que no entró en esta profundidad — «lo recortado no desaparece».
     detalle: null,
+    // meta: { entregaRef, profundidad, palabras, tope } | null — Corte 3d.3/3d.4 (owner 2026-09-25/26):
+    // `entregaRef` es determinístico (tenant + versión de datos + encargo canónico, `sha1`) — la MISMA Entrega
+    // (mismo tenant, misma versión, mismo encargo canónico) siempre da el mismo `entregaRef`, así que resolver
+    // "deme la fila completa de e14" es determinístico y sin cálculo nuevo (contrato §0.5, candado de
+    // equivalencia byte a byte ya existente). `null` en las 4 rutas fijas (no gobiernan tamaño).
+    meta: null,
   };
 }
 

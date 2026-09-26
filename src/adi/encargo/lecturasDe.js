@@ -164,7 +164,14 @@ function _callDeSupuesto(s) {
   const esNegocio = alcance === "negocio";
   const nombre = esNegocio ? null : (alcance && alcance.nombre) || null;
   const ejeAlcance = esNegocio ? null : (alcance && alcance.eje) || null;
-  const entityScope = nombre ? [nombre] : null;
+  // CORREGIDO (owner 2026-09-26, CORTE 3d — hallazgo de raíz, «96 filas de clientes no pedidos» en D27) —
+  // `oracle/specRetrieval.js:_scopeRows` exige `entityScope.entities` (un ARRAY dentro de esa clave; ver
+  // `oracle/toolContracts.js`, el otro productor de este mismo campo: `entityScope: { entities }`). Este archivo
+  // pasaba `[nombre]` — un array A SECAS, sin la clave `.entities` — así que `Array.isArray(entityScope.entities)`
+  // daba `false` (un array no tiene esa propiedad) y el filtro por entidad se saltaba EN SILENCIO: la simulación
+  // corría sobre las 13 cuentas del tenant en vez de la UNA que el supuesto citaba. Mismo defecto para
+  // simulateCarga/simulateCapital/simulateCosto (los tres consumen `entityScope` vía `_scopeRows`).
+  const entityScope = nombre ? { entities: [nombre] } : null;
   if (s.productor === "simulateGeneral") {
     // simulateGeneral exige DOS variables de rol distinto (precio · volumen), cada una con su delta — contrato
     // §3.5: "price" mueve precio, "growth" mueve volumen; la variable que el supuesto NO trae viaja en 0 (el

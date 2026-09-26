@@ -96,9 +96,10 @@ const CASOS_VALIDOS = CATALOGO.casos.filter((c) => c.esperado && c.esperado.vali
  * noResuelto, entidades prohibidas, determinismo) igual que los demás — la sección 3 (antes 2b) los audita
  * ADEMÁS con la garantía específica de esta pieza (K de M correcto, contra `premisasDelGate` del fixture). */
 const IDS_GAP_UNIVERSO_FILTRO = new Set();
-/* D27 excede el tope de 900 palabras (tope de tamaño por profundidad, corte 3c, no este) — se compone y se
- * verifica todo LO DEMÁS, pero no se exige que pase la regla 8 de verificar.js. */
-const IDS_SIN_TOPE_DE_TAMANO = new Set(["D27"]);
+/* CORTE 3d.3 (owner 2026-09-25/26) — SE RETIRA la exención de la regla 8 para D27: `componerEntrega` ahora
+ * gobierna el tamaño por profundidad (`entrega/tamano.js:gobernarTamano`, cableado en `componer.js`) — D27 (la
+ * simulación de 96 filas / 1620 palabras sin gobernar) queda en 638 palabras / 24 filas bajo "completa" (su
+ * profundidad por defecto, sin declarar en el fixture), dentro del tope de 900. Ya no hay ningún caso exento. */
 /* CORTE 3c · PIEZA 1 — el conteo K-de-M esperado de cada universo por estado (contra `premisasDelGate` del
  * fixture, verificado a mano por el autor del catálogo). */
 const K_DE_M_ESPERADO = {
@@ -167,9 +168,12 @@ for (const { caso, res, entrega } of resultadosCompuestos.values()) {
   if (IDS_GAP_UNIVERSO_FILTRO.has(caso.id)) continue;   // sección 2b
   if (!entrega.ok) { ok(false, `${caso.id} · componerEntrega ok`, entrega.motivo); continue; }
 
-  const v = verificarEntrega({ texto: entrega.texto, entrega: entrega.entrega });
-  const violacionesRelevantes = IDS_SIN_TOPE_DE_TAMANO.has(caso.id) ? v.violaciones.filter((x) => x.regla !== "tope-de-tamano") : v.violaciones;
-  ok(violacionesRelevantes.length === 0, `${caso.id} · verificarEntrega ok`, JSON.stringify(violacionesRelevantes));
+  // CORTE 3d.3 — la profundidad que `componerEntrega` de verdad usó (`entrega.entrega.meta.profundidad`, "completa"
+  // por defecto si el encargo no la declaró) — nunca "completa" a ciegas: verificarEntrega debe auditar la MISMA
+  // profundidad que gobernó el texto servido.
+  const profundidadUsada = (entrega.entrega.meta && entrega.entrega.meta.profundidad) || "completa";
+  const v = verificarEntrega({ texto: entrega.texto, entrega: entrega.entrega, profundidad: profundidadUsada });
+  ok(v.violaciones.length === 0, `${caso.id} · verificarEntrega ok`, JSON.stringify(v.violaciones));
 
   // cada tema de una parte resuelta/parcial queda cubierto (temasCubiertos) — la ley de cobertura del encargo,
   // generalizada: "temas reconocidos se cubren TODOS". D08-D11 delegan LITERALMENTE en las 4 rutas fijas (sección
@@ -205,9 +209,21 @@ for (const { caso, res, entrega } of resultadosCompuestos.values()) {
     }
   }
   if (cierres.has("simulacion")) {
-    ok(/Simulaci[oó]n — supuesto:/.test(entrega.texto) && /Resultado:/.test(entrega.texto), `${caso.id} · simulacion trae supuesto y resultado en la misma oración`);
-    ok(/delta contra lo real|no se pudo aislar como cifra propia/.test(entrega.texto), `${caso.id} · simulacion trae delta O su límite declarado (nunca en silencio)`);
-    ok(/escenario hipot[eé]tico/.test(entrega.texto), `${caso.id} · simulacion declara el límite «es un escenario, no lo que ya ocurrió»`);
+    // ACTUALIZADO (owner 2026-09-26, CORTE 3d — garantía de dueño de la simulación): la vieja forma «Simulación —
+    // supuesto: X. Resultado: Y» ponía supuesto y resultado en UNA sola oración; la nueva organiza la Respuesta
+    // en BLOQUES por entidad (`entrega/componer.js:_planSimulacion`) — el ENCABEZADO nombra entidad+simulación+
+    // supuesto una vez («Falabella — simulación: la carga comercial baja 1 punto.») y el
+    // CUERPO trae el resultado, COMPARABLES JUNTAS (owner 2026-09-26, ronda final): «el margen pasaría de 22,0 %
+    // a 23,0 % (1 pp)», nunca «margen supuesto» como sujeto suelto sin decir desde dónde. Antes: una oración con
+    // ambas piezas y un delta con la frase "contra lo real: …"; ahora: dos oraciones del MISMO bloque (`_bloqueId`
+    // compartido) y el delta pegado al par que lo trae, entre paréntesis — `_simulacion_dueno_gate.mjs` prueba el
+    // vínculo estructural completo (entidad/simulación/supuesto por bloque y por fila); acá solo se confirma que
+    // las piezas SIGUEN presentes en el texto servido.
+    // RENOMBRADO (owner 2026-09-26, `_colapso_eje_gate` C4 — «el CONCEPTO visible "escenario" murió»): «— escenario
+    // declarado por usted:» → «— simulación:»; «escenario hipotético» → «simulación… resultado hipotético».
+    ok(/— simulaci[oó]n:/.test(entrega.texto) && /pasar[ií]a/.test(entrega.texto), `${caso.id} · simulacion trae el encabezado del bloque (simulación+supuesto) y el resultado`);
+    ok(/\(-?\$?\d/.test(entrega.texto) || /no se pudo aislar como cifra propia/.test(entrega.texto), `${caso.id} · simulacion trae delta O su límite declarado (nunca en silencio)`);
+    ok(/simulaci[oó]n es un resultado hipot[eé]tico/.test(entrega.texto), `${caso.id} · simulacion declara el límite «es una simulación, no lo que ya ocurrió»`);
   }
   if (cierres.has("decision")) {
     const criterioTxt = res.criterio && (res.criterio.lente || (res.criterio.referencia && res.criterio.referencia.concepto));

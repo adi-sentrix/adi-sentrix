@@ -1,5 +1,5 @@
 /* === src/adi/oracle/ledger.js · ARQUITECTURA C · LEDGER DE CIFRAS CON PROCEDENCIA ===
- * Fase 0 (andamio en sombra). El "oráculo verificado" reemplaza el embudo angosto: el LLM PLANEA qué datos
+ * Fase 0 (andamio original). El "oráculo verificado" reemplaza el embudo angosto: el LLM PLANEA qué datos
  * necesita, el motor los TRAE con la garantía de siempre, y el LLM NARRA sobre ellos bajo el guard.
  *
  * El LEDGER es la boleta UNIFICADA de un turno: acumula los fig() de N tool-calls, estampando cada cifra con su
@@ -9,7 +9,13 @@
  * contra la unión — cierra el hueco "cifra real, referente inventado").
  *
  * PURO · sin estado global · sin I/O. Mismas tool-calls → mismo ledger (byte-igual · gate-testable).
- * NO importado por el pipeline vivo (Fase 0 es sombra): montarlo no cambia ninguna respuesta a clientes.
+ * CORREGIDO (owner 2026-09-26, CORTE 3d — «Peso del costo», solo este comentario, cero código tocado): esta
+ * cabecera decía "NO importado por el pipeline vivo (Fase 0 es sombra): montarlo no cambia ninguna respuesta a
+ * clientes" — ESO YA NO ES CIERTO (y, por lo investigado en Corte 3d, probablemente no lo era desde antes de este
+ * corte). `createLedger`/`recordCall`/`tiparBoleta` SÍ se importan y se usan en vivo: `oracle/toolRunner.js`
+ * (`runPlan`) arma el ledger de cada turno con ellos, y `enrichFromFacts` (dentro de `tiparBoleta`) es lo que
+ * autoriza las cifras auto-caminadas de `facts` (ver el hallazgo de "Peso del costo" en
+ * `encargo/esquema.js:_PRODUCTOR_RESIDUAL.peso_costo`). Nada en este archivo es sombra hoy.
  */
 
 import { fig } from "../boleta.js";

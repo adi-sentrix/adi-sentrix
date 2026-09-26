@@ -153,8 +153,16 @@ H("4 · los hechos de iniciativa usan prefijo `i*` y viven en su PROPIO libro");
   }
 }
 
-/* ═══ 5 · LAS 4 RUTAS FIJAS NUNCA LA EJERCITAN ═══ */
-H("5 · las 4 rutas fijas (delegación) dan `entrega.iniciativa === null` — iniciativa.js no se ejercita ahí");
+/* ═══ 5 · LAS 4 RUTAS FIJAS NUNCA LA EJERCITAN ═══
+ * ACTUALIZADO (owner 2026-09-26, CORTE 3d.3/3d.4 — `_ADI_DISENO_CORTE_3D.md` §B): `entrega.iniciativa` sigue
+ * SIEMPRE `null` por delegación (iniciativa.js no corre ahí — eso no cambió). Lo que SÍ cambió: `componerEntrega`
+ * ahora aplica `gobernarTamano` incluso sobre el resultado YA delegado de las 4 rutas fijas (`_conTamanoGobernado`,
+ * componer.js) — así D11 (y cualquier delegación) queda gobernada por profundidad como cualquier otro encargo,
+ * sin tocar las 4 funciones exportadas (que siguen byte a byte cuando se llaman DIRECTO, ver la cabecera de
+ * componer.js). Antes: `entrega.detalle === null` y `entrega.meta` no existía en la delegación. Después: con las
+ * 4 rutas fijas de hoy bajo el tope (nada que recortar), `entrega.detalle = {oraciones:[],filas:[],comoPedirlo}` y
+ * `entrega.meta = {profundidad:"completa", palabras, tope, entregaRef, ...}` — nunca `null`. */
+H("5 · las 4 rutas fijas (delegación): `entrega.iniciativa` sigue null; `entrega.detalle`/`entrega.meta` YA NO (CORTE 3d.3/3d.4)");
 {
   const casos = [
     { version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "lectura" }] },
@@ -165,7 +173,13 @@ H("5 · las 4 rutas fijas (delegación) dan `entrega.iniciativa === null` — in
   for (const [i, c] of casos.entries()) {
     const { R } = _comp(c);
     ok(R.ok, `caso ${i + 1} compone ok`, R.motivo);
-    if (R.ok) ok(R.entrega.iniciativa === null && R.entrega.detalle === null, `caso ${i + 1} (ruta fija por delegación) — entrega.iniciativa/detalle quedan null`, JSON.stringify({ iniciativa: R.entrega.iniciativa, detalle: R.entrega.detalle }));
+    if (R.ok) {
+      ok(R.entrega.iniciativa === null, `caso ${i + 1} (ruta fija por delegación) — entrega.iniciativa sigue null (iniciativa.js no se ejercita ahí)`, JSON.stringify(R.entrega.iniciativa));
+      const d = R.entrega.detalle;
+      ok(!!d && Array.isArray(d.oraciones) && d.oraciones.length === 0 && Array.isArray(d.filas) && d.filas.length === 0 && !!d.comoPedirlo, `caso ${i + 1} (ruta fija por delegación) — entrega.detalle YA NO es null: {oraciones:[],filas:[],comoPedirlo} (nada que recortar bajo el tope hoy)`, JSON.stringify(d));
+      const m = R.entrega.meta;
+      ok(!!m && m.profundidad === "completa" && typeof m.entregaRef === "string" && m.entregaRef.startsWith("E:"), `caso ${i + 1} (ruta fija por delegación) — entrega.meta declara profundidad "completa" (default) y un entregaRef "E:..."`, JSON.stringify(m));
+    }
   }
 }
 

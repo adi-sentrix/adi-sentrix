@@ -5,7 +5,7 @@
     "tenant": "demo", "escenario": "bonanza", "versionDatos": "dev 5a27b0b8",
     "periodos": { "comercial": "año cerrado 2025 (tenant.hechos.parametros.periodo_actual = 2025-12-31)", "cobranza": "foto al corte 2026-08-31 (flujoComercial.fechaCorte)", "inventario": "foto sin fecha declarada" },
     "nota": "Visible para quien implementa. Lo esperado está en términos verificables (estados de parte, motivos cerrados, entidades canónicas, veredictos de premisas, prohibiciones). Las cifras NO se escriben acá: el gate las toma del motor. Los veredictos de estado de cobranza se derivaron a mano de las reglas de mesaFlujo.js (facturas por escalera 12/8/6, paso 350/n, vencimiento = fecha + diasCredito, pago = vencimiento + retrasoPago, techo pctAbonado): solo se usan los clientes con margen de días holgado (Paris y Tottus quedan vencidos por 14 y 1 día y NO se usan como premisa). Los estados de SKU salen de diagnoseInventarioSku con POLICY 2x/120d · quiebre ≥6x y ≤20d · sobrestock 60–120d.",
-    "conteos": { "total": 44, "validos": 32, "defectuosos": 12, "porCierre": { "cifra": 7, "lectura": 8, "decision": 6, "comparacion": 4, "simulacion": 4, "definicion": 3 }, "decision_pendiente": 2 }
+    "conteos": { "total": 44, "validos": 32, "defectuosos": 12, "porCierre": { "cifra": 7, "lectura": 8, "decision": 6, "comparacion": 4, "simulacion": 4, "definicion": 3 }, "decision_pendiente": 1 }
   },
   "casos": [
     {
@@ -140,8 +140,8 @@
     },
     {
       "id": "D27", "titulo": "simulacion · comercial · bajar la carga 1 pp en una cuenta (simulateCarga delta_pp)",
-      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "simulacion", "conceptos": ["carga", "contribucion"], "entidades": [ { "nombre": "Falabella" } ], "supuestos": ["s1"] } ], "supuestos": [ { "id": "s1", "tipo": "custom", "valor": -1, "unidad": "pct", "alcance": { "eje": "cliente", "nombre": "Falabella" }, "origen": "supuesto", "cita": "carga comercial en puntos" } ] },
-      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Falabella", "eje": "cliente" } ], "noResuelto": [], "supuestosResueltos": [ { "id": "s1", "productor": "simulateCarga" } ], "decision_pendiente": "ASSUMPTIONS no tiene un tipo «carga»: hoy solo cabe como `custom` (perturbs null). Propuesta: agregar `carga: { perturbs: \"carga\", units: [\"pp\"] }` al registro (aditivo, una línea) para que el supuesto sea tipado y no dependa de `cita`. Hasta esa decisión el gate acepta `custom` + alcance cliente como productor simulateCarga" }
+      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "comercial", "cierre": "simulacion", "conceptos": ["carga", "contribucion"], "entidades": [ { "nombre": "Falabella" } ], "supuestos": ["s1"] } ], "supuestos": [ { "id": "s1", "tipo": "carga", "valor": -1, "unidad": "pp", "alcance": { "eje": "cliente", "nombre": "Falabella" }, "origen": "supuesto", "cita": "carga comercial en puntos" } ] },
+      "esperado": { "valido": true, "partes": { "resueltas": ["p1"], "parciales": [], "noResueltas": [] }, "temasCubiertos": ["comercial"], "entidadesResueltas": [ { "parte": "p1", "nombre": "Falabella", "eje": "cliente" } ], "noResuelto": [], "supuestosResueltos": [ { "id": "s1", "productor": "simulateCarga" } ], "nota": "RESUELTO 2026-09-26 (CORTE 3d): el registro ya tipa `carga` (§7.1) — este caso migró de `custom`+`cita` a `tipo:\"carga\"`, unidad `pp`. `custom` en comercial/cliente ya NO produce (ver `_simulacion_dueno_gate.mjs`)." }
     },
     {
       "id": "D28", "titulo": "simulacion · inventario · liberar el capital frenado de un SKU (simulateCapital)",
