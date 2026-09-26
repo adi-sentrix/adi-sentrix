@@ -137,7 +137,18 @@ function _pasosCifra(p) {
     // declarados no hay «fila completa» posible en este camino: nada que listar).
     const out = [];
     for (const e of p.entidades) {
-      if (e.eje === "bodega" || e.eje === "canal") {
+      // RC-G (diagnóstico v2, supervisor 2026-09-26 — MATERIAL, misma familia que RC12 del diagnóstico v1):
+      // `entityRecord.js:_sources` SOLO tiene fuente comercial para los ejes "marca"/"familia" (marcasMargen/
+      // marcasVentas, sfamiliasMargen/sfamiliasVentas) — una entidad de esos dos ejes para un TEMA que no es
+      // comercial (inventario: capital por marca/familia SÍ existe, contrato §3.3) siempre fallaba ahí, aunque
+      // `productorDe(concepto, eje)` sea `true`. RC12 ya resolvió el mismo defecto para bodega/canal (ningún eje
+      // de esos dos tiene fuente en `entityRecord` para NINGÚN tema); acá se generaliza la MISMA regla — no es un
+      // caso por eje, es "cuando `entityRecord` no sirve este (tema, eje), usar el listado/group-by que sí lo
+      // sirve, filtrado a la entidad por el compositor" — a marca/familia cuando el tema no es comercial (el
+      // único caso, hoy, en que `entityRecord` SÍ tiene fuente para esos dos ejes).
+      const sinFuenteEnEntityRecord = e.eje === "bodega" || e.eje === "canal"
+        || ((e.eje === "marca" || e.eje === "familia") && p.tema !== "comercial");
+      if (sinFuenteEnEntityRecord) {
         for (const c of (p.conceptos || [])) out.push(..._callsDeConceptoEje(p.tema, c, e.eje));
         continue;
       }
@@ -262,6 +273,28 @@ function _pasosLecturaDecision(partes) {
     const metricasDelTema = (dominioPorId(dominios[0]) && dominioPorId(dominios[0]).metricas) || [];
     const conceptos = new Set(declarados.length ? declarados : metricasDelTema.filter((c) => productorDe(c, eje)));
     for (const c of conceptos) out.push(..._callsDeConceptoEje(dominios[0], c, eje));
+  }
+  // RC-B (diagnóstico v2, supervisor 2026-09-26 — MATERIAL, la raíz que más fallas explica): `vs_presupuesto`/
+  // `vs_presupuesto_usd` es un concepto que `validar.js` YA acepta con productor (contrato §3.3, corregido en el
+  // corte 3a) pero que las lecturas FIJAS de arriba (`pasosDeDominios`/`pasosDelContratoComercial`, el `salesRead`
+  // que traen es SIEMPRE el de foco por defecto) nunca leen — así que un `lectura`/`decision` que lo declara
+  // (con entidad, como W36, o sobre la cartera entera, como W37) nunca lo trae al turno: no aparece en Cifras y
+  // el Notario declara «no-verificable» una premisa (`variacion` con `periodo:"presupuesto"`) que el Core SÍ
+  // puede verificar de verdad. Mismo criterio que `_pasosCifra`/`_callsDeConceptoEje` ya usan para `cifra`: si
+  // ALGUNA parte de este grupo declaró el concepto y ninguna llamada YA planeada trae ese foco, se agrega — nunca
+  // se reemplaza lo que el contrato ya trae. NO se usa `unirPasosDeDominios` (que agrupa por NOMBRE DE TOOL para
+  // `salesRead`: colapsaría este `salesRead{focus:"vs_presupuesto"}` contra el `salesRead` default del contrato
+  // comercial, que es justo el bug) — se hace la unión por tool+args EXACTO, el mismo criterio de `_dedupeCalls`
+  // que ya cierra esta función más abajo (`lecturasDe`, línea ~330).
+  const conceptosDeclarados = new Set(partes.flatMap((p) => p.conceptos || []));
+  if (conceptosDeclarados.has("vs_presupuesto") || conceptosDeclarados.has("vs_presupuesto_usd")) {
+    const yaTrae = out.some((c) => c.tool === "salesRead" && c.args && c.args.focus === "vs_presupuesto");
+    if (!yaTrae) {
+      const pConVsPresupuesto = partes.find((p) => (p.conceptos || []).includes("vs_presupuesto") || (p.conceptos || []).includes("vs_presupuesto_usd"));
+      const temaVs = (pConVsPresupuesto && pConVsPresupuesto.tema) || dominios[0];
+      const ejeVs = (pConVsPresupuesto && pConVsPresupuesto.eje) || eje || sujetoDeTema(temaVs);
+      out.push({ tool: "salesRead", args: { focus: "vs_presupuesto", dimension: ejeVs }, para: "vs_presupuesto — declarado por el encargo, no cubierto por las lecturas fijas del contrato comercial (RC-B)" });
+    }
   }
   return out;
 }

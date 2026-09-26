@@ -46,6 +46,8 @@
  * Puro (salvo lectura de figs/índice que el llamador ya construyó). Sin red, sin estado global. */
 import { lecturaDeMargen, prioridadDe } from "../agente/playbooks/margenEnRiesgo.js";
 import { prioridadIntegrada, LENTES } from "../agente/prioridadIntegrada.js";
+import { sujetoDeTema } from "../encargo/esquema.js";
+import { alcanceDeParte } from "./alcance.js";
 
 const _lab = (f) => String((f && f.label) || "");
 const _find = (figs, re) => (Array.isArray(figs) ? figs : []).find((f) => re.test(_lab(f))) || null;
@@ -270,7 +272,20 @@ export function calcularIniciativa({ figs, partes = [], iniciativaOn = true, yaT
   // ahí (p.ej. un moroso dentro de "quién está al día"), una entidad que el propio recorte excluye por
   // definición — nunca autorizado por la cabecera de la iniciativa («SIN que ninguna parte del encargo los haya
   // pedido» habla de MÉTRICAS no pedidas del MISMO alcance, no de entidades ajenas al alcance).
-  const _tieneLecturaDeCarteraEntera = (tema) => _partesDe(tema).some((p) => (p.cierre === "lectura" || p.cierre === "decision") && !(p.entidades && p.entidades.length) && !p.universo);
+  // R1 (diagnóstico v2, supervisor 2026-09-26 — MATERIAL: entidad NO pedida con cifra real, sustituyendo el
+  // alcance que el usuario sí declaró): este chequeo ya distinguía «con universo» de «cartera entera» (RC4 del
+  // diagnóstico v1), pero nunca miraba el EJE — una parte "léeme el negocio por marca" (sin entidades, sin
+  // universo, eje explícito "marca") seguía contando como «cartera entera», así que la agregada de CLIENTE
+  // (partición de la brecha, participación del líder) se calculaba sobre TODOS los clientes y nombraba a uno
+  // (Falabella) que el usuario ni pidió ni el eje pedido puede nombrar (una lectura por marca no tiene cliente
+  // sujeto). Mismo criterio de «eje explícito» que ya usan `encargo/lecturasDe.js`/`entrega/componer.js`
+  // (`alcanceDeParte`, `entrega/alcance.js` — la MISMA derivación del alcance en un solo punto): con un eje
+  // declarado DISTINTO del sujeto por defecto del tema, esto YA NO es «la cartera entera» del sujeto de siempre.
+  const _tieneLecturaDeCarteraEntera = (tema) => _partesDe(tema).some((p) => {
+    if (!((p.cierre === "lectura" || p.cierre === "decision") && !(p.entidades && p.entidades.length) && !p.universo)) return false;
+    const alcance = alcanceDeParte(p);
+    return !(alcance.eje && alcance.eje !== sujetoDeTema(tema));
+  });
 
   // COMERCIAL — solo si el encargo tocó comercial (nunca un tema no pedido, ley §A.2a)
   if (_tieneLecturaDeCarteraEntera("comercial")) {

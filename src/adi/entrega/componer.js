@@ -75,6 +75,10 @@ import { construirEncargoDeLaTabla } from "../conocimiento/tablaSenales.js";
 // candado de que lo pedido nunca cambia. Vive en su propio archivo (catálogo + motor), nunca mezclado con el
 // árbol de decisión de `_delegarRutaCanonica`/las 4 rutas fijas (que no la ejercitan — ver `_iniciativa_gate`).
 import { calcularIniciativa, MARCA_INICIATIVA, INICIATIVA_VALORES } from "./iniciativa.js";
+// CORTE de cierre RC-diagnóstico v2 (supervisor 2026-09-26) — EL ALCANCE EN UN SOLO PUNTO (R1/R2/RC-D/RC-F):
+// `alcanceDeParte` deriva el alcance declarado de una parte (eje, entidades excluidas, top); `figsEnAlcance` lo
+// aplica a las figs de esa parte ANTES de que cualquier compositor las use — ver `entrega/alcance.js`.
+import { alcanceDeParte, figsEnAlcance, recortarATop } from "./alcance.js";
 // CORTE 3d.3/3d.4 (owner 2026-09-25/26, `_ADI_DISENO_CORTE_3D.md` §B) — TAMAÑO GOBERNADO: la estructura de la
 // Entrega sigue SIEMPRE completa (`entrega.procedencia.libro`, `entrega.universos`); lo que se gobierna por
 // `encargo.profundidad` es el TEXTO servido (`respuesta`/`cifras.filas`) — `gobernarTamano` (puro, en su propio
@@ -214,7 +218,7 @@ function _limitePerfilIncompleto(perfil) {
  * error a la vista, nunca en silencio (CLAUDE.md §5: «declara, no esconde»). Es el CIMIENTO para que una
  * pregunta de seguimiento («de esos, ¿cuál priorizo?») se resuelva sobre el universo correcto — la conversación
  * en sí queda para más adelante (Etapa 6 del plan), acá solo se declara la identidad. */
-function _declararUniverso(entrega, I, { id, eje, top = null, base = null, filtros = null, excluir = null, periodo = null, entidades = [], criterio = null, estados = null, no_estados = null }) {
+function _declararUniverso(entrega, I, { id, eje, top = null, base = null, filtros = null, excluir = null, periodo = null, entidades = [], criterio = null, estados = null, no_estados = null, soloRanking = false }) {
   const u = { eje };
   if (top) u.top = top;
   if (base) u.base = base;
@@ -233,7 +237,12 @@ function _declararUniverso(entrega, I, { id, eje, top = null, base = null, filtr
   try { errorValidacion = validarUniverso(u, I); } catch (e) { errorValidacion = `error-de-validacion: ${e && e.message ? e.message : e}`; }
   let texto = "";
   try { texto = criterio || nombrarUniverso(u, I); } catch { texto = criterio || ""; }
-  entrega.universos.push({ id, eje, base: base || null, top: top || null, filtros: filtros || null, excluir: excluir || null, estados: estados || null, no_estados: no_estados || null, periodo, entidades, criterio, texto, valido: !errorValidacion, errorValidacion });
+  // CANDADO DE ALCANCE (diagnóstico v2, supervisor 2026-09-26, punto 2) — `soloRanking:true` marca un universo
+  // declarado SOLO para el DENOMINADOR del puesto de una conclusión ("5° de 13 clientes"), nunca para autorizar
+  // cifra propia: `verificarEntrega` lo excluye de la unión de entidades autorizadas (si no, el ranking completo
+  // de la cartera —13 nombres— autorizaría a CUALQUIERA de ellos a aparecer con cifra propia en cualquier parte
+  // de la Entrega, aunque el encargo solo haya pedido una).
+  entrega.universos.push({ id, eje, base: base || null, top: top || null, filtros: filtros || null, excluir: excluir || null, estados: estados || null, no_estados: no_estados || null, periodo, entidades, criterio, texto, valido: !errorValidacion, errorValidacion, soloRanking });
 }
 
 /* ── el libro de hechos de este turno: declara SOLO `ref` (cita literal de una fig), `razon` y `derivada`
@@ -1236,8 +1245,16 @@ const _todasLasFilasDeConcepto = (figs, clave) => {
 };
 
 /* ── delegación a las 4 rutas fijas (equivalencia byte a byte) ────────────────────────────────────────────────── */
+// R1, hallazgo gemelo (diagnóstico v2, supervisor 2026-09-26 — MATERIAL, reproducido con W10: la delegación a la
+// ruta fija «¿dónde la empresa deja de ganar?» se disparaba para CUALQUIER `lectura` sin entidades/conceptos/
+// universo, sin mirar el EJE — «léeme el negocio por marca» (eje explícito "marca") calzaba con `_parteSimple`
+// igual que «léeme el negocio» (cartera de CLIENTES, sujeto por defecto) y la Entrega servida terminaba siendo
+// la de siempre, por CLIENTE, con Falabella de protagonista — exactamente la misma clase de sustitución de
+// alcance que `iniciativa.js:_tieneLecturaDeCarteraEntera` tenía (mismo criterio de arreglo: `alcanceDeParte`,
+// `entrega/alcance.js` — un eje declarado DISTINTO del sujeto por defecto del tema ya no es «simple»).
 const _parteSimple = (p) => p && p.cierre === "lectura" && (!p.entidades || !p.entidades.length)
-  && (!p.conceptos || !p.conceptos.length) && !p.universo && (!p.periodo || p.periodo.tipo === "vigente");
+  && (!p.conceptos || !p.conceptos.length) && !p.universo && (!p.periodo || p.periodo.tipo === "vigente")
+  && !(alcanceDeParte(p).eje && alcanceDeParte(p).eje !== sujetoDeTema(p.tema));
 const _criterioPorDefecto = (c) => !c || (!c.referencia && (!c.lente || c.lente === "riesgo"));
 function _delegarRutaCanonica(resolucion) {
   if (!resolucion || !Array.isArray(resolucion.partes)) return null;
@@ -1725,12 +1742,20 @@ function _textoDePremisa(H, libroPremisas) {
   return `Sobre la premisa declarada por la empresa, no se pudo verificar con este dato: ${H.motivo}.`;
 }
 
-/* ── PLAN «grupo» (cierre `cifra` sin entidades: listado del eje, group-by o `universo.top`) ──────────────────── */
-function _planCifraGrupo(parte, figs) {
+/* ── PLAN «grupo» (cierre `cifra` sin entidades: listado del eje, group-by o `universo.top`) ────────────────────
+ * RC-D/RC-F (diagnóstico v2, supervisor 2026-09-26, MATERIALES) — el alcance declarado (`universo.excluir`, el
+ * EJE del group-by, `universo.top`) se acota EN UN SOLO PUNTO (`alcanceDeParte`/`figsEnAlcance`/`recortarATop`,
+ * `entrega/alcance.js`) antes de construir el plan: (RC-F) una fig de OTRO eje (un SKU en un ranking de bodega)
+ * nunca entra; (RC-D) con `top`, el listado servido es SOLO `top.k` filas con cifra propia — nunca la cola
+ * completa (antes esto confiaba en que la TOOL ya recortaba, cierto para `queryMetric{limit}`, falso para
+ * `cobranza`/`diagnose`/`rolesCartera`, que ignoran `limit` y devuelven el eje entero). */
+function _planCifraGrupo(parte, figs, { ejesDelTenant = {} } = {}) {
   if (_universoNoSoportado(parte.universo)) return null;
-  const eje = (parte.universo && parte.universo.eje) || parte.eje;
+  const alcance = alcanceDeParte(parte);
+  const figsAcotadas = figsEnAlcance(figs, alcance, { ejesDelTenant });
+  const eje = alcance.eje || parte.eje;
   const conceptosBase = parte.conceptos && parte.conceptos.length ? parte.conceptos.slice() : [];
-  const top = parte.universo && parte.universo.top;
+  const top = alcance.top;
   const conceptoTop = top ? top.metrica : null;
   const conceptos = conceptoTop && !conceptosBase.includes(conceptoTop) ? [conceptoTop, ...conceptosBase] : conceptosBase;
   if (!conceptos.length) return null;
@@ -1740,21 +1765,36 @@ function _planCifraGrupo(parte, figs) {
   // entidades que aparecen en OTRO concepto sin top (eso sería inventar una cola que no se declaró). Sin `top`, el
   // conjunto es la unión de TODO lo que cada concepto pedido trajo, sin recorte.
   let entidadesEnJuego;
-  if (top) entidadesEnJuego = _todasLasFilasDeConcepto(figs, conceptoTop).map((x) => x.entidad);
-  else { const v = new Set(); for (const c of conceptos) for (const { entidad } of _todasLasFilasDeConcepto(figs, c)) v.add(entidad); entidadesEnJuego = [...v]; }
+  if (top) entidadesEnJuego = _todasLasFilasDeConcepto(figsAcotadas, conceptoTop).map((x) => x.entidad);
+  else { const v = new Set(); for (const c of conceptos) for (const { entidad } of _todasLasFilasDeConcepto(figsAcotadas, c)) v.add(entidad); entidadesEnJuego = [...v]; }
   if (!entidadesEnJuego.length) return null;
 
   const porEntidad = new Map();   // nombre → Map(clave → fig)
-  for (const c of conceptos) for (const { entidad, fig } of _todasLasFilasDeConcepto(figs, c)) {
+  for (const c of conceptos) for (const { entidad, fig } of _todasLasFilasDeConcepto(figsAcotadas, c)) {
     if (!entidadesEnJuego.includes(entidad)) continue;
     if (!porEntidad.has(entidad)) porEntidad.set(entidad, new Map());
     porEntidad.get(entidad).set(c, fig);
   }
-  const claveOrden = conceptoTop || conceptos[0];
+  // RC-F, hallazgo gemelo (diagnóstico v2, reproducido con W47 ya con el filtro de eje aplicado) — «capital
+  // frenado»/«capital inmovilizado» son el MISMO tool call (`inventoryStatus{focus:"frenado"}`) pero NO todo
+  // concepto declarado tiene fig para TODO eje: por bodega, hoy solo «capital_frenado» trae subtotal (contrato
+  // §3.3, `_FAM_CAPITAL_FRENADO`); «capital_inmovilizado» no. `conceptos[0]` a ciegas (el orden en que el usuario
+  // los escribió) podía elegir un concepto SIN NINGÚN dato para este eje como `claveOrden` — la oración quedaba
+  // sin cifra pegada al nombre («Valparaíso, Antofagasta» sin monto), la MISMA violación que RC-F ya reproducía
+  // con el SKU intruso (oracion-hecho + tentacion-no-precalculada), solo que por una causa distinta. Se elige el
+  // primer concepto DECLARADO (respetando `conceptoTop` si hay `top`) que sí tiene AL MENOS una fig entre las
+  // entidades en juego — nunca un concepto inventado ni reordenado por valor, solo el primero que el eje sostiene.
+  const claveOrden = conceptoTop || conceptos.find((c) => entidadesEnJuego.some((e) => porEntidad.has(e) && porEntidad.get(e).has(c))) || conceptos[0];
   const dirMenor = top ? top.direccion === "menor" : (metricaPorClave(claveOrden) || {}).polaridad === "menor";
   const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
-  const orden = [...entidadesEnJuego].sort((a, b) => { const va = _num(porEntidad.get(a) && porEntidad.get(a).get(claveOrden)), vb = _num(porEntidad.get(b) && porEntidad.get(b).get(claveOrden)); if (!Number.isFinite(va) || !Number.isFinite(vb)) return 0; return dirMenor ? va - vb : vb - va; });
-  return { kind: "grupo", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, eje, conceptos, porEntidad, orden, claveOrden, universoDecl: { top: top || null, entidades: orden } };
+  let orden = [...entidadesEnJuego].sort((a, b) => { const va = _num(porEntidad.get(a) && porEntidad.get(a).get(claveOrden)), vb = _num(porEntidad.get(b) && porEntidad.get(b).get(claveOrden)); if (!Number.isFinite(va) || !Number.isFinite(vb)) return 0; return dirMenor ? va - vb : vb - va; });
+  // RC-D — el recorte por `top.k`, AHORA GARANTIZADO sea cual sea la tool subyacente (idempotente: si `orden` ya
+  // trae `top.k` filas, no cambia nada). `cola` viaja en el plan por si un compositor futuro quiere declararla
+  // aparte — hoy la oración/tabla siguen usando solo `orden` (ya acotado) y el prefijo «El top K de M» que ya
+  // declara la cola como agregado (componer.js, más abajo).
+  let cola = [];
+  if (top) { const r = recortarATop(orden, top); orden = r.enFoco; cola = r.cola; }
+  return { kind: "grupo", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, eje, conceptos, porEntidad, orden, cola, claveOrden, universoDecl: { top: top || null, entidades: orden } };
 }
 
 /* ── PLAN «multitema» (cierre `lectura`/`decision` SIN entidades, 1..N temas: reusa `prioridadIntegrada`, LA
@@ -2210,7 +2250,17 @@ export function componerEntrega(resolucion) {
   if (partesSinEntidadLecturaDecision.length) {
     const temas = [...new Set(partesSinEntidadLecturaDecision.map((p) => p.tema))];
     const conDecision = partesSinEntidadLecturaDecision.some((p) => p.cierre === "decision");
-    const figsDelGrupo = _figsDePartes(partesSinEntidadLecturaDecision.map((p) => p.id));
+    // R2 (diagnóstico v2, supervisor 2026-09-26 — MATERIAL: la entidad EXCLUIDA por el usuario volvía como
+    // protagonista) — `universo.excluir` es un alcance declarado POR PARTE; se acota ANTES de fusionar (cada
+    // parte puede excluir algo distinto) con la MISMA pieza central que usa el resto de este corte
+    // (`alcanceDeParte`/`figsEnAlcance`, `entrega/alcance.js`) — nunca una segunda lectura de `universo.excluir`.
+    // SOLO se filtra por ENTIDAD EXCLUIDA acá, nunca por eje (`eje: null` apaga esa mitad de `figsEnAlcance`): este
+    // grupo mezcla lectura/decision de eje POR DEFECTO (`ParteResuelta.eje` siempre trae el sujeto del tema aunque
+    // el usuario no haya escrito uno — contrato §4d) con la «foto completa» de inventario, que el contrato de
+    // dominios sirve A PROPÓSITO en dos formas (SKU + subtotal por bodega, `contratoDeDominios.js`) — filtrar por
+    // eje acá borraría esa foto completa. El filtro por eje (RC-F) es de `_planCifraGrupo`, donde el eje SÍ es la
+    // dimensión que la llamada al Core pidió explícitamente.
+    const figsDelGrupo = partesSinEntidadLecturaDecision.flatMap((p) => figsEnAlcance(_figsDeParte(p.id), { ...alcanceDeParte(p), eje: null }));
     const plan = _planMultiTema(temas, figsDelGrupo, ref, declararRazon, declararDerivada, { conDecision });
     if (plan) { plan.partesIds = partesSinEntidadLecturaDecision.map((p) => p.id); planes.push(plan); }
     else {
@@ -2235,7 +2285,7 @@ export function componerEntrega(resolucion) {
           if (!conceptosConProductor.length) continue;
           pParaGrupo = { ...p, conceptos: conceptosConProductor };
         }
-        const planG = _planCifraGrupo(pParaGrupo, _figsDeParte(p.id));
+        const planG = _planCifraGrupo(pParaGrupo, _figsDeParte(p.id), { ejesDelTenant });
         if (!planG) continue;
         const figA0 = planG.orden.length > 1 ? planG.porEntidad.get(planG.orden[0]).get(planG.claveOrden) : null;
         const figB0 = planG.orden.length > 1 ? planG.porEntidad.get(planG.orden[1]).get(planG.claveOrden) : null;
@@ -2263,7 +2313,7 @@ export function componerEntrega(resolucion) {
           continue;
         }
         if (_universoNoSoportado(p.universo)) { limitesGap.push(_limiteUniversoNoSoportado(p)); continue; }
-        const plan = _planCifraGrupo(p, figsDeP);
+        const plan = _planCifraGrupo(p, figsDeP, { ejesDelTenant });
         if (plan) {
           // tentación precalculada (mecanismo 6): la diferencia entre el primero y el segundo del listado, en la
           // MISMA métrica que ordena — se captura el fig ANTES de convertir el mapa a ids (unit-aware), y se
@@ -2327,7 +2377,11 @@ export function componerEntrega(resolucion) {
   // texto se arma más adelante, junto a `cifrasImpresas`, para que la regla «cero cifras desnudas» lo audite igual.
   const _iniciativaFlagCruda = resolucion.encargo && resolucion.encargo.iniciativa;
   const iniciativaOn = INICIATIVA_VALORES.includes(_iniciativaFlagCruda) ? _iniciativaFlagCruda !== "ninguna" : true;   // default "completa"; un valor inválido ya quedó declarado en noResuelto (validar.js)
-  const partesParaIniciativa = partesUtiles.map((p) => ({ tema: p.tema, cierre: p.cierre, conceptos: (p.conceptos || []).length, entidades: (p.entidades || []).map((e) => e.nombre), universo: p.universo || null }));
+  // R1 (diagnóstico v2, supervisor 2026-09-26) — `eje` viaja acá SOLO para que `iniciativa.js` pueda distinguir
+  // «cartera entera» de «un eje explícito distinto del sujeto del tema» (`alcanceDeParte`, `entrega/alcance.js`):
+  // antes este resumen no traía el campo, así que `iniciativa.js` no podía verlo aunque `ParteResuelta.eje` ya lo
+  // tuviera resuelto — ver la nota en `iniciativa.js:_tieneLecturaDeCarteraEntera`.
+  const partesParaIniciativa = partesUtiles.map((p) => ({ tema: p.tema, cierre: p.cierre, conceptos: (p.conceptos || []).length, entidades: (p.entidades || []).map((e) => e.nombre), universo: p.universo || null, eje: p.eje || null }));
   const yaTieneIntegrada = planes.some((pl) => pl.kind === "multitema");
   const { hechos: hechosIniciativa, candidatos: candidatosIniciativa } = calcularIniciativa({
     figs, partes: partesParaIniciativa, iniciativaOn, yaTieneIntegrada,
@@ -2455,7 +2509,7 @@ export function componerEntrega(resolucion) {
         // entidades del ranking completo (nunca solo el top-k) — el candado del gate compara el denominador
         // contra `entrega.universos[x].entidades.length`.
         if (conclusion && conclusion.universoEntidades && conclusion.universoEntidades.length) {
-          _declararUniverso(entrega, I, { id: `${plan.parteId}_${entidad}_ranking`, eje: conclusion.universoEje || "cliente", entidades: conclusion.universoEntidades, criterio: conclusion.universoCriterio });
+          _declararUniverso(entrega, I, { id: `${plan.parteId}_${entidad}_ranking`, eje: conclusion.universoEje || "cliente", entidades: conclusion.universoEntidades, criterio: conclusion.universoCriterio, soloRanking: true });
         }
       }
     } else if (plan.kind === "grupo") {
@@ -2672,7 +2726,15 @@ export function componerEntrega(resolucion) {
     } else if (plan.kind === "multitema") {
       const frase = (dominio, lente, ids) => (ids && ids[lente]) ? LENTES[dominio][lente].como(R(ids[lente])) : null;
       const filasVistas = new Set();   // dedup: idsIntegrada/idsVersus pueden repetir la MISMA señal que ya declaró `lideres` (mismo id, cacheado en `_planMultiTema`)
-      const _filaDedup = (entidad, dominio, etiqueta, id) => { const k = `${dominio}::${entidad}::${id}`; if (filasVistas.has(k)) return; filasVistas.add(k); entrega.cifras.filas.push(_fila(entidad, dominio, etiqueta, id)); };
+      // CANDADO DE ALCANCE (diagnóstico v2, supervisor 2026-09-26, punto 2) — «la conclusión del procedimiento: la
+      // prioridad integrada nombra a quien va primero, SOLO si la parte es de cartera entera» es la ley que
+      // autoriza estas filas (el líder de cada dominio, el ganador de la integrada, el rival del «va antes que»):
+      // ninguna la traía registrada en `entrega.universos` (a diferencia de TODOS los demás `kind` de plan, que sí
+      // se declaran) — se acumulan acá y se declaran una vez, abajo, para que `verificarEntrega` pueda auditarlas
+      // igual que a cualquier otra fila (nunca una excepción por AUSENCIA de universo, que es justo el hueco que
+      // dejaba pasar R1/R2 sin que nada lo viera venir).
+      const entidadesMultitema = new Set();
+      const _filaDedup = (entidad, dominio, etiqueta, id) => { entidadesMultitema.add(entidad); const k = `${dominio}::${entidad}::${id}`; if (filasVistas.has(k)) return; filasVistas.add(k); entrega.cifras.filas.push(_fila(entidad, dominio, etiqueta, id)); };
       // CORTE 3d.3 (owner 2026-09-26) — PRIORIDAD EXPLÍCITA (ley: «se recorta por la prioridad del procedimiento,
       // nunca por el orden de aparición»): la CONCLUSIÓN INTEGRADA («Prioridad del procedimiento…», el veredicto
       // de `prioridadIntegrada`, CLAUDE.md §2 ley 4) es SIEMPRE prioridad 0 — la única que `gobernarTamano` nunca
@@ -2715,6 +2777,7 @@ export function componerEntrega(resolucion) {
       }
       // CORTE 3e (owner 2026-09-26) — «declarado por usted» → «declarado por la empresa».
       if (plan.idBenchComercial) entrega.marco.referenciaDeclarada = entrega.marco.referenciaDeclarada || { texto: `Benchmark de margen (comercial): ${R(plan.idBenchComercial)}, declarado por la empresa.`, hechoId: plan.idBenchComercial };
+      if (entidadesMultitema.size) _declararUniverso(entrega, I, { id: `${plan.partesIds ? plan.partesIds.join("_") : "multitema"}_prioridad`, eje: "cliente", entidades: [...entidadesMultitema], criterio: "prioridad integrada por señales — materialidad, severidad y urgencia entre los dominios que comparten cliente, nunca por suma de montos" });
     }
   }
   entrega.respuesta = entrega.respuesta.filter((r) => r.hechos.length || r._definicion);
@@ -2812,6 +2875,20 @@ export function componerEntrega(resolucion) {
   if (temasCubiertos.has("comercial") && _comercialEsDeCartera) {
     let rolesGeneral = null;
     try { rolesGeneral = buildRolesCartera(scenario); } catch { rolesGeneral = null; }
+    // R2 GENERALIZADO (diagnóstico v2, supervisor 2026-09-26 — MATERIAL, hallado al reproducir W20 con el resto
+    // de este corte ya aplicado): `buildRolesCartera` corre sobre el PORTAFOLIO ENTERO, ajeno a cualquier
+    // `universo.excluir` que el encargo haya declarado — la MISMA ley que ya protege `_planMultiTema`
+    // (`entrega/alcance.js`). Sin este filtro, la entidad EXCLUIDA por el usuario podía volver nombrada en la
+    // pregunta al dueño de «Para su juicio» (nunca con cifra propia — `_preguntaAbiertaComercial` no imprime una
+    // — pero el nombre solo ya viola «nada se sustituye por un vecino»). Se filtra por NOMBRE, nunca se
+    // reconstruye `rolesCartera` con un universo nuevo: es la salida de siempre, con las entidades excluidas
+    // retiradas de la única lista que este compositor lee (`preguntaAlDueno.entidades`).
+    const excluidasComercial = new Set(partesUtiles.filter((p) => p.tema === "comercial").flatMap((p) => alcanceDeParte(p).excluir).map((n) => String(n || "").trim().toLowerCase()));
+    if (rolesGeneral && rolesGeneral.preguntaAlDueno && excluidasComercial.size) {
+      const entsFiltradas = (rolesGeneral.preguntaAlDueno.entidades || []).filter((e) => !excluidasComercial.has(String(e || "").trim().toLowerCase()));
+      rolesGeneral = entsFiltradas.length === (rolesGeneral.preguntaAlDueno.entidades || []).length ? rolesGeneral
+        : { ...rolesGeneral, preguntaAlDueno: entsFiltradas.length ? { ...rolesGeneral.preguntaAlDueno, entidades: entsFiltradas } : null };
+    }
     // CORTE 3e (owner 2026-09-26) — antes: `Solo usted puede responder: …` (segunda persona).
     { const pa = _preguntaAbiertaComercial(rolesGeneral, perfil); if (pa) entrega.paraSuJuicio.push(pa); }
   }

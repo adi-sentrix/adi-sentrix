@@ -369,5 +369,47 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
     }
   }
 
+  // 15 · CANDADO DE ALCANCE (diagnóstico v2, supervisor 2026-09-26, punto 2 de la decisión de arquitectura sobre
+  // el patrón transversal R1/R2/RC-D/RC-F/RC-G — «el alcance declarado se pierde entre validación y composición»,
+  // memoria `adi-cobertura-del-encargo`). LEY: toda entidad con CIFRA PROPIA en la tabla de Cifras pertenece al
+  // alcance de ALGUNA parte del encargo, o está autorizada por una ley escrita. La autorización se lee de
+  // `entrega.universos` (`entrega/componer.js:_declararUniverso`) — lo que CADA compositor YA declara (grupo,
+  // grupoUniverso, entidad, comparación, la prioridad integrada del multitema) — nunca una lista nueva ni una
+  // segunda lectura del encargo:
+  //   · `entrega.universos[].entidades` autoriza, salvo un universo `soloRanking:true` (declara el DENOMINADOR
+  //     del puesto de una conclusión —"5° de 13 clientes"—, nunca una lista de autorizados: si contara, el
+  //     ranking completo de la cartera autorizaría a cualquiera de sus nombres a aparecer con cifra propia en
+  //     cualquier parte de la Entrega);
+  //   · la ruta fija `componerEntregaMultidominio` (columna "Dominio" en vez de la entidad en primer lugar) tiene
+  //     su PROPIA declaración por líder (`${d}_lider`/`prioridad_integrada`) — se excluye del escaneo genérico
+  //     solo porque su primera columna no es el dueño (es el dominio), no porque le falte autorización;
+  //   · la tabla de una simulación (columnas "Simulación"+"Supuesto") ya tiene su propio candado, más específico
+  //     (regla 14(d), contra `entrega._simulacionUniverso`) — se excluye acá para no duplicar ni contradecir esa
+  //     lógica con una distinta.
+  // Carnadas que esta regla cierra: una entidad EXCLUIDA que reaparece (R2); la cola de un top-N con cifra propia
+  // (RC-D); una fig de OTRO eje colada en un ranking (RC-F); una entidad no pedida sustituyendo el alcance (R1).
+  {
+    const colsAlcance = (entrega.cifras && Array.isArray(entrega.cifras.columnas)) ? entrega.cifras.columnas : [];
+    const esRutaMultidominio = colsAlcance.includes("Dominio");
+    const esTablaSimulacion = colsAlcance.includes("Simulación") && colsAlcance.includes("Supuesto");
+    if (entrega.cifras && !esRutaMultidominio && !esTablaSimulacion) {
+      const universoDeclarado = new Set();
+      for (const u of entrega.universos || []) {
+        if (!u || u.soloRanking) continue;
+        for (const e of u.entidades || []) if (e) universoDeclarado.add(normalizar(e));
+      }
+      (entrega.cifras.filas || []).forEach((f, i) => {
+        const dueño = f && f.valores && Object.values(f.valores)[0];
+        if (!dueño) return;
+        const d = String(dueño);
+        // ni una entidad: son los rótulos ESTRUCTURALES que este archivo ya reconoce en otras reglas ("Negocio",
+        // el agregado de un top-N/grupo declarado "Total (…)", la fila sintética "A − B" de un `comparacion`, ya
+        // cubierta por la autorización de A y B por separado).
+        if (d === "Negocio" || d === "negocio" || /^total\b/i.test(d) || d.includes(" − ")) return;
+        if (!universoDeclarado.has(normalizar(d))) v("alcance-fuera-de-parte", `cifras.filas[${i}] nombra a "${d}" con cifra propia, fuera del alcance que declara cualquier parte del encargo (\`entrega.universos\`)`);
+      });
+    }
+  }
+
   return { ok: violaciones.length === 0, violaciones };
 }

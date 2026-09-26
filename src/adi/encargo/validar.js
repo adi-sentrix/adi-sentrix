@@ -362,6 +362,30 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
       noResuelto.push(nuevoNoResuelto({ parte: id, campo: "eje", valor: parteCruda.eje, motivo: "eje_no_soportado", alternativas: [...ejesAlternativos].map((e) => ({ tipo: "eje", eje: e })) }));
     }
   }
+  /* RC-A (diagnóstico v2, supervisor 2026-09-26 — MATERIAL: «Resolucion.ok»/«estado» mienten sobre si el eje
+   * sirve algo) — con eje EXPLÍCITO y CERO conceptos declarados (contrato §1: `[]` = «lo que el procedimiento del
+   * tema sirva»), el bucle de arriba (línea 328) NUNCA corre (`conceptosEntrada` vacío), así que
+   * `sinProductorPendientes` nunca se llena y el bloque de arriba nunca puede detectar un eje SIN NINGÚN productor
+   * para el tema entero (ej. cobranza·marca — cobranza solo produce por cliente, contrato §3.3). Antes, esa
+   * combinación pasaba la validación como `resuelta` con `conceptos:[]`, y en silencio terminaba sirviendo
+   * contenido de OTRO alcance (compuesto con R1) en vez de declinar. `lecturasDe.js:_pasosLecturaDecision` y
+   * `entrega/componer.js` (fallback de eje explícito) YA expanden "sin conceptos" a "todos los del tema con
+   * productor en ese eje" para decidir QUÉ CORRE — acá se hace la MISMA pregunta, pero SOLO para decidir el
+   * ESTADO: si NINGÚN concepto del tema tiene productor en `ejeEfectivo`, es el eje el que falla (mismo motivo
+   * `eje_no_soportado` que la rama de arriba usa para el caso análogo con conceptos declarados). Nunca se agrega
+   * nada a `conceptosValidos`/`ParteResuelta.conceptos` — esa lista sigue siendo `[]` cuando nada se declaró
+   * explícito; esto solo alimenta la validación interna del eje. Si AL MENOS UN concepto del tema sí produce en
+   * ese eje, la parte sigue resolviendo con `conceptos:[]` (el procedimiento decide qué sirve, como siempre).
+   * Acotado a `lectura`/`decision` (el caso diagnosticado): `cifra` ya tiene su propio candado para "sin nada
+   * que mostrar" (`cifraSinNada`, más abajo) y puede sostenerse solo con `universo.top` sin declarar `conceptos`
+   * — no se le suma un segundo motivo de aquí. */
+  const ejeSinProductorImplicito = (cierre === "lectura" || cierre === "decision") && ejeFueExplicito && conceptosEntrada.length === 0
+    && !(temaEntrada.metricas || []).some((c) => productorDe(c, ejeEfectivo));
+  if (ejeSinProductorImplicito) {
+    const ejesAlternativos = new Set();
+    for (const c of temaEntrada.metricas || []) for (const e of ejesConProductor(c)) ejesAlternativos.add(e);
+    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "eje", valor: parteCruda.eje, motivo: "eje_no_soportado", alternativas: [...ejesAlternativos].map((e) => ({ tipo: "eje", eje: e })) }));
+  }
 
   /* ── universo (§4g) ── */
   let universoResuelto = null, universoValido = null, universoDado = parteCruda.universo != null;
@@ -478,7 +502,7 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
     if (entidadEsencialFalla || conceptoEsencialFalla || cifraSinNada || universoEsencialFalla) estado = "no_resuelta";
     else estado = parcialForzado ? "parcial" : "resuelta";
   } else {   // lectura · decision
-    if (entidadEsencialFalla || conceptoEsencialFallaLD || universoEsencialFalla) estado = "no_resuelta";
+    if (entidadEsencialFalla || conceptoEsencialFallaLD || universoEsencialFalla || ejeSinProductorImplicito) estado = "no_resuelta";
     else estado = parcialForzado ? "parcial" : "resuelta";
   }
 

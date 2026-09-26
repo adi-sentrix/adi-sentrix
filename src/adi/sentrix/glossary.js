@@ -241,6 +241,63 @@ export const CONCEPT_DEFS = {
     def: "Es la clasificación que el detector de inventario le pone a cada SKU según su rotación y sus días de inventario: en rango, riesgo de quiebre, sobrestock o inmovilizado. Cada SKU cae en uno solo, y los cuatro estados suman el capital total.",
     distingue: "El estado es una clasificación, no una cifra: el monto de cada estado lo pone el **capital en inventario** que cae en él.",
   },
+  // ── cobranza (RC-E, diagnóstico v2, supervisor 2026-09-26 — decisión ya cerrada §7.1: «definición de recuperado
+  // se sirve desde la definición canónica de tasas.js») — CONCEPT_DEFS no tenía NINGUNA entrada de cobranza: un
+  // encargo `definicion` sobre cualquiera de los 7 conceptos del tema (contrato §3.2) fallaba ENTERO con «sin
+  // boleta», porque `resolveGlossary` no encontraba nada y `defineConcept` no declaraba `facts.es_definicion`.
+  // Cada definición de abajo CITA la fuente canónica —nunca un texto inventado en este archivo—: la fórmula de
+  // `recuperado` es literal la de `notario/tasas.js:TASAS_DE_LA_CASA` («abonado ÷ venta a crédito»); «al día» =
+  // saldo vencido 0 es la de `notario/estados.js` (canon "al dia"); «por vencer» = saldo pendiente − saldo
+  // vencido y los rótulos («Venta a crédito del período», «Abonado», «Saldo pendiente», «Saldo vencido») son los
+  // que ya declara `sentrix/mesaFlujo.js` (la misma mesa que la pestaña Comercial → Flujo Comercial).
+  venta_credito: {
+    aka: "venta a crédito del período",
+    etiquetas: ["venta a credito", "venta a credito del periodo", "venta credito"],
+    def: "Es la venta del período que generó una cuenta por cobrar —a crédito, no al contado—: la BASE sobre la que se miden el abonado, el saldo pendiente y el recuperado de cada cliente (fuente: `sentrix/mesaFlujo.js`, «Venta a crédito del período»).",
+    distingue: "No es la venta comercial completa del cliente (esa incluye lo vendido al contado, que nunca genera saldo por cobrar): es solo la porción que quedó a crédito, la que puede tener saldo pendiente o vencido.",
+  },
+  abonado: {
+    aka: "abonado",
+    etiquetas: ["abonado", "lo abonado", "pagos recibidos"],
+    def: "Es lo que el cliente ya pagó de su venta a crédito del período. Junto con el saldo pendiente, reconstruye la venta a crédito completa: venta a crédito = abonado + saldo pendiente (fuente: `sentrix/mesaFlujo.js`, «Abonado», publicado como % de la venta a crédito).",
+    distingue: "No es el **saldo pendiente**, que es lo que falta por pagar de esa misma venta, ni el **recuperado**, que es este mismo monto expresado como tasa sobre la venta a crédito.",
+  },
+  saldo_pendiente: {
+    aka: "saldo pendiente",
+    etiquetas: ["saldo pendiente", "lo que debe", "deuda total", "deuda por cobrar", "debe"],
+    def: "Es lo que el cliente todavía no ha pagado de su venta a crédito del período: venta a crédito menos abonado. Se compone de dos partes —lo ya vencido y lo que aún no vence— (fuente: `sentrix/mesaFlujo.js`, «Saldo pendiente», publicado como % de la venta a crédito).",
+    distingue: "No es lo mismo que el **saldo vencido**: el pendiente es TODO lo que falta por cobrar; el vencido es solo la parte cuyo plazo ya pasó. Un cliente puede tener saldo pendiente sin tener nada vencido (está «al día»).",
+  },
+  saldo_vencido: {
+    aka: "saldo vencido",
+    etiquetas: ["saldo vencido", "vencido", "monto vencido", "deuda vencida"],
+    // SIN cifra de ejemplo, mismo motivo que `recuperado`: «$0»/«cero» leído por `verificarEntrega` como una
+    // cifra impresa sin hecho que la respalde. Se describe la condición en palabras, no en número.
+    def: "Es la parte del saldo pendiente cuyo plazo de pago YA pasó. «Al día» significa exactamente esto: ningún monto vencido (el cliente puede seguir debiendo lo que aún no vence); «en mora» es lo contrario, con algo vencido (fuente: `notario/estados.js`, definición del estado «al dia»; el monto, `sentrix/mesaFlujo.js`, «Saldo vencido», publicado como % del saldo pendiente).",
+    distingue: "No es el **saldo pendiente** completo: el vencido es el subconjunto ya atrasado. Y no es lo mismo que los **días vencido**, que miden CUÁNTO tiempo lleva atrasado, no CUÁNTO dinero.",
+  },
+  saldo_por_vencer: {
+    aka: "saldo por vencer",
+    etiquetas: ["saldo por vencer", "por vencer", "sin vencer", "saldo vigente", "no vencido"],
+    def: "Es lo que el cliente debe y AÚN NO vence: saldo pendiente menos saldo vencido. Puede sonar sano en pantalla sin serlo —un cliente con mucho «por vencer» simplemente tiene plazos largos, no necesariamente buen historial de pago— (fuente: `sentrix/mesaFlujo.js`: «lo que debe y aún no vence… el saldo menos lo vencido»).",
+    distingue: "No es el **saldo vencido** (lo contrario: lo que YA pasó su plazo) ni el **saldo pendiente** completo, del que el por vencer es solo una parte.",
+  },
+  recuperado: {
+    aka: "recuperado",
+    etiquetas: ["recuperado", "recuperacion", "tasa de recuperacion", "porcentaje recuperado"],
+    // SIN cifra de ejemplo a propósito (corrección del supervisor, medido con W46: un número suelto en esta
+    // prosa —aunque sea solo ilustrativo, «recuperó el X% de su saldo pendiente»— entra a la Entrega como
+    // definición VERBATIM (contrato §1.1) y `verificarEntrega` regla 1 lo cazaba como una cifra sin hecho que la
+    // respalde. La distinción se explica sin ningún dígito.
+    def: "Es la fórmula de la casa: abonado ÷ venta a crédito. Mide qué parte de la venta a crédito del período ya se convirtió en pago — nunca se calcula sobre el saldo pendiente, aunque describirlo así («recuperó una parte de su saldo pendiente») suene igual de natural (fuente: `notario/tasas.js:TASAS_DE_LA_CASA`, concepto «recuperado», base «la venta a crédito del período», numerador «abonado»).",
+    distingue: "No es el complemento del **saldo pendiente** sobre la venta (esa cuenta, abonado ÷ saldo pendiente, es OTRA tasa, y suele dar un número distinto y más alto): recuperado siempre se mide sobre la venta a crédito, nunca sobre lo que falta por cobrar.",
+  },
+  dias_vencido: {
+    aka: "días vencido",
+    etiquetas: ["dias vencido", "dias de vencido", "antiguedad del vencido", "dias de mora", "dias de atraso"],
+    def: "Es cuántos días lleva vencido el documento más atrasado de esa cuenta (el máximo, no un promedio) — mide TIEMPO de atraso, no el monto (fuente: `sentrix/mesaFlujo.js`, campo `diasVencido`/`diasMax`).",
+    distingue: "No es el **saldo vencido**: ese es el monto en $ que está atrasado; los días vencido miden cuánto tiempo lleva esa deuda sin pagarse. Un cliente puede tener poco saldo vencido pero muchos días de atraso, o al revés.",
+  },
   // ── universo, alcance y referencia (el vocabulario del contrato de concordancia) ──────────────────────────────
   universo: {
     aka: "universo",
