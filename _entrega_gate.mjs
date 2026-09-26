@@ -456,8 +456,11 @@ H("13 · perfilCliente.js — el perfil, falla cerrado, sobre TENANT_DEMO real (
   ok(!!perfil && perfil.empresa && perfil.empresa.nombre === "ADI Demo" && perfil.empresa.id === "demo", "el perfil trae la identidad real del tenant (id/nombre), no inventada", JSON.stringify(perfil && perfil.empresa));
   ok(Array.isArray(CAMPOS_DEL_PERFIL) && CAMPOS_DEL_PERFIL.length === 6, "los seis campos del plan §3: sector · tipoProducto · tamaño · país · moneda · modelo comercial", CAMPOS_DEL_PERFIL.join(","));
 
-  // LO QUE SÍ ESTÁ DECLARADO HOY, medido: la moneda (TENANT_DEMO.perfil.moneda = "CLP", demo.js línea 449)
-  ok(perfil.campos.moneda.valor === "CLP" && perfil.campos.moneda.procedencia === "medido", "moneda: declarada por el tenant (\"medido\") — el ÚNICO campo con valor hoy", JSON.stringify(perfil.campos.moneda));
+  // LO QUE SÍ ESTÁ DECLARADO HOY: la moneda (TENANT_DEMO.perfil.moneda = "CLP", demo.js línea 449).
+  // ★ CORREGIDO (supervisor, 2026-09-26): procedencia "declarado", no "medido" — la moneda siempre la declara
+  // la empresa, nunca la mide ADI ni la deriva el motor (ley de los cuatro orígenes, notario/hechos.js:ORIGENES;
+  // migración 015 corrige el check de `tenants.moneda_procedencia` al mismo vocabulario).
+  ok(perfil.campos.moneda.valor === "CLP" && perfil.campos.moneda.procedencia === "declarado", "moneda: declarada por el tenant (\"declarado\") — el ÚNICO campo con valor hoy", JSON.stringify(perfil.campos.moneda));
 
   // LO QUE ES DERIVABLE EN VALOR pero no en banda: la venta anual real (ventasKPI.totalActual × factorComercialDe)
   const ventaEsperada = Math.round(TENANT_DEMO.ventasKPI.totalActual * 1e3);   // demo declara escalaComercial "K"
@@ -613,18 +616,29 @@ H("14b · perfilCliente.js — construirPerfilCliente LEE el camino B cuando exi
   // declarado) la banda calculada da null, así que se prueba aparte, sobre datos armados a mano, más abajo
   // (§17 — la sección de la tarea de bandas). Acá se prueba SOLO el resto del camino B (sector/tipoProducto/
   // país/modeloComercial), con códigos que SÍ están en la taxonomía sembrada (`taxonomiaPerfil.js`).
+  // ★ CORREGIDO (supervisor, 2026-09-26, segunda ronda): sector/tipoProducto/país/modeloComercial los declara
+  // SIEMPRE la empresa — su única procedencia válida es "declarado" (con el legado "medido" aceptado y
+  // traducido igual). "derivado" YA NO es válido para estos cuatro campos (antes sí, "se respetaba tal cual"):
+  // ver la carnada de abajo.
   const CON_CAMINO_B = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil,
-    sector: { valor: "minorista", procedencia: "medido" },
-    tipoProducto: { valor: "durable", procedencia: "medido" },
-    pais: { valor: "CL", procedencia: "medido" },
-    modeloComercial: { valor: "comercios", procedencia: "derivado" },
+    sector: { valor: "minorista", procedencia: "medido" },        // legado: se traduce a "declarado"
+    tipoProducto: { valor: "durable", procedencia: "declarado" },
+    pais: { valor: "CL", procedencia: "medido" },                  // legado: se traduce a "declarado"
+    modeloComercial: { valor: "comercios", procedencia: "declarado" },
   } };
   const P = construirPerfilCliente(CON_CAMINO_B);
-  ok(P.campos.sector.valor === "minorista" && P.campos.sector.procedencia === "medido", "sector: leído del camino B con su procedencia", JSON.stringify(P.campos.sector));
+  ok(P.campos.sector.valor === "minorista" && P.campos.sector.procedencia === "declarado", "sector: leído del camino B, legado \"medido\" traducido a \"declarado\"", JSON.stringify(P.campos.sector));
   ok(P.campos.tipoProducto.valor === "durable", "tipoProducto: leído del camino B (sector minorista lo admite)");
   ok(P.campos.pais.valor === "CL", "país: leído del camino B (nunca derivado de la moneda: acá vino declarado)");
-  ok(P.campos.modeloComercial.valor === "comercios" && P.campos.modeloComercial.procedencia === "derivado", "modelo comercial: procedencia 'derivado' se respeta tal cual");
+  ok(P.campos.modeloComercial.valor === "comercios" && P.campos.modeloComercial.procedencia === "declarado", "modelo comercial: \"declarado\" se respeta tal cual");
   ok(P.campos.tamano.ventaAnual.valor === perfilDemo.campos.tamano.ventaAnual.valor, "…la venta anual REAL (derivada de ventasKPI) no cambia por el camino B: son dos cosas distintas en el mismo objeto");
+
+  // ★ CARNADA NUEVA (supervisor, 2026-09-26) · "derivado" ya no es válido para modelo comercial — ADI nunca lo
+  // mide ni lo deriva, siempre lo declara la empresa; un valor "derivado" se trata como AUSENTE.
+  const CON_MODELO_COMERCIAL_DERIVADO = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil,
+    modeloComercial: { valor: "comercios", procedencia: "derivado" } } };
+  ok(construirPerfilCliente(CON_MODELO_COMERCIAL_DERIVADO).campos.modeloComercial.valor === null,
+    "★ CARNADA · modelo comercial con procedencia \"derivado\" → rechazado, tratado como ausente (ya no es un origen válido para este campo)");
 
   // CARNADA · procedencia inválida (fuera de {"medido","derivado"}) se trata como AUSENTE — defensa en
   // profundidad, la base ya lo rechazaría con el trigger, esto es el segundo control, no el primero.
@@ -674,9 +688,11 @@ H("14c · perfilEmpresaDesdeFilaTenant — el mapeo puro desde una fila cruda de
     moneda: "USD", moneda_procedencia: "medido",
   };
   const m = perfilEmpresaDesdeFilaTenant(filaCompleta);
-  ok(m.campos.sector.valor === "minorista" && m.campos.sector.procedencia === "medido", "mapea sector con su procedencia");
+  // ★ CORREGIDO (supervisor, 2026-09-26, segunda ronda): sector es SIEMPRE declarado por la empresa — el
+  // legado "medido" de la fila se traduce a "declarado" (nunca queda como "medido").
+  ok(m.campos.sector.valor === "minorista" && m.campos.sector.procedencia === "declarado", "mapea sector, legado \"medido\" traducido a \"declarado\"");
   ok(!("tipoProducto" in m.campos), "un par codigo/procedencia ambos NULOS no entra al objeto (no se inventa un `{valor:null}`)");
-  ok(m.campos.tamanoBanda.valor === "mediana" && m.campos.tamanoBanda.procedencia === "derivado", "tamanoBanda: la clave camelCase que perfilCliente.js espera");
+  ok(m.campos.tamanoBanda.valor === "mediana" && m.campos.tamanoBanda.procedencia === "derivado", "tamanoBanda: la clave camelCase que perfilCliente.js espera (SOLO \"derivado\" es válido acá, sin cambios)");
   ok(m.moneda === "USD", "moneda mapea como string plano (no {valor,procedencia}) — distinto del resto, a propósito");
 
   ok(perfilEmpresaDesdeFilaTenant(null) === null, "fila nula → null, no revienta");
@@ -685,7 +701,16 @@ H("14c · perfilEmpresaDesdeFilaTenant — el mapeo puro desde una fila cruda de
   // CARNADA · un código sin su procedencia (o con una inválida) no entra — defensa en profundidad
   const filaSucia = { sector_codigo: "algo", sector_procedencia: "propuesta", moneda: "us-dollars" };
   const ms = perfilEmpresaDesdeFilaTenant(filaSucia);
-  ok(ms === null, "★ CARNADA · procedencia fuera de {medido,derivado} Y moneda con formato inválido → TODO descartado, null");
+  ok(ms === null, "★ CARNADA · procedencia inválida para el campo (\"propuesta\" no es \"declarado\" ni el legado \"medido\") Y moneda con formato inválido → TODO descartado, null");
+
+  // ★ CARNADA NUEVA (supervisor, 2026-09-26) · "derivado" ya no es válido para sector — se descarta
+  const filaSectorDerivado = { sector_codigo: "minorista", sector_procedencia: "derivado" };
+  ok(perfilEmpresaDesdeFilaTenant(filaSectorDerivado) === null, "★ CARNADA · sector con procedencia \"derivado\" → descartado (ADI nunca lo mide ni lo deriva, siempre lo declara la empresa)");
+
+  // ★ CARNADA NUEVA (supervisor, 2026-09-26) · el legado "medido" para tamanoBanda NO se traduce a "derivado"
+  // (mentiría sobre el origen: un ajuste manual no es un cálculo) — se descarta, igual que la migración 015 lo limpia
+  const filaBandaMedida = { tamano_banda_codigo: "mediana", tamano_banda_procedencia: "medido" };
+  ok(perfilEmpresaDesdeFilaTenant(filaBandaMedida) === null, "★ CARNADA · tamanoBanda con el legado \"medido\" → descartado, NUNCA traducido a \"derivado\"");
 }
 
 /* ═══ 15 · CAMINO B — LA MONEDA SE HEREDA (Etapa 2 §3, medido con sonda antes de escribir el código) ═════════ */

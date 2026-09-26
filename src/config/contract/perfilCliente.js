@@ -40,6 +40,16 @@
  * "propuesta" acá, porque ningún campo de este perfil nace de una brecha, de un supuesto de simulación ni de
  * una recomendación).
  *
+ * ⚠️ LA MONEDA ES LA EXCEPCIÓN, CORREGIDA POR EL SUPERVISOR (2026-09-26). Los cinco campos del camino B
+ * (sector/tipoProducto/país/modeloComercial/tamanoBanda) siguen con el vocabulario de 012: "medido" = lo tipeó
+ * el usuario. Para la MONEDA eso era la mezcla de procedencias que prohíbe la ley de los cuatro orígenes del
+ * owner (2026-09-25): con `notario/hechos.js:ORIGENES`, "medido" significa lo que ADI MIDE sobre el dato de la
+ * empresa — y la moneda nunca se mide ni se deriva, siempre la declara la empresa. Por eso, SOLO para moneda,
+ * la procedencia correcta y la que este módulo escribe de ahora en más es **"declarado"** (migración 015: el
+ * check de `tenants.moneda_procedencia` ya solo admite ese valor, con los `'medido'` viejos migrados). La
+ * LECTURA de acá sigue aceptando el legado `'medido'` de una fila no migrada y lo trata como `'declarado'` —
+ * nunca como un tercer significado.
+ *
  * NO pasa por `notario/hechos.js:libroDeHechos()` — esa maquinaria verifica CIFRAS de la boleta (una `fig` con
  * `.tipo.verificabilidad`, para arbitrar sumas/restas/razones); estos son campos de IDENTIDAD del tenant, leídos
  * directo del objeto tenant, en el mismo patrón que `entrega/componer.js` ya usa para `marco.empresa` /
@@ -73,25 +83,46 @@ export const ETIQUETA_DEL_CAMPO = { sector: "sector", tipoProducto: "tipo de pro
  * mergee (la migración sin aplicar, o un tenant fabricado a mano como TENANT_DEMO), el campo sigue
  * exactamente como declaraba antes de este cambio: ausente, con su motivo — CERO diferencia de comportamiento.
  *
+ * ⚠️ CORRECCIÓN DEL SUPERVISOR (2026-09-26, segunda ronda) — LA LEY DE LOS CUATRO ORÍGENES, CAMPO POR CAMPO.
+ * El owner, textual, sobre el perfil: «el perfil y la moneda son atributos persistentes de la empresa, no del
+ * archivo, y ADI debe recordarlos SIN INFERIRLOS». Sector, tipo de producto, país y modelo comercial los
+ * declara SIEMPRE la empresa — nunca los mide ni los deriva ADI — así que su ÚNICA procedencia válida es
+ * `"declarado"`; se acepta el legado `"medido"` (012/013, antes de que la 015 corrigiera el vocabulario: ahí
+ * "medido" significaba "lo tipeó el usuario") y se traduce igual — nunca `"derivado"`, que ya no es válido
+ * para estos cuatro campos. La banda de tamaño es la EXCEPCIÓN INVERSA: `bandaTamano.js` la CALCULA siempre a
+ * partir de la venta y la UF — «no se pregunta, se calcula» (owner 2026-09-23) — así que su única procedencia
+ * válida es `"derivado"`; un legado `"medido"` para la banda representaría un ajuste manual que la ley ya no
+ * admite, y NO se traduce (traducirlo a "derivado" mentiría sobre su origen) — se descarta, igual que la
+ * migración 015 lo limpia en la base (nunca se re-etiqueta un origen, ley general: «nunca se reemplaza en
+ * silencio» tampoco autoriza a RENOMBRAR un origen que no calza).
+ *
  * `_delPerfilDeEmpresa` es la ÚNICA puerta de entrada, y valida FORMA Y VOCABULARIO (owner 2026-09-23, tarea 2:
  * antes solo validaba la forma — «la taxonomía la decide el owner, no este módulo» seguía siendo cierto el día
  * que se escribió, pero el owner YA la decidió, `taxonomiaPerfil.js`, así que dejar pasar un código inventado
- * sería el mismo hueco que un `check` sin sembrar) — un valor con procedencia fuera de {"medido","derivado"},
- * sin `valor` de texto, o con un código que NO está en la lista cerrada del campo se trata como si no estuviera,
+ * sería el mismo hueco que un `check` sin sembrar) — un valor con procedencia inválida PARA ESE CAMPO, sin
+ * `valor` de texto, o con un código que NO está en la lista cerrada del campo se trata como si no estuviera,
  * la misma defensa en profundidad que ya tiene el trigger de la base (`adi.validar_perfil_tenant()`), no la
  * primera línea de defensa. */
-const _PROCEDENCIAS_DEL_PERFIL_EMPRESA = ["medido", "derivado"];
+const _CAMPOS_SOLO_DERIVADO = new Set(["tamanoBanda"]);
+/** procedenciaNormalizadaPerfilEmpresa(campo, procedenciaCruda) → "declarado" | "derivado" | null
+ * La ÚNICA función que decide qué procedencia es válida para un campo del camino B, y a qué se traduce el
+ * legado — exportada para que `perfilEmpresaDesdeFilaTenant` y `_delPerfilDeEmpresa` usen la MISMA regla. */
+export function procedenciaNormalizadaPerfilEmpresa(campo, procedenciaCruda) {
+  if (_CAMPOS_SOLO_DERIVADO.has(campo)) return procedenciaCruda === "derivado" ? "derivado" : null;
+  return (procedenciaCruda === "declarado" || procedenciaCruda === "medido") ? "declarado" : null;
+}
 /** camelCase (como lo usa este módulo y `tenant.perfil`) → snake_case (como lo usa `taxonomiaPerfil.js` y la
  *  base, para que las dos listas sigan siendo la misma verdad sin renombrar ninguna de las dos). */
 const _CAMPO_A_TAXONOMIA = { sector: "sector", tipoProducto: "tipo_producto", modeloComercial: "modelo_comercial", pais: "pais", tamanoBanda: "tamano_banda" };
 function _delPerfilDeEmpresa(t, campo) {
   const v = t && t.perfil && t.perfil[campo];
   if (!v || typeof v.valor !== "string" || !v.valor) return null;
-  if (!_PROCEDENCIAS_DEL_PERFIL_EMPRESA.includes(v.procedencia)) return null;
+  const procedencia = procedenciaNormalizadaPerfilEmpresa(campo, v.procedencia);
+  if (!procedencia) return null;
   const campoTaxonomia = _CAMPO_A_TAXONOMIA[campo];
   if (campoTaxonomia && !codigoValido(campoTaxonomia, v.valor)) return null;   // código fuera de la lista → rechazado (nunca se cuela, nunca se avisa como "casi")
-  return { valor: v.valor, procedencia: v.procedencia,
-    fuente: `tenant.perfil.${campo} — declarado por la empresa o derivado por el motor (camino B, fuera de la plantilla; \`db/migraciones/012_perfil_empresa.sql\`, sin aplicar)` };
+  return { valor: v.valor, procedencia,
+    fuente: `tenant.perfil.${campo} — declarado por la empresa (camino B, fuera de la plantilla; \`db/migraciones/012_perfil_empresa.sql\`, sin aplicar)` };
 }
 
 /* perfilEmpresaDesdeFilaTenant(fila) → { campos: {...}, moneda } | null
@@ -112,12 +143,18 @@ export function perfilEmpresaDesdeFilaTenant(fila) {
   const campos = {};
   for (const [campo, colValor, colProcedencia] of _PARES_PERFIL_TENANT) {
     const valor = fila[colValor];
-    const procedencia = fila[colProcedencia];
-    if (typeof valor === "string" && valor && _PROCEDENCIAS_DEL_PERFIL_EMPRESA.includes(procedencia)) {
+    const procedencia = procedenciaNormalizadaPerfilEmpresa(campo, fila[colProcedencia]);
+    if (typeof valor === "string" && valor && procedencia) {
       campos[campo] = { valor, procedencia };
     }
   }
-  const moneda = typeof fila.moneda === "string" && /^[A-Z]{2,6}$/.test(fila.moneda) ? fila.moneda : null;
+  // ★ CORRECCIÓN DEL SUPERVISOR (2026-09-26): la única procedencia válida de la moneda es "declarado"; se acepta
+  // también el legado "medido" (012/013, antes de que la 015 corrigiera el vocabulario) y se trata igual — nunca
+  // "derivado" (la moneda no se infiere, ni siquiera acá). Sin columna de procedencia (una fila de antes de la
+  // 012, o un tenant fabricado a mano sin ese campo) se sigue aceptando por FORMATO solo, como siempre: esta
+  // función no vuelve más estricta una fila que ya funcionaba.
+  const procedenciaMonedaOk = fila.moneda_procedencia == null || fila.moneda_procedencia === "declarado" || fila.moneda_procedencia === "medido";
+  const moneda = typeof fila.moneda === "string" && /^[A-Z]{2,6}$/.test(fila.moneda) && procedenciaMonedaOk ? fila.moneda : null;
   if (!Object.keys(campos).length && !moneda) return null;
   return { campos, moneda };
 }
@@ -129,9 +166,13 @@ export function construirPerfilCliente(tenant) {
 
   // TAMAÑO — el valor (venta anual real) se deriva; la BANDA se CALCULA siempre (propuesta §3, textual: «no se
   // pregunta, se calcula») con `bandaTamano.js` — venta anual ÷ UF del período declarado, contra los umbrales
-  // sellados por el owner. Un valor de camino B con procedencia "medido" (una corrección humana manual de la
-  // banda, si algún día existiera) es la ÚNICA razón para no recalcular — hoy nunca ocurre en la práctica,
-  // porque la banda nunca se pregunta, pero la puerta queda para no perder un ajuste humano si existiera.
+  // sellados por el owner. ★ CORREGIDO (supervisor, 2026-09-26): la puerta de un "ajuste humano manual" de la
+  // banda (antes, un valor de camino B con procedencia "medido") queda CERRADA — la ley del owner dice que el
+  // perfil "no se infiere", y la banda es la excepción inversa: ADI la calcula, la empresa nunca la declara.
+  // `procedenciaNormalizadaPerfilEmpresa("tamanoBanda", ...)` ya no admite "medido" para este campo (SOLO
+  // "derivado"), así que `_delPerfilDeEmpresa` nunca devuelve un valor manual acá — `bandaManual` queda
+  // siempre `null` y la banda SIEMPRE se calcula. Se deja la forma condicional (en vez de borrar la rama) para
+  // que quede documentado qué existía y por qué se cerró, no para dejar una puerta abierta de hecho.
   const ventasKPI = t.ventasKPI || null;
   const tieneVenta = ventasKPI && typeof ventasKPI.totalActual === "number" && Number.isFinite(ventasKPI.totalActual);
   const ventaAnual = tieneVenta ? Math.round(ventasKPI.totalActual * factorComercialDe(t)) : null;
@@ -180,7 +221,10 @@ export function construirPerfilCliente(tenant) {
       motivo: "no se declara en la plantilla ni en la pantalla de carga; no se deriva de la moneda (varios países comparten moneda — la misma ley que prohíbe inferir la moneda corre también en esta dirección)",
     },
     moneda: monedaCod
-      ? { valor: monedaCod, procedencia: "medido", fuente: "tenant.perfil.moneda — hoja Empresa (config/contract/plantilla.js:PARAMETROS clave \"moneda\") o la pantalla de carga si el archivo no la trae (ui/PanelDatos.jsx), o heredada de una carga anterior de la misma empresa (camino B, `tenants.moneda`)" }
+      // ★ CORREGIDO (supervisor, 2026-09-26): "declarado", no "medido" — la moneda siempre la declara la
+      // empresa (por el archivo o por la pantalla de carga), nunca la mide ADI ni la deriva el motor; con la
+      // ley de los cuatro orígenes, "medido" es lo que ADI mide sobre el dato, no lo que la empresa declara.
+      ? { valor: monedaCod, procedencia: "declarado", fuente: "tenant.perfil.moneda — hoja Empresa (config/contract/plantilla.js:PARAMETROS clave \"moneda\") o la pantalla de carga si el archivo no la trae (ui/PanelDatos.jsx), o heredada de una carga anterior de la misma empresa (camino B, `tenants.moneda`)" }
       : { valor: null, procedencia: null, fuente: null, motivo: "el cliente todavía no la declaró (ni en el archivo ni en la pantalla de carga, ni en una carga anterior de esta empresa)" },
     modeloComercial: _delPerfilDeEmpresa(t, "modeloComercial") || {
       valor: null, procedencia: null, fuente: null,
