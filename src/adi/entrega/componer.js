@@ -1718,8 +1718,15 @@ function _rotuloDeLaCasaDeH(H) {
   const entidad = fig ? _entidadDe(fig) : (H.roles.sujetos[0] && H.roles.sujetos[0] !== "negocio" ? H.roles.sujetos[0] : null);
   const clave = fig ? _claveDeFig({ label: fig }) : ([...H.claves].find((c) => c !== "variacion" && c !== "vs_presupuesto") || null);
   const conceptoTxt = clave ? _labelDeClave(clave).toLowerCase() : null;
-  let valor = H.numeros && H.numeros[0] ? H.numeros[0].texto : null;
-  if (!valor) { const mv = /(-?\d+(?:[.,]\d+)?\s?(?:%|pp))/.exec(`${H.verdad || ""} ${H.motivo || ""}`); if (mv) valor = mv[1]; }
+  // EL DUEÑO DE UNA CIFRA (owner 2026-09-26, diagnóstico v4 §5, MATERIAL) — el valor SOLO sale de `H.numeros`
+  // (la estructura del hecho: `notario/hechos.js` ya resuelve, para el sujeto único de un `orden` sin fig propia,
+  // SU valor por `_figDe`/`valorDeRanking` — la misma fuente que arma cualquier otra cifra del libro). Antes, sin
+  // `H.numeros`, un regex leía el primer «N%»/«N pp» de `H.verdad + H.motivo` — y `H.verdad` es SIEMPRE el top-3
+  // del ranking con el GANADOR primero (verdadera o falsa): una premisa falsa pegaba el valor del 1.º al nombre
+  // del sujeto (K13: «Samsung: margen 35.5%», 35.5% es de Makita). Cifra = valor + dueño + métrica, del LIBRO,
+  // nunca de una posición dentro de una cadena de texto — sin `H.numeros`, no hay rótulo (cae a `H.verdad`/
+  // `H.motivo`, que sí conservan cada número pegado a SU propio nombre).
+  const valor = H.numeros && H.numeros[0] ? H.numeros[0].texto : null;
   if (!entidad || !valor) return null;
   if (H.tipo === "variacion") {
     const verbo = _VERBO_DIRECCION_PREMISA[H.direccion] || "varió";
@@ -1749,10 +1756,15 @@ function _textoDePremisa(H, libroPremisas) {
  * nunca entra; (RC-D) con `top`, el listado servido es SOLO `top.k` filas con cifra propia — nunca la cola
  * completa (antes esto confiaba en que la TOOL ya recortaba, cierto para `queryMetric{limit}`, falso para
  * `cobranza`/`diagnose`/`rolesCartera`, que ignoran `limit` y devuelven el eje entero). */
-function _planCifraGrupo(parte, figs, { ejesDelTenant = {} } = {}) {
+function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}) {
   if (_universoNoSoportado(parte.universo)) return null;
   const alcance = alcanceDeParte(parte);
-  const figsAcotadas = figsEnAlcance(figs, alcance, { ejesDelTenant });
+  // BODEGA (diagnóstico v4 §3, MATERIAL) — `indice` es el mismo índice de `notario/evidencia.js` que ya arma
+  // `_indiceDelTenant`: `figsEnAlcance` lo necesita para recortar los SKU de `alcance.bodega` a la bodega
+  // declarada (K16: `{eje:"sku", bodega:"Valparaíso"}` servía las 11 figs del inventario completo, no las 4 de
+  // Valparaíso). Sin `indice` (un llamador que no lo tenga a mano) esta mitad del recorte simplemente no corre —
+  // documentado en `figsEnAlcance`, nunca silencioso.
+  const figsAcotadas = figsEnAlcance(figs, alcance, { ejesDelTenant, indice });
   const eje = alcance.eje || parte.eje;
   const conceptosBase = parte.conceptos && parte.conceptos.length ? parte.conceptos.slice() : [];
   const top = alcance.top;
@@ -2260,7 +2272,7 @@ export function componerEntrega(resolucion) {
     // dominios sirve A PROPÓSITO en dos formas (SKU + subtotal por bodega, `contratoDeDominios.js`) — filtrar por
     // eje acá borraría esa foto completa. El filtro por eje (RC-F) es de `_planCifraGrupo`, donde el eje SÍ es la
     // dimensión que la llamada al Core pidió explícitamente.
-    const figsDelGrupo = partesSinEntidadLecturaDecision.flatMap((p) => figsEnAlcance(_figsDeParte(p.id), { ...alcanceDeParte(p), eje: null }));
+    const figsDelGrupo = partesSinEntidadLecturaDecision.flatMap((p) => figsEnAlcance(_figsDeParte(p.id), { ...alcanceDeParte(p), eje: null }, { indice: I }));
     const plan = _planMultiTema(temas, figsDelGrupo, ref, declararRazon, declararDerivada, { conDecision });
     if (plan) { plan.partesIds = partesSinEntidadLecturaDecision.map((p) => p.id); planes.push(plan); }
     else {
@@ -2285,7 +2297,7 @@ export function componerEntrega(resolucion) {
           if (!conceptosConProductor.length) continue;
           pParaGrupo = { ...p, conceptos: conceptosConProductor };
         }
-        const planG = _planCifraGrupo(pParaGrupo, _figsDeParte(p.id), { ejesDelTenant });
+        const planG = _planCifraGrupo(pParaGrupo, _figsDeParte(p.id), { ejesDelTenant, indice: I });
         if (!planG) continue;
         const figA0 = planG.orden.length > 1 ? planG.porEntidad.get(planG.orden[0]).get(planG.claveOrden) : null;
         const figB0 = planG.orden.length > 1 ? planG.porEntidad.get(planG.orden[1]).get(planG.claveOrden) : null;
@@ -2313,7 +2325,7 @@ export function componerEntrega(resolucion) {
           continue;
         }
         if (_universoNoSoportado(p.universo)) { limitesGap.push(_limiteUniversoNoSoportado(p)); continue; }
-        const plan = _planCifraGrupo(p, figsDeP, { ejesDelTenant });
+        const plan = _planCifraGrupo(p, figsDeP, { ejesDelTenant, indice: I });
         if (plan) {
           // tentación precalculada (mecanismo 6): la diferencia entre el primero y el segundo del listado, en la
           // MISMA métrica que ordena — se captura el fig ANTES de convertir el mapa a ids (unit-aware), y se

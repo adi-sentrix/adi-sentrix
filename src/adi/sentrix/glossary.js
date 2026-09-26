@@ -299,10 +299,22 @@ export const CONCEPT_DEFS = {
     distingue: "No es el **saldo vencido**: ese es el monto en $ que está atrasado; los días vencido miden cuánto tiempo lleva esa deuda sin pagarse. Un cliente puede tener poco saldo vencido pero muchos días de atraso, o al revés.",
   },
   // ── universo, alcance y referencia (el vocabulario del contrato de concordancia) ──────────────────────────────
+  // SIN el «80%» de Pareto escrito como cifra (corrección del supervisor, diagnóstico v4 §4, MATERIAL): «grupo 80»
+  // es el NOMBRE del corte de Pareto de la casa, no una medición sobre el tenant — pero un `cierre:"definicion"`
+  // JAMÁS trae boleta (contrato §1.1) y `verificarEntrega` regla «cifras-desnudas» exige un hecho para CUALQUIER
+  // dígito servido: «el grupo que explica el 80% de la venta» quedaba estructuralmente imposible de respaldar
+  // (K63: «80%, 80» huérfanos, el mismo evento contando dos aserciones). No es una constante declarada en POLICY
+  // ni en el contrato (`src/config/businessPolicy.js` no trae ningún «80»: el corte vive hardcodeado como literal
+  // en `sentrix/concentration.js:82`, sin gobierno ni procedencia citable) — es, por evidencia, parte de la
+  // DEFINICIÓN del concepto (el nombre de la regla clásica de Pareto), así que se describe SIN dígito: «la mayor
+  // parte, según la regla de Pareto de la casa». El «grupo 80» como NOMBRE PROPIO del concepto (su `aka`, lo que
+  // el usuario escribe para pedirlo) no se toca — renombrarlo es una decisión de producto del owner, no de este
+  // arreglo — y su dígito de NOMBRE (no de medición) lo exime `entrega/verificar.js` (`_NOMBRE_GRUPO_80_PERMITIDO`,
+  // mismo mecanismo que ya exime «carga comercial alta» del guardrail de adjetivos).
   universo: {
     aka: "universo",
     etiquetas: ["universo", "alcance del universo"],
-    def: "Es el conjunto exacto de filas sobre el que se calculó una cifra: todo el negocio, el grupo que explica el 80%, la cola, un estado del inventario, un eje o una selección de pantalla. Dos cifras del mismo nombre y distinto universo no son comparables.",
+    def: "Es el conjunto exacto de filas sobre el que se calculó una cifra: todo el negocio, el grupo que concentra la mayor parte de la venta (según la regla de Pareto de la casa), la cola, un estado del inventario, un eje o una selección de pantalla. Dos cifras del mismo nombre y distinto universo no son comparables.",
     distingue: "No es el período ni el eje: el universo dice QUÉ filas entran; el eje dice por qué dimensión están cortadas y el período, en qué ventana de tiempo.",
   },
   negocio: {
@@ -314,13 +326,13 @@ export const CONCEPT_DEFS = {
   grupo80: {
     aka: "grupo 80",
     etiquetas: ["grupo 80", "grupo80", "el grupo 80", "plano 80", "plano 80%", "80/20", "regla 80/20"],
-    def: "Es el conjunto de entidades que, ordenadas de mayor a menor, explican el 80% de la venta del eje. Es el plano de decisión: donde una mejora de margen mueve el total.",
+    def: "Es el conjunto de entidades que, ordenadas de mayor a menor, concentran la mayor parte de la venta del eje, según la regla de Pareto de la casa. Es el plano de decisión: donde una mejora de margen mueve el total.",
     distingue: "El grupo 80 y **la cola** parten el mismo universo en dos: juntos son el negocio completo, por construcción.",
   },
   cola: {
     aka: "la cola",
     etiquetas: ["cola", "la cola", "cola de la cartera"],
-    def: "Es el resto del universo una vez separado el grupo que explica el 80% de la venta: muchas entidades, cada una con poco peso. Importa por acumulación, no cuenta por cuenta.",
+    def: "Es el resto del universo una vez separado el grupo que concentra la mayor parte de la venta (la regla de Pareto de la casa): muchas entidades, cada una con poco peso. Importa por acumulación, no cuenta por cuenta.",
     distingue: "La cola y el **grupo 80** parten el mismo universo en dos: juntos son el negocio completo, por construcción.",
   },
   eje: {

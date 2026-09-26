@@ -719,12 +719,19 @@ function _universoDeTexto(s) {
   return null;
 }
 const _ejeDeEntidad = (I, nombre) => { try { const r = I.resolverEntidad(nombre); return r ? r.eje : null; } catch { return null; } };
+/* CAMPOS_UNIVERSO — los ÚNICOS campos que un universo tipado puede declarar (§7 del comentario de cabecera). UNA
+ * SOLA FUENTE (owner 2026-09-26, diagnóstico v4 §3): antes esta lista vivía SOLO dentro de `validarUniverso`, y
+ * `entrega/alcance.js:alcanceDeParte` (el compositor que recorta las figs al alcance declarado) traía su PROPIA
+ * lectura parcial de estos mismos campos, sin `bodega` — el caso real: una `cifra` acotada a `{eje:"sku",
+ * bodega:"Valparaíso"}` servía el inventario COMPLETO porque el compositor nunca leyó ese campo. `alcance.js`
+ * importa esta constante (nunca copia la lista) y trae un candado de completitud: si mañana este arreglo gana un
+ * campo, el que no lo maneje se entera al cargar el módulo, no en producción. */
+export const CAMPOS_UNIVERSO = ["eje", "base", "estados", "no_estados", "bodega", "filtros", "top", "excluir", "union"];
 export function validarUniverso(u, I, sujeto = null) {
   if (u == null || typeof u === "string") return null;
   if (Array.isArray(u)) return u.every((x) => typeof x === "string" && x.trim()) ? null : "una lista de universo trae nombres de entidades";
   if (!_es(u)) return "el universo es un objeto, un texto o una lista de entidades";
-  const permitidas = ["eje", "base", "estados", "no_estados", "bodega", "filtros", "top", "excluir", "union"];
-  const raras = Object.keys(u).filter((k) => !permitidas.includes(k)); if (raras.length) return `universo con campos desconocidos: ${raras.join(", ")}`;
+  const raras = Object.keys(u).filter((k) => !CAMPOS_UNIVERSO.includes(k)); if (raras.length) return `universo con campos desconocidos: ${raras.join(", ")}`;
   const eje = normalizar(u.eje || "cliente");
   if (!EJES_VALIDOS.includes(eje)) return `eje desconocido «${u.eje}»`;
   if (I && typeof I.tamanoDelEje === "function" && !I.tamanoDelEje(eje)) return `eje-sin-entidades: la evidencia no trae ${PLURAL_DE_EJE[eje] || eje + "s"}`;
@@ -895,6 +902,39 @@ export function libroDeHechos(hechos, ctx = {}) {
         else if (tipo === "variacion" && vd && Number.isFinite(vd.raw) && /^[+\-−]/.test(String(h.variacion && h.variacion.valor || "").trim()) && H.direccion && ((H.direccion === "sube" && vd.raw < 0) || (H.direccion === "baja" && vd.raw > 0))) _aplica(H, { veredicto: "falsa", motivo: `signo: «${vd.texto}» contradice la dirección «${H.direccion}»`, verdad: f ? _fmtFig(f) : "", evidencia: f ? [f.label] : [] });
       }
       if (tipo === "variacion") { const f = (v.evidencia || []).map((l) => I.figs.find((g) => normalizar(g.label) === normalizar(l))).find(Boolean); H.render.valor = a2.variacion && a2.variacion.valor && a2.variacion.valor.texto ? _canonTexto(a2.variacion.valor.texto) : (f ? (f.texto || (f.fig && String(f.fig.value)) || "") : ""); if (f && !H.numeros.length) H.numeros.push({ raw: f.raw, unidad: f.unidad, texto: f.texto || "" }); }
+      // EL DUEÑO DE UNA CIFRA (owner 2026-09-26, diagnóstico v4 §5, MATERIAL) — cuando la evidencia de un hecho
+      // que pasó por el juez general (orden · relacion · grupo · conteo · variacion · estado) es el RANKING de la
+      // proyección y no una fig de la boleta, `H.evidencia[0]` es el placeholder interno «ranking <eje> · <clave>
+      // · <universo>» (verificar.js), nunca una fig real: `H.numeros` queda vacío porque los bloques de arriba
+      // solo lo llenan buscando ESE label entre las figs reales (`I.figs.find`), y esa búsqueda no puede
+      // encontrar un label que nunca fue una fig. Sin número propio, `componer.js:_rotuloDeLaCasaDeH` no tenía
+      // de dónde sacar un valor sin leer la prosa de depuración (`H.verdad`, que en un `orden` con más de una
+      // entidad citada como evidencia SIEMPRE nombra al GANADOR primero, verdadero o falso — la raíz de K13:
+      // «Samsung: margen 35.5%» cuando 35.5% es de Makita) — y sin ESTE rescate, un `variacion` en la misma
+      // situación (D29: «ranking cliente · variacion · Mercado Libre = 25.3%») dejaba `_rotuloDeLaCasaDeH` sin
+      // valor y filtraba esa MISMA prosa de depuración VERBATIM al texto servido. Arreglo DE RAÍZ, general para
+      // cualquier tipo: el número que la casa puede imprimir para EL SUJETO sale de SU PROPIA fig o, sin ella,
+      // del mismo ranking que ya verificó `verificar.js` (`_figDe`/`valorDeRanking`, la MISMA fuente que arma
+      // cualquier otra cifra del libro) — nunca de una posición dentro de una cadena de texto. Solo con un
+      // sujeto único (con varios sujetos —`topk`, un `grupo` de miembros, un `relacion` con `vs` de más de uno—
+      // la cifra de cada uno la arma su propio camino, no este rescate genérico).
+      if (!H.numeros.length && H.roles.sujetos.length === 1 && H.roles.sujetos[0] !== "negocio") {
+        const _sujetoRescate = H.roles.sujetos[0];
+        let _fSujeto = null;
+        if (tipo === "variacion") {
+          // la VARIACIÓN es su propia métrica (lexico.js: clave «variacion», «Variación vs año anterior») — NUNCA
+          // el metric BASE del hecho (`h.metrica`, ej. «ventas»): ese declara contra qué concepto varió (sirve
+          // para el «en venta» del rótulo, en `componer.js`), pero el NÚMERO que hay que imprimir es el de la
+          // variación, no el total de ventas — mismo camino que `verificar.js:_variacion` ya usa para este mismo
+          // cierre de brecha (`_delRanking({ metrica: "variacion" })`, exportado como `valorDeRanking`).
+          _fSujeto = _figDe(I, _sujetoRescate, "variacion");
+          if (!_fSujeto) { const _rk = valorDeRanking({ sujeto: _sujetoRescate, metrica: "variacion" }, I); if (_rk) _fSujeto = { raw: _rk.raw, unidad: _rk.unidad, texto: _rk.texto, fig: { value: _rk.texto } }; }
+        } else {
+          const _claveSujeto = [...H.claves].find((c) => c !== "variacion" && c !== "vs_presupuesto") || null;
+          _fSujeto = _claveSujeto ? _figDe(I, _sujetoRescate, _claveSujeto) : null;
+        }
+        if (_fSujeto) H.numeros.push({ raw: _fSujeto.raw, unidad: _fSujeto.unidad, texto: _fSujeto.texto || (_fSujeto.fig && String(_fSujeto.fig.value)) || "" });
+      }
       return H;
     } catch (e) {
       H.veredicto = "no-verificable"; H.motivo = `error-del-libro: ${e && e.message ? e.message : e}`; return H;

@@ -1,4 +1,14 @@
 /* === src/adi/entrega/alcance.js · EL ALCANCE DE UNA PARTE, EN UN SOLO PUNTO ═══════════════════════════════════
+ * CANDADO DE COMPLETITUD (owner 2026-09-26, diagnóstico v4 §3, MATERIAL) — `alcanceDeParte` tiene que leer TODOS
+ * los campos que `notario/hechos.js:CAMPOS_UNIVERSO` admite en un universo tipado (la MISMA lista que
+ * `validarUniverso` usa para rechazar «campos desconocidos» — una sola fuente, importada, nunca copiada). El
+ * defecto real que esto cierra: `u.bodega` nunca se leía acá, así que una `cifra` acotada a `{eje:"sku",
+ * bodega:"Valparaíso"}` servía el inventario COMPLETO en la tabla «Cifras» y en la oración de respuesta — la
+ * NOTARÍA (que verifica premisas) sí sabe filtrar por bodega (`notario/verificar.js:_skusEnBodega`); el
+ * COMPOSITOR no. Este archivo se autochequea al cargar: si `CAMPOS_UNIVERSO` gana un campo mañana y
+ * `_CAMPOS_MANEJADOS` (abajo) no lo lista, el import de este módulo LANZA — cualquier gate que lo cargue queda
+ * rojo de inmediato, no en producción.
+ *
  * DECISIÓN DE ARQUITECTURA DEL SUPERVISOR (diagnóstico v2, 2026-09-26) sobre el patrón transversal que atraviesa
  * R1, R2, RC-D y RC-F del diagnóstico: el alcance que el usuario DECLARÓ en una parte del encargo (eje, entidades
  * excluidas, el recorte `universo.top`) se validaba bien en `encargo/validar.js` pero se perdía entre la
@@ -15,14 +25,25 @@
  * por su cuenta. `recortarATop(...)` hace la otra mitad del recorte por `top.k` (que exige el ORDEN por la
  * métrica del top, decisión de cada compositor — no se puede resolver acá sin ese criterio). */
 
+import { CAMPOS_UNIVERSO } from "../notario/hechos.js";
+
 const _norm = (s) => String(s || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
-/** alcanceDeParte(parte) → { eje, excluir:[nombre,...], top, estados, no_estados, filtros, entidadesNombradas, periodo }
+/* los campos de CAMPOS_UNIVERSO que `alcanceDeParte` YA sabe leer y devolver — `eje` siempre estuvo (con su propio
+ * fallback a `parte.eje`, ver abajo); `base` y `union` no tienen hoy un mecanismo de recorte de FIGS ya calculadas
+ * (a diferencia de la Notaría, que resuelve un universo tipado contra el eje entero desde cero, el compositor solo
+ * RECORTA figs que una tool ya trajo — `base`/`union` piden resolver un conjunto que ninguna tool declaró todavía)
+ * y se exponen igual para que ningún llamador futuro los lea como `undefined` sin verlos en absoluto. */
+const _CAMPOS_MANEJADOS = ["eje", "base", "estados", "no_estados", "bodega", "filtros", "top", "excluir", "union"];
+{ const olvidados = CAMPOS_UNIVERSO.filter((c) => !_CAMPOS_MANEJADOS.includes(c)); if (olvidados.length) throw new Error(`entrega/alcance.js: CAMPOS_UNIVERSO ganó campo(s) que alcanceDeParte no maneja: ${olvidados.join(", ")} — agregalos a _CAMPOS_MANEJADOS y a alcanceDeParte/figsEnAlcance antes de tocar nada más`); }
+
+/** alcanceDeParte(parte) → { eje, base, excluir:[nombre,...], top, estados, no_estados, filtros, bodega, union,
+ *  entidadesNombradas, periodo } — TODOS los campos de `CAMPOS_UNIVERSO` (candado de completitud arriba).
  *  `parte` es una `ParteResuelta` (`encargo/validar.js`) o el resumen equivalente que ya usa `iniciativa.js`
  *  (`{ tema, cierre, conceptos, entidades, universo, eje? }`) — ambos formatos traen los mismos campos con el
  *  mismo nombre, así que una sola función sirve a los dos llamadores. */
 export function alcanceDeParte(parte) {
-  if (!parte) return { eje: null, excluir: [], top: null, estados: null, no_estados: null, filtros: null, entidadesNombradas: [], periodo: null };
+  if (!parte) return { eje: null, base: null, excluir: [], top: null, estados: null, no_estados: null, filtros: null, bodega: null, union: null, entidadesNombradas: [], periodo: null };
   const u = parte.universo || null;
   // el eje EFECTIVO de la parte: el del universo si lo declara, si no el campo `eje` de la parte (`ParteResuelta.eje`
   // ya trae el sujeto por defecto del tema cuando el usuario no escribió uno — ver `validar.js:308` — así que este
@@ -33,11 +54,16 @@ export function alcanceDeParte(parte) {
   const top = (u && u.top && Number.isFinite(u.top.k)) ? u.top : null;
   return {
     eje,
+    base: (u && u.base) || null,
     excluir,
     top,
     estados: (u && Array.isArray(u.estados) && u.estados.length) ? u.estados : null,
     no_estados: (u && Array.isArray(u.no_estados) && u.no_estados.length) ? u.no_estados : null,
     filtros: (u && Array.isArray(u.filtros) && u.filtros.length) ? u.filtros : null,
+    // BODEGA (diagnóstico v4 §3, MATERIAL): solo restringe SKU (`validarUniverso` ya lo exige antes de llegar
+    // acá) — se expone tal como se declaró, sin resolver contra el tenant: `figsEnAlcance` es quien recorta.
+    bodega: (u && u.bodega) || null,
+    union: (u && Array.isArray(u.union) && u.union.length) ? u.union : null,
     entidadesNombradas: (parte.entidades || []).map((e) => e && e.nombre).filter(Boolean),
     periodo: parte.periodo || null,
   };
@@ -45,14 +71,25 @@ export function alcanceDeParte(parte) {
 
 const _entidadDeLabelDefault = (label) => { const p = String(label || "").split("·").map((s) => s.trim()); return p.length >= 2 ? p[0] : null; };
 
-/** figsEnAlcance(figs, alcance, { ejesDelTenant, entidadDeLabel }) → figs recortadas al alcance declarado:
+/* la bodega declarada («Valparaíso») CASA con la bodega real de un SKU («Valparaíso») por igualdad normalizada o
+ * contención (tolera una frase suelta del tipo «bodega de Valparaíso» sin necesitar resolver contra el tenant —
+ * el universo tipado del encargo ya trae el nombre limpio en el 99% de los casos; la contención es la misma
+ * tolerancia que `_bodegaNombrada` usa en `notario/verificar.js`, sin duplicar su regex sobre el índice). */
+const _mismaBodega = (declarada, real) => { const d = _norm(declarada), r = _norm(real); return !!d && !!r && (d === r || d.includes(r) || r.includes(d)); };
+
+/** figsEnAlcance(figs, alcance, { ejesDelTenant, entidadDeLabel, indice }) → figs recortadas al alcance declarado:
  *   (a) R2 — retira las figs cuya entidad está en `alcance.excluir` (nunca vuelve la entidad que el usuario excluyó);
  *   (b) RC-F — si `alcance.eje` está declarado y `ejesDelTenant` distingue ejes, retira las figs cuya entidad
- *       pertenece a OTRO eje conocido (nunca mezcla un SKU en un ranking de bodega, ni una bodega en uno de marca).
- *  Una fig SIN entidad reconocible en el rótulo (totales, benchmark, «Saldo vencido · total»…) nunca se filtra a
- *  ciegas — solo se recorta lo que SÍ se pudo identificar como perteneciente a otro alcance. NO trunca por `top`
- *  (ver `recortarATop`, abajo): ese recorte exige el ORDEN por la métrica del top, que decide cada compositor. */
-export function figsEnAlcance(figs, alcance, { ejesDelTenant = {}, entidadDeLabel = _entidadDeLabelDefault } = {}) {
+ *       pertenece a OTRO eje conocido (nunca mezcla un SKU en un ranking de bodega, ni una bodega en uno de marca);
+ *   (c) BODEGA (diagnóstico v4 §3, MATERIAL) — si `alcance.bodega` está declarado, retira los SKU cuyo estado
+ *       (`indice.estados`, la MISMA proyección que lee `notario/verificar.js:_skusEnBodega`) los ubica en OTRA
+ *       bodega del tenant. `indice` es OPCIONAL (el índice de `notario/evidencia.js:indiceDeEvidencia` que
+ *       `componer.js` ya arma con `_indiceDelTenant`); sin él, esta mitad del recorte no corre — el llamador que
+ *       declare `bodega` sin pasar `indice` se queda con el defecto viejo (documentado, no silencioso: ver el
+ *       candado de completitud arriba, que exige que todo campo de universo SE LEA, no que todos se resuelvan sin
+ *       insumos). Un SKU sin ningún estado conocido (sin fila en `indice.estados`) NUNCA se excluye a ciegas —
+ *       mismo principio que (a)/(b): solo se recorta lo que SÍ se identificó como perteneciente a OTRA bodega. */
+export function figsEnAlcance(figs, alcance, { ejesDelTenant = {}, entidadDeLabel = _entidadDeLabelDefault, indice = null } = {}) {
   if (!Array.isArray(figs) || !figs.length) return figs || [];
   const excluidas = new Set((alcance && alcance.excluir || []).map(_norm));
   const eje = alcance && alcance.eje ? String(alcance.eje).trim().toLowerCase() : null;
@@ -63,13 +100,22 @@ export function figsEnAlcance(figs, alcance, { ejesDelTenant = {}, entidadDeLabe
       miembrosDeOtroEje.push(new Set(nombres.map(_norm)));
     }
   }
-  if (!excluidas.size && !miembrosDeOtroEje.length) return figs;
+  const bodegaDecl = alcance && alcance.bodega ? String(alcance.bodega) : null;
+  const fueraDeBodega = new Set();   // SKU CONOCIDOS en otra bodega — nunca "desconocido = fuera"
+  if (bodegaDecl && indice && Array.isArray(indice.estados)) {
+    for (const x of indice.estados) {
+      if (!x || !x.entidad) continue;
+      if (x.bodega && !_mismaBodega(bodegaDecl, x.bodega)) fueraDeBodega.add(_norm(x.entidad));
+    }
+  }
+  if (!excluidas.size && !miembrosDeOtroEje.length && !fueraDeBodega.size) return figs;
   return figs.filter((f) => {
     const ent = entidadDeLabel(f && f.label);
     if (!ent) return true;
     const entN = _norm(ent);
     if (excluidas.has(entN)) return false;
     for (const otro of miembrosDeOtroEje) { if (otro.has(entN)) return false; }
+    if (fueraDeBodega.has(entN)) return false;
     return true;
   });
 }

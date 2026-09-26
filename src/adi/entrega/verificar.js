@@ -34,10 +34,23 @@ export function contarPalabras(texto) { return _PALABRAS(texto).length; }
  * que aparezca en el texto y no case con nada de lo impreso por el compositor es una alarma. */
 const _RE_CIFRA = /\$\s?-?\d[\d.,]*\s?[MK]?\b|-?\d[\d.,]*\s?(?:%|pp\b|x\b)|(?<![\w.,/-])\d[\d.,]*(?![\w.,%])/g;
 
+/* GRUPO 80 (owner 2026-09-26, diagnóstico v4 §4, MATERIAL) — «grupo 80» es el NOMBRE del corte de Pareto de la
+ * casa (el 80% no es una constante declarada en POLICY ni en el contrato: vive como literal en
+ * `sentrix/concentration.js`, sin procedencia citable — evidencia de que es vocabulario del concepto, no una
+ * medición del tenant), nunca una cifra medida: un `cierre:"definicion"` JAMÁS trae boleta (contrato §1.1), así
+ * que el «80» de su propio nombre NUNCA podría tener un hecho que lo respalde. Se sustituye por un rótulo sin
+ * dígito ANTES de escanear cifras — el MISMO mecanismo que ya exime «carga comercial alta» del guardrail de
+ * adjetivos (abajo): un nombre de la casa no es la cifra que la regla 1 vigila.
+ * (La MEDICIÓN real del corte de Pareto, cuando la definición la cita, ya se redactó sin dígito en
+ * `sentrix/glossary.js` — «la mayor parte, según la regla de Pareto de la casa» — esta sustitución solo cubre el
+ * NOMBRE PROPIO del concepto, «grupo 80», no una cifra nueva que se quisiera colar por acá.) */
+const _NOMBRE_GRUPO_80_PERMITIDO = /\bgrupo\s+80\b/gi;
+
 function _cifrasEnTexto(texto) {
   const vistas = new Set();
   const out = [];
-  for (const m of String(texto || "").matchAll(_RE_CIFRA)) {
+  const _sinNombresDeLaCasa = String(texto || "").replace(_NOMBRE_GRUPO_80_PERMITIDO, "grupo de cabeza");
+  for (const m of _sinNombresDeLaCasa.matchAll(_RE_CIFRA)) {
     // EL PUNTO FINAL DE ORACIÓN NO ES PARTE DEL NÚMERO (owner 2026-09-22, TAREA 3 — encontrado al generalizar a
     // cobranza: «…foto de cobranza al 31 ago 2026. Saldo pendiente…» capturaba «2026.» y ningún hecho lo
     // respalda, porque lo respaldado es «2026» sin punto). Un decimal REAL nunca termina en «.» —siempre trae
@@ -419,6 +432,148 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
   // origen: cualquier «§» futuro en CUALQUIER texto servido (un `detalle` nuevo, una plantilla, un playbook) se
   // atrapa antes de llegar al usuario, sin depender de que nadie recuerde no escribirlo.
   if (/§/.test(texto)) v("documentacion-interna-en-texto", "el texto cita una numeración de sección interna («§») — eso es documentación de implementación, no vocabulario de negocio, y no puede llegar a la Entrega");
+
+  // 17 · EL DUEÑO DE UNA CIFRA (diagnóstico v4 §5, supervisor 2026-09-26, hallazgo colateral MATERIAL; extendida
+  // el mismo día por pedido del supervisor tras revisar la v1 — ver el hueco de la v1 más abajo). La cifra que la
+  // oración le pega al nombre de un dueño tiene que ser SUYA en el libro; si es la de OTRO hecho —citado o no por
+  // esta oración, de este dueño con otra métrica o de un dueño distinto— es la sustitución silenciosa que esta
+  // ley prohíbe («Samsung: margen 35.5%» cuando 35.5% es de Makita, `entrega/componer.js:_rotuloDeLaCasaDeH`,
+  // corregido en la misma ronda). Se verifica sobre la ESTRUCTURA: jamás con un regex que adivine A QUIÉN
+  // pertenece un número por su fraseo; el único regex que este candado usa es el mismo escáner MECÁNICO de
+  // cifras de la regla 1 (`_RE_CIFRA`), para ubicar EN EL TEXTO dónde quedó impresa cada una — nunca para decidir
+  // su valor ni su dueño (eso ya lo decidió el libro). Una cifra que no es de NADIE en ningún libro ya la caza la
+  // regla 1 (cifras-desnudas); este candado solo vigila la ATRIBUCIÓN.
+  //
+  // EL HUECO DE LA v1 (supervisor, 2026-09-26): la primera versión solo miraba oraciones que citan HECHOS DE DOS
+  // O MÁS DUEÑOS — pero una oración de premisa (`entrega/componer.js:_textoDePremisa`) SIEMPRE cita un solo id
+  // (`hechos: [H.id]`), así que el caso REAL que motivó esta regla (K13: la oración de Samsung, con un único
+  // hecho citado, imprimiendo el valor de Makita) nunca pasaba por el candado. Ahora corre en TODA oración con
+  // ≥1 hecho citado (se quitó el `size < 2`), buscando en TODOS los libros de la Entrega (`libro`,
+  // `libroPremisas`, `libroIniciativa` — un id de premisa vive SOLO en `libroPremisas`, nunca en `libro`).
+  //
+  // CALIBRACIÓN POR ESTRUCTURA, NO POR FRASE (dos rondas de barrido sobre el catálogo dev+v4, 118 casos —
+  // ninguna aserción existente cambió, la calibración vive TODA en este candado nuevo):
+  //  (a) UNA CIFRA "ESPECÍFICA". Un ordinal o conteo pelado del universo («1° de 5 cuentas», «hay 8 de 13») NO es
+  //      la cifra de una entidad — es prosa estructural sobre el TAMAÑO del universo, sin dueño. `_respaldada`
+  //      (contención de substring, la MISMA de la regla 1) empareja «1» con CUALQUIER valor que lo contenga como
+  //      dígito («$19.4M» "contiene" un «1»): con un dígito pelado, eso es un cruce falso garantizado, no una
+  //      sustitución real. Una cifra de ENTIDAD en esta casa siempre trae unidad ($/%/pp/x) o ≥2 dígitos (días,
+  //      capital en K/M) — eso es lo que `_cifraEspecifica` exige antes de comparar cualquier dueño.
+  //  (b) SOLO LA PRIMERA CIFRA ESPECÍFICA TRAS EL NOMBRE, no todo el resto de la oración. Una premisa de tipo
+  //      `orden`/`conteo` imprime, como EVIDENCIA AUTORIZADA de su propio veredicto (ley del owner, diagnóstico
+  //      v4 §2, «R-PREMISA-ORDEN-EVIDENCIA» — NO es un error), un top-3 completo con la cifra PROPIA de cada
+  //      entidad («Cuidado Personal (26.6%) · Materiales de Construcción (26%) · Electrodomésticos (24.2%)») —
+  //      un solo hecho citado (el de «Cuidado Personal»), tres cifras en la oración. Escanear TODA la oración
+  //      contra el único dueño citado marcaba las cifras de las otras dos como sustitución (falso: son SUYAS,
+  //      cada una correcta bajo su propio nombre). La cifra que la casa le pega a un nombre —en cualquiera de
+  //      sus plantillas, «Nombre: métrica valor», «Nombre valor%», «Nombre (valor)»— es SIEMPRE la que sigue
+  //      INMEDIATAMENTE a ese nombre; verificar solo esa reproduce la ley sin marcar la evidencia autorizada de
+  //      al lado. Mismo criterio para uno o para varios dueños citados: no hace falta una rama aparte por tamaño.
+  //  (c) MISMO DUEÑO, OTRO HECHO NUNCA ES SUSTITUCIÓN. Una cifra que pertenece a un hecho no citado PERO DEL
+  //      MISMO DUEÑO (otra métrica suya, ej. «LG-DRYER8KG: $14K frenados, 165 días de inventario» con tres
+  //      hechos y solo uno citado) no es una sustitución de entidad — es la MISMA entidad, con más de un dato en
+  //      la misma oración. `_perteneceANoCitado` excluye explícitamente al dueño ya identificado.
+  {
+    const libroPremisas = entrega.procedencia && entrega.procedencia.libroPremisas;
+    const libroIniciativa = entrega.procedencia && entrega.procedencia.libroIniciativa;
+    const _librosDisponibles = [libro, libroPremisas, libroIniciativa].filter(Boolean);
+    if (_librosDisponibles.length) {
+      const _buscarHecho = (id) => { for (const L of _librosDisponibles) { const h = L.porId && L.porId.get(id); if (h) return h; } return null; };
+      const _duenoDeH = (h) => { const d = h.roles && h.roles.sujetos && h.roles.sujetos[0]; return (d && d !== "negocio") ? d : null; };
+      const _valoresDeH = (h) => { const s = new Set(); for (const n of h.numeros || []) if (n && n.texto) s.add(String(n.texto).trim()); if (h.render && h.render.valor) s.add(String(h.render.valor).trim()); return s; };
+      const _escaparRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const _cifraEspecifica = (c) => /[$%]|pp\b|x$/i.test(c) || /\d{2,}/.test(c);
+      const _CIFRA_G = () => new RegExp(_RE_CIFRA.source, "g");
+      // EL CONVENIO «métrica (valorA contra valorB)» (`entrega/componer.js`: los comparativos de "X va antes que
+      // Y" — prioridad integrada y simulación) empareja el PRIMER valor con el dueño mencionado PRIMERO en la
+      // oración (el sujeto, `top.entidad`) y el SEGUNDO con el dueño mencionado SEGUNDO («que <rival>»,
+      // `top.versus.contra`) — SIEMPRE en ese orden, por construcción del compositor. La proximidad ingenua
+      // rompe acá: en «Lider va antes que Falabella: es peor en distancia al benchmark (8.6 pp contra 8.1 pp)»,
+      // 8.6 pp es de LIDER (el sujeto, mencionado primero) aunque «Falabella» quede estructuralmente más cerca
+      // del paréntesis. Estos rangos se excluyen de cualquier escaneo (con uno o con varios dueños citados).
+      const _CONTRA_RE = () => new RegExp(`(${_RE_CIFRA.source})\\s*contra\\s*(${_RE_CIFRA.source})`, "gi");
+
+      (entrega.respuesta || []).forEach((r, i) => {
+        const ids = Array.isArray(r.hechos) ? r.hechos : [];
+        if (!ids.length || typeof r.texto !== "string" || !r.texto.trim()) return;
+        const porDueno = new Map();   // dueño normalizado (de los HECHOS CITADOS por esta oración) → { nombre, valores:Set<texto> }
+        for (const id of ids) {
+          const h = _buscarHecho(id);
+          if (!h || !h.ok) continue;
+          const dueno = _duenoDeH(h);
+          if (!dueno) continue;
+          const valores = _valoresDeH(h);
+          if (!valores.size) continue;
+          const k = normalizar(dueno);
+          if (!porDueno.has(k)) porDueno.set(k, { nombre: dueno, valores: new Set() });
+          for (const val of valores) porDueno.get(k).valores.add(val);
+        }
+        if (!porDueno.size) return;   // ningún hecho citado tiene dueño+valor propio: nada que verificar en esta oración
+        const nombres = [...porDueno.values()].map((d) => d.nombre);
+
+        // busca si una cifra ESPECÍFICA pertenece a ALGÚN hecho de CUALQUIER libro que esta oración NO citó, de
+        // un dueño DISTINTO del que ya se está verificando (mismo dueño, otra métrica, no es sustitución — (c)).
+        const _perteneceANoCitado = (cifra, duenoActualNorm) => {
+          for (const L of _librosDisponibles) {
+            for (const [hid, h] of L.porId) {
+              if (ids.includes(hid) || !h.ok) continue;
+              const dueno = _duenoDeH(h);
+              if (!dueno || normalizar(dueno) === duenoActualNorm) continue;
+              if (_respaldada(cifra, [..._valoresDeH(h)])) return { nombre: dueno, hid };
+            }
+          }
+          return null;
+        };
+
+        // el orden de MENCIÓN de cada dueño CITADO (primera aparición de su nombre) — el convenio «(A contra B)»
+        // solo se resuelve cuando hay EXACTAMENTE dos dueños citados en juego (es binario por construcción).
+        let primero = null, segundo = null;
+        if (porDueno.size === 2) {
+          const conPos = [...porDueno.values()].map((d) => ({ ...d, pos: r.texto.search(new RegExp(_escaparRegex(d.nombre), "i")) })).filter((d) => d.pos >= 0).sort((a, b) => a.pos - b.pos);
+          if (conPos.length === 2) [primero, segundo] = conPos;
+        }
+        const resueltasPorContraste = [];   // rangos [inicio,fin) que el convenio "(A contra B)" ya juzgó (o que se excluyen del escaneo genérico)
+        for (const m of r.texto.matchAll(_CONTRA_RE())) {
+          resueltasPorContraste.push([m.index, m.index + m[0].length]);
+          if (!primero || !segundo) continue;
+          const v1 = m[1].trim().replace(/\.$/, ""), v2 = m[2].trim().replace(/\.$/, "");
+          if (_cifraEspecifica(v1) && !_respaldada(v1, [...primero.valores]) && _respaldada(v1, [...segundo.valores])) v("dueno-de-cifra-equivocado", `respuesta[${i}] el contraste imprime "${v1}" en el lugar del sujeto ("${primero.nombre}"), pero esa cifra en el libro pertenece a "${segundo.nombre}": «${(r.texto || "").slice(0, 120)}»`);
+          if (_cifraEspecifica(v2) && !_respaldada(v2, [...segundo.valores]) && _respaldada(v2, [...primero.valores])) v("dueno-de-cifra-equivocado", `respuesta[${i}] el contraste imprime "${v2}" en el lugar del rival ("${segundo.nombre}"), pero esa cifra en el libro pertenece a "${primero.nombre}": «${(r.texto || "").slice(0, 120)}»`);
+        }
+        const _dentroDeContraste = (idx) => resueltasPorContraste.some(([a, b]) => idx >= a && idx < b);
+
+        // UNO O VARIOS DUEÑOS citados, el MISMO criterio: por cada dueño, la PRIMERA cifra ESPECÍFICA que le
+        // sigue —antes del siguiente nombre de OTRO dueño CITADO, si hay— tiene que ser SUYA; si no lo es, se
+        // busca primero entre los OTROS dueños citados de esta misma oración (mensaje más preciso) y si no, en
+        // cualquier hecho no citado de cualquier libro (de un dueño DISTINTO al que se está verificando).
+        for (const [kA, { nombre: nombreA, valores: valoresA }] of porDueno) {
+          const reA = new RegExp(_escaparRegex(nombreA), "i");
+          const mA = reA.exec(r.texto);
+          if (!mA) continue;   // el dueño ni siquiera aparece nombrado en esta oración: nada que atribuirle acá
+          const inicioResto = mA.index + mA[0].length;
+          const resto = r.texto.slice(inicioResto);
+          let corte = resto.length;
+          for (const otro of nombres) {
+            if (normalizar(otro) === kA) continue;
+            const idxOtro = resto.search(new RegExp(_escaparRegex(otro), "i"));
+            if (idxOtro >= 0 && idxOtro < corte) corte = idxOtro;
+          }
+          const ventana = resto.slice(0, corte);
+          // la PRIMERA cifra ESPECÍFICA de la ventana — un ordinal/conteo pelado antes («1° de 5») no cuenta (a).
+          let cifra = null, posCifra = -1;
+          for (const m of ventana.matchAll(_CIFRA_G())) { const c = m[0].trim().replace(/\.$/, ""); if (_cifraEspecifica(c)) { cifra = c; posCifra = m.index; break; } }
+          if (cifra == null) continue;   // ninguna cifra específica pegada a este nombre antes del siguiente dueño: nada que verificar
+          if (_dentroDeContraste(inicioResto + posCifra)) continue;   // ya lo resolvió el convenio "(A contra B)" de arriba
+          if (_respaldada(cifra, [...valoresA])) continue;   // es una de SUS propias cifras: correcto
+          const deOtroCitado = [...porDueno.entries()].find(([kB, d]) => kB !== kA && _respaldada(cifra, [...d.valores]));
+          if (deOtroCitado) { v("dueno-de-cifra-equivocado", `respuesta[${i}] atribuye a "${nombreA}" la cifra "${cifra}", que en el libro pertenece a "${deOtroCitado[1].nombre}": «${(r.texto || "").slice(0, 120)}»`); continue; }
+          const otroNoCitado = _perteneceANoCitado(cifra, kA);
+          if (otroNoCitado) v("dueno-de-cifra-equivocado", `respuesta[${i}] atribuye a "${nombreA}" la cifra "${cifra}", que en el libro pertenece a "${otroNoCitado.nombre}" (hecho "${otroNoCitado.hid}", no citado por esta oración): «${(r.texto || "").slice(0, 120)}»`);
+          // si no es de A ni de ningún otro hecho de ningún libro, es huérfana: ya la caza la regla 1 (cifras-desnudas)
+        }
+      });
+    }
+  }
 
   return { ok: violaciones.length === 0, violaciones };
 }
