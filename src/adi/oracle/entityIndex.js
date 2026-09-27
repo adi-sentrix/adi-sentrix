@@ -156,7 +156,11 @@ export function findCandidates(dimension, name, { max = 3, ejeChico = false } = 
     // respuesta). `distancia: Infinity` los deja ordenar DESPUÉS de cualquier match real por similitud en el
     // llamador que junta candidatos de varios ejes (`resolveEntityRef`), nunca antes.
     const todos = [...new Set(m.values())].sort((a, b) => a.localeCompare(b));
-    if (todos.length && todos.length <= 5) return todos.slice(0, max).map((nombre) => ({ nombre, distancia: Infinity, motivo: "eje_chico" }));
+    // R-EJECHICO-CAP-3 (diagnóstico v6, MEDIA): el comentario de arriba ya promete «TODOS son la oferta», pero
+    // `.slice(0, max)` seguía recortando a los 3 por defecto — con 4 o 5 miembros ocultaba una alternativa real
+    // sin ninguna razón. `todos.length` ya está acotado a ≤ 5 por el `if` de esta rama: `Math.max(max, todos.length)`
+    // deja pasar TODOS acá sin tocar el `max` de 3 que sigue rigiendo la similitud fuzzy de arriba.
+    if (todos.length && todos.length <= 5) return todos.slice(0, Math.max(max, todos.length)).map((nombre) => ({ nombre, distancia: Infinity, motivo: "eje_chico" }));
   }
   return out.sort((a, b) => a.distancia - b.distancia || a.nombre.localeCompare(b.nombre)).slice(0, max);
 }

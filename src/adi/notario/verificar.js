@@ -582,7 +582,16 @@ function _conjuntoTipado(u, I, eje0, metrica = "") {
     restringir(_skusEnBodega(b, I), `en ${u.bodega}`);
   }
   for (const f of Array.isArray(u.filtros) ? u.filtros : []) { const S = _filtroTipado(f, I, eje); if (S.error) return S; restringir(S.set, S.fuente); }
-  if (u.top) { const S = _topTipado(u.top, I, eje, set || todos); if (S.error) return S; restringir(S.set, S.fuente); }
+  if (u.top) {
+    /* §7.3·8 del contrato (decisión del supervisor, 2026-09-26, tras la medición v6): por defecto el top se calcula
+     * DENTRO del conjunto ya filtrado por `estados`/`filtros` («los 3 deudores más grandes ENTRE los que están en
+     * mora») — la pregunta de negocio más común, y el comportamiento de siempre. Con `top.sobre:"eje"` el top se
+     * toma sobre el EJE ENTERO («de los 3 clientes de menor venta [global], cuántos están en mora») y el resto de
+     * los filtros de este universo actúan DESPUÉS, sobre ese resultado — por eso `restringir` (que intersecta con
+     * `set`) sigue corriendo igual, solo cambia la BASE que ve `_topTipado`. */
+    const dentro = normalizar(u.top.sobre) === "eje" ? todos : (set || todos);
+    const S = _topTipado(u.top, I, eje, dentro); if (S.error) return S; restringir(S.set, S.fuente);
+  }
   if (u.excluir && typeof u.excluir === "object") {
     const ex = u.excluir;
     const base = set || todos;
@@ -596,7 +605,12 @@ function _conjuntoTipado(u, I, eje0, metrica = "") {
     set = new Set([...base].filter((x) => !quitar.has(x))); fuentes.push(`fuera de ${partes.join(" y ")}`);
   }
   if (Array.isArray(u.union) && u.union.length) {
-    const acc = set ? new Set(set) : new Set(todos || []);
+    /* R-UNION-DESDE-TODOS (diagnóstico v6, ALTA, ESTRUCTURAL): una unión sin restricción previa (`set === null`)
+     * debe arrancar VACÍA y sumar solo lo que cada rama aporta — el código anterior arrancaba del EJE ENTERO
+     * (`todos`), así que agregar miembros a un conjunto que YA los tenía a todos no cambiaba nada: cualquier
+     * `union` sin `base`/`estados`/`top`/`filtros` en el MISMO nivel servía siempre el eje completo. Con una
+     * restricción previa real (`set` ya no nulo) se sigue extendiendo desde ahí, sin cambio de comportamiento. */
+    const acc = new Set(set || []);
     for (const v of u.union) { const S = _conjuntoTipado(v && typeof v === "object" ? v : {}, I, eje, metrica); if (S.error) return S; for (const x of (S.set || _todosDelEje(I, eje) || [])) acc.add(x); }
     set = acc; fuentes.push("unión");
   }
@@ -890,12 +904,24 @@ function _grupo(a, I) {
   /* las entidades nombradas tienen que PERTENECER al universo dicho: «las 6 cuentas sin mora suman $12,6M» sobre las 6 CON mora es falso aunque la
    * suma cierre (ronda adversarial 3: universos negados) */
   const _uObj = !!(a.universo && typeof a.universo === "object" && !Array.isArray(a.universo));   // verdad finita: un universo tipado siempre es explícito
+  let _Umembresia = null;   // el conjunto resuelto del universo — lo reusa la MEMBRESÍA PURA de abajo cuando no hay valor
   if (declaradas.length && ((typeof a.universo === "string" && a.universo.trim()) || _uObj)) {
     const ejeG = _ejeDe({ ...a, sujeto: declaradas[0] }, I);
     const sU = _uObj ? "" : conDigitos(String(a.universo));
     const explicito = _uObj || _NEGACION_RE.test(sU) || _EXCLUSION_RE.test(sU) || !!_umbralDe(sU) || _conjuntosConocidos(I).some((c) => c.re && c.re.test(sU));
     let U = null; if (explicito) { try { U = _conjuntoDeUniverso(a.universo, I, ejeG, a.metrica); } catch { U = null; } }
+    _Umembresia = U;
     if (U && U.set) { const fuera = declaradas.filter((e) => !U.set.has(normalizar(e))); if (fuera.length) return _falsa(`grupo-fuera-del-universo: ${_lista(fuera)} no pertenece${fuera.length > 1 ? "n" : ""} a «${a.universo}» (${U.fuente})`, `${U.fuente}`, []); }
+  }
+  /* MEMBRESÍA PURA (R-GRUPO-SIN-VALOR, diagnóstico v6): sin valor declarado, `afirmacion.js` ya no exige metrica ni
+   * valor para un `grupo` — esta es la premisa de pertenencia sin cifra («Jumbo está entre los clientes en mora»).
+   * El chequeo de arriba YA decidió el veredicto si algún miembro quedó fuera del universo (retornó `falsa`); si
+   * llegamos hasta acá con TODAS las declaradas dentro de un universo resuelto, la premisa es verdadera. Sin universo
+   * resoluble o sin miembros que verificar, no hay nada que juzgar. */
+  if (!v) {
+    if (!declaradas.length) return _nv("sin-evidencia: no hay miembros declarados para verificar la pertenencia");
+    if (!_Umembresia || !_Umembresia.set) return _nv(`sin-evidencia: el universo declarado no se pudo resolver contra la boleta (${a.universo && typeof a.universo === "object" ? JSON.stringify(a.universo) : a.universo})`);
+    return _ok(`pertenece a «${_Umembresia.fuente}»: ${_lista(declaradas)}`, [], _Umembresia.fuente);
   }
   const mismoConjunto = (f) => f.entidadesDelGrupo.length ? (f.entidadesDelGrupo.length === setD.size && f.entidadesDelGrupo.every((e) => setD.has(normalizar(e)))) : (n != null && f.n === n);
   /* 0 · «promedio»: la media de las figs individuales de los miembros (montos, conteos y tasas); va antes que la suma para que la suma no lo absuelva */

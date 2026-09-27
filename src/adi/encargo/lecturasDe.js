@@ -143,7 +143,13 @@ function _pasosCifra(p) {
     // mesaFlujo es SIEMPRE por cliente (contrato §3.3): una entidad puntual o la cartera entera pasan por la
     // MISMA tool — la fila de un cliente puntual la recorta la Entrega, no una segunda llamada.
     const quien = p.entidades.length ? p.entidades.map((e) => e.nombre).join(", ") : "la cartera";
-    return [{ tool: "cobranza", args: {}, para: `cobranza de ${quien} (mesaFlujo)` }];
+    // R-COBRANZA-TOP8-SIN-COLA-MENOR (diagnóstico v6, ALTA): `cobranza()` recorta su boleta a un TOP 8 fijo
+    // (vencido primero, después saldo — siempre el extremo MAYOR); un `universo.top.direccion:"menor"` («los 3
+    // de MENOR saldo pendiente») cae fuera de ese recorte y no hay forma de traerlo sin leer texto. Se pasa el
+    // universo YA RESUELTO de la parte (nunca `preguntaOriginal`) para que la tool complete la cola desde la
+    // MISMA mesa completa que ya usa — ver `herramientasAgente.js:cobranza`.
+    const universoRequerido = p.universo && typeof p.universo === "object" && !Array.isArray(p.universo) ? p.universo : null;
+    return [{ tool: "cobranza", args: universoRequerido ? { universoRequerido } : {}, para: `cobranza de ${quien} (mesaFlujo)` }];
   }
   if (p.entidades.length) {
     // LA FILA COMPLETA de cada entidad (entityRecord: "TODAS sus columnas reales del dato") — cubre de sobra

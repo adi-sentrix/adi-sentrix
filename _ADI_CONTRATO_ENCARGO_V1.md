@@ -468,6 +468,28 @@ venta a crédito, ley del owner).
 6. RC13 · `entidad_inexistente` con eje EXPLÍCITO de ≤ 5 miembros y sin ningún parecido → se ofrecen TODOS los
    miembros como alternativas (solo en el validador; el escaneo de texto libre no lo usa).
 7. Comparación en cobranza: sigue `decision_pendiente` hasta medir su composer.
+8. [2026-09-26, tras la medición v6] `top` combinado con `estados`/`filtros` en el MISMO universo: por defecto el top se
+   calcula DENTRO del conjunto ya filtrado («los 3 deudores más grandes entre los que están en mora»), que es la
+   pregunta de negocio más común. Para la lectura inversa («de los 3 de menor venta, cuántos están en mora») el
+   universo declara `top.sobre: "eje"`: el top se toma sobre el eje entero y los filtros actúan DENTRO de él. El LLM
+   elige la forma según lo que entendió; ADI nunca adivina cuál quiso decir.
+9. [2026-09-26] `supuestos` es un campo-lista como `conceptos` y `entidades`: una simulación con algunos supuestos
+   válidos y otros no corre con los válidos, declara los inválidos y queda `parcial`; sin ninguno válido, `no_resuelta`.
+10. [2026-09-26, tras la medición v6] «De M» con `top.sobre:"eje"`: el conjunto que el top toma sobre el eje entero
+    (ANTES de `estados`/`filtros`) es un M admisible para un `conteo` sobre ese mismo universo — el mismo rol que ya
+    cumple `base`. Con el sentido por defecto (top DENTRO del filtro) no cambia nada: ahí `k` ya es el tamaño del
+    universo filtrado, no una restricción previa nueva.
+11. [2026-09-26] `universo.base` no identificable → lo declina el VALIDADOR (`validarUniverso`, no el compositor):
+    un `base` que no es un conjunto de la casa, o que es un conjunto de OTRO eje (p. ej. «carga comercial alta» —de
+    cliente— con `eje:"sku"`), cae en `noResuelto {campo:"universo", motivo:"universo_invalido"}`; la parte queda
+    `no_resuelta` y nunca se sirven todas las entidades del eje en su lugar. **Cobertura parcial, reportada al
+    supervisor**: la fuente (`oracle/datoProyectado.js:cifrasDelDato(...).conjuntos`) solo cubre hoy la familia de
+    CARGA («carga comercial alta», «sobre el nivel declarado de carga») — es la única que `validarEncargo` puede
+    resolver SIN llamar a ninguna tool (corre antes de cualquier lectura). La familia de BENCHMARK («bajo/sobre el
+    benchmark», «con capital frenado») vive en `notario/verificar.js:_conjuntosConocidos` y exige una fig de ESE
+    turno (p. ej. «Benchmark de margen» ya publicada): un `base` de esa familia, o un nombre que no es ningún
+    conjunto de la casa («clientes grandes»), sigue sin poderse declarar inválido en la validación — se resuelve en
+    tiempo de composición, como antes de esta decisión.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

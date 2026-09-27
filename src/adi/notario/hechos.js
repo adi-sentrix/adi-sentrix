@@ -685,7 +685,14 @@ function _conteoTipado(H, h, I) {
     const tieneEst = _lista(u.estados).length || _lista(u.no_estados).length;
     const masRestriccion = (Array.isArray(u.filtros) && u.filtros.length) || u.top || u.bodega || u.excluir;   // el «de M» por estados vale solo si algo más restringe: «6 de 6 en mora» es vacuo
     if (tieneEst && masRestriccion) { const s1 = tam({ eje, estados: u.estados, no_estados: u.no_estados }); if (s1) mAdmisibles.add(s1); if (u.base) { const s2 = tam({ eje, base: u.base, estados: u.estados, no_estados: u.no_estados }); if (s2) mAdmisibles.add(s2); } }
-    if (u.bodega) { const s3 = tam({ eje, bodega: u.bodega }); if (s3) mAdmisibles.add(s3); } }
+    if (u.bodega) { const s3 = tam({ eje, bodega: u.bodega }); if (s3) mAdmisibles.add(s3); }
+    // §7.3·10 del contrato (decisión del supervisor, 2026-09-26): con `top.sobre:"eje"` el top se toma SOBRE EL EJE
+    // ENTERO, ANTES que estados/filtros («de los 5 de menor venta [global], cuántos en mora») — ese top-k es
+    // entonces la restricción PREVIA de la cadena, exactamente el mismo rol que ya cumple `base` arriba, así que
+    // su tamaño (`top.k`) es un «de M» admisible. Con el sentido por defecto (`sobre` ausente o "filtro") el top
+    // corre DENTRO de lo ya filtrado por estados — ahí `k` no es una restricción previa, ya lo captura `mBase`/
+    // `mAdmisibles` de arriba, así que no se agrega nada nuevo (nunca cambia el comportamiento de hoy).
+    if (u.top && normalizar(u.top.sobre) === "eje" && _entero(u.top.k) && +u.top.k > 0) mAdmisibles.add(+u.top.k); }
   const mDicho = c.m != null && Number.isFinite(+c.m) ? +c.m : null;
   const mRender = mDicho != null && mAdmisibles.has(mDicho) ? mDicho : mBase;
   H.universo = { set, fuente: U.fuente, texto: nombrarUniverso(u, I), restringido: !!U.set };
@@ -723,7 +730,7 @@ function _verdadDeLoFalso(H, h, I, libro) {
 }
 
 /* ── VALIDACIÓN DE ESQUEMA (v3.1 · pieza 2): el hecho tipado tiene la forma que el protocolo enseña, o no entra al libro ── */
-const _ENUM = { orden_forma: ["max", "min", "puesto", "topk", "comparativo"], direccion: ["mayor", "menor", "peor", "mejor"], relacion_forma: ["veces", "fraccion", "parte", "mayor", "menor", "igual", "diferencia"], variacion_dir: ["sube", "baja"], agregado: ["suma", "participacion", "promedio"], op: ["suma", "diferencia", "cociente", "pp", "resta", "diferencia_pp", "division", "ratio", "producto", "variacion_relativa", "veces", "proporcion", "total", "sumar", "restar"] };
+const _ENUM = { orden_forma: ["max", "min", "puesto", "topk", "comparativo"], direccion: ["mayor", "menor", "peor", "mejor"], relacion_forma: ["veces", "fraccion", "parte", "mayor", "menor", "igual", "diferencia"], variacion_dir: ["sube", "baja"], agregado: ["suma", "participacion", "promedio"], op: ["suma", "diferencia", "cociente", "pp", "resta", "diferencia_pp", "division", "ratio", "producto", "variacion_relativa", "veces", "proporcion", "total", "sumar", "restar"], sobre: ["filtro", "eje"] };   // top.sobre (contrato §7.3·8): "filtro" (default, dentro de estados/filtros ya aplicados) · "eje" (sobre el eje entero)
 const _entero = (x) => Number.isFinite(+x) && Math.floor(+x) === +x;
 const _esNegado = (e) => /^\s*no[ _]+\S/i.test(String(e == null ? "" : e));
 const _sinNo = (e) => (typeof e === "string" ? e.replace(/^\s*no[ _]+/i, "") : e);
@@ -758,7 +765,7 @@ export function validarUniverso(u, I, sujeto = null) {
   for (const e of [..._lista(u.estados), ..._lista(u.no_estados)]) { const c = estadoDeclarado(e); if (!c) return `estado-desconocido: «${e}» (se escribe con su nombre exacto)`; const def = estadoDeLaCasa(c); if (!ejeCompatible(def, eje)) return `el estado «${e}» es de ${def.eje}, no de ${eje}`; }
   if (u.bodega != null && eje !== "sku") return "la bodega solo restringe SKU";
   if (u.filtros != null) { if (!Array.isArray(u.filtros)) return "filtros es una lista"; for (const f of u.filtros) { if (!_es(f) || !f.metrica) return "cada filtro es {metrica, op, valor, unidad}"; const op = opDe(f.op); if (!op) return `op desconocido «${f.op}»`; if (op === "entre") { const v = Array.isArray(f.valor) ? f.valor : [f.valor, f.hasta]; if (!Number.isFinite(+v[0]) || !Number.isFinite(+v[1]) || +v[0] > +v[1]) return "«entre» necesita [desde, hasta] con desde ≤ hasta"; } else if (f.ref == null && !Number.isFinite(+String(f.valor).replace(",", "."))) return `el filtro de ${f.metrica} necesita un valor numérico`; } }
-  if (u.top != null) { if (!_es(u.top) || !u.top.metrica) return "top es {metrica, k, direccion}"; if (!_entero(u.top.k) || +u.top.k < 1) return "top.k es un entero ≥ 1"; if (u.top.direccion && !_ENUM.direccion.includes(normalizar(u.top.direccion))) return `direccion desconocida «${u.top.direccion}»`; }
+  if (u.top != null) { if (!_es(u.top) || !u.top.metrica) return "top es {metrica, k, direccion}"; if (!_entero(u.top.k) || +u.top.k < 1) return "top.k es un entero ≥ 1"; if (u.top.direccion && !_ENUM.direccion.includes(normalizar(u.top.direccion))) return `direccion desconocida «${u.top.direccion}»`; if (u.top.sobre != null && !_ENUM.sobre.includes(normalizar(u.top.sobre))) return `top.sobre desconocido «${u.top.sobre}» (filtro · eje)`; }
   if (u.excluir != null) { if (!_es(u.excluir)) return "excluir es un objeto"; const rarasX = Object.keys(u.excluir).filter((k) => !["entidades", "conjuntos", "estados", "top", "bodega"].includes(k)); if (rarasX.length) return `excluir con campos desconocidos: ${rarasX.join(", ")}`; if (u.excluir.bodega != null && eje !== "sku") return "la exclusión por bodega solo aplica a SKU"; for (const e of _lista(u.excluir.estados)) { if (!estadoDeclarado(e)) return `estado-desconocido: «${e}»`; } for (const t of _lista(u.excluir.top)) { if (!_es(t) || !t.metrica || !_entero(t.k) || +t.k < 1) return "excluir.top es {metrica, k} con k entero ≥ 1"; } }
   if (u.union != null) { if (!Array.isArray(u.union) || !u.union.every(_es)) return "union es una lista de universos"; for (const v of u.union) { const e = validarUniverso(v, I); if (e) return e; if (!["base", "estados", "no_estados", "bodega", "filtros", "top", "excluir"].some((k) => v[k] != null)) return "una unión con el eje entero no restringe nada"; if (v.eje && normalizar(v.eje) !== eje) return `una unión mezcla ejes (${eje} y ${normalizar(v.eje)})`; } }
   { const est = _lista(u.estados).map((e) => estadoDeclarado(e)).filter(Boolean), noEst = _lista(u.no_estados).map((e) => estadoDeclarado(e)).filter(Boolean), exEst = _lista(u.excluir && u.excluir.estados).map((e) => estadoDeclarado(e)).filter(Boolean);

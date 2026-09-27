@@ -182,8 +182,21 @@ export function normalizarAfirmacion(a, i = 0) {
       const entidades = _lista(g.entidades).length ? _lista(g.entidades) : Array.isArray(out.sujeto) ? out.sujeto : [];
       out.grupo = { entidades, n: Number.isFinite(+g.n) ? +g.n : (entidades.length || null), ...(g.agregado ? { agregado: String(g.agregado) } : {}) };
       if (!Array.isArray(out.sujeto) && entidades.length) out.sujeto = entidades;
-      exige(out.metrica, "metrica");
-      exige(out.valor && Number.isFinite(out.valor.raw), "valor");
+      /* R-GRUPO-SIN-VALOR (diagnóstico v6, MATERIAL): un `grupo` de MEMBRESÍA PURA («Jumbo está entre los clientes
+       * en mora», sin cifra agregada) es válido por contrato (`validarHecho`, hechos.js:799 — solo pide miembros no
+       * repetidos, mismo eje y un universo válido) y el propio verificador ya sabe resolverlo sin metrica/valor
+       * (`_grupo`, verificar.js, con el chequeo de pertenencia que corre ANTES de tocar `valor`). Esta puerta exigía
+       * metrica+valor a CUALQUIER grupo — más estricta que el contrato que dice implementar — y bloqueaba toda una
+       * categoría de premisa (pertenencia a una cohorte, sin cifra) que el LLM redacta con naturalidad («estos tres
+       * clientes están en la cohorte alta», incluso mencionando la métrica de la cohorte sin darle valor: V36.q1
+       * del diagnóstico). Solo cuando el modelo declaró un VALOR (una cifra AGREGADA del conjunto: «los tres
+       * grandes suman 49 %») la forma exige también su métrica — sin valor no hay cifra que verificar, así que
+       * ninguno de los dos se exige. */
+      const declaroValor = src.valor != null && src.valor !== "";
+      if (declaroValor) {
+        exige(out.metrica, "metrica");
+        exige(out.valor && Number.isFinite(out.valor.raw), "valor");
+      }
       exige(entidades.length || (out.sujeto && out.sujeto.descripcion) || out.universo, "grupo.entidades (o una descripción del conjunto)");
       break;
     }

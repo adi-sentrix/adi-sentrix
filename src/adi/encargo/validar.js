@@ -22,6 +22,8 @@ import { ausenciasDe } from "../../config/contract/ausencias.js";
 import { assumptionValid } from "../../config/contract/assumptionRegistry.js";
 import { serieRealDe } from "../sentrix/capability.js";
 import { CRITERIOS } from "../agente/prioridadIntegrada.js";   // SOLO el dato `CRITERIOS` (§3); nunca `criterioDeLaPregunta`
+import { cifrasDelDato } from "../oracle/datoProyectado.js";   // §7.3·11: `.conjuntos` es el catálogo de CARGA (nombre → eje), memoizado por tenant+escenario — nunca una lista a mano acá
+import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
 import {
   PARTES_MAX, SUPUESTOS_USUARIO_MAX, CIERRES, EJES, TIPOS_DE_PREMISA, USAR_VALORES, PROFUNDIDAD_VALORES,
   INICIATIVA_VALORES, CAMPOS_RAIZ, CAMPOS_PARTE, conceptoDeDefinicionValido, ejesConProductor, cruceBloqueadoDe, productorDe,
@@ -76,12 +78,19 @@ function _resolverEntidadRef(ref) {
   return { estado: "inexistente", candidatos: r.candidatos || [] };
 }
 
-/* ── conceptos (§4f): CLAVES_DE_METRICA ∩ DOMINIOS_REGISTRO[tema].metricas, luego productor por (concepto, eje) ── */
-function _validarConcepto(clave, tema, eje) {
+/* ── conceptos (§4f): CLAVES_DE_METRICA ∩ DOMINIOS_REGISTRO[tema].metricas, luego productor por (concepto, eje) ──
+ * R-EJE-INVALIDO-CONCEPTO-VALIDO (diagnóstico v6, MATERIAL): `eje == null` tiene DOS orígenes distintos — «nunca
+ * se declaró un eje» (parte sin entidades, sin Parte.eje, sin sujeto: acá sí «no se puede juzgar productor todavía»
+ * y el concepto pasa) y «se declaró un Parte.eje EXPLÍCITO que resultó inválido» (ya cae a `eje_no_soportado` en el
+ * llamador, `validar.js` línea ~310). El segundo origen NO es «válido»: dejarlo pasar colaba la parte como
+ * `resuelta` pese a su propio `eje_no_soportado` ya declarado, y `componerEntrega` terminaba resolviendo una
+ * dimensión que no existe. `ejeExplicitoInvalido` distingue los dos orígenes; el llamador nunca duplica el
+ * `noResuelto` de eje (ya lo declaró una vez) y solo evita contar el concepto como válido. */
+function _validarConcepto(clave, tema, eje, ejeExplicitoInvalido = false) {
   const m = metricaPorClave(clave);
   if (!m) return { estado: "desconocido" };
   if (m.dominio != null && m.dominio !== tema) return { estado: "otro_tema", dominio: m.dominio };
-  if (eje == null) return { estado: "valido" };   // sin eje resuelto todavía (parte sin entidades ni Parte.eje ni sujeto): no se puede juzgar productor
+  if (eje == null) return ejeExplicitoInvalido ? { estado: "eje_invalido" } : { estado: "valido" };   // sin eje resuelto todavía (parte sin entidades ni Parte.eje ni sujeto): no se puede juzgar productor
   const cruce = cruceBloqueadoDe(clave, eje);
   if (cruce) return { estado: "cruce_bloqueado", cruce };
   if (!productorDe(clave, eje)) return { estado: "sin_productor", ejes: ejesConProductor(clave) };
@@ -246,7 +255,7 @@ function _resolverPremisasRaiz(premisas, I) {
 }
 
 /* ── una Parte completa (§4·1) ──────────────────────────────────────────────────────────────────────────────── */
-function _validarParte(parteCruda, idx, supuestosPorId, I) {
+function _validarParte(parteCruda, idx, supuestosPorId, I, scenario) {
   const id = _str(parteCruda && parteCruda.id) ? parteCruda.id : `p${idx + 1}`;
   const noResuelto = [];
   const avisos = [];
@@ -298,7 +307,11 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
       continue;
     }
     // "inexistente" | "invalida"
-    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "entidad", valor: ref, motivo: "entidad_inexistente", alternativas: (r.candidatos || []).slice(0, 3).map((c) => ({ tipo: "entidad", nombre: c.nombre, eje: c.dimension || (ref && ref.eje) || null })) }));
+    // R-EJECHICO-CAP-3 (diagnóstico v6, MEDIA): este `.slice(0, 3)` recapaba lo que `findCandidates` (RC13,
+    // `oracle/entityIndex.js`, con `ejeChico:true`) ya había decidido ofrecer completo (hasta 5, con un eje de
+    // pocos miembros) — un segundo tope que deshacía el primero. `r.candidatos` ya viene acotado por
+    // `findCandidates` (≤3 por similitud fuzzy, o TODOS con eje chico): no hace falta un segundo recorte acá.
+    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "entidad", valor: ref, motivo: "entidad_inexistente", alternativas: (r.candidatos || []).map((c) => ({ tipo: "entidad", nombre: c.nombre, eje: c.dimension || (ref && ref.eje) || null })) }));
   }
 
   /* ── el eje efectivo de la parte (§4d): el de la primera entidad resuelta; si no hay entidades, Parte.eje o el sujeto del tema ── */
@@ -306,7 +319,10 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
   if (entidadesResueltas.length) ejeEfectivo = entidadesResueltas[0].eje;
   else if (_str(parteCruda.eje)) ejeEfectivo = EJES.includes(parteCruda.eje) ? parteCruda.eje : null;
   else ejeEfectivo = sujetoDeTema(tema);
-  if (_str(parteCruda.eje) && !EJES.includes(parteCruda.eje) && !entidadesResueltas.length) {
+  /* R-EJE-INVALIDO-CONCEPTO-VALIDO (diagnóstico v6): se guarda el origen de `ejeEfectivo == null` para que la
+   * validación de conceptos (abajo) no confunda «eje explícito inválido» con «eje nunca declarado». */
+  const ejeExplicitoInvalido = _str(parteCruda.eje) && !EJES.includes(parteCruda.eje) && !entidadesResueltas.length;
+  if (ejeExplicitoInvalido) {
     noResuelto.push(nuevoNoResuelto({ parte: id, campo: "eje", valor: parteCruda.eje, motivo: "eje_no_soportado", alternativas: EJES.map((e) => ({ tipo: "eje", eje: e })) }));
   }
 
@@ -327,8 +343,9 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
   const sinProductorPendientes = [];   // { c, ejes } — solo cuando el eje fue explícito
   for (const c of conceptosEntrada) {
     if (!_str(c)) continue;
-    const r = _validarConcepto(c, tema, ejeEfectivo);
+    const r = _validarConcepto(c, tema, ejeEfectivo, ejeExplicitoInvalido);
     if (r.estado === "valido") { conceptosValidos.push(c); continue; }
+    if (r.estado === "eje_invalido") continue;   // el eje_no_soportado de la parte ya se declaró una vez; el concepto no cuenta como válido
     if (r.estado === "desconocido") {
       noResuelto.push(nuevoNoResuelto({ parte: id, campo: "concepto", valor: c, motivo: "concepto_desconocido", alternativas: temaEntrada.metricas.map((k) => ({ tipo: "concepto", clave: k })) }));
       continue;
@@ -400,7 +417,32 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
       noResuelto.push(nuevoNoResuelto({ parte: id, campo: "universo", valor: parteCruda.universo, motivo: "universo_invalido", detalle: `el universo es de ${uEff.eje} y la parte es de ${ejeEfectivo}` }));
       universoValido = false;
     } else {
-      universoResuelto = uEff; universoValido = true;
+      // §7.3·11 del contrato (decisión del supervisor, 2026-09-26) — un `base` que SÍ es un conjunto conocido de
+      // la casa pero de OTRO eje («carga comercial alta», de cliente, con eje:"sku") se declina ACÁ, antes de que
+      // el compositor termine sirviendo el eje entero en silencio porque el universo no se pudo evaluar más
+      // adelante. Fuente: `proyectarDatoNegocio(scenario).conjuntos` — el MISMO catálogo que el Notario ya declara
+      // para «carga comercial alta»/«sobre el nivel declarado de carga» (`oracle/datoProyectado.js`), nunca una
+      // lista escrita a mano acá. LÍMITE CONOCIDO, reportado al supervisor (no forzado): esta fuente cubre la
+      // familia de CARGA; la familia de BENCHMARK («bajo/sobre el benchmark») y «con capital frenado» solo se
+      // resuelven en `notario/verificar.js:_conjuntosConocidos`, que exige una fig de ESTE turno (p. ej.
+      // «Benchmark de margen» ya publicada) — `validarEncargo` corre ANTES de cualquier llamada a una tool, así
+      // que esa mitad del catálogo no está disponible acá todavía. Un `base` de esa familia, o un nombre que no
+      // es ningún conjunto de la casa («clientes grandes»), sigue sin validarse en este punto — se resuelve en
+      // tiempo de composición, como hoy.
+      const _baseStr = _es(uEff) && typeof uEff.base === "string" ? uEff.base.trim() : "";
+      let _baseError = null;
+      if (_baseStr && !/^todos?|todas$/i.test(_baseStr)) {
+        let conjuntosDeCarga = null;
+        try { conjuntosDeCarga = cifrasDelDato(scenario).conjuntos; } catch { conjuntosDeCarga = null; }
+        const c = conjuntosDeCarga && conjuntosDeCarga[_baseStr];
+        if (c && c.eje && uEff.eje && c.eje !== uEff.eje) _baseError = `«${_baseStr}» es un conjunto de ${c.eje}, no de ${uEff.eje}`;
+      }
+      if (_baseError) {
+        noResuelto.push(nuevoNoResuelto({ parte: id, campo: "universo", valor: parteCruda.universo, motivo: "universo_invalido", detalle: _baseError }));
+        universoValido = false;
+      } else {
+        universoResuelto = uEff; universoValido = true;
+      }
     }
   }
 
@@ -455,9 +497,12 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
     noResuelto.push(nuevoNoResuelto({ parte: id, campo: "cierre", valor: supuestosCitados, motivo: "cierre_incompleto", detalle: "ningún supuesto citado tiene productor" }));
   }
 
-  /* ── cifra sin concepto ni universo.top (§1.1) ── */
+  /* ── cifra sin concepto ni universo.top (§1.1) ──
+   * R-CIFRA-SIN-CONCEPTO-CAMPO-CIERRE (diagnóstico v6, §3.3): el campo que FALTA es «concepto» (mismo principio
+   * RC14 ya aplicado a `definicion`, línea 425 arriba) — el cierre en sí está bien formado, lo que falta es qué
+   * mostrar. `campo:"cierre"` quedaba reservado para cuando el CIERRE es el problema (cardinalidad, ejes_mezclados). */
   if (cierre === "cifra" && conceptosEntrada.length === 0 && !(universoResuelto && universoResuelto.top)) {
-    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "cierre", valor: null, motivo: "cierre_incompleto", detalle: "una cifra exige al menos un concepto o un universo con top" }));
+    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "concepto", valor: null, motivo: "cierre_incompleto", detalle: "una cifra exige al menos un concepto o un universo con top" }));
   }
 
   /* ── ausencias del tema (§4j): SIEMPRE que el tema esté activo, sea cual sea el resto ── */
@@ -578,7 +623,8 @@ export function validarEncargo(encargo, ctx = {}) {
   }
 
   /* § cada parte, sola (§4·1) */
-  const partesResueltas = partesConId.map((p, i) => _validarParte(p, i, supuestosPorId, I));
+  const scenario = _str(ctx.scenario) ? ctx.scenario : ESCENARIO_INICIAL;
+  const partesResueltas = partesConId.map((p, i) => _validarParte(p, i, supuestosPorId, I, scenario));
 
   const avisosDeParte = partesResueltas.flatMap((p) => p.avisos.map((a) => ({ ...a, parte: p.id })));
   const noResueltoPartes = partesResueltas.flatMap((p) => p.noResuelto);

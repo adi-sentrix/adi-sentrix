@@ -136,5 +136,24 @@ H("6 · CARNADA · el libro no adivina");
   ok(libro.hechos.filter((x) => x.id === "a").length === 2 && libro.errores.some((e) => /id-repetido/.test(e)), "un id repetido se anota y no pisa al primero");
 }
 
+/* ═══ 7 · §7.3·10 — «de M» admisible con top.sobre:"eje" (decisión del supervisor, 2026-09-26) ═══
+ * Con `sobre:"eje"` el top se toma sobre el EJE ENTERO, ANTES de `estados`/`filtros» — ese top-k es la
+ * restricción PREVIA de la cadena (mismo rol que ya cumple `base`), así que su tamaño es un «de M» admisible.
+ * Con el sentido por defecto (sin `sobre`, o "filtro") el top corre DENTRO de lo ya filtrado — ahí «de 5» no es
+ * una restricción previa y NO es admisible (carnada con los dos sentidos). */
+H("7 · CARNADA · top.sobre:\"eje\" es un «de M» admisible (contrato §7.3·10)");
+{
+  const figs = figsDe("¿Cuáles son mis 5 clientes de menor venta, y de esos cuántos están en mora?");
+  const I = indiceDeEvidencia({ figs, datoProyectado: DATO, ejesDelTenant: ejes });
+  const universoConSobreEje = { eje: "cliente", top: { metrica: "ventas", k: 5, direccion: "menor", sobre: "eje" }, estados: ["en mora"] };
+  const libro1 = libroDeHechos([{ id: "g", tipo: "conteo", conteo: { n: 1, m: 5 }, de: universoConSobreEje }], { indice: I });
+  const g = libro1.hechos.find((x) => x.id === "g");
+  ok(g && g.veredicto === "verdadera", `con "sobre:eje", «1 de 5» es admisible y verdadero: ${g && g.motivo}`);
+  const universoPorDefecto = { eje: "cliente", top: { metrica: "ventas", k: 5, direccion: "menor" }, estados: ["en mora"] };
+  const libro2 = libroDeHechos([{ id: "h", tipo: "conteo", conteo: { n: 1, m: 5 }, de: universoPorDefecto }], { indice: I });
+  const h = libro2.hechos.find((x) => x.id === "h");
+  ok(h && h.veredicto === "falsa" && /conteo-falso/.test(h.motivo), `sin "sobre" (por defecto, top DENTRO del filtro), «de 5» no aplica igual: ${h && h.motivo}`);
+}
+
 console.log(`\n── _hechos_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
 process.exit(FAIL ? 1 : 0);

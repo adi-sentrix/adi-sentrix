@@ -363,9 +363,31 @@ export function cobranza(_args = {}, ctx = {}) {
       return (axisEntityNames("cliente") || []).filter((e) => e && String(e).length >= 3 && qn.includes(_normEnt(e)));
     } catch { return []; }
   })();
-  if (_entidadesNombradas.length) {
+  /* LA COLA QUE EL UNIVERSO TIPADO PIDE, SIN LEER PROSA (diagnóstico v6, R-COBRANZA-TOP8-SIN-COLA-MENOR, ALTA):
+   * un `universo.top.direccion:"menor"` («los 3 clientes de MENOR saldo pendiente») cae fuera del recorte de 8
+   * de arriba («vencido primero, después saldo» — siempre el extremo MAYOR) y no hay forma de traerlo con
+   * `_entidadesNombradas` (exige texto libre, prohibido para un universo TIPADO por el contrato del Encargo,
+   * §0.1). `lecturasDe.js` pasa el universo YA RESUELTO de la parte (`p.universo`, nunca la pregunta) en
+   * `_args.universoRequerido`; acá se resuelve el `top` con el MISMO `M.filas` (la mesa completa, sin el cap de
+   * 8) — una sola verdad, sin segunda tabla de ranking. Solo cubre las claves que esta tool ya sabe publicar
+   * (ventas · saldo_pendiente · saldo_vencido · abonado); cualquier otra métrica de `top` no agrega nada acá —
+   * documentado, nunca silencioso (el llamador declina con un límite si la cifra sigue faltando, ver
+   * `entrega/componer.js:_planCifraGrupo`). */
+  const _CAMPO_DE_CLAVE_COBRANZA = { ventas: "ventaK", saldo_pendiente: "saldoK", saldo_vencido: "vencidoK", abonado: "abonadoK" };
+  const _entidadesDelTopRequerido = (() => {
+    const top = _args && _args.universoRequerido && typeof _args.universoRequerido === "object" ? _args.universoRequerido.top : null;
+    if (!top || !top.metrica || !Number.isFinite(+top.k) || +top.k < 1) return [];
+    const campo = _CAMPO_DE_CLAVE_COBRANZA[String(top.metrica).trim()];
+    if (!campo) return [];
+    const conValor = M.filas.filter((f) => Number.isFinite(f[campo]));
+    const dirMenor = String(top.direccion || "mayor") === "menor";
+    const orden = [...conValor].sort((a, b) => (dirMenor ? a[campo] - b[campo] : b[campo] - a[campo]));
+    return orden.slice(0, +top.k).map((f) => f.nombre);
+  })();
+  const _entidadesRequeridas = [...new Set([..._entidadesNombradas, ..._entidadesDelTopRequerido])];
+  if (_entidadesRequeridas.length) {
     const _yaEnTop8 = new Set(filas.map((f) => f.nombre));
-    const _extra = _entidadesNombradas.map((n) => M.filas.find((f) => f.nombre === n)).filter((f) => f && !_yaEnTop8.has(f.nombre));
+    const _extra = _entidadesRequeridas.map((n) => M.filas.find((f) => f.nombre === n)).filter((f) => f && !_yaEnTop8.has(f.nombre));
     for (const f of _extra) {
       _fig(`${f.nombre} · ${esPlanilla ? "Venta a crédito" : "Venta (flujo)"}`, f.ventaFmt, f.ventaK);
       _fig(`${f.nombre} · Abonado`, f.abonadoFmt, f.abonadoK);

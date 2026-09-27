@@ -18,6 +18,7 @@
  * dados. Sin red, sin estado global nuevo. Detrás de la bandera `ADI_ENTREGA` (APAGADA en todos los perfiles):
  * este módulo no se importa desde ningún camino de producción todavía — lo ejercita solo el gate. */
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
+import { benchmarkOf } from "../../config/businessPolicy.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae
 import { runPlan } from "../oracle/toolRunner.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
 import { cajaDelAgente } from "../agente/herramientasAgente.js";
@@ -1357,7 +1358,7 @@ const _sinSufijoDolar = (etiqueta) => String(etiqueta || "").replace(/\s+en\s*\$
  *       Las figs que la conclusión necesita SIEMPRE quedan también en `filas` (Cifras) — nunca un id que solo
  *       vive en la Respuesta (regla 3 de verificar.js, doble colocación). `cifra` (no lectura/decision) sigue
  *       con el listado — es lo que ese cierre pide por contrato (§1.1: una cifra puntual). */
-function _planCifraEntidad(parte, figs, ref, I) {
+function _planCifraEntidad(parte, figs, ref, I, declararDerivada = null) {
   const filasPorEntidad = [];
   const esLecturaODecision = parte.cierre === "lectura" || parte.cierre === "decision";
   for (const e of parte.entidades) {
@@ -1396,6 +1397,22 @@ function _planCifraEntidad(parte, figs, ref, I) {
     const entry = { entidad: e.nombre, eje: e.eje, filas };
     if (esLecturaODecision) entry.conclusion = _construirConclusionEntidad(parte.tema, e.nombre, figs, filas, ref, I);
     filasPorEntidad.push(entry);
+  }
+  // R-TENTACION-SIN-PLANCIFRAENTIDAD (diagnóstico v6, MEDIA) — mecanismo 6 (tentación precalculada), análogo al
+  // que ya tiene `_planCifraGrupo` (línea ~2444) pero para el camino de ENTIDADES EXPLÍCITAS: con ≥2 cuentas
+  // nombradas de punta que comparten una misma clave, se declara la diferencia entre la primera y la segunda antes
+  // de imprimir — sin esto, `verificarEntrega` («toda tentación precalculada», verificar.js) marcaba
+  // `tentacion-no-precalculada` en cualquier `cifra`/`lectura`/`decision` con 2+ entidades explícitas sobre un
+  // concepto compartido, porque el libro de hechos nunca traía un `razon`/`derivada` que las relacionara.
+  if (declararDerivada && filasPorEntidad.length > 1) {
+    const [pA, pB] = filasPorEntidad;
+    const claveComun = pA.filas.map((f) => f.clave).find((c) => c && pB.filas.some((f2) => f2.clave === c));
+    if (claveComun) {
+      const figA = _filaDe(figs, pA.entidad, claveComun), figB = _filaDe(figs, pB.entidad, claveComun);
+      const idA = pA.filas.find((f) => f.clave === claveComun).id, idB = pB.filas.find((f) => f.clave === claveComun).id;
+      const idDiffEntidad = declararDerivada(figA, idA, figB, idB);
+      if (idDiffEntidad) return { kind: "entidad", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, filasPorEntidad, idDiffEntidad };
+    }
   }
   return { kind: "entidad", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, filasPorEntidad };
 }
@@ -1594,9 +1611,18 @@ function _entidadRepresentativaDeTema(tema, planes) {
  * algo que el usuario pidió; exigir todas a la vez borraría entidades pedidas». DENTRO de una misma parte, sus
  * restricciones siguen combinándose TODAS juntas (una sola llamada a `conjuntoDeUniverso` con todos sus campos,
  * `_entidadEnAlcanceDeUnaParte`) — eso no cambió. */
-function _entidadEnAlcanceDeUnaParte(nNorm, p, I) {
+function _entidadEnAlcanceDeUnaParte(nNorm, p, I, planPorParte) {
   const alcance = alcanceDeParte(p);
   if ((alcance.excluir || []).some((x) => normalizar(x) === nNorm)) return false;
+  // R-INICIATIVA-PREGUNTA-ABIERTA-SIN-ALCANCE (diagnóstico v6, ALTA) — cuando la parte YA tiene un plan compuesto
+  // (`_planCifraGrupo`/`_cerrarGrupoUniverso`, `plan.orden`), ESE es el universo real que la Entrega sirve: la
+  // MISMA tool call, con su `sort`/`limit` ya corregidos (`_entidadesDelTopVerificado`). Reusarlo evita repetir la
+  // resolución contra `I.rankings`, que puede venir PARCIAL (solo trae las k filas que la tool pidió) — un
+  // `top`/dirección «menor» sobre un ranking parcial truena en `ranking-parcial` más abajo, y ese error se leía
+  // antes como «sin restricción», dejando pasar CUALQUIER entidad (W49: Falabella y Jumbo, los MÁS GRANDES, en
+  // una parte que pedía justo los 3 más chicos).
+  const plan = planPorParte && planPorParte.get(p.id);
+  if (plan && Array.isArray(plan.orden) && plan.orden.length) return plan.orden.some((e) => normalizar(e) === nNorm);
   const eje = alcance.eje || "cliente";
   const camposDeclarados = {};
   if (alcance.base) camposDeclarados.base = alcance.base;
@@ -1607,15 +1633,25 @@ function _entidadEnAlcanceDeUnaParte(nNorm, p, I) {
   if (Object.keys(camposDeclarados).length && I) {
     let R = null;
     try { R = conjuntoDeUniverso({ eje, ...camposDeclarados }, I, eje, ""); } catch { R = null; }
-    if (R && R.set && !R.set.has(nNorm)) return false;
+    if (R && R.set) return R.set.has(nNorm);
+    // no se pudo verificar (p. ej. `ranking-parcial`, u otro «universo-no-resoluble»): la parte SÍ declaró una
+    // restricción real y no hay cómo demostrar que la entidad quedó dentro — falla CERRADO, nunca abierto («nada
+    // se sustituye por un vecino» incluye no poder demostrarlo).
+    return false;
   }
   return true;
 }
-function _entidadEnAlcanceComercial(nombre, partesComercial, I) {
+function _entidadEnAlcanceComercial(nombre, partesComercial, I, planPorParte) {
   const nNorm = normalizar(nombre);
   if (!nNorm) return false;
   if (!partesComercial.length) return true;   // sin partes comerciales que resolver: nada que aplicar, nunca se excluye a ciegas
-  return partesComercial.some((p) => _entidadEnAlcanceDeUnaParte(nNorm, p, I));
+  // UNIÓN entre partes — decisión explícita del supervisor (ver la nota grande arriba de `_entidadEnAlcanceDeUnaParte`,
+  // 2026-09-26, segunda vuelta): «una entidad es legítima si está dentro del alcance de ALGUNA parte comercial,
+  // porque cada parte es algo que el usuario pidió». Eso NO cambia acá. El defecto real (R-INICIATIVA-PREGUNTA-
+  // ABIERTA-SIN-ALCANCE, diagnóstico v6) no estaba en el `.some()`: estaba en `_entidadEnAlcanceDeUnaParte`, que
+  // trataba «no pude verificar el universo» (`conjuntoDeUniverso` con `ranking-parcial`, p. ej.) como si fuera
+  // «sin restricción» — corregido ahí, nunca acá.
+  return partesComercial.some((p) => _entidadEnAlcanceDeUnaParte(nNorm, p, I, planPorParte));
 }
 
 /* un universo con `estados`/`no_estados`/`filtros` exige evaluar el ESTADO de cada entidad contra el dato real
@@ -1858,7 +1894,13 @@ function _entidadesDelTopVerificado(entidadesDeLaTool, figsAcotadas, top, eje, c
   const coincide = R.set.size === enJuegoNorm.size && [...R.set].every((k) => enJuegoNorm.has(k));
   if (coincide) return { entidades: entidadesDeLaTool, figsExtra: [] };
   const nombres = [...R.set].map((k) => (indice.entidades && indice.entidades.get ? (indice.entidades.get(k) || { nombre: k }).nombre : k));
-  const conocidas = new Set(figsAcotadas.map((f) => _entidadDe(_lab(f))).filter(Boolean).map((n) => normalizar(n)));
+  // R-VARIACION-SIN-CIFRA-EN-TOP (diagnóstico v6, MEDIA) — «conocida» tiene que significar «ya trae una fig de
+  // ESTE `conceptoTop»», no «ya trae CUALQUIER fig»: una entidad puede llegar con su «Venta» (otro concepto) y
+  // seguir faltándole la cifra del concepto que el `top` en sí ordena (ej. `top:{metrica:"variacion"}` cuando el
+  // tool solo publicó el delta en $, «· YoY» → clave `variacion_usd`, nunca el % por entidad) — con el chequeo
+  // viejo (cualquier fig) esa falta nunca se detectaba, así que el backfill de abajo nunca corría para completar
+  // la columna que el propio `top` pidió.
+  const conocidas = new Set(_todasLasFilasDeConcepto(figsAcotadas, conceptoTop).map((x) => x.entidad).map(normalizar));
   const faltan = new Set(nombres.filter((n) => !conocidas.has(normalizar(n))).map(normalizar));
   let figsExtra = [];
   if (faltan.size && typeof indice.figsDeMetrica === "function") {
@@ -2414,10 +2456,17 @@ export function componerEntrega(resolucion) {
         }
         const planG = _planCifraGrupo(pParaGrupo, _figsDeParte(p.id), { ejesDelTenant, indice: I });
         if (!planG) continue;
-        const figA0 = planG.orden.length > 1 ? planG.porEntidad.get(planG.orden[0]).get(planG.claveOrden) : null;
-        const figB0 = planG.orden.length > 1 ? planG.porEntidad.get(planG.orden[1]).get(planG.claveOrden) : null;
-        for (const e of planG.orden) for (const [clave, fig] of planG.porEntidad.get(e)) planG.porEntidad.get(e).set(clave, ref(fig));
-        if (figA0 && figB0) planG.idDiffOrden = declararDerivada(figA0, planG.porEntidad.get(planG.orden[0]).get(planG.claveOrden), figB0, planG.porEntidad.get(planG.orden[1]).get(planG.claveOrden));
+        // R-COBRANZA-TOP8-SIN-COLA-MENOR (diagnóstico v6, defensa en profundidad, ALTA): «una Entrega nunca
+        // revienta» — una entidad de `orden` puede quedar sin NINGÚN concepto en `porEntidad` (ninguna fig
+        // publicada para ella en toda la parte), y `.get(entidad)` devuelve `undefined`. Antes, el `.get()`
+        // siguiente tumbaba TODA la función con una excepción no capturada — se perdía la Entrega ENTERA por una
+        // sola cuenta sin dato, en vez de perder solo la tentación precalculada (mecanismo 6, opcional) de esa
+        // fila. `_mapaDe` nunca inventa una fig: solo evita el `.get()` sobre `undefined`.
+        const _mapaDe = (m, e) => m.get(e) || new Map();
+        const figA0 = planG.orden.length > 1 ? _mapaDe(planG.porEntidad, planG.orden[0]).get(planG.claveOrden) : null;
+        const figB0 = planG.orden.length > 1 ? _mapaDe(planG.porEntidad, planG.orden[1]).get(planG.claveOrden) : null;
+        for (const e of planG.orden) for (const [clave, fig] of _mapaDe(planG.porEntidad, e)) _mapaDe(planG.porEntidad, e).set(clave, ref(fig));
+        if (figA0 && figB0) planG.idDiffOrden = declararDerivada(figA0, _mapaDe(planG.porEntidad, planG.orden[0]).get(planG.claveOrden), figB0, _mapaDe(planG.porEntidad, planG.orden[1]).get(planG.claveOrden));
         planes.push(planG);
         partesYaAgrupadas.add(p.id);
         huboFallback = true;
@@ -2429,7 +2478,7 @@ export function componerEntrega(resolucion) {
     if (partesYaAgrupadas.has(p.id)) continue;
     const figsDeP = _figsDeParte(p.id);
     if (p.cierre === "cifra" || ((p.cierre === "lectura" || p.cierre === "decision") && p.entidades && p.entidades.length)) {
-      if (p.entidades && p.entidades.length) { const plan = _planCifraEntidad(p, figsDeP, ref, I); if (plan) planes.push(plan); }
+      if (p.entidades && p.entidades.length) { const plan = _planCifraEntidad(p, figsDeP, ref, I, declararDerivada); if (plan) planes.push(plan); }
       else if (p.cierre === "cifra") {
         // CORTE 3c · pieza 1 (D07): universo por estado/filtro SIN `top` — el mismo camino que arriba, para el
         // cierre `cifra`.
@@ -2445,10 +2494,14 @@ export function componerEntrega(resolucion) {
           // tentación precalculada (mecanismo 6): la diferencia entre el primero y el segundo del listado, en la
           // MISMA métrica que ordena — se captura el fig ANTES de convertir el mapa a ids (unit-aware), y se
           // declara DESPUÉS con los mismos ids que ya va a imprimir la tabla (nunca una segunda referencia a la fig).
-          const figA0 = plan.orden.length > 1 ? plan.porEntidad.get(plan.orden[0]).get(plan.claveOrden) : null;
-          const figB0 = plan.orden.length > 1 ? plan.porEntidad.get(plan.orden[1]).get(plan.claveOrden) : null;
-          for (const e of plan.orden) for (const [clave, fig] of plan.porEntidad.get(e)) plan.porEntidad.get(e).set(clave, ref(fig));
-          if (figA0 && figB0) plan.idDiffOrden = declararDerivada(figA0, plan.porEntidad.get(plan.orden[0]).get(plan.claveOrden), figB0, plan.porEntidad.get(plan.orden[1]).get(plan.claveOrden));
+          // R-COBRANZA-TOP8-SIN-COLA-MENOR (diagnóstico v6, defensa en profundidad, ALTA) — «una Entrega nunca
+          // revienta»: `_mapaDe` evita el `.get()` sobre `undefined` cuando una entidad de `orden` no trajo NINGÚN
+          // concepto en `porEntidad` (misma nota que el fallback de arriba).
+          const _mapaDe = (m, e) => m.get(e) || new Map();
+          const figA0 = plan.orden.length > 1 ? _mapaDe(plan.porEntidad, plan.orden[0]).get(plan.claveOrden) : null;
+          const figB0 = plan.orden.length > 1 ? _mapaDe(plan.porEntidad, plan.orden[1]).get(plan.claveOrden) : null;
+          for (const e of plan.orden) for (const [clave, fig] of _mapaDe(plan.porEntidad, e)) _mapaDe(plan.porEntidad, e).set(clave, ref(fig));
+          if (figA0 && figB0) plan.idDiffOrden = declararDerivada(figA0, _mapaDe(plan.porEntidad, plan.orden[0]).get(plan.claveOrden), figB0, _mapaDe(plan.porEntidad, plan.orden[1]).get(plan.claveOrden));
           planes.push(plan);
         }
       }
@@ -2508,7 +2561,25 @@ export function componerEntrega(resolucion) {
   // «cartera entera» de «un eje explícito distinto del sujeto del tema» (`alcanceDeParte`, `entrega/alcance.js`):
   // antes este resumen no traía el campo, así que `iniciativa.js` no podía verlo aunque `ParteResuelta.eje` ya lo
   // tuviera resuelto — ver la nota en `iniciativa.js:_tieneLecturaDeCarteraEntera`.
-  const partesParaIniciativa = partesUtiles.map((p) => ({ tema: p.tema, cierre: p.cierre, conceptos: (p.conceptos || []).length, entidades: (p.entidades || []).map((e) => e.nombre), universo: p.universo || null, eje: p.eje || null }));
+  // R-INICIATIVA-UNIVERSO-NO-ENTIDADES (diagnóstico v6, ALTA): una parte puede acotar su alcance con `universo`
+  // (p.ej. `top:{...}`) SIN nombrar `entidades` una por una — el guardia de "cartera entera" de `iniciativa.js`
+  // (`_tieneLecturaDeCarteraEntera`) YA sabe que un `universo` declarado no es cartera entera, pero el guardia
+  // HERMANO que acota la oración integrada (`entidadesNombradas`, mismo archivo) solo miraba `entidades` — un
+  // hueco justo para este patrón nuevo de la etapa 1 (`universo.top` como forma primaria de acotar una
+  // `decision`/`lectura`, sin nombrar clientes uno por uno). Se resuelve el universo ACÁ (mismo `conjuntoDeUniverso`
+  // que ya usa el resto del compositor) y se le pasan los nombres resultantes a `iniciativa.js` como si fueran
+  // `entidades` declaradas — `p.universo` sigue viajando intacto, así que el guardia de "cartera entera" no cambia.
+  const partesParaIniciativa = partesUtiles.map((p) => {
+    let nombres = (p.entidades || []).map((e) => e.nombre);
+    if (!nombres.length && p.universo && typeof p.universo === "object") {
+      const ejeU = normalizar(p.universo.eje || p.eje || "") || null;
+      try {
+        const U = conjuntoDeUniverso(p.universo, I, ejeU, "");
+        if (U && U.set) nombres = [...U.set].map((k) => (I.entidades.get(k) || { nombre: k }).nombre);
+      } catch { /* universo no resoluble acá: se deja sin nombres — el guardia de cartera entera ya excluye la parte igual */ }
+    }
+    return { tema: p.tema, cierre: p.cierre, conceptos: (p.conceptos || []).length, entidades: nombres, universo: p.universo || null, eje: p.eje || null };
+  });
   const yaTieneIntegrada = planes.some((pl) => pl.kind === "multitema");
   const { hechos: hechosIniciativa, candidatos: candidatosIniciativa } = calcularIniciativa({
     figs, partes: partesParaIniciativa, iniciativaOn, yaTieneIntegrada,
@@ -2973,6 +3044,37 @@ export function componerEntrega(resolucion) {
       if (r && Number.isFinite(r.raw) && m) entrega.marco.referenciaDeclarada = { texto: `${m.nombre}: ${formatoDeLaCasa(r.raw, r.unidad || m.unidad)}, declarado por la empresa.`, hechoId: null };
     }
   }
+  // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6, MEDIA) — un `universo.base` que NOMBRA una cohorte derivada
+  // del benchmark («bajo el benchmark», «sobre el benchmark», su forma «margen supuesto» de la simulación de
+  // carga, o su forma por SKU) menciona «benchmark» en el texto de la Entrega (la oración del veredicto ya imprime
+  // el valor vía `nombrarUniverso`/nombrarlo en el rótulo del subtotal) sin que los tres mecanismos de arriba lo
+  // capturen: (1) exige un plan de tema comercial con la fig «Benchmark de margen» YA publicada en la boleta de
+  // ESTE turno — con un único tool call que arma la cohorte por universo (`_cerrarGrupoUniverso`), esa fig
+  // independiente nunca se pide; (2) mismo problema, dominio distinto; (3) solo mira `filtros[].ref` de una
+  // PREMISA, nunca `base`. Comprobado con V14/V20 (`_dbg_v14.mjs`): la fig «Benchmark de margen» está AUSENTE de
+  // `figs` en ese turno — el conjunto «bajo el benchmark» se resuelve igual porque la proyección
+  // (`oracle/datoProyectado.js`) ya conoce el valor por otra vía, `businessPolicy.js:benchmarkOf`, la MISMA fuente
+  // que usa para armar la cohorte. Se declara desde ahí, sin `hechoId` (mismo patrón que el mecanismo de arriba:
+  // no hay una fig de LEDGER que citar) — nunca un número recalculado a mano, es la función que ya gobierna la
+  // cohorte, leída una vez más para declararla.
+  if (!entrega.marco.referenciaDeclarada) {
+    const _BASE_BENCHMARK_RE = /\bbenchmark\b/i;
+    const _baseNombraBenchmark = (u) => !!(u && typeof u === "object" && typeof u.base === "string" && _BASE_BENCHMARK_RE.test(u.base));
+    const partesConBaseBenchmark = partesUtiles.some((p) => _baseNombraBenchmark(p.universo));
+    let premisaConBaseBenchmark = false;
+    if (!partesConBaseBenchmark && libroPremisas) { for (const H of libroPremisas.porId.values()) { if (_baseNombraBenchmark(H && H.universoTipado)) { premisaConBaseBenchmark = true; break; } } }
+    if (partesConBaseBenchmark || premisaConBaseBenchmark) {
+      const benchRaw = benchmarkOf();
+      if (Number.isFinite(benchRaw)) {
+        const benchFmt = formatoDeLaCasa(benchRaw, "pct");
+        // regla 1 «cero cifras desnudas» (verificar.js): el dígito impreso en el Marco tiene que casar con algo
+        // que el compositor DECLARÓ como legítimo — sin `R()` (no hay hecho con id que citar, ver el comentario de
+        // arriba) hay que declararlo a mano en `cifrasImpresas`, el mismo registro que usa toda esta función.
+        cifrasImpresas.push(benchFmt);
+        entrega.marco.referenciaDeclarada = { texto: `Benchmark de margen: ${benchFmt}, declarado por la empresa.`, hechoId: null };
+      }
+    }
+  }
 
   entrega.limites = [..._limitesDeclarados(resolucion, temasCubiertos), ...limitesGap, ...entrega.limites];
   { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
@@ -3031,8 +3133,11 @@ export function componerEntrega(resolucion) {
     // `rolesCartera` con un universo nuevo: es la salida de siempre, con las entidades fuera de alcance retiradas
     // de la única lista que este compositor lee (`preguntaAlDueno.entidades`).
     const partesComercial = partesUtiles.filter((p) => p.tema === "comercial");
+    // el plan YA compuesto de cada parte (cuando trae `orden`, kind grupo/grupoUniverso): la fuente que
+    // `_entidadEnAlcanceDeUnaParte` prefiere sobre repetir la resolución contra `I.rankings` (ver su nota).
+    const planPorParte = new Map(planes.filter((pl) => pl.parteId != null && Array.isArray(pl.orden)).map((pl) => [pl.parteId, pl]));
     if (rolesGeneral && rolesGeneral.preguntaAlDueno) {
-      const entsFiltradas = (rolesGeneral.preguntaAlDueno.entidades || []).filter((e) => _entidadEnAlcanceComercial(e, partesComercial, I));
+      const entsFiltradas = (rolesGeneral.preguntaAlDueno.entidades || []).filter((e) => _entidadEnAlcanceComercial(e, partesComercial, I, planPorParte));
       rolesGeneral = entsFiltradas.length === (rolesGeneral.preguntaAlDueno.entidades || []).length ? rolesGeneral
         : { ...rolesGeneral, preguntaAlDueno: entsFiltradas.length ? { ...rolesGeneral.preguntaAlDueno, entidades: entsFiltradas } : null };
     }
