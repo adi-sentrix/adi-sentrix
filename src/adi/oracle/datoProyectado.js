@@ -276,6 +276,16 @@ function _construir(scenario) {
        * SKU NO se declara acá porque «margen» a secas para un SKU es ambiguo (venta o inventario) y la casa exige la etiqueta completa. */
       ventas:           _R("los 13 SKU comerciales · venta comercial (año cerrado)", "mayor", "menor", "skusMargen.venta", ["ventas?", "factura(?:ci[óo]n)?", "vendid[oa]s?"], _LEX.ventas),
       contribucion:     _R("los 13 SKU comerciales · venta comercial (año cerrado)", "mayor", "menor", "skusMargen.contribucion", ["contribuci[óo]n"], _LEX.contribucion),
+      /* §7.3·13 (supervisor 2026-09-27, diagnóstico v8, raíz A3) — «SKU bajo/sobre el benchmark» necesita el
+       * margen de VENTA de cada SKU como ranking ESTÁTICO, la misma fuente estable que ya usa «con saldo
+       * vencido» para cliente (`I.rankings`, siempre disponible, nunca las figs del turno): antes
+       * `notario/verificar.js:_conjuntosConocidos` escaneaba la boleta de ESTE turno, y si la llamada no traía
+       * el margen de las 13 SKU el conjunto quedaba incompleto o irresoluble. La clave «margen_venta» (nunca
+       * «margen» a secas) evita la ambigüedad con `margen_inventario` que la nota de arriba ya declaró — el
+       * mismo SKU tiene dos márgenes distintos y la casa exige la etiqueta completa; por eso NO se agrega a
+       * `notario/evidencia.js:CLAVES_DE_RANKING.sku` (el texto libre «margen» de un SKU sigue sin ranking, a
+       * propósito) — esta clave solo se lee por su nombre exacto, desde `_conjuntosConocidos`. */
+      margen_venta:     _R("los 13 SKU comerciales · venta comercial (año cerrado)", "mayor", "menor", "skusMargen.margen", ["margen\\s+de\\s+venta"]),
       /* «más capital» NO es «peor capital»: SAM-REF500L es el SKU de más capital ($19K) y rota 9.8x — está sano.
        * Por eso este ranking va SIN polaridad (peorEs null) y el notario solo le verifica «mayor/menor», nunca
        * «el peor». El capital que sí tiene lado malo es el INMOVILIZADO, y ese es su propio ranking, sobre su
@@ -579,6 +589,8 @@ function _construir(scenario) {
     // CRUDO_MONEY (supervisor 2026-09-27, diagnóstico v7) — mismo criterio que `rankings.cliente.ventas` arriba.
     if (Number.isFinite(s.venta)) rankings.sku.ventas.filas.push({ entidad: s.nombre, valor: s.venta, texto: _moneyK(s.venta) });
     if (Number.isFinite(s.contribucion)) rankings.sku.contribucion.filas.push({ entidad: s.nombre, valor: s.contribucion });
+    // §7.3·13 (raíz A3): el margen de venta del SKU, ranking estático — ver la nota de la declaración arriba.
+    if (Number.isFinite(s.margen)) rankings.sku.margen_venta.filas.push({ entidad: s.nombre, valor: s.margen });
     L.push(`- ${s.nombre} — ${_L.ventas} ${F(_moneyK(s.venta), D, undefined, "ventas")} · ${_L.margen} ${F(_pct1(s.margen), D, undefined, "margen")} · ${_L.contribucion} ${F(_moneyK(s.contribucion), D, undefined, "contribucion")} · ${_L.costo} ${F(_moneyK(s.costo), D, undefined, "costo")} · ${_L.carga} ${F(_pct1(s.pctRebate), D, undefined, "carga")} · ${s.unidades} unidades · costo medio ${F(_money(s.costoMedio), D)} por unidad · precio de lista ${F(_money(s.precioLista), D)} por unidad · marca ${s.marca} · familia ${s.sfamilia}.`);
   }
   L.push("");

@@ -511,6 +511,20 @@ venta a crédito, ley del owner).
     (`notario/conjuntosDeLaCasa.js`), también los que dependen del estado de cada entidad: «con saldo vencido»
     (cliente), «con capital frenado» (sku) y cualquier otro que `_conjuntosConocidos` sepa resolver. Un nombre que no
     está en el registro es inválido; no hay listas de «dejar pasar».
+17. [2026-09-27, diagnóstico v8] Una parte `lectura`/`decision` sin entidades pero con universo PROPIO (`top`, `base`,
+    `estados`, `no_estados`, `filtros`, `bodega` o `union`) se compone sobre ESE universo, con el mismo mecanismo que
+    `cifra`: primero el conjunto (con la misma resolución que usa el Notario) y después las cifras de lo pedido,
+    ordenadas por la métrica que la parte pidió. En una `decision`, la prioridad integrada (la conclusión del
+    procedimiento) se calcula DENTRO de ese universo y nunca fuera. El camino multitema, «quién pesa más» con la lente de
+    negocio, queda SOLO para partes sin restricción propia. Invariante que la Entrega verifica y que falla cerrado: el
+    conjunto declarado de cada parte con universo propio es exactamente el que resuelve el universo (o su cola
+    declarada). Si no coincide, esa parte se declina con un límite y no se sirve otra respuesta en su lugar.
+18. [2026-09-27] Si la RAÍZ del encargo es inválida y sus partes se pueden leer, cada parte aparece en `R.partes` como
+    `no_resuelta`, con el motivo de la raíz. Quien consulta sabe así qué partes no se atendieron y por qué. Solo si las
+    partes no se pueden leer, `R.partes` queda vacío.
+19. [2026-09-27] §7.3·12 vale para toda referencia que define un conjunto de la casa (benchmark, nivel declarado de
+    carga, piso de rotación), no solo para el benchmark, y también para el universo de una PREMISA. Lo alternativo se
+    declara con la cifra Y los nombres de las cuentas.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

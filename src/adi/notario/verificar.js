@@ -327,11 +327,18 @@ function _conjuntosConocidos(I) {
   const porEstado = new Map();
   for (const x of I.estados) { const e = estadoCanon(x.estado); if (!porEstado.has(e)) porEstado.set(e, new Set()); porEstado.get(e).add(normalizar(x.entidad)); }
   for (const [e, set] of porEstado) out.push({ nombre: e, eje: "sku", set, fuente: `estados «${e}»`, re: new RegExp(e === "inmovilizado" ? "\\b(?:inmoviliz|deten|parad)" : e === "frenado" ? "\\bfrenad" : e === "sobrestock" ? "\\bsobrestock" : e === "riesgo de quiebre" ? "\\bquiebre" : e === "critico" ? "\\bcr[ií]tic" : "\\bsan[oa]s?\\b", "i") });
-  /* «con capital frenado» por eje, desde las figs «<entidad> · Capital frenado» de la boleta: las bodegas no tienen estado en la proyección
-   * (los estados son de SKU); para SKU manda el estado de la proyección si lo hay */
+  /* §7.3·13 (supervisor 2026-09-27, diagnóstico v8, raíz A3) — «con capital frenado» de SKU, desde el ranking
+   * ESTÁTICO de la proyección (`I.rankings.sku.capital_frenado`, `datoProyectado.js`, siempre disponible),
+   * el MISMO patrón que ya usa «con saldo vencido» para cliente unas líneas más abajo — NUNCA las figs de ESTE
+   * turno: si la llamada del turno no traía el capital frenado de TODAS las SKU, el conjunto quedaba incompleto
+   * o irresoluble («universo-no-resoluble»), dependiendo de qué tool call se disparó. Otros ejes (bodega,
+   * familia) no tienen ese registro estático todavía — para esos sigue el camino de las figs de la boleta,
+   * documentado como gap (fuera de esta corrección). */
+  const RskuFrenado = (I.rankings.sku || {}).capital_frenado;
+  if (RskuFrenado) out.push({ nombre: "con capital frenado", eje: "sku", set: new Set(RskuFrenado.filas.filter((x) => Number.isFinite(+x.valor) && +x.valor > 0).map((x) => normalizar(x.entidad))), fuente: "ranking sku · capital_frenado > 0", re: /\bfrenad/i });
   const frenadoPorEje = new Map();
-  for (const f of I.figs) if (f.entidad && f.eje && /^capital frenado$/.test(f.conceptoNorm) && Number.isFinite(f.raw) && f.raw > 0) { if (!frenadoPorEje.has(f.eje)) frenadoPorEje.set(f.eje, new Set()); frenadoPorEje.get(f.eje).add(normalizar(f.entidad)); }
-  for (const [eje, set] of frenadoPorEje) if (eje !== "sku" || !porEstado.has("frenado")) out.push({ nombre: "con capital frenado", eje, set, fuente: "«Capital frenado» por " + eje + " en la boleta", re: /\bfrenad/i });
+  for (const f of I.figs) if (f.entidad && f.eje && f.eje !== "sku" && /^capital frenado$/.test(f.conceptoNorm) && Number.isFinite(f.raw) && f.raw > 0) { if (!frenadoPorEje.has(f.eje)) frenadoPorEje.set(f.eje, new Set()); frenadoPorEje.get(f.eje).add(normalizar(f.entidad)); }
+  for (const [eje, set] of frenadoPorEje) out.push({ nombre: "con capital frenado", eje, set, fuente: "«Capital frenado» por " + eje + " en la boleta", re: /\bfrenad/i });
   const R = I.rankings.cliente || {};
   const bench = I.figs.find((f) => /^benchmark de margen$/.test(f.conceptoNorm) && !f.entidad);
   if (R.margen && bench) {
@@ -345,8 +352,15 @@ function _conjuntosConocidos(I) {
     out.push({ nombre: "margen supuesto sobre el benchmark", eje: "cliente", set: new Set([...sup].filter(([, v]) => v >= bench.raw).map(([e]) => normalizar(e))), fuente: "margen supuesto ≥ benchmark", re: /supuest[^.]{0,40}(?:sobre|encima|supera|mayor|llega)[^.]{0,25}benchmark|(?:sobre|encima|supera|mayor)[^.]{0,25}benchmark[^.]{0,30}supuest/i });
     out.push({ nombre: "margen supuesto bajo el benchmark", eje: "cliente", set: new Set([...sup].filter(([, v]) => v < bench.raw).map(([e]) => normalizar(e))), fuente: "margen supuesto < benchmark", re: /supuest[^.]{0,40}(?:bajo|debajo|menor|no llega)[^.]{0,25}benchmark|(?:bajo|debajo|menor)[^.]{0,25}benchmark[^.]{0,30}supuest/i });
   }
-  /* por SKU: el margen de cada SKU de la boleta contra el benchmark */
-  const mSku = new Map(); for (const f of I.figs) if (f.entidad && f.eje === "sku" && /^margen(?:\s+de\s+venta)?$/.test(f.conceptoNorm) && f.unidad === "pct" && Number.isFinite(f.raw) && !mSku.has(f.entidad)) mSku.set(f.entidad, f.raw);
+  /* §7.3·13 (supervisor 2026-09-27, diagnóstico v8, raíz A3) — por SKU: el margen de VENTA contra el benchmark,
+   * desde el ranking ESTÁTICO de la proyección (`I.rankings.sku.margen_venta`, agregado en este mismo corte —
+   * `datoProyectado.js`), el MISMO patrón que ya usa «bajo/sobre el benchmark» de cliente arriba — nunca las
+   * figs de ESTE turno (antes, si la llamada del turno no traía el margen de las 13 SKU, el conjunto quedaba
+   * incompleto o «universo-no-resoluble» según qué tool call se disparó). Sin ese ranking (un tenant sin
+   * `skusMargen`), el conjunto simplemente no se declara — nunca se reconstruye a ciegas desde la boleta. */
+  const RskuMargen = (I.rankings.sku || {}).margen_venta;
+  const mSku = new Map();
+  if (RskuMargen) for (const x of RskuMargen.filas) if (Number.isFinite(+x.valor) && !mSku.has(x.entidad)) mSku.set(x.entidad, +x.valor);
   if (mSku.size && bench) {
     out.push({ nombre: "SKU bajo el benchmark", eje: "sku", set: new Set([...mSku].filter(([, v]) => v < bench.raw).map(([e]) => normalizar(e))), fuente: "margen del SKU < benchmark", re: /(?:bajo|debajo|menor|no llega|lejos)[^.]{0,25}(?:benchmark|referencia\s+de\s+margen|piso\s+de\s+margen)|(?:benchmark|referencia)[^.]{0,12}(?:por\s+debajo|hacia\s+abajo)/i });
     out.push({ nombre: "SKU sobre el benchmark", eje: "sku", set: new Set([...mSku].filter(([, v]) => v >= bench.raw).map(([e]) => normalizar(e))), fuente: "margen del SKU ≥ benchmark", re: /(?:sobre|encima|supera|mayor)[^.]{0,25}(?:benchmark|referencia\s+de\s+margen|piso\s+de\s+margen)/i });

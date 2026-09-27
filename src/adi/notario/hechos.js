@@ -327,6 +327,20 @@ export const dominioDeEstado = (canon) => (_ESTADOS_COBRANZA.has(canon) ? "cobra
 
 /* ── el nombre de un universo tipado, escrito por la casa (la plantilla de {id.universo}) ── */
 const _OPS = { ">": "superior a", ">=": "de al menos", "<": "inferior a", "<=": "de hasta", "==": "igual a" };
+/* A4 (supervisor 2026-09-27, diagnóstico v8) — la tabla base→(concepto de referencia, métrica natural) que un
+ * `grupo` de membresía pura sobre un `universo.base` de la familia de referencia necesita para imprimir SU
+ * VALOR (`valorDeReferencia`) y, en un veredicto falso, la métrica PROPIA de la entidad (`_figDe`). Un `base`
+ * que no está acá simplemente no dispara nada — nunca se inventa una familia nueva. */
+const _FAMILIA_DE_BASE = [
+  { re: /^bajo\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen" },
+  { re: /^sobre\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen" },
+  // «SKU bajo/sobre el benchmark» (raíz A3, §7.3·13): mismo concepto de referencia, métrica de margen de venta
+  // del SKU (`margen_venta`, el ranking agregado en este mismo corte a `oracle/datoProyectado.js`).
+  { re: /^SKU\s+bajo\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen_venta" },
+  { re: /^SKU\s+sobre\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen_venta" },
+  { re: /^sobre\s+el\s+nivel\s+declarado\s+de\s+carga$/i, concepto: "nivel_carga", metrica: "carga" },
+  { re: /^carga\s+comercial\s+alta$/i, concepto: "nivel_carga", metrica: "carga" },
+];
 const _fmtUmbral = (f, I = null) => {
   const clave = String(f.metrica || "").toLowerCase();
   const nombre = metricaDeClave(clave).toLowerCase();
@@ -918,20 +932,42 @@ export function libroDeHechos(hechos, ctx = {}) {
       }
       if (tipo === "cifra" && v.veredicto === "verdadera") { const f = (v.evidencia || []).map((l) => I.figs.find((g) => normalizar(g.label) === normalizar(l))).find(Boolean); if (f) { H.render.valor = f.texto || (f.fig && String(f.fig.value)) || ""; if (!H.dominio) H.dominio = _dominioDeFig(f); } if (!H.render.valor && a2.valor && a2.valor.texto) H.render.valor = a2.valor.texto; }
       if (tipo === "grupo") { const gv = leerValor(a2.valor); if (gv && gv.texto) H.render.valor = _canonTexto(gv.texto); }
-      // A4a (diagnóstico v7, contrato §7.3, «las comparables viajan juntas», entrega/verificar.js) — un grupo de
-      // MEMBRESÍA PURA (sin valor declarado: `afirmacion.js` ya no exige metrica/valor para esta forma) sobre un
-      // universo de REFERENCIA («bajo/sobre el benchmark») tiene que imprimir el VALOR de esa referencia en la
-      // MISMA oración del veredicto — `_conteoTipado` (más abajo en este archivo) ya lo hace para los filtros con
-      // `ref` (`_fmtUmbral`, vía `valorDeReferencia`); acá se cierra el mismo hueco para `base`, con la MISMA
-      // función, nunca una segunda cifra inventada. Solo corre sin `H.numeros` (un `grupo` con valor declarado ya
-      // trae su propio número por otro camino) y sobre la familia de referencia conocida (benchmark de margen).
-      if (tipo === "grupo" && !H.numeros.length && _es(h.universo) && typeof h.universo.base === "string" && /^(?:bajo|sobre)\s+el\s+benchmark$/i.test(h.universo.base.trim())) {
-        const rRef = valorDeReferencia("benchmark", I);
-        if (rRef && Number.isFinite(rRef.raw)) {
-          const mRef = metricaPorClave("benchmark");
-          const valTxt = formatoDeLaCasa(rRef.raw, rRef.unidad || "pct");
-          H.verdad = `${H.verdad || ""}${H.verdad ? ", " : ""}${mRef ? mRef.nombre.toLowerCase() : "benchmark"} ${valTxt}`;
-          H.numeros.push({ raw: rRef.raw, unidad: rRef.unidad || "pct", texto: valTxt });
+      // A4 (v7 «A4a», generalizada por el supervisor 2026-09-27, diagnóstico v8, §7.3 «las comparables viajan
+      // juntas», entrega/verificar.js) — un grupo de MEMBRESÍA PURA (sin valor declarado: `afirmacion.js` ya no
+      // exige metrica/valor para esta forma) sobre un universo de REFERENCIA («bajo/sobre el benchmark», «sobre
+      // el nivel declarado de carga», «carga comercial alta») tiene que imprimir el VALOR de esa referencia en
+      // la MISMA oración del veredicto — VERDADERO o FALSO, sin excepción (`_conteoTipado`, más abajo en este
+      // archivo, ya lo hace para los filtros con `ref`, vía `_fmtUmbral`/`valorDeReferencia`; acá se cierra el
+      // mismo hueco para `base`, con la MISMA función, nunca una segunda cifra inventada). `_FAMILIA_DE_BASE`
+      // es la tabla base→(concepto de referencia, métrica natural) — antes solo cubría benchmark; ahora también
+      // nivel_carga (§7.3·19). Con un veredicto FALSO y ninguna métrica propia ya medida (un `grupo` sin
+      // `filtros`/`metrica` declarados, como «Tottus no está en carga comercial alta»), se rescata la cifra
+      // PROPIA de la entidad en la métrica natural de la familia (la MISMA regla que el rescate genérico de más
+      // abajo, línea ~964, aplicado acá porque ese rescate corre DESPUÉS de este bloque y ya encontraría
+      // `H.claves` vacío) — nunca una segunda fuente de verdad, la fig real de la boleta.
+      if (tipo === "grupo" && _es(h.universo) && typeof h.universo.base === "string") {
+        const _baseStr = h.universo.base.trim();
+        const fam = _FAMILIA_DE_BASE.find((f) => f.re.test(_baseStr));
+        if (fam) {
+          const rRef = valorDeReferencia(fam.concepto, I);
+          if (rRef && Number.isFinite(rRef.raw)) {
+            const mRef = metricaPorClave(fam.concepto);
+            const valTxt = formatoDeLaCasa(rRef.raw, rRef.unidad || "pct");
+            const refTxt = `${mRef ? mRef.nombre.toLowerCase() : fam.concepto} ${valTxt}`;
+            if (!H.numeros.some((n) => n.texto === valTxt)) {
+              H.verdad = `${H.verdad || ""}${H.verdad ? ", " : ""}${refTxt}`;
+              H.numeros.push({ raw: rRef.raw, unidad: rRef.unidad || "pct", texto: valTxt });
+            }
+            // `H.render.referencia` (campo dedicado, no posicional) — `_rotuloDeLaCasaDeH` (entrega/componer.js)
+            // lo lee para no perder esta cifra cuando SÍ arma un rótulo propio para la entidad (con su propia
+            // métrica medida) — sin este campo, ese camino solo imprime `H.numeros[0]` y la referencia recién
+            // declarada quedaba en el libro pero nunca en el texto.
+            H.render.referencia = refTxt;
+            if (!H.ok && H.roles.sujetos.length === 1 && H.roles.sujetos[0] !== "negocio" && ![...H.claves].some((c) => c === fam.metrica)) {
+              const _fProp = _figDe(I, H.roles.sujetos[0], fam.metrica);
+              if (_fProp) { H.numeros.unshift({ raw: _fProp.raw, unidad: _fProp.unidad, texto: _fProp.texto || "" }); H.claves.add(fam.metrica); }
+            }
+          }
         }
       }
       /* un grupo con universo tipado: cada miembro pertenece al universo, o el grupo es falso */

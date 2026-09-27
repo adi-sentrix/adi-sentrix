@@ -21,6 +21,9 @@
 import { detectVoseo, stripLanguageLeaks } from "../llm/voiceGuard.js";
 import { coberturaDelEncargo } from "../agente/partesDelEncargo.js";
 import { normalizar } from "../notario/afirmacion.js";
+// REGLA 18 (supervisor 2026-09-27, diagnóstico v8, §7.3·17) — `conjuntoDeUniverso` es LA MISMA primitiva pura
+// que ya usa el Notario y `entrega/componer.js` para resolver un universo tipado: nunca una segunda definición.
+import { conjuntoDeUniverso } from "../notario/verificar.js";
 
 const _PALABRAS = (t) => String(t || "").trim().split(/\s+/).filter(Boolean);
 /** contarPalabras(texto) → cantidad de palabras — la MISMA cuenta que ya usa la regla 8, exportada para que
@@ -115,13 +118,16 @@ function _tuteoOColoquial(texto) {
   return null;
 }
 
-/** verificarEntrega({ texto, entrega, partes, profundidad }) → { ok, violaciones: [{ regla, detalle }] }
+/** verificarEntrega({ texto, entrega, partes, profundidad, resolucion, indice }) → { ok, violaciones: [{ regla, detalle }] }
  *  Las ocho reglas de composición del plan §1 (la novena — autoverificación hecho por hecho — ya la aplicó
  *  `componer.js` con `notario/hechos.js`; acá se re-chequea que el libro haya quedado limpio, en profundidad).
  *  `profundidad` (ADITIVA, Corte 3d.3, owner 2026-09-25/26): "breve"|"completa", default "completa" — NINGÚN
  *  llamador viejo (las 4 rutas fijas, que nunca declaran profundidad) cambia de tope: siguen contra
- *  `TOPE_COMPLETA`/`FILAS_COMPLETA_MAX`, los mismos números de siempre. */
-export function verificarEntrega({ texto, entrega, partes = [], profundidad = "completa" } = {}) {
+ *  `TOPE_COMPLETA`/`FILAS_COMPLETA_MAX`, los mismos números de siempre. `resolucion`/`indice` (ADITIVOS,
+ *  supervisor 2026-09-27, diagnóstico v8, §7.3·17): la `Resolucion` de `validarEncargo` y el índice `I` del
+ *  turno — OPCIONALES, solo para la regla 18 (el invariante del universo propio); un llamador que no los pase
+ *  (las 4 rutas fijas, ningún gate viejo) no paga esa regla ni cambia de comportamiento. */
+export function verificarEntrega({ texto, entrega, partes = [], profundidad = "completa", resolucion = null, indice = null } = {}) {
   const violaciones = [];
   const v = (regla, detalle) => violaciones.push({ regla, detalle });
 
@@ -578,6 +584,41 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
           // si no es de A ni de ningún otro hecho de ningún libro, es huérfana: ya la caza la regla 1 (cifras-desnudas)
         }
       });
+    }
+  }
+
+  // 18 · EL INVARIANTE DEL UNIVERSO PROPIO (supervisor 2026-09-27, diagnóstico v8, §7.3·17 — LA RAÍZ MÁS
+  // PELIGROSA del diagnóstico: antes, una parte `lectura`/`decision` con universo propio podía servir `ok:true`
+  // con el contenido de OTRA pregunta —la lente de negocio del dominio, `_planMultiTema`—, sin avisar). LEY:
+  // el conjunto SERVIDO de cada parte con universo propio (`top`/`base`/`estados`/`no_estados`/`filtros`/
+  // `bodega`/`union`) es EXACTAMENTE el que resuelve ESE universo, con la MISMA función de resolución
+  // (`conjuntoDeUniverso`, la que ya usa el Notario) — o su COLA declarada (`universo.top.k`: la parte puede
+  // servir MENOS que el conjunto resuelto, nunca MÁS ni un conjunto distinto). Falla CERRADO: sin el `resolucion`/
+  // `indice` que esta regla necesita para recomputar de forma independiente, no corre — OPCIONAL, como las
+  // reglas 11/12, para no cambiar el comportamiento de ningún llamador viejo (las 4 rutas fijas, los gates que
+  // no declaran encargo).
+  if (resolucion && Array.isArray(resolucion.partes) && indice) {
+    const _tieneUniversoPropio = (u) => !!(u && (u.top || u.base || u.bodega || (Array.isArray(u.union) && u.union.length) || (Array.isArray(u.estados) && u.estados.length) || (Array.isArray(u.no_estados) && u.no_estados.length) || (Array.isArray(u.filtros) && u.filtros.length)));
+    for (const p of resolucion.partes) {
+      if (!p || !["lectura", "decision"].includes(p.cierre)) continue;
+      if (p.entidades && p.entidades.length) continue;   // entidad puntual: no es esta ley (§7.3·17 es solo para "sin entidades")
+      const u = p.universo;
+      if (!_tieneUniversoPropio(u)) continue;   // sin restricción propia: multitema, ley no aplica
+      const eje = (u && u.eje) || p.eje || "cliente";
+      let R = null;
+      try { R = conjuntoDeUniverso(u, indice, eje, ""); } catch { R = null; }
+      if (!R || !R.set) continue;   // no se pudo resolver de forma independiente: no se exige coincidencia — el propio compositor ya declina con un límite cuando esto pasa (fallo cerrado en el ORIGEN, no doble penalización acá)
+      const entradaUniverso = (entrega.universos || []).find((x) => x && x.id === p.id);
+      const servidas = new Set((entradaUniverso ? entradaUniverso.entidades || [] : []).map((n) => normalizar(n)));
+      const fueraDelConjunto = [...servidas].filter((n) => !R.set.has(n));
+      if (fueraDelConjunto.length) {
+        v("universo-propio-no-coincide", `la parte "${p.id}" sirve entidades fuera del conjunto que resuelve su propio universo (${[...R.set].join(", ") || "vacío"}): ${fueraDelConjunto.join(", ")}`);
+        continue;
+      }
+      // sin `top` no hay cola que declarar: lo servido tiene que ser EXACTO, ni de más ni de menos.
+      if (!(u && u.top) && servidas.size !== R.set.size) {
+        v("universo-propio-no-coincide", `la parte "${p.id}" sirve ${servidas.size} entidad(es) pero su universo (sin "top", sin cola que declarar) resuelve ${R.set.size}`);
+      }
     }
   }
 

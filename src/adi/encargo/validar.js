@@ -432,12 +432,30 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
       // resuelve MEMBRESÍA (quiénes son miembros sigue siendo pregunta de `conjuntoDeUniverso` en tiempo de
       // composición, que sí necesita las figs del turno para la familia de benchmark) — solo si el NOMBRE existe y
       // para qué eje, que es conocimiento estático y ahora cubre las dos familias completas.
+      // A6 (supervisor 2026-09-27, diagnóstico v8) — `_errorDeBase` reusa el MISMO registro (`conjuntoConocido`)
+      // para el `base` de nivel superior Y para el `base` de cada miembro de `universo.union[]`, con el eje
+      // DECLARADO de ese miembro (nunca el del universo padre): antes `validar.js` no tenía ninguna lógica que
+      // reconociera `union` (cero apariciones de la palabra en todo el archivo) y dejaba pasar, sin validar, una
+      // unión con un miembro de OTRO eje («con saldo vencido» —de cliente— dentro de un universo `eje:"sku"`),
+      // que `componerEntrega` terminaba sirviendo con datos reales del eje del universo padre, ignorando en
+      // silencio el miembro inválido.
+      const _errorDeBase = (baseStr, eje) => {
+        if (!baseStr || /^todos?|todas$/i.test(baseStr)) return null;
+        const c = conjuntoConocido(baseStr);
+        if (!c) return `«${baseStr}» no es un conjunto que la casa reconozca`;
+        if (c.eje && eje && c.eje !== eje) return `«${baseStr}» es un conjunto de ${c.eje}, no de ${eje}`;
+        return null;
+      };
       const _baseStr = _es(uEff) && typeof uEff.base === "string" ? uEff.base.trim() : "";
-      let _baseError = null;
-      if (_baseStr && !/^todos?|todas$/i.test(_baseStr)) {
-        const c = conjuntoConocido(_baseStr);
-        if (!c) _baseError = `«${_baseStr}» no es un conjunto que la casa reconozca`;
-        else if (c.eje && uEff.eje && c.eje !== uEff.eje) _baseError = `«${_baseStr}» es un conjunto de ${c.eje}, no de ${uEff.eje}`;
+      let _baseError = _errorDeBase(_baseStr, uEff.eje);
+      if (!_baseError && _es(uEff) && Array.isArray(uEff.union)) {
+        for (const miembro of uEff.union) {
+          if (!_es(miembro)) continue;
+          const miembroBaseStr = typeof miembro.base === "string" ? miembro.base.trim() : "";
+          const miembroEje = miembro.eje || uEff.eje;
+          const err = _errorDeBase(miembroBaseStr, miembroEje);
+          if (err) { _baseError = err; break; }
+        }
       }
       if (_baseError) {
         noResuelto.push(nuevoNoResuelto({ parte: id, campo: "universo", valor: parteCruda.universo, motivo: "universo_invalido", detalle: _baseError }));
@@ -579,7 +597,20 @@ export function validarEncargo(encargo, ctx = {}) {
   else if (partesCrudas.length > PARTES_MAX) noResuletoRaiz.push(nuevoNoResuelto({ campo: "partes", valor: partesCrudas.length, motivo: "partes_tope" }));
   if (raroDeRaiz.length) for (const k of raroDeRaiz) noResuletoRaiz.push(nuevoNoResuelto({ campo: "raiz", valor: k, motivo: "campo_desconocido" }));
   if (encargo.version !== "encargo/v1" || partesCrudas.length === 0 || partesCrudas.length > PARTES_MAX || raroDeRaiz.length) {
-    return { ok: false, encargo, partes: [], criterio: null, supuestos: [], premisas: [], noResuelto: noResuletoRaiz, avisos: [] };
+    // §7.3·18 (supervisor 2026-09-27, diagnóstico v8) — si la raíz es inválida pero la LISTA de partes SÍ se
+    // pudo leer (existe y no está vacía — `partes_tope`/`version_invalida`/`campo_desconocido` en la raíz), cada
+    // parte declarada aparece en `R.partes` como `no_resuelta`: quien consulta sabe así qué partes no se
+    // atendieron y por qué (el motivo ya quedó declarado UNA vez en `noResuelto`, arriba — no se duplica por
+    // parte). Solo cuando las partes no se pueden leer (`encargo_vacio`: la lista está vacía o no es una lista)
+    // `R.partes` queda vacío, como antes.
+    const partesLegibles = partesCrudas.length
+      ? partesCrudas.map((p, i) => ({
+          id: _str(p && p.id) ? p.id : `p${i + 1}`,
+          tema: (p && p.tema) ?? null, cierre: (p && p.cierre) ?? null, estado: "no_resuelta",
+          conceptos: [], entidades: [], eje: null, universo: null, periodo: null, ausencias: [],
+        }))
+      : [];
+    return { ok: false, encargo, partes: partesLegibles, criterio: null, supuestos: [], premisas: [], noResuelto: noResuletoRaiz, avisos: [] };
   }
 
   const I = ctx.indice || _indiceLigero();
