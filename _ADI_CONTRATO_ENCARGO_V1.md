@@ -525,6 +525,17 @@ venta a crédito, ley del owner).
 19. [2026-09-27] §7.3·12 vale para toda referencia que define un conjunto de la casa (benchmark, nivel declarado de
     carga, piso de rotación), no solo para el benchmark, y también para el universo de una PREMISA. Lo alternativo se
     declara con la cifra Y los nombres de las cuentas.
+20. [2026-09-27, diagnóstico v9; precisa la 18] «Con el motivo de la raíz» se refiere a CADA parte: cada parte legible
+    lleva en `R.partes[i].motivo` el motivo de la raíz, y además queda la declaración única en `noResuelto` con
+    `parte:null`.
+21. [2026-09-27] Cuando un universo propio excede el tope de tamaño de la Entrega, las filas que el gobernador de tamaño
+    retira pasan a `entrega.detalle` con los mismos ids (`tamano.js`) y siguen SERVIDAS: una entidad del universo está
+    servida si tiene fila en `cifras` o en `detalle`. La tabla tiene que declarar que el resto está en el detalle (la
+    cola se declara, nunca se omite). Nunca se recorta el CONJUNTO (`entrega.universos`).
+22. [2026-09-27, diagnóstico v9; precisa la 17] Toda parte `lectura`/`decision` con universo propio se compone sobre SU
+    universo, aunque el encargo tenga varias partes así, sean del mismo dominio o de dominios distintos. La prioridad
+    cruzada entre dominios (multitema) se AGREGA encima, calculada sobre la unión de esos universos, y nunca reemplaza
+    el contenido de cada parte.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

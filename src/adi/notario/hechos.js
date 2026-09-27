@@ -20,7 +20,7 @@ import { normalizar, menosAscii, leerValor, direccionPorDefecto } from "./afirma
 import { parsearLineasDeBloque, MARCA_FIN } from "./declaracion.js";
 import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO, opDe, esReferencia } from "./lexico.js";
 import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON, estadosEn, estadoDeclarado, ejeCompatible, COMPLEMENTO_V3 } from "./estados.js";
-import { referenciaDeBase } from "./conjuntosDeLaCasa.js";   // §7.3, tarea 4 (supervisor 2026-09-27, diagnóstico v8): la tabla base→referencia vive en UN registro, compartida con notario/verificar.js — nunca dos tablas que puedan divergir
+import { referenciaDeBase, referenciaDeEstado } from "./conjuntosDeLaCasa.js";   // §7.3, tarea 4 (supervisor 2026-09-27, diagnóstico v8/v9): la tabla base→referencia y estado→referencia viven en UN registro, compartida con notario/verificar.js — nunca dos tablas que puedan divergir
 
 export const MARCA_HECHOS = "<<HECHOS>>";
 /* "discrepancia" (owner 2026-09-25, ley de los cuatro orígenes: «un declarado nunca pisa un medido») NO es un
@@ -725,7 +725,25 @@ function _conteoTipado(H, h, I) {
   for (const e of [..._lista(u.estados), ..._lista(u.no_estados), ..._lista(u.excluir && u.excluir.estados)]) { const c = _canonDe(e); H.estado = H.estado || c; H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(c); if (!H.dominio) H.dominio = dominioDeEstado(c); }
   H.numeros.push({ raw: set.size, unidad: "count", texto: String(set.size) }, { raw: mBase, unidad: "count", texto: String(mBase) });
   const lista = H.roles.miembros.join(", ");
-  const verdad = `${set.size}${mBase ? " de " + mBase : ""} en ${H.universo.texto}${lista ? ": " + lista : ""}`;
+  let verdad = `${set.size}${mBase ? " de " + mBase : ""} en ${H.universo.texto}${lista ? ": " + lista : ""}`;
+  // A4, GENERALIZACIÓN A `conteo` (supervisor 2026-09-27, diagnóstico v9, RAÍZ A4 — precisa el bloque gemelo de
+  // `grupo`/`estado`, más abajo en este archivo) — un conteo sobre un universo de REFERENCIA (`base`/`estados`
+  // citando «rota bien»/«rota lento», «bajo/sobre el benchmark», etc.) imprime el VALOR de esa referencia en la
+  // MISMA oración del veredicto (§7.3·12/·19) — `_conteoTipado` devuelve ACÁ, antes de llegar al bloque genérico
+  // que ya lo hacía para `grupo`, así que sin esto un conteo quedaba sin la cifra. La MISMA tabla
+  // `referenciaDeBase`/`referenciaDeEstado`, la MISMA función `valorDeReferencia`/`formatoDeLaCasa` — nunca una
+  // segunda cifra inventada; una sola referencia por oración (la primera que calce), nunca varias acumuladas.
+  for (const nCrudo of [u.base, ..._lista(u.estados), ..._lista(u.no_estados)].filter(Boolean)) {
+    const fam = referenciaDeBase(String(nCrudo)) || referenciaDeEstado(_canonDe(nCrudo));
+    if (!fam) continue;
+    const rRef = valorDeReferencia(fam.concepto, I);
+    if (!rRef || !Number.isFinite(rRef.raw)) continue;
+    const mRef = metricaPorClave(fam.concepto);
+    const valTxt = formatoDeLaCasa(rRef.raw, rRef.unidad || "pct");
+    if (verdad.includes(valTxt)) break;
+    verdad = `${verdad}, ${mRef ? mRef.nombre.toLowerCase() : fam.concepto} ${valTxt}`;
+    break;
+  }
   if (!Number.isFinite(n)) return _aplica(H, { veredicto: "verdadera", motivo: `conteo tipado: ${verdad}`, verdad, evidencia: [U.fuente] });
   if (n !== set.size) return _aplica(H, { veredicto: "falsa", motivo: `conteo-falso: son ${verdad}, no ${n}`, verdad, evidencia: [U.fuente] });
   if (mDicho != null && !mAdmisibles.has(mDicho)) return _aplica(H, { veredicto: "falsa", motivo: `universo-falso: son ${set.size} de ${[...mAdmisibles].join(" o de ")}, no de ${c.m}`, verdad, evidencia: [U.fuente] });
@@ -818,7 +836,13 @@ export function validarHecho(h, I) {
   const repetidos = (xs) => { const v = xs.map((x) => normalizar(typeof x === "string" ? x : JSON.stringify(x))); return new Set(v).size !== v.length; };
   if (tipo === "orden") { const o = _es(h.orden) ? h.orden : {}; if (!_ENUM.orden_forma.includes(normalizar(o.forma || ""))) return `orden.forma desconocida «${o.forma}»`; if ((normalizar(o.forma) === "min" && normalizar(o.direccion || "") === "mayor") || (normalizar(o.forma) === "max" && normalizar(o.direccion || "") === "menor")) return "forma y dirección contradictorias (min es menor, max es mayor)"; if (/^(?:puesto|topk)$/.test(normalizar(o.forma)) && (!_entero(o.k) || +o.k < 1)) return "orden.k es un entero ≥ 1"; if (o.direccion && !_ENUM.direccion.includes(normalizar(o.direccion))) return `orden.direccion desconocida «${o.direccion}»`; if (Array.isArray(h.sujeto) && repetidos(h.sujeto)) return "sujetos repetidos"; return validarUniverso(h.universo, I, Array.isArray(h.sujeto) ? h.sujeto[0] : h.sujeto); }
   if (tipo === "relacion") { const r = _es(h.relacion) ? h.relacion : {}; if (!_ENUM.relacion_forma.includes(normalizar(r.forma || ""))) return `relacion.forma desconocida «${r.forma}»`; if (Array.isArray(h.sujeto) && repetidos(h.sujeto)) return "sujetos repetidos"; if (_es(r.vs) && Array.isArray(r.vs.grupo) && repetidos(r.vs.grupo)) return "comparados repetidos"; if (r.k != null && !(Number.isFinite(+r.k) && +r.k > 0)) return "relacion.k es un número > 0"; return null; }
-  if (tipo === "conteo") { const c = _es(h.conteo) ? h.conteo : h; if (!_entero(c.n) || +c.n < 0) return "conteo.n es un entero ≥ 0"; if (c.m != null && (!_entero(c.m) || +c.m < +c.n)) return "conteo.m es un entero ≥ n"; return validarUniverso(h.de != null ? h.de : h.universo, I); }
+  // §1.3 del contrato (supervisor 2026-09-27, diagnóstico v9, hallazgo del autor del catálogo) — un `conteo` SIN
+  // `de`/`universo` quedaba aceptado: `validarUniverso(undefined, I)` devuelve `null` (ningún error) cuando el
+  // campo ni siquiera se declaró — nunca declinaba con «esquema mal formado». Pero un conteo («K de M») no tiene
+  // sentido sin decir DE QUÉ conjunto — el contrato lo exige como campo del hecho tipado (§1.3: «de/universo
+  // tipado»), la MISMA ley que ya hace obligatorio el universo en `grupo`/`orden` (líneas de arriba, esta misma
+  // función). Se sigue el contrato: sin universo, el conteo está mal formado.
+  if (tipo === "conteo") { const c = _es(h.conteo) ? h.conteo : h; if (!_entero(c.n) || +c.n < 0) return "conteo.n es un entero ≥ 0"; if (c.m != null && (!_entero(c.m) || +c.m < +c.n)) return "conteo.m es un entero ≥ n"; if (h.de == null && h.universo == null) return "conteo.de (o universo) es obligatorio: un conteo sin universo no dice de qué conjunto"; return validarUniverso(h.de != null ? h.de : h.universo, I); }
   if (tipo === "variacion") { const v = _es(h.variacion) ? h.variacion : {}; if (v.direccion && !_ENUM.variacion_dir.includes(normalizar(v.direccion))) return `variacion.direccion desconocida «${v.direccion}»`; if (h.periodo && !/^(?:anterior|presupuesto|actual)$/.test(periodoDe(h.periodo))) return `periodo desconocido «${h.periodo}»`; return null; }
   if (tipo === "estado") { const e = _sinNo(_es(h.estado) ? h.estado.estado : h.estado); const c = estadoDeclarado(e); if (!c) return `estado-desconocido: «${e}» (se escribe con su nombre exacto)`; const def = estadoDeLaCasa(c); const sujetos = _lista(h.sujeto); for (const s of sujetos) { const es = _ejeDeEntidad(I, s); if (es && !ejeCompatible(def, es)) return `el estado «${e}» es de ${def.eje} y «${s}» es de ${es}`; } const bodega = _es(h.estado) ? h.estado.bodega : h.bodega; if (bodega && sujetos.some((s) => _ejeDeEntidad(I, s) && _ejeDeEntidad(I, s) !== "sku")) return "la bodega solo acompaña a un SKU"; return null; }
   if (tipo === "razon") { if (h.valor != null) { const v = leerValor(h.valor); if (v && Number.isFinite(v.raw) && (!/^(?:pct|ratio|count)$/.test(v.unidad || "count") || /(?:unidades?|d[ií]as?|\$|\bpp\b|puntos|k\b|m\b)/i.test(String(h.valor)))) return `una razón es una proporción: «${h.valor}» no es un porcentaje ni un cociente`; } const nk = _es(h.num) && h.num.metrica != null ? _claveEstricta(h.num.metrica) : null, dk = _es(h.den) && h.den.metrica != null ? _claveEstricta(h.den.metrica) : null; if (_es(h.num) && h.num.metrica != null && !nk) return `la métrica «${h.num.metrica}» del numerador no es una clave de la casa`; if (_es(h.den) && h.den.metrica != null && !dk) return `la métrica «${h.den.metrica}» del denominador no es una clave de la casa`; if (nk && dk && unidadDeClave(nk) && unidadDeClave(dk) && !_unidadCompatibleEstricta(unidadDeClave(nk), unidadDeClave(dk))) return `unidades-distintas: ${nk} (${unidadDeClave(nk)}) no se divide por ${dk} (${unidadDeClave(dk)})`; return null; }
@@ -979,6 +1003,40 @@ export function libroDeHechos(hechos, ctx = {}) {
               if (_fProp) { H.numeros.unshift({ raw: _fProp.raw, unidad: _fProp.unidad, texto: _fProp.texto || "" }); H.claves.add(fam.metrica); }
             }
           }
+        }
+      }
+      // A4, GENERALIZACIÓN A ESTADOS/EXCLUIR (supervisor 2026-09-27, diagnóstico v9, RAÍZ A4 — precisa el bloque
+      // de arriba) — el mecanismo de arriba solo cubría `universo.base` (string); nunca `universo.estados`/
+      // `no_estados` cuando el ESTADO en sí mismo cita una referencia numérica («rota bien»/«rota lento» citan el
+      // piso de rotación de la POLICY, `estados.js`), NI `universo.excluir.conjuntos`/`.estados` (W76: «top 4
+      // venta, excluir bajo el benchmark» — la exclusión TAMBIÉN cita una referencia numérica y también tiene que
+      // imprimir su valor). Sin este bloque, `_setDeEstado`/`_conjuntoTipado` (notario/verificar.js) arman el
+      // veredicto con SU `fuente` — la definición ESTÁTICA, nunca el valor real — así que la oración del
+      // veredicto quedaba sin la cifra (§7.3·12/·19: «vale también para el universo de una PREMISA»). Cubre
+      // `grupo` (pertenencia y exclusión) Y `estado` (afirmación directa) — la MISMA tabla `referenciaDeBase`/
+      // `referenciaDeEstado`, la MISMA función `valorDeReferencia`/`formatoDeLaCasa`, nunca una segunda cifra.
+      const _nombresDeLaAfirmacion = tipo === "grupo" && _es(h.universo)
+        ? [..._lista(h.universo.estados), ..._lista(h.universo.no_estados), ..._lista(h.universo.excluir && h.universo.excluir.conjuntos), ..._lista(h.universo.excluir && h.universo.excluir.estados)]
+        : (tipo === "estado" && H.estado ? [H.estado] : []);
+      for (const _eCrudo of _nombresDeLaAfirmacion) {
+        const famE = referenciaDeBase(String(_eCrudo)) || referenciaDeEstado(_canonDe(_eCrudo));
+        if (!famE) continue;
+        const rRefE = valorDeReferencia(famE.concepto, I);
+        if (!rRefE || !Number.isFinite(rRefE.raw)) continue;
+        const mRefE = metricaPorClave(famE.concepto);
+        const valTxtE = formatoDeLaCasa(rRefE.raw, rRefE.unidad || "pct");
+        const refTxtE = `${mRefE ? mRefE.nombre.toLowerCase() : famE.concepto} ${valTxtE}`;
+        // tipo "estado" (verify.js:_estado) YA puede traer el valor en `H.verdad` (estados.js declara el piso a la
+        // MISMA precisión, `.toFixed(1)`, ronda A4) — solo se agrega si NINGUNA de las dos formas (H.numeros o
+        // H.verdad ya escrito) lo tiene, para no duplicar la referencia en la misma oración.
+        if (!H.numeros.some((n) => n.texto === valTxtE) && !(H.verdad || "").includes(valTxtE)) {
+          H.verdad = `${H.verdad || ""}${H.verdad ? ", " : ""}${refTxtE}`;
+          H.numeros.push({ raw: rRefE.raw, unidad: rRefE.unidad || "pct", texto: valTxtE });
+        }
+        H.render.referencia = H.render.referencia ? `${H.render.referencia}, ${refTxtE}` : refTxtE;
+        if (!H.ok && H.roles.sujetos.length === 1 && H.roles.sujetos[0] !== "negocio" && ![...H.claves].some((c) => c === famE.metrica)) {
+          const _fPropE = _figDe(I, H.roles.sujetos[0], famE.metrica);
+          if (_fPropE) { H.numeros.unshift({ raw: _fPropE.raw, unidad: _fPropE.unidad, texto: _fPropE.texto || "" }); H.claves.add(famE.metrica); }
         }
       }
       /* un grupo con universo tipado: cada miembro pertenece al universo, o el grupo es falso */

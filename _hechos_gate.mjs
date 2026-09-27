@@ -125,6 +125,7 @@ H("6 · CARNADA · el libro no adivina");
     { id: "e", tipo: "razon", num: { sujeto: "Lider", metrica: "saldo_pendiente" }, den: { sujeto: "Lider", metrica: "dias_vencido" } },
     { id: "f", tipo: "cifra", sujeto: "Nadie S.A.", metrica: "ventas" },
     { id: "a", tipo: "ref", de: "c1" },
+    { id: "z", tipo: "conteo", conteo: { n: 5 } },
   ], { indice: I });
   const v = (id) => libro.hechos.find((x) => x.id === id);
   ok(v("a").veredicto === "no-verificable" && /ref-desconocida/.test(v("a").motivo), "una ref a un id que no existe no es un hecho");
@@ -134,6 +135,10 @@ H("6 · CARNADA · el libro no adivina");
   ok(v("e").veredicto === "no-verificable" && /unidades-distintas/.test(v("e").motivo), "una razón entre unidades distintas no se calcula");
   ok(v("f").veredicto === "no-verificable", "una entidad que no es del tenant no tiene cifra");
   ok(libro.hechos.filter((x) => x.id === "a").length === 2 && libro.errores.some((e) => /id-repetido/.test(e)), "un id repetido se anota y no pisa al primero");
+  // §1.3 del contrato (supervisor 2026-09-27, diagnóstico v9) — un conteo SIN `de`/`universo» está mal formado:
+  // antes `validarUniverso(undefined, I)` no objetaba nada y el conteo pasaba a juzgarse por el camino genérico,
+  // sin decir NUNCA «esquema: …». «K de M» no tiene sentido sin decir de qué conjunto.
+  ok(v("z").veredicto === "no-verificable" && /esquema: conteo\.de/.test(v("z").motivo), `un conteo sin "de"/"universo" está mal formado, nunca se juzga a ciegas: ${v("z") && v("z").motivo}`);
 }
 
 /* ═══ 7 · §7.3·10 — «de M» admisible con top.sobre:"eje" (decisión del supervisor, 2026-09-26) ═══

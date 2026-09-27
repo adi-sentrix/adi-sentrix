@@ -161,6 +161,15 @@ export function gobernarTamano(entrega, profundidad, renderTexto, titulo) {
     return { ...entrega, respuesta, cifras: { ...entrega.cifras, filas } };
   };
 
+  // §7.3·21 (supervisor 2026-09-27, diagnóstico v9, RAÍZ C2) — la nota «N filas más en el detalle» (más abajo,
+  // después del bucle) se agrega SOLO en "completa" cuando algo de `cifras.filas` quedó fuera — pero agregarla
+  // DESPUÉS de que el bucle ya decidió qué entra podía empujar el render sobre `topeTexto` (medido: W25/W100,
+  // 899/900 sin la nota, sobre el tope con ella — la nota misma violaba la ley que la motiva, «un top-N que no
+  // declara su cola miente por omisión», CLAUDE.md §5). `_RESERVA_NOTA_COLA` es el costo MÁXIMO de esa nota en
+  // palabras (constante: el número y el plural no cambian el conteo) — se suma a `palabras` en CADA vuelta en que
+  // YA se sabe que al menos una fila quedará fuera (el llenado inicial, arriba, ya pudo haber recortado hasta
+  // `topeFilas`), para que el bucle deje el hueco ANTES de terminar, nunca después.
+  const _RESERVA_NOTA_COLA = 9;
   // BÚSQUEDA ITERATIVA (§B.2): mientras el render exceda el tope de palabras o de filas, se retira el ítem de
   // MENOR prioridad servido (el «más recortable» primero) — nunca el de aparición más tardía porque sí: es el
   // de prioridad más baja, EN EL ORDEN en que `ordenOraciones`/`ordenFilas` ya lo declaran.
@@ -169,7 +178,9 @@ export function gobernarTamano(entrega, profundidad, renderTexto, titulo) {
     const candidata = _construirCandidata();
     const texto = renderTexto(candidata, titulo, profundidad);
     const palabras = contarPalabras(texto);
-    const sobreTexto = palabras > topeTexto;
+    const yaRecortoFilas = filasServidasIdx.size < filasOriginal.length;
+    const reservaCola = (profundidad === "completa" && yaRecortoFilas) ? _RESERVA_NOTA_COLA : 0;
+    const sobreTexto = (palabras + reservaCola) > topeTexto;
     const sobreFilas = candidata.cifras.filas.length > topeFilas;
     if (!sobreTexto && !sobreFilas) break;
 
@@ -225,14 +236,40 @@ export function gobernarTamano(entrega, profundidad, renderTexto, titulo) {
   const oracionesRecortadas = respuestaOriginal.filter((_, idx) => !oracionesServidasIdx.has(idx));
   const filasRecortadas = filasOriginal.filter((_, idx) => !filasServidasIdx.has(idx));
 
+  // §7.3·21 (supervisor 2026-09-27, diagnóstico v9, RAÍZ C2) — «un top-N que no declara su cola miente por
+  // omisión» (CLAUDE.md §5) vale también para el recorte por TAMAÑO, no solo para el recorte por `top`: cuando
+  // este gobernador retira filas de `cifras.filas` por presupuesto (nunca el CONJUNTO — `entrega.universos` no
+  // cambia de tamaño en este corte, ver la cabecera del archivo), la tabla tiene que decir que el resto sigue
+  // vivo en `entrega.detalle.filas`, con los MISMOS ids — nunca un recorte silencioso. Se declara en
+  // `entrega.marco.definiciones` (estructura completa siempre) SOLO en "completa": en "breve" TODA declaración
+  // secundaria del Marco ya se retira a propósito por diseño (ver `_esGuiaDeUsoGenerica`/`_defSinGuia` en
+  // `_textoDeLaEntrega`, componer.js) — el tope de 350 palabras es OBLIGATORIO ahí (`_tamano_gate` §4b) y esta
+  // nota no es la excepción; la estructura completa (`entrega.detalle.filas`) sigue disponible siempre, con o
+  // sin la nota en el texto — se recupera pidiendo `profundidad:"completa"`, la misma garantía que ya vale para
+  // cualquier otro contenido que "breve" compacta.
+  // Nota BREVE a propósito (§B, «cada palabra de más se paga contra el tope») — el conteo, el destino y que el
+  // conjunto no cambió, sin la prosa larga: `_RESERVA_NOTA_COLA` (arriba del bucle) ya le hizo hueco en el
+  // presupuesto de palabras, así que esta nota NUNCA es lo que empuja la Entrega sobre el tope.
+  let entregaConColaDeclarada = entregaGobernada;
+  if (filasRecortadas.length && profundidad === "completa" && entregaGobernada.marco) {
+    const notaCola = `${filasRecortadas.length} fila${filasRecortadas.length === 1 ? "" : "s"} más en el detalle (mismo conjunto).`;
+    // regla 1 de verificar.js («cero cifras desnudas») — el conteo que la nota imprime tiene que estar en
+    // `entrega.procedencia.cifrasImpresas` (la lista blanca de números que el compositor declaró), o el propio
+    // candado que exige la cola declarada la marcaría como una cifra huérfana. Es un CONTEO real (`filasRecortadas.
+    // length`, medido acá mismo, nunca inventado) — se declara igual que cualquier otro conteo de la Entrega
+    // (`entrega/componer.js: cifrasImpresas.push(String(...))`, el mismo patrón, solo que desde este archivo).
+    const procedencia = entregaGobernada.procedencia ? { ...entregaGobernada.procedencia, cifrasImpresas: [...(entregaGobernada.procedencia.cifrasImpresas || []), String(filasRecortadas.length)] } : entregaGobernada.procedencia;
+    entregaConColaDeclarada = { ...entregaGobernada, marco: { ...entregaGobernada.marco, definiciones: [...(entregaGobernada.marco.definiciones || []), notaCola] }, ...(procedencia ? { procedencia } : {}) };
+  }
+
   const detalle = {
     ...(entrega.detalle || {}),
     oraciones: oracionesRecortadas.map((r) => ({ texto: r.texto, hechos: r.hechos, solicitud: r.solicitud || "pedido" })),
     filas: filasRecortadas.map((f) => ({ ...f })),
   };
 
-  const textoFinal = renderTexto(entregaGobernada, titulo, profundidad);
+  const textoFinal = renderTexto(entregaConColaDeclarada, titulo, profundidad);
   const meta = { profundidad, palabras: contarPalabras(textoFinal), tope: topeTexto, topeFilas, filas: entregaGobernada.cifras.filas.length, recortoOraciones: oracionesRecortadas.length, recortoFilas: filasRecortadas.length };
 
-  return { entrega: entregaGobernada, detalle, meta, texto: textoFinal };
+  return { entrega: entregaConColaDeclarada, detalle, meta, texto: textoFinal };
 }

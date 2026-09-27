@@ -353,8 +353,16 @@ function _pasosLecturaDecision(partes) {
   // que `_pasosCifra` ya usa para `cifra`, `herramientasAgente.js:cobranza`, `_args.universoRequerido`). Las
   // partes de este grupo comparten eje (`validarUniverso` exige el mismo eje del tema): se toma el PRIMER
   // `universo.top` declarado por cualquier parte.
+  // RAÍZ A6 (supervisor 2026-09-27, diagnóstico v9, precisa la nota de arriba) — la condición original solo
+  // miraba `universo.top.metrica`: un `union` (u otro universo propio) SIN `top` («con saldo vencido» ∪ «carga
+  // comercial alta») nunca disparaba `universoRequerido`, así que `cobranza()` seguía sirviendo solo el top-8 y
+  // el conjunto declarado (W43.p2) quedaba sin ninguna fig para completar — `_planCifraGrupo` no tenía qué
+  // ordenar y la parte se declinaba en silencio, sin plan ni límite. `_tieneUniversoPropio` (ya definida arriba
+  // en este archivo, la MISMA prueba de 6 campos que usa `entrega/componer.js`) reemplaza el chequeo estrecho de
+  // `top`; se pasa el universo COMPLETO de la parte (`herramientasAgente.js:cobranza` ya sabe ensanchar a la mesa
+  // completa cuando el universo no trae `top`, tarea gemela de esta misma raíz).
   if (dominios.includes("cobranza")) {
-    const parteConTop = partes.find((p) => p.universo && p.universo.top && p.universo.top.metrica);
+    const parteConTop = partes.find((p) => _tieneUniversoPropio(p.universo));
     if (parteConTop) out = out.map((c) => (c.tool === "cobranza" ? { ...c, args: { ...c.args, universoRequerido: parteConTop.universo } } : c));
   }
   // §7.3·17 (supervisor 2026-09-27, diagnóstico v8, tarea 2 del cierre — HUECO DE LECTURA, raíz de Z25/Z64) — una

@@ -479,6 +479,19 @@ function _filasTipadas(clave, I, eje) {
     for (const x of rk.filas) {
       let raw = null, unidad = null;
       const texto = x.texto != null ? String(x.texto) : "";
+      // RAÍZ A5 (supervisor 2026-09-27, diagnóstico v9) — REVERTIDO (supervisor 2026-09-27, reparación de
+      // regresión): la versión anterior de este bloque multiplicaba `x.valor` ×1000 para las claves de cobranza,
+      // asumiendo que el crudo del ranking viene en miles — una escala DEDUCIDA por el nombre de la clave
+      // (`_CLAVES_MONEY_EN_MILES`, una lista blanca), no declarada por el dato. Eso es exactamente lo que la ley
+      // del owner prohíbe («el símbolo declarado sí; la escala, JAMÁS se inventa») y choca con el diseño ya
+      // documentado en `datoProyectado.js` («cada fila lleva además su cifra FORMATEADA por la mesa (texto): una
+      // sola verdad, cero recálculo de escala en quien la verifica») — el propio `texto` (`vencidoFmt`/`saldoFmt`,
+      // ya escalado por `mesaFlujo.js`) es la única verdad declarada; re-derivar la escala de memoria en el
+      // verificador es inventarla. Además rompía `_hechos_gate` (n4, calibrado desde 2026-09-17: «con saldo
+      // pendiente > $1.000.000, excluyendo en mora» = 2, no 3) y `_ronda5_gate` (hechos verdaderos bloqueados). Si
+      // se quiere resolver el redondeo de W28/Ripley con más precisión, el camino correcto es que el RANKING
+      // declare su propio crudo sin escalar (p. ej. `CRUDO_MONEY`) o su escala explícita — nunca una lista blanca
+      // adivinada acá.
       if (texto) { const p = parseFigures(menosAscii(texto))[0]; if (p && Number.isFinite(p.raw)) { raw = p.raw; unidad = p.unit; } }
       if (raw == null && Number.isFinite(+x.valor)) { const u = _UNIDAD_DE_RANKING[rkClave] || unidadEsperada; if (u && u !== "money") { raw = +x.valor; unidad = u; } }
       if (raw != null) out.push({ entidad: normalizar(x.entidad), nombre: x.entidad, raw, unidad, texto });

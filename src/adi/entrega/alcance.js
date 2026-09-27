@@ -61,6 +61,13 @@ export function alcanceDeParte(parte) {
     eje,
     base: (u && u.base) || null,
     excluir,
+    // RAÍZ A7 (supervisor 2026-09-27, diagnóstico v9) — `excluir` (arriba) solo trae `.entidades` (nombres), el
+    // ÚNICO campo que `figsEnAlcance` sabía filtrar hasta ahora; `u.excluir` puede traer TAMBIÉN `.conjuntos`,
+    // `.estados`, `.bodega` o `.top` (una exclusión por conjunto/estado/bodega/ranking, no por nombre) — esos
+    // quedaban leídos por `validarEncargo` pero nunca aplicados al componer. `excluirCompleto` viaja el objeto
+    // ENTERO, sin transformar, para que `entrega/componer.js:_camposDeUniverso` lo pase a `conjuntoDeUniverso`
+    // (`notario/verificar.js`, que YA resuelve las cinco formas) — nunca una segunda resolución de exclusión.
+    excluirCompleto: (u && u.excluir && typeof u.excluir === "object" && !Array.isArray(u.excluir)) ? u.excluir : null,
     top,
     estados: (u && Array.isArray(u.estados) && u.estados.length) ? u.estados : null,
     no_estados: (u && Array.isArray(u.no_estados) && u.no_estados.length) ? u.no_estados : null,
@@ -147,6 +154,17 @@ export function figsEnAlcance(figs, alcance, { ejesDelTenant = {}, entidadDeLabe
   if (alcance && alcance.filtros) camposDeclarados.filtros = alcance.filtros;
   if (alcance && alcance.union && alcance.union.length) camposDeclarados.union = alcance.union;
   if (alcance && alcance.top) camposDeclarados.top = alcance.top;
+  // RAÍZ A9 (supervisor 2026-09-27, diagnóstico v9) — `bodega` NUNCA viajaba en `camposDeclarados`: se creía
+  // cubierta aparte por `fueraDeBodega` (arriba), pero ESE mecanismo solo filtra las figs por bodega — nunca
+  // entra a la llamada de `conjuntoDeUniverso` que resuelve `dentroDelUniverso`. Con `bodega` + `top` juntos (sin
+  // `top.sobre:"eje"`), el `top` se calculaba sobre el EJE ENTERO (sin bodega, que `_conjuntoTipado` no veía) en
+  // vez de DENTRO de la bodega — el sentido por defecto de la decisión §7.3·8 («los 2 SKU de más capital DE
+  // Valparaíso», no «los 2 del eje entero que además están en Valparaíso»). Filtraba las figs de las entidades
+  // que el `top` (mal resuelto) no incluía, y `_planCifraGrupo` caía al «completar» con figs sin id de
+  // `indice.figsDeMetrica` — nunca la fig real. Se agrega acá para que `conjuntoDeUniverso` calcule el `top` con
+  // la MISMA restricción de bodega que ya aplica `_entidadesDelTopVerificado` (`_camposDeUniverso`,
+  // componer.js) — compositor y verificador, otra vez, nunca dos definiciones del mismo universo.
+  if (alcance && alcance.bodega) camposDeclarados.bodega = alcance.bodega;
   let dentroDelUniverso = null;
   if (Object.keys(camposDeclarados).length && indice) {
     try {

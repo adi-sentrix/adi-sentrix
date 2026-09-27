@@ -107,3 +107,23 @@ export function referenciaDeBase(nombre) {
   if (!s) return null;
   return _REFERENCIA_DE_BASE.find((f) => f.re.test(s)) || null;
 }
+
+/* §7.3, tarea 4 (supervisor 2026-09-27, diagnóstico v9, RAÍZ A4) — la MISMA idea de `_REFERENCIA_DE_BASE`, pero
+ * para un ESTADO de la casa cuya propia definición cita una referencia numérica (`estados.js`: «rota bien»/«rota
+ * lento» citan el piso de rotación de la POLICY, `piso_rotacion` en `lexico.js`) — un `universo.estados`/
+ * `no_estados` con uno de estos nombres, o una afirmación `estado` directa sobre una sola entidad, tiene que
+ * imprimir el VALOR del piso en la MISMA oración del veredicto (§7.3·12/·19), igual que ya hace `referenciaDeBase`
+ * para benchmark/nivel de carga. Un estado que NO cita ninguna referencia numérica (p. ej. «al día», «frenado»)
+ * no está acá — no dispara nada, nunca se inventa una referencia que su propia definición no declara. */
+const _REFERENCIA_DE_ESTADO = [
+  { canon: "rota bien", concepto: "piso_rotacion", metrica: "rotacion" },
+  { canon: "rota lento", concepto: "piso_rotacion", metrica: "rotacion" },
+];
+/** referenciaDeEstado(canon) → {canon, concepto, metrica} | null — el concepto de referencia (para
+ *  `valorDeReferencia`) y la métrica natural (para rescatar la cifra propia de una entidad) de un estado de la
+ *  casa cuya definición cita una referencia numérica, o `null` si ese estado no tiene ninguna. */
+export function referenciaDeEstado(canon) {
+  const c = String(canon || "").trim();
+  if (!c) return null;
+  return _REFERENCIA_DE_ESTADO.find((f) => f.canon === c) || null;
+}

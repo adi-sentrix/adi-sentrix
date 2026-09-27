@@ -597,17 +597,23 @@ export function validarEncargo(encargo, ctx = {}) {
   else if (partesCrudas.length > PARTES_MAX) noResuletoRaiz.push(nuevoNoResuelto({ campo: "partes", valor: partesCrudas.length, motivo: "partes_tope" }));
   if (raroDeRaiz.length) for (const k of raroDeRaiz) noResuletoRaiz.push(nuevoNoResuelto({ campo: "raiz", valor: k, motivo: "campo_desconocido" }));
   if (encargo.version !== "encargo/v1" || partesCrudas.length === 0 || partesCrudas.length > PARTES_MAX || raroDeRaiz.length) {
-    // §7.3·18 (supervisor 2026-09-27, diagnóstico v8) — si la raíz es inválida pero la LISTA de partes SÍ se
-    // pudo leer (existe y no está vacía — `partes_tope`/`version_invalida`/`campo_desconocido` en la raíz), cada
-    // parte declarada aparece en `R.partes` como `no_resuelta`: quien consulta sabe así qué partes no se
-    // atendieron y por qué (el motivo ya quedó declarado UNA vez en `noResuelto`, arriba — no se duplica por
-    // parte). Solo cuando las partes no se pueden leer (`encargo_vacio`: la lista está vacía o no es una lista)
-    // `R.partes` queda vacío, como antes.
+    // §7.3·18 (supervisor 2026-09-27, diagnóstico v8), PRECISADA por §7.3·20 (supervisor 2026-09-27, diagnóstico
+    // v9, RAÍZ C1) — si la raíz es inválida pero la LISTA de partes SÍ se pudo leer (existe y no está vacía —
+    // `partes_tope`/`version_invalida`/`campo_desconocido` en la raíz), cada parte declarada aparece en
+    // `R.partes` como `no_resuelta`. «Con el motivo de la raíz» se refiere a CADA parte (decisión 20, precisa la
+    // 18): además de la declaración única en `noResuelto` (`parte:null`, ya armada arriba), cada parte legible
+    // lleva el MISMO motivo en su propio campo `R.partes[i].motivo` — quien consulta sabe así, por cada parte,
+    // qué pasó y por qué, sin tener que cruzar `noResuelto` a mano. `noResuletoRaiz[0]` es el motivo REAL de esta
+    // corrida (raroDeRaiz solo agrega más de un `campo_desconocido` cuando hay varias claves ajenas a la vez; el
+    // resto de las condiciones de esta rama son mutuamente excluyentes con ella). Solo cuando las partes no se
+    // pueden leer (`encargo_vacio`: la lista está vacía o no es una lista) `R.partes` queda vacío, como antes.
+    const motivoRaiz = noResuletoRaiz[0] ? noResuletoRaiz[0].motivo : null;
     const partesLegibles = partesCrudas.length
       ? partesCrudas.map((p, i) => ({
           id: _str(p && p.id) ? p.id : `p${i + 1}`,
           tema: (p && p.tema) ?? null, cierre: (p && p.cierre) ?? null, estado: "no_resuelta",
           conceptos: [], entidades: [], eje: null, universo: null, periodo: null, ausencias: [],
+          motivo: motivoRaiz,
         }))
       : [];
     return { ok: false, encargo, partes: partesLegibles, criterio: null, supuestos: [], premisas: [], noResuelto: noResuletoRaiz, avisos: [] };

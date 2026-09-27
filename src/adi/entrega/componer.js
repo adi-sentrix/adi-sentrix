@@ -1948,6 +1948,13 @@ function _textoDePremisa(H, libroPremisas) {
 // campos de un universo que este recálculo (y cualquier otro que necesite el mismo contraste) tiene que copiar
 // desde `alcance` — un campo nuevo de universo se agrega UNA vez acá, nunca campo por campo en cada llamador.
 const CAMPOS_UNIVERSO = ["base", "estados", "no_estados", "filtros", "bodega", "union"];
+// RAÍZ A7 (supervisor 2026-09-27, diagnóstico v9) — `excluir` viaja APARTE de `CAMPOS_UNIVERSO`: su forma es un
+// OBJETO tipado (`{entidades, conjuntos, estados, bodega, top}`, notario/verificar.js), nunca una lista/string
+// como el resto de estos campos — `alcanceDeParte` ya lo devuelve completo en `excluirCompleto` (ver
+// `entrega/alcance.js`), sin tocar `alcance.excluir` (el array de NOMBRES que `figsEnAlcance` sigue usando para
+// su propio filtro, un uso distinto y ya correcto). Antes, `_camposDeUniverso` nunca copiaba `excluir` — así que
+// el recálculo del top VERIFICADO (`_entidadesDelTopVerificado`) y el conjunto sin `top` (más abajo) resolvían
+// contra `conjuntoDeUniverso` SIN la exclusión, sirviendo entidades que el usuario pidió excluir (W75/W76/W78).
 function _camposDeUniverso(alcance) {
   const campos = {};
   for (const c of CAMPOS_UNIVERSO) {
@@ -1956,6 +1963,7 @@ function _camposDeUniverso(alcance) {
     if (Array.isArray(v) && !v.length) continue;
     campos[c] = v;
   }
+  if (alcance && alcance.excluirCompleto) campos.excluir = alcance.excluirCompleto;
   return campos;
 }
 function _entidadesDelTopVerificado(entidadesDeLaToolCruda, figsAcotadas, top, eje, conceptoTop, indice, camposUniverso = {}) {
@@ -1966,13 +1974,28 @@ function _entidadesDelTopVerificado(entidadesDeLaToolCruda, figsAcotadas, top, e
   // con solo 3 entidades únicas se mostraba con una repetida. Se deduplica ACÁ, en el único punto de entrada,
   // antes de comparar o de devolver nada.
   const entidadesDeLaTool = [...new Set(entidadesDeLaToolCruda)];
-  if (!indice) return { entidades: entidadesDeLaTool, figsExtra: [] };
+  if (!indice) return { entidades: entidadesDeLaTool, figsExtra: [], resuelto: false };
   let R = null;
   try { R = conjuntoDeUniverso({ eje, ...camposUniverso, top }, indice, eje, ""); } catch { R = null; }
-  if (!R || !R.set) return { entidades: entidadesDeLaTool, figsExtra: [] };
+  // RAÍZ A9 (supervisor 2026-09-27, diagnóstico v9, contrato §7.3·13) — «un ranking parcial es un problema de
+  // LECTURA, no de verificación… un extremo "menor/peor/mejor" no se decide sobre un ranking incompleto»: cuando
+  // `conjuntoDeUniverso` declina explícitamente con `ranking-parcial` (la proyección no trae el extremo pedido
+  // para TODO el eje), la selección CRUDA de la tool (`entidadesDeLaTool`) NO es un respaldo válido — es
+  // exactamente la respuesta NO VERIFICABLE que la decisión 13 prohíbe servir (W99: Bosch sale «ganador» de un
+  // ranking de variación que solo trae 4 de 5 marcas). Se declina (`entidades: []`, `resuelto:false`) para que
+  // `_planCifraGrupo` decline la parte entera con un límite — nunca la crudo sin verificar. Cuando `R` falla por
+  // OTRA razón (sin `indice`, sin `set` y sin `error` de ranking-parcial), la crudo sigue siendo el respaldo de
+  // siempre — documentado, nunca silencioso.
+  if (R && R.error && /^ranking-parcial/.test(R.error)) return { entidades: [], figsExtra: [], resuelto: false };
+  if (!R || !R.set) return { entidades: entidadesDeLaTool, figsExtra: [], resuelto: false };
   const enJuegoNorm = new Set(entidadesDeLaTool.map((e) => normalizar(e)));
   const coincide = R.set.size === enJuegoNorm.size && [...R.set].every((k) => enJuegoNorm.has(k));
-  if (coincide) return { entidades: entidadesDeLaTool, figsExtra: [] };
+  // RAÍZ A9/A6 (diagnóstico v9) — `resuelto:true` marca que `R.set` es la verdad CONTRASTADA contra la
+  // evidencia (nunca la selección cruda de la tool): `_planCifraGrupo` lo usa para distinguir un universo que
+  // resolvió VACÍO de verdad («los 4 mayores están todos bajo el benchmark» — 0 es la respuesta correcta, no un
+  // hueco de datos) de un universo que no se pudo verificar en absoluto (sin `indice`, o `conjuntoDeUniverso`
+  // sin `set`) — solo el segundo caso declina con «sin evidencia».
+  if (coincide) return { entidades: entidadesDeLaTool, figsExtra: [], resuelto: true };
   const nombres = [...R.set].map((k) => (indice.entidades && indice.entidades.get ? (indice.entidades.get(k) || { nombre: k }).nombre : k));
   // R-VARIACION-SIN-CIFRA-EN-TOP (diagnóstico v6, MEDIA) — «conocida» tiene que significar «ya trae una fig de
   // ESTE `conceptoTop»», no «ya trae CUALQUIER fig»: una entidad puede llegar con su «Venta» (otro concepto) y
@@ -1986,7 +2009,7 @@ function _entidadesDelTopVerificado(entidadesDeLaToolCruda, figsAcotadas, top, e
   if (faltan.size && typeof indice.figsDeMetrica === "function") {
     try { figsExtra = (indice.figsDeMetrica(conceptoTop, eje) || []).filter((f) => { const e = _entidadDe(_lab(f)); return e && faltan.has(normalizar(e)); }); } catch { figsExtra = []; }
   }
-  return { entidades: nombres, figsExtra };
+  return { entidades: nombres, figsExtra, resuelto: true };
 }
 function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}) {
   if (_universoNoSoportado(parte.universo)) return null;
@@ -2008,18 +2031,34 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
   // propia llamada `queryMetric(limit:k)` YA trae SOLO esas k entidades para `conceptoTop` — nunca se completa con
   // entidades que aparecen en OTRO concepto sin top (eso sería inventar una cola que no se declaró). Sin `top`, el
   // conjunto es la unión de TODO lo que cada concepto pedido trajo, sin recorte.
-  let entidadesEnJuego;
+  // RAÍZ A9 (supervisor 2026-09-27, diagnóstico v9) — `universoResuelto` distingue un universo que
+  // `conjuntoDeUniverso` CONTRASTÓ de verdad contra la evidencia (aunque el resultado sea vacío — «los 4 mayores
+  // están todos bajo el benchmark» es 0, una respuesta correcta, no un hueco) de uno que nunca se pudo verificar
+  // (sin `indice`, o la primitiva sin `set`). Solo el segundo caso declina más abajo con «sin evidencia».
+  let entidadesEnJuego, universoResuelto = false;
   if (top) {
     const crudo = _todasLasFilasDeConcepto(figsAcotadas, conceptoTop).map((x) => x.entidad);
     // A1b — el MISMO universo que ya resolvió `figsEnAlcance` para `figsAcotadas` (base/estados/no_estados/
-    // filtros/union), para que el contraste de arriba nunca discrepe con lo que ya filtró el alcance.
+    // filtros/union/excluir), para que el contraste de arriba nunca discrepe con lo que ya filtró el alcance.
     const camposUniverso = _camposDeUniverso(alcance);
-    const { entidades, figsExtra } = _entidadesDelTopVerificado(crudo, figsAcotadas, top, eje, conceptoTop, indice, camposUniverso);
+    const { entidades, figsExtra, resuelto } = _entidadesDelTopVerificado(crudo, figsAcotadas, top, eje, conceptoTop, indice, camposUniverso);
     if (figsExtra.length) figsAcotadas = [...figsAcotadas, ...figsExtra];
     entidadesEnJuego = entidades;
+    universoResuelto = resuelto;
   }
   else {
     const v = new Set(); for (const c of conceptos) for (const { entidad } of _todasLasFilasDeConcepto(figsAcotadas, c)) v.add(entidad); entidadesEnJuego = [...v];
+    // RAÍZ A8 (supervisor 2026-09-27, diagnóstico v9) — `_entidadDe` (arriba en este archivo) toma TODO lo que
+    // esté antes del primer «·» como «entidad» — una fig de NEGOCIO sin entidad propia, pero cuyo rótulo usa «·»
+    // como separador interno («Umbral de materialidad · % de la venta»), se cuela como si «Umbral de
+    // materialidad» fuera un miembro del eje (W87.p3: eje «canal», sin universo — el eje real tiene 2 miembros,
+    // «Umbral de materialidad» aparece como un tercero). Cuando el eje tiene una lista CONOCIDA y CERRADA
+    // (`ejesDelTenant[eje]`, la MISMA que ya usa `figsEnAlcance`/RC-F para excluir entidades de OTRO eje), se
+    // exige PERTENENCIA a esa lista — nunca «no pertenece a otro eje conocido» (denylist), que es justo lo que
+    // dejaba pasar cualquier rótulo con «·» que no calzara con NINGÚN eje. Sin lista conocida (eje sin índice),
+    // el comportamiento no cambia — nunca se excluye a ciegas.
+    const _miembrosDelEje = ejesDelTenant && Array.isArray(ejesDelTenant[eje]) && ejesDelTenant[eje].length ? new Set(ejesDelTenant[eje].map(normalizar)) : null;
+    if (_miembrosDelEje) entidadesEnJuego = entidadesEnJuego.filter((e) => _miembrosDelEje.has(normalizar(e)));
     // §7.3·17 (supervisor 2026-09-27, diagnóstico v8) — SIN `top`, esta unión solo refleja qué entidades
     // trajeron fig ESTE turno para los conceptos pedidos; el conjunto CANÓNICO de un universo con `base`/
     // `estados`/`no_estados`/`filtros`/`bodega`/`union` es el que resuelve `conjuntoDeUniverso` — la MISMA
@@ -2032,6 +2071,7 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
     if (indice && Object.keys(camposUniverso).length) {
       let R = null;
       try { R = conjuntoDeUniverso({ eje, ...camposUniverso }, indice, eje, ""); } catch { R = null; }
+      universoResuelto = !!(R && R.set);
       if (R && R.set && R.set.size > entidadesEnJuego.length) {
         const nombres = [...R.set].map((k) => (indice.entidades && indice.entidades.get ? (indice.entidades.get(k) || { nombre: k }).nombre : k));
         const enJuegoNorm = new Set(entidadesEnJuego.map(normalizar));
@@ -2041,22 +2081,40 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
           for (const c of conceptos) {
             try { figsExtra = figsExtra.concat((indice.figsDeMetrica(c, eje) || []).filter((f) => { const e = _entidadDe(_lab(f)); return e && faltanNorm.has(normalizar(e)); })); } catch { /* sin figs extra para este concepto */ }
           }
-          if (figsExtra.length) { figsAcotadas = [...figsAcotadas, ...figsExtra]; entidadesEnJuego = nombres; }
+          if (figsExtra.length) figsAcotadas = [...figsAcotadas, ...figsExtra];
         }
+        // RAÍZ A6 (supervisor 2026-09-27, diagnóstico v9, precisa la nota de arriba) — antes, `entidadesEnJuego`
+        // solo se ampliaba al conjunto OFICIAL (`nombres`) cuando `figsExtra` encontraba AL MENOS una fig para
+        // completar: un miembro del `union` sin NINGUNA fig en TODA la evidencia del turno (p. ej. un cliente sin
+        // ventas a crédito — «con saldo vencido» lo trae por la OTRA mitad del union, «carga comercial alta», pero
+        // `mesaFlujo` nunca le arma fila porque su venta a crédito es 0) dejaba `entidadesEnJuego` MÁS CHICO que el
+        // universo declarado — y el invariante de arriba (§7.3·17, «el conjunto servido tiene que ser EXACTO»)
+        // declinaba la parte ENTERA con un límite, aunque las otras 6 cuentas SÍ tuvieran evidencia completa (W43).
+        // El conjunto CANÓNICO (`R.set`, ya verificado contra la evidencia por `conjuntoDeUniverso` — la MISMA
+        // resolución que usa el Notario) manda siempre: una entidad sin fig para el concepto pedido simplemente no
+        // imprime esa fila (mismo criterio que ya protege `_mapaDe` más abajo, A2 — nunca se inventa una cifra),
+        // pero SIGUE en el conjunto declarado y en el orden — nunca se declina la parte por la ausencia de UNA
+        // cuenta cuando el resto del universo sí tiene evidencia.
+        entidadesEnJuego = nombres;
       }
     }
   }
-  // A12 (supervisor 2026-09-27, diagnóstico v8) — `excluir` ya recortó `figsAcotadas` (arriba, `figsEnAlcance`),
-  // pero el recálculo VERIFICADO del `top` (`_entidadesDelTopVerificado`, A1b) contrasta contra
-  // `conjuntoDeUniverso`, que no conoce `excluir` (no viaja en `camposUniverso`) — así que una entidad excluida
-  // podía volver a `entidadesEnJuego` ahí, sin fig propia (la tabla de Cifras ya la omitía, por construcción),
-  // pero SÍ nombrada en el rótulo «El top K de M» y en `universoDecl.entidades`. Se filtra acá, en el ÚNICO punto
-  // donde `_planCifraGrupo` cierra el conjunto — antes de armar `porEntidad`/`orden`, nunca solo en la tabla.
+  // A12 (supervisor 2026-09-27, diagnóstico v8), CERRADO por A7 (diagnóstico v9) — `_camposDeUniverso` ahora SÍ
+  // pasa `excluir` (completo: entidades/conjuntos/estados/bodega/top, `excluirCompleto`) a `conjuntoDeUniverso`
+  // dentro de `_entidadesDelTopVerificado`/la rama sin `top` de arriba — así que `entidadesEnJuego` YA sale sin
+  // los excluidos en el camino verificado. Este filtro por NOMBRE queda como defensa en profundidad (el camino
+  // sin `indice`, que nunca pasa por `conjuntoDeUniverso`) — nunca la única exclusión aplicada.
   if (alcance.excluir && alcance.excluir.length) {
     const excluidosNorm = new Set(alcance.excluir.map(normalizar));
     entidadesEnJuego = entidadesEnJuego.filter((e) => !excluidosNorm.has(normalizar(e)));
   }
-  if (!entidadesEnJuego.length) return null;
+  // RAÍZ A9 (supervisor 2026-09-27, diagnóstico v9) — un universo VERIFICADO que resuelve VACÍO («los 4 mayores
+  // están todos bajo el benchmark» ⇒ 0) es una respuesta correcta, no un hueco de datos: se compone un plan con
+  // `orden: []` (el render de más abajo ya sabe no imprimir nada cuando `plan.orden` está vacío — ninguna fila,
+  // ninguna oración de prioridad) en vez de declinar con «sin evidencia en la boleta», que sería un límite falso
+  // sobre un universo que SÍ se resolvió. Solo declina (`return null`) cuando ni siquiera se pudo verificar el
+  // universo (`universoResuelto:false`) — el caso real de «sin evidencia».
+  if (!entidadesEnJuego.length && !universoResuelto) return null;
 
   const porEntidad = new Map();   // nombre → Map(clave → fig)
   for (const c of conceptos) for (const { entidad, fig } of _todasLasFilasDeConcepto(figsAcotadas, c)) {
@@ -2074,7 +2132,23 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
   // primer concepto DECLARADO (respetando `conceptoTop` si hay `top`) que sí tiene AL MENOS una fig entre las
   // entidades en juego — nunca un concepto inventado ni reordenado por valor, solo el primero que el eje sostiene.
   const claveOrden = conceptoTop || conceptos.find((c) => entidadesEnJuego.some((e) => porEntidad.has(e) && porEntidad.get(e).has(c))) || conceptos[0];
-  const dirMenor = top ? top.direccion === "menor" : (metricaPorClave(claveOrden) || {}).polaridad === "menor";
+  // RAÍZ ordenServido (supervisor 2026-09-27, diagnóstico v9) — `top.direccion` acepta CUATRO valores (contrato
+  // §2, `hechos.js:_ENUM.direccion`: mayor · menor · peor · mejor), pero acá solo se leía «menor» — «peor»/
+  // «mejor» caían al `else` como si fueran «mayor» sin mirar la POLARIDAD de la métrica: para «recuperado»,
+  // peor es MENOR (recuperó menos), no mayor (W18: el orden servido salía invertido). MISMA resolución que ya
+  // usa el Notario para el mismo campo (`notario/verificar.js:_topTipado`) y `lecturasDe.js:_direccionDeTop` —
+  // nunca una segunda tabla de polaridad.
+  const _dirTopTxt = top ? normalizar(String(top.direccion || "mayor")) : null;
+  let dirMenor;
+  if (_dirTopTxt === "peor" || _dirTopTxt === "mejor") {
+    const pol = (metricaPorClave(claveOrden) || {}).polaridad;
+    const peorEs = pol === "mayor" ? "menor" : pol === "menor" ? "mayor" : null;
+    dirMenor = peorEs ? (_dirTopTxt === "peor" ? peorEs === "menor" : peorEs === "mayor") : false;
+  } else if (top) {
+    dirMenor = _dirTopTxt === "menor";
+  } else {
+    dirMenor = (metricaPorClave(claveOrden) || {}).polaridad === "menor";
+  }
   const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
   let orden = [...entidadesEnJuego].sort((a, b) => { const va = _num(porEntidad.get(a) && porEntidad.get(a).get(claveOrden)), vb = _num(porEntidad.get(b) && porEntidad.get(b).get(claveOrden)); if (!Number.isFinite(va) || !Number.isFinite(vb)) return 0; return dirMenor ? va - vb : vb - va; });
   // RC-D — el recorte por `top.k`, AHORA GARANTIZADO sea cual sea la tool subyacente (idempotente: si `orden` ya
@@ -2087,7 +2161,7 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
   // declarado (antes solo `top`): `_declararUniverso` los necesita para que `entrega.universos[]` describa el
   // universo REAL de una parte `lectura`/`decision` sin entidades (no solo su `top`), y para que el invariante de
   // `entrega/verificar.js` pueda recomponer el MISMO conjunto de forma independiente.
-  return { kind: "grupo", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, eje, conceptos, porEntidad, orden, cola, claveOrden, universoDecl: { top: top || null, base: alcance.base || null, estados: alcance.estados || null, no_estados: alcance.no_estados || null, filtros: alcance.filtros || null, bodega: alcance.bodega || null, union: alcance.union || null, entidades: orden } };
+  return { kind: "grupo", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, eje, conceptos, porEntidad, orden, cola, claveOrden, universoDecl: { top: top || null, base: alcance.base || null, estados: alcance.estados || null, no_estados: alcance.no_estados || null, filtros: alcance.filtros || null, bodega: alcance.bodega || null, union: alcance.union || null, excluir: alcance.excluirCompleto || null, entidades: orden } };
 }
 
 /* ── PLAN «multitema» (cierre `lectura`/`decision` SIN entidades, 1..N temas: reusa `prioridadIntegrada`, LA
@@ -2576,18 +2650,18 @@ export function componerEntrega(resolucion) {
   // lectura/decision sin entidades (salvo el caso estrecho de estados/filtros sin top) caía siempre a
   // `_planMultiTema`, que ordena por la LENTE DE NEGOCIO del dominio (materialidad/severidad/urgencia) — nunca
   // por lo que la parte pidió.
-  // LÍMITE DE ESTE CAMBIO (V81/R-INICIATIVA-UNIVERSO-NO-ENTIDADES, diagnóstico v6, coordinador 2026-09-26, no
-  // tocado acá) — un encargo MULTIDOMINIO con VARIAS partes lectura/decision sin entidades (2+ temas, la
-  // «prioridad integrada» cruzando dominios, `_entrega_general_gate.mjs` §22-24: «el límite "sin señal de
-  // riesgo" es de negocio») sigue yendo a `_planMultiTema`, AUNQUE cada parte declare su propio `top` — ese
-  // mecanismo YA restringe sus figs por el `top` de cada parte (`figsDelGrupo`, más abajo) desde el corte V81;
-  // reenrutarlo acá lo partiría en N listados sueltos y perdería la prioridad CRUZADA que el owner pidió. El
-  // camino nuevo (`_planCifraGrupo`) es SOLO para la parte AISLADA: una única parte lectura/decision sin
-  // entidades en el grupo, con universo propio — el caso real de Z04/Z05/Z21/Z88/Z49 (diagnóstico v8).
+  // §7.3·22 (supervisor 2026-09-27, diagnóstico v9, precisa la 17 — RAÍZ A1, 100 fallas) — el límite anterior
+  // (`.length === 1`) confundía «MULTIDOMINIO con varias partes» con «UN MISMO dominio con varias partes
+  // lectura/decision»: un grupo con DOS O MÁS partes de un MISMO tema (ej. W01: p1 lectura + p2 decision, las
+  // dos de cobranza, cada una con su propio `top`) caía entero a `_planMultiTema`, que solo sabe declarar UN
+  // líder por dominio — perdía el universo propio de la SEGUNDA parte en silencio (cambio silencioso, CLAUDE.md
+  // §5). Ahora TODA parte lectura/decision con universo propio compone por `_planCifraGrupo`, sea cual sea el
+  // número de partes o de dominios del grupo — nunca solo cuando es la única candidata. El camino V81
+  // (MULTIDOMINIO real, 2+ temas DISTINTOS, cada uno con una única parte) sigue funcionando: más abajo, la
+  // prioridad CRUZADA entre esos dominios se AGREGA aparte, sobre la unión de estos mismos universos —
+  // `_planMultiTema` deja de ser la fuente de CONTENIDO de estas partes y pasa a ser SOLO su agregador cruzado.
   const _candidatasSinEstadoSinTop = partesLecturaDecisionSinEntidad.filter((p) => !_universoPorEstadoSinTop(p.universo));
-  const partesUniversoPropio = (_candidatasSinEstadoSinTop.length === 1 && _tieneUniversoPropio(_candidatasSinEstadoSinTop[0].universo))
-    ? _candidatasSinEstadoSinTop
-    : [];
+  const partesUniversoPropio = _candidatasSinEstadoSinTop.filter((p) => _tieneUniversoPropio(p.universo));
   for (const p of partesUniversoPropio) {
     // el mismo fallback de conceptos que ya usa RC8 más abajo (línea ~2570): sin `conceptos` declarados y sin
     // `top.metrica` que aporte uno, se listan todos los del tema con productor en este eje — nunca un concepto
@@ -2683,6 +2757,23 @@ export function componerEntrega(resolucion) {
       }
       if (!huboFallback) for (const p of partesSinEntidadLecturaDecision) partesYaAgrupadas.delete(p.id);   // sin evidencia suficiente: cada parte cae en su propio "no se pudo componer" abajo
     }
+  }
+  // §7.3·22 (supervisor 2026-09-27, diagnóstico v9) — la prioridad CRUZADA entre dominios se AGREGA aparte,
+  // nunca reemplaza el contenido de cada parte (ya servido arriba por `_planCifraGrupo`). Solo aplica cuando el
+  // grupo de partes con universo propio abarca 2+ TEMAS DISTINTOS — un cruce real de dominios (el caso V81: una
+  // parte comercial + una de cobranza, cada una con su propio `top`), nunca el mismo dominio repartido en varias
+  // partes (eso ya lo cierra `_planCifraGrupo` arriba, por parte, sin agregador). La unión de figs es la MISMA
+  // fórmula `figsEnAlcance`/`alcanceDeParte` que ya usaba V81 antes de esta corrección — cada parte acotada a SU
+  // propio alcance, nunca al pool entero del grupo.
+  const temasUniversoPropio = [...new Set(partesUniversoPropio.map((p) => p.tema))];
+  if (temasUniversoPropio.length >= 2) {
+    const conDecisionCruce = partesUniversoPropio.some((p) => p.cierre === "decision");
+    const figsDelGrupoCruce = partesUniversoPropio.flatMap((p) => figsEnAlcance(_figsDeParte(p.id), { ...alcanceDeParte(p), eje: null }, { indice: I }));
+    const planCruce = _planMultiTema(temasUniversoPropio, figsDelGrupoCruce, ref, declararRazon, declararDerivada, { conDecision: conDecisionCruce });
+    // `_soloAgregado` (ver el render de `kind:"multitema"`, más abajo): estas partes YA tienen su contenido propio
+    // (filas + «Prioridad del procedimiento dentro de este grupo») — este plan SOLO aporta la prioridad cruzada y
+    // el límite «sin señal», nunca la línea «quien más pesa» por dominio (esa ya la sirvió `_planCifraGrupo`).
+    if (planCruce) { planCruce.partesIds = partesUniversoPropio.map((p) => p.id); planCruce._soloAgregado = true; planes.push(planCruce); }
   }
   for (const p of partesUtiles) {
     if (partesYaAgrupadas.has(p.id)) continue;
@@ -2931,7 +3022,7 @@ export function componerEntrega(resolucion) {
       // como defensa en profundidad para quien la llame con `resolucion`/`indice` (los gates, la medición): audita
       // el mismo invariante con la misma función, nunca una segunda definición de "coincide".
       if (plan.cierre === "lectura" || plan.cierre === "decision") {
-        const uCheq = { eje: plan.eje, top: plan.universoDecl.top, base: plan.universoDecl.base, estados: plan.universoDecl.estados, no_estados: plan.universoDecl.no_estados, filtros: plan.universoDecl.filtros, bodega: plan.universoDecl.bodega, union: plan.universoDecl.union };
+        const uCheq = { eje: plan.eje, top: plan.universoDecl.top, base: plan.universoDecl.base, estados: plan.universoDecl.estados, no_estados: plan.universoDecl.no_estados, filtros: plan.universoDecl.filtros, bodega: plan.universoDecl.bodega, union: plan.universoDecl.union, excluir: plan.universoDecl.excluir };
         let Rchk = null;
         try { Rchk = conjuntoDeUniverso(uCheq, I, plan.eje, ""); } catch { Rchk = null; }
         if (Rchk && Rchk.set) {
@@ -2976,7 +3067,7 @@ export function componerEntrega(resolucion) {
         // `entrega/verificar.js`) — sin ella, la conclusión ya quedó dicha en la oración «El top K de M» de arriba.
         if (lenteTxt && idPrimero != null) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${plan.orden[0]}, con ${R(idPrimero)} en ${(plan.claveOrden ? _labelDeClave(plan.claveOrden) : lenteTxt).toLowerCase()}.`, hechos: [idPrimero] });
       }
-      _declararUniverso(entrega, I, { id: plan.parteId, eje: plan.eje, top: plan.universoDecl.top, base: plan.universoDecl.base, estados: plan.universoDecl.estados, no_estados: plan.universoDecl.no_estados, filtros: plan.universoDecl.filtros, entidades: plan.orden });
+      _declararUniverso(entrega, I, { id: plan.parteId, eje: plan.eje, top: plan.universoDecl.top, base: plan.universoDecl.base, estados: plan.universoDecl.estados, no_estados: plan.universoDecl.no_estados, filtros: plan.universoDecl.filtros, excluir: plan.universoDecl.excluir, entidades: plan.orden });
     } else if (plan.kind === "comparacion") {
       temasCubiertos.add(plan.tema);
       for (const p of plan.pares) {
@@ -3207,7 +3298,12 @@ export function componerEntrega(resolucion) {
       // la integrada) llevan prioridad 1..N en el orden en que el procedimiento las declaró (`plan.temas`); las
       // menciones adicionales (comparativo «va antes que», concentración de cobranza) van DESPUÉS de todas —
       // son apoyo, no la conclusión ni las lecturas por dominio.
-      for (const [di, d] of plan.temas.entries()) {
+      // §7.3·22 (supervisor 2026-09-27, diagnóstico v9) — `_soloAgregado` marca el plan cruzado que se agrega
+      // ENCIMA de partes que ya tienen su propio contenido (`_planCifraGrupo`, arriba): la línea «en {dominio},
+      // quien más pesa es…» duplicaría lo que esas partes ya sirvieron con su propio universo — se omite SOLO
+      // acá; la prioridad cruzada («Prioridad del procedimiento, por riesgo integrado…», más abajo) y el límite
+      // «sin señal» SÍ se agregan siempre, sea `_soloAgregado` o no.
+      if (!plan._soloAgregado) for (const [di, d] of plan.temas.entries()) {
         temasCubiertos.add(d);
         const L = plan.lideres[d];
         if (!L) continue;
@@ -3221,6 +3317,7 @@ export function componerEntrega(resolucion) {
         for (const [lente, id] of Object.entries(L.ids)) if (id != null) _filaDedup(L.x.entidad, d, LENTES[d][lente].nombre, id);
         if (vs) _filaDedup(`${vs.entidad} − ${vs.segundo}`, d, "Diferencia · materialidad", vs.idDiff);
       }
+      if (plan._soloAgregado) for (const d of plan.temas) temasCubiertos.add(d);
       if (plan.top && plan.idsIntegrada) {
         const partesTop = [];
         for (const d of Object.keys(plan.idsIntegrada)) for (const l of ["materialidad", "severidad", "urgencia"]) { const t = frase(d, l, plan.idsIntegrada[d]); if (t) partesTop.push(`${_DOM_NOMBRE[d]}: ${t}`); for (const [ll, id] of Object.entries(plan.idsIntegrada[d])) if (id != null) _filaDedup(plan.top.entidad, d, LENTES[d][ll].nombre, id); }
@@ -3243,27 +3340,14 @@ export function componerEntrega(resolucion) {
       // CORTE 3e (owner 2026-09-26) — «declarado por usted» → «declarado por la empresa».
       if (plan.idBenchComercial) entrega.marco.referenciaDeclarada = entrega.marco.referenciaDeclarada || { texto: `Benchmark de margen (comercial): ${R(plan.idBenchComercial)}, declarado por la empresa.`, hechoId: plan.idBenchComercial };
       if (entidadesMultitema.size) _declararUniverso(entrega, I, { id: `${plan.partesIds ? plan.partesIds.join("_") : "multitema"}_prioridad`, eje: "cliente", entidades: [...entidadesMultitema], criterio: "prioridad integrada por señales — materialidad, severidad y urgencia entre los dominios que comparten cliente, nunca por suma de montos" });
-      // §7.3·17 (supervisor 2026-09-27, diagnóstico v8, tarea 3 del cierre) — un encargo MULTIDOMINIO con varias
-      // partes `lectura`/`decision` que comparten la prioridad cruzada (V81, arriba) YA calcula esa prioridad
-      // sobre la UNIÓN de los universos propios de cada parte (`figsDelGrupo`, más arriba, ya restringido por
-      // `alcanceDeParte(p)` antes de llegar a `_planMultiTema`) — lo que faltaba era que CADA parte declarara
-      // su PROPIO universo (conjunto y métrica pedida) en `entrega.universos`: sin esa declaración, una parte
-      // con `top`/`base` propio dentro de un grupo multidominio no tenía ningún registro que el invariante
-      // §7.3·17 pudiera auditar (el mismo hueco que ya cerró la raíz A2 para la parte AISLADA, un nivel más
-      // arriba). Se declara con la MISMA primitiva de resolución (`conjuntoDeUniverso`) — nunca una lista de
-      // entidades a mano, nunca la lista recortada de líderes que sí quedó en Respuesta/Cifras.
-      if (plan.partesIds) {
-        for (const pid of plan.partesIds) {
-          const pDecl = resolucion.partes.find((x) => x && x.id === pid);
-          if (!pDecl || !_tieneUniversoPropio(pDecl.universo)) continue;
-          const ejeDecl = (pDecl.universo && pDecl.universo.eje) || pDecl.eje || "cliente";
-          let Rdecl = null;
-          try { Rdecl = conjuntoDeUniverso(pDecl.universo, I, ejeDecl, ""); } catch { Rdecl = null; }
-          if (!Rdecl || !Rdecl.set) continue;
-          const nombresDecl = [...Rdecl.set].map((k) => (I.entidades && I.entidades.get ? (I.entidades.get(k) || { nombre: k }).nombre : k));
-          _declararUniverso(entrega, I, { id: pid, eje: ejeDecl, top: (pDecl.universo && pDecl.universo.top) || null, base: (pDecl.universo && pDecl.universo.base) || null, estados: (pDecl.universo && pDecl.universo.estados) || null, no_estados: (pDecl.universo && pDecl.universo.no_estados) || null, filtros: (pDecl.universo && pDecl.universo.filtros) || null, entidades: nombresDecl });
-        }
-      }
+      // §7.3·22 (supervisor 2026-09-27, diagnóstico v9, precisa la 17 — cierra la raíz A1) — antes, acá se
+      // declaraba OTRA VEZ el universo de cada parte de `plan.partesIds` con universo propio (§7.3·17, tarea 3,
+      // 2026-09-27), porque esas partes NUNCA pasaban por `_planCifraGrupo` (el `.length === 1` de arriba las
+      // excluía). Ahora TODA parte con universo propio compone por `_planCifraGrupo`, que ya declara su universo
+      // ORDENADO (`plan.orden`, línea de `_declararUniverso` dentro de `kind:"grupo"`, arriba) — nunca `[...Set]`
+      // sin orden, que era la raíz de 11 de las 13 fallas de `ordenServido` de la medición v9. El parche sobra:
+      // `plan.partesIds`, acá, ya solo puede traer partes SIN universo propio (`partesSinEntidadLecturaDecision`)
+      // o partes `_soloAgregado` que YA se declararon arriba — declararlas de nuevo sería un registro duplicado.
     }
   }
   entrega.respuesta = entrega.respuesta.filter((r) => r.hechos.length || r._definicion);

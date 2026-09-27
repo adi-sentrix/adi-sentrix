@@ -52,6 +52,10 @@ const _money = (v) => {
 };
 /* el dataset trabaja en miles ($K), igual que venta/contribución del resto de la Mesa */
 const _mK = (v) => _money(v * factorComercialDe(getTenantData()));   // montoK del cobro: en la escala declarada del pack
+// RAÍZ A6 (supervisor 2026-09-27, diagnóstico v9) — exportada para `agente/herramientasAgente.js:cobranza`, que
+// necesita formatear un «$0» de la MISMA escala/símbolo que esta mesa cuando ensancha su boleta a una cuenta sin
+// vencido (widening de `universoRequerido`) — nunca un formateador de dinero aparte que pudiera divergir.
+export const mK = _mK;
 const _pct = (parte, todo) => (todo > 0 ? _r1((parte / todo) * 100) : 0);
 
 const _DIA = 86400000;

@@ -23,7 +23,7 @@ import { getTenantData } from "../../data/tenantStore.js";
 import { factorComercialDe } from "../../config/contract/figureType.js";
 import { serieRealDe } from "../sentrix/capability.js";
 import { ventaOficialDelPeriodo } from "../sentrix/temporal.js";   // `proyectar` · la venta oficial del período: la sola verdad que el owner declaró (2026-07-15)
-import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";   // `cobranza` · la MISMA mesa que la pestaña Flujo Comercial — una sola verdad, cero recalculo
+import { buildMesaFlujo, mK as _mKDeLaMesa } from "../sentrix/mesaFlujo.js";   // `cobranza` · la MISMA mesa que la pestaña Flujo Comercial — una sola verdad, cero recalculo
 import { buildRolesCartera, REGLAS_DE_ROL } from "../sentrix/rolesCartera.js";   // `rolesCartera` · el papel de cada cliente y la huella de cada mecanismo (el porqué, hecho evidencia)
 import { lecturaDeCuadro } from "../sentrix/lecturaDeCuadro.js";   // `cuadroSentrix` · lo que ESE cuadro pinta, del mismo módulo que lo pinta (owner 2026-09-08)
 import { findCandidates, axisEntityNames } from "../oracle/entityIndex.js";   // axisEntityNames: `cobranza` la usa para sumar, ADITIVO, la fila de una cuenta nombrada fuera del top 8 (owner 2026-09-25, ley del piso sin modelo)
@@ -281,6 +281,24 @@ export function proyectar(args = {}, ctx = {}) {
 export function cobranza(_args = {}, ctx = {}) {
   const scenario = (_args && _args.scenario) || (ctx && ctx.scenario) || ESCENARIO_INICIAL;
   const sinSoporte = (reason) => ({ facts: null, boleta: [], coverage: { supported: false, reason } });
+  // RAÍZ A6 (supervisor 2026-09-27, diagnóstico v9) — `_args.universoRequerido` es el OPT-IN: solo lo pasa
+  // `lecturasDe.js` del Encargo (§7.3·22), nunca `cajaDelAgente` (el turno libre) — la boleta del agente vivo no
+  // cambia. Se extrae ACÁ, al inicio, para que el bucle del top-8 (más abajo) también pueda usarlo — antes solo
+  // se leía más abajo, después de ese bucle.
+  const _universoReq = _args && _args.universoRequerido && typeof _args.universoRequerido === "object" ? _args.universoRequerido : null;
+  // RAÍZ A6 (supervisor 2026-09-27, diagnóstico v9, precisa la nota de arriba — CARNADA `_entrega_general_gate`
+  // §22/V81) — `_necesitaMesaCompleta` se adelanta acá (antes solo vivía más abajo, en el bucle de widening) para
+  // que el bucle del top-8 también la use: `universoRequerido` puede venir de una parte que NO es de cobranza
+  // (`lecturasDe.js` elige la primera parte del grupo con universo propio, sea cual sea su tema — V81: la parte
+  // COMERCIAL, «top 3 de menor venta», comparte la llamada de cobranza con la parte de cobranza del mismo grupo).
+  // Un `top` simple reutilizado así NO es una necesidad genuina de cobranza — completar «Saldo vencido: $0» ahí
+  // fabricaba una señal de severidad que antes no existía (Unimarc pasaba de "sin señal" a "prioridad: $0
+  // vencidos", CARNADA rota). Cuando el universo combina `base`/`bodega`/`union`/`estados`/`filtros` (W43: un
+  // `union` de dos bases, sin `top`) sí hace falta la mesa completa —eso no tiene otra fuente posible que no sea
+  // cobranza— así que el backfill queda condicionado a `_necesitaMesaCompleta`, nunca a la sola presencia de
+  // `universoRequerido`.
+  const _CAMPOS_UNIVERSO_SIN_TOP = ["base", "bodega", "union", "estados", "no_estados", "filtros"];
+  const _necesitaMesaCompleta = !!(_universoReq && _CAMPOS_UNIVERSO_SIN_TOP.some((c) => { const v = _universoReq[c]; return Array.isArray(v) ? v.length : !!v; }));
   let M = null;
   try { M = buildMesaFlujo(scenario); } catch { M = null; }
   if (!M || !Array.isArray(M.filas) || !M.filas.length) {
@@ -329,7 +347,17 @@ export function cobranza(_args = {}, ctx = {}) {
     _fig(`${f.nombre} · ${esPlanilla ? "Venta a crédito" : "Venta (flujo)"}`, f.ventaFmt, f.ventaK);
     _fig(`${f.nombre} · Abonado`, f.abonadoFmt, f.abonadoK);
     _fig(`${f.nombre} · Saldo pendiente`, f.saldoFmt, f.saldoK);
+    // RAÍZ A6 (supervisor 2026-09-27, diagnóstico v9) — «el recorte de 8, su orden y sus posiciones NO cambian»
+    // (nota de arriba) sigue INTOCADO sin `universoRequerido`: sin el opt-in del Encargo, esta cuenta sigue sin
+    // fig de «Saldo vencido» cuando está sana, byte a byte como siempre — el turno libre del agente nunca pasa
+    // `universoRequerido`, así que su boleta no cambia ni un carácter. CON el opt-in, el backfill exige ADEMÁS
+    // `_necesitaMesaCompleta` (nunca la sola presencia de `universoRequerido`, que puede venir de una parte de
+    // OTRO dominio compartiendo la misma llamada — V81, CARNADA `_entrega_general_gate` §22: un `top` comercial
+    // reutilizado acá fabricaba una señal de severidad de cobranza que antes no existía). Con `base`/`bodega`/
+    // `union`/`estados`/`filtros` (W43: un `union` de dos bases, sin `top`) SÍ hace falta la mesa completa — «saldo
+    // vencido» está en `AUSENTE_VALE_CERO» (notario/lexico.js): ausente ES cero, un hecho real.
     if (f.vencidoFmt != null) _fig(`${f.nombre} · Saldo vencido`, f.vencidoFmt, f.vencidoK);
+    else if (_necesitaMesaCompleta) _fig(`${f.nombre} · Saldo vencido`, _mKDeLaMesa(0), 0);
   }
   /* «· Recuperado» Y «· Dias Vencido» POR CLIENTE, CON CRUDO REAL (owner 2026-09-23 — arreglo del verificador).
    * `mesaFlujo.js` YA calcula `recuperadoPct`/`diasVencido` por fila (los usa para `recuperadoFmt`/
@@ -389,7 +417,7 @@ export function cobranza(_args = {}, ctx = {}) {
    * documentado, nunca silencioso (el llamador declina con un límite si la cifra sigue faltando, ver
    * `entrega/componer.js:_planCifraGrupo`). */
   const _CAMPO_DE_CLAVE_COBRANZA = { ventas: "ventaK", saldo_pendiente: "saldoK", saldo_vencido: "vencidoK", abonado: "abonadoK", saldo_por_vencer: "porVencerK" };
-  const _topRequerido = _args && _args.universoRequerido && typeof _args.universoRequerido === "object" ? _args.universoRequerido.top : null;
+  const _topRequerido = _universoReq ? _universoReq.top : null;   // `_universoReq` ya extraído al inicio de la función
   const _entidadesDelTopRequerido = (() => {
     const top = _topRequerido;
     if (!top || !top.metrica || !Number.isFinite(+top.k) || +top.k < 1) return [];
@@ -411,7 +439,35 @@ export function cobranza(_args = {}, ctx = {}) {
   // la cartera (`M.filas` completo, no solo el top-8 fijo + los k extremos) — el mismo criterio que ya usa
   // `_FAM_VS_ANTERIOR`/`figsPct` en `lecturasDe.js` para el mismo problema en `salesRead`.
   const _entidadesParaTopSobreEje = (_topRequerido && String(_topRequerido.sobre || "").trim().toLowerCase() === "eje") ? M.filas.map((f) => f.nombre) : [];
-  const _entidadesRequeridas = [...new Set([..._entidadesNombradas, ..._entidadesDelTopRequerido, ..._entidadesParaTopSobreEje])];
+  // RAÍZ A6 (supervisor 2026-09-27, diagnóstico v9, tarea del cierre — precisa la de A8) — `universoRequerido`
+  // solo ensanchaba la mesa cuando traía `top` (arriba): un universo con `base`/`union`/`estados`/`no_estados`/
+  // `filtros`/`bodega` SIN `top» («con saldo vencido ∪ carga comercial alta») no tiene un extremo que extraer con
+  // `_CAMPO_DE_CLAVE_COBRANZA` — la ÚNICA forma honesta de resolver esa membresía es contra la mesa COMPLETA (el
+  // compositor, `entrega/componer.js:_planCifraGrupo`, ya sabe recortar al conjunto exacto después; acá solo hace
+  // falta que la fig exista). Mismo criterio ADITIVO que `_entidadesParaTopSobreEje`: nunca reemplaza el recorte
+  // de 8 ni su orden — solo agrega, al final, lo que falte. Sigue siendo el MISMO opt-in (`_args.universoRequerido`,
+  // solo lo pasa `lecturasDe.js` del Encargo — la boleta del agente vivo no cambia, `cajaDelAgente` nunca lo pasa).
+  // (`_CAMPOS_UNIVERSO_SIN_TOP`/`_necesitaMesaCompleta` ya se calcularon al inicio de la función.)
+  const _entidadesParaUniversoSinTop = _necesitaMesaCompleta ? M.filas.map((f) => f.nombre) : [];
+  const _entidadesRequeridas = [...new Set([..._entidadesNombradas, ..._entidadesDelTopRequerido, ..._entidadesParaTopSobreEje, ..._entidadesParaUniversoSinTop])];
+  // RAÍZ A6 (supervisor 2026-09-27, diagnóstico v9, precisa la nota de abajo — CARNADA `_agente_playbooks_gate`)
+  // — `_entidadesNombradas` es un mecanismo PREEXISTENTE, sin opt-in (`_preguntaUsuario`, el turno LIBRE del
+  // agente: «el cobro de Unimarc» la trae aunque esté fuera del top-8). El backfill de «Saldo vencido: $0» solo
+  // corresponde a las entidades que el universo TIPADO del Encargo pide explícitamente — nunca a una cuenta que
+  // entra porque el usuario la nombró en texto libre, o la boleta del agente vivo cambiaría con cualquier
+  // pregunta que nombre a una cuenta sana fuera del top-8 (antes: sin fig de «Saldo vencido» en absoluto).
+  // CORREGIDO (supervisor 2026-09-27, reparación de la CARNADA `_entrega_general_gate` §22/V81, que el propio
+  // comentario de arriba —«un top simple reutilizado… fabricaba una señal de severidad que antes no existía»—
+  // ya identificaba como el riesgo a evitar) — `_entidadesDelTopRequerido`/`_entidadesParaTopSobreEje` se llenan
+  // con CUALQUIER `top` de `universoRequerido`, venga de la parte de cobranza o de OTRA parte del mismo grupo
+  // (`lecturasDe.js` toma la PRIMERA parte con universo propio, sea cual sea su tema): ese `top` reutilizado NO
+  // es una necesidad genuina de cobranza (la misma distinción que ya protege el primer backfill, arriba, con
+  // `_necesitaMesaCompleta`). Sin esta misma guarda acá, V81 (comercial + cobranza, cada una con su propio
+  // `top` de «ventas») volvía a fabricar «Unimarc · Saldo vencido: $0» y con ella una señal de materialidad de
+  // cobranza que la boleta real no tiene — exactamente la CARNADA que el comentario de arriba advertía. Se limita
+  // el backfill de este segundo sitio al MISMO criterio inequívoco que el primero: solo `_entidadesParaUniversoSinTop`
+  // (el universo trae `base`/`bodega`/`union`/`estados`/`no_estados`/`filtros`, nunca solo un `top` prestado).
+  const _entidadesDelUniversoTipado = new Set(_necesitaMesaCompleta ? [..._entidadesDelTopRequerido, ..._entidadesParaTopSobreEje, ..._entidadesParaUniversoSinTop] : []);
   if (_entidadesRequeridas.length) {
     const _yaEnTop8 = new Set(filas.map((f) => f.nombre));
     const _extra = _entidadesRequeridas.map((n) => M.filas.find((f) => f.nombre === n)).filter((f) => f && !_yaEnTop8.has(f.nombre));
@@ -419,7 +475,17 @@ export function cobranza(_args = {}, ctx = {}) {
       _fig(`${f.nombre} · ${esPlanilla ? "Venta a crédito" : "Venta (flujo)"}`, f.ventaFmt, f.ventaK);
       _fig(`${f.nombre} · Abonado`, f.abonadoFmt, f.abonadoK);
       _fig(`${f.nombre} · Saldo pendiente`, f.saldoFmt, f.saldoK);
+      // RAÍZ A6 (supervisor 2026-09-27, diagnóstico v9, precisa la nota de arriba) — en el top-8 de siempre,
+      // `vencidoFmt: null` (sin fig) para una cuenta SANA es a propósito (no ensuciar la lista fija con "$0" —
+      // decisión de diseño de ese bucle, INTOCADA). Pero una cuenta que este widening trae porque el universo
+      // TIPADO la pide explícitamente (p. ej. «con saldo vencido» ∪ «carga comercial alta», W43: Jumbo/Ripley
+      // entran por la OTRA rama del union, con $0 vencido) SÍ necesita su fig — «saldo vencido» está en
+      // `AUSENTE_VALE_CERO` (notario/lexico.js): ausente ES cero, un hecho real, no un hueco. `f.vencidoK` ya es
+      // 0 por defecto (mesaFlujo.js) cuando no hay factura vencida — se formatea con la MISMA función de la mesa
+      // (`mK`, nunca un formateador nuevo), nunca se inventa un número. SOLO para `_entidadesDelUniversoTipado`
+      // (nunca para una entidad que entró solo por `_entidadesNombradas`, texto libre del turno).
       if (f.vencidoFmt != null) _fig(`${f.nombre} · Saldo vencido`, f.vencidoFmt, f.vencidoK);
+      else if (_entidadesDelUniversoTipado.has(f.nombre)) _fig(`${f.nombre} · Saldo vencido`, _mKDeLaMesa(0), 0);
       if (f.recuperadoFmt != null && Number.isFinite(f.recuperadoPct)) boleta.push(fig(`${f.nombre} · Recuperado`, f.recuperadoFmt, { unit: "pct", raw: f.recuperadoPct, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
       if (f.diasVencidoFmt && f.diasVencidoFmt !== "—" && Number.isFinite(f.diasVencido)) boleta.push(fig(`${f.nombre} · Dias Vencido`, f.diasVencidoFmt, { unit: "days", raw: f.diasVencido, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
       // Z09 (tarea 5 del cierre): la misma «Saldo por vencer» que ya publica el bucle del top-8, también para las
