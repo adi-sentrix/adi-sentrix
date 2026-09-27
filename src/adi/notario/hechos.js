@@ -14,7 +14,7 @@
  * Puro: sin I/O, sin red. */
 import { parseFigures } from "../boleta.js";
 import { tolCalculo } from "../oracle/calculoCatalogo.js";
-import { verificarAfirmaciones, conjuntoDeUniverso, valorDeRanking } from "./verificar.js";
+import { verificarAfirmaciones, conjuntoDeUniverso, valorDeRanking, valorDeReferencia } from "./verificar.js";
 import { indiceDeEvidencia, mismoValor, unidadCompatible } from "./evidencia.js";
 import { normalizar, menosAscii, leerValor, direccionPorDefecto } from "./afirmacion.js";
 import { parsearLineasDeBloque, MARCA_FIN } from "./declaracion.js";
@@ -327,10 +327,20 @@ export const dominioDeEstado = (canon) => (_ESTADOS_COBRANZA.has(canon) ? "cobra
 
 /* ── el nombre de un universo tipado, escrito por la casa (la plantilla de {id.universo}) ── */
 const _OPS = { ">": "superior a", ">=": "de al menos", "<": "inferior a", "<=": "de hasta", "==": "igual a" };
-const _fmtUmbral = (f) => {
+const _fmtUmbral = (f, I = null) => {
   const clave = String(f.metrica || "").toLowerCase();
   const nombre = metricaDeClave(clave).toLowerCase();
-  if (f.ref != null) return `${nombre} ${_OPS[f.op] || f.op} ${metricaDeClave(f.ref).toLowerCase()}`;
+  if (f.ref != null) {
+    const base = `${nombre} ${_OPS[f.op] || f.op} ${metricaDeClave(f.ref).toLowerCase()}`;
+    // R-ROTULO-CONTEO-FILTRO (supervisor 2026-09-26, segunda vuelta): «las comparables viajan juntas» sin
+    // excepción — toda mención de una referencia (benchmark, nivel de carga, techo) imprime SU VALOR en la MISMA
+    // oración, tomado de la evidencia con `valorDeReferencia` (LA MISMA resolución que `_filtroTipado`,
+    // notario/verificar.js, ya usa para juzgar este mismo filtro — nunca una segunda cifra inventada). Sin `I`
+    // (un llamador que no lo tenga a mano, p. ej. un placeholder `{id.umbral}` fuera de este archivo) se sirve el
+    // nombre solo, como antes — documentado, nunca silencioso.
+    if (I) { const r = valorDeReferencia(f.ref, I); if (r && Number.isFinite(r.raw)) return `${base}, ${formatoDeLaCasa(r.raw, r.unidad || unidadDeClave(f.ref) || "pct")}`; }
+    return base;
+  }
   const unidad = f.unidad ? String(f.unidad) : unidadDeClave(clave) || "";
   const val = (v) => (/^(?:days|money|pct|pp|count|ratio)$/.test(unidad) ? formatoDeLaCasa(+v, unidad) : `${v} ${unidad}`);
   if (f.op === "entre") { const v = Array.isArray(f.valor) ? f.valor : [f.valor, f.hasta]; return `${nombre} entre ${val(v[0])} y ${val(v[1])}`; }
@@ -348,7 +358,7 @@ export function nombrarUniverso(u, I = null) {
   for (const e of _lista(u.estados)) partes.push(nombreDeEstado(_canonDe(e)));
   for (const e of _lista(u.no_estados)) { const c = _canonDe(e); partes.push(c === "en mora" ? "sin mora" : c === "sin deuda" ? "con deuda" : c === "al dia" ? "que no están al día" : `no ${nombreDeEstado(c)}`); }
   if (u.bodega) partes.push(`de ${u.bodega}`);
-  for (const f of Array.isArray(u.filtros) ? u.filtros : []) partes.push(`con ${_fmtUmbral(f)}`);
+  for (const f of Array.isArray(u.filtros) ? u.filtros : []) partes.push(`con ${_fmtUmbral(f, I)}`);
   if (u.top) { const dir = normalizar(u.top.direccion || "mayor"); partes.push(`${u.top.k} de ${dir === "menor" ? "menor" : dir === "peor" ? "peor" : dir === "mejor" ? "mejor" : "mayor"} ${metricaDeClave(u.top.metrica).toLowerCase()}`); }
   const cabeza = restringido ? `${art} ${plural}` : `${art} ${total ? total + " " : ""}${plural}`;
   let texto = partes.length ? `${cabeza} ${partes.join(" ")}` : cabeza;
@@ -494,7 +504,17 @@ function _aV2(h, I) {
       /* sin miembros y con universo tipado («los clientes en mora»): los miembros son el conjunto */
       if (!miembros.length && (_es(h.de) || _es(h.universo))) { try { const U = conjuntoDeUniverso(_es(h.de) ? h.de : h.universo, I, (_es(h.de) ? h.de : h.universo).eje || null, ""); if (U && U.set) miembros = [...U.set].map((k) => (I.entidades.get(k) || { nombre: k }).nombre); } catch { /* sin conjunto: la declaración queda incompleta */ } }
       const metrica = agregado === "participacion" ? "Participación en la venta" : base.metrica;
-      return { ...base, sujeto: miembros, metrica, grupo: { entidades: miembros, n: miembros.length || h.n, agregado }, universo: typeof h.universo === "string" ? h.universo : (h.de && typeof h.de === "string" ? h.de : "") };
+      // R-GRUPO-UNIVERSO-PERDIDO (supervisor 2026-09-26, MATERIAL) — un universo TIPADO («los clientes en mora»)
+      // se preserva IGUAL que en el caso "orden" (línea de arriba, el MISMO helper `universo()`): antes, esta
+      // rama solo aceptaba un universo STRING (o un `de` string) y descartaba cualquier objeto tipado a `""` —
+      // así que «grupo fuera del universo» (más abajo en este archivo, el chequeo que necesita `a2.universo`
+      // poblado) nunca se evaluaba, y una premisa DEMOSTRABLEMENTE falsa («Jumbo está en mora», vencido $0)
+      // degradaba a «no-verificable» por falta de la fig individual de Jumbo, en vez de resolverse contra el
+      // CONJUNTO que el Core ya sabe calcular (mismo mecanismo que ya usa la rama "conteo" de este switch para
+      // derivar los miembros de este mismo universo). `h.de` sigue aceptado como alias tipado (mismo criterio que
+      // ya usa esta rama arriba, unas líneas antes, para derivar `miembros`).
+      const universoGrupo = _es(h.universo) ? h.universo : (_es(h.de) ? h.de : (typeof h.universo === "string" ? h.universo : (typeof h.de === "string" ? h.de : "")));
+      return { ...base, sujeto: miembros, metrica, grupo: { entidades: miembros, n: miembros.length || h.n, agregado }, universo: universo(universoGrupo, (Array.isArray(h.miembros) && h.miembros[0]) || h.sujeto) };
     }
     case "variacion": {
       const v = _es(h.variacion) ? h.variacion : {};

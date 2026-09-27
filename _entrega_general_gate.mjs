@@ -632,8 +632,45 @@ H("20 · (2) el denominador del puesto == tamaño de un universo declarado en en
   }
 }
 
-/* ═══ 21 · CERO red ═══════════════════════════════════════════════════════════════════════════════════════════ */
-H("21 · CERO red — clasificarFuente(este gate) === offline");
+/* ═══ 21 · «Para su juicio» entre DOS partes comerciales de alcance distinto: UNIÓN, no intersección (supervisor
+ * 2026-09-26, segunda vuelta — decisión explícita: «una entidad es legítima si está dentro del alcance de ALGUNA
+ * parte comercial, porque cada parte es algo que el usuario pidió; exigir todas a la vez borraría entidades
+ * pedidas»). `buildRolesCartera` propone SIEMPRE Falabella y Jumbo para el tenant demo (medido) — con `p1`
+ * excluyendo solo a Jumbo y `p2` excluyendo solo a Falabella, cada entidad SÍ está dentro del alcance de LA OTRA
+ * parte: con unión, ambas sobreviven (si el criterio fuera intersección, ninguna sobreviviría — las dos quedarían
+ * fuera y la pregunta caería al representante genérico, que es justo el error que un criterio de AND introduce).
+ * Control: cuando AMBAS partes excluyen a las DOS, ninguna sobrevive de verdad (fuera del alcance de TODAS) y la
+ * pregunta cae al representante (`_entidadRepresentativaDeTema`), nunca a una entidad ajena al alcance. ═══════ */
+H("21 · «Para su juicio» con dos partes comerciales — UNIÓN de alcances, nunca intersección");
+{
+  const _res2Comercial = (exA, exB) => validarEncargo({ version: "encargo/v1", partes: [
+    { id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], universo: { eje: "cliente", excluir: { entidades: exA } } },
+    { id: "p2", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], universo: { eje: "cliente", excluir: { entidades: exB } } },
+  ] }, {});
+  // p1 excluye Jumbo (Falabella queda DENTRO de p1); p2 excluye Falabella (Jumbo queda DENTRO de p2) — cada una
+  // pertenece al alcance de la OTRA parte, así que la unión las retiene a las DOS.
+  const resUnion = _res2Comercial(["Jumbo"], ["Falabella"]);
+  ok(resUnion.ok, "el encargo de 2 partes comerciales valida (caso unión)");
+  const Runion = componerEntrega(resUnion);
+  ok(Runion.ok, "compone ok (2 partes comerciales, alcances distintos)", Runion.motivo);
+  if (Runion.ok) {
+    const pa = Runion.entrega.paraSuJuicio.find((p) => p.sobre && /Falabella/.test(p.sobre.entidad || ""));
+    ok(!!pa, "★ CARNADA · con alcances distintos por parte, la pregunta al dueño nombra a AMBAS (Falabella y Jumbo) — unión, no intersección", JSON.stringify(Runion.entrega.paraSuJuicio.map((p) => p.pregunta)));
+    ok(!!pa && /Falabella/.test(pa.sobre.entidad) && /Jumbo/.test(pa.sobre.entidad), "★ las dos entidades, cada una dentro del alcance de UNA parte, aparecen juntas", pa && pa.sobre.entidad);
+  }
+  // control: las DOS partes excluyen a las DOS entidades — ninguna está dentro del alcance de NINGUNA parte, así
+  // que la unión tampoco las retiene: cae al representante, nunca a Falabella/Jumbo (fuera de TODO alcance).
+  const resNinguna = _res2Comercial(["Falabella", "Jumbo"], ["Falabella", "Jumbo"]);
+  const Rninguna = componerEntrega(resNinguna);
+  ok(Rninguna.ok, "compone ok (2 partes comerciales, ambas excluyen a las dos entidades)", Rninguna.motivo);
+  if (Rninguna.ok) {
+    const textoPJ = Rninguna.entrega.paraSuJuicio.map((p) => p.pregunta || "").join(" | ");
+    ok(!/Falabella/.test(textoPJ) && !/Jumbo/.test(textoPJ), "★ CARNADA · fuera del alcance de LAS DOS partes, ninguna de las dos aparece (nunca «de ninguna, sí»)", textoPJ);
+  }
+}
+
+/* ═══ 22 · CERO red ═══════════════════════════════════════════════════════════════════════════════════════════ */
+H("22 · CERO red — clasificarFuente(este gate) === offline");
 {
   const fuente = fs.readFileSync("./_entrega_general_gate.mjs", "utf8");
   const c = clasificarFuente(fuente);

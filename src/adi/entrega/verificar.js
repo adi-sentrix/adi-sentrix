@@ -188,6 +188,12 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
   //    brecha propia — no es el caso que esta regla vigila.
   //  · las oraciones `_definicion` (defineConcept: EXPLICAN qué es «benchmark»/«brecha», contrato §1.1 — no
   //    afirman una, y `definicion` prohíbe cifras y marco).
+  // NO hay una tercera excepción para las oraciones `_premisa` (revertido, supervisor 2026-09-26, segunda vuelta:
+  // «afloja la ley “las comparables viajan juntas”»). El veredicto de una premisa que cita una referencia
+  // (benchmark, nivel de carga, techo) tiene que imprimir el VALOR de esa referencia en la MISMA oración —
+  // `nombrarUniverso`/`_fmtUmbral` (notario/hechos.js) ahora lo hacen («…margen inferior a benchmark de margen,
+  // 30.1%…», tomado del universo tipado de la premisa vía `valorDeReferencia`) — así que la regla se cumple SIN
+  // excepción, nunca aflojada.
   // Las 4 rutas fijas nunca marcan un límite `_ausencia` de forma distinta a como ya lo hacían (campo aditivo) ni
   // tienen respuesta `_definicion`: el cambio no las afecta — `_entrega_gate` sigue en 363/363.
   const _SIN_EXCLUSIONES = (() => {

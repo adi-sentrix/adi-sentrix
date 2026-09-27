@@ -33,14 +33,19 @@ import { CONCEPT_DEFS } from "../sentrix/glossary.js";
 import { cifrasDelDato } from "../oracle/datoProyectado.js";
 import { axisEntityNames } from "../oracle/entityIndex.js";
 import { indiceDeEvidencia } from "../notario/evidencia.js";
-import { libroDeHechos, asignarIds, renderDe, procedenciaDe, NOMBRE_DE_PROCEDENCIA, PROCEDENCIAS, validarUniverso, nombrarUniverso, dominioDeEstado } from "../notario/hechos.js";
+import { libroDeHechos, asignarIds, renderDe, procedenciaDe, NOMBRE_DE_PROCEDENCIA, PROCEDENCIAS, validarUniverso, nombrarUniverso, dominioDeEstado, formatoDeLaCasa } from "../notario/hechos.js";
 import { periodoDeFiguras, reconcilian, UNIVERSOS, PERIODO_TXT } from "../../config/contract/figureType.js";
 // CORTE 3c (owner 2026-09-25, piezas 1 y 3 del encargo) — `conjuntoDeUniverso` es LA MISMA primitiva que ya
 // evalúa un universo tipado (estados/filtros) para el Notario v3 (`notario/hechos.js:_conteoTipado` la llama
 // igual): se reusa acá para el mismo fin, nunca un motor de estados nuevo. `estadoCanon` (estados.js) traduce el
-// estado de una premisa a su canon para saber a qué dominio pertenece (pieza 3).
-import { conjuntoDeUniverso } from "../notario/verificar.js";
+// estado de una premisa a su canon para saber a qué dominio pertenece (pieza 3). `valorDeReferencia`
+// (supervisor 2026-09-26, segunda vuelta) resuelve la cifra de una referencia (benchmark, nivel de carga, techo)
+// citada por una premisa, para declararla en el Marco sin excepción al guardrail «comparables juntas».
+import { conjuntoDeUniverso, valorDeReferencia } from "../notario/verificar.js";
 import { estadoCanon } from "../notario/estados.js";
+// R-SORT-DIRECCION-IGNORADA, defensa en profundidad (supervisor 2026-09-26) — la MISMA normalización de nombres
+// que ya usa el Notario, para comparar el conjunto que `conjuntoDeUniverso` resuelve contra lo que una tool sirvió.
+import { normalizar } from "../notario/afirmacion.js";
 // TAREA 3 (encargo multidominio, owner 2026-09-23) — LA MISMA hoja y LA MISMA prioridad que ya certifica el
 // agente en vivo: «no escribas otra prioridad, sería una segunda verdad». Nada de esto se reescribe acá.
 import { partesDelEncargo, dominiosDelEncargo } from "../agente/partesDelEncargo.js";
@@ -1302,6 +1307,31 @@ function _limitesDeclarados(resolucion, temasCubiertos) {
   return limites;
 }
 
+/* R-RUTA-FIJA-SIN-LIMITES-RAIZ (supervisor 2026-09-26, MATERIAL) — CANDADO GENERAL: ningún `noResuelto` de la
+ * `Resolucion` puede faltar en `entrega.limites`, sea cual sea el camino que compuso la Entrega. Las 4 rutas
+ * canónicas (`_delegarRutaCanonica`) devuelven ANTES de la sección «MARCO, LÍMITES» del camino general (línea
+ * ~2189: `if (canonica) return _conTamanoGobernado(canonica, resolucion);`) — nunca llaman a `_limitesDeclarados`,
+ * así que un `usar`/`profundidad`/`iniciativa`/`contexto` inválido en la RAÍZ del encargo (contrato §2.1) se
+ * declara en `resolucion.noResuelto` pero desaparece sin rastro de la Entrega cuando la única parte cae en una de
+ * esas 4 rutas «simples» — el MISMO campo inválido, sobre el MISMO tema, SÍ se declara si la parte trae una
+ * entidad o un concepto explícito (cae al camino general, que sí llama `_limitesDeclarados` con la `Resolucion`
+ * completa, línea ~2847). Se cierra acá, con la MISMA función que ya usa el camino general — nunca una prosa
+ * nueva —, filtrada a los `noResuelto` de RAÍZ (`nr.parte` vacío: los de una parte no aplican a una ruta fija, que
+ * por definición solo tiene una parte «simple» sin declarar nada que pueda fallar). SIN dedupe por texto: el
+ * camino general tampoco lo hace (`_limitesDeclarados` solo dedupe por su propia clave `parte:campo:valor`, nunca
+ * por el título ya renderizado) — dos `contexto_no_disponible` con distinto `nr.valor` (dos ids de hecho citados)
+ * son dos límites reales aunque su título se lea igual (W70), y esta función tiene que servir los MISMOS que
+ * serviría el camino general con la misma `Resolucion`, byte a byte. Con un encargo LIMPIO (`resolucion.noResuelto`
+ * vacío o solo de parte) esta función no agrega nada: el byte a byte de las 4 rutas fijas no cambia — la carnada
+ * del gate lo exige. */
+function _conLimitesDeRaiz(resultado, resolucion) {
+  if (!resultado || !resultado.entrega || !Array.isArray(resultado.entrega.limites)) return resultado;
+  const raiz = (resolucion && resolucion.noResuelto || []).filter((nr) => !nr.parte);
+  if (!raiz.length) return resultado;
+  resultado.entrega.limites.push(..._limitesDeclarados({ noResuelto: raiz }, new Set()));
+  return resultado;
+}
+
 /* CORRECCIÓN DEL SUPERVISOR (2026-09-25, revisión de calidad tras la entrega de 3d) — «un rótulo que ya termina
  * en "en $" duplica el signo cuando se pega a un valor en dinero (regla madre: la Entrega la lee un LLM, no
  * puede llevar jerga ni ruido)». Se corta el sufijo " en $" SOLO al armar una ORACIÓN (nunca en la tabla de
@@ -1551,6 +1581,43 @@ function _entidadRepresentativaDeTema(tema, planes) {
   return null;
 }
 
+/* R2/R3, GENERALIZADO A TODO EL ALCANCE (supervisor 2026-09-26, segunda vuelta, MATERIAL, carnada W79) — una
+ * entidad que `buildRolesCartera` propone desde el PORTAFOLIO ENTERO solo puede nombrarse en «Para su juicio» si
+ * está DENTRO del alcance que ALGUNA parte comercial declaró: nunca excluida por esa parte (`excluir`), y si esa
+ * parte acotó el eje con `top`/`base`/`estados`/`no_estados`/`filtros`, solo si pertenece a ESE conjunto — misma
+ * primitiva (`conjuntoDeUniverso`, notario/verificar.js) que ya usa `_planCifraGrupo`/`figsEnAlcance` para
+ * recortar lo servido, nunca una segunda definición de alcance. Con top 3 «menor», Falabella (el más grande) NO
+ * puede volver nombrada acá aunque `rolesCartera` la proponga por su carga — es la MISMA ley que ya protegía
+ * `excluir`, generalizada a los demás campos de `CAMPOS_UNIVERSO`.
+ * ENTRE PARTES el criterio es UNIÓN, no intersección (supervisor 2026-09-26, decisión explícita de la segunda
+ * vuelta): «una entidad es legítima si está dentro del alcance de ALGUNA parte comercial, porque cada parte es
+ * algo que el usuario pidió; exigir todas a la vez borraría entidades pedidas». DENTRO de una misma parte, sus
+ * restricciones siguen combinándose TODAS juntas (una sola llamada a `conjuntoDeUniverso` con todos sus campos,
+ * `_entidadEnAlcanceDeUnaParte`) — eso no cambió. */
+function _entidadEnAlcanceDeUnaParte(nNorm, p, I) {
+  const alcance = alcanceDeParte(p);
+  if ((alcance.excluir || []).some((x) => normalizar(x) === nNorm)) return false;
+  const eje = alcance.eje || "cliente";
+  const camposDeclarados = {};
+  if (alcance.base) camposDeclarados.base = alcance.base;
+  if (alcance.estados) camposDeclarados.estados = alcance.estados;
+  if (alcance.no_estados) camposDeclarados.no_estados = alcance.no_estados;
+  if (alcance.filtros) camposDeclarados.filtros = alcance.filtros;
+  if (alcance.top) camposDeclarados.top = alcance.top;
+  if (Object.keys(camposDeclarados).length && I) {
+    let R = null;
+    try { R = conjuntoDeUniverso({ eje, ...camposDeclarados }, I, eje, ""); } catch { R = null; }
+    if (R && R.set && !R.set.has(nNorm)) return false;
+  }
+  return true;
+}
+function _entidadEnAlcanceComercial(nombre, partesComercial, I) {
+  const nNorm = normalizar(nombre);
+  if (!nNorm) return false;
+  if (!partesComercial.length) return true;   // sin partes comerciales que resolver: nada que aplicar, nunca se excluye a ciegas
+  return partesComercial.some((p) => _entidadEnAlcanceDeUnaParte(nNorm, p, I));
+}
+
 /* un universo con `estados`/`no_estados`/`filtros` exige evaluar el ESTADO de cada entidad contra el dato real
  * (notario/estados.js aplicado a un universo completo) — un subsistema que este corte NO construye (gap declarado
  * en la cabecera). `universo.top` (el ranking) SÍ está resuelto. */
@@ -1707,6 +1774,19 @@ function _parteDePremisa(p, partesUtiles) {
  * deja el veredicto sin texto). */
 const _VERBO_DIRECCION_PREMISA = { sube: "creció", baja: "cayó" };
 function _rotuloDeLaCasaDeH(H) {
+  // R-ROTULO-CONTEO-FILTRO (supervisor 2026-09-26, MATERIAL) — un `conteo` (con o sin sujeto) no tiene una fig
+  // «Entidad · Concepto» propia: su `H.evidencia[0]` es un DESCRIPTOR de universo/filtro concatenado con «·»
+  // (`_filtroTipado`/`_setDeEstado`, notario/verificar.js — p. ej. «en mora (saldo vencido > 0) · margen <
+  // Benchmark de margen = 30.1 (8)»), la MISMA forma superficial que una fig real («Entidad · Concepto») pero
+  // nunca una. El resto de esta función solo excluye el prefijo «ranking » — así que ese descriptor se leía como
+  // fig, `_entidadDe` tomaba «en mora (saldo vencido > 0)» como si fuera el nombre de una entidad, y `H.numeros[0]`
+  // (el CONTEO declarado, p. ej. 5) se pegaba a esa «entidad» como si fuera su cifra: «en mora (saldo vencido >
+  // 0): benchmark de margen 5» — una oración que no dice nada verdadero ni verificable. `_conteoTipado`
+  // (notario/hechos.js) YA arma la oración correcta desde la ESTRUCTURA del hecho — «K de M en <universo, en
+  // palabras de la casa>: <miembros>» (`H.verdad`, con `nombrarUniverso` — el mismo helper que declara cualquier
+  // universo tipado de la casa) — así que un `conteo` siempre cae a `H.verdad`/`H.motivo` (el fallback que esta
+  // función ya usaba para «sin evidencia suficiente»), nunca a un rótulo genérico armado para `orden`/`variacion`.
+  if (H.tipo === "conteo") return null;
   // CORREGIDO (2026-09-26, medido con D29 al correr `_entrega_neutral_gate`) — cuando el hecho no vino de una
   // fig de la boleta sino de `I.rankings` (notario/verificar.js, «cae al ranking cuando la boleta no trae la
   // fig», ver la nota de `_dominioDePremisa`), `H.evidencia[0]` NO es un label "Entidad · Concepto": es el MISMO
@@ -1756,6 +1836,36 @@ function _textoDePremisa(H, libroPremisas) {
  * nunca entra; (RC-D) con `top`, el listado servido es SOLO `top.k` filas con cifra propia — nunca la cola
  * completa (antes esto confiaba en que la TOOL ya recortaba, cierto para `queryMetric{limit}`, falso para
  * `cobranza`/`diagnose`/`rolesCartera`, que ignoran `limit` y devuelven el eje entero). */
+// R-SORT-DIRECCION-IGNORADA, defensa en profundidad (supervisor 2026-09-26, MATERIAL, ESTRUCTURAL) — con `top`,
+// `_planCifraGrupo` recibe las figs de UNA llamada de `queryMetric` que la tool YA LIMITÓ a `top.k` filas
+// (`lecturasDe.js`): nunca se puede confiar en que esa selección sea el extremo que `universo.top.direccion`
+// pidió — el desajuste de forma de `sort` (string vs. `{dir}`) hacía EXACTAMENTE eso, siempre, en silencio, hasta
+// este mismo corte. Acá se contrasta la SELECCIÓN de la tool contra `conjuntoDeUniverso({eje, top}, I, eje, "")`
+// — LA MISMA primitiva que ya resuelve `top` para el Notario (`notario/verificar.js:_topTipado`), sobre el
+// ranking de la PROYECCIÓN (`datoProyectado.rankings`, no la boleta de esta llamada — independiente de cuántas
+// filas trajo la tool y de cualquier otro desajuste futuro). Si el conjunto que el Core ya sabe calcular no
+// coincide con lo que la tool sirvió, se reordena desde ESOS datos — nunca desde lo que la tool decidió recortar
+// — completando las figs que falten desde el resto de la evidencia del turno (`indice.figsDeMetrica`, la misma
+// fuente que ya usa el índice del Notario, sin el recorte por `porParte` de `figsAcotadas`). Sin `indice` o sin
+// un ranking que lo resuelva (`conjuntoDeUniverso` devuelve error, p. ej. top empatado), esta defensa simplemente
+// no corre — documentado, nunca silencioso: se sirve lo que trajo la tool, igual que antes de este corte.
+function _entidadesDelTopVerificado(entidadesDeLaTool, figsAcotadas, top, eje, conceptoTop, indice) {
+  if (!indice) return { entidades: entidadesDeLaTool, figsExtra: [] };
+  let R = null;
+  try { R = conjuntoDeUniverso({ eje, top }, indice, eje, ""); } catch { R = null; }
+  if (!R || !R.set) return { entidades: entidadesDeLaTool, figsExtra: [] };
+  const enJuegoNorm = new Set(entidadesDeLaTool.map((e) => normalizar(e)));
+  const coincide = R.set.size === enJuegoNorm.size && [...R.set].every((k) => enJuegoNorm.has(k));
+  if (coincide) return { entidades: entidadesDeLaTool, figsExtra: [] };
+  const nombres = [...R.set].map((k) => (indice.entidades && indice.entidades.get ? (indice.entidades.get(k) || { nombre: k }).nombre : k));
+  const conocidas = new Set(figsAcotadas.map((f) => _entidadDe(_lab(f))).filter(Boolean).map((n) => normalizar(n)));
+  const faltan = new Set(nombres.filter((n) => !conocidas.has(normalizar(n))).map(normalizar));
+  let figsExtra = [];
+  if (faltan.size && typeof indice.figsDeMetrica === "function") {
+    try { figsExtra = (indice.figsDeMetrica(conceptoTop, eje) || []).filter((f) => { const e = _entidadDe(_lab(f)); return e && faltan.has(normalizar(e)); }); } catch { figsExtra = []; }
+  }
+  return { entidades: nombres, figsExtra };
+}
 function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}) {
   if (_universoNoSoportado(parte.universo)) return null;
   const alcance = alcanceDeParte(parte);
@@ -1764,7 +1874,7 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
   // declarada (K16: `{eje:"sku", bodega:"Valparaíso"}` servía las 11 figs del inventario completo, no las 4 de
   // Valparaíso). Sin `indice` (un llamador que no lo tenga a mano) esta mitad del recorte simplemente no corre —
   // documentado en `figsEnAlcance`, nunca silencioso.
-  const figsAcotadas = figsEnAlcance(figs, alcance, { ejesDelTenant, indice });
+  let figsAcotadas = figsEnAlcance(figs, alcance, { ejesDelTenant, indice });
   const eje = alcance.eje || parte.eje;
   const conceptosBase = parte.conceptos && parte.conceptos.length ? parte.conceptos.slice() : [];
   const top = alcance.top;
@@ -1777,7 +1887,12 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
   // entidades que aparecen en OTRO concepto sin top (eso sería inventar una cola que no se declaró). Sin `top`, el
   // conjunto es la unión de TODO lo que cada concepto pedido trajo, sin recorte.
   let entidadesEnJuego;
-  if (top) entidadesEnJuego = _todasLasFilasDeConcepto(figsAcotadas, conceptoTop).map((x) => x.entidad);
+  if (top) {
+    const crudo = _todasLasFilasDeConcepto(figsAcotadas, conceptoTop).map((x) => x.entidad);
+    const { entidades, figsExtra } = _entidadesDelTopVerificado(crudo, figsAcotadas, top, eje, conceptoTop, indice);
+    if (figsExtra.length) figsAcotadas = [...figsAcotadas, ...figsExtra];
+    entidadesEnJuego = entidades;
+  }
   else { const v = new Set(); for (const c of conceptos) for (const { entidad } of _todasLasFilasDeConcepto(figsAcotadas, c)) v.add(entidad); entidadesEnJuego = [...v]; }
   if (!entidadesEnJuego.length) return null;
 
@@ -2187,7 +2302,7 @@ function _conTamanoGobernado(resultado, resolucion) {
  *  de equivalencia, ver la cabecera). CERO lectura de `resolucion.encargo.preguntaOriginal` (carnada del gate). */
 export function componerEntrega(resolucion) {
   const canonica = _delegarRutaCanonica(resolucion);
-  if (canonica) return _conTamanoGobernado(canonica, resolucion);
+  if (canonica) return _conTamanoGobernado(_conLimitesDeRaiz(canonica, resolucion), resolucion);
 
   if (!resolucion || !Array.isArray(resolucion.partes)) return _vacia("sin resolución: nada que componer");
   const partesUtiles = resolucion.partes.filter((p) => p.estado === "resuelta" || p.estado === "parcial");
@@ -2840,6 +2955,24 @@ export function componerEntrega(resolucion) {
     // CORTE 3e (owner 2026-09-26) — «declarado por usted» → «declarado por la empresa».
     entrega.marco.referenciaDeclarada = { texto: `Benchmark de margen: ${R(idBenchComercialGlobal)}, declarado por la empresa.`, hechoId: idBenchComercialGlobal };
   }
+  // R-ROTULO-CONTEO-FILTRO, cierre del guardrail SIN excepción (supervisor 2026-09-26, segunda vuelta: «las
+  // comparables viajan juntas» no se afloja) — `idBenchComercialGlobal` solo mira los PLANES de las partes: una
+  // premisa (W21, tema cobranza/`credito`) puede citar una referencia (benchmark, nivel de carga, techo) en su
+  // FILTRO sin que ningún plan del tema correspondiente haya corrido. La oración del veredicto YA imprime el
+  // VALOR de esa referencia (`nombrarUniverso`/`_fmtUmbral`, notario/hechos.js, vía `valorDeReferencia`) — pero
+  // el Marco tiene que declararla igual, sin excepción para el tipo de oración. Se resuelve con la MISMA función
+  // que ya usa la oración (`valorDeReferencia`, notario/verificar.js) contra el MISMO índice `I`: no depende de
+  // que exista una fig de LEDGER con `id` (el KPI de `datoProyectado` que resuelve el valor no lo tiene), así que
+  // se declara sin `hechoId` (campo opcional, `esquema.js:41`, no lo lee ningún otro consumidor).
+  if (!entrega.marco.referenciaDeclarada && libroPremisas) {
+    let refCitada = null;
+    for (const H of libroPremisas.porId.values()) { const fs = H && H.universoTipado && Array.isArray(H.universoTipado.filtros) ? H.universoTipado.filtros : []; const f = fs.find((x) => x && x.ref); if (f) { refCitada = f.ref; break; } }
+    if (refCitada) {
+      const r = valorDeReferencia(refCitada, I);
+      const m = metricaPorClave(refCitada);
+      if (r && Number.isFinite(r.raw) && m) entrega.marco.referenciaDeclarada = { texto: `${m.nombre}: ${formatoDeLaCasa(r.raw, r.unidad || m.unidad)}, declarado por la empresa.`, hechoId: null };
+    }
+  }
 
   entrega.limites = [..._limitesDeclarados(resolucion, temasCubiertos), ...limitesGap, ...entrega.limites];
   { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
@@ -2887,22 +3020,31 @@ export function componerEntrega(resolucion) {
   if (temasCubiertos.has("comercial") && _comercialEsDeCartera) {
     let rolesGeneral = null;
     try { rolesGeneral = buildRolesCartera(scenario); } catch { rolesGeneral = null; }
-    // R2 GENERALIZADO (diagnóstico v2, supervisor 2026-09-26 — MATERIAL, hallado al reproducir W20 con el resto
-    // de este corte ya aplicado): `buildRolesCartera` corre sobre el PORTAFOLIO ENTERO, ajeno a cualquier
-    // `universo.excluir` que el encargo haya declarado — la MISMA ley que ya protege `_planMultiTema`
-    // (`entrega/alcance.js`). Sin este filtro, la entidad EXCLUIDA por el usuario podía volver nombrada en la
-    // pregunta al dueño de «Para su juicio» (nunca con cifra propia — `_preguntaAbiertaComercial` no imprime una
-    // — pero el nombre solo ya viola «nada se sustituye por un vecino»). Se filtra por NOMBRE, nunca se
-    // reconstruye `rolesCartera` con un universo nuevo: es la salida de siempre, con las entidades excluidas
-    // retiradas de la única lista que este compositor lee (`preguntaAlDueno.entidades`).
-    const excluidasComercial = new Set(partesUtiles.filter((p) => p.tema === "comercial").flatMap((p) => alcanceDeParte(p).excluir).map((n) => String(n || "").trim().toLowerCase()));
-    if (rolesGeneral && rolesGeneral.preguntaAlDueno && excluidasComercial.size) {
-      const entsFiltradas = (rolesGeneral.preguntaAlDueno.entidades || []).filter((e) => !excluidasComercial.has(String(e || "").trim().toLowerCase()));
+    // R2/R3, GENERALIZADO A TODO EL ALCANCE (diagnóstico v2 y v5, supervisor 2026-09-26 — MATERIAL, hallado al
+    // reproducir W20 y W79): `buildRolesCartera` corre sobre el PORTAFOLIO ENTERO, ajeno a cualquier alcance que
+    // el encargo haya declarado — no solo `universo.excluir` (la primera versión de esta ley), sino también
+    // `top`/`base`/`estados`/`no_estados`/`filtros` (`_entidadEnAlcanceComercial`, abajo, con la MISMA primitiva
+    // `conjuntoDeUniverso` que ya usa el compositor y el Notario). Sin este filtro, W79 («los 3 clientes más
+    // chicos por venta») podía nombrar a Falabella y Jumbo —los MÁS GRANDES, fuera del top-3 pedido— en la
+    // pregunta al dueño de «Para su juicio»: nunca con cifra propia (`_preguntaAbiertaComercial` no imprime una),
+    // pero el nombre solo ya viola «nada se sustituye por un vecino». Se filtra por NOMBRE, nunca se reconstruye
+    // `rolesCartera` con un universo nuevo: es la salida de siempre, con las entidades fuera de alcance retiradas
+    // de la única lista que este compositor lee (`preguntaAlDueno.entidades`).
+    const partesComercial = partesUtiles.filter((p) => p.tema === "comercial");
+    if (rolesGeneral && rolesGeneral.preguntaAlDueno) {
+      const entsFiltradas = (rolesGeneral.preguntaAlDueno.entidades || []).filter((e) => _entidadEnAlcanceComercial(e, partesComercial, I));
       rolesGeneral = entsFiltradas.length === (rolesGeneral.preguntaAlDueno.entidades || []).length ? rolesGeneral
         : { ...rolesGeneral, preguntaAlDueno: entsFiltradas.length ? { ...rolesGeneral.preguntaAlDueno, entidades: entsFiltradas } : null };
     }
     // CORTE 3e (owner 2026-09-26) — antes: `Solo usted puede responder: …` (segunda persona).
-    { const pa = _preguntaAbiertaComercial(rolesGeneral, perfil); if (pa) entrega.paraSuJuicio.push(pa); }
+    let pa = _preguntaAbiertaComercial(rolesGeneral, perfil);
+    // R3 (supervisor 2026-09-26, segunda vuelta) — si NINGUNA entidad del portafolio entero sobrevivió al
+    // alcance declarado, no se sirve una pregunta sin sujeto dentro del alcance ni se cae en silencio: se ofrece
+    // la pregunta derivada del hueco sobre la entidad que la Entrega YA sirvió (`_entidadRepresentativaDeTema`,
+    // la cabeza de la lista YA acotada por `_planCifraGrupo`/`figsEnAlcance` — nunca una entidad nueva ni ajena
+    // al alcance, carnada W79: con top 3 «menor», la representativa es Unimarc, no Falabella).
+    if (!pa) { const rep = _entidadRepresentativaDeTema("comercial", planes); if (rep) pa = _preguntaAbiertaComercial({ hay: true, preguntaAlDueno: { entidades: [rep] } }, perfil); }
+    if (pa) entrega.paraSuJuicio.push(pa);
   }
   if (temasCubiertos.has("comercial")) {
     for (const p of planes) {

@@ -103,7 +103,11 @@ H("5 · el universo lo escribe la casa");
   const I = indiceDeEvidencia({ figs, datoProyectado: DATO, ejesDelTenant: ejes });
   ok(nombrarUniverso({ eje: "cliente" }, I) === "los 13 clientes", "el eje entero con su tamaño");
   ok(nombrarUniverso({ eje: "cliente", excluir: { top: { metrica: "ventas", k: 3 } } }, I) === "los clientes fuera de los 3 de mayor venta", "exclusión por top-k");
-  ok(nombrarUniverso({ eje: "cliente", no_estados: ["en_mora"], filtros: [{ metrica: "margen", op: "<", ref: "benchmark" }] }, I) === "los clientes sin mora con margen inferior a benchmark de margen", "sin mora + bajo el benchmark");
+  // ACTUALIZADO (supervisor 2026-09-26, segunda vuelta, R-ROTULO-CONTEO-FILTRO) — `nombrarUniverso` ahora imprime
+  // el VALOR de la referencia junto a su nombre («…benchmark de margen, 30.1%»), tomado de la evidencia con
+  // `valorDeReferencia` (notario/verificar.js): así «comparables-juntas» (entrega/verificar.js) se cumple SIN
+  // excepción para el veredicto de una premisa, en vez de aflojar esa ley con una excepción por tipo de oración.
+  ok(nombrarUniverso({ eje: "cliente", no_estados: ["en_mora"], filtros: [{ metrica: "margen", op: "<", ref: "benchmark" }] }, I) === "los clientes sin mora con margen inferior a benchmark de margen, 30.1%", "sin mora + bajo el benchmark, con su valor");
   ok(nombrarUniverso({ eje: "sku", excluir: { bodega: "Santiago" } }, I) === "los SKU fuera de Santiago", "SKU fuera de una bodega");
   ok(nombrarUniverso({ eje: "cliente", filtros: [{ metrica: "dias_vencido", op: ">", valor: 1, unidad: "trimestre" }] }, I) === "los clientes con días vencido superior a 1 trimestre", "umbral en trimestres, escrito como se pidió");
 }

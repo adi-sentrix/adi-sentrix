@@ -26,14 +26,19 @@
  * métrica del top, decisión de cada compositor — no se puede resolver acá sin ese criterio). */
 
 import { CAMPOS_UNIVERSO } from "../notario/hechos.js";
+// R-BASE-SIN-ALCANCE (supervisor 2026-09-26, MATERIAL) — `conjuntoDeUniverso` es LA MISMA primitiva que ya
+// resuelve `base` para el Notario (`hechos.js:_conteoTipado`, la premisa que declara el mismo cohorte), sobre
+// `datoProyectado.conjuntos` (ver su cabecera en verificar.js) — nunca una segunda definición de «carga comercial
+// alta» ni de ningún otro cohorte de Business Knowledge.
+import { conjuntoDeUniverso } from "../notario/verificar.js";
 
 const _norm = (s) => String(s || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
 /* los campos de CAMPOS_UNIVERSO que `alcanceDeParte` YA sabe leer y devolver — `eje` siempre estuvo (con su propio
- * fallback a `parte.eje`, ver abajo); `base` y `union` no tienen hoy un mecanismo de recorte de FIGS ya calculadas
- * (a diferencia de la Notaría, que resuelve un universo tipado contra el eje entero desde cero, el compositor solo
- * RECORTA figs que una tool ya trajo — `base`/`union` piden resolver un conjunto que ninguna tool declaró todavía)
- * y se exponen igual para que ningún llamador futuro los lea como `undefined` sin verlos en absoluto. */
+ * fallback a `parte.eje`, ver abajo); `base` y `union` YA recortan (R-BASE-SIN-ALCANCE cerrado, UNIÓN cerrada en
+ * la segunda vuelta, supervisor 2026-09-26): `figsEnAlcance` resuelve el conjunto combinado con `conjuntoDeUniverso`,
+ * la MISMA primitiva del Notario, sobre `datoProyectado.conjuntos` — solo con `indice`, igual criterio que
+ * `bodega`. Ningún campo de `CAMPOS_UNIVERSO` queda sin mecanismo de recorte en este archivo. */
 const _CAMPOS_MANEJADOS = ["eje", "base", "estados", "no_estados", "bodega", "filtros", "top", "excluir", "union"];
 { const olvidados = CAMPOS_UNIVERSO.filter((c) => !_CAMPOS_MANEJADOS.includes(c)); if (olvidados.length) throw new Error(`entrega/alcance.js: CAMPOS_UNIVERSO ganó campo(s) que alcanceDeParte no maneja: ${olvidados.join(", ")} — agregalos a _CAMPOS_MANEJADOS y a alcanceDeParte/figsEnAlcance antes de tocar nada más`); }
 
@@ -108,7 +113,40 @@ export function figsEnAlcance(figs, alcance, { ejesDelTenant = {}, entidadDeLabe
       if (x.bodega && !_mismaBodega(bodegaDecl, x.bodega)) fueraDeBodega.add(_norm(x.entidad));
     }
   }
-  if (!excluidas.size && !miembrosDeOtroEje.length && !fueraDeBodega.size) return figs;
+  // BASE + UNIÓN (R-BASE-SIN-ALCANCE cerrado; UNIÓN cerrada en la segunda vuelta, supervisor 2026-09-26,
+  // MATERIAL) — `universo.base` («carga comercial alta») y `universo.union` recortan las figs IGUAL que `bodega`:
+  // el conjunto lo calcula el Core, con la MISMA primitiva que el Notario usa para verificar la premisa que
+  // declara ese mismo cohorte (`conjuntoDeUniverso`, sobre `datoProyectado.conjuntos` — nunca una segunda
+  // definición). Se resuelven JUNTOS en UNA sola llamada porque así compone la primitiva
+  // (`notario/verificar.js:_conjuntoTipado`): `union` es una operación ADITIVA sobre lo que YA restringieron
+  // `base`/`estados`/`no_estados`/`filtros` — resolverla sola, sin las restricciones que la acompañan, no
+  // restringe nada (sin punto de partida previo, el código arranca del eje ENTERO y unir cualquier cosa a
+  // «todos» sigue siendo «todos»). `estados`/`no_estados`/`filtros` viajan en la misma llamada por si algún
+  // llamador futuro los declara junto con `union` — HOY nunca llegan poblados a `figsEnAlcance` (`_planCifraGrupo`,
+  // componer.js, ya descarta esa combinación antes de llamar acá vía `_universoNoSoportado`), así que incluirlos
+  // es inerte para el camino actual y correcto para el que no lo es. Antes, `base`/`union` figuraban en
+  // `_CAMPOS_MANEJADOS` (candado de completitud arriba) sin que ningún código los aplicara: una `cifra` acotada a
+  // la base o a una unión servía el eje entero. Solo corre con `indice` (mismo criterio que bodega): sin él, esta
+  // mitad del recorte no corre, documentado, nunca silencioso. `dentroDelUniverso === null` significa «ni base ni
+  // union se declararon, o no se pudo resolver contra la evidencia» — nunca se excluye a ciegas por no poder
+  // resolverla.
+  const camposDeclarados = {};
+  if (alcance && alcance.base) camposDeclarados.base = alcance.base;
+  if (alcance && alcance.estados) camposDeclarados.estados = alcance.estados;
+  if (alcance && alcance.no_estados) camposDeclarados.no_estados = alcance.no_estados;
+  if (alcance && alcance.filtros) camposDeclarados.filtros = alcance.filtros;
+  if (alcance && alcance.union && alcance.union.length) camposDeclarados.union = alcance.union;
+  let dentroDelUniverso = null;
+  if (Object.keys(camposDeclarados).length && indice) {
+    try {
+      const B = conjuntoDeUniverso({ eje: alcance.eje || null, ...camposDeclarados }, indice, alcance.eje || null, "");
+      if (B && B.set) {
+        dentroDelUniverso = new Set();
+        for (const k of B.set) { const ent = indice.entidades && indice.entidades.get ? indice.entidades.get(k) : null; dentroDelUniverso.add(_norm(ent ? ent.nombre : k)); }
+      }
+    } catch { dentroDelUniverso = null; }
+  }
+  if (!excluidas.size && !miembrosDeOtroEje.length && !fueraDeBodega.size && !dentroDelUniverso) return figs;
   return figs.filter((f) => {
     const ent = entidadDeLabel(f && f.label);
     if (!ent) return true;
@@ -116,6 +154,7 @@ export function figsEnAlcance(figs, alcance, { ejesDelTenant = {}, entidadDeLabe
     if (excluidas.has(entN)) return false;
     for (const otro of miembrosDeOtroEje) { if (otro.has(entN)) return false; }
     if (fueraDeBodega.has(entN)) return false;
+    if (dentroDelUniverso && !dentroDelUniverso.has(entN)) return false;
     return true;
   });
 }

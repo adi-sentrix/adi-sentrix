@@ -199,8 +199,39 @@ if (avisosDetalle.length) console.log(`    ${avisosDetalle.join(" · ")}`);
  * productor real: la tabla queda como está (sku fuera de `vs_presupuesto`/`vs_presupuesto_usd`). */
 ok(avisosReverse <= 2, `el muestreo al revés no trae correcciones nuevas sin revisar (esperados ≤ 2, los dos totales de vs_presupuesto/sku ya evaluados y aceptados)`, avisosDetalle.join(" · "));
 
-/* ═══ 6 · CERO red — inspección estática de la fuente de ESTE gate ══════════════════════════════════════════════ */
-H("6 · CERO red — clasificarFuente(este gate) === offline");
+/* ═══ 6 · CARNADA — `direccion:"peor"/"mejor"` de `universo.top` se traduce con la POLARIDAD REAL de la métrica
+ * (supervisor 2026-09-26, segunda vuelta, R-DIRECCION-PEOR-MEJOR) — antes, cualquier valor distinto de "menor"
+ * (incluidos "peor"/"mejor", los dos del contrato §2 que este gate no cazaba) caía a `desc` como si fuera
+ * "mayor", sin mirar si MENOS es mejor para esa métrica. `_direccionDeTop` (lecturasDe.js) ahora usa
+ * `polaridadDeClave` (notario/lexico.js, la MISMA fuente que ya usa el Notario para lo mismo,
+ * `notario/verificar.js:_topTipado`) — dos polaridades reales del catálogo: `margen` (mayor=mejor, dominio
+ * comercial) y `carga` (menor=mejor, dominio comercial — cobranza no sirve para este caso: `p.tema==="cobranza"`
+ * devuelve por `mesaFlujo` antes de llegar a la rama `universo.top`, nunca por `queryMetric`). ═══════════════════ */
+H("6 · direccion peor/mejor — se traduce con la polaridad real de la métrica, en las dos polaridades");
+function _resolucionConTop(dominio, clave, eje, direccion) {
+  const universo = { eje, top: { metrica: clave, k: 3, direccion } };
+  return {
+    ok: true,
+    encargo: { version: "encargo/v1", partes: [{ id: "p1", tema: dominio, cierre: "cifra", conceptos: [], eje, universo }] },
+    partes: [{ id: "p1", tema: dominio, cierre: "cifra", estado: "resuelta", conceptos: [], entidades: [], eje, universo, periodo: { tipo: "vigente" }, ausencias: [] }],
+    criterio: null, supuestos: [], premisas: [], noResuelto: [], avisos: [],
+  };
+}
+function _sortDirDeTop(dominio, clave, eje, direccion) {
+  const { plan } = lecturasDe(_resolucionConTop(dominio, clave, eje, direccion));
+  const call = plan.calls.find((c) => c.tool === "queryMetric" && c.args && c.args.sort);
+  return call && call.args.sort && call.args.sort.dir;
+}
+ok(_sortDirDeTop("comercial", "margen", "cliente", "peor") === "asc", "margen (polaridad mayor): «peor» = menor margen → sort asc", _sortDirDeTop("comercial", "margen", "cliente", "peor"));
+ok(_sortDirDeTop("comercial", "margen", "cliente", "mejor") === "desc", "margen (polaridad mayor): «mejor» = mayor margen → sort desc", _sortDirDeTop("comercial", "margen", "cliente", "mejor"));
+ok(_sortDirDeTop("comercial", "carga", "cliente", "peor") === "desc", "carga (polaridad menor): «peor» = mayor carga → sort desc", _sortDirDeTop("comercial", "carga", "cliente", "peor"));
+ok(_sortDirDeTop("comercial", "carga", "cliente", "mejor") === "asc", "carga (polaridad menor): «mejor» = menor carga → sort asc", _sortDirDeTop("comercial", "carga", "cliente", "mejor"));
+// control: "menor"/"mayor" literales no cambian — sin regresión de R-SORT-DIRECCION-IGNORADA (primera vuelta)
+ok(_sortDirDeTop("comercial", "margen", "cliente", "menor") === "asc", "control: direccion=«menor» sigue siendo asc");
+ok(_sortDirDeTop("comercial", "margen", "cliente", "mayor") === "desc", "control: direccion=«mayor» sigue siendo desc");
+
+/* ═══ 7 · CERO red — inspección estática de la fuente de ESTE gate ══════════════════════════════════════════════ */
+H("7 · CERO red — clasificarFuente(este gate) === offline");
 {
   const propioSrc = fs.readFileSync(new URL(import.meta.url), "utf8");
   const c = clasificarFuente(propioSrc);

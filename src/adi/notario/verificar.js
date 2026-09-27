@@ -484,6 +484,13 @@ function _filasTipadas(clave, I, eje) {
     if (parcial && AUSENTE_VALE_CERO.includes(clave)) { const u0 = out2[0].unidad; for (const k of todos) if (!vistos.has(k)) { const ent = I.entidades.get(k); out2.push({ entidad: k, nombre: ent ? ent.nombre : k, raw: 0, unidad: u0, texto: "", ausente: true }); } }
     return { filas: out2, fuente: `figs «${nombre}» por ${eje}`, peorEs: rk ? rk.peorEs || null : null, parcial: parcial && !AUSENTE_VALE_CERO.includes(clave) }; }
 }
+/** valorDeReferencia(ref, I) → { raw, unidad, label } | null · la cifra de una referencia de la casa («benchmark»,
+ *  «nivel_carga», «techo_cobertura») contra la evidencia del turno — LA MISMA resolución que `_filtroTipado` ya usa
+ *  para juzgar un filtro con `ref` (nunca una segunda búsqueda). Exportada (supervisor 2026-09-26, segunda vuelta,
+ *  R-ROTULO-CONTEO-FILTRO): `notario/hechos.js:nombrarUniverso` la necesita para imprimir el VALOR de la referencia
+ *  en la misma oración del veredicto («…benchmark de margen, 30.1%…»), no solo su nombre — así `comparables-juntas`
+ *  (entrega/verificar.js) se cumple sin necesitar una excepción para las oraciones de premisa. */
+export function valorDeReferencia(ref, I) { return _refRaw(ref, I); }
 /* una referencia de la casa por clave («benchmark», «techo_cobertura») → su cifra */
 function _refRaw(ref, I) {
   const m = metricaPorClave(ref);

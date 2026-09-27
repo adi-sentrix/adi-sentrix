@@ -58,7 +58,7 @@ import { cajaDelAgente } from "../agente/herramientasAgente.js";
 import { pasosDeDominios } from "../agente/contratoDeDominios.js";
 import { sujetoDeTema, metricaCoreDe, productorDe } from "./esquema.js";
 import { dominioPorId } from "../../config/contract/dominios.js";
-import { dominioDeClave } from "../notario/lexico.js";
+import { dominioDeClave, polaridadDeClave } from "../notario/lexico.js";
 import { resolveEntityRef } from "../oracle/entityIndex.js";
 
 /* LA CAJA EXTENDIDA (owner 2026-08-30, F2 · ADI Agente): `cobranza` y `rolesCartera` —las dos que
@@ -116,6 +116,26 @@ function _callsDeConceptoEje(tema, concepto, eje) {
   return [{ tool: "queryMetric", args: { metric: metrica, dimension: eje }, para: `${concepto} por ${eje} (METRICS.${metrica})` }];
 }
 
+/* R-DIRECCION-PEOR-MEJOR (supervisor 2026-09-26, segunda vuelta) — `direccion` de `universo.top` acepta CUATRO
+ * valores (contrato §2, `hechos.js:_ENUM.direccion`: mayor · menor · peor · mejor), pero acá solo se traducía
+ * "menor" a `asc` — "peor"/"mejor" (y hasta "mayor" mal escrito) caían todos al `else` como si fueran "mayor",
+ * sin mirar la POLARIDAD de la métrica: para «margen», peor es MENOR; para «saldo vencido», peor es MAYOR — la
+ * MISMA resolución que ya usa el Notario para el mismo campo (`notario/verificar.js:_topTipado`, líneas ~540-545)
+ * contra `polaridadDeClave` (notario/lexico.js, la fuente única — nunca una segunda tabla de polaridad acá).
+ * `direccion:"peor"/"mejor"` sobre una métrica SIN polaridad declarada no se puede resolver acá (esta función no
+ * tiene la evidencia que el Notario sí tiene para declarar el error): se sirve el default de siempre (`desc`,
+ * como "mayor"), documentado — la defensa en profundidad de `entrega/componer.js:_entidadesDelTopVerificado` lo
+ * corrige de todos modos cuando hay `indice` a mano, porque esa sí resuelve contra la polaridad real. */
+function _dirAscDesc(direccionPalabra) { return direccionPalabra === "menor" ? "asc" : "desc"; }
+function _direccionDeTop(direccion, metrica) {
+  const dir = String(direccion || "mayor").toLowerCase();
+  if (dir === "peor" || dir === "mejor") {
+    const pol = polaridadDeClave(metrica);
+    const peorEs = pol === "mayor" ? "menor" : pol === "menor" ? "mayor" : null;
+    if (peorEs) return _dirAscDesc(dir === "peor" ? peorEs : (peorEs === "mayor" ? "menor" : "mayor"));
+  }
+  return _dirAscDesc(dir === "menor" ? "menor" : "mayor");
+}
 /* ── cierre `cifra` (contrato §1.1: productor `queryMetric / entityRecord / gridTable / mesaFlujo / mesaCapital`) */
 function _pasosCifra(p) {
   const eje = p.eje;
@@ -161,7 +181,13 @@ function _pasosCifra(p) {
   if (p.universo && p.universo.top && p.universo.top.metrica) {
     const { metrica, k, direccion } = p.universo.top;
     const ejeUniverso = p.universo.eje || eje;
-    const out = [{ tool: "queryMetric", args: { metric: metricaCoreDe(metrica) || metrica, dimension: ejeUniverso, sort: direccion === "menor" ? "asc" : "desc", limit: k }, para: `el top ${k} de ${ejeUniverso} por ${metrica} (universo.top)` }];
+    // R-SORT-DIRECCION-IGNORADA (supervisor 2026-09-26, MATERIAL, ESTRUCTURAL, la más grave de la ronda: «los 3
+    // más chicos» servía los 3 más grandes) — `specRetrieval.js:composeSpecRetrieval` lee `sort.dir` (un OBJETO,
+    // `{dir:"asc"|"desc"}`: así lo mandan TODOS los demás llamadores, `answerADIFromSpec.js`/`coerceChain.js`).
+    // Acá se mandaba un STRING a secas (`"asc"`/`"desc"`): `sort.dir` sobre un string es SIEMPRE `undefined`, así
+    // que `dir` caía SIEMPRE a `"desc"` sin importar `direccion` — un top «menor» servía el extremo opuesto,
+    // siempre, en silencio. Se manda la FORMA que el productor espera, nunca texto.
+    const out = [{ tool: "queryMetric", args: { metric: metricaCoreDe(metrica) || metrica, dimension: ejeUniverso, sort: { dir: _direccionDeTop(direccion, metrica) }, limit: k }, para: `el top ${k} de ${ejeUniverso} por ${metrica} (universo.top)` }];
     // los OTROS conceptos de la parte, por el mismo eje SIN recorte: la Entrega selecciona de ahí las filas del
     // top ya fijado arriba — dos rankings por separado, nunca una segunda decisión de universo.
     for (const c of p.conceptos) { if (c === metrica) continue; out.push(..._callsDeConceptoEje(p.tema, c, ejeUniverso)); }
