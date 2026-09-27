@@ -1250,6 +1250,14 @@ const _todasLasFilasDeConcepto = (figs, clave) => {
   return out;
 };
 
+/* R-COBRANZA-TOP8-SIN-COLA-MENOR (diagnóstico v6) / A2 (diagnóstico v7, MATERIAL) — «una Entrega nunca revienta»:
+ * una entidad de `plan.orden`/`plan.miembros` puede quedar sin NINGÚN concepto en `plan.porEntidad` (ninguna fig
+ * publicada para ella en toda la parte — p. ej. una entidad que el `top` verificado agregó pero de la que ninguna
+ * fig llegó, `_entidadesDelTopVerificado`), y `.get(entidad)` devuelve `undefined`. `_mapaDe` es la ÚNICA guarda
+ * de archivo (antes vivía redeclarada en dos sitios): se usa en TODO `.get()` de un mapa `porEntidad` — nunca
+ * inventa una fig, solo evita el `.get()` sobre `undefined`. */
+const _mapaDe = (m, e) => (m && m.get(e)) || new Map();
+
 /* ── delegación a las 4 rutas fijas (equivalencia byte a byte) ────────────────────────────────────────────────── */
 // R1, hallazgo gemelo (diagnóstico v2, supervisor 2026-09-26 — MATERIAL, reproducido con W10: la delegación a la
 // ruta fija «¿dónde la empresa deja de ganar?» se disparaba para CUALQUIER `lectura` sin entidades/conceptos/
@@ -1656,11 +1664,17 @@ function _entidadEnAlcanceComercial(nombre, partesComercial, I, planPorParte) {
 
 /* un universo con `estados`/`no_estados`/`filtros` exige evaluar el ESTADO de cada entidad contra el dato real
  * (notario/estados.js aplicado a un universo completo) — un subsistema que este corte NO construye (gap declarado
- * en la cabecera). `universo.top` (el ranking) SÍ está resuelto. */
-const _universoNoSoportado = (u) => !!(u && ((Array.isArray(u.estados) && u.estados.length) || (Array.isArray(u.no_estados) && u.no_estados.length) || (Array.isArray(u.filtros) && u.filtros.length)));
-/* con `top` el ranking YA está resuelto (el camino de siempre, `_planCifraGrupo`/`_planMultiTema`): el gap real es
- * SOLO estados/no_estados/filtros SIN top — esa combinación es la que la pieza 1 del corte 3c resuelve abajo. */
-const _universoPorEstadoSinTop = (u) => _universoNoSoportado(u) && !(u && u.top);
+ * en la cabecera) SOLO cuando no trae `top`: sin `top`, el listado es del CONJUNTO completo (K de M, sin ranking
+ * — `_cerrarGrupoUniverso` abajo). CIERRE §7.3·8 (supervisor 2026-09-27, diagnóstico v7, raíz A1) — con `top`, la
+ * combinación YA compone: `_planCifraGrupo`/`figsEnAlcance` (`entrega/alcance.js`) resuelven `top` combinado con
+ * `estados`/`no_estados`/`filtros`/`base` en la MISMA llamada a `conjuntoDeUniverso` que ya usa el Notario, en
+ * los dos sentidos de la decisión (`top.sobre`). El comentario de «corte 3c» describía un estado que el contrato
+ * ya superó — `_universoNoSoportado` deja de bloquear esa combinación: hoy es, textualmente, la MISMA condición
+ * que «universo por estado SIN top» (`_universoPorEstadoSinTop`), porque esa es la ÚNICA combinación que sigue
+ * sin motor propio. */
+const _tieneEstadoOFiltro = (u) => !!(u && ((Array.isArray(u.estados) && u.estados.length) || (Array.isArray(u.no_estados) && u.no_estados.length) || (Array.isArray(u.filtros) && u.filtros.length)));
+const _universoPorEstadoSinTop = (u) => _tieneEstadoOFiltro(u) && !(u && u.top);
+const _universoNoSoportado = _universoPorEstadoSinTop;
 
 /* ═══ CORTE 3c · PIEZA 1 (owner 2026-09-25) — UNIVERSO POR ESTADO, con los CONJUNTOS que el Core ya calcula ═══════
  * «Sobre el nivel de carga», «bajo el benchmark», «en mora», «frenado»… no son un motor de estados nuevo: son
@@ -1751,15 +1765,20 @@ function _declararSuma(hechos, contador, ids) {
  * concepto que ordena el grupo es una cifra monetaria — nunca sobre una tasa (pieza 2: «jamás se suman universos
  * distintos», y sumar % entre cuentas tampoco es una cifra de la casa). Usado por las dos formas que la pieza 1
  * cubre: `cifra` sin entidades (D07) y `lectura`/`decision` sin entidades (D14/D19). */
-function _cerrarGrupoUniverso(p, figsDeP, I, hechos, contador, ref, declararRazon) {
+function _cerrarGrupoUniverso(p, figsDeP, I, hechos, contador, ref, declararRazon, declararDerivada) {
   const gp = _planCifraGrupoUniverso(p, figsDeP, I);
   if (gp.error) return { error: gp.error };
   const idConteo = _declararConteo(hechos, contador, gp.universo, gp.n);
-  for (const nombre of gp.miembros) { const m = gp.porEntidad.get(nombre); for (const [clave, fig] of m) m.set(clave, ref(fig)); }
+  // A5 (diagnóstico v7) — capturar las figs CRUDAS del primero y segundo miembro en `claveOrden` ANTES de
+  // convertir el mapa a ids (mismo patrón que `kind:"grupo"`, más abajo en este archivo): nunca una segunda
+  // referencia a la fig.
+  const figA0 = gp.claveOrden && gp.miembros.length > 1 ? _mapaDe(gp.porEntidad, gp.miembros[0]).get(gp.claveOrden) : null;
+  const figB0 = gp.claveOrden && gp.miembros.length > 1 ? _mapaDe(gp.porEntidad, gp.miembros[1]).get(gp.claveOrden) : null;
+  for (const nombre of gp.miembros) { const m = _mapaDe(gp.porEntidad, nombre); for (const [clave, fig] of m) m.set(clave, ref(fig)); }
   let idTotal = null, idShare = null;
   let idShares = [];
   if (gp.claveTentacion && gp.miembros.length >= 2) {
-    const ids = gp.miembros.map((nombre) => gp.porEntidad.get(nombre).get(gp.claveTentacion)).filter((x) => x != null);
+    const ids = gp.miembros.map((nombre) => _mapaDe(gp.porEntidad, nombre).get(gp.claveTentacion)).filter((x) => x != null);
     if (ids.length >= 2) {
       idTotal = _declararSuma(hechos, contador, ids);
       // el LÍMITE DE CANTIDAD (TENTACION_PARTICIPACION_TOP, pieza 2): una participación individual por MIEMBRO,
@@ -1768,7 +1787,17 @@ function _cerrarGrupoUniverso(p, figsDeP, I, hechos, contador, ref, declararRazo
       idShare = idShares[0] || null;
     }
   }
-  return { kind: "grupoUniverso", tema: p.tema, parteId: p.id, cierre: p.cierre, eje: gp.eje, universo: gp.universo, idConteo, n: gp.n, m: gp.m, fuenteConteo: gp.fuenteConteo, miembros: gp.miembros, claveOrden: gp.claveOrden, claveTentacion: gp.claveTentacion, porEntidad: gp.porEntidad, idTotal, idShare, idShares };
+  // A5 (diagnóstico v7, MATERIAL) — tentación precalculada GENÉRICA: la ventaja del primero sobre el segundo en
+  // la MISMA métrica que ordena el grupo (`claveOrden`), el MISMO mecanismo que ya usa `kind:"grupo"` — nunca dos
+  // veces, reutilizado tal cual. `idTotal`/`idShare` (arriba) SOLO corren con un concepto MONETARIO
+  // (`claveTentacion`): «días de inventario», «margen»… no tienen ese concepto y antes se quedaban sin NINGUNA
+  // tentación precalculada (Y08, Y54 — `verificarEntrega` regla 6 exige razon/derivada con ≥2 dueños). Una
+  // DIFERENCIA (`declararDerivada` decide pp/diferencia según la unidad) no depende de que el concepto sea
+  // dinero: cierra la clase completa, no solo el caso monetario.
+  const idDiffOrden = (figA0 && figB0)
+    ? declararDerivada(figA0, _mapaDe(gp.porEntidad, gp.miembros[0]).get(gp.claveOrden), figB0, _mapaDe(gp.porEntidad, gp.miembros[1]).get(gp.claveOrden))
+    : null;
+  return { kind: "grupoUniverso", tema: p.tema, parteId: p.id, cierre: p.cierre, eje: gp.eje, universo: gp.universo, idConteo, n: gp.n, m: gp.m, fuenteConteo: gp.fuenteConteo, miembros: gp.miembros, claveOrden: gp.claveOrden, claveTentacion: gp.claveTentacion, porEntidad: gp.porEntidad, idTotal, idShare, idShares, idDiffOrden };
 }
 
 /* ═══ CORTE 3c · PIEZA 3 (owner 2026-09-25) — A QUÉ PARTE DEL ENCARGO PERTENECE UNA PREMISA ═══════════════════
@@ -1860,9 +1889,15 @@ function _textoDePremisa(H, libroPremisas) {
   const verdadCasa = _esFactualDeLaCasa ? (H.verdad || H.motivo) : (_rotuloDeLaCasaDeH(H) || H.verdad || H.motivo);
   // CORTE 3e (owner 2026-09-26) — «Sobre lo que usted da por hecho» → «Sobre la premisa declarada por la
   // empresa» (tercera persona, ley «LA ENTREGA NO LE HABLA A NADIE»).
-  if (H.veredicto === "verdadera") return `Sobre la premisa declarada por la empresa: es correcto — ${verdadCasa}.`;
-  if (H.veredicto === "falsa") { const vd = _textoVerdadDerivada(H, libroPremisas); return `Sobre la premisa declarada por la empresa: no es así — ${verdadCasa}${vd ? `. La verdad: ${vd}` : ""}.`; }
-  return `Sobre la premisa declarada por la empresa, no se pudo verificar con este dato: ${H.motivo}.`;
+  // §7.3·15 (supervisor 2026-09-27) — CORREGIDO: el corte 3e cambió la persona gramatical (segunda a tercera) pero de
+  // paso cambió el DUEÑO (el usuario que consulta pasó a ser «la empresa», un tercero que nunca declaró esto —
+  // la premisa sale de `caso.encargo.premisas`, lo que escribió QUIEN CONSULTA en su propia pregunta). «Declarado
+  // por la empresa» sigue siendo correcto SOLO para la configuración real de la empresa (el benchmark, el nivel
+  // de carga — ver las apariciones de esa frase más abajo, sin tocar). Para una premisa, tercera persona con el
+  // dueño correcto: «la premisa planteada en la consulta».
+  if (H.veredicto === "verdadera") return `Sobre la premisa planteada en la consulta: es correcto — ${verdadCasa}.`;
+  if (H.veredicto === "falsa") { const vd = _textoVerdadDerivada(H, libroPremisas); return `Sobre la premisa planteada en la consulta: no es así — ${verdadCasa}${vd ? `. La verdad: ${vd}` : ""}.`; }
+  return `Sobre la premisa planteada en la consulta, no se pudo verificar con este dato: ${H.motivo}.`;
 }
 
 /* ── PLAN «grupo» (cierre `cifra` sin entidades: listado del eje, group-by o `universo.top`) ────────────────────
@@ -1876,19 +1911,24 @@ function _textoDePremisa(H, libroPremisas) {
 // `_planCifraGrupo` recibe las figs de UNA llamada de `queryMetric` que la tool YA LIMITÓ a `top.k` filas
 // (`lecturasDe.js`): nunca se puede confiar en que esa selección sea el extremo que `universo.top.direccion`
 // pidió — el desajuste de forma de `sort` (string vs. `{dir}`) hacía EXACTAMENTE eso, siempre, en silencio, hasta
-// este mismo corte. Acá se contrasta la SELECCIÓN de la tool contra `conjuntoDeUniverso({eje, top}, I, eje, "")`
-// — LA MISMA primitiva que ya resuelve `top` para el Notario (`notario/verificar.js:_topTipado`), sobre el
-// ranking de la PROYECCIÓN (`datoProyectado.rankings`, no la boleta de esta llamada — independiente de cuántas
-// filas trajo la tool y de cualquier otro desajuste futuro). Si el conjunto que el Core ya sabe calcular no
-// coincide con lo que la tool sirvió, se reordena desde ESOS datos — nunca desde lo que la tool decidió recortar
-// — completando las figs que falten desde el resto de la evidencia del turno (`indice.figsDeMetrica`, la misma
-// fuente que ya usa el índice del Notario, sin el recorte por `porParte` de `figsAcotadas`). Sin `indice` o sin
-// un ranking que lo resuelva (`conjuntoDeUniverso` devuelve error, p. ej. top empatado), esta defensa simplemente
-// no corre — documentado, nunca silencioso: se sirve lo que trajo la tool, igual que antes de este corte.
-function _entidadesDelTopVerificado(entidadesDeLaTool, figsAcotadas, top, eje, conceptoTop, indice) {
+// este mismo corte. Acá se contrasta la SELECCIÓN de la tool contra `conjuntoDeUniverso({eje, ...camposUniverso,
+// top}, I, eje, "")` — LA MISMA primitiva que ya resuelve `top` para el Notario (`notario/verificar.js:_topTipado`),
+// sobre el ranking de la PROYECCIÓN (`datoProyectado.rankings`, no la boleta de esta llamada — independiente de
+// cuántas filas trajo la tool y de cualquier otro desajuste futuro). Si el conjunto que el Core ya sabe calcular
+// no coincide con lo que la tool sirvió, se reordena desde ESOS datos — nunca desde lo que la tool decidió
+// recortar — completando las figs que falten desde el resto de la evidencia del turno (`indice.figsDeMetrica`, la
+// misma fuente que ya usa el índice del Notario, sin el recorte por `porParte` de `figsAcotadas`). Sin `indice` o
+// sin un ranking que lo resuelva (`conjuntoDeUniverso` devuelve error, p. ej. top empatado), esta defensa
+// simplemente no corre — documentado, nunca silencioso: se sirve lo que trajo la tool, igual que antes de este corte.
+// CIERRE A1b (diagnóstico v7, contrato §7.3·8) — `camposUniverso` trae `base`/`estados`/`no_estados`/`filtros`/
+// `union` (nunca `top`, que se agrega acá): la MISMA combinación que ya resolvió `figsEnAlcance` para
+// `figsAcotadas` (`entrega/alcance.js`), así que este contraste usa EXACTAMENTE el mismo universo — nunca uno
+// parcial (`{eje, top}` a secas ignoraba `estados`/`filtros`, y "corregía" la selección de la tool hacia el top
+// sobre el eje ENTERO sin filtrar, deshaciendo en silencio el sentido «top dentro del filtro» por defecto).
+function _entidadesDelTopVerificado(entidadesDeLaTool, figsAcotadas, top, eje, conceptoTop, indice, camposUniverso = {}) {
   if (!indice) return { entidades: entidadesDeLaTool, figsExtra: [] };
   let R = null;
-  try { R = conjuntoDeUniverso({ eje, top }, indice, eje, ""); } catch { R = null; }
+  try { R = conjuntoDeUniverso({ eje, ...camposUniverso, top }, indice, eje, ""); } catch { R = null; }
   if (!R || !R.set) return { entidades: entidadesDeLaTool, figsExtra: [] };
   const enJuegoNorm = new Set(entidadesDeLaTool.map((e) => normalizar(e)));
   const coincide = R.set.size === enJuegoNorm.size && [...R.set].every((k) => enJuegoNorm.has(k));
@@ -1931,7 +1971,15 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
   let entidadesEnJuego;
   if (top) {
     const crudo = _todasLasFilasDeConcepto(figsAcotadas, conceptoTop).map((x) => x.entidad);
-    const { entidades, figsExtra } = _entidadesDelTopVerificado(crudo, figsAcotadas, top, eje, conceptoTop, indice);
+    // A1b — el MISMO universo que ya resolvió `figsEnAlcance` para `figsAcotadas` (base/estados/no_estados/
+    // filtros/union), para que el contraste de arriba nunca discrepe con lo que ya filtró el alcance.
+    const camposUniverso = {};
+    if (alcance.base) camposUniverso.base = alcance.base;
+    if (alcance.estados) camposUniverso.estados = alcance.estados;
+    if (alcance.no_estados) camposUniverso.no_estados = alcance.no_estados;
+    if (alcance.filtros) camposUniverso.filtros = alcance.filtros;
+    if (alcance.union && alcance.union.length) camposUniverso.union = alcance.union;
+    const { entidades, figsExtra } = _entidadesDelTopVerificado(crudo, figsAcotadas, top, eje, conceptoTop, indice, camposUniverso);
     if (figsExtra.length) figsAcotadas = [...figsAcotadas, ...figsExtra];
     entidadesEnJuego = entidades;
   }
@@ -2050,8 +2098,14 @@ function _planComparacion(parte, figs, ref, declararDerivada) {
   if (!a || !b) return null;
   const figsA = _figsDeEntidad(figs, a.nombre), figsB = _figsDeEntidad(figs, b.nombre);
   const conceptosA = new Map(figsA.map((f) => [_conceptoDeLabel(_lab(f)), f]));
+  // A6 (diagnóstico v7, MATERIAL) — `parte.conceptos` acota lo que el usuario pidió comparar: MISMO criterio que
+  // ya respeta `_planCifraGrupo` (`conceptosBase`, más arriba) — con la lista poblada, se descarta cualquier
+  // concepto fuera de ella ANTES de armar los pares; sin lista (vacía), el comportamiento no cambia (todo lo que
+  // ambas entidades comparten, como antes).
+  const conceptosPedidos = parte.conceptos && parte.conceptos.length ? new Set(parte.conceptos) : null;
   const pares = [];
   for (const [concepto, figA] of conceptosA) {
+    if (conceptosPedidos && !conceptosPedidos.has(_claveDeFig(figA))) continue;
     const figB = figsB.find((f) => _conceptoDeLabel(_lab(f)) === concepto);
     if (!figB) continue;
     const idA = ref(figA), idB = ref(figB);
@@ -2436,7 +2490,7 @@ export function componerEntrega(resolucion) {
   const partesUniversoNoSoportado = partesLecturaDecisionSinEntidad.filter((p) => _universoNoSoportado(p.universo) && !_universoPorEstadoSinTop(p.universo));
   for (const p of partesUniversoNoSoportado) limitesGap.push(_limiteUniversoNoSoportado(p));
   for (const p of partesUniversoPorEstado) {
-    const r = _cerrarGrupoUniverso(p, _figsDeParte(p.id), I, hechos, contador, ref, declararRazon);
+    const r = _cerrarGrupoUniverso(p, _figsDeParte(p.id), I, hechos, contador, ref, declararRazon, declararDerivada);
     if (r.error) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no se pudo evaluar`, motivo: r.error }); continue; }
     planes.push(r);
   }
@@ -2456,30 +2510,19 @@ export function componerEntrega(resolucion) {
     // eje acá borraría esa foto completa. El filtro por eje (RC-F) es de `_planCifraGrupo`, donde el eje SÍ es la
     // dimensión que la llamada al Core pidió explícitamente.
     // R-INICIATIVA-UNIVERSO-NO-ENTIDADES / V81 (diagnóstico v6, ALTA, cerrado del todo — coordinador 2026-09-26) —
-    // `figsEnAlcance` a propósito NO aplica `top` (necesita el ORDEN por la métrica, que solo el compositor conoce
-    // — cabecera de `entrega/alcance.js`): de los cuatro compositores que ese archivo dice haber unificado, ESTE
-    // camino (`decision`/`lectura` SIN entidades, 1..N temas → `_planMultiTema`) era el único que nunca aplicaba
-    // el `top` de su propia parte — una `decision` de «los 3 clientes de menor venta» seguía calculando «quien
-    // más pesa» sobre los 13, nombrando a Falabella/Lider (el extremo opuesto exacto de lo pedido) tanto en la
-    // prosa por dominio como en la prioridad integrada. Se resuelve con la MISMA primitiva que ya usa el resto de
-    // la casa (`conjuntoDeUniverso`, notario/verificar.js): sin `indice` o si el ranking no se puede resolver
-    // (p. ej. `ranking-parcial`), no se restringe — mismo criterio de «nunca excluir a ciegas» que ya usa
-    // `figsEnAlcance` para `base`/`estados`. El primer intento de este arreglo (revertido) dejaba la Entrega SIN
-    // evidencia porque `cobranza()` recortaba su boleta a un TOP 8 por deuda — nunca traía a Unimarc/ABC/Hites
-    // (las 3 de MENOR venta) para empezar; ESE hueco se cerró en `lecturasDe.js` (`universoRequerido` en la
-    // llamada de cobranza de este mismo grupo) antes de intentar este filtro de nuevo.
-    const figsDelGrupo = partesSinEntidadLecturaDecision.flatMap((p) => {
-      const alc = alcanceDeParte(p);
-      let fs = figsEnAlcance(_figsDeParte(p.id), { ...alc, eje: null }, { indice: I });
-      if (alc.top && I) {
-        try {
-          const ejeTop = normalizar(alc.eje || p.eje || "cliente");
-          const R = conjuntoDeUniverso({ eje: ejeTop, top: alc.top }, I, ejeTop, "");
-          if (R && R.set) fs = fs.filter((f) => { const e = _entidadDe(_lab(f)); return !e || R.set.has(normalizar(e)); });
-        } catch { /* no se pudo resolver el top: no se restringe, mismo criterio que base/estados en figsEnAlcance */ }
-      }
-      return fs;
-    });
+    // una `decision`/`lectura` SIN entidades (1..N temas → `_planMultiTema`) tiene que restringirse por el `top`
+    // de su propia parte — una `decision` de «los 3 clientes de menor venta» no puede seguir calculando «quien
+    // más pesa» sobre los 13, nombrando a Falabella/Lider (el extremo opuesto exacto de lo pedido). El primer
+    // intento de este arreglo (revertido) dejaba la Entrega SIN evidencia porque `cobranza()` recortaba su
+    // boleta a un TOP 8 por deuda — nunca traía a Unimarc/ABC/Hites (las 3 de MENOR venta) para empezar; ESE
+    // hueco se cerró en `lecturasDe.js` (`universoRequerido` en la llamada de cobranza de este mismo grupo).
+    // CIERRE A1b (diagnóstico v7, contrato §7.3·8) — `top` YA NO se resuelve acá aparte: `figsEnAlcance`
+    // (`entrega/alcance.js`) recorta por `top` combinado con `base`/`estados`/`no_estados`/`filtros` EN LA MISMA
+    // llamada a `conjuntoDeUniverso` que ya usa el Notario, respetando `top.sobre` en los dos sentidos — un
+    // segundo filtro acá (antes: siempre «top sobre el eje entero», ignorando `estados`/`filtros` y el sentido
+    // por defecto) deshacía en silencio el sentido «top dentro del filtro». Sin `indice` o si el universo no se
+    // puede resolver, `figsEnAlcance` no restringe — mismo criterio de «nunca excluir a ciegas» de siempre.
+    const figsDelGrupo = partesSinEntidadLecturaDecision.flatMap((p) => figsEnAlcance(_figsDeParte(p.id), { ...alcanceDeParte(p), eje: null }, { indice: I }));
     const plan = _planMultiTema(temas, figsDelGrupo, ref, declararRazon, declararDerivada, { conDecision });
     if (plan) { plan.partesIds = partesSinEntidadLecturaDecision.map((p) => p.id); planes.push(plan); }
     else {
@@ -2511,8 +2554,7 @@ export function componerEntrega(resolucion) {
         // publicada para ella en toda la parte), y `.get(entidad)` devuelve `undefined`. Antes, el `.get()`
         // siguiente tumbaba TODA la función con una excepción no capturada — se perdía la Entrega ENTERA por una
         // sola cuenta sin dato, en vez de perder solo la tentación precalculada (mecanismo 6, opcional) de esa
-        // fila. `_mapaDe` nunca inventa una fig: solo evita el `.get()` sobre `undefined`.
-        const _mapaDe = (m, e) => m.get(e) || new Map();
+        // fila. `_mapaDe` (guarda de archivo, A2) nunca inventa una fig: solo evita el `.get()` sobre `undefined`.
         const figA0 = planG.orden.length > 1 ? _mapaDe(planG.porEntidad, planG.orden[0]).get(planG.claveOrden) : null;
         const figB0 = planG.orden.length > 1 ? _mapaDe(planG.porEntidad, planG.orden[1]).get(planG.claveOrden) : null;
         for (const e of planG.orden) for (const [clave, fig] of _mapaDe(planG.porEntidad, e)) _mapaDe(planG.porEntidad, e).set(clave, ref(fig));
@@ -2533,7 +2575,7 @@ export function componerEntrega(resolucion) {
         // CORTE 3c · pieza 1 (D07): universo por estado/filtro SIN `top` — el mismo camino que arriba, para el
         // cierre `cifra`.
         if (_universoPorEstadoSinTop(p.universo)) {
-          const r = _cerrarGrupoUniverso(p, figsDeP, I, hechos, contador, ref, declararRazon);
+          const r = _cerrarGrupoUniverso(p, figsDeP, I, hechos, contador, ref, declararRazon, declararDerivada);
           if (r.error) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no se pudo evaluar`, motivo: r.error }); continue; }
           planes.push(r);
           continue;
@@ -2546,8 +2588,7 @@ export function componerEntrega(resolucion) {
           // declara DESPUÉS con los mismos ids que ya va a imprimir la tabla (nunca una segunda referencia a la fig).
           // R-COBRANZA-TOP8-SIN-COLA-MENOR (diagnóstico v6, defensa en profundidad, ALTA) — «una Entrega nunca
           // revienta»: `_mapaDe` evita el `.get()` sobre `undefined` cuando una entidad de `orden` no trajo NINGÚN
-          // concepto en `porEntidad` (misma nota que el fallback de arriba).
-          const _mapaDe = (m, e) => m.get(e) || new Map();
+          // concepto en `porEntidad` (misma nota que el fallback de arriba; `_mapaDe` es la guarda de archivo, A2).
           const figA0 = plan.orden.length > 1 ? _mapaDe(plan.porEntidad, plan.orden[0]).get(plan.claveOrden) : null;
           const figB0 = plan.orden.length > 1 ? _mapaDe(plan.porEntidad, plan.orden[1]).get(plan.claveOrden) : null;
           for (const e of plan.orden) for (const [clave, fig] of _mapaDe(plan.porEntidad, e)) _mapaDe(plan.porEntidad, e).set(clave, ref(fig));
@@ -2762,12 +2803,15 @@ export function componerEntrega(resolucion) {
       }
     } else if (plan.kind === "grupo") {
       temasCubiertos.add(plan.tema);
+      // A2 (diagnóstico v7, MATERIAL) — `_mapaDe` (guarda de archivo) evita el `.get()` sobre `undefined`: una
+      // entidad de `plan.orden` puede llegar sin NINGUNA fig en `porEntidad` (el top verificado la agregó, pero
+      // ninguna fig llegó para ella) — antes esto reventaba la Entrega ENTERA (Y26: "m is not iterable").
       for (const entidad of plan.orden) {
-        const m = plan.porEntidad.get(entidad);
+        const m = _mapaDe(plan.porEntidad, entidad);
         for (const [clave, id] of m) { if (id == null) continue; entrega.cifras.filas.push(_fila(entidad, plan.tema, _labelDeClave(clave) || clave, id)); }
       }
-      const cabeza = plan.orden.slice(0, 3).map((e) => { const id = plan.porEntidad.get(e).get(plan.claveOrden); return id != null ? `${e} (${R(id)})` : e; }).join(", ");
-      const idsCabeza = plan.orden.flatMap((e) => [...plan.porEntidad.get(e).values()]).filter((v) => v != null);
+      const cabeza = plan.orden.slice(0, 3).map((e) => { const id = _mapaDe(plan.porEntidad, e).get(plan.claveOrden); return id != null ? `${e} (${R(id)})` : e; }).join(", ");
+      const idsCabeza = plan.orden.flatMap((e) => [..._mapaDe(plan.porEntidad, e).values()]).filter((v) => v != null);
       // «un top-N declara su cola» (ley del owner): con `universo.top`, el tamaño TOTAL del eje sale del mismo
       // índice que ya usan las 4 rutas fijas (`ejesDelTenant`) — nunca un número a mano; sin `top`, el listado YA
       // es el eje completo (no hay cola que declarar).
@@ -2953,8 +2997,9 @@ export function componerEntrega(resolucion) {
       const tentacion = plan.idTotal ? ` En conjunto, ${claveTentTxt ? _sinSufijoDolar(claveTentTxt).toLowerCase() : "el total"} suma ${R(plan.idTotal)}${plan.idShare ? `; ${plan.miembros[0]} concentra el ${R(plan.idShare)}` : ""}.` : "";
       const texto = `Sobre ${_DOM_NOMBRE[plan.tema] || plan.tema}: hay ${kTxt}${mTxt ? ` de ${mTxt}` : ""} en ${uTxt || "el universo declarado"}${plan.miembros.length ? `: ${plan.miembros.join(", ")}` : ""}.${tentacion}`;
       entrega.respuesta.push({ texto, hechos: [plan.idConteo, plan.idTotal, plan.idShare].filter(Boolean) });
+      // A2 (diagnóstico v7): `_mapaDe` (guarda de archivo), mismo criterio que `kind:"grupo"` más arriba.
       for (const nombre of plan.miembros) {
-        const m = plan.porEntidad.get(nombre);
+        const m = _mapaDe(plan.porEntidad, nombre);
         for (const [clave, id] of m) { if (id == null) continue; entrega.cifras.filas.push(_fila(nombre, plan.tema, _labelDeClave(clave) || clave, id)); }
       }
       if (plan.idTotal) {
@@ -2966,7 +3011,7 @@ export function componerEntrega(resolucion) {
       // ya ordenó el grupo (`claveOrden`, ya declarada y renderizada arriba — nunca una segunda referencia).
       if (plan.cierre === "decision" && resolucion.criterio && plan.miembros.length) {
         const lenteTxt = resolucion.criterio.lente ? (metricaPorClave(resolucion.criterio.lente) ? metricaPorClave(resolucion.criterio.lente).nombre.toLowerCase() : resolucion.criterio.lente) : (resolucion.criterio.referencia && resolucion.criterio.referencia.concepto);
-        const idPrimero = plan.claveOrden ? plan.porEntidad.get(plan.miembros[0]).get(plan.claveOrden) : null;
+        const idPrimero = plan.claveOrden ? _mapaDe(plan.porEntidad, plan.miembros[0]).get(plan.claveOrden) : null;
         if (lenteTxt && idPrimero != null) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${plan.miembros[0]}, con ${R(idPrimero)} en ${(plan.claveOrden ? _labelDeClave(plan.claveOrden) : lenteTxt).toLowerCase()}.`, hechos: [plan.idConteo, idPrimero] });
         else if (lenteTxt) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${plan.miembros[0]} (${kTxt} de ${mTxt} en ${uTxt}).`, hechos: [plan.idConteo] });
       }
@@ -3124,7 +3169,16 @@ export function componerEntrega(resolucion) {
   // cohorte, leída una vez más para declararla.
   if (!entrega.marco.referenciaDeclarada) {
     const _BASE_BENCHMARK_RE = /\bbenchmark\b/i;
-    const _baseNombraBenchmark = (u) => !!(u && typeof u === "object" && typeof u.base === "string" && _BASE_BENCHMARK_RE.test(u.base));
+    // A4b (diagnóstico v7, MATERIAL) — un universo `union` (§7.3·11) puede nombrar el benchmark en una de sus
+    // RAMAS (`u.union: [{base:"bajo el benchmark", ...}, {estados:[...]}]`, Y19) sin que `u.base` de nivel
+    // superior lo diga: la Entrega SÍ habla de "benchmark" en su prosa (la premisa de conteo/grupo lo verifica),
+    // así que el disparador tiene que mirar `union` recursivamente — misma función, sin segunda definición.
+    const _baseNombraBenchmark = (u) => {
+      if (!u || typeof u !== "object") return false;
+      if (typeof u.base === "string" && _BASE_BENCHMARK_RE.test(u.base)) return true;
+      if (Array.isArray(u.union)) return u.union.some((v) => _baseNombraBenchmark(v));
+      return false;
+    };
     const partesConBaseBenchmark = partesUtiles.some((p) => _baseNombraBenchmark(p.universo));
     let premisaConBaseBenchmark = false;
     if (!partesConBaseBenchmark && libroPremisas) { for (const H of libroPremisas.porId.values()) { if (_baseNombraBenchmark(H && H.universoTipado)) { premisaConBaseBenchmark = true; break; } } }
@@ -3137,6 +3191,40 @@ export function componerEntrega(resolucion) {
         // arriba) hay que declararlo a mano en `cifrasImpresas`, el mismo registro que usa toda esta función.
         cifrasImpresas.push(benchFmt);
         entrega.marco.referenciaDeclarada = { texto: `Benchmark de margen: ${benchFmt}, declarado por la empresa.`, hechoId: null };
+      }
+    }
+  }
+
+  // §7.3·12 (decisión del owner 2026-09-27, «con el benchmark de la empresa, como recomiendas») — una referencia
+  // declarada por el USUARIO (`resolucion.criterio.referencia`, §7.1·6) NUNCA recalcula un conjunto de la casa
+  // que la Entrega ya usa («bajo/sobre el benchmark»): la Entrega sigue contando con el benchmark de la EMPRESA
+  // (arriba) y declara AL LADO, como límite, cuánto daría con la referencia del usuario — la cifra y las cuentas,
+  // calculadas por la MISMA función de la casa (`conjuntoDeUniverso`, con un `filtros` sintético sobre la métrica
+  // real del conjunto, nunca una segunda cuenta a mano) contra ESE valor. Nunca reemplaza a la oficial en
+  // silencio ni se presenta como objetivo de la empresa (ley «de quién es la vara»). Hoy solo cubre la familia
+  // benchmark (la única con `criterio.referencia` en el catálogo): un cliente sin `base:"bajo/sobre el
+  // benchmark"` en juego no dispara nada, no hay conjunto de la casa que comparar.
+  {
+    const refUsuario = resolucion.criterio && resolucion.criterio.referencia;
+    if (refUsuario && refUsuario.concepto === "benchmark" && Number.isFinite(refUsuario.valor) && I) {
+      const _BASE_BAJO_RE = /^bajo\s+el\s+benchmark$/i, _BASE_SOBRE_RE = /^sobre\s+el\s+benchmark$/i;
+      const _baseCasa = (u) => (u && typeof u.base === "string" ? u.base.trim() : "");
+      const usaBajo = partesUtiles.some((p) => _BASE_BAJO_RE.test(_baseCasa(p.universo)));
+      const usaSobre = partesUtiles.some((p) => _BASE_SOBRE_RE.test(_baseCasa(p.universo)));
+      for (const dirBajo of [usaBajo, usaSobre].map((usa, i) => (usa ? i === 0 : null)).filter((x) => x !== null)) {
+        try {
+          const op = dirBajo ? "<" : ">=";
+          const oficial = conjuntoDeUniverso({ eje: "cliente", base: dirBajo ? "bajo el benchmark" : "sobre el benchmark" }, I, "cliente", "");
+          const conReferencia = conjuntoDeUniverso({ eje: "cliente", filtros: [{ metrica: "margen", op, valor: refUsuario.valor }] }, I, "cliente", "");
+          if (oficial && oficial.set && conReferencia && conReferencia.set) {
+            const valFmt = formatoDeLaCasa(refUsuario.valor, refUsuario.unidad || "pct");
+            cifrasImpresas.push(valFmt, String(conReferencia.set.size), String(oficial.set.size));
+            entrega.limites.push({
+              titulo: `Con la referencia planteada en la consulta (${valFmt}), en vez del benchmark de la empresa`,
+              motivo: `Serían ${conReferencia.set.size} cuentas ${dirBajo ? "bajo" : "sobre"} esa referencia (contra ${oficial.set.size} con el benchmark de la empresa) — calculado con la misma cuenta; no reemplaza el benchmark oficial ni es un objetivo de la empresa.`,
+            });
+          }
+        } catch { /* la referencia del usuario no se pudo evaluar contra el dato: no se declara nada a medias */ }
       }
     }
   }

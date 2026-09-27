@@ -12,6 +12,15 @@
 import { parseFigures } from "../boleta.js";
 import { tolCalculo } from "../oracle/calculoCatalogo.js";
 import { metricasEn as _metricasDelMuro } from "../oracle/guardC.js";
+// CIERRE ventas/venta_credito (supervisor 2026-09-27, diagnóstico v7, ley «caja ≠ cobranza») — `claveExactaDeMetrica`
+// (notario/lexico.js) YA prueba el rótulo COMPLETO con su paréntesis contra los sinónimos ANTES de recortarlo
+// (owner 2026-09-25), SIN las tolerancias de texto libre de `claveDeMetrica` (el sinónimo más largo, el barrido
+// por palabra — esas colapsarían «Ventas totales del año anterior» a la clave `ventas`, perdiendo el
+// «anterior»): `_casa`, acá abajo, necesita la resolución ESTRICTA para su match EXACTO, nunca una segunda
+// definición. `lexico.js` importa `conceptosDe` DE ESTE archivo — el import es circular, pero seguro: las dos
+// funciones se LLAMAN en tiempo de ejecución (dentro de un cuerpo de función), nunca se leen en la evaluación
+// de nivel de módulo, así que el orden de carga no importa.
+import { claveExactaDeMetrica } from "./lexico.js";
 
 /* ── EL VOCABULARIO DEL NOTARIO = el del muro + las métricas DERIVADAS que la proyección publica (fase 4, ronda 3) ──────────────────────────
  * «$9,8M sin vencer», «$9,8M vigentes», «saldo por vencer»: el muro no tiene clave para lo que debe y aún no vence, así que la cifra se leía como
@@ -296,7 +305,29 @@ export function indiceDeEvidencia({ figs = [], datoProyectado = null, ejesDelTen
     const m = normalizar(metrica);
     if (!m) return 0;
     const c = f.base || f.conceptoNorm;
-    if (c === m || f.conceptoNorm === m) return 4;
+    // CIERRE ventas/venta_credito (supervisor 2026-09-27, diagnóstico v7, MATERIAL) — el match EXACTO por STRING
+    // («Venta (flujo)» recorta su `base` a «venta», que por COINCIDENCIA DE STRING iguala a la métrica
+    // «Venta»/«ventas» pedida) puede juntar DOS CLAVES DISTINTAS de la casa («ventas» — la venta total — con
+    // `venta_credito` — la venta A CRÉDITO, `adi-caja-no-es-cobranza`): antes, esa coincidencia ganaba el match
+    // EXACTO (4) por sobre la fig genuina de «Ventas» (que solo casaba por sinónimo, 3.5), así que un cliente
+    // con LAS DOS figs perdía la venta real y se quedaba con la venta a crédito sin saberlo. Acá se VETA el
+    // match exacto SOLO cuando el string ya coincidía Y las dos CLAVES EXACTAS (`claveExactaDeMetrica`,
+    // notario/lexico.js — el rótulo completo, con paréntesis, contra los sinónimos, SIN las tolerancias de
+    // texto libre de `claveDeMetrica`, que colapsarían de más) son conocidas y DISTINTAS — nunca se INVENTA un
+    // match nuevo que el string no tenía: cuando el string NO coincidía de entrada (el camino de siempre para
+    // el resto de la casa, «Días sin rotar» ~ «Días sin venta», sinónimos válidos con string distinto), este
+    // candado ni se evalúa. Cae al resto del casamiento de abajo (sinónimos, contención), que sigue permitiendo
+    // el fallback «cuando una sola fig existe» (owner 2026-09-24, ver la nota de `SINONIMOS` arriba), solo que
+    // ya nunca le gana a la fig de la clave real cuando las dos coexisten (`figsDeMetrica` filtra por el score
+    // MÁXIMO exacto).
+    const naiveExacto = c === m || f.conceptoNorm === m;
+    let exacto = naiveExacto;
+    if (naiveExacto) {
+      const claveMetrica = claveExactaDeMetrica(metrica);
+      const claveDeC = claveExactaDeMetrica(f.conceptoNorm);
+      if (claveMetrica && claveDeC && claveMetrica !== claveDeC) exacto = false;
+    }
+    if (exacto) return 4;
     const sin = conceptosDe(metrica);
     if (sin.length) { const i = sin.indexOf(c); if (i >= 0) return 3.5 - i * 0.01; if (sin.includes(f.conceptoNorm)) return 3.4; }
     /* un concepto de la casa NUNCA casa con OTRO concepto de la casa por contención: «carga comercial» (la tasa) no es «carga comercial alta» (el

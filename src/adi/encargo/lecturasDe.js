@@ -153,7 +153,19 @@ function _pasosCifra(p) {
     // universo YA RESUELTO de la parte (nunca `preguntaOriginal`) para que la tool complete la cola desde la
     // MISMA mesa completa que ya usa — ver `herramientasAgente.js:cobranza`.
     const universoRequerido = p.universo && typeof p.universo === "object" && !Array.isArray(p.universo) ? p.universo : null;
-    return [{ tool: "cobranza", args: universoRequerido ? { universoRequerido } : {}, para: `cobranza de ${quien} (mesaFlujo)` }];
+    const out = [{ tool: "cobranza", args: universoRequerido ? { universoRequerido } : {}, para: `cobranza de ${quien} (mesaFlujo)` }];
+    // §7.3·13 (diagnóstico v7) — `universo.top` puede ordenar por una métrica AJENA a cobranza («ventas», para
+    // «los clientes de menor venta que están en mora»): `mesaFlujo` solo publica `venta_credito` («Venta
+    // (flujo)», la venta A CRÉDITO — `adi-caja-no-es-cobranza` — nunca la venta total), así que no basta con
+    // pedir la mesa completa — hay que pedir esa métrica aparte, por el eje ENTERO (nunca `limit`: el conjunto lo
+    // decide el compositor contra el universo completo, `entrega/componer.js`, no la tool).
+    const topMetrica = p.universo && p.universo.top && p.universo.top.metrica;
+    if (topMetrica && !_FAM_COBRANZA.has(topMetrica)) {
+      out.push(..._FAM_VS_ANTERIOR.has(topMetrica)
+        ? [{ tool: "salesRead", args: { focus: "vs_anterior", dimension: eje, figsPct: true }, para: `${topMetrica} por ${eje} (universo.top de una parte de cobranza, salesRead vs_anterior)` }]
+        : [{ tool: "queryMetric", args: { metric: metricaCoreDe(topMetrica) || topMetrica, dimension: eje }, para: `${topMetrica} por ${eje} (universo.top de una parte de cobranza)` }]);
+    }
+    return _dedupeCalls(out);
   }
   if (p.entidades.length) {
     // LA FILA COMPLETA de cada entidad (entityRecord: "TODAS sus columnas reales del dato") — cubre de sobra
@@ -206,9 +218,24 @@ function _pasosCifra(p) {
     // `figsPct:true` para que publique la fig de % por entidad. Sin `sort`/`limit` propios (salesRead trae TODAS
     // las entidades): no hace falta, la selección del top-k la sigue haciendo `entrega/componer.js` contra el
     // universo resuelto, nunca el orden en que la tool devolvió las filas.
+    // §7.3·13 (diagnóstico v7, decisión 2026-09-27) — «un ranking parcial es un problema de LECTURA, no de
+    // verificación»: cuando `top` viaja COMBINADO con `base`/`estados`/`no_estados`/`filtros`/`bodega` (necesita
+    // el conjunto EXACTO, no solo el extremo) o mira el eje ENTERO (`top.sobre:"eje"`), el Core SÍ tiene la
+    // métrica para todo el eje — la lectura tiene que TRAER el ranking COMPLETO, sin `limit`, para que el
+    // compositor (`_planCifraGrupo`/`_entidadesDelTopVerificado`, `entrega/componer.js`) resuelva el conjunto
+    // EXACTO contra figs reales, en vez de adivinar con solo `k` filas (esas `k` pueden no ser, ni de lejos, las
+    // que además cumplen el resto del universo). Sin ninguna otra restricción, `limit:k` sigue siendo la lectura
+    // correcta — un top simple no necesita más.
+    const universoCombinado = !!(p.universo.base || p.universo.bodega
+      || (Array.isArray(p.universo.estados) && p.universo.estados.length)
+      || (Array.isArray(p.universo.no_estados) && p.universo.no_estados.length)
+      || (Array.isArray(p.universo.filtros) && p.universo.filtros.length));
+    const necesitaEjeCompleto = universoCombinado || String(p.universo.top.sobre || "").trim().toLowerCase() === "eje";
+    const argsQueryMetric = { metric: metricaCoreDe(metrica) || metrica, dimension: ejeUniverso, sort: { dir: _direccionDeTop(direccion, metrica) } };
+    if (!necesitaEjeCompleto) argsQueryMetric.limit = k;
     const out = _FAM_VS_ANTERIOR.has(metrica)
       ? [{ tool: "salesRead", args: { focus: "vs_anterior", dimension: ejeUniverso, figsPct: true }, para: `el top ${k} de ${ejeUniverso} por ${metrica} (universo.top, salesRead vs_anterior)` }]
-      : [{ tool: "queryMetric", args: { metric: metricaCoreDe(metrica) || metrica, dimension: ejeUniverso, sort: { dir: _direccionDeTop(direccion, metrica) }, limit: k }, para: `el top ${k} de ${ejeUniverso} por ${metrica} (universo.top)` }];
+      : [{ tool: "queryMetric", args: argsQueryMetric, para: `el top ${k} de ${ejeUniverso} por ${metrica} (universo.top${necesitaEjeCompleto ? ", eje completo — universo combinado" : ""})` }];
     // los OTROS conceptos de la parte, por el mismo eje SIN recorte: la Entrega selecciona de ahí las filas del
     // top ya fijado arriba — dos rankings por separado, nunca una segunda decisión de universo.
     for (const c of p.conceptos) { if (c === metrica) continue; out.push(..._callsDeConceptoEje(p.tema, c, ejeUniverso)); }

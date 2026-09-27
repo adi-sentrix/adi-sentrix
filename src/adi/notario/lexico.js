@@ -77,7 +77,16 @@ export function metricaDeClave(clave) {
  *  EQUIVOCADA para un rótulo de cobranza). Regla general, no un alias de un caso: se prueba el rótulo COMPLETO,
  *  con su paréntesis, contra los sinónimos primero; solo si no hay ninguna coincidencia exacta se recorta el
  *  paréntesis y se repite la misma búsqueda — nunca al revés. */
-export function claveDeMetrica(texto) {
+/** claveExactaDeMetrica(texto) → la clave SOLO cuando el rótulo (completo, o sin su paréntesis final) es
+ *  EXACTAMENTE una clave o uno de sus `conceptos` registrados — la MISMA regla dura de arriba (paréntesis
+ *  completo primero, nunca al revés), pero SIN las dos tolerancias de `claveDeMetrica` de abajo (el sinónimo
+ *  más largo que casa, el barrido por palabra): esas dos son para texto LIBRE del modelo, que puede describir
+ *  una métrica con sus propias palabras. Para decidir si DOS RÓTULOS DE FIGS nombran la MISMA métrica —lo que
+ *  necesita `evidencia.js:_casa` para su match exacto (supervisor 2026-09-27, diagnóstico v7)— esa tolerancia sobra:
+ *  «Ventas totales del año anterior» contiene la SUBFRASE «ventas totales» y el barrido por palabra la
+ *  colapsaría a la clave `ventas`, perdiendo el «anterior» que la distingue de `ventas_anterior` — un cruce de
+ *  la MISMA clase que ya cerró el paréntesis de «Venta (flujo)». Exportada para que NADA repita este candado. */
+export function claveExactaDeMetrica(texto) {
   if (texto == null) return null;
   const conParentesis = normalizar(String(texto)).trim();
   if (!conParentesis) return null;
@@ -89,6 +98,15 @@ export function claveDeMetrica(texto) {
     if (directa) return directa.clave;
     for (const m of CLAVES_DE_METRICA) if (m.conceptos.includes(s)) return m.clave;
   }
+  return null;
+}
+export function claveDeMetrica(texto) {
+  const exacta = claveExactaDeMetrica(texto);
+  if (exacta) return exacta;
+  if (texto == null) return null;
+  const conParentesis = normalizar(String(texto)).trim();
+  if (!conParentesis) return null;
+  const sinParentesis = conParentesis.replace(/\s*\(.*?\)\s*$/, "").trim();
   /* el concepto MÁS LARGO que casa decide («capital frenado · total» → capital_frenado, no capital) */
   const sin = conceptosDe(String(texto)).slice().sort((a, b) => b.length - a.length);
   for (const c of sin) for (const m of CLAVES_DE_METRICA) if (m.conceptos.includes(c)) return m.clave;

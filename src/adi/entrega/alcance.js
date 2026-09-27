@@ -130,12 +130,23 @@ export function figsEnAlcance(figs, alcance, { ejesDelTenant = {}, entidadDeLabe
   // mitad del recorte no corre, documentado, nunca silencioso. `dentroDelUniverso === null` significa «ni base ni
   // union se declararon, o no se pudo resolver contra la evidencia» — nunca se excluye a ciegas por no poder
   // resolverla.
+  // TOP + FILTRO EN LOS DOS SENTIDOS (contrato §7.3·8, cierre del corte 3c, 2026-09-27) — `top` viaja en la MISMA
+  // llamada que `base`/`estados`/`no_estados`/`filtros`/`union`: `conjuntoDeUniverso`
+  // (`notario/verificar.js:_conjuntoTipado`) YA resuelve los dos sentidos de la decisión ahí adentro (por
+  // defecto, el top se calcula DENTRO de lo que `base`/`estados`/`filtros` ya restringieron; con
+  // `top.sobre:"eje"`, el top se calcula sobre el eje ENTERO y el resto del universo filtra DESPUÉS) — es la
+  // MISMA primitiva que ya usa el Notario para verificar la premisa que declara el mismo universo, así que
+  // compositor y verificador NUNCA discrepan sobre qué conjunto es. Antes, `top` no viajaba acá: cada compositor
+  // volvía a resolverlo por su cuenta, siempre en el sentido «dentro del filtro» (nunca `sobre:"eje"`) — la raíz
+  // de A1b. `figsEnAlcance` es la ÚNICA pieza que resuelve el alcance: ya no hace falta un segundo cálculo de
+  // `top` en cada llamador (`entrega/componer.js` deja de repetirlo, ver `_entidadesDelTopVerificado`).
   const camposDeclarados = {};
   if (alcance && alcance.base) camposDeclarados.base = alcance.base;
   if (alcance && alcance.estados) camposDeclarados.estados = alcance.estados;
   if (alcance && alcance.no_estados) camposDeclarados.no_estados = alcance.no_estados;
   if (alcance && alcance.filtros) camposDeclarados.filtros = alcance.filtros;
   if (alcance && alcance.union && alcance.union.length) camposDeclarados.union = alcance.union;
+  if (alcance && alcance.top) camposDeclarados.top = alcance.top;
   let dentroDelUniverso = null;
   if (Object.keys(camposDeclarados).length && indice) {
     try {

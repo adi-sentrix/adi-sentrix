@@ -250,6 +250,34 @@ H("9 · CARNADA 5 — lectura sin entidades con universo inválido → no_resuel
   }
 }
 
+/* ═══ 10 · §7.3·12 (decisión del owner 2026-09-27, diagnóstico v7) — una referencia declarada por el USUARIO
+ * (`criterio.referencia`) sobre "benchmark", con una parte que YA usa el conjunto de la casa «bajo el
+ * benchmark»: la Entrega sigue contando con el benchmark de la EMPRESA (Marco) y declara AL LADO, como límite,
+ * cuánto daría con la referencia del usuario — nunca la reemplaza ni la presenta como objetivo de la empresa. */
+H("10 · §7.3·12 — criterio.referencia (benchmark) declara la cifra del usuario AL LADO de la oficial, nunca en su lugar");
+{
+  const encargo = {
+    version: "encargo/v1",
+    criterio: { referencia: { concepto: "benchmark", valor: 25, unidad: "pct" } },
+    partes: [
+      { id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen"], universo: { eje: "cliente", base: "bajo el benchmark" } },
+    ],
+  };
+  const R = validarEncargo(encargo, {});
+  ok(R.ok, "el encargo valida (ok:true)", JSON.stringify(R.partes.map((p) => ({ id: p.id, estado: p.estado }))));
+  ok(!!(R.criterio && R.criterio.referencia && R.criterio.referencia.concepto === "benchmark"), "el criterio.referencia queda resuelto (§7.1·6)", JSON.stringify(R.criterio));
+  let entrega = null;
+  try { entrega = componerEntrega(R); } catch (e) { entrega = null; }
+  ok(!!entrega && entrega.ok, "la Entrega compone ok", entrega && entrega.motivo);
+  if (entrega && entrega.ok) {
+    const refDecl = entrega.entrega.marco && entrega.entrega.marco.referenciaDeclarada;
+    ok(!!refDecl && /declarado por la empresa/i.test(refDecl.texto) && !/25\s*%/.test(refDecl.texto), "★ CARNADA · el Marco sigue declarando el benchmark de la EMPRESA (nunca la referencia del usuario en su lugar)", JSON.stringify(refDecl));
+    const limRef = (entrega.entrega.limites || []).find((l) => /referencia planteada en la consulta/i.test(l.titulo || ""));
+    ok(!!limRef, "★ CARNADA · un límite declara la cifra del usuario AL LADO (25 %), calculada por la misma función de la casa", JSON.stringify(entrega.entrega.limites.map((l) => l.titulo)));
+    ok(!!limRef && /25\s*%/.test(limRef.titulo) && /no reemplaza/i.test(limRef.motivo) && /ni es un objetivo de la empresa/i.test(limRef.motivo), "★ CARNADA · el límite nombra el valor del usuario y aclara que no reemplaza ni es un objetivo de la empresa", limRef && limRef.motivo);
+  }
+}
+
 console.log(`\n── _encargo_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 if (fail) { console.log("\nFALLOS:"); for (const f of fails) console.log("  ✗ " + f); }
 process.exit(fail ? 1 : 0);

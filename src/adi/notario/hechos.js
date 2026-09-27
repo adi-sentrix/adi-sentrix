@@ -918,6 +918,22 @@ export function libroDeHechos(hechos, ctx = {}) {
       }
       if (tipo === "cifra" && v.veredicto === "verdadera") { const f = (v.evidencia || []).map((l) => I.figs.find((g) => normalizar(g.label) === normalizar(l))).find(Boolean); if (f) { H.render.valor = f.texto || (f.fig && String(f.fig.value)) || ""; if (!H.dominio) H.dominio = _dominioDeFig(f); } if (!H.render.valor && a2.valor && a2.valor.texto) H.render.valor = a2.valor.texto; }
       if (tipo === "grupo") { const gv = leerValor(a2.valor); if (gv && gv.texto) H.render.valor = _canonTexto(gv.texto); }
+      // A4a (diagnóstico v7, contrato §7.3, «las comparables viajan juntas», entrega/verificar.js) — un grupo de
+      // MEMBRESÍA PURA (sin valor declarado: `afirmacion.js` ya no exige metrica/valor para esta forma) sobre un
+      // universo de REFERENCIA («bajo/sobre el benchmark») tiene que imprimir el VALOR de esa referencia en la
+      // MISMA oración del veredicto — `_conteoTipado` (más abajo en este archivo) ya lo hace para los filtros con
+      // `ref` (`_fmtUmbral`, vía `valorDeReferencia`); acá se cierra el mismo hueco para `base`, con la MISMA
+      // función, nunca una segunda cifra inventada. Solo corre sin `H.numeros` (un `grupo` con valor declarado ya
+      // trae su propio número por otro camino) y sobre la familia de referencia conocida (benchmark de margen).
+      if (tipo === "grupo" && !H.numeros.length && _es(h.universo) && typeof h.universo.base === "string" && /^(?:bajo|sobre)\s+el\s+benchmark$/i.test(h.universo.base.trim())) {
+        const rRef = valorDeReferencia("benchmark", I);
+        if (rRef && Number.isFinite(rRef.raw)) {
+          const mRef = metricaPorClave("benchmark");
+          const valTxt = formatoDeLaCasa(rRef.raw, rRef.unidad || "pct");
+          H.verdad = `${H.verdad || ""}${H.verdad ? ", " : ""}${mRef ? mRef.nombre.toLowerCase() : "benchmark"} ${valTxt}`;
+          H.numeros.push({ raw: rRef.raw, unidad: rRef.unidad || "pct", texto: valTxt });
+        }
+      }
       /* un grupo con universo tipado: cada miembro pertenece al universo, o el grupo es falso */
       if (tipo === "grupo" && _es(h.universo) && H.ok) { let U = null; try { U = conjuntoDeUniverso(h.universo, I, h.universo.eje || null, ""); } catch { U = null; } const miembros = (_lista(h.miembros).length ? _lista(h.miembros) : _lista(h.sujeto)).map((x) => { const r = I.resolverEntidad(x); return normalizar(r ? r.nombre : x); }); if (U && U.set) { const fuera = miembros.filter((k) => !U.set.has(k)); if (fuera.length) _aplica(H, { veredicto: "falsa", motivo: `fuera-del-universo: ${fuera.map((k) => (I.entidades.get(k) || { nombre: k }).nombre).join(", ")} no pertenece a «${nombrarUniverso(h.universo, I)}»`, verdad: `${nombrarUniverso(h.universo, I)}: ${[...U.set].map((k) => (I.entidades.get(k) || { nombre: k }).nombre).join(", ")}`, evidencia: H.evidencia }); } else if (U && U.error) _aplica(H, { veredicto: "no-verificable", motivo: U.error, verdad: "", evidencia: [] }); }
       /* la unidad declarada tiene que ser la de la fig; pp dicho por % (o al revés) es otra cifra; el signo de una variación es su dirección */

@@ -368,11 +368,49 @@ H("8 · CARNADA · un hecho con fuerza nula (propuesta, sin insumos) nunca sale 
   ok(fuerzaDe(libro, "pr1") === null, "fuerzaDe(libro, id) también da null para este hecho (la misma verdad, otra puerta)");
 }
 
-/* ═══ 9 · UNA PARTE NO SOPORTADA NO TUMBA LA ENTREGA (corrección del supervisor, owner 2026-09-25) ═════════════
- * CORTE 3c: `estados` SOLO (sin `top`) ya NO es «no soportada» (pieza 1 — p2 compondría). Esta carnada necesita
- * un universo que SIGA fuera de alcance: `estados` COMBINADO con `top` en la MISMA parte — la combinación que
- * `componer.js` sigue declinando a propósito (ver la cabecera de este gate). */
-H("9 · una parte con universo no soportado (estados + top combinados) no impide servir las demás partes del MISMO encargo");
+/* ═══ 9 · UNA PARTE NO COMPONIBLE NO TUMBA LA ENTREGA (corrección del supervisor, owner 2026-09-25;
+ * REESCRITO 2026-09-27, decisión del coordinador sobre el diagnóstico v7) ═══════════════════════════════════
+ * La carnada original usaba `estados` COMBINADO con `top` como universo «fuera de alcance» — esa combinación
+ * es justo la que §7.3·8 (2026-09-26) cerró: HOY compone (ver la sección 9b, más abajo, con la MISMA parte
+ * vieja). La INTENCIÓN de esta sección («una parte que no se puede componer no impide servir las demás partes
+ * del MISMO encargo») sigue vigente — se prueba con una causa de declinación que SÍ sigue siendo real hoy:
+ * un concepto sin productor para el eje de la entidad pedida (§2.1/§3.3 del contrato — `markup` SOLO tiene
+ * productor para `cliente`; pedirlo por `marca` no tiene ni tendrá una cifra que citar, no es un gap de este
+ * corte). A diferencia de la vieja carnada, esta declina en la VALIDACIÓN (no al componer) — el contrato ya lo
+ * documenta así (§4f): un concepto sin productor es un defecto de la PARTE, no del universo. */
+H("9 · una parte con un concepto sin productor no impide servir las demás partes del MISMO encargo");
+{
+  const encargo = {
+    version: "encargo/v1",
+    partes: [
+      { id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], entidades: [{ nombre: "Jumbo" }] },
+      { id: "p2", tema: "comercial", cierre: "cifra", conceptos: ["markup"], entidades: [{ nombre: "Philips", eje: "marca" }] },
+    ],
+  };
+  const res = validarEncargo(encargo, {});
+  const p1 = (res.partes || []).find((p) => p.id === "p1"), p2 = (res.partes || []).find((p) => p.id === "p2");
+  ok(res.ok && p1 && p1.estado === "resuelta" && p2 && p2.estado === "no_resuelta", "p1 resuelve; p2 (markup por marca — sin productor real) declina en la VALIDACIÓN", JSON.stringify(res.partes.map((p) => ({ id: p.id, estado: p.estado }))));
+  const nr = (res.noResuelto || []).find((n) => n.parte === "p2" && n.campo === "concepto" && n.motivo === "concepto_sin_productor");
+  ok(!!nr, "★ noResuelto declara concepto_sin_productor para p2 (markup no tiene eje marca — nunca lo tuvo)", JSON.stringify(res.noResuelto));
+  const entrega = componerEntrega(res);
+  ok(entrega.ok, "componerEntrega da ok:true — la parte p2 (sin productor) NO tumba la Entrega entera", entrega.motivo);
+  if (entrega.ok) {
+    ok(entrega.texto.includes("Jumbo"), "la parte servible (p1, Jumbo) aparece servida en el texto");
+    ok(/concepto sin productor/.test(entrega.texto) && /concepto_sin_productor/.test(entrega.texto), "p2 sale como LÍMITE con su motivo real, en «Lo que no se puede concluir»", entrega.texto);
+    ok(!/Philips/.test(entrega.texto), "Philips (la marca de p2) no recibe ninguna cifra — declinada, no inventada");
+    const duenos = new Set((entrega.entrega.cifras.filas || []).map((f) => f.valores["Entidad / grupo"]));
+    ok(duenos.has("Jumbo") && !duenos.has("Philips"), "Cifras solo trae lo que p1 sí sirvió (Jumbo), nunca una fila de la parte declinada");
+    ok((entrega.entrega.temasCubiertos || []).includes("comercial"), "temasCubiertos sigue cubriendo comercial (lo que p1 sí sirvió)");
+    const v = verificarEntrega({ texto: entrega.texto, entrega: entrega.entrega });
+    ok(v.ok, "verificarEntrega ok sobre la Entrega mixta (parcial + límite)", JSON.stringify(v.violaciones));
+  }
+}
+
+/* ═══ 9b · §7.3·8 (2026-09-26), cerrado por el diagnóstico v7 (supervisor 2026-09-27) — `top` COMBINADO con
+ * `estados` en la MISMA parte YA compone, en el sentido por defecto (top DENTRO del conjunto ya filtrado): la
+ * parte vieja de la sección 9 (cobranza, «en mora» + los 3 de mayor saldo vencido) ya no es un universo fuera
+ * de alcance — se prueba acá, contra el dato real del tenant demo (nunca un número a mano). ── */
+H("9b · §7.3·8 — «en mora» + top 3 por saldo vencido (antes «no soportado») compone HOY, con las entidades reales del dato");
 {
   const encargo = {
     version: "encargo/v1",
@@ -382,23 +420,19 @@ H("9 · una parte con universo no soportado (estados + top combinados) no impide
     ],
   };
   const res = validarEncargo(encargo, {});
-  ok(res.ok && res.partes.every((p) => p.estado === "resuelta"), "las dos partes resuelven en validarEncargo (el gap se evalúa al COMPONER, no al validar)");
+  ok(res.ok && res.partes.every((p) => p.estado === "resuelta"), "★ las dos partes resuelven en validarEncargo — la MISMA combinación de la vieja sección 9", JSON.stringify(res.partes.map((p) => ({ id: p.id, estado: p.estado }))));
   const entrega = componerEntrega(res);
-  ok(entrega.ok, "componerEntrega da ok:true — la parte p2 (no soportada) NO tumba la Entrega entera", entrega.motivo);
+  ok(entrega.ok, "★ componerEntrega da ok:true — §7.3·8 cerrado: ya no se declina por «universo no soportado»", entrega.motivo);
   if (entrega.ok) {
-    ok(entrega.texto.includes("Jumbo"), "la parte servible (p1, Jumbo) aparece servida en el texto");
-    ok(/Sobre la parte p2 \(cobranza\), el filtro del universo no se aplica/.test(entrega.texto), "p2 sale como LÍMITE con título y motivo, en «Lo que no se puede concluir»");
-    const filasCobranza = (entrega.entrega.cifras.filas || []).filter((f) => f.valores["Tema"] === "cobranza");
-    ok(filasCobranza.length === 0, "ninguna fila de Cifras pertenece a la parte declinada (cobranza)");
-    ok((entrega.entrega.temasCubiertos || []).includes("comercial") && !(entrega.entrega.temasCubiertos || []).includes("cobranza"), "temasCubiertos = solo lo servido (comercial); cobranza queda fuera y declarado, no silenciado");
+    ok(entrega.texto.includes("Jumbo"), "p1 (Jumbo) sigue sirviéndose");
+    ok(entrega.texto.includes("Lider") && entrega.texto.includes("Sodimac"), "★ p2 compone con las entidades reales del dato (Lider y Sodimac, el saldo vencido más alto entre los «en mora» que la prioridad integrada retiene)", entrega.texto);
+    ok((entrega.entrega.temasCubiertos || []).includes("comercial") && (entrega.entrega.temasCubiertos || []).includes("cobranza"), "★ temasCubiertos trae los DOS temas — cobranza ya no queda fuera", JSON.stringify(entrega.entrega.temasCubiertos));
+    const duenos = new Set((entrega.entrega.cifras.filas || []).map((f) => f.valores["Entidad / grupo"]));
+    ok(duenos.has("Lider") && duenos.has("Sodimac"), "★ Cifras trae filas propias de Lider y Sodimac (cobranza), no un límite genérico", JSON.stringify([...duenos]));
+    const _FUERA_DE_ALCANCE = ["Ripley", "Mercado Libre", "La Polar", "Hites", "ABC", "Unimarc"]; // saldo_vencido = 0: nunca "en mora"
+    ok(_FUERA_DE_ALCANCE.every((n) => !duenos.has(n)), "ninguna cuenta sin saldo vencido (nunca «en mora») recibe fila propia", JSON.stringify([...duenos]));
     const v = verificarEntrega({ texto: entrega.texto, entrega: entrega.entrega });
-    ok(v.ok, "verificarEntrega ok sobre la Entrega mixta (parcial + límite)", JSON.stringify(v.violaciones));
-    // CARNADA de raíz (defecto real hallado y cerrado en este corte, no hipotético): antes de acotar cada parte a
-    // sus PROPIAS figs (`_figsDeParte`/`_figsDePartes`, componer.js), una fig de la parte declinada (`cobranza`,
-    // «Jumbo · Venta (flujo)») se colaba en la lectura de la parte servida (`comercial`) por una canonización
-    // ambigua del rótulo (ver la nota reportada en el punto 8 de este archivo) y el Marco mezclaba "año cerrado"
-    // con "foto a hoy" para un encargo que ni siquiera sirve contenido de inventario/cobranza.
-    ok(!/dos marcos en la misma respuesta/.test(entrega.texto), "el Marco declara UN SOLO marco temporal — ninguna fig de la parte declinada se coló en la parte servida");
+    ok(v.ok, "verificarEntrega ok sobre la Entrega con las dos partes compuestas", JSON.stringify(v.violaciones));
   }
 }
 

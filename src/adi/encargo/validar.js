@@ -155,13 +155,20 @@ function _resolverPeriodo(periodo, tema, entidadCanonica) {
 
 /* ── criterio (§4·2) ────────────────────────────────────────────────────────────────────────────────────────── */
 const _CRITERIOS_IDS = new Set(Object.keys(CRITERIOS));
+// §7.3·14 (2026-09-27) — «caja»/«liquidez» es la ÚNICA palabra reservada de tesorería (contrato §2.1, fila
+// `criterio_tesoreria`; `adi-caja-no-es-cobranza`): SOLO esa reserva ofrece la alternativa «exposición de
+// crédito» + `sin_datos_tesoreria`. Entender el lenguaje le toca al LLM, no al validador: un lente desconocido
+// CUALQUIERA («rentabilidad», una errata) no se traduce a una lente parecida — ofrece TODAS las lentes de
+// `CRITERIOS` (más abajo, `alternativas` en la raíz) para que el LLM elija, nunca la alternativa de crédito, que
+// es específica de tesorería.
+const _LENTE_RESERVADA_TESORERIA = /^(?:caja|liquidez)$/i;
 function _resolverCriterio(criterio) {
   if (criterio == null) return { resuelto: { lente: "riesgo", origen: "adi", alternativa: null }, problema: null, avisoAdi: true };
   if (!_es(criterio)) return { resuelto: { lente: "riesgo", origen: "adi", alternativa: null }, problema: { motivo: "criterio_desconocido" }, avisoAdi: true };
   if (_str(criterio.lente)) {
     if (_CRITERIOS_IDS.has(criterio.lente)) return { resuelto: { lente: criterio.lente, origen: "usuario", alternativa: criterio.lente === "riesgo" ? null : "riesgo" }, problema: null, avisoAdi: false };
-    // «caja» no es una lente: la reserva `criterio_tesoreria` cae en `criterio_desconocido` con alternativa crédito (contrato §2.1, fila `criterio_tesoreria`)
-    return { resuelto: { lente: "riesgo", origen: "adi", alternativa: null }, problema: { motivo: "criterio_desconocido", alternativaCredito: true }, avisoAdi: true };
+    const esTesoreria = _LENTE_RESERVADA_TESORERIA.test(String(criterio.lente).trim());
+    return { resuelto: { lente: "riesgo", origen: "adi", alternativa: null }, problema: { motivo: "criterio_desconocido", ...(esTesoreria ? { alternativaCredito: true } : {}) }, avisoAdi: true };
   }
   if (_es(criterio.referencia) && _str(criterio.referencia.concepto) && typeof criterio.referencia.valor === "number" && _str(criterio.referencia.unidad)) {
     // REFERENCIAS_DE_LA_CASA (§3) = las claves de lexico.js con `referencia: true` — `esReferencia` es exactamente esa marca.

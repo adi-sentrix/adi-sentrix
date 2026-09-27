@@ -24,11 +24,16 @@
  *                     nombre del estado como `base` — se declara acá con el MISMO eje que ya declara `estados.js`,
  *                     nunca una segunda tabla).
  *
- * FUERA DE ALCANCE, a propósito (reportado, no forzado): «con capital frenado», «con saldo vencido», «bajo/sobre
- * el presupuesto» — su eje o su existencia dependen de qué figs trajo el turno (p. ej. «con capital frenado» vale
- * para el eje que la boleta haya traído: sku, bodega, marca o familia, nunca uno fijo), así que no son un
- * conocimiento verdaderamente ESTÁTICO de nombre+eje. Un `base` con esos nombres sigue sin poder declinarse en la
- * validación — se resuelve en tiempo de composición, exactamente como antes de esta decisión. */
+ * §7.3·16 (decisión del supervisor 2026-09-27): los conjuntos de la casa cuyo eje se conoce DE ANTEMANO van TODOS acá,
+ * también los que dependen del ESTADO de cada entidad — «con saldo vencido» (cliente, cobranza: el saldo vencido
+ * de una CUENTA) y «con capital frenado» (SKU, la Mesa Capital: el capital frenado de un PRODUCTO) tienen un eje
+ * fijo por lo que MIDEN, no por lo que trajo la boleta de un turno cualquiera. Un nombre que no está en este
+ * registro es inválido — no hay una lista aparte de «dejar pasar» en `encargo/validar.js`.
+ *
+ * FUERA DE ALCANCE, a propósito (reportado, no forzado): «bajo/sobre el presupuesto» — depende de qué figs trajo
+ * el turno (el plan es un dato del pack, no siempre publicado), así que no es un conocimiento verdaderamente
+ * ESTÁTICO todavía. Un `base` con ese nombre sigue sin poder declinarse en la validación — se resuelve en tiempo
+ * de composición, igual que antes de esta decisión. */
 import { definicionesDeEstados } from "./estados.js";
 
 /* la familia CARGA: constantes, para que `oracle/datoProyectado.js` y `notario/verificar.js` usen la MISMA clave */
@@ -52,8 +57,19 @@ const _BENCHMARK = [
 /* la familia ESTADO: el mismo registro que ya usa `notario/estados.js` — nunca una segunda tabla */
 const _ESTADOS = definicionesDeEstados().map((e) => ({ nombre: e.canon, eje: e.eje, familia: "estado" }));
 
+/* §7.3·16: los conjuntos que dependen del ESTADO de cada entidad pero cuyo EJE es fijo por lo que miden —
+ * `notario/verificar.js:_conjuntosConocidos` ya sabe resolver su membresía (saldo vencido > 0 · capital frenado
+ * por SKU); acá solo se declara su nombre+eje, con las MISMAS constantes que ese archivo usa, para que el
+ * validador pueda reconocerlos sin necesitar las figs del turno. */
+export const NOMBRE_CON_SALDO_VENCIDO = "con saldo vencido";
+export const NOMBRE_CON_CAPITAL_FRENADO = "con capital frenado";
+const _ESTADO_DEPENDIENTE_DE_EJE_FIJO = [
+  { nombre: NOMBRE_CON_SALDO_VENCIDO, eje: "cliente", familia: "estado" },
+  { nombre: NOMBRE_CON_CAPITAL_FRENADO, eje: "sku", familia: "estado" },
+];
+
 /** CONJUNTOS_DE_LA_CASA → [{nombre, eje, familia}] · el catálogo ESTÁTICO completo (nombre + eje), sin membresía. */
-export const CONJUNTOS_DE_LA_CASA = [..._CARGA, ..._BENCHMARK, ..._ESTADOS];
+export const CONJUNTOS_DE_LA_CASA = [..._CARGA, ..._BENCHMARK, ..._ESTADOS, ..._ESTADO_DEPENDIENTE_DE_EJE_FIJO];
 
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 const _porNombre = new Map(CONJUNTOS_DE_LA_CASA.map((c) => [_norm(c.nombre), c]));

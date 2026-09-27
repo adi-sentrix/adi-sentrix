@@ -130,14 +130,14 @@ el subconjunto **factual** de `TIPOS_DE_HECHO` (`hechos.js`). Quedan fuera: `ref
 `periodo` ∈ anterior|presupuesto|actual, `num`/`den`/`de` como `{sujeto, metrica}` — nunca por id de fig).
 Veredicto: `libroDeHechos(premisas, { indice de la Entrega })` ⇒ `verdadera` | `falsa` (+ la verdad con id, `hNa…`) |
 `no-verificable` (esquema inválido ⇒ `noResuelto.premisa_mal_formada` con el texto de `validarHecho`). Una premisa
-`falsa` **nunca** cambia la conclusión (`premisa-adoptada`); la Entrega la declara en «Sobre lo que usted da por hecho».
+`falsa` **nunca** cambia la conclusión (`premisa-adoptada`); la Entrega la declara en «Sobre la premisa planteada en la consulta» (§7.3·15).
 
 **[2026-09-26] Ley de premisas con universo propio.** Una premisa trae SU PROPIO universo tipado (`universo`/`de`),
 independiente del universo de la parte. Verificarla exige nombrar lo que ese universo contiene: el veredicto de
 «hay 3 SKU en riesgo de quiebre» (universo global) nombra a PHI-HAIR-PRO aunque la parte pidiera solo Santiago; el
 de «Falabella está al día» (falsa) nombra a Falabella con su saldo vencido aunque la parte fuera «los clientes al
 día». Por eso: (1) una entidad que una premisa necesita nombrar **puede aparecer** en la Entrega aunque quede fuera del
-universo de la parte — en «Sobre lo que usted da por hecho», nunca como sujeto de una cifra pedida; (2) el catálogo
+universo de la parte — en «Sobre la premisa planteada en la consulta» (§7.3·15), nunca como sujeto de una cifra pedida; (2) el catálogo
 (§8) **nunca** pone en `prohibido.entidades` una entidad que una premisa del mismo caso necesite nombrar (tres casos
 del catálogo v1 se contradecían así); (3) lo que SÍ sigue prohibido es que una entidad fuera del universo de la parte
 reciba una cifra propia en «Cifras» o en la oración de la respuesta pedida — eso es sustitución, no verificación.
@@ -489,6 +489,28 @@ venta a crédito, ley del owner).
     y no cambió. El validador consulta el registro, puro y sin tenant: declina un nombre que no es conjunto de la casa
     («clientes grandes») o uno de otro eje («bajo el benchmark» con `eje:"sku"`). (Una primera versión, del
     2026-09-26, cubría solo la familia de carga.)
+12. [2026-09-27 · DECISIÓN DEL OWNER: «con el benchmark de la empresa, como recomiendas»] Una referencia declarada por
+    el usuario (`criterio.referencia`, §7.1·6) NO recalcula los conjuntos de la casa. «Bajo el benchmark» y «sobre el
+    benchmark» se resuelven siempre con el benchmark que declaró la EMPRESA: la pantalla y ADI dicen la misma cifra (una
+    sola verdad por eje). La referencia del usuario se RESPETA y se DECLARA junto a la de la empresa, con lo que cambiaría:
+    «con su referencia de 25 %, serían 4», con su propia cifra y las cuentas, calculadas por la misma función de la casa
+    contra ese valor. Nunca reemplaza a la oficial en silencio ni se presenta como objetivo de la empresa.
+13. [2026-09-27, diagnóstico v7] Un ranking parcial es un problema de LECTURA, no de verificación. La regla del
+    Notario no cambia: lo ausente no vale 0, y un extremo «menor/peor/mejor» no se decide sobre un ranking incompleto.
+    Pero si el Core tiene la métrica para todo el eje, la lectura del encargo tiene que TRAER el ranking completo cada
+    vez que un universo o una premisa necesite un extremo o un orden sobre el eje. Solo cuando el Core de verdad no
+    tiene el dato (por ejemplo, una marca sin año anterior) se declina con `universo-incompleto`.
+14. [2026-09-27] Un `criterio.lente` desconocido NO se traduce: entender el lenguaje le toca al LLM, no al
+    validador. Queda `criterio_desconocido` y como alternativas se ofrecen TODAS las lentes existentes (`CRITERIOS`),
+    para que el LLM elija. La alternativa «exposición de crédito» + `sin_datos_tesoreria` es exclusiva de la palabra
+    reservada de tesorería («caja»/«liquidez», §2.1).
+15. [2026-09-27] El dueño de una premisa es QUIEN CONSULTA, no la empresa. Para mantener la tercera persona se
+    escribe «Sobre la premisa planteada en la consulta». «Declarado por la empresa» solo vale para la configuración de
+    la empresa (el benchmark, el nivel de carga) y nunca para lo que alguien da por hecho en una pregunta.
+16. [2026-09-27] Los conjuntos de la casa cuyo eje se conoce de antemano van TODOS en el registro estático
+    (`notario/conjuntosDeLaCasa.js`), también los que dependen del estado de cada entidad: «con saldo vencido»
+    (cliente), «con capital frenado» (sku) y cualquier otro que `_conjuntosConocidos` sepa resolver. Un nombre que no
+    está en el registro es inválido; no hay listas de «dejar pasar».
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

@@ -482,7 +482,13 @@ function _construir(scenario) {
       F(`${pct < 0 ? "-" : "+"}${_pct1(Math.abs(pct))}`, D, "venta", "variacion");
     }
     if (m) linea += ` · ${_L.margen} ${F(_pct1(m.margen), D, undefined, "margen")} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D, undefined, "contribucion")} · ${_L.costo} ${F(_moneyK(m.costo), D, undefined, "costo")} · ${_L.carga} ${F(_pct1(m.pctRebate), D, undefined, "carga")} (${_L.acciones.toLowerCase()} ${F(_moneyK(m.rebates), D, undefined, "carga")})`;
-    if (Number.isFinite(c.actual)) rankings.cliente.ventas.filas.push({ entidad: c.nombre, valor: c.actual });
+    // CRUDO_MONEY (supervisor 2026-09-27, diagnóstico v7) — el ranking de dinero publica su `texto` con el MISMO
+    // formateador que ya usa la prosa de esta cuenta (`_moneyK`, arriba), como ya hace cobranza (`vencidoFmt`,
+    // más abajo): sin `texto`, `notario/verificar.js:_filasTipadas` descarta la fila de dinero entera (nunca
+    // adivina un crudo desde `valor` para una unidad "money") y cae al fallback de figs de la boleta, LIMITADO a
+    // lo que el turno haya pedido — nunca al eje completo que el Core sí tiene. Con `texto`, el ranking
+    // proyectado (SIEMPRE completo, el eje entero) queda disponible tal cual es: una cita, no una cuenta nueva.
+    if (Number.isFinite(c.actual)) rankings.cliente.ventas.filas.push({ entidad: c.nombre, valor: c.actual, texto: _moneyK(c.actual) });
     if (Number.isFinite(+c.unidades)) rankings.cliente.unidades.filas.push({ entidad: c.nombre, valor: +c.unidades });
     if (m) {
       if (Number.isFinite(m.margen)) rankings.cliente.margen.filas.push({ entidad: c.nombre, valor: m.margen });
@@ -550,7 +556,8 @@ function _construir(scenario) {
   for (const m of f.marcasMargen) {
     const D = [m.nombre];
     U(m.unidades, D, "unidades", "unidades_vendidas");
-    if (Number.isFinite(m.venta)) rankings.marca.ventas.filas.push({ entidad: m.nombre, valor: m.venta });
+    // CRUDO_MONEY (supervisor 2026-09-27, diagnóstico v7) — mismo criterio que `rankings.cliente.ventas` arriba.
+    if (Number.isFinite(m.venta)) rankings.marca.ventas.filas.push({ entidad: m.nombre, valor: m.venta, texto: _moneyK(m.venta) });
     if (Number.isFinite(m.margen)) rankings.marca.margen.filas.push({ entidad: m.nombre, valor: m.margen });
     if (Number.isFinite(m.contribucion)) rankings.marca.contribucion.filas.push({ entidad: m.nombre, valor: m.contribucion });
     if (Number.isFinite(m.pctRebate)) rankings.marca.carga.filas.push({ entidad: m.nombre, valor: m.pctRebate });
@@ -569,7 +576,8 @@ function _construir(scenario) {
   for (const s of f.skusMargen) {
     const D = [s.nombre];
     U(s.unidades, D, "unidades", "unidades_vendidas");
-    if (Number.isFinite(s.venta)) rankings.sku.ventas.filas.push({ entidad: s.nombre, valor: s.venta });
+    // CRUDO_MONEY (supervisor 2026-09-27, diagnóstico v7) — mismo criterio que `rankings.cliente.ventas` arriba.
+    if (Number.isFinite(s.venta)) rankings.sku.ventas.filas.push({ entidad: s.nombre, valor: s.venta, texto: _moneyK(s.venta) });
     if (Number.isFinite(s.contribucion)) rankings.sku.contribucion.filas.push({ entidad: s.nombre, valor: s.contribucion });
     L.push(`- ${s.nombre} — ${_L.ventas} ${F(_moneyK(s.venta), D, undefined, "ventas")} · ${_L.margen} ${F(_pct1(s.margen), D, undefined, "margen")} · ${_L.contribucion} ${F(_moneyK(s.contribucion), D, undefined, "contribucion")} · ${_L.costo} ${F(_moneyK(s.costo), D, undefined, "costo")} · ${_L.carga} ${F(_pct1(s.pctRebate), D, undefined, "carga")} · ${s.unidades} unidades · costo medio ${F(_money(s.costoMedio), D)} por unidad · precio de lista ${F(_money(s.precioLista), D)} por unidad · marca ${s.marca} · familia ${s.sfamilia}.`);
   }
