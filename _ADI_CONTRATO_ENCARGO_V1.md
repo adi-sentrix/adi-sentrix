@@ -482,14 +482,13 @@ venta a crédito, ley del owner).
 11. [2026-09-26] `universo.base` no identificable → lo declina el VALIDADOR (`validarUniverso`, no el compositor):
     un `base` que no es un conjunto de la casa, o que es un conjunto de OTRO eje (p. ej. «carga comercial alta» —de
     cliente— con `eje:"sku"`), cae en `noResuelto {campo:"universo", motivo:"universo_invalido"}`; la parte queda
-    `no_resuelta` y nunca se sirven todas las entidades del eje en su lugar. **Cobertura parcial, reportada al
-    supervisor**: la fuente (`oracle/datoProyectado.js:cifrasDelDato(...).conjuntos`) solo cubre hoy la familia de
-    CARGA («carga comercial alta», «sobre el nivel declarado de carga») — es la única que `validarEncargo` puede
-    resolver SIN llamar a ninguna tool (corre antes de cualquier lectura). La familia de BENCHMARK («bajo/sobre el
-    benchmark», «con capital frenado») vive en `notario/verificar.js:_conjuntosConocidos` y exige una fig de ESE
-    turno (p. ej. «Benchmark de margen» ya publicada): un `base` de esa familia, o un nombre que no es ningún
-    conjunto de la casa («clientes grandes»), sigue sin poderse declarar inválido en la validación — se resuelve en
-    tiempo de composición, como antes de esta decisión.
+    `no_resuelta` y nunca se sirven todas las entidades del eje en su lugar. **Cobertura completa (2026-09-27)**:
+    SABER qué conjuntos existen (nombre · eje · familia) es conocimiento estático de la casa y vive en UN registro,
+    `notario/conjuntosDeLaCasa.js` (familias carga, benchmark y estado; los nombres son las mismas constantes que
+    escriben `datoProyectado.js` y leen `_conjuntosConocidos`); quiénes son MIEMBROS sigue exigiendo las figs del turno
+    y no cambió. El validador consulta el registro, puro y sin tenant: declina un nombre que no es conjunto de la casa
+    («clientes grandes») o uno de otro eje («bajo el benchmark» con `eje:"sku"`). (Una primera versión, del
+    2026-09-26, cubría solo la familia de carga.)
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

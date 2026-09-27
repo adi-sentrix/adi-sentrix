@@ -22,8 +22,7 @@ import { ausenciasDe } from "../../config/contract/ausencias.js";
 import { assumptionValid } from "../../config/contract/assumptionRegistry.js";
 import { serieRealDe } from "../sentrix/capability.js";
 import { CRITERIOS } from "../agente/prioridadIntegrada.js";   // SOLO el dato `CRITERIOS` (§3); nunca `criterioDeLaPregunta`
-import { cifrasDelDato } from "../oracle/datoProyectado.js";   // §7.3·11: `.conjuntos` es el catálogo de CARGA (nombre → eje), memoizado por tenant+escenario — nunca una lista a mano acá
-import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
+import { conjuntoConocido } from "../notario/conjuntosDeLaCasa.js";   // §7.3·11: el catálogo ESTÁTICO de conjuntos de la casa (nombre → eje) — carga · benchmark · estado, nunca una lista a mano acá
 import {
   PARTES_MAX, SUPUESTOS_USUARIO_MAX, CIERRES, EJES, TIPOS_DE_PREMISA, USAR_VALORES, PROFUNDIDAD_VALORES,
   INICIATIVA_VALORES, CAMPOS_RAIZ, CAMPOS_PARTE, conceptoDeDefinicionValido, ejesConProductor, cruceBloqueadoDe, productorDe,
@@ -255,7 +254,7 @@ function _resolverPremisasRaiz(premisas, I) {
 }
 
 /* ── una Parte completa (§4·1) ──────────────────────────────────────────────────────────────────────────────── */
-function _validarParte(parteCruda, idx, supuestosPorId, I, scenario) {
+function _validarParte(parteCruda, idx, supuestosPorId, I) {
   const id = _str(parteCruda && parteCruda.id) ? parteCruda.id : `p${idx + 1}`;
   const noResuelto = [];
   const avisos = [];
@@ -417,25 +416,21 @@ function _validarParte(parteCruda, idx, supuestosPorId, I, scenario) {
       noResuelto.push(nuevoNoResuelto({ parte: id, campo: "universo", valor: parteCruda.universo, motivo: "universo_invalido", detalle: `el universo es de ${uEff.eje} y la parte es de ${ejeEfectivo}` }));
       universoValido = false;
     } else {
-      // §7.3·11 del contrato (decisión del supervisor, 2026-09-26) — un `base` que SÍ es un conjunto conocido de
-      // la casa pero de OTRO eje («carga comercial alta», de cliente, con eje:"sku") se declina ACÁ, antes de que
-      // el compositor termine sirviendo el eje entero en silencio porque el universo no se pudo evaluar más
-      // adelante. Fuente: `proyectarDatoNegocio(scenario).conjuntos` — el MISMO catálogo que el Notario ya declara
-      // para «carga comercial alta»/«sobre el nivel declarado de carga» (`oracle/datoProyectado.js`), nunca una
-      // lista escrita a mano acá. LÍMITE CONOCIDO, reportado al supervisor (no forzado): esta fuente cubre la
-      // familia de CARGA; la familia de BENCHMARK («bajo/sobre el benchmark») y «con capital frenado» solo se
-      // resuelven en `notario/verificar.js:_conjuntosConocidos`, que exige una fig de ESTE turno (p. ej.
-      // «Benchmark de margen» ya publicada) — `validarEncargo` corre ANTES de cualquier llamada a una tool, así
-      // que esa mitad del catálogo no está disponible acá todavía. Un `base` de esa familia, o un nombre que no
-      // es ningún conjunto de la casa («clientes grandes»), sigue sin validarse en este punto — se resuelve en
-      // tiempo de composición, como hoy.
+      // §7.3·11 del contrato, COMPLETO (decisión del coordinador, 2026-09-26) — un `base` que no es NINGÚN
+      // conjunto de la casa («clientes grandes») o que es un conjunto de OTRO eje («carga comercial alta», de
+      // cliente, con eje:"sku") se declina ACÁ, antes de que el compositor termine sirviendo el eje entero en
+      // silencio porque el universo no se pudo evaluar más adelante. Fuente: `notario/conjuntosDeLaCasa.js` — el
+      // catálogo ESTÁTICO de nombre+eje (carga · benchmark · estado), la MISMA fuente que ya usa
+      // `notario/verificar.js:_conjuntosConocidos` para sus nombres — nunca una lista escrita a mano acá. Esto NO
+      // resuelve MEMBRESÍA (quiénes son miembros sigue siendo pregunta de `conjuntoDeUniverso` en tiempo de
+      // composición, que sí necesita las figs del turno para la familia de benchmark) — solo si el NOMBRE existe y
+      // para qué eje, que es conocimiento estático y ahora cubre las dos familias completas.
       const _baseStr = _es(uEff) && typeof uEff.base === "string" ? uEff.base.trim() : "";
       let _baseError = null;
       if (_baseStr && !/^todos?|todas$/i.test(_baseStr)) {
-        let conjuntosDeCarga = null;
-        try { conjuntosDeCarga = cifrasDelDato(scenario).conjuntos; } catch { conjuntosDeCarga = null; }
-        const c = conjuntosDeCarga && conjuntosDeCarga[_baseStr];
-        if (c && c.eje && uEff.eje && c.eje !== uEff.eje) _baseError = `«${_baseStr}» es un conjunto de ${c.eje}, no de ${uEff.eje}`;
+        const c = conjuntoConocido(_baseStr);
+        if (!c) _baseError = `«${_baseStr}» no es un conjunto que la casa reconozca`;
+        else if (c.eje && uEff.eje && c.eje !== uEff.eje) _baseError = `«${_baseStr}» es un conjunto de ${c.eje}, no de ${uEff.eje}`;
       }
       if (_baseError) {
         noResuelto.push(nuevoNoResuelto({ parte: id, campo: "universo", valor: parteCruda.universo, motivo: "universo_invalido", detalle: _baseError }));
@@ -623,8 +618,7 @@ export function validarEncargo(encargo, ctx = {}) {
   }
 
   /* § cada parte, sola (§4·1) */
-  const scenario = _str(ctx.scenario) ? ctx.scenario : ESCENARIO_INICIAL;
-  const partesResueltas = partesConId.map((p, i) => _validarParte(p, i, supuestosPorId, I, scenario));
+  const partesResueltas = partesConId.map((p, i) => _validarParte(p, i, supuestosPorId, I));
 
   const avisosDeParte = partesResueltas.flatMap((p) => p.avisos.map((a) => ({ ...a, parte: p.id })));
   const noResueltoPartes = partesResueltas.flatMap((p) => p.noResuelto);

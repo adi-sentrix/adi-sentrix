@@ -27,6 +27,7 @@ import { ESTADOS_CANON, estadoDeLaCasa, verificarEstadoDeLaCasa, ejeCompatible }
 import { juzgarBase, calcularConBase } from "./tasas.js";
 import { AUSENTE_VALE_CERO, claveDeMetrica as _claveDeMetricaLex, metricaPorClave, polaridadDeClave, diasDe, opDe } from "./lexico.js";   // verdad finita (E1): el universo tipado se evalúa por claves, no por palabras   // la base de una tasa (ronda adversarial 3): valor + base, o no es esa tasa   // fase 4: la casa canoniza la forma de la declaración antes del veredicto
 import { indiceDeEvidencia, tokens, numerosEn, ES_TODO, ES_TODO_FUERTE, estadoCanon, conceptosDe, mismoValor as _mismoValor, unidadCompatible as _u, necesitaUniverso as _necesitaUniverso, conDigitos } from "./evidencia.js";
+import { NOMBRE_CARGA_ALTA, NOMBRE_SOBRE_NIVEL_CARGA } from "./conjuntosDeLaCasa.js";   // §7.3·11: el nombre de estos dos conjuntos vive en UN solo lugar (con oracle/datoProyectado.js y encargo/validar.js) — la lógica de membresía de abajo no cambia
 
 export const VEREDICTOS = ["verdadera", "falsa", "no-verificable", "sellada"];
 
@@ -354,15 +355,15 @@ function _conjuntosConocidos(I) {
   /* «CARGA COMERCIAL ALTA» TIENE UNA SOLA DEFINICIÓN (owner 2026-09-16): la del detector, publicada por la proyección (`conjuntos`) desde la misma
    * función que la boleta. Va primero: «cuentas con carga alta» es ESTE conjunto. Las que solo exceden el nivel declarado son otro conjunto,
    * con otro nombre («sobre el nivel declarado de carga»), y su patrón ya no reconoce «alta». */
-  const oficial = I.conjuntos && I.conjuntos["carga comercial alta"];
+  const oficial = I.conjuntos && I.conjuntos[NOMBRE_CARGA_ALTA];
   /* con `tokens` y `n`, como un grupo de la boleta: «las cuentas con carga alta» resuelve al oficial aunque el subtotal no viaje en la boleta
    * de ese turno. ⚠️ «sobre el nivel declarado» se lee LITERAL (carga > nivel: el crudo, 9), aunque el rótulo del subtotal describa así a
    * sus 6 — esa redacción del rótulo queda anotada como decisión de producto pendiente (una sola verdad por frase) */
-  if (oficial && Array.isArray(oficial.entidades) && oficial.entidades.length) out.push({ nombre: "carga comercial alta", eje: oficial.eje || "cliente", set: new Set(oficial.entidades.map(normalizar)), fuente: oficial.fuente || "detector de carga alta", n: oficial.entidades.length, tokens: tokens("carga comercial alta"), re: /carga(?:\s+comercial)?\s+alta|alta\s+carga|carga[^.]{0,25}\balta\b|exceso\s+de\s+carga\s+material|carga\s+(?:comercial\s+)?excedida/i });
+  if (oficial && Array.isArray(oficial.entidades) && oficial.entidades.length) out.push({ nombre: NOMBRE_CARGA_ALTA, eje: oficial.eje || "cliente", set: new Set(oficial.entidades.map(normalizar)), fuente: oficial.fuente || "detector de carga alta", n: oficial.entidades.length, tokens: tokens(NOMBRE_CARGA_ALTA), re: /carga(?:\s+comercial)?\s+alta|alta\s+carga|carga[^.]{0,25}\balta\b|exceso\s+de\s+carga\s+material|carga\s+(?:comercial\s+)?excedida/i });
   const nivel = I.figs.find((f) => /nivel de carga/.test(f.conceptoNorm) && !f.entidad);
-  const crudo = I.conjuntos && I.conjuntos["sobre el nivel declarado de carga"];
-  if (crudo && Array.isArray(crudo.entidades) && crudo.entidades.length) out.push({ nombre: "sobre el nivel declarado de carga", eje: crudo.eje || "cliente", set: new Set(crudo.entidades.map(normalizar)), fuente: crudo.fuente || "carga > nivel declarado", re: /(?:sobre|exced|encima|superan?)[^.]{0,30}(?:nivel\s+(?:de\s+referencia|declarado|de\s+carga)|carga)(?![^.]{0,12}\balta\b)|nivel\s+de\s+(?:referencia|carga)(?![^.]{0,12}\balta\b)/i });
-  else if (R.carga && nivel) out.push({ nombre: "sobre el nivel declarado de carga", eje: "cliente", set: new Set(R.carga.filas.filter((x) => +x.valor > nivel.raw).map((x) => normalizar(x.entidad))), fuente: "carga > nivel declarado", re: /(?:sobre|exced|encima|superan?)[^.]{0,30}(?:nivel\s+(?:de\s+referencia|declarado|de\s+carga)|carga)(?![^.]{0,12}\balta\b)|nivel\s+de\s+(?:referencia|carga)(?![^.]{0,12}\balta\b)/i });
+  const crudo = I.conjuntos && I.conjuntos[NOMBRE_SOBRE_NIVEL_CARGA];
+  if (crudo && Array.isArray(crudo.entidades) && crudo.entidades.length) out.push({ nombre: NOMBRE_SOBRE_NIVEL_CARGA, eje: crudo.eje || "cliente", set: new Set(crudo.entidades.map(normalizar)), fuente: crudo.fuente || "carga > nivel declarado", re: /(?:sobre|exced|encima|superan?)[^.]{0,30}(?:nivel\s+(?:de\s+referencia|declarado|de\s+carga)|carga)(?![^.]{0,12}\balta\b)|nivel\s+de\s+(?:referencia|carga)(?![^.]{0,12}\balta\b)/i });
+  else if (R.carga && nivel) out.push({ nombre: NOMBRE_SOBRE_NIVEL_CARGA, eje: "cliente", set: new Set(R.carga.filas.filter((x) => +x.valor > nivel.raw).map((x) => normalizar(x.entidad))), fuente: "carga > nivel declarado", re: /(?:sobre|exced|encima|superan?)[^.]{0,30}(?:nivel\s+(?:de\s+referencia|declarado|de\s+carga)|carga)(?![^.]{0,12}\balta\b)|nivel\s+de\s+(?:referencia|carga)(?![^.]{0,12}\balta\b)/i });
   /* contra el PLAN: la brecha al presupuesto por cliente («vs ppto» / «Variación vs presupuesto en $») — antes que «los que caen» a secas, que es
    * contra el año anterior y no se lleva un predicado que nombra el plan */
   const varPpto = new Map(); for (const f of I.figs) if (f.entidad && _FIG_VARIACION_PPTO(f) && Number.isFinite(f.raw) && !varPpto.has(f.entidad)) varPpto.set(f.entidad, f.raw);

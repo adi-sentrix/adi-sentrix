@@ -669,8 +669,41 @@ H("21 · «Para su juicio» con dos partes comerciales — UNIÓN de alcances, n
   }
 }
 
-/* ═══ 22 · CERO red ═══════════════════════════════════════════════════════════════════════════════════════════ */
-H("22 · CERO red — clasificarFuente(este gate) === offline");
+/* ═══ 23 · EL LÍMITE «SIN SEÑAL DE RIESGO» ES DE NEGOCIO, NUNCA TÉCNICO NI UN NEGATIVO NO PROBADO (coordinador
+ * 2026-09-27, cierre de R-INICIATIVA-UNIVERSO-NO-ENTIDADES / V81) ══════════════════════════════════════════════
+ * Con el universo restringido al `top` de cada parte (`entrega/componer.js:figsDelGrupo`), un `decision`/`lectura`
+ * multitema puede genuinamente no tener ninguna señal de riesgo (materialidad) para las cuentas pedidas —
+ * `_planMultiTema` declara un límite en vez de tumbar la Entrega. Dos leyes sobre ESE texto: (a) nunca nombra un
+ * archivo del código (ningún `.js` llega a la Entrega); (b) nunca afirma un negativo que la boleta no prueba — la
+ * ley de materialidad del owner es señal · bajo el piso · sin evaluar, jamás «no tiene X»/«sin X» como si fuera un
+ * hecho demostrado. */
+H("22 · CARNADA · el límite «sin señal de riesgo» es de negocio (sin nombre de archivo, sin negativo no probado)");
+{
+  const encV81 = { version: "encargo/v1", partes: [
+    { id: "p1", tema: "comercial", cierre: "decision", conceptos: ["ventas", "margen", "carga"], universo: { eje: "cliente", top: { metrica: "ventas", k: 3, direccion: "menor" } } },
+    { id: "p2", tema: "cobranza", cierre: "decision", conceptos: ["saldo_pendiente", "saldo_vencido"], universo: { eje: "cliente", top: { metrica: "ventas", k: 3, direccion: "menor" } } },
+  ], criterio: { lente: "credito" }, premisas: [
+    { id: "q1", tipo: "estado", sujeto: "Unimarc", estado: "al dia" },
+    { id: "q2", tipo: "orden", sujeto: "Unimarc", metrica: "saldo_pendiente", orden: { forma: "min" }, universo: { eje: "cliente" } },
+  ] };
+  const Rv81 = validarEncargo(encV81, {});
+  const Ev81 = componerEntrega(Rv81);
+  ok(Ev81.ok, "compone ok (universo de 3 cuentas sanas, sin señal de riesgo en ningún dominio)", Ev81.motivo);
+  if (Ev81.ok) {
+    const limSinSenal = (Ev81.entrega.limites || []).find((l) => /prioridad entre dominios/i.test(l.titulo || ""));
+    ok(!!limSinSenal, "★ se declaró el límite «sin señal de riesgo» (nunca un silencio ni una Entrega vacía)", JSON.stringify(Ev81.entrega.limites));
+    const textoCompleto = `${Ev81.texto} ${JSON.stringify(Ev81.entrega.limites)}`;
+    ok(!/\.js\b/i.test(textoCompleto), "★ CARNADA · ningún nombre de archivo (ningún «.js») llega al texto de la Entrega ni a sus límites", textoCompleto.match(/[a-zA-Z0-9_]+\.js\b/gi));
+    ok(!/no tiene saldo vencido|sin saldo vencido/i.test(textoCompleto), "★ CARNADA · nunca «no tiene saldo vencido» / «sin saldo vencido» — la ley de materialidad prohíbe el negativo no probado (señal · bajo el piso · sin evaluar)", textoCompleto);
+    ok(!/ni tiene\b/i.test(limSinSenal && limSinSenal.motivo || ""), "★ el motivo del límite no afirma un negativo no probado", limSinSenal && limSinSenal.motivo);
+    // las cifras de cobranza de esas cuentas (saldo pendiente, y su vencido si lo hay) siguen citables en la
+    // Entrega — ninguna señal desaparece, aunque no arme una prioridad entre dominios.
+    ok(/saldo pendiente/i.test(Ev81.texto), "★ el saldo pendiente de las cuentas sigue citado en la Entrega (ninguna cifra desaparece)", Ev81.texto.match(/saldo pendiente[^.]{0,20}/i));
+  }
+}
+
+/* ═══ 23 · CERO red ═══════════════════════════════════════════════════════════════════════════════════════════ */
+H("23 · CERO red — clasificarFuente(este gate) === offline");
 {
   const fuente = fs.readFileSync("./_entrega_general_gate.mjs", "utf8");
   const c = clasificarFuente(fuente);

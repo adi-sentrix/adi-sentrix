@@ -760,10 +760,12 @@ function marginRead({ filters = {}, scenario, focus = "bajo_benchmark", dimensio
 }
 
 // salesRead · lectura de ventas por eje (vs período anterior · pivot · brecha).
-function salesRead({ filters = {}, scenario, focus = "vs_anterior", dimension = "cliente", gap = null, pivotFocus = null, entityScope = null } = {}) {
+// `figsPct` (R-VARIACION-SIN-CIFRA-EN-TOP, diagnóstico v6): forwarding mecánico a `composeSpecVentas` — APAGADO
+// por defecto, solo lo prende `encargo/lecturasDe.js` para la lectura del Encargo (ver la nota en specRetrieval.js).
+function salesRead({ filters = {}, scenario, focus = "vs_anterior", dimension = "cliente", gap = null, pivotFocus = null, entityScope = null, figsPct = false } = {}) {
   const x = _crossGuard(filters, _SCOPE_KEYS); if (x) return _crossFail(x);
   const dim = _ejeCanon(dimension) || dimension;   // "SKU"/"clientes" → el eje que el composer sí indexa
-  const r = _pack(composeSpecVentas({ filters: _isObj(filters) ? filters : {}, scenario, focus, dimension: dim, gap, pivotFocus, entityScope }),
+  const r = _pack(composeSpecVentas({ filters: _isObj(filters) ? filters : {}, scenario, focus, dimension: dim, gap, pivotFocus, entityScope, figsPct }),
     `no hay lectura de ventas para el eje '${dimension}' con estos filtros`);
   // DECISIÓN 8 · dos formas del mismo defecto quedan cerradas acá: el eje inexistente (`bodega` → el composer caía
   // a `cliente`) y el pivot INTERNO que conserva el nombre del eje pedido (`vs_anterior` por SKU declara `sku` y

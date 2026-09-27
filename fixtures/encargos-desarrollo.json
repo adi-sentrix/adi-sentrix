@@ -229,9 +229,17 @@
       "esperado": { "valido": false, "partes": { "resueltas": [], "parciales": [], "noResueltas": [] }, "temasCubiertos": [], "entidadesResueltas": [], "noResuelto": [ { "parte": null, "campo": "version", "motivo": "version_invalida" }, { "parte": null, "campo": "partes", "motivo": "encargo_vacio" } ], "nota": "el validador PARA en la raíz: no hay partes que resolver ni Entrega que componer" }
     },
     {
-      "id": "D45", "titulo": "DEFECTUOSO · universo.base es un conjunto conocido pero de OTRO eje (§7.3·11)",
-      "encargo": { "version": "encargo/v1", "partes": [ { "id": "p1", "tema": "inventario", "cierre": "cifra", "conceptos": ["capital_frenado"], "universo": { "eje": "sku", "base": "carga comercial alta" } } ] },
-      "esperado": { "valido": false, "partes": { "resueltas": [], "parciales": [], "noResueltas": ["p1"] }, "temasCubiertos": [], "entidadesResueltas": [], "noResuelto": [ { "parte": "p1", "campo": "universo", "motivo": "universo_invalido" } ], "nota": "«carga comercial alta» es un conjunto de CLIENTE (el detector de carga, `oracle/datoProyectado.js:conjuntos`); declarado con eje «sku» se declina en la validación — nunca se sirven todas las entidades del eje en su lugar" }
+      "id": "D45", "titulo": "DEFECTUOSO · universo.base no identificable, completo (§7.3·11): OTRO eje (familia carga), nombre desconocido, y OTRO eje (familia benchmark)",
+      "encargo": { "version": "encargo/v1", "partes": [
+        { "id": "p1", "tema": "inventario", "cierre": "cifra", "conceptos": ["capital_frenado"], "universo": { "eje": "sku", "base": "carga comercial alta" } },
+        { "id": "p2", "tema": "comercial", "cierre": "cifra", "conceptos": ["margen"], "universo": { "eje": "cliente", "base": "clientes grandes" } },
+        { "id": "p3", "tema": "inventario", "cierre": "cifra", "conceptos": ["capital_frenado"], "universo": { "eje": "sku", "base": "bajo el benchmark" } }
+      ] },
+      "esperado": { "valido": false, "partes": { "resueltas": [], "parciales": [], "noResueltas": ["p1", "p2", "p3"] }, "temasCubiertos": [], "entidadesResueltas": [], "noResuelto": [
+        { "parte": "p1", "campo": "universo", "motivo": "universo_invalido" },
+        { "parte": "p2", "campo": "universo", "motivo": "universo_invalido" },
+        { "parte": "p3", "campo": "universo", "motivo": "universo_invalido" }
+      ], "nota": "§7.3·11 completo (coordinador 2026-09-26), catálogo estático `notario/conjuntosDeLaCasa.js`: p1 — «carga comercial alta» es un conjunto de CLIENTE (familia carga, el detector de carga), declarado con eje «sku»; p2 — «clientes grandes» no es ningún conjunto que la casa reconozca (ninguna familia); p3 — «bajo el benchmark» es un conjunto de CLIENTE (familia benchmark), declarado con eje «sku». Las tres se declinan en la VALIDACIÓN — nunca se sirven todas las entidades del eje en su lugar." }
     }
   ]
 }

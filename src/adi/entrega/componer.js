@@ -1970,9 +1970,35 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
  * MISMA función que ya certifica `componerEntregaMultidominio` — nunca una segunda prioridad). Con un solo tema,
  * `prioridadIntegrada` sigue siendo la fuente: su «integrada» degenera al líder de ese único dominio (nunca se
  * inventa una prioridad distinta para el caso de 1 tema). ── */
+// LA MATERIALIDAD NUNCA DICE «NO OCURRE» (owner, ley de materialidad de cobranza; coordinador 2026-09-27, cierre de
+// R-INICIATIVA-UNIVERSO-NO-ENTIDADES / V81) — cada dominio de un universo sin señal está en uno de DOS estados,
+// nunca en un tercero inventado: «bajo el piso» (el dominio SÍ tiene lectura para estas cuentas — el concepto base
+// del dominio aparece en la boleta — pero ninguna alcanza la lente de materialidad que arma la prioridad) o «sin
+// evaluar» (el dominio no tiene NINGUNA lectura para estas cuentas en este recorte — el concepto base ni aparece).
+// Se mira el concepto BASE de cada dominio (no la lente de materialidad en sí, que es justo lo que falta) para
+// decidir cuál de los dos es.
+const _CONCEPTO_BASE_DOMINIO = {
+  comercial: /· (?:Margen|Venta|Contribuci[oó]n no capturada|Brecha al benchmark|Carga comercial alta)$/i,
+  cobranza: /· (?:Saldo pendiente|Saldo vencido|Abonado|Recuperado|Dias Vencido)$/i,
+  inventario: /· (?:Capital frenado|D[ií]as de inventario|D[ií]as sin venta)$/i,
+};
 function _planMultiTema(temas, figs, ref, declararRazon, declararDerivada, { conDecision }) {
   const P = prioridadIntegrada(figs, temas);
-  if (!P || !Object.keys(P.porDominio).length) return null;
+  if (!P || !Object.keys(P.porDominio).length) {
+    // R-INICIATIVA-UNIVERSO-NO-ENTIDADES / V81 (diagnóstico v6, coordinador 2026-09-26/27) — con el universo YA
+    // restringido al `top` de cada parte (`entrega/componer.js`, `figsDelGrupo`), el grupo puede genuinamente no
+    // tener NINGUNA señal de riesgo (materialidad/severidad/urgencia, `agente/prioridadIntegrada.js`) en ningún
+    // dominio — antes esto devolvía `null` y tumbaba TODO el turno («ninguna parte del encargo produjo evidencia
+    // suficiente»), perdiendo hasta las premisas que sí verifican sobre esas mismas cuentas por otro camino. Se
+    // declina SOLO la comparación de riesgo (nunca se inventa un líder fuera del universo): el plan queda con
+    // `lideres`/`top` vacíos — el resto de la Entrega sigue su curso; `sinSenal` + `estadoPorDominio` dejan un
+    // límite declarado EN LENGUAJE DE NEGOCIO (nunca un nombre de archivo, nunca «no tiene X» — ver la nota de
+    // `_CONCEPTO_BASE_DOMINIO` arriba: «bajo el piso» o «sin evaluar», nunca un tercer «no ocurre»).
+    const estadoPorDominio = {};
+    for (const d of temas) { const re = _CONCEPTO_BASE_DOMINIO[d]; estadoPorDominio[d] = re && figs.some((f) => re.test(_lab(f))) ? "bajo_el_piso" : "sin_evaluar"; }
+    const idBenchComercial = temas.includes("comercial") ? ref(_find(figs, /^Benchmark de margen$/i)) : null;
+    return { kind: "multitema", temas, conDecision, lideres: {}, top: null, idsIntegrada: null, idsVersus: null, idShare: null, versusLider: null, idBenchComercial, sinSenal: true, estadoPorDominio };
+  }
   const idsPorClave = new Map();
   const figPorEntSenal = new Map();
   const refSenal = (dominio, entidad, lente, rotulo) => {
@@ -2429,7 +2455,31 @@ export function componerEntrega(resolucion) {
     // dominios sirve A PROPÓSITO en dos formas (SKU + subtotal por bodega, `contratoDeDominios.js`) — filtrar por
     // eje acá borraría esa foto completa. El filtro por eje (RC-F) es de `_planCifraGrupo`, donde el eje SÍ es la
     // dimensión que la llamada al Core pidió explícitamente.
-    const figsDelGrupo = partesSinEntidadLecturaDecision.flatMap((p) => figsEnAlcance(_figsDeParte(p.id), { ...alcanceDeParte(p), eje: null }, { indice: I }));
+    // R-INICIATIVA-UNIVERSO-NO-ENTIDADES / V81 (diagnóstico v6, ALTA, cerrado del todo — coordinador 2026-09-26) —
+    // `figsEnAlcance` a propósito NO aplica `top` (necesita el ORDEN por la métrica, que solo el compositor conoce
+    // — cabecera de `entrega/alcance.js`): de los cuatro compositores que ese archivo dice haber unificado, ESTE
+    // camino (`decision`/`lectura` SIN entidades, 1..N temas → `_planMultiTema`) era el único que nunca aplicaba
+    // el `top` de su propia parte — una `decision` de «los 3 clientes de menor venta» seguía calculando «quien
+    // más pesa» sobre los 13, nombrando a Falabella/Lider (el extremo opuesto exacto de lo pedido) tanto en la
+    // prosa por dominio como en la prioridad integrada. Se resuelve con la MISMA primitiva que ya usa el resto de
+    // la casa (`conjuntoDeUniverso`, notario/verificar.js): sin `indice` o si el ranking no se puede resolver
+    // (p. ej. `ranking-parcial`), no se restringe — mismo criterio de «nunca excluir a ciegas» que ya usa
+    // `figsEnAlcance` para `base`/`estados`. El primer intento de este arreglo (revertido) dejaba la Entrega SIN
+    // evidencia porque `cobranza()` recortaba su boleta a un TOP 8 por deuda — nunca traía a Unimarc/ABC/Hites
+    // (las 3 de MENOR venta) para empezar; ESE hueco se cerró en `lecturasDe.js` (`universoRequerido` en la
+    // llamada de cobranza de este mismo grupo) antes de intentar este filtro de nuevo.
+    const figsDelGrupo = partesSinEntidadLecturaDecision.flatMap((p) => {
+      const alc = alcanceDeParte(p);
+      let fs = figsEnAlcance(_figsDeParte(p.id), { ...alc, eje: null }, { indice: I });
+      if (alc.top && I) {
+        try {
+          const ejeTop = normalizar(alc.eje || p.eje || "cliente");
+          const R = conjuntoDeUniverso({ eje: ejeTop, top: alc.top }, I, ejeTop, "");
+          if (R && R.set) fs = fs.filter((f) => { const e = _entidadDe(_lab(f)); return !e || R.set.has(normalizar(e)); });
+        } catch { /* no se pudo resolver el top: no se restringe, mismo criterio que base/estados en figsEnAlcance */ }
+      }
+      return fs;
+    });
     const plan = _planMultiTema(temas, figsDelGrupo, ref, declararRazon, declararDerivada, { conDecision });
     if (plan) { plan.partesIds = partesSinEntidadLecturaDecision.map((p) => p.id); planes.push(plan); }
     else {
@@ -2922,6 +2972,21 @@ export function componerEntrega(resolucion) {
       }
       _declararUniverso(entrega, I, { id: plan.parteId, eje: plan.eje, filtros: (plan.universo && plan.universo.filtros) || null, estados: (plan.universo && plan.universo.estados) || null, no_estados: (plan.universo && plan.universo.no_estados) || null, entidades: plan.miembros });
     } else if (plan.kind === "multitema") {
+      // R-INICIATIVA-UNIVERSO-NO-ENTIDADES / V81 (diagnóstico v6, coordinador 2026-09-26/27) — un plan degradado
+      // (`_planMultiTema` sin señal de riesgo en el universo restringido) no dice nada por sí solo: se declara
+      // como límite, nunca como silencio — «declina honestamente cuenta como éxito» (CLAUDE.md §5). EN LENGUAJE
+      // DE NEGOCIO, sin nombrar ningún archivo, y SIN afirmar un negativo que la boleta no prueba (ley de
+      // materialidad del owner: señal · bajo el piso · sin evaluar — jamás «no ocurre»/«no tiene X»; una cuenta con
+      // una señal chica bajo el piso SIGUE teniendo esa cifra, solo que no alcanza para priorizar).
+      if (plan.sinSenal) {
+        const nombresDom = plan.temas.map((d) => { const n = _DOM_NOMBRE[d] || d; return n.charAt(0).toUpperCase() + n.slice(1); });
+        const sinEvaluar = plan.temas.filter((d) => plan.estadoPorDominio && plan.estadoPorDominio[d] === "sin_evaluar");
+        const bajoPiso = plan.temas.filter((d) => !sinEvaluar.includes(d));
+        const partesMotivo = [];
+        if (bajoPiso.length) partesMotivo.push("Ninguna de ellas supera el piso de materialidad en los criterios de prioridad.");
+        for (const d of sinEvaluar) { const n = _DOM_NOMBRE[d] || d; partesMotivo.push(`${n.charAt(0).toUpperCase() + n.slice(1)}: sin evaluar — el dato no trae esa lectura para estas cuentas en este recorte.`); }
+        limitesGap.push({ titulo: `Sobre ${nombresDom.join(" y ")}, no se establece una prioridad entre dominios para las cuentas pedidas`, motivo: partesMotivo.join(" ") });
+      }
       const frase = (dominio, lente, ids) => (ids && ids[lente]) ? LENTES[dominio][lente].como(R(ids[lente])) : null;
       const filasVistas = new Set();   // dedup: idsIntegrada/idsVersus pueden repetir la MISMA señal que ya declaró `lideres` (mismo id, cacheado en `_planMultiTema`)
       // CANDADO DE ALCANCE (diagnóstico v2, supervisor 2026-09-26, punto 2) — «la conclusión del procedimiento: la

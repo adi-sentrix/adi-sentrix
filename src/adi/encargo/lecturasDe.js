@@ -104,7 +104,11 @@ function _callsDeConceptoEje(tema, concepto, eje) {
     return [{ tool: "inventoryStatus", args: { focus: "frenado" }, para: `${concepto} — capital frenado por ${eje} (mesaCapital)` }];
   }
   if (_FAM_VS_ANTERIOR.has(concepto)) {
-    return [{ tool: "salesRead", args: { focus: "vs_anterior", dimension: eje }, para: `${concepto} por ${eje} (salesRead vs_anterior)` }];
+    // R-VARIACION-SIN-CIFRA-EN-TOP (diagnóstico v6, owner 2026-09-26): `figsPct:true` — SOLO acá, la lectura del
+    // Encargo — hace que `salesRead` publique la fig de % por entidad («… · Variación vs año anterior», clave
+    // `variacion`), la misma que un `universo.top.metrica:"variacion"` necesita citar en la tabla. Apagado en
+    // cualquier otro llamador (la caja del agente en vivo, `cajaDelAgente`): su boleta queda byte-idéntica.
+    return [{ tool: "salesRead", args: { focus: "vs_anterior", dimension: eje, figsPct: true }, para: `${concepto} por ${eje} (salesRead vs_anterior)` }];
   }
   if (_FAM_VS_PRESUPUESTO.has(concepto)) {
     return [{ tool: "salesRead", args: { focus: "vs_presupuesto", dimension: eje }, para: `${concepto} por ${eje} (salesRead vs_presupuesto)` }];
@@ -193,7 +197,18 @@ function _pasosCifra(p) {
     // Acá se mandaba un STRING a secas (`"asc"`/`"desc"`): `sort.dir` sobre un string es SIEMPRE `undefined`, así
     // que `dir` caía SIEMPRE a `"desc"` sin importar `direccion` — un top «menor» servía el extremo opuesto,
     // siempre, en silencio. Se manda la FORMA que el productor espera, nunca texto.
-    const out = [{ tool: "queryMetric", args: { metric: metricaCoreDe(metrica) || metrica, dimension: ejeUniverso, sort: { dir: _direccionDeTop(direccion, metrica) }, limit: k }, para: `el top ${k} de ${ejeUniverso} por ${metrica} (universo.top)` }];
+    // R-VARIACION-SIN-CIFRA-EN-TOP (diagnóstico v6, owner 2026-09-26) — `metrica` de la familia `_FAM_VS_ANTERIOR`
+    // («variacion», el %) no tiene fuente declarativa en `METRICS` (`metricaCoreDe` no la resuelve): `queryMetric`
+    // caía a `composeSpecRetrieval({metric:"variacion",...})`, que no conoce esa clave y no publica NADA — la
+    // selección del top-k igual salía bien (se corrige después contra `I.rankings`, en `entrega/componer.js`),
+    // pero la Entrega nunca tenía una fig de % que citar. Para esta familia se pide `salesRead` en su lugar —
+    // la MISMA función del Core que arma el ranking de `variacion` (`variacionDeFilas`, `specRetrieval.js`) — con
+    // `figsPct:true` para que publique la fig de % por entidad. Sin `sort`/`limit` propios (salesRead trae TODAS
+    // las entidades): no hace falta, la selección del top-k la sigue haciendo `entrega/componer.js` contra el
+    // universo resuelto, nunca el orden en que la tool devolvió las filas.
+    const out = _FAM_VS_ANTERIOR.has(metrica)
+      ? [{ tool: "salesRead", args: { focus: "vs_anterior", dimension: ejeUniverso, figsPct: true }, para: `el top ${k} de ${ejeUniverso} por ${metrica} (universo.top, salesRead vs_anterior)` }]
+      : [{ tool: "queryMetric", args: { metric: metricaCoreDe(metrica) || metrica, dimension: ejeUniverso, sort: { dir: _direccionDeTop(direccion, metrica) }, limit: k }, para: `el top ${k} de ${ejeUniverso} por ${metrica} (universo.top)` }];
     // los OTROS conceptos de la parte, por el mismo eje SIN recorte: la Entrega selecciona de ahí las filas del
     // top ya fijado arriba — dos rankings por separado, nunca una segunda decisión de universo.
     for (const c of p.conceptos) { if (c === metrica) continue; out.push(..._callsDeConceptoEje(p.tema, c, ejeUniverso)); }
@@ -290,6 +305,18 @@ function _pasosLecturaDecision(partes) {
   let eje = null;
   for (const p of partes) { if (p.eje && p.eje !== sujetoDeTema(p.tema)) { eje = p.eje; break; } }
   let out = pasosDeDominios({ dominios, eje });
+  // R-INICIATIVA-UNIVERSO-NO-ENTIDADES / V81 (diagnóstico v6, cerrado del todo, owner 2026-09-26 · coordinador) —
+  // `cobranza()` recorta su boleta a un TOP 8 fijo (vencido primero, después saldo); una parte de este grupo
+  // (`lectura`/`decision` sin entidad, 1..N temas) puede declarar `universo.top` sobre OTRA métrica («los 3
+  // clientes de MENOR venta») que cae fuera de ese recorte — sin esto, `cobranza()` nunca trae esas cuentas y
+  // `entrega/componer.js` termina sin evidencia para ellas al restringir por el mismo universo (mismo mecanismo
+  // que `_pasosCifra` ya usa para `cifra`, `herramientasAgente.js:cobranza`, `_args.universoRequerido`). Las
+  // partes de este grupo comparten eje (`validarUniverso` exige el mismo eje del tema): se toma el PRIMER
+  // `universo.top` declarado por cualquier parte.
+  if (dominios.includes("cobranza")) {
+    const parteConTop = partes.find((p) => p.universo && p.universo.top && p.universo.top.metrica);
+    if (parteConTop) out = out.map((c) => (c.tool === "cobranza" ? { ...c, args: { ...c.args, universoRequerido: parteConTop.universo } } : c));
+  }
   // LA GRIETA DE UN SOLO TEMA CON EJE EXPLÍCITO (documentada, corte 3a): `pasosDeDominios` solo agrega la lectura
   // comercial POR EJE (`_COM_POR_EJE`) cuando participan DOS o más dominios (`multi`); con un único tema comercial
   // y un eje explícito (p. ej. "el margen por marca", sin que inventario/cobranza participen) devuelve `[]` para

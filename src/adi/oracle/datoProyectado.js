@@ -47,6 +47,7 @@ import { simboloMoneda, rotuloMoneda, etiquetaSinDeclarar } from "../../config/m
 import { factorComercialDe } from "../../config/contract/figureType.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
 import { figsUmbralFocos, descomposicionDeBrecha, variacionVentasPorEje } from "../specRetrieval.js";   // `descomposicionDeBrecha`: la ÚNICA definición de «carga comercial alta» (el detector) — el Notario resuelve los conjuntos desde acá. `variacionVentasPorEje`: cierre D29 del corte 3c (owner 2026-09-25) — LA MISMA función que usa `salesRead` para «vs año anterior», publicada acá para que el Notario la verifique sin reimplementarla («una sola verdad por eje»).
+import { NOMBRE_CARGA_ALTA, NOMBRE_SOBRE_NIVEL_CARGA } from "../notario/conjuntosDeLaCasa.js";   // §7.3·11: el nombre de estos dos conjuntos vive en UN solo lugar — `notario/verificar.js` y `encargo/validar.js` leen la MISMA constante
 import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";   // los rankings de COBRANZA salen de la MISMA mesa que la herramienta `cobranza` y la pestaña Flujo (owner 2026-09-14)   // el umbral de materialidad, los MISMOS dos números que interpola `declaracionUmbralFocos` (2026-09-14)
 import { diagnoseInventarioSku } from "../diagnosis/economicDiagnosis.js";   // el estado de cada SKU: la MISMA función que la Mesa Capital y la boleta del inventario (Notario semántico, fase 4)
 
@@ -656,8 +657,8 @@ function _construir(scenario) {
   try {
     const D = descomposicionDeBrecha(scenario);
     if (D && Array.isArray(D.filas)) {
-      conjuntos["carga comercial alta"] = { eje: "cliente", entidades: D.filas.filter((x) => x.cargaMaterial).map((x) => x.entidad), fuente: `detector de carga alta: carga > nivel declarado (${D.nivelCarga}%) y exceso ≥ piso de materialidad` };
-      conjuntos["sobre el nivel declarado de carga"] = { eje: "cliente", entidades: D.filas.filter((x) => typeof x.carga === "number" && x.carga > D.nivelCarga).map((x) => x.entidad), fuente: `carga > nivel declarado (${D.nivelCarga}%), sin piso de materialidad` };
+      conjuntos[NOMBRE_CARGA_ALTA] = { eje: "cliente", entidades: D.filas.filter((x) => x.cargaMaterial).map((x) => x.entidad), fuente: `detector de carga alta: carga > nivel declarado (${D.nivelCarga}%) y exceso ≥ piso de materialidad` };
+      conjuntos[NOMBRE_SOBRE_NIVEL_CARGA] = { eje: "cliente", entidades: D.filas.filter((x) => typeof x.carga === "number" && x.carga > D.nivelCarga).map((x) => x.entidad), fuente: `carga > nivel declarado (${D.nivelCarga}%), sin piso de materialidad` };
     }
   } catch { /* sin contrato comercial en este pack: no hay conjunto que declarar */ }
   return { texto: L.join("\n"), figs, counts: [...counts], estados, rankings, dias, kpisLineas, kpisFigs, conjuntos };
