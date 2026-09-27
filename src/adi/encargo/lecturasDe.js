@@ -92,10 +92,23 @@ const _FAM_COBRANZA = new Set(["venta_credito", "saldo_vencido", "saldo_pendient
  * viaja solo por el auto-walk de facts — reportado al supervisor, no cableado como productor de un concepto. */
 const _FAM_MARKUP = new Set(["markup"]);
 
+/* ¿esta parte declara una restricción PROPIA de universo? MISMA prueba (6 campos) que ya usan
+ * `entrega/componer.js:_tieneUniversoPropio` y `entrega/verificar.js` regla 18 (§7.3·17) — copiada acá, nunca
+ * importada, porque `lecturasDe.js` corre ANTES de que exista ninguna evidencia del turno y no depende de la
+ * capa de composición (ver la cabecera del archivo: «cero lectura de `preguntaOriginal`», capas separadas). Un
+ * cambio a esta prueba en cualquiera de los tres archivos se revisa en los otros dos. */
+function _tieneUniversoPropio(u) {
+  return !!(u && (u.top || u.base || u.bodega
+    || (Array.isArray(u.union) && u.union.length)
+    || (Array.isArray(u.estados) && u.estados.length)
+    || (Array.isArray(u.no_estados) && u.no_estados.length)
+    || (Array.isArray(u.filtros) && u.filtros.length)));
+}
+
 /** la llamada (o llamadas) que sirve UN concepto por UN eje, group-by, sin entidad puntual (contrato §3.3). */
 function _callsDeConceptoEje(tema, concepto, eje) {
   if (tema === "cobranza" || _FAM_COBRANZA.has(concepto)) {
-    return [{ tool: "cobranza", args: {}, para: `${concepto} de la cartera de cobranza (mesaFlujo, la misma mesa que la pestaña)` }];
+    return [{ tool: "cobranza", args: { figsPorVencer: true }, para: `${concepto} de la cartera de cobranza (mesaFlujo, la misma mesa que la pestaña)` }];
   }
   if (_FAM_DIAGNOSE.has(concepto)) {
     return [{ tool: "diagnose", args: {}, para: `${concepto} — el detector de brecha comercial, por cliente (contrato §3.3)` }];
@@ -153,7 +166,7 @@ function _pasosCifra(p) {
     // universo YA RESUELTO de la parte (nunca `preguntaOriginal`) para que la tool complete la cola desde la
     // MISMA mesa completa que ya usa — ver `herramientasAgente.js:cobranza`.
     const universoRequerido = p.universo && typeof p.universo === "object" && !Array.isArray(p.universo) ? p.universo : null;
-    const out = [{ tool: "cobranza", args: universoRequerido ? { universoRequerido } : {}, para: `cobranza de ${quien} (mesaFlujo)` }];
+    const out = [{ tool: "cobranza", args: universoRequerido ? { universoRequerido, figsPorVencer: true } : { figsPorVencer: true }, para: `cobranza de ${quien} (mesaFlujo)` }];
     // §7.3·13 (diagnóstico v7) — `universo.top` puede ordenar por una métrica AJENA a cobranza («ventas», para
     // «los clientes de menor venta que están en mora»): `mesaFlujo` solo publica `venta_credito` («Venta
     // (flujo)», la venta A CRÉDITO — `adi-caja-no-es-cobranza` — nunca la venta total), así que no basta con
@@ -343,6 +356,25 @@ function _pasosLecturaDecision(partes) {
   if (dominios.includes("cobranza")) {
     const parteConTop = partes.find((p) => p.universo && p.universo.top && p.universo.top.metrica);
     if (parteConTop) out = out.map((c) => (c.tool === "cobranza" ? { ...c, args: { ...c.args, universoRequerido: parteConTop.universo } } : c));
+  }
+  // §7.3·17 (supervisor 2026-09-27, diagnóstico v8, tarea 2 del cierre — HUECO DE LECTURA, raíz de Z25/Z64) — una
+  // parte con universo PROPIO (`top`/`base`/`estados`/`no_estados`/`filtros`/`bodega`/`union`) necesita las
+  // cifras de TODOS los miembros que ese universo resuelve, no solo los que el paquete FIJO del dominio
+  // (`pasosDeDominios`/`pasosDelContratoComercial`, arriba) trajo: sus detectores («brecha de contribución»,
+  // «precio de lista/markup y carga por cuenta», «las cuentas que más aportan») publican una cobertura PARCIAL a
+  // propósito (cuentas que caen o que más aportan, nunca la cartera entera — ver la cabecera de
+  // `agente/contratoComercial.js`). `entrega/componer.js:_planCifraGrupo` (§7.3·17) ya sabe COMPLETAR lo que
+  // falte desde `indice.figsDeMetrica` (la evidencia YA traída este turno) — pero si NINGUNA llamada del plan
+  // trajo la fig de una entidad para el concepto pedido, no hay nada que completar y la parte se declina en vez
+  // de servir el universo entero (Z25: Easy sin «carga»/«contribución» propias en la boleta). Se pide el ranking
+  // COMPLETO (sin `limit`) de cada concepto DECLARADO por la parte, por el eje del universo — la MISMA llamada
+  // que ya arma el group-by sin entidades (`_callsDeConceptoEje`, nunca una segunda tabla) — ADITIVO: nunca
+  // reemplaza lo que el contrato del dominio ya trae, solo agrega lo que falta (dedupe por tool+args exacto,
+  // `_dedupeCalls`, al final de esta función).
+  for (const p of partes) {
+    if (!_tieneUniversoPropio(p.universo)) continue;
+    const ejeP = (p.universo && p.universo.eje) || p.eje || sujetoDeTema(p.tema);
+    for (const c of (p.conceptos || [])) out.push(..._callsDeConceptoEje(p.tema, c, ejeP));
   }
   // LA GRIETA DE UN SOLO TEMA CON EJE EXPLÍCITO (documentada, corte 3a): `pasosDeDominios` solo agrega la lectura
   // comercial POR EJE (`_COM_POR_EJE`) cuando participan DOS o más dominios (`multi`); con un único tema comercial

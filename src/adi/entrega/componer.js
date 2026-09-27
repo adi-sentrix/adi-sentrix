@@ -2920,6 +2920,32 @@ export function componerEntrega(resolucion) {
         }
       }
     } else if (plan.kind === "grupo") {
+      // §7.3·17 (supervisor 2026-09-27, diagnóstico v8) — EL INVARIANTE EN TIEMPO REAL, no solo auditado después.
+      // Antes, `entrega/verificar.js` regla 18 recalculaba esto mismo pero SOLO cuando el llamador le pasaba
+      // `resolucion`/`indice` a mano — ningún camino real lo hacía, así que una `lectura`/`decision` con universo
+      // propio podía servir `ok:true` con un conjunto distinto al que resuelve su propio universo, sin que nada lo
+      // frenara (la raíz A2 del diagnóstico v8). ÚNICO LUGAR donde se aplica la DECISIÓN de declinar: se recalcula
+      // el conjunto con la MISMA primitiva que usa el Notario (`conjuntoDeUniverso`, ya importada arriba) y, si el
+      // conjunto que este plan va a servir (`plan.orden`) no coincide, la parte se declina ACÁ — nunca llega a
+      // imprimir una fila de Cifras ni una oración de Respuesta. `verificarEntrega` (regla 18) sigue existiendo
+      // como defensa en profundidad para quien la llame con `resolucion`/`indice` (los gates, la medición): audita
+      // el mismo invariante con la misma función, nunca una segunda definición de "coincide".
+      if (plan.cierre === "lectura" || plan.cierre === "decision") {
+        const uCheq = { eje: plan.eje, top: plan.universoDecl.top, base: plan.universoDecl.base, estados: plan.universoDecl.estados, no_estados: plan.universoDecl.no_estados, filtros: plan.universoDecl.filtros, bodega: plan.universoDecl.bodega, union: plan.universoDecl.union };
+        let Rchk = null;
+        try { Rchk = conjuntoDeUniverso(uCheq, I, plan.eje, ""); } catch { Rchk = null; }
+        if (Rchk && Rchk.set) {
+          const servidas = new Set(plan.orden.map((n) => normalizar(n)));
+          const fueraDelConjunto = [...servidas].filter((n) => !Rchk.set.has(n));
+          // sin `top` no hay cola que declarar: lo servido tiene que ser EXACTO, ni de más ni de menos — mismo
+          // criterio que ya usa `verificarEntrega` regla 18 (nunca una segunda ley).
+          const tamanoNoCoincide = !plan.universoDecl.top && servidas.size !== Rchk.set.size;
+          if (fueraDelConjunto.length || tamanoNoCoincide) {
+            limitesGap.push({ titulo: `Sobre la parte ${plan.parteId} (${_DOM_NOMBRE[plan.tema] || plan.tema}), el conjunto servido no coincide con el universo declarado`, motivo: "El universo de esta parte se resolvió contra un conjunto distinto al que terminó sirviendo — se declina en vez de responder con el contenido de otra pregunta." });
+            continue;
+          }
+        }
+      }
       temasCubiertos.add(plan.tema);
       // A2 (diagnóstico v7, MATERIAL) — `_mapaDe` (guarda de archivo) evita el `.get()` sobre `undefined`: una
       // entidad de `plan.orden` puede llegar sin NINGUNA fig en `porEntidad` (el top verificado la agregó, pero
@@ -3217,6 +3243,27 @@ export function componerEntrega(resolucion) {
       // CORTE 3e (owner 2026-09-26) — «declarado por usted» → «declarado por la empresa».
       if (plan.idBenchComercial) entrega.marco.referenciaDeclarada = entrega.marco.referenciaDeclarada || { texto: `Benchmark de margen (comercial): ${R(plan.idBenchComercial)}, declarado por la empresa.`, hechoId: plan.idBenchComercial };
       if (entidadesMultitema.size) _declararUniverso(entrega, I, { id: `${plan.partesIds ? plan.partesIds.join("_") : "multitema"}_prioridad`, eje: "cliente", entidades: [...entidadesMultitema], criterio: "prioridad integrada por señales — materialidad, severidad y urgencia entre los dominios que comparten cliente, nunca por suma de montos" });
+      // §7.3·17 (supervisor 2026-09-27, diagnóstico v8, tarea 3 del cierre) — un encargo MULTIDOMINIO con varias
+      // partes `lectura`/`decision` que comparten la prioridad cruzada (V81, arriba) YA calcula esa prioridad
+      // sobre la UNIÓN de los universos propios de cada parte (`figsDelGrupo`, más arriba, ya restringido por
+      // `alcanceDeParte(p)` antes de llegar a `_planMultiTema`) — lo que faltaba era que CADA parte declarara
+      // su PROPIO universo (conjunto y métrica pedida) en `entrega.universos`: sin esa declaración, una parte
+      // con `top`/`base` propio dentro de un grupo multidominio no tenía ningún registro que el invariante
+      // §7.3·17 pudiera auditar (el mismo hueco que ya cerró la raíz A2 para la parte AISLADA, un nivel más
+      // arriba). Se declara con la MISMA primitiva de resolución (`conjuntoDeUniverso`) — nunca una lista de
+      // entidades a mano, nunca la lista recortada de líderes que sí quedó en Respuesta/Cifras.
+      if (plan.partesIds) {
+        for (const pid of plan.partesIds) {
+          const pDecl = resolucion.partes.find((x) => x && x.id === pid);
+          if (!pDecl || !_tieneUniversoPropio(pDecl.universo)) continue;
+          const ejeDecl = (pDecl.universo && pDecl.universo.eje) || pDecl.eje || "cliente";
+          let Rdecl = null;
+          try { Rdecl = conjuntoDeUniverso(pDecl.universo, I, ejeDecl, ""); } catch { Rdecl = null; }
+          if (!Rdecl || !Rdecl.set) continue;
+          const nombresDecl = [...Rdecl.set].map((k) => (I.entidades && I.entidades.get ? (I.entidades.get(k) || { nombre: k }).nombre : k));
+          _declararUniverso(entrega, I, { id: pid, eje: ejeDecl, top: (pDecl.universo && pDecl.universo.top) || null, base: (pDecl.universo && pDecl.universo.base) || null, estados: (pDecl.universo && pDecl.universo.estados) || null, no_estados: (pDecl.universo && pDecl.universo.no_estados) || null, filtros: (pDecl.universo && pDecl.universo.filtros) || null, entidades: nombresDecl });
+        }
+      }
     }
   }
   entrega.respuesta = entrega.respuesta.filter((r) => r.hechos.length || r._definicion);

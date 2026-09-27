@@ -344,6 +344,21 @@ export function cobranza(_args = {}, ctx = {}) {
     if (f.recuperadoFmt != null && Number.isFinite(f.recuperadoPct)) boleta.push(fig(`${f.nombre} · Recuperado`, f.recuperadoFmt, { unit: "pct", raw: f.recuperadoPct, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
     if (f.diasVencidoFmt && f.diasVencidoFmt !== "—" && Number.isFinite(f.diasVencido)) boleta.push(fig(`${f.nombre} · Dias Vencido`, f.diasVencidoFmt, { unit: "days", raw: f.diasVencido, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
   }
+  // Z09 (supervisor 2026-09-27, diagnóstico v8, tarea 5 del cierre) — «Saldo por vencer» (lo pendiente que TODAVÍA
+  // no vence, `mesaFlujo.js:porVencerK` = saldo − vencido) ya lo usa el RANKING de la proyección
+  // (`oracle/datoProyectado.js:rankings.cliente.saldo_por_vencer`, la fuente que el Notario usa para resolver un
+  // `universo.top.metrica:"saldo_por_vencer"`) pero esta tool nunca lo publicaba como FIG — `saldo_por_vencer` SÍ
+  // está en `_FAM_COBRANZA` (`lecturasDe.js`), así que un `universo.top` por esa métrica seleccionaba bien al
+  // conjunto (el ranking resuelve la selección de forma independiente de la boleta), pero `_planCifraGrupo` nunca
+  // encontraba una fig con ese concepto para armar la Cifras/tentación precalculada de la parte — la Entrega
+  // mostraba «Saldo pendiente» (otro concepto) como si ordenara el top, o se quedaba sin la cifra que sostiene el
+  // veredicto. EN SU PROPIO BUCLE, DESPUÉS de los de arriba (mismo criterio que Recuperado/Dias Vencido, ver su
+  // nota): no intercala con el cap de 8 que otras fixtures citan por posición.
+  /* Solo la pide la lectura del ENCARGO (`figsPorVencer`, lecturasDe.js): la boleta del AGENTE queda byte-idéntica
+   * (supervisor 2026-09-27; el mismo criterio que `figsPct` en salesRead). */
+  if (_args && _args.figsPorVencer) for (const f of filas) {
+    if (f.porVencerFmt != null && Number.isFinite(f.porVencerK)) boleta.push(fig(`${f.nombre} · Saldo por vencer`, f.porVencerFmt, { unit: "money", raw: f.porVencerK * fx, source: "actual", context: _ctxCobranza }));
+  }
 
   /* LA CUENTA NOMBRADA, FUERA DEL TOP 8 (owner 2026-09-25, ley del piso sin modelo, obligatorio B/C): el
    * recorte de arriba es «vencido primero, después saldo» — una cuenta AL DÍA con saldo chico queda afuera
@@ -373,9 +388,10 @@ export function cobranza(_args = {}, ctx = {}) {
    * (ventas · saldo_pendiente · saldo_vencido · abonado); cualquier otra métrica de `top` no agrega nada acá —
    * documentado, nunca silencioso (el llamador declina con un límite si la cifra sigue faltando, ver
    * `entrega/componer.js:_planCifraGrupo`). */
-  const _CAMPO_DE_CLAVE_COBRANZA = { ventas: "ventaK", saldo_pendiente: "saldoK", saldo_vencido: "vencidoK", abonado: "abonadoK" };
+  const _CAMPO_DE_CLAVE_COBRANZA = { ventas: "ventaK", saldo_pendiente: "saldoK", saldo_vencido: "vencidoK", abonado: "abonadoK", saldo_por_vencer: "porVencerK" };
+  const _topRequerido = _args && _args.universoRequerido && typeof _args.universoRequerido === "object" ? _args.universoRequerido.top : null;
   const _entidadesDelTopRequerido = (() => {
-    const top = _args && _args.universoRequerido && typeof _args.universoRequerido === "object" ? _args.universoRequerido.top : null;
+    const top = _topRequerido;
     if (!top || !top.metrica || !Number.isFinite(+top.k) || +top.k < 1) return [];
     const campo = _CAMPO_DE_CLAVE_COBRANZA[String(top.metrica).trim()];
     if (!campo) return [];
@@ -384,7 +400,18 @@ export function cobranza(_args = {}, ctx = {}) {
     const orden = [...conValor].sort((a, b) => (dirMenor ? a[campo] - b[campo] : b[campo] - a[campo]));
     return orden.slice(0, +top.k).map((f) => f.nombre);
   })();
-  const _entidadesRequeridas = [...new Set([..._entidadesNombradas, ..._entidadesDelTopRequerido])];
+  // RAÍZ A8 (supervisor 2026-09-27, diagnóstico v8, tarea 5 del cierre) — con `top.sobre:"eje"`, el compositor y
+  // el Notario tienen que poder RECOMPUTAR el top-k de forma independiente contra la MISMA evidencia (nunca
+  // confiar ciegos en el orden que esta tool ya calculó arriba, `_entidadesDelTopRequerido`, sobre `M.filas`
+  // completo): si solo se publican los k extremos, `notario/verificar.js:_topTipado` ve un ranking PARCIAL (le
+  // faltan las cuentas de en medio) y, con `direccion:"menor"/"peor"/"mejor"`, declina «ranking-parcial» en vez
+  // de confirmar el extremo — o, peor, con la métrica marcada `AUSENTE_VALE_CERO` (ya no es el caso de
+  // «abonado», corregido en la MISMA tarea, `notario/lexico.js`), trataba a las cuentas nunca consultadas como
+  // si abonaran cero, coronando ganadoras falsas. Con `sobre:"eje"` se publica el concepto del `top` para TODA
+  // la cartera (`M.filas` completo, no solo el top-8 fijo + los k extremos) — el mismo criterio que ya usa
+  // `_FAM_VS_ANTERIOR`/`figsPct` en `lecturasDe.js` para el mismo problema en `salesRead`.
+  const _entidadesParaTopSobreEje = (_topRequerido && String(_topRequerido.sobre || "").trim().toLowerCase() === "eje") ? M.filas.map((f) => f.nombre) : [];
+  const _entidadesRequeridas = [...new Set([..._entidadesNombradas, ..._entidadesDelTopRequerido, ..._entidadesParaTopSobreEje])];
   if (_entidadesRequeridas.length) {
     const _yaEnTop8 = new Set(filas.map((f) => f.nombre));
     const _extra = _entidadesRequeridas.map((n) => M.filas.find((f) => f.nombre === n)).filter((f) => f && !_yaEnTop8.has(f.nombre));
@@ -395,6 +422,9 @@ export function cobranza(_args = {}, ctx = {}) {
       if (f.vencidoFmt != null) _fig(`${f.nombre} · Saldo vencido`, f.vencidoFmt, f.vencidoK);
       if (f.recuperadoFmt != null && Number.isFinite(f.recuperadoPct)) boleta.push(fig(`${f.nombre} · Recuperado`, f.recuperadoFmt, { unit: "pct", raw: f.recuperadoPct, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
       if (f.diasVencidoFmt && f.diasVencidoFmt !== "—" && Number.isFinite(f.diasVencido)) boleta.push(fig(`${f.nombre} · Dias Vencido`, f.diasVencidoFmt, { unit: "days", raw: f.diasVencido, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
+      // Z09 (tarea 5 del cierre): la misma «Saldo por vencer» que ya publica el bucle del top-8, también para las
+      // cuentas EXTRA que este bucle agrega (el propio `top.metrica:"saldo_por_vencer"` es lo que suele traerlas).
+      if (_args.figsPorVencer && f.porVencerFmt != null && Number.isFinite(f.porVencerK)) boleta.push(fig(`${f.nombre} · Saldo por vencer`, f.porVencerFmt, { unit: "money", raw: f.porVencerK * fx, source: "actual", context: _ctxCobranza }));
     }
   }
 

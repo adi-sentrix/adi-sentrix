@@ -20,6 +20,7 @@ import { normalizar, menosAscii, leerValor, direccionPorDefecto } from "./afirma
 import { parsearLineasDeBloque, MARCA_FIN } from "./declaracion.js";
 import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO, opDe, esReferencia } from "./lexico.js";
 import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON, estadosEn, estadoDeclarado, ejeCompatible, COMPLEMENTO_V3 } from "./estados.js";
+import { referenciaDeBase } from "./conjuntosDeLaCasa.js";   // §7.3, tarea 4 (supervisor 2026-09-27, diagnóstico v8): la tabla base→referencia vive en UN registro, compartida con notario/verificar.js — nunca dos tablas que puedan divergir
 
 export const MARCA_HECHOS = "<<HECHOS>>";
 /* "discrepancia" (owner 2026-09-25, ley de los cuatro orígenes: «un declarado nunca pisa un medido») NO es un
@@ -329,18 +330,10 @@ export const dominioDeEstado = (canon) => (_ESTADOS_COBRANZA.has(canon) ? "cobra
 const _OPS = { ">": "superior a", ">=": "de al menos", "<": "inferior a", "<=": "de hasta", "==": "igual a" };
 /* A4 (supervisor 2026-09-27, diagnóstico v8) — la tabla base→(concepto de referencia, métrica natural) que un
  * `grupo` de membresía pura sobre un `universo.base` de la familia de referencia necesita para imprimir SU
- * VALOR (`valorDeReferencia`) y, en un veredicto falso, la métrica PROPIA de la entidad (`_figDe`). Un `base`
- * que no está acá simplemente no dispara nada — nunca se inventa una familia nueva. */
-const _FAMILIA_DE_BASE = [
-  { re: /^bajo\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen" },
-  { re: /^sobre\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen" },
-  // «SKU bajo/sobre el benchmark» (raíz A3, §7.3·13): mismo concepto de referencia, métrica de margen de venta
-  // del SKU (`margen_venta`, el ranking agregado en este mismo corte a `oracle/datoProyectado.js`).
-  { re: /^SKU\s+bajo\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen_venta" },
-  { re: /^SKU\s+sobre\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen_venta" },
-  { re: /^sobre\s+el\s+nivel\s+declarado\s+de\s+carga$/i, concepto: "nivel_carga", metrica: "carga" },
-  { re: /^carga\s+comercial\s+alta$/i, concepto: "nivel_carga", metrica: "carga" },
-];
+ * VALOR (`valorDeReferencia`) y, en un veredicto falso, la métrica PROPIA de la entidad (`_figDe`). Vive en
+ * `notario/conjuntosDeLaCasa.js:referenciaDeBase` (tarea 4 del cierre, §7.3) — el MISMO registro que usa
+ * `notario/verificar.js` para que la resolución de conjuntos y el libro de hechos nunca diverjan. Un `base` que
+ * no está en ese registro simplemente no dispara nada — nunca se inventa una familia nueva acá. */
 const _fmtUmbral = (f, I = null) => {
   const clave = String(f.metrica || "").toLowerCase();
   const nombre = metricaDeClave(clave).toLowerCase();
@@ -368,7 +361,20 @@ export function nombrarUniverso(u, I = null) {
   const total = I && typeof I.tamanoDelEje === "function" ? I.tamanoDelEje(eje) : null;
   const restringido = !!(u.base && !/^todos?|todas$/i.test(String(u.base))) || _lista(u.estados).length || _lista(u.no_estados).length || u.bodega || (Array.isArray(u.filtros) && u.filtros.length) || u.top || u.excluir || (Array.isArray(u.union) && u.union.length);
   const partes = [];
-  if (u.base && !/^todos?|todas$/i.test(String(u.base))) partes.push(String(u.base));
+  // §7.3, tarea 4 del cierre (supervisor 2026-09-27, diagnóstico v8, raíz A4) — «las comparables viajan juntas»
+  // sin excepción: un `base` de la familia con referencia numérica (benchmark, nivel declarado de carga) imprime
+  // SU VALOR en la misma frase, igual que ya hace `_fmtUmbral` abajo para `filtros[].ref` — MISMA función
+  // (`valorDeReferencia`), MISMA tabla (`referenciaDeBase`, `notario/conjuntosDeLaCasa.js`), nunca una segunda
+  // cifra inventada. Sin `I` (un llamador que no lo tenga a mano) se sirve el nombre solo, como antes.
+  if (u.base && !/^todos?|todas$/i.test(String(u.base))) {
+    const _baseStr = String(u.base);
+    const fam = I && referenciaDeBase(_baseStr);
+    const rRef = fam ? valorDeReferencia(fam.concepto, I) : null;
+    if (rRef && Number.isFinite(rRef.raw)) {
+      const mRef = metricaPorClave(fam.concepto);
+      partes.push(`${_baseStr}, ${mRef ? mRef.nombre.toLowerCase() : fam.concepto} ${formatoDeLaCasa(rRef.raw, rRef.unidad || "pct")}`);
+    } else partes.push(_baseStr);
+  }
   for (const e of _lista(u.estados)) partes.push(nombreDeEstado(_canonDe(e)));
   for (const e of _lista(u.no_estados)) { const c = _canonDe(e); partes.push(c === "en mora" ? "sin mora" : c === "sin deuda" ? "con deuda" : c === "al dia" ? "que no están al día" : `no ${nombreDeEstado(c)}`); }
   if (u.bodega) partes.push(`de ${u.bodega}`);
@@ -928,7 +934,12 @@ export function libroDeHechos(hechos, ctx = {}) {
           for (const c of estadosEn(a2._predicado)) { if (!ESTADOS_CANON.has(c)) continue; H.estado = H.estado || c; H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(c); for (const k of METRICAS_DE_ESTADO[c] || []) H.claves.add(k); if (!H.dominio) H.dominio = dominioDeEstado(c); }
         }
         H.render.universo = H.universo.texto;
-        if (_es(u)) { for (const f of Array.isArray(u.filtros) ? u.filtros : []) { _addClave(H, f.metrica); if (f.valor != null && !Array.isArray(f.valor)) { const enDias = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)); H.numeros.push({ raw: +f.valor, unidad: enDias ? "count" : (f.unidad || unidadDeClave(f.metrica) || "count"), texto: String(f.valor) }); if (enDias) { const d = diasDe(f.valor, f.unidad); if (d != null) H.numeros.push({ raw: d, unidad: "days", texto: `${d} días` }); } H.render.umbral = _fmtUmbral(f).replace(/^.*?(?:superior a|de al menos|inferior a|de hasta|igual a|entre)\s+/, ""); } } if (u.top) { _addClave(H, u.top.metrica); H.numeros.push({ raw: +u.top.k, unidad: "count", texto: String(u.top.k) }); } for (const e of [..._lista(u.estados), ..._lista(u.no_estados), ..._lista(u.excluir && u.excluir.estados)]) { H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(_canonDe(e)); } }
+        if (_es(u)) { for (const f of Array.isArray(u.filtros) ? u.filtros : []) { _addClave(H, f.metrica); if (f.valor != null && !Array.isArray(f.valor)) { const enDias = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)); H.numeros.push({ raw: +f.valor, unidad: enDias ? "count" : (f.unidad || unidadDeClave(f.metrica) || "count"), texto: String(f.valor) }); if (enDias) { const d = diasDe(f.valor, f.unidad); if (d != null) H.numeros.push({ raw: d, unidad: "days", texto: `${d} días` }); } H.render.umbral = _fmtUmbral(f).replace(/^.*?(?:superior a|de al menos|inferior a|de hasta|igual a|entre)\s+/, ""); } } if (u.top) { _addClave(H, u.top.metrica); H.numeros.push({ raw: +u.top.k, unidad: "count", texto: String(u.top.k) }); } for (const e of [..._lista(u.estados), ..._lista(u.no_estados), ..._lista(u.excluir && u.excluir.estados)]) { H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(_canonDe(e)); }
+          // §7.3, tarea 4 (segunda tanda): un `union` trae sus propios filtros DENTRO de cada miembro — declaran
+          // su clave acá, con el MISMO `_addClave` de arriba, para que el rescate de la referencia (más abajo, el
+          // bloque «GENERALIZACIÓN A filtros[].ref») sepa qué métrica reporta la entidad también en este caso.
+          if (Array.isArray(u.union)) for (const v of u.union) if (_es(v)) for (const f of Array.isArray(v.filtros) ? v.filtros : []) _addClave(H, f.metrica);
+        }
       }
       if (tipo === "cifra" && v.veredicto === "verdadera") { const f = (v.evidencia || []).map((l) => I.figs.find((g) => normalizar(g.label) === normalizar(l))).find(Boolean); if (f) { H.render.valor = f.texto || (f.fig && String(f.fig.value)) || ""; if (!H.dominio) H.dominio = _dominioDeFig(f); } if (!H.render.valor && a2.valor && a2.valor.texto) H.render.valor = a2.valor.texto; }
       if (tipo === "grupo") { const gv = leerValor(a2.valor); if (gv && gv.texto) H.render.valor = _canonTexto(gv.texto); }
@@ -947,7 +958,7 @@ export function libroDeHechos(hechos, ctx = {}) {
       // `H.claves` vacío) — nunca una segunda fuente de verdad, la fig real de la boleta.
       if (tipo === "grupo" && _es(h.universo) && typeof h.universo.base === "string") {
         const _baseStr = h.universo.base.trim();
-        const fam = _FAMILIA_DE_BASE.find((f) => f.re.test(_baseStr));
+        const fam = referenciaDeBase(_baseStr);
         if (fam) {
           const rRef = valorDeReferencia(fam.concepto, I);
           if (rRef && Number.isFinite(rRef.raw)) {
@@ -1013,6 +1024,34 @@ export function libroDeHechos(hechos, ctx = {}) {
           _fSujeto = _claveSujeto ? _figDe(I, _sujetoRescate, _claveSujeto) : null;
         }
         if (_fSujeto) H.numeros.push({ raw: _fSujeto.raw, unidad: _fSujeto.unidad, texto: _fSujeto.texto || (_fSujeto.fig && String(_fSujeto.fig.value)) || "" });
+      }
+      // §7.3, tarea 4 del cierre (supervisor 2026-09-27, diagnóstico v8, raíz A4, segunda tanda) —
+      // GENERALIZACIÓN A `filtros[].ref`: el mismo hueco que ya cerró el bloque de `base` (arriba, «A4») también
+      // existe cuando el universo de un `grupo` no declara `base` sino un `filtro` con `ref` («rotación < piso de
+      // rotación», «margen < benchmark», «días de inventario > techo de cobertura») — la métrica del filtro es,
+      // precisamente, la que este rescate genérico (arriba) acaba de reportar como cifra PROPIA de la entidad
+      // (`H.numeros[0]`, ya resuelta al llegar acá — DELIBERADAMENTE DESPUÉS del rescate genérico, nunca antes:
+      // un intento anterior que corría este bloque ANTES dejaba `H.numeros[0]` con el valor de la REFERENCIA en
+      // vez del de la entidad, porque el rescate de arriba solo corre `!H.numeros.length` — «se pisa la cifra
+      // propia», la misma clase de defecto que este cierre existe para cerrar). Nunca pisa una referencia de
+      // `base` ya encontrada más arriba (métrica distinta: se listan las dos, sin duplicar). MISMA guarda que el
+      // rescate genérico de arriba — un SOLO sujeto: con varios (`H.roles.sujetos.length > 1`, ej. dos SKU que sí
+      // pertenecen al universo), `_rotuloDeLaCasaDeH` no arma un rótulo por-entidad y esta cifra no tiene a quién
+      // pegarse sin inventar un dueño — cae a `H.verdad`, sin tocar `H.numeros`.
+      if (tipo === "grupo" && _es(h.universo) && H.roles.sujetos.length === 1 && H.roles.sujetos[0] !== "negocio") {
+        const _filtrosDeGrupo = Array.isArray(h.universo.filtros) ? h.universo.filtros
+          : (Array.isArray(h.universo.union) ? h.universo.union.flatMap((v) => (_es(v) && Array.isArray(v.filtros)) ? v.filtros : []) : []);
+        for (const f of _filtrosDeGrupo) {
+          if (!f || !f.ref || !f.metrica || !H.claves.has(String(f.metrica))) continue;
+          const rRef = valorDeReferencia(f.ref, I);
+          if (!rRef || !Number.isFinite(rRef.raw)) continue;
+          const mRef = metricaPorClave(f.ref);
+          const valTxt = formatoDeLaCasa(rRef.raw, rRef.unidad || "pct");
+          if (H.render.referencia && H.render.referencia.includes(valTxt)) continue;   // ya declarada (misma cifra)
+          const refTxt2 = `${mRef ? mRef.nombre.toLowerCase() : f.ref} ${valTxt}`;
+          H.render.referencia = H.render.referencia ? `${H.render.referencia}, ${refTxt2}` : refTxt2;
+          if (!H.numeros.some((n) => n.texto === valTxt)) H.numeros.push({ raw: rRef.raw, unidad: rRef.unidad || "pct", texto: valTxt });
+        }
       }
       return H;
     } catch (e) {

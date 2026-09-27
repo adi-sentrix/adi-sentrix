@@ -241,8 +241,19 @@ export const SINONIMOS_DE_CONJUNTO = {
   materiales: ["materiales", "cuentas materiales", "sobre el umbral de materialidad", "sobre el umbral"],
 };
 /* métricas cuyo ranking solo trae a quien tiene valor: lo ausente vale 0 (capital frenado = 0 si el SKU no está frenado); en las demás, un mínimo sobre
- * un ranking parcial no se responde */
-export const AUSENTE_VALE_CERO = ["capital_frenado", "capital_inmovilizado", "no_capturada", "carga_alta", "dias_sin_venta", "saldo_vencido", "saldo_pendiente", "abonado"];
+ * un ranking parcial no se responde.
+ * RAÍZ A8 (supervisor 2026-09-27, diagnóstico v8, tarea 5 del cierre) — «abonado» NO pertenece a esta lista: a
+ * diferencia de `saldo_vencido`/`saldo_pendiente` (cuyo ranking real SOLO incluye cuentas que cumplen la
+ * condición — ausente = de verdad cero), `abonado` es un monto que TODO cliente tiene, y estar «ausente» acá
+ * solo significa que `cobranza()` no lo trajo a la boleta de este turno (su recorte es un top-8 por
+ * vencido/saldo, más las cuentas que un `universo.top`/`_entidadesNombradas` pide aparte — Ripley/La Polar/Hites
+ * en Z14, con «abonado» de verdad, nunca cero, simplemente no consultado). Con `abonado` en esta lista, un
+ * `top.direccion:"menor"` (§7.3·8, "los que MENOS abonaron") tomaba a las cuentas NO CONSULTADAS por cero-abonado
+ * en vez de a las que de verdad abonaron menos — `entrega/componer.js:_planCifraGrupo` terminaba sin evidencia
+ * para el conjunto (raíz A8, Z14.p2: `top.sobre:"eje"` + `base:"con saldo vencido"` no componía nada). Sacarla
+ * de acá hace que `_topTipado`/`notario/verificar.js` declare `ranking-parcial` (falla cerrado, mismo criterio
+ * que cualquier otra métrica sin ranking completo) en vez de inventar un cero que el dato no prueba. */
+export const AUSENTE_VALE_CERO = ["capital_frenado", "capital_inmovilizado", "no_capturada", "carga_alta", "dias_sin_venta", "saldo_vencido", "saldo_pendiente"];
 /* las métricas con que se habla de cada estado (dentro de un ancla de estado esas palabras no son «métrica ajena») */
 export const METRICAS_DE_ESTADO = {
   "al dia": ["saldo_vencido", "dias_vencido"], "en mora": ["saldo_vencido", "dias_vencido"], "sin deuda": ["saldo_pendiente", "saldo_vencido"], "sin pagos": ["abonado", "recuperado"],

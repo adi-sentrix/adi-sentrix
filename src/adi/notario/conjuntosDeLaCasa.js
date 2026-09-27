@@ -80,3 +80,30 @@ const _porNombre = new Map(CONJUNTOS_DE_LA_CASA.map((c) => [_norm(c.nombre), c])
 export function conjuntoConocido(nombre) {
   return _porNombre.get(_norm(nombre)) || null;
 }
+
+/* §7.3 (supervisor 2026-09-27, diagnóstico v8, tarea 4 del cierre — RAÍZ A4) — la tabla base→(concepto de
+ * referencia, métrica natural) que CUALQUIER veredicto sobre un `universo.base` de la familia con referencia
+ * numérica (benchmark, nivel declarado de carga) necesita para imprimir SU VALOR (`valorDeReferencia`,
+ * `notario/verificar.js`) en la misma oración — «las comparables viajan juntas» sin excepción (§7.3, la ley del
+ * supervisor). Vive ACÁ, no en `notario/hechos.js` ni en `notario/verificar.js` por separado, para que los DOS
+ * archivos que arman el texto de un veredicto (el libro de hechos y la resolución de conjuntos) lean la MISMA
+ * tabla — nunca dos que puedan divergir (el mismo principio que ya declara la cabecera de este archivo para
+ * `CONJUNTOS_DE_LA_CASA`). Un `base` que no está acá simplemente no dispara nada — nunca se inventa una familia
+ * nueva. */
+const _REFERENCIA_DE_BASE = [
+  { re: /^bajo\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen" },
+  { re: /^sobre\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen" },
+  // «SKU bajo/sobre el benchmark» (raíz A3, §7.3·13): mismo concepto de referencia, métrica de margen de venta del SKU.
+  { re: /^SKU\s+bajo\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen_venta" },
+  { re: /^SKU\s+sobre\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen_venta" },
+  { re: /^sobre\s+el\s+nivel\s+declarado\s+de\s+carga$/i, concepto: "nivel_carga", metrica: "carga" },
+  { re: /^carga\s+comercial\s+alta$/i, concepto: "nivel_carga", metrica: "carga" },
+];
+/** referenciaDeBase(nombre) → {re, concepto, metrica} | null — el concepto de referencia (para `valorDeReferencia`)
+ *  y la métrica natural (para rescatar la cifra propia de una entidad) de un `universo.base` conocido, o `null`
+ *  si ese `base` no pertenece a ninguna familia con referencia numérica. */
+export function referenciaDeBase(nombre) {
+  const s = String(nombre || "").trim();
+  if (!s) return null;
+  return _REFERENCIA_DE_BASE.find((f) => f.re.test(s)) || null;
+}

@@ -27,7 +27,7 @@ import { ESTADOS_CANON, estadoDeLaCasa, verificarEstadoDeLaCasa, ejeCompatible }
 import { juzgarBase, calcularConBase } from "./tasas.js";
 import { AUSENTE_VALE_CERO, claveDeMetrica as _claveDeMetricaLex, metricaPorClave, polaridadDeClave, diasDe, opDe } from "./lexico.js";   // verdad finita (E1): el universo tipado se evalúa por claves, no por palabras   // la base de una tasa (ronda adversarial 3): valor + base, o no es esa tasa   // fase 4: la casa canoniza la forma de la declaración antes del veredicto
 import { indiceDeEvidencia, tokens, numerosEn, ES_TODO, ES_TODO_FUERTE, estadoCanon, conceptosDe, mismoValor as _mismoValor, unidadCompatible as _u, necesitaUniverso as _necesitaUniverso, conDigitos } from "./evidencia.js";
-import { NOMBRE_CARGA_ALTA, NOMBRE_SOBRE_NIVEL_CARGA } from "./conjuntosDeLaCasa.js";   // §7.3·11: el nombre de estos dos conjuntos vive en UN solo lugar (con oracle/datoProyectado.js y encargo/validar.js) — la lógica de membresía de abajo no cambia
+import { NOMBRE_CARGA_ALTA, NOMBRE_SOBRE_NIVEL_CARGA, referenciaDeBase } from "./conjuntosDeLaCasa.js";   // §7.3·11: el nombre de estos dos conjuntos vive en UN solo lugar (con oracle/datoProyectado.js y encargo/validar.js) — la lógica de membresía de abajo no cambia. `referenciaDeBase` (tarea 4 del cierre, §7.3): el MISMO registro que usa notario/hechos.js, para que la fuente de un `base` con referencia numérica también lleve su valor acá
 
 export const VEREDICTOS = ["verdadera", "falsa", "no-verificable", "sellada"];
 
@@ -510,7 +510,7 @@ export function valorDeReferencia(ref, I) { return _refRaw(ref, I); }
 function _refRaw(ref, I) {
   const m = metricaPorClave(ref);
   const nombres = m ? [m.nombre, ...m.conceptos] : [String(ref)];
-  for (const n of nombres) { let fs = []; try { fs = I.buscarFigs("negocio", n); } catch { fs = []; } const f = fs.find((g) => Number.isFinite(g.raw)); if (f) return { raw: f.raw, unidad: f.unidad, label: f.label }; }
+  for (const n of nombres) { let fs = []; try { fs = I.buscarFigs("negocio", n); } catch { fs = []; } const f = fs.find((g) => Number.isFinite(g.raw)); if (f) return { raw: f.raw, unidad: f.unidad, label: f.label, texto: f.texto || "" }; }
   return null;
 }
 /* el conjunto de un estado: los de la Mesa Capital vienen de la proyección; los definidos (estados.js) se demuestran entidad por entidad */
@@ -581,8 +581,30 @@ function _conjuntoTipado(u, I, eje0, metrica = "") {
   if (u.base && !/^(?:todos|todas|todo|el eje|eje|el total|la cartera|(?:todos|todas)\s+(?:los|las|tus|mis|sus)\s+[a-záéíóúñ]+)$/i.test(String(u.base).trim())) {
     const nombre = normalizar(u.base);
     const c = _conjuntosConocidos(I).find((x) => normalizar(x.nombre) === nombre && (!x.eje || x.eje === eje));
-    if (!c) return { error: `universo-no-resoluble: la base «${u.base}» no es un conjunto que la evidencia identifique` };
-    restringir(c.set, c.nombre);
+    if (c) {
+      // §7.3, tarea 4 del cierre (supervisor 2026-09-27, diagnóstico v8, raíz A4) — «las comparables viajan
+      // juntas» sin excepción: cuando el `base` pertenece a una familia con referencia numérica (benchmark, nivel
+      // declarado de carga), la FUENTE que este universo declara lleva su VALOR — MISMA tabla y MISMA función que
+      // ya usa `notario/hechos.js:nombrarUniverso` para el mismo `base` (`referenciaDeBase`/`valorDeReferencia`,
+      // nunca una segunda cifra inventada). Sin match, la fuente es el nombre solo, como siempre.
+      const fam = referenciaDeBase(c.nombre);
+      const rRef = fam ? _refRaw(fam.concepto, I) : null;
+      const fuenteBase = rRef && Number.isFinite(rRef.raw)
+        ? `${c.nombre}, ${(metricaPorClave(fam.concepto) || {}).nombre ? metricaPorClave(fam.concepto).nombre.toLowerCase() : fam.concepto} ${rRef.texto || rRef.raw}`
+        : c.nombre;
+      restringir(c.set, fuenteBase);
+    } else {
+      // §7.3, tarea 5 del cierre (supervisor 2026-09-27, diagnóstico v8, raíz Z48) — un `base` puede nombrar un
+      // ESTADO de la casa («en mora», «al día») en vez de uno de los conjuntos que `_conjuntosConocidos` arma a
+      // mano (con saldo vencido, benchmark, carga): el registro estático (`conjuntosDeLaCasa.js:_ESTADOS`) YA
+      // declara todos los estados como `base` válido (§7.3·16, por eso `validarEncargo` acepta «en mora» sin
+      // declinar), pero la resolución de membresía no tenía un camino para ellos — se usa la MISMA primitiva que
+      // ya resuelve `universo.estados` (`_setDeEstado`, que cae al `def.verificar` de `notario/estados.js`,
+      // entidad por entidad), nunca una segunda definición de «en mora».
+      const S = _setDeEstado(u.base, I, eje);
+      if (S.error) return { error: `universo-no-resoluble: la base «${u.base}» no es un conjunto que la evidencia identifique` };
+      restringir(S.set, S.fuente);
+    }
   }
   for (const est of _listaOUno(u.estados)) { const S = _setDeEstado(est, I, eje); if (S.error) return S; restringir(S.set, S.fuente); }
   for (const est of _listaOUno(u.no_estados)) {
@@ -605,7 +627,8 @@ function _conjuntoTipado(u, I, eje0, metrica = "") {
      * los filtros de este universo actúan DESPUÉS, sobre ese resultado — por eso `restringir` (que intersecta con
      * `set`) sigue corriendo igual, solo cambia la BASE que ve `_topTipado`. */
     const dentro = normalizar(u.top.sobre) === "eje" ? todos : (set || todos);
-    const S = _topTipado(u.top, I, eje, dentro); if (S.error) return S; restringir(S.set, S.fuente);
+    const S = _topTipado(u.top, I, eje, dentro); if (S.error) return S;
+    restringir(S.set, S.fuente);
   }
   if (u.excluir && typeof u.excluir === "object") {
     const ex = u.excluir;
@@ -626,8 +649,15 @@ function _conjuntoTipado(u, I, eje0, metrica = "") {
      * `union` sin `base`/`estados`/`top`/`filtros` en el MISMO nivel servía siempre el eje completo. Con una
      * restricción previa real (`set` ya no nulo) se sigue extendiendo desde ahí, sin cambio de comportamiento. */
     const acc = new Set(set || []);
-    for (const v of u.union) { const S = _conjuntoTipado(v && typeof v === "object" ? v : {}, I, eje, metrica); if (S.error) return S; for (const x of (S.set || _todosDelEje(I, eje) || [])) acc.add(x); }
-    set = acc; fuentes.push("unión");
+    // §7.3, tarea 4 del cierre (supervisor 2026-09-27, diagnóstico v8, raíz A4) — la fuente de una UNIÓN es la
+    // de CADA rama, no la palabra «unión» a secas (antes: un veredicto de membresía sobre un `union` imprimía
+    // literal «no es así — unión.», sin la referencia de NINGUNA rama). Cada `_conjuntoTipado(v,...)` ya arma su
+    // propia fuente con el valor de referencia si aplica (el arreglo de `base` arriba) — se reusan, sin
+    // recalcular nada, uniendo con «o» (la unión es disyunción de conjuntos). `fuentesUnion` puede quedar vacío
+    // solo si ninguna rama declaró una fuente (ej. el eje entero sin restricción propia): ahí sí queda «unión».
+    const fuentesUnion = [];
+    for (const v of u.union) { const S = _conjuntoTipado(v && typeof v === "object" ? v : {}, I, eje, metrica); if (S.error) return S; for (const x of (S.set || _todosDelEje(I, eje) || [])) acc.add(x); if (S.fuente) fuentesUnion.push(S.fuente); }
+    set = acc; fuentes.push(fuentesUnion.length ? fuentesUnion.join(" o ") : "unión");
   }
   return { set, fuente: fuentes.length ? fuentes.join(" · ") : "el eje entero", tipado: true };
 }
@@ -1079,8 +1109,15 @@ function _orden(a, I) {
   const o = a.orden;
   let dir = o.direccion || "mayor";
   if (dir === "peor" || dir === "mejor") {
-    if (!F.peorEs) return _nv(`polaridad-no-declarada: la boleta no dice qué es «${dir}» en «${a.metrica}»`);
-    dir = dir === "peor" ? F.peorEs : (F.peorEs === "mayor" ? "menor" : "mayor");
+    // Z69 (supervisor 2026-09-27, diagnóstico v8, tarea 5 del cierre) — `_topTipado` (arriba, universo.top) ya
+    // cae a `polaridadDeClave` cuando el ranking de la proyección no declara `peorEs`; a `_orden` (una premisa
+    // sobre un sujeto puntual) le faltaba la MISMA red de seguridad — la casa SÍ sabe que «margen» es mejor
+    // cuanto mayor (lexico.js), aunque el ranking de este turno no lo repita. Misma función, nunca una segunda
+    // tabla de polaridad.
+    const pol = polaridadDeClave(a.metrica);
+    const peorEs = F.peorEs || (pol === "mayor" ? "menor" : pol === "menor" ? "mayor" : null);
+    if (!peorEs) return _nv(`polaridad-no-declarada: la boleta no dice qué es «${dir}» en «${a.metrica}»`);
+    dir = dir === "peor" ? peorEs : (peorEs === "mayor" ? "menor" : "mayor");
   }
   if (F.parcial && (dir === "menor" || o.forma === "min")) return _nv(`ranking-parcial: el ranking de «${a.metrica}» solo trae a ${F.filas.length} del eje y la casa no declara que lo ausente valga 0: el «menor» no se responde`);
   if (false) {
