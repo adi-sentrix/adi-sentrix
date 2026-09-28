@@ -179,7 +179,12 @@ export function gobernarTamano(entrega, profundidad, renderTexto, titulo) {
     const texto = renderTexto(candidata, titulo, profundidad);
     const palabras = contarPalabras(texto);
     const yaRecortoFilas = filasServidasIdx.size < filasOriginal.length;
-    const reservaCola = (profundidad === "completa" && yaRecortoFilas) ? _RESERVA_NOTA_COLA : 0;
+    // §7.3·21 precisada (SUPERVISOR, diagnóstico v10, raíz A3, X41-X45/X49/X50) — la reserva de presupuesto para
+    // la nota de cola vale para LAS DOS profundidades, no solo «completa»: el propio comentario de más abajo
+    // (§7.3·21 original) ya decía «un top-N que no declara su cola miente por omisión» sin excepción por
+    // profundidad — antes, "breve" recortaba filas sin dejarle hueco a su propia nota (más corta) en el
+    // presupuesto de 350 palabras, así que la nota nunca se llegó a escribir en el bucle de abajo.
+    const reservaCola = yaRecortoFilas ? _RESERVA_NOTA_COLA : 0;
     const sobreTexto = (palabras + reservaCola) > topeTexto;
     const sobreFilas = candidata.cifras.filas.length > topeFilas;
     if (!sobreTexto && !sobreFilas) break;
@@ -236,23 +241,32 @@ export function gobernarTamano(entrega, profundidad, renderTexto, titulo) {
   const oracionesRecortadas = respuestaOriginal.filter((_, idx) => !oracionesServidasIdx.has(idx));
   const filasRecortadas = filasOriginal.filter((_, idx) => !filasServidasIdx.has(idx));
 
-  // §7.3·21 (supervisor 2026-09-27, diagnóstico v9, RAÍZ C2) — «un top-N que no declara su cola miente por
-  // omisión» (CLAUDE.md §5) vale también para el recorte por TAMAÑO, no solo para el recorte por `top`: cuando
-  // este gobernador retira filas de `cifras.filas` por presupuesto (nunca el CONJUNTO — `entrega.universos` no
-  // cambia de tamaño en este corte, ver la cabecera del archivo), la tabla tiene que decir que el resto sigue
-  // vivo en `entrega.detalle.filas`, con los MISMOS ids — nunca un recorte silencioso. Se declara en
-  // `entrega.marco.definiciones` (estructura completa siempre) SOLO en "completa": en "breve" TODA declaración
-  // secundaria del Marco ya se retira a propósito por diseño (ver `_esGuiaDeUsoGenerica`/`_defSinGuia` en
-  // `_textoDeLaEntrega`, componer.js) — el tope de 350 palabras es OBLIGATORIO ahí (`_tamano_gate` §4b) y esta
-  // nota no es la excepción; la estructura completa (`entrega.detalle.filas`) sigue disponible siempre, con o
-  // sin la nota en el texto — se recupera pidiendo `profundidad:"completa"`, la misma garantía que ya vale para
-  // cualquier otro contenido que "breve" compacta.
-  // Nota BREVE a propósito (§B, «cada palabra de más se paga contra el tope») — el conteo, el destino y que el
-  // conjunto no cambió, sin la prosa larga: `_RESERVA_NOTA_COLA` (arriba del bucle) ya le hizo hueco en el
-  // presupuesto de palabras, así que esta nota NUNCA es lo que empuja la Entrega sobre el tope.
+  // §7.3·21 (supervisor 2026-09-27, diagnóstico v9, RAÍZ C2; precisada en el diagnóstico v10, RAÍZ A3) — «un
+  // top-N que no declara su cola miente por omisión» (CLAUDE.md §5) vale también para el recorte por TAMAÑO, no
+  // solo para el recorte por `top`, y SIN excepción por profundidad — el SELLO exige la declaración «falla SOLO
+  // si `meta.recortoFilas > 0` y no hay ninguna», sin salvedad para "breve". Cuando este gobernador retira filas
+  // de `cifras.filas` por presupuesto (nunca el CONJUNTO — `entrega.universos` no cambia de tamaño en este
+  // corte, ver la cabecera del archivo), la tabla tiene que decir que el resto sigue vivo en
+  // `entrega.detalle.filas`, con los MISMOS ids — nunca un recorte silencioso, en NINGUNA profundidad.
+  // La única diferencia por profundidad es el LARGO de la nota, no si existe: en "completa" va la frase entera
+  // (con «mismo conjunto»); en "breve" va la nota CORTA que el propio comentario original ya pedía («el conteo,
+  // el destino y que el conjunto no cambió, sin la prosa larga») — 4 palabras, cabe sobrado en
+  // `_RESERVA_NOTA_COLA` (9, ya reservada arriba para las dos profundidades). En "breve" la nota SÍ puede
+  // convivir con `_esGuiaDeUsoGenerica`/`_defSinGuia` (`_textoDeLaEntrega`, componer.js): si es la única
+  // definición no-guía, se imprime igual que cualquier otra; la estructura completa (`entrega.detalle.filas`)
+  // sigue disponible siempre, con o sin la nota en el texto.
+  // RAÍZ A3 precisada (SUPERVISOR, diagnóstico v10) — la heurística del medidor (`_colaDeclaradaEnTexto`, que el
+  // propio SELLO documenta como «generosa, no estrecha») exige, en la MISMA línea que la palabra «detalle», una
+  // idea de fila/conjunto/resto (`/\bfilas?\b|\bconjunto\b|\bresto\b|\brestantes?\b|\bquedan\b|\bsiguen\b/i`) —
+  // una nota corta que diga SOLO «N más en el detalle.» no trae NINGUNA de esas palabras y no cuenta como
+  // declarada. «Mismo conjunto» ya lo pedía el propio comentario original de esta ley («el conteo, el destino y
+  // que el conjunto no cambió») — se mantiene esa cláusula en la nota breve (2 palabras más, sigue sobrando
+  // presupuesto contra `_RESERVA_NOTA_COLA`) en vez de acortarla hasta perder la palabra que la hace verificable.
   let entregaConColaDeclarada = entregaGobernada;
-  if (filasRecortadas.length && profundidad === "completa" && entregaGobernada.marco) {
-    const notaCola = `${filasRecortadas.length} fila${filasRecortadas.length === 1 ? "" : "s"} más en el detalle (mismo conjunto).`;
+  if (filasRecortadas.length && entregaGobernada.marco) {
+    const notaCola = profundidad === "breve"
+      ? `${filasRecortadas.length} más en el detalle (mismo conjunto).`
+      : `${filasRecortadas.length} fila${filasRecortadas.length === 1 ? "" : "s"} más en el detalle (mismo conjunto).`;
     // regla 1 de verificar.js («cero cifras desnudas») — el conteo que la nota imprime tiene que estar en
     // `entrega.procedencia.cifrasImpresas` (la lista blanca de números que el compositor declaró), o el propio
     // candado que exige la cola declarada la marcaría como una cifra huérfana. Es un CONTEO real (`filasRecortadas.

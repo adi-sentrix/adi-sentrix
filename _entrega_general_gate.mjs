@@ -736,6 +736,63 @@ H("22 · CARNADA · el límite «sin señal de riesgo» es de negocio (sin nombr
   }
 }
 
+H("24 · CARNADA · RAÍZ A6 (SUPERVISOR, diagnóstico v10) — un top «mayor» sobre un ranking parcial DECLINA igual que «menor/peor/mejor»");
+{
+  // comercial por marca, top variación (default «mayor»): el dato solo trae variación de 4 de 5 marcas (Makita
+  // sin año anterior) — antes, «mayor» quedaba EXENTO de la guardia de ranking-parcial (`notario/verificar.js:
+  // _topTipado`) y servía un top-1 «mayor» (LG) en el MISMO turno donde la premisa ya declaraba «el orden sobre
+  // el eje entero no se puede verificar» — contradicción textual en la propia Entrega.
+  const encA6 = { version: "encargo/v1", partes: [
+    { id: "p1", tema: "comercial", cierre: "decision", conceptos: ["variacion"], eje: "marca", universo: { eje: "marca", top: { metrica: "variacion", k: 1 } } },
+  ] };
+  const RA6 = validarEncargo(encA6, {});
+  ok(RA6.partes[0].estado === "resuelta", "la parte valida (el hueco es de DATO, no de forma)", JSON.stringify(RA6.partes[0]));
+  const EA6 = componerEntrega(RA6);
+  ok(EA6.ok === false, "★ CARNADA · un top «mayor» sobre un ranking incompleto DECLINA — nunca sirve un ganador no verificable", EA6.ok ? EA6.texto.slice(0, 200) : EA6.motivo);
+  ok(!EA6.ok && /ranking parcial|no encontró evidencia/i.test(EA6.motivo || ""), "★ el motivo declarado nombra el límite (nunca un silencio)", EA6.motivo);
+}
+
+H("25a · CARNADA · §7.3·26(a) forma MIXTA — el eje compartido cruza (2 comercial + 1 cobranza, cliente); inventario (sku) queda declarado FUERA");
+{
+  const enc26a = { version: "encargo/v1", partes: [
+    { id: "p1", tema: "comercial", cierre: "decision", conceptos: ["carga"], universo: { eje: "cliente", top: { metrica: "carga", k: 1, direccion: "peor" } } },
+    { id: "p2", tema: "comercial", cierre: "decision", conceptos: ["margen"], universo: { eje: "cliente", top: { metrica: "margen", k: 1, direccion: "peor" } } },
+    { id: "p3", tema: "cobranza", cierre: "decision", conceptos: ["saldo_por_vencer"], universo: { eje: "cliente", estados: ["al dia"], top: { metrica: "saldo_por_vencer", k: 1 } } },
+    { id: "p4", tema: "inventario", cierre: "decision", conceptos: ["capital"], universo: { eje: "sku", estados: ["riesgo de quiebre"], top: { metrica: "capital", k: 1 } } },
+  ] };
+  const R26a = validarEncargo(enc26a, {});
+  const E26a = componerEntrega(R26a);
+  ok(E26a.ok, "compone ok (forma mixta: 3 decisions por cliente + 1 por sku)", E26a.motivo);
+  if (E26a.ok) {
+    const universos = (E26a.entrega.universos || []).map((u) => u.id);
+    ok(universos.includes("p1_p2_p3_prioridad"), "★ el grupo de eje CLIENTE (p1,p2,p3) cruzó — universo _prioridad declarado", JSON.stringify(universos));
+    ok(!universos.some((id) => /^p1_p2_p3_p4_prioridad$|p4.*prioridad|prioridad.*p4/.test(id)), "★ el sku (p4) NUNCA entra en ESE universo _prioridad", JSON.stringify(universos));
+    ok(/riesgo integrado/i.test(E26a.texto), "★ hay una oración de riesgo integrado (un ganador real, no un límite disfrazado)", E26a.texto.match(/[^.]*riesgo integrado[^.]*\./i));
+    const limExcluido = (E26a.entrega.limites || []).find((l) => /no entra en la prioridad cruzada/i.test(l.titulo || ""));
+    ok(!!limExcluido && /inventario/i.test(limExcluido.titulo), "★ CARNADA · se declara EXPLÍCITAMENTE que Inventario (otro eje) no entra en esta prioridad — nunca en silencio", JSON.stringify(limExcluido));
+  }
+}
+
+H("25c · CARNADA · §7.3·26(c) ejes distintos — «no se establece una prioridad» aunque una parte resuelva vacía");
+{
+  // inventario con un filtro que no deja NINGÚN SKU (capital > 999999) + comercial con datos normales: la
+  // elegibilidad depende del EJE PEDIDO (sku vs cliente), nunca de si una parte resolvió vacía o se declinó.
+  const enc26c = { version: "encargo/v1", partes: [
+    { id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital"], universo: { eje: "sku", estados: ["inmovilizado"], filtros: [{ metrica: "capital", op: ">", valor: 999999 }] } },
+    { id: "p2", tema: "comercial", cierre: "decision", conceptos: ["ventas"], universo: { eje: "cliente", top: { metrica: "ventas", k: 2 } } },
+  ] };
+  const R26c = validarEncargo(enc26c, {});
+  const E26c = componerEntrega(R26c);
+  ok(E26c.ok, "compone ok (p1 resuelve un universo vacío por el filtro, p2 con datos normales)", E26c.motivo);
+  if (E26c.ok) {
+    const limSinCruce = (E26c.entrega.limites || []).find((l) => /no se establece una prioridad entre dominios/i.test(l.titulo || ""));
+    ok(!!limSinCruce, "★ CARNADA · se declara «no se establece una prioridad» por EJES DISTINTOS, no por el universo vacío de p1", JSON.stringify(limSinCruce));
+    ok(!/riesgo integrado/i.test(E26c.texto), "★ ningún ganador inventado entre sku y cliente", E26c.texto.match(/[^.]*riesgo integrado[^.]*\./i));
+    const universos = (E26c.entrega.universos || []).map((u) => u.id);
+    ok(universos.includes("p1") && universos.includes("p2"), "★ cada parte conserva su propio universo aunque no haya cruzada", JSON.stringify(universos));
+  }
+}
+
 /* ═══ 23 · CERO red ═══════════════════════════════════════════════════════════════════════════════════════════ */
 H("23 · CERO red — clasificarFuente(este gate) === offline");
 {

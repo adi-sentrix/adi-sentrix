@@ -502,14 +502,21 @@ function _construir(scenario) {
     if (Number.isFinite(+c.unidades)) rankings.cliente.unidades.filas.push({ entidad: c.nombre, valor: +c.unidades });
     if (m) {
       if (Number.isFinite(m.margen)) rankings.cliente.margen.filas.push({ entidad: c.nombre, valor: m.margen });
-      if (Number.isFinite(m.contribucion)) rankings.cliente.contribucion.filas.push({ entidad: c.nombre, valor: m.contribucion });
+      // RAÍZ A4 gemela (SUPERVISOR, diagnóstico v10 — D02, recurrencia de CRUDO_MONEY §7.3, comentario de arriba)
+      // — «contribucion» es dinero (unidad «money») y, como «ventas» ya documenta arriba, sin `texto` (o `raw`)
+      // `_filasTipadas` descarta la fila entera y cae al fallback de figs DEL TURNO (limitado a las cuentas que
+      // `diagnose()` trajo por materialidad, no al eje completo) — un `top` por «contribución» terminaba
+      // declinando por «ranking-parcial» aunque la proyección SÍ tiene los 13 clientes. Mismo patrón que ya usa
+      // «ventas»: `texto` con el MISMO formateador de la prosa (`_moneyK`), nunca una escala nueva.
+      if (Number.isFinite(m.contribucion)) rankings.cliente.contribucion.filas.push({ entidad: c.nombre, valor: m.contribucion, texto: _moneyK(m.contribucion) });
       if (Number.isFinite(m.pctRebate)) rankings.cliente.carga.filas.push({ entidad: c.nombre, valor: m.pctRebate });
       if (Number.isFinite(m.margen)) {
         const _vara = benchmarkOf(m);
         if (Number.isFinite(_vara)) {
           const _brecha = Math.round((_vara - m.margen) * 10) / 10;
           rankings.cliente.brecha.filas.push({ entidad: c.nombre, valor: _brecha });
-          if (_brecha > 0 && Number.isFinite(c.actual)) rankings.cliente.no_capturada.filas.push({ entidad: c.nombre, valor: Math.round(c.actual * _brecha / 100) });
+          // RAÍZ A4 gemela — mismo patrón: «no_capturada» también es dinero.
+          if (_brecha > 0 && Number.isFinite(c.actual)) { const _noCap = Math.round(c.actual * _brecha / 100); rankings.cliente.no_capturada.filas.push({ entidad: c.nombre, valor: _noCap, texto: _moneyK(_noCap) }); }
         }
       }
     }
@@ -580,7 +587,8 @@ function _construir(scenario) {
     // CRUDO_MONEY (supervisor 2026-09-27, diagnóstico v7) — mismo criterio que `rankings.cliente.ventas` arriba.
     if (Number.isFinite(m.venta)) rankings.marca.ventas.filas.push({ entidad: m.nombre, valor: m.venta, texto: _moneyK(m.venta) });
     if (Number.isFinite(m.margen)) rankings.marca.margen.filas.push({ entidad: m.nombre, valor: m.margen });
-    if (Number.isFinite(m.contribucion)) rankings.marca.contribucion.filas.push({ entidad: m.nombre, valor: m.contribucion });
+    // RAÍZ A4 gemela (SUPERVISOR, diagnóstico v10) — mismo criterio que `rankings.cliente.contribucion` arriba.
+    if (Number.isFinite(m.contribucion)) rankings.marca.contribucion.filas.push({ entidad: m.nombre, valor: m.contribucion, texto: _moneyK(m.contribucion) });
     if (Number.isFinite(m.pctRebate)) rankings.marca.carga.filas.push({ entidad: m.nombre, valor: m.pctRebate });
     if (Number.isFinite(m.margen)) { const _vara = benchmarkOf(m); if (Number.isFinite(_vara)) rankings.marca.brecha.filas.push({ entidad: m.nombre, valor: Math.round((_vara - m.margen) * 10) / 10 }); }
     L.push(`- ${m.nombre} — ${_L.ventas} ${F(_moneyK(m.venta), D, undefined, "ventas")} · ${_L.margen} ${F(_pct1(m.margen), D, undefined, "margen")} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D, undefined, "contribucion")} · ${_L.costo} ${F(_moneyK(m.costo), D, undefined, "costo")} · ${_L.carga} ${F(_pct1(m.pctRebate), D, undefined, "carga")} · ${m.unidades} unidades · familia ${m.sfamilia}.`);
@@ -599,7 +607,8 @@ function _construir(scenario) {
     U(s.unidades, D, "unidades", "unidades_vendidas");
     // CRUDO_MONEY (supervisor 2026-09-27, diagnóstico v7) — mismo criterio que `rankings.cliente.ventas` arriba.
     if (Number.isFinite(s.venta)) rankings.sku.ventas.filas.push({ entidad: s.nombre, valor: s.venta, texto: _moneyK(s.venta) });
-    if (Number.isFinite(s.contribucion)) rankings.sku.contribucion.filas.push({ entidad: s.nombre, valor: s.contribucion });
+    // RAÍZ A4 gemela (SUPERVISOR, diagnóstico v10) — mismo criterio que `rankings.cliente.contribucion` arriba.
+    if (Number.isFinite(s.contribucion)) rankings.sku.contribucion.filas.push({ entidad: s.nombre, valor: s.contribucion, texto: _moneyK(s.contribucion) });
     // §7.3·13 (raíz A3): el margen de venta del SKU, ranking estático — ver la nota de la declaración arriba.
     if (Number.isFinite(s.margen)) rankings.sku.margen_venta.filas.push({ entidad: s.nombre, valor: s.margen });
     L.push(`- ${s.nombre} — ${_L.ventas} ${F(_moneyK(s.venta), D, undefined, "ventas")} · ${_L.margen} ${F(_pct1(s.margen), D, undefined, "margen")} · ${_L.contribucion} ${F(_moneyK(s.contribucion), D, undefined, "contribucion")} · ${_L.costo} ${F(_moneyK(s.costo), D, undefined, "costo")} · ${_L.carga} ${F(_pct1(s.pctRebate), D, undefined, "carga")} · ${s.unidades} unidades · costo medio ${F(_money(s.costoMedio), D)} por unidad · precio de lista ${F(_money(s.precioLista), D)} por unidad · marca ${s.marca} · familia ${s.sfamilia}.`);
@@ -631,10 +640,21 @@ function _construir(scenario) {
       if (_frenado) _frenadoBodega.set(s.bodega, (_frenadoBodega.get(s.bodega) || 0) + s.stockUSD);
       if (s.estado !== "Activo") _inmovBodega.set(s.bodega, (_inmovBodega.get(s.bodega) || 0) + s.stockUSD);
     }
-    if (Number.isFinite(s.stockUSD) && _frenado) rankings.sku.capital_frenado.filas.push({ entidad: s.sku, valor: s.stockUSD });
+    // RAÍZ A4 gemela (SUPERVISOR, diagnóstico v10) — mismo criterio que capital_inmovilizado, abajo: dinero sin
+    // `raw` cae al fallback de figs LIMITADO al turno y un `top` sobre este ranking declina por «ranking-parcial»
+    // aunque la proyección tenga el eje completo.
+    if (Number.isFinite(s.stockUSD) && _frenado) rankings.sku.capital_frenado.filas.push({ entidad: s.sku, valor: s.stockUSD, raw: s.stockUSD });
     // el eje SKU alimenta sus cinco rankings declarados (owner 2026-08-16) — mismo recorrido, cero recálculo
-    if (Number.isFinite(s.stockUSD)) rankings.sku.capital.filas.push({ entidad: s.sku, valor: s.stockUSD });
-    if (Number.isFinite(s.stockUSD) && s.estado !== "Activo") rankings.sku.capital_inmovilizado.filas.push({ entidad: s.sku, valor: s.stockUSD });
+    if (Number.isFinite(s.stockUSD)) rankings.sku.capital.filas.push({ entidad: s.sku, valor: s.stockUSD, raw: s.stockUSD });
+    // RAÍZ A4 (SUPERVISOR, diagnóstico v10) — `verificar.js:_filasTipadas` (el lector de este ranking para un
+    // `top`) solo acepta `x.valor` cuando la unidad NO es dinero (línea `u !== "money"`, la misma guardia
+    // CRUDO_MONEY de §7.3·23 que evita adivinar una escala): sin `raw`, ninguna fila de un ranking en dólares
+    // entra a `F.filas`, y sin fig propia en la boleta («capital inmovilizado» no se publica como cifra por SKU,
+    // solo como ranking/filtro) tampoco hay resguardo por el camino de figs — `top.metrica:"capital_inmovilizado"`
+    // salía «la evidencia no trae «capital_inmovilizado» por sku» aunque el filtro por estado, sobre el MISMO
+    // dato, sí resolvía. `s.stockUSD` YA es el dólar exacto (nunca miles, nunca una escala deducida) — declararlo
+    // como `raw` es el mismo patrón que ya usa el ranking de cobranza, no una escala nueva.
+    if (Number.isFinite(s.stockUSD) && s.estado !== "Activo") rankings.sku.capital_inmovilizado.filas.push({ entidad: s.sku, valor: s.stockUSD, raw: s.stockUSD });
     if (Number.isFinite(s.rotacion)) rankings.sku.rotacion.filas.push({ entidad: s.sku, valor: +(+s.rotacion).toFixed(1) });
     if (Number.isFinite(s.doh)) rankings.sku.dias_inventario.filas.push({ entidad: s.sku, valor: Math.round(s.doh) });
     if (Number.isFinite(s.diasSinVenta) && s.diasSinVenta > 0) rankings.sku.dias_sin_venta.filas.push({ entidad: s.sku, valor: Math.round(s.diasSinVenta) });
@@ -648,9 +668,14 @@ function _construir(scenario) {
     // devuelve el valor intacto: el TEXTO de la proyección no cambia un byte.
     L.push(`- ${s.sku} (bodega ${s.bodega}) — ${_L.capital} ${F(_money(s.stockUSD), D, undefined, "capital")} · ${s.stockUnd} unidades en stock · ${_L.rotacion} ${F(_ratio(s.rotacion), D, undefined, "rotacion")} · Días de inventario ${F(_dias(s.doh), D, undefined, "cobertura")} · ${s.diasSinVenta > 0 ? `${F(_dias(s.diasSinVenta), D, undefined, "sinventa")} sin venta` : "con venta al día"} · vendido en el mes ${s.vendidoMes} unidades · margen de inventario ${F(_pct1(s.margenPct), D, undefined, "margen")} · estado ${F(s.estado, D)} · marca ${s.marca} · familia ${s.sfamilia}.`);
   }
-  for (const [b, v] of _capitalBodega) rankings.bodega.capital.filas.push({ entidad: b, valor: v });
-  for (const [b, v] of _frenadoBodega) rankings.bodega.capital_frenado.filas.push({ entidad: b, valor: v });
-  for (const [b, v] of _inmovBodega) rankings.bodega.capital_inmovilizado.filas.push({ entidad: b, valor: v });
+  // RAÍZ A4 gemela (SUPERVISOR, diagnóstico v10) — mismo `raw` que el eje sku arriba: `v` es la suma exacta de
+  // `stockUSD`, sin escala que inventar.
+  for (const [b, v] of _capitalBodega) rankings.bodega.capital.filas.push({ entidad: b, valor: v, raw: v });
+  for (const [b, v] of _frenadoBodega) rankings.bodega.capital_frenado.filas.push({ entidad: b, valor: v, raw: v });
+  // RAÍZ A4 (SUPERVISOR, diagnóstico v10) — mismo `raw` que arriba (eje sku), para que un `top` por bodega sobre
+  // este ranking en dólares tampoco caiga en la guardia CRUDO_MONEY de `_filasTipadas`: `v` ya es la suma exacta
+  // de `stockUSD`, sin escala que inventar.
+  for (const [b, v] of _inmovBodega) rankings.bodega.capital_inmovilizado.filas.push({ entidad: b, valor: v, raw: v });
   L.push("");
 
   // ── LOS DOS UNIVERSOS: LO QUE ESTE PACK DECLARA (owner 2026-09-14: la compatibilidad la declara el archivo) ──

@@ -579,7 +579,15 @@ function _topTipado(t, I, eje, dentro) {
   const F = _filasTipadas(clave, I, eje);
   if (!F.filas.length) return { error: `universo-no-resoluble: la evidencia no trae «${clave}» por ${eje}` };
   let dir = normalizar(t.direccion || "mayor");
-  if (F.parcial && /^(?:menor|peor|mejor)$/.test(dir)) return { error: `ranking-parcial: «${clave}» solo trae a ${F.filas.length} del eje y lo ausente no vale 0: el top «${dir}» no se resuelve` };
+  // RAÍZ A6 (SUPERVISOR, diagnóstico v10, precisa la 13 — recurrencia de la Raíz A9/v9, X75) — «lo ausente no vale
+  // 0, y un extremo no se decide sobre un ranking incompleto» (§7.3·13) es una regla PAREJA para las CUATRO
+  // direcciones, no solo para «menor/peor/mejor»: la marca sin dato podría tener el valor MÁS ALTO tanto como el
+  // más bajo — excluir «mayor» de esta guardia dejaba servir un top-1 «mayor» (LG, 15,6%) en el MISMO turno donde
+  // la premisa ya declaraba «el orden sobre el eje entero no se puede verificar» para la MISMA métrica —
+  // contradicción textual en la propia Entrega. Antes, la traducción de «peor»/«mejor» a mayor/menor (más abajo)
+  // corría DESPUÉS de esta guardia, así que ya se probaban las cuatro palabras literales acá — agregar «mayor» a
+  // la lista es la única pieza que faltaba, no una segunda regla.
+  if (F.parcial && /^(?:mayor|menor|peor|mejor)$/.test(dir)) return { error: `ranking-parcial: «${clave}» solo trae a ${F.filas.length} del eje y lo ausente no vale 0: el top «${dir}» no se resuelve` };
   if (dir === "peor" || dir === "mejor") {
     const pol = polaridadDeClave(clave);
     const peorEs = F.peorEs || (pol === "mayor" ? "menor" : pol === "menor" ? "mayor" : null);
@@ -649,7 +657,16 @@ function _conjuntoTipado(u, I, eje0, metrica = "") {
      * `set`) sigue corriendo igual, solo cambia la BASE que ve `_topTipado`. */
     const dentro = normalizar(u.top.sobre) === "eje" ? todos : (set || todos);
     const S = _topTipado(u.top, I, eje, dentro); if (S.error) return S;
-    restringir(S.set, S.fuente);
+    // RAÍZ A4 (SUPERVISOR, diagnóstico v10, X03/X12 — «ordenServido») — `restringir` (genérico, arriba) intersecta
+    // preservando el ORDEN del `set` PREVIO (`estados`/`filtros`, sin orden propio), no el de `S` (el top, YA
+    // ordenado por la métrica pedida). Para la mayoría de las claves eso es inofensivo porque el compositor
+    // reordena después por el VALOR real de su propia fig (`entrega/componer.js`, el sort final por `claveOrden`);
+    // pero una clave SIN fig propia por entidad (p. ej. `capital_inmovilizado`, que solo vive en este ranking,
+    // nunca como cifra publicada por SKU — ver RAÍZ A4 en `datoProyectado.js`) no tiene esa segunda oportunidad:
+    // el orden que `_topTipado` ya calculó (mayor a menor, el ranking real) es el ÚNICO que sobrevive hasta el
+    // texto. Se intersecta preservando el orden de `S.set` (nunca el de `set`, que no ordena nada).
+    set = set ? new Set([...S.set].filter((x) => set.has(x))) : new Set(S.set);
+    fuentes.push(S.fuente);
   }
   if (u.excluir && typeof u.excluir === "object") {
     const ex = u.excluir;

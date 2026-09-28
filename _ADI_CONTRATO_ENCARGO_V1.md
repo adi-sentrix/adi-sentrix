@@ -544,6 +544,29 @@ venta a crédito, ley del owner).
     calibrada contra el texto redondeado): la cuenta verdadera es 3, no 2 (decisión del supervisor, con esta evidencia).
     Por el mismo hecho y con la misma evidencia se corrigen también `u18-m-de-la-cadena.h2` y
     `t02-control-cobranza-2.h4` de `fixtures/ronda5-2026-09-17/hechos.json` (n 2 → 3).
+24. [2026-09-27, diagnóstico v10; precisa la 22] En la prioridad cruzada participan las partes `decision` con universo
+    propio (también un universo solo de estados); las `lectura` y las `cifra` no participan. Se cruza en la CLAVE REAL
+    compartida (ley de la prioridad integrada: señal por señal en el cliente; los SKU van aparte). Si las decisiones
+    no comparten eje (por ejemplo, inventario por SKU y cobranza por cliente), NO se inventa un ganador entre ejes: la
+    Entrega declara que no se establece una prioridad entre esos dominios porque se miden sobre ejes distintos, y cada
+    parte conserva su prioridad dentro de su universo. Nunca silencio.
+25. [2026-09-27] Un hecho OPCIONAL de la casa (la tentación precalculada, una derivada de apoyo) nunca tumba la
+    Entrega: si no puede declararse con su crudo, no se declara. Solo lo que se va a IMPRIMIR tiene que verificar.
+26. [2026-09-27, catálogo v11; precisa la 24] (a) Forma MIXTA: las decisiones que comparten eje cruzan entre sí (hay un
+    ganador en la unión de sus universos) y la Entrega declara que las de otro eje no entran en esa prioridad; cada
+    una conserva la suya. (b) Dos decisiones por SKU (comercial por SKU e inventario) comparten la clave real (el SKU):
+    cruzan y hay ganador. **(b) queda REVISADA el 2026-09-27 por la decisión 27.** (c) Si los ejes pedidos son distintos, la declaración de que no se establece una prioridad
+    entre esos dominios se mantiene, aunque una de las partes haya resuelto vacía o se haya declinado: depende de los
+    ejes pedidos, no del resultado.
+27. [2026-09-27, supervisor; corrige la 26(b) según la ley del owner de la prioridad integrada] La prioridad integrada
+    del procedimiento se define señal por señal EN EL CLIENTE, y «los SKU van aparte» (CLAUDE.md, prioridad integrada).
+    Por eso dos decisiones por SKU NO cruzan: se declara que no se establece una prioridad entre esos dominios y cada
+    una conserva la suya. Además, si en el mismo eje uno de los dominios resuelve vacío, no hay nada que cruzar: cada
+    parte conserva su prioridad y no hace falta declarar nada.
+28. [2026-09-27, supervisor; ley de registro del owner] La Entrega nunca repite una palabra de la lista de registro
+    prohibida («dormido», «plata»…), aunque venga de lo que escribió quien consulta. Al declinar, nombra el campo y ofrece
+    los valores válidos de la casa como alternativas, sin reproducir la palabra y sin traducirla (entender el lenguaje le
+    toca al LLM).
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

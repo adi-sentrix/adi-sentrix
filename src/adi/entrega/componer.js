@@ -2078,7 +2078,17 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
       let R = null;
       try { R = conjuntoDeUniverso({ eje, ...camposUniverso }, indice, eje, ""); } catch { R = null; }
       universoResuelto = !!(R && R.set);
-      if (R && R.set && R.set.size > entidadesEnJuego.length) {
+      // RAÍZ A5 (SUPERVISOR, diagnóstico v10, X16) — «el conjunto CANÓNICO (`R.set`) manda siempre» (nota de
+      // abajo) valía solo cuando el universo oficial era MÁS GRANDE que lo que ya trajeron las figs (`>`) — nunca
+      // cuando `alcance.excluir` (p. ej. `excluir.top`, un ranking interno excluido del universo) lo deja MÁS
+      // CHICO. En ese caso `entidadesEnJuego` se quedaba con el conjunto SIN excluir (lo que las figs trajeron
+      // para el concepto pedido, previo a la exclusión), y el invariante de tiempo real más abajo (§7.3·17, «el
+      // conjunto servido no coincide con el universo declarado») declinaba la parte ENTERA — `verificarEntrega`
+      // recalculaba bien los 3 miembros (con la MISMA primitiva) pero la Entrega servía 0. Comparar por `!==`
+      // (en vez de `>`) hace que el conjunto canónico también ACHIQUE `entidadesEnJuego` cuando corresponde: no
+      // hace falta ninguna fig nueva para EXCLUIR un nombre, así que el mismo camino de abajo (que solo agrega
+      // figs para los que FALTAN) sigue sirviendo para el caso de crecer, y ahora también resuelve el de achicar.
+      if (R && R.set && R.set.size !== entidadesEnJuego.length) {
         const nombres = [...R.set].map((k) => (indice.entidades && indice.entidades.get ? (indice.entidades.get(k) || { nombre: k }).nombre : k));
         const enJuegoNorm = new Set(entidadesEnJuego.map(normalizar));
         const faltanNorm = new Set(nombres.filter((n) => !enJuegoNorm.has(normalizar(n))).map(normalizar));
@@ -2633,6 +2643,28 @@ export function componerEntrega(resolucion) {
   };
   const declararRazon = (idNum, idDen) => { if (idNum == null || idDen == null) return null; const id = `e${++contador.n}`; hechos.push({ id, tipo: "razon", num: { id: idNum }, den: { id: idDen }, forma: "pct" }); return id; };
 
+  // §7.3·25 (SUPERVISOR, diagnóstico v10, raíz A1 — 46 fallas, X26/X100) — un hecho de la «tentación
+  // precalculada» (mecanismo 6: la diferencia entre el primero y el segundo de un listado, o entre el líder de
+  // un dominio y el segundo, que ADI arma DE APOYO para que `verificarEntrega` no marque «tentación no
+  // precalculada» — NUNCA lo que el usuario pidió) se declara SOLO si sus dos operandos tienen crudo: un
+  // operando reconstruido desde el texto mostrado (`evidencia.js`, `fig.crudo === false`, memoria
+  // `adi-verificado-no-es-exacto`) no sostiene una resta. Antes se declaraba igual, `libroDeHechos` la marcaba
+  // «no-verificable» (sin-crudo) y el chequeo de `rotos` (más abajo) tumbaba la Entrega ENTERA por una
+  // comparación que nadie pidió — el candado que ya existía en cada sitio (`if (figA0 && figB0)`) cubría la fig
+  // INEXISTENTE, nunca la fig SIN CRUDO. `idsTentacionOpcional` guarda los ids que SÍ se declararon por esta vía
+  // (defensa en profundidad, capa 2): si de todas formas no verifican por otra causa, `rotos` los deja pasar sin
+  // tumbar la Entrega, porque ninguno de estos ids se cita en ningún texto servido (son solo el insumo que
+  // `verificarEntrega` exige ver en el libro). Esta guardia NUNCA se usa en `_planComparacion` (la comparación
+  // que el usuario pidió) ni en la simulación base↔resultado: esas son lo pedido, no un apoyo, y si no
+  // verifican la Entrega declina como corresponde.
+  const idsTentacionOpcional = new Set();
+  const declararDerivadaOpcional = (figA, idA, figB, idB) => {
+    if ((figA && figA.crudo === false) || (figB && figB.crudo === false)) return null;
+    const id = declararDerivada(figA, idA, figB, idB);
+    if (id != null) idsTentacionOpcional.add(id);
+    return id;
+  };
+
   // ── FASE 1 · declarar (por parte, según cierre) — nunca leer `preguntaOriginal` ──
   const planes = [];
   const limitesGap = [];
@@ -2643,7 +2675,7 @@ export function componerEntrega(resolucion) {
   // conjuntos que el Core ya calcula (`_cerrarGrupoUniverso`, kind `grupoUniverso`).
   const partesUniversoPorEstado = partesLecturaDecisionSinEntidad.filter((p) => _universoPorEstadoSinTop(p.universo));
   for (const p of partesUniversoPorEstado) {
-    const r = _cerrarGrupoUniverso(p, _figsDeParte(p.id), I, hechos, contador, ref, declararRazon, declararDerivada);
+    const r = _cerrarGrupoUniverso(p, _figsDeParte(p.id), I, hechos, contador, ref, declararRazon, declararDerivadaOpcional);
     if (r.error) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no se pudo evaluar`, motivo: r.error }); continue; }
     planes.push(r);
   }
@@ -2689,7 +2721,7 @@ export function componerEntrega(resolucion) {
     const figA0 = plan.orden.length > 1 ? _mapaDe(plan.porEntidad, plan.orden[0]).get(plan.claveOrden) : null;
     const figB0 = plan.orden.length > 1 ? _mapaDe(plan.porEntidad, plan.orden[1]).get(plan.claveOrden) : null;
     for (const e of plan.orden) for (const [clave, fig] of _mapaDe(plan.porEntidad, e)) _mapaDe(plan.porEntidad, e).set(clave, ref(fig));
-    if (figA0 && figB0) plan.idDiffOrden = declararDerivada(figA0, _mapaDe(plan.porEntidad, plan.orden[0]).get(plan.claveOrden), figB0, _mapaDe(plan.porEntidad, plan.orden[1]).get(plan.claveOrden));
+    if (figA0 && figB0) plan.idDiffOrden = declararDerivadaOpcional(figA0, _mapaDe(plan.porEntidad, plan.orden[0]).get(plan.claveOrden), figB0, _mapaDe(plan.porEntidad, plan.orden[1]).get(plan.claveOrden));
     planes.push(plan);
   }
   const partesSinEntidadLecturaDecision = _candidatasSinEstadoSinTop.filter((p) => !partesUniversoPropio.includes(p));
@@ -2721,7 +2753,7 @@ export function componerEntrega(resolucion) {
     // por defecto) deshacía en silencio el sentido «top dentro del filtro». Sin `indice` o si el universo no se
     // puede resolver, `figsEnAlcance` no restringe — mismo criterio de «nunca excluir a ciegas» de siempre.
     const figsDelGrupo = partesSinEntidadLecturaDecision.flatMap((p) => figsEnAlcance(_figsDeParte(p.id), { ...alcanceDeParte(p), eje: null }, { indice: I }));
-    const plan = _planMultiTema(temas, figsDelGrupo, ref, declararRazon, declararDerivada, { conDecision });
+    const plan = _planMultiTema(temas, figsDelGrupo, ref, declararRazon, declararDerivadaOpcional, { conDecision });
     if (plan) { plan.partesIds = partesSinEntidadLecturaDecision.map((p) => p.id); planes.push(plan); }
     else {
       // RC8 (owner, diagnostico.md §RC8, punto 2 — «LA GRIETA DE UN SOLO TEMA CON EJE EXPLÍCITO», documentada en
@@ -2756,7 +2788,7 @@ export function componerEntrega(resolucion) {
         const figA0 = planG.orden.length > 1 ? _mapaDe(planG.porEntidad, planG.orden[0]).get(planG.claveOrden) : null;
         const figB0 = planG.orden.length > 1 ? _mapaDe(planG.porEntidad, planG.orden[1]).get(planG.claveOrden) : null;
         for (const e of planG.orden) for (const [clave, fig] of _mapaDe(planG.porEntidad, e)) _mapaDe(planG.porEntidad, e).set(clave, ref(fig));
-        if (figA0 && figB0) planG.idDiffOrden = declararDerivada(figA0, _mapaDe(planG.porEntidad, planG.orden[0]).get(planG.claveOrden), figB0, _mapaDe(planG.porEntidad, planG.orden[1]).get(planG.claveOrden));
+        if (figA0 && figB0) planG.idDiffOrden = declararDerivadaOpcional(figA0, _mapaDe(planG.porEntidad, planG.orden[0]).get(planG.claveOrden), figB0, _mapaDe(planG.porEntidad, planG.orden[1]).get(planG.claveOrden));
         planes.push(planG);
         partesYaAgrupadas.add(p.id);
         huboFallback = true;
@@ -2771,33 +2803,83 @@ export function componerEntrega(resolucion) {
   // partes (eso ya lo cierra `_planCifraGrupo` arriba, por parte, sin agregador). La unión de figs es la MISMA
   // fórmula `figsEnAlcance`/`alcanceDeParte` que ya usaba V81 antes de esta corrección — cada parte acotada a SU
   // propio alcance, nunca al pool entero del grupo.
-  const temasUniversoPropio = [...new Set(partesUniversoPropio.map((p) => p.tema))];
+  // §7.3·24 (SUPERVISOR, diagnóstico v10, precisa la 22 — RAÍZ A2b, 7 fallas directas, X38) — solo las `decision`
+  // con universo propio participan de la cruzada; una `lectura` no tiene sentido en una PRIORIDAD («qué atender
+  // primero» no es una pregunta que se le haga a un listado informativo — el propio SELLO nunca incluye una
+  // `lectura` en `esperado.prioridadCruzada.partes`). Antes, `partesUniversoPropio` (arriba, §7.3·17) mezclaba
+  // `lectura`+`decision` sin distinguir el cierre Y EXCLUÍA a las `decision` cuyo universo es SOLO estados (sin
+  // `top`, `partesUniversoPorEstado` arriba: esas se cierran por `_cerrarGrupoUniverso`, un camino aparte que
+  // nunca alimentaba este agregador) — un grupo de partes completamente distinto al que el SELLO mide (X38:
+  // colaba dos `lectura` y dejaba afuera la única `decision` de inventario). `partesParaCruzada` corrige las dos
+  // cosas: solo `decision`, de CUALQUIERA de los dos caminos que declaran universo propio.
+  const partesParaCruzada = [...partesUniversoPropio, ...partesUniversoPorEstado].filter((p) => p.cierre === "decision");
+  const temasUniversoPropio = [...new Set(partesParaCruzada.map((p) => p.tema))];
   if (temasUniversoPropio.length >= 2) {
-    const conDecisionCruce = partesUniversoPropio.some((p) => p.cierre === "decision");
-    const figsDelGrupoCruce = partesUniversoPropio.flatMap((p) => figsEnAlcance(_figsDeParte(p.id), { ...alcanceDeParte(p), eje: null }, { indice: I }));
-    const planCruce = _planMultiTema(temasUniversoPropio, figsDelGrupoCruce, ref, declararRazon, declararDerivada, { conDecision: conDecisionCruce });
-    // `_soloAgregado` (ver el render de `kind:"multitema"`, más abajo): estas partes YA tienen su contenido propio
-    // (filas + «Prioridad del procedimiento dentro de este grupo») — este plan SOLO aporta la prioridad cruzada y
-    // el límite «sin señal», nunca la línea «quien más pesa» por dominio (esa ya la sirvió `_planCifraGrupo`).
-    if (planCruce) { planCruce.partesIds = partesUniversoPropio.map((p) => p.id); planCruce._soloAgregado = true; planes.push(planCruce); }
+    // §7.3·24 (RAÍZ A2a) precisada por §7.3·26 (SUPERVISOR, catálogo v11, encargo del coordinador 2026-09-27) —
+    // la cruzada se cruza en la CLAVE REAL compartida (ley de la prioridad integrada: señal por señal en el
+    // cliente; los SKU van aparte — y también comparten clave real entre sí, decisión 26b). Con una FORMA MIXTA
+    // (2+ ejes en el mismo grupo de partes con universo propio), cada EJE que reúna 2+ TEMAS distintos cruza por
+    // su cuenta (un ganador en la unión de SUS universos); las decisions cuyo eje queda solo (ningún otro tema lo
+    // comparte) NO entran en ninguna cruzada — se declara que quedan fuera, cada una con su propia prioridad ya
+    // servida arriba (`_planCifraGrupo`/`_cerrarGrupoUniverso`). Si NINGÚN eje reúne 2+ temas (el caso puro de la
+    // decisión 24: ejes todos distintos, uno por tema), no hay ninguna clave compartida en absoluto y se declara
+    // el límite general. La elegibilidad depende de los EJES PEDIDOS, nunca del resultado en tiempo real (26c):
+    // agrupar por `p.eje` ANTES de mirar si algún universo resolvió vacío o se declinó.
+    const gruposPorEje = new Map();
+    for (const p of partesParaCruzada) {
+      const eje = normalizar(p.eje || sujetoDeTema(p.tema) || "");
+      if (!gruposPorEje.has(eje)) gruposPorEje.set(eje, []);
+      gruposPorEje.get(eje).push(p);
+    }
+    const gruposCruzables = [...gruposPorEje.values()].filter((ps) => new Set(ps.map((p) => p.tema)).size >= 2);
+    const gruposExcluidos = [...gruposPorEje.values()].filter((ps) => new Set(ps.map((p) => p.tema)).size < 2);
+    if (!gruposCruzables.length) {
+      // decisión 24 pura: cada eje trae un único tema — sin clave compartida en NINGÚN par, no hay cruzada posible.
+      const nombresDom = temasUniversoPropio.map((d) => { const n = _DOM_NOMBRE[d] || d; return n.charAt(0).toUpperCase() + n.slice(1); });
+      const porEje = temasUniversoPropio.map((d) => { const pd = partesParaCruzada.find((p) => p.tema === d); const eje = (pd && (pd.eje || sujetoDeTema(pd.tema))) || d; return `${_DOM_NOMBRE[d] || d}: por ${eje}`; });
+      limitesGap.push({ titulo: `Sobre ${nombresDom.join(" y ")}, no se establece una prioridad entre dominios para las cuentas pedidas`, motivo: `Se miden sobre ejes distintos (${porEje.join(" · ")}); cada parte conserva su propia prioridad dentro de su universo.` });
+    } else {
+      for (const partesGrupo of gruposCruzables) {
+        const temasGrupo = [...new Set(partesGrupo.map((p) => p.tema))];
+        const figsDelGrupoCruce = partesGrupo.flatMap((p) => figsEnAlcance(_figsDeParte(p.id), { ...alcanceDeParte(p), eje: null }, { indice: I }));
+        const planCruce = _planMultiTema(temasGrupo, figsDelGrupoCruce, ref, declararRazon, declararDerivadaOpcional, { conDecision: true });
+        // `_soloAgregado` (ver el render de `kind:"multitema"`, más abajo): estas partes YA tienen su contenido
+        // propio (filas + «Prioridad del procedimiento dentro de este grupo») — este plan SOLO aporta la
+        // prioridad cruzada y el límite «sin señal», nunca la línea «quien más pesa» por dominio.
+        if (planCruce) { planCruce.partesIds = partesGrupo.map((p) => p.id); planCruce._soloAgregado = true; planes.push(planCruce); }
+      }
+      if (gruposExcluidos.length) {
+        // §7.3·26a — forma MIXTA: las partes de un eje que quedó solo NO entran en la(s) cruzada(s) de arriba;
+        // se declara, nunca en silencio, y cada una conserva su propia prioridad (ya servida arriba).
+        const nombresExcluidos = [...new Set(gruposExcluidos.flatMap((ps) => ps).map((p) => { const n = _DOM_NOMBRE[p.tema] || p.tema; return n.charAt(0).toUpperCase() + n.slice(1); }))];
+        limitesGap.push({ titulo: `Sobre ${nombresExcluidos.join(" y ")}, esa parte no entra en la prioridad cruzada de este grupo`, motivo: "Su eje no lo comparte ninguna otra decision del grupo — sin clave real en común no se cruza; conserva su propia prioridad, ya servida dentro de su universo." });
+      }
+    }
   }
   for (const p of partesUtiles) {
     if (partesYaAgrupadas.has(p.id)) continue;
     const figsDeP = _figsDeParte(p.id);
     if (p.cierre === "cifra" || ((p.cierre === "lectura" || p.cierre === "decision") && p.entidades && p.entidades.length)) {
-      if (p.entidades && p.entidades.length) { const plan = _planCifraEntidad(p, figsDeP, ref, I, declararDerivada); if (plan) planes.push(plan); }
+      if (p.entidades && p.entidades.length) { const plan = _planCifraEntidad(p, figsDeP, ref, I, declararDerivadaOpcional); if (plan) planes.push(plan); }
       else if (p.cierre === "cifra") {
         // CORTE 3c · pieza 1 (D07): universo por estado/filtro SIN `top` — el mismo camino que arriba, para el
         // cierre `cifra`.
         if (_universoPorEstadoSinTop(p.universo)) {
-          const r = _cerrarGrupoUniverso(p, figsDeP, I, hechos, contador, ref, declararRazon, declararDerivada);
+          const r = _cerrarGrupoUniverso(p, figsDeP, I, hechos, contador, ref, declararRazon, declararDerivadaOpcional);
           if (r.error) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no se pudo evaluar`, motivo: r.error }); continue; }
           planes.push(r);
           continue;
         }
         if (_universoNoSoportado(p.universo)) { limitesGap.push(_limiteUniversoNoSoportado(p)); continue; }
         const plan = _planCifraGrupo(p, figsDeP, { ejesDelTenant, indice: I });
-        if (plan) {
+        // RAÍZ A6 (SUPERVISOR, diagnóstico v10, cierre de la Raíz A9/v9 — X75) — antes, sin `plan` (por ejemplo un
+        // `top` sobre un ranking parcial, que `_planCifraGrupo` declina devolviendo `null`, línea ~2133) esta
+        // parte `cifra` desaparecía SIN RASTRO: nunca un límite, nunca una fila, nunca una oración — el mismo
+        // «cambio silencioso» que CLAUDE.md §5 prohíbe y que el camino hermano de `lectura`/`decision` con
+        // universo propio (más arriba, `partesUniversoPropio`) ya declara con un límite. «Declina honestamente
+        // cuenta como éxito» (CLAUDE.md §5): se avisa, nunca se calla.
+        if (!plan) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no encontró evidencia en la boleta`, motivo: "El conjunto se resolvió parcialmente o no se pudo verificar contra la evidencia de este turno — se declina en vez de servir con otro alcance o sobre un ranking incompleto." }); }
+        else {
           // tentación precalculada (mecanismo 6): la diferencia entre el primero y el segundo del listado, en la
           // MISMA métrica que ordena — se captura el fig ANTES de convertir el mapa a ids (unit-aware), y se
           // declara DESPUÉS con los mismos ids que ya va a imprimir la tabla (nunca una segunda referencia a la fig).
@@ -2807,7 +2889,7 @@ export function componerEntrega(resolucion) {
           const figA0 = plan.orden.length > 1 ? _mapaDe(plan.porEntidad, plan.orden[0]).get(plan.claveOrden) : null;
           const figB0 = plan.orden.length > 1 ? _mapaDe(plan.porEntidad, plan.orden[1]).get(plan.claveOrden) : null;
           for (const e of plan.orden) for (const [clave, fig] of _mapaDe(plan.porEntidad, e)) _mapaDe(plan.porEntidad, e).set(clave, ref(fig));
-          if (figA0 && figB0) plan.idDiffOrden = declararDerivada(figA0, _mapaDe(plan.porEntidad, plan.orden[0]).get(plan.claveOrden), figB0, _mapaDe(plan.porEntidad, plan.orden[1]).get(plan.claveOrden));
+          if (figA0 && figB0) plan.idDiffOrden = declararDerivadaOpcional(figA0, _mapaDe(plan.porEntidad, plan.orden[0]).get(plan.claveOrden), figB0, _mapaDe(plan.porEntidad, plan.orden[1]).get(plan.claveOrden));
           planes.push(plan);
         }
       }
@@ -2884,13 +2966,31 @@ export function componerEntrega(resolucion) {
       const primera = _todosTriples[0];
       const segunda = primera ? _todosTriples.find((t) => t.dueno !== primera.dueno && t.clave === primera.clave) : null;
       const unidad = primera ? unidadDeClave(primera.clave) : null;
-      if (segunda && unidad) declararDerivada({ unit: unidad }, primera.id, { unit: unidad }, segunda.id);
+      // §7.3·25 (mecanismo 6, apoyo) — misma guardia que el resto de este archivo: `declararDerivadaOpcional`
+      // marca el id como opcional (capa 2, `rotos` más abajo); estos operandos son sintéticos (`{unit}`, sin
+      // `crudo` propio porque a esta altura solo queda el id ya `ref()`ado, no la fig) — no bloquean por crudo,
+      // pero SÍ quedan protegidos si `libroDeHechos` los marca no-verificables por otra causa.
+      if (segunda && unidad) declararDerivadaOpcional({ unit: unidad }, primera.id, { unit: unidad }, segunda.id);
     }
   }
 
   const libro = libroDeHechos(hechos, { indice: I });
-  const rotos = libro.hechos.filter((h) => !h.ok);
+  // §7.3·25 (SUPERVISOR, diagnóstico v10, raíz A1) — un hecho OPCIONAL (`idsTentacionOpcional`, la tentación
+  // precalculada de apoyo, arriba) que no verifica NUNCA tumba la Entrega: se retira en silencio de `rotos` — no
+  // se cita en ningún texto servido (ver la nota junto a `declararDerivadaOpcional`), así que dejarlo fuera de
+  // `rotos` no deja un hueco en la prosa. Solo lo que se va a IMPRIMIR (todo lo demás: `_planComparacion`, la
+  // simulación base↔resultado, cualquier `ref`/cifra pedida) sigue exigiendo verificar para no tumbar cerrado.
+  const rotos = libro.hechos.filter((h) => !h.ok && !idsTentacionOpcional.has(h.id));
   if (rotos.length) return { texto: "", entrega: null, libro, ok: false, motivo: `${rotos.length} hecho(s) no verificaron: ${rotos.map((h) => `${h.id} (${h.motivo})`).join(" · ")}` };
+  // §7.3·25, cont. — «se retira en silencio DEL LIBRO»: un hecho opcional roto no solo se excluye de `rotos`
+  // (arriba, para no tumbar la Entrega); también se saca de `libro.hechos`/`libro.porId` ACÁ, antes de que nadie
+  // más lo lea — `verificarEntrega` regla 9 («autoverificacion») audita el libro completo por su cuenta (defensa
+  // en profundidad, no pasa por `rotos`) y marcaría el mismo hecho roto otra vez si se quedara adentro. Ninguna
+  // parte de la Entrega cita estos ids (ver la nota de `declararDerivadaOpcional`), así que retirarlos no deja un
+  // hueco: `libro` sigue siendo el mismo objeto en toda la función, así que el retiro es visible en todo lo que
+  // sigue (`_procedenciaDeFila`, `R()`, `entrega.procedencia.libro`).
+  for (const h of libro.hechos) { if (!h.ok && idsTentacionOpcional.has(h.id)) libro.porId.delete(h.id); }
+  libro.hechos = libro.hechos.filter((h) => h.ok || !idsTentacionOpcional.has(h.id));
 
   // ═══ CORTE 3d.1 (owner 2026-09-25) — LA INICIATIVA DE CFO. Se declara y verifica en SU PROPIO libro, con SU
   // PROPIO prefijo de id (`i*`, asignado por `iniciativa.js` — nunca comparte contador con `e*`): lo pedido de
