@@ -291,9 +291,20 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
   if (registro) v("registro-informal", `${registro.motivo}${registro.forma ? ` («${registro.forma}»)` : ""} — la Entrega va en tuteo neutro, sin voseo ni coloquialismos`);
 
   // 8 · tope de tamaño — CORTE 3d.3: por profundidad (350 breve / 900 completa, antes siempre 900)
+  // §7.3·33 (SUPERVISOR, 2026-09-28, diagnóstico v11) — «el tope nunca se cumple borrando una conclusión ni una
+  // premisa»: `entrega/tamano.js:gobernarTamano` ya intentó, POR PRIORIDAD, retirar toda oración/fila recortable
+  // (las de prioridad > 0 — «quien más pesa» por dominio, filas de Cifras sin doble colocación) antes de dejar
+  // algo obligatorio (premisas, definiciones, la conclusión de prioridad cruzada, todas prioridad 0) sobre el
+  // tope. `entrega.meta.excedeTope` es la declaración de ESE resultado — por construcción (única fuente:
+  // `gobernarTamano`, nunca escrita a mano acá) solo es `true` cuando el bucle de recorte agotó todo lo
+  // recortable y el contenido obligatorio, por sí solo, sigue sobre el tope. El verificador no rechaza esa
+  // Entrega (el exceso es SOLO contenido obligatorio, ya declarado); un exceso de contenido TODAVÍA recortable
+  // (`excedeTope` ausente o `false` — el camino de las 4 rutas fijas, que no pasan por `gobernarTamano`, nunca
+  // declara este campo) sigue rechazándose igual que siempre.
   const _topePalabras = profundidad === "breve" ? TOPE_BREVE : TOPE_COMPLETA;
   const n = _PALABRAS(texto).length;
-  if (n > _topePalabras) v("tope-de-tamano", `${n} palabras, sobre el tope de ${_topePalabras} (profundidad: ${profundidad})`);
+  const _excedeTopeDeclarado = !!(entrega.meta && entrega.meta.excedeTope === true);
+  if (n > _topePalabras && !_excedeTopeDeclarado) v("tope-de-tamano", `${n} palabras, sobre el tope de ${_topePalabras} (profundidad: ${profundidad})`);
 
   // 13 · CORTE 3d.3 (owner 2026-09-25/26) — tope de FILAS de Cifras por profundidad (8 breve / 24 completa): lo
   // recortado tiene que haber ido a `entrega.detalle.filas`, nunca simplemente faltar sin rastro — esta regla

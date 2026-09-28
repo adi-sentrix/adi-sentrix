@@ -3427,6 +3427,24 @@ export function componerEntrega(resolucion) {
         // universo pedido» SIN depender de que el llamador acuerde pasarle `partes` (que ya tiene otro dueño:
         // regla 11, cobertura de dominios, con una forma de parte distinta — nunca se comparten los dos usos).
         if (plan.universoPedido) entrega._simulacionUniverso = [...(entrega._simulacionUniverso || []), ...plan.universoPedido];
+        // CASO Y81 (SUPERVISOR, diagnóstico v11, tarea 2 — «la parte declara el universo de sus entidades, igual
+        // que las demás partes con entidades puntuales») — `kind:"simulacion"` era el ÚNICO tipo de plan que
+        // nunca llamaba a `_declararUniverso` (a diferencia de "entidad"/"grupo"/"comparacion"/"grupoUniverso"/
+        // "multitema", que sí se declaran — ver la nota en `kind:"multitema"` más abajo). Mientras el encargo es
+        // SOLO simulación (`_esSoloSimulacion`, más abajo), la ausencia pasaba inadvertida porque la regla 15 de
+        // `verificar.js` (`alcance-fuera-de-parte`) se EXCLUYE a sí misma para la tabla de simulación (columnas
+        // "Simulación"+"Supuesto") y delega en su propio candado (regla 14(d), contra `entrega._simulacionUniverso`,
+        // ya poblado arriba). Pero un encargo MIXTO (esta simulación + una parte de otro dominio, ej. inventario)
+        // usa las columnas GENÉRICAS de Cifras — la regla 15 SÍ corre, y sin esta declaración una entidad puntual
+        // simulada (SAM-TV55) tenía cifra propia sin que NINGUNA parte del encargo autorizara su alcance: la fila
+        // era correcta, el candado de alcance no tenía cómo saberlo. Se declara con el MISMO mecanismo que
+        // cualquier otra parte de entidad puntual — solo cuando la simulación restringe a entidades nombradas
+        // (`plan.universoPedido`); una simulación de cartera entera (sin entidad, todo "Negocio") no necesita
+        // autorizar nada — esas filas ya están exentas (regla 15, verificar.js, dueño "Negocio").
+        if (plan.universoPedido && plan.universoPedido.length) {
+          const parteSim = (resolucion.partes || []).find((pp) => pp.id === plan.parteId);
+          _declararUniverso(entrega, I, { id: plan.parteId, eje: (parteSim && parteSim.eje) || "cliente", entidades: plan.universoPedido });
+        }
       }
     } else if (plan.kind === "definicion") {
       temasCubiertos.add(plan.tema);

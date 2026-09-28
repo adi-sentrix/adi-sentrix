@@ -283,7 +283,19 @@ export function gobernarTamano(entrega, profundidad, renderTexto, titulo) {
   };
 
   const textoFinal = renderTexto(entregaConColaDeclarada, titulo, profundidad);
-  const meta = { profundidad, palabras: contarPalabras(textoFinal), tope: topeTexto, topeFilas, filas: entregaGobernada.cifras.filas.length, recortoOraciones: oracionesRecortadas.length, recortoFilas: filasRecortadas.length };
+  const palabrasFinal = contarPalabras(textoFinal);
+  // §7.3·33 (SUPERVISOR, 2026-09-28, diagnóstico v11 — «tamaño con contenido obligatorio») — cuando el bucle de
+  // arriba llega a `if (!retirado) break;` sin haber podido bajar del tope (todo lo que quedó servido es prioridad
+  // 0: premisas, definiciones, la conclusión de prioridad cruzada — NUNCA se retiran, ver `prioridadDe`), el
+  // render final SIGUE sobre `topeTexto`. Antes esto se servía en silencio: `meta` no lo declaraba y
+  // `verificarEntrega` (regla 8, `tope-de-tamano`) rechazaba la Entrega sin distinguir «hay contenido recortable
+  // que no se recortó» de «no queda nada que recortar». `excedeTope` es la declaración de ese segundo caso — SOLO
+  // es `true` cuando, tras agotar todo lo recortable (oraciones de prioridad DENTRO de cada universo y filas de
+  // Cifras), el contenido obligatorio por sí solo sigue sobre el tope. El tope nunca se cumple borrando una
+  // conclusión ni una premisa (regla del owner): se sirve completo y se declara el exceso, nunca se corta a la
+  // fuerza ni se sirve oversized en silencio.
+  const excedeTope = palabrasFinal > topeTexto;
+  const meta = { profundidad, palabras: palabrasFinal, tope: topeTexto, topeFilas, filas: entregaGobernada.cifras.filas.length, recortoOraciones: oracionesRecortadas.length, recortoFilas: filasRecortadas.length, excedeTope };
 
   return { entrega: entregaConColaDeclarada, detalle, meta, texto: textoFinal };
 }

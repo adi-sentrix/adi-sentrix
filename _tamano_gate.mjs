@@ -30,6 +30,13 @@
  *       por la prioridad real) declara la conclusión integrada («Quien más pesa en el conjunto…») en la posición
  *       [2] del array, prioridad 0 — en "breve" sobrevive ESA oración, aunque NO fue la primera escrita.
  *   9 · CERO red.
+ *   10 · §7.3·33 (SUPERVISOR, 2026-09-28, diagnóstico v11) «tamaño con contenido obligatorio» —
+ *       `meta.excedeTope` sale `true` de la CARNADA 1 (el contenido obligatorio, ya sin nada recortable,
+ *       sigue sobre el tope); `verificarEntrega` (`entrega/verificar.js`, regla 8) NO rechaza esa Entrega
+ *       (el exceso es SOLO contenido obligatorio, ya declarado) pero SIGUE rechazando un exceso sin
+ *       `meta.excedeTope` — sea porque `meta` no lo declara (las 4 rutas fijas, que no pasan por
+ *       `gobernarTamano`) o porque lo declara `false` a propósito (control negativo: el campo se lee con
+ *       `=== true`, nunca por presencia).
  *
  * CERO llamadas a un LLM · CERO red. Solo por `npm run gates:offline` o
  * `node --import ./scripts/offline-guard.mjs _tamano_gate.mjs`. */
@@ -39,7 +46,7 @@ import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { validarEncargo } from "./src/adi/encargo/validar.js";
 import { componerEntrega } from "./src/adi/entrega/componer.js";
 import { gobernarTamano } from "./src/adi/entrega/tamano.js";
-import { contarPalabras, TOPE_BREVE, TOPE_COMPLETA, FILAS_BREVE_MAX, FILAS_COMPLETA_MAX } from "./src/adi/entrega/verificar.js";
+import { verificarEntrega, contarPalabras, TOPE_BREVE, TOPE_COMPLETA, FILAS_BREVE_MAX, FILAS_COMPLETA_MAX } from "./src/adi/entrega/verificar.js";
 import { clasificarFuente } from "./scripts/clasificarGates.mjs";
 
 let pass = 0, fail = 0;
@@ -84,6 +91,27 @@ H("1 · CARNADA «tope artificial» — trimming de la conclusión debe dar ROJO
   // control negativo explícito (documenta qué haría ROJO este candado): si `gobernarTamano` alguna vez tratara la
   // prioridad 0 como recortable, `gob.respuesta.some(...)` de arriba daría `false` — la propia aserción ES la
   // carnada; no hace falta un segundo camino de código para "romperlo a propósito".
+  // §7.3·33 (SUPERVISOR, 2026-09-28) — acá el recorte SÍ alcanza (la conclusión sola, sin relleno, cabe bajo
+  // 350: ver el cálculo de la CARNADA 1b más abajo) — `meta.excedeTope` tiene que quedar `false`: la exención
+  // es SOLO para cuando no queda nada más que retirar y el obligatorio por sí solo sigue sobre el tope (1b).
+  ok(meta.excedeTope === false, "meta.excedeTope = false — acá el recorte alcanzó para bajar del tope (compárese con la CARNADA 1b)", `meta=${JSON.stringify(meta)}`);
+}
+
+/* ═══ 1b · CARNADA §7.3·33 — contenido obligatorio POR SÍ SOLO sobre el tope: meta.excedeTope = true ═══ */
+H("1b · CARNADA §7.3·33 — sin nada recortable, el contenido obligatorio por sí solo excede el tope: meta.excedeTope = true");
+{
+  // la conclusión SOLA (prioridad 0, sin ningún relleno que recortar) ya excede 350 palabras — el caso exacto
+  // que describe la decisión 33: "el contenido que no se recorta (premisas, conclusiones) supera el tope". El
+  // bucle de `gobernarTamano` no tiene NADA que retirar (ninguna oración de prioridad > 0, ninguna fila) y
+  // rompe por `!retirado` — el render final queda sobre el tope, y `meta.excedeTope` tiene que declararlo.
+  const conclusionSola = { texto: "Prioridad del procedimiento, por riesgo integrado: " + "abrir primero Lider por su exposición conjunta en comercial y cobranza, con evidencia cruzada de varias cuentas materiales. ".repeat(20) };
+  const entrega = _entregaBase([conclusionSola], []);
+  const palabrasSinGobernar = contarPalabras(_renderStub(entrega, "Prueba"));
+  const { entrega: gob, meta } = gobernarTamano(entrega, "breve", _renderStub, "Prueba");
+  ok(palabrasSinGobernar > TOPE_BREVE, "la conclusión SOLA (sin relleno que recortar) ya supera 350 palabras — el escenario real de la decisión 33", String(palabrasSinGobernar));
+  ok(gob.respuesta.some((r) => r.texto === conclusionSola.texto), "la conclusión sigue SERVIDA completa — «el tope nunca se cumple borrando una conclusión ni una premisa»");
+  ok(meta.recortoOraciones === 0, "no había NADA recortable (ninguna oración de prioridad > 0, ninguna fila): el bucle no tenía qué retirar", String(meta.recortoOraciones));
+  ok(meta.excedeTope === true, "meta.excedeTope = true — se sirve completo y se declara el exceso, nunca se corta a la fuerza ni se sirve oversized en silencio", `meta=${JSON.stringify(meta)}`);
 }
 
 /* ═══ 2 · CARNADA · una fila de baja prioridad puesta PRIMERA se recorta antes que una de alta prioridad puesta después ═══ */
@@ -269,6 +297,35 @@ H("9 · CERO red — clasificarFuente(este gate) === offline");
 {
   const c = clasificarFuente(fs.readFileSync("./_tamano_gate.mjs", "utf8"));
   ok(c.tipo === "offline", "este gate se clasifica offline (no toca la red)", JSON.stringify(c));
+}
+
+/* ═══ 10 · CARNADA §7.3·33 — «el verificador no rechaza una Entrega cuyo exceso es SOLO contenido
+ * obligatorio con excedeTope declarado; SÍ sigue rechazando un exceso de contenido recortable» ═══ */
+H("10 · CARNADA §7.3·33 — verificarEntrega (regla 8, tope-de-tamano) lee `entrega.meta.excedeTope`, nunca a ciegas");
+{
+  // texto sintético, muy por sobre el tope de "breve" (350) — el MISMO exceso en los tres casos; lo único que
+  // cambia es cómo lo declara `entrega.meta`.
+  const textoLargo = Array.from({ length: 400 }, (_, i) => `palabra${i}`).join(" ");
+  const _entregaMin = (meta) => ({ meta, cifras: { columnas: [], filas: [] }, universos: [], respuesta: [] });
+
+  const conExcedeTope = verificarEntrega({ texto: textoLargo, entrega: _entregaMin({ excedeTope: true }), profundidad: "breve" });
+  ok(!conExcedeTope.violaciones.some((v) => v.regla === "tope-de-tamano"), "CARNADA: `meta.excedeTope: true` — la regla 8 NO dispara (el exceso ya está declarado como contenido obligatorio)", JSON.stringify(conExcedeTope.violaciones));
+
+  // control negativo 1 — sin `meta` (o sin `excedeTope`), el MISMO exceso de palabras sigue rechazado: la
+  // exención nunca es el comportamiento por defecto (las 4 rutas fijas, que no pasan por `gobernarTamano`,
+  // nunca declaran este campo y tienen que seguir auditadas como siempre).
+  const sinMeta = verificarEntrega({ texto: textoLargo, entrega: _entregaMin(null), profundidad: "breve" });
+  ok(sinMeta.violaciones.some((v) => v.regla === "tope-de-tamano"), "control negativo: SIN `entrega.meta` (camino viejo), el mismo exceso SIGUE rechazado", JSON.stringify(sinMeta.violaciones));
+
+  // control negativo 2 — `excedeTope: false` explícito (contenido TODAVÍA recortable que nadie recortó): la
+  // regla 8 se lee con `=== true`, nunca por la sola presencia del campo `meta`.
+  const excedeTopeFalso = verificarEntrega({ texto: textoLargo, entrega: _entregaMin({ excedeTope: false }), profundidad: "breve" });
+  ok(excedeTopeFalso.violaciones.some((v) => v.regla === "tope-de-tamano"), "control negativo: `meta.excedeTope: false` (contenido recortable, no recortado) SIGUE rechazado", JSON.stringify(excedeTopeFalso.violaciones));
+
+  // bajo el tope, con o sin `excedeTope`, nunca dispara — la regla 8 sigue siendo primero «¿n > tope?».
+  const textoCorto = "Una Entrega breve, bajo el tope, sin necesidad de ninguna exención.";
+  const bajoTope = verificarEntrega({ texto: textoCorto, entrega: _entregaMin({ excedeTope: false }), profundidad: "breve" });
+  ok(!bajoTope.violaciones.some((v) => v.regla === "tope-de-tamano"), "bajo el tope, la regla 8 no dispara de todos modos (con o sin `excedeTope`)", JSON.stringify(bajoTope.violaciones));
 }
 
 console.log(`\n── _tamano_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
