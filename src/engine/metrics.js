@@ -7,10 +7,11 @@ import { factorComercialDe } from "../config/contract/figureType.js";
 import { benchmarkOf } from "../config/businessPolicy.js";   // la vara única: la puerta (criterio → perfil → config), jamás un literal
 // miles VERDADEROS del monto almacenado (barrido A·maquinaria 2026-08-30) — con el demo es la identidad
 const _enK = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e3;
-import { MESES_IDX, invKPI, margenKPI, ventasKPI, ventasMensuales } from "../data/baseKpis.js";
+import { MESES_IDX, margenKPI, ventasKPI, ventasMensuales } from "../data/baseKpis.js";
 import { clientesVentas } from "../data/demoData.js";
-import { applyScenarioToClientesVentas } from "./scenarios.js";
+import { applyScenarioToClientesVentas, applyScenarioToSkuInventario } from "./scenarios.js";
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
+import { kpiInventario } from "../adi/diagnosis/economicDiagnosis.js";   // R7 (owner 2026-09-28): getInvKPI deja de leer el literal — misma fuente única que deriveKpis().inventario
 
 export function getVentasKPI(filtro, filtros, scenario = ESCENARIO_INICIAL) {
   const mesIdx = filtro && filtro !== "Anual" ? MESES_IDX[filtro] : -1;
@@ -66,10 +67,14 @@ export function getMargenKPI(scenarioId) {
     brechaPuntos: typeof base.pct === "number" ? Math.round((vigente - base.pct) * 10) / 10 : base.brechaPuntos };
 }
 
+/* getInvKPI(scenarioId) → el indicador de inventario, CALCULADO (owner 2026-09-28, §7.3·31-32; diseño §8.2/R7).
+ * Antes leía el literal `invKPI` del tenant y, si el escenario declaraba un override a mano, lo pisaba con OTRO
+ * literal — así `overview.js` (única consumidora) podía quedar leyendo un número de tensión/crisis que ni
+ * siquiera cerraba con sus propias filas (diseño §0.4). Ahora es la MISMA fuente única que `deriveKpis().inventario`:
+ * `kpiInventario` sobre las filas del escenario. Mismo contrato de llaves (`totalUSD`, `doh`, `inmovilizadoUSD`,
+ * `inmovilizadoPct`, más lo nuevo) — `overview.js` no cambia, cambia de dónde sale el número (diseño §2, tabla). */
 export function getInvKPI(scenarioId) {
-  const k = SCENARIO_TRANSFORMS[scenarioId]?.kpis?.inventario;
-  if (!k) return invKPI;
-  return { ...invKPI, ...k };
+  return kpiInventario(applyScenarioToSkuInventario(scenarioId));
 }
 
 export function _aggregateVentas(dataset) {

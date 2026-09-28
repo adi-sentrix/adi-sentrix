@@ -159,7 +159,9 @@ arde("Seis cuentas con vencido: Lider, Falabella, Sodimac, Tottus, Paris y Jumbo
 arde("Los cuatro que caen: Ripley, La Polar, Easy y Hites.", CONTEO, "P1", "Hites crece: el cuarto es Unimarc");
 arde("2 de 13 SKU están frenados.", /conteo-de-lista-falso|estado-no-declarado/, "P1", "frenados son 3");
 pasa("3 de 13 SKU están frenados.", "P1", "el conteo de SKU verdadero");
-pasa("5 de 13 SKU están inmovilizados.", "P1", "…y el de inmovilizados");
+// decisión del owner 2026-09-28, §7.3·31: "inmovilizados" pasó de 5 SKU (estado ≠ Activo) a 4 SKU
+// (capital_frenado ∪ sobrestock) — diseño §6.1.
+pasa("4 de 13 SKU están inmovilizados.", "P1", "…y el de inmovilizados");
 arde("Solo un SKU está frenado: LG-DRYER8KG.", /conteo-de-lista-falso|estado-no-declarado/, "P1", "son 3");
 arde("Cuatro bodegas tienen capital frenado.", CONTEO, "P1", "el eje bodega: son 2 (Valparaíso y Antofagasta)");
 arde("El capital frenado está repartido en tres bodegas.", CONTEO, "P1", "son 2");

@@ -2855,9 +2855,10 @@
    "lente": "oos-fp-giros",
    "frase": "SAM-TV55 está inmovilizado en Santiago con $13K, 58 días de inventario y 12 sin venta.",
    "contexto": "ambos",
-   "esperado": "pasa",
-   "verdad": "estado inmovilizado Santiago; 12.8K; 58; 12",
-   "patron": "sku-codigo"
+   "esperado": "arde",
+   "verdad": "SAM-TV55 es capital_sano (rotación 3.6x, 58 días de inventario) — no inmovilizado; el resto de la frase (Santiago, $13K, 58 días, 12 sin venta) es correcto",
+   "motivo": "decisión del owner 2026-09-28, §7.3·31 (jerarquiaInventario): «inmovilizado» pasó de «estado ≠ Activo» (SAM-TV55 calificaba, estado crudo «Lento») a capital_frenado ∪ sobrestock (SAM-TV55 no califica: es capital_sano).",
+   "patron": "sku-codigo (histórico; ver motivo)"
   },
   {
    "id": "oos-fp-giros-0316",

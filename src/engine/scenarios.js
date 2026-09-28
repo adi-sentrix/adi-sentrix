@@ -5,6 +5,7 @@ import { FEATURE_FAMILY_MARGEN_BLENDED } from "../config/features.js";
 import { benchmarkOf } from "../config/businessPolicy.js";   // la vara única: perfil del tenant → config, con el criterio C.2 encima
 import { SCENARIO_TRANSFORMS } from "../config/scenarios.js";
 import { clientesMargen, clientesVentas, marcasMargen, marcasVentas, sfamiliasMargen, sfamiliasVentas, skuInventario } from "../data/demoData.js";
+import { kpiInventario } from "../adi/diagnosis/economicDiagnosis.js";   // R7 (owner 2026-09-28, §7.3·31-32): el indicador de inventario ya NO es un literal — lo calcula la fuente única
 
 export function applyScenarioToClientesVentas(scenarioId, override) {
   const t = resolveTransform(scenarioId, override)?.clientes;
@@ -251,10 +252,18 @@ export function deriveKpis(scenarioId, override) {
   const totalPresupuesto = totalPresup > 0 ? totalPresup : (litVentas.totalPresupuesto != null ? litVentas.totalPresupuesto : null);
   const vsPresupuesto = totalPresupuesto ? +(((totalActual / totalPresupuesto) - 1) * 100).toFixed(1) : null;
 
+  /* INVENTARIO · CALCULADO, ya no PRESERVADO del literal (owner 2026-09-28, §7.3·31-32 y ·34; diseño §8.2/R7).
+   * Hasta hoy esta línea devolvía `lit.inventario` tal cual el tenant lo escribía a mano — y esos literales ni
+   * siquiera cerraban con sus propias filas en tensión/crisis (`applyScenarioToSkuInventario` nunca toca
+   * `stockUSD`: diseño §0.4). Ahora es la MISMA fuente única que lee la ingesta (`motorKpi.js`) y la que leerá la
+   * Entrega: `kpiInventario` sobre las filas YA transformadas por el escenario — cero segunda verdad, y la cifra
+   * de inventario por fin cierra con las filas que la sostienen. */
+  const inventario = kpiInventario(applyScenarioToSkuInventario(scenarioId, override));
+
   return {
     ventas: { totalActual, totalAnterior, totalPresupuesto, vsAnterior, vsPresupuesto },
     margen: { pct, pctAnt, totalUSD, gapPuntos, benchmark },
-    inventario: lit.inventario || null,   // PRESERVADO del literal · v1 no recalcula inventario
+    inventario,
   };
 }
 

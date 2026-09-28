@@ -73,7 +73,10 @@ H("0 · la carpeta declara el léxico y los rankings nuevos");
   ok(R.cliente.dias_vencido.lexico && R.cliente.dias_vencido.lexico.adjetivos["moros[oa]s?"] === "mayor" && R.cliente.dias_vencido.lexico.juicio.includes("urgentes?"), "días vencidos declara «morosa» (mayor) y «urgente» como adjetivo de juicio");
   ok(R.sku.rotacion.lexico.adjetivos["lent[oa]s?"] === "menor" && R.sku.dias_inventario.lexico.adjetivos["lent[oa]s?"] === "mayor", "«lento» es MENOS rotación y MÁS días: la polaridad la declara cada métrica");
   ok(R.sku.ventas && R.sku.contribucion && R.sku.ventas.filas.length === 13 && R.bodega && R.bodega.capital.filas.length === 4, "el eje SKU declara venta y contribución (año cerrado) y el eje bodega su capital");
-  ok(R.sku.capital_frenado && R.sku.capital_frenado.filas.length === 3 && R.sku.capital_inmovilizado.filas.length === 5 && !R.sku.capital_inmovilizado.terminos.some((t) => /frenado/.test(t)), "«capital frenado» (3, POLICY) y «capital inmovilizado» (5, estado ≠ Activo) son dos rankings, cada término en el suyo");
+  // decisión del owner 2026-09-28, §7.3·31: «capital inmovilizado» dejó de ser "estado ≠ Activo" (5 SKU, $55,8K)
+  // y pasó a ser capital_frenado ∪ sobrestock (jerarquiaInventario) — 4 SKU, $43,0K en el demo. «capital frenado»
+  // (el tramo crítico) no cambió: sigue siendo 3.
+  ok(R.sku.capital_frenado && R.sku.capital_frenado.filas.length === 3 && R.sku.capital_inmovilizado.filas.length === 4 && !R.sku.capital_inmovilizado.terminos.some((t) => /frenado/.test(t)), "«capital frenado» (3, POLICY) y «capital inmovilizado» (4, capital_frenado ∪ sobrestock) son dos rankings, cada término en el suyo");
 }
 
 H("1 · EL LÉXICO DECLARADO POR MÉTRICA: verbo, adjetivo con polaridad, agente, magnitud");
@@ -242,7 +245,10 @@ arde("De peor a mejor recuperación (3 de 13): Lider 45%, Sodimac 35%, Easy 40%.
 pasa("De peor a mejor recuperación (3 de 13): Sodimac 35%, Easy 40%, Lider 45%.");
 arde("Los tres que más contribuyen, en este orden: Falabella, Lider y Jumbo ($4.3M, $3.8M y $4.2M).", RK, "«en este orden»");
 arde("Por orden de carga comercial (4 de 13): Sodimac 5.4%, Easy 5.5%, Ripley 4.8%, Falabella 4.5%.", RK, "«por orden de»");
-pasa("Ranking de los 5 SKU inmovilizados, de mayor a menor capital: LG-DRYER8KG $14K, SAM-TV55 $13K, BOS-SANDER $11K, PHI-IRON-PRO $10K, MAK-COMP-AIR $8K.", "el ranking correcto vive (roce de universos)");
+// decisión del owner 2026-09-28, §7.3·31: SAM-TV55 (capital_sano) ya no es "inmovilizado" — la definición vieja
+// (estado ≠ Activo) lo incluía por su estado crudo "Lento"; la nueva (capital_frenado ∪ sobrestock) no. El
+// universo pasó de 5 SKU / $55,8K a 4 SKU / $43,0K (diseño §6.1).
+pasa("Ranking de los 4 SKU inmovilizados, de mayor a menor capital: LG-DRYER8KG $14K, BOS-SANDER $11K, PHI-IRON-PRO $10K, MAK-COMP-AIR $8K.", "el ranking correcto vive (roce de universos)");
 pasa("Falabella ($4.3M) es el que más contribución deja, seguido de Jumbo ($4.2M) y Lider ($3.8M).", "«seguido de» con el orden real; y la cifra reclamada es la del reclamante, no la del seguidor (fp-comparaciones 3)");
 arde("Falabella ($4.3M) es el que más contribución deja, seguido de Lider ($3.8M) y Jumbo ($4.2M).", RK, "…y con los seguidores al revés arde");
 pasa("Easy (270 días) es la más atrasada, seguida de Lider (269) y Sodimac (251).");

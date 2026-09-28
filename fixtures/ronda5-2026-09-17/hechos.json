@@ -2056,7 +2056,7 @@
     {
       "id": "e03-estado-contradictorio-dato",
       "pregunta": "¿Cómo está mi inventario?",
-      "nota": "SAM-TV55 figura «inmovilizado» y «capital sano» a la vez en la proyección: dos hechos contrarios salen verdaderos",
+      "nota": "decisión del owner 2026-09-28, §7.3·31 (diseño de inventario, jerarquiaInventario): «inmovilizado» dejó de ser «estado ≠ Activo» y pasó a ser capital_frenado ∪ sobrestock, DISJUNTO de capital_sano por construcción. SAM-TV55 (rotación 3.6x, 58 días de inventario) es capital_sano y NO inmovilizado — ya no hay dos hechos contrarios que reconciliar para este SKU: uno de los dos ahora es simplemente falso.",
       "hechos": [
         {
           "id": "h1",
@@ -2090,7 +2090,7 @@
         {
           "id": "h5",
           "tipo": "conteo",
-          "n": 5,
+          "n": 6,
           "de": {
             "eje": "sku",
             "estados": [
@@ -2103,7 +2103,7 @@
         }
       ],
       "esperado": {
-        "h1": "verdadera",
+        "h1": "falsa",
         "h2": "verdadera",
         "h3": "no-verdadera",
         "h4": "verdadera",
@@ -2111,7 +2111,7 @@
       },
       "nota_v31": {
         "h2": "v3.1: capital sano = no frenado; inmovilizado no lo contradice",
-        "h1": "v3.1: «inmovilizado» es la categoría amplia (estado ≠ Activo) y convive con «capital sano» (= no frenado): no hay contradicción"
+        "h1": "owner 2026-09-28, §7.3·31: «inmovilizado» pasó a ser capital_frenado ∪ sobrestock (DISJUNTO de capital_sano); SAM-TV55 es capital_sano, así que «SAM-TV55 inmovilizado» es simplemente falsa — ya no hay dos hechos contrarios que reconciliar (nota_v31 histórica del criterio viejo, conservada arriba en «nota»)."
       }
     },
     {

@@ -49,7 +49,7 @@ import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del 
 import { figsUmbralFocos, descomposicionDeBrecha, variacionVentasPorEje } from "../specRetrieval.js";   // `descomposicionDeBrecha`: la ÚNICA definición de «carga comercial alta» (el detector) — el Notario resuelve los conjuntos desde acá. `variacionVentasPorEje`: cierre D29 del corte 3c (owner 2026-09-25) — LA MISMA función que usa `salesRead` para «vs año anterior», publicada acá para que el Notario la verifique sin reimplementarla («una sola verdad por eje»).
 import { NOMBRE_CARGA_ALTA, NOMBRE_SOBRE_NIVEL_CARGA } from "../notario/conjuntosDeLaCasa.js";   // §7.3·11: el nombre de estos dos conjuntos vive en UN solo lugar — `notario/verificar.js` y `encargo/validar.js` leen la MISMA constante
 import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";   // los rankings de COBRANZA salen de la MISMA mesa que la herramienta `cobranza` y la pestaña Flujo (owner 2026-09-14)   // el umbral de materialidad, los MISMOS dos números que interpola `declaracionUmbralFocos` (2026-09-14)
-import { diagnoseInventarioSku } from "../diagnosis/economicDiagnosis.js";   // el estado de cada SKU: la MISMA función que la Mesa Capital y la boleta del inventario (Notario semántico, fase 4)
+import { diagnoseInventarioSku, jerarquiaInventario } from "../diagnosis/economicDiagnosis.js";   // el estado de cada SKU: la MISMA función que la Mesa Capital y la boleta del inventario (Notario semántico, fase 4) · jerarquiaInventario: la fuente única de inmovilizado/crítico (owner 2026-09-28, §7.3·31-32)
 
 // ── EL FORMATEADOR DE LA BOLETA, SIN UN SEGUNDO FORMATEADOR ────────────────────────────────────────────────────
 // parseFigures canoniza toda cifra con el _fmtC privado de boleta.js (canon = `unit:_fmtC(raw,unit)`). Darle el
@@ -295,7 +295,11 @@ function _construir(scenario) {
        * «BOS-SANDER es el segundo SKU en capital frenado ($11K)» es verdad sobre los 3 frenados (POLICY: rotación bajo el piso o días sobre
        * el techo) y falsa sobre los 5 inmovilizados (estado ≠ Activo). Antes «capital frenado» era un término del ranking inmovilizado y
        * ese ordinal verdadero ardía. Dos rankings, dos universos, cada término en el suyo. */
-      capital_inmovilizado: _R("los SKU cuyo estado NO es Activo · foto de hoy", "mayor", "mayor", "skuInventario.stockUSD (estado ≠ Activo)", ["capital\\s+inmovilizado"]),
+      /* RETIRO DEL TEXTO CRUDO (owner 2026-09-28, §7.3·31-32, diseño §0.2/R2): el universo YA NO es "estado NO es
+       * Activo" (en una planilla real `estado` es la CLAVE del motor, nunca el texto "Activo" — esa regla vieja
+       * declaraba el 100 % del capital como inmovilizado en el ejemplo del contrato). Ahora es `J.inmovilizado`
+       * (`jerarquiaInventario`, capital_frenado ∪ sobrestock), la misma fuente única que la ingesta y el KPI. */
+      capital_inmovilizado: _R("los SKU en capital_frenado ∪ sobrestock (jerarquiaInventario) · foto de hoy", "mayor", "mayor", "skuInventario.stockUSD (J.inmovilizado)", ["capital\\s+inmovilizado"]),
       capital_frenado:      _R("los SKU frenados (rotación bajo el piso o días sobre el techo) · foto de hoy", "mayor", "mayor", "skuInventario.stockUSD (frenado por POLICY)", ["capital\\s+frenado", "capital\\s+detenido"]),
       rotacion:         _R("los 13 SKU en inventario · foto de hoy", "mayor", "menor", "skuInventario.rotacion", ["rotaci[óo]n"], _LEX.rotacion),
       dias_inventario:  _R("los 13 SKU en inventario · foto de hoy", "mayor", "mayor", "skuInventario.doh", ["d[íi]as\\s+de\\s+inventario"], _LEX.dias_inventario),
@@ -309,7 +313,8 @@ function _construir(scenario) {
     bodega: {
       capital:          _R("las bodegas del inventario · foto de hoy", "mayor", null, "Σ skuInventario.stockUSD por bodega", ["capital(?!\\s+(?:frenado|inmovilizado|detenido))", "inventario", "stock"]),
       capital_frenado:  _R("las bodegas del inventario · foto de hoy", "mayor", "mayor", "Σ skuInventario.stockUSD por bodega (frenados por POLICY)", ["capital\\s+frenado", "capital\\s+detenido", "frenado"]),
-      capital_inmovilizado: _R("las bodegas del inventario · foto de hoy", "mayor", "mayor", "Σ skuInventario.stockUSD por bodega (estado ≠ Activo)", ["capital\\s+inmovilizado", "inmovilizado"]),
+      // retiro del texto crudo (owner 2026-09-28, §7.3·31-32, diseño §0.2/R2): Σ por bodega de J.inmovilizado, no de "estado ≠ Activo".
+      capital_inmovilizado: _R("las bodegas del inventario · foto de hoy", "mayor", "mayor", "Σ skuInventario.stockUSD por bodega (J.inmovilizado)", ["capital\\s+inmovilizado", "inmovilizado"]),
     },
   };
   /* CIERRE DE BRECHA D29 (owner 2026-09-25, corte 3c — orden del supervisor): llenar el ranking «variación» de
@@ -405,18 +410,38 @@ function _construir(scenario) {
   if (ki && ki.totalUSD != null) L.push(`- Inventario (foto de hoy): ${_L.capital.toLowerCase()} total ${F(_money(ki.totalUSD), INV, "inventario")} · ${F(_dias(ki.doh), INV)} de inventario promedio · inmovilizado ${F(_pct1(ki.inmovilizadoPct), INV)} (${F(_money(ki.inmovilizadoUSD), INV)}).`);
   const bench = tenantPolicyDefault("benchmark"), target = tenantPolicyDefault("targetCarga"), best = tenantPolicyDefault("bestPracticeCarga");
   const dohMax = tenantPolicyDefault("dohMax"), rotMin = tenantPolicyDefault("rotacionMin");
-  /* ── LAS DOS MÉTRICAS DE INVENTARIO, DEFINIDAS POR EL OWNER (2026-08-15) ────────────────────────────────────
-   * «capital inmovilizado = categoría amplia; frenado = estado crítico DENTRO de capital inmovilizado.»
-   * POR QUÉ ESTABAN FALTANDO: `deriveKpis().inventario` devuelve null en este tenant, así que el cerebro veía
-   * las 13 filas de SKU y NINGÚN agregado — en el examen 2 sumó a mano y se inventó el criterio de corte, y el
-   * muro lo vetó con razón. La carpeta tiene que traer las dos, con NOMBRE, CRITERIO y MONTO, para que no haya
-   * nada que deducir. Se calculan del mismo recorrido de filas que ya existe; cero segunda verdad.
-   * Los estados se DECLARAN los dos (`inmovilizado` y `frenado`), así el notario puede exigir la palabra exacta. */
+  /* ── LAS DOS MÉTRICAS DE INVENTARIO, DESDE LA FUENTE ÚNICA (owner 2026-08-15; retiro del texto crudo owner
+   * 2026-09-28, §7.3·31-32, diseño de inventario §2/§8.2/R2) ─────────────────────────────────────────────────
+   * «capital inmovilizado = categoría amplia (capital_frenado ∪ sobrestock); frenado (la clave interna
+   * capital_frenado) = el tramo crítico DENTRO de capital inmovilizado.»
+   *
+   * SE RETIRA LA REGLA DEL TEXTO CRUDO (`_esInmovilizado = estado !== "Activo"`, diseño §0.2): en una planilla
+   * real `estado` es la CLAVE DEL MOTOR (`riesgo_quiebre`/`capital_sano`/`sobrestock`, nunca el texto "Activo"),
+   * así que esa regla declaraba el 100 % del capital como inmovilizado para cualquier pack de planilla — medido
+   * con el ejemplo del contrato: $59.179 = 100 %, mientras el indicador de la ingesta decía $0 (dos verdades
+   * falsas para el mismo archivo). También duplicaba el predicado de "frenado" (`_esFrenado`, con `rotMin`/
+   * `dohMax` de `tenantPolicyDefault`, que IGNORA el criterio de conversación C.2 — a diferencia de
+   * `diagnoseInventarioSku(s)` sin opts, que sí lo ve vía el `POLICY` vivo: dos definiciones que podían discrepar
+   * para el MISMO SKU si el usuario fijaba un criterio en el chat, la misma clase de violación que la ley
+   * «una definición por estado» (§7.3·30) prohíbe).
+   *
+   * AHORA: `J = jerarquiaInventario(_inv)` es la ÚNICA fuente — la misma que lee `motorKpi.js` y `deriveKpis`.
+   * `J.inmovilizado` (∪) reemplaza el filtro de texto crudo; `J.critico` (el tramo, clave interna `capital_frenado`)
+   * reemplaza el predicado duplicado. El MONTO Y EL CONTEO DE `critico` NO CAMBIAN frente a la versión anterior
+   * (mismo predicado, misma resolución de umbral cuando no hay override de conversación); lo que cambia es
+   * `inmovilizado`, que en el demo pasa de $55.800 (5 SKU, con el texto crudo) a $43.000 (4 SKU, la unión real).
+   *
+   * ⚠️ EL RÓTULO NO CAMBIA EN ESTA ETAPA: el owner (decisión 34a) pidió que el tramo se llame «inmovilizado
+   * crítico» en SUPERFICIE, pero acá abajo se sigue declarando `estado: "frenado"` en `I.estados` — porque
+   * `notario/verificar.js:199,328` canonicaliza ESE string exacto (`estadoCanon`, en `notario/estados.js`) para
+   * construir el conjunto «con capital frenado» que otras partes del Notario ya consultan (playbooks, `guardC`).
+   * Renombrar acá sin migrar `estados.js`/`verificar.js` (la migración semántica de «frenado», diseño §0.3,
+   * asignada a la ETAPA 5) dejaría al Notario sin poder verificar ninguna afirmación sobre el tramo crítico. Se
+   * reporta como pendiente de la etapa 5, no se decide acá. */
   const _inv = Array.isArray(f.skuInventario) ? f.skuInventario : [];
-  const _esFrenado = (s) => (typeof s.rotacion === "number" && s.rotacion < rotMin) || (typeof s.doh === "number" && s.doh > dohMax);
-  const _esInmovilizado = (s) => String(s.estado || "").trim().toLowerCase() !== "activo";
+  const J = jerarquiaInventario(_inv);
   const _sumaK = (arr) => arr.reduce((a, s) => a + (Number(s.stockUSD) || 0), 0);
-  const _fInmov = _inv.filter(_esInmovilizado), _fFren = _inv.filter(_esFrenado);
+  const _fInmov = J.porSku.filter((s) => s.inmovilizado), _fFren = J.porSku.filter((s) => s.critico);
   for (const s of _fInmov) estados.push({ entidad: s.sku, estado: "inmovilizado", bodega: s.bodega });
   counts.add(_fInmov.length); counts.add(_fFren.length);   // los conteos de cada categoría son cifras del dato: se autorizan como tales
   const CAP_INMOV = [...NEG, "inventario", "capital", "inmovilizado", "stock"];
@@ -429,12 +454,12 @@ function _construir(scenario) {
   if (!(ki && ki.totalUSD != null) && _inv.length) K("Capital total", _money(_sumaK(_inv)), "money", _sumaK(_inv));
   if (!(ki && ki.totalUSD != null) && _inv.length) L.push(`- Inventario (foto de hoy): ${_L.capital.toLowerCase()} total ${F(_money(_sumaK(_inv)), INV, "inventario")} en ${_inv.length} SKU.`);
   if (_fInmov.length) {
-    K(`Capital inmovilizado · subtotal · ${_fInmov.length} SKU`, _money(_sumaK(_fInmov)), "money", _sumaK(_fInmov));
-    K(`Capital frenado · subtotal · ${_fFren.length} SKU`, _money(_sumaK(_fFren)), "money", _sumaK(_fFren));
+    K(`Capital inmovilizado · subtotal · ${J.inmovilizado.n} SKU`, _money(J.inmovilizado.usd), "money", J.inmovilizado.usd);
+    K(`Capital frenado · subtotal · ${J.critico.n} SKU`, _money(J.critico.usd), "money", J.critico.usd);
     // el criterio se dice en palabras, NO enumerando los códigos de estado: «60d/90d/120d» son cifras que
     // pertenecen a SKU concretos y citarlas acá, sin su dueño al lado, las deja huérfanas (medido: tumbaba el suplente).
-    L.push(`- Capital inmovilizado (categoría AMPLIA): ${F(_money(_sumaK(_fInmov)), CAP_INMOV, "inventario")} en ${_fInmov.length} SKU — todo el stock cuyo estado NO es Activo.`);
-    L.push(`- Frenado (estado CRÍTICO, subconjunto del capital inmovilizado): ${F(_money(_sumaK(_fFren)), CAP_FREN, "inventario")} en ${_fFren.length} SKU — rotación bajo el piso (${_ratio(rotMin)}) o días sobre el techo (${_dias(dohMax)}).`);
+    L.push(`- Capital inmovilizado (categoría AMPLIA): ${F(_money(J.inmovilizado.usd), CAP_INMOV, "inventario")} en ${J.inmovilizado.n} SKU — rotación bajo el piso o días sobre el techo (crítico), o sobrestock.`);
+    L.push(`- Frenado (estado CRÍTICO, subconjunto del capital inmovilizado): ${F(_money(J.critico.usd), CAP_FREN, "inventario")} en ${J.critico.n} SKU — rotación bajo el piso (${_ratio(J.umbrales.rotacionMin.valor)}) o días sobre el techo (${_dias(J.umbrales.dohMax.valor)}).`);
     L.push(`  «Frenado» NO es sinónimo de «inmovilizado»: todo frenado está inmovilizado, pero no todo inmovilizado está frenado. Usá la palabra que corresponde a la cifra que estés citando.`);
   }
   // «La REFERENCIA la declara el negocio», no «la vara» (medido 2026-08-14, examen 1 · turno 3): la carpeta es lo
@@ -651,23 +676,31 @@ function _construir(scenario) {
   _uni = "inventario";   // …y desde acá, del universo INVENTARIO (foto de hoy)
   L.push(`UNIVERSO «${UNIVERSOS.inventario.etiqueta.toUpperCase()}» (foto de hoy · ${f.skuInventario.length} SKU en ${bodegas.length} bodegas: ${bodegas.join(", ")}):`);
   const _capitalBodega = new Map(), _frenadoBodega = new Map(), _inmovBodega = new Map();   // el eje bodega: sumas por bodega en el mismo recorrido
+  // el recorrido de la Fila SKU consulta J.porSku (una sola lectura por SKU, cero recálculo) en vez de recorrer
+  // `diagnoseInventarioSku`/el predicado de frenado una segunda vez (owner 2026-09-28, §7.3·31-32, R1/R2).
+  const _jBySku = new Map(J.porSku.map((x) => [x.sku, x]));
   for (const s of f.skuInventario) {
     const D = [s.sku, s.bodega];
     U(s.stockUnd, [s.sku], "unidades", "unidades_stock");   // las unidades en stock son del SKU (la bodega las contiene, no las posee)
-    // el MISMO predicado del detector de capital (specRetrieval:577 · POLICY, una verdad): frenado = rotación
-    // bajo el piso o días sobre el techo — la clasificación se DECLARA como objeto para que el notario la verifique.
-    const _frenado = (typeof s.rotacion === "number" && s.rotacion < rotMin) || (typeof s.doh === "number" && s.doh > dohMax);
+    const jr = _jBySku.get(s.sku) || null;   // defensivo: siempre debería existir, viene de la MISMA lista
+    // el MISMO predicado del detector de capital, ahora leído de J (una sola verdad, §7.3·30): frenado (clave
+    // interna capital_frenado) = rotación bajo el piso o días sobre el techo — la clasificación se DECLARA como
+    // objeto para que el notario la verifique. El rótulo sigue siendo "frenado" acá (ver la nota de arriba).
+    const _frenado = !!(jr && jr.critico);
     if (_frenado) {
       estados.push({ entidad: s.sku, estado: "frenado", bodega: s.bodega });
     }
-    /* los OTROS tres estados de la Mesa Capital (riesgo de quiebre · sobrestock · capital sano), por la misma función que los pinta; y la
-     * alerta del dato («crítico»). Así «PHI-SHAVER9 está en riesgo de quiebre» o «MAK-COMP-AIR está marcado como crítico» se verifican. */
-    { const e = diagnoseInventarioSku(s); const nombre = { riesgo_quiebre: "riesgo de quiebre", sobrestock: "sobrestock", capital_sano: "capital sano" }[e]; if (nombre) estados.push({ entidad: s.sku, estado: nombre, bodega: s.bodega }); }
+    /* los OTROS tres estados de la Mesa Capital (riesgo de quiebre · sobrestock · capital sano), leídos de `jr.estado`
+     * — la MISMA función (`diagnoseInventarioSku`) que ya usaba este bloque, ahora sin la segunda llamada (J ya la
+     * hizo) y con los MISMOS umbrales que `_frenado`/`_inmovBodega` de abajo (antes podían discrepar si había un
+     * criterio de conversación activo: `diagnoseInventarioSku(s)` sin opts veía el POLICY vivo, `rotMin`/`dohMax`
+     * de `tenantPolicyDefault` no — la misma violación de "una definición por estado", §7.3·30, que J cierra). */
+    { const nombre = { riesgo_quiebre: "riesgo de quiebre", sobrestock: "sobrestock", capital_sano: "capital sano" }[jr ? jr.estado : diagnoseInventarioSku(s)]; if (nombre) estados.push({ entidad: s.sku, estado: nombre, bodega: s.bodega }); }
     if (String(s.alerta || "").toLowerCase() === "crit") estados.push({ entidad: s.sku, estado: "crítico", bodega: s.bodega });
     if (Number.isFinite(s.stockUSD) && s.bodega) {
       _capitalBodega.set(s.bodega, (_capitalBodega.get(s.bodega) || 0) + s.stockUSD);
       if (_frenado) _frenadoBodega.set(s.bodega, (_frenadoBodega.get(s.bodega) || 0) + s.stockUSD);
-      if (s.estado !== "Activo") _inmovBodega.set(s.bodega, (_inmovBodega.get(s.bodega) || 0) + s.stockUSD);
+      if (jr && jr.inmovilizado) _inmovBodega.set(s.bodega, (_inmovBodega.get(s.bodega) || 0) + s.stockUSD);
     }
     // RAÍZ A4 gemela (SUPERVISOR, diagnóstico v10) — mismo criterio que capital_inmovilizado, abajo: dinero sin
     // `raw` cae al fallback de figs LIMITADO al turno y un `top` sobre este ranking declina por «ranking-parcial»
@@ -683,7 +716,9 @@ function _construir(scenario) {
     // salía «la evidencia no trae «capital_inmovilizado» por sku» aunque el filtro por estado, sobre el MISMO
     // dato, sí resolvía. `s.stockUSD` YA es el dólar exacto (nunca miles, nunca una escala deducida) — declararlo
     // como `raw` es el mismo patrón que ya usa el ranking de cobranza, no una escala nueva.
-    if (Number.isFinite(s.stockUSD) && s.estado !== "Activo") rankings.sku.capital_inmovilizado.filas.push({ entidad: s.sku, valor: s.stockUSD, raw: s.stockUSD });
+    // RETIRO DEL TEXTO CRUDO (owner 2026-09-28, §7.3·31-32, diseño §0.2/R2): `s.estado !== "Activo"` → `jr.inmovilizado`
+    // (J.inmovilizado = capital_frenado ∪ sobrestock), la MISMA fuente que ya alimenta el subtotal de arriba.
+    if (Number.isFinite(s.stockUSD) && jr && jr.inmovilizado) rankings.sku.capital_inmovilizado.filas.push({ entidad: s.sku, valor: s.stockUSD, raw: s.stockUSD });
     if (Number.isFinite(s.rotacion)) rankings.sku.rotacion.filas.push({ entidad: s.sku, valor: +(+s.rotacion).toFixed(1) });
     if (Number.isFinite(s.doh)) rankings.sku.dias_inventario.filas.push({ entidad: s.sku, valor: Math.round(s.doh) });
     if (Number.isFinite(s.diasSinVenta) && s.diasSinVenta > 0) rankings.sku.dias_sin_venta.filas.push({ entidad: s.sku, valor: Math.round(s.diasSinVenta) });

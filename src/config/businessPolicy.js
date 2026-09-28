@@ -38,6 +38,14 @@ export const POLICY_CONFIG = Object.freeze({
    * suyo por perfil. */
   materialidadFocoPctVenta: 0.05,
   quiebreMaterialPct: 5,    // … o % del capital del foco
+  /* UMBRAL DE VENTA FRENADA (owner 2026-09-28, decisión §7.3·31-32 y ·34: «inmovilizado crítico y frenado se
+   * separan; frenado = venta interrumpida, medida por los días sin venta»). A diferencia de TODA otra llave de
+   * esta config, esta NO lleva número: es el candado técnico contra el «60 universal» que el owner rechazó
+   * (diseño §3.2 — «nunca lleva un número en config»). `_resolvePolicy()` recorre `Object.keys(POLICY_CONFIG)`
+   * con `for…of`, que SÍ enumera una llave con valor `undefined` (a diferencia de una llave ausente) — así el
+   * perfil del tenant la puede declarar y `umbral()` la resuelve a `sin_declarar` cuando nadie lo hizo. El gate
+   * `_jerarquia_inventario_gate.mjs` verifica que esta línea nunca tenga un número. */
+  frenadoDiasSinVenta: undefined,
 });
 
 // ── EL OBJETO VIVO · lo que todo ADI lee (composers/detectores/semáforos) · re-resuelto en initTenant ───────────────
@@ -100,6 +108,19 @@ let _benchmarkOverride = null;
 export const setBenchmarkOverride = (v) => { _benchmarkOverride = (typeof v === "number" && isFinite(v)) ? v : null; };
 export const getBenchmarkOverride = () => _benchmarkOverride;
 
+/* registro GENERALIZADO del override de conversación (C.2), por policyKey — misma mecánica que `_benchmarkOverride`
+ * de arriba, pero para TODA llave de POLICY_CONFIG (owner 2026-09-28, §7.3·32: la procedencia de un umbral no se
+ * resuelve solo para `benchmark`). Declarado ACÁ, antes de `_resolvePolicy`, para que el reset de tenant (abajo)
+ * lo pueda limpiar sin depender de que el resto del archivo ya se haya evaluado. `criteria.js` lo registra al
+ * aplicar/olvidar un criterio — es el ÚNICO escritor; `umbral()` (más abajo) es el único lector. */
+const _criterioOverride = {};   // { [policyKey]: valor } vigente en conversación, SOLO del tenant activo
+export const setCriterioOverride = (policyKey, v) => {
+  if (typeof v === "number" && isFinite(v)) _criterioOverride[policyKey] = v;
+  else delete _criterioOverride[policyKey];
+};
+export const criterioOverrideDe = (policyKey) => _criterioOverride[policyKey];
+const _clearCriterioOverrides = () => { for (const k of Object.keys(_criterioOverride)) delete _criterioOverride[k]; };
+
 // ── CAPA 2 · resolución del perfil del tenant (defensiva: solo números finitos) ─────────────────────────────────────
 const _perfilVal = (key) => {
   const p = getTenantData() && getTenantData().perfil;
@@ -112,6 +133,7 @@ export const tenantPolicyDefault = (key) => { const v = _perfilVal(key); return 
 function _resolvePolicy() {
   for (const k of Object.keys(POLICY_CONFIG)) POLICY[k] = tenantPolicyDefault(k);
   setBenchmarkOverride(null);   // la vara del usuario NO arrastra entre empresas — criteria.js re-aplica la del tenant activo
+  _clearCriterioOverrides();    // idem, generalizado: ningún criterio de conversación de OTRA empresa sobrevive el cambio de tenant
 }
 _resolvePolicy();                 // al evaluar el módulo: resuelve el tenant activo (demo perfil == config → byte-idéntico)
 onTenantChange(_resolvePolicy);   // en cada initTenant: perfil nuevo primero; criteria.js (registrado después) re-aplica C.2 encima
@@ -216,3 +238,70 @@ onTenantChange(_resolveCostModel);
 // costModelOf() → el modelo EFECTIVO (criterio del usuario > perfil del tenant > sin autorizar), mismo orden de
 // precedencia que benchmarkOf().
 export const costModelOf = () => (_costModelOverride != null ? _costModelOverride : POLICY.costModel);
+
+/* ══ PROCEDENCIA DE LOS UMBRALES (owner 2026-09-28 · decisión §7.3·32: «ningún veredicto debe esconder de dónde
+ * proviene su criterio») ═══════════════════════════════════════════════════════════════════════════════════════
+ * Hasta hoy el ORIGEN de una llave de POLICY se sabía llave por llave y a mano (`referenciaEsDelNegocio`,
+ * `cargaEsDelNegocio`, `materialidadFocoEsDelNegocio`, todas con el mismo criterio `_perfilVal(key) !== undefined`
+ * repetido tres veces) y NO existía en absoluto para `rotacionMin`/`dohMax`/`sobrestockDohMin`/`quiebre*`: la Mesa
+ * Capital decía «según tu benchmark» aunque el umbral fuera el de ADI (diseño §3.1, `DISENO.md` de inventario).
+ *
+ * `umbral(key, consulta)` es la ÚNICA función de origen para TODA llave de POLICY_CONFIG, en el mismo orden de
+ * precedencia que ya resuelve `_resolvePolicy`/`benchmarkOf`, con dos capas nuevas antes:
+ *   1. `consulta?.[key]` numérico       → "consulta"      (el encargo: vale para ESA pregunta — §7.3·32(a))
+ *   2. override de conversación (C.2)   → "empresa"       (doctrina vigente: «el criterio de conversación cuenta
+ *                                                            como propio» — :147-148 arriba)
+ *   3. `_perfilVal(key) !== undefined`  → "empresa"       (el perfil que ESTA empresa declaró con su dato)
+ *   4. `Number.isFinite(POLICY_CONFIG[key])` → "adi"      (el criterio general de ADI, ajustable por la empresa)
+ *   5. si no                            → "sin_declarar"  (nadie lo declaró — nunca se inventa un número)
+ *
+ * EL PASO 2 SIN IMPORT CIRCULAR: `criteria.js` YA importa este módulo (para `POLICY`/`setBenchmarkOverride`/
+ * `tenantPolicyDefault`); si `businessPolicy.js` importara de vuelta `criteria.js` para leer su `_active`, el
+ * ciclo rompería el orden de evaluación de los módulos. La solución (ya usada acá mismo para `benchmark` vía
+ * `_benchmarkOverride`/`setBenchmarkOverride`) es que el override VIVA en este archivo: `criteria.js` lo
+ * REGISTRA (generalización de `setBenchmarkOverride` a cualquier llave, misma mecánica) y `umbral()` lo LEE sin
+ * necesitar importar nada de `criteria.js`. Es el camino que el diseño deja como alternativa a exportar
+ * `criterioActivoDe(policyKey)` desde `criteria.js` — se prefiere este por no crear el ciclo.
+ *
+ * Alcance de esta etapa (sin consumidores todavía, diseño §8.1): ESTA función y `umbralesDeInventario()` son la
+ * fuente única para `jerarquiaInventario()` (economicDiagnosis.js). Las tres funciones legadas de arriba
+ * (`referenciaEsDelNegocio`, `cargaEsDelNegocio`, `materialidadFocoEsDelNegocio`) NO se tocan en esta etapa —
+ * convertirlas en alias de `umbral(key).origen === "empresa"` cambiaría el comportamiento de `cargaEsDelNegocio`
+ * para un tenant con override de conversación de `target_carga` (hoy esa función solo mira el perfil, no C.2; ver
+ * diseño §3.2 «pasan a ser alias…») y esta etapa declara explícitamente «sin consumidores: la suite no se mueve».
+ * Se deja para la etapa que las consuma, con el owner al tanto (informe de esta etapa). */
+export const ORIGEN = Object.freeze({ EMPRESA: "empresa", ADI: "adi", CONSULTA: "consulta", SIN_DECLARAR: "sin_declarar" });
+
+/** Cómo se NOMBRA cada origen en superficie — una sola redacción para toda la casa (pantalla, indicador, Entrega). */
+export const ETIQUETA_ORIGEN = Object.freeze({
+  [ORIGEN.EMPRESA]: "declarado por la empresa",
+  [ORIGEN.ADI]: "criterio general de ADI, ajustable por la empresa",
+  [ORIGEN.CONSULTA]: "planteado en la consulta",
+  [ORIGEN.SIN_DECLARAR]: "sin umbral declarado",
+});
+
+/** umbral(key, consulta?) → { valor: number|null, origen: ORIGEN.* } — la única resolución de origen de la casa.
+ *  (`setCriterioOverride`/`criterioOverrideDe` viven arriba, junto a `_benchmarkOverride`, para que `_resolvePolicy`
+ *  los pueda limpiar en el reset de tenant sin depender del orden de evaluación del archivo.) */
+export function umbral(key, consulta = null) {
+  const deConsulta = consulta && typeof consulta[key] === "number" && isFinite(consulta[key]) ? consulta[key] : undefined;
+  if (deConsulta !== undefined) return { valor: deConsulta, origen: ORIGEN.CONSULTA };
+  const deConversacion = criterioOverrideDe(key);
+  if (deConversacion !== undefined) return { valor: deConversacion, origen: ORIGEN.EMPRESA };
+  const dePerfil = _perfilVal(key);
+  if (dePerfil !== undefined) return { valor: dePerfil, origen: ORIGEN.EMPRESA };
+  const deConfig = POLICY_CONFIG[key];
+  if (Number.isFinite(deConfig)) return { valor: deConfig, origen: ORIGEN.ADI };
+  return { valor: null, origen: ORIGEN.SIN_DECLARAR };
+}
+
+/** Los seis umbrales de inventario, cada uno con su valor y su origen — la fuente única que lee
+ *  `jerarquiaInventario()` (economicDiagnosis.js, diseño §2). Sin `consulta`, resuelve perfil/config como hoy. */
+export const umbralesDeInventario = (consulta = null) => ({
+  rotacionMin: umbral("rotacionMin", consulta),
+  dohMax: umbral("dohMax", consulta),
+  sobrestockDohMin: umbral("sobrestockDohMin", consulta),
+  quiebreRotMin: umbral("quiebreRotMin", consulta),
+  quiebreDohMax: umbral("quiebreDohMax", consulta),
+  frenadoDiasSinVenta: umbral("frenadoDiasSinVenta", consulta),
+});

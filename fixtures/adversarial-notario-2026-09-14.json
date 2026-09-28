@@ -26353,8 +26353,9 @@
    "lente": "fn-grupos",
    "frase": "4 de 13 SKU están inmovilizados.",
    "contexto": "P1",
-   "esperado": "arde",
-   "verdad": "inmovilizados son 5",
+   "esperado": "pasa",
+   "verdad": "",
+   "motivo": "decisión del owner 2026-09-28, §7.3·31 (jerarquiaInventario): «inmovilizados» pasó de «estado ≠ Activo» (5 SKU) a capital_frenado ∪ sobrestock (4 SKU) — la frase, falsa cuando se escribió este caso, es verdadera ahora.",
    "patron": "conteo · SKU inmovilizados 4 de 13"
   },
   {
@@ -26362,8 +26363,9 @@
    "lente": "fn-grupos",
    "frase": "4 de 13 SKU están inmovilizados.",
    "contexto": "P2",
-   "esperado": "arde",
-   "verdad": "inmovilizados son 5",
+   "esperado": "pasa",
+   "verdad": "",
+   "motivo": "decisión del owner 2026-09-28, §7.3·31 (jerarquiaInventario): «inmovilizados» pasó de «estado ≠ Activo» (5 SKU) a capital_frenado ∪ sobrestock (4 SKU) — la frase, falsa cuando se escribió este caso, es verdadera ahora.",
    "patron": "conteo · SKU inmovilizados 4 de 13"
   },
   {
@@ -28387,18 +28389,20 @@
    "lente": "fn-grupos",
    "frase": "5 de 13 SKU están inmovilizados.",
    "contexto": "P1",
-   "esperado": "pasa",
-   "verdad": "correcto (5 de 13)",
-   "patron": "CONTROL verdadero · «5 de 13 SKU están inmovilizados»"
+   "esperado": "arde",
+   "verdad": "inmovilizados son 4",
+   "motivo": "decisión del owner 2026-09-28, §7.3·31 (jerarquiaInventario): «inmovilizados» pasó de «estado ≠ Activo» (5 SKU, verdadero cuando se escribió este control) a capital_frenado ∪ sobrestock (4 SKU) — «5 de 13» es ahora falso.",
+   "patron": "CONTROL verdadero · «5 de 13 SKU están inmovilizados» (histórico; ver motivo)"
   },
   {
    "id": "fn-grupos-3137",
    "lente": "fn-grupos",
    "frase": "5 de 13 SKU están inmovilizados.",
    "contexto": "P2",
-   "esperado": "pasa",
-   "verdad": "correcto (5 de 13)",
-   "patron": "CONTROL verdadero · «5 de 13 SKU están inmovilizados»"
+   "esperado": "arde",
+   "verdad": "inmovilizados son 4",
+   "motivo": "decisión del owner 2026-09-28, §7.3·31 (jerarquiaInventario): «inmovilizados» pasó de «estado ≠ Activo» (5 SKU, verdadero cuando se escribió este control) a capital_frenado ∪ sobrestock (4 SKU) — «5 de 13» es ahora falso.",
+   "patron": "CONTROL verdadero · «5 de 13 SKU están inmovilizados» (histórico; ver motivo)"
   },
   {
    "id": "fn-grupos-3138",

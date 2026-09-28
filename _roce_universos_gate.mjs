@@ -125,25 +125,30 @@ console.log("\n── 3c · «FRENADO» NO ES SINÓNIMO DE «INMOVILIZADO» ─�
   const c = cifrasDelDato("actual");
   const est = c.estados || [];
   const nF = est.filter((e) => e.estado === "frenado").length, nI = est.filter((e) => e.estado === "inmovilizado").length;
-  ok(nF === 3 && nI === 5, `la carpeta declara los DOS estados: ${nF} frenados (crítico) y ${nI} inmovilizados (amplio)`);
+  // decisión del owner 2026-09-28, §7.3·31: "inmovilizado" pasó de "estado ≠ Activo" (5 SKU, $55,8K) a
+  // capital_frenado ∪ sobrestock (jerarquiaInventario) — 4 SKU, $43,0K en el demo (diseño §6.1).
+  ok(nF === 3 && nI === 4, `la carpeta declara los DOS estados: ${nF} frenados (crítico) y ${nI} inmovilizados (amplio)`);
   ok(est.filter((e) => e.estado === "frenado").every((e) => est.some((x) => x.estado === "inmovilizado" && x.entidad === e.entidad)),
     "…y todo frenado está también declarado inmovilizado: es un SUBCONJUNTO, no otra lista");
   const figs = c.figs || [];
-  ok(figs.some((f) => (f.duenos || []).includes("inmovilizado") && f.value === "$56K"), "el monto de la categoría amplia ($56K) viaja al cerebro con su dueño");
+  ok(figs.some((f) => (f.duenos || []).includes("inmovilizado") && f.value === "$43K"), "el monto de la categoría amplia ($43K) viaja al cerebro con su dueño");
   ok(figs.some((f) => (f.duenos || []).includes("frenado") && f.value === "$33K"), "…y el del estado crítico ($33K) también");
 }
-ok(V("Cinco SKU frenados concentran $56K de capital.") === "estado-no-declarado",
-  `usar «frenados» para el conteo de la categoría amplia muere (${V("Cinco SKU frenados concentran $56K de capital.")})`);
-ok(/no son sinónimos/i.test(String((J("Cinco SKU frenados concentran $56K de capital.").violations[0] || {}).detail || "")),
+ok(V("Cuatro SKU frenados concentran $43K de capital.") === "estado-no-declarado",
+  `usar «frenados» para el conteo de la categoría amplia muere (${V("Cuatro SKU frenados concentran $43K de capital.")})`);
+ok(/no son sinónimos/i.test(String((J("Cuatro SKU frenados concentran $43K de capital.").violations[0] || {}).detail || "")),
   "…y la multa explica la diferencia, no solo la corrige");
-ok(V("SAM-TV55 está frenado.") === "estado-no-declarado", `un SKU inmovilizado pero NO crítico, llamado «frenado», muere (${V("SAM-TV55 está frenado.")})`);
-ok(/INMOVILIZADO pero no FRENADO/.test(String((J("SAM-TV55 está frenado.").violations[0] || {}).detail || "")), "…y la multa dice exactamente cuál de los dos es");
+// PHI-IRON-PRO reemplaza a SAM-TV55 como "inmovilizado pero no crítico" (owner 2026-09-28, §7.3·31): con la
+// nueva definición SAM-TV55 (estado "Lento" del dato crudo) ya NO es inmovilizado — es capital_sano; PHI-IRON-PRO
+// (sobrestock) sí es inmovilizado y no crítico, el caso que este test necesita.
+ok(V("PHI-IRON-PRO está frenado.") === "estado-no-declarado", `un SKU inmovilizado pero NO crítico, llamado «frenado», muere (${V("PHI-IRON-PRO está frenado.")})`);
+ok(/INMOVILIZADO pero no FRENADO/.test(String((J("PHI-IRON-PRO está frenado.").violations[0] || {}).detail || "")), "…y la multa dice exactamente cuál de los dos es");
 // LOS CONTROLES NEGATIVOS · las dos palabras bien usadas tienen que pasar
-ok(J("Cinco SKU concentran $56K de capital inmovilizado.").ok, "la categoría amplia con su palabra y su cifra: pasa");
+ok(J("Cuatro SKU concentran $43K de capital inmovilizado.").ok, "la categoría amplia con su palabra y su cifra: pasa");
 ok(J("Tres SKU frenados concentran $33K.").ok, "el estado crítico con su palabra y su cifra: pasa");
-ok(J("SAM-TV55 tiene capital inmovilizado.").ok, "un SKU de la categoría amplia, llamado por su palabra: pasa");
+ok(J("PHI-IRON-PRO tiene capital inmovilizado.").ok, "un SKU de la categoría amplia, llamado por su palabra: pasa");
 ok(J("MAK-COMP-AIR está frenado dentro del capital inmovilizado.").ok, "…y un SKU crítico, nombrado con las dos palabras a la vez: pasa");
-ok(J("De los 13 SKU en stock, cinco están inmovilizados.").ok,
+ok(J("De los 13 SKU en stock, cuatro están inmovilizados.").ok,
   "un conteo del universo ENTERO en la misma oración no se confunde con un conteo de estado (el 13 no es del estado)");
 
 /* ── 3d · EL UNIVERSO DE UN RANKING ES EL CONJUNTO DEL QUE SE HABLA (falso positivo MEDIDO en la app) ─────────
@@ -151,8 +156,10 @@ ok(J("De los 13 SKU en stock, cinco están inmovilizados.").ok,
  * universo completo de esa pregunta — y el chequeo le exigía «5 de 13», comparando contra todos los SKU del
  * inventario. Rankear un conjunto declarado ENTERO no es un recorte: es la respuesta completa. */
 console.log("\n── 3d · RANKEAR UN CONJUNTO DECLARADO ENTERO NO ES UN RECORTE ──");
-const RANK_INMOV = "Ranking de los 5 SKU inmovilizados, de mayor a menor capital: LG-DRYER8KG $14K, SAM-TV55 $13K, BOS-SANDER $11K, PHI-IRON-PRO $10K, MAK-COMP-AIR $8K.";
-ok(J(RANK_INMOV).ok, `rankear los 5 inmovilizados (el conjunto entero) pasa — antes moría por «5 de 13» (${V(RANK_INMOV)})`);
+// decisión del owner 2026-09-28, §7.3·31: el universo de "inmovilizados" pasó de 5 SKU (con SAM-TV55, por
+// estado ≠ Activo) a 4 SKU (capital_frenado ∪ sobrestock) — diseño §6.1.
+const RANK_INMOV = "Ranking de los 4 SKU inmovilizados, de mayor a menor capital: LG-DRYER8KG $14K, BOS-SANDER $11K, PHI-IRON-PRO $10K, MAK-COMP-AIR $8K.";
+ok(J(RANK_INMOV).ok, `rankear los 4 inmovilizados (el conjunto entero) pasa — antes moría por «4 de 13» (${V(RANK_INMOV)})`);
 ok(J("Ranking de los 3 SKU frenados por rotación: MAK-COMP-AIR 0.8x, LG-DRYER8KG 1.0x, BOS-SANDER 1.6x.").ok,
   "…y rankear los 3 frenados, que es el otro conjunto declarado, también");
 ok(V("Ranking de SKU por peor rotación: MAK-COMP-AIR 0.8x, LG-DRYER8KG 1.0x, BOS-SANDER 1.6x, SAM-MICRO32L 7.4x, LG-WASH11KG 8.6x.") === "ranking-sin-cola",
@@ -170,9 +177,11 @@ ok(_sinEstado("MAK-SAW18V no está frenado ni inmovilizado: rota 5.2x y su estad
 // …y la atribución DE VERDAD sigue muriendo: la excepción es para la negación, no para el error
 ok(V("SAM-TV55 está frenado.") === "estado-no-declarado", "pero afirmar «SAM-TV55 está frenado» sigue muriendo");
 /* «PARADO» pide la categoría AMPLIA, no la crítica (medido en el examen 2 · turno 2): «para cortar la mayoría del
- * capital parado, mueve SAM-TV55 y PHI-IRON-PRO» es correcto — esos SKU están inmovilizados. */
-ok(J("Para cortar la mayoría del capital parado necesitas mover SAM-TV55, BOS-SANDER y PHI-IRON-PRO.").ok,
-  `«capital parado» sobre SKU inmovilizados pasa: es la palabra vaga de la categoría amplia (${V("Para cortar la mayoría del capital parado necesitas mover SAM-TV55, BOS-SANDER y PHI-IRON-PRO.")})`);
+ * capital parado, mueve LG-DRYER8KG, BOS-SANDER y PHI-IRON-PRO» es correcto — esos SKU están inmovilizados.
+ * SAM-TV55 reemplazado por LG-DRYER8KG (owner 2026-09-28, §7.3·31): con la nueva definición SAM-TV55 ya no es
+ * inmovilizado (capital_sano); LG-DRYER8KG sí (capital_frenado). */
+ok(J("Para cortar la mayoría del capital parado necesitas mover LG-DRYER8KG, BOS-SANDER y PHI-IRON-PRO.").ok,
+  `«capital parado» sobre SKU inmovilizados pasa: es la palabra vaga de la categoría amplia (${V("Para cortar la mayoría del capital parado necesitas mover LG-DRYER8KG, BOS-SANDER y PHI-IRON-PRO.")})`);
 ok(V("MAK-SAW18V está parado.") === "estado-no-declarado", "…pero llamar «parado» a un SKU Activo sigue muriendo");
 ok(V("Los SKU frenados son LG-DRYER8KG, BOS-SANDER y SAM-TV55.") === "estado-no-declarado", "…y meterlo dentro de la lista de frenados también");
 
@@ -181,32 +190,35 @@ ok(V("Los SKU frenados son LG-DRYER8KG, BOS-SANDER y SAM-TV55.") === "estado-no-
  * declarado, y el nombre vivía en la oración anterior. Cayó al suplente por una regla que no leía español. */
 console.log("\n── 3f · «ESE SKU» HEREDA EL DUEÑO SOLO SI EL ANTECEDENTE ES ÚNICO E INMEDIATO ──");
 const BL = (l) => `\n\n${MARCA_CALCULO}\n${l}`;
-const CALC83 = "id=c1 · op=pct_de · inputs=$56K; 30% · formula=30% de $56K · resultado=$16.8K · unidad=money · dueno=total\nid=c2 · op=dividir · inputs=$14K; c1 · formula=$14K / $16.8K · resultado=83.3% · unidad=pct · dueno=LG-DRYER8KG";
+// $56K → $43K (el total inmovilizado, decisión del owner 2026-09-28, §7.3·31); 30% de $43K = $12.9K;
+// $14K / $12.9K = 108.5% (LG-DRYER8KG, único, cubre MÁS del 30% simulado — la cuenta sigue cerrando exacto,
+// con el MISMO $14K redondeado que usan las dos puntas de la división, igual que hacía el original con $16.8K).
+const CALC83 = "id=c1 · op=pct_de · inputs=$43K; 30% · formula=30% de $43K · resultado=$12.9K · unidad=money · dueno=total\nid=c2 · op=dividir · inputs=$14K; c1 · formula=$14K / $12.9K · resultado=108.5% · unidad=pct · dueno=LG-DRYER8KG";
 const Q30 = { question: "simula liberar el 30% del capital inmovilizado", supuestoPendiente: ["30%"] };
-ok(J("Concentralo en LG-DRYER8KG: es el de mayor capital ($14K). Liberando ese SKU completo cubres el 83.3% del objetivo de $16.8K." + BL(CALC83), Q30).ok,
-  `el caso REAL del examen pasa: el antecedente es único e inmediato (${V("Concentralo en LG-DRYER8KG: es el de mayor capital ($14K). Liberando ese SKU completo cubres el 83.3% del objetivo de $16.8K." + BL(CALC83), Q30)})`);
+ok(J("Concentralo en LG-DRYER8KG: es el de mayor capital ($14K). Liberando ese SKU completo cubres el 108.5% del objetivo de $12.9K." + BL(CALC83), Q30).ok,
+  `el caso REAL del examen pasa: el antecedente es único e inmediato (${V("Concentralo en LG-DRYER8KG: es el de mayor capital ($14K). Liberando ese SKU completo cubres el 108.5% del objetivo de $12.9K." + BL(CALC83), Q30)})`);
 // (2) DOS CANDIDATOS → NO HEREDA
-ok(!J("Los mayores son LG-DRYER8KG ($14K) y SAM-TV55 ($13K). Liberando ese SKU completo cubres el 83.3% del objetivo de $16.8K." + BL(CALC83), Q30).ok,
+ok(!J("Los mayores son LG-DRYER8KG ($14K) y SAM-TV55 ($13K). Liberando ese SKU completo cubres el 108.5% del objetivo de $12.9K." + BL(CALC83), Q30).ok,
   "con DOS SKU en la oración anterior no hay a quién referirse: no hereda");
 // (3) CAMBIO DE EJE → NO HEREDA
-ok(!J("Concentralo en LG-DRYER8KG: es el de mayor capital ($14K). Liberando ese cliente completo cubres el 83.3% del objetivo de $16.8K." + BL(CALC83), Q30).ok,
+ok(!J("Concentralo en LG-DRYER8KG: es el de mayor capital ($14K). Liberando ese cliente completo cubres el 108.5% del objetivo de $12.9K." + BL(CALC83), Q30).ok,
   "«ese cliente» no puede resolver a un SKU: cambiar de eje no hereda");
 // (1) EL ANTECEDENTE TIENE QUE SER INMEDIATO
 // LA CADENA DE DOS SALTOS, verbatim del examen: la oración del medio no nombra a nadie, así que no compite
 { // el caso REAL de Q3: la anáfora sostiene el 83.3%. (El texto tiene ADEMÁS sujetos elididos — «Es el de
   // mayor capital…» — que son otra construcción y NO los resuelve esta regla: se juzga solo lo que se probó.)
-  const vQ3 = J("Concentralo en LG-DRYER8KG. Es el de mayor capital ($14K) y peor rotación del grupo (1.0x, la mitad del piso de 2.0x), con 94 días sin venta. Liberando ese SKU completo cubres el 83.3% del objetivo de $16.8K." + BL(CALC83), Q30);
+  const vQ3 = J("Concentralo en LG-DRYER8KG. Es el de mayor capital ($14K) y peor rotación del grupo (1.0x, la mitad del piso de 2.0x), con 94 días sin venta. Liberando ese SKU completo cubres el 108.5% del objetivo de $12.9K." + BL(CALC83), Q30);
   ok(!(vQ3.violations || []).some((x) => x.kind === "cifra-calculada-mal-atribuida"),
     "el antecedente a DOS oraciones, sin competidor en el medio, sostiene el dueño del cálculo (caso real de Q3)");
 }
 // …pero si en el medio aparece OTRA entidad del mismo eje, ya no es único: no hereda
-ok(!J("Concentralo en LG-DRYER8KG. SAM-TV55 es el segundo en capital ($13K). Liberando ese SKU completo cubres el 83.3% del objetivo de $16.8K." + BL(CALC83), Q30).ok,
+ok(!J("Concentralo en LG-DRYER8KG. SAM-TV55 es el segundo en capital ($13K). Liberando ese SKU completo cubres el 108.5% del objetivo de $12.9K." + BL(CALC83), Q30).ok,
   "con otra entidad del eje en el medio, la referencia queda ambigua: no hereda");
 // (4) CAMBIO DE UNIVERSO → NO HEREDA
 ok(!J("LG-DRYER8KG aporta contribución en la venta comercial del año cerrado. Ese SKU tiene 83.3% de su capital en stock inmovilizado." + BL(CALC83), Q30).ok,
   "si la oración previa habla de venta y la de la cifra de inventario, la referencia no cruza universos");
 // …y sin anáfora, el dueño nombrado sigue siendo el camino normal
-ok(J("Liberando LG-DRYER8KG completo cubres el 83.3% del objetivo de $16.8K." + BL(CALC83), Q30).ok,
+ok(J("Liberando LG-DRYER8KG completo cubres el 108.5% del objetivo de $12.9K." + BL(CALC83), Q30).ok,
   "y nombrar al dueño en la misma oración sigue pasando, como siempre");
 
 console.log("\n── 4 · SIN UNIVERSOS DECLARADOS, EL MURO NO SE MUEVE ──");

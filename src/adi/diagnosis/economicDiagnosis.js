@@ -6,7 +6,7 @@
  * Todo POLICY-configurable. Terciles como regla base (adaptativa por cartera · "cliente grande" ≠ lo mismo en pyme que
  * en corporación) · bandas absolutas quedan como override futuro. NO toca el motor sellado ni el seam · módulo puro.
  */
-import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
+import { POLICY, benchmarkOf, umbralesDeInventario } from "../../config/businessPolicy.js";
 
 // ── helpers ──────────────────────────────────────────────────────────────────────────────────────────────────────
 // tercil por ranking: posición → alta/media/baja (top 1/3 · medio · bajo 1/3). Adaptativo a la cartera.
@@ -141,6 +141,124 @@ export function diagnoseInventario(skus, opts = {}) {
   const quiebreTocaTop = perSku.some((s) => s.estado === "riesgo_quiebre" && topSkus.includes(s.sku));
   const quiebreMaterial = q.usd >= (opts.quiebreMaterialUsd ?? POLICY.quiebreMaterialUsd) || q.pct >= (opts.quiebreMaterialPct ?? POLICY.quiebreMaterialPct) || quiebreTocaTop;
   return { perSku, total, dist, byBodega: _groupDist(perSku, "bodega"), byFamilia: _groupDist(perSku, "familia"), quiebreMaterial };
+}
+
+// ── grupo con % sobre el total (usado por jerarquiaInventario) ──────────────────────────────────────────────────
+const _grupo = (rows, total) => ({
+  skus: rows.map((s) => s.sku), n: rows.length,
+  usd: rows.reduce((a, s) => a + s.capital, 0),
+  pct: total ? +((rows.reduce((a, s) => a + s.capital, 0) / total) * 100).toFixed(1) : 0,
+});
+// idem, sin % (para la intersección: el diseño §2 no le pide pct a esos tres subconjuntos)
+const _grupoSinPct = (rows) => ({ skus: rows.map((s) => s.sku), n: rows.length, usd: rows.reduce((a, s) => a + s.capital, 0) });
+
+/* jerarquiaInventario(skus, { umbrales, capitalField }) → la ÚNICA jerarquía inmovilizado / crítico / frenado
+ * (diseño §2, `diseno_inventario/DISENO.md`; decisiones del owner §7.3·30-32 y ·34). Envuelve `diagnoseInventario`
+ * y NO RECALCULA un estado: el detector de estado sigue siendo `diagnoseInventarioSku`, intacto.
+ *
+ * NO DECIDE UMBRALES: los recibe. Si el llamador no pasa `umbrales`, llama a `umbralesDeInventario()` (sin
+ * consulta) — así todo llamador que hoy usa `POLICY` implícitamente (vía `diagnoseInventarioSku`) sigue
+ * funcionando igual, porque `umbral()` resuelve exactamente la misma precedencia (conversación → perfil →
+ * config) que `POLICY` ya resolvía. Quien decide valor y origen es SIEMPRE `businessPolicy.js` (§3).
+ *
+ * INMOVILIZADO = capital_frenado ∪ sobrestock (capital atrapado por permanencia o rotación insuficiente).
+ * INMOVILIZADO CRÍTICO ("critico") = capital_frenado — el tramo, ⊆ inmovilizado POR CONSTRUCCIÓN (nunca se
+ * verifica aparte: es la misma condición). FRENADO = venta interrumpida — nunca se asume a partir del estado del
+ * detector; se MIDE contra `frenadoDiasSinVenta` cuando hay umbral, y queda `"sin_evaluar"` cuando no lo hay (el
+ * owner: «nunca 60 días como verdad de ADI»). La intersección entre frenado e inmovilizado también se MIDE
+ * (`interseccion`), nunca se asume contención en un sentido u otro. */
+export function jerarquiaInventario(skus, { umbrales, capitalField = "stockUSD" } = {}) {
+  const U = umbrales || umbralesDeInventario();
+  const opts = {
+    capitalField,
+    rotacionMin: U.rotacionMin.valor,
+    dohMax: U.dohMax.valor,
+    quiebreRotMin: U.quiebreRotMin.valor,
+    quiebreDohMax: U.quiebreDohMax.valor,
+    sobrestockDohMin: U.sobrestockDohMin.valor,
+  };
+  const diag = diagnoseInventario(skus, opts);   // delega — NO duplica el predicado del estado
+  const total = diag.total;
+  const frenadoValor = U.frenadoDiasSinVenta.valor;
+
+  const porSku = diag.perSku.map((s) => {
+    const critico = s.estado === "capital_frenado";
+    const inmovilizado = s.estado === "capital_frenado" || s.estado === "sobrestock";
+    const frenado = (frenadoValor != null && typeof s.diasSinVenta === "number") ? (s.diasSinVenta > frenadoValor) : "sin_evaluar";
+    return { ...s, inmovilizado, critico, frenado };
+  });
+
+  const inmovilizadoRows = porSku.filter((s) => s.inmovilizado);
+  const criticoRows = porSku.filter((s) => s.critico);
+  const sobrestockRows = porSku.filter((s) => s.estado === "sobrestock");
+  const riesgoQuiebreRows = porSku.filter((s) => s.estado === "riesgo_quiebre");
+  const sanoRows = porSku.filter((s) => s.estado === "capital_sano");
+  const sinDias = porSku.filter((s) => typeof s.diasSinVenta !== "number").length;
+
+  let frenado;
+  if (frenadoValor == null) {
+    frenado = { evaluado: false, motivo: "sin_umbral", sinDias };
+  } else {
+    const frenadoRows = porSku.filter((s) => s.frenado === true);
+    frenado = { evaluado: true, umbral: U.frenadoDiasSinVenta, ..._grupo(frenadoRows, total), sinDias };
+  }
+
+  let interseccion = null;
+  if (frenado.evaluado) {
+    const frenadoSet = new Set(frenado.skus);
+    const inmovSet = new Set(inmovilizadoRows.map((s) => s.sku));
+    interseccion = {
+      frenadoEInmovilizado: _grupoSinPct(porSku.filter((s) => frenadoSet.has(s.sku) && inmovSet.has(s.sku))),
+      frenadoNoInmovilizado: _grupoSinPct(porSku.filter((s) => frenadoSet.has(s.sku) && !inmovSet.has(s.sku))),
+      inmovilizadoNoFrenado: _grupoSinPct(porSku.filter((s) => inmovSet.has(s.sku) && !frenadoSet.has(s.sku))),
+    };
+  }
+
+  return {
+    umbrales: U,
+    total,
+    porSku,
+    inmovilizado: _grupo(inmovilizadoRows, total),
+    critico: _grupo(criticoRows, total),
+    sobrestock: _grupo(sobrestockRows, total),
+    riesgoQuiebre: _grupo(riesgoQuiebreRows, total),
+    sano: _grupo(sanoRows, total),
+    frenado,
+    interseccion,
+    dist: diag.dist, byBodega: diag.byBodega, byFamilia: diag.byFamilia, quiebreMaterial: diag.quiebreMaterial,
+  };
+}
+
+/* kpiInventario(skus, opts) → EL INDICADOR de negocio (owner 2026-09-28, diseño §8.2/R7 — «el indicador, la
+ * ingesta y la Entrega leen UNA sola función de jerarquía»). Envuelve `jerarquiaInventario` y le agrega `doh` (que
+ * la jerarquía no calcula: no es un estado, es el promedio del negocio) para que `deriveKpis().inventario`
+ * (engine/scenarios.js), `getInvKPI` (engine/metrics.js) y el pack de la ingesta (motorKpi.js) dejen de leer el
+ * `invKPI` escrito a mano y lean ESTA función, con el MISMO contrato de llaves que ya leían sus consumidores
+ * (`totalUSD`, `doh`, `inmovilizadoUSD`, `inmovilizadoPct`, `sobrestockPct`, `riesgoPct`) más lo que faltaba
+ * declarar (`criticoUSD/Pct`, `sobrestockUSD`, `riesgoUSD`, `frenado`, `umbrales`).
+ *
+ * `doh` PONDERADO POR CAPITAL, declarado (no hay una sola forma «correcta» — el diseño pide declarar cuál):
+ * el mismo criterio que ya usa `FEATURE_FAMILY_MARGEN_BLENDED` para «el promedio real pondera por el peso
+ * económico de cada fila, no por cuántas filas hay» — un SKU de $18.600 pesa más en el promedio que uno de
+ * $4.400. Redondeado a día entero, como el resto de la casa formatea días (`_dias` en datoProyectado.js). */
+export function kpiInventario(skus, opts = {}) {
+  const J = jerarquiaInventario(skus, opts);
+  const capF = opts.capitalField || "stockUSD";
+  /* Días de inventario promedio: la fórmula que la ingesta ya usaba para un cliente real (promedio simple de los SKU
+   * con días declarados, un decimal). No se inventa una métrica nueva (supervisor 2026-09-28): el valor anterior del
+   * demo (48) estaba escrito a mano y no salía de sus filas. */
+  void capF;
+  const conDoh = (skus || []).filter((s) => typeof s.doh === "number");
+  const doh = conDoh.length ? Math.round((conDoh.reduce((a, s) => a + s.doh, 0) / conDoh.length) * 10) / 10 : null;
+  return {
+    totalUSD: J.total, doh,
+    inmovilizadoUSD: J.inmovilizado.usd, inmovilizadoPct: J.inmovilizado.pct,
+    criticoUSD: J.critico.usd, criticoPct: J.critico.pct,
+    sobrestockUSD: J.sobrestock.usd, sobrestockPct: J.sobrestock.pct,
+    riesgoUSD: J.riesgoQuiebre.usd, riesgoPct: J.riesgoQuiebre.pct,
+    frenado: J.frenado.evaluado ? { usd: J.frenado.usd, pct: J.frenado.pct, n: J.frenado.n, umbral: J.frenado.umbral } : null,
+    umbrales: J.umbrales,
+  };
 }
 
 // C · diagnóstico ECONÓMICO a nivel SKU (vende mucho/poco × margen alto/bajo) — desbloquea "SKU alta venta bajo margen",

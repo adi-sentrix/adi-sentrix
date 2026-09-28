@@ -88,10 +88,17 @@ H("3 · los literales nuevos del demo — cambio visible AUTORIZADO por el owner
 H("2-bis · el primer archivo de un mes no revienta la cara — declina en palabras");
 {
   const c0 = PACK.clientesVentas[0];
+  // decisión del owner 2026-09-28, §7.3·31: el KPI de inventario ya NO es un literal — se calcula desde
+  // `skuInventario` (jerarquiaInventario). Antes bastaba con reusar `PACK` entero para forzar el caso "KPI en
+  // $0" porque el invKPI viejo de PACK ya daba $0 por un defecto (R8: solo contaba capital_frenado, y esta
+  // planilla no tiene ningún SKU frenado). Ahora PACK.invKPI es $41.7K (correcto), así que para seguir
+  // ejercitando el caso "$0 inmovilizado" hay que declararlo: se filtran las filas sobrestock/capital_frenado
+  // del inventario (dejando sano/riesgo_quiebre, con doh real, no null) — cero inmovilizado, a propósito.
   const MINI = { ...PACK,
     clientesVentas: [{ ...c0, anterior: 0, unidadesAnt: 0, presupuesto: 0 }],
     clientesMargen: PACK.clientesMargen.filter((m) => m.nombre === c0.nombre),
     ventasKPI: { ...PACK.ventasKPI, totalActual: c0.actual, totalAnterior: null, vsAnterior: null, totalPresupuesto: null, vsPresupuesto: null },
+    skuInventario: PACK.skuInventario.filter((s) => s.estado !== "sobrestock" && s.estado !== "capital_frenado"),
   };
   initTenant(MINI);
   let v;

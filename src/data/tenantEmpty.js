@@ -28,8 +28,17 @@
 const _ventasKPI = { totalActual: 0, totalAnterior: 0, totalPresupuesto: 0, vsAnterior: 0, vsPresupuesto: 0, unidades: 0, ticketProm: 0 };
 /** El KPI vacío de margen. */
 const _margenKPI = { pct: 0, pctAnt: 0, totalUSD: 0, gapPuntos: 0 };
-/** El KPI vacío de inventario. */
-const _invKPI = { totalUSD: 0, doh: 0, inmovilizadoPct: 0, inmovilizadoUSD: 0, sobrestockPct: 0, riesgoPct: 0 };
+/** El KPI vacío de inventario — MISMAS LLAVES que ahora produce `kpiInventario` en `TENANT_DEMO`/`TENANT_EMPRESA2`
+ *  (owner 2026-09-28, §7.3·31-32, diseño §8.2/R7: `invKPI` dejó de ser un literal escrito a mano en los tenants
+ *  reales, y ganó `criticoUSD/Pct`, `sobrestockUSD`, `riesgoUSD`, `frenado`, `umbrales`). Esta forma se queda
+ *  LITERAL a propósito — no se llama a `kpiInventario([])` acá: ese cálculo resolvería sus umbrales contra el
+ *  tenant que esté activo en el momento del import (ninguno, para el hueco de arranque), y filtraría una
+ *  procedencia que no le pertenece a nadie. Todo cero/null a mano es lo honesto para «todavía no hay empresa». */
+const _invKPI = { totalUSD: 0, doh: null, inmovilizadoPct: 0, inmovilizadoUSD: 0, criticoPct: 0, criticoUSD: 0,
+  sobrestockPct: 0, sobrestockUSD: 0, riesgoPct: 0, riesgoUSD: 0, frenado: null,
+  umbrales: { rotacionMin: { valor: null, origen: "sin_declarar" }, dohMax: { valor: null, origen: "sin_declarar" },
+    sobrestockDohMin: { valor: null, origen: "sin_declarar" }, quiebreRotMin: { valor: null, origen: "sin_declarar" },
+    quiebreDohMax: { valor: null, origen: "sin_declarar" }, frenadoDiasSinVenta: { valor: null, origen: "sin_declarar" } } };
 
 /** TENANT_VACIO · la forma sin dato. Congelado: nadie lo muta por accidente creyendo que es un dataset real. */
 export const TENANT_VACIO = Object.freeze({

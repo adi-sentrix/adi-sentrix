@@ -2109,7 +2109,8 @@
   {
    "id": "tr-089",
    "contexto": "ambos",
-   "esperado": "verdadera",
+   "esperado": "falsa",
+   "motivo": "decisión del owner 2026-09-28, §7.3·31 (diseño de inventario, jerarquiaInventario): «inmovilizado» dejó de ser «estado ≠ Activo» (donde SAM-TV55, estado crudo «Lento», calificaba) y pasó a ser capital_frenado ∪ sobrestock. SAM-TV55 (rotación 3.6x, 58 días de inventario) no cruza ni el piso de rotación (2.0x) ni el techo de días (120d) ni el umbral de sobrestock (60-120d): es capital_sano. Ya no está inmovilizado en ningún sentido — la etiqueta vieja quedó falsa, no el verificador.",
    "afirmacion": {
     "tipo": "estado",
     "sujeto": "SAM-TV55",

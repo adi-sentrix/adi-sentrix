@@ -4,6 +4,9 @@
  * Esos archivos ahora son FACHADAS del tenant activo (tenantStore) — la única diferencia es DÓNDE vive
  * el dato, nunca QUÉ vale. Un tenant nuevo = otro archivo acá con este MISMO shape (ver TENANT_DEMO). */
 
+import { kpiInventario } from "../../adi/diagnosis/economicDiagnosis.js";   // R7 (owner 2026-09-28, §7.3·31-32): invKPI ya no es un literal — lo calcula la fuente única
+import { POLICY_CONFIG } from "../../config/businessPolicy.js";
+
 /* PRESUPUESTO UNA VERDAD (coherencia total · owner 2026-07-15): Σ presupuesto por cliente = 97,000 = el
  * totalPresupuesto global (baseKpis/ventasMensuales) — antes sumaba 92,350 y la Mesa contaba OTRO cumplimiento
  * (+8.2%) que la respuesta de ADI (+3.1%). El ajuste reparte los +4,650 SOLO entre clientes sobre plan (los que
@@ -305,7 +308,8 @@ export const ventasKPI = { totalActual:100000, totalAnterior:92900, totalPresupu
 
 export const margenKPI = { pct:25.6, pctAnt:23.8, totalUSD:25559, gapPuntos:1.8 };
 
-export const invKPI = { totalUSD:135000, doh:48, inmovilizadoPct:41.3, inmovilizadoUSD:55800, sobrestockPct:24.6, riesgoPct:33.0 };
+/* invKPI · CALCULADO más abajo (después de PERFIL, R7: owner 2026-09-28, §7.3·31-32, diseño §8.2) — ya no es un
+ * literal escrito a mano. Se declara ahí porque necesita `PERFIL` (el umbral de ESTA empresa) ya definido. */
 
 /* ── EL MES POR DENTRO (owner 2026-09-09): «el mes más bajo fue porque hubo un incremento en acciones
  * comerciales, aumentó el costo, bajó la contribución porque ganamos volumen pero perdimos margen… esas son las
@@ -364,7 +368,10 @@ export const SCENARIO_TRANSFORMS = {
       ventas: { totalActual:99999,  totalAnterior:92900, totalPresupuesto:97000, vsAnterior: 7.6, vsPresupuesto:  3.1 },
       // Bonanza · Margen: derivado del agregado. ContribTotal ≈ Σ(venta*margen/100) ≈ 25559.
       margen:     { pct:25.6, pctAnt:23.8, totalUSD:25559, gapPuntos: 1.8, benchmark:30.1 },
-      inventario: { totalUSD:135000, doh:48, inmovilizadoPct:41.3, inmovilizadoUSD:55800,  sobrestockPct:24.6, riesgoPct:33.0, desalineacionPct:35, desalineacionUSD:25400, concentracionPct:72, concentracionTopCat:"Línea Blanca" },
+      // inventario: RETIRADO (owner 2026-09-28, §7.3·31-32, diseño §0.4/R7) — `deriveKpis().inventario` y
+      // `getInvKPI` ya NO leen este literal: calculan con `kpiInventario` sobre las filas del escenario
+      // (`applyScenarioToSkuInventario`). `desalineacionPct/USD` y `concentracionPct/TopCat` se retiran con él:
+      // verificado que ningún archivo de `src/` fuera de este tenant los consumía.
     },
   },
 
@@ -391,7 +398,7 @@ export const SCENARIO_TRANSFORMS = {
       ventas: { totalActual:92892, totalAnterior:92900, totalPresupuesto:97000, vsAnterior:-0.0, vsPresupuesto:-4.2 },
       // Margen RECALIBRADO desde la erosión: prom ponderado por venta del escenario = 22.4%
       margen:     { pct:22.4, pctAnt:25.6, totalUSD:20808, gapPuntos:-3.2, benchmark:30.1 },
-      inventario: { totalUSD:168000, doh:64, inmovilizadoPct:52.3, inmovilizadoUSD:87864,  sobrestockPct:31.8, riesgoPct:42.5, desalineacionPct:47, desalineacionUSD:40617, concentracionPct:88, concentracionTopCat:"Materiales de Construcción" },
+      // inventario: RETIRADO — ver la nota de "bonanza" arriba.
     },
   },
 
@@ -416,7 +423,7 @@ export const SCENARIO_TRANSFORMS = {
       ventas: { totalActual:81182, totalAnterior:92900, totalPresupuesto:97000, vsAnterior:-12.6, vsPresupuesto:-16.3 },
       // Margen RECALIBRADO: prom ponderado · escenario = 18.9% · contrib = 15343
       margen:     { pct:18.9, pctAnt:25.6, totalUSD:15343, gapPuntos:-6.7, benchmark:30.1 },
-      inventario: { totalUSD:198000, doh:78, inmovilizadoPct:67.4, inmovilizadoUSD:133452, sobrestockPct:48.5, riesgoPct:58.0, desalineacionPct:62, desalineacionUSD:68800, concentracionPct:94, concentracionTopCat:"Materiales de Construcción" },
+      // inventario: RETIRADO — ver la nota de "bonanza" arriba.
     },
   },
 };
@@ -461,6 +468,27 @@ export const PERFIL = {
   // solo-ventas, nunca inventa un modelo de costo que el negocio no declaró.
   costModel: { tipo: "variable_total" },
 };
+
+/* invKPI · CALCULADO (owner 2026-09-28, §7.3·31-32, diseño §8.2/R7) — antes era un literal escrito a mano
+ * ($55.800 · 41,3 % · 5 SKU, con la regla del texto crudo mezclada por coincidencia numérica, diseño §6.1). Ahora
+ * es `kpiInventario` (economicDiagnosis.js) sobre `skuInventario`, con los umbrales resueltos CONTRA EL PERFIL DE
+ * ESTE TENANT — nunca contra `businessPolicy.umbralesDeInventario()` a secas: en tiempo de evaluación del módulo
+ * el tenant activo puede ser CUALQUIERA (el que se haya importado primero), así que resolver el umbral live
+ * filtraría la vara de otra empresa. Mismo patrón que ya usa `motorKpi.js` para el mismo problema en la ingesta. */
+const _umbralDePerfil = (key) => {
+  const v = PERFIL[key];
+  if (typeof v === "number" && isFinite(v)) return { valor: v, origen: "empresa" };
+  const cfg = POLICY_CONFIG[key];
+  if (Number.isFinite(cfg)) return { valor: cfg, origen: "adi" };
+  return { valor: null, origen: "sin_declarar" };
+};
+const _umbralesInventarioDemo = {
+  rotacionMin: _umbralDePerfil("rotacionMin"), dohMax: _umbralDePerfil("dohMax"),
+  sobrestockDohMin: _umbralDePerfil("sobrestockDohMin"),
+  quiebreRotMin: _umbralDePerfil("quiebreRotMin"), quiebreDohMax: _umbralDePerfil("quiebreDohMax"),
+  frenadoDiasSinVenta: _umbralDePerfil("frenadoDiasSinVenta"),
+};
+export const invKPI = kpiInventario(skuInventario, { umbrales: _umbralesInventarioDemo });
 
 /* ── VOCABULARIO DE ENTRADA · lo que el negocio declara sobre CÓMO SE ESCRIBEN sus cuentas (2026-08-21) ──────
  * El router deriva su vocabulario de cliente del propio dato (`clientesVentas` · ver routerData/detectors), y esa

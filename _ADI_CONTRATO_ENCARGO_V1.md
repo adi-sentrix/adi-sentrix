@@ -606,6 +606,22 @@ venta a crédito, ley del owner).
     (siguen servidas; «Ver el detalle» las declara) y la respuesta conserva las premisas y la prioridad cruzada. Si
     aun así no cabe, la Entrega se sirve igual, sin cortar nada obligatorio, y lo declara en `meta`
     (`excedeTope: true`). El tope nunca se cumple borrando una conclusión ni una premisa.
+34. [2026-09-28 · DECISIONES DEL OWNER, cerradas; no se reabren salvo una contradicción material nueva]
+    (a) El tramo se llama **«inmovilizado crítico»** (= capital_frenado). La alerta del archivo (`alerta === "crit"`)
+    deja de llamarse «crítico» en superficie y pasa a «con alerta en el archivo»: una palabra, un significado.
+    (b) Los corpus viejos de «frenado» (con el significado de la regla de rotación) se CONGELAN como registro histórico,
+    y se crean pruebas NUEVAS para la definición vigente.
+    (c) La experiencia de la cara Capital, aprobada: el ranking por días sin venta; el total del período y la fecha de
+    la última venta como HECHOS históricos (sin promedios ni frecuencias); el capital acumulado sin cortes; el cruce con
+    inmovilizado, con la procedencia de su umbral; y la nota que invita a declarar el umbral de frenado. Se retiran los
+    tramos fijos de días y la frase «más de 60 días».
+    (d) El estándar es SEMÁNTICO, no una lista de palabras: estos datos viajan como hechos tipados «históricos», con su
+    período y sus fechas. Una afirmación sobre el futuro exige una simulación con supuestos. Las pruebas usan
+    redacciones variadas de las dos clases (pronósticos que tienen que caer y formas históricas que tienen que pasar).
+    Nada revisa después la prosa del modelo.
+    (e) [supervisor, dentro de «perfil conversando»] La empresa declara su umbral de frenado conversando (camino B del
+    perfil); eso cuenta como «declarado por la empresa». Un parámetro en la plantilla queda para después (plantilla
+    congelada: decisión del owner).
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

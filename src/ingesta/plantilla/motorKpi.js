@@ -35,9 +35,9 @@ import { monedaLimpia } from "../../config/moneda.js";
 import { cobroDesdePlanilla } from "./cobroDesdePlanilla.js";
 import { serieDesdePlanilla, MESES } from "./serieDesdePlanilla.js";
 import { resolverDiasYRotacion, FORMULA_DIAS, FORMULA_ROTACION } from "../../adi/sentrix/diasYRotacion.js";
-import { diagnoseInventarioSku } from "../../adi/diagnosis/economicDiagnosis.js";
+import { diagnoseInventarioSku, kpiInventario } from "../../adi/diagnosis/economicDiagnosis.js";
 import { METRICS } from "../../config/contract/metricRegistry.js";
-import { POLICY_CONFIG } from "../../config/businessPolicy.js";
+import { POLICY_CONFIG, ORIGEN } from "../../config/businessPolicy.js";
 
 /** La cuenta del capital en stock · vive en el contrato, no en este archivo (una sola fuente). */
 const FORMULA_CAPITAL = METRICS.capital.formulaSiFalta;
@@ -234,7 +234,35 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
    * período / días del período»). Usar 30 fijo desviaría en febrero y en los meses de 31. */
   const _diasDelPeriodo = actual ? _finDeMes(actual).getUTCDate() : undefined;
 
-  const umbrales = { rotacionMin: perfilNum("rotacionMin"), dohMax: perfilNum("dohMax") };
+  /* LOS UMBRALES DE INVENTARIO, CON SU PROCEDENCIA (owner 2026-09-28, §7.3·31-32; diseño §3/§8.2, R8).
+   * ANTES: `{ rotacionMin: perfilNum(...), dohMax: perfilNum(...) }` — SIEMPRE `undefined` (`PARAMETROS` de
+   * `plantilla.js` no trae ningún `policyKey` para estas llaves todavía), así que `diagnoseInventarioSku` caía a
+   * `opts.X ?? POLICY.X` y el estado de cada SKU se decidía con el `POLICY` VIVO del tenant que estuviera activo
+   * en ese instante — el criterio general de ADI, sin decirlo en ningún lado (el hallazgo del diseño §3.1).
+   * AHORA: se resuelve LOCAL, contra el `perfil` que este mismo pack está construyendo (nunca contra el tenant
+   * ACTIVO — el pack todavía no es el tenant activo en este punto de la ingesta) — mismo orden de precedencia
+   * que `umbral()` de `businessPolicy.js` para las capas que aplican acá (perfil del pack → config de ADI → sin
+   * declarar); no hay «consulta» ni «conversación» en tiempo de ingesta. */
+  const _umbralDelPack = (key) => {
+    const v = perfilNum(key);
+    if (v !== undefined) return { valor: v, origen: ORIGEN.EMPRESA };
+    const cfg = POLICY_CONFIG[key];
+    if (Number.isFinite(cfg)) return { valor: cfg, origen: ORIGEN.ADI };
+    return { valor: null, origen: ORIGEN.SIN_DECLARAR };
+  };
+  const umbralesInventario = {
+    rotacionMin: _umbralDelPack("rotacionMin"), dohMax: _umbralDelPack("dohMax"),
+    sobrestockDohMin: _umbralDelPack("sobrestockDohMin"),
+    quiebreRotMin: _umbralDelPack("quiebreRotMin"), quiebreDohMax: _umbralDelPack("quiebreDohMax"),
+    frenadoDiasSinVenta: _umbralDelPack("frenadoDiasSinVenta"),
+  };
+  // opts que ya lee `diagnoseInventarioSku` (`rotacionMin`/`dohMax`/`quiebreRotMin`/`quiebreDohMax`/`sobrestockDohMin`)
+  // — las CINCO, explícitas, para que el estado del SKU no dependa nunca más del POLICY vivo del tenant activo.
+  const umbrales = {
+    rotacionMin: umbralesInventario.rotacionMin.valor, dohMax: umbralesInventario.dohMax.valor,
+    sobrestockDohMin: umbralesInventario.sobrestockDohMin.valor,
+    quiebreRotMin: umbralesInventario.quiebreRotMin.valor, quiebreDohMax: umbralesInventario.quiebreDohMax.valor,
+  };
   const sinValorizar = [], sinRitmo = [];
   const skuInventario = inventario.map((r) => {
     const p = dimSku.get(r.sku) || {};
@@ -332,18 +360,14 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
      * consumidores que ya lo leen. Renombrarlo es un pase aparte. */
     gapPuntos: margenAnterior !== null ? _r1(margenGlobal - margenAnterior) : null,
   };
-  const invKPI = skuInventario.length
-    ? (() => {
-        const total = Math.round(_sum(skuInventario, (r) => r.stockUSD));
-        const cap = (est) => Math.round(_sum(skuInventario.filter((r) => r.estado === est), (x) => x.stockUSD));
-        const conDoh = skuInventario.filter((r) => typeof r.doh === "number");
-        return { totalUSD: total,
-          doh: conDoh.length ? _r1(_sum(conDoh, (r) => r.doh) / conDoh.length) : null,
-          inmovilizadoUSD: cap("capital_frenado"), inmovilizadoPct: total ? _r1(cap("capital_frenado") / total * 100) : null,
-          sobrestockPct: total ? _r1(cap("sobrestock") / total * 100) : null,
-          riesgoPct: total ? _r1(cap("riesgo_quiebre") / total * 100) : null };
-      })()
-    : null;
+  /* R8 (owner 2026-09-28, §7.3·31-32; diseño §2/§8.2): ANTES este bloque solo capturaba `capital_frenado`
+   * («inmovilizado» de la ingesta = solo el tramo crítico, mientras la pantalla y la carpeta usaban la regla del
+   * texto crudo `estado ≠ Activo` — dos definiciones, dos verdades para el MISMO archivo: el ejemplo del contrato
+   * daba $0 acá y $59.179/100% en la carpeta). AHORA lee `kpiInventario` — la MISMA función que `deriveKpis` y
+   * `getInvKPI` — sobre `umbralesInventario` (con su origen, resuelto arriba). `criticoUSD/Pct`, `sobrestockUSD`,
+   * `riesgoUSD`, `frenado` y `umbrales` son campos NUEVOS; las llaves que ya leía `ingestarPlantilla.js`
+   * (`totalUSD`, `doh`, `inmovilizadoUSD`, `inmovilizadoPct`) se conservan con el mismo nombre. */
+  const invKPI = skuInventario.length ? kpiInventario(skuInventario, { umbrales: umbralesInventario }) : null;
 
   /* ── LA SERIE MENSUAL POR ENTIDAD · el grano fino del archivo, reconciliado ───────────────────────────────
    * El cruce cuenta×mes venía en cada fila de Ventas y se perdía al agregar: `historialMargen` salía `{}` y la

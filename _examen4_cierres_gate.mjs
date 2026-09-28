@@ -264,7 +264,9 @@ console.log("═".repeat(100));
     "Dime qué parte de esto necesitas y lo trabajo sobre esas mismas cifras.",
   ].join("\n");
   // una respuesta como las que ADI produce bajo las reglas vigentes
-  const VIGENTE = "Tu capital inmovilizado es $56K en 5 SKU, y de ahí $33K están frenados en 3 SKU: rotación bajo el piso de 2.0x o días de inventario sobre el techo de 120d.\n\nLG-DRYER8KG concentra $14K con rotación 1.0x y 165 días de inventario. MAK-COMP-AIR suma $8K con rotación 0.8x y 190 días de inventario.";
+  // decisión del owner 2026-09-28, §7.3·31: "capital inmovilizado" pasó de "estado ≠ Activo" (5 SKU, $56K) a
+  // capital_frenado ∪ sobrestock (4 SKU, $43K) — diseño §6.1; "frenado" (el tramo crítico) no cambió: $33K en 3 SKU.
+  const VIGENTE = "Tu capital inmovilizado es $43K en 4 SKU, y de ahí $33K están frenados en 3 SKU: rotación bajo el piso de 2.0x o días de inventario sobre el techo de 120d.\n\nLG-DRYER8KG concentra $14K con rotación 1.0x y 165 días de inventario. MAK-COMP-AIR suma $8K con rotación 0.8x y 190 días de inventario.";
   ok(guardC(VIGENTE, CTX).ok, "la respuesta anterior, sola, pasa el muro (es el punto de partida del escalón)");
   ok(guardC(marco(VIGENTE), CTX).ok,
     "…y envuelta en el marco del respaldo TAMBIÉN pasa: el escalón se puede ofrecer sin inventar nada");

@@ -65,7 +65,10 @@ N("operación inventada", `Las ventas del negocio subirían a $104.0M.\n\n${MARC
 N("insumo no autorizado", `El negocio llegaría a $312.0M.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$300.0M; 4% · formula=$300.0M + 4% · resultado=$312.0M · unidad=money · dueno=total`);
 N("cascada con el primer eslabón MAL", `El negocio llegaría a $121.0M y la contribución a $30.4M.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$121.0M · unidad=money · dueno=total\nid=c2 · op=pct_de · inputs=c1; 25.1% · formula=25.1% de $121.0M · resultado=$30.4M · unidad=money · dueno=total`);
 // y lo que el bloque NO puede comprar: una cifra que la prosa afirma y el bloque no declara
-const v = juzgar(`Las ventas del negocio subirían a $104.0M y el margen a 31.9%.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money · dueno=total`);
+// «46.5%» (no «31.9%», owner 2026-09-28, §7.3·31): 31.9% pasó a ser el % real de capital inmovilizado del demo
+// (jerarquiaInventario, $43K de $135K) — con ese número el guardC ya NO lo trata como no declarado, porque
+// SÍ está en la boleta (aunque bajo otra métrica). El control necesita un número que no exista en ningún lado.
+const v = juzgar(`Las ventas del negocio subirían a $104.0M y el margen a 46.5%.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money · dueno=total`);
 ok(!v.ok, "una cifra de la prosa que el bloque NO declara sigue muriendo — el bloque no es un pase general");
 
 console.log("\n── 5 · LAS OPERACIONES DEL CONTRATO ──");

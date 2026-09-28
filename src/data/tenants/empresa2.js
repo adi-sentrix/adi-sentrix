@@ -14,6 +14,8 @@
  *     covered:false y el drift declarado clientes-vs-familias del universo agregado.
  *
  * REGLA DE ORO: si algo falla con este fixture, el fix va SIEMPRE en el producto (des-hardcodear), jamás acá. */
+import { kpiInventario } from "../../adi/diagnosis/economicDiagnosis.js";   // R7 (owner 2026-09-28, §7.3·31-32): invKPI ya no es un literal — lo calcula la fuente única
+import { POLICY_CONFIG } from "../../config/businessPolicy.js";
 
 // ── CLIENTES · la base primaria (venta×margen==contribución exacto · venta==costo+rebates+contribución) ──────
 // [nombre, familia, marca, bodega, venta(K), margen(%), pctRebate(%), unidades, anterior(K), unidadesAnt, presupuesto(K), precioLista]
@@ -176,15 +178,10 @@ export const margenKPI = {
   pctAnt: 23.6, totalUSD: _totalContrib,
   gapPuntos: _r1(_totalContrib / _totalActual * 100 - 23.6),         // 1.4
 };
-const _totalStock = _sum(skuInventario, (s) => s.stockUSD);          // 60000
-const _dormidos = skuInventario.filter((s) => s.rotacion < 2 || s.doh > 120);
-const _dormidoUSD = _sum(_dormidos, (s) => s.stockUSD);              // 13900 (aceite + pizza + snack)
-export const invKPI = {
-  totalUSD: _totalStock,
-  doh: Math.round(_sum(skuInventario, (s) => s.doh) / skuInventario.length),   // 58
-  inmovilizadoPct: _r1(_dormidoUSD / _totalStock * 100), inmovilizadoUSD: _dormidoUSD,
-  sobrestockPct: 20.0, riesgoPct: 41.5,
-};
+/* invKPI · CALCULADO más abajo, después de PERFIL (R7: owner 2026-09-28, §7.3·31-32, diseño §8.2). ANTES este
+ * predicado usaba `rot < 2 ∨ doh > 120` — el UMBRAL DEL CONFIG, no el perfil 2,5x/90d que ESTA empresa declara
+ * (diseño §3.1, R1: "¡config, no el perfil de esa empresa!"): un defecto de "nada hardcodeado" que la fuente
+ * única cierra solo, al recibir los umbrales del perfil real. */
 
 // serie mensual: curva estacional propia, distribuida EXACTA a los totales (cuadre en el último mes — la
 // misma técnica del demo). Los tres totales cierran con ventasKPI por construcción.
@@ -325,19 +322,17 @@ export const SCENARIO_TRANSFORMS = {
       ventas: { totalActual: _totalActual, totalAnterior: _totalAnterior, totalPresupuesto: _totalPresupuesto,
                 vsAnterior: ventasKPI.vsAnterior, vsPresupuesto: ventasKPI.vsPresupuesto },
       margen: { pct: margenKPI.pct, pctAnt: margenKPI.pctAnt, totalUSD: margenKPI.totalUSD, gapPuntos: margenKPI.gapPuntos, benchmark: BENCHMARK },
-      inventario: { totalUSD: invKPI.totalUSD, doh: invKPI.doh, inmovilizadoPct: invKPI.inmovilizadoPct, inmovilizadoUSD: invKPI.inmovilizadoUSD,
-                    sobrestockPct: invKPI.sobrestockPct, riesgoPct: invKPI.riesgoPct, desalineacionPct: 28, desalineacionUSD: 16800, concentracionPct: 63, concentracionTopCat: "Bebidas" },
+      // inventario: RETIRADO (owner 2026-09-28, §7.3·31-32, diseño §0.4/R7) — ver la nota en demo.js.
+      // `desalineacionPct/USD` y `concentracionPct/TopCat` se retiran con él (sin consumidores en src/).
     },
   },
   tension: {
     clientes: _T_TENSION,
-    kpis: { ..._kpisDe(_T_TENSION),
-      inventario: { totalUSD: 70800, doh: 68, inmovilizadoPct: 31.4, inmovilizadoUSD: 22231, sobrestockPct: 26.0, riesgoPct: 48.0, desalineacionPct: 39, desalineacionUSD: 27612, concentracionPct: 71, concentracionTopCat: "Abarrotes" } },
+    kpis: { ..._kpisDe(_T_TENSION) },   // inventario: RETIRADO — calculado dinámicamente, ver la nota en demo.js
   },
   crisis: {
     clientes: _T_CRISIS,
-    kpis: { ..._kpisDe(_T_CRISIS),
-      inventario: { totalUSD: 79200, doh: 81, inmovilizadoPct: 44.8, inmovilizadoUSD: 35482, sobrestockPct: 33.5, riesgoPct: 56.0, desalineacionPct: 52, desalineacionUSD: 41184, concentracionPct: 78, concentracionTopCat: "Abarrotes" } },
+    kpis: { ..._kpisDe(_T_CRISIS) },   // inventario: RETIRADO — calculado dinámicamente, ver la nota en demo.js
   },
 };
 
@@ -361,6 +356,25 @@ export const PERFIL = {
     { nombre: "Administración", pct: 1.5 },
   ],
 };
+
+/* invKPI · CALCULADO (owner 2026-09-28, §7.3·31-32, diseño §8.2/R7) — mismo patrón que demo.js: `kpiInventario`
+ * con los umbrales resueltos contra ESTE `PERFIL` (2,5x / 90 días), nunca contra el tenant activo en tiempo de
+ * import. El valor cambia frente al literal viejo: antes usaba `rot<2 ∨ doh>120` (el config, no el perfil de
+ * esta empresa — ver la nota de arriba). */
+const _umbralDePerfilE2 = (key) => {
+  const v = PERFIL[key];
+  if (typeof v === "number" && isFinite(v)) return { valor: v, origen: "empresa" };
+  const cfg = POLICY_CONFIG[key];
+  if (Number.isFinite(cfg)) return { valor: cfg, origen: "adi" };
+  return { valor: null, origen: "sin_declarar" };
+};
+const _umbralesInventarioE2 = {
+  rotacionMin: _umbralDePerfilE2("rotacionMin"), dohMax: _umbralDePerfilE2("dohMax"),
+  sobrestockDohMin: _umbralDePerfilE2("sobrestockDohMin"),
+  quiebreRotMin: _umbralDePerfilE2("quiebreRotMin"), quiebreDohMax: _umbralDePerfilE2("quiebreDohMax"),
+  frenadoDiasSinVenta: _umbralDePerfilE2("frenadoDiasSinVenta"),
+};
+export const invKPI = kpiInventario(skuInventario, { umbrales: _umbralesInventarioE2 });
 
 /* ── VOCABULARIO DE ENTRADA · esta empresa NO declara nada, y eso es parte de la prueba (2026-08-21) ──────────
  * `clientesAlias`/`clientesAmbiguos` son opcionales: ninguna cuenta de acá es una palabra común («Comercial

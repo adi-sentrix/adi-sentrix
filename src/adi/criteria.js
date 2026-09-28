@@ -16,7 +16,7 @@
  *     este callback re-aplica encima lo del usuario DEL tenant activo (C.2 siempre gana)
  * F3 (tenancy operativa): esta persistencia pasa al server (gateway resuelve tenant+perfil+overrides) — hoy no hay
  * DB (acceso HMAC sin base) → localStorage por navegador, declarado. */
-import { POLICY, setBenchmarkOverride, tenantPolicyDefault } from "../config/businessPolicy.js";
+import { POLICY, setBenchmarkOverride, tenantPolicyDefault, setCriterioOverride } from "../config/businessPolicy.js";
 import { getTenantId, onTenantChange } from "../data/tenantStore.js";
 
 // ── registro DATA-DRIVEN de criterios soportados (sumar uno = sumar una entrada) ──────────────────────────────────────
@@ -45,11 +45,16 @@ function _applyToPolicy(key, value) {
   const c = CRITERIA[key]; if (!c) return;
   POLICY[c.policyKey] = value;
   if (c.policyKey === "benchmark") setBenchmarkOverride(value);   // pisa también el benchmark embebido por-fila
+  // registro GENERALIZADO de procedencia (owner 2026-09-28, §7.3·32): `umbral()` de businessPolicy.js necesita
+  // saber, para CUALQUIER llave, si el usuario la fijó en conversación — no solo para `benchmark`. Se registra
+  // acá (el único punto que ya muta POLICY por un criterio de conversación) para no duplicar la mecánica.
+  setCriterioOverride(c.policyKey, value);
 }
 function _restoreDefault(key) {
   const c = CRITERIA[key]; if (!c) return;
   POLICY[c.policyKey] = tenantPolicyDefault(c.policyKey);   // la vara de ESTA empresa (perfil ?? config), no el config a secas
   if (c.policyKey === "benchmark") setBenchmarkOverride(null);
+  setCriterioOverride(c.policyKey, null);   // limpia el registro de procedencia (mismo criterio que setBenchmarkOverride)
 }
 export function setCriterion(key, value) {
   const c = CRITERIA[key];
