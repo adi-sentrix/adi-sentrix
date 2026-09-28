@@ -80,6 +80,7 @@ import { crearEntrega } from "./src/adi/entrega/esquema.js";
 import { renderDe, procedenciaDe, fuerzaDe, NOMBRE_DE_PROCEDENCIA, libroDeHechos } from "./src/adi/notario/hechos.js";
 import { claveDeMetrica } from "./src/adi/notario/lexico.js";
 import { clasificarFuente } from "./scripts/clasificarGates.mjs";
+import { stripLanguageLeaks } from "./src/adi/llm/voiceGuard.js";   // §7.3·28 (SUPERVISOR): carnada 27 más abajo
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -790,6 +791,63 @@ H("25c · CARNADA · §7.3·26(c) ejes distintos — «no se establece una prior
     ok(!/riesgo integrado/i.test(E26c.texto), "★ ningún ganador inventado entre sku y cliente", E26c.texto.match(/[^.]*riesgo integrado[^.]*\./i));
     const universos = (E26c.entrega.universos || []).map((u) => u.id);
     ok(universos.includes("p1") && universos.includes("p2"), "★ cada parte conserva su propio universo aunque no haya cruzada", JSON.stringify(universos));
+  }
+}
+
+H("26a · CARNADA · §7.3·27 (SUPERVISOR) — dos decisions de SKU (comercial + inventario) NUNCA cruzan entre sí, aunque compartan la clave real");
+{
+  const enc27a = { version: "encargo/v1", partes: [
+    { id: "p1", tema: "comercial", cierre: "decision", conceptos: ["ventas"], eje: "sku", universo: { eje: "sku", top: { metrica: "ventas", k: 1 } } },
+    { id: "p2", tema: "inventario", cierre: "decision", conceptos: ["capital"], universo: { eje: "sku", top: { metrica: "capital", k: 1 } } },
+  ] };
+  const R27a = validarEncargo(enc27a, {});
+  const E27a = componerEntrega(R27a);
+  ok(E27a.ok, "compone ok (dos decisions por SKU, cada una con su propio top)", E27a.motivo);
+  if (E27a.ok) {
+    const universos = (E27a.entrega.universos || []).map((u) => u.id);
+    ok(!universos.some((id) => /prioridad$/.test(id) && id !== "p1_prioridad" && id !== "p2_prioridad"), "★ CARNADA · NUNCA existe un universo «_prioridad» combinado para p1+p2 (SKU no cruza con SKU)", JSON.stringify(universos));
+    ok(!/riesgo integrado/i.test(E27a.texto), "★ ninguna oración de «riesgo integrado» cruza los dos SKU", E27a.texto.match(/[^.]*riesgo integrado[^.]*\./i));
+    const limSku = (E27a.entrega.limites || []).find((l) => /entre dos decisions de SKU no se cruza/i.test(l.motivo || ""));
+    ok(!!limSku, "★ CARNADA · se declara EXPLÍCITAMENTE que dos decisions de SKU no cruzan — nunca en silencio", JSON.stringify(limSku));
+  }
+}
+
+H("26b · CARNADA · §7.3·27 (SUPERVISOR) — mismo eje, un dominio resuelve VACÍO: no hay nada que cruzar y NO hace falta declarar nada (X28)");
+{
+  // cobranza con un filtro contradictorio (al día + días vencido > 0) resuelve 0 de 13 — comercial, con datos
+  // normales, no tiene con quién cruzar: la ley dice silencio, no una declaración de «no se establece».
+  const enc27b = { version: "encargo/v1", partes: [
+    { id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["dias_vencido", "saldo_vencido"], universo: { eje: "cliente", estados: ["al dia"], filtros: [{ metrica: "dias_vencido", op: ">", valor: 0 }] } },
+    { id: "p2", tema: "comercial", cierre: "decision", conceptos: ["contribucion"], universo: { eje: "cliente", top: { metrica: "contribucion", k: 2 } } },
+  ] };
+  const R27b = validarEncargo(enc27b, {});
+  const E27b = componerEntrega(R27b);
+  ok(E27b.ok, "compone ok (p1 resuelve vacío por el filtro contradictorio, p2 con datos normales)", E27b.motivo);
+  if (E27b.ok) {
+    const universos = (E27b.entrega.universos || []).map((u) => ({ id: u.id, n: (u.entidades || []).length }));
+    ok((universos.find((u) => u.id === "p1") || {}).n === 0, "p1 resuelve vacío (0 de 13), confirmado", JSON.stringify(universos));
+    const limCruzada = (E27b.entrega.limites || []).find((l) => /no se establece una prioridad entre dominios/i.test(l.titulo || ""));
+    ok(!limCruzada, "★ CARNADA · NINGÚN límite de «no se establece una prioridad» — con un dominio vacío, la ley pide silencio, no una declaración", JSON.stringify(limCruzada));
+    ok(!/riesgo integrado/i.test(E27b.texto), "★ ningún ganador cruzado inventado", E27b.texto.match(/[^.]*riesgo integrado[^.]*\./i));
+  }
+}
+
+H("27 · CARNADA · §7.3·28 (SUPERVISOR, ley de registro del owner) — un estado no reconocido NUNCA cita una palabra vetada del registro");
+{
+  // premisa tipo «estado» con una palabra de la lista de registro prohibida («dormido») en vez del nombre del
+  // estado — la declinación tiene que nombrar el campo y ofrecer alternativas, NUNCA citar la palabra.
+  const enc28 = { version: "encargo/v1", partes: [
+    { id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido"], entidades: [{ nombre: "Easy" }] },
+  ], premisas: [
+    { id: "q1", tipo: "estado", sujeto: "Easy", estado: "dormido" },
+  ] };
+  const R28 = validarEncargo(enc28, {});
+  const E28 = componerEntrega(R28);
+  ok(E28.ok, "compone ok (la parte p1 sirve; la premisa se declina)", E28.motivo);
+  if (E28.ok) {
+    ok(!/dormido/i.test(E28.texto), "★ CARNADA · «dormido» NUNCA aparece en el texto servido", E28.texto);
+    ok(stripLanguageLeaks(E28.texto) === E28.texto, "★ CARNADA · stripLanguageLeaks no cambia nada — cero fuga de registro en toda la Entrega", stripLanguageLeaks(E28.texto));
+    ok(/estado-desconocido/.test(E28.texto) && /los estados válidos son/.test(E28.texto), "★ la declinación nombra el campo y ofrece los estados válidos de la casa", E28.texto.match(/estado-desconocido[^*]*/));
   }
 }
 

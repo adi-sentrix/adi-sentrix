@@ -244,8 +244,28 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
     // figs sin entidad propia (benchmark, montos agregados de todo el alcance) — no es una CUENTA que compita con
     // otra, es el agregado del universo; contarla como un segundo "dueño" frente a la única entidad pedida
     // dispararía esta regla sin que haya ninguna tentación real de comparar dos cuentas (D28: LG-DRYER8KG solo).
-    const duenosEnJuego = new Set((entrega.cifras.filas || []).filter((f) => f.hechos && f.hechos.length).map((f) => Object.values(f.valores)[0]).filter((d) => d !== "Negocio"));
-    if (duenosEnJuego.size > 1) {
+    const filasConDueno = (entrega.cifras.filas || []).filter((f) => f.hechos && f.hechos.length && Object.values(f.valores)[0] !== "Negocio");
+    const duenosEnJuego = new Set(filasConDueno.map((f) => Object.values(f.valores)[0]));
+    // §7.3·25 (SUPERVISOR, residual del diagnóstico v10 — X27/X31/X94: dos partes `cifra`/`decision` de DOMINIOS
+    // distintos, cada una con su propia entidad, sin NINGÚN concepto en común entre ellas — saldo vencido de un
+    // cliente contra la venta de otro, capital de un SKU contra la carga de una marca) — la tentación
+    // precalculada (mecanismo 6) es una AYUDA sobre una cuenta que el anfitrión SÍ podría hacer a mano con lo que
+    // ya está en Cifras; sin ninguna métrica compartida entre dos dueños, esa cuenta no existe (no hay con qué
+    // relacionarlos) — exigir un `razon`/`derivada` ahí sería pedirle al motor una comparación sin sentido de
+    // negocio, la misma ley de la decisión 25 («si no puede declararse… no se declara») extendida al caso en que
+    // NINGÚN par de dueños comparte clave, no solo al caso en que falta el crudo de una que sí la comparte.
+    const hayParComparable = duenosEnJuego.size > 1 && (() => {
+      const metricasPorDueno = new Map();
+      for (const f of filasConDueno) {
+        const dueno = Object.values(f.valores)[0], metrica = f.valores["Métrica"];
+        if (!metrica) continue;
+        if (!metricasPorDueno.has(dueno)) metricasPorDueno.set(dueno, new Set());
+        metricasPorDueno.get(dueno).add(metrica);
+      }
+      const duenos = [...metricasPorDueno.keys()];
+      return duenos.some((dA, i) => duenos.slice(i + 1).some((dB) => [...metricasPorDueno.get(dA)].some((m) => metricasPorDueno.get(dB).has(m))));
+    })();
+    if (hayParComparable) {
       const hayTentacion = libro.hechos.some((h) => h.tipo === "razon" || h.tipo === "derivada");
       // RC5 (owner, diagnostico.md §RC5): esta regla solo miraba el libro del PEDIDO — pero el usuario puede
       // haber traído la MISMA comparación como PREMISA (`libroPremisas`, tipo "relacion", ej. «Sodimac saldo

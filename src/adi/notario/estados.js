@@ -108,6 +108,12 @@ export function estadoDeclarado(s) {
 export const ESTADOS_CANON = new Set(ESTADOS_DE_LA_CASA.map((e) => e.canon));
 const _porCanon = new Map(ESTADOS_DE_LA_CASA.map((e) => [e.canon, e]));
 export const estadoDeLaCasa = (canon) => _porCanon.get(canon) || null;
+/* §7.3·28 (SUPERVISOR, ley de registro del owner) — cuando un estado no se reconoce, la declinación ofrece
+ * alternativas EN VEZ de citar la palabra que lo disparó (si esa palabra está vetada del registro, ver
+ * hechos.js). `estadosValidosPara(eje)` es la ÚNICA fuente de "qué estados existen para este eje" — la misma
+ * tabla que ya usan `estadoDeclarado`/`ejeCompatible`, nunca una lista escrita a mano; sin `eje` (contexto no
+ * resuelto todavía) devuelve el catálogo entero, nunca una lista vacía. */
+export const estadosValidosPara = (eje) => ESTADOS_DE_LA_CASA.filter((e) => ejeCompatible(e, eje)).map((e) => e.canon);
 
 /** estadoCanon(texto) → el nombre canónico del estado que el texto nombra (o el texto normalizado si no es un estado de la casa) */
 export function estadoCanon(t) {

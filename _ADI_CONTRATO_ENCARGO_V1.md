@@ -567,6 +567,14 @@ venta a crédito, ley del owner).
     prohibida («dormido», «plata»…), aunque venga de lo que escribió quien consulta. Al declinar, nombra el campo y ofrece
     los valores válidos de la casa como alternativas, sin reproducir la palabra y sin traducirla (entender el lenguaje le
     toca al LLM).
+29. [2026-09-28, supervisor; ley «declinar honestamente cuenta como éxito»] Si TODAS las partes resueltas se declinan
+    al componer (ranking incompleto, universo que no coincide…), la Entrega sale igual (`ok:true`), con un límite por
+    parte en lenguaje de negocio, el marco y las premisas verificadas. Nunca una Entrega vacía: quien consulta tiene
+    que saber qué no se pudo responder y por qué. `ok:false` queda solo para una raíz inválida o un error interno.
+30. [2026-09-28, supervisor; ley «una definición por estado»] La pertenencia de un SKU a un estado de inventario
+    («inmovilizado», «frenado»…) y las cifras que se sirven de ese SKU salen de la MISMA definición: la de la Mesa
+    Capital (la función que pinta la pantalla), publicada por la proyección. Dos taxonomías para el mismo estado (el
+    campo crudo `estado` por un lado y la política DOH/rotación por otro) son dos verdades, y eso es un defecto.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

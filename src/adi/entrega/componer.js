@@ -43,7 +43,7 @@ import { periodoDeFiguras, reconcilian, UNIVERSOS, PERIODO_TXT } from "../../con
 // (supervisor 2026-09-26, segunda vuelta) resuelve la cifra de una referencia (benchmark, nivel de carga, techo)
 // citada por una premisa, para declararla en el Marco sin excepción al guardrail «comparables juntas».
 import { conjuntoDeUniverso, valorDeReferencia } from "../notario/verificar.js";
-import { estadoCanon } from "../notario/estados.js";
+import { estadoCanon, estadoDeclarado } from "../notario/estados.js";
 // R-SORT-DIRECCION-IGNORADA, defensa en profundidad (supervisor 2026-09-26) — la MISMA normalización de nombres
 // que ya usa el Notario, para comparar el conjunto que `conjuntoDeUniverso` resuelve contra lo que una tool sirvió.
 import { normalizar } from "../notario/afirmacion.js";
@@ -2669,6 +2669,11 @@ export function componerEntrega(resolucion) {
   const planes = [];
   const limitesGap = [];
   const _limiteUniversoNoSoportado = (p) => ({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el filtro del universo no se aplica todavía en este corte`, motivo: "Filtrar por estado o por un umbral numérico exige evaluar cada entidad contra el dato real; ese motor no está construido en este corte (queda señalado para el corte 3c). Se declina esta parte en vez de servir un listado sin filtrar o adivinar el criterio." });
+  // §7.3·27 (SUPERVISOR, corrige la 26b según la ley del owner de la prioridad integrada — X28) — «si en el mismo
+  // eje uno de los dominios resuelve vacío, no hay nada que cruzar»: el tamaño YA VERIFICADO del universo de cada
+  // parte con universo propio (el mismo número que su propia «K de M»/fila de Cifras), para que la cruzada de más
+  // abajo pueda saber, SIN recalcular nada, si alguna de las partes de un grupo cruzable resolvió vacía.
+  const tamanoUniversoPorParte = new Map();
 
   const partesLecturaDecisionSinEntidad = partesUtiles.filter((p) => ["lectura", "decision"].includes(p.cierre) && !(p.entidades && p.entidades.length));
   // CORTE 3c · pieza 1 (owner 2026-09-25): el universo-por-estado SIN `top` (D14/D19) se compone con los
@@ -2678,6 +2683,7 @@ export function componerEntrega(resolucion) {
     const r = _cerrarGrupoUniverso(p, _figsDeParte(p.id), I, hechos, contador, ref, declararRazon, declararDerivadaOpcional);
     if (r.error) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no se pudo evaluar`, motivo: r.error }); continue; }
     planes.push(r);
+    tamanoUniversoPorParte.set(p.id, (r.miembros || []).length);   // §7.3·27
   }
   // §7.3·17 (supervisor 2026-09-27, diagnóstico v8, raíz A2 — LA RAÍZ MÁS PELIGROSA: antes, esta parte servía
   // `ok:true` con el contenido de OTRA pregunta, sin avisar) — una parte con universo PROPIO (`top`, `base`,
@@ -2723,6 +2729,7 @@ export function componerEntrega(resolucion) {
     for (const e of plan.orden) for (const [clave, fig] of _mapaDe(plan.porEntidad, e)) _mapaDe(plan.porEntidad, e).set(clave, ref(fig));
     if (figA0 && figB0) plan.idDiffOrden = declararDerivadaOpcional(figA0, _mapaDe(plan.porEntidad, plan.orden[0]).get(plan.claveOrden), figB0, _mapaDe(plan.porEntidad, plan.orden[1]).get(plan.claveOrden));
     planes.push(plan);
+    tamanoUniversoPorParte.set(p.id, (plan.orden || []).length);   // §7.3·27
   }
   const partesSinEntidadLecturaDecision = _candidatasSinEstadoSinTop.filter((p) => !partesUniversoPropio.includes(p));
   const partesYaAgrupadas = new Set([...partesSinEntidadLecturaDecision, ...partesUniversoPropio, ...partesUniversoPorEstado].map((p) => p.id));
@@ -2831,15 +2838,28 @@ export function componerEntrega(resolucion) {
       if (!gruposPorEje.has(eje)) gruposPorEje.set(eje, []);
       gruposPorEje.get(eje).push(p);
     }
-    const gruposCruzables = [...gruposPorEje.values()].filter((ps) => new Set(ps.map((p) => p.tema)).size >= 2);
-    const gruposExcluidos = [...gruposPorEje.values()].filter((ps) => new Set(ps.map((p) => p.tema)).size < 2);
-    if (!gruposCruzables.length) {
+    // §7.3·27 (SUPERVISOR, corrige la 26b — «la prioridad integrada del procedimiento se define señal por señal
+    // EN EL CLIENTE, y los SKU van aparte», CLAUDE.md) — dos decisions que comparten eje SKU NUNCA cruzan entre
+    // sí, aunque compartan clave real: se declara que no se establece una prioridad entre esos dominios (igual
+    // que un eje distinto), cada una conserva la suya. Eso es DISTINTO de «sin clave real en común» (el grupo
+    // de abajo, `gruposUnTema`): acá SÍ hay 2+ temas en el mismo eje, la ley simplemente los excluye de cruzar.
+    const entradasPorEje = [...gruposPorEje.entries()];
+    const gruposCruzables = entradasPorEje.filter(([eje, ps]) => eje !== "sku" && new Set(ps.map((p) => p.tema)).size >= 2).map(([, ps]) => ps);
+    const gruposSkuDosTemas = entradasPorEje.filter(([eje, ps]) => eje === "sku" && new Set(ps.map((p) => p.tema)).size >= 2).map(([, ps]) => ps);
+    const gruposUnTema = entradasPorEje.filter(([, ps]) => new Set(ps.map((p) => p.tema)).size < 2).map(([, ps]) => ps);
+    if (!gruposCruzables.length && !gruposSkuDosTemas.length) {
       // decisión 24 pura: cada eje trae un único tema — sin clave compartida en NINGÚN par, no hay cruzada posible.
       const nombresDom = temasUniversoPropio.map((d) => { const n = _DOM_NOMBRE[d] || d; return n.charAt(0).toUpperCase() + n.slice(1); });
       const porEje = temasUniversoPropio.map((d) => { const pd = partesParaCruzada.find((p) => p.tema === d); const eje = (pd && (pd.eje || sujetoDeTema(pd.tema))) || d; return `${_DOM_NOMBRE[d] || d}: por ${eje}`; });
       limitesGap.push({ titulo: `Sobre ${nombresDom.join(" y ")}, no se establece una prioridad entre dominios para las cuentas pedidas`, motivo: `Se miden sobre ejes distintos (${porEje.join(" · ")}); cada parte conserva su propia prioridad dentro de su universo.` });
     } else {
       for (const partesGrupo of gruposCruzables) {
+        // §7.3·27, segunda cláusula — «si en el mismo eje uno de los dominios resuelve vacío, no hay nada que
+        // cruzar… y no hace falta declarar nada» (X28: cobranza resuelve 0 de 13 — comercial no tiene con quién
+        // cruzar). La elegibilidad para ENTRAR al grupo sigue siendo por eje pedido (26c, sin cambios); esto solo
+        // decide si ESE grupo, ya elegible, declara algo — nunca afecta a otros grupos ni a la prioridad propia de
+        // cada parte (ya servida arriba, `_planCifraGrupo`/`_cerrarGrupoUniverso`).
+        if (partesGrupo.some((p) => tamanoUniversoPorParte.get(p.id) === 0)) continue;
         const temasGrupo = [...new Set(partesGrupo.map((p) => p.tema))];
         const figsDelGrupoCruce = partesGrupo.flatMap((p) => figsEnAlcance(_figsDeParte(p.id), { ...alcanceDeParte(p), eje: null }, { indice: I }));
         const planCruce = _planMultiTema(temasGrupo, figsDelGrupoCruce, ref, declararRazon, declararDerivadaOpcional, { conDecision: true });
@@ -2848,10 +2868,19 @@ export function componerEntrega(resolucion) {
         // prioridad cruzada y el límite «sin señal», nunca la línea «quien más pesa» por dominio.
         if (planCruce) { planCruce.partesIds = partesGrupo.map((p) => p.id); planCruce._soloAgregado = true; planes.push(planCruce); }
       }
-      if (gruposExcluidos.length) {
+      if (gruposSkuDosTemas.length) {
+        // §7.3·27, primera cláusula — dos (o más) decisions de SKU nunca cruzan entre sí: se declara, nunca en
+        // silencio (a diferencia de la segunda cláusula, acá SÍ hay clave real compartida — el SKU — la ley
+        // simplemente reserva la prioridad integrada para el cliente), y cada una conserva la suya.
+        for (const partesGrupo of gruposSkuDosTemas) {
+          const nombresDom = [...new Set(partesGrupo.map((p) => p.tema))].map((d) => { const n = _DOM_NOMBRE[d] || d; return n.charAt(0).toUpperCase() + n.slice(1); });
+          limitesGap.push({ titulo: `Sobre ${nombresDom.join(" y ")}, no se establece una prioridad entre dominios para las cuentas pedidas`, motivo: "La prioridad integrada del procedimiento se define señal por señal en el cliente; entre dos decisions de SKU no se cruza — cada una conserva su propia prioridad dentro de su universo." });
+        }
+      }
+      if (gruposUnTema.length) {
         // §7.3·26a — forma MIXTA: las partes de un eje que quedó solo NO entran en la(s) cruzada(s) de arriba;
         // se declara, nunca en silencio, y cada una conserva su propia prioridad (ya servida arriba).
-        const nombresExcluidos = [...new Set(gruposExcluidos.flatMap((ps) => ps).map((p) => { const n = _DOM_NOMBRE[p.tema] || p.tema; return n.charAt(0).toUpperCase() + n.slice(1); }))];
+        const nombresExcluidos = [...new Set(gruposUnTema.flatMap((ps) => ps).map((p) => { const n = _DOM_NOMBRE[p.tema] || p.tema; return n.charAt(0).toUpperCase() + n.slice(1); }))];
         limitesGap.push({ titulo: `Sobre ${nombresExcluidos.join(" y ")}, esa parte no entra en la prioridad cruzada de este grupo`, motivo: "Su eje no lo comparte ninguna otra decision del grupo — sin clave real en común no se cruza; conserva su propia prioridad, ya servida dentro de su universo." });
       }
     }
@@ -3205,9 +3234,22 @@ export function componerEntrega(resolucion) {
       if (plan.cierre === "decision" && resolucion.criterio && plan.orden.length) {
         const lenteTxt = resolucion.criterio.lente ? (metricaPorClave(resolucion.criterio.lente) ? metricaPorClave(resolucion.criterio.lente).nombre.toLowerCase() : resolucion.criterio.lente) : (resolucion.criterio.referencia && resolucion.criterio.referencia.concepto);
         const idPrimero = plan.claveOrden ? _mapaDe(plan.porEntidad, plan.orden[0]).get(plan.claveOrden) : null;
-        // solo se agrega la oración cuando hay una cifra propia que la sostenga (regla «oración-hecho»,
-        // `entrega/verificar.js`) — sin ella, la conclusión ya quedó dicha en la oración «El top K de M» de arriba.
         if (lenteTxt && idPrimero != null) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${plan.orden[0]}, con ${R(idPrimero)} en ${(plan.claveOrden ? _labelDeClave(plan.claveOrden) : lenteTxt).toLowerCase()}.`, hechos: [idPrimero] });
+        // §7.3 (SUPERVISOR, residual del diagnóstico v10 — X03.p3/X12.p1/X23.p3) — «la oración de prioridad
+        // dentro del universo falta en kind "grupo" cuando la clave no tiene fig propia por entidad» (el ranking
+        // SÍ llegó — `plan.orden[0]` es el ganador real, ya listado en «El top K de M» arriba — pero esa entidad
+        // no publicó una fig propia para `claveOrden`, así que `idPrimero` es null). Antes, sin cifra propia, la
+        // oración se omitía del todo y `prioridadEnUniverso` (que solo mira si ALGUNA oración del patrón nombra a
+        // alguien de `deben`) terminaba atribuyéndole a esta parte la oración de OTRA parte del mismo encargo.
+        // Mismo mecanismo que ya usa `kind:"grupoUniverso"` unas líneas más abajo (su rama `else if (lenteTxt)`,
+        // que declara sin cifra propia, apoyada en el universo ya declarado) — extendido acá, no duplicado: se
+        // apoya en el MISMO universo y las MISMAS cifras («El top K de M…», `idsCabeza`) que la oración de arriba
+        // ya declaró, nunca una cifra nueva ni inventada.
+        // El nombre va AL FINAL de la oración, a propósito: `verificarEntrega` (regla «dueño de cifra») le exige a
+        // TODO número pegado DESPUÉS de un dueño nombrado que sea SUYO, y «2 de 13» son parámetros del universo
+        // (top·tamaño del eje), no una cifra de `plan.orden[0]` — poniéndolos antes del nombre (como ya hace la
+        // oración «El top K de M» de arriba) esa regla nunca los mira como si fueran de esta entidad.
+        else if (lenteTxt && idsCabeza.length) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${prefijo.charAt(0).toLowerCase()}${prefijo.slice(1)}, ordenado por ${(_labelDeClave(plan.claveOrden) || plan.claveOrden || lenteTxt).toLowerCase()}, lo encabeza ${plan.orden[0]}.`, hechos: idsCabeza });
       }
       _declararUniverso(entrega, I, { id: plan.parteId, eje: plan.eje, top: plan.universoDecl.top, base: plan.universoDecl.base, estados: plan.universoDecl.estados, no_estados: plan.universoDecl.no_estados, filtros: plan.universoDecl.filtros, excluir: plan.universoDecl.excluir, entidades: plan.orden });
     } else if (plan.kind === "comparacion") {
@@ -3619,22 +3661,34 @@ export function componerEntrega(resolucion) {
   const _REFERENCIA_FAMILIAS = {
     benchmark: { eje: "cliente", metrica: "margen", nombreDeLaEmpresa: "el benchmark de la empresa", direcciones: { bajo: { base: "bajo el benchmark", op: "<" }, sobre: { base: "sobre el benchmark", op: ">=" } } },
     nivel_carga: { eje: "cliente", metrica: "carga", nombreDeLaEmpresa: "el nivel declarado de carga", direcciones: { sobre: { base: "sobre el nivel declarado de carga", op: ">" } }, sinAlternativa: ["carga comercial alta"] },
+    // §7.3·19 (SUPERVISOR, residual del diagnóstico v10 — X78/X79) — la TERCERA referencia que la propia decisión
+    // ya nombra («benchmark, nivel declarado de carga, piso de rotación»): sin esta entrada, una referencia de
+    // rotación declarada por el usuario (`criterio.referencia.concepto:"piso_rotacion"`) nunca disparaba nada —
+    // el hueco que el comentario de arriba ya documentaba («un concepto sin entrada, como piso_rotacion, sigue
+    // sin disparar nada»). Sus conjuntos se nombran por ESTADO («rota bien»/«rota lento», notario/estados.js), no
+    // por `base` (un conjunto de `conjuntosDeLaCasa.js`): `estado` en vez de `base` en cada dirección se lee más
+    // abajo con el MISMO valor (ambos son solo la clave que `basesEnJuego` tiene que contener).
+    piso_rotacion: { eje: "sku", metrica: "rotacion", nombreDeLaEmpresa: "el piso de rotación declarado", direcciones: { bajo: { estado: "rota lento", op: "<" }, sobre: { estado: "rota bien", op: ">=" } } },
   };
   {
     const refUsuario = resolucion.criterio && resolucion.criterio.referencia;
     const familiaRef = refUsuario && _REFERENCIA_FAMILIAS[refUsuario.concepto];
     if (familiaRef && Number.isFinite(refUsuario.valor) && I) {
       const _baseCasa = (u) => (u && typeof u.base === "string" ? u.base.trim() : "");
+      // los estados («rota bien»/«rota lento») declarados en un universo, por su nombre CANÓNICO — la misma
+      // fuente (`estadoDeclarado`, notario/estados.js) que ya valida estos campos en `validarUniverso`.
+      const _estadosCasa = (u) => [...(Array.isArray(u && u.estados) ? u.estados : []), ...(Array.isArray(u && u.no_estados) ? u.no_estados : [])].map((e) => estadoDeclarado(e)).filter(Boolean);
       // (2) PARTES y PREMISAS, unidas — nunca solo partesUtiles.
       const basesEnJuego = new Set();
-      for (const p of partesUtiles) { const b = _baseCasa(p.universo); if (b) basesEnJuego.add(normalizar(b)); }
-      for (const pr of resolucion.premisas || []) { const b = _baseCasa(pr.universo != null ? pr.universo : pr.de); if (b) basesEnJuego.add(normalizar(b)); }
+      for (const p of partesUtiles) { const b = _baseCasa(p.universo); if (b) basesEnJuego.add(normalizar(b)); for (const e of _estadosCasa(p.universo)) basesEnJuego.add(normalizar(e)); }
+      for (const pr of resolucion.premisas || []) { const uu = pr.universo != null ? pr.universo : pr.de; const b = _baseCasa(uu); if (b) basesEnJuego.add(normalizar(b)); for (const e of _estadosCasa(uu)) basesEnJuego.add(normalizar(e)); }
       const valFmt = formatoDeLaCasa(refUsuario.valor, refUsuario.unidad || "pct");
       const _nombreDeLasEntidades = (set) => [...set].map((k) => (I.entidades && I.entidades.get ? (I.entidades.get(k) || { nombre: k }).nombre : k));
-      for (const [dir, { base, op }] of Object.entries(familiaRef.direcciones)) {
-        if (!basesEnJuego.has(normalizar(base))) continue;
+      for (const [dir, { base, estado, op }] of Object.entries(familiaRef.direcciones)) {
+        const claveDireccion = base || estado;
+        if (!basesEnJuego.has(normalizar(claveDireccion))) continue;
         try {
-          const oficial = conjuntoDeUniverso({ eje: familiaRef.eje, base }, I, familiaRef.eje, "");
+          const oficial = conjuntoDeUniverso(base ? { eje: familiaRef.eje, base } : { eje: familiaRef.eje, estados: [estado] }, I, familiaRef.eje, "");
           const conReferencia = conjuntoDeUniverso({ eje: familiaRef.eje, filtros: [{ metrica: familiaRef.metrica, op, valor: refUsuario.valor }] }, I, familiaRef.eje, "");
           if (oficial && oficial.set && conReferencia && conReferencia.set) {
             const nombresAlt = _nombreDeLasEntidades(conReferencia.set);
